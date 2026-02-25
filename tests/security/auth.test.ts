@@ -46,7 +46,8 @@ describe("loadEnv", () => {
     expect(env).toEqual({
       haToken: "llt-token",
       bridgePort: 9000,
-      logLevel: "debug"
+      logLevel: "debug",
+      wsAllowlistExtra: []
     });
   });
 });

@@ -4,6 +4,7 @@ export interface EnvConfig {
   haToken: string;
   bridgePort: number;
   logLevel: LogLevel;
+  wsAllowlistExtra: string[];
 }
 
 const DEFAULT_BRIDGE_PORT = 8791;
@@ -33,9 +34,23 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): EnvConfig {
     throw new Error("LOG_LEVEL must be one of trace|debug|info|warn|error");
   }
 
+  const wsAllowlistExtra = parseCsvList(source.WS_ALLOWLIST_APPEND);
+
   return {
     haToken,
     bridgePort,
-    logLevel: logRaw as LogLevel
+    logLevel: logRaw as LogLevel,
+    wsAllowlistExtra
   };
+}
+
+function parseCsvList(input: string | undefined): string[] {
+  if (!input) {
+    return [];
+  }
+
+  return input
+    .split(",")
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0);
 }
