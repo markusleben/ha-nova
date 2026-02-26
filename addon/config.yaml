@@ -1,0 +1,24 @@
+name: HA Nova Bridge
+version: "0.1.0"
+slug: ha_nova_bridge
+description: Thin Home Assistant bridge for WS proxy and skill workflows
+url: https://github.com/markusleben/ha-nova
+arch:
+  - amd64
+  - aarch64
+startup: services
+boot: auto
+init: false
+ingress: true
+ingress_port: 8791
+homeassistant_api: true
+hassio_api: true
+panel_icon: mdi:bridge
+
+options:
+  ha_llat: null
+  ws_allowlist_append: ""
+
+schema:
+  ha_llat: "password?"
+  ws_allowlist_append: "str?"

@@ -45,8 +45,49 @@ describe("loadEnv", () => {
 
     expect(env).toEqual({
       haToken: "llt-token",
+      haUrl: "http://supervisor/core",
+      bridgeVersion: "dev",
+      addonOptionsPath: "/data/options.json",
       bridgePort: 9000,
       logLevel: "debug",
+      wsAllowlistExtra: []
+    });
+  });
+
+  it("reads optional HA_LLAT and SUPERVISOR_TOKEN values", () => {
+    const env = loadEnv({
+      HA_TOKEN: "bridge-token",
+      HA_LLAT: "  user-llat  ",
+      SUPERVISOR_TOKEN: "  supervisor-token  "
+    });
+
+    expect(env).toEqual({
+      haToken: "bridge-token",
+      haLlat: "user-llat",
+      supervisorToken: "supervisor-token",
+      haUrl: "http://supervisor/core",
+      bridgeVersion: "dev",
+      addonOptionsPath: "/data/options.json",
+      bridgePort: 8791,
+      logLevel: "info",
+      wsAllowlistExtra: []
+    });
+  });
+
+  it("maps BRIDGE_AUTH_TOKEN to bridge auth and HA_TOKEN to legacy upstream token", () => {
+    const env = loadEnv({
+      BRIDGE_AUTH_TOKEN: "bridge-auth",
+      HA_TOKEN: "legacy-upstream-token"
+    });
+
+    expect(env).toEqual({
+      haToken: "bridge-auth",
+      legacyHaToken: "legacy-upstream-token",
+      haUrl: "http://supervisor/core",
+      bridgeVersion: "dev",
+      addonOptionsPath: "/data/options.json",
+      bridgePort: 8791,
+      logLevel: "info",
       wsAllowlistExtra: []
     });
   });

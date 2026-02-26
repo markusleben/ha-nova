@@ -24,3 +24,33 @@
   - `skills/ha-automation-control.md`
   - `docs/phase-1b-acceptance.md`
 - Konsistenzcheck (`ha-nova` Routing vs Skill-Dateien) und Vollverifikation (`test`, `typecheck`, `build`) erfolgreich.
+
+## 2026-02-26
+- Mini-Spec für LLAT-Handling + Dev-Seeding erstellt:
+  - `docs/plans/2026-02-26-token-resolution-dev-seed-design.md`
+- Token-Resolver ergänzt:
+  - `src/security/token-resolver.ts`
+  - `tests/security/token-resolver.test.ts`
+- Env-Parsing erweitert für optionale Tokenquellen (`HA_LLAT`, `SUPERVISOR_TOKEN`):
+  - `src/config/env.ts`
+  - `tests/security/auth.test.ts`
+- Idempotentes Dev-Seed-Skript ergänzt (Supervisor validate+write, dry-run support):
+  - `scripts/dev-seed-ha-llat.mjs`
+  - `package.json` script `seed:llat`
+  - `docs/llat-dev-testing.md`
+- Neuer verbindlicher Doku-Gate für zukünftige Planung ergänzt:
+  - `docs/reference/ha-doc-gate-2026-02-26.md`
+- Runtime-Integration für LLAT/Supervisor-Fallback umgesetzt:
+  - `src/runtime/start.ts`
+  - `src/runtime/main.ts`
+  - `src/config/addon-options.ts`
+  - `tests/bootstrap/runtime-start.test.ts`
+  - `tests/config/addon-options.test.ts`
+- Add-on/App-Options-Schema für persistentes `ha_llat` ergänzt:
+  - `addon/config.yaml`
+- Env-Modell erweitert:
+  - neue Felder `HA_URL`, `BRIDGE_VERSION`, `ADDON_OPTIONS_PATH`
+  - auth split mit `BRIDGE_AUTH_TOKEN` + optionalem Legacy-`HA_TOKEN`-Fallback
+- Dev-Startpfad auf Runtime-Entrypoint umgestellt:
+  - `package.json` (`dev` -> `src/runtime/main.ts`)
+- Vollverifikation nach Runtime-Integration erfolgreich (`test`, `typecheck`, `build`).
