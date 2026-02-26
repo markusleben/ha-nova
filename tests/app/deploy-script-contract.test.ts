@@ -16,6 +16,8 @@ describe("app deploy script contract", () => {
     const content = readFileSync("scripts/deploy/ha-app-deploy.sh", "utf8");
 
     expect(content).toContain("--mode fast|clean");
+    expect(content).toContain(".env.local");
+    expect(content).toContain(".env");
     expect(content).toContain("ha apps reload");
     expect(content).toContain("ha apps rebuild");
     expect(content).toContain("ha apps start");

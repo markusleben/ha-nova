@@ -92,3 +92,7 @@
   - npm scripts: `deploy:app:fast`, `deploy:app:clean`
   - Doku: `docs/contributor-deploy-loop.md`
   - Contract test: `tests/app/deploy-script-contract.test.ts`
+- Contributor Env-Setup ergänzt:
+  - `.env.example` hinzugefügt (committet)
+  - `.env`, `.env.local`, `.env.*.local` in `.gitignore`
+  - Deploy/E2E-Skripte laden optional `.env.local`/`.env` mit Vorrang für explizit gesetzte Shell-Variablen

@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
 
 const HELP = `Usage:
   node scripts/smoke/ha-app-e2e.mjs [--apply]
@@ -11,6 +13,7 @@ Environment:
   BRIDGE_AUTH_TOKEN  Required. Bridge auth bearer token.
   HA_LLAT            Optional. LLAT to seed in app options (used when --apply).
   WS_TYPE            Optional. Default: ping
+  Also loaded (if present): .env.local, .env
 
 Behavior:
   - Reads current app options.
@@ -21,6 +24,7 @@ Behavior:
 
 const args = process.argv.slice(2);
 const apply = args.includes("--apply");
+loadLocalEnv();
 
 if (args.includes("-h") || args.includes("--help")) {
   console.log(HELP);
@@ -259,4 +263,61 @@ function sleep(ms) {
 function fail(message) {
   console.error(`[ha-app-e2e] ${message}`);
   process.exit(1);
+}
+
+function loadLocalEnv() {
+  const root = process.cwd();
+  const files = [resolve(root, ".env.local"), resolve(root, ".env")];
+  for (const file of files) {
+    if (!existsSync(file)) {
+      continue;
+    }
+
+    parseEnvFile(file);
+  }
+}
+
+function parseEnvFile(path) {
+  const content = readFileSync(path, "utf8");
+  const allowed = new Set([
+    "SUPERVISOR_TOKEN",
+    "SUPERVISOR_URL",
+    "APP_SLUG",
+    "BRIDGE_BASE_URL",
+    "BRIDGE_AUTH_TOKEN",
+    "HA_LLAT",
+    "WS_TYPE"
+  ]);
+
+  for (const line of content.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) {
+      continue;
+    }
+
+    const idx = line.indexOf("=");
+    if (idx <= 0) {
+      continue;
+    }
+
+    const key = line.slice(0, idx).trim();
+    if (!allowed.has(key)) {
+      continue;
+    }
+
+    const existing = process.env[key];
+    if (existing && existing.trim().length > 0) {
+      continue;
+    }
+
+    let value = line.slice(idx + 1).trim();
+    if (
+      (value.startsWith("\"") && value.endsWith("\""))
+      || (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+
+    process.env[key] = value;
+  }
 }

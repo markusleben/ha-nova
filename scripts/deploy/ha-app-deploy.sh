@@ -2,6 +2,51 @@
 set -euo pipefail
 
 MODE="fast"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+
+load_env_file_if_present() {
+  local file="$1"
+  [[ -f "$file" ]] || return 0
+
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ "$line" =~ ^[[:space:]]*# ]] && continue
+    [[ "$line" =~ ^[[:space:]]*$ ]] && continue
+    [[ "$line" != *=* ]] && continue
+
+    local key="${line%%=*}"
+    local raw="${line#*=}"
+    key="${key#"${key%%[![:space:]]*}"}"
+    key="${key%"${key##*[![:space:]]}"}"
+
+    case "$key" in
+      HA_HOST|HA_SSH_KEY|SSH_USER|SSH_PORT|APP_SLUG|SUPERVISOR_SLUG)
+        ;;
+      *)
+        continue
+        ;;
+    esac
+
+    if [[ -n "${!key:-}" ]]; then
+      continue
+    fi
+
+    raw="${raw#"${raw%%[![:space:]]*}"}"
+    raw="${raw%"${raw##*[![:space:]]}"}"
+
+    if [[ "$raw" == \"*\" && "$raw" == *\" ]]; then
+      raw="${raw:1:${#raw}-2}"
+    elif [[ "$raw" == \'*\' && "$raw" == *\' ]]; then
+      raw="${raw:1:${#raw}-2}"
+    fi
+
+    export "$key=$raw"
+  done < "$file"
+}
+
+# Contributor convenience only; explicit env vars always win.
+load_env_file_if_present "${PROJECT_ROOT}/.env.local"
+load_env_file_if_present "${PROJECT_ROOT}/.env"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -23,6 +68,7 @@ Optional environment:
   SSH_PORT        default: 22
   APP_SLUG        default: ha_nova_bridge
   SUPERVISOR_SLUG default: local_${APP_SLUG}
+  Also loaded (if present): .env.local, .env
 
 Modes:
   fast  Reload app store metadata, ensure app is installed, rebuild, start.

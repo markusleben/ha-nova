@@ -28,6 +28,7 @@ Branch: `feat/phase-1a3-packaging-ha-app`
 
 Guide:
 - `docs/contributor-deploy-loop.md`
+- `.env.example` -> copy to `.env.local` for contributor setup
 
 ## Home Assistant Runtime Smoke (Manual App Flow)
 

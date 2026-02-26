@@ -5,6 +5,22 @@ Date: 2026-02-26
 ## Goal
 
 Fast, repeatable deploys to Home Assistant during development without relying on UI cache behavior.
+This workflow is for contributors only, not normal app users.
+
+## One-time Setup
+
+```bash
+cp .env.example .env.local
+```
+
+Fill `.env.local` with your local values/secrets.
+Best practice:
+- commit `.env.example` only
+- never commit `.env` / `.env.local`
+- prefer `.env.local` for machine-specific secrets
+
+Both deploy and live E2E scripts auto-load `.env.local` and `.env` when present.
+Shell-exported env vars always win over file values.
 
 ## Prerequisites
 
