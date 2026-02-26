@@ -25,16 +25,16 @@ describe("app config contract", () => {
       "8791/tcp": "Relay HTTP API"
     });
 
-    expect(parsed.options).toMatchObject({
+    expect(parsed.options).toEqual({
       relay_auth_token: null,
-      ha_llat: "",
-      ws_allowlist_append: ""
+      ha_llat: null
     });
+    expect(parsed.options).not.toHaveProperty("ws_allowlist_append");
 
-    expect(parsed.schema).toMatchObject({
+    expect(parsed.schema).toEqual({
       relay_auth_token: "password",
-      ha_llat: "password?",
-      ws_allowlist_append: "str?"
+      ha_llat: "password"
     });
+    expect(parsed.schema).not.toHaveProperty("ws_allowlist_append");
   });
 });

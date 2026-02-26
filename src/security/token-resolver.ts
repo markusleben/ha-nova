@@ -1,10 +1,6 @@
-export type UpstreamTokenSource =
-  | "env_ha_llat"
-  | "app_option_ha_llat"
-  | "supervisor_token"
-  | "none";
+export type UpstreamTokenSource = "env_ha_llat" | "app_option_ha_llat" | "none";
 
-export type UpstreamCapability = "full" | "limited" | "none";
+export type UpstreamCapability = "full" | "none";
 
 export interface UpstreamTokenResolution {
   token: string | null;
@@ -16,11 +12,8 @@ export interface UpstreamTokenResolution {
 export interface ResolveUpstreamTokenInput {
   envHaLlat?: string;
   appOptionHaLlat?: string;
-  supervisorToken?: string;
 }
 
-const SUPERVISOR_WARNING =
-  "LLAT missing. Falling back to SUPERVISOR_TOKEN with limited WebSocket scope.";
 const MISSING_TOKEN_WARNING =
   "No upstream token available. Configure HA_LLAT or app option 'ha_llat'.";
 
@@ -35,11 +28,6 @@ export function resolveUpstreamToken(
   const appOptionHaLlat = normalizeToken(input.appOptionHaLlat);
   if (appOptionHaLlat) {
     return success(appOptionHaLlat, "app_option_ha_llat", "full");
-  }
-
-  const supervisorToken = normalizeToken(input.supervisorToken);
-  if (supervisorToken) {
-    return success(supervisorToken, "supervisor_token", "limited", [SUPERVISOR_WARNING]);
   }
 
   return {

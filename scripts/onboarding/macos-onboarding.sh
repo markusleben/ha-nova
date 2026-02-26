@@ -8,12 +8,16 @@ usage() {
 Usage:
   bash scripts/onboarding/macos-onboarding.sh setup
   bash scripts/onboarding/macos-onboarding.sh doctor
+  bash scripts/onboarding/macos-onboarding.sh ready
   bash scripts/onboarding/macos-onboarding.sh env
+  bash scripts/onboarding/macos-onboarding.sh quick
 
 Commands:
-  setup   Interactive setup. Stores secrets in macOS Keychain.
-  doctor  Run onboarding diagnostics and show what is missing.
-  env     Print shell exports from stored config + Keychain secrets.
+  setup   Interactive setup. Stores relay token + required HA LLAT in macOS Keychain.
+  doctor  Run onboarding diagnostics (includes required LLAT + full-scope WS validation).
+  ready   Fast readiness check (cached doctor pass; invalidates on secret/config changes).
+  env     Print shell exports from stored config + required Keychain secrets.
+  quick   Fast readiness check for fresh Codex sessions.
 USAGE
 }
 
@@ -28,8 +32,14 @@ main() {
     doctor)
       exec bash "${SCRIPT_DIR}/macos-doctor.sh" "$@"
       ;;
+    ready)
+      exec bash "${SCRIPT_DIR}/macos-ready.sh" "$@"
+      ;;
     env)
       exec bash "${SCRIPT_DIR}/macos-env.sh" "$@"
+      ;;
+    quick)
+      exec bash "${SCRIPT_DIR}/macos-quick.sh" "$@"
       ;;
     -h|--help|help)
       usage

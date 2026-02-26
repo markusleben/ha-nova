@@ -10,15 +10,14 @@ Avoid manual LLAT re-entry after each dev deployment while keeping full-scope AP
 
 1. `HA_LLAT` (local env; preferred for local dev and CI)
 2. app option `ha_llat` (persistent in `/data/options.json`)
-3. `SUPERVISOR_TOKEN` (limited mode only)
 
 ## Relay Auth vs Upstream Auth
 
 - Relay endpoint auth:
   - `RELAY_AUTH_TOKEN` required
 - Upstream auth:
-  - full scope only with LLAT (`HA_LLAT` or app option `ha_llat`)
-  - otherwise limited mode with `SUPERVISOR_TOKEN`
+  - full scope requires LLAT (`HA_LLAT` or app option `ha_llat`)
+  - no Supervisor-token fallback mode
 
 ## Seed LLAT Once Into App Options
 
@@ -96,6 +95,6 @@ Preferred terminology note (2026+):
 ## Test Matrix
 
 1. Unit tests (`resolveUpstreamToken`): source precedence, warnings, empty input handling
-2. Unit tests (`loadEnv`): optional `HA_LLAT` and `SUPERVISOR_TOKEN`
+2. Unit tests (`loadEnv`): required `HA_LLAT`
 3. Integration tests (`/ws`, `/health`): unchanged behavior
 4. Optional live smoke test: set LLAT once with seed script, then deploy/restart and verify token remains active

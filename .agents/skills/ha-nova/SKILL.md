@@ -11,6 +11,7 @@ description: Use when the user wants Home Assistant operations through HA NOVA (
 
 Operate Home Assistant through HA NOVA with a simple user flow:
 - App + Relay first
+- fastest viable path first (avoid slow fallback paths unless required)
 - minimal prompts
 - safe write confirmation
 
@@ -27,16 +28,25 @@ Before HA operations in this session:
      - run `npm install`,
      - run `npm run install:skills`,
      - restart the client.
-2. Verify onboarding status:
-   - `bash "$NOVA_REPO_ROOT/scripts/onboarding/macos-onboarding.sh" doctor`
-3. If checks fail:
+2. Verify session readiness once per active conversation:
+   - Run exactly once at first HA operation:
+     - `bash "$NOVA_REPO_ROOT/scripts/onboarding/macos-onboarding.sh" ready --quiet`
+   - After a successful result, do not run this check again in the same conversation by default.
+3. Re-run readiness only on explicit capability failure:
+   - examples: relay unreachable, auth rejected, missing required env/token for selected path
+4. If readiness fails:
    - ask user to run `cd "$NOVA_REPO_ROOT" && npm run onboarding:macos`
-   - then run `bash "$NOVA_REPO_ROOT/scripts/onboarding/macos-onboarding.sh" doctor`
+   - then run `bash "$NOVA_REPO_ROOT/scripts/onboarding/macos-onboarding.sh" doctor` for detailed diagnostics
    - stop until onboarding is healthy
-4. Load runtime env from local config + Keychain (for this session):
+5. Load runtime env from local config + Keychain (for this session):
    - `eval "$(bash "$NOVA_REPO_ROOT/scripts/onboarding/macos-onboarding.sh" env)"`
+6. Enforce mandatory LLAT:
+   - if `HA_LLAT` is missing, stop immediately
+   - route user to `npm run onboarding:macos` (setup) + `doctor`
+   - continue only when LLAT validation is healthy
 
 Do not ask user to paste tokens in chat.
+Run preflight checks silently; only report them when they fail.
 
 ## Routing
 

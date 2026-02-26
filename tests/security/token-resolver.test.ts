@@ -6,8 +6,7 @@ describe("resolveUpstreamToken", () => {
   it("prefers HA_LLAT env over all other sources", () => {
     const result = resolveUpstreamToken({
       envHaLlat: "env-token",
-      appOptionHaLlat: "app-token",
-      supervisorToken: "supervisor-token"
+      appOptionHaLlat: "app-token"
     });
 
     expect(result).toEqual({
@@ -20,8 +19,7 @@ describe("resolveUpstreamToken", () => {
 
   it("uses app option LLAT when env LLAT is missing", () => {
     const result = resolveUpstreamToken({
-      appOptionHaLlat: "app-token",
-      supervisorToken: "supervisor-token"
+      appOptionHaLlat: "app-token"
     });
 
     expect(result).toEqual({
@@ -29,19 +27,6 @@ describe("resolveUpstreamToken", () => {
       source: "app_option_ha_llat",
       capability: "full",
       warnings: []
-    });
-  });
-
-  it("falls back to supervisor token in limited mode when no LLAT is available", () => {
-    const result = resolveUpstreamToken({
-      supervisorToken: "supervisor-token"
-    });
-
-    expect(result).toEqual({
-      token: "supervisor-token",
-      source: "supervisor_token",
-      capability: "limited",
-      warnings: ["LLAT missing. Falling back to SUPERVISOR_TOKEN with limited WebSocket scope."]
     });
   });
 
@@ -59,8 +44,7 @@ describe("resolveUpstreamToken", () => {
   it("trims values and ignores empty token strings", () => {
     const result = resolveUpstreamToken({
       envHaLlat: "   ",
-      appOptionHaLlat: "  app-token  ",
-      supervisorToken: " supervisor-token "
+      appOptionHaLlat: "  app-token  "
     });
 
     expect(result).toEqual({

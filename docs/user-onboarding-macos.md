@@ -57,10 +57,16 @@ npm run onboarding:macos
 bash scripts/onboarding/macos-onboarding.sh doctor
 ```
 
+Fast daily readiness check:
+
+```bash
+npm run onboarding:macos:quick
+```
+
 The setup stores:
 - Keychain secrets:
   - `ha-nova.relay-auth-token`
-  - optional `ha-nova.ha-llat`
+  - required `ha-nova.ha-llat`
 - Non-secret config file:
   - `~/.config/ha-nova/onboarding.env`
   - includes `HA_HOST`, `HA_URL`, `RELAY_BASE_URL`
@@ -91,6 +97,6 @@ eval "$(bash scripts/onboarding/macos-onboarding.sh env)"
 - Local App installation/bootstrap via SSH is contributor-only and handled by `scripts/dev/ha-app-bootstrap.sh`.
 - `.env.local` stays a contributor convenience path.
 - Keychain-first is the primary end-user path for macOS.
-- `HA_LLAT` is optional; Relay runs in App-first mode without it.
-- `doctor` warns (does not hard-fail) if Relay reports `ha_ws_connected=false`; this indicates degraded upstream WS scope.
+- `HA_LLAT` is required.
+- `doctor` hard-fails if Relay reports `ha_ws_connected=false`; this indicates invalid/missing LLAT alignment between Keychain and App options.
 - After one-time skill install, use normal daily startup (`codex`, Claude Code, OpenCode). No special launcher required.

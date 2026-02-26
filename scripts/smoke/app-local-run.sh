@@ -18,13 +18,13 @@ case "$(uname -m)" in
 esac
 
 PLATFORM="${PLATFORM:-$DEFAULT_PLATFORM}"
+: "${HA_LLAT:?HA_LLAT is required for app-local-run.sh}"
 
 mkdir -p "$DATA_DIR"
 cat > "$DATA_DIR/options.json" <<EOF
 {
   "relay_auth_token": "${RELAY_AUTH_TOKEN:-dev-relay-token}",
-  "ha_llat": "${HA_LLAT:-}",
-  "ws_allowlist_append": "${WS_ALLOWLIST_APPEND:-}"
+  "ha_llat": "${HA_LLAT}"
 }
 EOF
 
@@ -38,8 +38,7 @@ docker run -d \
   -p "$HOST_PORT:8791" \
   -v "$DATA_DIR:/data" \
   -e RELAY_AUTH_TOKEN="${RELAY_AUTH_TOKEN:-dev-relay-token}" \
-  -e HA_LLAT="${HA_LLAT:-}" \
-  -e WS_ALLOWLIST_APPEND="${WS_ALLOWLIST_APPEND:-}" \
+  -e HA_LLAT="${HA_LLAT}" \
   "$IMAGE_NAME"
 
 echo "Container started: $CONTAINER_NAME on port $HOST_PORT"

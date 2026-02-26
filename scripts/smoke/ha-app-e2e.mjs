@@ -11,7 +11,7 @@ Environment:
   APP_SLUG           Optional. Default: ha_nova_relay
   RELAY_BASE_URL     Required. Base URL for nova relay (example: http://homeassistant.local:8791)
   RELAY_AUTH_TOKEN   Required. Relay auth bearer token.
-  HA_LLAT            Optional. LLAT to seed in app options (used when --apply).
+  HA_LLAT            Required. LLAT to validate/apply in app options.
   WS_TYPE            Optional. Default: ping
   Also loaded (if present): .env.local, .env
 
@@ -33,10 +33,10 @@ if (args.includes("-h") || args.includes("--help")) {
 const supervisorToken = readOptional("SUPERVISOR_TOKEN");
 const relayBaseUrl = stripTrailingSlash(readRequired("RELAY_BASE_URL"));
 const relayAuthToken = readRequired("RELAY_AUTH_TOKEN");
+const requestedLlat = readRequired("HA_LLAT");
 
 const supervisorUrl = stripTrailingSlash(readOptional("SUPERVISOR_URL") ?? "http://supervisor");
 const appSlug = readOptional("APP_SLUG") ?? "ha_nova_relay";
-const requestedLlat = readOptional("HA_LLAT");
 const wsType = readOptional("WS_TYPE") ?? "ping";
 
 if (apply && !supervisorToken) {
@@ -62,19 +62,8 @@ if (supervisorToken) {
   const nextOptions = {
     ...currentOptions,
     relay_auth_token: relayAuthToken,
-    ws_allowlist_append: readOptionalFromUnknown(currentOptions.ws_allowlist_append) ?? ""
+    ha_llat: requestedLlat
   };
-
-  if (requestedLlat !== undefined) {
-    nextOptions.ha_llat = requestedLlat;
-  } else {
-    const currentLlat = readOptionalFromUnknown(currentOptions.ha_llat);
-    if (currentLlat) {
-      nextOptions.ha_llat = currentLlat;
-    } else {
-      delete nextOptions.ha_llat;
-    }
-  }
 
   await requestJson(`${supervisorUrl}/addons/${appSlug}/options/validate`, {
     method: "POST",
@@ -113,10 +102,7 @@ const ws = await callWs({
   wsType
 });
 
-assertWsExpectation({
-  ws,
-  expectFullScope: runtimeHasLlat
-});
+assertWsExpectation({ ws, expectFullScope: runtimeHasLlat });
 
 console.log(
   JSON.stringify(
@@ -190,36 +176,12 @@ async function callWs(input) {
 function assertWsExpectation(input) {
   const { ws, expectFullScope } = input;
 
-  if (expectFullScope) {
-    if (ws.status !== 200) {
-      fail(`Expected /ws status 200 with LLAT, got ${ws.status}: ${JSON.stringify(ws.body)}`);
-    }
-    return;
+  if (expectFullScope === false) {
+    fail("Supervisor preflight reports missing LLAT in app options. Apply HA_LLAT and restart the app.");
   }
 
-  if (expectFullScope === null) {
-    const degraded =
-      ws.status === 502
-      && ws.body
-      && typeof ws.body === "object"
-      && ws.body.error
-      && ws.body.error.code === "UPSTREAM_WS_ERROR";
-
-    if (ws.status !== 200 && !degraded) {
-      fail(`Expected /ws status 200 or degraded 502, got ${ws.status}: ${JSON.stringify(ws.body)}`);
-    }
-    return;
-  }
-
-  const degraded =
-    ws.status === 502
-    && ws.body
-    && typeof ws.body === "object"
-    && ws.body.error
-    && ws.body.error.code === "UPSTREAM_WS_ERROR";
-
-  if (ws.status !== 200 && !degraded) {
-    fail(`Expected /ws status 200 or degraded 502, got ${ws.status}: ${JSON.stringify(ws.body)}`);
+  if (ws.status !== 200) {
+    fail(`Expected /ws status 200 with mandatory LLAT, got ${ws.status}: ${JSON.stringify(ws.body)}`);
   }
 }
 

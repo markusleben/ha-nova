@@ -11,20 +11,22 @@ Route user requests to the correct HA NOVA skill path with strict preconditions 
 
 Primary model:
 - App + Relay first.
+- Always choose the fastest viable path for the current capability state.
 - Direct HA REST only when required and authorized.
 - Writes always require preview + explicit confirmation.
 
-## Mandatory Gate (Run Before Any HA Operation)
+## Mandatory Gate (Session-Aware)
 
-1. Run onboarding health check:
-   - `bash scripts/onboarding/macos-onboarding.sh doctor`
+1. Run fast readiness check:
+   - `bash scripts/onboarding/macos-onboarding.sh ready --quiet`
 2. If any required check fails:
    - stop operation routing,
    - route to `ha-onboarding`,
-   - continue only after `doctor` is healthy.
+   - continue only after readiness is healthy.
 3. Resolve capability mode for this session:
-   - `app_relay_only`: `HA_URL` + `RELAY_BASE_URL` + `RELAY_AUTH_TOKEN` available, no `HA_LLAT`
-   - `direct_rest_enabled`: same inputs plus `HA_LLAT`
+   - `app_relay_connected`: Relay reachable and `ha_ws_connected=true`
+   - `app_relay_degraded`: Relay reachable but `ha_ws_connected=false` (configuration failure)
+   - `direct_rest_enabled`: `HA_LLAT` available
 
 ## Session Inputs
 
@@ -32,8 +34,7 @@ Primary model:
   - `HA_URL`
   - `RELAY_BASE_URL`
   - `RELAY_AUTH_TOKEN`
-- Optional:
-  - `HA_LLAT` (enables full direct REST flows)
+  - `HA_LLAT`
 
 ## Active Skill Catalog
 
@@ -54,11 +55,13 @@ Primary model:
 
 ## Capability Routing Rules
 
-- In `app_relay_only` mode:
-  - allow App + Relay operations.
-  - for direct REST flows that require LLAT, stop and route to `ha-onboarding`.
+- In `app_relay_connected` mode:
+  - prefer App + Relay for read/discovery flows.
+  - use direct REST only when explicitly needed.
+- In `app_relay_degraded` mode:
+  - stop quickly with exact capability reason and route to `ha-onboarding`.
 - In `direct_rest_enabled` mode:
-  - allow all active skill flows.
+  - allow direct REST fallback when Relay is unavailable.
 
 ## Safety Baseline
 
@@ -66,3 +69,4 @@ Primary model:
 - Resolve ambiguity by listing/filtering first.
 - Show preview before write operations.
 - Wait for explicit user confirmation before execute.
+- Keep internal preflight checks silent in normal flow; show details only on failure.

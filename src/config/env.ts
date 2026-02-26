@@ -2,14 +2,12 @@ export type LogLevel = "trace" | "debug" | "info" | "warn" | "error";
 
 export interface EnvConfig {
   relayAuthToken: string;
-  haLlat?: string;
-  supervisorToken?: string;
+  haLlat: string;
   haUrl: string;
   relayVersion: string;
   appOptionsPath: string;
   relayPort: number;
   logLevel: LogLevel;
-  wsAllowlistExtra: string[];
 }
 
 const DEFAULT_RELAY_PORT = 8791;
@@ -26,12 +24,8 @@ const ALLOWED_LOG_LEVELS = new Set<LogLevel>([
 ]);
 
 export function loadEnv(source: NodeJS.ProcessEnv = process.env): EnvConfig {
-  const relayAuthToken = parseOptionalToken(source.RELAY_AUTH_TOKEN);
-  if (!relayAuthToken) {
-    throw new Error("RELAY_AUTH_TOKEN is required");
-  }
-  const haLlat = parseOptionalToken(source.HA_LLAT);
-  const supervisorToken = parseOptionalToken(source.SUPERVISOR_TOKEN);
+  const relayAuthToken = parseRequiredToken(source.RELAY_AUTH_TOKEN, "RELAY_AUTH_TOKEN is required");
+  const haLlat = parseRequiredToken(source.HA_LLAT, "HA_LLAT is required");
   const haUrl = parseRequiredLike(source.HA_URL, DEFAULT_HA_URL);
   const relayVersion = parseRequiredLike(source.RELAY_VERSION, DEFAULT_RELAY_VERSION);
   const appOptionsPath = parseRequiredLike(source.APP_OPTIONS_PATH, DEFAULT_APP_OPTIONS_PATH);
@@ -47,44 +41,30 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): EnvConfig {
     throw new Error("LOG_LEVEL must be one of trace|debug|info|warn|error");
   }
 
-  const wsAllowlistExtra = parseCsvList(source.WS_ALLOWLIST_APPEND);
-
-  const config: EnvConfig = {
+  return {
     relayAuthToken,
+    haLlat,
     haUrl,
     relayVersion,
     appOptionsPath,
     relayPort,
-    logLevel: logRaw as LogLevel,
-    wsAllowlistExtra
+    logLevel: logRaw as LogLevel
   };
-
-  if (haLlat) {
-    config.haLlat = haLlat;
-  }
-
-  if (supervisorToken) {
-    config.supervisorToken = supervisorToken;
-  }
-
-  return config;
-}
-
-function parseCsvList(input: string | undefined): string[] {
-  if (!input) {
-    return [];
-  }
-
-  return input
-    .split(",")
-    .map((value) => value.trim())
-    .filter((value) => value.length > 0);
 }
 
 function parseOptionalToken(input: string | undefined): string | undefined {
   const value = input?.trim();
-  if (!value) {
+  if (!value || value === "null") {
     return undefined;
+  }
+
+  return value;
+}
+
+function parseRequiredToken(input: string | undefined, errorMessage: string): string {
+  const value = parseOptionalToken(input);
+  if (!value) {
+    throw new Error(errorMessage);
   }
 
   return value;

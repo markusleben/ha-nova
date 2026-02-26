@@ -210,3 +210,66 @@
   - updated onboarding contract tests and user docs for both canonical raw install links.
 - Added design spec:
   - `docs/plans/2026-02-26-skill-orchestrator-install-ux-alignment-design.md`
+- Added one-command contributor MVP validation flow:
+  - new script: `scripts/smoke/ha-app-mvp-crud-smoke.sh`
+  - new npm command: `smoke:app:mvp`
+  - new contract test: `tests/app/mvp-automation-crud-smoke-contract.test.ts`
+  - docs update: `docs/contributor-deploy-loop.md` (MVP validation section)
+  - design spec: `docs/plans/2026-02-26-one-command-mvp-crud-validation-design.md`
+- Added fresh-session fast readiness gate for contributors/users:
+  - new command path: `scripts/onboarding/macos-onboarding.sh quick`
+  - new dispatcher file: `scripts/onboarding/macos-quick.sh`
+  - new npm shortcut: `onboarding:macos:quick`
+  - quick gate validates doctor + codex skill installation marker.
+- Fixed quick-gate repo-root marker parsing bug:
+  - `run_quick` now strips trailing `-->` from skill marker before root comparison.
+  - verified with `bash scripts/onboarding/macos-onboarding.sh quick`.
+- Added real Codex live E2E harness for skill behavior validation:
+  - new script: `scripts/e2e/codex-ha-nova-live-skill-e2e.sh`
+  - new npm shortcut: `e2e:skill:codex`
+  - output: JSONL session log under `/tmp/ha-nova-codex-live-e2e.*` (or `OUTPUT_DIR`).
+  - assertions include skill-use evidence, onboarding-doctor evidence, capability-aware final status, and no helper-script/subagent execution.
+- Added contract test coverage for new live E2E harness:
+  - new file: `tests/e2e/codex-skill-live-contract.test.ts`
+  - updated onboarding contract for `quick` behavior and marker parsing regression.
+- Documentation updates:
+  - `docs/contributor-deploy-loop.md`: added `onboarding:macos:quick` and `e2e:skill:codex` flow (+ `E2E_EXPECT` override).
+  - `docs/user-onboarding-macos.md`: added fast daily `onboarding:macos:quick` command.
+- Verification evidence:
+  - `shellcheck scripts/e2e/codex-ha-nova-live-skill-e2e.sh scripts/onboarding/macos-onboarding.sh scripts/onboarding/macos-lib.sh scripts/onboarding/macos-quick.sh`
+  - `npm test -- tests/e2e/codex-skill-live-contract.test.ts tests/onboarding/macos-onboarding-script-contract.test.ts` (pass)
+  - `bash scripts/onboarding/macos-onboarding.sh quick` (pass)
+  - `npm run e2e:skill:codex` executed live; current environment yields capability-blocked flow without `HA_LLAT`.
+- Refined Codex live E2E subagent handling:
+  - default policy now allows subagent delegation for realistic behavior (`E2E_SUBAGENT_POLICY=allow`).
+  - optional strict mode available (`E2E_SUBAGENT_POLICY=deny`) for single-agent validation.
+  - contract test updated to cover subagent policy surface.
+- Performance/UX optimization for live skill usage:
+  - added cached readiness gate command: `ready` (`scripts/onboarding/macos-ready.sh`, `run_ready` in `macos-lib.sh`).
+  - `ready --quiet` suppresses preflight output on success and shows diagnostics only on failure.
+  - onboarding dispatcher now supports `setup|doctor|ready|env|quick`.
+  - new npm shortcut: `onboarding:macos:ready`.
+- Skill behavior refinement for speed-first routing:
+  - `ha-nova` orchestrator now uses `ready --quiet` and explicit "fastest viable path first" policy.
+  - `ha-entities` changed to capability-aware App + Relay first (`/ws get_states`) with direct REST + `HA_LLAT` fallback.
+- Global Codex skill refreshed after changes via `npm run install:codex-skill`.
+- Verification run after optimization:
+  - `shellcheck` on onboarding scripts passed.
+  - `npm test -- tests/onboarding/macos-onboarding-script-contract.test.ts tests/e2e/codex-skill-live-contract.test.ts` passed.
+  - `bash scripts/onboarding/macos-onboarding.sh ready --quiet` exit 0 with no noisy output.
+- Added mandatory-LLAT mini-spec:
+  - `docs/plans/2026-02-26-llat-mandatory-policy-design.md`
+- Enforced mandatory LLAT in runtime and App start path:
+  - removed upstream fallback to `SUPERVISOR_TOKEN` in token resolver/runtime bootstrap.
+  - `loadEnv` now requires `HA_LLAT`.
+  - `app/run` now exits early when `HA_LLAT` is missing.
+  - `app/config.yaml` now requires `ha_llat` in schema/options.
+- Enforced mandatory LLAT in onboarding scripts:
+  - setup now requires LLAT input (or existing Keychain LLAT) and validates via `HA_URL/api/`.
+  - doctor now hard-fails on missing/invalid LLAT and on Relay degraded WS (`ha_ws_connected=false`).
+  - env now hard-fails if LLAT is missing in Keychain.
+  - ready cache now includes relay-token and LLAT fingerprints to avoid stale-pass behavior.
+- Reduced MVP config surface (KISS):
+  - removed `ws_allowlist_append` from App config, runner env mapping, and deploy/smoke option payloads.
+- Supersession note:
+  - earlier 2026-02-26 entries that describe optional/no-LLAT behavior are historical and superseded by the mandatory-LLAT policy above.

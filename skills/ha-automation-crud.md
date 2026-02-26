@@ -20,9 +20,10 @@ Use the best available capability path for the current session.
 
 ## Capability Selection (Mandatory)
 
-1. Prefer Path A when available (`SUPERVISOR_TOKEN` + `/core/api` access).
-2. Otherwise use Path B (`HA_LLAT`).
-3. If neither path is available:
+1. Require `HA_LLAT` as baseline capability.
+2. Prefer Path A when available (`SUPERVISOR_TOKEN` + `/core/api` access).
+3. Otherwise use Path B.
+4. If neither path is available:
    - stop CRUD execution,
    - route user to `ha-onboarding` with exact missing capability.
 

@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 
-import { loadEnv } from "../../src/config/env.js";
 import { WsAllowlistError, createWsAllowlist } from "../../src/security/ws-allowlist.js";
 
 describe("ws allowlist", () => {
@@ -21,14 +20,9 @@ describe("ws allowlist", () => {
     );
   });
 
-  it("supports wildcard entries and env-based extension", () => {
-    const env = loadEnv({
-      RELAY_AUTH_TOKEN: "llt-token",
-      WS_ALLOWLIST_APPEND: "lovelace/*,energy/*"
-    });
-
+  it("supports wildcard entries and explicit extension", () => {
     const allowlist = createWsAllowlist({
-      extraPatterns: env.wsAllowlistExtra
+      extraPatterns: ["lovelace/*", "energy/*"]
     });
 
     expect(allowlist.isAllowed("lovelace/config")).toBe(true);

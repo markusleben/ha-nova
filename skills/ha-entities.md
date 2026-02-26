@@ -1,34 +1,51 @@
 ---
 name: ha-entities
-description: Discover, list, and filter Home Assistant entities via REST states and service metadata.
+description: Discover, list, and filter Home Assistant entities via App + Relay first, then direct REST fallback when needed.
 ---
 
 # HA Entities
 
 ## Purpose
 
-Resolve exact entity IDs and service capabilities before control or write operations.
+Resolve exact entity IDs before control or write operations.
 
-## Required Inputs
+## Capability Inputs
 
-- `HA_URL`
-- `HA_LLAT` (Long-Lived Access Token for direct REST)
+- Path A: App + Relay (preferred)
+  - `RELAY_BASE_URL`
+  - `RELAY_AUTH_TOKEN`
+- Path B: Direct Home Assistant REST (fallback)
+  - `HA_URL`
+  - `HA_LLAT`
 
-## Primary Endpoints
+## Capability Selection (Mandatory)
 
-- `GET {HA_URL}/api/states`
-- `GET {HA_URL}/api/states/{entity_id}`
-- `GET {HA_URL}/api/services`
+1. Require `HA_LLAT` before entity discovery starts.
+2. Prefer the fastest viable path: Path A when Relay is reachable and reports upstream WS connected (`ha_ws_connected=true`).
+3. Otherwise use Path B.
+4. If neither path is available:
+   - stop entity discovery,
+   - route user to `ha-onboarding` with exact missing capability.
+
+## Endpoints by Path
+
+- Path A (Relay)
+  - `GET {RELAY_BASE_URL}/health`
+  - `POST {RELAY_BASE_URL}/ws` with `{"type":"get_states"}`
+- Path B (Direct REST)
+  - `GET {HA_URL}/api/states`
+  - `GET {HA_URL}/api/states/{entity_id}`
 
 ## Workflow
 
-1. For broad discovery, call `GET /api/states` once.
+1. Load all states once:
+   - Path A: `POST /ws` with `{"type":"get_states"}`
+   - Path B: `GET /api/states`
 2. Filter client-side by:
    - domain (`light.`, `switch.`, `sensor.`, `automation.`)
    - `friendly_name`
    - area/device hints embedded in `entity_id` or attributes
-3. For exact detail, call `GET /api/states/{entity_id}`.
-4. For available actions, call `GET /api/services`.
+3. For exact detail (Path B only), call `GET /api/states/{entity_id}` when needed.
 
 ## Output Format
 
@@ -43,7 +60,3 @@ For each returned entity provide:
 - Never guess entity IDs.
 - If multiple candidates match, return shortlist and ask user to pick.
 - Prefer exact `entity_id` confirmation before downstream writes.
-
-If `HA_LLAT` is unavailable:
-- stop direct REST entity discovery,
-- route user to `ha-onboarding` for token setup guidance.

@@ -29,12 +29,12 @@ describe("runtime bootstrap", () => {
     const runtime = bootstrapRuntime({
       loadEnv: () => ({
         relayAuthToken: "relay-token",
+        haLlat: "   ",
         haUrl: "http://supervisor/core",
         relayVersion: "1.2.3",
         appOptionsPath: "/data/options.json",
         relayPort: 8791,
-        logLevel: "info",
-        wsAllowlistExtra: []
+        logLevel: "info"
       }),
       readAppOptions: () => ({
         ha_llat: "app-llat"
@@ -53,19 +53,39 @@ describe("runtime bootstrap", () => {
     expect(runtime.app.version).toBe("1.2.3");
   });
 
-  it("starts in limited mode when only supervisor token is available", async () => {
+  it("throws when no LLAT source is available", () => {
+    expect(() =>
+      bootstrapRuntime({
+        loadEnv: () => ({
+          relayAuthToken: "relay-token",
+          haLlat: "   ",
+          haUrl: "http://supervisor/core",
+          relayVersion: "1.2.3",
+          appOptionsPath: "/data/options.json",
+          relayPort: 8791,
+          logLevel: "info"
+        }),
+        readAppOptions: () => ({})
+      })
+    ).toThrowError("HA_LLAT is required for runtime startup.");
+  });
+
+  it("starts and serves when LLAT is available", async () => {
     const runtime = bootstrapRuntime({
       loadEnv: () => ({
         relayAuthToken: "relay-token",
-        supervisorToken: "supervisor-token",
+        haLlat: "env-llat",
         haUrl: "http://supervisor/core",
         relayVersion: "1.2.3",
         appOptionsPath: "/data/options.json",
         relayPort: 8791,
-        logLevel: "info",
-        wsAllowlistExtra: []
+        logLevel: "info"
       }),
-      readAppOptions: () => ({})
+      readAppOptions: () => ({}),
+      createWsClient: () => ({
+        isConnected: () => true,
+        sendMessage: async <T>() => ({ type: "pong" } as T)
+      })
     });
 
     servers.push(runtime.app.server);
@@ -80,7 +100,7 @@ describe("runtime bootstrap", () => {
       ok: true,
       data: {
         status: "ok",
-        ha_ws_connected: false,
+        ha_ws_connected: true,
         version: "1.2.3",
         uptime_s: expect.any(Number)
       }
@@ -95,19 +115,18 @@ describe("runtime bootstrap", () => {
       body: JSON.stringify({ type: "ping" })
     });
 
-    expect(runtime.upstreamAuth.source).toBe("supervisor_token");
-    expect(runtime.upstreamAuth.capability).toBe("limited");
-    expect(ws.status).toBe(502);
+    expect(runtime.upstreamAuth.source).toBe("env_ha_llat");
+    expect(runtime.upstreamAuth.capability).toBe("full");
+    expect(ws.status).toBe(200);
     await expect(ws.json()).resolves.toEqual({
-      ok: false,
-      error: {
-        code: "UPSTREAM_WS_ERROR",
-        message: "LLAT is required for full WebSocket scope. Configure HA_LLAT or app option 'ha_llat'."
+      ok: true,
+      data: {
+        type: "pong"
       }
     });
   });
 
-  it("logs startup auth context and listens successfully in limited mode", async () => {
+  it("logs startup auth context and listens successfully in full mode", async () => {
     const infoLogs: Array<{ message: string; context: Record<string, unknown> | undefined }> = [];
     const warnLogs: Array<{ message: string; context: Record<string, unknown> | undefined }> = [];
     let listenCalledWithPort: number | null = null;
@@ -115,15 +134,18 @@ describe("runtime bootstrap", () => {
     const result = await startRelay({
       loadEnv: () => ({
         relayAuthToken: "relay-token",
-        supervisorToken: "supervisor-token",
+        haLlat: "env-llat",
         haUrl: "http://supervisor/core",
         relayVersion: "1.2.3",
         appOptionsPath: "/data/options.json",
         relayPort: 8791,
-        logLevel: "info",
-        wsAllowlistExtra: []
+        logLevel: "info"
       }),
       readAppOptions: () => ({}),
+      createWsClient: () => ({
+        isConnected: () => true,
+        sendMessage: async <T>() => ({ type: "pong" } as T)
+      }),
       logger: {
         info: (message, context) => {
           infoLogs.push({ message, context });
@@ -138,8 +160,8 @@ describe("runtime bootstrap", () => {
       }
     });
 
-    expect(result.upstreamAuth.source).toBe("supervisor_token");
-    expect(result.upstreamAuth.capability).toBe("limited");
+    expect(result.upstreamAuth.source).toBe("env_ha_llat");
+    expect(result.upstreamAuth.capability).toBe("full");
     expect(listenCalledWithPort).toBe(8791);
     expect(infoLogs).toContainEqual({
       message: "Relay bootstrap",
@@ -147,14 +169,11 @@ describe("runtime bootstrap", () => {
         ha_url: "http://supervisor/core",
         relay_port: 8791,
         app_options_path: "/data/options.json",
-        auth_source: "supervisor_token",
-        auth_capability: "limited"
+        auth_source: "env_ha_llat",
+        auth_capability: "full"
       }
     });
-    expect(warnLogs).toContainEqual({
-      message: "LLAT missing. Falling back to SUPERVISOR_TOKEN with limited WebSocket scope.",
-      context: undefined
-    });
+    expect(warnLogs).toEqual([]);
   });
 });
 

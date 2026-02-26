@@ -36,6 +36,7 @@ export HA_HOST='<ha-host-or-ip>'
 export HA_SSH_KEY='<path-to-private-key>'
 export RELAY_BASE_URL='http://<ha-host>:8791'
 export RELAY_AUTH_TOKEN='<relay-auth-token>'
+export HA_LLAT='<required-llat>'
 ```
 
 Optional env:
@@ -45,8 +46,6 @@ export SSH_USER='root'
 export SSH_PORT='22'
 export APP_SLUG='ha_nova_relay'
 export SUPERVISOR_SLUG='local_ha_nova_relay'
-export HA_LLAT='<optional-llat>'
-export WS_ALLOWLIST_APPEND='<optional-extra-patterns>'
 ```
 
 Note:
@@ -65,7 +64,7 @@ What it does:
 - syncs this repository to `/addons/local/<app_slug>` on HA host
 - prepares local Supervisor build context for this project layout
 - reloads store + installs app if missing
-- validates/writes options (`relay_auth_token`, optional `ha_llat`)
+- validates/writes options (`relay_auth_token`, required `ha_llat`)
 - starts/restarts app and prints status + logs
 
 Requirements:
@@ -106,6 +105,35 @@ Extra steps vs `fast`:
 
 ## Verification
 
+Fast daily readiness check (recommended before heavy tests):
+
+```bash
+npm run onboarding:macos:quick
+```
+
+What it validates:
+- onboarding doctor checks (HA + Relay + Keychain token)
+- local Codex skill installation marker
+- fresh-session readiness prompt
+
+Real user-like live E2E through Codex agent:
+
+```bash
+npm run e2e:skill:codex
+```
+
+What it validates:
+- runs a real `codex exec --json` session
+- enforces local `ha-nova` skill usage
+- executes automation CRUD scenario with marker-based assertions
+- stores machine-readable session log for audit/debug
+
+Optional override:
+- `AUTOMATION_ID` to set a custom test automation id
+- `OUTPUT_DIR` to keep logs in a fixed path
+- `E2E_EXPECT=ok` (default `auto` resolves to `ok`; missing `HA_LLAT` is a setup error)
+- `E2E_SUBAGENT_POLICY=allow|deny` (`allow` default for realistic user-like agent behavior)
+
 After deploy, run live checks:
 
 ```bash
@@ -124,12 +152,36 @@ SUPERVISOR_TOKEN='<token>' \
 APP_SLUG='ha_nova_relay' \
 RELAY_BASE_URL='http://<ha-host>:8791' \
 RELAY_AUTH_TOKEN='<relay-auth-token>' \
+HA_LLAT='<user-generated-llat>' \
 npm run smoke:app:e2e
 ```
 
 `SUPERVISOR_TOKEN` handling:
-- Optional for runtime-only check (`health/ws`).
+- Optional for runtime-only check (`health/ws`) when app options are already correct.
 - Required for Supervisor preflight (`/addons/.../info`, `validate`) and `--apply`.
+
+## One-Command MVP Validation (Automation CRUD)
+
+Use this when you want an end-to-end contributor smoke for current MVP behavior:
+
+```bash
+npm run smoke:app:mvp
+```
+
+What it validates:
+- onboarding health (`doctor`)
+- SSH reachability to HA host
+- automation CRUD in App container context (`create -> read -> update -> read -> delete -> verify 404`)
+- deterministic cleanup via shell trap
+
+Defaults:
+- `HA_SSH_KEY` falls back to `${HOME}/.ssh/ha_mcp` if not set.
+- test automation id defaults to `nova_mvp_crud_smoke` (override with `MVP_AUTOMATION_ID`).
+
+Positioning:
+- `onboarding:macos:quick`: fastest readiness gate (daily).
+- `e2e:skill:codex`: user-like live skill path validation.
+- `smoke:app:mvp`: deep App-container CRUD validation.
 
 ## Cache Notes
 

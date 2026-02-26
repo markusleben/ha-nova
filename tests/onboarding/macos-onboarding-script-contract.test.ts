@@ -35,6 +35,7 @@ describe("macOS onboarding script contract", () => {
       "scripts/onboarding/macos-lib.sh",
       "scripts/onboarding/macos-setup.sh",
       "scripts/onboarding/macos-doctor.sh",
+      "scripts/onboarding/macos-ready.sh",
       "scripts/onboarding/macos-env.sh"
     ];
 
@@ -55,15 +56,31 @@ describe("macOS onboarding script contract", () => {
     expect(content).toContain("ha-nova.ha-llat");
   });
 
-  it("supports setup, doctor, and env commands only", () => {
+  it("supports setup, doctor, ready, env, and quick commands only", () => {
     const content = readFileSync("scripts/onboarding/macos-onboarding.sh", "utf8");
 
     expect(content).toContain(" setup");
     expect(content).toContain(" doctor");
+    expect(content).toContain(" ready");
     expect(content).toContain(" env");
+    expect(content).toContain(" quick");
     expect(content).not.toContain("start");
     expect(content).not.toContain("codex");
     expect(content).not.toContain("claude");
+  });
+
+  it("implements quick readiness gate for fresh Codex sessions", () => {
+    const lib = readFileSync("scripts/onboarding/macos-lib.sh", "utf8");
+
+    expect(lib).toContain("run_quick()");
+    expect(lib).toContain("run_ready()");
+    expect(lib).toContain("DOCTOR_CACHE_FILE");
+    expect(lib).toContain("DOCTOR_CACHE_RELAY_TOKEN_FINGERPRINT");
+    expect(lib).toContain("DOCTOR_CACHE_HA_LLAT_FINGERPRINT");
+    expect(lib).toContain(".agents/skills/ha-nova/SKILL.md");
+    expect(lib).toContain("ha-nova-managed-install repo_root:");
+    expect(lib).toContain("installed_repo_root=\"${installed_repo_root%-->}\"");
+    expect(lib).toContain("Fresh Codex session prompt:");
   });
 
   it("contains no contributor bootstrap or SSH flow", () => {
@@ -95,7 +112,12 @@ describe("macOS onboarding script contract", () => {
     expect(content).toContain("leave empty to keep existing or auto-generate");
     expect(content).toContain("Using existing relay auth token from Keychain");
     expect(content).toContain("ha_ws_connected=false");
-    expect(content).toContain("optional HA_LLAT can unlock full-scope WS features");
+    expect(content).toContain("HA_LLAT is required for full-scope WS features");
+    expect(content).toContain(
+      "Home Assistant Long-Lived Access Token (required; leave empty to keep existing):"
+    );
+    expect(content).toContain("Missing Home Assistant LLAT in Keychain");
+    expect(content).not.toContain("unset HA_LLAT");
   });
 
   it("fails fast on non-interactive setup input", () => {
@@ -129,7 +151,18 @@ describe("macOS onboarding script contract", () => {
     const curlPath = join(binDir, "curl");
     writeFileSync(
       curlPath,
-      "#!/usr/bin/env bash\nexit 1\n",
+      `#!/usr/bin/env bash
+url="\${@: -1}"
+if [[ "$url" == *"/api/" ]]; then
+  printf '200'
+  exit 0
+fi
+if [[ "$url" == *"/health" ]]; then
+  printf '{"status":"ok","ha_ws_connected":true}'
+  exit 0
+fi
+exit 1
+`,
       { encoding: "utf8", mode: 0o755 }
     );
 
@@ -147,8 +180,7 @@ describe("macOS onboarding script contract", () => {
       "",
       "",
       "y",
-      "",
-      "",
+      "dummy-llat",
       ""
     ].join("\n");
 
@@ -208,6 +240,12 @@ describe("macOS onboarding script contract", () => {
     expect(pkg.scripts?.["onboarding:macos"]).toBe(
       "bash scripts/onboarding/macos-onboarding.sh setup"
     );
+    expect(pkg.scripts?.["onboarding:macos:ready"]).toBe(
+      "bash scripts/onboarding/macos-onboarding.sh ready"
+    );
+    expect(pkg.scripts?.["onboarding:macos:quick"]).toBe(
+      "bash scripts/onboarding/macos-onboarding.sh quick"
+    );
     expect(pkg.scripts?.["install:codex-skill"]).toBe(
       "bash scripts/onboarding/install-local-skills.sh codex"
     );
@@ -252,6 +290,7 @@ describe("macOS onboarding script contract", () => {
       "https://raw.githubusercontent.com/markusleben/ha-nova/main/.claude/INSTALL.md"
     );
     expect(userDoc).toContain("npm run install:skills");
+    expect(userDoc).toContain("onboarding:macos:quick");
     expect(userDoc).toContain("No special launcher required");
     expect(onboardingAlias).toContain("/.codex/INSTALL.md");
     expect(codexSkill).toContain("name: ha-nova");

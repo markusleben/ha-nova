@@ -8,7 +8,7 @@ description: Ultra-lean first-run onboarding for HA Nova with App-first flow and
 ## Goal
 
 Get users to the first successful result in minutes with minimal setup burden.
-Do not block first-run onboarding on LLAT.
+Block onboarding completion until LLAT is configured and validated.
 On macOS, prefer Keychain-backed setup over `.env.local` editing.
 
 ## Step 1: App-First Prerequisite
@@ -26,7 +26,7 @@ Run in order:
 
 Success criteria:
 - Relay health responds with `status: ok`.
-- Relay WS endpoint responds (`200`) or returns an explicit degraded upstream error.
+- Relay WS endpoint responds (`200`) with no degraded upstream state.
 
 ## Step 3: Three Quick Wins
 
@@ -41,4 +41,5 @@ Success criteria:
 - Relay unreachable:
   - Ensure NOVA Relay app is running.
 - Full-scope WS features unavailable:
-  - Continue onboarding in App-first mode, then optionally configure `HA_LLAT` later if needed for advanced/non-App scenarios.
+  - Stop and configure `HA_LLAT` now.
+  - Continue only after token validation succeeds and Relay reports `ha_ws_connected=true`.

@@ -36,7 +36,7 @@ Guide:
 2. Install `NOVA Relay`.
 3. Configure options:
    - `relay_auth_token`: required
-   - `ha_llat`: optional but required for full WS scope
+   - `ha_llat`: required
 4. Start app.
 5. Verify health call:
    - `GET /health` with `Authorization: Bearer <relay_auth_token>`
@@ -45,7 +45,7 @@ Guide:
 
 Expected:
 - with LLAT: WS proxy works for allowlisted calls
-- without LLAT: explicit `UPSTREAM_WS_ERROR` explains missing LLAT
+- without LLAT: acceptance fails (configuration incomplete)
 
 ## Live E2E Script (Supervisor + Relay)
 
@@ -60,7 +60,7 @@ npm run smoke:app:e2e
 ```
 
 Note:
-- `SUPERVISOR_TOKEN` is optional for runtime-only smoke.
+- `SUPERVISOR_TOKEN` is optional for runtime-only smoke when app options are already valid.
 - `SUPERVISOR_TOKEN` is required for Supervisor preflight and `--apply`.
 
 Apply options + restart in one run:

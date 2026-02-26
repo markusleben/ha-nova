@@ -9,7 +9,6 @@ import { createHaWsClient, type HaWsClient, type HaWsConnection, type HaWsReques
 import {
   resolveUpstreamToken,
   type ResolveUpstreamTokenInput,
-  type UpstreamCapability,
   type UpstreamTokenResolution
 } from "../security/token-resolver.js";
 import { createWsAllowlist } from "../security/ws-allowlist.js";
@@ -52,6 +51,9 @@ export function bootstrapRuntime(dependencies: RuntimeDependencies = {}): Runtim
   const upstreamAuth = resolveUpstreamToken(
     buildTokenResolutionInput(env, normalizeAppOptionToken(appOptions.ha_llat))
   );
+  if (upstreamAuth.capability !== "full" || !upstreamAuth.token) {
+    throw new Error("HA_LLAT is required for runtime startup.");
+  }
 
   const wsClient = (dependencies.createWsClient ?? createDefaultWsClient)({
     env,
@@ -63,9 +65,7 @@ export function bootstrapRuntime(dependencies: RuntimeDependencies = {}): Runtim
     authToken: env.relayAuthToken,
     version: env.relayVersion,
     wsClient,
-    allowlist: createWsAllowlist({
-      extraPatterns: env.wsAllowlistExtra
-    })
+    allowlist: createWsAllowlist()
   });
 
   return {
@@ -98,8 +98,7 @@ export async function startRelay(dependencies: RuntimeDependencies = {}): Promis
 export function createDefaultWsClient(input: RuntimeWsClientInput): HaWsClient {
   const token = input.upstreamAuth.token;
   if (!token || input.upstreamAuth.capability !== "full") {
-    const reason = capabilityToMessage(input.upstreamAuth.capability);
-    return createUnavailableWsClient(reason);
+    throw new Error("HA_LLAT is required for runtime startup.");
   }
 
   return createHaWsClient({
@@ -136,30 +135,7 @@ function buildTokenResolutionInput(
     input.appOptionHaLlat = appOptionHaLlat;
   }
 
-  if (env.supervisorToken) {
-    input.supervisorToken = env.supervisorToken;
-  }
-
   return input;
-}
-
-function createUnavailableWsClient(message: string): HaWsClient {
-  return {
-    isConnected(): boolean {
-      return false;
-    },
-    async sendMessage(): Promise<never> {
-      throw new Error(message);
-    }
-  };
-}
-
-function capabilityToMessage(capability: UpstreamCapability): string {
-  if (capability === "limited") {
-    return "LLAT is required for full WebSocket scope. Configure HA_LLAT or app option 'ha_llat'.";
-  }
-
-  return "No upstream token available. Configure HA_LLAT or app option 'ha_llat'.";
 }
 
 function normalizeAppOptionToken(value: unknown): string | undefined {

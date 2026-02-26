@@ -19,7 +19,7 @@ load_env_file_if_present() {
     key="${key%"${key##*[![:space:]]}"}"
 
     case "$key" in
-      HA_HOST|HA_SSH_KEY|SSH_USER|SSH_PORT|APP_SLUG|SUPERVISOR_SLUG|RELAY_AUTH_TOKEN|HA_LLAT|WS_ALLOWLIST_APPEND)
+      HA_HOST|HA_SSH_KEY|SSH_USER|SSH_PORT|APP_SLUG|SUPERVISOR_SLUG|RELAY_AUTH_TOKEN|HA_LLAT)
         ;;
       *)
         continue
@@ -52,14 +52,13 @@ Required environment:
   HA_HOST
   HA_SSH_KEY
   RELAY_AUTH_TOKEN
+  HA_LLAT
 
 Optional environment:
-  HA_LLAT
   SSH_USER          default: root
   SSH_PORT          default: 22
   APP_SLUG          default: ha_nova_relay
   SUPERVISOR_SLUG   default: local_${APP_SLUG}
-  WS_ALLOWLIST_APPEND
   Also loaded (if present): .env.local, .env
 USAGE
 }
@@ -90,7 +89,6 @@ HA_HOST="${HA_HOST:-}"
 HA_SSH_KEY="${HA_SSH_KEY:-}"
 RELAY_AUTH_TOKEN="${RELAY_AUTH_TOKEN:-}"
 HA_LLAT="${HA_LLAT:-}"
-WS_ALLOWLIST_APPEND="${WS_ALLOWLIST_APPEND:-}"
 SSH_USER="${SSH_USER:-root}"
 SSH_PORT="${SSH_PORT:-22}"
 APP_SLUG="${APP_SLUG:-ha_nova_relay}"
@@ -114,6 +112,11 @@ fi
 
 if [[ -z "$RELAY_AUTH_TOKEN" ]]; then
   echo "[ha-app-bootstrap] RELAY_AUTH_TOKEN is required" >&2
+  exit 1
+fi
+
+if [[ -z "$HA_LLAT" ]]; then
+  echo "[ha-app-bootstrap] HA_LLAT is required" >&2
   exit 1
 fi
 
@@ -194,7 +197,7 @@ if ! remote "ha apps info '${SUPERVISOR_SLUG}' >/dev/null 2>&1"; then
 fi
 
 log "Validating + writing app options via Supervisor API"
-remote "SUPERVISOR_SLUG='${SUPERVISOR_SLUG}' RELAY_AUTH_TOKEN='${RELAY_AUTH_TOKEN}' HA_LLAT='${HA_LLAT}' WS_ALLOWLIST_APPEND='${WS_ALLOWLIST_APPEND}' bash -s" <<'REMOTE_OPTIONS'
+remote "SUPERVISOR_SLUG='${SUPERVISOR_SLUG}' RELAY_AUTH_TOKEN='${RELAY_AUTH_TOKEN}' HA_LLAT='${HA_LLAT}' bash -s" <<'REMOTE_OPTIONS'
 set -euo pipefail
 
 if [[ -z "${SUPERVISOR_TOKEN:-}" ]]; then
@@ -209,8 +212,7 @@ import os
 
 options = {
     "relay_auth_token": os.environ["RELAY_AUTH_TOKEN"],
-    "ha_llat": os.environ.get("HA_LLAT", ""),
-    "ws_allowlist_append": os.environ.get("WS_ALLOWLIST_APPEND", "")
+    "ha_llat": os.environ.get("HA_LLAT", "")
 }
 
 print(json.dumps(options))
