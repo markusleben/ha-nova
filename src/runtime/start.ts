@@ -3,7 +3,7 @@ import { type Server } from "node:http";
 import { createConnection, createLongLivedTokenAuth } from "home-assistant-js-websocket";
 
 import { createApp, type App } from "../index.js";
-import { readAddonOptions, type AddonOptions } from "../config/addon-options.js";
+import { readAppOptions, type AppOptions } from "../config/app-options.js";
 import { loadEnv, type EnvConfig, type LogLevel } from "../config/env.js";
 import { createHaWsClient, type HaWsClient, type HaWsConnection, type HaWsRequest } from "../ha/ws-client.js";
 import {
@@ -17,7 +17,7 @@ import { createWsAllowlist } from "../security/ws-allowlist.js";
 export interface RuntimeBootstrapResult {
   app: App;
   env: EnvConfig;
-  addonOptions: AddonOptions;
+  appOptions: AppOptions;
   upstreamAuth: UpstreamTokenResolution;
 }
 
@@ -29,7 +29,7 @@ interface Logger {
 
 export interface RuntimeDependencies {
   loadEnv?: () => EnvConfig;
-  readAddonOptions?: (path: string) => AddonOptions;
+  readAppOptions?: (path: string) => AppOptions;
   createWsClient?: (input: RuntimeWsClientInput) => HaWsClient;
   logger?: Logger;
   listen?: (server: Server, port: number) => Promise<void>;
@@ -37,7 +37,7 @@ export interface RuntimeDependencies {
 
 export interface RuntimeWsClientInput {
   env: EnvConfig;
-  addonOptions: AddonOptions;
+  appOptions: AppOptions;
   upstreamAuth: UpstreamTokenResolution;
 }
 
@@ -47,20 +47,20 @@ export interface StartBridgeResult extends RuntimeBootstrapResult {
 
 export function bootstrapRuntime(dependencies: RuntimeDependencies = {}): RuntimeBootstrapResult {
   const env = (dependencies.loadEnv ?? loadEnv)();
-  const addonOptions = (dependencies.readAddonOptions ?? readAddonOptions)(env.addonOptionsPath);
+  const appOptions = (dependencies.readAppOptions ?? readAppOptions)(env.appOptionsPath);
 
   const upstreamAuth = resolveUpstreamToken(
-    buildTokenResolutionInput(env, normalizeAddonOptionToken(addonOptions.ha_llat))
+    buildTokenResolutionInput(env, normalizeAppOptionToken(appOptions.ha_llat))
   );
 
   const wsClient = (dependencies.createWsClient ?? createDefaultWsClient)({
     env,
-    addonOptions,
+    appOptions,
     upstreamAuth
   });
 
   const app = createApp({
-    authToken: env.haToken,
+    authToken: env.bridgeAuthToken,
     version: env.bridgeVersion,
     wsClient,
     allowlist: createWsAllowlist({
@@ -71,7 +71,7 @@ export function bootstrapRuntime(dependencies: RuntimeDependencies = {}): Runtim
   return {
     app,
     env,
-    addonOptions,
+    appOptions,
     upstreamAuth
   };
 }
@@ -124,7 +124,7 @@ export function createDefaultWsClient(input: RuntimeWsClientInput): HaWsClient {
 
 function buildTokenResolutionInput(
   env: EnvConfig,
-  addonOptionHaLlat: string | undefined
+  appOptionHaLlat: string | undefined
 ): ResolveUpstreamTokenInput {
   const input: ResolveUpstreamTokenInput = {};
 
@@ -132,12 +132,8 @@ function buildTokenResolutionInput(
     input.envHaLlat = env.haLlat;
   }
 
-  if (addonOptionHaLlat) {
-    input.addonOptionHaLlat = addonOptionHaLlat;
-  }
-
-  if (env.legacyHaToken) {
-    input.legacyHaToken = env.legacyHaToken;
+  if (appOptionHaLlat) {
+    input.appOptionHaLlat = appOptionHaLlat;
   }
 
   if (env.supervisorToken) {
@@ -160,13 +156,13 @@ function createUnavailableWsClient(message: string): HaWsClient {
 
 function capabilityToMessage(capability: UpstreamCapability): string {
   if (capability === "limited") {
-    return "LLAT is required for full WebSocket scope. Configure HA_LLAT or addon option 'ha_llat'.";
+    return "LLAT is required for full WebSocket scope. Configure HA_LLAT or app option 'ha_llat'.";
   }
 
-  return "No upstream token available. Configure HA_LLAT or addon option 'ha_llat'.";
+  return "No upstream token available. Configure HA_LLAT or app option 'ha_llat'.";
 }
 
-function normalizeAddonOptionToken(value: unknown): string | undefined {
+function normalizeAppOptionToken(value: unknown): string | undefined {
   if (typeof value !== "string") {
     return undefined;
   }
@@ -197,7 +193,7 @@ function logStartup(logger: Logger, runtime: RuntimeBootstrapResult): void {
   logger.info("Bridge bootstrap", {
     ha_url: runtime.env.haUrl,
     bridge_port: runtime.env.bridgePort,
-    addon_options_path: runtime.env.addonOptionsPath,
+    app_options_path: runtime.env.appOptionsPath,
     auth_source: runtime.upstreamAuth.source,
     auth_capability: runtime.upstreamAuth.capability
   });

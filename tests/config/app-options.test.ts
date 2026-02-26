@@ -4,15 +4,15 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { readAddonOptions } from "../../src/config/addon-options.js";
+import { readAppOptions } from "../../src/config/app-options.js";
 
-describe("readAddonOptions", () => {
+describe("readAppOptions", () => {
   it("returns parsed options when file exists", () => {
     const dir = mkdtempSync(join(tmpdir(), "ha-nova-options-"));
     const file = join(dir, "options.json");
     writeFileSync(file, JSON.stringify({ ha_llat: "token", feature_flag: true }), "utf8");
 
-    const result = readAddonOptions(file);
+    const result = readAppOptions(file);
 
     expect(result).toEqual({
       ha_llat: "token",
@@ -21,7 +21,7 @@ describe("readAddonOptions", () => {
   });
 
   it("returns empty object when file does not exist", () => {
-    const result = readAddonOptions("/tmp/ha-nova-non-existent-options.json");
+    const result = readAppOptions("/tmp/ha-nova-non-existent-options.json");
 
     expect(result).toEqual({});
   });
@@ -31,8 +31,8 @@ describe("readAddonOptions", () => {
     const file = join(dir, "options.json");
     writeFileSync(file, "{ broken-json", "utf8");
 
-    expect(() => readAddonOptions(file)).toThrowError(
-      `Failed to read addon options from '${file}':`
+    expect(() => readAppOptions(file)).toThrowError(
+      `Failed to read app options from '${file}':`
     );
   });
 });

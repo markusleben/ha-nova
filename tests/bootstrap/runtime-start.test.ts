@@ -23,21 +23,21 @@ describe("runtime bootstrap", () => {
     servers.length = 0;
   });
 
-  it("uses addon option LLAT when env LLAT is missing", () => {
+  it("uses app option LLAT when env LLAT is missing", () => {
     let seenSource: string | null = null;
 
     const runtime = bootstrapRuntime({
       loadEnv: () => ({
-        haToken: "bridge-token",
+        bridgeAuthToken: "bridge-token",
         haUrl: "http://supervisor/core",
         bridgeVersion: "1.2.3",
-        addonOptionsPath: "/data/options.json",
+        appOptionsPath: "/data/options.json",
         bridgePort: 8791,
         logLevel: "info",
         wsAllowlistExtra: []
       }),
-      readAddonOptions: () => ({
-        ha_llat: "addon-llat"
+      readAppOptions: () => ({
+        ha_llat: "app-llat"
       }),
       createWsClient: (input) => {
         seenSource = input.upstreamAuth.source;
@@ -48,24 +48,24 @@ describe("runtime bootstrap", () => {
       }
     });
 
-    expect(runtime.upstreamAuth.source).toBe("addon_option_ha_llat");
-    expect(seenSource).toBe("addon_option_ha_llat");
+    expect(runtime.upstreamAuth.source).toBe("app_option_ha_llat");
+    expect(seenSource).toBe("app_option_ha_llat");
     expect(runtime.app.version).toBe("1.2.3");
   });
 
   it("starts in limited mode when only supervisor token is available", async () => {
     const runtime = bootstrapRuntime({
       loadEnv: () => ({
-        haToken: "bridge-token",
+        bridgeAuthToken: "bridge-token",
         supervisorToken: "supervisor-token",
         haUrl: "http://supervisor/core",
         bridgeVersion: "1.2.3",
-        addonOptionsPath: "/data/options.json",
+        appOptionsPath: "/data/options.json",
         bridgePort: 8791,
         logLevel: "info",
         wsAllowlistExtra: []
       }),
-      readAddonOptions: () => ({})
+      readAppOptions: () => ({})
     });
 
     servers.push(runtime.app.server);
@@ -102,7 +102,7 @@ describe("runtime bootstrap", () => {
       ok: false,
       error: {
         code: "UPSTREAM_WS_ERROR",
-        message: "LLAT is required for full WebSocket scope. Configure HA_LLAT or addon option 'ha_llat'."
+        message: "LLAT is required for full WebSocket scope. Configure HA_LLAT or app option 'ha_llat'."
       }
     });
   });
@@ -114,16 +114,16 @@ describe("runtime bootstrap", () => {
 
     const result = await startBridge({
       loadEnv: () => ({
-        haToken: "bridge-token",
+        bridgeAuthToken: "bridge-token",
         supervisorToken: "supervisor-token",
         haUrl: "http://supervisor/core",
         bridgeVersion: "1.2.3",
-        addonOptionsPath: "/data/options.json",
+        appOptionsPath: "/data/options.json",
         bridgePort: 8791,
         logLevel: "info",
         wsAllowlistExtra: []
       }),
-      readAddonOptions: () => ({}),
+      readAppOptions: () => ({}),
       logger: {
         info: (message, context) => {
           infoLogs.push({ message, context });
@@ -146,7 +146,7 @@ describe("runtime bootstrap", () => {
       context: {
         ha_url: "http://supervisor/core",
         bridge_port: 8791,
-        addon_options_path: "/data/options.json",
+        app_options_path: "/data/options.json",
         auth_source: "supervisor_token",
         auth_capability: "limited"
       }

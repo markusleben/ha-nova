@@ -1,11 +1,11 @@
 import { readFileSync } from "node:fs";
 
-export interface AddonOptions {
+export interface AppOptions {
   ha_llat?: string;
   [key: string]: unknown;
 }
 
-export function readAddonOptions(path: string): AddonOptions {
+export function readAppOptions(path: string): AppOptions {
   try {
     const raw = readFileSync(path, "utf8");
     const parsed = JSON.parse(raw) as unknown;
@@ -13,14 +13,14 @@ export function readAddonOptions(path: string): AddonOptions {
       return {};
     }
 
-    return parsed as AddonOptions;
+    return parsed as AppOptions;
   } catch (error) {
     if (isMissingFile(error)) {
       return {};
     }
 
     const message = error instanceof Error ? error.message : "Unknown error";
-    throw new Error(`Failed to read addon options from '${path}': ${message}`);
+    throw new Error(`Failed to read app options from '${path}': ${message}`);
   }
 }
 

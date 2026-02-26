@@ -1,4 +1,4 @@
-ARG BUILD_FROM
+ARG BUILD_FROM=ghcr.io/home-assistant/amd64-base:3.21
 FROM $BUILD_FROM
 
 WORKDIR /app
@@ -12,7 +12,7 @@ RUN npm ci \
   && npm prune --omit=dev \
   && npm cache clean --force
 
-COPY addon/run /run
-RUN chmod a+x /run
+COPY app/run /run.sh
+RUN chmod a+x /run.sh
 
-CMD ["/run"]
+CMD ["/run.sh"]

@@ -39,3 +39,6 @@
 - Terminology policy (user): prefer "App" wording in docs/UX communication; keep legacy "addon" only where technical HA interfaces enforce it.
 - Architecture policy (user): MVP first, but always modular-by-design to minimize future adaptation cost.
 - Skill policy (user): skills remain markdown-only (`*.md`), while bridge stays lean and efficient.
+- Clean-slate policy (user): no backward-compatibility fallbacks in this non-public phase; remove legacy token paths and aliases instead of preserving them.
+- Env contract policy: bridge auth requires `BRIDGE_AUTH_TOKEN`; no `HA_TOKEN` fallback.
+- Naming policy: internal runtime/env naming uses `app_*` (`APP_OPTIONS_PATH`, `app_option_ha_llat`) while keeping `/addons/...` only for Supervisor API endpoints.

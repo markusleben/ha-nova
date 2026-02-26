@@ -5,9 +5,9 @@ import { describe, expect, it } from "vitest";
 describe("app smoke scripts contract", () => {
   it("provides executable local smoke scripts", () => {
     const files = [
-      "scripts/smoke/addon-local-build.sh",
-      "scripts/smoke/addon-local-run.sh",
-      "scripts/smoke/addon-http-smoke.sh"
+      "scripts/smoke/app-local-build.sh",
+      "scripts/smoke/app-local-run.sh",
+      "scripts/smoke/app-http-smoke.sh"
     ];
 
     for (const file of files) {
@@ -18,9 +18,9 @@ describe("app smoke scripts contract", () => {
   });
 
   it("uses docker for build/run and curl for HTTP smoke", () => {
-    const build = readFileSync("scripts/smoke/addon-local-build.sh", "utf8");
-    const run = readFileSync("scripts/smoke/addon-local-run.sh", "utf8");
-    const http = readFileSync("scripts/smoke/addon-http-smoke.sh", "utf8");
+    const build = readFileSync("scripts/smoke/app-local-build.sh", "utf8");
+    const run = readFileSync("scripts/smoke/app-local-run.sh", "utf8");
+    const http = readFileSync("scripts/smoke/app-http-smoke.sh", "utf8");
 
     expect(build).toContain("docker build");
     expect(run).toContain("docker run");

@@ -61,3 +61,20 @@
   - Terminologie: "App" statt "Add-on" (außer technische Pflichtpfade)
   - Priorität: MVP zuerst, aber modular und sauber für spätere Erweiterungen
   - Skills bleiben `*.md`; Bridge bleibt schlank/effizient
+- Legacy-Bereinigung gemäß User-Vorgabe umgesetzt (kein Backward-Compat-Ballast):
+  - `HA_TOKEN`/`legacyHaToken`-Fallback in Runtime entfernt
+  - `ADDON_SLUG`-Alias im Seed-Skript entfernt
+  - `BRIDGE_AUTH_TOKEN` als verpflichtender Bridge-Auth-Vertrag durchgezogen
+- Interne Terminologie auf App-Namensraum gehoben:
+  - `addon/` -> `app/`
+  - `tests/addon/` -> `tests/app/`
+  - `scripts/smoke/addon-*` -> `scripts/smoke/app-*`
+  - `ADDON_OPTIONS_PATH` -> `APP_OPTIONS_PATH`
+  - `addon_option_ha_llat` -> `app_option_ha_llat`
+- Verifikation nach Cleanup erfolgreich:
+  - `npm test`
+  - `npm run typecheck`
+  - `npm run build`
+  - `npm run smoke:app:build`
+  - `npm run smoke:app:run`
+  - `npm run smoke:app:http`

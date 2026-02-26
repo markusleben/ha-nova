@@ -1,13 +1,12 @@
 export type LogLevel = "trace" | "debug" | "info" | "warn" | "error";
 
 export interface EnvConfig {
-  haToken: string;
-  legacyHaToken?: string;
+  bridgeAuthToken: string;
   haLlat?: string;
   supervisorToken?: string;
   haUrl: string;
   bridgeVersion: string;
-  addonOptionsPath: string;
+  appOptionsPath: string;
   bridgePort: number;
   logLevel: LogLevel;
   wsAllowlistExtra: string[];
@@ -17,7 +16,7 @@ const DEFAULT_BRIDGE_PORT = 8791;
 const DEFAULT_LOG_LEVEL: LogLevel = "info";
 const DEFAULT_HA_URL = "http://supervisor/core";
 const DEFAULT_BRIDGE_VERSION = "dev";
-const DEFAULT_ADDON_OPTIONS_PATH = "/data/options.json";
+const DEFAULT_APP_OPTIONS_PATH = "/data/options.json";
 const ALLOWED_LOG_LEVELS = new Set<LogLevel>([
   "trace",
   "debug",
@@ -27,21 +26,15 @@ const ALLOWED_LOG_LEVELS = new Set<LogLevel>([
 ]);
 
 export function loadEnv(source: NodeJS.ProcessEnv = process.env): EnvConfig {
-  const bridgeAuthToken = parseOptionalToken(source.BRIDGE_AUTH_TOKEN) ?? parseOptionalToken(source.HA_TOKEN);
+  const bridgeAuthToken = parseOptionalToken(source.BRIDGE_AUTH_TOKEN);
   if (!bridgeAuthToken) {
-    throw new Error("BRIDGE_AUTH_TOKEN or HA_TOKEN is required");
+    throw new Error("BRIDGE_AUTH_TOKEN is required");
   }
-  const legacyHaToken = parseOptionalToken(source.BRIDGE_AUTH_TOKEN)
-    ? parseOptionalToken(source.HA_TOKEN)
-    : undefined;
   const haLlat = parseOptionalToken(source.HA_LLAT);
   const supervisorToken = parseOptionalToken(source.SUPERVISOR_TOKEN);
   const haUrl = parseRequiredLike(source.HA_URL, DEFAULT_HA_URL);
   const bridgeVersion = parseRequiredLike(source.BRIDGE_VERSION, DEFAULT_BRIDGE_VERSION);
-  const addonOptionsPath = parseRequiredLike(
-    source.ADDON_OPTIONS_PATH,
-    DEFAULT_ADDON_OPTIONS_PATH
-  );
+  const appOptionsPath = parseRequiredLike(source.APP_OPTIONS_PATH, DEFAULT_APP_OPTIONS_PATH);
 
   const portRaw = source.BRIDGE_PORT?.trim();
   const bridgePort = portRaw ? Number.parseInt(portRaw, 10) : DEFAULT_BRIDGE_PORT;
@@ -57,18 +50,14 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): EnvConfig {
   const wsAllowlistExtra = parseCsvList(source.WS_ALLOWLIST_APPEND);
 
   const config: EnvConfig = {
-    haToken: bridgeAuthToken,
+    bridgeAuthToken,
     haUrl,
     bridgeVersion,
-    addonOptionsPath,
+    appOptionsPath,
     bridgePort,
     logLevel: logRaw as LogLevel,
     wsAllowlistExtra
   };
-
-  if (legacyHaToken) {
-    config.legacyHaToken = legacyHaToken;
-  }
 
   if (haLlat) {
     config.haLlat = haLlat;

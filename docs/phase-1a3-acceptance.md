@@ -3,21 +3,21 @@
 Date: 2026-02-26  
 Branch: `feat/phase-1a3-packaging-ha-app`
 
-## Packaging Checks (App; technical path remains `addon/`)
+## Packaging Checks (App; technical Supervisor API path remains `/addons/...`)
 
 | Check | Command / Evidence | Expected |
 |---|---|---|
-| App config contract | `npm test -- tests/addon/config-contract.test.ts` | PASS |
-| App run contract | `npm test -- tests/addon/run-contract.test.ts` | PASS |
-| Smoke scripts contract | `npm test -- tests/addon/smoke-scripts-contract.test.ts` | PASS |
+| App config contract | `npm test -- tests/app/config-contract.test.ts` | PASS |
+| App run contract | `npm test -- tests/app/run-contract.test.ts` | PASS |
+| Smoke scripts contract | `npm test -- tests/app/smoke-scripts-contract.test.ts` | PASS |
 
 ## Local Container Smoke
 
 | Check | Command | Expected |
 |---|---|---|
-| Build image | `npm run smoke:addon:build` | image builds successfully |
-| Run container | `npm run smoke:addon:run` | container starts on `8791` |
-| HTTP smoke | `npm run smoke:addon:http` | `/health` + `/ws` return 2xx |
+| Build image | `npm run smoke:app:build` | image builds successfully |
+| Run container | `npm run smoke:app:run` | container starts on `8791` |
+| HTTP smoke | `npm run smoke:app:http` | `/health` 200; `/ws` either 200 or expected structured 502 in degraded local mode |
 
 ## Home Assistant Runtime Smoke (Manual App Flow)
 
