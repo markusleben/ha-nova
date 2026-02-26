@@ -12,7 +12,7 @@ Create, read, update, and delete automations through REST config endpoints, then
 ## Required Inputs
 
 - `HA_URL`
-- `HA_TOKEN` (Long-Lived Token)
+- `HA_LLAT` (Long-Lived Access Token for direct REST)
 
 ## Primary Endpoints
 
@@ -57,3 +57,7 @@ Create, read, update, and delete automations through REST config endpoints, then
 - Never overwrite unknown IDs.
 - Never execute create/update/delete without preview + confirmation.
 - On ambiguity in ID mapping (`id` vs `entity_id`), resolve explicitly before write.
+
+If `HA_LLAT` is unavailable:
+- stop direct REST automation CRUD flow,
+- route user to `ha-onboarding` for token setup guidance.

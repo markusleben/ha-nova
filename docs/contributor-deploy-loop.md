@@ -6,6 +6,7 @@ Date: 2026-02-26
 
 Fast, repeatable deploys to Home Assistant during development without relying on UI cache behavior.
 This workflow is for contributors only, not normal app users.
+For end-user onboarding on macOS, use `docs/user-onboarding-macos.md`.
 
 ## One-time Setup
 
@@ -26,8 +27,7 @@ Shell-exported env vars always win over file values.
 
 - SSH access to HA host
 - Home Assistant CLI (`ha`) available on host
-- Local app repository already configured in HA
-- App slug installed (default: `local_ha_nova_relay`)
+- Local app repository available (`/addons/local`)
 
 Required env:
 
@@ -45,11 +45,35 @@ export SSH_USER='root'
 export SSH_PORT='22'
 export APP_SLUG='ha_nova_relay'
 export SUPERVISOR_SLUG='local_ha_nova_relay'
+export HA_LLAT='<optional-llat>'
+export WS_ALLOWLIST_APPEND='<optional-extra-patterns>'
 ```
 
 Note:
 - `APP_SLUG`/`SUPERVISOR_SLUG` are advanced overrides.
 - For standard setup, defaults are enough.
+
+## Developer Bootstrap (Separate Helper)
+
+Use this only for active App development on a local HA host:
+
+```bash
+npm run dev:app:bootstrap
+```
+
+What it does:
+- syncs this repository to `/addons/local/<app_slug>` on HA host
+- prepares local Supervisor build context for this project layout
+- reloads store + installs app if missing
+- validates/writes options (`relay_auth_token`, optional `ha_llat`)
+- starts/restarts app and prints status + logs
+
+Requirements:
+- `RELAY_AUTH_TOKEN` must be set
+- remote shell must have `SUPERVISOR_TOKEN` env (standard in HA SSH App shell)
+
+Note:
+- This is a developer helper, not end-user onboarding.
 
 ## Fast Iteration (Default)
 
@@ -60,8 +84,9 @@ npm run deploy:app:fast
 ```
 
 What it does:
-- `ha apps reload`
+- `ha store reload`
 - ensure app installed
+- detect static metadata drift (`ingress`, port mappings) and auto-reinstall app when Supervisor cache is stale
 - `ha apps rebuild <slug>` (or update fallback when Supervisor requires it)
 - `ha apps start <slug>`
 - print app info + recent logs

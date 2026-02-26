@@ -103,3 +103,4 @@ Use below list to store and recall user notes when asked to do so.
 - Skills remain pure `*.md` files; no hidden business logic outside this model.
 - Relay implementation must remain lean, clean, and efficient (KISS + DRY, clear responsibilities).
 - Before public release, do not add backward-compatibility paths or fallback behavior. Implement the clean target model.
+- UX is a primary success metric: onboarding must feel simple, guided, and low-friction for non-technical users.

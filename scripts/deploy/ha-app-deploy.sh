@@ -94,6 +94,9 @@ SSH_USER="${SSH_USER:-root}"
 SSH_PORT="${SSH_PORT:-22}"
 APP_SLUG="${APP_SLUG:-ha_nova_relay}"
 SUPERVISOR_SLUG="${SUPERVISOR_SLUG:-local_${APP_SLUG}}"
+APP_CONFIG_PATH="${PROJECT_ROOT}/app/config.yaml"
+EXPECTED_INGRESS="$(sed -n 's/^ingress:[[:space:]]*//p' "${APP_CONFIG_PATH}" | head -n1 || true)"
+EXPECTED_PORT_MAPPINGS="$(sed -nE 's/^  ([0-9]+\/tcp:[[:space:]]*[0-9]+)$/\1/p' "${APP_CONFIG_PATH}" || true)"
 
 if [[ -z "$HA_HOST" ]]; then
   echo "[ha-app-deploy] HA_HOST is required" >&2
@@ -124,6 +127,22 @@ log() {
   echo "[ha-app-deploy] $*"
 }
 
+get_app_info_json() {
+  local attempt
+  local output
+
+  for attempt in 1 2 3; do
+    output="$(remote "ha apps info ${SUPERVISOR_SLUG} --raw-json" 2>/dev/null || true)"
+    if [[ "$output" == \{\"result\"* ]]; then
+      echo "$output"
+      return 0
+    fi
+    sleep 2
+  done
+
+  return 1
+}
+
 app_installed() {
   if remote "ha apps info ${SUPERVISOR_SLUG} >/dev/null 2>&1"; then
     return 0
@@ -142,6 +161,63 @@ ensure_installed() {
     echo "[ha-app-deploy] Install failed for ${SUPERVISOR_SLUG}. Add repository/install app first." >&2
     exit 1
   }
+}
+
+metadata_needs_reinstall() {
+  local info_json
+
+  if ! info_json="$(get_app_info_json)"; then
+    log "Could not read app metadata reliably; skipping auto-reinstall safety path."
+    return 1
+  fi
+
+  if EXPECTED_INGRESS="$EXPECTED_INGRESS" EXPECTED_PORT_MAPPINGS="$EXPECTED_PORT_MAPPINGS" INFO_JSON="$info_json" \
+    python3 - <<'PY'
+import json
+import os
+import sys
+
+expected_ingress = os.environ.get("EXPECTED_INGRESS", "").strip().lower()
+expected_ports = [line.strip() for line in os.environ.get("EXPECTED_PORT_MAPPINGS", "").splitlines() if line.strip()]
+
+payload = json.loads(os.environ.get("INFO_JSON", "{}") or "{}")
+data = payload.get("data", {})
+
+if expected_ingress:
+    actual_ingress = str(data.get("ingress")).lower()
+    if actual_ingress != expected_ingress:
+        sys.exit(0)  # metadata drift => needs reinstall
+
+network = data.get("network") or {}
+for mapping in expected_ports:
+    if ":" not in mapping:
+        continue
+    key, value = mapping.split(":", 1)
+    key = key.strip()
+    value = value.strip()
+    actual_value = network.get(key)
+    if actual_value is None:
+        sys.exit(0)
+    if str(actual_value) != value:
+        sys.exit(0)
+
+sys.exit(1)  # metadata matches
+PY
+  then
+    return 0
+  fi
+
+  return 1
+}
+
+reinstall_app_for_metadata_sync() {
+  log "App metadata drift detected (ingress/ports). Reinstalling app to refresh Supervisor cache."
+  remote "ha apps uninstall ${SUPERVISOR_SLUG}" || true
+  if ! remote "ha apps install ${SUPERVISOR_SLUG}"; then
+    log "First reinstall attempt failed; retrying after store reload."
+    remote "ha store reload" || true
+    remote "ha apps install ${SUPERVISOR_SLUG}"
+  fi
 }
 
 rebuild_or_update() {
@@ -189,9 +265,13 @@ clear_image_cache() {
 }
 
 log "Reload app store metadata"
-remote "ha apps reload"
+remote "ha store reload"
 
 ensure_installed
+
+if metadata_needs_reinstall; then
+  reinstall_app_for_metadata_sync
+fi
 
 if [[ "$MODE" == "clean" ]]; then
   log "Stopping app for clean deploy"

@@ -41,7 +41,7 @@ describe("resolveUpstreamToken", () => {
       token: "supervisor-token",
       source: "supervisor_token",
       capability: "limited",
-      warnings: ["LLAT missing. Falling back to SUPERVISOR_TOKEN with limited API scope."]
+      warnings: ["LLAT missing. Falling back to SUPERVISOR_TOKEN with limited WebSocket scope."]
     });
   });
 

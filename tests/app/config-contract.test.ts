@@ -17,11 +17,17 @@ describe("app config contract", () => {
     expect(parsed.homeassistant_api).toBe(true);
     expect(parsed.hassio_api).toBe(true);
     expect(parsed.hassio_role).toBe("default");
-    expect(parsed.ingress).toBe(true);
+    expect(parsed.ingress).toBe(false);
+    expect(parsed.ports).toMatchObject({
+      "8791/tcp": 8791
+    });
+    expect(parsed.ports_description).toMatchObject({
+      "8791/tcp": "Relay HTTP API"
+    });
 
     expect(parsed.options).toMatchObject({
       relay_auth_token: null,
-      ha_llat: null,
+      ha_llat: "",
       ws_allowlist_append: ""
     });
 

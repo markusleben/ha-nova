@@ -12,7 +12,7 @@ Enable, disable, toggle, or trigger existing automations through REST service ca
 ## Required Inputs
 
 - `HA_URL`
-- `HA_TOKEN` (Long-Lived Token)
+- `HA_LLAT` (Long-Lived Access Token for direct REST)
 
 ## Primary Endpoint
 
@@ -48,3 +48,7 @@ Common services:
 - Do not trigger unknown automations.
 - For batch operations, execute sequentially and report per-item result.
 - Stop batch on hard errors unless user explicitly asks to continue-on-error.
+
+If `HA_LLAT` is unavailable:
+- stop direct REST automation control flow,
+- route user to `ha-onboarding` for token setup guidance.

@@ -12,7 +12,7 @@ Execute device control actions (lights, switches, climate, covers, media, fans, 
 ## Required Inputs
 
 - `HA_URL`
-- `HA_TOKEN` (Long-Lived Token)
+- `HA_LLAT` (Long-Lived Access Token for direct REST)
 
 ## Primary Endpoint
 
@@ -40,6 +40,10 @@ Execute device control actions (lights, switches, climate, covers, media, fans, 
 
 ## Error Handling
 
-- 401: token invalid/expired -> request new LLT.
+- 401: token invalid/expired -> request a new LLAT.
 - 400: invalid payload/service params -> show offending field.
 - 404: bad route/domain/service -> re-check service list (`GET /api/services`).
+
+If `HA_LLAT` is unavailable:
+- stop direct REST control flow,
+- route user to `ha-onboarding` for token setup guidance.

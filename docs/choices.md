@@ -47,3 +47,29 @@
 - Contributor env policy: keep secrets in untracked `.env.local` (or `.env`), ship committed `.env.example`; script env files are convenience only and must not override explicitly exported shell vars.
 - E2E policy refinement: `SUPERVISOR_TOKEN` is optional for runtime-only smoke and mandatory only for Supervisor option preflight / `--apply`.
 - Language policy enforcement: keep all project documentation English-only, including reference and migration docs.
+- Supervisor-first runtime policy (user): maximize operation without LLAT; treat `HA_LLAT` as optional fallback for non-App contexts.
+- App options policy refinement: optional password fields must avoid `null` defaults/writes (use empty string or omit key) to prevent Supervisor validation/start failures.
+- Capability wording policy: describe supervisor fallback as "limited WebSocket scope" (not generic limited API scope).
+- Contributor bootstrap policy: provide a single bootstrap deploy command that handles sync, first install, Supervisor option validation/write, and app restart.
+- Option write normalization policy: write `ha_llat` as string (possibly empty) during bootstrap option apply to overwrite stale `null` values in Supervisor options.
+- Audience policy refinement (user): primary target is end-user onboarding simplicity; developer bootstrap tooling must remain clearly separated from normal user flows.
+- Naming policy refinement (dev tools): keep developer-only scripts under `dev:*` npm namespace and separate script path (`scripts/dev/*`).
+- Secret storage policy (user + research): macOS onboarding is Keychain-first (`security`), while `.env.local` remains contributor-only convenience.
+- Onboarding UX policy (macOS): provide one interactive setup command with Keychain-backed secrets and explicit diagnostics.
+- Separation policy refinement (user): end-user onboarding script must not include SSH/bootstrap; contributor bootstrap remains isolated under `scripts/dev/*`.
+- Onboarding validation policy (user): setup must validate HA instance host and probe Relay health; on Relay failure, show explicit install/start guidance for the App.
+- Onboarding resilience policy: if HA validation fails, allow explicit user override (`Continue with unverified host`) instead of hard-blocking setup.
+- Dev deploy cache policy: auto-detect Supervisor metadata drift (`ingress`/`ports`) and auto-reinstall the App during `deploy:app:*`.
+- Onboarding token UX policy refinement: on repeated macOS setup, empty relay token input reuses existing Keychain token before any auto-generation.
+- Onboarding diagnostics policy refinement: classify Relay health failures by status (`401/403`, `404`, `000`) and surface `ha_ws_connected=false` as a non-blocking warning.
+- Onboarding UX pattern policy: provide a public raw instruction entrypoint (`.codex/ONBOARDING.md`) so Codex can guide setup from one link/prompt.
+- Onboarding UX pattern refinement: canonical one-link Codex entrypoint is `.codex/INSTALL.md`; `.codex/ONBOARDING.md` is alias-only.
+- Onboarding command-surface policy: keep onboarding runtime commands minimal (`setup`, `doctor`, `env`) and remove client launch commands.
+- Onboarding first-time policy: canonical `.codex/INSTALL.md` must include clone/install bootstrap for users without a local repo.
+- Skill-install parity policy: Codex path must support one-time global skill install (`~/.agents/skills`) so daily startup uses plain `codex` without a custom launcher.
+- Multi-client installer policy: one local installer must support Codex, Claude Code, and OpenCode skill-link targets (`install:skills`) with idempotent backups.
+- Install-flow safety policy: canonical `.codex/INSTALL.md` must keep onboarding as setup+diagnostics only (no nested client launch flow).
+- Skill portability policy: installed local skills are rendered as managed `SKILL.md` files with concrete repo root substitution instead of symlink-only paths.
+- Skill contract policy: active skill docs use `RELAY_BASE_URL`/`RELAY_AUTH_TOKEN` and optional `HA_LLAT`; legacy `HA_TOKEN`/`RELAY_URL` terms are removed.
+- Onboarding cleanup policy refinement: obsolete launcher flow is removed (`start`, `codex`, `claude`), keeping only `setup`, `doctor`, and `env`.
+- Installer simplification policy: remove dedicated wrapper script and call `install-local-skills.sh` directly from npm shortcuts.

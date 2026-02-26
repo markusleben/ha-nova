@@ -9,6 +9,24 @@ It replaces an 88,000-line MCP server with a lean API Relay plus LLM Skills.
 - **Skills:** Markdown files that instruct LLMs on Home Assistant control (best practices, workflows, API knowledge)
 - **Direct path:** ~60% of operations go directly to the HA REST API without relay hops
 
+## Client Installation Paths
+
+Primary onboarding target is non-technical end users.
+Use a client-specific entrypoint instead of manual environment editing.
+
+- Codex CLI:
+  - one-link guided flow via raw instructions
+  - `Fetch and follow instructions from https://raw.githubusercontent.com/markusleben/ha-nova/main/.codex/INSTALL.md`
+  - one-time skill install: `npm run install:codex-skill`
+  - daily usage: regular `codex` startup (no custom launcher required)
+- Claude Code:
+  - one-time local skill install: `npm run install:claude-skill`
+  - same onboarding script path as Codex (`scripts/onboarding/macos-onboarding.sh`)
+  - marketplace packaging not published yet
+- Claude Desktop:
+  - planned after Codex/Claude Code flow is stable
+  - no public package yet
+
 ## Legacy Project
 
 The legacy project is at `/Users/markus/Daten/Development/Privat/ha-mcp-addon`.

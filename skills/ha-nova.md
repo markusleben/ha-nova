@@ -11,11 +11,14 @@ Control Home Assistant via:
 - Direct HA REST API for states, services, and automation CRUD.
 - NOVA Relay for WS-only operations.
 
+If `HA_LLAT` is missing, prioritize App + Relay operations and ask user to configure LLAT only when a direct REST flow requires it.
+
 ## Required Inputs
 
 - `HA_URL` (for example `http://homeassistant.local:8123`)
-- `HA_TOKEN` (user-generated Long-Lived Token, mandatory)
-- `RELAY_URL` (for example `http://homeassistant.local:8791`)
+- `RELAY_BASE_URL` (for example `http://homeassistant.local:8791`)
+- `RELAY_AUTH_TOKEN` (required for relay auth)
+- optional `HA_LLAT` (for direct Home Assistant REST operations)
 
 ## Active Skill Catalog (Phase 1a/1b only)
 
@@ -47,7 +50,7 @@ Control Home Assistant via:
   - `POST {HA_URL}/api/config/automation/config/{id}`
   - `DELETE {HA_URL}/api/config/automation/config/{id}`
 - Relay WS proxy:
-  - `POST {RELAY_URL}/ws` with `{ "type": "..." }`
+  - `POST {RELAY_BASE_URL}/ws` with `{ "type": "..." }`
 
 ## Core Safety Baseline
 

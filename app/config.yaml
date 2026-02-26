@@ -9,8 +9,11 @@ arch:
 startup: services
 boot: auto
 init: false
-ingress: true
-ingress_port: 8791
+ingress: false
+ports:
+  8791/tcp: 8791
+ports_description:
+  8791/tcp: Relay HTTP API
 homeassistant_api: true
 hassio_api: true
 hassio_role: default
@@ -18,7 +21,7 @@ panel_icon: mdi:lan-connect
 
 options:
   relay_auth_token: null
-  ha_llat: null
+  ha_llat: ""
   ws_allowlist_append: ""
 
 schema:

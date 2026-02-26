@@ -100,3 +100,104 @@
   - translated AGENTS/PROJECT and core tracked docs (`choices`, `breadcrumbs`)
   - translated reference and migration docs under `docs/reference/` and `docs/MIGRATION-WORKPAPER.md`
   - validated with repo-wide markdown language scans (no German matches)
+- Added mini-spec for supervisor-first auth without mandatory LLAT:
+  - `docs/plans/2026-02-26-supervisor-first-no-llat-default-design.md`
+- Ran live auth/capability probes on Home Assistant host (`192.168.1.5`):
+  - verified token/endpoint pairing (`SUPERVISOR_TOKEN` -> `http://supervisor/core`, `HA_LLAT` -> `http://homeassistant:8123`)
+  - verified automation config CRUD works with `SUPERVISOR_TOKEN` in app context (create/read/update/delete/read-after-delete).
+- Hardened no-LLAT default behavior in app packaging and smoke flow:
+  - `app/config.yaml`: `ha_llat` default set to empty string instead of `null`
+  - `scripts/smoke/ha-app-e2e.mjs`: sanitize optional `ha_llat` handling and avoid null writes
+  - updated warning wording to match actual capability (`limited WebSocket scope`)
+  - updated affected tests under `tests/app`, `tests/security`, `tests/bootstrap`
+- Added first-time contributor bootstrap deploy flow:
+  - spec: `docs/plans/2026-02-26-app-bootstrap-install-options-design.md`
+  - script: `scripts/dev/ha-app-bootstrap.sh`
+  - npm shortcut: `dev:app:bootstrap`
+  - docs: `docs/contributor-deploy-loop.md` (new bootstrap section)
+  - contract tests: `tests/app/deploy-bootstrap-script-contract.test.ts`
+- Fixed bootstrap option provisioning for stale `ha_llat: null` states:
+  - bootstrap now always writes `ha_llat` as a string (empty allowed) in Supervisor option payloads.
+- Live verification:
+  - `npm run dev:app:bootstrap` succeeded on HA host (`192.168.1.5`).
+  - app status confirmed: `local_ha_nova_relay` state `started`.
+- Refined separation of concerns per user direction:
+  - kept bootstrap tooling explicitly developer-only and separate from primary end-user onboarding narrative.
+- Added macOS Keychain-first end-user onboarding flow:
+  - spec: `docs/plans/2026-02-26-macos-keychain-onboarding-design.md`
+  - script: `scripts/onboarding/macos-onboarding.sh`
+  - npm shortcut: `onboarding:macos`
+  - commands: `setup`, `env`, `codex`, `claude`
+- Added user-facing onboarding doc:
+  - `docs/user-onboarding-macos.md`
+  - contributor doc now points to this user flow explicitly.
+- Added contract test coverage for onboarding script:
+  - `tests/onboarding/macos-onboarding-script-contract.test.ts`
+- Applied strict flow separation per user correction:
+  - removed SSH/bootstrap coupling from end-user onboarding script.
+  - retained contributor bootstrap only in `scripts/dev/ha-app-bootstrap.sh`.
+- Improved setup detection and validation in end-user onboarding script:
+  - auto-detect now probes multiple host candidates (including `.local` defaults and ARP-derived LAN candidates)
+  - setup validates HA host against known Home Assistant endpoints
+  - setup validates Relay URL format and probes Relay `/health` with auth token
+  - Relay failure now shows explicit install/start guidance for NOVA Relay App in Home Assistant.
+- Follow-up hardening after explicit code review:
+  - fixed BSD/macOS host candidate parsing by replacing broken regex escaping in ARP extraction.
+  - preserved HA custom port/scheme via persisted `HA_URL`.
+  - removed hidden subshell state loss (`HA_URL` now persisted correctly).
+  - host validation now supports explicit user override (`continue with unverified host`) for unstable network conditions.
+  - added behavior-level onboarding test for HA URL port preservation and non-interactive failure path.
+- Improved contributor deploy automation for Supervisor cache drift:
+  - switched App metadata to direct port mode (`ingress: false`, fixed `8791/tcp` mapping).
+  - fixed bootstrap script so only `options.*` keys are rewritten (no accidental `schema` mutation).
+  - added deploy-time metadata drift detection + automatic reinstall on mismatch (`ingress`/`ports`).
+  - verified live health from macOS to `http://192.168.1.5:8791/health` with relay bearer token.
+- Improved onboarding UX clarity in `scripts/onboarding/macos-onboarding.sh`:
+  - setup now reuses existing Keychain relay token when token input is empty.
+  - Relay failure output now classifies likely cause by status (`401/403`, `404`, `000`).
+  - `doctor` now surfaces degraded upstream WS state (`ha_ws_connected=false`) as warning with optional LLAT guidance.
+- Updated onboarding contract/docs for new UX behavior:
+  - test: `tests/onboarding/macos-onboarding-script-contract.test.ts` (doctor + token-reuse diagnostics expectations).
+  - doc: `docs/user-onboarding-macos.md` (doctor command + token-reuse + failure classification).
+- Added Codex one-link guided onboarding entrypoint:
+  - new file: `.codex/ONBOARDING.md` (public raw-instructions target).
+  - user doc now includes "Fetch and follow instructions from .../.codex/ONBOARDING.md".
+- Standardized one-link onboarding entrypoint to installer naming:
+  - new canonical file: `.codex/INSTALL.md`.
+  - `.codex/ONBOARDING.md` converted to alias/pointer to `.codex/INSTALL.md`.
+  - updated user docs and contract tests to reference the canonical `INSTALL.md` URL.
+- Added client-installation matrix section in `PROJECT.md`:
+  - Codex one-link install now explicit.
+  - Claude Code/Claude Desktop paths and marketplace status clarified.
+- Added one-command UX path for end users:
+  - script command `start` in `scripts/onboarding/macos-onboarding.sh` (`setup-if-needed -> doctor -> codex`).
+  - npm shortcut `onboarding:macos:start`.
+  - updated `.codex/INSTALL.md` and user docs to prefer this path.
+  - extended onboarding contract tests for `start` command and npm shortcut.
+- Closed first-time onboarding gap in `.codex/INSTALL.md`:
+  - added explicit bootstrap section for users without local repo (`git clone` + `npm install`).
+  - updated onboarding contract test to assert first-time bootstrap instructions remain present.
+- Added Codex-native one-time skill installation path (Superpowers-style parity):
+  - new global skill installer script: `scripts/onboarding/install-codex-skill.sh`.
+  - new Codex skill directory: `.agents/skills/ha-nova/SKILL.md`.
+  - new npm shortcut: `install:codex-skill`.
+  - updated `.codex/INSTALL.md`, `docs/user-onboarding-macos.md`, and `PROJECT.md` to state: install once, then use plain `codex` daily.
+  - expanded onboarding contract tests for installer script + canonical install flow assertions.
+- Expanded installer to multi-client local skill links:
+  - new script: `scripts/onboarding/install-local-skills.sh` with targets `codex|claude|opencode|all`.
+  - `install-codex-skill.sh` now wraps the shared multi-client installer.
+  - new npm shortcuts: `install:claude-skill`, `install:opencode-skill`, `install:skills`.
+  - docs updated to position one-time install + normal daily startup across supported clients.
+- Review hardening pass (multi-focus):
+  - removed nested-launch risk in canonical Codex install flow (`.codex/INSTALL.md` now uses setup + doctor, no `onboarding:macos:start`).
+  - replaced symlink-only installer behavior with managed skill-file rendering that injects repo root at install time (`install-local-skills.sh`).
+  - updated global skill template to resolve repo root safely and avoid hard-coded `~/ha-nova` path assumptions.
+  - aligned core skill docs to current auth/env terminology (`RELAY_BASE_URL`, `RELAY_AUTH_TOKEN`, optional `HA_LLAT`), removed legacy `HA_TOKEN`/`RELAY_URL`.
+  - simplified user onboarding docs to a single install-first path and normal daily client startup.
+- Removed obsolete onboarding launcher paths to prevent old startup flow from surviving into MVP:
+  - split monolith into `scripts/onboarding/macos-lib.sh` + `macos-setup.sh` + `macos-doctor.sh` + `macos-env.sh`.
+  - reduced `scripts/onboarding/macos-onboarding.sh` to dispatcher for `setup|doctor|env` only.
+  - removed `scripts/onboarding/install-codex-skill.sh` and rewired npm script to `install-local-skills.sh codex`.
+  - updated onboarding contract tests to enforce the reduced command surface.
+- Added design spec for this cleanup:
+  - `docs/plans/2026-02-26-onboarding-obsolete-removal-design.md`

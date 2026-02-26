@@ -61,11 +61,19 @@ if (supervisorToken) {
   const currentOptions = toObject(appInfo.data?.options);
   const nextOptions = {
     ...currentOptions,
-    relay_auth_token: relayAuthToken
+    relay_auth_token: relayAuthToken,
+    ws_allowlist_append: readOptionalFromUnknown(currentOptions.ws_allowlist_append) ?? ""
   };
 
-  if (requestedLlat) {
+  if (requestedLlat !== undefined) {
     nextOptions.ha_llat = requestedLlat;
+  } else {
+    const currentLlat = readOptionalFromUnknown(currentOptions.ha_llat);
+    if (currentLlat) {
+      nextOptions.ha_llat = currentLlat;
+    } else {
+      delete nextOptions.ha_llat;
+    }
   }
 
   await requestJson(`${supervisorUrl}/addons/${appSlug}/options/validate`, {

@@ -9,7 +9,13 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "node --enable-source-maps --watch src/runtime/main.ts",
+    "install:codex-skill": "bash scripts/onboarding/install-local-skills.sh codex",
+    "install:claude-skill": "bash scripts/onboarding/install-local-skills.sh claude",
+    "install:opencode-skill": "bash scripts/onboarding/install-local-skills.sh opencode",
+    "install:skills": "bash scripts/onboarding/install-local-skills.sh all",
+    "onboarding:macos": "bash scripts/onboarding/macos-onboarding.sh setup",
     "seed:llat": "node scripts/dev-seed-ha-llat.mjs",
+    "dev:app:bootstrap": "bash scripts/dev/ha-app-bootstrap.sh",
     "deploy:app:fast": "bash scripts/deploy/ha-app-deploy.sh --mode fast",
     "deploy:app:clean": "bash scripts/deploy/ha-app-deploy.sh --mode clean",
     "smoke:app:e2e": "node scripts/smoke/ha-app-e2e.mjs",

@@ -12,7 +12,7 @@ Resolve exact entity IDs and service capabilities before control or write operat
 ## Required Inputs
 
 - `HA_URL`
-- `HA_TOKEN` (Long-Lived Token)
+- `HA_LLAT` (Long-Lived Access Token for direct REST)
 
 ## Primary Endpoints
 
@@ -43,3 +43,7 @@ For each returned entity provide:
 - Never guess entity IDs.
 - If multiple candidates match, return shortlist and ask user to pick.
 - Prefer exact `entity_id` confirmation before downstream writes.
+
+If `HA_LLAT` is unavailable:
+- stop direct REST entity discovery,
+- route user to `ha-onboarding` for token setup guidance.

@@ -152,7 +152,7 @@ describe("runtime bootstrap", () => {
       }
     });
     expect(warnLogs).toContainEqual({
-      message: "LLAT missing. Falling back to SUPERVISOR_TOKEN with limited API scope.",
+      message: "LLAT missing. Falling back to SUPERVISOR_TOKEN with limited WebSocket scope.",
       context: undefined
     });
   });

@@ -20,7 +20,7 @@ export interface ResolveUpstreamTokenInput {
 }
 
 const SUPERVISOR_WARNING =
-  "LLAT missing. Falling back to SUPERVISOR_TOKEN with limited API scope.";
+  "LLAT missing. Falling back to SUPERVISOR_TOKEN with limited WebSocket scope.";
 const MISSING_TOKEN_WARNING =
   "No upstream token available. Configure HA_LLAT or app option 'ha_llat'.";
 
