@@ -20,8 +20,10 @@ Use a client-specific entrypoint instead of manual environment editing.
   - one-time skill install: `npm run install:codex-skill`
   - daily usage: regular `codex` startup (no custom launcher required)
 - Claude Code:
+  - one-link guided flow via raw instructions
+  - `Fetch and follow instructions from https://raw.githubusercontent.com/markusleben/ha-nova/main/.claude/INSTALL.md`
   - one-time local skill install: `npm run install:claude-skill`
-  - same onboarding script path as Codex (`scripts/onboarding/macos-onboarding.sh`)
+  - same onboarding + verify flow as Codex (`scripts/onboarding/macos-onboarding.sh`)
   - marketplace packaging not published yet
 - Claude Desktop:
   - planned after Codex/Claude Code flow is stable

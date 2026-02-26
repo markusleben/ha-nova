@@ -223,22 +223,33 @@ describe("macOS onboarding script contract", () => {
   });
 
   it("documents canonical Codex one-link install entrypoint", () => {
-    const install = readFileSync(".codex/INSTALL.md", "utf8");
+    const codexInstall = readFileSync(".codex/INSTALL.md", "utf8");
+    const claudeInstall = readFileSync(".claude/INSTALL.md", "utf8");
     const onboardingAlias = readFileSync(".codex/ONBOARDING.md", "utf8");
     const userDoc = readFileSync("docs/user-onboarding-macos.md", "utf8");
     const codexSkill = readFileSync(".agents/skills/ha-nova/SKILL.md", "utf8");
 
-    expect(install).toContain("First-Time Setup (No Local Repo Yet)");
-    expect(install).toContain("git clone https://github.com/markusleben/ha-nova.git");
-    expect(install).toContain("npm install");
-    expect(install).toContain("npm run install:codex-skill");
-    expect(install).toContain("npm run install:skills");
-    expect(install).toContain("No special launcher is required");
-    expect(install).toContain("npm run onboarding:macos");
-    expect(install).not.toContain("npm run onboarding:macos:start");
-    expect(install).toContain("bash scripts/onboarding/macos-onboarding.sh doctor");
+    expect(codexInstall).toContain("## Quick Install");
+    expect(codexInstall).toContain("## Verify");
+    expect(codexInstall).toContain("## Troubleshooting");
+    expect(codexInstall).toContain("## Security");
+    expect(codexInstall).toContain("npm run install:codex-skill");
+    expect(codexInstall).toContain("npm run onboarding:macos");
+    expect(codexInstall).toContain("bash scripts/onboarding/macos-onboarding.sh doctor");
+    expect(codexInstall).not.toContain("npm run onboarding:macos:start");
+
+    expect(claudeInstall).toContain("## Quick Install");
+    expect(claudeInstall).toContain("## Verify");
+    expect(claudeInstall).toContain("## Troubleshooting");
+    expect(claudeInstall).toContain("## Security");
+    expect(claudeInstall).toContain("npm run install:claude-skill");
+    expect(claudeInstall).toContain("npm run onboarding:macos");
+
     expect(userDoc).toContain(
       "https://raw.githubusercontent.com/markusleben/ha-nova/main/.codex/INSTALL.md"
+    );
+    expect(userDoc).toContain(
+      "https://raw.githubusercontent.com/markusleben/ha-nova/main/.claude/INSTALL.md"
     );
     expect(userDoc).toContain("npm run install:skills");
     expect(userDoc).toContain("No special launcher required");

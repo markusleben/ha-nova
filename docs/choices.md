@@ -73,3 +73,6 @@
 - Skill contract policy: active skill docs use `RELAY_BASE_URL`/`RELAY_AUTH_TOKEN` and optional `HA_LLAT`; legacy `HA_TOKEN`/`RELAY_URL` terms are removed.
 - Onboarding cleanup policy refinement: obsolete launcher flow is removed (`start`, `codex`, `claude`), keeping only `setup`, `doctor`, and `env`.
 - Installer simplification policy: remove dedicated wrapper script and call `install-local-skills.sh` directly from npm shortcuts.
+- Skill orchestration policy refinement: `ha-nova` is a strict router with mandatory `doctor` gate before any HA operation.
+- Capability policy refinement for automation CRUD: prefer App-context Supervisor path when available; fallback to direct REST with `HA_LLAT`; otherwise stop and route to onboarding.
+- Install UX standardization policy: Codex and Claude install docs must share the same section structure (`Quick Install`, `Verify`, `Troubleshooting`, `Security`).

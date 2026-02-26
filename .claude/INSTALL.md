@@ -1,11 +1,11 @@
-# Installing HA NOVA for Codex (macOS)
+# Installing HA NOVA for Claude Code (macOS)
 
 ## Quick Install
 
-Tell Codex:
+Tell Claude Code:
 
 ```text
-Fetch and follow instructions from https://raw.githubusercontent.com/markusleben/ha-nova/main/.codex/INSTALL.md
+Fetch and follow instructions from https://raw.githubusercontent.com/markusleben/ha-nova/main/.claude/INSTALL.md
 ```
 
 ## Prerequisites
@@ -29,10 +29,10 @@ fi
 npm install
 ```
 
-### 2. Install Codex local skill
+### 2. Install Claude Code local skill
 
 ```bash
-npm run install:codex-skill
+npm run install:claude-skill
 ```
 
 Optional multi-client install (Codex + Claude Code + OpenCode):
@@ -76,8 +76,8 @@ Expected minimum:
 - Onboarding stores secrets in macOS Keychain (`ha-nova.relay-auth-token`, optional `ha-nova.ha-llat`).
 - End-user onboarding does not require SSH.
 - Contributor bootstrap remains separate: `scripts/dev/ha-app-bootstrap.sh`.
-- Daily usage stays normal (`codex`); no custom launcher.
+- Daily usage stays normal (`claude`); no custom launcher.
 
 ## Related Install Docs
 
-- Claude Code: `https://raw.githubusercontent.com/markusleben/ha-nova/main/.claude/INSTALL.md`
+- Codex: `https://raw.githubusercontent.com/markusleben/ha-nova/main/.codex/INSTALL.md`

@@ -1,60 +1,68 @@
 ---
 name: ha-nova
-description: Bootstrap skill for Home Assistant control with direct REST calls and relay-backed WS proxy operations.
+description: Strict orchestrator for Home Assistant operations through App + Relay with mandatory onboarding-health gate and deterministic skill routing.
 ---
 
-# HA Nova Bootstrap
+# HA NOVA Orchestrator
 
 ## Mission
 
-Control Home Assistant via:
-- Direct HA REST API for states, services, and automation CRUD.
-- NOVA Relay for WS-only operations.
+Route user requests to the correct HA NOVA skill path with strict preconditions and no ambiguous execution.
 
-If `HA_LLAT` is missing, prioritize App + Relay operations and ask user to configure LLAT only when a direct REST flow requires it.
+Primary model:
+- App + Relay first.
+- Direct HA REST only when required and authorized.
+- Writes always require preview + explicit confirmation.
 
-## Required Inputs
+## Mandatory Gate (Run Before Any HA Operation)
 
-- `HA_URL` (for example `http://homeassistant.local:8123`)
-- `RELAY_BASE_URL` (for example `http://homeassistant.local:8791`)
-- `RELAY_AUTH_TOKEN` (required for relay auth)
-- optional `HA_LLAT` (for direct Home Assistant REST operations)
+1. Run onboarding health check:
+   - `bash scripts/onboarding/macos-onboarding.sh doctor`
+2. If any required check fails:
+   - stop operation routing,
+   - route to `ha-onboarding`,
+   - continue only after `doctor` is healthy.
+3. Resolve capability mode for this session:
+   - `app_relay_only`: `HA_URL` + `RELAY_BASE_URL` + `RELAY_AUTH_TOKEN` available, no `HA_LLAT`
+   - `direct_rest_enabled`: same inputs plus `HA_LLAT`
 
-## Active Skill Catalog (Phase 1a/1b only)
+## Session Inputs
 
-- `ha-onboarding`: first-run setup and connectivity checks.
-- `ha-safety`: write safety baseline (preview and confirmation).
-- `ha-entities`: discover entities and service capabilities.
-- `ha-control`: call services for device control.
-- `ha-automation-crud`: create, read, update, delete automations.
-- `ha-automation-control`: enable/disable/turn_on/turn_off/toggle automations.
+- Required:
+  - `HA_URL`
+  - `RELAY_BASE_URL`
+  - `RELAY_AUTH_TOKEN`
+- Optional:
+  - `HA_LLAT` (enables full direct REST flows)
 
-## Routing Rules
+## Active Skill Catalog
 
-1. If user asks setup/connectivity -> load `ha-onboarding`.
-2. If user asks read/search/list entities -> load `ha-entities`.
-3. If user asks to control devices -> load `ha-control`.
-4. If user asks to create/update/delete automation -> load `ha-automation-crud` + `ha-safety`.
-5. If user asks to enable/disable/toggle automation -> load `ha-automation-control` + `ha-safety`.
-6. For every write operation, always load `ha-safety`.
+- `ha-onboarding`: setup and connectivity recovery
+- `ha-safety`: write safety baseline
+- `ha-entities`: entity discovery
+- `ha-control`: service-based device control
+- `ha-automation-crud`: automation config lifecycle
+- `ha-automation-control`: runtime automation enable/disable/toggle
 
-## API Routing
+## Deterministic Routing Rules
 
-- Entity states:
-  - `GET {HA_URL}/api/states`
-  - `GET {HA_URL}/api/states/{entity_id}`
-- Service calls:
-  - `POST {HA_URL}/api/services/{domain}/{service}`
-- Automation CRUD:
-  - `GET {HA_URL}/api/config/automation/config/{id}`
-  - `POST {HA_URL}/api/config/automation/config/{id}`
-  - `DELETE {HA_URL}/api/config/automation/config/{id}`
-- Relay WS proxy:
-  - `POST {RELAY_BASE_URL}/ws` with `{ "type": "..." }`
+1. Setup, auth, connectivity, onboarding failures -> `ha-onboarding`
+2. Read/search/list entities -> `ha-entities`
+3. Device control (service calls) -> `ha-control` + `ha-safety` for writes
+4. Automation create/read/update/delete -> `ha-automation-crud` + `ha-safety`
+5. Automation enable/disable/toggle -> `ha-automation-control` + `ha-safety`
 
-## Core Safety Baseline
+## Capability Routing Rules
+
+- In `app_relay_only` mode:
+  - allow App + Relay operations.
+  - for direct REST flows that require LLAT, stop and route to `ha-onboarding`.
+- In `direct_rest_enabled` mode:
+  - allow all active skill flows.
+
+## Safety Baseline
 
 - Never guess entity IDs or service names.
 - Resolve ambiguity by listing/filtering first.
 - Show preview before write operations.
-- Wait for explicit confirmation before execute.
+- Wait for explicit user confirmation before execute.

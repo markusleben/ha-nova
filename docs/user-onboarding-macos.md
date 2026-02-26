@@ -25,6 +25,14 @@ Fetch and follow instructions from https://raw.githubusercontent.com/markusleben
 
 This mirrors the popular skill-install UX pattern: one instruction link, then guided execution.
 
+## Claude Code Guided Setup (Single Prompt)
+
+In Claude Code, use:
+
+```text
+Fetch and follow instructions from https://raw.githubusercontent.com/markusleben/ha-nova/main/.claude/INSTALL.md
+```
+
 ## 1. Install skill once
 
 ```bash
