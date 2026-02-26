@@ -59,6 +59,38 @@ Runtime bootstrap flow:
 4. create app with allowlist and auth
 5. start HTTP server
 
+## Supervisor-Assisted Restart Flow
+
+Use `SUPERVISOR_TOKEN` and internal URL `http://supervisor`.
+
+1. Validate current/new options payload:
+```bash
+curl -sS -X POST \
+  -H "Authorization: Bearer ${SUPERVISOR_TOKEN}" \
+  -H "Content-Type: application/json" \
+  http://supervisor/addons/self/options/validate
+```
+
+2. Persist options (`ha_llat`, `bridge_auth_token`, ...):
+```bash
+curl -sS -X POST \
+  -H "Authorization: Bearer ${SUPERVISOR_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d '{"options":{"ha_llat":"<TOKEN>"}}' \
+  http://supervisor/addons/self/options
+```
+
+3. Restart app/add-on:
+```bash
+curl -sS -X POST \
+  -H "Authorization: Bearer ${SUPERVISOR_TOKEN}" \
+  http://supervisor/addons/self/restart
+```
+
+4. Re-run smoke calls:
+- `GET /health`
+- `POST /ws` with `{"type":"ping"}`
+
 ## Test Matrix
 
 1. Unit tests (`resolveUpstreamToken`): source precedence, warnings, empty input handling
