@@ -1,0 +1,171 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+MODE="fast"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --mode)
+      MODE="${2:-}"
+      shift 2
+      ;;
+    -h|--help)
+      cat <<'USAGE'
+Usage:
+  bash scripts/deploy/ha-app-deploy.sh [--mode fast|clean]
+
+Required environment:
+  HA_HOST       Home Assistant host/IP for SSH
+  HA_SSH_KEY    SSH private key path
+
+Optional environment:
+  SSH_USER        default: root
+  SSH_PORT        default: 22
+  APP_SLUG        default: ha_nova_bridge
+  SUPERVISOR_SLUG default: local_${APP_SLUG}
+
+Modes:
+  fast  Reload app store metadata, ensure app is installed, rebuild, start.
+  clean Same as fast + stop app + remove app image cache before rebuild.
+USAGE
+      exit 0
+      ;;
+    *)
+      echo "[ha-app-deploy] Unknown argument: $1" >&2
+      exit 1
+      ;;
+  esac
+done
+
+if [[ "$MODE" != "fast" && "$MODE" != "clean" ]]; then
+  echo "[ha-app-deploy] Invalid mode '$MODE' (expected fast|clean)" >&2
+  exit 1
+fi
+
+HA_HOST="${HA_HOST:-}"
+HA_SSH_KEY="${HA_SSH_KEY:-}"
+SSH_USER="${SSH_USER:-root}"
+SSH_PORT="${SSH_PORT:-22}"
+APP_SLUG="${APP_SLUG:-ha_nova_bridge}"
+SUPERVISOR_SLUG="${SUPERVISOR_SLUG:-local_${APP_SLUG}}"
+
+if [[ -z "$HA_HOST" ]]; then
+  echo "[ha-app-deploy] HA_HOST is required" >&2
+  exit 1
+fi
+
+if [[ -z "$HA_SSH_KEY" ]]; then
+  echo "[ha-app-deploy] HA_SSH_KEY is required" >&2
+  exit 1
+fi
+
+if [[ ! -f "$HA_SSH_KEY" ]]; then
+  echo "[ha-app-deploy] HA_SSH_KEY file does not exist: $HA_SSH_KEY" >&2
+  exit 1
+fi
+
+remote() {
+  local cmd="$1"
+  ssh -i "$HA_SSH_KEY" \
+    -o StrictHostKeyChecking=accept-new \
+    -o BatchMode=yes \
+    -p "$SSH_PORT" \
+    "$SSH_USER@$HA_HOST" \
+    "$cmd"
+}
+
+log() {
+  echo "[ha-app-deploy] $*"
+}
+
+app_installed() {
+  if remote "ha apps info ${SUPERVISOR_SLUG} >/dev/null 2>&1"; then
+    return 0
+  fi
+
+  return 1
+}
+
+ensure_installed() {
+  if app_installed; then
+    return 0
+  fi
+
+  log "App '${SUPERVISOR_SLUG}' not installed. Trying install..."
+  remote "ha apps install ${SUPERVISOR_SLUG}" || {
+    echo "[ha-app-deploy] Install failed for ${SUPERVISOR_SLUG}. Add repository/install app first." >&2
+    exit 1
+  }
+}
+
+rebuild_or_update() {
+  local output
+  output="$(remote "ha apps rebuild ${SUPERVISOR_SLUG}" 2>&1 || true)"
+
+  if echo "$output" | grep -qi "use update instead rebuild"; then
+    log "Supervisor requested update instead of rebuild"
+    remote "ha apps update ${SUPERVISOR_SLUG}"
+    return 0
+  fi
+
+  if echo "$output" | grep -qi "Another job is running"; then
+    log "Another Supervisor job is running; waiting 10s then continuing"
+    sleep 10
+    return 0
+  fi
+
+  if echo "$output" | grep -qiE "error|failed"; then
+    echo "[ha-app-deploy] Rebuild failed: $output" >&2
+    exit 1
+  fi
+
+  if [[ -n "$output" ]]; then
+    log "$output"
+  fi
+}
+
+clear_image_cache() {
+  local escaped_app_slug
+  escaped_app_slug="$(printf '%s' "$APP_SLUG" | sed 's/[^^A-Za-z0-9_.-]/\\&/g')"
+
+  remote "
+    set -e
+    ids=\$(docker images --format '{{.Repository}}:{{.Tag}} {{.ID}}' \
+      | awk '/addon-${escaped_app_slug}:/ {print \$2}' \
+      | sort -u)
+    if [ -n \"\$ids\" ]; then
+      echo \"\$ids\" | xargs -r docker rmi -f >/dev/null 2>&1 || true
+      echo removed
+    else
+      echo none
+    fi
+  "
+}
+
+log "Reload app store metadata"
+remote "ha apps reload"
+
+ensure_installed
+
+if [[ "$MODE" == "clean" ]]; then
+  log "Stopping app for clean deploy"
+  remote "ha apps stop ${SUPERVISOR_SLUG}" || true
+
+  log "Removing cached app images for '${APP_SLUG}'"
+  cache_result="$(clear_image_cache)"
+  log "Image cache result: ${cache_result}"
+fi
+
+log "Rebuilding app '${SUPERVISOR_SLUG}'"
+rebuild_or_update
+
+log "Starting app '${SUPERVISOR_SLUG}'"
+remote "ha apps start ${SUPERVISOR_SLUG}"
+
+log "Collecting quick status"
+remote "ha apps info ${SUPERVISOR_SLUG}" || true
+
+log "Recent app logs"
+remote "ha apps logs ${SUPERVISOR_SLUG} --lines 40" || true
+
+log "Deploy finished (${MODE})"

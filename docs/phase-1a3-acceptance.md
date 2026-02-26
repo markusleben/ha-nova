@@ -19,6 +19,16 @@ Branch: `feat/phase-1a3-packaging-ha-app`
 | Run container | `npm run smoke:app:run` | container starts on `8791` |
 | HTTP smoke | `npm run smoke:app:http` | `/health` 200; `/ws` either 200 or expected structured 502 in degraded local mode |
 
+## Contributor Deploy Loop (HA Host)
+
+| Check | Command | Expected |
+|---|---|---|
+| Fast deploy | `npm run deploy:app:fast` | app rebuild + start succeeds |
+| Clean deploy (cache break) | `npm run deploy:app:clean` | stale image cache removed; rebuild picks new code |
+
+Guide:
+- `docs/contributor-deploy-loop.md`
+
 ## Home Assistant Runtime Smoke (Manual App Flow)
 
 1. Add local app repository and refresh store.

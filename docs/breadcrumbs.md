@@ -86,3 +86,9 @@
 - Live-Gate gegen aktuelle HA-Instanz geprüft:
   - `ha-nova` aktuell weder installiert noch im verfügbaren App-Katalog sichtbar.
   - Status dokumentiert in `docs/phase-1a4-live-e2e-status.md`.
+- Fast Deploy Loop für Contributors ergänzt:
+  - Spec: `docs/plans/2026-02-26-phase-1a5-fast-deploy-loop-design.md`
+  - Script: `scripts/deploy/ha-app-deploy.sh`
+  - npm scripts: `deploy:app:fast`, `deploy:app:clean`
+  - Doku: `docs/contributor-deploy-loop.md`
+  - Contract test: `tests/app/deploy-script-contract.test.ts`

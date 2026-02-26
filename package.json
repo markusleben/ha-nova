@@ -10,6 +10,8 @@
     "build": "tsc -p tsconfig.json",
     "dev": "node --enable-source-maps --watch src/runtime/main.ts",
     "seed:llat": "node scripts/dev-seed-ha-llat.mjs",
+    "deploy:app:fast": "bash scripts/deploy/ha-app-deploy.sh --mode fast",
+    "deploy:app:clean": "bash scripts/deploy/ha-app-deploy.sh --mode clean",
     "smoke:app:e2e": "node scripts/smoke/ha-app-e2e.mjs",
     "smoke:app:build": "bash scripts/smoke/app-local-build.sh",
     "smoke:app:run": "bash scripts/smoke/app-local-run.sh",
