@@ -10,17 +10,15 @@ Avoid manual LLAT re-entry after each dev deployment while keeping full-scope AP
 
 1. `HA_LLAT` (local env; preferred for local dev and CI)
 2. app option `ha_llat` (persistent in `/data/options.json`)
-3. legacy `HA_TOKEN` (fallback only when `BRIDGE_AUTH_TOKEN` is set separately)
-4. `SUPERVISOR_TOKEN` (limited mode)
+3. `SUPERVISOR_TOKEN` (limited mode only)
 
 ## Bridge Auth vs Upstream Auth
 
 - Bridge endpoint auth:
-  - `BRIDGE_AUTH_TOKEN` preferred
-  - fallback: `HA_TOKEN`
-- Upstream legacy LLAT fallback:
-  - only active when `BRIDGE_AUTH_TOKEN` is set and `HA_TOKEN` is also set
-  - this avoids accidental coupling where one token silently drives both concerns
+  - `BRIDGE_AUTH_TOKEN` required
+- Upstream auth:
+  - full scope only with LLAT (`HA_LLAT` or app option `ha_llat`)
+  - otherwise limited mode with `SUPERVISOR_TOKEN`
 
 ## Seed LLAT Once Into App Options
 
@@ -37,7 +35,7 @@ npm run seed:llat -- '<YOUR_LLAT>'
 Optional:
 
 ```bash
-ADDON_SLUG=self SUPERVISOR_URL=http://supervisor npm run seed:llat -- '<YOUR_LLAT>' --dry-run
+APP_SLUG=self SUPERVISOR_URL=http://supervisor npm run seed:llat -- '<YOUR_LLAT>' --dry-run
 ```
 
 Behavior:
@@ -54,10 +52,46 @@ npm run dev
 
 Runtime bootstrap flow:
 1. load env
-2. read `/data/options.json` (or `ADDON_OPTIONS_PATH`)
+2. read `/data/options.json` (or `APP_OPTIONS_PATH`)
 3. resolve upstream token source
 4. create app with allowlist and auth
 5. start HTTP server
+
+## Supervisor-Assisted Restart Flow
+
+Use `SUPERVISOR_TOKEN` and internal URL `http://supervisor`.
+
+1. Validate current/new options payload:
+```bash
+curl -sS -X POST \
+  -H "Authorization: Bearer ${SUPERVISOR_TOKEN}" \
+  -H "Content-Type: application/json" \
+  http://supervisor/addons/self/options/validate
+```
+
+2. Persist options (`ha_llat`, `bridge_auth_token`, ...):
+```bash
+curl -sS -X POST \
+  -H "Authorization: Bearer ${SUPERVISOR_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d '{"options":{"ha_llat":"<TOKEN>"}}' \
+  http://supervisor/addons/self/options
+```
+
+3. Restart app:
+```bash
+curl -sS -X POST \
+  -H "Authorization: Bearer ${SUPERVISOR_TOKEN}" \
+  http://supervisor/addons/self/restart
+```
+
+4. Re-run smoke calls:
+- `GET /health`
+- `POST /ws` with `{"type":"ping"}`
+
+Preferred terminology note (2026+):
+- Use "App" in docs/UI communication.
+- Keep technical endpoint path `/addons/...` because Supervisor API currently uses that path.
 
 ## Test Matrix
 

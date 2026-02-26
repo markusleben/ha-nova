@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import { bootstrapRuntime } from "../../src/runtime/start.js";
+import { bootstrapRuntime, startBridge } from "../../src/runtime/start.js";
 
 describe("runtime bootstrap", () => {
   const servers: Array<ReturnType<typeof bootstrapRuntime>["app"]["server"]> = [];
@@ -23,21 +23,21 @@ describe("runtime bootstrap", () => {
     servers.length = 0;
   });
 
-  it("uses addon option LLAT when env LLAT is missing", () => {
+  it("uses app option LLAT when env LLAT is missing", () => {
     let seenSource: string | null = null;
 
     const runtime = bootstrapRuntime({
       loadEnv: () => ({
-        haToken: "bridge-token",
+        bridgeAuthToken: "bridge-token",
         haUrl: "http://supervisor/core",
         bridgeVersion: "1.2.3",
-        addonOptionsPath: "/data/options.json",
+        appOptionsPath: "/data/options.json",
         bridgePort: 8791,
         logLevel: "info",
         wsAllowlistExtra: []
       }),
-      readAddonOptions: () => ({
-        ha_llat: "addon-llat"
+      readAppOptions: () => ({
+        ha_llat: "app-llat"
       }),
       createWsClient: (input) => {
         seenSource = input.upstreamAuth.source;
@@ -48,24 +48,24 @@ describe("runtime bootstrap", () => {
       }
     });
 
-    expect(runtime.upstreamAuth.source).toBe("addon_option_ha_llat");
-    expect(seenSource).toBe("addon_option_ha_llat");
+    expect(runtime.upstreamAuth.source).toBe("app_option_ha_llat");
+    expect(seenSource).toBe("app_option_ha_llat");
     expect(runtime.app.version).toBe("1.2.3");
   });
 
   it("starts in limited mode when only supervisor token is available", async () => {
     const runtime = bootstrapRuntime({
       loadEnv: () => ({
-        haToken: "bridge-token",
+        bridgeAuthToken: "bridge-token",
         supervisorToken: "supervisor-token",
         haUrl: "http://supervisor/core",
         bridgeVersion: "1.2.3",
-        addonOptionsPath: "/data/options.json",
+        appOptionsPath: "/data/options.json",
         bridgePort: 8791,
         logLevel: "info",
         wsAllowlistExtra: []
       }),
-      readAddonOptions: () => ({})
+      readAppOptions: () => ({})
     });
 
     servers.push(runtime.app.server);
@@ -102,8 +102,58 @@ describe("runtime bootstrap", () => {
       ok: false,
       error: {
         code: "UPSTREAM_WS_ERROR",
-        message: "LLAT is required for full WebSocket scope. Configure HA_LLAT or addon option 'ha_llat'."
+        message: "LLAT is required for full WebSocket scope. Configure HA_LLAT or app option 'ha_llat'."
       }
+    });
+  });
+
+  it("logs startup auth context and listens successfully in limited mode", async () => {
+    const infoLogs: Array<{ message: string; context: Record<string, unknown> | undefined }> = [];
+    const warnLogs: Array<{ message: string; context: Record<string, unknown> | undefined }> = [];
+    let listenCalledWithPort: number | null = null;
+
+    const result = await startBridge({
+      loadEnv: () => ({
+        bridgeAuthToken: "bridge-token",
+        supervisorToken: "supervisor-token",
+        haUrl: "http://supervisor/core",
+        bridgeVersion: "1.2.3",
+        appOptionsPath: "/data/options.json",
+        bridgePort: 8791,
+        logLevel: "info",
+        wsAllowlistExtra: []
+      }),
+      readAppOptions: () => ({}),
+      logger: {
+        info: (message, context) => {
+          infoLogs.push({ message, context });
+        },
+        warn: (message, context) => {
+          warnLogs.push({ message, context });
+        },
+        error: () => {}
+      },
+      listen: async (_server, port) => {
+        listenCalledWithPort = port;
+      }
+    });
+
+    expect(result.upstreamAuth.source).toBe("supervisor_token");
+    expect(result.upstreamAuth.capability).toBe("limited");
+    expect(listenCalledWithPort).toBe(8791);
+    expect(infoLogs).toContainEqual({
+      message: "Bridge bootstrap",
+      context: {
+        ha_url: "http://supervisor/core",
+        bridge_port: 8791,
+        app_options_path: "/data/options.json",
+        auth_source: "supervisor_token",
+        auth_capability: "limited"
+      }
+    });
+    expect(warnLogs).toContainEqual({
+      message: "LLAT missing. Falling back to SUPERVISOR_TOKEN with limited API scope.",
+      context: undefined
     });
   });
 });

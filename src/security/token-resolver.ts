@@ -1,7 +1,6 @@
 export type UpstreamTokenSource =
   | "env_ha_llat"
-  | "addon_option_ha_llat"
-  | "legacy_ha_token"
+  | "app_option_ha_llat"
   | "supervisor_token"
   | "none";
 
@@ -16,16 +15,14 @@ export interface UpstreamTokenResolution {
 
 export interface ResolveUpstreamTokenInput {
   envHaLlat?: string;
-  addonOptionHaLlat?: string;
-  legacyHaToken?: string;
+  appOptionHaLlat?: string;
   supervisorToken?: string;
 }
 
-const LEGACY_WARNING = "HA_TOKEN is a legacy LLAT fallback. Prefer HA_LLAT or addon option 'ha_llat'.";
 const SUPERVISOR_WARNING =
   "LLAT missing. Falling back to SUPERVISOR_TOKEN with limited API scope.";
 const MISSING_TOKEN_WARNING =
-  "No upstream token available. Configure HA_LLAT or addon option 'ha_llat'.";
+  "No upstream token available. Configure HA_LLAT or app option 'ha_llat'.";
 
 export function resolveUpstreamToken(
   input: ResolveUpstreamTokenInput
@@ -35,14 +32,9 @@ export function resolveUpstreamToken(
     return success(envHaLlat, "env_ha_llat", "full");
   }
 
-  const addonOptionHaLlat = normalizeToken(input.addonOptionHaLlat);
-  if (addonOptionHaLlat) {
-    return success(addonOptionHaLlat, "addon_option_ha_llat", "full");
-  }
-
-  const legacyHaToken = normalizeToken(input.legacyHaToken);
-  if (legacyHaToken) {
-    return success(legacyHaToken, "legacy_ha_token", "full", [LEGACY_WARNING]);
+  const appOptionHaLlat = normalizeToken(input.appOptionHaLlat);
+  if (appOptionHaLlat) {
+    return success(appOptionHaLlat, "app_option_ha_llat", "full");
   }
 
   const supervisorToken = normalizeToken(input.supervisorToken);

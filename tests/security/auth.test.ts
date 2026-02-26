@@ -38,16 +38,16 @@ describe("auth", () => {
 describe("loadEnv", () => {
   it("parses required and optional values", () => {
     const env = loadEnv({
-      HA_TOKEN: "llt-token",
+      BRIDGE_AUTH_TOKEN: "llt-token",
       BRIDGE_PORT: "9000",
       LOG_LEVEL: "debug"
     });
 
     expect(env).toEqual({
-      haToken: "llt-token",
+      bridgeAuthToken: "llt-token",
       haUrl: "http://supervisor/core",
       bridgeVersion: "dev",
-      addonOptionsPath: "/data/options.json",
+      appOptionsPath: "/data/options.json",
       bridgePort: 9000,
       logLevel: "debug",
       wsAllowlistExtra: []
@@ -56,36 +56,34 @@ describe("loadEnv", () => {
 
   it("reads optional HA_LLAT and SUPERVISOR_TOKEN values", () => {
     const env = loadEnv({
-      HA_TOKEN: "bridge-token",
+      BRIDGE_AUTH_TOKEN: "bridge-token",
       HA_LLAT: "  user-llat  ",
       SUPERVISOR_TOKEN: "  supervisor-token  "
     });
 
     expect(env).toEqual({
-      haToken: "bridge-token",
+      bridgeAuthToken: "bridge-token",
       haLlat: "user-llat",
       supervisorToken: "supervisor-token",
       haUrl: "http://supervisor/core",
       bridgeVersion: "dev",
-      addonOptionsPath: "/data/options.json",
+      appOptionsPath: "/data/options.json",
       bridgePort: 8791,
       logLevel: "info",
       wsAllowlistExtra: []
     });
   });
 
-  it("maps BRIDGE_AUTH_TOKEN to bridge auth and HA_TOKEN to legacy upstream token", () => {
+  it("uses BRIDGE_AUTH_TOKEN as required bridge auth token", () => {
     const env = loadEnv({
-      BRIDGE_AUTH_TOKEN: "bridge-auth",
-      HA_TOKEN: "legacy-upstream-token"
+      BRIDGE_AUTH_TOKEN: "bridge-auth"
     });
 
     expect(env).toEqual({
-      haToken: "bridge-auth",
-      legacyHaToken: "legacy-upstream-token",
+      bridgeAuthToken: "bridge-auth",
       haUrl: "http://supervisor/core",
       bridgeVersion: "dev",
-      addonOptionsPath: "/data/options.json",
+      appOptionsPath: "/data/options.json",
       bridgePort: 8791,
       logLevel: "info",
       wsAllowlistExtra: []

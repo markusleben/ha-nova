@@ -6,10 +6,10 @@ const HELP = `Usage:
 Environment:
   SUPERVISOR_TOKEN  Required. Token used for Supervisor API calls.
   SUPERVISOR_URL    Optional. Default: http://supervisor
-  ADDON_SLUG        Optional. Default: self
+  APP_SLUG          Optional. Default: self
 
 Behavior:
-  - Reads current addon options.
+  - Reads current app options.
   - Merges and validates ha_llat.
   - Writes options only when value changed.
 `;
@@ -34,18 +34,18 @@ if (!supervisorToken) {
 }
 
 const supervisorUrl = normalize(process.env.SUPERVISOR_URL) ?? "http://supervisor";
-const addonSlug = normalize(process.env.ADDON_SLUG) ?? "self";
+const appSlug = normalize(process.env.APP_SLUG) ?? "self";
 
 const headers = {
   authorization: `Bearer ${supervisorToken}`,
   "content-type": "application/json"
 };
 
-const info = await requestJson(`/addons/${addonSlug}/info`, { method: "GET", headers });
+const info = await requestJson(`/addons/${appSlug}/info`, { method: "GET", headers });
 const currentOptions = toOptionsObject(info.data?.options);
 
 if (currentOptions.ha_llat === seedToken) {
-  console.log(`No changes needed. ha_llat already set for '${addonSlug}'.`);
+  console.log(`No changes needed. ha_llat already set for '${appSlug}'.`);
   process.exit(0);
 }
 
@@ -54,7 +54,7 @@ const nextOptions = {
   ha_llat: seedToken
 };
 
-const validation = await requestJson(`/addons/${addonSlug}/options/validate`, {
+const validation = await requestJson(`/addons/${appSlug}/options/validate`, {
   method: "POST",
   headers,
   body: JSON.stringify(nextOptions)
@@ -69,17 +69,17 @@ if (valid !== true) {
 }
 
 if (dryRun) {
-  console.log(`Dry run only. Would update ha_llat for '${addonSlug}'.`);
+  console.log(`Dry run only. Would update ha_llat for '${appSlug}'.`);
   process.exit(0);
 }
 
-await requestJson(`/addons/${addonSlug}/options`, {
+await requestJson(`/addons/${appSlug}/options`, {
   method: "POST",
   headers,
   body: JSON.stringify({ options: nextOptions })
 });
 
-console.log(`Updated ha_llat in options for '${addonSlug}'.`);
+console.log(`Updated ha_llat in options for '${appSlug}'.`);
 
 function normalize(value) {
   const trimmed = value?.trim();

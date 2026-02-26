@@ -1,0 +1,20 @@
+#!/usr/bin/with-contenv bashio
+set -euo pipefail
+
+export APP_OPTIONS_PATH="/data/options.json"
+export HA_URL="http://supervisor/core"
+export BRIDGE_VERSION="$(bashio::addon.version 2>/dev/null || echo "dev-local")"
+
+if [[ -z "${BRIDGE_AUTH_TOKEN:-}" ]]; then
+  export BRIDGE_AUTH_TOKEN="$(bashio::config 'bridge_auth_token' 2>/dev/null || echo "")"
+fi
+
+if [[ -z "${HA_LLAT:-}" ]]; then
+  export HA_LLAT="$(bashio::config 'ha_llat' 2>/dev/null || echo "")"
+fi
+
+if [[ -z "${WS_ALLOWLIST_APPEND:-}" ]]; then
+  export WS_ALLOWLIST_APPEND="$(bashio::config 'ws_allowlist_append' 2>/dev/null || echo "")"
+fi
+
+exec node /app/dist/src/runtime/main.js

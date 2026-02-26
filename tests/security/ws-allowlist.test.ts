@@ -23,7 +23,7 @@ describe("ws allowlist", () => {
 
   it("supports wildcard entries and env-based extension", () => {
     const env = loadEnv({
-      HA_TOKEN: "llt-token",
+      BRIDGE_AUTH_TOKEN: "llt-token",
       WS_ALLOWLIST_APPEND: "lovelace/*,energy/*"
     });
 

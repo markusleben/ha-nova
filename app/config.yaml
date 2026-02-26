@@ -13,12 +13,15 @@ ingress: true
 ingress_port: 8791
 homeassistant_api: true
 hassio_api: true
+hassio_role: default
 panel_icon: mdi:bridge
 
 options:
+  bridge_auth_token: null
   ha_llat: null
   ws_allowlist_append: ""
 
 schema:
+  bridge_auth_token: password
   ha_llat: "password?"
   ws_allowlist_append: "str?"
