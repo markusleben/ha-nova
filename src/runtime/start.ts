@@ -196,6 +196,8 @@ function createConsoleLogger(): Logger {
 function logStartup(logger: Logger, runtime: RuntimeBootstrapResult): void {
   logger.info("Bridge bootstrap", {
     ha_url: runtime.env.haUrl,
+    bridge_port: runtime.env.bridgePort,
+    addon_options_path: runtime.env.addonOptionsPath,
     auth_source: runtime.upstreamAuth.source,
     auth_capability: runtime.upstreamAuth.capability
   });
