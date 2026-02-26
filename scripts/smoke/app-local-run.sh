@@ -22,7 +22,7 @@ PLATFORM="${PLATFORM:-$DEFAULT_PLATFORM}"
 mkdir -p "$DATA_DIR"
 cat > "$DATA_DIR/options.json" <<EOF
 {
-  "bridge_auth_token": "${BRIDGE_AUTH_TOKEN:-dev-bridge-token}",
+  "relay_auth_token": "${RELAY_AUTH_TOKEN:-dev-relay-token}",
   "ha_llat": "${HA_LLAT:-}",
   "ws_allowlist_append": "${WS_ALLOWLIST_APPEND:-}"
 }
@@ -37,7 +37,7 @@ docker run -d \
   --name "$CONTAINER_NAME" \
   -p "$HOST_PORT:8791" \
   -v "$DATA_DIR:/data" \
-  -e BRIDGE_AUTH_TOKEN="${BRIDGE_AUTH_TOKEN:-dev-bridge-token}" \
+  -e RELAY_AUTH_TOKEN="${RELAY_AUTH_TOKEN:-dev-relay-token}" \
   -e HA_LLAT="${HA_LLAT:-}" \
   -e WS_ALLOWLIST_APPEND="${WS_ALLOWLIST_APPEND:-}" \
   "$IMAGE_NAME"

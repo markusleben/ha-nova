@@ -66,7 +66,7 @@ Required environment:
 Optional environment:
   SSH_USER        default: root
   SSH_PORT        default: 22
-  APP_SLUG        default: ha_nova_bridge
+  APP_SLUG        default: ha_nova_relay
   SUPERVISOR_SLUG default: local_${APP_SLUG}
   Also loaded (if present): .env.local, .env
 
@@ -92,7 +92,7 @@ HA_HOST="${HA_HOST:-}"
 HA_SSH_KEY="${HA_SSH_KEY:-}"
 SSH_USER="${SSH_USER:-root}"
 SSH_PORT="${SSH_PORT:-22}"
-APP_SLUG="${APP_SLUG:-ha_nova_bridge}"
+APP_SLUG="${APP_SLUG:-ha_nova_relay}"
 SUPERVISOR_SLUG="${SUPERVISOR_SLUG:-local_${APP_SLUG}}"
 
 if [[ -z "$HA_HOST" ]]; then

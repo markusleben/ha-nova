@@ -2,7 +2,7 @@
 
 ## 2026-02-25
 - Vollständige Bestandsaufnahme der vorhandenen Doku in `ha-nova` abgeschlossen.
-- Zielbild bestätigt: Thin Bridge (dumm) + Skills (schlau), kein Business-Logic-Drift in Server.
+- Zielbild bestätigt: Thin Relay (dumm) + Skills (schlau), kein Business-Logic-Drift in Server.
 - Brainstorming-Session mit 10 Klärungsfragen abgeschlossen.
 - Umsetzungsplan für Phase 1a erstellt:
   - `docs/plans/2026-02-25-phase-1a-foundation-design.md`
@@ -49,8 +49,8 @@
 - Add-on/App-Options-Schema für persistentes `ha_llat` ergänzt:
   - `addon/config.yaml`
 - Env-Modell erweitert:
-  - neue Felder `HA_URL`, `BRIDGE_VERSION`, `ADDON_OPTIONS_PATH`
-  - auth split mit `BRIDGE_AUTH_TOKEN` + optionalem Legacy-`HA_TOKEN`-Fallback
+  - neue Felder `HA_URL`, `RELAY_VERSION`, `ADDON_OPTIONS_PATH`
+  - auth split mit `RELAY_AUTH_TOKEN` + optionalem Legacy-`HA_TOKEN`-Fallback
 - Dev-Startpfad auf Runtime-Entrypoint umgestellt:
   - `package.json` (`dev` -> `src/runtime/main.ts`)
 - Vollverifikation nach Runtime-Integration erfolgreich (`test`, `typecheck`, `build`).
@@ -60,11 +60,11 @@
 - User-Leitlinien verbindlich nachgeschärft und in `AGENTS.md` notiert:
   - Terminologie: "App" statt "Add-on" (außer technische Pflichtpfade)
   - Priorität: MVP zuerst, aber modular und sauber für spätere Erweiterungen
-  - Skills bleiben `*.md`; Bridge bleibt schlank/effizient
+  - Skills bleiben `*.md`; Relay bleibt schlank/effizient
 - Legacy-Bereinigung gemäß User-Vorgabe umgesetzt (kein Backward-Compat-Ballast):
   - `HA_TOKEN`/`legacyHaToken`-Fallback in Runtime entfernt
   - `ADDON_SLUG`-Alias im Seed-Skript entfernt
-  - `BRIDGE_AUTH_TOKEN` als verpflichtender Bridge-Auth-Vertrag durchgezogen
+  - `RELAY_AUTH_TOKEN` als verpflichtender Relay-Auth-Vertrag durchgezogen
 - Interne Terminologie auf App-Namensraum gehoben:
   - `addon/` -> `app/`
   - `tests/addon/` -> `tests/app/`
@@ -78,7 +78,7 @@
   - `npm run smoke:app:build`
   - `npm run smoke:app:run`
   - `npm run smoke:app:http`
-- Live-HA-E2E-Flow ergänzt (Supervisor + Bridge):
+- Live-HA-E2E-Flow ergänzt (Supervisor + Relay):
   - Spec: `docs/plans/2026-02-26-phase-1a4-ha-live-e2e-validation-design.md`
   - Runner: `scripts/smoke/ha-app-e2e.mjs`
   - npm script: `smoke:app:e2e`

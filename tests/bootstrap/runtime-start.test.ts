@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import { bootstrapRuntime, startBridge } from "../../src/runtime/start.js";
+import { bootstrapRuntime, startRelay } from "../../src/runtime/start.js";
 
 describe("runtime bootstrap", () => {
   const servers: Array<ReturnType<typeof bootstrapRuntime>["app"]["server"]> = [];
@@ -28,11 +28,11 @@ describe("runtime bootstrap", () => {
 
     const runtime = bootstrapRuntime({
       loadEnv: () => ({
-        bridgeAuthToken: "bridge-token",
+        relayAuthToken: "relay-token",
         haUrl: "http://supervisor/core",
-        bridgeVersion: "1.2.3",
+        relayVersion: "1.2.3",
         appOptionsPath: "/data/options.json",
-        bridgePort: 8791,
+        relayPort: 8791,
         logLevel: "info",
         wsAllowlistExtra: []
       }),
@@ -56,12 +56,12 @@ describe("runtime bootstrap", () => {
   it("starts in limited mode when only supervisor token is available", async () => {
     const runtime = bootstrapRuntime({
       loadEnv: () => ({
-        bridgeAuthToken: "bridge-token",
+        relayAuthToken: "relay-token",
         supervisorToken: "supervisor-token",
         haUrl: "http://supervisor/core",
-        bridgeVersion: "1.2.3",
+        relayVersion: "1.2.3",
         appOptionsPath: "/data/options.json",
-        bridgePort: 8791,
+        relayPort: 8791,
         logLevel: "info",
         wsAllowlistExtra: []
       }),
@@ -72,7 +72,7 @@ describe("runtime bootstrap", () => {
     const baseUrl = await startServer(runtime.app.server);
 
     const health = await fetch(`${baseUrl}/health`, {
-      headers: { authorization: "Bearer bridge-token" }
+      headers: { authorization: "Bearer relay-token" }
     });
 
     expect(health.status).toBe(200);
@@ -89,7 +89,7 @@ describe("runtime bootstrap", () => {
     const ws = await fetch(`${baseUrl}/ws`, {
       method: "POST",
       headers: {
-        authorization: "Bearer bridge-token",
+        authorization: "Bearer relay-token",
         "content-type": "application/json"
       },
       body: JSON.stringify({ type: "ping" })
@@ -112,14 +112,14 @@ describe("runtime bootstrap", () => {
     const warnLogs: Array<{ message: string; context: Record<string, unknown> | undefined }> = [];
     let listenCalledWithPort: number | null = null;
 
-    const result = await startBridge({
+    const result = await startRelay({
       loadEnv: () => ({
-        bridgeAuthToken: "bridge-token",
+        relayAuthToken: "relay-token",
         supervisorToken: "supervisor-token",
         haUrl: "http://supervisor/core",
-        bridgeVersion: "1.2.3",
+        relayVersion: "1.2.3",
         appOptionsPath: "/data/options.json",
-        bridgePort: 8791,
+        relayPort: 8791,
         logLevel: "info",
         wsAllowlistExtra: []
       }),
@@ -142,10 +142,10 @@ describe("runtime bootstrap", () => {
     expect(result.upstreamAuth.capability).toBe("limited");
     expect(listenCalledWithPort).toBe(8791);
     expect(infoLogs).toContainEqual({
-      message: "Bridge bootstrap",
+      message: "Relay bootstrap",
       context: {
         ha_url: "http://supervisor/core",
-        bridge_port: 8791,
+        relay_port: 8791,
         app_options_path: "/data/options.json",
         auth_source: "supervisor_token",
         auth_capability: "limited"

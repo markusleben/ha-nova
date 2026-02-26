@@ -4,7 +4,7 @@
 
 **Goal:** Deliver the Phase 1b skill layer for direct REST-based entity discovery, device control, and automation lifecycle/control flows.
 
-**Architecture:** Keep Bridge unchanged for Phase 1b. Add domain skills that route operations directly to Home Assistant REST API with LLT auth. Enforce core safety pattern (resolve -> preview -> confirm -> execute -> verify) for all writes.
+**Architecture:** Keep Relay unchanged for Phase 1b. Add domain skills that route operations directly to Home Assistant REST API with LLT auth. Enforce core safety pattern (resolve -> preview -> confirm -> execute -> verify) for all writes.
 
 **Tech Stack:** Markdown skills, Home Assistant REST API, existing `ha-nova` bootstrap routing.
 
@@ -21,7 +21,7 @@
 
 ## Out of Scope
 
-- New Bridge endpoints
+- New Relay endpoints
 - Trace/diagnostics features (Phase 1c+)
 - Full best-practice catalog integration (Phase 2)
 

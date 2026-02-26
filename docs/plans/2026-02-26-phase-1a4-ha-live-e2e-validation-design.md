@@ -8,23 +8,23 @@ Status: Approved for implementation
 Create one deterministic live validation flow for `ha-nova` App on Home Assistant:
 
 1. verify app exists in Supervisor (`/addons/<slug>/info`)
-2. validate onboarding options (`bridge_auth_token`, optional `ha_llat`)
+2. validate onboarding options (`relay_auth_token`, optional `ha_llat`)
 3. optionally apply options and restart app
-4. verify bridge runtime via `GET /health` and `POST /ws`
+4. verify relay runtime via `GET /health` and `POST /ws`
 
 ## Constraints
 
 - App-first wording in docs and scripts.
 - No backward compatibility paths (`HA_TOKEN`, `ADDON_SLUG`, mixed auth fallbacks).
-- Keep bridge runtime unchanged; only add validation tooling.
+- Keep relay runtime unchanged; only add validation tooling.
 - Keep technical Supervisor endpoint path `/addons/...`.
 
 ## Inputs
 
 Required:
 - `SUPERVISOR_TOKEN`
-- `BRIDGE_BASE_URL`
-- `BRIDGE_AUTH_TOKEN`
+- `RELAY_BASE_URL`
+- `RELAY_AUTH_TOKEN`
 
 Optional:
 - `APP_SLUG` (default `self`)

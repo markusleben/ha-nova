@@ -38,17 +38,17 @@ describe("auth", () => {
 describe("loadEnv", () => {
   it("parses required and optional values", () => {
     const env = loadEnv({
-      BRIDGE_AUTH_TOKEN: "llt-token",
-      BRIDGE_PORT: "9000",
+      RELAY_AUTH_TOKEN: "llt-token",
+      RELAY_PORT: "9000",
       LOG_LEVEL: "debug"
     });
 
     expect(env).toEqual({
-      bridgeAuthToken: "llt-token",
+      relayAuthToken: "llt-token",
       haUrl: "http://supervisor/core",
-      bridgeVersion: "dev",
+      relayVersion: "dev",
       appOptionsPath: "/data/options.json",
-      bridgePort: 9000,
+      relayPort: 9000,
       logLevel: "debug",
       wsAllowlistExtra: []
     });
@@ -56,35 +56,35 @@ describe("loadEnv", () => {
 
   it("reads optional HA_LLAT and SUPERVISOR_TOKEN values", () => {
     const env = loadEnv({
-      BRIDGE_AUTH_TOKEN: "bridge-token",
+      RELAY_AUTH_TOKEN: "relay-token",
       HA_LLAT: "  user-llat  ",
       SUPERVISOR_TOKEN: "  supervisor-token  "
     });
 
     expect(env).toEqual({
-      bridgeAuthToken: "bridge-token",
+      relayAuthToken: "relay-token",
       haLlat: "user-llat",
       supervisorToken: "supervisor-token",
       haUrl: "http://supervisor/core",
-      bridgeVersion: "dev",
+      relayVersion: "dev",
       appOptionsPath: "/data/options.json",
-      bridgePort: 8791,
+      relayPort: 8791,
       logLevel: "info",
       wsAllowlistExtra: []
     });
   });
 
-  it("uses BRIDGE_AUTH_TOKEN as required bridge auth token", () => {
+  it("uses RELAY_AUTH_TOKEN as required relay auth token", () => {
     const env = loadEnv({
-      BRIDGE_AUTH_TOKEN: "bridge-auth"
+      RELAY_AUTH_TOKEN: "relay-auth"
     });
 
     expect(env).toEqual({
-      bridgeAuthToken: "bridge-auth",
+      relayAuthToken: "relay-auth",
       haUrl: "http://supervisor/core",
-      bridgeVersion: "dev",
+      relayVersion: "dev",
       appOptionsPath: "/data/options.json",
-      bridgePort: 8791,
+      relayPort: 8791,
       logLevel: "info",
       wsAllowlistExtra: []
     });

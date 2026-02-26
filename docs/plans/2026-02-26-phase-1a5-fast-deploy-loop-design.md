@@ -40,7 +40,7 @@ Required env:
 Optional env:
 - `SSH_USER` (default `root`)
 - `SSH_PORT` (default `22`)
-- `APP_SLUG` (default `ha_nova_bridge`)
+- `APP_SLUG` (default `ha_nova_relay`)
 - `SUPERVISOR_SLUG` (default `local_${APP_SLUG}`)
 
 ## Success Criteria

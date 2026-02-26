@@ -6,19 +6,18 @@ const HELP = `Usage:
   node scripts/smoke/ha-app-e2e.mjs [--apply]
 
 Environment:
-  SUPERVISOR_TOKEN   Required. Token for Supervisor API.
+  SUPERVISOR_TOKEN   Optional. Required for Supervisor API preflight/apply.
   SUPERVISOR_URL     Optional. Default: http://supervisor
-  APP_SLUG           Optional. Default: self
-  BRIDGE_BASE_URL    Required. Base URL for ha-nova bridge (example: http://homeassistant.local:8791)
-  BRIDGE_AUTH_TOKEN  Required. Bridge auth bearer token.
+  APP_SLUG           Optional. Default: ha_nova_relay
+  RELAY_BASE_URL     Required. Base URL for nova relay (example: http://homeassistant.local:8791)
+  RELAY_AUTH_TOKEN   Required. Relay auth bearer token.
   HA_LLAT            Optional. LLAT to seed in app options (used when --apply).
   WS_TYPE            Optional. Default: ping
   Also loaded (if present): .env.local, .env
 
 Behavior:
-  - Reads current app options.
-  - Validates merged options via Supervisor API.
-  - With --apply: writes options + restarts app.
+  - If SUPERVISOR_TOKEN is set: reads/validates app options via Supervisor API.
+  - With --apply: writes options + restarts app (requires SUPERVISOR_TOKEN).
   - Verifies /health and /ws against current runtime.
 `;
 
@@ -31,68 +30,78 @@ if (args.includes("-h") || args.includes("--help")) {
   process.exit(0);
 }
 
-const supervisorToken = readRequired("SUPERVISOR_TOKEN");
-const bridgeBaseUrl = stripTrailingSlash(readRequired("BRIDGE_BASE_URL"));
-const bridgeAuthToken = readRequired("BRIDGE_AUTH_TOKEN");
+const supervisorToken = readOptional("SUPERVISOR_TOKEN");
+const relayBaseUrl = stripTrailingSlash(readRequired("RELAY_BASE_URL"));
+const relayAuthToken = readRequired("RELAY_AUTH_TOKEN");
 
 const supervisorUrl = stripTrailingSlash(readOptional("SUPERVISOR_URL") ?? "http://supervisor");
-const appSlug = readOptional("APP_SLUG") ?? "self";
+const appSlug = readOptional("APP_SLUG") ?? "ha_nova_relay";
 const requestedLlat = readOptional("HA_LLAT");
 const wsType = readOptional("WS_TYPE") ?? "ping";
 
-const supervisorHeaders = {
-  authorization: `Bearer ${supervisorToken}`,
-  "content-type": "application/json"
-};
-
-const appInfo = await requestJson(`${supervisorUrl}/addons/${appSlug}/info`, {
-  method: "GET",
-  headers: supervisorHeaders
-});
-
-const currentOptions = toObject(appInfo.data?.options);
-const nextOptions = {
-  ...currentOptions,
-  bridge_auth_token: bridgeAuthToken
-};
-
-if (requestedLlat) {
-  nextOptions.ha_llat = requestedLlat;
+if (apply && !supervisorToken) {
+  fail("--apply requires SUPERVISOR_TOKEN");
 }
 
-await requestJson(`${supervisorUrl}/addons/${appSlug}/options/validate`, {
-  method: "POST",
-  headers: supervisorHeaders,
-  body: JSON.stringify(nextOptions)
-});
+let runtimeHasLlat = null;
+let supervisorPreflight = false;
 
-if (apply) {
-  await requestJson(`${supervisorUrl}/addons/${appSlug}/options`, {
-    method: "POST",
-    headers: supervisorHeaders,
-    body: JSON.stringify({ options: nextOptions })
-  });
+if (supervisorToken) {
+  const supervisorHeaders = {
+    authorization: `Bearer ${supervisorToken}`,
+    "content-type": "application/json"
+  };
+  supervisorPreflight = true;
 
-  await requestJson(`${supervisorUrl}/addons/${appSlug}/restart`, {
-    method: "POST",
+  const appInfo = await requestJson(`${supervisorUrl}/addons/${appSlug}/info`, {
+    method: "GET",
     headers: supervisorHeaders
   });
+
+  const currentOptions = toObject(appInfo.data?.options);
+  const nextOptions = {
+    ...currentOptions,
+    relay_auth_token: relayAuthToken
+  };
+
+  if (requestedLlat) {
+    nextOptions.ha_llat = requestedLlat;
+  }
+
+  await requestJson(`${supervisorUrl}/addons/${appSlug}/options/validate`, {
+    method: "POST",
+    headers: supervisorHeaders,
+    body: JSON.stringify(nextOptions)
+  });
+
+  if (apply) {
+    await requestJson(`${supervisorUrl}/addons/${appSlug}/options`, {
+      method: "POST",
+      headers: supervisorHeaders,
+      body: JSON.stringify({ options: nextOptions })
+    });
+
+    await requestJson(`${supervisorUrl}/addons/${appSlug}/restart`, {
+      method: "POST",
+      headers: supervisorHeaders
+    });
+  }
+
+  runtimeHasLlat = apply
+    ? Boolean(readOptionalFromUnknown(nextOptions.ha_llat))
+    : Boolean(readOptionalFromUnknown(currentOptions.ha_llat));
 }
 
-const runtimeHasLlat = apply
-  ? Boolean(readOptionalFromUnknown(nextOptions.ha_llat))
-  : Boolean(readOptionalFromUnknown(currentOptions.ha_llat));
-
 const health = await waitForHealth({
-  baseUrl: bridgeBaseUrl,
-  authToken: bridgeAuthToken,
+  baseUrl: relayBaseUrl,
+  authToken: relayAuthToken,
   maxAttempts: apply ? 30 : 5,
   delayMs: 1000
 });
 
 const ws = await callWs({
-  baseUrl: bridgeBaseUrl,
-  authToken: bridgeAuthToken,
+  baseUrl: relayBaseUrl,
+  authToken: relayAuthToken,
   wsType
 });
 
@@ -107,6 +116,7 @@ console.log(
       ok: true,
       app_slug: appSlug,
       apply,
+      supervisor_preflight: supervisorPreflight,
       runtime_has_llat: runtimeHasLlat,
       health_status: health.status,
       ws_status: ws.status
@@ -175,6 +185,20 @@ function assertWsExpectation(input) {
   if (expectFullScope) {
     if (ws.status !== 200) {
       fail(`Expected /ws status 200 with LLAT, got ${ws.status}: ${JSON.stringify(ws.body)}`);
+    }
+    return;
+  }
+
+  if (expectFullScope === null) {
+    const degraded =
+      ws.status === 502
+      && ws.body
+      && typeof ws.body === "object"
+      && ws.body.error
+      && ws.body.error.code === "UPSTREAM_WS_ERROR";
+
+    if (ws.status !== 200 && !degraded) {
+      fail(`Expected /ws status 200 or degraded 502, got ${ws.status}: ${JSON.stringify(ws.body)}`);
     }
     return;
   }
@@ -283,8 +307,8 @@ function parseEnvFile(path) {
     "SUPERVISOR_TOKEN",
     "SUPERVISOR_URL",
     "APP_SLUG",
-    "BRIDGE_BASE_URL",
-    "BRIDGE_AUTH_TOKEN",
+    "RELAY_BASE_URL",
+    "RELAY_AUTH_TOKEN",
     "HA_LLAT",
     "WS_TYPE"
   ]);

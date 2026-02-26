@@ -2,7 +2,7 @@
 set -euo pipefail
 
 BASE_URL="${BASE_URL:-http://127.0.0.1:8791}"
-AUTH_TOKEN="${AUTH_TOKEN:-dev-bridge-token}"
+AUTH_TOKEN="${AUTH_TOKEN:-dev-relay-token}"
 
 wait_for_health() {
   local max_attempts=20

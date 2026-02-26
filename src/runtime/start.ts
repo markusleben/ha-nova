@@ -41,7 +41,7 @@ export interface RuntimeWsClientInput {
   upstreamAuth: UpstreamTokenResolution;
 }
 
-export interface StartBridgeResult extends RuntimeBootstrapResult {
+export interface StartRelayResult extends RuntimeBootstrapResult {
   port: number;
 }
 
@@ -60,8 +60,8 @@ export function bootstrapRuntime(dependencies: RuntimeDependencies = {}): Runtim
   });
 
   const app = createApp({
-    authToken: env.bridgeAuthToken,
-    version: env.bridgeVersion,
+    authToken: env.relayAuthToken,
+    version: env.relayVersion,
     wsClient,
     allowlist: createWsAllowlist({
       extraPatterns: env.wsAllowlistExtra
@@ -76,22 +76,22 @@ export function bootstrapRuntime(dependencies: RuntimeDependencies = {}): Runtim
   };
 }
 
-export async function startBridge(dependencies: RuntimeDependencies = {}): Promise<StartBridgeResult> {
+export async function startRelay(dependencies: RuntimeDependencies = {}): Promise<StartRelayResult> {
   const logger = dependencies.logger ?? createConsoleLogger();
   const runtime = bootstrapRuntime(dependencies);
 
   logStartup(logger, runtime);
 
   const listen = dependencies.listen ?? listenServer;
-  await listen(runtime.app.server, runtime.env.bridgePort);
+  await listen(runtime.app.server, runtime.env.relayPort);
 
-  logger.info("Bridge listening", {
-    port: runtime.env.bridgePort
+  logger.info("Relay listening", {
+    port: runtime.env.relayPort
   });
 
   return {
     ...runtime,
-    port: runtime.env.bridgePort
+    port: runtime.env.relayPort
   };
 }
 
@@ -190,9 +190,9 @@ function createConsoleLogger(): Logger {
 }
 
 function logStartup(logger: Logger, runtime: RuntimeBootstrapResult): void {
-  logger.info("Bridge bootstrap", {
+  logger.info("Relay bootstrap", {
     ha_url: runtime.env.haUrl,
-    bridge_port: runtime.env.bridgePort,
+    relay_port: runtime.env.relayPort,
     app_options_path: runtime.env.appOptionsPath,
     auth_source: runtime.upstreamAuth.source,
     auth_capability: runtime.upstreamAuth.capability

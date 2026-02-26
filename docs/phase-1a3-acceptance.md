@@ -33,13 +33,13 @@ Guide:
 ## Home Assistant Runtime Smoke (Manual App Flow)
 
 1. Add local app repository and refresh store.
-2. Install `HA Nova Bridge`.
+2. Install `NOVA Relay`.
 3. Configure options:
-   - `bridge_auth_token`: required
+   - `relay_auth_token`: required
    - `ha_llat`: optional but required for full WS scope
 4. Start app.
 5. Verify health call:
-   - `GET /health` with `Authorization: Bearer <bridge_auth_token>`
+   - `GET /health` with `Authorization: Bearer <relay_auth_token>`
 6. Verify WS call:
    - `POST /ws` with payload `{"type":"ping"}`
 
@@ -47,25 +47,29 @@ Expected:
 - with LLAT: WS proxy works for allowlisted calls
 - without LLAT: explicit `UPSTREAM_WS_ERROR` explains missing LLAT
 
-## Live E2E Script (Supervisor + Bridge)
+## Live E2E Script (Supervisor + Relay)
 
 Use the reproducible E2E runner:
 
 ```bash
 SUPERVISOR_TOKEN='<token>' \
-APP_SLUG='self' \
-BRIDGE_BASE_URL='http://homeassistant.local:8791' \
-BRIDGE_AUTH_TOKEN='<bridge-auth-token>' \
+APP_SLUG='ha_nova_relay' \
+RELAY_BASE_URL='http://homeassistant.local:8791' \
+RELAY_AUTH_TOKEN='<relay-auth-token>' \
 npm run smoke:app:e2e
 ```
+
+Note:
+- `SUPERVISOR_TOKEN` is optional for runtime-only smoke.
+- `SUPERVISOR_TOKEN` is required for Supervisor preflight and `--apply`.
 
 Apply options + restart in one run:
 
 ```bash
 SUPERVISOR_TOKEN='<token>' \
-APP_SLUG='self' \
-BRIDGE_BASE_URL='http://homeassistant.local:8791' \
-BRIDGE_AUTH_TOKEN='<bridge-auth-token>' \
+APP_SLUG='ha_nova_relay' \
+RELAY_BASE_URL='http://homeassistant.local:8791' \
+RELAY_AUTH_TOKEN='<relay-auth-token>' \
 HA_LLAT='<user-generated-llat>' \
 npm run smoke:app:e2e -- --apply
 ```

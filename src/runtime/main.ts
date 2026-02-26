@@ -1,7 +1,7 @@
-import { startBridge } from "./start.js";
+import { startRelay } from "./start.js";
 
-startBridge().catch((error: unknown) => {
+startRelay().catch((error: unknown) => {
   const message = error instanceof Error ? error.message : "Unknown startup error";
-  console.error(JSON.stringify({ level: "error", message: "Bridge failed to start", context: { error: message } }));
+  console.error(JSON.stringify({ level: "error", message: "Relay failed to start", context: { error: message } }));
   process.exit(1);
 });

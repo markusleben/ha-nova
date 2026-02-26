@@ -9,7 +9,7 @@ describe("app config contract", () => {
     const parsed = YAML.parse(raw) as Record<string, unknown>;
 
     expect(parsed.name).toBeTypeOf("string");
-    expect(parsed.slug).toBe("ha_nova_bridge");
+    expect(parsed.slug).toBe("ha_nova_relay");
     expect(parsed.version).toBeTypeOf("string");
     expect(parsed.startup).toBe("services");
     expect(parsed.boot).toBe("auto");
@@ -20,13 +20,13 @@ describe("app config contract", () => {
     expect(parsed.ingress).toBe(true);
 
     expect(parsed.options).toMatchObject({
-      bridge_auth_token: null,
+      relay_auth_token: null,
       ha_llat: null,
       ws_allowlist_append: ""
     });
 
     expect(parsed.schema).toMatchObject({
-      bridge_auth_token: "password",
+      relay_auth_token: "password",
       ha_llat: "password?",
       ws_allowlist_append: "str?"
     });

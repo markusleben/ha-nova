@@ -17,7 +17,7 @@ Fill `.env.local` with your local values/secrets.
 Best practice:
 - commit `.env.example` only
 - never commit `.env` / `.env.local`
-- prefer `.env.local` for machine-specific secrets
+- keep only minimum keys in `.env.local`; add overrides only when needed
 
 Both deploy and live E2E scripts auto-load `.env.local` and `.env` when present.
 Shell-exported env vars always win over file values.
@@ -27,13 +27,15 @@ Shell-exported env vars always win over file values.
 - SSH access to HA host
 - Home Assistant CLI (`ha`) available on host
 - Local app repository already configured in HA
-- App slug installed (default: `local_ha_nova_bridge`)
+- App slug installed (default: `local_ha_nova_relay`)
 
 Required env:
 
 ```bash
 export HA_HOST='<ha-host-or-ip>'
 export HA_SSH_KEY='<path-to-private-key>'
+export RELAY_BASE_URL='http://<ha-host>:8791'
+export RELAY_AUTH_TOKEN='<relay-auth-token>'
 ```
 
 Optional env:
@@ -41,9 +43,13 @@ Optional env:
 ```bash
 export SSH_USER='root'
 export SSH_PORT='22'
-export APP_SLUG='ha_nova_bridge'
-export SUPERVISOR_SLUG='local_ha_nova_bridge'
+export APP_SLUG='ha_nova_relay'
+export SUPERVISOR_SLUG='local_ha_nova_relay'
 ```
+
+Note:
+- `APP_SLUG`/`SUPERVISOR_SLUG` are advanced overrides.
+- For standard setup, defaults are enough.
 
 ## Fast Iteration (Default)
 
@@ -79,9 +85,9 @@ After deploy, run live checks:
 
 ```bash
 SUPERVISOR_TOKEN='<token>' \
-APP_SLUG='ha_nova_bridge' \
-BRIDGE_BASE_URL='http://<ha-host>:8791' \
-BRIDGE_AUTH_TOKEN='<bridge-auth-token>' \
+APP_SLUG='ha_nova_relay' \
+RELAY_BASE_URL='http://<ha-host>:8791' \
+RELAY_AUTH_TOKEN='<relay-auth-token>' \
 HA_LLAT='<user-generated-llat>' \
 npm run smoke:app:e2e -- --apply
 ```
@@ -90,11 +96,15 @@ For quick regression (without option rewrite/restart side effects):
 
 ```bash
 SUPERVISOR_TOKEN='<token>' \
-APP_SLUG='ha_nova_bridge' \
-BRIDGE_BASE_URL='http://<ha-host>:8791' \
-BRIDGE_AUTH_TOKEN='<bridge-auth-token>' \
+APP_SLUG='ha_nova_relay' \
+RELAY_BASE_URL='http://<ha-host>:8791' \
+RELAY_AUTH_TOKEN='<relay-auth-token>' \
 npm run smoke:app:e2e
 ```
+
+`SUPERVISOR_TOKEN` handling:
+- Optional for runtime-only check (`health/ws`).
+- Required for Supervisor preflight (`/addons/.../info`, `validate`) and `--apply`.
 
 ## Cache Notes
 

@@ -30,5 +30,5 @@ Branch: `feat/phase-1b-rest-skills`
 
 ## Notes
 
-- Phase 1b intentionally adds no Bridge endpoints.
+- Phase 1b intentionally adds no Relay endpoints.
 - Trace/diagnostics remain Phase 1c+ scope.

@@ -17,7 +17,7 @@ Enable full-scope Home Assistant access with LLAT while keeping dev/test ergonom
 ## Non-Goals
 
 - No new runtime endpoint.
-- No bridge transport refactor.
+- No relay transport refactor.
 - No secrets manager integration.
 
 ## Token Priority
@@ -32,7 +32,7 @@ Enable full-scope Home Assistant access with LLAT while keeping dev/test ergonom
 
 - Resolver returns: selected token, source, capability (`full | limited | none`), warnings.
 - Empty/whitespace values are ignored.
-- Env parser keeps existing required `HA_TOKEN` behavior for bridge auth compatibility.
+- Env parser requires dedicated relay auth token (`RELAY_AUTH_TOKEN`) for relay endpoint auth.
 
 ## Testing
 
@@ -45,5 +45,5 @@ Enable full-scope Home Assistant access with LLAT while keeping dev/test ergonom
 - Script validates input and `SUPERVISOR_TOKEN` presence.
 - Script validates options via `/addons/<slug>/options/validate` before write.
 - Script applies options via `/addons/<slug>/options`.
-- Script defaults to `self` slug; override via `ADDON_SLUG`.
+- Script defaults to `ha_nova_relay` slug; override via `APP_SLUG`.
 - Idempotent intent: repeated run writes same value safely.

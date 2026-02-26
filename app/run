@@ -3,10 +3,10 @@ set -euo pipefail
 
 export APP_OPTIONS_PATH="/data/options.json"
 export HA_URL="http://supervisor/core"
-export BRIDGE_VERSION="$(bashio::addon.version 2>/dev/null || echo "dev-local")"
+export RELAY_VERSION="$(bashio::addon.version 2>/dev/null || echo "dev-local")"
 
-if [[ -z "${BRIDGE_AUTH_TOKEN:-}" ]]; then
-  export BRIDGE_AUTH_TOKEN="$(bashio::config 'bridge_auth_token' 2>/dev/null || echo "")"
+if [[ -z "${RELAY_AUTH_TOKEN:-}" ]]; then
+  export RELAY_AUTH_TOKEN="$(bashio::config 'relay_auth_token' 2>/dev/null || echo "")"
 fi
 
 if [[ -z "${HA_LLAT:-}" ]]; then

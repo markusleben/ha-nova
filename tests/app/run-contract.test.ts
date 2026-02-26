@@ -15,7 +15,7 @@ describe("app run contract", () => {
   it("maps options to env without re-implementing token precedence logic", () => {
     const content = readFileSync("app/run", "utf8");
 
-    expect(content).toContain("BRIDGE_AUTH_TOKEN");
+    expect(content).toContain("RELAY_AUTH_TOKEN");
     expect(content).toContain("HA_LLAT");
     expect(content).toContain("WS_ALLOWLIST_APPEND");
 

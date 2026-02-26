@@ -1,6 +1,6 @@
 ---
 name: ha-nova
-description: Bootstrap skill for Home Assistant control with direct REST calls and bridge-backed WS proxy operations.
+description: Bootstrap skill for Home Assistant control with direct REST calls and relay-backed WS proxy operations.
 ---
 
 # HA Nova Bootstrap
@@ -9,13 +9,13 @@ description: Bootstrap skill for Home Assistant control with direct REST calls a
 
 Control Home Assistant via:
 - Direct HA REST API for states, services, and automation CRUD.
-- Nova Bridge for WS-only operations.
+- NOVA Relay for WS-only operations.
 
 ## Required Inputs
 
 - `HA_URL` (for example `http://homeassistant.local:8123`)
 - `HA_TOKEN` (user-generated Long-Lived Token, mandatory)
-- `BRIDGE_URL` (for example `http://homeassistant.local:8791`)
+- `RELAY_URL` (for example `http://homeassistant.local:8791`)
 
 ## Active Skill Catalog (Phase 1a/1b only)
 
@@ -46,8 +46,8 @@ Control Home Assistant via:
   - `GET {HA_URL}/api/config/automation/config/{id}`
   - `POST {HA_URL}/api/config/automation/config/{id}`
   - `DELETE {HA_URL}/api/config/automation/config/{id}`
-- Bridge WS proxy:
-  - `POST {BRIDGE_URL}/ws` with `{ "type": "..." }`
+- Relay WS proxy:
+  - `POST {RELAY_URL}/ws` with `{ "type": "..." }`
 
 ## Core Safety Baseline
 

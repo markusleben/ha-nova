@@ -19,11 +19,11 @@ Do not continue without LLT.
 Run in order:
 
 1. `GET {HA_URL}/api/` with `Authorization: Bearer {HA_TOKEN}`
-2. `GET {BRIDGE_URL}/health` with `Authorization: Bearer {HA_TOKEN}`
+2. `GET {RELAY_URL}/health` with `Authorization: Bearer {RELAY_AUTH_TOKEN}`
 
 Success criteria:
 - HA API responds with running status.
-- Bridge health responds with `status: ok`.
+- Relay health responds with `status: ok`.
 
 ## Step 3: Three Quick Wins
 
@@ -37,5 +37,5 @@ Success criteria:
   - Verify `HA_URL` and network path.
 - 401 Unauthorized:
   - Regenerate LLT and retry.
-- Bridge unreachable:
-  - Ensure Nova Bridge app is running.
+- Relay unreachable:
+  - Ensure NOVA Relay app is running.

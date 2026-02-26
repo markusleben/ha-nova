@@ -12,10 +12,10 @@ Avoid manual LLAT re-entry after each dev deployment while keeping full-scope AP
 2. app option `ha_llat` (persistent in `/data/options.json`)
 3. `SUPERVISOR_TOKEN` (limited mode only)
 
-## Bridge Auth vs Upstream Auth
+## Relay Auth vs Upstream Auth
 
-- Bridge endpoint auth:
-  - `BRIDGE_AUTH_TOKEN` required
+- Relay endpoint auth:
+  - `RELAY_AUTH_TOKEN` required
 - Upstream auth:
   - full scope only with LLAT (`HA_LLAT` or app option `ha_llat`)
   - otherwise limited mode with `SUPERVISOR_TOKEN`
@@ -69,7 +69,7 @@ curl -sS -X POST \
   http://supervisor/addons/self/options/validate
 ```
 
-2. Persist options (`ha_llat`, `bridge_auth_token`, ...):
+2. Persist options (`ha_llat`, `relay_auth_token`, ...):
 ```bash
 curl -sS -X POST \
   -H "Authorization: Bearer ${SUPERVISOR_TOKEN}" \
