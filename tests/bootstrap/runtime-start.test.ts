@@ -23,13 +23,13 @@ describe("runtime bootstrap", () => {
     servers.length = 0;
   });
 
-  it("uses app option LLAT when env LLAT is missing", () => {
+  it("uses env LLAT as the only upstream source", () => {
     let seenSource: string | null = null;
 
     const runtime = bootstrapRuntime({
       loadEnv: () => ({
         relayAuthToken: "relay-token",
-        haLlat: "   ",
+        haLlat: "env-llat",
         haUrl: "http://supervisor/core",
         relayVersion: "1.2.3",
         appOptionsPath: "/data/options.json",
@@ -48,8 +48,8 @@ describe("runtime bootstrap", () => {
       }
     });
 
-    expect(runtime.upstreamAuth.source).toBe("app_option_ha_llat");
-    expect(seenSource).toBe("app_option_ha_llat");
+    expect(runtime.upstreamAuth.source).toBe("env_ha_llat");
+    expect(seenSource).toBe("env_ha_llat");
     expect(runtime.app.version).toBe("1.2.3");
   });
 

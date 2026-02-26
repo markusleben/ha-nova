@@ -1,4 +1,4 @@
-export type UpstreamTokenSource = "env_ha_llat" | "app_option_ha_llat" | "none";
+export type UpstreamTokenSource = "env_ha_llat" | "none";
 
 export type UpstreamCapability = "full" | "none";
 
@@ -11,11 +11,9 @@ export interface UpstreamTokenResolution {
 
 export interface ResolveUpstreamTokenInput {
   envHaLlat?: string;
-  appOptionHaLlat?: string;
 }
 
-const MISSING_TOKEN_WARNING =
-  "No upstream token available. Configure HA_LLAT or app option 'ha_llat'.";
+const MISSING_TOKEN_WARNING = "No upstream token available. Configure HA_LLAT.";
 
 export function resolveUpstreamToken(
   input: ResolveUpstreamTokenInput
@@ -23,11 +21,6 @@ export function resolveUpstreamToken(
   const envHaLlat = normalizeToken(input.envHaLlat);
   if (envHaLlat) {
     return success(envHaLlat, "env_ha_llat", "full");
-  }
-
-  const appOptionHaLlat = normalizeToken(input.appOptionHaLlat);
-  if (appOptionHaLlat) {
-    return success(appOptionHaLlat, "app_option_ha_llat", "full");
   }
 
   return {

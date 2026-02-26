@@ -41,7 +41,7 @@
 - Skill policy (user): skills remain markdown-only (`*.md`), while relay stays lean and efficient.
 - Clean-slate policy (user): no backward-compatibility fallbacks in this non-public phase; remove legacy token paths and aliases instead of preserving them.
 - Env contract policy: relay auth requires `RELAY_AUTH_TOKEN`; no `HA_TOKEN` fallback.
-- Naming policy: internal runtime/env naming uses `app_*` (`APP_OPTIONS_PATH`, `app_option_ha_llat`) while keeping `/addons/...` only for Supervisor API endpoints.
+- Naming policy (superseded): internal runtime/env naming uses `app_*` (`APP_OPTIONS_PATH`, `app_option_ha_llat`) while keeping `/addons/...` only for Supervisor API endpoints.
 - Live validation policy: ship one deterministic HA E2E runner (`smoke:app:e2e`) that validates Supervisor options flow and relay `/health` + `/ws` in one command.
 - Contributor deploy policy: provide two explicit HA deploy modes — `deploy:app:fast` for normal iteration and `deploy:app:clean` for aggressive cache-busting rebuilds.
 - Contributor env policy: keep secrets in untracked `.env.local` (or `.env`), ship committed `.env.example`; script env files are convenience only and must not override explicitly exported shell vars.
@@ -81,7 +81,7 @@
 - Quick-gate parsing policy: normalize installed skill marker parsing to strip HTML comment suffix (`-->`) before repo-root comparison.
 - Live skill E2E policy: validate Codex behavior in black-box mode via `codex exec --json` instead of only shell smoke scripts.
 - Live skill E2E realism policy: reject helper-smoke-script command execution and subagent delegation in this harness to match single-agent user behavior.
-- Capability-aware E2E expectation policy: `e2e:skill:codex` uses `E2E_EXPECT=auto` (expects `ok` with `HA_LLAT`, otherwise expects `blocked` with explicit missing-capability reason).
+- Capability-aware E2E expectation policy (superseded): `e2e:skill:codex` used `E2E_EXPECT=auto` before mandatory-LLAT simplification.
 - Live E2E delegation policy: subagent usage is allowed by default (`E2E_SUBAGENT_POLICY=allow`) to reflect realistic user sessions; strict single-agent mode remains opt-in (`deny`).
 - Fast-path UX policy (user): the skill must always prefer the fastest viable capability path first.
 - Session-check policy refinement: replace per-operation visible doctor flow with cached `ready --quiet` gate; show diagnostics only on failure.

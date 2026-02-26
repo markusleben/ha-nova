@@ -131,7 +131,6 @@ What it validates:
 Optional override:
 - `AUTOMATION_ID` to set a custom test automation id
 - `OUTPUT_DIR` to keep logs in a fixed path
-- `E2E_EXPECT=ok` (default `auto` resolves to `ok`; missing `HA_LLAT` is a setup error)
 - `E2E_SUBAGENT_POLICY=allow|deny` (`allow` default for realistic user-like agent behavior)
 
 After deploy, run live checks:

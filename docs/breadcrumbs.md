@@ -233,7 +233,7 @@
   - new file: `tests/e2e/codex-skill-live-contract.test.ts`
   - updated onboarding contract for `quick` behavior and marker parsing regression.
 - Documentation updates:
-  - `docs/contributor-deploy-loop.md`: added `onboarding:macos:quick` and `e2e:skill:codex` flow (+ `E2E_EXPECT` override).
+  - `docs/contributor-deploy-loop.md`: added `onboarding:macos:quick` and `e2e:skill:codex` flow.
   - `docs/user-onboarding-macos.md`: added fast daily `onboarding:macos:quick` command.
 - Verification evidence:
   - `shellcheck scripts/e2e/codex-ha-nova-live-skill-e2e.sh scripts/onboarding/macos-onboarding.sh scripts/onboarding/macos-lib.sh scripts/onboarding/macos-quick.sh`

@@ -48,9 +48,7 @@ export function bootstrapRuntime(dependencies: RuntimeDependencies = {}): Runtim
   const env = (dependencies.loadEnv ?? loadEnv)();
   const appOptions = (dependencies.readAppOptions ?? readAppOptions)(env.appOptionsPath);
 
-  const upstreamAuth = resolveUpstreamToken(
-    buildTokenResolutionInput(env, normalizeAppOptionToken(appOptions.ha_llat))
-  );
+  const upstreamAuth = resolveUpstreamToken(buildTokenResolutionInput(env));
   if (upstreamAuth.capability !== "full" || !upstreamAuth.token) {
     throw new Error("HA_LLAT is required for runtime startup.");
   }
@@ -121,34 +119,14 @@ export function createDefaultWsClient(input: RuntimeWsClientInput): HaWsClient {
   });
 }
 
-function buildTokenResolutionInput(
-  env: EnvConfig,
-  appOptionHaLlat: string | undefined
-): ResolveUpstreamTokenInput {
+function buildTokenResolutionInput(env: EnvConfig): ResolveUpstreamTokenInput {
   const input: ResolveUpstreamTokenInput = {};
 
   if (env.haLlat) {
     input.envHaLlat = env.haLlat;
   }
 
-  if (appOptionHaLlat) {
-    input.appOptionHaLlat = appOptionHaLlat;
-  }
-
   return input;
-}
-
-function normalizeAppOptionToken(value: unknown): string | undefined {
-  if (typeof value !== "string") {
-    return undefined;
-  }
-
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return undefined;
-  }
-
-  return trimmed;
 }
 
 function createConsoleLogger(): Logger {
