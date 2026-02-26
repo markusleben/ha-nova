@@ -42,3 +42,4 @@
 - Clean-slate policy (user): no backward-compatibility fallbacks in this non-public phase; remove legacy token paths and aliases instead of preserving them.
 - Env contract policy: bridge auth requires `BRIDGE_AUTH_TOKEN`; no `HA_TOKEN` fallback.
 - Naming policy: internal runtime/env naming uses `app_*` (`APP_OPTIONS_PATH`, `app_option_ha_llat`) while keeping `/addons/...` only for Supervisor API endpoints.
+- Live validation policy: ship one deterministic HA E2E runner (`smoke:app:e2e`) that validates Supervisor options flow and bridge `/health` + `/ws` in one command.

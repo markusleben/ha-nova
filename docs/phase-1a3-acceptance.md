@@ -36,6 +36,29 @@ Expected:
 - with LLAT: WS proxy works for allowlisted calls
 - without LLAT: explicit `UPSTREAM_WS_ERROR` explains missing LLAT
 
+## Live E2E Script (Supervisor + Bridge)
+
+Use the reproducible E2E runner:
+
+```bash
+SUPERVISOR_TOKEN='<token>' \
+APP_SLUG='self' \
+BRIDGE_BASE_URL='http://homeassistant.local:8791' \
+BRIDGE_AUTH_TOKEN='<bridge-auth-token>' \
+npm run smoke:app:e2e
+```
+
+Apply options + restart in one run:
+
+```bash
+SUPERVISOR_TOKEN='<token>' \
+APP_SLUG='self' \
+BRIDGE_BASE_URL='http://homeassistant.local:8791' \
+BRIDGE_AUTH_TOKEN='<bridge-auth-token>' \
+HA_LLAT='<user-generated-llat>' \
+npm run smoke:app:e2e -- --apply
+```
+
 ## Supervisor API Assisted Checks
 
 - Validate options before write:

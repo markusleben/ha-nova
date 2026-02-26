@@ -78,3 +78,11 @@
   - `npm run smoke:app:build`
   - `npm run smoke:app:run`
   - `npm run smoke:app:http`
+- Live-HA-E2E-Flow ergänzt (Supervisor + Bridge):
+  - Spec: `docs/plans/2026-02-26-phase-1a4-ha-live-e2e-validation-design.md`
+  - Runner: `scripts/smoke/ha-app-e2e.mjs`
+  - npm script: `smoke:app:e2e`
+  - Acceptance-Doku erweitert um direkte E2E-Kommandos.
+- Live-Gate gegen aktuelle HA-Instanz geprüft:
+  - `ha-nova` aktuell weder installiert noch im verfügbaren App-Katalog sichtbar.
+  - Status dokumentiert in `docs/phase-1a4-live-e2e-status.md`.
