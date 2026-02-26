@@ -10,6 +10,9 @@
     "build": "tsc -p tsconfig.json",
     "dev": "node --enable-source-maps --watch src/runtime/main.ts",
     "seed:llat": "node scripts/dev-seed-ha-llat.mjs",
+    "smoke:addon:build": "bash scripts/smoke/addon-local-build.sh",
+    "smoke:addon:run": "bash scripts/smoke/addon-local-run.sh",
+    "smoke:addon:http": "bash scripts/smoke/addon-http-smoke.sh",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
