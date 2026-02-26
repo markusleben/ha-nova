@@ -201,3 +201,12 @@
   - updated onboarding contract tests to enforce the reduced command surface.
 - Added design spec for this cleanup:
   - `docs/plans/2026-02-26-onboarding-obsolete-removal-design.md`
+- Aligned skill design with strict-workflow patterns (micromagnet/superpowers-inspired):
+  - updated `skills/ha-nova.md` to mandatory onboarding-health gate + deterministic routing.
+  - updated `skills/ha-automation-crud.md` to capability-aware execution (`app-context supervisor` preferred, `HA_LLAT` fallback).
+- Standardized client install docs to one predictable UX shape:
+  - refactored `.codex/INSTALL.md` to `Quick Install`, `Verify`, `Troubleshooting`, `Security`.
+  - added `.claude/INSTALL.md` with the same structure and Claude-specific skill install command.
+  - updated onboarding contract tests and user docs for both canonical raw install links.
+- Added design spec:
+  - `docs/plans/2026-02-26-skill-orchestrator-install-ux-alignment-design.md`
