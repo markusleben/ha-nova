@@ -1,98 +1,102 @@
 # Breadcrumbs
 
 ## 2026-02-25
-- Vollständige Bestandsaufnahme der vorhandenen Doku in `ha-nova` abgeschlossen.
-- Zielbild bestätigt: Thin Relay (dumm) + Skills (schlau), kein Business-Logic-Drift in Server.
-- Brainstorming-Session mit 10 Klärungsfragen abgeschlossen.
-- Umsetzungsplan für Phase 1a erstellt:
+- Completed a full inventory review of the existing documentation in `ha-nova`.
+- Confirmed target model: thin Relay (dumb) + smart Skills, with no business-logic drift into the server.
+- Completed a brainstorming session with 10 clarification questions.
+- Created the implementation plan for phase 1a:
   - `docs/plans/2026-02-25-phase-1a-foundation-design.md`
-- Plan nachgeschärft: LLT (`HA_TOKEN`) im Onboarding als Pflichtentscheidung verankert.
-- Ausführung gestartet auf Branch `feat/phase-1a-foundation` (Worktree wegen fehlendem Initial-Commit nicht möglich).
-- Remote-Setup abgeschlossen: `origin` -> `https://github.com/markusleben/ha-nova.git`, Branch `feat/phase-1a-foundation` gepusht.
-- Batch 2 (Tasks 4-6) umgesetzt: WS-Client, Health-Handler, WS-Allowlist inkl. Tests und Verifikation.
-- Batch 3 (Tasks 7-9) umgesetzt: `/ws`-Handler, Phase-1a-Skills, Acceptance-Matrix mit Curl-Smoke-Evidenz.
-- PR #1 (`feat/phase-1a-foundation` -> `main`) erstellt und direkt gemerged.
-- Post-Merge-Codex-Review ausgeführt; Wiring-Lücke für `/health` + `/ws` identifiziert und in `main` gefixt.
-- Follow-up Review auf Fix-Commit ohne Findings; verbleibendes Risiko nur für unbekannte alte `createApp()`-Callsites ohne Optionen.
-- Striktes Code-Review für `2e6d924..f640807`: keine kritischen Bugs, aber Health/WS-Handler noch nicht im Router registriert, daher Integrationstoff fehlt.
-- Phase 1b gestartet auf Branch `feat/phase-1b-rest-skills`.
-- Phase-1b-Design und Deliverables erstellt:
+- Tightened the plan: LLT (`HA_TOKEN`) became a mandatory onboarding decision.
+- Started execution on branch `feat/phase-1a-foundation` (worktree was not possible due to missing initial commit).
+- Completed remote setup: `origin` -> `https://github.com/markusleben/ha-nova.git`, pushed branch `feat/phase-1a-foundation`.
+- Completed batch 2 (tasks 4-6): WS client, health handler, WS allowlist, including tests and verification.
+- Completed batch 3 (tasks 7-9): `/ws` handler, phase-1a skills, acceptance matrix with curl smoke evidence.
+- Opened and directly merged PR #1 (`feat/phase-1a-foundation` -> `main`).
+- Ran post-merge Codex review; identified `/health` + `/ws` wiring gap and fixed it on `main`.
+- Follow-up review on the fix commit had no findings; remaining risk only for unknown old `createApp()` callsites without options.
+- Strict code review for `2e6d924..f640807`: no critical bugs, but health/WS handlers were not yet registered in the router.
+- Phase 1b started on branch `feat/phase-1b-rest-skills`.
+- Created phase-1b design and deliverables:
   - `docs/plans/2026-02-25-phase-1b-rest-skills-design.md`
   - `skills/ha-entities.md`
   - `skills/ha-control.md`
   - `skills/ha-automation-crud.md`
   - `skills/ha-automation-control.md`
   - `docs/phase-1b-acceptance.md`
-- Konsistenzcheck (`ha-nova` Routing vs Skill-Dateien) und Vollverifikation (`test`, `typecheck`, `build`) erfolgreich.
+- Consistency check (`ha-nova` routing vs skill files) and full verification (`test`, `typecheck`, `build`) passed.
 
 ## 2026-02-26
-- Mini-Spec für LLAT-Handling + Dev-Seeding erstellt:
+- Created a mini-spec for LLAT handling + dev seeding:
   - `docs/plans/2026-02-26-token-resolution-dev-seed-design.md`
-- Token-Resolver ergänzt:
+- Added token resolver:
   - `src/security/token-resolver.ts`
   - `tests/security/token-resolver.test.ts`
-- Env-Parsing erweitert für optionale Tokenquellen (`HA_LLAT`, `SUPERVISOR_TOKEN`):
+- Extended env parsing for optional token sources (`HA_LLAT`, `SUPERVISOR_TOKEN`):
   - `src/config/env.ts`
   - `tests/security/auth.test.ts`
-- Idempotentes Dev-Seed-Skript ergänzt (Supervisor validate+write, dry-run support):
+- Added idempotent dev seed script (Supervisor validate+write, dry-run support):
   - `scripts/dev-seed-ha-llat.mjs`
   - `package.json` script `seed:llat`
   - `docs/llat-dev-testing.md`
-- Neuer verbindlicher Doku-Gate für zukünftige Planung ergänzt:
+- Added a mandatory documentation gate for future planning:
   - `docs/reference/ha-doc-gate-2026-02-26.md`
-- Runtime-Integration für LLAT/Supervisor-Fallback umgesetzt:
+- Implemented runtime integration for LLAT/Supervisor fallback:
   - `src/runtime/start.ts`
   - `src/runtime/main.ts`
-  - `src/config/addon-options.ts`
+  - `src/config/app-options.ts`
   - `tests/bootstrap/runtime-start.test.ts`
-  - `tests/config/addon-options.test.ts`
-- Add-on/App-Options-Schema für persistentes `ha_llat` ergänzt:
-  - `addon/config.yaml`
-- Env-Modell erweitert:
-  - neue Felder `HA_URL`, `RELAY_VERSION`, `ADDON_OPTIONS_PATH`
-  - auth split mit `RELAY_AUTH_TOKEN` + optionalem Legacy-`HA_TOKEN`-Fallback
-- Dev-Startpfad auf Runtime-Entrypoint umgestellt:
+  - `tests/config/app-options.test.ts`
+- Extended App options schema for persistent `ha_llat`:
+  - `app/config.yaml`
+- Extended env model:
+  - new fields `HA_URL`, `RELAY_VERSION`, `APP_OPTIONS_PATH`
+  - auth split with `RELAY_AUTH_TOKEN` + optional legacy `HA_TOKEN` fallback
+- Switched dev startup path to runtime entrypoint:
   - `package.json` (`dev` -> `src/runtime/main.ts`)
-- Vollverifikation nach Runtime-Integration erfolgreich (`test`, `typecheck`, `build`).
-- Neuer Best-Practice-Implementierungsplan für lauffähiges HA-App/Add-on Packaging erstellt:
+- Full verification after runtime integration passed (`test`, `typecheck`, `build`).
+- Created a new best-practice implementation plan for runnable HA App packaging:
   - `docs/plans/2026-02-26-phase-1a3-packaging-ha-app-plan.md`
-  - Fokus: KISS+DRY, dünner `addon/run`, zentrale Token-Resolution in Node, strukturierter Smoke-Test-Pfad.
-- User-Leitlinien verbindlich nachgeschärft und in `AGENTS.md` notiert:
-  - Terminologie: "App" statt "Add-on" (außer technische Pflichtpfade)
-  - Priorität: MVP zuerst, aber modular und sauber für spätere Erweiterungen
-  - Skills bleiben `*.md`; Relay bleibt schlank/effizient
-- Legacy-Bereinigung gemäß User-Vorgabe umgesetzt (kein Backward-Compat-Ballast):
-  - `HA_TOKEN`/`legacyHaToken`-Fallback in Runtime entfernt
-  - `ADDON_SLUG`-Alias im Seed-Skript entfernt
-  - `RELAY_AUTH_TOKEN` als verpflichtender Relay-Auth-Vertrag durchgezogen
-- Interne Terminologie auf App-Namensraum gehoben:
+  - focus: KISS+DRY, thin `app/run`, centralized token resolution in Node, structured smoke test path.
+- Tightened user guidelines and recorded them in `AGENTS.md`:
+  - terminology: use "App" instead of "Add-on" (except where technical required paths apply)
+  - priority: MVP first, but modular and clean for later extension
+  - skills remain `*.md`; relay remains lean/efficient
+- Applied legacy cleanup per user directive (no backward-compatibility ballast):
+  - removed `HA_TOKEN`/`legacyHaToken` fallback in runtime
+  - removed legacy `ADDON_SLUG` alias in the seed script
+  - enforced `RELAY_AUTH_TOKEN` as the required relay auth contract
+- Lifted internal terminology to App namespace:
   - `addon/` -> `app/`
   - `tests/addon/` -> `tests/app/`
   - `scripts/smoke/addon-*` -> `scripts/smoke/app-*`
   - `ADDON_OPTIONS_PATH` -> `APP_OPTIONS_PATH`
   - `addon_option_ha_llat` -> `app_option_ha_llat`
-- Verifikation nach Cleanup erfolgreich:
+- Verification after cleanup passed:
   - `npm test`
   - `npm run typecheck`
   - `npm run build`
   - `npm run smoke:app:build`
   - `npm run smoke:app:run`
   - `npm run smoke:app:http`
-- Live-HA-E2E-Flow ergänzt (Supervisor + Relay):
+- Added live HA E2E flow (Supervisor + Relay):
   - Spec: `docs/plans/2026-02-26-phase-1a4-ha-live-e2e-validation-design.md`
   - Runner: `scripts/smoke/ha-app-e2e.mjs`
   - npm script: `smoke:app:e2e`
-  - Acceptance-Doku erweitert um direkte E2E-Kommandos.
-- Live-Gate gegen aktuelle HA-Instanz geprüft:
-  - `ha-nova` aktuell weder installiert noch im verfügbaren App-Katalog sichtbar.
-  - Status dokumentiert in `docs/phase-1a4-live-e2e-status.md`.
-- Fast Deploy Loop für Contributors ergänzt:
+  - Extended acceptance docs with direct E2E commands.
+- Checked the live gate against the current HA instance:
+  - `ha-nova` was neither installed nor visible in the available App catalog.
+  - Status documented in `docs/phase-1a4-live-e2e-status.md`.
+- Added fast deploy loop for contributors:
   - Spec: `docs/plans/2026-02-26-phase-1a5-fast-deploy-loop-design.md`
   - Script: `scripts/deploy/ha-app-deploy.sh`
   - npm scripts: `deploy:app:fast`, `deploy:app:clean`
-  - Doku: `docs/contributor-deploy-loop.md`
+  - Docs: `docs/contributor-deploy-loop.md`
   - Contract test: `tests/app/deploy-script-contract.test.ts`
-- Contributor Env-Setup ergänzt:
-  - `.env.example` hinzugefügt (committet)
+- Added contributor env setup:
+  - added `.env.example` (committed)
   - `.env`, `.env.local`, `.env.*.local` in `.gitignore`
-  - Deploy/E2E-Skripte laden optional `.env.local`/`.env` mit Vorrang für explizit gesetzte Shell-Variablen
+  - Deploy/E2E scripts optionally load `.env.local`/`.env`, while explicitly exported shell variables keep priority
+- Enforced English-only documentation across the project:
+  - translated AGENTS/PROJECT and core tracked docs (`choices`, `breadcrumbs`)
+  - translated reference and migration docs under `docs/reference/` and `docs/MIGRATION-WORKPAPER.md`
+  - validated with repo-wide markdown language scans (no German matches)

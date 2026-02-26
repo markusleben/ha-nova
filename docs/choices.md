@@ -3,22 +3,22 @@
 ## 2026-02-25
 
 ### User Decisions (Brainstorm Q1-Q10)
-- Priorität: Balance (`Demo + API + Skill`).
-- DoD: Kombi-DoD mit reduziertem Scope.
-- Ziel-Client: client-agnostisch.
-- Security-Härte in 1a: dev-first.
-- Runtime-Qualität: funktional + sichere Fehler.
+- Priority: balanced (`Demo + API + Skill`).
+- DoD: combined DoD with reduced scope.
+- Target client: client-agnostic.
+- Security strictness in 1a: dev-first.
+- Runtime quality: functional + safe error handling.
 - `ha-onboarding.md`: ultra-lean.
 - Onboarding auth: user-generated LLT mandatory (`HA_TOKEN`), supervisor token not onboarding credential.
 - `ha-safety.md`: core-only.
-- `ha-nova.md`: nur aktive 1a/1b Skills.
-- Teststrategie: leicht automatisiert (Vitest).
-- Ergebnisformat: eine Plan-Datei.
+- `ha-nova.md`: only active 1a/1b skills.
+- Test strategy: lightweight automation (Vitest).
+- Output format: a single plan file.
 
 ### Planning Defaults (Agent)
-- Planstruktur: Vertical-Slice-Ansatz (empfohlen gegenüber infra-first/skill-first).
-- Fehlervertrag: einheitlicher JSON-Error-Envelope über alle Endpoints.
-- Execution workspace: Worktree-Skill fallback genutzt (Repo ohne Commit/HEAD), daher Feature-Branch `feat/phase-1a-foundation` im aktuellen Workspace.
+- Plan structure: vertical-slice approach (preferred over infra-first/skill-first).
+- Error contract: unified JSON error envelope across all endpoints.
+- Execution workspace: worktree-skill fallback used (repo without commit/HEAD), so feature branch `feat/phase-1a-foundation` was executed in the current workspace.
 - GitHub owner for remote operations: canonical API login `markusleben` used (rename from `w0nk1`).
 - Branch strategy after repo bootstrap: set `main` as default branch, merge PR #1 into `main`, then apply post-merge wiring fix directly on `main`.
 - Phase 1b execution mode: skill-first (REST workflow skills + acceptance doc), no new relay endpoints in this step.
@@ -27,15 +27,15 @@
 ## 2026-02-26
 
 ### Planning Defaults (Agent)
-- Upstream token policy: dual auth with deterministic fallback (`HA_LLAT` > addon option `ha_llat` > legacy `HA_TOKEN` > `SUPERVISOR_TOKEN`).
+- Upstream token policy: dual auth with deterministic fallback (`HA_LLAT` > app option `ha_llat` > legacy `HA_TOKEN` > `SUPERVISOR_TOKEN`).
 - Compatibility policy: keep `HA_TOKEN` required for existing relay auth behavior, mark `HA_TOKEN` as deprecated only for upstream LLAT resolution.
 - Dev ergonomics policy: provide idempotent LLAT seed command (`npm run seed:llat`) that validates options before write.
-- Supervisor API write policy: merge existing addon options before posting update to avoid unintended option loss.
-- Planning gate policy: no new plan without prior review of current official HA docs (developer + apps/add-ons + user docs).
+- Supervisor API write policy: merge existing app options before posting update to avoid unintended option loss.
+- Planning gate policy: no new plan without prior review of current official HA docs (developer docs + app docs + user docs).
 - Runtime auth split policy: relay endpoint auth token and upstream token selection are separated (`RELAY_AUTH_TOKEN` preferred for relay auth; upstream fallback uses `HA_TOKEN` only when relay auth is explicitly separated).
 - Runtime capability policy: if upstream auth is limited/none, relay stays up and returns explicit WS error instead of crashing startup.
-- Phase-1a.3 planning policy: addon/app packaging keeps shell runner thin (`addon/run`), with all auth precedence in Node runtime only (KISS + DRY).
-- Security baseline for packaging: require explicit `relay_auth_token` in addon options; keep `ha_llat` optional persistent capability token.
+- Phase-1a.3 planning policy: App packaging keeps shell runner thin (`app/run`), with all auth precedence in Node runtime only (KISS + DRY).
+- Security baseline for packaging: require explicit `relay_auth_token` in app options; keep `ha_llat` optional persistent capability token.
 - Terminology policy (user): prefer "App" wording in docs/UX communication; keep legacy "addon" only where technical HA interfaces enforce it.
 - Architecture policy (user): MVP first, but always modular-by-design to minimize future adaptation cost.
 - Skill policy (user): skills remain markdown-only (`*.md`), while relay stays lean and efficient.
@@ -46,3 +46,4 @@
 - Contributor deploy policy: provide two explicit HA deploy modes — `deploy:app:fast` for normal iteration and `deploy:app:clean` for aggressive cache-busting rebuilds.
 - Contributor env policy: keep secrets in untracked `.env.local` (or `.env`), ship committed `.env.example`; script env files are convenience only and must not override explicitly exported shell vars.
 - E2E policy refinement: `SUPERVISOR_TOKEN` is optional for runtime-only smoke and mandatory only for Supervisor option preflight / `--apply`.
+- Language policy enforcement: keep all project documentation English-only, including reference and migration docs.
