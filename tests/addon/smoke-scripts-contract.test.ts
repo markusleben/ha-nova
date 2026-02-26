@@ -2,7 +2,7 @@ import { constants, readFileSync, statSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
-describe("addon smoke scripts contract", () => {
+describe("app smoke scripts contract", () => {
   it("provides executable local smoke scripts", () => {
     const files = [
       "scripts/smoke/addon-local-build.sh",

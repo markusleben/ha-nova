@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import YAML from "yaml";
 
-describe("addon config contract", () => {
+describe("app config contract", () => {
   it("includes required metadata, security flags, and option schema", () => {
     const raw = readFileSync("addon/config.yaml", "utf8");
     const parsed = YAML.parse(raw) as Record<string, unknown>;

@@ -54,3 +54,10 @@
 - Dev-Startpfad auf Runtime-Entrypoint umgestellt:
   - `package.json` (`dev` -> `src/runtime/main.ts`)
 - Vollverifikation nach Runtime-Integration erfolgreich (`test`, `typecheck`, `build`).
+- Neuer Best-Practice-Implementierungsplan für lauffähiges HA-App/Add-on Packaging erstellt:
+  - `docs/plans/2026-02-26-phase-1a3-packaging-ha-app-plan.md`
+  - Fokus: KISS+DRY, dünner `addon/run`, zentrale Token-Resolution in Node, strukturierter Smoke-Test-Pfad.
+- User-Leitlinien verbindlich nachgeschärft und in `AGENTS.md` notiert:
+  - Terminologie: "App" statt "Add-on" (außer technische Pflichtpfade)
+  - Priorität: MVP zuerst, aber modular und sauber für spätere Erweiterungen
+  - Skills bleiben `*.md`; Bridge bleibt schlank/effizient

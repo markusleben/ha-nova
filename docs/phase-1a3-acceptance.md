@@ -1,14 +1,14 @@
-# Phase 1a.3 Acceptance Matrix
+# Phase 1a.3 App Packaging Acceptance Matrix
 
 Date: 2026-02-26  
 Branch: `feat/phase-1a3-packaging-ha-app`
 
-## Packaging Checks
+## Packaging Checks (App; technical path remains `addon/`)
 
 | Check | Command / Evidence | Expected |
 |---|---|---|
-| Add-on config contract | `npm test -- tests/addon/config-contract.test.ts` | PASS |
-| Add-on run contract | `npm test -- tests/addon/run-contract.test.ts` | PASS |
+| App config contract | `npm test -- tests/addon/config-contract.test.ts` | PASS |
+| App run contract | `npm test -- tests/addon/run-contract.test.ts` | PASS |
 | Smoke scripts contract | `npm test -- tests/addon/smoke-scripts-contract.test.ts` | PASS |
 
 ## Local Container Smoke
@@ -19,14 +19,14 @@ Branch: `feat/phase-1a3-packaging-ha-app`
 | Run container | `npm run smoke:addon:run` | container starts on `8791` |
 | HTTP smoke | `npm run smoke:addon:http` | `/health` + `/ws` return 2xx |
 
-## Home Assistant Runtime Smoke (Manual)
+## Home Assistant Runtime Smoke (Manual App Flow)
 
-1. Add local app/add-on repository and refresh store.
+1. Add local app repository and refresh store.
 2. Install `HA Nova Bridge`.
 3. Configure options:
    - `bridge_auth_token`: required
    - `ha_llat`: optional but required for full WS scope
-4. Start app/add-on.
+4. Start app.
 5. Verify health call:
    - `GET /health` with `Authorization: Bearer <bridge_auth_token>`
 6. Verify WS call:
@@ -42,7 +42,7 @@ Expected:
   - `POST http://supervisor/addons/self/options/validate`
 - Persist options:
   - `POST http://supervisor/addons/self/options`
-- Restart app/add-on:
+- Restart app:
   - `POST http://supervisor/addons/self/restart`
 
 Use header:
@@ -51,7 +51,7 @@ Use header:
 ## Persistence Check
 
 1. Set `ha_llat` once (UI or `npm run seed:llat -- '<TOKEN>'`).
-2. Restart app/add-on.
+2. Restart app.
 3. Repeat `/ws` smoke.
 
 Expected:

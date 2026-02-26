@@ -80,7 +80,7 @@ curl -sS -X POST \
   http://supervisor/addons/self/options
 ```
 
-3. Restart app/add-on:
+3. Restart app:
 ```bash
 curl -sS -X POST \
   -H "Authorization: Bearer ${SUPERVISOR_TOKEN}" \
@@ -90,6 +90,10 @@ curl -sS -X POST \
 4. Re-run smoke calls:
 - `GET /health`
 - `POST /ws` with `{"type":"ping"}`
+
+Preferred terminology note (2026+):
+- Use "App" in docs/UI communication.
+- Keep technical endpoint path `/addons/...` because Supervisor API currently uses that path.
 
 ## Test Matrix
 

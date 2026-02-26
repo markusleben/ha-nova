@@ -2,7 +2,7 @@ import { constants, readFileSync, statSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
-describe("addon run contract", () => {
+describe("app run contract", () => {
   it("provides an executable thin runner script", () => {
     const stats = statSync("addon/run");
     const content = readFileSync("addon/run", "utf8");

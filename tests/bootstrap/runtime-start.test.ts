@@ -108,8 +108,8 @@ describe("runtime bootstrap", () => {
   });
 
   it("logs startup auth context and listens successfully in limited mode", async () => {
-    const infoLogs: Array<{ message: string; context?: Record<string, unknown> }> = [];
-    const warnLogs: Array<{ message: string; context?: Record<string, unknown> }> = [];
+    const infoLogs: Array<{ message: string; context: Record<string, unknown> | undefined }> = [];
+    const warnLogs: Array<{ message: string; context: Record<string, unknown> | undefined }> = [];
     let listenCalledWithPort: number | null = null;
 
     const result = await startBridge({

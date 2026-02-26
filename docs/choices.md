@@ -34,3 +34,8 @@
 - Planning gate policy: no new plan without prior review of current official HA docs (developer + apps/add-ons + user docs).
 - Runtime auth split policy: bridge endpoint auth token and upstream token selection are separated (`BRIDGE_AUTH_TOKEN` preferred for bridge auth; upstream fallback uses `HA_TOKEN` only when bridge auth is explicitly separated).
 - Runtime capability policy: if upstream auth is limited/none, bridge stays up and returns explicit WS error instead of crashing startup.
+- Phase-1a.3 planning policy: addon/app packaging keeps shell runner thin (`addon/run`), with all auth precedence in Node runtime only (KISS + DRY).
+- Security baseline for packaging: require explicit `bridge_auth_token` in addon options; keep `ha_llat` optional persistent capability token.
+- Terminology policy (user): prefer "App" wording in docs/UX communication; keep legacy "addon" only where technical HA interfaces enforce it.
+- Architecture policy (user): MVP first, but always modular-by-design to minimize future adaptation cost.
+- Skill policy (user): skills remain markdown-only (`*.md`), while bridge stays lean and efficient.
