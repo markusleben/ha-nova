@@ -104,3 +104,5 @@
 - Contributor e2e policy: `e2e:skill:codex` is contributor validation and must explicitly require shell-provided `HA_LLAT`.
 - Deploy metadata sync policy refinement: `deploy:app:*` must auto-reinstall when Supervisor `options/schema` keys drift from `app/config.yaml` (prevents stale metadata after hot deploy).
 - Onboarding doctor reliability policy: when `/health` reports `ha_ws_connected=false`, doctor performs a `/ws` ping warm-up before failing, to avoid lazy-connect false negatives.
+- Onboarding UX policy refinement: setup must clearly state that LLAT is configured only in App option `ha_llat` (never prompted/stored in client onboarding).
+- Onboarding progress-visibility policy: setup prints explicit in-progress markers (`[..]`) for host detection, endpoint validation, and relay health checks.

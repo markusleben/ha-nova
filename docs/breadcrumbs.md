@@ -323,3 +323,9 @@
   - `bash scripts/onboarding/macos-onboarding.sh doctor` now passes in this environment.
   - `npm test -- tests/onboarding/macos-onboarding-script-contract.test.ts` (pass)
   - `shellcheck scripts/deploy/ha-app-deploy.sh scripts/onboarding/macos-lib.sh scripts/onboarding/macos-onboarding.sh` (pass)
+- Improved onboarding UX clarity + progress feedback:
+  - `scripts/onboarding/macos-lib.sh` setup now states LLAT is configured only in App option `ha_llat` (no client-side LLAT prompt/storage).
+  - setup now prints in-progress markers (`[..]`) and result markers (`[ok]/[fail]`) for host detection, endpoint validation, and relay health checks.
+- Verification after UX update:
+  - `shellcheck scripts/onboarding/macos-lib.sh scripts/onboarding/macos-onboarding.sh` (pass)
+  - `npm test -- tests/onboarding/macos-onboarding-script-contract.test.ts` (pass)

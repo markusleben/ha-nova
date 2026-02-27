@@ -282,11 +282,14 @@ prompt_valid_ha_host() {
       continue
     fi
 
+    echo "[..] Validating Home Assistant endpoint..."
     if resolved_ha_url="$(resolve_home_assistant_url_base "$input")"; then
+      echo "[ok] Home Assistant endpoint validated."
       HA_HOST="$host"
       HA_URL="$resolved_ha_url"
       return
     else
+      echo "[fail] Home Assistant endpoint validation failed."
       echo "[macos-onboarding] Could not validate Home Assistant host: ${input}" >&2
       echo "[macos-onboarding] Expected a reachable Home Assistant instance (supports URL/host/port)." >&2
     fi
@@ -604,7 +607,9 @@ run_setup() {
   load_config
 
   local default_ha_host
+  echo "[..] Detecting Home Assistant host candidates..."
   default_ha_host="$(detect_default_ha_host)"
+  echo "[ok] Host detection finished (default: ${default_ha_host})."
 
   prompt_valid_ha_host "$default_ha_host"
 
@@ -623,6 +628,8 @@ run_setup() {
   done
 
   echo "[macos-onboarding] Step 2/2: configure Relay authentication."
+  echo "[macos-onboarding] LLAT is not entered in this script."
+  echo "[macos-onboarding] Configure LLAT only in App option 'ha_llat' inside Home Assistant."
   local relay_auth_token
   local existing_relay_auth_token
   local relay_token_source="entered"
@@ -656,7 +663,9 @@ run_setup() {
     fi
   fi
 
+  echo "[..] Checking Relay health..."
   if ! probe_relay_health "$RELAY_BASE_URL" "$relay_auth_token"; then
+    echo "[fail] Relay health check failed."
     echo "[macos-onboarding] Relay check failed: ${RELAY_BASE_URL}/health" >&2
     explain_relay_probe_failure "$RELAY_BASE_URL"
     echo "[macos-onboarding] Install/start NOVA Relay App in Home Assistant and verify relay_auth_token in App options." >&2
@@ -664,8 +673,11 @@ run_setup() {
       die "Setup aborted until Relay is reachable."
     fi
   elif [[ "$LAST_RELAY_HA_WS_CONNECTED" == "false" ]]; then
+    echo "[ok] Relay health reachable."
     echo "[macos-onboarding] Relay reachable, but upstream WS is NOT healthy (ha_ws_connected=false)." >&2
     echo "[macos-onboarding] HA_LLAT is required in App options; configure app option 'ha_llat' and restart the App." >&2
+  else
+    echo "[ok] Relay health reachable."
   fi
 
   echo
