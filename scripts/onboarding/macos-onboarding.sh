@@ -14,7 +14,7 @@ Usage:
 
 Commands:
   setup   Interactive setup. Stores relay token + required HA LLAT in macOS Keychain.
-  doctor  Run onboarding diagnostics (includes required LLAT + full-scope WS validation).
+  doctor  Run onboarding diagnostics (requires LLAT + successful WS validation).
   ready   Fast readiness check (cached doctor pass; invalidates on secret/config changes).
   env     Print shell exports from stored config + required Keychain secrets.
   quick   Fast readiness check for fresh Codex sessions.

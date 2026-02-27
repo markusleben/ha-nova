@@ -273,3 +273,15 @@
   - removed `ws_allowlist_append` from App config, runner env mapping, and deploy/smoke option payloads.
 - Supersession note:
   - earlier 2026-02-26 entries that describe optional/no-LLAT behavior are historical and superseded by the mandatory-LLAT policy above.
+
+## 2026-02-27
+
+- Reviewed current uncommitted onboarding/E2E changes with explorer-agent pass (bug/risk focus).
+- Fixed live E2E harness contradiction:
+  - `scripts/e2e/codex-ha-nova-live-skill-e2e.sh` now checks path-neutral CRUD/reload evidence (`/config/automation/config/{id}`, `/services/automation/reload`) instead of `/api/...`-prefixed patterns.
+  - Prompt remains fastest-path-first (`create -> read -> update -> read -> delete -> verify absent`).
+- Strengthened E2E contract test:
+  - `tests/e2e/codex-skill-live-contract.test.ts` now enforces path-neutral evidence strings and guards against legacy `/api/...`-prefixed checks.
+- Re-verified impacted suites:
+  - `npm test -- tests/e2e/codex-skill-live-contract.test.ts` (pass)
+  - `npm test -- tests/onboarding/macos-onboarding-script-contract.test.ts` (pass)

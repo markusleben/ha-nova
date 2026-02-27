@@ -112,7 +112,7 @@ describe("macOS onboarding script contract", () => {
     expect(content).toContain("leave empty to keep existing or auto-generate");
     expect(content).toContain("Using existing relay auth token from Keychain");
     expect(content).toContain("ha_ws_connected=false");
-    expect(content).toContain("HA_LLAT is required for full-scope WS features");
+    expect(content).toContain("HA_LLAT is required. Ensure App option 'ha_llat' exactly matches Keychain LLAT.");
     expect(content).toContain(
       "Home Assistant Long-Lived Access Token (required; leave empty to keep existing):"
     );
@@ -181,6 +181,7 @@ exit 1
       "",
       "y",
       "dummy-llat",
+      "",
       ""
     ].join("\n");
 

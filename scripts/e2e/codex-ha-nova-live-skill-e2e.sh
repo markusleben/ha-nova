@@ -40,7 +40,7 @@ Hard requirements:
 4. Load onboarding env for this session.
 5. For write actions, preview payloads first; explicit confirmation is granted by this prompt for automation id "${AUTOMATION_ID}".
 6. Use deterministic automation id: "${AUTOMATION_ID}".
-7. Perform create -> read -> update -> read -> delete -> verify absent using direct Home Assistant REST capability from the skill flow.
+7. Perform create -> read -> update -> read -> delete -> verify absent using the fastest viable capability path from the skill flow.
 8. Do not run project helper scripts.
 9. Subagent delegation is allowed when useful.
 10. Do not modify repository files.
@@ -122,8 +122,9 @@ main() {
 
   local crud_hits
   local reload_hits
-  crud_hits="$(grep -o "/api/config/automation/config/${AUTOMATION_ID}" "$LOG_FILE" | wc -l | tr -d '[:space:]')"
-  reload_hits="$(grep -o "/api/services/automation/reload" "$LOG_FILE" | wc -l | tr -d '[:space:]')"
+  # Path-neutral evidence: works for App-context Supervisor and direct REST traces.
+  crud_hits="$(grep -o "/config/automation/config/${AUTOMATION_ID}" "$LOG_FILE" | wc -l | tr -d '[:space:]')"
+  reload_hits="$(grep -o "/services/automation/reload" "$LOG_FILE" | wc -l | tr -d '[:space:]')"
   [[ "${crud_hits}" -ge 4 ]] || die "Insufficient automation config CRUD evidence (${crud_hits} hits). Log: ${LOG_FILE}"
   [[ "${reload_hits}" -ge 2 ]] || die "Insufficient automation reload evidence (${reload_hits} hits). Log: ${LOG_FILE}"
   [[ "$final_line" == NOVA_SKILL_E2E_RESULT\ ok\ automation_id=${AUTOMATION_ID}\ reason=* ]] \

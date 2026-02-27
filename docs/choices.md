@@ -90,3 +90,9 @@
 - Runtime policy override: remove `SUPERVISOR_TOKEN` fallback from upstream token resolution; runtime startup fails fast without LLAT.
 - Onboarding policy override: `setup`, `doctor`, `ready`, and `env` must fail when LLAT is missing/invalid or Relay reports `ha_ws_connected=false`.
 - Config-surface reduction policy (user): remove `ws_allowlist_append` from App/user settings to keep MVP configuration minimal.
+
+## 2026-02-27
+
+### Planning Defaults (Agent)
+- E2E capability-proof policy: keep `e2e:skill:codex` assertions path-neutral (`/config/automation/config/{id}`, `/services/automation/reload`) so both App-context Supervisor and direct REST traces satisfy the same CRUD contract.
+- Onboarding UX clarity policy: setup text must always make LLAT mandatory semantics explicit (`required`, `must match`) and avoid optional-sounding degraded-WS wording.

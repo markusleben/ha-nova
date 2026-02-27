@@ -16,6 +16,11 @@ describe("codex live skill e2e contract", () => {
     expect(content).toContain("NOVA_SKILL_E2E_RESULT");
     expect(content).toContain("Do not run project helper scripts.");
     expect(content).toContain("E2E_SUBAGENT_POLICY");
+    expect(content).not.toContain("direct Home Assistant REST capability");
+    expect(content).toContain("/config/automation/config/${AUTOMATION_ID}");
+    expect(content).toContain("/services/automation/reload");
+    expect(content).not.toContain("/api/config/automation/config/${AUTOMATION_ID}");
+    expect(content).not.toContain("/api/services/automation/reload");
   });
 
   it("exposes npm command for codex live e2e harness", () => {

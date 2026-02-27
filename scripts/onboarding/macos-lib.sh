@@ -413,8 +413,8 @@ explain_relay_ws_degraded() {
       ;;
     "502")
       if [[ "${LAST_RELAY_WS_BODY:-}" == *"LLAT is required"* ]]; then
-        echo "         Cause: Relay is reachable, but upstream HA WS scope requires LLAT." >&2
-        echo "         Action: set HA_LLAT (Keychain) and App option 'ha_llat' for full WS scope." >&2
+        echo "         Cause: Relay is reachable, but HA WS authentication failed because HA_LLAT is missing or mismatched." >&2
+        echo "         Action: HA_LLAT is required. Set matching values in Keychain and App option 'ha_llat'." >&2
       else
         echo "         Cause: Relay reached, but upstream HA WS connection failed." >&2
         echo "         Action: inspect App logs and HA core WS availability." >&2
@@ -488,6 +488,18 @@ emit_export() {
   local key="$1"
   local value="$2"
   printf 'export %s=%q\n' "$key" "$value"
+}
+
+mask_secret_hint() {
+  local value="$1"
+  local length="${#value}"
+  if (( length <= 8 )); then
+    printf '***'
+    return
+  fi
+
+  local tail="${value: -4}"
+  printf '***%s' "$tail"
 }
 
 fingerprint_secret() {
@@ -599,7 +611,7 @@ run_doctor_checks() {
     echo "  [ok] Relay health reachable: ${RELAY_BASE_URL}/health"
     if [[ "$LAST_RELAY_HA_WS_CONNECTED" == "false" ]]; then
       echo "  [fail] Relay reports degraded upstream WS capability (ha_ws_connected=false)."
-      echo "         Action: HA_LLAT is required for full-scope WS features. Ensure App option 'ha_llat' matches Keychain LLAT."
+      echo "         Action: HA_LLAT is required. Ensure App option 'ha_llat' exactly matches Keychain LLAT."
       probe_relay_ws_ping "$RELAY_BASE_URL" "$relay_auth_token" >/dev/null 2>&1 || true
       explain_relay_ws_degraded
       overall_ok="0"
@@ -625,6 +637,7 @@ run_setup() {
   require_cmd security
   require_cmd curl
 
+  echo "[macos-onboarding] Step 1/3: detect and validate Home Assistant host."
   load_config
 
   local default_ha_host
@@ -646,11 +659,22 @@ run_setup() {
     default_relay_base_url="$RELAY_BASE_URL"
   done
 
+  echo "[macos-onboarding] Step 2/3: configure Relay authentication."
   local relay_auth_token
   local existing_relay_auth_token
   local existing_ha_llat
+  local relay_token_source="entered"
+  local ha_llat_source="entered"
   existing_relay_auth_token="$(read_keychain_secret "$RELAY_SERVICE")"
   existing_ha_llat="$(read_keychain_secret "$LLAT_SERVICE")"
+
+  if [[ -n "$existing_relay_auth_token" ]]; then
+    echo "[macos-onboarding] Existing Relay token found in Keychain (${RELAY_SERVICE}): $(mask_secret_hint "$existing_relay_auth_token")"
+    echo "[macos-onboarding] Press Enter to keep existing token, or paste a new token to rotate."
+  else
+    echo "[macos-onboarding] No Relay token found in Keychain (${RELAY_SERVICE})."
+    echo "[macos-onboarding] Press Enter to auto-generate, or paste a token."
+  fi
 
   echo "Relay auth token (leave empty to keep existing or auto-generate):"
   if ! read -r -s relay_auth_token; then
@@ -661,10 +685,14 @@ run_setup() {
   if [[ -z "$relay_auth_token" ]]; then
     if [[ -n "$existing_relay_auth_token" ]]; then
       relay_auth_token="$existing_relay_auth_token"
+      relay_token_source="existing-keychain"
       log "Using existing relay auth token from Keychain."
     else
       relay_auth_token="$(generate_relay_token)"
+      relay_token_source="generated"
       log "Generated relay auth token automatically."
+      echo "[macos-onboarding] Generated relay auth token (copy now): ${relay_auth_token}"
+      echo "[macos-onboarding] Set this value as App option 'relay_auth_token' in NOVA Relay."
     fi
   fi
 
@@ -672,15 +700,23 @@ run_setup() {
     echo "[macos-onboarding] Relay check failed: ${RELAY_BASE_URL}/health" >&2
     explain_relay_probe_failure "$RELAY_BASE_URL"
     echo "[macos-onboarding] Install/start NOVA Relay App in Home Assistant and verify relay_auth_token in App options." >&2
-    if ! prompt_yes_no "Continue setup anyway" "N"; then
+    if ! prompt_yes_no "Continue setup to save credentials only (doctor will still fail until Relay is reachable)" "N"; then
       die "Setup aborted until Relay is reachable."
     fi
   elif [[ "$LAST_RELAY_HA_WS_CONNECTED" == "false" ]]; then
-    echo "[macos-onboarding] Relay reachable, but upstream WS is currently degraded (ha_ws_connected=false)." >&2
+    echo "[macos-onboarding] Relay reachable, but upstream WS is NOT healthy (ha_ws_connected=false)." >&2
     echo "[macos-onboarding] HA_LLAT is required; configure app option 'ha_llat' to match Keychain LLAT." >&2
   fi
 
+  echo "[macos-onboarding] Step 3/3: configure required Home Assistant LLAT."
   local ha_llat
+  if [[ -n "$existing_ha_llat" ]]; then
+    echo "[macos-onboarding] Existing Home Assistant LLAT found in Keychain (${LLAT_SERVICE}): $(mask_secret_hint "$existing_ha_llat")"
+    echo "[macos-onboarding] Press Enter to keep existing LLAT, or paste a new LLAT to rotate."
+  else
+    echo "[macos-onboarding] No Home Assistant LLAT found in Keychain (${LLAT_SERVICE})."
+    echo "[macos-onboarding] Paste a Home Assistant LLAT to continue."
+  fi
   while true; do
     echo "Home Assistant Long-Lived Access Token (required; leave empty to keep existing):"
     if ! read -r -s ha_llat; then
@@ -691,6 +727,7 @@ run_setup() {
     if [[ -z "$ha_llat" ]]; then
       if [[ -n "$existing_ha_llat" ]]; then
         ha_llat="$existing_ha_llat"
+        ha_llat_source="existing-keychain"
         log "Using existing Home Assistant LLAT from Keychain."
       else
         echo "[macos-onboarding] HA_LLAT is required." >&2
@@ -707,6 +744,16 @@ run_setup() {
       die "Setup aborted until a valid HA_LLAT is provided."
     fi
   done
+
+  echo
+  echo "[macos-onboarding] Review configuration:"
+  echo "  - Home Assistant URL: ${HA_URL}"
+  echo "  - Relay base URL: ${RELAY_BASE_URL}"
+  echo "  - Relay token: $(mask_secret_hint "$relay_auth_token") (${relay_token_source})"
+  echo "  - Home Assistant LLAT: $(mask_secret_hint "$ha_llat") (${ha_llat_source})"
+  if ! prompt_yes_no "Save this configuration" "Y"; then
+    die "Setup aborted before saving changes."
+  fi
 
   store_keychain_secret "$RELAY_SERVICE" "$relay_auth_token"
   store_keychain_secret "$LLAT_SERVICE" "$ha_llat"
