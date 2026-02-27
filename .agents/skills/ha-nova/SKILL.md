@@ -28,7 +28,7 @@ Before HA operations in this session:
      - run `npm install`,
      - run `npm run install:codex-skill`,
      - restart the client.
-2. Load runtime env from local config + Keychain relay auth (for this session):
+2. Load runtime env once per shell session from local config + Keychain relay auth:
    - `eval "$(bash "$NOVA_REPO_ROOT/scripts/onboarding/macos-onboarding.sh" env)"`
 3. Do not run readiness/doctor proactively before the first HA action.
 4. Diagnose only on explicit capability failure:
@@ -43,7 +43,7 @@ Before HA operations in this session:
    - if `doctor` reports `ha_ws_connected=false`, route user to App config fix (set `ha_llat`, restart App)
 
 Do not ask user to paste tokens in chat.
-Run preflight checks silently; only report them when they fail.
+Do not run proactive network preflight checks before the first read action.
 
 ## Execution Latency Policy
 

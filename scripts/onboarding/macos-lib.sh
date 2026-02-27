@@ -569,12 +569,7 @@ run_doctor_checks() {
     if [[ "$LAST_RELAY_HA_WS_CONNECTED" == "false" ]]; then
       # Runtime keeps WS lazy-connected; validate once via ping before failing.
       if probe_relay_ws_ping "$RELAY_BASE_URL" "$relay_auth_token"; then
-        if probe_relay_health "$RELAY_BASE_URL" "$relay_auth_token" \
-          && [[ "$LAST_RELAY_HA_WS_CONNECTED" == "true" ]]; then
-          echo "  [ok] Relay upstream WS validated after ping warm-up."
-        else
-          echo "  [ok] Relay /ws ping succeeded (upstream WS operational)."
-        fi
+        echo "  [ok] Relay /ws ping succeeded (upstream WS operational)."
       else
         echo "  [fail] Relay reports degraded upstream WS capability (ha_ws_connected=false)."
         echo "         Action: HA_LLAT is required in App options. Verify app option 'ha_llat' and restart the App."
@@ -817,13 +812,12 @@ run_quick() {
     die "Missing Codex skill file: ${codex_skill_file}. Run: npm run install:codex-skill"
   fi
 
-  if ! grep -Fq "ha-nova-managed-install repo_root:" "$codex_skill_file"; then
-    die "Invalid Codex skill installation marker. Re-run: npm run install:codex-skill"
-  fi
-
   local marker_line
   local installed_repo_root
-  marker_line="$(grep -F "ha-nova-managed-install repo_root:" "$codex_skill_file" | head -n 1)"
+  marker_line="$(grep -F -m1 "ha-nova-managed-install repo_root:" "$codex_skill_file" || true)"
+  if [[ -z "$marker_line" ]]; then
+    die "Invalid Codex skill installation marker. Re-run: npm run install:codex-skill"
+  fi
   installed_repo_root="${marker_line#*repo_root: }"
   installed_repo_root="${installed_repo_root%-->}"
   installed_repo_root="${installed_repo_root%"${installed_repo_root##*[![:space:]]}"}"

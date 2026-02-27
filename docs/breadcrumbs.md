@@ -340,3 +340,8 @@
   - `.agents/skills/ha-nova/SKILL.md`: added execution latency policy (one-shot reads, no proactive doctor/ready, no success-path progress chatter).
   - `skills/ha-nova.md`: added execution discipline for direct `/ws` read flow and failure-only diagnostics.
   - `skills/ha-entities.md`: switched to `/ws`-first capability selection, removed mandatory `/health` preflight, and added canonical one-shot jq filters using `.data`.
+- Subagent performance review follow-ups applied:
+  - removed redundant doctor success-path second `/health` call after successful `/ws` ping warm-up in `scripts/onboarding/macos-lib.sh`.
+  - clarified env bootstrap as once-per-shell-session in `.agents/skills/ha-nova/SKILL.md` and `skills/ha-entities.md`.
+  - simplified `quick` marker parsing in `scripts/onboarding/macos-lib.sh` with single `grep -m1` path.
+  - clarified safety wording to forbid proactive network preflights in `.agents/skills/ha-nova/SKILL.md` and `skills/ha-nova.md`.

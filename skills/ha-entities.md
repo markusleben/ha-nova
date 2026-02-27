@@ -26,8 +26,10 @@ Resolve exact entity IDs before control or write operations.
 ## Endpoints
 
 - Relay
-  - `GET {RELAY_BASE_URL}/health`
   - `POST {RELAY_BASE_URL}/ws` with `{"type":"get_states"}`
+
+- Failure diagnostics only
+  - `GET {RELAY_BASE_URL}/health`
 
 ## Fast Workflow
 
@@ -36,10 +38,15 @@ Resolve exact entity IDs before control or write operations.
 2. Filter client-side from `.data` only (avoid recursive `..` selectors).
 3. Return requested subset directly.
 
+Load env once per shell session:
+
+```bash
+eval "$(bash scripts/onboarding/macos-onboarding.sh env)"
+```
+
 Canonical one-shot command:
 
 ```bash
-eval "$(bash scripts/onboarding/macos-onboarding.sh env)" && \
 curl -sS -X POST \
   -H "Authorization: Bearer $RELAY_AUTH_TOKEN" \
   -H "Content-Type: application/json" \
@@ -51,14 +58,13 @@ jq -c '.data // []'
 First 5 lights example:
 
 ```bash
-eval "$(bash scripts/onboarding/macos-onboarding.sh env)" && \
 curl -sS -X POST \
   -H "Authorization: Bearer $RELAY_AUTH_TOKEN" \
   -H "Content-Type: application/json" \
   "$RELAY_BASE_URL/ws" \
   -d '{"type":"get_states"}' | \
-jq -c '(.data // []) | map(select((.entity_id|type)=="string" and (.entity_id|startswith("light.")))
-  | {entity_id, state, friendly_name: (.attributes.friendly_name // null)})[:5]'
+jq -c '[limit(5; (.data // [])[] | select((.entity_id|type)=="string" and (.entity_id|startswith("light.")))
+  | {entity_id, state, friendly_name: (.attributes.friendly_name // null)} )]'
 ```
 
 ## Output Format

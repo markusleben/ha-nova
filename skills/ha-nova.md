@@ -67,4 +67,4 @@ Primary model:
 - Resolve ambiguity by listing/filtering first.
 - Show preview before write operations.
 - Wait for explicit user confirmation before execute.
-- Keep internal preflight checks silent in normal flow; show details only on failure.
+- Avoid proactive network preflights; show diagnostics only on failure.
