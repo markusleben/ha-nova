@@ -102,3 +102,5 @@
 - Supervisor boundary policy: Supervisor API usage remains contributor/deploy internal and is excluded from end-user onboarding flow.
 - Review hardening policy: every single-secret model change requires at least one logic review and one contract-test review before merge.
 - Contributor e2e policy: `e2e:skill:codex` is contributor validation and must explicitly require shell-provided `HA_LLAT`.
+- Deploy metadata sync policy refinement: `deploy:app:*` must auto-reinstall when Supervisor `options/schema` keys drift from `app/config.yaml` (prevents stale metadata after hot deploy).
+- Onboarding doctor reliability policy: when `/health` reports `ha_ws_connected=false`, doctor performs a `/ws` ping warm-up before failing, to avoid lazy-connect false negatives.

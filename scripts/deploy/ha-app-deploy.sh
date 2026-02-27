@@ -97,6 +97,29 @@ SUPERVISOR_SLUG="${SUPERVISOR_SLUG:-local_${APP_SLUG}}"
 APP_CONFIG_PATH="${PROJECT_ROOT}/app/config.yaml"
 EXPECTED_INGRESS="$(sed -n 's/^ingress:[[:space:]]*//p' "${APP_CONFIG_PATH}" | head -n1 || true)"
 EXPECTED_PORT_MAPPINGS="$(sed -nE 's/^  ([0-9]+\/tcp:[[:space:]]*[0-9]+)$/\1/p' "${APP_CONFIG_PATH}" || true)"
+EXPECTED_OPTION_KEYS="$(
+  awk '
+    /^options:/ {section="options"; next}
+    /^schema:/ {section="schema"; next}
+    /^[^[:space:]]/ {section=""}
+    section=="options" && /^  [A-Za-z0-9_]+:/ {
+      key=$1
+      sub(":", "", key)
+      print key
+    }
+  ' "${APP_CONFIG_PATH}" || true
+)"
+EXPECTED_SCHEMA_KEYS="$(
+  awk '
+    /^schema:/ {section="schema"; next}
+    /^[^[:space:]]/ {section=""}
+    section=="schema" && /^  [A-Za-z0-9_]+:/ {
+      key=$1
+      sub(":", "", key)
+      print key
+    }
+  ' "${APP_CONFIG_PATH}" || true
+)"
 
 if [[ -z "$HA_HOST" ]]; then
   echo "[ha-app-deploy] HA_HOST is required" >&2
@@ -128,10 +151,9 @@ log() {
 }
 
 get_app_info_json() {
-  local attempt
   local output
 
-  for attempt in 1 2 3; do
+  for _ in 1 2 3; do
     output="$(remote "ha apps info ${SUPERVISOR_SLUG} --raw-json" 2>/dev/null || true)"
     if [[ "$output" == \{\"result\"* ]]; then
       echo "$output"
@@ -171,7 +193,11 @@ metadata_needs_reinstall() {
     return 1
   fi
 
-  if EXPECTED_INGRESS="$EXPECTED_INGRESS" EXPECTED_PORT_MAPPINGS="$EXPECTED_PORT_MAPPINGS" INFO_JSON="$info_json" \
+  if EXPECTED_INGRESS="$EXPECTED_INGRESS" \
+    EXPECTED_PORT_MAPPINGS="$EXPECTED_PORT_MAPPINGS" \
+    EXPECTED_OPTION_KEYS="$EXPECTED_OPTION_KEYS" \
+    EXPECTED_SCHEMA_KEYS="$EXPECTED_SCHEMA_KEYS" \
+    INFO_JSON="$info_json" \
     python3 - <<'PY'
 import json
 import os
@@ -179,6 +205,12 @@ import sys
 
 expected_ingress = os.environ.get("EXPECTED_INGRESS", "").strip().lower()
 expected_ports = [line.strip() for line in os.environ.get("EXPECTED_PORT_MAPPINGS", "").splitlines() if line.strip()]
+expected_option_keys = sorted(
+    line.strip() for line in os.environ.get("EXPECTED_OPTION_KEYS", "").splitlines() if line.strip()
+)
+expected_schema_keys = sorted(
+    line.strip() for line in os.environ.get("EXPECTED_SCHEMA_KEYS", "").splitlines() if line.strip()
+)
 
 payload = json.loads(os.environ.get("INFO_JSON", "{}") or "{}")
 data = payload.get("data", {})
@@ -201,6 +233,20 @@ for mapping in expected_ports:
     if str(actual_value) != value:
         sys.exit(0)
 
+actual_options = data.get("options") or {}
+actual_option_keys = sorted(str(key) for key in actual_options.keys())
+if expected_option_keys and actual_option_keys != expected_option_keys:
+    sys.exit(0)
+
+actual_schema = data.get("schema") or []
+actual_schema_keys = sorted(
+    str(entry.get("name"))
+    for entry in actual_schema
+    if isinstance(entry, dict) and entry.get("name")
+)
+if expected_schema_keys and actual_schema_keys != expected_schema_keys:
+    sys.exit(0)
+
 sys.exit(1)  # metadata matches
 PY
   then
@@ -211,7 +257,7 @@ PY
 }
 
 reinstall_app_for_metadata_sync() {
-  log "App metadata drift detected (ingress/ports). Reinstalling app to refresh Supervisor cache."
+  log "App metadata drift detected (ingress/ports/options/schema). Reinstalling app to refresh Supervisor cache."
   remote "ha apps uninstall ${SUPERVISOR_SLUG}" || true
   if ! remote "ha apps install ${SUPERVISOR_SLUG}"; then
     log "First reinstall attempt failed; retrying after store reload."

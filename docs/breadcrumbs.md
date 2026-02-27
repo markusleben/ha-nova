@@ -311,3 +311,15 @@
 - Verification after review-driven fixes:
   - `npm test -- tests/onboarding/macos-onboarding-script-contract.test.ts tests/e2e/codex-skill-live-contract.test.ts tests/security/ws-allowlist.test.ts tests/security/auth.test.ts tests/app/run-contract.test.ts` (pass)
   - `shellcheck scripts/onboarding/macos-lib.sh scripts/onboarding/macos-onboarding.sh scripts/e2e/codex-ha-nova-live-skill-e2e.sh` (pass)
+- Hardened deploy metadata drift detection for App + Relay:
+  - updated `scripts/deploy/ha-app-deploy.sh` to compare expected `options/schema` keys from `app/config.yaml` against `ha apps info --raw-json`.
+  - stale keys like `ws_allowlist_append` now trigger automatic uninstall/install metadata refresh during `deploy:app:*`.
+- Fixed onboarding doctor false-negative after restart:
+  - updated `scripts/onboarding/macos-lib.sh` (`run_doctor_checks`) to warm WS once via `/ws` ping when `/health` reports `ha_ws_connected=false`.
+  - doctor now passes when WS is operational but lazy connection had not been established yet.
+- Live verification after fixes:
+  - `npm run deploy:app:clean` applied; supervisor `schema/options` now contain only `relay_auth_token` + `ha_llat`.
+  - `npm run deploy:app:fast` no longer forces reinstall once metadata is in sync.
+  - `bash scripts/onboarding/macos-onboarding.sh doctor` now passes in this environment.
+  - `npm test -- tests/onboarding/macos-onboarding-script-contract.test.ts` (pass)
+  - `shellcheck scripts/deploy/ha-app-deploy.sh scripts/onboarding/macos-lib.sh scripts/onboarding/macos-onboarding.sh` (pass)

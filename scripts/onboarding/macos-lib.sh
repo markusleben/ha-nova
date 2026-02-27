@@ -564,11 +564,20 @@ run_doctor_checks() {
   if [[ -n "${RELAY_BASE_URL:-}" && -n "$relay_auth_token" ]] && probe_relay_health "$RELAY_BASE_URL" "$relay_auth_token"; then
     echo "  [ok] Relay health reachable: ${RELAY_BASE_URL}/health"
     if [[ "$LAST_RELAY_HA_WS_CONNECTED" == "false" ]]; then
-      echo "  [fail] Relay reports degraded upstream WS capability (ha_ws_connected=false)."
-      echo "         Action: HA_LLAT is required in App options. Verify app option 'ha_llat' and restart the App."
-      probe_relay_ws_ping "$RELAY_BASE_URL" "$relay_auth_token" >/dev/null 2>&1 || true
-      explain_relay_ws_degraded
-      overall_ok="0"
+      # Runtime keeps WS lazy-connected; validate once via ping before failing.
+      if probe_relay_ws_ping "$RELAY_BASE_URL" "$relay_auth_token"; then
+        if probe_relay_health "$RELAY_BASE_URL" "$relay_auth_token" \
+          && [[ "$LAST_RELAY_HA_WS_CONNECTED" == "true" ]]; then
+          echo "  [ok] Relay upstream WS validated after ping warm-up."
+        else
+          echo "  [ok] Relay /ws ping succeeded (upstream WS operational)."
+        fi
+      else
+        echo "  [fail] Relay reports degraded upstream WS capability (ha_ws_connected=false)."
+        echo "         Action: HA_LLAT is required in App options. Verify app option 'ha_llat' and restart the App."
+        explain_relay_ws_degraded
+        overall_ok="0"
+      fi
     fi
   else
     echo "  [fail] Relay health check failed: ${RELAY_BASE_URL:-<unset>}/health"
