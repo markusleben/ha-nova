@@ -15,7 +15,7 @@ normalize_token() {
 
 export APP_OPTIONS_PATH="/data/options.json"
 if [[ -z "${HA_URL:-}" ]]; then
-  export HA_URL="http://supervisor/core"
+  export HA_URL="http://homeassistant:8123"
 fi
 export RELAY_VERSION="$(bashio::addon.version 2>/dev/null || echo "dev-local")"
 

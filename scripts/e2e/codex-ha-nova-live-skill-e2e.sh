@@ -36,15 +36,17 @@ Run a real Home Assistant automation CRUD scenario as a live user-like session.
 Hard requirements:
 1. Work in English only.
 2. Use App + Relay terminology.
-3. Run onboarding readiness first (`ready --quiet`).
+3. Run onboarding readiness first (ready --quiet).
 4. Load onboarding env for this session.
-5. For write actions, preview payloads first; explicit confirmation is granted by this prompt for automation id "${AUTOMATION_ID}".
-6. Use deterministic automation id: "${AUTOMATION_ID}".
-7. Perform create -> read -> update -> read -> delete -> verify absent using the fastest viable capability path from the skill flow.
-8. Do not run project helper scripts.
-9. Subagent delegation is allowed when useful.
-10. Do not modify repository files.
-11. Final output must contain exactly one status line:
+5. This is contributor validation mode. Use explicit HA_LLAT direct REST capability for automation CRUD.
+   Do not request or store LLAT in client onboarding files/Keychain.
+6. For write actions, preview payloads first; explicit confirmation is granted by this prompt for automation id "${AUTOMATION_ID}".
+7. Use deterministic automation id: "${AUTOMATION_ID}".
+8. Perform create -> read -> update -> read -> delete -> verify absent.
+9. Do not run project helper scripts.
+10. Subagent delegation is allowed when useful.
+11. Do not modify repository files.
+12. Final output must contain exactly one status line:
     NOVA_SKILL_E2E_RESULT <ok> automation_id=${AUTOMATION_ID} reason=<short_reason>
 EOF
 }
@@ -67,7 +69,7 @@ main() {
   source /dev/stdin <<<"$onboarding_env"
 
   if [[ -z "${HA_LLAT:-}" ]]; then
-    die "HA_LLAT is required for e2e:skill:codex."
+    die "Contributor live CRUD check requires HA_LLAT in shell env. Export HA_LLAT and rerun."
   fi
 
   mkdir -p "$OUTPUT_DIR"

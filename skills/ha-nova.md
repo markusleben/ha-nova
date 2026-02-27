@@ -12,7 +12,6 @@ Route user requests to the correct HA NOVA skill path with strict preconditions 
 Primary model:
 - App + Relay first.
 - Always choose the fastest viable path for the current capability state.
-- Direct HA REST only when required and authorized.
 - Writes always require preview + explicit confirmation.
 
 ## Mandatory Gate (Session-Aware)
@@ -26,15 +25,12 @@ Primary model:
 3. Resolve capability mode for this session:
    - `app_relay_connected`: Relay reachable and `ha_ws_connected=true`
    - `app_relay_degraded`: Relay reachable but `ha_ws_connected=false` (configuration failure)
-   - `direct_rest_enabled`: `HA_LLAT` available
 
 ## Session Inputs
 
 - Required:
-  - `HA_URL`
   - `RELAY_BASE_URL`
   - `RELAY_AUTH_TOKEN`
-  - `HA_LLAT`
 
 ## Active Skill Catalog
 
@@ -57,11 +53,8 @@ Primary model:
 
 - In `app_relay_connected` mode:
   - prefer App + Relay for read/discovery flows.
-  - use direct REST only when explicitly needed.
 - In `app_relay_degraded` mode:
   - stop quickly with exact capability reason and route to `ha-onboarding`.
-- In `direct_rest_enabled` mode:
-  - allow direct REST fallback when Relay is unavailable.
 
 ## Safety Baseline
 

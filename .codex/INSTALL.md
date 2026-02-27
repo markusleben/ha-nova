@@ -58,6 +58,7 @@ bash scripts/onboarding/macos-onboarding.sh doctor
 Expected minimum:
 - `[ok] Home Assistant reachable`
 - `[ok] Relay health reachable`
+- `[ok] Onboarding preflight passed.`
 
 ## Troubleshooting
 
@@ -68,12 +69,14 @@ Expected minimum:
 - Relay health `000`:
   - host/port/network unreachable.
 - `/ws` degraded (`ha_ws_connected=false` or `UPSTREAM_WS_ERROR`):
-  - App + Relay is running, but full upstream WS scope is limited without LLAT.
+  - App + Relay is running, but upstream WS is not connected.
+  - verify App option `ha_llat` and restart the App.
 
 ## Security
 
 - Do not paste tokens in chat.
-- Onboarding stores secrets in macOS Keychain (`ha-nova.relay-auth-token`, optional `ha-nova.ha-llat`).
+- Onboarding stores only relay auth in macOS Keychain (`ha-nova.relay-auth-token`).
+- LLAT stays in App option `ha_llat` only.
 - End-user onboarding does not require SSH.
 - Contributor bootstrap remains separate: `scripts/dev/ha-app-bootstrap.sh`.
 - Daily usage stays normal (`codex`); no custom launcher.

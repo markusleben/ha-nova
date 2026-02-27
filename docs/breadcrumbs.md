@@ -285,3 +285,29 @@
 - Re-verified impacted suites:
   - `npm test -- tests/e2e/codex-skill-live-contract.test.ts` (pass)
   - `npm test -- tests/onboarding/macos-onboarding-script-contract.test.ts` (pass)
+- Added single-secret user-auth mini-spec:
+  - `docs/plans/2026-02-27-single-secret-client-model-design.md`
+- Shifted onboarding to relay-token-only client model:
+  - removed LLAT prompt + LLAT keychain storage from `scripts/onboarding/macos-lib.sh`.
+  - `setup` now stores only relay token and removes legacy local `ha-nova.ha-llat` secret.
+  - `env` now exports `HA_HOST`, `HA_URL`, `RELAY_BASE_URL`, `RELAY_AUTH_TOKEN` only.
+  - `doctor`/`ready` now validate Relay upstream WS health without client-side LLAT checks.
+- Updated user install docs to match single-secret model:
+  - `.codex/INSTALL.md`, `.claude/INSTALL.md`, `docs/user-onboarding-macos.md`.
+- Updated active skills to Relay-first user routing:
+  - `.agents/skills/ha-nova/SKILL.md` no longer enforces client-side LLAT.
+  - `skills/ha-nova.md`, `skills/ha-entities.md`, `skills/ha-control.md`, `skills/ha-automation-control.md`, `skills/ha-onboarding.md` adjusted to App + Relay user flow.
+  - `skills/ha-automation-crud.md` now marks end-user relay-only limitation and keeps explicit contributor direct-REST mode.
+- Expanded WS allowlist for relay service execution:
+  - review follow-up reverted default `call_service`/`get_services` widening to avoid broad write-surface expansion.
+- Ran multi-pass code review via explorer agents (logic + UX + test-contract focus):
+  - fixed contributor-vs-end-user e2e contradiction by reintroducing explicit `HA_LLAT` contributor gate in `scripts/e2e/codex-ha-nova-live-skill-e2e.sh`.
+  - aligned install/onboarding wording for single-secret model and App + Relay terminology consistency.
+  - tightened contract tests:
+    - added `macos-quick.sh` executability coverage.
+    - asserted contributor HA_LLAT requirement in e2e contract test.
+    - added stronger de-keychaining assertions (no LLAT reads/exports from onboarding env path).
+    - added `app/run` normalization contract assertion (`"null"` handling).
+- Verification after review-driven fixes:
+  - `npm test -- tests/onboarding/macos-onboarding-script-contract.test.ts tests/e2e/codex-skill-live-contract.test.ts tests/security/ws-allowlist.test.ts tests/security/auth.test.ts tests/app/run-contract.test.ts` (pass)
+  - `shellcheck scripts/onboarding/macos-lib.sh scripts/onboarding/macos-onboarding.sh scripts/e2e/codex-ha-nova-live-skill-e2e.sh` (pass)

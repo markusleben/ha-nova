@@ -36,6 +36,7 @@ describe("macOS onboarding script contract", () => {
       "scripts/onboarding/macos-setup.sh",
       "scripts/onboarding/macos-doctor.sh",
       "scripts/onboarding/macos-ready.sh",
+      "scripts/onboarding/macos-quick.sh",
       "scripts/onboarding/macos-env.sh"
     ];
 
@@ -53,7 +54,9 @@ describe("macOS onboarding script contract", () => {
     expect(content).toContain("security add-generic-password");
     expect(content).toContain("security find-generic-password");
     expect(content).toContain("ha-nova.relay-auth-token");
-    expect(content).toContain("ha-nova.ha-llat");
+    expect(content).not.toContain('read_keychain_secret "$LLAT_SERVICE"');
+    expect(content).not.toContain('store_keychain_secret "$LLAT_SERVICE"');
+    expect(content).not.toContain('emit_export "HA_LLAT"');
   });
 
   it("supports setup, doctor, ready, env, and quick commands only", () => {
@@ -76,7 +79,7 @@ describe("macOS onboarding script contract", () => {
     expect(lib).toContain("run_ready()");
     expect(lib).toContain("DOCTOR_CACHE_FILE");
     expect(lib).toContain("DOCTOR_CACHE_RELAY_TOKEN_FINGERPRINT");
-    expect(lib).toContain("DOCTOR_CACHE_HA_LLAT_FINGERPRINT");
+    expect(lib).not.toContain("DOCTOR_CACHE_HA_LLAT_FINGERPRINT");
     expect(lib).toContain(".agents/skills/ha-nova/SKILL.md");
     expect(lib).toContain("ha-nova-managed-install repo_root:");
     expect(lib).toContain("installed_repo_root=\"${installed_repo_root%-->}\"");
@@ -112,11 +115,8 @@ describe("macOS onboarding script contract", () => {
     expect(content).toContain("leave empty to keep existing or auto-generate");
     expect(content).toContain("Using existing relay auth token from Keychain");
     expect(content).toContain("ha_ws_connected=false");
-    expect(content).toContain("HA_LLAT is required. Ensure App option 'ha_llat' exactly matches Keychain LLAT.");
-    expect(content).toContain(
-      "Home Assistant Long-Lived Access Token (required; leave empty to keep existing):"
-    );
-    expect(content).toContain("Missing Home Assistant LLAT in Keychain");
+    expect(content).toContain("HA_LLAT is required in App options");
+    expect(content).toContain("LLAT location: App option 'ha_llat'");
     expect(content).not.toContain("unset HA_LLAT");
   });
 
@@ -152,13 +152,30 @@ describe("macOS onboarding script contract", () => {
     writeFileSync(
       curlPath,
       `#!/usr/bin/env bash
+outfile=""
+headers_file=""
+write_code="0"
+while [[ "$#" -gt 1 ]]; do
+  case "$1" in
+    -o) outfile="$2"; shift 2 ;;
+    -D) headers_file="$2"; shift 2 ;;
+    -w) write_code="1"; shift 2 ;;
+    *) shift ;;
+  esac
+done
 url="\${@: -1}"
-if [[ "$url" == *"/api/" ]]; then
-  printf '200'
-  exit 0
-fi
 if [[ "$url" == *"/health" ]]; then
-  printf '{"status":"ok","ha_ws_connected":true}'
+  if [[ -n "$outfile" ]]; then
+    printf '{"status":"ok","ha_ws_connected":true}' > "$outfile"
+  else
+    printf '{"status":"ok","ha_ws_connected":true}'
+  fi
+  if [[ -n "$headers_file" ]]; then
+    printf 'content-type: application/json\\n' > "$headers_file"
+  fi
+  if [[ "$write_code" == "1" ]]; then
+    printf '200'
+  fi
   exit 0
 fi
 exit 1
@@ -180,8 +197,6 @@ exit 1
       "",
       "",
       "y",
-      "dummy-llat",
-      "",
       ""
     ].join("\n");
 

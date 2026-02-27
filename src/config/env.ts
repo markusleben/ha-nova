@@ -12,7 +12,7 @@ export interface EnvConfig {
 
 const DEFAULT_RELAY_PORT = 8791;
 const DEFAULT_LOG_LEVEL: LogLevel = "info";
-const DEFAULT_HA_URL = "http://supervisor/core";
+const DEFAULT_HA_URL = "http://homeassistant:8123";
 const DEFAULT_RELAY_VERSION = "dev";
 const DEFAULT_APP_OPTIONS_PATH = "/data/options.json";
 const ALLOWED_LOG_LEVELS = new Set<LogLevel>([

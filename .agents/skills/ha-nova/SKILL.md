@@ -11,7 +11,7 @@ description: Use when the user wants Home Assistant operations through HA NOVA (
 
 Operate Home Assistant through HA NOVA with a simple user flow:
 - App + Relay first
-- fastest viable path first (avoid slow fallback paths unless required)
+- fastest viable path first
 - minimal prompts
 - safe write confirmation
 
@@ -26,7 +26,7 @@ Before HA operations in this session:
    - if script is still missing, stop and ask user to:
      - clone `ha-nova`,
      - run `npm install`,
-     - run `npm run install:skills`,
+     - run `npm run install:codex-skill`,
      - restart the client.
 2. Verify session readiness once per active conversation:
    - Run exactly once at first HA operation:
@@ -38,12 +38,12 @@ Before HA operations in this session:
    - ask user to run `cd "$NOVA_REPO_ROOT" && npm run onboarding:macos`
    - then run `bash "$NOVA_REPO_ROOT/scripts/onboarding/macos-onboarding.sh" doctor` for detailed diagnostics
    - stop until onboarding is healthy
-5. Load runtime env from local config + Keychain (for this session):
+5. Load runtime env from local config + Keychain relay auth (for this session):
    - `eval "$(bash "$NOVA_REPO_ROOT/scripts/onboarding/macos-onboarding.sh" env)"`
-6. Enforce mandatory LLAT:
-   - if `HA_LLAT` is missing, stop immediately
-   - route user to `npm run onboarding:macos` (setup) + `doctor`
-   - continue only when LLAT validation is healthy
+6. Relay-only auth model:
+   - do not request or store LLAT in client-side Keychain/env for end-user flow
+   - LLAT is configured in App option `ha_llat`
+   - if `doctor` reports `ha_ws_connected=false`, route user to App config fix (set `ha_llat`, restart App)
 
 Do not ask user to paste tokens in chat.
 Run preflight checks silently; only report them when they fail.

@@ -33,13 +33,13 @@ In Claude Code, use:
 Fetch and follow instructions from https://raw.githubusercontent.com/markusleben/ha-nova/main/.claude/INSTALL.md
 ```
 
-## 1. Install skill once
+## 1. Install skill once (choose one)
 
 ```bash
 npm run install:codex-skill
 ```
 
-Install skills for Codex + Claude Code + OpenCode:
+Or install skills for Codex + Claude Code + OpenCode:
 
 ```bash
 npm run install:skills
@@ -66,7 +66,6 @@ npm run onboarding:macos:quick
 The setup stores:
 - Keychain secrets:
   - `ha-nova.relay-auth-token`
-  - required `ha-nova.ha-llat`
 - Non-secret config file:
   - `~/.config/ha-nova/onboarding.env`
   - includes `HA_HOST`, `HA_URL`, `RELAY_BASE_URL`
@@ -97,6 +96,6 @@ eval "$(bash scripts/onboarding/macos-onboarding.sh env)"
 - Local App installation/bootstrap via SSH is contributor-only and handled by `scripts/dev/ha-app-bootstrap.sh`.
 - `.env.local` stays a contributor convenience path.
 - Keychain-first is the primary end-user path for macOS.
-- `HA_LLAT` is required.
-- `doctor` hard-fails if Relay reports `ha_ws_connected=false`; this indicates invalid/missing LLAT alignment between Keychain and App options.
+- `HA_LLAT` is required in App option `ha_llat`.
+- `doctor` hard-fails if Relay reports `ha_ws_connected=false`; this indicates App LLAT/config issues.
 - After one-time skill install, use normal daily startup (`codex`, Claude Code, OpenCode). No special launcher required.

@@ -13,10 +13,10 @@ Usage:
   bash scripts/onboarding/macos-onboarding.sh quick
 
 Commands:
-  setup   Interactive setup. Stores relay token + required HA LLAT in macOS Keychain.
-  doctor  Run onboarding diagnostics (requires LLAT + successful WS validation).
+  setup   Interactive setup. Stores relay token in macOS Keychain.
+  doctor  Run onboarding diagnostics (verifies Relay upstream WS validation).
   ready   Fast readiness check (cached doctor pass; invalidates on secret/config changes).
-  env     Print shell exports from stored config + required Keychain secrets.
+  env     Print shell exports from stored config + required Keychain relay token.
   quick   Fast readiness check for fresh Codex sessions.
 USAGE
 }

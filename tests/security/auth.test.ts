@@ -47,7 +47,7 @@ describe("loadEnv", () => {
     expect(env).toEqual({
       relayAuthToken: "llt-token",
       haLlat: "ha-llat-token",
-      haUrl: "http://supervisor/core",
+      haUrl: "http://homeassistant:8123",
       relayVersion: "dev",
       appOptionsPath: "/data/options.json",
       relayPort: 9000,
@@ -64,7 +64,7 @@ describe("loadEnv", () => {
     expect(env).toEqual({
       relayAuthToken: "relay-token",
       haLlat: "user-llat",
-      haUrl: "http://supervisor/core",
+      haUrl: "http://homeassistant:8123",
       relayVersion: "dev",
       appOptionsPath: "/data/options.json",
       relayPort: 8791,
@@ -81,7 +81,7 @@ describe("loadEnv", () => {
     expect(env).toEqual({
       relayAuthToken: "relay-auth",
       haLlat: "ha-llat",
-      haUrl: "http://supervisor/core",
+      haUrl: "http://homeassistant:8123",
       relayVersion: "dev",
       appOptionsPath: "/data/options.json",
       relayPort: 8791,

@@ -14,9 +14,11 @@ describe("codex live skill e2e contract", () => {
     expect(content).toContain("--json");
     expect(content).toContain("ha-nova");
     expect(content).toContain("NOVA_SKILL_E2E_RESULT");
+    expect(content).toContain("contributor validation mode");
+    expect(content).toContain("Use explicit HA_LLAT direct REST capability");
+    expect(content).toContain("Contributor live CRUD check requires HA_LLAT in shell env");
     expect(content).toContain("Do not run project helper scripts.");
     expect(content).toContain("E2E_SUBAGENT_POLICY");
-    expect(content).not.toContain("direct Home Assistant REST capability");
     expect(content).toContain("/config/automation/config/${AUTOMATION_ID}");
     expect(content).toContain("/services/automation/reload");
     expect(content).not.toContain("/api/config/automation/config/${AUTOMATION_ID}");

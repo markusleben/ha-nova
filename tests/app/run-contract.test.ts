@@ -17,6 +17,9 @@ describe("app run contract", () => {
   it("maps options to env without re-implementing token precedence logic", () => {
     const content = readFileSync("app/run", "utf8");
 
+    expect(content).toContain("normalize_token()");
+    expect(content).toContain('"$value" == "null"');
+    expect(content).toContain('HA_URL="http://homeassistant:8123"');
     expect(content).toContain("RELAY_AUTH_TOKEN");
     expect(content).toContain("HA_LLAT");
 

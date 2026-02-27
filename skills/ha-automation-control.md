@@ -1,54 +1,38 @@
 ---
 name: ha-automation-control
-description: Control existing automations via automation service calls.
+description: Automation runtime control scope definition for App + Relay end-user mode with internal contributor direct-REST fallback.
 ---
 
 # HA Automation Control
 
 ## Purpose
 
-Enable, disable, toggle, or trigger existing automations through REST service calls.
+Define deterministic handling for automation runtime control (`turn_on`, `turn_off`, `toggle`, `trigger`) in the current App + Relay end-user MVP.
 
-## Required Inputs
+## Modes
 
-- `HA_URL`
-- `HA_LLAT` (Long-Lived Access Token for direct REST)
+- End-user mode (default):
+  - App + Relay only (user-facing).
+  - No client-side LLAT.
+  - Automation runtime control via relay is not exposed yet.
+- Contributor mode (internal/dev-only, explicit):
+  - `HA_URL`
+  - `HA_LLAT`
+  - direct Home Assistant REST service calls.
 
-## Primary Endpoint
+## End-user Behavior (Mandatory)
 
+1. Do not attempt direct REST automation control.
+2. Return a clear scope message:
+   - automation runtime control write path is not exposed in relay-only MVP.
+3. Keep user on App + Relay onboarding path and offer read-only alternatives.
+
+## Contributor Behavior (Explicit Only)
+
+Use direct REST service calls:
 - `POST {HA_URL}/api/services/automation/{service}`
 
-Common services:
-- `turn_on`
-- `turn_off`
-- `toggle`
-- `trigger`
-
-## Control Flow
-
-1. Resolve exact automation entity IDs (use `ha-entities`).
-2. Preview service name + target payload.
-3. Ask explicit confirmation.
-4. Execute service call.
-5. Verify post-state when relevant:
-   - `turn_on` expected state `on`
-   - `turn_off` expected state `off`
-
-## Payload Patterns
-
-- Single target:
-  - `{"entity_id":"automation.my_rule"}`
-- Batch target:
-  - `{"entity_id":["automation.a","automation.b"]}`
-- Trigger with skipped conditions when intentionally requested:
-  - `{"entity_id":"automation.my_rule","skip_condition":true}`
-
-## Safety Rules
-
-- Do not trigger unknown automations.
-- For batch operations, execute sequentially and report per-item result.
-- Stop batch on hard errors unless user explicitly asks to continue-on-error.
-
-If `HA_LLAT` is unavailable:
-- stop direct REST automation control flow,
-- route user to `ha-onboarding` for token setup guidance.
+Safety:
+- resolve automation entity IDs first.
+- preview payload before execution.
+- require explicit confirmation for writes.

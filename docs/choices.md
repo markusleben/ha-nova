@@ -96,3 +96,9 @@
 ### Planning Defaults (Agent)
 - E2E capability-proof policy: keep `e2e:skill:codex` assertions path-neutral (`/config/automation/config/{id}`, `/services/automation/reload`) so both App-context Supervisor and direct REST traces satisfy the same CRUD contract.
 - Onboarding UX clarity policy: setup text must always make LLAT mandatory semantics explicit (`required`, `must match`) and avoid optional-sounding degraded-WS wording.
+- Runtime HA endpoint policy (LLAT-only model): default `HA_URL` must target Home Assistant Core (`http://homeassistant:8123`), not Supervisor proxy (`http://supervisor/core`), to keep upstream WS auth consistent with LLAT.
+- Single-secret user policy: end-user client stores relay auth only; LLAT is configured only in App option `ha_llat`.
+- Relay-only user routing policy: active end-user skills must not require client-side `HA_LLAT` and should route through App + Relay capability checks.
+- Supervisor boundary policy: Supervisor API usage remains contributor/deploy internal and is excluded from end-user onboarding flow.
+- Review hardening policy: every single-secret model change requires at least one logic review and one contract-test review before merge.
+- Contributor e2e policy: `e2e:skill:codex` is contributor validation and must explicitly require shell-provided `HA_LLAT`.

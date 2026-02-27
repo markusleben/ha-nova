@@ -1,6 +1,6 @@
 ---
 name: ha-automation-crud
-description: Manage automation configs with capability-aware CRUD flow (App-context Supervisor path or direct HA REST with LLAT).
+description: Manage automation configs with explicit scope boundaries for App + Relay end-user MVP.
 ---
 
 # HA Automation CRUD
@@ -8,35 +8,31 @@ description: Manage automation configs with capability-aware CRUD flow (App-cont
 ## Purpose
 
 Create, read, update, and delete automations, then reload and verify.
-Use the best available capability path for the current session.
+In App + Relay end-user sessions, fail fast with clear scope guidance.
 
-## Capability Inputs
+## Capability Modes
 
-- Path A: App-context Supervisor path
-  - `SUPERVISOR_TOKEN` with access to `http://supervisor/core/api` (typically inside App runtime context)
-- Path B: Direct Home Assistant REST
+- End-user mode (default):
+  - App + Relay only (user-facing).
+  - No client-side LLAT.
+- Contributor mode (explicit):
+- Contributor mode (internal/dev-only, explicit):
   - `HA_URL`
-  - `HA_LLAT` (Long-Lived Access Token)
+  - `HA_LLAT`
 
 ## Capability Selection (Mandatory)
 
-1. Require `HA_LLAT` as baseline capability.
-2. Prefer Path A when available (`SUPERVISOR_TOKEN` + `/core/api` access).
-3. Otherwise use Path B.
-4. If neither path is available:
+1. If this is an end-user App + Relay session:
    - stop CRUD execution,
-   - route user to `ha-onboarding` with exact missing capability.
+   - explain that automation config CRUD is not yet exposed in relay-only MVP path.
+2. If contributor mode with explicit `HA_LLAT` is provided:
+   - use direct Home Assistant REST (`{HA_URL}/api/...`) for CRUD.
+3. If contributor mode lacks `HA_LLAT`:
+   - stop and ask for contributor setup path (not end-user onboarding).
 
-## Endpoints by Path
+## Contributor Endpoints (Direct REST)
 
-- Path A (App-context, base: `http://supervisor/core/api`)
-  - list runtime automations: `GET /states` (filter `automation.*`)
-  - get config: `GET /config/automation/config/{id}`
-  - create/update config: `POST /config/automation/config/{id}`
-  - delete config: `DELETE /config/automation/config/{id}`
-  - reload: `POST /services/automation/reload`
-
-- Path B (Direct REST, base: `{HA_URL}/api`)
+- Base: `{HA_URL}/api`
   - list runtime automations: `GET /states` (filter `automation.*`)
   - get config: `GET /config/automation/config/{id}`
   - create/update config: `POST /config/automation/config/{id}`
@@ -75,4 +71,4 @@ Use the best available capability path for the current session.
 - Never overwrite unknown IDs.
 - Never execute create/update/delete without preview + confirmation.
 - On ambiguity in ID mapping (`id` vs `entity_id`), resolve explicitly before write.
-- Use deterministic capability selection; do not mix paths mid-operation.
+- Use deterministic mode selection; do not mix end-user and contributor paths mid-operation.
