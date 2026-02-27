@@ -329,3 +329,10 @@
 - Verification after UX update:
   - `shellcheck scripts/onboarding/macos-lib.sh scripts/onboarding/macos-onboarding.sh` (pass)
   - `npm test -- tests/onboarding/macos-onboarding-script-contract.test.ts` (pass)
+- Switched skill runtime to failure-driven diagnostics (faster first action):
+  - updated `.agents/skills/ha-nova/SKILL.md` to remove proactive `ready --quiet` gate before first HA action.
+  - updated `skills/ha-nova.md` from mandatory upfront gate to optimistic fast-path + diagnose-on-failure.
+  - updated `scripts/e2e/codex-ha-nova-live-skill-e2e.sh` prompt/assertions to align with no upfront ready/doctor execution.
+- Verification after runtime-flow change:
+  - `shellcheck scripts/e2e/codex-ha-nova-live-skill-e2e.sh scripts/onboarding/macos-onboarding.sh scripts/onboarding/macos-lib.sh` (pass)
+  - `npm test -- tests/e2e/codex-skill-live-contract.test.ts tests/onboarding/macos-onboarding-script-contract.test.ts` (pass)

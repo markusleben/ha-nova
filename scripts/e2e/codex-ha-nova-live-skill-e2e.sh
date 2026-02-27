@@ -36,7 +36,7 @@ Run a real Home Assistant automation CRUD scenario as a live user-like session.
 Hard requirements:
 1. Work in English only.
 2. Use App + Relay terminology.
-3. Run onboarding readiness first (ready --quiet).
+3. Do not run onboarding ready/doctor checks before the first HA action.
 4. Load onboarding env for this session.
 5. This is contributor validation mode. Use explicit HA_LLAT direct REST capability for automation CRUD.
    Do not request or store LLAT in client onboarding files/Keychain.
@@ -90,7 +90,6 @@ main() {
 
   grep -Fq "ha-nova/SKILL.md" "$LOG_FILE" || die "No skill usage evidence found in log. Log: ${LOG_FILE}"
   grep -Fq "macos-onboarding.sh" "$LOG_FILE" || die "Missing onboarding script usage evidence. Log: ${LOG_FILE}"
-  grep -Fq "ready" "$LOG_FILE" || die "Missing onboarding readiness execution evidence. Log: ${LOG_FILE}"
   if jq -e '
     select(.type == "item.completed" and .item.type == "command_execution")
     | .item.command

@@ -28,18 +28,15 @@ Before HA operations in this session:
      - run `npm install`,
      - run `npm run install:codex-skill`,
      - restart the client.
-2. Verify session readiness once per active conversation:
-   - Run exactly once at first HA operation:
-     - `bash "$NOVA_REPO_ROOT/scripts/onboarding/macos-onboarding.sh" ready --quiet`
-   - After a successful result, do not run this check again in the same conversation by default.
-3. Re-run readiness only on explicit capability failure:
-   - examples: relay unreachable, auth rejected, missing required env/token for selected path
-4. If readiness fails:
+2. Load runtime env from local config + Keychain relay auth (for this session):
+   - `eval "$(bash "$NOVA_REPO_ROOT/scripts/onboarding/macos-onboarding.sh" env)"`
+3. Do not run readiness/doctor proactively before the first HA action.
+4. Diagnose only on explicit capability failure:
+   - examples: relay unreachable, auth rejected, invalid token, request timeout
+5. If diagnosis is needed:
    - ask user to run `cd "$NOVA_REPO_ROOT" && npm run onboarding:macos`
    - then run `bash "$NOVA_REPO_ROOT/scripts/onboarding/macos-onboarding.sh" doctor` for detailed diagnostics
    - stop until onboarding is healthy
-5. Load runtime env from local config + Keychain relay auth (for this session):
-   - `eval "$(bash "$NOVA_REPO_ROOT/scripts/onboarding/macos-onboarding.sh" env)"`
 6. Relay-only auth model:
    - do not request or store LLAT in client-side Keychain/env for end-user flow
    - LLAT is configured in App option `ha_llat`

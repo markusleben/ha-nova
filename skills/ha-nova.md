@@ -1,6 +1,6 @@
 ---
 name: ha-nova
-description: Strict orchestrator for Home Assistant operations through App + Relay with mandatory onboarding-health gate and deterministic skill routing.
+description: Strict orchestrator for Home Assistant operations through App + Relay with deterministic fast-path routing and failure-driven diagnostics.
 ---
 
 # HA NOVA Orchestrator
@@ -14,15 +14,14 @@ Primary model:
 - Always choose the fastest viable path for the current capability state.
 - Writes always require preview + explicit confirmation.
 
-## Mandatory Gate (Session-Aware)
+## Fast Path (Session-Aware)
 
-1. Run fast readiness check:
-   - `bash scripts/onboarding/macos-onboarding.sh ready --quiet`
-2. If any required check fails:
-   - stop operation routing,
-   - route to `ha-onboarding`,
-   - continue only after readiness is healthy.
-3. Resolve capability mode for this session:
+1. Do not run onboarding readiness checks before the first HA operation.
+2. Attempt the requested HA action directly via App + Relay.
+3. On capability failure only:
+   - run diagnostics (`doctor`) and route to `ha-onboarding`,
+   - continue only after onboarding is healthy.
+4. Resolve capability mode when needed:
    - `app_relay_connected`: Relay reachable and `ha_ws_connected=true`
    - `app_relay_degraded`: Relay reachable but `ha_ws_connected=false` (configuration failure)
 

@@ -106,3 +106,4 @@
 - Onboarding doctor reliability policy: when `/health` reports `ha_ws_connected=false`, doctor performs a `/ws` ping warm-up before failing, to avoid lazy-connect false negatives.
 - Onboarding UX policy refinement: setup must clearly state that LLAT is configured only in App option `ha_llat` (never prompted/stored in client onboarding).
 - Onboarding progress-visibility policy: setup prints explicit in-progress markers (`[..]`) for host detection, endpoint validation, and relay health checks.
+- Skill runtime UX policy override (user): skip proactive `ready/doctor` checks before first HA action; run diagnostics only when a real capability failure occurs.
