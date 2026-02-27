@@ -336,3 +336,7 @@
 - Verification after runtime-flow change:
   - `shellcheck scripts/e2e/codex-ha-nova-live-skill-e2e.sh scripts/onboarding/macos-onboarding.sh scripts/onboarding/macos-lib.sh` (pass)
   - `npm test -- tests/e2e/codex-skill-live-contract.test.ts tests/onboarding/macos-onboarding-script-contract.test.ts` (pass)
+- Reduced read-flow latency and verbosity in skill routing:
+  - `.agents/skills/ha-nova/SKILL.md`: added execution latency policy (one-shot reads, no proactive doctor/ready, no success-path progress chatter).
+  - `skills/ha-nova.md`: added execution discipline for direct `/ws` read flow and failure-only diagnostics.
+  - `skills/ha-entities.md`: switched to `/ws`-first capability selection, removed mandatory `/health` preflight, and added canonical one-shot jq filters using `.data`.

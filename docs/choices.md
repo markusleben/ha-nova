@@ -107,3 +107,4 @@
 - Onboarding UX policy refinement: setup must clearly state that LLAT is configured only in App option `ha_llat` (never prompted/stored in client onboarding).
 - Onboarding progress-visibility policy: setup prints explicit in-progress markers (`[..]`) for host detection, endpoint validation, and relay health checks.
 - Skill runtime UX policy override (user): skip proactive `ready/doctor` checks before first HA action; run diagnostics only when a real capability failure occurs.
+- Entity read latency policy: for end-user read/list flows, call Relay `/ws` first in a single one-shot command and avoid separate `/health` preflight unless `/ws` fails.

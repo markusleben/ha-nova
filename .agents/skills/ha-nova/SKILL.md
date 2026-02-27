@@ -45,6 +45,13 @@ Before HA operations in this session:
 Do not ask user to paste tokens in chat.
 Run preflight checks silently; only report them when they fail.
 
+## Execution Latency Policy
+
+- Prioritize one-shot commands over multi-step probing for read requests.
+- Do not print internal progress logs in normal success paths.
+- For first read/list requests, attempt Relay `/ws` directly.
+- Run `doctor` only after an actual request failure, not as a startup ritual.
+
 ## Routing
 
 - Setup/connectivity/user first-run questions:

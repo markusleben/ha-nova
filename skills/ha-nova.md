@@ -25,6 +25,12 @@ Primary model:
    - `app_relay_connected`: Relay reachable and `ha_ws_connected=true`
    - `app_relay_degraded`: Relay reachable but `ha_ws_connected=false` (configuration failure)
 
+## Execution Discipline
+
+1. For read/list requests, execute directly with one Relay `/ws` call.
+2. Avoid separate preflight calls unless the main request fails.
+3. Keep user-visible output short: result only on success, diagnostics only on failure.
+
 ## Session Inputs
 
 - Required:

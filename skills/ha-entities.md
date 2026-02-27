@@ -17,10 +17,10 @@ Resolve exact entity IDs before control or write operations.
 
 ## Capability Selection (Mandatory)
 
-1. Require Relay health and upstream WS connectivity (`ha_ws_connected=true`).
-2. Use Relay `/ws` as the only end-user path.
-3. If Relay is unavailable or degraded:
-   - stop entity discovery,
+1. Use Relay `/ws` as the first and only end-user request path.
+2. Do not run separate `/health` checks before `/ws` in normal read flows.
+3. If `/ws` fails:
+   - run diagnostics (`doctor`) once,
    - route user to `ha-onboarding` with exact failure reason.
 
 ## Endpoints
@@ -29,14 +29,37 @@ Resolve exact entity IDs before control or write operations.
   - `GET {RELAY_BASE_URL}/health`
   - `POST {RELAY_BASE_URL}/ws` with `{"type":"get_states"}`
 
-## Workflow
+## Fast Workflow
 
 1. Load all states once:
    - `POST /ws` with `{"type":"get_states"}`
-2. Filter client-side by:
-   - domain (`light.`, `switch.`, `sensor.`, `automation.`)
-   - `friendly_name`
-   - area/device hints embedded in `entity_id` or attributes
+2. Filter client-side from `.data` only (avoid recursive `..` selectors).
+3. Return requested subset directly.
+
+Canonical one-shot command:
+
+```bash
+eval "$(bash scripts/onboarding/macos-onboarding.sh env)" && \
+curl -sS -X POST \
+  -H "Authorization: Bearer $RELAY_AUTH_TOKEN" \
+  -H "Content-Type: application/json" \
+  "$RELAY_BASE_URL/ws" \
+  -d '{"type":"get_states"}' | \
+jq -c '.data // []'
+```
+
+First 5 lights example:
+
+```bash
+eval "$(bash scripts/onboarding/macos-onboarding.sh env)" && \
+curl -sS -X POST \
+  -H "Authorization: Bearer $RELAY_AUTH_TOKEN" \
+  -H "Content-Type: application/json" \
+  "$RELAY_BASE_URL/ws" \
+  -d '{"type":"get_states"}' | \
+jq -c '(.data // []) | map(select((.entity_id|type)=="string" and (.entity_id|startswith("light.")))
+  | {entity_id, state, friendly_name: (.attributes.friendly_name // null)})[:5]'
+```
 
 ## Output Format
 
