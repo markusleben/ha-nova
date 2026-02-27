@@ -30,6 +30,7 @@ Primary model:
 1. For read/list requests, execute directly with one Relay `/ws` call.
 2. Avoid separate preflight calls unless the main request fails.
 3. Keep user-visible output short: result only on success, diagnostics only on failure.
+4. For simple read-only asks (`first N entity_ids`, `count by domain`), skip subskill loading and use direct one-shot command path.
 
 ## Session Inputs
 

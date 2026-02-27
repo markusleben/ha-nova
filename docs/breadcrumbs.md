@@ -345,3 +345,6 @@
   - clarified env bootstrap as once-per-shell-session in `.agents/skills/ha-nova/SKILL.md` and `skills/ha-entities.md`.
   - simplified `quick` marker parsing in `scripts/onboarding/macos-lib.sh` with single `grep -m1` path.
   - clarified safety wording to forbid proactive network preflights in `.agents/skills/ha-nova/SKILL.md` and `skills/ha-nova.md`.
+- Added explicit simple-read fast shortcut in entry skill:
+  - `.agents/skills/ha-nova/SKILL.md` now instructs one-shot `/ws` execution for trivial read-only asks and enforces result-only output (no progress narration).
+  - `skills/ha-nova.md` now explicitly allows skipping subskill loading for simple read-only prompts.

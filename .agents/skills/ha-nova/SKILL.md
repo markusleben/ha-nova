@@ -51,6 +51,27 @@ Do not run proactive network preflight checks before the first read action.
 - Do not print internal progress logs in normal success paths.
 - For first read/list requests, attempt Relay `/ws` directly.
 - Run `doctor` only after an actual request failure, not as a startup ritual.
+- For simple read-only prompts (for example: first N entity_ids, count by domain), do not open subskills; run one command and return only the result.
+
+## Read-Only Fast Shortcut
+
+Use this directly for domain-based read requests:
+
+```bash
+[[ -n "${RELAY_BASE_URL:-}" && -n "${RELAY_AUTH_TOKEN:-}" ]] || eval "$(bash "$NOVA_REPO_ROOT/scripts/onboarding/macos-onboarding.sh" env)"
+DOMAIN="${DOMAIN:-light}"
+LIMIT="${LIMIT:-5}"
+curl -sS -X POST \
+  -H "Authorization: Bearer $RELAY_AUTH_TOKEN" \
+  -H "Content-Type: application/json" \
+  "$RELAY_BASE_URL/ws" \
+  -d '{"type":"get_states"}' | \
+jq -r --arg domain "$DOMAIN." --argjson limit "$LIMIT" \
+  '(.data // []) | map(select((.entity_id|type)=="string" and (.entity_id|startswith($domain))) | .entity_id)[:$limit][]'
+```
+
+Output rule for this shortcut:
+- return only requested values (no process narration).
 
 ## Routing
 
