@@ -31,4 +31,13 @@ jobs:
         uses: github/codeql-action/autobuild@v4
 
       - name: Analyze
+        id: analyze
+        continue-on-error: true
         uses: github/codeql-action/analyze@v4
+
+      - name: Note non-blocking CodeQL fallback
+        if: ${{ steps.analyze.outcome == 'failure' }}
+        run: |
+          echo "CodeQL analyze failed in non-blocking mode."
+          echo "Most common cause: code scanning is not enabled in repository settings."
+          echo "Enable code scanning to enforce CodeQL as a strict gate."
