@@ -348,3 +348,70 @@
 - Added explicit simple-read fast shortcut in entry skill:
   - `.agents/skills/ha-nova/SKILL.md` now instructs one-shot `/ws` execution for trivial read-only asks and enforces result-only output (no progress narration).
   - `skills/ha-nova.md` now explicitly allows skipping subskill loading for simple read-only prompts.
+- Hardened live Codex E2E harness reliability:
+  - `scripts/e2e/codex-ha-nova-live-skill-e2e.sh` no longer fails immediately on non-zero `codex exec` exit.
+  - harness now treats transcript assertions (`NOVA_SKILL_E2E_RESULT` + CRUD/reload evidence) as the authoritative pass/fail signal.
+- Added generic user-scenario Codex E2E harness:
+  - new runner: `scripts/e2e/codex-ha-nova-scenarios-e2e.sh`.
+  - new declarative scenarios: `scripts/e2e/codex-ha-nova-scenarios.json`.
+  - validates per-scenario final contract line (`NOVA_SCENARIO_RESULT id=... values=[...]`), correctness (`prefix` + `count`), and routing hygiene (no proactive `doctor/ready/quick`, no helper-script shortcuts).
+  - runs onboarding quick gate only once per suite, then executes scenarios.
+- Added scenario harness contract coverage:
+  - new test: `tests/e2e/codex-skill-scenarios-contract.test.ts`.
+  - package shortcut: `npm run e2e:skill:codex:scenarios`.
+- Updated contributor docs:
+  - `docs/contributor-deploy-loop.md` now documents scenario E2E command, custom scenario file override, and output artifact handling.
+- Review-driven hardening for scenario harness:
+  - fail conditions added for `/health`-before-`/ws` and missing `/ws` request in read scenarios.
+  - transcript parsing hardened: invalid/non-JSONL logs now produce per-scenario failure (`invalid_jsonl_transcript`) instead of aborting the whole suite.
+  - onboarding diagnostic check made order-aware (only fails when `doctor|ready|quick` occurs before first `/ws`).
+  - scenario expectations extended with `count_mode` (`exact` or `up_to`) to reduce environment-coupled false negatives.
+- Expanded default MVP read-scenario pack:
+  - updated `scripts/e2e/codex-ha-nova-scenarios.json` with `sensor-first-15-entity-ids` and `binary-sensor-first-10-entity-ids`.
+  - default suite now covers four high-frequency discovery domains: `switch`, `light`, `sensor`, `binary_sensor`.
+- Added scenario roadmap mini-spec:
+  - new plan doc `docs/plans/2026-02-27-mvp-scenario-pack-design.md` defining P0/P1 scope and deferred non-MVP areas.
+- Updated contributor documentation:
+  - `docs/contributor-deploy-loop.md` now states current P0 domain pack for `e2e:skill:codex:scenarios`.
+- Addressed GH Codex inline review feedback on PR #6:
+  - `.agents/skills/ha-nova/SKILL.md`: switched read-only fast shortcut to streaming `jq limit(...)` to avoid full-array materialization on large state lists.
+  - `skills/ha-entities.md`: replaced relative onboarding env path with repo-root-aware `NOVA_REPO_ROOT` resolution and explicit missing-script guard.
+- Added regression contract coverage for the review fixes:
+  - new test `tests/skills/ha-nova-skill-contract.test.ts` validates streaming shortcut + repo-root-aware env snippet.
+
+## 2026-02-28
+- Created GitHub baseline spec for repository hardening:
+  - `docs/plans/2026-02-28-github-starter-pack-design.md`
+- Implemented MVP/KISS repository starter pack:
+  - root community-health files (`README`, `LICENSE`, `CONTRIBUTING`, `CODE_OF_CONDUCT`, `SECURITY`, `SUPPORT`, `CHANGELOG`)
+  - `.github` ownership/templates (`CODEOWNERS`, PR template, issue forms/config)
+  - `.github` automation baseline (CI, dependency review, CodeQL, Dependabot, release-note categories)
+- Added verification run for local quality gates (`typecheck`, `test`).
+- Enabled minimal release automation workflow:
+  - `.github/workflows/release-please.yml` (`googleapis/release-please-action@v4`, `simple` release type)
+- Added PR review/fix automation watchdog:
+  - `.github/workflows/pr-review-watchdog.yml` (auto `@codex review` per head SHA; auto `@codex fix` on CI failure with `autofix:enabled` label gate)
+- Updated CodeQL permissions:
+  - `.github/workflows/codeql.yml` now includes `actions: read` to reduce `Resource not accessible by integration` failures.
+- Updated contributor guidance:
+  - `CONTRIBUTING.md` now documents Codex watchdog behavior and `autofix:enabled` usage.
+- Created implementation handoff plan for scenario-pack continuation:
+  - `docs/plans/2026-02-28-scenario-pack-p1-implementation-plan.md`
+  - covers schema extension, expected-failure matching, behavioral assertions, P1 scenario entries, docs update, and full verification gate.
+- Documented planning defaults in `docs/choices.md` for P1 harness evolution and scope-boundary enforcement.
+- Implemented P1 scenario harness features in `scripts/e2e/codex-ha-nova-scenarios-e2e.sh`:
+  - schema support for `expected_status`, `expected_error`, `forbid_patterns`, `must_contain_text`
+  - added `expect.type = json_array_values`
+  - added expected-vs-observed reconciliation (`expected_status_mismatch`, `expected_error_mismatch`)
+  - added behavioral error codes (`forbidden_pattern_detected`, `required_text_missing`)
+- Extended default scenario suite in `scripts/e2e/codex-ha-nova-scenarios.json`:
+  - `forced-health-preflight-should-fail`
+  - `forced-proactive-doctor-should-fail`
+  - `automation-create-scope-boundary-message`
+- Follow-up stability adjustments:
+  - increased all scenario `max_duration_sec` values to `90`
+  - adjusted prompt guardrail to allow proactive doctor/ready checks only when explicitly requested
+- Verification:
+  - `npm run typecheck` pass
+  - `npm test` pass (`21/21` files, `71/71` tests)
+  - live `npm run e2e:skill:codex:scenarios` partial run before manual interrupt: `6/7` completed, all 6 passed (including both forced-negative scenarios).

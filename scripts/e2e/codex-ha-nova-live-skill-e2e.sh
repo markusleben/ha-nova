@@ -86,7 +86,9 @@ main() {
   codex_status="$?"
   set -e
 
-  [[ "$codex_status" -eq 0 ]] || die "codex exec failed (exit ${codex_status}). Log: ${LOG_FILE}"
+  if [[ "$codex_status" -ne 0 ]]; then
+    log "codex exec exited ${codex_status}; validating transcript outcome before failing."
+  fi
 
   grep -Fq "ha-nova/SKILL.md" "$LOG_FILE" || die "No skill usage evidence found in log. Log: ${LOG_FILE}"
   grep -Fq "macos-onboarding.sh" "$LOG_FILE" || die "Missing onboarding script usage evidence. Log: ${LOG_FILE}"

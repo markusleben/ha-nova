@@ -133,6 +133,29 @@ Optional override:
 - `OUTPUT_DIR` to keep logs in a fixed path
 - `E2E_SUBAGENT_POLICY=allow|deny` (`allow` default for realistic user-like agent behavior)
 
+User-scenario read-flow E2E through Codex agent:
+
+```bash
+npm run e2e:skill:codex:scenarios
+```
+
+What it validates:
+- runs multiple user-like read scenarios from `scripts/e2e/codex-ha-nova-scenarios.json`
+- current P0 core domains: `switch`, `light`, `sensor`, `binary_sensor`
+- current P1 behavior scenarios: forced `/health` preflight fail, forced proactive `doctor` fail, automation-create boundary messaging
+- enforces final-result contract per scenario (`NOVA_SCENARIO_RESULT ...`)
+- checks correctness (`prefix` + `count` with `count_mode` = `exact|up_to`) and guards against slow/noisy routing (`/health` before `/ws`, proactive `doctor/ready/quick`, helper script usage)
+- supports expected-outcome assertions per scenario:
+  - `expected_status`: `pass|fail` (default `pass`)
+  - `expected_error`: specific error code match for negative checks
+  - `forbid_patterns`: command regexes that must not appear
+  - `must_contain_text`: required substrings in the final assistant message
+- writes per-scenario logs + suite summary under `OUTPUT_DIR`
+
+Optional override:
+- `SCENARIO_FILE=/abs/path/custom-scenarios.json` for custom prompt suites
+- `OUTPUT_DIR=/abs/path/e2e-output` to keep artifacts
+
 After deploy, run live checks:
 
 ```bash

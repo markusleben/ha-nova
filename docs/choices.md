@@ -110,3 +110,27 @@
 - Entity read latency policy: for end-user read/list flows, call Relay `/ws` first in a single one-shot command and avoid separate `/health` preflight unless `/ws` fails.
 - Read-flow micro-optimization policy: remove redundant follow-up `/health` checks after successful `/ws` warm-up and keep env bootstrap explicitly once per shell session.
 - Simple-read UX policy: for trivial read-only prompts (first N IDs / counts), avoid subskill-file loading and return result-only output without progress narration.
+- Live E2E robustness policy: evaluate JSONL transcript assertions as source of truth; non-zero `codex exec` exit alone must not fail if final status + evidence checks pass.
+- Scenario E2E policy: keep a separate read-only, user-scenario Codex harness (`e2e:skill:codex:scenarios`) decoupled from contributor CRUD validation.
+- Scenario contract policy: each scenario must define deterministic correctness checks (`entity_id` prefix + count + `count_mode`) in a declarative JSON file to avoid hardcoded one-off tests.
+- Routing quality policy: scenario harness must fail when `/health` is called before `/ws`, when proactive onboarding diagnostics (`doctor/ready/quick`) appear before first HA read, or when helper-script shortcuts are used.
+- MVP scenario-pack policy: default read-only P0 suite includes `switch`, `light`, `sensor`, and `binary_sensor` discovery scenarios.
+- Inventory-variance policy: default read scenarios use `count_mode=up_to` to keep assertions stable across different homes while still validating routing and prefix correctness.
+- Scenario-roadmap policy: negative/scope-boundary scenarios are P1 and require explicit harness support for expected-failure assertions before activation in default suite.
+
+## 2026-02-28
+
+### Planning Defaults (Agent)
+- GitHub baseline policy: add full community-health + `.github` starter pack before any structural repo refactor.
+- License default: use MIT for MVP velocity and broad compatibility.
+- CI default: single required check job name `ci-gate` (typecheck + test + build), with `pull_request` + `merge_group` triggers.
+- Security default: include CodeQL workflow + dependency review + Dependabot weekly updates.
+- Release default: add `.github/release.yml` categorization only; defer release publishing automation to a later phase.
+- Ownership default: set initial CODEOWNERS fallback to `@markusleben`.
+- Release automation policy refinement: enable `release-please` in minimal single-package mode for changelog/tag/release PR automation on `main`.
+- PR automation policy: add label-gated Codex watchdog (`autofix:enabled`) with one auto-review request per head SHA and one auto-fix request per failed workflow run.
+- Code scanning policy refinement: grant `actions: read` in CodeQL workflow permissions to avoid workflow-run metadata access failures.
+- Scenario-pack continuation policy: implement P1 as behavior-first extensions on existing harness (no rewrite), keeping P0 contract stable while adding `expected_status`, `expected_error`, `forbid_patterns`, and `must_contain_text`.
+- Scope-boundary validation policy: represent non-MVP write requests as explicit boundary-message scenarios with forbidden write-pattern checks, instead of adding write execution to the P1 suite.
+- Scenario-runtime stability policy: raise default scenario `max_duration_sec` from 45 to 90 to avoid false negatives from prompt/context startup overhead while keeping a bounded latency guard.
+- Prompt guardrail policy refinement: onboarding pre-action doctor restriction is now conditional (allowed only when explicitly requested by scenario prompt) to make forced-negative doctor scenarios testable.

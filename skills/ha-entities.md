@@ -41,7 +41,12 @@ Resolve exact entity IDs before control or write operations.
 Load env once per shell session:
 
 ```bash
-eval "$(bash scripts/onboarding/macos-onboarding.sh env)"
+NOVA_REPO_ROOT="${NOVA_REPO_ROOT:-${HA_NOVA_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}}"
+if [[ ! -f "$NOVA_REPO_ROOT/scripts/onboarding/macos-onboarding.sh" ]]; then
+  echo "ERROR: missing onboarding script at $NOVA_REPO_ROOT/scripts/onboarding/macos-onboarding.sh" >&2
+  exit 1
+fi
+eval "$(bash "$NOVA_REPO_ROOT/scripts/onboarding/macos-onboarding.sh" env)"
 ```
 
 Canonical one-shot command:

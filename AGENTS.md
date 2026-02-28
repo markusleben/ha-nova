@@ -104,3 +104,4 @@ Use below list to store and recall user notes when asked to do so.
 - Relay implementation must remain lean, clean, and efficient (KISS + DRY, clear responsibilities).
 - Before public release, do not add backward-compatibility paths or fallback behavior. Implement the clean target model.
 - UX is a primary success metric: onboarding must feel simple, guided, and low-friction for non-technical users.
+- PR hygiene (user requirement): proactively check GitHub PR reviews (including inline review comments via `gh api repos/<owner>/<repo>/pulls/<nr>/comments`) without waiting for a reminder.

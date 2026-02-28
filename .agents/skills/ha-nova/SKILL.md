@@ -67,7 +67,7 @@ curl -sS -X POST \
   "$RELAY_BASE_URL/ws" \
   -d '{"type":"get_states"}' | \
 jq -r --arg domain "$DOMAIN." --argjson limit "$LIMIT" \
-  '(.data // []) | map(select((.entity_id|type)=="string" and (.entity_id|startswith($domain))) | .entity_id)[:$limit][]'
+  'limit($limit; (.data // [])[] | select((.entity_id|type)=="string" and (.entity_id|startswith($domain))) | .entity_id)'
 ```
 
 Output rule for this shortcut:

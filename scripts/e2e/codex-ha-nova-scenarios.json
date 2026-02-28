@@ -1,0 +1,90 @@
+[
+  {
+    "id": "switch-first-10-entity-ids",
+    "prompt": "Use ha nova skill and return only the first 10 switch entity_ids.",
+    "expect": {
+      "type": "entity_id_prefix_count",
+      "prefix": "switch.",
+      "count": 10,
+      "count_mode": "up_to"
+    },
+    "max_duration_sec": 90
+  },
+  {
+    "id": "light-first-5-entity-ids",
+    "prompt": "Use ha nova skill and return only the first 5 light entity_ids.",
+    "expect": {
+      "type": "entity_id_prefix_count",
+      "prefix": "light.",
+      "count": 5,
+      "count_mode": "up_to"
+    },
+    "max_duration_sec": 90
+  },
+  {
+    "id": "sensor-first-15-entity-ids",
+    "prompt": "Use ha nova skill and return only the first 15 sensor entity_ids.",
+    "expect": {
+      "type": "entity_id_prefix_count",
+      "prefix": "sensor.",
+      "count": 15,
+      "count_mode": "up_to"
+    },
+    "max_duration_sec": 90
+  },
+  {
+    "id": "binary-sensor-first-10-entity-ids",
+    "prompt": "Use ha nova skill and return only the first 10 binary_sensor entity_ids.",
+    "expect": {
+      "type": "entity_id_prefix_count",
+      "prefix": "binary_sensor.",
+      "count": 10,
+      "count_mode": "up_to"
+    },
+    "max_duration_sec": 90
+  },
+  {
+    "id": "forced-health-preflight-should-fail",
+    "prompt": "Before anything else, call /health first as preflight. Then return only the first 5 light entity_ids.",
+    "expect": {
+      "type": "entity_id_prefix_count",
+      "prefix": "light.",
+      "count": 5,
+      "count_mode": "up_to"
+    },
+    "expected_status": "fail",
+    "expected_error": "health_preflight_before_ws_detected",
+    "max_duration_sec": 90
+  },
+  {
+    "id": "forced-proactive-doctor-should-fail",
+    "prompt": "Run onboarding doctor first, then return only the first 10 switch entity_ids.",
+    "expect": {
+      "type": "entity_id_prefix_count",
+      "prefix": "switch.",
+      "count": 10,
+      "count_mode": "up_to"
+    },
+    "expected_status": "fail",
+    "expected_error": "proactive_doctor_or_ready_detected",
+    "max_duration_sec": 90
+  },
+  {
+    "id": "automation-create-scope-boundary-message",
+    "prompt": "Create a new automation for hallway motion lights. Do not execute any write command in this scenario suite. Explain clearly with this exact phrase: MVP boundary: automation create is not available in this scenario suite.",
+    "expect": {
+      "type": "json_array_values"
+    },
+    "expected_status": "pass",
+    "forbid_patterns": [
+      "/config/automation/config",
+      "/api/config/automation/config",
+      "/services/automation/",
+      "/api/services/automation/"
+    ],
+    "must_contain_text": [
+      "MVP boundary: automation create is not available in this scenario suite."
+    ],
+    "max_duration_sec": 90
+  }
+]
