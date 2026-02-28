@@ -89,7 +89,7 @@
 - Auth policy override (user): `HA_LLAT` is mandatory baseline for MVP runtime and onboarding; no no-LLAT user path.
 - Runtime policy override: remove `SUPERVISOR_TOKEN` fallback from upstream token resolution; runtime startup fails fast without LLAT.
 - Onboarding policy override: `setup`, `doctor`, `ready`, and `env` must fail when LLAT is missing/invalid or Relay reports `ha_ws_connected=false`.
-- Config-surface reduction policy (user): remove `ws_allowlist_append` from App/user settings to keep MVP configuration minimal.
+- Config-surface reduction policy (user): keep App/user settings minimal (no ws type filter option).
 
 ## 2026-02-27
 
@@ -134,3 +134,4 @@
 - Scope-boundary validation policy: represent non-MVP write requests as explicit boundary-message scenarios with forbidden write-pattern checks, instead of adding write execution to the P1 suite.
 - Scenario-runtime stability policy: raise default scenario `max_duration_sec` from 45 to 90 to avoid false negatives from prompt/context startup overhead while keeping a bounded latency guard.
 - Prompt guardrail policy refinement: onboarding pre-action doctor restriction is now conditional (allowed only when explicitly requested by scenario prompt) to make forced-negative doctor scenarios testable.
+- WS proxy simplification policy (user): remove local WS type filtering entirely; keep only auth + request-shape validation and upstream error mapping.

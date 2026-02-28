@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import { createApp } from "../../src/index.js";
-import { createWsAllowlist } from "../../src/security/ws-allowlist.js";
 
 describe("startup bootstrap", () => {
   it("exports createApp factory and returns server + router", () => {
@@ -12,7 +11,6 @@ describe("startup bootstrap", () => {
         isConnected: () => true,
         sendMessage: async () => ({ ok: true })
       },
-      allowlist: createWsAllowlist({ basePatterns: ["ping"] }),
       startedAtMs: 1_000,
       now: () => 2_000
     });

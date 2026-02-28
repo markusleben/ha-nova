@@ -56,7 +56,7 @@ Request:  { "type": "config/area_registry/list" }
 Response: { "ok": true, "data": [...] }
 ```
 Covers: helper CRUD, registries, dashboards, energy, traces, repairs - everything that is WS-only.
-Security: allowlist of ~30-50 permitted WS message types.
+Security: authenticated WS proxy passthrough with strict request-shape validation.
 
 ### 2. `POST /ws/subscribe` — Event subscription
 ```json
@@ -71,7 +71,7 @@ Request:  { "action": "read_file", "path": "/config/ha_mcp/templates/my_sensor.y
 Response: { "ok": true, "content": "...", "bytes": 1234 }
 ```
 Actions: `list_dir`, `read_file`, `write_file`, `delete_file`.
-Security: path allowlist, symlink protection, no secrets.
+Security: restricted paths, symlink protection, no secrets.
 
 ### 4. `POST /backups` — Backup management
 ```json
@@ -355,7 +355,7 @@ Phase 1 is split into three sub-phases. Each is independently shippable.
 **What gets built:**
 
 1. **Relay MVP** (~500 lines)
-   - `POST /ws` - generic WS proxy with type allowlist
+   - `POST /ws` - generic authenticated WS proxy passthrough
    - `GET /health` - health check (HA connectivity + WS status)
    - Auth: bearer token validation against HA
    - Auto-reload: trigger `automation/reload` automatically after config mutations
@@ -614,7 +614,7 @@ Week 4-5: Automation Observability
 **Goal:** Deliver the capabilities that truly require host container access.
 
 **Relay extension:**
-- `POST /files` - filesystem read/write/list/delete with path allowlist
+- `POST /files` - filesystem read/write/list/delete with restricted paths
 
 **Skills:**
 | Skill | What | Complexity |

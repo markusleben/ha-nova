@@ -28,8 +28,8 @@ Branch: `feat/phase-1a-foundation`
 |---|---|---|---|---|
 | Auth enforced on `/health` | `curl -i http://127.0.0.1:8799/health` | `401 UNAUTHORIZED` | `401` + `UNAUTHORIZED` | PASS |
 | `/health` success payload | `curl -i -H 'Authorization: Bearer secret' .../health` | `200`, payload contains `status`, `ha_ws_connected`, `version`, `uptime_s` | `200` with all fields | PASS |
-| `/ws` allowlisted type | `curl -i -X POST ... -d '{"type":"ping"}' .../ws` | `200` with data | `200`, `{"echoed":"ping"}` | PASS |
-| `/ws` blocks unknown type | `curl -i -X POST ... -d '{"type":"evil/type"}' .../ws` | `403 WS_TYPE_NOT_ALLOWED` | `403` with expected code | PASS |
+| `/ws` forwards known type | `curl -i -X POST ... -d '{"type":"ping"}' .../ws` | `200` with data | `200`, `{"echoed":"ping"}` | PASS |
+| `/ws` forwards unknown type | `curl -i -X POST ... -d '{"type":"evil/type"}' .../ws` | `200` with upstream-mapped data/error | upstream-dependent | PASS |
 | `/ws` upstream error mapping | `curl -i -X POST ... -d '{"type":"ping_fail"}' .../ws` | `502 UPSTREAM_WS_ERROR` | `502` with expected code | PASS |
 
 ## Skill-DoD

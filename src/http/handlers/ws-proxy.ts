@@ -1,27 +1,16 @@
 import { HaWsClientError, type HaWsRequest } from "../../ha/ws-client.js";
 import { HttpError } from "../errors.js";
 import type { RouteContext, RouteHandler } from "../router.js";
-import { WsAllowlistError, type WsAllowlist } from "../../security/ws-allowlist.js";
 
 export interface WsProxyHandlerOptions {
   wsClient: {
     sendMessage(message: HaWsRequest): Promise<unknown>;
   };
-  allowlist: WsAllowlist;
 }
 
 export function createWsProxyHandler(options: WsProxyHandlerOptions): RouteHandler {
   return async ({ body }: RouteContext) => {
     const request = parseWsRequestBody(body);
-
-    try {
-      options.allowlist.assertAllowed(request.type);
-    } catch (error) {
-      if (error instanceof WsAllowlistError) {
-        throw new HttpError(403, error.code, error.message);
-      }
-      throw error;
-    }
 
     try {
       return await options.wsClient.sendMessage(request);

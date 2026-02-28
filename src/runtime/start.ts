@@ -11,7 +11,6 @@ import {
   type ResolveUpstreamTokenInput,
   type UpstreamTokenResolution
 } from "../security/token-resolver.js";
-import { createWsAllowlist } from "../security/ws-allowlist.js";
 
 export interface RuntimeBootstrapResult {
   app: App;
@@ -62,8 +61,7 @@ export function bootstrapRuntime(dependencies: RuntimeDependencies = {}): Runtim
   const app = createApp({
     authToken: env.relayAuthToken,
     version: env.relayVersion,
-    wsClient,
-    allowlist: createWsAllowlist()
+    wsClient
   });
 
   return {

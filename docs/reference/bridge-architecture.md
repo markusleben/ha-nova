@@ -147,42 +147,10 @@ Authorization: Bearer {HA_TOKEN}
 
 The Bridge validates the token by comparing it with the configured token (single-tenant).
 
-## WS Type Allowlist
+## WS Forwarding Policy
 
-The Bridge does not forward arbitrary WS messages. Only allowed types:
-
-```
-config/area_registry/*
-config/floor_registry/*
-config/label_registry/*
-config/category_registry/*
-config/entity_registry/*
-config/device_registry/*
-config/automation/list
-lovelace/*
-energy/*
-repairs/*
-trace/*
-blueprint/*
-subscribe_events
-subscribe_trigger
-system_health/info
-config_entries/*
-input_boolean/*
-input_number/*
-input_text/*
-input_datetime/*
-input_select/*
-input_button/*
-counter/*
-timer/*
-schedule/*
-zone/*
-get_states
-ping
-```
-
-New types can be added via config.
+The Bridge forwards authenticated WS messages as passthrough requests.
+Message-type filtering is not applied locally in the Relay.
 
 ## Configuration
 

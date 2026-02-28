@@ -29,12 +29,10 @@ describe("app config contract", () => {
       relay_auth_token: null,
       ha_llat: null
     });
-    expect(parsed.options).not.toHaveProperty("ws_allowlist_append");
 
     expect(parsed.schema).toEqual({
       relay_auth_token: "password",
       ha_llat: "password"
     });
-    expect(parsed.schema).not.toHaveProperty("ws_allowlist_append");
   });
 });
