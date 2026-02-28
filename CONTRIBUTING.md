@@ -40,8 +40,9 @@ PRs should explain:
 
 ## Codex PR Automation
 
-- Codex review requests are auto-triggered per new PR head SHA via `.github/workflows/pr-review-watchdog.yml`.
-- Optional auto-fix requests are label-gated.
+- Automatic Codex review comments are disabled to reduce notification noise.
+- Optional Codex auto-fix requests are failure-driven and label-gated via `.github/workflows/pr-review-watchdog.yml`.
+- For manual Codex review, comment `@codex review` on the PR.
 - To enable CI-failure auto-fix requests on a PR, add label: `autofix:enabled`.
 - To disable auto-fix requests, remove label: `autofix:enabled`.
 
