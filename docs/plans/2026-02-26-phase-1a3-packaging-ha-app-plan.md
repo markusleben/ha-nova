@@ -16,7 +16,7 @@
 - One source of truth for runtime bootstrap: `src/runtime/start.ts`.
 - `addon/run` must not implement business logic; only env mapping + process exec.
 - No host network, no privileged flags unless strictly required.
-- Keep App options minimal: `bridge_auth_token`, `ha_llat`, `ws_allowlist_append`.
+- Keep App options minimal: `bridge_auth_token`, `ha_llat`.
 
 ## Official Best-Practice Inputs (checked 2026-02-26)
 
@@ -44,7 +44,7 @@
 **Step 1: Write failing `config.yaml` contract test**
 - Assert required keys in `addon/config.yaml`.
 - Assert security-related keys: `homeassistant_api: true`, `hassio_api: true`, `hassio_role: default`, `ingress: true`.
-- Assert options/schema keys include `bridge_auth_token`, `ha_llat`, `ws_allowlist_append`.
+- Assert options/schema keys include `bridge_auth_token`, `ha_llat`.
 
 **Step 2: Run test to verify it fails**
 - Run: `npm test -- tests/addon/config-contract.test.ts`
@@ -84,7 +84,7 @@
 **Step 3: Update `addon/config.yaml` options/schema**
 - add `bridge_auth_token` (`password`, mandatory)
 - keep `ha_llat` (`password?` optional)
-- keep `ws_allowlist_append` (`str?`)
+- no ws type filter option
 - set `hassio_role: default` explicitly
 
 **Step 4: Run contract tests**

@@ -9,7 +9,7 @@
 - Tightened the plan: LLT (`HA_TOKEN`) became a mandatory onboarding decision.
 - Started execution on branch `feat/phase-1a-foundation` (worktree was not possible due to missing initial commit).
 - Completed remote setup: `origin` -> `https://github.com/markusleben/ha-nova.git`, pushed branch `feat/phase-1a-foundation`.
-- Completed batch 2 (tasks 4-6): WS client, health handler, WS allowlist, including tests and verification.
+- Completed batch 2 (tasks 4-6): WS client, health handler, WS proxy validation, including tests and verification.
 - Completed batch 3 (tasks 7-9): `/ws` handler, phase-1a skills, acceptance matrix with curl smoke evidence.
 - Opened and directly merged PR #1 (`feat/phase-1a-foundation` -> `main`).
 - Ran post-merge Codex review; identified `/health` + `/ws` wiring gap and fixed it on `main`.
@@ -270,7 +270,7 @@
   - env now hard-fails if LLAT is missing in Keychain.
   - ready cache now includes relay-token and LLAT fingerprints to avoid stale-pass behavior.
 - Reduced MVP config surface (KISS):
-  - removed `ws_allowlist_append` from App config, runner env mapping, and deploy/smoke option payloads.
+  - removed ws type filter option from App config, runner env mapping, and deploy/smoke option payloads.
 - Supersession note:
   - earlier 2026-02-26 entries that describe optional/no-LLAT behavior are historical and superseded by the mandatory-LLAT policy above.
 
@@ -298,7 +298,7 @@
   - `.agents/skills/ha-nova/SKILL.md` no longer enforces client-side LLAT.
   - `skills/ha-nova.md`, `skills/ha-entities.md`, `skills/ha-control.md`, `skills/ha-automation-control.md`, `skills/ha-onboarding.md` adjusted to App + Relay user flow.
   - `skills/ha-automation-crud.md` now marks end-user relay-only limitation and keeps explicit contributor direct-REST mode.
-- Expanded WS allowlist for relay service execution:
+- Expanded WS forwarding scope for relay service execution:
   - review follow-up reverted default `call_service`/`get_services` widening to avoid broad write-surface expansion.
 - Ran multi-pass code review via explorer agents (logic + UX + test-contract focus):
   - fixed contributor-vs-end-user e2e contradiction by reintroducing explicit `HA_LLAT` contributor gate in `scripts/e2e/codex-ha-nova-live-skill-e2e.sh`.
@@ -309,11 +309,11 @@
     - added stronger de-keychaining assertions (no LLAT reads/exports from onboarding env path).
     - added `app/run` normalization contract assertion (`"null"` handling).
 - Verification after review-driven fixes:
-  - `npm test -- tests/onboarding/macos-onboarding-script-contract.test.ts tests/e2e/codex-skill-live-contract.test.ts tests/security/ws-allowlist.test.ts tests/security/auth.test.ts tests/app/run-contract.test.ts` (pass)
+  - `npm test -- tests/onboarding/macos-onboarding-script-contract.test.ts tests/e2e/codex-skill-live-contract.test.ts tests/security/auth.test.ts tests/app/run-contract.test.ts` (pass)
   - `shellcheck scripts/onboarding/macos-lib.sh scripts/onboarding/macos-onboarding.sh scripts/e2e/codex-ha-nova-live-skill-e2e.sh` (pass)
 - Hardened deploy metadata drift detection for App + Relay:
   - updated `scripts/deploy/ha-app-deploy.sh` to compare expected `options/schema` keys from `app/config.yaml` against `ha apps info --raw-json`.
-  - stale keys like `ws_allowlist_append` now trigger automatic uninstall/install metadata refresh during `deploy:app:*`.
+  - stale deprecated option keys now trigger automatic uninstall/install metadata refresh during `deploy:app:*`.
 - Fixed onboarding doctor false-negative after restart:
   - updated `scripts/onboarding/macos-lib.sh` (`run_doctor_checks`) to warm WS once via `/ws` ping when `/health` reports `ha_ws_connected=false`.
   - doctor now passes when WS is operational but lazy connection had not been established yet.
@@ -415,3 +415,12 @@
   - `npm run typecheck` pass
   - `npm test` pass (`21/21` files, `71/71` tests)
   - live `npm run e2e:skill:codex:scenarios` partial run before manual interrupt: `6/7` completed, all 6 passed (including both forced-negative scenarios).
+- Removed local WS type filtering end-to-end (MVP simplification):
+  - deleted legacy ws-type-filter source module
+  - deleted legacy ws-type-filter test module
+  - removed all runtime wiring and handler checks related to local WS type filtering
+  - updated ws-proxy tests to validate passthrough behavior for unknown types
+  - removed all ws-type-filter wording from project docs/plans/history references
+- Verification after removal:
+  - `npm run typecheck` (pass)
+  - `npm test` (pass, 20 files / 68 tests)

@@ -26,7 +26,7 @@
 ### Option B (Recommended): Vertical slices
 - Slice 1: server skeleton + auth + normalized errors
 - Slice 2: `/health` + tests
-- Slice 3: `/ws` allowlisted proxy + tests
+- Slice 3: `/ws` proxy passthrough + tests
 - Slice 4: skill trio + onboarding flow
 - Pros: fastest validation, balanced DoD, easier rollback
 - Cons: requires stricter sequencing discipline
@@ -43,7 +43,7 @@ Decision: **Option B (Vertical slices)**.
   - Bridge endpoints: `GET /health`, `POST /ws`
   - Bearer token auth
   - LLT-first upstream auth model (`HA_TOKEN` mandatory)
-  - Dev-first WS allowlist (configurable, deny-by-default for unknown types)
+  - Dev-first WS passthrough (authenticated, request-shape validation only)
   - Consistent JSON error envelope (`ok: false`, `error.code`, `error.message`)
   - Skills: `ha-nova.md`, `ha-onboarding.md`, `ha-safety.md`
   - Light automation tests (Vitest) for auth, health, ws proxy behavior
@@ -211,33 +211,33 @@ Decision: **Option B (Vertical slices)**.
 - `git add src/http/handlers/health.ts src/http/router.ts tests/http/health.test.ts`
 - `git commit -m "feat: implement authenticated health endpoint"`
 
-### Task 6: WS Allowlist Engine (Dev-First)
+### Task 6: WS Proxy Validation Engine (Dev-First)
 
 **Files:**
-- Create: `src/security/ws-allowlist.ts`
+- Create: `src/http/handlers/ws-proxy.ts` validation branch
 - Modify: `src/config/env.ts`
-- Test: `tests/security/ws-allowlist.test.ts`
+- Test: `tests/http/ws-proxy.test.ts`
 
-**Step 1: Write failing allowlist tests**
+**Step 1: Write failing ws validation tests**
 - Allowed type passes
-- Unknown type blocked with `WS_TYPE_NOT_ALLOWED`
+- Unknown type is forwarded (no local type filtering)
 - Wildcard entries (e.g. `config/area_registry/*`) supported
 
 **Step 2: Run tests to verify fail**
-- Run: `npm test -- tests/security/ws-allowlist.test.ts`
+- Run: `npm test -- tests/http/ws-proxy.test.ts`
 - Expected: FAIL.
 
-**Step 3: Implement allowlist module**
-- Built-in defaults for Phase 1a.
-- Env-based extension list for quick iteration.
+**Step 3: Implement ws validation module**
+- Validate auth and request shape only.
+- Forward `type` payloads without local type filtering.
 
 **Step 4: Re-run tests**
-- Run: `npm test -- tests/security/ws-allowlist.test.ts`
+- Run: `npm test -- tests/http/ws-proxy.test.ts`
 - Expected: PASS.
 
 **Step 5: Commit**
-- `git add src/security/ws-allowlist.ts src/config/env.ts tests/security/ws-allowlist.test.ts`
-- `git commit -m "feat: add configurable websocket type allowlist"`
+- `git add src/http/handlers/ws-proxy.ts tests/http/ws-proxy.test.ts`
+- `git commit -m "feat: keep websocket proxy passthrough with strict request validation"`
 
 ### Task 7: `POST /ws` Endpoint (Single Message Mode)
 
@@ -247,8 +247,8 @@ Decision: **Option B (Vertical slices)**.
 - Test: `tests/http/ws-proxy.test.ts`
 
 **Step 1: Write failing `/ws` tests**
-- Valid allowlisted type -> `200` + `{ok:true,data}`
-- Unknown type -> `403` + `WS_TYPE_NOT_ALLOWED`
+- Known type -> `200` + `{ok:true,data}`
+- Unknown type -> forwarded; outcome is upstream-dependent
 - Missing `type` -> `400` + `VALIDATION_ERROR`
 - HA WS failure -> mapped `502` + `UPSTREAM_WS_ERROR`
 
@@ -259,7 +259,7 @@ Decision: **Option B (Vertical slices)**.
 **Step 3: Implement handler**
 - Parse JSON body.
 - Validate `type` presence and shape.
-- Enforce allowlist.
+- Enforce request-shape validation only.
 - Forward to HA WS client and return normalized result.
 
 **Step 4: Re-run tests**
@@ -268,7 +268,7 @@ Decision: **Option B (Vertical slices)**.
 
 **Step 5: Commit**
 - `git add src/http/handlers/ws-proxy.ts src/http/router.ts tests/http/ws-proxy.test.ts`
-- `git commit -m "feat: implement websocket proxy endpoint with allowlist and error mapping"`
+- `git commit -m "feat: implement websocket proxy endpoint with passthrough and error mapping"`
 
 ### Task 8: Skills (Phase 1a only, client-agnostic)
 
@@ -314,7 +314,7 @@ Decision: **Option B (Vertical slices)**.
 - Skill-DoD checks
 
 **Step 2: Execute API checks**
-- `curl` tests for auth, health, ws allowlist block/pass.
+- `curl` tests for auth, health, ws proxy pass/error mapping.
 
 **Step 3: Execute skill checks**
 - Run scripted onboarding + 2 sample tasks.
@@ -333,12 +333,12 @@ Decision: **Option B (Vertical slices)**.
 
 1. Bridge returns normalized errors on all tested failure paths (`400/401/403/404/500/502`).
 2. `GET /health` returns valid envelope and auth-gated behavior.
-3. `POST /ws` supports allowlisted message forwarding and blocks unknown types.
+3. `POST /ws` supports authenticated message forwarding without local type filtering.
 4. `ha-nova.md` routes only 1a/1b scope skills.
 5. `ha-onboarding.md` supports first success path in <5 minutes.
 6. Onboarding clearly requires LLT and includes one explicit LLT validation step.
 7. `ha-safety.md` enforces preview + no-guessing.
-8. Vitest suite covers auth, health, ws-proxy, allowlist, and envelope contracts.
+8. Vitest suite covers auth, health, ws-proxy, and envelope contracts.
 
 ## Risks and Mitigations
 

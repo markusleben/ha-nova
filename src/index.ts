@@ -5,7 +5,6 @@ import { createHealthHandler } from "./http/handlers/health.js";
 import { createWsProxyHandler } from "./http/handlers/ws-proxy.js";
 import { createRouter, type Router } from "./http/router.js";
 import { createHttpServer } from "./http/server.js";
-import { createWsAllowlist, type WsAllowlist } from "./security/ws-allowlist.js";
 
 export interface AppOptions {
   authToken: string;
@@ -14,7 +13,6 @@ export interface AppOptions {
     isConnected(): boolean;
     sendMessage(message: HaWsRequest): Promise<unknown>;
   };
-  allowlist?: WsAllowlist;
   startedAtMs?: number;
   now?: () => number;
 }
@@ -27,7 +25,6 @@ export interface App {
 
 export function createApp(options: AppOptions): App {
   const router = createRouter();
-  const allowlist = options.allowlist ?? createWsAllowlist();
   const startedAtMs = options.startedAtMs ?? Date.now();
 
   const healthOptions = {
@@ -53,8 +50,7 @@ export function createApp(options: AppOptions): App {
     "POST",
     "/ws",
     createWsProxyHandler({
-      wsClient: options.wsClient,
-      allowlist
+      wsClient: options.wsClient
     })
   );
 

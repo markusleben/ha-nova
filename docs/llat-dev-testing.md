@@ -53,7 +53,7 @@ Runtime bootstrap flow:
 1. load env
 2. read `/data/options.json` (or `APP_OPTIONS_PATH`)
 3. resolve upstream token source
-4. create app with allowlist and auth
+4. create app with ws proxy and auth
 5. start HTTP server
 
 ## Supervisor-Assisted Restart Flow

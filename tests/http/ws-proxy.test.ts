@@ -3,7 +3,6 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createWsProxyHandler } from "../../src/http/handlers/ws-proxy.js";
 import { createRouter } from "../../src/http/router.js";
 import { createHttpServer } from "../../src/http/server.js";
-import { createWsAllowlist } from "../../src/security/ws-allowlist.js";
 
 const TEST_AUTH_TOKEN = "secret";
 
@@ -28,17 +27,13 @@ describe("ws proxy endpoint", () => {
     servers.length = 0;
   });
 
-  it("forwards allowlisted message type and returns data", async () => {
+  it("forwards ws message type and returns data", async () => {
     const router = createRouter();
-    const allowlist = createWsAllowlist({
-      basePatterns: ["ping"]
-    });
 
     router.register(
       "POST",
       "/ws",
       createWsProxyHandler({
-        allowlist,
         wsClient: {
           sendMessage: async (message) => ({ echoed: message.type })
         }
@@ -64,19 +59,15 @@ describe("ws proxy endpoint", () => {
     });
   });
 
-  it("returns 403 when ws type is not allowlisted", async () => {
+  it("forwards unknown ws type without local type filtering", async () => {
     const router = createRouter();
-    const allowlist = createWsAllowlist({
-      basePatterns: ["ping"]
-    });
 
     router.register(
       "POST",
       "/ws",
       createWsProxyHandler({
-        allowlist,
         wsClient: {
-          sendMessage: async () => ({ ok: true })
+          sendMessage: async (message) => ({ echoed: message.type })
         }
       })
     );
@@ -91,27 +82,22 @@ describe("ws proxy endpoint", () => {
       body: JSON.stringify({ type: "evil/type" })
     });
 
-    expect(response.status).toBe(403);
+    expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
-      ok: false,
-      error: {
-        code: "WS_TYPE_NOT_ALLOWED",
-        message: "WS message type is not allowlisted: evil/type"
+      ok: true,
+      data: {
+        echoed: "evil/type"
       }
     });
   });
 
   it("returns 400 for missing message type", async () => {
     const router = createRouter();
-    const allowlist = createWsAllowlist({
-      basePatterns: ["ping"]
-    });
 
     router.register(
       "POST",
       "/ws",
       createWsProxyHandler({
-        allowlist,
         wsClient: {
           sendMessage: async () => ({ ok: true })
         }
@@ -140,15 +126,11 @@ describe("ws proxy endpoint", () => {
 
   it("returns 502 when ws upstream fails", async () => {
     const router = createRouter();
-    const allowlist = createWsAllowlist({
-      basePatterns: ["ping"]
-    });
 
     router.register(
       "POST",
       "/ws",
       createWsProxyHandler({
-        allowlist,
         wsClient: {
           sendMessage: async () => {
             throw new Error("upstream down");

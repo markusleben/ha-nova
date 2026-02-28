@@ -44,7 +44,7 @@ Guide:
    - `POST /ws` with payload `{"type":"ping"}`
 
 Expected:
-- with LLAT: WS proxy works for allowlisted calls
+- with LLAT: WS proxy forwards calls successfully
 - without LLAT: acceptance fails (configuration incomplete)
 
 ## Live E2E Script (Supervisor + Relay)
