@@ -38,6 +38,13 @@ PRs should explain:
 - risk
 - verification steps
 
+## Codex PR Automation
+
+- Codex review requests are auto-triggered per new PR head SHA via `.github/workflows/pr-review-watchdog.yml`.
+- Optional auto-fix requests are label-gated.
+- To enable CI-failure auto-fix requests on a PR, add label: `autofix:enabled`.
+- To disable auto-fix requests, remove label: `autofix:enabled`.
+
 ## Architecture Guardrails
 
 - No business logic in relay transport handlers.
