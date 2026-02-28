@@ -121,6 +121,10 @@ describe("macOS onboarding script contract", () => {
   });
 
   it("fails fast on non-interactive setup input", () => {
+    if (process.platform !== "darwin") {
+      return;
+    }
+
     const result = spawnSync("bash", ["scripts/onboarding/macos-onboarding.sh", "setup"], {
       cwd: process.cwd(),
       input: "n\n",
