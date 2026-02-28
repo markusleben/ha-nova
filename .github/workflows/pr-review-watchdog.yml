@@ -1,6 +1,12 @@
 name: PR Review Watchdog
 
 on:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - ready_for_review
+      - synchronize
   pull_request_target:
     types:
       - opened
@@ -26,7 +32,7 @@ concurrency:
 
 jobs:
   request-codex-review:
-    if: ${{ github.event_name == 'pull_request_target' }}
+    if: ${{ github.event_name == 'pull_request_target' || github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
     steps:
       - name: Request Codex review for new head SHA
@@ -47,6 +53,16 @@ jobs:
 
             const owner = context.repo.owner;
             const repo = context.repo.repo;
+
+            if (context.eventName === "pull_request") {
+              const baseRepo = `${owner}/${repo}`;
+              const headRepo = String(pr.head?.repo?.full_name || "");
+              if (headRepo !== baseRepo) {
+                core.info("Fork PR on pull_request event; skipping comment path.");
+                return;
+              }
+            }
+
             const issue_number = pr.number;
             const marker = `<!-- codex-watchdog:auto-review sha:${pr.head.sha} -->`;
 
