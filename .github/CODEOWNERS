@@ -1,0 +1,13 @@
+# Global fallback owner
+* @markusleben
+
+# GitHub process and automation ownership
+/.github/ @markusleben
+
+# Core project areas
+/app/ @markusleben
+/src/ @markusleben
+/skills/ @markusleben
+/scripts/ @markusleben
+/tests/ @markusleben
+/docs/ @markusleben
