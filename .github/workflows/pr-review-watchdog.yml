@@ -1,0 +1,103 @@
+name: PR Review Watchdog
+
+on:
+  workflow_run:
+    workflows:
+      - CI
+      - CodeQL
+    types:
+      - completed
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  actions: read
+
+concurrency:
+  group: watchdog-${{ github.event_name }}-${{ github.event.workflow_run.id }}
+  cancel-in-progress: true
+
+jobs:
+  request-codex-fix:
+    if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Request Codex fix for failed CI (label-gated)
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const run = context.payload.workflow_run;
+            if (!run || run.event !== "pull_request") {
+              core.info("Workflow run is not PR-based; skipping.");
+              return;
+            }
+
+            const prs = run.pull_requests || [];
+            if (prs.length === 0) {
+              core.info("No PR associated with failing workflow run; skipping.");
+              return;
+            }
+
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            for (const prRef of prs) {
+              const prNumber = prRef.number;
+              const { data: pr } = await github.rest.pulls.get({
+                owner,
+                repo,
+                pull_number: prNumber
+              });
+
+              if (pr.draft) {
+                core.info(`PR #${prNumber} is draft; skipping auto-fix request.`);
+                continue;
+              }
+
+              const labels = (pr.labels || []).map((label) => label.name);
+              if (!labels.includes("autofix:enabled")) {
+                core.info(`PR #${prNumber} missing label autofix:enabled; skipping auto-fix request.`);
+                continue;
+              }
+
+              if (pr.head.sha !== run.head_sha) {
+                core.info(`PR #${prNumber} head SHA moved since failing run; skipping stale run.`);
+                continue;
+              }
+
+              const marker = `<!-- codex-watchdog:auto-fix run:${run.id} -->`;
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                owner,
+                repo,
+                issue_number: prNumber,
+                per_page: 100
+              });
+              const alreadyRequested = comments.some((comment) => String(comment.body || "").includes(marker));
+              if (alreadyRequested) {
+                core.info(`Auto-fix request already posted for run ${run.id}; skipping.`);
+                continue;
+              }
+
+              const body = [
+                marker,
+                "@codex fix the CI failures on this PR.",
+                "",
+                `Failed workflow: ${run.name}`,
+                `Run URL: ${run.html_url}`,
+                "",
+                "Constraints:",
+                "- minimal diff",
+                "- keep MVP/KISS",
+                "- push fix and re-run checks",
+                "",
+                "_Auto-requested by PR Review Watchdog (label-gated: autofix:enabled)._"
+              ].join("\n");
+
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: prNumber,
+                body
+              });
+            }

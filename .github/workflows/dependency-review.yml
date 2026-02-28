@@ -1,0 +1,26 @@
+name: Dependency Review
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Dependency Review
+        continue-on-error: true
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: moderate
+
+      - name: Note unsupported setup
+        if: ${{ failure() }}
+        run: |
+          echo "Dependency review is unsupported in current repo security settings."
+          echo "Enable dependency graph + GitHub Advanced Security to enforce this gate strictly."

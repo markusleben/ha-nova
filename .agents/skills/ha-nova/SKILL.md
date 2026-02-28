@@ -28,25 +28,50 @@ Before HA operations in this session:
      - run `npm install`,
      - run `npm run install:codex-skill`,
      - restart the client.
-2. Verify session readiness once per active conversation:
-   - Run exactly once at first HA operation:
-     - `bash "$NOVA_REPO_ROOT/scripts/onboarding/macos-onboarding.sh" ready --quiet`
-   - After a successful result, do not run this check again in the same conversation by default.
-3. Re-run readiness only on explicit capability failure:
-   - examples: relay unreachable, auth rejected, missing required env/token for selected path
-4. If readiness fails:
+2. Load runtime env once per shell session from local config + Keychain relay auth:
+   - `eval "$(bash "$NOVA_REPO_ROOT/scripts/onboarding/macos-onboarding.sh" env)"`
+3. Do not run readiness/doctor proactively before the first HA action.
+4. Diagnose only on explicit capability failure:
+   - examples: relay unreachable, auth rejected, invalid token, request timeout
+5. If diagnosis is needed:
    - ask user to run `cd "$NOVA_REPO_ROOT" && npm run onboarding:macos`
    - then run `bash "$NOVA_REPO_ROOT/scripts/onboarding/macos-onboarding.sh" doctor` for detailed diagnostics
    - stop until onboarding is healthy
-5. Load runtime env from local config + Keychain relay auth (for this session):
-   - `eval "$(bash "$NOVA_REPO_ROOT/scripts/onboarding/macos-onboarding.sh" env)"`
 6. Relay-only auth model:
    - do not request or store LLAT in client-side Keychain/env for end-user flow
    - LLAT is configured in App option `ha_llat`
    - if `doctor` reports `ha_ws_connected=false`, route user to App config fix (set `ha_llat`, restart App)
 
 Do not ask user to paste tokens in chat.
-Run preflight checks silently; only report them when they fail.
+Do not run proactive network preflight checks before the first read action.
+
+## Execution Latency Policy
+
+- Prioritize one-shot commands over multi-step probing for read requests.
+- Do not print internal progress logs in normal success paths.
+- For first read/list requests, attempt Relay `/ws` directly.
+- Run `doctor` only after an actual request failure, not as a startup ritual.
+- For simple read-only prompts (for example: first N entity_ids, count by domain), do not open subskills; run one command and return only the result.
+
+## Read-Only Fast Shortcut
+
+Use this directly for domain-based read requests:
+
+```bash
+[[ -n "${RELAY_BASE_URL:-}" && -n "${RELAY_AUTH_TOKEN:-}" ]] || eval "$(bash "$NOVA_REPO_ROOT/scripts/onboarding/macos-onboarding.sh" env)"
+DOMAIN="${DOMAIN:-light}"
+LIMIT="${LIMIT:-5}"
+curl -sS -X POST \
+  -H "Authorization: Bearer $RELAY_AUTH_TOKEN" \
+  -H "Content-Type: application/json" \
+  "$RELAY_BASE_URL/ws" \
+  -d '{"type":"get_states"}' | \
+jq -r --arg domain "$DOMAIN." --argjson limit "$LIMIT" \
+  'limit($limit; (.data // [])[] | select((.entity_id|type)=="string" and (.entity_id|startswith($domain))) | .entity_id)'
+```
+
+Output rule for this shortcut:
+- return only requested values (no process narration).
 
 ## Routing
 
