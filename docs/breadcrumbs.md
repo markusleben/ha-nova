@@ -446,3 +446,8 @@
 - Verification after removal:
   - `npm run typecheck` (pass)
   - `npm test` (pass, 20 files / 68 tests)
+
+## 2026-03-01
+- Disabled noisy release workflow trigger until release phase:
+  - `.github/workflows/release-please.yml` now uses `workflow_dispatch` only (no `push` on `main`).
+- Rationale: keep CI signal clean during MVP iteration and avoid repeated non-actionable release-automation failure emails.
