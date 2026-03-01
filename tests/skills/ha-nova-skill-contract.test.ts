@@ -24,14 +24,25 @@ describe("ha-nova skill contract", () => {
     const content = readFileSync("skills/ha-nova.md", "utf8");
 
     expect(content).toContain("ha-automation-best-practices");
-    expect(content).toContain("Automation create/update/delete");
+    expect(content).toContain("Automation create/update");
+    expect(content).toContain("Automation delete -> `ha-automation-crud` + `ha-safety`");
   });
 
   it("enforces best-practice refresh gate before automation create/update writes", () => {
     const content = readFileSync("skills/ha-automation-crud.md", "utf8");
+    const bestPractices = readFileSync("skills/ha-automation-best-practices.md", "utf8");
 
     expect(content).toContain("Required Companion Skill for Writes");
     expect(content).toContain("Enforce best-practice session refresh gate");
     expect(content).toContain("no best-practice session refresh -> no write");
+    expect(bestPractices).toContain("`delete` operations are exempt from the refresh gate");
+  });
+
+  it("keeps installed codex skill routing aligned with delete exemption", () => {
+    const installedSkill = readFileSync(".agents/skills/ha-nova/SKILL.md", "utf8");
+
+    expect(installedSkill).toContain("for `create`/`update` use");
+    expect(installedSkill).toContain("for `delete` use");
+    expect(installedSkill).not.toContain("for `create`/`update`/`delete` use");
   });
 });

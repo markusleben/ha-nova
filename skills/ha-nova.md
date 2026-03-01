@@ -53,9 +53,10 @@ Primary model:
 1. Setup, auth, connectivity, onboarding failures -> `ha-onboarding`
 2. Read/search/list entities -> `ha-entities`
 3. Device control (service calls) -> `ha-control` + `ha-safety` for writes
-4. Automation create/update/delete -> `ha-automation-best-practices` + `ha-automation-crud` + `ha-safety`
-5. Automation read/list -> `ha-automation-crud`
-6. Automation enable/disable/toggle -> `ha-automation-control` + `ha-safety`
+4. Automation create/update -> `ha-automation-best-practices` + `ha-automation-crud` + `ha-safety`
+5. Automation delete -> `ha-automation-crud` + `ha-safety`
+6. Automation read/list -> `ha-automation-crud`
+7. Automation enable/disable/toggle -> `ha-automation-control` + `ha-safety`
 
 ## Best-Practice Freshness Policy
 
