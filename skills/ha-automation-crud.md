@@ -9,7 +9,7 @@ description: Manage automation configs with explicit scope boundaries and best-p
 
 Create, read, update, and delete automations, then reload and verify.
 In App + Relay end-user sessions, fail fast with clear scope guidance.
-For write operations, run with `ha-automation-best-practices` and enforce session refresh gate.
+For `create`/`update`, run with `ha-automation-best-practices` and enforce session refresh gate.
 
 ## Capability Modes
 
