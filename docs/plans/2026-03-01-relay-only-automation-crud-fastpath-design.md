@@ -37,6 +37,27 @@ Minimal validation (only what is necessary):
 - `path` must be a relative HA API path starting with `/api/`.
 - reject absolute URLs and path traversal patterns.
 
+Transport allowlist (v1, method+path tuples):
+- `GET /api/config/automation/config/{id}`
+- `POST /api/config/automation/config/{id}`
+- `DELETE /api/config/automation/config/{id}`
+- `GET /api/states`
+- `GET /api/states/automation.{id}`
+- `POST /api/services/automation/reload` (optional recovery only)
+
+If tuple is not allowlisted:
+- `403 CORE_PATH_NOT_ALLOWED`
+
+Path normalization (before allowlist match):
+1. Parse as relative URL path.
+2. Decode once.
+3. Reject path if it contains:
+   - `..`
+   - backslashes (`\`)
+   - encoded slash variants (`%2f`, `%5c`)
+   - control chars / non-printable bytes
+4. Reject overlong path (`>2048` chars).
+
 Forwarding behavior:
 - Upstream target: `${HA_URL}${path}`.
 - Auth header injected by Relay: `Authorization: Bearer <LLAT from App option ha_llat>`.
@@ -79,8 +100,12 @@ Nominal path: **1 write call + 1 confirmation**
 ## Reload Policy (Performance-first)
 
 - Do not auto-call `automation.reload` after each CRUD write by default.
-- If explicit user request or stale-state symptom appears, perform one targeted reload call:
-  - `POST /core` -> `POST /api/services/automation/reload`
+- After any write (`create/update/delete`), mark session `automation_state_dirty=true`.
+- If next intent is `list` via state endpoint (`/api/states`):
+  - run exactly one recovery reload first:
+    - `POST /core` -> `POST /api/services/automation/reload`
+  - clear `automation_state_dirty`.
+- `get` by config id does not require reload.
 
 ## Error Policy
 
@@ -90,20 +115,20 @@ Nominal path: **1 write call + 1 confirmation**
 
 ## Implementation Files
 
-Runtime:
+Phase 1 (minimal transport delivery):
 - `src/index.ts` (register `/core`)
 - `src/runtime/start.ts` (wire REST client dependency)
 - `src/ha/rest-client.ts` (new, thin upstream caller with keep-alive)
 - `src/http/handlers/core-proxy.ts` (new, validate + forward)
 - `src/types/api.ts` (request/response types)
 
-Tests:
+Phase 1 tests:
 - `tests/http/core-proxy.test.ts` (new)
 - `tests/bootstrap/app-wiring.test.ts`
 - `tests/bootstrap/runtime-start.test.ts`
 - `tests/http/error-envelope.test.ts`
 
-Skills/contracts:
+Phase 2 (skill routing update):
 - `skills/ha-nova.md`
 - `.agents/skills/ha-nova/SKILL.md`
 - `skills/ha-automation-crud.md`
