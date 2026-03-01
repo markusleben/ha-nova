@@ -19,4 +19,19 @@ describe("ha-nova skill contract", () => {
     expect(content).toContain('"$NOVA_REPO_ROOT/scripts/onboarding/macos-onboarding.sh" env');
     expect(content).not.toContain('eval "$(bash scripts/onboarding/macos-onboarding.sh env)"');
   });
+
+  it("routes automation writes through best-practice refresh skill", () => {
+    const content = readFileSync("skills/ha-nova.md", "utf8");
+
+    expect(content).toContain("ha-automation-best-practices");
+    expect(content).toContain("Automation create/update/delete");
+  });
+
+  it("enforces best-practice refresh gate before automation create/update writes", () => {
+    const content = readFileSync("skills/ha-automation-crud.md", "utf8");
+
+    expect(content).toContain("Required Companion Skill for Writes");
+    expect(content).toContain("Enforce best-practice session refresh gate");
+    expect(content).toContain("no best-practice session refresh -> no write");
+  });
 });
