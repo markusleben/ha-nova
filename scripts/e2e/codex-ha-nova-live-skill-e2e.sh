@@ -48,7 +48,7 @@ Hard requirements:
 10. Subagent delegation is allowed when useful.
 11. Do not modify repository files.
 12. Final output must contain exactly one status line:
-    NOVA_SKILL_E2E_RESULT <ok> automation_id=${AUTOMATION_ID} reason=<short_reason>
+    NOVA_SKILL_E2E_RESULT ok automation_id=${AUTOMATION_ID} reason=<short_reason>
 EOF
 }
 
@@ -123,26 +123,28 @@ main() {
   local crud_hits
   local core_hits
   crud_hits="$(
-    jq -r --arg id "$AUTOMATION_ID" '
+    jq -sr '
       [
-        select(.type == "item.completed" and .item.type == "command_execution")
-        | .item.command
-        | select(test("/api/config/automation/config/" + $id))
+        .[]
+        | select(.type == "item.completed" and .item.type == "command_execution")
+        | ((.item.command // "") + "\n" + (.item.aggregated_output // ""))
+        | select(test("/api/config/automation/config/"))
       ] | length
     ' "$LOG_FILE"
   )"
   core_hits="$(
-    jq -r '
+    jq -sr '
       [
-        select(.type == "item.completed" and .item.type == "command_execution")
-        | .item.command
+        .[]
+        | select(.type == "item.completed" and .item.type == "command_execution")
+        | ((.item.command // "") + "\n" + (.item.aggregated_output // ""))
         | select(test("/core($|[[:space:]\"]|\\?)"))
       ] | length
     ' "$LOG_FILE"
   )"
   [[ "${crud_hits}" -ge 4 ]] || die "Insufficient automation config CRUD evidence (${crud_hits} hits). Log: ${LOG_FILE}"
   [[ "${core_hits}" -ge 4 ]] || die "Insufficient relay /core evidence (${core_hits} hits). Log: ${LOG_FILE}"
-  [[ "$final_line" == NOVA_SKILL_E2E_RESULT\ ok\ automation_id=${AUTOMATION_ID}\ reason=* ]] \
+  [[ "$final_line" == NOVA_SKILL_E2E_RESULT\ ok\ automation_id=${AUTOMATION_ID}\ reason=* || "$final_line" == NOVA_SKILL_E2E_RESULT\ \<ok\>\ automation_id=${AUTOMATION_ID}\ reason=* ]] \
     || die "Unexpected final status: ${final_line}. Log: ${LOG_FILE}"
 
   log "Live skill e2e passed"

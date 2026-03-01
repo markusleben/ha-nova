@@ -150,3 +150,6 @@
 - Recovery semantics policy: automation reload is optional recovery-only behavior, not a mandatory CRUD success criterion.
 - Path-hardening refinement: `/core` rejects single- and double-encoded dangerous path tokens (`%2e`, `%2f`, `%5c`, `%25..`) before forwarding.
 - E2E evidence-quality refinement: `/core` usage proofs in live harness must come from executed command records, not raw transcript substring matches.
+- Bootstrap deploy reliability refinement: `dev:app:bootstrap` must rebuild the app image after rsync (`ha apps rebuild` fallback `ha apps update`) so synced source changes are actually running.
+- Bootstrap token policy refinement: `HA_LLAT` env is optional in `dev:app:bootstrap`; when missing, reuse existing app option `ha_llat` and fail only if both are missing.
+- Codex live E2E robustness refinement: evidence extraction for CRUD/core must parse both `command` and `aggregated_output` to handle PTY transcripts.

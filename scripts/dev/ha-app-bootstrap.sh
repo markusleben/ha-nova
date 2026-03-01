@@ -52,9 +52,9 @@ Required environment:
   HA_HOST
   HA_SSH_KEY
   RELAY_AUTH_TOKEN
-  HA_LLAT
 
 Optional environment:
+  HA_LLAT           optional; if unset, reuse current app option `ha_llat`
   SSH_USER          default: root
   SSH_PORT          default: 22
   APP_SLUG          default: ha_nova_relay
@@ -112,11 +112,6 @@ fi
 
 if [[ -z "$RELAY_AUTH_TOKEN" ]]; then
   echo "[ha-app-bootstrap] RELAY_AUTH_TOKEN is required" >&2
-  exit 1
-fi
-
-if [[ -z "$HA_LLAT" ]]; then
-  echo "[ha-app-bootstrap] HA_LLAT is required" >&2
   exit 1
 fi
 
@@ -181,7 +176,7 @@ for rel in ("app/config.yaml", "config.yaml"):
 
         if line.startswith("  relay_auth_token:"):
             lines[idx] = f'  relay_auth_token: "{relay_auth_token}"'
-        elif line.startswith("  ha_llat:"):
+        elif line.startswith("  ha_llat:") and ha_llat.strip():
             lines[idx] = f'  ha_llat: "{ha_llat}"'
 
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -196,6 +191,9 @@ if ! remote "ha apps info '${SUPERVISOR_SLUG}' >/dev/null 2>&1"; then
   remote "ha apps install '${SUPERVISOR_SLUG}'"
 fi
 
+log "Rebuilding app image to pick up synced sources"
+remote "ha apps rebuild '${SUPERVISOR_SLUG}' || ha apps update '${SUPERVISOR_SLUG}'"
+
 log "Validating + writing app options via Supervisor API"
 remote "SUPERVISOR_SLUG='${SUPERVISOR_SLUG}' RELAY_AUTH_TOKEN='${RELAY_AUTH_TOKEN}' HA_LLAT='${HA_LLAT}' bash -s" <<'REMOTE_OPTIONS'
 set -euo pipefail
@@ -205,14 +203,38 @@ if [[ -z "${SUPERVISOR_TOKEN:-}" ]]; then
   exit 1
 fi
 
+current_info_json="$(
+curl -fsS \
+  -H "Authorization: Bearer ${SUPERVISOR_TOKEN}" \
+  "http://supervisor/addons/${SUPERVISOR_SLUG}/info"
+)"
+export CURRENT_INFO_JSON="${current_info_json}"
+
 options_json="$(
 python3 - <<'PY'
 import json
 import os
+import sys
+
+current_info = json.loads(os.environ["CURRENT_INFO_JSON"])
+current_options = current_info.get("data", {}).get("options", {})
+
+if not isinstance(current_options, dict):
+    current_options = {}
+
+env_ha_llat = (os.environ.get("HA_LLAT") or "").strip()
+resolved_ha_llat = env_ha_llat or str(current_options.get("ha_llat", "") or "").strip()
+
+if not resolved_ha_llat:
+    print(
+        "[ha-app-bootstrap] HA_LLAT missing. Set HA_LLAT env or configure existing app option 'ha_llat'.",
+        file=sys.stderr
+    )
+    raise SystemExit(1)
 
 options = {
     "relay_auth_token": os.environ["RELAY_AUTH_TOKEN"],
-    "ha_llat": os.environ.get("HA_LLAT", "")
+    "ha_llat": os.environ.get("HA_LLAT") or current_options.get("ha_llat", "")
 }
 
 print(json.dumps(options))
