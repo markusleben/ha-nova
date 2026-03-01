@@ -13,7 +13,7 @@ Define a low-noise, low-runtime verification strategy for the new relay-only aut
 ## Scope
 
 In scope:
-- relay request path used by automation CRUD (`create/get/update/delete` + `reload`).
+- relay request path used by automation CRUD through `POST /core`.
 - latency SLOs for CI and live checks.
 - script/test layout and CI wiring with minimal overhead.
 
@@ -25,7 +25,7 @@ Out of scope:
 ## Constraints
 
 - Keep CI fast and stable on shared GitHub runners.
-- Keep Relay lean (no business logic in server).
+- Keep Relay lean (MITM transport only).
 - Reuse existing project conventions (Vitest contracts + shell/node scripts).
 
 ## Strategy
@@ -46,15 +46,15 @@ Use a 2-tier model:
 
 ### CI-safe micro-benchmark SLOs (blocking)
 
-Test mode: local relay instance + deterministic mocked upstream ws client.
+Test mode: local relay instance + deterministic mocked upstream REST client.
 
 - `error_rate` = `0%` (hard fail).
-- Per operation (`create/get/update/delete/reload`):
-  - `p50 <= 30ms`
-  - `p95 <= 75ms`
-  - `max <= 150ms`
-- Full CRUD sequence (`create -> reload -> get -> update -> reload -> get -> delete -> reload -> get(404)`):
-  - `p95 <= 450ms`
+- Per operation (`create/get/update/delete`):
+  - `p50 <= 20ms`
+  - `p95 <= 60ms`
+  - `max <= 120ms`
+- Full CRUD sequence (`create -> get -> update -> get -> delete -> get(404)`):
+  - `p95 <= 320ms`
 
 Why these numbers:
 - wide enough for GitHub-runner variance.
@@ -66,10 +66,9 @@ Test mode: real Relay endpoint + real HA backend.
 
 - `error_rate` = `0%` expected (warn on first failure, hard fail only with `--assert`).
 - Per operation:
-  - `p95 <= 900ms` (`create/get/update/delete`)
-  - `p95 <= 1500ms` (`reload`)
+  - `p95 <= 700ms` (`create/get/update/delete`)
 - Full CRUD sequence:
-  - `p95 <= 8000ms`
+  - `p95 <= 4500ms`
 
 These are operational SLO targets (environment-dependent), not default PR blockers.
 
@@ -101,14 +100,14 @@ Add one script:
 Modes:
 
 1. `--mode ci`
-- starts local relay server with injected deterministic ws client stub.
+- starts local relay server with injected deterministic REST client stub.
 - runs warmup + bounded samples (default `warmup=3`, `samples=12`).
 - computes percentiles in-process.
 - enforces CI thresholds when `--assert` is set.
 
 2. `--mode live`
 - requires `RELAY_BASE_URL`, `RELAY_AUTH_TOKEN`, `MVP_AUTOMATION_ID` (or generated id).
-- executes same CRUD sequence against real system.
+- executes same CRUD sequence against real system through `POST /core`.
 - report-only by default; optional `--assert` for strict runs.
 
 Output:
@@ -132,10 +131,11 @@ Live checks:
 
 ## Rollout Plan
 
-1. Add script + threshold config + perf contract tests.
-2. Add `perf:crud:ci` step to CI.
-3. Document live usage in contributor guide.
-4. After 1-2 weeks of data, tighten or relax SLOs once based on observed variance.
+1. Implement relay MITM endpoint (`POST /core`) first.
+2. Add script + threshold config + perf contract tests.
+3. Add `perf:crud:ci` step to CI.
+4. Document live usage in contributor guide.
+5. After 1-2 weeks of data, tighten or relax SLOs once based on observed variance.
 
 ## Definition of Done
 

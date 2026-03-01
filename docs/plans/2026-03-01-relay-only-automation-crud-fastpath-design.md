@@ -1,70 +1,118 @@
-# Relay-Only Automation CRUD Fast Path (Design)
+# Relay-Only Automation CRUD MITM Fast Path (Design)
 
 Date: 2026-03-01  
-Status: Proposed/Implemented in skills + contracts
+Status: Proposed
 
 ## Goal
 
-Optimize automation `create`/`update`/`delete` flow for relay-only user sessions with minimal runtime overhead.
+Enable automation CRUD for end users through Relay only:
+- Relay holds and uses LLAT.
+- Client never needs `HA_LLAT`.
+- Relay remains a thin man-in-the-middle transport.
 
-## Constraints
+## Architecture Principles (KISS)
 
-- Keep App + Relay model (no client-side LLAT path for end users).
-- Keep one best-practice refresh gate per session for `create`/`update`.
-- Keep write safety: preview + explicit confirmation.
-- Minimize API/tool round-trips and avoid proactive preflight checks.
+1. Relay does transport only (auth + shape validation + forward + map errors).
+2. No automation business logic in Relay.
+3. Skill layer owns behavior (preview/confirm/best-practice gate).
+4. No proactive preflight (`/health`, `doctor`) before normal CRUD calls.
+5. Minimize calls per operation.
 
-## Fast-Path Flow
+## Relay Contract (MITM)
+
+Add one endpoint:
+- `POST /core`
+
+Request envelope:
+```json
+{
+  "method": "GET|POST|DELETE",
+  "path": "/api/...",
+  "body": {}
+}
+```
+
+Minimal validation (only what is necessary):
+- `method` must be `GET|POST|DELETE`.
+- `path` must be a relative HA API path starting with `/api/`.
+- reject absolute URLs and path traversal patterns.
+
+Forwarding behavior:
+- Upstream target: `${HA_URL}${path}`.
+- Auth header injected by Relay: `Authorization: Bearer <LLAT from App option ha_llat>`.
+- Forward JSON body for `POST`.
+- Return upstream status + JSON/body (no transformation beyond existing error envelope mapping).
+
+## Skill Fast Path
 
 ### Session rule
+- Load env once.
+- No proactive readiness checks.
+- Diagnose only after call failure.
 
-- No proactive `ready`, `doctor`, `/health`, or broad list/get preflight before write planning.
-- Only run diagnostics after an actual write-path failure.
+### `create` / `update`
+1. Run best-practice gate once per session (`automation_bp_refreshed` cache).
+2. Build payload once.
+3. Preview once.
+4. Ask confirmation once.
+5. Execute one Relay call:
+   - `POST /core` -> `POST /api/config/automation/config/{id}`
+6. Return success without default read-back.
 
-### Create / Update (relay-only)
+Nominal path: **1 write call + 1 confirmation**  
+First write in session adds one best-practice refresh step.
 
-1. Ensure best-practice session gate:
-   - if `automation_bp_refreshed=true` in session context -> reuse, no refresh call.
-   - else perform one refresh and record timestamp/sources.
-2. Build automation payload once.
-3. Call `validate_config` (`operation=create|update`) to get `validated_hash`.
-4. Show preview from validated payload.
-5. Ask explicit confirmation once.
-6. Call `flow_execute` (`operation=create|update`, `validated_hash`, `consent:true`, `verify:false`).
-7. Return write result (`id`, optional `entity_id`) without extra read-back calls by default.
+### `delete`
+1. Resolve id only if ambiguous.
+2. Preview once.
+3. Ask confirmation once.
+4. Execute one Relay call:
+   - `POST /core` -> `DELETE /api/config/automation/config/{id}`
+5. Return success without default read-back.
 
-Nominal runtime: **2 write-path calls + 1 user confirmation**.
+Nominal path: **1 write call + 1 confirmation**
 
-### Delete (relay-only)
+### `list` / `get`
+- `list`: `POST /core` -> `GET /api/states` (filter `automation.*` in skill).
+- `get`: `POST /core` -> `GET /api/config/automation/config/{id}`.
 
-1. Resolve exact automation id (only if ambiguous).
-2. Call `validate_config` (`operation=delete`) to get `validated_hash`.
-3. Show delete preview.
-4. Ask explicit confirmation once.
-5. Call `flow_execute` (`operation=delete`, `validated_hash`, `consent:true`, `verify:false`).
-6. Return delete result without extra verification calls by default.
+## Reload Policy (Performance-first)
 
-Nominal runtime: **2 write-path calls + 1 user confirmation**.
+- Do not auto-call `automation.reload` after each CRUD write by default.
+- If explicit user request or stale-state symptom appears, perform one targeted reload call:
+  - `POST /core` -> `POST /api/services/automation/reload`
 
 ## Error Policy
 
-- Refresh gate failure on `create`/`update` blocks write.
-- Return structured failure (`what_failed`, `why`, `next_step`).
-- Do not add fallback write path that bypasses refresh gate.
+- Best-practice refresh failure blocks `create`/`update`.
+- Relay upstream failures return existing structured error envelope.
+- No hidden fallback path that bypasses Relay or best-practice gate.
 
-## Files To Update
+## Implementation Files
 
+Runtime:
+- `src/index.ts` (register `/core`)
+- `src/runtime/start.ts` (wire REST client dependency)
+- `src/ha/rest-client.ts` (new, thin upstream caller with keep-alive)
+- `src/http/handlers/core-proxy.ts` (new, validate + forward)
+- `src/types/api.ts` (request/response types)
+
+Tests:
+- `tests/http/core-proxy.test.ts` (new)
+- `tests/bootstrap/app-wiring.test.ts`
+- `tests/bootstrap/runtime-start.test.ts`
+- `tests/http/error-envelope.test.ts`
+
+Skills/contracts:
 - `skills/ha-nova.md`
-  - add relay-only automation CRUD fast-path routing/runtime policy.
 - `.agents/skills/ha-nova/SKILL.md`
-  - mirror orchestrator routing for installed skill users.
 - `skills/ha-automation-crud.md`
-  - replace contributor-first CRUD path with relay-only minimal-call flow.
 - `skills/ha-automation-best-practices.md`
-  - tighten once-per-session refresh reuse semantics.
 - `tests/skills/ha-nova-skill-contract.test.ts`
-  - assert relay-only fast-path language + once-per-session gate text.
 
-## Verification
+## Definition of Done
 
-- `npm test -- tests/skills/ha-nova-skill-contract.test.ts`
+1. End-user automation CRUD executes via Relay without client `HA_LLAT`.
+2. Relay stays transport-only (no CRUD decision logic).
+3. Write flow remains preview + confirm.
+4. Performance path is minimal (single write call in nominal case).
