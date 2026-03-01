@@ -234,7 +234,7 @@ if not resolved_ha_llat:
 
 options = {
     "relay_auth_token": os.environ["RELAY_AUTH_TOKEN"],
-    "ha_llat": os.environ.get("HA_LLAT") or current_options.get("ha_llat", "")
+    "ha_llat": resolved_ha_llat
 }
 
 print(json.dumps(options))

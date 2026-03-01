@@ -123,12 +123,12 @@ main() {
   local crud_hits
   local core_hits
   crud_hits="$(
-    jq -sr '
+    jq -sr --arg id "$AUTOMATION_ID" '
       [
         .[]
         | select(.type == "item.completed" and .item.type == "command_execution")
         | ((.item.command // "") + "\n" + (.item.aggregated_output // ""))
-        | select(test("/api/config/automation/config/"))
+        | select(contains("/api/config/automation/config/" + $id))
       ] | length
     ' "$LOG_FILE"
   )"

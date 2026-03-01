@@ -24,7 +24,7 @@ describe("app bootstrap dev script contract", () => {
     expect(content).toContain("/options/validate");
     expect(content).toContain("/options");
     expect(content).toContain("SUPERVISOR_TOKEN");
-    expect(content).toContain('"ha_llat": os.environ.get("HA_LLAT") or current_options.get("ha_llat", "")');
+    expect(content).toContain('"ha_llat": resolved_ha_llat');
     expect(content).toContain('if section != "options":');
     expect(content).toContain('line.startswith("  relay_auth_token:")');
     expect(content).toContain("curl -fsS");
@@ -34,7 +34,7 @@ describe("app bootstrap dev script contract", () => {
     const content = readFileSync("scripts/dev/ha-app-bootstrap.sh", "utf8");
 
     expect(content).not.toContain("HA_LLAT is required");
-    expect(content).toContain('"ha_llat": os.environ.get("HA_LLAT") or current_options.get("ha_llat", "")');
+    expect(content).toContain('"ha_llat": resolved_ha_llat');
     expect(content).toContain("/options");
   });
 
