@@ -135,3 +135,11 @@
 - Scenario-runtime stability policy: raise default scenario `max_duration_sec` from 45 to 90 to avoid false negatives from prompt/context startup overhead while keeping a bounded latency guard.
 - Prompt guardrail policy refinement: onboarding pre-action doctor restriction is now conditional (allowed only when explicitly requested by scenario prompt) to make forced-negative doctor scenarios testable.
 - WS proxy simplification policy (user): remove local WS type filtering entirely; keep only auth + request-shape validation and upstream error mapping.
+
+## 2026-03-01
+
+### Planning Defaults (Agent)
+- Automation write-quality policy: enforce one mandatory automation best-practice refresh per session before `create`/`update` planning/execution.
+- Source-authority policy for automation refresh: use only official Home Assistant docs/integration docs/release notes as authoritative references.
+- Write gate policy refinement: if best-practice refresh fails, block automation `create`/`update` and return explicit remediation steps.
+- Routing policy refinement: automation write intents must load `ha-automation-best-practices` together with `ha-automation-crud` and `ha-safety`.

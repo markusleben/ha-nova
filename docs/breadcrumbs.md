@@ -258,6 +258,24 @@
   - `npm test -- tests/onboarding/macos-onboarding-script-contract.test.ts tests/e2e/codex-skill-live-contract.test.ts` passed.
   - `bash scripts/onboarding/macos-onboarding.sh ready --quiet` exit 0 with no noisy output.
 - Added mandatory-LLAT mini-spec:
+
+## 2026-03-01
+- Researched current multi-agent best-practice handling patterns across major platforms (OpenAI Agents SDK, Claude Code, GitHub Copilot, Cursor, Home Assistant docs) to design a session-freshness flow.
+- Added research note with source links:
+  - `docs/reference/2026-03-01-agent-best-practice-freshness-patterns.md`
+- Added a new cross-cutting skill:
+  - `skills/ha-automation-best-practices.md`
+  - defines mandatory per-session refresh gate for automation `create`/`update`, source-authority policy, and enforcement checklist.
+- Updated orchestrator routing:
+  - `skills/ha-nova.md` now routes automation write intents through `ha-automation-best-practices` + `ha-automation-crud` + `ha-safety`.
+- Updated automation CRUD flow:
+  - `skills/ha-automation-crud.md` now blocks `create`/`update` writes without a best-practice refresh in the same session.
+- Updated installed Codex skill template:
+  - `.agents/skills/ha-nova/SKILL.md` now includes automation write freshness gate guidance.
+- Added design spec:
+  - `docs/plans/2026-03-01-automation-bp-refresh-session-gate-design.md`
+- Added skill contract checks:
+  - `tests/skills/ha-nova-skill-contract.test.ts` now asserts routing through best-practice skill and refresh-gate language in automation CRUD.
   - `docs/plans/2026-02-26-llat-mandatory-policy-design.md`
 - Enforced mandatory LLAT in runtime and App start path:
   - removed upstream fallback to `SUPERVISOR_TOKEN` in token resolver/runtime bootstrap.

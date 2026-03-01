@@ -82,9 +82,16 @@ Output rule for this shortcut:
 - Device control:
   - use `"$NOVA_REPO_ROOT/skills/ha-control.md"`
 - Automation CRUD:
-  - use `"$NOVA_REPO_ROOT/skills/ha-automation-crud.md"` + `"$NOVA_REPO_ROOT/skills/ha-safety.md"`
+  - for `create`/`update`/`delete` use `"$NOVA_REPO_ROOT/skills/ha-automation-best-practices.md"` + `"$NOVA_REPO_ROOT/skills/ha-automation-crud.md"` + `"$NOVA_REPO_ROOT/skills/ha-safety.md"`
+  - for `read`/`list` use `"$NOVA_REPO_ROOT/skills/ha-automation-crud.md"`
 - Automation enable/disable/toggle:
   - use `"$NOVA_REPO_ROOT/skills/ha-automation-control.md"` + `"$NOVA_REPO_ROOT/skills/ha-safety.md"`
+
+## Automation Write Freshness Gate
+
+- Before any automation `create`/`update` plan, enforce one best-practice refresh in this session.
+- Refresh must use current official Home Assistant docs/release notes and store timestamp + source list in-session.
+- If refresh fails, block write planning and return remediation steps.
 
 ## Safety Baseline
 

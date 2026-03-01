@@ -44,6 +44,7 @@ Primary model:
 - `ha-safety`: write safety baseline
 - `ha-entities`: entity discovery
 - `ha-control`: service-based device control
+- `ha-automation-best-practices`: per-session automation best-practice refresh and rule enforcement
 - `ha-automation-crud`: automation config lifecycle
 - `ha-automation-control`: runtime automation enable/disable/toggle
 
@@ -52,8 +53,15 @@ Primary model:
 1. Setup, auth, connectivity, onboarding failures -> `ha-onboarding`
 2. Read/search/list entities -> `ha-entities`
 3. Device control (service calls) -> `ha-control` + `ha-safety` for writes
-4. Automation create/read/update/delete -> `ha-automation-crud` + `ha-safety`
-5. Automation enable/disable/toggle -> `ha-automation-control` + `ha-safety`
+4. Automation create/update/delete -> `ha-automation-best-practices` + `ha-automation-crud` + `ha-safety`
+5. Automation read/list -> `ha-automation-crud`
+6. Automation enable/disable/toggle -> `ha-automation-control` + `ha-safety`
+
+## Best-Practice Freshness Policy
+
+- For automation `create`/`update`, enforce one mandatory best-practice refresh per session.
+- The refresh must use current official Home Assistant docs/release notes and record timestamp + sources.
+- If refresh fails, block write planning and return a concrete remediation message.
 
 ## Capability Routing Rules
 
