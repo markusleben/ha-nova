@@ -276,6 +276,10 @@
   - `docs/plans/2026-03-01-automation-bp-refresh-session-gate-design.md`
 - Added skill contract checks:
   - `tests/skills/ha-nova-skill-contract.test.ts` now asserts routing through best-practice skill and refresh-gate language in automation CRUD.
+- KISS follow-up after subreview findings:
+  - narrowed routing so `delete` does not load `ha-automation-best-practices` (only `create`/`update` do).
+  - aligned installed skill routing in `.agents/skills/ha-nova/SKILL.md`.
+  - expanded skill contract tests to assert delete exemption and installed-skill routing invariants.
   - `docs/plans/2026-02-26-llat-mandatory-policy-design.md`
 - Enforced mandatory LLAT in runtime and App start path:
   - removed upstream fallback to `SUPERVISOR_TOKEN` in token resolver/runtime bootstrap.

@@ -82,7 +82,8 @@ Output rule for this shortcut:
 - Device control:
   - use `"$NOVA_REPO_ROOT/skills/ha-control.md"`
 - Automation CRUD:
-  - for `create`/`update`/`delete` use `"$NOVA_REPO_ROOT/skills/ha-automation-best-practices.md"` + `"$NOVA_REPO_ROOT/skills/ha-automation-crud.md"` + `"$NOVA_REPO_ROOT/skills/ha-safety.md"`
+  - for `create`/`update` use `"$NOVA_REPO_ROOT/skills/ha-automation-best-practices.md"` + `"$NOVA_REPO_ROOT/skills/ha-automation-crud.md"` + `"$NOVA_REPO_ROOT/skills/ha-safety.md"`
+  - for `delete` use `"$NOVA_REPO_ROOT/skills/ha-automation-crud.md"` + `"$NOVA_REPO_ROOT/skills/ha-safety.md"`
   - for `read`/`list` use `"$NOVA_REPO_ROOT/skills/ha-automation-crud.md"`
 - Automation enable/disable/toggle:
   - use `"$NOVA_REPO_ROOT/skills/ha-automation-control.md"` + `"$NOVA_REPO_ROOT/skills/ha-safety.md"`

@@ -143,3 +143,4 @@
 - Source-authority policy for automation refresh: use only official Home Assistant docs/integration docs/release notes as authoritative references.
 - Write gate policy refinement: if best-practice refresh fails, block automation `create`/`update` and return explicit remediation steps.
 - Routing policy refinement: automation write intents must load `ha-automation-best-practices` together with `ha-automation-crud` and `ha-safety`.
+- KISS refinement: route automation `delete` directly to `ha-automation-crud` + `ha-safety`; keep best-practice refresh skill only on `create`/`update`.
