@@ -12,3 +12,16 @@ export interface ApiError {
 }
 
 export type ApiResponse<T> = ApiSuccess<T> | ApiError;
+
+export type CoreProxyMethod = "GET" | "POST" | "DELETE";
+
+export interface CoreProxyRequest {
+  method: CoreProxyMethod;
+  path: string;
+  body?: unknown;
+}
+
+export interface CoreProxyResponse {
+  status: number;
+  body: unknown;
+}

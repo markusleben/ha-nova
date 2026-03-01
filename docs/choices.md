@@ -145,3 +145,8 @@
 - Routing policy refinement: automation write intents must load `ha-automation-best-practices` together with `ha-automation-crud` and `ha-safety`.
 - KISS refinement: route automation `delete` directly to `ha-automation-crud` + `ha-safety`; keep best-practice refresh skill only on `create`/`update`.
 - Release automation timing policy (user intent): keep `release-please` manual-only (`workflow_dispatch`) until release phase starts; avoid per-merge failure noise on `main`.
+- Relay MITM simplification policy (user): `/core` enforces only method + `/api/...` path validation/hygiene and no automation-specific allowlist.
+- Live E2E policy refinement: codex harness validates end-user relay `/core` CRUD evidence and must not require client-side `HA_LLAT`.
+- Recovery semantics policy: automation reload is optional recovery-only behavior, not a mandatory CRUD success criterion.
+- Path-hardening refinement: `/core` rejects single- and double-encoded dangerous path tokens (`%2e`, `%2f`, `%5c`, `%25..`) before forwarding.
+- E2E evidence-quality refinement: `/core` usage proofs in live harness must come from executed command records, not raw transcript substring matches.

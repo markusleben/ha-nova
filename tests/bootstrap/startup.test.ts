@@ -11,6 +11,12 @@ describe("startup bootstrap", () => {
         isConnected: () => true,
         sendMessage: async () => ({ ok: true })
       },
+      coreClient: {
+        request: async () => ({
+          status: 200,
+          body: null
+        })
+      },
       startedAtMs: 1_000,
       now: () => 2_000
     });

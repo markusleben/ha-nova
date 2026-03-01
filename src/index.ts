@@ -1,6 +1,8 @@
 import type { Server } from "node:http";
 
+import type { CoreProxyRequest, CoreProxyResponse } from "./types/api.js";
 import type { HaWsRequest } from "./ha/ws-client.js";
+import { createCoreProxyHandler } from "./http/handlers/core-proxy.js";
 import { createHealthHandler } from "./http/handlers/health.js";
 import { createWsProxyHandler } from "./http/handlers/ws-proxy.js";
 import { createRouter, type Router } from "./http/router.js";
@@ -12,6 +14,9 @@ export interface AppOptions {
   wsClient: {
     isConnected(): boolean;
     sendMessage(message: HaWsRequest): Promise<unknown>;
+  };
+  coreClient: {
+    request(input: CoreProxyRequest): Promise<CoreProxyResponse>;
   };
   startedAtMs?: number;
   now?: () => number;
@@ -51,6 +56,14 @@ export function createApp(options: AppOptions): App {
     "/ws",
     createWsProxyHandler({
       wsClient: options.wsClient
+    })
+  );
+
+  router.register(
+    "POST",
+    "/core",
+    createCoreProxyHandler({
+      coreClient: options.coreClient
     })
   );
 

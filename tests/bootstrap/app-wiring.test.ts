@@ -31,6 +31,14 @@ describe("app wiring", () => {
         isConnected: () => true,
         sendMessage: async (message) => ({ echoed: message.type })
       },
+      coreClient: {
+        request: async () => ({
+          status: 200,
+          body: {
+            ok: true
+          }
+        })
+      },
       startedAtMs: 1_000,
       now: () => 5_000
     });
@@ -65,6 +73,28 @@ describe("app wiring", () => {
       ok: true,
       data: {
         echoed: "ping"
+      }
+    });
+
+    const core = await fetch(`${baseUrl}/core`, {
+      method: "POST",
+      headers: {
+        authorization: "Bearer secret",
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({
+        method: "GET",
+        path: "/api/states"
+      })
+    });
+    expect(core.status).toBe(200);
+    await expect(core.json()).resolves.toEqual({
+      ok: true,
+      data: {
+        status: 200,
+        body: {
+          ok: true
+        }
       }
     });
   });

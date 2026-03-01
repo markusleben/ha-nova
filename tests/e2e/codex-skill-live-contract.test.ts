@@ -14,15 +14,15 @@ describe("codex live skill e2e contract", () => {
     expect(content).toContain("--json");
     expect(content).toContain("ha-nova");
     expect(content).toContain("NOVA_SKILL_E2E_RESULT");
-    expect(content).toContain("contributor validation mode");
-    expect(content).toContain("Use explicit HA_LLAT direct REST capability");
-    expect(content).toContain("Contributor live CRUD check requires HA_LLAT in shell env");
+    expect(content).toContain("end-user relay mode");
+    expect(content).toContain("Use Relay POST /core envelope calls for automation CRUD");
+    expect(content).toContain("Do not use direct Home Assistant REST in the client session");
     expect(content).toContain("Do not run project helper scripts.");
     expect(content).toContain("E2E_SUBAGENT_POLICY");
-    expect(content).toContain("/config/automation/config/${AUTOMATION_ID}");
-    expect(content).toContain("/services/automation/reload");
-    expect(content).not.toContain("/api/config/automation/config/${AUTOMATION_ID}");
-    expect(content).not.toContain("/api/services/automation/reload");
+    expect(content).toContain('"/api/config/automation/config/" + $id');
+    expect(content).toContain("relay /core evidence");
+    expect(content).not.toContain("Contributor live CRUD check requires HA_LLAT in shell env");
+    expect(content).not.toContain("contributor validation mode");
   });
 
   it("exposes npm command for codex live e2e harness", () => {
@@ -34,7 +34,7 @@ describe("codex live skill e2e contract", () => {
     );
   });
 
-  it("documents quick and live contributor checks", () => {
+  it("documents quick and live e2e checks", () => {
     const deployLoop = readFileSync("docs/contributor-deploy-loop.md", "utf8");
     expect(deployLoop).toContain("onboarding:macos:quick");
     expect(deployLoop).toContain("e2e:skill:codex");

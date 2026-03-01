@@ -451,3 +451,29 @@
 - Disabled noisy release workflow trigger until release phase:
   - `.github/workflows/release-please.yml` now uses `workflow_dispatch` only (no `push` on `main`).
 - Rationale: keep CI signal clean during MVP iteration and avoid repeated non-actionable release-automation failure emails.
+- Added implementation spec for relay MITM phase:
+  - `docs/plans/2026-03-01-relay-core-mitm-phase1-implementation.md`
+- Implemented relay `/core` runtime path for HA REST passthrough:
+  - added `src/ha/rest-client.ts`
+  - added `src/http/handlers/core-proxy.ts`
+  - wired route in `src/index.ts` and runtime injection in `src/runtime/start.ts`
+  - added API contracts in `src/types/api.ts`
+- Simplified relay behavior per user directive:
+  - removed automation method/path allowlist gating in `/core` handler
+  - retained only minimal request/path safety validation and upstream error mapping
+- Updated tests for MITM behavior:
+  - added/updated `tests/http/core-proxy.test.ts` to assert passthrough on non-CRUD `/api` paths
+  - updated bootstrap wiring tests in `tests/bootstrap/app-wiring.test.ts` and `tests/bootstrap/startup.test.ts`
+- Updated automation CRUD skill guidance for relay passthrough model:
+  - `skills/ha-automation-crud.md` now states no automation-specific allowlist in relay MVP flow
+- Updated Codex live E2E harness to end-user relay mode:
+  - `scripts/e2e/codex-ha-nova-live-skill-e2e.sh` prompt now requires `/core` envelope flow and no direct client REST
+  - removed shell `HA_LLAT` precondition from harness
+  - evidence checks now assert `/api/config/automation/config/{id}` + relay `/core` traces
+- Updated E2E contract test to match relay mode:
+  - `tests/e2e/codex-skill-live-contract.test.ts`
+- Applied subreview hardening follow-ups on PR branch:
+  - strengthened `/core` path safety against double-encoded dangerous tokens (`%252e`, `%252f`, `%255c`)
+  - tightened live E2E `/core` evidence extraction to command-execution-scoped checks via `jq`
+  - added direct unit coverage for REST client behavior (`tests/ha/rest-client.test.ts`)
+  - added runtime bootstrap `/core` wiring test in `tests/bootstrap/runtime-start.test.ts`
