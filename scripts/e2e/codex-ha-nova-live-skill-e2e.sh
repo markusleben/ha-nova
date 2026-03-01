@@ -136,7 +136,7 @@ main() {
       [
         select(.type == "item.completed" and .item.type == "command_execution")
         | .item.command
-        | select(test("(^|[[:space:]\"])/core([[:space:]\"]|$)"))
+        | select(test("/core($|[[:space:]\"]|\\?)"))
       ] | length
     ' "$LOG_FILE"
   )"
