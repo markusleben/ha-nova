@@ -71,12 +71,12 @@ function normalizeCorePath(pathValue: string): string {
   }
 
   const rawPath = parsed.pathname;
-  if (/%2f|%5c/i.test(rawPath)) {
+  if (containsEncodedDangerousPathToken(rawPath)) {
     throw new HttpError(400, "CORE_PATH_INVALID", "Core request path is invalid");
   }
 
-  const decodedPath = safeDecode(rawPath);
-  if (decodedPath.includes("..") || decodedPath.includes("\\")) {
+  const decodedPath = decodePathIterative(rawPath);
+  if (decodedPath.includes("..") || decodedPath.includes("\\") || containsEncodedDangerousPathToken(decodedPath)) {
     throw new HttpError(400, "CORE_PATH_INVALID", "Core request path is invalid");
   }
 
@@ -101,6 +101,26 @@ function safeDecode(pathValue: string): string {
   } catch {
     throw new HttpError(400, "CORE_PATH_INVALID", "Core request path is invalid");
   }
+}
+
+function decodePathIterative(pathValue: string): string {
+  let current = pathValue;
+  let rounds = 0;
+
+  while (rounds < 4) {
+    const decoded = safeDecode(current);
+    if (decoded === current) {
+      return decoded;
+    }
+    current = decoded;
+    rounds += 1;
+  }
+
+  return current;
+}
+
+function containsEncodedDangerousPathToken(pathValue: string): boolean {
+  return /%(?:2e|2f|5c|25(?:2e|2f|5c))/i.test(pathValue);
 }
 
 function containsControlChars(value: string): boolean {

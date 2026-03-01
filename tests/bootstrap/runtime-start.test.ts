@@ -25,6 +25,7 @@ describe("runtime bootstrap", () => {
 
   it("uses env LLAT as the only upstream source", () => {
     let seenSource: string | null = null;
+    let restSeenSource: string | null = null;
 
     const runtime = bootstrapRuntime({
       loadEnv: () => ({
@@ -45,11 +46,21 @@ describe("runtime bootstrap", () => {
           isConnected: () => true,
           sendMessage: async <T>() => ({ ok: true } as T)
         };
+      },
+      createRestClient: (input) => {
+        restSeenSource = input.upstreamAuth.source;
+        return {
+          request: async () => ({
+            status: 200,
+            body: { ok: true }
+          })
+        };
       }
     });
 
     expect(runtime.upstreamAuth.source).toBe("env_ha_llat");
     expect(seenSource).toBe("env_ha_llat");
+    expect(restSeenSource).toBe("env_ha_llat");
     expect(runtime.app.version).toBe("1.2.3");
   });
 
@@ -124,6 +135,75 @@ describe("runtime bootstrap", () => {
         type: "pong"
       }
     });
+  });
+
+  it("forwards /core through injected rest client", async () => {
+    const seenRequests: Array<{ method: string; path: string; body: unknown }> = [];
+
+    const runtime = bootstrapRuntime({
+      loadEnv: () => ({
+        relayAuthToken: "relay-token",
+        haLlat: "env-llat",
+        haUrl: "http://supervisor/core",
+        relayVersion: "1.2.3",
+        appOptionsPath: "/data/options.json",
+        relayPort: 8791,
+        logLevel: "info"
+      }),
+      readAppOptions: () => ({}),
+      createWsClient: () => ({
+        isConnected: () => true,
+        sendMessage: async <T>() => ({ type: "pong" } as T)
+      }),
+      createRestClient: () => ({
+        request: async (input) => {
+          seenRequests.push({
+            method: input.method,
+            path: input.path,
+            body: input.body
+          });
+          return {
+            status: 200,
+            body: {
+              echoed: input.path
+            }
+          };
+        }
+      })
+    });
+
+    servers.push(runtime.app.server);
+    const baseUrl = await startServer(runtime.app.server);
+
+    const core = await fetch(`${baseUrl}/core`, {
+      method: "POST",
+      headers: {
+        authorization: "Bearer relay-token",
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({
+        method: "GET",
+        path: "/api/states"
+      })
+    });
+
+    expect(core.status).toBe(200);
+    await expect(core.json()).resolves.toEqual({
+      ok: true,
+      data: {
+        status: 200,
+        body: {
+          echoed: "/api/states"
+        }
+      }
+    });
+    expect(seenRequests).toEqual([
+      {
+        method: "GET",
+        path: "/api/states",
+        body: undefined
+      }
+    ]);
   });
 
   it("logs startup auth context and listens successfully in full mode", async () => {

@@ -472,3 +472,8 @@
   - evidence checks now assert `/api/config/automation/config/{id}` + relay `/core` traces
 - Updated E2E contract test to match relay mode:
   - `tests/e2e/codex-skill-live-contract.test.ts`
+- Applied subreview hardening follow-ups on PR branch:
+  - strengthened `/core` path safety against double-encoded dangerous tokens (`%252e`, `%252f`, `%255c`)
+  - tightened live E2E `/core` evidence extraction to command-execution-scoped checks via `jq`
+  - added direct unit coverage for REST client behavior (`tests/ha/rest-client.test.ts`)
+  - added runtime bootstrap `/core` wiring test in `tests/bootstrap/runtime-start.test.ts`

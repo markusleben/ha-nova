@@ -159,6 +159,123 @@ describe("core proxy endpoint", () => {
     });
   });
 
+  it("returns 400 for double-encoded traversal token", async () => {
+    const router = createRouter();
+
+    router.register(
+      "POST",
+      "/core",
+      createCoreProxyHandler({
+        coreClient: {
+          request: async () => ({
+            status: 200,
+            body: {}
+          })
+        }
+      })
+    );
+
+    const { baseUrl } = await startServer(servers, router);
+    const response = await fetch(`${baseUrl}/core`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${TEST_AUTH_TOKEN}`,
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({
+        method: "GET",
+        path: "/api/%252e%252e/config"
+      })
+    });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      error: {
+        code: "CORE_PATH_INVALID",
+        message: "Core request path is invalid"
+      }
+    });
+  });
+
+  it("returns 400 for double-encoded slash token", async () => {
+    const router = createRouter();
+
+    router.register(
+      "POST",
+      "/core",
+      createCoreProxyHandler({
+        coreClient: {
+          request: async () => ({
+            status: 200,
+            body: {}
+          })
+        }
+      })
+    );
+
+    const { baseUrl } = await startServer(servers, router);
+    const response = await fetch(`${baseUrl}/core`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${TEST_AUTH_TOKEN}`,
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({
+        method: "GET",
+        path: "/api/%252fstates"
+      })
+    });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      error: {
+        code: "CORE_PATH_INVALID",
+        message: "Core request path is invalid"
+      }
+    });
+  });
+
+  it("returns 400 for double-encoded backslash token", async () => {
+    const router = createRouter();
+
+    router.register(
+      "POST",
+      "/core",
+      createCoreProxyHandler({
+        coreClient: {
+          request: async () => ({
+            status: 200,
+            body: {}
+          })
+        }
+      })
+    );
+
+    const { baseUrl } = await startServer(servers, router);
+    const response = await fetch(`${baseUrl}/core`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${TEST_AUTH_TOKEN}`,
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({
+        method: "GET",
+        path: "/api/%255cstates"
+      })
+    });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      error: {
+        code: "CORE_PATH_INVALID",
+        message: "Core request path is invalid"
+      }
+    });
+  });
+
   it("maps upstream failure to 502", async () => {
     const router = createRouter();
 

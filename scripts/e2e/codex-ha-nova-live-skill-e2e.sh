@@ -122,8 +122,24 @@ main() {
 
   local crud_hits
   local core_hits
-  crud_hits="$(grep -o "/api/config/automation/config/${AUTOMATION_ID}" "$LOG_FILE" | wc -l | tr -d '[:space:]')"
-  core_hits="$(grep -o "/core" "$LOG_FILE" | wc -l | tr -d '[:space:]')"
+  crud_hits="$(
+    jq -r --arg id "$AUTOMATION_ID" '
+      [
+        select(.type == "item.completed" and .item.type == "command_execution")
+        | .item.command
+        | select(test("/api/config/automation/config/" + $id))
+      ] | length
+    ' "$LOG_FILE"
+  )"
+  core_hits="$(
+    jq -r '
+      [
+        select(.type == "item.completed" and .item.type == "command_execution")
+        | .item.command
+        | select(test("(^|[[:space:]\"])/core([[:space:]\"]|$)"))
+      ] | length
+    ' "$LOG_FILE"
+  )"
   [[ "${crud_hits}" -ge 4 ]] || die "Insufficient automation config CRUD evidence (${crud_hits} hits). Log: ${LOG_FILE}"
   [[ "${core_hits}" -ge 4 ]] || die "Insufficient relay /core evidence (${core_hits} hits). Log: ${LOG_FILE}"
   [[ "$final_line" == NOVA_SKILL_E2E_RESULT\ ok\ automation_id=${AUTOMATION_ID}\ reason=* ]] \

@@ -19,7 +19,7 @@ describe("codex live skill e2e contract", () => {
     expect(content).toContain("Do not use direct Home Assistant REST in the client session");
     expect(content).toContain("Do not run project helper scripts.");
     expect(content).toContain("E2E_SUBAGENT_POLICY");
-    expect(content).toContain("/api/config/automation/config/${AUTOMATION_ID}");
+    expect(content).toContain('"/api/config/automation/config/" + $id');
     expect(content).toContain("relay /core evidence");
     expect(content).not.toContain("Contributor live CRUD check requires HA_LLAT in shell env");
     expect(content).not.toContain("contributor validation mode");
