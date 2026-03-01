@@ -477,3 +477,12 @@
   - tightened live E2E `/core` evidence extraction to command-execution-scoped checks via `jq`
   - added direct unit coverage for REST client behavior (`tests/ha/rest-client.test.ts`)
   - added runtime bootstrap `/core` wiring test in `tests/bootstrap/runtime-start.test.ts`
+- Follow-up deploy/e2e reliability hardening:
+  - `scripts/dev/ha-app-bootstrap.sh` now supports missing `HA_LLAT` by reusing existing app option value and only fails when both env + existing option are empty.
+  - `scripts/dev/ha-app-bootstrap.sh` now rebuilds app image after sync (`ha apps rebuild` with update fallback) before restart.
+  - `scripts/e2e/codex-ha-nova-live-skill-e2e.sh` now handles JSONL stream counting correctly (`jq -s`) and counts evidence from both `command` + `aggregated_output` (PTY transcript-safe).
+  - prompt/check handling hardened for final status line variants (`ok` and `<ok>` normalization path).
+- Live validation after hardening:
+  - `npm run dev:app:bootstrap` passed and `/core` became live on deployed relay.
+  - endpoint checks passed (`/health` 200, `/ws` 200, `/core` 200 for `GET /api/states` envelope).
+  - `npm run e2e:skill:codex` passed (`Live skill e2e passed`).

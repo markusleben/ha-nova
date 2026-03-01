@@ -19,14 +19,23 @@ describe("app bootstrap dev script contract", () => {
     expect(content).toContain("/addons/local/${APP_SLUG}");
     expect(content).toContain("ha store reload");
     expect(content).toContain("ha apps install");
+    expect(content).toContain("ha apps rebuild");
     expect(content).toContain("ha apps start");
     expect(content).toContain("/options/validate");
     expect(content).toContain("/options");
     expect(content).toContain("SUPERVISOR_TOKEN");
-    expect(content).toContain('"ha_llat": os.environ.get("HA_LLAT", "")');
+    expect(content).toContain('"ha_llat": resolved_ha_llat');
     expect(content).toContain('if section != "options":');
     expect(content).toContain('line.startswith("  relay_auth_token:")');
     expect(content).toContain("curl -fsS");
+  });
+
+  it("reuses existing ha_llat when HA_LLAT env is not provided", () => {
+    const content = readFileSync("scripts/dev/ha-app-bootstrap.sh", "utf8");
+
+    expect(content).not.toContain("HA_LLAT is required");
+    expect(content).toContain('"ha_llat": resolved_ha_llat');
+    expect(content).toContain("/options");
   });
 
   it("exposes npm shortcut in dev namespace", () => {
