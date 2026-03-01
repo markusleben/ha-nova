@@ -35,6 +35,8 @@ describe("ha-nova skill contract", () => {
     expect(content).toContain("Required Companion Skill for Writes");
     expect(content).toContain("Enforce best-practice session refresh gate");
     expect(content).toContain("no best-practice session refresh -> no write");
+    expect(content).toContain("Relay injects App-side LLAT; client-side `HA_LLAT` is not required.");
+    expect(content).not.toContain("not yet exposed in relay-only MVP path");
     expect(bestPractices).toContain("`delete` operations are exempt from the refresh gate");
   });
 

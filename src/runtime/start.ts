@@ -5,7 +5,9 @@ import { createConnection, createLongLivedTokenAuth } from "home-assistant-js-we
 import { createApp, type App } from "../index.js";
 import { readAppOptions, type AppOptions } from "../config/app-options.js";
 import { loadEnv, type EnvConfig, type LogLevel } from "../config/env.js";
+import { createHaRestClient, type HaRestClient } from "../ha/rest-client.js";
 import { createHaWsClient, type HaWsClient, type HaWsConnection, type HaWsRequest } from "../ha/ws-client.js";
+import type { CoreProxyRequest, CoreProxyResponse } from "../types/api.js";
 import {
   resolveUpstreamToken,
   type ResolveUpstreamTokenInput,
@@ -29,11 +31,18 @@ export interface RuntimeDependencies {
   loadEnv?: () => EnvConfig;
   readAppOptions?: (path: string) => AppOptions;
   createWsClient?: (input: RuntimeWsClientInput) => HaWsClient;
+  createRestClient?: (input: RuntimeRestClientInput) => HaRestClient;
   logger?: Logger;
   listen?: (server: Server, port: number) => Promise<void>;
 }
 
 export interface RuntimeWsClientInput {
+  env: EnvConfig;
+  appOptions: AppOptions;
+  upstreamAuth: UpstreamTokenResolution;
+}
+
+export interface RuntimeRestClientInput {
   env: EnvConfig;
   appOptions: AppOptions;
   upstreamAuth: UpstreamTokenResolution;
@@ -57,11 +66,19 @@ export function bootstrapRuntime(dependencies: RuntimeDependencies = {}): Runtim
     appOptions,
     upstreamAuth
   });
+  const coreClient = (dependencies.createRestClient ?? createDefaultRestClient)({
+    env,
+    appOptions,
+    upstreamAuth
+  });
 
   const app = createApp({
     authToken: env.relayAuthToken,
     version: env.relayVersion,
-    wsClient
+    wsClient,
+    coreClient: {
+      request: async (input: CoreProxyRequest): Promise<CoreProxyResponse> => coreClient.request(input)
+    }
   });
 
   return {
@@ -114,6 +131,18 @@ export function createDefaultWsClient(input: RuntimeWsClientInput): HaWsClient {
 
       return wrapped;
     }
+  });
+}
+
+export function createDefaultRestClient(input: RuntimeRestClientInput): HaRestClient {
+  const token = input.upstreamAuth.token;
+  if (!token || input.upstreamAuth.capability !== "full") {
+    throw new Error("HA_LLAT is required for runtime startup.");
+  }
+
+  return createHaRestClient({
+    baseUrl: input.env.haUrl,
+    token
   });
 }
 

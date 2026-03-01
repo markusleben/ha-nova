@@ -38,7 +38,8 @@ Hard requirements:
 2. Use App + Relay terminology.
 3. Do not run onboarding ready/doctor checks before the first HA action.
 4. Load onboarding env for this session.
-5. This is contributor validation mode. Use explicit HA_LLAT direct REST capability for automation CRUD.
+5. This is end-user relay mode. Use Relay POST /core envelope calls for automation CRUD.
+   Do not use direct Home Assistant REST in the client session.
    Do not request or store LLAT in client onboarding files/Keychain.
 6. For write actions, preview payloads first; explicit confirmation is granted by this prompt for automation id "${AUTOMATION_ID}".
 7. Use deterministic automation id: "${AUTOMATION_ID}".
@@ -67,10 +68,6 @@ main() {
   # shellcheck disable=SC1091
   # shellcheck disable=SC1090
   source /dev/stdin <<<"$onboarding_env"
-
-  if [[ -z "${HA_LLAT:-}" ]]; then
-    die "Contributor live CRUD check requires HA_LLAT in shell env. Export HA_LLAT and rerun."
-  fi
 
   mkdir -p "$OUTPUT_DIR"
   build_prompt
@@ -124,12 +121,11 @@ main() {
   [[ -n "$final_line" ]] || die "No final NOVA_SKILL_E2E_RESULT status line found. Log: ${LOG_FILE}"
 
   local crud_hits
-  local reload_hits
-  # Path-neutral evidence: works for App-context Supervisor and direct REST traces.
-  crud_hits="$(grep -o "/config/automation/config/${AUTOMATION_ID}" "$LOG_FILE" | wc -l | tr -d '[:space:]')"
-  reload_hits="$(grep -o "/services/automation/reload" "$LOG_FILE" | wc -l | tr -d '[:space:]')"
+  local core_hits
+  crud_hits="$(grep -o "/api/config/automation/config/${AUTOMATION_ID}" "$LOG_FILE" | wc -l | tr -d '[:space:]')"
+  core_hits="$(grep -o "/core" "$LOG_FILE" | wc -l | tr -d '[:space:]')"
   [[ "${crud_hits}" -ge 4 ]] || die "Insufficient automation config CRUD evidence (${crud_hits} hits). Log: ${LOG_FILE}"
-  [[ "${reload_hits}" -ge 2 ]] || die "Insufficient automation reload evidence (${reload_hits} hits). Log: ${LOG_FILE}"
+  [[ "${core_hits}" -ge 4 ]] || die "Insufficient relay /core evidence (${core_hits} hits). Log: ${LOG_FILE}"
   [[ "$final_line" == NOVA_SKILL_E2E_RESULT\ ok\ automation_id=${AUTOMATION_ID}\ reason=* ]] \
     || die "Unexpected final status: ${final_line}. Log: ${LOG_FILE}"
 
