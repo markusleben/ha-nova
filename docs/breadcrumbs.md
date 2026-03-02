@@ -556,3 +556,118 @@
   - marked contradictory `docs/choices.md` entries as superseded for subagent trigger and response schema draft wording
   - strengthened contract tests with negative assertions preventing legacy `2+ independent` wording regressions
   - added explicit mirror-parity test to keep `.agents/skills/ha-nova/SKILL.md` and `skills/ha-nova.md` identical.
+
+## 2026-03-02
+- Implemented user-focused response contract update in `skills/ha-nova.md` and mirrored it to `.agents/skills/ha-nova/SKILL.md`.
+- Removed default requirement to expose orchestration evidence in normal success paths.
+- Added deterministic user-facing `Impact` payload schemas for:
+  - automation writes (`Automation Name`, `Automation Goal`, `Entities Used`, `Behavior Summary`, `Change Scope`) (later superseded in same-day domain-first contract by `Next Step`)
+  - script writes (`Script Name`, `Script Goal`, `Inputs/Variables`, `Actions/Entities Used`, `Change Scope`) (later superseded in same-day domain-first contract by `Next Step`)
+- Added/updated automation CRUD guidance in `skills/ha-automation-crud.md` to mandate the automation impact schema and hide orchestration internals in normal flow.
+- Updated `tests/skills/ha-nova-skill-contract.test.ts` with failing-first assertions for the new response contract and impact schemas.
+- Verification run:
+  - `npm test -- tests/skills/ha-nova-skill-contract.test.ts` passed (`12/12`).
+- Follow-up review remediation:
+  - resolved orchestration visibility wording contradiction by allowing internals only for failure diagnosis or explicit user request.
+  - aligned delete verification semantics with top-level write-integrity rule (`200/204` default success for delete; read-back optional).
+  - marked legacy response-evidence policy in `docs/choices.md` as superseded to prevent future drift.
+  - marked legacy contract-clarity entry in `docs/choices.md` as superseded to remove the remaining visibility contradiction.
+  - added contract-test coverage for write-verification semantics alignment.
+- Added modular fast-pass design artifact for maintainable reusable skill flows:
+  - `docs/plans/2026-03-02-ha-nova-fast-pass-modular-design.md`
+- Updated `ha-nova` orchestrator contract to reusable block model (`B0`..`B11`) and explicit fast-pass compositions for automation/script flows.
+- Replaced legacy default response-structure wording with domain-first response contract in `skills/ha-nova.md` and mirrored `.agents/skills/ha-nova/SKILL.md`.
+- Updated `skills/ha-automation-crud.md` to map automation writes to reusable blocks, enforce domain-first output fields, and codify low-overhead shell discipline (`bash -lc`, no `mapfile`, no temp helper scripts in normal flow).
+- Updated `tests/skills/ha-nova-skill-contract.test.ts` to assert:
+  - reusable fast-pass block presence
+  - domain-first response contract fields
+  - absence of legacy default heading structure in normal flow
+  - automation fast-pass mapping and shell-stability constraints.
+- Post-review drift cleanup:
+  - marked legacy `Outcome/Current State/Impact/Gate/Next` schema entry in `docs/choices.md` as superseded.
+  - marked legacy subagent “preferred for substantial units” entry in `docs/choices.md` as superseded by threshold-based mandatory policy.
+- Implemented subskill/lazy-discovery migration baseline:
+  - added core files: `skills/ha-nova/core/blocks.md`, `core/contracts.md`, `core/discovery-map.md`
+  - added automation modules: `skills/ha-nova/modules/automation/{resolve,create-update,delete,read}.md`
+  - added script modules: `skills/ha-nova/modules/script/{resolve,create-update,delete,read}.md`
+  - updated router `skills/ha-nova.md` to reference source-of-truth core files and lazy module loading map.
+  - updated `skills/ha-automation-crud.md` with migration shim note to module source-of-truth.
+  - updated skill contract tests to assert module routing/lazy discovery and physical module file presence.
+  - verification: `npm test -- tests/skills/ha-nova-skill-contract.test.ts` passed (`14/14`), `npm run typecheck` passed.
+- Review-driven coherence fixes after migration:
+  - added `resolve` module mapping for `automation.read` and `script.read` in `core/discovery-map.md`.
+  - updated read modules to include `B3_ID_RESOLVE` for single-item reads.
+  - re-added explicit companion routing for automation writes (`ha-automation-best-practices.md` + `ha-safety.md`).
+  - narrowed `B4_BP_GATE` scope to automation `create`/`update` in router/core block docs.
+  - strengthened contract tests with cross-file coherence checks for read mapping and B4 scope.
+- Follow-up review fixes:
+  - added explicit `automation.list` and `script.list` aliases in `core/discovery-map.md`.
+  - normalized router module mapping paths to repo-root-qualified paths for deterministic resolution.
+- Final review remediation:
+  - updated `core/discovery-map.md` to repo-root-qualified module paths to remove `core/`-relative ambiguity.
+  - refined read/list behavior: read modules now require `B3_ID_RESOLVE` only for single-item reads; list flows explicitly skip `B3`.
+  - updated skill contract tests to assert root-qualified discovery-map paths and list-vs-read `B3` behavior.
+  - marked legacy strict `passed=true` write-integrity line in `docs/choices.md` as superseded for delete-status semantics.
+- Follow-up remediation after second final review:
+  - changed `*.list` mappings in `core/discovery-map.md` to direct `modules/*/read.md` only (no `resolve.md`) to remove implicit `B3` coupling.
+  - updated router in `skills/ha-nova.md` to separate `read` and `list` module wiring for automation/script.
+  - expanded lazy intent classifier in `skills/ha-nova.md` to `create|update|delete|read|list`.
+  - synchronized `.agents/skills/ha-nova/SKILL.md` mirror with updated router.
+  - extended contract tests to guard the new list mapping and explicit list intent classifier.
+- Added implementation-ready 1-day foundation hardening plan: `docs/plans/2026-03-02-ha-nova-foundation-hardening-1day-plan.md`.
+- Plan focuses on five high-impact hardening items only: canonical intent contract, test decoupling, semantic mapping assertions, confirm-token contract, and router/core de-duplication.
+- Recorded opinionated defaults in `docs/choices.md` to keep execution order deterministic for next implementation session.
+- Implemented 1-day foundation hardening plan end-to-end (2026-03-02):
+  - added canonical intent matrix `skills/ha-nova/core/intents.md` with companions/modules per intent.
+  - rewired router/discovery to load from canonical `required_companions[]` + `modules[]` contract.
+  - split tests into dedicated suites:
+    - `tests/skills/ha-nova-contract.test.ts`
+    - `tests/skills/ha-entities-contract.test.ts`
+    - `tests/skills/ha-safety-contract.test.ts`
+    - `tests/skills/ha-cross-skill-integration.test.ts`
+    - reduced `tests/skills/ha-nova-skill-contract.test.ts` to compatibility shim.
+  - added semantic mapping parser `tests/skills/helpers/intent-matrix.ts` and exact-set assertions for intent mapping.
+  - hardened token contract in `skills/ha-nova/core/contracts.md` (TTL, replay protection, target/digest binding).
+  - reduced router/core duplication by making `core/contracts.md` normative and trimming duplicated contract text in `skills/ha-nova.md`.
+  - synced mirror: `skills/ha-nova.md` -> `.agents/skills/ha-nova/SKILL.md`.
+- Verification evidence (2026-03-02):
+  - `npm test -- tests/skills/*.test.ts` -> 5 files passed, 15 tests passed.
+  - `npm run typecheck` -> pass (`tsc --noEmit`).
+- Created follow-up residual-risk closure plan: `docs/plans/2026-03-02-ha-nova-foundation-followup-pr-plan.md`.
+- Plan defines 3 small PR slices for remaining gaps: executable token semantics tests, intent dispatcher simulation tests, and strengthened compatibility shim semantics.
+- Executed follow-up residual-hardening plan end-to-end in three slices with review passes:
+  - PR-1: added executable token validator + tests
+    - `tests/skills/helpers/confirm-token-validator.ts`
+    - `tests/skills/ha-token-contract.test.ts`
+    - includes stale/replay/mismatch/format/token-id checks, TTL boundary, and one-time-use consumption assertion.
+  - PR-2: added dispatcher simulation from canonical intent matrix
+    - `tests/skills/helpers/intent-dispatcher.ts`
+    - `tests/skills/ha-intent-dispatcher.test.ts`
+    - includes exact load-set checks for all intents, read/list separation, unknown-intent rejection, and full key-coverage parity against matrix.
+  - PR-3: strengthened compatibility shim semantics
+    - `tests/skills/ha-nova-skill-contract.test.ts`
+    - now validates semantic anchors across split suites, not only file presence.
+- Verification evidence (follow-up pass):
+  - `npm test -- tests/skills/*.test.ts` -> 7 files passed, 25 tests passed.
+  - `npm run typecheck` -> pass (`tsc --noEmit`).
+- External review passes executed after PR-1, PR-2, and final combined scope; final review reported no findings.
+- Continued to completion with review passes and runtime-utility extraction:
+  - added runtime utilities:
+    - `src/skills/contracts/confirm-token.ts`
+    - `src/skills/contracts/intent-dispatcher.ts`
+  - removed test-local duplicates (moved out of `tests/skills/helpers`):
+    - `confirm-token-validator.ts` (deleted)
+    - `intent-dispatcher.ts` (deleted)
+  - switched tests to runtime utility imports:
+    - `tests/skills/ha-token-contract.test.ts`
+    - `tests/skills/ha-intent-dispatcher.test.ts`
+  - resolved review drift findings:
+    - test helper type now imports runtime `IntentDefinition`
+    - canonical expected intent map centralized in `tests/skills/helpers/expected-intent-matrix.ts`
+    - `ha-nova-contract` + `ha-intent-dispatcher` reuse centralized expected map
+    - compatibility shim upgraded to executable semantic smoke checks.
+- Final verification evidence:
+  - `npm test -- tests/skills/*.test.ts` -> 7 files passed, 25 tests passed.
+  - `npm test` -> 28 files passed, 104 tests passed.
+  - `npm run typecheck` -> pass (`tsc --noEmit`).
+- Final review pass on runtime-extraction/drift-fix scope returned no findings.
