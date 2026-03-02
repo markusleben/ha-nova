@@ -3,7 +3,9 @@ set -euo pipefail
 
 CONFIG_DIR="${HOME}/.config/ha-nova"
 CONFIG_FILE="${CONFIG_DIR}/onboarding.env"
-REPO_ROOT="$(cd -- "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+SCRIPT_DIR="$(cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../.." && pwd)"
+source "${SCRIPT_DIR}/platform/macos.sh"
 DOCTOR_CACHE_FILE="${CONFIG_DIR}/doctor-cache.env"
 
 RELAY_SERVICE="ha-nova.relay-auth-token"
@@ -22,12 +24,6 @@ log() {
 die() {
   echo "[macos-onboarding] $*" >&2
   exit 1
-}
-
-require_macos() {
-  if [[ "$(uname -s)" != "Darwin" ]]; then
-    die "This script supports macOS only."
-  fi
 }
 
 require_cmd() {
@@ -445,26 +441,6 @@ generate_relay_token() {
   die "Cannot generate token automatically (missing openssl and uuidgen)."
 }
 
-store_keychain_secret() {
-  local service="$1"
-  local value="$2"
-
-  security add-generic-password -U \
-    -a "$USER" \
-    -s "$service" \
-    -w "$value" >/dev/null
-}
-
-read_keychain_secret() {
-  local service="$1"
-  security find-generic-password -a "$USER" -s "$service" -w 2>/dev/null || true
-}
-
-delete_keychain_secret_if_exists() {
-  local service="$1"
-  security delete-generic-password -a "$USER" -s "$service" >/dev/null 2>&1 || true
-}
-
 emit_export() {
   local key="$1"
   local value="$2"
@@ -594,7 +570,7 @@ run_doctor_checks() {
 }
 
 run_setup() {
-  require_macos
+  require_platform
   require_cmd security
   require_cmd curl
 
@@ -700,7 +676,7 @@ run_setup() {
 }
 
 run_doctor() {
-  require_macos
+  require_platform
   require_cmd security
   require_cmd curl
   if ! run_doctor_checks; then
@@ -710,7 +686,7 @@ run_doctor() {
 }
 
 run_env() {
-  require_macos
+  require_platform
   require_cmd security
   build_env_exports
 }
@@ -722,7 +698,7 @@ run_ready() {
     shift || true
   fi
 
-  require_macos
+  require_platform
   require_cmd security
   require_cmd curl
 
@@ -801,7 +777,7 @@ run_ready() {
 }
 
 run_quick() {
-  require_macos
+  require_platform
   require_cmd security
   require_cmd curl
 

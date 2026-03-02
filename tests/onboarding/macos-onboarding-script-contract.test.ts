@@ -363,4 +363,20 @@ exit 1
     expect(codexSkill).toContain("__HA_NOVA_REPO_ROOT__");
     expect(codexSkill).toContain("Do not ask user to paste tokens in chat.");
   });
+
+  it("provides platform-specific macOS module", () => {
+    const file = "scripts/onboarding/platform/macos.sh";
+    const stats = statSync(file);
+    const content = readFileSync(file, "utf8");
+
+    expect((stats.mode & constants.S_IXUSR) !== 0).toBe(true);
+    expect(content.startsWith("#!/usr/bin/env bash")).toBe(true);
+    expect(content).toContain("require_platform()");
+    expect(content).toContain("store_keychain_secret()");
+    expect(content).toContain("read_keychain_secret()");
+    expect(content).toContain("delete_keychain_secret_if_exists()");
+    expect(content).toContain("open_browser()");
+    expect(content).toContain("security add-generic-password");
+    expect(content).toContain("security find-generic-password");
+  });
 });
