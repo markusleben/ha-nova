@@ -37,6 +37,34 @@ export interface ConfirmValidationResult {
   };
 }
 
+export type WriteConsentTier = "read" | "create_update" | "destructive";
+
+export type WriteConfirmationMode = "none" | "natural" | "token";
+
+export type WriteConfirmationReason =
+  | ConfirmValidationReason
+  | "preview_id_mismatch"
+  | "token_required"
+  | "confirmation_not_accepted";
+
+export interface WriteConfirmationContext extends ConfirmValidationContext {
+  tier: WriteConsentTier;
+  previewId: string;
+  expectedPreviewId: string;
+  token?: ConfirmTokenRecord;
+}
+
+export interface WriteConfirmationResult {
+  ok: boolean;
+  mode?: WriteConfirmationMode;
+  reason?: WriteConfirmationReason;
+  consumedTokenId?: string;
+  remediation?: {
+    regeneratePreview: boolean;
+    issueFreshToken: boolean;
+  };
+}
+
 function fail(reason: ConfirmValidationReason): ConfirmValidationResult {
   return {
     ok: false,
@@ -99,4 +127,110 @@ export function validateConfirmToken(
     ...context,
     usedTokenIds: new Set<string>(context.usedTokenIds),
   });
+}
+
+const NATURAL_CREATE_UPDATE_CONFIRMATIONS = new Set<string>([
+  "ja",
+  "ja bitte",
+  "ja bitte erstellen",
+  "bitte erstellen",
+  "erstellen",
+  "mach das",
+  "apply",
+  "go ahead",
+  "proceed",
+]);
+
+function normalizeConfirmation(confirmation: string): string {
+  return confirmation
+    .trim()
+    .toLowerCase()
+    .replace(/[.!?]+$/g, "")
+    .replace(/\s+/g, " ");
+}
+
+function isTokenConfirmation(confirmation: string): boolean {
+  return /^confirm:[^:\s]+$/.test(confirmation.trim());
+}
+
+export function isNaturalCreateUpdateConfirmation(confirmation: string): boolean {
+  return NATURAL_CREATE_UPDATE_CONFIRMATIONS.has(normalizeConfirmation(confirmation));
+}
+
+function fromTokenFailure(tokenResult: ConfirmValidationResult): WriteConfirmationResult {
+  return {
+    ok: false,
+    reason: tokenResult.reason ?? "confirmation_not_accepted",
+    ...(tokenResult.remediation ? { remediation: tokenResult.remediation } : {}),
+  };
+}
+
+export function validateWriteConfirmation(
+  confirmation: string,
+  context: WriteConfirmationContext
+): WriteConfirmationResult {
+  const trimmedConfirmation = confirmation.trim();
+
+  if (context.previewId !== context.expectedPreviewId) {
+    return {
+      ok: false,
+      reason: "preview_id_mismatch",
+    };
+  }
+
+  if (context.tier === "read") {
+    return { ok: true, mode: "none" };
+  }
+
+  if (context.tier === "create_update") {
+    if (context.token && isTokenConfirmation(trimmedConfirmation)) {
+      const tokenResult = validateAndConsumeConfirmToken(trimmedConfirmation, context.token, context);
+      if (!tokenResult.ok) {
+        return fromTokenFailure(tokenResult);
+      }
+
+      return {
+        ok: true,
+        mode: "token",
+        consumedTokenId: context.token.tokenId,
+      };
+    }
+
+    if (isNaturalCreateUpdateConfirmation(trimmedConfirmation)) {
+      return {
+        ok: true,
+        mode: "natural",
+      };
+    }
+
+    return {
+      ok: false,
+      reason: "confirmation_not_accepted",
+    };
+  }
+
+  if (!isTokenConfirmation(trimmedConfirmation)) {
+    return {
+      ok: false,
+      reason: "token_required",
+    };
+  }
+
+  if (!context.token) {
+    return {
+      ok: false,
+      reason: "token_required",
+    };
+  }
+
+  const tokenResult = validateAndConsumeConfirmToken(trimmedConfirmation, context.token, context);
+  if (!tokenResult.ok) {
+    return fromTokenFailure(tokenResult);
+  }
+
+  return {
+    ok: true,
+    mode: "token",
+    consumedTokenId: context.token.tokenId,
+  };
 }

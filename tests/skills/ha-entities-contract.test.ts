@@ -2,19 +2,22 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
-describe("ha-entities contract", () => {
-  it("uses repo-root-aware onboarding env path", () => {
-    const content = readFileSync("skills/ha-entities.md", "utf8");
+describe("ha entity-discovery contract", () => {
+  it("uses relay-cli bootstrap instead of repo-root env eval", () => {
+    const content = readFileSync(".agents/skills/ha-nova-entity-discovery/SKILL.md", "utf8");
 
-    expect(content).toContain('NOVA_REPO_ROOT="${NOVA_REPO_ROOT:-${HA_NOVA_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}}"');
-    expect(content).toContain('"$NOVA_REPO_ROOT/scripts/onboarding/macos-onboarding.sh" env');
-    expect(content).not.toContain('eval "$(bash scripts/onboarding/macos-onboarding.sh env)"');
+    expect(content).toContain("~/.config/ha-nova/relay health");
+    expect(content).toContain("npm run onboarding:macos");
+    expect(content).not.toContain("git rev-parse");
+    expect(content).not.toContain("macos-onboarding.sh");
   });
 
-  it("uses object-only state filters for ws get_states parsing", () => {
-    const entities = readFileSync("skills/ha-entities.md", "utf8");
+  it("uses one-shot ws get_states and explicit ambiguity handling", () => {
+    const content = readFileSync(".agents/skills/ha-nova-entity-discovery/SKILL.md", "utf8");
 
-    expect(entities).toContain('select(type=="object" and (.entity_id|type)=="string")');
-    expect(entities).toContain("Do not run schema-probing jq one-offs in normal flow");
+    expect(content).toContain("~/.config/ha-nova/relay ws");
+    expect(content).toContain('{"type":"get_states"}');
+    expect(content).toContain("never guess entity IDs");
+    expect(content).toContain("ask one selection question");
   });
 });

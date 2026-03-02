@@ -46,15 +46,16 @@ Code from it can be reused for Relay components (REST/WS clients, backup manager
 
 ## Current Phase
 
-**Phase 1a: Infrastructure + onboarding**
+**Phase 1: Infrastructure + skill-system consolidation**
 
-Deliverables:
-1. Relay MVP: `POST /ws` + `GET /health` (~500 LOC)
-2. Bootstrap Skill: `ha-nova.md`
-3. Onboarding Skill: `ha-onboarding.md`
-4. Safety Skill: `ha-safety.md`
-
-Then Phase 1b: automation CRUD + device control.
+Current deliverables:
+1. Relay MVP: `POST /ws` + `GET /health`
+2. Router skill: `ha-nova`
+3. Consolidated write skill: `ha-nova-write`
+4. Consolidated read skill: `ha-nova-read`
+5. Entity discovery skill: `ha-nova-entity-discovery`
+6. Onboarding/diagnostics skill: `ha-nova-onboarding`
+7. Shared references under `skills/ha-nova/` (`relay-api.md`, `best-practices.md`, `agents/*`)
 
 ## Tech Stack
 

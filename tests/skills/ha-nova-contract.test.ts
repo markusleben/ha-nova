@@ -1,100 +1,60 @@
-import { existsSync, readFileSync } from "node:fs";
+import { constants, existsSync, readFileSync, statSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
-import { expectedIntentMatrix } from "./helpers/expected-intent-matrix.js";
-import { parseIntentMatrix } from "./helpers/intent-matrix.js";
-
 describe("ha-nova contract", () => {
-  it("uses streaming jq limit in read-only fast shortcut", () => {
-    const content = readFileSync(".agents/skills/ha-nova/SKILL.md", "utf8");
-
-    expect(content).toContain("limit($limit;");
-    expect(content).toContain("Read-Only Fast Shortcut (Trivial Single-Unit Only)");
-    expect(content).toContain("independent_units_count = 1");
-    expect(content).toContain("For non-trivial reads (`independent_units_count >= 2`), this shortcut is forbidden");
-    expect(content).toContain("return compact domain summary only (result + next step)");
-    expect(content).not.toContain(
-      'map(select((.entity_id|type)=="string" and (.entity_id|startswith($domain))) | .entity_id)[:$limit][]'
-    );
-  });
-
-  it("routes intents through canonical intent matrix + discovery protocol", () => {
-    const content = readFileSync("skills/ha-nova.md", "utf8");
-    const discovery = readFileSync("skills/ha-nova/core/discovery-map.md", "utf8");
-
-    expect(content).toContain("core/intents.md");
-    expect(content).toContain("(canonical)");
-    expect(content).toContain("required_companions[]");
-    expect(content).toContain("modules[]");
-    expect(content).toContain("create|update|delete|read|list");
-    expect(discovery).toContain("This file is module-loading guidance only");
-    expect(discovery).toContain('"$NOVA_REPO_ROOT/skills/ha-nova/core/intents.md"');
-    expect(discovery).toContain("Load only `required_companions[]` + `modules[]` from `core/intents.md`.");
-  });
-
-  it("keeps router as orchestration layer and contracts in core", () => {
-    const content = readFileSync("skills/ha-nova.md", "utf8");
-    const contracts = readFileSync("skills/ha-nova/core/contracts.md", "utf8");
-
-    expect(content).toContain("Normative contract is defined only in:");
-    expect(content).toContain('"$NOVA_REPO_ROOT/skills/ha-nova/core/contracts.md"');
-    expect(content).not.toContain("Automation fields:");
-    expect(content).not.toContain("Script fields:");
-    expect(content).not.toContain("Failure/debug format:");
-    expect(contracts).toContain("## Response Contract (Domain-First)");
-    expect(contracts).toContain("## Safety Contract");
-    expect(contracts).toContain("## Verification Contract");
-  });
-
-  it("hardens confirmation token contract (ttl + replay + binding)", () => {
-    const contracts = readFileSync("skills/ha-nova/core/contracts.md", "utf8");
-
-    expect(contracts).toContain("## Confirmation Token Contract");
-    expect(contracts).toContain("Token TTL: default 10 minutes");
-    expect(contracts).toContain("one-time-use only; replay must hard-fail");
-    expect(contracts).toContain("write method/path/target");
-    expect(contracts).toContain("preview digest");
-    expect(contracts).toContain("On stale/replay/mismatch token:");
-    expect(contracts).toContain("hard-fail write");
-    expect(contracts).toContain("regenerate preview");
-  });
-
-  it("enforces threshold-based subagent fan-out policy", () => {
-    const content = readFileSync("skills/ha-nova.md", "utf8");
+  it("keeps router mirror in sync between repo and installed skill", () => {
+    const repoSkill = readFileSync("skills/ha-nova.md", "utf8");
     const installedSkill = readFileSync(".agents/skills/ha-nova/SKILL.md", "utf8");
 
-    expect(content).toContain("Parallelism is mandatory when capability exists.");
-    expect(content).toContain("Subagent fan-out is mandatory only for `>=3` substantial independent task units.");
-    expect(content).toContain("For `<3` substantial units, use native parallel tool calls in the main agent.");
-    expect(content).not.toContain("Subagent fan-out is mandatory for 2+ independent task units.");
-    expect(installedSkill).toContain("Subagent fan-out is mandatory only for `>=3` substantial independent task units.");
+    expect(repoSkill).toBe(installedSkill);
   });
 
-  it("keeps auth and shell safety policy in router", () => {
-    const content = readFileSync("skills/ha-nova.md", "utf8");
+  it("routes operations to consolidated skills", () => {
+    const router = readFileSync("skills/ha-nova.md", "utf8");
 
-    expect(content).toContain("Runtime Prerequisite (macOS)");
-    expect(content).toContain("Relay-only auth model");
-    expect(content).toContain("Do not ask user to paste tokens in chat.");
-    expect(content).toContain("Quoting is shell-dependent");
-    expect(content).toContain("Windows: WSL bash or Git Bash");
+    expect(router).toContain("use skill `ha-nova-write`");
+    expect(router).toContain("use skill `ha-nova-read`");
+    expect(router).toContain("use skill `ha-nova-entity-discovery`");
+    expect(router).toContain("use skill `ha-nova-onboarding`");
+    expect(router).not.toContain(".agents/skills/");
+    expect(router).not.toContain("core/intents.md");
+    expect(router).not.toContain("Lazy Discovery Protocol");
+    expect(router).not.toContain("Orchestration Hard Gate");
   });
 
-  it("keeps modular core/module files present", () => {
+  it("keeps relay-bootstrap runtime prerequisite and safety baseline in router", () => {
+    const router = readFileSync("skills/ha-nova.md", "utf8");
+
+    expect(router).toContain("Runtime Prerequisite (macOS)");
+    expect(router).toContain("Relay-only auth model");
+    expect(router).toContain("~/.config/ha-nova/relay health");
+    expect(router).toContain("npm run onboarding:macos");
+    expect(router).not.toContain("git rev-parse");
+    expect(router).not.toContain('eval "$(bash');
+    expect(router).toContain("Quoting Reliability (Critical)");
+    expect(router).toContain("Safety Baseline");
+    expect(router).toContain("confirm:<token>");
+    expect(router).toContain("Do not ask user to paste tokens in chat.");
+  });
+
+  it("defines compact preview block response format", () => {
+    const router = readFileSync("skills/ha-nova.md", "utf8");
+
+    expect(router).toContain("Response Format (Writes)");
+    expect(router).toContain("Automation` or `Script");
+    expect(router).toContain("Entities");
+    expect(router).toContain("Behavior");
+    expect(router).toContain("Suggested Enhancements");
+    expect(router).toContain("Next Step");
+  });
+
+  it("keeps new reference files present", () => {
     const files = [
-      "skills/ha-nova/core/blocks.md",
-      "skills/ha-nova/core/contracts.md",
-      "skills/ha-nova/core/intents.md",
-      "skills/ha-nova/core/discovery-map.md",
-      "skills/ha-nova/modules/automation/resolve.md",
-      "skills/ha-nova/modules/automation/create-update.md",
-      "skills/ha-nova/modules/automation/delete.md",
-      "skills/ha-nova/modules/automation/read.md",
-      "skills/ha-nova/modules/script/resolve.md",
-      "skills/ha-nova/modules/script/create-update.md",
-      "skills/ha-nova/modules/script/delete.md",
-      "skills/ha-nova/modules/script/read.md",
+      "skills/ha-nova/relay-api.md",
+      "skills/ha-nova/best-practices.md",
+      "skills/ha-nova/agents/resolve-agent.md",
+      "skills/ha-nova/agents/apply-agent.md",
     ];
 
     for (const file of files) {
@@ -102,24 +62,113 @@ describe("ha-nova contract", () => {
     }
   });
 
-  it("validates canonical intent matrix with exact semantic sets", () => {
-    const matrix = parseIntentMatrix();
+  it("documents relay API contract centrally", () => {
+    const relayApi = readFileSync("skills/ha-nova/relay-api.md", "utf8");
 
-    expect([...matrix.keys()].sort()).toEqual([...expectedIntentMatrix.keys()].sort());
+    expect(relayApi).toContain("GET /health");
+    expect(relayApi).toContain("POST /ws");
+    expect(relayApi).toContain("POST /core");
+    expect(relayApi).toContain("{ \"ok\": true, \"data\": ... }");
+    expect(relayApi).toContain("/api/config/automation/config/{id}");
+    expect(relayApi).toContain("/api/config/script/config/{id}");
+    expect(relayApi).toContain("UPSTREAM_WS_ERROR");
+  });
 
-    for (const [intent, expectedValue] of expectedIntentMatrix.entries()) {
-      const actual = matrix.get(intent);
-      expect(actual, `Missing intent in matrix: ${intent}`).toBeDefined();
-      expect(actual?.companions).toEqual(expectedValue.companions);
-      expect(actual?.modules).toEqual(expectedValue.modules);
+  it("documents tiered best-practice gate", () => {
+    const bp = readFileSync("skills/ha-nova/best-practices.md", "utf8");
+
+    expect(bp).toContain("Tiered policy for automation writes");
+    expect(bp).toContain("Simple automation");
+    expect(bp).toContain("Complex automation");
+    expect(bp).toContain("hard gate");
+    expect(bp).toContain("Enforcement Checklist");
+  });
+
+  it("keeps agent templates parameterized and structured", () => {
+    const resolve = readFileSync("skills/ha-nova/agents/resolve-agent.md", "utf8");
+    const apply = readFileSync("skills/ha-nova/agents/apply-agent.md", "utf8");
+
+    expect(resolve).toContain("{DOMAIN}");
+    expect(resolve).toContain("{OPERATION}");
+    expect(resolve).toContain("{USER_INTENT}");
+    expect(resolve).toContain("~/.config/ha-nova/relay ws");
+    expect(resolve).toContain("~/.config/ha-nova/relay core");
+    expect(resolve).not.toContain("{RELAY_BASE_URL}");
+    expect(resolve).not.toContain("{RELAY_AUTH_TOKEN}");
+    expect(resolve).not.toContain("macos-onboarding.sh");
+    expect(resolve).not.toContain("git rev-parse");
+    expect(resolve).toContain("RESOLVED_ENTITIES:");
+    expect(resolve).toContain("No entities matching '{USER_INTENT}' found");
+    expect(resolve).toContain("SUGGESTED_ENHANCEMENTS:");
+    expect(resolve).toContain("toggle-stop");
+
+    expect(apply).toContain("{TARGET_ID}");
+    expect(apply).toContain("{PAYLOAD}");
+    expect(apply).toContain("~/.config/ha-nova/relay ws");
+    expect(apply).toContain("~/.config/ha-nova/relay core");
+    expect(apply).not.toContain("{RELAY_BASE_URL}");
+    expect(apply).not.toContain("{RELAY_AUTH_TOKEN}");
+    expect(apply).not.toContain("macos-onboarding.sh");
+    expect(apply).not.toContain("git rev-parse");
+    expect(apply).toContain("RESULT:");
+    expect(apply).toContain("reloaded:");
+    expect(apply).toContain("VERIFICATION:");
+    expect(apply).toContain("trigger` + `triggers");
+    expect(apply).toContain("automation/reload");
+    expect(apply).toContain("script/reload");
+  });
+
+  it("keeps all operational subskills concise (<600 words)", () => {
+    const skills = [
+      ".agents/skills/ha-nova-write/SKILL.md",
+      ".agents/skills/ha-nova-read/SKILL.md",
+      ".agents/skills/ha-nova-entity-discovery/SKILL.md",
+      ".agents/skills/ha-nova-onboarding/SKILL.md",
+    ];
+    for (const file of skills) {
+      const content = readFileSync(file, "utf8");
+      const wordCount = content.trim().split(/\s+/).length;
+      expect(wordCount, `${file} has ${wordCount} words`).toBeLessThan(600);
     }
   });
 
-  it("keeps B4 scope aligned to automation and excludes it from script fast-pass", () => {
-    const blocks = readFileSync("skills/ha-nova/core/blocks.md", "utf8");
-    const scriptCreateUpdate = readFileSync("skills/ha-nova/modules/script/create-update.md", "utf8");
+  it("keeps only 5 installable HA NOVA skills in source tree", () => {
+    const files = [
+      ".agents/skills/ha-nova/SKILL.md",
+      ".agents/skills/ha-nova-write/SKILL.md",
+      ".agents/skills/ha-nova-read/SKILL.md",
+      ".agents/skills/ha-nova-entity-discovery/SKILL.md",
+      ".agents/skills/ha-nova-onboarding/SKILL.md",
+    ];
 
-    expect(blocks).toContain("For automation `create`/`update`");
-    expect(scriptCreateUpdate).not.toContain("B4_BP_GATE");
+    for (const file of files) {
+      expect(existsSync(file), `Expected file to exist: ${file}`).toBe(true);
+      const content = readFileSync(file, "utf8");
+      expect(content).toContain("ha-nova-managed-install repo_root:");
+    }
+  });
+
+  it("enforces relay CLI bootstrap across all operational subskills", () => {
+    const skills = [
+      ".agents/skills/ha-nova-write/SKILL.md",
+      ".agents/skills/ha-nova-read/SKILL.md",
+      ".agents/skills/ha-nova-entity-discovery/SKILL.md",
+      ".agents/skills/ha-nova-onboarding/SKILL.md",
+    ];
+
+    for (const file of skills) {
+      const content = readFileSync(file, "utf8");
+      expect(content, `${file} should use relay CLI`).toContain("~/.config/ha-nova/relay");
+      expect(content, `${file} should not use eval bootstrap`).not.toContain("macos-onboarding.sh");
+      expect(content, `${file} should not use git rev-parse`).not.toContain("git rev-parse");
+      expect(content, `${file} should not reference RELAY_BASE_URL`).not.toContain("RELAY_BASE_URL");
+    }
+  });
+
+  it("keeps relay wrapper script present and executable", () => {
+    const relayScript = "scripts/relay.sh";
+    expect(existsSync(relayScript)).toBe(true);
+    const mode = statSync(relayScript).mode;
+    expect(mode & constants.S_IXUSR).toBeGreaterThan(0);
   });
 });

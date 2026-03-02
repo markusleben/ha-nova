@@ -1,7 +1,24 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SKILL_NAME="ha-nova"
+SKILL_NAMES=(
+  "ha-nova"
+  "ha-nova-write"
+  "ha-nova-read"
+  "ha-nova-entity-discovery"
+  "ha-nova-onboarding"
+)
+
+LEGACY_SKILL_NAMES=(
+  "ha-nova-automation-create"
+  "ha-nova-automation-update"
+  "ha-nova-automation-delete"
+  "ha-nova-script-create"
+  "ha-nova-script-update"
+  "ha-nova-script-delete"
+  "ha-nova-resolve-targets"
+  "ha-nova-onboarding-diagnostics"
+)
 
 log() {
   echo "[install-local-skills] $*"
@@ -21,42 +38,35 @@ Usage:
   bash scripts/onboarding/install-local-skills.sh all
 
 Targets:
-  codex    -> ~/.agents/skills/ha-nova
-  claude   -> ~/.claude/skills/ha-nova
-  opencode -> ~/.config/opencode/skills/ha-nova
+  codex    -> ~/.agents/skills/{ha-nova,ha-nova-write,ha-nova-read,ha-nova-entity-discovery,ha-nova-onboarding}
+  claude   -> ~/.claude/skills/{ha-nova,ha-nova-write,ha-nova-read,ha-nova-entity-discovery,ha-nova-onboarding}
+  opencode -> ~/.config/opencode/skills/{ha-nova,ha-nova-write,ha-nova-read,ha-nova-entity-discovery,ha-nova-onboarding}
   all      -> install for codex + claude + opencode
 USAGE
 }
 
 SCRIPT_DIR="$(cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../.." && pwd)"
-SOURCE_SKILL_DIR="${REPO_ROOT}/.agents/skills/${SKILL_NAME}"
-SOURCE_SKILL_FILE="${SOURCE_SKILL_DIR}/SKILL.md"
-
-[[ -f "${SOURCE_SKILL_FILE}" ]] || die "Missing source skill: ${SOURCE_SKILL_FILE}"
 
 render_skill_file() {
-  local output_file="$1"
+  local source_skill_file="$1"
+  local output_file="$2"
   awk -v repo_root="${REPO_ROOT}" \
     '{ gsub(/__HA_NOVA_REPO_ROOT__/, repo_root); print }' \
-    "${SOURCE_SKILL_FILE}" > "${output_file}"
+    "${source_skill_file}" > "${output_file}"
 }
 
-install_target() {
+install_one_skill_for_target() {
   local target="$1"
-  local user_skills_dir
-
-  case "$target" in
-    codex) user_skills_dir="${HOME}/.agents/skills" ;;
-    claude) user_skills_dir="${HOME}/.claude/skills" ;;
-    opencode) user_skills_dir="${HOME}/.config/opencode/skills" ;;
-    *) die "Unsupported target: ${target}" ;;
-  esac
-
-  local dest_skill_path="${user_skills_dir}/${SKILL_NAME}"
+  local user_skills_dir="$2"
+  local skill_name="$3"
+  local source_skill_dir="${REPO_ROOT}/.agents/skills/${skill_name}"
+  local source_skill_file="${source_skill_dir}/SKILL.md"
+  local dest_skill_path="${user_skills_dir}/${skill_name}"
   local dest_skill_file="${dest_skill_path}/SKILL.md"
   local managed_marker="ha-nova-managed-install repo_root: ${REPO_ROOT}"
-  mkdir -p "${user_skills_dir}"
+
+  [[ -f "${source_skill_file}" ]] || die "Missing source skill: ${source_skill_file}"
 
   if [[ -L "${dest_skill_path}" ]]; then
     local current_target
@@ -75,8 +85,56 @@ install_target() {
   fi
 
   mkdir -p "${dest_skill_path}"
-  render_skill_file "${dest_skill_file}"
+  render_skill_file "${source_skill_file}" "${dest_skill_file}"
   log "[${target}] Installed skill file: ${dest_skill_file}"
+}
+
+archive_legacy_skill() {
+  local target="$1"
+  local legacy_path="$2"
+  local backup_path="${legacy_path}.legacy-backup.$(date +%Y%m%d%H%M%S)"
+
+  if [[ -e "${backup_path}" ]]; then
+    backup_path="${legacy_path}.legacy-backup.$(date +%Y%m%d%H%M%S).$$"
+  fi
+
+  mv "${legacy_path}" "${backup_path}"
+  log "[${target}] Archived legacy skill path to: ${backup_path}"
+}
+
+install_target() {
+  local target="$1"
+  local user_skills_dir
+  local legacy_name
+  local relay_cli_source="${REPO_ROOT}/scripts/relay.sh"
+  local relay_cli_target="${HOME}/.config/ha-nova/relay"
+
+  case "$target" in
+    codex) user_skills_dir="${HOME}/.agents/skills" ;;
+    claude) user_skills_dir="${HOME}/.claude/skills" ;;
+    opencode) user_skills_dir="${HOME}/.config/opencode/skills" ;;
+    *) die "Unsupported target: ${target}" ;;
+  esac
+
+  mkdir -p "${user_skills_dir}"
+
+  for legacy_name in "${LEGACY_SKILL_NAMES[@]}"; do
+    if [[ -e "${user_skills_dir}/${legacy_name}" ]]; then
+      archive_legacy_skill "$target" "${user_skills_dir}/${legacy_name}"
+    fi
+  done
+
+  local skill_name
+  for skill_name in "${SKILL_NAMES[@]}"; do
+    install_one_skill_for_target "$target" "$user_skills_dir" "$skill_name"
+  done
+
+  if [[ -f "${relay_cli_source}" ]]; then
+    mkdir -p "${HOME}/.config/ha-nova"
+    cp "${relay_cli_source}" "${relay_cli_target}"
+    chmod 755 "${relay_cli_target}"
+    log "[${target}] Installed relay CLI: ${relay_cli_target}"
+  fi
 }
 
 main() {

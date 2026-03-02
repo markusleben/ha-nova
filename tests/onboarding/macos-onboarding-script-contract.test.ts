@@ -1,4 +1,4 @@
-import { constants, mkdtempSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { constants, mkdtempSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -21,13 +21,15 @@ describe("macOS onboarding script contract", () => {
     const multiInstallerContent = readFileSync(multiInstaller, "utf8");
 
     expect((multiInstallerStats.mode & constants.S_IXUSR) !== 0).toBe(true);
-    expect(multiInstallerContent).toContain('SKILL_NAME="ha-nova"');
-    expect(multiInstallerContent).toContain('SOURCE_SKILL_FILE="${SOURCE_SKILL_DIR}/SKILL.md"');
+    expect(multiInstallerContent).toContain('SKILL_NAMES=(');
+    expect(multiInstallerContent).toContain('source_skill_file="${source_skill_dir}/SKILL.md"');
     expect(multiInstallerContent).toContain('codex) user_skills_dir="${HOME}/.agents/skills"');
     expect(multiInstallerContent).toContain('claude) user_skills_dir="${HOME}/.claude/skills"');
     expect(multiInstallerContent).toContain('opencode) user_skills_dir="${HOME}/.config/opencode/skills"');
     expect(multiInstallerContent).toContain("render_skill_file");
     expect(multiInstallerContent).toContain("ha-nova-managed-install repo_root");
+    expect(multiInstallerContent).toContain("LEGACY_SKILL_NAMES=(");
+    expect(multiInstallerContent).toContain("Archived legacy skill path to:");
   });
 
   it("provides executable split onboarding command scripts", () => {
@@ -225,6 +227,30 @@ exit 1
 
   it("installs managed local skill files for codex, claude, and opencode", () => {
     const workDir = mkdtempSync(join(tmpdir(), "ha-nova-skill-install-"));
+    const targetRoots = [
+      join(workDir, ".agents/skills"),
+      join(workDir, ".claude/skills"),
+      join(workDir, ".config/opencode/skills"),
+    ];
+    const legacySkillNames = [
+      "ha-nova-automation-create",
+      "ha-nova-automation-update",
+      "ha-nova-automation-delete",
+      "ha-nova-script-create",
+      "ha-nova-script-update",
+      "ha-nova-script-delete",
+      "ha-nova-resolve-targets",
+      "ha-nova-onboarding-diagnostics",
+    ];
+
+    for (const targetRoot of targetRoots) {
+      for (const legacy of legacySkillNames) {
+        const legacyDir = join(targetRoot, legacy);
+        mkdirSync(legacyDir, { recursive: true });
+        writeFileSync(join(legacyDir, "SKILL.md"), "# legacy", "utf8");
+      }
+    }
+
     const result = spawnSync("bash", ["scripts/onboarding/install-local-skills.sh", "all"], {
       cwd: process.cwd(),
       encoding: "utf8",
@@ -237,18 +263,38 @@ exit 1
 
     expect(result.status).toBe(0);
 
-    const expectedPaths = [
-      join(workDir, ".agents/skills/ha-nova/SKILL.md"),
-      join(workDir, ".claude/skills/ha-nova/SKILL.md"),
-      join(workDir, ".config/opencode/skills/ha-nova/SKILL.md")
+    const skillNames = [
+      "ha-nova",
+      "ha-nova-write",
+      "ha-nova-read",
+      "ha-nova-entity-discovery",
+      "ha-nova-onboarding",
     ];
 
-    for (const skillFile of expectedPaths) {
-      const content = readFileSync(skillFile, "utf8");
-      expect(content).toContain("name: ha-nova");
-      expect(content).toContain("ha-nova-managed-install repo_root:");
-      expect(content).toContain(process.cwd());
-      expect(content).not.toContain("__HA_NOVA_REPO_ROOT__");
+    for (const targetRoot of targetRoots) {
+      for (const skillName of skillNames) {
+        const skillFile = join(targetRoot, skillName, "SKILL.md");
+        const content = readFileSync(skillFile, "utf8");
+        expect(content).toContain(`name: ${skillName}`);
+        expect(content).toContain("ha-nova-managed-install repo_root:");
+        expect(content).toContain(process.cwd());
+        expect(content).not.toContain("__HA_NOVA_REPO_ROOT__");
+        if (skillName === "ha-nova") {
+          expect(content).toContain("use skill `ha-nova-write`");
+          expect(content).toContain("use skill `ha-nova-read`");
+          expect(content).toContain("use skill `ha-nova-entity-discovery`");
+          expect(content).toContain("use skill `ha-nova-onboarding`");
+          expect(content).not.toContain(".agents/skills/");
+        }
+      }
+
+      for (const legacy of legacySkillNames) {
+        expect(() => statSync(join(targetRoot, legacy))).toThrow();
+        const archivedEntries = readdirSync(targetRoot).filter((entry) =>
+          entry.startsWith(`${legacy}.legacy-backup.`)
+        );
+        expect(archivedEntries.length).toBeGreaterThan(0);
+      }
     }
   });
 

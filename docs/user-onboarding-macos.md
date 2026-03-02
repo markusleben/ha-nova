@@ -39,6 +39,8 @@ Fetch and follow instructions from https://raw.githubusercontent.com/markusleben
 npm run install:codex-skill
 ```
 
+`install:codex-skill` installs `ha-nova` plus task subskills.
+
 Or install skills for Codex + Claude Code + OpenCode:
 
 ```bash

@@ -29,11 +29,13 @@ fi
 npm install
 ```
 
-### 2. Install Codex local skill
+### 2. Install Codex local skills
 
 ```bash
 npm run install:codex-skill
 ```
+
+This installs `ha-nova` plus task subskills (`ha-nova-write`, `ha-nova-read`, `ha-nova-entity-discovery`, `ha-nova-onboarding`).
 
 Optional multi-client install (Codex + Claude Code + OpenCode):
 

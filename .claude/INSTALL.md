@@ -29,11 +29,13 @@ fi
 npm install
 ```
 
-### 2. Install Claude Code local skill
+### 2. Install Claude Code local skills
 
 ```bash
 npm run install:claude-skill
 ```
+
+This installs `ha-nova` plus task subskills (`ha-nova-write`, `ha-nova-read`, `ha-nova-entity-discovery`, `ha-nova-onboarding`).
 
 Optional multi-client install (Codex + Claude Code + OpenCode):
 

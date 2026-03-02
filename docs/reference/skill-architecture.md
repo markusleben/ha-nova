@@ -1,184 +1,101 @@
-# HA Nova Skill Architecture
+# HA NOVA Skill Architecture
 
-## Skill Hierarchy
+## Overview
 
-```
-ha-nova.md (Bootstrap — ALWAYS loaded, ~4KB)
-  │
-  ├── Routing: Which sub-skill for which task?
-  ├── API table: What goes directly to HA REST vs. Relay?
-  ├── Basic safety rules
-  └── Skill catalog with examples
-  │
-  ├── ha-onboarding.md (only on first run)
-  │
-  ├── Tier 1: Domain skills (loaded as needed)
-  │   ├── ha-automation-crud.md
-  │   ├── ha-automation-control.md
-  │   ├── ha-automation-trace.md
-  │   ├── ha-automation-validate.md
-  │   ├── ha-automation-diagnose.md
-  │   ├── ha-automation-batch.md
-  │   ├── ha-automation-dependency.md
-  │   ├── ha-automation-blueprint.md
-  │   ├── ha-script-crud.md
-  │   ├── ha-script-validate.md
-  │   ├── ha-control.md
-  │   ├── ha-entities.md
-  │   ├── ha-entity-registry.md
-  │   ├── ha-helpers.md
-  │   ├── ha-organizer.md
-  │   ├── ha-dashboard.md
-  │   ├── ha-energy.md
-  │   ├── ha-integrations.md
-  │   ├── ha-system.md
-  │   ├── ha-template-yaml.md
-  │   ├── ha-sensor-yaml.md
-  │   ├── ha-events.md
-  │   ├── ha-files.md
-  │   ├── ha-backup.md
-  │   ├── ha-repairs.md
-  │   ├── ha-scene.md
-  │   ├── ha-analytics.md
-  │   └── ha-playbook.md
-  │
-  └── Tier 2: Cross-cutting skills (added as needed)
-      ├── ha-best-practices.md (70 rules)
-      ├── ha-safety.md (Write-Safety, Consent)
-      └── ha-diagnose.md (diagnostic process)
-```
+HA NOVA uses a compact, installable 5-skill topology.
 
-## Bootstrap Skill Tasks
+Installed skills:
+- `ha-nova` (router + safety baseline + runtime prerequisites)
+- `ha-nova-write` (automation/script create/update/delete)
+- `ha-nova-read` (automation/script list/get)
+- `ha-nova-entity-discovery` (state/entity shortlist from `/ws get_states`)
+- `ha-nova-onboarding` (onboarding + diagnostics)
 
-The bootstrap skill `ha-nova.md` is the core. It is ALWAYS loaded and has three jobs:
+Reference files (repo-local, loaded by skills as needed):
+- `skills/ha-nova/relay-api.md`
+- `skills/ha-nova/best-practices.md`
+- `skills/ha-nova/agents/resolve-agent.md`
+- `skills/ha-nova/agents/apply-agent.md`
 
-### 1. Routing
-Identifies the correct domain from the user request and loads the matching sub-skill.
+## Routing Model
 
-**Decision tree:**
-```
-User wants to...
-├── control something → ha-control
-├── find something/check status → ha-entities
-├── create/change automation → ha-automation-crud + ha-safety
-├── check/diagnose automation → ha-automation-diagnose + ha-best-practices
-├── create script → ha-script-crud + ha-safety
-├── create helper → ha-helpers + ha-safety
-├── organize areas/labels → ha-organizer
-├── change dashboard → ha-dashboard + ha-safety
-├── create sensor → ha-template-yaml OR ha-sensor-yaml + ha-safety
-├── system info/reload → ha-system
-├── watch events → ha-events
-├── manage integrations → ha-integrations
-├── inspect repairs → ha-repairs
-├── configure energy → ha-energy
-├── create backup → ha-backup
-├── inspect files → ha-files
-├── create scene → ha-scene + ha-safety
-├── analysis/report → ha-analytics
-├── complex workflow → ha-playbook
-└── unclear → ask follow-up questions
-```
+`ha-nova` routes by intent:
+- write intent (`create|update|delete` automation/script) -> `ha-nova-write`
+- read intent (`list|get` automation/script) -> `ha-nova-read`
+- entity lookup intent -> `ha-nova-entity-discovery`
+- onboarding/connectivity/auth diagnostics -> `ha-nova-onboarding`
 
-### 2. API Routing
-Tells the LLM which requests go where:
+Routing is skill-name based (not filesystem path based), so behavior is stable across:
+- `~/.agents/skills`
+- `~/.claude/skills`
+- `~/.config/opencode/skills`
 
-| Operation | Target |
-|-----------|------|
-| Entity status | `GET {HA_URL}/api/states` |
-| Call service | `POST {HA_URL}/api/services/{domain}/{service}` |
-| Automation CRUD | `GET/POST/DELETE {HA_URL}/api/config/automation/config/{id}` |
-| Script CRUD | `GET/POST/DELETE {HA_URL}/api/config/script/config/{id}` |
-| History | `GET {HA_URL}/api/history/period/{timestamp}` |
-| Render template | `POST {HA_URL}/api/template` |
-| WS operations | `POST {BRIDGE_URL}/ws` |
-| Files | `POST {BRIDGE_URL}/files` |
-| Backups | `POST {BRIDGE_URL}/backups` |
+## Write Architecture
 
-### 3. Basic Safety Rules
-- Backup before write
-- Preview before execute
-- Sequential execution for batch ops
-- Never guess entity IDs
-- Explain errors
+`ha-nova-write` uses a deterministic three-phase flow:
 
-## Context Budget
+1. Resolve (Agent)
+- load env
+- fetch states
+- resolve entities and target id
+- check existence + current config
+- evaluate best-practice snapshot status
 
-| Component | Tokens |
-|-----------|--------|
-| Bootstrap (ha-nova.md) | ~3.000 |
-| 1 Domain skill | ~2.000-4.000 |
-| 1 Cross-Cutting Skill | ~2.000-4.000 |
-| **Typical session** | **~7.000-11.000** |
+2. Preview + Decide (Main Thread)
+- build final payload
+- show compact preview blocks
+- ask one decision question only if ambiguous
+- confirmation tier:
+  - create/update: natural confirmation bound to active preview
+  - delete: tokenized `confirm:<token>`
 
-With 200K context: >189K for conversation and API responses.
+3. Apply + Verify (Agent)
+- write via relay `/core`
+- read-back verification
+- normalized compare (`trigger(s)`, `condition(s)`, `action(s)`)
+- structured error result on partial or failed verification
 
-## Onboarding Skill
+Fallback:
+- if agent dispatch unavailable, execute same phases inline serially.
 
-`ha-onboarding.md` is loaded only on first contact:
+## Read Architecture
 
-1. **Check connection:**
-   - `GET {HA_URL}/api/` → "API running"
-   - `GET {BRIDGE_URL}/health` → "ok"
-   - `GET {HA_URL}/api/config` → HA version
+`ha-nova-read` is intentionally direct/low-overhead:
+- no subagent dispatch for routine reads
+- `/ws get_states` for list operations
+- `/core` config reads for single-item get operations
+- one blocking question only if target ambiguity remains
 
-2. **Offer quick wins:**
-   - "Show me all lights"
-   - "Which sensors are offline?"
-   - "Turn on X"
+## Installer Contract
 
-3. **Error handling:**
-   - URL not reachable → check network
-   - 401 → check token
-   - Relay down → check App logs
+`scripts/onboarding/install-local-skills.sh`:
+- installs exactly the 5 active skills above
+- archives legacy skill directories to timestamped backups
+- does not destructively delete unknown legacy content
 
-## Skill Interaction Example
+Legacy names that are archived during install:
+- `ha-nova-automation-create`
+- `ha-nova-automation-update`
+- `ha-nova-automation-delete`
+- `ha-nova-script-create`
+- `ha-nova-script-update`
+- `ha-nova-script-delete`
+- `ha-nova-resolve-targets`
+- `ha-nova-onboarding-diagnostics`
 
-```
-User: "Create an automation: When motion is detected in the hallway, turn on the light for 3 minutes"
+## Safety Baseline
 
-1. Bootstrap (ha-nova.md) identifies: create automation
-2. Loads: ha-automation-crud + ha-safety + ha-entities
+Global safety expectations:
+- no guessed ids
+- preview before any write
+- delete requires tokenized confirmation
+- structured failure output: what failed / why / next step
+- diagnostics only after real capability failure
 
-3. ha-entities: find motion sensor
-   → GET /api/states → filter binary_sensor.*motion*flur*
-   → Found: binary_sensor.flur_motion
+## Operational Goal
 
-4. ha-entities: find light
-   → GET /api/states → filter light.*flur*
-   → Found: light.flur_decke
-
-5. ha-automation-crud: assemble config
-   → trigger: state, binary_sensor.flur_motion, to: "on"
-   → action: light.turn_on, light.flur_decke
-   → action: delay 00:03:00
-   → action: light.turn_off, light.flur_decke
-
-6. ha-safety: show preview
-   → "I would create this automation: [Config]. Should I continue?"
-
-7. User: "Yes"
-
-8. ha-automation-crud: create
-   → POST /api/config/automation/config/flur_motion_light
-   → POST /api/services/automation/reload
-   → GET /api/states/automation.flur_motion_light → state: "on" ✓
-```
-
-## Phase 1 Skills (built first)
-
-### Phase 1a (Week 1-2)
-- `ha-nova.md` — Bootstrap
-- `ha-onboarding.md` — Onboarding
-- `ha-safety.md` — Write-Safety
-
-### Phase 1b (Week 2-3)
-- `ha-automation-crud.md` — Automation CRUD
-- `ha-automation-control.md` — Automation On/Off/Toggle
-- `ha-control.md` — Device control
-- `ha-entities.md` — Entity search
-
-### Phase 1c (Week 4-5)
-- `ha-automation-trace.md` — Trace analysis
-- `ha-automation-validate.md` — Basic validation (Top-10 Rules)
-- `ha-automation-verify.md` — Trigger test
+Minimize context and maintenance overhead while preserving strict write safety:
+- fewer installed skills
+- centralized relay contract
+- explicit phase boundaries
+- deterministic preview/confirm/apply behavior

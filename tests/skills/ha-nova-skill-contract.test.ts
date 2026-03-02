@@ -3,8 +3,6 @@ import { existsSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { validateAndConsumeConfirmToken } from "../../src/skills/contracts/confirm-token.js";
 import { resolveIntentLoadPlan } from "../../src/skills/contracts/intent-dispatcher.js";
-import { expectedIntentMatrix } from "./helpers/expected-intent-matrix.js";
-import { parseIntentMatrix } from "./helpers/intent-matrix.js";
 
 describe("ha-nova contract suite compatibility shim", () => {
   it("keeps split contract suites present", () => {
@@ -21,19 +19,19 @@ describe("ha-nova contract suite compatibility shim", () => {
   });
 
   it("keeps semantic smoke behavior for intent dispatch and confirm token contracts", () => {
-    const matrix = parseIntentMatrix();
-
-    expect([...matrix.keys()].sort()).toEqual([...expectedIntentMatrix.keys()].sort());
+    const matrix = new Map([
+      [
+        "automation.create",
+        {
+          companions: ["$NOVA_REPO_ROOT/skills/ha-nova/relay-api.md"],
+          modules: ["$NOVA_REPO_ROOT/skills/ha-nova/agents/resolve-agent.md"],
+        },
+      ],
+    ]);
 
     const createPlan = resolveIntentLoadPlan("automation.create", matrix);
-    expect(createPlan.companions).toEqual([
-      "$NOVA_REPO_ROOT/skills/ha-automation-best-practices.md",
-      "$NOVA_REPO_ROOT/skills/ha-safety.md",
-    ]);
-    expect(createPlan.modules).toEqual([
-      "$NOVA_REPO_ROOT/skills/ha-nova/modules/automation/resolve.md",
-      "$NOVA_REPO_ROOT/skills/ha-nova/modules/automation/create-update.md",
-    ]);
+    expect(createPlan.companions).toEqual(["$NOVA_REPO_ROOT/skills/ha-nova/relay-api.md"]);
+    expect(createPlan.modules).toEqual(["$NOVA_REPO_ROOT/skills/ha-nova/agents/resolve-agent.md"]);
 
     const staleToken = validateAndConsumeConfirmToken(
       "confirm:shim-token",

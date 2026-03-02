@@ -4,6 +4,7 @@ import {
   type ConfirmTokenRecord,
   validateAndConsumeConfirmToken,
   validateConfirmToken,
+  validateWriteConfirmation,
 } from "../../src/skills/contracts/confirm-token.js";
 
 describe("ha token contract", () => {
@@ -202,6 +203,127 @@ describe("ha token contract", () => {
         regeneratePreview: true,
         issueFreshToken: true,
       },
+    });
+  });
+
+  it("accepts natural-language confirmation for create/update when preview binding matches", () => {
+    const result = validateWriteConfirmation("ja bitte erstellen", {
+      tier: "create_update",
+      nowMs: baseToken.issuedAtMs + 5_000,
+      ttlMs: 10 * 60_000,
+      method: "POST",
+      path: "/api/config/automation/config/rolladen_az_og",
+      target: "automation.rolladen_az_og",
+      previewDigest: "sha256:abc123",
+      previewId: "pv-123",
+      expectedPreviewId: "pv-123",
+      usedTokenIds: new Set<string>(),
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      mode: "natural",
+    });
+  });
+
+  it("rejects natural-language confirmation for create/update when preview id mismatches", () => {
+    const result = validateWriteConfirmation("apply", {
+      tier: "create_update",
+      nowMs: baseToken.issuedAtMs + 5_000,
+      ttlMs: 10 * 60_000,
+      method: "POST",
+      path: "/api/config/automation/config/rolladen_az_og",
+      target: "automation.rolladen_az_og",
+      previewDigest: "sha256:abc123",
+      previewId: "pv-older",
+      expectedPreviewId: "pv-current",
+      usedTokenIds: new Set<string>(),
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      reason: "preview_id_mismatch",
+    });
+  });
+
+  it("requires token confirmation for destructive writes", () => {
+    const naturalFail = validateWriteConfirmation("ja bitte", {
+      tier: "destructive",
+      nowMs: baseToken.issuedAtMs + 5_000,
+      ttlMs: 10 * 60_000,
+      method: "DELETE",
+      path: "/api/config/automation/config/rolladen_az_og",
+      target: "automation.rolladen_az_og",
+      previewDigest: "sha256:abc123",
+      previewId: "pv-123",
+      expectedPreviewId: "pv-123",
+      usedTokenIds: new Set<string>(),
+      token: baseToken,
+    });
+    expect(naturalFail).toEqual({
+      ok: false,
+      reason: "token_required",
+    });
+
+    const tokenPass = validateWriteConfirmation("confirm:tok-123", {
+      tier: "destructive",
+      nowMs: baseToken.issuedAtMs + 5_000,
+      ttlMs: 10 * 60_000,
+      method: "POST",
+      path: "/api/config/automation/config/rolladen_az_og",
+      target: "automation.rolladen_az_og",
+      previewDigest: "sha256:abc123",
+      previewId: "pv-123",
+      expectedPreviewId: "pv-123",
+      usedTokenIds: new Set<string>(),
+      token: baseToken,
+    });
+    expect(tokenPass).toEqual({
+      ok: true,
+      mode: "token",
+      consumedTokenId: "tok-123",
+    });
+  });
+
+  it("accepts token confirmations with surrounding whitespace", () => {
+    const createUpdate = validateWriteConfirmation("  confirm:tok-123  ", {
+      tier: "create_update",
+      nowMs: baseToken.issuedAtMs + 5_000,
+      ttlMs: 10 * 60_000,
+      method: "POST",
+      path: "/api/config/automation/config/rolladen_az_og",
+      target: "automation.rolladen_az_og",
+      previewDigest: "sha256:abc123",
+      previewId: "pv-123",
+      expectedPreviewId: "pv-123",
+      usedTokenIds: new Set<string>(),
+      token: baseToken,
+    });
+
+    expect(createUpdate).toEqual({
+      ok: true,
+      mode: "token",
+      consumedTokenId: "tok-123",
+    });
+
+    const destructive = validateWriteConfirmation("  confirm:tok-123  ", {
+      tier: "destructive",
+      nowMs: baseToken.issuedAtMs + 5_000,
+      ttlMs: 10 * 60_000,
+      method: "POST",
+      path: "/api/config/automation/config/rolladen_az_og",
+      target: "automation.rolladen_az_og",
+      previewDigest: "sha256:abc123",
+      previewId: "pv-123",
+      expectedPreviewId: "pv-123",
+      usedTokenIds: new Set<string>(),
+      token: baseToken,
+    });
+
+    expect(destructive).toEqual({
+      ok: true,
+      mode: "token",
+      consumedTokenId: "tok-123",
     });
   });
 });
