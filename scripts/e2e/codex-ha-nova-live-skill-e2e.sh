@@ -274,13 +274,13 @@ main() {
     ' "$parsed_log"
   )"
   sequence_ok="$(
-    printf '%s' "$op_sequence" | grep -Eq '^P+G+P+G+D+V+$' && echo "1" || echo "0"
+    printf '%s' "$op_sequence" | grep -Eq '^[GV]?P+G+P+G+D+V+$' && echo "1" || echo "0"
   )"
   [[ "${post_hits}" -ge 2 ]] || die "Insufficient create/update POST evidence via relay /core (${post_hits} hits). Log: ${LOG_FILE}"
   [[ "${get_hits}" -ge 2 ]] || die "Insufficient read GET(200) evidence via relay /core (${get_hits} hits). Log: ${LOG_FILE}"
   [[ "${delete_hits}" -ge 1 ]] || die "Missing delete evidence via relay /core. Log: ${LOG_FILE}"
   [[ "${absent_get_hits}" -ge 1 ]] || die "Missing verify-absent GET(404) evidence via relay /core. Log: ${LOG_FILE}"
-  [[ "$sequence_ok" == "1" ]] || die "CRUD sequence evidence failed. Expected ordered subsequence PGPGDV, got: ${op_sequence}. Log: ${LOG_FILE}"
+  [[ "$sequence_ok" == "1" ]] || die "CRUD sequence evidence failed. Expected ordered flow [optional precreate GET(200/404)] + PGPGDV, got: ${op_sequence}. Log: ${LOG_FILE}"
   [[ "$final_line" == NOVA_SKILL_E2E_RESULT\ ok\ automation_id=${AUTOMATION_ID}\ reason=* ]] \
     || die "Unexpected final status: ${final_line}. Log: ${LOG_FILE}"
 

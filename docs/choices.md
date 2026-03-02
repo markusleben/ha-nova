@@ -232,3 +232,4 @@
 - Runtime utility extraction decision (2026-03-02): move confirmation-token validation and intent-dispatch resolution into `src/skills/contracts/*`; tests consume runtime utilities instead of duplicating helper logic.
 - Drift-reduction decision (2026-03-02): centralize canonical expected intent semantics in `tests/skills/helpers/expected-intent-matrix.ts` and reuse across dispatcher/contract suites.
 - Shim hardening refinement (2026-03-02): compatibility shim uses executable semantic smoke checks (matrix parity + dispatcher resolution + stale-token contract) instead of string-anchor-only checks.
+- Live E2E sequence-gate default (2026-03-02): accept at most one optional pre-create read evidence token before CRUD write/read flow via `^[GV]?P+G+P+G+D+V+$` to prevent false negatives when existence checks run first.

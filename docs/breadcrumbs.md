@@ -671,3 +671,7 @@
   - `npm test` -> 28 files passed, 104 tests passed.
   - `npm run typecheck` -> pass (`tsc --noEmit`).
 - Final review pass on runtime-extraction/drift-fix scope returned no findings.
+- Open PR #17 inline review follow-up:
+  - added mini-spec: `docs/plans/2026-03-02-live-e2e-sequence-gate-precreate-read-fix.md`.
+  - fixed live harness CRUD sequence gate in `scripts/e2e/codex-ha-nova-live-skill-e2e.sh` from strict `^P+G+P+G+D+V+$` to `^[GV]?P+G+P+G+D+V+$`.
+  - updated contract assertion in `tests/e2e/codex-skill-live-contract.test.ts` to the new regex anchor and added sequence accept/reject behavior tests.

@@ -23,7 +23,7 @@ describe("codex live skill e2e contract", () => {
     expect(content).toMatch(/relay \/core/i);
     expect(content).toMatch(/verify-absent/i);
     expect(content).toMatch(/PGPGDV/);
-    expect(content).toContain("^P+G+P+G+D+V+$");
+    expect(content).toContain("^[GV]?P+G+P+G+D+V+$");
     expect(content).toContain("^NOVA_SKILL_E2E_RESULT\\\\s+ok\\\\s+automation_id=");
     expect(content).toMatch(/bypassing relay \/core/i);
     expect(content).toContain("forbidden /core response redirection");
@@ -32,6 +32,18 @@ describe("codex live skill e2e contract", () => {
     expect(content).toContain("20(0|4)");
     expect(content).toContain("read GET(200) evidence");
     expect(content).toContain("scripts/smoke/|scripts/dev/|scripts/e2e/");
+  });
+
+  it("uses sequence regex that allows one optional pre-create read token", () => {
+    const sequenceRegex = /^[GV]?P+G+P+G+D+V+$/;
+
+    expect(sequenceRegex.test("PGPGDV")).toBe(true);
+    expect(sequenceRegex.test("GPGPGDV")).toBe(true);
+    expect(sequenceRegex.test("VPGPGDV")).toBe(true);
+
+    expect(sequenceRegex.test("GGPGPGDV")).toBe(false);
+    expect(sequenceRegex.test("GVPGPGDV")).toBe(false);
+    expect(sequenceRegex.test("PGPDV")).toBe(false);
   });
 
   it("exposes npm command for codex live e2e harness", () => {
