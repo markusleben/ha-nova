@@ -169,6 +169,8 @@ export function validateWriteConfirmation(
   confirmation: string,
   context: WriteConfirmationContext
 ): WriteConfirmationResult {
+  const trimmedConfirmation = confirmation.trim();
+
   if (context.previewId !== context.expectedPreviewId) {
     return {
       ok: false,
@@ -181,8 +183,8 @@ export function validateWriteConfirmation(
   }
 
   if (context.tier === "create_update") {
-    if (context.token && isTokenConfirmation(confirmation)) {
-      const tokenResult = validateAndConsumeConfirmToken(confirmation, context.token, context);
+    if (context.token && isTokenConfirmation(trimmedConfirmation)) {
+      const tokenResult = validateAndConsumeConfirmToken(trimmedConfirmation, context.token, context);
       if (!tokenResult.ok) {
         return fromTokenFailure(tokenResult);
       }
@@ -194,7 +196,7 @@ export function validateWriteConfirmation(
       };
     }
 
-    if (isNaturalCreateUpdateConfirmation(confirmation)) {
+    if (isNaturalCreateUpdateConfirmation(trimmedConfirmation)) {
       return {
         ok: true,
         mode: "natural",
@@ -207,7 +209,7 @@ export function validateWriteConfirmation(
     };
   }
 
-  if (!isTokenConfirmation(confirmation)) {
+  if (!isTokenConfirmation(trimmedConfirmation)) {
     return {
       ok: false,
       reason: "token_required",
@@ -221,7 +223,7 @@ export function validateWriteConfirmation(
     };
   }
 
-  const tokenResult = validateAndConsumeConfirmToken(confirmation, context.token, context);
+  const tokenResult = validateAndConsumeConfirmToken(trimmedConfirmation, context.token, context);
   if (!tokenResult.ok) {
     return fromTokenFailure(tokenResult);
   }

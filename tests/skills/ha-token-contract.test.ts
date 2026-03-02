@@ -284,4 +284,46 @@ describe("ha token contract", () => {
       consumedTokenId: "tok-123",
     });
   });
+
+  it("accepts token confirmations with surrounding whitespace", () => {
+    const createUpdate = validateWriteConfirmation("  confirm:tok-123  ", {
+      tier: "create_update",
+      nowMs: baseToken.issuedAtMs + 5_000,
+      ttlMs: 10 * 60_000,
+      method: "POST",
+      path: "/api/config/automation/config/rolladen_az_og",
+      target: "automation.rolladen_az_og",
+      previewDigest: "sha256:abc123",
+      previewId: "pv-123",
+      expectedPreviewId: "pv-123",
+      usedTokenIds: new Set<string>(),
+      token: baseToken,
+    });
+
+    expect(createUpdate).toEqual({
+      ok: true,
+      mode: "token",
+      consumedTokenId: "tok-123",
+    });
+
+    const destructive = validateWriteConfirmation("  confirm:tok-123  ", {
+      tier: "destructive",
+      nowMs: baseToken.issuedAtMs + 5_000,
+      ttlMs: 10 * 60_000,
+      method: "POST",
+      path: "/api/config/automation/config/rolladen_az_og",
+      target: "automation.rolladen_az_og",
+      previewDigest: "sha256:abc123",
+      previewId: "pv-123",
+      expectedPreviewId: "pv-123",
+      usedTokenIds: new Set<string>(),
+      token: baseToken,
+    });
+
+    expect(destructive).toEqual({
+      ok: true,
+      mode: "token",
+      consumedTokenId: "tok-123",
+    });
+  });
 });

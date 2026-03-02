@@ -27,7 +27,7 @@ If this fails, run onboarding: `npm run onboarding:macos`.
 
 ### Phase 1: Resolve (Agent)
 
-1. Read `agents/resolve-agent.md`.
+1. Read `skills/ha-nova/agents/resolve-agent.md`.
 2. Fill template placeholders (domain, operation, user intent).
 3. Dispatch general-purpose agent. Extract: entities, target_id, target_exists, current_config, bp_status.
 4. On ambiguity: ask user. On no-match: ask for exact entity_id.
@@ -42,7 +42,7 @@ If this fails, run onboarding: `npm run onboarding:macos`.
 
 ### Phase 3: Apply + Verify (Agent)
 
-1. Read `agents/apply-agent.md`.
+1. Read `skills/ha-nova/agents/apply-agent.md`.
 2. Fill template with confirmed payload.
 3. Dispatch general-purpose agent. Expect: success, write_status, verification.
 4. Report user-facing result. No raw curl/JSON in output.
