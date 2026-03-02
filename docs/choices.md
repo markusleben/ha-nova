@@ -153,3 +153,83 @@
 - Bootstrap deploy reliability refinement: `dev:app:bootstrap` must rebuild the app image after rsync (`ha apps rebuild` fallback `ha apps update`) so synced source changes are actually running.
 - Bootstrap token policy refinement: `HA_LLAT` env is optional in `dev:app:bootstrap`; when missing, reuse existing app option `ha_llat` and fail only if both are missing.
 - Codex live E2E robustness refinement: evidence extraction for CRUD/core must parse both `command` and `aggregated_output` to handle PTY transcripts.
+- Response UX contract policy (superseded by canonical schema below): early draft used `Outcome/State/Key Data/Gate/Next`.
+- Question minimization policy refinement: ask at most one blocking question only when safety/ambiguity/required-input prevents deterministic progress; otherwise proceed with opinionated defaults.
+- Response schema refinement (superseded by 2026-03-02 domain-first contract): canonical labels are `Outcome`, `Current State`, `Impact`, `Gate`, `Next`, with compact 3-block shape for trivial reads.
+- Write confirmation policy refinement: mutation paths require tokenized confirmation (`confirm:<token>`) and reject free-text confirmations.
+- Write integrity policy refinement (superseded by 2026-03-02 delete verification refinement): `Changes applied` may be returned only after explicit postcondition verification `passed=true`.
+- Cross-session refresh cache policy: automation best-practice snapshots are persisted at `${HOME}/.cache/ha-nova/automation-bp-snapshot.json` and reused while valid.
+- Parallel execution preference policy: when client/IDI exposes parallel-subagent capability, independent read stages should use subagent fan-out before sequential fallback.
+- Parallel execution enforcement policy: for automation create/update, independent pre-write reads are mandatory in parallel when capability exists; sequential fallback is only for unsupported clients.
+- State parsing robustness policy: ws `get_states` consumers must filter object states only and avoid ad-hoc jq schema probing in normal flows.
+- Orchestration policy refinement: parallel execution now applies to all independent tasks (not only reads), with fan-out/fan-in and deterministic sequential fallback.
+- Shell portability policy refinement: quoting guidance is shell-dependent and standardized to bash-compatible snippets (macOS/Linux/Windows via WSL or Git Bash).
+- Subagent trigger policy refinement (superseded by threshold refinement below): earlier rule used `2+ independent tasks`.
+- Live E2E policy refinement: harness supports `E2E_SUBAGENT_POLICY=require` and fails when expected subagent delegation is missing.
+- Orchestrator consistency policy refinement: align runtime bootstrap/auth safety language between `.agents/skills/ha-nova/SKILL.md` and `skills/ha-nova.md` to prevent executable drift.
+- Parallelism policy refinement (superseded by threshold policy for `>=3` substantial units): keep parallel execution mandatory where supported, but keep subagent dispatch outcome-oriented (`preferred for substantial units`, native parallel calls allowed for lightweight units).
+- E2E boundary policy refinement: keep mechanism-specific orchestration checks in harness/tests; product skill should define stable behavior, not test-oracle mechanics.
+- Harness stability refinement: make onboarding quick gate optional via `E2E_REQUIRE_QUICK_GATE=1` to avoid harness-vs-skill policy conflicts.
+- Orchestrator KISS refinement: remove endpoint-specific automation call-budget/recovery rules from top-level skill and keep them in `ha-automation-crud`.
+- Single-source drift control: mirror `skills/ha-nova.md` from `.agents/skills/ha-nova/SKILL.md` to keep orchestrator routing/safety/bootstrap rules identical.
+- E2E evidence hardening: require ordered CRUD subsequence `PGPGDV` via relay `/core` and explicit verify-absent evidence (`GET` + `404`).
+- Direct-REST guard refinement: detect bypass only for automation-config route patterns without `/core`, to reduce false positives from unrelated API curl usage.
+- E2E contract resilience: prefer semantic regex invariants over exact sentence matches in harness contract tests.
+- Routing safety refinement: device-control intents in top-level orchestrator must route through `ha-control` plus `ha-safety` for write intents.
+- E2E evidence authenticity refinement: classify CRUD sequence only from successful `command_execution` curl `/core` entries and enforce ordered subsequence `PGPGDV`.
+- E2E transcript robustness: normalize codex JSONL with `jq -Rrc 'fromjson? | select(type == "object")'` before all assertions to avoid malformed-line aborts.
+- E2E HTTP-proof policy: count CRUD evidence only from successful curl `/core` command-execution events with explicit HTTP status patterns.
+- Hierarchical orchestration policy: enforce a mandatory preflight gate (`independent_units_count`, `subagent_capable`, `fan_out_required`) before first Relay read in non-trivial flows.
+- Canonical automation DAG policy: create/update uses strict Phase A parallel fan-out (`A1` best-practice snapshot, `A2` entity resolution from one state snapshot, `A3` id existence check) then Phase B sequential write lifecycle.
+- One-state-snapshot policy: full `get_states` is fetched once per flow and reused for filtering unless explicit stale-state reason is stated.
+- Response evidence policy (superseded by 2026-03-02 user-focused visibility policy): every non-trivial response must include `Subagent fan-out used: yes/no (reason)`.
+- Contract clarity refinement (superseded by 2026-03-02 user-focused visibility policy): orchestration gate fields are computed internally and surfaced only via compact orchestration evidence line by default.
+- Contract consistency refinement: mutation status line is mandatory for mutation/debug flows; trivial single-unit read shortcut may omit mutation/orchestration lines.
+- Harness evidence hardening refinement: treat only successful curl `/core` command-execution events with `ok:true` + status patterns as valid CRUD evidence.
+- Harness sequence refinement: enforce strict ordered CRUD token pattern `^P+G+P+G+D+V+$`.
+- Harness correctness refinement: require exactly one final status line in literal `ok` form and forbid `/core` redirect-to-file patterns.
+- Subagent threshold refinement (user): mandatory subagent fan-out now applies only at `>=3` substantial independent units; below threshold use native parallel calls in the main agent.
+- Orchestration gate refinement: add `substantial_independent_units` as a first-class preflight field to derive `fan_out_required` deterministically.
+- Read-shortcut refinement: for non-trivial reads (`independent_units_count >= 2`), bypass shortcut and run full orchestration gate with threshold-based native-vs-subagent selection.
+- Substantial-unit rubric refinement: classify units as substantial when they involve full-state discovery, refresh/validation that can block writes, or existence checks that alter write-path branching.
+- Drift/legacy guard refinement: contract tests must assert mirror-file equality for `ha-nova` skill docs and explicitly reject reintroduction of legacy `2+ independent` subagent wording.
+
+## 2026-03-02
+
+### Planning Defaults (Agent)
+- Response visibility policy refinement (user): default output is user-focused; hide orchestration internals in normal success paths.
+- Response schema embedding policy (user, superseded by same-day domain-first contract): keep top-level `Outcome/Current State/Impact/Gate/Next` and embed fixed domain schemas inside `Impact`.
+- Domain schema policy (user): first mandatory schemas are `automation` and `script`.
+- Automation impact contract refinement (superseded by same-day domain-first contract): require `Automation Name`, `Automation Goal`, `Entities Used`, `Behavior Summary`, `Change Scope`.
+- Script impact contract refinement (superseded by same-day domain-first contract): require `Script Name`, `Script Goal`, `Inputs/Variables`, `Actions/Entities Used`, `Change Scope`.
+- Orchestration evidence visibility refinement: do not expose `A1/A2/A3`, fan-out decisions, or gate counters unless diagnosing failures or explicitly requested by user.
+- Fast-pass modularity policy refinement: define reusable write-flow blocks (`B0`..`B11`) and compose intent-specific fast passes to avoid duplicated logic.
+- Domain-first response contract policy (latest): replace legacy default heading structure in normal write flows with domain fields + single `Next Step`.
+- Shell stability policy refinement: in complex multi-line command paths use `bash -lc`; avoid shell-specific builtins and temporary helper scripts in normal flow.
+- Subskill topology policy refinement: split `ha-nova` into router + `core/*` + `modules/*` files so growth happens by adding modules, not by expanding the router.
+- Lazy discovery policy refinement: intent resolution must load only the mapped module set from `core/discovery-map.md`; no preload of all modules in normal flow.
+- Compatibility migration policy refinement: keep legacy top-level domain skills as temporary shims while source-of-truth moves to `skills/ha-nova/modules/*`.
+- Read mapping policy refinement: `automation.read` and `script.read` must include resolve modules to support deterministic single-item reads.
+- Companion routing policy refinement: automation write intents must explicitly include `ha-automation-best-practices` and `ha-safety` alongside lazy module loading.
+- B4 scope refinement: best-practice gate block (`B4_BP_GATE`) applies to automation `create`/`update` only in MVP.
+- Lazy discovery alias policy refinement (superseded by explicit list mapping refinement below): `*.list` intents are explicit aliases of `*.read` mappings to prevent read/list drift.
+- Routing path normalization policy refinement: use repo-root-qualified module/core paths in router mapping for deterministic file resolution.
+- Read/list block-scope refinement: `*.list` reuses read modules but skips `B3_ID_RESOLVE`; `B3` remains mandatory only for single-item read flows.
+- Discovery-map path resolution refinement: use repo-root-qualified module paths in `core/discovery-map.md` to avoid ambiguous relative resolution from `core/`.
+- Explicit list mapping refinement: `*.list` intents map directly to `modules/*/read.md` (without `resolve.md`) to avoid implicit `B3_ID_RESOLVE`.
+- Intent classifier refinement: lazy-discovery intent set is explicitly `create|update|delete|read|list`.
+- Foundation hardening planning default (2026-03-02): execute a 1-day minimal-scope hardening pass in order `canonical intent contract -> test decomposition -> semantic assertions -> token contract hardening -> duplication reduction`.
+- Canonical mapping default (2026-03-02): introduce `skills/ha-nova/core/intents.md` as single source of truth for intent companions/modules before further modular growth.
+- Canonical intent contract decision (2026-03-02): `skills/ha-nova/core/intents.md` is the only normative source for `required_companions[]` and `modules[]`; router/discovery are references/protocol only.
+- Test architecture decision (2026-03-02): split skill contracts into domain suites (`ha-nova`, `ha-entities`, `ha-safety`) plus one cross-skill integration suite; keep `ha-nova-skill-contract.test.ts` as compatibility shim only.
+- Semantic assertion decision (2026-03-02): validate intent mappings via parsed exact sets from canonical matrix; avoid line-break-dependent `toContain` checks for routing semantics.
+- Confirm token hardening decision (2026-03-02): require explicit TTL (10m), one-time-use replay rejection, and binding to method/path/target + preview digest.
+- De-duplication decision (2026-03-02): keep normative response/safety/verification contract text only in `core/contracts.md`; router references core contract instead of duplicating fields.
+- Follow-up hardening default (2026-03-02): execute residual-risk closure as 3 small PRs (token validator tests -> intent dispatcher simulation -> shim strengthening), test-only helpers first, no runtime behavior change.
+- Follow-up PR-1 implementation decision (2026-03-02): encode confirmation-token semantics as executable test helper (`validateAndConsumeConfirmToken`) with explicit remediation flags and consumption lifecycle checks.
+- Follow-up PR-2 implementation decision (2026-03-02): add dispatcher simulation from canonical intent matrix and enforce full intent-key coverage parity (`parseIntentMatrix` keys == expected keys).
+- Follow-up PR-3 implementation decision (2026-03-02): compatibility shim must include semantic anchor checks across split suites, not file-existence checks only.
+- Runtime utility extraction decision (2026-03-02): move confirmation-token validation and intent-dispatch resolution into `src/skills/contracts/*`; tests consume runtime utilities instead of duplicating helper logic.
+- Drift-reduction decision (2026-03-02): centralize canonical expected intent semantics in `tests/skills/helpers/expected-intent-matrix.ts` and reuse across dispatcher/contract suites.
+- Shim hardening refinement (2026-03-02): compatibility shim uses executable semantic smoke checks (matrix parity + dispatcher resolution + stale-token contract) instead of string-anchor-only checks.
+- Live E2E sequence-gate default (2026-03-02): accept at most one optional pre-create read evidence token before CRUD write/read flow via `^[GV]?P+G+P+G+D+V+$` to prevent false negatives when existence checks run first.

@@ -1,50 +1,68 @@
-import { readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
+import { validateAndConsumeConfirmToken } from "../../src/skills/contracts/confirm-token.js";
+import { resolveIntentLoadPlan } from "../../src/skills/contracts/intent-dispatcher.js";
+import { expectedIntentMatrix } from "./helpers/expected-intent-matrix.js";
+import { parseIntentMatrix } from "./helpers/intent-matrix.js";
 
-describe("ha-nova skill contract", () => {
-  it("uses streaming jq limit in read-only fast shortcut", () => {
-    const content = readFileSync(".agents/skills/ha-nova/SKILL.md", "utf8");
+describe("ha-nova contract suite compatibility shim", () => {
+  it("keeps split contract suites present", () => {
+    const files = [
+      "tests/skills/ha-nova-contract.test.ts",
+      "tests/skills/ha-entities-contract.test.ts",
+      "tests/skills/ha-safety-contract.test.ts",
+      "tests/skills/ha-cross-skill-integration.test.ts",
+    ];
 
-    expect(content).toContain("limit($limit;");
-    expect(content).not.toContain(
-      'map(select((.entity_id|type)=="string" and (.entity_id|startswith($domain))) | .entity_id)[:$limit][]'
+    for (const file of files) {
+      expect(existsSync(file), `Expected split suite file to exist: ${file}`).toBe(true);
+    }
+  });
+
+  it("keeps semantic smoke behavior for intent dispatch and confirm token contracts", () => {
+    const matrix = parseIntentMatrix();
+
+    expect([...matrix.keys()].sort()).toEqual([...expectedIntentMatrix.keys()].sort());
+
+    const createPlan = resolveIntentLoadPlan("automation.create", matrix);
+    expect(createPlan.companions).toEqual([
+      "$NOVA_REPO_ROOT/skills/ha-automation-best-practices.md",
+      "$NOVA_REPO_ROOT/skills/ha-safety.md",
+    ]);
+    expect(createPlan.modules).toEqual([
+      "$NOVA_REPO_ROOT/skills/ha-nova/modules/automation/resolve.md",
+      "$NOVA_REPO_ROOT/skills/ha-nova/modules/automation/create-update.md",
+    ]);
+
+    const staleToken = validateAndConsumeConfirmToken(
+      "confirm:shim-token",
+      {
+        tokenId: "shim-token",
+        issuedAtMs: 10_000,
+        method: "POST",
+        path: "/api/config/automation/config/demo",
+        target: "automation.demo",
+        previewDigest: "sha256:demo",
+      },
+      {
+        nowMs: 10_000 + 600_001,
+        ttlMs: 600_000,
+        method: "POST",
+        path: "/api/config/automation/config/demo",
+        target: "automation.demo",
+        previewDigest: "sha256:demo",
+        usedTokenIds: new Set<string>(),
+      }
     );
-  });
 
-  it("uses repo-root-aware onboarding env path in entities skill", () => {
-    const content = readFileSync("skills/ha-entities.md", "utf8");
-
-    expect(content).toContain('NOVA_REPO_ROOT="${NOVA_REPO_ROOT:-${HA_NOVA_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}}"');
-    expect(content).toContain('"$NOVA_REPO_ROOT/scripts/onboarding/macos-onboarding.sh" env');
-    expect(content).not.toContain('eval "$(bash scripts/onboarding/macos-onboarding.sh env)"');
-  });
-
-  it("routes automation writes through best-practice refresh skill", () => {
-    const content = readFileSync("skills/ha-nova.md", "utf8");
-
-    expect(content).toContain("ha-automation-best-practices");
-    expect(content).toContain("Automation create/update");
-    expect(content).toContain("Automation delete -> `ha-automation-crud` + `ha-safety`");
-  });
-
-  it("enforces best-practice refresh gate before automation create/update writes", () => {
-    const content = readFileSync("skills/ha-automation-crud.md", "utf8");
-    const bestPractices = readFileSync("skills/ha-automation-best-practices.md", "utf8");
-
-    expect(content).toContain("Required Companion Skill for Writes");
-    expect(content).toContain("Enforce best-practice session refresh gate");
-    expect(content).toContain("no best-practice session refresh -> no write");
-    expect(content).toContain("Relay injects App-side LLAT; client-side `HA_LLAT` is not required.");
-    expect(content).not.toContain("not yet exposed in relay-only MVP path");
-    expect(bestPractices).toContain("`delete` operations are exempt from the refresh gate");
-  });
-
-  it("keeps installed codex skill routing aligned with delete exemption", () => {
-    const installedSkill = readFileSync(".agents/skills/ha-nova/SKILL.md", "utf8");
-
-    expect(installedSkill).toContain("for `create`/`update` use");
-    expect(installedSkill).toContain("for `delete` use");
-    expect(installedSkill).not.toContain("for `create`/`update`/`delete` use");
+    expect(staleToken).toEqual({
+      ok: false,
+      reason: "stale",
+      remediation: {
+        regeneratePreview: true,
+        issueFreshToken: true,
+      },
+    });
   });
 });

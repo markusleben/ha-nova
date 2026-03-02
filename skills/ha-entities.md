@@ -35,8 +35,10 @@ Resolve exact entity IDs before control or write operations.
 
 1. Load all states once:
    - `POST /ws` with `{"type":"get_states"}`
-2. Filter client-side from `.data` only (avoid recursive `..` selectors).
-3. Return requested subset directly.
+2. Filter client-side from `.data` only and include object states only:
+   - `(.data // [])[] | select(type=="object" and (.entity_id|type)=="string")`
+3. Do not run schema-probing jq one-offs in normal flow; use canonical filters.
+4. Return requested subset directly.
 
 Load env once per shell session:
 
@@ -58,6 +60,17 @@ curl -sS -X POST \
   "$RELAY_BASE_URL/ws" \
   -d '{"type":"get_states"}' | \
 jq -c '.data // []'
+```
+
+Canonical safe object-only filter:
+
+```bash
+curl -sS -X POST \
+  -H "Authorization: Bearer $RELAY_AUTH_TOKEN" \
+  -H "Content-Type: application/json" \
+  "$RELAY_BASE_URL/ws" \
+  -d '{"type":"get_states"}' | \
+jq -c '[(.data // [])[] | select(type=="object" and (.entity_id|type)=="string") | {entity_id, state, friendly_name: (.attributes.friendly_name // null)}]'
 ```
 
 First 5 lights example:
