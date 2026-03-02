@@ -196,7 +196,7 @@ prompt_valid_ha_host() {
     host="$(normalize_host_input "$input")"
 
     if [[ -z "$host" ]]; then
-      echo "[macos-onboarding] Host input is empty." >&2
+      echo "[ha-nova] Host input is empty." >&2
       if ! prompt_yes_no "Retry host entry" "Y"; then
         die "Cannot continue without a valid Home Assistant host."
       fi
@@ -212,13 +212,13 @@ prompt_valid_ha_host() {
       return
     else
       echo "[fail] Home Assistant endpoint validation failed."
-      echo "[macos-onboarding] Could not validate Home Assistant host: ${input}" >&2
-      echo "[macos-onboarding] Expected a reachable Home Assistant instance (supports URL/host/port)." >&2
+      echo "[ha-nova] Could not validate Home Assistant host: ${input}" >&2
+      echo "[ha-nova] Expected a reachable Home Assistant instance (supports URL/host/port)." >&2
     fi
 
     if ! prompt_yes_no "Retry host entry" "Y"; then
       if prompt_yes_no "Continue with unverified host" "N"; then
-        echo "[macos-onboarding] Continuing with unverified host: ${host}" >&2
+        echo "[ha-nova] Continuing with unverified host: ${host}" >&2
         HA_HOST="$host"
         HA_URL="$(guess_home_assistant_url_base "$input")"
         return
@@ -343,20 +343,20 @@ explain_relay_probe_failure() {
 
   case "${LAST_RELAY_STATUS_CODE:-}" in
     "401"|"403")
-      echo "[macos-onboarding] Relay auth rejected (HTTP ${LAST_RELAY_STATUS_CODE})." >&2
-      echo "[macos-onboarding] Action: use the exact relay_auth_token configured in the NOVA Relay App options." >&2
+      echo "[ha-nova] Relay auth rejected (HTTP ${LAST_RELAY_STATUS_CODE})." >&2
+      echo "[ha-nova] Action: use the exact relay_auth_token configured in the NOVA Relay App options." >&2
       ;;
     "404")
-      echo "[macos-onboarding] Relay endpoint not found (HTTP 404)." >&2
-      echo "[macos-onboarding] Action: verify Relay base URL and ensure NOVA Relay App is installed and started." >&2
+      echo "[ha-nova] Relay endpoint not found (HTTP 404)." >&2
+      echo "[ha-nova] Action: verify Relay base URL and ensure NOVA Relay App is installed and started." >&2
       ;;
     "000"|"")
-      echo "[macos-onboarding] Relay not reachable at ${relay_base_url}/health." >&2
-      echo "[macos-onboarding] Action: verify host/IP, port, and local network reachability." >&2
+      echo "[ha-nova] Relay not reachable at ${relay_base_url}/health." >&2
+      echo "[ha-nova] Action: verify host/IP, port, and local network reachability." >&2
       ;;
     *)
-      echo "[macos-onboarding] Relay check failed (HTTP ${LAST_RELAY_STATUS_CODE})." >&2
-      echo "[macos-onboarding] Action: inspect Relay logs and App status in Home Assistant." >&2
+      echo "[ha-nova] Relay check failed (HTTP ${LAST_RELAY_STATUS_CODE})." >&2
+      echo "[ha-nova] Action: inspect Relay logs and App status in Home Assistant." >&2
       ;;
   esac
 }

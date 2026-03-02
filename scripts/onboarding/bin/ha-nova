@@ -12,12 +12,17 @@ case "${1:-help}" in
     shift
     exec bash "${SCRIPT_DIR}/macos-doctor.sh" "$@"
     ;;
-  -h|--help|help|*)
+  -h|--help|help)
     echo "HA NOVA — AI-powered Home Assistant control"
     echo ""
     echo "Usage:"
     echo "  ha-nova setup    Complete guided setup (App + tokens + skills)"
     echo "  ha-nova doctor   Run diagnostics and verify everything works"
     echo "  ha-nova --help   Show this help"
+    ;;
+  *)
+    echo "Unknown command: ${1}" >&2
+    echo "Run 'ha-nova --help' for usage." >&2
+    exit 1
     ;;
 esac

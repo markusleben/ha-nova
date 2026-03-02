@@ -7,6 +7,8 @@ AI-powered Home Assistant control. One command to set up, then talk to your home
 ## Quick Start
 
 ```bash
+git clone https://github.com/markusleben/ha-nova.git ~/ha-nova
+cd ~/ha-nova && npm install
 npx ha-nova setup
 ```
 

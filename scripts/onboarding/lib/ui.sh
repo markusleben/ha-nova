@@ -8,11 +8,11 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 
 log() {
-  echo "[macos-onboarding] $*"
+  echo "[ha-nova] $*"
 }
 
 die() {
-  echo "[macos-onboarding] $*" >&2
+  echo "[ha-nova] $*" >&2
   exit 1
 }
 
@@ -163,7 +163,7 @@ check_prerequisites() {
 
   # OS check (delegated to platform module — must be sourced before this call)
   require_platform
-  print_success "macOS detected"
+  print_success "Platform supported"
 
   # Node.js check
   if ! command -v node >/dev/null 2>&1; then

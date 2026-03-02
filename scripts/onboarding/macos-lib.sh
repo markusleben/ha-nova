@@ -74,7 +74,7 @@ run_doctor_checks() {
   local overall_ok="1"
   local relay_auth_token
 
-  echo "[macos-onboarding] Preflight checks:"
+  echo "[ha-nova] Preflight checks:"
 
   if [[ -n "${HA_HOST:-}" ]]; then
     echo "  [ok] Config file found: ${CONFIG_FILE}"
@@ -383,7 +383,7 @@ run_ready() {
 
   if [[ "$use_cache" == "1" ]]; then
     if [[ "$quiet" != "1" ]]; then
-      echo "[macos-onboarding] Ready check passed (cached doctor result, TTL ${ttl_seconds}s)."
+      echo "[ha-nova] Ready check passed (cached doctor result, TTL ${ttl_seconds}s)."
     fi
     return 0
   fi
@@ -409,7 +409,7 @@ run_ready() {
   } > "$DOCTOR_CACHE_FILE"
   chmod 600 "$DOCTOR_CACHE_FILE"
   if [[ "$quiet" != "1" ]]; then
-    echo "[macos-onboarding] Ready check passed (doctor refreshed)."
+    echo "[ha-nova] Ready check passed (doctor refreshed)."
   fi
 }
 
