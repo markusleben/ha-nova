@@ -411,6 +411,30 @@ exit 1
     expect(pkg.bin?.["ha-nova"]).toBe("scripts/onboarding/bin/ha-nova");
   });
 
+  it("wizard includes prerequisites check, app guide, and skill install", () => {
+    const lib = readFileSync("scripts/onboarding/macos-lib.sh", "utf8");
+
+    // Phase 1: prerequisites
+    expect(lib).toContain("check_prerequisites");
+
+    // Phase 2: app installation guide with deep-link
+    expect(lib).toContain("my.home-assistant.io/redirect/supervisor_add_addon_repository");
+    expect(lib).toContain("open_browser");
+
+    // Phase 3: token setup with LLAT guide
+    expect(lib).toContain("my.home-assistant.io/redirect/profile");
+
+    // Phase 4: automatic skill installation
+    expect(lib).toContain("install-local-skills.sh");
+  });
+
+  it("prerequisites check validates OS and Node version", () => {
+    const ui = readFileSync("scripts/onboarding/lib/ui.sh", "utf8");
+
+    expect(ui).toContain("check_prerequisites()");
+    expect(ui).toContain("node --version");
+  });
+
   it("provides platform-specific macOS module", () => {
     const file = "scripts/onboarding/platform/macos.sh";
     const stats = statSync(file);

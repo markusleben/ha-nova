@@ -147,5 +147,40 @@ print_info() {
 
 wait_for_enter() {
   local prompt="${1:-Press Enter to continue...}"
-  read -r -p "$prompt"
+  # Skip interactive pauses when stdin is piped (non-interactive / test mode).
+  if [[ ! -t 0 ]]; then return 0; fi
+  if ! read -r -p "$prompt"; then
+    die "Interactive input required. Re-run in a terminal."
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# Prerequisites
+# ---------------------------------------------------------------------------
+
+check_prerequisites() {
+  print_info "Checking prerequisites..."
+
+  # OS check (delegated to platform module — must be sourced before this call)
+  require_platform
+  print_success "macOS detected"
+
+  # Node.js check
+  if ! command -v node >/dev/null 2>&1; then
+    print_fail "Node.js not found. Install from https://nodejs.org"
+    exit 1
+  fi
+  local node_major
+  node_major="$(node --version | sed 's/v\([0-9]*\).*/\1/')"
+  if (( node_major < 20 )); then
+    print_fail "Node.js ${node_major} found, but 20+ required."
+    exit 1
+  fi
+  print_success "Node.js $(node --version)"
+
+  if ! command -v curl >/dev/null 2>&1; then
+    print_fail "curl not found."
+    exit 1
+  fi
+  print_success "curl available"
 }

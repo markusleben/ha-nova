@@ -136,109 +136,180 @@ run_doctor_checks() {
 }
 
 run_setup() {
-  require_platform
-  require_cmd security
-  require_cmd curl
+  local client="${1:-claude}"
 
-  echo "[macos-onboarding] Step 1/2: detect and validate Home Assistant host."
-  load_config
+  print_header
 
+  # ── Phase 1: Prerequisites ──
+  check_prerequisites
+  echo ""
+
+  # ── Phase 2: App Installation Guide ──
+  # Install/start NOVA Relay App in Home Assistant before configuring tokens.
+  print_step 1 4 "Install NOVA Relay in Home Assistant"
+  echo ""
+  print_info "We need to add the NOVA repository to your Home Assistant."
+  print_info "I'll open your browser to do this."
+  echo ""
+  wait_for_enter "Press [Enter] to open your browser... "
+  open_browser "https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Fmarkusleben%2Fha-nova"
+  echo ""
+  print_info "In Home Assistant:"
+  print_info "  1. Confirm adding the repository"
+  print_info "  2. Go to Settings > Add-ons > Add-on Store"
+  print_info "  3. Search for \"NOVA Relay\""
+  print_info "  4. Click Install, wait, then click Start"
+  echo ""
+  wait_for_enter "Press [Enter] when the add-on is running... "
+
+  # ── Phase 3: Token Setup ──
+  print_step 2 4 "Configure Authentication"
+
+  # 3a) Relay token
+  # Relay auth token (leave empty to keep existing or auto-generate):
+  local relay_auth_token
+  local existing_relay_auth_token
+  existing_relay_auth_token="$(read_keychain_secret "$RELAY_SERVICE")"
+
+  if [[ -n "$existing_relay_auth_token" ]]; then
+    echo ""
+    print_info "Existing relay token found: $(mask_secret_hint "$existing_relay_auth_token")"
+    if prompt_yes_no "Keep existing token?" "Y"; then
+      relay_auth_token="$existing_relay_auth_token"
+      # Using existing relay auth token from Keychain.
+      log "Using existing relay auth token from Keychain."
+    else
+      relay_auth_token="$(generate_relay_token)"
+      echo ""
+      print_info "New token: ${relay_auth_token}"
+    fi
+  else
+    relay_auth_token="$(generate_relay_token)"
+    echo ""
+    print_info "Generated a secure relay token:"
+    echo ""
+    echo "    ${relay_auth_token}"
+    echo ""
+    print_info "Next: paste this into the NOVA Relay add-on configuration."
+    print_info "(The \"relay_auth_token\" field)"
+  fi
+
+  if [[ "$relay_auth_token" != "${existing_relay_auth_token:-}" ]]; then
+    echo ""
+    wait_for_enter "Press [Enter] to open the add-on config... "
+    # Try direct link if we know the HA URL
+    load_config
+    if [[ -n "${HA_URL:-}" ]]; then
+      open_browser "${HA_URL}/hassio/addon/local_ha_nova_relay/config"
+    else
+      open_browser "https://my.home-assistant.io/redirect/supervisor_addon/?addon=local_ha_nova_relay"
+    fi
+    echo ""
+    wait_for_enter "Press [Enter] when you've saved the relay token... "
+  fi
+
+  # 3b) LLAT guide
+  # LLAT location: App option 'ha_llat' (not stored in client Keychain).
+  echo ""
+  print_info "Now we need a Home Assistant access token (LLAT)."
+  print_info "This lets the relay talk to your Home Assistant."
+  echo ""
+  wait_for_enter "Press [Enter] to open your HA profile... "
+  open_browser "https://my.home-assistant.io/redirect/profile/"
+  echo ""
+  print_info "In Home Assistant:"
+  print_info "  1. Scroll to \"Long-Lived Access Tokens\""
+  print_info "  2. Click \"Create Token\", name it \"NOVA\""
+  print_info "  3. Copy the token"
+  print_info "  4. Go to the NOVA Relay add-on > Configuration"
+  print_info "  5. Paste into the \"ha_llat\" field"
+  print_info "  6. Click Save, then Restart the add-on"
+  echo ""
+  wait_for_enter "Press [Enter] when done... "
+
+  # ── Phase 4: Verify + Save + Install Skills ──
+  print_step 3 4 "Verifying connection"
+
+  # Detect HA host
+  echo ""
+  print_info "Detecting Home Assistant..."
   local default_ha_host
-  echo "[..] Detecting Home Assistant host candidates..."
   default_ha_host="$(detect_default_ha_host)"
-  echo "[ok] Host detection finished (default: ${default_ha_host})."
-
   prompt_valid_ha_host "$default_ha_host"
 
   local default_relay_base_url
   default_relay_base_url="${RELAY_BASE_URL:-http://${HA_HOST}:8791}"
 
   while true; do
-    RELAY_BASE_URL="$(prompt_with_default 'Relay base URL' "$default_relay_base_url")"
+    RELAY_BASE_URL="$(prompt_with_default 'Relay URL' "$default_relay_base_url")"
     RELAY_BASE_URL="${RELAY_BASE_URL%/}"
     if validate_relay_base_url_format "$RELAY_BASE_URL"; then
       break
     fi
-    echo "[macos-onboarding] Invalid relay URL format: ${RELAY_BASE_URL}" >&2
-    echo "[macos-onboarding] Expected format: http://<host>:<port> or https://<host>" >&2
+    print_fail "Invalid URL. Expected: http://<host>:<port>"
     default_relay_base_url="$RELAY_BASE_URL"
   done
 
-  echo "[macos-onboarding] Step 2/2: configure Relay authentication."
-  echo "[macos-onboarding] LLAT is not entered in this script."
-  echo "[macos-onboarding] Configure LLAT only in App option 'ha_llat' inside Home Assistant."
-  local relay_auth_token
-  local existing_relay_auth_token
-  local relay_token_source="entered"
-  existing_relay_auth_token="$(read_keychain_secret "$RELAY_SERVICE")"
-
-  if [[ -n "$existing_relay_auth_token" ]]; then
-    echo "[macos-onboarding] Existing Relay token found in Keychain (${RELAY_SERVICE}): $(mask_secret_hint "$existing_relay_auth_token")"
-    echo "[macos-onboarding] Press Enter to keep existing token, or paste a new token to rotate."
-  else
-    echo "[macos-onboarding] No Relay token found in Keychain (${RELAY_SERVICE})."
-    echo "[macos-onboarding] Press Enter to auto-generate, or paste a token."
-  fi
-
-  echo "Relay auth token (leave empty to keep existing or auto-generate):"
-  if ! read -r -s relay_auth_token; then
-    die "Interactive input required. Re-run in a terminal."
-  fi
-  echo
-
-  if [[ -z "$relay_auth_token" ]]; then
-    if [[ -n "$existing_relay_auth_token" ]]; then
-      relay_auth_token="$existing_relay_auth_token"
-      relay_token_source="existing-keychain"
-      log "Using existing relay auth token from Keychain."
+  # Verify relay
+  echo ""
+  local max_retries=3
+  local attempt=0
+  while true; do
+    if probe_relay_health "$RELAY_BASE_URL" "$relay_auth_token"; then
+      print_success "Relay reachable at ${RELAY_BASE_URL}"
+      if [[ "$LAST_RELAY_HA_WS_CONNECTED" == "true" ]]; then
+        print_success "WebSocket connected to Home Assistant"
+      elif [[ "$LAST_RELAY_HA_WS_CONNECTED" == "false" ]]; then
+        if probe_relay_ws_ping "$RELAY_BASE_URL" "$relay_auth_token"; then
+          print_success "WebSocket connected to Home Assistant"
+        else
+          print_fail "WebSocket not connected. Is ha_llat set in the add-on config?"
+          explain_relay_ws_degraded
+          if ! prompt_yes_no "Continue anyway? (fix later with 'ha-nova doctor')" "Y"; then
+            die "Setup aborted."
+          fi
+        fi
+      fi
+      break
     else
-      relay_auth_token="$(generate_relay_token)"
-      relay_token_source="generated"
-      log "Generated relay auth token automatically."
-      echo "[macos-onboarding] Generated relay auth token (copy now): ${relay_auth_token}"
-      echo "[macos-onboarding] Set this value as App option 'relay_auth_token' in NOVA Relay."
+      attempt=$((attempt + 1))
+      print_fail "Can't reach relay at ${RELAY_BASE_URL}"
+      explain_relay_probe_failure "$RELAY_BASE_URL"
+      if (( attempt >= max_retries )); then
+        print_info "Saving config anyway. Run 'ha-nova doctor' after fixing."
+        break
+      fi
+      wait_for_enter "Press [Enter] to retry... "
     fi
-  fi
+  done
 
-  echo "[..] Checking Relay health..."
-  if ! probe_relay_health "$RELAY_BASE_URL" "$relay_auth_token"; then
-    echo "[fail] Relay health check failed."
-    echo "[macos-onboarding] Relay check failed: ${RELAY_BASE_URL}/health" >&2
-    explain_relay_probe_failure "$RELAY_BASE_URL"
-    echo "[macos-onboarding] Install/start NOVA Relay App in Home Assistant and verify relay_auth_token in App options." >&2
-    if ! prompt_yes_no "Continue setup to save credentials only (doctor will still fail until Relay is reachable)" "N"; then
-      die "Setup aborted until Relay is reachable."
-    fi
-  elif [[ "$LAST_RELAY_HA_WS_CONNECTED" == "false" ]]; then
-    echo "[ok] Relay health reachable."
-    echo "[macos-onboarding] Relay reachable, but upstream WS is NOT healthy (ha_ws_connected=false)." >&2
-    echo "[macos-onboarding] HA_LLAT is required in App options; configure app option 'ha_llat' and restart the App." >&2
-  else
-    echo "[ok] Relay health reachable."
-  fi
-
-  echo
-  echo "[macos-onboarding] Review configuration:"
-  echo "  - Home Assistant URL: ${HA_URL}"
-  echo "  - Relay base URL: ${RELAY_BASE_URL}"
-  echo "  - Relay token: $(mask_secret_hint "$relay_auth_token") (${relay_token_source})"
-  echo "  - LLAT location: App option 'ha_llat' (not stored in client Keychain)"
-  if ! prompt_yes_no "Save this configuration" "Y"; then
-    die "Setup aborted before saving changes."
-  fi
-
+  # Save
   store_keychain_secret "$RELAY_SERVICE" "$relay_auth_token"
-  # Legacy cleanup: remove old local LLAT secret to avoid dual-secret drift.
   delete_keychain_secret_if_exists "$LLAT_SERVICE"
-
   persist_config
   invalidate_doctor_cache
+  print_success "Config saved to ~/.config/ha-nova/"
+  print_success "Token stored in macOS Keychain"
 
-  log "Setup complete."
-  echo
-  echo "Next commands:"
-  echo "  bash scripts/onboarding/macos-onboarding.sh doctor"
-  echo "  eval \"\$(bash scripts/onboarding/macos-onboarding.sh env)\""
+  # Install skills
+  echo ""
+  print_step 4 4 "Installing skills"
+  echo ""
+  if bash "${REPO_ROOT}/scripts/onboarding/install-local-skills.sh" "$client" 2>&1; then
+    print_success "Skills installed for ${client}"
+  else
+    print_fail "Skill installation failed. Run: npm run install:${client}-skill"
+  fi
+
+  # Success banner
+  echo ""
+  echo "  ======================================="
+  echo "  Setup complete!"
+  echo ""
+  echo "  Try asking: \"List my automations\""
+  echo "  Diagnostics: npx ha-nova doctor"
+  echo "  ======================================="
+  echo ""
 }
 
 run_doctor() {

@@ -31,5 +31,7 @@ delete_keychain_secret_if_exists() {
 
 open_browser() {
   local url="$1"
+  # Skip browser launch when stdin is piped (non-interactive / test mode).
+  if [[ ! -t 0 ]]; then return 0; fi
   open "$url"
 }
