@@ -1,7 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SCRIPT_DIR="$(cd -- "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# Resolve symlinks — npx creates symlinks in node_modules/.bin.
+# macOS lacks readlink -f, so follow the chain manually.
+REAL_PATH="${BASH_SOURCE[0]}"
+while [[ -L "$REAL_PATH" ]]; do
+  LINK_DIR="$(cd -P "$(dirname "$REAL_PATH")" && pwd)"
+  REAL_PATH="$(readlink "$REAL_PATH")"
+  [[ "$REAL_PATH" != /* ]] && REAL_PATH="${LINK_DIR}/${REAL_PATH}"
+done
+SCRIPT_DIR="$(cd -P "$(dirname "$REAL_PATH")/.." && pwd)"
 
 case "${1:-help}" in
   setup)
