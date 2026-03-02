@@ -392,6 +392,25 @@ exit 1
     expect(relayContent).not.toContain("security ");
   });
 
+  it("provides bin/ha-nova CLI entry point for npx", () => {
+    const file = "scripts/onboarding/bin/ha-nova";
+    const stats = statSync(file);
+    const content = readFileSync(file, "utf8");
+
+    expect((stats.mode & constants.S_IXUSR) !== 0).toBe(true);
+    expect(content.startsWith("#!/usr/bin/env bash")).toBe(true);
+    expect(content).toContain("setup");
+    expect(content).toContain("doctor");
+    expect(content).toContain("Usage:");
+  });
+
+  it("package.json exposes bin field for npx ha-nova", () => {
+    const pkg = JSON.parse(readFileSync("package.json", "utf8")) as {
+      bin?: Record<string, string>;
+    };
+    expect(pkg.bin?.["ha-nova"]).toBe("scripts/onboarding/bin/ha-nova");
+  });
+
   it("provides platform-specific macOS module", () => {
     const file = "scripts/onboarding/platform/macos.sh";
     const stats = statSync(file);
