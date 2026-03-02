@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "bin": {
+    "ha-nova": "scripts/onboarding/bin/ha-nova"
+  },
   "engines": {
     "node": ">=20"
   },

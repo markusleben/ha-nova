@@ -51,14 +51,17 @@ describe("macOS onboarding script contract", () => {
   });
 
   it("uses Keychain as primary secret storage", () => {
-    const content = readFileSync("scripts/onboarding/macos-lib.sh", "utf8");
+    const lib = readFileSync("scripts/onboarding/macos-lib.sh", "utf8");
+    const platform = readFileSync("scripts/onboarding/platform/macos.sh", "utf8");
 
-    expect(content).toContain("security add-generic-password");
-    expect(content).toContain("security find-generic-password");
-    expect(content).toContain("ha-nova.relay-auth-token");
-    expect(content).not.toContain('read_keychain_secret "$LLAT_SERVICE"');
-    expect(content).not.toContain('store_keychain_secret "$LLAT_SERVICE"');
-    expect(content).not.toContain('emit_export "HA_LLAT"');
+    // macos-lib.sh sources the platform module that contains the security commands
+    expect(lib).toContain('source "${SCRIPT_DIR}/platform/macos.sh"');
+    expect(platform).toContain("security add-generic-password");
+    expect(platform).toContain("security find-generic-password");
+    expect(lib).toContain("ha-nova.relay-auth-token");
+    expect(lib).not.toContain('read_keychain_secret "$LLAT_SERVICE"');
+    expect(lib).not.toContain('store_keychain_secret "$LLAT_SERVICE"');
+    expect(lib).not.toContain('emit_export "HA_LLAT"');
   });
 
   it("supports setup, doctor, ready, env, and quick commands only", () => {
@@ -89,26 +92,32 @@ describe("macOS onboarding script contract", () => {
   });
 
   it("contains no contributor bootstrap or SSH flow", () => {
-    const content = readFileSync("scripts/onboarding/macos-lib.sh", "utf8");
+    const lib = readFileSync("scripts/onboarding/macos-lib.sh", "utf8");
+    const relay = readFileSync("scripts/onboarding/lib/relay.sh", "utf8");
 
-    expect(content).not.toContain('"bootstrap"');
-    expect(content).not.toContain("HA_SSH_KEY");
-    expect(content).not.toContain("dev:app:bootstrap");
-    expect(content).toContain("homeassistant.local");
+    expect(lib).not.toContain('"bootstrap"');
+    expect(lib).not.toContain("HA_SSH_KEY");
+    expect(lib).not.toContain("dev:app:bootstrap");
+    // homeassistant.local moved to lib/relay.sh (host detection)
+    expect(relay).toContain("homeassistant.local");
   });
 
   it("auto-detects and validates Home Assistant host during setup", () => {
-    const content = readFileSync("scripts/onboarding/macos-lib.sh", "utf8");
+    const lib = readFileSync("scripts/onboarding/macos-lib.sh", "utf8");
+    const relay = readFileSync("scripts/onboarding/lib/relay.sh", "utf8");
 
-    expect(content).toContain("probe_home_assistant_host");
-    expect(content).toContain("/api/discovery_info");
-    expect(content).toContain("Could not validate Home Assistant host");
-    expect(content).toContain("Cannot continue without a valid Home Assistant host");
-    expect(content).toContain("Retry host entry");
-    expect(content).toContain("Continue with unverified host");
-    expect(content).toContain("probe_relay_health");
-    expect(content).toContain("/health");
-    expect(content).toContain("Install/start NOVA Relay App in Home Assistant");
+    // Probe functions live in lib/relay.sh
+    expect(relay).toContain("probe_home_assistant_host");
+    expect(relay).toContain("/api/discovery_info");
+    expect(relay).toContain("Cannot continue without a valid Home Assistant host");
+    expect(relay).toContain("Retry host entry");
+    expect(relay).toContain("Continue with unverified host");
+    expect(relay).toContain("probe_relay_health");
+    expect(relay).toContain("/health");
+    // Host validation error message in relay.sh
+    expect(relay).toContain("Could not validate Home Assistant host");
+    // Setup-flow string still in macos-lib.sh
+    expect(lib).toContain("Install NOVA Relay in Home Assistant");
   });
 
   it("reuses existing relay token and surfaces degraded WS diagnostics", () => {
@@ -333,22 +342,17 @@ exit 1
     const userDoc = readFileSync("docs/user-onboarding-macos.md", "utf8");
     const codexSkill = readFileSync(".agents/skills/ha-nova/SKILL.md", "utf8");
 
-    expect(codexInstall).toContain("## Quick Install");
-    expect(codexInstall).toContain("## Verify");
-    expect(codexInstall).toContain("## Troubleshooting");
-    expect(codexInstall).toContain("## Security");
-    expect(codexInstall).toContain("npm run install:codex-skill");
-    expect(codexInstall).toContain("npm run onboarding:macos");
-    expect(codexInstall).toContain("bash scripts/onboarding/macos-onboarding.sh doctor");
+    // Simplified INSTALL.md: single Quick Start section with npx ha-nova
+    expect(codexInstall).toContain("## Quick Start");
+    expect(codexInstall).toContain("npx ha-nova setup codex");
+    expect(codexInstall).toContain("npx ha-nova doctor");
     expect(codexInstall).not.toContain("npm run onboarding:macos:start");
 
-    expect(claudeInstall).toContain("## Quick Install");
-    expect(claudeInstall).toContain("## Verify");
-    expect(claudeInstall).toContain("## Troubleshooting");
-    expect(claudeInstall).toContain("## Security");
-    expect(claudeInstall).toContain("npm run install:claude-skill");
-    expect(claudeInstall).toContain("npm run onboarding:macos");
+    expect(claudeInstall).toContain("## Quick Start");
+    expect(claudeInstall).toContain("npx ha-nova setup");
+    expect(claudeInstall).toContain("npx ha-nova doctor");
 
+    // User onboarding doc still references canonical URLs and key commands
     expect(userDoc).toContain(
       "https://raw.githubusercontent.com/markusleben/ha-nova/main/.codex/INSTALL.md"
     );
@@ -362,5 +366,92 @@ exit 1
     expect(codexSkill).toContain("name: ha-nova");
     expect(codexSkill).toContain("__HA_NOVA_REPO_ROOT__");
     expect(codexSkill).toContain("Do not ask user to paste tokens in chat.");
+  });
+
+  it("provides platform-independent UI and relay libraries", () => {
+    const uiFile = "scripts/onboarding/lib/ui.sh";
+    const relayFile = "scripts/onboarding/lib/relay.sh";
+
+    const uiStats = statSync(uiFile);
+    const relayStats = statSync(relayFile);
+    const uiContent = readFileSync(uiFile, "utf8");
+    const relayContent = readFileSync(relayFile, "utf8");
+
+    expect((uiStats.mode & constants.S_IXUSR) !== 0).toBe(true);
+    expect((relayStats.mode & constants.S_IXUSR) !== 0).toBe(true);
+
+    // UI helpers
+    expect(uiContent).toContain("prompt_with_default()");
+    expect(uiContent).toContain("prompt_yes_no()");
+    expect(uiContent).toContain("print_step()");
+    expect(uiContent).toContain("print_success()");
+    expect(uiContent).toContain("print_fail()");
+    expect(uiContent).not.toContain("security ");
+
+    // Relay probes
+    expect(relayContent).toContain("probe_relay_health()");
+    expect(relayContent).toContain("probe_relay_ws_ping()");
+    expect(relayContent).toContain("probe_home_assistant_url_base()");
+    expect(relayContent).toContain("explain_relay_probe_failure()");
+    expect(relayContent).not.toContain("security ");
+  });
+
+  it("provides bin/ha-nova CLI entry point for npx", () => {
+    const file = "scripts/onboarding/bin/ha-nova";
+    const stats = statSync(file);
+    const content = readFileSync(file, "utf8");
+
+    expect((stats.mode & constants.S_IXUSR) !== 0).toBe(true);
+    expect(content.startsWith("#!/usr/bin/env bash")).toBe(true);
+    expect(content).toContain("setup");
+    expect(content).toContain("doctor");
+    expect(content).toContain("Usage:");
+  });
+
+  it("package.json exposes bin field for npx ha-nova", () => {
+    const pkg = JSON.parse(readFileSync("package.json", "utf8")) as {
+      bin?: Record<string, string>;
+    };
+    expect(pkg.bin?.["ha-nova"]).toBe("scripts/onboarding/bin/ha-nova");
+  });
+
+  it("wizard includes prerequisites check, app guide, and skill install", () => {
+    const lib = readFileSync("scripts/onboarding/macos-lib.sh", "utf8");
+
+    // Phase 1: prerequisites
+    expect(lib).toContain("check_prerequisites");
+
+    // Phase 2: app installation guide with deep-link
+    expect(lib).toContain("my.home-assistant.io/redirect/supervisor_add_addon_repository");
+    expect(lib).toContain("open_browser");
+
+    // Phase 3: token setup with LLAT guide
+    expect(lib).toContain("my.home-assistant.io/redirect/profile");
+
+    // Phase 4: automatic skill installation
+    expect(lib).toContain("install-local-skills.sh");
+  });
+
+  it("prerequisites check validates OS and Node version", () => {
+    const ui = readFileSync("scripts/onboarding/lib/ui.sh", "utf8");
+
+    expect(ui).toContain("check_prerequisites()");
+    expect(ui).toContain("node --version");
+  });
+
+  it("provides platform-specific macOS module", () => {
+    const file = "scripts/onboarding/platform/macos.sh";
+    const stats = statSync(file);
+    const content = readFileSync(file, "utf8");
+
+    expect((stats.mode & constants.S_IXUSR) !== 0).toBe(true);
+    expect(content.startsWith("#!/usr/bin/env bash")).toBe(true);
+    expect(content).toContain("require_platform()");
+    expect(content).toContain("store_keychain_secret()");
+    expect(content).toContain("read_keychain_secret()");
+    expect(content).toContain("delete_keychain_secret_if_exists()");
+    expect(content).toContain("open_browser()");
+    expect(content).toContain("security add-generic-password");
+    expect(content).toContain("security find-generic-password");
   });
 });

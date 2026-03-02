@@ -1,3 +1,5 @@
+> **Deprecated:** This document is superseded by `npx ha-nova setup`. See [README.md](../README.md).
+
 # User Onboarding (macOS, Keychain-First)
 
 Date: 2026-02-26

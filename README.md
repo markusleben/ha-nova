@@ -1,77 +1,43 @@
-# ha-nova
+# HA NOVA
 
-Home Assistant AI integration with a lean Relay and markdown-based Skills.
+AI-powered Home Assistant control. One command to set up, then talk to your home.
 
-## What It Is
+> macOS only. Requires Home Assistant OS or Supervised.
 
-`ha-nova` replaces a large MCP-heavy architecture with a simpler split:
-- Relay (`/health`, `/ws`) as transport only.
-- Skills as the intelligence and workflow layer.
+## Quick Start
 
-Core rule:
-- Relay stays dumb.
-- Skills stay smart.
-
-## Current MVP Status
-
-Already available:
-- App + Relay transport (`/health`, `/ws`)
-- macOS onboarding with Keychain-backed relay auth
-- Read/discovery flows via Relay (`/ws` first path)
-- one-link install flows for Codex and Claude Code
-- contributor deployment/e2e tooling
-
-Not yet exposed in end-user flow:
-- write control via Relay
-- automation CRUD via Relay
-- public marketplace packaging
-- Windows onboarding
-
-## Quick Start (User)
-
-Codex:
-- Follow `.codex/INSTALL.md`
-- Install local skill once: `npm run install:codex-skill`
-
-Claude Code:
-- Follow `.claude/INSTALL.md`
-- Install local skill once: `npm run install:claude-skill`
-
-## Quick Start (Contributor)
-
-Requirements:
-- Node.js `>=20`
-- npm
-
-Setup:
 ```bash
-npm ci
-npm run typecheck
-npm test
+git clone https://github.com/markusleben/ha-nova.git ~/ha-nova
+cd ~/ha-nova && npm install
+npx ha-nova setup
 ```
 
-Useful commands:
+The setup wizard guides you through everything:
+installing the relay, configuring tokens, and connecting your AI client.
+
+## What is HA NOVA?
+
+HA NOVA lets AI assistants (Claude, Codex, OpenCode) control your Home Assistant.
+It works through a small relay app on your HA instance that bridges
+AI clients to your smart home — securely, with no cloud dependency.
+
+## After Setup
+
+Ask your AI assistant things like:
+- "List my automations"
+- "Turn off the living room lights"
+- "Create an automation that turns on the porch light at sunset"
+
+## Troubleshooting
+
 ```bash
-npm run deploy:app:fast
-npm run deploy:app:clean
-npm run smoke:app:e2e
-npm run e2e:skill:codex
-npm run e2e:skill:codex:scenarios
+npx ha-nova doctor
 ```
 
-## Repository Layout
+## Contributing
 
-- `src/` relay/runtime code
-- `skills/` active skill markdown files
-- `scripts/` deploy, onboarding, e2e, smoke tooling
-- `tests/` contract/unit/integration tests
-- `docs/` plans, references, contributor docs
-- `app/` Home Assistant App packaging assets
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## Contributing and Security
+## License
 
-- Contributing guide: `CONTRIBUTING.md`
-- Code of conduct: `CODE_OF_CONDUCT.md`
-- Security policy: `SECURITY.md`
-- Support channels: `SUPPORT.md`
-- Changelog format: `CHANGELOG.md`
+MIT
