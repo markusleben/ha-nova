@@ -364,6 +364,34 @@ exit 1
     expect(codexSkill).toContain("Do not ask user to paste tokens in chat.");
   });
 
+  it("provides platform-independent UI and relay libraries", () => {
+    const uiFile = "scripts/onboarding/lib/ui.sh";
+    const relayFile = "scripts/onboarding/lib/relay.sh";
+
+    const uiStats = statSync(uiFile);
+    const relayStats = statSync(relayFile);
+    const uiContent = readFileSync(uiFile, "utf8");
+    const relayContent = readFileSync(relayFile, "utf8");
+
+    expect((uiStats.mode & constants.S_IXUSR) !== 0).toBe(true);
+    expect((relayStats.mode & constants.S_IXUSR) !== 0).toBe(true);
+
+    // UI helpers
+    expect(uiContent).toContain("prompt_with_default()");
+    expect(uiContent).toContain("prompt_yes_no()");
+    expect(uiContent).toContain("print_step()");
+    expect(uiContent).toContain("print_success()");
+    expect(uiContent).toContain("print_fail()");
+    expect(uiContent).not.toContain("security ");
+
+    // Relay probes
+    expect(relayContent).toContain("probe_relay_health()");
+    expect(relayContent).toContain("probe_relay_ws_ping()");
+    expect(relayContent).toContain("probe_home_assistant_url_base()");
+    expect(relayContent).toContain("explain_relay_probe_failure()");
+    expect(relayContent).not.toContain("security ");
+  });
+
   it("provides platform-specific macOS module", () => {
     const file = "scripts/onboarding/platform/macos.sh";
     const stats = statSync(file);
