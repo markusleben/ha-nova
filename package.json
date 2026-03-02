@@ -14,6 +14,7 @@
     "install:opencode-skill": "bash scripts/onboarding/install-local-skills.sh opencode",
     "install:skills": "bash scripts/onboarding/install-local-skills.sh all",
     "onboarding:macos": "bash scripts/onboarding/macos-onboarding.sh setup",
+    "onboarding:macos:doctor": "bash scripts/onboarding/macos-onboarding.sh doctor",
     "onboarding:macos:ready": "bash scripts/onboarding/macos-onboarding.sh ready",
     "onboarding:macos:quick": "bash scripts/onboarding/macos-onboarding.sh quick",
     "seed:llat": "node scripts/dev-seed-ha-llat.mjs",

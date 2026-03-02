@@ -233,3 +233,30 @@
 - Drift-reduction decision (2026-03-02): centralize canonical expected intent semantics in `tests/skills/helpers/expected-intent-matrix.ts` and reuse across dispatcher/contract suites.
 - Shim hardening refinement (2026-03-02): compatibility shim uses executable semantic smoke checks (matrix parity + dispatcher resolution + stale-token contract) instead of string-anchor-only checks.
 - Live E2E sequence-gate default (2026-03-02): accept at most one optional pre-create read evidence token before CRUD write/read flow via `^[GV]?P+G+P+G+D+V+$` to prevent false negatives when existence checks run first.
+- Consent tier refinement (2026-03-02): writes use tiered confirmation: `create/update` accepts natural confirmation phrases bound to active preview; `delete/destructive` remains token-only.
+- Preview binding refinement (2026-03-02): both natural and token confirmations require active `preview_id` + digest binding to prevent stale-preview applies.
+- Response contract refinement (2026-03-02): default write output is compact block-first v1 (`Automation|Script`, `Entities`, `Behavior`, `Open Decisions`, `Next Step`).
+- Orchestration latency refinement (2026-03-02): simple flows (`<=2` substantial units) default to serial fast-path; subagents only when expected latency savings exceed spawn/wait overhead.
+- Delete verification refinement (2026-03-02): status-only delete success is disallowed; verify-absent read-back is mandatory.
+- Automation YAML compatibility refinement (2026-03-02): canonical write shape is plural top-level keys (`triggers`, `conditions`, `actions`) while read/verify normalizes singular+plural keys for backward compatibility.
+- Subskill packaging policy (2026-03-02): installable HA NOVA task skills use hyphen-only names (no colon in technical skill names) for cross-client compatibility.
+- Resolve granularity policy (2026-03-02): keep resolve as shared internal module and expose one optional expert subskill (`ha-nova-resolve-targets`) for explicit pre-write resolution.
+- Multi-client installer policy refinement (2026-03-02): `install:codex-skill`, `install:claude-skill`, `install:opencode-skill`, and `install:skills` install top skill plus all HA NOVA task subskills.
+- Skill-system refactor default (2026-03-02): consolidate HA NOVA operations to 5 installable skills (`ha-nova`, `ha-nova-write`, `ha-nova-read`, `ha-nova-entity-discovery`, `ha-nova-onboarding`) and remove intent-split CRUD micro-skills.
+- Write-flow orchestration default (2026-03-02): enforce `Resolve (Agent) -> Preview/Decide (Main) -> Apply/Verify (Agent)` for automation/script mutations, with serial inline fallback when agent dispatch is unavailable.
+- Update merge default (2026-03-02): updates are full replacement payloads built from `current_config` + explicit user changes; unspecified fields are preserved from existing config.
+- Best-practice gate default (2026-03-02): stale snapshot is advisory for simple automations and hard-blocking only for complex automations (`>=3` triggers or `>=3` actions).
+- Installer migration safety default (2026-03-02): legacy skill directories are archived to timestamped backups during install; no destructive legacy cleanup by default.
+- Router portability default (2026-03-02): routing documentation in `ha-nova` uses skill names, not client-specific filesystem paths.
+- Subskill bootstrap default (2026-03-02): every operational HA NOVA subskill (`write`, `read`, `entity-discovery`, `onboarding`) must self-resolve `NOVA_REPO_ROOT` with repo-root fallback before path-based references or command snippets.
+- Write-skill context efficiency default (2026-03-02): use phased lazy-loading (`resolve` refs first, `best-practices` only on BP evaluation, `apply` template only after confirmation) and inject only minimal `relay-api` excerpts into subagent prompts.
+- Agent dispatch explicitness default (2026-03-02): `ha-nova-write` must document concrete subagent dispatch mechanics (tool type, placeholder substitution, and relay-excerpt injection rules) to avoid trial-and-error execution.
+- Agent credential handling default (2026-03-02): never inject `RELAY_AUTH_TOKEN` into agent prompt text; inject only `RELAY_BASE_URL` and let agents read relay token from macOS Keychain service `ha-nova.relay-auth-token` at runtime.
+- Relay CLI wrapper default (2026-03-02): agent-dispatched HA calls must go through `~/.config/ha-nova/relay`; no direct `curl` contract excerpts in agent prompts.
+- Write bootstrap simplification default (2026-03-02): `ha-nova-write` bootstrap validates `~/.config/ha-nova/relay health` instead of session `eval`-based env injection.
+- Agent-template placeholder reduction default (2026-03-02): remove `{RELAY_BASE_URL}` and `{RELAY_API}` from resolve/apply templates; keep only domain/operation/user/payload identifiers.
+- Public-release bootstrap default (2026-03-02): all operational subskills (`write`, `read`, `entity-discovery`, `onboarding`) must use relay-cli bootstrap (`~/.config/ha-nova/relay`) and must not use repo-root/eval bootstrap patterns.
+- Resolve output refinement default (2026-03-02): replace generic preview fielding with actionable `SUGGESTED_ENHANCEMENTS` in resolve output and write preview contract.
+- Apply consistency default (2026-03-02): create/update flows include explicit post-write domain reload (`automation.reload` / `script.reload`) and expose `reloaded` status in apply result.
+- Router alignment default (2026-03-02): router bootstrap must follow relay-cli-first pattern (no repo-root bootstrap), and response block naming must use `Suggested Enhancements` consistently with write-skill preview contract.
+- Resolve guidance default (2026-03-02): `SUGGESTED_ENHANCEMENTS` section includes concrete common-pattern examples (for cover/light/motion/presence) to reduce ambiguous LLM outputs.

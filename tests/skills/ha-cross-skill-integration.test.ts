@@ -2,33 +2,46 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
-import { parseIntentMatrix } from "./helpers/intent-matrix.js";
-
 describe("ha cross-skill integration", () => {
-  it("keeps automation write companions aligned with CRUD and best-practices docs", () => {
-    const matrix = parseIntentMatrix();
-    const automationCrud = readFileSync("skills/ha-automation-crud.md", "utf8");
-    const bestPractices = readFileSync("skills/ha-automation-best-practices.md", "utf8");
+  it("routes write flow through resolve + preview + apply phases", () => {
+    const writeSkill = readFileSync(".agents/skills/ha-nova-write/SKILL.md", "utf8");
 
-    const create = matrix.get("automation.create");
-    const update = matrix.get("automation.update");
-
-    expect(create?.companions).toEqual([
-      "$NOVA_REPO_ROOT/skills/ha-automation-best-practices.md",
-      "$NOVA_REPO_ROOT/skills/ha-safety.md",
-    ]);
-    expect(update?.companions).toEqual([
-      "$NOVA_REPO_ROOT/skills/ha-automation-best-practices.md",
-      "$NOVA_REPO_ROOT/skills/ha-safety.md",
-    ]);
-
-    expect(automationCrud).toContain("Required Companion Skill for Writes");
-    expect(automationCrud).toContain("ha-automation-best-practices");
-    expect(bestPractices).toContain("Refresh Snapshot Gate (Mandatory)");
-    expect(bestPractices).toContain("`delete` operations are exempt from the refresh gate");
+    expect(writeSkill).toContain("Phase 1: Resolve (Agent)");
+    expect(writeSkill).toContain("Phase 2: Preview + Confirm (Main Thread)");
+    expect(writeSkill).toContain("Phase 3: Apply + Verify (Agent)");
+    expect(writeSkill).toContain("full-replacement merge (base=current, overlay=user changes)");
+    expect(writeSkill).toContain("confirm:<token>");
+    expect(writeSkill).toContain("Suggested Enhancements");
+    expect(writeSkill).toContain("Fallback: If agent dispatch unavailable");
   });
 
-  it("keeps installed skill mirror identical to repo router", () => {
+  it("keeps write skill wired to shared relay + best-practices references", () => {
+    const writeSkill = readFileSync(".agents/skills/ha-nova-write/SKILL.md", "utf8");
+
+    expect(writeSkill).toContain("skills/ha-nova/relay-api.md");
+    expect(writeSkill).toContain("skills/ha-nova/best-practices.md");
+    expect(writeSkill).toContain("skills/ha-nova/agents/resolve-agent.md");
+    expect(writeSkill).toContain("skills/ha-nova/agents/apply-agent.md");
+  });
+
+  it("keeps write skill concise and phase-driven", () => {
+    const writeSkill = readFileSync(".agents/skills/ha-nova-write/SKILL.md", "utf8");
+
+    expect(writeSkill).toContain("## Bootstrap (once per session)");
+    expect(writeSkill).toContain("~/.config/ha-nova/relay health");
+    expect(writeSkill).toContain("If this fails, run onboarding: `npm run onboarding:macos`.");
+    expect(writeSkill).toContain("## Flow");
+    expect(writeSkill).toContain("Fallback: If agent dispatch unavailable");
+    expect(writeSkill).toContain("## Safety");
+    expect(writeSkill).toContain("Agents must use Relay only; no MCP, no direct HA API");
+    expect(writeSkill).toContain('description: Use when creating, updating, or deleting');
+    expect(writeSkill).not.toContain("RELAY_BASE_URL");
+    expect(writeSkill).not.toContain("RELAY_AUTH_TOKEN");
+    expect(writeSkill).not.toContain("## Lazy Load Contract");
+    expect(writeSkill).not.toContain("## Relay API Injection Rules");
+  });
+
+  it("keeps installed router mirrored from repo router", () => {
     const repoSkill = readFileSync("skills/ha-nova.md", "utf8");
     const installedSkill = readFileSync(".agents/skills/ha-nova/SKILL.md", "utf8");
 

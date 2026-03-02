@@ -675,3 +675,220 @@
   - added mini-spec: `docs/plans/2026-03-02-live-e2e-sequence-gate-precreate-read-fix.md`.
   - fixed live harness CRUD sequence gate in `scripts/e2e/codex-ha-nova-live-skill-e2e.sh` from strict `^P+G+P+G+D+V+$` to `^[GV]?P+G+P+G+D+V+$`.
   - updated contract assertion in `tests/e2e/codex-skill-live-contract.test.ts` to the new regex anchor and added sequence accept/reject behavior tests.
+- 2026-03-02 consent/latency UX implementation:
+  - added minimal execution spec: `docs/plans/2026-03-02-ha-nova-consent-fastpath-blocks-implementation.md`.
+  - updated `skills/ha-nova/core/contracts.md` to block-first v1 output contract and tiered confirmation policy (`create/update` natural confirm, destructive token confirm).
+  - updated `skills/ha-nova/core/blocks.md` block names/semantics:
+    - `B7_RENDER_BLOCK_PREVIEW`
+    - `B8_CONFIRM_GATE`
+    - `B10_VERIFY_WRITE` now requires verify-absent on delete.
+  - updated router/mirror (`skills/ha-nova.md` + `.agents/skills/ha-nova/SKILL.md`) to prefer serial fast-path for simple flows and gate subagents by expected latency gain.
+  - updated automation/script modules and `skills/ha-automation-crud.md` to the new block contract and mandatory delete read-back verification.
+  - updated `skills/ha-safety.md` to tiered confirmation and compact decision gate wording.
+  - implemented runtime consent helper extension in `src/skills/contracts/confirm-token.ts`:
+    - added `validateWriteConfirmation`
+    - added natural confirmation matcher for `create/update`
+    - preserved strict token validation for destructive flows.
+  - expanded tests:
+    - `tests/skills/ha-token-contract.test.ts`
+    - `tests/skills/ha-nova-contract.test.ts`
+    - `tests/skills/ha-safety-contract.test.ts`
+  - verification loop evidence:
+    - RED run (expected fail) before implementation: `npm test -- tests/skills/ha-token-contract.test.ts` (3 failing tests for missing `validateWriteConfirmation`).
+    - GREEN run after implementation: `npm test -- tests/skills/ha-token-contract.test.ts` passed (10/10).
+    - regression suite: `npm test -- tests/skills` passed (7 files, 28 tests).
+- 2026-03-02 automation YAML plural-normalization hardening:
+  - research checkpoint: confirmed HA 2024.10 release introduces plural top-level keys (`triggers`, `conditions`, `actions`) as recommended syntax with non-breaking compatibility.
+  - added runtime normalization utility:
+    - `src/skills/contracts/automation-yaml-normalize.ts`
+    - canonical writer helper emits plural keys and strips singular keys.
+    - normalizer accepts both singular and plural for verify/read-back comparisons.
+  - updated skill contracts/docs:
+    - `skills/ha-nova/core/contracts.md` adds explicit `Automation YAML Compatibility` section.
+    - `skills/ha-nova/core/blocks.md` updates build/verify blocks to plural canonical + normalization compare rule.
+    - `skills/ha-automation-crud.md` create/update payload docs switched to plural keys and verify normalization step.
+    - `skills/ha-nova/modules/automation/create-update.md` now states plural keys for new writes.
+  - added test coverage:
+    - `tests/skills/automation-yaml-normalize.test.ts` (legacy singular, modern plural, canonical equality).
+    - `tests/skills/ha-nova-contract.test.ts` asserts plural compatibility contract text exists.
+  - verification loop evidence:
+    - RED: `npm test -- tests/skills/automation-yaml-normalize.test.ts tests/skills/ha-nova-contract.test.ts` failed before implementation.
+    - GREEN: same command passed after implementation (13/13).
+    - full checks: `npm run typecheck`, `npm test -- tests/skills`, `npm test` all passed.
+- 2026-03-02 subskill packaging implementation (top skill + task subskills):
+  - added installable source skills under `.agents/skills/`:
+    - `ha-nova-automation-{create,update,delete}`
+    - `ha-nova-script-{create,update,delete}`
+    - `ha-nova-entity-discovery`
+    - `ha-nova-resolve-targets` (expert)
+    - `ha-nova-onboarding-diagnostics` (expert)
+  - each new skill includes managed-install marker and repo-root substitution placeholder for installer rendering.
+  - refactored installer `scripts/onboarding/install-local-skills.sh` from single-skill mode to `SKILL_NAMES` fan-out mode with per-skill backup-safe install.
+  - updated install docs (`.codex/INSTALL.md`, `.claude/INSTALL.md`, `docs/user-onboarding-macos.md`) to state that `install:*` now installs top skill plus subskills.
+  - expanded tests:
+    - `tests/skills/ha-nova-contract.test.ts` now asserts installable subskill source presence.
+    - `tests/onboarding/macos-onboarding-script-contract.test.ts` now asserts multi-skill installer semantics and verifies all skills are installed for codex/claude/opencode.
+  - verification loop evidence:
+    - RED: `npm test -- tests/onboarding/macos-onboarding-script-contract.test.ts tests/skills/ha-nova-contract.test.ts` failed before installer/subskill implementation.
+    - GREEN: same command passed after implementation (25/25).
+    - full checks: `npm test -- tests/skills tests/onboarding/macos-onboarding-script-contract.test.ts`, `npm run typecheck`, and `npm test` all passed.
+
+## 2026-03-02
+
+- Implemented HA NOVA skill-system consolidation from 10 installable skills to 5:
+  - kept: `ha-nova`, `ha-nova-entity-discovery`
+  - added: `ha-nova-write`, `ha-nova-read`, `ha-nova-onboarding`
+  - removed legacy source skill folders:
+    - `ha-nova-automation-{create,update,delete}`
+    - `ha-nova-script-{create,update,delete}`
+    - `ha-nova-resolve-targets`
+    - `ha-nova-onboarding-diagnostics`
+- Replaced legacy modular core/module docs with new reference set under `skills/ha-nova/`:
+  - `relay-api.md` as central Relay contract
+  - `best-practices.md` with tiered gate behavior
+  - `agents/resolve-agent.md` and `agents/apply-agent.md` prompt templates
+- Rewrote router mirror pair:
+  - `skills/ha-nova.md`
+  - `.agents/skills/ha-nova/SKILL.md`
+  - removed lazy discovery/core-intents/block gate wiring
+  - added direct routing table to the new 4 subordinate skills
+- Updated installer `scripts/onboarding/install-local-skills.sh`:
+  - `SKILL_NAMES` now includes exactly 5 skills
+  - added `LEGACY_SKILL_NAMES` cleanup pass before install
+- Removed deprecated skill/reference files via `trash`:
+  - top-level legacy docs (`ha-safety`, `ha-entities`, `ha-onboarding`, `ha-control`, `ha-automation-control`, `ha-automation-crud`, `ha-automation-best-practices`)
+  - `skills/ha-nova/core/*`
+  - `skills/ha-nova/modules/**/*`
+  - obsolete test helpers for old intent matrix parsing
+- Refactored tests to new architecture:
+  - updated skill contract suites to assert router/relay/agent-template contracts
+  - updated onboarding installer contract test for 5-skill install + legacy cleanup
+  - replaced intent-dispatcher test fixture usage with inline matrix input
+- Verification evidence:
+  - `npm test -- tests/skills/ha-nova-contract.test.ts tests/skills/ha-cross-skill-integration.test.ts tests/skills/ha-entities-contract.test.ts tests/skills/ha-safety-contract.test.ts tests/skills/ha-nova-skill-contract.test.ts tests/skills/ha-intent-dispatcher.test.ts tests/onboarding/macos-onboarding-script-contract.test.ts`
+  - result: 7 files passed, 34 tests passed.
+
+## 2026-03-02
+
+- Review-follow-up hardening pass implemented:
+  - installer safety:
+    - `scripts/onboarding/install-local-skills.sh` now archives legacy skill directories to `.legacy-backup.<timestamp>` instead of deleting with `rm -rf`.
+  - router portability:
+    - `skills/ha-nova.md` + `.agents/skills/ha-nova/SKILL.md` routing table changed from `.agents/skills/...` file paths to skill-name references (`ha-nova-write`, `ha-nova-read`, `ha-nova-entity-discovery`, `ha-nova-onboarding`).
+  - install docs drift fixed:
+    - `.codex/INSTALL.md` and `.claude/INSTALL.md` examples updated to current 5-skill topology.
+  - architecture docs drift fixed:
+    - `PROJECT.md` current-phase section updated to consolidated skill model.
+    - `docs/reference/skill-architecture.md` rewritten to current architecture and installer behavior.
+  - test hardening:
+    - `tests/skills/ha-nova-contract.test.ts` now rejects hardcoded `.agents/skills/` routing paths and asserts skill-name routing.
+    - `tests/onboarding/macos-onboarding-script-contract.test.ts` now verifies legacy archive creation and checks installed router content in each target root.
+- Verification evidence:
+  - `npm test -- tests/skills/ha-nova-contract.test.ts tests/onboarding/macos-onboarding-script-contract.test.ts` -> 2 files, 23 tests passed.
+  - `npm test -- tests/skills tests/onboarding/macos-onboarding-script-contract.test.ts` -> 9 files, 47 tests passed.
+
+## 2026-03-02
+
+- Second review-follow-up hardening pass:
+  - added missing `NOVA_REPO_ROOT` fallback bootstrap sections to:
+    - `.agents/skills/ha-nova-write/SKILL.md`
+    - `.agents/skills/ha-nova-read/SKILL.md`
+    - `.agents/skills/ha-nova-onboarding/SKILL.md`
+  - expanded contract coverage:
+    - `tests/skills/ha-nova-contract.test.ts` now enforces repo-root bootstrap presence across installable operational subskills.
+- Verification evidence:
+  - `npm test -- tests/skills/ha-nova-contract.test.ts tests/skills/ha-entities-contract.test.ts tests/onboarding/macos-onboarding-script-contract.test.ts` -> 3 files, 26 tests passed.
+  - `npm test -- tests/skills tests/onboarding/macos-onboarding-script-contract.test.ts` -> 9 files, 48 tests passed.
+  - final review closeout: added missing-script guard to `.agents/skills/ha-nova-entity-discovery/SKILL.md` and extended `tests/skills/ha-entities-contract.test.ts`; re-ran same suites (all green).
+
+## 2026-03-02
+
+- Efficiency hardening pass from plan-vs-implementation review:
+  - updated `.agents/skills/ha-nova-write/SKILL.md` to enforce phased lazy loading:
+    - phase 1: `relay-api.md` + `resolve-agent.md`
+    - phase 2: `best-practices.md` only when BP gate is evaluated
+    - phase 3: `apply-agent.md` only after explicit confirmation
+  - added explicit read-budget target and no-full-relay-api injection rule.
+  - added explicit subagent dispatch instructions (tool type, placeholder substitution, excerpt injection contract).
+  - expanded `tests/skills/ha-cross-skill-integration.test.ts` to assert lazy-load and dispatch-instruction contract.
+- Verification evidence:
+  - `npm test -- tests/skills/ha-cross-skill-integration.test.ts tests/skills/ha-nova-contract.test.ts tests/skills/ha-entities-contract.test.ts` -> 3 files, 16 tests passed.
+  - `npm test -- tests/skills tests/onboarding/macos-onboarding-script-contract.test.ts` -> 9 files, 49 tests passed.
+
+## 2026-03-02
+
+- Security hardening for agent dispatch prompts:
+  - removed `{RELAY_AUTH_TOKEN}` prompt placeholder from:
+    - `skills/ha-nova/agents/resolve-agent.md`
+    - `skills/ha-nova/agents/apply-agent.md`
+  - switched agent runtime to Keychain token retrieval:
+    - `security find-generic-password -a "$USER" -s "ha-nova.relay-auth-token" -w`
+  - kept `{RELAY_BASE_URL}` placeholder as non-secret injected value.
+- Updated write skill guidance in `.agents/skills/ha-nova-write/SKILL.md`:
+  - prompt placeholders now reference relay base URL only.
+  - explicit note: token must not be injected into prompt text.
+- Updated `skills/ha-nova/relay-api.md` runtime-env section for main-thread vs agent-dispatched behavior.
+- Updated contract tests in `tests/skills/ha-nova-contract.test.ts`:
+  - assert keychain service name is present.
+  - assert `{RELAY_AUTH_TOKEN}` placeholder is absent in both agent templates.
+- Updated integration wording checks in `tests/skills/ha-cross-skill-integration.test.ts` and kept safety contracts aligned.
+- Verification evidence:
+  - `npm test` -> 29 files, 116 tests passed.
+  - `bash scripts/onboarding/install-local-skills.sh claude` executed successfully.
+  - post-check confirms active 5 skills in `~/.claude/skills` plus archived legacy backup directories.
+
+## 2026-03-02
+
+- Relay CLI wrapper rollout (agent prompt simplification):
+  - added `scripts/relay.sh` (thin Relay wrapper with onboarding env + Keychain token + fixed curl timeouts).
+  - extended `scripts/onboarding/install-local-skills.sh` to install wrapper to `~/.config/ha-nova/relay` for each target run.
+- Agent template simplification:
+  - rewrote `skills/ha-nova/agents/resolve-agent.md` to Relay-CLI-only contract (`~/.config/ha-nova/relay ws/core`).
+  - rewrote `skills/ha-nova/agents/apply-agent.md` to Relay-CLI-only contract and removed env setup placeholders.
+- Write skill bootstrap/flow simplification:
+  - updated `.agents/skills/ha-nova-write/SKILL.md` bootstrap to `~/.config/ha-nova/relay health`.
+  - removed relay base-url injection requirements from phase placeholders.
+  - phase reads now use only agent template files for dispatch (`resolve-agent.md`, `apply-agent.md`).
+- Relay reference doc update:
+  - `skills/ha-nova/relay-api.md` now includes `Relay CLI Wrapper` section and agent runtime note to use wrapper.
+- Contract tests updated for wrapper model:
+  - `tests/skills/ha-nova-contract.test.ts` asserts agent templates reference wrapper path and no relay placeholders.
+  - added executable check for `scripts/relay.sh`.
+  - `tests/skills/ha-cross-skill-integration.test.ts` updated bootstrap assertions to wrapper health check.
+- Verification evidence:
+  - `npm test -- tests/skills/ha-nova-contract.test.ts tests/skills/ha-cross-skill-integration.test.ts tests/skills/ha-intent-dispatcher.test.ts tests/skills/ha-nova-skill-contract.test.ts` -> 4 files, 20 tests passed.
+  - `npm test` -> 29 files, 117 tests passed.
+  - `bash scripts/onboarding/install-local-skills.sh codex && bash scripts/onboarding/install-local-skills.sh claude` executed successfully.
+  - `~/.config/ha-nova/relay health` -> `{"ok":true,...}`.
+
+## 2026-03-02
+
+- Public-release finalization pass for HA NOVA subskills:
+  - `.agents/skills/ha-nova-read/SKILL.md`: switched to relay-cli bootstrap and direct wrapper calls for list/read flow.
+  - `.agents/skills/ha-nova-entity-discovery/SKILL.md`: switched to relay-cli bootstrap and wrapper-based `ws get_states`.
+  - `.agents/skills/ha-nova-onboarding/SKILL.md`: removed repo-root bootstrap; standardized remediation commands around relay-cli and npm onboarding commands.
+  - `.agents/skills/ha-nova-write/SKILL.md`: normalized description to "Use when..." and updated preview field to `Suggested Enhancements`.
+  - `skills/ha-nova/agents/resolve-agent.md`: relaxed `get_states` self-review wording and added `SUGGESTED_ENHANCEMENTS` output section.
+  - `skills/ha-nova/agents/apply-agent.md`: added explicit create/update reload step (`automation/reload`, `script/reload`) and `reloaded` output field.
+  - `package.json`: added `onboarding:macos:doctor` command for onboarding skill command consistency.
+- Contract/test updates:
+  - `tests/skills/ha-nova-contract.test.ts`: all operational subskill word-count checks (<600), relay bootstrap enforcement across all operational skills, resolve/apply assertions for enhancements and reload semantics.
+  - `tests/skills/ha-entities-contract.test.ts`: updated to relay-cli bootstrap assertions.
+  - `tests/skills/ha-cross-skill-integration.test.ts`: preview now expects `Suggested Enhancements`.
+- Verification evidence:
+  - `npm test` -> 29 files, 117 tests passed.
+  - grep check -> no `git rev-parse`, no `macos-onboarding.sh`, no `RELAY_BASE_URL` in operational subskills.
+  - grep check -> no legacy German/trigger wording in subskill descriptions.
+  - `bash scripts/onboarding/install-local-skills.sh claude` executed successfully.
+
+## 2026-03-02
+
+- Final cleanup pass (examples + router alignment):
+  - `skills/ha-nova/agents/resolve-agent.md`: expanded `SUGGESTED_ENHANCEMENTS` guidance with concrete common-pattern examples (`toggle-stop`, long-press stop, dimmer long-press, motion grace period, presence departure delay).
+  - `skills/ha-nova.md` + `.agents/skills/ha-nova/SKILL.md`: replaced router bootstrap with relay-cli-first prerequisite and renamed response block item from `Open Decisions` to `Suggested Enhancements`.
+  - `tests/skills/ha-nova-contract.test.ts`: updated router assertions for relay-cli bootstrap, removed legacy bootstrap assumptions, and added `toggle-stop` example assertion.
+- Verification evidence:
+  - `npm test` -> 29 files, 117 tests passed.
+  - grep checks passed: no `git rev-parse` in skill files, no `Open Decisions` in skill files, no legacy German wording in skill description lines.
+  - `bash scripts/onboarding/install-local-skills.sh claude` executed successfully.
+  - installed router sync verified against rendered source (`__HA_NOVA_REPO_ROOT__` substitution).
