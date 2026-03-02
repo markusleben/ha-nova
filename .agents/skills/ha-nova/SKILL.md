@@ -32,11 +32,11 @@ Decision:
   - `lightweight` otherwise.
 - If `substantial_independent_units >= 3` and `subagent_capable=true`, then `fan_out_required=true` and subagent fan-out must run before any Relay discovery/read call.
 - If `substantial_independent_units < 3`, run native parallel calls in the main agent (no subagent boot).
-- If subagents are unavailable, run native parallel calls and state `subagent_capable=false`.
+- If subagents are unavailable, run native parallel calls and set `subagent_capable=false` internally.
 
 Fail-closed rule:
 - Starting Relay discovery/read calls before this gate in a `>=3-substantial-unit` flow is a protocol violation.
-- Keep these values internal by default; expose only the compact orchestration evidence line in user response.
+- Keep these values internal by default; expose only in diagnostics/failure paths or when the user explicitly asks.
 
 ## Canonical Automation DAG (Create/Update)
 
@@ -49,6 +49,17 @@ Use this strict hierarchy for automation create/update:
    - `preview -> confirm:<token> -> apply -> verify`
 
 Do not interleave Phase A and Phase B.
+
+## Reusable Fast-Pass Blocks (MVP)
+
+Normative fast-pass block definitions and compositions are defined only in:
+- `skills/ha-nova/core/blocks.md`
+
+Source-of-truth references:
+- `skills/ha-nova/core/blocks.md`
+- `skills/ha-nova/core/contracts.md`
+- `skills/ha-nova/core/intents.md`
+- `skills/ha-nova/core/discovery-map.md`
 
 ## Runtime Prerequisite (macOS)
 
@@ -180,8 +191,8 @@ jq -r --arg domain "$DOMAIN." --argjson limit "$LIMIT" \
 ```
 
 Output rule for this shortcut:
-- return compact read shape only (`Outcome`, `Current State`, `Next`)
-- orchestration evidence line is optional only in this trivial single-unit shortcut path
+- return compact domain summary only (result + next step)
+- keep orchestration mechanics hidden unless diagnostics are explicitly requested
 
 ## Routing
 
@@ -191,12 +202,22 @@ Output rule for this shortcut:
   - use `"$NOVA_REPO_ROOT/skills/ha-entities.md"`
 - Device control:
   - use `"$NOVA_REPO_ROOT/skills/ha-control.md"` + `"$NOVA_REPO_ROOT/skills/ha-safety.md"` for write intents
-- Automation CRUD:
-  - for `create`/`update` use `"$NOVA_REPO_ROOT/skills/ha-automation-best-practices.md"` + `"$NOVA_REPO_ROOT/skills/ha-automation-crud.md"` + `"$NOVA_REPO_ROOT/skills/ha-safety.md"`
-  - for `delete` use `"$NOVA_REPO_ROOT/skills/ha-automation-crud.md"` + `"$NOVA_REPO_ROOT/skills/ha-safety.md"`
-  - for `read`/`list` use `"$NOVA_REPO_ROOT/skills/ha-automation-crud.md"`
-- Automation enable/disable/toggle:
+- Automation/Script (`lazy module loading`):
+  - resolve exact intent mapping from:
+    - `"$NOVA_REPO_ROOT/skills/ha-nova/core/intents.md"` (canonical)
+    - `"$NOVA_REPO_ROOT/skills/ha-nova/core/discovery-map.md"` (loading protocol)
+  - load only `required_companions[]` + `modules[]` for the resolved intent.
+- Automation runtime control:
   - use `"$NOVA_REPO_ROOT/skills/ha-automation-control.md"` + `"$NOVA_REPO_ROOT/skills/ha-safety.md"`
+
+## Lazy Discovery Protocol (Mandatory)
+
+1. Load router + `core/contracts.md` first.
+2. Resolve intent class (`automation|script` + `create|update|delete|read|list`).
+3. Load only `required_companions[]` + `modules[]` from `core/intents.md`.
+4. Use `core/discovery-map.md` rules for progressive/lazy loading behavior.
+5. Load diagnostics guidance only after a real failure.
+6. Do not preload all modules in normal flow.
 
 ## Automation Write Freshness Gate
 
@@ -213,38 +234,10 @@ Output rule for this shortcut:
 - Require explicit tokenized confirmation before write execution (`confirm:<token>`).
 - Keep terminology as App + Relay.
 
-## User Response Contract (Brand Signature)
+## Domain-First Response Contract (MVP)
 
-Use deterministic sections in this order.
+Normative contract is defined only in:
+- `"$NOVA_REPO_ROOT/skills/ha-nova/core/contracts.md"`
 
-Default response shape:
-1. `Outcome`
-2. `Current State`
-3. `Impact`
-4. `Gate`
-5. `Next`
-
-Compact read-only shape (trivial reads):
-1. `Outcome`
-2. `Current State`
-3. `Next`
-
-Contract rules:
-- For mutation/debug flows, always include mutation status line:
-  - `No changes applied`
-  - `Changes applied`
-- Always include orchestration evidence line:
-  - `Subagent fan-out used: yes/no (reason)`
-- `Gate` must be binary:
-  - `Proceed`
-  - `Stop` + one reason
-- Keep one primary CTA in `Next`.
-- Hide raw tool logs/internal IDs by default; include compact evidence only when needed.
-
-Exception:
-- In `Read-Only Fast Shortcut (Trivial Single-Unit Only)`, mutation status line and orchestration evidence line may be omitted.
-
-Write integrity rules:
-- Always follow `preview -> confirm:<token> -> apply -> verify`.
-- Never accept free-text confirmations.
-- `Changes applied` can be returned only when postcondition verification is `passed=true`.
+Router-level rule:
+- keep orchestration mechanics internal in normal success paths.

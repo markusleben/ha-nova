@@ -5,6 +5,16 @@ description: Manage automation configs with explicit scope boundaries and best-p
 
 # HA Automation CRUD
 
+## Migration Note (Compatibility Shim)
+
+This file remains valid during modular migration, but source-of-truth modules are:
+- `skills/ha-nova/modules/automation/resolve.md`
+- `skills/ha-nova/modules/automation/create-update.md`
+- `skills/ha-nova/modules/automation/delete.md`
+- `skills/ha-nova/modules/automation/read.md`
+
+Router and lazy-discovery rules are defined in `skills/ha-nova.md` + `skills/ha-nova/core/discovery-map.md`.
+
 ## Purpose
 
 Create, read, update, and delete automations, then reload and verify.
@@ -66,27 +76,39 @@ MVP simplification:
 7. Verify persistence via `GET /api/config/automation/config/{id}`.
 8. Return `Changes applied` only when verification `passed=true`.
 
+### User-Facing Impact Schema (Mandatory)
+
+For `create`/`update`/`delete` previews and results, render domain-first fields:
+1. `Automation Name`
+2. `Automation Goal`
+3. `Entities Used`
+4. `Behavior Summary`
+5. `Next Step`
+
+Normal success path:
+- keep orchestration internals hidden (`A1/A2/A3`, fan-out details, gate counters)
+- show only user-facing behavior + affected objects
+
 ### Delete
 1. Preview target automation id.
 2. Ask tokenized confirmation (`confirm:<token>`).
 3. Call `POST /core` with:
    - `{"method":"DELETE","path":"/api/config/automation/config/{id}"}`
-4. Return success without default read-back verification.
+4. Return success when delete status is `200`/`204`; optional verify-absent read-back only when needed.
 
 ### Recovery Reload (Only When Needed)
 1. If state listing appears stale after writes, call:
    - `POST /core` with `{"method":"POST","path":"/api/services/automation/reload","body":{}}`
 
-## Fast Create/Update DAG (Target <= 6 Calls)
+## Automation Fast-Pass Mapping (MVP)
 
-1. In parallel (when client/IDI supports it):
-   - discovery read: `/api/states` (resolve entities)
-   - existence read: `/api/config/automation/config/{id}` (expected 200/404)
-2. Write call: `POST /api/config/automation/config/{id}`
-3. Read-back call: `GET /api/config/automation/config/{id}`
-4. Optional recovery only on stale symptoms:
-   - `POST /api/services/automation/reload`
-   - one final `GET /api/config/automation/config/{id}`
+Use the reusable blocks defined in `ha-nova`:
+- `B0_ENV` + `B1_STATE_SNAPSHOT` + `B2_ENTITY_RESOLVE` + `B3_ID_RESOLVE`
+- `B4_BP_GATE` + `B5_BUILD_AUTOMATION` + `B7_RENDER_DOMAIN_PREVIEW`
+- `B8_CONFIRM_TOKEN` + `B9_APPLY_WRITE` + `B10_VERIFY_WRITE`
+
+Call budget target (`create`/`update`): <= 6 relay calls in normal path.
+Avoid exploratory retries unless a real API/schema error occurs.
 
 ## Safety Rules
 
@@ -97,4 +119,6 @@ MVP simplification:
 - For `create`/`update`: no valid best-practice refresh snapshot -> no write.
 - Keep create/update path under 6 Relay calls.
 - Run independent reads in parallel when possible.
-- In zsh snippets, never use loop variable name `path`; use `endpoint`.
+- For complex multiline commands, run in `bash -lc` for shell-stable behavior.
+- Avoid shell-specific builtins in normal flow (for example `mapfile`).
+- Do not generate temporary helper scripts in normal flow.
