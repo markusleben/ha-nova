@@ -153,3 +153,43 @@
 - Bootstrap deploy reliability refinement: `dev:app:bootstrap` must rebuild the app image after rsync (`ha apps rebuild` fallback `ha apps update`) so synced source changes are actually running.
 - Bootstrap token policy refinement: `HA_LLAT` env is optional in `dev:app:bootstrap`; when missing, reuse existing app option `ha_llat` and fail only if both are missing.
 - Codex live E2E robustness refinement: evidence extraction for CRUD/core must parse both `command` and `aggregated_output` to handle PTY transcripts.
+- Response UX contract policy (superseded by canonical schema below): early draft used `Outcome/State/Key Data/Gate/Next`.
+- Question minimization policy refinement: ask at most one blocking question only when safety/ambiguity/required-input prevents deterministic progress; otherwise proceed with opinionated defaults.
+- Response schema refinement: canonical labels are `Outcome`, `Current State`, `Impact`, `Gate`, `Next`, with compact 3-block shape for trivial reads.
+- Write confirmation policy refinement: mutation paths require tokenized confirmation (`confirm:<token>`) and reject free-text confirmations.
+- Write integrity policy refinement: `Changes applied` may be returned only after explicit postcondition verification `passed=true`.
+- Cross-session refresh cache policy: automation best-practice snapshots are persisted at `${HOME}/.cache/ha-nova/automation-bp-snapshot.json` and reused while valid.
+- Parallel execution preference policy: when client/IDI exposes parallel-subagent capability, independent read stages should use subagent fan-out before sequential fallback.
+- Parallel execution enforcement policy: for automation create/update, independent pre-write reads are mandatory in parallel when capability exists; sequential fallback is only for unsupported clients.
+- State parsing robustness policy: ws `get_states` consumers must filter object states only and avoid ad-hoc jq schema probing in normal flows.
+- Orchestration policy refinement: parallel execution now applies to all independent tasks (not only reads), with fan-out/fan-in and deterministic sequential fallback.
+- Shell portability policy refinement: quoting guidance is shell-dependent and standardized to bash-compatible snippets (macOS/Linux/Windows via WSL or Git Bash).
+- Subagent trigger policy refinement (superseded by threshold refinement below): earlier rule used `2+ independent tasks`.
+- Live E2E policy refinement: harness supports `E2E_SUBAGENT_POLICY=require` and fails when expected subagent delegation is missing.
+- Orchestrator consistency policy refinement: align runtime bootstrap/auth safety language between `.agents/skills/ha-nova/SKILL.md` and `skills/ha-nova.md` to prevent executable drift.
+- Parallelism policy refinement: keep parallel execution mandatory where supported, but keep subagent dispatch outcome-oriented (`preferred for substantial units`, native parallel calls allowed for lightweight units).
+- E2E boundary policy refinement: keep mechanism-specific orchestration checks in harness/tests; product skill should define stable behavior, not test-oracle mechanics.
+- Harness stability refinement: make onboarding quick gate optional via `E2E_REQUIRE_QUICK_GATE=1` to avoid harness-vs-skill policy conflicts.
+- Orchestrator KISS refinement: remove endpoint-specific automation call-budget/recovery rules from top-level skill and keep them in `ha-automation-crud`.
+- Single-source drift control: mirror `skills/ha-nova.md` from `.agents/skills/ha-nova/SKILL.md` to keep orchestrator routing/safety/bootstrap rules identical.
+- E2E evidence hardening: require ordered CRUD subsequence `PGPGDV` via relay `/core` and explicit verify-absent evidence (`GET` + `404`).
+- Direct-REST guard refinement: detect bypass only for automation-config route patterns without `/core`, to reduce false positives from unrelated API curl usage.
+- E2E contract resilience: prefer semantic regex invariants over exact sentence matches in harness contract tests.
+- Routing safety refinement: device-control intents in top-level orchestrator must route through `ha-control` plus `ha-safety` for write intents.
+- E2E evidence authenticity refinement: classify CRUD sequence only from successful `command_execution` curl `/core` entries and enforce ordered subsequence `PGPGDV`.
+- E2E transcript robustness: normalize codex JSONL with `jq -Rrc 'fromjson? | select(type == "object")'` before all assertions to avoid malformed-line aborts.
+- E2E HTTP-proof policy: count CRUD evidence only from successful curl `/core` command-execution events with explicit HTTP status patterns.
+- Hierarchical orchestration policy: enforce a mandatory preflight gate (`independent_units_count`, `subagent_capable`, `fan_out_required`) before first Relay read in non-trivial flows.
+- Canonical automation DAG policy: create/update uses strict Phase A parallel fan-out (`A1` best-practice snapshot, `A2` entity resolution from one state snapshot, `A3` id existence check) then Phase B sequential write lifecycle.
+- One-state-snapshot policy: full `get_states` is fetched once per flow and reused for filtering unless explicit stale-state reason is stated.
+- Response evidence policy: every non-trivial response must include `Subagent fan-out used: yes/no (reason)`.
+- Contract clarity refinement: orchestration gate fields are computed internally and surfaced only via compact orchestration evidence line by default.
+- Contract consistency refinement: mutation status line is mandatory for mutation/debug flows; trivial single-unit read shortcut may omit mutation/orchestration lines.
+- Harness evidence hardening refinement: treat only successful curl `/core` command-execution events with `ok:true` + status patterns as valid CRUD evidence.
+- Harness sequence refinement: enforce strict ordered CRUD token pattern `^P+G+P+G+D+V+$`.
+- Harness correctness refinement: require exactly one final status line in literal `ok` form and forbid `/core` redirect-to-file patterns.
+- Subagent threshold refinement (user): mandatory subagent fan-out now applies only at `>=3` substantial independent units; below threshold use native parallel calls in the main agent.
+- Orchestration gate refinement: add `substantial_independent_units` as a first-class preflight field to derive `fan_out_required` deterministically.
+- Read-shortcut refinement: for non-trivial reads (`independent_units_count >= 2`), bypass shortcut and run full orchestration gate with threshold-based native-vs-subagent selection.
+- Substantial-unit rubric refinement: classify units as substantial when they involve full-state discovery, refresh/validation that can block writes, or existence checks that alter write-path branching.
+- Drift/legacy guard refinement: contract tests must assert mirror-file equality for `ha-nova` skill docs and explicitly reject reintroduction of legacy `2+ independent` subagent wording.

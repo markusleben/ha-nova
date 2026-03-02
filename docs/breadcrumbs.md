@@ -259,43 +259,6 @@
   - `bash scripts/onboarding/macos-onboarding.sh ready --quiet` exit 0 with no noisy output.
 - Added mandatory-LLAT mini-spec:
 
-## 2026-03-01
-- Researched current multi-agent best-practice handling patterns across major platforms (OpenAI Agents SDK, Claude Code, GitHub Copilot, Cursor, Home Assistant docs) to design a session-freshness flow.
-- Added research note with source links:
-  - `docs/reference/2026-03-01-agent-best-practice-freshness-patterns.md`
-- Added a new cross-cutting skill:
-  - `skills/ha-automation-best-practices.md`
-  - defines mandatory per-session refresh gate for automation `create`/`update`, source-authority policy, and enforcement checklist.
-- Updated orchestrator routing:
-  - `skills/ha-nova.md` now routes automation write intents through `ha-automation-best-practices` + `ha-automation-crud` + `ha-safety`.
-- Updated automation CRUD flow:
-  - `skills/ha-automation-crud.md` now blocks `create`/`update` writes without a best-practice refresh in the same session.
-- Updated installed Codex skill template:
-  - `.agents/skills/ha-nova/SKILL.md` now includes automation write freshness gate guidance.
-- Added design spec:
-  - `docs/plans/2026-03-01-automation-bp-refresh-session-gate-design.md`
-- Added skill contract checks:
-  - `tests/skills/ha-nova-skill-contract.test.ts` now asserts routing through best-practice skill and refresh-gate language in automation CRUD.
-- KISS follow-up after subreview findings:
-  - narrowed routing so `delete` does not load `ha-automation-best-practices` (only `create`/`update` do).
-  - aligned installed skill routing in `.agents/skills/ha-nova/SKILL.md`.
-  - expanded skill contract tests to assert delete exemption and installed-skill routing invariants.
-  - `docs/plans/2026-02-26-llat-mandatory-policy-design.md`
-- Enforced mandatory LLAT in runtime and App start path:
-  - removed upstream fallback to `SUPERVISOR_TOKEN` in token resolver/runtime bootstrap.
-  - `loadEnv` now requires `HA_LLAT`.
-  - `app/run` now exits early when `HA_LLAT` is missing.
-  - `app/config.yaml` now requires `ha_llat` in schema/options.
-- Enforced mandatory LLAT in onboarding scripts:
-  - setup now requires LLAT input (or existing Keychain LLAT) and validates via `HA_URL/api/`.
-  - doctor now hard-fails on missing/invalid LLAT and on Relay degraded WS (`ha_ws_connected=false`).
-  - env now hard-fails if LLAT is missing in Keychain.
-  - ready cache now includes relay-token and LLAT fingerprints to avoid stale-pass behavior.
-- Reduced MVP config surface (KISS):
-  - removed ws type filter option from App config, runner env mapping, and deploy/smoke option payloads.
-- Supersession note:
-  - earlier 2026-02-26 entries that describe optional/no-LLAT behavior are historical and superseded by the mandatory-LLAT policy above.
-
 ## 2026-02-27
 
 - Reviewed current uncommitted onboarding/E2E changes with explorer-agent pass (bug/risk focus).
@@ -448,6 +411,41 @@
   - `npm test` (pass, 20 files / 68 tests)
 
 ## 2026-03-01
+- Researched current multi-agent best-practice handling patterns across major platforms (OpenAI Agents SDK, Claude Code, GitHub Copilot, Cursor, Home Assistant docs) to design a session-freshness flow.
+- Added research note with source links:
+  - `docs/reference/2026-03-01-agent-best-practice-freshness-patterns.md`
+- Added a new cross-cutting skill:
+  - `skills/ha-automation-best-practices.md`
+  - defines mandatory per-session refresh gate for automation `create`/`update`, source-authority policy, and enforcement checklist.
+- Updated orchestrator routing:
+  - `skills/ha-nova.md` now routes automation write intents through `ha-automation-best-practices` + `ha-automation-crud` + `ha-safety`.
+- Updated automation CRUD flow:
+  - `skills/ha-automation-crud.md` now blocks `create`/`update` writes without a best-practice refresh in the same session.
+- Updated installed Codex skill template:
+  - `.agents/skills/ha-nova/SKILL.md` now includes automation write freshness gate guidance.
+- Added design spec:
+  - `docs/plans/2026-03-01-automation-bp-refresh-session-gate-design.md`
+- Added skill contract checks:
+  - `tests/skills/ha-nova-skill-contract.test.ts` now asserts routing through best-practice skill and refresh-gate language in automation CRUD.
+- KISS follow-up after subreview findings:
+  - narrowed routing so `delete` does not load `ha-automation-best-practices` (only `create`/`update` do).
+  - aligned installed skill routing in `.agents/skills/ha-nova/SKILL.md`.
+  - expanded skill contract tests to assert delete exemption and installed-skill routing invariants.
+  - `docs/plans/2026-02-26-llat-mandatory-policy-design.md`
+- Enforced mandatory LLAT in runtime and App start path:
+  - removed upstream fallback to `SUPERVISOR_TOKEN` in token resolver/runtime bootstrap.
+  - `loadEnv` now requires `HA_LLAT`.
+  - `app/run` now exits early when `HA_LLAT` is missing.
+  - `app/config.yaml` now requires `ha_llat` in schema/options.
+- Enforced mandatory LLAT in onboarding scripts:
+  - setup now requires LLAT input (or existing Keychain LLAT) and validates via `HA_URL/api/`.
+  - doctor now hard-fails on missing/invalid LLAT and on Relay degraded WS (`ha_ws_connected=false`).
+  - env now hard-fails if LLAT is missing in Keychain.
+  - ready cache now includes relay-token and LLAT fingerprints to avoid stale-pass behavior.
+- Reduced MVP config surface (KISS):
+  - removed ws type filter option from App config, runner env mapping, and deploy/smoke option payloads.
+- Supersession note:
+  - earlier 2026-02-26 entries that describe optional/no-LLAT behavior are historical and superseded by the mandatory-LLAT policy above.
 - Disabled noisy release workflow trigger until release phase:
   - `.github/workflows/release-please.yml` now uses `workflow_dispatch` only (no `push` on `main`).
 - Rationale: keep CI signal clean during MVP iteration and avoid repeated non-actionable release-automation failure emails.
@@ -486,3 +484,75 @@
   - `npm run dev:app:bootstrap` passed and `/core` became live on deployed relay.
   - endpoint checks passed (`/health` 200, `/ws` 200, `/core` 200 for `GET /api/states` envelope).
   - `npm run e2e:skill:codex` passed (`Live skill e2e passed`).
+- Added branded response-contract design for HA NOVA interactions:
+  - new plan doc: `docs/plans/2026-03-01-ha-nova-branded-response-structure-design.md`
+  - defines canonical section order for `read/write/debug`: `Outcome`, `State`, `Key Data`, `Gate`, `Next`
+  - adds certainty wording (`Confirmed/Likely/Unknown`) and one-question-only gate policy
+  - includes compact templates for read, write-preview, write-result, and debug to keep responses fast and low-anxiety
+- Recorded corresponding defaults in `docs/choices.md`:
+  - response UX contract policy for fixed branded sections
+  - question minimization refinement for blocking-only clarifications
+- Refined branded response contract based on multi-persona consensus (skill-only, no runtime changes):
+  - `skills/ha-nova.md` + `.agents/skills/ha-nova/SKILL.md` now define:
+    - canonical 5-block response shape (`Outcome`, `Current State`, `Impact`, `Gate`, `Next`)
+    - compact 3-block shape for trivial reads
+    - binary gate wording (`Proceed` / `Stop + reason`)
+    - strict write lifecycle: `preview -> confirm:<token> -> apply -> verify`
+    - hard rule: `Changes applied` only after verification `passed=true`
+    - subagent/parallel preference when client/IDI supports parallel fan-out
+  - `skills/ha-automation-crud.md` now requires tokenized confirmation for create/update/delete and binds applied-state messaging to verification pass.
+  - `skills/ha-automation-best-practices.md` now defines cross-session snapshot persistence path `${HOME}/.cache/ha-nova/automation-bp-snapshot.json` and explicit verification fields (`expected/observed/match/passed`).
+  - `skills/ha-safety.md` now enforces tokenized confirmations and binary gate wording with one blocking question.
+  - `tests/skills/ha-nova-skill-contract.test.ts` extended to assert response-contract, tokenized confirmation, snapshot persistence, and subagent preference wording.
+- Added post-test hardening for observed run failures:
+  - strengthened wording from “prefer parallel” to mandatory parallel for independent pre-write reads when client/IDI supports capability.
+  - added explicit prohibition of ad-hoc jq schema probing in normal flows.
+  - added canonical object-only `get_states` filtering guidance in `skills/ha-entities.md` to avoid `Cannot index string with string "entity_id"` failures.
+  - extended skill contract tests for mandatory-parallel wording and object-only parser rule.
+- Added KISS orchestration hardening pass:
+  - generalized parallel contract from read-only to all independent tasks with explicit fan-out/fan-in wording.
+  - added shell-dependent quoting reliability contract to both repo skill and installed skill source.
+  - added implementation plan artifact:
+    - `docs/plans/2026-03-01-ha-nova-parallel-orchestration-kiss-plan.md`
+  - expanded skill contract tests for:
+    - generic parallel orchestration wording
+    - deterministic fallback wording
+    - shell quoting reliability guidance across repo/installed skill docs.
+- Fixed orchestrator drift by harmonizing bootstrap/auth/safety and response-contract language across `.agents/skills/ha-nova/SKILL.md` and `skills/ha-nova.md`.
+- Removed top-level orchestration bloat (`Automation Create/Update Call Budget` and zsh variable edge-case rule) from installed skill source.
+- Shifted subagent policy from mechanism-hard requirement to outcome-oriented policy: parallel mandatory where supported, subagents preferred for substantial units, native parallel calls allowed for lightweight units.
+- Updated live E2E harness to reduce fragility:
+  - optional quick gate via `E2E_REQUIRE_QUICK_GATE`
+  - removed brittle log-string checks for skill/onboarding references
+  - kept behavior evidence checks (`/core` + CRUD path + final status line).
+- Updated skill/e2e contract tests to match the refined policy and reduce text-fragility.
+- Closed remaining e2e review blocker by adding ordered CRUD sequence validation in harness (`PGPGDV` subsequence).
+- Tightened direct REST bypass detection to automation-config path scope and explicit non-`/core` condition.
+- Reduced e2e contract text-fragility by switching key assertions to semantic regex checks.
+- Removed orchestrator drift by copying `.agents/skills/ha-nova/SKILL.md` into `skills/ha-nova.md` (single-source behavior alignment).
+- Hardened e2e CRUD evidence to rely on successful curl `/core` command executions with explicit method/path markers.
+- Added ordered CRUD subsequence gate (`PGPGDV`) as pass condition in live harness.
+- Aligned device-control routing in orchestrator to include `ha-safety` for write intents.
+- Added parsed-log normalization step in live e2e harness to avoid brittle jq failures on malformed transcript lines.
+- Hardened CRUD evidence to require status-bearing successful curl `/core` calls (POST/GET/DELETE) plus ordered subsequence gate.
+- Added orchestration hard gate to HA NOVA skill to force early fan-out decision before any Relay discovery/read calls.
+- Added canonical automation DAG block (A1/A2/A3 parallel, then preview-confirm-apply-verify sequential).
+- Added one-state-snapshot rule to reduce repeated full-state calls and improve deterministic performance.
+- Added mandatory response evidence line for subagent fan-out usage.
+- Resolved skill-contract conflict between hard-gate/shortcut and response schema by scoping shortcut to trivial single-unit reads and clarifying mutation-line applicability.
+- Hardened e2e harness to require unique final status line, strict GET success threshold matching required CRUD flow, and enforced no `/core` response redirection.
+- Broadened direct REST bypass detection and helper-script detector robustness with null-safe command parsing and wider forbidden patterns.
+- Reviewed in-repo pending changes before implementation; accepted existing skill/test baseline and applied only the remaining plan delta.
+- Updated `.agents/skills/ha-nova/SKILL.md` and mirrored to `skills/ha-nova.md`:
+  - added `substantial_independent_units` in orchestration hard gate
+  - changed mandatory subagent threshold from `2+ independent` to `>=3 substantial independent`
+  - clarified `<3 substantial` path uses native parallel in main agent
+  - clarified trivial read shortcut escalation to full orchestration gate for non-trivial reads.
+- Updated `tests/skills/ha-nova-skill-contract.test.ts` to assert the new threshold-based subagent policy and new shortcut wording.
+- Verification run:
+  - `npm test -- tests/skills/ha-nova-skill-contract.test.ts` passed (`11/11`).
+- Addressed external code-review findings with targeted follow-up fixes:
+  - defined explicit `substantial` classification rubric in `ha-nova` orchestration gate
+  - marked contradictory `docs/choices.md` entries as superseded for subagent trigger and response schema draft wording
+  - strengthened contract tests with negative assertions preventing legacy `2+ independent` wording regressions
+  - added explicit mirror-parity test to keep `.agents/skills/ha-nova/SKILL.md` and `skills/ha-nova.md` identical.

@@ -15,12 +15,47 @@ Operate Home Assistant through HA NOVA with a simple user flow:
 - minimal prompts
 - safe write confirmation
 
+## Orchestration Hard Gate (First Step, Mandatory)
+
+Before the first Relay call in any non-trivial flow, compute:
+- `independent_units_count`
+- `substantial_independent_units`
+- `subagent_capable`
+- `fan_out_required`
+
+Decision:
+- Classify each independent unit as `substantial` or `lightweight` using this rubric:
+  - `substantial` if any applies:
+    - needs a full-state snapshot (`get_states`) or equivalent high-volume discovery/filter pass
+    - performs best-practice refresh/validation work that can block writes
+    - performs an ID/existence read that changes write path decisions (for example 200/404 branch)
+  - `lightweight` otherwise.
+- If `substantial_independent_units >= 3` and `subagent_capable=true`, then `fan_out_required=true` and subagent fan-out must run before any Relay discovery/read call.
+- If `substantial_independent_units < 3`, run native parallel calls in the main agent (no subagent boot).
+- If subagents are unavailable, run native parallel calls and state `subagent_capable=false`.
+
+Fail-closed rule:
+- Starting Relay discovery/read calls before this gate in a `>=3-substantial-unit` flow is a protocol violation.
+- Keep these values internal by default; expose only the compact orchestration evidence line in user response.
+
+## Canonical Automation DAG (Create/Update)
+
+Use this strict hierarchy for automation create/update:
+1. Phase A (parallel, independent):
+   - `A1`: best-practice snapshot validate/refresh
+   - `A2`: entity resolution from one shared state snapshot
+   - `A3`: automation id existence check
+2. Phase B (sequential, dependent):
+   - `preview -> confirm:<token> -> apply -> verify`
+
+Do not interleave Phase A and Phase B.
+
 ## Runtime Prerequisite (macOS)
 
 Before HA operations in this session:
 
 1. Resolve repository root:
-   - `NOVA_REPO_ROOT="${HA_NOVA_REPO_ROOT:-__HA_NOVA_REPO_ROOT__}"`
+   - `NOVA_REPO_ROOT="${NOVA_REPO_ROOT:-${HA_NOVA_REPO_ROOT:-__HA_NOVA_REPO_ROOT__}}"`
    - if missing script at `$NOVA_REPO_ROOT/scripts/onboarding/macos-onboarding.sh`, fallback:
      - `NOVA_REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"`
    - if script is still missing, stop and ask user to:
@@ -45,17 +80,91 @@ Before HA operations in this session:
 Do not ask user to paste tokens in chat.
 Do not run proactive network preflight checks before the first read action.
 
+## Quoting Reliability (Critical)
+
+Quoting is shell-dependent (bash/zsh vs PowerShell), not primarily OS-dependent.
+Use canonical bash-compatible quoting exactly as shown below.
+
+- Correct (bash/zsh):
+  - `eval "$(bash "$NOVA_REPO_ROOT/scripts/onboarding/macos-onboarding.sh" env)"`
+- Incorrect:
+  - `eval "$(bash \"$NOVA_REPO_ROOT/scripts/onboarding/macos-onboarding.sh\" env)"`
+
+Rules:
+- Do not escape inner double quotes with backslashes in normal bash/zsh commands.
+- Standardize NOVA command snippets to bash-compatible shells only:
+  - macOS: zsh/bash
+  - Linux: bash/zsh
+  - Windows: WSL bash or Git Bash
+- If shell is not bash-compatible (for example PowerShell-only), stop and ask user to run in a bash-compatible shell for deterministic behavior.
+
 ## Execution Latency Policy
 
 - Prioritize one-shot commands over multi-step probing for read requests.
 - Do not print internal progress logs in normal success paths.
 - For first read/list requests, attempt Relay `/ws` directly.
 - Run `doctor` only after an actual request failure, not as a startup ritual.
-- For simple read-only prompts (for example: first N entity_ids, count by domain), do not open subskills; run one command and return only the result.
+- For Relay `/core` responses, parse only `.ok`, `.data.status`, `.data.body`.
+- Do not run ad-hoc JSON schema probing with custom jq in normal flows.
+- For `/ws` `get_states`, always treat response as `{ ok, data[] }` and filter object entries only.
+- For entity discovery output, return a shortlist only (default max 20) and prefer exact/high-confidence matches first.
+- In one flow, fetch full `get_states` at most once and reuse it for all filters (`one-state-snapshot` rule).
+- Repeating full-state reads is allowed only with a stated reason (for example stale-state suspicion after write/reload).
 
-## Read-Only Fast Shortcut
+## Parallel Orchestration (MVP/KISS)
 
-Use this directly for domain-based read requests:
+Apply this graph discipline:
+1. Build a task graph and label each step:
+   - `independent`
+   - `dependent`
+2. Run all `independent` tasks in parallel (Fan-out).
+3. Join results once (Fan-in), then execute dependent path.
+4. Use deterministic fallback: if parallel is unsupported, run the same graph sequentially without extra prompts.
+
+Typical independent tasks:
+- best-practice refresh check
+- entity discovery
+- existence/read checks
+- diagnostics branches (connectivity/auth/shape), then choose one root cause
+
+Never parallelize:
+- `preview -> confirm:<token> -> apply`
+- writes targeting the same object scope
+- reload/delete with in-flight writes on the same scope
+
+## Subagent Dispatch Protocol (Required)
+
+Policy:
+- Parallelism is mandatory when capability exists.
+- Subagent fan-out is mandatory only for `>=3` substantial independent task units.
+- For `<3` substantial units, use native parallel tool calls in the main agent.
+- Native parallel tool calls are also the fallback when subagent capability is unavailable.
+
+Trigger for subagent fan-out:
+- Use subagents whenever there are `>=3` substantial independent units.
+
+Minimal dispatch pattern:
+1. Split work into independent task units.
+2. Dispatch one subagent per unit.
+3. Wait for all units.
+4. Join findings once and continue with dependent steps.
+
+Red flags (forbidden):
+- sequential execution of substantial independent units when parallel support exists
+- running Relay discovery/read before required subagent fan-out in `>=3-substantial-unit` flows
+- dispatching subagents for confirm-gated writes
+- dispatching subagents that mutate the same target concurrently
+
+## Read-Only Fast Shortcut (Trivial Single-Unit Only)
+
+Use this directly only when all conditions are true:
+- `independent_units_count = 1`
+- no write intent
+- no ambiguity resolution branch required
+
+For non-trivial reads (`independent_units_count >= 2`), this shortcut is forbidden; run the full orchestration gate and choose native-parallel vs subagent by threshold.
+
+Trivial read shortcut command:
 
 ```bash
 [[ -n "${RELAY_BASE_URL:-}" && -n "${RELAY_AUTH_TOKEN:-}" ]] || eval "$(bash "$NOVA_REPO_ROOT/scripts/onboarding/macos-onboarding.sh" env)"
@@ -71,7 +180,8 @@ jq -r --arg domain "$DOMAIN." --argjson limit "$LIMIT" \
 ```
 
 Output rule for this shortcut:
-- return only requested values (no process narration).
+- return compact read shape only (`Outcome`, `Current State`, `Next`)
+- orchestration evidence line is optional only in this trivial single-unit shortcut path
 
 ## Routing
 
@@ -80,7 +190,7 @@ Output rule for this shortcut:
 - Entity discovery/listing:
   - use `"$NOVA_REPO_ROOT/skills/ha-entities.md"`
 - Device control:
-  - use `"$NOVA_REPO_ROOT/skills/ha-control.md"`
+  - use `"$NOVA_REPO_ROOT/skills/ha-control.md"` + `"$NOVA_REPO_ROOT/skills/ha-safety.md"` for write intents
 - Automation CRUD:
   - for `create`/`update` use `"$NOVA_REPO_ROOT/skills/ha-automation-best-practices.md"` + `"$NOVA_REPO_ROOT/skills/ha-automation-crud.md"` + `"$NOVA_REPO_ROOT/skills/ha-safety.md"`
   - for `delete` use `"$NOVA_REPO_ROOT/skills/ha-automation-crud.md"` + `"$NOVA_REPO_ROOT/skills/ha-safety.md"`
@@ -90,13 +200,51 @@ Output rule for this shortcut:
 
 ## Automation Write Freshness Gate
 
-- Before any automation `create`/`update` plan, enforce one best-practice refresh in this session.
-- Refresh must use current official Home Assistant docs/release notes and store timestamp + source list in-session.
-- If refresh fails, block write planning and return remediation steps.
+- Before any automation `create`/`update` plan, require a valid best-practice refresh snapshot.
+- Snapshot is valid if age <= 30 days and HA major/minor did not change.
+- If snapshot is stale/missing, refresh from official Home Assistant docs/release notes and store timestamp + source list.
+- If refresh fails and no valid snapshot exists, block write planning and return remediation steps.
+- Persist snapshot for cross-session reuse at `${HOME}/.cache/ha-nova/automation-bp-snapshot.json`.
 
 ## Safety Baseline
 
 - Never guess entity IDs.
 - Preview every write payload.
-- Require explicit confirmation before write execution.
+- Require explicit tokenized confirmation before write execution (`confirm:<token>`).
 - Keep terminology as App + Relay.
+
+## User Response Contract (Brand Signature)
+
+Use deterministic sections in this order.
+
+Default response shape:
+1. `Outcome`
+2. `Current State`
+3. `Impact`
+4. `Gate`
+5. `Next`
+
+Compact read-only shape (trivial reads):
+1. `Outcome`
+2. `Current State`
+3. `Next`
+
+Contract rules:
+- For mutation/debug flows, always include mutation status line:
+  - `No changes applied`
+  - `Changes applied`
+- Always include orchestration evidence line:
+  - `Subagent fan-out used: yes/no (reason)`
+- `Gate` must be binary:
+  - `Proceed`
+  - `Stop` + one reason
+- Keep one primary CTA in `Next`.
+- Hide raw tool logs/internal IDs by default; include compact evidence only when needed.
+
+Exception:
+- In `Read-Only Fast Shortcut (Trivial Single-Unit Only)`, mutation status line and orchestration evidence line may be omitted.
+
+Write integrity rules:
+- Always follow `preview -> confirm:<token> -> apply -> verify`.
+- Never accept free-text confirmations.
+- `Changes applied` can be returned only when postcondition verification is `passed=true`.
