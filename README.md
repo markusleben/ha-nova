@@ -1,5 +1,7 @@
 # HA NOVA
 
+> **Work in progress.** Core functionality works, but expect rough edges and breaking changes.
+
 AI-powered Home Assistant control. One command to set up, then talk to your home.
 
 > macOS only. Requires Home Assistant OS or Supervised.
