@@ -139,12 +139,13 @@ detect_setup_state() {
   local client="$1"
   local relay_auth_token
 
-  # Config present?
-  load_config
-  if [[ -n "${HA_HOST:-}" && -n "${HA_URL:-}" && -n "${RELAY_BASE_URL:-}" ]]; then
-    SETUP_HAS_CONFIG="1"
-  else
-    SETUP_HAS_CONFIG="0"
+  # Config present? Only trust the config file, not inherited env vars.
+  SETUP_HAS_CONFIG="0"
+  if [[ -f "$CONFIG_FILE" ]]; then
+    load_config
+    if [[ -n "${HA_HOST:-}" && -n "${HA_URL:-}" && -n "${RELAY_BASE_URL:-}" ]]; then
+      SETUP_HAS_CONFIG="1"
+    fi
   fi
 
   # Relay token in Keychain?
@@ -254,7 +255,7 @@ run_setup() {
   local skip_verify="0"
   local skip_skills="0"
 
-  if [[ "$SETUP_HAS_CONFIG" == "1" || "$SETUP_HAS_TOKEN" == "1" ]]; then
+  if [[ "$SETUP_HAS_CONFIG" == "1" ]]; then
     skip_app_install="1"
   fi
   if [[ "$SETUP_RELAY_OK" == "1" ]]; then
