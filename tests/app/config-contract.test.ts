@@ -27,12 +27,12 @@ describe("app config contract", () => {
 
     expect(parsed.options).toEqual({
       relay_auth_token: null,
-      ha_llat: null
+      ha_llat: ""
     });
 
     expect(parsed.schema).toEqual({
       relay_auth_token: "password",
-      ha_llat: "password"
+      ha_llat: "password?"
     });
   });
 });

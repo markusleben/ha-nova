@@ -2,6 +2,7 @@
 set -euo pipefail
 
 MODE="fast"
+FORCE_REINSTALL="0"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
@@ -54,10 +55,14 @@ while [[ $# -gt 0 ]]; do
       MODE="${2:-}"
       shift 2
       ;;
+    --force)
+      FORCE_REINSTALL="1"
+      shift
+      ;;
     -h|--help)
       cat <<'USAGE'
 Usage:
-  bash scripts/deploy/ha-app-deploy.sh [--mode fast|clean]
+  bash scripts/deploy/ha-app-deploy.sh [--mode fast|clean] [--force]
 
 Required environment:
   HA_HOST       Home Assistant host/IP for SSH
@@ -73,6 +78,9 @@ Optional environment:
 Modes:
   fast  Reload app store metadata, ensure app is installed, rebuild, start.
   clean Same as fast + stop app + remove app image cache before rebuild.
+
+Flags:
+  --force  Force uninstall + reinstall to refresh Supervisor schema cache.
 USAGE
       exit 0
       ;;
@@ -117,6 +125,18 @@ EXPECTED_SCHEMA_KEYS="$(
       key=$1
       sub(":", "", key)
       print key
+    }
+  ' "${APP_CONFIG_PATH}" || true
+)"
+EXPECTED_SCHEMA_ENTRIES="$(
+  awk '
+    /^schema:/ {section="schema"; next}
+    /^[^[:space:]]/ {section=""}
+    section=="schema" && /^  [A-Za-z0-9_]+:/ {
+      key=$1; sub(":", "", key)
+      val=$2
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", val)
+      print key "=" val
     }
   ' "${APP_CONFIG_PATH}" || true
 )"
@@ -197,6 +217,7 @@ metadata_needs_reinstall() {
     EXPECTED_PORT_MAPPINGS="$EXPECTED_PORT_MAPPINGS" \
     EXPECTED_OPTION_KEYS="$EXPECTED_OPTION_KEYS" \
     EXPECTED_SCHEMA_KEYS="$EXPECTED_SCHEMA_KEYS" \
+    EXPECTED_SCHEMA_ENTRIES="$EXPECTED_SCHEMA_ENTRIES" \
     INFO_JSON="$info_json" \
     python3 - <<'PY'
 import json
@@ -246,6 +267,25 @@ actual_schema_keys = sorted(
 )
 if expected_schema_keys and actual_schema_keys != expected_schema_keys:
     sys.exit(0)
+
+# Compare schema types (e.g. "password" vs "password?")
+expected_schema_entries = {}
+for line in os.environ.get("EXPECTED_SCHEMA_ENTRIES", "").splitlines():
+    line = line.strip()
+    if "=" in line:
+        k, v = line.split("=", 1)
+        expected_schema_entries[k.strip()] = v.strip()
+
+if expected_schema_entries:
+    actual_schema_map = {
+        str(entry.get("name")): "password?" if entry.get("optional") else "password"
+        for entry in actual_schema
+        if isinstance(entry, dict) and entry.get("name") and entry.get("type") == "password"
+    }
+    for key, expected_type in expected_schema_entries.items():
+        actual_type = actual_schema_map.get(key, "")
+        if actual_type and actual_type != expected_type:
+            sys.exit(0)  # schema type drift
 
 sys.exit(1)  # metadata matches
 PY
@@ -310,12 +350,31 @@ clear_image_cache() {
   "
 }
 
+REMOTE_ADDON_DIR="/addons/local/${APP_SLUG}"
+
+log "Syncing config.yaml to ${REMOTE_ADDON_DIR}/"
+scp -i "$HA_SSH_KEY" \
+  -o StrictHostKeyChecking=accept-new \
+  -o BatchMode=yes \
+  -P "$SSH_PORT" \
+  "${APP_CONFIG_PATH}" \
+  "${SSH_USER}@${HA_HOST}:${REMOTE_ADDON_DIR}/config.yaml"
+scp -i "$HA_SSH_KEY" \
+  -o StrictHostKeyChecking=accept-new \
+  -o BatchMode=yes \
+  -P "$SSH_PORT" \
+  "${APP_CONFIG_PATH}" \
+  "${SSH_USER}@${HA_HOST}:${REMOTE_ADDON_DIR}/app/config.yaml"
+
 log "Reload app store metadata"
 remote "ha store reload"
 
 ensure_installed
 
-if metadata_needs_reinstall; then
+if [[ "$FORCE_REINSTALL" == "1" ]]; then
+  log "Force reinstall requested"
+  reinstall_app_for_metadata_sync
+elif metadata_needs_reinstall; then
   reinstall_app_for_metadata_sync
 fi
 
