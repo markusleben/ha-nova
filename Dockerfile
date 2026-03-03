@@ -12,7 +12,7 @@ RUN npm ci \
   && npm prune --omit=dev \
   && npm cache clean --force
 
-COPY app/run /run.sh
+COPY run /run.sh
 RUN chmod a+x /run.sh
 
 CMD ["/run.sh"]

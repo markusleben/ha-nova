@@ -1,5 +1,13 @@
 # Breadcrumbs
 
+## 2026-03-02
+- Completed research: HA API automation limits for external setup wizard.
+- Key finding: Supervisor API (addon install, repo add) NOT accessible externally -- locked to Docker network.
+- Key finding: LLAT creation possible via WebSocket after OAuth2 flow, but not via REST API.
+- Key finding: `my.home-assistant.io` deep links are the best UX for guiding users to specific HA pages.
+- Key finding: HACS and all other addon repos rely on manual UI steps for installation.
+- Written up as: `docs/research/ha-automation-api-limits.md`
+
 ## 2026-02-25
 - Completed a full inventory review of the existing documentation in `ha-nova`.
 - Confirmed target model: thin Relay (dumb) + smart Skills, with no business-logic drift into the server.

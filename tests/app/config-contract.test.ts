@@ -5,7 +5,7 @@ import YAML from "yaml";
 
 describe("app config contract", () => {
   it("includes required metadata, security flags, and option schema", () => {
-    const raw = readFileSync("app/config.yaml", "utf8");
+    const raw = readFileSync("config.yaml", "utf8");
     const parsed = YAML.parse(raw) as Record<string, unknown>;
 
     expect(parsed.name).toBeTypeOf("string");

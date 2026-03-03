@@ -135,19 +135,7 @@ set -euo pipefail
 
 cd "$APP_DIR"
 
-# Supervisor local builds resolve this app from app/ context; make it self-contained.
-cp -f package.json package-lock.json tsconfig.json app/
-rm -rf app/src
-cp -R src app/src
-
-awk '{gsub(/COPY app\/run \/run.sh/,"COPY run /run.sh")}1' app/Dockerfile > app/Dockerfile.tmp
-mv app/Dockerfile.tmp app/Dockerfile
-chmod +x app/run
-
-# Keep root-level files in sync for tooling and compatibility.
-cp -f app/config.yaml ./config.yaml
-cp -f app/Dockerfile ./Dockerfile
-cp -f app/run ./run
+# Ensure run script is executable.
 chmod +x ./run
 
 python3 - <<'PY'
@@ -157,7 +145,7 @@ import pathlib
 relay_auth_token = os.environ["RELAY_AUTH_TOKEN"]
 ha_llat = os.environ.get("HA_LLAT", "")
 
-for rel in ("app/config.yaml", "config.yaml"):
+for rel in ("config.yaml",):
     path = pathlib.Path(rel)
     lines = path.read_text(encoding="utf-8").splitlines()
     section = ""
