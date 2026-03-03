@@ -197,13 +197,7 @@ run_setup() {
   if [[ "$relay_auth_token" != "${existing_relay_auth_token:-}" ]]; then
     echo ""
     wait_for_enter "Press [Enter] to open the add-on config... "
-    # Try direct link if we know the HA URL
-    load_config
-    if [[ -n "${HA_URL:-}" ]]; then
-      open_browser "${HA_URL}/hassio/addon/local_ha_nova_relay/config"
-    else
-      open_browser "https://my.home-assistant.io/redirect/supervisor_addon/?addon=local_ha_nova_relay"
-    fi
+    open_browser "https://my.home-assistant.io/redirect/supervisor_addon/?addon=2368fcfa_ha_nova_relay"
     echo ""
     wait_for_enter "Press [Enter] when you've saved the relay token... "
   fi
