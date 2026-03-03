@@ -136,11 +136,18 @@ describe("macOS onboarding script contract", () => {
       return;
     }
 
+    // Use isolated HOME so smart resume doesn't find existing state and exit early.
+    const workDir = mkdtempSync(join(tmpdir(), "ha-nova-noninteractive-"));
+
     const result = spawnSync("bash", ["scripts/onboarding/macos-onboarding.sh", "setup"], {
       cwd: process.cwd(),
       input: "n\n",
       encoding: "utf8",
-      timeout: 15000
+      timeout: 15000,
+      env: {
+        ...process.env,
+        HOME: workDir
+      }
     });
 
     expect(result.status).not.toBe(0);
@@ -430,6 +437,43 @@ exit 1
 
     // Phase 4: automatic skill installation
     expect(lib).toContain("install-local-skills.sh");
+  });
+
+  it("implements smart resume that skips completed setup phases", () => {
+    const lib = readFileSync("scripts/onboarding/macos-lib.sh", "utf8");
+
+    // State detection function
+    expect(lib).toContain("detect_setup_state()");
+    expect(lib).toContain("SETUP_HAS_CONFIG");
+    expect(lib).toContain("SETUP_HAS_TOKEN");
+    expect(lib).toContain("SETUP_RELAY_OK");
+    expect(lib).toContain("SETUP_WS_OK");
+    expect(lib).toContain("SETUP_SKILLS_OK");
+
+    // Status display
+    expect(lib).toContain("print_setup_status()");
+    expect(lib).toContain("Checking current setup...");
+    expect(lib).toContain("Relay reachable");
+    expect(lib).toContain("Authentication valid");
+    expect(lib).toContain("WebSocket connected");
+    expect(lib).toContain("Skills installed");
+
+    // Early exit when fully set up
+    expect(lib).toContain("Everything is already set up!");
+    expect(lib).toContain("ha-nova doctor");
+
+    // Skip flags
+    expect(lib).toContain("skip_app_install");
+    expect(lib).toContain("skip_relay_token");
+    expect(lib).toContain("skip_llat");
+    expect(lib).toContain("skip_verify");
+    expect(lib).toContain("skip_skills");
+
+    // Skip summary message
+    expect(lib).toContain("Skipping completed steps:");
+
+    // Skill names list for state detection
+    expect(lib).toContain("SKILL_NAMES=(");
   });
 
   it("prerequisites check validates OS and Node version", () => {

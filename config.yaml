@@ -21,8 +21,8 @@ panel_icon: mdi:lan-connect
 
 options:
   relay_auth_token: null
-  ha_llat: null
+  ha_llat: ""
 
 schema:
   relay_auth_token: password
-  ha_llat: password
+  ha_llat: password?

@@ -900,3 +900,9 @@
   - grep checks passed: no `git rev-parse` in skill files, no `Open Decisions` in skill files, no legacy German wording in skill description lines.
   - `bash scripts/onboarding/install-local-skills.sh claude` executed successfully.
   - installed router sync verified against rendered source (`__HA_NOVA_REPO_ROOT__` substitution).
+
+## 2026-03-03
+- Researched HA Supervisor optional password field validation bug:
+  - root cause: `ha_llat: null` in `options` section of `app/config.yaml` causes Supervisor to merge `null` into user options, which triggers `_single_validate` rejection ("Missing required option") **before** `_check_missing_options` (which respects `?` suffix) is reached.
+  - fix: remove `ha_llat` from `options` entirely; keep only in `schema` as `password?`.
+  - documented in `docs/research-addon-optional-password-validation.md`.
