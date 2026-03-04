@@ -1,0 +1,160 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 640" width="1280" height="640">
+  <defs>
+    <!-- Background gradient -->
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0A0E1A"/>
+      <stop offset="50%" stop-color="#0D1525"/>
+      <stop offset="100%" stop-color="#0A1628"/>
+    </linearGradient>
+    <!-- Nova glow -->
+    <radialGradient id="b-nova-glow" cx="50%" cy="45%" r="35%">
+      <stop offset="0%" stop-color="#FFD666" stop-opacity="0.15"/>
+      <stop offset="50%" stop-color="#FF8C00" stop-opacity="0.05"/>
+      <stop offset="100%" stop-color="#FF4500" stop-opacity="0"/>
+    </radialGradient>
+    <!-- HA blue -->
+    <linearGradient id="b-ha-blue" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#18BCF2"/>
+      <stop offset="100%" stop-color="#44D7FF"/>
+    </linearGradient>
+    <!-- Nova core -->
+    <radialGradient id="b-nova-core" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="50%" stop-color="#FFE4B5"/>
+      <stop offset="100%" stop-color="#FFB347"/>
+    </radialGradient>
+    <!-- Text glow filter -->
+    <filter id="text-glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="2" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <!-- Subtle star filter -->
+    <filter id="star-glow">
+      <feGaussianBlur stdDeviation="1.5"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1280" height="640" fill="url(#bg)"/>
+
+  <!-- Ambient glow behind logo -->
+  <circle cx="370" cy="280" r="250" fill="url(#b-nova-glow)"/>
+
+  <!-- Scattered background stars -->
+  <g opacity="0.4">
+    <circle cx="120" cy="80" r="1" fill="white"/>
+    <circle cx="250" cy="150" r="0.8" fill="white"/>
+    <circle cx="80" cy="320" r="1.2" fill="white"/>
+    <circle cx="200" cy="450" r="0.7" fill="white"/>
+    <circle cx="500" cy="60" r="0.9" fill="white"/>
+    <circle cx="650" cy="120" r="1" fill="white"/>
+    <circle cx="800" cy="80" r="0.8" fill="white"/>
+    <circle cx="950" cy="150" r="1.1" fill="white"/>
+    <circle cx="1100" cy="90" r="0.7" fill="white"/>
+    <circle cx="1200" cy="200" r="0.9" fill="white"/>
+    <circle cx="700" cy="550" r="0.8" fill="white"/>
+    <circle cx="900" cy="500" r="1" fill="white"/>
+    <circle cx="1050" cy="520" r="0.7" fill="white"/>
+    <circle cx="1180" cy="450" r="0.9" fill="white"/>
+    <circle cx="150" cy="550" r="0.8" fill="white"/>
+    <circle cx="550" cy="530" r="1" fill="white"/>
+    <circle cx="1150" cy="350" r="0.6" fill="white"/>
+    <circle cx="50" cy="200" r="0.8" fill="white"/>
+    <circle cx="300" cy="560" r="0.7" fill="white"/>
+  </g>
+
+  <!-- === LOGO (centered at 370, 280) === -->
+  <g transform="translate(370, 280) scale(1.3)">
+    <!-- Outer glow ring -->
+    <circle cx="0" cy="0" r="90" fill="url(#b-nova-glow)" opacity="0.7"/>
+
+    <!-- Nova burst rays -->
+    <g opacity="0.85">
+      <line x1="0" y1="-85" x2="0" y2="-55" stroke="url(#b-ha-blue)" stroke-width="2.5" stroke-linecap="round"/>
+      <line x1="0" y1="55" x2="0" y2="85" stroke="url(#b-ha-blue)" stroke-width="2.5" stroke-linecap="round"/>
+      <line x1="-85" y1="0" x2="-55" y2="0" stroke="url(#b-ha-blue)" stroke-width="2.5" stroke-linecap="round"/>
+      <line x1="55" y1="0" x2="85" y2="0" stroke="url(#b-ha-blue)" stroke-width="2.5" stroke-linecap="round"/>
+      <line x1="-60" y1="-60" x2="-40" y2="-40" stroke="url(#b-ha-blue)" stroke-width="2" stroke-linecap="round"/>
+      <line x1="60" y1="-60" x2="40" y2="-40" stroke="url(#b-ha-blue)" stroke-width="2" stroke-linecap="round"/>
+      <line x1="-60" y1="60" x2="-40" y2="40" stroke="url(#b-ha-blue)" stroke-width="2" stroke-linecap="round"/>
+      <line x1="60" y1="60" x2="40" y2="40" stroke="url(#b-ha-blue)" stroke-width="2" stroke-linecap="round"/>
+      <!-- Secondary rays -->
+      <line x1="0" y1="-70" x2="0" y2="-50" stroke="#FFB347" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>
+      <line x1="0" y1="50" x2="0" y2="70" stroke="#FFB347" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>
+      <line x1="-70" y1="0" x2="-50" y2="0" stroke="#FFB347" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>
+      <line x1="50" y1="0" x2="70" y2="0" stroke="#FFB347" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>
+      <!-- Fine rays -->
+      <line x1="-48" y1="-67" x2="-35" y2="-48" stroke="#FFB347" stroke-width="1" stroke-linecap="round" opacity="0.35"/>
+      <line x1="48" y1="-67" x2="35" y2="-48" stroke="#FFB347" stroke-width="1" stroke-linecap="round" opacity="0.35"/>
+      <line x1="-48" y1="67" x2="-35" y2="48" stroke="#FFB347" stroke-width="1" stroke-linecap="round" opacity="0.35"/>
+      <line x1="48" y1="67" x2="35" y2="48" stroke="#FFB347" stroke-width="1" stroke-linecap="round" opacity="0.35"/>
+      <line x1="-67" y1="-48" x2="-48" y2="-35" stroke="#FFB347" stroke-width="1" stroke-linecap="round" opacity="0.35"/>
+      <line x1="67" y1="-48" x2="48" y2="-35" stroke="#FFB347" stroke-width="1" stroke-linecap="round" opacity="0.35"/>
+      <line x1="-67" y1="48" x2="-48" y2="35" stroke="#FFB347" stroke-width="1" stroke-linecap="round" opacity="0.35"/>
+      <line x1="67" y1="48" x2="48" y2="35" stroke="#FFB347" stroke-width="1" stroke-linecap="round" opacity="0.35"/>
+    </g>
+
+    <!-- Inner orbit ring -->
+    <circle cx="0" cy="0" r="55" fill="none" stroke="url(#b-ha-blue)" stroke-width="1" opacity="0.25"/>
+
+    <!-- House silhouette -->
+    <g opacity="0.9">
+      <rect x="-18" y="-5" width="36" height="25" rx="2" fill="#0D1B2A" stroke="url(#b-ha-blue)" stroke-width="1.5"/>
+      <polygon points="-24,-5 0,-22 24,-5" fill="#0D1B2A" stroke="url(#b-ha-blue)" stroke-width="1.5" stroke-linejoin="round"/>
+      <rect x="-5" y="5" width="10" height="15" rx="1.5" fill="url(#b-nova-core)" opacity="0.9"/>
+      <rect x="-14" y="1" width="6" height="6" rx="1" fill="url(#b-ha-blue)" opacity="0.7"/>
+      <rect x="8" y="1" width="6" height="6" rx="1" fill="url(#b-ha-blue)" opacity="0.7"/>
+    </g>
+
+    <!-- Core point -->
+    <circle cx="0" cy="0" r="3" fill="white" opacity="0.9"/>
+
+    <!-- Orbiting dots -->
+    <circle cx="45" cy="-28" r="2" fill="#18BCF2" opacity="0.7"/>
+    <circle cx="-45" cy="28" r="2" fill="#18BCF2" opacity="0.7"/>
+    <circle cx="30" cy="45" r="1.5" fill="#FFB347" opacity="0.5"/>
+    <circle cx="-30" cy="-45" r="1.5" fill="#FFB347" opacity="0.5"/>
+  </g>
+
+  <!-- === TEXT === -->
+
+  <!-- "HA" small prefix -->
+  <text x="640" y="230" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="28" font-weight="400" fill="#18BCF2" text-anchor="middle" letter-spacing="8" opacity="0.8">HOME ASSISTANT</text>
+
+  <!-- "NOVA" main title -->
+  <text x="640" y="310" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="96" font-weight="700" fill="white" text-anchor="middle" letter-spacing="12" filter="url(#text-glow)">NOVA</text>
+
+  <!-- Decorative line under NOVA -->
+  <line x1="570" y1="330" x2="710" y2="330" stroke="url(#b-ha-blue)" stroke-width="2" opacity="0.5"/>
+
+  <!-- Tagline -->
+  <text x="640" y="370" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="22" font-weight="300" fill="#A0B4C8" text-anchor="middle" letter-spacing="2">Talk to your smart home with AI</text>
+
+  <!-- Sub-tagline -->
+  <text x="640" y="410" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="15" font-weight="400" fill="#5A7A96" text-anchor="middle" letter-spacing="1">Lean relay + LLM skills for Claude Code, Codex, and OpenCode</text>
+
+  <!-- Bottom accent: three pill badges -->
+  <g transform="translate(640, 480)">
+    <!-- Badge: Local Only -->
+    <g transform="translate(-160, 0)">
+      <rect x="-55" y="-14" width="110" height="28" rx="14" fill="none" stroke="#18BCF2" stroke-width="1" opacity="0.4"/>
+      <text x="0" y="5" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="500" fill="#18BCF2" text-anchor="middle" opacity="0.7">Local Only</text>
+    </g>
+    <!-- Badge: ~2K LOC -->
+    <g transform="translate(0, 0)">
+      <rect x="-55" y="-14" width="110" height="28" rx="14" fill="none" stroke="#FFB347" stroke-width="1" opacity="0.4"/>
+      <text x="0" y="5" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="500" fill="#FFB347" text-anchor="middle" opacity="0.7">~2K LOC Relay</text>
+    </g>
+    <!-- Badge: 6 Skills -->
+    <g transform="translate(160, 0)">
+      <rect x="-55" y="-14" width="110" height="28" rx="14" fill="none" stroke="#18BCF2" stroke-width="1" opacity="0.4"/>
+      <text x="0" y="5" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="500" fill="#18BCF2" text-anchor="middle" opacity="0.7">6 LLM Skills</text>
+    </g>
+  </g>
+
+  <!-- Subtle bottom border -->
+  <line x1="0" y1="638" x2="1280" y2="638" stroke="url(#b-ha-blue)" stroke-width="2" opacity="0.15"/>
+</svg>
