@@ -64,15 +64,17 @@ Keep orchestration details internal on normal success paths.
 
 - Write intent (`create|update|delete` for automation or script):
   - use skill `ha-nova-write`
-- Read intent (`list|get` for automation or script):
+- Read intent (`list|get|trace` for automation or script):
   - use skill `ha-nova-read`
+- Service call intent (turn on, turn off, toggle, set, call service):
+  - use skill `ha-nova-service-call`
 - Entity discovery / target lookup:
   - use skill `ha-nova-entity-discovery`
 - Onboarding / connectivity / auth diagnostics:
   - use skill `ha-nova-onboarding`
 
 Scope note:
-- runtime device control and automation runtime control are currently not exposed via this skill set.
+- automation runtime control (enable/disable/trigger) is currently not exposed via this skill set.
 
 ## Latency Policy
 
