@@ -17,7 +17,7 @@ Read operations only:
 - `automation.trace`
 - `script.trace`
 
-No writes.
+No writes. If the user intent is to **analyze**, **review**, or **audit** a config for errors/problems, route through the parent `ha-nova` skill instead — it will dispatch the dedicated review agent after the read.
 
 ## Bootstrap (once per session)
 
@@ -57,16 +57,29 @@ For "automations in room X": use entity-discovery skill's area → device → `s
 
 Try the entity_id slug first (part after `automation.` or `script.`). If that returns 404, the config ID is a numeric `unique_id` instead — fetch it from the full entity registry.
 
+**Always save config reads to a temp file** to avoid shell output truncation (complex automations can be 10–30 KB JSON):
+
 ```bash
-# Try slug first
-~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/config/automation/config/{slug}"}'
+# Try slug first — save to file (for scripts: /api/config/script/config/{slug})
+~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/config/automation/config/{slug}"}' > /tmp/ha-config-{slug}.json
+
+# Verify JSON is valid (exits 0 if valid, non-zero if invalid/truncated)
+jq empty /tmp/ha-config-{slug}.json
+
+# Check for 404: if response contains "message" instead of "alias", resolve unique_id below
 
 # If 404: resolve unique_id from full entity registry
 ~/.config/ha-nova/relay ws -d '{"type":"config/entity_registry/list"}' \
   | jq '.data[] | select(.entity_id == "automation.{slug}") | .unique_id'
-# Then use the unique_id as config ID
-~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/config/automation/config/{unique_id}"}'
+
+# Then use the unique_id
+~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/config/automation/config/{unique_id}"}' > /tmp/ha-config-{slug}.json
+jq empty /tmp/ha-config-{slug}.json
 ```
+
+**Read the file using your native file-reading tool** (Claude: `Read`, Gemini: file read, Cursor: open file). Do NOT use `cat`, `head`, or shell output — these may truncate.
+
+**Never analyze a config from shell output.** Always read the temp file with your file-reading tool.
 
 ### Related entities
 
@@ -106,8 +119,8 @@ actions: ...
 For list operations, use a compact table:
 
 ```
-| Entity ID | Name | State |
-|-----------|------|-------|
+| Entity ID | Name | Area |
+|-----------|------|------|
 ```
 
 Never show raw JSON to the user. Parse JSON config into structured summary + YAML.
@@ -120,8 +133,12 @@ For trace queries ("why didn't automation X fire?", "show me the last runs"):
 2. List recent traces:
    - `~/.config/ha-nova/relay ws -d '{"type":"trace/list","domain":"automation","item_id":"{id}"}'`
    - for scripts: `"domain":"script"`
-3. For detailed trace (specific run):
-   - `~/.config/ha-nova/relay ws -d '{"type":"trace/get","domain":"automation","item_id":"{id}","run_id":"{run_id}"}'`
+3. For detailed trace (specific run), **save to file** (traces can be large):
+   ```bash
+   ~/.config/ha-nova/relay ws -d '{"type":"trace/get","domain":"automation","item_id":"{id}","run_id":"{run_id}"}' > /tmp/ha-trace-{run_id}.json
+   jq empty /tmp/ha-trace-{run_id}.json
+   ```
+   Read the file with your native file-reading tool.
 4. Analyze trace and present in user-friendly format:
    - When it ran (timestamp)
    - Trigger: what fired (or didn't)
