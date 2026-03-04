@@ -51,8 +51,10 @@ Use `~/.config/ha-nova/relay` for all HA communication. It handles auth, headers
      - automation: `/api/config/automation/config/{id}`
      - script: `/api/config/script/config/{id}`
 4. If target exists, capture `current_config` from read-back.
-5. Read best-practice snapshot state from `${HOME}/.cache/ha-nova/automation-bp-snapshot.json`:
-   - `fresh`, `stale`, `missing`, or `invalid`.
+5. Best-practice snapshot (automation domain only; skip for scripts):
+   - Read from `${HOME}/.cache/ha-nova/automation-bp-snapshot.json`
+   - Possible states: `fresh`, `stale`, `missing`, or `invalid`
+   - For scripts: set `bp_status` to `n/a`
 6. Evaluate ambiguity:
    - exact single candidate => resolve directly
    - 0 candidates => return no-match error
@@ -102,13 +104,18 @@ Return exactly these sections:
 - concrete optional improvements based on entity capabilities and common HA patterns
 - each item: short title, what it does, why it helps
 - or `none` if basic intent is fully covered
+- use both the examples below AND your general HA knowledge to suggest relevant improvements
 
-Common patterns to check:
-- cover with button remote: toggle-stop (press same direction button while moving = stop, so the user can halt mid-travel)
-- cover with button remote: long-press stop (long press on any button = emergency stop)
-- light with dimmer remote: brightness step on long-press (hold to dim up/down gradually)
-- motion sensor automation: re-trigger grace period (restart timer on new motion instead of ignoring it)
-- presence automation: departure delay (wait before triggering away actions to avoid false departures)
+Common patterns to check (non-exhaustive):
+- motion sensor: re-trigger grace period (restart timer on new motion)
+- motion sensor: no-motion timeout (auto-off after X minutes idle)
+- presence: departure delay (wait before triggering away actions)
+- cover + remote: toggle-stop, long-press stop
+- light + dimmer: brightness step on long-press
+- time-based: add condition to skip weekends/holidays
+- climate: add hysteresis/deadband to avoid rapid cycling
+- notification: add cooldown to prevent spam
+- any automation: consider appropriate `mode` (single, restart, queued, parallel)
 
 `NEXT_STEP:`
 - one actionable sentence for main-thread preview phase.

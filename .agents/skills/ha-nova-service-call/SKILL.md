@@ -53,8 +53,15 @@ If unsure about required fields, check `/api/services` response for the service 
 - No token confirmation needed (service calls are reversible actions).
 - For potentially disruptive services (e.g., `homeassistant.restart`), warn and ask for explicit confirmation.
 
+## Error Handling
+
+- `400/VALIDATION_ERROR`: invalid request shape — check path and body format
+- `404/NOT_FOUND`: entity or service does not exist — re-resolve
+- `502/UPSTREAM_WS_ERROR` or `504/TIMEOUT`: relay lost connection to HA — retry once, then report failure
+- State verification failure (state didn't change): report discrepancy, do not retry automatically
+
 ## Guardrails
 
-- One entity at a time unless user explicitly requests batch.
+- One entity at a time unless user explicitly requests batch (array `entity_id` supported).
 - Verify state change after call.
 - If state didn't change as expected, report discrepancy.

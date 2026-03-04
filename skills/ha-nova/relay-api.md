@@ -117,6 +117,23 @@ Call with response data:
 
 Supported target fields: `entity_id` (string or array), `area_id`, `device_id`.
 
+## Registry Queries (via /ws)
+
+List areas:
+```json
+{"type":"config/area_registry/list"}
+```
+
+List devices:
+```json
+{"type":"config/device_registry/list"}
+```
+
+List entity registry (includes area/device assignment):
+```json
+{"type":"config/entity_registry/list"}
+```
+
 ## Trace Queries (via /ws)
 
 List traces for an automation:
