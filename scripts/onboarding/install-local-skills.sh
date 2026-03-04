@@ -142,7 +142,8 @@ install_target() {
       install_symlink "codex" "${HOME}/.agents/skills"
       ;;
     claude)
-      log "[claude] Skipped — use Claude Code plugin system: claude plugin add ${REPO_ROOT}"
+      log "[claude] Skipped — use: claude --plugin-dir ${REPO_ROOT}"
+      log "[claude] For persistent setup see: .claude/INSTALL.md"
       ;;
     opencode)
       install_symlink "opencode" "${HOME}/.config/opencode/skills"
