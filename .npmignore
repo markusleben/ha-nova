@@ -1,0 +1,33 @@
+# Internal development files
+docs/
+tests/
+.github/
+.env*
+tsconfig.json
+vitest.config.*
+.codex/
+.claude/
+.agents/
+AGENTS.md
+CLAUDE.md
+PROJECT.md
+CONTRIBUTING.md
+SECURITY.md
+SUPPORT.md
+CODE_OF_CONDUCT.md
+
+# Dev scripts
+scripts/dev/
+scripts/deploy/
+scripts/smoke/
+scripts/e2e/
+scripts/dev-seed-ha-llat.mjs
+
+# Source (dist/ has compiled output)
+src/
+
+# HA Add-on Docker files (built separately)
+Dockerfile
+config.yaml
+repository.yaml
+run

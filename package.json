@@ -1,8 +1,21 @@
 {
   "name": "ha-nova",
   "version": "0.1.0",
-  "private": true,
+  "description": "AI-powered Home Assistant management through Claude Code, Codex, and OpenCode",
+  "private": false,
   "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/markusleben/ha-nova.git"
+  },
+  "keywords": [
+    "home-assistant",
+    "ai",
+    "claude",
+    "automation",
+    "smart-home"
+  ],
   "bin": {
     "ha-nova": "scripts/onboarding/bin/ha-nova"
   },
