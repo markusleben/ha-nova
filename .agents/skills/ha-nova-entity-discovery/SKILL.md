@@ -56,7 +56,9 @@ For area-based targeting (e.g., "all lights in the bedroom"):
 - `~/.config/ha-nova/relay ws -d '{"type":"config/area_registry/list"}'`
 - `~/.config/ha-nova/relay ws -d '{"type":"config/device_registry/list"}'`
 - `~/.config/ha-nova/relay ws -d '{"type":"config/entity_registry/list"}'`
-- Match area name to area_id, then filter entities by area_id from entity registry entries.
+- Match area name to area_id, then filter entities:
+  1. Direct match: entity registry entry has `area_id` matching target area.
+  2. Device fallback: if entity `area_id` is null, look up its `device_id` in device registry — if that device's `area_id` matches, include the entity.
 
 ## Guardrails
 
