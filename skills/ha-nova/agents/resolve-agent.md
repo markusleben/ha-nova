@@ -90,7 +90,7 @@ Return exactly these sections:
 - compact JSON or `null`
 
 `BP_STATUS:`
-- `status: fresh|stale|missing|invalid`
+- `status: fresh|stale|missing|invalid|n/a`
 - `age_days: <number|unknown>`
 - `source_count: <number|0>`
 

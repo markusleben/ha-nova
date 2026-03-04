@@ -1,78 +1,55 @@
 // tests/skills/service-call-contract.test.ts
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "fs";
+import { resolve } from "path";
+
+const relayApi = readFileSync(
+  resolve(__dirname, "../../skills/ha-nova/relay-api.md"),
+  "utf-8",
+);
+const skillDoc = readFileSync(
+  resolve(__dirname, "../../.agents/skills/ha-nova-service-call/SKILL.md"),
+  "utf-8",
+);
 
 describe("service call contract", () => {
-  describe("service call request shape via /core", () => {
-    it("calls a service with entity target", () => {
-      const request = {
-        method: "POST" as const,
-        path: "/api/services/light/turn_on",
-        body: {
-          entity_id: "light.living_room",
-        },
-      };
-      expect(request.method).toBe("POST");
-      expect(request.path).toMatch(/^\/api\/services\/\w+\/\w+$/);
-      expect(request.body.entity_id).toBe("light.living_room");
+  describe("relay-api.md documents service call paths", () => {
+    it("documents POST /api/services/{domain}/{service}", () => {
+      expect(relayApi).toContain("/api/services/light/turn_on");
     });
 
-    it("supports service data fields", () => {
-      const request = {
-        method: "POST" as const,
-        path: "/api/services/light/turn_on",
-        body: {
-          entity_id: "light.kitchen",
-          brightness: 128,
-          color_temp: 350,
-        },
-      };
-      expect(request.body).toHaveProperty("brightness");
-      expect(request.body).toHaveProperty("color_temp");
+    it("documents GET /api/services for listing", () => {
+      expect(relayApi).toContain('"method":"GET","path":"/api/services"');
     });
 
-    it("supports multiple entity targets", () => {
-      const request = {
-        method: "POST" as const,
-        path: "/api/services/light/turn_off",
-        body: {
-          entity_id: ["light.living_room", "light.kitchen"],
-        },
-      };
-      expect(Array.isArray(request.body.entity_id)).toBe(true);
+    it("documents return_response query parameter", () => {
+      expect(relayApi).toContain("return_response");
     });
 
-    it("supports area_id target", () => {
-      const request = {
-        method: "POST" as const,
-        path: "/api/services/light/turn_on",
-        body: {
-          area_id: "living_room",
-        },
-      };
-      expect(request.body).toHaveProperty("area_id");
-    });
-
-    it("supports return_response query parameter", () => {
-      const request = {
-        method: "POST" as const,
-        path: "/api/services/weather/get_forecasts?return_response",
-        body: {
-          entity_id: "weather.home",
-          type: "daily",
-        },
-      };
-      expect(request.path).toContain("return_response");
+    it("documents supported target fields", () => {
+      expect(relayApi).toContain("entity_id");
+      expect(relayApi).toContain("area_id");
+      expect(relayApi).toContain("device_id");
     });
   });
 
-  describe("service list request shape via /core", () => {
-    it("lists all available services", () => {
-      const request = {
-        method: "GET" as const,
-        path: "/api/services",
-      };
-      expect(request.method).toBe("GET");
-      expect(request.path).toBe("/api/services");
+  describe("service-call skill matches relay-api contract", () => {
+    it("skill references /api/services path pattern", () => {
+      expect(skillDoc).toContain("/api/services/{domain}/{service}");
+    });
+
+    it("skill references /api/states for verification", () => {
+      expect(skillDoc).toContain("/api/states/{entity_id}");
+    });
+
+    it("skill declares entity_id, area_id, device_id targeting", () => {
+      expect(skillDoc).toContain("entity_id");
+      expect(skillDoc).toContain("area_id");
+      expect(skillDoc).toContain("device_id");
+    });
+
+    it("skill uses /core endpoint for execution", () => {
+      expect(skillDoc).toMatch(/relay.*core/);
     });
   });
 });
