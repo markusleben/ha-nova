@@ -59,6 +59,7 @@ Fallback: If agent dispatch unavailable, run same logic inline serially.
 ## References
 
 - Relay API: `skills/ha-nova/relay-api.md`
+- Payload Schemas: `skills/ha-nova/payload-schemas.md`
 - Best Practices: `skills/ha-nova/best-practices.md`
 - Resolve Agent: `skills/ha-nova/agents/resolve-agent.md`
 - Apply Agent: `skills/ha-nova/agents/apply-agent.md`
