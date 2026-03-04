@@ -9,12 +9,22 @@
     "type": "git",
     "url": "https://github.com/markusleben/ha-nova.git"
   },
+  "homepage": "https://github.com/markusleben/ha-nova",
+  "bugs": {
+    "url": "https://github.com/markusleben/ha-nova/issues"
+  },
+  "author": "Markus Leben",
   "keywords": [
     "home-assistant",
     "ai",
     "claude",
+    "codex",
+    "opencode",
     "automation",
-    "smart-home"
+    "smart-home",
+    "relay",
+    "llm",
+    "home-assistant-addon"
   ],
   "bin": {
     "ha-nova": "scripts/onboarding/bin/ha-nova"
