@@ -1,6 +1,6 @@
 # Old Project: ha-mcp-addon Inventory
 
-Reference for the old MCP server at `/Users/markus/Daten/Development/Privat/ha-mcp-addon`.
+Reference for the old MCP server (`ha-mcp-addon` repository).
 
 ## Project Statistics
 

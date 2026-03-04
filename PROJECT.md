@@ -31,13 +31,12 @@ Use a client-specific entrypoint instead of manual environment editing.
 
 ## Legacy Project
 
-The legacy project is at `/Users/markus/Daten/Development/Privat/ha-mcp-addon`.
+The legacy project is `ha-mcp-addon` (separate repository).
 It is a TypeScript MCP server with 18 managers, 200+ actions, and 70 best-practice rules.
 Code from it can be reused for Relay components (REST/WS clients, backup manager, auth).
 
 ## Documentation
 
-- `docs/MIGRATION-WORKPAPER.md` — full migration plan across 4 phases
 - `docs/reference/ha-api-matrix.md` — which HA operations require REST vs WS vs filesystem
 - `docs/reference/manager-dependency-matrix.md` — manager-to-transport dependency map
 - `docs/reference/bridge-architecture.md` — relay endpoint specification

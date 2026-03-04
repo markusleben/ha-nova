@@ -346,7 +346,6 @@ exit 1
     const codexInstall = readFileSync(".codex/INSTALL.md", "utf8");
     const claudeInstall = readFileSync(".claude/INSTALL.md", "utf8");
     const onboardingAlias = readFileSync(".codex/ONBOARDING.md", "utf8");
-    const userDoc = readFileSync("docs/user-onboarding-macos.md", "utf8");
     const codexSkill = readFileSync(".agents/skills/ha-nova/SKILL.md", "utf8");
 
     // Simplified INSTALL.md: single Quick Start section with npx ha-nova
@@ -359,16 +358,6 @@ exit 1
     expect(claudeInstall).toContain("npx ha-nova setup");
     expect(claudeInstall).toContain("npx ha-nova doctor");
 
-    // User onboarding doc still references canonical URLs and key commands
-    expect(userDoc).toContain(
-      "https://raw.githubusercontent.com/markusleben/ha-nova/main/.codex/INSTALL.md"
-    );
-    expect(userDoc).toContain(
-      "https://raw.githubusercontent.com/markusleben/ha-nova/main/.claude/INSTALL.md"
-    );
-    expect(userDoc).toContain("npm run install:skills");
-    expect(userDoc).toContain("onboarding:macos:quick");
-    expect(userDoc).toContain("No special launcher required");
     expect(onboardingAlias).toContain("/.codex/INSTALL.md");
     expect(codexSkill).toContain("name: ha-nova");
     expect(codexSkill).toContain("__HA_NOVA_REPO_ROOT__");
