@@ -49,6 +49,7 @@ Work style: Be radically precise. No fluff. Pure information only (drop grammar;
 - Avoid manual `git stash`; if Git auto-stashes during pull/rebase, that’s fine (hint, not hard guardrail).
 - If user types a command (“pull and push”), that’s consent for that command.
 - Big review: `git --no-pager diff --color=never`.
+- **PR Merge:** Use auto-merge after creating PRs: `gh pr create ... && gh pr merge --auto --squash --delete-branch`. GitHub merges automatically when CI passes. No polling needed.
 
 ## Error Handling
 - Expected issues: explicit result types (not throw/try/catch).
