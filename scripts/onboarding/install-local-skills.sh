@@ -7,6 +7,7 @@ SKILL_NAMES=(
   "ha-nova-read"
   "ha-nova-entity-discovery"
   "ha-nova-onboarding"
+  "ha-nova-service-call"
 )
 
 LEGACY_SKILL_NAMES=(
@@ -38,9 +39,9 @@ Usage:
   bash scripts/onboarding/install-local-skills.sh all
 
 Targets:
-  codex    -> ~/.agents/skills/{ha-nova,ha-nova-write,ha-nova-read,ha-nova-entity-discovery,ha-nova-onboarding}
-  claude   -> ~/.claude/skills/{ha-nova,ha-nova-write,ha-nova-read,ha-nova-entity-discovery,ha-nova-onboarding}
-  opencode -> ~/.config/opencode/skills/{ha-nova,ha-nova-write,ha-nova-read,ha-nova-entity-discovery,ha-nova-onboarding}
+  codex    -> ~/.agents/skills/{ha-nova,ha-nova-write,ha-nova-read,ha-nova-entity-discovery,ha-nova-onboarding,ha-nova-service-call}
+  claude   -> ~/.claude/skills/{ha-nova,ha-nova-write,ha-nova-read,ha-nova-entity-discovery,ha-nova-onboarding,ha-nova-service-call}
+  opencode -> ~/.config/opencode/skills/{ha-nova,ha-nova-write,ha-nova-read,ha-nova-entity-discovery,ha-nova-onboarding,ha-nova-service-call}
   all      -> install for codex + claude + opencode
 USAGE
 }

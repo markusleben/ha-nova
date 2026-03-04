@@ -98,6 +98,39 @@ Script fields: `alias`, `sequence`, `mode`
 
 Method: create/update = `POST`, delete = `DELETE`
 
+## Service Calls (via /core)
+
+List all available services:
+```json
+{"method":"GET","path":"/api/services"}
+```
+
+Call a service:
+```json
+{"method":"POST","path":"/api/services/light/turn_on","body":{"entity_id":"light.living_room","brightness":128}}
+```
+
+Call with response data:
+```json
+{"method":"POST","path":"/api/services/weather/get_forecasts?return_response","body":{"entity_id":"weather.home","type":"daily"}}
+```
+
+Supported target fields: `entity_id` (string or array), `area_id`, `device_id`.
+
+## Trace Queries (via /ws)
+
+List traces for an automation:
+```json
+{"type":"trace/list","domain":"automation","item_id":"motion_kitchen"}
+```
+
+Get detailed trace:
+```json
+{"type":"trace/get","domain":"automation","item_id":"motion_kitchen","run_id":"abc123"}
+```
+
+Trace response includes: `trace.trigger`, `trace.condition`, `trace.action` nodes with `result`, `timestamp`, and `changed_variables`.
+
 ## Error Codes (Common)
 
 - `400 / VALIDATION_ERROR`: invalid request shape or missing fields
