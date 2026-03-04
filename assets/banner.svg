@@ -73,7 +73,7 @@
         font-size="15" font-weight="400" fill="#5A7A96" text-anchor="middle"
         letter-spacing="1">Lean relay + LLM skills for Claude Code, Codex, and OpenCode</text>
 
-  <!-- Bottom pill badges -->
+  <!-- Bottom pill badges (no hard numbers — those go in README) -->
   <g transform="translate(640, 530)">
     <g transform="translate(-160, 0)">
       <rect x="-55" y="-14" width="110" height="28" rx="14" fill="none" stroke="#18BCF2" stroke-width="1" opacity="0.4"/>
@@ -81,11 +81,11 @@
     </g>
     <g transform="translate(0, 0)">
       <rect x="-55" y="-14" width="110" height="28" rx="14" fill="none" stroke="#FFB347" stroke-width="1" opacity="0.4"/>
-      <text x="0" y="5" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="500" fill="#FFB347" text-anchor="middle" opacity="0.7">~2K LOC Relay</text>
+      <text x="0" y="5" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="500" fill="#FFB347" text-anchor="middle" opacity="0.7">Minimal Relay</text>
     </g>
     <g transform="translate(160, 0)">
       <rect x="-55" y="-14" width="110" height="28" rx="14" fill="none" stroke="#18BCF2" stroke-width="1" opacity="0.4"/>
-      <text x="0" y="5" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="500" fill="#18BCF2" text-anchor="middle" opacity="0.7">6 LLM Skills</text>
+      <text x="0" y="5" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="500" fill="#18BCF2" text-anchor="middle" opacity="0.7">LLM Skills</text>
     </g>
   </g>
 
