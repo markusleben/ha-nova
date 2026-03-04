@@ -29,9 +29,9 @@
 ┌─────────────────┐     ┌──────────────────┐     ┌──────────────────┐
 │   AI Client     │     │   HA NOVA Relay   │     │ Home Assistant   │
 │                 │     │   (HA App)        │     │                  │
-│  Claude Code    │────▶│  Pure proxy       │────▶│  WebSocket API   │
-│  Codex CLI      │     │  ~2K LOC          │     │  REST API        │
-│  OpenCode       │     │  No business logic│     │                  │
+│  Your AI Client │────▶│  Pure proxy       │────▶│  WebSocket API   │
+│  (see below)    │     │  ~2K LOC          │     │  REST API        │
+│                 │     │  No business logic│     │                  │
 └─────────────────┘     └──────────────────┘     └──────────────────┘
         │
         │ reads
@@ -71,7 +71,7 @@ HA NOVA is **not** an MCP server. It's a two-part system:
 npx ha-nova setup
 ```
 
-The setup wizard handles everything: relay installation, token configuration, and skill setup for your AI client.
+The wizard asks which AI client you use, then handles everything: relay installation, token configuration, and skill setup.
 
 ## Supported AI Clients
 
@@ -80,6 +80,7 @@ The setup wizard handles everything: relay installation, token configuration, an
 | [Claude Code](https://github.com/anthropics/claude-code) | Supported |
 | [Codex CLI](https://github.com/openai/codex) | Supported |
 | [OpenCode](https://github.com/nicepkg/OpenCode) | Supported |
+| [Gemini CLI](https://github.com/google-gemini/gemini-cli) | Supported |
 
 ## Skills Overview
 
