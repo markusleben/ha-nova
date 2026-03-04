@@ -49,7 +49,12 @@ Work style: Be radically precise. No fluff. Pure information only (drop grammar;
 - Avoid manual `git stash`; if Git auto-stashes during pull/rebase, that’s fine (hint, not hard guardrail).
 - If user types a command (“pull and push”), that’s consent for that command.
 - Big review: `git --no-pager diff --color=never`.
-- **PR Merge:** Use auto-merge after creating PRs: `gh pr create ... && gh pr merge --auto --squash --delete-branch`. GitHub merges automatically when CI passes. No polling needed.
+- **PR Merge:** Do NOT use auto-merge. The Codex review bot needs ~3 min to post findings after CI passes. Workflow:
+  1. `gh pr create ...` — create the PR.
+  2. Wait for CI checks to pass.
+  3. Check for bot review comments: `gh api repos/<owner>/<repo>/pulls/<nr>/comments`.
+  4. Resolve any findings (fix or acknowledge).
+  5. Then merge: `gh pr merge --squash --delete-branch`.
 
 ## Error Handling
 - Expected issues: explicit result types (not throw/try/catch).
