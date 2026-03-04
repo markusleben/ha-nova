@@ -3,15 +3,17 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 describe("ha cross-skill integration", () => {
-  it("routes write flow through resolve + preview + apply phases", () => {
+  it("routes write flow through resolve + preview + apply + review phases", () => {
     const writeSkill = readFileSync(".agents/skills/ha-nova-write/SKILL.md", "utf8");
 
     expect(writeSkill).toContain("Phase 1: Resolve (Agent)");
     expect(writeSkill).toContain("Phase 2: Preview + Confirm (Main Thread)");
     expect(writeSkill).toContain("Phase 3: Apply + Verify (Agent)");
+    expect(writeSkill).toContain("Phase 4: Review (Agent)");
+    expect(writeSkill).toContain("review-agent.md");
     expect(writeSkill).toContain("full-replacement merge (base=current, overlay=user changes)");
     expect(writeSkill).toContain("confirm:<token>");
-    expect(writeSkill).toContain("Suggested Enhancements");
+    expect(writeSkill).toContain("full YAML config");
     expect(writeSkill).toContain("Fallback: If agent dispatch unavailable");
   });
 
@@ -22,6 +24,7 @@ describe("ha cross-skill integration", () => {
     expect(writeSkill).toContain("skills/ha-nova/best-practices.md");
     expect(writeSkill).toContain("skills/ha-nova/agents/resolve-agent.md");
     expect(writeSkill).toContain("skills/ha-nova/agents/apply-agent.md");
+    expect(writeSkill).toContain("skills/ha-nova/agents/review-agent.md");
   });
 
   it("keeps write skill concise and phase-driven", () => {

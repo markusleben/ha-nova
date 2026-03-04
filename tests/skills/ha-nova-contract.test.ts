@@ -17,6 +17,8 @@ describe("ha-nova contract", () => {
     expect(router).toContain("use skill `ha-nova-read`");
     expect(router).toContain("use skill `ha-nova-entity-discovery`");
     expect(router).toContain("use skill `ha-nova-onboarding`");
+    expect(router).toContain("review-agent.md");
+    expect(router).toContain("mode=`standalone`");
     expect(router).not.toContain(".agents/skills/");
     expect(router).not.toContain("core/intents.md");
     expect(router).not.toContain("Lazy Discovery Protocol");
@@ -38,14 +40,15 @@ describe("ha-nova contract", () => {
     expect(router).toContain("Do not ask user to paste tokens in chat.");
   });
 
-  it("defines compact preview block response format", () => {
+  it("defines structured summary + YAML response format", () => {
     const router = readFileSync("skills/ha-nova.md", "utf8");
 
-    expect(router).toContain("Response Format (Writes)");
+    expect(router).toContain("Response Format");
     expect(router).toContain("Automation` or `Script");
     expect(router).toContain("Entities");
-    expect(router).toContain("Behavior");
-    expect(router).toContain("Suggested Enhancements");
+    expect(router).toContain("Triggers");
+    expect(router).toContain("Actions");
+    expect(router).toContain("full YAML config");
     expect(router).toContain("Next Step");
   });
 
@@ -55,6 +58,7 @@ describe("ha-nova contract", () => {
       "skills/ha-nova/best-practices.md",
       "skills/ha-nova/agents/resolve-agent.md",
       "skills/ha-nova/agents/apply-agent.md",
+      "skills/ha-nova/agents/review-agent.md",
     ];
 
     for (const file of files) {
@@ -116,6 +120,35 @@ describe("ha-nova contract", () => {
     expect(apply).toContain("trigger` + `triggers");
     expect(apply).toContain("automation/reload");
     expect(apply).toContain("script/reload");
+
+    const review = readFileSync("skills/ha-nova/agents/review-agent.md", "utf8");
+
+    expect(review).toContain("{DOMAIN}");
+    expect(review).toContain("{TARGET_ID}");
+    expect(review).toContain("{CONFIG}");
+    expect(review).toContain("{MODE}");
+    expect(review).toContain("~/.config/ha-nova/relay ws");
+    expect(review).toContain("~/.config/ha-nova/relay core");
+    expect(review).not.toContain("{RELAY_BASE_URL}");
+    expect(review).not.toContain("{RELAY_AUTH_TOKEN}");
+    expect(review).toContain("CONFIG_FINDINGS:");
+    expect(review).toContain("COLLISION_SCAN:");
+    expect(review).toContain("CONFLICTS:");
+    expect(review).toContain("search/related");
+    expect(review).toContain("complementary pair");
+    expect(review).toContain("Flip-Flop");
+    expect(review).toContain("Script-Specific");
+    expect(review).toContain("selector:");
+    expect(review).toContain("fields:");
+    expect(review).toContain("| default(...)");
+    expect(review).toContain("REVIEW_MODE:");
+    expect(review).toContain("SUGGESTIONS:");
+    expect(review).toContain("SUMMARY:");
+    expect(review).toContain("post-write");
+    expect(review).toContain("standalone");
+    expect(review).toContain("Cascade");
+    expect(review).toContain("Stale Helper");
+    expect(review).toContain("Startup Flash");
   });
 
   it("keeps all operational subskills concise (<600 words)", () => {

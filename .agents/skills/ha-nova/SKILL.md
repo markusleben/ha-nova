@@ -49,14 +49,15 @@ Rules:
   - why it failed
   - next concrete step
 
-## Response Format (Writes)
+## Response Format
 
-Render compact blocks in this order:
-1. `Automation` or `Script`
-2. `Entities`
-3. `Behavior`
-4. `Suggested Enhancements`
-5. `Next Step`
+Render structured summary + YAML for both reads and writes:
+1. `Automation` or `Script` (name + ID)
+2. `Entities` (all entity_ids in triggers/conditions/actions)
+3. `Triggers`, `Conditions`, `Actions` (short descriptions)
+4. `Mode` (single/restart/queued/parallel)
+5. full YAML config block
+6. `Next Step` (for writes: confirmation; for reads: done)
 
 Keep orchestration details internal on normal success paths.
 
@@ -70,6 +71,10 @@ Keep orchestration details internal on normal success paths.
   - use skill `ha-nova-service-call`
 - Automation/script runtime control (enable, disable, trigger):
   - use skill `ha-nova-service-call` (services: `automation.turn_on`, `automation.turn_off`, `automation.trigger`)
+- Review / analyze intent (`review|analyze|check|audit` for automation or script):
+  - resolve target via `ha-nova-entity-discovery`
+  - read config via `ha-nova-read`
+  - dispatch review-agent (`skills/ha-nova/agents/review-agent.md`) with mode=`standalone`
 - Entity discovery / target lookup:
   - use skill `ha-nova-entity-discovery`
 - Onboarding / connectivity / auth diagnostics:

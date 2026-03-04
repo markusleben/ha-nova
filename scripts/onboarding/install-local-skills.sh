@@ -10,17 +10,6 @@ SKILL_NAMES=(
   "ha-nova-service-call"
 )
 
-LEGACY_SKILL_NAMES=(
-  "ha-nova-automation-create"
-  "ha-nova-automation-update"
-  "ha-nova-automation-delete"
-  "ha-nova-script-create"
-  "ha-nova-script-update"
-  "ha-nova-script-delete"
-  "ha-nova-resolve-targets"
-  "ha-nova-onboarding-diagnostics"
-)
-
 log() {
   echo "[install-local-skills] $*"
 }
@@ -36,12 +25,14 @@ Usage:
   bash scripts/onboarding/install-local-skills.sh codex
   bash scripts/onboarding/install-local-skills.sh claude
   bash scripts/onboarding/install-local-skills.sh opencode
+  bash scripts/onboarding/install-local-skills.sh gemini
   bash scripts/onboarding/install-local-skills.sh all
 
 Targets:
-  codex    -> ~/.agents/skills/{ha-nova,ha-nova-write,ha-nova-read,ha-nova-entity-discovery,ha-nova-onboarding,ha-nova-service-call}
-  claude   -> ~/.claude/skills/{ha-nova,ha-nova-write,ha-nova-read,ha-nova-entity-discovery,ha-nova-onboarding,ha-nova-service-call}
-  opencode -> ~/.config/opencode/skills/{ha-nova,ha-nova-write,ha-nova-read,ha-nova-entity-discovery,ha-nova-onboarding,ha-nova-service-call}
+  codex    -> ~/.agents/skills/{ha-nova,...}   (also used by Gemini CLI)
+  claude   -> ~/.claude/skills/{ha-nova,...}
+  opencode -> ~/.config/opencode/skills/{ha-nova,...}
+  gemini   -> alias for codex (both use ~/.agents/skills/)
   all      -> install for codex + claude + opencode
 USAGE
 }
@@ -65,24 +56,12 @@ install_one_skill_for_target() {
   local source_skill_file="${source_skill_dir}/SKILL.md"
   local dest_skill_path="${user_skills_dir}/${skill_name}"
   local dest_skill_file="${dest_skill_path}/SKILL.md"
-  local managed_marker="ha-nova-managed-install repo_root: ${REPO_ROOT}"
 
   [[ -f "${source_skill_file}" ]] || die "Missing source skill: ${source_skill_file}"
 
+  # Remove symlinks (legacy install method)
   if [[ -L "${dest_skill_path}" ]]; then
-    local current_target
-    local backup_path
-    current_target="$(readlink "${dest_skill_path}" || true)"
-    backup_path="${dest_skill_path}.backup.$(date +%Y%m%d%H%M%S)"
-    mv "${dest_skill_path}" "${backup_path}"
-    log "[${target}] Backed up existing symlink (${current_target}) to: ${backup_path}"
-  elif [[ -d "${dest_skill_path}" && -f "${dest_skill_file}" ]] && grep -Fq "${managed_marker}" "${dest_skill_file}"; then
-    :
-  elif [[ -e "${dest_skill_path}" ]]; then
-    local backup_path
-    backup_path="${dest_skill_path}.backup.$(date +%Y%m%d%H%M%S)"
-    mv "${dest_skill_path}" "${backup_path}"
-    log "[${target}] Backed up existing path to: ${backup_path}"
+    rm -f "${dest_skill_path}"
   fi
 
   mkdir -p "${dest_skill_path}"
@@ -90,40 +69,20 @@ install_one_skill_for_target() {
   log "[${target}] Installed skill file: ${dest_skill_file}"
 }
 
-archive_legacy_skill() {
-  local target="$1"
-  local legacy_path="$2"
-  local backup_path="${legacy_path}.legacy-backup.$(date +%Y%m%d%H%M%S)"
-
-  if [[ -e "${backup_path}" ]]; then
-    backup_path="${legacy_path}.legacy-backup.$(date +%Y%m%d%H%M%S).$$"
-  fi
-
-  mv "${legacy_path}" "${backup_path}"
-  log "[${target}] Archived legacy skill path to: ${backup_path}"
-}
-
 install_target() {
   local target="$1"
   local user_skills_dir
-  local legacy_name
   local relay_cli_source="${REPO_ROOT}/scripts/relay.sh"
   local relay_cli_target="${HOME}/.config/ha-nova/relay"
 
   case "$target" in
-    codex) user_skills_dir="${HOME}/.agents/skills" ;;
+    codex|gemini) user_skills_dir="${HOME}/.agents/skills" ;;
     claude) user_skills_dir="${HOME}/.claude/skills" ;;
     opencode) user_skills_dir="${HOME}/.config/opencode/skills" ;;
     *) die "Unsupported target: ${target}" ;;
   esac
 
   mkdir -p "${user_skills_dir}"
-
-  for legacy_name in "${LEGACY_SKILL_NAMES[@]}"; do
-    if [[ -e "${user_skills_dir}/${legacy_name}" ]]; then
-      archive_legacy_skill "$target" "${user_skills_dir}/${legacy_name}"
-    fi
-  done
 
   local skill_name
   for skill_name in "${SKILL_NAMES[@]}"; do
@@ -139,14 +98,19 @@ install_target() {
 }
 
 main() {
-  local target="${1:-codex}"
+  local target="${1:-}"
+
+  if [[ -z "$target" ]]; then
+    usage
+    die "No target specified. Please provide a target explicitly."
+  fi
 
   case "$target" in
-    codex|claude|opencode)
+    codex|claude|opencode|gemini)
       install_target "$target"
       ;;
     all)
-      install_target "codex"
+      install_target "codex"   # also covers gemini (shared ~/.agents/skills/)
       install_target "claude"
       install_target "opencode"
       ;;

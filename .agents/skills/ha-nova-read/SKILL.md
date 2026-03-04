@@ -26,14 +26,91 @@ If this fails: `npm run onboarding:macos`
 
 ## Flow
 
-1. For list operations:
-   - `~/.config/ha-nova/relay ws -d '{"type":"get_states"}'`
-   - filter by domain prefix (`automation.` / `script.`)
-2. For single-item reads:
-   - `~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/config/automation/config/{id}"}'`
-   - for script reads use `/api/config/script/config/{id}`
-3. If id is ambiguous, ask one clarifying question.
-4. Return compact domain-focused output.
+### Listing automations / scripts
+
+Use the compact entity registry (abbreviated keys: `ei`=entity_id, `en`=name, `ai`=area_id):
+
+```bash
+# List automations (limit to first 30 for readability)
+~/.config/ha-nova/relay ws -d '{"type":"config/entity_registry/list_for_display"}' \
+  | jq '[.data.entities[] | select(.ei | startswith("automation.")) | {entity_id: .ei, name: .en, area_id: .ai}] | .[0:30]'
+
+# List scripts
+~/.config/ha-nova/relay ws -d '{"type":"config/entity_registry/list_for_display"}' \
+  | jq '[.data.entities[] | select(.ei | startswith("script.")) | {entity_id: .ei, name: .en, area_id: .ai}] | .[0:30]'
+```
+
+### Keyword search
+
+Use short keyword stems to handle spelling variants. Always limit results.
+
+```bash
+~/.config/ha-nova/relay ws -d '{"type":"config/entity_registry/list_for_display"}' \
+  | jq '[.data.entities[] | select(.ei | startswith("automation.")) | select((.ei + " " + (.en // "")) | test("KEYWORD";"i")) | {entity_id: .ei, name: .en, area_id: .ai}] | .[0:20]'
+```
+
+If 0 results: try synonyms, alternative terms, or shorter stems: `test("kw1|kw2";"i")`. Never dump entire domains.
+
+For "automations in room X": use entity-discovery skill's area → device → `search/related` flow.
+
+### Reading a single config
+
+Try the entity_id slug first (part after `automation.` or `script.`). If that returns 404, the config ID is a numeric `unique_id` instead — fetch it from the full entity registry.
+
+```bash
+# Try slug first
+~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/config/automation/config/{slug}"}'
+
+# If 404: resolve unique_id from full entity registry
+~/.config/ha-nova/relay ws -d '{"type":"config/entity_registry/list"}' \
+  | jq '.data[] | select(.entity_id == "automation.{slug}") | .unique_id'
+# Then use the unique_id as config ID
+~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/config/automation/config/{unique_id}"}'
+```
+
+### Related entities
+
+Find automations/scripts that use a specific entity:
+
+```bash
+~/.config/ha-nova/relay ws -d '{"type":"search/related","item_type":"entity","item_id":"{entity_id}"}'
+```
+
+If id is ambiguous, ask one clarifying question.
+
+**IMPORTANT:** Never use raw `get_states` — it returns ALL entities (thousands) with full attributes. Use the targeted APIs above.
+
+## Output Format
+
+After reading a config, always present a structured summary:
+
+```
+**{Automation|Script}: {alias}**
+- **ID:** {id}
+- **Entities:** {list all entity_ids used in triggers, conditions, and actions}
+- **Triggers:** {short description of each trigger}
+- **Conditions:** {short description or "none"}
+- **Actions:** {short description of each action, grouped by trigger if applicable}
+- **Mode:** {single|restart|queued|parallel}
+```
+
+Then show the full YAML config:
+
+```yaml
+# Rendered YAML of the automation/script config
+alias: ...
+triggers: ...
+actions: ...
+```
+
+For list operations, use a compact table:
+
+```
+| Entity ID | Name | State |
+|-----------|------|-------|
+```
+
+Never show raw JSON to the user. Parse JSON config into structured summary + YAML.
 
 ## Trace Debugging
 
@@ -51,7 +128,7 @@ For trace queries ("why didn't automation X fire?", "show me the last runs"):
    - Conditions: which passed/failed
    - Actions: what executed, any errors
    - Result: success/error/aborted
-5. If no traces found: tell user the automation may not have triggered recently, or tracing may be disabled.
+5. If traces don't cover the relevant period: check `last_changed` via `/api/states/{entity_id}` as indirect evidence. HA keeps only the last 5 traces.
 
 ## Latency Policy
 

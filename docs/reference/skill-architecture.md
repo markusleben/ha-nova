@@ -2,13 +2,14 @@
 
 ## Overview
 
-HA NOVA uses a compact, installable 5-skill topology.
+HA NOVA uses a compact, installable 6-skill topology.
 
 Installed skills:
 - `ha-nova` (router + safety baseline + runtime prerequisites)
 - `ha-nova-write` (automation/script create/update/delete)
-- `ha-nova-read` (automation/script list/get)
-- `ha-nova-entity-discovery` (state/entity shortlist from `/ws get_states`)
+- `ha-nova-read` (automation/script list/get/trace)
+- `ha-nova-entity-discovery` (entity lookup via `/ws config/entity_registry/list_for_display`)
+- `ha-nova-service-call` (service calls + automation/script runtime control)
 - `ha-nova-onboarding` (onboarding + diagnostics)
 
 Reference files (repo-local, loaded by skills as needed):
@@ -21,7 +22,9 @@ Reference files (repo-local, loaded by skills as needed):
 
 `ha-nova` routes by intent:
 - write intent (`create|update|delete` automation/script) -> `ha-nova-write`
-- read intent (`list|get` automation/script) -> `ha-nova-read`
+- read intent (`list|get|trace` automation/script) -> `ha-nova-read`
+- service call intent (turn on/off, toggle, set) -> `ha-nova-service-call`
+- automation/script runtime control (enable, disable, trigger) -> `ha-nova-service-call`
 - entity lookup intent -> `ha-nova-entity-discovery`
 - onboarding/connectivity/auth diagnostics -> `ha-nova-onboarding`
 
@@ -62,26 +65,16 @@ Fallback:
 
 `ha-nova-read` is intentionally direct/low-overhead:
 - no subagent dispatch for routine reads
-- `/ws get_states` for list operations
+- `/ws config/entity_registry/list_for_display` for list operations
 - `/core` config reads for single-item get operations
 - one blocking question only if target ambiguity remains
 
 ## Installer Contract
 
 `scripts/onboarding/install-local-skills.sh`:
-- installs exactly the 5 active skills above
-- archives legacy skill directories to timestamped backups
-- does not destructively delete unknown legacy content
-
-Legacy names that are archived during install:
-- `ha-nova-automation-create`
-- `ha-nova-automation-update`
-- `ha-nova-automation-delete`
-- `ha-nova-script-create`
-- `ha-nova-script-update`
-- `ha-nova-script-delete`
-- `ha-nova-resolve-targets`
-- `ha-nova-onboarding-diagnostics`
+- installs exactly the 6 active skills above
+- renders `__HA_NOVA_REPO_ROOT__` template variable to actual repo path
+- supports targets: `codex`, `claude`, `opencode`, `gemini` (alias for codex), `all`
 
 ## Safety Baseline
 

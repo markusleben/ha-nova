@@ -11,8 +11,6 @@ source "${SCRIPT_DIR}/platform/macos.sh"
 DOCTOR_CACHE_FILE="${CONFIG_DIR}/doctor-cache.env"
 
 RELAY_SERVICE="ha-nova.relay-auth-token"
-# Legacy keychain service name kept only for cleanup during setup migration.
-LLAT_SERVICE="ha-nova.ha-llat"
 
 ensure_config_dir() {
   mkdir -p "$CONFIG_DIR"
@@ -173,21 +171,24 @@ detect_setup_state() {
   fi
 
   # Skills installed?
-  local skills_dir
+  local all_skills_dirs=()
   case "$client" in
-    codex) skills_dir="${HOME}/.agents/skills" ;;
-    claude) skills_dir="${HOME}/.claude/skills" ;;
-    opencode) skills_dir="${HOME}/.config/opencode/skills" ;;
-    *) skills_dir="${HOME}/.claude/skills" ;;
+    codex|gemini) all_skills_dirs=("${HOME}/.agents/skills") ;;
+    claude)       all_skills_dirs=("${HOME}/.claude/skills") ;;
+    opencode)     all_skills_dirs=("${HOME}/.config/opencode/skills") ;;
+    all)          all_skills_dirs=("${HOME}/.agents/skills" "${HOME}/.claude/skills" "${HOME}/.config/opencode/skills") ;;
+    *)            all_skills_dirs=("${HOME}/.claude/skills") ;;
   esac
 
   SETUP_SKILLS_OK="1"
-  local skill_name
-  for skill_name in "${SKILL_NAMES[@]}"; do
-    if [[ ! -f "${skills_dir}/${skill_name}/SKILL.md" ]]; then
-      SETUP_SKILLS_OK="0"
-      break
-    fi
+  local skills_dir skill_name
+  for skills_dir in "${all_skills_dirs[@]}"; do
+    for skill_name in "${SKILL_NAMES[@]}"; do
+      if [[ ! -f "${skills_dir}/${skill_name}/SKILL.md" ]]; then
+        SETUP_SKILLS_OK="0"
+        break 2
+      fi
+    done
   done
 }
 
@@ -226,12 +227,39 @@ SKILL_NAMES=(
   "ha-nova-read"
   "ha-nova-entity-discovery"
   "ha-nova-onboarding"
+  "ha-nova-service-call"
 )
 
+pick_client() {
+  echo "" >&2
+  echo "  Which AI client do you use?" >&2
+  echo "" >&2
+  echo "    1) Claude Code" >&2
+  echo "    2) Codex CLI" >&2
+  echo "    3) OpenCode" >&2
+  echo "    4) Gemini CLI" >&2
+  echo "    5) All of the above" >&2
+  echo "" >&2
+  printf "  Enter [1-5] (default 1): " >&2
+  read -r choice
+  case "${choice:-1}" in
+    1) echo "claude" ;;
+    2) echo "codex" ;;
+    3) echo "opencode" ;;
+    4) echo "gemini" ;;
+    5) echo "all" ;;
+    *) echo "claude" ;;
+  esac
+}
+
 run_setup() {
-  local client="${1:-claude}"
+  local client="${1:-}"
 
   print_header
+
+  if [[ -z "$client" ]]; then
+    client="$(pick_client)"
+  fi
 
   # ── Phase 1: Prerequisites ──
   check_prerequisites
@@ -469,7 +497,6 @@ run_setup() {
 
     # Save
     store_keychain_secret "$RELAY_SERVICE" "$relay_auth_token"
-    delete_keychain_secret_if_exists "$LLAT_SERVICE"
     persist_config
     invalidate_doctor_cache
     print_success "Config saved to ~/.config/ha-nova/"

@@ -23,45 +23,64 @@ If this fails: `npm run onboarding:macos`
 
 ## Flow
 
-1. Fetch states: `~/.config/ha-nova/relay ws -d '{"type":"get_states"}'`
-2. Parse only object rows where `entity_id` is string.
-3. Filter by user intent (domain, room, device keywords).
-4. Return shortlist with:
-   - `entity_id`
-   - `state`
-   - `friendly_name`
-   - short relevance reason
+### Step 1: Search entity registry
+
+Entity registry uses compact abbreviated keys: `ei`=entity_id, `en`=name, `ai`=area_id.
+
+Search both entity_id and name. Use short keyword stems to handle spelling variants. Always limit to 20 results.
+
+```bash
+~/.config/ha-nova/relay ws -d '{"type":"config/entity_registry/list_for_display"}' \
+  | jq '[.data.entities[] | select((.ei + " " + (.en // "")) | test("KEYWORD";"i")) | {entity_id: .ei, name: .en, area_id: .ai}] | .[0:20]'
+```
+
+**If 0 results:** try synonyms, alternative terms, or shorter keyword stems. Use OR for multiple variants: `test("kw1|kw2|kw3";"i")`.
+**If too many:** narrow with AND: `test("kw1";"i") and test("kw2";"i")`.
+**Never** dump entire domains without a user-intent keyword.
+
+### Step 2: Get state or config
+
+```bash
+# State
+~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/states/{entity_id}"}'
+
+# Automation/script config — try slug (part after "automation.") first.
+# If 404, resolve unique_id: ws '{"type":"config/entity_registry/list"}' | jq select + .unique_id
+~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/config/automation/config/{slug_or_unique_id}"}'
+~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/config/script/config/{slug}"}'
+```
+
+### Step 3: Find automations related to a device or area
+
+Automations rarely have `area_id` set. When user asks "automations for X in room Y":
+
+1. Resolve room name to area_id:
+   `~/.config/ha-nova/relay ws -d '{"type":"config/area_registry/list"}'` | filter by name
+2. Find entities in that area: filter entity registry with `select(.ai == "area_id")`
+3. Use `search/related` to find automations that reference those entities:
+   ```bash
+   ~/.config/ha-nova/relay ws -d '{"type":"search/related","item_type":"entity","item_id":"{entity_id}"}'
+   ```
+
+This is more reliable than keyword search for room-based queries.
+
+### Step 4: Return shortlist
+
+- `entity_id`, `friendly_name`, `state` (if fetched), short relevance reason
+
+**IMPORTANT:** Never dump raw `get_states` — it returns thousands of entities with full attributes.
 
 ## Matching Rules
 
-- exact `entity_id` hit wins.
-- exact `friendly_name` hit second.
-- keyword intersection ranking third.
+- exact `entity_id` match wins
+- keyword match on entity_id + name second
+- area → device → `search/related` third
 
-If ambiguity remains:
-- present top candidates
-- ask one selection question
-
-If no match:
-- state explicitly and request exact entity id or clearer phrase.
-
-## Performance
-
-- Cache `get_states` results within a session; do not re-fetch for every query.
-- For a known entity_id, prefer direct state read: `GET /api/states/{entity_id}` via `/core`.
-
-## Area and Device Discovery
-
-For area-based targeting (e.g., "all lights in the bedroom"):
-- `~/.config/ha-nova/relay ws -d '{"type":"config/area_registry/list"}'`
-- `~/.config/ha-nova/relay ws -d '{"type":"config/device_registry/list"}'`
-- `~/.config/ha-nova/relay ws -d '{"type":"config/entity_registry/list"}'`
-- Match area name to area_id, then filter entities:
-  1. Direct match: entity registry entry has `area_id` matching target area.
-  2. Device fallback: if entity `area_id` is null, look up its `device_id` in device registry — if that device's `area_id` matches, include the entity.
+If ambiguity remains: present top candidates (max 10), ask one selection question.
 
 ## Guardrails
 
 - never guess entity IDs
+- always limit results: `| .[0:20]`
 - no writes
 - no proactive doctor before real failure

@@ -1,4 +1,4 @@
-import { constants, mkdtempSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { constants, mkdtempSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -23,13 +23,12 @@ describe("macOS onboarding script contract", () => {
     expect((multiInstallerStats.mode & constants.S_IXUSR) !== 0).toBe(true);
     expect(multiInstallerContent).toContain('SKILL_NAMES=(');
     expect(multiInstallerContent).toContain('source_skill_file="${source_skill_dir}/SKILL.md"');
-    expect(multiInstallerContent).toContain('codex) user_skills_dir="${HOME}/.agents/skills"');
+    expect(multiInstallerContent).toContain('codex|gemini) user_skills_dir="${HOME}/.agents/skills"');
     expect(multiInstallerContent).toContain('claude) user_skills_dir="${HOME}/.claude/skills"');
     expect(multiInstallerContent).toContain('opencode) user_skills_dir="${HOME}/.config/opencode/skills"');
     expect(multiInstallerContent).toContain("render_skill_file");
-    expect(multiInstallerContent).toContain("ha-nova-managed-install repo_root");
-    expect(multiInstallerContent).toContain("LEGACY_SKILL_NAMES=(");
-    expect(multiInstallerContent).toContain("Archived legacy skill path to:");
+    expect(multiInstallerContent).toContain("__HA_NOVA_REPO_ROOT__");
+    expect(multiInstallerContent).not.toContain("LEGACY_SKILL_NAMES");
   });
 
   it("provides executable split onboarding command scripts", () => {
@@ -39,7 +38,8 @@ describe("macOS onboarding script contract", () => {
       "scripts/onboarding/macos-doctor.sh",
       "scripts/onboarding/macos-ready.sh",
       "scripts/onboarding/macos-quick.sh",
-      "scripts/onboarding/macos-env.sh"
+      "scripts/onboarding/macos-env.sh",
+      "scripts/onboarding/uninstall.sh"
     ];
 
     for (const file of scripts) {
@@ -59,8 +59,7 @@ describe("macOS onboarding script contract", () => {
     expect(platform).toContain("security add-generic-password");
     expect(platform).toContain("security find-generic-password");
     expect(lib).toContain("ha-nova.relay-auth-token");
-    expect(lib).not.toContain('read_keychain_secret "$LLAT_SERVICE"');
-    expect(lib).not.toContain('store_keychain_secret "$LLAT_SERVICE"');
+    expect(lib).not.toContain("LLAT_SERVICE");
     expect(lib).not.toContain('emit_export "HA_LLAT"');
   });
 
@@ -139,7 +138,7 @@ describe("macOS onboarding script contract", () => {
     // Use isolated HOME so smart resume doesn't find existing state and exit early.
     const workDir = mkdtempSync(join(tmpdir(), "ha-nova-noninteractive-"));
 
-    const result = spawnSync("bash", ["scripts/onboarding/macos-onboarding.sh", "setup"], {
+    const result = spawnSync("bash", ["scripts/onboarding/macos-onboarding.sh", "setup", "claude"], {
       cwd: process.cwd(),
       input: "n\n",
       encoding: "utf8",
@@ -222,7 +221,7 @@ exit 1
       ""
     ].join("\n");
 
-    const result = spawnSync("bash", ["scripts/onboarding/macos-onboarding.sh", "setup"], {
+    const result = spawnSync("bash", ["scripts/onboarding/macos-onboarding.sh", "setup", "claude"], {
       cwd: process.cwd(),
       input,
       encoding: "utf8",
@@ -241,31 +240,13 @@ exit 1
     expect(config).toContain("HA_URL=http://192.168.1.5:18123");
   });
 
-  it("installs managed local skill files for codex, claude, and opencode", () => {
+  it("installs managed local skill files for codex, claude, and opencode (gemini shares codex path)", () => {
     const workDir = mkdtempSync(join(tmpdir(), "ha-nova-skill-install-"));
     const targetRoots = [
       join(workDir, ".agents/skills"),
       join(workDir, ".claude/skills"),
       join(workDir, ".config/opencode/skills"),
     ];
-    const legacySkillNames = [
-      "ha-nova-automation-create",
-      "ha-nova-automation-update",
-      "ha-nova-automation-delete",
-      "ha-nova-script-create",
-      "ha-nova-script-update",
-      "ha-nova-script-delete",
-      "ha-nova-resolve-targets",
-      "ha-nova-onboarding-diagnostics",
-    ];
-
-    for (const targetRoot of targetRoots) {
-      for (const legacy of legacySkillNames) {
-        const legacyDir = join(targetRoot, legacy);
-        mkdirSync(legacyDir, { recursive: true });
-        writeFileSync(join(legacyDir, "SKILL.md"), "# legacy", "utf8");
-      }
-    }
 
     const result = spawnSync("bash", ["scripts/onboarding/install-local-skills.sh", "all"], {
       cwd: process.cwd(),
@@ -285,6 +266,7 @@ exit 1
       "ha-nova-read",
       "ha-nova-entity-discovery",
       "ha-nova-onboarding",
+      "ha-nova-service-call",
     ];
 
     for (const targetRoot of targetRoots) {
@@ -302,14 +284,6 @@ exit 1
           expect(content).toContain("use skill `ha-nova-onboarding`");
           expect(content).not.toContain(".agents/skills/");
         }
-      }
-
-      for (const legacy of legacySkillNames) {
-        expect(() => statSync(join(targetRoot, legacy))).toThrow();
-        const archivedEntries = readdirSync(targetRoot).filter((entry) =>
-          entry.startsWith(`${legacy}.legacy-backup.`)
-        );
-        expect(archivedEntries.length).toBeGreaterThan(0);
       }
     }
   });
@@ -336,6 +310,9 @@ exit 1
     );
     expect(pkg.scripts?.["install:opencode-skill"]).toBe(
       "bash scripts/onboarding/install-local-skills.sh opencode"
+    );
+    expect(pkg.scripts?.["install:gemini-skill"]).toBe(
+      "bash scripts/onboarding/install-local-skills.sh gemini"
     );
     expect(pkg.scripts?.["install:skills"]).toBe(
       "bash scripts/onboarding/install-local-skills.sh all"
@@ -401,7 +378,52 @@ exit 1
     expect(content.startsWith("#!/usr/bin/env bash")).toBe(true);
     expect(content).toContain("setup");
     expect(content).toContain("doctor");
+    expect(content).toContain("uninstall");
     expect(content).toContain("Usage:");
+  });
+
+  it("uninstall removes skills and config", () => {
+    const workDir = mkdtempSync(join(tmpdir(), "ha-nova-uninstall-"));
+    const skillDirs = [
+      join(workDir, ".agents/skills"),
+      join(workDir, ".claude/skills"),
+      join(workDir, ".config/opencode/skills"),
+    ];
+    const skillNames = [
+      "ha-nova", "ha-nova-write", "ha-nova-read",
+      "ha-nova-entity-discovery", "ha-nova-onboarding", "ha-nova-service-call",
+    ];
+
+    // Seed skills + config
+    for (const dir of skillDirs) {
+      for (const skill of skillNames) {
+        mkdirSync(join(dir, skill), { recursive: true });
+        writeFileSync(join(dir, skill, "SKILL.md"), "# skill", "utf8");
+      }
+    }
+    const configDir = join(workDir, ".config/ha-nova");
+    mkdirSync(configDir, { recursive: true });
+    writeFileSync(join(configDir, "relay"), "#!/bin/bash", "utf8");
+    writeFileSync(join(configDir, "onboarding.env"), "HA_HOST=test", "utf8");
+
+    const result = spawnSync("bash", ["scripts/onboarding/uninstall.sh", "--yes"], {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      timeout: 10000,
+      env: { ...process.env, HOME: workDir },
+    });
+
+    expect(result.status).toBe(0);
+
+    // Skills removed
+    for (const dir of skillDirs) {
+      for (const skill of skillNames) {
+        expect(() => statSync(join(dir, skill))).toThrow();
+      }
+    }
+    // Config removed
+    expect(() => statSync(join(configDir, "relay"))).toThrow();
+    expect(() => statSync(join(configDir, "onboarding.env"))).toThrow();
   });
 
   it("package.json exposes bin field for npx ha-nova", () => {

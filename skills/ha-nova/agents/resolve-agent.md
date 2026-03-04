@@ -43,13 +43,17 @@ Use `~/.config/ha-nova/relay` for all HA communication. It handles auth, headers
 
 ## Execution Steps
 
-1. Fetch states: `~/.config/ha-nova/relay ws -d '{"type":"get_states"}'`
-2. Filter object rows with valid `entity_id` and collect candidates relevant to `{USER_INTENT}`.
+1. Fetch entity registry (compact format):
+   `~/.config/ha-nova/relay ws -d '{"type":"config/entity_registry/list_for_display"}'`
+   Response uses abbreviated keys: `ei`=entity_id, `en`=name, `ai`=area_id.
+2. Filter `.data.entities[]` and collect candidates relevant to `{USER_INTENT}`.
+   Example: `jq '[.data.entities[] | select((.ei + " " + (.en // "")) | test("KEYWORD";"i")) | {entity_id: .ei, name: .en, area_id: .ai}]'`
 3. Resolve target config id:
-   - slug from intent and/or explicit id from user message
+   - try entity_id slug first (part after `automation.` or `script.`)
    - check existence with `/core` GET:
-     - automation: `/api/config/automation/config/{id}`
-     - script: `/api/config/script/config/{id}`
+     - automation: `/api/config/automation/config/{slug}`
+     - script: `/api/config/script/config/{slug}`
+   - if 404: resolve `unique_id` from full entity registry (`config/entity_registry/list`) and retry with that
 4. If target exists, capture `current_config` from read-back.
 5. Best-practice snapshot (automation domain only; skip for scripts):
    - Read from `${HOME}/.cache/ha-nova/automation-bp-snapshot.json`
@@ -60,7 +64,7 @@ Use `~/.config/ha-nova/relay` for all HA communication. It handles auth, headers
    - 0 candidates => return no-match error
    - multiple plausible candidates => return ranked ambiguity list
 7. Self-review before return:
-   - minimize `get_states` requests (ideally one)
+   - minimize entity registry requests (ideally one)
    - no write endpoint called
    - output sections complete
 
