@@ -3,29 +3,32 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 describe("ha cross-skill integration", () => {
-  it("routes write flow through resolve + preview + apply phases", () => {
-    const writeSkill = readFileSync(".agents/skills/ha-nova-write/SKILL.md", "utf8");
+  it("routes write flow through resolve + preview + apply + review phases", () => {
+    const writeSkill = readFileSync("skills/ha-nova/write/SKILL.md", "utf8");
 
     expect(writeSkill).toContain("Phase 1: Resolve (Agent)");
     expect(writeSkill).toContain("Phase 2: Preview + Confirm (Main Thread)");
     expect(writeSkill).toContain("Phase 3: Apply + Verify (Agent)");
+    expect(writeSkill).toContain("Phase 4: Review");
+    expect(writeSkill).toContain("ha-nova:review");
     expect(writeSkill).toContain("full-replacement merge (base=current, overlay=user changes)");
     expect(writeSkill).toContain("confirm:<token>");
-    expect(writeSkill).toContain("Suggested Enhancements");
+    expect(writeSkill).toContain("full YAML config");
     expect(writeSkill).toContain("Fallback: If agent dispatch unavailable");
   });
 
   it("keeps write skill wired to shared relay + best-practices references", () => {
-    const writeSkill = readFileSync(".agents/skills/ha-nova-write/SKILL.md", "utf8");
+    const writeSkill = readFileSync("skills/ha-nova/write/SKILL.md", "utf8");
 
     expect(writeSkill).toContain("skills/ha-nova/relay-api.md");
     expect(writeSkill).toContain("skills/ha-nova/best-practices.md");
     expect(writeSkill).toContain("skills/ha-nova/agents/resolve-agent.md");
     expect(writeSkill).toContain("skills/ha-nova/agents/apply-agent.md");
+    expect(writeSkill).toContain("ha-nova:review");
   });
 
   it("keeps write skill concise and phase-driven", () => {
-    const writeSkill = readFileSync(".agents/skills/ha-nova-write/SKILL.md", "utf8");
+    const writeSkill = readFileSync("skills/ha-nova/write/SKILL.md", "utf8");
 
     expect(writeSkill).toContain("## Bootstrap (once per session)");
     expect(writeSkill).toContain("~/.config/ha-nova/relay health");
@@ -39,12 +42,5 @@ describe("ha cross-skill integration", () => {
     expect(writeSkill).not.toContain("RELAY_AUTH_TOKEN");
     expect(writeSkill).not.toContain("## Lazy Load Contract");
     expect(writeSkill).not.toContain("## Relay API Injection Rules");
-  });
-
-  it("keeps installed router mirrored from repo router", () => {
-    const repoSkill = readFileSync("skills/ha-nova.md", "utf8");
-    const installedSkill = readFileSync(".agents/skills/ha-nova/SKILL.md", "utf8");
-
-    expect(repoSkill).toBe(installedSkill);
   });
 });

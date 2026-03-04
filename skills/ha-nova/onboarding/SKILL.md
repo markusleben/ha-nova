@@ -1,11 +1,10 @@
 ---
-name: ha-nova-onboarding
+name: onboarding
 description: Use when HA NOVA Relay requests fail due to onboarding, connectivity, or auth issues.
 ---
 
 # HA NOVA Onboarding
 
-<!-- ha-nova-managed-install repo_root: __HA_NOVA_REPO_ROOT__ -->
 
 ## Scope
 

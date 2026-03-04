@@ -1,0 +1,6 @@
+[allowlist]
+description = "Allow placeholder tokens in example/test files"
+paths = [
+  '''\.env\.example''',
+  '''tests/.*'''
+]

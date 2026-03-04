@@ -29,9 +29,9 @@
 ┌─────────────────┐     ┌──────────────────┐     ┌──────────────────┐
 │   AI Client     │     │   HA NOVA Relay   │     │ Home Assistant   │
 │                 │     │   (HA App)        │     │                  │
-│  Claude Code    │────▶│  Pure proxy       │────▶│  WebSocket API   │
-│  Codex CLI      │     │  ~2K LOC          │     │  REST API        │
-│  OpenCode       │     │  No business logic│     │                  │
+│  Your AI Client │────▶│  Pure proxy       │────▶│  WebSocket API   │
+│  (see below)    │     │  ~2K LOC          │     │  REST API        │
+│                 │     │  No business logic│     │                  │
 └─────────────────┘     └──────────────────┘     └──────────────────┘
         │
         │ reads
@@ -40,7 +40,7 @@
 │   LLM Skills    │
 │   (Markdown)    │
 │                 │
-│  6 skill files  │
+│  7 skill files  │
 │  teach your AI  │
 │  how to operate │
 │  Home Assistant  │
@@ -71,7 +71,7 @@ HA NOVA is **not** an MCP server. It's a two-part system:
 npx ha-nova setup
 ```
 
-The setup wizard handles everything: relay installation, token configuration, and skill setup for your AI client.
+The wizard asks which AI client you use, then handles everything: relay installation, token configuration, and skill setup.
 
 ## Supported AI Clients
 
@@ -80,16 +80,20 @@ The setup wizard handles everything: relay installation, token configuration, an
 | [Claude Code](https://github.com/anthropics/claude-code) | Supported |
 | [Codex CLI](https://github.com/openai/codex) | Supported |
 | [OpenCode](https://github.com/nicepkg/OpenCode) | Supported |
+| [Gemini CLI](https://github.com/google-gemini/gemini-cli) | Supported |
 
 ## Skills Overview
 
+All skills are nested under `ha-nova/` using the `ha-nova:<skill>` naming convention:
+
 | Skill | What It Does |
 |-------|-------------|
-| **ha-nova-write** | Create, update, delete automations and scripts — 3-phase safety flow (Resolve → Preview → Apply) |
-| **ha-nova-read** | List configs, inspect automations/scripts, debug with trace analysis |
-| **ha-nova-entity-discovery** | Search entities by name, domain, room, or area |
-| **ha-nova-service-call** | Direct device control (lights, climate, covers, switches, etc.) |
-| **ha-nova-onboarding** | Guided setup diagnostics and troubleshooting |
+| **ha-nova:write** | Create, update, delete automations and scripts — 3-phase safety flow (Resolve → Preview → Apply) |
+| **ha-nova:read** | List configs, inspect automations/scripts, debug with trace analysis |
+| **ha-nova:entity-discovery** | Search entities by name, domain, room, or area |
+| **ha-nova:service-call** | Direct device control (lights, climate, covers, switches, etc.) |
+| **ha-nova:review** | Analyze automations/scripts for best-practice violations and conflicts |
+| **ha-nova:onboarding** | Guided setup diagnostics and troubleshooting |
 
 ## Safety
 
@@ -116,10 +120,10 @@ npx ha-nova doctor
 
 ```
 src/                    Relay server (TypeScript)
-skills/                 LLM skill definitions (Markdown)
-  ha-nova/agents/       Agent templates (resolve, apply)
+skills/ha-nova/         LLM skill tree (router + 6 sub-skills + reference docs)
+  agents/               Agent templates (resolve, apply, review)
 scripts/onboarding/     Setup wizard and diagnostics
-.agents/skills/         AI client skill wrappers
+.claude-plugin/         Claude Code plugin manifest
 ```
 
 ## Contributing

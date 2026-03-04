@@ -17,6 +17,43 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  repo-hygiene:
+    name: repo-hygiene
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      # NOTE: If repo moves to a GitHub org, add GITLEAKS_LICENSE secret.
+      # See https://github.com/gitleaks/gitleaks-action/blob/master/v2.md
+      - name: Secret scan (gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Blocked files check
+        run: |
+          set -euo pipefail
+          BLOCKED=(
+            ".env"
+            ".env.local"
+            "docs/breadcrumbs.md"
+            "docs/choices.md"
+          )
+          FOUND=()
+          for f in "${BLOCKED[@]}"; do
+            if git ls-files --error-unmatch "$f" &>/dev/null; then
+              FOUND+=("$f")
+            fi
+          done
+          if [[ ${#FOUND[@]} -gt 0 ]]; then
+            echo "::error::Blocked files tracked in git: ${FOUND[*]}"
+            exit 1
+          fi
+          echo "No blocked files found."
+
   ci-gate:
     name: ci-gate
     runs-on: ubuntu-latest

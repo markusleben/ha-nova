@@ -1,7 +1,7 @@
 {
   "name": "ha-nova",
   "version": "0.1.0",
-  "description": "AI-powered Home Assistant management through Claude Code, Codex, and OpenCode",
+  "description": "AI-powered Home Assistant management through LLM coding agents",
   "private": false,
   "type": "module",
   "license": "MIT",
@@ -20,6 +20,7 @@
     "claude",
     "codex",
     "opencode",
+    "gemini",
     "automation",
     "smart-home",
     "relay",
@@ -38,6 +39,7 @@
     "install:codex-skill": "bash scripts/onboarding/install-local-skills.sh codex",
     "install:claude-skill": "bash scripts/onboarding/install-local-skills.sh claude",
     "install:opencode-skill": "bash scripts/onboarding/install-local-skills.sh opencode",
+    "install:gemini-skill": "bash scripts/onboarding/install-local-skills.sh gemini",
     "install:skills": "bash scripts/onboarding/install-local-skills.sh all",
     "onboarding:macos": "bash scripts/onboarding/macos-onboarding.sh setup",
     "onboarding:macos:doctor": "bash scripts/onboarding/macos-onboarding.sh doctor",
@@ -56,7 +58,8 @@
     "smoke:app:http": "bash scripts/smoke/app-http-smoke.sh",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "update:ha-reference": "node scripts/update-ha-template-reference.mjs"
   },
   "dependencies": {
     "axios": "^1.13.5",

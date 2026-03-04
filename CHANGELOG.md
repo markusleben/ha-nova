@@ -23,4 +23,4 @@ First public release.
 - **macOS Keychain auth** — Tokens stored securely, never exposed in prompts
 - **139 tests** — Contract tests, security tests, onboarding tests, E2E harness
 - **CI pipeline** — TypeScript typecheck, Vitest, CodeQL, dependency review
-- **Claude Code, Codex CLI, and OpenCode** support via managed skill installation
+- **Claude Code, Codex CLI, OpenCode, and Gemini CLI** support via managed skill installation

@@ -7,6 +7,8 @@ tsconfig.json
 vitest.config.*
 .codex/
 .claude/
+.opencode/
+.gemini/
 AGENTS.md
 CLAUDE.md
 PROJECT.md

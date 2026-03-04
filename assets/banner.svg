@@ -71,7 +71,7 @@
   <!-- Sub-tagline -->
   <text x="640" y="468" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif"
         font-size="15" font-weight="400" fill="#5A7A96" text-anchor="middle"
-        letter-spacing="1">Lean relay + LLM skills for Claude Code, Codex, and OpenCode</text>
+        letter-spacing="1">Lean relay + LLM skills for AI coding agents</text>
 
   <!-- Bottom pill badges (no hard numbers — those go in README) -->
   <g transform="translate(640, 530)">

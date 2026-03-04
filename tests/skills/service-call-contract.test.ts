@@ -8,7 +8,7 @@ const relayApi = readFileSync(
   "utf-8",
 );
 const skillDoc = readFileSync(
-  resolve(__dirname, "../../.agents/skills/ha-nova-service-call/SKILL.md"),
+  resolve(__dirname, "../../skills/ha-nova/service-call/SKILL.md"),
   "utf-8",
 );
 

@@ -1,11 +1,10 @@
 ---
-name: ha-nova-write
+name: write
 description: Use when creating, updating, or deleting Home Assistant automations or scripts through HA NOVA Relay.
 ---
 
 # HA NOVA Write
 
-<!-- ha-nova-managed-install repo_root: __HA_NOVA_REPO_ROOT__ -->
 
 ## Scope
 
@@ -40,7 +39,22 @@ If this fails, run onboarding: `npm run onboarding:macos`.
 1. Build config. For update: full-replacement merge (base=current, overlay=user changes).
 2. BP gate: fresh->continue, stale+simple->warn, stale+complex->block until refresh.
    Load `best-practices.md` only if gate evaluation needed.
-3. Render preview: Automation|Script, Entities, Behavior, Suggested Enhancements, Next Step.
+3. Render preview with structured summary + full YAML:
+   ```
+   **{Automation|Script}: {alias}**
+   - **ID:** {id}
+   - **Entities:** {all entity_ids in triggers/conditions/actions}
+   - **Triggers:** {short description}
+   - **Conditions:** {short description or "none"}
+   - **Actions:** {short description}
+   - **Mode:** {single|restart|queued|parallel}
+   ```
+   Then show the full YAML config that will be written:
+   ```yaml
+   alias: ...
+   triggers: ...
+   actions: ...
+   ```
 4. Confirmation: create/update=natural, delete=tokenized `confirm:<token>`.
 
 ### Phase 3: Apply + Verify (Agent)
@@ -51,6 +65,18 @@ If this fails, run onboarding: `npm run onboarding:macos`.
 4. Report user-facing result. No raw curl/JSON in output.
 
 Fallback: If agent dispatch unavailable, run same logic inline serially.
+
+### Phase 4: Review
+
+1. Use skill `ha-nova:review` with mode=`post-write`.
+2. Provide: domain, target_id, observed config from Phase 3.
+3. Expect: config findings, collision scan, conflict analysis.
+4. Present findings to user:
+   - CRITICAL/HIGH findings: highlight prominently, suggest fixes
+   - MEDIUM/LOW findings: mention as advisory
+   - Conflicts: explain context (why it's a real conflict vs safe pattern)
+   - No findings: "Config looks clean."
+5. Findings are advisory — the write already succeeded. User can choose to update.
 
 ## Safety
 
@@ -66,3 +92,4 @@ Fallback: If agent dispatch unavailable, run same logic inline serially.
 - Best Practices: `skills/ha-nova/best-practices.md`
 - Resolve Agent: `skills/ha-nova/agents/resolve-agent.md`
 - Apply Agent: `skills/ha-nova/agents/apply-agent.md`
+- Review: use skill `ha-nova:review`

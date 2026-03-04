@@ -17,12 +17,12 @@ Use a client-specific entrypoint instead of manual environment editing.
 - Codex CLI:
   - one-link guided flow via raw instructions
   - `Fetch and follow instructions from https://raw.githubusercontent.com/markusleben/ha-nova/main/.codex/INSTALL.md`
-  - one-time skill install: `npm run install:codex-skill`
+  - skill install via symlink: `npm run install:codex-skill` (symlinks `~/.agents/skills/ha-nova` → repo)
   - daily usage: regular `codex` startup (no custom launcher required)
 - Claude Code:
+  - Plugin system: `claude plugin add /path/to/ha-nova` (auto-discovers `skills/ha-nova/`)
   - one-link guided flow via raw instructions
   - `Fetch and follow instructions from https://raw.githubusercontent.com/markusleben/ha-nova/main/.claude/INSTALL.md`
-  - one-time local skill install: `npm run install:claude-skill`
   - same onboarding + verify flow as Codex (`scripts/onboarding/macos-onboarding.sh`)
   - marketplace packaging not published yet
 - Claude Desktop:
@@ -49,12 +49,9 @@ Code from it can be reused for Relay components (REST/WS clients, backup manager
 
 Current deliverables:
 1. Relay MVP: `POST /ws` + `GET /health`
-2. Router skill: `ha-nova`
-3. Consolidated write skill: `ha-nova-write`
-4. Consolidated read skill: `ha-nova-read`
-5. Entity discovery skill: `ha-nova-entity-discovery`
-6. Onboarding/diagnostics skill: `ha-nova-onboarding`
-7. Shared references under `skills/ha-nova/` (`relay-api.md`, `best-practices.md`, `agents/*`)
+2. Router skill: `ha-nova` (routes to nested sub-skills via `ha-nova:<skill>`)
+3. Sub-skills (nested under `ha-nova/`): write, read, entity-discovery, service-call, review, onboarding
+4. Shared references under `skills/ha-nova/` (`relay-api.md`, `best-practices.md`, `agents/*`)
 
 ## Tech Stack
 

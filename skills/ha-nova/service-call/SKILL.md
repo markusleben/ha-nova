@@ -1,11 +1,10 @@
 ---
-name: ha-nova-service-call
+name: service-call
 description: Use when the user wants to call Home Assistant services (turn on lights, set temperature, toggle switches) through HA NOVA Relay.
 ---
 
 # HA NOVA Service Call
 
-<!-- ha-nova-managed-install repo_root: __HA_NOVA_REPO_ROOT__ -->
 
 ## Scope
 
@@ -14,7 +13,7 @@ Direct device/service control:
 - list available services
 - target by entity_id, area_id, or device_id
 
-No config mutations (use `ha-nova-write` for automation/script changes).
+No config mutations (use `ha-nova:write` for automation/script changes).
 
 ## Bootstrap (once per session)
 

@@ -5,7 +5,6 @@ description: Use when the user wants Home Assistant operations through HA NOVA (
 
 # HA NOVA Skill
 
-<!-- ha-nova-managed-install repo_root: __HA_NOVA_REPO_ROOT__ -->
 
 ## Mission
 
@@ -49,31 +48,34 @@ Rules:
   - why it failed
   - next concrete step
 
-## Response Format (Writes)
+## Response Format
 
-Render compact blocks in this order:
-1. `Automation` or `Script`
-2. `Entities`
-3. `Behavior`
-4. `Suggested Enhancements`
-5. `Next Step`
+Render structured summary + YAML for both reads and writes:
+1. `Automation` or `Script` (name + ID)
+2. `Entities` (all entity_ids in triggers/conditions/actions)
+3. `Triggers`, `Conditions`, `Actions` (short descriptions)
+4. `Mode` (single/restart/queued/parallel)
+5. full YAML config block
+6. `Next Step` (for writes: confirmation; for reads: done)
 
 Keep orchestration details internal on normal success paths.
 
 ## Routing Table
 
 - Write intent (`create|update|delete` for automation or script):
-  - use skill `ha-nova-write`
+  - use skill `ha-nova:write`
 - Read intent (`list|get|trace` for automation or script):
-  - use skill `ha-nova-read`
+  - use skill `ha-nova:read`
 - Service call intent (turn on, turn off, toggle, set, call service):
-  - use skill `ha-nova-service-call`
+  - use skill `ha-nova:service-call`
 - Automation/script runtime control (enable, disable, trigger):
-  - use skill `ha-nova-service-call` (services: `automation.turn_on`, `automation.turn_off`, `automation.trigger`)
+  - use skill `ha-nova:service-call` (services: `automation.turn_on`, `automation.turn_off`, `automation.trigger`)
+- Review / analyze intent (`review|analyze|check|audit` for automation or script):
+  - use skill `ha-nova:review`
 - Entity discovery / target lookup:
-  - use skill `ha-nova-entity-discovery`
+  - use skill `ha-nova:entity-discovery`
 - Onboarding / connectivity / auth diagnostics:
-  - use skill `ha-nova-onboarding`
+  - use skill `ha-nova:onboarding`
 
 ## Latency Policy
 

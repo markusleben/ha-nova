@@ -19,7 +19,7 @@ Single source of truth for Relay calls used by HA NOVA skills.
 For agent-dispatched flows, use the CLI wrapper instead of raw curl:
 
 ```bash
-~/.config/ha-nova/relay ws -d '{"type":"get_states"}'
+~/.config/ha-nova/relay ws -d '{"type":"config/entity_registry/list_for_display"}'
 ~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/config/automation/config/my_id"}'
 ```
 
@@ -34,15 +34,17 @@ The wrapper handles auth (Keychain), headers, timeouts, and base URL internally.
 
 Request examples:
 - `{ "type": "ping" }`
-- `{ "type": "get_states" }`
+- `{ "type": "config/entity_registry/list_for_display" }` (compact entity listing; preferred over `get_states`)
+- `{ "type": "get_states" }` (full state dump; avoid for listings — use only for single-entity state when needed)
 
 Expected success body:
 - `ok=true`
-- `data` is usually an array for `get_states`
+- Entity registry: `data.entities[]` with abbreviated keys (`ei`=entity_id, `en`=name, `ai`=area_id)
+- `get_states`: `data` is an array of full state objects (thousands of entries — avoid for discovery)
 
 Parsing rule:
-- For state reads, treat payload as `(.data // [])[]`.
-- Filter only object entries with string `entity_id`.
+- Entity registry: `.data.entities[]` — filter with jq `select(.ei | startswith("automation."))`.
+- `get_states`: treat as `(.data // [])[]`, filter only object entries with string `entity_id`.
 
 ## /core Contract
 
@@ -167,5 +169,5 @@ For mutating and verify-critical calls use:
 
 ## Runtime Env
 
-- Main-thread: `eval "$(bash "$NOVA_REPO_ROOT/scripts/onboarding/macos-onboarding.sh" env)"`
-- Agent-dispatched: use `~/.config/ha-nova/relay` (auth + base URL resolved inside wrapper).
+- Use `~/.config/ha-nova/relay` for all HA communication (auth + base URL resolved inside wrapper).
+- Bootstrap check: `~/.config/ha-nova/relay health`
