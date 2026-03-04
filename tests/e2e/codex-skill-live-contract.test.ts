@@ -55,9 +55,9 @@ describe("codex live skill e2e contract", () => {
     );
   });
 
-  it("documents quick and live e2e checks", () => {
-    const deployLoop = readFileSync("docs/contributor-deploy-loop.md", "utf8");
-    expect(deployLoop).toContain("onboarding:macos:quick");
-    expect(deployLoop).toContain("e2e:skill:codex");
+  it("exposes npm scripts for quick and live e2e checks", () => {
+    const pkg = JSON.parse(readFileSync("package.json", "utf8"));
+    expect(pkg.scripts?.["onboarding:macos:quick"]).toBeDefined();
+    expect(pkg.scripts?.["e2e:skill:codex"]).toBeDefined();
   });
 });
