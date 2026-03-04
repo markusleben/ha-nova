@@ -98,6 +98,25 @@ Script fields: `alias`, `sequence`, `mode`
 
 Method: create/update = `POST`, delete = `DELETE`
 
+## Service Calls (via /core)
+
+List all available services:
+```json
+{"method":"GET","path":"/api/services"}
+```
+
+Call a service:
+```json
+{"method":"POST","path":"/api/services/light/turn_on","body":{"entity_id":"light.living_room","brightness":128}}
+```
+
+Call with response data:
+```json
+{"method":"POST","path":"/api/services/weather/get_forecasts?return_response","body":{"entity_id":"weather.home","type":"daily"}}
+```
+
+Supported target fields: `entity_id` (string or array), `area_id`, `device_id`.
+
 ## Trace Queries (via /ws)
 
 List traces for an automation:
