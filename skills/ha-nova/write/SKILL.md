@@ -1,11 +1,10 @@
 ---
-name: ha-nova-write
+name: write
 description: Use when creating, updating, or deleting Home Assistant automations or scripts through HA NOVA Relay.
 ---
 
 # HA NOVA Write
 
-<!-- ha-nova-managed-install repo_root: __HA_NOVA_REPO_ROOT__ -->
 
 ## Scope
 
@@ -67,11 +66,11 @@ If this fails, run onboarding: `npm run onboarding:macos`.
 
 Fallback: If agent dispatch unavailable, run same logic inline serially.
 
-### Phase 4: Review (Agent)
+### Phase 4: Review
 
-1. Read `skills/ha-nova/agents/review-agent.md`.
-2. Fill template: domain, target_id, observed config from Phase 3, mode=`post-write`.
-3. Dispatch general-purpose agent. Expect: config findings, collision scan, conflict analysis.
+1. Use skill `ha-nova:review` with mode=`post-write`.
+2. Provide: domain, target_id, observed config from Phase 3.
+3. Expect: config findings, collision scan, conflict analysis.
 4. Present findings to user:
    - CRITICAL/HIGH findings: highlight prominently, suggest fixes
    - MEDIUM/LOW findings: mention as advisory
@@ -93,4 +92,4 @@ Fallback: If agent dispatch unavailable, run same logic inline serially.
 - Best Practices: `skills/ha-nova/best-practices.md`
 - Resolve Agent: `skills/ha-nova/agents/resolve-agent.md`
 - Apply Agent: `skills/ha-nova/agents/apply-agent.md`
-- Review Agent: `skills/ha-nova/agents/review-agent.md`
+- Review: use skill `ha-nova:review`

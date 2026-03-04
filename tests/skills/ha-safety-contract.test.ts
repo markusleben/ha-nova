@@ -4,8 +4,8 @@ import { describe, expect, it } from "vitest";
 
 describe("ha safety contract", () => {
   it("enforces tiered confirmations and no-guessing policy", () => {
-    const router = readFileSync("skills/ha-nova.md", "utf8");
-    const writeSkill = readFileSync(".agents/skills/ha-nova-write/SKILL.md", "utf8");
+    const router = readFileSync("skills/ha-nova/SKILL.md", "utf8");
+    const writeSkill = readFileSync("skills/ha-nova/write/SKILL.md", "utf8");
 
     expect(router).toContain("Never guess entity IDs, service names, or config IDs.");
     expect(router).toContain("create`/`update`: natural confirmation");
@@ -15,8 +15,8 @@ describe("ha safety contract", () => {
   });
 
   it("requires structured failure output", () => {
-    const router = readFileSync("skills/ha-nova.md", "utf8");
-    const writeSkill = readFileSync(".agents/skills/ha-nova-write/SKILL.md", "utf8");
+    const router = readFileSync("skills/ha-nova/SKILL.md", "utf8");
+    const writeSkill = readFileSync("skills/ha-nova/write/SKILL.md", "utf8");
 
     expect(router).toContain("what failed");
     expect(router).toContain("why it failed");

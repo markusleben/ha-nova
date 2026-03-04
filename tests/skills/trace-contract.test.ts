@@ -8,7 +8,7 @@ const relayApi = readFileSync(
   "utf-8",
 );
 const readSkill = readFileSync(
-  resolve(__dirname, "../../.agents/skills/ha-nova-read/SKILL.md"),
+  resolve(__dirname, "../../skills/ha-nova/read/SKILL.md"),
   "utf-8",
 );
 
@@ -32,7 +32,7 @@ describe("trace contract", () => {
     });
   });
 
-  describe("ha-nova-read skill references trace types", () => {
+  describe("ha-nova:read skill references trace types", () => {
     it("skill documents trace/list usage", () => {
       expect(readSkill).toContain("trace/list");
     });

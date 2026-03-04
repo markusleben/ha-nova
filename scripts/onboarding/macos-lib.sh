@@ -133,6 +133,16 @@ run_doctor_checks() {
   return 1
 }
 
+# Sub-skill names needed by detect_setup_state.
+HA_NOVA_SUB_SKILLS=(
+  "write"
+  "read"
+  "entity-discovery"
+  "onboarding"
+  "service-call"
+  "review"
+)
+
 detect_setup_state() {
   local client="$1"
   local relay_auth_token
@@ -171,25 +181,80 @@ detect_setup_state() {
   fi
 
   # Skills installed?
-  local all_skills_dirs=()
-  case "$client" in
-    codex|gemini) all_skills_dirs=("${HOME}/.agents/skills") ;;
-    claude)       all_skills_dirs=("${HOME}/.claude/skills") ;;
-    opencode)     all_skills_dirs=("${HOME}/.config/opencode/skills") ;;
-    all)          all_skills_dirs=("${HOME}/.agents/skills" "${HOME}/.claude/skills" "${HOME}/.config/opencode/skills") ;;
-    *)            all_skills_dirs=("${HOME}/.claude/skills") ;;
-  esac
-
   SETUP_SKILLS_OK="1"
-  local skills_dir skill_name
-  for skills_dir in "${all_skills_dirs[@]}"; do
-    for skill_name in "${SKILL_NAMES[@]}"; do
-      if [[ ! -f "${skills_dir}/${skill_name}/SKILL.md" ]]; then
+  case "$client" in
+    codex)
+      # Symlink check: ha-nova -> repo/skills/ha-nova (also catches broken symlinks)
+      if [[ ! -L "${HOME}/.agents/skills/ha-nova" ]]; then
         SETUP_SKILLS_OK="0"
-        break 2
+      elif [[ ! -e "${HOME}/.agents/skills/ha-nova" ]]; then
+        # Symlink exists but target is gone (broken)
+        SETUP_SKILLS_OK="0"
+      elif [[ ! -f "${HOME}/.agents/skills/ha-nova/SKILL.md" ]]; then
+        SETUP_SKILLS_OK="0"
       fi
-    done
-  done
+      ;;
+    gemini)
+      # Flat copy check: ha-nova/SKILL.md + ha-nova-{sub}/SKILL.md
+      if [[ ! -f "${HOME}/.agents/skills/ha-nova/SKILL.md" ]]; then
+        SETUP_SKILLS_OK="0"
+      else
+        for sub_skill in "${HA_NOVA_SUB_SKILLS[@]}"; do
+          if [[ ! -f "${HOME}/.agents/skills/ha-nova-${sub_skill}/SKILL.md" ]]; then
+            SETUP_SKILLS_OK="0"
+            break
+          fi
+        done
+      fi
+      ;;
+    claude)
+      # Plugin system — check plugin.json exists in repo
+      if [[ ! -f "${REPO_ROOT}/.claude-plugin/plugin.json" ]]; then
+        SETUP_SKILLS_OK="0"
+      fi
+      ;;
+    opencode)
+      # Symlink check (also catches broken symlinks)
+      if [[ ! -L "${HOME}/.config/opencode/skills/ha-nova" ]]; then
+        SETUP_SKILLS_OK="0"
+      elif [[ ! -e "${HOME}/.config/opencode/skills/ha-nova" ]]; then
+        SETUP_SKILLS_OK="0"
+      elif [[ ! -f "${HOME}/.config/opencode/skills/ha-nova/SKILL.md" ]]; then
+        SETUP_SKILLS_OK="0"
+      fi
+      ;;
+    all)
+      # Check each client's skills without recursive detect_setup_state
+      # (which would overwrite SETUP_HAS_CONFIG/TOKEN/RELAY_OK/WS_OK)
+      for sub_skill in "${HA_NOVA_SUB_SKILLS[@]}"; do
+        # Codex symlink
+        if [[ ! -L "${HOME}/.agents/skills/ha-nova" ]] || [[ ! -f "${HOME}/.agents/skills/ha-nova/${sub_skill}/SKILL.md" ]]; then
+          SETUP_SKILLS_OK="0"
+          break
+        fi
+        # Gemini flat
+        if [[ ! -f "${HOME}/.agents/skills/ha-nova-${sub_skill}/SKILL.md" ]]; then
+          SETUP_SKILLS_OK="0"
+          break
+        fi
+      done
+      # OpenCode symlink
+      if [[ "$SETUP_SKILLS_OK" == "1" ]]; then
+        if [[ ! -L "${HOME}/.config/opencode/skills/ha-nova" ]] || [[ ! -f "${HOME}/.config/opencode/skills/ha-nova/SKILL.md" ]]; then
+          SETUP_SKILLS_OK="0"
+        fi
+      fi
+      # Claude plugin
+      if [[ "$SETUP_SKILLS_OK" == "1" ]]; then
+        if [[ ! -f "${REPO_ROOT}/.claude-plugin/plugin.json" ]]; then
+          SETUP_SKILLS_OK="0"
+        fi
+      fi
+      ;;
+    *)
+      SETUP_SKILLS_OK="0"
+      ;;
+  esac
 }
 
 print_setup_status() {
@@ -219,16 +284,6 @@ print_setup_status() {
   fi
   echo ""
 }
-
-# Skill names needed by detect_setup_state (mirrors install-local-skills.sh).
-SKILL_NAMES=(
-  "ha-nova"
-  "ha-nova-write"
-  "ha-nova-read"
-  "ha-nova-entity-discovery"
-  "ha-nova-onboarding"
-  "ha-nova-service-call"
-)
 
 pick_client() {
   echo "" >&2
@@ -634,26 +689,26 @@ run_quick() {
 
   run_ready --quiet
 
-  local codex_skill_file="${HOME}/.agents/skills/ha-nova/SKILL.md"
-  if [[ ! -f "$codex_skill_file" ]]; then
-    die "Missing Codex skill file: ${codex_skill_file}. Run: npm run install:codex-skill"
+  local codex_skill_link="${HOME}/.agents/skills/ha-nova"
+  if [[ -L "$codex_skill_link" ]]; then
+    local link_target
+    link_target="$(readlink "$codex_skill_link")"
+    if [[ "$link_target" != "${REPO_ROOT}/skills/ha-nova" ]]; then
+      die "Codex skill symlink points to wrong repo (${link_target}). Re-run: npm run install:codex-skill"
+    fi
+    if [[ ! -f "${codex_skill_link}/SKILL.md" ]]; then
+      die "Codex skill symlink broken. Re-run: npm run install:codex-skill"
+    fi
+    echo "  [ok] Codex skill installed (symlink): ${codex_skill_link}"
+  elif [[ -d "$codex_skill_link" ]]; then
+    # Legacy copy — still functional but recommend re-install
+    if [[ ! -f "${codex_skill_link}/SKILL.md" ]]; then
+      die "Missing Codex skill file. Re-run: npm run install:codex-skill"
+    fi
+    echo "  [ok] Codex skill installed (copy, consider re-installing for symlink): ${codex_skill_link}"
+  else
+    die "Missing Codex skill: ${codex_skill_link}. Run: npm run install:codex-skill"
   fi
-
-  local marker_line
-  local installed_repo_root
-  marker_line="$(grep -F -m1 "ha-nova-managed-install repo_root:" "$codex_skill_file" || true)"
-  if [[ -z "$marker_line" ]]; then
-    die "Invalid Codex skill installation marker. Re-run: npm run install:codex-skill"
-  fi
-  installed_repo_root="${marker_line#*repo_root: }"
-  installed_repo_root="${installed_repo_root%-->}"
-  installed_repo_root="${installed_repo_root%"${installed_repo_root##*[![:space:]]}"}"
-
-  if [[ -n "$installed_repo_root" && "$installed_repo_root" != "$REPO_ROOT" ]]; then
-    die "Codex skill points to another repo root (${installed_repo_root}). Re-run: npm run install:codex-skill"
-  fi
-
-  echo "  [ok] Codex skill installed: ${codex_skill_file}"
   echo "  [ok] Quick readiness passed."
   echo
   echo "Fresh Codex session prompt:"

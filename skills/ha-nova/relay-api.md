@@ -169,5 +169,5 @@ For mutating and verify-critical calls use:
 
 ## Runtime Env
 
-- Main-thread: `eval "$(bash "$NOVA_REPO_ROOT/scripts/onboarding/macos-onboarding.sh" env)"`
-- Agent-dispatched: use `~/.config/ha-nova/relay` (auth + base URL resolved inside wrapper).
+- Use `~/.config/ha-nova/relay` for all HA communication (auth + base URL resolved inside wrapper).
+- Bootstrap check: `~/.config/ha-nova/relay health`

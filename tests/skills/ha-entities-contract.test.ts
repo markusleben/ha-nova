@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 describe("ha entity-discovery contract", () => {
   it("uses relay-cli bootstrap instead of repo-root env eval", () => {
-    const content = readFileSync(".agents/skills/ha-nova-entity-discovery/SKILL.md", "utf8");
+    const content = readFileSync("skills/ha-nova/entity-discovery/SKILL.md", "utf8");
 
     expect(content).toContain("~/.config/ha-nova/relay health");
     expect(content).toContain("npm run onboarding:macos");
@@ -13,7 +13,7 @@ describe("ha entity-discovery contract", () => {
   });
 
   it("prefers entity registry over get_states and handles ambiguity", () => {
-    const content = readFileSync(".agents/skills/ha-nova-entity-discovery/SKILL.md", "utf8");
+    const content = readFileSync("skills/ha-nova/entity-discovery/SKILL.md", "utf8");
 
     expect(content).toContain("entity_registry/list");
     expect(content).toContain("Never dump raw");

@@ -7,3 +7,7 @@ worktrees/
 .env
 .env.local
 .env.*.local
+
+# Agent work artifacts
+docs/breadcrumbs.md
+docs/choices.md

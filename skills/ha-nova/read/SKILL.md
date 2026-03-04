@@ -1,11 +1,10 @@
 ---
-name: ha-nova-read
+name: read
 description: Use when listing or reading Home Assistant automation and script configs through HA NOVA Relay.
 ---
 
 # HA NOVA Read
 
-<!-- ha-nova-managed-install repo_root: __HA_NOVA_REPO_ROOT__ -->
 
 ## Scope
 
@@ -55,25 +54,19 @@ For "automations in room X": use entity-discovery skill's area → device → `s
 
 ### Reading a single config
 
-Try the entity_id slug first (part after `automation.` or `script.`). If that returns 404, the config ID is a numeric `unique_id` instead — fetch it from the full entity registry.
+Always resolve the config key via entity registry first — the entity_id slug and the config key often differ (HA uses numeric `unique_id` internally for UI-created items).
 
 **Always save config reads to a temp file** to avoid shell output truncation (complex automations can be 10–30 KB JSON):
 
 ```bash
-# Try slug first — save to file (for scripts: /api/config/script/config/{slug})
-~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/config/automation/config/{slug}"}' > /tmp/ha-config-{slug}.json
+# Step 1: Resolve config key from entity registry (for scripts: select "script.")
+~/.config/ha-nova/relay ws -d '{"type":"config/entity_registry/list"}' \
+  | jq -r '.data[] | select(.entity_id == "automation.{slug}") | .unique_id'
+
+# Step 2: Fetch config using the resolved key (for scripts: /api/config/script/config/{key})
+~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/config/automation/config/{resolved_key}"}' > /tmp/ha-config-{slug}.json
 
 # Verify JSON is valid (exits 0 if valid, non-zero if invalid/truncated)
-jq empty /tmp/ha-config-{slug}.json
-
-# Check for 404: if response contains "message" instead of "alias", resolve unique_id below
-
-# If 404: resolve unique_id from full entity registry
-~/.config/ha-nova/relay ws -d '{"type":"config/entity_registry/list"}' \
-  | jq '.data[] | select(.entity_id == "automation.{slug}") | .unique_id'
-
-# Then use the unique_id
-~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/config/automation/config/{unique_id}"}' > /tmp/ha-config-{slug}.json
 jq empty /tmp/ha-config-{slug}.json
 ```
 

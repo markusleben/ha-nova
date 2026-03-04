@@ -5,7 +5,6 @@ description: Use when the user wants Home Assistant operations through HA NOVA (
 
 # HA NOVA Skill
 
-<!-- ha-nova-managed-install repo_root: __HA_NOVA_REPO_ROOT__ -->
 
 ## Mission
 
@@ -64,21 +63,19 @@ Keep orchestration details internal on normal success paths.
 ## Routing Table
 
 - Write intent (`create|update|delete` for automation or script):
-  - use skill `ha-nova-write`
+  - use skill `ha-nova:write`
 - Read intent (`list|get|trace` for automation or script):
-  - use skill `ha-nova-read`
+  - use skill `ha-nova:read`
 - Service call intent (turn on, turn off, toggle, set, call service):
-  - use skill `ha-nova-service-call`
+  - use skill `ha-nova:service-call`
 - Automation/script runtime control (enable, disable, trigger):
-  - use skill `ha-nova-service-call` (services: `automation.turn_on`, `automation.turn_off`, `automation.trigger`)
+  - use skill `ha-nova:service-call` (services: `automation.turn_on`, `automation.turn_off`, `automation.trigger`)
 - Review / analyze intent (`review|analyze|check|audit` for automation or script):
-  - resolve target via `ha-nova-entity-discovery`
-  - read config via `ha-nova-read`
-  - dispatch review-agent (`skills/ha-nova/agents/review-agent.md`) with mode=`standalone`
+  - use skill `ha-nova:review`
 - Entity discovery / target lookup:
-  - use skill `ha-nova-entity-discovery`
+  - use skill `ha-nova:entity-discovery`
 - Onboarding / connectivity / auth diagnostics:
-  - use skill `ha-nova-onboarding`
+  - use skill `ha-nova:onboarding`
 
 ## Latency Policy
 

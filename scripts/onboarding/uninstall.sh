@@ -1,8 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SKILL_NAMES=(
-  "ha-nova"
+SKILL_DIRS=(
+  "${HOME}/.agents/skills"
+  "${HOME}/.claude/skills"
+  "${HOME}/.config/opencode/skills"
+)
+
+# Legacy flat skill directories (from pre-nesting era)
+LEGACY_FLAT_SKILLS=(
   "ha-nova-write"
   "ha-nova-read"
   "ha-nova-entity-discovery"
@@ -10,10 +16,14 @@ SKILL_NAMES=(
   "ha-nova-service-call"
 )
 
-SKILL_DIRS=(
-  "${HOME}/.agents/skills"
-  "${HOME}/.claude/skills"
-  "${HOME}/.config/opencode/skills"
+# Gemini flat skill directories
+GEMINI_FLAT_SKILLS=(
+  "ha-nova-read"
+  "ha-nova-write"
+  "ha-nova-entity-discovery"
+  "ha-nova-onboarding"
+  "ha-nova-service-call"
+  "ha-nova-review"
 )
 
 log() { echo "[ha-nova] $*"; }
@@ -22,7 +32,11 @@ removed=0
 
 remove_path() {
   local path="$1"
-  if [[ -e "$path" ]]; then
+  if [[ -L "$path" ]]; then
+    rm -f "$path"
+    log "Removed symlink: $path"
+    removed=$((removed + 1))
+  elif [[ -e "$path" ]]; then
     rm -rf "$path"
     log "Removed: $path"
     removed=$((removed + 1))
@@ -66,8 +80,17 @@ echo ""
 
 # ── Remove skills from all client directories ──
 for skills_dir in "${SKILL_DIRS[@]}"; do
-  for skill in "${SKILL_NAMES[@]}"; do
-    remove_path "${skills_dir}/${skill}"
+  # Remove ha-nova/ (symlink or directory)
+  remove_path "${skills_dir}/ha-nova"
+
+  # Clean up legacy flat skill directories
+  for legacy_skill in "${LEGACY_FLAT_SKILLS[@]}"; do
+    remove_path "${skills_dir}/${legacy_skill}"
+  done
+
+  # Clean up Gemini flat skill directories
+  for gemini_skill in "${GEMINI_FLAT_SKILLS[@]}"; do
+    remove_path "${skills_dir}/${gemini_skill}"
   done
 done
 

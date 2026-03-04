@@ -1,15 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SKILL_NAMES=(
-  "ha-nova"
-  "ha-nova-write"
-  "ha-nova-read"
-  "ha-nova-entity-discovery"
-  "ha-nova-onboarding"
-  "ha-nova-service-call"
-)
-
 log() {
   echo "[install-local-skills] $*"
 }
@@ -29,65 +20,140 @@ Usage:
   bash scripts/onboarding/install-local-skills.sh all
 
 Targets:
-  codex    -> ~/.agents/skills/{ha-nova,...}   (also used by Gemini CLI)
-  claude   -> ~/.claude/skills/{ha-nova,...}
-  opencode -> ~/.config/opencode/skills/{ha-nova,...}
-  gemini   -> alias for codex (both use ~/.agents/skills/)
-  all      -> install for codex + claude + opencode
+  codex    -> symlink ~/.agents/skills/ha-nova -> repo skills/ha-nova
+  claude   -> skipped (use Claude Code plugin system)
+  opencode -> symlink ~/.config/opencode/skills/ha-nova -> repo skills/ha-nova
+  gemini   -> flat copy ~/.agents/skills/ha-nova-{skill}/SKILL.md
+  all      -> install for codex + claude + opencode + gemini
 USAGE
 }
 
 SCRIPT_DIR="$(cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../.." && pwd)"
+SOURCE_SKILLS_DIR="${REPO_ROOT}/skills/ha-nova"
 
-render_skill_file() {
-  local source_skill_file="$1"
-  local output_file="$2"
-  awk -v repo_root="${REPO_ROOT}" \
-    '{ gsub(/__HA_NOVA_REPO_ROOT__/, repo_root); print }' \
-    "${source_skill_file}" > "${output_file}"
+# Legacy flat skill directories to clean up
+LEGACY_FLAT_SKILLS=(
+  "ha-nova-write"
+  "ha-nova-read"
+  "ha-nova-entity-discovery"
+  "ha-nova-onboarding"
+  "ha-nova-service-call"
+)
+
+# Sub-skills that get flat-copied for Gemini
+GEMINI_SUB_SKILLS=(
+  "read"
+  "write"
+  "entity-discovery"
+  "onboarding"
+  "service-call"
+  "review"
+)
+
+cleanup_legacy() {
+  local user_skills_dir="$1"
+  local target="$2"
+
+  # Legacy flat skill directories
+  for legacy_skill in "${LEGACY_FLAT_SKILLS[@]}"; do
+    local legacy_path="${user_skills_dir}/${legacy_skill}"
+    if [[ -e "${legacy_path}" || -L "${legacy_path}" ]]; then
+      rm -rf "${legacy_path}"
+      log "[${target}] Cleaned up legacy flat skill: ${legacy_path}"
+    fi
+  done
+
+  # Legacy nested copy (from pre-symlink era)
+  local nested_path="${user_skills_dir}/ha-nova"
+  if [[ -d "${nested_path}" && ! -L "${nested_path}" ]]; then
+    rm -rf "${nested_path}"
+    log "[${target}] Cleaned up legacy nested copy: ${nested_path}"
+  fi
 }
 
-install_one_skill_for_target() {
+install_symlink() {
   local target="$1"
   local user_skills_dir="$2"
-  local skill_name="$3"
-  local source_skill_dir="${REPO_ROOT}/.agents/skills/${skill_name}"
-  local source_skill_file="${source_skill_dir}/SKILL.md"
-  local dest_skill_path="${user_skills_dir}/${skill_name}"
-  local dest_skill_file="${dest_skill_path}/SKILL.md"
 
-  [[ -f "${source_skill_file}" ]] || die "Missing source skill: ${source_skill_file}"
+  mkdir -p "${user_skills_dir}"
+  cleanup_legacy "${user_skills_dir}" "${target}"
 
-  # Remove symlinks (legacy install method)
-  if [[ -L "${dest_skill_path}" ]]; then
-    rm -f "${dest_skill_path}"
+  # Remove existing symlink if present
+  if [[ -L "${user_skills_dir}/ha-nova" ]]; then
+    rm -f "${user_skills_dir}/ha-nova"
   fi
 
-  mkdir -p "${dest_skill_path}"
-  render_skill_file "${source_skill_file}" "${dest_skill_file}"
-  log "[${target}] Installed skill file: ${dest_skill_file}"
+  ln -sfn "${SOURCE_SKILLS_DIR}" "${user_skills_dir}/ha-nova"
+  log "[${target}] Symlinked: ${user_skills_dir}/ha-nova -> ${SOURCE_SKILLS_DIR}"
+}
+
+install_gemini_flat() {
+  local user_skills_dir="${HOME}/.agents/skills"
+  mkdir -p "${user_skills_dir}"
+
+  # Clean up legacy Gemini flat dirs
+  for sub in "${GEMINI_SUB_SKILLS[@]}"; do
+    local flat_path="${user_skills_dir}/ha-nova-${sub}"
+    if [[ -e "${flat_path}" || -L "${flat_path}" ]]; then
+      rm -rf "${flat_path}"
+    fi
+  done
+
+  # Router as ha-nova/SKILL.md (flat, level 1)
+  # When Codex symlink exists, it already provides the router — leave it.
+  # Gemini can read through the symlink. If Codex is later uninstalled,
+  # re-running `install gemini` will create a standalone copy.
+  local router_dir="${user_skills_dir}/ha-nova"
+  if [[ -L "${router_dir}" ]]; then
+    log "[gemini] Router provided by Codex symlink: ${router_dir}"
+  elif [[ -d "${router_dir}" ]]; then
+    # Existing directory (legacy copy) — replace with fresh copy
+    rm -rf "${router_dir}"
+    mkdir -p "${router_dir}"
+    cp "${SOURCE_SKILLS_DIR}/SKILL.md" "${router_dir}/SKILL.md"
+    log "[gemini] Installed: ha-nova/SKILL.md (router, replaced legacy copy)"
+  else
+    mkdir -p "${router_dir}"
+    cp "${SOURCE_SKILLS_DIR}/SKILL.md" "${router_dir}/SKILL.md"
+    log "[gemini] Installed: ha-nova/SKILL.md (router)"
+  fi
+
+  # Sub-skills as ha-nova-{skill}/SKILL.md (flat, level 1)
+  for sub in "${GEMINI_SUB_SKILLS[@]}"; do
+    local dest_dir="${user_skills_dir}/ha-nova-${sub}"
+    mkdir -p "${dest_dir}"
+    local src="${SOURCE_SKILLS_DIR}/${sub}/SKILL.md"
+    if [[ -f "${src}" ]]; then
+      # For Gemini copies, resolve docs/reference/ to absolute paths
+      sed "s|docs/reference/|${REPO_ROOT}/docs/reference/|g" "${src}" > "${dest_dir}/SKILL.md"
+      log "[gemini] Installed: ha-nova-${sub}/SKILL.md"
+    fi
+  done
 }
 
 install_target() {
   local target="$1"
-  local user_skills_dir
   local relay_cli_source="${REPO_ROOT}/scripts/relay.sh"
   local relay_cli_target="${HOME}/.config/ha-nova/relay"
 
   case "$target" in
-    codex|gemini) user_skills_dir="${HOME}/.agents/skills" ;;
-    claude) user_skills_dir="${HOME}/.claude/skills" ;;
-    opencode) user_skills_dir="${HOME}/.config/opencode/skills" ;;
-    *) die "Unsupported target: ${target}" ;;
+    codex)
+      install_symlink "codex" "${HOME}/.agents/skills"
+      ;;
+    claude)
+      log "[claude] Skipped — use Claude Code plugin system: claude plugin add ${REPO_ROOT}"
+      ;;
+    opencode)
+      install_symlink "opencode" "${HOME}/.config/opencode/skills"
+      ;;
+    gemini)
+      install_gemini_flat
+      ;;
+    *)
+      die "Unsupported target: ${target}"
+      ;;
   esac
-
-  mkdir -p "${user_skills_dir}"
-
-  local skill_name
-  for skill_name in "${SKILL_NAMES[@]}"; do
-    install_one_skill_for_target "$target" "$user_skills_dir" "$skill_name"
-  done
 
   if [[ -f "${relay_cli_source}" ]]; then
     mkdir -p "${HOME}/.config/ha-nova"
@@ -110,7 +176,8 @@ main() {
       install_target "$target"
       ;;
     all)
-      install_target "codex"   # also covers gemini (shared ~/.agents/skills/)
+      install_target "codex"
+      install_target "gemini"
       install_target "claude"
       install_target "opencode"
       ;;

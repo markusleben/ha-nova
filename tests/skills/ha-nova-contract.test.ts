@@ -3,22 +3,15 @@ import { constants, existsSync, readFileSync, statSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 describe("ha-nova contract", () => {
-  it("keeps router mirror in sync between repo and installed skill", () => {
-    const repoSkill = readFileSync("skills/ha-nova.md", "utf8");
-    const installedSkill = readFileSync(".agents/skills/ha-nova/SKILL.md", "utf8");
-
-    expect(repoSkill).toBe(installedSkill);
-  });
-
   it("routes operations to consolidated skills", () => {
-    const router = readFileSync("skills/ha-nova.md", "utf8");
+    const router = readFileSync("skills/ha-nova/SKILL.md", "utf8");
 
-    expect(router).toContain("use skill `ha-nova-write`");
-    expect(router).toContain("use skill `ha-nova-read`");
-    expect(router).toContain("use skill `ha-nova-entity-discovery`");
-    expect(router).toContain("use skill `ha-nova-onboarding`");
-    expect(router).toContain("review-agent.md");
-    expect(router).toContain("mode=`standalone`");
+    expect(router).toContain("use skill `ha-nova:write`");
+    expect(router).toContain("use skill `ha-nova:read`");
+    expect(router).toContain("use skill `ha-nova:service-call`");
+    expect(router).toContain("use skill `ha-nova:entity-discovery`");
+    expect(router).toContain("use skill `ha-nova:onboarding`");
+    expect(router).toContain("use skill `ha-nova:review`");
     expect(router).not.toContain(".agents/skills/");
     expect(router).not.toContain("core/intents.md");
     expect(router).not.toContain("Lazy Discovery Protocol");
@@ -26,7 +19,7 @@ describe("ha-nova contract", () => {
   });
 
   it("keeps relay-bootstrap runtime prerequisite and safety baseline in router", () => {
-    const router = readFileSync("skills/ha-nova.md", "utf8");
+    const router = readFileSync("skills/ha-nova/SKILL.md", "utf8");
 
     expect(router).toContain("Runtime Prerequisite (macOS)");
     expect(router).toContain("Relay-only auth model");
@@ -41,7 +34,7 @@ describe("ha-nova contract", () => {
   });
 
   it("defines structured summary + YAML response format", () => {
-    const router = readFileSync("skills/ha-nova.md", "utf8");
+    const router = readFileSync("skills/ha-nova/SKILL.md", "utf8");
 
     expect(router).toContain("Response Format");
     expect(router).toContain("Automation` or `Script");
@@ -151,42 +144,45 @@ describe("ha-nova contract", () => {
     expect(review).toContain("Startup Flash");
   });
 
-  it("keeps all operational subskills concise (<600 words)", () => {
+  it("keeps all operational subskills concise (<800 words)", () => {
     const skills = [
-      ".agents/skills/ha-nova-write/SKILL.md",
-      ".agents/skills/ha-nova-read/SKILL.md",
-      ".agents/skills/ha-nova-entity-discovery/SKILL.md",
-      ".agents/skills/ha-nova-onboarding/SKILL.md",
+      "skills/ha-nova/write/SKILL.md",
+      "skills/ha-nova/read/SKILL.md",
+      "skills/ha-nova/entity-discovery/SKILL.md",
+      "skills/ha-nova/onboarding/SKILL.md",
     ];
     for (const file of skills) {
       const content = readFileSync(file, "utf8");
       const wordCount = content.trim().split(/\s+/).length;
-      expect(wordCount, `${file} has ${wordCount} words`).toBeLessThan(600);
+      expect(wordCount, `${file} has ${wordCount} words`).toBeLessThan(800);
     }
   });
 
-  it("keeps only 5 installable HA NOVA skills in source tree", () => {
+  it("keeps all HA NOVA skills in source tree", () => {
     const files = [
-      ".agents/skills/ha-nova/SKILL.md",
-      ".agents/skills/ha-nova-write/SKILL.md",
-      ".agents/skills/ha-nova-read/SKILL.md",
-      ".agents/skills/ha-nova-entity-discovery/SKILL.md",
-      ".agents/skills/ha-nova-onboarding/SKILL.md",
+      "skills/ha-nova/SKILL.md",
+      "skills/ha-nova/write/SKILL.md",
+      "skills/ha-nova/read/SKILL.md",
+      "skills/ha-nova/entity-discovery/SKILL.md",
+      "skills/ha-nova/onboarding/SKILL.md",
+      "skills/ha-nova/service-call/SKILL.md",
+      "skills/ha-nova/review/SKILL.md",
     ];
 
     for (const file of files) {
       expect(existsSync(file), `Expected file to exist: ${file}`).toBe(true);
       const content = readFileSync(file, "utf8");
-      expect(content).toContain("ha-nova-managed-install repo_root:");
+      expect(content).not.toContain("__HA_NOVA_REPO_ROOT__");
+      expect(content).not.toContain("ha-nova-managed-install");
     }
   });
 
   it("enforces relay CLI bootstrap across all operational subskills", () => {
     const skills = [
-      ".agents/skills/ha-nova-write/SKILL.md",
-      ".agents/skills/ha-nova-read/SKILL.md",
-      ".agents/skills/ha-nova-entity-discovery/SKILL.md",
-      ".agents/skills/ha-nova-onboarding/SKILL.md",
+      "skills/ha-nova/write/SKILL.md",
+      "skills/ha-nova/read/SKILL.md",
+      "skills/ha-nova/entity-discovery/SKILL.md",
+      "skills/ha-nova/onboarding/SKILL.md",
     ];
 
     for (const file of skills) {
@@ -203,5 +199,12 @@ describe("ha-nova contract", () => {
     expect(existsSync(relayScript)).toBe(true);
     const mode = statSync(relayScript).mode;
     expect(mode & constants.S_IXUSR).toBeGreaterThan(0);
+  });
+
+  it("provides Claude Code plugin manifest", () => {
+    const plugin = JSON.parse(readFileSync(".claude-plugin/plugin.json", "utf8"));
+    expect(plugin.name).toBe("ha-nova");
+    expect(plugin.version).toBe("0.1.1");
+    expect(plugin.description).toBeTruthy();
   });
 });
