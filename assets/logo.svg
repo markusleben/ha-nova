@@ -1,79 +1,26 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 120" width="420" height="120" role="img" aria-labelledby="logo-title">
+  <title id="logo-title">HA-NOVA Logo</title>
   <defs>
-    <!-- Nova glow gradient -->
-    <radialGradient id="nova-glow" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stop-color="#FFD666" stop-opacity="0.9"/>
-      <stop offset="40%" stop-color="#FF8C00" stop-opacity="0.6"/>
-      <stop offset="70%" stop-color="#FF4500" stop-opacity="0.2"/>
-      <stop offset="100%" stop-color="#FF4500" stop-opacity="0"/>
-    </radialGradient>
-    <!-- Core gradient -->
-    <radialGradient id="nova-core" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stop-color="#FFFFFF"/>
-      <stop offset="50%" stop-color="#FFE4B5"/>
-      <stop offset="100%" stop-color="#FFB347"/>
-    </radialGradient>
-    <!-- HA blue accent -->
-    <linearGradient id="ha-blue" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="star-grad" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#18BCF2"/>
-      <stop offset="100%" stop-color="#44D7FF"/>
+      <stop offset="100%" stop-color="#FFB347"/>
     </linearGradient>
+    <radialGradient id="core-grad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#FFE4B5"/>
+    </radialGradient>
   </defs>
 
-  <!-- Outer glow ring -->
-  <circle cx="100" cy="100" r="90" fill="url(#nova-glow)" opacity="0.5"/>
-
-  <!-- Nova burst rays (8 main + 8 secondary) -->
-  <g opacity="0.85">
-    <!-- Main rays -->
-    <line x1="100" y1="15" x2="100" y2="45" stroke="url(#ha-blue)" stroke-width="2.5" stroke-linecap="round"/>
-    <line x1="100" y1="155" x2="100" y2="185" stroke="url(#ha-blue)" stroke-width="2.5" stroke-linecap="round"/>
-    <line x1="15" y1="100" x2="45" y2="100" stroke="url(#ha-blue)" stroke-width="2.5" stroke-linecap="round"/>
-    <line x1="155" y1="100" x2="185" y2="100" stroke="url(#ha-blue)" stroke-width="2.5" stroke-linecap="round"/>
-    <!-- Diagonal rays -->
-    <line x1="40" y1="40" x2="60" y2="60" stroke="url(#ha-blue)" stroke-width="2" stroke-linecap="round"/>
-    <line x1="160" y1="40" x2="140" y2="60" stroke="url(#ha-blue)" stroke-width="2" stroke-linecap="round"/>
-    <line x1="40" y1="160" x2="60" y2="140" stroke="url(#ha-blue)" stroke-width="2" stroke-linecap="round"/>
-    <line x1="160" y1="160" x2="140" y2="140" stroke="url(#ha-blue)" stroke-width="2" stroke-linecap="round"/>
-    <!-- Secondary rays (shorter, thinner) -->
-    <line x1="100" y1="30" x2="100" y2="50" stroke="#FFB347" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
-    <line x1="100" y1="150" x2="100" y2="170" stroke="#FFB347" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
-    <line x1="30" y1="100" x2="50" y2="100" stroke="#FFB347" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
-    <line x1="150" y1="100" x2="170" y2="100" stroke="#FFB347" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
-    <!-- Fine diagonal rays -->
-    <line x1="52" y1="33" x2="65" y2="52" stroke="#FFB347" stroke-width="1" stroke-linecap="round" opacity="0.4"/>
-    <line x1="148" y1="33" x2="135" y2="52" stroke="#FFB347" stroke-width="1" stroke-linecap="round" opacity="0.4"/>
-    <line x1="52" y1="167" x2="65" y2="148" stroke="#FFB347" stroke-width="1" stroke-linecap="round" opacity="0.4"/>
-    <line x1="148" y1="167" x2="135" y2="148" stroke="#FFB347" stroke-width="1" stroke-linecap="round" opacity="0.4"/>
-    <line x1="33" y1="52" x2="52" y2="65" stroke="#FFB347" stroke-width="1" stroke-linecap="round" opacity="0.4"/>
-    <line x1="167" y1="52" x2="148" y2="65" stroke="#FFB347" stroke-width="1" stroke-linecap="round" opacity="0.4"/>
-    <line x1="33" y1="148" x2="52" y2="135" stroke="#FFB347" stroke-width="1" stroke-linecap="round" opacity="0.4"/>
-    <line x1="167" y1="148" x2="148" y2="135" stroke="#FFB347" stroke-width="1" stroke-linecap="round" opacity="0.4"/>
+  <g transform="translate(60, 60)">
+    <path d="M0,-45 C5,-12 12,-5 45,0 C12,5 5,12 0,45 C-5,12 -12,5 -45,0 C-12,-5 -5,-12 0,-45 Z"
+          fill="url(#star-grad)" opacity="0.9"/>
+    <circle cx="0" cy="0" r="10" fill="url(#core-grad)" opacity="0.95"/>
+    <line x1="0" y1="-50" x2="0" y2="-38" stroke="#18BCF2" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>
+    <line x1="0" y1="38" x2="0" y2="50" stroke="#FFB347" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>
+    <line x1="-50" y1="0" x2="-38" y2="0" stroke="#18BCF2" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>
+    <line x1="38" y1="0" x2="50" y2="0" stroke="#FFB347" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>
   </g>
 
-  <!-- Inner orbit ring -->
-  <circle cx="100" cy="100" r="55" fill="none" stroke="url(#ha-blue)" stroke-width="1" opacity="0.3"/>
-
-  <!-- House silhouette (subtle HA reference) -->
-  <g transform="translate(100, 100)" opacity="0.9">
-    <!-- House body -->
-    <rect x="-18" y="-5" width="36" height="25" rx="2" fill="#0D1B2A" stroke="url(#ha-blue)" stroke-width="1.5"/>
-    <!-- Roof -->
-    <polygon points="-24,-5 0,-22 24,-5" fill="#0D1B2A" stroke="url(#ha-blue)" stroke-width="1.5" stroke-linejoin="round"/>
-    <!-- Door / AI core glow -->
-    <rect x="-5" y="5" width="10" height="15" rx="1.5" fill="url(#nova-core)" opacity="0.9"/>
-    <!-- Window left -->
-    <rect x="-14" y="1" width="6" height="6" rx="1" fill="url(#ha-blue)" opacity="0.7"/>
-    <!-- Window right -->
-    <rect x="8" y="1" width="6" height="6" rx="1" fill="url(#ha-blue)" opacity="0.7"/>
-  </g>
-
-  <!-- Nova core point -->
-  <circle cx="100" cy="100" r="3" fill="white" opacity="0.9"/>
-
-  <!-- Tiny orbiting dots (AI/data feel) -->
-  <circle cx="145" cy="72" r="2" fill="#18BCF2" opacity="0.7"/>
-  <circle cx="55" cy="128" r="2" fill="#18BCF2" opacity="0.7"/>
-  <circle cx="130" cy="145" r="1.5" fill="#FFB347" opacity="0.5"/>
-  <circle cx="70" cy="55" r="1.5" fill="#FFB347" opacity="0.5"/>
+  <text x="130" y="75" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif"
+        font-size="52" font-weight="700" fill="#E8EDF2" letter-spacing="6">HA-NOVA</text>
 </svg>
