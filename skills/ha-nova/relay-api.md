@@ -98,6 +98,20 @@ Script fields: `alias`, `sequence`, `mode`
 
 Method: create/update = `POST`, delete = `DELETE`
 
+## Trace Queries (via /ws)
+
+List traces for an automation:
+```json
+{"type":"trace/list","domain":"automation","item_id":"motion_kitchen"}
+```
+
+Get detailed trace:
+```json
+{"type":"trace/get","domain":"automation","item_id":"motion_kitchen","run_id":"abc123"}
+```
+
+Trace response includes: `trace.trigger`, `trace.condition`, `trace.action` nodes with `result`, `timestamp`, and `changed_variables`.
+
 ## Error Codes (Common)
 
 - `400 / VALIDATION_ERROR`: invalid request shape or missing fields
