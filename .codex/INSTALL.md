@@ -21,3 +21,5 @@ npx ha-nova doctor
 ## Related
 
 - Claude Code: `.claude/INSTALL.md`
+- OpenCode: `.opencode/INSTALL.md`
+- Gemini CLI: `.gemini/INSTALL.md`
