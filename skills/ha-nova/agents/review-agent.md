@@ -44,6 +44,17 @@ Use `~/.config/ha-nova/relay` for all HA communication.
 
 ## Execution Steps
 
+### Pre-Analysis Reference
+
+Before analyzing templates, consult `docs/reference/ha-template-reference.md` for valid HA Jinja2 functions, constants, and filters.
+
+**Verify-before-flag rule:** Before reporting ANY template syntax/function error:
+1. Check the reference doc
+2. If not found there, research current HA templating docs (https://www.home-assistant.io/docs/configuration/templating/)
+3. Only flag as error if confirmed invalid after both checks
+
+Do NOT flag valid HA builtins as errors.
+
 ### Step 1: Config Quality Review
 
 Analyze `{CONFIG}` against these checks. Report only violations found.
@@ -63,11 +74,14 @@ Analyze `{CONFIG}` against these checks. Report only violations found.
 - R-07: `mode: restart` with asymmetric on/off action pairs (partial execution risk)
 - R-08: `mode: parallel` referencing shared mutable state (`input_number`, `counter`, `input_boolean`)
 - R-09 [MEDIUM]: `choose:` without `default:` branch (silently does nothing when no condition matches)
+- R-10 [HIGH]: `mode: queued` with `delay:` or `wait_*` blocks and `max:` ≤ 3 combined with ≥ 3 triggers — queue saturation risk (triggers dropped silently when queue full during delays)
+- R-11 [HIGH]: `float(0)` or `int(0)` default on sensor values used in physical calculations (temperature, humidity, pressure) — 0 is physically wrong and produces silently incorrect results; use `float(none)` with an availability guard or a realistic fallback value
 
 **Performance (Medium):**
 - P-01: `platform: template` trigger that could be a `platform: state` trigger
 - P-02: `homeassistant.update_entity` inside a `repeat:` loop without meaningful delay
 - P-03: Polling loop (`repeat: while:` + short `delay:`) instead of `wait_for_trigger`
+- P-04: Template trigger using `now()` for time-sensitive logic — re-evaluates only once per minute; for sub-minute precision use `time_pattern` trigger or a dedicated sensor
 
 **Style (Low):**
 - M-01: Missing `alias:`
