@@ -68,13 +68,12 @@ Keep orchestration details internal on normal success paths.
   - use skill `ha-nova-read`
 - Service call intent (turn on, turn off, toggle, set, call service):
   - use skill `ha-nova-service-call`
+- Automation/script runtime control (enable, disable, trigger):
+  - use skill `ha-nova-service-call` (services: `automation.turn_on`, `automation.turn_off`, `automation.trigger`)
 - Entity discovery / target lookup:
   - use skill `ha-nova-entity-discovery`
 - Onboarding / connectivity / auth diagnostics:
   - use skill `ha-nova-onboarding`
-
-Scope note:
-- automation runtime control (enable/disable/trigger) is currently not exposed via this skill set.
 
 ## Latency Policy
 

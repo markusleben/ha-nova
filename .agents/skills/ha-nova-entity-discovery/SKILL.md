@@ -45,6 +45,18 @@ If ambiguity remains:
 If no match:
 - state explicitly and request exact entity id or clearer phrase.
 
+## Performance
+
+- Cache `get_states` results within a session; do not re-fetch for every query.
+- For a known entity_id, prefer direct state read: `GET /api/states/{entity_id}` via `/core`.
+
+## Area and Device Discovery
+
+For area-based targeting (e.g., "all lights in the bedroom"):
+- `~/.config/ha-nova/relay ws -d '{"type":"config/area_registry/list"}'`
+- `~/.config/ha-nova/relay ws -d '{"type":"config/device_registry/list"}'`
+- Match area name to area_id, then filter entities by area.
+
 ## Guardrails
 
 - never guess entity IDs

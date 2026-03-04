@@ -31,6 +31,9 @@ If this fails, run onboarding: `npm run onboarding:macos`.
 2. Fill template placeholders (domain, operation, user intent).
 3. Dispatch general-purpose agent. Extract: entities, target_id, target_exists, current_config, bp_status.
 4. On ambiguity: ask user. On no-match: ask for exact entity_id.
+5. ID generation for `create`:
+   - **Automations:** Use a Unix timestamp (e.g., `1709550000000`) as config ID. HA auto-assigns numeric IDs; any unique number works.
+   - **Scripts:** Use a descriptive slug (e.g., `morning_routine`). This becomes `script.morning_routine`.
 
 ### Phase 2: Preview + Confirm (Main Thread)
 
@@ -59,6 +62,7 @@ Fallback: If agent dispatch unavailable, run same logic inline serially.
 ## References
 
 - Relay API: `skills/ha-nova/relay-api.md`
+- Payload Schemas: `skills/ha-nova/payload-schemas.md`
 - Best Practices: `skills/ha-nova/best-practices.md`
 - Resolve Agent: `skills/ha-nova/agents/resolve-agent.md`
 - Apply Agent: `skills/ha-nova/agents/apply-agent.md`

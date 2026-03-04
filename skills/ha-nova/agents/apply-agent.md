@@ -31,6 +31,11 @@ Forbidden:
 - Target: `{TARGET_ID}`
 - Payload: `{PAYLOAD}`
 
+## References
+
+- Payload Schemas: `skills/ha-nova/payload-schemas.md` (valid automation/script payload examples)
+- Relay API: `skills/ha-nova/relay-api.md`
+
 ## Relay CLI
 
 Use `~/.config/ha-nova/relay` for all HA communication. It handles auth, headers, and timeouts.
@@ -44,7 +49,9 @@ Use `~/.config/ha-nova/relay` for all HA communication. It handles auth, headers
 1. Build config path by domain:
    - automation: `/api/config/automation/config/{TARGET_ID}`
    - script: `/api/config/script/config/{TARGET_ID}`
-2. Execute write through `/core`.
+2. Execute write through `/core`:
+   - create/update: method `POST`, body = confirmed payload
+   - delete: method `DELETE`, no body
 3. Execute read-back through `/core` GET.
 4. Normalize before compare:
    - `trigger` + `triggers`
