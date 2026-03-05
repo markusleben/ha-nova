@@ -1,0 +1,11 @@
+{
+  "name": "ha-nova",
+  "owner": { "name": "Markus Leben" },
+  "plugins": [
+    {
+      "name": "ha-nova",
+      "source": ".",
+      "description": "AI-powered Home Assistant control through LLM skills and a local relay"
+    }
+  ]
+}
