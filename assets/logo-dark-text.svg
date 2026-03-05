@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 120" width="420" height="120" role="img" aria-labelledby="logo-title">
+  <title id="logo-title">HA-NOVA Logo</title>
+  <defs>
+    <linearGradient id="star-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#18BCF2"/>
+      <stop offset="100%" stop-color="#FFB347"/>
+    </linearGradient>
+    <radialGradient id="core-grad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#FFE4B5"/>
+    </radialGradient>
+  </defs>
+
+  <g transform="translate(60, 60)">
+    <path d="M0,-45 C5,-12 12,-5 45,0 C12,5 5,12 0,45 C-5,12 -12,5 -45,0 C-12,-5 -5,-12 0,-45 Z"
+          fill="url(#star-grad)" opacity="0.9"/>
+    <circle cx="0" cy="0" r="10" fill="url(#core-grad)" opacity="0.95"/>
+    <line x1="0" y1="-50" x2="0" y2="-38" stroke="#18BCF2" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>
+    <line x1="0" y1="38" x2="0" y2="50" stroke="#FFB347" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>
+    <line x1="-50" y1="0" x2="-38" y2="0" stroke="#18BCF2" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>
+    <line x1="38" y1="0" x2="50" y2="0" stroke="#FFB347" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>
+  </g>
+
+  <text x="130" y="75" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif"
+        font-size="52" font-weight="700" fill="#1C2733" letter-spacing="6">HA-NOVA</text>
+</svg>

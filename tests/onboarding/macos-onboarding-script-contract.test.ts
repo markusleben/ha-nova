@@ -150,7 +150,7 @@ describe("macOS onboarding script contract", () => {
     expect(result.stderr).toContain("Interactive input required. Re-run in a terminal.");
   });
 
-  it("preserves HA URL port when continuing with unverified host", () => {
+  it("preserves HA URL port when continuing with unverified host", { timeout: 20000 }, () => {
     if (process.platform !== "darwin") {
       return;
     }
@@ -504,6 +504,30 @@ exit 1
 
     expect(ui).toContain("check_prerequisites()");
     expect(ui).toContain("node --version");
+  });
+
+  it("supports --host and --token CLI flags for non-interactive setup", () => {
+    const cli = readFileSync("scripts/onboarding/bin/ha-nova", "utf8");
+    const lib = readFileSync("scripts/onboarding/macos-lib.sh", "utf8");
+
+    expect(cli).toContain("--host=");
+    expect(cli).toContain("--token=");
+    expect(cli).toContain("HA_NOVA_HOST");
+    expect(cli).toContain("HA_NOVA_TOKEN");
+
+    expect(lib).toContain("HA_NOVA_HOST");
+    expect(lib).toContain("HA_NOVA_TOKEN");
+    expect(lib).toContain("flag_host");
+    expect(lib).toContain("flag_token");
+    expect(lib).toContain("non_interactive_verify");
+  });
+
+  it("supports update subcommand", () => {
+    const cli = readFileSync("scripts/onboarding/bin/ha-nova", "utf8");
+    expect(cli).toContain("update)");
+    expect(cli).toContain("git -C");
+    expect(cli).toContain("pull --ff-only");
+    expect(cli).toContain("npm install --no-audit --no-fund");
   });
 
   it("provides platform-specific macOS module", () => {

@@ -71,6 +71,24 @@ fi
 
 echo ""
 
+# ── Probe relay BEFORE deleting config/token ──
+relay_still_running="0"
+relay_base_url=""
+config_file="${HOME}/.config/ha-nova/onboarding.env"
+if [[ -f "$config_file" ]]; then
+  relay_base_url="$(grep -E '^RELAY_BASE_URL=' "$config_file" 2>/dev/null | head -1 | sed "s/^RELAY_BASE_URL=//" | tr -d "'" | tr -d '"' || true)"
+fi
+relay_token="$(security find-generic-password -s "ha-nova.relay-auth-token" -w 2>/dev/null || true)"
+if [[ -n "$relay_base_url" && -n "$relay_token" ]]; then
+  http_code="$(curl -sS --connect-timeout 2 --max-time 4 \
+    -H "Authorization: Bearer ${relay_token}" \
+    -o /dev/null -w "%{http_code}" \
+    "${relay_base_url%/}/health" 2>/dev/null || true)"
+  if [[ "$http_code" == "200" ]]; then
+    relay_still_running="1"
+  fi
+fi
+
 # ── Remove skills from all client directories ──
 for skills_dir in "${SKILL_DIRS[@]}"; do
   # Remove ha-nova/ (symlink or directory)
@@ -105,6 +123,11 @@ fi
 echo ""
 if [[ "$removed" -gt 0 ]]; then
   log "Done. Removed ${removed} items."
+  if [[ "$relay_still_running" == "1" ]]; then
+    echo ""
+    echo "  Note: The NOVA Relay app is still running in Home Assistant."
+    echo "  To remove it: Settings > Apps > NOVA Relay > Uninstall"
+  fi
 else
   log "Nothing to remove — HA NOVA was not installed."
 fi

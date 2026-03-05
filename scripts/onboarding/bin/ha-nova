@@ -14,11 +14,34 @@ SCRIPT_DIR="$(cd -P "$(dirname "$REAL_PATH")/.." && pwd)"
 case "${1:-help}" in
   setup)
     shift
-    exec bash "${SCRIPT_DIR}/macos-setup.sh" "$@"
+    # Parse --host and --token flags, pass remaining args to setup
+    setup_args=()
+    while [[ "$#" -gt 0 ]]; do
+      case "$1" in
+        --host=*) export HA_NOVA_HOST="${1#--host=}"; shift ;;
+        --host)   export HA_NOVA_HOST="${2:-}"; shift; shift || true ;;
+        --token=*) export HA_NOVA_TOKEN="${1#--token=}"; shift ;;
+        --token)   export HA_NOVA_TOKEN="${2:-}"; shift; shift || true ;;
+        *) setup_args+=("$1"); shift ;;
+      esac
+    done
+    exec bash "${SCRIPT_DIR}/macos-setup.sh" "${setup_args[@]+"${setup_args[@]}"}"
     ;;
   doctor)
     shift
     exec bash "${SCRIPT_DIR}/macos-doctor.sh" "$@"
+    ;;
+  update)
+    # Derive repo root: scripts/onboarding/bin/ha-nova → 3 levels up = repo root
+    INSTALL_DIR="$(cd -P "$(dirname "$REAL_PATH")/../../.." && pwd)"
+    if [[ -d "${INSTALL_DIR}/.git" ]]; then
+      git -C "$INSTALL_DIR" pull --ff-only
+      (cd "$INSTALL_DIR" && npm install --no-audit --no-fund)
+      echo "[ha-nova] Updated. Run 'ha-nova doctor' to verify."
+    else
+      echo "[ha-nova] Not a git checkout — update manually." >&2
+      exit 1
+    fi
     ;;
   uninstall)
     shift
@@ -28,13 +51,16 @@ case "${1:-help}" in
     echo "HA NOVA — AI-powered Home Assistant control"
     echo ""
     echo "Usage:"
-    echo "  ha-nova setup              Interactive setup (asks which client you use)"
-    echo "  ha-nova setup claude       Setup for Claude Code"
-    echo "  ha-nova setup codex        Setup for Codex CLI"
-    echo "  ha-nova setup opencode     Setup for OpenCode"
-    echo "  ha-nova setup gemini       Setup for Gemini CLI"
-    echo "  ha-nova setup all          Setup for all clients"
+    echo "  ha-nova setup [client]                  Interactive setup"
+    echo "  ha-nova setup claude --host=<ip>        Setup with pre-configured host"
+    echo "  ha-nova setup claude --token=<token>    Setup with pre-configured relay token"
+    echo "  ha-nova setup claude --host=<ip> --token=<token>"
+    echo "                                          Fully non-interactive setup"
+    echo ""
+    echo "  Clients: claude, codex, opencode, gemini, all"
+    echo ""
     echo "  ha-nova doctor             Run diagnostics"
+    echo "  ha-nova update             Update to latest version (git installs)"
     echo "  ha-nova uninstall          Remove all skills, config, and credentials"
     echo "  ha-nova --help             Show this help"
     ;;

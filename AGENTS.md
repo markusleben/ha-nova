@@ -17,7 +17,13 @@ Work style: Be radically precise. No fluff. Pure information only (drop grammar;
   1. Fetch `https://raw.githubusercontent.com/markusleben/agents.md/main/AGENTS.md`.
   2. Check if a newer version exists and merge without losing local changes.
 
+## Code Quality [DON'T SKIP – IMPORTANT]
+- All generated code must be self-reviewed before being presented.
+- Continue reviewing and fixing until no further issues are found.
+- Do not show partial or unreviewed code to the user.
+
 ## Guardrails
+- ALWAYS review the written code, don't present it to the user without! Review it so long, until the review won't find any more issues
 - Use `trash` for deletes.
 - Use `mv` / `cp` to move and copy files.
 - Bugs: add regression test when it fits.
@@ -49,7 +55,7 @@ Work style: Be radically precise. No fluff. Pure information only (drop grammar;
 - Avoid manual `git stash`; if Git auto-stashes during pull/rebase, that’s fine (hint, not hard guardrail).
 - If user types a command (“pull and push”), that’s consent for that command.
 - Big review: `git --no-pager diff --color=never`.
-- **PR Merge:** Do NOT use auto-merge. The Codex review bot needs ~3 min to post findings after CI passes. Workflow:
+- **PR Merge:** Do NOT use auto-merge. The Codex review bot needs ~3-5 min to post findings after CI passes. ALWAYS follow this Workflow:
   1. `gh pr create ...` — create the PR.
   2. Wait for CI checks to pass.
   3. Check for bot review comments: `gh api repos/<owner>/<repo>/pulls/<nr>/comments`.
@@ -108,6 +114,5 @@ Use below list to store and recall user notes when asked to do so.
 - Priority: deliver a working MVP first, but keep the architecture modular from day one for later extension.
 - Skills remain pure `*.md` files; no hidden business logic outside this model.
 - Relay implementation must remain lean, clean, and efficient (KISS + DRY, clear responsibilities).
-- Before public release, do not add backward-compatibility paths or fallback behavior. Implement the clean target model.
 - UX is a primary success metric: onboarding must feel simple, guided, and low-friction for non-technical users.
 - PR hygiene (user requirement): proactively check GitHub PR reviews (including inline review comments via `gh api repos/<owner>/<repo>/pulls/<nr>/comments`) without waiting for a reminder.
