@@ -37,11 +37,19 @@ case "${1:-help}" in
     if [[ -d "${INSTALL_DIR}/.git" ]]; then
       git -C "$INSTALL_DIR" pull --ff-only
       (cd "$INSTALL_DIR" && npm install --no-audit --no-fund)
+      bash "${INSTALL_DIR}/scripts/dev-sync.sh"
       echo "[ha-nova] Updated. Run 'ha-nova doctor' to verify."
     else
       echo "[ha-nova] Not a git checkout — update manually." >&2
       exit 1
     fi
+    ;;
+  check-update)
+    exec "${HOME}/.config/ha-nova/version-check"
+    ;;
+  dev:sync)
+    INSTALL_DIR="$(cd -P "$(dirname "$REAL_PATH")/../../.." && pwd)"
+    exec bash "${INSTALL_DIR}/scripts/dev-sync.sh"
     ;;
   uninstall)
     shift
@@ -60,7 +68,9 @@ case "${1:-help}" in
     echo "  Clients: claude, codex, opencode, gemini, all"
     echo ""
     echo "  ha-nova doctor             Run diagnostics"
+    echo "  ha-nova check-update       Check for skill updates"
     echo "  ha-nova update             Update to latest version (git installs)"
+    echo "  ha-nova dev:sync           Sync local changes to all client caches"
     echo "  ha-nova uninstall          Remove all skills, config, and credentials"
     echo "  ha-nova --help             Show this help"
     ;;

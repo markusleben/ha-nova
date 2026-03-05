@@ -16,6 +16,18 @@ RELAY_AUTH_TOKEN="$(security find-generic-password \
 ENDPOINT="${1:?Usage: ha-nova-relay <endpoint> [curl-args...]}"
 shift
 
+if [[ "$ENDPOINT" == "health" ]]; then
+  # Version check FIRST so it's visible even when output is collapsed
+  if [[ -x "${HOME}/.config/ha-nova/version-check" ]]; then
+    "${HOME}/.config/ha-nova/version-check" 2>/dev/null || true
+  fi
+  curl -sS --connect-timeout 5 --max-time 15 \
+    -H "Authorization: Bearer $RELAY_AUTH_TOKEN" \
+    -H "Content-Type: application/json" \
+    "$RELAY_BASE_URL/health" "$@"
+  exit 0
+fi
+
 exec curl -sS --connect-timeout 5 --max-time 15 \
   -H "Authorization: Bearer $RELAY_AUTH_TOKEN" \
   -H "Content-Type: application/json" \
