@@ -12,10 +12,9 @@ describe("app deploy script contract", () => {
     expect(content.startsWith("#!/usr/bin/env bash")).toBe(true);
   });
 
-  it("supports fast and clean deploy modes and rebuild workflow", () => {
+  it("performs clean deploy with metadata drift detection and options restore", () => {
     const content = readFileSync("scripts/deploy/ha-app-deploy.sh", "utf8");
 
-    expect(content).toContain("--mode fast|clean");
     expect(content).toContain(".env.local");
     expect(content).toContain(".env");
     expect(content).toContain("ha store reload");
@@ -23,8 +22,9 @@ describe("app deploy script contract", () => {
     expect(content).toContain("ha apps start");
     expect(content).toContain("docker rmi -f");
     expect(content).toContain("metadata_needs_reinstall");
-    expect(content).toContain("Reinstalling app to refresh Supervisor cache");
+    expect(content).toContain("save_app_options");
+    expect(content).toContain("restore_app_options");
+    expect(content).toContain("base64");
     expect(content).toContain("--raw-json");
-    expect(content).toContain("Could not read app metadata reliably; skipping auto-reinstall safety path.");
   });
 });

@@ -14,12 +14,12 @@
       <stop offset="100%" stop-color="#FFE4B5"/>
     </radialGradient>
     <radialGradient id="b-glow" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stop-color="#FFD666" stop-opacity="0.12"/>
-      <stop offset="60%" stop-color="#FF8C00" stop-opacity="0.04"/>
+      <stop offset="0%" stop-color="#FFD666" stop-opacity="0.15"/>
+      <stop offset="60%" stop-color="#FF8C00" stop-opacity="0.05"/>
       <stop offset="100%" stop-color="#FF4500" stop-opacity="0"/>
     </radialGradient>
     <filter id="text-glow" x="-20%" y="-20%" width="140%" height="140%">
-      <feGaussianBlur in="SourceGraphic" stdDeviation="2" result="blur"/>
+      <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur"/>
       <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
   </defs>
@@ -28,64 +28,64 @@
   <rect width="1280" height="640" fill="url(#bg)"/>
 
   <!-- Background stars -->
-  <g opacity="0.35">
-    <circle cx="120" cy="80" r="1" fill="white"/><circle cx="250" cy="150" r="0.8" fill="white"/>
-    <circle cx="80" cy="320" r="1.2" fill="white"/><circle cx="200" cy="450" r="0.7" fill="white"/>
-    <circle cx="500" cy="60" r="0.9" fill="white"/><circle cx="780" cy="80" r="0.8" fill="white"/>
-    <circle cx="950" cy="150" r="1.1" fill="white"/><circle cx="1100" cy="90" r="0.7" fill="white"/>
-    <circle cx="1200" cy="200" r="0.9" fill="white"/><circle cx="700" cy="550" r="0.8" fill="white"/>
-    <circle cx="900" cy="500" r="1" fill="white"/><circle cx="1050" cy="520" r="0.7" fill="white"/>
-    <circle cx="1180" cy="450" r="0.9" fill="white"/><circle cx="150" cy="550" r="0.8" fill="white"/>
-    <circle cx="550" cy="530" r="1" fill="white"/><circle cx="50" cy="200" r="0.8" fill="white"/>
-    <circle cx="300" cy="560" r="0.7" fill="white"/><circle cx="1150" cy="350" r="0.6" fill="white"/>
-    <circle cx="400" cy="100" r="0.9" fill="white"/><circle cx="640" cy="520" r="0.7" fill="white"/>
+  <g opacity="0.3">
+    <circle cx="100" cy="70" r="1.2" fill="white"/><circle cx="230" cy="140" r="1" fill="white"/>
+    <circle cx="60" cy="350" r="1.4" fill="white"/><circle cx="180" cy="530" r="0.9" fill="white"/>
+    <circle cx="480" cy="55" r="1.1" fill="white"/><circle cx="760" cy="60" r="1" fill="white"/>
+    <circle cx="930" cy="100" r="1.3" fill="white"/><circle cx="1100" cy="70" r="0.9" fill="white"/>
+    <circle cx="1210" cy="160" r="1.1" fill="white"/><circle cx="680" cy="590" r="1" fill="white"/>
+    <circle cx="880" cy="570" r="1.2" fill="white"/><circle cx="1060" cy="580" r="0.9" fill="white"/>
+    <circle cx="1190" cy="500" r="1.1" fill="white"/><circle cx="130" cy="580" r="1" fill="white"/>
+    <circle cx="530" cy="590" r="1.2" fill="white"/><circle cx="40" cy="170" r="1" fill="white"/>
   </g>
 
   <!-- Ambient glow behind star -->
-  <circle cx="640" cy="220" r="200" fill="url(#b-glow)"/>
+  <circle cx="320" cy="320" r="300" fill="url(#b-glow)"/>
 
-  <!-- Nova Star (centered) -->
-  <g transform="translate(640, 220)">
-    <path d="M0,-70 C8,-18 18,-8 70,0 C18,8 8,18 0,70 C-8,18 -18,8 -70,0 C-18,-8 -8,-18 0,-70 Z"
+  <!-- Nova Star (left side — shifted 30px left for centering) -->
+  <g transform="translate(320, 320)">
+    <path d="M0,-175 C20,-44 44,-20 175,0 C44,20 20,44 0,175 C-20,44 -44,20 -175,0 C-44,-20 -20,-44 0,-175 Z"
           fill="url(#b-star)" opacity="0.9"/>
-    <circle cx="0" cy="0" r="16" fill="url(#b-core)" opacity="0.95"/>
-    <line x1="0" y1="-78" x2="0" y2="-62" stroke="#18BCF2" stroke-width="2" stroke-linecap="round" opacity="0.5"/>
-    <line x1="0" y1="62" x2="0" y2="78" stroke="#FFB347" stroke-width="2" stroke-linecap="round" opacity="0.5"/>
-    <line x1="-78" y1="0" x2="-62" y2="0" stroke="#18BCF2" stroke-width="2" stroke-linecap="round" opacity="0.5"/>
-    <line x1="62" y1="0" x2="78" y2="0" stroke="#FFB347" stroke-width="2" stroke-linecap="round" opacity="0.5"/>
+    <circle cx="0" cy="0" r="38" fill="url(#b-core)" opacity="0.95"/>
+    <line x1="0" y1="-192" x2="0" y2="-164" stroke="#18BCF2" stroke-width="2.5" stroke-linecap="round" opacity="0.5"/>
+    <line x1="0" y1="164" x2="0" y2="192" stroke="#FFB347" stroke-width="2.5" stroke-linecap="round" opacity="0.5"/>
+    <line x1="-192" y1="0" x2="-164" y2="0" stroke="#18BCF2" stroke-width="2.5" stroke-linecap="round" opacity="0.5"/>
+    <line x1="164" y1="0" x2="192" y2="0" stroke="#FFB347" stroke-width="2.5" stroke-linecap="round" opacity="0.5"/>
   </g>
 
+  <!-- Text block (right side, shifted 30px left for centering) -->
+
   <!-- HA-NOVA title -->
-  <text x="640" y="370" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif"
-        font-size="80" font-weight="700" fill="white" text-anchor="middle"
-        letter-spacing="10" filter="url(#text-glow)">HA-NOVA</text>
+  <text x="830" y="260" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif"
+        font-size="140" font-weight="700" fill="white" text-anchor="middle"
+        letter-spacing="14" filter="url(#text-glow)">HA-NOVA</text>
 
   <!-- Decorative line -->
-  <line x1="530" y1="390" x2="750" y2="390" stroke="url(#b-star)" stroke-width="2" opacity="0.4"/>
+  <line x1="600" y1="290" x2="1060" y2="290" stroke="url(#b-star)" stroke-width="2.5" opacity="0.4"/>
 
   <!-- Tagline -->
-  <text x="640" y="430" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif"
-        font-size="22" font-weight="300" fill="#A0B4C8" text-anchor="middle"
-        letter-spacing="2">Talk to your smart home with AI</text>
+  <text x="830" y="360" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif"
+        font-size="38" font-weight="300" fill="#A0B4C8" text-anchor="middle"
+        letter-spacing="3">Talk to your smart home with AI</text>
 
   <!-- Sub-tagline -->
-  <text x="640" y="468" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif"
-        font-size="15" font-weight="400" fill="#5A7A96" text-anchor="middle"
-        letter-spacing="1">Lean relay + LLM skills for AI coding agents</text>
+  <text x="830" y="420" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif"
+        font-size="24" font-weight="400" fill="#5A7A96" text-anchor="middle"
+        letter-spacing="1.5">Lean relay + LLM skills for AI coding agents</text>
 
-  <!-- Bottom pill badges (no hard numbers — those go in README) -->
-  <g transform="translate(640, 530)">
-    <g transform="translate(-160, 0)">
-      <rect x="-55" y="-14" width="110" height="28" rx="14" fill="none" stroke="#18BCF2" stroke-width="1" opacity="0.4"/>
-      <text x="0" y="5" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="500" fill="#18BCF2" text-anchor="middle" opacity="0.7">Local Only</text>
+  <!-- Bottom pill badges -->
+  <g transform="translate(830, 500)">
+    <g transform="translate(-210, 0)">
+      <rect x="-80" y="-20" width="160" height="40" rx="20" fill="none" stroke="#18BCF2" stroke-width="1.2" opacity="0.45"/>
+      <text x="0" y="7" font-family="system-ui, -apple-system, sans-serif" font-size="17" font-weight="500" fill="#18BCF2" text-anchor="middle" opacity="0.8">HA App</text>
     </g>
     <g transform="translate(0, 0)">
-      <rect x="-55" y="-14" width="110" height="28" rx="14" fill="none" stroke="#FFB347" stroke-width="1" opacity="0.4"/>
-      <text x="0" y="5" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="500" fill="#FFB347" text-anchor="middle" opacity="0.7">Minimal Relay</text>
+      <rect x="-80" y="-20" width="160" height="40" rx="20" fill="none" stroke="#FFB347" stroke-width="1.2" opacity="0.45"/>
+      <text x="0" y="7" font-family="system-ui, -apple-system, sans-serif" font-size="17" font-weight="500" fill="#FFB347" text-anchor="middle" opacity="0.8">Minimal Relay</text>
     </g>
-    <g transform="translate(160, 0)">
-      <rect x="-55" y="-14" width="110" height="28" rx="14" fill="none" stroke="#18BCF2" stroke-width="1" opacity="0.4"/>
-      <text x="0" y="5" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="500" fill="#18BCF2" text-anchor="middle" opacity="0.7">LLM Skills</text>
+    <g transform="translate(210, 0)">
+      <rect x="-80" y="-20" width="160" height="40" rx="20" fill="none" stroke="#18BCF2" stroke-width="1.2" opacity="0.45"/>
+      <text x="0" y="7" font-family="system-ui, -apple-system, sans-serif" font-size="17" font-weight="500" fill="#18BCF2" text-anchor="middle" opacity="0.8">LLM Skills</text>
     </g>
   </g>
 

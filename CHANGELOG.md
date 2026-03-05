@@ -4,6 +4,28 @@ All notable changes to this project are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [0.1.3] - 2026-03-05
+
+### Added
+- **curl|bash installer** — `curl -fsSL .../install.sh | bash` one-liner setup
+- **Non-interactive setup** — `--host` and `--token` CLI flags
+- **`ha-nova update`** — Subcommand for git-based updates
+- **App documentation** — `DOCS.md` for HA App UI Documentation tab
+- **App icons & logos** — PNG assets (icon, logo, @2x variants)
+- **Translations** — `translations/en.yaml` with Config UI labels
+- **Social preview** — Redesigned horizontal hero layout
+- **49 new tests** — 141→190 (fixture-based, 11 onboarding scenarios)
+
+### Changed
+- **Deploy script** — Always clean deploy, options save/restore on reinstall, translations sync
+- **Config parsing** — Secure key-value parsing instead of `source` (security)
+
+### Fixed
+- **Session-start hook** — `\b`/`\f` JSON escaping
+- **Deploy: Options** — Base64 encoding for safe option transfer via SSH
+- **Deploy: Translations** — Removed duplicate config.yaml in app/ (root cause)
+- **CLI: `ha-nova update`** — Path calculation corrected (3 instead of 2 levels)
+
 ## [0.1.0] - 2026-03-04
 
 First public release.

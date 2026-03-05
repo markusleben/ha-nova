@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-MODE="fast"
-FORCE_REINSTALL="0"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
@@ -52,17 +50,17 @@ load_env_file_if_present "${PROJECT_ROOT}/.env"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --mode)
-      MODE="${2:-}"
-      shift 2
+      # Legacy flag — ignored (always clean deploy now)
+      shift; [[ $# -gt 0 ]] && shift
       ;;
     --force)
-      FORCE_REINSTALL="1"
+      # Legacy flag — ignored (always reinstalls on drift)
       shift
       ;;
     -h|--help)
       cat <<'USAGE'
 Usage:
-  bash scripts/deploy/ha-app-deploy.sh [--mode fast|clean] [--force]
+  bash scripts/deploy/ha-app-deploy.sh
 
 Required environment:
   HA_HOST       Home Assistant host/IP for SSH
@@ -75,12 +73,11 @@ Optional environment:
   SUPERVISOR_SLUG default: local_${APP_SLUG}
   Also loaded (if present): .env.local, .env
 
-Modes:
-  fast  Reload app store metadata, ensure app is installed, rebuild, start.
-  clean Same as fast + stop app + remove app image cache before rebuild.
-
-Flags:
-  --force  Force uninstall + reinstall to refresh Supervisor schema cache.
+Always performs a clean deploy:
+  1. Sync files (config.yaml, translations/)
+  2. Reinstall if metadata drift detected (options saved + restored)
+  3. Stop app + clear Docker image cache
+  4. Rebuild + start
 USAGE
       exit 0
       ;;
@@ -90,11 +87,6 @@ USAGE
       ;;
   esac
 done
-
-if [[ "$MODE" != "fast" && "$MODE" != "clean" ]]; then
-  echo "[ha-app-deploy] Invalid mode '$MODE' (expected fast|clean)" >&2
-  exit 1
-fi
 
 HA_HOST="${HA_HOST:-}"
 HA_SSH_KEY="${HA_SSH_KEY:-}"
@@ -213,11 +205,15 @@ metadata_needs_reinstall() {
     return 1
   fi
 
+  local has_translations="0"
+  [[ -d "${PROJECT_ROOT}/translations" ]] && has_translations="1"
+
   if EXPECTED_INGRESS="$EXPECTED_INGRESS" \
     EXPECTED_PORT_MAPPINGS="$EXPECTED_PORT_MAPPINGS" \
     EXPECTED_OPTION_KEYS="$EXPECTED_OPTION_KEYS" \
     EXPECTED_SCHEMA_KEYS="$EXPECTED_SCHEMA_KEYS" \
     EXPECTED_SCHEMA_ENTRIES="$EXPECTED_SCHEMA_ENTRIES" \
+    HAS_TRANSLATIONS="$has_translations" \
     INFO_JSON="$info_json" \
     python3 - <<'PY'
 import json
@@ -269,6 +265,7 @@ if expected_schema_keys and actual_schema_keys != expected_schema_keys:
     sys.exit(0)
 
 # Compare schema types (e.g. "password" vs "password?")
+# NOTE: Only handles password type — extend if non-password schema fields are added.
 expected_schema_entries = {}
 for line in os.environ.get("EXPECTED_SCHEMA_ENTRIES", "").splitlines():
     line = line.strip()
@@ -287,6 +284,13 @@ if expected_schema_entries:
         if actual_type and actual_type != expected_type:
             sys.exit(0)  # schema type drift
 
+# Translations drift: detects initial load only (local files exist, Supervisor has none).
+# Content changes within translations are NOT detected — use a manual reinstall for those.
+has_translations = os.environ.get("HAS_TRANSLATIONS", "0") == "1"
+actual_translations = data.get("translations") or {}
+if has_translations and not actual_translations:
+    sys.exit(0)  # translations not loaded yet => needs reinstall
+
 sys.exit(1)  # metadata matches
 PY
   then
@@ -296,14 +300,85 @@ PY
   return 1
 }
 
+# Save current app options via Supervisor API (for restore after reinstall).
+# Returns base64-encoded JSON to avoid quoting issues with special chars in values.
+save_app_options() {
+  remote "SUPERVISOR_SLUG='${SUPERVISOR_SLUG}' bash -s" <<'REMOTE_SAVE' 2>/dev/null || echo ""
+set -euo pipefail
+[[ -z "${SUPERVISOR_TOKEN:-}" ]] && exit 1
+info="$(curl -fsS \
+  -H "Authorization: Bearer ${SUPERVISOR_TOKEN}" \
+  "http://supervisor/addons/${SUPERVISOR_SLUG}/info")"
+echo "$info" | python3 -c "
+import json, sys, base64
+payload = json.loads(sys.stdin.read())
+opts = payload.get('data', {}).get('options', {})
+# Keep all non-None values (preserve intentional false/0/empty-string)
+opts = {k: v for k, v in opts.items() if v is not None}
+print(base64.b64encode(json.dumps(opts).encode()).decode())
+"
+REMOTE_SAVE
+}
+
+# Restore app options via Supervisor API.
+# Expects base64-encoded JSON from save_app_options.
+restore_app_options() {
+  local saved_b64="$1"
+  if [[ -z "$saved_b64" ]]; then
+    return 0
+  fi
+  # Decode locally to check for empty object
+  local saved_opts
+  saved_opts="$(printf '%s' "$saved_b64" | base64 -d 2>/dev/null || true)"
+  if [[ -z "$saved_opts" || "$saved_opts" == "{}" ]]; then
+    return 0
+  fi
+  # Validate base64 characters to prevent injection into SSH command
+  if [[ ! "$saved_b64" =~ ^[A-Za-z0-9+/=]+$ ]]; then
+    log "Warning: Saved options data is not valid base64; skipping restore."
+    return 0
+  fi
+  log "Restoring app options after reinstall"
+  # Pass JSON via base64 env var to avoid shell quoting issues with special chars
+  remote "SUPERVISOR_SLUG='${SUPERVISOR_SLUG}' OPTIONS_B64='${saved_b64}' bash -s" <<'REMOTE_RESTORE' || log "Warning: Could not restore options. Set them manually in the UI."
+set -euo pipefail
+[[ -z "${SUPERVISOR_TOKEN:-}" ]] && exit 1
+OPTIONS_JSON="$(echo "$OPTIONS_B64" | base64 -d)"
+if ! curl -fsS \
+  -H "Authorization: Bearer ${SUPERVISOR_TOKEN}" \
+  -H "Content-Type: application/json" \
+  "http://supervisor/addons/${SUPERVISOR_SLUG}/options/validate" \
+  -d "$OPTIONS_JSON" >/dev/null; then
+  echo "[ha-app-deploy] Options validation failed (schema may have changed); skipping restore." >&2
+  exit 1
+fi
+curl -fsS \
+  -H "Authorization: Bearer ${SUPERVISOR_TOKEN}" \
+  -H "Content-Type: application/json" \
+  "http://supervisor/addons/${SUPERVISOR_SLUG}/options" \
+  -d "{\"options\":${OPTIONS_JSON}}" >/dev/null
+REMOTE_RESTORE
+}
+
 reinstall_app_for_metadata_sync() {
-  log "App metadata drift detected (ingress/ports/options/schema). Reinstalling app to refresh Supervisor cache."
+  log "App metadata drift detected. Reinstalling to refresh Supervisor cache."
+
+  # Save options before uninstall
+  local saved_opts
+  saved_opts="$(save_app_options)"
+  if [[ -z "$saved_opts" ]]; then
+    log "Warning: Could not save existing options. They may be lost after reinstall."
+  fi
+
   remote "ha apps uninstall ${SUPERVISOR_SLUG}" || true
   if ! remote "ha apps install ${SUPERVISOR_SLUG}"; then
     log "First reinstall attempt failed; retrying after store reload."
     remote "ha store reload" || true
     remote "ha apps install ${SUPERVISOR_SLUG}"
   fi
+
+  # Restore options
+  restore_app_options "$saved_opts"
 }
 
 rebuild_or_update() {
@@ -350,42 +425,57 @@ clear_image_cache() {
   "
 }
 
+# ── Sync files ──
+
 REMOTE_ADDON_DIR="/addons/local/${APP_SLUG}"
 
-log "Syncing config.yaml to ${REMOTE_ADDON_DIR}/"
-scp -i "$HA_SSH_KEY" \
-  -o StrictHostKeyChecking=accept-new \
-  -o BatchMode=yes \
-  -P "$SSH_PORT" \
-  "${APP_CONFIG_PATH}" \
-  "${SSH_USER}@${HA_HOST}:${REMOTE_ADDON_DIR}/config.yaml"
-scp -i "$HA_SSH_KEY" \
-  -o StrictHostKeyChecking=accept-new \
-  -o BatchMode=yes \
-  -P "$SSH_PORT" \
-  "${APP_CONFIG_PATH}" \
-  "${SSH_USER}@${HA_HOST}:${REMOTE_ADDON_DIR}/app/config.yaml"
+log "Syncing app files to ${REMOTE_ADDON_DIR}/"
+
+# Addon metadata files (Supervisor reads these from addon root)
+# NOTE: Do NOT copy config.yaml into app/ — the Supervisor uses **/config.*
+# glob and a duplicate causes translations/metadata to be lost.
+ADDON_FILES=(config.yaml DOCS.md CHANGELOG.md icon.png "icon@2x.png" logo.png "logo@2x.png")
+for f in "${ADDON_FILES[@]}"; do
+  if [[ -f "${PROJECT_ROOT}/${f}" ]]; then
+    scp -i "$HA_SSH_KEY" \
+      -o StrictHostKeyChecking=accept-new \
+      -o BatchMode=yes \
+      -P "$SSH_PORT" \
+      "${PROJECT_ROOT}/${f}" \
+      "${SSH_USER}@${HA_HOST}:${REMOTE_ADDON_DIR}/${f}"
+  fi
+done
+
+TRANSLATIONS_DIR="${PROJECT_ROOT}/translations"
+if [[ -d "$TRANSLATIONS_DIR" ]]; then
+  remote "mkdir -p ${REMOTE_ADDON_DIR}/translations"
+  scp -i "$HA_SSH_KEY" \
+    -o StrictHostKeyChecking=accept-new \
+    -o BatchMode=yes \
+    -P "$SSH_PORT" \
+    "${TRANSLATIONS_DIR}"/*.yaml \
+    "${SSH_USER}@${HA_HOST}:${REMOTE_ADDON_DIR}/translations/"
+fi
+
+# ── Reload + reinstall if needed ──
 
 log "Reload app store metadata"
 remote "ha store reload"
 
 ensure_installed
 
-if [[ "$FORCE_REINSTALL" == "1" ]]; then
-  log "Force reinstall requested"
-  reinstall_app_for_metadata_sync
-elif metadata_needs_reinstall; then
+if metadata_needs_reinstall; then
   reinstall_app_for_metadata_sync
 fi
 
-if [[ "$MODE" == "clean" ]]; then
-  log "Stopping app for clean deploy"
-  remote "ha apps stop ${SUPERVISOR_SLUG}" || true
+# ── Clean build ──
 
-  log "Removing cached app images for '${APP_SLUG}'"
-  cache_result="$(clear_image_cache)"
-  log "Image cache result: ${cache_result}"
-fi
+log "Stopping app"
+remote "ha apps stop ${SUPERVISOR_SLUG}" || true
+
+log "Clearing Docker image cache for '${APP_SLUG}'"
+cache_result="$(clear_image_cache)"
+log "Image cache result: ${cache_result}"
 
 log "Rebuilding app '${SUPERVISOR_SLUG}'"
 rebuild_or_update
@@ -393,10 +483,12 @@ rebuild_or_update
 log "Starting app '${SUPERVISOR_SLUG}'"
 remote "ha apps start ${SUPERVISOR_SLUG}"
 
+# ── Status ──
+
 log "Collecting quick status"
 remote "ha apps info ${SUPERVISOR_SLUG}" || true
 
 log "Recent app logs"
 remote "ha apps logs ${SUPERVISOR_SLUG} --lines 40" || true
 
-log "Deploy finished (${MODE})"
+log "Deploy finished"

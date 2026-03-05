@@ -1,0 +1,15 @@
+configuration:
+  relay_auth_token:
+    name: Relay Auth Token
+    description: >-
+      Shared secret between your AI client and this relay.
+      The setup wizard generates this automatically — paste the
+      token it shows you. Both sides must use the exact same value.
+  ha_llat:
+    name: Home Assistant Access Token
+    description: >-
+      A Long-Lived Access Token from your HA user profile.
+      Create one at: Profile > Security > Long-Lived Access Tokens.
+      This lets the relay control Home Assistant on your behalf.
+network:
+  8791/tcp: Relay HTTP API

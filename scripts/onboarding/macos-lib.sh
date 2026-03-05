@@ -19,8 +19,18 @@ ensure_config_dir() {
 
 load_config() {
   if [[ -f "$CONFIG_FILE" ]]; then
-    # shellcheck disable=SC1090
-    source "$CONFIG_FILE"
+    # Parse only known keys (no arbitrary code execution from config file)
+    local key value
+    while IFS='=' read -r key value; do
+      # Strip surrounding quotes produced by printf %q
+      value="${value#\'}" ; value="${value%\'}"
+      value="${value#\"}" ; value="${value%\"}"
+      case "$key" in
+        HA_HOST)        HA_HOST="$value" ;;
+        HA_URL)         HA_URL="$value" ;;
+        RELAY_BASE_URL) RELAY_BASE_URL="$value" ;;
+      esac
+    done < "$CONFIG_FILE"
   fi
 }
 
@@ -355,6 +365,10 @@ pick_client() {
 run_setup() {
   local client="${1:-}"
 
+  # CLI flags (set by bin/ha-nova via env vars)
+  local flag_host="${HA_NOVA_HOST:-}"
+  local flag_token="${HA_NOVA_TOKEN:-}"
+
   print_header
 
   if [[ -z "$client" ]]; then
@@ -399,6 +413,18 @@ run_setup() {
     skip_skills="1"
   fi
 
+  # CLI flags override: --host and/or --token skip the corresponding prompts
+  if [[ -n "$flag_host" ]]; then
+    skip_app_install="1"
+  fi
+  if [[ -n "$flag_token" ]]; then
+    skip_app_install="1"
+    skip_relay_token="1"
+  fi
+  if [[ -n "$flag_host" && -n "$flag_token" ]]; then
+    skip_llat="1"
+  fi
+
   # Show status if any phase is being skipped
   if [[ "$skip_app_install" == "1" || "$skip_relay_token" == "1" || "$skip_llat" == "1" || "$skip_skills" == "1" ]]; then
     print_setup_status
@@ -415,7 +441,7 @@ run_setup() {
   fi
 
   # ── Phase 2: App Installation Guide ──
-  local relay_auth_token
+  local relay_auth_token="${flag_token:-}"
   local existing_relay_auth_token
 
   if [[ "$skip_app_install" == "0" ]]; then
@@ -542,29 +568,49 @@ run_setup() {
   if [[ "$skip_verify" == "0" ]]; then
     print_step 3 4 "Verifying connection"
 
-    # Detect HA host
-    echo ""
-    print_info "Detecting Home Assistant..."
-    local default_ha_host
-    default_ha_host="$(detect_default_ha_host)"
-    prompt_valid_ha_host "$default_ha_host"
+    if [[ -n "$flag_host" ]]; then
+      # CLI flag: use provided host directly
+      HA_HOST="$(normalize_host_input "$flag_host")"
+      local resolved
+      if resolved="$(resolve_home_assistant_url_base "$flag_host")"; then
+        HA_URL="$resolved"
+      else
+        HA_URL="$(guess_home_assistant_url_base "$flag_host")"
+      fi
+      print_info "Using host from --host flag: ${HA_HOST}"
+    else
+      # Interactive: detect and prompt
+      echo ""
+      print_info "Detecting Home Assistant..."
+      local default_ha_host
+      default_ha_host="$(detect_default_ha_host)"
+      prompt_valid_ha_host "$default_ha_host"
+    fi
 
     local default_relay_base_url
     default_relay_base_url="${RELAY_BASE_URL:-http://${HA_HOST}:8791}"
 
-    while true; do
-      RELAY_BASE_URL="$(prompt_with_default 'Relay URL' "$default_relay_base_url")"
-      RELAY_BASE_URL="${RELAY_BASE_URL%/}"
-      if validate_relay_base_url_format "$RELAY_BASE_URL"; then
-        break
-      fi
-      print_fail "Invalid URL. Expected: http://<host>:<port>"
-      default_relay_base_url="$RELAY_BASE_URL"
-    done
+    if [[ -n "$flag_host" ]]; then
+      # When host is provided via flag, auto-derive relay URL
+      RELAY_BASE_URL="$default_relay_base_url"
+    else
+      while true; do
+        RELAY_BASE_URL="$(prompt_with_default 'Relay URL' "$default_relay_base_url")"
+        RELAY_BASE_URL="${RELAY_BASE_URL%/}"
+        if validate_relay_base_url_format "$RELAY_BASE_URL"; then
+          break
+        fi
+        print_fail "Invalid URL. Expected: http://<host>:<port>"
+        default_relay_base_url="$RELAY_BASE_URL"
+      done
+    fi
 
     # Verify relay
     echo ""
     local max_retries=3
+    local non_interactive_verify="0"
+    [[ -n "$flag_host" && -n "$flag_token" ]] && non_interactive_verify="1"
+
     local attempt=0
     while true; do
       if probe_relay_health "$RELAY_BASE_URL" "$relay_auth_token"; then
@@ -577,7 +623,9 @@ run_setup() {
           else
             print_fail "WebSocket not connected. Is ha_llat set in the app config?"
             explain_relay_ws_degraded
-            if ! prompt_yes_no "Continue anyway? (fix later with 'ha-nova doctor')" "Y"; then
+            if [[ "$non_interactive_verify" == "1" ]]; then
+              print_info "Continuing (non-interactive mode). Fix with 'ha-nova doctor'."
+            elif ! prompt_yes_no "Continue anyway? (fix later with 'ha-nova doctor')" "Y"; then
               die "Setup aborted."
             fi
           fi
@@ -587,7 +635,7 @@ run_setup() {
         attempt=$((attempt + 1))
         print_fail "Can't reach relay at ${RELAY_BASE_URL}"
         explain_relay_probe_failure "$RELAY_BASE_URL"
-        if (( attempt >= max_retries )); then
+        if (( attempt >= max_retries )) || [[ "$non_interactive_verify" == "1" ]]; then
           print_info "Saving config anyway. Run 'ha-nova doctor' after fixing."
           break
         fi
@@ -673,16 +721,18 @@ run_ready() {
     local cache_ha_url=""
     local cache_relay_base_url=""
     local cache_relay_token_fingerprint=""
-    # shellcheck disable=SC1090
-    if ! source "$DOCTOR_CACHE_FILE"; then
-      invalidate_doctor_cache
-      use_cache="0"
-    fi
-
-    cache_timestamp="${DOCTOR_CACHE_TIMESTAMP:-}"
-    cache_ha_url="${DOCTOR_CACHE_HA_URL:-}"
-    cache_relay_base_url="${DOCTOR_CACHE_RELAY_BASE_URL:-}"
-    cache_relay_token_fingerprint="${DOCTOR_CACHE_RELAY_TOKEN_FINGERPRINT:-}"
+    # Parse only known keys (no arbitrary code execution from cache file)
+    local _ck _cv
+    while IFS='=' read -r _ck _cv; do
+      _cv="${_cv#\'}" ; _cv="${_cv%\'}"
+      _cv="${_cv#\"}" ; _cv="${_cv%\"}"
+      case "$_ck" in
+        DOCTOR_CACHE_TIMESTAMP)              cache_timestamp="$_cv" ;;
+        DOCTOR_CACHE_HA_URL)                 cache_ha_url="$_cv" ;;
+        DOCTOR_CACHE_RELAY_BASE_URL)         cache_relay_base_url="$_cv" ;;
+        DOCTOR_CACHE_RELAY_TOKEN_FINGERPRINT) cache_relay_token_fingerprint="$_cv" ;;
+      esac
+    done < "$DOCTOR_CACHE_FILE" || { invalidate_doctor_cache; use_cache="0"; }
 
     if [[ "$cache_timestamp" =~ ^[0-9]+$ ]]; then
       if (( now - cache_timestamp <= ttl_seconds )) \

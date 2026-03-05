@@ -66,11 +66,22 @@ HA NOVA is **not** an MCP server. It's a two-part system:
 
 > **Requirements:** macOS, Node.js >= 20, Home Assistant OS or Supervised
 
+**One-liner install:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/main/install.sh | bash
+```
+
+**Or with npx (if you already have the repo):**
 ```bash
 npx ha-nova setup
 ```
 
 The wizard asks which AI client you use, then handles everything: relay installation, token configuration, and skill setup.
+
+**Non-interactive setup** (for automation / WebUI):
+```bash
+ha-nova setup claude --host=<your-ha-ip> --token=<relay-auth-token>
+```
 
 ## Supported AI Clients
 
