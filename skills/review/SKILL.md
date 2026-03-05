@@ -57,8 +57,10 @@ Analyze config against these checks. Report only violations found.
 - R-07: `mode: restart` with asymmetric on/off action pairs (partial execution risk)
 - R-08: `mode: parallel` referencing shared mutable state (`input_number`, `counter`, `input_boolean`)
 - R-09 [MEDIUM]: `choose:` without `default:` branch (silently does nothing when no condition matches)
-- R-10 [HIGH]: `mode: queued` with `delay:` or `wait_*` blocks and `max:` ≤ 3 combined with ≥ 3 triggers — queue saturation risk (triggers dropped silently when queue full during delays)
-- R-11 [HIGH]: `float(0)` or `int(0)` default on sensor values used in physical calculations (temperature, humidity, pressure) — 0 is physically wrong and produces silently incorrect results; use `float(none)` with an availability guard or a realistic fallback value
+- R-10 [HIGH]: `mode: queued` with `delay:` or `wait_*` blocks and `max:` ≤ 3 combined with ≥ 3 triggers — queue saturation risk (triggers dropped with WARNING log when queue full during delays; truly silent only if `max_exceeded: silent` is set)
+- R-11 [HIGH]: `float(0)` or `int(0)` default on sensor values used in physical calculations (temperature, humidity, pressure) — 0 is physically wrong and produces silently incorrect results; use `float(none)` with an availability guard (`has_value()`) or a realistic fallback value
+- R-12 [HIGH]: Self-trigger / feedback loop — automation triggers on an entity (e.g., `input_select`, `input_boolean`, `input_number`) that it also sets in its own actions; HA has NO built-in self-trigger protection; with `mode: queued` or `mode: parallel` this creates an infinite loop consuming queue slots; fix: remove the trigger, add a `condition` guard, or use `mode: single` as partial protection
+- R-13 [MEDIUM]: Trigger without `id:` in `choose:`-based automations — makes `trigger.id` matching impossible; branches using `condition: trigger` require trigger IDs to function
 
 **Performance (Medium):**
 - P-01: `platform: template` trigger that could be a `platform: state` trigger
