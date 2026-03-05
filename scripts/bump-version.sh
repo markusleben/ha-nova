@@ -12,6 +12,11 @@ if [[ -z "$NEW_VERSION" ]]; then
   exit 1
 fi
 
+if ! command -v jq >/dev/null 2>&1; then
+  echo "Error: jq is required but not installed. Install with: brew install jq"
+  exit 1
+fi
+
 if ! [[ "$NEW_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
   echo "Error: version must be semver (MAJOR.MINOR.PATCH), got: $NEW_VERSION"
   exit 1
@@ -40,4 +45,4 @@ echo "  package.json"
 echo "  .claude-plugin/plugin.json"
 echo "  .claude-plugin/marketplace.json"
 echo ""
-echo "Next: npm test && git add -A && git commit -m 'chore: bump version to $NEW_VERSION'"
+echo "Next: npm test && git add version.json package.json .claude-plugin/plugin.json .claude-plugin/marketplace.json && git commit -m 'chore: bump version to $NEW_VERSION'"
