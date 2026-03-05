@@ -3,46 +3,47 @@ import { constants, existsSync, readFileSync, statSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 describe("ha-nova contract", () => {
-  it("routes operations to consolidated skills", () => {
-    const router = readFileSync("skills/ha-nova/SKILL.md", "utf8");
+  it("provides context skill with skill discovery table", () => {
+    const context = readFileSync("skills/ha-nova/SKILL.md", "utf8");
 
-    expect(router).toContain("use skill `ha-nova:write`");
-    expect(router).toContain("use skill `ha-nova:read`");
-    expect(router).toContain("use skill `ha-nova:service-call`");
-    expect(router).toContain("use skill `ha-nova:entity-discovery`");
-    expect(router).toContain("use skill `ha-nova:onboarding`");
-    expect(router).toContain("use skill `ha-nova:review`");
-    expect(router).not.toContain(".agents/skills/");
-    expect(router).not.toContain("core/intents.md");
-    expect(router).not.toContain("Lazy Discovery Protocol");
-    expect(router).not.toContain("Orchestration Hard Gate");
+    expect(context).toContain("ha-nova:write");
+    expect(context).toContain("ha-nova:read");
+    expect(context).toContain("ha-nova:service-call");
+    expect(context).toContain("ha-nova:entity-discovery");
+    expect(context).toContain("ha-nova:onboarding");
+    expect(context).toContain("ha-nova:review");
+    expect(context).toContain("Sub-skills are discovered independently");
+    expect(context).not.toContain(".agents/skills/");
+    expect(context).not.toContain("core/intents.md");
+    expect(context).not.toContain("Lazy Discovery Protocol");
+    expect(context).not.toContain("Orchestration Hard Gate");
   });
 
-  it("keeps relay-bootstrap runtime prerequisite and safety baseline in router", () => {
-    const router = readFileSync("skills/ha-nova/SKILL.md", "utf8");
+  it("keeps relay-bootstrap runtime prerequisite and safety baseline in context skill", () => {
+    const context = readFileSync("skills/ha-nova/SKILL.md", "utf8");
 
-    expect(router).toContain("Runtime Prerequisite (macOS)");
-    expect(router).toContain("Relay-only auth model");
-    expect(router).toContain("~/.config/ha-nova/relay health");
-    expect(router).toContain("npm run onboarding:macos");
-    expect(router).not.toContain("git rev-parse");
-    expect(router).not.toContain('eval "$(bash');
-    expect(router).toContain("Quoting Reliability (Critical)");
-    expect(router).toContain("Safety Baseline");
-    expect(router).toContain("confirm:<token>");
-    expect(router).toContain("Do not ask user to paste tokens in chat.");
+    expect(context).toContain("Runtime Prerequisite (macOS)");
+    expect(context).toContain("Relay-only auth model");
+    expect(context).toContain("~/.config/ha-nova/relay health");
+    expect(context).toContain("npm run onboarding:macos");
+    expect(context).not.toContain("git rev-parse");
+    expect(context).not.toContain('eval "$(bash');
+    expect(context).toContain("Quoting Reliability (Critical)");
+    expect(context).toContain("Safety Baseline");
+    expect(context).toContain("confirm:<token>");
+    expect(context).toContain("Do not ask user to paste tokens in chat.");
   });
 
   it("defines structured summary + YAML response format", () => {
-    const router = readFileSync("skills/ha-nova/SKILL.md", "utf8");
+    const context = readFileSync("skills/ha-nova/SKILL.md", "utf8");
 
-    expect(router).toContain("Response Format");
-    expect(router).toContain("Automation` or `Script");
-    expect(router).toContain("Entities");
-    expect(router).toContain("Triggers");
-    expect(router).toContain("Actions");
-    expect(router).toContain("full YAML config");
-    expect(router).toContain("Next Step");
+    expect(context).toContain("Response Format");
+    expect(context).toContain("Automation` or `Script");
+    expect(context).toContain("Entities");
+    expect(context).toContain("Triggers");
+    expect(context).toContain("Actions");
+    expect(context).toContain("full YAML config");
+    expect(context).toContain("Next Step");
   });
 
   it("keeps new reference files present", () => {
@@ -146,10 +147,10 @@ describe("ha-nova contract", () => {
 
   it("keeps all operational subskills concise (<800 words)", () => {
     const skills = [
-      "skills/ha-nova/write/SKILL.md",
-      "skills/ha-nova/read/SKILL.md",
-      "skills/ha-nova/entity-discovery/SKILL.md",
-      "skills/ha-nova/onboarding/SKILL.md",
+      "skills/write/SKILL.md",
+      "skills/read/SKILL.md",
+      "skills/entity-discovery/SKILL.md",
+      "skills/onboarding/SKILL.md",
     ];
     for (const file of skills) {
       const content = readFileSync(file, "utf8");
@@ -161,12 +162,12 @@ describe("ha-nova contract", () => {
   it("keeps all HA NOVA skills in source tree", () => {
     const files = [
       "skills/ha-nova/SKILL.md",
-      "skills/ha-nova/write/SKILL.md",
-      "skills/ha-nova/read/SKILL.md",
-      "skills/ha-nova/entity-discovery/SKILL.md",
-      "skills/ha-nova/onboarding/SKILL.md",
-      "skills/ha-nova/service-call/SKILL.md",
-      "skills/ha-nova/review/SKILL.md",
+      "skills/write/SKILL.md",
+      "skills/read/SKILL.md",
+      "skills/entity-discovery/SKILL.md",
+      "skills/onboarding/SKILL.md",
+      "skills/service-call/SKILL.md",
+      "skills/review/SKILL.md",
     ];
 
     for (const file of files) {
@@ -179,10 +180,10 @@ describe("ha-nova contract", () => {
 
   it("enforces relay CLI bootstrap across all operational subskills", () => {
     const skills = [
-      "skills/ha-nova/write/SKILL.md",
-      "skills/ha-nova/read/SKILL.md",
-      "skills/ha-nova/entity-discovery/SKILL.md",
-      "skills/ha-nova/onboarding/SKILL.md",
+      "skills/write/SKILL.md",
+      "skills/read/SKILL.md",
+      "skills/entity-discovery/SKILL.md",
+      "skills/onboarding/SKILL.md",
     ];
 
     for (const file of skills) {
@@ -204,7 +205,21 @@ describe("ha-nova contract", () => {
   it("provides Claude Code plugin manifest", () => {
     const plugin = JSON.parse(readFileSync(".claude-plugin/plugin.json", "utf8"));
     expect(plugin.name).toBe("ha-nova");
-    expect(plugin.version).toBe("0.1.1");
+    expect(plugin.version).toBe("0.1.2");
     expect(plugin.description).toBeTruthy();
+  });
+
+  it("provides SessionStart hook for context skill auto-loading", () => {
+    const hooksJson = JSON.parse(readFileSync("hooks/hooks.json", "utf8"));
+    expect(hooksJson.hooks.SessionStart).toBeDefined();
+    expect(hooksJson.hooks.SessionStart[0].matcher).toBe("startup|resume|clear|compact");
+
+    const hookScript = "hooks/session-start";
+    expect(existsSync(hookScript)).toBe(true);
+    const mode = statSync(hookScript).mode;
+    expect(mode & constants.S_IXUSR).toBeGreaterThan(0);
+    const content = readFileSync(hookScript, "utf8");
+    expect(content).toContain("skills/ha-nova/SKILL.md");
+    expect(content).toContain("additional_context");
   });
 });

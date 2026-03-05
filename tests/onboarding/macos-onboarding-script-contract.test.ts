@@ -21,7 +21,7 @@ describe("macOS onboarding script contract", () => {
     const multiInstallerContent = readFileSync(multiInstaller, "utf8");
 
     expect((multiInstallerStats.mode & constants.S_IXUSR) !== 0).toBe(true);
-    expect(multiInstallerContent).toContain('SOURCE_SKILLS_DIR="${REPO_ROOT}/skills/ha-nova"');
+    expect(multiInstallerContent).toContain('SOURCE_SKILLS_DIR="${REPO_ROOT}/skills"');
     expect(multiInstallerContent).toContain("install_symlink");
     expect(multiInstallerContent).toContain("install_gemini_flat");
     expect(multiInstallerContent).toContain("LEGACY_FLAT_SKILLS");
@@ -253,10 +253,10 @@ exit 1
 
     expect(result.status).toBe(0);
 
-    // Codex: symlink at ~/.agents/skills/ha-nova -> repo/skills/ha-nova
+    // Codex: symlink at ~/.agents/skills/ha-nova -> repo/skills
     const codexLink = join(workDir, ".agents/skills/ha-nova");
     const codexLinkTarget = readlinkSync(codexLink);
-    expect(codexLinkTarget).toBe(join(repoRoot, "skills/ha-nova"));
+    expect(codexLinkTarget).toBe(join(repoRoot, "skills"));
 
     // Codex symlink provides all sub-skills (readable through symlink)
     const subSkills = ["write", "read", "entity-discovery", "onboarding", "service-call", "review"];
@@ -267,14 +267,14 @@ exit 1
       expect(content).not.toContain("__HA_NOVA_REPO_ROOT__");
       expect(content).not.toContain("ha-nova-managed-install");
     }
-    // Router also accessible
-    const routerContent = readFileSync(join(codexLink, "SKILL.md"), "utf8");
-    expect(routerContent).toContain("use skill `ha-nova:write`");
+    // Context skill also accessible
+    const contextContent = readFileSync(join(codexLink, "ha-nova", "SKILL.md"), "utf8");
+    expect(contextContent).toContain("ha-nova:write");
 
-    // OpenCode: symlink at ~/.config/opencode/skills/ha-nova -> repo
+    // OpenCode: symlink at ~/.config/opencode/skills/ha-nova -> repo/skills
     const openCodeLink = join(workDir, ".config/opencode/skills/ha-nova");
     const openCodeLinkTarget = readlinkSync(openCodeLink);
-    expect(openCodeLinkTarget).toBe(join(repoRoot, "skills/ha-nova"));
+    expect(openCodeLinkTarget).toBe(join(repoRoot, "skills"));
 
     // Gemini: flat copies at ~/.agents/skills/ha-nova-{sub}/SKILL.md
     for (const sub of subSkills) {

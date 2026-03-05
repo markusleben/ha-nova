@@ -20,9 +20,9 @@ Usage:
   bash scripts/onboarding/install-local-skills.sh all
 
 Targets:
-  codex    -> symlink ~/.agents/skills/ha-nova -> repo skills/ha-nova
+  codex    -> symlink ~/.agents/skills/ha-nova -> repo skills
   claude   -> skipped (use Claude Code plugin system)
-  opencode -> symlink ~/.config/opencode/skills/ha-nova -> repo skills/ha-nova
+  opencode -> symlink ~/.config/opencode/skills/ha-nova -> repo skills
   gemini   -> flat copy ~/.agents/skills/ha-nova-{skill}/SKILL.md
   all      -> install for codex + claude + opencode + gemini
 USAGE
@@ -30,7 +30,7 @@ USAGE
 
 SCRIPT_DIR="$(cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../.." && pwd)"
-SOURCE_SKILLS_DIR="${REPO_ROOT}/skills/ha-nova"
+SOURCE_SKILLS_DIR="${REPO_ROOT}/skills"
 
 # Legacy flat skill directories to clean up
 LEGACY_FLAT_SKILLS=(
@@ -39,6 +39,7 @@ LEGACY_FLAT_SKILLS=(
   "ha-nova-entity-discovery"
   "ha-nova-onboarding"
   "ha-nova-service-call"
+  "ha-nova-review"
 )
 
 # Sub-skills that get flat-copied for Gemini
@@ -100,23 +101,23 @@ install_gemini_flat() {
     fi
   done
 
-  # Router as ha-nova/SKILL.md (flat, level 1)
-  # When Codex symlink exists, it already provides the router — leave it.
+  # Context skill as ha-nova/SKILL.md (flat, level 1)
+  # When Codex symlink exists, it already provides the context skill — leave it.
   # Gemini can read through the symlink. If Codex is later uninstalled,
   # re-running `install gemini` will create a standalone copy.
-  local router_dir="${user_skills_dir}/ha-nova"
-  if [[ -L "${router_dir}" ]]; then
-    log "[gemini] Router provided by Codex symlink: ${router_dir}"
-  elif [[ -d "${router_dir}" ]]; then
+  local context_dir="${user_skills_dir}/ha-nova"
+  if [[ -L "${context_dir}" ]]; then
+    log "[gemini] Context skill provided by Codex symlink: ${context_dir}"
+  elif [[ -d "${context_dir}" ]]; then
     # Existing directory (legacy copy) — replace with fresh copy
-    rm -rf "${router_dir}"
-    mkdir -p "${router_dir}"
-    cp "${SOURCE_SKILLS_DIR}/SKILL.md" "${router_dir}/SKILL.md"
-    log "[gemini] Installed: ha-nova/SKILL.md (router, replaced legacy copy)"
+    rm -rf "${context_dir}"
+    mkdir -p "${context_dir}"
+    cp "${SOURCE_SKILLS_DIR}/ha-nova/SKILL.md" "${context_dir}/SKILL.md"
+    log "[gemini] Installed: ha-nova/SKILL.md (context skill, replaced legacy copy)"
   else
-    mkdir -p "${router_dir}"
-    cp "${SOURCE_SKILLS_DIR}/SKILL.md" "${router_dir}/SKILL.md"
-    log "[gemini] Installed: ha-nova/SKILL.md (router)"
+    mkdir -p "${context_dir}"
+    cp "${SOURCE_SKILLS_DIR}/ha-nova/SKILL.md" "${context_dir}/SKILL.md"
+    log "[gemini] Installed: ha-nova/SKILL.md (context skill)"
   fi
 
   # Sub-skills as ha-nova-{skill}/SKILL.md (flat, level 1)
