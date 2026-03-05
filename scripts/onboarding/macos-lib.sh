@@ -244,7 +244,7 @@ detect_setup_state() {
       done
       # OpenCode symlink
       if [[ "$SETUP_SKILLS_OK" == "1" ]]; then
-        if [[ ! -L "${HOME}/.config/opencode/skills/ha-nova" ]] || [[ ! -f "${HOME}/.config/opencode/skills/ha-nova/SKILL.md" ]]; then
+        if [[ ! -L "${HOME}/.config/opencode/skills/ha-nova" ]] || [[ ! -f "${HOME}/.config/opencode/skills/ha-nova/ha-nova/SKILL.md" ]]; then
           SETUP_SKILLS_OK="0"
         fi
       fi
