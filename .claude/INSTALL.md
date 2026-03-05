@@ -10,30 +10,19 @@ npx ha-nova setup
 
 ## Activating Skills
 
-Claude Code requires explicit plugin registration. Choose one:
+Install the plugin via marketplace (works globally in any directory):
 
-**Option A — Per-session (development):**
-```bash
-claude --plugin-dir ~/ha-nova
 ```
-
-**Option B — Persistent (recommended):**
-
-Add to `~/.claude/settings.json`:
-```json
-{
-  "extraKnownMarketplaces": {
-    "ha-nova-local": {
-      "source": { "source": "directory", "path": "/absolute/path/to/ha-nova" }
-    }
-  },
-  "enabledPlugins": {
-    "ha-nova@ha-nova-local": true
-  }
-}
+/plugin marketplace add markusleben/ha-nova
+/plugin install ha-nova@markusleben/ha-nova
 ```
 
 Skills are then available as `/ha-nova:read`, `/ha-nova:write`, etc.
+
+**Alternative — per-session (development):**
+```bash
+claude --plugin-dir ~/ha-nova
+```
 
 ## Already Set Up?
 
