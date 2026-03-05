@@ -2,7 +2,9 @@
   "name": "ha-nova",
   "version": "0.1.2",
   "description": "AI-powered Home Assistant control through LLM skills and a local relay",
-  "author": { "name": "Markus Leben" },
+  "author": {
+    "name": "Markus Leben"
+  },
   "repository": "https://github.com/markusleben/ha-nova",
   "license": "MIT"
 }

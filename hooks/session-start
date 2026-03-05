@@ -22,7 +22,113 @@ escape_for_json() {
 }
 
 context_escaped=$(escape_for_json "$context_skill_content")
-session_context="HA NOVA context skill auto-loaded. Sub-skills (ha-nova:read, ha-nova:write, ha-nova:review, ha-nova:entity-discovery, ha-nova:service-call, ha-nova:onboarding) are discovered independently by description.\n\n${context_escaped}"
+
+# Build sub-skill list dynamically from skills/ directories (exclude ha-nova context skill itself)
+sub_skills=""
+for skill_dir in "${PLUGIN_ROOT}"/skills/*/SKILL.md; do
+  skill_name=$(basename "$(dirname "$skill_dir")")
+  [[ "$skill_name" == "ha-nova" ]] && continue
+  [[ -n "$sub_skills" ]] && sub_skills="${sub_skills}, "
+  sub_skills="${sub_skills}ha-nova:${skill_name}"
+done
+
+session_context="HA NOVA context skill auto-loaded. Sub-skills (${sub_skills}) are discovered independently by description.\\n\\n${context_escaped}"
+
+# ---------------------------------------------------------------------------
+# Relay version check
+# ---------------------------------------------------------------------------
+
+# NOTE: duplicate of semver_lt in scripts/onboarding/lib/relay.sh (can't source across contexts)
+semver_lt() {
+  # shellcheck disable=SC2206
+  local IFS='.'; local -a a=($1) b=($2)
+  for i in 0 1 2; do
+    local ai="${a[$i]:-0}" bi="${b[$i]:-0}"
+    (( ai < bi )) && return 0; (( ai > bi )) && return 1
+  done
+  return 1
+}
+
+extract_json_string() {
+  local key="$1" json="$2"
+  local match
+  match=$(echo "$json" | grep -o "\"${key}\"[[:space:]]*:[[:space:]]*\"[^\"]*\"" 2>/dev/null | head -1) || true
+  [[ -z "$match" ]] && return 0
+  echo "$match" | sed 's/.*"\([^"]*\)"$/\1/'
+}
+
+version_warning=""
+update_notice=""
+version_file="${PLUGIN_ROOT}/version.json"
+if [[ -f "$version_file" ]]; then
+  version_json=$(cat "$version_file")
+  SKILL_VERSION=$(extract_json_string "skill_version" "$version_json")
+  MIN_RELAY_VERSION=$(extract_json_string "min_relay_version" "$version_json")
+
+  # --- Relay version check ---
+  relay_cli="${HOME}/.config/ha-nova/relay"
+  if [[ -x "$relay_cli" ]]; then
+    # Relay CLI sets --connect-timeout 5 --max-time 15 by default;
+    # curl uses last-occurrence, so these overrides take effect.
+    health_json=$("$relay_cli" health --connect-timeout 1 --max-time 2 2>/dev/null || true)
+    if [[ -z "$health_json" ]]; then
+      version_warning="[ha-nova] WARNING: Relay unreachable. Check relay status or run: npm run onboarding:macos\\n"
+    elif [[ -n "$MIN_RELAY_VERSION" ]]; then
+      relay_version=$(extract_json_string "version" "$health_json")
+      if [[ -n "$relay_version" && "$relay_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] && semver_lt "$relay_version" "$MIN_RELAY_VERSION"; then
+        version_warning="[ha-nova] WARNING: Relay version ${relay_version} is below minimum ${MIN_RELAY_VERSION}. Update: HA Settings > Apps > NOVA Relay > Update\\n"
+      fi
+    fi
+  fi
+  # No relay CLI = not onboarded yet, skip silently
+
+  # --- Remote update check (stale-while-revalidate, TTL 24h) ---
+  update_cache_dir="${HOME}/.cache/ha-nova"
+  update_cache_file="${update_cache_dir}/latest-version.json"
+  update_ttl=86400
+  remote_url="https://raw.githubusercontent.com/markusleben/ha-nova/main/version.json"
+
+  needs_refresh="1"
+  if [[ -f "$update_cache_file" ]]; then
+    # Read cached latest version (stale is OK — show it now, refresh in background)
+    cached_json=$(cat "$update_cache_file" 2>/dev/null || true)
+    latest_skill_version=$(extract_json_string "skill_version" "$cached_json")
+    if [[ -n "$latest_skill_version" && "$latest_skill_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ && -n "$SKILL_VERSION" ]] && semver_lt "$SKILL_VERSION" "$latest_skill_version"; then
+      update_notice="[ha-nova] UPDATE AVAILABLE: v${SKILL_VERSION} -> v${latest_skill_version}. See: https://github.com/markusleben/ha-nova/blob/main/skills/ha-nova/update-guide.md\\n"
+    fi
+
+    # Check if cache is still fresh
+    if [[ "$(uname)" == "Darwin" ]]; then
+      cache_mtime=$(stat -f %m "$update_cache_file" 2>/dev/null || echo 0)
+    else
+      cache_mtime=$(stat -c %Y "$update_cache_file" 2>/dev/null || echo 0)
+    fi
+    now=$(date +%s)
+    if (( now - cache_mtime < update_ttl )); then
+      needs_refresh="0"
+    fi
+  fi
+
+  # Background refresh: fire-and-forget, result available for NEXT session
+  # Only cache if response contains valid JSON (prevents caching 404 pages)
+  if [[ "$needs_refresh" == "1" ]]; then
+    mkdir -p "$update_cache_dir" 2>/dev/null || true
+    (tmp=$(mktemp) && curl -sS --connect-timeout 2 --max-time 5 "$remote_url" -o "$tmp" 2>/dev/null && grep -q '"skill_version"' "$tmp" 2>/dev/null && mv "$tmp" "$update_cache_file" || rm -f "$tmp") &
+    disown 2>/dev/null || true
+  fi
+fi
+
+if [[ -n "$update_notice" ]]; then
+  session_context="${update_notice}\\n${session_context}"
+fi
+
+if [[ -n "$version_warning" ]]; then
+  session_context="${version_warning}\\n${session_context}"
+fi
+
+if [[ -n "${SKILL_VERSION:-}" ]]; then
+  session_context="HA NOVA Skills v${SKILL_VERSION}\\n${session_context}"
+fi
 
 cat <<EOF
 {

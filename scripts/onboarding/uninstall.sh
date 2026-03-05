@@ -7,23 +7,14 @@ SKILL_DIRS=(
   "${HOME}/.config/opencode/skills"
 )
 
-# Legacy flat skill directories (from pre-nesting era)
-LEGACY_FLAT_SKILLS=(
-  "ha-nova-write"
-  "ha-nova-read"
-  "ha-nova-entity-discovery"
-  "ha-nova-onboarding"
-  "ha-nova-service-call"
-)
-
-# Gemini flat skill directories
-GEMINI_FLAT_SKILLS=(
+# Flat skill directories (legacy + Gemini installs)
+FLAT_SKILLS=(
   "ha-nova-read"
   "ha-nova-write"
-  "ha-nova-entity-discovery"
-  "ha-nova-onboarding"
-  "ha-nova-service-call"
   "ha-nova-review"
+  "ha-nova-entity-discovery"
+  "ha-nova-onboarding"
+  "ha-nova-service-call"
 )
 
 log() { echo "[ha-nova] $*"; }
@@ -59,8 +50,10 @@ echo "  ─────────────────"
 echo ""
 echo "  This will remove:"
 echo "    • Skills from all AI client directories"
+echo "    • Claude Code plugin cache"
 echo "    • Relay CLI (~/.config/ha-nova/relay)"
 echo "    • Config (~/.config/ha-nova/)"
+echo "    • Cache (~/.cache/ha-nova/)"
 echo "    • Keychain entry (ha-nova.relay-auth-token)"
 echo ""
 
@@ -83,19 +76,24 @@ for skills_dir in "${SKILL_DIRS[@]}"; do
   # Remove ha-nova/ (symlink or directory)
   remove_path "${skills_dir}/ha-nova"
 
-  # Clean up legacy flat skill directories
-  for legacy_skill in "${LEGACY_FLAT_SKILLS[@]}"; do
-    remove_path "${skills_dir}/${legacy_skill}"
-  done
-
-  # Clean up Gemini flat skill directories
-  for gemini_skill in "${GEMINI_FLAT_SKILLS[@]}"; do
-    remove_path "${skills_dir}/${gemini_skill}"
+  # Clean up flat skill directories (legacy + Gemini)
+  for flat_skill in "${FLAT_SKILLS[@]}"; do
+    remove_path "${skills_dir}/${flat_skill}"
   done
 done
 
 # ── Remove known config files (preserves any custom files) ──
 remove_known_config
+
+# ── Remove update cache ──
+remove_path "${HOME}/.cache/ha-nova"
+
+# ── Remove Claude Code plugin ──
+if command -v claude &>/dev/null; then
+  claude plugin remove ha-nova@ha-nova 2>/dev/null && log "Removed Claude Code plugin" && removed=$((removed + 1)) || true
+fi
+# Remove cache as fallback
+remove_path "${HOME}/.claude/plugins/cache/ha-nova"
 
 # ── Remove Keychain entry ──
 if security find-generic-password -s "ha-nova.relay-auth-token" >/dev/null 2>&1; then
@@ -110,7 +108,4 @@ if [[ "$removed" -gt 0 ]]; then
 else
   log "Nothing to remove — HA NOVA was not installed."
 fi
-echo ""
-echo "  To also remove the npm package:"
-echo "    npm uninstall -g ha-nova"
 echo ""

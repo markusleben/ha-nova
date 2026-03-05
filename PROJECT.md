@@ -49,8 +49,8 @@ Code from it can be reused for Relay components (REST/WS clients, backup manager
 
 Current deliverables:
 1. Relay MVP: `POST /ws` + `GET /health`
-2. Router skill: `ha-nova` (routes to nested sub-skills via `ha-nova:<skill>`)
-3. Sub-skills (nested under `ha-nova/`): write, read, entity-discovery, service-call, review, onboarding
+2. Context skill: `ha-nova` (auto-loaded via SessionStart hook; sub-skills discovered independently)
+3. Sub-skills (flat under `skills/`): write, read, entity-discovery, service-call, review, onboarding
 4. Shared references under `skills/ha-nova/` (`relay-api.md`, `best-practices.md`, `agents/*`)
 
 ## Tech Stack

@@ -10,8 +10,23 @@ set -euo pipefail
 
 LAST_RELAY_STATUS_CODE=""
 LAST_RELAY_HA_WS_CONNECTED=""
+LAST_RELAY_VERSION=""
 LAST_RELAY_WS_STATUS_CODE=""
 LAST_RELAY_WS_BODY=""
+
+# ---------------------------------------------------------------------------
+# Semver comparison: returns 0 (true) if $1 < $2
+# NOTE: duplicate in hooks/session-start (can't source across contexts)
+# ---------------------------------------------------------------------------
+
+semver_lt() {
+  local IFS='.'; local -a a=($1) b=($2)
+  for i in 0 1 2; do
+    local ai="${a[$i]:-0}" bi="${b[$i]:-0}"
+    (( ai < bi )) && return 0; (( ai > bi )) && return 1
+  done
+  return 1
+}
 
 # ---------------------------------------------------------------------------
 # Host / URL normalization
@@ -268,6 +283,10 @@ probe_relay_health() {
 
   LAST_RELAY_STATUS_CODE="$status_code"
   LAST_RELAY_HA_WS_CONNECTED=""
+  LAST_RELAY_VERSION=""
+  if [[ "$body" =~ \"version\"[[:space:]]*:[[:space:]]*\"([0-9]+\.[0-9]+\.[0-9]+)\" ]]; then
+    LAST_RELAY_VERSION="${BASH_REMATCH[1]}"
+  fi
   if [[ "$body" =~ \"ha_ws_connected\"[[:space:]]*:[[:space:]]*true ]]; then
     LAST_RELAY_HA_WS_CONNECTED="true"
   elif [[ "$body" =~ \"ha_ws_connected\"[[:space:]]*:[[:space:]]*false ]]; then

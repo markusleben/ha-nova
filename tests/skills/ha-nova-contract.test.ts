@@ -205,8 +205,24 @@ describe("ha-nova contract", () => {
   it("provides Claude Code plugin manifest", () => {
     const plugin = JSON.parse(readFileSync(".claude-plugin/plugin.json", "utf8"));
     expect(plugin.name).toBe("ha-nova");
-    expect(plugin.version).toBe("0.1.2");
     expect(plugin.description).toBeTruthy();
+  });
+
+  it("keeps all version files in sync with version.json", () => {
+    const versionJson = JSON.parse(readFileSync("version.json", "utf8"));
+    const expected = versionJson.skill_version;
+    expect(expected).toMatch(/^\d+\.\d+\.\d+$/);
+
+    const plugin = JSON.parse(readFileSync(".claude-plugin/plugin.json", "utf8"));
+    expect(plugin.version).toBe(expected);
+
+    const pkg = JSON.parse(readFileSync("package.json", "utf8"));
+    expect(pkg.version).toBe(expected);
+
+    const marketplace = JSON.parse(
+      readFileSync(".claude-plugin/marketplace.json", "utf8"),
+    );
+    expect(marketplace.plugins[0].version).toBe(expected);
   });
 
   it("provides SessionStart hook for context skill auto-loading", () => {
