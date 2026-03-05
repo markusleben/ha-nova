@@ -517,7 +517,10 @@ run_setup() {
       wait_for_enter "Press [Enter] when you've saved the relay token... "
     fi
   else
-    relay_auth_token="$(read_keychain_secret "$RELAY_SERVICE")"
+    # CLI --token takes precedence; fall back to Keychain
+    if [[ -z "$relay_auth_token" ]]; then
+      relay_auth_token="$(read_keychain_secret "$RELAY_SERVICE")"
+    fi
   fi
 
   # 3b) LLAT guide

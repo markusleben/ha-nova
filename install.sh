@@ -102,7 +102,16 @@ check_prerequisites() {
 # ── Existing Install ─────────────────────────────────────────────────────
 
 handle_existing_install() {
+  if [[ ! -d "${INSTALL_DIR}" ]]; then
+    return 0
+  fi
+
+  # Dir exists but isn't a git repo (interrupted clone / manual copy)
   if [[ ! -d "${INSTALL_DIR}/.git" ]]; then
+    warn "Directory exists but is not a git repo: ${INSTALL_DIR}"
+    warn "Removing it so we can do a clean install..."
+    [[ -n "$INSTALL_DIR" && "$INSTALL_DIR" == *"ha-nova"* ]] || fail "INSTALL_DIR sanity check failed"
+    rm -rf "$INSTALL_DIR"
     return 0
   fi
 
