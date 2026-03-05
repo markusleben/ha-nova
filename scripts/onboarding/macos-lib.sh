@@ -106,6 +106,20 @@ run_doctor_checks() {
 
   if [[ -n "${RELAY_BASE_URL:-}" && -n "$relay_auth_token" ]] && probe_relay_health "$RELAY_BASE_URL" "$relay_auth_token"; then
     echo "  [ok] Relay health reachable: ${RELAY_BASE_URL}/health"
+    # Version check
+    if [[ -n "$LAST_RELAY_VERSION" ]]; then
+      local min_relay_version=""
+      local vf="${REPO_ROOT}/version.json"
+      if [[ -f "$vf" ]]; then
+        min_relay_version=$(grep -o '"min_relay_version"[[:space:]]*:[[:space:]]*"[^"]*"' "$vf" 2>/dev/null | sed 's/.*"\([^"]*\)"$/\1/' || true)
+      fi
+      if [[ -n "$min_relay_version" ]] && semver_lt "$LAST_RELAY_VERSION" "$min_relay_version"; then
+        echo "  [warn] Relay version ${LAST_RELAY_VERSION} is below minimum ${min_relay_version}. Update: HA Settings > Apps > NOVA Relay > Update"
+        overall_ok="0"
+      else
+        echo "  [ok] Relay version: ${LAST_RELAY_VERSION}"
+      fi
+    fi
     if [[ "$LAST_RELAY_HA_WS_CONNECTED" == "false" ]]; then
       # Runtime keeps WS lazy-connected; validate once via ping before failing.
       if probe_relay_ws_ping "$RELAY_BASE_URL" "$relay_auth_token"; then
@@ -122,6 +136,33 @@ run_doctor_checks() {
     explain_relay_probe_failure "${RELAY_BASE_URL:-<unset>}"
     echo "         Action: install/start NOVA Relay App and verify relay_auth_token."
     overall_ok="0"
+  fi
+
+  # Remote update check (synchronous in doctor — user explicitly asked for diagnostics)
+  local vf="${REPO_ROOT}/version.json"
+  if [[ -f "$vf" ]]; then
+    local local_skill_version
+    local_skill_version=$(grep -o '"skill_version"[[:space:]]*:[[:space:]]*"[^"]*"' "$vf" 2>/dev/null | sed 's/.*"\([^"]*\)"$/\1/' || true)
+    local remote_json
+    remote_json=$(curl -sS --connect-timeout 2 --max-time 5 "https://raw.githubusercontent.com/markusleben/ha-nova/main/version.json" 2>/dev/null || true)
+    if [[ -n "$remote_json" ]]; then
+      local latest_skill_version
+      latest_skill_version=$(echo "$remote_json" | grep -o '"skill_version"[[:space:]]*:[[:space:]]*"[^"]*"' | sed 's/.*"\([^"]*\)"$/\1/')
+      if [[ -n "$latest_skill_version" && -n "$local_skill_version" ]] && semver_lt "$local_skill_version" "$latest_skill_version"; then
+        echo "  [warn] Skills update available: v${local_skill_version} -> v${latest_skill_version}. See: https://github.com/markusleben/ha-nova/blob/main/skills/ha-nova/update-guide.md"
+      else
+        echo "  [ok] Skills version: ${local_skill_version:-unknown} (up to date)"
+      fi
+      # Update the cache for SessionStart hook
+      local update_cache_dir="${HOME}/.cache/ha-nova"
+      mkdir -p "$update_cache_dir" 2>/dev/null || true
+      # Only cache if response contains valid JSON (prevents caching 404 pages)
+      if echo "$remote_json" | grep -q '"skill_version"' 2>/dev/null; then
+        echo "$remote_json" > "${update_cache_dir}/latest-version.json" 2>/dev/null || true
+      fi
+    else
+      echo "  [info] Skills version: ${local_skill_version:-unknown} (remote check failed, offline?)"
+    fi
   fi
 
   if [[ "$overall_ok" == "1" ]]; then

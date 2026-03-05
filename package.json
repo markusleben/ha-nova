@@ -1,8 +1,8 @@
 {
   "name": "ha-nova",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "AI-powered Home Assistant management through LLM coding agents",
-  "private": false,
+  "private": true,
   "type": "module",
   "license": "MIT",
   "repository": {
@@ -34,6 +34,7 @@
     "node": ">=20"
   },
   "scripts": {
+    "bump": "bash scripts/bump-version.sh",
     "build": "tsc -p tsconfig.json",
     "dev": "node --enable-source-maps --watch src/runtime/main.ts",
     "install:codex-skill": "bash scripts/onboarding/install-local-skills.sh codex",

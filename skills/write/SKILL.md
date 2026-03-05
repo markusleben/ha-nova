@@ -66,15 +66,17 @@ If this fails, run onboarding: `npm run onboarding:macos`.
 
 Fallback: If agent dispatch unavailable, run same logic inline serially.
 
-### Phase 4: Review
+### Phase 4: Post-Write Review
 
-1. Use skill `ha-nova:review` with mode=`post-write`.
-2. Provide: domain, target_id, observed config from Phase 3.
-3. Expect: config findings, collision scan, conflict analysis.
+Run a lightweight review inline (do NOT invoke ha-nova:review as a separate skill):
+
+1. Re-read the written config: `relay ws -d '{"type":"automation/config","entity_id":"<id>"}'`
+   - Script: `relay core -d '{"method":"GET","path":"/api/config/script/config/<key>"}'`
+2. Read `skills/review/SKILL.md` Step 1 (Config Quality Review) for the full R-01..R-15 check definitions. Check the written config against these — focus on CRITICAL/HIGH only.
+3. Run collision scan: `search/related` for the top 2 target entities, read max 3 related configs.
 4. Present findings to user:
    - CRITICAL/HIGH findings: highlight prominently, suggest fixes
    - MEDIUM/LOW findings: mention as advisory
-   - Conflicts: explain context (why it's a real conflict vs safe pattern)
    - No findings: "Config looks clean."
 5. Findings are advisory — the write already succeeded. User can choose to update.
 
@@ -92,4 +94,4 @@ Fallback: If agent dispatch unavailable, run same logic inline serially.
 - Best Practices: `skills/ha-nova/best-practices.md`
 - Resolve Agent: `skills/ha-nova/agents/resolve-agent.md`
 - Apply Agent: `skills/ha-nova/agents/apply-agent.md`
-- Review: use skill `ha-nova:review`
+- Review Checks: see `skills/review/SKILL.md` for full R-01..R-15 check catalog

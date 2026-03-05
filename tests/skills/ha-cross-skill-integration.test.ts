@@ -9,8 +9,8 @@ describe("ha cross-skill integration", () => {
     expect(writeSkill).toContain("Phase 1: Resolve (Agent)");
     expect(writeSkill).toContain("Phase 2: Preview + Confirm (Main Thread)");
     expect(writeSkill).toContain("Phase 3: Apply + Verify (Agent)");
-    expect(writeSkill).toContain("Phase 4: Review");
-    expect(writeSkill).toContain("ha-nova:review");
+    expect(writeSkill).toContain("Phase 4: Post-Write Review");
+    expect(writeSkill).toContain("skills/review/SKILL.md");
     expect(writeSkill).toContain("full-replacement merge (base=current, overlay=user changes)");
     expect(writeSkill).toContain("confirm:<token>");
     expect(writeSkill).toContain("full YAML config");
@@ -24,7 +24,7 @@ describe("ha cross-skill integration", () => {
     expect(writeSkill).toContain("skills/ha-nova/best-practices.md");
     expect(writeSkill).toContain("skills/ha-nova/agents/resolve-agent.md");
     expect(writeSkill).toContain("skills/ha-nova/agents/apply-agent.md");
-    expect(writeSkill).toContain("ha-nova:review");
+    expect(writeSkill).toContain("skills/review/SKILL.md");
   });
 
   it("keeps write skill concise and phase-driven", () => {

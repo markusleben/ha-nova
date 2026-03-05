@@ -1,6 +1,6 @@
 ---
 name: review
-description: Use when analyzing, reviewing, auditing, or checking Home Assistant automations or scripts for errors, best-practice violations, and conflicts. Self-contained — reads configs internally, do not combine with ha-nova:read.
+description: Use when analyzing, reviewing, auditing, or checking Home Assistant automations or scripts for errors, best-practice violations, and conflicts. Do not invoke ha-nova:read separately — this skill handles discovery and reading internally.
 ---
 
 # HA NOVA Review
@@ -17,30 +17,63 @@ Forbidden: any write call, any mutation.
 
 ## Bootstrap
 
-If the target config is not already in the thread context:
-1. Resolve target via `ha-nova:entity-discovery`
-2. Read config via `ha-nova:read`
-
 Relay CLI: `~/.config/ha-nova/relay`
-- `~/.config/ha-nova/relay ws -d '<json>'` — WebSocket relay
-- `~/.config/ha-nova/relay core -d '<json>'` — Core API relay
+- Preflight: `relay health` (once per session, skip if already verified)
+- `relay ws -d '<json>'` — WebSocket API
+- `relay core -d '<json>'` — REST API
+
+### Target Resolution
+
+If user provides an exact entity_id (e.g., `automation.kitchen_lights`), skip search and go directly to config read.
+
+If the target config is not already in the thread context, resolve it yourself:
+1. Search by name using entity registry (compact fields: `ei`=entity_id, `en`=name/alias):
+   ```bash
+   ~/.config/ha-nova/relay ws -d '{"type":"config/entity_registry/list_for_display"}' \
+     | jq -r '.data.entities[] | select(.ei | startswith("automation.")) | "\(.ei) | \(.en // "unnamed")"' \
+     | grep -i '<search_term>'
+   ```
+   For scripts: `select(.ei | startswith("script."))`.
+2. If multiple matches: present top candidates (max 5) and ask one clarifying question. Never guess.
+3. Read config (save to temp file — configs can be 10-30 KB, shell output truncates):
+   - Automation: `relay ws -d '{"type":"automation/config","entity_id":"automation.<id>"}' > /tmp/ha-review-target.json`
+   - Script: `relay core -d '{"method":"GET","path":"/api/config/script/config/<unique_id>"}' > /tmp/ha-review-target.json`
+   Then read the file with the native file-reading tool for complete, untruncated access.
+
+If config is already in the thread context (e.g., user pasted YAML):
+- If entity_id is known: skip Target Resolution entirely, go straight to Config Quality Review (Step 1).
+- If entity_id is unknown: run Target Resolution search (above) to find entity_id. If not found, proceed with Config Quality Review only. Note in output: "Collision scan skipped — no entity_id available."
+
+Do NOT invoke ha-nova:entity-discovery or ha-nova:read as separate skills — handle everything within this review flow.
 
 ## Flow
 
 ### Pre-Analysis Reference
 
-Before analyzing templates, consult `docs/reference/ha-template-reference.md` for valid HA Jinja2 functions, constants, and filters.
+Before analyzing, consult these sources:
 
-**Verify-before-flag rule:** Before reporting ANY template syntax/function error:
-1. Check the reference doc
-2. If not found there, research current HA templating docs (https://www.home-assistant.io/docs/configuration/templating/)
+**Local reference (always):**
+- `docs/reference/ha-template-reference.md` — valid Jinja2 functions, constants, filters
+
+**Official HA docs (fetch selectively based on config content — do NOT fetch all for every review):**
+- Trigger issues → https://www.home-assistant.io/docs/automation/trigger/
+- Mode issues → https://www.home-assistant.io/docs/automation/modes/
+- Action/script issues → https://www.home-assistant.io/docs/scripts/
+- Template issues → https://www.home-assistant.io/docs/configuration/templating/
+- Schema questions → https://www.home-assistant.io/docs/automation/yaml/
+
+Only fetch pages relevant to the triggers, actions, and templates found in the config. Cross-check against documented gotchas and constraints — this catches issues beyond the hardcoded checks below.
+
+**Verify-before-flag rule:** Before reporting ANY issue:
+1. Check local reference doc
+2. If not found, check the official HA docs above
 3. Only flag as error if confirmed invalid after both checks
 
-Do NOT flag valid HA builtins as errors.
+Do NOT flag valid HA builtins or documented behavior as errors.
 
 ### Step 1: Config Quality Review
 
-Analyze config against these checks. Report only violations found.
+Analyze config against these checks AND any additional issues found in the official docs. Report only violations found.
 
 **Safety (Critical):**
 - S-01: Hardcoded secrets (tokens, passwords, API keys, long webhook IDs as literals)
@@ -48,19 +81,21 @@ Analyze config against these checks. Report only violations found.
 - S-03: Webhook trigger with `local_only: false` (exposes webhook to internet)
 
 **Reliability (High):**
-- R-01: `float`/`int` template filter without `default` argument
-- R-02: `platform: state` trigger without `to:` (fires on every attribute change)
-- R-03: Physical sensor trigger on inactive/cleared state (no-motion, door closed) without `for:` debounce — immediate-response triggers (motion detected → on) are fine without `for:`
-- R-04: `wait_for_trigger` or `wait_template` without `timeout:`
-- R-05: `mode` not explicitly set (defaults to `single` — re-invocations dropped with warning)
-- R-06: `mode: single` combined with `delay:` or `wait_*` (trigger drops during wait, logged as warning)
-- R-07: `mode: restart` with asymmetric on/off action pairs (partial execution risk)
-- R-08: `mode: parallel` referencing shared mutable state (`input_number`, `counter`, `input_boolean`)
+- R-01 [HIGH]: `float`/`int` template filter without `default` argument
+- R-02 [HIGH]: `platform: state` trigger without `to:` (fires on every attribute change)
+- R-03 [MEDIUM]: Physical sensor trigger on inactive/cleared state (no-motion, door closed) without `for:` debounce — immediate-response triggers (motion detected → on) are fine without `for:`
+- R-04 [HIGH]: `wait_for_trigger` or `wait_template` without `timeout:`
+- R-05 [MEDIUM]: `mode` not explicitly set (defaults to `single` — re-invocations dropped with warning)
+- R-06 [HIGH]: `mode: single` combined with `delay:` or `wait_*` (trigger drops during wait, logged as warning)
+- R-07 [HIGH]: `mode: restart` with asymmetric on/off action pairs (partial execution risk)
+- R-08 [HIGH]: `mode: parallel` referencing shared mutable state (`input_number`, `counter`, `input_boolean`)
 - R-09 [MEDIUM]: `choose:` without `default:` branch (silently does nothing when no condition matches)
-- R-10 [HIGH]: `mode: queued` with `delay:` or `wait_*` blocks and `max:` ≤ 3 combined with ≥ 3 triggers — queue saturation risk (triggers dropped with WARNING log when queue full during delays; truly silent only if `max_exceeded: silent` is set)
+- R-10 [HIGH]: `mode: queued` with `delay:` or `wait_*` blocks and `max:` ≤ 3 combined with ≥ 3 triggers — queue saturation risk (triggers dropped with WARNING log when queue full during delays; truly silent only if `max_exceeded: silent` is set); severity escalates if any trigger also violates R-02 (unfiltered `platform: state` without `to:` multiplies trigger frequency)
 - R-11 [HIGH]: `float(0)` or `int(0)` default on sensor values used in physical calculations (temperature, humidity, pressure) — 0 is physically wrong and produces silently incorrect results; use `float(none)` with an availability guard (`has_value()`) or a realistic fallback value
 - R-12 [HIGH]: Self-trigger / feedback loop — automation triggers on an entity (e.g., `input_select`, `input_boolean`, `input_number`) that it also sets in its own actions; HA has NO built-in self-trigger protection; with `mode: queued` or `mode: parallel` this creates an infinite loop consuming queue slots; fix: remove the trigger, add a `condition` guard, or use `mode: single` as partial protection
 - R-13 [MEDIUM]: Trigger without `id:` in `choose:`-based automations — makes `trigger.id` matching impossible; branches using `condition: trigger` require trigger IDs to function
+- R-14 [MEDIUM]: Dead trigger — trigger has `id:` but that ID is never referenced in any `condition: trigger`, `choose:`, or template expression; likely copy-paste remnant or unfinished logic
+- R-15 [MEDIUM]: Asymmetric error handling — same physical action (e.g., `cover.open_cover`, `climate.set_temperature`) appears in multiple branches but only some have retry/fallback logic; inconsistent reliability across code paths
 
 **Performance (Medium):**
 - P-01: `platform: template` trigger that could be a `platform: state` trigger
@@ -74,7 +109,7 @@ Analyze config against these checks. Report only violations found.
 - M-03: `entity_id:` under `data:` instead of `target: entity_id:`
 - M-04: `trigger_variables` using `states()` (evaluated at attach time, will be stale)
 
-**Script-Specific (when domain is `script`):**
+**Script-Specific (apply ONLY when domain is `script`, skip for automations):**
 - F-01 [HIGH]: `fields:` entry without `selector:` (UI shows raw text box for all types)
 - F-02 [HIGH]: `fields:` with `required: true` or `default:` but no `| default(...)` guard in `variables:` block — `required` and `default` are UI-only, not enforced at runtime
 - F-03 [MEDIUM]: Template `{{ field_name }}` in sequence without corresponding `variables:` guard — fails silently when caller omits field
@@ -94,7 +129,10 @@ Find other automations/scripts that control the same entities.
    ~/.config/ha-nova/relay ws -d '{"type":"search/related","item_type":"entity","item_id":"{entity_id}"}'
    ```
 3. Collect related automations/scripts (exclude current target).
-4. Read configs of related items (max 5) via `/core GET`.
+4. Read configs of related items (max 5):
+   - Automation: `relay ws -d '{"type":"automation/config","entity_id":"automation.<id>"}'`
+   - Script: `relay core -d '{"method":"GET","path":"/api/config/script/config/<key>"}'`
+5. If `related_items_found: 0`, set `CONFLICTS: none` and skip Step 3.
 
 ### Step 3: Conflict Analysis
 
@@ -127,6 +165,7 @@ For each related automation/script, apply the 3-step conflict test:
 - **Race Condition:** Two automations with `delay:` targeting same entity, both can fire before other's delay expires
 - **Stale Helper:** `input_boolean` used as condition guard, no `homeassistant.started` initializer → wrong state after restart
 - **Startup Flash:** Template sensor trigger without `unknown`/`unavailable` from_state guard → fires on HA restart
+- **Self-Trigger Loop:** Automation triggers on entity X and sets entity X in actions → re-triggers itself; with `mode: queued`/`parallel` this creates infinite loop consuming queue slots until `max:` is hit (see also R-12)
 
 ## Output Format
 
@@ -168,3 +207,4 @@ Return exactly these sections:
 - Only communicate with HA through `~/.config/ha-nova/relay`
 - Never guess entity IDs
 - Limit collision scan to top 3 target entities, max 5 related configs
+- Batch reviews: max 3 automations/scripts per request. If user asks for more, review first 3 and offer to continue.

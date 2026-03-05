@@ -81,6 +81,14 @@ Match user intent to exactly one skill:
 **"Zeige meine Automationen"** → `ha-nova:read` (NOT review)
 **"Erstelle eine Automation"** → `ha-nova:write` (NOT read + write)
 
+## Version Info
+
+- Single source of truth: `version.json` (repo root)
+- SessionStart hook checks Relay version automatically
+- Update instructions: `https://github.com/markusleben/ha-nova/blob/main/skills/ha-nova/update-guide.md`
+- If `UPDATE AVAILABLE` or `WARNING:` appears in session context: **always** mention it at the start of your first response, before answering the user's question. Include the full URL from the hook output — the user's terminal may not support clickable links. This is critical — the user cannot see hook output directly.
+- Do not proactively ask about versions unless a warning appeared in session context
+
 ## Latency Policy
 
 - Prefer one-shot reads over multi-step probing.
