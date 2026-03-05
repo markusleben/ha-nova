@@ -7,7 +7,7 @@ import { spawnSync } from "node:child_process";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { createMockBinaries, createMockHome, mockEnv, REPO_ROOT } from "../onboarding/_helpers";
+import { createMockBinaries, createMockHome, mockEnv, REPO_ROOT } from "../onboarding/_helpers.js";
 
 describe("S-6: session-start hook", () => {
   it("outputs valid JSON with skill content", () => {

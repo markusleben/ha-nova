@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
 
-import { createMockBinaries, createMockHome, mockEnv, REPO_ROOT } from "./_helpers";
+import { createMockBinaries, createMockHome, mockEnv, REPO_ROOT } from "./_helpers.js";
 
 const isMac = process.platform === "darwin";
 
@@ -29,9 +29,9 @@ function runDoctor(
     keychainToken: opts.keychainToken ?? "test-relay-token",
   });
   const binDir = createMockBinaries({
-    healthFixture: opts.healthFixture,
-    wsFixture: opts.wsFixture,
-    curlFails: opts.curlFails,
+    ...(opts.healthFixture != null && { healthFixture: opts.healthFixture }),
+    ...(opts.wsFixture != null && { wsFixture: opts.wsFixture }),
+    ...(opts.curlFails != null && { curlFails: opts.curlFails }),
   });
 
   const result = spawnSync(

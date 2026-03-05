@@ -8,7 +8,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { REPO_ROOT } from "./_helpers";
+import { REPO_ROOT } from "./_helpers.js";
 
 const SUB_SKILLS = ["write", "read", "entity-discovery", "onboarding", "service-call", "review"];
 

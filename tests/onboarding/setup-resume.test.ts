@@ -7,7 +7,7 @@ import { spawnSync } from "node:child_process";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { createMockBinaries, createMockHome, mockEnv, REPO_ROOT } from "./_helpers";
+import { createMockBinaries, createMockHome, mockEnv, REPO_ROOT } from "./_helpers.js";
 
 const isMac = process.platform === "darwin";
 
