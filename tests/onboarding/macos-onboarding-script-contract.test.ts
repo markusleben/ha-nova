@@ -237,7 +237,7 @@ exit 1
     expect(config).toContain("HA_URL=http://192.168.1.5:18123");
   });
 
-  it("installs skills: codex/opencode as symlinks, gemini as flat copies, claude skipped", () => {
+  it("installs skills: codex/opencode as symlinks, gemini as flat copies, claude via plugin CLI", () => {
     const workDir = mkdtempSync(join(tmpdir(), "ha-nova-skill-install-"));
     const repoRoot = process.cwd();
 
@@ -283,7 +283,8 @@ exit 1
       expect(content).toContain(`name: ${sub}`);
     }
 
-    // Claude: skipped (plugin system) — no ~/.claude/skills/ha-nova
+    // Claude: uses plugin CLI (skipped in test env since `claude` not available)
+    // No file-based skill install — plugin registration is handled by `claude` CLI
     expect(() => statSync(join(workDir, ".claude/skills/ha-nova"))).toThrow();
   });
 

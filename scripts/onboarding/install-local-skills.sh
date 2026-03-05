@@ -132,6 +132,28 @@ install_gemini_flat() {
   done
 }
 
+install_claude_plugin() {
+  if ! command -v claude &>/dev/null; then
+    log "[claude] Skipped — claude CLI not found"
+    return 0
+  fi
+
+  # Add marketplace (idempotent — overwrites if already present)
+  if claude plugin marketplace add "${REPO_ROOT}" 2>/dev/null; then
+    log "[claude] Marketplace registered: ${REPO_ROOT}"
+  else
+    log "[claude] Warning: could not register marketplace"
+    return 0
+  fi
+
+  # Install plugin
+  if claude plugin install ha-nova@ha-nova 2>/dev/null; then
+    log "[claude] Plugin installed: ha-nova@ha-nova"
+  else
+    log "[claude] Warning: could not install plugin (may already be installed)"
+  fi
+}
+
 install_target() {
   local target="$1"
   local relay_cli_source="${REPO_ROOT}/scripts/relay.sh"
@@ -142,8 +164,7 @@ install_target() {
       install_symlink "codex" "${HOME}/.agents/skills"
       ;;
     claude)
-      log "[claude] Skipped — use: claude --plugin-dir ${REPO_ROOT}"
-      log "[claude] For persistent setup see: .claude/INSTALL.md"
+      install_claude_plugin
       ;;
     opencode)
       install_symlink "opencode" "${HOME}/.config/opencode/skills"

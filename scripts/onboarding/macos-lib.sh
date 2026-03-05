@@ -208,8 +208,12 @@ detect_setup_state() {
       fi
       ;;
     claude)
-      # Plugin system — check plugin.json exists in repo
-      if [[ ! -f "${REPO_ROOT}/.claude-plugin/plugin.json" ]]; then
+      # Check plugin is installed via claude CLI
+      if command -v claude &>/dev/null; then
+        if ! claude plugin list 2>/dev/null | grep -q "ha-nova"; then
+          SETUP_SKILLS_OK="0"
+        fi
+      elif [[ ! -f "${REPO_ROOT}/.claude-plugin/plugin.json" ]]; then
         SETUP_SKILLS_OK="0"
       fi
       ;;
