@@ -2,41 +2,47 @@
 
 ## Overview
 
-HA NOVA uses a nested skill topology with one router and 6 sub-skills under `ha-nova/`.
+HA NOVA uses a flat skill layout with one context skill and 6 independent sub-skills under `skills/`.
+
+Claude Code discovers all skills via `skills/{name}/SKILL.md` (1 level deep). The context skill is auto-loaded via a SessionStart hook.
 
 Installed skill tree:
 ```
-ha-nova/
-  SKILL.md                  (router + safety baseline + runtime prerequisites)
-  write/SKILL.md            (automation/script create/update/delete)
-  read/SKILL.md             (automation/script list/get/trace)
-  entity-discovery/SKILL.md (entity lookup via `/ws config/entity_registry/list_for_display`)
-  service-call/SKILL.md     (service calls + automation/script runtime control)
-  review/SKILL.md           (config quality review + collision scan + conflict analysis)
-  onboarding/SKILL.md       (onboarding + diagnostics)
+skills/
+  ha-nova/SKILL.md              (context skill — auto-loaded via SessionStart hook)
+  ha-nova/relay-api.md          (reference doc)
+  ha-nova/best-practices.md     (reference doc)
+  ha-nova/payload-schemas.md    (reference doc)
+  ha-nova/agents/               (agent templates: resolve, apply, review)
+  read/SKILL.md                 (ha-nova:read — automation/script list/get/trace)
+  write/SKILL.md                (ha-nova:write — automation/script create/update/delete)
+  review/SKILL.md               (ha-nova:review — config quality review + collision scan)
+  entity-discovery/SKILL.md     (ha-nova:entity-discovery — entity lookup)
+  service-call/SKILL.md         (ha-nova:service-call — service calls + runtime control)
+  onboarding/SKILL.md           (ha-nova:onboarding — onboarding + diagnostics)
 ```
 
-Reference files (repo-local, loaded by skills as needed):
-- `skills/ha-nova/relay-api.md`
-- `skills/ha-nova/best-practices.md`
-- `skills/ha-nova/agents/resolve-agent.md`
-- `skills/ha-nova/agents/apply-agent.md`
+## Discovery Model
 
-## Routing Model
+Claude Code scans `skills/*/SKILL.md` (1 level) and matches skills by their `description` frontmatter.
 
-`ha-nova` routes by intent using `ha-nova:<skill>` references:
-- write intent (`create|update|delete` automation/script) -> `ha-nova:write`
-- read intent (`list|get|trace` automation/script) -> `ha-nova:read`
-- service call intent (turn on/off, toggle, set) -> `ha-nova:service-call`
-- automation/script runtime control (enable, disable, trigger) -> `ha-nova:service-call`
-- review/analyze intent (`review|analyze|check|audit`) -> `ha-nova:review`
-- entity lookup intent -> `ha-nova:entity-discovery`
-- onboarding/connectivity/auth diagnostics -> `ha-nova:onboarding`
+The context skill (`ha-nova:ha-nova`) is auto-loaded into every session via a SessionStart hook (`hooks/session-start`), providing:
+- Safety baseline
+- Response format
+- Runtime prerequisites
+- Quoting rules
+- Latency policy
 
-Routing is skill-name based (not filesystem path based), so behavior is stable across:
-- `~/.agents/skills`
-- `~/.claude/skills`
-- `~/.config/opencode/skills`
+Sub-skills are discovered independently by Claude Code based on their descriptions. No router dispatch needed.
+
+## SessionStart Hook
+
+`hooks/hooks.json` registers a SessionStart hook that:
+1. Reads `skills/ha-nova/SKILL.md`
+2. Returns JSON with `additional_context` containing the full context skill content
+3. Fires on: startup, resume, clear, compact
+
+This follows the same pattern as the superpowers plugin.
 
 ## Write Architecture
 
@@ -90,11 +96,11 @@ Fallback:
 ## Installer Contract
 
 `scripts/onboarding/install-local-skills.sh`:
-- source skill tree: `skills/ha-nova/` (repo-local)
+- source skill tree: `skills/` (repo-local, flat layout)
 - client-specific install strategies:
-  - **Claude Code:** Skipped — uses plugin system (`.claude-plugin/plugin.json`)
-  - **Codex CLI:** Symlink `~/.agents/skills/ha-nova` → `${REPO_ROOT}/skills/ha-nova`
-  - **OpenCode:** Symlink `~/.config/opencode/skills/ha-nova` → `${REPO_ROOT}/skills/ha-nova`
+  - **Claude Code:** Skipped — uses plugin system (`.claude-plugin/plugin.json`) + SessionStart hook
+  - **Codex CLI:** Symlink `~/.agents/skills/ha-nova` → `${REPO_ROOT}/skills`
+  - **OpenCode:** Symlink `~/.config/opencode/skills/ha-nova` → `${REPO_ROOT}/skills`
   - **Gemini CLI:** Flat copy `~/.agents/skills/ha-nova-{skill}/SKILL.md` (1-level limit)
 - cleans up legacy flat skill directories (`ha-nova-write`, `ha-nova-read`, etc.)
 - supports targets: `codex`, `claude`, `opencode`, `gemini`, `all`
@@ -111,7 +117,8 @@ Global safety expectations:
 ## Operational Goal
 
 Minimize context and maintenance overhead while preserving strict write safety:
-- nested skill tree under one parent
+- flat skill layout for direct discovery
+- context skill auto-loaded via hook
 - centralized relay contract
 - explicit phase boundaries
 - deterministic preview/confirm/apply behavior

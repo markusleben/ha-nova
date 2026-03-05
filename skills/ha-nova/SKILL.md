@@ -3,8 +3,9 @@ name: ha-nova
 description: Use when the user wants Home Assistant operations through HA NOVA (App + Relay) with macOS Keychain-backed local auth.
 ---
 
-# HA NOVA Skill
+# HA NOVA Context Skill
 
+This context is auto-loaded via SessionStart hook. Sub-skills are discovered independently by Claude Code via their descriptions.
 
 ## Mission
 
@@ -60,29 +61,32 @@ Render structured summary + YAML for both reads and writes:
 
 Keep orchestration details internal on normal success paths.
 
-## Routing Table
+## Skill Dispatch (Critical)
 
-- Write intent (`create|update|delete` for automation or script):
-  - use skill `ha-nova:write`
-- Read intent (`list|get|trace` for automation or script):
-  - use skill `ha-nova:read`
-- Service call intent (turn on, turn off, toggle, set, call service):
-  - use skill `ha-nova:service-call`
-- Automation/script runtime control (enable, disable, trigger):
-  - use skill `ha-nova:service-call` (services: `automation.turn_on`, `automation.turn_off`, `automation.trigger`)
-- Review / analyze intent (`review|analyze|check|audit` for automation or script):
-  - use skill `ha-nova:review`
-- Entity discovery / target lookup:
-  - use skill `ha-nova:entity-discovery`
-- Onboarding / connectivity / auth diagnostics:
-  - use skill `ha-nova:onboarding`
+**Always invoke exactly ONE ha-nova skill per user intent.** Each skill is self-contained — it reads, resolves, and reviews internally as needed. Never load two ha-nova skills in parallel.
+
+Match user intent to exactly one skill:
+
+| User wants to… | Invoke exactly |
+|---|---|
+| list, show, read automations/scripts | `ha-nova:read` |
+| analyze, review, audit, check, find problems | `ha-nova:review` (reads config internally) |
+| create, update, delete automations/scripts | `ha-nova:write` (resolves + reviews internally) |
+| turn on/off, toggle, set, call a service | `ha-nova:service-call` |
+| enable/disable/trigger an automation | `ha-nova:service-call` |
+| find entities by name, room, area | `ha-nova:entity-discovery` |
+| fix relay/auth/connectivity errors | `ha-nova:onboarding` |
+
+**"Analysiere meine Automation"** → `ha-nova:review` (NOT read + review)
+**"Zeige meine Automationen"** → `ha-nova:read` (NOT review)
+**"Erstelle eine Automation"** → `ha-nova:write` (NOT read + write)
 
 ## Latency Policy
 
 - Prefer one-shot reads over multi-step probing.
 - For first read/list, try Relay `/ws` directly.
 - For write flows, keep main-thread file reads minimal:
-  - router skill
+  - context skill (this file)
   - `skills/ha-nova/relay-api.md`
   - one agent template per phase
 - No proactive doctor in success path.

@@ -184,13 +184,13 @@ detect_setup_state() {
   SETUP_SKILLS_OK="1"
   case "$client" in
     codex)
-      # Symlink check: ha-nova -> repo/skills/ha-nova (also catches broken symlinks)
+      # Symlink check: ha-nova -> repo/skills (also catches broken symlinks)
       if [[ ! -L "${HOME}/.agents/skills/ha-nova" ]]; then
         SETUP_SKILLS_OK="0"
       elif [[ ! -e "${HOME}/.agents/skills/ha-nova" ]]; then
         # Symlink exists but target is gone (broken)
         SETUP_SKILLS_OK="0"
-      elif [[ ! -f "${HOME}/.agents/skills/ha-nova/SKILL.md" ]]; then
+      elif [[ ! -f "${HOME}/.agents/skills/ha-nova/ha-nova/SKILL.md" ]]; then
         SETUP_SKILLS_OK="0"
       fi
       ;;
@@ -223,7 +223,7 @@ detect_setup_state() {
         SETUP_SKILLS_OK="0"
       elif [[ ! -e "${HOME}/.config/opencode/skills/ha-nova" ]]; then
         SETUP_SKILLS_OK="0"
-      elif [[ ! -f "${HOME}/.config/opencode/skills/ha-nova/SKILL.md" ]]; then
+      elif [[ ! -f "${HOME}/.config/opencode/skills/ha-nova/ha-nova/SKILL.md" ]]; then
         SETUP_SKILLS_OK="0"
       fi
       ;;
@@ -231,7 +231,7 @@ detect_setup_state() {
       # Check each client's skills without recursive detect_setup_state
       # (which would overwrite SETUP_HAS_CONFIG/TOKEN/RELAY_OK/WS_OK)
       for sub_skill in "${HA_NOVA_SUB_SKILLS[@]}"; do
-        # Codex symlink
+        # Codex symlink (flat layout: skills/{sub}/SKILL.md through symlink)
         if [[ ! -L "${HOME}/.agents/skills/ha-nova" ]] || [[ ! -f "${HOME}/.agents/skills/ha-nova/${sub_skill}/SKILL.md" ]]; then
           SETUP_SKILLS_OK="0"
           break
@@ -244,7 +244,7 @@ detect_setup_state() {
       done
       # OpenCode symlink
       if [[ "$SETUP_SKILLS_OK" == "1" ]]; then
-        if [[ ! -L "${HOME}/.config/opencode/skills/ha-nova" ]] || [[ ! -f "${HOME}/.config/opencode/skills/ha-nova/SKILL.md" ]]; then
+        if [[ ! -L "${HOME}/.config/opencode/skills/ha-nova" ]] || [[ ! -f "${HOME}/.config/opencode/skills/ha-nova/ha-nova/SKILL.md" ]]; then
           SETUP_SKILLS_OK="0"
         fi
       fi
@@ -697,16 +697,16 @@ run_quick() {
   if [[ -L "$codex_skill_link" ]]; then
     local link_target
     link_target="$(readlink "$codex_skill_link")"
-    if [[ "$link_target" != "${REPO_ROOT}/skills/ha-nova" ]]; then
+    if [[ "$link_target" != "${REPO_ROOT}/skills" ]]; then
       die "Codex skill symlink points to wrong repo (${link_target}). Re-run: npm run install:codex-skill"
     fi
-    if [[ ! -f "${codex_skill_link}/SKILL.md" ]]; then
+    if [[ ! -f "${codex_skill_link}/ha-nova/SKILL.md" ]]; then
       die "Codex skill symlink broken. Re-run: npm run install:codex-skill"
     fi
     echo "  [ok] Codex skill installed (symlink): ${codex_skill_link}"
   elif [[ -d "$codex_skill_link" ]]; then
     # Legacy copy — still functional but recommend re-install
-    if [[ ! -f "${codex_skill_link}/SKILL.md" ]]; then
+    if [[ ! -f "${codex_skill_link}/ha-nova/SKILL.md" ]]; then
       die "Missing Codex skill file. Re-run: npm run install:codex-skill"
     fi
     echo "  [ok] Codex skill installed (copy, consider re-installing for symlink): ${codex_skill_link}"

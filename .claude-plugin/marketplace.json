@@ -4,7 +4,10 @@
   "plugins": [
     {
       "name": "ha-nova",
-      "source": ".",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/markusleben/ha-nova.git"
+      },
       "description": "AI-powered Home Assistant control through LLM skills and a local relay"
     }
   ]

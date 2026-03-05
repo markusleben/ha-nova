@@ -120,8 +120,8 @@ npx ha-nova doctor
 
 ```
 src/                    Relay server (TypeScript)
-skills/ha-nova/         LLM skill tree (router + 6 sub-skills + reference docs)
-  agents/               Agent templates (resolve, apply, review)
+skills/                 LLM skills (flat layout — context skill + 6 sub-skills)
+  ha-nova/              Context skill (auto-loaded) + reference docs + agent templates
 scripts/onboarding/     Setup wizard and diagnostics
 .claude-plugin/         Claude Code plugin manifest
 ```
