@@ -113,7 +113,7 @@ run_doctor_checks() {
       if [[ -f "$vf" ]]; then
         min_relay_version=$(grep -o '"min_relay_version"[[:space:]]*:[[:space:]]*"[^"]*"' "$vf" 2>/dev/null | sed 's/.*"\([^"]*\)"$/\1/' || true)
       fi
-      if [[ -n "$min_relay_version" ]] && semver_lt "$LAST_RELAY_VERSION" "$min_relay_version"; then
+      if [[ -n "$min_relay_version" && "$min_relay_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] && semver_lt "$LAST_RELAY_VERSION" "$min_relay_version"; then
         echo "  [warn] Relay version ${LAST_RELAY_VERSION} is below minimum ${min_relay_version}. Update: HA Settings > Apps > NOVA Relay > Update"
         overall_ok="0"
       else
@@ -148,7 +148,7 @@ run_doctor_checks() {
     if [[ -n "$remote_json" ]]; then
       local latest_skill_version
       latest_skill_version=$(echo "$remote_json" | grep -o '"skill_version"[[:space:]]*:[[:space:]]*"[^"]*"' | sed 's/.*"\([^"]*\)"$/\1/')
-      if [[ -n "$latest_skill_version" && -n "$local_skill_version" ]] && semver_lt "$local_skill_version" "$latest_skill_version"; then
+      if [[ -n "$latest_skill_version" && "$latest_skill_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ && -n "$local_skill_version" ]] && semver_lt "$local_skill_version" "$latest_skill_version"; then
         echo "  [warn] Skills update available: v${local_skill_version} -> v${latest_skill_version}. See: https://github.com/markusleben/ha-nova/blob/main/skills/ha-nova/update-guide.md"
       else
         echo "  [ok] Skills version: ${local_skill_version:-unknown} (up to date)"
