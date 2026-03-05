@@ -15,7 +15,7 @@ find_local_version() {
     "$HOME/.config/ha-nova/version.json"
   )
   for f in "${candidates[@]}"; do
-    [[ -f "$f" ]] && echo "$f" && return
+    [[ -f "$f" ]] && grep -q '"skill_version"' "$f" 2>/dev/null && echo "$f" && return
   done
 }
 

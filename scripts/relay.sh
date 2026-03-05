@@ -17,16 +17,19 @@ ENDPOINT="${1:?Usage: ha-nova-relay <endpoint> [curl-args...]}"
 shift
 
 if [[ "$ENDPOINT" == "health" ]]; then
-  # Skill version check FIRST so it's visible even when output is collapsed
-  if [[ -x "${HOME}/.config/ha-nova/version-check" ]]; then
-    "${HOME}/.config/ha-nova/version-check" 2>/dev/null || true
-  fi
-
-  # Fetch health, capture for relay version check
+  # Fetch health first — capture to check success before adding notices
   health_json=$(curl -sS --connect-timeout 5 --max-time 15 \
     -H "Authorization: Bearer $RELAY_AUTH_TOKEN" \
     -H "Content-Type: application/json" \
-    "$RELAY_BASE_URL/health" "$@")
+    "$RELAY_BASE_URL/health" "$@" 2>/dev/null) || true
+
+  # If health failed, output nothing (callers check for empty stdout)
+  [[ -z "$health_json" ]] && exit 1
+
+  # Skill version check BEFORE JSON so it's visible even when output is collapsed
+  if [[ -x "${HOME}/.config/ha-nova/version-check" ]]; then
+    "${HOME}/.config/ha-nova/version-check" 2>/dev/null || true
+  fi
   echo "$health_json"
 
   # Relay compat check: compare relay version against min_relay_version
