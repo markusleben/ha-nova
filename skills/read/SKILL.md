@@ -16,6 +16,8 @@ Read operations only:
 - `automation.trace`
 - `script.trace`
 
+Not for helpers — use `ha-nova:helper` for helper list/read.
+
 No writes. If the user intent is to **analyze**, **review**, or **audit** a config for errors/problems, route through the parent `ha-nova` skill instead — it will dispatch the dedicated review agent after the read.
 
 ## Bootstrap (once per session)

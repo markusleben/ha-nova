@@ -42,7 +42,7 @@ Use a client-specific entrypoint instead of manual environment editing.
 Current deliverables:
 1. Relay MVP: `POST /ws` + `GET /health`
 2. Context skill: `ha-nova` (auto-loaded via SessionStart hook; sub-skills discovered independently)
-3. Sub-skills (flat under `skills/`): write, read, entity-discovery, service-call, review, onboarding
+3. Sub-skills (flat under `skills/`): write, read, helper, entity-discovery, service-call, review, onboarding
 4. Shared references under `skills/ha-nova/` (`relay-api.md`, `best-practices.md`, `agents/*`)
 
 ## Tech Stack

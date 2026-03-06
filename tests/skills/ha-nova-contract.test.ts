@@ -8,6 +8,7 @@ describe("ha-nova contract", () => {
 
     expect(context).toContain("ha-nova:write");
     expect(context).toContain("ha-nova:read");
+    expect(context).toContain("ha-nova:helper");
     expect(context).toContain("ha-nova:service-call");
     expect(context).toContain("ha-nova:entity-discovery");
     expect(context).toContain("ha-nova:onboarding");
@@ -130,19 +131,14 @@ describe("ha-nova contract", () => {
     expect(review).toContain("CONFLICTS:");
     expect(review).toContain("search/related");
     expect(review).toContain("complementary pair");
-    expect(review).toContain("Flip-Flop");
-    expect(review).toContain("Script-Specific");
-    expect(review).toContain("selector:");
-    expect(review).toContain("fields:");
-    expect(review).toContain("| default(...)");
+    // Review checks (S/R/P/M/F/H) live in review/SKILL.md (SSOT).
+    // Agent references that file instead of duplicating checks.
+    expect(review).toContain("skills/review/SKILL.md");
     expect(review).toContain("REVIEW_MODE:");
     expect(review).toContain("SUGGESTIONS:");
     expect(review).toContain("SUMMARY:");
     expect(review).toContain("post-write");
     expect(review).toContain("standalone");
-    expect(review).toContain("Cascade");
-    expect(review).toContain("Stale Helper");
-    expect(review).toContain("Startup Flash");
   });
 
   it("keeps all operational subskills concise (<800 words)", () => {
@@ -164,6 +160,7 @@ describe("ha-nova contract", () => {
       "skills/ha-nova/SKILL.md",
       "skills/write/SKILL.md",
       "skills/read/SKILL.md",
+      "skills/helper/SKILL.md",
       "skills/entity-discovery/SKILL.md",
       "skills/onboarding/SKILL.md",
       "skills/service-call/SKILL.md",

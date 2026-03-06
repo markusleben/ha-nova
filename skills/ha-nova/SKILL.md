@@ -54,9 +54,12 @@ Rules:
 Render structured summary + YAML for both reads and writes:
 1. `Automation` or `Script` (name + ID)
 2. `Entities` (all entity_ids in triggers/conditions/actions)
-3. `Triggers`, `Conditions`, `Actions` (short descriptions)
-4. `Mode` (single/restart/queued/parallel)
-5. full YAML config block
+3. Domain-specific fields:
+   - **Automation:** `Triggers`, `Conditions`, `Actions` (short descriptions)
+   - **Script:** `Fields` (input parameters, if present), `Sequence` (short description of steps)
+   - **Helper:** `name` (type + entity_id), type-specific fields (min/max, options, duration, etc.)
+4. `Mode` (single/restart/queued/parallel) — automations/scripts only
+5. full YAML config block (or WS payload for helpers)
 6. `Next Step` (for writes: confirmation; for reads: done)
 
 Keep orchestration details internal on normal success paths.
@@ -72,6 +75,8 @@ Match user intent to exactly one skill:
 | list, show, read automations/scripts | `ha-nova:read` |
 | analyze, review, audit, check, find problems | `ha-nova:review` (reads config internally) |
 | create, update, delete automations/scripts | `ha-nova:write` (resolves + reviews internally) |
+| list, show, read helpers | `ha-nova:helper` |
+| create, update, delete helpers | `ha-nova:helper` |
 | turn on/off, toggle, set, call a service | `ha-nova:service-call` |
 | enable/disable/trigger an automation | `ha-nova:service-call` |
 | find entities by name, room, area | `ha-nova:entity-discovery` |
@@ -80,6 +85,9 @@ Match user intent to exactly one skill:
 **"Analysiere meine Automation"** → `ha-nova:review` (NOT read + review)
 **"Zeige meine Automationen"** → `ha-nova:read` (NOT review)
 **"Erstelle eine Automation"** → `ha-nova:write` (NOT read + write)
+**"Erstelle einen input_boolean"** → `ha-nova:helper` (NOT write)
+**"Zeige meine Helper"** → `ha-nova:helper` (NOT read)
+**"Erstelle einen Timer"** → ambiguous! Ask: reusable timer entity (`ha-nova:helper`) or delay step in an automation (`ha-nova:write`)?
 
 ## Latency Policy
 

@@ -42,15 +42,14 @@ LEGACY_FLAT_SKILLS=(
   "ha-nova-review"
 )
 
-# Sub-skills that get flat-copied for Gemini
-GEMINI_SUB_SKILLS=(
-  "read"
-  "write"
-  "entity-discovery"
-  "onboarding"
-  "service-call"
-  "review"
-)
+# Sub-skills that get flat-copied for Gemini (auto-discovered from skills/)
+GEMINI_SUB_SKILLS=()
+for _skill_dir in "${SOURCE_SKILLS_DIR}"/*/SKILL.md; do
+  _skill_name="$(basename "$(dirname "$_skill_dir")")"
+  [[ "$_skill_name" == "ha-nova" ]] && continue
+  GEMINI_SUB_SKILLS+=("$_skill_name")
+done
+unset _skill_dir _skill_name
 
 cleanup_legacy() {
   local user_skills_dir="$1"

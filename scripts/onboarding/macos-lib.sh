@@ -188,6 +188,7 @@ run_doctor_checks() {
 HA_NOVA_SUB_SKILLS=(
   "write"
   "read"
+  "helper"
   "entity-discovery"
   "onboarding"
   "service-call"
