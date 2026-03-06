@@ -106,7 +106,6 @@ Work style: Be radically precise. No fluff. Pure information only (drop grammar;
 Use below list to store and recall user notes when asked to do so.
 
 - Project: ha-nova — Home Assistant AI Integration (Relay + Skills). See `PROJECT.md` for full context.
-- Legacy project: `ha-mcp-addon` (88K LOC MCP server, separate repo, being replaced by HA NOVA).
 - Reference docs in `docs/reference/` are mandatory reading before working on Relay or Skills.
 - For graphics/diagrams, labels must stay consistent across all views (top view, side view, etc.).
 - Relay stays dumb, Skills stay smart. No business logic in the server.
