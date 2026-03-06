@@ -79,3 +79,6 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Docs fact-check
+        run: bash scripts/check-docs.sh
