@@ -55,19 +55,12 @@ Work style: Be radically precise. No fluff. Pure information only (drop grammar;
 - Avoid manual `git stash`; if Git auto-stashes during pull/rebase, that’s fine (hint, not hard guardrail).
 - If user types a command (“pull and push”), that’s consent for that command.
 - Big review: `git --no-pager diff --color=never`.
-- **PR Merge — MANDATORY WAIT (non-negotiable):**
-  Do NOT use auto-merge. Do NOT merge immediately after CI passes.
-  The review bot (`chatgpt-codex-connector[bot]`) needs ~3-5 min AFTER CI to post findings.
-  An empty comments response does NOT mean "no findings" — it means "bot not done yet".
+- **PR Merge:** Do NOT use auto-merge. The `codex-review-gate` workflow blocks merge for ~6 min while waiting for the Codex review bot. ALWAYS follow this workflow:
   1. `gh pr create ...` — create the PR.
-  2. Wait for CI checks to pass (`gh pr checks <nr> --watch`).
-  3. **Sleep 3 minutes** (`sleep 180`) — this is mandatory, not optional.
-  4. Poll for bot comments — repeat up to 3 times with 60s gaps:
-     `gh api repos/<owner>/<repo>/pulls/<nr>/comments --jq '.[].user.login'`
-     - If `chatgpt-codex-connector[bot]` appears → bot is done, read findings.
-     - If empty after 3 polls (total ~6 min wait) → bot likely skipped, safe to proceed.
-  5. If findings: fix, push, wait for CI + bot again.
-  6. Only then: `gh pr merge --squash --delete-branch`.
+  2. Wait for ALL checks to pass (`gh pr checks <nr> --watch`), including `codex-review-gate`.
+  3. Check for bot review comments: `gh api repos/<owner>/<repo>/pulls/<nr>/comments`.
+  4. Resolve any findings (fix or acknowledge).
+  5. Then merge: `gh pr merge --squash --delete-branch`.
 
 ## Error Handling
 - Expected issues: explicit result types (not throw/try/catch).

@@ -1,0 +1,58 @@
+name: Codex Review Gate
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: codex-gate-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  codex-review-gate:
+    name: codex-review-gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for Codex review bot
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          echo "⏳ Waiting for chatgpt-codex-connector[bot] to post review..."
+          echo "Initial wait: 3 minutes"
+          sleep 180
+
+          for attempt in 1 2 3; do
+            echo "Poll attempt ${attempt}/3..."
+
+            # Check inline review comments (paginate merges all pages, then jq counts)
+            INLINE=$(gh api "repos/${REPO}/pulls/${PR_NUMBER}/comments" --paginate \
+              2>/dev/null | jq '[.[].user.login // empty] | map(select(. == "chatgpt-codex-connector[bot]")) | length' \
+              || echo "0")
+
+            # Check PR-level reviews
+            REVIEWS=$(gh api "repos/${REPO}/pulls/${PR_NUMBER}/reviews" --paginate \
+              2>/dev/null | jq '[.[].user.login // empty] | map(select(. == "chatgpt-codex-connector[bot]")) | length' \
+              || echo "0")
+
+            TOTAL=$(( INLINE + REVIEWS ))
+
+            if [ "$TOTAL" -gt 0 ]; then
+              echo "✅ Codex review bot posted ${TOTAL} review(s). Gate passed."
+              exit 0
+            fi
+
+            if [ "$attempt" -lt 3 ]; then
+              echo "Bot not found yet. Waiting 60s..."
+              sleep 60
+            fi
+          done
+
+          echo "⚠️ Codex review bot did not post after ~6 minutes."
+          echo "Proceeding — bot may have skipped this PR."
+          exit 0
