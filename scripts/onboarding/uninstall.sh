@@ -11,6 +11,7 @@ SKILL_DIRS=(
 FLAT_SKILLS=(
   "ha-nova-read"
   "ha-nova-write"
+  "ha-nova-helper"
   "ha-nova-review"
   "ha-nova-entity-discovery"
   "ha-nova-onboarding"

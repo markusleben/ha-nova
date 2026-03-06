@@ -45,7 +45,7 @@ Most Home Assistant AI integrations bake domain logic into server code — tool 
 │   LLM Skills    │
 │   (Markdown)    │
 │                 │
-│  7 skill files  │
+│  8 skill files  │
 │  teach your AI  │
 │  how to operate │
 │  Home Assistant  │
@@ -132,7 +132,8 @@ All skills use the `ha-nova:<skill>` naming convention:
 | **ha-nova:read** | List configs, inspect automations/scripts, debug with trace analysis |
 | **ha-nova:entity-discovery** | Search entities by name, domain, room, or area |
 | **ha-nova:service-call** | Direct device control — lights, climate, covers, switches, and more |
-| **ha-nova:review** | Analyze automations for best-practice violations and conflicts |
+| **ha-nova:helper** | Create, update, delete helpers (input_boolean, input_number, counter, timer, etc.) |
+| **ha-nova:review** | Analyze automations, scripts, and helpers for best-practice violations and conflicts |
 | **ha-nova:onboarding** | Guided setup diagnostics and troubleshooting |
 
 ## 🛡️ Safety
@@ -191,7 +192,7 @@ The relay grows by adding **infrastructure** — new ways to move data, access f
 
 ```
 src/                    Relay server (TypeScript, ~1.5K LOC)
-skills/                 LLM skills (flat layout — context skill + 6 sub-skills)
+skills/                 LLM skills (flat layout — context skill + sub-skills)
   ha-nova/              Context skill (auto-loaded) + reference docs + agent templates
 scripts/onboarding/     Setup wizard and diagnostics
 .claude-plugin/         Claude Code plugin manifest

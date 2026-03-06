@@ -12,6 +12,8 @@ Mutations only:
 - domains: `automation`, `script`
 - operations: `create`, `update`, `delete`
 
+Not for helpers — use `ha-nova:helper` for helper CRUD (different API: WS instead of REST).
+
 ## Bootstrap (once per session)
 
 Verify relay CLI is available:
@@ -66,19 +68,31 @@ If this fails, run onboarding: `npm run onboarding:macos`.
 
 Fallback: If agent dispatch unavailable, run same logic inline serially.
 
-### Phase 4: Post-Write Review
+### Phase 4: Post-Write Review (MANDATORY)
 
-Run a lightweight review inline (do NOT invoke ha-nova:review as a separate skill):
+Do NOT report results to the user until this phase is complete. Run inline (do NOT invoke ha-nova:review as a separate skill).
+
+Follow the Post-Write Review Standard from `docs/reference/skill-architecture.md`:
 
 1. Re-read the written config: `relay ws -d '{"type":"automation/config","entity_id":"<id>"}'`
    - Script: `relay core -d '{"method":"GET","path":"/api/config/script/config/<key>"}'`
-2. Read `skills/review/SKILL.md` Step 1 (Config Quality Review) for the full R-01..R-15 check definitions. Check the written config against these — focus on CRITICAL/HIGH only.
-3. Run collision scan: `search/related` for the top 2 target entities, read max 3 related configs.
-4. Present findings to user:
-   - CRITICAL/HIGH findings: highlight prominently, suggest fixes
-   - MEDIUM/LOW findings: mention as advisory
-   - No findings: "Config looks clean."
+2. Read `skills/review/SKILL.md` Step 1 for the full check catalog. Apply domain-appropriate checks:
+   - Automations: S-01..S-03, R-01..R-15, P-01..P-04, M-01..M-04
+   - Scripts: all automation checks plus F-01..F-08
+   - If actions reference helpers (input_boolean, input_number, counter, timer, etc.): also run H-01..H-08 on those helpers
+3. Run collision scan: `search/related` for the top 3 target entities, read max 3 related configs.
+4. Your response MUST include this section (missing = incomplete write):
+   ```
+   ## Post-Write Review
+   **Config Findings:** {CRITICAL/HIGH findings with fix suggestions, or "Clean — no issues found."}
+   **Collision Scan:** {conflicts or "No conflicts detected."}
+   **Advisory:** {MEDIUM/LOW findings, or omit if none}
+   ```
 5. Findings are advisory — the write already succeeded. User can choose to update.
+
+## Output Format
+
+See `skills/ha-nova/SKILL.md` Response Format section. Automations and scripts use structured summary + YAML.
 
 ## Safety
 
@@ -86,12 +100,21 @@ Run a lightweight review inline (do NOT invoke ha-nova:review as a separate skil
 - No guessing entity_ids; resolve or ask
 - Delete requires tokenized confirmation
 - Agents must use Relay only; no MCP, no direct HA API
+- Every write MUST end with a `## Post-Write Review` section. Skipping it is a skill violation.
+
+## Guardrails
+
+- Never use raw `get_states` — use targeted registry/config reads
+- Max 3 related configs in collision scan
+- No agent dispatch for helper CRUD (use `ha-nova:helper` instead)
 
 ## References
 
 - Relay API: `skills/ha-nova/relay-api.md`
 - Payload Schemas: `skills/ha-nova/payload-schemas.md`
+- Helper Schemas: `skills/ha-nova/helper-schemas.md` (for helper field constraints when referenced in actions)
 - Best Practices: `skills/ha-nova/best-practices.md`
 - Resolve Agent: `skills/ha-nova/agents/resolve-agent.md`
 - Apply Agent: `skills/ha-nova/agents/apply-agent.md`
-- Review Checks: see `skills/review/SKILL.md` for full R-01..R-15 check catalog
+- Review Checks: see `skills/review/SKILL.md` for full check catalog (S/R/P/M/F/H)
+- Post-Write Review: see `docs/reference/skill-architecture.md` Post-Write Review Standard

@@ -1,6 +1,6 @@
 ---
 name: review
-description: Use when analyzing, reviewing, auditing, or checking Home Assistant automations or scripts for errors, best-practice violations, and conflicts. Do not invoke ha-nova:read separately — this skill handles discovery and reading internally.
+description: Use when analyzing, reviewing, auditing, or checking Home Assistant automations, scripts, or helpers for errors, best-practice violations, and conflicts. Do not invoke ha-nova:read separately — this skill handles discovery and reading internally.
 ---
 
 # HA NOVA Review
@@ -119,6 +119,16 @@ Analyze config against these checks AND any additional issues found in the offic
 - F-07 [LOW]: Script contains `wait_for_trigger:` at top of sequence with no preceding logic — likely should be an automation
 - F-08 [LOW]: Hardcoded values that vary per call-site should be `fields:` parameters (human-judgment check — flag only obvious cases like repeated entity_ids or magic numbers)
 
+**Helper-Specific (apply when reviewing helpers or automations referencing helpers):**
+- H-01 [HIGH]: `input_number` without explicit `min`/`max` — HA defaults 0/100, likely wrong for physical quantities
+- H-02 [MEDIUM]: `input_boolean`/`input_select` as condition guard without `homeassistant.started` initializer — state unknown after restart
+- H-03 [MEDIUM]: `input_number` `mode: box` with wide range and no `step` — easy to mistype values
+- H-04 [LOW]: `input_select` `initial` not set — defaults to first option, may not be intended
+- H-05 [MEDIUM]: `counter` without `minimum`/`maximum` — unbounded growth risk
+- H-06 [LOW]: `timer` without `duration` — must be set via service call before start
+- H-07 [MEDIUM]: Orphaned helper — not referenced by any automation/script (check via `search/related`)
+- H-08 [LOW]: Naming inconsistency — mixed patterns across helpers (e.g., `sleep_mode` vs `Sleep Mode` vs `sleepMode`)
+
 ### Step 2: Collision Scan
 
 Find other automations/scripts that control the same entities.
@@ -172,7 +182,7 @@ For each related automation/script, apply the 3-step conflict test:
 Return exactly these sections:
 
 `REVIEW_MODE:`
-- `domain: automation|script`
+- `domain: automation|script|helper`
 - `target_id: ...`
 
 `CONFIG_FINDINGS:`

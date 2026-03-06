@@ -45,6 +45,26 @@ Common patterns:
 
 If unsure about required fields, check `/api/services` response for the service schema.
 
+## Helper Service Patterns
+
+Common service calls for helper entities:
+
+- **input_boolean:** `input_boolean.turn_on`, `input_boolean.turn_off`, `input_boolean.toggle`
+- **input_number:** `input_number.set_value` (`value`), `input_number.increment`, `input_number.decrement`
+- **input_text:** `input_text.set_value` (`value`)
+- **input_select:** `input_select.select_option` (`option`), `input_select.select_first`, `input_select.select_last`, `input_select.select_next`, `input_select.select_previous`
+- **input_datetime:** `input_datetime.set_datetime` (`date`, `time`, or `datetime`)
+- **input_button:** `input_button.press`
+- **counter:** `counter.increment`, `counter.decrement`, `counter.reset`, `counter.set_value` (`value`)
+- **timer:** `timer.start` (optional `duration`), `timer.pause`, `timer.cancel`, `timer.finish`, `timer.change` (`duration`)
+
+Example:
+```json
+{"method":"POST","path":"/api/services/input_number/set_value","body":{"entity_id":"input_number.target_temperature","value":22.5}}
+```
+
+For helper CRUD (create/update/delete helpers themselves), use `ha-nova:helper` instead.
+
 ## Safety
 
 - Preview every service call before execution.

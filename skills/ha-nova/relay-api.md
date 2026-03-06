@@ -93,6 +93,32 @@ State/config helpers:
 - `POST /api/services/automation/reload`
 - `POST /api/services/script/reload`
 
+## Helper CRUD (via /ws)
+
+Supported types: `input_boolean`, `input_number`, `input_text`, `input_select`,
+`input_datetime`, `input_button`, `counter`, `timer`, `schedule`
+
+```
+List:   {"type": "{type}/list"}
+Create: {"type": "{type}/create", "name": "...", ...type-specific}
+Update: {"type": "{type}/update", "{type}_id": "...", ...fields}
+Delete: {"type": "{type}/delete", "{type}_id": "..."}
+```
+
+Important: `{type}_id` is the internal `id` from the list response, NOT the entity_id.
+
+CLI examples:
+```bash
+~/.config/ha-nova/relay ws -d '{"type":"input_boolean/list"}'
+~/.config/ha-nova/relay ws -d '{"type":"input_boolean/create","name":"Sleep Mode","icon":"mdi:sleep"}'
+~/.config/ha-nova/relay ws -d '{"type":"input_boolean/update","input_boolean_id":"abc123","name":"Updated"}'
+~/.config/ha-nova/relay ws -d '{"type":"input_boolean/delete","input_boolean_id":"abc123"}'
+```
+
+No domain reload needed — storage-based helpers take effect immediately.
+
+See `skills/ha-nova/helper-schemas.md` for type-specific fields and constraints.
+
 ## Domain Payload Rules
 
 Automation fields: `alias`, `triggers`, `conditions`, `actions`, `mode`
