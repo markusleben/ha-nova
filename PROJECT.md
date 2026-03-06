@@ -29,19 +29,11 @@ Use a client-specific entrypoint instead of manual environment editing.
   - planned after Codex/Claude Code flow is stable
   - no public package yet
 
-## Legacy Project
-
-The legacy project is `ha-mcp-addon` (separate repository).
-It is a TypeScript MCP server with 18 managers, 200+ actions, and 70 best-practice rules.
-Code from it can be reused for Relay components (REST/WS clients, backup manager, auth).
-
 ## Documentation
 
 - `docs/reference/ha-api-matrix.md` — which HA operations require REST vs WS vs filesystem
-- `docs/reference/manager-dependency-matrix.md` — manager-to-transport dependency map
 - `docs/reference/bridge-architecture.md` — relay endpoint specification
 - `docs/reference/skill-architecture.md` — skill hierarchy and bootstrap design
-- `docs/reference/old-project-inventory.md` — inventory of the legacy MCP server
 
 ## Current Phase
 
