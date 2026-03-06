@@ -40,7 +40,9 @@ tmp=$(mktemp)
 jq --arg v "$NEW_VERSION" '.plugins[0].version = $v' "$REPO_ROOT/.claude-plugin/marketplace.json" > "$tmp" && mv "$tmp" "$REPO_ROOT/.claude-plugin/marketplace.json"
 
 # 5. config.yaml (HA App version — Supervisor uses this for update detection)
-sed -i '' "s/^version: \".*\"/version: \"$NEW_VERSION\"/" "$REPO_ROOT/config.yaml"
+# Use temp file instead of sed -i (BSD vs GNU portability)
+tmp=$(mktemp)
+sed "s/^version: \".*\"/version: \"$NEW_VERSION\"/" "$REPO_ROOT/config.yaml" > "$tmp" && mv "$tmp" "$REPO_ROOT/config.yaml"
 
 echo "Bumped to $NEW_VERSION in:"
 echo "  version.json"
