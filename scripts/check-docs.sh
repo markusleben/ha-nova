@@ -94,7 +94,7 @@ fi
 # ── 8. Supported clients match install scripts ──
 echo "[8] Supported AI clients have install scripts"
 for client in claude codex opencode gemini; do
-  SCRIPT_EXISTS=$(grep -c "install.*${client}" "$REPO_ROOT/package.json" 2>/dev/null || echo 0)
+  SCRIPT_EXISTS=$(grep -c "install.*${client}" "$REPO_ROOT/package.json" 2>/dev/null || true)
   if (( SCRIPT_EXISTS > 0 )); then
     pass "Install script for ${client} found"
   else
@@ -104,7 +104,7 @@ done
 
 # ── 9. Route count — verify relay stays minimal ──
 echo "[9] Relay route count"
-ROUTE_COUNT=$(grep -c "router.register" "$REPO_ROOT/src/index.ts" 2>/dev/null || echo 0)
+ROUTE_COUNT=$(grep -c "router.register" "$REPO_ROOT/src/index.ts" 2>/dev/null || true)
 if (( ROUTE_COUNT <= 5 )); then
   pass "Relay has ${ROUTE_COUNT} routes (≤5 — still minimal)"
 else
