@@ -184,6 +184,14 @@ install_target() {
     chmod 755 "${relay_cli_target}"
     log "[${target}] Installed relay CLI: ${relay_cli_target}"
   fi
+
+  # Version check script + local version.json (for flat-copy installs without git repo)
+  if [[ -f "${REPO_ROOT}/scripts/version-check.sh" ]]; then
+    cp "${REPO_ROOT}/scripts/version-check.sh" "${HOME}/.config/ha-nova/version-check"
+    chmod 755 "${HOME}/.config/ha-nova/version-check"
+    cp "${REPO_ROOT}/version.json" "${HOME}/.config/ha-nova/version.json"
+    log "[${target}] Installed version-check + version.json"
+  fi
 }
 
 main() {

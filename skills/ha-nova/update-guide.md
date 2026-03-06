@@ -22,7 +22,7 @@ HA Settings > Apps > NOVA Relay > Update (or reinstall from App Store).
 
 Two checks run automatically:
 
-1. **Skill update check** — SessionStart hook checks GitHub for newer skill versions (cached 24h, non-blocking). Shows: `UPDATE AVAILABLE: v0.1.2 -> v0.2.0`
-2. **Relay compat check** — SessionStart hook compares Relay version against `min_relay_version`. Shows: `WARNING: Relay version X is below minimum Y`
+1. **Skill update check** — All clients: context skill runs `~/.config/ha-nova/version-check` (cached 24h). Claude Code also checks via SessionStart hook. Shows: `UPDATE AVAILABLE: v0.1.2 -> v0.2.0`
+2. **Relay compat check** — SessionStart hook (Claude Code only) compares Relay version against `min_relay_version`. Shows: `WARNING: Relay version X is below minimum Y`
 
 The `doctor` command (`npm run onboarding:macos:doctor` from the repo) runs both checks synchronously and also refreshes the update cache.
