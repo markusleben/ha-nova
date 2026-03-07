@@ -94,7 +94,7 @@ SSH_USER="${SSH_USER:-root}"
 SSH_PORT="${SSH_PORT:-22}"
 APP_SLUG="${APP_SLUG:-ha_nova_relay}"
 SUPERVISOR_SLUG="${SUPERVISOR_SLUG:-local_${APP_SLUG}}"
-APP_CONFIG_PATH="${PROJECT_ROOT}/config.yaml"
+APP_CONFIG_PATH="${PROJECT_ROOT}/nova/config.yaml"
 EXPECTED_INGRESS="$(sed -n 's/^ingress:[[:space:]]*//p' "${APP_CONFIG_PATH}" | head -n1 || true)"
 EXPECTED_PORT_MAPPINGS="$(sed -nE 's/^  ([0-9]+\/tcp:[[:space:]]*[0-9]+)$/\1/p' "${APP_CONFIG_PATH}" || true)"
 EXPECTED_OPTION_KEYS="$(
@@ -436,17 +436,17 @@ log "Syncing app files to ${REMOTE_ADDON_DIR}/"
 # glob and a duplicate causes translations/metadata to be lost.
 ADDON_FILES=(config.yaml DOCS.md CHANGELOG.md icon.png "icon@2x.png" logo.png "logo@2x.png")
 for f in "${ADDON_FILES[@]}"; do
-  if [[ -f "${PROJECT_ROOT}/${f}" ]]; then
+  if [[ -f "${PROJECT_ROOT}/nova/${f}" ]]; then
     scp -i "$HA_SSH_KEY" \
       -o StrictHostKeyChecking=accept-new \
       -o BatchMode=yes \
       -P "$SSH_PORT" \
-      "${PROJECT_ROOT}/${f}" \
+      "${PROJECT_ROOT}/nova/${f}" \
       "${SSH_USER}@${HA_HOST}:${REMOTE_ADDON_DIR}/${f}"
   fi
 done
 
-TRANSLATIONS_DIR="${PROJECT_ROOT}/translations"
+TRANSLATIONS_DIR="${PROJECT_ROOT}/nova/translations"
 if [[ -d "$TRANSLATIONS_DIR" ]]; then
   remote "mkdir -p ${REMOTE_ADDON_DIR}/translations"
   scp -i "$HA_SSH_KEY" \

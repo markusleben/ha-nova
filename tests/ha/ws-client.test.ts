@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { HaWsClientError, createHaWsClient } from "../../src/ha/ws-client.js";
+import { HaWsClientError, createHaWsClient } from "../../nova/src/ha/ws-client.js";
 
 describe("ha ws client", () => {
   it("connects once and reuses the same connection for multiple requests", async () => {

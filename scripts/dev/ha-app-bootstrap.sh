@@ -118,15 +118,12 @@ fi
 log "Ensuring remote local app directory exists"
 remote "mkdir -p '${REMOTE_APP_DIR}'"
 
-log "Syncing repository to HA host (${REMOTE_APP_DIR})"
+log "Syncing nova/ (Add-on build context) to HA host (${REMOTE_APP_DIR})"
 rsync -az --delete \
-  --exclude '.git' \
   --exclude 'node_modules' \
-  --exclude '.env' \
-  --exclude '.env.local' \
-  --exclude '.env.*.local' \
+  --exclude 'dist' \
   -e "ssh -i ${HA_SSH_KEY} -p ${SSH_PORT} -o StrictHostKeyChecking=accept-new" \
-  "${PROJECT_ROOT}/" \
+  "${PROJECT_ROOT}/nova/" \
   "${SSH_USER}@${HA_HOST}:${REMOTE_APP_DIR}/"
 
 log "Preparing Supervisor build context + config defaults"

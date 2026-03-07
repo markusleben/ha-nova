@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createApp } from "../../src/index.js";
+import { createApp } from "../../nova/src/index.js";
 
 describe("startup bootstrap", () => {
   it("exports createApp factory and returns server + router", () => {

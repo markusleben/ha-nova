@@ -5,7 +5,7 @@ import YAML from "yaml";
 
 describe("app config contract", () => {
   it("includes required metadata, security flags, and option schema", () => {
-    const raw = readFileSync("config.yaml", "utf8");
+    const raw = readFileSync("nova/config.yaml", "utf8");
     const parsed = YAML.parse(raw) as Record<string, unknown>;
 
     expect(parsed.name).toBeTypeOf("string");
@@ -37,7 +37,7 @@ describe("app config contract", () => {
   });
 
   it("has relay version >= min_relay_version from version.json", () => {
-    const raw = readFileSync("config.yaml", "utf8");
+    const raw = readFileSync("nova/config.yaml", "utf8");
     const parsed = YAML.parse(raw) as Record<string, unknown>;
     const relayVersion = parsed.version as string;
 

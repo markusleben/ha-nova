@@ -119,7 +119,9 @@ Query past state changes for any entity within a time range.
 
 **Experimental relay calls (no skill guardrails):**
 ```bash
-~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/history/period/2026-03-06T00:00:00Z?filter_entity_id=sensor.temperature&end_time=2026-03-07T00:00:00Z"}'
+# Note: /core responses wrap upstream payload in .data.body (see relay-api.md → /core Contract)
+~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/history/period/2026-03-06T00:00:00Z?filter_entity_id=sensor.temperature&end_time=2026-03-07T00:00:00Z"}' \
+  | jq '.data.body'
 ```
 
 **Risks:** None (read-only). Large time ranges may return very large responses.
@@ -132,7 +134,9 @@ Query the logbook for human-readable event entries (state changes, automations f
 
 **Experimental relay calls (no skill guardrails):**
 ```bash
-~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/logbook/2026-03-06T00:00:00Z?entity=light.living_room&end_time=2026-03-07T00:00:00Z"}'
+# Note: /core responses wrap upstream payload in .data.body (see relay-api.md → /core Contract)
+~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/logbook/2026-03-06T00:00:00Z?entity=light.living_room&end_time=2026-03-07T00:00:00Z"}' \
+  | jq '.data.body'
 ```
 
 **Risks:** None (read-only).
@@ -250,11 +254,11 @@ List calendars and query upcoming events.
 
 **Experimental relay calls (no skill guardrails):**
 ```bash
-# List calendars
-~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/calendars"}'
+# List calendars (note: /core wraps payload in .data.body)
+~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/calendars"}' | jq '.data.body'
 
 # Query events
-~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/calendars/calendar.home?start=2026-03-07T00:00:00Z&end=2026-03-14T00:00:00Z"}'
+~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/calendars/calendar.home?start=2026-03-07T00:00:00Z&end=2026-03-14T00:00:00Z"}' | jq '.data.body'
 ```
 
 **Risks:** None (read-only).
@@ -364,6 +368,7 @@ Rules for all experimental relay calls in this skill:
 - Delete requires tokenized confirmation (`confirm:<token>`)
 - Never guess IDs: resolve via list/search first
 - If unsure about payload schema, search web first
+- Experimental results may be unexpected — verify data-target match before presenting conclusions (see `skills/ha-nova/SKILL.md` → Claim-Evidence Binding)
 
 ## Error Handling
 

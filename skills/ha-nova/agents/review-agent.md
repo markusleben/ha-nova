@@ -96,7 +96,7 @@ For each related automation/script, apply the 3-step conflict test:
 
 ### Known Safe/Problem Patterns
 
-Refer to `skills/review/SKILL.md` "Known Safe Patterns" and "Known Problem Patterns" sections for the complete list.
+see `skills/review/SKILL.md` → Known Safe Patterns / Known Problem Patterns for the complete list.
 
 ## Output Format (Structured Text)
 

@@ -10,7 +10,7 @@ describe("ha safety contract", () => {
     expect(router).toContain("Never guess entity IDs, service names, or config IDs.");
     expect(router).toContain("create`/`update`: natural confirmation");
     expect(router).toContain("token confirmation `confirm:<token>`");
-    expect(writeSkill).toContain("Confirmation: create/update=natural, delete=tokenized `confirm:<token>`.");
+    expect(writeSkill).toContain("Confirmation: create/update=natural, delete=tokenized `confirm:<token>`");
     expect(writeSkill).toContain("No guessing entity_ids; resolve or ask");
   });
 

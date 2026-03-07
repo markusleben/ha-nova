@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveIntentLoadPlan } from "../../src/skills/contracts/intent-dispatcher.js";
+import { resolveIntentLoadPlan } from "../../nova/src/skills/contracts/intent-dispatcher.js";
 
 describe("ha intent dispatcher", () => {
   it("builds deterministic ordered load list from companions + modules", () => {

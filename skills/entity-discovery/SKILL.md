@@ -43,10 +43,10 @@ Search both entity_id and name. Use short keyword stems to handle spelling varia
 # State
 ~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/states/{entity_id}"}'
 
-# Automation/script config — try slug (part after "automation.") first.
-# If 404, resolve unique_id: ws '{"type":"config/entity_registry/list"}' | jq select + .unique_id
-~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/config/automation/config/{slug_or_unique_id}"}'
-~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/config/script/config/{slug}"}'
+# Automation/script config — always resolve unique_id first (see relay-api.md → ID Types)
+~/.config/ha-nova/relay ws -d '{"type":"config/entity_registry/get","entity_id":"automation.{slug}"}' | jq -r '.data.unique_id'
+~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/config/automation/config/{unique_id}"}' | jq '.data.body'
+# For scripts: use "entity_id":"script.{slug}" and /api/config/script/config/{unique_id}
 ```
 
 ### Step 3: Find automations related to a device or area

@@ -35,9 +35,21 @@ If the target config is not already in the thread context, resolve it yourself:
    ```
    For scripts: `select(.ei | startswith("script."))`.
 2. If multiple matches: present top candidates (max 5) and ask one clarifying question. Never guess.
-3. Read config (save to temp file — configs can be 10-30 KB, shell output truncates):
-   - Automation: `relay ws -d '{"type":"automation/config","entity_id":"automation.<id>"}' > /tmp/ha-review-target.json`
-   - Script: `relay core -d '{"method":"GET","path":"/api/config/script/config/<unique_id>"}' > /tmp/ha-review-target.json`
+3. Resolve `unique_id` (config key) — the entity_id slug and config key differ for UI-created items (see `relay-api.md` → ID Types):
+   ```bash
+   ~/.config/ha-nova/relay ws -d '{"type":"config/entity_registry/get","entity_id":"automation.<slug>"}' \
+     | jq -r '.data.unique_id'
+   ```
+   For scripts: use `"entity_id":"script.<slug>"`.
+4. Read config via REST using the resolved `unique_id` (save to temp file — configs can be 10-30 KB, shell output truncates):
+   ```bash
+   # Automation:
+   ~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/config/automation/config/<unique_id>"}' \
+     | jq '.data.body' > /tmp/ha-review-target.json
+   # Script:
+   ~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/config/script/config/<unique_id>"}' \
+     | jq '.data.body' > /tmp/ha-review-target.json
+   ```
    Then read the file with the native file-reading tool for complete, untruncated access.
 
 If config is already in the thread context (e.g., user pasted YAML):
@@ -139,10 +151,24 @@ Find other automations/scripts that control the same entities.
    ~/.config/ha-nova/relay ws -d '{"type":"search/related","item_type":"entity","item_id":"{entity_id}"}'
    ```
 3. Collect related automations/scripts (exclude current target).
-4. Read configs of related items (max 5):
-   - Automation: `relay ws -d '{"type":"automation/config","entity_id":"automation.<id>"}'`
-   - Script: `relay core -d '{"method":"GET","path":"/api/config/script/config/<key>"}'`
+4. Read configs of related items (max 5). Resolve `unique_id` first (see Target Resolution step 3), then:
+   ```bash
+   # Automation:
+   ~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/config/automation/config/<unique_id>"}' \
+     | jq '.data.body' > /tmp/ha-review-related-N.json
+   # Script:
+   ~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/config/script/config/<unique_id>"}' \
+     | jq '.data.body' > /tmp/ha-review-related-N.json
+   ```
 5. If `related_items_found: 0`, set `CONFLICTS: none` and skip Step 3.
+
+### Trace Analysis (on request)
+
+When the user reports runtime issues ("automation didn't fire", "wrong behavior last night"):
+1. Follow the trace procedure in `skills/read/SKILL.md` → Trace Debugging
+2. Cross-reference trace findings with config quality findings from Step 1
+3. Verify `item_id` in every trace matches the target's `unique_id` before attributing results. see `skills/ha-nova/SKILL.md` → Claim-Evidence Binding.
+4. Include trace-based findings in `CONFIG_FINDINGS` with prefix `T-` (e.g., `T-01: Condition blocked execution in last 3 runs`)
 
 ### Step 3: Conflict Analysis
 

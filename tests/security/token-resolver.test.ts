@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveUpstreamToken } from "../../src/security/token-resolver.js";
+import { resolveUpstreamToken } from "../../nova/src/security/token-resolver.js";
 
 describe("resolveUpstreamToken", () => {
   it("uses HA_LLAT env when available", () => {

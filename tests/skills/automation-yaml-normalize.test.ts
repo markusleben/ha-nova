@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   normalizeAutomationYamlShape,
   toCanonicalAutomationYamlShape,
-} from "../../src/skills/contracts/automation-yaml-normalize.js";
+} from "../../nova/src/skills/contracts/automation-yaml-normalize.js";
 
 describe("automation yaml normalize", () => {
   it("normalizes legacy singular top-level keys", () => {

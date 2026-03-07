@@ -105,7 +105,7 @@ If 0 results: try synonyms or shorter stems. Never dump entire domains.
    **Delete Helper: {name}** ({type})
    - **ID:** {id}
    ```
-3. Token confirmation: `confirm:<token>`.
+3. Token confirmation: `confirm:<token>` (strict: only exact token accepted, see context skill → Safety Baseline).
 4. Execute:
    ```bash
    ~/.config/ha-nova/relay ws -d '{"type":"{type}/delete","{type}_id":"{id}"}'

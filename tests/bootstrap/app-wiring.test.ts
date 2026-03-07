@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import { createApp } from "../../src/index.js";
+import { createApp } from "../../nova/src/index.js";
 
 describe("app wiring", () => {
   const servers: Array<ReturnType<typeof createApp>["server"]> = [];

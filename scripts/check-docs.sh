@@ -26,7 +26,7 @@ echo ""
 # ── 1. LOC count ──
 # README claims "~1.5K LOC" — actual must be 1000–2000
 echo "[1] Relay LOC (README claims ~1.5K)"
-ACTUAL_LOC=$(find "$REPO_ROOT/src" -name '*.ts' -exec cat {} + | wc -l | tr -d ' ')
+ACTUAL_LOC=$(find "$REPO_ROOT/nova/src" -name '*.ts' -exec cat {} + | wc -l | tr -d ' ')
 if (( ACTUAL_LOC >= 1000 && ACTUAL_LOC <= 2000 )); then
   pass "src/ = ${ACTUAL_LOC} LOC (within 1000–2000 range)"
 else
@@ -46,7 +46,7 @@ fi
 # ── 3. No MCP protocol in relay ──
 # README claims "not an MCP server", "No tool definitions"
 echo "[3] No MCP/tool-definition patterns in src/"
-MCP_HITS=$(count_matches "fastmcp\|@mcp\.tool\|mcp\.tool\|McpServer\|MCP_TOOL" "$REPO_ROOT/src")
+MCP_HITS=$(count_matches "fastmcp\|@mcp\.tool\|mcp\.tool\|McpServer\|MCP_TOOL" "$REPO_ROOT/nova/src")
 if (( MCP_HITS == 0 )); then
   pass "No MCP/tool-definition patterns found in src/"
 else
@@ -56,7 +56,7 @@ fi
 # ── 4. No domain handler patterns in relay ──
 # README claims "Zero business logic"
 echo "[4] No domain-handler patterns in src/"
-DOMAIN_HITS=$(count_matches "domain_handler\|DOMAIN_HANDLERS\|valid_actions\|fuzzy_search\|FuzzySearch" "$REPO_ROOT/src")
+DOMAIN_HITS=$(count_matches "domain_handler\|DOMAIN_HANDLERS\|valid_actions\|fuzzy_search\|FuzzySearch" "$REPO_ROOT/nova/src")
 if (( DOMAIN_HITS == 0 )); then
   pass "No domain-handler/fuzzy-search patterns found in src/"
 else
@@ -66,7 +66,7 @@ fi
 # ── 5. Planned features not yet shipped ──
 # README marks auto-backup, filesystem access, state streaming as "(planned)"
 echo "[5] Planned features still unimplemented"
-PLANNED_HITS=$(count_matches "backup\|/backup\|/files\|filesystem\|/stream\|EventSource\|SSE" "$REPO_ROOT/src/http/handlers/")
+PLANNED_HITS=$(count_matches "backup\|/backup\|/files\|filesystem\|/stream\|EventSource\|SSE" "$REPO_ROOT/nova/src/http/handlers/")
 if (( PLANNED_HITS == 0 )); then
   pass "No backup/filesystem/streaming endpoints found — correctly marked as (planned)"
 else
@@ -104,7 +104,7 @@ done
 
 # ── 9. Route count — verify relay stays minimal ──
 echo "[9] Relay route count"
-ROUTE_COUNT=$(grep -c "router.register" "$REPO_ROOT/src/index.ts" 2>/dev/null || true)
+ROUTE_COUNT=$(grep -c "router.register" "$REPO_ROOT/nova/src/index.ts" 2>/dev/null || true)
 if (( ROUTE_COUNT <= 5 )); then
   pass "Relay has ${ROUTE_COUNT} routes (≤5 — still minimal)"
 else
@@ -122,7 +122,7 @@ fi
 
 # ── 11. No telemetry/analytics ──
 echo "[11] No telemetry or analytics code"
-TELEMETRY_HITS=$(count_matches "telemetry\|analytics\|mixpanel\|segment\|posthog\|sentry" "$REPO_ROOT/src")
+TELEMETRY_HITS=$(count_matches "telemetry\|analytics\|mixpanel\|segment\|posthog\|sentry" "$REPO_ROOT/nova/src")
 if (( TELEMETRY_HITS == 0 )); then
   pass "No telemetry/analytics patterns in src/"
 else

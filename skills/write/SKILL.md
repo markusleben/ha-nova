@@ -57,7 +57,7 @@ If this fails, run onboarding: `npm run onboarding:macos`.
    triggers: ...
    actions: ...
    ```
-4. Confirmation: create/update=natural, delete=tokenized `confirm:<token>`.
+4. Confirmation: create/update=natural, delete=tokenized `confirm:<token>` (strict: only exact token accepted, see context skill → Safety Baseline).
 
 ### Phase 3: Apply + Verify (Agent)
 
@@ -74,8 +74,12 @@ Do NOT report results to the user until this phase is complete. Run inline (do N
 
 Follow the Post-Write Review Standard from `docs/reference/skill-architecture.md`:
 
-1. Re-read the written config: `relay ws -d '{"type":"automation/config","entity_id":"<id>"}'`
-   - Script: `relay core -d '{"method":"GET","path":"/api/config/script/config/<key>"}'`
+1. Re-read the written config using the `target_id` from Phase 1 (do NOT re-resolve by slug — the entity slug may differ from expectations):
+   ```bash
+   relay core -d '{"method":"GET","path":"/api/config/automation/config/<target_id>"}' \
+     | jq 'if .ok then .data.body else error("relay error: \(.error // "unknown")") end'
+   ```
+   - Script: `/api/config/script/config/<target_id>`
 2. Read `skills/review/SKILL.md` Step 1 for the full check catalog. Apply domain-appropriate checks:
    - Automations: S-01..S-03, R-01..R-15, P-01..P-04, M-01..M-04
    - Scripts: all automation checks plus F-01..F-08
@@ -92,7 +96,7 @@ Follow the Post-Write Review Standard from `docs/reference/skill-architecture.md
 
 ## Output Format
 
-See `skills/ha-nova/SKILL.md` Response Format section. Automations and scripts use structured summary + YAML.
+see `skills/ha-nova/SKILL.md` → Response Format. Automations and scripts use structured summary + YAML.
 
 ## Safety
 
