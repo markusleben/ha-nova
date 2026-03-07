@@ -4,6 +4,29 @@ All notable changes to this project are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [0.1.4] - 2026-03-07
+
+### Added
+- **Helper CRUD skill** — New `ha-nova:helper` for 9 storage-based helper types (input_boolean, input_number, input_text, input_select, input_datetime, input_button, counter, timer, schedule) via WebSocket commands
+- **Helper payload schemas** — `skills/ha-nova/helper-schemas.md` with required/optional fields, types, constraints per helper type
+- **H-01..H-08 review checks** — Helper-specific best-practice checks (min/max, restart guards, orphaned helpers, naming consistency)
+- **Helper service patterns** — Service call reference for all 9 helper types in service-call skill
+- **Multi-arch HA App builds** — `build.yaml` with correct base images for amd64 + aarch64 (Raspberry Pi)
+- **Skill architecture docs** — Agent vs inline decision rule, skill section template, new-skill checklist, post-write review standard
+
+### Changed
+- **Review agent (SSOT)** — References `review/SKILL.md` instead of duplicating checks; eliminates drift risk
+- **Gemini skill discovery** — Dynamic `skills/*/SKILL.md` glob replaces hardcoded skill list in installer
+- **Bump script** — Now updates `config.yaml` version (HA Supervisor update detection); portable sed
+- **Version sync** — All 5 version-bearing files updated together (version.json, package.json, plugin.json, marketplace.json, config.yaml)
+- **Write skill** — Mandatory post-write review with H-check awareness for helper references
+- **Inverse scope notes** — Read and write skills explicitly note helper exclusion with redirect
+
+### Fixed
+- **HA App version stuck at 0.1.0** — config.yaml now included in bump script
+- **CI docs fact-check** — Updated skill directory count from 7 to 8
+- **Portability** — `sed -i ''` replaced with temp-file approach (GNU/Linux compat)
+
 ## [0.1.3] - 2026-03-05
 
 ### Added
