@@ -81,7 +81,7 @@ Match user intent to exactly one skill:
 | enable/disable/trigger an automation | `ha-nova:service-call` |
 | find entities by name, room, area | `ha-nova:entity-discovery` |
 | fix relay/auth/connectivity errors | `ha-nova:onboarding` |
-| anything not matched above (dashboards, blueprints, history, energy, areas, zones, etc.) | `ha-nova:guide` |
+| HA-related but not matched above (dashboards, blueprints, history, energy, areas, zones, etc.) | `ha-nova:guide` |
 
 **"Analysiere meine Automation"** → `ha-nova:review` (NOT read + review)
 **"Zeige meine Automationen"** → `ha-nova:read` (NOT review)

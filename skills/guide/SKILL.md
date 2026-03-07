@@ -16,7 +16,9 @@ Fallback guidance for HA features without a dedicated skill. Three tiers:
 
 No relay calls of its own. Pure guidance skill -- all relay examples are experimental.
 
-## Bootstrap (once per session)
+## Bootstrap (only before Relay-Ready calls)
+
+Only needed when executing experimental relay calls (not for Roadmap/External guidance).
 
 Verify relay CLI: `~/.config/ha-nova/relay health`
 If this fails: `npm run onboarding:macos`
