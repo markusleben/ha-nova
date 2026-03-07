@@ -1,5 +1,5 @@
 name: NOVA Relay
-version: "0.1.4"
+version: "0.2.0"
 slug: ha_nova_relay
 description: Thin Home Assistant relay for WS proxy and skill workflows
 url: https://github.com/markusleben/ha-nova

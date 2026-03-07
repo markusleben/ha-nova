@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Bump skill_version across all version-bearing files.
+# Bump skill_version across all skill version-bearing files.
+# Does NOT touch config.yaml (Relay version) — managed independently.
 # Usage: bash scripts/bump-version.sh 0.2.0
 set -euo pipefail
 
@@ -39,16 +40,11 @@ jq --arg v "$NEW_VERSION" '.version = $v' "$REPO_ROOT/.claude-plugin/plugin.json
 tmp=$(mktemp)
 jq --arg v "$NEW_VERSION" '.plugins[0].version = $v' "$REPO_ROOT/.claude-plugin/marketplace.json" > "$tmp" && mv "$tmp" "$REPO_ROOT/.claude-plugin/marketplace.json"
 
-# 5. config.yaml (HA App version — Supervisor uses this for update detection)
-# Use temp file instead of sed -i (BSD vs GNU portability)
-tmp=$(mktemp)
-sed "s/^version: \".*\"/version: \"$NEW_VERSION\"/" "$REPO_ROOT/config.yaml" > "$tmp" && mv "$tmp" "$REPO_ROOT/config.yaml"
-
-echo "Bumped to $NEW_VERSION in:"
+echo "Bumped skill version to $NEW_VERSION in:"
 echo "  version.json"
 echo "  package.json"
 echo "  .claude-plugin/plugin.json"
 echo "  .claude-plugin/marketplace.json"
-echo "  config.yaml"
 echo ""
-echo "Next: npm test && git add version.json package.json .claude-plugin/plugin.json .claude-plugin/marketplace.json config.yaml && git commit -m 'chore: bump version to $NEW_VERSION'"
+echo "Note: config.yaml (Relay version) is managed independently."
+echo "Next: npm test && git add version.json package.json .claude-plugin/plugin.json .claude-plugin/marketplace.json && git commit -m 'chore: bump skill version to $NEW_VERSION'"
