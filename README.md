@@ -10,7 +10,8 @@
 </p>
 
 <p align="center">
-  <b>Talk to your smart home. In plain language. From your terminal.</b>
+  <b>Talk to your smart home. In plain language. From your terminal.</b><br>
+  <sub>Not an MCP server. Not a chatbot. Skills that teach your AI how Home Assistant works.</sub>
 </p>
 
 ---
@@ -24,6 +25,8 @@ Then skills came along, and everything changed.
 Instead of coding domain knowledge into a server, I could write it as Markdown that the AI reads directly. No compilation, no deploy, no tool definitions. Just text files that teach the AI what to do. The MCP server became unnecessary overnight.
 
 I scrapped all of it and started fresh. **HA NOVA is the result** — and it's a fundamentally better approach.
+
+> **⚡ Early Access** — HA NOVA is young. The core works well, but you might hit rough edges. For anything critical, keep a backup of your configs before letting the AI make changes. Currently macOS only — Linux and Windows support is on the roadmap. If you run into issues or have ideas, [open an issue](https://github.com/markusleben/ha-nova/issues) or jump in and contribute. This is the perfect time to help shape the project.
 
 ## 💬 What Can You Do?
 
@@ -61,9 +64,13 @@ HA NOVA has two parts:
 
 That's it. The intelligence comes from your AI — the skills just give it the playbook.
 
-> **Why not just connect the AI directly to Home Assistant?**
+> **Why not put all the logic into a server?**
 >
-> Two reasons: **security** and **speed**. The relay keeps your HA access token safely on the HA host (never on your machine). And it maintains a permanent connection so every request is fast — no reconnecting each time.
+> Because then every new feature means more server code, more bugs, more deployments. With skills, adding a new capability is just editing a text file. Your AI already understands Home Assistant — skills just teach it the specifics of *your* setup. No tool definitions, no schema updates, no release cycle.
+
+> **Why a relay at all?**
+>
+> Two reasons: **security** and **speed**. The relay keeps your HA access token safely on the HA host (never on your machine). Auth tokens on your side are encrypted in macOS Keychain — never in config files, URLs, or logs. And the relay maintains a permanent connection so every request is fast — no reconnecting each time.
 
 ## 🚀 Quick Start
 
@@ -105,18 +112,23 @@ Each skill teaches your AI a different aspect of Home Assistant:
 | **guide** | Discover HA features you might not know about |
 | **onboarding** | Setup diagnostics and troubleshooting |
 
+Skills are just Markdown files. Want to teach your AI something new? [Write your own](CONTRIBUTING.md) — no code required.
+
 ## 🛡️ Safety First
 
 Your AI never makes changes without asking. Every write follows three steps:
 
 1. **Look** — Finds the right entities and checks the current config
 2. **Show** — Previews exactly what will change and asks for your OK
-3. **Do** — Applies the change, then reads it back to make sure it worked
+3. **Do** — Applies the change, reads it back to verify it actually worked, then checks the result against best practices
+
+No silent failures — if something didn't stick, you'll know. And after every write, your AI automatically reviews the result: are triggers reliable? Could something conflict with an existing automation?
 
 On top of that:
-- Deleting anything requires a special confirmation code
+- Deleting anything requires a special confirmation code — not just "yes", an actual code
 - Your HA access token never leaves your HA host
-- Auth tokens are stored in macOS Keychain — never visible in prompts or logs
+- Auth tokens are encrypted in macOS Keychain — never in config files, URLs, or logs
+- Skills guide your AI to fetch only what it needs — no flooding the conversation with thousands of entities
 - Everything runs locally — no cloud, no tracking
 
 ## 🔧 Troubleshooting
@@ -127,7 +139,11 @@ npx ha-nova doctor
 
 ## 🤝 Contributing
 
-Want to add a new capability? In most cases, you don't need to write any code — just a Markdown file that teaches the AI something new.
+HA NOVA is in its early days — and that's exactly what makes it exciting. There's a lot to build, and every contribution makes a real difference.
+
+Want to add a new capability? In most cases, you don't need to write any code — just a Markdown file that teaches the AI something new. You can also help by testing on your own setup, reporting bugs, improving docs, or tackling one of the [open issues](https://github.com/markusleben/ha-nova/issues).
+
+**Coming soon:** Linux and Windows support, more AI clients, and new skills. If any of that interests you — jump in.
 
 → [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
