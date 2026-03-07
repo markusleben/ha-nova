@@ -31,6 +31,21 @@ Refresh step checks:
 - automation services + tracing guidance
 - release notes affecting automation semantics
 
+## Automation Mode Selection
+
+Pick the right `mode` based on the automation's behavior:
+
+| Mode | When to use | Example |
+|------|-------------|---------|
+| `single` | Only one instance should ever run. Re-trigger while active is ignored. | Garage door open/close sequence |
+| `restart` | Re-trigger should cancel the current run and start fresh. Best for motion lights with timeout. | Motion → light on → wait 2 min → light off. New motion restarts the timer. |
+| `queued` | Each trigger should run in order, one after another. Use `max` to cap queue depth. | Sequential lock/unlock commands |
+| `parallel` | All triggers run independently at the same time. Use `max` to cap concurrency. | Per-room climate adjustment via a single automation |
+
+**Default is `single`** — always set mode explicitly so intent is clear.
+
+**Common mistake:** Using `single` for motion lights. The light turns on, but re-triggering during the wait period is ignored — the light turns off too early. Use `restart` instead.
+
 ## Enforcement Checklist
 
 1. `mode` is explicit.

@@ -11,3 +11,6 @@ worktrees/
 # Agent work artifacts
 docs/breadcrumbs.md
 docs/choices.md
+
+# Local notes
+docs/internal/

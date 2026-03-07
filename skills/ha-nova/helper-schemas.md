@@ -3,6 +3,24 @@
 Reference for AI agents constructing helper payloads via WebSocket CRUD commands.
 These are JSON payloads for `{type}/create` and `{type}/update` via the `/ws` relay endpoint.
 
+## When to Use Which Helper
+
+Pick the right helper type for the job:
+
+| Need | Use | Not |
+|------|-----|-----|
+| On/off flag (sleep mode, guest mode, vacation) | `input_boolean` | Template sensor |
+| Numeric value with range (target temp, brightness threshold) | `input_number` | Template sensor with `set_value` service |
+| User-selectable option (house mode: home/away/sleep) | `input_select` | Multiple `input_boolean` toggles |
+| Free-form text (welcome message, last visitor name) | `input_text` | — |
+| Specific time (wake-up time, quiet hours start) | `input_datetime` | `input_text` with manual parsing |
+| Manual trigger (doorbell test, run cleanup) | `input_button` | `input_boolean` toggled on then immediately off |
+| Counting occurrences (failed login attempts, door opens today) | `counter` | `input_number` with increment automation |
+| Countdown / delayed action (laundry reminder, motion light timeout) | `timer` | `delay` in automation (blocks the run) |
+| Recurring weekly schedule (heating, irrigation) | `schedule` | Multiple time-based automations |
+
+**Rule of thumb:** If HA has a built-in helper for it, use the helper. Only resort to template sensors when you need derived/calculated values that no helper can store.
+
 ## Common Rules
 
 - **Create:** `name` is always required. Type-specific fields vary.

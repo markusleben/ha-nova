@@ -10,7 +10,8 @@
 </p>
 
 <p align="center">
-  <b>Talk to your smart home. In plain language. From your terminal.</b>
+  <b>Talk to your smart home. In plain language. From your terminal.</b><br>
+  <sub>Not an MCP server. Not a chatbot. Skills that teach your AI how Home Assistant works.</sub>
 </p>
 
 ---
@@ -63,9 +64,13 @@ HA NOVA has two parts:
 
 That's it. The intelligence comes from your AI — the skills just give it the playbook.
 
-> **Why not just connect the AI directly to Home Assistant?**
+> **Why not put all the logic into a server?**
 >
-> Two reasons: **security** and **speed**. The relay keeps your HA access token safely on the HA host (never on your machine). And it maintains a permanent connection so every request is fast — no reconnecting each time.
+> Because then every new feature means more server code, more bugs, more deployments. With skills, adding a new capability is just editing a text file. Your AI already understands Home Assistant — skills just teach it the specifics of *your* setup. No tool definitions, no schema updates, no release cycle.
+
+> **Why a relay at all?**
+>
+> Two reasons: **security** and **speed**. The relay keeps your HA access token safely on the HA host (never on your machine). Auth tokens on your side are encrypted in macOS Keychain — never in config files, URLs, or logs. And the relay maintains a permanent connection so every request is fast — no reconnecting each time.
 
 ## 🚀 Quick Start
 
@@ -107,18 +112,23 @@ Each skill teaches your AI a different aspect of Home Assistant:
 | **guide** | Discover HA features you might not know about |
 | **onboarding** | Setup diagnostics and troubleshooting |
 
+Skills are just Markdown files. Want to teach your AI something new? [Write your own](CONTRIBUTING.md) — no code required.
+
 ## 🛡️ Safety First
 
 Your AI never makes changes without asking. Every write follows three steps:
 
 1. **Look** — Finds the right entities and checks the current config
 2. **Show** — Previews exactly what will change and asks for your OK
-3. **Do** — Applies the change, then reads it back to make sure it worked
+3. **Do** — Applies the change, reads it back to verify it actually worked, then checks the result against best practices
+
+No silent failures — if something didn't stick, you'll know. And after every write, your AI automatically reviews the result: are triggers reliable? Could something conflict with an existing automation?
 
 On top of that:
-- Deleting anything requires a special confirmation code
+- Deleting anything requires a special confirmation code — not just "yes", an actual code
 - Your HA access token never leaves your HA host
-- Auth tokens are stored in macOS Keychain — never visible in prompts or logs
+- Auth tokens are encrypted in macOS Keychain — never in config files, URLs, or logs
+- Skills guide your AI to fetch only what it needs — no flooding the conversation with thousands of entities
 - Everything runs locally — no cloud, no tracking
 
 ## 🔧 Troubleshooting
