@@ -16,15 +16,15 @@
 
 ---
 
-## The Story
+## Why This Exists
 
-I spent over a year building an MCP server for Home Assistant — hundreds of tool definitions, entity validation, config normalization. Thousands of lines of server code trying to teach an AI how Home Assistant works.
+I spent over a year building an MCP server for Home Assistant — hundreds of tool definitions, entity validation, config normalization. Thousands of lines of server code trying to teach an AI how Home Assistant works. ([Here's an early demo](https://youtu.be/ylak867RkzM) from when I was just getting started.)
 
-Then skills came along, and everything changed.
+I kept polishing it, adding features, chasing perfection — but never releasing it. Always "one more thing" before it's ready. By the time I looked up, others had shipped their MCP servers while mine was still sitting on my machine.
 
-Instead of coding domain knowledge into a server, I could write it as Markdown that the AI reads directly. No compilation, no deploy, no tool definitions. Just text files that teach the AI what to do. The MCP server became unnecessary overnight.
+Then skills came along, and I realized the whole approach was wrong. Instead of coding domain knowledge into a server, I could write it as Markdown that the AI reads directly. No compilation, no deploy, no tool definitions. Just text files that teach the AI what to do.
 
-I scrapped all of it and started fresh. **HA NOVA is the result** — and it's a fundamentally better approach.
+I scrapped everything and started fresh. **HA NOVA is the result** — and it's a fundamentally better approach.
 
 > **⚡ Early Access** — HA NOVA is young. The core works well, but you might hit rough edges. For anything critical, keep a backup of your configs before letting the AI make changes. Currently macOS only — Linux and Windows support is on the roadmap. If you run into issues or have ideas, [open an issue](https://github.com/markusleben/ha-nova/issues) or jump in and contribute. This is the perfect time to help shape the project.
 
