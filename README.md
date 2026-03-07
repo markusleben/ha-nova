@@ -25,6 +25,8 @@ Instead of coding domain knowledge into a server, I could write it as Markdown t
 
 I scrapped all of it and started fresh. **HA NOVA is the result** — and it's a fundamentally better approach.
 
+> **⚡ Early Access** — HA NOVA is young. The core works well, but you might hit rough edges. For anything critical, keep a backup of your configs before letting the AI make changes. Currently macOS only — Linux and Windows support is on the roadmap. If you run into issues or have ideas, [open an issue](https://github.com/markusleben/ha-nova/issues) or jump in and contribute. This is the perfect time to help shape the project.
+
 ## 💬 What Can You Do?
 
 Just talk to your AI client. It knows how.
@@ -127,7 +129,11 @@ npx ha-nova doctor
 
 ## 🤝 Contributing
 
-Want to add a new capability? In most cases, you don't need to write any code — just a Markdown file that teaches the AI something new.
+HA NOVA is in its early days — and that's exactly what makes it exciting. There's a lot to build, and every contribution makes a real difference.
+
+Want to add a new capability? In most cases, you don't need to write any code — just a Markdown file that teaches the AI something new. You can also help by testing on your own setup, reporting bugs, improving docs, or tackling one of the [open issues](https://github.com/markusleben/ha-nova/issues).
+
+**Coming soon:** Linux and Windows support, more AI clients, and new skills. If any of that interests you — jump in.
 
 → [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
