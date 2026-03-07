@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import { createRouter } from "../../src/http/router.js";
-import { createHttpServer } from "../../src/http/server.js";
+import { createRouter } from "../../nova/src/http/router.js";
+import { createHttpServer } from "../../nova/src/http/server.js";
 
 const TEST_AUTH_TOKEN = "secret";
 

@@ -18,7 +18,7 @@ Read operations only:
 
 Not for helpers — use `ha-nova:helper` for helper list/read.
 
-No writes. If the user intent is to **analyze**, **review**, or **audit** a config for errors/problems, route through the parent `ha-nova` skill instead — it will dispatch the dedicated review agent after the read.
+No writes. For analysis/review/audit, route through parent `ha-nova` skill — it dispatches the review agent after the read.
 
 ## Bootstrap (once per session)
 
@@ -143,13 +143,14 @@ For trace queries ("why didn't automation X fire?", "show me the last runs"):
    jq empty /tmp/ha-trace-{run_id}.json
    ```
    Read the file with your native file-reading tool.
-4. Analyze trace and present in user-friendly format:
+4. **Trace analysis checklist** — for each trace, determine:
    - When it ran (timestamp)
    - Trigger: what fired (or didn't)
    - Conditions: which passed/failed
    - Actions: what executed, any errors
    - Result: success/error/aborted
 5. If traces don't cover the relevant period: check `last_changed` via `/api/states/{entity_id}` as indirect evidence. HA keeps only the last 5 traces.
+6. Before presenting trace conclusions: verify `item_id` in trace data matches the target's `unique_id` — not just a name/regex match. see `skills/ha-nova/SKILL.md` → Claim-Evidence Binding.
 
 ## Latency Policy
 

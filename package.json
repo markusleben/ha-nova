@@ -1,6 +1,6 @@
 {
   "name": "ha-nova",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "AI-powered Home Assistant management through LLM coding agents",
   "private": true,
   "type": "module",
@@ -35,8 +35,8 @@
   },
   "scripts": {
     "bump": "bash scripts/bump-version.sh",
-    "build": "tsc -p tsconfig.json",
-    "dev": "node --enable-source-maps --watch src/runtime/main.ts",
+    "build": "tsc -p nova/tsconfig.json",
+    "dev": "node --enable-source-maps --watch nova/src/runtime/main.ts",
     "install:codex-skill": "bash scripts/onboarding/install-local-skills.sh codex",
     "install:claude-skill": "bash scripts/onboarding/install-local-skills.sh claude",
     "install:opencode-skill": "bash scripts/onboarding/install-local-skills.sh opencode",

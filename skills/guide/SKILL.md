@@ -368,6 +368,7 @@ Rules for all experimental relay calls in this skill:
 - Delete requires tokenized confirmation (`confirm:<token>`)
 - Never guess IDs: resolve via list/search first
 - If unsure about payload schema, search web first
+- Experimental results may be unexpected — verify data-target match before presenting conclusions (see `skills/ha-nova/SKILL.md` → Claim-Evidence Binding)
 
 ## Error Handling
 

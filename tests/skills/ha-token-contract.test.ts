@@ -5,7 +5,7 @@ import {
   validateAndConsumeConfirmToken,
   validateConfirmToken,
   validateWriteConfirmation,
-} from "../../src/skills/contracts/confirm-token.js";
+} from "../../nova/src/skills/contracts/confirm-token.js";
 
 describe("ha token contract", () => {
   const baseToken: ConfirmTokenRecord = {

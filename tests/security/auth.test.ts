@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { loadEnv } from "../../src/config/env.js";
-import { authorizeRequest } from "../../src/security/auth.js";
+import { loadEnv } from "../../nova/src/config/env.js";
+import { authorizeRequest } from "../../nova/src/security/auth.js";
 
 describe("auth", () => {
   it("returns 401 when authorization header is missing", () => {

@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { readAppOptions } from "../../src/config/app-options.js";
+import { readAppOptions } from "../../nova/src/config/app-options.js";
 
 describe("readAppOptions", () => {
   it("returns parsed options when file exists", () => {

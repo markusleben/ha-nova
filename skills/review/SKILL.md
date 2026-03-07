@@ -162,6 +162,14 @@ Find other automations/scripts that control the same entities.
    ```
 5. If `related_items_found: 0`, set `CONFLICTS: none` and skip Step 3.
 
+### Trace Analysis (on request)
+
+When the user reports runtime issues ("automation didn't fire", "wrong behavior last night"):
+1. Follow the trace procedure in `skills/read/SKILL.md` → Trace Debugging
+2. Cross-reference trace findings with config quality findings from Step 1
+3. Verify `item_id` in every trace matches the target's `unique_id` before attributing results. see `skills/ha-nova/SKILL.md` → Claim-Evidence Binding.
+4. Include trace-based findings in `CONFIG_FINDINGS` with prefix `T-` (e.g., `T-01: Condition blocked execution in last 3 runs`)
+
 ### Step 3: Conflict Analysis
 
 For each related automation/script, apply the 3-step conflict test:

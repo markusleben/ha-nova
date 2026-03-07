@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import { bootstrapRuntime, startRelay } from "../../src/runtime/start.js";
+import { bootstrapRuntime, startRelay } from "../../nova/src/runtime/start.js";
 
 describe("runtime bootstrap", () => {
   const servers: Array<ReturnType<typeof bootstrapRuntime>["app"]["server"]> = [];

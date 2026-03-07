@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import { createCoreProxyHandler } from "../../src/http/handlers/core-proxy.js";
-import { createRouter } from "../../src/http/router.js";
-import { createHttpServer } from "../../src/http/server.js";
+import { createCoreProxyHandler } from "../../nova/src/http/handlers/core-proxy.js";
+import { createRouter } from "../../nova/src/http/router.js";
+import { createHttpServer } from "../../nova/src/http/server.js";
 
 const TEST_AUTH_TOKEN = "secret";
 

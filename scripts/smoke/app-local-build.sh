@@ -29,6 +29,6 @@ echo "Building $IMAGE_NAME with BUILD_FROM=$BUILD_FROM"
 docker build \
   ${PLATFORM:+--platform "$PLATFORM"} \
   --build-arg BUILD_FROM="$BUILD_FROM" \
-  -f Dockerfile \
+  -f nova/Dockerfile \
   -t "$IMAGE_NAME" \
-  .
+  nova

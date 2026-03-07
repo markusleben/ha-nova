@@ -1,8 +1,8 @@
 import { existsSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
-import { validateAndConsumeConfirmToken } from "../../src/skills/contracts/confirm-token.js";
-import { resolveIntentLoadPlan } from "../../src/skills/contracts/intent-dispatcher.js";
+import { validateAndConsumeConfirmToken } from "../../nova/src/skills/contracts/confirm-token.js";
+import { resolveIntentLoadPlan } from "../../nova/src/skills/contracts/intent-dispatcher.js";
 
 describe("ha-nova contract suite compatibility shim", () => {
   it("keeps split contract suites present", () => {

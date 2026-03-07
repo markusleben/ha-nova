@@ -219,6 +219,7 @@ Global safety expectations:
 - delete requires tokenized confirmation
 - structured failure output: what failed / why / next step
 - diagnostics only after real capability failure
+- claim-evidence binding: verify data-target match before presenting conclusions (see context skill)
 
 ## Operational Goal
 

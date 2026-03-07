@@ -191,7 +191,8 @@ The relay grows by adding **infrastructure** — new ways to move data, access f
 ## 🏗️ Architecture
 
 ```
-src/                    Relay server (TypeScript, ~1.5K LOC)
+nova/                   HA Add-on (Relay + Docker build)
+  src/                  Relay server (TypeScript, ~1.5K LOC)
 skills/                 LLM skills (flat layout — context skill + sub-skills)
   ha-nova/              Context skill (auto-loaded) + reference docs + agent templates
 scripts/onboarding/     Setup wizard and diagnostics

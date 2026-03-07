@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { HaRestClientError, createHaRestClient } from "../../src/ha/rest-client.js";
+import { HaRestClientError, createHaRestClient } from "../../nova/src/ha/rest-client.js";
 
 describe("ha rest client", () => {
   afterEach(() => {

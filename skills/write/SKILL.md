@@ -57,7 +57,7 @@ If this fails, run onboarding: `npm run onboarding:macos`.
    triggers: ...
    actions: ...
    ```
-4. Confirmation: create/update=natural, delete=tokenized `confirm:<token>`.
+4. Confirmation: create/update=natural, delete=tokenized `confirm:<token>` (strict: only exact token accepted, see context skill → Safety Baseline).
 
 ### Phase 3: Apply + Verify (Agent)
 
@@ -96,7 +96,7 @@ Follow the Post-Write Review Standard from `docs/reference/skill-architecture.md
 
 ## Output Format
 
-See `skills/ha-nova/SKILL.md` Response Format section. Automations and scripts use structured summary + YAML.
+see `skills/ha-nova/SKILL.md` → Response Format. Automations and scripts use structured summary + YAML.
 
 ## Safety
 
