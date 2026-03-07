@@ -15,102 +15,70 @@
 
 ---
 
+## The Story
+
+I spent over a year building an MCP server for Home Assistant — hundreds of tool definitions, entity validation, config normalization. Thousands of lines of server code trying to teach an AI how Home Assistant works.
+
+Then skills came along, and everything changed.
+
+Instead of coding domain knowledge into a server, I could write it as Markdown that the AI reads directly. No compilation, no deploy, no tool definitions. Just text files that teach the AI what to do. The MCP server became unnecessary overnight.
+
+I scrapped all of it and started fresh. **HA NOVA is the result** — and it's a fundamentally better approach.
+
 ## 💬 What Can You Do?
+
+Just talk to your AI client. It knows how.
 
 | You say | What happens |
 |---------|-------------|
-| *"Turn off the living room lights"* | Calls `light.turn_off` via relay |
-| *"List my automations"* | Reads automation registry |
-| *"Create an automation that turns on the porch light at sunset"* | Builds config, previews, asks confirmation, applies |
-| *"Why didn't my motion automation trigger last night?"* | Fetches traces, analyzes trigger/condition/action nodes |
-| *"Show me all sensors in the bedroom"* | Discovers entities by area with device fallback |
-| *"Set the thermostat to 21°C"* | Calls `climate.set_temperature` with verification |
+| *"Turn off the living room lights"* | Switches off the lights |
+| *"List my automations"* | Shows all your automations |
+| *"Create an automation that turns on the porch light at sunset"* | Builds it, shows you a preview, asks for OK, then applies |
+| *"Why didn't my motion automation trigger last night?"* | Analyzes the trace logs and explains what went wrong |
+| *"Show me all sensors in the bedroom"* | Finds entities by room |
+| *"Set the thermostat to 21°C"* | Sets it and confirms the new state |
+
+## 🔄 How Your AI Handles Automations
+
+When you ask your AI to create or change an automation, it doesn't just write it blindly. It follows a careful process:
+
+1. **Research** — Looks up your devices, checks existing automations, finds the right entities
+2. **Preview** — Shows you exactly what it will create or change, and waits for your OK
+3. **Apply & Verify** — Writes the config, reads it back to make sure it stuck
+4. **Review** — Checks the result against best practices — are triggers reliable? Could something conflict with an existing automation?
+
+Deleting an automation requires a special confirmation code — no accidental removals.
+
+This means you can confidently say *"Create an automation that..."* and know the AI will guide you through it step by step.
 
 ## 🧠 How It Works
 
-Most Home Assistant AI integrations bake domain logic into server code — tool definitions, entity validation, config normalization. Thousands of lines of it. HA NOVA flips this: **all intelligence lives in Markdown skills** that your AI client reads directly. The relay is pure infrastructure. Want to update a capability? Edit a text file.
+HA NOVA has two parts:
 
-```
-┌─────────────────┐        ┌──────────────────────┐        ┌──────────────────┐
-│   AI Client     │        │   HA NOVA Relay       │        │  Home Assistant  │
-│                 │  HTTP   │   (HA App)            │  WS    │                  │
-│  Claude Code,   │───────▶│  Runs on HA host      │═══════▶│  WebSocket API   │
-│  Codex, Gemini  │        │  ~1.5K LOC            │persist.│  REST API        │
-│                 │        │  Zero business logic  │  conn  │                  │
-└─────────────────┘        └──────────────────────┘        └──────────────────┘
-        │
-        │ reads
-        ▼
-┌─────────────────┐
-│   LLM Skills    │
-│   (Markdown)    │
-│                 │
-│  9 skill files  │
-│  teach your AI  │
-│  how to operate │
-│  Home Assistant  │
-└─────────────────┘
-```
+**A small relay** that runs on your Home Assistant as an App. It doesn't do anything smart — it just passes your AI's requests through to Home Assistant securely. Think of it as a locked door with a key.
 
-HA NOVA is **not** an MCP server. It's two things:
+**A set of skills** (plain text files) that teach your AI client how to operate Home Assistant. Your AI reads them, understands what to do, and talks to the relay.
 
-- **Relay** — A tiny HA App (~1.5K LOC) that proxies WebSocket and REST calls. No business logic. No tool definitions. Just a secure bridge.
-- **Skills** — Markdown files that teach your AI client how to operate Home Assistant. Your AI reads them, understands the API, and acts.
+That's it. The intelligence comes from your AI — the skills just give it the playbook.
 
-## 🔑 Why a Relay?
-
-Every HA AI integration needs a server-side process — there's no way around it. HA NOVA's relay is deliberately minimal, but it exists for three concrete reasons.
-
-### 🔒 Token Isolation
-
-Two tokens, two trust zones:
-
-- **Relay token** (client ↔ relay) — stored in macOS Keychain on your machine
-- **HA Long-Lived Access Token** (relay ↔ HA) — stored in App config on the HA host, never leaves
-
-Without a relay, the LLAT would live in your shell environment — exposed to prompts, logs, and history. With the relay, revoke a client by changing one token. HA stays untouched.
-
-### ⚡ Persistent Connection
-
-HA's WebSocket API requires a multi-step auth handshake per connection: connect → `auth_required` → authenticate → `auth_ok` → command. The relay maintains one persistent connection and exposes it as a simple `POST /ws`. Your AI skips the handshake on every call (~500ms–2s saved per request).
-
-Direct WebSocket calls from a shell are technically possible (curl 8.11+, wscat, Node scripts), but each would repeat the full handshake — and expose the LLAT in the process.
-
-### 🔌 Extensible Platform
-
-The relay runs on the HA host with local filesystem and network access. This enables features beyond HA's standard API:
-
-- Auto-backup before config changes (planned)
-- Filesystem access for YAML-only configs (planned)
-- Real-time state update streaming (planned)
-
-New endpoint = one handler file + tests + one line of registration.
-
-### 📐 The Boundary
-
-The relay provides infrastructure — transport, file access, backups. It does not contain business logic, tool definitions, or domain validation. That's the skills' job.
-
-**Relay = capabilities. Skills = intelligence.**
+> **Why not just connect the AI directly to Home Assistant?**
+>
+> Two reasons: **security** and **speed**. The relay keeps your HA access token safely on the HA host (never on your machine). And it maintains a permanent connection so every request is fast — no reconnecting each time.
 
 ## 🚀 Quick Start
 
-> **Requirements:** macOS, Node.js >= 20, Home Assistant OS or Supervised
+> **You need:** macOS, Node.js 20+, Home Assistant OS or Supervised
 
-**One-liner install:**
+**One command to get started:**
 ```bash
 curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/main/install.sh | bash
 ```
 
-**Or with npx (if you already have the repo):**
+The setup wizard asks which AI client you use, then handles the rest — installs the relay, configures tokens, sets up skills.
+
+**Already have the repo?**
 ```bash
 npx ha-nova setup
-```
-
-The wizard asks which AI client you use, then handles everything — relay installation, token configuration, skill setup.
-
-**Non-interactive setup** (for automation / WebUI):
-```bash
-ha-nova setup claude --host=<your-ha-ip> --token=<relay-auth-token>
 ```
 
 ## 🤖 Supported AI Clients
@@ -122,82 +90,34 @@ ha-nova setup claude --host=<your-ha-ip> --token=<relay-auth-token>
 | [OpenCode](https://github.com/nicepkg/OpenCode) | ✅ Supported |
 | [Gemini CLI](https://github.com/google-gemini/gemini-cli) | ✅ Supported |
 
-## 📖 Skills
+## 📖 What Your AI Can Learn
 
-All skills use the `ha-nova:<skill>` naming convention:
+Each skill teaches your AI a different aspect of Home Assistant:
 
 | Skill | What it does |
 |-------|-------------|
-| **ha-nova:write** | Create, update, delete automations and scripts — 3-phase safety flow (Resolve → Preview → Apply) |
-| **ha-nova:read** | List configs, inspect automations/scripts, debug with trace analysis |
-| **ha-nova:entity-discovery** | Search entities by name, domain, room, or area |
-| **ha-nova:service-call** | Direct device control — lights, climate, covers, switches, and more |
-| **ha-nova:helper** | Create, update, delete helpers (input_boolean, input_number, counter, timer, etc.) |
-| **ha-nova:review** | Analyze automations, scripts, and helpers for best-practice violations and conflicts |
-| **ha-nova:onboarding** | Guided setup diagnostics and troubleshooting |
+| **write** | Create, update, and delete automations and scripts — with preview and confirmation |
+| **read** | Browse your configs, inspect automations, debug with trace analysis |
+| **entity-discovery** | Find entities by name, room, or area |
+| **service-call** | Control devices — lights, climate, covers, switches, and more |
+| **helper** | Manage helpers (input_boolean, input_number, counter, timer, etc.) |
+| **review** | Check your automations for common mistakes and conflicts |
+| **guide** | Discover HA features you might not know about |
+| **onboarding** | Setup diagnostics and troubleshooting |
 
-## 🛡️ Safety
+## 🛡️ Safety First
 
-Every write goes through three phases:
+Your AI never makes changes without asking. Every write follows three steps:
 
-1. **Resolve** — Read-only agent finds entities, checks config, scores candidates
-2. **Preview** — Shows you exactly what will change, asks for confirmation
-3. **Apply** — Writes config, reloads, reads back to verify
+1. **Look** — Finds the right entities and checks the current config
+2. **Show** — Previews exactly what will change and asks for your OK
+3. **Do** — Applies the change, then reads it back to make sure it worked
 
 On top of that:
-- 🔐 Delete requires tokenized confirmation (`confirm:tok-...`)
-- 🧪 Best-practice gate for complex automations
-- 🔑 All auth via macOS Keychain — tokens never appear in prompts
-- 🚫 Agents restricted to relay API only — no direct HA access
-- 📡 No cloud, no telemetry, fully local
-
-## 🤝 For Contributors
-
-### The Core Idea
-
-Traditional HA integrations put domain knowledge in server code — which services each entity supports, how to normalize configs, how to fuzzy-match names. HA NOVA doesn't need any of that. The LLM already knows these things. Skills teach it the specifics; the relay just moves data.
-
-**Before adding logic to the relay, ask: could the LLM do this?**
-
-Entity fuzzy search? LLMs handle typos, abbreviations, and multiple languages natively — no matching algorithm needed. Domain knowledge? The LLM knows that lights have brightness and color. Config validation? HA validates on write; the skill teaches the AI to handle errors.
-
-The relay grows by adding **infrastructure** — new ways to move data, access files, interact with platform services. Skills grow by adding **intelligence** — new ways for the AI to reason about Home Assistant.
-
-### Where does my feature go?
-
-| Ask yourself | → |
-|---|---|
-| Does it move, filter, or store data? | Relay |
-| Does it interpret data or make decisions? | Skill |
-| Does it need filesystem/network access on the HA host? | Relay |
-| Does it teach the AI how to do something? | Skill |
-| Could an LLM do this given the raw data? | Skill |
-| Does it need to work without an LLM? | Relay |
-
-> **🧪 The litmus test:** if you removed the endpoint and gave the LLM the raw data instead, would the feature still work? If yes — it's a skill.
-
-**Relay examples:** backup files before config writes, proxy a new HA API, stream state changes, cache entity registries.
-
-**Skill examples:** suggest energy-saving automations, detect conflicting triggers, build YAML from natural language, analyze traces for debugging.
-
-### Two ways in
-
-🔧 **Relay endpoints** (TypeScript) — ~1,500 LOC, no framework, pure functions. Handler + tests + one line of registration.
-
-📝 **Skills** (Markdown) — No TypeScript, no compilation, no deploy. Edit a text file. The AI gains a new capability.
-
-→ [CONTRIBUTING.md](CONTRIBUTING.md) for setup, guidelines, and architecture rules.
-
-## 🏗️ Architecture
-
-```
-nova/                   HA Add-on (Relay + Docker build)
-  src/                  Relay server (TypeScript, ~1.5K LOC)
-skills/                 LLM skills (flat layout — context skill + sub-skills)
-  ha-nova/              Context skill (auto-loaded) + reference docs + agent templates
-scripts/onboarding/     Setup wizard and diagnostics
-.claude-plugin/         Claude Code plugin manifest
-```
+- Deleting anything requires a special confirmation code
+- Your HA access token never leaves your HA host
+- Auth tokens are stored in macOS Keychain — never visible in prompts or logs
+- Everything runs locally — no cloud, no tracking
 
 ## 🔧 Troubleshooting
 
@@ -205,9 +125,20 @@ scripts/onboarding/     Setup wizard and diagnostics
 npx ha-nova doctor
 ```
 
-## Contributing
+## 🤝 Contributing
 
-→ [CONTRIBUTING.md](CONTRIBUTING.md)
+Want to add a new capability? In most cases, you don't need to write any code — just a Markdown file that teaches the AI something new.
+
+→ [CONTRIBUTING.md](CONTRIBUTING.md) for details.
+
+## 🏗️ Project Structure
+
+```
+nova/                   HA App (relay server + Docker build)
+skills/                 AI skills (Markdown files)
+scripts/                Setup wizard, deploy, diagnostics
+tests/                  Test suite
+```
 
 ## License
 
