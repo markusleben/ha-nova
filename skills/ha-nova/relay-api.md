@@ -30,6 +30,38 @@ The wrapper handles auth (Keychain), headers, timeouts, and base URL internally.
 - Success: `{ "ok": true, "data": ... }`
 - Error: `{ "ok": false, "error": { "code": "...", "message": "..." } }`
 
+Parsing varies by endpoint:
+- `/ws` responses: upstream payload is in `.data` directly (e.g., `.data.entities[]`)
+- `/core` responses: upstream payload is in `.data.body` (with `.data.status` for HTTP status)
+
+## ID Types & Resolution
+
+HA uses different identifiers depending on the API. Skills MUST use the correct type.
+
+| ID Type | Example | Used By |
+|---------|---------|---------|
+| `entity_id` | `automation.kitchen_lights` | Entity registry, states, `search/related`, service calls |
+| `unique_id` (config key) | `1766434159701` (UI) or `motion_kitchen` (YAML) | REST config API, `trace/list`, `trace/get` |
+
+**The entity_id slug and the unique_id are NOT the same** for UI-created items. HA generates a numeric `unique_id` for items created through the UI. YAML-defined items typically use the slug as both.
+
+### Standard Resolution: entity_id → unique_id
+
+When you have an entity_id and need the config key for REST or trace APIs:
+
+```bash
+# Returns the unique_id (config key) for use with REST config reads and trace queries
+~/.config/ha-nova/relay ws -d '{"type":"config/entity_registry/get","entity_id":"automation.{slug}"}' \
+  | jq -r '.data.unique_id'
+```
+
+Use the resolved `unique_id` with:
+- Config reads: `GET /api/config/automation/config/{unique_id}`
+- Trace list: `trace/list` with `"item_id":"{unique_id}"`
+- Trace get: `trace/get` with `"item_id":"{unique_id}"`
+
+**Do NOT use the entity_id slug** for config reads or traces — it will return empty results or 404 for UI-created items.
+
 ## /ws Contract
 
 Request examples:
@@ -164,14 +196,16 @@ List entity registry (includes area/device assignment):
 
 ## Trace Queries (via /ws)
 
+**`item_id` must be the `unique_id` (config key), NOT the entity_id slug.** See [ID Types & Resolution](#id-types--resolution).
+
 List traces for an automation:
 ```json
-{"type":"trace/list","domain":"automation","item_id":"motion_kitchen"}
+{"type":"trace/list","domain":"automation","item_id":"{unique_id}"}
 ```
 
 Get detailed trace:
 ```json
-{"type":"trace/get","domain":"automation","item_id":"motion_kitchen","run_id":"abc123"}
+{"type":"trace/get","domain":"automation","item_id":"{unique_id}","run_id":"{run_id}"}
 ```
 
 Trace response includes: `trace.trigger`, `trace.condition`, `trace.action` nodes with `result`, `timestamp`, and `changed_variables`.

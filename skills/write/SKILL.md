@@ -74,8 +74,12 @@ Do NOT report results to the user until this phase is complete. Run inline (do N
 
 Follow the Post-Write Review Standard from `docs/reference/skill-architecture.md`:
 
-1. Re-read the written config: `relay ws -d '{"type":"automation/config","entity_id":"<id>"}'`
-   - Script: `relay core -d '{"method":"GET","path":"/api/config/script/config/<key>"}'`
+1. Re-read the written config (resolve `unique_id` first — see `relay-api.md` → ID Types):
+   ```bash
+   relay ws -d '{"type":"config/entity_registry/get","entity_id":"automation.<slug>"}' | jq -r '.data.unique_id'
+   relay core -d '{"method":"GET","path":"/api/config/automation/config/<unique_id>"}' | jq '.data.body'
+   ```
+   - Script: use `"entity_id":"script.<slug>"` and `/api/config/script/config/<unique_id>`
 2. Read `skills/review/SKILL.md` Step 1 for the full check catalog. Apply domain-appropriate checks:
    - Automations: S-01..S-03, R-01..R-15, P-01..P-04, M-01..M-04
    - Scripts: all automation checks plus F-01..F-08

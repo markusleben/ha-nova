@@ -61,12 +61,15 @@ Always resolve the config key via entity registry first — the entity_id slug a
 **Always save config reads to a temp file** to avoid shell output truncation (complex automations can be 10–30 KB JSON):
 
 ```bash
-# Step 1: Resolve config key from entity registry (for scripts: select "script.")
-~/.config/ha-nova/relay ws -d '{"type":"config/entity_registry/list"}' \
-  | jq -r '.data[] | select(.entity_id == "automation.{slug}") | .unique_id'
+# Step 1: Resolve unique_id (config key) — see relay-api.md → ID Types
+~/.config/ha-nova/relay ws -d '{"type":"config/entity_registry/get","entity_id":"automation.{slug}"}' \
+  | jq -r '.data.unique_id'
+# For scripts: use "entity_id":"script.{slug}"
 
-# Step 2: Fetch config using the resolved key (for scripts: /api/config/script/config/{key})
-~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/config/automation/config/{resolved_key}"}' > /tmp/ha-config-{slug}.json
+# Step 2: Fetch config using the resolved unique_id (REST envelope: .data.body)
+~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/config/automation/config/{unique_id}"}' \
+  | jq '.data.body' > /tmp/ha-config-{slug}.json
+# For scripts: /api/config/script/config/{unique_id}
 
 # Verify JSON is valid (exits 0 if valid, non-zero if invalid/truncated)
 jq empty /tmp/ha-config-{slug}.json
@@ -124,13 +127,19 @@ Never show raw JSON to the user. Parse JSON config into structured summary + YAM
 
 For trace queries ("why didn't automation X fire?", "show me the last runs"):
 
-1. Resolve automation/script ID (use entity discovery if name is ambiguous).
-2. List recent traces:
-   - `~/.config/ha-nova/relay ws -d '{"type":"trace/list","domain":"automation","item_id":"{id}"}'`
-   - for scripts: `"domain":"script"`
+1. Resolve the `unique_id` (config key) — **`item_id` requires the `unique_id`, NOT the entity_id slug** (see `relay-api.md` → ID Types). For UI-created items the `unique_id` is numeric (e.g., `1766434159701`), not the slug:
+   ```bash
+   ~/.config/ha-nova/relay ws -d '{"type":"config/entity_registry/get","entity_id":"automation.{slug}"}' \
+     | jq -r '.data.unique_id'
+   ```
+2. List recent traces using the resolved `unique_id`:
+   ```bash
+   ~/.config/ha-nova/relay ws -d '{"type":"trace/list","domain":"automation","item_id":"{unique_id}"}'
+   ```
+   For scripts: `"domain":"script"`.
 3. For detailed trace (specific run), **save to file** (traces can be large):
    ```bash
-   ~/.config/ha-nova/relay ws -d '{"type":"trace/get","domain":"automation","item_id":"{id}","run_id":"{run_id}"}' > /tmp/ha-trace-{run_id}.json
+   ~/.config/ha-nova/relay ws -d '{"type":"trace/get","domain":"automation","item_id":"{unique_id}","run_id":"{run_id}"}' > /tmp/ha-trace-{run_id}.json
    jq empty /tmp/ha-trace-{run_id}.json
    ```
    Read the file with your native file-reading tool.
