@@ -51,7 +51,7 @@ Pick the right `mode` based on the automation's behavior:
 1. `mode` is explicit.
 2. Trigger model deterministic.
 3. Prefer `entity_id` over `device_id`.
-4. Avoid templates when native primitives exist.
+4. Avoid templates when native primitives exist (see `template-guidelines.md` → Decision Tree).
 5. Add guard conditions for noisy sensors.
 6. Avoid long blocking delays when helper/timer fits.
 7. Promote reusable action chains to script/helper.
