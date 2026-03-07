@@ -81,6 +81,7 @@ Match user intent to exactly one skill:
 | enable/disable/trigger an automation | `ha-nova:service-call` |
 | find entities by name, room, area | `ha-nova:entity-discovery` |
 | fix relay/auth/connectivity errors | `ha-nova:onboarding` |
+| anything not matched above (dashboards, blueprints, history, energy, areas, zones, etc.) | `ha-nova:guide` |
 
 **"Analysiere meine Automation"** → `ha-nova:review` (NOT read + review)
 **"Zeige meine Automationen"** → `ha-nova:read` (NOT review)
@@ -88,6 +89,10 @@ Match user intent to exactly one skill:
 **"Erstelle einen input_boolean"** → `ha-nova:helper` (NOT write)
 **"Zeige meine Helper"** → `ha-nova:helper` (NOT read)
 **"Erstelle einen Timer"** → ambiguous! Ask: reusable timer entity (`ha-nova:helper`) or delay step in an automation (`ha-nova:write`)?
+**"Zeige mir mein Energy Dashboard"** → `ha-nova:guide` (no dedicated skill)
+**"Importiere einen Blueprint"** → `ha-nova:guide` (relay-ready, no skill)
+**"Wie manage ich Add-ons?"** → `ha-nova:guide` (external, web search)
+**"Zeige mir die History von Sensor X"** → `ha-nova:guide` (relay-ready, no skill)
 
 ## Latency Policy
 
