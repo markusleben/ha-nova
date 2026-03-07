@@ -446,7 +446,7 @@ run_setup() {
   local existing_relay_auth_token
 
   if [[ "$skip_app_install" == "0" ]]; then
-    # Install/start NOVA Relay App in Home Assistant before configuring tokens.
+    # Install NOVA Relay App in Home Assistant (do NOT start yet — tokens come first).
     print_step 1 4 "Install NOVA Relay in Home Assistant"
     echo ""
     print_info "We need to add the NOVA repository to your Home Assistant."
@@ -459,9 +459,9 @@ run_setup() {
     print_info "  1. Confirm adding the repository"
     print_info "  2. Go to Settings > Apps > App Store"
     print_info "  3. Search for \"NOVA Relay\""
-    print_info "  4. Click Install, wait, then click Start"
+    print_info "  4. Click Install (do NOT start yet — we'll configure tokens first)"
     echo ""
-    wait_for_enter "Press [Enter] when the app is running... "
+    wait_for_enter "Press [Enter] when the app is installed... "
   fi
 
   # ── Phase 3: Token Setup ──
