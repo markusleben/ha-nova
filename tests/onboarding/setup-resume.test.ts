@@ -130,8 +130,8 @@ describe.skipIf(!isMac)("S-3: resume after partial abort", () => {
     const output = (result.stdout ?? "") + (result.stderr ?? "");
 
     // Should mention skipping completed steps
-    expect(output).toContain("Skipping completed steps:");
-    expect(output).toContain("app install");
+    expect(output).toContain("Already done:");
+    expect(output).toContain("app installation");
 
     // Should complete
     expect(result.status).toBe(0);
@@ -155,27 +155,22 @@ describe.skipIf(!isMac)("S-3: resume after partial abort", () => {
     const binDir = createMockBinaries({ curlFails: true });
 
     const input = [
+      // Phase 1b: HA host prompt (accept default — config has it)
       // Token phase: "Keep existing token?" [Y] → default
       "",
-      // "Show full token?" [N] → default
+      // "Copy token to clipboard?" [N] → default
       "",
       // LLAT guide: "open HA profile" → press enter
       "",
-      // LLAT done
+      // "open relay settings" → press enter
       "",
-      // Verify: HA host prompt (accept default)
+      // LLAT done / app running
       "",
-      // "Retry host entry?" [Y] → no
-      "n",
-      // "Continue with unverified host?" [N] → yes
-      "y",
-      // Relay URL prompt (accept default)
+      // Relay retry 1: URL prompt (accept default)
       "",
-      // Retry 1: press enter
+      // Relay retry 2: URL prompt (accept default)
       "",
-      // Retry 2: press enter
-      "",
-      // Retry 3: gives up, saves anyway
+      // Relay retry 3: gives up, saves anyway
     ].join("\n");
 
     const result = spawnSync(
@@ -193,13 +188,13 @@ describe.skipIf(!isMac)("S-3: resume after partial abort", () => {
     const output = (result.stdout ?? "") + (result.stderr ?? "");
 
     // Should skip app install
-    expect(output).toContain("Skipping completed steps:");
-    expect(output).toContain("app install");
+    expect(output).toContain("Already done:");
+    expect(output).toContain("app installation");
 
     // Token kept
     expect(output).toContain("Using existing relay auth token from Keychain");
 
     // Should save config despite failures
-    expect(output).toContain("Saving config anyway");
+    expect(output).toContain("Saving your settings anyway");
   });
 });

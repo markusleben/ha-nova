@@ -16,16 +16,25 @@ describe.skipIf(!isMac)("S-7: relay unreachable during setup", () => {
     const home = createMockHome();
     const binDir = createMockBinaries({ curlFails: true });
 
-    // Input: host, relay URL, retries, accept save-anyway
+    // Phase 1b: host prompt → validation fails → continue anyway
+    // Phase 2: app install (Enter × 2)
+    // Phase 3: token gen → open config → saved (Enter × 2)
+    // Phase 3b: LLAT → open profile → open config → app running (Enter × 3)
+    // Phase 4: relay retries (URL prompt × 3, gives up)
     const input = [
-      "192.168.1.5",   // HA host
-      "n",             // don't retry host entry
-      "y",             // continue with unverified
-      "",              // relay URL default
-      "",              // retry 1
-      "",              // retry 2
-      "",              // retry 3 (gives up, saves anyway)
-      "",
+      "192.168.1.5",   // HA host prompt
+      "n",             // "Try a different address?" → no
+      "y",             // "Continue anyway?" → yes
+      "",              // app install: open browser
+      "",              // app install: installation complete
+      "",              // relay token: open settings
+      "",              // relay token: saved
+      "",              // LLAT: open HA profile
+      "",              // LLAT: open relay settings
+      "",              // LLAT: app running
+      "",              // relay retry 1: [Enter] retry
+      "",              // relay retry 2: [Enter] retry
+      "",              // relay retry 3: gives up, saves anyway
     ].join("\n");
 
     const result = spawnSync(
@@ -42,9 +51,10 @@ describe.skipIf(!isMac)("S-7: relay unreachable during setup", () => {
 
     const output = (result.stdout ?? "") + (result.stderr ?? "");
 
-    // Should exhaust retries
-    expect(output).toContain("Can't reach relay");
-    expect(output).toContain("Saving config anyway");
+    // Should exhaust retries with troubleshooting checklist
+    expect(output).toContain("Can't reach the relay");
+    expect(output).toContain("Quick checklist");
+    expect(output).toContain("Saving your settings anyway");
 
     // Config still saved
     expect(result.status).toBe(0);
@@ -58,7 +68,11 @@ describe.skipIf(!isMac)("S-7: relay unreachable during setup", () => {
     const binDir = createMockBinaries({ curlFails: true });
 
     const input = [
-      "192.168.1.5", "n", "y", "", "", "", "", "",
+      "192.168.1.5", "n", "y",  // host
+      "", "",                     // app install
+      "", "",                     // relay token
+      "", "", "",                 // LLAT
+      "", "", "",                 // relay retries
     ].join("\n");
 
     const result = spawnSync(
@@ -74,7 +88,10 @@ describe.skipIf(!isMac)("S-7: relay unreachable during setup", () => {
     );
 
     const output = (result.stdout ?? "") + (result.stderr ?? "");
-    // Should contain diagnostic explanation
-    expect(output).toContain("Relay not reachable");
+    // Should contain diagnostic checklist
+    expect(output).toContain("Can't reach the relay");
+    expect(output).toContain("Quick checklist");
+    expect(output).toContain("NOVA Relay app started");
+    expect(output).toContain("relay_auth_token saved");
   });
 });

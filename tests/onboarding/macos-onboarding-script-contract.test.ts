@@ -105,13 +105,16 @@ describe("macOS onboarding script contract", () => {
     // Probe functions live in lib/relay.sh
     expect(relay).toContain("probe_home_assistant_host");
     expect(relay).toContain("/api/discovery_info");
-    expect(relay).toContain("Cannot continue without a valid Home Assistant host");
-    expect(relay).toContain("Retry host entry");
-    expect(relay).toContain("Continue with unverified host");
+    expect(relay).toContain("Setup needs a Home Assistant address to continue");
+    expect(relay).toContain("Try a different address");
+    expect(relay).toContain("Continue anyway");
     expect(relay).toContain("probe_relay_health");
     expect(relay).toContain("/health");
     // Host validation error message in relay.sh
-    expect(relay).toContain("Could not validate Home Assistant host");
+    expect(relay).toContain("Could not reach Home Assistant");
+    // mDNS service discovery
+    expect(relay).toContain("discover_ha_via_mdns");
+    expect(relay).toContain("_home-assistant._tcp");
     // Setup-flow string still in macos-lib.sh
     expect(lib).toContain("Install NOVA Relay in Home Assistant");
   });
@@ -456,7 +459,7 @@ exit 1
     expect(lib).toContain("open_browser");
 
     // Phase 3: token setup with LLAT guide
-    expect(lib).toContain("my.home-assistant.io/redirect/profile");
+    expect(lib).toContain("profile/security");
 
     // Phase 4: automatic skill installation
     expect(lib).toContain("install-local-skills.sh");
@@ -493,7 +496,7 @@ exit 1
     expect(lib).toContain("skip_skills");
 
     // Skip summary message
-    expect(lib).toContain("Skipping completed steps:");
+    expect(lib).toContain("Already done:");
 
     // Sub-skill names list for state detection
     expect(lib).toContain("HA_NOVA_SUB_SKILLS=(");
