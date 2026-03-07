@@ -10,7 +10,7 @@
         "source": "url",
         "url": "https://github.com/markusleben/ha-nova.git"
       },
-      "version": "0.1.5",
+      "version": "0.1.6",
       "description": "AI-powered Home Assistant control through LLM skills and a local relay"
     }
   ]
