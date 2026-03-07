@@ -40,10 +40,10 @@ Use a client-specific entrypoint instead of manual environment editing.
 **Phase 1: Infrastructure + skill-system consolidation**
 
 Current deliverables:
-1. Relay MVP: `POST /ws` + `GET /health`
+1. Relay MVP: `GET /health`, `POST /ws`, `POST /core`
 2. Context skill: `ha-nova` (auto-loaded via SessionStart hook; sub-skills discovered independently)
-3. Sub-skills (flat under `skills/`): write, read, helper, entity-discovery, service-call, review, onboarding
-4. Shared references under `skills/ha-nova/` (`relay-api.md`, `best-practices.md`, `agents/*`)
+3. Sub-skills (flat under `skills/`): write, read, helper, entity-discovery, service-call, review, guide, onboarding
+4. Shared references under `skills/ha-nova/` (`relay-api.md`, `best-practices.md`, `payload-schemas.md`, `helper-schemas.md`, `template-guidelines.md`, `safe-refactoring.md`, `update-guide.md`, `agents/*`)
 
 ## Tech Stack
 

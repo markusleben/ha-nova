@@ -2,7 +2,7 @@
 
 ## Overview
 
-HA NOVA uses a flat skill layout with one context skill and 7 independent sub-skills under `skills/`.
+HA NOVA uses a flat skill layout with one context skill and 8 independent sub-skills under `skills/`.
 
 Claude Code discovers all skills via `skills/{name}/SKILL.md` (1 level deep). The context skill is auto-loaded via a SessionStart hook.
 
@@ -14,6 +14,9 @@ skills/
   ha-nova/best-practices.md     (reference doc)
   ha-nova/payload-schemas.md    (reference doc)
   ha-nova/helper-schemas.md     (reference doc — helper type payloads)
+  ha-nova/template-guidelines.md (reference doc — when to use templates vs native primitives)
+  ha-nova/safe-refactoring.md   (reference doc — rename, delete, orphan cleanup workflows)
+  ha-nova/update-guide.md       (reference doc — version checks and update flows)
   ha-nova/agents/               (agent templates: resolve, apply, review)
   read/SKILL.md                 (ha-nova:read — automation/script list/get/trace)
   write/SKILL.md                (ha-nova:write — automation/script create/update/delete)
@@ -21,6 +24,7 @@ skills/
   review/SKILL.md               (ha-nova:review — config quality review + collision scan)
   entity-discovery/SKILL.md     (ha-nova:entity-discovery — entity lookup)
   service-call/SKILL.md         (ha-nova:service-call — service calls + runtime control)
+  guide/SKILL.md                (ha-nova:guide — discover HA features and capabilities)
   onboarding/SKILL.md           (ha-nova:onboarding — onboarding + diagnostics)
 ```
 

@@ -39,12 +39,12 @@ Every PR should explain:
 - **Risk** — what could break
 - **Verification** — how to confirm it works
 
-## 🤖 Codex PR Automation
+### What happens after you open a PR
 
-- Automatic Codex review comments are disabled to reduce noise.
-- Optional auto-fix requests are failure-driven and label-gated via `.github/workflows/pr-review-watchdog.yml`.
-- Manual Codex review: comment `@codex review` on the PR.
-- Enable auto-fix: add label `autofix:enabled`. Remove to disable.
+1. **CI runs automatically** — typecheck, tests, build, docs fact-check, CodeQL analysis.
+2. **Codex review bot** may post inline code review comments (optional, non-blocking).
+3. **Maintainer review** — all PRs require an approving review before merge.
+4. **Squash merge** — PRs are squash-merged to keep the history clean.
 
 ## 🧠 Architecture Philosophy
 
@@ -74,10 +74,9 @@ Before adding code to the relay, run these four questions:
 | Domain knowledge (*"lights have brightness"*) | 📝 **Skill** | LLMs know this. The skill reinforces HA-specific details. |
 | Detect conflicting triggers | 📝 **Skill** | Requires reasoning about trigger semantics — pure intelligence. |
 | Suggest energy-saving automations | 📝 **Skill** | Pure reasoning over existing config data. |
-| Backup before config write | 🔧 **Relay** | Needs filesystem access on the HA host. |
-| YAML file access | 🔧 **Relay** | Needs filesystem access. |
-| Entity pre-filtering by domain | 🔧 **Relay** | Proxies HA's own API filter — passes data through, doesn't interpret it. |
-| Real-time state streaming | 🔧 **Relay** | Needs persistent WebSocket subscription on the host. |
+| WebSocket message forwarding | 🔧 **Relay** | Needs persistent WebSocket connection on the host. |
+| REST request forwarding | 🔧 **Relay** | Needs network access to the HA API on the host. |
+| Token storage on HA host | 🔧 **Relay** | Needs filesystem access — keeps secrets off the client. |
 
 ### 📐 What "Infrastructure" Means
 

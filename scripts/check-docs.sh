@@ -63,14 +63,14 @@ else
   fail "Found ${DOMAIN_HITS} domain-logic patterns in src/ — README claims zero business logic."
 fi
 
-# ── 5. Planned features not yet shipped ──
-# README marks auto-backup, filesystem access, state streaming as "(planned)"
-echo "[5] Planned features still unimplemented"
+# ── 5. No unplanned feature creep ──
+# Relay must stay minimal — no backup, filesystem, or streaming endpoints
+echo "[5] No backup/filesystem/streaming endpoints"
 PLANNED_HITS=$(count_matches "backup\|/backup\|/files\|filesystem\|/stream\|EventSource\|SSE" "$REPO_ROOT/nova/src/http/handlers/")
 if (( PLANNED_HITS == 0 )); then
-  pass "No backup/filesystem/streaming endpoints found — correctly marked as (planned)"
+  pass "No backup/filesystem/streaming endpoints found"
 else
-  fail "Found ${PLANNED_HITS} hits for planned features in handlers/ — remove '(planned)' from README if shipped."
+  fail "Found ${PLANNED_HITS} hits for backup/filesystem/streaming in handlers/ — relay should stay minimal."
 fi
 
 # ── 6. Internal links ──
