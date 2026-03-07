@@ -149,21 +149,23 @@ guess_home_assistant_url_base() {
 discover_ha_via_mdns() {
   # Use dns-sd (macOS) to find HA via _home-assistant._tcp service discovery.
   # Returns the host from internal_url/base_url TXT record, or empty string.
+  # Pipeline may exit non-zero (timeout 124, SIGPIPE) — guard with || true
+  # so set -e does not abort the entire setup.
   command -v dns-sd >/dev/null 2>&1 || return 0
 
   local instance
   instance="$(timeout 3 dns-sd -B _home-assistant._tcp local 2>/dev/null \
-    | sed -nE 's/.*_home-assistant._tcp\. +(.+)$/\1/p' | head -1 | sed 's/ *$//')"
+    | sed -nE 's/.*_home-assistant._tcp\. +(.+)$/\1/p' | head -1 | sed 's/ *$//' || true)"
   [[ -z "$instance" ]] && return 0
 
   local txt
-  txt="$(timeout 3 dns-sd -L "$instance" _home-assistant._tcp local 2>/dev/null)"
+  txt="$(timeout 3 dns-sd -L "$instance" _home-assistant._tcp local 2>/dev/null || true)"
   [[ -z "$txt" ]] && return 0
 
   # Extract host from internal_url or base_url TXT record
   local url
-  url="$(printf '%s' "$txt" | sed -nE 's/.*internal_url=([^ ]+).*/\1/p' | head -1)"
-  [[ -z "$url" ]] && url="$(printf '%s' "$txt" | sed -nE 's/.*base_url=([^ ]+).*/\1/p' | head -1)"
+  url="$(printf '%s' "$txt" | sed -nE 's/.*internal_url=([^ ]+).*/\1/p' | head -1 || true)"
+  [[ -z "$url" ]] && url="$(printf '%s' "$txt" | sed -nE 's/.*base_url=([^ ]+).*/\1/p' | head -1 || true)"
   [[ -z "$url" ]] && return 0
 
   normalize_host_input "$url"

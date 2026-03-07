@@ -444,27 +444,26 @@ run_setup() {
   fi
 
   # ── Phase 1b: Resolve HA host early (needed for deeplinks in Phase 2+3) ──
-  if [[ -z "${HA_URL:-}" ]]; then
-    if [[ -n "$flag_host" ]]; then
-      HA_HOST="$(normalize_host_input "$flag_host")"
-      local resolved
-      if resolved="$(resolve_home_assistant_url_base "$flag_host")"; then
-        HA_URL="$resolved"
-      else
-        HA_URL="$(guess_home_assistant_url_base "$flag_host")"
-      fi
+  # --host flag always takes precedence, even over existing config (reconfiguration flow).
+  if [[ -n "$flag_host" ]]; then
+    HA_HOST="$(normalize_host_input "$flag_host")"
+    local resolved
+    if resolved="$(resolve_home_assistant_url_base "$flag_host")"; then
+      HA_URL="$resolved"
     else
-      load_config
-      if [[ -z "${HA_URL:-}" ]]; then
-        echo ""
-        local default_ha_host
-        if with_spinner "Discovering Home Assistant on your network..." detect_default_ha_host; then
-          default_ha_host="$SPINNER_RESULT"
-        else
-          default_ha_host="homeassistant.local"
-        fi
-        prompt_valid_ha_host "$default_ha_host"
+      HA_URL="$(guess_home_assistant_url_base "$flag_host")"
+    fi
+  elif [[ -z "${HA_URL:-}" ]]; then
+    load_config
+    if [[ -z "${HA_URL:-}" ]]; then
+      echo ""
+      local default_ha_host
+      if with_spinner "Discovering Home Assistant on your network..." detect_default_ha_host; then
+        default_ha_host="$SPINNER_RESULT"
+      else
+        default_ha_host="homeassistant.local"
       fi
+      prompt_valid_ha_host "$default_ha_host"
     fi
   fi
 
