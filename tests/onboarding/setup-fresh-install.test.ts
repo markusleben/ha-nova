@@ -114,7 +114,6 @@ describe.skipIf(!isMac)("S-1: fresh install happy path", () => {
 
     const output = (result.stdout ?? "") + (result.stderr ?? "");
     expect(output).toContain("Setup complete!");
-    expect(output).toContain("Using host from --host flag");
   });
 
   it("supports partial flag: --host only, token interactively", () => {
@@ -153,6 +152,5 @@ describe.skipIf(!isMac)("S-1: fresh install happy path", () => {
 
     const output = (result.stdout ?? "") + (result.stderr ?? "");
     expect(output).toContain("Setup complete!");
-    expect(output).toContain("Using host from --host flag");
   });
 });

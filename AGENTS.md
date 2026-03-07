@@ -113,5 +113,5 @@ Use below list to store and recall user notes when asked to do so.
 - Priority: deliver a working MVP first, but keep the architecture modular from day one for later extension.
 - Skills remain pure `*.md` files; no hidden business logic outside this model.
 - Relay implementation must remain lean, clean, and efficient (KISS + DRY, clear responsibilities).
-- UX is a primary success metric: onboarding must feel simple, guided, and low-friction for non-technical users.
+- **UX is king** — the guiding mantra for this project. Always prefer fewer manual steps for the user. When choosing between technical purity and user convenience, convenience wins. This applies from onboarding through skill performance to uninstall. Target audience is not necessarily terminal-savvy.
 - PR hygiene (user requirement): proactively check GitHub PR reviews (including inline review comments via `gh api repos/<owner>/<repo>/pulls/<nr>/comments`) without waiting for a reminder.

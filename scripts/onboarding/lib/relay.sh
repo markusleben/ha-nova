@@ -146,15 +146,41 @@ guess_home_assistant_url_base() {
   fi
 }
 
+discover_ha_via_mdns() {
+  # Use dns-sd (macOS) to find HA via _home-assistant._tcp service discovery.
+  # Returns the host from internal_url/base_url TXT record, or empty string.
+  command -v dns-sd >/dev/null 2>&1 || return 0
+
+  local instance
+  instance="$(timeout 3 dns-sd -B _home-assistant._tcp local 2>/dev/null \
+    | sed -nE 's/.*_home-assistant._tcp\. +(.+)$/\1/p' | head -1 | sed 's/ *$//')"
+  [[ -z "$instance" ]] && return 0
+
+  local txt
+  txt="$(timeout 3 dns-sd -L "$instance" _home-assistant._tcp local 2>/dev/null)"
+  [[ -z "$txt" ]] && return 0
+
+  # Extract host from internal_url or base_url TXT record
+  local url
+  url="$(printf '%s' "$txt" | sed -nE 's/.*internal_url=([^ ]+).*/\1/p' | head -1)"
+  [[ -z "$url" ]] && url="$(printf '%s' "$txt" | sed -nE 's/.*base_url=([^ ]+).*/\1/p' | head -1)"
+  [[ -z "$url" ]] && return 0
+
+  normalize_host_input "$url"
+}
+
 collect_candidate_hosts() {
   local list=""
   local candidate
   local relay_candidate=""
+  local mdns_candidate=""
   local arp_candidates=""
 
   if [[ -n "${RELAY_BASE_URL:-}" ]]; then
     relay_candidate="$(normalize_host_input "$RELAY_BASE_URL")"
   fi
+
+  mdns_candidate="$(discover_ha_via_mdns)"
 
   if command -v arp >/dev/null 2>&1; then
     arp_candidates="$(
@@ -167,6 +193,7 @@ collect_candidate_hosts() {
   for candidate in \
     "${HA_HOST:-}" \
     "${relay_candidate}" \
+    "${mdns_candidate}" \
     homeassistant.local \
     home-assistant.local \
     hass.local \
@@ -207,38 +234,36 @@ prompt_valid_ha_host() {
   local resolved_ha_url
 
   while true; do
-    input="$(prompt_with_default 'Home Assistant URL or host' "$default_host")"
+    input="$(prompt_with_default 'Home Assistant address (IP, hostname, or URL)' "$default_host")"
     host="$(normalize_host_input "$input")"
 
     if [[ -z "$host" ]]; then
-      echo "[ha-nova] Host input is empty." >&2
-      if ! prompt_yes_no "Retry host entry" "Y"; then
-        die "Cannot continue without a valid Home Assistant host."
+      print_fail "No address entered."
+      if ! prompt_yes_no "Try again?" "Y"; then
+        die "Setup needs a Home Assistant address to continue."
       fi
       default_host="${input:-$default_host}"
       continue
     fi
 
-    echo "[..] Validating Home Assistant endpoint..."
-    if resolved_ha_url="$(resolve_home_assistant_url_base "$input")"; then
-      echo "[ok] Home Assistant endpoint validated."
+    if with_spinner "Checking connection to Home Assistant..." resolve_home_assistant_url_base "$input"; then
+      resolved_ha_url="$SPINNER_RESULT"
+      print_success "Connected to Home Assistant at ${host}"
       HA_HOST="$host"
       HA_URL="$resolved_ha_url"
       return
     else
-      echo "[fail] Home Assistant endpoint validation failed."
-      echo "[ha-nova] Could not validate Home Assistant host: ${input}" >&2
-      echo "[ha-nova] Expected a reachable Home Assistant instance (supports URL/host/port)." >&2
+      print_fail "Could not reach Home Assistant at: ${input}"
+      print_info "Make sure Home Assistant is running and reachable from this Mac."
     fi
 
-    if ! prompt_yes_no "Retry host entry" "Y"; then
-      if prompt_yes_no "Continue with unverified host" "N"; then
-        echo "[ha-nova] Continuing with unverified host: ${host}" >&2
+    if ! prompt_yes_no "Try a different address?" "Y"; then
+      if prompt_yes_no "Continue anyway (connection will be verified later)?" "N"; then
         HA_HOST="$host"
         HA_URL="$(guess_home_assistant_url_base "$input")"
         return
       fi
-      die "Cannot continue without a valid Home Assistant host."
+      die "Setup needs a reachable Home Assistant to continue."
     fi
 
     default_host="${input:-$default_host}"

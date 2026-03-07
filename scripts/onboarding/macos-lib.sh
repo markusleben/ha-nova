@@ -370,6 +370,7 @@ run_setup() {
   local flag_host="${HA_NOVA_HOST:-}"
   local flag_token="${HA_NOVA_TOKEN:-}"
 
+  clear_screen
   print_header
 
   if [[ -z "$client" ]]; then
@@ -385,8 +386,9 @@ run_setup() {
 
   if [[ "$SETUP_RELAY_OK" == "1" && "$SETUP_WS_OK" == "1" && "$SETUP_SKILLS_OK" == "1" ]]; then
     print_setup_status
-    echo "  Everything is already set up!"
-    echo "  Run 'ha-nova doctor' for full diagnostics."
+    echo ""
+    print_success "Everything is already set up!"
+    print_info "Run 'npx ha-nova doctor' for full diagnostics."
     echo ""
     return 0
   fi
@@ -431,14 +433,39 @@ run_setup() {
     print_setup_status
 
     local skip_summary=""
-    [[ "$skip_app_install" == "1" ]] && skip_summary="${skip_summary}app install, "
+    [[ "$skip_app_install" == "1" ]] && skip_summary="${skip_summary}app installation, "
     [[ "$skip_relay_token" == "1" ]] && skip_summary="${skip_summary}relay token, "
-    [[ "$skip_llat" == "1" ]] && skip_summary="${skip_summary}LLAT, "
-    [[ "$skip_verify" == "1" ]] && skip_summary="${skip_summary}verify, "
-    [[ "$skip_skills" == "1" ]] && skip_summary="${skip_summary}skills, "
+    [[ "$skip_llat" == "1" ]] && skip_summary="${skip_summary}access token, "
+    [[ "$skip_verify" == "1" ]] && skip_summary="${skip_summary}connection check, "
+    [[ "$skip_skills" == "1" ]] && skip_summary="${skip_summary}skill installation, "
     skip_summary="${skip_summary%, }"
-    print_info "Skipping completed steps: ${skip_summary}"
+    print_info "Already done: ${skip_summary}"
     echo ""
+  fi
+
+  # ── Phase 1b: Resolve HA host early (needed for deeplinks in Phase 2+3) ──
+  if [[ -z "${HA_URL:-}" ]]; then
+    if [[ -n "$flag_host" ]]; then
+      HA_HOST="$(normalize_host_input "$flag_host")"
+      local resolved
+      if resolved="$(resolve_home_assistant_url_base "$flag_host")"; then
+        HA_URL="$resolved"
+      else
+        HA_URL="$(guess_home_assistant_url_base "$flag_host")"
+      fi
+    else
+      load_config
+      if [[ -z "${HA_URL:-}" ]]; then
+        echo ""
+        local default_ha_host
+        if with_spinner "Discovering Home Assistant on your network..." detect_default_ha_host; then
+          default_ha_host="$SPINNER_RESULT"
+        else
+          default_ha_host="homeassistant.local"
+        fi
+        prompt_valid_ha_host "$default_ha_host"
+      fi
+    fi
   fi
 
   # ── Phase 2: App Installation Guide ──
@@ -447,30 +474,34 @@ run_setup() {
 
   if [[ "$skip_app_install" == "0" ]]; then
     # Install NOVA Relay App in Home Assistant (do NOT start yet — tokens come first).
+    clear_screen
+    print_header
     print_step 1 4 "Install NOVA Relay in Home Assistant"
     echo ""
-    print_info "We need to add the NOVA repository to your Home Assistant."
-    print_info "I'll open your browser to do this."
+    print_info "I'll open your browser to add the HA NOVA repository."
+    print_info "Just click \"Open link\" when prompted."
     echo ""
     wait_for_enter "Press [Enter] to open your browser... "
     open_browser "https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Fmarkusleben%2Fha-nova"
     echo ""
-    print_info "In Home Assistant:"
-    print_info "  1. Confirm adding the repository"
-    print_info "  2. Go to Settings > Apps > App Store"
-    print_info "  3. Search for \"NOVA Relay\""
-    print_info "  4. Click Install (do NOT start yet — we'll configure tokens first)"
+    print_info "Once the repository is added:"
+    print_info "  1. Go to Settings > Apps > App Store"
+    print_info "  2. Search for \"NOVA Relay\""
+    print_info "  3. Click Install and wait for it to finish"
+    print_info "     (don't start the app yet — we'll set up the tokens first)"
     echo ""
-    wait_for_enter "Press [Enter] when the app is installed... "
+    wait_for_enter "Press [Enter] when the installation is complete... "
   fi
 
   # ── Phase 3: Token Setup ──
   if [[ "$skip_relay_token" == "0" ]]; then
-    print_step 2 4 "Configure Authentication"
+    clear_screen
+    print_header
+    print_step 2 4 "Set up secure access"
     echo ""
-    print_info "NOVA uses two tokens to keep your setup secure:"
-    print_info "  a) Relay token — a shared secret so only your machines can reach the relay"
-    print_info "  b) HA access token — lets the relay control Home Assistant on your behalf"
+    print_info "NOVA needs two passwords (\"tokens\") to work securely:"
+    print_info "  a) Relay token — keeps the connection between this Mac and Home Assistant private"
+    print_info "  b) HA access token — allows the relay to control your devices and automations"
     echo ""
 
     # 3a) Relay token
@@ -482,40 +513,55 @@ run_setup() {
       print_info "Existing relay token found: $(mask_secret_hint "$existing_relay_auth_token")"
       if prompt_yes_no "Keep existing token?" "Y"; then
         relay_auth_token="$existing_relay_auth_token"
-        if prompt_yes_no "Show full token? (to copy into app config)" "N"; then
-          echo ""
-          echo "    ${relay_auth_token}"
-          echo ""
+        if prompt_yes_no "Copy token to clipboard? (to paste into app config)" "N"; then
+          if command -v pbcopy >/dev/null 2>&1; then
+            printf '%s' "$relay_auth_token" | pbcopy
+            print_success "Copied to clipboard."
+          else
+            echo ""
+            echo "    ${relay_auth_token}"
+            echo ""
+          fi
         fi
         log "Using existing relay auth token from Keychain."
       else
         relay_auth_token="$(generate_relay_token)"
+        store_keychain_secret "$RELAY_SERVICE" "$relay_auth_token"
         echo ""
         print_info "New token: ${relay_auth_token}"
+        print_success "Saved to Keychain."
+        if command -v pbcopy >/dev/null 2>&1; then
+          printf '%s' "$relay_auth_token" | pbcopy
+          print_success "Copied to clipboard."
+        fi
       fi
     else
       relay_auth_token="$(generate_relay_token)"
+      store_keychain_secret "$RELAY_SERVICE" "$relay_auth_token"
       echo ""
-      print_info "Generated a secure relay token:"
+      print_info "Here is your relay token (generated automatically):"
       echo ""
       echo "    ${relay_auth_token}"
       echo ""
-      print_info "Next: paste this into the NOVA Relay app configuration."
-      print_info "(The \"relay_auth_token\" field)"
+      print_success "Saved to Keychain — safe even if you quit now."
+      if command -v pbcopy >/dev/null 2>&1; then
+        printf '%s' "$relay_auth_token" | pbcopy
+        print_success "Copied to clipboard — just paste it in the next step."
+      else
+        print_info "Copy the token above — you'll paste it in the next step."
+      fi
+      print_info "You can press [c] at any prompt to copy it again."
     fi
 
     if [[ "$relay_auth_token" != "${existing_relay_auth_token:-}" ]]; then
       echo ""
-      wait_for_enter "Press [Enter] to open the app config... "
-      # Try direct link if we know the HA URL
-      load_config
-      if [[ -n "${HA_URL:-}" ]]; then
-        open_browser "${HA_URL}/hassio/addon/2368fcfa_ha_nova_relay/config"
-      else
-        open_browser "https://my.home-assistant.io/redirect/supervisor_addon/?addon=2368fcfa_ha_nova_relay"
-      fi
+      print_info "I'll open the NOVA Relay settings in your browser."
+      print_info "Paste the token into the \"relay_auth_token\" field and click Save."
       echo ""
-      wait_for_enter "Press [Enter] when you've saved the relay token... "
+      wait_for_enter_or_copy "Press [Enter] to open the settings..." "$relay_auth_token"
+      open_browser "${HA_URL}/hassio/addon/2368fcfa_ha_nova_relay/config"
+      echo ""
+      wait_for_enter_or_copy "Press [Enter] when you've saved the token..." "$relay_auth_token"
     fi
   else
     # CLI --token takes precedence; fall back to Keychain
@@ -531,83 +577,58 @@ run_setup() {
     print_info "Now for the second token: a Home Assistant access token."
     print_info "This lets the relay control your devices and automations."
     echo ""
+    print_info "I'll open your Home Assistant profile page."
+    print_info "Follow these steps there:"
+    echo ""
+    print_info "  1. Click the \"Security\" tab"
+    print_info "  2. Scroll down to \"Long-Lived Access Tokens\""
+    print_info "  3. Click \"Create Token\" and name it \"NOVA\""
+    print_info "  4. Copy the token that appears"
+    echo ""
     wait_for_enter "Press [Enter] to open your HA profile... "
-    load_config
-    if [[ -n "${HA_URL:-}" ]]; then
-      open_browser "${HA_URL}/profile/security"
-    else
-      open_browser "https://my.home-assistant.io/redirect/profile/"
-    fi
+    open_browser "${HA_URL}/profile/security"
     echo ""
-    print_info "In Home Assistant:"
-    print_info "  1. Click the \"Security\" tab (if not already there)"
-    print_info "  2. Scroll to \"Long-Lived Access Tokens\""
-    print_info "  3. Click \"Create Token\" (e.g. name it \"NOVA\")"
-    print_info "  4. Copy the token"
-    print_info "  5. Go to the NOVA Relay app > Configuration"
-    print_info "  6. Paste into the \"ha_llat\" field"
-    print_info "  7. Click Save, then Start (or Restart) the app"
+    print_info "Got it? Now I'll open the NOVA Relay settings so you can paste it."
     echo ""
-    wait_for_enter "Press [Enter] when done... "
+    wait_for_enter "Press [Enter] to open the relay settings... "
+    open_browser "${HA_URL}/hassio/addon/2368fcfa_ha_nova_relay/config"
+    echo ""
+    print_info "  5. Paste the token into the \"ha_llat\" field"
+    print_info "  6. Click Save"
+    print_info "  7. Click Start (or Restart if already running)"
+    echo ""
+    wait_for_enter "Press [Enter] when the app is running... "
 
     # Quick WS re-check if relay was already OK (no full verify needed)
     if [[ "$skip_verify" == "1" ]]; then
       echo ""
-      print_info "Verifying WebSocket connection..."
-      if probe_relay_health "$RELAY_BASE_URL" "$relay_auth_token"; then
+      if with_spinner "Checking connection..." probe_relay_health "$RELAY_BASE_URL" "$relay_auth_token"; then
         if [[ "$LAST_RELAY_HA_WS_CONNECTED" == "true" ]]; then
-          print_success "WebSocket connected"
+          print_success "Connected to Home Assistant"
         elif probe_relay_ws_ping "$RELAY_BASE_URL" "$relay_auth_token"; then
-          print_success "WebSocket connected"
+          print_success "Connected to Home Assistant"
         else
-          print_fail "WebSocket still not connected. Run 'ha-nova doctor' to diagnose."
+          print_fail "Relay is running but can't reach Home Assistant. Run: npx ha-nova doctor"
         fi
       else
-        print_fail "Relay no longer reachable. Run 'ha-nova doctor' to diagnose."
+        print_fail "Can't reach the relay. Run: npx ha-nova doctor"
       fi
     fi
   fi
 
   # ── Phase 4: Verify + Save + Install Skills ──
   if [[ "$skip_verify" == "0" ]]; then
+    clear_screen
+    print_header
     print_step 3 4 "Verifying connection"
 
-    if [[ -n "$flag_host" ]]; then
-      # CLI flag: use provided host directly
-      HA_HOST="$(normalize_host_input "$flag_host")"
-      local resolved
-      if resolved="$(resolve_home_assistant_url_base "$flag_host")"; then
-        HA_URL="$resolved"
-      else
-        HA_URL="$(guess_home_assistant_url_base "$flag_host")"
-      fi
-      print_info "Using host from --host flag: ${HA_HOST}"
-    else
-      # Interactive: detect and prompt
-      echo ""
-      print_info "Detecting Home Assistant..."
-      local default_ha_host
-      default_ha_host="$(detect_default_ha_host)"
-      prompt_valid_ha_host "$default_ha_host"
-    fi
+    # HA_HOST/HA_URL already resolved in Phase 1b
 
     local default_relay_base_url
     default_relay_base_url="${RELAY_BASE_URL:-http://${HA_HOST}:8791}"
 
-    if [[ -n "$flag_host" ]]; then
-      # When host is provided via flag, auto-derive relay URL
-      RELAY_BASE_URL="$default_relay_base_url"
-    else
-      while true; do
-        RELAY_BASE_URL="$(prompt_with_default 'Relay URL' "$default_relay_base_url")"
-        RELAY_BASE_URL="${RELAY_BASE_URL%/}"
-        if validate_relay_base_url_format "$RELAY_BASE_URL"; then
-          break
-        fi
-        print_fail "Invalid URL. Expected: http://<host>:<port>"
-        default_relay_base_url="$RELAY_BASE_URL"
-      done
-    fi
+    # Auto-derive relay URL from known HA host — only prompt if verification fails
+    RELAY_BASE_URL="$default_relay_base_url"
 
     # Verify relay
     echo ""
@@ -617,19 +638,21 @@ run_setup() {
 
     local attempt=0
     while true; do
-      if probe_relay_health "$RELAY_BASE_URL" "$relay_auth_token"; then
-        print_success "Relay reachable at ${RELAY_BASE_URL}"
+      if with_spinner "Connecting to NOVA Relay..." probe_relay_health "$RELAY_BASE_URL" "$relay_auth_token"; then
+        print_success "NOVA Relay is running at ${RELAY_BASE_URL}"
         if [[ "$LAST_RELAY_HA_WS_CONNECTED" == "true" ]]; then
-          print_success "WebSocket connected to Home Assistant"
+          print_success "Connected to Home Assistant"
         elif [[ "$LAST_RELAY_HA_WS_CONNECTED" == "false" ]]; then
           if probe_relay_ws_ping "$RELAY_BASE_URL" "$relay_auth_token"; then
-            print_success "WebSocket connected to Home Assistant"
+            print_success "Connected to Home Assistant"
           else
-            print_fail "WebSocket not connected. Is ha_llat set in the app config?"
+            echo ""
+            print_fail "The relay is running but can't reach Home Assistant."
+            print_info "This usually means the HA access token (ha_llat) is missing or incorrect."
             explain_relay_ws_degraded
             if [[ "$non_interactive_verify" == "1" ]]; then
-              print_info "Continuing (non-interactive mode). Fix with 'ha-nova doctor'."
-            elif ! prompt_yes_no "Continue anyway? (fix later with 'ha-nova doctor')" "Y"; then
+              print_info "Continuing — you can fix this later with: npx ha-nova doctor"
+            elif ! prompt_yes_no "Continue anyway? (you can fix this later)" "Y"; then
               die "Setup aborted."
             fi
           fi
@@ -637,13 +660,43 @@ run_setup() {
         break
       else
         attempt=$((attempt + 1))
-        print_fail "Can't reach relay at ${RELAY_BASE_URL}"
-        explain_relay_probe_failure "$RELAY_BASE_URL"
+        print_fail "Can't reach the relay at ${RELAY_BASE_URL}"
+        echo ""
+        print_info "Quick checklist — please verify:"
+        print_info "  1. Is the NOVA Relay app started in Home Assistant?"
+        print_info "     (Settings > Apps > NOVA Relay > Start)"
+        print_info "  2. Is the relay_auth_token saved in the app settings?"
+        if [[ -n "${relay_auth_token:-}" ]]; then
+          print_info "     Your token: $(mask_secret_hint "$relay_auth_token")"
+        fi
+        print_info "  3. Is the HA access token (ha_llat) saved in the app settings?"
+        print_info "  4. Is this Mac on the same network as Home Assistant?"
+        echo ""
         if (( attempt >= max_retries )) || [[ "$non_interactive_verify" == "1" ]]; then
-          print_info "Saving config anyway. Run 'ha-nova doctor' after fixing."
+          print_info "Saving your settings anyway. You can troubleshoot later with: npx ha-nova doctor"
           break
         fi
-        wait_for_enter "Press [Enter] to retry... "
+        if [[ "$non_interactive_verify" == "0" ]]; then
+          # Retry prompt with copy shortcut
+          local retry_input=""
+          if ! read -r -p "  [Enter] retry · [c] copy token · or enter a different URL: " retry_input; then
+            retry_input=""
+          fi
+          if [[ "$retry_input" =~ ^[Cc]$ ]]; then
+            if command -v pbcopy >/dev/null 2>&1 && [[ -n "${relay_auth_token:-}" ]]; then
+              printf '%s' "$relay_auth_token" | pbcopy
+              print_success "Token copied to clipboard."
+            else
+              echo ""
+              echo "    ${relay_auth_token:-<no token>}"
+              echo ""
+            fi
+            # Don't count copy as a retry attempt — let them try again
+            attempt=$((attempt - 1))
+          elif [[ -n "$retry_input" ]]; then
+            RELAY_BASE_URL="${retry_input%/}"
+          fi
+        fi
       fi
     done
 
@@ -656,25 +709,41 @@ run_setup() {
   fi
 
   if [[ "$skip_skills" == "0" ]]; then
-    # Install skills
     echo ""
-    print_step 4 4 "Installing skills"
-    echo ""
-    if bash "${REPO_ROOT}/scripts/onboarding/install-local-skills.sh" "$client" 2>&1; then
-      print_success "Skills installed for ${client}"
+    clear_screen
+    print_header
+    print_step 4 4 "Installing HA NOVA skills"
+    if with_spinner "Setting up HA NOVA for ${client}..." bash "${REPO_ROOT}/scripts/onboarding/install-local-skills.sh" "$client"; then
+      print_success "HA NOVA skills installed for ${client}"
     else
-      print_fail "Skill installation failed. Run: npm run install:${client}-skill"
+      print_fail "Skill installation had issues. You can retry with: npm run install:${client}-skill"
     fi
   fi
 
   # Success banner
+  clear_screen
+  print_header
+
+  # Friendly client name for the banner
+  local client_label
+  case "$client" in
+    claude)   client_label="Claude Code" ;;
+    codex)    client_label="Codex CLI" ;;
+    opencode) client_label="OpenCode" ;;
+    gemini)   client_label="Gemini CLI" ;;
+    all)      client_label="your AI assistant" ;;
+    *)        client_label="your AI assistant" ;;
+  esac
+
   echo ""
-  echo "  ======================================="
-  echo "  Setup complete!"
+  print_success "Setup complete!"
   echo ""
-  echo "  Try asking: \"List my automations\""
-  echo "  Diagnostics: npx ha-nova doctor"
-  echo "  ======================================="
+  print_info "Open ${client_label} and try asking:"
+  echo ""
+  echo "    \"Turn off the living room light\""
+  echo "    \"List my automations\""
+  echo ""
+  print_info "Need help? Run: npx ha-nova doctor"
   echo ""
 }
 
