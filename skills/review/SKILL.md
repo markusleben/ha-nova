@@ -110,7 +110,7 @@ Analyze config against these checks AND any additional issues found in the offic
 - R-15 [MEDIUM]: Asymmetric error handling — same physical action (e.g., `cover.open_cover`, `climate.set_temperature`) appears in multiple branches but only some have retry/fallback logic; inconsistent reliability across code paths
 
 **Performance (Medium):**
-- P-01: `platform: template` trigger that could be a `platform: state` trigger
+- P-01: `platform: template` trigger that could be a `platform: state` trigger (see `skills/ha-nova/template-guidelines.md` → Decision Tree)
 - P-02: `homeassistant.update_entity` inside a `repeat:` loop without meaningful delay
 - P-03: Polling loop (`repeat: while:` + short `delay:`) instead of `wait_for_trigger`
 - P-04: Template trigger using `now()` for time-sensitive logic — re-evaluates only once per minute; for sub-minute precision use `time_pattern` trigger or a dedicated sensor
@@ -138,7 +138,7 @@ Analyze config against these checks AND any additional issues found in the offic
 - H-04 [LOW]: `input_select` `initial` not set — defaults to first option, may not be intended
 - H-05 [MEDIUM]: `counter` without `minimum`/`maximum` — unbounded growth risk
 - H-06 [LOW]: `timer` without `duration` — must be set via service call before start
-- H-07 [MEDIUM]: Orphaned helper — not referenced by any automation/script (check via `search/related`)
+- H-07 [MEDIUM]: Orphaned helper — not referenced by any automation/script (check via `search/related`; for cleanup workflow see `skills/ha-nova/safe-refactoring.md` → Orphan Cleanup)
 - H-08 [LOW]: Naming inconsistency — mixed patterns across helpers (e.g., `sleep_mode` vs `Sleep Mode` vs `sleepMode`)
 
 ### Step 2: Collision Scan

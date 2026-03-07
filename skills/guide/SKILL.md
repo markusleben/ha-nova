@@ -285,6 +285,7 @@ Create complex helper types that require multi-step config flows (template senso
 ### Entity Registry Edits -- RELAY-READY
 
 Rename entities, change area/label assignments, disable or hide entities.
+For safe rename/delete workflows with consumer impact checks, see `skills/ha-nova/safe-refactoring.md`.
 
 **Search:** `home assistant entity registry update rename disable api 2026`
 

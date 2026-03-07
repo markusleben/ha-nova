@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <b>Talk to your smart home. In plain language. From your terminal.</b><br>
+  <b>Talk to your smart home. In plain language.</b><br>
   <sub>Not an MCP server. Not a chatbot. Skills that teach your AI how Home Assistant works.</sub>
 </p>
 
@@ -90,12 +90,17 @@ npx ha-nova setup
 
 ## 🤖 Supported AI Clients
 
-| Client | Status |
-|--------|--------|
-| [Claude Code](https://github.com/anthropics/claude-code) | ✅ Supported |
-| [Codex CLI](https://github.com/openai/codex) | ✅ Supported |
-| [OpenCode](https://github.com/nicepkg/OpenCode) | ✅ Supported |
-| [Gemini CLI](https://github.com/google-gemini/gemini-cli) | ✅ Supported |
+| Client | Status | Type |
+|--------|--------|------|
+| [Claude Desktop](https://claude.com/download) (Code tab) | ✅ Supported | Desktop app |
+| [Claude Code](https://github.com/anthropics/claude-code) | ✅ Supported | Terminal |
+| [Codex CLI](https://github.com/openai/codex) | ✅ Supported | Terminal |
+| [OpenCode](https://github.com/nicepkg/OpenCode) | ✅ Supported | Terminal |
+| [Gemini CLI](https://github.com/google-gemini/gemini-cli) | ✅ Supported | Terminal |
+
+> **Don't like terminals?** Claude Desktop is the easiest way to get started. It gives you a full graphical interface — same capabilities as the terminal, but with clickable buttons, visual diffs, and a chat-like experience. You just need a [Claude Pro, Max, or Team plan](https://claude.com/pricing).
+>
+> **How to set up:** Run the install command from [Quick Start](#-quick-start) and select **Claude Code** when asked. Claude Desktop's Code tab shares the same configuration, so the plugin works in both. Then open Claude Desktop, switch to the **Code** tab, and pick a folder on your Mac — for example create one called `SmartHome` on your Desktop. This folder is just a workspace for your AI. You don't need to put anything in it — just select it and start talking.
 
 ## 📖 What Your AI Can Learn
 
