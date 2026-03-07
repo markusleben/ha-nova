@@ -1,0 +1,18 @@
+#!/bin/sh
+echo "[pre-push] Running local checks before push..."
+echo ""
+
+echo "[1/4] Typecheck..."
+npm run typecheck || { echo "[pre-push] FAILED: typecheck"; exit 1; }
+
+echo "[2/4] Tests..."
+npm test || { echo "[pre-push] FAILED: tests"; exit 1; }
+
+echo "[3/4] Build..."
+npm run build || { echo "[pre-push] FAILED: build"; exit 1; }
+
+echo "[4/4] Docs fact-check..."
+bash scripts/check-docs.sh || { echo "[pre-push] FAILED: docs fact-check"; exit 1; }
+
+echo ""
+echo "[pre-push] All 4 checks passed."
