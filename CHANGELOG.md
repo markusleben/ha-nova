@@ -4,6 +4,12 @@ All notable changes to this project are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [Relay 0.2.0] - 2026-03-07
+
+### Changed
+- **Independent version lines** — Relay (`config.yaml`) and Skills (`version.json`) are now versioned separately; skill-only updates no longer trigger unnecessary HA App rebuilds
+- **Bump script** — No longer touches `config.yaml`; only bumps skill version files
+
 ## [0.1.4] - 2026-03-07
 
 ### Added

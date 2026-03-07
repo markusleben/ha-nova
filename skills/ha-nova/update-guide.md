@@ -1,5 +1,16 @@
 # HA NOVA Update Guide
 
+## Two Independent Version Lines
+
+| Track | File | Scope | Bumped when |
+|-------|------|-------|-------------|
+| **Skill** | `version.json:skill_version` | Skills, plugin, package | Skill logic changes |
+| **Relay** | `config.yaml:version` | HA App (Supervisor) | Relay runtime changes |
+
+`version.json:min_relay_version` bridges the two: skills declare the minimum Relay version they need. The SessionStart hook warns if the running Relay is too old.
+
+**Why separate?** Skill-only improvements (new checks, better prompts) should not force a Relay reinstall/rebuild on the user's HA instance.
+
 ## Relay (Home Assistant App)
 
 HA Settings > Apps > NOVA Relay > Update (or reinstall from App Store).
@@ -14,9 +25,9 @@ HA Settings > Apps > NOVA Relay > Update (or reinstall from App Store).
 
 ## Check Versions
 
-- **Skills:** `cat version.json` (in repo root)
-- **Relay:** `~/.config/ha-nova/relay health` (look for `"version"`)
-- **Compatibility:** `version.json:min_relay_version` must be <= Relay version
+- **Skills:** `cat version.json` → `skill_version` field
+- **Relay:** `~/.config/ha-nova/relay health` → `"version"` field (matches `config.yaml`)
+- **Compatibility:** `version.json:min_relay_version` must be <= running Relay version
 
 ## Automatic Checks
 
