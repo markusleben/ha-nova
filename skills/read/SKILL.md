@@ -50,9 +50,9 @@ Use short keyword stems to handle spelling variants. Always limit results.
   | jq '[.data.entities[] | select(.ei | startswith("automation.")) | select((.ei + " " + (.en // "")) | test("KEYWORD";"i")) | {entity_id: .ei, name: .en, area_id: .ai}] | .[0:20]'
 ```
 
-If 0 results: try synonyms, alternative terms, or shorter stems: `test("kw1|kw2";"i")`. Never dump entire domains.
+If 0 results: try synonyms or shorter stems: `test("kw1|kw2";"i")`. Never dump entire domains.
 
-For "automations in room X": use entity-discovery skill's area → device → `search/related` flow.
+For "automations in room X": use entity-discovery skill's `search/related` flow.
 
 ### Reading a single config
 
@@ -66,13 +66,13 @@ Always resolve the config key via entity registry first — the entity_id slug a
   | jq -r '.data.unique_id'
 # For scripts: use "entity_id":"script.{slug}"
 
-# Step 2: Fetch config using the resolved unique_id (REST envelope: .data.body)
+# Step 2: Fetch config using the resolved unique_id — fail on error envelope
 ~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/config/automation/config/{unique_id}"}' \
-  | jq '.data.body' > /tmp/ha-config-{slug}.json
+  | jq 'if .ok then .data.body else error("relay error: \(.error // "unknown")") end' > /tmp/ha-config-{slug}.json
 # For scripts: /api/config/script/config/{unique_id}
 
-# Verify JSON is valid (exits 0 if valid, non-zero if invalid/truncated)
-jq empty /tmp/ha-config-{slug}.json
+# Verify JSON is valid (catches truncation AND null from failed extraction)
+jq -e 'type == "object"' /tmp/ha-config-{slug}.json > /dev/null
 ```
 
 **Read the file using your native file-reading tool** (Claude: `Read`, Gemini: file read, Cursor: open file). Do NOT use `cat`, `head`, or shell output — these may truncate.
