@@ -45,7 +45,7 @@ Most Home Assistant AI integrations bake domain logic into server code — tool 
 │   LLM Skills    │
 │   (Markdown)    │
 │                 │
-│  8 skill files  │
+│  9 skill files  │
 │  teach your AI  │
 │  how to operate │
 │  Home Assistant  │
