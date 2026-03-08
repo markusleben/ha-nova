@@ -52,8 +52,8 @@ After client updates, shared tools (relay CLI, version-check, update script itse
 
 Two checks run automatically:
 
-1. **Skill update check** — All clients: context skill runs `~/.config/ha-nova/version-check` (cached 24h). Claude Code also checks via SessionStart hook. Shows: `UPDATE AVAILABLE: v0.1.2 -> v0.2.0`
-2. **Relay compat check** — SessionStart hook (Claude Code only) compares Relay version against `min_relay_version`. Shows: `WARNING: Relay version X is below minimum Y`
+1. **Skill update check** — All clients: `relay health` runs `~/.config/ha-nova/version-check` (cached 24h). Claude Code also checks via SessionStart hook. Shows: `UPDATE AVAILABLE: v0.1.2 -> v0.2.0`
+2. **Relay compat check** — `relay health` compares Relay version against `min_relay_version`. Claude Code SessionStart hook also checks independently. Shows: `WARNING: Relay version X is below minimum Y`
 
 The `doctor` command (`npx ha-nova doctor` from the repo) runs both checks synchronously and also refreshes the update cache.
 

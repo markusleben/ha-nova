@@ -73,5 +73,5 @@ if semver_lt "$local_v" "$remote_v"; then
   else
     echo "⚠️ UPDATE AVAILABLE: v${local_v} → v${remote_v} | Run: git pull in your ha-nova repo, then re-run setup."
   fi
-  echo "AGENT: Include version info and update command above in your response to the user."
+  echo "AGENT: Inform the user about the available update and ask if they want you to run it now. After update, a new session is required."
 fi

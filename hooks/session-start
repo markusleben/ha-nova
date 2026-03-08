@@ -97,9 +97,9 @@ if [[ -f "$version_file" ]]; then
     latest_skill_version=$(extract_json_string "skill_version" "$cached_json")
     if [[ -n "$latest_skill_version" && "$latest_skill_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ && -n "$SKILL_VERSION" ]] && semver_lt "$SKILL_VERSION" "$latest_skill_version"; then
       if [[ -x "${HOME}/.config/ha-nova/update" ]]; then
-        update_notice="[ha-nova] UPDATE AVAILABLE: v${SKILL_VERSION} -> v${latest_skill_version}. Run: ~/.config/ha-nova/update\\n"
+        update_notice="[ha-nova] UPDATE AVAILABLE: v${SKILL_VERSION} -> v${latest_skill_version}. Ask the user if they want you to run: ~/.config/ha-nova/update (new session required after update)\\n"
       else
-        update_notice="[ha-nova] UPDATE AVAILABLE: v${SKILL_VERSION} -> v${latest_skill_version}. Run: git pull in your ha-nova repo, then re-run setup.\\n"
+        update_notice="[ha-nova] UPDATE AVAILABLE: v${SKILL_VERSION} -> v${latest_skill_version}. Ask the user if they want to update: git pull in ha-nova repo, then re-run setup. (new session required after update)\\n"
       fi
     fi
 

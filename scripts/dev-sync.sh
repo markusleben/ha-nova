@@ -147,10 +147,72 @@ sync_relay() {
   synced+=("Relay CLI")
 }
 
+# ─── Guardrail: verify installed_plugins.json integrity ──────────────
+# Detects and auto-fixes mismatches between installPath in
+# installed_plugins.json and the actual cache directory on disk.
+# Prevents broken plugin discovery even after manual path manipulation.
+verify_plugin_integrity() {
+  local plugins_json="${HOME}/.claude/plugins/installed_plugins.json"
+  [[ ! -f "$plugins_json" ]] && return
+
+  local install_path
+  install_path=$(
+    sed -n '/"ha-nova@ha-nova"/,/installPath/s/.*"installPath"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
+      "$plugins_json" | head -1
+  )
+  [[ -z "$install_path" ]] && return
+
+  # Expand ~ if present
+  install_path="${install_path/#\~/$HOME}"
+
+  # Happy path: installPath exists on disk
+  if [[ -d "$install_path" ]]; then
+    # Verify it actually contains plugin files (hooks/skills)
+    if [[ -f "${install_path}/hooks/session-start" && -d "${install_path}/skills" ]]; then
+      return  # all good
+    fi
+    echo "[dev:sync] GUARDRAIL: installPath exists but is missing plugin files: ${install_path}"
+    echo "[dev:sync] GUARDRAIL: run 'bash scripts/dev-sync.sh' again or reinstall: claude plugin install ha-nova@ha-nova"
+    return
+  fi
+
+  # installPath does NOT exist — find the actual versioned dir
+  echo "[dev:sync] GUARDRAIL: installPath in installed_plugins.json does not exist: ${install_path}"
+
+  local cache_parent
+  cache_parent="$(dirname "$install_path")"  # e.g. cache/ha-nova/ha-nova
+
+  local actual_dir=""
+  if [[ -d "$cache_parent" ]]; then
+    actual_dir=$(ls -1d "${cache_parent}"/[0-9]* 2>/dev/null | sort -V | tail -1 || true)
+  fi
+
+  if [[ -z "$actual_dir" ]]; then
+    echo "[dev:sync] GUARDRAIL: no versioned directory found under ${cache_parent}"
+    echo "[dev:sync] GUARDRAIL: reinstall required: claude plugin install ha-nova@ha-nova"
+    return
+  fi
+
+  # Fix installed_plugins.json — scope replacement to ha-nova block only
+  sed -i '' "/"ha-nova@ha-nova"/,/installPath/{s|\"installPath\": \"${install_path}\"|\"installPath\": \"${actual_dir}\"|;}" "$plugins_json"
+
+  # Also fix the version field to match the directory name
+  local dir_version; dir_version=$(basename "$actual_dir")
+  local old_version
+  old_version=$(sed -n '/"ha-nova@ha-nova"/,/\"version\"/s/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$plugins_json" | head -1)
+  if [[ -n "$old_version" && "$old_version" != "$dir_version" ]]; then
+    sed -i '' "/"ha-nova@ha-nova"/,/\"version\"/{s/\"version\": \"${old_version}\"/\"version\": \"${dir_version}\"/;}" "$plugins_json"
+  fi
+
+  echo "[dev:sync] GUARDRAIL: FIXED installPath: ${install_path} → ${actual_dir}"
+  echo "[dev:sync] GUARDRAIL: plugin discovery restored"
+}
+
 # ─── Run ──────────────────────────────────────────────────────────────
 sync_claude
 sync_gemini
 sync_relay
+verify_plugin_integrity
 
 if [[ ${#synced[@]} -eq 0 ]]; then
   echo "[dev:sync] Nothing to sync — no clients detected."
