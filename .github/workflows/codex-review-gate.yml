@@ -22,8 +22,16 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           echo "⏳ Waiting for chatgpt-codex-connector[bot] to review..."
+
+          # Get head commit timestamp — only count bot signals newer than this
+          # (reactions persist across pushes; stale +1 must not skip the gate)
+          COMMIT_TIME=$(gh api "repos/${REPO}/commits/${HEAD_SHA}" \
+            2>/dev/null | jq -r '.commit.committer.date' || echo "")
+          echo "Head commit: ${HEAD_SHA:0:8} at ${COMMIT_TIME}"
+
           echo "Initial wait: 5 minutes (bot takes ~7 min)"
           sleep 300
 
@@ -31,9 +39,17 @@ jobs:
             echo "Poll attempt ${attempt}/4..."
 
             # Check 1: +1 reaction on PR = bot reviewed, no findings
-            REACTION=$(gh api "repos/${REPO}/issues/${PR_NUMBER}/reactions" \
-              2>/dev/null | jq '[.[] | select(.user.login == "chatgpt-codex-connector[bot]" and .content == "+1")] | length' \
-              || echo "0")
+            # Only count reactions created after the current head commit
+            if [ -n "$COMMIT_TIME" ]; then
+              REACTION=$(gh api "repos/${REPO}/issues/${PR_NUMBER}/reactions" \
+                2>/dev/null | jq --arg since "$COMMIT_TIME" \
+                '[.[] | select(.user.login == "chatgpt-codex-connector[bot]" and .content == "+1" and .created_at > $since)] | length' \
+                || echo "0")
+            else
+              REACTION=$(gh api "repos/${REPO}/issues/${PR_NUMBER}/reactions" \
+                2>/dev/null | jq '[.[] | select(.user.login == "chatgpt-codex-connector[bot]" and .content == "+1")] | length' \
+                || echo "0")
+            fi
 
             if [ "$REACTION" -gt 0 ]; then
               echo "✅ Codex bot reacted with 👍 — no findings. Gate passed."
@@ -41,14 +57,29 @@ jobs:
             fi
 
             # Check 2: PR-level reviews = bot posted findings
-            REVIEWS=$(gh api "repos/${REPO}/pulls/${PR_NUMBER}/reviews" --paginate \
-              2>/dev/null | jq '[.[].user.login // empty] | map(select(. == "chatgpt-codex-connector[bot]")) | length' \
-              || echo "0")
+            # Only count reviews submitted after the current head commit
+            if [ -n "$COMMIT_TIME" ]; then
+              REVIEWS=$(gh api "repos/${REPO}/pulls/${PR_NUMBER}/reviews" --paginate \
+                2>/dev/null | jq --arg since "$COMMIT_TIME" \
+                '[.[] | select(.user.login == "chatgpt-codex-connector[bot]" and .submitted_at > $since)] | length' \
+                || echo "0")
+            else
+              REVIEWS=$(gh api "repos/${REPO}/pulls/${PR_NUMBER}/reviews" --paginate \
+                2>/dev/null | jq '[.[].user.login // empty] | map(select(. == "chatgpt-codex-connector[bot]")) | length' \
+                || echo "0")
+            fi
 
-            # Check 3: Inline review comments
-            INLINE=$(gh api "repos/${REPO}/pulls/${PR_NUMBER}/comments" --paginate \
-              2>/dev/null | jq '[.[].user.login // empty] | map(select(. == "chatgpt-codex-connector[bot]")) | length' \
-              || echo "0")
+            # Check 3: Inline review comments (created after head commit)
+            if [ -n "$COMMIT_TIME" ]; then
+              INLINE=$(gh api "repos/${REPO}/pulls/${PR_NUMBER}/comments" --paginate \
+                2>/dev/null | jq --arg since "$COMMIT_TIME" \
+                '[.[] | select(.user.login == "chatgpt-codex-connector[bot]" and .created_at > $since)] | length' \
+                || echo "0")
+            else
+              INLINE=$(gh api "repos/${REPO}/pulls/${PR_NUMBER}/comments" --paginate \
+                2>/dev/null | jq '[.[].user.login // empty] | map(select(. == "chatgpt-codex-connector[bot]")) | length' \
+                || echo "0")
+            fi
 
             TOTAL=$(( REVIEWS + INLINE ))
 
@@ -57,7 +88,7 @@ jobs:
               exit 0
             fi
 
-            if [ "$attempt" -lt 4 ]; then
+            if [ "$REACTION" -eq 0 ] && [ "$TOTAL" -eq 0 ] && [ "$attempt" -lt 4 ]; then
               echo "Bot not found yet. Waiting 60s..."
               sleep 60
             fi
