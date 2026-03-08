@@ -68,7 +68,7 @@ Always resolve the config key via entity registry first — the entity_id slug a
 
 # Step 2: Fetch config using the resolved unique_id — fail on error envelope
 ~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/config/automation/config/{unique_id}"}' \
-  | jq 'if .ok then .data.body else error("relay error: \(.error // "unknown")") end' > /tmp/ha-config-{slug}.json
+  | jq 'if .ok then .data.body else error("relay error: \(.error.message // "unknown")") end' > /tmp/ha-config-{slug}.json
 # For scripts: /api/config/script/config/{unique_id}
 
 # Verify JSON is valid (catches truncation AND null from failed extraction)

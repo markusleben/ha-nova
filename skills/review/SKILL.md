@@ -8,7 +8,7 @@ description: Use when analyzing, reviewing, auditing, or checking Home Assistant
 
 ## Scope
 
-Read-only quality review for automations and scripts:
+Read-only quality review for automations, scripts, and helpers:
 - Config quality checks (safety, reliability, performance, style)
 - Collision scan (other automations targeting same entities)
 - Conflict analysis (real conflicts vs safe patterns)
@@ -34,6 +34,7 @@ If the target config is not already in the thread context, resolve it yourself:
      | grep -i '<search_term>'
    ```
    For scripts: `select(.ei | startswith("script."))`.
+   For helpers: `select(.ei | test("^(input_boolean|input_number|input_text|input_select|input_datetime|input_button|counter|timer|schedule)\\."))`.
 2. If multiple matches: present top candidates (max 5) and ask one clarifying question. Never guess.
 3. Resolve `unique_id` (config key) — the entity_id slug and config key differ for UI-created items (see `relay-api.md` → ID Types):
    ```bash
@@ -45,10 +46,13 @@ If the target config is not already in the thread context, resolve it yourself:
    ```bash
    # Automation:
    ~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/config/automation/config/<unique_id>"}' \
-     | jq '.data.body' > /tmp/ha-review-target.json
+     | jq 'if .ok then .data.body else error("relay error: \(.error.message // "unknown")") end' > /tmp/ha-review-target.json
    # Script:
    ~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/config/script/config/<unique_id>"}' \
-     | jq '.data.body' > /tmp/ha-review-target.json
+     | jq 'if .ok then .data.body else error("relay error: \(.error.message // "unknown")") end' > /tmp/ha-review-target.json
+   # Helper (WS, not REST):
+   ~/.config/ha-nova/relay ws -d '{"type":"{type}/list"}' \
+     | jq 'if .ok then [.data[] | select(.name | test("<search_term>";"i"))] else error("relay error: \(.error.message // "unknown")") end' > /tmp/ha-review-target.json
    ```
    Then read the file with the native file-reading tool for complete, untruncated access.
 
@@ -94,7 +98,7 @@ Analyze config against these checks AND any additional issues found in the offic
 
 **Reliability (High):**
 - R-01 [HIGH]: `float`/`int` template filter without `default` argument
-- R-02 [HIGH]: `platform: state` trigger without `to:` (fires on every attribute change)
+- R-02 [HIGH]: `trigger: state` trigger without `to:` (fires on every attribute change)
 - R-03 [MEDIUM]: Physical sensor trigger on inactive/cleared state (no-motion, door closed) without `for:` debounce — immediate-response triggers (motion detected → on) are fine without `for:`
 - R-04 [HIGH]: `wait_for_trigger` or `wait_template` without `timeout:`
 - R-05 [MEDIUM]: `mode` not explicitly set (defaults to `single` — re-invocations dropped with warning)
@@ -102,7 +106,7 @@ Analyze config against these checks AND any additional issues found in the offic
 - R-07 [HIGH]: `mode: restart` with asymmetric on/off action pairs (partial execution risk)
 - R-08 [HIGH]: `mode: parallel` referencing shared mutable state (`input_number`, `counter`, `input_boolean`)
 - R-09 [MEDIUM]: `choose:` without `default:` branch (silently does nothing when no condition matches)
-- R-10 [HIGH]: `mode: queued` with `delay:` or `wait_*` blocks and `max:` ≤ 3 combined with ≥ 3 triggers — queue saturation risk (triggers dropped with WARNING log when queue full during delays; truly silent only if `max_exceeded: silent` is set); severity escalates if any trigger also violates R-02 (unfiltered `platform: state` without `to:` multiplies trigger frequency)
+- R-10 [HIGH]: `mode: queued` with `delay:` or `wait_*` blocks and `max:` ≤ 3 combined with ≥ 3 triggers — queue saturation risk (triggers dropped with WARNING log when queue full during delays; truly silent only if `max_exceeded: silent` is set); severity escalates if any trigger also violates R-02 (unfiltered `trigger: state` without `to:` multiplies trigger frequency)
 - R-11 [HIGH]: `float(0)` or `int(0)` default on sensor values used in physical calculations (temperature, humidity, pressure) — 0 is physically wrong and produces silently incorrect results; use `float(none)` with an availability guard (`has_value()`) or a realistic fallback value
 - R-12 [HIGH]: Self-trigger / feedback loop — automation triggers on an entity (e.g., `input_select`, `input_boolean`, `input_number`) that it also sets in its own actions; HA has NO built-in self-trigger protection; with `mode: queued` or `mode: parallel` this creates an infinite loop consuming queue slots; fix: remove the trigger, add a `condition` guard, or use `mode: single` as partial protection
 - R-13 [MEDIUM]: Trigger without `id:` in `choose:`-based automations — makes `trigger.id` matching impossible; branches using `condition: trigger` require trigger IDs to function
@@ -110,7 +114,7 @@ Analyze config against these checks AND any additional issues found in the offic
 - R-15 [MEDIUM]: Asymmetric error handling — same physical action (e.g., `cover.open_cover`, `climate.set_temperature`) appears in multiple branches but only some have retry/fallback logic; inconsistent reliability across code paths
 
 **Performance (Medium):**
-- P-01: `platform: template` trigger that could be a `platform: state` trigger (see `skills/ha-nova/template-guidelines.md` → Decision Tree)
+- P-01: `trigger: template` trigger that could be a `trigger: state` trigger (see `skills/ha-nova/template-guidelines.md` → Decision Tree)
 - P-02: `homeassistant.update_entity` inside a `repeat:` loop without meaningful delay
 - P-03: Polling loop (`repeat: while:` + short `delay:`) instead of `wait_for_trigger`
 - P-04: Template trigger using `now()` for time-sensitive logic — re-evaluates only once per minute; for sub-minute precision use `time_pattern` trigger or a dedicated sensor
@@ -155,10 +159,10 @@ Find other automations/scripts that control the same entities.
    ```bash
    # Automation:
    ~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/config/automation/config/<unique_id>"}' \
-     | jq '.data.body' > /tmp/ha-review-related-N.json
+     | jq 'if .ok then .data.body else error("relay error: \(.error.message // "unknown")") end' > /tmp/ha-review-related-N.json
    # Script:
    ~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/config/script/config/<unique_id>"}' \
-     | jq '.data.body' > /tmp/ha-review-related-N.json
+     | jq 'if .ok then .data.body else error("relay error: \(.error.message // "unknown")") end' > /tmp/ha-review-related-N.json
    ```
 5. If `related_items_found: 0`, set `CONFLICTS: none` and skip Step 3.
 

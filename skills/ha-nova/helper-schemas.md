@@ -183,3 +183,41 @@ Schedule complexity is high. For complex schedules, recommend using the HA UI.
 {"type":"schedule/create","name":"Heating Schedule","icon":"mdi:calendar-clock","monday":[{"from":"06:00:00","to":"08:00:00"},{"from":"17:00:00","to":"22:00:00"}],"tuesday":[{"from":"06:00:00","to":"08:00:00"},{"from":"17:00:00","to":"22:00:00"}]}
 {"type":"schedule/update","schedule_id":"abc123","monday":[{"from":"07:00:00","to":"09:00:00"}]}
 ```
+
+## Suggested Defaults
+
+When creating a helper, suggest sensible defaults based on the helper type and intended use-case.
+Use your general Home Assistant knowledge to infer appropriate values from the helper's name and context.
+
+### Principles per type
+
+- **`input_number`**: ALWAYS suggest `min`, `max`, `step`, `unit_of_measurement` based on the
+  physical domain (temperature, brightness, humidity, duration, etc.). Choose `mode`: `slider`
+  for small ranges (≤100 steps), `box` for large ranges (>100 steps). Suggest `icon` if the
+  use-case maps to a clear MDI icon.
+- **`input_boolean`**: Suggest `icon` matching the use-case (sleep → mdi:sleep, guest → mdi:account-group, etc.).
+- **`timer`**: Suggest `duration` matching the typical use-case. Set `restore: true` for
+  long-running timers (laundry, cooking) where countdown should survive HA restart.
+  Set `restore: false` for short ephemeral timers (motion timeout).
+  Suggest `icon` if the use-case maps to a clear MDI icon (e.g. mdi:washing-machine, mdi:timer-sand).
+- **`counter`**: Suggest `minimum`/`maximum` bounds to prevent unbounded growth.
+  Note: counter uses `minimum`/`maximum` (NOT `min`/`max` — different schema than input_number).
+  Suggest `icon` if the use-case maps to a clear MDI icon.
+- **`input_select`**: Suggest common option sets for known patterns (home modes, presets, status values).
+- **`input_text`**, **`input_datetime`**, **`input_button`**, **`schedule`**: No additional defaults suggested.
+  These types have minimal or no inferable defaults. For schedules, recommend the HA UI due to complexity.
+
+### Field name reminders
+
+- `input_number` unit field: `unit_of_measurement` (not `unit`)
+- `counter` bounds: `minimum`/`maximum` (not `min`/`max`)
+- `timer.restore: true` = timer continues countdown after HA restart
+
+### Examples (non-exhaustive, for orientation only)
+
+| Use-case | Type | Suggested defaults |
+|----------|------|--------------------|
+| Target temperature | `input_number` | min:16, max:30, step:0.5, unit_of_measurement:"°C", mode:slider, icon:mdi:thermometer |
+| Brightness threshold | `input_number` | min:0, max:100, step:5, unit_of_measurement:"%", mode:slider |
+| Motion timeout | `timer` | duration:"00:05:00", restore:false |
+| Laundry reminder | `timer` | duration:"01:30:00", restore:true |

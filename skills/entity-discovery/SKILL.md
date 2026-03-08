@@ -45,7 +45,7 @@ Search both entity_id and name. Use short keyword stems to handle spelling varia
 
 # Automation/script config — always resolve unique_id first (see relay-api.md → ID Types)
 ~/.config/ha-nova/relay ws -d '{"type":"config/entity_registry/get","entity_id":"automation.{slug}"}' | jq -r '.data.unique_id'
-~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/config/automation/config/{unique_id}"}' | jq '.data.body'
+~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/config/automation/config/{unique_id}"}' | jq 'if .ok then .data.body else error("relay error: \(.error.message // "unknown")") end'
 # For scripts: use "entity_id":"script.{slug}" and /api/config/script/config/{unique_id}
 ```
 

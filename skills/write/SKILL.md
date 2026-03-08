@@ -30,34 +30,24 @@ If this fails, run onboarding: `npm run onboarding:macos`.
 
 1. Read `skills/ha-nova/agents/resolve-agent.md`.
 2. Fill template placeholders (domain, operation, user intent).
-3. Dispatch general-purpose agent. Extract: entities, target_id, target_exists, current_config, bp_status.
+3. Dispatch general-purpose agent. Extract: entities, target_id, target_exists, current_config, bp_status, suggested_enhancements.
 4. On ambiguity: ask user. On no-match: ask for exact entity_id.
-5. ID generation for `create`:
-   - **Automations:** Use a Unix timestamp (e.g., `1709550000000`) as config ID. HA auto-assigns numeric IDs; any unique number works.
-   - **Scripts:** Use a descriptive slug (e.g., `morning_routine`). This becomes `script.morning_routine`.
+5. ID generation for `create`: automations=Unix timestamp, scripts=descriptive slug (`morning_routine` → `script.morning_routine`).
 
 ### Phase 2: Preview + Confirm (Main Thread)
 
 1. Build config. For update: full-replacement merge (base=current, overlay=user changes).
 2. BP gate: fresh->continue, stale+simple->warn, stale+complex->block until refresh.
    Load `best-practices.md` only if gate evaluation needed.
-3. Render preview with structured summary + full YAML:
-   ```
-   **{Automation|Script}: {alias}**
-   - **ID:** {id}
-   - **Entities:** {all entity_ids in triggers/conditions/actions}
-   - **Triggers:** {short description}
-   - **Conditions:** {short description or "none"}
-   - **Actions:** {short description}
-   - **Mode:** {single|restart|queued|parallel}
-   ```
-   Then show the full YAML config that will be written:
-   ```yaml
-   alias: ...
-   triggers: ...
-   actions: ...
-   ```
-4. Confirmation: create/update=natural, delete=tokenized `confirm:<token>` (strict: only exact token accepted, see context skill → Safety Baseline).
+3. Suggestions + Pre-Write Checks (skip for `delete`):
+   - **3a) Suggestions**: Show `suggested_enhancements` from resolve-agent (max 4, numbered). User accepts by number (all, partial like "1 and 3", or "skip") → merge accepted into config BEFORE preview.
+     Skip when: `SUGGESTED_ENHANCEMENTS: none`, or `update` where the suggested enhancement is already present in current_config.
+     Example: `1. Sunset offset — add -15min for civil twilight  2. Mode: restart — re-trigger resets timer` → User: "1" → only offset merged.
+   - **3b) Static Checks**: Run S/R/P/M checks from `review/SKILL.md` Step 1 analytically on the draft YAML — no relay calls needed (scripts: also F-01..F-08; if actions reference helpers: also H-01..H-08).
+     CRITICAL/HIGH → inline warning with fix suggestion. MEDIUM/LOW → advisory below preview. Clean → skip.
+     Track reported finding codes (e.g. R-05, P-01) for dedup in Phase 4 — user proceeding past a warning = implicit ack.
+4. Preview: structured summary (alias, ID, entities, triggers, conditions, actions, mode) + full YAML config.
+5. Confirmation: create/update=natural, delete=tokenized `confirm:<token>` (strict: only exact token accepted, see context skill → Safety Baseline).
 
 ### Phase 3: Apply + Verify (Agent)
 
@@ -66,7 +56,7 @@ If this fails, run onboarding: `npm run onboarding:macos`.
 3. Dispatch general-purpose agent. Expect: success, write_status, verification.
 4. Report user-facing result. No raw curl/JSON in output.
 
-Fallback: If agent dispatch unavailable, run same logic inline serially.
+Fallback: If agent dispatch unavailable, execute inline serially. **MUST** include domain reload: `POST /api/services/{domain}/reload` with `{}` body via relay core.
 
 ### Phase 4: Post-Write Review (MANDATORY)
 
@@ -76,23 +66,25 @@ Follow the Post-Write Review Standard from `docs/reference/skill-architecture.md
 
 1. Re-read the written config using the `target_id` from Phase 1 (do NOT re-resolve by slug — the entity slug may differ from expectations):
    ```bash
-   relay core -d '{"method":"GET","path":"/api/config/automation/config/<target_id>"}' \
-     | jq 'if .ok then .data.body else error("relay error: \(.error // "unknown")") end'
+   ~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/config/automation/config/<target_id>"}' \
+     | jq 'if .ok then .data.body else error("relay error: \(.error.message // "unknown")") end'
    ```
    - Script: `/api/config/script/config/<target_id>`
-2. Read `skills/review/SKILL.md` Step 1 for the full check catalog. Apply domain-appropriate checks:
-   - Automations: S-01..S-03, R-01..R-15, P-01..P-04, M-01..M-04
-   - Scripts: all automation checks plus F-01..F-08
-   - If actions reference helpers (input_boolean, input_number, counter, timer, etc.): also run H-01..H-08 on those helpers
+2. S/R/P/M/F checks (narrowed):
+   - Compare read-back vs draft on core fields (automations: `alias`,`triggers`,`conditions`,`actions`,`mode`,`description`; scripts: `alias`,`sequence`,`mode`,`description`,`variables`,`fields`). Ignore metadata (`id`,`unique_id`,`created_at`,`modified_at`,`editor`,`enabled`).
+   - Note: HA may normalize keys during write (`trigger`→`triggers`, `action`→`actions`, `condition`→`conditions`). Account for plural aliasing when comparing — these are not real diffs.
+   - Core fields differ (beyond aliasing) → full checks from `review/SKILL.md` Step 1. Match → skip: "covered in pre-write review."
+   - **Dedup**: findings from Phase 2 Step 3b that user saw MUST NOT repeat. Example: if R-05 (mode not explicit) was shown pre-write and user proceeded, do not report R-05 again.
+   - If actions reference helpers: always run H-01..H-08.
 3. Run collision scan: `search/related` for the top 3 target entities, read max 3 related configs.
-4. Your response MUST include this section (missing = incomplete write):
+4. Response MUST include this exact structure:
    ```
    ## Post-Write Review
    **Config Findings:** {CRITICAL/HIGH findings with fix suggestions, or "Clean — no issues found."}
-   **Collision Scan:** {conflicts or "No conflicts detected."}
-   **Advisory:** {MEDIUM/LOW findings, or omit if none}
+   **Collision Scan:** {conflicts with related automations/scripts, or "No conflicts detected."}
+   **Advisory:** {MEDIUM/LOW findings, or omit section if none}
    ```
-5. Findings are advisory — the write already succeeded. User can choose to update.
+5. Findings are advisory — write already succeeded.
 
 ## Output Format
 

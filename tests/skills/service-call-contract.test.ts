@@ -52,4 +52,40 @@ describe("service call contract", () => {
       expect(skillDoc).toMatch(/relay.*core/);
     });
   });
+
+  describe("state delta before preview", () => {
+    it("reads current state before showing preview", () => {
+      expect(skillDoc).toContain("State delta:");
+      expect(skillDoc).toContain("/api/states/{entity_id}");
+    });
+
+    it("shows brightness in percent, not raw 0-255", () => {
+      expect(skillDoc).toContain("0-255 internally");
+      expect(skillDoc).toContain("show delta in %");
+    });
+
+    it("distinguishes temperature setpoint from current_temperature sensor", () => {
+      expect(skillDoc).toContain("temperature");
+      expect(skillDoc).toContain("current_temperature");
+      expect(skillDoc).toContain("setpoint");
+    });
+
+    it("handles unavailable and unknown states with distinct messages", () => {
+      expect(skillDoc).toContain("unavailable");
+      expect(skillDoc).toContain("Device is offline or unreachable");
+      expect(skillDoc).toContain("unknown");
+      expect(skillDoc).toContain("State not yet known");
+    });
+
+    it("does not block on state read failure", () => {
+      expect(skillDoc).toContain("State read failed");
+      expect(skillDoc).toContain("preview without delta");
+    });
+
+    it("shows state delta for parameterless state-changing services", () => {
+      expect(skillDoc).toContain("inherently changes entity state");
+      expect(skillDoc).toContain("parameterless state-changing services");
+      expect(skillDoc).toMatch(/toggle.*turn_on.*turn_off/);
+    });
+  });
 });
