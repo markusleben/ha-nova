@@ -58,7 +58,7 @@ if [[ -f "$plugins_json" ]]; then
       echo "  Plugin cache: renamed $(basename "$old_path") → ${NEW_VERSION}"
     elif [[ ! -d "$old_path" && -d "$cache_parent" ]]; then
       # Old dir already gone (Claude Code cleaned up) — find latest and rename
-      actual=$(ls -1d "${cache_parent}"/[0-9]* 2>/dev/null | sort -V | tail -1)
+      actual=$(ls -1d "${cache_parent}"/[0-9]* 2>/dev/null | sort -V | tail -1 || true)
       if [[ -n "$actual" && "$actual" != "$new_path" ]]; then
         mv "$actual" "$new_path" || { echo "  Warning: could not rename plugin cache dir"; }
         echo "  Plugin cache: renamed $(basename "$actual") → ${NEW_VERSION}"

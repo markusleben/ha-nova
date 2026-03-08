@@ -55,11 +55,13 @@ Work style: Be radically precise. No fluff. Pure information only (drop grammar;
 - Avoid manual `git stash`; if Git auto-stashes during pull/rebase, that’s fine (hint, not hard guardrail).
 - If user types a command (“pull and push”), that’s consent for that command.
 - Big review: `git --no-pager diff --color=never`.
-- **PR Merge:** Do NOT use auto-merge. The `codex-review-gate` workflow blocks merge for ~6 min while waiting for the Codex review bot. ALWAYS follow this workflow:
+- **PR Merge:** Do NOT use auto-merge. The `codex-review-gate` workflow waits ~9 min for the Codex review bot. Bot signals: 👍 reaction = no findings, review comments = findings. ALWAYS follow this workflow:
   1. `gh pr create ...` — create the PR.
   2. Wait for ALL checks to pass (`gh pr checks <nr> --watch`), including `codex-review-gate`.
-  3. Check for bot review comments: `gh api repos/<owner>/<repo>/pulls/<nr>/comments`.
-  4. Resolve any findings (fix or acknowledge).
+  3. Check for bot signal (both reactions AND comments):
+     - `gh api repos/<owner>/<repo>/issues/<nr>/reactions` — look for `+1` from `chatgpt-codex-connector[bot]` (= clean review).
+     - `gh api repos/<owner>/<repo>/pulls/<nr>/comments` — look for inline findings.
+  4. If findings: resolve (fix or acknowledge). If 👍: proceed.
   5. Then merge: `gh pr merge --squash --delete-branch`.
 
 ## Error Handling
