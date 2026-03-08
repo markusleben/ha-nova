@@ -191,6 +191,13 @@ install_target() {
     cp "${REPO_ROOT}/version.json" "${HOME}/.config/ha-nova/version.json"
     log "[${target}] Installed version-check + version.json"
   fi
+
+  # Self-update script (allows agent-driven updates without repo checkout)
+  if [[ -f "${REPO_ROOT}/scripts/update.sh" ]]; then
+    cp "${REPO_ROOT}/scripts/update.sh" "${HOME}/.config/ha-nova/update"
+    chmod 755 "${HOME}/.config/ha-nova/update"
+    log "[${target}] Installed self-update script"
+  fi
 }
 
 main() {

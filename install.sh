@@ -149,6 +149,13 @@ handle_existing_install() {
       git -C "$INSTALL_DIR" pull --ff-only
       (cd "$INSTALL_DIR" && npm install --no-audit --no-fund)
       link_cli
+      # Deploy shared tools to ~/.config/ha-nova/
+      local config_dir="${HOME}/.config/ha-nova"
+      mkdir -p "$config_dir"
+      [[ -f "${INSTALL_DIR}/scripts/relay.sh" ]]        && cp "${INSTALL_DIR}/scripts/relay.sh" "${config_dir}/relay" && chmod 755 "${config_dir}/relay"
+      [[ -f "${INSTALL_DIR}/scripts/update.sh" ]]       && cp "${INSTALL_DIR}/scripts/update.sh" "${config_dir}/update" && chmod 755 "${config_dir}/update"
+      [[ -f "${INSTALL_DIR}/scripts/version-check.sh" ]] && cp "${INSTALL_DIR}/scripts/version-check.sh" "${config_dir}/version-check" && chmod 755 "${config_dir}/version-check"
+      [[ -f "${INSTALL_DIR}/version.json" ]]            && cp "${INSTALL_DIR}/version.json" "${config_dir}/version.json"
       echo ""
       info "Updated. Run 'ha-nova doctor' to verify."
       exit 0

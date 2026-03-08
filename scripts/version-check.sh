@@ -68,6 +68,10 @@ remote_v=$(extract_version "$CACHE")
 [[ -z "$remote_v" ]] && exit 0
 
 if semver_lt "$local_v" "$remote_v"; then
-  echo "⚠️ SKILL UPDATE: v${local_v} → v${remote_v} | Command: ha-nova update | URL: https://github.com/markusleben/ha-nova/blob/main/skills/ha-nova/update-guide.md"
-  echo "AGENT: Include version, command AND URL above in your response to the user."
+  if [[ -x "${HOME}/.config/ha-nova/update" ]]; then
+    echo "⚠️ UPDATE AVAILABLE: v${local_v} → v${remote_v} | Run: ~/.config/ha-nova/update"
+  else
+    echo "⚠️ UPDATE AVAILABLE: v${local_v} → v${remote_v} | Run: git pull in your ha-nova repo, then re-run setup."
+  fi
+  echo "AGENT: Include version info and update command above in your response to the user."
 fi

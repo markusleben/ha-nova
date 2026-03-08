@@ -45,6 +45,6 @@ Relay is rebuilt via Docker on the HA host — no npm publish. Users update by p
 ## Post-Release
 
 - `git tag -l 'v*'` — verify tag exists
-- Claude Code marketplace picks up new version automatically via git
-- Codex/OpenCode users: `git pull` in their clone
-- Gemini users: `git pull && npm run install:gemini-skill`
+- All clients: users run `~/.config/ha-nova/update` (auto-detects installed clients)
+- Claude Code marketplace also picks up new version automatically via git
+- SessionStart hook will show `UPDATE AVAILABLE` to users still on the old version

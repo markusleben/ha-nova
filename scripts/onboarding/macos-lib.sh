@@ -159,7 +159,11 @@ run_doctor_checks() {
       local latest_skill_version
       latest_skill_version=$(echo "$remote_json" | grep -o '"skill_version"[[:space:]]*:[[:space:]]*"[^"]*"' | sed 's/.*"\([^"]*\)"$/\1/')
       if [[ -n "$latest_skill_version" && "$latest_skill_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ && -n "$local_skill_version" ]] && semver_lt "$local_skill_version" "$latest_skill_version"; then
-        echo "  [warn] Skills update available: v${local_skill_version} -> v${latest_skill_version}. See: https://github.com/markusleben/ha-nova/blob/main/skills/ha-nova/update-guide.md"
+        if [[ -x "${HOME}/.config/ha-nova/update" ]]; then
+          echo "  [warn] Skills update available: v${local_skill_version} -> v${latest_skill_version}. Run: ~/.config/ha-nova/update"
+        else
+          echo "  [warn] Skills update available: v${local_skill_version} -> v${latest_skill_version}. Run: git pull in your ha-nova repo, then re-run setup."
+        fi
       else
         echo "  [ok] Skills version: ${local_skill_version:-unknown} (up to date)"
       fi
@@ -193,6 +197,7 @@ HA_NOVA_SUB_SKILLS=(
   "onboarding"
   "service-call"
   "review"
+  "guide"
 )
 
 detect_setup_state() {

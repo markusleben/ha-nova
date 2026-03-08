@@ -32,9 +32,37 @@ sync_claude() {
   # Expand ~ if present
   install_path="${install_path/#\~/$HOME}"
 
+  # ── Version-resilient cache discovery ──────────────────────────────
+  # Claude Code stores plugins at cache/{registry}/{name}/{version}/.
+  # After a version bump the old path may be gone while a new one exists.
+  # Strategy: try exact path first → fallback to latest versioned dir →
+  # if nothing exists, create the correct dir for the current repo version.
   if [[ ! -d "$install_path" ]]; then
-    echo "[dev:sync] Claude Code: cache dir missing ($install_path) — skipped"
-    return
+    local cache_parent
+    cache_parent="$(dirname "$install_path")"   # e.g. cache/ha-nova/ha-nova
+
+    local actual_dir=""
+    if [[ -d "$cache_parent" ]]; then
+      # Find the latest (or only) versioned subdir
+      actual_dir=$(ls -1d "${cache_parent}"/[0-9]* 2>/dev/null | sort -V | tail -1)
+    fi
+
+    if [[ -z "$actual_dir" ]]; then
+      # No versioned dir at all — create one for the repo version
+      local repo_version
+      repo_version=$(sed -n 's/.*"skill_version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "${REPO_ROOT}/version.json")
+      if [[ -z "$repo_version" ]]; then
+        echo "[dev:sync] Claude Code: could not read version from version.json — skipped"
+        return
+      fi
+      actual_dir="${cache_parent}/${repo_version}"
+      mkdir -p "$actual_dir"
+      echo "[dev:sync] Claude Code: created cache dir ${actual_dir}"
+    else
+      echo "[dev:sync] Claude Code: installPath stale ($install_path), found ${actual_dir}"
+    fi
+
+    install_path="$actual_dir"
   fi
 
   # Sync skills, hooks, plugin manifest, and version
@@ -43,9 +71,30 @@ sync_claude() {
   rsync -a --delete "${REPO_ROOT}/.claude-plugin/" "${install_path}/.claude-plugin/"
   cp "${REPO_ROOT}/version.json" "${install_path}/version.json"
 
-  local version
-  version=$(sed -n 's/.*"skill_version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "${REPO_ROOT}/version.json")
-  echo "[dev:sync] Claude Code plugin cache synced (v${version}) → ${install_path}"
+  # ── Keep installed_plugins.json in sync ────────────────────────────
+  # Update installPath and version so Claude Code finds the plugin.
+  local repo_version
+  repo_version=$(sed -n 's/.*"skill_version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "${REPO_ROOT}/version.json")
+  # Keep absolute paths — Claude Code uses absolute, not ~-prefixed
+  local abs_path="$install_path"
+
+  # Update installPath
+  local old_path_pattern
+  old_path_pattern=$(sed -n '/"ha-nova@ha-nova"/,/installPath/s/.*"installPath"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$plugins_json" | head -1)
+  if [[ -n "$old_path_pattern" && "$old_path_pattern" != "$abs_path" ]]; then
+    # Scope replacement to ha-nova block only
+    sed -i '' "/"ha-nova@ha-nova"/,/installPath/{s|\"installPath\": \"${old_path_pattern}\"|\"installPath\": \"${abs_path}\"|;}" "$plugins_json"
+  fi
+
+  # Update version
+  local old_version
+  old_version=$(sed -n '/"ha-nova@ha-nova"/,/\"version\"/s/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$plugins_json" | head -1)
+  if [[ -n "$old_version" && "$old_version" != "$repo_version" ]]; then
+    # Scope the replacement to the ha-nova block: replace first occurrence of old version after ha-nova@ha-nova
+    sed -i '' "/"ha-nova@ha-nova"/,/\"version\"/{s/\"version\": \"${old_version}\"/\"version\": \"${repo_version}\"/;}" "$plugins_json"
+  fi
+
+  echo "[dev:sync] Claude Code plugin cache synced (v${repo_version}) → ${install_path}"
   synced+=("Claude Code")
 }
 
@@ -80,12 +129,18 @@ sync_relay() {
   cp "$relay_src" "$relay_dst"
   chmod 755 "$relay_dst"
 
-  # Sync version-check script + version.json
+  # Sync version-check, update script + version.json
   local vc_src="${REPO_ROOT}/scripts/version-check.sh"
   if [[ -f "$vc_src" ]]; then
     cp "$vc_src" "${HOME}/.config/ha-nova/version-check"
     chmod 755 "${HOME}/.config/ha-nova/version-check"
     cp "${REPO_ROOT}/version.json" "${HOME}/.config/ha-nova/version.json"
+  fi
+
+  local update_src="${REPO_ROOT}/scripts/update.sh"
+  if [[ -f "$update_src" ]]; then
+    cp "$update_src" "${HOME}/.config/ha-nova/update"
+    chmod 755 "${HOME}/.config/ha-nova/update"
   fi
 
   echo "[dev:sync] Relay CLI updated"

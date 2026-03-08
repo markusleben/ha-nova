@@ -1,6 +1,6 @@
 {
   "name": "ha-nova",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "AI-powered Home Assistant control through LLM skills and a local relay",
   "author": {
     "name": "Markus Leben"
