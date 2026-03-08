@@ -31,6 +31,17 @@ git tag -a vX.Y.Z -m "vX.Y.Z"
 git push && git push --tags
 ```
 
+## Relay Version Bump (independent from skill version)
+
+Relay version lives in `nova/config.yaml` (`version:` field). Update manually:
+```bash
+# Edit nova/config.yaml version field
+git add nova/config.yaml
+git commit -m "chore: bump relay version to X.Y.Z"
+```
+
+Relay is rebuilt via Docker on the HA host — no npm publish. Users update by pulling the new image or rebuilding the app.
+
 ## Post-Release
 
 - `git tag -l 'v*'` — verify tag exists

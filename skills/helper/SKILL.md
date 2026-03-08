@@ -55,7 +55,22 @@ If 0 results: try synonyms or shorter stems. Never dump entire domains.
 ### Creating a helper
 
 1. Validate intent against `skills/ha-nova/helper-schemas.md` for required/optional fields.
-2. Preview the payload:
+2. Use-case defaults (create only, skip on update/delete):
+   - Infer use-case from helper name + type using general HA knowledge.
+   - Consult `skills/ha-nova/helper-schemas.md` → Suggested Defaults for principles and field name reminders.
+   - If sensible defaults can be inferred: show max 4 as numbered list. Group related fields into one item (e.g. min/max/step together).
+     ```
+     Suggested defaults for "{name}" ({type}):
+     1. min: 16, max: 30, step: 0.5
+     2. unit_of_measurement: "°C"
+     3. mode: slider
+     4. icon: mdi:thermometer
+     Accept all, pick by number (e.g. "1 and 3"), or "skip".
+     ```
+   - User accepts all, picks by number, or says "skip".
+   - Accepted → merge into payload BEFORE preview.
+   - No useful defaults inferable → silently skip.
+3. Preview the payload:
    ```
    **Create Helper: {name}** ({type})
    - {all fields being set}
@@ -65,17 +80,17 @@ If 0 results: try synonyms or shorter stems. Never dump entire domains.
    type: {type}/create
    name: ...
    ```
-3. Ask for natural confirmation.
-4. Execute:
+4. Ask for natural confirmation.
+5. Execute:
    ```bash
    ~/.config/ha-nova/relay ws -d '{"type":"{type}/create","name":"...","...":"..."}'
    ```
-5. Verify — list back and confirm new item exists:
+6. Verify — list back and confirm new item exists:
    ```bash
    ~/.config/ha-nova/relay ws -d '{"type":"{type}/list"}' | jq '[.data[] | select(.name == "{name}")]'
    ```
-6. No domain reload needed — immediate effect.
-7. Run post-write review (see below).
+7. No domain reload needed — immediate effect.
+8. Run post-write review (see below).
 
 ### Updating a helper
 

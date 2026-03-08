@@ -43,4 +43,45 @@ describe("ha cross-skill integration", () => {
     expect(writeSkill).not.toContain("## Lazy Load Contract");
     expect(writeSkill).not.toContain("## Relay API Injection Rules");
   });
+
+  it("includes proactive suggestions and pre-write checks in write skill", () => {
+    const writeSkill = readFileSync("skills/write/SKILL.md", "utf8");
+
+    // Phase 1 extracts suggested_enhancements from resolve agent
+    expect(writeSkill).toContain("suggested_enhancements");
+
+    // Phase 2 Step 3a: suggestions flow
+    expect(writeSkill).toContain("3a) Suggestions");
+    expect(writeSkill).toContain("max 4, numbered");
+    expect(writeSkill).toContain('or "skip"');
+    expect(writeSkill).toContain("merge accepted into config BEFORE preview");
+    expect(writeSkill).toContain("SUGGESTED_ENHANCEMENTS: none");
+    expect(writeSkill).toContain("skip for `delete`");
+
+    // Phase 2 Step 3b: pre-write static checks
+    expect(writeSkill).toContain("3b) Static Checks");
+    expect(writeSkill).toContain("analytically on the draft YAML");
+    expect(writeSkill).toContain("CRITICAL/HIGH");
+    expect(writeSkill).toContain("MEDIUM/LOW");
+    expect(writeSkill).toContain("dedup in Phase 4");
+  });
+
+  it("includes HA normalization awareness and dedup in post-write review", () => {
+    const writeSkill = readFileSync("skills/write/SKILL.md", "utf8");
+
+    // HA plural aliasing awareness
+    expect(writeSkill).toContain("trigger");
+    expect(writeSkill).toContain("triggers");
+    expect(writeSkill).toContain("plural aliasing");
+
+    // Dedup rule with example
+    expect(writeSkill).toContain("Dedup");
+    expect(writeSkill).toContain("MUST NOT repeat");
+    expect(writeSkill).toContain("R-05");
+
+    // Post-write review format template
+    expect(writeSkill).toContain("Config Findings:");
+    expect(writeSkill).toContain("Collision Scan:");
+    expect(writeSkill).toContain("Advisory:");
+  });
 });

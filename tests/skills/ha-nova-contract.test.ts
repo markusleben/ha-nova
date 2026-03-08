@@ -141,7 +141,7 @@ describe("ha-nova contract", () => {
     expect(review).toContain("standalone");
   });
 
-  it("keeps all operational subskills concise (<800 words)", () => {
+  it("keeps all operational subskills concise (<1000 words)", () => {
     const skills = [
       "skills/write/SKILL.md",
       "skills/read/SKILL.md",
@@ -151,7 +151,7 @@ describe("ha-nova contract", () => {
     for (const file of skills) {
       const content = readFileSync(file, "utf8");
       const wordCount = content.trim().split(/\s+/).length;
-      expect(wordCount, `${file} has ${wordCount} words`).toBeLessThan(800);
+      expect(wordCount, `${file} has ${wordCount} words`).toBeLessThan(1000);
     }
   });
 

@@ -154,7 +154,7 @@ See `skills/ha-nova/helper-schemas.md` for type-specific fields and constraints.
 ## Domain Payload Rules
 
 Automation fields: `alias`, `triggers`, `conditions`, `actions`, `mode`
-Script fields: `alias`, `sequence`, `mode`
+Script fields: `alias`, `sequence`, `mode`, `description`, `fields`, `variables`
 
 Method: create/update = `POST`, delete = `DELETE`
 

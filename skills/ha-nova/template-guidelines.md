@@ -9,11 +9,11 @@ For syntax reference and available functions, see `docs/reference/ha-template-re
 
 | You need... | Use | Not |
 |-------------|-----|-----|
-| Compare one entity to a value | `platform: state` with `to:` | `platform: template` |
-| Compare numeric attribute to threshold | `platform: numeric_state` with `above:`/`below:` | `platform: template` with `>` / `<` |
-| Time-based trigger | `platform: time` or `time_pattern` | `platform: template` with `now()` |
-| Combine 2+ entity states in a trigger | `platform: template` | Multiple `platform: state` triggers |
-| Calculate a value from multiple sensors | `platform: template` (trigger) or `value_template` (condition) | Hardcoded thresholds |
+| Compare one entity to a value | `trigger: state` with `to:` | `trigger: template` |
+| Compare numeric attribute to threshold | `trigger: numeric_state` with `above:`/`below:` | `trigger: template` with `>` / `<` |
+| Time-based trigger | `trigger: time` or `time_pattern` | `trigger: template` with `now()` |
+| Combine 2+ entity states in a trigger | `trigger: template` | Multiple `trigger: state` triggers |
+| Calculate a value from multiple sensors | `trigger: template` (trigger) or `value_template` (condition) | Hardcoded thresholds |
 | Store a user-adjustable value | Helper (`input_number`, `input_select`, etc.) | Template sensor |
 | Derived read-only value reused across automations | Template sensor (via HA UI) | Inline template repeated in each automation |
 | One-off inline calculation | Template in automation | Dedicated template sensor |
@@ -113,7 +113,7 @@ These are caught by review checks — listed here for reference:
 
 | Pattern | Review Check | Why it's bad | Fix |
 |---------|-------------|-------------|-----|
-| `platform: template` for single entity state | P-01 | Performance overhead | Use `platform: state` with `to:` |
+| `trigger: template` for single entity state | P-01 | Performance overhead | Use `trigger: state` with `to:` |
 | `float(0)` on physical sensor | R-01, R-11 | 0 is wrong for temperature/humidity | Use `float(none)` + `has_value()` guard |
 | `wait_template` without `timeout:` | R-04 | Blocks forever if condition never met | Add `timeout:` |
 | Template trigger using `now()` | P-04 | Re-evaluates only once per minute | Use `time_pattern` for sub-minute precision |

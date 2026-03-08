@@ -1,32 +1,35 @@
-# HA Nova Bridge: Architecture Reference
+# NOVA Relay: Architecture Reference
+
+> **Implementation status:** Only Phase 1a is implemented. Phases 1c, 2, and 3 are planned.
 
 ## Overview
 
-The Bridge is a lean App that runs on the HA host and provides three capabilities
-that a remote Skill cannot: WebSocket proxy, filesystem access, backups.
+The Relay is a lean App that runs on the HA host and provides three capabilities
+that a remote Skill cannot: WebSocket proxy (implemented), filesystem access (planned), backups (planned).
 
 ## Endpoints
 
-### Phase 1a (MVP)
+### Phase 1a (MVP) — IMPLEMENTED
 
 ```
 GET  /health
 POST /ws
+POST /core
 ```
 
-### Phase 1c (+ Subscriptions)
+### Phase 1c (+ Subscriptions) — PLANNED
 
 ```
 POST /ws/subscribe
 ```
 
-### Phase 2 (+ Backups)
+### Phase 2 (+ Backups) — PLANNED
 
 ```
 POST /backups
 ```
 
-### Phase 3 (+ Filesystem)
+### Phase 3 (+ Filesystem) — PLANNED
 
 ```
 POST /files
@@ -61,7 +64,7 @@ Response 200:
 Response 4xx/5xx:
 {
   "ok": false,
-  "error": "message"
+  "error": { "code": "UPSTREAM_WS_ERROR", "message": "..." }
 }
 ```
 
@@ -145,12 +148,12 @@ Same long-lived access token as for HA:
 Authorization: Bearer {HA_TOKEN}
 ```
 
-The Bridge validates the token by comparing it with the configured token (single-tenant).
+The Relay validates the token by comparing it with the configured token (single-tenant).
 
 ## WS Forwarding Policy
 
-The Bridge forwards authenticated WS messages as passthrough requests.
-Message-type filtering is not applied locally in the Relay.
+The Relay forwards authenticated WS messages as passthrough requests.
+Message-type filtering is not applied locally.
 
 ## Configuration
 
@@ -160,7 +163,7 @@ HA_URL: "http://homeassistant:8123"
 HA_TOKEN: "<long-lived-access-token>"
 
 # Optional
-BRIDGE_PORT: 8791              # Default: 8791
+RELAY_PORT: 8791              # Default: 8791
 LOG_LEVEL: "info"              # trace|debug|info|warn|error
 CONFIG_ROOT: "/homeassistant"  # HA config directory
 BACKUP_DIR: "/data/backups"    # Backup storage
@@ -173,10 +176,10 @@ WRITABLE_ROOTS: "/homeassistant/ha_mcp"
 
 - TypeScript / Node.js >=20
 - No HTTP framework (Node.js `http.createServer`)
-- Dependencies: `ws`, `yaml`, optional `zod`
+- Dependencies: `ws`, `yaml`, `axios`, `home-assistant-js-websocket`
 - Estimated scope: ~700 core lines (Phase 1a), ~2,000-3,000 lines final
 
-## What the Bridge does NOT do
+## What the Relay does NOT do
 
 - No business logic
 - No validation rules
@@ -184,4 +187,4 @@ WRITABLE_ROOTS: "/homeassistant/ha_mcp"
 - No consent gating
 - No session management
 - No metrics (logging only)
-- No MCP protocol (optional as a facade in Phase 4)
+- No MCP protocol

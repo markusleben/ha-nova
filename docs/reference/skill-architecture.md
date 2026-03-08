@@ -76,13 +76,14 @@ Current mapping:
 | review | inline | analysis is client-side, relay calls are reads only |
 | entity-discovery | inline | 1-2 calls, search + return |
 | service-call | inline | 2-3 calls, preview + execute |
+| guide | inline | research + web search, no relay writes |
 | onboarding | inline | diagnostics only |
 
 **Rule of thumb:** If a `service-call` could do it, it's inline. If it needs what `write` needs (resolve + normalize + reload), use agents.
 
 ## Write Architecture
 
-`ha-nova:write` uses a deterministic three-phase flow:
+`ha-nova:write` uses a deterministic four-phase flow:
 
 1. Resolve (Agent)
 - load env
@@ -105,9 +106,8 @@ Current mapping:
 - normalized compare (`trigger(s)`, `condition(s)`, `action(s)`)
 - structured error result on partial or failed verification
 
-4. Review
-- post-write quality review via `ha-nova:review`
-- config quality checks, collision scan, conflict analysis
+4. Review (inline, do NOT invoke ha-nova:review as separate skill)
+- post-write config quality checks, collision scan, conflict analysis
 - findings are advisory (write already succeeded)
 
 Fallback:
@@ -141,6 +141,14 @@ Fallback:
 - No domain reload needed — storage-based, immediate effect
 
 Excluded: config-entry flow helpers (template, group, utility_meter) — different API pattern.
+
+## Guide Architecture
+
+`ha-nova:guide` provides interactive help for HA features beyond the core skill set:
+- Covers: dashboards, blueprints, history, logbook, areas, zones, labels, energy, calendars, entity registry, system health
+- Three-tier capability map: Covered (redirect to existing skill), Relay-Ready (experimental relay calls), External (web search)
+- All inline, no agents — research + web search + optional experimental relay calls
+- Safety: read-only relay calls only, never writes
 
 ## Installer Contract
 
@@ -185,7 +193,7 @@ After any mutation (automation, script, or helper):
    - **Scripts:** S + R + P + M + F checks. If actions reference helpers, also H checks.
    - **Helpers:** H checks only.
    Focus on CRITICAL/HIGH. Report MEDIUM/LOW as advisory.
-3. Collision scan: `search/related` for top target entities, max 3 related configs
+3. Collision scan: `search/related` for top target entities, max 3 related configs (standalone review uses max 5)
 4. Output format (MUST appear in every post-write response):
    ```
    ## Post-Write Review

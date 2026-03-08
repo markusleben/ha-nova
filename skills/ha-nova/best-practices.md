@@ -31,6 +31,23 @@ Refresh step checks:
 - automation services + tracing guidance
 - release notes affecting automation semantics
 
+### How to Refresh
+
+1. Research current HA automation best practices via web search (target: `home-assistant.io/docs/automation` + recent release notes).
+2. Update the snapshot file with findings:
+   ```bash
+   cat > "${HOME}/.cache/ha-nova/automation-bp-snapshot.json" << 'EOF'
+   {
+     "automation_bp_refreshed": true,
+     "automation_bp_refreshed_at": "YYYY-MM-DDTHH:MM:SSZ",
+     "automation_bp_sources": ["home-assistant.io/docs/automation", "home-assistant.io/blog"],
+     "automation_bp_ha_version": "2026.X"
+   }
+   EOF
+   ```
+3. Replace `YYYY-MM-DD...` with current timestamp, `2026.X` with the HA version the sources cover.
+4. Snapshot is now `fresh` for 30 days.
+
 ## Automation Mode Selection
 
 Pick the right `mode` based on the automation's behavior:
