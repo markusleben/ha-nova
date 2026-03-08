@@ -61,8 +61,11 @@ Work style: Be radically precise. No fluff. Pure information only (drop grammar;
   3. Check for bot signal (both reactions AND comments):
      - `gh api repos/<owner>/<repo>/issues/<nr>/reactions` — look for `+1` from `chatgpt-codex-connector[bot]` (= clean review).
      - `gh api repos/<owner>/<repo>/pulls/<nr>/comments` — look for inline findings.
-  4. If findings: resolve (fix or acknowledge). If 👍: proceed.
-  5. Then merge: `gh pr merge --squash --delete-branch`.
+  4. If findings: fix the issue, push, wait for new gate run. If 👍 or timeout (no findings): proceed.
+  5. Resolve all review threads before merge (branch protection requires it):
+     - Query threads: `gh api graphql` with `pullRequest(number: N) { reviewThreads { nodes { id isResolved } } }`
+     - Resolve: `gh api graphql` with `resolveReviewThread(input: { threadId: "..." })`
+  6. Then merge: `gh pr merge --squash --delete-branch`.
 
 ## Error Handling
 - Expected issues: explicit result types (not throw/try/catch).
