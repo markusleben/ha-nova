@@ -28,7 +28,7 @@ If this fails: `npm run onboarding:macos`
    - Filter by relevant domain.
 3. Preview the service call:
    - Before preview: read current state via `~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/states/{entity_id}"}'`.
-   - If service changes an attribute present in the service call parameters (brightness, temperature, position, hvac_mode, etc.), show state delta before the call details:
+   - If service changes an attribute present in the service call parameters (brightness, temperature, position, hvac_mode, etc.) OR inherently changes entity state (toggle, turn_on, turn_off, press, lock, unlock, open, close), show state delta before the call details:
      ```
      **State delta:**
      brightness: 100% → 40%
@@ -37,7 +37,7 @@ If this fails: `npm run onboarding:macos`
      - **Brightness**: HA uses 0-255 internally. ALWAYS show delta in %: `brightness: 100% → 40%` (not raw 0-255). If light is off (brightness null or absent), treat as 0%: `brightness: 0% → 40%`.
      - **Temperature**: Show with unit: `22.5°C → 19°C`. Note: `temperature` = setpoint (what we're changing), `current_temperature` = sensor reading (do NOT use for delta).
      - **Cover position**: `position: 100% (open) → 30%`.
-     - **State / mode**: `off → on`, `hvac_mode: heat → cool`. Show any attribute present in the service call parameters as plain text with current → target.
+     - **State / mode**: For parameterless state-changing services (toggle, turn_on, turn_off, press, lock, unlock), always show state delta: `on → off`. For mode changes, show: `hvac_mode: heat → cool`.
    - Entity `unavailable` → show delta as `unavailable → {target}` with warning: "Device is offline or unreachable."
    - Entity `unknown` → show delta as `unknown → {target}` with info: "State not yet known (HA may not have polled yet). Service call may still work."
    - State read failed → preview without delta, do not block.

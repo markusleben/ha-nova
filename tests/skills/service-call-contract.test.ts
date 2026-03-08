@@ -81,5 +81,11 @@ describe("service call contract", () => {
       expect(skillDoc).toContain("State read failed");
       expect(skillDoc).toContain("preview without delta");
     });
+
+    it("shows state delta for parameterless state-changing services", () => {
+      expect(skillDoc).toContain("inherently changes entity state");
+      expect(skillDoc).toContain("parameterless state-changing services");
+      expect(skillDoc).toMatch(/toggle.*turn_on.*turn_off/);
+    });
   });
 });
