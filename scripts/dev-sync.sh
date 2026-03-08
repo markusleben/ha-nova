@@ -162,7 +162,8 @@ verify_plugin_integrity() {
   )
   [[ -z "$install_path" ]] && return
 
-  # Expand ~ if present
+  # Keep raw JSON value for sed matching; expand for filesystem checks
+  local raw_install_path="$install_path"
   install_path="${install_path/#\~/$HOME}"
 
   # Happy path: installPath exists on disk
@@ -193,8 +194,8 @@ verify_plugin_integrity() {
     return
   fi
 
-  # Fix installed_plugins.json — scope replacement to ha-nova block only
-  sed -i '' "/"ha-nova@ha-nova"/,/installPath/{s|\"installPath\": \"${install_path}\"|\"installPath\": \"${actual_dir}\"|;}" "$plugins_json"
+  # Fix installed_plugins.json — match raw JSON value (may contain ~), replace with absolute path
+  sed -i '' "/"ha-nova@ha-nova"/,/installPath/{s|\"installPath\": \"${raw_install_path}\"|\"installPath\": \"${actual_dir}\"|;}" "$plugins_json"
 
   # Also fix the version field to match the directory name
   local dir_version; dir_version=$(basename "$actual_dir")
