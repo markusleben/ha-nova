@@ -44,7 +44,7 @@ sync_claude() {
     local actual_dir=""
     if [[ -d "$cache_parent" ]]; then
       # Find the latest (or only) versioned subdir
-      actual_dir=$(ls -1d "${cache_parent}"/[0-9]* 2>/dev/null | sort -V | tail -1)
+      actual_dir=$(ls -1d "${cache_parent}"/[0-9]* 2>/dev/null | sort -V | tail -1 || true)
     fi
 
     if [[ -z "$actual_dir" ]]; then

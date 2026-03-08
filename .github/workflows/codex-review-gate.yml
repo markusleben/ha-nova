@@ -23,36 +23,46 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}
         run: |
-          echo "⏳ Waiting for chatgpt-codex-connector[bot] to post review..."
-          echo "Initial wait: 3 minutes"
-          sleep 180
+          echo "⏳ Waiting for chatgpt-codex-connector[bot] to review..."
+          echo "Initial wait: 5 minutes (bot takes ~7 min)"
+          sleep 300
 
-          for attempt in 1 2 3; do
-            echo "Poll attempt ${attempt}/3..."
+          for attempt in 1 2 3 4; do
+            echo "Poll attempt ${attempt}/4..."
 
-            # Check inline review comments (paginate merges all pages, then jq counts)
-            INLINE=$(gh api "repos/${REPO}/pulls/${PR_NUMBER}/comments" --paginate \
-              2>/dev/null | jq '[.[].user.login // empty] | map(select(. == "chatgpt-codex-connector[bot]")) | length' \
+            # Check 1: +1 reaction on PR = bot reviewed, no findings
+            REACTION=$(gh api "repos/${REPO}/issues/${PR_NUMBER}/reactions" \
+              2>/dev/null | jq '[.[] | select(.user.login == "chatgpt-codex-connector[bot]" and .content == "+1")] | length' \
               || echo "0")
 
-            # Check PR-level reviews
+            if [ "$REACTION" -gt 0 ]; then
+              echo "✅ Codex bot reacted with 👍 — no findings. Gate passed."
+              exit 0
+            fi
+
+            # Check 2: PR-level reviews = bot posted findings
             REVIEWS=$(gh api "repos/${REPO}/pulls/${PR_NUMBER}/reviews" --paginate \
               2>/dev/null | jq '[.[].user.login // empty] | map(select(. == "chatgpt-codex-connector[bot]")) | length' \
               || echo "0")
 
-            TOTAL=$(( INLINE + REVIEWS ))
+            # Check 3: Inline review comments
+            INLINE=$(gh api "repos/${REPO}/pulls/${PR_NUMBER}/comments" --paginate \
+              2>/dev/null | jq '[.[].user.login // empty] | map(select(. == "chatgpt-codex-connector[bot]")) | length' \
+              || echo "0")
+
+            TOTAL=$(( REVIEWS + INLINE ))
 
             if [ "$TOTAL" -gt 0 ]; then
-              echo "✅ Codex review bot posted ${TOTAL} review(s). Gate passed."
+              echo "⚠️ Codex bot posted ${TOTAL} review comment(s). Check findings before merge."
               exit 0
             fi
 
-            if [ "$attempt" -lt 3 ]; then
+            if [ "$attempt" -lt 4 ]; then
               echo "Bot not found yet. Waiting 60s..."
               sleep 60
             fi
           done
 
-          echo "⚠️ Codex review bot did not post after ~6 minutes."
+          echo "⚠️ Codex review bot did not respond after ~9 minutes."
           echo "Proceeding — bot may have skipped this PR."
           exit 0
