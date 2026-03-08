@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/banner.svg" alt="HA NOVA — Talk to your smart home with AI" width="700">
+  <img src="assets/social-preview.png" alt="HA NOVA — Talk to your smart home with AI" width="700">
 </p>
 
 <p align="center">
