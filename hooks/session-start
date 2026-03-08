@@ -96,7 +96,11 @@ if [[ -f "$version_file" ]]; then
     cached_json=$(cat "$update_cache_file" 2>/dev/null || true)
     latest_skill_version=$(extract_json_string "skill_version" "$cached_json")
     if [[ -n "$latest_skill_version" && "$latest_skill_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ && -n "$SKILL_VERSION" ]] && semver_lt "$SKILL_VERSION" "$latest_skill_version"; then
-      update_notice="[ha-nova] UPDATE AVAILABLE: v${SKILL_VERSION} -> v${latest_skill_version}. See: https://github.com/markusleben/ha-nova/blob/main/skills/ha-nova/update-guide.md\\n"
+      if [[ -x "${HOME}/.config/ha-nova/update" ]]; then
+        update_notice="[ha-nova] UPDATE AVAILABLE: v${SKILL_VERSION} -> v${latest_skill_version}. Run: ~/.config/ha-nova/update\\n"
+      else
+        update_notice="[ha-nova] UPDATE AVAILABLE: v${SKILL_VERSION} -> v${latest_skill_version}. Run: git pull in your ha-nova repo, then re-run setup.\\n"
+      fi
     fi
 
     # Check if cache is still fresh

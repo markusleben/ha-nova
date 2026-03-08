@@ -10,7 +10,7 @@ import { describe, expect, it } from "vitest";
 
 import { REPO_ROOT } from "./_helpers.js";
 
-const SUB_SKILLS = ["write", "read", "entity-discovery", "onboarding", "service-call", "review"];
+const SUB_SKILLS = ["write", "read", "helper", "entity-discovery", "onboarding", "service-call", "review", "guide"];
 
 function installSkills(client: string): { home: string; result: ReturnType<typeof spawnSync> } {
   const home = mkdtempSync(join(tmpdir(), `ha-nova-skill-${client}-`));

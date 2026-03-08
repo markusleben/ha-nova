@@ -27,6 +27,13 @@ Before HA operations in this session:
 
 Do not ask user to paste tokens in chat.
 
+## Self-Update
+
+If the SessionStart context includes `UPDATE AVAILABLE`, inform the user and offer to update:
+1. Run: `~/.config/ha-nova/update`
+2. If the script doesn't exist (older install): run `bash scripts/update.sh` from the repo root, or tell the user to re-run `ha-nova setup`.
+3. After success: tell the user to **start a new session** for the updated skills to take effect.
+
 ## Quoting Reliability (Critical)
 
 Quoting is shell-dependent (bash/zsh vs PowerShell), not primarily OS-dependent.

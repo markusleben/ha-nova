@@ -16,6 +16,7 @@ FLAT_SKILLS=(
   "ha-nova-entity-discovery"
   "ha-nova-onboarding"
   "ha-nova-service-call"
+  "ha-nova-guide"
 )
 
 log() { echo "[ha-nova] $*"; }
@@ -39,6 +40,9 @@ remove_known_config() {
   local config_dir="${HOME}/.config/ha-nova"
   [[ -d "$config_dir" ]] || return 0
   remove_path "${config_dir}/relay"
+  remove_path "${config_dir}/update"
+  remove_path "${config_dir}/version-check"
+  remove_path "${config_dir}/version.json"
   remove_path "${config_dir}/onboarding.env"
   remove_path "${config_dir}/doctor-cache.env"
   # Remove dir only if empty (preserves user's custom files)

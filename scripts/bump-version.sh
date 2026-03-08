@@ -40,6 +40,51 @@ jq --arg v "$NEW_VERSION" '.version = $v' "$REPO_ROOT/.claude-plugin/plugin.json
 tmp=$(mktemp)
 jq --arg v "$NEW_VERSION" '.plugins[0].version = $v' "$REPO_ROOT/.claude-plugin/marketplace.json" > "$tmp" && mv "$tmp" "$REPO_ROOT/.claude-plugin/marketplace.json"
 
+# 5. Migrate Claude Code plugin cache (if installed)
+plugins_json="${HOME}/.claude/plugins/installed_plugins.json"
+if [[ -f "$plugins_json" ]]; then
+  old_path=$(
+    sed -n '/"ha-nova@ha-nova"/,/installPath/s/.*"installPath"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
+      "$plugins_json" | head -1
+  )
+  old_path="${old_path/#\~/$HOME}"
+
+  if [[ -n "$old_path" ]]; then
+    cache_parent="$(dirname "$old_path")"  # e.g. ~/.claude/plugins/cache/ha-nova/ha-nova
+    new_path="${cache_parent}/${NEW_VERSION}"
+
+    if [[ -d "$old_path" && "$old_path" != "$new_path" ]]; then
+      mv "$old_path" "$new_path" || { echo "  Warning: could not rename plugin cache dir"; }
+      echo "  Plugin cache: renamed $(basename "$old_path") → ${NEW_VERSION}"
+    elif [[ ! -d "$old_path" && -d "$cache_parent" ]]; then
+      # Old dir already gone (Claude Code cleaned up) — find latest and rename
+      actual=$(ls -1d "${cache_parent}"/[0-9]* 2>/dev/null | sort -V | tail -1)
+      if [[ -n "$actual" && "$actual" != "$new_path" ]]; then
+        mv "$actual" "$new_path" || { echo "  Warning: could not rename plugin cache dir"; }
+        echo "  Plugin cache: renamed $(basename "$actual") → ${NEW_VERSION}"
+      fi
+    fi
+
+    # Update installed_plugins.json — keep absolute paths (Claude Code native format)
+    if [[ -d "$new_path" ]]; then
+      old_stored=$(
+        sed -n '/"ha-nova@ha-nova"/,/installPath/s/.*"installPath"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
+          "$plugins_json" | head -1
+      )
+      if [[ -n "$old_stored" && "$old_stored" != "$new_path" ]]; then
+        # Scope replacement to ha-nova block only
+        sed -i '' "/"ha-nova@ha-nova"/,/installPath/{s|\"installPath\": \"${old_stored}\"|\"installPath\": \"${new_path}\"|;}" "$plugins_json"
+      fi
+      old_ver=$(sed -n '/"ha-nova@ha-nova"/,/\"version\"/s/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$plugins_json" | head -1)
+      if [[ -n "$old_ver" && "$old_ver" != "$NEW_VERSION" ]]; then
+        sed -i '' "/"ha-nova@ha-nova"/,/\"version\"/{s/\"version\": \"${old_ver}\"/\"version\": \"${NEW_VERSION}\"/;}" "$plugins_json"
+      fi
+      echo "  installed_plugins.json: updated to v${NEW_VERSION}"
+    fi
+  fi
+fi
+
+echo ""
 echo "Bumped skill version to $NEW_VERSION in:"
 echo "  version.json"
 echo "  package.json"
