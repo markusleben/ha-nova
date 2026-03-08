@@ -55,17 +55,16 @@ Work style: Be radically precise. No fluff. Pure information only (drop grammar;
 - Avoid manual `git stash`; if Git auto-stashes during pull/rebase, that’s fine (hint, not hard guardrail).
 - If user types a command (“pull and push”), that’s consent for that command.
 - Big review: `git --no-pager diff --color=never`.
-- **PR Merge:** Do NOT use auto-merge. The `codex-review-gate` workflow waits ~9 min for the Codex review bot. Bot signals: 👍 reaction = no findings, review comments = findings. ALWAYS follow this workflow:
-  1. `gh pr create ...` — create the PR.
-  2. Wait for ALL checks to pass (`gh pr checks <nr> --watch`), including `codex-review-gate`.
-  3. Check for bot signal (both reactions AND comments):
-     - `gh api repos/<owner>/<repo>/issues/<nr>/reactions` — look for `+1` from `chatgpt-codex-connector[bot]` (= clean review).
-     - `gh api repos/<owner>/<repo>/pulls/<nr>/comments` — look for inline findings.
-  4. If findings: fix the issue, push, wait for new gate run. If 👍 or timeout (no findings): proceed.
-  5. Resolve all review threads before merge (branch protection requires it):
-     - Query threads: `gh api graphql` with `pullRequest(number: N) { reviewThreads { nodes { id isResolved } } }`
-     - Resolve: `gh api graphql` with `resolveReviewThread(input: { threadId: "..." })`
-  6. Then merge: `gh pr merge --squash --delete-branch`.
+- **PR Merge — MANDATORY CHECKLIST (do NOT skip any step):**
+  The `codex-review-gate` workflow waits ~9 min for the Codex review bot. Bot signals: 👍 reaction = no findings, review comments = findings.
+  - [ ] 1. `gh pr create ...`
+  - [ ] 2. `gh pr checks <nr> --watch` — wait for ALL checks including `codex-review-gate`
+  - [ ] 3. Check bot signal: `gh api repos/<o>/<r>/issues/<nr>/reactions` (👍 = clean) AND `gh api repos/<o>/<r>/pulls/<nr>/comments` (findings)
+  - [ ] 4. If findings → fix, push, then **trigger re-review**: `gh pr comment <nr> --body "@codex review"` — this is the ONLY reliable way to get the bot to review fix commits (pushes alone do NOT trigger re-review). Then go back to step 2.
+  - [ ] 5. If 👍 or timeout (no findings) → resolve ALL review threads (branch protection blocks unresolved):
+         `gh api graphql -f query='{ repository(owner:"<o>",name:"<r>") { pullRequest(number:<nr>) { reviewThreads(first:20) { nodes { id isResolved } } } } }'`
+         Then for each unresolved: `gh api graphql -f query='mutation { resolveReviewThread(input:{threadId:"<id>"}) { thread { isResolved } } }'`
+  - [ ] 6. `gh pr merge --squash --delete-branch` (use `--admin` only if branch protection blocks after all steps passed)
 
 ## Error Handling
 - Expected issues: explicit result types (not throw/try/catch).
