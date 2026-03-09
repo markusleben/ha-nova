@@ -212,7 +212,9 @@ main() {
   echo ""
 
   # Hand off to the setup wizard
-  exec "${BIN_LINK}" setup
+  # Redirect stdin from /dev/tty so interactive input works even when
+  # the script is piped from curl (curl occupies stdin with the script).
+  exec "${BIN_LINK}" setup < /dev/tty
 }
 
 main "$@"
