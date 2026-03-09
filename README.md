@@ -23,7 +23,7 @@ Works with **Claude Desktop, Claude Code, Codex CLI, OpenCode, and Gemini CLI**.
 
 <img src="assets/demo.webp" alt="HA NOVA demo: creating a smart automation from plain English">
 
-> One sentence in, a fully reviewed automation out — including suggestions you might not have thought of.
+> *"When I get home, set the living room lights to a warm welcome ambiance"* — one sentence in, a fully reviewed automation out, including suggestions you might not have thought of.
 
 ## Quick Start
 
