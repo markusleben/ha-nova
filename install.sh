@@ -199,6 +199,12 @@ link_cli() {
 # ── Main ─────────────────────────────────────────────────────────────────
 
 main() {
+  # When piped from curl, stdin is the script itself — reclaim the terminal
+  # so all interactive prompts (existing-install menu, setup wizard) work.
+  if [[ ! -t 0 ]] && [[ -e /dev/tty ]]; then
+    exec < /dev/tty
+  fi
+
   banner
   check_prerequisites
   handle_existing_install
@@ -212,9 +218,7 @@ main() {
   echo ""
 
   # Hand off to the setup wizard
-  # Redirect stdin from /dev/tty so interactive input works even when
-  # the script is piped from curl (curl occupies stdin with the script).
-  exec "${BIN_LINK}" setup < /dev/tty
+  exec "${BIN_LINK}" setup
 }
 
 main "$@"
