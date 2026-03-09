@@ -23,9 +23,9 @@ Works with **Claude Desktop, Claude Code, Codex CLI, OpenCode, and Gemini CLI**.
 
 <img src="assets/demo.webp" alt="HA NOVA demo: creating a smart automation from plain English">
 
-> One sentence in, a fully reviewed automation out — including suggestions you might not have thought of.
+> *"When I get home, set the living room lights to a warm welcome ambiance"* — one sentence in, a fully reviewed automation out, including suggestions you might not have thought of.
 
-## Quick Start
+## 🚀 Quick Start
 
 > **You need:** macOS, [Node.js 20+](https://nodejs.org), Home Assistant OS or Supervised
 
@@ -37,7 +37,7 @@ The wizard handles everything: relay, tokens, skills. Just pick your AI client. 
 
 **Cloned the repo manually?** `npx ha-nova setup` | **Something broken?** `npx ha-nova doctor`
 
-## What Can You Do?
+## 💬 What Can You Do?
 
 Every automation and script change follows a careful process:
 
@@ -57,7 +57,7 @@ Deleting anything requires a confirmation code, not just "yes".
 | *"Show me all sensors in the bedroom"* | Finds entities by room, area, or name |
 | *"Create a counter helper for my coffee intake"* | Creates the helper, shows the result |
 
-## How It Works
+## ⚙️ How It Works
 
 <p align="center">
   <img src="assets/how-it-works.png" alt="How HA NOVA works: Your AI Client talks to the NOVA Relay on your HA server, which connects to Home Assistant. Skills teach the AI what to do.">
@@ -67,45 +67,42 @@ Deleting anything requires a confirmation code, not just "yes".
 
 **The Skills** are plain text files on your machine. Each skill is self-contained — your AI loads only the one it needs for the current task. Want to teach your AI something new about HA? Write a markdown file. No code, no compilation, no deployment.
 
-### What's coming
-
-Because the relay sits on the HA host with local access to the config directory, it can extend what the API offers:
+### 🗺️ What's coming
 
 - **Automation versioning:** automatic backup before every change, stored locally on the HA host
 - **Linux & Windows support**
 
-### How does this compare?
+### 📊 How does this compare to MCP servers?
 
-| | MCP Servers | Skills-only projects | HA NOVA |
-|---|---|---|---|
-| **HA connectivity** | Tools call HA API directly | Typically no API access (SSH/scp) | Relay on HA server (API + local access) |
-| **Intelligence** | Encoded in tool definitions | In prompt context | In modular skills |
-| **Context efficiency** | All tools loaded at once | Single file loaded | Only relevant skill loaded per task |
-| **Extending** | Write code, deploy, update schemas | Edit one markdown file | Edit one markdown file |
-| **Safety flow** | Tool-level (per call) | Manual verification | 4-phase: research → preview → apply → review |
-| **Multi-client** | Varies (1-15 clients) | Usually 1 client | 5 clients (Claude Desktop, Claude Code, Codex CLI, OpenCode, Gemini CLI) |
-| **Server maintenance** | More code to maintain per HA update | None | Minimal (relay is just transport) |
+| | MCP Servers | HA NOVA |
+|---|---|---|
+| 🔌 **Connectivity** | Tools call HA API directly | Relay on HA server (API + local file access) |
+| 🧠 **Knowledge** | In tool code + optional resources | In modular markdown skills |
+| 📦 **Context** | Tools loaded at startup | Only relevant skill loaded per task |
+| 🔧 **Extending** | Write code, deploy | Edit a markdown file |
+| 🛡️ **Safety** | Per-tool (annotations, confirm flags) | 4-phase: research → preview → apply → review |
+| 🖥️ **Clients** | Any MCP-compatible client | 5 tested clients |
 
-**Why not an MCP server?** You can absolutely use one — and good ones exist. We chose skills because adding a new capability means editing a text file instead of writing code. Different trade-off, not a better/worse one.
+Both approaches work. MCP servers have broader client support out of the box. We chose skills because adding a new capability means editing a text file instead of writing code — different trade-off, not a better/worse one.
 
 **Can't I just call the HA API directly?** You can! But you'd miss the safety flow, the automated config checks, the conflict detection, and the secure token isolation the relay provides.
 
-## Skills
+## 🧩 Skills
 
 | Skill | What it does |
 |-------|-------------|
-| **write** | Create, update, delete automations and scripts with full 4-phase safety flow |
-| **read** | Browse configs, inspect automations, debug with trace analysis |
-| **review** | Audit for 40+ common mistakes, conflicts, and best-practice violations |
-| **service-call** | Control devices: lights, climate, covers, switches, media players |
-| **entity-discovery** | Find entities by name, room, or area |
-| **helper** | Manage helpers (input_boolean, counter, timer, schedule, and more) |
-| **guide** | Discover HA features: dashboards, blueprints, energy management |
-| **onboarding** | Setup diagnostics and troubleshooting |
+| ✏️ **write** | Create, update, delete automations and scripts with the 4-phase safety flow |
+| 📖 **read** | Browse configs, inspect automations, debug with trace analysis |
+| 🔍 **review** | Audit for 40+ common mistakes, conflicts, and best-practice violations |
+| 🎛️ **service-call** | Control devices: lights, climate, covers, switches, media players |
+| 🔎 **entity-discovery** | Find entities by name, room, or area |
+| 🧩 **helper** | Manage helpers (input_boolean, counter, timer, schedule, and more) |
+| 📚 **guide** | Discover HA features: dashboards, blueprints, energy management |
+| 🚀 **onboarding** | Setup diagnostics and troubleshooting |
 
 Want to add a new capability? → [CONTRIBUTING.md](CONTRIBUTING.md)
 
-## Safety
+## 🛡️ Safety
 
 - **Preview first:** every change is shown before it happens
 - **Confirmation codes:** deletes require a specific code, not just "yes"
@@ -114,7 +111,7 @@ Want to add a new capability? → [CONTRIBUTING.md](CONTRIBUTING.md)
 - **Encrypted auth:** client-side credentials in macOS Keychain, not in config files
 - **Runs on your network:** no cloud dependency, no tracking (your AI client's own cloud usage is separate)
 
-## Supported AI Clients
+## 🖥️ Supported AI Clients
 
 | Client | Type |
 |--------|------|
@@ -129,7 +126,7 @@ Want to add a new capability? → [CONTRIBUTING.md](CONTRIBUTING.md)
 > 2. Open Claude Desktop and switch to the **Code** tab
 > 3. Pick any folder on your Mac as workspace and start talking
 
-## Contributing
+## 🤝 Contributing
 
 HA NOVA is early — a good time to help shape it.
 
@@ -139,7 +136,7 @@ HA NOVA is early — a good time to help shape it.
 
 → [CONTRIBUTING.md](CONTRIBUTING.md) for details
 
-## The Story Behind It
+## 📖 The Story Behind It
 
 I spent over a year building an MCP server for Home Assistant. Hundreds of tool definitions, thousands of lines of code. I kept polishing, never releasing. By the time I looked up, others had shipped theirs while mine was still on my machine.
 
@@ -147,7 +144,7 @@ I spent over a year building an MCP server for Home Assistant. Hundreds of tool 
 
 Then I realized the approach was wrong. Instead of encoding domain knowledge into a server, I could write it as plain text that the AI reads directly. I scrapped everything and started fresh. HA NOVA is the result.
 
-## Project Structure
+## 📁 Project Structure
 
 ```
 nova/        Relay app (runs on your HA server)
@@ -156,6 +153,6 @@ scripts/     Setup, deploy, diagnostics
 tests/       Test suite
 ```
 
-## License
+## 📄 License
 
 [MIT](LICENSE)
