@@ -201,8 +201,13 @@ link_cli() {
 main() {
   # When piped from curl, stdin is the script itself — reclaim the terminal
   # so all interactive prompts (existing-install menu, setup wizard) work.
-  if [[ ! -t 0 ]] && [[ -e /dev/tty ]]; then
-    exec < /dev/tty
+  if [[ ! -t 0 ]]; then
+    if [[ -e /dev/tty ]] && exec 3< /dev/tty 2>/dev/null; then
+      exec < /dev/tty
+      exec 3>&-
+    else
+      fail "This installer requires an interactive terminal."
+    fi
   fi
 
   banner
