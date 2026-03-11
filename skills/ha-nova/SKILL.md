@@ -121,6 +121,8 @@ Match user intent to exactly one skill:
 **"Wie manage ich Add-ons?"** → `ha-nova:guide` (external, web search)
 **"Zeige mir die History von Sensor X"** → `ha-nova:guide` (relay-ready, no skill)
 
+**Problem-description intents** ("X geht nicht", "Y ist falsch", "funktioniert nicht mehr"): dispatch to `ha-nova:review`. Review will analyze the config AND check current entity state — if an acute fix is possible, it offers a Quick-Fix service call at the end.
+
 ## Latency Policy
 
 - Prefer one-shot reads over multi-step probing.

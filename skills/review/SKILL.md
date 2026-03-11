@@ -12,8 +12,9 @@ Read-only quality review for automations, scripts, and helpers:
 - Config quality checks (safety, reliability, performance, style)
 - Collision scan (other automations targeting same entities)
 - Conflict analysis (real conflicts vs safe patterns)
+- Quick-Fix: if an acute state problem is detected, offer a single corrective service call
 
-Forbidden: any write call, any mutation.
+Read-only analysis. Exception: after explicit user confirmation, one Quick-Fix service call may be executed to correct an acute state problem detected during review.
 
 ## Bootstrap
 
@@ -55,6 +56,12 @@ If the target config is not already in the thread context, resolve it yourself:
      | jq 'if .ok then [.data[] | select(.name | test("<search_term>";"i"))] else error("relay error: \(.error.message // "unknown")") end' > /tmp/ha-review-target.json
    ```
    Then read the file with the native file-reading tool for complete, untruncated access.
+5. Read current state of the primary target entity (for Quick-Fix detection at end of review):
+   ```bash
+   ~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/states/<entity_id>"}' \
+     | jq 'if .ok then .data.body else empty end' > /tmp/ha-review-state.json
+   ```
+   If state read fails, continue review — Quick-Fix will be skipped.
 
 If config is already in the thread context (e.g., user pasted YAML):
 - If entity_id is known: skip Target Resolution entirely, go straight to Config Quality Review (Step 1).
@@ -207,6 +214,37 @@ For each related automation/script, apply the 3-step conflict test:
 - **Startup Flash:** Template sensor trigger without `unknown`/`unavailable` from_state guard → fires on HA restart
 - **Self-Trigger Loop:** Automation triggers on entity X and sets entity X in actions → re-triggers itself; with `mode: queued`/`parallel` this creates infinite loop consuming queue slots until `max:` is hit (see also R-12)
 
+### Step 4: Quick-Fix Detection
+
+After completing Steps 1-3, check if the current entity state (from `/tmp/ha-review-state.json`) shows an acute, fixable problem.
+
+**Qualifies as Quick-Fix:**
+- Entity state contradicts automation intent under current conditions (e.g., light `on` when automation should have turned it `off`, climate mode wrong)
+- Entity is in error/degraded state that a service call can reset (e.g., `unavailable` cover that needs `cover.stop_cover`)
+- Helper value is desynchronized from what automation logic expects (e.g., `input_select` stuck on wrong option)
+
+**Does NOT qualify:**
+- State is simply "not what user wants" without clear automation-intent evidence — that's a service-call request, not a review finding
+- Fix requires config change (that's a SUGGESTIONS item)
+- Multiple equally valid corrections exist (ambiguous — note in SUGGESTIONS instead)
+- State read failed or entity unavailable — skip, note: `QUICK_FIX: skipped (state unavailable)`
+
+**If qualified:**
+1. Show current state vs expected state
+2. Show exact service call that would fix it
+3. Ask for natural confirmation (same tier as `ha-nova:service-call` — no token needed, service calls are reversible)
+
+**On confirmation:**
+Execute via Relay:
+```bash
+~/.config/ha-nova/relay core -d '{"method":"POST","path":"/api/services/{domain}/{service}","body":{"entity_id":"{entity_id}",{...service_data}}}'
+```
+Then verify state changed:
+```bash
+~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/states/{entity_id}"}'
+```
+Report result (new state or failure).
+
 ## Output Format
 
 Return exactly these sections:
@@ -241,9 +279,15 @@ Return exactly these sections:
 - mention total findings count and highest severity
 - if no issues: "Config looks clean — no best-practice violations or conflicts detected."
 
+`QUICK_FIX:`
+- `none` — no acute state problem detected
+- `skipped (state unavailable)` — could not read entity state
+- or: current state, expected state, proposed service call, confirmation prompt
+
 ## Guardrails
 
-- Read-only: no writes, no mutations
+- Read-only analysis (exception: Quick-Fix service call after user confirmation)
+- Quick-Fix: max 1 service call per review, only after explicit user confirmation, only simple state corrections (no config mutations)
 - Only communicate with HA through `~/.config/ha-nova/relay`
 - Never guess entity IDs
 - Limit collision scan to top 3 target entities, max 5 related configs
