@@ -171,7 +171,7 @@ Find other automations/scripts that control the same entities.
    ~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/config/script/config/<unique_id>"}' \
      | jq 'if .ok then .data.body else error("relay error: \(.error.message // "unknown")") end' > /tmp/ha-review-related-N.json
    ```
-5. If `related_items_found: 0`, set `CONFLICTS: none` and skip Step 3.
+5. If no related items found, report "no conflicts" in the Conflicts section and skip Step 3.
 
 ### Trace Analysis (on request)
 
@@ -179,7 +179,7 @@ When the user reports runtime issues ("automation didn't fire", "wrong behavior 
 1. Follow the trace procedure in `skills/read/SKILL.md` → Trace Debugging
 2. Cross-reference trace findings with config quality findings from Step 1
 3. Verify `item_id` in every trace matches the target's `unique_id` before attributing results. see `skills/ha-nova/SKILL.md` → Claim-Evidence Binding.
-4. Include trace-based findings in `CONFIG_FINDINGS` with prefix `T-` (e.g., `T-01: Condition blocked execution in last 3 runs`)
+4. Include trace-based findings in the Findings section with a descriptive title (e.g., `🔴 Bedingung blockiert — Condition wurde in den letzten 3 Runs nie erfüllt`)
 
 ### Step 3: Conflict Analysis
 
@@ -225,9 +225,9 @@ After completing Steps 1-3, check if the current entity state (from `/tmp/ha-rev
 
 **Does NOT qualify:**
 - State is simply "not what user wants" without clear automation-intent evidence — that's a service-call request, not a review finding
-- Fix requires config change (that's a SUGGESTIONS item)
-- Multiple equally valid corrections exist (ambiguous — note in SUGGESTIONS instead)
-- State read failed or entity unavailable — skip, note: `QUICK_FIX: skipped (state unavailable)`
+- Fix requires config change (that's a Suggestions item)
+- Multiple equally valid corrections exist (ambiguous — note in Suggestions section instead)
+- State read failed or entity unavailable — skip, note in Instant Help section: localized "skipped (state unavailable)"
 
 **If qualified:**
 1. Show current state vs expected state
@@ -247,42 +247,40 @@ Report result (new state or failure).
 
 ## Output Format
 
-Return exactly these sections:
+Return exactly these 7 sections, in this order, every time. Localize all headings to the user's language (see `skills/ha-nova/SKILL.md` → Output Localization).
 
-`REVIEW_MODE:`
-- `domain: automation|script|helper`
-- `target_id: ...`
+**Section 1 — Review target:**
+- domain (automation / script / helper) and target entity_id
 
-`CONFIG_FINDINGS:`
-- numbered findings or `none`
-- each: `[SEVERITY] CODE: description — fix suggestion`
-- severity: `CRITICAL`, `HIGH`, `MEDIUM`, `LOW`
+**Section 2 — Findings:**
+- numbered list or "no issues found"
+- each: `🔴|🟠|🟡 Descriptive title — explanation + fix suggestion`
+- 🔴 = high/critical, 🟠 = medium, 🟡 = low/info
+- title must describe WHAT the issue is (2-5 words), NOT an internal code
 
-`COLLISION_SCAN:`
-- `entities_checked: [list]`
-- `related_items_found: <number>`
-- `configs_analyzed: <number>`
+**Section 3 — Collision check:**
+- list the checked entity names
+- short result: how many related automations/scripts found
 
-`CONFLICTS:`
-- numbered conflicts or `none`
-- each: `[SEVERITY] entity_id — this automation does X, {other_automation} does Y — risk: description`
-- include WHY it's a conflict (temporal overlap, missing guard, etc.)
-- severity: `HIGH` (real conflict), `MEDIUM` (potential under certain conditions), `INFO` (same entity but safe pattern)
+**Section 4 — Conflicts:**
+- numbered conflicts or "none"
+- each: entity_id, what this automation does vs what the other does, risk description
+- 🔴 = real conflict, 🟠 = potential, 🟡 = info (safe pattern)
 
-`SUGGESTIONS:`
-- concrete improvement ideas based on analysis
+**Section 5 — Suggestions:**
+- concrete improvement ideas
 - each: short title + what it does + why it helps
-- or `none`
+- or "none"
 
-`SUMMARY:`
-- one-paragraph natural language summary of findings for user presentation
-- mention total findings count and highest severity
-- if no issues: "Config looks clean — no best-practice violations or conflicts detected."
+**Section 6 — Summary:**
+- one-paragraph natural language summary
+- mention total findings count and highest severity emoji
+- if clean: localized equivalent of "Config looks clean — no issues detected."
 
-`QUICK_FIX:`
-- `none` — no acute state problem detected
-- `skipped (state unavailable)` — could not read entity state
-- or: current state, expected state, proposed service call, confirmation prompt
+**Section 7 — Instant help:**
+- if no acute state problem: localized "not needed"
+- if state read failed: localized "skipped (state unavailable)"
+- if fixable problem detected: current state, expected state, proposed service call, confirmation prompt
 
 ## Guardrails
 

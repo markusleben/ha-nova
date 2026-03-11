@@ -91,6 +91,15 @@ Render structured summary + YAML for both reads and writes:
 
 Keep orchestration details internal on normal success paths.
 
+## Output Localization (Critical)
+
+All user-facing output MUST follow these rules:
+- **Language**: Localize all section headings and labels to the user's language. Use idiomatic phrasing, not literal translations.
+- **Severity**: 3 levels only — 🔴 (high/critical) 🟠 (medium) 🟡 (low/info). No text severity labels needed — the emoji is sufficient.
+- **Finding titles**: Each finding gets a short descriptive title (2-5 words) explaining WHAT the issue is. Example: "Template-Fallback fehlt", not "R-01".
+- **Internal codes**: Check codes (R-01, S-01, H-01, M-01, P-01, F-01, etc.) are for YOUR analysis reference only. NEVER show them in user-facing output.
+- **Consistency**: Same sections, same order, every time. The user must recognize the structure across reviews.
+
 ## Skill Dispatch (Critical)
 
 **Always invoke exactly ONE ha-nova skill per user intent.** Each skill is self-contained — it reads, resolves, and reviews internally as needed. Never load two ha-nova skills in parallel.

@@ -192,15 +192,12 @@ After any mutation (automation, script, or helper):
    - **Automations:** S + R + P + M checks. If actions reference helpers, also H checks on those helpers.
    - **Scripts:** S + R + P + M + F checks. If actions reference helpers, also H checks.
    - **Helpers:** H checks only.
-   Focus on CRITICAL/HIGH. Report MEDIUM/LOW as advisory.
+   Focus on 🔴 findings. Report 🟠🟡 findings as advisory.
 3. Collision scan: `search/related` for top target entities, max 3 related configs (standalone review uses max 5)
-4. Output format (MUST appear in every post-write response):
-   ```
-   ## Post-Write Review
-   **Config Findings:** {CRITICAL/HIGH findings with fix suggestions, or "Clean — no issues found."}
-   **Collision Scan:** {conflicts or "No conflicts detected."}
-   **Advisory:** {MEDIUM/LOW findings, or omit if none}
-   ```
+4. Output format (MUST appear in every post-write response) — localize headings per `skills/ha-nova/SKILL.md` → Output Localization:
+   - **Findings**: 🔴🟠🟡 findings with descriptive titles + fix suggestions, or localized "no issues found"
+   - **Collision check**: conflicts or localized "no conflicts"
+   - **Advisory**: 🟠🟡 findings, or omit if none
 
 ## Adding a New Skill — Checklist
 

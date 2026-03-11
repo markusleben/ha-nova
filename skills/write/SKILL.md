@@ -44,8 +44,8 @@ If this fails, run onboarding: `npm run onboarding:macos`.
      Skip when: `SUGGESTED_ENHANCEMENTS: none`, or `update` where the suggested enhancement is already present in current_config.
      Example: `1. Sunset offset — add -15min for civil twilight  2. Mode: restart — re-trigger resets timer` → User: "1" → only offset merged.
    - **3b) Static Checks**: Run S/R/P/M checks from `review/SKILL.md` Step 1 analytically on the draft YAML — no relay calls needed (scripts: also F-01..F-08; if actions reference helpers: also H-01..H-08).
-     CRITICAL/HIGH → inline warning with fix suggestion. MEDIUM/LOW → advisory below preview. Clean → skip.
-     Track reported finding codes (e.g. R-05, P-01) for dedup in Phase 4 — user proceeding past a warning = implicit ack.
+     🔴 findings → inline warning with fix suggestion. 🟠🟡 findings → advisory below preview. Clean → skip.
+     Track reported findings by check type for dedup in Phase 4 — user proceeding past a warning = implicit ack.
 4. Preview: structured summary (alias, ID, entities, triggers, conditions, actions, mode) + full YAML config.
 5. Confirmation: create/update=natural, delete=tokenized `confirm:<token>` (strict: only exact token accepted, see context skill → Safety Baseline).
 
@@ -74,16 +74,13 @@ Follow the Post-Write Review Standard from `docs/reference/skill-architecture.md
    - Compare read-back vs draft on core fields (automations: `alias`,`triggers`,`conditions`,`actions`,`mode`,`description`; scripts: `alias`,`sequence`,`mode`,`description`,`variables`,`fields`). Ignore metadata (`id`,`unique_id`,`created_at`,`modified_at`,`editor`,`enabled`).
    - Note: HA may normalize keys during write (`trigger`→`triggers`, `action`→`actions`, `condition`→`conditions`). Account for plural aliasing when comparing — these are not real diffs.
    - Core fields differ (beyond aliasing) → full checks from `review/SKILL.md` Step 1. Match → skip: "covered in pre-write review."
-   - **Dedup**: findings from Phase 2 Step 3b that user saw MUST NOT repeat. Example: if R-05 (mode not explicit) was shown pre-write and user proceeded, do not report R-05 again.
+   - **Dedup**: findings from Phase 2 Step 3b that user saw MUST NOT repeat. Track by check type (not code — codes are internal), e.g. if "mode not explicit" was shown pre-write and user proceeded, do not report it again.
    - If actions reference helpers: always run H-01..H-08.
 3. Run collision scan: `search/related` for the top 3 target entities, read max 3 related configs.
-4. Response MUST include this exact structure:
-   ```
-   ## Post-Write Review
-   **Config Findings:** {CRITICAL/HIGH findings with fix suggestions, or "Clean — no issues found."}
-   **Collision Scan:** {conflicts with related automations/scripts, or "No conflicts detected."}
-   **Advisory:** {MEDIUM/LOW findings, or omit section if none}
-   ```
+4. Response MUST include a Post-Write Review section with localized headings (see `skills/ha-nova/SKILL.md` → Output Localization):
+   - **Findings**: 🔴🟠🟡 findings with descriptive titles + fix suggestions, or localized "no issues found"
+   - **Collision check**: conflicts with related automations/scripts, or localized "no conflicts"
+   - **Advisory**: 🟠🟡 findings, or omit if none
 5. Findings are advisory — write already succeeded.
 
 ## Output Format

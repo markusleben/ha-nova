@@ -126,17 +126,14 @@ describe("ha-nova contract", () => {
     expect(review).toContain("~/.config/ha-nova/relay core");
     expect(review).not.toContain("{RELAY_BASE_URL}");
     expect(review).not.toContain("{RELAY_AUTH_TOKEN}");
-    expect(review).toContain("CONFIG_FINDINGS:");
-    expect(review).toContain("COLLISION_SCAN:");
-    expect(review).toContain("CONFLICTS:");
+    expect(review).toContain("Output Format");
+    expect(review).toContain("Output Localization");
     expect(review).toContain("search/related");
     expect(review).toContain("complementary pair");
     // Review checks (S/R/P/M/F/H) live in review/SKILL.md (SSOT).
     // Agent references that file instead of duplicating checks.
     expect(review).toContain("skills/review/SKILL.md");
-    expect(review).toContain("REVIEW_MODE:");
-    expect(review).toContain("SUGGESTIONS:");
-    expect(review).toContain("SUMMARY:");
+    expect(review).toContain("mode: post-write");
     expect(review).toContain("post-write");
     expect(review).toContain("standalone");
   });
