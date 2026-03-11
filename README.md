@@ -13,7 +13,7 @@
 
 HA NOVA gives AI a clear and safe way to work with Home Assistant.
 
-Instead of letting an agent randomly create, change, or delete things, HA NOVA pushes it through the right path for the task. If something needs to be changed, the AI should first research, then show a preview, then apply and verify, and then review the result.
+Instead of letting an agent randomly create, change, or delete things, HA NOVA pushes it through the right path for the task. Risky changes should be researched first, then previewed, then checked after they are applied.
 
 A big part of that logic lives in plain markdown files called *skills*. They teach the AI how to work with Home Assistant.
 
@@ -97,7 +97,7 @@ Deleting anything requires a confirmation code, not just "yes".
 
 Both approaches work. MCP servers have broader client support out of the box. We chose skills because adding a new capability means editing a text file instead of writing code — different trade-off, not a better/worse one.
 
-**Can't I just call the HA API directly?** You can! But then the AI is mostly just calling tools. HA NOVA adds a safer and more guided way to solve Home Assistant tasks, plus a small relay on the Home Assistant side for things where host-side access really helps.
+**Can't I just call the HA API directly?** You can! But HA NOVA adds a safer and more guided way to solve Home Assistant tasks, plus a small relay on the Home Assistant side for things where host-side access really helps.
 
 ## 🧩 Skills
 
