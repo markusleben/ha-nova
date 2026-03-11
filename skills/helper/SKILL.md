@@ -140,13 +140,10 @@ Do NOT report results to user until complete. Run after every create/update/dele
    ```bash
    ~/.config/ha-nova/relay ws -d '{"type":"search/related","item_type":"entity","item_id":"{entity_id}"}'
    ```
-3. Response MUST include:
-   ```
-   ## Post-Write Review
-   **Config Findings:** {H-check findings with fix suggestions, or "Clean — no issues found."}
-   **Collision Scan:** {referencing automations/scripts, or "No references found."}
-   **Advisory:** {MEDIUM/LOW findings, or omit if none}
-   ```
+3. Response MUST include a Post-Write Review section with localized headings (see `skills/ha-nova/SKILL.md` → Output Localization):
+   - **Findings**: 🔴🟠🟡 findings with descriptive titles + fix suggestions, or localized "no issues found"
+   - **Collision check**: referencing automations/scripts, or localized "no references found"
+   - **Advisory**: 🟠🟡 findings, or omit if none
 
 Findings are advisory — write already succeeded. User can choose to update.
 

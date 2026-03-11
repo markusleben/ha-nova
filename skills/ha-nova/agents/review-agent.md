@@ -98,37 +98,8 @@ For each related automation/script, apply the 3-step conflict test:
 
 see `skills/review/SKILL.md` → Known Safe Patterns / Known Problem Patterns for the complete list.
 
-## Output Format (Structured Text)
+## Output Format
 
-Return exactly these sections:
+Follow the output format defined in `skills/review/SKILL.md` → Output Format. Same 7 sections (without Instant Help — not applicable to post-write agent reviews), same order. Localize per `skills/ha-nova/SKILL.md` → Output Localization.
 
-`REVIEW_MODE:`
-- `mode: post-write|standalone`
-- `domain: automation|script|helper`
-- `target_id: ...`
-
-`CONFIG_FINDINGS:`
-- numbered findings or `none`
-- each: `[SEVERITY] CODE: description — fix suggestion`
-- severity: `CRITICAL`, `HIGH`, `MEDIUM`, `LOW`
-
-`COLLISION_SCAN:`
-- `entities_checked: [list]`
-- `related_items_found: <number>`
-- `configs_analyzed: <number>`
-
-`CONFLICTS:`
-- numbered conflicts or `none`
-- each: `[SEVERITY] entity_id — this automation does X, {other_automation} does Y — risk: description`
-- include WHY it's a conflict (temporal overlap, missing guard, etc.)
-- severity: `HIGH` (real conflict), `MEDIUM` (potential under certain conditions), `INFO` (same entity but safe pattern)
-
-`SUGGESTIONS:`
-- concrete improvement ideas based on analysis
-- each: short title + what it does + why it helps
-- or `none`
-
-`SUMMARY:`
-- one-paragraph natural language summary of findings for user presentation
-- mention total findings count and highest severity
-- if no issues: "Config looks clean — no best-practice violations or conflicts detected."
+For post-write reviews, Section 1 (Review target) must include `mode: post-write`.
