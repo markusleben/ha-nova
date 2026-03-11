@@ -56,15 +56,15 @@ If the target config is not already in the thread context, resolve it yourself:
      | jq 'if .ok then [.data[] | select(.name | test("<search_term>";"i"))] else error("relay error: \(.error.message // "unknown")") end' > /tmp/ha-review-target.json
    ```
    Then read the file with the native file-reading tool for complete, untruncated access.
-5. Read current state of the primary target entity (for Quick-Fix detection at end of review):
+5. After reading the config, extract the **primary controlled entity** from the config actions (the first significant entity_id being controlled, e.g., `light.kitchen`, `climate.living_room` — NOT the automation/script entity itself). Read its current state (for Quick-Fix detection at end of review):
    ```bash
-   ~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/states/<entity_id>"}' \
+   ~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/states/<controlled_entity_id>"}' \
      | jq 'if .ok then .data.body else empty end' > /tmp/ha-review-state.json
    ```
-   If state read fails, continue review — Quick-Fix will be skipped.
+   If no controlled entity found in actions, or state read fails: continue review — Quick-Fix will be skipped.
 
 If config is already in the thread context (e.g., user pasted YAML):
-- If entity_id is known: skip Target Resolution entirely, go straight to Config Quality Review (Step 1).
+- If entity_id is known: skip Target Resolution entirely, go straight to Config Quality Review (Step 1). But still read the primary controlled entity's state (step 5 above) for Quick-Fix detection — this step is independent of Target Resolution.
 - If entity_id is unknown: run Target Resolution search (above) to find entity_id. If not found, proceed with Config Quality Review only. Note in output: "Collision scan skipped — no entity_id available."
 
 Do NOT invoke ha-nova:entity-discovery or ha-nova:read as separate skills — handle everything within this review flow.
