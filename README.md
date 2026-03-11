@@ -11,9 +11,19 @@
 
 ## What is HA NOVA?
 
-HA NOVA connects your AI to Home Assistant. You talk in plain language, like *"create an automation that turns on the porch light at sunset"*, and your AI handles it safely, with a preview before any change is made.
+HA NOVA gives AI a clear and safe way to work with Home Assistant.
 
-How? A small app on your HA server acts as a secure bridge (we call it the *relay*), while plain text files called *skills* teach your AI how Home Assistant works. A setup wizard installs the relay on your HA server and configures your AI client — you don't need to understand the internals to get started.
+Instead of letting an agent randomly create, change, or delete things, HA NOVA pushes it through the right path for the task. Risky changes should be researched first, then previewed, then checked after they are applied.
+
+A big part of that logic lives in plain markdown files called *skills*. They teach the AI how to work with Home Assistant.
+
+And in the background there is a small app on your HA server called the *relay*. It is kind of the little secret weapon of the whole setup :)
+
+The relay is not an MCP server — it is just a small helper on the Home Assistant server, while the real logic and workflows live in the skills.
+
+It does not replace the normal Home Assistant API. The special thing is that it runs directly on the Home Assistant server. That means it can help with things where being close to Home Assistant really matters.
+
+A setup wizard installs the relay on your HA server and configures your AI client, so you do not need to understand the internals to get started.
 
 Works with **Claude Desktop, Claude Code, Codex CLI, OpenCode, and Gemini CLI**.
 
@@ -39,12 +49,14 @@ The wizard handles everything: relay, tokens, skills. Just pick your AI client. 
 
 ## 💬 What Can You Do?
 
-Every automation and script change follows a careful process:
+Automation and script changes follow a careful path:
 
 1. **Research:** Looks up your devices, checks existing configs, resolves the right entities
 2. **Preview:** Shows you the exact config that will be written. Nothing happens until you say OK.
 3. **Apply & Verify:** Writes it, reads it back to make sure it actually stuck
 4. **Review:** Checks the result against 40+ rules for common mistakes, conflicts, and reliability issues
+
+Reads and simple control tasks can stay lighter. But the main goal is always the same: no random actions, no guessed IDs, and no risky writes without a clear check first.
 
 Deleting anything requires a confirmation code, not just "yes".
 
@@ -63,9 +75,9 @@ Deleting anything requires a confirmation code, not just "yes".
   <img src="assets/how-it-works.png" alt="How HA NOVA works: Your AI Client talks to the NOVA Relay on your HA server, which connects to Home Assistant. Skills teach the AI what to do.">
 </p>
 
-**The Relay** runs directly on your Home Assistant server. It forwards requests securely while keeping your access token safely on the server — never on your machine. Only ~1,500 lines of code — it just forwards requests without interpreting them. That helps keep it stable across HA updates.
+**The Skills** are plain text files on your machine. They hold the rules, the logic, and the flow the AI should follow. Each skill is self-contained — your AI loads only the one it needs for the current task. Want to teach your AI something new about Home Assistant? Write a markdown file. No code, no compilation, no deployment.
 
-**The Skills** are plain text files on your machine. Each skill is self-contained — your AI loads only the one it needs for the current task. Want to teach your AI something new about HA? Write a markdown file. No code, no compilation, no deployment.
+**The Relay** runs directly on your Home Assistant server. It keeps your access token on the server — never on your machine — and quietly helps with the things the AI cannot or should not do directly. For example: WebSocket features today, and later maybe things like safe backup or restore flows on the Home Assistant side. It stays small on purpose and does not try to become the intelligence layer.
 
 ### 🗺️ What's coming
 
@@ -85,7 +97,7 @@ Deleting anything requires a confirmation code, not just "yes".
 
 Both approaches work. MCP servers have broader client support out of the box. We chose skills because adding a new capability means editing a text file instead of writing code — different trade-off, not a better/worse one.
 
-**Can't I just call the HA API directly?** You can! But you'd miss the safety flow, the automated config checks, the conflict detection, and the secure token isolation the relay provides.
+**Can't I just call the HA API directly?** You can! But HA NOVA adds a safer and more guided way to solve Home Assistant tasks, plus a small relay on the Home Assistant side for things where host-side access really helps.
 
 ## 🧩 Skills
 
