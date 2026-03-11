@@ -61,8 +61,8 @@ describe("ha cross-skill integration", () => {
     // Phase 2 Step 3b: pre-write static checks
     expect(writeSkill).toContain("3b) Static Checks");
     expect(writeSkill).toContain("analytically on the draft YAML");
-    expect(writeSkill).toContain("CRITICAL/HIGH");
-    expect(writeSkill).toContain("MEDIUM/LOW");
+    expect(writeSkill).toContain("🔴 findings");
+    expect(writeSkill).toContain("🟠🟡 findings");
     expect(writeSkill).toContain("dedup in Phase 4");
   });
 
@@ -77,11 +77,11 @@ describe("ha cross-skill integration", () => {
     // Dedup rule with example
     expect(writeSkill).toContain("Dedup");
     expect(writeSkill).toContain("MUST NOT repeat");
-    expect(writeSkill).toContain("R-05");
+    expect(writeSkill).toContain("check type");
 
-    // Post-write review format template
-    expect(writeSkill).toContain("Config Findings:");
-    expect(writeSkill).toContain("Collision Scan:");
-    expect(writeSkill).toContain("Advisory:");
+    // Post-write review format uses localized headings with emoji severity
+    expect(writeSkill).toContain("Findings");
+    expect(writeSkill).toContain("Collision check");
+    expect(writeSkill).toContain("Output Localization");
   });
 });
