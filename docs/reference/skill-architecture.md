@@ -124,7 +124,7 @@ Fallback:
 ## Review Architecture
 
 `ha-nova:review` is a self-contained read-only reviewer:
-- Config quality: safety (S-01..S-03), reliability (R-01..R-15), performance (P-01..P-04), style (M-01..M-04), script-specific (F-01..F-08), helper-specific (H-01..H-08)
+- Config quality: safety (S-01..S-03), reliability (R-01..R-15), performance (P-01..P-04), style (M-01..M-04), script-specific (F-01..F-08), helper-specific (H-01..H-10)
 - Collision scan: `search/related` on top 3 target entities
 - Conflict analysis: 3-step test (polarity → temporal → guard conditions)
 - Known safe/problem pattern matching
@@ -137,7 +137,7 @@ Fallback:
 - Identity: `{type}_id` (internal unique_id from list), not entity_id
 - All operations inline (no agents) — configs are flat, no complex resolution or normalization needed
 - Write: WS `{type}/create|update|delete` + `{type}/list` verify
-- Review: H-01..H-08 helper-specific checks + collision scan via `search/related`
+- Review: H-01..H-10 helper-specific checks + collision scan via `search/related`
 - No domain reload needed — storage-based, immediate effect
 
 Excluded: config-entry flow helpers (template, group, utility_meter) — different API pattern.
@@ -219,6 +219,24 @@ When creating a new skill under `skills/{name}/SKILL.md`:
 `skills/review/SKILL.md` Step 1 is the authoritative source for all review checks (S/R/P/M/F/H).
 Agent templates (`review-agent.md`) reference this file instead of duplicating checks.
 When adding or modifying checks, update ONLY `review/SKILL.md` — agents read from there.
+
+## Review Check Taxonomy
+
+Review checks use the format `{CATEGORY}-{NN}`:
+- `S` = Safety
+- `R` = Reliability
+- `P` = Performance
+- `M` = Style
+- `F` = Script-specific
+- `H` = Helper-specific
+
+`NN` is the running rule number inside that family. Severity is separate from the code.
+
+Examples:
+- `R-10` = the 10th reliability rule
+- `H-09` = the 9th helper-specific rule
+
+These codes are contributor-facing/internal only. User-facing output must use localized descriptive titles instead of exposing codes.
 
 ## Safety Baseline
 

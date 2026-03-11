@@ -98,6 +98,13 @@ Do NOT flag valid HA builtins or documented behavior as errors.
 
 Analyze config against these checks AND any additional issues found in the official docs. Report only violations found.
 
+**Check Taxonomy (internal only):**
+- Format: `{CATEGORY}-{NN}` (example: `H-09`)
+- Category letter = family: `S` safety, `R` reliability, `P` performance, `M` style, `F` script-specific, `H` helper-specific
+- Number = running rule number within that family
+- Severity is separate from the code
+- Codes are for your internal reasoning only; never show them in user-facing output
+
 **Safety (Critical):**
 - S-01: Hardcoded secrets (tokens, passwords, API keys, long webhook IDs as literals)
 - S-02: `entity_id: all` or domain-wide targets without explicit intent
@@ -151,6 +158,22 @@ Analyze config against these checks AND any additional issues found in the offic
 - H-06 [LOW]: `timer` without `duration` — must be set via service call before start
 - H-07 [MEDIUM]: Orphaned helper — not referenced by any automation/script (check via `search/related`; for cleanup workflow see `skills/ha-nova/safe-refactoring.md` → Orphan Cleanup)
 - H-08 [LOW]: Naming inconsistency — mixed patterns across helpers (e.g., `sleep_mode` vs `Sleep Mode` vs `sleepMode`)
+- H-09 [MEDIUM → HIGH]: Threshold effectively weakened — `input_number` is used as a direct threshold and its current value sits at or near the boundary that makes the guard trivially easy to satisfy. Operator-aware: `>`/`>=` is risky near `min`; `<`/`<=` is risky near `max`. "Near" means within `1 × step`, including the exact boundary. Escalate to HIGH only with concrete loop evidence (`repeat:`, or R-10/R-12 also applies).
+- H-10 [LOW]: Threshold value off the configured step grid — current `input_number` value does not land on the configured `step` lattice relative to `min`; likely set programmatically rather than through the UI. Supplementary signal for H-09, not a severity escalator by itself.
+
+**Helper Threshold Evidence (for H-09/H-10):**
+- Apply only for direct threshold references, not broad heuristics:
+  - `numeric_state` with helper-backed `above`/`below`
+  - direct template comparisons where an explicit `input_number.<id>` appears in the compared expression
+- Read live helper evidence via:
+  ```bash
+  ~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/states/<helper_entity_id>"}' \
+    | jq 'if .ok then .data.body else empty end'
+  ```
+- Use `state` plus `attributes.min`, `attributes.max`, and `attributes.step`. If any of these are missing or non-numeric, skip H-09/H-10.
+- For H-10, check the step lattice relative to `min`, not `value % step`. Use a small float tolerance when deciding whether `(value - min) / step` is effectively an integer.
+- `choose:` alone is not enough for HIGH severity. Escalate only when the weakened threshold also participates in concrete loop-capable control flow (`repeat:` or already-matched R-10/R-12).
+- Do not emit R-10 just because H-09 matched. Report R-10 only when its own queue-saturation criteria are independently satisfied.
 
 ### Step 2: Collision Scan
 

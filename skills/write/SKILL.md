@@ -43,7 +43,7 @@ If this fails, run onboarding: `npm run onboarding:macos`.
    - **3a) Suggestions**: Show `suggested_enhancements` from resolve-agent (max 4, numbered). User accepts by number (all, partial like "1 and 3", or "skip") → merge accepted into config BEFORE preview.
      Skip when: `SUGGESTED_ENHANCEMENTS: none`, or `update` where the suggested enhancement is already present in current_config.
      Example: `1. Sunset offset — add -15min for civil twilight  2. Mode: restart — re-trigger resets timer` → User: "1" → only offset merged.
-   - **3b) Static Checks**: Run S/R/P/M checks from `review/SKILL.md` Step 1 analytically on the draft YAML — no relay calls needed (scripts: also F-01..F-08; if actions reference helpers: also H-01..H-08).
+   - **3b) Static Checks**: Run S/R/P/M checks from `review/SKILL.md` Step 1 analytically on the draft YAML — no relay calls needed (scripts: also F-01..F-08; if actions reference helpers: also H-01..H-10).
      🔴 findings → inline warning with fix suggestion. 🟠🟡 findings → advisory below preview. Clean → skip.
      Track reported findings by check type for dedup in Phase 4 — user proceeding past a warning = implicit ack.
 4. Preview: structured summary (alias, ID, entities, triggers, conditions, actions, mode) + full YAML config.
@@ -75,7 +75,7 @@ Follow the Post-Write Review Standard from `docs/reference/skill-architecture.md
    - Note: HA may normalize keys during write (`trigger`→`triggers`, `action`→`actions`, `condition`→`conditions`). Account for plural aliasing when comparing — these are not real diffs.
    - Core fields differ (beyond aliasing) → full checks from `review/SKILL.md` Step 1. Match → skip: "covered in pre-write review."
    - **Dedup**: findings from Phase 2 Step 3b that user saw MUST NOT repeat. Track by check type (not code — codes are internal), e.g. if "mode not explicit" was shown pre-write and user proceeded, do not report it again.
-   - If actions reference helpers: always run H-01..H-08.
+   - If actions reference helpers: always run H-01..H-10.
 3. Run collision scan: `search/related` for the top 3 target entities, read max 3 related configs.
 4. Response MUST include a Post-Write Review section with localized headings (see `skills/ha-nova/SKILL.md` → Output Localization):
    - **Findings**: 🔴🟠🟡 findings with descriptive titles + fix suggestions, or localized "no issues found"

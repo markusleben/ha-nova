@@ -135,7 +135,7 @@ If 0 results: try synonyms or shorter stems. Never dump entire domains.
 
 Do NOT report results to user until complete. Run after every create/update/delete:
 
-1. Check written config against H-01..H-08 (see `skills/review/SKILL.md` Helper-Specific section).
+1. Check written config against H-01..H-10 (see `skills/review/SKILL.md` Helper-Specific section).
 2. Collision scan: `search/related` for helper entity, check referencing automations/scripts (max 3).
    ```bash
    ~/.config/ha-nova/relay ws -d '{"type":"search/related","item_type":"entity","item_id":"{entity_id}"}'
@@ -187,4 +187,4 @@ Never show raw JSON to the user.
 
 - Relay API: `skills/ha-nova/relay-api.md` (see "Helper CRUD" section)
 - Helper Schemas: `skills/ha-nova/helper-schemas.md`
-- Review Checks: `skills/review/SKILL.md` (H-01..H-08)
+- Review Checks: `skills/review/SKILL.md` (H-01..H-10)
