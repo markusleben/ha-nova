@@ -94,4 +94,49 @@ describe.skipIf(!isMac)("S-7: relay unreachable during setup", () => {
     expect(output).toContain("NOVA Relay app started");
     expect(output).toContain('Is the "Relay Auth Token" field ("relay_auth_token") saved');
   });
+
+  it("ends as setup incomplete when relay is up but HA WS stays degraded", { timeout: 30000 }, () => {
+    const home = createMockHome();
+    const binDir = createMockBinaries({
+      healthFixture: "relay-health-ws-down.json",
+      wsFixture: "relay-ws-upstream-error.json",
+      wsStatusCode: 502,
+    });
+
+    const input = [
+      "192.168.1.5",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+    ].join("\n");
+
+    const result = spawnSync(
+      "bash",
+      ["scripts/onboarding/macos-onboarding.sh", "setup", "claude"],
+      {
+        cwd: REPO_ROOT,
+        input,
+        encoding: "utf8",
+        timeout: 30000,
+        env: mockEnv(home, binDir),
+      },
+    );
+
+    const output = (result.stdout ?? "") + (result.stderr ?? "");
+
+    expect(result.status).toBe(0);
+    expect(output).toContain("Home Assistant WebSocket is not connected yet");
+    expect(output).toContain("Setup incomplete");
+    expect(output).not.toContain("Setup complete!");
+    expect(output).toContain("ha-nova doctor");
+    expect(readFileSync(join(home, ".config/ha-nova/onboarding.env"), "utf8")).toContain("HA_HOST=192.168.1.5");
+  });
 });

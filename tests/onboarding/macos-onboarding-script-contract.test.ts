@@ -131,7 +131,8 @@ describe("macOS onboarding script contract", () => {
     expect(content).toContain("leave empty to keep existing or auto-generate");
     expect(content).toContain("Using existing relay auth token from Keychain");
     expect(content).toContain("ha_ws_connected=false");
-    expect(content).toContain('the \\"Home Assistant Access Token\\" field (\\"ha_llat\\") is required in App options');
+    expect(content).toContain("Home Assistant WebSocket is not connected yet");
+    expect(content).toContain("Setup incomplete");
     expect(content).toContain('Home Assistant Access Token field ("ha_llat") lives in App options');
     expect(content).not.toContain("unset HA_LLAT");
   });

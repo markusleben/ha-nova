@@ -358,6 +358,10 @@ probe_relay_ws_ping() {
   return 1
 }
 
+relay_ws_issue_is_llat() {
+  [[ "${LAST_RELAY_WS_STATUS_CODE:-}" == "502" && "${LAST_RELAY_WS_BODY:-}" == *"LLAT is required"* ]]
+}
+
 # ---------------------------------------------------------------------------
 # Relay diagnostics
 # ---------------------------------------------------------------------------
@@ -369,7 +373,7 @@ explain_relay_ws_degraded() {
       echo "         Action: verify the exact value in the \"Relay Auth Token\" field (\"relay_auth_token\") in App options." >&2
       ;;
     "502")
-      if [[ "${LAST_RELAY_WS_BODY:-}" == *"LLAT is required"* ]]; then
+      if relay_ws_issue_is_llat; then
         echo "         Cause: Relay is reachable, but HA WS authentication failed because the Home Assistant Access Token is missing or mismatched." >&2
         echo "         Action: set the \"Home Assistant Access Token\" field (\"ha_llat\") in App options to a valid Long-Lived Access Token and restart the App." >&2
       else
