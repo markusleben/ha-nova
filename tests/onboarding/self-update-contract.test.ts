@@ -256,5 +256,6 @@ describe("self-update script contract", () => {
     expect(result.status).toBe(0);
     expect(result.stderr).not.toContain("No HA NOVA client installations detected");
     expect(result.stdout).toContain("Detected clients: gemini");
+    expect(existsSync(join(home, ".gemini/skills/ha-nova/SKILL.md"))).toBe(true);
   });
 });

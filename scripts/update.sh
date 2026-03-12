@@ -239,9 +239,7 @@ update_gemini() {
 
   # Context skill
   local context_dir="${skills_dir}/ha-nova"
-  if [[ -d "$context_dir" ]]; then
-    copy_flat_skill_markdown "ha-nova" "${source_skills}/ha-nova" "${context_dir}"
-  fi
+  copy_flat_skill_markdown "ha-nova" "${source_skills}/ha-nova" "${context_dir}"
 
   # Sub-skills + companion docs
   for skill_md in "${source_skills}"/*/SKILL.md; do
