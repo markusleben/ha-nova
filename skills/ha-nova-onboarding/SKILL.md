@@ -1,5 +1,5 @@
 ---
-name: onboarding
+name: ha-nova-onboarding
 description: Use when HA NOVA Relay requests fail due to onboarding, connectivity, or auth issues.
 ---
 

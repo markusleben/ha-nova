@@ -87,7 +87,7 @@ run_doctor_checks() {
   if [[ -n "${HA_HOST:-}" ]]; then
     echo "  [ok] Config file found: ${CONFIG_FILE}"
   else
-    echo "  [fail] Missing config. Run: npm run onboarding:macos"
+    echo "  [fail] Missing config. Run: ha-nova setup"
     overall_ok="0"
   fi
 
@@ -136,7 +136,7 @@ run_doctor_checks() {
         echo "  [ok] Relay /ws ping succeeded (upstream WS operational)."
       else
         echo "  [fail] Relay reports degraded upstream WS capability (ha_ws_connected=false)."
-        echo "         Action: HA_LLAT is required in App options. Verify app option 'ha_llat' and restart the App."
+        echo "         Action: the \"Home Assistant Access Token\" field (\"ha_llat\") is required in App options. Verify it and restart the App."
         explain_relay_ws_degraded
         overall_ok="0"
       fi
@@ -144,7 +144,7 @@ run_doctor_checks() {
   else
     echo "  [fail] Relay health check failed: ${RELAY_BASE_URL:-<unset>}/health"
     explain_relay_probe_failure "${RELAY_BASE_URL:-<unset>}"
-    echo "         Action: install/start NOVA Relay App and verify relay_auth_token."
+    echo "         Action: install/start NOVA Relay App and verify the \"Relay Auth Token\" field (\"relay_auth_token\")."
     overall_ok="0"
   fi
 
@@ -190,14 +190,14 @@ run_doctor_checks() {
 
 # Sub-skill names needed by detect_setup_state.
 HA_NOVA_SUB_SKILLS=(
-  "write"
-  "read"
-  "helper"
-  "entity-discovery"
-  "onboarding"
-  "service-call"
-  "review"
-  "guide"
+  "ha-nova-write"
+  "ha-nova-read"
+  "ha-nova-helper"
+  "ha-nova-entity-discovery"
+  "ha-nova-onboarding"
+  "ha-nova-service-call"
+  "ha-nova-review"
+  "ha-nova-guide"
 )
 
 detect_setup_state() {
@@ -252,12 +252,12 @@ detect_setup_state() {
       fi
       ;;
     gemini)
-      # Flat copy check: ha-nova/SKILL.md + ha-nova-{sub}/SKILL.md
-      if [[ ! -f "${HOME}/.agents/skills/ha-nova/SKILL.md" ]]; then
+      # Flat copy check: ha-nova/SKILL.md + namespaced sub-skill dirs
+      if [[ ! -f "${HOME}/.gemini/skills/ha-nova/SKILL.md" ]]; then
         SETUP_SKILLS_OK="0"
       else
         for sub_skill in "${HA_NOVA_SUB_SKILLS[@]}"; do
-          if [[ ! -f "${HOME}/.agents/skills/ha-nova-${sub_skill}/SKILL.md" ]]; then
+          if [[ ! -f "${HOME}/.gemini/skills/${sub_skill}/SKILL.md" ]]; then
             SETUP_SKILLS_OK="0"
             break
           fi
@@ -294,7 +294,7 @@ detect_setup_state() {
           break
         fi
         # Gemini flat
-        if [[ ! -f "${HOME}/.agents/skills/ha-nova-${sub_skill}/SKILL.md" ]]; then
+        if [[ ! -f "${HOME}/.gemini/skills/${sub_skill}/SKILL.md" ]]; then
           SETUP_SKILLS_OK="0"
           break
         fi
@@ -393,7 +393,7 @@ run_setup() {
     print_setup_status
     echo ""
     print_success "Everything is already set up!"
-    print_info "Run 'npx ha-nova doctor' for full diagnostics."
+    print_info "Run 'ha-nova doctor' for full diagnostics."
     echo ""
     return 0
   fi
@@ -560,7 +560,7 @@ run_setup() {
     if [[ "$relay_auth_token" != "${existing_relay_auth_token:-}" ]]; then
       echo ""
       print_info "I'll open the NOVA Relay settings in your browser."
-      print_info "Paste the token into the \"relay_auth_token\" field and click Save."
+      print_info "Paste the token into the \"Relay Auth Token\" field (\"relay_auth_token\") and click Save."
       echo ""
       wait_for_enter_or_copy "Press [Enter] to open the settings..." "$relay_auth_token"
       open_browser "${HA_URL}/hassio/addon/2368fcfa_ha_nova_relay/config"
@@ -576,9 +576,9 @@ run_setup() {
 
   # 3b) LLAT guide
   if [[ "$skip_llat" == "0" ]]; then
-    # LLAT location: App option 'ha_llat' (not stored in client Keychain).
+    # Home Assistant Access Token field ("ha_llat") lives in App options, not in the client Keychain.
     echo ""
-    print_info "Now for the second token: a Home Assistant access token."
+    print_info "Now for the second token: the Home Assistant Access Token."
     print_info "This lets the relay control your devices and automations."
     echo ""
     print_info "I'll open your Home Assistant profile page."
@@ -597,7 +597,7 @@ run_setup() {
     wait_for_enter "Press [Enter] to open the relay settings... "
     open_browser "${HA_URL}/hassio/addon/2368fcfa_ha_nova_relay/config"
     echo ""
-    print_info "  5. Paste the token into the \"ha_llat\" field"
+    print_info "  5. Paste the token into the \"Home Assistant Access Token\" field (\"ha_llat\")"
     print_info "  6. Click Save"
     print_info "  7. Click Start (or Restart if already running)"
     echo ""
@@ -612,10 +612,10 @@ run_setup() {
         elif probe_relay_ws_ping "$RELAY_BASE_URL" "$relay_auth_token"; then
           print_success "Connected to Home Assistant"
         else
-          print_fail "Relay is running but can't reach Home Assistant. Run: npx ha-nova doctor"
+          print_fail "Relay is running but can't reach Home Assistant. Run: ha-nova doctor"
         fi
       else
-        print_fail "Can't reach the relay. Run: npx ha-nova doctor"
+        print_fail "Can't reach the relay. Run: ha-nova doctor"
       fi
     fi
   fi
@@ -652,10 +652,10 @@ run_setup() {
           else
             echo ""
             print_fail "The relay is running but can't reach Home Assistant."
-            print_info "This usually means the HA access token (ha_llat) is missing or incorrect."
+            print_info "This usually means the \"Home Assistant Access Token\" field (\"ha_llat\") is missing or incorrect."
             explain_relay_ws_degraded
             if [[ "$non_interactive_verify" == "1" ]]; then
-              print_info "Continuing — you can fix this later with: npx ha-nova doctor"
+              print_info "Continuing — you can fix this later with: ha-nova doctor"
             elif ! prompt_yes_no "Continue anyway? (you can fix this later)" "Y"; then
               die "Setup aborted."
             fi
@@ -669,15 +669,15 @@ run_setup() {
         print_info "Quick checklist — please verify:"
         print_info "  1. Is the NOVA Relay app started in Home Assistant?"
         print_info "     (Settings > Apps > NOVA Relay > Start)"
-        print_info "  2. Is the relay_auth_token saved in the app settings?"
+        print_info "  2. Is the \"Relay Auth Token\" field (\"relay_auth_token\") saved in the app settings?"
         if [[ -n "${relay_auth_token:-}" ]]; then
           print_info "     Your token: $(mask_secret_hint "$relay_auth_token")"
         fi
-        print_info "  3. Is the HA access token (ha_llat) saved in the app settings?"
+        print_info "  3. Is the \"Home Assistant Access Token\" field (\"ha_llat\") saved in the app settings?"
         print_info "  4. Is this Mac on the same network as Home Assistant?"
         echo ""
         if (( attempt >= max_retries )) || [[ "$non_interactive_verify" == "1" ]]; then
-          print_info "Saving your settings anyway. You can troubleshoot later with: npx ha-nova doctor"
+          print_info "Saving your settings anyway. You can troubleshoot later with: ha-nova doctor"
           break
         fi
         if [[ "$non_interactive_verify" == "0" ]]; then
@@ -747,7 +747,7 @@ run_setup() {
   echo "    \"Turn off the living room light\""
   echo "    \"List my automations\""
   echo ""
-  print_info "Need help? Run: npx ha-nova doctor"
+  print_info "Need help? Run: ha-nova doctor"
   echo ""
 }
 

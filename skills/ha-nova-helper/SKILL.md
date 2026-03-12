@@ -1,5 +1,5 @@
 ---
-name: helper
+name: ha-nova-helper
 description: Use when creating, updating, deleting, or listing Home Assistant helpers (input_boolean, input_number, input_text, input_select, input_datetime, input_button, counter, timer, schedule) through HA NOVA Relay.
 ---
 
@@ -14,7 +14,7 @@ CRUD for storage-based helpers:
 
 Excluded: config-entry flow helpers (template, group, utility_meter, etc.) — these require a multi-step config flow, not WS CRUD.
 
-No config mutations on automations/scripts (use `ha-nova:write` for those).
+No config mutations on automations/scripts (use `ha-nova:ha-nova-write` for those).
 
 ## Bootstrap (once per session)
 
@@ -135,7 +135,7 @@ If 0 results: try synonyms or shorter stems. Never dump entire domains.
 
 Do NOT report results to user until complete. Run after every create/update/delete:
 
-1. Check written config against H-01..H-08 (see `skills/review/SKILL.md` Helper-Specific section).
+1. Enter via `skills/ha-nova-review/SKILL.md` Step 1. Apply H-01..H-08 directly to the written helper config. Only evaluate H-09/H-10 if the collision scan finds a referencing automation/script with a direct helper-backed threshold and you also read live helper state per `skills/ha-nova-review/checks.md`.
 2. Collision scan: `search/related` for helper entity, check referencing automations/scripts (max 3).
    ```bash
    ~/.config/ha-nova/relay ws -d '{"type":"search/related","item_type":"entity","item_id":"{entity_id}"}'
@@ -187,4 +187,4 @@ Never show raw JSON to the user.
 
 - Relay API: `skills/ha-nova/relay-api.md` (see "Helper CRUD" section)
 - Helper Schemas: `skills/ha-nova/helper-schemas.md`
-- Review Checks: `skills/review/SKILL.md` (H-01..H-08)
+- Review Checks: `skills/ha-nova-review/SKILL.md` (entrypoint) + `skills/ha-nova-review/checks.md` (H-01..H-10 catalog)

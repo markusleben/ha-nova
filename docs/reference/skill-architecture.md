@@ -18,21 +18,21 @@ skills/
   ha-nova/safe-refactoring.md   (reference doc — rename, delete, orphan cleanup workflows)
   ha-nova/update-guide.md       (reference doc — version checks and update flows)
   ha-nova/agents/               (agent templates: resolve, apply, review)
-  read/SKILL.md                 (ha-nova:read — automation/script list/get/trace)
-  write/SKILL.md                (ha-nova:write — automation/script create/update/delete)
-  helper/SKILL.md               (ha-nova:helper — helper CRUD: list/read/create/update/delete)
-  review/SKILL.md               (ha-nova:review — config quality review + collision scan)
-  entity-discovery/SKILL.md     (ha-nova:entity-discovery — entity lookup)
-  service-call/SKILL.md         (ha-nova:service-call — service calls + runtime control)
-  guide/SKILL.md                (ha-nova:guide — discover HA features and capabilities)
-  onboarding/SKILL.md           (ha-nova:onboarding — onboarding + diagnostics)
+  ha-nova-read/SKILL.md                 (ha-nova:ha-nova-read — automation/script list/get/trace)
+  ha-nova-write/SKILL.md                (ha-nova:ha-nova-write — automation/script create/update/delete)
+  ha-nova-helper/SKILL.md               (ha-nova:ha-nova-helper — helper CRUD: list/read/create/update/delete)
+  ha-nova-review/SKILL.md               (ha-nova:ha-nova-review — config quality review + collision scan)
+  ha-nova-entity-discovery/SKILL.md     (ha-nova:ha-nova-entity-discovery — entity lookup)
+  ha-nova-service-call/SKILL.md         (ha-nova:ha-nova-service-call — service calls + runtime control)
+  ha-nova-guide/SKILL.md                (ha-nova:ha-nova-guide — discover HA features and capabilities)
+  ha-nova-onboarding/SKILL.md           (ha-nova:ha-nova-onboarding — onboarding + diagnostics)
 ```
 
 ## Discovery Model
 
 Claude Code scans `skills/*/SKILL.md` (1 level) and matches skills by their `description` frontmatter.
 
-The context skill (`ha-nova:ha-nova`) is auto-loaded into every session via a SessionStart hook (`hooks/session-start`), providing:
+The context skill (`ha-nova`) is auto-loaded into every session via a SessionStart hook (`hooks/session-start`), providing:
 - Safety baseline
 - Response format
 - Runtime prerequisites
@@ -83,7 +83,7 @@ Current mapping:
 
 ## Write Architecture
 
-`ha-nova:write` uses a deterministic four-phase flow:
+`ha-nova:ha-nova-write` uses a deterministic four-phase flow:
 
 1. Resolve (Agent)
 - load env
@@ -106,7 +106,7 @@ Current mapping:
 - normalized compare (`trigger(s)`, `condition(s)`, `action(s)`)
 - structured error result on partial or failed verification
 
-4. Review (inline, do NOT invoke ha-nova:review as separate skill)
+4. Review (inline, do NOT invoke `ha-nova:ha-nova-review` as separate skill)
 - post-write config quality checks, collision scan, conflict analysis
 - findings are advisory (write already succeeded)
 
@@ -115,7 +115,7 @@ Fallback:
 
 ## Read Architecture
 
-`ha-nova:read` is intentionally direct/low-overhead:
+`ha-nova:ha-nova-read` is intentionally direct/low-overhead:
 - no subagent dispatch for routine reads
 - `/ws config/entity_registry/list_for_display` for list operations
 - `/core` config reads for single-item get operations
@@ -123,28 +123,28 @@ Fallback:
 
 ## Review Architecture
 
-`ha-nova:review` is a self-contained read-only reviewer:
-- Config quality: safety (S-01..S-03), reliability (R-01..R-15), performance (P-01..P-04), style (M-01..M-04), script-specific (F-01..F-08), helper-specific (H-01..H-08)
+`ha-nova:ha-nova-review` is a self-contained read-only reviewer:
+- Config quality: safety (S-01..S-03), reliability (R-01..R-15), performance (P-01..P-04), style (M-01..M-04), script-specific (F-01..F-08), helper-specific (H-01..H-10)
 - Collision scan: `search/related` on top 3 target entities
 - Conflict analysis: 3-step test (polarity → temporal → guard conditions)
-- Known safe/problem pattern matching
+- Known safe/problem pattern matching from `skills/ha-nova-review/checks.md`
 
 ## Helper Architecture
 
-`ha-nova:helper` handles CRUD for 9 storage-based helper types via WebSocket commands:
+`ha-nova:ha-nova-helper` handles CRUD for 9 storage-based helper types via WebSocket commands:
 - Types: `input_boolean`, `input_number`, `input_text`, `input_select`, `input_datetime`, `input_button`, `counter`, `timer`, `schedule`
 - Transport: WS (`{type}/create`, `{type}/update`, `{type}/delete`) — not REST `/core`
 - Identity: `{type}_id` (internal unique_id from list), not entity_id
 - All operations inline (no agents) — configs are flat, no complex resolution or normalization needed
 - Write: WS `{type}/create|update|delete` + `{type}/list` verify
-- Review: H-01..H-08 helper-specific checks + collision scan via `search/related`
+- Review: H-01..H-10 helper-specific checks + collision scan via `search/related`
 - No domain reload needed — storage-based, immediate effect
 
 Excluded: config-entry flow helpers (template, group, utility_meter) — different API pattern.
 
 ## Guide Architecture
 
-`ha-nova:guide` provides interactive help for HA features beyond the core skill set:
+`ha-nova:ha-nova-guide` provides interactive help for HA features beyond the core skill set:
 - Covers: dashboards, blueprints, history, logbook, areas, zones, labels, energy, calendars, entity registry, system health
 - Three-tier capability map: Covered (redirect to existing skill), Relay-Ready (experimental relay calls), External (web search)
 - All inline, no agents — research + web search + optional experimental relay calls
@@ -158,7 +158,7 @@ Excluded: config-entry flow helpers (template, group, utility_meter) — differe
   - **Claude Code:** Skipped — uses plugin system (`.claude-plugin/plugin.json`) + SessionStart hook
   - **Codex CLI:** Symlink `~/.agents/skills/ha-nova` → `${REPO_ROOT}/skills`
   - **OpenCode:** Symlink `~/.config/opencode/skills/ha-nova` → `${REPO_ROOT}/skills`
-  - **Gemini CLI:** Flat copy `~/.agents/skills/ha-nova-{skill}/SKILL.md` (1-level limit)
+  - **Gemini CLI:** Flat copy `~/.gemini/skills/ha-nova-*/SKILL.md` (1-level limit)
 - cleans up legacy flat skill directories (`ha-nova-write`, `ha-nova-read`, etc.)
 - supports targets: `codex`, `claude`, `opencode`, `gemini`, `all`
 
@@ -188,7 +188,7 @@ Unified spec for post-write review. Both `write` and `helper` skills reference t
 
 After any mutation (automation, script, or helper):
 1. Re-read written config via relay
-2. Run domain-appropriate checks from `skills/review/SKILL.md` Step 1:
+2. Enter via `skills/ha-nova-review/SKILL.md` Step 1 and load the detailed checks from `skills/ha-nova-review/checks.md`:
    - **Automations:** S + R + P + M checks. If actions reference helpers, also H checks on those helpers.
    - **Scripts:** S + R + P + M + F checks. If actions reference helpers, also H checks.
    - **Helpers:** H checks only.
@@ -206,19 +206,38 @@ When creating a new skill under `skills/{name}/SKILL.md`:
 1. Skill file follows Skill Section Template (see above)
 2. `skills/ha-nova/SKILL.md` — add to Dispatch table + add disambiguation examples
 3. `skills/ha-nova/SKILL.md` — add domain to Response Format if needed
-4. `skills/review/SKILL.md` — add domain-specific checks if applicable (new check prefix)
+4. `skills/ha-nova-review/SKILL.md` — keep entrypoint/flow aligned; add or update detailed rules in `skills/ha-nova-review/checks.md`
 5. `docs/reference/skill-architecture.md` — add to skill tree + add Architecture section
 6. `docs/reference/skill-architecture.md` — add to Agent vs Inline table
 7. `scripts/onboarding/install-local-skills.sh` — verify dynamic discovery picks up new skill
 8. `README.md` / `PROJECT.md` — add skill to overview table/list
 9. `version.json` — bump patch version
-10. Run `bash scripts/dev-sync.sh` + start new session to test
+10. For file-based clients, re-run `bash scripts/onboarding/install-local-skills.sh <client>` and start a new session. Use `bash scripts/dev-sync.sh` only when you need the Claude cache sync helper.
 
 ## Review Check Single Source of Truth
 
-`skills/review/SKILL.md` Step 1 is the authoritative source for all review checks (S/R/P/M/F/H).
-Agent templates (`review-agent.md`) reference this file instead of duplicating checks.
-When adding or modifying checks, update ONLY `review/SKILL.md` — agents read from there.
+`skills/ha-nova-review/SKILL.md` is the stable review entrypoint.
+`skills/ha-nova-review/checks.md` is the authoritative source for the detailed review catalog (S/R/P/M/F/H).
+Agent templates (`review-agent.md`) should enter through `skills/ha-nova-review/SKILL.md` and load `skills/ha-nova-review/checks.md` instead of duplicating checks.
+When adding or modifying checks, update `skills/ha-nova-review/checks.md` first and keep `skills/ha-nova-review/SKILL.md` aligned as the facade/workflow file.
+
+## Review Check Taxonomy
+
+Review checks use the format `{CATEGORY}-{NN}`:
+- `S` = Safety
+- `R` = Reliability
+- `P` = Performance
+- `M` = Style
+- `F` = Script-specific
+- `H` = Helper-specific
+
+`NN` is the running rule number inside that family. Severity is separate from the code.
+
+Examples:
+- `R-10` = the 10th reliability rule
+- `H-09` = the 9th helper-specific rule
+
+These codes are contributor-facing/internal only. User-facing output must use localized descriptive titles instead of exposing codes.
 
 ## Safety Baseline
 

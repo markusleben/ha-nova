@@ -3,19 +3,17 @@
 ## Quick Start
 
 ```bash
-git clone https://github.com/markusleben/ha-nova.git ~/ha-nova
-cd ~/ha-nova && npm install
-npx ha-nova setup opencode
+curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/main/install.sh | bash
 ```
 
-The wizard handles everything: App installation, authentication, and skill setup.
+The wizard handles everything: App installation, authentication, and skill setup. Choose `OpenCode` when prompted.
 
 ## Already Set Up?
 
 Run diagnostics:
 
 ```bash
-npx ha-nova doctor
+ha-nova doctor
 ```
 
 ## Related

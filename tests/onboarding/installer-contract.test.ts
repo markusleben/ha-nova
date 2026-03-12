@@ -36,9 +36,14 @@ describe("install.sh contract", () => {
     expect(content).toContain("BIN_DIR");
   });
 
-  it("warns about PATH if ~/.local/bin not in PATH", () => {
-    expect(content).toContain("not in your PATH");
+  it("makes ha-nova available from any terminal after install", () => {
+    expect(content).toContain("ensure_bin_dir_on_path()");
+    expect(content).toContain("detect_shell_rc()");
+    expect(content).toContain("export PATH=\"${BIN_DIR}:${PATH}\"");
+    expect(content).toContain('export PATH="$HOME/.local/bin:$PATH"');
     expect(content).toContain(".zshrc");
+    expect(content).toContain(".bash_profile");
+    expect(content).toContain(".profile");
   });
 
   it("handles existing installation (update/reinstall/cancel)", () => {
@@ -64,7 +69,8 @@ describe("install.sh contract", () => {
   });
 
   it("hands off to ha-nova setup at the end", () => {
-    expect(content).toContain('exec "${BIN_LINK}" setup');
+    expect(content).toContain('"${BIN_LINK}" setup');
+    expect(content).toContain("Need help later? Run: ha-nova doctor");
   });
 
   it("provides clear error messages for missing prerequisites", () => {

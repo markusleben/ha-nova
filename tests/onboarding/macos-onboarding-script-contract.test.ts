@@ -5,6 +5,8 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { createMockBinaries, mockEnv } from "./_helpers.js";
+
 describe("macOS onboarding script contract", () => {
   it("provides executable onboarding script", () => {
     const file = "scripts/onboarding/macos-onboarding.sh";
@@ -27,6 +29,10 @@ describe("macOS onboarding script contract", () => {
     expect(multiInstallerContent).toContain("LEGACY_FLAT_SKILLS");
     expect(multiInstallerContent).toContain("cleanup_legacy");
     expect(multiInstallerContent).toContain("GEMINI_SUB_SKILLS");
+    expect(multiInstallerContent).toContain("copy_flat_skill_markdown");
+    expect(multiInstallerContent).toContain("rewrite_flat_markdown");
+    expect(multiInstallerContent).toContain("perl -0pe");
+    expect(multiInstallerContent).toContain("find \"${dest_dir}\" -maxdepth 1 -type f -name '*.md'");
   });
 
   it("provides executable split onboarding command scripts", () => {
@@ -125,8 +131,8 @@ describe("macOS onboarding script contract", () => {
     expect(content).toContain("leave empty to keep existing or auto-generate");
     expect(content).toContain("Using existing relay auth token from Keychain");
     expect(content).toContain("ha_ws_connected=false");
-    expect(content).toContain("HA_LLAT is required in App options");
-    expect(content).toContain("LLAT location: App option 'ha_llat'");
+    expect(content).toContain('the \\"Home Assistant Access Token\\" field (\\"ha_llat\\") is required in App options');
+    expect(content).toContain('Home Assistant Access Token field ("ha_llat") lives in App options');
     expect(content).not.toContain("unset HA_LLAT");
   });
 
@@ -211,6 +217,13 @@ exit 1
       { encoding: "utf8", mode: 0o755 }
     );
 
+    const claudePath = join(binDir, "claude");
+    writeFileSync(
+      claudePath,
+      "#!/usr/bin/env bash\nexit 0\n",
+      { encoding: "utf8", mode: 0o755 }
+    );
+
     const input = [
       "192.168.1.5:18123",
       "n",
@@ -243,15 +256,13 @@ exit 1
   it("installs skills: codex/opencode as symlinks, gemini as flat copies, claude via plugin CLI", () => {
     const workDir = mkdtempSync(join(tmpdir(), "ha-nova-skill-install-"));
     const repoRoot = process.cwd();
+    const binDir = createMockBinaries();
 
     const result = spawnSync("bash", ["scripts/onboarding/install-local-skills.sh", "all"], {
       cwd: repoRoot,
       encoding: "utf8",
       timeout: 20000,
-      env: {
-        ...process.env,
-        HOME: workDir
-      }
+      env: mockEnv(workDir, binDir),
     });
 
     expect(result.status).toBe(0);
@@ -262,7 +273,14 @@ exit 1
     expect(codexLinkTarget).toBe(join(repoRoot, "skills"));
 
     // Codex symlink provides all sub-skills (readable through symlink)
-    const subSkills = ["write", "read", "entity-discovery", "onboarding", "service-call", "review"];
+    const subSkills = [
+      "ha-nova-write",
+      "ha-nova-read",
+      "ha-nova-entity-discovery",
+      "ha-nova-onboarding",
+      "ha-nova-service-call",
+      "ha-nova-review",
+    ];
     for (const sub of subSkills) {
       const skillFile = join(codexLink, sub, "SKILL.md");
       const content = readFileSync(skillFile, "utf8");
@@ -272,16 +290,16 @@ exit 1
     }
     // Context skill also accessible
     const contextContent = readFileSync(join(codexLink, "ha-nova", "SKILL.md"), "utf8");
-    expect(contextContent).toContain("ha-nova:write");
+    expect(contextContent).toContain("ha-nova:ha-nova-write");
 
     // OpenCode: symlink at ~/.config/opencode/skills/ha-nova -> repo/skills
     const openCodeLink = join(workDir, ".config/opencode/skills/ha-nova");
     const openCodeLinkTarget = readlinkSync(openCodeLink);
     expect(openCodeLinkTarget).toBe(join(repoRoot, "skills"));
 
-    // Gemini: flat copies at ~/.agents/skills/ha-nova-{sub}/SKILL.md
+    // Gemini: flat copies at ~/.gemini/skills/ha-nova-{sub}/SKILL.md
     for (const sub of subSkills) {
-      const flatSkill = join(workDir, ".agents/skills", `ha-nova-${sub}`, "SKILL.md");
+      const flatSkill = join(workDir, ".gemini/skills", sub, "SKILL.md");
       const content = readFileSync(flatSkill, "utf8");
       expect(content).toContain(`name: ${sub}`);
     }
@@ -328,15 +346,15 @@ exit 1
     const onboardingAlias = readFileSync(".codex/ONBOARDING.md", "utf8");
     const routerSkill = readFileSync("skills/ha-nova/SKILL.md", "utf8");
 
-    // Simplified INSTALL.md: single Quick Start section with npx ha-nova
+    // Simplified INSTALL.md: installer-first quick start with global ha-nova follow-up
     expect(codexInstall).toContain("## Quick Start");
-    expect(codexInstall).toContain("npx ha-nova setup codex");
-    expect(codexInstall).toContain("npx ha-nova doctor");
+    expect(codexInstall).toContain("curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/main/install.sh | bash");
+    expect(codexInstall).toContain("ha-nova doctor");
     expect(codexInstall).not.toContain("npm run onboarding:macos:start");
 
     expect(claudeInstall).toContain("## Quick Start");
-    expect(claudeInstall).toContain("npx ha-nova setup");
-    expect(claudeInstall).toContain("npx ha-nova doctor");
+    expect(claudeInstall).toContain("curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/main/install.sh | bash");
+    expect(claudeInstall).toContain("ha-nova doctor");
 
     expect(onboardingAlias).toContain("/.codex/INSTALL.md");
     expect(routerSkill).toContain("name: ha-nova");
@@ -389,20 +407,24 @@ exit 1
     const workDir = mkdtempSync(join(tmpdir(), "ha-nova-uninstall-"));
     const skillDirs = [
       join(workDir, ".agents/skills"),
+      join(workDir, ".gemini/skills"),
       join(workDir, ".claude/skills"),
       join(workDir, ".config/opencode/skills"),
     ];
+    const localShareDir = join(workDir, ".local/share/ha-nova");
+    const localBinDir = join(workDir, ".local/bin");
+    const localBinLink = join(localBinDir, "ha-nova");
 
     // Seed nested skill structure + legacy flat dirs + Gemini flat dirs
     for (const dir of skillDirs) {
       // Nested structure (current — could be symlink or copy)
-      for (const sub of ["", "write", "read", "entity-discovery", "onboarding", "service-call", "review"]) {
+      for (const sub of ["", "ha-nova-write", "ha-nova-read", "ha-nova-entity-discovery", "ha-nova-onboarding", "ha-nova-service-call", "ha-nova-review", "ha-nova-helper", "ha-nova-guide"]) {
         const subDir = sub ? join(dir, "ha-nova", sub) : join(dir, "ha-nova");
         mkdirSync(subDir, { recursive: true });
         writeFileSync(join(subDir, "SKILL.md"), "# skill", "utf8");
       }
       // Legacy flat dirs
-      for (const legacy of ["ha-nova-write", "ha-nova-read"]) {
+      for (const legacy of ["ha-nova-write", "ha-nova-read", "ha-nova-helper", "ha-nova-guide"]) {
         mkdirSync(join(dir, legacy), { recursive: true });
         writeFileSync(join(dir, legacy, "SKILL.md"), "# skill", "utf8");
       }
@@ -411,11 +433,16 @@ exit 1
         mkdirSync(join(dir, gemini), { recursive: true });
         writeFileSync(join(dir, gemini, "SKILL.md"), "# skill", "utf8");
       }
+      writeFileSync(join(dir, "ha-nova-review", "checks.md"), "# checks", "utf8");
     }
     const configDir = join(workDir, ".config/ha-nova");
     mkdirSync(configDir, { recursive: true });
     writeFileSync(join(configDir, "relay"), "#!/bin/bash", "utf8");
     writeFileSync(join(configDir, "onboarding.env"), "HA_HOST=test", "utf8");
+    mkdirSync(join(localShareDir, "scripts/onboarding/bin"), { recursive: true });
+    writeFileSync(join(localShareDir, "scripts/onboarding/bin/ha-nova"), "#!/bin/bash", "utf8");
+    mkdirSync(localBinDir, { recursive: true });
+    writeFileSync(localBinLink, "#!/bin/bash", "utf8");
 
     const result = spawnSync("bash", ["scripts/onboarding/uninstall.sh", "--yes"], {
       cwd: process.cwd(),
@@ -439,6 +466,8 @@ exit 1
     // Config removed
     expect(() => statSync(join(configDir, "relay"))).toThrow();
     expect(() => statSync(join(configDir, "onboarding.env"))).toThrow();
+    expect(() => statSync(localShareDir)).toThrow();
+    expect(() => statSync(localBinLink)).toThrow();
   });
 
   it("package.json exposes bin field for npx ha-nova", () => {

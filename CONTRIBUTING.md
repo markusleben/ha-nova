@@ -91,6 +91,13 @@ A `domain=light` filter is infrastructure (a WHERE clause). A fuzzy scorer that 
 - Prefer small files — split when complexity grows.
 - New relay endpoints need a clear **infrastructure justification** in the PR description.
 
+## 🏷️ Review Check Taxonomy
+
+- Review entrypoint lives in `skills/ha-nova-review/SKILL.md`.
+- The full check catalog lives in `skills/ha-nova-review/checks.md`.
+- The meaning of codes like `R-10` or `H-09` is explained in `docs/reference/skill-architecture.md`.
+- Keep those codes internal. User-facing output must use localized descriptive finding titles instead of exposing the codes directly.
+
 ## 🔒 Security
 
 Do not open public issues for vulnerabilities.

@@ -70,7 +70,7 @@ case "${1:-help}" in
     echo "  ha-nova doctor             Run diagnostics"
     echo "  ha-nova check-update       Check for skill updates"
     echo "  ha-nova update             Update to latest version (git installs)"
-    echo "  ha-nova dev:sync           Sync local changes to all client caches"
+    echo "  ha-nova dev:sync           Reinstall file-based clients; sync Claude cache"
     echo "  ha-nova uninstall          Remove all skills, config, and credentials"
     echo "  ha-nova --help             Show this help"
     ;;

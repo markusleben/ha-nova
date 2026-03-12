@@ -1,5 +1,5 @@
 ---
-name: entity-discovery
+name: ha-nova-entity-discovery
 description: Use when searching or resolving Home Assistant entities by name, room, or domain through HA NOVA Relay.
 ---
 

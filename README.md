@@ -45,7 +45,7 @@ curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/main/install.sh
 
 The wizard handles everything: relay, tokens, skills. Just pick your AI client. Once done, open your AI client and try: *"Show me all my automations."*
 
-**Cloned the repo manually?** `npx ha-nova setup` | **Something broken?** `npx ha-nova doctor`
+**Cloned the repo manually?** `./scripts/onboarding/bin/ha-nova setup` | **Installed already and something broken?** `ha-nova doctor`
 
 ## 💬 What Can You Do?
 
@@ -101,16 +101,16 @@ Both approaches work. MCP servers have broader client support out of the box. We
 
 ## 🧩 Skills
 
-| Skill | What it does |
+| Skill ID | What it does |
 |-------|-------------|
-| ✏️ **write** | Create, update, delete automations and scripts with the 4-phase safety flow |
-| 📖 **read** | Browse configs, inspect automations, debug with trace analysis |
-| 🔍 **review** | Audit for 40+ common mistakes, conflicts, and best-practice violations |
-| 🎛️ **service-call** | Control devices: lights, climate, covers, switches, media players |
-| 🔎 **entity-discovery** | Find entities by name, room, or area |
-| 🧩 **helper** | Manage helpers (input_boolean, counter, timer, schedule, and more) |
-| 📚 **guide** | Discover HA features: dashboards, blueprints, energy management |
-| 🚀 **onboarding** | Setup diagnostics and troubleshooting |
+| ✏️ **ha-nova-write** | Create, update, delete automations and scripts with the 4-phase safety flow |
+| 📖 **ha-nova-read** | Browse configs, inspect automations, debug with trace analysis |
+| 🔍 **ha-nova-review** | Audit for 40+ common mistakes, conflicts, and best-practice violations |
+| 🎛️ **ha-nova-service-call** | Control devices: lights, climate, covers, switches, media players |
+| 🔎 **ha-nova-entity-discovery** | Find entities by name, room, or area |
+| 🧩 **ha-nova-helper** | Manage helpers (input_boolean, counter, timer, schedule, and more) |
+| 📚 **ha-nova-guide** | Discover HA features: dashboards, blueprints, energy management |
+| 🚀 **ha-nova-onboarding** | Setup diagnostics and troubleshooting |
 
 Want to add a new capability? → [CONTRIBUTING.md](CONTRIBUTING.md)
 

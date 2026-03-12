@@ -36,7 +36,7 @@ curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/main/install.sh
 Or if you already have the repo:
 
 ```bash
-npx ha-nova setup
+ha-nova setup
 ```
 
 The setup wizard handles token generation, relay configuration, and skill installation.
@@ -46,7 +46,7 @@ The setup wizard handles token generation, relay configuration, and skill instal
 Run the built-in health check:
 
 ```bash
-npx ha-nova doctor
+ha-nova doctor
 ```
 
 This verifies: config file, keychain token, relay reachability, WebSocket connection,
@@ -75,7 +75,7 @@ A healthy response looks like:
 **Authentication failed**
 
 - The relay auth token must match exactly on both sides
-- Re-run `npx ha-nova setup` to regenerate and sync tokens
+- Re-run `ha-nova setup` to regenerate and sync tokens
 - Check that the HA Access Token is still valid (not revoked)
 
 **WebSocket not connected**

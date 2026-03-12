@@ -1,5 +1,5 @@
 ---
-name: guide
+name: ha-nova-guide
 description: Use for Home Assistant guidance on dashboards, blueprints, history, logbook, areas, zones, labels, energy, calendars, entity registry, system health, add-ons, HACS, and Zigbee/Z-Wave -- features beyond the core ha-nova automation/helper/service skills.
 ---
 
@@ -27,13 +27,13 @@ If this fails: `npm run onboarding:macos`
 
 | Feature | Status | Skill |
 |---------|--------|-------|
-| Automations CRUD | Covered | read / write |
-| Scripts CRUD | Covered | read / write |
-| Config Review | Covered | review |
-| Helpers (9 storage types) | Covered | helper |
-| Entity Search | Covered | entity-discovery |
-| Service Calls | Covered | service-call |
-| Relay Setup | Covered | onboarding |
+| Automations CRUD | Covered | ha-nova-read / ha-nova-write |
+| Scripts CRUD | Covered | ha-nova-read / ha-nova-write |
+| Config Review | Covered | ha-nova-review |
+| Helpers (9 storage types) | Covered | ha-nova-helper |
+| Entity Search | Covered | ha-nova-entity-discovery |
+| Service Calls | Covered | ha-nova-service-call |
+| Relay Setup | Covered | ha-nova-onboarding |
 | Dashboard / Lovelace | Relay-Ready | this skill |
 | Blueprints | Relay-Ready | this skill |
 | History Queries | Relay-Ready | this skill |
@@ -377,4 +377,4 @@ Experimental calls may fail with unfamiliar errors. General rules:
 
 - `400/VALIDATION_ERROR`: payload schema wrong -- search web for current WS type schema
 - `404/NOT_FOUND`: endpoint may not exist in this HA version -- check HA release notes
-- `502/504`: relay connection issue -- retry once, then route to `ha-nova:onboarding`
+- `502/504`: relay connection issue -- retry once, then route to `ha-nova:ha-nova-onboarding`

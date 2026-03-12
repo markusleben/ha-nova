@@ -3,10 +3,10 @@
 ## Quick Start
 
 ```bash
-git clone https://github.com/markusleben/ha-nova.git ~/ha-nova
-cd ~/ha-nova && npm install
-npx ha-nova setup
+curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/main/install.sh | bash
 ```
+
+Choose `Claude Code` when prompted.
 
 ## Activating Skills
 
@@ -17,7 +17,7 @@ Install the plugin via marketplace (works globally in any directory):
 /plugin install ha-nova@markusleben/ha-nova
 ```
 
-Skills are then available as `/ha-nova:read`, `/ha-nova:write`, etc.
+Skills are then available as `/ha-nova:ha-nova-read`, `/ha-nova:ha-nova-write`, etc.
 
 **Alternative — per-session (development):**
 ```bash
@@ -29,7 +29,7 @@ claude --plugin-dir ~/ha-nova
 Run diagnostics:
 
 ```bash
-npx ha-nova doctor
+ha-nova doctor
 ```
 
 ## Related

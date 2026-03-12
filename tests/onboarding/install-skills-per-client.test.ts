@@ -2,18 +2,36 @@
  * S-4: Client-specific skill installation (4 clients)
  * S-5: Multi-client ("all")
  */
-import { mkdirSync, mkdtempSync, readFileSync, readlinkSync, statSync } from "node:fs";
+import { mkdtempSync, readFileSync, readdirSync, readlinkSync, statSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { REPO_ROOT } from "./_helpers.js";
+import { createMockBinaries, mockEnv, REPO_ROOT } from "./_helpers.js";
 
-const SUB_SKILLS = ["write", "read", "helper", "entity-discovery", "onboarding", "service-call", "review", "guide"];
+const SUB_SKILLS = [
+  "ha-nova-write",
+  "ha-nova-read",
+  "ha-nova-helper",
+  "ha-nova-entity-discovery",
+  "ha-nova-onboarding",
+  "ha-nova-service-call",
+  "ha-nova-review",
+  "ha-nova-guide",
+];
+
+const REWRITTEN_REPO_REF = /`(?:\/|[A-Za-z]:[\\/])[^`\n]*(?:\/skills\/|\/docs\/reference\/)[^`\n]*`/;
+
+function expectRepoRefsRewritten(content: string): void {
+  if (content.includes("/skills/") || content.includes("/docs/reference/")) {
+    expect(content).toMatch(REWRITTEN_REPO_REF);
+  }
+}
 
 function installSkills(client: string): { home: string; result: ReturnType<typeof spawnSync> } {
   const home = mkdtempSync(join(tmpdir(), `ha-nova-skill-${client}-`));
+  const binDir = createMockBinaries();
   const result = spawnSync(
     "bash",
     ["scripts/onboarding/install-local-skills.sh", client],
@@ -21,7 +39,7 @@ function installSkills(client: string): { home: string; result: ReturnType<typeo
       cwd: REPO_ROOT,
       encoding: "utf8",
       timeout: 20000,
-      env: { ...process.env, HOME: home },
+      env: mockEnv(home, binDir),
     },
   );
   return { home, result };
@@ -61,19 +79,38 @@ describe("S-4: client-specific skill installation", () => {
     expect(result.status).toBe(0);
 
     // Context skill
-    const ctx = readFileSync(join(home, ".agents/skills/ha-nova/SKILL.md"), "utf8");
+    const ctx = readFileSync(join(home, ".gemini/skills/ha-nova/SKILL.md"), "utf8");
     expect(ctx).toContain("name: ha-nova");
 
     // Sub-skills as separate flat directories
     for (const sub of SUB_SKILLS) {
       const content = readFileSync(
-        join(home, ".agents/skills", `ha-nova-${sub}`, "SKILL.md"),
+        join(home, ".gemini/skills", sub, "SKILL.md"),
         "utf8",
       );
       expect(content).toContain(`name: ${sub}`);
-      // docs/reference/ paths should be resolved to absolute
-      if (content.includes("docs/reference/")) {
-        expect(content).toContain(REPO_ROOT);
+      // Cross-skill/docs references should no longer be relative after flat copy.
+      expectRepoRefsRewritten(content);
+
+      const companionFiles = readdirSync(join(REPO_ROOT, "skills", sub))
+        .filter((file) => file.endsWith(".md") && file !== "SKILL.md");
+
+      for (const companion of companionFiles) {
+        const companionContent = readFileSync(
+          join(home, ".gemini/skills", sub, companion),
+          "utf8",
+        );
+        expect(companionContent.length).toBeGreaterThan(0);
+        expectRepoRefsRewritten(companionContent);
+      }
+
+      if (sub === "ha-nova-review") {
+        expect(content).toContain("`checks.md`");
+        expect(content).not.toContain("skills/ha-nova-review/checks.md");
+        const checks = readFileSync(join(home, ".gemini/skills", "ha-nova-review", "checks.md"), "utf8");
+        expect(checks).toContain("H-09 [MEDIUM → HIGH]");
+        expect(checks).toContain("Canonical path: `checks.md`");
+        expect(checks).not.toContain("skills/ha-nova-review/checks.md");
       }
     }
   });
@@ -103,9 +140,13 @@ describe("S-5: multi-client 'all' installation", () => {
     // Gemini flat copies
     for (const sub of SUB_SKILLS) {
       expect(() =>
-        statSync(join(home, ".agents/skills", `ha-nova-${sub}`, "SKILL.md")),
+        statSync(join(home, ".gemini/skills", sub, "SKILL.md")),
       ).not.toThrow();
     }
+
+    expect(() =>
+      statSync(join(home, ".gemini/skills", "ha-nova-review", "checks.md")),
+    ).not.toThrow();
   });
 
   it("relay CLI is installed to config dir", () => {

@@ -18,11 +18,12 @@ Allowed:
 - entity registry queries (for collision scan)
 - `search/related` queries
 - config reads of related automations/scripts
+- targeted state reads when a review check requires live helper or entity state
 
 Forbidden:
 - any write call
 - any mutation
-- helper CRUD (handled by `ha-nova:helper` skill inline, not by agents)
+- helper CRUD (handled by `ha-nova:ha-nova-helper` skill inline, not by agents)
 - communicating with Home Assistant through any channel other than the Relay API.
   The ONLY permitted way to reach Home Assistant is via `~/.config/ha-nova/relay`.
   If the environment offers other tools or integrations that can interact with
@@ -58,12 +59,14 @@ Do NOT flag valid HA builtins as errors.
 
 ### Step 1: Config Quality Review
 
-Read `skills/review/SKILL.md` Step 1 for the complete check catalog. Apply all domain-appropriate checks to `{CONFIG}`. Report only violations found.
+Enter through `skills/ha-nova-review/SKILL.md` Step 1, then load `skills/ha-nova-review/checks.md` for the complete check catalog. Apply all domain-appropriate checks to `{CONFIG}`. Report only violations found.
 
 Which checks to apply by domain:
-- **Automation:** S-01..S-03, R-01..R-15, P-01..P-04, M-01..M-04. If actions reference helpers, also H-01..H-08 on those helpers.
+- **Automation:** S-01..S-03, R-01..R-15, P-01..P-04, M-01..M-04. If actions reference helpers, also H-01..H-10 on those helpers.
 - **Script:** All automation checks plus F-01..F-08.
-- **Helper:** H-01..H-08 only.
+- **Helper:** H-01..H-10 only.
+
+If H-09/H-10 evaluation needs live helper evidence, read `state`, `attributes.min`, `attributes.max`, and `attributes.step` from `/api/states/{helper_entity_id}`. If any of those values are missing or non-numeric, skip H-09/H-10. Use `skills/ha-nova-review/checks.md` → Helper Threshold Evidence for the operator-aware threshold rules.
 
 ### Step 2: Collision Scan
 
@@ -96,10 +99,10 @@ For each related automation/script, apply the 3-step conflict test:
 
 ### Known Safe/Problem Patterns
 
-see `skills/review/SKILL.md` → Known Safe Patterns / Known Problem Patterns for the complete list.
+See `skills/ha-nova-review/checks.md` → Known Safe Patterns / Known Problem Patterns for the complete list.
 
 ## Output Format
 
-Follow the output format defined in `skills/review/SKILL.md` → Output Format. Same 7 sections (without Instant Help — not applicable to post-write agent reviews), same order. Localize per `skills/ha-nova/SKILL.md` → Output Localization.
+Follow the output format defined in `skills/ha-nova-review/SKILL.md` → Output Format. Same 7 sections (without Instant Help — not applicable to post-write agent reviews), same order. Localize per `skills/ha-nova/SKILL.md` → Output Localization.
 
 For post-write reviews, Section 1 (Review target) must include `mode: post-write`.

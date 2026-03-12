@@ -7,6 +7,8 @@ REPO_URL="https://github.com/markusleben/ha-nova.git"
 INSTALL_DIR="${HOME}/.local/share/ha-nova"
 BIN_DIR="${HOME}/.local/bin"
 BIN_LINK="${BIN_DIR}/ha-nova"
+PATH_RC_FILE=""
+PATH_WAS_MISSING_BEFORE="0"
 
 # ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -25,6 +27,62 @@ fail()  { echo "  [!!] $*" >&2; exit 1; }
 require_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
     return 1
+  fi
+}
+
+detect_shell_rc() {
+  local shell_name
+  shell_name="$(basename "${SHELL:-zsh}")"
+
+  case "$shell_name" in
+    zsh) printf '%s\n' "${HOME}/.zshrc" ;;
+    bash)
+      if [[ -f "${HOME}/.bash_profile" ]]; then
+        printf '%s\n' "${HOME}/.bash_profile"
+      elif [[ -f "${HOME}/.profile" ]]; then
+        printf '%s\n' "${HOME}/.profile"
+      else
+        printf '%s\n' "${HOME}/.bash_profile"
+      fi
+      ;;
+    *)
+      if [[ -f "${HOME}/.zshrc" ]]; then
+        printf '%s\n' "${HOME}/.zshrc"
+      elif [[ -f "${HOME}/.bash_profile" ]]; then
+        printf '%s\n' "${HOME}/.bash_profile"
+      elif [[ -f "${HOME}/.profile" ]]; then
+        printf '%s\n' "${HOME}/.profile"
+      elif [[ -f "${HOME}/.bashrc" ]]; then
+        printf '%s\n' "${HOME}/.bashrc"
+      else
+        printf '%s\n' "${HOME}/.profile"
+      fi
+      ;;
+  esac
+}
+
+ensure_bin_dir_on_path() {
+  local path_line rc_file
+  path_line='export PATH="$HOME/.local/bin:$PATH"'
+  rc_file="$(detect_shell_rc)"
+  PATH_RC_FILE="$rc_file"
+
+  case ":${PATH}:" in
+    *":${BIN_DIR}:"*) PATH_WAS_MISSING_BEFORE="0" ;;
+    *)
+      PATH_WAS_MISSING_BEFORE="1"
+      export PATH="${BIN_DIR}:${PATH}"
+      ;;
+  esac
+
+  mkdir -p "$(dirname "$rc_file")"
+  touch "$rc_file"
+
+  if ! grep -Fqx "$path_line" "$rc_file"; then
+    printf '\n# Added by HA NOVA installer\n%s\n' "$path_line" >> "$rc_file"
+    info "Added ${BIN_DIR} to PATH in ${rc_file}"
+  else
+    info "${BIN_DIR} already configured in ${rc_file}"
   fi
 }
 
@@ -158,6 +216,12 @@ handle_existing_install() {
       [[ -f "${INSTALL_DIR}/version.json" ]]            && cp "${INSTALL_DIR}/version.json" "${config_dir}/version.json"
       echo ""
       info "Updated. Run 'ha-nova doctor' to verify."
+      if [[ "${PATH_WAS_MISSING_BEFORE}" == "1" ]]; then
+        echo ""
+        info "New terminals can run: ha-nova doctor"
+        info "This terminal still uses the old PATH. Use: ${BIN_LINK} doctor"
+        info "Or reload your shell: source ${PATH_RC_FILE}"
+      fi
       exit 0
       ;;
   esac
@@ -178,22 +242,8 @@ clone_and_install() {
 link_cli() {
   mkdir -p "$BIN_DIR"
   ln -sfn "${INSTALL_DIR}/scripts/onboarding/bin/ha-nova" "$BIN_LINK"
+  ensure_bin_dir_on_path
   info "CLI linked: ${BIN_LINK}"
-
-  # Check PATH
-  case ":${PATH}:" in
-    *":${BIN_DIR}:"*) ;;
-    *)
-      echo ""
-      echo "  [!!] ${BIN_DIR} is not in your PATH."
-      echo ""
-      echo "      Add this line to your ~/.zshrc (or ~/.bashrc):"
-      echo "        export PATH=\"\$HOME/.local/bin:\$PATH\""
-      echo ""
-      echo "      Then run: source ~/.zshrc"
-      echo ""
-      ;;
-  esac
 }
 
 # ── Main ─────────────────────────────────────────────────────────────────
@@ -222,7 +272,16 @@ main() {
   echo ""
 
   # Hand off to the setup wizard
-  exec "${BIN_LINK}" setup
+  "${BIN_LINK}" setup
+
+  echo ""
+  if [[ "${PATH_WAS_MISSING_BEFORE}" == "1" ]]; then
+    info "New terminals can run: ha-nova doctor"
+    info "This terminal still uses the old PATH. Use: ${BIN_LINK} doctor"
+    info "Or reload your shell: source ${PATH_RC_FILE}"
+  else
+    info "Need help later? Run: ha-nova doctor"
+  fi
 }
 
 main "$@"

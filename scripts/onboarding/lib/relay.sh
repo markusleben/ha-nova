@@ -366,12 +366,12 @@ explain_relay_ws_degraded() {
   case "${LAST_RELAY_WS_STATUS_CODE:-}" in
     "401"|"403")
       echo "         Cause: Relay auth token rejected on /ws (token mismatch)." >&2
-      echo "         Action: verify the exact relay_auth_token configured in App options." >&2
+      echo "         Action: verify the exact value in the \"Relay Auth Token\" field (\"relay_auth_token\") in App options." >&2
       ;;
     "502")
       if [[ "${LAST_RELAY_WS_BODY:-}" == *"LLAT is required"* ]]; then
-        echo "         Cause: Relay is reachable, but HA WS authentication failed because HA_LLAT is missing or mismatched." >&2
-        echo "         Action: HA_LLAT is required in App options. Set app option 'ha_llat' to a valid LLAT and restart the App." >&2
+        echo "         Cause: Relay is reachable, but HA WS authentication failed because the Home Assistant Access Token is missing or mismatched." >&2
+        echo "         Action: set the \"Home Assistant Access Token\" field (\"ha_llat\") in App options to a valid Long-Lived Access Token and restart the App." >&2
       else
         echo "         Cause: Relay reached, but upstream HA WS connection failed." >&2
         echo "         Action: inspect App logs and HA core WS availability." >&2
@@ -390,7 +390,7 @@ explain_relay_probe_failure() {
   case "${LAST_RELAY_STATUS_CODE:-}" in
     "401"|"403")
       echo "[ha-nova] Relay auth rejected (HTTP ${LAST_RELAY_STATUS_CODE})." >&2
-      echo "[ha-nova] Action: use the exact relay_auth_token configured in the NOVA Relay App options." >&2
+      echo "[ha-nova] Action: use the exact value configured in the \"Relay Auth Token\" field (\"relay_auth_token\") in the NOVA Relay App options." >&2
       ;;
     "404")
       echo "[ha-nova] Relay endpoint not found (HTTP 404)." >&2

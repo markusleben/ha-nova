@@ -7,7 +7,7 @@ set -euo pipefail
 #   ha-nova-relay health
 
 source ~/.config/ha-nova/onboarding.env 2>/dev/null \
-  || { echo "error: missing ~/.config/ha-nova/onboarding.env" >&2; exit 1; }
+  || { echo "error: HA NOVA is not set up yet. Run: ha-nova setup" >&2; exit 1; }
 
 RELAY_AUTH_TOKEN="$(security find-generic-password \
   -a "$USER" -s "ha-nova.relay-auth-token" -w 2>/dev/null)" \
