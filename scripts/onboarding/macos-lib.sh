@@ -200,6 +200,21 @@ HA_NOVA_SUB_SKILLS=(
   "ha-nova-guide"
 )
 
+flat_skill_has_required_markdown() {
+  local install_dir="$1"
+  local source_dir="$2"
+  local source_file required_name
+
+  for source_file in "${source_dir}"/*.md; do
+    required_name="$(basename "${source_file}")"
+    if [[ ! -f "${install_dir}/${required_name}" ]]; then
+      return 1
+    fi
+  done
+
+  return 0
+}
+
 detect_setup_state() {
   local client="$1"
   local relay_auth_token
@@ -253,11 +268,11 @@ detect_setup_state() {
       ;;
     gemini)
       # Flat copy check: ha-nova/SKILL.md + namespaced sub-skill dirs
-      if [[ ! -f "${HOME}/.gemini/skills/ha-nova/SKILL.md" ]]; then
+      if ! flat_skill_has_required_markdown "${HOME}/.gemini/skills/ha-nova" "${REPO_ROOT}/skills/ha-nova"; then
         SETUP_SKILLS_OK="0"
       else
         for sub_skill in "${HA_NOVA_SUB_SKILLS[@]}"; do
-          if [[ ! -f "${HOME}/.gemini/skills/${sub_skill}/SKILL.md" ]]; then
+          if ! flat_skill_has_required_markdown "${HOME}/.gemini/skills/${sub_skill}" "${REPO_ROOT}/skills/${sub_skill}"; then
             SETUP_SKILLS_OK="0"
             break
           fi
@@ -287,14 +302,23 @@ detect_setup_state() {
     all)
       # Check each client's skills without recursive detect_setup_state
       # (which would overwrite SETUP_HAS_CONFIG/TOKEN/RELAY_OK/WS_OK)
+      if [[ ! -L "${HOME}/.agents/skills/ha-nova" ]] || [[ ! -f "${HOME}/.agents/skills/ha-nova/ha-nova/SKILL.md" ]]; then
+        SETUP_SKILLS_OK="0"
+      fi
+      if [[ "$SETUP_SKILLS_OK" == "1" ]] && ! flat_skill_has_required_markdown "${HOME}/.gemini/skills/ha-nova" "${REPO_ROOT}/skills/ha-nova"; then
+        SETUP_SKILLS_OK="0"
+      fi
       for sub_skill in "${HA_NOVA_SUB_SKILLS[@]}"; do
+        if [[ "$SETUP_SKILLS_OK" != "1" ]]; then
+          break
+        fi
         # Codex symlink (flat layout: skills/{sub}/SKILL.md through symlink)
-        if [[ ! -L "${HOME}/.agents/skills/ha-nova" ]] || [[ ! -f "${HOME}/.agents/skills/ha-nova/${sub_skill}/SKILL.md" ]]; then
+        if [[ ! -f "${HOME}/.agents/skills/ha-nova/${sub_skill}/SKILL.md" ]]; then
           SETUP_SKILLS_OK="0"
           break
         fi
         # Gemini flat
-        if [[ ! -f "${HOME}/.gemini/skills/${sub_skill}/SKILL.md" ]]; then
+        if ! flat_skill_has_required_markdown "${HOME}/.gemini/skills/${sub_skill}" "${REPO_ROOT}/skills/${sub_skill}"; then
           SETUP_SKILLS_OK="0"
           break
         fi
