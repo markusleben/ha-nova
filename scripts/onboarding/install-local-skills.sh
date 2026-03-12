@@ -23,7 +23,7 @@ Targets:
   codex    -> symlink ~/.agents/skills/ha-nova -> repo skills
   claude   -> skipped (use Claude Code plugin system)
   opencode -> symlink ~/.config/opencode/skills/ha-nova -> repo skills
-  gemini   -> flat copy ~/.agents/skills/ha-nova-{skill}/SKILL.md
+  gemini   -> flat copy ~/.gemini/skills/ha-nova-*/SKILL.md (+ local companion .md files)
   all      -> install for codex + claude + opencode + gemini
 USAGE
 }
@@ -36,10 +36,12 @@ SOURCE_SKILLS_DIR="${REPO_ROOT}/skills"
 LEGACY_FLAT_SKILLS=(
   "ha-nova-write"
   "ha-nova-read"
+  "ha-nova-helper"
   "ha-nova-entity-discovery"
   "ha-nova-onboarding"
   "ha-nova-service-call"
   "ha-nova-review"
+  "ha-nova-guide"
 )
 
 # Sub-skills that get flat-copied for Gemini (auto-discovered from skills/)
@@ -50,6 +52,57 @@ for _skill_dir in "${SOURCE_SKILLS_DIR}"/*/SKILL.md; do
   GEMINI_SUB_SKILLS+=("$_skill_name")
 done
 unset _skill_dir _skill_name
+
+rewrite_flat_markdown() {
+  local skill_name="$1"
+  local source_dir="$2"
+  local src="$3"
+  local dest="$4"
+  local content
+
+  content="$(cat "${src}")"
+
+  # Same-skill companions should stay local after flat copy.
+  for companion in "${source_dir}"/*.md; do
+    local companion_name
+    companion_name="$(basename "${companion}")"
+    [[ "${companion_name}" == "SKILL.md" ]] && continue
+    local same_skill_ref same_skill_local
+    printf -v same_skill_ref '`skills/%s/%s`' "${skill_name}" "${companion_name}"
+    printf -v same_skill_local '`%s`' "${companion_name}"
+    content="${content//${same_skill_ref}/${same_skill_local}}"
+  done
+
+  # Shared docs and cross-skill references resolve back to the source clone.
+  content="$(
+    printf '%s' "${content}" | HA_NOVA_ROOT="${REPO_ROOT}" perl -0pe '
+      s{`docs/reference/([^`]+)`}{sprintf("`%s/docs/reference/%s`", $ENV{HA_NOVA_ROOT}, $1)}ge;
+      s{`skills/([^`]+)`}{sprintf("`%s/skills/%s`", $ENV{HA_NOVA_ROOT}, $1)}ge;
+    '
+  )"
+
+  printf '%s' "${content}" > "${dest}"
+}
+
+copy_flat_skill_markdown() {
+  local skill_name="$1"
+  local source_dir="${SOURCE_SKILLS_DIR}/${skill_name}"
+  local dest_dir="$2"
+
+  mkdir -p "${dest_dir}"
+  find "${dest_dir}" -maxdepth 1 -type f -name '*.md' -exec rm -f {} +
+
+  if [[ -f "${source_dir}/SKILL.md" ]]; then
+    rewrite_flat_markdown "${skill_name}" "${source_dir}" "${source_dir}/SKILL.md" "${dest_dir}/SKILL.md"
+  fi
+
+  for companion in "${source_dir}"/*.md; do
+    local companion_name
+    companion_name="$(basename "${companion}")"
+    [[ "${companion_name}" == "SKILL.md" ]] && continue
+    rewrite_flat_markdown "${skill_name}" "${source_dir}" "${companion}" "${dest_dir}/${companion_name}"
+  done
+}
 
 cleanup_legacy() {
   local user_skills_dir="$1"
@@ -89,8 +142,12 @@ install_symlink() {
 }
 
 install_gemini_flat() {
-  local user_skills_dir="${HOME}/.agents/skills"
+  local user_skills_dir="${HOME}/.gemini/skills"
   mkdir -p "${user_skills_dir}"
+
+  # Clean up legacy Gemini installs from the shared agents root without
+  # touching the Codex symlink if one exists there.
+  cleanup_legacy "${HOME}/.agents/skills" "gemini-legacy"
 
   # Clean up legacy Gemini flat dirs
   for sub in "${GEMINI_SUB_SKILLS[@]}"; do
@@ -101,33 +158,23 @@ install_gemini_flat() {
   done
 
   # Context skill as ha-nova/SKILL.md (flat, level 1)
-  # When Codex symlink exists, it already provides the context skill — leave it.
-  # Gemini can read through the symlink. If Codex is later uninstalled,
-  # re-running `install gemini` will create a standalone copy.
   local context_dir="${user_skills_dir}/ha-nova"
-  if [[ -L "${context_dir}" ]]; then
-    log "[gemini] Context skill provided by Codex symlink: ${context_dir}"
-  elif [[ -d "${context_dir}" ]]; then
+  if [[ -d "${context_dir}" ]]; then
     # Existing directory (legacy copy) — replace with fresh copy
     rm -rf "${context_dir}"
-    mkdir -p "${context_dir}"
-    cp "${SOURCE_SKILLS_DIR}/ha-nova/SKILL.md" "${context_dir}/SKILL.md"
+    copy_flat_skill_markdown "ha-nova" "${context_dir}"
     log "[gemini] Installed: ha-nova/SKILL.md (context skill, replaced legacy copy)"
   else
-    mkdir -p "${context_dir}"
-    cp "${SOURCE_SKILLS_DIR}/ha-nova/SKILL.md" "${context_dir}/SKILL.md"
+    copy_flat_skill_markdown "ha-nova" "${context_dir}"
     log "[gemini] Installed: ha-nova/SKILL.md (context skill)"
   fi
 
-  # Sub-skills as ha-nova-{skill}/SKILL.md (flat, level 1)
+  # Sub-skills keep their namespaced directory names (flat, level 1).
   for sub in "${GEMINI_SUB_SKILLS[@]}"; do
-    local dest_dir="${user_skills_dir}/ha-nova-${sub}"
-    mkdir -p "${dest_dir}"
-    local src="${SOURCE_SKILLS_DIR}/${sub}/SKILL.md"
-    if [[ -f "${src}" ]]; then
-      # For Gemini copies, resolve docs/reference/ to absolute paths
-      sed "s|docs/reference/|${REPO_ROOT}/docs/reference/|g" "${src}" > "${dest_dir}/SKILL.md"
-      log "[gemini] Installed: ha-nova-${sub}/SKILL.md"
+    local dest_dir="${user_skills_dir}/${sub}"
+    if [[ -f "${SOURCE_SKILLS_DIR}/${sub}/SKILL.md" ]]; then
+      copy_flat_skill_markdown "${sub}" "${dest_dir}"
+      log "[gemini] Installed: ${sub}/SKILL.md"
     fi
   done
 }

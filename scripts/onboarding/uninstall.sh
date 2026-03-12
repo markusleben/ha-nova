@@ -3,6 +3,7 @@ set -euo pipefail
 
 SKILL_DIRS=(
   "${HOME}/.agents/skills"
+  "${HOME}/.gemini/skills"
   "${HOME}/.claude/skills"
   "${HOME}/.config/opencode/skills"
 )
@@ -49,6 +50,11 @@ remove_known_config() {
   rmdir "$config_dir" 2>/dev/null && log "Removed: ${config_dir}" && removed=$((removed + 1)) || true
 }
 
+remove_local_install() {
+  remove_path "${HOME}/.local/bin/ha-nova"
+  remove_path "${HOME}/.local/share/ha-nova"
+}
+
 echo ""
 echo "  HA NOVA Uninstall"
 echo "  ─────────────────"
@@ -56,6 +62,8 @@ echo ""
 echo "  This will remove:"
 echo "    • Skills from all AI client directories"
 echo "    • Claude Code plugin cache"
+echo "    • Local install (~/.local/share/ha-nova)"
+echo "    • CLI link (~/.local/bin/ha-nova)"
 echo "    • Relay CLI (~/.config/ha-nova/relay)"
 echo "    • Config (~/.config/ha-nova/)"
 echo "    • Cache (~/.cache/ha-nova/)"
@@ -107,6 +115,9 @@ done
 
 # ── Remove known config files (preserves any custom files) ──
 remove_known_config
+
+# ── Remove installer-managed local clone + CLI link ──
+remove_local_install
 
 # ── Remove update cache ──
 remove_path "${HOME}/.cache/ha-nova"

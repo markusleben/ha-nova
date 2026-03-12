@@ -2,7 +2,7 @@
  * S-2: Upgrade (everything present) — "Already set up"
  * S-3: Resume after partial abort
  */
-import { mkdirSync, symlinkSync } from "node:fs";
+import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -83,6 +83,108 @@ describe.skipIf(!isMac)("S-2: smart resume — already set up", () => {
     expect(output).toContain("Relay reachable");
     expect(output).toContain("Authentication valid");
     expect(output).toContain("WebSocket connected");
+    expect(output).toContain("Skills installed");
+  });
+
+  it("treats Gemini namespaced flat skills as fully installed", () => {
+    const home = createMockHome({
+      config: {
+        HA_HOST: "192.168.1.5",
+        HA_URL: "http://192.168.1.5:8123",
+        RELAY_BASE_URL: "http://192.168.1.5:8791",
+      },
+      keychainToken: "test-relay-token-abc123",
+    });
+    const binDir = createMockBinaries();
+
+    const geminiSkillsDir = join(home, ".gemini/skills");
+    mkdirSync(join(geminiSkillsDir, "ha-nova"), { recursive: true });
+    writeFileSync(join(geminiSkillsDir, "ha-nova", "SKILL.md"), "# skill", "utf8");
+    for (const sub of [
+      "ha-nova-write",
+      "ha-nova-read",
+      "ha-nova-helper",
+      "ha-nova-entity-discovery",
+      "ha-nova-onboarding",
+      "ha-nova-service-call",
+      "ha-nova-review",
+      "ha-nova-guide",
+    ]) {
+      mkdirSync(join(geminiSkillsDir, sub), { recursive: true });
+      writeFileSync(join(geminiSkillsDir, sub, "SKILL.md"), "# skill", "utf8");
+    }
+    writeFileSync(join(geminiSkillsDir, "ha-nova-review", "checks.md"), "# checks", "utf8");
+
+    const result = spawnSync(
+      "bash",
+      ["scripts/onboarding/macos-onboarding.sh", "setup", "gemini"],
+      {
+        cwd: REPO_ROOT,
+        input: "",
+        encoding: "utf8",
+        timeout: 15000,
+        env: mockEnv(home, binDir),
+      },
+    );
+
+    expect(result.status).toBe(0);
+
+    const output = (result.stdout ?? "") + (result.stderr ?? "");
+    expect(output).toContain("Everything is already set up!");
+    expect(output).toContain("Skills installed");
+  });
+
+  it("treats setup all with namespaced skills as fully installed", () => {
+    const home = createMockHome({
+      config: {
+        HA_HOST: "192.168.1.5",
+        HA_URL: "http://192.168.1.5:8123",
+        RELAY_BASE_URL: "http://192.168.1.5:8791",
+      },
+      keychainToken: "test-relay-token-abc123",
+    });
+    const binDir = createMockBinaries();
+
+    mkdirSync(join(home, ".agents/skills"), { recursive: true });
+    symlinkSync(join(REPO_ROOT, "skills"), join(home, ".agents/skills/ha-nova"));
+
+    const geminiSkillsDir = join(home, ".gemini/skills");
+    mkdirSync(join(geminiSkillsDir, "ha-nova"), { recursive: true });
+    writeFileSync(join(geminiSkillsDir, "ha-nova", "SKILL.md"), "# skill", "utf8");
+    for (const sub of [
+      "ha-nova-write",
+      "ha-nova-read",
+      "ha-nova-helper",
+      "ha-nova-entity-discovery",
+      "ha-nova-onboarding",
+      "ha-nova-service-call",
+      "ha-nova-review",
+      "ha-nova-guide",
+    ]) {
+      mkdirSync(join(geminiSkillsDir, sub), { recursive: true });
+      writeFileSync(join(geminiSkillsDir, sub, "SKILL.md"), "# skill", "utf8");
+    }
+    writeFileSync(join(geminiSkillsDir, "ha-nova-review", "checks.md"), "# checks", "utf8");
+
+    mkdirSync(join(home, ".config/opencode/skills"), { recursive: true });
+    symlinkSync(join(REPO_ROOT, "skills"), join(home, ".config/opencode/skills/ha-nova"));
+
+    const result = spawnSync(
+      "bash",
+      ["scripts/onboarding/macos-onboarding.sh", "setup", "all"],
+      {
+        cwd: REPO_ROOT,
+        input: "",
+        encoding: "utf8",
+        timeout: 15000,
+        env: mockEnv(home, binDir),
+      },
+    );
+
+    expect(result.status).toBe(0);
+
+    const output = (result.stdout ?? "") + (result.stderr ?? "");
+    expect(output).toContain("Everything is already set up!");
     expect(output).toContain("Skills installed");
   });
 });

@@ -39,6 +39,50 @@ CLONE_ROOT=""
 NEW_VERSION=""
 CURRENT_VERSION=""
 
+rewrite_flat_markdown() {
+  local skill_name="$1" source_dir="$2" src="$3" dest="$4"
+  local content
+
+  content="$(cat "${src}")"
+
+  for companion in "${source_dir}"/*.md; do
+    local companion_name
+    companion_name="$(basename "${companion}")"
+    [[ "${companion_name}" == "SKILL.md" ]] && continue
+    local same_skill_ref same_skill_local
+    printf -v same_skill_ref '`skills/%s/%s`' "${skill_name}" "${companion_name}"
+    printf -v same_skill_local '`%s`' "${companion_name}"
+    content="${content//${same_skill_ref}/${same_skill_local}}"
+  done
+
+  content="$(
+    printf '%s' "${content}" | HA_NOVA_ROOT="${CLONE_ROOT}" perl -0pe '
+      s{`docs/reference/([^`]+)`}{sprintf("`%s/docs/reference/%s`", $ENV{HA_NOVA_ROOT}, $1)}ge;
+      s{`skills/([^`]+)`}{sprintf("`%s/skills/%s`", $ENV{HA_NOVA_ROOT}, $1)}ge;
+    '
+  )"
+
+  printf '%s' "${content}" > "${dest}"
+}
+
+copy_flat_skill_markdown() {
+  local skill_name="$1" source_dir="$2" dest_dir="$3"
+
+  mkdir -p "${dest_dir}"
+  find "${dest_dir}" -maxdepth 1 -type f -name '*.md' -exec rm -f {} +
+
+  if [[ -f "${source_dir}/SKILL.md" ]]; then
+    rewrite_flat_markdown "${skill_name}" "${source_dir}" "${source_dir}/SKILL.md" "${dest_dir}/SKILL.md"
+  fi
+
+  for companion in "${source_dir}"/*.md; do
+    local companion_name
+    companion_name="$(basename "${companion}")"
+    [[ "${companion_name}" == "SKILL.md" ]] && continue
+    rewrite_flat_markdown "${skill_name}" "${source_dir}" "${companion}" "${dest_dir}/${companion_name}"
+  done
+}
+
 # ─── Phase 1: Detect installed clients ────────────────────────────────
 
 detect_clients() {
@@ -59,7 +103,7 @@ detect_clients() {
   fi
 
   # Gemini — flat copies (marker: read sub-skill exists)
-  if [[ -f "${HOME}/.agents/skills/ha-nova-read/SKILL.md" ]]; then
+  if [[ -f "${HOME}/.gemini/skills/ha-nova-read/SKILL.md" ]]; then
     DETECTED_CLIENTS+=("gemini")
   fi
 
@@ -182,22 +226,21 @@ update_symlink_client() {
 # Archetype: flat-copy — re-copy from updated source
 update_gemini() {
   local source_skills="${CLONE_ROOT}/skills"
-  local skills_dir="${HOME}/.agents/skills"
+  local skills_dir="${HOME}/.gemini/skills"
 
-  # Context skill (skip if Codex symlink provides it)
+  # Context skill
   local context_dir="${skills_dir}/ha-nova"
-  if [[ -d "$context_dir" && ! -L "$context_dir" ]]; then
-    cp "${source_skills}/ha-nova/SKILL.md" "${context_dir}/SKILL.md"
+  if [[ -d "$context_dir" ]]; then
+    copy_flat_skill_markdown "ha-nova" "${source_skills}/ha-nova" "${context_dir}"
   fi
 
-  # Sub-skills
+  # Sub-skills + companion docs
   for skill_md in "${source_skills}"/*/SKILL.md; do
     local skill_name; skill_name=$(basename "$(dirname "$skill_md")")
     [[ "$skill_name" == "ha-nova" ]] && continue
 
-    local dest_dir="${skills_dir}/ha-nova-${skill_name}"
-    mkdir -p "$dest_dir"
-    sed "s|docs/reference/|${CLONE_ROOT}/docs/reference/|g" "$skill_md" > "${dest_dir}/SKILL.md"
+    local dest_dir="${skills_dir}/${skill_name}"
+    copy_flat_skill_markdown "${skill_name}" "${source_skills}/${skill_name}" "${dest_dir}"
   done
 
   UPDATED_CLIENTS+=("Gemini")

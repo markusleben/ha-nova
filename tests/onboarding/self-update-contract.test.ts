@@ -2,8 +2,10 @@
  * Contract tests for scripts/update.sh — the self-update script.
  * Verifies client detection, modular architecture, and safety properties.
  */
-import { readFileSync, existsSync } from "node:fs";
-import { resolve } from "node:path";
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { REPO_ROOT } from "./_helpers.js";
@@ -25,7 +27,7 @@ describe("self-update script contract", () => {
       expect(updateScript).toContain("ha-nova@ha-nova");        // Claude Code
       expect(updateScript).toContain(".agents/skills/ha-nova");  // Codex
       expect(updateScript).toContain("opencode/skills/ha-nova"); // OpenCode
-      expect(updateScript).toContain("ha-nova-read/SKILL.md");   // Gemini
+      expect(updateScript).toContain(".gemini/skills/ha-nova-read/SKILL.md");   // Gemini
     });
 
     it("populates DETECTED_CLIENTS array", () => {
@@ -50,8 +52,10 @@ describe("self-update script contract", () => {
 
     it("uses flat-copy re-creation for Gemini", () => {
       expect(updateScript).toContain("update_gemini");
-      // Gemini needs path resolution for docs/reference/
-      expect(updateScript).toContain("docs/reference/");
+      expect(updateScript).toContain("rewrite_flat_markdown");
+      expect(updateScript).toContain("copy_flat_skill_markdown");
+      expect(updateScript).toContain("perl -0pe");
+      expect(updateScript).toContain("find \"${dest_dir}\" -maxdepth 1 -type f -name '*.md'");
     });
   });
 
@@ -109,5 +113,83 @@ describe("self-update script contract", () => {
       );
       expect(uninstallScript).toContain("update");
     });
+  });
+
+  it("refreshes Gemini flat copies and companion markdown from the source clone", () => {
+    const sandbox = mkdtempSync(join(tmpdir(), "ha-nova-update-"));
+    const repoCopy = join(sandbox, "repo");
+    const originBare = join(sandbox, "origin.git");
+    const home = join(sandbox, "home");
+
+    const copyResult = spawnSync(
+      "bash",
+      ["-lc", 'mkdir -p "$DEST" && tar --exclude=".git" -cf - . | tar -xf - -C "$DEST"'],
+      {
+        cwd: REPO_ROOT,
+        encoding: "utf8",
+        env: { ...process.env, DEST: repoCopy },
+      },
+    );
+    expect(copyResult.status).toBe(0);
+
+    const initResult = spawnSync(
+      "bash",
+      [
+        "-lc",
+        [
+          'git init --initial-branch=main',
+          'git config user.email "tests@example.com"',
+          'git config user.name "Tests"',
+          "git add .",
+          'git commit -m "snapshot"',
+          'git clone --bare "$PWD" "$ORIGIN"',
+          'git remote remove origin 2>/dev/null || true',
+          'git remote add origin "$ORIGIN"',
+        ].join(" && "),
+      ],
+      {
+        cwd: repoCopy,
+        encoding: "utf8",
+        env: { ...process.env, ORIGIN: originBare },
+      },
+    );
+    expect(initResult.status).toBe(0);
+
+    const installResult = spawnSync(
+      "bash",
+      ["scripts/onboarding/install-local-skills.sh", "all"],
+      {
+        cwd: repoCopy,
+        encoding: "utf8",
+        timeout: 20000,
+        env: { ...process.env, HOME: home },
+      },
+    );
+    expect(installResult.status).toBe(0);
+
+    writeFileSync(join(home, ".gemini/skills/ha-nova-review/checks.md"), "stale checks\n", "utf8");
+    writeFileSync(join(home, ".gemini/skills/ha-nova-review/old-companion.md"), "stale companion\n", "utf8");
+    writeFileSync(join(home, ".gemini/skills/ha-nova-write/SKILL.md"), "stale write skill\n", "utf8");
+
+    const updateResult = spawnSync(
+      "bash",
+      [join(home, ".config/ha-nova/update")],
+      {
+        cwd: sandbox,
+        encoding: "utf8",
+        timeout: 20000,
+        env: { ...process.env, HOME: home },
+      },
+    );
+    expect(updateResult.status).toBe(0);
+
+    const refreshedChecks = readFileSync(join(home, ".gemini/skills/ha-nova-review/checks.md"), "utf8");
+    expect(refreshedChecks).toContain("H-09 [MEDIUM → HIGH]");
+    expect(refreshedChecks).toContain("Canonical path: `checks.md`");
+    expect(existsSync(join(home, ".gemini/skills/ha-nova-review/old-companion.md"))).toBe(false);
+
+    const refreshedWrite = readFileSync(join(home, ".gemini/skills/ha-nova-write/SKILL.md"), "utf8");
+    expect(refreshedWrite).toContain(join(repoCopy, "skills/ha-nova-review/checks.md"));
+    expect(refreshedWrite).toContain(join(repoCopy, "skills/ha-nova/relay-api.md"));
   });
 });

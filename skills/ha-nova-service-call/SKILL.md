@@ -1,5 +1,5 @@
 ---
-name: service-call
+name: ha-nova-service-call
 description: Use when the user wants to call Home Assistant services (turn on lights, set temperature, toggle switches) through HA NOVA Relay.
 ---
 
@@ -13,7 +13,7 @@ Direct device/service control:
 - list available services
 - target by entity_id, area_id, or device_id
 
-No config mutations (use `ha-nova:write` for automation/script changes).
+No config mutations (use `ha-nova:ha-nova-write` for automation/script changes).
 
 ## Bootstrap (once per session)
 
@@ -77,7 +77,7 @@ Example:
 {"method":"POST","path":"/api/services/input_number/set_value","body":{"entity_id":"input_number.target_temperature","value":22.5}}
 ```
 
-For helper CRUD (create/update/delete helpers themselves), use `ha-nova:helper` instead.
+For helper CRUD (create/update/delete helpers themselves), use `ha-nova:ha-nova-helper` instead.
 
 ## Safety
 

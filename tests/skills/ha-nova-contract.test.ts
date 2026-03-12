@@ -6,13 +6,13 @@ describe("ha-nova contract", () => {
   it("provides context skill with skill discovery table", () => {
     const context = readFileSync("skills/ha-nova/SKILL.md", "utf8");
 
-    expect(context).toContain("ha-nova:write");
-    expect(context).toContain("ha-nova:read");
-    expect(context).toContain("ha-nova:helper");
-    expect(context).toContain("ha-nova:service-call");
-    expect(context).toContain("ha-nova:entity-discovery");
-    expect(context).toContain("ha-nova:onboarding");
-    expect(context).toContain("ha-nova:review");
+    expect(context).toContain("ha-nova:ha-nova-write");
+    expect(context).toContain("ha-nova:ha-nova-read");
+    expect(context).toContain("ha-nova:ha-nova-helper");
+    expect(context).toContain("ha-nova:ha-nova-service-call");
+    expect(context).toContain("ha-nova:ha-nova-entity-discovery");
+    expect(context).toContain("ha-nova:ha-nova-onboarding");
+    expect(context).toContain("ha-nova:ha-nova-review");
     expect(context).toContain("Sub-skills are discovered independently");
     expect(context).not.toContain(".agents/skills/");
     expect(context).not.toContain("core/intents.md");
@@ -54,6 +54,7 @@ describe("ha-nova contract", () => {
       "skills/ha-nova/agents/resolve-agent.md",
       "skills/ha-nova/agents/apply-agent.md",
       "skills/ha-nova/agents/review-agent.md",
+      "skills/ha-nova-review/checks.md",
     ];
 
     for (const file of files) {
@@ -130,9 +131,9 @@ describe("ha-nova contract", () => {
     expect(review).toContain("Output Localization");
     expect(review).toContain("search/related");
     expect(review).toContain("complementary pair");
-    // Review checks (S/R/P/M/F/H) live in review/SKILL.md (SSOT).
-    // Agent references that file instead of duplicating checks.
-    expect(review).toContain("skills/review/SKILL.md");
+    // Review entry stays at review/SKILL.md; detailed checks live in review/checks.md.
+    expect(review).toContain("skills/ha-nova-review/SKILL.md");
+    expect(review).toContain("skills/ha-nova-review/checks.md");
     expect(review).toContain("mode: post-write");
     expect(review).toContain("post-write");
     expect(review).toContain("standalone");
@@ -140,10 +141,10 @@ describe("ha-nova contract", () => {
 
   it("keeps all operational subskills concise (<1000 words)", () => {
     const skills = [
-      "skills/write/SKILL.md",
-      "skills/read/SKILL.md",
-      "skills/entity-discovery/SKILL.md",
-      "skills/onboarding/SKILL.md",
+      "skills/ha-nova-write/SKILL.md",
+      "skills/ha-nova-read/SKILL.md",
+      "skills/ha-nova-entity-discovery/SKILL.md",
+      "skills/ha-nova-onboarding/SKILL.md",
     ];
     for (const file of skills) {
       const content = readFileSync(file, "utf8");
@@ -155,13 +156,14 @@ describe("ha-nova contract", () => {
   it("keeps all HA NOVA skills in source tree", () => {
     const files = [
       "skills/ha-nova/SKILL.md",
-      "skills/write/SKILL.md",
-      "skills/read/SKILL.md",
-      "skills/helper/SKILL.md",
-      "skills/entity-discovery/SKILL.md",
-      "skills/onboarding/SKILL.md",
-      "skills/service-call/SKILL.md",
-      "skills/review/SKILL.md",
+      "skills/ha-nova-write/SKILL.md",
+      "skills/ha-nova-read/SKILL.md",
+      "skills/ha-nova-helper/SKILL.md",
+      "skills/ha-nova-entity-discovery/SKILL.md",
+      "skills/ha-nova-onboarding/SKILL.md",
+      "skills/ha-nova-service-call/SKILL.md",
+      "skills/ha-nova-review/SKILL.md",
+      "skills/ha-nova-review/checks.md",
     ];
 
     for (const file of files) {
@@ -174,10 +176,10 @@ describe("ha-nova contract", () => {
 
   it("enforces relay CLI bootstrap across all operational subskills", () => {
     const skills = [
-      "skills/write/SKILL.md",
-      "skills/read/SKILL.md",
-      "skills/entity-discovery/SKILL.md",
-      "skills/onboarding/SKILL.md",
+      "skills/ha-nova-write/SKILL.md",
+      "skills/ha-nova-read/SKILL.md",
+      "skills/ha-nova-entity-discovery/SKILL.md",
+      "skills/ha-nova-onboarding/SKILL.md",
     ];
 
     for (const file of skills) {

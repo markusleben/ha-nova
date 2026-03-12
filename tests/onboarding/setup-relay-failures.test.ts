@@ -92,6 +92,6 @@ describe.skipIf(!isMac)("S-7: relay unreachable during setup", () => {
     expect(output).toContain("Can't reach the relay");
     expect(output).toContain("Quick checklist");
     expect(output).toContain("NOVA Relay app started");
-    expect(output).toContain("relay_auth_token saved");
+    expect(output).toContain('Is the "Relay Auth Token" field ("relay_auth_token") saved');
   });
 });

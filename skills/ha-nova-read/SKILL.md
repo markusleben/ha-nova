@@ -1,6 +1,6 @@
 ---
-name: read
-description: Use when listing or reading Home Assistant automation and script configs through HA NOVA Relay. For analysis or review, use ha-nova:review instead.
+name: ha-nova-read
+description: Use when listing or reading Home Assistant automation and script configs through HA NOVA Relay. For analysis or review, use ha-nova:ha-nova-review instead.
 ---
 
 # HA NOVA Read
@@ -16,7 +16,7 @@ Read operations only:
 - `automation.trace`
 - `script.trace`
 
-Not for helpers — use `ha-nova:helper` for helper list/read.
+Not for helpers — use `ha-nova:ha-nova-helper` for helper list/read.
 
 No writes. For analysis/review/audit, route through parent `ha-nova` skill — it dispatches the review agent after the read.
 

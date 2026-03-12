@@ -108,29 +108,29 @@ Match user intent to exactly one skill:
 
 | User wants to… | Invoke exactly |
 |---|---|
-| list, show, read automations/scripts | `ha-nova:read` |
-| analyze, review, audit, check, find problems | `ha-nova:review` (reads config internally) |
-| create, update, delete automations/scripts | `ha-nova:write` (resolves + reviews internally) |
-| list, show, read helpers | `ha-nova:helper` |
-| create, update, delete helpers | `ha-nova:helper` |
-| turn on/off, toggle, set, call a service | `ha-nova:service-call` |
-| enable/disable/trigger an automation | `ha-nova:service-call` |
-| find entities by name, room, area | `ha-nova:entity-discovery` |
-| fix relay/auth/connectivity errors | `ha-nova:onboarding` |
-| HA-related but not matched above (dashboards, blueprints, history, energy, areas, zones, etc.) | `ha-nova:guide` |
+| list, show, read automations/scripts | `ha-nova:ha-nova-read` |
+| analyze, review, audit, check, find problems | `ha-nova:ha-nova-review` (reads config internally) |
+| create, update, delete automations/scripts | `ha-nova:ha-nova-write` (resolves + reviews internally) |
+| list, show, read helpers | `ha-nova:ha-nova-helper` |
+| create, update, delete helpers | `ha-nova:ha-nova-helper` |
+| turn on/off, toggle, set, call a service | `ha-nova:ha-nova-service-call` |
+| enable/disable/trigger an automation | `ha-nova:ha-nova-service-call` |
+| find entities by name, room, area | `ha-nova:ha-nova-entity-discovery` |
+| fix relay/auth/connectivity errors | `ha-nova:ha-nova-onboarding` |
+| HA-related but not matched above (dashboards, blueprints, history, energy, areas, zones, etc.) | `ha-nova:ha-nova-guide` |
 
-**"Analysiere meine Automation"** → `ha-nova:review` (NOT read + review)
-**"Zeige meine Automationen"** → `ha-nova:read` (NOT review)
-**"Erstelle eine Automation"** → `ha-nova:write` (NOT read + write)
-**"Erstelle einen input_boolean"** → `ha-nova:helper` (NOT write)
-**"Zeige meine Helper"** → `ha-nova:helper` (NOT read)
-**"Erstelle einen Timer"** → ambiguous! Ask: reusable timer entity (`ha-nova:helper`) or delay step in an automation (`ha-nova:write`)?
-**"Zeige mir mein Energy Dashboard"** → `ha-nova:guide` (no dedicated skill)
-**"Importiere einen Blueprint"** → `ha-nova:guide` (relay-ready, no skill)
-**"Wie manage ich Add-ons?"** → `ha-nova:guide` (external, web search)
-**"Zeige mir die History von Sensor X"** → `ha-nova:guide` (relay-ready, no skill)
+**"Analysiere meine Automation"** → `ha-nova:ha-nova-review` (NOT read + review)
+**"Zeige meine Automationen"** → `ha-nova:ha-nova-read` (NOT review)
+**"Erstelle eine Automation"** → `ha-nova:ha-nova-write` (NOT read + write)
+**"Erstelle einen input_boolean"** → `ha-nova:ha-nova-helper` (NOT write)
+**"Zeige meine Helper"** → `ha-nova:ha-nova-helper` (NOT read)
+**"Erstelle einen Timer"** → ambiguous! Ask: reusable timer entity (`ha-nova:ha-nova-helper`) or delay step in an automation (`ha-nova:ha-nova-write`)?
+**"Zeige mir mein Energy Dashboard"** → `ha-nova:ha-nova-guide` (no dedicated skill)
+**"Importiere einen Blueprint"** → `ha-nova:ha-nova-guide` (relay-ready, no skill)
+**"Wie manage ich Add-ons?"** → `ha-nova:ha-nova-guide` (external, web search)
+**"Zeige mir die History von Sensor X"** → `ha-nova:ha-nova-guide` (relay-ready, no skill)
 
-**Problem-description intents** ("X geht nicht", "Y ist falsch", "funktioniert nicht mehr"): dispatch to `ha-nova:review`. Review will analyze the config AND check current entity state — if an acute fix is possible, it offers a Quick-Fix service call at the end.
+**Problem-description intents** ("X geht nicht", "Y ist falsch", "funktioniert nicht mehr"): dispatch to `ha-nova:ha-nova-review`. Review will analyze the config AND check current entity state — if an acute fix is possible, it offers a Quick-Fix service call at the end.
 
 ## Latency Policy
 

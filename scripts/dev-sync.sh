@@ -1,13 +1,31 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Syncs local repo skills/hooks to all installed client caches.
-# Use after local changes to test without pushing to GitHub.
+# Syncs local repo changes to installed HA NOVA clients.
+# KISS: for file-based clients, just re-run install-local-skills.sh.
+# Claude Code remains the only special-case cache sync.
 
 SCRIPT_DIR="$(cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
 
 synced=()
+file_clients_synced=0
+
+sync_file_client() {
+  local name="$1"
+  local marker="$2"
+  local target="$3"
+
+  if [[ ! -e "$marker" && ! -L "$marker" ]]; then
+    echo "[dev:sync] ${name}: not installed — skipped"
+    return
+  fi
+
+  bash "${REPO_ROOT}/scripts/onboarding/install-local-skills.sh" "$target"
+  echo "[dev:sync] ${name}: refreshed via install-local-skills.sh ${target}"
+  synced+=("${name}")
+  file_clients_synced=1
+}
 
 # ─── Claude Code plugin cache ────────────────────────────────────────
 sync_claude() {
@@ -98,31 +116,20 @@ sync_claude() {
   synced+=("Claude Code")
 }
 
-# ─── Gemini flat copies ──────────────────────────────────────────────
-sync_gemini() {
-  local gemini_marker="${HOME}/.agents/skills/ha-nova-read/SKILL.md"
-  if [[ ! -f "$gemini_marker" ]]; then
-    echo "[dev:sync] Gemini: no flat copies found — skipped"
-    return
-  fi
-
-  bash "${REPO_ROOT}/scripts/onboarding/install-local-skills.sh" gemini
-  echo "[dev:sync] Gemini flat copies refreshed"
-  synced+=("Gemini")
-}
-
-# ─── Relay CLI ────────────────────────────────────────────────────────
-sync_relay() {
+# ─── Shared tools fallback ───────────────────────────────────────────
+# install-local-skills.sh already refreshes these for file-based clients.
+# Keep this fallback for Claude-only setups.
+sync_shared_tools() {
   local relay_src="${REPO_ROOT}/scripts/relay.sh"
   local relay_dst="${HOME}/.config/ha-nova/relay"
 
   if [[ ! -f "$relay_dst" ]]; then
-    echo "[dev:sync] Relay CLI: not installed — skipped"
+    echo "[dev:sync] Shared tools: not installed — skipped"
     return
   fi
 
   if [[ ! -f "$relay_src" ]]; then
-    echo "[dev:sync] Relay CLI: source missing ($relay_src) — skipped"
+    echo "[dev:sync] Shared tools: source missing ($relay_src) — skipped"
     return
   fi
 
@@ -143,8 +150,8 @@ sync_relay() {
     chmod 755 "${HOME}/.config/ha-nova/update"
   fi
 
-  echo "[dev:sync] Relay CLI updated"
-  synced+=("Relay CLI")
+  echo "[dev:sync] Shared tools refreshed"
+  synced+=("Shared tools")
 }
 
 # ─── Guardrail: verify installed_plugins.json integrity ──────────────
@@ -210,9 +217,13 @@ verify_plugin_integrity() {
 }
 
 # ─── Run ──────────────────────────────────────────────────────────────
+sync_file_client "Codex" "${HOME}/.agents/skills/ha-nova" "codex"
+sync_file_client "OpenCode" "${HOME}/.config/opencode/skills/ha-nova" "opencode"
+sync_file_client "Gemini" "${HOME}/.gemini/skills/ha-nova-read/SKILL.md" "gemini"
 sync_claude
-sync_gemini
-sync_relay
+if [[ "$file_clients_synced" -eq 0 ]]; then
+  sync_shared_tools
+fi
 verify_plugin_integrity
 
 if [[ ${#synced[@]} -eq 0 ]]; then
