@@ -236,20 +236,28 @@ cleanup_claude_cache_orphans() {
   install_path="${install_path/#\~/$HOME}"
   [[ -d "${install_path}/skills" ]] || return 0
 
-  # Build valid set from the freshly-pulled source
-  local source_skills="${CLONE_ROOT}/skills"
+  # Resolve source: prefer CLONE_ROOT, fall back to plugin cache clone
+  local source_skills=""
+  if [[ -n "${CLONE_ROOT}" && -d "${CLONE_ROOT}/skills" ]]; then
+    source_skills="${CLONE_ROOT}/skills"
+  else
+    # Derive clone root from install path (2 levels up)
+    local cache_clone
+    cache_clone="$(dirname "$(dirname "$install_path")")"
+    [[ -d "${cache_clone}/skills" ]] && source_skills="${cache_clone}/skills"
+  fi
   [[ -d "$source_skills" ]] || return 0
 
-  local -A valid_skills=()
-  valid_skills["ha-nova"]=1
+  # Build valid list (portable — no associative arrays, works on macOS Bash 3.2)
+  local valid_skills="ha-nova"
   for skill_dir in "${source_skills}"/*/SKILL.md; do
-    valid_skills["$(basename "$(dirname "$skill_dir")")"]=1
+    valid_skills="${valid_skills}"$'\n'"$(basename "$(dirname "$skill_dir")")"
   done
 
   for existing in "${install_path}/skills"/ha-nova*/; do
     [[ ! -d "$existing" ]] && continue
     local name; name="$(basename "$existing")"
-    if [[ -z "${valid_skills[$name]:-}" ]]; then
+    if ! printf '%s\n' "$valid_skills" | grep -qx "$name"; then
       rm -rf "$existing"
       log "Removed orphaned Claude cache skill: ${name}"
     fi
@@ -273,15 +281,15 @@ update_gemini() {
   local skills_dir="${HOME}/.gemini/skills"
 
   # Auto-cleanup: remove any ha-nova* dir that doesn't match a current source skill.
-  local -A valid_skills=()
-  valid_skills["ha-nova"]=1
+  # Portable — no associative arrays, works on macOS Bash 3.2.
+  local valid_skills="ha-nova"
   for skill_dir in "${source_skills}"/*/SKILL.md; do
-    valid_skills["$(basename "$(dirname "$skill_dir")")"]=1
+    valid_skills="${valid_skills}"$'\n'"$(basename "$(dirname "$skill_dir")")"
   done
   for existing in "${skills_dir}"/ha-nova*/; do
     [[ ! -d "$existing" ]] && continue
     local name; name="$(basename "$existing")"
-    if [[ -z "${valid_skills[$name]:-}" ]]; then
+    if ! printf '%s\n' "$valid_skills" | grep -qx "$name"; then
       rm -rf "$existing"
       log "Removed orphaned Gemini skill: ${name}"
     fi

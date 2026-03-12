@@ -130,11 +130,10 @@ cleanup_legacy() {
 cleanup_gemini_orphans() {
   local skills_dir="$1"
 
-  # Build set of valid skill names from source
-  local -A valid_skills=()
-  valid_skills["ha-nova"]=1
+  # Build valid list (portable — no associative arrays, works on macOS Bash 3.2)
+  local valid_skills="ha-nova"
   for skill_dir in "${SOURCE_SKILLS_DIR}"/*/SKILL.md; do
-    valid_skills["$(basename "$(dirname "$skill_dir")")"]=1
+    valid_skills="${valid_skills}"$'\n'"$(basename "$(dirname "$skill_dir")")"
   done
 
   # Scan target for ha-nova* dirs and remove orphans
@@ -142,7 +141,7 @@ cleanup_gemini_orphans() {
     [[ ! -d "$existing" ]] && continue
     local name
     name="$(basename "$existing")"
-    if [[ -z "${valid_skills[$name]:-}" ]]; then
+    if ! printf '%s\n' "$valid_skills" | grep -qx "$name"; then
       rm -rf "$existing"
       log "[gemini] Removed orphaned skill: ${name}"
     fi
