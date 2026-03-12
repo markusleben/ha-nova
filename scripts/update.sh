@@ -236,12 +236,20 @@ cleanup_claude_cache_orphans() {
   install_path="${install_path/#\~/$HOME}"
   [[ -d "${install_path}/skills" ]] || return 0
 
-  # Only clean orphans when CLONE_ROOT is set (from a fresh git pull).
-  # Claude's plugin system uses versioned dirs — orphan cleanup is a safety
-  # net, not critical path. Skipping when CLONE_ROOT is empty avoids the
-  # risk of using a stale local clone as the truth source.
-  [[ -n "${CLONE_ROOT}" && -d "${CLONE_ROOT}/skills" ]] || return 0
-  local source_skills="${CLONE_ROOT}/skills"
+  # Resolve authoritative source for valid skill names.
+  # Prefer CLONE_ROOT (fresh git pull). Fallback: the plugin cache's own
+  # git clone (dirname of install_path = cache/ha-nova/ha-nova/), which
+  # claude plugin update just refreshed. Never use find_source_clone()
+  # here — it could pick a stale ~/.local/share/ha-nova clone.
+  local source_skills=""
+  if [[ -n "${CLONE_ROOT}" && -d "${CLONE_ROOT}/skills" ]]; then
+    source_skills="${CLONE_ROOT}/skills"
+  else
+    local cache_clone
+    cache_clone="$(dirname "$install_path")"
+    [[ -d "${cache_clone}/skills" ]] && source_skills="${cache_clone}/skills"
+  fi
+  [[ -d "$source_skills" ]] || return 0
 
   # Build valid list (portable — no associative arrays, works on macOS Bash 3.2)
   local valid_skills="ha-nova"
