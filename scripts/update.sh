@@ -236,15 +236,14 @@ cleanup_claude_cache_orphans() {
   install_path="${install_path/#\~/$HOME}"
   [[ -d "${install_path}/skills" ]] || return 0
 
-  # Resolve source: prefer CLONE_ROOT, fall back to plugin cache clone
+  # Resolve source: prefer CLONE_ROOT, fall back to find_source_clone()
   local source_skills=""
   if [[ -n "${CLONE_ROOT}" && -d "${CLONE_ROOT}/skills" ]]; then
     source_skills="${CLONE_ROOT}/skills"
   else
-    # Derive clone root from install path (2 levels up)
-    local cache_clone
-    cache_clone="$(dirname "$(dirname "$install_path")")"
-    [[ -d "${cache_clone}/skills" ]] && source_skills="${cache_clone}/skills"
+    local fallback_root
+    fallback_root="$(find_source_clone 2>/dev/null || true)"
+    [[ -n "$fallback_root" && -d "${fallback_root}/skills" ]] && source_skills="${fallback_root}/skills"
   fi
   [[ -d "$source_skills" ]] || return 0
 
