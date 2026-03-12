@@ -168,3 +168,7 @@ tests/       Test suite
 ## 📄 License
 
 [MIT](LICENSE)
+
+## 🙏 Acknowledgments
+
+Some Home Assistant safety-rule ideas in HA NOVA were inspired by [HALMark](https://github.com/nathan-curtis/HALMark) by Nathan Curtis.

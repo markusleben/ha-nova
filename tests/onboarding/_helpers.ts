@@ -11,6 +11,22 @@ const REPO_ROOT = resolve(__dirname, "../..");
 
 export { REPO_ROOT };
 
+function stripGitEnv(env: NodeJS.ProcessEnv): Record<string, string> {
+  const cleanEnv: Record<string, string> = {};
+
+  for (const [key, value] of Object.entries(env)) {
+    if (key.startsWith("GIT_")) {
+      continue;
+    }
+    if (value === undefined) {
+      continue;
+    }
+    cleanEnv[key] = value;
+  }
+
+  return cleanEnv;
+}
+
 export interface MockHomeOpts {
   /** Pre-populate config file with these values */
   config?: { HA_HOST: string; HA_URL: string; RELAY_BASE_URL: string };
@@ -207,10 +223,22 @@ export function mockEnv(
   binDir: string,
   extra: Record<string, string> = {},
 ): Record<string, string> {
+  const env = stripGitEnv(process.env);
+
   return {
-    ...process.env as Record<string, string>,
+    ...env,
     HOME: home,
     PATH: `${binDir}:${process.env.PATH ?? ""}`,
+    ...extra,
+  };
+}
+
+export function mockEnvWithBase(
+  baseEnv: NodeJS.ProcessEnv,
+  extra: Record<string, string> = {},
+): Record<string, string> {
+  return {
+    ...stripGitEnv(baseEnv),
     ...extra,
   };
 }

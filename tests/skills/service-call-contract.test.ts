@@ -88,4 +88,14 @@ describe("service call contract", () => {
       expect(skillDoc).toMatch(/toggle.*turn_on.*turn_off/);
     });
   });
+
+  describe("broad-target ambiguity", () => {
+    it("requires clarification when area-wide targeting may be too broad", () => {
+      expect(skillDoc).toContain("room/area");
+      expect(skillDoc).toContain("one clarifying question");
+      expect(skillDoc).toContain("before using `area_id`");
+      expect(skillDoc).toContain("second blocking ambiguity question");
+      expect(skillDoc).toContain("narrower confirmed target");
+    });
+  });
 });

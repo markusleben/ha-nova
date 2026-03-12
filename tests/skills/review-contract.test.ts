@@ -9,6 +9,7 @@ const helperSkill = readFileSync("skills/ha-nova-helper/SKILL.md", "utf8");
 const reviewAgent = readFileSync("skills/ha-nova/agents/review-agent.md", "utf8");
 const architectureDoc = readFileSync("docs/reference/skill-architecture.md", "utf8");
 const contributingDoc = readFileSync("CONTRIBUTING.md", "utf8");
+const templateGuidelines = readFileSync("skills/ha-nova/template-guidelines.md", "utf8");
 
 describe("review contract", () => {
   it("keeps the review facade pointed at the externalized rule catalog", () => {
@@ -66,5 +67,16 @@ describe("review contract", () => {
     expect(contributingDoc).toContain("docs/reference/skill-architecture.md");
     expect(contributingDoc).toContain("skills/ha-nova-review/SKILL.md");
     expect(contributingDoc).toContain("skills/ha-nova-review/checks.md");
+  });
+
+  it("documents templated event name traps in the review catalog and template guide", () => {
+    expect(reviewChecks).toContain("R-16 [HIGH]");
+    expect(reviewChecks).toContain("Templated event name");
+    expect(reviewChecks).toContain("`event_type:` does not evaluate templates");
+    expect(reviewSkill).toContain("R-01..R-16");
+    expect(reviewAgent).toContain("R-01..R-16");
+    expect(architectureDoc).toContain("R-01..R-16");
+    expect(templateGuidelines).toContain("Event trigger names must be literal strings");
+    expect(templateGuidelines).toContain("do not template `event_type:`");
   });
 });
