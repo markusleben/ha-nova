@@ -56,7 +56,7 @@ Work style: Be radically precise. No fluff. Pure information only (drop grammar;
 - If user types a command (“pull and push”), that’s consent for that command.
 - Big review: `git --no-pager diff --color=never`.
 - **PR Merge — MANDATORY CHECKLIST (do NOT skip any step):**
-  The `codex-review-gate` workflow waits ~9 min for the Codex review bot. Bot signals: 👍 reaction = no findings, review comments = findings.
+  The `codex-review-gate` workflow waits ~9 min for the Codex review bot. Bot signals: `eyes` reaction = review in progress, `👍` reaction = no findings, review comments = findings.
   - [ ] 1. `gh pr create ...`
   - [ ] 2. `gh pr checks <nr> --watch` — wait for ALL checks including `codex-review-gate`
   - [ ] 3. Check bot signal: `gh api repos/<o>/<r>/issues/<nr>/reactions` (👍 = clean) AND `gh api repos/<o>/<r>/pulls/<nr>/comments` (findings)
