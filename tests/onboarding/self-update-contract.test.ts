@@ -8,7 +8,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { createMockBinaries, mockEnv, REPO_ROOT } from "./_helpers.js";
+import { createMockBinaries, mockEnv, mockEnvWithBase, REPO_ROOT } from "./_helpers.js";
 
 const updateScript = readFileSync(
   resolve(REPO_ROOT, "scripts/update.sh"),
@@ -122,6 +122,12 @@ describe("self-update script contract", () => {
     const originBare = join(sandbox, "origin.git");
     const home = join(sandbox, "home");
     const binDir = createMockBinaries();
+    const hookEnv = {
+      ...process.env,
+      GIT_DIR: join(sandbox, "hook.git"),
+      GIT_PREFIX: "hooks/pre-push/",
+      GIT_WORK_TREE: sandbox,
+    };
 
     const copyResult = spawnSync(
       "bash",
@@ -129,7 +135,7 @@ describe("self-update script contract", () => {
       {
         cwd: REPO_ROOT,
         encoding: "utf8",
-        env: { ...process.env, DEST: repoCopy },
+        env: mockEnvWithBase(hookEnv, { DEST: repoCopy }),
       },
     );
     expect(copyResult.status).toBe(0);
@@ -152,7 +158,7 @@ describe("self-update script contract", () => {
       {
         cwd: repoCopy,
         encoding: "utf8",
-        env: { ...process.env, ORIGIN: originBare },
+        env: mockEnvWithBase(hookEnv, { ORIGIN: originBare }),
       },
     );
     expect(initResult.status).toBe(0);
@@ -201,6 +207,12 @@ describe("self-update script contract", () => {
     const originBare = join(home, "origin.git");
     const legacySkillDir = join(home, ".agents/skills/ha-nova-read");
     const binDir = createMockBinaries();
+    const hookEnv = {
+      ...process.env,
+      GIT_DIR: join(home, "hook.git"),
+      GIT_PREFIX: "hooks/pre-push/",
+      GIT_WORK_TREE: home,
+    };
 
     const copyResult = spawnSync(
       "bash",
@@ -208,7 +220,7 @@ describe("self-update script contract", () => {
       {
         cwd: REPO_ROOT,
         encoding: "utf8",
-        env: { ...process.env, DEST: repoCopy },
+        env: mockEnvWithBase(hookEnv, { DEST: repoCopy }),
       },
     );
     expect(copyResult.status).toBe(0);
@@ -231,7 +243,7 @@ describe("self-update script contract", () => {
       {
         cwd: repoCopy,
         encoding: "utf8",
-        env: { ...process.env, ORIGIN: originBare },
+        env: mockEnvWithBase(hookEnv, { ORIGIN: originBare }),
       },
     );
     expect(initResult.status).toBe(0);
@@ -241,7 +253,7 @@ describe("self-update script contract", () => {
       ["-lc", 'mkdir -p "$LEGACY" && printf "name: ha-nova-read\n" > "$LEGACY/SKILL.md"'],
       {
         encoding: "utf8",
-        env: { ...process.env, LEGACY: legacySkillDir },
+        env: mockEnvWithBase(hookEnv, { LEGACY: legacySkillDir }),
       },
     );
     expect(legacyResult.status).toBe(0);
