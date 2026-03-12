@@ -36,10 +36,22 @@ detect_shell_rc() {
 
   case "$shell_name" in
     zsh) printf '%s\n' "${HOME}/.zshrc" ;;
-    bash) printf '%s\n' "${HOME}/.bashrc" ;;
+    bash)
+      if [[ -f "${HOME}/.bash_profile" ]]; then
+        printf '%s\n' "${HOME}/.bash_profile"
+      elif [[ -f "${HOME}/.profile" ]]; then
+        printf '%s\n' "${HOME}/.profile"
+      else
+        printf '%s\n' "${HOME}/.bash_profile"
+      fi
+      ;;
     *)
       if [[ -f "${HOME}/.zshrc" ]]; then
         printf '%s\n' "${HOME}/.zshrc"
+      elif [[ -f "${HOME}/.bash_profile" ]]; then
+        printf '%s\n' "${HOME}/.bash_profile"
+      elif [[ -f "${HOME}/.profile" ]]; then
+        printf '%s\n' "${HOME}/.profile"
       elif [[ -f "${HOME}/.bashrc" ]]; then
         printf '%s\n' "${HOME}/.bashrc"
       else

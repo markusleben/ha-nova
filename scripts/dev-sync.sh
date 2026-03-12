@@ -13,18 +13,25 @@ file_clients_synced=0
 
 sync_file_client() {
   local name="$1"
-  local marker="$2"
-  local target="$3"
+  local target="$2"
+  shift 2
+  local markers=("$@")
+  local marker
 
-  if [[ ! -e "$marker" && ! -L "$marker" ]]; then
+  for marker in "${markers[@]}"; do
+    if [[ -e "$marker" || -L "$marker" ]]; then
+      bash "${REPO_ROOT}/scripts/onboarding/install-local-skills.sh" "$target"
+      echo "[dev:sync] ${name}: refreshed via install-local-skills.sh ${target}"
+      synced+=("${name}")
+      file_clients_synced=1
+      return
+    fi
+  done
+
+  if [[ ${#markers[@]} -eq 0 ]]; then
     echo "[dev:sync] ${name}: not installed — skipped"
-    return
   fi
-
-  bash "${REPO_ROOT}/scripts/onboarding/install-local-skills.sh" "$target"
-  echo "[dev:sync] ${name}: refreshed via install-local-skills.sh ${target}"
-  synced+=("${name}")
-  file_clients_synced=1
+  echo "[dev:sync] ${name}: not installed — skipped"
 }
 
 # ─── Claude Code plugin cache ────────────────────────────────────────
@@ -217,9 +224,9 @@ verify_plugin_integrity() {
 }
 
 # ─── Run ──────────────────────────────────────────────────────────────
-sync_file_client "Codex" "${HOME}/.agents/skills/ha-nova" "codex"
-sync_file_client "OpenCode" "${HOME}/.config/opencode/skills/ha-nova" "opencode"
-sync_file_client "Gemini" "${HOME}/.gemini/skills/ha-nova-read/SKILL.md" "gemini"
+sync_file_client "Codex" "codex" "${HOME}/.agents/skills/ha-nova"
+sync_file_client "OpenCode" "opencode" "${HOME}/.config/opencode/skills/ha-nova"
+sync_file_client "Gemini" "gemini" "${HOME}/.gemini/skills/ha-nova-read/SKILL.md" "${HOME}/.agents/skills/ha-nova-read/SKILL.md"
 sync_claude
 if [[ "$file_clients_synced" -eq 0 ]]; then
   sync_shared_tools

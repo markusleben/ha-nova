@@ -42,6 +42,8 @@ describe("install.sh contract", () => {
     expect(content).toContain("export PATH=\"${BIN_DIR}:${PATH}\"");
     expect(content).toContain('export PATH="$HOME/.local/bin:$PATH"');
     expect(content).toContain(".zshrc");
+    expect(content).toContain(".bash_profile");
+    expect(content).toContain(".profile");
   });
 
   it("handles existing installation (update/reinstall/cancel)", () => {
