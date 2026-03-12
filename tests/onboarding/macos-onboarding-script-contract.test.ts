@@ -5,6 +5,8 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { createMockBinaries, mockEnv } from "./_helpers.js";
+
 describe("macOS onboarding script contract", () => {
   it("provides executable onboarding script", () => {
     const file = "scripts/onboarding/macos-onboarding.sh";
@@ -215,6 +217,13 @@ exit 1
       { encoding: "utf8", mode: 0o755 }
     );
 
+    const claudePath = join(binDir, "claude");
+    writeFileSync(
+      claudePath,
+      "#!/usr/bin/env bash\nexit 0\n",
+      { encoding: "utf8", mode: 0o755 }
+    );
+
     const input = [
       "192.168.1.5:18123",
       "n",
@@ -247,15 +256,13 @@ exit 1
   it("installs skills: codex/opencode as symlinks, gemini as flat copies, claude via plugin CLI", () => {
     const workDir = mkdtempSync(join(tmpdir(), "ha-nova-skill-install-"));
     const repoRoot = process.cwd();
+    const binDir = createMockBinaries();
 
     const result = spawnSync("bash", ["scripts/onboarding/install-local-skills.sh", "all"], {
       cwd: repoRoot,
       encoding: "utf8",
       timeout: 20000,
-      env: {
-        ...process.env,
-        HOME: workDir
-      }
+      env: mockEnv(workDir, binDir),
     });
 
     expect(result.status).toBe(0);

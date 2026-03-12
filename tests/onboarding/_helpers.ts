@@ -165,6 +165,18 @@ esac
   // --- open mock (no-op browser) ---
   writeFileSync(join(binDir, "open"), "#!/usr/bin/env bash\nexit 0\n", { mode: 0o755 });
 
+  // --- claude mock (fast no-op plugin CLI) ---
+  writeFileSync(
+    join(binDir, "claude"),
+    `#!/usr/bin/env bash
+if [[ "$1" == "plugin" ]]; then
+  exit 0
+fi
+exit 0
+`,
+    { mode: 0o755 },
+  );
+
   return binDir;
 }
 

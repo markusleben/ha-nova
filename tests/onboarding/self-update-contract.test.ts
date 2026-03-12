@@ -8,7 +8,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { REPO_ROOT } from "./_helpers.js";
+import { createMockBinaries, mockEnv, REPO_ROOT } from "./_helpers.js";
 
 const updateScript = readFileSync(
   resolve(REPO_ROOT, "scripts/update.sh"),
@@ -120,6 +120,7 @@ describe("self-update script contract", () => {
     const repoCopy = join(sandbox, "repo");
     const originBare = join(sandbox, "origin.git");
     const home = join(sandbox, "home");
+    const binDir = createMockBinaries();
 
     const copyResult = spawnSync(
       "bash",
@@ -162,7 +163,7 @@ describe("self-update script contract", () => {
         cwd: repoCopy,
         encoding: "utf8",
         timeout: 20000,
-        env: { ...process.env, HOME: home },
+        env: mockEnv(home, binDir),
       },
     );
     expect(installResult.status).toBe(0);
@@ -178,7 +179,7 @@ describe("self-update script contract", () => {
         cwd: sandbox,
         encoding: "utf8",
         timeout: 20000,
-        env: { ...process.env, HOME: home },
+        env: mockEnv(home, binDir),
       },
     );
     expect(updateResult.status).toBe(0);

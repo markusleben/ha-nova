@@ -8,7 +8,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { REPO_ROOT } from "./_helpers.js";
+import { createMockBinaries, mockEnv, REPO_ROOT } from "./_helpers.js";
 
 const SUB_SKILLS = [
   "ha-nova-write",
@@ -21,8 +21,17 @@ const SUB_SKILLS = [
   "ha-nova-guide",
 ];
 
+const REWRITTEN_REPO_REF = /`(?:\/|[A-Za-z]:[\\/])[^`\n]*(?:\/skills\/|\/docs\/reference\/)[^`\n]*`/;
+
+function expectRepoRefsRewritten(content: string): void {
+  if (content.includes("/skills/") || content.includes("/docs/reference/")) {
+    expect(content).toMatch(REWRITTEN_REPO_REF);
+  }
+}
+
 function installSkills(client: string): { home: string; result: ReturnType<typeof spawnSync> } {
   const home = mkdtempSync(join(tmpdir(), `ha-nova-skill-${client}-`));
+  const binDir = createMockBinaries();
   const result = spawnSync(
     "bash",
     ["scripts/onboarding/install-local-skills.sh", client],
@@ -30,7 +39,7 @@ function installSkills(client: string): { home: string; result: ReturnType<typeo
       cwd: REPO_ROOT,
       encoding: "utf8",
       timeout: 20000,
-      env: { ...process.env, HOME: home },
+      env: mockEnv(home, binDir),
     },
   );
   return { home, result };
@@ -81,9 +90,7 @@ describe("S-4: client-specific skill installation", () => {
       );
       expect(content).toContain(`name: ${sub}`);
       // Cross-skill/docs references should no longer be relative after flat copy.
-      if (content.includes("/skills/") || content.includes("/docs/reference/")) {
-        expect(content).toMatch(/(\/Users\/|\\\/Users\\\/)/);
-      }
+      expectRepoRefsRewritten(content);
 
       const companionFiles = readdirSync(join(REPO_ROOT, "skills", sub))
         .filter((file) => file.endsWith(".md") && file !== "SKILL.md");
@@ -94,10 +101,7 @@ describe("S-4: client-specific skill installation", () => {
           "utf8",
         );
         expect(companionContent.length).toBeGreaterThan(0);
-
-        if (companionContent.includes("/skills/") || companionContent.includes("/docs/reference/")) {
-          expect(companionContent).toMatch(/(\/Users\/|\\\/Users\\\/)/);
-        }
+        expectRepoRefsRewritten(companionContent);
       }
 
       if (sub === "ha-nova-review") {
