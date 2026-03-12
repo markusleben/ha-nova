@@ -18,7 +18,7 @@ const SUB_SKILLS = [
   "ha-nova-onboarding",
   "ha-nova-service-call",
   "ha-nova-review",
-  "ha-nova-guide",
+  "ha-nova-fallback",
 ];
 
 const REWRITTEN_REPO_REF = /`(?:\/|[A-Za-z]:[\\/])[^`\n]*(?:\/skills\/|\/docs\/reference\/)[^`\n]*`/;

@@ -13,6 +13,7 @@ describe("ha-nova contract", () => {
     expect(context).toContain("ha-nova:ha-nova-entity-discovery");
     expect(context).toContain("ha-nova:ha-nova-onboarding");
     expect(context).toContain("ha-nova:ha-nova-review");
+    expect(context).toContain("ha-nova:ha-nova-fallback");
     expect(context).toContain("Sub-skills are discovered independently");
     expect(context).not.toContain(".agents/skills/");
     expect(context).not.toContain("core/intents.md");
@@ -164,6 +165,7 @@ describe("ha-nova contract", () => {
       "skills/ha-nova-service-call/SKILL.md",
       "skills/ha-nova-review/SKILL.md",
       "skills/ha-nova-review/checks.md",
+      "skills/ha-nova-fallback/SKILL.md",
     ];
 
     for (const file of files) {
@@ -171,6 +173,61 @@ describe("ha-nova contract", () => {
       const content = readFileSync(file, "utf8");
       expect(content).not.toContain("__HA_NOVA_REPO_ROOT__");
       expect(content).not.toContain("ha-nova-managed-install");
+    }
+  });
+
+  it("enforces English-only content across all skill files", () => {
+    const allSkillFiles = [
+      "skills/ha-nova/SKILL.md",
+      "skills/ha-nova-write/SKILL.md",
+      "skills/ha-nova-read/SKILL.md",
+      "skills/ha-nova-helper/SKILL.md",
+      "skills/ha-nova-entity-discovery/SKILL.md",
+      "skills/ha-nova-onboarding/SKILL.md",
+      "skills/ha-nova-service-call/SKILL.md",
+      "skills/ha-nova-review/SKILL.md",
+      "skills/ha-nova-review/checks.md",
+      "skills/ha-nova-fallback/SKILL.md",
+      "skills/ha-nova/relay-api.md",
+      "skills/ha-nova/best-practices.md",
+      "skills/ha-nova/payload-schemas.md",
+      "skills/ha-nova/automation-patterns.md",
+      "skills/ha-nova/template-guidelines.md",
+      "skills/ha-nova/safe-refactoring.md",
+      "skills/ha-nova/helper-schemas.md",
+      "skills/ha-nova/update-guide.md",
+      "skills/ha-nova/agents/resolve-agent.md",
+      "skills/ha-nova/agents/apply-agent.md",
+      "skills/ha-nova/agents/review-agent.md",
+    ];
+
+    // German words/phrases that should never appear in skill files
+    const germanPatterns = [
+      /\bAnalysiere\b/,
+      /\bZeige\b/,
+      /\bErstelle\b/,
+      /\bÄndere\b/,
+      /\bSpeichere\b/,
+      /\bImportiere\b/,
+      /\bmeine\b/,
+      /\bfehlt\b/,
+      /\blöschen\b/,
+      /\bBitte\b/,
+      /\bBedingung\b/,
+      /\bWohnzimmer\b/,
+      /\bfunktioniert\b/,
+      /\bgeht nicht\b/,
+      /\bist falsch\b/,
+    ];
+
+    for (const file of allSkillFiles) {
+      const content = readFileSync(file, "utf8");
+      for (const pattern of germanPatterns) {
+        expect(
+          pattern.test(content),
+          `${file} contains German text matching ${pattern}`,
+        ).toBe(false);
+      }
     }
   });
 

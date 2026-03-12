@@ -18,7 +18,7 @@ const GEMINI_SUB_SKILLS = [
   "ha-nova-onboarding",
   "ha-nova-service-call",
   "ha-nova-review",
-  "ha-nova-guide",
+  "ha-nova-fallback",
 ];
 
 function seedGeminiSkills(home: string, options: { includeReviewChecks?: boolean } = {}) {

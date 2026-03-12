@@ -125,6 +125,29 @@ cleanup_legacy() {
   fi
 }
 
+# Auto-detect and remove orphaned ha-nova* dirs in Gemini's flat-copy tree.
+# Works like rsync --delete: anything in the target that doesn't exist in source gets removed.
+cleanup_gemini_orphans() {
+  local skills_dir="$1"
+
+  # Build valid list (portable — no associative arrays, works on macOS Bash 3.2)
+  local valid_skills="ha-nova"
+  for skill_dir in "${SOURCE_SKILLS_DIR}"/*/SKILL.md; do
+    valid_skills="${valid_skills}"$'\n'"$(basename "$(dirname "$skill_dir")")"
+  done
+
+  # Scan target for ha-nova* dirs and remove orphans
+  for existing in "${skills_dir}"/ha-nova*/; do
+    [[ ! -d "$existing" ]] && continue
+    local name
+    name="$(basename "$existing")"
+    if ! printf '%s\n' "$valid_skills" | grep -qx "$name"; then
+      rm -rf "$existing"
+      log "[gemini] Removed orphaned skill: ${name}"
+    fi
+  done
+}
+
 install_symlink() {
   local target="$1"
   local user_skills_dir="$2"
@@ -149,13 +172,9 @@ install_gemini_flat() {
   # touching the Codex symlink if one exists there.
   cleanup_legacy "${HOME}/.agents/skills" "gemini-legacy"
 
-  # Clean up legacy Gemini flat dirs
-  for sub in "${GEMINI_SUB_SKILLS[@]}"; do
-    local flat_path="${user_skills_dir}/ha-nova-${sub}"
-    if [[ -e "${flat_path}" || -L "${flat_path}" ]]; then
-      rm -rf "${flat_path}"
-    fi
-  done
+  # Auto-cleanup: remove any ha-nova* dir that doesn't match a current skill.
+  # This catches renamed/deleted skills without needing a manual legacy list.
+  cleanup_gemini_orphans "${user_skills_dir}"
 
   # Context skill as ha-nova/SKILL.md (flat, level 1)
   local context_dir="${user_skills_dir}/ha-nova"

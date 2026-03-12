@@ -1,20 +1,20 @@
 ---
-name: ha-nova-guide
-description: Use for Home Assistant guidance on dashboards, blueprints, history, logbook, areas, zones, labels, energy, calendars, entity registry, system health, add-ons, HACS, and Zigbee/Z-Wave -- features beyond the core ha-nova automation/helper/service skills.
+name: ha-nova-fallback
+description: Mandatory fallback for any HA NOVA task without a dedicated subskill. Must be invoked before any raw relay write operation. Covers dashboards, blueprints, history, logbook, areas, zones, labels, energy, calendars, entity registry, system health, add-ons, HACS, and Zigbee/Z-Wave.
 ---
 
-# HA NOVA Guide
+# HA NOVA Fallback
 
 
 ## Scope
 
-Fallback guidance for HA features without a dedicated skill. Three tiers:
+Mandatory fallback for HA features without a dedicated skill. Three tiers:
 
-- **Relay-Ready**: API works via Relay, no skill yet -- provide experimental relay calls + web search.
+- **Relay-Ready**: API works via Relay, no skill yet -- provide experimental relay calls with safety guardrails.
 - **Roadmap**: Planned for future Relay phases -- explain timeline + workaround.
 - **External**: Outside HA NOVA scope -- web search + HA UI pointer.
 
-No relay calls of its own. Pure guidance skill -- all relay examples are experimental.
+All relay calls in this skill are experimental -- always follow Safety Guardrails below.
 
 ## Safety Baseline
 
@@ -65,18 +65,21 @@ If this fails: `npm run onboarding:macos`
 1. Check Capability Map for user's request
 2. If "Covered" -> STOP, use the listed skill instead
 3. If "Relay-Ready":
-   a. Show experimental relay call examples (with warning)
-   b. Preview before any write
-   c. Search web with provided query for current best practices
+   a. FIRST: Search web using the provided Search query — understand current payload schema before any call
+   b. Show experimental relay call examples informed by search results
+   c. Preview full payload before any write — never guess fields
+   d. Execute only after user confirms preview
 4. If "Roadmap":
    a. Explain which phase and what blocks it
-   b. Search web for manual workaround
+   b. Search web for manual workaround or alternative approach
    c. Suggest HA UI as interim solution
 5. If "External":
    a. Explain why it's outside HA NOVA scope
-   b. Search web for how to do it directly in HA
+   b. Search web for current best practice (how to do it directly in HA)
    c. Point to HA UI path
 ```
+
+**Web search is mandatory for Relay-Ready writes.** The relay call examples below cover common read patterns, but write payloads change across HA versions. Always verify the current schema via web search before constructing a write payload.
 
 ## Relay-Ready Features
 
@@ -98,7 +101,7 @@ View and edit Lovelace dashboard configurations (views, cards, themes).
 ~/.config/ha-nova/relay ws -d '{"type":"lovelace/config/save","url_path":"lovelace","config":{"views":[...]}}'
 ```
 
-**Risks:** `lovelace/config/save` overwrites the ENTIRE dashboard config. Always read first and merge changes.
+**Risks:** `lovelace/config/save` performs a FULL OVERWRITE — no merge, no partial update. There is no `lovelace/config/update` endpoint. The only safe pattern is read → modify in memory → save full config. Use `url_path` to target a specific dashboard (omit for default). No optimistic locking — last writer wins silently.
 
 ### Blueprints -- RELAY-READY
 
@@ -174,7 +177,7 @@ Create, rename, or delete areas and floors used to organize devices and entities
 ~/.config/ha-nova/relay ws -d '{"type":"config/floor_registry/create","name":"Ground Floor","icon":"mdi:home-floor-g"}'
 ```
 
-**Risks:** Deleting an area unassigns all devices/entities. Confirm before delete.
+**Risks:** Area/floor deletes are irreversible — all devices/entities lose their area assignment (cascade-clean, not cascade-delete). Re-creating an area with the same name does NOT restore old assignments. `update` is a safe merge (only provided fields change).
 
 ### Label / Category CRUD -- RELAY-READY
 
@@ -237,7 +240,7 @@ Configure energy dashboard sources (grid, solar, gas, water, individual devices)
 ~/.config/ha-nova/relay ws -d '{"type":"energy/save_prefs","energy_sources":[...],"device_consumption":[...]}'
 ```
 
-**Risks:** Incorrect energy source config breaks the energy dashboard. Validate before saving.
+**Risks:** Field-level list replacement — omitted top-level keys (`energy_sources`, `device_consumption`, `device_consumption_water`) are preserved, but each provided key replaces its entire list. To add one source: read existing via `energy/get_prefs`, append to list, save back full list. Requires admin auth.
 
 ### System Health / Repairs -- RELAY-READY
 
@@ -301,13 +304,13 @@ For safe rename/delete workflows with consumer impact checks, see `skills/ha-nov
 ~/.config/ha-nova/relay ws -d '{"type":"config/entity_registry/get","entity_id":"light.living_room"}'
 
 # Update entity
-~/.config/ha-nova/relay ws -d '{"type":"config/entity_registry/update","entity_id":"light.living_room","name":"Wohnzimmer Licht","area_id":"living_room"}'
+~/.config/ha-nova/relay ws -d '{"type":"config/entity_registry/update","entity_id":"light.living_room","name":"Living Room Light","area_id":"living_room"}'
 
 # Remove entity (irreversible)
 ~/.config/ha-nova/relay ws -d '{"type":"config/entity_registry/remove","entity_id":"light.old_device"}'
 ```
 
-**Risks:** `remove` is irreversible -- entity disappears from registry. `update` with `disabled_by: "user"` is reversible.
+**Risks:** `remove` soft-deletes the entity for 30 days — integration-managed entities are restored with customizations on re-discovery, but manually-created entities (helpers) will not be auto-restored. Prefer `update` with `disabled_by: "user"` (reversible) over `remove`.
 
 ## Roadmap Features
 
@@ -370,12 +373,33 @@ Rules for all experimental relay calls in this skill:
 
 - Always preview the full payload before execution
 - Read before write: fetch current state first for any destructive operation
+- **Full-document overwrites** (e.g., `lovelace/config/save`): MUST read full config, merge changes in memory, preview merged result, then write. There is no partial update endpoint — the entire config is replaced.
+- **Field-level list replacements** (e.g., `energy/save_prefs`): omitted top-level keys are preserved, but each provided key replaces its entire list. To add one item, read the existing list first, append, then save back the full list.
+- **Web search before write**: always search for current payload schema before constructing any write payload. HA APIs evolve across versions — the examples in this skill are starting points, not authoritative schemas.
 - Every experimental call must show: "EXPERIMENTAL: No skill guardrails. Proceed with caution."
 - One resource at a time (no batch writes)
 - Delete requires tokenized confirmation (`confirm:<token>`)
 - Never guess IDs: resolve via list/search first
-- If unsure about payload schema, search web first
 - Experimental results may be unexpected — verify data-target match before presenting conclusions (see `skills/ha-nova/SKILL.md` → Claim-Evidence Binding)
+
+### Write Safety by Endpoint Type
+
+| Type | Behavior | Safe pattern | Examples |
+|------|----------|-------------|----------|
+| Full-document overwrite | Entire config replaced | Read → modify → save full document | `lovelace/config/save` |
+| Field-level list replace | Omitted keys preserved, provided keys fully replaced | Read existing list → append/modify → save full list | `energy/save_prefs` |
+| Merge/patch | Only provided fields updated | Send only changed fields | `config/area_registry/update`, `config/entity_registry/update` |
+| Delete | Irreversible for areas/zones/labels; soft-delete (30 days) for entities | Always `search/related` first, tokenized confirmation | `config/area_registry/delete`, `config/entity_registry/remove` |
+
+No HA WS endpoint has optimistic locking (no ETags, no version numbers). Last writer wins silently.
+
+### Anti-Patterns (never do this)
+
+- Sending `lovelace/config/save` with a guessed or partial payload — this overwrites the ENTIRE dashboard config, destroying all other views and cards
+- Sending `energy/save_prefs` with a single source — this replaces the entire `energy_sources` list, deleting all existing sources
+- Probing write endpoints to "see what happens" — read the Relay-Ready section first
+- Skipping this skill and going straight to `relay ws`/`relay core` for unfamiliar operations
+- Using trial-and-error to discover payload schemas — search web for the WS type schema instead
 
 ## Error Handling
 

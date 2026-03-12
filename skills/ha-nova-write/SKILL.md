@@ -113,6 +113,7 @@ see `skills/ha-nova/SKILL.md` → Response Format. Automations and scripts use s
 - Payload Schemas: `skills/ha-nova/payload-schemas.md`
 - Helper Schemas: `skills/ha-nova/helper-schemas.md` (for helper field constraints when referenced in actions)
 - Best Practices: `skills/ha-nova/best-practices.md`
+- Automation Patterns: `skills/ha-nova/automation-patterns.md` (native HA constructs, action flow control, targeting)
 - Template Guidelines: `skills/ha-nova/template-guidelines.md` (when to use templates vs native primitives)
 - Safe Refactoring: `skills/ha-nova/safe-refactoring.md` (pre-delete impact check, entity rename workflow)
 - Resolve Agent: `skills/ha-nova/agents/resolve-agent.md`

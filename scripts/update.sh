@@ -212,6 +212,7 @@ update_claude() {
   if command -v claude &>/dev/null; then
     log "Updating Claude Code plugin..."
     if claude plugin update ha-nova@ha-nova 2>/dev/null; then
+      cleanup_claude_cache_orphans
       UPDATED_CLIENTS+=("Claude Code")
     else
       warn "claude plugin update failed — try: claude plugin install ha-nova@ha-nova"
@@ -219,6 +220,51 @@ update_claude() {
   else
     warn "claude CLI not available — Claude Code plugin will update on next 'claude plugin update'"
   fi
+}
+
+# Remove renamed/deleted skills from Claude plugin cache.
+# claude plugin update pulls new files but doesn't delete orphans.
+cleanup_claude_cache_orphans() {
+  local pj="${HOME}/.claude/plugins/installed_plugins.json"
+  [[ -f "$pj" ]] || return 0
+
+  local install_path
+  install_path=$(
+    sed -n '/"ha-nova@ha-nova"/,/installPath/s/.*"installPath"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
+      "$pj" | head -1
+  )
+  install_path="${install_path/#\~/$HOME}"
+  [[ -d "${install_path}/skills" ]] || return 0
+
+  # Resolve authoritative source for valid skill names.
+  # Prefer CLONE_ROOT (fresh git pull). Fallback: the plugin cache's own
+  # git clone (dirname of install_path = cache/ha-nova/ha-nova/), which
+  # claude plugin update just refreshed. Never use find_source_clone()
+  # here — it could pick a stale ~/.local/share/ha-nova clone.
+  local source_skills=""
+  if [[ -n "${CLONE_ROOT}" && -d "${CLONE_ROOT}/skills" ]]; then
+    source_skills="${CLONE_ROOT}/skills"
+  else
+    local cache_clone
+    cache_clone="$(dirname "$install_path")"
+    [[ -d "${cache_clone}/skills" ]] && source_skills="${cache_clone}/skills"
+  fi
+  [[ -d "$source_skills" ]] || return 0
+
+  # Build valid list (portable — no associative arrays, works on macOS Bash 3.2)
+  local valid_skills="ha-nova"
+  for skill_dir in "${source_skills}"/*/SKILL.md; do
+    valid_skills="${valid_skills}"$'\n'"$(basename "$(dirname "$skill_dir")")"
+  done
+
+  for existing in "${install_path}/skills"/ha-nova*/; do
+    [[ ! -d "$existing" ]] && continue
+    local name; name="$(basename "$existing")"
+    if ! printf '%s\n' "$valid_skills" | grep -qx "$name"; then
+      rm -rf "$existing"
+      log "Removed orphaned Claude cache skill: ${name}"
+    fi
+  done
 }
 
 # Archetype: symlink — git pull already updated the target, just verify
@@ -236,6 +282,21 @@ update_symlink_client() {
 update_gemini() {
   local source_skills="${CLONE_ROOT}/skills"
   local skills_dir="${HOME}/.gemini/skills"
+
+  # Auto-cleanup: remove any ha-nova* dir that doesn't match a current source skill.
+  # Portable — no associative arrays, works on macOS Bash 3.2.
+  local valid_skills="ha-nova"
+  for skill_dir in "${source_skills}"/*/SKILL.md; do
+    valid_skills="${valid_skills}"$'\n'"$(basename "$(dirname "$skill_dir")")"
+  done
+  for existing in "${skills_dir}"/ha-nova*/; do
+    [[ ! -d "$existing" ]] && continue
+    local name; name="$(basename "$existing")"
+    if ! printf '%s\n' "$valid_skills" | grep -qx "$name"; then
+      rm -rf "$existing"
+      log "Removed orphaned Gemini skill: ${name}"
+    fi
+  done
 
   # Context skill
   local context_dir="${skills_dir}/ha-nova"

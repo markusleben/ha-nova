@@ -109,7 +109,7 @@ Both approaches work. MCP servers have broader client support out of the box. We
 | 🎛️ **ha-nova-service-call** | Control devices: lights, climate, covers, switches, media players |
 | 🔎 **ha-nova-entity-discovery** | Find entities by name, room, or area |
 | 🧩 **ha-nova-helper** | Manage helpers (input_boolean, counter, timer, schedule, and more) |
-| 📚 **ha-nova-guide** | Discover HA features: dashboards, blueprints, energy management |
+| 🛡️ **ha-nova-fallback** | Safety fallback for dashboards, blueprints, energy, areas, and other relay-ready features |
 | 🚀 **ha-nova-onboarding** | Setup diagnostics and troubleshooting |
 
 Want to add a new capability? → [CONTRIBUTING.md](CONTRIBUTING.md)
@@ -172,3 +172,5 @@ tests/       Test suite
 ## 🙏 Acknowledgments
 
 Some Home Assistant safety-rule ideas in HA NOVA were inspired by [HALMark](https://github.com/nathan-curtis/HALMark) by Nathan Curtis.
+
+Automation best-practice patterns, helper selection guidance, and Zigbee device-control patterns were adapted from [homeassistant-ai/skills](https://github.com/homeassistant-ai/skills) by Sergey Kadentsev ([@sergeykad](https://github.com/sergeykad)) and Julien Lapointe ([@julienld](https://github.com/julienld)).
