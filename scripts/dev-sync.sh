@@ -11,27 +11,39 @@ REPO_ROOT="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
 synced=()
 file_clients_synced=0
 
-sync_file_client() {
+refresh_file_client() {
   local name="$1"
   local target="$2"
-  shift 2
-  local markers=("$@")
-  local marker
 
-  for marker in "${markers[@]}"; do
-    if [[ -e "$marker" || -L "$marker" ]]; then
-      bash "${REPO_ROOT}/scripts/onboarding/install-local-skills.sh" "$target"
-      echo "[dev:sync] ${name}: refreshed via install-local-skills.sh ${target}"
-      synced+=("${name}")
-      file_clients_synced=1
-      return
-    fi
-  done
+  bash "${REPO_ROOT}/scripts/onboarding/install-local-skills.sh" "$target"
+  echo "[dev:sync] ${name}: refreshed via install-local-skills.sh ${target}"
+  synced+=("${name}")
+  file_clients_synced=1
+}
 
-  if [[ ${#markers[@]} -eq 0 ]]; then
-    echo "[dev:sync] ${name}: not installed — skipped"
+sync_symlink_client() {
+  local name="$1"
+  local link_path="$2"
+  local target="$3"
+
+  if [[ -L "$link_path" && -e "$link_path" ]]; then
+    refresh_file_client "$name" "$target"
+    return
   fi
+
   echo "[dev:sync] ${name}: not installed — skipped"
+}
+
+sync_gemini() {
+  local current_marker="${HOME}/.gemini/skills/ha-nova-read/SKILL.md"
+  local legacy_marker="${HOME}/.agents/skills/ha-nova-read/SKILL.md"
+
+  if [[ -f "$current_marker" || -f "$legacy_marker" ]]; then
+    refresh_file_client "Gemini" "gemini"
+    return
+  fi
+
+  echo "[dev:sync] Gemini: not installed — skipped"
 }
 
 # ─── Claude Code plugin cache ────────────────────────────────────────
@@ -224,9 +236,9 @@ verify_plugin_integrity() {
 }
 
 # ─── Run ──────────────────────────────────────────────────────────────
-sync_file_client "Codex" "codex" "${HOME}/.agents/skills/ha-nova"
-sync_file_client "OpenCode" "opencode" "${HOME}/.config/opencode/skills/ha-nova"
-sync_file_client "Gemini" "gemini" "${HOME}/.gemini/skills/ha-nova-read/SKILL.md" "${HOME}/.agents/skills/ha-nova-read/SKILL.md"
+sync_symlink_client "Codex" "${HOME}/.agents/skills/ha-nova" "codex"
+sync_symlink_client "OpenCode" "${HOME}/.config/opencode/skills/ha-nova" "opencode"
+sync_gemini
 sync_claude
 if [[ "$file_clients_synced" -eq 0 ]]; then
   sync_shared_tools
