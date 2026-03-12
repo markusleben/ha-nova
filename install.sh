@@ -10,6 +10,26 @@ BIN_LINK="${BIN_DIR}/ha-nova"
 PATH_RC_FILE=""
 PATH_WAS_MISSING_BEFORE="0"
 
+has_interactive_tty() {
+  if [[ -t 0 ]]; then
+    return 0
+  fi
+
+  if [[ -r /dev/tty && -w /dev/tty ]]; then
+    return 0
+  fi
+
+  return 1
+}
+
+require_interactive_tty() {
+  if has_interactive_tty; then
+    return 0
+  fi
+
+  fail "This installer requires an interactive terminal."
+}
+
 # ── Helpers ──────────────────────────────────────────────────────────────
 
 banner() {
@@ -177,14 +197,14 @@ handle_existing_install() {
   echo "    ${INSTALL_DIR}"
   echo ""
 
-  if [[ -t 0 ]]; then
+  if has_interactive_tty; then
     echo "  What would you like to do?"
     echo "    1) Update (git pull + npm install)"
     echo "    2) Reinstall (remove and clone fresh)"
     echo "    3) Cancel"
     echo ""
     printf "  Enter [1-3] (default 1): "
-    read -r choice
+    read -r choice < /dev/tty
   else
     choice="1"
   fi
@@ -249,15 +269,9 @@ link_cli() {
 # ── Main ─────────────────────────────────────────────────────────────────
 
 main() {
-  # When piped from curl, stdin is the script itself — reclaim the terminal
-  # so all interactive prompts (existing-install menu, setup wizard) work.
-  if [[ ! -t 0 ]]; then
-    if [[ -e /dev/tty ]] && ( exec < /dev/tty ) 2>/dev/null; then
-      exec < /dev/tty
-    else
-      fail "This installer requires an interactive terminal."
-    fi
-  fi
+  # Keep stdin on the piped script so bash exits cleanly after the script body.
+  # Use /dev/tty only for explicit interactive prompts and setup handoff.
+  require_interactive_tty
 
   banner
   check_prerequisites
@@ -272,7 +286,7 @@ main() {
   echo ""
 
   # Hand off to the setup wizard
-  "${BIN_LINK}" setup
+  "${BIN_LINK}" setup < /dev/tty
 
   echo ""
   if [[ "${PATH_WAS_MISSING_BEFORE}" == "1" ]]; then

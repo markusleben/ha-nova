@@ -69,8 +69,16 @@ describe("install.sh contract", () => {
   });
 
   it("hands off to ha-nova setup at the end", () => {
-    expect(content).toContain('"${BIN_LINK}" setup');
+    expect(content).toContain('"${BIN_LINK}" setup < /dev/tty');
     expect(content).toContain("Need help later? Run: ha-nova doctor");
+  });
+
+  it("uses /dev/tty only for prompts, not by replacing installer stdin globally", () => {
+    expect(content).toContain("has_interactive_tty()");
+    expect(content).toContain("require_interactive_tty()");
+    expect(content).toContain("if has_interactive_tty; then");
+    expect(content).toContain('read -r choice < /dev/tty');
+    expect(content).not.toContain("exec < /dev/tty");
   });
 
   it("provides clear error messages for missing prerequisites", () => {
