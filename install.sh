@@ -15,7 +15,8 @@ has_interactive_tty() {
     return 0
   fi
 
-  if [[ -r /dev/tty && -w /dev/tty ]]; then
+  if exec 3</dev/tty 2>/dev/null; then
+    exec 3<&-
     return 0
   fi
 
