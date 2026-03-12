@@ -73,6 +73,9 @@ describe("review contract", () => {
     expect(reviewChecks).toContain("R-16 [HIGH]");
     expect(reviewChecks).toContain("Templated event name");
     expect(reviewChecks).toContain("`event_type:` does not evaluate templates");
+    expect(reviewSkill).toContain("R-01..R-16");
+    expect(reviewAgent).toContain("R-01..R-16");
+    expect(architectureDoc).toContain("R-01..R-16");
     expect(templateGuidelines).toContain("Event trigger names must be literal strings");
     expect(templateGuidelines).toContain("do not template `event_type:`");
   });

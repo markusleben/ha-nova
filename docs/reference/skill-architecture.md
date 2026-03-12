@@ -124,7 +124,7 @@ Fallback:
 ## Review Architecture
 
 `ha-nova:ha-nova-review` is a self-contained read-only reviewer:
-- Config quality: safety (S-01..S-03), reliability (R-01..R-15), performance (P-01..P-04), style (M-01..M-04), script-specific (F-01..F-08), helper-specific (H-01..H-10)
+- Config quality: safety (S-01..S-03), reliability (R-01..R-16), performance (P-01..P-04), style (M-01..M-04), script-specific (F-01..F-08), helper-specific (H-01..H-10)
 - Collision scan: `search/related` on top 3 target entities
 - Conflict analysis: 3-step test (polarity → temporal → guard conditions)
 - Known safe/problem pattern matching from `skills/ha-nova-review/checks.md`

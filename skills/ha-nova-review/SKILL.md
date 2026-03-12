@@ -109,7 +109,7 @@ Analyze config against the review catalog plus any additional issues found in th
 - Codes are internal only; never show them in user-facing output
 
 **Apply these families by domain:**
-- Automation: S-01..S-03, R-01..R-15, P-01..P-04, M-01..M-04
+- Automation: S-01..S-03, R-01..R-16, P-01..P-04, M-01..M-04
 - Script: automation families plus F-01..F-08
 - Helper: H-01..H-10 only
 - If an automation or script references helpers in actions or direct thresholds, also apply H-01..H-10 to those helpers
