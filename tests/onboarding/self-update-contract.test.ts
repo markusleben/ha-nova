@@ -28,6 +28,7 @@ describe("self-update script contract", () => {
       expect(updateScript).toContain(".agents/skills/ha-nova");  // Codex
       expect(updateScript).toContain("opencode/skills/ha-nova"); // OpenCode
       expect(updateScript).toContain(".gemini/skills/ha-nova-read/SKILL.md");   // Gemini
+      expect(updateScript).toContain(".agents/skills/ha-nova-read/SKILL.md");   // Legacy Gemini
     });
 
     it("populates DETECTED_CLIENTS array", () => {
@@ -192,5 +193,68 @@ describe("self-update script contract", () => {
     const refreshedWrite = readFileSync(join(home, ".gemini/skills/ha-nova-write/SKILL.md"), "utf8");
     expect(refreshedWrite).toContain(join(repoCopy, "skills/ha-nova-review/checks.md"));
     expect(refreshedWrite).toContain(join(repoCopy, "skills/ha-nova/relay-api.md"));
+  });
+
+  it("detects legacy Gemini installs from the shared agents root", () => {
+    const home = mkdtempSync(join(tmpdir(), "ha-nova-legacy-gemini-"));
+    const repoCopy = join(home, ".local/share/ha-nova");
+    const originBare = join(home, "origin.git");
+    const legacySkillDir = join(home, ".agents/skills/ha-nova-read");
+    const binDir = createMockBinaries();
+
+    const copyResult = spawnSync(
+      "bash",
+      ["-lc", 'mkdir -p "$DEST" && tar --exclude=".git" -cf - . | tar -xf - -C "$DEST"'],
+      {
+        cwd: REPO_ROOT,
+        encoding: "utf8",
+        env: { ...process.env, DEST: repoCopy },
+      },
+    );
+    expect(copyResult.status).toBe(0);
+
+    const initResult = spawnSync(
+      "bash",
+      [
+        "-lc",
+        [
+          'git init --initial-branch=main',
+          'git config user.email "tests@example.com"',
+          'git config user.name "Tests"',
+          "git add .",
+          'git commit -m "snapshot"',
+          'git clone --bare "$PWD" "$ORIGIN"',
+          'git remote remove origin 2>/dev/null || true',
+          'git remote add origin "$ORIGIN"',
+        ].join(" && "),
+      ],
+      {
+        cwd: repoCopy,
+        encoding: "utf8",
+        env: { ...process.env, ORIGIN: originBare },
+      },
+    );
+    expect(initResult.status).toBe(0);
+
+    const legacyResult = spawnSync(
+      "bash",
+      ["-lc", 'mkdir -p "$LEGACY" && printf "name: ha-nova-read\n" > "$LEGACY/SKILL.md"'],
+      {
+        encoding: "utf8",
+        env: { ...process.env, LEGACY: legacySkillDir },
+      },
+    );
+    expect(legacyResult.status).toBe(0);
+
+    const result = spawnSync("bash", ["scripts/update.sh"], {
+      cwd: repoCopy,
+      encoding: "utf8",
+      timeout: 20000,
+      env: mockEnv(home, binDir),
+    });
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).not.toContain("No HA NOVA client installations detected");
+    expect(result.stdout).toContain("Detected clients: gemini");
   });
 });

@@ -102,8 +102,11 @@ detect_clients() {
     DETECTED_CLIENTS+=("opencode")
   fi
 
-  # Gemini — flat copies (marker: read sub-skill exists)
-  if [[ -f "${HOME}/.gemini/skills/ha-nova-read/SKILL.md" ]]; then
+  # Gemini — flat copies (marker: read sub-skill exists).
+  # Keep the legacy shared-agents root as a migration fallback so older
+  # installs can still self-update into ~/.gemini/skills.
+  if [[ -f "${HOME}/.gemini/skills/ha-nova-read/SKILL.md" ]] || \
+     [[ -f "${HOME}/.agents/skills/ha-nova-read/SKILL.md" ]]; then
     DETECTED_CLIENTS+=("gemini")
   fi
 
@@ -139,7 +142,13 @@ find_source_clone() {
     fi
   fi
 
-  # 3. Claude Code plugin cache (git clone root)
+  # 3. Installer-managed local clone
+  local repo="${HOME}/.local/share/ha-nova"
+  if [[ -d "${repo}/.git" ]]; then
+    echo "$repo"; return 0
+  fi
+
+  # 4. Claude Code plugin cache (git clone root)
   local pj="${HOME}/.claude/plugins/installed_plugins.json"
   if [[ -f "$pj" ]]; then
     local install_path
