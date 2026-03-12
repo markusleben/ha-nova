@@ -24,4 +24,17 @@ describe("ha safety contract", () => {
     expect(writeSkill).toContain("No raw curl/JSON in output.");
     expect(writeSkill).toContain("## References");
   });
+
+  it("requires concise correction of invalid Home Assistant premises", () => {
+    const router = readFileSync("skills/ha-nova/SKILL.md", "utf8");
+    const writeSkill = readFileSync("skills/ha-nova-write/SKILL.md", "utf8");
+    const guideSkill = readFileSync("skills/ha-nova-guide/SKILL.md", "utf8");
+
+    expect(router).toContain("invalid Home Assistant premises");
+    expect(router).toContain("briefly and technically");
+    expect(writeSkill).toContain("invalid Home Assistant premise");
+    expect(writeSkill).toContain("before continuing");
+    expect(guideSkill).toContain("invalid Home Assistant premises");
+    expect(guideSkill).toContain("wrong premise");
+  });
 });

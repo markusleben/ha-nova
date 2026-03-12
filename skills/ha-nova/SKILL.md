@@ -46,6 +46,8 @@ Rules:
 ## Safety Baseline
 
 - Never guess entity IDs, service names, or config IDs.
+- Correct invalid Home Assistant premises explicitly.
+- Do it briefly and technically.
 - Preview every write payload.
 - Confirmation tiers:
   - `create`/`update`: natural confirmation bound to active preview.

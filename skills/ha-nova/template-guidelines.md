@@ -118,3 +118,4 @@ These are caught by review checks — listed here for reference:
 | `wait_template` without `timeout:` | R-04 | Blocks forever if condition never met | Add `timeout:` |
 | Template trigger using `now()` | P-04 | Re-evaluates only once per minute | Use `time_pattern` for sub-minute precision |
 | `states()` in `trigger_variables` | M-04 | Evaluated at attach time, immediately stale | Move to `variables:` or use in template directly |
+| Templated event trigger name | R-16 | Event trigger names are attached literally; dynamic `event_type` never matches the intended event | Event trigger names must be literal strings; do not template `event_type:` |

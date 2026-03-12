@@ -84,4 +84,15 @@ describe("ha cross-skill integration", () => {
     expect(writeSkill).toContain("Collision check");
     expect(writeSkill).toContain("Output Localization");
   });
+
+  it("keeps write flows constrained to one ambiguity question and no unrequested rewrites", () => {
+    const writeSkill = readFileSync("skills/ha-nova-write/SKILL.md", "utf8");
+    const refactorGuide = readFileSync("skills/ha-nova/safe-refactoring.md", "utf8");
+
+    expect(writeSkill).toContain("unrelated structure, aliases, or formatting");
+    expect(writeSkill).toContain("single blocking question");
+    expect(writeSkill).toContain("second ambiguity question");
+    expect(refactorGuide).toContain("directly affected consumers");
+    expect(refactorGuide).toContain("Do not rewrite, rename, disable, or delete unrelated configs");
+  });
 });

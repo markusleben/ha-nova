@@ -32,11 +32,15 @@ If this fails, run onboarding: `npm run onboarding:macos`.
 2. Fill template placeholders (domain, operation, user intent).
 3. Dispatch general-purpose agent. Extract: entities, target_id, target_exists, current_config, bp_status, suggested_enhancements.
 4. On ambiguity: ask user. On no-match: ask for exact entity_id.
+   - If broad targeting is ambiguous, reuse the existing single blocking question.
+   - Do not add a second ambiguity question in the same turn.
+   - If the requested change depends on an invalid Home Assistant premise, correct the premise explicitly before continuing.
 5. ID generation for `create`: automations=Unix timestamp, scripts=descriptive slug (`morning_routine` → `script.morning_routine`).
 
 ### Phase 2: Preview + Confirm (Main Thread)
 
 1. Build config. For update: full-replacement merge (base=current, overlay=user changes).
+   - Do not rewrite unrelated structure, aliases, or formatting for a narrow requested change.
 2. BP gate: fresh->continue, stale+simple->warn, stale+complex->block until refresh.
    Load `best-practices.md` only if gate evaluation needed.
 3. Suggestions + Pre-Write Checks (skip for `delete`):
@@ -47,6 +51,7 @@ If this fails, run onboarding: `npm run onboarding:macos`.
      🔴 findings → inline warning with fix suggestion. 🟠🟡 findings → advisory below preview. Clean → skip.
      Track reported findings by check type for dedup in Phase 4 — user proceeding past a warning = implicit ack.
 4. Preview: structured summary (alias, ID, entities, triggers, conditions, actions, mode) + full YAML config.
+   - Delete preview MUST include the consumer-check result before confirmation: either the affected consumers or an explicit no-consumer result.
 5. Confirmation: create/update=natural, delete=tokenized `confirm:<token>` (strict: only exact token accepted, see context skill → Safety Baseline).
 
 ### Phase 3: Apply + Verify (Agent)
@@ -55,6 +60,7 @@ If this fails, run onboarding: `npm run onboarding:macos`.
 2. Fill template with confirmed payload.
 3. Dispatch general-purpose agent. Expect: success, write_status, verification.
 4. Report user-facing result. No raw curl/JSON in output.
+   - Do not report destructive success until verification proves the target is gone.
 
 Fallback: If agent dispatch unavailable, execute inline serially. **MUST** include domain reload: `POST /api/services/{domain}/reload` with `{}` body via relay core.
 

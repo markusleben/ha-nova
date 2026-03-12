@@ -35,6 +35,7 @@ Load this catalog from `skills/ha-nova-review/SKILL.md` Step 1 before evaluating
 - R-13 [MEDIUM]: Trigger without `id:` in `choose:`-based automations — makes `trigger.id` matching impossible; branches using `condition: trigger` require trigger IDs to function
 - R-14 [MEDIUM]: Dead trigger — trigger has `id:` but that ID is never referenced in any `condition: trigger`, `choose:`, or template expression; likely copy-paste remnant or unfinished logic
 - R-15 [MEDIUM]: Asymmetric error handling — same physical action (e.g., `cover.open_cover`, `climate.set_temperature`) appears in multiple branches but only some have retry/fallback logic; inconsistent reliability across code paths
+- R-16 [HIGH]: Templated event name — `event_type:` does not evaluate templates in event triggers; the automation attaches to the literal string and silently misses the intended event. Use a fixed `event_type` and move dynamic logic into conditions or event data handling.
 
 ## Performance (Medium)
 

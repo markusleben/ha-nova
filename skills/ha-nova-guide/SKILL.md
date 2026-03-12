@@ -16,6 +16,12 @@ Fallback guidance for HA features without a dedicated skill. Three tiers:
 
 No relay calls of its own. Pure guidance skill -- all relay examples are experimental.
 
+## Safety Baseline
+
+- Correct invalid Home Assistant premises explicitly.
+- Do not silently compensate for a wrong premise.
+- Keep corrections brief and technical, not preachy.
+
 ## Bootstrap (only before Relay-Ready calls)
 
 Only needed when executing experimental relay calls (not for Roadmap/External guidance).

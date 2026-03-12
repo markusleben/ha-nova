@@ -114,7 +114,11 @@ For confirmed orphans, delete via the helper skill flow (tokenized confirmation 
 ## Safety Rules
 
 - Always run consumer check before any rename or delete
+- Keep rename/delete work limited to the requested target and its directly affected consumers.
+- Do not rewrite, rename, disable, or delete unrelated configs while fixing references.
 - Template references (`states('...')`, `is_state('...')`) are NOT auto-updated — must be fixed manually
 - Prefer disable over delete when impact is unclear
 - Orphan detection is advisory — some helpers are intentionally UI-only
 - All deletes require tokenized confirmation (`confirm:<token>`)
+- A delete is not done until follow-up verification confirms the target is gone.
+- Do not present a destructive change as complete when consumer impact is still unresolved.

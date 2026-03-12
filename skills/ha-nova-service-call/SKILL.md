@@ -26,7 +26,10 @@ If this fails: `npm run onboarding:macos`
 2. If service is unclear, list available services for the domain:
    - `~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/services"}'`
    - Filter by relevant domain.
-3. Preview the service call:
+3. If the user names a room/area but the intended scope could be narrower, ask one clarifying question before using `area_id`.
+   - Do not ask a second blocking ambiguity question in the same turn.
+   - If entity resolution already consumed the one blocking question, default to the narrower confirmed target or stop and explain the ambiguity.
+4. Preview the service call:
    - Before preview: read current state via `~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/states/{entity_id}"}'`.
    - If service changes an attribute present in the service call parameters (brightness, temperature, position, hvac_mode, etc.) OR inherently changes entity state (toggle, turn_on, turn_off, press, lock, unlock, open, close), show state delta before the call details:
      ```
@@ -43,9 +46,9 @@ If this fails: `npm run onboarding:macos`
    - State read failed → preview without delta, do not block.
    - Show: service (`domain.service`), target (`entity_id`), data fields.
    - Ask for natural confirmation.
-4. Execute:
+5. Execute:
    - `~/.config/ha-nova/relay core -d '{"method":"POST","path":"/api/services/{domain}/{service}","body":{"entity_id":"{entity_id}"}}'`
-5. Verify result:
+6. Verify result:
    - Check entity state after call: `~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/states/{entity_id}"}'`
    - Report: service called, new state, any errors.
 
