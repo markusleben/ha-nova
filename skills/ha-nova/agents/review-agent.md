@@ -62,7 +62,7 @@ Do NOT flag valid HA builtins as errors.
 Enter through `skills/ha-nova-review/SKILL.md` Step 1, then load `skills/ha-nova-review/checks.md` for the complete check catalog. Apply all domain-appropriate checks to `{CONFIG}`. Report only violations found.
 
 Which checks to apply by domain:
-- **Automation:** S-01..S-03, R-01..R-16, P-01..P-04, M-01..M-04. If actions reference helpers, also H-01..H-10 on those helpers.
+- **Automation:** S-01..S-03, R-01..R-16, P-01..P-05, M-01..M-04. If actions reference helpers, also H-01..H-10 on those helpers.
 - **Script:** All automation checks plus F-01..F-08.
 - **Helper:** H-01..H-10 only.
 

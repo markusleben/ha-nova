@@ -16,6 +16,7 @@ skills/
   ha-nova/helper-schemas.md     (reference doc — helper type payloads)
   ha-nova/template-guidelines.md (reference doc — when to use templates vs native primitives)
   ha-nova/safe-refactoring.md   (reference doc — rename, delete, orphan cleanup workflows)
+  ha-nova/automation-patterns.md (reference doc — native HA constructs vs templates)
   ha-nova/update-guide.md       (reference doc — version checks and update flows)
   ha-nova/agents/               (agent templates: resolve, apply, review)
   ha-nova-read/SKILL.md                 (ha-nova:ha-nova-read — automation/script list/get/trace)
@@ -124,7 +125,7 @@ Fallback:
 ## Review Architecture
 
 `ha-nova:ha-nova-review` is a self-contained read-only reviewer:
-- Config quality: safety (S-01..S-03), reliability (R-01..R-16), performance (P-01..P-04), style (M-01..M-04), script-specific (F-01..F-08), helper-specific (H-01..H-10)
+- Config quality: safety (S-01..S-03), reliability (R-01..R-16), performance (P-01..P-05), style (M-01..M-04), script-specific (F-01..F-08), helper-specific (H-01..H-10)
 - Collision scan: `search/related` on top 3 target entities
 - Conflict analysis: 3-step test (polarity → temporal → guard conditions)
 - Known safe/problem pattern matching from `skills/ha-nova-review/checks.md`

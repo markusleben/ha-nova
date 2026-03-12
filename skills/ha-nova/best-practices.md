@@ -76,6 +76,87 @@ Pick the right `mode` based on the automation's behavior:
 9. Verify expected vs observed before success message.
 10. Use reload only as recovery path.
 
+## Platform Helpers vs Template Sensors
+
+<!-- Portions adapted from homeassistant-ai/skills (MIT License)       -->
+<!-- https://github.com/homeassistant-ai/skills                        -->
+<!-- Copyright (c) Sergey Kadentsev (@sergeykad), Julien Lapointe (@julienld) -->
+
+When a user needs a derived/computed sensor, prefer built-in integrations over template sensors.
+These are configured via the HA UI (Settings → Helpers or Integrations), not via relay CRUD.
+
+| Need | Use instead of template | Key benefit |
+|------|------------------------|-------------|
+| Average/sum/min/max of multiple sensors | `min_max` | Handles unavailable states, declarative |
+| Rate of change (e.g., W/min) | `derivative` | Built-in smoothing via `time_window` |
+| On/off at numeric threshold | `threshold` | Built-in hysteresis, prevents rapid toggling |
+| Power → energy (W → kWh) | `integration` (Riemann sum) | Handles gaps, multiple methods |
+| Consumption per billing cycle | `utility_meter` | Auto-reset, tariff support |
+| Rolling stats (mean, stdev, change) | `statistics` | Time-window or sample-based buffering |
+| Time in state (hours on, count) | `history_stats` | Ratio, count, or duration tracking |
+| Any-on / all-on logic for entities | `group` | Replaces template binary sensors |
+| Weekly on/off schedule | `schedule` | UI-editable, creates binary sensor |
+| Time-of-day binary (morning/night) | `tod` | Supports sunrise/sunset offsets |
+
+> **⏳ Relay support planned** — these config-entry helpers cannot be created via the relay yet (see [#81](https://github.com/markusleben/ha-nova/issues/81)). For now, guide the user to set them up in the HA UI. When the relay supports config-entry flows, this limitation will be removed.
+
+## Zigbee Button Patterns
+
+<!-- Portions adapted from homeassistant-ai/skills (MIT License)       -->
+<!-- https://github.com/homeassistant-ai/skills                        -->
+<!-- Copyright (c) Sergey Kadentsev (@sergeykad), Julien Lapointe (@julienld) -->
+
+Zigbee buttons/remotes are stateless devices — they fire events, not state changes. The trigger pattern depends on the integration.
+
+### ZHA (Zigbee Home Automation)
+
+Use `event` trigger with `device_ieee` (persistent across re-adds):
+
+```yaml
+triggers:
+  - trigger: event
+    event_type: zha_event
+    event_data:
+      device_ieee: "00:15:8d:00:07:26:f2:8a"
+      command: "toggle"
+    id: button_toggle
+```
+
+Find `device_ieee` and `command` values: Developer Tools → Events → subscribe to `zha_event` → press button.
+
+### Zigbee2MQTT (Z2M)
+
+Use autodiscovered `device` trigger (acceptable despite using `device_id`, because Z2M manages the mapping):
+
+```yaml
+triggers:
+  - trigger: device
+    device_id: abc123def456
+    domain: mqtt
+    type: action
+    subtype: single
+    id: button_single
+```
+
+Alternative — explicit MQTT topic trigger:
+
+```yaml
+triggers:
+  - trigger: mqtt
+    topic: "zigbee2mqtt/Bedroom Button/action"
+    payload: "single"
+    id: button_single
+```
+
+### ZHA vs Z2M Quick Reference
+
+| Aspect | ZHA | Zigbee2MQTT |
+|--------|-----|-------------|
+| Trigger type | `event` | `device` or `mqtt` |
+| Persistent ID | `device_ieee` | `device_id` (autodiscovered) |
+| Event source | `zha_event` | MQTT device trigger |
+| Button actions | `command` field | `type` + `subtype` |
+
 ## Failure Semantics
 
 - Snapshot refresh failure on simple automation: continue with warning.

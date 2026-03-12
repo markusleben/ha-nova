@@ -172,3 +172,5 @@ tests/       Test suite
 ## 🙏 Acknowledgments
 
 Some Home Assistant safety-rule ideas in HA NOVA were inspired by [HALMark](https://github.com/nathan-curtis/HALMark) by Nathan Curtis.
+
+Automation best-practice patterns, helper selection guidance, and Zigbee device-control patterns were adapted from [homeassistant-ai/skills](https://github.com/homeassistant-ai/skills) by Sergey Kadentsev ([@sergeykad](https://github.com/sergeykad)) and Julien Lapointe ([@julienld](https://github.com/julienld)).
