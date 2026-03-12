@@ -77,11 +77,11 @@ describe("install.sh contract", () => {
     expect(content).toContain("has_interactive_tty()");
     expect(content).toContain("require_interactive_tty()");
     expect(content).toContain("if has_interactive_tty; then");
-    expect(content).toContain('if exec 3</dev/tty 2>/dev/null; then');
-    expect(content).toContain("exec 3<&-");
+    expect(content).toContain('if : </dev/tty 2>/dev/null; then');
     expect(content).toContain('read -r choice < /dev/tty');
     expect(content).not.toContain("exec < /dev/tty");
     expect(content).not.toContain('-r /dev/tty && -w /dev/tty');
+    expect(content).not.toContain('exec 3</dev/tty 2>/dev/null');
   });
 
   it("provides clear error messages for missing prerequisites", () => {

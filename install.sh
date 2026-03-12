@@ -15,8 +15,7 @@ has_interactive_tty() {
     return 0
   fi
 
-  if exec 3</dev/tty 2>/dev/null; then
-    exec 3<&-
+  if : </dev/tty 2>/dev/null; then
     return 0
   fi
 
