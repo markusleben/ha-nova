@@ -56,10 +56,16 @@ Work style: Be radically precise. No fluff. Pure information only (drop grammar;
 - If user types a command (“pull and push”), that’s consent for that command.
 - Big review: `git --no-pager diff --color=never`.
 - **PR Merge — MANDATORY CHECKLIST (do NOT skip any step):**
-  The `codex-review-gate` workflow waits ~9 min for the Codex review bot. Bot signals: 👍 reaction = no findings, review comments = findings.
+  The `codex-review-gate` workflow waits ~9 min for the Codex review bot. Bot signals span three channels:
+  - reactions on the PR issue (`👍` = clean)
+  - inline PR review comments (`pulls/<nr>/comments` = findings)
+  - PR discussion comments / review summaries (`issues/<nr>/comments` or `gh pr view --comments`), including clean summaries like `Codex Review: Didn't find any major issues.`
   - [ ] 1. `gh pr create ...`
   - [ ] 2. `gh pr checks <nr> --watch` — wait for ALL checks including `codex-review-gate`
-  - [ ] 3. Check bot signal: `gh api repos/<o>/<r>/issues/<nr>/reactions` (👍 = clean) AND `gh api repos/<o>/<r>/pulls/<nr>/comments` (findings)
+  - [ ] 3. Check bot signals:
+         `gh api repos/<o>/<r>/issues/<nr>/reactions`
+         `gh api repos/<o>/<r>/pulls/<nr>/comments`
+         `gh api repos/<o>/<r>/issues/<nr>/comments` or `gh pr view <nr> --comments`
   - [ ] 4. If findings → fix, push, then **trigger re-review**: `gh pr comment <nr> --body "@codex review"` — this is the ONLY reliable way to get the bot to review fix commits (pushes alone do NOT trigger re-review). Then go back to step 2.
   - [ ] 5. If 👍 or timeout (no findings) → resolve ALL review threads (branch protection blocks unresolved):
          `gh api graphql -f query='{ repository(owner:"<o>",name:"<r>") { pullRequest(number:<nr>) { reviewThreads(first:20) { nodes { id isResolved } } } } }'`
