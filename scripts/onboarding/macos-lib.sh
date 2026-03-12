@@ -201,7 +201,7 @@ HA_NOVA_SUB_SKILLS=(
   "ha-nova-onboarding"
   "ha-nova-service-call"
   "ha-nova-review"
-  "ha-nova-guide"
+  "ha-nova-fallback"
 )
 
 flat_skill_has_required_markdown() {

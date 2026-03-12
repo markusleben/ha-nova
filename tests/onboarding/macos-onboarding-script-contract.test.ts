@@ -419,13 +419,13 @@ exit 1
     // Seed nested skill structure + legacy flat dirs + Gemini flat dirs
     for (const dir of skillDirs) {
       // Nested structure (current — could be symlink or copy)
-      for (const sub of ["", "ha-nova-write", "ha-nova-read", "ha-nova-entity-discovery", "ha-nova-onboarding", "ha-nova-service-call", "ha-nova-review", "ha-nova-helper", "ha-nova-guide"]) {
+      for (const sub of ["", "ha-nova-write", "ha-nova-read", "ha-nova-entity-discovery", "ha-nova-onboarding", "ha-nova-service-call", "ha-nova-review", "ha-nova-helper", "ha-nova-fallback"]) {
         const subDir = sub ? join(dir, "ha-nova", sub) : join(dir, "ha-nova");
         mkdirSync(subDir, { recursive: true });
         writeFileSync(join(subDir, "SKILL.md"), "# skill", "utf8");
       }
       // Legacy flat dirs
-      for (const legacy of ["ha-nova-write", "ha-nova-read", "ha-nova-helper", "ha-nova-guide"]) {
+      for (const legacy of ["ha-nova-write", "ha-nova-read", "ha-nova-helper", "ha-nova-fallback"]) {
         mkdirSync(join(dir, legacy), { recursive: true });
         writeFileSync(join(dir, legacy, "SKILL.md"), "# skill", "utf8");
       }

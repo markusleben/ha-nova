@@ -17,6 +17,12 @@ Work style: Be radically precise. No fluff. Pure information only (drop grammar;
   1. Fetch `https://raw.githubusercontent.com/markusleben/agents.md/main/AGENTS.md`.
   2. Check if a newer version exists and merge without losing local changes.
 
+## Skill Files — English Only [DON'T SKIP – IMPORTANT]
+- ALL skill files (`skills/**/*.md`, agent templates, reference docs) MUST be 100% English.
+- No German text — not in examples, not in dispatch tables, not in comments, not in inline strings.
+- The only exception is proper nouns (attribution names, entity IDs like `light.wohnzimmer` from a real HA instance).
+- Output localization (translating headings/labels for the user) happens at runtime per the context skill — never baked into skill source files.
+
 ## Code Quality [DON'T SKIP – IMPORTANT]
 - All generated code must be self-reviewed before being presented.
 - Continue reviewing and fixing until no further issues are found.

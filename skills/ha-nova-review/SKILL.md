@@ -147,7 +147,7 @@ When the user reports runtime issues ("automation didn't fire", "wrong behavior 
 1. Follow the trace procedure in `skills/ha-nova-read/SKILL.md` → Trace Debugging
 2. Cross-reference trace findings with config quality findings from Step 1
 3. Verify `item_id` in every trace matches the target's `unique_id` before attributing results. see `skills/ha-nova/SKILL.md` → Claim-Evidence Binding.
-4. Include trace-based findings in the Findings section with a descriptive title (e.g., `🔴 Bedingung blockiert — Condition wurde in den letzten 3 Runs nie erfüllt`)
+4. Include trace-based findings in the Findings section with a descriptive title (e.g., `🔴 Condition blocked — condition was never met in last 3 runs`). Localize at runtime per `skills/ha-nova/SKILL.md` → Output Localization.
 
 ### Step 3: Conflict Analysis
 

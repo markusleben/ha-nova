@@ -25,7 +25,7 @@ skills/
   ha-nova-review/SKILL.md               (ha-nova:ha-nova-review — config quality review + collision scan)
   ha-nova-entity-discovery/SKILL.md     (ha-nova:ha-nova-entity-discovery — entity lookup)
   ha-nova-service-call/SKILL.md         (ha-nova:ha-nova-service-call — service calls + runtime control)
-  ha-nova-guide/SKILL.md                (ha-nova:ha-nova-guide — discover HA features and capabilities)
+  ha-nova-fallback/SKILL.md             (ha-nova:ha-nova-fallback — mandatory fallback for relay-ready features)
   ha-nova-onboarding/SKILL.md           (ha-nova:ha-nova-onboarding — onboarding + diagnostics)
 ```
 
@@ -77,7 +77,7 @@ Current mapping:
 | review | inline | analysis is client-side, relay calls are reads only |
 | entity-discovery | inline | 1-2 calls, search + return |
 | service-call | inline | 2-3 calls, preview + execute |
-| guide | inline | research + web search, no relay writes |
+| fallback | inline | research + web search + experimental relay calls (write-guarded) |
 | onboarding | inline | diagnostics only |
 
 **Rule of thumb:** If a `service-call` could do it, it's inline. If it needs what `write` needs (resolve + normalize + reload), use agents.
@@ -143,13 +143,13 @@ Fallback:
 
 Excluded: config-entry flow helpers (template, group, utility_meter) — different API pattern.
 
-## Guide Architecture
+## Fallback Architecture
 
-`ha-nova:ha-nova-guide` provides interactive help for HA features beyond the core skill set:
+`ha-nova:ha-nova-fallback` is the mandatory safety fallback for HA features without a dedicated skill:
 - Covers: dashboards, blueprints, history, logbook, areas, zones, labels, energy, calendars, entity registry, system health
 - Three-tier capability map: Covered (redirect to existing skill), Relay-Ready (experimental relay calls), External (web search)
-- All inline, no agents — research + web search + optional experimental relay calls
-- Safety: read-only relay calls only, never writes
+- All inline, no agents — research + web search + experimental relay calls
+- Safety: all experimental relay calls follow Write Safety by Endpoint Type guardrails (full-overwrite, field-level replace, merge, delete)
 
 ## Installer Contract
 

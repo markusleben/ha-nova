@@ -52,8 +52,9 @@ Rules:
 - Confirmation tiers:
   - `create`/`update`: natural confirmation bound to active preview.
   - `delete`/destructive: token confirmation `confirm:<token>`.
-    **Strict token enforcement:** User MUST reply with the exact token string (e.g., `confirm:del-kitchen-lights`). Any other response — including "yes", "ja löschen", "do it", or any natural-language confirmation — is NOT valid. Reject and re-prompt: "Bitte den exakten Token eingeben: `confirm:<token>`"
+    **Strict token enforcement:** User MUST reply with the exact token string (e.g., `confirm:del-kitchen-lights`). Any other response — including "yes", "sure, delete it", "do it", or any natural-language confirmation — is NOT valid. Reject and re-prompt with the exact token required.
 - Ask exactly one blocking question only if ambiguity remains.
+- **No raw relay writes without a skill**: If no dedicated subskill matches, you MUST invoke `ha-nova:ha-nova-fallback` before any raw `relay ws` or `relay core` write operation. Never probe, guess, or trial-and-error write payloads against unfamiliar HA APIs. Some WS endpoints (e.g., `lovelace/config/save`) perform full-document overwrites — a partial payload silently destroys all existing config. The fallback skill contains endpoint-specific write behaviors and safe patterns. Skipping it risks data loss.
 - Failure format must include:
   - what failed
   - why it failed
@@ -98,7 +99,7 @@ Keep orchestration details internal on normal success paths.
 All user-facing output MUST follow these rules:
 - **Language**: Localize all section headings and labels to the user's language. Use idiomatic phrasing, not literal translations.
 - **Severity**: 3 levels only — 🔴 (high/critical) 🟠 (medium) 🟡 (low/info). No text severity labels needed — the emoji is sufficient.
-- **Finding titles**: Each finding gets a short descriptive title (2-5 words) explaining WHAT the issue is. Example: "Template-Fallback fehlt", not "R-01".
+- **Finding titles**: Each finding gets a short descriptive title (2-5 words) explaining WHAT the issue is. Example: "Missing template fallback", not "R-01". Localize at runtime.
 - **Internal codes**: Check codes (R-01, S-01, H-01, M-01, P-01, F-01, etc.) are for YOUR analysis reference only. NEVER show them in user-facing output.
 - **Consistency**: Same sections, same order, every time. The user must recognize the structure across reviews.
 
@@ -119,20 +120,22 @@ Match user intent to exactly one skill:
 | enable/disable/trigger an automation | `ha-nova:ha-nova-service-call` |
 | find entities by name, room, area | `ha-nova:ha-nova-entity-discovery` |
 | fix relay/auth/connectivity errors | `ha-nova:ha-nova-onboarding` |
-| HA-related but not matched above (dashboards, blueprints, history, energy, areas, zones, etc.) | `ha-nova:ha-nova-guide` |
+| **any HA task not matched above** — dashboards, blueprints, history, energy, areas, zones, any raw relay/ws/core write | `ha-nova:ha-nova-fallback` **(mandatory fallback — never skip)** |
 
-**"Analysiere meine Automation"** → `ha-nova:ha-nova-review` (NOT read + review)
-**"Zeige meine Automationen"** → `ha-nova:ha-nova-read` (NOT review)
-**"Erstelle eine Automation"** → `ha-nova:ha-nova-write` (NOT read + write)
-**"Erstelle einen input_boolean"** → `ha-nova:ha-nova-helper` (NOT write)
-**"Zeige meine Helper"** → `ha-nova:ha-nova-helper` (NOT read)
-**"Erstelle einen Timer"** → ambiguous! Ask: reusable timer entity (`ha-nova:ha-nova-helper`) or delay step in an automation (`ha-nova:ha-nova-write`)?
-**"Zeige mir mein Energy Dashboard"** → `ha-nova:ha-nova-guide` (no dedicated skill)
-**"Importiere einen Blueprint"** → `ha-nova:ha-nova-guide` (relay-ready, no skill)
-**"Wie manage ich Add-ons?"** → `ha-nova:ha-nova-guide` (external, web search)
-**"Zeige mir die History von Sensor X"** → `ha-nova:ha-nova-guide` (relay-ready, no skill)
+**"Analyze my automation"** → `ha-nova:ha-nova-review` (NOT read + review)
+**"Show my automations"** → `ha-nova:ha-nova-read` (NOT review)
+**"Create an automation"** → `ha-nova:ha-nova-write` (NOT read + write)
+**"Create an input_boolean"** → `ha-nova:ha-nova-helper` (NOT write)
+**"Show my helpers"** → `ha-nova:ha-nova-helper` (NOT read)
+**"Create a timer"** → ambiguous! Ask: reusable timer entity (`ha-nova:ha-nova-helper`) or delay step in an automation (`ha-nova:ha-nova-write`)?
+**"Show my energy dashboard"** → `ha-nova:ha-nova-fallback` (no dedicated skill)
+**"Import a blueprint"** → `ha-nova:ha-nova-fallback` (relay-ready, no skill)
+**"How do I manage add-ons?"** → `ha-nova:ha-nova-fallback` (external, web search)
+**"Show history for sensor X"** → `ha-nova:ha-nova-fallback` (relay-ready, no skill)
+**"Modify my dashboard"** → `ha-nova:ha-nova-fallback` (NEVER raw `lovelace/config/save` without this skill)
+**"Save the Lovelace config"** → `ha-nova:ha-nova-fallback` (NEVER direct WS write without read-merge-verify)
 
-**Problem-description intents** ("X geht nicht", "Y ist falsch", "funktioniert nicht mehr"): dispatch to `ha-nova:ha-nova-review`. Review will analyze the config AND check current entity state — if an acute fix is possible, it offers a Quick-Fix service call at the end.
+**Problem-description intents** ("X doesn't work", "Y is wrong", "stopped working"): dispatch to `ha-nova:ha-nova-review`. Review will analyze the config AND check current entity state — if an acute fix is possible, it offers a Quick-Fix service call at the end.
 
 ## Latency Policy
 

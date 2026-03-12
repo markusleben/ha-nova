@@ -8,17 +8,8 @@ SKILL_DIRS=(
   "${HOME}/.config/opencode/skills"
 )
 
-# Flat skill directories (legacy + Gemini installs)
-FLAT_SKILLS=(
-  "ha-nova-read"
-  "ha-nova-write"
-  "ha-nova-helper"
-  "ha-nova-review"
-  "ha-nova-entity-discovery"
-  "ha-nova-onboarding"
-  "ha-nova-service-call"
-  "ha-nova-guide"
-)
+# No hardcoded skill list — we scan for ha-nova* dirs dynamically.
+# This catches renamed/deleted skills without manual maintenance.
 
 log() { echo "[ha-nova] $*"; }
 
@@ -104,12 +95,9 @@ fi
 
 # ── Remove skills from all client directories ──
 for skills_dir in "${SKILL_DIRS[@]}"; do
-  # Remove ha-nova/ (symlink or directory)
-  remove_path "${skills_dir}/ha-nova"
-
-  # Clean up flat skill directories (legacy + Gemini)
-  for flat_skill in "${FLAT_SKILLS[@]}"; do
-    remove_path "${skills_dir}/${flat_skill}"
+  # Remove all ha-nova* entries (symlinks, flat copies, legacy dirs)
+  for entry in "${skills_dir}"/ha-nova*; do
+    [[ -e "$entry" || -L "$entry" ]] && remove_path "$entry"
   done
 done
 

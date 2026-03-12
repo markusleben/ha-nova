@@ -109,7 +109,7 @@ Both approaches work. MCP servers have broader client support out of the box. We
 | 🎛️ **ha-nova-service-call** | Control devices: lights, climate, covers, switches, media players |
 | 🔎 **ha-nova-entity-discovery** | Find entities by name, room, or area |
 | 🧩 **ha-nova-helper** | Manage helpers (input_boolean, counter, timer, schedule, and more) |
-| 📚 **ha-nova-guide** | Discover HA features: dashboards, blueprints, energy management |
+| 🛡️ **ha-nova-fallback** | Safety fallback for dashboards, blueprints, energy, areas, and other relay-ready features |
 | 🚀 **ha-nova-onboarding** | Setup diagnostics and troubleshooting |
 
 Want to add a new capability? → [CONTRIBUTING.md](CONTRIBUTING.md)

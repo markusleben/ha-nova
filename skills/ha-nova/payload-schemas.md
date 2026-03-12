@@ -132,6 +132,9 @@ Scripts use `sequence` (not `actions`).
         { "conditions": [{ "condition": "template", "value_template": "{{ level == 'low' }}" }], "sequence": [{ "action": "light.turn_on", "target": { "entity_id": "{{ room }}" }, "data": { "brightness": 50 } }] },
         { "conditions": [{ "condition": "template", "value_template": "{{ level == 'medium' }}" }], "sequence": [{ "action": "light.turn_on", "target": { "entity_id": "{{ room }}" }, "data": { "brightness": 128 } }] },
         { "conditions": [{ "condition": "template", "value_template": "{{ level == 'high' }}" }], "sequence": [{ "action": "light.turn_on", "target": { "entity_id": "{{ room }}" }, "data": { "brightness": 255 } }] }
+      ],
+      "default": [
+        { "action": "light.turn_on", "target": { "entity_id": "{{ room }}" }, "data": { "brightness": 128 } }
       ]
     }
   ],
