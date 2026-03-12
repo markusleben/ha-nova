@@ -136,7 +136,11 @@ run_doctor_checks() {
         echo "  [ok] Relay /ws ping succeeded (upstream WS operational)."
       else
         echo "  [fail] Relay reports degraded upstream WS capability (ha_ws_connected=false)."
-        echo "         Action: the \"Home Assistant Access Token\" field (\"ha_llat\") is required in App options. Verify it and restart the App."
+        if relay_ws_issue_is_llat; then
+          echo "         Action: verify the \"Home Assistant Access Token\" field (\"ha_llat\") in App options, then restart the App."
+        else
+          echo "         Action: Home Assistant WebSocket is not connected yet. Check NOVA Relay app settings and restart the App."
+        fi
         explain_relay_ws_degraded
         overall_ok="0"
       fi
@@ -428,6 +432,8 @@ run_setup() {
   local skip_llat="0"
   local skip_verify="0"
   local skip_skills="0"
+  local setup_status="complete"
+  local setup_issue=""
 
   if [[ "$SETUP_HAS_CONFIG" == "1" ]]; then
     skip_app_install="1"
@@ -630,16 +636,57 @@ run_setup() {
     # Quick WS re-check if relay was already OK (no full verify needed)
     if [[ "$skip_verify" == "1" ]]; then
       echo ""
-      if with_spinner "Checking connection..." probe_relay_health "$RELAY_BASE_URL" "$relay_auth_token"; then
+      print_info "Checking connection..."
+      if probe_relay_health "$RELAY_BASE_URL" "$relay_auth_token"; then
         if [[ "$LAST_RELAY_HA_WS_CONNECTED" == "true" ]]; then
           print_success "Connected to Home Assistant"
         elif probe_relay_ws_ping "$RELAY_BASE_URL" "$relay_auth_token"; then
           print_success "Connected to Home Assistant"
         else
-          print_fail "Relay is running but can't reach Home Assistant. Run: ha-nova doctor"
+          local ws_attempt=0
+          while true; do
+            ws_attempt=$((ws_attempt + 1))
+            print_fail "Home Assistant WebSocket is not connected yet."
+            if relay_ws_issue_is_llat; then
+              print_info "The Home Assistant Access Token in NOVA Relay still needs to be checked."
+            else
+              print_info "NOVA Relay is running, but it still can't finish the Home Assistant connection."
+            fi
+            explain_relay_ws_degraded
+            echo ""
+            print_info "Quick checklist — please verify:"
+            print_info "  1. Is the \"Home Assistant Access Token\" field (\"ha_llat\") saved in the app settings?"
+            print_info "  2. Did you click Save in the app settings?"
+            print_info "  3. Did you click Start or Restart for the NOVA Relay app?"
+            print_info "  4. Is Home Assistant fully up and reachable in the browser?"
+            echo ""
+            if (( ws_attempt >= 3 )); then
+              print_info "Saving your settings now. Setup will finish as incomplete."
+              setup_status="incomplete"
+              setup_issue="ws_degraded"
+              break
+            fi
+
+            local ws_retry_input=""
+            if ! read -r -p "  [Enter] retry · [q] finish setup as incomplete: " ws_retry_input; then
+              die "Interactive input required. Re-run in a terminal."
+            fi
+            if [[ "$ws_retry_input" =~ ^[Qq]$ ]]; then
+              print_info "Saving your settings now. Setup will finish as incomplete."
+              setup_status="incomplete"
+              setup_issue="ws_degraded"
+              break
+            fi
+            if probe_relay_ws_ping "$RELAY_BASE_URL" "$relay_auth_token"; then
+              print_success "Connected to Home Assistant"
+              break
+            fi
+          done
         fi
       else
-        print_fail "Can't reach the relay. Run: ha-nova doctor"
+        print_fail "Can't reach the relay."
+        setup_status="incomplete"
+        setup_issue="relay_unreachable"
       fi
     fi
   fi
@@ -666,24 +713,55 @@ run_setup() {
 
     local attempt=0
     while true; do
-      if with_spinner "Connecting to NOVA Relay..." probe_relay_health "$RELAY_BASE_URL" "$relay_auth_token"; then
+      print_info "Connecting to NOVA Relay..."
+      if probe_relay_health "$RELAY_BASE_URL" "$relay_auth_token"; then
         print_success "NOVA Relay is running at ${RELAY_BASE_URL}"
         if [[ "$LAST_RELAY_HA_WS_CONNECTED" == "true" ]]; then
           print_success "Connected to Home Assistant"
         elif [[ "$LAST_RELAY_HA_WS_CONNECTED" == "false" ]]; then
-          if probe_relay_ws_ping "$RELAY_BASE_URL" "$relay_auth_token"; then
-            print_success "Connected to Home Assistant"
-          else
-            echo ""
-            print_fail "The relay is running but can't reach Home Assistant."
-            print_info "This usually means the \"Home Assistant Access Token\" field (\"ha_llat\") is missing or incorrect."
-            explain_relay_ws_degraded
-            if [[ "$non_interactive_verify" == "1" ]]; then
-              print_info "Continuing — you can fix this later with: ha-nova doctor"
-            elif ! prompt_yes_no "Continue anyway? (you can fix this later)" "Y"; then
-              die "Setup aborted."
+          local ws_ok="0"
+          local ws_attempt=0
+          while true; do
+            if probe_relay_ws_ping "$RELAY_BASE_URL" "$relay_auth_token"; then
+              print_success "Connected to Home Assistant"
+              ws_ok="1"
+              break
             fi
-          fi
+
+            ws_attempt=$((ws_attempt + 1))
+            echo ""
+            print_fail "Home Assistant WebSocket is not connected yet."
+            if relay_ws_issue_is_llat; then
+              print_info "The Home Assistant Access Token in NOVA Relay still needs to be checked."
+            else
+              print_info "NOVA Relay is running, but it still can't finish the Home Assistant connection."
+            fi
+            explain_relay_ws_degraded
+            echo ""
+            print_info "Quick checklist — please verify:"
+            print_info "  1. Is the \"Home Assistant Access Token\" field (\"ha_llat\") saved in the app settings?"
+            print_info "  2. Did you click Save in the app settings?"
+            print_info "  3. Did you click Start or Restart for the NOVA Relay app?"
+            print_info "  4. Is Home Assistant fully up and reachable in the browser?"
+            echo ""
+            if (( ws_attempt >= max_retries )) || [[ "$non_interactive_verify" == "1" ]]; then
+              print_info "Saving your settings now. Setup will finish as incomplete."
+              setup_status="incomplete"
+              setup_issue="ws_degraded"
+              break
+            fi
+
+            local ws_retry_input=""
+            if ! read -r -p "  [Enter] retry · [q] finish setup as incomplete: " ws_retry_input; then
+              die "Interactive input required. Re-run in a terminal."
+            fi
+            if [[ "$ws_retry_input" =~ ^[Qq]$ ]]; then
+              print_info "Saving your settings now. Setup will finish as incomplete."
+              setup_status="incomplete"
+              setup_issue="ws_degraded"
+              break
+            fi
+          done
         fi
         break
       else
@@ -702,6 +780,8 @@ run_setup() {
         echo ""
         if (( attempt >= max_retries )) || [[ "$non_interactive_verify" == "1" ]]; then
           print_info "Saving your settings anyway. You can troubleshoot later with: ha-nova doctor"
+          setup_status="incomplete"
+          setup_issue="relay_unreachable"
           break
         fi
         if [[ "$non_interactive_verify" == "0" ]]; then
@@ -745,6 +825,10 @@ run_setup() {
       print_success "HA NOVA skills installed for ${client}"
     else
       print_fail "Skill installation had issues. You can retry with: npm run install:${client}-skill"
+      setup_status="incomplete"
+      if [[ -z "$setup_issue" ]]; then
+        setup_issue="skills_install"
+      fi
     fi
   fi
 
@@ -763,16 +847,20 @@ run_setup() {
     *)        client_label="your AI assistant" ;;
   esac
 
-  echo ""
-  print_success "Setup complete!"
-  echo ""
-  print_info "Open ${client_label} and try asking:"
-  echo ""
-  echo "    \"Turn off the living room light\""
-  echo "    \"List my automations\""
-  echo ""
-  print_info "Need help? Run: ha-nova doctor"
-  echo ""
+  if [[ "$setup_status" == "complete" ]]; then
+    echo ""
+    print_success "Setup complete!"
+    echo ""
+    print_info "Open ${client_label} and try asking:"
+    echo ""
+    echo "    \"Turn off the living room light\""
+    echo "    \"List my automations\""
+    echo ""
+    print_info "Need help? Run: ha-nova doctor"
+    echo ""
+  else
+    print_setup_incomplete_banner "${setup_issue:-generic}"
+  fi
 }
 
 run_doctor() {
@@ -783,6 +871,36 @@ run_doctor() {
     invalidate_doctor_cache
     return 1
   fi
+}
+
+print_setup_incomplete_banner() {
+  local issue="${1:-generic}"
+
+  echo ""
+  print_fail "Setup incomplete"
+  echo ""
+
+  case "$issue" in
+    ws_degraded)
+      print_info "NOVA Relay is reachable, but Home Assistant WebSocket is not connected yet."
+      print_info "Open Home Assistant > Settings > Apps > NOVA Relay, verify the app settings, and restart the App."
+      ;;
+    relay_unreachable)
+      print_info "HA NOVA saved your local setup, but the relay could not be verified yet."
+      print_info "Open Home Assistant > Settings > Apps > NOVA Relay, start the app, then try again."
+      ;;
+    skills_install)
+      print_info "The Home Assistant connection is configured, but local skill installation still needs another run."
+      print_info "Re-run setup or install the HA NOVA skills again for your client."
+      ;;
+    *)
+      print_info "HA NOVA saved your local setup, but the system is not fully ready yet."
+      ;;
+  esac
+
+  echo ""
+  print_info "Need to re-check later? Run: ha-nova doctor"
+  echo ""
 }
 
 run_env() {

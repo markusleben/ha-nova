@@ -56,6 +56,8 @@ export interface MockBinaryOpts {
   healthFixture?: string;
   /** Fixture file to serve for /ws requests (default: relay-ws-pong.json) */
   wsFixture?: string;
+  /** HTTP status code to serve for /ws requests (default: 200) */
+  wsStatusCode?: number;
   /** Fixture file to serve for /api/discovery_info (default: ha-discovery-info.json) */
   discoveryFixture?: string;
   /** Make curl fail (simulates unreachable relay) */
@@ -93,6 +95,7 @@ exit 0
   // --- curl mock (fixture router) ---
   const healthFixture = join(FIXTURES_DIR, opts.healthFixture ?? "relay-health-ok.json");
   const wsFixture = join(FIXTURES_DIR, opts.wsFixture ?? "relay-ws-pong.json");
+  const wsStatusCode = String(opts.wsStatusCode ?? 200);
   const discoveryFixture = join(FIXTURES_DIR, opts.discoveryFixture ?? "ha-discovery-info.json");
 
   const curlScript = opts.curlFails
@@ -136,7 +139,20 @@ serve_fixture() {
 
 case "$url" in
   */health) serve_fixture "${healthFixture}" ;;
-  */ws) serve_fixture "${wsFixture}" ;;
+  */ws)
+    if [[ -n "$outfile" ]]; then
+      cat "${wsFixture}" > "$outfile"
+    else
+      cat "${wsFixture}"
+    fi
+    if [[ -n "$headers_file" ]]; then
+      printf 'content-type: application/json\\n' > "$headers_file"
+    fi
+    if [[ -n "$write_code" ]]; then
+      printf '${wsStatusCode}'
+    fi
+    exit 0
+    ;;
   */api/discovery_info) serve_fixture "${discoveryFixture}" ;;
   */manifest.json)
     # Not found — let HA probing continue

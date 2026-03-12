@@ -14,6 +14,7 @@ function runDoctor(
   opts: {
     healthFixture?: string;
     wsFixture?: string;
+    wsStatusCode?: number;
     curlFails?: boolean;
     keychainToken?: string;
     config?: { HA_HOST: string; HA_URL: string; RELAY_BASE_URL: string };
@@ -31,6 +32,7 @@ function runDoctor(
   const binDir = createMockBinaries({
     ...(opts.healthFixture != null && { healthFixture: opts.healthFixture }),
     ...(opts.wsFixture != null && { wsFixture: opts.wsFixture }),
+    ...(opts.wsStatusCode != null && { wsStatusCode: opts.wsStatusCode }),
     ...(opts.curlFails != null && { curlFails: opts.curlFails }),
   });
 
@@ -107,6 +109,19 @@ describe.skipIf(!isMac)("S-10: doctor variants", () => {
     expect(r.output).toContain("[ok] Relay health reachable");
     // WS ping succeeds so it should show ok
     expect(r.output).toContain("Relay /ws ping succeeded");
+  });
+
+  it("uses generic degraded wording when WS fails without LLAT proof", () => {
+    const r = runDoctor({
+      healthFixture: "relay-health-ws-down.json",
+      wsFixture: "relay-ws-upstream-error.json",
+      wsStatusCode: 502,
+    });
+
+    expect(r.output).toContain("Relay reports degraded upstream WS capability");
+    expect(r.output).toContain("Home Assistant WebSocket is not connected yet");
+    expect(r.output).not.toContain('the "Home Assistant Access Token" field ("ha_llat") is required');
+    expect(r.status).not.toBe(0);
   });
 
   it("shows version when relay reports version", () => {

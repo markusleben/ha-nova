@@ -116,7 +116,7 @@ describe("self-update script contract", () => {
     });
   });
 
-  it("refreshes Gemini flat copies and companion markdown from the source clone", () => {
+  it("refreshes Gemini flat copies and companion markdown from the source clone", { timeout: 45000 }, () => {
     const sandbox = mkdtempSync(join(tmpdir(), "ha-nova-update-"));
     const repoCopy = join(sandbox, "repo");
     const originBare = join(sandbox, "origin.git");

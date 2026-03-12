@@ -372,4 +372,51 @@ describe.skipIf(!isMac)("S-3: resume after partial abort", () => {
     // Should save config despite failures
     expect(output).toContain("Saving your settings anyway");
   });
+
+  it("retries degraded WS inside resume flow before finishing incomplete", { timeout: 30000 }, () => {
+    const home = createMockHome({
+      config: {
+        HA_HOST: "192.168.1.5",
+        HA_URL: "http://192.168.1.5:8123",
+        RELAY_BASE_URL: "http://192.168.1.5:8791",
+      },
+      keychainToken: "existing-token-xyz",
+    });
+    const binDir = createMockBinaries({
+      healthFixture: "relay-health-ws-down.json",
+      wsFixture: "relay-ws-upstream-error.json",
+      wsStatusCode: 502,
+    });
+
+    const input = [
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+    ].join("\n");
+
+    const result = spawnSync(
+      "bash",
+      ["scripts/onboarding/macos-onboarding.sh", "setup", "claude"],
+      {
+        cwd: REPO_ROOT,
+        input,
+        encoding: "utf8",
+        timeout: 30000,
+        env: mockEnv(home, binDir),
+      },
+    );
+
+    expect(result.status).toBe(0);
+
+    const output = (result.stdout ?? "") + (result.stderr ?? "");
+    expect(output).toContain("Already done:");
+    expect(output).toContain("connection check");
+    expect(output).toContain("Home Assistant WebSocket is not connected yet");
+    expect(output).toContain("Quick checklist");
+    expect(output).toContain("Setup incomplete");
+    expect(output).not.toContain("Setup complete!");
+  });
 });
