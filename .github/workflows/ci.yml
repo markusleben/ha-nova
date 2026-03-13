@@ -82,3 +82,28 @@ jobs:
 
       - name: Docs fact-check
         run: bash scripts/check-docs.sh
+
+  go-build:
+    name: go-build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache-dependency-path: cli/go.sum
+
+      - name: Test
+        run: cd cli && go test -v ./...
+
+      - name: Build (all targets)
+        run: |
+          cd cli
+          GOOS=darwin GOARCH=arm64 go build -o /dev/null .
+          GOOS=darwin GOARCH=amd64 go build -o /dev/null .
+          GOOS=windows GOARCH=amd64 go build -o /dev/null .
+          GOOS=linux GOARCH=amd64 go build -o /dev/null .
+          GOOS=linux GOARCH=arm64 go build -o /dev/null .
