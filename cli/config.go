@@ -42,5 +42,11 @@ func loadConfig() (config, error) {
 			cfg.RelayBaseURL = value
 		}
 	}
-	return cfg, scanner.Err()
+	if err := scanner.Err(); err != nil {
+		return config{}, err
+	}
+	if cfg.RelayBaseURL == "" {
+		return config{}, fmt.Errorf("RELAY_BASE_URL not found in %s", path)
+	}
+	return cfg, nil
 }

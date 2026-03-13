@@ -43,6 +43,18 @@ func TestLoadConfigQuotedValues(t *testing.T) {
 	}
 }
 
+func TestLoadConfigMissingURL(t *testing.T) {
+	home := t.TempDir()
+	configDir := filepath.Join(home, ".config", "ha-nova")
+	os.MkdirAll(configDir, 0o755)
+	os.WriteFile(filepath.Join(configDir, "onboarding.env"), []byte("HA_HOST=192.168.1.5\n"), 0o644)
+	t.Setenv("HOME", home)
+	_, err := loadConfig()
+	if err == nil {
+		t.Fatal("expected error for missing RELAY_BASE_URL")
+	}
+}
+
 func TestLoadConfigMissing(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

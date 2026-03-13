@@ -115,6 +115,6 @@ func checkRelayVersion(healthBody []byte) {
 	}
 
 	if compareSemver(health.Version, minV) < 0 {
-		fmt.Fprintf(os.Stdout, "WARNING: RELAY OUTDATED: v%s is below minimum v%s — Inform the user: update the NOVA Relay App in Home Assistant.\n", health.Version, minV)
+		fmt.Fprintf(os.Stdout, "⚠️ RELAY OUTDATED: v%s is below minimum v%s — Inform the user: update the NOVA Relay App in Home Assistant.\n", health.Version, minV)
 	}
 }
