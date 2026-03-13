@@ -51,3 +51,33 @@ func TestLoadConfigMissing(t *testing.T) {
 		t.Fatal("expected error for missing config")
 	}
 }
+
+func TestCompareSemver(t *testing.T) {
+	tests := []struct {
+		a, b string
+		want int // -1 = a<b, 0 = a==b, 1 = a>b
+	}{
+		{"0.1.0", "0.1.0", 0},
+		{"0.1.0", "0.2.0", -1},
+		{"0.2.0", "0.1.0", 1},
+		{"1.0.0", "0.9.9", 1},
+		{"0.1.0", "0.1.1", -1},
+	}
+	for _, tt := range tests {
+		got := compareSemver(tt.a, tt.b)
+		if got != tt.want {
+			t.Errorf("compareSemver(%q, %q) = %d, want %d", tt.a, tt.b, got, tt.want)
+		}
+	}
+}
+
+func TestParseVersionJSON(t *testing.T) {
+	dir := t.TempDir()
+	content := `{"skill_version":"0.1.11","min_relay_version":"0.1.0"}`
+	os.WriteFile(filepath.Join(dir, "version.json"), []byte(content), 0o644)
+
+	minV := readMinRelayVersion(dir)
+	if minV != "0.1.0" {
+		t.Errorf("minRelayVersion = %q, want %q", minV, "0.1.0")
+	}
+}
