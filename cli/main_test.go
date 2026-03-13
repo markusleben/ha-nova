@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -79,5 +80,61 @@ func TestParseVersionJSON(t *testing.T) {
 	minV := readMinRelayVersion(dir)
 	if minV != "0.1.0" {
 		t.Errorf("minRelayVersion = %q, want %q", minV, "0.1.0")
+	}
+}
+
+func TestRunJQFilter(t *testing.T) {
+	input := `{"data":{"entities":[{"ei":"automation.test","en":"Test Auto"},{"ei":"script.foo","en":"Foo Script"}]}}`
+	filter := `.data.entities[] | select(.ei | startswith("automation.")) | {entity_id: .ei, name: .en}`
+
+	result, err := applyJQFilter(filter, []byte(input), false)
+	if err != nil {
+		t.Fatalf("applyJQFilter error: %v", err)
+	}
+	if !strings.Contains(result, "automation.test") {
+		t.Errorf("expected automation.test in output, got: %s", result)
+	}
+	if strings.Contains(result, "script.foo") {
+		t.Errorf("expected script.foo to be filtered out, got: %s", result)
+	}
+}
+
+func TestRunJQRawOutput(t *testing.T) {
+	input := `{"data":{"unique_id":"abc123"}}`
+	filter := `.data.unique_id`
+
+	result, err := applyJQFilter(filter, []byte(input), true)
+	if err != nil {
+		t.Fatalf("applyJQFilter error: %v", err)
+	}
+	trimmed := strings.TrimSpace(result)
+	if trimmed != "abc123" {
+		t.Errorf("raw output = %q, want %q", trimmed, "abc123")
+	}
+}
+
+func TestRunJQErrorFilter(t *testing.T) {
+	input := `{"ok":false,"error":{"message":"not found"}}`
+	filter := `if .ok then .data else error("relay error: \(.error.message // "unknown")") end`
+
+	_, err := applyJQFilter(filter, []byte(input), false)
+	if err == nil {
+		t.Fatal("expected error from jq error() call")
+	}
+}
+
+func TestRunJQSelectWithTest(t *testing.T) {
+	input := `{"data":{"entities":[{"ei":"automation.kitchen_light","en":"Kitchen Light"},{"ei":"automation.bedroom_fan","en":"Bedroom Fan"}]}}`
+	filter := `[.data.entities[] | select((.ei + " " + (.en // "")) | test("kitchen";"i")) | {entity_id: .ei, name: .en}]`
+
+	result, err := applyJQFilter(filter, []byte(input), false)
+	if err != nil {
+		t.Fatalf("applyJQFilter error: %v", err)
+	}
+	if !strings.Contains(result, "kitchen_light") {
+		t.Errorf("expected kitchen_light in output, got: %s", result)
+	}
+	if strings.Contains(result, "bedroom_fan") {
+		t.Errorf("expected bedroom_fan filtered out, got: %s", result)
 	}
 }
