@@ -31,7 +31,7 @@ If the target config is not already in the thread context, resolve it yourself:
 1. Search by name using entity registry (compact fields: `ei`=entity_id, `en`=name/alias):
    ```bash
    ~/.config/ha-nova/relay ws -d '{"type":"config/entity_registry/list_for_display"}' \
-     | jq -r '.data.entities[] | select(.ei | startswith("automation.")) | "\(.ei) | \(.en // "unnamed")"' \
+     | ~/.config/ha-nova/relay jq -r '.data.entities[] | select(.ei | startswith("automation.")) | "\(.ei) | \(.en // "unnamed")"' \
      | grep -i '<search_term>'
    ```
    For scripts: `select(.ei | startswith("script."))`.
@@ -40,26 +40,26 @@ If the target config is not already in the thread context, resolve it yourself:
 3. Resolve `unique_id` (config key) — the entity_id slug and config key differ for UI-created items (see `relay-api.md` → ID Types):
    ```bash
    ~/.config/ha-nova/relay ws -d '{"type":"config/entity_registry/get","entity_id":"automation.<slug>"}' \
-     | jq -r '.data.unique_id'
+     | ~/.config/ha-nova/relay jq -r '.data.unique_id'
    ```
    For scripts: use `"entity_id":"script.<slug>"`.
 4. Read config via REST using the resolved `unique_id` (save to temp file — configs can be 10-30 KB, shell output truncates):
    ```bash
    # Automation:
    ~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/config/automation/config/<unique_id>"}' \
-     | jq 'if .ok then .data.body else error("relay error: \(.error.message // "unknown")") end' > /tmp/ha-review-target.json
+     | ~/.config/ha-nova/relay jq 'if .ok then .data.body else error("relay error: \(.error.message // "unknown")") end' > /tmp/ha-review-target.json
    # Script:
    ~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/config/script/config/<unique_id>"}' \
-     | jq 'if .ok then .data.body else error("relay error: \(.error.message // "unknown")") end' > /tmp/ha-review-target.json
+     | ~/.config/ha-nova/relay jq 'if .ok then .data.body else error("relay error: \(.error.message // "unknown")") end' > /tmp/ha-review-target.json
    # Helper (WS, not REST):
    ~/.config/ha-nova/relay ws -d '{"type":"{type}/list"}' \
-     | jq 'if .ok then [.data[] | select(.name | test("<search_term>";"i"))] else error("relay error: \(.error.message // "unknown")") end' > /tmp/ha-review-target.json
+     | ~/.config/ha-nova/relay jq 'if .ok then [.data[] | select(.name | test("<search_term>";"i"))] else error("relay error: \(.error.message // "unknown")") end' > /tmp/ha-review-target.json
    ```
    Then read the file with the native file-reading tool for complete, untruncated access.
 5. After reading the config, extract the **primary controlled entity** from the config actions (the first significant entity_id being controlled, e.g., `light.kitchen`, `climate.living_room` — NOT the automation/script entity itself). Read its current state (for Quick-Fix detection at end of review):
    ```bash
    ~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/states/<controlled_entity_id>"}' \
-     | jq 'if .ok then .data.body else empty end' > /tmp/ha-review-state.json
+     | ~/.config/ha-nova/relay jq 'if .ok then .data.body else empty end' > /tmp/ha-review-state.json
    ```
    If no controlled entity found in actions, or state read fails: continue review — Quick-Fix will be skipped.
 
@@ -134,10 +134,10 @@ Find other automations/scripts that control the same entities.
    ```bash
    # Automation:
    ~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/config/automation/config/<unique_id>"}' \
-     | jq 'if .ok then .data.body else error("relay error: \(.error.message // "unknown")") end' > /tmp/ha-review-related-N.json
+     | ~/.config/ha-nova/relay jq 'if .ok then .data.body else error("relay error: \(.error.message // "unknown")") end' > /tmp/ha-review-related-N.json
    # Script:
    ~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/config/script/config/<unique_id>"}' \
-     | jq 'if .ok then .data.body else error("relay error: \(.error.message // "unknown")") end' > /tmp/ha-review-related-N.json
+     | ~/.config/ha-nova/relay jq 'if .ok then .data.body else error("relay error: \(.error.message // "unknown")") end' > /tmp/ha-review-related-N.json
    ```
 5. If no related items found, report "no conflicts" in the Conflicts section and skip Step 3.
 

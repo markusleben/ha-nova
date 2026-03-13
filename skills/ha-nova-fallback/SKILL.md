@@ -130,7 +130,7 @@ Query past state changes for any entity within a time range.
 ```bash
 # Note: /core responses wrap upstream payload in .data.body (see relay-api.md → /core Contract)
 ~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/history/period/2026-03-06T00:00:00Z?filter_entity_id=sensor.temperature&end_time=2026-03-07T00:00:00Z"}' \
-  | jq '.data.body'
+  | ~/.config/ha-nova/relay jq '.data.body'
 ```
 
 **Risks:** None (read-only). Large time ranges may return very large responses.
@@ -145,7 +145,7 @@ Query the logbook for human-readable event entries (state changes, automations f
 ```bash
 # Note: /core responses wrap upstream payload in .data.body (see relay-api.md → /core Contract)
 ~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/logbook/2026-03-06T00:00:00Z?entity=light.living_room&end_time=2026-03-07T00:00:00Z"}' \
-  | jq '.data.body'
+  | ~/.config/ha-nova/relay jq '.data.body'
 ```
 
 **Risks:** None (read-only).
@@ -264,10 +264,10 @@ List calendars and query upcoming events.
 **Experimental relay calls (no skill guardrails):**
 ```bash
 # List calendars (note: /core wraps payload in .data.body)
-~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/calendars"}' | jq '.data.body'
+~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/calendars"}' | ~/.config/ha-nova/relay jq '.data.body'
 
 # Query events
-~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/calendars/calendar.home?start=2026-03-07T00:00:00Z&end=2026-03-14T00:00:00Z"}' | jq '.data.body'
+~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/calendars/calendar.home?start=2026-03-07T00:00:00Z&end=2026-03-14T00:00:00Z"}' | ~/.config/ha-nova/relay jq '.data.body'
 ```
 
 **Risks:** None (read-only).

@@ -102,7 +102,7 @@ If no automations or scripts reference it, it's an orphan candidate.
 1. List all helpers:
    ```bash
    ~/.config/ha-nova/relay ws -d '{"type":"config/entity_registry/list_for_display"}' \
-     | jq -r '.data.entities[] | select(.ei | test("^(input_boolean|input_number|input_select|input_text|input_datetime|input_button|counter|timer|schedule)\\.")) | .ei'
+     | ~/.config/ha-nova/relay jq -r '.data.entities[] | select(.ei | test("^(input_boolean|input_number|input_select|input_text|input_datetime|input_button|counter|timer|schedule)\\.")) | .ei'
    ```
 2. For each, run `search/related` and collect those with zero automation/script references.
 3. Present the list to the user — some "orphans" may be intentionally UI-only (e.g., dashboard controls).

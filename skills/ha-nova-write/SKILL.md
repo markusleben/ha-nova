@@ -73,7 +73,7 @@ Follow the Post-Write Review Standard from `docs/reference/skill-architecture.md
 1. Re-read the written config using the `target_id` from Phase 1 (do NOT re-resolve by slug — the entity slug may differ from expectations):
    ```bash
    ~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/config/automation/config/<target_id>"}' \
-     | jq 'if .ok then .data.body else error("relay error: \(.error.message // "unknown")") end'
+     | ~/.config/ha-nova/relay jq 'if .ok then .data.body else error("relay error: \(.error.message // "unknown")") end'
    ```
    - Script: `/api/config/script/config/<target_id>`
 2. S/R/P/M/F checks (narrowed):

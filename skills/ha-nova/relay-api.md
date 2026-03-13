@@ -52,7 +52,7 @@ When you have an entity_id and need the config key for REST or trace APIs:
 ```bash
 # Returns the unique_id (config key) for use with REST config reads and trace queries
 ~/.config/ha-nova/relay ws -d '{"type":"config/entity_registry/get","entity_id":"automation.{slug}"}' \
-  | jq -r '.data.unique_id'
+  | ~/.config/ha-nova/relay jq -r '.data.unique_id'
 ```
 
 Use the resolved `unique_id` with:
