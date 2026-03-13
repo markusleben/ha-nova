@@ -139,34 +139,35 @@ sync_claude() {
 # install-local-skills.sh already refreshes these for file-based clients.
 # Keep this fallback for Claude-only setups.
 sync_shared_tools() {
-  local relay_src="${REPO_ROOT}/scripts/relay.sh"
   local relay_dst="${HOME}/.config/ha-nova/relay"
+  local config_dir="${HOME}/.config/ha-nova"
 
   if [[ ! -f "$relay_dst" ]]; then
     echo "[dev:sync] Shared tools: not installed — skipped"
     return
   fi
 
-  if [[ ! -f "$relay_src" ]]; then
-    echo "[dev:sync] Shared tools: source missing ($relay_src) — skipped"
-    return
+  # Build relay binary from local Go source (dev workflow — no GitHub download)
+  if command -v go &>/dev/null && [[ -d "${REPO_ROOT}/cli" ]]; then
+    (cd "${REPO_ROOT}/cli" && go build -o "${relay_dst}" .)
+    chmod 755 "${relay_dst}"
+    echo "[dev:sync] Built and deployed relay CLI from local Go source"
+  else
+    echo "[dev:sync] Warning: Go not installed or cli/ missing — relay CLI not updated"
   fi
-
-  cp "$relay_src" "$relay_dst"
-  chmod 755 "$relay_dst"
 
   # Sync version-check, update script + version.json
   local vc_src="${REPO_ROOT}/scripts/version-check.sh"
   if [[ -f "$vc_src" ]]; then
-    cp "$vc_src" "${HOME}/.config/ha-nova/version-check"
-    chmod 755 "${HOME}/.config/ha-nova/version-check"
-    cp "${REPO_ROOT}/version.json" "${HOME}/.config/ha-nova/version.json"
+    cp "$vc_src" "${config_dir}/version-check"
+    chmod 755 "${config_dir}/version-check"
+    cp "${REPO_ROOT}/version.json" "${config_dir}/version.json"
   fi
 
   local update_src="${REPO_ROOT}/scripts/update.sh"
   if [[ -f "$update_src" ]]; then
-    cp "$update_src" "${HOME}/.config/ha-nova/update"
-    chmod 755 "${HOME}/.config/ha-nova/update"
+    cp "$update_src" "${config_dir}/update"
+    chmod 755 "${config_dir}/update"
   fi
 
   echo "[dev:sync] Shared tools refreshed"
