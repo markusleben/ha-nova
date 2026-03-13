@@ -26,6 +26,7 @@ func main() {
 	case "version":
 		fmt.Println(Version)
 	default:
-		runProxy(os.Args[1], os.Args[2:])
+		fmt.Fprintf(os.Stderr, "unknown command: %s\nUsage: relay <health|ws|core|jq|version> [args...]\n", os.Args[1])
+		os.Exit(1)
 	}
 }

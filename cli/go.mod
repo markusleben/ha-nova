@@ -1,6 +1,6 @@
 module github.com/markusleben/ha-nova/cli
 
-go 1.26.1
+go 1.24.0
 
 require (
 	github.com/itchyny/gojq v0.12.18
