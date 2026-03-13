@@ -79,7 +79,7 @@ describe("self-update script contract", () => {
 
   describe("shared tools", () => {
     it("updates relay CLI, update script, and version-check", () => {
-      expect(updateScript).toContain("relay.sh");
+      expect(updateScript).toContain("relay");
       expect(updateScript).toContain("update.sh");
       expect(updateScript).toContain("version-check.sh");
       expect(updateScript).toContain("version.json");

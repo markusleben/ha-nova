@@ -248,11 +248,9 @@ describe("ha-nova contract", () => {
     }
   });
 
-  it("keeps relay wrapper script present and executable", () => {
-    const relayScript = "scripts/relay.sh";
-    expect(existsSync(relayScript)).toBe(true);
-    const mode = statSync(relayScript).mode;
-    expect(mode & constants.S_IXUSR).toBeGreaterThan(0);
+  it("keeps relay Go binary source present", () => {
+    expect(existsSync("cli/main.go")).toBe(true);
+    expect(existsSync("cli/relay.go")).toBe(true);
   });
 
   it("provides Claude Code plugin manifest", () => {
