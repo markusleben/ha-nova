@@ -320,7 +320,19 @@ update_shared_tools() {
   local src="$1"
   mkdir -p "$CONFIG_DIR"
 
-  [[ -f "${src}/scripts/relay.sh" ]]        && cp "${src}/scripts/relay.sh" "${CONFIG_DIR}/relay" && chmod 755 "${CONFIG_DIR}/relay"
+  # Download updated relay binary
+  local os_name arch_name version download_url
+  os_name="$(uname -s | tr '[:upper:]' '[:lower:]')"
+  arch_name="$(uname -m)"
+  case "$arch_name" in
+    x86_64)        arch_name="amd64" ;;
+    aarch64|arm64) arch_name="arm64" ;;
+  esac
+  version="$(sed -n 's/.*"skill_version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "${src}/version.json" | head -1)"
+  download_url="https://github.com/markusleben/ha-nova/releases/download/v${version}/relay-${os_name}-${arch_name}"
+  if curl -fsSL "${download_url}" -o "${CONFIG_DIR}/relay"; then
+    chmod 755 "${CONFIG_DIR}/relay"
+  fi
   # Atomic self-update: copy to temp then move (script may be running from CONFIG_DIR/update)
   if [[ -f "${src}/scripts/update.sh" ]]; then
     local tmp; tmp=$(mktemp "${CONFIG_DIR}/update.XXXXXX")
