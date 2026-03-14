@@ -290,7 +290,8 @@ update_gemini() {
     local src_name; src_name=$(basename "$(dirname "$skill_dir")")
     [[ "$src_name" == "ha-nova" ]] && continue
     local bare_dir="${skills_dir}/${src_name}"
-    if [[ -d "$bare_dir" && -f "${bare_dir}/SKILL.md" ]]; then
+    if [[ -d "$bare_dir" && -f "${bare_dir}/SKILL.md" ]] && \
+       grep -q 'ha-nova' "${bare_dir}/SKILL.md" 2>/dev/null; then
       rm -rf "$bare_dir"
       log "Removed un-prefixed migration artifact: ${src_name}"
     fi
