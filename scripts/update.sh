@@ -329,10 +329,18 @@ update_shared_tools() {
     aarch64|arm64) arch_name="arm64" ;;
   esac
   version="$(sed -n 's/.*"skill_version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "${src}/version.json" | head -1)"
-  download_url="https://github.com/markusleben/ha-nova/releases/download/v${version}/relay-${os_name}-${arch_name}"
-  if curl -fsSL "${download_url}" -o "${CONFIG_DIR}/relay"; then
-    chmod 755 "${CONFIG_DIR}/relay"
+  if [[ -z "$version" ]]; then
+    log "Warning: could not determine version from version.json — relay CLI not updated."
+  else
+    # Go binary releases are tagged alongside skill_version (same GitHub release).
+    download_url="https://github.com/markusleben/ha-nova/releases/download/v${version}/relay-${os_name}-${arch_name}"
+    if curl -fsSL "${download_url}" -o "${CONFIG_DIR}/relay"; then
+      chmod 755 "${CONFIG_DIR}/relay"
+    else
+      log "Warning: could not download updated relay binary."
+    fi
   fi
+
   # Atomic self-update: copy to temp then move (script may be running from CONFIG_DIR/update)
   if [[ -f "${src}/scripts/update.sh" ]]; then
     local tmp; tmp=$(mktemp "${CONFIG_DIR}/update.XXXXXX")

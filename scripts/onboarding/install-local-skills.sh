@@ -253,6 +253,11 @@ install_target() {
     esac
     local version
     version="$(sed -n 's/.*"skill_version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "${REPO_ROOT}/version.json" | head -1)"
+    if [[ -z "$version" ]]; then
+      log "[${target}] Warning: could not determine version from version.json — relay CLI not downloaded."
+      return
+    fi
+    # Go binary releases are tagged alongside skill_version (same GitHub release).
     local download_url="https://github.com/markusleben/ha-nova/releases/download/v${version}/relay-${os_name}-${arch_name}"
     log "[${target}] Downloading relay CLI v${version}..."
     if curl -fsSL "${download_url}" -o "${relay_cli_target}"; then

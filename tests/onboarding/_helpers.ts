@@ -181,7 +181,7 @@ case "$url" in
     ;;
   *github.com/*/releases/download/*)
     # Relay binary download — serve a dummy executable script
-    local dummy='#!/usr/bin/env bash\necho "mock-relay"\n'
+    dummy='#!/usr/bin/env bash\necho "mock-relay"\n'
     if [[ -n "$outfile" ]]; then
       printf "$dummy" > "$outfile"
     else
