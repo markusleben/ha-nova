@@ -197,7 +197,7 @@ describe("self-update script contract", () => {
     expect(existsSync(join(home, ".gemini/skills/ha-nova-review/old-companion.md"))).toBe(false);
 
     const refreshedWrite = readFileSync(join(home, ".gemini/skills/ha-nova-write/SKILL.md"), "utf8");
-    expect(refreshedWrite).toContain(join(repoCopy, "skills/ha-nova-review/checks.md"));
+    expect(refreshedWrite).toContain(join(repoCopy, "skills/review/checks.md"));
     expect(refreshedWrite).toContain(join(repoCopy, "skills/ha-nova/relay-api.md"));
   });
 

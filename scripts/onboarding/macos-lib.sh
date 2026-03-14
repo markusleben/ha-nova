@@ -192,16 +192,17 @@ run_doctor_checks() {
   return 1
 }
 
-# Sub-skill names needed by detect_setup_state.
+# Sub-skill directory names (source layout under skills/).
+# Gemini installs add ha-nova- prefix: read/ → ha-nova-read/.
 HA_NOVA_SUB_SKILLS=(
-  "ha-nova-write"
-  "ha-nova-read"
-  "ha-nova-helper"
-  "ha-nova-entity-discovery"
-  "ha-nova-onboarding"
-  "ha-nova-service-call"
-  "ha-nova-review"
-  "ha-nova-fallback"
+  "write"
+  "read"
+  "helper"
+  "entity-discovery"
+  "onboarding"
+  "service-call"
+  "review"
+  "fallback"
 )
 
 flat_skill_has_required_markdown() {
@@ -276,7 +277,8 @@ detect_setup_state() {
         SETUP_SKILLS_OK="0"
       else
         for sub_skill in "${HA_NOVA_SUB_SKILLS[@]}"; do
-          if ! flat_skill_has_required_markdown "${HOME}/.gemini/skills/${sub_skill}" "${REPO_ROOT}/skills/${sub_skill}"; then
+          # Gemini install dirs use ha-nova- prefix, source dirs are short names
+          if ! flat_skill_has_required_markdown "${HOME}/.gemini/skills/ha-nova-${sub_skill}" "${REPO_ROOT}/skills/${sub_skill}"; then
             SETUP_SKILLS_OK="0"
             break
           fi
@@ -321,8 +323,8 @@ detect_setup_state() {
           SETUP_SKILLS_OK="0"
           break
         fi
-        # Gemini flat
-        if ! flat_skill_has_required_markdown "${HOME}/.gemini/skills/${sub_skill}" "${REPO_ROOT}/skills/${sub_skill}"; then
+        # Gemini flat (install dirs use ha-nova- prefix)
+        if ! flat_skill_has_required_markdown "${HOME}/.gemini/skills/ha-nova-${sub_skill}" "${REPO_ROOT}/skills/${sub_skill}"; then
           SETUP_SKILLS_OK="0"
           break
         fi

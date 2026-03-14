@@ -1192,13 +1192,13 @@ git commit -m "ci: add Go build + test verification"
 ### Task 10: Skill Migration (jq → relay jq)
 
 **Files:**
-- Modify: `skills/ha-nova-read/SKILL.md` (6 occurrences)
-- Modify: `skills/ha-nova-review/SKILL.md` (8 occurrences)
-- Modify: `skills/ha-nova-helper/SKILL.md` (7 occurrences)
-- Modify: `skills/ha-nova-fallback/SKILL.md` (4 occurrences)
-- Modify: `skills/ha-nova-entity-discovery/SKILL.md` (3 occurrences)
-- Modify: `skills/ha-nova-write/SKILL.md` (1 occurrence)
-- Modify: `skills/ha-nova-review/checks.md` (1 occurrence)
+- Modify: `skills/read/SKILL.md` (6 occurrences)
+- Modify: `skills/review/SKILL.md` (8 occurrences)
+- Modify: `skills/helper/SKILL.md` (7 occurrences)
+- Modify: `skills/fallback/SKILL.md` (4 occurrences)
+- Modify: `skills/entity-discovery/SKILL.md` (3 occurrences)
+- Modify: `skills/write/SKILL.md` (1 occurrence)
+- Modify: `skills/review/checks.md` (1 occurrence)
 - Modify: `skills/ha-nova/relay-api.md` (1 occurrence)
 - Modify: `skills/ha-nova/safe-refactoring.md` (1 occurrence)
 - Modify: `skills/ha-nova/agents/resolve-agent.md` (1 example text)
@@ -1238,7 +1238,7 @@ Example: `~/.config/ha-nova/relay jq '[.data.entities[]
 
 **Standalone jq calls** (no pipe — these validate JSON files directly):
 
-In `skills/ha-nova-read/SKILL.md`, there are 2 standalone `jq` calls that must also be converted:
+In `skills/read/SKILL.md`, there are 2 standalone `jq` calls that must also be converted:
 
 Line ~75: `jq -e 'type == "object"' /tmp/ha-config-{slug}.json > /dev/null`
 → `cat /tmp/ha-config-{slug}.json | ~/.config/ha-nova/relay jq -e 'type == "object"' > /dev/null`

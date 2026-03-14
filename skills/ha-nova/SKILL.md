@@ -54,7 +54,7 @@ Rules:
   - `delete`/destructive: token confirmation `confirm:<token>`.
     **Strict token enforcement:** User MUST reply with the exact token string (e.g., `confirm:del-kitchen-lights`). Any other response — including "yes", "sure, delete it", "do it", or any natural-language confirmation — is NOT valid. Reject and re-prompt with the exact token required.
 - Ask exactly one blocking question only if ambiguity remains.
-- **No raw relay writes without a skill**: If no dedicated subskill matches, you MUST invoke `ha-nova:ha-nova-fallback` before any raw `relay ws` or `relay core` write operation. Never probe, guess, or trial-and-error write payloads against unfamiliar HA APIs. Some WS endpoints (e.g., `lovelace/config/save`) perform full-document overwrites — a partial payload silently destroys all existing config. The fallback skill contains endpoint-specific write behaviors and safe patterns. Skipping it risks data loss.
+- **No raw relay writes without a skill**: If no dedicated subskill matches, you MUST invoke `ha-nova:fallback` before any raw `relay ws` or `relay core` write operation. Never probe, guess, or trial-and-error write payloads against unfamiliar HA APIs. Some WS endpoints (e.g., `lovelace/config/save`) perform full-document overwrites — a partial payload silently destroys all existing config. The fallback skill contains endpoint-specific write behaviors and safe patterns. Skipping it risks data loss.
 - Failure format must include:
   - what failed
   - why it failed
@@ -111,31 +111,31 @@ Match user intent to exactly one skill:
 
 | User wants to… | Invoke exactly |
 |---|---|
-| list, show, read automations/scripts | `ha-nova:ha-nova-read` |
-| analyze, review, audit, check, find problems | `ha-nova:ha-nova-review` (reads config internally) |
-| create, update, delete automations/scripts | `ha-nova:ha-nova-write` (resolves + reviews internally) |
-| list, show, read helpers | `ha-nova:ha-nova-helper` |
-| create, update, delete helpers | `ha-nova:ha-nova-helper` |
-| turn on/off, toggle, set, call a service | `ha-nova:ha-nova-service-call` |
-| enable/disable/trigger an automation | `ha-nova:ha-nova-service-call` |
-| find entities by name, room, area | `ha-nova:ha-nova-entity-discovery` |
-| fix relay/auth/connectivity errors | `ha-nova:ha-nova-onboarding` |
-| **any HA task not matched above** — dashboards, blueprints, history, energy, areas, zones, any raw relay/ws/core write | `ha-nova:ha-nova-fallback` **(mandatory fallback — never skip)** |
+| list, show, read automations/scripts | `ha-nova:read` |
+| analyze, review, audit, check, find problems | `ha-nova:review` (reads config internally) |
+| create, update, delete automations/scripts | `ha-nova:write` (resolves + reviews internally) |
+| list, show, read helpers | `ha-nova:helper` |
+| create, update, delete helpers | `ha-nova:helper` |
+| turn on/off, toggle, set, call a service | `ha-nova:service-call` |
+| enable/disable/trigger an automation | `ha-nova:service-call` |
+| find entities by name, room, area | `ha-nova:entity-discovery` |
+| fix relay/auth/connectivity errors | `ha-nova:onboarding` |
+| **any HA task not matched above** — dashboards, blueprints, history, energy, areas, zones, any raw relay/ws/core write | `ha-nova:fallback` **(mandatory fallback — never skip)** |
 
-**"Analyze my automation"** → `ha-nova:ha-nova-review` (NOT read + review)
-**"Show my automations"** → `ha-nova:ha-nova-read` (NOT review)
-**"Create an automation"** → `ha-nova:ha-nova-write` (NOT read + write)
-**"Create an input_boolean"** → `ha-nova:ha-nova-helper` (NOT write)
-**"Show my helpers"** → `ha-nova:ha-nova-helper` (NOT read)
-**"Create a timer"** → ambiguous! Ask: reusable timer entity (`ha-nova:ha-nova-helper`) or delay step in an automation (`ha-nova:ha-nova-write`)?
-**"Show my energy dashboard"** → `ha-nova:ha-nova-fallback` (no dedicated skill)
-**"Import a blueprint"** → `ha-nova:ha-nova-fallback` (relay-ready, no skill)
-**"How do I manage add-ons?"** → `ha-nova:ha-nova-fallback` (external, web search)
-**"Show history for sensor X"** → `ha-nova:ha-nova-fallback` (relay-ready, no skill)
-**"Modify my dashboard"** → `ha-nova:ha-nova-fallback` (NEVER raw `lovelace/config/save` without this skill)
-**"Save the Lovelace config"** → `ha-nova:ha-nova-fallback` (NEVER direct WS write without read-merge-verify)
+**"Analyze my automation"** → `ha-nova:review` (NOT read + review)
+**"Show my automations"** → `ha-nova:read` (NOT review)
+**"Create an automation"** → `ha-nova:write` (NOT read + write)
+**"Create an input_boolean"** → `ha-nova:helper` (NOT write)
+**"Show my helpers"** → `ha-nova:helper` (NOT read)
+**"Create a timer"** → ambiguous! Ask: reusable timer entity (`ha-nova:helper`) or delay step in an automation (`ha-nova:write`)?
+**"Show my energy dashboard"** → `ha-nova:fallback` (no dedicated skill)
+**"Import a blueprint"** → `ha-nova:fallback` (relay-ready, no skill)
+**"How do I manage add-ons?"** → `ha-nova:fallback` (external, web search)
+**"Show history for sensor X"** → `ha-nova:fallback` (relay-ready, no skill)
+**"Modify my dashboard"** → `ha-nova:fallback` (NEVER raw `lovelace/config/save` without this skill)
+**"Save the Lovelace config"** → `ha-nova:fallback` (NEVER direct WS write without read-merge-verify)
 
-**Problem-description intents** ("X doesn't work", "Y is wrong", "stopped working"): dispatch to `ha-nova:ha-nova-review`. Review will analyze the config AND check current entity state — if an acute fix is possible, it offers a Quick-Fix service call at the end.
+**Problem-description intents** ("X doesn't work", "Y is wrong", "stopped working"): dispatch to `ha-nova:review`. Review will analyze the config AND check current entity state — if an acute fix is possible, it offers a Quick-Fix service call at the end.
 
 ## Latency Policy
 

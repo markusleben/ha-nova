@@ -4,7 +4,7 @@ import { readFileSync } from "fs";
 import { resolve } from "path";
 
 const skillDoc = readFileSync(
-  resolve(__dirname, "../../skills/ha-nova-helper/SKILL.md"),
+  resolve(__dirname, "../../skills/helper/SKILL.md"),
   "utf-8",
 );
 const schemasDoc = readFileSync(

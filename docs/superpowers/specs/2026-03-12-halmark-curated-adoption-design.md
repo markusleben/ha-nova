@@ -122,20 +122,20 @@ These are useful, but not in the first adoption pass:
 
 - `skills/ha-nova/SKILL.md`
   - add invalid-premise correction baseline
-- `skills/ha-nova-write/SKILL.md`
+- `skills/write/SKILL.md`
   - add minimal-diff / no scope-creep rule
   - add delete verification wording
   - add targeting-ambiguity wording where write targets are broad
-- `skills/ha-nova-service-call/SKILL.md`
+- `skills/service-call/SKILL.md`
   - add broad-target ambiguity rule
-- `skills/ha-nova-guide/SKILL.md`
+- `skills/guide/SKILL.md`
   - add invalid-premise correction wording for guidance flows
 - `skills/ha-nova/safe-refactoring.md`
   - add scope-creep and destructive verify wording
 
 ### Review catalog changes
 
-- `skills/ha-nova-review/checks.md`
+- `skills/review/checks.md`
   - add check for templated event names
 
 ### Contract coverage

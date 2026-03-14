@@ -23,7 +23,7 @@ Targets:
   codex    -> symlink ~/.agents/skills/ha-nova -> repo skills
   claude   -> skipped (use Claude Code plugin system)
   opencode -> symlink ~/.config/opencode/skills/ha-nova -> repo skills
-  gemini   -> flat copy ~/.gemini/skills/ha-nova-*/SKILL.md (+ local companion .md files)
+  gemini   -> flat copy ~/.gemini/skills/ha-nova-{subskill}/SKILL.md (+ companion .md files)
   all      -> install for codex + claude + opencode + gemini
 USAGE
 }
@@ -125,15 +125,43 @@ cleanup_legacy() {
   fi
 }
 
+# Migration: remove un-prefixed Gemini dirs left by OLD update.sh that ran
+# after the skill-rename (source dirs changed from ha-nova-read/ to read/).
+# OLD update.sh copied to ~/.gemini/skills/read/ instead of ha-nova-read/.
+# The ha-nova* orphan glob never catches these — explicit cleanup needed.
+cleanup_gemini_unprefixed() {
+  local skills_dir="$1"
+
+  for skill_dir in "${SOURCE_SKILLS_DIR}"/*/SKILL.md; do
+    local src_name
+    src_name="$(basename "$(dirname "$skill_dir")")"
+    [[ "$src_name" == "ha-nova" ]] && continue
+    local bare_dir="${skills_dir}/${src_name}"
+    if [[ -d "$bare_dir" && -f "${bare_dir}/SKILL.md" ]]; then
+      rm -rf "$bare_dir"
+      log "[gemini] Removed un-prefixed migration artifact: ${src_name}"
+    fi
+  done
+}
+
 # Auto-detect and remove orphaned ha-nova* dirs in Gemini's flat-copy tree.
 # Works like rsync --delete: anything in the target that doesn't exist in source gets removed.
 cleanup_gemini_orphans() {
   local skills_dir="$1"
 
-  # Build valid list (portable — no associative arrays, works on macOS Bash 3.2)
+  # First: clean up un-prefixed dirs from OLD update.sh transition
+  cleanup_gemini_unprefixed "$skills_dir"
+
+  # Build valid list with ha-nova- prefix (Gemini target names).
+  # Source dirs are short (read/, write/), Gemini dirs are ha-nova-read/, ha-nova-write/.
   local valid_skills="ha-nova"
   for skill_dir in "${SOURCE_SKILLS_DIR}"/*/SKILL.md; do
-    valid_skills="${valid_skills}"$'\n'"$(basename "$(dirname "$skill_dir")")"
+    local src_name
+    src_name="$(basename "$(dirname "$skill_dir")")"
+    if [[ "$src_name" == "ha-nova" ]]; then
+      continue  # context skill — already in valid_skills
+    fi
+    valid_skills="${valid_skills}"$'\n'"ha-nova-${src_name}"
   done
 
   # Scan target for ha-nova* dirs and remove orphans
@@ -188,12 +216,14 @@ install_gemini_flat() {
     log "[gemini] Installed: ha-nova/SKILL.md (context skill)"
   fi
 
-  # Sub-skills keep their namespaced directory names (flat, level 1).
+  # Sub-skills get ha-nova- prefix for Gemini (flat, level 1).
+  # Source dirs are short names (read/, write/), target dirs are ha-nova-read/, ha-nova-write/.
   for sub in "${GEMINI_SUB_SKILLS[@]}"; do
-    local dest_dir="${user_skills_dir}/${sub}"
+    local dest_name="ha-nova-${sub}"
+    local dest_dir="${user_skills_dir}/${dest_name}"
     if [[ -f "${SOURCE_SKILLS_DIR}/${sub}/SKILL.md" ]]; then
       copy_flat_skill_markdown "${sub}" "${dest_dir}"
-      log "[gemini] Installed: ${sub}/SKILL.md"
+      log "[gemini] Installed: ${dest_name}/SKILL.md"
     fi
   done
 }

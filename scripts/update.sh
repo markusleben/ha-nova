@@ -283,11 +283,28 @@ update_gemini() {
   local source_skills="${CLONE_ROOT}/skills"
   local skills_dir="${HOME}/.gemini/skills"
 
+  # Migration: remove un-prefixed Gemini dirs left by OLD update.sh that ran
+  # after the skill-rename (source dirs changed from ha-nova-read/ to read/).
+  # OLD update.sh copied to ~/.gemini/skills/read/ instead of ha-nova-read/.
+  for skill_dir in "${source_skills}"/*/SKILL.md; do
+    local src_name; src_name=$(basename "$(dirname "$skill_dir")")
+    [[ "$src_name" == "ha-nova" ]] && continue
+    local bare_dir="${skills_dir}/${src_name}"
+    if [[ -d "$bare_dir" && -f "${bare_dir}/SKILL.md" ]]; then
+      rm -rf "$bare_dir"
+      log "Removed un-prefixed migration artifact: ${src_name}"
+    fi
+  done
+
   # Auto-cleanup: remove any ha-nova* dir that doesn't match a current source skill.
-  # Portable — no associative arrays, works on macOS Bash 3.2.
+  # Source dirs are short (read/, write/), Gemini dirs are ha-nova-read/, ha-nova-write/.
   local valid_skills="ha-nova"
   for skill_dir in "${source_skills}"/*/SKILL.md; do
-    valid_skills="${valid_skills}"$'\n'"$(basename "$(dirname "$skill_dir")")"
+    local src_name; src_name=$(basename "$(dirname "$skill_dir")")
+    if [[ "$src_name" == "ha-nova" ]]; then
+      continue
+    fi
+    valid_skills="${valid_skills}"$'\n'"ha-nova-${src_name}"
   done
   for existing in "${skills_dir}"/ha-nova*/; do
     [[ ! -d "$existing" ]] && continue
@@ -302,12 +319,12 @@ update_gemini() {
   local context_dir="${skills_dir}/ha-nova"
   copy_flat_skill_markdown "ha-nova" "${source_skills}/ha-nova" "${context_dir}"
 
-  # Sub-skills + companion docs
+  # Sub-skills get ha-nova- prefix for Gemini target dirs
   for skill_md in "${source_skills}"/*/SKILL.md; do
     local skill_name; skill_name=$(basename "$(dirname "$skill_md")")
     [[ "$skill_name" == "ha-nova" ]] && continue
 
-    local dest_dir="${skills_dir}/${skill_name}"
+    local dest_dir="${skills_dir}/ha-nova-${skill_name}"
     copy_flat_skill_markdown "${skill_name}" "${source_skills}/${skill_name}" "${dest_dir}"
   done
 

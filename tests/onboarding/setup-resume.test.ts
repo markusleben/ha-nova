@@ -10,39 +10,40 @@ import { describe, expect, it } from "vitest";
 import { createMockBinaries, createMockHome, mockEnv, REPO_ROOT } from "./_helpers.js";
 
 const isMac = process.platform === "darwin";
-const GEMINI_SUB_SKILLS = [
-  "ha-nova-write",
-  "ha-nova-read",
-  "ha-nova-helper",
-  "ha-nova-entity-discovery",
-  "ha-nova-onboarding",
-  "ha-nova-service-call",
-  "ha-nova-review",
-  "ha-nova-fallback",
+/** Source directory names under skills/ (short, no prefix) */
+const SOURCE_SUB_SKILLS = [
+  "write",
+  "read",
+  "helper",
+  "entity-discovery",
+  "onboarding",
+  "service-call",
+  "review",
+  "fallback",
 ];
 
 function seedGeminiSkills(home: string, options: { includeReviewChecks?: boolean } = {}) {
   const geminiSkillsDir = join(home, ".gemini/skills");
 
-  const copyRepoMarkdown = (skillName: string) => {
-    const repoSkillDir = join(REPO_ROOT, "skills", skillName);
-    const destDir = join(geminiSkillsDir, skillName);
+  const copyRepoMarkdown = (sourceSkillName: string, destSkillName: string) => {
+    const repoSkillDir = join(REPO_ROOT, "skills", sourceSkillName);
+    const destDir = join(geminiSkillsDir, destSkillName);
     mkdirSync(destDir, { recursive: true });
 
     for (const file of readdirSync(repoSkillDir)) {
       if (!file.endsWith(".md")) {
         continue;
       }
-      if (!(options.includeReviewChecks ?? true) && skillName === "ha-nova-review" && file === "checks.md") {
+      if (!(options.includeReviewChecks ?? true) && sourceSkillName === "review" && file === "checks.md") {
         continue;
       }
       writeFileSync(join(destDir, file), readFileSync(join(repoSkillDir, file), "utf8"), "utf8");
     }
   };
 
-  copyRepoMarkdown("ha-nova");
-  for (const sub of GEMINI_SUB_SKILLS) {
-    copyRepoMarkdown(sub);
+  copyRepoMarkdown("ha-nova", "ha-nova");
+  for (const sub of SOURCE_SUB_SKILLS) {
+    copyRepoMarkdown(sub, `ha-nova-${sub}`);
   }
 }
 

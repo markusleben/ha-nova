@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
-const writeSkill = readFileSync("skills/ha-nova-write/SKILL.md", "utf8");
+const writeSkill = readFileSync("skills/write/SKILL.md", "utf8");
 const refactorGuide = readFileSync("skills/ha-nova/safe-refactoring.md", "utf8");
 
 describe("write delete safety contract", () => {

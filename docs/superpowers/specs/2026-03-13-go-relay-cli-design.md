@@ -207,13 +207,13 @@ Invoke-WebRequest -Uri "https://github.com/markusleben/ha-nova/releases/latest/d
 ```
 
 **Files affected:**
-- `skills/ha-nova-read/SKILL.md`
-- `skills/ha-nova-write/SKILL.md`
-- `skills/ha-nova-review/SKILL.md`
-- `skills/ha-nova-entity-discovery/SKILL.md`
-- `skills/ha-nova-helper/SKILL.md`
-- `skills/ha-nova-fallback/SKILL.md`
-- `skills/ha-nova-review/checks.md`
+- `skills/read/SKILL.md`
+- `skills/write/SKILL.md`
+- `skills/review/SKILL.md`
+- `skills/entity-discovery/SKILL.md`
+- `skills/helper/SKILL.md`
+- `skills/fallback/SKILL.md`
+- `skills/review/checks.md`
 - `skills/ha-nova/relay-api.md`
 - `skills/ha-nova/safe-refactoring.md`
 - `skills/ha-nova/agents/resolve-agent.md` (example text, not a pipe)
