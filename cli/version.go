@@ -90,7 +90,7 @@ func runVersionCheckHook() {
 		return
 	}
 	cmd := exec.Command(hook)
-	cmd.Stdout = os.Stdout // version-check notices appear before health JSON (matches relay.sh)
+	cmd.Stdout = os.Stdout // version-check notices appear before health JSON
 	cmd.Stderr = os.Stderr
 	cmd.Run() // ignore errors — hook is optional
 }

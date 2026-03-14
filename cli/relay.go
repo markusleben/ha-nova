@@ -70,7 +70,7 @@ func runProxy(endpoint string, args []string) {
 	}
 }
 
-func runHealth(args []string) {
+func runHealth(_ []string) {
 	cfg, err := loadConfig()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %s\n", err)
