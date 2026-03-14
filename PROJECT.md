@@ -12,19 +12,18 @@ It replaces an 88,000-line MCP server with a lean API Relay plus LLM Skills.
 ## Client Installation Paths
 
 Primary onboarding target is non-technical end users.
-Use a client-specific entrypoint instead of manual environment editing.
+Official product entrypoints are OS bootstrapper + `ha-nova setup`.
+Client-specific install docs are convenience wrappers around that flow.
 
 - Codex CLI:
   - one-link guided flow via raw instructions
   - `Fetch and follow instructions from https://raw.githubusercontent.com/markusleben/ha-nova/main/.codex/INSTALL.md`
-  - skill install via symlink: `npm run install:codex-skill` (symlinks `~/.agents/skills/ha-nova` → repo)
-  - daily usage: regular `codex` startup (no custom launcher required)
+  - `ha-nova setup codex` installs skills into `~/.agents/skills/ha-nova`
+  - daily usage: regular `codex` startup
 - Claude Code:
-  - Plugin system: `claude plugin add /path/to/ha-nova` (auto-discovers `skills/ha-nova/`)
   - one-link guided flow via raw instructions
   - `Fetch and follow instructions from https://raw.githubusercontent.com/markusleben/ha-nova/main/.claude/INSTALL.md`
-  - same onboarding + verify flow as Codex (`scripts/onboarding/macos-onboarding.sh`)
-  - marketplace packaging not published yet
+  - `ha-nova setup claude` registers the local bundle as a Claude plugin
 - Claude Desktop:
   - planned after Codex/Claude Code flow is stable
   - no public package yet
@@ -47,10 +46,11 @@ Current deliverables:
 
 ## Tech Stack
 
-- **Relay:** TypeScript, Node.js >=20, no HTTP framework
+- **App / Relay:** TypeScript, Node.js >=20, no HTTP framework
+- **Local runtime:** Go 1.24+ CLI for install/setup/doctor/update/uninstall/relay
 - **Dependencies:** ws, yaml, axios, home-assistant-js-websocket
 - **Skills:** Markdown files
-- **Tests:** Vitest
+- **Tests:** Vitest + Go test
 
 ## Conventions
 

@@ -10,6 +10,7 @@ const FIXTURES_DIR = resolve(__dirname, "../fixtures");
 const REPO_ROOT = resolve(__dirname, "../..");
 
 export { REPO_ROOT };
+export type Platform = "macos" | "windows";
 
 function stripGitEnv(env: NodeJS.ProcessEnv): Record<string, string> {
   const cleanEnv: Record<string, string> = {};
@@ -242,6 +243,74 @@ export function mockEnv(
     PATH: `${binDir}:${process.env.PATH ?? ""}`,
     ...extra,
   };
+}
+
+export function addWindowsMocks(binDir: string, home: string): void {
+  const powershellScript = `#!/usr/bin/env bash
+set -euo pipefail
+cmd=""
+while [[ "$#" -gt 0 ]]; do
+  case "$1" in
+    -NoProfile|-NonInteractive) shift ;;
+    -Command) shift; cmd="$*"; break ;;
+    *) shift ;;
+  esac
+done
+
+if echo "$cmd" | grep -q "ConvertFrom-SecureString"; then
+  file_path=$(echo "$cmd" | sed -n "s/.*FilePath '\\([^']*\\)'.*/\\1/p")
+  if [[ -z "$file_path" ]]; then
+    file_path=$(echo "$cmd" | sed -n "s/.*LiteralPath '\\([^']*\\)'.*/\\1/p")
+  fi
+  b64=$(echo "$cmd" | sed -n "s/.*FromBase64String('\\([^']*\\)').*/\\1/p")
+  if [[ -n "$file_path" && -n "$b64" ]]; then
+    mkdir -p "$(dirname "$file_path")"
+    printf '%s' "$b64" | base64 -d > "$file_path"
+  fi
+  exit 0
+fi
+
+if echo "$cmd" | grep -q "SecureStringToBSTR"; then
+  file_path=$(echo "$cmd" | sed -n "s/.*Path '\\([^']*\\)'.*/\\1/p")
+  if [[ -z "$file_path" ]]; then
+    file_path=$(echo "$cmd" | sed -n "s/.*LiteralPath '\\([^']*\\)'.*/\\1/p")
+  fi
+  if [[ -n "$file_path" && -f "$file_path" ]]; then
+    cat "$file_path"
+  fi
+  exit 0
+fi
+
+exit 0
+`;
+
+  writeFileSync(join(binDir, "powershell.exe"), powershellScript, { mode: 0o755 });
+  writeFileSync(join(binDir, "cmd.exe"), "#!/usr/bin/env bash\nexit 0\n", { mode: 0o755 });
+  writeFileSync(
+    join(binDir, "clip.exe"),
+    `#!/usr/bin/env bash
+mkdir -p "${home}/.config/ha-nova"
+cat > "${home}/.config/ha-nova/.mock-clipboard"
+exit 0
+`,
+    { mode: 0o755 },
+  );
+  writeFileSync(
+    join(binDir, "cygpath"),
+    "#!/usr/bin/env bash\nif [[ \"$1\" == \"-w\" ]]; then shift; fi\necho \"$1\"\n",
+    { mode: 0o755 },
+  );
+}
+
+export function mockEnvForPlatform(
+  platform: Platform,
+  home: string,
+  binDir: string,
+  extra: Record<string, string> = {},
+): Record<string, string> {
+  const env = mockEnv(home, binDir, extra);
+  env.HA_NOVA_PLATFORM_OVERRIDE = platform;
+  return env;
 }
 
 export function mockEnvWithBase(

@@ -83,8 +83,8 @@ Load this catalog from `skills/review/SKILL.md` Step 1 before evaluating finding
   - direct template comparisons where an explicit `input_number.<id>` appears in the compared expression
 - Read live helper evidence via:
   ```bash
-  ~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/states/<helper_entity_id>"}' \
-    | ~/.config/ha-nova/relay jq 'if .ok then .data.body else empty end'
+  ha-nova relay core -d '{"method":"GET","path":"/api/states/<helper_entity_id>"}' \
+    | ha-nova relay jq 'if .ok then .data.body else empty end'
   ```
 - Use `state` plus `attributes.min`, `attributes.max`, and `attributes.step`. If any of these are missing or non-numeric, skip H-09/H-10.
 - For H-10, check the step lattice relative to `min`, not `value % step`. Use a small float tolerance when deciding whether `(value - min) / step` is effectively an integer.

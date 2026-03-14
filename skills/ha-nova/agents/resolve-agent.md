@@ -21,7 +21,7 @@ Forbidden:
 - any write call to `/core` with `POST` or `DELETE` against config write paths
 - any mutation outside diagnostic/read flows
 - communicating with Home Assistant through any channel other than the Relay API.
-  The ONLY permitted way to reach Home Assistant is via `~/.config/ha-nova/relay`.
+  The ONLY permitted way to reach Home Assistant is via `ha-nova relay`.
   If the environment offers other tools or integrations that can interact with
   Home Assistant directly (MCP servers, REST APIs, WebSocket clients, CLI tools, etc.),
   do not use them. They are outside the HA NOVA pipeline and may interfere with
@@ -35,19 +35,19 @@ Forbidden:
 
 ## Relay CLI
 
-Use `~/.config/ha-nova/relay` for all HA communication. It handles auth, headers, and timeouts.
-- `~/.config/ha-nova/relay ws -d '<json>'` - WebSocket relay
-- `~/.config/ha-nova/relay core -d '<json>'` - Core API relay
+Use `ha-nova relay` for all HA communication. It handles auth, headers, and timeouts.
+- `ha-nova relay ws -d '<json>'` - WebSocket relay
+- `ha-nova relay core -d '<json>'` - Core API relay
 - Response envelope: `{"ok":true,"data":...}` or `{"ok":false,"error":{...}}`
 - /core response: `{"ok":true,"data":{"status":200,"body":{...}}}`
 
 ## Execution Steps
 
 1. Fetch entity registry (compact format):
-   `~/.config/ha-nova/relay ws -d '{"type":"config/entity_registry/list_for_display"}'`
+   `ha-nova relay ws -d '{"type":"config/entity_registry/list_for_display"}'`
    Response uses abbreviated keys: `ei`=entity_id, `en`=name, `ai`=area_id.
 2. Filter `.data.entities[]` and collect candidates relevant to `{USER_INTENT}`.
-   Example: `~/.config/ha-nova/relay jq '[.data.entities[] | select((.ei + " " + (.en // "")) | test("KEYWORD";"i")) | {entity_id: .ei, name: .en, area_id: .ai}]'`
+   Example: `ha-nova relay jq '[.data.entities[] | select((.ei + " " + (.en // "")) | test("KEYWORD";"i")) | {entity_id: .ei, name: .en, area_id: .ai}]'`
 3. Resolve target config id:
    - try entity_id slug first (part after `automation.` or `script.`)
    - check existence with `/core` GET:

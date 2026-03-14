@@ -19,10 +19,10 @@ Not for helpers — use `ha-nova:helper` for helper CRUD (different API: WS inst
 Verify relay CLI is available:
 
 ```bash
-~/.config/ha-nova/relay health
+ha-nova relay health
 ```
 
-If this fails, run onboarding: `npm run onboarding:macos`.
+If this fails, run onboarding: `ha-nova setup`.
 
 ## Flow
 
@@ -72,8 +72,8 @@ Follow the Post-Write Review Standard from `docs/reference/skill-architecture.md
 
 1. Re-read the written config using the `target_id` from Phase 1 (do NOT re-resolve by slug — the entity slug may differ from expectations):
    ```bash
-   ~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/config/automation/config/<target_id>"}' \
-     | ~/.config/ha-nova/relay jq 'if .ok then .data.body else error("relay error: \(.error.message // "unknown")") end'
+   ha-nova relay core -d '{"method":"GET","path":"/api/config/automation/config/<target_id>"}' \
+     | ha-nova relay jq 'if .ok then .data.body else error("relay error: \(.error.message // "unknown")") end'
    ```
    - Script: `/api/config/script/config/<target_id>`
 2. S/R/P/M/F checks (narrowed):

@@ -65,6 +65,26 @@ extract_host_from_url() {
   printf '%s' "$host"
 }
 
+read_config_json_field() {
+  local field="$1"
+  local config_file="${HOME}/.config/ha-nova/config.json"
+
+  [[ -f "$config_file" ]] || return 0
+
+  node --input-type=module -e '
+    import { readFileSync } from "node:fs";
+
+    const [configPath, key] = process.argv.slice(1);
+
+    try {
+      const value = JSON.parse(readFileSync(configPath, "utf8"))?.[key];
+      if (typeof value === "string" && value.length > 0) {
+        process.stdout.write(value);
+      }
+    } catch {}
+  ' "$config_file" "$field"
+}
+
 remote() {
   local cmd="$1"
   ssh -i "$HA_SSH_KEY" \
@@ -76,19 +96,15 @@ remote() {
 }
 
 main() {
-  local onboarding_env
+  local ha_url
 
-  log "Running onboarding health checks"
-  bash "${PROJECT_ROOT}/scripts/onboarding/macos-onboarding.sh" doctor
+  log "Running HA NOVA diagnostics"
+  ha-nova doctor
 
-  onboarding_env="$(bash "${PROJECT_ROOT}/scripts/onboarding/macos-onboarding.sh" env)"
-  # shellcheck disable=SC1091
-  # shellcheck disable=SC1090
-  source /dev/stdin <<<"$onboarding_env"
-
-  HA_HOST="${HA_HOST:-}"
-  if [[ -z "$HA_HOST" && -n "${HA_URL:-}" ]]; then
-    HA_HOST="$(extract_host_from_url "$HA_URL")"
+  HA_HOST="${HA_HOST:-$(read_config_json_field ha_host)}"
+  ha_url="${HA_URL:-$(read_config_json_field ha_url)}"
+  if [[ -z "$HA_HOST" && -n "$ha_url" ]]; then
+    HA_HOST="$(extract_host_from_url "$ha_url")"
   fi
 
   SSH_USER="${SSH_USER:-root}"

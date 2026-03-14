@@ -162,5 +162,14 @@ describe("S-5: multi-client 'all' installation", () => {
     const stats = statSync(relayCli);
     // eslint-disable-next-line no-bitwise
     expect((stats.mode & 0o111) !== 0).toBe(true);
+
+    const relayWrapper = readFileSync(relayCli, "utf8");
+    expect(relayWrapper).toContain('scripts/onboarding/bin/ha-nova" relay');
+
+    const updateWrapper = readFileSync(join(home, ".config/ha-nova/update"), "utf8");
+    expect(updateWrapper).toContain('scripts/onboarding/bin/ha-nova" update');
+
+    const versionCheckWrapper = readFileSync(join(home, ".config/ha-nova/version-check"), "utf8");
+    expect(versionCheckWrapper).toContain('scripts/onboarding/bin/ha-nova" check-update --quiet');
   });
 });

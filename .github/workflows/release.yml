@@ -10,8 +10,11 @@ permissions:
 
 jobs:
   release:
-    name: Build & publish relay binaries
+    name: Build and publish release assets
     runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref_name }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -25,14 +28,23 @@ jobs:
             exit 1
           fi
 
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install Node dependencies
+        run: npm ci
+
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
           go-version: "1.24"
           cache-dependency-path: cli/go.sum
 
-      - name: Test
-        run: cd cli && go test -v ./...
+      - name: Verify repository
+        run: npm run verify
 
       - name: GoReleaser
         uses: goreleaser/goreleaser-action@v6
@@ -42,7 +54,48 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # macOS code signing + notarization requires a macOS runner
-      # with an imported Apple Developer ID certificate.
-      # To enable: switch to macos-latest, add certificate secrets,
-      # and remove --skip=sign above.
+      - name: Build install bundles
+        run: bash scripts/release/build-install-bundle.sh "${GITHUB_REF_NAME#v}"
+
+      - name: Upload install bundles
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "$GITHUB_REF_NAME" dist/install-bundles/* --clobber
+
+  smoke-installers:
+    name: Post-publish smoke installers (${{ matrix.os }})
+    needs: release
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+    env:
+      HA_NOVA_VERSION: ${{ github.ref_name }}
+      HA_NOVA_NO_SETUP: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Smoke Unix installer
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          bash install.sh
+          ~/.local/bin/ha-nova version
+          ~/.local/bin/ha-nova check-update --quiet
+          ~/.local/bin/ha-nova update --version "${HA_NOVA_VERSION#v}"
+          ~/.local/bin/ha-nova uninstall --yes
+
+      - name: Smoke Windows installer
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          ./install.ps1
+          & "$HOME/.local/share/ha-nova/ha-nova.exe" version
+          & "$HOME/.local/share/ha-nova/ha-nova.exe" check-update --quiet
+          & "$HOME/.local/share/ha-nova/ha-nova.exe" update --version "$env:HA_NOVA_VERSION"
+          & "$HOME/.local/share/ha-nova/ha-nova.exe" uninstall --yes

@@ -17,8 +17,8 @@ Read-only behavior.
 
 ## Bootstrap (once per session)
 
-Verify relay CLI: `~/.config/ha-nova/relay health`
-If this fails: `npm run onboarding:macos`
+Verify relay CLI: `ha-nova relay health`
+If this fails: `ha-nova setup`
 
 ## Flow
 
@@ -29,8 +29,8 @@ Entity registry uses compact abbreviated keys: `ei`=entity_id, `en`=name, `ai`=a
 Search both entity_id and name. Use short keyword stems to handle spelling variants. Always limit to 20 results.
 
 ```bash
-~/.config/ha-nova/relay ws -d '{"type":"config/entity_registry/list_for_display"}' \
-  | ~/.config/ha-nova/relay jq '[.data.entities[] | select((.ei + " " + (.en // "")) | test("KEYWORD";"i")) | {entity_id: .ei, name: .en, area_id: .ai}] | .[0:20]'
+ha-nova relay ws -d '{"type":"config/entity_registry/list_for_display"}' \
+  | ha-nova relay jq '[.data.entities[] | select((.ei + " " + (.en // "")) | test("KEYWORD";"i")) | {entity_id: .ei, name: .en, area_id: .ai}] | .[0:20]'
 ```
 
 **If 0 results:** try synonyms, alternative terms, or shorter keyword stems. Use OR for multiple variants: `test("kw1|kw2|kw3";"i")`.
@@ -41,11 +41,11 @@ Search both entity_id and name. Use short keyword stems to handle spelling varia
 
 ```bash
 # State
-~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/states/{entity_id}"}'
+ha-nova relay core -d '{"method":"GET","path":"/api/states/{entity_id}"}'
 
 # Automation/script config — always resolve unique_id first (see relay-api.md → ID Types)
-~/.config/ha-nova/relay ws -d '{"type":"config/entity_registry/get","entity_id":"automation.{slug}"}' | ~/.config/ha-nova/relay jq -r '.data.unique_id'
-~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/config/automation/config/{unique_id}"}' | ~/.config/ha-nova/relay jq 'if .ok then .data.body else error("relay error: \(.error.message // "unknown")") end'
+ha-nova relay ws -d '{"type":"config/entity_registry/get","entity_id":"automation.{slug}"}' | ha-nova relay jq -r '.data.unique_id'
+ha-nova relay core -d '{"method":"GET","path":"/api/config/automation/config/{unique_id}"}' | ha-nova relay jq 'if .ok then .data.body else error("relay error: \(.error.message // "unknown")") end'
 # For scripts: use "entity_id":"script.{slug}" and /api/config/script/config/{unique_id}
 ```
 
@@ -54,11 +54,11 @@ Search both entity_id and name. Use short keyword stems to handle spelling varia
 Automations rarely have `area_id` set. When user asks "automations for X in room Y":
 
 1. Resolve room name to area_id:
-   `~/.config/ha-nova/relay ws -d '{"type":"config/area_registry/list"}'` | filter by name
+   `ha-nova relay ws -d '{"type":"config/area_registry/list"}'` | filter by name
 2. Find entities in that area: filter entity registry with `select(.ai == "area_id")`
 3. Use `search/related` to find automations that reference those entities:
    ```bash
-   ~/.config/ha-nova/relay ws -d '{"type":"search/related","item_type":"entity","item_id":"{entity_id}"}'
+   ha-nova relay ws -d '{"type":"search/related","item_type":"entity","item_id":"{entity_id}"}'
    ```
 
 This is more reliable than keyword search for room-based queries.

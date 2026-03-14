@@ -1,14 +1,72 @@
 #!/usr/bin/env bash
 # HA NOVA Installer — curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/main/install.sh | bash
-# Runs entirely in user-space: no sudo, HTTPS only, no dynamic code execution.
 set -euo pipefail
 
-REPO_URL="https://github.com/markusleben/ha-nova.git"
+REPO_OWNER="markusleben"
+REPO_NAME="ha-nova"
+LATEST_RELEASE_API="https://api.github.com/repos/markusleben/ha-nova/releases/latest"
+RELEASE_BASE_URL="https://github.com/markusleben/ha-nova/releases/download/"
 INSTALL_DIR="${HOME}/.local/share/ha-nova"
 BIN_DIR="${HOME}/.local/bin"
 BIN_LINK="${BIN_DIR}/ha-nova"
+LEGACY_UNINSTALL_URL="https://raw.githubusercontent.com/markusleben/ha-nova/main/scripts/legacy-uninstall.sh"
+CONFIG_DIR="${HOME}/.config/ha-nova"
+STATE_FILE="${CONFIG_DIR}/state.json"
+PATH_BLOCK_HEADER="# Added by HA NOVA"
 PATH_RC_FILE=""
-PATH_WAS_MISSING_BEFORE="0"
+TMP_DIR=""
+PATH_MANAGED="0"
+
+banner() {
+  echo ""
+  echo "  ========================================="
+  echo "  HA NOVA Installer"
+  echo "  ========================================="
+  echo ""
+}
+
+info() { echo "  [ok] $*"; }
+warn() { echo "  [!!] $*"; }
+fail() { echo "  [!!] $*" >&2; exit 1; }
+
+cleanup() {
+  [[ -n "${TMP_DIR}" && -d "${TMP_DIR}" ]] && rm -rf "${TMP_DIR}"
+}
+
+trap cleanup EXIT
+
+require_cmd() {
+  command -v "$1" >/dev/null 2>&1 || fail "$1 is required to install HA NOVA."
+}
+
+is_current_install() {
+  [[ -f "${INSTALL_DIR}/bundle.json" ]]
+}
+
+has_legacy_install() {
+  [[ -f "${CONFIG_DIR}/onboarding.env" ]] && return 0
+  [[ -f "${CONFIG_DIR}/relay" ]] && return 0
+  [[ -f "${CONFIG_DIR}/relay.exe" ]] && return 0
+  [[ -f "${CONFIG_DIR}/update" ]] && return 0
+  [[ -f "${CONFIG_DIR}/update.cmd" ]] && return 0
+  [[ -f "${CONFIG_DIR}/version-check" ]] && return 0
+  [[ -f "${CONFIG_DIR}/check-update.cmd" ]] && return 0
+  [[ -d "${INSTALL_DIR}/scripts/onboarding" && ! -f "${INSTALL_DIR}/bundle.json" ]] && return 0
+  return 1
+}
+
+abort_for_legacy_install() {
+  cat >&2 <<EOF
+  [!!] A pre-Go HA NOVA install was detected.
+  [!!] This installer does not migrate legacy installs in place.
+
+  Run the cleanup first:
+    curl -fsSL ${LEGACY_UNINSTALL_URL} | bash
+
+  Then run this installer again.
+EOF
+  exit 1
+}
 
 has_interactive_tty() {
   if [[ -t 0 ]]; then
@@ -27,293 +85,268 @@ require_interactive_tty() {
     return 0
   fi
 
-  fail "This installer requires an interactive terminal."
+  fail "Interactive input required. Re-run in a terminal."
 }
 
-# ── Helpers ──────────────────────────────────────────────────────────────
-
-banner() {
-  echo ""
-  echo "  ========================================="
-  echo "  HA NOVA Installer"
-  echo "  ========================================="
-  echo ""
+extract_json_string() {
+  local key="$1"
+  local json_file="$2"
+  sed -n "s/.*\"${key}\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p" "$json_file" | head -1
 }
 
-info()  { echo "  [ok] $*"; }
-warn()  { echo "  [!!] $*"; }
-fail()  { echo "  [!!] $*" >&2; exit 1; }
-
-require_cmd() {
-  if ! command -v "$1" >/dev/null 2>&1; then
-    return 1
+compute_sha256() {
+  local file="$1"
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "${file}" | awk '{print $1}'
+    return 0
   fi
+  if command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "${file}" | awk '{print $1}'
+    return 0
+  fi
+  fail "sha256sum or shasum is required to verify HA NOVA downloads."
+}
+
+detect_os() {
+  case "$(uname -s)" in
+    Darwin) printf '%s\n' "macos" ;;
+    Linux) printf '%s\n' "linux" ;;
+    *) fail "HA NOVA install.sh currently supports macOS and Linux only." ;;
+  esac
+}
+
+detect_arch() {
+  case "$(uname -m)" in
+    x86_64) printf '%s\n' "amd64" ;;
+    arm64|aarch64) printf '%s\n' "arm64" ;;
+    *) fail "Unsupported architecture: $(uname -m)" ;;
+  esac
 }
 
 detect_shell_rc() {
   local shell_name
-  shell_name="$(basename "${SHELL:-zsh}")"
+  shell_name="$(basename "${SHELL:-sh}")"
 
   case "$shell_name" in
     zsh) printf '%s\n' "${HOME}/.zshrc" ;;
     bash)
       if [[ -f "${HOME}/.bash_profile" ]]; then
         printf '%s\n' "${HOME}/.bash_profile"
-      elif [[ -f "${HOME}/.profile" ]]; then
-        printf '%s\n' "${HOME}/.profile"
       else
-        printf '%s\n' "${HOME}/.bash_profile"
+        printf '%s\n' "${HOME}/.profile"
       fi
       ;;
     *)
-      if [[ -f "${HOME}/.zshrc" ]]; then
-        printf '%s\n' "${HOME}/.zshrc"
-      elif [[ -f "${HOME}/.bash_profile" ]]; then
-        printf '%s\n' "${HOME}/.bash_profile"
-      elif [[ -f "${HOME}/.profile" ]]; then
+      if [[ -f "${HOME}/.profile" ]]; then
         printf '%s\n' "${HOME}/.profile"
-      elif [[ -f "${HOME}/.bashrc" ]]; then
-        printf '%s\n' "${HOME}/.bashrc"
       else
-        printf '%s\n' "${HOME}/.profile"
+        printf '%s\n' "${HOME}/.zshrc"
       fi
       ;;
   esac
 }
 
 ensure_bin_dir_on_path() {
-  local path_line rc_file
-  path_line='export PATH="$HOME/.local/bin:$PATH"'
+  local rc_file
   rc_file="$(detect_shell_rc)"
-  PATH_RC_FILE="$rc_file"
+  PATH_RC_FILE="${rc_file}"
+
+  mkdir -p "${BIN_DIR}" "$(dirname "${rc_file}")"
+  touch "${rc_file}"
 
   case ":${PATH}:" in
-    *":${BIN_DIR}:"*) PATH_WAS_MISSING_BEFORE="0" ;;
-    *)
-      PATH_WAS_MISSING_BEFORE="1"
-      export PATH="${BIN_DIR}:${PATH}"
-      ;;
+    *":${BIN_DIR}:"*) ;;
+    *) export PATH="${BIN_DIR}:${PATH}" ;;
   esac
 
-  mkdir -p "$(dirname "$rc_file")"
-  touch "$rc_file"
-
-  if ! grep -Fqx "$path_line" "$rc_file"; then
-    printf '\n# Added by HA NOVA installer\n%s\n' "$path_line" >> "$rc_file"
-    info "Added ${BIN_DIR} to PATH in ${rc_file}"
-  else
+  if grep -Fqx "${PATH_BLOCK_HEADER}" "${rc_file}" 2>/dev/null; then
     info "${BIN_DIR} already configured in ${rc_file}"
-  fi
-}
-
-# ── Prerequisites ────────────────────────────────────────────────────────
-
-check_prerequisites() {
-  echo "  Checking prerequisites..."
-
-  # macOS only (for now)
-  if [[ "$(uname -s)" != "Darwin" ]]; then
-    fail "HA NOVA currently supports macOS only."
-  fi
-  info "macOS detected"
-
-  # Node.js >= 20
-  if ! require_cmd node; then
-    echo ""
-    echo "  [!!] Node.js not found."
-    echo ""
-    echo "      HA NOVA needs Node.js 20 or newer."
-    echo "      Install it from: https://nodejs.org"
-    echo "      (Download the LTS version and run the installer)"
-    echo ""
-    echo "      After installing, close this terminal, open a new one,"
-    echo "      and run this command again."
-    echo ""
-    exit 1
-  fi
-  local node_major
-  node_major="$(node --version | sed -E 's/v([0-9]+)\..*/\1/')"
-  if (( node_major < 20 )); then
-    echo ""
-    echo "  [!!] Node.js version too old (v${node_major})."
-    echo ""
-    echo "      HA NOVA needs Node.js 20 or newer."
-    echo "      Update from: https://nodejs.org"
-    echo "      (Download the LTS version and run the installer)"
-    echo ""
-    echo "      After updating, close this terminal, open a new one,"
-    echo "      and run this command again."
-    echo ""
-    exit 1
-  fi
-  info "Node.js v${node_major}"
-
-  # npm
-  if ! require_cmd npm; then
-    echo ""
-    echo "  [!!] npm not found."
-    echo ""
-    echo "      npm should come with Node.js. Try reinstalling Node.js"
-    echo "      from: https://nodejs.org"
-    echo ""
-    exit 1
-  fi
-  info "npm available"
-
-  # git
-  if ! require_cmd git; then
-    echo ""
-    echo "  [!!] git not found."
-    echo ""
-    echo "      Install Xcode Command Line Tools:"
-    echo "        xcode-select --install"
-    echo ""
-    echo "      After installing, run this command again."
-    echo ""
-    exit 1
-  fi
-  info "git available"
-
-  echo ""
-}
-
-# ── Existing Install ─────────────────────────────────────────────────────
-
-handle_existing_install() {
-  if [[ ! -d "${INSTALL_DIR}" ]]; then
     return 0
   fi
 
-  # Dir exists but isn't a git repo (interrupted clone / manual copy)
-  if [[ ! -d "${INSTALL_DIR}/.git" ]]; then
-    warn "Directory exists but is not a git repo: ${INSTALL_DIR}"
-    warn "Removing it so we can do a clean install..."
-    [[ -n "$INSTALL_DIR" && "$INSTALL_DIR" == *"ha-nova"* ]] || fail "INSTALL_DIR sanity check failed"
-    rm -rf "$INSTALL_DIR"
+  cat >> "${rc_file}" <<'EOF'
+
+# Added by HA NOVA
+export PATH="$HOME/.local/bin:$PATH"
+EOF
+  PATH_MANAGED="1"
+  info "Added ${BIN_DIR} to PATH in ${rc_file}"
+}
+
+normalize_version_tag() {
+  local version="$1"
+  if [[ -z "${version}" ]]; then
+    fail "Could not determine a HA NOVA release version."
+  fi
+
+  if [[ "${version}" == v* ]]; then
+    printf '%s\n' "${version}"
+  else
+    printf 'v%s\n' "${version}"
+  fi
+}
+
+fetch_latest_version_tag() {
+  local json_file="${TMP_DIR}/latest-release.json"
+  curl -fsSL "${LATEST_RELEASE_API}" -o "${json_file}"
+
+  local tag
+  tag="$(extract_json_string "tag_name" "${json_file}")"
+  normalize_version_tag "${tag}"
+}
+
+resolve_version_tag() {
+  if [[ -n "${HA_NOVA_VERSION:-}" ]]; then
+    normalize_version_tag "${HA_NOVA_VERSION}"
     return 0
   fi
 
-  echo "  Existing HA NOVA installation found at:"
-  echo "    ${INSTALL_DIR}"
-  echo ""
+  fetch_latest_version_tag
+}
+
+bundle_name() {
+  local arch os
+  os="$(detect_os)"
+  arch="$(detect_arch)"
+
+  case "${os}" in
+    macos) printf 'ha-nova-macos-%s.tar.gz\n' "${arch}" ;;
+    linux) printf 'ha-nova-linux-%s.tar.gz\n' "${arch}" ;;
+    *) fail "Unsupported platform: ${os}" ;;
+  esac
+}
+
+download_bundle() {
+  local version_tag="$1"
+  local archive_name archive_path checksum_path extract_dir bundle_root expected actual bundle_os bundle_arch bundle_binary
+  archive_name="$(bundle_name)"
+  archive_path="${TMP_DIR}/${archive_name}"
+  checksum_path="${archive_path}.sha256"
+  extract_dir="${TMP_DIR}/extract"
+
+  mkdir -p "${extract_dir}"
+  curl -fsSL "${RELEASE_BASE_URL}${version_tag}/${archive_name}" -o "${archive_path}"
+  curl -fsSL "${RELEASE_BASE_URL}${version_tag}/${archive_name}.sha256" -o "${checksum_path}"
+  expected="$(awk '{print $1}' "${checksum_path}" | head -1)"
+  actual="$(compute_sha256 "${archive_path}")"
+  [[ -n "${expected}" && "${actual}" == "${expected}" ]] || fail "Downloaded bundle checksum verification failed."
+  tar -xzf "${archive_path}" -C "${extract_dir}"
+
+  bundle_root="${extract_dir}/ha-nova"
+  [[ -d "${bundle_root}" ]] || fail "Downloaded bundle did not contain an installable ha-nova directory."
+  [[ -f "${bundle_root}/bundle.json" ]] || fail "Downloaded bundle is missing bundle.json."
+  [[ -x "${bundle_root}/ha-nova" ]] || fail "Downloaded bundle is missing the ha-nova binary."
+  bundle_os="$(extract_json_string "os" "${bundle_root}/bundle.json")"
+  bundle_arch="$(extract_json_string "arch" "${bundle_root}/bundle.json")"
+  bundle_binary="$(extract_json_string "binary_name" "${bundle_root}/bundle.json")"
+  [[ "${bundle_os}" == "$(detect_os)" ]] || fail "Downloaded bundle OS metadata does not match this machine."
+  [[ "${bundle_arch}" == "$(detect_arch)" ]] || fail "Downloaded bundle architecture metadata does not match this machine."
+  [[ "${bundle_binary}" == "ha-nova" ]] || fail "Downloaded bundle binary metadata does not match the expected runtime."
+  printf '%s\n' "${bundle_root}"
+}
+
+install_bundle() {
+  local bundle_root="$1"
+  local install_parent next_root backup_root
+  install_parent="$(dirname "${INSTALL_DIR}")"
+  next_root="${install_parent}/.ha-nova-next-$$"
+  backup_root="${install_parent}/.ha-nova-old-$$"
+
+  mkdir -p "${install_parent}"
+  rm -rf "${next_root}" "${backup_root}"
+  mkdir -p "${next_root}"
+  cp -R "${bundle_root}/." "${next_root}/"
+
+  if [[ -d "${INSTALL_DIR}" ]]; then
+    mv "${INSTALL_DIR}" "${backup_root}"
+  fi
+
+  if mv "${next_root}" "${INSTALL_DIR}"; then
+    rm -rf "${backup_root}"
+    return 0
+  fi
+
+  [[ -d "${backup_root}" ]] && mv "${backup_root}" "${INSTALL_DIR}" 2>/dev/null || true
+  fail "Could not move the new HA NOVA bundle into place."
+}
+
+install_binary() {
+  local runtime_bin="${INSTALL_DIR}/ha-nova"
+  [[ -x "${runtime_bin}" ]] || fail "Installed bundle is missing the ha-nova runtime."
+  mkdir -p "${BIN_DIR}"
+  ln -sfn "${runtime_bin}" "${BIN_LINK}"
+}
+
+write_state() {
+  local version_tag="$1"
+  local version="${version_tag#v}"
+  mkdir -p "${CONFIG_DIR}"
+
+  if [[ -f "${STATE_FILE}" ]]; then
+    return 0
+  fi
+
+  cat > "${STATE_FILE}" <<EOF
+{
+  "schema_version": 1,
+  "version": "${version}",
+  "install_source": "bundle",
+  "installed_clients": [],
+  "client_install_modes": {},
+  "path_managed": $( [[ "${PATH_MANAGED}" == "1" ]] && printf 'true' || printf 'false' ),
+  "path_target": "${PATH_RC_FILE}"
+}
+EOF
+  chmod 600 "${STATE_FILE}"
+}
+
+run_setup() {
+  local runtime_bin="$1"
+
+  if [[ "${HA_NOVA_NO_SETUP:-0}" == "1" ]]; then
+    echo "  Next step: ha-nova setup"
+    echo "  Need help later? Run: ha-nova doctor"
+    return 0
+  fi
 
   if has_interactive_tty; then
-    echo "  What would you like to do?"
-    echo "    1) Update (git pull + npm install)"
-    echo "    2) Reinstall (remove and clone fresh)"
-    echo "    3) Cancel"
-    echo ""
-    printf "  Enter [1-3] (default 1): "
-    read -r choice < /dev/tty
-  else
-    choice="1"
+    info "Starting ha-nova setup"
+    "${runtime_bin}" setup < /dev/tty
+    return 0
   fi
 
-  case "${choice:-1}" in
-    2)
-      echo ""
-      echo "  Removing existing installation..."
-      [[ -n "$INSTALL_DIR" && "$INSTALL_DIR" == *"ha-nova"* ]] || fail "INSTALL_DIR sanity check failed"
-      rm -rf "$INSTALL_DIR"
-      ;;
-    3)
-      echo "  Cancelled."
-      exit 0
-      ;;
-    *)
-      # Default: update (option 1 or invalid input)
-      echo ""
-      echo "  Updating..."
-      git -C "$INSTALL_DIR" pull --ff-only
-      (cd "$INSTALL_DIR" && npm install --no-audit --no-fund)
-      link_cli
-      # Deploy shared tools to ~/.config/ha-nova/
-      local config_dir="${HOME}/.config/ha-nova"
-      mkdir -p "$config_dir"
-      # Download updated relay binary
-      local os_name arch_name inst_version download_url
-      os_name="$(uname -s | tr '[:upper:]' '[:lower:]')"
-      arch_name="$(uname -m)"
-      case "$arch_name" in
-        x86_64)        arch_name="amd64" ;;
-        aarch64|arm64) arch_name="arm64" ;;
-      esac
-      inst_version="$(sed -n 's/.*"skill_version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "${INSTALL_DIR}/version.json" | head -1)"
-      if [[ -z "$inst_version" ]]; then
-        echo "  Warning: could not determine version from version.json — relay CLI not downloaded."
-      else
-        download_url="https://github.com/markusleben/ha-nova/releases/download/v${inst_version}/relay-${os_name}-${arch_name}"
-        if curl -fsSL "${download_url}" -o "${config_dir}/relay"; then
-          chmod 755 "${config_dir}/relay"
-        else
-          echo "  Warning: could not download relay binary. Skills will not work until relay CLI is installed."
-        fi
-      fi
-      [[ -f "${INSTALL_DIR}/scripts/update.sh" ]]       && cp "${INSTALL_DIR}/scripts/update.sh" "${config_dir}/update" && chmod 755 "${config_dir}/update"
-      [[ -f "${INSTALL_DIR}/scripts/version-check.sh" ]] && cp "${INSTALL_DIR}/scripts/version-check.sh" "${config_dir}/version-check" && chmod 755 "${config_dir}/version-check"
-      [[ -f "${INSTALL_DIR}/version.json" ]]            && cp "${INSTALL_DIR}/version.json" "${config_dir}/version.json"
-      echo ""
-      info "Updated. Run 'ha-nova doctor' to verify."
-      if [[ "${PATH_WAS_MISSING_BEFORE}" == "1" ]]; then
-        echo ""
-        info "New terminals can run: ha-nova doctor"
-        info "This terminal still uses the old PATH. Use: ${BIN_LINK} doctor"
-        info "Or reload your shell: source ${PATH_RC_FILE}"
-      fi
-      exit 0
-      ;;
-  esac
+  echo "  Next step: ha-nova setup"
+  echo "  Need help later? Run: ha-nova doctor"
 }
 
-# ── Install ──────────────────────────────────────────────────────────────
-
-clone_and_install() {
-  echo "  Cloning HA NOVA..."
-  git clone --depth 1 "$REPO_URL" "$INSTALL_DIR"
-  echo ""
-
-  echo "  Installing dependencies..."
-  (cd "$INSTALL_DIR" && npm install --no-audit --no-fund)
-  echo ""
+check_prerequisites() {
+  local platform
+  platform="$(detect_os)"
+  info "${platform} detected"
+  require_cmd curl
+  info "curl available"
+  require_cmd tar
+  info "tar available"
 }
-
-link_cli() {
-  mkdir -p "$BIN_DIR"
-  ln -sfn "${INSTALL_DIR}/scripts/onboarding/bin/ha-nova" "$BIN_LINK"
-  ensure_bin_dir_on_path
-  info "CLI linked: ${BIN_LINK}"
-}
-
-# ── Main ─────────────────────────────────────────────────────────────────
 
 main() {
-  # Keep stdin on the piped script so bash exits cleanly after the script body.
-  # Use /dev/tty only for explicit interactive prompts and setup handoff.
-  require_interactive_tty
-
+  local version_tag bundle_root
   banner
   check_prerequisites
-  handle_existing_install
-  clone_and_install
-  link_cli
-
-  echo ""
-  info "HA NOVA installed successfully!"
-  echo ""
-  echo "  Starting setup wizard..."
-  echo ""
-
-  # Hand off to the setup wizard
-  "${BIN_LINK}" setup < /dev/tty
-
-  echo ""
-  if [[ "${PATH_WAS_MISSING_BEFORE}" == "1" ]]; then
-    info "New terminals can run: ha-nova doctor"
-    info "This terminal still uses the old PATH. Use: ${BIN_LINK} doctor"
-    info "Or reload your shell: source ${PATH_RC_FILE}"
-  else
-    info "Need help later? Run: ha-nova doctor"
+  if ! is_current_install && has_legacy_install; then
+    abort_for_legacy_install
   fi
+  TMP_DIR="$(mktemp -d)"
+  version_tag="$(resolve_version_tag)"
+  bundle_root="$(download_bundle "${version_tag}")"
+  install_bundle "${bundle_root}"
+  install_binary
+  ensure_bin_dir_on_path
+  write_state "${version_tag}"
+  info "Installed HA NOVA ${version_tag}"
+  echo ""
+  echo "  Need help later? Run: ha-nova doctor"
+  run_setup "${BIN_LINK}"
 }
 
 main "$@"

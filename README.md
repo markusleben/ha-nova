@@ -2,7 +2,7 @@
   <a href="https://github.com/markusleben/ha-nova/actions/workflows/ci.yml"><img src="https://github.com/markusleben/ha-nova/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://github.com/markusleben/ha-nova/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
   <img src="https://img.shields.io/badge/node-%3E%3D20-brightgreen" alt="Node >= 20">
-  <img src="https://img.shields.io/badge/platform-macOS-lightgrey" alt="macOS">
+  <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey" alt="macOS | Windows | Linux">
 </p>
 
 ## What is HA NOVA?
@@ -19,7 +19,7 @@ A setup wizard handles the installation. Pick your AI client, follow the prompts
 
 Works with **Claude Desktop, Claude Code, Codex CLI, OpenCode, and Gemini CLI**.
 
-> **Early Access:** The core works well, but expect some rough edges. macOS only for now (Linux/Windows coming). Back up your configs before letting AI touch anything. Hit a problem? [Open an issue](https://github.com/markusleben/ha-nova/issues).
+> **Early Access:** The core works well, but expect some rough edges. Back up your configs before letting AI touch anything. Hit a problem? [Open an issue](https://github.com/markusleben/ha-nova/issues).
 
 ### See it in action
 
@@ -29,15 +29,27 @@ Works with **Claude Desktop, Claude Code, Codex CLI, OpenCode, and Gemini CLI**.
 
 ## 🚀 Quick Start
 
-> **You need:** macOS, [Node.js 20+](https://nodejs.org), Home Assistant OS or Supervised
+> **You need:** Home Assistant OS or Supervised. Node.js is only required for local development, not for normal installation.
 
-```bash
+### macOS / Linux
+
+```sh
 curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/main/install.sh | bash
+```
+
+### Windows PowerShell
+
+```powershell
+irm https://raw.githubusercontent.com/markusleben/ha-nova/main/install.ps1 | iex
 ```
 
 The wizard handles relay, tokens, skills — everything. Just pick your AI client. Once it's done, open your client and try: *"Show me all my automations."*
 
-**Cloned the repo manually?** `./scripts/onboarding/bin/ha-nova setup` | **Something broken?** `ha-nova doctor`
+**Old pre-Go install detected?**
+- macOS / Linux: `curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/main/scripts/legacy-uninstall.sh | bash`
+- Windows: `irm https://raw.githubusercontent.com/markusleben/ha-nova/main/scripts/legacy-uninstall.ps1 | iex`
+
+**Already installed?** `ha-nova setup` | **Something broken?** `ha-nova doctor`
 
 ## 💬 What Can You Do?
 
@@ -107,7 +119,7 @@ Want to add a new capability? → [CONTRIBUTING.md](CONTRIBUTING.md)
 - **Confirmation codes:** deletes need a specific code, not just "yes"
 - **Post-write review:** after every change, the AI checks for mistakes and conflicts
 - **Token isolation:** your HA token stays on the server, never on your machine
-- **Encrypted auth:** client-side credentials in macOS Keychain, not in config files
+- **Encrypted auth:** client-side credentials stay in the OS credential store, not in config files
 - **Your network, your data:** no cloud dependency, no tracking (your AI client's own cloud usage is separate)
 
 ## 🖥️ Supported AI Clients
@@ -148,6 +160,7 @@ HA NOVA is what came out of that.
 ## 📁 Project Structure
 
 ```
+cli/         Go local runtime (setup, doctor, update, uninstall, relay)
 nova/        Relay app (runs on your HA server)
 skills/      AI skills (markdown files)
 scripts/     Setup, deploy, diagnostics

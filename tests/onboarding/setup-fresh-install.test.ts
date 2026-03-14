@@ -2,7 +2,7 @@
  * S-1: Fresh Install (Happy Path)
  * Tests the full 4-phase setup wizard from clean state.
  */
-import { readFileSync, statSync } from "node:fs";
+import { mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -87,6 +87,17 @@ describe.skipIf(!isMac)("S-1: fresh install happy path", () => {
   it("supports non-interactive setup with --host and --token flags", () => {
     const home = createMockHome();
     const binDir = createMockBinaries();
+    const publicBinDir = join(home, ".local/bin");
+    const marker = join(home, "setup-forwarded.txt");
+
+    mkdirSync(publicBinDir, { recursive: true });
+    writeFileSync(
+      join(publicBinDir, "ha-nova"),
+      `#!/usr/bin/env bash
+printf '%s\n' "$@" > "${marker}"
+`,
+      { mode: 0o755 },
+    );
 
     const result = spawnSync(
       "bash",
@@ -106,28 +117,27 @@ describe.skipIf(!isMac)("S-1: fresh install happy path", () => {
     );
 
     expect(result.status).toBe(0);
-
-    // Config file created with correct values
-    const config = readFileSync(join(home, ".config/ha-nova/onboarding.env"), "utf8");
-    expect(config).toContain("192.168.1.5");
-    expect(config).toContain("RELAY_BASE_URL=");
-
-    const output = (result.stdout ?? "") + (result.stderr ?? "");
-    expect(output).toContain("Setup complete!");
+    const forwarded = readFileSync(marker, "utf8");
+    expect(forwarded).toContain("setup");
+    expect(forwarded).toContain("codex");
+    expect(forwarded).toContain("--host=192.168.1.5");
+    expect(forwarded).toContain("--token=test-relay-token-abc123");
   });
 
   it("supports partial flag: --host only, token interactively", () => {
     const home = createMockHome();
     const binDir = createMockBinaries();
+    const publicBinDir = join(home, ".local/bin");
+    const marker = join(home, "setup-forwarded-host-only.txt");
 
-    // With --host but no --token, token phase runs interactively
-    // Token: auto-generated → [Enter] open config → [Enter] saved → LLAT guide → [Enter] × 2
-    const input = [
-      "", // open app config
-      "", // saved token
-      "", // open HA profile
-      "", // LLAT done
-    ].join("\n");
+    mkdirSync(publicBinDir, { recursive: true });
+    writeFileSync(
+      join(publicBinDir, "ha-nova"),
+      `#!/usr/bin/env bash
+printf '%s\n' "$@" > "${marker}"
+`,
+      { mode: 0o755 },
+    );
 
     const result = spawnSync(
       "bash",
@@ -138,7 +148,7 @@ describe.skipIf(!isMac)("S-1: fresh install happy path", () => {
       ],
       {
         cwd: REPO_ROOT,
-        input,
+        input: "",
         encoding: "utf8",
         timeout: 30000,
         env: mockEnv(home, binDir),
@@ -146,11 +156,10 @@ describe.skipIf(!isMac)("S-1: fresh install happy path", () => {
     );
 
     expect(result.status).toBe(0);
-
-    const config = readFileSync(join(home, ".config/ha-nova/onboarding.env"), "utf8");
-    expect(config).toContain("192.168.1.5");
-
-    const output = (result.stdout ?? "") + (result.stderr ?? "");
-    expect(output).toContain("Setup complete!");
+    const forwarded = readFileSync(marker, "utf8");
+    expect(forwarded).toContain("setup");
+    expect(forwarded).toContain("codex");
+    expect(forwarded).toContain("--host=192.168.1.5");
+    expect(forwarded).not.toContain("--token=");
   });
 });

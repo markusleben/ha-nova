@@ -20,10 +20,10 @@ Usage:
   bash scripts/onboarding/install-local-skills.sh all
 
 Targets:
-  codex    -> symlink ~/.agents/skills/ha-nova -> repo skills
+  codex    -> link/copy ~/.agents/skills/ha-nova -> repo skills
   claude   -> skipped (use Claude Code plugin system)
-  opencode -> symlink ~/.config/opencode/skills/ha-nova -> repo skills
-  gemini   -> flat copy ~/.gemini/skills/ha-nova-{subskill}/SKILL.md (+ companion .md files)
+  opencode -> link/copy ~/.config/opencode/skills/ha-nova -> repo skills
+  gemini   -> flat copy ~/.gemini/skills/ha-nova-*/SKILL.md (+ local companion .md files)
   all      -> install for codex + claude + opencode + gemini
 USAGE
 }
@@ -31,6 +31,105 @@ USAGE
 SCRIPT_DIR="$(cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../.." && pwd)"
 SOURCE_SKILLS_DIR="${REPO_ROOT}/skills"
+
+detect_platform_id() {
+  local platform_source="${HA_NOVA_PLATFORM_OVERRIDE:-$(uname -s)}"
+
+  case "$platform_source" in
+    macos|Darwin)
+      printf 'macos'
+      ;;
+    windows|MINGW*|MSYS*|CYGWIN*)
+      printf 'windows'
+      ;;
+    Linux)
+      printf 'linux'
+      ;;
+    *)
+      printf '%s' "$platform_source" | tr '[:upper:]' '[:lower:]'
+      ;;
+  esac
+}
+
+CURRENT_PLATFORM_ID="$(detect_platform_id)"
+
+should_copy_file_client_install() {
+  [[ "${HA_NOVA_FORCE_COPY_INSTALL:-0}" == "1" || "${CURRENT_PLATFORM_ID}" == "windows" ]]
+}
+
+normalize_release_arch() {
+  local arch_name="${1:-$(uname -m)}"
+
+  case "$arch_name" in
+    x86_64|amd64) printf 'amd64' ;;
+    aarch64|arm64)
+      if [[ "${CURRENT_PLATFORM_ID}" == "windows" ]]; then
+        printf 'amd64'
+      else
+        printf 'arm64'
+      fi
+      ;;
+    i386|i686) printf '386' ;;
+    *) printf '%s' "$arch_name" ;;
+  esac
+}
+
+normalize_release_os() {
+  case "${CURRENT_PLATFORM_ID}" in
+    macos) printf 'darwin' ;;
+    windows) printf 'windows' ;;
+    linux) printf 'linux' ;;
+    *) printf '%s' "${CURRENT_PLATFORM_ID}" ;;
+  esac
+}
+
+relay_binary_name() {
+  if [[ "${CURRENT_PLATFORM_ID}" == "windows" ]]; then
+    printf 'relay.exe'
+    return
+  fi
+
+  printf 'relay'
+}
+
+bundled_relay_path() {
+  local relay_name
+  relay_name="$(relay_binary_name)"
+
+  for candidate in \
+    "${HA_NOVA_BUNDLED_RELAY:-}" \
+    "${REPO_ROOT}/bin/${relay_name}" \
+    "${REPO_ROOT}/bundle/bin/${relay_name}"
+  do
+    if [[ -n "$candidate" && -f "$candidate" ]]; then
+      printf '%s' "$candidate"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+copy_tree_install() {
+  local source_dir="$1"
+  local target_dir="$2"
+
+  rm -rf "${target_dir}"
+  cp -R "${source_dir}" "${target_dir}"
+}
+
+write_repo_cli_wrapper() {
+  local target_path="$1"
+  local subcommand="$2"
+  local extra_args="${3:-}"
+
+  cat > "${target_path}" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+exec "${REPO_ROOT}/scripts/onboarding/bin/ha-nova" ${subcommand}${extra_args:+ ${extra_args}} "\$@"
+EOF
+  chmod 755 "${target_path}"
+}
 
 # Legacy flat skill directories to clean up
 LEGACY_FLAT_SKILLS=(
@@ -126,6 +225,19 @@ cleanup_legacy() {
   fi
 }
 
+cleanup_legacy_flat_only() {
+  local user_skills_dir="$1"
+  local target="$2"
+
+  for legacy_skill in "${LEGACY_FLAT_SKILLS[@]}"; do
+    local legacy_path="${user_skills_dir}/${legacy_skill}"
+    if [[ -e "${legacy_path}" || -L "${legacy_path}" ]]; then
+      rm -rf "${legacy_path}"
+      log "[${target}] Cleaned up legacy flat skill: ${legacy_path}"
+    fi
+  done
+}
+
 # Migration: remove un-prefixed Gemini dirs left by OLD update.sh that ran
 # after the skill-rename (source dirs changed from ha-nova-read/ to read/).
 # OLD update.sh copied to ~/.gemini/skills/read/ instead of ha-nova-read/.
@@ -190,8 +302,19 @@ install_symlink() {
     rm -f "${user_skills_dir}/ha-nova"
   fi
 
-  ln -sfn "${SOURCE_SKILLS_DIR}" "${user_skills_dir}/ha-nova"
-  log "[${target}] Symlinked: ${user_skills_dir}/ha-nova -> ${SOURCE_SKILLS_DIR}"
+  if should_copy_file_client_install; then
+    copy_tree_install "${SOURCE_SKILLS_DIR}" "${user_skills_dir}/ha-nova"
+    log "[${target}] Copied: ${user_skills_dir}/ha-nova <- ${SOURCE_SKILLS_DIR}"
+    return 0
+  fi
+
+  if ln -sfn "${SOURCE_SKILLS_DIR}" "${user_skills_dir}/ha-nova"; then
+    log "[${target}] Symlinked: ${user_skills_dir}/ha-nova -> ${SOURCE_SKILLS_DIR}"
+    return 0
+  fi
+
+  copy_tree_install "${SOURCE_SKILLS_DIR}" "${user_skills_dir}/ha-nova"
+  log "[${target}] Symlink unavailable; copied: ${user_skills_dir}/ha-nova <- ${SOURCE_SKILLS_DIR}"
 }
 
 install_gemini_flat() {
@@ -199,8 +322,8 @@ install_gemini_flat() {
   mkdir -p "${user_skills_dir}"
 
   # Clean up legacy Gemini installs from the shared agents root without
-  # touching the Codex symlink if one exists there.
-  cleanup_legacy "${HOME}/.agents/skills" "gemini-legacy"
+  # touching the current Codex install if one exists there.
+  cleanup_legacy_flat_only "${HOME}/.agents/skills" "gemini-legacy"
 
   # Auto-cleanup: remove any ha-nova* dir that doesn't match a current skill.
   # This catches renamed/deleted skills without needing a manual legacy list.
@@ -272,48 +395,48 @@ install_target() {
       ;;
   esac
 
-  # Download pre-built relay binary from GitHub Releases.
-  # Always download to ensure the correct version is installed (upgrade from
-  # old bash wrapper to Go binary, or version bump).
+  # Repo/dev helper wrappers. These keep legacy local entrypoints working
+  # against the repo runtime without depending on release assets.
   local relay_cli_target="${HOME}/.config/ha-nova/relay"
+  local relay_binary_target="${relay_cli_target}"
   mkdir -p "${HOME}/.config/ha-nova"
-  {
-    local os_name arch_name
-    os_name="$(uname -s | tr '[:upper:]' '[:lower:]')"
-    arch_name="$(uname -m)"
-    case "$arch_name" in
-      x86_64)        arch_name="amd64" ;;
-      aarch64|arm64) arch_name="arm64" ;;
-    esac
-    local version
-    version="$(sed -n 's/.*"skill_version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "${REPO_ROOT}/version.json" | head -1)"
-    if [[ -z "$version" ]]; then
-      log "[${target}] Warning: could not determine version from version.json — relay CLI not downloaded."
+  if [[ "${CURRENT_PLATFORM_ID}" != "windows" ]]; then
+    write_repo_cli_wrapper "${relay_cli_target}" "relay"
+    log "[${target}] Installed relay wrapper: ${relay_cli_target}"
+  else
+    relay_binary_target="${HOME}/.config/ha-nova/relay.exe"
+    local bundled_relay
+    if bundled_relay="$(bundled_relay_path)"; then
+      cp "${bundled_relay}" "${relay_binary_target}"
+      chmod 755 "${relay_binary_target}"
+      log "[${target}] Installed bundled relay CLI: ${relay_binary_target}"
     else
-      # Go binary releases are tagged alongside skill_version (same GitHub release).
-      local download_url="https://github.com/markusleben/ha-nova/releases/download/v${version}/relay-${os_name}-${arch_name}"
-      log "[${target}] Downloading relay CLI v${version}..."
-      if curl -fsSL "${download_url}" -o "${relay_cli_target}"; then
-        chmod 755 "${relay_cli_target}"
-        log "[${target}] Installed relay CLI: ${relay_cli_target}"
-      else
-        log "[${target}] Warning: could not download relay binary. Skills will not work until relay CLI is installed."
-      fi
+      write_repo_cli_wrapper "${relay_cli_target}" "relay"
+      cp "${relay_cli_target}" "${relay_binary_target}"
+      log "[${target}] Installed relay wrapper fallback: ${relay_binary_target}"
     fi
-  }
+  fi
+
+  if [[ "${CURRENT_PLATFORM_ID}" == "windows" && -f "${relay_binary_target}" ]]; then
+    cat > "${relay_cli_target}" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+SCRIPT_DIR="$(cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+exec "${SCRIPT_DIR}/relay.exe" "$@"
+EOF
+    chmod 755 "${relay_cli_target}"
+  fi
 
   # Version check script + local version.json (for flat-copy installs without git repo)
   if [[ -f "${REPO_ROOT}/scripts/version-check.sh" ]]; then
-    cp "${REPO_ROOT}/scripts/version-check.sh" "${HOME}/.config/ha-nova/version-check"
-    chmod 755 "${HOME}/.config/ha-nova/version-check"
+    write_repo_cli_wrapper "${HOME}/.config/ha-nova/version-check" "check-update" "--quiet"
     cp "${REPO_ROOT}/version.json" "${HOME}/.config/ha-nova/version.json"
     log "[${target}] Installed version-check + version.json"
   fi
 
-  # Self-update script (allows agent-driven updates without repo checkout)
+  # Self-update wrapper for repo/dev installs.
   if [[ -f "${REPO_ROOT}/scripts/update.sh" ]]; then
-    cp "${REPO_ROOT}/scripts/update.sh" "${HOME}/.config/ha-nova/update"
-    chmod 755 "${HOME}/.config/ha-nova/update"
+    write_repo_cli_wrapper "${HOME}/.config/ha-nova/update" "update"
     log "[${target}] Installed self-update script"
   fi
 }

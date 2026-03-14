@@ -19,11 +19,11 @@ Single source of truth for Relay calls used by HA NOVA skills.
 For agent-dispatched flows, use the CLI wrapper instead of raw curl:
 
 ```bash
-~/.config/ha-nova/relay ws -d '{"type":"config/entity_registry/list_for_display"}'
-~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/config/automation/config/my_id"}'
+ha-nova relay ws -d '{"type":"config/entity_registry/list_for_display"}'
+ha-nova relay core -d '{"method":"GET","path":"/api/config/automation/config/my_id"}'
 ```
 
-The wrapper handles auth (Keychain), headers, timeouts, and base URL internally.
+The wrapper handles auth (OS credential store), headers, timeouts, and base URL internally.
 
 ## Standard Envelope
 
@@ -51,8 +51,8 @@ When you have an entity_id and need the config key for REST or trace APIs:
 
 ```bash
 # Returns the unique_id (config key) for use with REST config reads and trace queries
-~/.config/ha-nova/relay ws -d '{"type":"config/entity_registry/get","entity_id":"automation.{slug}"}' \
-  | ~/.config/ha-nova/relay jq -r '.data.unique_id'
+ha-nova relay ws -d '{"type":"config/entity_registry/get","entity_id":"automation.{slug}"}' \
+  | ha-nova relay jq -r '.data.unique_id'
 ```
 
 Use the resolved `unique_id` with:
@@ -141,10 +141,10 @@ Important: `{type}_id` is the internal `id` from the list response, NOT the enti
 
 CLI examples:
 ```bash
-~/.config/ha-nova/relay ws -d '{"type":"input_boolean/list"}'
-~/.config/ha-nova/relay ws -d '{"type":"input_boolean/create","name":"Sleep Mode","icon":"mdi:sleep"}'
-~/.config/ha-nova/relay ws -d '{"type":"input_boolean/update","input_boolean_id":"abc123","name":"Updated"}'
-~/.config/ha-nova/relay ws -d '{"type":"input_boolean/delete","input_boolean_id":"abc123"}'
+ha-nova relay ws -d '{"type":"input_boolean/list"}'
+ha-nova relay ws -d '{"type":"input_boolean/create","name":"Sleep Mode","icon":"mdi:sleep"}'
+ha-nova relay ws -d '{"type":"input_boolean/update","input_boolean_id":"abc123","name":"Updated"}'
+ha-nova relay ws -d '{"type":"input_boolean/delete","input_boolean_id":"abc123"}'
 ```
 
 No domain reload needed — storage-based helpers take effect immediately.
@@ -229,5 +229,5 @@ For mutating and verify-critical calls use:
 
 ## Runtime Env
 
-- Use `~/.config/ha-nova/relay` for all HA communication (auth + base URL resolved inside wrapper).
-- Bootstrap check: `~/.config/ha-nova/relay health`
+- Use `ha-nova relay` for all HA communication (auth + base URL resolved inside the CLI).
+- Bootstrap check: `ha-nova relay health`

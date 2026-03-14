@@ -7,10 +7,46 @@ SCRIPT_DIR="$(cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../.." && pwd)"
 source "${SCRIPT_DIR}/lib/ui.sh"
 source "${SCRIPT_DIR}/lib/relay.sh"
-source "${SCRIPT_DIR}/platform/macos.sh"
+
+detect_platform_id() {
+  local platform_source="${HA_NOVA_PLATFORM_OVERRIDE:-$(uname -s)}"
+
+  case "$platform_source" in
+    macos|Darwin)
+      printf 'macos'
+      ;;
+    windows|MINGW*|MSYS*|CYGWIN*)
+      printf 'windows'
+      ;;
+    *)
+      die "Unsupported platform: ${platform_source}"
+      ;;
+  esac
+}
+
+HA_NOVA_PLATFORM_ID="$(detect_platform_id)"
+source "${SCRIPT_DIR}/platform/${HA_NOVA_PLATFORM_ID}.sh"
 DOCTOR_CACHE_FILE="${CONFIG_DIR}/doctor-cache.env"
 
 RELAY_SERVICE="ha-nova.relay-auth-token"
+
+copy_token_or_echo() {
+  local token="$1"
+
+  if copy_secret_to_clipboard "$token"; then
+    print_success "Copied to clipboard."
+    return 0
+  fi
+
+  echo ""
+  echo "    ${token}"
+  echo ""
+}
+
+skill_tree_has_context() {
+  local install_dir="$1"
+  [[ -f "${install_dir}/ha-nova/SKILL.md" ]]
+}
 
 ensure_config_dir() {
   mkdir -p "$CONFIG_DIR"
@@ -67,7 +103,7 @@ build_env_exports() {
   local relay_auth_token
   relay_auth_token="$(read_keychain_secret "$RELAY_SERVICE")"
   if [[ -z "$relay_auth_token" ]]; then
-    die "Missing relay auth token in Keychain (${RELAY_SERVICE}). Run setup first."
+    die "Missing relay auth token in ${PLATFORM_SECRET_STORE_LABEL} (${RELAY_SERVICE}). Run setup first."
   fi
 
   emit_export "HA_HOST" "$HA_HOST"
@@ -101,9 +137,9 @@ run_doctor_checks() {
 
   relay_auth_token="$(read_keychain_secret "$RELAY_SERVICE")"
   if [[ -n "$relay_auth_token" ]]; then
-    echo "  [ok] Keychain token found (${RELAY_SERVICE})"
+    echo "  [ok] ${PLATFORM_SECRET_STORE_NAME} token found (${RELAY_SERVICE})"
   else
-    echo "  [fail] Keychain token missing (${RELAY_SERVICE}). Re-run setup."
+    echo "  [fail] ${PLATFORM_SECRET_STORE_NAME} token missing (${RELAY_SERVICE}). Re-run setup."
     overall_ok="0"
   fi
 
@@ -164,7 +200,7 @@ run_doctor_checks() {
       latest_skill_version=$(echo "$remote_json" | grep -o '"skill_version"[[:space:]]*:[[:space:]]*"[^"]*"' | sed 's/.*"\([^"]*\)"$/\1/')
       if [[ -n "$latest_skill_version" && "$latest_skill_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ && -n "$local_skill_version" ]] && semver_lt "$local_skill_version" "$latest_skill_version"; then
         if [[ -x "${HOME}/.config/ha-nova/update" ]]; then
-          echo "  [warn] Skills update available: v${local_skill_version} -> v${latest_skill_version}. Run: ~/.config/ha-nova/update"
+          echo "  [warn] Skills update available: v${local_skill_version} -> v${latest_skill_version}. Run: ha-nova update"
         else
           echo "  [warn] Skills update available: v${local_skill_version} -> v${latest_skill_version}. Run: git pull in your ha-nova repo, then re-run setup."
         fi
@@ -233,7 +269,7 @@ detect_setup_state() {
     fi
   fi
 
-  # Relay token in Keychain?
+  # Relay token in secure local storage?
   relay_auth_token="$(read_keychain_secret "$RELAY_SERVICE")"
   if [[ -n "$relay_auth_token" ]]; then
     SETUP_HAS_TOKEN="1"
@@ -261,13 +297,7 @@ detect_setup_state() {
   SETUP_SKILLS_OK="1"
   case "$client" in
     codex)
-      # Symlink check: ha-nova -> repo/skills (also catches broken symlinks)
-      if [[ ! -L "${HOME}/.agents/skills/ha-nova" ]]; then
-        SETUP_SKILLS_OK="0"
-      elif [[ ! -e "${HOME}/.agents/skills/ha-nova" ]]; then
-        # Symlink exists but target is gone (broken)
-        SETUP_SKILLS_OK="0"
-      elif [[ ! -f "${HOME}/.agents/skills/ha-nova/ha-nova/SKILL.md" ]]; then
+      if ! skill_tree_has_context "${HOME}/.agents/skills/ha-nova"; then
         SETUP_SKILLS_OK="0"
       fi
       ;;
@@ -296,19 +326,14 @@ detect_setup_state() {
       fi
       ;;
     opencode)
-      # Symlink check (also catches broken symlinks)
-      if [[ ! -L "${HOME}/.config/opencode/skills/ha-nova" ]]; then
-        SETUP_SKILLS_OK="0"
-      elif [[ ! -e "${HOME}/.config/opencode/skills/ha-nova" ]]; then
-        SETUP_SKILLS_OK="0"
-      elif [[ ! -f "${HOME}/.config/opencode/skills/ha-nova/ha-nova/SKILL.md" ]]; then
+      if ! skill_tree_has_context "${HOME}/.config/opencode/skills/ha-nova"; then
         SETUP_SKILLS_OK="0"
       fi
       ;;
     all)
       # Check each client's skills without recursive detect_setup_state
       # (which would overwrite SETUP_HAS_CONFIG/TOKEN/RELAY_OK/WS_OK)
-      if [[ ! -L "${HOME}/.agents/skills/ha-nova" ]] || [[ ! -f "${HOME}/.agents/skills/ha-nova/ha-nova/SKILL.md" ]]; then
+      if ! skill_tree_has_context "${HOME}/.agents/skills/ha-nova"; then
         SETUP_SKILLS_OK="0"
       fi
       if [[ "$SETUP_SKILLS_OK" == "1" ]] && ! flat_skill_has_required_markdown "${HOME}/.gemini/skills/ha-nova" "${REPO_ROOT}/skills/ha-nova"; then
@@ -331,7 +356,7 @@ detect_setup_state() {
       done
       # OpenCode symlink
       if [[ "$SETUP_SKILLS_OK" == "1" ]]; then
-        if [[ ! -L "${HOME}/.config/opencode/skills/ha-nova" ]] || [[ ! -f "${HOME}/.config/opencode/skills/ha-nova/ha-nova/SKILL.md" ]]; then
+        if ! skill_tree_has_context "${HOME}/.config/opencode/skills/ha-nova"; then
           SETUP_SKILLS_OK="0"
         fi
       fi
@@ -536,7 +561,7 @@ run_setup() {
     print_step 2 4 "Set up secure access"
     echo ""
     print_info "NOVA needs two passwords (\"tokens\") to work securely:"
-    print_info "  a) Relay token — keeps the connection between this Mac and Home Assistant private"
+    print_info "  a) Relay token — keeps the connection between this computer and Home Assistant private"
     print_info "  b) HA access token — allows the relay to control your devices and automations"
     echo ""
 
@@ -550,26 +575,16 @@ run_setup() {
       if prompt_yes_no "Keep existing token?" "Y"; then
         relay_auth_token="$existing_relay_auth_token"
         if prompt_yes_no "Copy token to clipboard? (to paste into app config)" "N"; then
-          if command -v pbcopy >/dev/null 2>&1; then
-            printf '%s' "$relay_auth_token" | pbcopy
-            print_success "Copied to clipboard."
-          else
-            echo ""
-            echo "    ${relay_auth_token}"
-            echo ""
-          fi
+          copy_token_or_echo "$relay_auth_token"
         fi
-        log "Using existing relay auth token from Keychain."
+        log "Using existing relay auth token from ${PLATFORM_SECRET_STORE_NAME}."
       else
         relay_auth_token="$(generate_relay_token)"
         store_keychain_secret "$RELAY_SERVICE" "$relay_auth_token"
         echo ""
         print_info "New token: ${relay_auth_token}"
-        print_success "Saved to Keychain."
-        if command -v pbcopy >/dev/null 2>&1; then
-          printf '%s' "$relay_auth_token" | pbcopy
-          print_success "Copied to clipboard."
-        fi
+        print_success "Saved to ${PLATFORM_SECRET_STORE_NAME}."
+        copy_token_or_echo "$relay_auth_token"
       fi
     else
       relay_auth_token="$(generate_relay_token)"
@@ -579,9 +594,8 @@ run_setup() {
       echo ""
       echo "    ${relay_auth_token}"
       echo ""
-      print_success "Saved to Keychain — safe even if you quit now."
-      if command -v pbcopy >/dev/null 2>&1; then
-        printf '%s' "$relay_auth_token" | pbcopy
+      print_success "Saved to ${PLATFORM_SECRET_STORE_NAME} — safe even if you quit now."
+      if copy_secret_to_clipboard "$relay_auth_token"; then
         print_success "Copied to clipboard — just paste it in the next step."
       else
         print_info "Copy the token above — you'll paste it in the next step."
@@ -600,7 +614,7 @@ run_setup() {
       wait_for_enter_or_copy "Press [Enter] when you've saved the token..." "$relay_auth_token"
     fi
   else
-    # CLI --token takes precedence; fall back to Keychain
+    # CLI --token takes precedence; fall back to local secure storage
     if [[ -z "$relay_auth_token" ]]; then
       relay_auth_token="$(read_keychain_secret "$RELAY_SERVICE")"
     fi
@@ -608,7 +622,7 @@ run_setup() {
 
   # 3b) LLAT guide
   if [[ "$skip_llat" == "0" ]]; then
-    # Home Assistant Access Token field ("ha_llat") lives in App options, not in the client Keychain.
+    # Home Assistant Access Token field ("ha_llat") lives in App options, not in local secure storage.
     echo ""
     print_info "Now for the second token: the Home Assistant Access Token."
     print_info "This lets the relay control your devices and automations."
@@ -778,7 +792,7 @@ run_setup() {
           print_info "     Your token: $(mask_secret_hint "$relay_auth_token")"
         fi
         print_info "  3. Is the \"Home Assistant Access Token\" field (\"ha_llat\") saved in the app settings?"
-        print_info "  4. Is this Mac on the same network as Home Assistant?"
+        print_info "  4. Is this computer on the same network as Home Assistant?"
         echo ""
         if (( attempt >= max_retries )) || [[ "$non_interactive_verify" == "1" ]]; then
           print_info "Saving your settings anyway. You can troubleshoot later with: ha-nova doctor"
@@ -793,8 +807,7 @@ run_setup() {
             retry_input=""
           fi
           if [[ "$retry_input" =~ ^[Cc]$ ]]; then
-            if command -v pbcopy >/dev/null 2>&1 && [[ -n "${relay_auth_token:-}" ]]; then
-              printf '%s' "$relay_auth_token" | pbcopy
+            if [[ -n "${relay_auth_token:-}" ]] && copy_secret_to_clipboard "$relay_auth_token"; then
               print_success "Token copied to clipboard."
             else
               echo ""
@@ -815,7 +828,7 @@ run_setup() {
     persist_config
     invalidate_doctor_cache
     print_success "Config saved to ~/.config/ha-nova/"
-    print_success "Token stored in macOS Keychain"
+    print_success "Token stored in ${PLATFORM_SECRET_STORE_LABEL}"
   fi
 
   if [[ "$skip_skills" == "0" ]]; then
@@ -826,7 +839,7 @@ run_setup() {
     if with_spinner "Setting up HA NOVA for ${client}..." bash "${REPO_ROOT}/scripts/onboarding/install-local-skills.sh" "$client"; then
       print_success "HA NOVA skills installed for ${client}"
     else
-      print_fail "Skill installation had issues. You can retry with: npm run install:${client}-skill"
+      print_fail "Skill installation had issues. You can retry with: ha-nova setup ${client}"
       setup_status="incomplete"
       if [[ -z "$setup_issue" ]]; then
         setup_issue="skills_install"
@@ -867,7 +880,9 @@ run_setup() {
 
 run_doctor() {
   require_platform
-  require_cmd security
+  if declare -F require_platform_dependencies >/dev/null 2>&1; then
+    require_platform_dependencies
+  fi
   require_cmd curl
   if ! run_doctor_checks; then
     invalidate_doctor_cache
@@ -907,7 +922,9 @@ print_setup_incomplete_banner() {
 
 run_env() {
   require_platform
-  require_cmd security
+  if declare -F require_platform_dependencies >/dev/null 2>&1; then
+    require_platform_dependencies
+  fi
   build_env_exports
 }
 
@@ -919,7 +936,9 @@ run_ready() {
   fi
 
   require_platform
-  require_cmd security
+  if declare -F require_platform_dependencies >/dev/null 2>&1; then
+    require_platform_dependencies
+  fi
   require_cmd curl
 
   load_config
@@ -1000,7 +1019,9 @@ run_ready() {
 
 run_quick() {
   require_platform
-  require_cmd security
+  if declare -F require_platform_dependencies >/dev/null 2>&1; then
+    require_platform_dependencies
+  fi
   require_cmd curl
 
   run_ready --quiet
@@ -1010,20 +1031,19 @@ run_quick() {
     local link_target
     link_target="$(readlink "$codex_skill_link")"
     if [[ "$link_target" != "${REPO_ROOT}/skills" ]]; then
-      die "Codex skill symlink points to wrong repo (${link_target}). Re-run: npm run install:codex-skill"
+      die "Codex skill install points to the wrong repo (${link_target}). Re-run: ha-nova setup codex"
     fi
     if [[ ! -f "${codex_skill_link}/ha-nova/SKILL.md" ]]; then
-      die "Codex skill symlink broken. Re-run: npm run install:codex-skill"
+      die "Codex skill install is broken. Re-run: ha-nova setup codex"
     fi
-    echo "  [ok] Codex skill installed (symlink): ${codex_skill_link}"
+    echo "  [ok] Codex skill install present (link): ${codex_skill_link}"
   elif [[ -d "$codex_skill_link" ]]; then
-    # Legacy copy — still functional but recommend re-install
     if [[ ! -f "${codex_skill_link}/ha-nova/SKILL.md" ]]; then
-      die "Missing Codex skill file. Re-run: npm run install:codex-skill"
+      die "Missing Codex skill file. Re-run: ha-nova setup codex"
     fi
-    echo "  [ok] Codex skill installed (copy, consider re-installing for symlink): ${codex_skill_link}"
+    echo "  [ok] Codex skill install present (copy): ${codex_skill_link}"
   else
-    die "Missing Codex skill: ${codex_skill_link}. Run: npm run install:codex-skill"
+    die "Missing Codex skill: ${codex_skill_link}. Run: ha-nova setup codex"
   fi
   echo "  [ok] Quick readiness passed."
   echo

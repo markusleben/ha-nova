@@ -1,5 +1,7 @@
 # Review Quick-Fix Implementation Plan
 
+> Historical plan note: example relay commands in this document predate the Go-first public interface. Current public contract uses `ha-nova relay ...` instead of raw `~/.config/ha-nova/relay` paths.
+
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** After review analysis, detect acute state problems and offer a one-click service-call fix.

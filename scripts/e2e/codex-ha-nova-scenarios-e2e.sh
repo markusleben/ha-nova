@@ -229,12 +229,12 @@ run_scenario() {
   fi
 
   command_count="$(count_command_hits "$scenario_log" '.*')"
-  doctor_count="$(count_command_hits "$scenario_log" 'macos-onboarding\.sh.*(doctor|ready|quick)')"
+  doctor_count="$(count_command_hits "$scenario_log" '(^|[[:space:]])ha-nova[[:space:]]+doctor([[:space:]]|$)')"
   helper_script_count="$(count_command_hits "$scenario_log" 'scripts/(smoke|e2e)/')"
 
   ws_idx="$(first_command_index "$scenario_log" '/ws')"
   health_idx="$(first_command_index "$scenario_log" '/health')"
-  doctor_idx="$(first_command_index "$scenario_log" 'macos-onboarding\.sh.*(doctor|ready|quick)')"
+  doctor_idx="$(first_command_index "$scenario_log" '(^|[[:space:]])ha-nova[[:space:]]+doctor([[:space:]]|$)')"
   if [[ -n "$ws_idx" && -n "$health_idx" && "$health_idx" -lt "$ws_idx" ]]; then
     health_before_ws="true"
   fi
@@ -360,13 +360,14 @@ main() {
 
   require_cmd codex
   require_cmd jq
+  require_cmd ha-nova
   validate_scenario_file
 
   mkdir -p "$LOG_DIR"
   : > "$RESULTS_FILE"
 
-  log "Running quick onboarding readiness gate once"
-  bash "${PROJECT_ROOT}/scripts/onboarding/macos-onboarding.sh" quick
+  log "Running doctor readiness gate once"
+  ha-nova doctor
 
   scenario_count="$(jq 'length' "$SCENARIO_FILE")"
   log "Loaded ${scenario_count} scenarios from ${SCENARIO_FILE}"
