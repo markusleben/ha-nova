@@ -1,8 +1,8 @@
 # HA NOVA Review Check Catalog
 
-Canonical path: `skills/ha-nova-review/checks.md`
+Canonical path: `skills/review/checks.md`
 
-Load this catalog from `skills/ha-nova-review/SKILL.md` Step 1 before evaluating findings.
+Load this catalog from `skills/review/SKILL.md` Step 1 before evaluating findings.
 
 ## Check Taxonomy (internal only)
 

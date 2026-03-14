@@ -10,16 +10,20 @@ import { describe, expect, it } from "vitest";
 
 import { createMockBinaries, mockEnv, REPO_ROOT } from "./_helpers.js";
 
-const SUB_SKILLS = [
-  "ha-nova-write",
-  "ha-nova-read",
-  "ha-nova-helper",
-  "ha-nova-entity-discovery",
-  "ha-nova-onboarding",
-  "ha-nova-service-call",
-  "ha-nova-review",
-  "ha-nova-fallback",
+/** Source directory names under skills/ (short, no prefix) */
+const SOURCE_SUB_SKILLS = [
+  "write",
+  "read",
+  "helper",
+  "entity-discovery",
+  "onboarding",
+  "service-call",
+  "review",
+  "fallback",
 ];
+
+/** Gemini install directory names under ~/.gemini/skills/ (ha-nova- prefix) */
+const GEMINI_SUB_SKILLS = SOURCE_SUB_SKILLS.map((s) => `ha-nova-${s}`);
 
 const REWRITTEN_REPO_REF = /`(?:\/|[A-Za-z]:[\\/])[^`\n]*(?:\/skills\/|\/docs\/reference\/)[^`\n]*`/;
 
@@ -55,7 +59,7 @@ describe("S-4: client-specific skill installation", () => {
     expect(linkTarget).toBe(join(REPO_ROOT, "skills"));
 
     // All sub-skills readable through symlink
-    for (const sub of SUB_SKILLS) {
+    for (const sub of SOURCE_SUB_SKILLS) {
       const content = readFileSync(join(codexLink, sub, "SKILL.md"), "utf8");
       expect(content).toContain(`name: ${sub}`);
     }
@@ -82,35 +86,36 @@ describe("S-4: client-specific skill installation", () => {
     const ctx = readFileSync(join(home, ".gemini/skills/ha-nova/SKILL.md"), "utf8");
     expect(ctx).toContain("name: ha-nova");
 
-    // Sub-skills as separate flat directories
-    for (const sub of SUB_SKILLS) {
+    // Sub-skills as separate flat directories (ha-nova- prefix for Gemini)
+    for (const src of SOURCE_SUB_SKILLS) {
+      const geminiDir = `ha-nova-${src}`;
       const content = readFileSync(
-        join(home, ".gemini/skills", sub, "SKILL.md"),
+        join(home, ".gemini/skills", geminiDir, "SKILL.md"),
         "utf8",
       );
-      expect(content).toContain(`name: ${sub}`);
+      expect(content).toContain(`name: ${src}`);
       // Cross-skill/docs references should no longer be relative after flat copy.
       expectRepoRefsRewritten(content);
 
-      const companionFiles = readdirSync(join(REPO_ROOT, "skills", sub))
+      const companionFiles = readdirSync(join(REPO_ROOT, "skills", src))
         .filter((file) => file.endsWith(".md") && file !== "SKILL.md");
 
       for (const companion of companionFiles) {
         const companionContent = readFileSync(
-          join(home, ".gemini/skills", sub, companion),
+          join(home, ".gemini/skills", geminiDir, companion),
           "utf8",
         );
         expect(companionContent.length).toBeGreaterThan(0);
         expectRepoRefsRewritten(companionContent);
       }
 
-      if (sub === "ha-nova-review") {
+      if (src === "review") {
         expect(content).toContain("`checks.md`");
-        expect(content).not.toContain("skills/ha-nova-review/checks.md");
+        expect(content).not.toContain("skills/review/checks.md");
         const checks = readFileSync(join(home, ".gemini/skills", "ha-nova-review", "checks.md"), "utf8");
         expect(checks).toContain("H-09 [MEDIUM → HIGH]");
         expect(checks).toContain("Canonical path: `checks.md`");
-        expect(checks).not.toContain("skills/ha-nova-review/checks.md");
+        expect(checks).not.toContain("skills/review/checks.md");
       }
     }
   });
@@ -138,7 +143,7 @@ describe("S-5: multi-client 'all' installation", () => {
     expect(() => readlinkSync(join(home, ".config/opencode/skills/ha-nova"))).not.toThrow();
 
     // Gemini flat copies
-    for (const sub of SUB_SKILLS) {
+    for (const sub of GEMINI_SUB_SKILLS) {
       expect(() =>
         statSync(join(home, ".gemini/skills", sub, "SKILL.md")),
       ).not.toThrow();

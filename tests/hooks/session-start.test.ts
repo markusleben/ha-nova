@@ -37,12 +37,12 @@ describe("S-6: session-start hook", () => {
     });
 
     const json = JSON.parse(result.stdout.trim());
-    expect(json.additional_context).toContain("ha-nova:ha-nova-read");
-    expect(json.additional_context).toContain("ha-nova:ha-nova-write");
-    expect(json.additional_context).toContain("ha-nova:ha-nova-review");
-    expect(json.additional_context).toContain("ha-nova:ha-nova-entity-discovery");
-    expect(json.additional_context).toContain("ha-nova:ha-nova-service-call");
-    expect(json.additional_context).toContain("ha-nova:ha-nova-onboarding");
+    expect(json.additional_context).toContain("ha-nova:read");
+    expect(json.additional_context).toContain("ha-nova:write");
+    expect(json.additional_context).toContain("ha-nova:review");
+    expect(json.additional_context).toContain("ha-nova:entity-discovery");
+    expect(json.additional_context).toContain("ha-nova:service-call");
+    expect(json.additional_context).toContain("ha-nova:onboarding");
   });
 
   it("includes version from version.json", () => {

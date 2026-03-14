@@ -309,7 +309,7 @@ describe("best-practice patterns contract", () => {
   describe("P-05 check consistency", () => {
     it("P-05 exists in checks.md", () => {
       const checks = readFileSync(
-        "skills/ha-nova-review/checks.md",
+        "skills/review/checks.md",
         "utf8",
       );
       expect(checks).toContain("P-05");
@@ -319,7 +319,7 @@ describe("best-practice patterns contract", () => {
 
     it("review SKILL.md references P-01..P-05 range", () => {
       const reviewSkill = readFileSync(
-        "skills/ha-nova-review/SKILL.md",
+        "skills/review/SKILL.md",
         "utf8",
       );
       expect(reviewSkill).toContain("P-01..P-05");
@@ -355,7 +355,7 @@ describe("best-practice patterns contract", () => {
 
     it("automation-patterns.md is referenced in write skill", () => {
       const writeSkill = readFileSync(
-        "skills/ha-nova-write/SKILL.md",
+        "skills/write/SKILL.md",
         "utf8",
       );
       expect(writeSkill).toContain("automation-patterns.md");
@@ -374,7 +374,7 @@ describe("best-practice patterns contract", () => {
 
     it("all files referenced in write skill References exist", () => {
       const content = readFileSync(
-        "skills/ha-nova-write/SKILL.md",
+        "skills/write/SKILL.md",
         "utf8",
       );
       const refsSection = content.match(/## References[^]*/s);

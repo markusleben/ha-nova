@@ -35,10 +35,11 @@ sync_symlink_client() {
 }
 
 sync_gemini() {
+  local context_marker="${HOME}/.gemini/skills/ha-nova/SKILL.md"
   local current_marker="${HOME}/.gemini/skills/ha-nova-read/SKILL.md"
   local legacy_marker="${HOME}/.agents/skills/ha-nova-read/SKILL.md"
 
-  if [[ -f "$current_marker" || -f "$legacy_marker" ]]; then
+  if [[ -f "$context_marker" || -f "$current_marker" || -f "$legacy_marker" ]]; then
     refresh_file_client "Gemini" "gemini"
     return
   fi

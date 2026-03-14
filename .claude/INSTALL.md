@@ -17,7 +17,7 @@ Install the plugin via marketplace (works globally in any directory):
 /plugin install ha-nova@markusleben/ha-nova
 ```
 
-Skills are then available as `/ha-nova:ha-nova-read`, `/ha-nova:ha-nova-write`, etc.
+Skills are then available as `/ha-nova:read`, `/ha-nova:write`, etc.
 
 **Alternative — per-session (development):**
 ```bash

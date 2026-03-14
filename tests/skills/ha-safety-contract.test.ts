@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 describe("ha safety contract", () => {
   it("enforces tiered confirmations and no-guessing policy", () => {
     const router = readFileSync("skills/ha-nova/SKILL.md", "utf8");
-    const writeSkill = readFileSync("skills/ha-nova-write/SKILL.md", "utf8");
+    const writeSkill = readFileSync("skills/write/SKILL.md", "utf8");
 
     expect(router).toContain("Never guess entity IDs, service names, or config IDs.");
     expect(router).toContain("create`/`update`: natural confirmation");
@@ -16,7 +16,7 @@ describe("ha safety contract", () => {
 
   it("requires structured failure output", () => {
     const router = readFileSync("skills/ha-nova/SKILL.md", "utf8");
-    const writeSkill = readFileSync("skills/ha-nova-write/SKILL.md", "utf8");
+    const writeSkill = readFileSync("skills/write/SKILL.md", "utf8");
 
     expect(router).toContain("what failed");
     expect(router).toContain("why it failed");
@@ -27,7 +27,7 @@ describe("ha safety contract", () => {
 
   it("enforces fallback skill as mandatory for raw relay writes", () => {
     const context = readFileSync("skills/ha-nova/SKILL.md", "utf8");
-    const fallback = readFileSync("skills/ha-nova-fallback/SKILL.md", "utf8");
+    const fallback = readFileSync("skills/fallback/SKILL.md", "utf8");
 
     // Context skill: dispatch table marks fallback as mandatory
     expect(context).toContain("mandatory fallback");
@@ -35,7 +35,7 @@ describe("ha safety contract", () => {
 
     // Context skill: safety baseline blocks raw relay writes without a skill
     expect(context).toContain("No raw relay writes without a skill");
-    expect(context).toContain("ha-nova:ha-nova-fallback");
+    expect(context).toContain("ha-nova:fallback");
 
     // Context skill: concrete scary example (lovelace overwrite)
     expect(context).toContain("lovelace/config/save");
@@ -59,8 +59,8 @@ describe("ha safety contract", () => {
 
   it("requires concise correction of invalid Home Assistant premises", () => {
     const router = readFileSync("skills/ha-nova/SKILL.md", "utf8");
-    const writeSkill = readFileSync("skills/ha-nova-write/SKILL.md", "utf8");
-    const fallbackSkill = readFileSync("skills/ha-nova-fallback/SKILL.md", "utf8");
+    const writeSkill = readFileSync("skills/write/SKILL.md", "utf8");
+    const fallbackSkill = readFileSync("skills/fallback/SKILL.md", "utf8");
 
     expect(router).toContain("invalid Home Assistant premises");
     expect(router).toContain("briefly and technically");

@@ -18,7 +18,7 @@
 
 **Files:**
 - Modify: `skills/ha-nova/SKILL.md`
-- Modify: `skills/ha-nova-guide/SKILL.md`
+- Modify: `skills/guide/SKILL.md`
 - Modify: `tests/skills/ha-safety-contract.test.ts`
 
 - [ ] **Step 1: Write the failing contract expectation**
@@ -32,7 +32,7 @@ Expected: FAIL because the new wording is not present yet.
 
 - [ ] **Step 3: Write minimal implementation**
 
-Update `skills/ha-nova/SKILL.md` and `skills/ha-nova-guide/SKILL.md` so they explicitly require correcting invalid HA premises without becoming lecture-like.
+Update `skills/ha-nova/SKILL.md` and `skills/guide/SKILL.md` so they explicitly require correcting invalid HA premises without becoming lecture-like.
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -44,21 +44,21 @@ Expected: PASS
 If running in a clean dedicated worktree:
 
 ```bash
-git add skills/ha-nova/SKILL.md skills/ha-nova-guide/SKILL.md tests/skills/ha-safety-contract.test.ts
+git add skills/ha-nova/SKILL.md skills/guide/SKILL.md tests/skills/ha-safety-contract.test.ts
 git commit -m "docs(skills): add invalid premise correction policy"
 ```
 
 If running in a dirty shared worktree:
 
 ```bash
-git diff -- skills/ha-nova/SKILL.md skills/ha-nova-guide/SKILL.md tests/skills/ha-safety-contract.test.ts
+git diff -- skills/ha-nova/SKILL.md skills/guide/SKILL.md tests/skills/ha-safety-contract.test.ts
 ```
 
 ### Task 2: Add targeting ambiguity rule
 
 **Files:**
-- Modify: `skills/ha-nova-write/SKILL.md`
-- Modify: `skills/ha-nova-service-call/SKILL.md`
+- Modify: `skills/write/SKILL.md`
+- Modify: `skills/service-call/SKILL.md`
 - Modify: `tests/skills/service-call-contract.test.ts`
 - Modify: `tests/skills/ha-cross-skill-integration.test.ts`
 
@@ -98,20 +98,20 @@ Expected: PASS
 If running in a clean dedicated worktree:
 
 ```bash
-git add skills/ha-nova-write/SKILL.md skills/ha-nova-service-call/SKILL.md tests/skills/service-call-contract.test.ts tests/skills/ha-cross-skill-integration.test.ts
+git add skills/write/SKILL.md skills/service-call/SKILL.md tests/skills/service-call-contract.test.ts tests/skills/ha-cross-skill-integration.test.ts
 git commit -m "docs(skills): add broad-target ambiguity rule"
 ```
 
 If running in a dirty shared worktree:
 
 ```bash
-git diff -- skills/ha-nova-write/SKILL.md skills/ha-nova-service-call/SKILL.md tests/skills/service-call-contract.test.ts tests/skills/ha-cross-skill-integration.test.ts
+git diff -- skills/write/SKILL.md skills/service-call/SKILL.md tests/skills/service-call-contract.test.ts tests/skills/ha-cross-skill-integration.test.ts
 ```
 
 ### Task 3: Add scope-creep rule
 
 **Files:**
-- Modify: `skills/ha-nova-write/SKILL.md`
+- Modify: `skills/write/SKILL.md`
 - Modify: `skills/ha-nova/safe-refactoring.md`
 - Modify: `tests/skills/ha-cross-skill-integration.test.ts`
 
@@ -142,20 +142,20 @@ Expected: PASS
 If running in a clean dedicated worktree:
 
 ```bash
-git add skills/ha-nova-write/SKILL.md skills/ha-nova/safe-refactoring.md tests/skills/ha-cross-skill-integration.test.ts
+git add skills/write/SKILL.md skills/ha-nova/safe-refactoring.md tests/skills/ha-cross-skill-integration.test.ts
 git commit -m "docs(skills): add minimal-diff stewardship rule"
 ```
 
 If running in a dirty shared worktree:
 
 ```bash
-git diff -- skills/ha-nova-write/SKILL.md skills/ha-nova/safe-refactoring.md tests/skills/ha-cross-skill-integration.test.ts
+git diff -- skills/write/SKILL.md skills/ha-nova/safe-refactoring.md tests/skills/ha-cross-skill-integration.test.ts
 ```
 
 ### Task 4: Add delete/refactor verification rule
 
 **Files:**
-- Modify: `skills/ha-nova-write/SKILL.md`
+- Modify: `skills/write/SKILL.md`
 - Modify: `skills/ha-nova/safe-refactoring.md`
 - Create: `tests/skills/write-delete-safety-contract.test.ts`
 
@@ -185,20 +185,20 @@ Expected: PASS
 If running in a clean dedicated worktree:
 
 ```bash
-git add skills/ha-nova-write/SKILL.md skills/ha-nova/safe-refactoring.md tests/skills/write-delete-safety-contract.test.ts
+git add skills/write/SKILL.md skills/ha-nova/safe-refactoring.md tests/skills/write-delete-safety-contract.test.ts
 git commit -m "docs(skills): add destructive verify rule"
 ```
 
 If running in a dirty shared worktree:
 
 ```bash
-git diff -- skills/ha-nova-write/SKILL.md skills/ha-nova/safe-refactoring.md tests/skills/write-delete-safety-contract.test.ts
+git diff -- skills/write/SKILL.md skills/ha-nova/safe-refactoring.md tests/skills/write-delete-safety-contract.test.ts
 ```
 
 ### Task 5: Add the focused review check
 
 **Files:**
-- Modify: `skills/ha-nova-review/checks.md`
+- Modify: `skills/review/checks.md`
 - Modify: `skills/ha-nova/template-guidelines.md`
 - Modify: `tests/skills/review-contract.test.ts`
 
@@ -213,7 +213,7 @@ Expected: FAIL because the new check is not present yet.
 
 - [ ] **Step 3: Write minimal implementation**
 
-Add one new concrete check in `skills/ha-nova-review/checks.md` and a short example in `skills/ha-nova/template-guidelines.md`.
+Add one new concrete check in `skills/review/checks.md` and a short example in `skills/ha-nova/template-guidelines.md`.
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -225,14 +225,14 @@ Expected: PASS
 If running in a clean dedicated worktree:
 
 ```bash
-git add skills/ha-nova-review/checks.md skills/ha-nova/template-guidelines.md tests/skills/review-contract.test.ts
+git add skills/review/checks.md skills/ha-nova/template-guidelines.md tests/skills/review-contract.test.ts
 git commit -m "docs(review): add templated event name safety check"
 ```
 
 If running in a dirty shared worktree:
 
 ```bash
-git diff -- skills/ha-nova-review/checks.md skills/ha-nova/template-guidelines.md tests/skills/review-contract.test.ts
+git diff -- skills/review/checks.md skills/ha-nova/template-guidelines.md tests/skills/review-contract.test.ts
 ```
 
 ## Chunk 2: Attribution and Whole-Repo Verification
@@ -320,12 +320,12 @@ Review the final diff for:
 Always review the final diff:
 
 ```bash
-git diff -- README.md skills/ha-nova/SKILL.md skills/ha-nova-guide/SKILL.md skills/ha-nova-write/SKILL.md skills/ha-nova-service-call/SKILL.md skills/ha-nova/safe-refactoring.md skills/ha-nova-review/checks.md skills/ha-nova/template-guidelines.md tests/skills/ha-safety-contract.test.ts tests/skills/service-call-contract.test.ts tests/skills/ha-cross-skill-integration.test.ts tests/skills/write-delete-safety-contract.test.ts tests/skills/review-contract.test.ts
+git diff -- README.md skills/ha-nova/SKILL.md skills/guide/SKILL.md skills/write/SKILL.md skills/service-call/SKILL.md skills/ha-nova/safe-refactoring.md skills/review/checks.md skills/ha-nova/template-guidelines.md tests/skills/ha-safety-contract.test.ts tests/skills/service-call-contract.test.ts tests/skills/ha-cross-skill-integration.test.ts tests/skills/write-delete-safety-contract.test.ts tests/skills/review-contract.test.ts
 ```
 
 If running in a clean dedicated worktree and the diff is good, optionally commit:
 
 ```bash
-git add README.md skills/ha-nova/SKILL.md skills/ha-nova-guide/SKILL.md skills/ha-nova-write/SKILL.md skills/ha-nova-service-call/SKILL.md skills/ha-nova/safe-refactoring.md skills/ha-nova-review/checks.md skills/ha-nova/template-guidelines.md tests/skills/ha-safety-contract.test.ts tests/skills/service-call-contract.test.ts tests/skills/ha-cross-skill-integration.test.ts tests/skills/write-delete-safety-contract.test.ts tests/skills/review-contract.test.ts
+git add README.md skills/ha-nova/SKILL.md skills/guide/SKILL.md skills/write/SKILL.md skills/service-call/SKILL.md skills/ha-nova/safe-refactoring.md skills/review/checks.md skills/ha-nova/template-guidelines.md tests/skills/ha-safety-contract.test.ts tests/skills/service-call-contract.test.ts tests/skills/ha-cross-skill-integration.test.ts tests/skills/write-delete-safety-contract.test.ts tests/skills/review-contract.test.ts
 git commit -m "docs: adopt curated HALMark-inspired safety rules"
 ```

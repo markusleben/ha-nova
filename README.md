@@ -90,14 +90,14 @@ Both approaches work. MCP servers have broader client support out of the box. HA
 
 | Skill ID | What it does |
 |-------|-------------|
-| ✏️ **ha-nova-write** | Create, update, delete automations and scripts through the 4-phase safety flow |
-| 📖 **ha-nova-read** | Browse configs, inspect automations, debug with trace analysis |
-| 🔍 **ha-nova-review** | Audit for 40+ common mistakes, conflicts, and best-practice violations |
-| 🎛️ **ha-nova-service-call** | Control devices: lights, climate, covers, switches, media players |
-| 🔎 **ha-nova-entity-discovery** | Find entities by name, room, or area |
-| 🧩 **ha-nova-helper** | Manage helpers (input_boolean, counter, timer, schedule, and more) |
-| 🛡️ **ha-nova-fallback** | Safety fallback for dashboards, blueprints, energy, areas, and other relay-ready features |
-| 🚀 **ha-nova-onboarding** | Setup diagnostics and troubleshooting |
+| ✏️ **write** | Create, update, delete automations and scripts through the 4-phase safety flow |
+| 📖 **read** | Browse configs, inspect automations, debug with trace analysis |
+| 🔍 **review** | Audit for 40+ common mistakes, conflicts, and best-practice violations |
+| 🎛️ **service-call** | Control devices: lights, climate, covers, switches, media players |
+| 🔎 **entity-discovery** | Find entities by name, room, or area |
+| 🧩 **helper** | Manage helpers (input_boolean, counter, timer, schedule, and more) |
+| 🛡️ **fallback** | Safety fallback for dashboards, blueprints, energy, areas, and other relay-ready features |
+| 🚀 **onboarding** | Setup diagnostics and troubleshooting |
 
 Want to add a new capability? → [CONTRIBUTING.md](CONTRIBUTING.md)
 

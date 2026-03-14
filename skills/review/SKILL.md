@@ -1,6 +1,6 @@
 ---
-name: ha-nova-review
-description: Use when analyzing, reviewing, auditing, or checking Home Assistant automations, scripts, or helpers for errors, best-practice violations, and conflicts. Do not invoke `ha-nova:ha-nova-read` separately — this skill handles discovery and reading internally.
+name: review
+description: Use when analyzing, reviewing, auditing, or checking Home Assistant automations, scripts, or helpers for errors, best-practice violations, and conflicts. Do not invoke `ha-nova:read` separately — this skill handles discovery and reading internally.
 ---
 
 # HA NOVA Review
@@ -67,7 +67,7 @@ If config is already in the thread context (e.g., user pasted YAML):
 - If entity_id is known: skip Target Resolution entirely, go straight to Config Quality Review (Step 1). But still read the primary controlled entity's state (step 5 above) for Quick-Fix detection — this step is independent of Target Resolution.
 - If entity_id is unknown: run Target Resolution search (above) to find entity_id. If not found, proceed with Config Quality Review only. Note in output: "Collision scan skipped — no entity_id available."
 
-Do NOT invoke `ha-nova:ha-nova-entity-discovery` or `ha-nova:ha-nova-read` as separate skills — handle everything within this review flow.
+Do NOT invoke `ha-nova:entity-discovery` or `ha-nova:read` as separate skills — handle everything within this review flow.
 
 ## Flow
 
@@ -99,8 +99,8 @@ Do NOT flag valid HA builtins or documented behavior as errors.
 Analyze config against the review catalog plus any additional issues found in the official docs. Report only violations found.
 
 **Rule Catalog**
-- Load `skills/ha-nova-review/checks.md` before evaluating findings.
-- `skills/ha-nova-review/SKILL.md` is the stable review entrypoint; `skills/ha-nova-review/checks.md` is the full rule catalog.
+- Load `skills/review/checks.md` before evaluating findings.
+- `skills/review/SKILL.md` is the stable review entrypoint; `skills/review/checks.md` is the full rule catalog.
 
 **Check Taxonomy (internal only):**
 - Format: `{CATEGORY}-{NN}` (example: `H-09`)
@@ -115,7 +115,7 @@ Analyze config against the review catalog plus any additional issues found in th
 - If an automation or script references helpers in actions or direct thresholds, also apply H-01..H-10 to those helpers
 
 **Live helper evidence for H-09/H-10:**
-- See `skills/ha-nova-review/checks.md` → Helper Threshold Evidence
+- See `skills/review/checks.md` → Helper Threshold Evidence
 - Read `/api/states/<helper_entity_id>` only when the threshold reference is direct
 - If `state`, `attributes.min`, `attributes.max`, or `attributes.step` are missing or non-numeric, skip H-09/H-10
 - Do not emit unrelated findings just because an H-09/H-10 signal matched
@@ -144,7 +144,7 @@ Find other automations/scripts that control the same entities.
 ### Trace Analysis (on request)
 
 When the user reports runtime issues ("automation didn't fire", "wrong behavior last night"):
-1. Follow the trace procedure in `skills/ha-nova-read/SKILL.md` → Trace Debugging
+1. Follow the trace procedure in `skills/read/SKILL.md` → Trace Debugging
 2. Cross-reference trace findings with config quality findings from Step 1
 3. Verify `item_id` in every trace matches the target's `unique_id` before attributing results. see `skills/ha-nova/SKILL.md` → Claim-Evidence Binding.
 4. Include trace-based findings in the Findings section with a descriptive title (e.g., `🔴 Condition blocked — condition was never met in last 3 runs`). Localize at runtime per `skills/ha-nova/SKILL.md` → Output Localization.
@@ -166,7 +166,7 @@ For each related automation/script, apply the 3-step conflict test:
 - Mutually exclusive conditions (e.g., `sleep_mode: on` vs `off`) → **no conflict, skip**
 - No mutual exclusion → **real conflict risk, report**
 
-Use the known safe/problem patterns from `skills/ha-nova-review/checks.md` when deciding whether a related automation pair is truly benign or a real conflict.
+Use the known safe/problem patterns from `skills/review/checks.md` when deciding whether a related automation pair is truly benign or a real conflict.
 
 ### Step 4: Quick-Fix Detection
 
@@ -186,7 +186,7 @@ After completing Steps 1-3, check if the current entity state (from `/tmp/ha-rev
 **If qualified:**
 1. Show current state vs expected state
 2. Show exact service call that would fix it
-3. Ask for natural confirmation (same tier as `ha-nova:ha-nova-service-call` — no token needed, service calls are reversible)
+3. Ask for natural confirmation (same tier as `ha-nova:service-call` — no token needed, service calls are reversible)
 
 **On confirmation:**
 Execute via Relay:

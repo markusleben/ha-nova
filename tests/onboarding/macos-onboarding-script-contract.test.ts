@@ -275,12 +275,12 @@ exit 1
 
     // Codex symlink provides all sub-skills (readable through symlink)
     const subSkills = [
-      "ha-nova-write",
-      "ha-nova-read",
-      "ha-nova-entity-discovery",
-      "ha-nova-onboarding",
-      "ha-nova-service-call",
-      "ha-nova-review",
+      "write",
+      "read",
+      "entity-discovery",
+      "onboarding",
+      "service-call",
+      "review",
     ];
     for (const sub of subSkills) {
       const skillFile = join(codexLink, sub, "SKILL.md");
@@ -291,7 +291,7 @@ exit 1
     }
     // Context skill also accessible
     const contextContent = readFileSync(join(codexLink, "ha-nova", "SKILL.md"), "utf8");
-    expect(contextContent).toContain("ha-nova:ha-nova-write");
+    expect(contextContent).toContain("ha-nova:write");
 
     // OpenCode: symlink at ~/.config/opencode/skills/ha-nova -> repo/skills
     const openCodeLink = join(workDir, ".config/opencode/skills/ha-nova");
@@ -300,7 +300,7 @@ exit 1
 
     // Gemini: flat copies at ~/.gemini/skills/ha-nova-{sub}/SKILL.md
     for (const sub of subSkills) {
-      const flatSkill = join(workDir, ".gemini/skills", sub, "SKILL.md");
+      const flatSkill = join(workDir, ".gemini/skills", `ha-nova-${sub}`, "SKILL.md");
       const content = readFileSync(flatSkill, "utf8");
       expect(content).toContain(`name: ${sub}`);
     }
@@ -419,7 +419,7 @@ exit 1
     // Seed nested skill structure + legacy flat dirs + Gemini flat dirs
     for (const dir of skillDirs) {
       // Nested structure (current — could be symlink or copy)
-      for (const sub of ["", "ha-nova-write", "ha-nova-read", "ha-nova-entity-discovery", "ha-nova-onboarding", "ha-nova-service-call", "ha-nova-review", "ha-nova-helper", "ha-nova-fallback"]) {
+      for (const sub of ["", "write", "read", "entity-discovery", "onboarding", "service-call", "review", "helper", "fallback"]) {
         const subDir = sub ? join(dir, "ha-nova", sub) : join(dir, "ha-nova");
         mkdirSync(subDir, { recursive: true });
         writeFileSync(join(subDir, "SKILL.md"), "# skill", "utf8");

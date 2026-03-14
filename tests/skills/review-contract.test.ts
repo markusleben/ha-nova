@@ -2,10 +2,10 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
-const reviewSkill = readFileSync("skills/ha-nova-review/SKILL.md", "utf8");
-const reviewChecks = readFileSync("skills/ha-nova-review/checks.md", "utf8");
-const writeSkill = readFileSync("skills/ha-nova-write/SKILL.md", "utf8");
-const helperSkill = readFileSync("skills/ha-nova-helper/SKILL.md", "utf8");
+const reviewSkill = readFileSync("skills/review/SKILL.md", "utf8");
+const reviewChecks = readFileSync("skills/review/checks.md", "utf8");
+const writeSkill = readFileSync("skills/write/SKILL.md", "utf8");
+const helperSkill = readFileSync("skills/helper/SKILL.md", "utf8");
 const reviewAgent = readFileSync("skills/ha-nova/agents/review-agent.md", "utf8");
 const architectureDoc = readFileSync("docs/reference/skill-architecture.md", "utf8");
 const contributingDoc = readFileSync("CONTRIBUTING.md", "utf8");
@@ -14,7 +14,7 @@ const templateGuidelines = readFileSync("skills/ha-nova/template-guidelines.md",
 describe("review contract", () => {
   it("keeps the review facade pointed at the externalized rule catalog", () => {
     expect(reviewSkill).toContain("Rule Catalog");
-    expect(reviewSkill).toContain("skills/ha-nova-review/checks.md");
+    expect(reviewSkill).toContain("skills/review/checks.md");
     expect(reviewSkill).not.toContain("H-09 [MEDIUM → HIGH]");
     expect(reviewSkill).not.toContain("H-10 [LOW]");
   });
@@ -65,8 +65,8 @@ describe("review contract", () => {
     expect(architectureDoc).toContain("`R` = Reliability");
     expect(contributingDoc).toContain("Review Check Taxonomy");
     expect(contributingDoc).toContain("docs/reference/skill-architecture.md");
-    expect(contributingDoc).toContain("skills/ha-nova-review/SKILL.md");
-    expect(contributingDoc).toContain("skills/ha-nova-review/checks.md");
+    expect(contributingDoc).toContain("skills/review/SKILL.md");
+    expect(contributingDoc).toContain("skills/review/checks.md");
   });
 
   it("documents templated event name traps in the review catalog and template guide", () => {
