@@ -10,24 +10,31 @@ import (
 	"github.com/itchyny/gojq"
 )
 
-// applyJQFilter runs a jq filter on input bytes. Returns output string.
-func applyJQFilter(filter string, input []byte, raw bool) (string, error) {
+// jqResult holds the output text and the last emitted value (for -e flag).
+type jqResult struct {
+	output    string
+	lastValue interface{}
+}
+
+// applyJQFilter runs a jq filter on input bytes.
+func applyJQFilter(filter string, input []byte, raw bool) (jqResult, error) {
 	query, err := gojq.Parse(filter)
 	if err != nil {
-		return "", fmt.Errorf("jq parse error: %w", err)
+		return jqResult{}, fmt.Errorf("jq parse error: %w", err)
 	}
 
 	code, err := gojq.Compile(query)
 	if err != nil {
-		return "", fmt.Errorf("jq compile error: %w", err)
+		return jqResult{}, fmt.Errorf("jq compile error: %w", err)
 	}
 
 	var inputVal interface{}
 	if err := json.Unmarshal(input, &inputVal); err != nil {
-		return "", fmt.Errorf("invalid JSON input: %w", err)
+		return jqResult{}, fmt.Errorf("invalid JSON input: %w", err)
 	}
 
 	var out strings.Builder
+	var lastVal interface{}
 	iter := code.Run(inputVal)
 	for {
 		v, ok := iter.Next()
@@ -35,8 +42,9 @@ func applyJQFilter(filter string, input []byte, raw bool) (string, error) {
 			break
 		}
 		if err, isErr := v.(error); isErr {
-			return "", err
+			return jqResult{}, err
 		}
+		lastVal = v
 		if raw {
 			if s, ok := v.(string); ok {
 				fmt.Fprintln(&out, s)
@@ -45,11 +53,11 @@ func applyJQFilter(filter string, input []byte, raw bool) (string, error) {
 		}
 		b, err := json.Marshal(v)
 		if err != nil {
-			return "", err
+			return jqResult{}, err
 		}
 		fmt.Fprintln(&out, string(b))
 	}
-	return out.String(), nil
+	return jqResult{output: out.String(), lastValue: lastVal}, nil
 }
 
 func runJQ(args []string) {
@@ -85,18 +93,17 @@ func runJQ(args []string) {
 		os.Exit(1)
 	}
 
-	result, err := applyJQFilter(filter, input, raw)
+	res, err := applyJQFilter(filter, input, raw)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s\n", err)
 		os.Exit(1)
 	}
 
-	fmt.Print(result)
+	fmt.Print(res.output)
 
 	// -e flag: exit 1 if last output value is false or null
 	if exitStatus {
-		trimmed := strings.TrimSpace(result)
-		if trimmed == "false" || trimmed == "null" || trimmed == "" {
+		if res.lastValue == nil || res.lastValue == false {
 			os.Exit(1)
 		}
 	}

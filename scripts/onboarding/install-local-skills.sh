@@ -240,10 +240,12 @@ install_target() {
       ;;
   esac
 
-  # Download pre-built relay binary from GitHub Releases
+  # Download pre-built relay binary from GitHub Releases.
+  # Always download to ensure the correct version is installed (upgrade from
+  # old bash wrapper to Go binary, or version bump).
   local relay_cli_target="${HOME}/.config/ha-nova/relay"
-  if [[ ! -x "${relay_cli_target}" ]] || [[ "${FORCE_RELAY_UPDATE:-}" == "1" ]]; then
-    mkdir -p "${HOME}/.config/ha-nova"
+  mkdir -p "${HOME}/.config/ha-nova"
+  {
     local os_name arch_name
     os_name="$(uname -s | tr '[:upper:]' '[:lower:]')"
     arch_name="$(uname -m)"
@@ -266,7 +268,7 @@ install_target() {
         log "[${target}] Warning: could not download relay binary. Skills will not work until relay CLI is installed."
       fi
     fi
-  fi
+  }
 
   # Version check script + local version.json (for flat-copy installs without git repo)
   if [[ -f "${REPO_ROOT}/scripts/version-check.sh" ]]; then

@@ -99,15 +99,15 @@ func TestRunJQFilter(t *testing.T) {
 	input := `{"data":{"entities":[{"ei":"automation.test","en":"Test Auto"},{"ei":"script.foo","en":"Foo Script"}]}}`
 	filter := `.data.entities[] | select(.ei | startswith("automation.")) | {entity_id: .ei, name: .en}`
 
-	result, err := applyJQFilter(filter, []byte(input), false)
+	res, err := applyJQFilter(filter, []byte(input), false)
 	if err != nil {
 		t.Fatalf("applyJQFilter error: %v", err)
 	}
-	if !strings.Contains(result, "automation.test") {
-		t.Errorf("expected automation.test in output, got: %s", result)
+	if !strings.Contains(res.output, "automation.test") {
+		t.Errorf("expected automation.test in output, got: %s", res.output)
 	}
-	if strings.Contains(result, "script.foo") {
-		t.Errorf("expected script.foo to be filtered out, got: %s", result)
+	if strings.Contains(res.output, "script.foo") {
+		t.Errorf("expected script.foo to be filtered out, got: %s", res.output)
 	}
 }
 
@@ -115,11 +115,11 @@ func TestRunJQRawOutput(t *testing.T) {
 	input := `{"data":{"unique_id":"abc123"}}`
 	filter := `.data.unique_id`
 
-	result, err := applyJQFilter(filter, []byte(input), true)
+	res, err := applyJQFilter(filter, []byte(input), true)
 	if err != nil {
 		t.Fatalf("applyJQFilter error: %v", err)
 	}
-	trimmed := strings.TrimSpace(result)
+	trimmed := strings.TrimSpace(res.output)
 	if trimmed != "abc123" {
 		t.Errorf("raw output = %q, want %q", trimmed, "abc123")
 	}
@@ -139,15 +139,46 @@ func TestRunJQSelectWithTest(t *testing.T) {
 	input := `{"data":{"entities":[{"ei":"automation.kitchen_light","en":"Kitchen Light"},{"ei":"automation.bedroom_fan","en":"Bedroom Fan"}]}}`
 	filter := `[.data.entities[] | select((.ei + " " + (.en // "")) | test("kitchen";"i")) | {entity_id: .ei, name: .en}]`
 
-	result, err := applyJQFilter(filter, []byte(input), false)
+	res, err := applyJQFilter(filter, []byte(input), false)
 	if err != nil {
 		t.Fatalf("applyJQFilter error: %v", err)
 	}
-	if !strings.Contains(result, "kitchen_light") {
-		t.Errorf("expected kitchen_light in output, got: %s", result)
+	if !strings.Contains(res.output, "kitchen_light") {
+		t.Errorf("expected kitchen_light in output, got: %s", res.output)
 	}
-	if strings.Contains(result, "bedroom_fan") {
-		t.Errorf("expected bedroom_fan filtered out, got: %s", result)
+	if strings.Contains(res.output, "bedroom_fan") {
+		t.Errorf("expected bedroom_fan filtered out, got: %s", res.output)
+	}
+}
+
+func TestRunJQExitStatusLastValue(t *testing.T) {
+	input := `{"a":true,"b":false}`
+
+	// Last value is false → should signal exit status
+	res, err := applyJQFilter(".a, .b", []byte(input), false)
+	if err != nil {
+		t.Fatalf("applyJQFilter error: %v", err)
+	}
+	if res.lastValue != false {
+		t.Errorf("lastValue = %v, want false", res.lastValue)
+	}
+
+	// Last value is true → should NOT signal exit status
+	res2, err := applyJQFilter(".b, .a", []byte(input), false)
+	if err != nil {
+		t.Fatalf("applyJQFilter error: %v", err)
+	}
+	if res2.lastValue != true {
+		t.Errorf("lastValue = %v, want true", res2.lastValue)
+	}
+
+	// Null last value
+	res3, err := applyJQFilter(".missing", []byte(input), false)
+	if err != nil {
+		t.Fatalf("applyJQFilter error: %v", err)
+	}
+	if res3.lastValue != nil {
+		t.Errorf("lastValue = %v, want nil", res3.lastValue)
 	}
 }
 
