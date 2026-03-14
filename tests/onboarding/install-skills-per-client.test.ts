@@ -11,16 +11,10 @@ import { describe, expect, it } from "vitest";
 import { createMockBinaries, mockEnv, REPO_ROOT } from "./_helpers.js";
 
 /** Source directory names under skills/ (short, no prefix) */
-const SOURCE_SUB_SKILLS = [
-  "write",
-  "read",
-  "helper",
-  "entity-discovery",
-  "onboarding",
-  "service-call",
-  "review",
-  "fallback",
-];
+const SOURCE_SUB_SKILLS = readdirSync(join(REPO_ROOT, "skills"), { withFileTypes: true })
+  .filter((entry) => entry.isDirectory() && entry.name !== "ha-nova")
+  .map((entry) => entry.name)
+  .sort();
 
 /** Gemini install directory names under ~/.gemini/skills/ (ha-nova- prefix) */
 const GEMINI_SUB_SKILLS = SOURCE_SUB_SKILLS.map((s) => `ha-nova-${s}`);
@@ -165,9 +159,6 @@ describe("S-5: multi-client 'all' installation", () => {
 
     const relayWrapper = readFileSync(relayCli, "utf8");
     expect(relayWrapper).toContain('scripts/onboarding/bin/ha-nova" relay');
-
-    const updateWrapper = readFileSync(join(home, ".config/ha-nova/update"), "utf8");
-    expect(updateWrapper).toContain('scripts/onboarding/bin/ha-nova" update');
 
     const versionCheckWrapper = readFileSync(join(home, ".config/ha-nova/version-check"), "utf8");
     expect(versionCheckWrapper).toContain('scripts/onboarding/bin/ha-nova" check-update --quiet');

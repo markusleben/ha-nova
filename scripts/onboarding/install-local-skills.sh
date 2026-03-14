@@ -434,11 +434,6 @@ EOF
     log "[${target}] Installed version-check + version.json"
   fi
 
-  # Self-update wrapper for repo/dev installs.
-  if [[ -f "${REPO_ROOT}/scripts/update.sh" ]]; then
-    write_repo_cli_wrapper "${HOME}/.config/ha-nova/update" "update"
-    log "[${target}] Installed self-update script"
-  fi
 }
 
 main() {
