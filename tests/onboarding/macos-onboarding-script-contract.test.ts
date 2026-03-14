@@ -58,10 +58,14 @@ describe("macOS onboarding script contract", () => {
     const lib = readFileSync("scripts/onboarding/macos-lib.sh", "utf8");
     const platform = readFileSync("scripts/onboarding/platform/macos.sh", "utf8");
 
-    // macos-lib.sh sources the platform module that contains the security commands
-    expect(lib).toContain('source "${SCRIPT_DIR}/platform/macos.sh"');
+    expect(lib).toContain('HA_NOVA_PLATFORM_ID="$(detect_platform_id)"');
+    expect(lib).toContain('source "${SCRIPT_DIR}/platform/${HA_NOVA_PLATFORM_ID}.sh"');
+    expect(lib).not.toContain('source "${SCRIPT_DIR}/platform/macos.sh"');
     expect(platform).toContain("security add-generic-password");
     expect(platform).toContain("security find-generic-password");
+    expect(platform).toContain("store_platform_secret()");
+    expect(platform).toContain("read_platform_secret()");
+    expect(platform).toContain("copy_to_clipboard()");
     expect(lib).toContain("ha-nova.relay-auth-token");
     expect(lib).not.toContain("LLAT_SERVICE");
     expect(lib).not.toContain('emit_export "HA_LLAT"');
@@ -89,7 +93,7 @@ describe("macOS onboarding script contract", () => {
     expect(lib).toContain("DOCTOR_CACHE_RELAY_TOKEN_FINGERPRINT");
     expect(lib).not.toContain("DOCTOR_CACHE_HA_LLAT_FINGERPRINT");
     expect(lib).toContain(".agents/skills/ha-nova");
-    expect(lib).toContain("Codex skill symlink");
+    expect(lib).toContain("Codex skill install");
     expect(lib).toContain("Fresh Codex session prompt:");
   });
 
@@ -129,7 +133,7 @@ describe("macOS onboarding script contract", () => {
     const content = readFileSync("scripts/onboarding/macos-lib.sh", "utf8");
 
     expect(content).toContain("leave empty to keep existing or auto-generate");
-    expect(content).toContain("Using existing relay auth token from Keychain");
+    expect(content).toContain("Using existing relay auth token from ${PLATFORM_SECRET_STORE_NAME}");
     expect(content).toContain("ha_ws_connected=false");
     expect(content).toContain("Home Assistant WebSocket is not connected yet");
     expect(content).toContain("Setup incomplete");
@@ -310,40 +314,47 @@ exit 1
     expect(() => statSync(join(workDir, ".claude/skills/ha-nova"))).toThrow();
   });
 
-  it("exposes npm shortcuts", () => {
+  it("exposes dev-only shell shortcuts and a canonical contributor verify command", () => {
     const pkg = JSON.parse(readFileSync("package.json", "utf8")) as {
       scripts?: Record<string, string>;
     };
 
-    expect(pkg.scripts?.["onboarding:macos"]).toBe(
+    expect(pkg.scripts?.["onboarding:macos"]).toBeUndefined();
+    expect(pkg.scripts?.["onboarding:macos:ready"]).toBeUndefined();
+    expect(pkg.scripts?.["onboarding:macos:quick"]).toBeUndefined();
+    expect(pkg.scripts?.["dev:onboarding:macos"]).toBe(
       "bash scripts/onboarding/macos-onboarding.sh setup"
     );
-    expect(pkg.scripts?.["onboarding:macos:ready"]).toBe(
+    expect(pkg.scripts?.["dev:onboarding:macos:ready"]).toBe(
       "bash scripts/onboarding/macos-onboarding.sh ready"
     );
-    expect(pkg.scripts?.["onboarding:macos:quick"]).toBe(
+    expect(pkg.scripts?.["dev:onboarding:macos:quick"]).toBe(
       "bash scripts/onboarding/macos-onboarding.sh quick"
     );
-    expect(pkg.scripts?.["install:codex-skill"]).toBe(
+    expect(pkg.scripts?.["dev:install:codex-skill"]).toBe(
       "bash scripts/onboarding/install-local-skills.sh codex"
     );
-    expect(pkg.scripts?.["install:claude-skill"]).toBe(
+    expect(pkg.scripts?.["dev:install:claude-skill"]).toBe(
       "bash scripts/onboarding/install-local-skills.sh claude"
     );
-    expect(pkg.scripts?.["install:opencode-skill"]).toBe(
+    expect(pkg.scripts?.["dev:install:opencode-skill"]).toBe(
       "bash scripts/onboarding/install-local-skills.sh opencode"
     );
-    expect(pkg.scripts?.["install:gemini-skill"]).toBe(
+    expect(pkg.scripts?.["dev:install:gemini-skill"]).toBe(
       "bash scripts/onboarding/install-local-skills.sh gemini"
     );
-    expect(pkg.scripts?.["install:skills"]).toBe(
+    expect(pkg.scripts?.["dev:install:skills"]).toBe(
       "bash scripts/onboarding/install-local-skills.sh all"
     );
+    expect(pkg.scripts?.["test:cli"]).toBe("cd cli && go test ./...");
+    expect(pkg.scripts?.verify).toBe("npm run typecheck && npm test && npm run test:cli");
   });
 
   it("documents canonical Codex one-link install entrypoint", () => {
     const codexInstall = readFileSync(".codex/INSTALL.md", "utf8");
     const claudeInstall = readFileSync(".claude/INSTALL.md", "utf8");
+    const geminiInstall = readFileSync(".gemini/INSTALL.md", "utf8");
+    const openCodeInstall = readFileSync(".opencode/INSTALL.md", "utf8");
     const onboardingAlias = readFileSync(".codex/ONBOARDING.md", "utf8");
     const routerSkill = readFileSync("skills/ha-nova/SKILL.md", "utf8");
 
@@ -351,11 +362,27 @@ exit 1
     expect(codexInstall).toContain("## Quick Start");
     expect(codexInstall).toContain("curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/main/install.sh | bash");
     expect(codexInstall).toContain("ha-nova doctor");
+    expect(codexInstall).toContain("ha-nova update");
+    expect(codexInstall).toContain("ha-nova uninstall");
+    expect(codexInstall).toContain("legacy-uninstall");
     expect(codexInstall).not.toContain("npm run onboarding:macos:start");
 
     expect(claudeInstall).toContain("## Quick Start");
     expect(claudeInstall).toContain("curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/main/install.sh | bash");
     expect(claudeInstall).toContain("ha-nova doctor");
+    expect(claudeInstall).toContain("ha-nova update");
+    expect(claudeInstall).toContain("ha-nova uninstall");
+    expect(claudeInstall).toContain("legacy-uninstall");
+
+    expect(geminiInstall).toContain("ha-nova doctor");
+    expect(geminiInstall).toContain("ha-nova update");
+    expect(geminiInstall).toContain("ha-nova uninstall");
+    expect(geminiInstall).toContain("legacy-uninstall");
+
+    expect(openCodeInstall).toContain("ha-nova doctor");
+    expect(openCodeInstall).toContain("ha-nova update");
+    expect(openCodeInstall).toContain("ha-nova uninstall");
+    expect(openCodeInstall).toContain("legacy-uninstall");
 
     expect(onboardingAlias).toContain("/.codex/INSTALL.md");
     expect(routerSkill).toContain("name: ha-nova");
@@ -381,7 +408,9 @@ exit 1
     expect(uiContent).toContain("print_step()");
     expect(uiContent).toContain("print_success()");
     expect(uiContent).toContain("print_fail()");
+    expect(uiContent).toContain("copy_secret_to_clipboard()");
     expect(uiContent).not.toContain("security ");
+    expect(uiContent).not.toContain("pbcopy");
 
     // Relay probes
     expect(relayContent).toContain("probe_relay_health()");
@@ -443,10 +472,16 @@ exit 1
     mkdirSync(join(localShareDir, "scripts/onboarding/bin"), { recursive: true });
     writeFileSync(join(localShareDir, "scripts/onboarding/bin/ha-nova"), "#!/bin/bash", "utf8");
     mkdirSync(localBinDir, { recursive: true });
-    writeFileSync(localBinLink, "#!/bin/bash", "utf8");
+    writeFileSync(
+      localBinLink,
+      `#!/usr/bin/env bash
+exec go run "${process.cwd()}/cli" uninstall "$@"
+`,
+      { mode: 0o755 },
+    );
 
-    const result = spawnSync("bash", ["scripts/onboarding/uninstall.sh", "--yes"], {
-      cwd: process.cwd(),
+    const result = spawnSync("go", ["run", ".", "uninstall", "--yes"], {
+      cwd: join(process.cwd(), "cli"),
       encoding: "utf8",
       timeout: 10000,
       env: { ...process.env, HOME: workDir },
@@ -471,11 +506,11 @@ exit 1
     expect(() => statSync(localBinLink)).toThrow();
   });
 
-  it("package.json exposes bin field for npx ha-nova", () => {
+  it("package.json does not expose shell wrapper as a public bin entry", () => {
     const pkg = JSON.parse(readFileSync("package.json", "utf8")) as {
       bin?: Record<string, string>;
     };
-    expect(pkg.bin?.["ha-nova"]).toBe("scripts/onboarding/bin/ha-nova");
+    expect(pkg.bin?.["ha-nova"]).toBeUndefined();
   });
 
   it("wizard includes prerequisites check, app guide, and skill install", () => {
@@ -532,21 +567,19 @@ exit 1
     expect(lib).toContain("HA_NOVA_SUB_SKILLS=(");
   });
 
-  it("prerequisites check validates OS and Node version", () => {
+  it("prerequisites check validates platform and curl", () => {
     const ui = readFileSync("scripts/onboarding/lib/ui.sh", "utf8");
 
     expect(ui).toContain("check_prerequisites()");
-    expect(ui).toContain("node --version");
+    expect(ui).toContain("require_platform");
+    expect(ui).not.toContain("node --version");
   });
 
   it("supports --host and --token CLI flags for non-interactive setup", () => {
     const cli = readFileSync("scripts/onboarding/bin/ha-nova", "utf8");
     const lib = readFileSync("scripts/onboarding/macos-lib.sh", "utf8");
 
-    expect(cli).toContain("--host=");
-    expect(cli).toContain("--token=");
-    expect(cli).toContain("HA_NOVA_HOST");
-    expect(cli).toContain("HA_NOVA_TOKEN");
+    expect(cli).toContain('exec_runtime setup "$@"');
 
     expect(lib).toContain("HA_NOVA_HOST");
     expect(lib).toContain("HA_NOVA_TOKEN");
@@ -555,12 +588,13 @@ exit 1
     expect(lib).toContain("non_interactive_verify");
   });
 
-  it("supports update subcommand", () => {
+  it("supports Go-first update and check-update handoff", () => {
     const cli = readFileSync("scripts/onboarding/bin/ha-nova", "utf8");
     expect(cli).toContain("update)");
-    expect(cli).toContain("git -C");
-    expect(cli).toContain("pull --ff-only");
-    expect(cli).toContain("npm install --no-audit --no-fund");
+    expect(cli).toContain("check-update)");
+    expect(cli).toContain("find_runtime_binary");
+    expect(cli).toContain('exec "${runtime_bin}" update');
+    expect(cli).toContain('exec "${runtime_bin}" check-update');
   });
 
   it("provides platform-specific macOS module", () => {
@@ -571,10 +605,13 @@ exit 1
     expect((stats.mode & constants.S_IXUSR) !== 0).toBe(true);
     expect(content.startsWith("#!/usr/bin/env bash")).toBe(true);
     expect(content).toContain("require_platform()");
+    expect(content).toContain("store_platform_secret()");
+    expect(content).toContain("read_platform_secret()");
+    expect(content).toContain("delete_platform_secret_if_exists()");
     expect(content).toContain("store_keychain_secret()");
-    expect(content).toContain("read_keychain_secret()");
-    expect(content).toContain("delete_keychain_secret_if_exists()");
     expect(content).toContain("open_browser()");
+    expect(content).toContain("copy_to_clipboard()");
+    expect(content).toContain('printf \'%s\' "$1" | pbcopy');
     expect(content).toContain("security add-generic-password");
     expect(content).toContain("security find-generic-password");
   });

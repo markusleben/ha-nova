@@ -27,9 +27,6 @@
     "llm",
     "home-assistant-addon"
   ],
-  "bin": {
-    "ha-nova": "scripts/onboarding/bin/ha-nova"
-  },
   "engines": {
     "node": ">=20"
   },
@@ -37,15 +34,15 @@
     "bump": "bash scripts/bump-version.sh",
     "build": "tsc -p nova/tsconfig.json",
     "dev": "node --enable-source-maps --watch nova/src/runtime/main.ts",
-    "install:codex-skill": "bash scripts/onboarding/install-local-skills.sh codex",
-    "install:claude-skill": "bash scripts/onboarding/install-local-skills.sh claude",
-    "install:opencode-skill": "bash scripts/onboarding/install-local-skills.sh opencode",
-    "install:gemini-skill": "bash scripts/onboarding/install-local-skills.sh gemini",
-    "install:skills": "bash scripts/onboarding/install-local-skills.sh all",
-    "onboarding:macos": "bash scripts/onboarding/macos-onboarding.sh setup",
-    "onboarding:macos:doctor": "bash scripts/onboarding/macos-onboarding.sh doctor",
-    "onboarding:macos:ready": "bash scripts/onboarding/macos-onboarding.sh ready",
-    "onboarding:macos:quick": "bash scripts/onboarding/macos-onboarding.sh quick",
+    "dev:install:codex-skill": "bash scripts/onboarding/install-local-skills.sh codex",
+    "dev:install:claude-skill": "bash scripts/onboarding/install-local-skills.sh claude",
+    "dev:install:opencode-skill": "bash scripts/onboarding/install-local-skills.sh opencode",
+    "dev:install:gemini-skill": "bash scripts/onboarding/install-local-skills.sh gemini",
+    "dev:install:skills": "bash scripts/onboarding/install-local-skills.sh all",
+    "dev:onboarding:macos": "bash scripts/onboarding/macos-onboarding.sh setup",
+    "dev:onboarding:macos:doctor": "bash scripts/onboarding/macos-onboarding.sh doctor",
+    "dev:onboarding:macos:ready": "bash scripts/onboarding/macos-onboarding.sh ready",
+    "dev:onboarding:macos:quick": "bash scripts/onboarding/macos-onboarding.sh quick",
     "seed:llat": "node scripts/dev-seed-ha-llat.mjs",
     "dev:app:bootstrap": "bash scripts/dev/ha-app-bootstrap.sh",
     "deploy:app": "bash scripts/deploy/ha-app-deploy.sh",
@@ -57,9 +54,12 @@
     "smoke:app:run": "bash scripts/smoke/app-local-run.sh",
     "smoke:app:http": "bash scripts/smoke/app-http-smoke.sh",
     "test": "vitest run",
+    "test:cli": "cd cli && go test ./...",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "update:ha-reference": "node scripts/update-ha-template-reference.mjs",
+    "verify": "npm run typecheck && npm test && npm run test:cli",
+    "release:rc:local": "goreleaser build --snapshot --clean && bash scripts/release/build-install-bundle.sh",
     "prepare": "husky"
   },
   "dependencies": {

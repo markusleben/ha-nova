@@ -17,20 +17,20 @@ No config mutations (use `ha-nova:write` for automation/script changes).
 
 ## Bootstrap (once per session)
 
-Verify relay CLI: `~/.config/ha-nova/relay health`
-If this fails: `npm run onboarding:macos`
+Verify relay CLI: `ha-nova relay health`
+If this fails: `ha-nova setup`
 
 ## Flow
 
 1. Resolve target entity (use entity discovery if name is ambiguous).
 2. If service is unclear, list available services for the domain:
-   - `~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/services"}'`
+   - `ha-nova relay core -d '{"method":"GET","path":"/api/services"}'`
    - Filter by relevant domain.
 3. If the user names a room/area but the intended scope could be narrower, ask one clarifying question before using `area_id`.
    - Do not ask a second blocking ambiguity question in the same turn.
    - If entity resolution already consumed the one blocking question, default to the narrower confirmed target or stop and explain the ambiguity.
 4. Preview the service call:
-   - Before preview: read current state via `~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/states/{entity_id}"}'`.
+   - Before preview: read current state via `ha-nova relay core -d '{"method":"GET","path":"/api/states/{entity_id}"}'`.
    - If service changes an attribute present in the service call parameters (brightness, temperature, position, hvac_mode, etc.) OR inherently changes entity state (toggle, turn_on, turn_off, press, lock, unlock, open, close), show state delta before the call details:
      ```
      **State delta:**
@@ -47,9 +47,9 @@ If this fails: `npm run onboarding:macos`
    - Show: service (`domain.service`), target (`entity_id`), data fields.
    - Ask for natural confirmation.
 5. Execute:
-   - `~/.config/ha-nova/relay core -d '{"method":"POST","path":"/api/services/{domain}/{service}","body":{"entity_id":"{entity_id}"}}'`
+   - `ha-nova relay core -d '{"method":"POST","path":"/api/services/{domain}/{service}","body":{"entity_id":"{entity_id}"}}'`
 6. Verify result:
-   - Check entity state after call: `~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/states/{entity_id}"}'`
+   - Check entity state after call: `ha-nova relay core -d '{"method":"GET","path":"/api/states/{entity_id}"}'`
    - Report: service called, new state, any errors.
 
 ## Service Data Fields

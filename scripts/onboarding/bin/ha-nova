@@ -1,82 +1,103 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Resolve symlinks — npx creates symlinks in node_modules/.bin.
-# macOS lacks readlink -f, so follow the chain manually.
 REAL_PATH="${BASH_SOURCE[0]}"
 while [[ -L "$REAL_PATH" ]]; do
   LINK_DIR="$(cd -P "$(dirname "$REAL_PATH")" && pwd)"
   REAL_PATH="$(readlink "$REAL_PATH")"
   [[ "$REAL_PATH" != /* ]] && REAL_PATH="${LINK_DIR}/${REAL_PATH}"
 done
-SCRIPT_DIR="$(cd -P "$(dirname "$REAL_PATH")/.." && pwd)"
+
+SCRIPT_DIR="$(cd -P "$(dirname "$REAL_PATH")" && pwd)"
+REPO_ROOT="$(cd -P "${SCRIPT_DIR}/../../.." && pwd)"
+
+find_runtime_binary() {
+  local candidates=(
+    "${HOME}/.local/bin/ha-nova"
+    "${HOME}/.local/bin/ha-nova.exe"
+    "${HOME}/.local/share/ha-nova/ha-nova"
+    "${HOME}/.local/share/ha-nova/ha-nova.exe"
+  )
+
+  local candidate
+  for candidate in "${candidates[@]}"; do
+    if [[ -x "${candidate}" || ( -f "${candidate}" && "${candidate}" == *.exe ) ]]; then
+      printf '%s\n' "${candidate}"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+exec_runtime() {
+  local runtime_bin
+  if runtime_bin="$(find_runtime_binary)"; then
+    exec "${runtime_bin}" "$@"
+  fi
+
+  if command -v go >/dev/null 2>&1 && [[ -f "${REPO_ROOT}/cli/main.go" ]]; then
+    exec go run "${REPO_ROOT}/cli" "$@"
+  fi
+
+  echo "[ha-nova] No Go runtime found. Install HA NOVA first or build the CLI." >&2
+  exit 1
+}
 
 case "${1:-help}" in
   setup)
     shift
-    # Parse --host and --token flags, pass remaining args to setup
-    setup_args=()
-    while [[ "$#" -gt 0 ]]; do
-      case "$1" in
-        --host=*) export HA_NOVA_HOST="${1#--host=}"; shift ;;
-        --host)   export HA_NOVA_HOST="${2:-}"; shift; shift || true ;;
-        --token=*) export HA_NOVA_TOKEN="${1#--token=}"; shift ;;
-        --token)   export HA_NOVA_TOKEN="${2:-}"; shift; shift || true ;;
-        *) setup_args+=("$1"); shift ;;
-      esac
-    done
-    exec bash "${SCRIPT_DIR}/macos-setup.sh" "${setup_args[@]+"${setup_args[@]}"}"
+    exec_runtime setup "$@"
     ;;
   doctor)
     shift
-    exec bash "${SCRIPT_DIR}/macos-doctor.sh" "$@"
+    exec_runtime doctor "$@"
     ;;
   update)
-    # Derive repo root: scripts/onboarding/bin/ha-nova → 3 levels up = repo root
-    INSTALL_DIR="$(cd -P "$(dirname "$REAL_PATH")/../../.." && pwd)"
-    if [[ -d "${INSTALL_DIR}/.git" ]]; then
-      git -C "$INSTALL_DIR" pull --ff-only
-      (cd "$INSTALL_DIR" && npm install --no-audit --no-fund)
-      bash "${INSTALL_DIR}/scripts/dev-sync.sh"
-      echo "[ha-nova] Updated. Run 'ha-nova doctor' to verify."
-    else
-      echo "[ha-nova] Not a git checkout — update manually." >&2
-      exit 1
+    shift
+    runtime_bin="$(find_runtime_binary || true)"
+    if [[ -n "${runtime_bin:-}" ]]; then
+      exec "${runtime_bin}" update "$@"
     fi
+    exec_runtime update "$@"
     ;;
   check-update)
-    exec "${HOME}/.config/ha-nova/version-check"
-    ;;
-  dev:sync)
-    INSTALL_DIR="$(cd -P "$(dirname "$REAL_PATH")/../../.." && pwd)"
-    exec bash "${INSTALL_DIR}/scripts/dev-sync.sh"
+    shift
+    runtime_bin="$(find_runtime_binary || true)"
+    if [[ -n "${runtime_bin:-}" ]]; then
+      exec "${runtime_bin}" check-update "$@"
+    fi
+    exec_runtime check-update "$@"
     ;;
   uninstall)
     shift
-    exec bash "${SCRIPT_DIR}/uninstall.sh" "$@"
+    exec_runtime uninstall "$@"
+    ;;
+  relay)
+    shift
+    exec_runtime relay "$@"
+    ;;
+  version)
+    shift
+    exec_runtime version "$@"
+    ;;
+  dev:sync)
+    exec bash "${REPO_ROOT}/scripts/dev-sync.sh"
     ;;
   -h|--help|help)
-    echo "HA NOVA — AI-powered Home Assistant control"
+    echo "HA NOVA"
     echo ""
     echo "Usage:"
-    echo "  ha-nova setup [client]                  Interactive setup"
-    echo "  ha-nova setup claude --host=<ip>        Setup with pre-configured host"
-    echo "  ha-nova setup claude --token=<token>    Setup with pre-configured relay token"
-    echo "  ha-nova setup claude --host=<ip> --token=<token>"
-    echo "                                          Fully non-interactive setup"
-    echo ""
-    echo "  Clients: claude, codex, opencode, gemini, all"
-    echo ""
-    echo "  ha-nova doctor             Run diagnostics"
-    echo "  ha-nova check-update       Check for skill updates"
-    echo "  ha-nova update             Update to latest version (git installs)"
-    echo "  ha-nova dev:sync           Reinstall file-based clients; sync Claude cache"
-    echo "  ha-nova uninstall          Remove all skills, config, and credentials"
-    echo "  ha-nova --help             Show this help"
+    echo "  ha-nova setup [client]"
+    echo "  ha-nova doctor"
+    echo "  ha-nova check-update"
+    echo "  ha-nova update"
+    echo "  ha-nova uninstall"
+    echo "  ha-nova relay <health|ws|core|jq|version>"
+    echo "  ha-nova version"
+    echo "  ha-nova dev:sync"
     ;;
   *)
-    echo "Unknown command: ${1}" >&2
-    echo "Run 'ha-nova --help' for usage." >&2
-    exit 1
+    exec_runtime "$@"
     ;;
 esac

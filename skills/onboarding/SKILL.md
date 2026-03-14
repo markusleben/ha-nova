@@ -12,8 +12,8 @@ Use when HA NOVA requests fail due to onboarding, connectivity, or auth issues.
 
 ## Bootstrap
 
-Relay CLI path: `~/.config/ha-nova/relay`
-If missing: `npm run onboarding:macos`
+Relay CLI command: `ha-nova relay`
+If missing: `ha-nova setup`
 
 ## Flow
 
@@ -28,11 +28,11 @@ If missing: `npm run onboarding:macos`
 ## Standard Remediation Commands
 
 - onboarding setup:
-  - `npm run onboarding:macos`
+  - `ha-nova setup`
 - health quick check:
-  - `~/.config/ha-nova/relay health`
+  - `ha-nova relay health`
 - doctor detail:
-  - `npm run onboarding:macos:doctor`
+  - `ha-nova doctor`
 
 ## Guardrails
 

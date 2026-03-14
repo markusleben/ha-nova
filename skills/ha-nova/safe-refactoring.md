@@ -11,7 +11,7 @@ Before deleting any automation, script, or helper, check what depends on it.
 Use `search/related` to find all automations, scripts, and scenes that reference the entity:
 
 ```bash
-~/.config/ha-nova/relay ws -d '{"type":"search/related","item_type":"entity","item_id":"<entity_id>"}'
+ha-nova relay ws -d '{"type":"search/related","item_type":"entity","item_id":"<entity_id>"}'
 ```
 
 Parse the response for `automation`, `script`, and `scene` entries in the related items.
@@ -38,10 +38,10 @@ Prefer disabling over deleting when the user is unsure:
 
 ```bash
 # Disable entity (reversible)
-~/.config/ha-nova/relay ws -d '{"type":"config/entity_registry/update","entity_id":"<entity_id>","disabled_by":"user"}'
+ha-nova relay ws -d '{"type":"config/entity_registry/update","entity_id":"<entity_id>","disabled_by":"user"}'
 
 # Re-enable later
-~/.config/ha-nova/relay ws -d '{"type":"config/entity_registry/update","entity_id":"<entity_id>","disabled_by":null}'
+ha-nova relay ws -d '{"type":"config/entity_registry/update","entity_id":"<entity_id>","disabled_by":null}'
 ```
 
 Only proceed with permanent deletion after tokenized confirmation (see write skill → Phase 2).
@@ -53,7 +53,7 @@ Renaming an entity can break automations and scripts that reference the old ID.
 ### Step 1: Find All References
 
 ```bash
-~/.config/ha-nova/relay ws -d '{"type":"search/related","item_type":"entity","item_id":"<old_entity_id>"}'
+ha-nova relay ws -d '{"type":"search/related","item_type":"entity","item_id":"<old_entity_id>"}'
 ```
 
 ### Step 2: Show Impact
@@ -68,7 +68,7 @@ Template references (`states('old.entity_id')`, `is_state(...)`) are NOT auto-up
 ### Step 3: Rename
 
 ```bash
-~/.config/ha-nova/relay ws -d '{"type":"config/entity_registry/update","entity_id":"<old_entity_id>","new_entity_id":"<new_entity_id>"}'
+ha-nova relay ws -d '{"type":"config/entity_registry/update","entity_id":"<old_entity_id>","new_entity_id":"<new_entity_id>"}'
 ```
 
 ### Step 4: Update Consumers
@@ -92,7 +92,7 @@ Find and clean up unused helpers. Uses review check H-07.
 For each helper entity, run:
 
 ```bash
-~/.config/ha-nova/relay ws -d '{"type":"search/related","item_type":"entity","item_id":"input_boolean.<id>"}'
+ha-nova relay ws -d '{"type":"search/related","item_type":"entity","item_id":"input_boolean.<id>"}'
 ```
 
 If no automations or scripts reference it, it's an orphan candidate.
@@ -101,8 +101,8 @@ If no automations or scripts reference it, it's an orphan candidate.
 
 1. List all helpers:
    ```bash
-   ~/.config/ha-nova/relay ws -d '{"type":"config/entity_registry/list_for_display"}' \
-     | ~/.config/ha-nova/relay jq -r '.data.entities[] | select(.ei | test("^(input_boolean|input_number|input_select|input_text|input_datetime|input_button|counter|timer|schedule)\\.")) | .ei'
+   ha-nova relay ws -d '{"type":"config/entity_registry/list_for_display"}' \
+     | ha-nova relay jq -r '.data.entities[] | select(.ei | test("^(input_boolean|input_number|input_select|input_text|input_datetime|input_button|counter|timer|schedule)\\.")) | .ei'
    ```
 2. For each, run `search/related` and collect those with zero automation/script references.
 3. Present the list to the user — some "orphans" may be intentionally UI-only (e.g., dashboard controls).

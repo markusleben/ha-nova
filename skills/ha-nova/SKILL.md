@@ -1,6 +1,6 @@
 ---
 name: ha-nova
-description: Use when the user wants Home Assistant operations through HA NOVA (App + Relay) with macOS Keychain-backed local auth.
+description: Use when the user wants Home Assistant operations through HA NOVA (App + Relay) with local OS-backed auth.
 ---
 
 # HA NOVA Context Skill
@@ -15,12 +15,12 @@ Operate Home Assistant through HA NOVA with a minimal user-facing flow:
 - one blocking question only when required
 - compact result output
 
-## Runtime Prerequisite (macOS)
+## Runtime Prerequisite
 
 Before HA operations in this session:
 
-1. Verify relay CLI: `~/.config/ha-nova/relay health`
-2. If this fails, ask user to run: `npm run onboarding:macos`
+1. Verify relay CLI: `ha-nova relay health`
+2. If this fails, ask user to run: `ha-nova setup`
 3. Do not run diagnostics proactively; diagnose only after real failure.
 4. Relay-only auth model: do not request or persist LLAT client-side.
    - LLAT belongs in App option `ha_llat`
@@ -30,8 +30,8 @@ Do not ask user to paste tokens in chat.
 ## Self-Update
 
 If session context OR `relay health` output includes `UPDATE AVAILABLE`, inform the user and offer to update:
-1. Run: `~/.config/ha-nova/update`
-2. If the script doesn't exist (older install): tell the user to `git pull` in their ha-nova repo, then re-run setup.
+1. Run: `ha-nova update`
+2. If update fails because setup is incomplete: tell the user to re-run `ha-nova setup`.
 3. After success: tell the user to **start a new session** for the updated skills to take effect.
 
 ## Quoting Reliability (Critical)

@@ -74,7 +74,7 @@ describe("S-6: session-start hook", () => {
 
     expect(hookContent).toContain("latest-version.json");
     expect(hookContent).toContain("UPDATE AVAILABLE");
-    expect(hookContent).toContain("ha-nova/update");
+    expect(hookContent).toContain("ha-nova update");
   });
 
   it("does not leak secrets in JSON output", () => {

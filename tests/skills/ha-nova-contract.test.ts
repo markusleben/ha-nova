@@ -24,10 +24,10 @@ describe("ha-nova contract", () => {
   it("keeps relay-bootstrap runtime prerequisite and safety baseline in context skill", () => {
     const context = readFileSync("skills/ha-nova/SKILL.md", "utf8");
 
-    expect(context).toContain("Runtime Prerequisite (macOS)");
+    expect(context).toContain("Runtime Prerequisite");
     expect(context).toContain("Relay-only auth model");
-    expect(context).toContain("~/.config/ha-nova/relay health");
-    expect(context).toContain("npm run onboarding:macos");
+    expect(context).toContain("ha-nova relay health");
+    expect(context).toContain("ha-nova setup");
     expect(context).not.toContain("git rev-parse");
     expect(context).not.toContain('eval "$(bash');
     expect(context).toContain("Quoting Reliability (Critical)");
@@ -92,8 +92,8 @@ describe("ha-nova contract", () => {
     expect(resolve).toContain("{DOMAIN}");
     expect(resolve).toContain("{OPERATION}");
     expect(resolve).toContain("{USER_INTENT}");
-    expect(resolve).toContain("~/.config/ha-nova/relay ws");
-    expect(resolve).toContain("~/.config/ha-nova/relay core");
+    expect(resolve).toContain("ha-nova relay ws");
+    expect(resolve).toContain("ha-nova relay core");
     expect(resolve).not.toContain("{RELAY_BASE_URL}");
     expect(resolve).not.toContain("{RELAY_AUTH_TOKEN}");
     expect(resolve).not.toContain("macos-onboarding.sh");
@@ -105,8 +105,8 @@ describe("ha-nova contract", () => {
 
     expect(apply).toContain("{TARGET_ID}");
     expect(apply).toContain("{PAYLOAD}");
-    expect(apply).toContain("~/.config/ha-nova/relay ws");
-    expect(apply).toContain("~/.config/ha-nova/relay core");
+    expect(apply).toContain("ha-nova relay ws");
+    expect(apply).toContain("ha-nova relay core");
     expect(apply).not.toContain("{RELAY_BASE_URL}");
     expect(apply).not.toContain("{RELAY_AUTH_TOKEN}");
     expect(apply).not.toContain("macos-onboarding.sh");
@@ -124,8 +124,8 @@ describe("ha-nova contract", () => {
     expect(review).toContain("{TARGET_ID}");
     expect(review).toContain("{CONFIG}");
     expect(review).toContain("{MODE}");
-    expect(review).toContain("~/.config/ha-nova/relay ws");
-    expect(review).toContain("~/.config/ha-nova/relay core");
+    expect(review).toContain("ha-nova relay ws");
+    expect(review).toContain("ha-nova relay core");
     expect(review).not.toContain("{RELAY_BASE_URL}");
     expect(review).not.toContain("{RELAY_AUTH_TOKEN}");
     expect(review).toContain("Output Format");
@@ -241,7 +241,7 @@ describe("ha-nova contract", () => {
 
     for (const file of skills) {
       const content = readFileSync(file, "utf8");
-      expect(content, `${file} should use relay CLI`).toContain("~/.config/ha-nova/relay");
+      expect(content, `${file} should use relay CLI`).toContain("ha-nova relay");
       expect(content, `${file} should not use eval bootstrap`).not.toContain("macos-onboarding.sh");
       expect(content, `${file} should not use git rev-parse`).not.toContain("git rev-parse");
       expect(content, `${file} should not reference RELAY_BASE_URL`).not.toContain("RELAY_BASE_URL");

@@ -1,5 +1,7 @@
 # `ha-nova:guide` Skill Implementation Plan
 
+> Historical plan note: command examples in this document may reflect the older relay-path era. Current public contract uses `ha-nova relay ...`, `ha-nova setup`, and `ha-nova update`.
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Add a fallback skill that guides agents when users ask about HA features not covered by existing skills — with concrete search queries, experimental relay call examples, and roadmap awareness.

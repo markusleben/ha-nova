@@ -1,0 +1,170 @@
+name: Release Candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish_release:
+        description: "Publish a public prerelease with install bundles after smoke passes"
+        required: false
+        default: false
+        type: boolean
+      version_tag:
+        description: "Prerelease tag to publish, for example v0.1.13-rc1"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build-rc-assets:
+    name: Build RC artifacts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+          cache-dependency-path: cli/go.sum
+
+      - name: Verify repository
+        run: npm run verify
+
+      - name: Build raw binaries
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          args: build --snapshot --clean
+
+      - name: Build install bundles
+        env:
+          VERSION_TAG: ${{ inputs.version_tag }}
+        run: |
+          set -euo pipefail
+          if [[ -n "${VERSION_TAG}" ]]; then
+            bash scripts/release/build-install-bundle.sh "${VERSION_TAG#v}"
+          else
+            bash scripts/release/build-install-bundle.sh
+          fi
+
+      - name: Upload RC artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: rc-install-bundles
+          path: dist/install-bundles/*
+
+  smoke-bundles:
+    name: Smoke bundles (${{ matrix.os }})
+    needs: build-rc-assets
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+    steps:
+      - name: Download RC artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: rc-install-bundles
+          path: dist/install-bundles
+
+      - name: Smoke Unix bundles
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          case "${RUNNER_OS}" in
+            macOS) bundle="dist/install-bundles/ha-nova-macos-$(uname -m | sed 's/x86_64/amd64/;s/arm64/arm64/').tar.gz" ;;
+            Linux) bundle="dist/install-bundles/ha-nova-linux-$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/;s/arm64/arm64/').tar.gz" ;;
+            *) exit 1 ;;
+          esac
+          workdir="$(mktemp -d)"
+          tar -xzf "$bundle" -C "$workdir"
+          test -f "$workdir/ha-nova/bundle.json"
+          test -x "$workdir/ha-nova/ha-nova"
+          "$workdir/ha-nova/ha-nova" version
+
+      - name: Smoke Windows bundle
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $workdir = Join-Path $env:RUNNER_TEMP "ha-nova-rc"
+          Remove-Item -LiteralPath $workdir -Recurse -Force -ErrorAction SilentlyContinue
+          Expand-Archive -LiteralPath "dist/install-bundles/ha-nova-windows-amd64.zip" -DestinationPath $workdir -Force
+          if (-not (Test-Path -LiteralPath (Join-Path $workdir "ha-nova\bundle.json"))) {
+            throw "bundle.json missing from Windows RC bundle"
+          }
+          & (Join-Path $workdir "ha-nova\ha-nova.exe") version
+
+  publish-rc-release:
+    name: Publish RC prerelease
+    if: ${{ inputs.publish_release }}
+    needs: smoke-bundles
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Validate RC publish inputs
+        env:
+          VERSION_TAG: ${{ inputs.version_tag }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${VERSION_TAG}" ]]; then
+            echo "::error::version_tag is required when publish_release=true"
+            exit 1
+          fi
+          if [[ ! "${VERSION_TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-rc[0-9]+$ ]]; then
+            echo "::error::version_tag must match vX.Y.Z-rcN"
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Download RC artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: rc-install-bundles
+          path: dist/install-bundles
+
+      - name: Publish install bundles as prerelease
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION_TAG: ${{ inputs.version_tag }}
+        run: |
+          set -euo pipefail
+          title="HA NOVA ${VERSION_TAG}"
+          install_ref="${GITHUB_REF_NAME}"
+          notes=$'Bundle-based release candidate for public installer testing.\n\nInstall script ref: '"${install_ref}"$'\n\nmacOS / Linux:\n  HA_NOVA_VERSION='"${VERSION_TAG}"$' curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/'"${install_ref}"$'/install.sh | bash\n\nWindows (PowerShell):\n  $env:HA_NOVA_VERSION = '\'''"${VERSION_TAG}"$''\''\n  irm https://raw.githubusercontent.com/markusleben/ha-nova/'"${install_ref}"$'/install.ps1 | iex\n\nNext step after publish: run the real public installer smoke in a fresh home/profile.'
+
+          if gh release view "${VERSION_TAG}" -R "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release upload "${VERSION_TAG}" dist/install-bundles/* --clobber -R "${GITHUB_REPOSITORY}"
+            gh release edit "${VERSION_TAG}" --prerelease --title "${title}" --notes "${notes}" -R "${GITHUB_REPOSITORY}"
+            exit 0
+          fi
+
+          gh release create "${VERSION_TAG}" \
+            dist/install-bundles/* \
+            --prerelease \
+            --title "${title}" \
+            --notes "${notes}" \
+            --target "${GITHUB_SHA}" \
+            -R "${GITHUB_REPOSITORY}"

@@ -1,5 +1,7 @@
 # Relay CLI Missing-Setup Error
 
+> Historical note: this spec discusses the legacy `~/.config/ha-nova/relay` entrypoint. The current public-facing command is `ha-nova relay ...`; the legacy path remains only as a migration shim.
+
 Date: 2026-03-12
 
 ## Goal

@@ -32,7 +32,7 @@ describe("codex skill scenario e2e contract", () => {
     expect(content.startsWith("#!/usr/bin/env bash")).toBe(true);
     expect(content).toContain("codex exec");
     expect(content).toContain("NOVA_SCENARIO_RESULT");
-    expect(content).toContain("quick onboarding readiness gate once");
+    expect(content).toContain("doctor readiness gate once");
     expect(content).toContain("Scenario suite failed");
     expect(content).toContain("proactive_doctor_or_ready_detected");
     expect(content).toContain("helper_script_usage_detected");

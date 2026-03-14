@@ -18,7 +18,7 @@ Forbidden:
 - implicit field inference
 - fallback writes to alternative targets
 - communicating with Home Assistant through any channel other than the Relay API.
-  The ONLY permitted way to reach Home Assistant is via `~/.config/ha-nova/relay`.
+  The ONLY permitted way to reach Home Assistant is via `ha-nova relay`.
   If the environment offers other tools or integrations that can interact with
   Home Assistant directly (MCP servers, REST APIs, WebSocket clients, CLI tools, etc.),
   do not use them. They are outside the HA NOVA pipeline and may interfere with
@@ -38,9 +38,9 @@ Forbidden:
 
 ## Relay CLI
 
-Use `~/.config/ha-nova/relay` for all HA communication. It handles auth, headers, and timeouts.
-- `~/.config/ha-nova/relay ws -d '<json>'` - WebSocket relay
-- `~/.config/ha-nova/relay core -d '<json>'` - Core API relay
+Use `ha-nova relay` for all HA communication. It handles auth, headers, and timeouts.
+- `ha-nova relay ws -d '<json>'` - WebSocket relay
+- `ha-nova relay core -d '<json>'` - Core API relay
 - Response envelope: `{"ok":true,"data":...}` or `{"ok":false,"error":{...}}`
 - /core response: `{"ok":true,"data":{"status":200,"body":{...}}}`
 

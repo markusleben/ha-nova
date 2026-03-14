@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/itchyny/gojq"
@@ -60,14 +61,15 @@ func applyJQFilter(filter string, input []byte, raw bool) (jqResult, error) {
 	return jqResult{output: out.String(), lastValue: lastVal}, nil
 }
 
-func runJQ(args []string) {
+func runJQ(args []string) int {
 	if len(args) == 0 {
 		fmt.Fprintln(os.Stderr, "Usage: relay jq [-r] [-e] '<filter>'")
-		os.Exit(1)
+		return 1
 	}
 
 	raw := false
 	exitStatus := false // -e: exit 1 if last output is false or null
+	inputFile := ""
 	remaining := args
 	for len(remaining) > 0 && strings.HasPrefix(remaining[0], "-") {
 		switch remaining[0] {
@@ -75,28 +77,43 @@ func runJQ(args []string) {
 			raw = true
 		case "-e":
 			exitStatus = true
+		case "--file":
+			if len(remaining) < 2 {
+				fmt.Fprintln(os.Stderr, "missing value for --file")
+				return 1
+			}
+			inputFile = remaining[1]
+			remaining = remaining[1:]
 		default:
 			fmt.Fprintf(os.Stderr, "unknown flag: %s\n", remaining[0])
-			os.Exit(1)
+			return 1
 		}
 		remaining = remaining[1:]
 	}
 	if len(remaining) == 0 {
 		fmt.Fprintln(os.Stderr, "Usage: relay jq [-r] [-e] '<filter>'")
-		os.Exit(1)
+		return 1
 	}
 	filter := remaining[0]
 
-	input, err := io.ReadAll(os.Stdin)
+	var (
+		input []byte
+		err   error
+	)
+	if inputFile != "" {
+		input, err = os.ReadFile(filepath.Clean(inputFile))
+	} else {
+		input, err = io.ReadAll(os.Stdin)
+	}
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error reading stdin: %s\n", err)
-		os.Exit(1)
+		fmt.Fprintf(os.Stderr, "error reading jq input: %s\n", err)
+		return 1
 	}
 
 	res, err := applyJQFilter(filter, input, raw)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s\n", err)
-		os.Exit(1)
+		return 1
 	}
 
 	fmt.Print(res.output)
@@ -104,7 +121,8 @@ func runJQ(args []string) {
 	// -e flag: exit 1 if last output value is false or null
 	if exitStatus {
 		if res.lastValue == nil || res.lastValue == false {
-			os.Exit(1)
+			return 1
 		}
 	}
+	return 0
 }

@@ -11,13 +11,22 @@ Thanks for being here. Let's build something great.
 
 ## 🚀 Quick Start
 
+Prerequisites:
+- Node.js `>=20`
+- Go `>=1.24`
+
 ```bash
 npm ci
-npm run typecheck
-npm test
+npm run verify
 ```
 
-That's it. If all three pass, you're ready.
+`npm run verify` runs TypeScript checks, Vitest, and Go CLI tests.
+
+If you are only touching the Go runtime, the minimum fast path is:
+
+```bash
+npm run test:cli
+```
 
 ## 🌿 Branch + Commit Style
 
@@ -28,8 +37,7 @@ That's it. If all three pass, you're ready.
 ## 📬 Pull Requests
 
 Before opening a PR:
-1. `npm run typecheck` passes
-2. `npm test` passes
+1. `npm run verify` passes
 3. Docs updated if behavior changed
 4. Tests added for bug fixes when practical
 
@@ -53,6 +61,12 @@ This is the most important section. Read it before writing your first line of co
 **HA NOVA's core design: the LLM is the intelligence layer. The relay is infrastructure.**
 
 Most HA integrations implement domain logic in server code — fuzzy entity search, config normalization, parameter handling, intent routing. HA NOVA deliberately avoids this. The LLM already has this knowledge. Skills refine and direct it. The relay just moves data.
+
+Repo shape:
+- `nova/` = Home Assistant App / Relay runtime
+- `cli/` = Go-first local runtime (`setup`, `doctor`, `update`, `uninstall`, `relay`)
+- `skills/` = markdown skills
+- `scripts/` = bootstrap, release, smoke, and dev-only support helpers
 
 ### 🧪 The Boundary Test
 
@@ -102,3 +116,8 @@ A `domain=light` filter is infrastructure (a WHERE clause). A fuzzy scorer that 
 
 Do not open public issues for vulnerabilities.
 Follow the reporting guidance in `SECURITY.md`.
+
+## 🛠️ Dev Helpers
+
+Shell onboarding helpers under `scripts/onboarding/` still exist for repo-dev and test harness support.
+They are not part of the supported end-user product contract.

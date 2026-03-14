@@ -1,52 +1,61 @@
 package main
 
 import (
-	"bufio"
+	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
-	"strings"
 )
 
-type config struct {
-	RelayBaseURL string
+type runtimeConfig struct {
+	SchemaVersion int    `json:"schema_version"`
+	HAHost        string `json:"ha_host"`
+	HAURL         string `json:"ha_url"`
+	RelayBaseURL  string `json:"relay_base_url"`
 }
 
-func loadConfig() (config, error) {
-	home, err := os.UserHomeDir()
+type config = runtimeConfig
+
+func loadRuntimeConfig(pathArgs ...runtimePaths) (runtimeConfig, error) {
+	paths, err := resolveRuntimePaths(pathArgs...)
 	if err != nil {
-		return config{}, fmt.Errorf("cannot determine home directory: %w", err)
+		return runtimeConfig{}, err
 	}
 
-	path := filepath.Join(home, ".config", "ha-nova", "onboarding.env")
-	f, err := os.Open(path)
+	cfg, err := loadJSONConfig(paths.ConfigFile)
 	if err != nil {
-		return config{}, fmt.Errorf("HA NOVA is not set up yet. Run: ha-nova setup")
-	}
-	defer f.Close()
-
-	var cfg config
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		key, value, ok := strings.Cut(line, "=")
-		if !ok {
-			continue
-		}
-		value = strings.Trim(value, "'\"")
-		switch key {
-		case "RELAY_BASE_URL":
-			cfg.RelayBaseURL = value
-		}
-	}
-	if err := scanner.Err(); err != nil {
-		return config{}, err
+		return runtimeConfig{}, fmt.Errorf("HA NOVA is not set up yet. Run: ha-nova setup")
 	}
 	if cfg.RelayBaseURL == "" {
-		return config{}, fmt.Errorf("RELAY_BASE_URL not found in %s", path)
+		return runtimeConfig{}, fmt.Errorf("HA NOVA is not set up yet. Run: ha-nova setup")
 	}
 	return cfg, nil
+}
+
+func loadConfig(pathArgs ...runtimePaths) (config, error) {
+	return loadRuntimeConfig(pathArgs...)
+}
+
+func loadJSONConfig(path string) (runtimeConfig, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return runtimeConfig{}, err
+	}
+
+	var cfg runtimeConfig
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return runtimeConfig{}, err
+	}
+	return cfg, nil
+}
+
+func resolveRuntimePaths(pathArgs ...runtimePaths) (runtimePaths, error) {
+	if len(pathArgs) > 0 {
+		return pathArgs[0], nil
+	}
+	return detectPaths()
+}
+
+func saveConfig(paths runtimePaths, cfg runtimeConfig) error {
+	cfg.SchemaVersion = configSchemaVersion
+	return writeJSONFile(paths.ConfigFile, cfg, 0o600)
 }

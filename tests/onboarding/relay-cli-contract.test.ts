@@ -15,9 +15,9 @@ describe("relay cli contract", () => {
     expect(existsSync("cli/version.go")).toBe(true);
   });
 
-  it("guides the user to setup when onboarding config is missing", () => {
-    // Build the binary first
-    const build = spawnSync("go", ["build", "-o", "/tmp/ha-nova-relay-test", "."], {
+  it("guides the user to setup when JSON config is missing", () => {
+    const cliBinary = "/tmp/ha-nova";
+    const build = spawnSync("go", ["build", "-o", cliBinary, "."], {
       cwd: `${REPO_ROOT}/cli`,
       encoding: "utf8",
       timeout: 30000,
@@ -28,8 +28,8 @@ describe("relay cli contract", () => {
 
     const home = createMockHome();
     const result = spawnSync(
-      "/tmp/ha-nova-relay-test",
-      ["health"],
+      cliBinary,
+      ["relay", "health"],
       {
         cwd: REPO_ROOT,
         encoding: "utf8",
