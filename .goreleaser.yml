@@ -49,6 +49,21 @@ release:
     name: ha-nova
   draft: false
   prerelease: auto
+  name_template: "HA NOVA v{{.Version}}"
+  header: |
+    ## Install or Update
+
+    **macOS:**
+    ```sh
+    curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/main/install.sh | bash
+    ```
+
+    Already installed? You can also run `ha-nova update`.
+
+    > The binary assets below are consumed by the installer automatically — do not download them manually.
+  footer: |
+    ---
+    **Full documentation:** [github.com/markusleben/ha-nova](https://github.com/markusleben/ha-nova)
 
 signs:
   - cmd: codesign
