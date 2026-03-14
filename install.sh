@@ -230,7 +230,25 @@ handle_existing_install() {
       # Deploy shared tools to ~/.config/ha-nova/
       local config_dir="${HOME}/.config/ha-nova"
       mkdir -p "$config_dir"
-      [[ -f "${INSTALL_DIR}/scripts/relay.sh" ]]        && cp "${INSTALL_DIR}/scripts/relay.sh" "${config_dir}/relay" && chmod 755 "${config_dir}/relay"
+      # Download updated relay binary
+      local os_name arch_name inst_version download_url
+      os_name="$(uname -s | tr '[:upper:]' '[:lower:]')"
+      arch_name="$(uname -m)"
+      case "$arch_name" in
+        x86_64)        arch_name="amd64" ;;
+        aarch64|arm64) arch_name="arm64" ;;
+      esac
+      inst_version="$(sed -n 's/.*"skill_version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "${INSTALL_DIR}/version.json" | head -1)"
+      if [[ -z "$inst_version" ]]; then
+        echo "  Warning: could not determine version from version.json — relay CLI not downloaded."
+      else
+        download_url="https://github.com/markusleben/ha-nova/releases/download/v${inst_version}/relay-${os_name}-${arch_name}"
+        if curl -fsSL "${download_url}" -o "${config_dir}/relay"; then
+          chmod 755 "${config_dir}/relay"
+        else
+          echo "  Warning: could not download relay binary. Skills will not work until relay CLI is installed."
+        fi
+      fi
       [[ -f "${INSTALL_DIR}/scripts/update.sh" ]]       && cp "${INSTALL_DIR}/scripts/update.sh" "${config_dir}/update" && chmod 755 "${config_dir}/update"
       [[ -f "${INSTALL_DIR}/scripts/version-check.sh" ]] && cp "${INSTALL_DIR}/scripts/version-check.sh" "${config_dir}/version-check" && chmod 755 "${config_dir}/version-check"
       [[ -f "${INSTALL_DIR}/version.json" ]]            && cp "${INSTALL_DIR}/version.json" "${config_dir}/version.json"

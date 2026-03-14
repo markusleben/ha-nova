@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 
 import { describe, expect, it } from "vitest";
@@ -5,12 +6,30 @@ import { describe, expect, it } from "vitest";
 import { createMockHome, REPO_ROOT } from "./_helpers.js";
 
 describe("relay cli contract", () => {
-  it("guides the user to setup when onboarding config is missing", () => {
-    const home = createMockHome();
+  it("Go relay binary source exists", () => {
+    expect(existsSync("cli/main.go")).toBe(true);
+    expect(existsSync("cli/go.mod")).toBe(true);
+    expect(existsSync("cli/relay.go")).toBe(true);
+    expect(existsSync("cli/config.go")).toBe(true);
+    expect(existsSync("cli/jq.go")).toBe(true);
+    expect(existsSync("cli/version.go")).toBe(true);
+  });
 
+  it("guides the user to setup when onboarding config is missing", () => {
+    // Build the binary first
+    const build = spawnSync("go", ["build", "-o", "/tmp/ha-nova-relay-test", "."], {
+      cwd: `${REPO_ROOT}/cli`,
+      encoding: "utf8",
+      timeout: 30000,
+    });
+    if (build.status !== 0) {
+      throw new Error(`Go build failed: ${build.stderr}`);
+    }
+
+    const home = createMockHome();
     const result = spawnSync(
-      "bash",
-      ["scripts/relay.sh", "health"],
+      "/tmp/ha-nova-relay-test",
+      ["health"],
       {
         cwd: REPO_ROOT,
         encoding: "utf8",
@@ -22,7 +41,6 @@ describe("relay cli contract", () => {
     const output = (result.stdout ?? "") + (result.stderr ?? "");
     expect(result.status).not.toBe(0);
     expect(output).toContain("HA NOVA is not set up yet");
-    expect(output).toContain("Run: ha-nova setup");
-    expect(output).not.toContain("missing ~/.config/ha-nova/onboarding.env");
+    expect(output).toContain("ha-nova setup");
   });
 });

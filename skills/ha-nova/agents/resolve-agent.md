@@ -47,7 +47,7 @@ Use `~/.config/ha-nova/relay` for all HA communication. It handles auth, headers
    `~/.config/ha-nova/relay ws -d '{"type":"config/entity_registry/list_for_display"}'`
    Response uses abbreviated keys: `ei`=entity_id, `en`=name, `ai`=area_id.
 2. Filter `.data.entities[]` and collect candidates relevant to `{USER_INTENT}`.
-   Example: `jq '[.data.entities[] | select((.ei + " " + (.en // "")) | test("KEYWORD";"i")) | {entity_id: .ei, name: .en, area_id: .ai}]'`
+   Example: `~/.config/ha-nova/relay jq '[.data.entities[] | select((.ei + " " + (.en // "")) | test("KEYWORD";"i")) | {entity_id: .ei, name: .en, area_id: .ai}]'`
 3. Resolve target config id:
    - try entity_id slug first (part after `automation.` or `script.`)
    - check existence with `/core` GET:

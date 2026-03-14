@@ -1,0 +1,79 @@
+version: 2
+
+project_name: ha-nova-relay
+
+builds:
+  - id: relay-darwin
+    dir: cli
+    binary: relay
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X main.Version={{.Version}}
+
+  - id: relay-other
+    dir: cli
+    binary: relay
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - windows
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+    ldflags:
+      - -s -w -X main.Version={{.Version}}
+
+archives:
+  - formats: [binary]
+    name_template: "relay-{{ .Os }}-{{ .Arch }}"
+
+checksum:
+  name_template: "checksums.txt"
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-snapshot"
+
+release:
+  github:
+    owner: markusleben
+    name: ha-nova
+  draft: true
+  prerelease: auto
+
+signs:
+  - cmd: codesign
+    args:
+      - "--sign"
+      - "Developer ID Application: {{ .Env.APPLE_IDENTITY }}"
+      - "--options"
+      - "runtime"
+      - "${artifact}"
+    artifacts: binary
+    ids:
+      - relay-darwin
+    output: false
+
+# Notarization runs as a CI post-step after goreleaser completes.
+# goreleaser OSS does not support global after-hooks (Pro-only feature).
+# In CI, run the following after `goreleaser release`:
+#
+#   for f in dist/relay-darwin-*; do
+#     [ -f "$f" ] || continue
+#     ditto -c -k --keepParent "$f" "${f}.zip"
+#     xcrun notarytool submit "${f}.zip" \
+#       --apple-id "$APPLE_ID" \
+#       --password "$APPLE_PASSWORD" \
+#       --team-id "$APPLE_TEAM_ID" \
+#       --wait
+#     rm "${f}.zip"
+#   done

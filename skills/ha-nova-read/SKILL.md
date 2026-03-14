@@ -34,11 +34,11 @@ Use the compact entity registry (abbreviated keys: `ei`=entity_id, `en`=name, `a
 ```bash
 # List automations (limit to first 30 for readability)
 ~/.config/ha-nova/relay ws -d '{"type":"config/entity_registry/list_for_display"}' \
-  | jq '[.data.entities[] | select(.ei | startswith("automation.")) | {entity_id: .ei, name: .en, area_id: .ai}] | .[0:30]'
+  | ~/.config/ha-nova/relay jq '[.data.entities[] | select(.ei | startswith("automation.")) | {entity_id: .ei, name: .en, area_id: .ai}] | .[0:30]'
 
 # List scripts
 ~/.config/ha-nova/relay ws -d '{"type":"config/entity_registry/list_for_display"}' \
-  | jq '[.data.entities[] | select(.ei | startswith("script.")) | {entity_id: .ei, name: .en, area_id: .ai}] | .[0:30]'
+  | ~/.config/ha-nova/relay jq '[.data.entities[] | select(.ei | startswith("script.")) | {entity_id: .ei, name: .en, area_id: .ai}] | .[0:30]'
 ```
 
 ### Keyword search
@@ -47,7 +47,7 @@ Use short keyword stems to handle spelling variants. Always limit results.
 
 ```bash
 ~/.config/ha-nova/relay ws -d '{"type":"config/entity_registry/list_for_display"}' \
-  | jq '[.data.entities[] | select(.ei | startswith("automation.")) | select((.ei + " " + (.en // "")) | test("KEYWORD";"i")) | {entity_id: .ei, name: .en, area_id: .ai}] | .[0:20]'
+  | ~/.config/ha-nova/relay jq '[.data.entities[] | select(.ei | startswith("automation.")) | select((.ei + " " + (.en // "")) | test("KEYWORD";"i")) | {entity_id: .ei, name: .en, area_id: .ai}] | .[0:20]'
 ```
 
 If 0 results: try synonyms or shorter stems: `test("kw1|kw2";"i")`. Never dump entire domains.
@@ -63,16 +63,16 @@ Always resolve the config key via entity registry first — the entity_id slug a
 ```bash
 # Step 1: Resolve unique_id (config key) — see relay-api.md → ID Types
 ~/.config/ha-nova/relay ws -d '{"type":"config/entity_registry/get","entity_id":"automation.{slug}"}' \
-  | jq -r '.data.unique_id'
+  | ~/.config/ha-nova/relay jq -r '.data.unique_id'
 # For scripts: use "entity_id":"script.{slug}"
 
 # Step 2: Fetch config using the resolved unique_id — fail on error envelope
 ~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/config/automation/config/{unique_id}"}' \
-  | jq 'if .ok then .data.body else error("relay error: \(.error.message // "unknown")") end' > /tmp/ha-config-{slug}.json
+  | ~/.config/ha-nova/relay jq 'if .ok then .data.body else error("relay error: \(.error.message // "unknown")") end' > /tmp/ha-config-{slug}.json
 # For scripts: /api/config/script/config/{unique_id}
 
 # Verify JSON is valid (catches truncation AND null from failed extraction)
-jq -e 'type == "object"' /tmp/ha-config-{slug}.json > /dev/null
+cat /tmp/ha-config-{slug}.json | ~/.config/ha-nova/relay jq -e 'type == "object"' > /dev/null
 ```
 
 **Read the file using your native file-reading tool** (Claude: `Read`, Gemini: file read, Cursor: open file). Do NOT use `cat`, `head`, or shell output — these may truncate.
@@ -130,7 +130,7 @@ For trace queries ("why didn't automation X fire?", "show me the last runs"):
 1. Resolve the `unique_id` (config key) — **`item_id` requires the `unique_id`, NOT the entity_id slug** (see `relay-api.md` → ID Types). For UI-created items the `unique_id` is numeric (e.g., `1766434159701`), not the slug:
    ```bash
    ~/.config/ha-nova/relay ws -d '{"type":"config/entity_registry/get","entity_id":"automation.{slug}"}' \
-     | jq -r '.data.unique_id'
+     | ~/.config/ha-nova/relay jq -r '.data.unique_id'
    ```
 2. List recent traces using the resolved `unique_id`:
    ```bash
@@ -140,7 +140,7 @@ For trace queries ("why didn't automation X fire?", "show me the last runs"):
 3. For detailed trace (specific run), **save to file** (traces can be large):
    ```bash
    ~/.config/ha-nova/relay ws -d '{"type":"trace/get","domain":"automation","item_id":"{unique_id}","run_id":"{run_id}"}' > /tmp/ha-trace-{run_id}.json
-   jq empty /tmp/ha-trace-{run_id}.json
+   cat /tmp/ha-trace-{run_id}.json | ~/.config/ha-nova/relay jq 'empty'
    ```
    Read the file with your native file-reading tool.
 4. **Trace analysis checklist** — for each trace, determine:

@@ -8,6 +8,10 @@ worktrees/
 .env.local
 .env.*.local
 
+# Go build artifacts
+cli/relay
+cli/cli
+
 # Agent work artifacts
 docs/breadcrumbs.md
 docs/choices.md

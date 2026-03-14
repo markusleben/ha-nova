@@ -222,9 +222,6 @@ install_claude_plugin() {
 
 install_target() {
   local target="$1"
-  local relay_cli_source="${REPO_ROOT}/scripts/relay.sh"
-  local relay_cli_target="${HOME}/.config/ha-nova/relay"
-
   case "$target" in
     codex)
       install_symlink "codex" "${HOME}/.agents/skills"
@@ -243,12 +240,35 @@ install_target() {
       ;;
   esac
 
-  if [[ -f "${relay_cli_source}" ]]; then
-    mkdir -p "${HOME}/.config/ha-nova"
-    cp "${relay_cli_source}" "${relay_cli_target}"
-    chmod 755 "${relay_cli_target}"
-    log "[${target}] Installed relay CLI: ${relay_cli_target}"
-  fi
+  # Download pre-built relay binary from GitHub Releases.
+  # Always download to ensure the correct version is installed (upgrade from
+  # old bash wrapper to Go binary, or version bump).
+  local relay_cli_target="${HOME}/.config/ha-nova/relay"
+  mkdir -p "${HOME}/.config/ha-nova"
+  {
+    local os_name arch_name
+    os_name="$(uname -s | tr '[:upper:]' '[:lower:]')"
+    arch_name="$(uname -m)"
+    case "$arch_name" in
+      x86_64)        arch_name="amd64" ;;
+      aarch64|arm64) arch_name="arm64" ;;
+    esac
+    local version
+    version="$(sed -n 's/.*"skill_version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "${REPO_ROOT}/version.json" | head -1)"
+    if [[ -z "$version" ]]; then
+      log "[${target}] Warning: could not determine version from version.json — relay CLI not downloaded."
+    else
+      # Go binary releases are tagged alongside skill_version (same GitHub release).
+      local download_url="https://github.com/markusleben/ha-nova/releases/download/v${version}/relay-${os_name}-${arch_name}"
+      log "[${target}] Downloading relay CLI v${version}..."
+      if curl -fsSL "${download_url}" -o "${relay_cli_target}"; then
+        chmod 755 "${relay_cli_target}"
+        log "[${target}] Installed relay CLI: ${relay_cli_target}"
+      else
+        log "[${target}] Warning: could not download relay binary. Skills will not work until relay CLI is installed."
+      fi
+    fi
+  }
 
   # Version check script + local version.json (for flat-copy installs without git repo)
   if [[ -f "${REPO_ROOT}/scripts/version-check.sh" ]]; then

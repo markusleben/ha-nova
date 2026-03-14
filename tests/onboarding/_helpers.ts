@@ -179,6 +179,17 @@ case "$url" in
     # Remote version check — serve local version.json
     serve_fixture "${REPO_ROOT}/version.json"
     ;;
+  *github.com/*/releases/download/*)
+    # Relay binary download — serve a dummy executable script
+    dummy='#!/usr/bin/env bash\necho "mock-relay"\n'
+    if [[ -n "$outfile" ]]; then
+      printf "$dummy" > "$outfile"
+    else
+      printf "$dummy"
+    fi
+    if [[ -n "$write_code" ]]; then printf '200'; fi
+    exit 0
+    ;;
   *)
     if [[ -n "$write_code" ]]; then printf '000'; fi
     exit 1

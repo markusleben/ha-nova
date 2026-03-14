@@ -30,7 +30,7 @@ Search both entity_id and name. Use short keyword stems to handle spelling varia
 
 ```bash
 ~/.config/ha-nova/relay ws -d '{"type":"config/entity_registry/list_for_display"}' \
-  | jq '[.data.entities[] | select((.ei + " " + (.en // "")) | test("KEYWORD";"i")) | {entity_id: .ei, name: .en, area_id: .ai}] | .[0:20]'
+  | ~/.config/ha-nova/relay jq '[.data.entities[] | select((.ei + " " + (.en // "")) | test("KEYWORD";"i")) | {entity_id: .ei, name: .en, area_id: .ai}] | .[0:20]'
 ```
 
 **If 0 results:** try synonyms, alternative terms, or shorter keyword stems. Use OR for multiple variants: `test("kw1|kw2|kw3";"i")`.
@@ -44,8 +44,8 @@ Search both entity_id and name. Use short keyword stems to handle spelling varia
 ~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/states/{entity_id}"}'
 
 # Automation/script config — always resolve unique_id first (see relay-api.md → ID Types)
-~/.config/ha-nova/relay ws -d '{"type":"config/entity_registry/get","entity_id":"automation.{slug}"}' | jq -r '.data.unique_id'
-~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/config/automation/config/{unique_id}"}' | jq 'if .ok then .data.body else error("relay error: \(.error.message // "unknown")") end'
+~/.config/ha-nova/relay ws -d '{"type":"config/entity_registry/get","entity_id":"automation.{slug}"}' | ~/.config/ha-nova/relay jq -r '.data.unique_id'
+~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/config/automation/config/{unique_id}"}' | ~/.config/ha-nova/relay jq 'if .ok then .data.body else error("relay error: \(.error.message // "unknown")") end'
 # For scripts: use "entity_id":"script.{slug}" and /api/config/script/config/{unique_id}
 ```
 

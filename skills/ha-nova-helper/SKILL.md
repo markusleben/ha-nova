@@ -29,7 +29,7 @@ Use the compact entity registry (abbreviated keys: `ei`=entity_id, `en`=name, `a
 
 ```bash
 ~/.config/ha-nova/relay ws -d '{"type":"config/entity_registry/list_for_display"}' \
-  | jq '[.data.entities[] | select(.ei | test("^(input_boolean|input_number|input_text|input_select|input_datetime|input_button|counter|timer|schedule)\\.")) | {entity_id: .ei, name: .en, area_id: .ai}] | .[0:30]'
+  | ~/.config/ha-nova/relay jq '[.data.entities[] | select(.ei | test("^(input_boolean|input_number|input_text|input_select|input_datetime|input_button|counter|timer|schedule)\\.")) | {entity_id: .ei, name: .en, area_id: .ai}] | .[0:30]'
 ```
 
 If user filters by type, narrow the `test()` regex to that single domain.
@@ -38,7 +38,7 @@ If user filters by type, narrow the `test()` regex to that single domain.
 
 ```bash
 ~/.config/ha-nova/relay ws -d '{"type":"config/entity_registry/list_for_display"}' \
-  | jq '[.data.entities[] | select(.ei | test("^(input_boolean|input_number|input_text|input_select|input_datetime|input_button|counter|timer|schedule)\\.")) | select((.ei + " " + (.en // "")) | test("KEYWORD";"i")) | {entity_id: .ei, name: .en, area_id: .ai}] | .[0:20]'
+  | ~/.config/ha-nova/relay jq '[.data.entities[] | select(.ei | test("^(input_boolean|input_number|input_text|input_select|input_datetime|input_button|counter|timer|schedule)\\.")) | select((.ei + " " + (.en // "")) | test("KEYWORD";"i")) | {entity_id: .ei, name: .en, area_id: .ai}] | .[0:20]'
 ```
 
 If 0 results: try synonyms or shorter stems. Never dump entire domains.
@@ -48,7 +48,7 @@ If 0 results: try synonyms or shorter stems. Never dump entire domains.
 1. Determine type from entity_id domain prefix.
 2. Fetch full config via type-specific list:
    ```bash
-   ~/.config/ha-nova/relay ws -d '{"type":"{type}/list"}' | jq '[.data[] | select(.name | test("KEYWORD";"i"))]'
+   ~/.config/ha-nova/relay ws -d '{"type":"{type}/list"}' | ~/.config/ha-nova/relay jq '[.data[] | select(.name | test("KEYWORD";"i"))]'
    ```
 3. No single-item read endpoint — always `{type}/list` + filter.
 
@@ -87,7 +87,7 @@ If 0 results: try synonyms or shorter stems. Never dump entire domains.
    ```
 6. Verify — list back and confirm new item exists:
    ```bash
-   ~/.config/ha-nova/relay ws -d '{"type":"{type}/list"}' | jq '[.data[] | select(.name == "{name}")]'
+   ~/.config/ha-nova/relay ws -d '{"type":"{type}/list"}' | ~/.config/ha-nova/relay jq '[.data[] | select(.name == "{name}")]'
    ```
 7. No domain reload needed — immediate effect.
 8. Run post-write review (see below).
@@ -96,7 +96,7 @@ If 0 results: try synonyms or shorter stems. Never dump entire domains.
 
 1. Resolve target:
    ```bash
-   ~/.config/ha-nova/relay ws -d '{"type":"{type}/list"}' | jq '.data[]'
+   ~/.config/ha-nova/relay ws -d '{"type":"{type}/list"}' | ~/.config/ha-nova/relay jq '.data[]'
    ```
    Match by `name` or `id`. If multiple matches: present candidates (max 5), ask one question.
 2. Extract `id` field from list response (this is the `{type}_id` for the update command).
@@ -108,7 +108,7 @@ If 0 results: try synonyms or shorter stems. Never dump entire domains.
    ```
 6. Verify — list back and confirm fields match:
    ```bash
-   ~/.config/ha-nova/relay ws -d '{"type":"{type}/list"}' | jq '[.data[] | select(.id == "{id}")]'
+   ~/.config/ha-nova/relay ws -d '{"type":"{type}/list"}' | ~/.config/ha-nova/relay jq '[.data[] | select(.id == "{id}")]'
    ```
 7. Run post-write review (see below).
 
@@ -127,7 +127,7 @@ If 0 results: try synonyms or shorter stems. Never dump entire domains.
    ```
 5. Verify — confirm item is absent:
    ```bash
-   ~/.config/ha-nova/relay ws -d '{"type":"{type}/list"}' | jq '[.data[] | select(.id == "{id}")]'
+   ~/.config/ha-nova/relay ws -d '{"type":"{type}/list"}' | ~/.config/ha-nova/relay jq '[.data[] | select(.id == "{id}")]'
    ```
    `passed=true` only when result is empty.
 
