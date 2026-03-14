@@ -139,15 +139,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Verify RC publish ref is on main
-        run: |
-          set -euo pipefail
-          git fetch origin main --depth=1
-          if ! git merge-base --is-ancestor "${GITHUB_SHA}" origin/main; then
-            echo "::error::RC prereleases must point to a commit on main."
-            exit 1
-          fi
-
       - name: Download RC artifacts
         uses: actions/download-artifact@v4
         with:
@@ -161,7 +152,8 @@ jobs:
         run: |
           set -euo pipefail
           title="HA NOVA ${VERSION_TAG}"
-          notes=$'Bundle-based release candidate for public installer testing.\n\nmacOS / Linux:\n  HA_NOVA_VERSION='"${VERSION_TAG}"$' curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/main/install.sh | bash\n\nWindows (PowerShell):\n  $env:HA_NOVA_VERSION = '\'''"${VERSION_TAG}"$''\''\n  irm https://raw.githubusercontent.com/markusleben/ha-nova/main/install.ps1 | iex\n\nNext step after publish: run the real public installer smoke in a fresh home/profile.'
+          install_ref="${GITHUB_REF_NAME}"
+          notes=$'Bundle-based release candidate for public installer testing.\n\nInstall script ref: '"${install_ref}"$'\n\nmacOS / Linux:\n  HA_NOVA_VERSION='"${VERSION_TAG}"$' curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/'"${install_ref}"$'/install.sh | bash\n\nWindows (PowerShell):\n  $env:HA_NOVA_VERSION = '\'''"${VERSION_TAG}"$''\''\n  irm https://raw.githubusercontent.com/markusleben/ha-nova/'"${install_ref}"$'/install.ps1 | iex\n\nNext step after publish: run the real public installer smoke in a fresh home/profile.'
 
           if gh release view "${VERSION_TAG}" -R "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
             gh release upload "${VERSION_TAG}" dist/install-bundles/* --clobber -R "${GITHUB_REPOSITORY}"

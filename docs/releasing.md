@@ -120,18 +120,20 @@ This manual matrix exists to cover real machines before public publish.
 ### Public RC Installer Test
 
 After publishing an RC prerelease like `v0.1.13-rc1`, test the real installer path with a fresh `HOME`.
+Do this from the RC branch/ref that published the prerelease, not from `main`.
+Reason: `main` must not point at a new installer contract before the matching public release exists.
 
 macOS / Linux:
 
 ```bash
-HA_NOVA_VERSION=v0.1.13-rc1 curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/main/install.sh | bash
+HA_NOVA_VERSION=v0.1.13-rc1 curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/<rc-branch>/install.sh | bash
 ```
 
 Windows:
 
 ```powershell
 $env:HA_NOVA_VERSION = 'v0.1.13-rc1'
-irm https://raw.githubusercontent.com/markusleben/ha-nova/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/markusleben/ha-nova/<rc-branch>/install.ps1 | iex
 ```
 
 This is the first public-path check that proves the one-liner can actually fetch the published bundle assets.
@@ -180,6 +182,10 @@ Must not contain active instructions for:
 ## Final Publish
 
 Only after RC is green:
+
+Important:
+- do not merge installer/runtime changes to `main` before the matching public release exists
+- otherwise the public raw `install.sh` / `install.ps1` on `main` can outrun the latest published release assets
 
 Maintainer-only step:
 - only maintainers with permission to create protected `v*` tags should run this

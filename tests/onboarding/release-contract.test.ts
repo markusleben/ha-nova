@@ -70,12 +70,13 @@ describe("release contract", () => {
     expect(rcWorkflow).toContain("Build install bundles");
     expect(rcWorkflow).toContain("Upload RC artifacts");
     expect(rcWorkflow).toContain("Smoke bundles");
-    expect(rcWorkflow).toContain("Verify RC publish ref is on main");
     expect(rcWorkflow).toContain("version_tag must match vX.Y.Z-rcN");
     expect(rcWorkflow).toContain("actions/upload-artifact@v4");
     expect(rcWorkflow).toContain("actions/download-artifact@v4");
     expect(rcWorkflow).toContain("gh release create");
     expect(rcWorkflow).toContain("--prerelease");
+    expect(rcWorkflow).toContain('install_ref="${GITHUB_REF_NAME}"');
+    expect(rcWorkflow).toContain("raw.githubusercontent.com/markusleben/ha-nova/");
     expect(rcWorkflow).toContain("install.ps1");
     expect(rcWorkflow).not.toContain("goreleaser release");
   });
