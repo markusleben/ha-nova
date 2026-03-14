@@ -18,6 +18,13 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Verify tag is on main
+        run: |
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::Tag must point to a commit on main. Aborting release."
+            exit 1
+          fi
+
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
