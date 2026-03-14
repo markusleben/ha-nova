@@ -42,6 +42,7 @@ LEGACY_FLAT_SKILLS=(
   "ha-nova-service-call"
   "ha-nova-review"
   "ha-nova-guide"
+  "ha-nova-fallback"
 )
 
 # Sub-skills that get flat-copied for Gemini (auto-discovered from skills/)

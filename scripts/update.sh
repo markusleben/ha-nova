@@ -102,10 +102,10 @@ detect_clients() {
     DETECTED_CLIENTS+=("opencode")
   fi
 
-  # Gemini — flat copies (marker: read sub-skill exists).
-  # Keep the legacy shared-agents root as a migration fallback so older
-  # installs can still self-update into ~/.gemini/skills.
-  if [[ -f "${HOME}/.gemini/skills/ha-nova-read/SKILL.md" ]] || \
+  # Gemini — flat copies. Check context skill first (survives all rename
+  # scenarios), then sub-skill marker, then legacy shared-agents root.
+  if [[ -f "${HOME}/.gemini/skills/ha-nova/SKILL.md" ]] || \
+     [[ -f "${HOME}/.gemini/skills/ha-nova-read/SKILL.md" ]] || \
      [[ -f "${HOME}/.agents/skills/ha-nova-read/SKILL.md" ]]; then
     DETECTED_CLIENTS+=("gemini")
   fi
