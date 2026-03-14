@@ -47,7 +47,7 @@ release:
   github:
     owner: markusleben
     name: ha-nova
-  draft: true
+  draft: false
   prerelease: auto
 
 signs:
