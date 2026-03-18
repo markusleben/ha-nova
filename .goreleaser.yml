@@ -53,6 +53,10 @@ release:
   header: |
     ## Install or Update
 
+    Do not download the `.tar.gz` / `.zip` bundle assets below and try to run them directly.
+    They are installer payloads, not standalone apps.
+    Use the installer commands below, or run `ha-nova update` from an existing install.
+
     **macOS / Linux:**
     ```sh
     curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/main/install.sh | bash
@@ -68,7 +72,7 @@ release:
 
     Already installed? Run `ha-nova check-update` or `ha-nova update`.
 
-    > The bundle assets below are consumed by the installers automatically — do not download them manually unless you know you need a raw binary.
+    > The bundle assets below are consumed by the installers automatically. Only use them directly for maintainer-level debugging or raw binary validation.
   footer: |
     ---
     **Full documentation:** [github.com/markusleben/ha-nova](https://github.com/markusleben/ha-nova)

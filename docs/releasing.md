@@ -73,6 +73,7 @@ What the GitHub RC proves:
 - artifact build works
 - bundle packaging works
 - the bundled binary starts on all three runner OSes
+- the release page keeps installers as the supported user path instead of suggesting direct bundle execution
 
 What the GitHub RC does not prove:
 - the public installer path
@@ -297,6 +298,7 @@ For installer/runtime/platform releases, call out all of these explicitly:
 - Default `npm run verify` is intentionally host-safe; desktop/private-RC validation stays separate
 - Any client lanes that remain experimental on Windows
 - Existing installs update through `ha-nova check-update` / `ha-nova update`; only Claude currently has the extra automatic SessionStart update banner
+- Tell users not to download and run the release `.tar.gz` / `.zip` bundle assets directly; those are installer payloads, not the supported end-user path
 
 ## Final Publish
 

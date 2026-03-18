@@ -53,6 +53,8 @@ The wizard handles relay, tokens, and client setup. Once done, open your client 
 
 HA NOVA installs the integration layer. Install the AI client itself separately if you haven't already.
 
+> Do not download the release `.tar.gz` / `.zip` bundle assets and try to launch them manually. Those archives are installer payloads. Use `install.sh`, `install.ps1`, or `ha-nova update`.
+
 **Old pre-Go install?**
 - macOS / Linux: `curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/main/scripts/legacy-uninstall.sh | bash`
 - Windows: `irm https://raw.githubusercontent.com/markusleben/ha-nova/main/scripts/legacy-uninstall.ps1 | iex`
