@@ -6,6 +6,18 @@
 
 ## Release Notes / User Impact
 
+### Why this release exists
+
+### What users get
+
+### Upgrade notes / caveats
+
+### Issues closed
+
+`Closes #...`
+`Fixes #...`
+`Resolves #...`
+
 ## Risk
 
 ## Verification

@@ -40,6 +40,27 @@ archives:
 checksum:
   name_template: "checksums.txt"
 
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^Merge "
+  groups:
+    - title: New Features
+      regexp: '^.*?feat(\(.+\))??!?:.+$'
+      order: 0
+    - title: Bug Fixes
+      regexp: '^.*?fix(\(.+\))??!?:.+$'
+      order: 10
+    - title: UX, Docs, and Refactors
+      regexp: '^.*?(docs|refactor|perf|style)(\(.+\))??!?:.+$'
+      order: 20
+    - title: Internal Maintenance
+      regexp: '^.*?(build|ci|chore|test)(\(.+\))??!?:.+$'
+      order: 30
+    - title: Other Changes
+      order: 999
+
 snapshot:
   version_template: "{{ incpatch .Version }}-snapshot"
 
@@ -51,6 +72,17 @@ release:
   prerelease: auto
   name_template: "HA NOVA v{{.Version}}"
   header: |
+    ## Why This Release Exists
+
+    This release keeps HA NOVA easier to install, safer to update, and clearer to operate across supported platforms.
+    Read the grouped sections below for the user-facing changes, fixes, and upgrade notes.
+
+    ## What You Get
+
+    - user-visible features grouped under `New Features`
+    - bug fixes grouped under `Bug Fixes`
+    - UX, docs, and cleanup grouped separately so maintainers can scan them without burying product changes
+
     ## Install or Update
 
     Do not download the `ha-nova-installer-bundle-*.tar.gz` / `.zip` assets below and try to run them directly.
@@ -70,7 +102,10 @@ release:
     Windows currently ships an `amd64` bundle only. On Windows ARM64, use x64 emulation.
     Windows validation in this release may still be narrower than macOS; check the README support matrix before claiming client-lane parity.
 
+    ## Upgrade Notes
+
     Already installed? Run `ha-nova check-update` or `ha-nova update`.
+    Legacy pre-Go installs still require the legacy cleanup script before reinstalling.
 
     > The bundle assets below are consumed by the installers automatically. Only use them directly for maintainer-level debugging or raw binary validation.
   footer: |

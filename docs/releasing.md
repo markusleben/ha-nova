@@ -33,6 +33,24 @@ GitHub automation:
 - `release-candidate.yml` = manual RC build + bundle smoke, with optional prerelease bundle publish
 - `release.yml` = final tagged publish
 
+## Release Notes Structure
+
+Public releases should always read like a product update, not a raw maintainer dump.
+
+Keep this order:
+- `Why This Release Exists` = one short paragraph in plain user language
+- `What You Get` = the promise of the release in 2-3 bullets
+- `Install or Update` = the supported installer/update path only
+- `Upgrade Notes` = anything users must know before updating
+- grouped change list = `New Features`, `Bug Fixes`, `UX, Docs, and Refactors`, `Internal Maintenance`
+
+Rules:
+- optimize for end-user comprehension first
+- do not lead with raw commit hashes
+- do not imply direct bundle download is the supported path
+- keep platform caveats and migration notes in `Upgrade Notes`
+- if a release is unusually important, edit the auto-generated top summary after publish instead of rewriting the whole body ad hoc
+
 ## GitHub Protection Setup
 
 Before the first public release, configure GitHub so final publish stays maintainer-controlled and can later grow into an approval-gated flow.
@@ -74,6 +92,7 @@ What the GitHub RC proves:
 - bundle packaging works
 - the bundled binary starts on all three runner OSes
 - the release page keeps installers as the supported user path instead of suggesting direct bundle execution
+- the release body keeps the fixed user-facing note structure instead of falling back to a flat commit dump
 
 What the GitHub RC does not prove:
 - the public installer path
