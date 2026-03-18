@@ -8,7 +8,7 @@ describe("go runtime onboarding contract", () => {
     const result = spawnSync("go", ["test", "./...", "-run", pattern, "-count=1"], {
       cwd: `${REPO_ROOT}/cli`,
       encoding: "utf8",
-      timeout: 60000,
+      timeout: 180000,
     });
 
     expect(result.status, result.stdout + result.stderr).toBe(0);

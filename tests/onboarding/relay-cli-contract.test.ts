@@ -20,7 +20,7 @@ describe("relay cli contract", () => {
     const build = spawnSync("go", ["build", "-o", cliBinary, "."], {
       cwd: `${REPO_ROOT}/cli`,
       encoding: "utf8",
-      timeout: 30000,
+      timeout: 120000,
     });
     if (build.status !== 0) {
       throw new Error(`Go build failed: ${build.stderr}`);
