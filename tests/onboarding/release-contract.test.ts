@@ -22,11 +22,28 @@ describe("release contract", () => {
   });
 
   it("publishes release notes with the Go-first public commands", () => {
+    expect(goreleaser).toContain("## Why This Release Exists");
+    expect(goreleaser).toContain("## What You Get");
     expect(goreleaser).toContain("install.sh");
     expect(goreleaser).toContain("install.ps1");
+    expect(goreleaser).toContain("## Upgrade Notes");
     expect(goreleaser).toContain("ha-nova update");
     expect(goreleaser).toContain("ha-nova check-update");
+    expect(goreleaser).toContain("Legacy pre-Go installs still require the legacy cleanup script before reinstalling.");
     expect(goreleaser).not.toContain("~/.config/ha-nova/update");
+  });
+
+  it("groups release notes into user-facing sections instead of a flat commit dump", () => {
+    expect(goreleaser).toContain("changelog:");
+    expect(goreleaser).toContain("title: New Features");
+    expect(goreleaser).toContain("regexp: '^feat(\\(.+\\))?!?:.+$'");
+    expect(goreleaser).toContain("title: Bug Fixes");
+    expect(goreleaser).toContain("regexp: '^fix(\\(.+\\))?!?:.+$'");
+    expect(goreleaser).toContain("title: UX, Docs, and Refactors");
+    expect(goreleaser).toContain("regexp: '^(docs|refactor|perf|style)(\\(.+\\))?!?:.+$'");
+    expect(goreleaser).toContain("title: Internal Maintenance");
+    expect(goreleaser).toContain("regexp: '^(build|ci|chore|test)(\\(.+\\))?!?:.+$'");
+    expect(goreleaser).toContain('      - "^Merge "');
   });
 
   it("builds macOS, Linux, and Windows install bundles with bundle metadata", () => {
@@ -109,6 +126,12 @@ describe("release contract", () => {
   it("documents the required GitHub production gate for final release", () => {
     const releasing = readFileSync("docs/releasing.md", "utf8");
 
+    expect(releasing).toContain("Release Notes Structure");
+    expect(releasing).toContain("Why This Release Exists");
+    expect(releasing).toContain("What You Get");
+    expect(releasing).toContain("Upgrade Notes");
+    expect(releasing).toContain("New Features");
+    expect(releasing).toContain("Bug Fixes");
     expect(releasing).toContain("production");
     expect(releasing).toContain("required reviewers");
     expect(releasing).toContain("prevent self-review");

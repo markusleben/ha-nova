@@ -76,6 +76,10 @@ func applyUninstallTokenPolicy(report *uninstallReport) error {
 			if isMissingRelayAuthTokenError(err) {
 				return nil
 			}
+			if isDesktopKeyringUnavailableError(err) {
+				report.addNote("Relay auth token cleanup skipped: system secure storage is unavailable on this machine.")
+				return nil
+			}
 			return err
 		}
 		if strings.TrimSpace(token) == "" {

@@ -215,6 +215,63 @@ func TestApplyUninstallTokenPolicyFailsLoudWhenDeleteFails(t *testing.T) {
 	}
 }
 
+func TestApplyUninstallTokenPolicySkipsHeadlessLinuxSecretServiceReadFailure(t *testing.T) {
+	originalRead := readRelayAuthTokenForUninstall
+	originalDelete := deleteRelayAuthTokenForUninstall
+	defer func() {
+		readRelayAuthTokenForUninstall = originalRead
+		deleteRelayAuthTokenForUninstall = originalDelete
+	}()
+
+	readRelayAuthTokenForUninstall = func() (string, error) {
+		return "", relayAuthTokenReadError("ha-nova.relay-auth-token", errors.New("The name org.freedesktop.secrets was not provided by any .service files"))
+	}
+	deleteRelayAuthTokenForUninstall = func() error {
+		t.Fatal("did not expect token delete when keyring is unavailable")
+		return nil
+	}
+
+	report := &uninstallReport{}
+	if err := applyUninstallTokenPolicy(report); err != nil {
+		t.Fatalf("expected headless Secret Service read failure to be tolerated, got %v", err)
+	}
+	if len(report.removed) != 0 {
+		t.Fatalf("did not expect removals to be reported: %+v", report.removed)
+	}
+	if len(report.notes) != 1 || !strings.Contains(report.notes[0], "secure storage is unavailable") {
+		t.Fatalf("expected secure-storage note, got %+v", report.notes)
+	}
+}
+
+func TestApplyUninstallTokenPolicyFailsLoudWhenReadFailsForOtherReasons(t *testing.T) {
+	originalRead := readRelayAuthTokenForUninstall
+	originalDelete := deleteRelayAuthTokenForUninstall
+	defer func() {
+		readRelayAuthTokenForUninstall = originalRead
+		deleteRelayAuthTokenForUninstall = originalDelete
+	}()
+
+	readRelayAuthTokenForUninstall = func() (string, error) {
+		return "", relayAuthTokenReadError("ha-nova.relay-auth-token", errors.New("Secret Service backend locked"))
+	}
+	deleteRelayAuthTokenForUninstall = func() error {
+		t.Fatal("did not expect token delete when read failed")
+		return nil
+	}
+
+	report := &uninstallReport{}
+	err := applyUninstallTokenPolicy(report)
+	if err == nil || !strings.Contains(err.Error(), "Secret Service backend locked") {
+		t.Fatalf("expected generic keyring read failure, got %v", err)
+	}
+	if len(report.removed) != 0 {
+		t.Fatalf("did not expect removals to be reported: %+v", report.removed)
+	}
+	if len(report.notes) != 0 {
+		t.Fatalf("did not expect notes on hard failure: %+v", report.notes)
+	}
+}
+
 func TestRunUninstallContinuesRemovingFilesWhenTokenDeleteFails(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
