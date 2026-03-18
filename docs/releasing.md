@@ -28,6 +28,7 @@ It must not open browsers or touch real secure stores on the maintainer host.
 Hard rule:
 - final tag version, `version.json`, `package.json`, `package-lock.json`, `.claude-plugin/plugin.json`, and `.claude-plugin/marketplace.json` must match
 - the Claude marketplace entry must keep `source: "./"` so installed bundles stay on the local plugin update path instead of drifting to a remote repo source
+- Claude marketplace source parity must be regression-covered for all three shapes: plain GitHub URL, structured GitHub repo source, and structured GitHub repo source with pinned `ref`; a pinned `ref` must never compare equal to the floating default source
 
 ## Release Candidate Gate
 

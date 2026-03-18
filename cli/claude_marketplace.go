@@ -14,9 +14,14 @@ import (
 const defaultClaudeMarketplaceURL = "https://github.com/markusleben/ha-nova"
 
 type claudeLocalRestoreState struct {
-	source          string
+	source          claudeMarketplaceSource
 	hasSource       bool
 	pluginInstalled bool
+}
+
+type claudeMarketplaceSource struct {
+	command    string
+	compareKey string
 }
 
 func resolveClaudeMarketplaceSource(paths runtimePaths, sourceRoot string) (string, error) {
@@ -96,7 +101,7 @@ func captureClaudeLocalRestoreState(home string) (claudeLocalRestoreState, error
 
 func restoreClaudeLocalState(home string, restore claudeLocalRestoreState) error {
 	if restore.hasSource {
-		if err := replaceClaudeMarketplaceRegistration(restore.source); err != nil {
+		if err := replaceClaudeMarketplaceRegistration(restore.source.command); err != nil {
 			return err
 		}
 	} else if err := clearClaudeMarketplaceRegistration(home); err != nil {
@@ -207,24 +212,24 @@ func clearClaudeMarketplaceRegistration(home string) error {
 	return err
 }
 
-func readClaudeMarketplaceSource(home string) (string, bool, error) {
+func readClaudeMarketplaceSource(home string) (claudeMarketplaceSource, bool, error) {
 	path := filepath.Join(home, ".claude", "plugins", "known_marketplaces.json")
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return "", false, nil
+			return claudeMarketplaceSource{}, false, nil
 		}
-		return "", false, err
+		return claudeMarketplaceSource{}, false, err
 	}
 
 	var raw any
 	if err := json.Unmarshal(data, &raw); err != nil {
-		return "", false, err
+		return claudeMarketplaceSource{}, false, err
 	}
 	return claudeMarketplaceSourceFromValue(raw)
 }
 
-func claudeMarketplaceSourceFromValue(value any) (string, bool, error) {
+func claudeMarketplaceSourceFromValue(value any) (claudeMarketplaceSource, bool, error) {
 	switch typed := value.(type) {
 	case map[string]any:
 		if entry, ok := typed["ha-nova"]; ok {
@@ -244,80 +249,141 @@ func claudeMarketplaceSourceFromValue(value any) (string, bool, error) {
 			return claudeMarketplaceSourceFromEntry(entry)
 		}
 	}
-	return "", false, nil
+	return claudeMarketplaceSource{}, false, nil
 }
 
-func claudeMarketplaceSourceFromEntry(value any) (string, bool, error) {
+func claudeMarketplaceSourceFromEntry(value any) (claudeMarketplaceSource, bool, error) {
 	entry, ok := value.(map[string]any)
 	if !ok {
-		return "", true, nil
+		return claudeMarketplaceSource{}, true, nil
 	}
-	return claudeMarketplaceSourceString(entry["source"]), true, nil
+	return claudeMarketplaceSourceFromRaw(entry["source"]), true, nil
 }
 
-func claudeMarketplaceSourceString(value any) string {
+func claudeMarketplaceSourceFromRaw(value any) claudeMarketplaceSource {
 	switch typed := value.(type) {
 	case string:
 		source := strings.TrimSpace(typed)
 		if strings.EqualFold(source, "github") {
-			return ""
+			return claudeMarketplaceSource{}
 		}
-		return source
+		return newClaudeMarketplaceSource(source, claudeMarketplaceCompareKey(source))
 	case map[string]any:
 		if url, ok := typed["url"].(string); ok && strings.TrimSpace(url) != "" {
-			return strings.TrimSpace(url)
+			url = strings.TrimSpace(url)
+			return newClaudeMarketplaceSource(urlSourceCommand(url, strings.TrimSpace(stringValue(typed["ref"]))), githubCompareKey(url, strings.TrimSpace(stringValue(typed["ref"]))))
 		}
 		if path, ok := typed["path"].(string); ok && strings.TrimSpace(path) != "" {
-			return strings.TrimSpace(path)
+			path = strings.TrimSpace(path)
+			return newClaudeMarketplaceSource(path, path)
 		}
 		if repo, ok := typed["repo"].(string); ok && strings.TrimSpace(repo) != "" {
 			repo = strings.TrimSpace(repo)
 			if sourceKind, _ := typed["source"].(string); strings.EqualFold(strings.TrimSpace(sourceKind), "github") {
-				return "https://github.com/" + strings.TrimPrefix(strings.TrimSuffix(repo, ".git"), "/")
+				repoURL := "https://github.com/" + strings.TrimPrefix(strings.TrimSuffix(repo, ".git"), "/")
+				return newClaudeMarketplaceSource(githubSourceCommand(repo, strings.TrimSpace(stringValue(typed["ref"]))), githubCompareKey(repoURL, strings.TrimSpace(stringValue(typed["ref"]))))
 			}
-			return repo
+			return newClaudeMarketplaceSource(repo, repo)
 		}
 		if source, ok := typed["source"].(string); ok {
 			source = strings.TrimSpace(source)
 			if source != "" && !strings.EqualFold(source, "github") {
-				return source
+				return newClaudeMarketplaceSource(source, source)
 			}
 		}
 	}
-	return ""
+	return claudeMarketplaceSource{}
 }
 
-func sameClaudeMarketplaceSource(left, right string) bool {
-	left = strings.TrimSpace(left)
-	right = strings.TrimSpace(right)
-	if left == right {
+func sameClaudeMarketplaceSource(left claudeMarketplaceSource, right string) bool {
+	leftKey := strings.TrimSpace(left.compareKey)
+	rightKey := strings.TrimSpace(claudeMarketplaceCompareKey(right))
+	if leftKey == "" {
+		leftKey = strings.TrimSpace(left.command)
+	}
+	if rightKey == "" {
+		rightKey = strings.TrimSpace(right)
+	}
+	if leftKey == rightKey {
 		return true
 	}
-	if normalizedLeft, ok := normalizeClaudeMarketplaceGitHubSource(left); ok {
-		if normalizedRight, ok := normalizeClaudeMarketplaceGitHubSource(right); ok {
-			return normalizedLeft == normalizedRight
-		}
-	}
-	if !strings.Contains(left, "://") && !strings.Contains(right, "://") {
-		return filepath.Clean(left) == filepath.Clean(right)
+	if !strings.Contains(leftKey, "://") && !strings.Contains(rightKey, "://") {
+		return filepath.Clean(leftKey) == filepath.Clean(rightKey)
 	}
 	return false
 }
 
-func normalizeClaudeMarketplaceGitHubSource(value string) (string, bool) {
+func newClaudeMarketplaceSource(command, compareKey string) claudeMarketplaceSource {
+	command = strings.TrimSpace(command)
+	compareKey = strings.TrimSpace(compareKey)
+	if compareKey == "" {
+		compareKey = command
+	}
+	return claudeMarketplaceSource{
+		command:    command,
+		compareKey: compareKey,
+	}
+}
+
+func claudeMarketplaceCompareKey(value string) string {
 	value = strings.TrimSpace(value)
 	if value == "" {
-		return "", false
+		return ""
+	}
+	if normalized := githubCompareKey(value, ""); normalized != "" {
+		return normalized
+	}
+	return value
+}
+
+func githubCompareKey(source, ref string) string {
+	repo := normalizeGitHubRepo(source)
+	if repo == "" {
+		return ""
+	}
+	if ref != "" {
+		return "github:" + repo + "@ref=" + ref
+	}
+	return "github:" + repo
+}
+
+func githubSourceCommand(repo, ref string) string {
+	repo = strings.TrimSpace(strings.TrimPrefix(strings.TrimSuffix(repo, ".git"), "/"))
+	ref = strings.TrimSpace(ref)
+	if ref == "" {
+		return repo
+	}
+	return repo + "#" + ref
+}
+
+func urlSourceCommand(rawURL, ref string) string {
+	rawURL = strings.TrimSpace(rawURL)
+	ref = strings.TrimSpace(ref)
+	if ref == "" {
+		return rawURL
+	}
+	return rawURL + "#" + ref
+}
+
+func normalizeGitHubRepo(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
 	}
 	value = strings.TrimSuffix(value, ".git")
 	value = strings.TrimSuffix(value, "/")
-	if strings.HasPrefix(value, "https://github.com/") {
-		return strings.ToLower(value), true
+	switch {
+	case strings.HasPrefix(value, "https://github.com/"):
+		return strings.ToLower(strings.TrimPrefix(value, "https://github.com/"))
+	case strings.HasPrefix(value, "http://github.com/"):
+		return strings.ToLower(strings.TrimPrefix(value, "http://github.com/"))
 	}
-	if strings.HasPrefix(value, "http://github.com/") {
-		return strings.ToLower("https://" + strings.TrimPrefix(value, "http://")), true
-	}
-	return "", false
+	return ""
+}
+
+func stringValue(value any) string {
+	text, _ := value.(string)
+	return text
 }
 
 func stageClaudeMarketplacePluginRoot(targetRoot, sourceRoot string) error {
