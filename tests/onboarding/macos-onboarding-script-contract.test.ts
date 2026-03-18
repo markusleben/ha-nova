@@ -7,6 +7,30 @@ import { describe, expect, it } from "vitest";
 
 import { createMockBinaries, mockEnv } from "./_helpers.js";
 
+function sharedGoCacheEnv(): Record<string, string> {
+  const result = spawnSync("go", ["env", "GOMODCACHE", "GOCACHE"], {
+    encoding: "utf8",
+    timeout: 10000,
+  });
+  if (result.status !== 0) {
+    return {};
+  }
+
+  const [modCache = "", buildCache = ""] = (result.stdout ?? "")
+    .split(/\r?\n/)
+    .map((value) => value.trim());
+  const env: Record<string, string> = {};
+  if (modCache !== "") {
+    env.GOMODCACHE = modCache;
+  }
+  if (buildCache !== "") {
+    env.GOCACHE = buildCache;
+  }
+  return env;
+}
+
+const GO_CACHE_ENV = sharedGoCacheEnv();
+
 describe("macOS onboarding script contract", () => {
   it("provides executable onboarding script", () => {
     const file = "scripts/onboarding/macos-onboarding.sh";
@@ -498,7 +522,7 @@ exec go run "${process.cwd()}/cli" uninstall "$@"
       cwd: join(process.cwd(), "cli"),
       encoding: "utf8",
       timeout: 30000,
-      env: mockEnv(workDir, binDir),
+      env: mockEnv(workDir, binDir, GO_CACHE_ENV),
     });
 
     expect(result.status).toBe(0);
