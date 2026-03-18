@@ -271,7 +271,7 @@ func claudeMarketplaceSourceFromRaw(value any) claudeMarketplaceSource {
 	case map[string]any:
 		if url, ok := typed["url"].(string); ok && strings.TrimSpace(url) != "" {
 			url = strings.TrimSpace(url)
-			return newClaudeMarketplaceSource(url, githubCompareKey(url, strings.TrimSpace(stringValue(typed["ref"]))))
+			return newClaudeMarketplaceSource(urlSourceCommand(url, strings.TrimSpace(stringValue(typed["ref"]))), githubCompareKey(url, strings.TrimSpace(stringValue(typed["ref"]))))
 		}
 		if path, ok := typed["path"].(string); ok && strings.TrimSpace(path) != "" {
 			path = strings.TrimSpace(path)
@@ -354,6 +354,15 @@ func githubSourceCommand(repo, ref string) string {
 		return repo
 	}
 	return repo + "#" + ref
+}
+
+func urlSourceCommand(rawURL, ref string) string {
+	rawURL = strings.TrimSpace(rawURL)
+	ref = strings.TrimSpace(ref)
+	if ref == "" {
+		return rawURL
+	}
+	return rawURL + "#" + ref
 }
 
 func normalizeGitHubRepo(value string) string {
