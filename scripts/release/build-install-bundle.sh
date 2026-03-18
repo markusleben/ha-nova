@@ -114,7 +114,7 @@ build_unix_bundle() {
   stage_dir="$(mktemp -d)"
   prepare_bundle_root "${stage_dir}" "${os_name}" "${arch_name}" >/dev/null
 
-  output="${OUTPUT_DIR}/ha-nova-${os_name}-${arch_name}.tar.gz"
+  output="${OUTPUT_DIR}/ha-nova-installer-bundle-${os_name}-${arch_name}.tar.gz"
   tar -czf "${output}" -C "${stage_dir}" ha-nova
   rm -rf "${stage_dir}"
   log "Built ${output}"
@@ -128,7 +128,7 @@ build_windows_bundle() {
   stage_dir="$(mktemp -d)"
   prepare_bundle_root "${stage_dir}" "windows" "${arch_name}" >/dev/null
 
-  output="${OUTPUT_DIR}/ha-nova-windows-${arch_name}.zip"
+  output="${OUTPUT_DIR}/ha-nova-installer-bundle-windows-${arch_name}.zip"
   (
     cd "${stage_dir}"
     zip -qr "${output}" ha-nova
@@ -139,7 +139,7 @@ build_windows_bundle() {
 
 write_bundle_checksums() {
   local bundle sum
-  for bundle in "${OUTPUT_DIR}"/ha-nova-*.tar.gz "${OUTPUT_DIR}"/ha-nova-*.zip; do
+  for bundle in "${OUTPUT_DIR}"/ha-nova-installer-bundle-*.tar.gz "${OUTPUT_DIR}"/ha-nova-installer-bundle-*.zip; do
     [[ -f "${bundle}" ]] || continue
     sum="$(compute_sha256 "${bundle}")"
     printf '%s  %s\n' "${sum}" "$(basename "${bundle}")" > "${bundle}.sha256"
@@ -152,7 +152,7 @@ main() {
   [[ -d "${DIST_DIR}" ]] || die "dist directory not found: ${DIST_DIR}"
 
   mkdir -p "${OUTPUT_DIR}"
-  rm -f "${OUTPUT_DIR}"/ha-nova-macos-*.tar.gz "${OUTPUT_DIR}"/ha-nova-linux-*.tar.gz "${OUTPUT_DIR}"/ha-nova-windows-*.zip "${OUTPUT_DIR}"/ha-nova-*.sha256
+  rm -f "${OUTPUT_DIR}"/ha-nova-installer-bundle-macos-*.tar.gz "${OUTPUT_DIR}"/ha-nova-installer-bundle-linux-*.tar.gz "${OUTPUT_DIR}"/ha-nova-installer-bundle-windows-*.zip "${OUTPUT_DIR}"/ha-nova-installer-bundle-*.sha256
 
   build_unix_bundle "macos" "amd64"
   build_unix_bundle "macos" "arm64"

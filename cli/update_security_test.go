@@ -98,7 +98,7 @@ func TestValidateBundleRootRejectsMissingClientRegistry(t *testing.T) {
 
 func TestVerifyFileChecksumAcceptsMatchingSHA256(t *testing.T) {
 	dir := t.TempDir()
-	archivePath := filepath.Join(dir, "ha-nova-linux-amd64.tar.gz")
+	archivePath := filepath.Join(dir, "ha-nova-installer-bundle-linux-amd64.tar.gz")
 	payload := []byte("bundle")
 	if err := os.WriteFile(archivePath, payload, 0o644); err != nil {
 		t.Fatalf("write archive: %v", err)
@@ -113,12 +113,12 @@ func TestVerifyFileChecksumAcceptsMatchingSHA256(t *testing.T) {
 
 func TestVerifyFileChecksumRejectsMismatchedSHA256(t *testing.T) {
 	dir := t.TempDir()
-	archivePath := filepath.Join(dir, "ha-nova-linux-amd64.tar.gz")
+	archivePath := filepath.Join(dir, "ha-nova-installer-bundle-linux-amd64.tar.gz")
 	if err := os.WriteFile(archivePath, []byte("bundle"), 0o644); err != nil {
 		t.Fatalf("write archive: %v", err)
 	}
 
-	if err := verifyFileChecksum(archivePath, "deadbeef  ha-nova-linux-amd64.tar.gz"); err == nil {
+	if err := verifyFileChecksum(archivePath, "deadbeef  ha-nova-installer-bundle-linux-amd64.tar.gz"); err == nil {
 		t.Fatal("expected mismatched checksum to fail")
 	}
 }

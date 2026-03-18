@@ -51,11 +51,11 @@ Deliver the simplest end-user install path for HA NOVA on Windows while aligning
 
 - GoReleaser produces raw `ha-nova` binaries.
 - Release workflow additionally builds and uploads:
-  - `ha-nova-macos-amd64.tar.gz`
-  - `ha-nova-macos-arm64.tar.gz`
-  - `ha-nova-linux-amd64.tar.gz`
-  - `ha-nova-linux-arm64.tar.gz`
-  - `ha-nova-windows-amd64.zip`
+  - `ha-nova-installer-bundle-macos-amd64.tar.gz`
+  - `ha-nova-installer-bundle-macos-arm64.tar.gz`
+  - `ha-nova-installer-bundle-linux-amd64.tar.gz`
+  - `ha-nova-installer-bundle-linux-arm64.tar.gz`
+  - `ha-nova-installer-bundle-windows-amd64.zip`
 
 ## Verification
 

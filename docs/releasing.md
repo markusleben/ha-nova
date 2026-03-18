@@ -166,17 +166,17 @@ bash ./install.sh
 ```
 
 Use the matching bundle name for the machine under test:
-- Intel macOS: `ha-nova-macos-amd64`
-- Apple Silicon macOS: `ha-nova-macos-arm64`
-- Linux amd64: `ha-nova-linux-amd64`
-- Linux arm64: `ha-nova-linux-arm64`
+- Intel macOS: `ha-nova-installer-bundle-macos-amd64`
+- Apple Silicon macOS: `ha-nova-installer-bundle-macos-arm64`
+- Linux amd64: `ha-nova-installer-bundle-linux-amd64`
+- Linux arm64: `ha-nova-installer-bundle-linux-arm64`
 
 Windows:
 
 ```powershell
 $env:HA_NOVA_CLAUDE_MARKETPLACE_LOCAL = '1'
-$env:HA_NOVA_BUNDLE_URL = 'http://<host>:8917/ha-nova-windows-amd64.zip'
-$env:HA_NOVA_BUNDLE_SHA256_URL = 'http://<host>:8917/ha-nova-windows-amd64.zip.sha256'
+$env:HA_NOVA_BUNDLE_URL = 'http://<host>:8917/ha-nova-installer-bundle-windows-amd64.zip'
+$env:HA_NOVA_BUNDLE_SHA256_URL = 'http://<host>:8917/ha-nova-installer-bundle-windows-amd64.zip.sha256'
 $env:HA_NOVA_NO_SETUP = '1'
 powershell -ExecutionPolicy Bypass -File .\install.ps1
 ```
@@ -298,7 +298,7 @@ For installer/runtime/platform releases, call out all of these explicitly:
 - Default `npm run verify` is intentionally host-safe; desktop/private-RC validation stays separate
 - Any client lanes that remain experimental on Windows
 - Existing installs update through `ha-nova check-update` / `ha-nova update`; only Claude currently has the extra automatic SessionStart update banner
-- Tell users not to download and run the release `.tar.gz` / `.zip` bundle assets directly; those are installer payloads, not the supported end-user path
+- Tell users not to download and run the release `ha-nova-installer-bundle-*.tar.gz` / `.zip` assets directly; those are installer payloads, not the supported end-user path
 
 ## Final Publish
 

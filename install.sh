@@ -287,8 +287,8 @@ bundle_name() {
   arch="$(detect_arch)"
 
   case "${os}" in
-    macos) printf 'ha-nova-macos-%s.tar.gz\n' "${arch}" ;;
-    linux) printf 'ha-nova-linux-%s.tar.gz\n' "${arch}" ;;
+    macos) printf 'ha-nova-installer-bundle-macos-%s.tar.gz\n' "${arch}" ;;
+    linux) printf 'ha-nova-installer-bundle-linux-%s.tar.gz\n' "${arch}" ;;
     *) fail "Unsupported platform: ${os}" ;;
   esac
 }

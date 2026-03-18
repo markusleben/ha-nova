@@ -90,8 +90,8 @@ jobs:
         shell: bash
         run: |
           case "${RUNNER_OS}" in
-            macOS) bundle="dist/install-bundles/ha-nova-macos-$(uname -m | sed 's/x86_64/amd64/;s/arm64/arm64/').tar.gz" ;;
-            Linux) bundle="dist/install-bundles/ha-nova-linux-$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/;s/arm64/arm64/').tar.gz" ;;
+            macOS) bundle="dist/install-bundles/ha-nova-installer-bundle-macos-$(uname -m | sed 's/x86_64/amd64/;s/arm64/arm64/').tar.gz" ;;
+            Linux) bundle="dist/install-bundles/ha-nova-installer-bundle-linux-$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/;s/arm64/arm64/').tar.gz" ;;
             *) exit 1 ;;
           esac
           workdir="$(mktemp -d)"
@@ -106,7 +106,7 @@ jobs:
         run: |
           $workdir = Join-Path $env:RUNNER_TEMP "ha-nova-rc"
           Remove-Item -LiteralPath $workdir -Recurse -Force -ErrorAction SilentlyContinue
-          Expand-Archive -LiteralPath "dist/install-bundles/ha-nova-windows-amd64.zip" -DestinationPath $workdir -Force
+          Expand-Archive -LiteralPath "dist/install-bundles/ha-nova-installer-bundle-windows-amd64.zip" -DestinationPath $workdir -Force
           if (-not (Test-Path -LiteralPath (Join-Path $workdir "ha-nova\bundle.json"))) {
             throw "bundle.json missing from Windows RC bundle"
           }

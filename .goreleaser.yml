@@ -53,7 +53,7 @@ release:
   header: |
     ## Install or Update
 
-    Do not download the `.tar.gz` / `.zip` bundle assets below and try to run them directly.
+    Do not download the `ha-nova-installer-bundle-*.tar.gz` / `.zip` assets below and try to run them directly.
     They are installer payloads, not standalone apps.
     Use the installer commands below, or run `ha-nova update` from an existing install.
 

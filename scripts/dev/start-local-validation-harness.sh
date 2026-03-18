@@ -110,9 +110,9 @@ if [[ "${SKIP_BUILD}" != "1" ]]; then
   npm run release:rc:local
 fi
 
-MACOS_ARM64_BUNDLE="dist/install-bundles/ha-nova-macos-arm64.tar.gz"
-MACOS_AMD64_BUNDLE="dist/install-bundles/ha-nova-macos-amd64.tar.gz"
-WINDOWS_BUNDLE="dist/install-bundles/ha-nova-windows-amd64.zip"
+MACOS_ARM64_BUNDLE="dist/install-bundles/ha-nova-installer-bundle-macos-arm64.tar.gz"
+MACOS_AMD64_BUNDLE="dist/install-bundles/ha-nova-installer-bundle-macos-amd64.tar.gz"
+WINDOWS_BUNDLE="dist/install-bundles/ha-nova-installer-bundle-windows-amd64.zip"
 if [[ ! -f "${MACOS_ARM64_BUNDLE}" ]]; then
   echo "Missing ${MACOS_ARM64_BUNDLE}. Run npm run release:rc:local first." >&2
   exit 1
@@ -142,17 +142,17 @@ fi
 
 python3 -m http.server "${BUNDLE_PORT}" --bind 0.0.0.0 --directory . >/dev/null 2>&1 &
 BUNDLE_PID=$!
-if ! wait_for_url "http://127.0.0.1:${BUNDLE_PORT}/dist/install-bundles/ha-nova-macos-arm64.tar.gz.sha256"; then
+if ! wait_for_url "http://127.0.0.1:${BUNDLE_PORT}/dist/install-bundles/ha-nova-installer-bundle-macos-arm64.tar.gz.sha256"; then
   echo "Bundle server did not become ready on :${BUNDLE_PORT}" >&2
   exit 1
 fi
 for asset_path in \
-  "dist/install-bundles/ha-nova-macos-arm64.tar.gz" \
-  "dist/install-bundles/ha-nova-macos-arm64.tar.gz.sha256" \
-  "dist/install-bundles/ha-nova-macos-amd64.tar.gz" \
-  "dist/install-bundles/ha-nova-macos-amd64.tar.gz.sha256" \
-  "dist/install-bundles/ha-nova-windows-amd64.zip" \
-  "dist/install-bundles/ha-nova-windows-amd64.zip.sha256" \
+  "dist/install-bundles/ha-nova-installer-bundle-macos-arm64.tar.gz" \
+  "dist/install-bundles/ha-nova-installer-bundle-macos-arm64.tar.gz.sha256" \
+  "dist/install-bundles/ha-nova-installer-bundle-macos-amd64.tar.gz" \
+  "dist/install-bundles/ha-nova-installer-bundle-macos-amd64.tar.gz.sha256" \
+  "dist/install-bundles/ha-nova-installer-bundle-windows-amd64.zip" \
+  "dist/install-bundles/ha-nova-installer-bundle-windows-amd64.zip.sha256" \
   "install.ps1"
 do
   if ! wait_for_url "http://127.0.0.1:${BUNDLE_PORT}/${asset_path}"; then
@@ -190,20 +190,20 @@ Bundle server:
 
 macOS install (Apple Silicon):
   export HA_NOVA_CLAUDE_MARKETPLACE_LOCAL='1'
-  export HA_NOVA_BUNDLE_URL='http://127.0.0.1:${BUNDLE_PORT}/dist/install-bundles/ha-nova-macos-arm64.tar.gz'
-  export HA_NOVA_BUNDLE_SHA256_URL='http://127.0.0.1:${BUNDLE_PORT}/dist/install-bundles/ha-nova-macos-arm64.tar.gz.sha256'
+  export HA_NOVA_BUNDLE_URL='http://127.0.0.1:${BUNDLE_PORT}/dist/install-bundles/ha-nova-installer-bundle-macos-arm64.tar.gz'
+  export HA_NOVA_BUNDLE_SHA256_URL='http://127.0.0.1:${BUNDLE_PORT}/dist/install-bundles/ha-nova-installer-bundle-macos-arm64.tar.gz.sha256'
   bash ./install.sh
 
 macOS install (Intel):
   export HA_NOVA_CLAUDE_MARKETPLACE_LOCAL='1'
-  export HA_NOVA_BUNDLE_URL='http://127.0.0.1:${BUNDLE_PORT}/dist/install-bundles/ha-nova-macos-amd64.tar.gz'
-  export HA_NOVA_BUNDLE_SHA256_URL='http://127.0.0.1:${BUNDLE_PORT}/dist/install-bundles/ha-nova-macos-amd64.tar.gz.sha256'
+  export HA_NOVA_BUNDLE_URL='http://127.0.0.1:${BUNDLE_PORT}/dist/install-bundles/ha-nova-installer-bundle-macos-amd64.tar.gz'
+  export HA_NOVA_BUNDLE_SHA256_URL='http://127.0.0.1:${BUNDLE_PORT}/dist/install-bundles/ha-nova-installer-bundle-macos-amd64.tar.gz.sha256'
   bash ./install.sh
 
 Windows install:
   \$env:HA_NOVA_CLAUDE_MARKETPLACE_LOCAL='1'
-  \$env:HA_NOVA_BUNDLE_URL='http://${WINDOWS_HOST}:${BUNDLE_PORT}/dist/install-bundles/ha-nova-windows-amd64.zip'
-  \$env:HA_NOVA_BUNDLE_SHA256_URL='http://${WINDOWS_HOST}:${BUNDLE_PORT}/dist/install-bundles/ha-nova-windows-amd64.zip.sha256'
+  \$env:HA_NOVA_BUNDLE_URL='http://${WINDOWS_HOST}:${BUNDLE_PORT}/dist/install-bundles/ha-nova-installer-bundle-windows-amd64.zip'
+  \$env:HA_NOVA_BUNDLE_SHA256_URL='http://${WINDOWS_HOST}:${BUNDLE_PORT}/dist/install-bundles/ha-nova-installer-bundle-windows-amd64.zip.sha256'
   irm http://${WINDOWS_HOST}:${BUNDLE_PORT}/install.ps1 | iex
 EOF
 

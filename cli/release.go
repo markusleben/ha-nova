@@ -26,7 +26,7 @@ func bundleAssetName() string {
 	if runtimeGOOS := bundlePlatformOS(); runtimeGOOS == "windows" {
 		ext = ".zip"
 	}
-	return fmt.Sprintf("ha-nova-%s-%s%s", bundlePlatformOS(), bundlePlatformArch(), ext)
+	return fmt.Sprintf("ha-nova-installer-bundle-%s-%s%s", bundlePlatformOS(), bundlePlatformArch(), ext)
 }
 
 func rawBinaryAssetName() string {

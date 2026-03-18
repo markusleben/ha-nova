@@ -147,7 +147,7 @@ function Get-BundleUrl {
     return $env:HA_NOVA_BUNDLE_URL
   }
 
-  return "$ReleaseBaseUrl/v$Version/ha-nova-windows-amd64.zip"
+  return "$ReleaseBaseUrl/v$Version/ha-nova-installer-bundle-windows-amd64.zip"
 }
 
 function Get-BundleChecksumUrl {
@@ -205,7 +205,7 @@ function Install-Bundle {
   )
 
   $null = Get-PlatformArch
-  $bundleName = "ha-nova-windows-amd64.zip"
+  $bundleName = "ha-nova-installer-bundle-windows-amd64.zip"
   $bundleUrl = Get-BundleUrl -Version $Version
   $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("ha-nova-install-" + [guid]::NewGuid().ToString("N"))
   $archivePath = Join-Path $tempRoot $bundleName

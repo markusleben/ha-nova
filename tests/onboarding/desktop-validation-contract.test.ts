@@ -53,9 +53,9 @@ describe("desktop validation helpers contract", () => {
     expect(harness).toContain("HA_NOVA_BUNDLE_URL");
     expect(harness).toContain("HA_NOVA_BUNDLE_SHA256_URL");
     expect(harness).toContain("HA_NOVA_CLAUDE_MARKETPLACE_LOCAL");
-    expect(harness).toContain("ha-nova-macos-arm64.tar.gz");
-    expect(harness).toContain("ha-nova-macos-amd64.tar.gz");
-    expect(harness).toContain("ha-nova-windows-amd64.zip");
+    expect(harness).toContain("ha-nova-installer-bundle-macos-arm64.tar.gz");
+    expect(harness).toContain("ha-nova-installer-bundle-macos-amd64.tar.gz");
+    expect(harness).toContain("ha-nova-installer-bundle-windows-amd64.zip");
     expect(harness).toContain("install.ps1 | iex");
     expect(harness).toContain("--with-mock");
     expect(harness).toContain("ensure_port_free");

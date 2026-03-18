@@ -30,9 +30,9 @@ describe("release contract", () => {
   });
 
   it("builds macOS, Linux, and Windows install bundles with bundle metadata", () => {
-    expect(bundleBuilder).toContain("ha-nova-macos");
-    expect(bundleBuilder).toContain("ha-nova-linux");
-    expect(bundleBuilder).toContain("ha-nova-windows");
+    expect(bundleBuilder).toContain("ha-nova-installer-bundle-macos");
+    expect(bundleBuilder).toContain("ha-nova-installer-bundle-linux");
+    expect(bundleBuilder).toContain("ha-nova-installer-bundle-windows");
     expect(bundleBuilder).toContain("bundle.json");
     expect(bundleBuilder).toContain("compute_sha256()");
     expect(bundleBuilder).toContain("sha256sum or shasum");
@@ -156,20 +156,20 @@ describe("release contract", () => {
     });
 
     expect(result.status).toBe(0);
-    const macList = spawnSync("tar", ["-tzf", join(outputDir, "ha-nova-macos-amd64.tar.gz")], {
+    const macList = spawnSync("tar", ["-tzf", join(outputDir, "ha-nova-installer-bundle-macos-amd64.tar.gz")], {
       encoding: "utf8",
       timeout: 30000,
     });
     expect(macList.status).toBe(0);
     expect(macList.stdout).toContain("ha-nova/clients/registry.json");
-    expect(readFileSync(join(outputDir, "ha-nova-macos-amd64.tar.gz.sha256"), "utf8")).toContain(
-      "ha-nova-macos-amd64.tar.gz"
+    expect(readFileSync(join(outputDir, "ha-nova-installer-bundle-macos-amd64.tar.gz.sha256"), "utf8")).toContain(
+      "ha-nova-installer-bundle-macos-amd64.tar.gz"
     );
-    expect(readFileSync(join(outputDir, "ha-nova-linux-arm64.tar.gz.sha256"), "utf8")).toContain(
-      "ha-nova-linux-arm64.tar.gz"
+    expect(readFileSync(join(outputDir, "ha-nova-installer-bundle-linux-arm64.tar.gz.sha256"), "utf8")).toContain(
+      "ha-nova-installer-bundle-linux-arm64.tar.gz"
     );
-    expect(readFileSync(join(outputDir, "ha-nova-windows-amd64.zip.sha256"), "utf8")).toContain(
-      "ha-nova-windows-amd64.zip"
+    expect(readFileSync(join(outputDir, "ha-nova-installer-bundle-windows-amd64.zip.sha256"), "utf8")).toContain(
+      "ha-nova-installer-bundle-windows-amd64.zip"
     );
   });
 

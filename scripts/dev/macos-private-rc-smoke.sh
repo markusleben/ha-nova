@@ -7,8 +7,8 @@ TMP_HOME="$(mktemp -d "${TMPDIR:-/tmp}/ha-nova-macos-smoke.XXXXXX")"
 
 detect_bundle_name() {
   case "$(uname -m)" in
-    x86_64) printf '%s\n' "ha-nova-macos-amd64" ;;
-    arm64) printf '%s\n' "ha-nova-macos-arm64" ;;
+    x86_64) printf '%s\n' "ha-nova-installer-bundle-macos-amd64" ;;
+    arm64) printf '%s\n' "ha-nova-installer-bundle-macos-arm64" ;;
     *) echo "Unsupported macOS arch: $(uname -m)" >&2; exit 1 ;;
   esac
 }

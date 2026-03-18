@@ -45,8 +45,8 @@ describe("install.sh contract", () => {
   });
 
   it("downloads a platform bundle and validates bundle.json before install", () => {
-    expect(content).toContain("ha-nova-macos");
-    expect(content).toContain("ha-nova-linux");
+    expect(content).toContain("ha-nova-installer-bundle-macos");
+    expect(content).toContain("ha-nova-installer-bundle-linux");
     expect(content).toContain("bundle.json");
     expect(content).toContain(".sha256");
     expect(content).toContain("Downloaded bundle is missing the ha-nova binary.");
