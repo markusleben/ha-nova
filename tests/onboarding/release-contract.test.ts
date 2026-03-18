@@ -11,6 +11,7 @@ describe("release contract", () => {
   const workflow = readFileSync(".github/workflows/release.yml", "utf8");
   const rcWorkflow = readFileSync(".github/workflows/release-candidate.yml", "utf8");
   const bundleBuilder = readFileSync("scripts/release/build-install-bundle.sh", "utf8");
+  const expectedGoreleaserActionRef = "goreleaser/goreleaser-action@v7";
   const pkg = JSON.parse(readFileSync("package.json", "utf8")) as {
     scripts?: Record<string, string>;
   };
@@ -69,6 +70,7 @@ describe("release contract", () => {
   it("runs the canonical verify command before publishing and smoke-checks install, update, and uninstall afterwards", () => {
     expect(workflow).toContain("actions/setup-node@v6");
     expect(workflow).toContain('node-version: "20"');
+    expect(workflow).toContain(expectedGoreleaserActionRef);
     expect(workflow).toContain("npm ci");
     expect(workflow).toContain("npm run verify");
     expect(pkg.scripts?.verify).toContain("verify:release-metadata");
@@ -122,7 +124,7 @@ describe("release contract", () => {
     expect(rcWorkflow).toContain("npm run verify");
     expect(rcWorkflow).toContain("Verify release metadata");
     expect(rcWorkflow).toContain("verify-release-metadata.sh");
-    expect(rcWorkflow).toContain("goreleaser/goreleaser-action@v6");
+    expect(rcWorkflow).toContain(expectedGoreleaserActionRef);
     expect(rcWorkflow).toContain("args: build --snapshot --clean");
     expect(rcWorkflow).toContain("Build install bundles");
     expect(rcWorkflow).toContain('bash scripts/release/build-install-bundle.sh "${VERSION_TAG#v}"');
