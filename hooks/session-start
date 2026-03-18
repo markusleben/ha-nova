@@ -59,25 +59,6 @@ extract_json_string() {
   echo "$match" | sed 's/.*"\([^"]*\)"$/\1/'
 }
 
-extract_release_version() {
-  local json="$1" tag_name
-  tag_name="$(extract_json_string "tag_name" "$json")"
-  tag_name="${tag_name#v}"
-  if [[ "$tag_name" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    printf '%s' "$tag_name"
-  fi
-}
-
-extract_cached_release_version() {
-  local json="$1" version
-  version="$(extract_json_string "version" "$json")"
-  if [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    printf '%s' "$version"
-    return 0
-  fi
-  extract_release_version "$json"
-}
-
 version_warning=""
 update_notice=""
 version_file="${PLUGIN_ROOT}/version.json"
@@ -102,17 +83,16 @@ if [[ -f "$version_file" ]]; then
   fi
   # No relay CLI = not onboarded yet, skip silently
 
-  # --- Remote update check (stale-while-revalidate, TTL 24h) ---
+  # --- Cached release update check (stale-while-revalidate via CLI, TTL 24h) ---
   update_cache_dir="${HOME}/.cache/ha-nova"
   update_cache_file="${update_cache_dir}/latest-release.json"
   update_ttl=86400
-  remote_url="https://api.github.com/repos/markusleben/ha-nova/releases/latest"
 
   needs_refresh="1"
   if [[ -f "$update_cache_file" ]]; then
     # Read cached latest version (stale is OK — show it now, refresh in background)
     cached_json=$(cat "$update_cache_file" 2>/dev/null || true)
-    latest_skill_version=$(extract_cached_release_version "$cached_json")
+    latest_skill_version=$(extract_json_string "version" "$cached_json")
     if [[ -n "$latest_skill_version" && "$latest_skill_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ && -n "$SKILL_VERSION" ]] && semver_lt "$SKILL_VERSION" "$latest_skill_version"; then
       if command -v ha-nova >/dev/null 2>&1; then
         update_notice="[ha-nova] UPDATE AVAILABLE: v${SKILL_VERSION} -> v${latest_skill_version}. Ask the user if they want you to run: ha-nova update (new session required after update)\\n"
@@ -133,28 +113,10 @@ if [[ -f "$version_file" ]]; then
     fi
   fi
 
-  # Background refresh: fire-and-forget, result available for NEXT session
-  # Only cache if response contains a valid stable release version.
-  if [[ "$needs_refresh" == "1" ]]; then
+  # Background refresh: fire-and-forget through the shared CLI contract.
+  if [[ "$needs_refresh" == "1" ]] && command -v ha-nova >/dev/null 2>&1; then
     mkdir -p "$update_cache_dir" 2>/dev/null || true
-    (
-      tmp=$(mktemp)
-      raw=$(mktemp)
-      if curl -sS --connect-timeout 2 --max-time 5 -H 'Accept: application/vnd.github+json' "$remote_url" -o "$raw" 2>/dev/null && grep -q '"tag_name"' "$raw" 2>/dev/null; then
-        raw_json=$(cat "$raw" 2>/dev/null || true)
-        latest_version=$(extract_release_version "$raw_json")
-        html_url=$(extract_json_string "html_url" "$raw_json")
-        if [[ -n "$latest_version" ]]; then
-          printf '{\n  "version": "%s",\n  "html_url": "%s",\n  "asset_name": ""\n}\n' "$latest_version" "$html_url" > "$tmp"
-          mv "$tmp" "$update_cache_file"
-        else
-          rm -f "$tmp"
-        fi
-      else
-        rm -f "$tmp"
-      fi
-      rm -f "$raw"
-    ) &
+    (ha-nova check-update --quiet --json >/dev/null 2>&1 || true) &
     disown 2>/dev/null || true
   fi
 fi

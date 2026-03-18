@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -29,9 +30,11 @@ func runUpdate(paths runtimePaths, args []string) int {
 		targetVersion = release.Version
 	}
 	currentVersion := localVersion(paths)
-	if currentVersion != "dev" && compareSemver(currentVersion, targetVersion) >= 0 {
-		printHumanInfo("Already up to date: v%s", currentVersion)
-		return 0
+	if currentVersion != "dev" {
+		cmp := compareSemver(currentVersion, targetVersion)
+		if cmp >= 0 {
+			return syncInstalledClientsForCurrentVersion(paths, currentVersion, targetVersion, cmp)
+		}
 	}
 
 	stageRoot, err := stageBundle(paths, targetVersion)
@@ -123,6 +126,23 @@ func runInternalSyncClients(paths runtimePaths, _ []string) int {
 	return 0
 }
 
+func syncInstalledClientsForCurrentVersion(paths runtimePaths, currentVersion, targetVersion string, cmp int) int {
+	if err := postUpdateSync(paths); err != nil {
+		if cmp > 0 {
+			printHumanErr("Already on newer version v%s than target v%s, but client sync failed: %s", currentVersion, targetVersion, err)
+		} else {
+			printHumanErr("Already up to date: v%s, but client sync failed: %s", currentVersion, err)
+		}
+		return 1
+	}
+	if cmp > 0 {
+		printHumanInfo("Already on newer version v%s than target v%s", currentVersion, targetVersion)
+		return 0
+	}
+	printHumanInfo("Already up to date: v%s", currentVersion)
+	return 0
+}
+
 func postUpdateSync(paths runtimePaths) error {
 	state := loadStateOrDefault(paths)
 	detectedClients, err := detectInstalledClients(paths)
@@ -130,7 +150,7 @@ func postUpdateSync(paths runtimePaths) error {
 		return err
 	}
 	configured := normalizeClients(append(append([]string{}, state.InstalledClients...), detectedClients...))
-	synced := []string{}
+	failed := []string{}
 	for _, client := range configured {
 		entry, ok, err := findRegistryClient(paths, client)
 		if err != nil {
@@ -142,19 +162,24 @@ func postUpdateSync(paths runtimePaths) error {
 		status := evaluateClientStatus(paths, state, entry)
 		if !status.RuntimeDetected {
 			printHumanWarn("Skipping %s until the client runtime is installed in this environment", entry.Label)
-			if containsClient(state.InstalledClients, client) {
-				synced = append(synced, client)
-			}
 			continue
 		}
 		if err := installClients(paths, &state, []string{client}); err != nil {
-			return err
+			printHumanWarn("Client sync failed: %s (%s)", client, err)
+			failed = append(failed, client)
+			continue
 		}
-		synced = append(synced, client)
+		printHumanInfo("Client synced: %s", client)
 	}
-	state.InstalledClients = normalizeClients(synced)
+	state.InstalledClients = configured
 	state.Version = localVersion(paths)
-	return saveState(paths, state)
+	if err := saveState(paths, state); err != nil {
+		return err
+	}
+	if len(failed) > 0 {
+		return fmt.Errorf("failed clients: %s", strings.Join(normalizeClients(failed), ", "))
+	}
+	return nil
 }
 
 func launchWindowsReplace(paths runtimePaths, stageRoot string) error {

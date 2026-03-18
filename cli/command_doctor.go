@@ -1,10 +1,12 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 )
 
@@ -100,10 +102,23 @@ func runCheckUpdate(paths runtimePaths, args []string) int {
 	fs := flag.NewFlagSet("check-update", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	quiet := fs.Bool("quiet", false, "quiet")
+	jsonOutput := fs.Bool("json", false, "json")
 	if err := fs.Parse(args); err != nil {
 		printHumanErr("%s", err)
 		return 1
 	}
+
+	result := buildUpdateCheckResult(paths)
+	if *jsonOutput {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(result); err != nil {
+			printHumanErr("%s", err)
+			return 1
+		}
+		return updateCheckExitCode(result)
+	}
+
 	notice := checkForUpdate(paths, *quiet)
 	if notice.empty() {
 		return 0

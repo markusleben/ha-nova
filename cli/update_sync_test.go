@@ -153,6 +153,112 @@ func TestPostUpdateSyncRefreshesAllDetectedClients(t *testing.T) {
 	}
 }
 
+func TestPostUpdateSyncContinuesOtherClientsAfterClaudeFailure(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd() error: %v", err)
+	}
+	t.Setenv("HA_NOVA_DEV_ROOT", filepath.Clean(filepath.Join(cwd, "..")))
+	t.Setenv("HA_NOVA_TEST_CLAUDE_INSTALL_FAIL", "1")
+
+	originalRuntimeDetected := clientRuntimeDetectedForStatus
+	clientRuntimeDetectedForStatus = func(string) bool { return true }
+	t.Cleanup(func() {
+		clientRuntimeDetectedForStatus = originalRuntimeDetected
+	})
+
+	logPath := filepath.Join(home, "claude.log")
+	t.Setenv("PATH", installClaudeMock(t, home, logPath)+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	state := installState{
+		SchemaVersion:    stateSchemaVersion,
+		InstalledClients: []string{"claude", "codex"},
+	}
+	if err := saveState(paths, state); err != nil {
+		t.Fatalf("saveState() error: %v", err)
+	}
+
+	err = postUpdateSync(paths)
+	if err == nil || !strings.Contains(err.Error(), "claude") {
+		t.Fatalf("expected Claude failure summary, got %v", err)
+	}
+
+	codexPath := filepath.Join(home, ".agents", "skills", "ha-nova")
+	if _, err := os.Lstat(codexPath); err != nil {
+		t.Fatalf("expected Codex sync to continue, stat error: %v", err)
+	}
+
+	saved, err := loadState(paths)
+	if err != nil {
+		t.Fatalf("loadState() error: %v", err)
+	}
+	if !containsClient(saved.InstalledClients, "claude") {
+		t.Fatalf("expected failed Claude client to remain configured for retry, got %+v", saved.InstalledClients)
+	}
+}
+
+func TestRunUpdateAlreadyCurrentRetriesInstalledClientSync(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd() error: %v", err)
+	}
+	t.Setenv("HA_NOVA_DEV_ROOT", filepath.Clean(filepath.Join(cwd, "..")))
+
+	originalRuntimeDetected := clientRuntimeDetectedForStatus
+	clientRuntimeDetectedForStatus = func(string) bool { return true }
+	t.Cleanup(func() {
+		clientRuntimeDetectedForStatus = originalRuntimeDetected
+	})
+
+	if err := os.MkdirAll(filepath.Dir(paths.VersionFile), 0o755); err != nil {
+		t.Fatalf("mkdir version dir: %v", err)
+	}
+	if err := os.WriteFile(paths.VersionFile, []byte(`{"skill_version":"0.2.2","min_relay_version":"0.1.0"}`), 0o644); err != nil {
+		t.Fatalf("write version file: %v", err)
+	}
+
+	logPath := filepath.Join(home, "claude.log")
+	t.Setenv("PATH", installClaudeMock(t, home, logPath)+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("HA_NOVA_TEST_CLAUDE_INSTALL_FAIL", "1")
+
+	state := installState{
+		SchemaVersion:    stateSchemaVersion,
+		InstalledClients: []string{"claude", "codex"},
+	}
+	if err := saveState(paths, state); err != nil {
+		t.Fatalf("saveState() error: %v", err)
+	}
+
+	if exitCode := runUpdate(paths, []string{"--version", "0.2.2"}); exitCode != 1 {
+		t.Fatalf("runUpdate() first exit = %d, want 1", exitCode)
+	}
+
+	t.Setenv("HA_NOVA_TEST_CLAUDE_INSTALL_FAIL", "0")
+	if exitCode := runUpdate(paths, []string{"--version", "0.2.2"}); exitCode != 0 {
+		t.Fatalf("runUpdate() second exit = %d, want 0", exitCode)
+	}
+
+	if !claudePluginInstalled(home) {
+		t.Fatal("expected Claude plugin to be installed after retry")
+	}
+}
+
 func TestApplyStagedBundleWithRollbackRestoresPreviousInstallRoot(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

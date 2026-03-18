@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestInstallClaudePluginSkipsMarketplaceRefreshWhenGitHubMarketplaceAlreadyConfigured(t *testing.T) {
+func TestInstallClaudePluginRefreshesMatchingMarketplaceWhenGitHubMarketplaceAlreadyConfigured(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 
@@ -40,6 +40,9 @@ func TestInstallClaudePluginSkipsMarketplaceRefreshWhenGitHubMarketplaceAlreadyC
 		t.Fatalf("read log: %v", err)
 	}
 	log := string(logData)
+	if !strings.Contains(log, "plugin marketplace update ha-nova") {
+		t.Fatalf("expected marketplace update when GitHub marketplace is already configured:\n%s", log)
+	}
 	if strings.Contains(log, "plugin marketplace remove ha-nova") {
 		t.Fatalf("did not expect marketplace removal when GitHub marketplace is already configured:\n%s", log)
 	}
@@ -144,12 +147,33 @@ func installClaudeMarketplaceMock(t *testing.T, logPath, failCommand string) str
 	}
 
 	script := "#!/usr/bin/env bash\n" +
+		"set -euo pipefail\n" +
 		"cmd=\"$*\"\n" +
+		"plugins_root=\"${HOME}/.claude/plugins\"\n" +
+		"known_file=\"${plugins_root}/known_marketplaces.json\"\n" +
+		"installed_file=\"${plugins_root}/installed_plugins.json\"\n" +
+		"cache_root=\"${plugins_root}/cache/ha-nova/ha-nova/0.1.12\"\n" +
+		"mkdir -p \"${plugins_root}\"\n" +
 		"printf '%s\\n' \"$cmd\" >> " + shellQuote(logPath) + "\n" +
 		"if [ \"$cmd\" = " + shellQuote(failCommand) + " ]; then\n" +
 		"  echo 'simulated marketplace add failure' >&2\n" +
 		"  exit 1\n" +
 		"fi\n" +
+		"case \"$cmd\" in\n" +
+		"  \"plugin marketplace add \"*)\n" +
+		"    source_value=\"${cmd#plugin marketplace add }\"\n" +
+		"    printf '{\"ha-nova\":{\"source\":\"%s\"}}\\n' \"$source_value\" > \"$known_file\"\n" +
+		"    ;;\n" +
+		"  \"plugin marketplace remove ha-nova\")\n" +
+		"    rm -f \"$known_file\"\n" +
+		"    ;;\n" +
+		"  \"plugin install ha-nova@ha-nova\"|\"plugin update ha-nova@ha-nova\")\n" +
+		"    mkdir -p \"$cache_root\"\n" +
+		"    cat > \"$installed_file\" <<JSON\n" +
+		"{\"version\":2,\"plugins\":{\"ha-nova@ha-nova\":[{\"scope\":\"user\",\"installPath\":\"$cache_root\",\"version\":\"0.1.12\"}]}}\n" +
+		"JSON\n" +
+		"    ;;\n" +
+		"esac\n" +
 		"exit 0\n"
 	if err := os.WriteFile(filepath.Join(binDir, "claude"), []byte(script), 0o755); err != nil {
 		t.Fatalf("write claude mock: %v", err)

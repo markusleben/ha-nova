@@ -177,6 +177,9 @@ func TestInstallClaudePluginUpdatesExistingPlugin(t *testing.T) {
 		t.Fatalf("read log: %v", err)
 	}
 	log := string(logData)
+	if !strings.Contains(log, "plugin marketplace add https://github.com/markusleben/ha-nova") {
+		t.Fatalf("expected marketplace registration for existing plugin, got:\n%s", log)
+	}
 	if !strings.Contains(log, "plugin update ha-nova@ha-nova") {
 		t.Fatalf("expected update command for existing plugin, got:\n%s", log)
 	}
@@ -231,8 +234,11 @@ func TestInstallClaudePluginLocalModeReinstallsAndClearsCache(t *testing.T) {
 	if !strings.Contains(log, "plugin install ha-nova@ha-nova") {
 		t.Fatalf("expected local mode to install fresh plugin, got:\n%s", log)
 	}
-	if _, err := os.Stat(cacheRoot); !os.IsNotExist(err) {
-		t.Fatalf("expected stale local cache root to be removed, got err=%v", err)
+	if _, err := os.Stat(filepath.Join(cacheRoot, "stale.txt")); !os.IsNotExist(err) {
+		t.Fatalf("expected stale cache marker to be removed, got err=%v", err)
+	}
+	if !claudePluginInstalled(home) {
+		t.Fatal("expected Claude plugin to be reinstalled after local refresh")
 	}
 }
 
@@ -285,8 +291,15 @@ func TestInstallClaudePluginLocalModeClearsCurrentClaudeCacheRoot(t *testing.T) 
 	if !strings.Contains(log, "plugin install ha-nova@ha-nova") {
 		t.Fatalf("expected local mode to install fresh plugin, got:\n%s", log)
 	}
-	if _, err := os.Stat(cacheRoot); !os.IsNotExist(err) {
-		t.Fatalf("expected current Claude cache root to be removed, got err=%v", err)
+	if _, err := os.Stat(filepath.Join(cacheRoot, "skills")); !os.IsNotExist(err) {
+		t.Fatalf("expected stale cache tree to be replaced, got err=%v", err)
+	}
+	info, err := os.Stat(filepath.Join(cacheRoot, "ha-nova"))
+	if err != nil {
+		t.Fatalf("expected refreshed Claude cache structure: %v", err)
+	}
+	if !info.IsDir() {
+		t.Fatalf("expected refreshed cache entry to be a directory, got mode %v", info.Mode())
 	}
 }
 
@@ -311,24 +324,8 @@ func TestInstallClaudePluginLocalModeRemovesPluginBeforeDeletingCache(t *testing
 	}
 
 	logPath := filepath.Join(home, "claude.log")
-	binDir := filepath.Join(t.TempDir(), "bin")
-	if err := os.MkdirAll(binDir, 0o755); err != nil {
-		t.Fatalf("mkdir bin: %v", err)
-	}
-	script := `#!/usr/bin/env bash
-printf '%s\n' "$*" >> ` + shellQuote(logPath) + `
-if [[ "$*" == "plugin remove ha-nova@ha-nova" ]]; then
-  if [[ ! -d ` + shellQuote(cacheRoot) + ` ]]; then
-    echo 'cache missing before remove' >&2
-    exit 1
-  fi
-fi
-exit 0
-`
-	if err := os.WriteFile(filepath.Join(binDir, "claude"), []byte(script), 0o755); err != nil {
-		t.Fatalf("write claude mock: %v", err)
-	}
-	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("HA_NOVA_TEST_CLAUDE_ASSERT_CACHE_PRESENT_BEFORE_REMOVE", cacheRoot)
+	t.Setenv("PATH", installClaudeMock(t, home, logPath)+string(os.PathListSeparator)+os.Getenv("PATH"))
 
 	sourceRoot := paths.InstallRoot
 	writeClaudeMarketplaceFixture(t, sourceRoot)
@@ -336,8 +333,8 @@ exit 0
 		t.Fatalf("installClaudePlugin() error: %v", err)
 	}
 
-	if _, err := os.Stat(cacheRoot); !os.IsNotExist(err) {
-		t.Fatalf("expected cache root removed after local refresh, got err=%v", err)
+	if !claudePluginInstalled(home) {
+		t.Fatal("expected Claude plugin to be reinstalled after local refresh")
 	}
 }
 
@@ -356,22 +353,8 @@ func TestInstallClaudePluginFallsBackToInstallWhenUpdateStateIsStale(t *testing.
 	writeInstalledClaudePluginFixture(t, home)
 
 	logPath := filepath.Join(home, "claude.log")
-	binDir := filepath.Join(t.TempDir(), "bin")
-	if err := os.MkdirAll(binDir, 0o755); err != nil {
-		t.Fatalf("mkdir bin: %v", err)
-	}
-	script := `#!/usr/bin/env bash
-printf '%s\n' "$*" >> ` + shellQuote(logPath) + `
-if [[ "$*" == "plugin update ha-nova@ha-nova" ]]; then
-  echo 'Plugin "ha-nova@ha-nova" not found in installed plugins' >&2
-  exit 1
-fi
-exit 0
-`
-	if err := os.WriteFile(filepath.Join(binDir, "claude"), []byte(script), 0o755); err != nil {
-		t.Fatalf("write claude mock: %v", err)
-	}
-	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("HA_NOVA_TEST_CLAUDE_UPDATE_STALE", "1")
+	t.Setenv("PATH", installClaudeMock(t, home, logPath)+string(os.PathListSeparator)+os.Getenv("PATH"))
 
 	sourceRoot := paths.InstallRoot
 	writeClaudeMarketplaceFixture(t, sourceRoot)
@@ -389,6 +372,37 @@ exit 0
 	}
 	if !strings.Contains(log, "plugin install ha-nova@ha-nova") {
 		t.Fatalf("expected fallback install after stale update failure, got:\n%s", log)
+	}
+}
+
+func TestInstallClaudePluginFailsWhenPluginVerificationFails(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+
+	logPath := filepath.Join(home, "claude.log")
+	binDir := filepath.Join(t.TempDir(), "bin")
+	if err := os.MkdirAll(binDir, 0o755); err != nil {
+		t.Fatalf("mkdir bin: %v", err)
+	}
+	script := `#!/usr/bin/env bash
+printf '%s\n' "$*" >> ` + shellQuote(logPath) + `
+exit 0
+`
+	if err := os.WriteFile(filepath.Join(binDir, "claude"), []byte(script), 0o755); err != nil {
+		t.Fatalf("write claude mock: %v", err)
+	}
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	sourceRoot := paths.InstallRoot
+	writeClaudeMarketplaceFixture(t, sourceRoot)
+	err = installClaudePlugin(paths, sourceRoot)
+	if err == nil || !strings.Contains(err.Error(), "not found after sync") {
+		t.Fatalf("expected plugin verification failure, got %v", err)
 	}
 }
 
@@ -563,7 +577,91 @@ func installClaudeMock(t *testing.T, home, logPath string) string {
 	if err := os.MkdirAll(binDir, 0o755); err != nil {
 		t.Fatalf("mkdir bin: %v", err)
 	}
-	script := "#!/usr/bin/env bash\nprintf '%s\\n' \"$*\" >> " + shellQuote(logPath) + "\nexit 0\n"
+	script := `#!/usr/bin/env bash
+set -euo pipefail
+cmd="$*"
+printf '%s\n' "$cmd" >> ` + shellQuote(logPath) + `
+plugins_root="` + filepath.Join(home, ".claude", "plugins") + `"
+known_file="${plugins_root}/known_marketplaces.json"
+installed_file="${plugins_root}/installed_plugins.json"
+cache_root="${plugins_root}/cache/ha-nova/ha-nova/0.1.12"
+mkdir -p "${plugins_root}"
+
+write_installed() {
+  mkdir -p "${cache_root}"
+  cat > "${installed_file}" <<JSON
+{
+  "version": 2,
+  "plugins": {
+    "ha-nova@ha-nova": [
+      {
+        "scope": "user",
+        "installPath": "${cache_root}",
+        "version": "0.1.12"
+      }
+    ]
+  }
+}
+JSON
+}
+
+remove_installed() {
+  rm -f "${installed_file}"
+  rm -rf "${plugins_root}/cache/ha-nova"
+}
+
+case "$cmd" in
+  "plugin marketplace add "*)
+    source_value="${cmd#plugin marketplace add }"
+    cat > "${known_file}" <<JSON
+{"ha-nova":{"source":"${source_value}"}}
+JSON
+    ;;
+  "plugin marketplace update ha-nova")
+    if [[ ! -f "${known_file}" ]]; then
+      echo 'marketplace "ha-nova" not found' >&2
+      exit 1
+    fi
+    ;;
+  "plugin marketplace remove ha-nova")
+    rm -f "${known_file}"
+    ;;
+  "plugin install ha-nova@ha-nova")
+    if [[ "${HA_NOVA_TEST_CLAUDE_INSTALL_FAIL:-0}" == "1" ]]; then
+      echo "install failed" >&2
+      exit 1
+    fi
+    write_installed
+    ;;
+ "plugin update ha-nova@ha-nova")
+    if [[ "${HA_NOVA_TEST_CLAUDE_UPDATE_STALE:-0}" == "1" ]]; then
+      echo 'Plugin "ha-nova@ha-nova" not found in installed plugins' >&2
+      exit 1
+    fi
+    if [[ "${HA_NOVA_TEST_CLAUDE_UPDATE_FAIL:-0}" == "1" ]]; then
+      echo "update failed" >&2
+      exit 1
+    fi
+    if [[ ! -f "${installed_file}" ]]; then
+      echo 'Plugin "ha-nova@ha-nova" not found in installed plugins' >&2
+      exit 1
+    fi
+    write_installed
+    ;;
+  "plugin remove ha-nova@ha-nova")
+    if [[ ! -f "${installed_file}" ]]; then
+      echo 'Plugin "ha-nova@ha-nova" not found in installed plugins' >&2
+      exit 1
+    fi
+    if [[ -n "${HA_NOVA_TEST_CLAUDE_ASSERT_CACHE_PRESENT_BEFORE_REMOVE:-}" ]] && [[ ! -d "${HA_NOVA_TEST_CLAUDE_ASSERT_CACHE_PRESENT_BEFORE_REMOVE}" ]]; then
+      echo 'cache missing before remove' >&2
+      exit 1
+    fi
+    remove_installed
+    ;;
+esac
+exit 0
+`
 	if err := os.WriteFile(filepath.Join(binDir, "claude"), []byte(script), 0o755); err != nil {
 		t.Fatalf("write claude mock: %v", err)
 	}

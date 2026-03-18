@@ -45,7 +45,7 @@ The context skill (`ha-nova`) stays the stable entrypoint; sub-skills remain ind
 
 ## Repo-local Hook Note
 
-`hooks/session-start` still exists as a repo-local development helper, but it is **not** the production installation model for Claude. Production Claude installs come from the plugin marketplace path.
+`hooks/session-start` still exists as a repo-local development helper, but it is **not** the production installation model for Claude. Production Claude installs come from the plugin marketplace path, and HA NOVA intentionally keeps the local marketplace layout anchored to `source: "./"` inside the plugin bundle.
 
 ## Agent vs Inline Decision Rule
 

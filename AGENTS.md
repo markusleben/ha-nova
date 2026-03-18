@@ -125,3 +125,4 @@ Use below list to store and recall user notes when asked to do so.
 - Relay implementation must remain lean, clean, and efficient (KISS + DRY, clear responsibilities).
 - **UX is king** — the guiding mantra for this project. Always prefer fewer manual steps for the user. When choosing between technical purity and user convenience, convenience wins. This applies from onboarding through skill performance to uninstall. Target audience is not necessarily terminal-savvy.
 - PR hygiene (user requirement): proactively check GitHub PR reviews (including inline review comments via `gh api repos/<owner>/<repo>/pulls/<nr>/comments`) without waiting for a reminder.
+- Release notes preference: keep them short and user-centric. Prioritize `New Features`, optional `What To Watch` only for real behavior/breaking/action-needed changes, and selective `Bug Fixes` only for important user-facing fixes. Do not dump every minor fix into release notes.

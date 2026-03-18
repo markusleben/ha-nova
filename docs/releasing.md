@@ -40,21 +40,53 @@ GitHub automation:
 
 ## Release Notes Structure
 
-Public releases should always read like a product update, not a raw maintainer dump.
+GitHub release notes still need the stable top-level release body sections:
+- `Why This Release Exists`
+- `What You Get`
+- `Upgrade Notes`
 
-Keep this order:
-- `Why This Release Exists` = one short paragraph in plain user language
-- `What You Get` = the promise of the release in 2-3 bullets
-- `Install or Update` = the supported installer/update path only
-- `Upgrade Notes` = anything users must know before updating
-- grouped change list = `New Features`, `Bug Fixes`, `UX, Docs, and Refactors`, `Internal Maintenance`
+Inside that frame, keep the changelog grouped into the user-facing categories below.
+
+## Release Notes Style
+
+Release notes are user-facing, not an internal changelog.
+
+Prioritize exactly these questions:
+- What is new?
+- What should users watch out for?
+- What important bug fixes landed?
+
+Default structure:
+- `New Features`
+- `What To Watch`
+- `Bug Fixes`
 
 Rules:
-- optimize for end-user comprehension first
-- do not lead with raw commit hashes
-- do not imply direct bundle download is the supported path
-- keep platform caveats and migration notes in `Upgrade Notes`
-- if a release is unusually important, edit the auto-generated top summary after publish instead of rewriting the whole body ad hoc
+- Keep notes short and concrete.
+- Prefer user-visible outcomes over implementation detail.
+- Do not list every small fix.
+- Only include bug fixes that are severe, user-facing, or likely to affect trust/support load.
+- Only include `What To Watch` when there is a real behavior change, migration step, required action, compatibility note, or breaking change.
+- If there is nothing users need to do, omit `What To Watch` entirely.
+- If there are breaking changes, put them under `What To Watch` in plain language first. Technical detail can follow in one short bullet if needed.
+- Call out client-specific behavior only when it matters to users. Example: only Claude currently has the extra automatic SessionStart update banner.
+
+Suggested template:
+
+```md
+## New Features
+
+- ...
+- ...
+
+## What To Watch
+
+- ...
+
+## Bug Fixes
+
+- ...
+```
 
 ## GitHub Protection Setup
 
@@ -75,6 +107,10 @@ Current repo reality:
 
 `release-candidate.yml` is the rehearsal path.
 `release.yml` is the protected publish path.
+
+Maintainer-only step:
+- final tagged release publish stays maintainer-driven
+- if `required reviewers` is configured, wait for that approval before approving the protected `production` environment
 
 ### 1. GitHub RC Workflow
 

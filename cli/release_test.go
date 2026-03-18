@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"io"
 	"net/http"
 	"os"
@@ -55,6 +56,71 @@ func TestCheckForUpdateReturnsStructuredUpdateAvailableNotice(t *testing.T) {
 	}
 }
 
+func TestBuildUpdateCheckResultUsesFreshCache(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(paths.VersionFile), 0o755); err != nil {
+		t.Fatalf("mkdir version dir: %v", err)
+	}
+	if err := os.WriteFile(paths.VersionFile, []byte(`{"skill_version":"0.1.0","min_relay_version":"0.1.0"}`), 0o644); err != nil {
+		t.Fatalf("write version file: %v", err)
+	}
+	if err := writeJSONFile(paths.UpdateCacheFile, releaseInfo{Version: "0.2.0", HTMLURL: "https://example.invalid/releases/v0.2.0"}, 0o644); err != nil {
+		t.Fatalf("write cache: %v", err)
+	}
+
+	result := buildUpdateCheckResult(paths)
+	if result.Status != "update_available" {
+		t.Fatalf("result.Status = %q, want update_available", result.Status)
+	}
+	if result.CacheStatus != "fresh" {
+		t.Fatalf("result.CacheStatus = %q, want fresh", result.CacheStatus)
+	}
+	if result.LatestVersion != "0.2.0" {
+		t.Fatalf("result.LatestVersion = %q, want 0.2.0", result.LatestVersion)
+	}
+	if !result.UpdateAvailable {
+		t.Fatal("expected update_available=true")
+	}
+}
+
+func TestRunCheckUpdateJSON(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(paths.VersionFile), 0o755); err != nil {
+		t.Fatalf("mkdir version dir: %v", err)
+	}
+	if err := os.WriteFile(paths.VersionFile, []byte(`{"skill_version":"0.1.0","min_relay_version":"0.1.0"}`), 0o644); err != nil {
+		t.Fatalf("write version file: %v", err)
+	}
+	if err := writeJSONFile(paths.UpdateCacheFile, releaseInfo{Version: "0.2.0", HTMLURL: "https://example.invalid/releases/v0.2.0"}, 0o644); err != nil {
+		t.Fatalf("write cache: %v", err)
+	}
+
+	output := captureStdout(t, func() {
+		if exitCode := runCheckUpdate(paths, []string{"--json"}); exitCode != 0 {
+			t.Fatalf("runCheckUpdate() exit = %d, want 0", exitCode)
+		}
+	})
+
+	if !strings.Contains(output, `"status": "update_available"`) {
+		t.Fatalf("expected JSON update_available output, got %s", output)
+	}
+	if !strings.Contains(output, `"cache_status": "fresh"`) {
+		t.Fatalf("expected JSON fresh cache status, got %s", output)
+	}
+}
+
 func TestCheckRelayVersionReturnsStructuredOutdatedNotice(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -80,4 +146,30 @@ func TestCheckRelayVersionReturnsStructuredOutdatedNotice(t *testing.T) {
 	if !strings.Contains(notice.message, "Relay outdated: v0.1.0 is below minimum v0.2.0") {
 		t.Fatalf("unexpected relay warning message: %q", notice.message)
 	}
+}
+
+func captureStdout(t *testing.T, fn func()) string {
+	t.Helper()
+
+	oldStdout := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe() error: %v", err)
+	}
+	os.Stdout = w
+	defer func() {
+		os.Stdout = oldStdout
+	}()
+
+	fn()
+
+	if err := w.Close(); err != nil {
+		t.Fatalf("close write pipe: %v", err)
+	}
+
+	var buf bytes.Buffer
+	if _, err := buf.ReadFrom(r); err != nil {
+		t.Fatalf("ReadFrom() error: %v", err)
+	}
+	return buf.String()
 }

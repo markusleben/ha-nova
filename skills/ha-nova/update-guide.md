@@ -35,7 +35,7 @@ HA NOVA uses three update archetypes depending on the client:
 
 | Client | Archetype | What happens |
 |--------|-----------|--------------|
-| Claude Code | Native | Re-register local marketplace + refresh plugin |
+| Claude Code | Native | Refresh local marketplace metadata + verify/update the installed plugin |
 | Codex | Linked/Copy | Refresh installed skill tree from the active HA NOVA install |
 | OpenCode | Linked/Copy | Refresh installed skill tree from the active HA NOVA install |
 | Gemini | Flat-copy | Rebuild flat markdown copies from the active HA NOVA install |
@@ -52,7 +52,7 @@ After client updates, shared tools are refreshed from the active HA NOVA install
 
 Two checks run automatically:
 
-1. **Skill update check** — `ha-nova check-update` compares the installed version against the latest GitHub release (cached 24h). Claude Code can surface the same release-based update notice via SessionStart context. Other clients should run the quiet check once on the first HA NOVA skill use in a session.
+1. **Skill update check** — `ha-nova check-update` compares the installed version against the latest GitHub release (cached 24h). Claude Code SessionStart reads the same shared release cache and can trigger a background CLI refresh when the cache is stale. Other clients should run the quiet check once on the first HA NOVA skill use in a session.
 2. **Relay compat check** — `ha-nova relay health` compares Relay version against `min_relay_version`. Claude Code SessionStart context can surface the same warning independently.
 
 The `doctor` command runs both checks synchronously and also refreshes the update cache.
@@ -60,7 +60,7 @@ Other clients use the same shared CLI updater path (`ha-nova check-update`, `ha-
 
 ## Agent-Driven Updates
 
-When the agent detects `UPDATE AVAILABLE` in its session context, it can run the update script directly:
+When the agent detects `UPDATE AVAILABLE` in its session context, it can run the update command directly:
 
 ```text
 ha-nova update

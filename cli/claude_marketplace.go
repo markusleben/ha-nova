@@ -65,12 +65,21 @@ func ensureClaudeMarketplaceRegistration(home, desiredSource string) error {
 		return err
 	}
 	if hasCurrentSource && sameClaudeMarketplaceSource(currentSource, desiredSource) {
-		return nil
+		if err := updateClaudeMarketplaceRegistration(); err != nil {
+			return err
+		}
+		return verifyClaudeMarketplaceRegistration(home, desiredSource)
 	}
 	if hasCurrentSource {
-		return replaceClaudeMarketplaceRegistration(desiredSource)
+		if err := replaceClaudeMarketplaceRegistration(desiredSource); err != nil {
+			return err
+		}
+		return verifyClaudeMarketplaceRegistration(home, desiredSource)
 	}
-	return addClaudeMarketplace(desiredSource)
+	if err := addClaudeMarketplace(desiredSource); err != nil {
+		return err
+	}
+	return verifyClaudeMarketplaceRegistration(home, desiredSource)
 }
 
 func captureClaudeLocalRestoreState(home string) (claudeLocalRestoreState, error) {
@@ -153,6 +162,14 @@ func addClaudeMarketplace(source string) error {
 	return nil
 }
 
+func updateClaudeMarketplaceRegistration() error {
+	cmd := exec.Command("claude", "plugin", "marketplace", "update", "ha-nova")
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("claude plugin command failed: %s (%s)", strings.Join(cmd.Args[1:], " "), strings.TrimSpace(string(output)))
+	}
+	return nil
+}
+
 func replaceClaudeMarketplaceRegistration(source string) error {
 	removeCmd := exec.Command("claude", "plugin", "marketplace", "remove", "ha-nova")
 	if output, err := removeCmd.CombinedOutput(); err != nil {
@@ -162,6 +179,20 @@ func replaceClaudeMarketplaceRegistration(source string) error {
 		}
 	}
 	return addClaudeMarketplace(source)
+}
+
+func verifyClaudeMarketplaceRegistration(home, desiredSource string) error {
+	currentSource, hasCurrentSource, err := readClaudeMarketplaceSource(home)
+	if err != nil {
+		return err
+	}
+	if !hasCurrentSource {
+		return fmt.Errorf("Claude marketplace ha-nova not found after sync")
+	}
+	if !sameClaudeMarketplaceSource(currentSource, desiredSource) {
+		return fmt.Errorf("Claude marketplace ha-nova source mismatch after sync")
+	}
+	return nil
 }
 
 func clearClaudeMarketplaceRegistration(home string) error {
