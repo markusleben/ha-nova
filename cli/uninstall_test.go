@@ -252,7 +252,7 @@ func TestApplyUninstallTokenPolicyFailsLoudWhenReadFailsForOtherReasons(t *testi
 	}()
 
 	readRelayAuthTokenForUninstall = func() (string, error) {
-		return "", relayAuthTokenReadError("ha-nova.relay-auth-token", errors.New("keyring locked"))
+		return "", relayAuthTokenReadError("ha-nova.relay-auth-token", errors.New("Secret Service backend locked"))
 	}
 	deleteRelayAuthTokenForUninstall = func() error {
 		t.Fatal("did not expect token delete when read failed")
@@ -261,7 +261,7 @@ func TestApplyUninstallTokenPolicyFailsLoudWhenReadFailsForOtherReasons(t *testi
 
 	report := &uninstallReport{}
 	err := applyUninstallTokenPolicy(report)
-	if err == nil || !strings.Contains(err.Error(), "keyring locked") {
+	if err == nil || !strings.Contains(err.Error(), "Secret Service backend locked") {
 		t.Fatalf("expected generic keyring read failure, got %v", err)
 	}
 	if len(report.removed) != 0 {

@@ -69,8 +69,8 @@ func isDesktopKeyringUnavailableError(err error) bool {
 		return false
 	}
 	message := strings.ToLower(err.Error())
-	return strings.Contains(message, "org.freedesktop.secrets") ||
-		strings.Contains(message, "secret service")
+	return strings.Contains(message, "org.freedesktop.secrets") &&
+		(strings.Contains(message, "not provided") || strings.Contains(message, "serviceunknown"))
 }
 
 func writeRelayAuthTokenOverride(token string) (bool, error) {
