@@ -64,6 +64,15 @@ func relayAuthTokenProblemMessage(err error) string {
 	return fmt.Sprintf("relay auth token unavailable: %s", err)
 }
 
+func isDesktopKeyringUnavailableError(err error) bool {
+	if err == nil {
+		return false
+	}
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "org.freedesktop.secrets") ||
+		strings.Contains(message, "secret service")
+}
+
 func writeRelayAuthTokenOverride(token string) (bool, error) {
 	path := relayAuthTokenTestFile()
 	if path == "" {
