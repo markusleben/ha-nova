@@ -1,0 +1,28 @@
+{
+  "clients": [
+    {
+      "id": "claude",
+      "label": "Claude Code",
+      "adapter_kind": "plugin_marketplace",
+      "supported_os": ["macos", "linux", "windows"]
+    },
+    {
+      "id": "codex",
+      "label": "Codex CLI",
+      "adapter_kind": "skill_tree",
+      "supported_os": ["macos", "linux", "windows"]
+    },
+    {
+      "id": "opencode",
+      "label": "OpenCode",
+      "adapter_kind": "skill_tree",
+      "supported_os": ["macos", "linux", "windows"]
+    },
+    {
+      "id": "gemini",
+      "label": "Gemini CLI",
+      "adapter_kind": "skill_flat",
+      "supported_os": ["macos", "linux", "windows"]
+    }
+  ]
+}

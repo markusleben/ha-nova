@@ -12,22 +12,36 @@ It replaces an 88,000-line MCP server with a lean API Relay plus LLM Skills.
 ## Client Installation Paths
 
 Primary onboarding target is non-technical end users.
-Use a client-specific entrypoint instead of manual environment editing.
+Official product entrypoints are OS bootstrapper + `ha-nova setup`.
+Client-specific install docs are convenience wrappers around that flow.
+
+Current release-facing support matrix:
+- macOS: Claude, Codex, OpenCode, Gemini
+- Linux: installer/runtime path is built and CI-smoked; full release validation still depends on a real Secret Service-backed Linux run
+- Windows: platform installer/runtime support is live; Claude and Gemini are smoke-validated, Codex/OpenCode lanes remain experimental until explicit Windows smoke completes
+- Windows bundle currently ships `amd64` only; Windows ARM64 uses x64 emulation
 
 - Codex CLI:
   - one-link guided flow via raw instructions
   - `Fetch and follow instructions from https://raw.githubusercontent.com/markusleben/ha-nova/main/.codex/INSTALL.md`
-  - skill install via symlink: `npm run install:codex-skill` (symlinks `~/.agents/skills/ha-nova` → repo)
-  - daily usage: regular `codex` startup (no custom launcher required)
+  - `ha-nova setup codex` installs skills into `~/.agents/skills/ha-nova`
+  - daily usage: regular `codex` startup
 - Claude Code:
-  - Plugin system: `claude plugin add /path/to/ha-nova` (auto-discovers `skills/ha-nova/`)
   - one-link guided flow via raw instructions
   - `Fetch and follow instructions from https://raw.githubusercontent.com/markusleben/ha-nova/main/.claude/INSTALL.md`
-  - same onboarding + verify flow as Codex (`scripts/onboarding/macos-onboarding.sh`)
-  - marketplace packaging not published yet
+  - `ha-nova setup claude` installs or repairs the Claude plugin integration
+  - default installs register the GitHub marketplace path; local marketplace mode is validation-only
 - Claude Desktop:
-  - planned after Codex/Claude Code flow is stable
-  - no public package yet
+  - current supported path via Claude Desktop Code tab
+  - uses the same Claude integration path as Claude Code
+- OpenCode:
+  - one-link guided flow via raw instructions
+  - `Fetch and follow instructions from https://raw.githubusercontent.com/markusleben/ha-nova/main/.opencode/INSTALL.md`
+  - `ha-nova setup opencode` installs or repairs the OpenCode skill integration
+- Gemini CLI:
+  - one-link guided flow via raw instructions
+  - `Fetch and follow instructions from https://raw.githubusercontent.com/markusleben/ha-nova/main/.gemini/INSTALL.md`
+  - `ha-nova setup gemini` installs or repairs the Gemini skill integration
 
 ## Documentation
 
@@ -42,20 +56,21 @@ Use a client-specific entrypoint instead of manual environment editing.
 Current deliverables:
 1. Relay MVP: `GET /health`, `POST /ws`, `POST /core`
 2. Context skill: `ha-nova` (auto-loaded via SessionStart hook; sub-skills discovered independently)
-3. Sub-skills (flat under `skills/`): write, read, helper, entity-discovery, service-call, review, guide, onboarding
-4. Shared references under `skills/ha-nova/` (`relay-api.md`, `best-practices.md`, `payload-schemas.md`, `helper-schemas.md`, `template-guidelines.md`, `safe-refactoring.md`, `update-guide.md`, `agents/*`)
+3. Sub-skills (flat under `skills/`): write, read, helper, entity-discovery, service-call, review, fallback, onboarding
+4. Shared references under `skills/ha-nova/` (`relay-api.md`, `best-practices.md`, `payload-schemas.md`, `helper-schemas.md`, `template-guidelines.md`, `safe-refactoring.md`, `automation-patterns.md`, `update-guide.md`, `agents/*`)
 
 ## Tech Stack
 
-- **Relay:** TypeScript, Node.js >=20, no HTTP framework
+- **App / Relay:** TypeScript, Node.js >=20, no HTTP framework
+- **Local runtime:** Go 1.24+ CLI for install/setup/doctor/update/uninstall/relay
 - **Dependencies:** ws, yaml, axios, home-assistant-js-websocket
 - **Skills:** Markdown files
-- **Tests:** Vitest
+- **Tests:** Vitest + Go test
 
 ## Conventions
 
 - Relay code must stay intentionally dumb: no business logic, no domain validation, no caching.
 - Intelligence belongs in Skills, not in the server.
-- Language policy: English-only across the whole project.
+- Language policy: skills and skill-like source docs stay English-only.
 - Commit messages: English, Conventional Commits.
 - Keep files under ~400 LOC when practical.

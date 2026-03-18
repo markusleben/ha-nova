@@ -21,16 +21,35 @@ describe("ha-nova contract", () => {
     expect(context).not.toContain("Orchestration Hard Gate");
   });
 
+  it("uses App terminology in active fallback skill surfaces", () => {
+    const context = readFileSync("skills/ha-nova/SKILL.md", "utf8");
+    const fallback = readFileSync("skills/fallback/SKILL.md", "utf8");
+
+    expect(context).toContain('"How do I manage Apps?"');
+    expect(context).not.toContain('"How do I manage add-ons?"');
+    expect(fallback).toContain("Apps / Supervisor");
+    expect(fallback).toContain("Settings > Apps");
+    expect(fallback).not.toContain("Settings > Add-ons");
+  });
+
   it("keeps relay-bootstrap runtime prerequisite and safety baseline in context skill", () => {
     const context = readFileSync("skills/ha-nova/SKILL.md", "utf8");
 
-    expect(context).toContain("Runtime Prerequisite (macOS)");
+    expect(context).toContain("Runtime Prerequisite");
     expect(context).toContain("Relay-only auth model");
-    expect(context).toContain("~/.config/ha-nova/relay health");
-    expect(context).toContain("npm run onboarding:macos");
+    expect(context).toContain("ha-nova relay health");
+    expect(context).toContain("ha-nova setup");
     expect(context).not.toContain("git rev-parse");
     expect(context).not.toContain('eval "$(bash');
     expect(context).toContain("Quoting Reliability (Critical)");
+    expect(context).toContain("--data-file");
+    expect(context).toContain("--body-file");
+    expect(context).toContain("--out");
+    expect(context).toContain("ha-nova relay jq --file <result-file> length");
+    expect(context).toContain("never chain commands with `&&` or `||`");
+    expect(context).toContain("Never call external `jq`");
+    expect(context).not.toContain("ask user to switch shell");
+    expect(context).not.toContain("If shell is not bash-compatible, stop and ask user to switch shell.");
     expect(context).toContain("Safety Baseline");
     expect(context).toContain("confirm:<token>");
     expect(context).toContain("Do not ask user to paste tokens in chat.");
@@ -69,6 +88,11 @@ describe("ha-nova contract", () => {
     expect(relayApi).toContain("GET /health");
     expect(relayApi).toContain("POST /ws");
     expect(relayApi).toContain("POST /core");
+    expect(relayApi).toContain("--data-file");
+    expect(relayApi).toContain("--body-file");
+    expect(relayApi).toContain("--out");
+    expect(relayApi).toContain("--jq-file <filter-file>");
+    expect(relayApi).not.toContain("ha-nova relay ws -d '{");
     expect(relayApi).toContain("{ \"ok\": true, \"data\": ... }");
     expect(relayApi).toContain("/api/config/automation/config/{id}");
     expect(relayApi).toContain("/api/config/script/config/{id}");
@@ -92,8 +116,8 @@ describe("ha-nova contract", () => {
     expect(resolve).toContain("{DOMAIN}");
     expect(resolve).toContain("{OPERATION}");
     expect(resolve).toContain("{USER_INTENT}");
-    expect(resolve).toContain("~/.config/ha-nova/relay ws");
-    expect(resolve).toContain("~/.config/ha-nova/relay core");
+    expect(resolve).toContain("ha-nova relay ws");
+    expect(resolve).toContain("ha-nova relay core");
     expect(resolve).not.toContain("{RELAY_BASE_URL}");
     expect(resolve).not.toContain("{RELAY_AUTH_TOKEN}");
     expect(resolve).not.toContain("macos-onboarding.sh");
@@ -105,8 +129,8 @@ describe("ha-nova contract", () => {
 
     expect(apply).toContain("{TARGET_ID}");
     expect(apply).toContain("{PAYLOAD}");
-    expect(apply).toContain("~/.config/ha-nova/relay ws");
-    expect(apply).toContain("~/.config/ha-nova/relay core");
+    expect(apply).toContain("ha-nova relay ws");
+    expect(apply).toContain("ha-nova relay core");
     expect(apply).not.toContain("{RELAY_BASE_URL}");
     expect(apply).not.toContain("{RELAY_AUTH_TOKEN}");
     expect(apply).not.toContain("macos-onboarding.sh");
@@ -124,8 +148,8 @@ describe("ha-nova contract", () => {
     expect(review).toContain("{TARGET_ID}");
     expect(review).toContain("{CONFIG}");
     expect(review).toContain("{MODE}");
-    expect(review).toContain("~/.config/ha-nova/relay ws");
-    expect(review).toContain("~/.config/ha-nova/relay core");
+    expect(review).toContain("ha-nova relay ws");
+    expect(review).toContain("ha-nova relay core");
     expect(review).not.toContain("{RELAY_BASE_URL}");
     expect(review).not.toContain("{RELAY_AUTH_TOKEN}");
     expect(review).toContain("Output Format");
@@ -241,10 +265,108 @@ describe("ha-nova contract", () => {
 
     for (const file of skills) {
       const content = readFileSync(file, "utf8");
-      expect(content, `${file} should use relay CLI`).toContain("~/.config/ha-nova/relay");
+      expect(content, `${file} should use relay CLI`).toContain("ha-nova relay");
       expect(content, `${file} should not use eval bootstrap`).not.toContain("macos-onboarding.sh");
       expect(content, `${file} should not use git rev-parse`).not.toContain("git rev-parse");
       expect(content, `${file} should not reference RELAY_BASE_URL`).not.toContain("RELAY_BASE_URL");
+    }
+  });
+
+  it("keeps active skills on a shell-agnostic relay contract", () => {
+    const files = [
+      "skills/read/SKILL.md",
+      "skills/review/SKILL.md",
+      "skills/helper/SKILL.md",
+      "skills/entity-discovery/SKILL.md",
+      "skills/fallback/SKILL.md",
+      "skills/service-call/SKILL.md",
+      "skills/ha-nova/safe-refactoring.md",
+      "skills/ha-nova/relay-api.md",
+      "skills/ha-nova/agents/resolve-agent.md",
+      "skills/ha-nova/agents/apply-agent.md",
+      "skills/ha-nova/agents/review-agent.md",
+      "skills/write/SKILL.md",
+      "skills/review/checks.md",
+    ];
+
+    for (const file of files) {
+      const content = readFileSync(file, "utf8");
+      expect(content, `${file} should teach file-based relay payloads`).toMatch(/--(data-file|body-file|out)\b/);
+      expect(content, `${file} should not teach inline ws/core JSON as canonical path`).not.toContain("relay ws -d '{");
+      expect(content, `${file} should not teach inline core JSON as canonical path`).not.toContain("relay core -d '{");
+      expect(content, `${file} should not rely on /tmp`).not.toContain("/tmp/");
+      expect(content, `${file} should not rely on python post-processing`).not.toContain("python -c");
+      expect(content, `${file} should not rely on node post-processing`).not.toContain("node -e");
+      expect(content, `${file} should not teach mktemp`).not.toContain("mktemp");
+      expect(content, `${file} should not teach shell piping into relay jq`).not.toContain("| ha-nova relay jq");
+      expect(content, `${file} should not teach shell heredocs`).not.toContain("<< 'EOF'");
+      expect(content, `${file} should not teach shell heredocs`).not.toContain('<< "EOF"');
+      expect(content, `${file} should not teach glob-sensitive inline jq selectors`).not.toContain("--jq .data[]");
+    }
+
+    const entityDiscovery = readFileSync("skills/entity-discovery/SKILL.md", "utf8");
+    expect(entityDiscovery).toContain("/api/config/automation/config/{unique_id}");
+    expect(entityDiscovery).toContain("--out <result-file>");
+    expect(entityDiscovery).toContain("never chain commands with `&&` or `||`");
+    expect(entityDiscovery).toContain("Never call external `jq`");
+
+    const review = readFileSync("skills/review/SKILL.md", "utf8");
+    expect(review).toContain("ha-nova relay health");
+  });
+
+  it("moves complex relay filtering to jq files and native file tools", () => {
+    const jqFileExamples = [
+      "skills/entity-discovery/SKILL.md",
+      "skills/read/SKILL.md",
+      "skills/helper/SKILL.md",
+      "skills/review/SKILL.md",
+      "skills/write/SKILL.md",
+      "skills/ha-nova/agents/resolve-agent.md",
+      "skills/ha-nova/safe-refactoring.md",
+      "skills/review/checks.md",
+    ];
+
+    for (const file of jqFileExamples) {
+      const content = readFileSync(file, "utf8");
+      expect(content, `${file} should teach --jq-file for complex filters`).toContain("--jq-file");
+      expect(content, `${file} should not teach inline body extraction filters`).not.toContain(
+        "--jq 'if .ok then .data.body",
+      );
+    }
+
+    const updateGuide = readFileSync("skills/ha-nova/update-guide.md", "utf8");
+    expect(updateGuide).toContain("ha-nova relay jq --file ~/.config/ha-nova/version.json .skill_version");
+    expect(updateGuide).not.toContain("cat ~/.config/ha-nova/version.json");
+    expect(updateGuide).toContain("Other clients use the same shared CLI updater path");
+
+    const bestPractices = readFileSync("skills/ha-nova/best-practices.md", "utf8");
+    expect(bestPractices).not.toContain('cat > "${HOME}/.cache/ha-nova/automation-bp-snapshot.json"');
+    expect(bestPractices).toContain("native file-writing tool");
+
+    const fallback = readFileSync("skills/fallback/SKILL.md", "utf8");
+    expect(fallback).toContain("<history-path>");
+    expect(fallback).toContain("<logbook-path>");
+    expect(fallback).toContain("<calendar-events-path>");
+    expect(fallback).not.toContain("--path '/api/history/");
+    expect(fallback).not.toContain("--path '/api/logbook/");
+    expect(fallback).not.toContain("--path '/api/calendars/");
+  });
+
+  it("avoids jq regex-dot escaping in helper-domain examples", () => {
+    const files = [
+      "skills/helper/SKILL.md",
+      "skills/review/SKILL.md",
+      "skills/ha-nova/safe-refactoring.md",
+    ];
+
+    for (const file of files) {
+      const content = readFileSync(file, "utf8");
+      expect(content, `${file} should avoid helper-domain regex escapes`).not.toContain(
+        'test("^(input_boolean|input_number|input_text|input_select|input_datetime|input_button|counter|timer|schedule)\\\\.")',
+      );
+      expect(content, `${file} should use split-domain helper filtering`).toContain(
+        'split(".")[0]',
+      );
     }
   });
 

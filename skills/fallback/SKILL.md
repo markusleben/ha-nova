@@ -1,6 +1,6 @@
 ---
 name: fallback
-description: Mandatory fallback for any HA NOVA task without a dedicated subskill. Must be invoked before any raw relay write operation. Covers dashboards, blueprints, history, logbook, areas, zones, labels, energy, calendars, entity registry, system health, add-ons, HACS, and Zigbee/Z-Wave.
+description: Mandatory fallback for any HA NOVA task without a dedicated subskill. Must be invoked before any raw relay write operation. Covers dashboards, blueprints, history, logbook, areas, zones, labels, energy, calendars, entity registry, system health, Apps, HACS, and Zigbee/Z-Wave.
 ---
 
 # HA NOVA Fallback
@@ -26,8 +26,16 @@ All relay calls in this skill are experimental -- always follow Safety Guardrail
 
 Only needed when executing experimental relay calls (not for Roadmap/External guidance).
 
-Verify relay CLI: `~/.config/ha-nova/relay health`
-If this fails: `npm run onboarding:macos`
+Verify relay CLI: `ha-nova relay health`
+If this fails: `ha-nova setup`
+
+## Relay Contract
+
+For every Relay-Ready call in this skill:
+- write request JSON with the client's native file-writing tool
+- use `ha-nova relay ws --data-file <payload-file>` or `ha-nova relay core --method <METHOD> --path <PATH> --body-file <payload-file>`
+- use `--out <result-file>` for large responses
+- treat inline `-d` as an optional tiny diagnostic path, not the canonical contract
 
 ## Capability Map
 
@@ -55,7 +63,7 @@ If this fails: `npm run onboarding:macos`
 | Event Subscriptions | Roadmap Phase 1c | -- |
 | Template / YAML Sensors | Roadmap Phase 3 | -- |
 | Configuration Backups | Roadmap Phase 2 | -- |
-| Add-ons / Supervisor | External | -- |
+| Apps / Supervisor | External | -- |
 | HACS | External | -- |
 | Zigbee / Z-Wave Config | External | -- |
 
@@ -90,15 +98,15 @@ View and edit Lovelace dashboard configurations (views, cards, themes).
 **Search:** `home assistant lovelace dashboard yaml api ws editing 2026`
 
 **Experimental relay calls (no skill guardrails):**
-```bash
+```text
 # Read dashboard config
-~/.config/ha-nova/relay ws -d '{"type":"lovelace/config","url_path":"lovelace"}'
+ha-nova relay ws --data-file <payload-file> --out <result-file>
 
 # Dashboard info
-~/.config/ha-nova/relay ws -d '{"type":"lovelace/info"}'
+ha-nova relay ws --data-file <payload-file>
 
 # Save dashboard config
-~/.config/ha-nova/relay ws -d '{"type":"lovelace/config/save","url_path":"lovelace","config":{"views":[...]}}'
+ha-nova relay ws --data-file <payload-file>
 ```
 
 **Risks:** `lovelace/config/save` performs a FULL OVERWRITE — no merge, no partial update. There is no `lovelace/config/update` endpoint. The only safe pattern is read → modify in memory → save full config. Use `url_path` to target a specific dashboard (omit for default). No optimistic locking — last writer wins silently.
@@ -110,12 +118,8 @@ List and import automation/script blueprints from the community or custom URLs.
 **Search:** `home assistant blueprint import automation api 2026`
 
 **Experimental relay calls (no skill guardrails):**
-```bash
-# List blueprints
-~/.config/ha-nova/relay ws -d '{"type":"blueprint/list","domain":"automation"}'
-
-# Import blueprint
-~/.config/ha-nova/relay ws -d '{"type":"blueprint/import","url":"https://...","domain":"automation"}'
+```text
+ha-nova relay ws --data-file <payload-file>
 ```
 
 **Risks:** Imported blueprints execute when instantiated. Review blueprint source before import.
@@ -127,11 +131,10 @@ Query past state changes for any entity within a time range.
 **Search:** `home assistant history api rest states period filter 2026`
 
 **Experimental relay calls (no skill guardrails):**
-```bash
-# Note: /core responses wrap upstream payload in .data.body (see relay-api.md → /core Contract)
-~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/history/period/2026-03-06T00:00:00Z?filter_entity_id=sensor.temperature&end_time=2026-03-07T00:00:00Z"}' \
-  | ~/.config/ha-nova/relay jq '.data.body'
+```text
+ha-nova relay core --method GET --path <history-path> --jq .data.body
 ```
+Use `<history-path>` for the full `/api/history/period/...?...&...` query string.
 
 **Risks:** None (read-only). Large time ranges may return very large responses.
 
@@ -142,11 +145,10 @@ Query the logbook for human-readable event entries (state changes, automations f
 **Search:** `home assistant logbook api rest query filter 2026`
 
 **Experimental relay calls (no skill guardrails):**
-```bash
-# Note: /core responses wrap upstream payload in .data.body (see relay-api.md → /core Contract)
-~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/logbook/2026-03-06T00:00:00Z?entity=light.living_room&end_time=2026-03-07T00:00:00Z"}' \
-  | ~/.config/ha-nova/relay jq '.data.body'
+```text
+ha-nova relay core --method GET --path <logbook-path> --jq .data.body
 ```
+Use `<logbook-path>` for the full `/api/logbook/...?...&...` query string.
 
 **Risks:** None (read-only).
 
@@ -157,24 +159,8 @@ Create, rename, or delete areas and floors used to organize devices and entities
 **Search:** `home assistant area floor registry api websocket crud 2026`
 
 **Experimental relay calls (no skill guardrails):**
-```bash
-# List areas
-~/.config/ha-nova/relay ws -d '{"type":"config/area_registry/list"}'
-
-# Create area
-~/.config/ha-nova/relay ws -d '{"type":"config/area_registry/create","name":"Office","icon":"mdi:desk"}'
-
-# Update area
-~/.config/ha-nova/relay ws -d '{"type":"config/area_registry/update","area_id":"office","name":"Home Office"}'
-
-# Delete area
-~/.config/ha-nova/relay ws -d '{"type":"config/area_registry/delete","area_id":"office"}'
-
-# List floors
-~/.config/ha-nova/relay ws -d '{"type":"config/floor_registry/list"}'
-
-# Create floor
-~/.config/ha-nova/relay ws -d '{"type":"config/floor_registry/create","name":"Ground Floor","icon":"mdi:home-floor-g"}'
+```text
+ha-nova relay ws --data-file <payload-file>
 ```
 
 **Risks:** Area/floor deletes are irreversible — all devices/entities lose their area assignment (cascade-clean, not cascade-delete). Re-creating an area with the same name does NOT restore old assignments. `update` is a safe merge (only provided fields change).
@@ -186,15 +172,8 @@ Manage labels and categories for organizing entities and automations.
 **Search:** `home assistant label category registry api websocket 2026`
 
 **Experimental relay calls (no skill guardrails):**
-```bash
-# List labels
-~/.config/ha-nova/relay ws -d '{"type":"config/label_registry/list"}'
-
-# Create label
-~/.config/ha-nova/relay ws -d '{"type":"config/label_registry/create","name":"Critical","icon":"mdi:alert","color":"red"}'
-
-# List categories
-~/.config/ha-nova/relay ws -d '{"type":"config/category_registry/list","scope":"automation"}'
+```text
+ha-nova relay ws --data-file <payload-file>
 ```
 
 **Risks:** Minimal. Labels/categories are metadata only.
@@ -206,18 +185,8 @@ Manage location zones, person entities, and NFC/QR tags.
 **Search:** `home assistant zone person tag management api websocket 2026`
 
 **Experimental relay calls (no skill guardrails):**
-```bash
-# List zones
-~/.config/ha-nova/relay ws -d '{"type":"zone/list"}'
-
-# Create zone
-~/.config/ha-nova/relay ws -d '{"type":"zone/create","name":"Work","latitude":48.1,"longitude":11.5,"radius":100,"icon":"mdi:briefcase"}'
-
-# List persons
-~/.config/ha-nova/relay ws -d '{"type":"person/list"}'
-
-# List tags
-~/.config/ha-nova/relay ws -d '{"type":"tag/list"}'
+```text
+ha-nova relay ws --data-file <payload-file>
 ```
 
 **Risks:** Zone changes affect presence detection automations. Person changes affect device trackers.
@@ -229,15 +198,8 @@ Configure energy dashboard sources (grid, solar, gas, water, individual devices)
 **Search:** `home assistant energy dashboard configuration api preferences 2026`
 
 **Experimental relay calls (no skill guardrails):**
-```bash
-# Read preferences
-~/.config/ha-nova/relay ws -d '{"type":"energy/get_prefs"}'
-
-# Validate config
-~/.config/ha-nova/relay ws -d '{"type":"energy/validate"}'
-
-# Save preferences
-~/.config/ha-nova/relay ws -d '{"type":"energy/save_prefs","energy_sources":[...],"device_consumption":[...]}'
+```text
+ha-nova relay ws --data-file <payload-file>
 ```
 
 **Risks:** Field-level list replacement — omitted top-level keys (`energy_sources`, `device_consumption`, `device_consumption_water`) are preserved, but each provided key replaces its entire list. To add one source: read existing via `energy/get_prefs`, append to list, save back full list. Requires admin auth.
@@ -249,8 +211,8 @@ Check system health status and view deprecation/repair issues.
 **Search:** `home assistant system health repairs issues api 2026`
 
 **Experimental relay calls (no skill guardrails):**
-```bash
-~/.config/ha-nova/relay ws -d '{"type":"repairs/list_issues"}'
+```text
+ha-nova relay ws --data-file <payload-file>
 ```
 
 **Risks:** None (read-only). Note: `system_health/info` uses a subscription pattern -- call via relay returns first response only.
@@ -262,13 +224,11 @@ List calendars and query upcoming events.
 **Search:** `home assistant calendar api rest events query 2026`
 
 **Experimental relay calls (no skill guardrails):**
-```bash
-# List calendars (note: /core wraps payload in .data.body)
-~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/calendars"}' | ~/.config/ha-nova/relay jq '.data.body'
-
-# Query events
-~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/calendars/calendar.home?start=2026-03-07T00:00:00Z&end=2026-03-14T00:00:00Z"}' | ~/.config/ha-nova/relay jq '.data.body'
+```text
+ha-nova relay core --method GET --path /api/calendars --jq .data.body
+ha-nova relay core --method GET --path <calendar-events-path> --jq .data.body
 ```
+Use `<calendar-events-path>` for the full `/api/calendars/<calendar_id>?start=...&end=...` query string.
 
 **Risks:** None (read-only).
 
@@ -281,12 +241,12 @@ Create complex helper types that require multi-step config flows (template senso
 **Supported types:** template, group, utility_meter, derivative, min_max, threshold, integration, statistics, trend, random, filter, tod, generic_thermostat, switch_as_x, generic_hygrostat
 
 **Experimental relay calls (no skill guardrails):**
-```bash
+```text
 # Start flow
-~/.config/ha-nova/relay ws -d '{"type":"config_entries/flow","handler":"template","show_advanced_options":true}'
+ha-nova relay ws --data-file <payload-file>
 
 # Submit step (use fields from previous response's data_schema)
-~/.config/ha-nova/relay ws -d '{"type":"config_entries/flow/{flow_id}","name":"My Template Sensor","state":"{{ states(\"sensor.x\") }}"}'
+ha-nova relay ws --data-file <payload-file>
 ```
 
 **Risks:** Multi-step flows are complex. Each step returns the next step's schema. Easy to get wrong. Prefer HA UI for these.
@@ -299,15 +259,15 @@ For safe rename/delete workflows with consumer impact checks, see `skills/ha-nov
 **Search:** `home assistant entity registry update rename disable api 2026`
 
 **Experimental relay calls (no skill guardrails):**
-```bash
+```text
 # Get entity
-~/.config/ha-nova/relay ws -d '{"type":"config/entity_registry/get","entity_id":"light.living_room"}'
+ha-nova relay ws --data-file <payload-file>
 
 # Update entity
-~/.config/ha-nova/relay ws -d '{"type":"config/entity_registry/update","entity_id":"light.living_room","name":"Living Room Light","area_id":"living_room"}'
+ha-nova relay ws --data-file <payload-file>
 
 # Remove entity (irreversible)
-~/.config/ha-nova/relay ws -d '{"type":"config/entity_registry/remove","entity_id":"light.old_device"}'
+ha-nova relay ws --data-file <payload-file>
 ```
 
 **Risks:** `remove` soft-deletes the entity for 30 days — integration-managed entities are restored with customizations on re-discovery, but manually-created entities (helpers) will not be auto-restored. Prefer `update` with `disabled_by: "user"` (reversible) over `remove`.
@@ -343,13 +303,13 @@ Create and restore full configuration backups.
 
 ## External Features
 
-### Add-ons / Supervisor Management -- EXTERNAL
+### Apps / Supervisor Management -- EXTERNAL
 
 Supervisor API is separate from HA Core API. Requires different auth and endpoints.
 
-**Search:** `home assistant supervisor addon install manage api 2026`
+**Search:** `home assistant supervisor app add-on install manage api 2026`
 
-**Alternative:** HA UI: Settings > Add-ons. Or `ha` CLI on HA OS.
+**Alternative:** HA UI: Settings > Apps. Or `ha` CLI on HA OS.
 
 ### HACS (Home Assistant Community Store) -- EXTERNAL
 

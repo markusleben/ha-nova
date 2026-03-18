@@ -1,3 +1,5 @@
+import { TimeoutError, withTimeout } from "../shared/timeout.js";
+
 export type HaWsClientErrorCode =
   | "UPSTREAM_WS_CONNECT_ERROR"
   | "UPSTREAM_WS_TIMEOUT"
@@ -45,6 +47,7 @@ export function createHaWsClient(options: HaWsClientOptions): HaWsClient {
         const result = await withTimeout(upstream.sendMessagePromise(message), requestTimeoutMs);
         return result as T;
       } catch (error) {
+        resetConnection();
         if (error instanceof TimeoutError) {
           throw new HaWsClientError(
             "UPSTREAM_WS_TIMEOUT",
@@ -91,29 +94,8 @@ export function createHaWsClient(options: HaWsClientOptions): HaWsClient {
       connectingPromise = undefined;
     }
   }
-}
 
-class TimeoutError extends Error {}
-
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
-  let timeoutHandle: NodeJS.Timeout | undefined;
-
-  return new Promise<T>((resolve, reject) => {
-    timeoutHandle = setTimeout(() => {
-      reject(new TimeoutError("Request timed out"));
-    }, timeoutMs);
-
-    promise
-      .then((value) => {
-        resolve(value);
-      })
-      .catch((error: unknown) => {
-        reject(error);
-      })
-      .finally(() => {
-        if (timeoutHandle) {
-          clearTimeout(timeoutHandle);
-        }
-      });
-  });
+  function resetConnection(): void {
+    connection = undefined;
+  }
 }

@@ -31,8 +31,8 @@ describe("ha cross-skill integration", () => {
     const writeSkill = readFileSync("skills/write/SKILL.md", "utf8");
 
     expect(writeSkill).toContain("## Bootstrap (once per session)");
-    expect(writeSkill).toContain("~/.config/ha-nova/relay health");
-    expect(writeSkill).toContain("If this fails, run onboarding: `npm run onboarding:macos`.");
+    expect(writeSkill).toContain("ha-nova relay health");
+    expect(writeSkill).toContain("If this fails, run onboarding: `ha-nova setup`.");
     expect(writeSkill).toContain("## Flow");
     expect(writeSkill).toContain("Fallback: If agent dispatch unavailable");
     expect(writeSkill).toContain("## Safety");

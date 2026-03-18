@@ -124,6 +124,16 @@ emit_export() {
   printf 'export %s=%q\n' "$key" "$value"
 }
 
+copy_secret_to_clipboard() {
+  local secret="$1"
+
+  if declare -F copy_to_clipboard >/dev/null 2>&1 && copy_to_clipboard "$secret"; then
+    return 0
+  fi
+
+  return 1
+}
+
 # ---------------------------------------------------------------------------
 # Spinner — shows animated progress while a background command runs
 # Usage: with_spinner "Discovering Home Assistant..." some_command arg1 arg2
@@ -231,8 +241,7 @@ wait_for_enter_or_copy() {
       die "Interactive input required. Re-run in a terminal."
     fi
     if [[ "$input" =~ ^[Cc]$ && -n "$secret" ]]; then
-      if command -v pbcopy >/dev/null 2>&1; then
-        printf '%s' "$secret" | pbcopy
+      if copy_secret_to_clipboard "$secret"; then
         print_success "Token copied to clipboard."
       else
         echo ""
@@ -257,18 +266,10 @@ check_prerequisites() {
   require_platform
   print_success "Platform supported"
 
-  # Node.js check
-  if ! command -v node >/dev/null 2>&1; then
-    print_fail "Node.js not found. Install from https://nodejs.org"
-    exit 1
+  if declare -F require_platform_dependencies >/dev/null 2>&1; then
+    require_platform_dependencies
+    print_success "Platform dependencies available"
   fi
-  local node_major
-  node_major="$(node --version | sed 's/v\([0-9]*\).*/\1/')"
-  if (( node_major < 20 )); then
-    print_fail "Node.js ${node_major} found, but 20+ required."
-    exit 1
-  fi
-  print_success "Node.js $(node --version)"
 
   if ! command -v curl >/dev/null 2>&1; then
     print_fail "curl not found."

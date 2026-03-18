@@ -1,5 +1,7 @@
 # Go Relay CLI Implementation Plan
 
+> Historical implementation note: this plan predates the Go-first runtime cutover. Current public contract is `ha-nova setup`, `ha-nova relay ...`, `ha-nova check-update`, and `ha-nova update`; raw relay file paths are compatibility-only.
+
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Replace `scripts/relay.sh` with a single Go binary (`cli/`) that provides relay HTTP proxy + built-in jq filtering, eliminating Bash/curl/jq dependencies.

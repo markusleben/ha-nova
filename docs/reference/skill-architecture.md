@@ -4,12 +4,15 @@
 
 HA NOVA uses a flat skill layout with one context skill and 8 independent sub-skills under `skills/`.
 
-Claude Code discovers all skills via `skills/{name}/SKILL.md` (1 level deep). The context skill is auto-loaded via a SessionStart hook.
+The repo skill tree is the single source of truth. Client installers adapt that same tree to each client's packaging rules:
+- Claude: plugin marketplace payload
+- Codex / OpenCode: nested skill tree
+- Gemini: flat copied skill directories
 
 Installed skill tree:
 ```
 skills/
-  ha-nova/SKILL.md              (context skill — auto-loaded via SessionStart hook)
+  ha-nova/SKILL.md              (context skill — stable top-level entrypoint)
   ha-nova/relay-api.md          (reference doc)
   ha-nova/best-practices.md     (reference doc)
   ha-nova/payload-schemas.md    (reference doc)
@@ -31,25 +34,18 @@ skills/
 
 ## Discovery Model
 
-Claude Code scans `skills/*/SKILL.md` (1 level) and matches skills by their `description` frontmatter.
+The canonical skill entrypoints remain `skills/*/SKILL.md`.
 
-The context skill (`ha-nova`) is auto-loaded into every session via a SessionStart hook (`hooks/session-start`), providing:
-- Safety baseline
-- Response format
-- Runtime prerequisites
-- Quoting rules
-- Latency policy
+- Claude loads HA NOVA through the installed plugin marketplace payload.
+- Codex and OpenCode load the nested `ha-nova` skill tree directly.
+- Gemini receives flat copied skill directories because it only supports one skill level.
+- Gemini sub-skills are installed with namespaced identifiers such as `ha-nova-entity-discovery` so the flat folder names and activation names stay aligned.
 
-Sub-skills are discovered independently by Claude Code based on their descriptions. No router dispatch needed.
+The context skill (`ha-nova`) stays the stable entrypoint; sub-skills remain independently discoverable by description and naming.
 
-## SessionStart Hook
+## Repo-local Hook Note
 
-`hooks/hooks.json` registers a SessionStart hook that:
-1. Reads `skills/ha-nova/SKILL.md`
-2. Returns JSON with `additional_context` containing the full context skill content
-3. Fires on: startup, resume, clear, compact
-
-This follows the same pattern as the superpowers plugin.
+`hooks/session-start` still exists as a repo-local development helper, but it is **not** the production installation model for Claude. Production Claude installs come from the plugin marketplace path.
 
 ## Agent vs Inline Decision Rule
 
@@ -156,10 +152,10 @@ Excluded: config-entry flow helpers (template, group, utility_meter) — differe
 `scripts/onboarding/install-local-skills.sh`:
 - source skill tree: `skills/` (repo-local, flat layout)
 - client-specific install strategies:
-  - **Claude Code:** Skipped — uses plugin system (`.claude-plugin/plugin.json`) + SessionStart hook
-  - **Codex CLI:** Symlink `~/.agents/skills/ha-nova` → `${REPO_ROOT}/skills`
-  - **OpenCode:** Symlink `~/.config/opencode/skills/ha-nova` → `${REPO_ROOT}/skills`
-  - **Gemini CLI:** Flat copy `~/.gemini/skills/ha-nova-*/SKILL.md` (1-level limit)
+  - **Claude Code:** stages a local marketplace root under `~/.config/ha-nova/claude-marketplace`, registers it with `claude plugin marketplace add`, then installs/reinstalls `ha-nova@ha-nova`
+  - **Codex CLI:** symlink on Unix, copy fallback on Windows at `~/.agents/skills/ha-nova`
+  - **OpenCode:** symlink on Unix, copy fallback on Windows at `~/.config/opencode/skills/ha-nova`
+  - **Gemini CLI:** Flat copy `~/.gemini/skills/ha-nova-*/SKILL.md` (1-level limit), with namespaced sub-skill names matching those folder names
 - cleans up legacy flat skill directories (old `ha-nova-*` prefixed dirs)
 - supports targets: `codex`, `claude`, `opencode`, `gemini`, `all`
 
@@ -254,7 +250,7 @@ Global safety expectations:
 
 Minimize context and maintenance overhead while preserving strict write safety:
 - flat skill layout for direct discovery
-- context skill auto-loaded via hook
+- context skill remains the stable top-level entrypoint
 - centralized relay contract
 - explicit phase boundaries
 - deterministic preview/confirm/apply behavior

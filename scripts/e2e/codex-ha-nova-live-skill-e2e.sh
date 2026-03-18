@@ -39,7 +39,7 @@ Hard requirements:
 2. Use App + Relay terminology.
 3. Do not run onboarding ready/doctor checks before the first HA action.
    (Harness-level preconditions may run outside assistant actions.)
-4. Load onboarding env for this session.
+4. Use the current local HA NOVA setup for this session.
 5. This is end-user relay mode. Use Relay POST /core envelope calls for automation CRUD.
    Do not use direct Home Assistant REST in the client session.
    Do not request or store LLAT in client onboarding files/Keychain.
@@ -57,7 +57,6 @@ EOF
 }
 
 main() {
-  local onboarding_env
   local codex_status
   local parsed_log
   local final_line_count
@@ -66,16 +65,12 @@ main() {
 
   require_cmd codex
   require_cmd jq
+  require_cmd ha-nova
 
   if [[ "$E2E_REQUIRE_QUICK_GATE" == "1" ]]; then
-    log "Running quick onboarding readiness gate (harness precondition)"
-    bash "${PROJECT_ROOT}/scripts/onboarding/macos-onboarding.sh" quick
+    log "Running doctor readiness gate (harness precondition)"
+    ha-nova doctor
   fi
-
-  onboarding_env="$(bash "${PROJECT_ROOT}/scripts/onboarding/macos-onboarding.sh" env)"
-  # shellcheck disable=SC1091
-  # shellcheck disable=SC1090
-  source /dev/stdin <<<"$onboarding_env"
 
   mkdir -p "$OUTPUT_DIR"
   build_prompt

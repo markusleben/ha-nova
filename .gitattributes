@@ -1,0 +1,5 @@
+*.sh text eol=lf
+*.ps1 text eol=lf
+*.cmd text eol=crlf
+hooks/session-start text eol=lf
+scripts/onboarding/bin/ha-nova text eol=lf

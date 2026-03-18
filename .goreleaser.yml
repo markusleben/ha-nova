@@ -1,11 +1,11 @@
 version: 2
 
-project_name: ha-nova-relay
+project_name: ha-nova
 
 builds:
-  - id: relay-darwin
+  - id: ha-nova-darwin
     dir: cli
-    binary: relay
+    binary: ha-nova
     env:
       - CGO_ENABLED=0
     goos:
@@ -16,14 +16,14 @@ builds:
     ldflags:
       - -s -w -X main.Version={{.Version}}
 
-  - id: relay-other
+  - id: ha-nova-other
     dir: cli
-    binary: relay
+    binary: ha-nova
     env:
       - CGO_ENABLED=0
     goos:
-      - windows
       - linux
+      - windows
     goarch:
       - amd64
       - arm64
@@ -35,7 +35,7 @@ builds:
 
 archives:
   - formats: [binary]
-    name_template: "relay-{{ .Os }}-{{ .Arch }}"
+    name_template: "ha-nova-{{ .Os }}-{{ .Arch }}"
 
 checksum:
   name_template: "checksums.txt"
@@ -53,42 +53,26 @@ release:
   header: |
     ## Install or Update
 
-    **macOS:**
+    Do not download the `ha-nova-installer-bundle-*.tar.gz` / `.zip` assets below and try to run them directly.
+    They are installer payloads, not standalone apps.
+    Use the installer commands below, or run `ha-nova update` from an existing install.
+
+    **macOS / Linux:**
     ```sh
     curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/main/install.sh | bash
     ```
 
-    Already installed? You can also run `ha-nova update`.
+    **Windows (PowerShell):**
+    ```powershell
+    irm https://raw.githubusercontent.com/markusleben/ha-nova/main/install.ps1 | iex
+    ```
 
-    > The binary assets below are consumed by the installer automatically — do not download them manually.
+    Windows currently ships an `amd64` bundle only. On Windows ARM64, use x64 emulation.
+    Windows validation in this release may still be narrower than macOS; check the README support matrix before claiming client-lane parity.
+
+    Already installed? Run `ha-nova check-update` or `ha-nova update`.
+
+    > The bundle assets below are consumed by the installers automatically. Only use them directly for maintainer-level debugging or raw binary validation.
   footer: |
     ---
     **Full documentation:** [github.com/markusleben/ha-nova](https://github.com/markusleben/ha-nova)
-
-signs:
-  - cmd: codesign
-    args:
-      - "--sign"
-      - "Developer ID Application: {{ .Env.APPLE_IDENTITY }}"
-      - "--options"
-      - "runtime"
-      - "${artifact}"
-    artifacts: binary
-    ids:
-      - relay-darwin
-    output: false
-
-# Notarization runs as a CI post-step after goreleaser completes.
-# goreleaser OSS does not support global after-hooks (Pro-only feature).
-# In CI, run the following after `goreleaser release`:
-#
-#   for f in dist/relay-darwin-*; do
-#     [ -f "$f" ] || continue
-#     ditto -c -k --keepParent "$f" "${f}.zip"
-#     xcrun notarytool submit "${f}.zip" \
-#       --apple-id "$APPLE_ID" \
-#       --password "$APPLE_PASSWORD" \
-#       --team-id "$APPLE_TEAM_ID" \
-#       --wait
-#     rm "${f}.zip"
-#   done

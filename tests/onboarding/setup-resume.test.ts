@@ -1,6 +1,6 @@
 /**
- * S-2: Upgrade (everything present) — "Already set up"
- * S-3: Resume after partial abort
+ * Legacy macOS shell reference: resume/upgrade behavior.
+ * Historical shell-only coverage; current public runtime contract lives in Go tests.
  */
 import { mkdirSync, readdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
@@ -47,7 +47,7 @@ function seedGeminiSkills(home: string, options: { includeReviewChecks?: boolean
   }
 }
 
-describe.skipIf(!isMac)("S-2: smart resume — already set up", () => {
+describe.skipIf(!isMac)("Legacy S-2: smart resume — already set up", () => {
   it("exits early when relay + WS + skills all OK", () => {
 
     const home = createMockHome({

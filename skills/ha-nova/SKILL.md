@@ -1,6 +1,6 @@
 ---
 name: ha-nova
-description: Use when the user wants Home Assistant operations through HA NOVA (App + Relay) with macOS Keychain-backed local auth.
+description: Use when the user wants Home Assistant operations through HA NOVA (App + Relay) with local OS-backed auth.
 ---
 
 # HA NOVA Context Skill
@@ -15,12 +15,12 @@ Operate Home Assistant through HA NOVA with a minimal user-facing flow:
 - one blocking question only when required
 - compact result output
 
-## Runtime Prerequisite (macOS)
+## Runtime Prerequisite
 
 Before HA operations in this session:
 
-1. Verify relay CLI: `~/.config/ha-nova/relay health`
-2. If this fails, ask user to run: `npm run onboarding:macos`
+1. Verify relay CLI: `ha-nova relay health`
+2. If this fails, ask user to run: `ha-nova setup`
 3. Do not run diagnostics proactively; diagnose only after real failure.
 4. Relay-only auth model: do not request or persist LLAT client-side.
    - LLAT belongs in App option `ha_llat`
@@ -30,8 +30,8 @@ Do not ask user to paste tokens in chat.
 ## Self-Update
 
 If session context OR `relay health` output includes `UPDATE AVAILABLE`, inform the user and offer to update:
-1. Run: `~/.config/ha-nova/update`
-2. If the script doesn't exist (older install): tell the user to `git pull` in their ha-nova repo, then re-run setup.
+1. Run: `ha-nova update`
+2. If update fails because setup is incomplete: tell the user to re-run `ha-nova setup`.
 3. After success: tell the user to **start a new session** for the updated skills to take effect.
 
 ## Quoting Reliability (Critical)
@@ -39,9 +39,17 @@ If session context OR `relay health` output includes `UPDATE AVAILABLE`, inform 
 Quoting is shell-dependent (bash/zsh vs PowerShell), not primarily OS-dependent.
 
 Rules:
-- Keep command examples copy-pastable as shown.
-- Avoid unnecessary escaping in bash/zsh snippets.
-- If shell is not bash-compatible, stop and ask user to switch shell.
+- The canonical relay contract is file-based, not inline-JSON-first.
+- Prefer `ha-nova relay ws --data-file <payload-file>`.
+- Prefer `ha-nova relay core --method <METHOD> --path <PATH> --body-file <payload-file>`.
+- Prefer `ha-nova relay ... --out <result-file>` for large outputs.
+- Prefer `--jq` or `--jq-file` over shell pipes when filtering relay output.
+- Prefer `ha-nova relay jq --file <result-file> length` for simple counts and `--jq-file <filter-file>` for non-trivial follow-up transforms.
+- On Windows PowerShell, never chain commands with `&&` or `||`; run separate shell commands instead.
+- Never call external `jq`; use relay-native `--jq` / `--jq-file` or `ha-nova relay jq`.
+- When a filter contains `select`, `test`, `startswith`, or more than one pipeline stage, default to `--jq-file` even if inline quoting might work.
+- Use native file-writing and file-reading tools for temp files. Do not teach `cat`, heredocs, Python, or Node as the primary JSON path.
+- Use inline `-d` / `--body` only for tiny diagnostics when shell quoting is already known-good.
 
 ## Safety Baseline
 
@@ -130,7 +138,7 @@ Match user intent to exactly one skill:
 **"Create a timer"** → ambiguous! Ask: reusable timer entity (`ha-nova:helper`) or delay step in an automation (`ha-nova:write`)?
 **"Show my energy dashboard"** → `ha-nova:fallback` (no dedicated skill)
 **"Import a blueprint"** → `ha-nova:fallback` (relay-ready, no skill)
-**"How do I manage add-ons?"** → `ha-nova:fallback` (external, web search)
+**"How do I manage Apps?"** → `ha-nova:fallback` (external, web search)
 **"Show history for sensor X"** → `ha-nova:fallback` (relay-ready, no skill)
 **"Modify my dashboard"** → `ha-nova:fallback` (NEVER raw `lovelace/config/save` without this skill)
 **"Save the Lovelace config"** → `ha-nova:fallback` (NEVER direct WS write without read-merge-verify)

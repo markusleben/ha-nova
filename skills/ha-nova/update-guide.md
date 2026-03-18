@@ -2,17 +2,17 @@
 
 ## Quick Update
 
-All clients (Claude Code, Codex, OpenCode, Gemini) — one command:
+Update the active HA NOVA install and any supported client integrations on this machine:
 
-```bash
-~/.config/ha-nova/update
+```text
+ha-nova update
 ```
 
-The script auto-detects which clients are installed and updates each using the appropriate method. No arguments needed.
+The CLI auto-detects which client integrations are installed and refreshes each using the appropriate method. On Windows, the HA NOVA core path is verified; individual client coverage still depends on the client runtime you actually have available on that machine.
 
-**Older installations** (before v0.1.7) may not have this script yet. In that case:
-1. `cd <ha-nova-repo> && git pull` to get the latest code
-2. Re-run `ha-nova setup` (or `bash scripts/onboarding/install-local-skills.sh <client>`) to deploy the update script
+**Older installations** may still use a migration shim. If `ha-nova update` is missing or fails before launch:
+1. Re-run the installer for your platform
+2. Re-run `ha-nova setup`
 
 ## Two Independent Version Lines
 
@@ -29,40 +29,41 @@ The script auto-detects which clients are installed and updates each using the a
 
 HA Settings > Apps > NOVA Relay > Update (or reinstall from App Store).
 
-## How the Update Script Works
+## How Update Works
 
-The script uses three update archetypes depending on the client:
+HA NOVA uses three update archetypes depending on the client:
 
 | Client | Archetype | What happens |
 |--------|-----------|--------------|
-| Claude Code | Native | `claude plugin update ha-nova@ha-nova` |
-| Codex | Symlink | `git pull --ff-only` in source clone (symlink auto-resolves) |
-| OpenCode | Symlink | `git pull --ff-only` in source clone (symlink auto-resolves) |
-| Gemini | Flat-copy | `git pull --ff-only` + re-copy skill files |
+| Claude Code | Native | Re-register local marketplace + refresh plugin |
+| Codex | Linked/Copy | Refresh installed skill tree from the active HA NOVA install |
+| OpenCode | Linked/Copy | Refresh installed skill tree from the active HA NOVA install |
+| Gemini | Flat-copy | Rebuild flat markdown copies from the active HA NOVA install |
 
-After client updates, shared tools (relay CLI, version-check, update script itself) are refreshed from the latest source.
+After client updates, shared tools are refreshed from the active HA NOVA install.
 
 ## Check Versions
 
-- **Skills:** `cat ~/.config/ha-nova/version.json` → `skill_version` field
-- **Relay:** `~/.config/ha-nova/relay health` → `"version"` field (matches `config.yaml`)
+- **Skills:** `ha-nova relay jq --file ~/.config/ha-nova/version.json .skill_version`
+- **Relay:** `ha-nova relay health` → `"version"` field (matches `config.yaml`)
 - **Compatibility:** `version.json:min_relay_version` must be <= running Relay version
 
 ## Automatic Checks
 
 Two checks run automatically:
 
-1. **Skill update check** — All clients: `relay health` runs `~/.config/ha-nova/version-check` (cached 24h). Claude Code also checks via SessionStart hook. Shows: `UPDATE AVAILABLE: v0.1.2 -> v0.2.0`
-2. **Relay compat check** — `relay health` compares Relay version against `min_relay_version`. Claude Code SessionStart hook also checks independently. Shows: `WARNING: Relay version X is below minimum Y`
+1. **Skill update check** — `ha-nova check-update` compares the installed version against the latest release (cached 24h). Claude Code can surface the same update notice via SessionStart context.
+2. **Relay compat check** — `ha-nova relay health` compares Relay version against `min_relay_version`. Claude Code SessionStart context can surface the same warning independently.
 
-The `doctor` command (`npx ha-nova doctor` from the repo) runs both checks synchronously and also refreshes the update cache.
+The `doctor` command runs both checks synchronously and also refreshes the update cache.
+Other clients use the same shared CLI updater path (`ha-nova check-update`, `ha-nova doctor`, `ha-nova update`), but do not currently inject the same automatic SessionStart banner.
 
 ## Agent-Driven Updates
 
 When the agent detects `UPDATE AVAILABLE` in its session context, it can run the update script directly:
 
-```bash
-~/.config/ha-nova/update
+```text
+ha-nova update
 ```
 
 After a successful update, the user must start a new session for the updated skills to take effect.

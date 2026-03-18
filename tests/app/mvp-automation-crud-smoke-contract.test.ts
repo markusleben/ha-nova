@@ -15,7 +15,8 @@ describe("app MVP CRUD smoke script contract", () => {
   it("runs doctor gate and validates automation CRUD via supervisor core api", () => {
     const content = readFileSync("scripts/smoke/ha-app-mvp-crud-smoke.sh", "utf8");
 
-    expect(content).toContain("macos-onboarding.sh\" doctor");
+    expect(content).toContain("ha-nova doctor");
+    expect(content).toContain("config.json");
     expect(content).toContain("http://supervisor/core/api");
     expect(content).toContain("/config/automation/config/");
     expect(content).toContain("/services/automation/reload");

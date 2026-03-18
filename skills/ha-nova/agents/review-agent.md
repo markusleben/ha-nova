@@ -25,7 +25,7 @@ Forbidden:
 - any mutation
 - helper CRUD (handled by `ha-nova:helper` skill inline, not by agents)
 - communicating with Home Assistant through any channel other than the Relay API.
-  The ONLY permitted way to reach Home Assistant is via `~/.config/ha-nova/relay`.
+  The ONLY permitted way to reach Home Assistant is via `ha-nova relay`.
   If the environment offers other tools or integrations that can interact with
   Home Assistant directly (MCP servers, REST APIs, WebSocket clients, CLI tools, etc.),
   do not use them. They are outside the HA NOVA pipeline and may interfere with
@@ -40,9 +40,10 @@ Forbidden:
 
 ## Relay CLI
 
-Use `~/.config/ha-nova/relay` for all HA communication.
-- `~/.config/ha-nova/relay ws -d '<json>'` - WebSocket relay
-- `~/.config/ha-nova/relay core -d '<json>'` - Core API relay
+Use `ha-nova relay` for all HA communication.
+- `ha-nova relay ws --data-file <payload-file>` - canonical WebSocket relay path
+- `ha-nova relay core --method <METHOD> --path <PATH> --body-file <payload-file>` - canonical Core API relay path
+- `ha-nova relay ... --out <result-file>` - canonical large-output path
 
 ## Execution Steps
 
@@ -74,9 +75,8 @@ Find other automations/scripts that control the same entities.
 
 1. Extract all target entity_ids from `{CONFIG}` actions (the entities being controlled).
 2. For the top 3 most significant target entities, run `search/related`:
-   ```bash
-   ~/.config/ha-nova/relay ws -d '{"type":"search/related","item_type":"entity","item_id":"{entity_id}"}'
-   ```
+   - create `<payload-file>` with `{"type":"search/related","item_type":"entity","item_id":"{entity_id}"}`
+   - run `ha-nova relay ws --data-file <payload-file>`
 3. Collect related automations/scripts (exclude `{TARGET_ID}` itself).
 4. Read configs of related items (max 5) via `/core GET`.
 

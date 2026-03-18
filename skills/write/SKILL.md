@@ -18,11 +18,11 @@ Not for helpers — use `ha-nova:helper` for helper CRUD (different API: WS inst
 
 Verify relay CLI is available:
 
-```bash
-~/.config/ha-nova/relay health
+```text
+ha-nova relay health
 ```
 
-If this fails, run onboarding: `npm run onboarding:macos`.
+If this fails, run onboarding: `ha-nova setup`.
 
 ## Flow
 
@@ -71,18 +71,24 @@ Do NOT report results to the user until this phase is complete. Run inline (do N
 Follow the Post-Write Review Standard from `docs/reference/skill-architecture.md`:
 
 1. Re-read the written config using the `target_id` from Phase 1 (do NOT re-resolve by slug — the entity slug may differ from expectations):
-   ```bash
-   ~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/config/automation/config/<target_id>"}' \
-     | ~/.config/ha-nova/relay jq 'if .ok then .data.body else error("relay error: \(.error.message // "unknown")") end'
-   ```
+   - automation: `ha-nova relay core --method GET --path /api/config/automation/config/<target_id> --jq-file <filter-file> --out <result-file>`
    - Script: `/api/config/script/config/<target_id>`
+   - write `<filter-file>` with:
+     ```jq
+     if .ok then .data.body else error("relay error: \(.error.message // "unknown")") end
+     ```
+   - for simple counts, use `ha-nova relay jq --file <result-file> length`
+   - for non-trivial follow-up JSON checks, use `ha-nova relay jq --file <result-file> --jq-file <filter-file>`
 2. S/R/P/M/F checks (narrowed):
    - Compare read-back vs draft on core fields (automations: `alias`,`triggers`,`conditions`,`actions`,`mode`,`description`; scripts: `alias`,`sequence`,`mode`,`description`,`variables`,`fields`). Ignore metadata (`id`,`unique_id`,`created_at`,`modified_at`,`editor`,`enabled`).
    - Note: HA may normalize keys during write (`trigger`→`triggers`, `action`→`actions`, `condition`→`conditions`). Account for plural aliasing when comparing — these are not real diffs.
    - Core fields differ (beyond aliasing) → full checks from `review/SKILL.md` Step 1. Match → skip: "covered in pre-write review."
    - **Dedup**: findings from Phase 2 Step 3b that user saw MUST NOT repeat. Track by check type (not code — codes are internal), e.g. if "mode not explicit" was shown pre-write and user proceeded, do not report it again.
    - If actions reference helpers: always run H-01..H-10.
-3. Run collision scan: `search/related` for the top 3 target entities, read max 3 related configs.
+3. Run collision scan:
+   - create `<payload-file>` with `{"type":"search/related","item_type":"entity","item_id":"<entity_id>"}`
+   - run `ha-nova relay ws --data-file <payload-file>`
+   - read max 3 related configs.
 4. Response MUST include a Post-Write Review section with localized headings (see `skills/ha-nova/SKILL.md` → Output Localization):
    - **Findings**: 🔴🟠🟡 findings with descriptive titles + fix suggestions, or localized "no issues found"
    - **Collision check**: conflicts with related automations/scripts, or localized "no conflicts"

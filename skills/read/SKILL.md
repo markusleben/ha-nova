@@ -22,8 +22,17 @@ No writes. For analysis/review/audit, route through parent `ha-nova` skill — i
 
 ## Bootstrap (once per session)
 
-Verify relay CLI: `~/.config/ha-nova/relay health`
-If this fails: `npm run onboarding:macos`
+Verify relay CLI: `ha-nova relay health`
+If this fails: `ha-nova setup`
+
+## Relay Contract
+
+Use file-based relay requests as the default path:
+
+1. Write JSON payloads with the client's native file-writing tool.
+2. Use `ha-nova relay ws --data-file <payload-file>`.
+3. Use `ha-nova relay core --method <METHOD> --path <PATH> --body-file <payload-file>` when a body is needed.
+4. Use `--jq-file <filter-file>` for non-trivial filters and `--out <result-file>` for large responses.
 
 ## Flow
 
@@ -31,23 +40,40 @@ If this fails: `npm run onboarding:macos`
 
 Use the compact entity registry (abbreviated keys: `ei`=entity_id, `en`=name, `ai`=area_id):
 
-```bash
-# List automations (limit to first 30 for readability)
-~/.config/ha-nova/relay ws -d '{"type":"config/entity_registry/list_for_display"}' \
-  | ~/.config/ha-nova/relay jq '[.data.entities[] | select(.ei | startswith("automation.")) | {entity_id: .ei, name: .en, area_id: .ai}] | .[0:30]'
+Create `<payload-file>` with:
 
-# List scripts
-~/.config/ha-nova/relay ws -d '{"type":"config/entity_registry/list_for_display"}' \
-  | ~/.config/ha-nova/relay jq '[.data.entities[] | select(.ei | startswith("script.")) | {entity_id: .ei, name: .en, area_id: .ai}] | .[0:30]'
+```json
+{"type":"config/entity_registry/list_for_display"}
+```
+
+Then run:
+
+```text
+ha-nova relay ws --data-file <payload-file> --jq-file <filter-file>
+```
+
+Write `<filter-file>` with one of:
+
+```jq
+[.data.entities[] | select(.ei | startswith("automation.")) | {entity_id: .ei, name: .en, area_id: .ai}] | .[0:30]
+```
+
+```jq
+[.data.entities[] | select(.ei | startswith("script.")) | {entity_id: .ei, name: .en, area_id: .ai}] | .[0:30]
 ```
 
 ### Keyword search
 
 Use short keyword stems to handle spelling variants. Always limit results.
 
-```bash
-~/.config/ha-nova/relay ws -d '{"type":"config/entity_registry/list_for_display"}' \
-  | ~/.config/ha-nova/relay jq '[.data.entities[] | select(.ei | startswith("automation.")) | select((.ei + " " + (.en // "")) | test("KEYWORD";"i")) | {entity_id: .ei, name: .en, area_id: .ai}] | .[0:20]'
+```text
+ha-nova relay ws --data-file <payload-file> --jq-file <filter-file>
+```
+
+Write `<filter-file>` with:
+
+```jq
+[.data.entities[] | select(.ei | startswith("automation.")) | select((.ei + " " + (.en // "")) | test("KEYWORD";"i")) | {entity_id: .ei, name: .en, area_id: .ai}] | .[0:20]
 ```
 
 If 0 results: try synonyms or shorter stems: `test("kw1|kw2";"i")`. Never dump entire domains.
@@ -60,20 +86,22 @@ Always resolve the config key via entity registry first — the entity_id slug a
 
 **Always save config reads to a temp file** to avoid shell output truncation (complex automations can be 10–30 KB JSON):
 
-```bash
-# Step 1: Resolve unique_id (config key) — see relay-api.md → ID Types
-~/.config/ha-nova/relay ws -d '{"type":"config/entity_registry/get","entity_id":"automation.{slug}"}' \
-  | ~/.config/ha-nova/relay jq -r '.data.unique_id'
-# For scripts: use "entity_id":"script.{slug}"
-
-# Step 2: Fetch config using the resolved unique_id — fail on error envelope
-~/.config/ha-nova/relay core -d '{"method":"GET","path":"/api/config/automation/config/{unique_id}"}' \
-  | ~/.config/ha-nova/relay jq 'if .ok then .data.body else error("relay error: \(.error.message // "unknown")") end' > /tmp/ha-config-{slug}.json
-# For scripts: /api/config/script/config/{unique_id}
-
-# Verify JSON is valid (catches truncation AND null from failed extraction)
-cat /tmp/ha-config-{slug}.json | ~/.config/ha-nova/relay jq -e 'type == "object"' > /dev/null
-```
+1. Resolve `unique_id`:
+   - create `<payload-file>` with `{"type":"config/entity_registry/get","entity_id":"automation.{slug}"}`
+   - run `ha-nova relay ws --data-file <payload-file> --jq .data.unique_id`
+   - for scripts: use `script.{slug}`
+2. Fetch config into `<result-file>`:
+   - `ha-nova relay core --method GET --path /api/config/automation/config/{unique_id} --jq-file <filter-file> --out <result-file>`
+   - for scripts: `/api/config/script/config/{unique_id}`
+   - write `<filter-file>` with:
+     ```jq
+     if .ok then .data.body else error("relay error: \(.error.message // "unknown")") end
+     ```
+3. Validate JSON:
+   - `ha-nova relay jq --file <result-file> -e --jq-file <filter-file>`
+   - write `<filter-file>` with `type == "object"`
+4. For counts: use `ha-nova relay jq --file <result-file> length`
+5. For non-trivial follow-up JSON transforms: use `ha-nova relay jq --file <result-file> --jq-file <filter-file>`
 
 **Read the file using your native file-reading tool** (Claude: `Read`, Gemini: file read, Cursor: open file). Do NOT use `cat`, `head`, or shell output — these may truncate.
 
@@ -83,8 +111,16 @@ cat /tmp/ha-config-{slug}.json | ~/.config/ha-nova/relay jq -e 'type == "object"
 
 Find automations/scripts that use a specific entity:
 
-```bash
-~/.config/ha-nova/relay ws -d '{"type":"search/related","item_type":"entity","item_id":"{entity_id}"}'
+Create `<payload-file>` with:
+
+```json
+{"type":"search/related","item_type":"entity","item_id":"{entity_id}"}
+```
+
+Then run:
+
+```text
+ha-nova relay ws --data-file <payload-file>
 ```
 
 If id is ambiguous, ask one clarifying question.
@@ -128,19 +164,27 @@ Never show raw JSON to the user. Parse JSON config into structured summary + YAM
 For trace queries ("why didn't automation X fire?", "show me the last runs"):
 
 1. Resolve the `unique_id` (config key) — **`item_id` requires the `unique_id`, NOT the entity_id slug** (see `relay-api.md` → ID Types). For UI-created items the `unique_id` is numeric (e.g., `1766434159701`), not the slug:
-   ```bash
-   ~/.config/ha-nova/relay ws -d '{"type":"config/entity_registry/get","entity_id":"automation.{slug}"}' \
-     | ~/.config/ha-nova/relay jq -r '.data.unique_id'
+   Create `<payload-file>` with the `config/entity_registry/get` request, then run:
+   ```text
+   ha-nova relay ws --data-file <payload-file> --jq .data.unique_id
    ```
 2. List recent traces using the resolved `unique_id`:
-   ```bash
-   ~/.config/ha-nova/relay ws -d '{"type":"trace/list","domain":"automation","item_id":"{unique_id}"}'
+   Create `<payload-file>` with:
+   ```json
+   {"type":"trace/list","domain":"automation","item_id":"{unique_id}"}
+   ```
+   ```text
+   ha-nova relay ws --data-file <payload-file>
    ```
    For scripts: `"domain":"script"`.
 3. For detailed trace (specific run), **save to file** (traces can be large):
-   ```bash
-   ~/.config/ha-nova/relay ws -d '{"type":"trace/get","domain":"automation","item_id":"{unique_id}","run_id":"{run_id}"}' > /tmp/ha-trace-{run_id}.json
-   cat /tmp/ha-trace-{run_id}.json | ~/.config/ha-nova/relay jq 'empty'
+   Create `<payload-file>` with:
+   ```json
+   {"type":"trace/get","domain":"automation","item_id":"{unique_id}","run_id":"{run_id}"}
+   ```
+   ```text
+   ha-nova relay ws --data-file <payload-file> --out <result-file>
+   ha-nova relay jq --file <result-file> empty
    ```
    Read the file with your native file-reading tool.
 4. **Trace analysis checklist** — for each trace, determine:

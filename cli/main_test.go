@@ -12,8 +12,13 @@ func TestLoadConfig(t *testing.T) {
 	configDir := filepath.Join(home, ".config", "ha-nova")
 	os.MkdirAll(configDir, 0o755)
 
-	content := "RELAY_BASE_URL=http://192.168.1.5:8791\nHA_HOST=192.168.1.5\n"
-	os.WriteFile(filepath.Join(configDir, "onboarding.env"), []byte(content), 0o644)
+	content := `{
+  "schema_version": 1,
+  "ha_host": "192.168.1.5",
+  "ha_url": "http://192.168.1.5:8123",
+  "relay_base_url": "http://192.168.1.5:8791"
+}`
+	os.WriteFile(filepath.Join(configDir, "config.json"), []byte(content), 0o644)
 
 	t.Setenv("HOME", home)
 	cfg, err := loadConfig()
@@ -25,7 +30,7 @@ func TestLoadConfig(t *testing.T) {
 	}
 }
 
-func TestLoadConfigQuotedValues(t *testing.T) {
+func TestLoadConfigRejectsLegacyOnboardingEnv(t *testing.T) {
 	home := t.TempDir()
 	configDir := filepath.Join(home, ".config", "ha-nova")
 	os.MkdirAll(configDir, 0o755)
@@ -34,12 +39,9 @@ func TestLoadConfigQuotedValues(t *testing.T) {
 	os.WriteFile(filepath.Join(configDir, "onboarding.env"), []byte(content), 0o644)
 
 	t.Setenv("HOME", home)
-	cfg, err := loadConfig()
-	if err != nil {
-		t.Fatalf("loadConfig() error: %v", err)
-	}
-	if cfg.RelayBaseURL != "http://10.0.0.1:8791" {
-		t.Errorf("RelayBaseURL = %q, want %q", cfg.RelayBaseURL, "http://10.0.0.1:8791")
+	_, err := loadConfig()
+	if err == nil {
+		t.Fatal("expected error for legacy onboarding.env-only config")
 	}
 }
 
@@ -47,11 +49,11 @@ func TestLoadConfigMissingURL(t *testing.T) {
 	home := t.TempDir()
 	configDir := filepath.Join(home, ".config", "ha-nova")
 	os.MkdirAll(configDir, 0o755)
-	os.WriteFile(filepath.Join(configDir, "onboarding.env"), []byte("HA_HOST=192.168.1.5\n"), 0o644)
+	os.WriteFile(filepath.Join(configDir, "config.json"), []byte(`{"schema_version":1,"ha_host":"192.168.1.5"}`), 0o644)
 	t.Setenv("HOME", home)
 	_, err := loadConfig()
 	if err == nil {
-		t.Fatal("expected error for missing RELAY_BASE_URL")
+		t.Fatal("expected error for missing relay_base_url")
 	}
 }
 
@@ -151,6 +153,35 @@ func TestRunJQSelectWithTest(t *testing.T) {
 	}
 }
 
+func TestRunJQNormalizesBareRegexDotEscape(t *testing.T) {
+	input := `{"data":{"entities":[{"ei":"light.kitchen","en":"Kitchen Light"},{"ei":"switch.kitchen","en":"Kitchen Switch"}]}}`
+	filter := `[.data.entities[] | select(.ei | test("^light\\.")) | {entity_id: .ei, name: .en}]`
+
+	res, err := applyJQFilter(filter, []byte(input), false)
+	if err != nil {
+		t.Fatalf("applyJQFilter error: %v", err)
+	}
+	if !strings.Contains(res.output, "light.kitchen") {
+		t.Fatalf("expected light.kitchen in output, got: %s", res.output)
+	}
+	if strings.Contains(res.output, "switch.kitchen") {
+		t.Fatalf("expected switch.kitchen filtered out, got: %s", res.output)
+	}
+}
+
+func TestRunJQAcceptsWrappedInlineFilter(t *testing.T) {
+	input := `{"data":{"unique_id":"abc123"}}`
+	filter := `'.data.unique_id'`
+
+	res, err := applyJQFilter(filter, []byte(input), true)
+	if err != nil {
+		t.Fatalf("applyJQFilter error: %v", err)
+	}
+	if strings.TrimSpace(res.output) != "abc123" {
+		t.Fatalf("unexpected output: %q", res.output)
+	}
+}
+
 func TestRunJQExitStatusLastValue(t *testing.T) {
 	input := `{"a":true,"b":false}`
 
@@ -197,5 +228,32 @@ func TestExtractPayload(t *testing.T) {
 		if got != tt.want {
 			t.Errorf("extractPayload(%v) = %q, want %q", tt.args, got, tt.want)
 		}
+	}
+}
+
+func TestDispatchDoesNotTreatArgv0RelayAsSpecial(t *testing.T) {
+	paths := runtimePaths{}
+	if exitCode := dispatch(paths, "relay", []string{"health"}); exitCode == 0 {
+		t.Fatal("expected argv0 relay without subcommand support to fail")
+	}
+}
+
+func TestNormalizeSetupArgsMovesTargetAfterFlags(t *testing.T) {
+	got := normalizeSetupArgs([]string{
+		"all",
+		"--host", "127.0.0.1",
+		"--relay-token", "test-relay-token",
+		"--non-interactive",
+	})
+
+	want := []string{
+		"--host", "127.0.0.1",
+		"--relay-token", "test-relay-token",
+		"--non-interactive",
+		"all",
+	}
+
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("normalizeSetupArgs() = %v, want %v", got, want)
 	}
 }

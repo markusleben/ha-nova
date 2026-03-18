@@ -1,5 +1,7 @@
 # Go Relay CLI — Design Spec
 
+> Historical design note: parts of this spec predate the Go-first product runtime. Current public contract is `ha-nova setup`, `ha-nova relay ...`, `ha-nova check-update`, and `ha-nova update`; raw `~/.config/ha-nova/relay` paths are migration-only shims.
+
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Replace `scripts/relay.sh` (104-line Bash+curl+jq wrapper) with a single Go binary that runs on macOS, Windows, and Linux with zero external dependencies.

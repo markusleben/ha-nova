@@ -1,273 +1,83 @@
-/**
- * Contract tests for scripts/update.sh — the self-update script.
- * Verifies client detection, modular architecture, and safety properties.
- */
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
-import { createMockBinaries, mockEnv, mockEnvWithBase, REPO_ROOT } from "./_helpers.js";
+import { REPO_ROOT } from "./_helpers.js";
 
-const updateScript = readFileSync(
-  resolve(REPO_ROOT, "scripts/update.sh"),
-  "utf8",
-);
+const updateScriptPath = resolve(REPO_ROOT, "scripts/update.sh");
+const versionCheckScriptPath = resolve(REPO_ROOT, "scripts/version-check.sh");
 
-describe("self-update script contract", () => {
-  it("script exists and is executable", () => {
-    const path = resolve(REPO_ROOT, "scripts/update.sh");
-    expect(existsSync(path)).toBe(true);
+describe("legacy shell shims", () => {
+  it("update.sh delegates to the Go runtime instead of implementing product logic itself", () => {
+    const content = readFileSync(updateScriptPath, "utf8");
+
+    expect(content).toContain("find_runtime_binary()");
+    expect(content).toContain('exec "${runtime_bin}" update "$@"');
+    expect(content).toContain('exec go run "${REPO_ROOT}/cli" update "$@"');
+    expect(content).not.toContain("pull --ff-only");
+    expect(content).not.toContain("claude plugin update");
   });
 
-  describe("client detection", () => {
-    it("detects all 4 supported clients", () => {
-      // Each client has a distinct filesystem marker
-      expect(updateScript).toContain("ha-nova@ha-nova");        // Claude Code
-      expect(updateScript).toContain(".agents/skills/ha-nova");  // Codex
-      expect(updateScript).toContain("opencode/skills/ha-nova"); // OpenCode
-      expect(updateScript).toContain(".gemini/skills/ha-nova-read/SKILL.md");   // Gemini
-      expect(updateScript).toContain(".agents/skills/ha-nova-read/SKILL.md");   // Legacy Gemini
-    });
+  it("version-check.sh delegates to ha-nova check-update --quiet", () => {
+    const content = readFileSync(versionCheckScriptPath, "utf8");
 
-    it("populates DETECTED_CLIENTS array", () => {
-      expect(updateScript).toContain("DETECTED_CLIENTS+=(");
-      expect(updateScript).toMatch(/DETECTED_CLIENTS\+=\("claude"\)/);
-      expect(updateScript).toMatch(/DETECTED_CLIENTS\+=\("codex"\)/);
-      expect(updateScript).toMatch(/DETECTED_CLIENTS\+=\("opencode"\)/);
-      expect(updateScript).toMatch(/DETECTED_CLIENTS\+=\("gemini"\)/);
-    });
+    expect(content).toContain("find_runtime_binary()");
+    expect(content).toContain('exec "${runtime_bin}" check-update --quiet "$@"');
+    expect(content).toContain('exec go run "${REPO_ROOT}/cli" check-update --quiet "$@"');
+    expect(content).not.toContain("latest-version.json");
   });
 
-  describe("three update archetypes", () => {
-    it("uses native claude plugin update for Claude Code", () => {
-      expect(updateScript).toContain("claude plugin update ha-nova@ha-nova");
-    });
+  it("scripts/onboarding/bin/ha-nova delegates setup and update commands to the Go runtime", () => {
+    const content = readFileSync(resolve(REPO_ROOT, "scripts/onboarding/bin/ha-nova"), "utf8");
 
-    it("uses symlink verification for Codex and OpenCode", () => {
-      expect(updateScript).toContain("update_symlink_client");
-      expect(updateScript).toMatch(/update_symlink_client.*Codex/);
-      expect(updateScript).toMatch(/update_symlink_client.*OpenCode/);
-    });
-
-    it("uses flat-copy re-creation for Gemini", () => {
-      expect(updateScript).toContain("update_gemini");
-      expect(updateScript).toContain("rewrite_flat_markdown");
-      expect(updateScript).toContain("copy_flat_skill_markdown");
-      expect(updateScript).toContain("perl -0pe");
-      expect(updateScript).toContain("find \"${dest_dir}\" -maxdepth 1 -type f -name '*.md'");
-    });
+    expect(content).toContain("find_runtime_binary()");
+    expect(content).toContain("exec_runtime setup");
+    expect(content).toContain('exec "${runtime_bin}" update "$@"');
+    expect(content).toContain('exec "${runtime_bin}" check-update "$@"');
+    expect(content).not.toContain("macos-setup.sh");
+    expect(content).not.toContain("pull --ff-only");
   });
 
-  describe("safety", () => {
-    it("uses git pull --ff-only, not reset --hard", () => {
-      expect(updateScript).toContain("pull --ff-only");
-      expect(updateScript).not.toContain("reset --hard");
-    });
+  it("uninstall.sh delegates to the Go runtime too", () => {
+    const content = readFileSync(resolve(REPO_ROOT, "scripts/onboarding/uninstall.sh"), "utf8");
 
-    it("skips git pull when only Claude Code is installed", () => {
-      // Logic: needs_pull stays false if all clients are "claude"
-      expect(updateScript).toContain('!= "claude"');
-      expect(updateScript).toContain("needs_pull");
-    });
-
-    it("clears update cache after update", () => {
-      expect(updateScript).toContain("latest-version.json");
-    });
+    expect(content).toContain("find_runtime_binary()");
+    expect(content).toContain('exec "${runtime_bin}" uninstall "$@"');
+    expect(content).toContain('exec go run "${REPO_ROOT}/cli" uninstall "$@"');
   });
 
-  describe("shared tools", () => {
-    it("updates relay CLI, update script, and version-check", () => {
-      expect(updateScript).toContain("relay");
-      expect(updateScript).toContain("update.sh");
-      expect(updateScript).toContain("version-check.sh");
-      expect(updateScript).toContain("version.json");
-    });
+  it("does not keep relay shim compatibility in the main runtime anymore", () => {
+    expect(existsSync(resolve(REPO_ROOT, "cli/compat_shims.go"))).toBe(false);
   });
 
-  describe("extensibility", () => {
-    it("has per-client case statement for easy addition", () => {
-      // main() dispatches via case statement — new client = new case branch
-      expect(updateScript).toMatch(/case.*\$client.*in/);
-      expect(updateScript).toContain("claude)");
-      expect(updateScript).toContain("codex)");
-      expect(updateScript).toContain("opencode)");
-      expect(updateScript).toContain("gemini)");
-    });
-  });
+  it("update.sh forwards arguments to the installed runtime", () => {
+    const home = mkdtempSync(join(tmpdir(), "ha-nova-shim-home-"));
+    const binDir = join(home, ".local", "bin");
+    const publicBinary = join(binDir, "ha-nova");
+    const marker = join(home, "update-args.txt");
 
-  describe("install script deploys update", () => {
-    it("install-local-skills.sh copies update.sh to config dir", () => {
-      const installScript = readFileSync(
-        resolve(REPO_ROOT, "scripts/onboarding/install-local-skills.sh"),
-        "utf8",
-      );
-      expect(installScript).toContain("update.sh");
-      expect(installScript).toContain("ha-nova/update");
-    });
-
-    it("uninstall.sh cleans up update script", () => {
-      const uninstallScript = readFileSync(
-        resolve(REPO_ROOT, "scripts/onboarding/uninstall.sh"),
-        "utf8",
-      );
-      expect(uninstallScript).toContain("update");
-    });
-  });
-
-  it("refreshes Gemini flat copies and companion markdown from the source clone", { timeout: 45000 }, () => {
-    const sandbox = mkdtempSync(join(tmpdir(), "ha-nova-update-"));
-    const repoCopy = join(sandbox, "repo");
-    const originBare = join(sandbox, "origin.git");
-    const home = join(sandbox, "home");
-    const binDir = createMockBinaries();
-    const hookEnv = {
-      ...process.env,
-      GIT_DIR: join(sandbox, "hook.git"),
-      GIT_PREFIX: "hooks/pre-push/",
-      GIT_WORK_TREE: sandbox,
-    };
-
-    const copyResult = spawnSync(
-      "bash",
-      ["-lc", 'mkdir -p "$DEST" && tar --exclude=".git" -cf - . | tar -xf - -C "$DEST"'],
-      {
-        cwd: REPO_ROOT,
-        encoding: "utf8",
-        env: mockEnvWithBase(hookEnv, { DEST: repoCopy }),
-      },
+    spawnSync("mkdir", ["-p", binDir], { encoding: "utf8" });
+    writeFileSync(
+      publicBinary,
+      `#!/usr/bin/env bash
+printf '%s\n' "$@" > "${marker}"
+`,
+      { mode: 0o755 },
     );
-    expect(copyResult.status).toBe(0);
 
-    const initResult = spawnSync(
-      "bash",
-      [
-        "-lc",
-        [
-          'git init --initial-branch=main',
-          'git config user.email "tests@example.com"',
-          'git config user.name "Tests"',
-          "git add .",
-          'git commit -m "snapshot"',
-          'git clone --bare "$PWD" "$ORIGIN"',
-          'git remote remove origin 2>/dev/null || true',
-          'git remote add origin "$ORIGIN"',
-        ].join(" && "),
-      ],
-      {
-        cwd: repoCopy,
-        encoding: "utf8",
-        env: mockEnvWithBase(hookEnv, { ORIGIN: originBare }),
-      },
-    );
-    expect(initResult.status).toBe(0);
-
-    const installResult = spawnSync(
-      "bash",
-      ["scripts/onboarding/install-local-skills.sh", "all"],
-      {
-        cwd: repoCopy,
-        encoding: "utf8",
-        timeout: 20000,
-        env: mockEnv(home, binDir),
-      },
-    );
-    expect(installResult.status).toBe(0);
-
-    writeFileSync(join(home, ".gemini/skills/ha-nova-review/checks.md"), "stale checks\n", "utf8");
-    writeFileSync(join(home, ".gemini/skills/ha-nova-review/old-companion.md"), "stale companion\n", "utf8");
-    writeFileSync(join(home, ".gemini/skills/ha-nova-write/SKILL.md"), "stale write skill\n", "utf8");
-
-    const updateResult = spawnSync(
-      "bash",
-      [join(home, ".config/ha-nova/update")],
-      {
-        cwd: sandbox,
-        encoding: "utf8",
-        timeout: 20000,
-        env: mockEnv(home, binDir),
-      },
-    );
-    expect(updateResult.status).toBe(0);
-
-    const refreshedChecks = readFileSync(join(home, ".gemini/skills/ha-nova-review/checks.md"), "utf8");
-    expect(refreshedChecks).toContain("H-09 [MEDIUM → HIGH]");
-    expect(refreshedChecks).toContain("Canonical path: `checks.md`");
-    expect(existsSync(join(home, ".gemini/skills/ha-nova-review/old-companion.md"))).toBe(false);
-
-    const refreshedWrite = readFileSync(join(home, ".gemini/skills/ha-nova-write/SKILL.md"), "utf8");
-    expect(refreshedWrite).toContain(join(repoCopy, "skills/review/checks.md"));
-    expect(refreshedWrite).toContain(join(repoCopy, "skills/ha-nova/relay-api.md"));
-  });
-
-  it("detects legacy Gemini installs from the shared agents root", () => {
-    const home = mkdtempSync(join(tmpdir(), "ha-nova-legacy-gemini-"));
-    const repoCopy = join(home, ".local/share/ha-nova");
-    const originBare = join(home, "origin.git");
-    const legacySkillDir = join(home, ".agents/skills/ha-nova-read");
-    const binDir = createMockBinaries();
-    const hookEnv = {
-      ...process.env,
-      GIT_DIR: join(home, "hook.git"),
-      GIT_PREFIX: "hooks/pre-push/",
-      GIT_WORK_TREE: home,
-    };
-
-    const copyResult = spawnSync(
-      "bash",
-      ["-lc", 'mkdir -p "$DEST" && tar --exclude=".git" -cf - . | tar -xf - -C "$DEST"'],
-      {
-        cwd: REPO_ROOT,
-        encoding: "utf8",
-        env: mockEnvWithBase(hookEnv, { DEST: repoCopy }),
-      },
-    );
-    expect(copyResult.status).toBe(0);
-
-    const initResult = spawnSync(
-      "bash",
-      [
-        "-lc",
-        [
-          'git init --initial-branch=main',
-          'git config user.email "tests@example.com"',
-          'git config user.name "Tests"',
-          "git add .",
-          'git commit -m "snapshot"',
-          'git clone --bare "$PWD" "$ORIGIN"',
-          'git remote remove origin 2>/dev/null || true',
-          'git remote add origin "$ORIGIN"',
-        ].join(" && "),
-      ],
-      {
-        cwd: repoCopy,
-        encoding: "utf8",
-        env: mockEnvWithBase(hookEnv, { ORIGIN: originBare }),
-      },
-    );
-    expect(initResult.status).toBe(0);
-
-    const legacyResult = spawnSync(
-      "bash",
-      ["-lc", 'mkdir -p "$LEGACY" && printf "name: ha-nova-read\n" > "$LEGACY/SKILL.md"'],
-      {
-        encoding: "utf8",
-        env: mockEnvWithBase(hookEnv, { LEGACY: legacySkillDir }),
-      },
-    );
-    expect(legacyResult.status).toBe(0);
-
-    const result = spawnSync("bash", ["scripts/update.sh"], {
-      cwd: repoCopy,
+    const result = spawnSync("bash", [updateScriptPath, "--version", "1.2.3"], {
+      cwd: REPO_ROOT,
       encoding: "utf8",
-      timeout: 20000,
-      env: mockEnv(home, binDir),
+      env: { ...process.env, HOME: home },
     });
 
     expect(result.status).toBe(0);
-    expect(result.stderr).not.toContain("No HA NOVA client installations detected");
-    expect(result.stdout).toContain("Detected clients: gemini");
-    expect(existsSync(join(home, ".gemini/skills/ha-nova/SKILL.md"))).toBe(true);
+    const forwarded = readFileSync(marker, "utf8");
+    expect(forwarded).toContain("update");
+    expect(forwarded).toContain("--version");
+    expect(forwarded).toContain("1.2.3");
   });
 });
