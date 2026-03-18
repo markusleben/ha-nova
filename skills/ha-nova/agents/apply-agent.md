@@ -39,8 +39,9 @@ Forbidden:
 ## Relay CLI
 
 Use `ha-nova relay` for all HA communication. It handles auth, headers, and timeouts.
-- `ha-nova relay ws -d '<json>'` - WebSocket relay
-- `ha-nova relay core -d '<json>'` - Core API relay
+- `ha-nova relay ws --data-file <payload-file>` - canonical WebSocket relay path
+- `ha-nova relay core --method <METHOD> --path <PATH> --body-file <payload-file>` - canonical Core API relay path
+- `ha-nova relay ... --out <result-file>` - canonical large-output path
 - Response envelope: `{"ok":true,"data":...}` or `{"ok":false,"error":{...}}`
 - /core response: `{"ok":true,"data":{"status":200,"body":{...}}}`
 

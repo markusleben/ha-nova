@@ -70,29 +70,41 @@ func fetchLatestRelease(paths runtimePaths, quiet bool) (releaseInfo, error) {
 	info := releaseInfo{Version: version, HTMLURL: release.HTMLURL, AssetName: bundleAssetName()}
 	cacheReleaseInfo(paths, info)
 	if !quiet {
-		printInfo("Latest release: v%s", version)
+		printHumanInfo("Latest release: v%s", version)
 	}
 	return info, nil
 }
 
-func checkForUpdate(paths runtimePaths, quiet bool) string {
+func checkForUpdate(paths runtimePaths, quiet bool) humanNotice {
 	release, err := fetchLatestRelease(paths, true)
 	if err != nil {
 		if !quiet {
-			return fmt.Sprintf("[ha-nova] WARNING: could not check for updates (%s)", err)
+			return humanNotice{
+				level:   humanNoticeWarning,
+				kind:    humanNoticeKindUpdateCheckFailed,
+				message: fmt.Sprintf("could not check for updates (%s)", err),
+			}
 		}
-		return ""
+		return humanNotice{}
 	}
 
 	current := localVersion(paths)
 	if current == "dev" || compareSemver(current, release.Version) >= 0 {
 		if quiet {
-			return ""
+			return humanNotice{}
 		}
-		return fmt.Sprintf("[ha-nova] Up to date: v%s", current)
+		return humanNotice{
+			level:   humanNoticeInfo,
+			kind:    humanNoticeKindUpToDate,
+			message: fmt.Sprintf("Up to date: v%s", current),
+		}
 	}
 
-	return fmt.Sprintf("⚠️ UPDATE AVAILABLE: v%s -> v%s | Run: ha-nova update", current, release.Version)
+	return humanNotice{
+		level:   humanNoticeWarning,
+		kind:    humanNoticeKindUpdateAvailable,
+		message: fmt.Sprintf("Update available: v%s -> v%s | Run: ha-nova update", current, release.Version),
+	}
 }
 
 func findBundleBinary(stageDir string) string {

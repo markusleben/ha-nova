@@ -84,23 +84,27 @@ func readMinRelayVersion(dir string) string {
 	return v.MinRelayVersion
 }
 
-func checkRelayVersion(paths runtimePaths, healthBody []byte) string {
+func checkRelayVersion(paths runtimePaths, healthBody []byte) humanNotice {
 	var health struct {
 		Version string `json:"version"`
 	}
 	if json.Unmarshal(healthBody, &health) != nil || health.Version == "" {
-		return ""
+		return humanNotice{}
 	}
 
 	v, err := readVersionJSON(paths.VersionFile)
 	if err != nil || v.MinRelayVersion == "" {
-		return ""
+		return humanNotice{}
 	}
 
 	if compareSemver(health.Version, v.MinRelayVersion) < 0 {
-		return fmt.Sprintf("⚠️ RELAY OUTDATED: v%s is below minimum v%s — Inform the user: update the NOVA Relay App in Home Assistant.", health.Version, v.MinRelayVersion)
+		return humanNotice{
+			level:   humanNoticeWarning,
+			kind:    humanNoticeKindRelayOutdated,
+			message: fmt.Sprintf("Relay outdated: v%s is below minimum v%s. Inform the user: update the NOVA Relay App in Home Assistant.", health.Version, v.MinRelayVersion),
+		}
 	}
-	return ""
+	return humanNotice{}
 }
 
 func loadCachedRelease(paths runtimePaths) (releaseInfo, bool) {

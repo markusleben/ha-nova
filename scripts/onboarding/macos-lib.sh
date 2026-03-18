@@ -202,7 +202,7 @@ run_doctor_checks() {
         if [[ -x "${HOME}/.config/ha-nova/update" ]]; then
           echo "  [warn] Skills update available: v${local_skill_version} -> v${latest_skill_version}. Run: ha-nova update"
         else
-          echo "  [warn] Skills update available: v${local_skill_version} -> v${latest_skill_version}. Run: git pull in your ha-nova repo, then re-run setup."
+          echo "  [warn] Skills update available: v${local_skill_version} -> v${latest_skill_version}. Run: ha-nova update"
         fi
       else
         echo "  [ok] Skills version: ${local_skill_version:-unknown} (up to date)"

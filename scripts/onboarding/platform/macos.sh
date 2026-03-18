@@ -48,6 +48,8 @@ delete_platform_secret_if_exists() {
 }
 
 copy_to_clipboard() {
+  if [[ "${HA_NOVA_NO_BROWSER:-0}" == "1" ]]; then return 1; fi
+  if [[ ! -t 0 ]]; then return 1; fi
   if ! command -v pbcopy >/dev/null 2>&1; then
     return 1
   fi
@@ -56,6 +58,7 @@ copy_to_clipboard() {
 
 open_browser() {
   local url="$1"
+  if [[ "${HA_NOVA_NO_BROWSER:-0}" == "1" ]]; then return 0; fi
   # Skip browser launch when stdin is piped (non-interactive / test mode).
   if [[ ! -t 0 ]]; then return 0; fi
   open "$url"

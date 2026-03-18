@@ -19,5 +19,7 @@ describe("ha entity-discovery contract", () => {
     expect(content).toContain("Never dump raw");
     expect(content).toContain("never guess entity IDs");
     expect(content).toContain("ask one selection question");
+    expect(content).toContain("count only the requested domain unless the user explicitly asks");
+    expect(content).toContain("ha-nova relay jq --file <result-file> length");
   });
 });

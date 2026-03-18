@@ -15,9 +15,22 @@ die() {
   exit 1
 }
 
+compute_sha256() {
+  local file="$1"
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "${file}" | awk '{print $1}'
+    return 0
+  fi
+  if command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "${file}" | awk '{print $1}'
+    return 0
+  fi
+  die "sha256sum or shasum is required to write bundle checksums."
+}
+
 binary_asset_path() {
   local os_name="$1" arch_name="$2"
-  local source_os="${os_name}" flat_path binary_name nested_path
+  local source_os="${os_name}" flat_path binary_name
   if [[ "${source_os}" == "macos" ]]; then
     source_os="darwin"
   fi
@@ -29,17 +42,22 @@ binary_asset_path() {
     flat_path="${DIST_DIR}/ha-nova-${source_os}-${arch_name}"
   fi
 
+  mapfile -t nested_paths < <(
+    find "${DIST_DIR}" -type f -name "${binary_name}" -path "*_${source_os}_${arch_name}_*/*" | sort
+  )
+  if [[ -f "${flat_path}" && "${#nested_paths[@]}" -gt 0 ]]; then
+    die "Ambiguous binary candidates for ${os_name}/${arch_name}: flat=${flat_path} nested=${nested_paths[*]}"
+  fi
   if [[ -f "${flat_path}" ]]; then
     printf '%s\n' "${flat_path}"
     return
   fi
-
-  nested_path="$(
-    find "${DIST_DIR}" -type f -name "${binary_name}" -path "*_${source_os}_${arch_name}_*/*" | sort | head -1
-  )"
-  if [[ -n "${nested_path}" ]]; then
-    printf '%s\n' "${nested_path}"
+  if [[ "${#nested_paths[@]}" -eq 1 ]]; then
+    printf '%s\n' "${nested_paths[0]}"
     return
+  fi
+  if [[ "${#nested_paths[@]}" -gt 1 ]]; then
+    die "Ambiguous nested binary candidates for ${os_name}/${arch_name}: ${nested_paths[*]}"
   fi
 
   printf '%s\n' "${flat_path}"
@@ -49,6 +67,7 @@ copy_common_bundle_files() {
   local bundle_root="$1"
 
   mkdir -p "${bundle_root}" "${bundle_root}/docs"
+  cp -R "${ROOT_DIR}/clients" "${bundle_root}/clients"
   cp -R "${ROOT_DIR}/skills" "${bundle_root}/skills"
   cp -R "${ROOT_DIR}/docs/reference" "${bundle_root}/docs/reference"
   cp -R "${ROOT_DIR}/.claude-plugin" "${bundle_root}/.claude-plugin"
@@ -122,7 +141,7 @@ write_bundle_checksums() {
   local bundle sum
   for bundle in "${OUTPUT_DIR}"/ha-nova-*.tar.gz "${OUTPUT_DIR}"/ha-nova-*.zip; do
     [[ -f "${bundle}" ]] || continue
-    sum="$(sha256sum "${bundle}" | awk '{print $1}')"
+    sum="$(compute_sha256 "${bundle}")"
     printf '%s  %s\n' "${sum}" "$(basename "${bundle}")" > "${bundle}.sha256"
     log "Wrote ${bundle}.sha256"
   done

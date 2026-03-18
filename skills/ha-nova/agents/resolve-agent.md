@@ -36,18 +36,24 @@ Forbidden:
 ## Relay CLI
 
 Use `ha-nova relay` for all HA communication. It handles auth, headers, and timeouts.
-- `ha-nova relay ws -d '<json>'` - WebSocket relay
-- `ha-nova relay core -d '<json>'` - Core API relay
+- `ha-nova relay ws --data-file <payload-file>` - canonical WebSocket relay path
+- `ha-nova relay core --method <METHOD> --path <PATH> --body-file <payload-file>` - canonical Core API relay path
+- `ha-nova relay ... --out <result-file>` - canonical large-output path
 - Response envelope: `{"ok":true,"data":...}` or `{"ok":false,"error":{...}}`
 - /core response: `{"ok":true,"data":{"status":200,"body":{...}}}`
 
 ## Execution Steps
 
 1. Fetch entity registry (compact format):
-   `ha-nova relay ws -d '{"type":"config/entity_registry/list_for_display"}'`
+   - create `<payload-file>` with `{"type":"config/entity_registry/list_for_display"}`
+   - run `ha-nova relay ws --data-file <payload-file>`
    Response uses abbreviated keys: `ei`=entity_id, `en`=name, `ai`=area_id.
 2. Filter `.data.entities[]` and collect candidates relevant to `{USER_INTENT}`.
-   Example: `ha-nova relay jq '[.data.entities[] | select((.ei + " " + (.en // "")) | test("KEYWORD";"i")) | {entity_id: .ei, name: .en, area_id: .ai}]'`
+   Example: `ha-nova relay ws --data-file <payload-file> --jq-file <filter-file>`
+   Write `<filter-file>` with:
+   ```jq
+   [.data.entities[] | select((.ei + " " + (.en // "")) | test("KEYWORD";"i")) | {entity_id: .ei, name: .en, area_id: .ai}]
+   ```
 3. Resolve target config id:
    - try entity_id slug first (part after `automation.` or `script.`)
    - check existence with `/core` GET:

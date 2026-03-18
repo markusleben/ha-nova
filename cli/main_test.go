@@ -153,6 +153,35 @@ func TestRunJQSelectWithTest(t *testing.T) {
 	}
 }
 
+func TestRunJQNormalizesBareRegexDotEscape(t *testing.T) {
+	input := `{"data":{"entities":[{"ei":"light.kitchen","en":"Kitchen Light"},{"ei":"switch.kitchen","en":"Kitchen Switch"}]}}`
+	filter := `[.data.entities[] | select(.ei | test("^light\\.")) | {entity_id: .ei, name: .en}]`
+
+	res, err := applyJQFilter(filter, []byte(input), false)
+	if err != nil {
+		t.Fatalf("applyJQFilter error: %v", err)
+	}
+	if !strings.Contains(res.output, "light.kitchen") {
+		t.Fatalf("expected light.kitchen in output, got: %s", res.output)
+	}
+	if strings.Contains(res.output, "switch.kitchen") {
+		t.Fatalf("expected switch.kitchen filtered out, got: %s", res.output)
+	}
+}
+
+func TestRunJQAcceptsWrappedInlineFilter(t *testing.T) {
+	input := `{"data":{"unique_id":"abc123"}}`
+	filter := `'.data.unique_id'`
+
+	res, err := applyJQFilter(filter, []byte(input), true)
+	if err != nil {
+		t.Fatalf("applyJQFilter error: %v", err)
+	}
+	if strings.TrimSpace(res.output) != "abc123" {
+		t.Fatalf("unexpected output: %q", res.output)
+	}
+}
+
 func TestRunJQExitStatusLastValue(t *testing.T) {
 	input := `{"a":true,"b":false}`
 

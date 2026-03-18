@@ -2,13 +2,13 @@
 
 ## Quick Update
 
-All clients (Claude Code, Codex, OpenCode, Gemini) — one command:
+Update the active HA NOVA install and any supported client integrations on this machine:
 
-```bash
+```text
 ha-nova update
 ```
 
-The CLI auto-detects which clients are installed and updates each using the appropriate method. No arguments needed.
+The CLI auto-detects which client integrations are installed and refreshes each using the appropriate method. On Windows, the HA NOVA core path is verified; individual client coverage still depends on the client runtime you actually have available on that machine.
 
 **Older installations** may still use a migration shim. If `ha-nova update` is missing or fails before launch:
 1. Re-run the installer for your platform
@@ -44,7 +44,7 @@ After client updates, shared tools are refreshed from the active HA NOVA install
 
 ## Check Versions
 
-- **Skills:** `cat ~/.config/ha-nova/version.json` → `skill_version` field
+- **Skills:** `ha-nova relay jq --file ~/.config/ha-nova/version.json .skill_version`
 - **Relay:** `ha-nova relay health` → `"version"` field (matches `config.yaml`)
 - **Compatibility:** `version.json:min_relay_version` must be <= running Relay version
 
@@ -56,12 +56,13 @@ Two checks run automatically:
 2. **Relay compat check** — `ha-nova relay health` compares Relay version against `min_relay_version`. Claude Code SessionStart context can surface the same warning independently.
 
 The `doctor` command runs both checks synchronously and also refreshes the update cache.
+Other clients use the same shared CLI updater path (`ha-nova check-update`, `ha-nova doctor`, `ha-nova update`), but do not currently inject the same automatic SessionStart banner.
 
 ## Agent-Driven Updates
 
 When the agent detects `UPDATE AVAILABLE` in its session context, it can run the update script directly:
 
-```bash
+```text
 ha-nova update
 ```
 

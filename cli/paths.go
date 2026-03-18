@@ -40,6 +40,10 @@ func detectPaths() (runtimePaths, error) {
 	installRoot := filepath.Join(home, ".local", "share", "ha-nova")
 	binDir := filepath.Join(home, ".local", "bin")
 	publicBinary := filepath.Join(binDir, publicCommandName())
+	if runtime.GOOS == "windows" {
+		binDir = installRoot
+		publicBinary = filepath.Join(installRoot, publicCommandName())
+	}
 
 	return runtimePaths{
 		Home:            home,
@@ -57,10 +61,7 @@ func detectPaths() (runtimePaths, error) {
 }
 
 func publicCommandName() string {
-	if runtime.GOOS == "windows" {
-		return "ha-nova.cmd"
-	}
-	return "ha-nova"
+	return publicBinaryName()
 }
 
 func publicBinaryName() string {

@@ -22,8 +22,10 @@ describe("platform dispatch", () => {
     const result = spawnSync(
       "bash",
       [
-        "-c",
-        `source "${REPO_ROOT}/scripts/onboarding/macos-lib.sh" && printf '%s' "$HA_NOVA_PLATFORM_ID"`,
+        "-lc",
+        'source "$1" && printf "%s" "$HA_NOVA_PLATFORM_ID"',
+        "bash",
+        `${REPO_ROOT}/scripts/onboarding/macos-lib.sh`,
       ],
       { cwd: REPO_ROOT, encoding: "utf8", timeout: 10000, env },
     );
@@ -41,8 +43,10 @@ describe("platform dispatch", () => {
     const result = spawnSync(
       "bash",
       [
-        "-c",
-        `source "${REPO_ROOT}/scripts/onboarding/macos-lib.sh" && require_platform && printf '%s' "$HA_NOVA_PLATFORM_ID"`,
+        "-lc",
+        'source "$1" && require_platform && printf "%s" "$HA_NOVA_PLATFORM_ID"',
+        "bash",
+        `${REPO_ROOT}/scripts/onboarding/macos-lib.sh`,
       ],
       { cwd: REPO_ROOT, encoding: "utf8", timeout: 10000, env },
     );
@@ -60,10 +64,10 @@ describe("platform dispatch", () => {
     const result = spawnSync(
       "bash",
       [
-        "-c",
-        `source "${REPO_ROOT}/scripts/onboarding/macos-lib.sh"
-         store_platform_secret "ha-nova.relay-auth-token" "my-secret-token-123"
-         read_platform_secret "ha-nova.relay-auth-token"`,
+        "-lc",
+        'source "$1"\nstore_platform_secret "ha-nova.relay-auth-token" "my-secret-token-123"\nread_platform_secret "ha-nova.relay-auth-token"',
+        "bash",
+        `${REPO_ROOT}/scripts/onboarding/macos-lib.sh`,
       ],
       { cwd: REPO_ROOT, encoding: "utf8", timeout: 10000, env },
     );

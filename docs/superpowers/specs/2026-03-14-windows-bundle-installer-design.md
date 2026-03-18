@@ -7,7 +7,7 @@ Deliver the simplest end-user install path for HA NOVA on Windows while aligning
 ## User Experience
 
 - Windows entrypoint is a single PowerShell command that downloads and runs `install.ps1`.
-- `install.ps1` downloads the matching HA NOVA release bundle, installs into `~/.local/share/ha-nova`, creates a public `ha-nova.cmd` launcher in `~/.local/bin`, and starts setup automatically.
+- `install.ps1` downloads the matching HA NOVA release bundle, installs into `~/.local/share/ha-nova`, adds that install root to the user `PATH`, and starts setup automatically.
 - macOS stays a one-liner via `install.sh`, but now installs from release bundles instead of cloning the repo or requiring Node/npm.
 - After install, the stable user command is `ha-nova`.
 - If a pre-Go install is detected, the installer aborts and points to the dedicated `legacy-uninstall` one-liner instead of attempting migration.

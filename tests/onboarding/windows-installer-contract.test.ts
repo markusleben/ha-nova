@@ -12,6 +12,16 @@ describe("install.ps1 contract", () => {
     expect(content).toContain("Set-StrictMode -Version Latest");
   });
 
+  it("supports plain UI mode and linear fallback output", () => {
+    expect(content).toContain("HA_NOVA_PLAIN_UI");
+    expect(content).toContain("NO_COLOR");
+    expect(content).toContain("Test-PlainUi");
+    expect(content).toContain("ForegroundColor Yellow");
+    expect(content).toContain('Write-Output "  [!] $Message"');
+    expect(content).toContain("[Console]::Error.WriteLine");
+    expect(content).toContain("No interactive terminal detected; setup was not started automatically.");
+  });
+
   it("uses GitHub Releases latest unless HA_NOVA_VERSION is pinned", () => {
     expect(content).toContain("https://api.github.com/repos/markusleben/ha-nova/releases/latest");
     expect(content).toContain("HA_NOVA_VERSION");
@@ -19,8 +29,18 @@ describe("install.ps1 contract", () => {
     expect(content).not.toContain("raw.githubusercontent.com/markusleben/ha-nova/main/version.json");
   });
 
+  it("supports maintainer-only bundle URL overrides for private RC tests", () => {
+    expect(content).toContain("HA_NOVA_BUNDLE_URL");
+    expect(content).toContain("HA_NOVA_BUNDLE_SHA256_URL");
+    expect(content).toContain("Get-BundleUrl");
+    expect(content).toContain("Get-BundleChecksumUrl");
+    expect(content).toContain("Downloaded bundle version");
+  });
+
   it("downloads the Windows bundle and validates bundle.json natively", () => {
     expect(content).toContain("ha-nova-windows-amd64.zip");
+    expect(content).toContain("Windows amd64 bundle only");
+    expect(content).toContain("x64 emulation");
     expect(content).toContain("Expand-Archive");
     expect(content).toContain("bundle.json");
     expect(content).toContain(".sha256");
@@ -44,14 +64,20 @@ describe("install.ps1 contract", () => {
     expect(content).toContain("version-check");
   });
 
-  it("installs a single public launcher and starts setup through the Go runtime", () => {
-    expect(content).toContain("ha-nova.cmd");
-    expect(content).toContain("Ensure-BinDirOnPath");
+  it("adds the install root to PATH and starts setup through the Go runtime", () => {
+    expect(content).toContain("$PublicCommandDir = $InstallDir");
+    expect(content).toContain("Ensure-InstallDirOnPath");
     expect(content).toContain("Write-State");
     expect(content).toContain("path_managed");
     expect(content).toContain("HA_NOVA_NO_SETUP");
     expect(content).toContain("Start-Setup");
     expect(content).toContain("& $BinaryPath setup");
-    expect(content).not.toContain("Copy-Item -LiteralPath (Join-Path $InstallDir \"ha-nova.exe\") -Destination $PublicExePath -Force");
+    expect(content).not.toContain("ha-nova.cmd");
+  });
+
+  it("preserves managed PATH ownership on reinstall", () => {
+    expect(content).toContain("$existing.path_managed -eq $true");
+    expect(content).toContain('$existing.path_target -eq "user-path"');
+    expect(content).toContain("$PathManaged = $true");
   });
 });

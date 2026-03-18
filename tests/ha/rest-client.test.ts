@@ -4,6 +4,7 @@ import { HaRestClientError, createHaRestClient } from "../../nova/src/ha/rest-cl
 
 describe("ha rest client", () => {
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
   });
 
@@ -119,5 +120,30 @@ describe("ha rest client", () => {
       code: "UPSTREAM_HTTP_ERROR",
       message: "network down"
     } satisfies Partial<HaRestClientError>);
+  });
+
+  it("maps stalled upstream requests to HaRestClientError timeout", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn(async () => await new Promise<Response>(() => {}));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = createHaRestClient({
+      baseUrl: "http://ha.local",
+      token: "upstream-token",
+      requestTimeoutMs: 10
+    });
+
+    const pending = client.request({
+      method: "GET",
+      path: "/api/states"
+    });
+    const expectation = expect(pending).rejects.toMatchObject({
+      code: "UPSTREAM_HTTP_TIMEOUT",
+      message: "HTTP request timed out after 10ms"
+    } satisfies Partial<HaRestClientError>);
+
+    await vi.advanceTimersByTimeAsync(11);
+
+    await expectation;
   });
 });

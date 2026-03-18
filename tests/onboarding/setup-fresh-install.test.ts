@@ -1,6 +1,6 @@
 /**
- * S-1: Fresh Install (Happy Path)
- * Tests the full 4-phase setup wizard from clean state.
+ * Legacy macOS shell reference: fresh install (happy path).
+ * Historical shell-only coverage; current public runtime contract lives in Go tests.
  */
 import { mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
@@ -11,7 +11,7 @@ import { createMockBinaries, createMockHome, mockEnv, REPO_ROOT } from "./_helpe
 
 const isMac = process.platform === "darwin";
 
-describe.skipIf(!isMac)("S-1: fresh install happy path", () => {
+describe.skipIf(!isMac)("Legacy S-1: fresh install happy path", () => {
   it("completes full setup with mock HA + relay", () => {
     const home = createMockHome();
     const binDir = createMockBinaries();

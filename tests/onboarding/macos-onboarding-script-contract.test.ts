@@ -306,7 +306,7 @@ exit 1
     for (const sub of subSkills) {
       const flatSkill = join(workDir, ".gemini/skills", `ha-nova-${sub}`, "SKILL.md");
       const content = readFileSync(flatSkill, "utf8");
-      expect(content).toContain(`name: ${sub}`);
+      expect(content).toContain(`name: ha-nova-${sub}`);
     }
 
     // Claude: uses plugin CLI (skipped in test env since `claude` not available)
@@ -322,13 +322,17 @@ exit 1
     expect(pkg.scripts?.["onboarding:macos"]).toBeUndefined();
     expect(pkg.scripts?.["onboarding:macos:ready"]).toBeUndefined();
     expect(pkg.scripts?.["onboarding:macos:quick"]).toBeUndefined();
-    expect(pkg.scripts?.["dev:onboarding:macos"]).toBe(
+    expect(pkg.scripts?.["dev:onboarding:macos"]).toBeUndefined();
+    expect(pkg.scripts?.["dev:onboarding:macos:doctor"]).toBeUndefined();
+    expect(pkg.scripts?.["dev:onboarding:macos:ready"]).toBeUndefined();
+    expect(pkg.scripts?.["dev:onboarding:macos:quick"]).toBeUndefined();
+    expect(pkg.scripts?.["dev:legacy:onboarding:macos"]).toBe(
       "bash scripts/onboarding/macos-onboarding.sh setup"
     );
-    expect(pkg.scripts?.["dev:onboarding:macos:ready"]).toBe(
+    expect(pkg.scripts?.["dev:legacy:onboarding:macos:ready"]).toBe(
       "bash scripts/onboarding/macos-onboarding.sh ready"
     );
-    expect(pkg.scripts?.["dev:onboarding:macos:quick"]).toBe(
+    expect(pkg.scripts?.["dev:legacy:onboarding:macos:quick"]).toBe(
       "bash scripts/onboarding/macos-onboarding.sh quick"
     );
     expect(pkg.scripts?.["dev:install:codex-skill"]).toBe(
@@ -346,8 +350,15 @@ exit 1
     expect(pkg.scripts?.["dev:install:skills"]).toBe(
       "bash scripts/onboarding/install-local-skills.sh all"
     );
+    expect(pkg.scripts?.["test:safe"]).toContain(
+      "--exclude tests/onboarding/macos-onboarding-script-contract.test.ts"
+    );
+    expect(pkg.scripts?.["test:desktop:macos"]).toContain(
+      "bash scripts/dev/macos-private-rc-suite.sh"
+    );
     expect(pkg.scripts?.["test:cli"]).toBe("cd cli && go test ./...");
-    expect(pkg.scripts?.verify).toBe("npm run typecheck && npm test && npm run test:cli");
+    expect(pkg.scripts?.test).toBe("npm run test:safe");
+    expect(pkg.scripts?.verify).toBe("npm run typecheck && npm run test:safe && npm run test:cli");
   });
 
   it("documents canonical Codex one-link install entrypoint", () => {
@@ -484,7 +495,13 @@ exec go run "${process.cwd()}/cli" uninstall "$@"
       cwd: join(process.cwd(), "cli"),
       encoding: "utf8",
       timeout: 10000,
-      env: { ...process.env, HOME: workDir },
+      env: {
+        ...process.env,
+        HOME: workDir,
+        GOCACHE: process.env.GOCACHE,
+        GOMODCACHE: process.env.GOMODCACHE,
+        GOPATH: process.env.GOPATH,
+      },
     });
 
     expect(result.status).toBe(0);

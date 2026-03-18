@@ -47,6 +47,12 @@ func TestValidateBundleRootAcceptsBundle(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "bundle.json"), []byte(fmt.Sprintf(`{"bundle_format_version":1,"os":"%s","arch":"%s","binary_name":"%s"}`, bundlePlatformOS(), bundlePlatformArch(), publicBinaryName())), 0o644); err != nil {
 		t.Fatalf("write bundle.json: %v", err)
 	}
+	if err := os.MkdirAll(filepath.Join(root, "clients"), 0o755); err != nil {
+		t.Fatalf("mkdir clients: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "clients", "registry.json"), []byte(`{"clients":[{"id":"claude","label":"Claude Code","adapter_kind":"plugin_marketplace","supported_os":["macos","linux","windows"]}]}`), 0o644); err != nil {
+		t.Fatalf("write registry.json: %v", err)
+	}
 	if err := os.WriteFile(filepath.Join(root, publicBinaryName()), []byte("binary"), 0o755); err != nil {
 		t.Fatalf("write binary: %v", err)
 	}
@@ -61,12 +67,32 @@ func TestValidateBundleRootRejectsMismatchedBundleMetadata(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "bundle.json"), []byte(`{"bundle_format_version":1,"os":"windows","arch":"amd64","binary_name":"relay.exe"}`), 0o644); err != nil {
 		t.Fatalf("write bundle.json: %v", err)
 	}
+	if err := os.MkdirAll(filepath.Join(root, "clients"), 0o755); err != nil {
+		t.Fatalf("mkdir clients: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "clients", "registry.json"), []byte(`{"clients":[{"id":"claude","label":"Claude Code","adapter_kind":"plugin_marketplace","supported_os":["macos","linux","windows"]}]}`), 0o644); err != nil {
+		t.Fatalf("write registry.json: %v", err)
+	}
 	if err := os.WriteFile(filepath.Join(root, publicBinaryName()), []byte("binary"), 0o755); err != nil {
 		t.Fatalf("write binary: %v", err)
 	}
 
 	if err := validateBundleRoot(root); err == nil {
 		t.Fatal("expected mismatched bundle metadata to fail validation")
+	}
+}
+
+func TestValidateBundleRootRejectsMissingClientRegistry(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "bundle.json"), []byte(fmt.Sprintf(`{"bundle_format_version":1,"os":"%s","arch":"%s","binary_name":"%s"}`, bundlePlatformOS(), bundlePlatformArch(), publicBinaryName())), 0o644); err != nil {
+		t.Fatalf("write bundle.json: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, publicBinaryName()), []byte("binary"), 0o755); err != nil {
+		t.Fatalf("write binary: %v", err)
+	}
+
+	if err := validateBundleRoot(root); err == nil {
+		t.Fatal("expected missing client registry to fail validation")
 	}
 }
 

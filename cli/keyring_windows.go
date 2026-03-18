@@ -3,39 +3,153 @@
 package main
 
 import (
+	"encoding/base64"
 	"fmt"
+	"os"
+	"os/exec"
 	"os/user"
+	"path/filepath"
+	"strings"
 
 	"github.com/zalando/go-keyring"
 )
 
+func encodeBase64Token(value string) string {
+	return base64.StdEncoding.EncodeToString([]byte(value))
+}
+
 func readRelayAuthToken() (string, error) {
+	if token, overridden, err := readRelayAuthTokenOverride(); overridden {
+		if err != nil {
+			if isNotExist(err) {
+				return "", missingRelayAuthTokenError(relayAuthTokenServiceName())
+			}
+			return "", relayAuthTokenReadError(relayAuthTokenServiceName(), err)
+		}
+		return token, nil
+	}
 	u, err := user.Current()
 	if err != nil {
 		return "", fmt.Errorf("cannot determine current user: %w", err)
 	}
+	service := relayAuthTokenServiceName()
 
-	token, err := keyring.Get(keyringServiceName, u.Username)
+	token, err := keyring.Get(service, u.Username)
 	if err == nil {
 		return token, nil
 	}
-	return "", fmt.Errorf("missing relay auth token (%s)", keyringServiceName)
+	legacy, legacyErr := readLegacyWindowsRelayAuthToken(service)
+	if legacyErr == nil && strings.TrimSpace(legacy) != "" {
+		return strings.TrimSpace(legacy), nil
+	}
+	if err != keyring.ErrNotFound {
+		return "", relayAuthTokenReadError(service, err)
+	}
+	if legacyErr != nil && !isNotExist(legacyErr) {
+		return "", relayAuthTokenReadError(service, legacyErr)
+	}
+	return "", missingRelayAuthTokenError(service)
 }
 
 func writeRelayAuthToken(token string) error {
+	if overridden, err := writeRelayAuthTokenOverride(token); overridden {
+		if err != nil {
+			return fmt.Errorf("cannot write relay auth token: %w", err)
+		}
+		return nil
+	}
 	u, err := user.Current()
 	if err != nil {
 		return fmt.Errorf("cannot determine current user: %w", err)
 	}
-	return keyring.Set(keyringServiceName, u.Username, token)
+	if err := keyring.Set(relayAuthTokenServiceName(), u.Username, token); err != nil {
+		return err
+	}
+	if err := writeLegacyWindowsRelayAuthToken(relayAuthTokenServiceName(), token); err != nil {
+		printHumanWarn("legacy Windows relay token mirror write failed: %s", err)
+	}
+	return nil
 }
 
 func deleteRelayAuthToken() error {
+	if overridden, err := deleteRelayAuthTokenOverride(); overridden {
+		if err != nil {
+			return fmt.Errorf("cannot delete relay auth token: %w", err)
+		}
+		return nil
+	}
 	u, err := user.Current()
 	if err != nil {
 		return fmt.Errorf("cannot determine current user: %w", err)
 	}
-	if err := keyring.Delete(keyringServiceName, u.Username); err != nil && err != keyring.ErrNotFound {
+	if err := keyring.Delete(relayAuthTokenServiceName(), u.Username); err != nil && err != keyring.ErrNotFound {
+		return err
+	}
+	if err := deleteLegacyWindowsRelayAuthToken(relayAuthTokenServiceName()); err != nil {
+		printHumanWarn("legacy Windows relay token mirror cleanup failed: %s", err)
+	}
+	return nil
+}
+
+func legacyWindowsRelayAuthTokenPath(service string) (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	safe := strings.Map(func(r rune) rune {
+		switch {
+		case r >= 'a' && r <= 'z':
+			return r
+		case r >= 'A' && r <= 'Z':
+			return r
+		case r >= '0' && r <= '9':
+			return r
+		case r == '.' || r == '_' || r == '-':
+			return r
+		default:
+			return '_'
+		}
+	}, service)
+	return filepath.Join(home, ".config", "ha-nova", "."+safe+".dpapi"), nil
+}
+
+func readLegacyWindowsRelayAuthToken(service string) (string, error) {
+	path, err := legacyWindowsRelayAuthTokenPath(service)
+	if err != nil {
+		return "", err
+	}
+	if _, err := os.Stat(path); err != nil {
+		return "", err
+	}
+	psPath := strings.ReplaceAll(path, `'`, `''`)
+	command := "$blob = Get-Content -LiteralPath '" + psPath + `' -Raw; if ([string]::IsNullOrWhiteSpace($blob)) { exit 1 }; $secure = ConvertTo-SecureString -String $blob; $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure); try { [Console]::Out.Write([Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr)) } finally { if ($bstr -ne [IntPtr]::Zero) { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr) } }`
+	out, err := exec.Command("powershell.exe", "-NoProfile", "-NonInteractive", "-Command", command).Output()
+	if err != nil {
+		return "", err
+	}
+	return string(out), nil
+}
+
+func writeLegacyWindowsRelayAuthToken(service, token string) error {
+	path, err := legacyWindowsRelayAuthTokenPath(service)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	psPath := strings.ReplaceAll(path, `'`, `''`)
+	encoded := encodeBase64Token(token)
+	command := "$secure = ConvertTo-SecureString -String ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('" + encoded + "'))) -AsPlainText -Force; $blob = ConvertFrom-SecureString -SecureString $secure; [IO.File]::WriteAllText('" + psPath + "', $blob)"
+	return exec.Command("powershell.exe", "-NoProfile", "-NonInteractive", "-Command", command).Run()
+}
+
+func deleteLegacyWindowsRelayAuthToken(service string) error {
+	path, err := legacyWindowsRelayAuthTokenPath(service)
+	if err != nil {
+		return err
+	}
+	if err := os.Remove(path); err != nil && !isNotExist(err) {
 		return err
 	}
 	return nil

@@ -1,0 +1,223 @@
+package main
+
+import (
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+func TestRunDoctorTreatsWSPingSuccessAsReady(t *testing.T) {
+	paths, cfg := doctorTestSetup(t)
+
+	originalHealth := fetchRelayHealthForReadiness
+	originalWSPing := probeRelayWSPingForReadiness
+	defer func() {
+		fetchRelayHealthForReadiness = originalHealth
+		probeRelayWSPingForReadiness = originalWSPing
+	}()
+	fetchRelayHealthForReadiness = func(relayBaseURL, token string) ([]byte, error) {
+		return []byte(`{"status":"ok","data":{"ha_ws_connected":false},"version":"0.1.12"}`), nil
+	}
+	probeRelayWSPingForReadiness = func(relayBaseURL, token string) (relayWSPingResponse, error) {
+		return relayWSPingResponse{StatusCode: http.StatusOK, Body: []byte(`{"type":"pong"}`)}, nil
+	}
+
+	exitCode, output := captureCommandOutput(t, func() int {
+		return runDoctor(paths, nil)
+	})
+	if exitCode != 0 {
+		t.Fatalf("runDoctor() exit = %d, want 0\n%s", exitCode, output)
+	}
+	for _, want := range []string{
+		"Relay health reachable",
+		"Relay /ws ping succeeded",
+		"Connected to Home Assistant",
+		"Doctor checks passed",
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("doctor output missing %q:\n%s", want, output)
+		}
+	}
+	_ = cfg
+}
+
+func TestRunDoctorMentionsLLATCause(t *testing.T) {
+	paths, _ := doctorTestSetup(t)
+
+	originalHealth := fetchRelayHealthForReadiness
+	originalWSPing := probeRelayWSPingForReadiness
+	defer func() {
+		fetchRelayHealthForReadiness = originalHealth
+		probeRelayWSPingForReadiness = originalWSPing
+	}()
+	fetchRelayHealthForReadiness = func(relayBaseURL, token string) ([]byte, error) {
+		return []byte(`{"status":"ok","data":{"ha_ws_connected":false},"version":"0.1.12"}`), nil
+	}
+	probeRelayWSPingForReadiness = func(relayBaseURL, token string) (relayWSPingResponse, error) {
+		return relayWSPingResponse{StatusCode: http.StatusBadGateway, Body: []byte("LLAT is required")}, nil
+	}
+
+	exitCode, output := captureCommandOutput(t, func() int {
+		return runDoctor(paths, nil)
+	})
+	if exitCode == 0 {
+		t.Fatalf("expected doctor to fail when ws ping proves LLAT issue:\n%s", output)
+	}
+	if !strings.Contains(output, `The Home Assistant Access Token field ("ha_llat") in NOVA Relay is missing or invalid`) {
+		t.Fatalf("expected LLAT guidance in doctor output:\n%s", output)
+	}
+}
+
+func TestRunDoctorDoesNotClaimConnectedWhenHAProbeFails(t *testing.T) {
+	paths, cfg := doctorTestSetup(t)
+
+	originalHealth := fetchRelayHealthForReadiness
+	originalWSPing := probeRelayWSPingForReadiness
+	defer func() {
+		fetchRelayHealthForReadiness = originalHealth
+		probeRelayWSPingForReadiness = originalWSPing
+	}()
+	fetchRelayHealthForReadiness = func(relayBaseURL, token string) ([]byte, error) {
+		return []byte(`{"status":"ok","data":{"ha_ws_connected":false},"version":"0.1.12"}`), nil
+	}
+	probeRelayWSPingForReadiness = func(relayBaseURL, token string) (relayWSPingResponse, error) {
+		return relayWSPingResponse{StatusCode: http.StatusOK, Body: []byte(`{"type":"pong"}`)}, nil
+	}
+
+	if err := saveConfig(paths, runtimeConfig{
+		HAHost:       "192.168.1.250",
+		HAURL:        "http://192.168.1.250:8123",
+		RelayBaseURL: cfg.RelayBaseURL,
+	}); err != nil {
+		t.Fatalf("saveConfig() error: %v", err)
+	}
+
+	exitCode, output := captureCommandOutput(t, func() int {
+		return runDoctor(paths, nil)
+	})
+	if exitCode == 0 {
+		t.Fatalf("expected doctor to fail when direct HA probe fails:\n%s", output)
+	}
+	if strings.Contains(output, "Connected to Home Assistant") {
+		t.Fatalf("doctor should not claim connected when HA probe failed:\n%s", output)
+	}
+}
+
+func TestRunDoctorReportsSecureStoreUnavailableInsteadOfMissingToken(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING", "1")
+
+	blockedPath := filepath.Join(home, "blocked-token")
+	if err := os.MkdirAll(blockedPath, 0o755); err != nil {
+		t.Fatalf("mkdir blocked token path: %v", err)
+	}
+	t.Setenv("HA_NOVA_TEST_KEYRING_FILE", blockedPath)
+
+	haServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	}))
+	t.Cleanup(haServer.Close)
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+	if err := saveConfig(paths, runtimeConfig{
+		HAHost:       normalizeHostInput(haServer.URL),
+		HAURL:        haServer.URL,
+		RelayBaseURL: "http://relay.test:8791",
+	}); err != nil {
+		t.Fatalf("saveConfig() error: %v", err)
+	}
+
+	exitCode, output := captureCommandOutput(t, func() int {
+		return runDoctor(paths, nil)
+	})
+	if exitCode == 0 {
+		t.Fatalf("expected doctor to fail when secure storage is unavailable:\n%s", output)
+	}
+	if !strings.Contains(output, "relay auth token unavailable:") {
+		t.Fatalf("expected secure-storage unavailable wording:\n%s", output)
+	}
+	if strings.Contains(output, "relay auth token missing; run: ha-nova setup") {
+		t.Fatalf("doctor should not collapse secure-store failures into missing-token wording:\n%s", output)
+	}
+}
+
+func doctorTestSetup(t *testing.T) (runtimePaths, runtimeConfig) {
+	t.Helper()
+
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING", "1")
+	t.Setenv("HA_NOVA_TEST_KEYRING_FILE", filepath.Join(home, ".config", "ha-nova", ".test-relay-auth-token"))
+
+	haServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	}))
+	t.Cleanup(haServer.Close)
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+	cfg := runtimeConfig{
+		HAHost:       normalizeHostInput(haServer.URL),
+		HAURL:        haServer.URL,
+		RelayBaseURL: "http://relay.test:8791",
+	}
+	if err := saveConfig(paths, cfg); err != nil {
+		t.Fatalf("saveConfig() error: %v", err)
+	}
+	if err := writeRelayAuthToken("test-relay-token"); err != nil {
+		t.Fatalf("writeRelayAuthToken() error: %v", err)
+	}
+	return paths, cfg
+}
+
+func captureCommandOutput(t *testing.T, fn func() int) (int, string) {
+	t.Helper()
+
+	originalStdout := os.Stdout
+	originalStderr := os.Stderr
+	defer func() {
+		os.Stdout = originalStdout
+		os.Stderr = originalStderr
+	}()
+
+	stdoutReader, stdoutWriter, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe(stdout) error: %v", err)
+	}
+	stderrReader, stderrWriter, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe(stderr) error: %v", err)
+	}
+	os.Stdout = stdoutWriter
+	os.Stderr = stderrWriter
+
+	stdoutDone := make(chan string, 1)
+	stderrDone := make(chan string, 1)
+	go func() {
+		data, _ := io.ReadAll(stdoutReader)
+		stdoutDone <- string(data)
+	}()
+	go func() {
+		data, _ := io.ReadAll(stderrReader)
+		stderrDone <- string(data)
+	}()
+
+	exitCode := fn()
+
+	_ = stdoutWriter.Close()
+	_ = stderrWriter.Close()
+
+	return exitCode, (<-stdoutDone) + (<-stderrDone)
+}

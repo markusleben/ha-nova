@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -96,10 +97,27 @@ func loadRelayPayload(opts relayRequestOptions) ([]byte, error) {
 	case opts.JSONFile != "":
 		return os.ReadFile(opts.JSONFile)
 	case opts.InlineJSON != "":
-		return []byte(opts.InlineJSON), nil
+		payload := normalizeInlineJSON(opts.InlineJSON)
+		if !json.Valid([]byte(payload)) {
+			return nil, errors.New("inline JSON payload is not valid JSON; on PowerShell prefer --data-file if quoting rewrites the payload")
+		}
+		return []byte(payload), nil
 	default:
 		return nil, nil
 	}
+}
+
+func normalizeInlineJSON(value string) string {
+	trimmed := strings.TrimSpace(value)
+	if len(trimmed) >= 2 {
+		if (trimmed[0] == '\'' || trimmed[0] == '"') && trimmed[0] == trimmed[len(trimmed)-1] {
+			inner := trimmed[1 : len(trimmed)-1]
+			if json.Valid([]byte(inner)) {
+				return inner
+			}
+		}
+	}
+	return trimmed
 }
 
 func loadJQFilter(opts relayRequestOptions) (string, error) {
@@ -126,7 +144,7 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 
 	token, err := readRelayAuthToken()
 	if err != nil {
-		printErr("%s", err)
+		printErr("%s", relayAuthTokenProblemMessage(err))
 		return 1
 	}
 
@@ -221,7 +239,7 @@ func runHealth(paths runtimePaths) int {
 
 	token, err := readRelayAuthToken()
 	if err != nil {
-		printErr("%s", err)
+		printErr("%s", relayAuthTokenProblemMessage(err))
 		return 1
 	}
 
@@ -247,8 +265,8 @@ func runHealth(paths runtimePaths) int {
 		return 1
 	}
 
-	if updateMessage := checkForUpdate(paths, true); updateMessage != "" {
-		fmt.Fprintln(os.Stdout, updateMessage)
+	if notice := checkForUpdate(paths, true); !notice.empty() {
+		printHumanNotice(notice)
 	}
 
 	_, _ = os.Stdout.Write(bodyBytes)
@@ -256,8 +274,8 @@ func runHealth(paths runtimePaths) int {
 		fmt.Fprintln(os.Stdout)
 	}
 
-	if warning := checkRelayVersion(paths, bodyBytes); warning != "" {
-		fmt.Fprintln(os.Stdout, warning)
+	if notice := checkRelayVersion(paths, bodyBytes); !notice.empty() {
+		printHumanNotice(notice)
 	}
 
 	if resp.StatusCode >= 400 {

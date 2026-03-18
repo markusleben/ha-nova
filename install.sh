@@ -16,18 +16,82 @@ PATH_BLOCK_HEADER="# Added by HA NOVA"
 PATH_RC_FILE=""
 TMP_DIR=""
 PATH_MANAGED="0"
+PLAIN_UI="0"
+UI_RESET=""
+UI_BOLD=""
+UI_DIM=""
+UI_ACCENT=""
+UI_SUCCESS=""
+UI_WARNING=""
+UI_ERROR=""
+
+is_plain_ui() {
+  [[ "${HA_NOVA_PLAIN_UI:-0}" == "1" ]] && return 0
+  [[ -n "${NO_COLOR:-}" ]] && return 0
+  [[ ! -t 1 ]] && return 0
+  [[ "${TERM:-}" == "dumb" ]] && return 0
+  return 1
+}
+
+init_ui() {
+  if is_plain_ui; then
+    PLAIN_UI="1"
+    return 0
+  fi
+
+  UI_RESET=$'\033[0m'
+  UI_BOLD=$'\033[1m'
+  UI_DIM=$'\033[2m'
+  UI_ACCENT=$'\033[93m'
+  UI_SUCCESS=$'\033[32m'
+  UI_WARNING=$'\033[33m'
+  UI_ERROR=$'\033[31m'
+}
 
 banner() {
   echo ""
-  echo "  ========================================="
-  echo "  HA NOVA Installer"
-  echo "  ========================================="
+  if [[ "${PLAIN_UI}" == "1" ]]; then
+    echo "  HA NOVA Installer"
+    echo "  -----------------"
+  else
+    echo "  ${UI_ACCENT}${UI_BOLD}HA NOVA Installer${UI_RESET}"
+    echo "  ${UI_ACCENT}-----------------${UI_RESET}"
+  fi
   echo ""
 }
 
-info() { echo "  [ok] $*"; }
-warn() { echo "  [!!] $*"; }
-fail() { echo "  [!!] $*" >&2; exit 1; }
+info() {
+  if [[ "${PLAIN_UI}" == "1" ]]; then
+    echo "  [ok] $*"
+    return 0
+  fi
+  echo "  ${UI_SUCCESS}[ok]${UI_RESET} $*"
+}
+
+warn() {
+  if [[ "${PLAIN_UI}" == "1" ]]; then
+    echo "  [!] $*"
+    return 0
+  fi
+  echo "  ${UI_WARNING}[!]${UI_RESET} $*"
+}
+
+note() {
+  if [[ "${PLAIN_UI}" == "1" ]]; then
+    echo "  $*"
+    return 0
+  fi
+  echo "  ${UI_DIM}$*${UI_RESET}"
+}
+
+fail() {
+  if [[ "${PLAIN_UI}" == "1" ]]; then
+    echo "  [!!] $*" >&2
+    exit 1
+  fi
+  echo "  ${UI_ERROR}[!!]${UI_RESET} $*" >&2
+  exit 1
+}
 
 cleanup() {
   [[ -n "${TMP_DIR}" && -d "${TMP_DIR}" ]] && rm -rf "${TMP_DIR}"
@@ -186,6 +250,15 @@ normalize_version_tag() {
   fi
 }
 
+expected_version_tag() {
+  if [[ -n "${HA_NOVA_VERSION:-}" ]]; then
+    normalize_version_tag "${HA_NOVA_VERSION}"
+    return 0
+  fi
+
+  return 1
+}
+
 fetch_latest_version_tag() {
   local json_file="${TMP_DIR}/latest-release.json"
   curl -fsSL "${LATEST_RELEASE_API}" -o "${json_file}"
@@ -195,9 +268,13 @@ fetch_latest_version_tag() {
   normalize_version_tag "${tag}"
 }
 
-resolve_version_tag() {
-  if [[ -n "${HA_NOVA_VERSION:-}" ]]; then
-    normalize_version_tag "${HA_NOVA_VERSION}"
+resolve_download_version_tag() {
+  if expected_version_tag >/dev/null 2>&1; then
+    expected_version_tag
+    return 0
+  fi
+
+  if [[ -n "${HA_NOVA_BUNDLE_URL:-}" ]]; then
     return 0
   fi
 
@@ -216,6 +293,40 @@ bundle_name() {
   esac
 }
 
+bundle_download_url() {
+  local version_tag="$1"
+  local archive_name
+  archive_name="$(bundle_name)"
+
+  if [[ -n "${HA_NOVA_BUNDLE_URL:-}" ]]; then
+    printf '%s\n' "${HA_NOVA_BUNDLE_URL}"
+    return 0
+  fi
+
+  printf '%s%s/%s\n' "${RELEASE_BASE_URL}" "${version_tag}" "${archive_name}"
+}
+
+bundle_checksum_url() {
+  local version_tag="$1"
+  local archive_url
+
+  if [[ -n "${HA_NOVA_BUNDLE_SHA256_URL:-}" ]]; then
+    printf '%s\n' "${HA_NOVA_BUNDLE_SHA256_URL}"
+    return 0
+  fi
+
+  archive_url="$(bundle_download_url "${version_tag}")"
+  printf '%s.sha256\n' "${archive_url}"
+}
+
+bundle_version_tag() {
+  local bundle_root="$1"
+  local version
+  version="$(extract_json_string "version" "${bundle_root}/bundle.json")"
+  [[ -n "${version}" ]] || fail "Downloaded bundle is missing version metadata."
+  normalize_version_tag "${version}"
+}
+
 download_bundle() {
   local version_tag="$1"
   local archive_name archive_path checksum_path extract_dir bundle_root expected actual bundle_os bundle_arch bundle_binary
@@ -225,8 +336,8 @@ download_bundle() {
   extract_dir="${TMP_DIR}/extract"
 
   mkdir -p "${extract_dir}"
-  curl -fsSL "${RELEASE_BASE_URL}${version_tag}/${archive_name}" -o "${archive_path}"
-  curl -fsSL "${RELEASE_BASE_URL}${version_tag}/${archive_name}.sha256" -o "${checksum_path}"
+  curl -fsSL "$(bundle_download_url "${version_tag}")" -o "${archive_path}"
+  curl -fsSL "$(bundle_checksum_url "${version_tag}")" -o "${checksum_path}"
   expected="$(awk '{print $1}' "${checksum_path}" | head -1)"
   actual="$(compute_sha256 "${archive_path}")"
   [[ -n "${expected}" && "${actual}" == "${expected}" ]] || fail "Downloaded bundle checksum verification failed."
@@ -280,9 +391,27 @@ install_binary() {
 write_state() {
   local version_tag="$1"
   local version="${version_tag#v}"
+  local path_managed_json="false"
+  local tmp_state=""
   mkdir -p "${CONFIG_DIR}"
 
+  if [[ "${PATH_MANAGED}" == "1" ]]; then
+    path_managed_json="true"
+  elif [[ -f "${STATE_FILE}" ]] && grep -Eq '"path_managed"[[:space:]]*:[[:space:]]*true' "${STATE_FILE}"; then
+    path_managed_json="true"
+  fi
+
   if [[ -f "${STATE_FILE}" ]]; then
+    tmp_state="${STATE_FILE}.tmp.$$"
+    awk -v version="${version}" -v path_managed="${path_managed_json}" -v path_target="${PATH_RC_FILE}" '
+      /"version"[[:space:]]*:/ { print "  \"version\": \"" version "\","; next }
+      /"install_source"[[:space:]]*:/ { print "  \"install_source\": \"bundle\","; next }
+      /"path_managed"[[:space:]]*:/ { print "  \"path_managed\": " path_managed ","; next }
+      /"path_target"[[:space:]]*:/ { print "  \"path_target\": \"" path_target "\""; next }
+      { print }
+    ' "${STATE_FILE}" > "${tmp_state}"
+    mv "${tmp_state}" "${STATE_FILE}"
+    chmod 600 "${STATE_FILE}"
     return 0
   fi
 
@@ -293,7 +422,7 @@ write_state() {
   "install_source": "bundle",
   "installed_clients": [],
   "client_install_modes": {},
-  "path_managed": $( [[ "${PATH_MANAGED}" == "1" ]] && printf 'true' || printf 'false' ),
+  "path_managed": ${path_managed_json},
   "path_target": "${PATH_RC_FILE}"
 }
 EOF
@@ -304,8 +433,8 @@ run_setup() {
   local runtime_bin="$1"
 
   if [[ "${HA_NOVA_NO_SETUP:-0}" == "1" ]]; then
-    echo "  Next step: ha-nova setup"
-    echo "  Need help later? Run: ha-nova doctor"
+    note "Next step: ha-nova setup"
+    note "Need help later? Run: ha-nova doctor"
     return 0
   fi
 
@@ -315,8 +444,9 @@ run_setup() {
     return 0
   fi
 
-  echo "  Next step: ha-nova setup"
-  echo "  Need help later? Run: ha-nova doctor"
+  warn "No interactive terminal detected; setup was not started automatically."
+  note "Next step: ha-nova setup"
+  note "Need help later? Run: ha-nova doctor"
 }
 
 check_prerequisites() {
@@ -330,22 +460,31 @@ check_prerequisites() {
 }
 
 main() {
-  local version_tag bundle_root
+  local expected_tag version_tag bundle_root installed_tag
+  init_ui
   banner
   check_prerequisites
   if ! is_current_install && has_legacy_install; then
     abort_for_legacy_install
   fi
   TMP_DIR="$(mktemp -d)"
-  version_tag="$(resolve_version_tag)"
+  expected_tag="$(expected_version_tag || true)"
+  version_tag="$(resolve_download_version_tag || true)"
   bundle_root="$(download_bundle "${version_tag}")"
+  installed_tag="$(bundle_version_tag "${bundle_root}")"
+  if [[ -n "${expected_tag}" && "${installed_tag}" != "${expected_tag}" ]]; then
+    fail "Downloaded bundle version ${installed_tag} does not match requested version ${expected_tag}."
+  fi
+  if [[ -n "${version_tag}" && -z "${expected_tag}" && "${installed_tag}" != "${version_tag}" ]]; then
+    fail "Downloaded bundle version ${installed_tag} does not match release ${version_tag}."
+  fi
   install_bundle "${bundle_root}"
   install_binary
   ensure_bin_dir_on_path
-  write_state "${version_tag}"
-  info "Installed HA NOVA ${version_tag}"
+  write_state "${installed_tag}"
+  info "Installed HA NOVA ${installed_tag}"
   echo ""
-  echo "  Need help later? Run: ha-nova doctor"
+  note "Need help later? Run: ha-nova doctor"
   run_setup "${BIN_LINK}"
 }
 

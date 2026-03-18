@@ -63,22 +63,12 @@ release:
     irm https://raw.githubusercontent.com/markusleben/ha-nova/main/install.ps1 | iex
     ```
 
+    Windows currently ships an `amd64` bundle only. On Windows ARM64, use x64 emulation.
+    Windows validation in this release may still be narrower than macOS; check the README support matrix before claiming client-lane parity.
+
     Already installed? Run `ha-nova check-update` or `ha-nova update`.
 
     > The bundle assets below are consumed by the installers automatically — do not download them manually unless you know you need a raw binary.
   footer: |
     ---
     **Full documentation:** [github.com/markusleben/ha-nova](https://github.com/markusleben/ha-nova)
-
-signs:
-  - cmd: codesign
-    args:
-      - "--sign"
-      - "Developer ID Application: {{ .Env.APPLE_IDENTITY }}"
-      - "--options"
-      - "runtime"
-      - "${artifact}"
-    artifacts: binary
-    ids:
-      - ha-nova-darwin
-    output: false

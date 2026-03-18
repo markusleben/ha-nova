@@ -56,5 +56,39 @@ describe("ha ws client", () => {
     await expect(client.sendMessage({ type: "ping" })).rejects.toMatchObject({
       code: "UPSTREAM_WS_TIMEOUT"
     } satisfies Partial<HaWsClientError>);
+    expect(client.isConnected()).toBe(false);
+  });
+
+  it("drops a stale connection after request failure and reconnects on the next request", async () => {
+    let connectCalls = 0;
+
+    const client = createHaWsClient({
+      createConnection: async () => {
+        connectCalls += 1;
+        if (connectCalls === 1) {
+          return {
+            sendMessagePromise: async (message: { type: string }) => {
+              if (message.type === "broken") {
+                throw new Error("socket closed");
+              }
+              return { echoed: message.type };
+            }
+          };
+        }
+
+        return {
+          sendMessagePromise: async (message: { type: string }) => ({ echoed: `retry:${message.type}` })
+        };
+      }
+    });
+
+    await expect(client.sendMessage({ type: "ping" })).resolves.toEqual({ echoed: "ping" });
+    await expect(client.sendMessage({ type: "broken" })).rejects.toMatchObject({
+      code: "UPSTREAM_WS_ERROR",
+      message: "socket closed"
+    } satisfies Partial<HaWsClientError>);
+    expect(client.isConnected()).toBe(false);
+    await expect(client.sendMessage({ type: "recover" })).resolves.toEqual({ echoed: "retry:recover" });
+    expect(connectCalls).toBe(2);
   });
 });

@@ -41,8 +41,9 @@ Forbidden:
 ## Relay CLI
 
 Use `ha-nova relay` for all HA communication.
-- `ha-nova relay ws -d '<json>'` - WebSocket relay
-- `ha-nova relay core -d '<json>'` - Core API relay
+- `ha-nova relay ws --data-file <payload-file>` - canonical WebSocket relay path
+- `ha-nova relay core --method <METHOD> --path <PATH> --body-file <payload-file>` - canonical Core API relay path
+- `ha-nova relay ... --out <result-file>` - canonical large-output path
 
 ## Execution Steps
 
@@ -74,9 +75,8 @@ Find other automations/scripts that control the same entities.
 
 1. Extract all target entity_ids from `{CONFIG}` actions (the entities being controlled).
 2. For the top 3 most significant target entities, run `search/related`:
-   ```bash
-   ha-nova relay ws -d '{"type":"search/related","item_type":"entity","item_id":"{entity_id}"}'
-   ```
+   - create `<payload-file>` with `{"type":"search/related","item_type":"entity","item_id":"{entity_id}"}`
+   - run `ha-nova relay ws --data-file <payload-file>`
 3. Collect related automations/scripts (exclude `{TARGET_ID}` itself).
 4. Read configs of related items (max 5) via `/core GET`.
 

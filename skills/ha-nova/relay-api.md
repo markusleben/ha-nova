@@ -18,12 +18,24 @@ Single source of truth for Relay calls used by HA NOVA skills.
 
 For agent-dispatched flows, use the CLI wrapper instead of raw curl:
 
-```bash
-ha-nova relay ws -d '{"type":"config/entity_registry/list_for_display"}'
-ha-nova relay core -d '{"method":"GET","path":"/api/config/automation/config/my_id"}'
+1. Write request JSON with the client's native file-writing tool.
+2. Use file-based relay flags as the default contract:
+   - `ha-nova relay ws --data-file <payload-file>`
+   - `ha-nova relay core --method <METHOD> --path <PATH> --body-file <payload-file>`
+   - `ha-nova relay ... --out <result-file>`
+   - `ha-nova relay ... --jq-file <filter-file>` for non-trivial filters
+   - `ha-nova relay ... --jq .field` only for short selectors without shell-special characters
+
+Examples:
+
+```text
+ha-nova relay ws --data-file <payload-file> --jq-file <filter-file>
+ha-nova relay core --method GET --path /api/config/automation/config/<id> --out <result-file>
+ha-nova relay core --method POST --path /api/services/light/turn_on --body-file <payload-file>
 ```
 
 The wrapper handles auth (OS credential store), headers, timeouts, and base URL internally.
+Inline `-d` / `--body` remains available for small diagnostics, but it is not the canonical cross-platform path.
 
 ## Standard Envelope
 
@@ -49,10 +61,16 @@ HA uses different identifiers depending on the API. Skills MUST use the correct 
 
 When you have an entity_id and need the config key for REST or trace APIs:
 
-```bash
-# Returns the unique_id (config key) for use with REST config reads and trace queries
-ha-nova relay ws -d '{"type":"config/entity_registry/get","entity_id":"automation.{slug}"}' \
-  | ha-nova relay jq -r '.data.unique_id'
+Create `<payload-file>` with:
+
+```json
+{"type":"config/entity_registry/get","entity_id":"automation.{slug}"}
+```
+
+Then run:
+
+```text
+ha-nova relay ws --data-file <payload-file> --jq .data.unique_id
 ```
 
 Use the resolved `unique_id` with:
@@ -140,11 +158,9 @@ Delete: {"type": "{type}/delete", "{type}_id": "..."}
 Important: `{type}_id` is the internal `id` from the list response, NOT the entity_id.
 
 CLI examples:
-```bash
-ha-nova relay ws -d '{"type":"input_boolean/list"}'
-ha-nova relay ws -d '{"type":"input_boolean/create","name":"Sleep Mode","icon":"mdi:sleep"}'
-ha-nova relay ws -d '{"type":"input_boolean/update","input_boolean_id":"abc123","name":"Updated"}'
-ha-nova relay ws -d '{"type":"input_boolean/delete","input_boolean_id":"abc123"}'
+```text
+ha-nova relay ws --data-file <payload-file>
+ha-nova relay ws --data-file <payload-file> --out <result-file>
 ```
 
 No domain reload needed — storage-based helpers take effect immediately.

@@ -39,9 +39,17 @@ If session context OR `relay health` output includes `UPDATE AVAILABLE`, inform 
 Quoting is shell-dependent (bash/zsh vs PowerShell), not primarily OS-dependent.
 
 Rules:
-- Keep command examples copy-pastable as shown.
-- Avoid unnecessary escaping in bash/zsh snippets.
-- If shell is not bash-compatible, stop and ask user to switch shell.
+- The canonical relay contract is file-based, not inline-JSON-first.
+- Prefer `ha-nova relay ws --data-file <payload-file>`.
+- Prefer `ha-nova relay core --method <METHOD> --path <PATH> --body-file <payload-file>`.
+- Prefer `ha-nova relay ... --out <result-file>` for large outputs.
+- Prefer `--jq` or `--jq-file` over shell pipes when filtering relay output.
+- Prefer `ha-nova relay jq --file <result-file> length` for simple counts and `--jq-file <filter-file>` for non-trivial follow-up transforms.
+- On Windows PowerShell, never chain commands with `&&` or `||`; run separate shell commands instead.
+- Never call external `jq`; use relay-native `--jq` / `--jq-file` or `ha-nova relay jq`.
+- When a filter contains `select`, `test`, `startswith`, or more than one pipeline stage, default to `--jq-file` even if inline quoting might work.
+- Use native file-writing and file-reading tools for temp files. Do not teach `cat`, heredocs, Python, or Node as the primary JSON path.
+- Use inline `-d` / `--body` only for tiny diagnostics when shell quoting is already known-good.
 
 ## Safety Baseline
 
@@ -130,7 +138,7 @@ Match user intent to exactly one skill:
 **"Create a timer"** → ambiguous! Ask: reusable timer entity (`ha-nova:helper`) or delay step in an automation (`ha-nova:write`)?
 **"Show my energy dashboard"** → `ha-nova:fallback` (no dedicated skill)
 **"Import a blueprint"** → `ha-nova:fallback` (relay-ready, no skill)
-**"How do I manage add-ons?"** → `ha-nova:fallback` (external, web search)
+**"How do I manage Apps?"** → `ha-nova:fallback` (external, web search)
 **"Show history for sensor X"** → `ha-nova:fallback` (relay-ready, no skill)
 **"Modify my dashboard"** → `ha-nova:fallback` (NEVER raw `lovelace/config/save` without this skill)
 **"Save the Lovelace config"** → `ha-nova:fallback` (NEVER direct WS write without read-merge-verify)

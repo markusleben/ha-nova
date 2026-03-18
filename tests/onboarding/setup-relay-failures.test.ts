@@ -1,5 +1,6 @@
 /**
- * S-7: Relay unreachable during setup
+ * Legacy macOS shell reference: relay failure handling.
+ * Historical shell-only coverage; current public runtime contract lives in Go tests.
  */
 import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
@@ -10,7 +11,7 @@ import { createMockBinaries, createMockHome, mockEnv, REPO_ROOT } from "./_helpe
 
 const isMac = process.platform === "darwin";
 
-describe.skipIf(!isMac)("S-7: relay unreachable during setup", () => {
+describe.skipIf(!isMac)("Legacy S-7: relay unreachable during setup", () => {
   it("retries 3 times then saves config anyway", { timeout: 30000 }, () => {
 
     const home = createMockHome();

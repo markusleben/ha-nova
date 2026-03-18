@@ -22,7 +22,8 @@ If missing: `ha-nova setup`
    - `401/403`: relay auth token mismatch
    - `404`: endpoint/path mismatch
    - connect error / status `000`: relay unreachable
-   - `ha_ws_connected=false`: upstream HA websocket not healthy
+   - `ha_ws_connected=false`: relay is reachable but not proven ready yet; confirm with `/ws` or `ha-nova doctor` before blaming LLAT
+   - `/ws` proves `LLAT is required`: Home Assistant access token (`ha_llat`) is missing or wrong
 3. Return one concrete remediation step.
 
 ## Standard Remediation Commands

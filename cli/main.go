@@ -45,6 +45,8 @@ func dispatch(paths runtimePaths, argv0 string, args []string) int {
 		return 0
 	case "internal-replace":
 		return runInternalReplace(paths, args[1:])
+	case "internal-uninstall":
+		return runInternalUninstall(paths, args[1:])
 	case "internal-sync-clients":
 		return runInternalSyncClients(paths, args[1:])
 	case "-h", "--help", "help":

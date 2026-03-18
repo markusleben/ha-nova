@@ -81,6 +81,8 @@ export interface MockBinaryOpts {
   curlFails?: boolean;
   /** Custom security mock behavior */
   securityToken?: string;
+  /** Optional file that records claude CLI invocations */
+  claudeLogFile?: string;
 }
 
 /**
@@ -89,6 +91,7 @@ export interface MockBinaryOpts {
  */
 export function createMockBinaries(opts: MockBinaryOpts = {}): string {
   const binDir = mkdtempSync(join(tmpdir(), "ha-nova-bin-"));
+  const claudeLogFile = opts.claudeLogFile ?? "";
 
   // --- security mock (Keychain) ---
   const securityScript = `#!/usr/bin/env bash
@@ -213,6 +216,9 @@ esac
   writeFileSync(
     join(binDir, "claude"),
     `#!/usr/bin/env bash
+if [[ -n "${claudeLogFile}" ]]; then
+  printf '%s\\n' "$*" >> "${claudeLogFile}"
+fi
 if [[ "$1" == "plugin" ]]; then
   exit 0
 fi
@@ -241,6 +247,9 @@ export function mockEnv(
     ...env,
     HOME: home,
     PATH: `${binDir}:${process.env.PATH ?? ""}`,
+    HA_NOVA_NO_BROWSER: "1",
+    HA_NOVA_ALLOW_INSECURE_TEST_KEYRING: "1",
+    HA_NOVA_TEST_KEYRING_FILE: join(home, ".config/ha-nova/.test-relay-auth-token"),
     ...extra,
   };
 }

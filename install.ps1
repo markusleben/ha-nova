@@ -10,17 +10,76 @@ $RepoName = "ha-nova"
 $LatestReleaseUrl = "https://api.github.com/repos/markusleben/ha-nova/releases/latest"
 $ReleaseBaseUrl = "https://github.com/$RepoOwner/$RepoName/releases/download"
 $InstallDir = Join-Path $HOME ".local\share\ha-nova"
-$BinDir = Join-Path $HOME ".local\bin"
-$LauncherPath = Join-Path $BinDir "ha-nova.cmd"
+$PublicCommandDir = $InstallDir
 $LegacyUninstallUrl = "https://raw.githubusercontent.com/markusleben/ha-nova/main/scripts/legacy-uninstall.ps1"
 $ConfigDir = Join-Path $HOME ".config\ha-nova"
 $StatePath = Join-Path $ConfigDir "state.json"
+$UsePlainUi = $false
+
+function Test-PlainUi {
+  if ($env:HA_NOVA_PLAIN_UI -eq "1") {
+    return $true
+  }
+  if ($env:NO_COLOR) {
+    return $true
+  }
+  if ($env:TERM -eq "dumb") {
+    return $true
+  }
+  try {
+    return [Console]::IsOutputRedirected
+  }
+  catch {
+    return $true
+  }
+}
+
+function Write-Banner {
+  if ($UsePlainUi) {
+    Write-Output ""
+    Write-Output "  HA NOVA Windows Installer"
+    Write-Output "  -------------------------"
+    Write-Output ""
+    return
+  }
+
+  Write-Host ""
+  Write-Host "  HA NOVA Windows Installer" -ForegroundColor Yellow
+  Write-Host "  -------------------------" -ForegroundColor Yellow
+  Write-Host ""
+}
 
 function Write-Info([string]$Message) {
-  Write-Host "  [ok] $Message"
+  if ($UsePlainUi) {
+    Write-Output "  [ok] $Message"
+    return
+  }
+  Write-Host "  [ok] $Message" -ForegroundColor Green
+}
+
+function Write-Warn([string]$Message) {
+  if ($UsePlainUi) {
+    Write-Output "  [!] $Message"
+    return
+  }
+  Write-Host "  [!] $Message" -ForegroundColor DarkYellow
+}
+
+function Write-Note([string]$Message) {
+  if ($UsePlainUi) {
+    Write-Output "  $Message"
+    return
+  }
+  Write-Host "  $Message" -ForegroundColor DarkGray
 }
 
 function Fail([string]$Message) {
+  if ($UsePlainUi) {
+    [Console]::Error.WriteLine("  [!!] $Message")
+  }
+  else {
+    Write-Host "  [!!] $Message" -ForegroundColor Red
+  }
   throw $Message
 }
 
@@ -39,14 +98,22 @@ function Get-PlatformArch {
     return "amd64"
   }
 
-  Fail "HA NOVA currently supports Windows amd64 only."
+  if ($arch -eq "ARM64") {
+    Fail "HA NOVA currently ships a Windows amd64 bundle only. On Windows ARM64, use x64 emulation."
+  }
+
+  Fail "Unsupported Windows architecture '$arch'. HA NOVA currently ships a Windows amd64 bundle only."
 }
 
-function Get-InstallVersion {
+function Get-ExpectedInstallVersion {
   if ($env:HA_NOVA_VERSION) {
     return $env:HA_NOVA_VERSION.TrimStart("v")
   }
 
+  return $null
+}
+
+function Get-LatestInstallVersion {
   $release = Invoke-RestMethod -Uri $LatestReleaseUrl -Headers @{
     Accept = "application/vnd.github+json"
     "User-Agent" = "ha-nova-installer"
@@ -56,6 +123,43 @@ function Get-InstallVersion {
   }
 
   return ([string]$release.tag_name).TrimStart("v")
+}
+
+function Get-DownloadInstallVersion {
+  $expected = Get-ExpectedInstallVersion
+  if ($expected) {
+    return $expected
+  }
+
+  if ($env:HA_NOVA_BUNDLE_URL) {
+    return $null
+  }
+
+  return Get-LatestInstallVersion
+}
+
+function Get-BundleUrl {
+  param(
+    [string]$Version
+  )
+
+  if ($env:HA_NOVA_BUNDLE_URL) {
+    return $env:HA_NOVA_BUNDLE_URL
+  }
+
+  return "$ReleaseBaseUrl/v$Version/ha-nova-windows-amd64.zip"
+}
+
+function Get-BundleChecksumUrl {
+  param(
+    [string]$Version
+  )
+
+  if ($env:HA_NOVA_BUNDLE_SHA256_URL) {
+    return $env:HA_NOVA_BUNDLE_SHA256_URL
+  }
+
+  return "$(Get-BundleUrl -Version $Version).sha256"
 }
 
 function Test-CurrentInstall {
@@ -97,12 +201,12 @@ Then run this installer again.
 
 function Install-Bundle {
   param(
-    [Parameter(Mandatory = $true)][string]$Version
+    [string]$Version
   )
 
   $null = Get-PlatformArch
   $bundleName = "ha-nova-windows-amd64.zip"
-  $bundleUrl = "$ReleaseBaseUrl/v$Version/$bundleName"
+  $bundleUrl = Get-BundleUrl -Version $Version
   $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("ha-nova-install-" + [guid]::NewGuid().ToString("N"))
   $archivePath = Join-Path $tempRoot $bundleName
   $checksumPath = "$archivePath.sha256"
@@ -113,7 +217,7 @@ function Install-Bundle {
 
   try {
     Invoke-WebRequest -Uri $bundleUrl -OutFile $archivePath
-    Invoke-WebRequest -Uri "$bundleUrl.sha256" -OutFile $checksumPath
+    Invoke-WebRequest -Uri (Get-BundleChecksumUrl -Version $Version) -OutFile $checksumPath
     $expectedHash = (Get-Content -LiteralPath $checksumPath -Raw).Trim().Split()[0]
     $actualHash = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant()
     if (-not $expectedHash -or $actualHash -ne $expectedHash.ToLowerInvariant()) {
@@ -144,6 +248,13 @@ function Install-Bundle {
     if ($bundleInfo.binary_name -ne "ha-nova.exe") {
       Fail "Downloaded bundle binary metadata does not match the expected runtime."
     }
+    if (-not $bundleInfo.version) {
+      Fail "Downloaded bundle is missing version metadata."
+    }
+    $bundleVersion = ([string]$bundleInfo.version).TrimStart("v")
+    if ($Version -and $bundleVersion -ne $Version) {
+      Fail "Downloaded bundle version v$bundleVersion does not match requested version v$Version."
+    }
 
     $installParent = Split-Path -Parent $InstallDir
     $nextRoot = Join-Path $installParent (".ha-nova-next-" + [guid]::NewGuid().ToString("N"))
@@ -161,6 +272,7 @@ function Install-Bundle {
       if (Test-Path -LiteralPath $backupRoot) {
         Remove-Item -LiteralPath $backupRoot -Recurse -Force
       }
+      return [ordered]@{ Version = $bundleVersion }
     }
     catch {
       if (Test-Path -LiteralPath $backupRoot) {
@@ -176,32 +288,22 @@ function Install-Bundle {
   }
 }
 
-function Install-Binary {
-  New-Item -ItemType Directory -Force -Path $BinDir | Out-Null
-  $runtimeBinary = Join-Path $InstallDir "ha-nova.exe"
-  $launcher = @"
-@echo off
-"$runtimeBinary" %*
-"@
-  Set-Content -LiteralPath $LauncherPath -Value $launcher -Encoding ASCII
-}
-
-function Ensure-BinDirOnPath {
+function Ensure-InstallDirOnPath {
   $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
   $parts = @()
   if ($userPath) {
     $parts = $userPath -split ";" | Where-Object { $_ }
   }
 
-  if ($parts -contains $BinDir) {
-    Write-Info "$BinDir already configured in PATH"
+  if ($parts -contains $PublicCommandDir) {
+    Write-Info "$PublicCommandDir already configured in PATH"
     return $false
   }
 
-  $newPath = @($BinDir) + $parts
+  $newPath = @($PublicCommandDir) + $parts
   [Environment]::SetEnvironmentVariable("Path", ($newPath -join ";"), "User")
-  $env:Path = "$BinDir;$env:Path"
-  Write-Info "Added $BinDir to PATH"
+  $env:Path = "$PublicCommandDir;$env:Path"
+  Write-Info "Added $PublicCommandDir to PATH"
   return $true
 }
 
@@ -227,6 +329,9 @@ function Write-State {
           $clientInstallModes[$property.Name] = $property.Value
         }
       }
+      if ($existing.path_managed -eq $true -and $existing.path_target -eq "user-path") {
+        $PathManaged = $true
+      }
     }
     catch {
     }
@@ -251,34 +356,34 @@ function Start-Setup {
 
   if ($env:HA_NOVA_NO_SETUP -eq "1") {
     Write-Info "Installed HA NOVA without setup."
-    Write-Host "  Next step: ha-nova setup"
-    Write-Host "  Need help later? Run: ha-nova doctor"
+    Write-Note "Next step: ha-nova setup"
+    Write-Note "Need help later? Run: ha-nova doctor"
     return
   }
 
   if (-not (Test-InteractiveSession)) {
-    Write-Host "  [!!] No interactive terminal detected; setup was not started automatically."
-    Write-Host "  Next step: ha-nova setup"
-    Write-Host "  Need help later? Run: ha-nova doctor"
+    Write-Warn "No interactive terminal detected; setup was not started automatically."
+    Write-Note "Next step: ha-nova setup"
+    Write-Note "Need help later? Run: ha-nova doctor"
     return
   }
 
   & $BinaryPath setup
 }
 
-Write-Host ""
-Write-Host "  ========================================="
-Write-Host "  HA NOVA Windows Installer"
-Write-Host "  ========================================="
-Write-Host ""
+$UsePlainUi = Test-PlainUi
+Write-Banner
 
-$version = Get-InstallVersion
+$expectedVersion = Get-ExpectedInstallVersion
+$version = Get-DownloadInstallVersion
 if (-not (Test-CurrentInstall) -and (Test-LegacyInstall)) {
   Stop-ForLegacyInstall
 }
-Install-Bundle -Version $version
-Install-Binary
-$pathManaged = Ensure-BinDirOnPath
-Write-State -Version $version -PathManaged ([bool]$pathManaged)
-Write-Info "Installed HA NOVA v$version"
+$bundleResult = Install-Bundle -Version $version
+$pathManaged = Ensure-InstallDirOnPath
+if ($expectedVersion -and $bundleResult.Version -ne $expectedVersion) {
+  Fail "Downloaded bundle version v$($bundleResult.Version) does not match requested version v$expectedVersion."
+}
+Write-State -Version $bundleResult.Version -PathManaged ([bool]$pathManaged)
+Write-Info "Installed HA NOVA v$($bundleResult.Version)"
 Start-Setup -BinaryPath (Join-Path $InstallDir "ha-nova.exe")

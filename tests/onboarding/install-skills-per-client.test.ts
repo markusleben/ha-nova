@@ -2,7 +2,7 @@
  * S-4: Client-specific skill installation (4 clients)
  * S-5: Multi-client ("all")
  */
-import { mkdtempSync, readFileSync, readdirSync, readlinkSync, statSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, readlinkSync, statSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -27,9 +27,13 @@ function expectRepoRefsRewritten(content: string): void {
   }
 }
 
-function installSkills(client: string): { home: string; result: ReturnType<typeof spawnSync> } {
+function installSkills(
+  client: string,
+  extraEnv: Record<string, string> = {},
+): { home: string; result: ReturnType<typeof spawnSync> } {
   const home = mkdtempSync(join(tmpdir(), `ha-nova-skill-${client}-`));
-  const binDir = createMockBinaries();
+  const claudeLogFile = join(home, "claude.log");
+  const binDir = createMockBinaries({ claudeLogFile });
   const result = spawnSync(
     "bash",
     ["scripts/onboarding/install-local-skills.sh", client],
@@ -37,7 +41,7 @@ function installSkills(client: string): { home: string; result: ReturnType<typeo
       cwd: REPO_ROOT,
       encoding: "utf8",
       timeout: 20000,
-      env: mockEnv(home, binDir),
+      env: mockEnv(home, binDir, extraEnv),
     },
   );
   return { home, result };
@@ -79,6 +83,7 @@ describe("S-4: client-specific skill installation", () => {
     // Context skill
     const ctx = readFileSync(join(home, ".gemini/skills/ha-nova/SKILL.md"), "utf8");
     expect(ctx).toContain("name: ha-nova");
+    expect(ctx).toContain("ha-nova:ha-nova-entity-discovery");
 
     // Sub-skills as separate flat directories (ha-nova- prefix for Gemini)
     for (const src of SOURCE_SUB_SKILLS) {
@@ -87,7 +92,7 @@ describe("S-4: client-specific skill installation", () => {
         join(home, ".gemini/skills", geminiDir, "SKILL.md"),
         "utf8",
       );
-      expect(content).toContain(`name: ${src}`);
+      expect(content).toContain(`name: ha-nova-${src}`);
       // Cross-skill/docs references should no longer be relative after flat copy.
       expectRepoRefsRewritten(content);
 
@@ -118,10 +123,134 @@ describe("S-4: client-specific skill installation", () => {
     const { home, result } = installSkills("claude");
     expect(result.status).toBe(0);
 
-    // Claude uses plugin CLI — no file-based skill install
-    // Plugin manifest must exist in repo
     const manifest = JSON.parse(readFileSync(join(REPO_ROOT, ".claude-plugin/plugin.json"), "utf8"));
     expect(manifest).toHaveProperty("name");
+
+    const marketplaceRoot = join(home, ".config/ha-nova/claude-marketplace");
+    const marketplace = JSON.parse(
+      readFileSync(join(marketplaceRoot, ".claude-plugin/marketplace.json"), "utf8"),
+    );
+    expect(marketplace.plugins[0].source).toBe("./ha-nova");
+    expect(JSON.stringify(marketplace)).not.toContain("github.com/markusleben/ha-nova.git");
+    expect(existsSync(join(marketplaceRoot, "ha-nova"))).toBe(true);
+
+    const claudeLog = readFileSync(join(home, "claude.log"), "utf8");
+    expect(claudeLog).toContain("plugin marketplace remove ha-nova");
+    expect(claudeLog).toContain(`plugin marketplace add ${marketplaceRoot}`);
+    expect(claudeLog).toContain("plugin install ha-nova@ha-nova");
+  });
+
+  it("fails loudly when Claude CLI is missing", () => {
+    const home = mkdtempSync(join(tmpdir(), "ha-nova-skill-claude-missing-"));
+    const result = spawnSync(
+      "bash",
+      ["scripts/onboarding/install-local-skills.sh", "claude"],
+      {
+        cwd: REPO_ROOT,
+        encoding: "utf8",
+        timeout: 20000,
+        env: {
+          ...mockEnv(home, "", {}),
+          PATH: "/usr/bin:/bin",
+        },
+      },
+    );
+
+    expect(result.status).not.toBe(0);
+    expect(result.stderr + result.stdout).toContain("[claude] Claude CLI not found in PATH");
+  });
+
+  it("reinstalls an existing Claude plugin for local repo validation", () => {
+    const home = mkdtempSync(join(tmpdir(), "ha-nova-skill-claude-update-"));
+    const claudeLogFile = join(home, "claude.log");
+    const binDir = createMockBinaries({ claudeLogFile });
+    mkdirSync(join(home, ".claude", "plugins"), { recursive: true });
+    writeFileSync(
+      join(home, ".claude", "plugins", "installed_plugins.json"),
+      '{"plugins":["ha-nova@ha-nova"]}',
+    );
+
+    const result = spawnSync(
+      "bash",
+      ["scripts/onboarding/install-local-skills.sh", "claude"],
+      {
+        cwd: REPO_ROOT,
+        encoding: "utf8",
+        timeout: 20000,
+        env: mockEnv(home, binDir),
+      },
+    );
+    expect(result.status).toBe(0);
+
+    const claudeLog = readFileSync(claudeLogFile, "utf8");
+    expect(claudeLog).toContain("plugin marketplace remove ha-nova");
+    expect(claudeLog).toContain("plugin marketplace add");
+    expect(claudeLog).toContain("plugin remove ha-nova@ha-nova");
+    expect(claudeLog).toContain("plugin install ha-nova@ha-nova");
+    expect(claudeLog).not.toContain("plugin update ha-nova@ha-nova");
+  });
+
+  it("reinstalls Claude locally instead of reusing a stale cached plugin payload", () => {
+    const home = mkdtempSync(join(tmpdir(), "ha-nova-skill-claude-local-"));
+    const claudeLogFile = join(home, "claude.log");
+    const binDir = createMockBinaries({ claudeLogFile });
+    mkdirSync(join(home, ".claude", "plugins", "cache", "ha-nova", "ha-nova", "0.1.12"), { recursive: true });
+    writeFileSync(join(home, ".claude", "plugins", "cache", "ha-nova", "ha-nova", "0.1.12", "stale.txt"), "stale");
+    mkdirSync(join(home, ".claude", "plugins"), { recursive: true });
+    writeFileSync(
+      join(home, ".claude", "plugins", "installed_plugins.json"),
+      '{"plugins":["ha-nova@ha-nova"]}',
+    );
+
+    const result = spawnSync(
+      "bash",
+      ["scripts/onboarding/install-local-skills.sh", "claude"],
+      {
+        cwd: REPO_ROOT,
+        encoding: "utf8",
+        timeout: 20000,
+        env: mockEnv(home, binDir),
+      },
+    );
+    expect(result.status).toBe(0);
+
+    const claudeLog = readFileSync(claudeLogFile, "utf8");
+    expect(claudeLog).toContain("plugin remove ha-nova@ha-nova");
+    expect(claudeLog).toContain("plugin install ha-nova@ha-nova");
+    expect(claudeLog).not.toContain("plugin update ha-nova@ha-nova");
+    expect(existsSync(join(home, ".claude", "plugins", "cache", "ha-nova", "ha-nova", "0.1.12"))).toBe(false);
+  });
+
+  it("reinstalls Claude locally when the current cache layout lives directly under cache/ha-nova", () => {
+    const home = mkdtempSync(join(tmpdir(), "ha-nova-skill-claude-current-cache-"));
+    const claudeLogFile = join(home, "claude.log");
+    const binDir = createMockBinaries({ claudeLogFile });
+    mkdirSync(join(home, ".claude", "plugins", "cache", "ha-nova", "skills"), { recursive: true });
+    writeFileSync(join(home, ".claude", "plugins", "cache", "ha-nova", "ha-nova"), "binary");
+    writeFileSync(join(home, ".claude", "plugins", "cache", "ha-nova", "version.json"), '{"version":"0.1.12"}');
+    mkdirSync(join(home, ".claude", "plugins"), { recursive: true });
+    writeFileSync(
+      join(home, ".claude", "plugins", "installed_plugins.json"),
+      '{"plugins":["ha-nova@ha-nova"]}',
+    );
+
+    const result = spawnSync(
+      "bash",
+      ["scripts/onboarding/install-local-skills.sh", "claude"],
+      {
+        cwd: REPO_ROOT,
+        encoding: "utf8",
+        timeout: 20000,
+        env: mockEnv(home, binDir),
+      },
+    );
+    expect(result.status).toBe(0);
+
+    const claudeLog = readFileSync(claudeLogFile, "utf8");
+    expect(claudeLog).toContain("plugin remove ha-nova@ha-nova");
+    expect(claudeLog).toContain("plugin install ha-nova@ha-nova");
+    expect(claudeLog).not.toContain("plugin update ha-nova@ha-nova");
+    expect(existsSync(join(home, ".claude", "plugins", "cache", "ha-nova"))).toBe(false);
   });
 });
 

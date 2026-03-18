@@ -10,16 +10,17 @@ import (
 )
 
 const pathBlockHeader = "# Added by HA NOVA"
+const pathBlockFooter = "# End HA NOVA"
+const pathExportLine = `export PATH="$HOME/.local/bin:$PATH"`
 
 func ensurePublicBinary(paths runtimePaths, sourceBinary string) error {
+	if filepath.Clean(paths.PublicBinary) == filepath.Clean(sourceBinary) {
+		return nil
+	}
 	if err := os.MkdirAll(paths.BinDir, 0o755); err != nil {
 		return err
 	}
 	_ = os.Remove(paths.PublicBinary)
-	if runtime.GOOS == "windows" {
-		launcher := "@echo off\r\n\"" + sourceBinary + "\" %*\r\n"
-		return os.WriteFile(paths.PublicBinary, []byte(launcher), 0o644)
-	}
 	return os.Symlink(sourceBinary, paths.PublicBinary)
 }
 
@@ -35,17 +36,15 @@ func ensureManagedPath(paths runtimePaths, state installState) (installState, er
 func ensureWindowsPath(paths runtimePaths, state installState) (installState, error) {
 	state.PathTarget = "user-path"
 	userPath := os.Getenv("PATH")
-	if strings.Contains(strings.ToLower(userPath), strings.ToLower(paths.BinDir)) {
+	if pathContainsEntry(userPath, paths.BinDir) {
 		return state, nil
 	}
 
 	current, _ := readWindowsUserPath()
-	parts := splitPATH(current)
-	for _, part := range parts {
-		if strings.EqualFold(part, paths.BinDir) {
-			return state, nil
-		}
+	if pathContainsEntry(current, paths.BinDir) {
+		return state, nil
 	}
+	parts := splitPATH(current)
 	parts = append([]string{paths.BinDir}, parts...)
 	if err := setWindowsUserPath(strings.Join(parts, ";")); err != nil {
 		return state, err
@@ -56,14 +55,13 @@ func ensureWindowsPath(paths runtimePaths, state installState) (installState, er
 
 func ensureUnixPath(paths runtimePaths, state installState) (installState, error) {
 	rcFile := detectShellRC()
-	line := `export PATH="$HOME/.local/bin:$PATH"`
-	block := fmt.Sprintf("\n%s\n%s\n", pathBlockHeader, line)
+	block := fmt.Sprintf("\n%s\n%s\n%s\n", pathBlockHeader, pathExportLine, pathBlockFooter)
 
 	if err := os.MkdirAll(filepath.Dir(rcFile), 0o755); err != nil {
 		return state, err
 	}
 	data, _ := os.ReadFile(rcFile)
-	if !strings.Contains(string(data), line) {
+	if !strings.Contains(string(data), pathBlockHeader) && !strings.Contains(string(data), pathExportLine) {
 		f, err := os.OpenFile(rcFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
 		if err != nil {
 			return state, err
@@ -80,14 +78,18 @@ func ensureUnixPath(paths runtimePaths, state installState) (installState, error
 }
 
 func removeManagedPath(paths runtimePaths, state installState) {
+	_, _ = removeManagedPathWithReport(paths, state)
+}
+
+func removeManagedPathWithReport(paths runtimePaths, state installState) (string, error) {
 	switch runtime.GOOS {
 	case "windows":
 		if !state.PathManaged {
-			return
+			return "", nil
 		}
 		current, err := readWindowsUserPath()
 		if err != nil {
-			return
+			return "", err
 		}
 		parts := splitPATH(current)
 		filtered := make([]string, 0, len(parts))
@@ -96,25 +98,51 @@ func removeManagedPath(paths runtimePaths, state installState) {
 				filtered = append(filtered, part)
 			}
 		}
-		_ = setWindowsUserPath(strings.Join(filtered, ";"))
+		if err := setWindowsUserPath(strings.Join(filtered, ";")); err != nil {
+			return "", err
+		}
+		return "HA NOVA PATH entry from Windows user PATH", nil
 	default:
+		if !state.PathManaged {
+			return "", nil
+		}
 		target := state.PathTarget
 		if target == "" {
 			target = detectShellRC()
 		}
 		data, err := os.ReadFile(target)
 		if err != nil {
-			return
+			return "", err
 		}
+		original := string(data)
 		lines := strings.Split(string(data), "\n")
 		filtered := make([]string, 0, len(lines))
-		for _, line := range lines {
-			if line == pathBlockHeader || strings.TrimSpace(line) == `export PATH="$HOME/.local/bin:$PATH"` {
+		removed := false
+		for i := 0; i < len(lines); i++ {
+			line := lines[i]
+			if strings.TrimSpace(line) == pathBlockHeader {
+				removed = true
+				if i+1 < len(lines) && strings.TrimSpace(lines[i+1]) == pathExportLine {
+					i++
+				}
+				if i+1 < len(lines) && strings.TrimSpace(lines[i+1]) == pathBlockFooter {
+					i++
+				}
 				continue
 			}
 			filtered = append(filtered, line)
 		}
-		_ = os.WriteFile(target, []byte(strings.Join(filtered, "\n")), 0o644)
+		if !removed {
+			return "", nil
+		}
+		updated := strings.Join(filtered, "\n")
+		if updated == original {
+			return "", nil
+		}
+		if err := os.WriteFile(target, []byte(updated), 0o644); err != nil {
+			return "", err
+		}
+		return `HA NOVA PATH entry from ` + target, nil
 	}
 }
 
@@ -141,7 +169,11 @@ func splitPATH(value string) []string {
 	if value == "" {
 		return nil
 	}
-	parts := strings.Split(value, string(os.PathListSeparator))
+	separator := string(os.PathListSeparator)
+	if strings.Contains(value, ";") {
+		separator = ";"
+	}
+	parts := strings.Split(value, separator)
 	out := make([]string, 0, len(parts))
 	for _, part := range parts {
 		part = strings.TrimSpace(part)
@@ -150,6 +182,15 @@ func splitPATH(value string) []string {
 		}
 	}
 	return out
+}
+
+func pathContainsEntry(value, target string) bool {
+	for _, part := range splitPATH(value) {
+		if strings.EqualFold(part, target) {
+			return true
+		}
+	}
+	return false
 }
 
 func readWindowsUserPath() (string, error) {

@@ -1,13 +1,13 @@
 # Contributing
 
-Thanks for being here. Let's build something great.
+HA NOVA is early. If you want to help shape it, this is the place.
 
 ## 🧭 Project Principles
 
 - MVP first — ship, learn, iterate.
-- KISS — complexity is the enemy.
+- Keep it simple. Complexity is the enemy.
 - Relay stays dumb. Skills stay smart.
-- English-only for docs, code comments, and commits.
+- All docs, code comments, and commits in English.
 
 ## 🚀 Quick Start
 
@@ -20,7 +20,35 @@ npm ci
 npm run verify
 ```
 
-`npm run verify` runs TypeScript checks, Vitest, and Go CLI tests.
+`npm run verify` is host-safe by design. It runs TypeScript checks, the safe Vitest suite, and Go CLI tests.
+It must not open browsers or touch real secure stores on a maintainer machine.
+
+Explicit desktop validation stays separate:
+
+```bash
+npm run test:desktop:macos
+```
+
+That command rebuilds fresh private RC bundles locally and serves them to the macOS helper lane automatically.
+
+Windows validation stays script-first in the VM:
+- headless: `npm run test:desktop:windows:headless`
+- desktop/RDP: `npm run test:desktop:windows:rdp`
+- set `HA_NOVA_BUNDLE_URL` and `HA_NOVA_BUNDLE_SHA256_URL` first
+- optional for RDP: set `HA_NOVA_CLIENT=claude|codex|opencode|gemini`
+
+Legacy macOS shell onboarding helpers still exist for historical debugging only:
+- `npm run dev:legacy:onboarding:macos`
+- `npm run dev:legacy:onboarding:macos:doctor`
+- `npm run dev:legacy:onboarding:macos:ready`
+- `npm run dev:legacy:onboarding:macos:quick`
+- They are host-touching and not part of the host-safe validation path.
+
+Emergency macOS cleanup if a desktop helper was interrupted:
+
+```bash
+pkill -f 'npm run dev:validation:harness|start-local-validation-harness\\.sh|http\\.server 8917|vitest|macos-setup\\.sh|mock-ha-relay\\.py|ha-nova setup' || true
+```
 
 If you are only touching the Go runtime, the minimum fast path is:
 
@@ -38,8 +66,8 @@ npm run test:cli
 
 Before opening a PR:
 1. `npm run verify` passes
-3. Docs updated if behavior changed
-4. Tests added for bug fixes when practical
+2. Docs updated if behavior changed
+3. Tests added for bug fixes where possible
 
 Every PR should explain:
 - **Problem** — what's wrong or missing
@@ -56,11 +84,11 @@ Every PR should explain:
 
 ## 🧠 Architecture Philosophy
 
-This is the most important section. Read it before writing your first line of code.
+This is the most important section. Read this before writing any code.
 
 **HA NOVA's core design: the LLM is the intelligence layer. The relay is infrastructure.**
 
-Most HA integrations implement domain logic in server code — fuzzy entity search, config normalization, parameter handling, intent routing. HA NOVA deliberately avoids this. The LLM already has this knowledge. Skills refine and direct it. The relay just moves data.
+Most HA integrations put domain logic in server code — fuzzy entity search, config normalization, parameter handling, intent routing. HA NOVA deliberately avoids this. The LLM already knows this stuff. Skills refine and direct it. The relay just moves data.
 
 Repo shape:
 - `nova/` = Home Assistant App / Relay runtime
@@ -121,3 +149,4 @@ Follow the reporting guidance in `SECURITY.md`.
 
 Shell onboarding helpers under `scripts/onboarding/` still exist for repo-dev and test harness support.
 They are not part of the supported end-user product contract.
+They are also not part of the default host-safe verification gate.

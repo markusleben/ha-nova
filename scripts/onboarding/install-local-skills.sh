@@ -21,7 +21,7 @@ Usage:
 
 Targets:
   codex    -> link/copy ~/.agents/skills/ha-nova -> repo skills
-  claude   -> skipped (use Claude Code plugin system)
+  claude   -> stage local Claude marketplace + install ha-nova@ha-nova
   opencode -> link/copy ~/.config/opencode/skills/ha-nova -> repo skills
   gemini   -> flat copy ~/.gemini/skills/ha-nova-*/SKILL.md (+ local companion .md files)
   all      -> install for codex + claude + opencode + gemini
@@ -153,12 +153,24 @@ for _skill_dir in "${SOURCE_SKILLS_DIR}"/*/SKILL.md; do
 done
 unset _skill_dir _skill_name
 
+gemini_installed_skill_name() {
+  local skill_name="$1"
+  if [[ -z "${skill_name}" || "${skill_name}" == "ha-nova" ]]; then
+    printf 'ha-nova'
+    return
+  fi
+  printf 'ha-nova-%s' "${skill_name}"
+}
+
 rewrite_flat_markdown() {
   local skill_name="$1"
   local source_dir="$2"
   local src="$3"
   local dest="$4"
   local content
+  local installed_skill_name
+
+  installed_skill_name="$(gemini_installed_skill_name "${skill_name}")"
 
   content="$(cat "${src}")"
 
@@ -180,6 +192,18 @@ rewrite_flat_markdown() {
       s{`skills/([^`]+)`}{sprintf("`%s/skills/%s`", $ENV{HA_NOVA_ROOT}, $1)}ge;
     '
   )"
+
+  for gemini_sub_skill in "${GEMINI_SUB_SKILLS[@]}"; do
+    content="${content//ha-nova:${gemini_sub_skill}/ha-nova:ha-nova-${gemini_sub_skill}}"
+  done
+
+  if [[ "${skill_name}" != "ha-nova" ]]; then
+    content="$(
+      printf '%s' "${content}" | SKILL_NAME="${skill_name}" INSTALLED_SKILL_NAME="${installed_skill_name}" perl -0pe '
+        s/^name:\s*\Q$ENV{SKILL_NAME}\E$/name: $ENV{INSTALLED_SKILL_NAME}/m;
+      '
+    )"
+  fi
 
   printf '%s' "${content}" > "${dest}"
 }
@@ -353,25 +377,222 @@ install_gemini_flat() {
   done
 }
 
+claude_marketplace_root() {
+  printf '%s' "${HOME}/.config/ha-nova/claude-marketplace"
+}
+
+claude_plugin_cache_root() {
+  printf '%s' "${HOME}/.claude/plugins/cache/ha-nova"
+}
+
+stage_claude_marketplace_plugin_root() {
+  local marketplace_root
+  marketplace_root="$(claude_marketplace_root)"
+  local plugin_root="${marketplace_root}/ha-nova"
+
+  mkdir -p "${marketplace_root}"
+  rm -rf "${plugin_root}"
+
+  if should_copy_file_client_install; then
+    copy_tree_install "${REPO_ROOT}" "${plugin_root}"
+    printf '%s' "${plugin_root}"
+    return 0
+  fi
+
+  if ln -sfn "${REPO_ROOT}" "${plugin_root}"; then
+    printf '%s' "${plugin_root}"
+    return 0
+  fi
+
+  copy_tree_install "${REPO_ROOT}" "${plugin_root}"
+  printf '%s' "${plugin_root}"
+}
+
+write_claude_marketplace() {
+  local marketplace_root
+  marketplace_root="$(claude_marketplace_root)"
+  local manifest_dir="${marketplace_root}/.claude-plugin"
+  local plugin_version
+  local plugin_root
+  plugin_root="$(stage_claude_marketplace_plugin_root)"
+  plugin_version="$(
+    sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
+      "${REPO_ROOT}/.claude-plugin/plugin.json" | head -1
+  )"
+
+  mkdir -p "${manifest_dir}"
+  cat > "${manifest_dir}/marketplace.json" <<EOF
+{
+  "name": "ha-nova",
+  "owner": {
+    "name": "Markus Leben"
+  },
+  "plugins": [
+    {
+      "name": "ha-nova",
+      "source": "./ha-nova",
+      "version": "${plugin_version}",
+      "description": "AI-powered Home Assistant control through LLM skills and a local relay"
+    }
+  ]
+}
+EOF
+
+  printf '%s' "${marketplace_root}"
+}
+
+claude_plugin_installed() {
+  local plugins_json="${HOME}/.claude/plugins/installed_plugins.json"
+  [[ -f "${plugins_json}" ]] || return 1
+  grep -Fq '"ha-nova@ha-nova"' "${plugins_json}"
+}
+
+read_claude_marketplace_source() {
+  local known_marketplaces="${HOME}/.claude/plugins/known_marketplaces.json"
+  [[ -f "${known_marketplaces}" ]] || return 0
+
+  python3 - "${known_marketplaces}" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+raw = json.loads(path.read_text())
+
+def iter_entries(value):
+    if isinstance(value, dict):
+        if "ha-nova" in value:
+            yield value["ha-nova"]
+        else:
+            for entry in value.values():
+                yield entry
+    elif isinstance(value, list):
+        for entry in value:
+            yield entry
+
+for entry in iter_entries(raw):
+    if isinstance(entry, dict):
+        name = entry.get("name")
+        if name not in (None, "", "ha-nova"):
+            continue
+        source = entry.get("source")
+        if isinstance(source, dict):
+            source = source.get("url") or source.get("path")
+        if isinstance(source, str) and source.strip():
+            print(source.strip())
+            break
+PY
+}
+
+remove_claude_plugin_record() {
+  local plugins_json="${HOME}/.claude/plugins/installed_plugins.json"
+  [[ -f "${plugins_json}" ]] || return 0
+
+  python3 - "${plugins_json}" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+raw = json.loads(path.read_text())
+plugins = raw.get("plugins")
+changed = False
+
+if isinstance(plugins, dict):
+    if "ha-nova@ha-nova" in plugins:
+        del plugins["ha-nova@ha-nova"]
+        changed = True
+elif isinstance(plugins, list):
+    filtered = []
+    for item in plugins:
+        if item == "ha-nova@ha-nova":
+            changed = True
+            continue
+        if isinstance(item, dict) and any(item.get(key) == "ha-nova@ha-nova" for key in ("name", "id", "plugin")):
+            changed = True
+            continue
+        filtered.append(item)
+    if changed:
+        raw["plugins"] = filtered
+
+if changed:
+    path.write_text(json.dumps(raw))
+PY
+}
+
+reset_local_claude_plugin_state() {
+  if claude_plugin_installed; then
+    local output=""
+    if ! output="$(claude plugin remove ha-nova@ha-nova 2>&1)"; then
+      if ! printf '%s' "${output}" | grep -Eiq 'not found|not installed'; then
+        echo "[claude] Plugin remove failed: ha-nova@ha-nova" >&2
+        return 1
+      fi
+    fi
+  fi
+
+  remove_claude_plugin_record
+  rm -rf "$(claude_plugin_cache_root)"
+}
+
+restore_local_claude_state() {
+  local previous_source="$1"
+  local previous_plugin_installed="$2"
+
+  claude plugin marketplace remove ha-nova >/dev/null 2>&1 || true
+  if [[ -n "${previous_source}" ]]; then
+    claude plugin marketplace add "${previous_source}" >/dev/null 2>&1 || true
+  fi
+
+  if [[ "${previous_plugin_installed}" == "1" ]]; then
+    claude plugin install ha-nova@ha-nova >/dev/null 2>&1 || true
+  else
+    claude plugin remove ha-nova@ha-nova >/dev/null 2>&1 || true
+    remove_claude_plugin_record
+    rm -rf "$(claude_plugin_cache_root)"
+  fi
+}
+
 install_claude_plugin() {
   if ! command -v claude &>/dev/null; then
-    log "[claude] Skipped — claude CLI not found"
-    return 0
+    die "[claude] Claude CLI not found in PATH"
   fi
+
+  local previous_source=""
+  previous_source="$(read_claude_marketplace_source)"
+  local previous_plugin_installed="0"
+  if claude_plugin_installed; then
+    previous_plugin_installed="1"
+  fi
+
+  local marketplace_root
+  marketplace_root="$(write_claude_marketplace)"
+
+  # Remove stale marketplace registration first; ignore absence/errors.
+  claude plugin marketplace remove ha-nova >/dev/null 2>&1 || true
 
   # Add marketplace (idempotent — overwrites if already present)
-  if claude plugin marketplace add "${REPO_ROOT}" 2>/dev/null; then
-    log "[claude] Marketplace registered: ${REPO_ROOT}"
+  if claude plugin marketplace add "${marketplace_root}" 2>/dev/null; then
+    log "[claude] Marketplace registered: ${marketplace_root}"
   else
-    log "[claude] Warning: could not register marketplace"
-    return 0
+    restore_local_claude_state "${previous_source}" "${previous_plugin_installed}"
+    die "[claude] Marketplace registration failed: ${marketplace_root}"
   fi
 
-  # Install plugin
+  if ! reset_local_claude_plugin_state; then
+    restore_local_claude_state "${previous_source}" "${previous_plugin_installed}"
+    die "[claude] Plugin reset failed: ha-nova@ha-nova"
+  fi
+
   if claude plugin install ha-nova@ha-nova 2>/dev/null; then
-    log "[claude] Plugin installed: ha-nova@ha-nova"
+    if claude_plugin_installed; then
+      log "[claude] Plugin installed fresh: ha-nova@ha-nova"
+    else
+      log "[claude] Plugin installed: ha-nova@ha-nova"
+    fi
   else
-    log "[claude] Warning: could not install plugin (may already be installed)"
+    restore_local_claude_state "${previous_source}" "${previous_plugin_installed}"
+    die "[claude] Plugin install failed: ha-nova@ha-nova"
   fi
 }
 
@@ -412,12 +633,12 @@ install_target() {
       log "[${target}] Installed bundled relay CLI: ${relay_binary_target}"
     else
       write_repo_cli_wrapper "${relay_cli_target}" "relay"
-      cp "${relay_cli_target}" "${relay_binary_target}"
-      log "[${target}] Installed relay wrapper fallback: ${relay_binary_target}"
+      relay_binary_target=""
+      log "[${target}] Installed relay wrapper: ${relay_cli_target}"
     fi
   fi
 
-  if [[ "${CURRENT_PLATFORM_ID}" == "windows" && -f "${relay_binary_target}" ]]; then
+  if [[ "${CURRENT_PLATFORM_ID}" == "windows" && -n "${relay_binary_target}" && -f "${relay_binary_target}" ]]; then
     cat > "${relay_cli_target}" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail

@@ -48,6 +48,9 @@ func printErr(format string, args ...interface{}) {
 }
 
 func openBrowser(url string) error {
+	if os.Getenv("HA_NOVA_NO_BROWSER") == "1" {
+		return nil
+	}
 	if !isInteractiveTTY() {
 		return nil
 	}
@@ -62,6 +65,12 @@ func openBrowser(url string) error {
 }
 
 func copyToClipboard(value string) error {
+	if os.Getenv("HA_NOVA_NO_BROWSER") == "1" {
+		return fmt.Errorf("clipboard disabled")
+	}
+	if !isInteractiveTTY() {
+		return fmt.Errorf("clipboard disabled")
+	}
 	switch runtime.GOOS {
 	case "darwin":
 		cmd := exec.Command("pbcopy")
