@@ -125,7 +125,7 @@ describe("release contract", () => {
     expect(rcWorkflow).toContain("goreleaser/goreleaser-action@v6");
     expect(rcWorkflow).toContain("args: build --snapshot --clean");
     expect(rcWorkflow).toContain("Build install bundles");
-    expect(rcWorkflow).toContain("run: bash scripts/release/build-install-bundle.sh");
+    expect(rcWorkflow).toContain('bash scripts/release/build-install-bundle.sh "${VERSION_TAG#v}"');
     expect(rcWorkflow).toContain("Build install bundles");
     expect(rcWorkflow).toContain("Upload RC artifacts");
     expect(rcWorkflow).toContain("Smoke bundles");

@@ -62,7 +62,15 @@ jobs:
           args: build --snapshot --clean
 
       - name: Build install bundles
-        run: bash scripts/release/build-install-bundle.sh
+        env:
+          VERSION_TAG: ${{ inputs.version_tag }}
+        run: |
+          set -euo pipefail
+          if [[ -n "${VERSION_TAG}" ]]; then
+            bash scripts/release/build-install-bundle.sh "${VERSION_TAG#v}"
+          else
+            bash scripts/release/build-install-bundle.sh
+          fi
 
       - name: Upload RC artifacts
         uses: actions/upload-artifact@v4
