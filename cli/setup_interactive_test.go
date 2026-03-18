@@ -966,6 +966,8 @@ func TestInteractiveSetupCompletedResumeRejectsBrokenHostOverride(t *testing.T) 
 }
 
 func TestInteractiveSetupWSDegradedEndsIncomplete(t *testing.T) {
+	withClientRuntimeAvailability(t, map[string]bool{"claude": true})
+
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("HA_NOVA_NO_BROWSER", "1")
@@ -1028,6 +1030,8 @@ func TestInteractiveSetupWSDegradedEndsIncomplete(t *testing.T) {
 }
 
 func TestInteractiveSetupWSDegradedMentionsLLATCause(t *testing.T) {
+	withClientRuntimeAvailability(t, map[string]bool{"claude": true})
+
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("HA_NOVA_NO_BROWSER", "1")
@@ -1098,6 +1102,8 @@ func TestInteractiveSetupWSDegradedMentionsLLATCause(t *testing.T) {
 }
 
 func TestInteractiveSetupWSDegradedUsesWSPingSuccessAsReady(t *testing.T) {
+	withClientRuntimeAvailability(t, map[string]bool{"claude": true})
+
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("HA_NOVA_NO_BROWSER", "1")
@@ -1199,6 +1205,8 @@ func TestApplySelectedSetupHostKeepsExplicitRelayOverride(t *testing.T) {
 }
 
 func TestInteractiveSetupCompletedResumePersistsExplicitEndpointOverrides(t *testing.T) {
+	withClientRuntimeAvailability(t, map[string]bool{"claude": true})
+
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("HA_NOVA_NO_BROWSER", "1")
