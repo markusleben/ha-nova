@@ -30,6 +30,19 @@ Hard rule:
 - the Claude marketplace entry must keep `source: "./"` so installed bundles stay on the local plugin update path instead of drifting to a remote repo source
 - Claude marketplace source parity must be regression-covered for all three shapes: plain GitHub URL, structured GitHub repo source, and structured GitHub repo source with pinned `ref`; a pinned `ref` must never compare equal to the floating default source
 
+## Release Preflight
+
+Before every RC or final tag:
+
+- audit open PRs first, especially Dependabot PRs plus anything touching workflows, GoReleaser, installer/update paths, or release metadata
+- classify each relevant open PR as `release blocker now` vs `separate later`
+- do not pull a red or unreviewed workflow/release PR into the release train at the last minute
+- for the release PR itself, wait for the actual Codex bot result; `codex-review-gate` timeout alone is not enough
+- review clearance is tied to the exact commit state that will be tagged, not to the branch/topic in general
+- a clean bot result applies only to the exact commit SHA it reviewed; any later SHA is unreviewed until the cycle completes again
+- if any relevant delta appears after the last bot-reviewed commit, stop release work and restart the full cycle: push -> `@codex review` -> actual bot result -> checks green
+- run at least two independent subagent review passes on the final release-bound delta with distinct focuses before relying on Codex review
+
 ## Release Candidate Gate
 
 Before creating a public release, run an RC pass.

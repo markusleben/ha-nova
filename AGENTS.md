@@ -61,16 +61,26 @@ Work style: Be radically precise. No fluff. Pure information only (drop grammar;
 - Avoid manual `git stash`; if Git auto-stashes during pull/rebase, that’s fine (hint, not hard guardrail).
 - If user types a command (“pull and push”), that’s consent for that command.
 - Big review: `git --no-pager diff --color=never`.
-- **PR Merge — MANDATORY CHECKLIST (do NOT skip any step):**
+- **Review clearance is commit-specific:** any new relevant delta after the last bot-reviewed commit invalidates prior review clearance.
+- **Relevant delta means:** any code, tests, docs-that-change-behavior, scripts, workflow files, release metadata, installer/update flow, or release notes change that alters the commit to merge or tag.
+- **Push is not review:** a new push never inherits the previous clean review state.
+- **A clean bot result is SHA-specific:** it applies only to the exact commit SHA it reviewed; any later SHA is unreviewed until the full cycle completes again.
+- **No local-only release shortcuts:** if a follow-up fix matters enough to keep, it must go through GitHub review before merge/tag/release.
+- **Release/tag/publish gate:** never create/move a release tag, start RC/final publish, or call a commit release-ready unless the exact remote commit state intended for tag/release is represented by the latest fully reviewed PR state with no unreviewed deltas beyond it.
+- **Release-bound review hardening:** before PR merge or release tag, run at least two independent subagent review passes on the final delta with distinct focus areas (for example runtime/product logic and release/process/workflow risk), fix their findings, then request/await Codex review.
+- **PR Merge / Release Commit Gate — MANDATORY CHECKLIST (do NOT skip any step):**
   The `codex-review-gate` workflow waits ~9 min for the Codex review bot. Bot signals: `eyes` reaction = review in progress, `👍` reaction = no findings, review comments = findings.
   - [ ] 1. `gh pr create ...`
-  - [ ] 2. `gh pr checks <nr> --watch` — wait for ALL checks including `codex-review-gate`
-  - [ ] 3. Check bot signal: `gh api repos/<o>/<r>/issues/<nr>/reactions` (👍 = clean) AND `gh api repos/<o>/<r>/pulls/<nr>/comments` (findings)
-  - [ ] 4. If findings → fix, push, then **trigger re-review**: `gh pr comment <nr> --body "@codex review"` — this is the ONLY reliable way to get the bot to review fix commits (pushes alone do NOT trigger re-review). Then go back to step 2.
-  - [ ] 5. If 👍 or timeout (no findings) → resolve ALL review threads (branch protection blocks unresolved):
+  - [ ] 2. Run at least two independent subagent review passes on the exact current PR delta with distinct focuses; fix issues before relying on Codex review.
+  - [ ] 3. `gh pr checks <nr> --watch` — wait for ALL checks including `codex-review-gate`
+  - [ ] 4. Check bot signal across all channels: `gh api repos/<o>/<r>/issues/<nr>/reactions` (👍 = clean), `gh api repos/<o>/<r>/pulls/<nr>/comments` (inline findings), and issue/discussion comments on the PR.
+  - [ ] 5. If findings OR any new relevant delta is introduced afterward → fix, push, then **trigger re-review**: `gh pr comment <nr> --body "@codex review"` — this is the ONLY reliable way to get the bot to review fix commits (pushes alone do NOT trigger re-review). Then go back to step 2.
+  - [ ] 6. Only proceed after an actual Codex bot result for the current latest commit SHA; timeout alone is NOT enough. Then resolve ALL review threads (branch protection blocks unresolved):
          `gh api graphql -f query='{ repository(owner:"<o>",name:"<r>") { pullRequest(number:<nr>) { reviewThreads(first:20) { nodes { id isResolved } } } } }'`
          Then for each unresolved: `gh api graphql -f query='mutation { resolveReviewThread(input:{threadId:"<id>"}) { thread { isResolved } } }'`
-  - [ ] 6. `gh pr merge --squash --delete-branch` (use `--admin` only if branch protection blocks after all steps passed)
+  - [ ] 7. Confirm the PR head SHA is still the same SHA that received the latest clean/current bot result. If SHA changed, go back to step 2.
+  - [ ] 8. `gh pr merge --squash --delete-branch` (use `--admin` only if branch protection blocks after all steps passed)
+  - [ ] 9. For squash merge flows, tag/release only the remote merge commit produced from that reviewed PR state; any later delta requires a new PR/review cycle.
 
 ## Error Handling
 - Expected issues: explicit result types (not throw/try/catch).
@@ -128,3 +138,6 @@ Use below list to store and recall user notes when asked to do so.
 - Release guard: Claude marketplace sync changes must ship with regression coverage for plain GitHub URL, structured GitHub source, and structured GitHub source with pinned `ref`; pinned refs are release blockers if they compare equal to the floating default source.
 - Release notes preference: keep them short and user-centric. Prioritize `New Features`, optional `What To Watch` only for real behavior/breaking/action-needed changes, and selective `Bug Fixes` only for important user-facing fixes. Do not dump every minor fix into release notes.
 - Release preflight requirement: before every release/RC/tag/publish flow, proactively audit open PRs with special focus on Dependabot and workflow/release-related PRs. Classify them as `blocker now` vs `separate later`. Never pull in a red or unreviewed workflow/release PR right before publish just because it is open.
+- Codex review hygiene (user requirement): for release-bound PRs, wait for the real Codex bot response; do not treat workflow timeout as a clean review.
+- Review invalidation hygiene (user requirement): if any relevant delta lands after the last reviewed commit, release readiness resets to zero until that exact new commit state completes a fresh PR + `@codex review` + real bot response cycle.
+- Subagent review hygiene (user requirement): for release-bound or high-risk changes, use at least two independent subagent review passes with distinct focuses before merge/tag so Codex review is a final net, not the first serious audit.
