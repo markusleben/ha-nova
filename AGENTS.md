@@ -73,7 +73,7 @@ Work style: Be radically precise. No fluff. Pure information only (drop grammar;
   - [ ] 1. `gh pr create ...`
   - [ ] 2. Run at least two independent subagent review passes on the exact current PR delta with distinct focuses; fix issues before relying on Codex review.
   - [ ] 3. `gh pr checks <nr> --watch` — wait for ALL checks including `codex-review-gate`
-  - [ ] 4. Check bot signal across all channels: `gh api repos/<o>/<r>/issues/<nr>/reactions` (👍 = clean), `gh api repos/<o>/<r>/pulls/<nr>/comments` (inline findings), and issue/discussion comments on the PR.
+  - [ ] 4. Check bot signal across all channels: `gh api repos/<o>/<r>/issues/<nr>/reactions` (👍 = clean), `gh api repos/<o>/<r>/pulls/<nr>/reviews` (PR-level review findings), `gh api repos/<o>/<r>/pulls/<nr>/comments` (inline findings), and issue/discussion comments on the PR.
   - [ ] 5. If findings OR any new relevant delta is introduced afterward → fix, push, then **trigger re-review**: `gh pr comment <nr> --body "@codex review"` — this is the ONLY reliable way to get the bot to review fix commits (pushes alone do NOT trigger re-review). Then go back to step 2.
   - [ ] 6. Only proceed after an actual Codex bot result for the current latest commit SHA; timeout alone is NOT enough. Then resolve ALL review threads (branch protection blocks unresolved):
          `gh api graphql -f query='{ repository(owner:"<o>",name:"<r>") { pullRequest(number:<nr>) { reviewThreads(first:20) { nodes { id isResolved } } } } }'`
