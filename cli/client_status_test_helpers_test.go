@@ -26,3 +26,18 @@ func withAllClientRuntimesAvailable(t *testing.T) {
 		"gemini":   true,
 	})
 }
+
+func withClientAttachmentPresence(t *testing.T, attached map[string]bool) {
+	t.Helper()
+
+	original := clientAttachmentPresentForStatus
+	clientAttachmentPresentForStatus = func(paths runtimePaths, client string) bool {
+		if value, ok := attached[client]; ok {
+			return value
+		}
+		return false
+	}
+	t.Cleanup(func() {
+		clientAttachmentPresentForStatus = original
+	})
+}

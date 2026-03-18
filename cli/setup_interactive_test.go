@@ -967,6 +967,7 @@ func TestInteractiveSetupCompletedResumeRejectsBrokenHostOverride(t *testing.T) 
 
 func TestInteractiveSetupWSDegradedEndsIncomplete(t *testing.T) {
 	withClientRuntimeAvailability(t, map[string]bool{"claude": true})
+	withClientAttachmentPresence(t, map[string]bool{"claude": true})
 
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -1031,6 +1032,7 @@ func TestInteractiveSetupWSDegradedEndsIncomplete(t *testing.T) {
 
 func TestInteractiveSetupWSDegradedMentionsLLATCause(t *testing.T) {
 	withClientRuntimeAvailability(t, map[string]bool{"claude": true})
+	withClientAttachmentPresence(t, map[string]bool{"claude": true})
 
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -1103,6 +1105,7 @@ func TestInteractiveSetupWSDegradedMentionsLLATCause(t *testing.T) {
 
 func TestInteractiveSetupWSDegradedUsesWSPingSuccessAsReady(t *testing.T) {
 	withClientRuntimeAvailability(t, map[string]bool{"claude": true})
+	withClientAttachmentPresence(t, map[string]bool{"claude": true})
 
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -1206,6 +1209,7 @@ func TestApplySelectedSetupHostKeepsExplicitRelayOverride(t *testing.T) {
 
 func TestInteractiveSetupCompletedResumePersistsExplicitEndpointOverrides(t *testing.T) {
 	withClientRuntimeAvailability(t, map[string]bool{"claude": true})
+	withClientAttachmentPresence(t, map[string]bool{"claude": true})
 
 	home := t.TempDir()
 	t.Setenv("HOME", home)
