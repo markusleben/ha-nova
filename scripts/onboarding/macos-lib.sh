@@ -193,26 +193,22 @@ run_doctor_checks() {
   if [[ -f "$vf" ]]; then
     local local_skill_version
     local_skill_version=$(grep -o '"skill_version"[[:space:]]*:[[:space:]]*"[^"]*"' "$vf" 2>/dev/null | sed 's/.*"\([^"]*\)"$/\1/' || true)
-    local remote_json
-    remote_json=$(curl -sS --connect-timeout 2 --max-time 5 "https://raw.githubusercontent.com/markusleben/ha-nova/main/version.json" 2>/dev/null || true)
-    if [[ -n "$remote_json" ]]; then
-      local latest_skill_version
-      latest_skill_version=$(echo "$remote_json" | grep -o '"skill_version"[[:space:]]*:[[:space:]]*"[^"]*"' | sed 's/.*"\([^"]*\)"$/\1/')
-      if [[ -n "$latest_skill_version" && "$latest_skill_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ && -n "$local_skill_version" ]] && semver_lt "$local_skill_version" "$latest_skill_version"; then
+    local update_json
+    update_json=$("${REPO_ROOT}/scripts/onboarding/bin/ha-nova" check-update --quiet --json 2>/dev/null || true)
+    if [[ -n "$update_json" ]]; then
+      local update_status latest_skill_version
+      update_status=$(echo "$update_json" | grep -o '"status"[[:space:]]*:[[:space:]]*"[^"]*"' | sed 's/.*"\([^"]*\)"$/\1/' || true)
+      latest_skill_version=$(echo "$update_json" | grep -o '"latest_version"[[:space:]]*:[[:space:]]*"[^"]*"' | sed 's/.*"\([^"]*\)"$/\1/' || true)
+      if [[ "$update_status" == "update_available" && -n "$latest_skill_version" ]]; then
         if [[ -x "${HOME}/.config/ha-nova/update" ]]; then
           echo "  [warn] Skills update available: v${local_skill_version} -> v${latest_skill_version}. Run: ha-nova update"
         else
           echo "  [warn] Skills update available: v${local_skill_version} -> v${latest_skill_version}. Run: ha-nova update"
         fi
-      else
+      elif [[ "$update_status" == "up_to_date" ]]; then
         echo "  [ok] Skills version: ${local_skill_version:-unknown} (up to date)"
-      fi
-      # Update the cache for SessionStart hook
-      local update_cache_dir="${HOME}/.cache/ha-nova"
-      mkdir -p "$update_cache_dir" 2>/dev/null || true
-      # Only cache if response contains valid JSON (prevents caching 404 pages)
-      if echo "$remote_json" | grep -q '"skill_version"' 2>/dev/null; then
-        echo "$remote_json" > "${update_cache_dir}/latest-version.json" 2>/dev/null || true
+      else
+        echo "  [info] Skills version: ${local_skill_version:-unknown} (remote check failed, offline?)"
       fi
     else
       echo "  [info] Skills version: ${local_skill_version:-unknown} (remote check failed, offline?)"

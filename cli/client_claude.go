@@ -58,13 +58,20 @@ func installClaudePlugin(paths runtimePaths, sourceRoot string) error {
 			if strings.Contains(strings.ToLower(text), "not found") || strings.Contains(strings.ToLower(text), "not installed") {
 				installCmd := exec.Command("claude", "plugin", "install", "ha-nova@ha-nova")
 				if installOutput, installErr := installCmd.CombinedOutput(); installErr == nil {
-					return nil
+					return verifyClaudePluginInstalled(paths.Home)
 				} else {
 					return fmt.Errorf("claude plugin command failed: %s (%s)", strings.Join(installCmd.Args[1:], " "), strings.TrimSpace(string(installOutput)))
 				}
 			}
 		}
 		return fmt.Errorf("claude plugin command failed: %s (%s)", strings.Join(refreshArgs, " "), strings.TrimSpace(string(output)))
+	}
+	return verifyClaudePluginInstalled(paths.Home)
+}
+
+func verifyClaudePluginInstalled(home string) error {
+	if !claudePluginInstalled(home) {
+		return fmt.Errorf("Claude plugin ha-nova@ha-nova not found after sync")
 	}
 	return nil
 }

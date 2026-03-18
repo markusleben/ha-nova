@@ -69,16 +69,15 @@ describe("S-6: session-start hook", () => {
     expect(hookContent).toContain("Relay version");
   });
 
-  it("contains remote update check with stale-while-revalidate", () => {
+  it("uses shared release cache and background CLI refresh", () => {
     const hookContent = readFileSync("hooks/session-start", "utf8");
 
     expect(hookContent).toContain("latest-release.json");
-    expect(hookContent).toContain("extract_cached_release_version");
     expect(hookContent).toContain('"version"');
     expect(hookContent).toContain("UPDATE AVAILABLE");
     expect(hookContent).toContain("ha-nova update");
-    expect(hookContent).toContain("api.github.com/repos/markusleben/ha-nova/releases/latest");
-    expect(hookContent).toContain("tag_name");
+    expect(hookContent).toContain("ha-nova check-update --quiet --json");
+    expect(hookContent).not.toContain("api.github.com/repos/markusleben/ha-nova/releases/latest");
   });
 
   it("does not leak secrets in JSON output", () => {

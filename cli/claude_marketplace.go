@@ -65,12 +65,21 @@ func ensureClaudeMarketplaceRegistration(home, desiredSource string) error {
 		return err
 	}
 	if hasCurrentSource && sameClaudeMarketplaceSource(currentSource, desiredSource) {
-		return nil
+		if err := updateClaudeMarketplaceRegistration(); err != nil {
+			return err
+		}
+		return verifyClaudeMarketplaceRegistration(home, desiredSource)
 	}
 	if hasCurrentSource {
-		return replaceClaudeMarketplaceRegistration(desiredSource)
+		if err := replaceClaudeMarketplaceRegistration(desiredSource); err != nil {
+			return err
+		}
+		return verifyClaudeMarketplaceRegistration(home, desiredSource)
 	}
-	return addClaudeMarketplace(desiredSource)
+	if err := addClaudeMarketplace(desiredSource); err != nil {
+		return err
+	}
+	return verifyClaudeMarketplaceRegistration(home, desiredSource)
 }
 
 func captureClaudeLocalRestoreState(home string) (claudeLocalRestoreState, error) {
@@ -153,6 +162,14 @@ func addClaudeMarketplace(source string) error {
 	return nil
 }
 
+func updateClaudeMarketplaceRegistration() error {
+	cmd := exec.Command("claude", "plugin", "marketplace", "update", "ha-nova")
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("claude plugin command failed: %s (%s)", strings.Join(cmd.Args[1:], " "), strings.TrimSpace(string(output)))
+	}
+	return nil
+}
+
 func replaceClaudeMarketplaceRegistration(source string) error {
 	removeCmd := exec.Command("claude", "plugin", "marketplace", "remove", "ha-nova")
 	if output, err := removeCmd.CombinedOutput(); err != nil {
@@ -162,6 +179,20 @@ func replaceClaudeMarketplaceRegistration(source string) error {
 		}
 	}
 	return addClaudeMarketplace(source)
+}
+
+func verifyClaudeMarketplaceRegistration(home, desiredSource string) error {
+	currentSource, hasCurrentSource, err := readClaudeMarketplaceSource(home)
+	if err != nil {
+		return err
+	}
+	if !hasCurrentSource {
+		return fmt.Errorf("Claude marketplace ha-nova not found after sync")
+	}
+	if !sameClaudeMarketplaceSource(currentSource, desiredSource) {
+		return fmt.Errorf("Claude marketplace ha-nova source mismatch after sync")
+	}
+	return nil
 }
 
 func clearClaudeMarketplaceRegistration(home string) error {
@@ -221,8 +252,39 @@ func claudeMarketplaceSourceFromEntry(value any) (string, bool, error) {
 	if !ok {
 		return "", true, nil
 	}
-	source, _ := entry["source"].(string)
-	return strings.TrimSpace(source), true, nil
+	return claudeMarketplaceSourceString(entry["source"]), true, nil
+}
+
+func claudeMarketplaceSourceString(value any) string {
+	switch typed := value.(type) {
+	case string:
+		source := strings.TrimSpace(typed)
+		if strings.EqualFold(source, "github") {
+			return ""
+		}
+		return source
+	case map[string]any:
+		if url, ok := typed["url"].(string); ok && strings.TrimSpace(url) != "" {
+			return strings.TrimSpace(url)
+		}
+		if path, ok := typed["path"].(string); ok && strings.TrimSpace(path) != "" {
+			return strings.TrimSpace(path)
+		}
+		if repo, ok := typed["repo"].(string); ok && strings.TrimSpace(repo) != "" {
+			repo = strings.TrimSpace(repo)
+			if sourceKind, _ := typed["source"].(string); strings.EqualFold(strings.TrimSpace(sourceKind), "github") {
+				return "https://github.com/" + strings.TrimPrefix(strings.TrimSuffix(repo, ".git"), "/")
+			}
+			return repo
+		}
+		if source, ok := typed["source"].(string); ok {
+			source = strings.TrimSpace(source)
+			if source != "" && !strings.EqualFold(source, "github") {
+				return source
+			}
+		}
+	}
+	return ""
 }
 
 func sameClaudeMarketplaceSource(left, right string) bool {
@@ -231,10 +293,31 @@ func sameClaudeMarketplaceSource(left, right string) bool {
 	if left == right {
 		return true
 	}
+	if normalizedLeft, ok := normalizeClaudeMarketplaceGitHubSource(left); ok {
+		if normalizedRight, ok := normalizeClaudeMarketplaceGitHubSource(right); ok {
+			return normalizedLeft == normalizedRight
+		}
+	}
 	if !strings.Contains(left, "://") && !strings.Contains(right, "://") {
 		return filepath.Clean(left) == filepath.Clean(right)
 	}
 	return false
+}
+
+func normalizeClaudeMarketplaceGitHubSource(value string) (string, bool) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "", false
+	}
+	value = strings.TrimSuffix(value, ".git")
+	value = strings.TrimSuffix(value, "/")
+	if strings.HasPrefix(value, "https://github.com/") {
+		return strings.ToLower(value), true
+	}
+	if strings.HasPrefix(value, "http://github.com/") {
+		return strings.ToLower("https://" + strings.TrimPrefix(value, "http://")), true
+	}
+	return "", false
 }
 
 func stageClaudeMarketplacePluginRoot(targetRoot, sourceRoot string) error {

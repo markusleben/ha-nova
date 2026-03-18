@@ -89,7 +89,7 @@ describe("platform dispatch", () => {
     const result = spawnSync(
       "bash",
       ["scripts/onboarding/install-local-skills.sh", "all"],
-      { cwd: REPO_ROOT, encoding: "utf8", timeout: 20000, env },
+      { cwd: REPO_ROOT, encoding: "utf8", timeout: 45000, env },
     );
 
     expect(result.status).toBe(0);

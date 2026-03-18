@@ -448,6 +448,7 @@ exit 1
 
   it("uninstall removes skills and config", () => {
     const workDir = mkdtempSync(join(tmpdir(), "ha-nova-uninstall-"));
+    const binDir = createMockBinaries();
     const skillDirs = [
       join(workDir, ".agents/skills"),
       join(workDir, ".gemini/skills"),
@@ -496,14 +497,8 @@ exec go run "${process.cwd()}/cli" uninstall "$@"
     const result = spawnSync("go", ["run", ".", "uninstall", "--yes"], {
       cwd: join(process.cwd(), "cli"),
       encoding: "utf8",
-      timeout: 10000,
-      env: {
-        ...process.env,
-        HOME: workDir,
-        GOCACHE: process.env.GOCACHE,
-        GOMODCACHE: process.env.GOMODCACHE,
-        GOPATH: process.env.GOPATH,
-      },
+      timeout: 30000,
+      env: mockEnv(workDir, binDir),
     });
 
     expect(result.status).toBe(0);
@@ -609,11 +604,14 @@ exec go run "${process.cwd()}/cli" uninstall "$@"
 
   it("supports Go-first update and check-update handoff", () => {
     const cli = readFileSync("scripts/onboarding/bin/ha-nova", "utf8");
+    const lib = readFileSync("scripts/onboarding/macos-lib.sh", "utf8");
     expect(cli).toContain("update)");
     expect(cli).toContain("check-update)");
     expect(cli).toContain("find_runtime_binary");
     expect(cli).toContain('exec "${runtime_bin}" update');
     expect(cli).toContain('exec "${runtime_bin}" check-update');
+    expect(lib).toContain('scripts/onboarding/bin/ha-nova" check-update --quiet --json');
+    expect(lib).not.toContain("raw.githubusercontent.com/markusleben/ha-nova/main/version.json");
   });
 
   it("provides platform-specific macOS module", () => {

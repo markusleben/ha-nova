@@ -21,6 +21,17 @@ type releaseInfo struct {
 	AssetName string `json:"asset_name,omitempty"`
 }
 
+type updateCheckResult struct {
+	Status          string `json:"status"`
+	CurrentVersion  string `json:"current_version"`
+	LatestVersion   string `json:"latest_version,omitempty"`
+	UpdateAvailable bool   `json:"update_available"`
+	Source          string `json:"source"`
+	HTMLURL         string `json:"html_url,omitempty"`
+	CacheStatus     string `json:"cache_status"`
+	Message         string `json:"message"`
+}
+
 func compareSemver(a, b string) int {
 	ap := parseSemver(a)
 	bp := parseSemver(b)
@@ -107,26 +118,31 @@ func checkRelayVersion(paths runtimePaths, healthBody []byte) humanNotice {
 	return humanNotice{}
 }
 
-func loadCachedRelease(paths runtimePaths) (releaseInfo, bool) {
+func inspectCachedRelease(paths runtimePaths) (releaseInfo, string) {
 	info, err := os.Stat(paths.UpdateCacheFile)
 	if err != nil {
-		return releaseInfo{}, false
-	}
-
-	if time.Since(info.ModTime()) > time.Duration(updateCacheTTLSeconds)*time.Second {
-		return releaseInfo{}, false
+		return releaseInfo{}, "miss"
 	}
 
 	data, err := os.ReadFile(paths.UpdateCacheFile)
 	if err != nil {
-		return releaseInfo{}, false
+		return releaseInfo{}, "miss"
 	}
 
 	var cached releaseInfo
 	if json.Unmarshal(data, &cached) != nil || cached.Version == "" {
-		return releaseInfo{}, false
+		return releaseInfo{}, "miss"
 	}
-	return cached, true
+
+	if time.Since(info.ModTime()) > time.Duration(updateCacheTTLSeconds)*time.Second {
+		return cached, "stale"
+	}
+	return cached, "fresh"
+}
+
+func loadCachedRelease(paths runtimePaths) (releaseInfo, bool) {
+	cached, status := inspectCachedRelease(paths)
+	return cached, status == "fresh"
 }
 
 func cacheReleaseInfo(paths runtimePaths, info releaseInfo) {

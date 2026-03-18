@@ -75,36 +75,77 @@ func fetchLatestRelease(paths runtimePaths, quiet bool) (releaseInfo, error) {
 	return info, nil
 }
 
-func checkForUpdate(paths runtimePaths, quiet bool) humanNotice {
-	release, err := fetchLatestRelease(paths, true)
-	if err != nil {
-		if !quiet {
-			return humanNotice{
-				level:   humanNoticeWarning,
-				kind:    humanNoticeKindUpdateCheckFailed,
-				message: fmt.Sprintf("could not check for updates (%s)", err),
-			}
-		}
-		return humanNotice{}
+func buildUpdateCheckResult(paths runtimePaths) updateCheckResult {
+	current := localVersion(paths)
+	_, cacheStatus := inspectCachedRelease(paths)
+	result := updateCheckResult{
+		CurrentVersion: current,
+		Source:         "github_releases",
 	}
 
-	current := localVersion(paths)
+	release, err := fetchLatestRelease(paths, true)
+	if err != nil {
+		result.CacheStatus = cacheStatus
+		result.Status = "check_failed"
+		result.Message = fmt.Sprintf("could not check for updates (%s)", err)
+		return result
+	}
+
+	result.CacheStatus = "fresh"
+	result.LatestVersion = release.Version
+	result.HTMLURL = release.HTMLURL
 	if current == "dev" || compareSemver(current, release.Version) >= 0 {
+		result.Status = "up_to_date"
+		result.Message = fmt.Sprintf("Up to date: v%s", current)
+		return result
+	}
+
+	result.Status = "update_available"
+	result.UpdateAvailable = true
+	result.Message = fmt.Sprintf("Update available: v%s -> v%s | Run: ha-nova update", current, release.Version)
+	return result
+}
+
+func updateCheckExitCode(result updateCheckResult) int {
+	if result.Status == "check_failed" {
+		return 1
+	}
+	return 0
+}
+
+func humanNoticeFromUpdateCheckResult(result updateCheckResult, quiet bool) humanNotice {
+	switch result.Status {
+	case "check_failed":
+		if quiet {
+			return humanNotice{}
+		}
+		return humanNotice{
+			level:   humanNoticeWarning,
+			kind:    humanNoticeKindUpdateCheckFailed,
+			message: result.Message,
+		}
+	case "up_to_date":
 		if quiet {
 			return humanNotice{}
 		}
 		return humanNotice{
 			level:   humanNoticeInfo,
 			kind:    humanNoticeKindUpToDate,
-			message: fmt.Sprintf("Up to date: v%s", current),
+			message: result.Message,
 		}
+	case "update_available":
+		return humanNotice{
+			level:   humanNoticeWarning,
+			kind:    humanNoticeKindUpdateAvailable,
+			message: result.Message,
+		}
+	default:
+		return humanNotice{}
 	}
+}
 
-	return humanNotice{
-		level:   humanNoticeWarning,
-		kind:    humanNoticeKindUpdateAvailable,
-		message: fmt.Sprintf("Update available: v%s -> v%s | Run: ha-nova update", current, release.Version),
-	}
+func checkForUpdate(paths runtimePaths, quiet bool) humanNotice {
+	return humanNoticeFromUpdateCheckResult(buildUpdateCheckResult(paths), quiet)
 }
 
 func findBundleBinary(stageDir string) string {
