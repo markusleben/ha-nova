@@ -113,8 +113,7 @@ func updateCheckExitCode(result updateCheckResult) int {
 	return 0
 }
 
-func checkForUpdate(paths runtimePaths, quiet bool) humanNotice {
-	result := buildUpdateCheckResult(paths)
+func humanNoticeFromUpdateCheckResult(result updateCheckResult, quiet bool) humanNotice {
 	switch result.Status {
 	case "check_failed":
 		if quiet {
@@ -143,6 +142,10 @@ func checkForUpdate(paths runtimePaths, quiet bool) humanNotice {
 	default:
 		return humanNotice{}
 	}
+}
+
+func checkForUpdate(paths runtimePaths, quiet bool) humanNotice {
+	return humanNoticeFromUpdateCheckResult(buildUpdateCheckResult(paths), quiet)
 }
 
 func findBundleBinary(stageDir string) string {

@@ -2,13 +2,36 @@
  * S-8: Relay version too old
  * S-10: Doctor (7 variants)
  */
-import { readFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { createMockBinaries, createMockHome, mockEnv, REPO_ROOT } from "./_helpers.js";
 
 const isMac = process.platform === "darwin";
+
+function installMockHaNovaRuntime(home: string) {
+  const binDir = join(home, ".local/bin");
+  mkdirSync(binDir, { recursive: true });
+  writeFileSync(
+    join(binDir, "ha-nova"),
+    `#!/usr/bin/env bash
+case "$1" in
+  check-update)
+    cat <<'JSON'
+{"status":"up_to_date","current_version":"0.2.3","latest_version":"0.2.3","update_available":false,"source":"github_releases","cache_status":"fresh","message":"Up to date: v0.2.3"}
+JSON
+    ;;
+  *)
+    echo "unexpected mock ha-nova command: $*" >&2
+    exit 1
+    ;;
+esac
+`,
+    { mode: 0o755 },
+  );
+}
 
 function runDoctor(
   opts: {
@@ -29,6 +52,7 @@ function runDoctor(
     },
     keychainToken: opts.keychainToken ?? "test-relay-token",
   });
+  installMockHaNovaRuntime(home);
   const binDir = createMockBinaries({
     ...(opts.healthFixture != null && { healthFixture: opts.healthFixture }),
     ...(opts.wsFixture != null && { wsFixture: opts.wsFixture }),

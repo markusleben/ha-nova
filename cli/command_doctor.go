@@ -119,7 +119,7 @@ func runCheckUpdate(paths runtimePaths, args []string) int {
 		return updateCheckExitCode(result)
 	}
 
-	notice := checkForUpdate(paths, *quiet)
+	notice := humanNoticeFromUpdateCheckResult(result, *quiet)
 	if notice.empty() {
 		return 0
 	}

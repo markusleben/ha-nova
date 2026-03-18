@@ -171,6 +171,48 @@ func TestRunCheckUpdateJSON(t *testing.T) {
 	}
 }
 
+func TestRunCheckUpdateTextModeUsesSingleFetch(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(paths.VersionFile), 0o755); err != nil {
+		t.Fatalf("mkdir version dir: %v", err)
+	}
+	if err := os.WriteFile(paths.VersionFile, []byte(`{"skill_version":"0.1.0","min_relay_version":"0.1.0"}`), 0o644); err != nil {
+		t.Fatalf("write version file: %v", err)
+	}
+
+	originalHTTPClient := httpClient
+	defer func() {
+		httpClient = originalHTTPClient
+	}()
+
+	requests := 0
+	httpClient = &http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			requests++
+			body := `{"tag_name":"v0.2.0","html_url":"https://example.test/release"}`
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(body)),
+				Header:     make(http.Header),
+			}, nil
+		}),
+	}
+
+	if exitCode := runCheckUpdate(paths, nil); exitCode != 0 {
+		t.Fatalf("runCheckUpdate() exit = %d, want 0", exitCode)
+	}
+
+	if requests != 1 {
+		t.Fatalf("requests = %d, want 1", requests)
+	}
+}
+
 func TestCheckRelayVersionReturnsStructuredOutdatedNotice(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

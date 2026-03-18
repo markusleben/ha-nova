@@ -112,24 +112,6 @@ build_env_exports() {
   emit_export "RELAY_AUTH_TOKEN" "$relay_auth_token"
 }
 
-ha_nova_runtime_exists() {
-  local candidate
-  local candidates=(
-    "${HOME}/.local/bin/ha-nova"
-    "${HOME}/.local/bin/ha-nova.exe"
-    "${HOME}/.local/share/ha-nova/ha-nova"
-    "${HOME}/.local/share/ha-nova/ha-nova.exe"
-  )
-
-  for candidate in "${candidates[@]}"; do
-    if [[ -x "${candidate}" ]]; then
-      return 0
-    fi
-  done
-
-  return 1
-}
-
 run_doctor_checks() {
   load_config
 
@@ -212,11 +194,7 @@ run_doctor_checks() {
     local local_skill_version
     local_skill_version=$(grep -o '"skill_version"[[:space:]]*:[[:space:]]*"[^"]*"' "$vf" 2>/dev/null | sed 's/.*"\([^"]*\)"$/\1/' || true)
     local update_json
-    if ha_nova_runtime_exists; then
-      update_json=$("${REPO_ROOT}/scripts/onboarding/bin/ha-nova" check-update --quiet --json 2>/dev/null || true)
-    else
-      update_json=""
-    fi
+    update_json=$("${REPO_ROOT}/scripts/onboarding/bin/ha-nova" check-update --quiet --json 2>/dev/null || true)
     if [[ -n "$update_json" ]]; then
       local update_status latest_skill_version
       update_status=$(echo "$update_json" | grep -o '"status"[[:space:]]*:[[:space:]]*"[^"]*"' | sed 's/.*"\([^"]*\)"$/\1/' || true)
