@@ -29,7 +29,13 @@ Do not ask user to paste tokens in chat.
 
 ## Self-Update
 
-If session context OR `relay health` output includes `UPDATE AVAILABLE`, inform the user and offer to update:
+Before the first HA task in a session:
+1. If session context already contains HA NOVA update status, use it.
+2. Otherwise run: `ha-nova check-update --quiet`
+3. If the output contains `UPDATE AVAILABLE`, inform the user and offer to update.
+4. If the output is empty, continue silently.
+
+When an update is available:
 1. Run: `ha-nova update`
 2. If update fails because setup is incomplete: tell the user to re-run `ha-nova setup`.
 3. After success: tell the user to **start a new session** for the updated skills to take effect.

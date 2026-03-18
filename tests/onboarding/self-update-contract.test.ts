@@ -16,7 +16,8 @@ describe("legacy shell shims", () => {
 
     expect(content).toContain("find_runtime_binary()");
     expect(content).toContain('exec "${runtime_bin}" update "$@"');
-    expect(content).toContain('exec go run "${REPO_ROOT}/cli" update "$@"');
+    expect(content).toContain('cd "${REPO_ROOT}/cli"');
+    expect(content).toContain('exec go run . update "$@"');
     expect(content).not.toContain("pull --ff-only");
     expect(content).not.toContain("claude plugin update");
   });
@@ -26,7 +27,8 @@ describe("legacy shell shims", () => {
 
     expect(content).toContain("find_runtime_binary()");
     expect(content).toContain('exec "${runtime_bin}" check-update --quiet "$@"');
-    expect(content).toContain('exec go run "${REPO_ROOT}/cli" check-update --quiet "$@"');
+    expect(content).toContain('cd "${REPO_ROOT}/cli"');
+    expect(content).toContain('exec go run . check-update --quiet "$@"');
     expect(content).not.toContain("latest-version.json");
   });
 
@@ -46,7 +48,9 @@ describe("legacy shell shims", () => {
 
     expect(content).toContain("find_runtime_binary()");
     expect(content).toContain('exec "${runtime_bin}" uninstall "$@"');
-    expect(content).toContain('exec go run "${REPO_ROOT}/cli" uninstall "$@"');
+    expect(content).toContain('cd "${REPO_ROOT}/cli"');
+    expect(content).toContain('exec go run . uninstall "$@"');
+    expect(content).not.toContain("ha-nova.exe");
   });
 
   it("does not keep relay shim compatibility in the main runtime anymore", () => {
@@ -79,5 +83,55 @@ printf '%s\n' "$@" > "${marker}"
     expect(forwarded).toContain("update");
     expect(forwarded).toContain("--version");
     expect(forwarded).toContain("1.2.3");
+  });
+
+  it("legacy shell shims ignore a stray .exe runtime on Unix and fall back to go run", () => {
+    const home = mkdtempSync(join(tmpdir(), "ha-nova-shim-exe-home-"));
+    const binDir = join(home, "bin");
+    const localBinDir = join(home, ".local", "bin");
+    const goMarker = join(home, "go-args.txt");
+
+    spawnSync("mkdir", ["-p", binDir, localBinDir], { encoding: "utf8" });
+    writeFileSync(join(localBinDir, "ha-nova.exe"), "windows-binary", { mode: 0o644 });
+    writeFileSync(
+      join(binDir, "go"),
+      `#!/usr/bin/env bash
+printf '%s\n' "$@" > "${goMarker}"
+`,
+      { mode: 0o755 },
+    );
+
+    const baseEnv = {
+      ...process.env,
+      HOME: home,
+      PATH: `${binDir}:${process.env.PATH ?? ""}`,
+      OSTYPE: "linux-gnu",
+    };
+
+    const updateResult = spawnSync("bash", [updateScriptPath, "--version", "1.2.3"], {
+      cwd: REPO_ROOT,
+      encoding: "utf8",
+      env: baseEnv,
+    });
+    expect(updateResult.status).toBe(0);
+    expect(readFileSync(goMarker, "utf8")).toContain("update");
+
+    const versionResult = spawnSync("bash", [versionCheckScriptPath], {
+      cwd: REPO_ROOT,
+      encoding: "utf8",
+      env: baseEnv,
+    });
+    expect(versionResult.status).toBe(0);
+    const versionArgs = readFileSync(goMarker, "utf8");
+    expect(versionArgs).toContain("check-update");
+    expect(versionArgs).toContain("--quiet");
+
+    const wrapperResult = spawnSync("bash", [resolve(REPO_ROOT, "scripts/onboarding/bin/ha-nova"), "update"], {
+      cwd: REPO_ROOT,
+      encoding: "utf8",
+      env: baseEnv,
+    });
+    expect(wrapperResult.status).toBe(0);
+    expect(readFileSync(goMarker, "utf8")).toContain("update");
   });
 });

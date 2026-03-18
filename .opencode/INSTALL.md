@@ -35,6 +35,8 @@ ha-nova update
 ha-nova uninstall
 ```
 
+No automatic startup update banner yet on OpenCode. Use `ha-nova check-update` or `ha-nova doctor` when you want an explicit update check.
+
 Old pre-Go install?
 
 - macOS / Linux: `curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/main/scripts/legacy-uninstall.sh | bash`

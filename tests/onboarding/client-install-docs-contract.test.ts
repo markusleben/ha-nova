@@ -50,6 +50,12 @@ describe("client install docs contract", () => {
     expect(opencodeInstall).toContain("Install the OpenCode client separately");
     expect(codexInstall).toContain("install the Codex client separately");
     expect(geminiInstall).toContain("install the Gemini client separately");
+    expect(codexInstall).toContain("No automatic startup update banner yet on Codex.");
+    expect(geminiInstall).toContain("No automatic startup update banner yet on Gemini.");
+    expect(opencodeInstall).toContain("No automatic startup update banner yet on OpenCode.");
+    expect(codexInstall).toContain("ha-nova check-update");
+    expect(geminiInstall).toContain("ha-nova check-update");
+    expect(opencodeInstall).toContain("ha-nova check-update");
     expect(opencodeInstall).not.toContain("App installation, authentication, and skill setup");
   });
 });

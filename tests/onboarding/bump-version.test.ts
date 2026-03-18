@@ -17,6 +17,8 @@ describe("S-11: version bump", () => {
   it("bump script updates version.json", () => {
     const content = readFileSync("scripts/bump-version.sh", "utf8");
     expect(content).toContain("version.json");
+    expect(content).toContain(".metadata.version = $v");
+    expect(content).toContain('.packages[""].version = $v');
   });
 
   it("version.json contains required fields", () => {
@@ -31,6 +33,13 @@ describe("S-11: version bump", () => {
     const pkg = JSON.parse(readFileSync("package.json", "utf8"));
     const versionJson = JSON.parse(readFileSync("version.json", "utf8"));
     expect(pkg.version).toBe(versionJson.skill_version);
+  });
+
+  it("package-lock.json version matches version.json skill_version", () => {
+    const pkgLock = JSON.parse(readFileSync("package-lock.json", "utf8"));
+    const versionJson = JSON.parse(readFileSync("version.json", "utf8"));
+    expect(pkgLock.version).toBe(versionJson.skill_version);
+    expect(pkgLock.packages[""].version).toBe(versionJson.skill_version);
   });
 
   it("exposes npm bump shortcut", () => {

@@ -395,7 +395,16 @@ describe("ha-nova contract", () => {
     const marketplace = JSON.parse(
       readFileSync(".claude-plugin/marketplace.json", "utf8"),
     );
+    expect(marketplace.metadata.version).toBe(expected);
+    expect(marketplace.metadata.description).toBeTruthy();
+    expect(marketplace.plugins[0].source).toBe("./");
     expect(marketplace.plugins[0].version).toBe(expected);
+  });
+
+  it("tells non-Claude clients to run a quiet update check on first skill use", () => {
+    const content = readFileSync("skills/ha-nova/SKILL.md", "utf8");
+    expect(content).toContain("ha-nova check-update --quiet");
+    expect(content).toContain("Before the first HA task in a session");
   });
 
   it("provides SessionStart hook for context skill auto-loading", () => {
