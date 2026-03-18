@@ -281,7 +281,7 @@ func claudeMarketplaceSourceFromRaw(value any) claudeMarketplaceSource {
 			repo = strings.TrimSpace(repo)
 			if sourceKind, _ := typed["source"].(string); strings.EqualFold(strings.TrimSpace(sourceKind), "github") {
 				repoURL := "https://github.com/" + strings.TrimPrefix(strings.TrimSuffix(repo, ".git"), "/")
-				return newClaudeMarketplaceSource(repoURL, githubCompareKey(repoURL, strings.TrimSpace(stringValue(typed["ref"]))))
+				return newClaudeMarketplaceSource(githubSourceCommand(repo, strings.TrimSpace(stringValue(typed["ref"]))), githubCompareKey(repoURL, strings.TrimSpace(stringValue(typed["ref"]))))
 			}
 			return newClaudeMarketplaceSource(repo, repo)
 		}
@@ -345,6 +345,15 @@ func githubCompareKey(source, ref string) string {
 		return "github:" + repo + "@ref=" + ref
 	}
 	return "github:" + repo
+}
+
+func githubSourceCommand(repo, ref string) string {
+	repo = strings.TrimSpace(strings.TrimPrefix(strings.TrimSuffix(repo, ".git"), "/"))
+	ref = strings.TrimSpace(ref)
+	if ref == "" {
+		return repo
+	}
+	return repo + "#" + ref
 }
 
 func normalizeGitHubRepo(value string) string {
