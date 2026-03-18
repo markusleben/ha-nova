@@ -975,6 +975,12 @@ func TestInteractiveSetupWSDegradedEndsIncomplete(t *testing.T) {
 	t.Setenv("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING", "1")
 	t.Setenv("HA_NOVA_TEST_KEYRING_FILE", filepath.Join(home, ".config", "ha-nova", ".test-relay-auth-token"))
 
+	originalProbeHTTP := probeHTTPForSetup
+	defer func() {
+		probeHTTPForSetup = originalProbeHTTP
+	}()
+	probeHTTPForSetup = func(string) error { return nil }
+
 	relayServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/health" {
 			http.NotFound(w, r)
@@ -1039,6 +1045,12 @@ func TestInteractiveSetupWSDegradedMentionsLLATCause(t *testing.T) {
 	t.Setenv("HA_NOVA_NO_BROWSER", "1")
 	t.Setenv("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING", "1")
 	t.Setenv("HA_NOVA_TEST_KEYRING_FILE", filepath.Join(home, ".config", "ha-nova", ".test-relay-auth-token"))
+
+	originalProbeHTTP := probeHTTPForSetup
+	defer func() {
+		probeHTTPForSetup = originalProbeHTTP
+	}()
+	probeHTTPForSetup = func(string) error { return nil }
 
 	originalWSPing := probeRelayWSPingForSetup
 	defer func() {
@@ -1112,6 +1124,12 @@ func TestInteractiveSetupWSDegradedUsesWSPingSuccessAsReady(t *testing.T) {
 	t.Setenv("HA_NOVA_NO_BROWSER", "1")
 	t.Setenv("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING", "1")
 	t.Setenv("HA_NOVA_TEST_KEYRING_FILE", filepath.Join(home, ".config", "ha-nova", ".test-relay-auth-token"))
+
+	originalProbeHTTP := probeHTTPForSetup
+	defer func() {
+		probeHTTPForSetup = originalProbeHTTP
+	}()
+	probeHTTPForSetup = func(string) error { return nil }
 
 	originalWSPing := probeRelayWSPingForSetup
 	defer func() {
