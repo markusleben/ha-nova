@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 describe("release contract", () => {
+  const ciWorkflow = readFileSync(".github/workflows/ci.yml", "utf8");
   const goreleaser = readFileSync(".goreleaser.yml", "utf8");
   const workflow = readFileSync(".github/workflows/release.yml", "utf8");
   const rcWorkflow = readFileSync(".github/workflows/release-candidate.yml", "utf8");
@@ -70,6 +71,9 @@ describe("release contract", () => {
     expect(workflow).toContain('node-version: "20"');
     expect(workflow).toContain("npm ci");
     expect(workflow).toContain("npm run verify");
+    expect(pkg.scripts?.verify).toContain("verify:release-metadata");
+    expect(workflow).toContain("Verify release metadata");
+    expect(workflow).toContain('verify-release-metadata.sh "${GITHUB_REF_NAME}"');
     expect(workflow).toContain("environment:");
     expect(workflow).toContain("name: production");
     expect(workflow).toContain("Build install bundles");
@@ -90,12 +94,22 @@ describe("release contract", () => {
   });
 
   it("keeps npm run verify aligned with CI-safe release gates", () => {
+    expect(pkg.scripts?.verify).toContain("npm run verify:release-metadata");
     expect(pkg.scripts?.verify).toContain("npm run typecheck");
     expect(pkg.scripts?.verify).toContain("npm run test:safe");
     expect(pkg.scripts?.verify).toContain("npm run build");
     expect(pkg.scripts?.verify).toContain("bash scripts/check-docs.sh");
     expect(pkg.scripts?.verify).toContain("npm run test:cli");
     expect(pkg.scripts?.verify).not.toContain("test:desktop");
+  });
+
+  it("runs release metadata verification in regular PR/main CI before typecheck and tests", () => {
+    expect(ciWorkflow).toContain("name: CI");
+    expect(ciWorkflow).toContain("name: Verify release metadata");
+    expect(ciWorkflow).toContain("bash scripts/release/verify-release-metadata.sh");
+    expect(ciWorkflow).toContain("pull_request:");
+    expect(ciWorkflow).toContain("branches:");
+    expect(ciWorkflow).toContain("- main");
   });
 
   it("defines a manual release-candidate workflow that can optionally publish bundle-based prereleases", () => {
@@ -106,9 +120,12 @@ describe("release contract", () => {
     expect(rcWorkflow).toContain("node-version: 20");
     expect(rcWorkflow).toContain("npm ci");
     expect(rcWorkflow).toContain("npm run verify");
+    expect(rcWorkflow).toContain("Verify release metadata");
+    expect(rcWorkflow).toContain("verify-release-metadata.sh");
     expect(rcWorkflow).toContain("goreleaser/goreleaser-action@v6");
     expect(rcWorkflow).toContain("args: build --snapshot --clean");
-    expect(rcWorkflow).toContain('build-install-bundle.sh "${VERSION_TAG#v}"');
+    expect(rcWorkflow).toContain("Build install bundles");
+    expect(rcWorkflow).toContain('bash scripts/release/build-install-bundle.sh "${VERSION_TAG#v}"');
     expect(rcWorkflow).toContain("Build install bundles");
     expect(rcWorkflow).toContain("Upload RC artifacts");
     expect(rcWorkflow).toContain("Smoke bundles");
@@ -119,6 +136,7 @@ describe("release contract", () => {
     expect(rcWorkflow).toContain("--prerelease");
     expect(rcWorkflow).toContain('install_ref="${GITHUB_REF_NAME}"');
     expect(rcWorkflow).toContain("raw.githubusercontent.com/markusleben/ha-nova/");
+    expect(rcWorkflow).toContain("install.sh | HA_NOVA_VERSION=");
     expect(rcWorkflow).toContain("install.ps1");
     expect(rcWorkflow).not.toContain("goreleaser release");
   });

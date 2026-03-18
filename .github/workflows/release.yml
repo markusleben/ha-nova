@@ -46,6 +46,9 @@ jobs:
       - name: Verify repository
         run: npm run verify
 
+      - name: Verify release metadata
+        run: bash scripts/release/verify-release-metadata.sh "${GITHUB_REF_NAME}"
+
       - name: GoReleaser
         uses: goreleaser/goreleaser-action@v6
         with:

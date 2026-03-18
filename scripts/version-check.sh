@@ -1,6 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+windows_shell_allows_exe() {
+  case "${OSTYPE:-}" in
+    msys*|cygwin*|win32*) return 0 ;;
+  esac
+
+  case "$(uname -s 2>/dev/null || true)" in
+    MINGW*|MSYS*|CYGWIN*) return 0 ;;
+  esac
+
+  return 1
+}
+
 find_runtime_binary() {
   local candidates=(
     "${HOME}/.local/bin/ha-nova"
@@ -11,7 +23,11 @@ find_runtime_binary() {
 
   local candidate
   for candidate in "${candidates[@]}"; do
-    if [[ -x "${candidate}" || ( -f "${candidate}" && "${candidate}" == *.exe ) ]]; then
+    if [[ -x "${candidate}" ]]; then
+      printf '%s\n' "${candidate}"
+      return 0
+    fi
+    if windows_shell_allows_exe && [[ -f "${candidate}" && "${candidate}" == *.exe ]]; then
       printf '%s\n' "${candidate}"
       return 0
     fi
@@ -28,7 +44,8 @@ if runtime_bin="$(find_runtime_binary)"; then
 fi
 
 if command -v go >/dev/null 2>&1 && [[ -f "${REPO_ROOT}/cli/main.go" ]]; then
-  exec go run "${REPO_ROOT}/cli" check-update --quiet "$@"
+  cd "${REPO_ROOT}/cli"
+  exec go run . check-update --quiet "$@"
 fi
 
 exit 0

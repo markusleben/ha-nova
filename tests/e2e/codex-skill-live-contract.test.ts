@@ -59,8 +59,9 @@ describe("codex live skill e2e contract", () => {
     const pkg = JSON.parse(readFileSync("package.json", "utf8"));
     expect(pkg.scripts?.["onboarding:macos:quick"]).toBeUndefined();
     expect(pkg.scripts?.verify).toBe(
-      "npm run typecheck && npm run test:safe && npm run build && bash scripts/check-docs.sh && npm run test:cli"
+      "npm run verify:release-metadata && npm run typecheck && npm run test:safe && npm run build && bash scripts/check-docs.sh && npm run test:cli"
     );
+    expect(pkg.scripts?.verify).toContain("npm run verify:release-metadata");
     expect(pkg.scripts?.test).toBe("npm run test:safe");
     expect(pkg.scripts?.["e2e:skill:codex"]).toBeDefined();
   });

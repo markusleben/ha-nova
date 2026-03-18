@@ -71,6 +71,9 @@ jobs:
       - name: Install
         run: npm ci
 
+      - name: Verify release metadata
+        run: bash scripts/release/verify-release-metadata.sh
+
       - name: Typecheck
         run: npm run typecheck
 

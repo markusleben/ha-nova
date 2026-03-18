@@ -44,6 +44,17 @@ jobs:
       - name: Verify repository
         run: npm run verify
 
+      - name: Verify release metadata
+        env:
+          VERSION_TAG: ${{ inputs.version_tag }}
+        run: |
+          set -euo pipefail
+          if [[ -n "${VERSION_TAG}" ]]; then
+            bash scripts/release/verify-release-metadata.sh "${VERSION_TAG}"
+          else
+            bash scripts/release/verify-release-metadata.sh
+          fi
+
       - name: Build raw binaries
         uses: goreleaser/goreleaser-action@v6
         with:
@@ -153,7 +164,7 @@ jobs:
           set -euo pipefail
           title="HA NOVA ${VERSION_TAG}"
           install_ref="${GITHUB_REF_NAME}"
-          notes=$'Bundle-based release candidate for public installer testing.\n\nInstall script ref: '"${install_ref}"$'\n\nmacOS / Linux:\n  HA_NOVA_VERSION='"${VERSION_TAG}"$' curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/'"${install_ref}"$'/install.sh | bash\n\nWindows (PowerShell):\n  $env:HA_NOVA_VERSION = '\'''"${VERSION_TAG}"$''\''\n  irm https://raw.githubusercontent.com/markusleben/ha-nova/'"${install_ref}"$'/install.ps1 | iex\n\nNext step after publish: run the real public installer smoke in a fresh home/profile.'
+          notes=$'Bundle-based release candidate for public installer testing.\n\nInstall script ref: '"${install_ref}"$'\n\nmacOS / Linux:\n  curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/'"${install_ref}"$'/install.sh | HA_NOVA_VERSION='"${VERSION_TAG}"$' bash\n\nWindows (PowerShell):\n  $env:HA_NOVA_VERSION = '\'''"${VERSION_TAG}"$''\''\n  irm https://raw.githubusercontent.com/markusleben/ha-nova/'"${install_ref}"$'/install.ps1 | iex\n\nNext step after publish: run the real public installer smoke in a fresh home/profile.'
 
           if gh release view "${VERSION_TAG}" -R "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
             gh release upload "${VERSION_TAG}" dist/install-bundles/* --clobber -R "${GITHUB_REPOSITORY}"

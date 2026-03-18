@@ -6,9 +6,10 @@
 npm run bump -- 0.2.0
 ```
 
-This updates all 4 version files atomically:
+This updates all 5 version files atomically:
 - `version.json` (source of truth)
 - `package.json`
+- `package-lock.json`
 - `.claude-plugin/plugin.json`
 - `.claude-plugin/marketplace.json`
 
@@ -21,8 +22,12 @@ npm run verify
 ```
 
 This is the host-safe default gate.
-It covers TypeScript, the safe Vitest suite, and Go CLI verification.
+It covers release metadata sync, TypeScript, the safe Vitest suite, build/docs validation, and Go CLI verification.
 It must not open browsers or touch real secure stores on the maintainer host.
+
+Hard rule:
+- final tag version, `version.json`, `package.json`, `package-lock.json`, `.claude-plugin/plugin.json`, and `.claude-plugin/marketplace.json` must match
+- the Claude marketplace entry must keep `source: "./"` so installed bundles stay on the local plugin update path instead of drifting to a remote repo source
 
 ## Release Candidate Gate
 
@@ -85,7 +90,7 @@ Optional public RC path:
 - set `publish_release=true`
 - set `version_tag=vX.Y.Z-rcN`
 - the workflow will publish a GitHub prerelease with the install bundles after smoke passes
-- the RC publish job accepts only commits on `main`
+- use a commit you actually want external testers to install; RC publish does not enforce `main` for you
 
 What the GitHub RC proves:
 - artifact build works
@@ -93,6 +98,7 @@ What the GitHub RC proves:
 - the bundled binary starts on all three runner OSes
 - the release page keeps installers as the supported user path instead of suggesting direct bundle execution
 - the release body keeps the fixed user-facing note structure instead of falling back to a flat commit dump
+- release metadata stays version-synced; if `version_tag` is provided, its base version must match `version.json`
 
 What the GitHub RC does not prove:
 - the public installer path
@@ -333,7 +339,7 @@ Maintainer-only step:
 - approving `production` is the explicit checkpoint to confirm the latest RC passed; the workflow does not auto-check RC status for you
 
 ```bash
-git add version.json package.json .claude-plugin/plugin.json .claude-plugin/marketplace.json
+git add version.json package.json package-lock.json .claude-plugin/plugin.json .claude-plugin/marketplace.json
 git commit -m "chore: bump version to X.Y.Z"
 git tag -a vX.Y.Z -m "vX.Y.Z"
 git push && git push --tags
@@ -341,6 +347,7 @@ git push && git push --tags
 
 The tagged `Release` workflow rebuilds fresh artifacts and publishes them.
 Its installer smoke is post-publish confirmation, not the pre-publish gate.
+It also hard-fails if the pushed tag does not match the checked-in release metadata.
 
 ## Relay Version Bump (independent from skill version)
 
@@ -357,7 +364,7 @@ Relay is rebuilt via Docker on the HA host — no npm publish. Users update by p
 
 - `git tag -l 'v*'` — verify tag exists
 - All clients: users run `ha-nova update` (auto-detects installed clients)
-- Claude Code users refresh via `ha-nova update` (which re-registers the GitHub marketplace by default, or the explicit local override during private validation)
+- Claude Code users refresh via `ha-nova update` (which re-registers the local marketplace entry; private validation can still force the explicit local override)
 - Claude SessionStart will show `UPDATE AVAILABLE` to users still on the old version
 - Other clients use the same shared updater path, but do not currently inject an equivalent startup banner automatically
 - Legacy pre-Go installs are not updated in place; they must run the dedicated legacy cleanup script first, then reinstall with `install.sh` / `install.ps1`

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -37,6 +38,9 @@ func TestPostUpdateSyncRefreshesDetectedInstalledClientsWithoutState(t *testing.
 	if !strings.Contains(string(logData), "plugin update ha-nova@ha-nova") {
 		t.Fatalf("expected detected Claude install to be refreshed, got:\n%s", string(logData))
 	}
+	if !strings.Contains(string(logData), "plugin marketplace add ") {
+		t.Fatalf("expected Claude marketplace to be refreshed, got:\n%s", string(logData))
+	}
 
 	state, err := loadState(paths)
 	if err != nil {
@@ -44,6 +48,108 @@ func TestPostUpdateSyncRefreshesDetectedInstalledClientsWithoutState(t *testing.
 	}
 	if !containsClient(state.InstalledClients, "claude") {
 		t.Fatalf("expected saved state to include detected Claude install, got %+v", state.InstalledClients)
+	}
+}
+
+func TestPostUpdateSyncRefreshesAllDetectedClients(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd() error: %v", err)
+	}
+	t.Setenv("HA_NOVA_DEV_ROOT", filepath.Clean(filepath.Join(cwd, "..")))
+
+	originalRuntimeDetected := clientRuntimeDetectedForStatus
+	clientRuntimeDetectedForStatus = func(string) bool { return true }
+	t.Cleanup(func() {
+		clientRuntimeDetectedForStatus = originalRuntimeDetected
+	})
+
+	if err := os.MkdirAll(filepath.Join(home, ".claude", "plugins"), 0o755); err != nil {
+		t.Fatalf("mkdir Claude plugins: %v", err)
+	}
+	writeInstalledClaudePluginFixture(t, home)
+
+	if err := os.MkdirAll(filepath.Join(home, ".agents", "skills", "ha-nova", "ha-nova"), 0o755); err != nil {
+		t.Fatalf("mkdir Codex attachment: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(home, ".agents", "skills", "ha-nova", "ha-nova", "SKILL.md"), []byte("name: ha-nova"), 0o644); err != nil {
+		t.Fatalf("write Codex attachment: %v", err)
+	}
+
+	if err := os.MkdirAll(filepath.Join(home, ".config", "opencode", "skills", "ha-nova", "ha-nova"), 0o755); err != nil {
+		t.Fatalf("mkdir OpenCode attachment: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(home, ".config", "opencode", "skills", "ha-nova", "ha-nova", "SKILL.md"), []byte("name: ha-nova"), 0o644); err != nil {
+		t.Fatalf("write OpenCode attachment: %v", err)
+	}
+
+	if err := os.MkdirAll(filepath.Join(home, ".gemini", "skills", "ha-nova"), 0o755); err != nil {
+		t.Fatalf("mkdir Gemini context skill: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(home, ".gemini", "skills", "ha-nova", "SKILL.md"), []byte("name: ha-nova"), 0o644); err != nil {
+		t.Fatalf("write Gemini context skill: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(home, ".gemini", "skills", "ha-nova-review"), 0o755); err != nil {
+		t.Fatalf("mkdir Gemini review skill: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(home, ".gemini", "skills", "ha-nova-review", "SKILL.md"), []byte("name: ha-nova-review"), 0o644); err != nil {
+		t.Fatalf("write Gemini review skill: %v", err)
+	}
+
+	logPath := filepath.Join(home, "claude.log")
+	t.Setenv("PATH", installClaudeMock(t, home, logPath)+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	if err := postUpdateSync(paths); err != nil {
+		t.Fatalf("postUpdateSync() error: %v", err)
+	}
+
+	logData, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatalf("read log: %v", err)
+	}
+	if !strings.Contains(string(logData), "plugin install ha-nova@ha-nova") {
+		t.Fatalf("expected detected Claude install to be refreshed, got:\n%s", string(logData))
+	}
+	if !strings.Contains(string(logData), "plugin marketplace add ") {
+		t.Fatalf("expected Claude marketplace to be refreshed, got:\n%s", string(logData))
+	}
+
+	state, err := loadState(paths)
+	if err != nil {
+		t.Fatalf("loadState() error: %v", err)
+	}
+	for _, client := range []string{"claude", "codex", "opencode", "gemini"} {
+		if !containsClient(state.InstalledClients, client) {
+			t.Fatalf("expected saved state to include %s, got %+v", client, state.InstalledClients)
+		}
+	}
+
+	if _, err := os.Stat(filepath.Join(home, ".gemini", "skills", "ha-nova-review", "SKILL.md")); err != nil {
+		t.Fatalf("expected Gemini skill refresh output: %v", err)
+	}
+
+	codexInfo, err := os.Lstat(filepath.Join(home, ".agents", "skills", "ha-nova"))
+	if err != nil {
+		t.Fatalf("expected Codex skill tree: %v", err)
+	}
+	if runtime.GOOS != "windows" && codexInfo.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf("expected Codex install to prefer symlink on %s", runtime.GOOS)
+	}
+
+	opencodeInfo, err := os.Lstat(filepath.Join(home, ".config", "opencode", "skills", "ha-nova"))
+	if err != nil {
+		t.Fatalf("expected OpenCode skill tree: %v", err)
+	}
+	if runtime.GOOS != "windows" && opencodeInfo.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf("expected OpenCode install to prefer symlink on %s", runtime.GOOS)
 	}
 }
 

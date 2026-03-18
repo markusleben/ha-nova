@@ -358,7 +358,9 @@ exit 1
     );
     expect(pkg.scripts?.["test:cli"]).toBe("cd cli && go test ./...");
     expect(pkg.scripts?.test).toBe("npm run test:safe");
-    expect(pkg.scripts?.verify).toBe("npm run typecheck && npm run test:safe && npm run test:cli");
+    expect(pkg.scripts?.verify).toBe(
+      "npm run verify:release-metadata && npm run typecheck && npm run test:safe && npm run build && bash scripts/check-docs.sh && npm run test:cli"
+    );
   });
 
   it("documents canonical Codex one-link install entrypoint", () => {

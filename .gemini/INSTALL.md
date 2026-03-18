@@ -40,6 +40,8 @@ Gemini-specific note:
 - HA NOVA installs namespaced sub-skills under `~/.gemini/skills/ha-nova-*`.
 - Those namespaced identifiers are also the installed Gemini skill names, so Gemini does not have to guess between folder names and shorter shared repo names.
 
+No automatic startup update banner yet on Gemini. Use `ha-nova check-update` or `ha-nova doctor` when you want an explicit update check.
+
 Old pre-Go install?
 
 - macOS / Linux: `curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/main/scripts/legacy-uninstall.sh | bash`
