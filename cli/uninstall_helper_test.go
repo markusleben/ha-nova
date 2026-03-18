@@ -9,6 +9,24 @@ import (
 	"testing"
 )
 
+func stubUninstallRelayTokenDeletion(t *testing.T, token string, deleteErr error) {
+	t.Helper()
+
+	originalRead := readRelayAuthTokenForUninstall
+	originalDelete := deleteRelayAuthTokenForUninstall
+	t.Cleanup(func() {
+		readRelayAuthTokenForUninstall = originalRead
+		deleteRelayAuthTokenForUninstall = originalDelete
+	})
+
+	readRelayAuthTokenForUninstall = func() (string, error) {
+		return token, nil
+	}
+	deleteRelayAuthTokenForUninstall = func() error {
+		return deleteErr
+	}
+}
+
 func TestDiscardInstallRootRemovesVisibleInstallPath(t *testing.T) {
 	parent := t.TempDir()
 	installRoot := filepath.Join(parent, "ha-nova")
@@ -28,6 +46,8 @@ func TestDiscardInstallRootRemovesVisibleInstallPath(t *testing.T) {
 }
 
 func TestFinalizeWindowsUninstallRemovesInstallAndState(t *testing.T) {
+	stubUninstallRelayTokenDeletion(t, "test-relay-token", nil)
+
 	parent := t.TempDir()
 	paths := runtimePaths{
 		Home:            parent,
@@ -78,6 +98,8 @@ func TestFinalizeWindowsUninstallRemovesInstallAndState(t *testing.T) {
 }
 
 func TestFinalizeWindowsUninstallWarnsAboutClaudeProjectMemoryArtifacts(t *testing.T) {
+	stubUninstallRelayTokenDeletion(t, "test-relay-token", nil)
+
 	home := t.TempDir()
 	paths := runtimePaths{
 		Home:            home,
@@ -126,6 +148,8 @@ func TestFinalizeWindowsUninstallWarnsAboutClaudeProjectMemoryArtifacts(t *testi
 }
 
 func TestRunInternalUninstallPrintsFinalSuccess(t *testing.T) {
+	stubUninstallRelayTokenDeletion(t, "test-relay-token", nil)
+
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 
