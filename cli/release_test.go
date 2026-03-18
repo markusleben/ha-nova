@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
@@ -86,6 +87,55 @@ func TestBuildUpdateCheckResultUsesFreshCache(t *testing.T) {
 	}
 	if !result.UpdateAvailable {
 		t.Fatal("expected update_available=true")
+	}
+}
+
+func TestBuildUpdateCheckResultMarksFetchedStaleCacheAsFresh(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(paths.VersionFile), 0o755); err != nil {
+		t.Fatalf("mkdir version dir: %v", err)
+	}
+	if err := os.WriteFile(paths.VersionFile, []byte(`{"skill_version":"0.1.0","min_relay_version":"0.1.0"}`), 0o644); err != nil {
+		t.Fatalf("write version file: %v", err)
+	}
+	if err := writeJSONFile(paths.UpdateCacheFile, releaseInfo{Version: "0.1.5", HTMLURL: "https://example.invalid/releases/v0.1.5"}, 0o644); err != nil {
+		t.Fatalf("write stale cache: %v", err)
+	}
+	staleTime := time.Now().Add(-(time.Duration(updateCacheTTLSeconds)*time.Second + time.Minute))
+	if err := os.Chtimes(paths.UpdateCacheFile, staleTime, staleTime); err != nil {
+		t.Fatalf("mark cache stale: %v", err)
+	}
+
+	originalHTTPClient := httpClient
+	defer func() {
+		httpClient = originalHTTPClient
+	}()
+	httpClient = &http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			body := `{"tag_name":"v0.2.0","html_url":"https://example.test/release"}`
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(body)),
+				Header:     make(http.Header),
+			}, nil
+		}),
+	}
+
+	result := buildUpdateCheckResult(paths)
+	if result.Status != "update_available" {
+		t.Fatalf("result.Status = %q, want update_available", result.Status)
+	}
+	if result.CacheStatus != "fresh" {
+		t.Fatalf("result.CacheStatus = %q, want fresh after successful fetch", result.CacheStatus)
+	}
+	if result.LatestVersion != "0.2.0" {
+		t.Fatalf("result.LatestVersion = %q, want 0.2.0", result.LatestVersion)
 	}
 }
 

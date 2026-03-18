@@ -81,16 +81,17 @@ func buildUpdateCheckResult(paths runtimePaths) updateCheckResult {
 	result := updateCheckResult{
 		CurrentVersion: current,
 		Source:         "github_releases",
-		CacheStatus:    cacheStatus,
 	}
 
 	release, err := fetchLatestRelease(paths, true)
 	if err != nil {
+		result.CacheStatus = cacheStatus
 		result.Status = "check_failed"
 		result.Message = fmt.Sprintf("could not check for updates (%s)", err)
 		return result
 	}
 
+	result.CacheStatus = "fresh"
 	result.LatestVersion = release.Version
 	result.HTMLURL = release.HTMLURL
 	if current == "dev" || compareSemver(current, release.Version) >= 0 {
