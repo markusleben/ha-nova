@@ -36,9 +36,13 @@ describe("release contract", () => {
   it("groups release notes into user-facing sections instead of a flat commit dump", () => {
     expect(goreleaser).toContain("changelog:");
     expect(goreleaser).toContain("title: New Features");
+    expect(goreleaser).toContain("regexp: '^feat(\\(.+\\))?!?:.+$'");
     expect(goreleaser).toContain("title: Bug Fixes");
+    expect(goreleaser).toContain("regexp: '^fix(\\(.+\\))?!?:.+$'");
     expect(goreleaser).toContain("title: UX, Docs, and Refactors");
+    expect(goreleaser).toContain("regexp: '^(docs|refactor|perf|style)(\\(.+\\))?!?:.+$'");
     expect(goreleaser).toContain("title: Internal Maintenance");
+    expect(goreleaser).toContain("regexp: '^(build|ci|chore|test)(\\(.+\\))?!?:.+$'");
     expect(goreleaser).toContain('      - "^Merge "');
   });
 

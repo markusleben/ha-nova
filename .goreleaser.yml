@@ -47,16 +47,16 @@ changelog:
       - "^Merge "
   groups:
     - title: New Features
-      regexp: '^.*?feat(\(.+\))??!?:.+$'
+      regexp: '^feat(\(.+\))?!?:.+$'
       order: 0
     - title: Bug Fixes
-      regexp: '^.*?fix(\(.+\))??!?:.+$'
+      regexp: '^fix(\(.+\))?!?:.+$'
       order: 10
     - title: UX, Docs, and Refactors
-      regexp: '^.*?(docs|refactor|perf|style)(\(.+\))??!?:.+$'
+      regexp: '^(docs|refactor|perf|style)(\(.+\))?!?:.+$'
       order: 20
     - title: Internal Maintenance
-      regexp: '^.*?(build|ci|chore|test)(\(.+\))??!?:.+$'
+      regexp: '^(build|ci|chore|test)(\(.+\))?!?:.+$'
       order: 30
     - title: Other Changes
       order: 999
