@@ -96,6 +96,7 @@ describe("ha-nova contract", () => {
 
   it("documents relay API contract centrally", () => {
     const relayApi = readFileSync("skills/ha-nova/relay-api.md", "utf8");
+    const apiMatrix = readFileSync("docs/reference/ha-api-matrix.md", "utf8");
 
     expect(relayApi).toContain("GET /health");
     expect(relayApi).toContain("POST /ws");
@@ -114,6 +115,12 @@ describe("ha-nova contract", () => {
     expect(relayApi).toContain("Timeout and Retry Guidance");
     expect(relayApi).toContain("Safe Bulk Patterns");
     expect(relayApi).toContain("Do not rely on external `jq` pipes");
+    expect(apiMatrix).toContain("Config Entry Flow");
+    expect(apiMatrix).toContain("WS | `config_entries/get` | Retrieve config-entry metadata");
+    expect(apiMatrix).toContain("`POST /api/config/config_entries/flow`");
+    expect(apiMatrix).toContain("`POST /api/config/config_entries/flow/{flow_id}`");
+    expect(apiMatrix).toContain("`DELETE /api/config/config_entries/entry/{entry_id}`");
+    expect(apiMatrix).toContain("raw WS `config_entries/flow` did not succeed in this session");
   });
 
   it("documents tiered best-practice gate", () => {
