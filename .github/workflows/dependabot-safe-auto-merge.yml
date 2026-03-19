@@ -116,7 +116,15 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
-          gh pr edit "${PR_NUMBER}" --remove-label "dependabot-safe:auto-merge" || true
+          pr_json="$(gh pr view "${PR_NUMBER}" --json autoMergeRequest,labels)"
+
+          if printf '%s' "${pr_json}" | jq -e '.autoMergeRequest != null' >/dev/null; then
+            gh pr merge "${PR_NUMBER}" --disable-auto
+          fi
+
+          if printf '%s' "${pr_json}" | jq -e '.labels[]? | select(.name == "dependabot-safe:auto-merge")' >/dev/null; then
+            gh pr edit "${PR_NUMBER}" --remove-label "dependabot-safe:auto-merge"
+          fi
 
   enable-safe-auto-merge:
     if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' }}

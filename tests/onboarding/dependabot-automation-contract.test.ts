@@ -56,6 +56,11 @@ describe("dependabot automation contract", () => {
     expect(workflow).toContain('package.json|package-lock.json');
     expect(workflow).toContain("gh pr review --approve");
     expect(workflow).toContain("dependabot-safe:auto-merge");
+    expect(workflow).toContain("--json autoMergeRequest,labels");
+    expect(workflow).toContain('jq -e \'.autoMergeRequest != null\'');
+    expect(workflow).toContain('gh pr merge "${PR_NUMBER}" --disable-auto');
+    expect(workflow).toContain('jq -e \'.labels[]? | select(.name == "dependabot-safe:auto-merge")\'');
+    expect(workflow).toContain('gh pr edit "${PR_NUMBER}" --remove-label "dependabot-safe:auto-merge"');
     expect(workflow).toContain('issues/${pr_number}/timeline');
     expect(workflow).toContain('dependabot-safe:auto-merge")');
     expect(workflow).toContain('if [[ "${label_actor}" != "github-actions[bot]" ]]; then');
