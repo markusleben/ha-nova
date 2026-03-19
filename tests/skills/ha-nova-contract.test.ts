@@ -28,7 +28,8 @@ describe("ha-nova contract", () => {
     expect(context).toContain("config change on automation/script → `ha-nova:write`");
     expect(context).toContain("helper change → `ha-nova:helper`");
     expect(context).toContain("automation/script: `entity_id`, `unique_id`, current config");
-    expect(context).toContain("helper: `entity_id`, helper type, internal helper id when already known");
+    expect(context).toContain("storage-based family: `entity_id`, helper type, internal helper id when already known");
+    expect(context).toContain("config-entry family: `entry_id`, domain, title, linked entities when already known");
     expect(context).toContain("one skill at a time, never parallel");
   });
 
@@ -236,6 +237,7 @@ describe("ha-nova contract", () => {
       "skills/ha-nova/template-guidelines.md",
       "skills/ha-nova/safe-refactoring.md",
       "skills/ha-nova/helper-schemas.md",
+      "skills/ha-nova/helper-flow-schemas.md",
       "skills/ha-nova/update-guide.md",
       "skills/ha-nova/agents/resolve-agent.md",
       "skills/ha-nova/agents/apply-agent.md",

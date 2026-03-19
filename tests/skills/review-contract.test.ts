@@ -57,6 +57,8 @@ describe("review contract", () => {
     expect(helperSkill).toContain("Apply H-01..H-08 directly");
     expect(helperSkill).toContain("Only evaluate H-09/H-10");
     expect(helperSkill).toContain("direct helper-backed threshold");
+    expect(helperSkill).toContain("Do not pretend H-01..H-10 apply here");
+    expect(helperSkill).toContain("minimal config-entry post-write contract");
   });
 
   it("documents contributor-facing taxonomy entry points", () => {

@@ -44,7 +44,7 @@ For every Relay-Ready call in this skill:
 | Automations CRUD | Covered | read / write |
 | Scripts CRUD | Covered | read / write |
 | Config Review | Covered | review |
-| Helpers (9 storage types) | Covered | helper |
+| Helpers (9 storage + 6 config-entry foundation) | Covered | helper |
 | Entity Search | Covered | entity-discovery |
 | Service Calls | Covered | service-call |
 | Relay Setup | Covered | onboarding |
@@ -58,7 +58,7 @@ For every Relay-Ready call in this skill:
 | Energy Configuration | Relay-Ready | this skill |
 | System Health / Repairs | Relay-Ready | this skill |
 | Calendar Queries | Relay-Ready | this skill |
-| Config-Entry Helpers | Relay-Ready | this skill |
+| Other Config-Entry Helpers | Relay-Ready | this skill |
 | Entity Registry Edits | Relay-Ready | this skill |
 | Event Subscriptions | Roadmap Phase 1c | -- |
 | Template / YAML Sensors | Roadmap Phase 3 | -- |
@@ -232,13 +232,35 @@ Use `<calendar-events-path>` for the full `/api/calendars/<calendar_id>?start=..
 
 **Risks:** None (read-only).
 
-### Config-Entry Helpers -- RELAY-READY
+### Other Config-Entry Helpers -- RELAY-READY
 
-Create complex helper types that require multi-step config flows (template sensors, groups, utility meters, etc.).
+Create config-entry helper types that are not yet owned by `ha-nova:helper`.
+
+Owned by `ha-nova:helper` now:
+
+- `utility_meter`
+- `derivative`
+- `integration`
+- `min_max`
+- `threshold`
+- `tod`
+
+Still handled here:
+
+- `group`
+- `statistics`
+- `history_stats`
+- `template`
+- `trend`
+- `random`
+- `filter`
+- `generic_thermostat`
+- `switch_as_x`
+- `generic_hygrostat`
 
 **Search:** `home assistant config entry flow helper template group utility_meter api 2026`
 
-**Supported types:** template, group, utility_meter, derivative, min_max, threshold, integration, statistics, trend, random, filter, tod, generic_thermostat, switch_as_x, generic_hygrostat
+**Supported types in this fallback section:** `group`, `statistics`, `history_stats`, `template`, `trend`, `random`, `filter`, `generic_thermostat`, `switch_as_x`, `generic_hygrostat`
 
 **Experimental relay calls (no skill guardrails):**
 ```text

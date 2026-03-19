@@ -11,6 +11,14 @@ const schemasDoc = readFileSync(
   resolve(__dirname, "../../skills/ha-nova/helper-schemas.md"),
   "utf-8",
 );
+const flowSchemasDoc = readFileSync(
+  resolve(__dirname, "../../skills/ha-nova/helper-flow-schemas.md"),
+  "utf-8",
+);
+const architectureDoc = readFileSync(
+  resolve(__dirname, "../../docs/reference/skill-architecture.md"),
+  "utf-8",
+);
 
 describe("helper contract", () => {
   describe("use-case defaults on create", () => {
@@ -70,6 +78,45 @@ describe("helper contract", () => {
     it("includes examples table", () => {
       expect(schemasDoc).toContain("Target temperature");
       expect(schemasDoc).toContain("Motion timeout");
+    });
+  });
+
+  describe("config-entry foundation", () => {
+    it("documents the two-family helper split", () => {
+      expect(skillDoc).toContain("Storage-based family");
+      expect(skillDoc).toContain("Config-entry family (PR1 foundation)");
+      expect(architectureDoc).toContain("two explicit helper families");
+      expect(architectureDoc).toContain("Config-entry family (PR1 foundation)");
+    });
+
+    it("references the dedicated config-entry flow schema doc", () => {
+      expect(skillDoc).toContain("helper-flow-schemas.md");
+      expect(flowSchemasDoc).toContain("PR1 foundation");
+      expect(flowSchemasDoc).toContain("Canonical write identity: `entry_id`");
+    });
+
+    it("limits the foundation slice to six single-step config-entry domains", () => {
+      for (const domain of [
+        "utility_meter",
+        "derivative",
+        "integration",
+        "min_max",
+        "threshold",
+        "tod",
+      ]) {
+        expect(skillDoc).toContain(domain);
+        expect(flowSchemasDoc).toContain(domain);
+      }
+
+      expect(skillDoc).toContain("does **not** support update yet");
+      expect(skillDoc).toContain("Not supported in this PR1 slice");
+    });
+
+    it("uses config-entry-first verification for the config-entry family", () => {
+      expect(skillDoc).toContain("config-entry layer first");
+      expect(skillDoc).toContain("Entity disappearance is secondary evidence only");
+      expect(flowSchemasDoc).toContain("Verification source of truth");
+      expect(flowSchemasDoc).toContain("entry absent in `config_entries/get`");
     });
   });
 });

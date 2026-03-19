@@ -178,6 +178,48 @@ No domain reload needed — storage-based helpers take effect immediately.
 
 See `skills/ha-nova/helper-schemas.md` for type-specific fields and constraints.
 
+## Config-Entry Helper Foundation
+
+PR1 foundation domains:
+
+- `utility_meter`
+- `derivative`
+- `integration`
+- `min_max`
+- `threshold`
+- `tod`
+
+Canonical identity: `entry_id`
+
+List/read source:
+
+```json
+{"type":"config_entries/get"}
+{"type":"config/entity_registry/list"}
+```
+
+Create flow:
+
+```json
+{"method":"POST","path":"/api/config/config_entries/flow","body":{"handler":"min_max"}}
+{"method":"POST","path":"/api/config/config_entries/flow/{flow_id}","body":{"name":"..."}}
+```
+
+Delete:
+
+```json
+{"method":"DELETE","path":"/api/config/config_entries/entry/{entry_id}"}
+```
+
+Verification rules:
+
+- create/delete success is decided at the config-entry layer first
+- use `config_entries/get` as the source of truth
+- resolve linked entities from `config/entity_registry/list` by matching `config_entry_id`
+- linked entity appearance/disappearance is secondary evidence only
+
+See `skills/ha-nova/helper-flow-schemas.md` for the observed PR1 field sets.
+
 ## Domain Payload Rules
 
 Automation fields: `alias`, `triggers`, `conditions`, `actions`, `mode`

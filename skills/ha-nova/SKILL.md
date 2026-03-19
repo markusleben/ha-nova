@@ -154,7 +154,9 @@ After any `read` or `review` task, re-evaluate intent once before continuing:
 - helper change → `ha-nova:helper`
 - pass along the resolved identifiers needed by the next skill:
   - automation/script: `entity_id`, `unique_id`, current config
-  - helper: `entity_id`, helper type, internal helper id when already known
+  - helper:
+    - storage-based family: `entity_id`, helper type, internal helper id when already known
+    - config-entry family: `entry_id`, domain, title, linked entities when already known
 - always pass along the requested change
 - keep this sequential: one skill at a time, never parallel
 

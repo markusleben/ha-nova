@@ -1,20 +1,29 @@
 ---
 name: helper
-description: Use when creating, updating, deleting, or listing Home Assistant helpers (input_boolean, input_number, input_text, input_select, input_datetime, input_button, counter, timer, schedule) through HA NOVA Relay.
+description: Use when creating, updating, deleting, or listing Home Assistant helpers (storage-based helpers plus the supported config-entry helper family) through HA NOVA Relay.
 ---
 
 # HA NOVA Helper
 
-
 ## Scope
 
-CRUD for storage-based helpers:
-- types: `input_boolean`, `input_number`, `input_text`, `input_select`, `input_datetime`, `input_button`, `counter`, `timer`, `schedule`
-- operations: `list`, `read`, `create`, `update`, `delete`
+`ha-nova:helper` has two helper families:
 
-Excluded: config-entry flow helpers (template, group, utility_meter, etc.) — these require a multi-step config flow, not WS CRUD.
+- **Storage-based family** — full CRUD for:
+  - `input_boolean`, `input_number`, `input_text`, `input_select`, `input_datetime`, `input_button`, `counter`, `timer`, `schedule`
+- **Config-entry family (PR1 foundation)** — list/read/create/delete for:
+  - `utility_meter`, `derivative`, `integration`, `min_max`, `threshold`, `tod`
 
-No config mutations on automations/scripts (use `ha-nova:write` for those).
+Config-entry family in this slice does **not** support update yet.
+If the user requests update for one of those six domains, say so explicitly and point them to the HA UI for now.
+
+Not handled here:
+
+- config-entry multi-step helper domains still owned by `ha-nova:fallback`:
+  - `group`, `statistics`, `history_stats`
+- other config-entry helper families:
+  - `template`, `trend`, `random`, `filter`, `generic_thermostat`, `switch_as_x`, `generic_hygrostat`
+- automations/scripts config mutations (use `ha-nova:write`)
 
 ## Bootstrap (once per session)
 
@@ -24,15 +33,24 @@ If this fails: `ha-nova setup`
 ## Relay Contract
 
 Write payloads with the client's native file-writing tool, then use:
+
 - `ha-nova relay ws --data-file <payload-file>`
-- `ha-nova relay ... --out <result-file>` for larger list/verify output
+- `ha-nova relay core --method <METHOD> --path <PATH> --body-file <payload-file>`
+- `ha-nova relay ... --out <result-file>` for larger read/verify output
 - `--jq-file <filter-file>` for non-trivial filters; keep inline `--jq` for short selectors only
+
+Family-specific transport:
+
+- **Storage-based family:** WS CRUD + WS list
+- **Config-entry family:** WS `config_entries/get` + WS entity-registry joins for list/read; relay `/core` for create/delete writes
 
 ## Flow
 
-### Listing helpers
+### Family 1: Storage-based helpers
 
-Use the compact entity registry (abbreviated keys: `ei`=entity_id, `en`=name, `ai`=area_id):
+#### Listing helpers
+
+Use the compact entity registry (abbreviated keys: `ei` = entity_id, `en` = name, `ai` = area_id).
 
 Create `<payload-file>` with `{"type":"config/entity_registry/list_for_display"}`, then run:
 
@@ -46,9 +64,9 @@ Write `<filter-file>` with:
 [.data.entities[] | (.ei | split(".")[0]) as $domain | select(["input_boolean","input_number","input_text","input_select","input_datetime","input_button","counter","timer","schedule"] | index($domain)) | {entity_id: .ei, name: .en, area_id: .ai}] | .[0:30]
 ```
 
-If user filters by type, narrow the `test()` regex to that single domain.
+If user filters by type, narrow the domain filter to that single storage-based domain.
 
-### Keyword search
+#### Keyword search
 
 ```text
 ha-nova relay ws --data-file <payload-file> --jq-file <filter-file>
@@ -62,7 +80,7 @@ Write `<filter-file>` with:
 
 If 0 results: try synonyms or shorter stems. Never dump entire domains.
 
-### Reading a single helper
+#### Reading a single helper
 
 1. Determine type from entity_id domain prefix.
 2. Fetch full config via type-specific list:
@@ -75,7 +93,7 @@ If 0 results: try synonyms or shorter stems. Never dump entire domains.
    ```
 3. No single-item read endpoint — always `{type}/list` + filter.
 
-### Creating a helper
+#### Creating a helper
 
 1. Validate intent against `skills/ha-nova/helper-schemas.md` for required/optional fields.
 2. Use-case defaults (create only, skip on update/delete):
@@ -93,116 +111,241 @@ If 0 results: try synonyms or shorter stems. Never dump entire domains.
    - User accepts all, picks by number, or says "skip".
    - Accepted → merge into payload BEFORE preview.
    - No useful defaults inferable → silently skip.
-3. Preview the payload:
-   ```
-   **Create Helper: {name}** ({type})
-   - {all fields being set}
-   ```
-   ```yaml
-   # WS payload
-   type: {type}/create
-   name: ...
-   ```
+3. Preview the payload.
 4. Ask for natural confirmation.
 5. Execute:
    ```text
    ha-nova relay ws --data-file <payload-file>
    ```
-6. Verify — list back and confirm new item exists:
-   ```text
-   ha-nova relay ws --data-file <payload-file> --jq-file <filter-file>
-   ```
-   Write `<filter-file>` with:
-   ```jq
-   [.data[] | select(.name == "{name}")]
-   ```
+6. Verify — list back and confirm new item exists.
 7. No domain reload needed — immediate effect.
-8. Run post-write review (see below).
+8. Run storage-family post-write review (see below).
 
-### Updating a helper
+#### Updating a helper
 
-1. Resolve target:
-   ```text
-   ha-nova relay ws --data-file <payload-file> --jq-file <filter-file>
-   ```
-   Write `<filter-file>` with:
-   ```jq
-   .data[]
-   ```
-   Match by `name` or `id`. If multiple matches: present candidates (max 5), ask one question.
-2. Extract `id` field from list response (this is the `{type}_id` for the update command).
-3. Preview: show current vs proposed values.
+1. Resolve target from `{type}/list` by `name` or internal `id`.
+2. Extract `id` from the list response (this is the `{type}_id` for the update command).
+3. Preview current vs proposed values.
 4. Ask for natural confirmation.
 5. Execute:
    ```text
    ha-nova relay ws --data-file <payload-file>
    ```
-6. Verify — list back and confirm fields match:
-   ```text
-   ha-nova relay ws --data-file <payload-file> --jq-file <filter-file>
-   ```
-   Write `<filter-file>` with:
-   ```jq
-   [.data[] | select(.id == "{id}")]
-   ```
-7. Run post-write review (see below).
+6. Verify by re-reading the same list item.
+7. Run storage-family post-write review (see below).
 
-### Deleting a helper
+#### Deleting a helper
 
-1. Resolve target (same as update step 1-2).
+1. Resolve target from `{type}/list`.
 2. Preview:
-   ```
-   **Delete Helper: {name}** ({type})
-   - **ID:** {id}
-   ```
-3. Token confirmation: `confirm:<token>` (strict: only exact token accepted, see context skill → Safety Baseline).
+   - name
+   - type
+   - internal `id`
+3. Token confirmation: `confirm:<token>` (strict: only exact token accepted; see context skill → Safety Baseline).
 4. Execute:
    ```text
    ha-nova relay ws --data-file <payload-file>
    ```
-5. Verify — confirm item is absent:
+5. Verify absence from `{type}/list`.
+
+### Family 2: Config-entry helpers (PR1 foundation)
+
+Canonical config-entry helper item:
+
+- `entry_id`
+- `domain`
+- `title`
+- `state`
+- `linked_entities[]`
+
+`entry_id` is the canonical identity for write operations.
+If the user gives only a linked `entity_id`, resolve it back to `config_entry_id` through the full entity registry before continuing.
+
+#### Supported domains in this slice
+
+- `utility_meter`
+- `derivative`
+- `integration`
+- `min_max`
+- `threshold`
+- `tod`
+
+#### Listing helpers
+
+1. Read all config entries:
    ```text
-   ha-nova relay ws --data-file <payload-file> --jq-file <filter-file>
+   ha-nova relay ws --data-file <payload-file> --out <entries-file>
    ```
-   Write `<filter-file>` with:
-   ```jq
-   [.data[] | select(.id == "{id}")]
+   with `{"type":"config_entries/get"}`.
+2. Read full entity registry:
+   ```text
+   ha-nova relay ws --data-file <payload-file> --out <registry-file>
    ```
-   `passed=true` only when result is empty.
+   with `{"type":"config/entity_registry/list"}`.
+3. Filter config entries to the six supported domains.
+4. Join linked entities by matching `config_entry_id`.
+5. Present a compact table with:
+   - title
+   - domain
+   - `entry_id`
+   - state
+   - linked entities (compact comma-separated summary)
+
+#### Keyword search
+
+Search against:
+
+- config-entry `title`
+- `domain`
+- linked `entity_id`
+- linked original/display names when available
+
+If multiple matches remain, present max 5 candidates and ask one blocking question.
+
+#### Reading a single helper
+
+1. Resolve by one of:
+   - `entry_id`
+   - config-entry title
+   - linked `entity_id`
+2. Re-read `config_entries/get`.
+3. Re-read full entity registry and attach `linked_entities[]`.
+4. Present the canonical item:
+
+```text
+**Helper: {title}** (config-entry `{domain}`)
+- **Entry ID:** {entry_id}
+- **State:** {state}
+- **Linked entities:** {linked_entities summary}
+- **Supports update:** not in this slice
+```
+
+#### Creating a helper
+
+1. Validate the requested domain against `skills/ha-nova/helper-flow-schemas.md`.
+2. For this slice, all six supported create flows were observed locally as:
+   - `step_id: user`
+   - `last_step: true`
+3. Prepare the final field set using the domain-specific section in `skills/ha-nova/helper-flow-schemas.md`.
+4. Preview:
+   - title/name
+   - domain
+   - all submitted fields
+5. Ask for natural confirmation.
+6. Start the flow:
+   ```text
+   ha-nova relay core --method POST --path /api/config/config_entries/flow --body-file <payload-file>
+   ```
+7. Submit the single observed form step:
+   ```text
+   ha-nova relay core --method POST --path /api/config/config_entries/flow/{flow_id} --body-file <payload-file>
+   ```
+8. Verify success at the config-entry layer first:
+   - re-read `config_entries/get`
+   - confirm an entry for the domain/title now exists
+9. Resolve `linked_entities[]` through the entity registry as secondary evidence only.
+10. Run config-entry-family post-write review (see below).
+
+#### Updating a helper
+
+Not supported in this PR1 slice for the config-entry family.
+
+If the user requests update for one of the six config-entry domains:
+
+- say that config-entry helper update is not delivered in this slice
+- do not guess an options-flow payload
+- do not silently fall back to delete+create
+- point the user to the HA UI for now
+
+#### Deleting a helper
+
+1. Resolve target to `entry_id`.
+2. Preview:
+   - title
+   - domain
+   - `entry_id`
+   - linked entities if known
+3. Token confirmation: `confirm:<token>` (strict exact-token rule).
+4. Execute:
+   ```text
+   ha-nova relay core --method DELETE --path /api/config/config_entries/entry/{entry_id}
+   ```
+5. Verify success at the config-entry layer first:
+   - re-read `config_entries/get`
+   - `passed=true` only when the `entry_id` is absent
+6. Entity disappearance is secondary evidence only — do not fail the delete just because registry/state cleanup lags.
+7. Run config-entry-family post-write review (see below).
 
 ### Post-write review (MANDATORY)
 
-Do NOT report results to user until complete. Run after every create/update/delete:
+Do NOT report results to user until complete.
 
-1. Enter via `skills/review/SKILL.md` Step 1. Apply H-01..H-08 directly to the written helper config. Only evaluate H-09/H-10 if the collision scan finds a referencing automation/script with a direct helper-backed threshold and you also read live helper state per `skills/review/checks.md`.
-2. Collision scan: `search/related` for helper entity, check referencing automations/scripts (max 3).
-   ```text
-   ha-nova relay ws --data-file <payload-file>
-   ```
-3. Response MUST include a Post-Write Review section with localized headings (see `skills/ha-nova/SKILL.md` → Output Localization):
-   - **Findings**: 🔴🟠🟡 findings with descriptive titles + fix suggestions, or localized "no issues found"
-   - **Collision check**: referencing automations/scripts, or localized "no references found"
-   - **Advisory**: 🟠🟡 findings, or omit if none
+#### Storage-based family
 
-Findings are advisory — write already succeeded. User can choose to update.
+1. Enter via `skills/review/SKILL.md` Step 1.
+2. Apply H-01..H-08 directly to the written helper config.
+3. Only evaluate H-09/H-10 if the collision scan finds a referencing automation/script with a direct helper-backed threshold and you also read live helper state per `skills/review/checks.md`.
+4. Collision scan: `search/related` for the helper entity, max 3 related automations/scripts.
+
+#### Config-entry family
+
+Do not pretend H-01..H-10 apply here.
+Instead, run the minimal config-entry post-write contract:
+
+1. **Verification**
+   - create: config entry now exists
+   - delete: config entry is absent
+2. **Linked entities**
+   - read linked entities from entity registry when available
+   - treat them as secondary evidence only
+3. **Collision check**
+   - if linked entities were found, run `search/related` against up to 3 linked entities
+4. **Advisory**
+   - say that storage-helper H-01..H-10 checks do not apply to this family in this slice
+
+Response MUST still include a localized Post-Write Review section with:
+
+- **Findings**
+- **Collision check**
+- **Advisory**
 
 ## Output Format
 
-After reading a helper config, present a structured summary:
+### Storage-based family
 
-```
+After reading a helper config, present:
+
+```text
 **Helper: {name}** ({type})
 - **Entity ID:** {entity_id}
 - **Unique ID:** {id}
 - **Icon:** {icon}
-- {type-specific fields (min/max, options, duration, etc.)}
+- {type-specific fields}
 ```
 
-For list operations, use a compact table:
+For list operations, use:
 
-```
+```text
 | Entity ID | Name | Type | Area |
 |-----------|------|------|------|
+```
+
+### Config-entry family
+
+After reading a helper config, present:
+
+```text
+**Helper: {title}** (config-entry `{domain}`)
+- **Entry ID:** {entry_id}
+- **State:** {state}
+- **Linked entities:** {linked_entities}
+```
+
+For list operations, use:
+
+```text
+| Title | Domain | Entry ID | State | Linked Entities |
+|-------|--------|----------|-------|-----------------|
 ```
 
 Never show raw JSON to the user.
@@ -210,10 +353,11 @@ Never show raw JSON to the user.
 ## Safety
 
 - Preview before every write
-- No guessing entity_ids or unique_ids; resolve or ask
+- No guessing entity IDs, linked entities, or config entry IDs; resolve or ask
+- `entry_id` is the canonical write identity for the config-entry family
 - Delete requires tokenized confirmation
 - All HA communication through `ha-nova relay` only
-- Every write MUST end with `## Post-Write Review`. Skipping it is a skill violation.
+- Every write MUST end with `## Post-Write Review`
 
 ## Guardrails
 
@@ -221,9 +365,11 @@ Never show raw JSON to the user.
 - Max 5 candidates on ambiguity
 - Max 3 related configs in collision scan
 - Never use raw `get_states`
+- For config-entry helpers, success/failure is config-entry-first, not entity-first
 
 ## References
 
-- Relay API: `skills/ha-nova/relay-api.md` (see "Helper CRUD" section)
-- Helper Schemas: `skills/ha-nova/helper-schemas.md`
-- Review Checks: `skills/review/SKILL.md` (entrypoint) + `skills/review/checks.md` (H-01..H-10 catalog)
+- Relay API: `skills/ha-nova/relay-api.md`
+- Storage helper schemas: `skills/ha-nova/helper-schemas.md`
+- Config-entry helper schemas: `skills/ha-nova/helper-flow-schemas.md`
+- Review Checks: `skills/review/SKILL.md` (entrypoint) + `skills/review/checks.md` (storage helper catalog)

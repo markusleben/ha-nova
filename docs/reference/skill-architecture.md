@@ -129,16 +129,36 @@ Fallback:
 
 ## Helper Architecture
 
-`ha-nova:helper` handles CRUD for 9 storage-based helper types via WebSocket commands:
-- Types: `input_boolean`, `input_number`, `input_text`, `input_select`, `input_datetime`, `input_button`, `counter`, `timer`, `schedule`
-- Transport: WS (`{type}/create`, `{type}/update`, `{type}/delete`) — not REST `/core`
-- Identity: `{type}_id` (internal unique_id from list), not entity_id
-- All operations inline (no agents) — configs are flat, no complex resolution or normalization needed
-- Write: WS `{type}/create|update|delete` + `{type}/list` verify
-- Review: H-01..H-10 helper-specific checks + collision scan via `search/related`
-- No domain reload needed — storage-based, immediate effect
+`ha-nova:helper` now has two explicit helper families:
 
-Excluded: config-entry flow helpers (template, group, utility_meter) — different API pattern.
+- **Storage-based family**
+  - Types: `input_boolean`, `input_number`, `input_text`, `input_select`, `input_datetime`, `input_button`, `counter`, `timer`, `schedule`
+  - Transport: WS (`{type}/create`, `{type}/update`, `{type}/delete`)
+  - Identity: `{type}_id` from `{type}/list`, not entity_id
+  - Write verify: `{type}/list`
+  - Review: H-01..H-10 helper-specific checks + collision scan via `search/related`
+  - No domain reload needed
+
+- **Config-entry family (PR1 foundation)**
+  - Types in this slice: `utility_meter`, `derivative`, `integration`, `min_max`, `threshold`, `tod`
+  - Read/list: WS `config_entries/get` + WS `config/entity_registry/list`
+  - Mutation transport: relay `/core`
+  - Identity: `entry_id` is canonical; linked `entity_id` values are derived only
+  - Write verify: config-entry layer first (`config_entries/get`), entity registry second
+  - Review: minimal config-entry post-write contract, not H-01..H-10
+
+Still excluded from `ha-nova:helper` in this slice:
+
+- `group`
+- `statistics`
+- `history_stats`
+- `template`
+- `trend`
+- `random`
+- `filter`
+- `generic_thermostat`
+- `switch_as_x`
+- `generic_hygrostat`
 
 ## Fallback Architecture
 
