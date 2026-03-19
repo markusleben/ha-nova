@@ -53,18 +53,21 @@ Use `ha-nova relay` for all HA communication. It handles auth, headers, and time
 2. Execute write through `/core`:
    - create/update: method `POST`, body = confirmed payload
    - delete: method `DELETE`, no body
-3. Execute read-back through `/core` GET.
-4. Normalize before compare:
+3. Execute config read-back through `/core` GET.
+4. For create/update, reload domain via `/core`:
+   - automation: `POST /api/services/automation/reload` with empty body `{}`
+   - script: `POST /api/services/script/reload` with empty body `{}`
+5. For create/update, resolve the actual `entity_id` from entity registry by matching `unique_id == {TARGET_ID}`.
+6. For create/update, read `/api/states/{entity_id}` to confirm runtime presence.
+7. Normalize before compare:
    - `trigger` + `triggers`
    - `condition` + `conditions`
    - `action` + `actions`
-5. Compare expected payload vs observed payload for write operations.
-6. Self-review:
+8. Compare expected payload vs observed payload for write operations.
+9. Self-review:
    - same target id in write and verify
    - no unexpected field changes introduced
-7. For create/update, reload domain via `/core`:
-   - automation: `POST /api/services/automation/reload` with empty body `{}`
-   - script: `POST /api/services/script/reload` with empty body `{}`
+   - actual entity_id and runtime state confirmed for create/update
 
 ## Error Policy
 
@@ -72,8 +75,12 @@ Use `ha-nova relay` for all HA communication. It handles auth, headers, and time
   - `success=false`
   - include `write_status`
   - set verification details: `Read-back failed`
+- Write success + registry/state verification failure:
+  - `success=false`
+  - include `write_status`
+  - set verification details: `Config saved, but actual entity/runtime state could not be confirmed`
 - Timeout:
-  - report timeout with phase (`write` or `read-back`)
+  - report timeout with phase (`write`, `read-back`, `reload`, or `runtime-verify`)
   - include retry guidance
 - Delete verification:
   - `passed=true` only when target is absent on read-back
@@ -94,6 +101,8 @@ Return exactly these sections:
 
 `VERIFICATION:`
 - `passed: true|false`
+- `actual_entity_id: <entity_id|unknown>`
+- `runtime_state: <state|unknown>`
 - `expected: <compact json|none>`
 - `observed: <compact json|none>`
 - `details: <short text>`

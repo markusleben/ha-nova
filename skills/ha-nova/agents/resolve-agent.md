@@ -55,11 +55,11 @@ Use `ha-nova relay` for all HA communication. It handles auth, headers, and time
    [.data.entities[] | select((.ei + " " + (.en // "")) | test("KEYWORD";"i")) | {entity_id: .ei, name: .en, area_id: .ai}]
    ```
 3. Resolve target config id:
-   - try entity_id slug first (part after `automation.` or `script.`)
-   - check existence with `/core` GET:
-     - automation: `/api/config/automation/config/{slug}`
-     - script: `/api/config/script/config/{slug}`
-   - if 404: resolve `unique_id` from full entity registry (`config/entity_registry/list`) and retry with that
+   - for update/delete, resolve `unique_id` from entity registry first
+   - exact entity_id known -> use `config/entity_registry/get`
+   - shortlist only -> use full entity registry (`config/entity_registry/list`) and match the winning candidate to `unique_id`
+   - use the resolved `unique_id` as the config id for `/api/config/{domain}/config/{id}`
+   - do not probe config endpoints with the slug first; slug is only a naming convenience for creates
 4. If target exists, capture `current_config` from read-back.
 5. Best-practice snapshot (automation domain only; skip for scripts):
    - Read from `${HOME}/.cache/ha-nova/automation-bp-snapshot.json`

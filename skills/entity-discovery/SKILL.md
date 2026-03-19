@@ -14,6 +14,8 @@ Use for:
 - resolving likely targets before writes
 
 Read-only behavior.
+- No `POST`, `PUT`, `PATCH`, or `DELETE` relay writes.
+- If the user moves from discovery to mutation, stop after resolution and hand off to the write-capable skill.
 
 ## Bootstrap (once per session)
 

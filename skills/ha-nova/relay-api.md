@@ -75,10 +75,21 @@ ha-nova relay ws --data-file <payload-file> --jq .data.unique_id
 
 Use the resolved `unique_id` with:
 - Config reads: `GET /api/config/automation/config/{unique_id}`
+- Config writes/deletes: `POST|DELETE /api/config/automation/config/{unique_id}`
 - Trace list: `trace/list` with `"item_id":"{unique_id}"`
 - Trace get: `trace/get` with `"item_id":"{unique_id}"`
 
-**Do NOT use the entity_id slug** for config reads or traces — it will return empty results or 404 for UI-created items.
+**Do NOT use the entity_id slug** as the authoritative id for existing-item config reads, writes, deletes, or traces.
+
+## Post-Write Verification (automation/script)
+
+For create/update verification:
+1. read back config via `GET /api/config/{domain}/config/{unique_id}`
+2. reload the domain service
+3. query entity registry and match `unique_id` to the actual `entity_id`
+4. read `/api/states/{entity_id}` to confirm runtime presence
+
+If the actual `entity_id` differs from expectation, surface the real slug and offer a rename/refactor follow-up instead of silently assuming the requested slug won.
 
 ## /ws Contract
 
@@ -237,11 +248,25 @@ Trace response includes: `trace.trigger`, `trace.condition`, `trace.action` node
 - `502 / UPSTREAM_WS_ERROR`: relay could not reach HA websocket/upstream
 - `504 / TIMEOUT`: relay upstream request timed out
 
-## Curl Timeouts
+## Timeout and Retry Guidance
 
 For mutating and verify-critical calls use:
 - `--connect-timeout 5`
 - `--max-time 15`
+
+On `504 / TIMEOUT`:
+- verify state/config first before retrying
+- retry exactly once only when verification shows no state change
+- if config read-back succeeded but reload timed out, treat it as partial verification and confirm registry/state before retrying
+
+## Safe Bulk Patterns
+
+For bulk inspection or review preparation:
+1. save discovery output with `--out <result-file>`
+2. keep JSON filtering in `--jq-file` or `ha-nova relay jq --file <result-file>`
+3. iterate over the saved shortlist with native file/loop tools
+
+Do not rely on external `jq` pipes as the canonical path.
 
 ## Runtime Env
 

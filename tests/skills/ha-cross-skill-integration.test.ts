@@ -95,4 +95,21 @@ describe("ha cross-skill integration", () => {
     expect(refactorGuide).toContain("directly affected consumers");
     expect(refactorGuide).toContain("Do not rewrite, rename, disable, or delete unrelated configs");
   });
+
+  it("keeps write flow aligned to unique_id-first resolution and runtime verification", () => {
+    const writeSkill = readFileSync("skills/write/SKILL.md", "utf8");
+    const resolveAgent = readFileSync("skills/ha-nova/agents/resolve-agent.md", "utf8");
+    const applyAgent = readFileSync("skills/ha-nova/agents/apply-agent.md", "utf8");
+
+    expect(resolveAgent).toContain("resolve `unique_id` from entity registry first");
+    expect(resolveAgent).toContain("do not probe config endpoints with the slug first");
+
+    expect(applyAgent).toContain("actual `entity_id`");
+    expect(applyAgent).toContain("/api/states/{entity_id}");
+    expect(applyAgent).toContain("runtime_state");
+
+    expect(writeSkill).toContain("entity_id -> unique_id");
+    expect(writeSkill).toContain("resolve the actual `entity_id` from entity registry");
+    expect(writeSkill).toContain("do not silently assume the requested slug won");
+  });
 });

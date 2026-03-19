@@ -149,6 +149,15 @@ Match user intent to exactly one skill:
 **"Modify my dashboard"** → `ha-nova:fallback` (NEVER raw `lovelace/config/save` without this skill)
 **"Save the Lovelace config"** → `ha-nova:fallback` (NEVER direct WS write without read-merge-verify)
 
+After any `read` or `review` task, re-evaluate intent once before continuing:
+- config change on automation/script → `ha-nova:write`
+- helper change → `ha-nova:helper`
+- pass along the resolved identifiers needed by the next skill:
+  - automation/script: `entity_id`, `unique_id`, current config
+  - helper: `entity_id`, helper type, internal helper id when already known
+- always pass along the requested change
+- keep this sequential: one skill at a time, never parallel
+
 **Problem-description intents** ("X doesn't work", "Y is wrong", "stopped working"): dispatch to `ha-nova:review`. Review will analyze the config AND check current entity state — if an acute fix is possible, it offers a Quick-Fix service call at the end.
 
 ## Latency Policy

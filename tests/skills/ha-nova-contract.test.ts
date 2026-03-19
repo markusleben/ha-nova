@@ -21,6 +21,17 @@ describe("ha-nova contract", () => {
     expect(context).not.toContain("Orchestration Hard Gate");
   });
 
+  it("keeps sequential intent re-dispatch guidance in the context skill", () => {
+    const context = readFileSync("skills/ha-nova/SKILL.md", "utf8");
+
+    expect(context).toContain("re-evaluate intent once before continuing");
+    expect(context).toContain("config change on automation/script → `ha-nova:write`");
+    expect(context).toContain("helper change → `ha-nova:helper`");
+    expect(context).toContain("automation/script: `entity_id`, `unique_id`, current config");
+    expect(context).toContain("helper: `entity_id`, helper type, internal helper id when already known");
+    expect(context).toContain("one skill at a time, never parallel");
+  });
+
   it("uses App terminology in active fallback skill surfaces", () => {
     const context = readFileSync("skills/ha-nova/SKILL.md", "utf8");
     const fallback = readFileSync("skills/fallback/SKILL.md", "utf8");
@@ -97,6 +108,11 @@ describe("ha-nova contract", () => {
     expect(relayApi).toContain("/api/config/automation/config/{id}");
     expect(relayApi).toContain("/api/config/script/config/{id}");
     expect(relayApi).toContain("UPSTREAM_WS_ERROR");
+    expect(relayApi).toContain("Config writes/deletes");
+    expect(relayApi).toContain("Post-Write Verification");
+    expect(relayApi).toContain("Timeout and Retry Guidance");
+    expect(relayApi).toContain("Safe Bulk Patterns");
+    expect(relayApi).toContain("Do not rely on external `jq` pipes");
   });
 
   it("documents tiered best-practice gate", () => {
@@ -141,6 +157,7 @@ describe("ha-nova contract", () => {
     expect(apply).toContain("trigger` + `triggers");
     expect(apply).toContain("automation/reload");
     expect(apply).toContain("script/reload");
+    expect(apply).toContain("`write`, `read-back`, `reload`, or `runtime-verify`");
 
     const review = readFileSync("skills/ha-nova/agents/review-agent.md", "utf8");
 
@@ -350,6 +367,16 @@ describe("ha-nova contract", () => {
     expect(fallback).not.toContain("--path '/api/history/");
     expect(fallback).not.toContain("--path '/api/logbook/");
     expect(fallback).not.toContain("--path '/api/calendars/");
+  });
+
+  it("keeps migration and search-related guidance in the shared refactoring doc", () => {
+    const refactorGuide = readFileSync("skills/ha-nova/safe-refactoring.md", "utf8");
+
+    expect(refactorGuide).toContain("Safe Migration Pattern");
+    expect(refactorGuide).toContain("Review -> Write/Helper -> Verify -> Review");
+    expect(refactorGuide).toContain("search/related Signal Strength");
+    expect(refactorGuide).toContain("Helpers: strong signal");
+    expect(refactorGuide).toContain("Scenes: weak signal");
   });
 
   it("avoids jq regex-dot escaping in helper-domain examples", () => {

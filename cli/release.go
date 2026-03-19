@@ -37,9 +37,11 @@ func rawBinaryAssetName() string {
 	return name
 }
 
-func fetchLatestRelease(paths runtimePaths, quiet bool) (releaseInfo, error) {
-	if cached, ok := loadCachedRelease(paths); ok {
-		return cached, nil
+func fetchLatestRelease(paths runtimePaths, quiet bool, allowCache bool) (releaseInfo, error) {
+	if allowCache {
+		if cached, ok := loadCachedRelease(paths); ok {
+			return cached, nil
+		}
 	}
 
 	req, err := http.NewRequest("GET", latestReleaseURL, nil)
@@ -83,7 +85,7 @@ func buildUpdateCheckResult(paths runtimePaths) updateCheckResult {
 		Source:         "github_releases",
 	}
 
-	release, err := fetchLatestRelease(paths, true)
+	release, err := fetchLatestRelease(paths, true, true)
 	if err != nil {
 		result.CacheStatus = cacheStatus
 		result.Status = "check_failed"
