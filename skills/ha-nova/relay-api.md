@@ -178,9 +178,9 @@ No domain reload needed — storage-based helpers take effect immediately.
 
 See `skills/ha-nova/helper-schemas.md` for type-specific fields and constraints.
 
-## Config-Entry Helper Foundation
+## Config-Entry Helpers
 
-PR1 foundation domains:
+Supported helper domains:
 
 - `utility_meter`
 - `derivative`
@@ -188,6 +188,11 @@ PR1 foundation domains:
 - `min_max`
 - `threshold`
 - `tod`
+- `statistics`
+- `group`
+- `history_stats`
+
+`group` is menu-driven; the live-proven end-to-end subtype is `sensor`, and other subtypes must stay anchored to the live step schema instead of guessed fields.
 
 Canonical identity: `entry_id`
 
@@ -196,6 +201,12 @@ List/read source:
 ```json
 {"type":"config_entries/get"}
 {"type":"config/entity_registry/list"}
+```
+
+Current editable options readback:
+
+```json
+{"method":"POST","path":"/api/config/config_entries/options/flow","body":{"handler":"<entry_id>","show_advanced_options":false}}
 ```
 
 Create flow:
@@ -211,6 +222,21 @@ Use separate payload files for those two calls:
 - capture `flow_id` from the flow-start response before calling `/flow/{flow_id}`
 - flow submit payload = step form fields only
 
+Update flow:
+
+```json
+{"method":"POST","path":"/api/config/config_entries/options/flow","body":{"handler":"<entry_id>","show_advanced_options":false}}
+{"method":"POST","path":"/api/config/config_entries/options/flow/{flow_id}","body":{"field":"value"}}
+```
+
+Use the live current options step as the update merge base:
+
+- read current field values from `description.suggested_value`
+- if a requested field is exposed but lacks `description.suggested_value`, fail loud instead of guessing the current value
+- carry forward unchanged required fields
+- do not submit read-only fields
+- if the entry exposes no options flow on the running HA version, fail loud as unsupported update
+
 Delete:
 
 ```json
@@ -224,11 +250,19 @@ Verification rules:
 - the before/after fallback requires a pre-create `config_entries/get` baseline
 - the before/after fallback passes only when exactly one new `entry_id` appeared and that new entry matches the requested domain/title
 - if the fallback diff is empty, plural, or metadata-inconsistent, fail loud as ambiguous create verification
-- use `config_entries/get` as the source of truth
+- update success = the same `entry_id` still exists in `config_entries/get` and a reopened options flow shows the requested changed editable fields in `description.suggested_value`
+- if a requested changed field is exposed in the verification step but lacks `description.suggested_value`, fail loud as unverifiable update on this HA version
+- use `config_entries/get` as the source of truth for identity/existence
 - resolve linked entities from `config/entity_registry/list` by matching `config_entry_id`
 - linked entity appearance/disappearance is secondary evidence only
 
-See `skills/ha-nova/helper-flow-schemas.md` for the observed PR1 field sets.
+Observed locally on Markus's HA on 2026-03-19:
+
+- all 9 supported domains completed real create/update/delete loops through relay `/core`
+- raw WS `config_entries/flow` did not succeed in this session
+- field-level update verification required reopening the options flow
+
+See `skills/ha-nova/helper-flow-schemas.md` for the observed field sets and domain-specific notes.
 
 ## Domain Payload Rules
 

@@ -119,8 +119,31 @@ describe("ha-nova contract", () => {
     expect(apiMatrix).toContain("WS | `config_entries/get` | Retrieve config-entry metadata");
     expect(apiMatrix).toContain("`POST /api/config/config_entries/flow`");
     expect(apiMatrix).toContain("`POST /api/config/config_entries/flow/{flow_id}`");
+    expect(apiMatrix).toContain("`POST /api/config/config_entries/options/flow`");
+    expect(apiMatrix).toContain("`POST /api/config/config_entries/options/flow/{flow_id}`");
     expect(apiMatrix).toContain("`DELETE /api/config/config_entries/entry/{entry_id}`");
     expect(apiMatrix).toContain("raw WS `config_entries/flow` did not succeed in this session");
+    expect(apiMatrix).toContain("Helper-owned config-entry domains");
+    expect(apiMatrix).toContain("live-proven end-to-end subtype is `sensor`");
+  });
+
+  it("keeps the architecture exclusion boundary aligned with helper-owned config-entry domains", () => {
+    const architecture = readFileSync(
+      "docs/reference/skill-architecture.md",
+      "utf8",
+    );
+
+    expect(architecture).toContain("Still excluded from `ha-nova:helper`:");
+    expect(architecture).toContain("- `template`");
+    expect(architecture).toContain("- `trend`");
+    expect(architecture).toContain("- `random`");
+    expect(architecture).toContain("- `filter`");
+    expect(architecture).toContain("- `generic_thermostat`");
+    expect(architecture).toContain("- `switch_as_x`");
+    expect(architecture).toContain("- `generic_hygrostat`");
+    expect(architecture).not.toContain("Still excluded from `ha-nova:helper`:\n- `group`");
+    expect(architecture).not.toContain("Still excluded from `ha-nova:helper`:\n- `statistics`");
+    expect(architecture).not.toContain("Still excluded from `ha-nova:helper`:\n- `history_stats`");
   });
 
   it("documents tiered best-practice gate", () => {

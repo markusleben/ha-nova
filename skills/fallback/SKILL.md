@@ -44,7 +44,7 @@ For every Relay-Ready call in this skill:
 | Automations CRUD | Covered | read / write |
 | Scripts CRUD | Covered | read / write |
 | Config Review | Covered | review |
-| Helpers (9 storage + 6 config-entry foundation) | Covered | helper |
+| Helpers (9 storage + 9 config-entry) | Covered | helper |
 | Entity Search | Covered | entity-discovery |
 | Service Calls | Covered | service-call |
 | Relay Setup | Covered | onboarding |
@@ -234,7 +234,7 @@ Use `<calendar-events-path>` for the full `/api/calendars/<calendar_id>?start=..
 
 ### Other Config-Entry Helpers -- RELAY-READY
 
-Create config-entry helper types that are not yet owned by `ha-nova:helper`.
+Handle unsupported config-entry helper types that are not yet owned by `ha-nova:helper`.
 
 Owned by `ha-nova:helper` now:
 
@@ -244,12 +244,12 @@ Owned by `ha-nova:helper` now:
 - `min_max`
 - `threshold`
 - `tod`
+- `statistics`
+- `group`
+- `history_stats`
 
 Still handled here:
 
-- `group`
-- `statistics`
-- `history_stats`
 - `template`
 - `trend`
 - `random`
@@ -258,20 +258,29 @@ Still handled here:
 - `switch_as_x`
 - `generic_hygrostat`
 
-**Search:** `home assistant config entry flow helper template group utility_meter api 2026`
+**Search:** `home assistant config entry flow helper template trend random filter generic_thermostat api 2026`
 
-**Supported types in this fallback section:** `group`, `statistics`, `history_stats`, `template`, `trend`, `random`, `filter`, `generic_thermostat`, `switch_as_x`, `generic_hygrostat`
+**Supported types in this fallback section:** `template`, `trend`, `random`, `filter`, `generic_thermostat`, `switch_as_x`, `generic_hygrostat`
 
 **Experimental relay calls (no skill guardrails):**
 ```text
-# Start flow
-ha-nova relay ws --data-file <payload-file>
+# Start create/reconfigure flow
+ha-nova relay core --method POST --path /api/config/config_entries/flow --body-file <payload-file>
 
-# Submit step (use fields from previous response's data_schema)
-ha-nova relay ws --data-file <payload-file>
+# Submit create/reconfigure step
+ha-nova relay core --method POST --path /api/config/config_entries/flow/{flow_id} --body-file <payload-file>
+
+# Start options flow for update when supported
+ha-nova relay core --method POST --path /api/config/config_entries/options/flow --body-file <payload-file>
+
+# Submit options step
+ha-nova relay core --method POST --path /api/config/config_entries/options/flow/{flow_id} --body-file <payload-file>
+
+# Delete unsupported config-entry helper by entry_id
+ha-nova relay core --method DELETE --path /api/config/config_entries/entry/{entry_id}
 ```
 
-**Risks:** Multi-step flows are complex. Each step returns the next step's schema. Easy to get wrong. Prefer HA UI for these.
+**Risks:** Multi-step flows are complex. Each step returns the next step's schema. Update support can be domain- and version-specific. Delete requires correct `entry_id` resolution first. Prefer HA UI for these.
 
 ### Entity Registry Edits -- RELAY-READY
 

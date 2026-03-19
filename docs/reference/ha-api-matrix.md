@@ -74,11 +74,15 @@ Which HA operations require REST, WS, or filesystem?
 | WS | `config_entries/get` | Retrieve config-entry metadata |
 | `/core` | `POST /api/config/config_entries/flow` | Start flow |
 | `/core` | `POST /api/config/config_entries/flow/{flow_id}` | Submit flow step |
+| `/core` | `POST /api/config/config_entries/options/flow` | Start options flow for an existing entry |
+| `/core` | `POST /api/config/config_entries/options/flow/{flow_id}` | Submit options-flow step |
 | `/core` | `DELETE /api/config/config_entries/entry/{entry_id}` | Delete config entry |
 
 Observed locally on Markus's HA on 2026-03-19: raw WS `config_entries/flow` did not succeed in this session; relay `/core` returned the expected config-flow responses.
 
-**Supported flow helpers:** template, group, utility_meter, derivative, min_max, threshold, integration, statistics, trend, random, filter, tod, generic_thermostat, switch_as_x, generic_hygrostat
+**Helper-owned config-entry domains:** utility_meter, derivative, integration, min_max, threshold, tod, statistics, group, history_stats
+`group` is menu-driven; the live-proven end-to-end subtype is `sensor`, and other subtypes must stay anchored to the live step schema instead of guessed fields.
+**Fallback-owned flow helpers:** template, trend, random, filter, generic_thermostat, switch_as_x, generic_hygrostat
 
 ### Dashboard / Lovelace
 | WS Type | Purpose |

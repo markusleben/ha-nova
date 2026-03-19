@@ -60,23 +60,23 @@ describe("review contract", () => {
     expect(helperSkill).toContain("direct helper-backed threshold");
     expect(helperSkill).toContain("Do not pretend H-01..H-10 apply here");
     expect(helperSkill).toContain("minimal config-entry post-write contract");
-    expect(reviewSkill).toContain("Helper (config-entry family, PR1 foundation): metadata-only review");
+    expect(reviewSkill).toContain("Helper (config-entry family): minimal config-entry review");
     expect(reviewSkill).toContain("do not apply H-01..H-10");
-    expect(reviewAgent).toContain("metadata-only review");
+    expect(reviewAgent).toContain("minimal config-entry review");
     expect(reviewAgent).toContain("Do not apply H-01..H-10");
   });
 
-  it("documents config-entry helper target resolution before metadata-only review", () => {
-    expect(reviewSkill).toContain("config-entry helper review is metadata-only in this slice, but target resolution must still normalize to a real `entry_id`");
+  it("documents config-entry helper target resolution before minimal review", () => {
+    expect(reviewSkill).toContain("config-entry helper review remains minimal, but target resolution must still normalize to a real `entry_id`");
     expect(reviewSkill).toContain('{"type":"config_entries/get"}');
     expect(reviewSkill).toContain('{"type":"config/entity_registry/list"}');
     expect(reviewSkill).toContain("exact `entry_id`");
     expect(reviewSkill).toContain("linked `entity_id` by matching entity-registry `config_entry_id`");
     expect(reviewSkill).toContain("Skip this step for config-entry helpers — `entry_id` is already the canonical identity.");
     expect(reviewSkill).toContain("For config-entry helpers, persist the canonical metadata item from step 2 to `<target-file>`");
-    expect(reviewSkill).toContain("For standalone config-entry helper review in this PR1 slice, skip this step entirely.");
-    expect(reviewSkill).toContain("If the target already in context is a config-entry helper metadata item: skip Target Resolution entirely and go straight to the metadata-only helper review lane in Step 1.");
-    expect(reviewSkill).toContain("Do not attempt primary-controlled-entity state reads or Quick-Fix detection from that metadata-only path.");
+    expect(reviewSkill).toContain("For standalone config-entry helper review, skip this step entirely.");
+    expect(reviewSkill).toContain("If the target already in context is a config-entry helper metadata item: skip Target Resolution entirely and go straight to the config-entry helper review lane in Step 1.");
+    expect(reviewSkill).toContain("Do not attempt primary-controlled-entity state reads or Quick-Fix detection from that path.");
     expect(reviewSkill).toContain("in Step 2, derive collision candidates from `linked_entities[]`, not from config actions");
     expect(reviewSkill).toContain("config-entry helper metadata item: use `linked_entities[]` from the canonical metadata item; do not attempt action extraction");
     expect(reviewSkill).toContain("helper (config-entry family): use up to 3 `linked_entities[]` from the canonical metadata item");
@@ -117,5 +117,11 @@ describe("review contract", () => {
     expect(reviewSkill).toContain("R-17 is an intra-config branch comparison only");
     expect(reviewAgent).toContain("Do not derive it from collision-scan matches");
     expect(architectureDoc).toContain("R-17` is intra-config only");
+  });
+
+  it("keeps standalone config-entry helper review aligned to the 9 helper-owned domains", () => {
+    expect(reviewSkill).toContain("supported config-entry family: domain is one of `utility_meter`, `derivative`, `integration`, `min_max`, `threshold`, `tod`, `statistics`, `group`, `history_stats`");
+    expect(reviewSkill).toContain("Helper (config-entry family): minimal config-entry review");
+    expect(reviewAgent).toContain("**Helper (config-entry family):** minimal config-entry review");
   });
 });

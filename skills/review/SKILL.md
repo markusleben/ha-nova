@@ -35,8 +35,8 @@ If user provides an exact automation/script `entity_id` (e.g., `automation.kitch
 
 For helpers, resolve the family first:
 - storage-based family: entity_id domain is one of `input_boolean`, `input_number`, `input_text`, `input_select`, `input_datetime`, `input_button`, `counter`, `timer`, `schedule`
-- config-entry family in this PR1 slice: domain is one of `utility_meter`, `derivative`, `integration`, `min_max`, `threshold`, `tod`
-- config-entry helper review is metadata-only in this slice, but target resolution must still normalize to a real `entry_id`
+- supported config-entry family: domain is one of `utility_meter`, `derivative`, `integration`, `min_max`, `threshold`, `tod`, `statistics`, `group`, `history_stats`
+- config-entry helper review remains minimal, but target resolution must still normalize to a real `entry_id`
 
 If the target config is not already in the thread context, resolve it yourself:
 1. Search by name using entity registry (compact fields: `ei`=entity_id, `en`=name/alias):
@@ -62,7 +62,7 @@ If the target config is not already in the thread context, resolve it yourself:
    - `{"type":"config/entity_registry/list"}`
    Resolve the target by one of:
    - exact `entry_id`
-   - config-entry `title` within the six supported domains
+   - config-entry `title` within the supported helper domains
    - linked `entity_id` by matching entity-registry `config_entry_id`
    Build the canonical metadata item:
    - `entry_id`
@@ -106,11 +106,11 @@ If the target config is not already in the thread context, resolve it yourself:
    if .ok then .data.body else empty end
    ```
    If no controlled entity found in actions, or state read fails: continue review — Quick-Fix will be skipped.
-   For standalone config-entry helper review in this PR1 slice, skip this step entirely. There is no config body with actions to analyze for a primary controlled entity.
+   For standalone config-entry helper review, skip this step entirely. There is no config body with actions to analyze for a primary controlled entity.
 
 If config is already in the thread context (e.g., user pasted YAML):
 - If entity_id is known for an automation or script: skip Target Resolution entirely, go straight to Config Quality Review (Step 1). But still read the primary controlled entity's state (step 6 above) for Quick-Fix detection — this step is independent of Target Resolution.
-- If the target already in context is a config-entry helper metadata item: skip Target Resolution entirely and go straight to the metadata-only helper review lane in Step 1. Do not attempt primary-controlled-entity state reads or Quick-Fix detection from that metadata-only path.
+- If the target already in context is a config-entry helper metadata item: skip Target Resolution entirely and go straight to the config-entry helper review lane in Step 1. Do not attempt primary-controlled-entity state reads or Quick-Fix detection from that path.
 - If entity_id is unknown: run Target Resolution search (above) to find entity_id. If not found, proceed with Config Quality Review only. Note in output: "Collision scan skipped — no entity_id available."
 
 Do NOT invoke `ha-nova:entity-discovery` or `ha-nova:read` as separate skills — handle everything within this review flow.
@@ -158,13 +158,13 @@ Analyze config against the review catalog plus any additional issues found in th
 - Automation: S-01..S-03, R-01..R-17, P-01..P-05, M-01..M-04
 - Script: automation families plus F-01..F-08
 - Helper (storage-based family): H-01..H-10
-- Helper (config-entry family, PR1 foundation): metadata-only review
+- Helper (config-entry family): minimal config-entry review
   - do not apply H-01..H-10
   - confirm config-entry metadata is present
   - inspect linked entities when available
   - in Step 2, derive collision candidates from `linked_entities[]`, not from config actions
   - run `search/related` on up to 3 linked entities
-  - say explicitly that config-entry helper review is limited in this slice
+  - say explicitly that config-entry helper review does not use the storage-helper H rules
 - If an automation or script references helpers in actions or direct thresholds, also apply H-01..H-10 to those helpers
 - R-17 is an intra-config branch comparison only. Never emit it from collision scan or cross-automation conflict analysis.
 
