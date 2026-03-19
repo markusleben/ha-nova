@@ -11,16 +11,12 @@ description: Use when creating, updating, deleting, or listing Home Assistant he
 
 - **Storage-based family** — full CRUD for:
   - `input_boolean`, `input_number`, `input_text`, `input_select`, `input_datetime`, `input_button`, `counter`, `timer`, `schedule`
-- **Config-entry family (PR1 foundation)** — list, metadata-read, create, delete for:
-  - `utility_meter`, `derivative`, `integration`, `min_max`, `threshold`, `tod`
-
-Config-entry family in this slice does **not** support update yet.
-If the user requests update for one of those six domains, say so explicitly and point them to the HA UI for now.
+- **Config-entry family** — CRUD support for:
+  - `utility_meter`, `derivative`, `integration`, `min_max`, `threshold`, `tod`, `statistics`, `history_stats`
+  - `group` through the live menu-driven flow; end-to-end support is verified for the `sensor` subtype, and other subtypes must stay anchored to the live step schema instead of guessed fields
 
 Not handled here:
 
-- config-entry multi-step helper domains still owned by `ha-nova:fallback`:
-  - `group`, `statistics`, `history_stats`
 - other config-entry helper families:
   - `template`, `trend`, `random`, `filter`, `generic_thermostat`, `switch_as_x`, `generic_hygrostat`
 - automations/scripts config mutations (use `ha-nova:write`)
@@ -42,7 +38,7 @@ Write payloads with the client's native file-writing tool, then use:
 Family-specific transport:
 
 - **Storage-based family:** WS CRUD + WS list
-- **Config-entry family:** WS `config_entries/get` + WS entity-registry joins for list/metadata-read; relay `/core` for create/delete writes
+- **Config-entry family:** WS `config_entries/get` + WS entity-registry joins for list/read; relay `/core` config-entry flow, options-flow, and delete writes
 
 ## Flow
 
@@ -99,7 +95,7 @@ If 0 results: try synonyms or shorter stems. Never dump entire domains.
 2. Use-case defaults (create only, skip on update/delete):
    - Infer use-case from helper name + type using general HA knowledge.
    - Consult `skills/ha-nova/helper-schemas.md` → Suggested Defaults for principles and field name reminders.
-   - If sensible defaults can be inferred: show max 4 as numbered list. Group related fields into one item (e.g. min/max/step together).
+   - If sensible defaults can be inferred: show max 4 as numbered list. Group related fields into one item.
      ```
      Suggested defaults for "{name}" ({type}):
      1. min: 16, max: 30, step: 0.5
@@ -113,6 +109,7 @@ If 0 results: try synonyms or shorter stems. Never dump entire domains.
    - No useful defaults inferable → silently skip.
 3. Preview the payload.
 4. Ask for natural confirmation.
+   - for unobserved `group` subtypes, this first confirmation authorizes only the non-persisting menu-step submit, not the final subtype-specific payload
 5. Execute:
    ```text
    ha-nova relay ws --data-file <payload-file>
@@ -148,7 +145,7 @@ If 0 results: try synonyms or shorter stems. Never dump entire domains.
    ```
 5. Verify absence from `{type}/list`.
 
-### Family 2: Config-entry helpers (PR1 foundation)
+### Family 2: Config-entry helpers
 
 Canonical config-entry helper item:
 
@@ -157,11 +154,12 @@ Canonical config-entry helper item:
 - `title`
 - `state`
 - `linked_entities[]`
+- `supports_options`
 
-`entry_id` is the canonical identity for write operations.
+`entry_id` is the canonical identity for config-entry helper writes.
 If the user gives only a linked `entity_id`, resolve it back to `config_entry_id` through the full entity registry before continuing.
 
-#### Supported domains in this slice
+#### Supported domains
 
 - `utility_meter`
 - `derivative`
@@ -169,6 +167,9 @@ If the user gives only a linked `entity_id`, resolve it back to `config_entry_id
 - `min_max`
 - `threshold`
 - `tod`
+- `statistics`
+- `group`
+- `history_stats`
 
 #### Listing helpers
 
@@ -182,13 +183,14 @@ If the user gives only a linked `entity_id`, resolve it back to `config_entry_id
    ha-nova relay ws --data-file <payload-file> --out <registry-file>
    ```
    with `{"type":"config/entity_registry/list"}`.
-3. Filter config entries to the six supported domains.
+3. Filter config entries to the nine supported domains.
 4. Join linked entities by matching `config_entry_id`.
 5. Present a compact table with:
    - title
    - domain
    - `entry_id`
    - state
+   - `supports_options`
    - linked entities (compact comma-separated summary)
 
 #### Keyword search
@@ -204,59 +206,78 @@ If multiple matches remain, present max 5 candidates and ask one blocking questi
 
 #### Reading a single helper
 
-Read is metadata-only in this slice.
-Do not claim full domain-specific config readback from this path.
-
 1. Resolve by one of:
    - `entry_id`
    - config-entry title
    - linked `entity_id`
+   - if multiple candidates remain after resolution, stop and ask one blocking question
+   - never guess between duplicate titles or ambiguous linked-entity matches
 2. Re-read `config_entries/get`.
 3. Re-read full entity registry and attach `linked_entities[]`.
-4. Present the canonical item:
+4. If `supports_options: true`, start an options flow:
+   ```text
+   ha-nova relay core --method POST --path /api/config/config_entries/options/flow --body-file <start-payload-file>
+   ```
+   with `<start-payload-file>` containing `{"handler":"<entry_id>","show_advanced_options":false}`.
+5. Treat the returned current step as the current editable options snapshot:
+   - record `step_id`
+   - summarize each exposed field from `description.suggested_value` when present
+   - if an exposed field has no `description.suggested_value`, mark its value as unavailable instead of guessing
+   - ignore hidden fields that are not exposed in the current step
+6. If the options flow is unavailable even though the domain is supported:
+   - still show canonical metadata
+   - mark update as unsupported on this HA version
+7. Present:
 
 ```text
 **Helper: {title}** (config-entry `{domain}`)
 - **Entry ID:** {entry_id}
 - **Config-entry state:** {state}
 - **Linked entities:** {linked_entities summary}
-- **Read scope:** metadata only in this slice
-- **Supports update:** not in this slice
+- **Supports options-flow editing:** {yes/no}
+- **Current flow step:** {step_id or "metadata-only fallback"}
+- **Current editable fields:** {field summary from the current options step when available}
 ```
 
 #### Creating a helper
 
 1. Confirm the requested domain is supported in `skills/ha-nova/helper-flow-schemas.md`.
-   - treat that file as observed field inventory, not as a full validation schema
+   - treat that file as observed field inventory, not a full validation schema
    - if required field semantics remain uncertain, fail loud and ask one blocking question
-2. For this slice, all six supported create flows were observed locally as:
-   - `step_id: user`
-   - `last_step: true`
-3. Prepare the final field set using the observed domain-specific field inventory in `skills/ha-nova/helper-flow-schemas.md`.
-4. Preview:
+2. Prepare the full create plan using `skills/ha-nova/helper-flow-schemas.md`:
+   - for one-step domains, the plan is one submit body
+   - for `group` with subtype `sensor`, include the required `next_step_id` menu choice and the observed final form
+   - for any other `group` subtype, plan only the menu choice before the flow starts; inspect the live subtype form before promising the final field set
+   - for `statistics` and `history_stats`, prepare every later step body before preview
+3. Preview:
    - title/name
    - domain
-   - all submitted fields
-5. Ask for natural confirmation.
-6. Capture a pre-create baseline:
+   - known step plan
+   - all fields already known at this point
+   - for unobserved `group` subtypes, say that the final subtype form will be previewed after the menu step returns live fields
+4. Ask for natural confirmation.
+5. Capture a pre-create baseline:
    ```text
    ha-nova relay ws --data-file <entries-request-file> --out <entries-before-file>
    ```
    with `<entries-request-file>` containing `{"type":"config_entries/get"}`.
-7. Start the flow:
+6. Start the flow:
    ```text
    ha-nova relay core --method POST --path /api/config/config_entries/flow --body-file <start-payload-file>
    ```
    `<start-payload-file>` must contain the handler-start body only.
-8. Read the start response and extract `flow_id` before continuing.
+7. Read the start response and extract `flow_id` before continuing.
    - persist it in a variable or note file
    - fail loud if the start response did not return `flow_id`
-9. Submit the single observed form step:
-   ```text
-   ha-nova relay core --method POST --path /api/config/config_entries/flow/{flow_id} --body-file <submit-payload-file>
-   ```
-   `<submit-payload-file>` must contain the form fields only.
-10. Verify success at the config-entry layer first:
+8. Iterate the flow until terminal success:
+   - if the current response is a menu step, submit only the selected `next_step_id`
+   - if that menu step leads to an unobserved `group` subtype form, stop and preview the live subtype fields before the terminal submit
+   - after that live subtype preview, ask for a second natural confirmation before sending the terminal subtype-specific payload
+   - if the current response is a form step, submit only the fields exposed for that step
+   - the submit body for a form step must contain form fields only
+   - if a required field is still unresolved and there is no safe value, stop and ask one blocking question
+   - if HA returns a form with validation errors, fail loud instead of guessing
+9. Verify success at the config-entry layer first:
    - re-read `config_entries/get` into `<entries-after-file>`
    - if the terminal flow result includes `entry_id`, `passed=true` only when that same `entry_id` is present in `<entries-after-file>`
    - if the terminal flow result omits `entry_id`, diff `config_entries/get` before vs after by `entry_id`
@@ -264,19 +285,56 @@ Do not claim full domain-specific config readback from this path.
    - in the diff fallback, `passed=true` only when exactly one new `entry_id` appeared and its metadata is consistent with the requested create
    - if the diff fallback yields zero or multiple new `entry_id` values, or the new entry metadata is inconsistent with the request, fail loud as ambiguous create verification
    - `domain`/`title` are fallback tie-breakers only; they never override a terminal-flow `entry_id`
-11. Resolve `linked_entities[]` through the entity registry as secondary evidence only.
+10. Resolve `linked_entities[]` through the entity registry as secondary evidence only.
+11. If the created entry exposes `supports_options: true`, reopen the options flow and store the current editable options snapshot for the post-write response.
 12. Run config-entry-family post-write review (see below).
 
 #### Updating a helper
 
-Not supported in this PR1 slice for the config-entry family.
-
-If the user requests update for one of the six config-entry domains:
-
-- say that config-entry helper update is not delivered in this slice
-- do not guess an options-flow payload
-- do not silently fall back to delete+create
-- point the user to the HA UI for now
+1. Resolve the canonical config-entry helper item:
+   - `entry_id`
+   - `domain`
+   - `title`
+   - `linked_entities[]`
+   - `supports_options`
+   - if multiple candidates remain after resolution, stop and ask one blocking question
+   - never guess between duplicate titles or ambiguous linked-entity matches
+2. If `supports_options` is false or the options-flow start call fails for this entry:
+   - fail loud with `update unsupported for this helper on this HA version`
+   - do not recreate
+   - do not guess a direct patch body
+3. Start the options flow:
+   ```text
+   ha-nova relay core --method POST --path /api/config/config_entries/options/flow --body-file <start-payload-file>
+   ```
+   with `<start-payload-file>` containing `{"handler":"<entry_id>","show_advanced_options":false}`.
+4. Capture the current editable options snapshot from the returned form:
+   - use `description.suggested_value` as the current value source
+   - if a requested field is exposed but lacks `description.suggested_value`, fail loud instead of guessing its current value
+   - do not submit read-only fields
+   - treat the current step as the authoritative mutable field set
+5. Build the update body by merging requested changes over the current options snapshot:
+   - carry forward unchanged required fields
+   - if the user requests a field the current step does not expose, fail loud as unsupported update for that field on this HA version
+   - do not silently ignore non-exposed requested fields
+   - do not invent values for fields the current step does not expose
+   - for `history_stats`, preserve HA's two-key window invariant across `start`, `end`, and `duration`
+   - for `history_stats`, if the requested change switches to a different valid window pair, drop the old third key explicitly so the submit body still contains exactly two of `start`, `end`, and `duration`
+6. Preview current vs proposed values.
+7. Ask for natural confirmation.
+8. Submit the current step:
+   ```text
+   ha-nova relay core --method POST --path /api/config/config_entries/options/flow/{flow_id} --body-file <submit-payload-file>
+   ```
+9. If HA returns another form step, repeat the same merge-and-submit rule until terminal `create_entry` or explicit failure.
+10. Verify success:
+   - re-read `config_entries/get`
+   - `passed=true` only when the same `entry_id` still exists
+   - reopen the options flow
+   - `passed=true` only when the changed fields now appear in `description.suggested_value` as requested
+   - if a requested changed field is exposed in the verification step but lacks `description.suggested_value`, fail loud as unverifiable update on this HA version
+11. Resolve `linked_entities[]` again as secondary evidence only.
+12. Run config-entry-family post-write review (see below).
 
 #### Deleting a helper
 
@@ -285,8 +343,10 @@ If the user requests update for one of the six config-entry domains:
    - `domain`
    - `title`
    - `linked_entities[]` when available
+   - if multiple candidates remain after resolution, stop and ask one blocking question
+   - never guess between duplicate titles or ambiguous linked-entity matches
 2. Enforce the helper-domain allowlist before any delete:
-   - allowed in this PR1 slice: `utility_meter`, `derivative`, `integration`, `min_max`, `threshold`, `tod`
+   - allowed here: `utility_meter`, `derivative`, `integration`, `min_max`, `threshold`, `tod`, `statistics`, `group`, `history_stats`
    - if the resolved `domain` is outside that allowlist, stop
    - do not call `DELETE /api/config/config_entries/entry/{entry_id}` for out-of-scope domains
    - hand off to `ha-nova:fallback` for any other config-entry domain
@@ -295,16 +355,20 @@ If the user requests update for one of the six config-entry domains:
    - domain
    - `entry_id`
    - linked entities if known
-4. Token confirmation: `confirm:<token>` (strict exact-token rule).
-5. Execute:
+4. Run a pre-delete dependency check:
+   - if linked entities are known, run `search/related` against up to 3 linked entities before confirmation
+   - summarize any related automations/scripts in the preview
+   - if linked entities are unknown, say that dependency check coverage is limited
+5. Token confirmation: `confirm:<token>` (strict exact-token rule).
+6. Execute:
    ```text
    ha-nova relay core --method DELETE --path /api/config/config_entries/entry/{entry_id}
    ```
-6. Verify success at the config-entry layer first:
+7. Verify success at the config-entry layer first:
    - re-read `config_entries/get`
    - `passed=true` only when the `entry_id` is absent
-7. Entity disappearance is secondary evidence only — do not fail the delete just because registry/state cleanup lags.
-8. Run config-entry-family post-write review (see below).
+8. Entity disappearance is secondary evidence only — do not fail the delete just because registry/state cleanup lags.
+9. Run config-entry-family post-write review (see below).
 
 ### Post-write review (MANDATORY)
 
@@ -323,15 +387,18 @@ Do not pretend H-01..H-10 apply here.
 Instead, run the minimal config-entry post-write contract:
 
 1. **Verification**
-   - create: config entry now exists
+   - create: config entry now exists and the requested `entry_id`/diff verification passed
+   - update: the same `entry_id` still exists and the reopened options-flow snapshot reflects the requested field changes
    - delete: config entry is absent
-2. **Linked entities**
+2. **Current editable snapshot**
+   - if an options flow is available, summarize only the editable fields exposed by the final current step readback
+3. **Linked entities**
    - read linked entities from entity registry when available
    - treat them as secondary evidence only
-3. **Collision check**
+4. **Collision check**
    - if linked entities were found, run `search/related` against up to 3 linked entities
-4. **Advisory**
-   - say that storage-helper H-01..H-10 checks do not apply to this family in this slice
+5. **Advisory**
+   - say that storage-helper H-01..H-10 checks do not apply to this family
 
 Response MUST still include a localized Post-Write Review section with:
 
@@ -369,14 +436,16 @@ After reading a helper config, present:
 - **Entry ID:** {entry_id}
 - **Config-entry state:** {state}
 - **Linked entities:** {linked_entities}
-- **Read scope:** metadata only in this slice
+- **Supports options-flow editing:** {yes/no}
+- **Current flow step:** {step_id or "metadata-only fallback"}
+- **Current editable fields:** {field summary from the current options step when available}
 ```
 
 For list operations, use:
 
 ```text
-| Title | Domain | Entry ID | State | Linked Entities |
-|-------|--------|----------|-------|-----------------|
+| Title | Domain | Entry ID | State | Supports Options-Flow Editing | Linked Entities |
+|-------|--------|----------|-------|--------------------------------|-----------------|
 ```
 
 Never show raw JSON to the user.

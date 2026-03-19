@@ -69,7 +69,7 @@ Current mapping:
 |-------|-------|-----|
 | read | inline | 1-2 calls, direct output |
 | write | **agents** | 5-7 calls, entity resolution fallback, singular/plural normalization, domain reload |
-| helper | inline | 2-4 calls, flat configs, no normalization |
+| helper | inline | response-driven relay flows, direct preview/confirm loop, no agent-only normalization requirement |
 | review | inline | analysis is client-side, relay calls are reads only |
 | entity-discovery | inline | 1-2 calls, search + return |
 | service-call | inline | 2-3 calls, preview + execute |
@@ -139,20 +139,19 @@ Fallback:
   - Review: H-01..H-10 helper-specific checks + collision scan via `search/related`
   - No domain reload needed
 
-- **Config-entry family (PR1 foundation)**
-  - Types in this slice: `utility_meter`, `derivative`, `integration`, `min_max`, `threshold`, `tod`
+- **Config-entry family**
+  - Types: `utility_meter`, `derivative`, `integration`, `min_max`, `threshold`, `tod`, `statistics`, `group`, `history_stats`
   - Read/list: WS `config_entries/get` + WS `config/entity_registry/list`
-  - Read scope in this slice: metadata only, not full domain-specific config readback
+  - Readback: current editable options snapshot when `supports_options: true`; metadata-only fallback otherwise
   - Mutation transport: relay `/core`
+  - Create: config-entry flow loop, including menu/form step iteration
+  - Update: options-flow loop with required-field carry-forward from the current editable options snapshot
   - Identity: `entry_id` is canonical; linked `entity_id` values are derived only
-  - Write verify: config-entry layer first (`config_entries/get`), entity registry second
+  - Write verify: config-entry layer first for identity/existence, reopened editable options snapshot for field-level update verification
   - Review: minimal config-entry post-write contract, not H-01..H-10
+  - `group` remains menu-driven; end-to-end support is proven for the `sensor` subtype, and other subtypes must stay anchored to the live step schema instead of guessed fields
 
-Still excluded from `ha-nova:helper` in this slice:
-
-- `group`
-- `statistics`
-- `history_stats`
+Still excluded from `ha-nova:helper`:
 - `template`
 - `trend`
 - `random`
@@ -210,7 +209,9 @@ After any mutation (automation, script, or helper):
 2. Enter via `skills/review/SKILL.md` Step 1 and load the detailed checks from `skills/review/checks.md`:
    - **Automations:** S + R + P + M checks. If actions reference helpers, also H checks on those helpers.
    - **Scripts:** S + R + P + M + F checks. If actions reference helpers, also H checks.
-   - **Helpers:** H checks only.
+   - **Helpers:**
+     - storage-based family: H checks only
+     - config-entry family: minimal config-entry review contract + collision scan on linked entities
    Focus on 🔴 findings. Report 🟠🟡 findings as advisory.
 3. Collision scan: `search/related` for top target entities, max 3 related configs (standalone review uses max 5)
 4. Output format (MUST appear in every post-write response) — localize headings per `skills/ha-nova/SKILL.md` → Output Localization:

@@ -81,22 +81,22 @@ describe("helper contract", () => {
     });
   });
 
-  describe("config-entry foundation", () => {
+  describe("config-entry helper family", () => {
     it("documents the two-family helper split", () => {
       expect(skillDoc).toContain("Storage-based family");
-      expect(skillDoc).toContain("Config-entry family (PR1 foundation)");
+      expect(skillDoc).toContain("Config-entry family");
       expect(architectureDoc).toContain("two explicit helper families");
-      expect(architectureDoc).toContain("Config-entry family (PR1 foundation)");
-      expect(architectureDoc).toContain("metadata only");
+      expect(architectureDoc).toContain("Config-entry family");
+      expect(architectureDoc).toContain("current editable options snapshot");
     });
 
     it("references the dedicated config-entry flow schema doc", () => {
       expect(skillDoc).toContain("helper-flow-schemas.md");
-      expect(flowSchemasDoc).toContain("PR1 foundation");
+      expect(flowSchemasDoc).toContain("full `#81` supported config-entry family");
       expect(flowSchemasDoc).toContain("Canonical write identity: `entry_id`");
     });
 
-    it("limits the foundation slice to six single-step config-entry domains", () => {
+    it("documents full config-entry helper ownership for the 9 supported domains", () => {
       for (const domain of [
         "utility_meter",
         "derivative",
@@ -104,24 +104,31 @@ describe("helper contract", () => {
         "min_max",
         "threshold",
         "tod",
+        "statistics",
+        "group",
+        "history_stats",
       ]) {
         expect(skillDoc).toContain(domain);
         expect(flowSchemasDoc).toContain(domain);
       }
 
-      expect(skillDoc).toContain("does **not** support update yet");
-      expect(skillDoc).toContain("Not supported in this PR1 slice");
+      expect(skillDoc).toContain("CRUD support for:");
+      expect(skillDoc).toContain("verified for the `sensor` subtype");
+      expect(skillDoc).not.toContain("does **not** support update yet");
     });
 
-    it("keeps config-entry read scope metadata-only in this slice", () => {
-      expect(skillDoc).toContain("Read is metadata-only in this slice");
-      expect(skillDoc).toContain("Do not claim full domain-specific config readback");
+    it("uses options-flow snapshots for config-entry readback", () => {
+      expect(skillDoc).toContain("start an options flow");
+      expect(skillDoc).toContain("current editable options snapshot");
+      expect(skillDoc).toContain("Supports options-flow editing:");
+      expect(skillDoc).toContain("Supports Options-Flow Editing");
+      expect(skillDoc).toContain("Current flow step:");
+      expect(skillDoc).toContain("Current editable fields:");
+      expect(skillDoc).toContain("mark its value as unavailable instead of guessing");
       expect(skillDoc).toContain("Config-entry state:");
-      expect(skillDoc).toContain("Read scope:");
-      expect(skillDoc).toContain("metadata only in this slice");
       expect(flowSchemasDoc).toContain("observed field inventory");
       expect(flowSchemasDoc).toContain("not a complete validation schema");
-      expect(flowSchemasDoc).toContain("Canonical list/metadata-read item");
+      expect(flowSchemasDoc).toContain("Current editable options readback");
     });
 
     it("uses config-entry-first verification for the config-entry family", () => {
@@ -137,6 +144,8 @@ describe("helper contract", () => {
       expect(skillDoc).toContain("ambiguous create verification");
       expect(skillDoc).toContain("fallback tie-breakers only");
       expect(skillDoc).toContain("Entity disappearance is secondary evidence only");
+      expect(skillDoc).toContain("reopen the options flow");
+      expect(skillDoc).toContain("description.suggested_value");
       expect(flowSchemasDoc).toContain("Verification source of truth");
       expect(flowSchemasDoc).toContain("terminal flow result confirmed in the after-read");
       expect(flowSchemasDoc).toContain("before/after `entry_id` diff");
@@ -144,14 +153,16 @@ describe("helper contract", () => {
       expect(flowSchemasDoc).toContain("exactly one new `entry_id` appeared");
       expect(flowSchemasDoc).toContain("ambiguous create verification");
       expect(flowSchemasDoc).toContain("entry absent in `config_entries/get`");
+      expect(flowSchemasDoc).toContain("reopened options flow shows the requested changed fields");
     });
 
     it("enforces the config-entry helper allowlist before delete", () => {
       expect(skillDoc).toContain("Resolve target to the canonical config-entry helper item");
       expect(skillDoc).toContain("Enforce the helper-domain allowlist before any delete");
-      expect(skillDoc).toContain("allowed in this PR1 slice: `utility_meter`, `derivative`, `integration`, `min_max`, `threshold`, `tod`");
+      expect(skillDoc).toContain("allowed here: `utility_meter`, `derivative`, `integration`, `min_max`, `threshold`, `tod`, `statistics`, `group`, `history_stats`");
       expect(skillDoc).toContain("do not call `DELETE /api/config/config_entries/entry/{entry_id}` for out-of-scope domains");
       expect(skillDoc).toContain("hand off to `ha-nova:fallback` for any other config-entry domain");
+      expect(skillDoc).not.toContain("unsupported `group` subtype path");
     });
 
     it("splits flow-start and flow-submit payload contracts", () => {
@@ -163,6 +174,71 @@ describe("helper contract", () => {
       expect(flowSchemasDoc).toContain("capture `flow_id` from the start response");
       expect(flowSchemasDoc).toContain("handler-start body");
       expect(flowSchemasDoc).toContain("form-submit body");
+    });
+
+    it("documents multi-step create flows and required-field carry-forward for updates", () => {
+      expect(skillDoc).toContain("for `group` with subtype `sensor`, include the required `next_step_id` menu choice and the observed final form");
+      expect(skillDoc).toContain("for any other `group` subtype, plan only the menu choice before the flow starts");
+      expect(flowSchemasDoc).toContain("end-to-end CRUD was proven locally for the `sensor` subtype only");
+      expect(skillDoc).toContain("for `statistics` and `history_stats`, prepare every later step body before preview");
+      expect(skillDoc).toContain("for unobserved `group` subtypes, say that the final subtype form will be previewed after the menu step returns live fields");
+      expect(skillDoc).toContain("this first confirmation authorizes only the non-persisting menu-step submit");
+      expect(skillDoc).toContain("if that menu step leads to an unobserved `group` subtype form, stop and preview the live subtype fields before the terminal submit");
+      expect(skillDoc).toContain("ask for a second natural confirmation before sending the terminal subtype-specific payload");
+      expect(skillDoc).toContain("carry forward unchanged required fields");
+      expect(skillDoc).toContain("fail loud as unsupported update for that field on this HA version");
+      expect(skillDoc).toContain("do not silently ignore non-exposed requested fields");
+      expect(skillDoc).toContain("fail loud instead of guessing its current value");
+      expect(skillDoc).toContain("do not submit read-only fields");
+      expect(skillDoc).toContain("two-key window invariant");
+      expect(skillDoc).toContain("drop the old third key explicitly");
+      expect(skillDoc).toContain("fail loud as unverifiable update on this HA version");
+      expect(flowSchemasDoc).toContain("submit `next_step_id`");
+      expect(flowSchemasDoc).toContain("step_id: state_characteristic");
+      expect(flowSchemasDoc).toContain("step_id: state");
+      expect(flowSchemasDoc).toContain("treat the current value as unavailable instead of guessed");
+      expect(flowSchemasDoc).toContain("fail loud instead of guessing the current value");
+      expect(flowSchemasDoc).toContain("if the user requests a non-exposed field, fail loud as unsupported update for that field on this HA version");
+      expect(flowSchemasDoc).toContain("two-key window invariant across `start`, `end`, and `duration`");
+      expect(flowSchemasDoc).toContain("drop the previous third key explicitly before submit");
+      expect(flowSchemasDoc).toContain("fail loud as unverifiable update on this HA version");
+    });
+
+    it("adds ambiguity and dependency guards to config-entry update/delete flows", () => {
+      expect(skillDoc).toContain("if multiple candidates remain after resolution, stop and ask one blocking question");
+      expect(skillDoc).toContain("never guess between duplicate titles or ambiguous linked-entity matches");
+      expect(skillDoc).toContain("Run a pre-delete dependency check");
+      expect(skillDoc).toContain("run `search/related` against up to 3 linked entities before confirmation");
+      expect(skillDoc).toContain("dependency check coverage is limited");
+    });
+
+    it("pins the fallback ownership boundary against reintroducing helper-owned domains", () => {
+      const fallbackDoc = readFileSync(
+        resolve(__dirname, "../../skills/fallback/SKILL.md"),
+        "utf-8",
+      );
+      const supportedTypesLine = fallbackDoc
+        .split("\n")
+        .find((line) => line.includes("Supported types in this fallback section:"));
+
+      expect(supportedTypesLine).toBeDefined();
+      expect(supportedTypesLine).toContain("`template`");
+      expect(supportedTypesLine).toContain("`trend`");
+      expect(supportedTypesLine).toContain("`random`");
+      expect(supportedTypesLine).toContain("`filter`");
+      expect(supportedTypesLine).toContain("`generic_thermostat`");
+      expect(supportedTypesLine).toContain("`switch_as_x`");
+      expect(supportedTypesLine).toContain("`generic_hygrostat`");
+      expect(supportedTypesLine).not.toContain("`utility_meter`");
+      expect(supportedTypesLine).not.toContain("`derivative`");
+      expect(supportedTypesLine).not.toContain("`integration`");
+      expect(supportedTypesLine).not.toContain("`min_max`");
+      expect(supportedTypesLine).not.toContain("`threshold`");
+      expect(supportedTypesLine).not.toContain("`tod`");
+      expect(supportedTypesLine).not.toContain("`statistics`");
+      expect(supportedTypesLine).not.toContain("`group`");
+      expect(supportedTypesLine).not.toContain("`history_stats`");
+      expect(fallbackDoc).toContain("Delete unsupported config-entry helper by entry_id");
     });
   });
 });
