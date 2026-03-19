@@ -120,12 +120,17 @@ describe("helper contract", () => {
       expect(skillDoc).toContain("if the terminal flow result includes `entry_id`");
       expect(skillDoc).toContain("if the terminal flow result omits `entry_id`");
       expect(skillDoc).toContain("diff `config_entries/get` before vs after by `entry_id`");
-      expect(skillDoc).toContain("domain/title match is supportive context only");
+      expect(skillDoc).toContain("exactly one new `entry_id` appeared");
+      expect(skillDoc).toContain("metadata is consistent with the requested create");
+      expect(skillDoc).toContain("ambiguous create verification");
+      expect(skillDoc).toContain("fallback tie-breakers only");
       expect(skillDoc).toContain("Entity disappearance is secondary evidence only");
       expect(flowSchemasDoc).toContain("Verification source of truth");
       expect(flowSchemasDoc).toContain("terminal flow result confirmed in the after-read");
       expect(flowSchemasDoc).toContain("before/after `entry_id` diff");
       expect(flowSchemasDoc).toContain("pre-create `config_entries/get` baseline");
+      expect(flowSchemasDoc).toContain("exactly one new `entry_id` appeared");
+      expect(flowSchemasDoc).toContain("ambiguous create verification");
       expect(flowSchemasDoc).toContain("entry absent in `config_entries/get`");
     });
 
@@ -133,7 +138,9 @@ describe("helper contract", () => {
       expect(skillDoc).toContain("<start-payload-file>");
       expect(skillDoc).toContain("<submit-payload-file>");
       expect(skillDoc).toContain("handler-start body only");
+      expect(skillDoc).toContain("extract `flow_id` before continuing");
       expect(skillDoc).toContain("form fields only");
+      expect(flowSchemasDoc).toContain("capture `flow_id` from the start response");
       expect(flowSchemasDoc).toContain("handler-start body");
       expect(flowSchemasDoc).toContain("form-submit body");
     });

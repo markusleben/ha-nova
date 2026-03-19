@@ -51,8 +51,10 @@ Additional observations from `config_entries/get`:
 - config-entry canonical identity is `entry_id`
 - create/delete mutations use relay `/core`
 - list/read uses WS `config_entries/get` and entity-registry joins
-- create success must re-read `config_entries/get` after submit, then either confirm the terminal-flow `entry_id` there or use a before/after `entry_id` diff when the flow omits it
+- create flow must capture `flow_id` from the start response before submitting the form step
+- create success must re-read `config_entries/get` after submit, then either confirm the terminal-flow `entry_id` there or use a constrained before/after `entry_id` diff when the flow omits it
 - the diff fallback requires a pre-create `config_entries/get` snapshot
+- the diff fallback only passes when exactly one new `entry_id` appears and that new entry is consistent with the requested domain/title
 - flow start and flow submit use different payload schemas and must not reuse one body file contract
 - delete success stays config-entry-first, entity-second
 - fallback keeps unsupported and not-yet-delivered config-entry helper families

@@ -17,14 +17,17 @@ This file covers the PR1 foundation slice only:
 - Create mutation path:
   - `POST /api/config/config_entries/flow` with a handler-start body
   - `POST /api/config/config_entries/flow/{flow_id}` with a form-submit body
+  - capture `flow_id` from the start response before submitting the form step
 - Read/list source:
   - WS `config_entries/get`
   - WS `config/entity_registry/list` for `linked_entities[]`
 - Delete mutation path:
   - `DELETE /api/config/config_entries/entry/{entry_id}`
 - Verification source of truth:
-  - create success = `entry_id` from the terminal flow result confirmed in the after-read, or a before/after `entry_id` diff if the flow result omits it
+  - create success = `entry_id` from the terminal flow result confirmed in the after-read, or a constrained before/after `entry_id` diff if the flow result omits it
   - the before/after fallback requires a pre-create `config_entries/get` baseline
+  - the before/after fallback passes only when exactly one new `entry_id` appeared and that new entry is consistent with the requested `domain` and `title`
+  - if the fallback diff is empty, plural, or metadata-inconsistent, fail loud as ambiguous create verification
   - delete success = entry absent in `config_entries/get`
   - linked entity appearance/disappearance is secondary evidence only
 

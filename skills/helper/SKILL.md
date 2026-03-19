@@ -242,19 +242,24 @@ If multiple matches remain, present max 5 candidates and ask one blocking questi
    ha-nova relay core --method POST --path /api/config/config_entries/flow --body-file <start-payload-file>
    ```
    `<start-payload-file>` must contain the handler-start body only.
-8. Submit the single observed form step:
+8. Read the start response and extract `flow_id` before continuing.
+   - persist it in a variable or note file
+   - fail loud if the start response did not return `flow_id`
+9. Submit the single observed form step:
    ```text
    ha-nova relay core --method POST --path /api/config/config_entries/flow/{flow_id} --body-file <submit-payload-file>
    ```
    `<submit-payload-file>` must contain the form fields only.
-9. Verify success at the config-entry layer first:
+10. Verify success at the config-entry layer first:
    - re-read `config_entries/get` into `<entries-after-file>`
    - if the terminal flow result includes `entry_id`, `passed=true` only when that same `entry_id` is present in `<entries-after-file>`
    - if the terminal flow result omits `entry_id`, diff `config_entries/get` before vs after by `entry_id`
-   - in the diff fallback, `passed=true` only when a new `entry_id` appeared for this create
-   - domain/title match is supportive context only, never the success condition
-10. Resolve `linked_entities[]` through the entity registry as secondary evidence only.
-11. Run config-entry-family post-write review (see below).
+   - in the diff fallback, collect the new `entry_id` values that were absent before and present after
+   - in the diff fallback, `passed=true` only when exactly one new `entry_id` appeared and its metadata is consistent with the requested create
+   - if the diff fallback yields zero or multiple new `entry_id` values, or the new entry metadata is inconsistent with the request, fail loud as ambiguous create verification
+   - `domain`/`title` are fallback tie-breakers only; they never override a terminal-flow `entry_id`
+11. Resolve `linked_entities[]` through the entity registry as secondary evidence only.
+12. Run config-entry-family post-write review (see below).
 
 #### Updating a helper
 
