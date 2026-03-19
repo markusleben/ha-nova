@@ -15,8 +15,8 @@ This file covers the PR1 foundation slice only:
 - Canonical write identity: `entry_id`
 - Canonical list/read item: `entry_id`, `domain`, `title`, `state`, `linked_entities[]`
 - Create mutation path:
-  - `POST /api/config/config_entries/flow`
-  - `POST /api/config/config_entries/flow/{flow_id}`
+  - `POST /api/config/config_entries/flow` with a handler-start body
+  - `POST /api/config/config_entries/flow/{flow_id}` with a form-submit body
 - Read/list source:
   - WS `config_entries/get`
   - WS `config/entity_registry/list` for `linked_entities[]`
@@ -24,6 +24,7 @@ This file covers the PR1 foundation slice only:
   - `DELETE /api/config/config_entries/entry/{entry_id}`
 - Verification source of truth:
   - create success = created `entry_id` returned by the terminal flow result, or a before/after `entry_id` diff if the flow result omits it
+  - the before/after fallback requires a pre-create `config_entries/get` baseline
   - delete success = entry absent in `config_entries/get`
   - linked entity appearance/disappearance is secondary evidence only
 

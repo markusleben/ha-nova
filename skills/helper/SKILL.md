@@ -232,21 +232,29 @@ If multiple matches remain, present max 5 candidates and ask one blocking questi
    - domain
    - all submitted fields
 5. Ask for natural confirmation.
-6. Start the flow:
+6. Capture a pre-create baseline:
    ```text
-   ha-nova relay core --method POST --path /api/config/config_entries/flow --body-file <payload-file>
+   ha-nova relay ws --data-file <entries-request-file> --out <entries-before-file>
    ```
-7. Submit the single observed form step:
+   with `<entries-request-file>` containing `{"type":"config_entries/get"}`.
+7. Start the flow:
    ```text
-   ha-nova relay core --method POST --path /api/config/config_entries/flow/{flow_id} --body-file <payload-file>
+   ha-nova relay core --method POST --path /api/config/config_entries/flow --body-file <start-payload-file>
    ```
-8. Verify success at the config-entry layer first:
+   `<start-payload-file>` must contain the handler-start body only.
+8. Submit the single observed form step:
+   ```text
+   ha-nova relay core --method POST --path /api/config/config_entries/flow/{flow_id} --body-file <submit-payload-file>
+   ```
+   `<submit-payload-file>` must contain the form fields only.
+9. Verify success at the config-entry layer first:
    - capture the created `entry_id` from the terminal flow result when available
+   - if the flow result omits `entry_id`, re-read `config_entries/get` into `<entries-after-file>`
    - otherwise diff `config_entries/get` before vs after by `entry_id`
    - `passed=true` only when a new `entry_id` appeared for this create
    - domain/title match is supportive context only, never the success condition
-9. Resolve `linked_entities[]` through the entity registry as secondary evidence only.
-10. Run config-entry-family post-write review (see below).
+10. Resolve `linked_entities[]` through the entity registry as secondary evidence only.
+11. Run config-entry-family post-write review (see below).
 
 #### Updating a helper
 

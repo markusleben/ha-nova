@@ -205,6 +205,11 @@ Create flow:
 {"method":"POST","path":"/api/config/config_entries/flow/{flow_id}","body":{"name":"..."}}
 ```
 
+Use separate payload files for those two calls:
+
+- flow start payload = handler-start body only
+- flow submit payload = step form fields only
+
 Delete:
 
 ```json
@@ -215,6 +220,7 @@ Verification rules:
 
 - create/delete success is decided at the config-entry layer first
 - create success = created `entry_id` from the terminal flow result, or a before/after `config_entries/get` diff by `entry_id`
+- the before/after fallback requires a pre-create `config_entries/get` baseline
 - use `config_entries/get` as the source of truth
 - resolve linked entities from `config/entity_registry/list` by matching `config_entry_id`
 - linked entity appearance/disappearance is secondary evidence only

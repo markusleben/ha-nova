@@ -52,6 +52,8 @@ Additional observations from `config_entries/get`:
 - create/delete mutations use relay `/core`
 - list/read uses WS `config_entries/get` and entity-registry joins
 - create success must prove a new `entry_id`, either from the terminal flow result or a before/after `config_entries/get` diff
+- the diff fallback requires a pre-create `config_entries/get` snapshot
+- flow start and flow submit use different payload schemas and must not reuse one body file contract
 - delete success stays config-entry-first, entity-second
 - fallback keeps unsupported and not-yet-delivered config-entry helper families
 
