@@ -308,33 +308,36 @@ If multiple matches remain, present max 5 candidates and ask one blocking questi
    ha-nova relay core --method POST --path /api/config/config_entries/options/flow --body-file <start-payload-file>
    ```
    with `<start-payload-file>` containing `{"handler":"<entry_id>","show_advanced_options":false}`.
-4. Capture the current editable options snapshot from the returned form:
+4. Read the start response and extract `flow_id` before continuing.
+   - persist it in a variable or note file
+   - fail loud if the start response did not return `flow_id`
+5. Capture the current editable options snapshot from the returned form:
    - use `description.suggested_value` as the current value source
    - if a requested field is exposed but lacks `description.suggested_value`, fail loud instead of guessing its current value
    - do not submit read-only fields
    - treat the current step as the authoritative mutable field set
-5. Build the update body by merging requested changes over the current options snapshot:
+6. Build the update body by merging requested changes over the current options snapshot:
    - carry forward unchanged required fields
    - if the user requests a field the current step does not expose, fail loud as unsupported update for that field on this HA version
    - do not silently ignore non-exposed requested fields
    - do not invent values for fields the current step does not expose
    - for `history_stats`, preserve HA's two-key window invariant across `start`, `end`, and `duration`
    - for `history_stats`, if the requested change switches to a different valid window pair, drop the old third key explicitly so the submit body still contains exactly two of `start`, `end`, and `duration`
-6. Preview current vs proposed values.
-7. Ask for natural confirmation.
-8. Submit the current step:
+7. Preview current vs proposed values.
+8. Ask for natural confirmation.
+9. Submit the current step:
    ```text
    ha-nova relay core --method POST --path /api/config/config_entries/options/flow/{flow_id} --body-file <submit-payload-file>
    ```
-9. If HA returns another form step, repeat the same merge-and-submit rule until terminal `create_entry` or explicit failure.
-10. Verify success:
+10. If HA returns another form step, repeat the same merge-and-submit rule until terminal `create_entry` or explicit failure.
+11. Verify success:
    - re-read `config_entries/get`
    - `passed=true` only when the same `entry_id` still exists
    - reopen the options flow
    - `passed=true` only when the changed fields now appear in `description.suggested_value` as requested
    - if a requested changed field is exposed in the verification step but lacks `description.suggested_value`, fail loud as unverifiable update on this HA version
-11. Resolve `linked_entities[]` again as secondary evidence only.
-12. Run config-entry-family post-write review (see below).
+12. Resolve `linked_entities[]` again as secondary evidence only.
+13. Run config-entry-family post-write review (see below).
 
 #### Deleting a helper
 

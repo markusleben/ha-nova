@@ -170,6 +170,7 @@ describe("helper contract", () => {
       expect(skillDoc).toContain("<submit-payload-file>");
       expect(skillDoc).toContain("handler-start body only");
       expect(skillDoc).toContain("extract `flow_id` before continuing");
+      expect(skillDoc).toContain("fail loud if the start response did not return `flow_id`");
       expect(skillDoc).toContain("form fields only");
       expect(flowSchemasDoc).toContain("capture `flow_id` from the start response");
       expect(flowSchemasDoc).toContain("handler-start body");
