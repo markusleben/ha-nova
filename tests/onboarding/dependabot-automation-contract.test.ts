@@ -43,6 +43,8 @@ describe("dependabot automation contract", () => {
   it("only auto-approves and auto-merges the safe Dependabot manifest lane without checking out PR code", () => {
     expect(workflow).toContain("pull_request_target:");
     expect(workflow).toContain("workflow_run:");
+    expect(workflow).toContain("github.event.workflow_run.conclusion == 'success'");
+    expect(workflow).not.toContain("github.event.workflow_run.event == 'pull_request'");
     expect(workflow).toContain("dependabot[bot]");
     expect(workflow).toContain("dependabot/fetch-metadata@d7267f607e9d3fb96fc2fbe83e0af444713e90b7");
     expect(workflow).toContain('PACKAGE_ECOSYSTEM: ${{ steps.metadata.outputs.package-ecosystem }}');
