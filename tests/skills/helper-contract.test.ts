@@ -146,6 +146,14 @@ describe("helper contract", () => {
       expect(flowSchemasDoc).toContain("entry absent in `config_entries/get`");
     });
 
+    it("enforces the config-entry helper allowlist before delete", () => {
+      expect(skillDoc).toContain("Resolve target to the canonical config-entry helper item");
+      expect(skillDoc).toContain("Enforce the helper-domain allowlist before any delete");
+      expect(skillDoc).toContain("allowed in this PR1 slice: `utility_meter`, `derivative`, `integration`, `min_max`, `threshold`, `tod`");
+      expect(skillDoc).toContain("do not call `DELETE /api/config/config_entries/entry/{entry_id}` for out-of-scope domains");
+      expect(skillDoc).toContain("hand off to `ha-nova:fallback` for any other config-entry domain");
+    });
+
     it("splits flow-start and flow-submit payload contracts", () => {
       expect(skillDoc).toContain("<start-payload-file>");
       expect(skillDoc).toContain("<submit-payload-file>");

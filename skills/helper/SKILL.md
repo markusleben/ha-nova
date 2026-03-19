@@ -280,22 +280,31 @@ If the user requests update for one of the six config-entry domains:
 
 #### Deleting a helper
 
-1. Resolve target to `entry_id`.
-2. Preview:
+1. Resolve target to the canonical config-entry helper item:
+   - `entry_id`
+   - `domain`
+   - `title`
+   - `linked_entities[]` when available
+2. Enforce the helper-domain allowlist before any delete:
+   - allowed in this PR1 slice: `utility_meter`, `derivative`, `integration`, `min_max`, `threshold`, `tod`
+   - if the resolved `domain` is outside that allowlist, stop
+   - do not call `DELETE /api/config/config_entries/entry/{entry_id}` for out-of-scope domains
+   - hand off to `ha-nova:fallback` for any other config-entry domain
+3. Preview:
    - title
    - domain
    - `entry_id`
    - linked entities if known
-3. Token confirmation: `confirm:<token>` (strict exact-token rule).
-4. Execute:
+4. Token confirmation: `confirm:<token>` (strict exact-token rule).
+5. Execute:
    ```text
    ha-nova relay core --method DELETE --path /api/config/config_entries/entry/{entry_id}
    ```
-5. Verify success at the config-entry layer first:
+6. Verify success at the config-entry layer first:
    - re-read `config_entries/get`
    - `passed=true` only when the `entry_id` is absent
-6. Entity disappearance is secondary evidence only — do not fail the delete just because registry/state cleanup lags.
-7. Run config-entry-family post-write review (see below).
+7. Entity disappearance is secondary evidence only — do not fail the delete just because registry/state cleanup lags.
+8. Run config-entry-family post-write review (see below).
 
 ### Post-write review (MANDATORY)
 
