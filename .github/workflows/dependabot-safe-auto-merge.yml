@@ -89,6 +89,7 @@ jobs:
         if: ${{ steps.guard.outputs.eligible == 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           PR_URL: ${{ github.event.pull_request.html_url }}
         run: |
           set -euo pipefail
@@ -101,6 +102,7 @@ jobs:
         if: ${{ steps.guard.outputs.eligible == 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
@@ -110,6 +112,7 @@ jobs:
         if: ${{ steps.guard.outputs.eligible != 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
@@ -122,6 +125,7 @@ jobs:
       - name: Enable auto-merge after all required checks pass
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           RUN_ID: ${{ github.event.workflow_run.id }}
           RUN_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |

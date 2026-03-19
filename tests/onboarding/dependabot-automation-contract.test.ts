@@ -50,6 +50,7 @@ describe("dependabot automation contract", () => {
     expect(workflow).toContain('PACKAGE_ECOSYSTEM: ${{ steps.metadata.outputs.package-ecosystem }}');
     expect(workflow).toContain('DEPENDENCY_GROUP: ${{ steps.metadata.outputs.dependency-group }}');
     expect(workflow).toContain('UPDATE_TYPE: ${{ steps.metadata.outputs.update-type }}');
+    expect(workflow).toContain('GH_REPO: ${{ github.repository }}');
     expect(workflow).toContain('[[ "${DEPENDENCY_GROUP}" != "npm-dev-minor-patch" ]]');
     expect(workflow).toContain('[[ "${UPDATE_TYPE}" != "version-update:semver-minor" && "${UPDATE_TYPE}" != "version-update:semver-patch" ]]');
     expect(workflow).toContain('package.json|package-lock.json');
@@ -69,10 +70,12 @@ describe("dependabot automation contract", () => {
     expect(manifestGate).toContain("manifest-review:approved");
     expect(manifestGate).toContain("MANIFEST_APPROVERS: markusleben");
     expect(manifestGate).toContain("EVENT_ACTION: ${{ github.event.action }}");
+    expect(manifestGate).toContain('GH_REPO: ${{ github.repository }}');
     expect(manifestGate).toContain("No package manifest changes detected.");
     expect(manifestGate).toContain("Safe Dependabot manifest lane detected.");
     expect(manifestGate).toContain('if [[ "${EVENT_ACTION}" == "synchronize" ]]; then');
-    expect(manifestGate).toContain('gh pr edit "${PR_NUMBER}" --remove-label "manifest-review:approved" || true');
+    expect(manifestGate).toContain('gh pr edit "${PR_NUMBER}" --remove-label "manifest-review:approved"');
+    expect(manifestGate).not.toContain('gh pr edit "${PR_NUMBER}" --remove-label "manifest-review:approved" || true');
     expect(manifestGate).toContain("issues/${PR_NUMBER}/timeline");
     expect(manifestGate).toContain("select((.event == \"labeled\" or .event == \"unlabeled\") and .label.name == \"manifest-review:approved\")");
     expect(manifestGate).toContain("Package manifest changes require maintainer review. Add the label manifest-review:approved after review from an approved maintainer.");

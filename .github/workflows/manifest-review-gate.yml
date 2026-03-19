@@ -29,6 +29,7 @@ jobs:
       - name: Enforce manifest review policy
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           EVENT_ACTION: ${{ github.event.action }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
@@ -69,7 +70,7 @@ jobs:
           fi
 
           if [[ "${EVENT_ACTION}" == "synchronize" ]]; then
-            gh pr edit "${PR_NUMBER}" --remove-label "manifest-review:approved" || true
+            gh pr edit "${PR_NUMBER}" --remove-label "manifest-review:approved"
           fi
 
           approver="$(
