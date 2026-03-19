@@ -118,6 +118,7 @@ describe("helper contract", () => {
       expect(skillDoc).toContain("Do not claim full domain-specific config readback");
       expect(skillDoc).toContain("Config-entry state:");
       expect(skillDoc).toContain("Read scope:");
+      expect(skillDoc).toContain("metadata only in this slice");
       expect(flowSchemasDoc).toContain("observed field inventory");
       expect(flowSchemasDoc).toContain("not a complete validation schema");
       expect(flowSchemasDoc).toContain("Canonical list/metadata-read item");

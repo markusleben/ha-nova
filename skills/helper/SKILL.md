@@ -358,8 +358,9 @@ After reading a helper config, present:
 ```text
 **Helper: {title}** (config-entry `{domain}`)
 - **Entry ID:** {entry_id}
-- **State:** {state}
+- **Config-entry state:** {state}
 - **Linked entities:** {linked_entities}
+- **Read scope:** metadata only in this slice
 ```
 
 For list operations, use:
