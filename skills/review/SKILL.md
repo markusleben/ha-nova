@@ -130,7 +130,13 @@ Analyze config against the review catalog plus any additional issues found in th
 **Apply these families by domain:**
 - Automation: S-01..S-03, R-01..R-17, P-01..P-05, M-01..M-04
 - Script: automation families plus F-01..F-08
-- Helper: H-01..H-10 only
+- Helper (storage-based family): H-01..H-10
+- Helper (config-entry family, PR1 foundation): metadata-only review
+  - do not apply H-01..H-10
+  - confirm config-entry metadata is present
+  - inspect linked entities when available
+  - run `search/related` on up to 3 linked entities
+  - say explicitly that config-entry helper review is limited in this slice
 - If an automation or script references helpers in actions or direct thresholds, also apply H-01..H-10 to those helpers
 - R-17 is an intra-config branch comparison only. Never emit it from collision scan or cross-automation conflict analysis.
 

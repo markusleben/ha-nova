@@ -142,6 +142,7 @@ Fallback:
 - **Config-entry family (PR1 foundation)**
   - Types in this slice: `utility_meter`, `derivative`, `integration`, `min_max`, `threshold`, `tod`
   - Read/list: WS `config_entries/get` + WS `config/entity_registry/list`
+  - Read scope in this slice: metadata only, not full domain-specific config readback
   - Mutation transport: relay `/core`
   - Identity: `entry_id` is canonical; linked `entity_id` values are derived only
   - Write verify: config-entry layer first (`config_entries/get`), entity registry second

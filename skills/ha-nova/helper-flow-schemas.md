@@ -10,10 +10,14 @@ This file covers the PR1 foundation slice only:
 - `threshold`
 - `tod`
 
+This file is an observed field inventory for PR1, not a complete validation schema.
+Use it to confirm supported domains, field names, and flow shape.
+If enum semantics, required/optional behavior, or cross-field rules are uncertain, fail loud instead of guessing.
+
 ## Common Rules
 
 - Canonical write identity: `entry_id`
-- Canonical list/read item: `entry_id`, `domain`, `title`, `state`, `linked_entities[]`
+- Canonical list/metadata-read item: `entry_id`, `domain`, `title`, `state`, `linked_entities[]`
 - Create mutation path:
   - `POST /api/config/config_entries/flow` with a handler-start body
   - `POST /api/config/config_entries/flow/{flow_id}` with a form-submit body

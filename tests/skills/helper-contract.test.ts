@@ -87,6 +87,7 @@ describe("helper contract", () => {
       expect(skillDoc).toContain("Config-entry family (PR1 foundation)");
       expect(architectureDoc).toContain("two explicit helper families");
       expect(architectureDoc).toContain("Config-entry family (PR1 foundation)");
+      expect(architectureDoc).toContain("metadata only");
     });
 
     it("references the dedicated config-entry flow schema doc", () => {
@@ -110,6 +111,16 @@ describe("helper contract", () => {
 
       expect(skillDoc).toContain("does **not** support update yet");
       expect(skillDoc).toContain("Not supported in this PR1 slice");
+    });
+
+    it("keeps config-entry read scope metadata-only in this slice", () => {
+      expect(skillDoc).toContain("Read is metadata-only in this slice");
+      expect(skillDoc).toContain("Do not claim full domain-specific config readback");
+      expect(skillDoc).toContain("Config-entry state:");
+      expect(skillDoc).toContain("Read scope:");
+      expect(flowSchemasDoc).toContain("observed field inventory");
+      expect(flowSchemasDoc).toContain("not a complete validation schema");
+      expect(flowSchemasDoc).toContain("Canonical list/metadata-read item");
     });
 
     it("uses config-entry-first verification for the config-entry family", () => {

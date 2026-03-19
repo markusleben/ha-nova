@@ -137,6 +137,7 @@ Match user intent to exactly one skill:
 | **any HA task not matched above** — dashboards, blueprints, history, energy, areas, zones, any raw relay/ws/core write | `ha-nova:fallback` **(mandatory fallback — never skip)** |
 
 **"Analyze my automation"** → `ha-nova:review` (NOT read + review)
+**"Review my utility meter helper"** → `ha-nova:review` (config-entry helper review is metadata-only in this PR1 slice)
 **"Show my automations"** → `ha-nova:read` (NOT review)
 **"Create an automation"** → `ha-nova:write` (NOT read + write)
 **"Create an input_boolean"** → `ha-nova:helper` (NOT write)

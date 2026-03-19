@@ -69,12 +69,14 @@ Which HA operations require REST, WS, or filesystem?
 | `{type}/delete` | Same types (requires `unique_id`, not `entity_id`) |
 
 ### Config Entry Flow (for more complex helpers)
-| WS Type | Purpose |
-|---------|-----|
-| `config_entries/flow` | Start flow (handler = domain, e.g. "template") |
-| `config_entries/flow/{flow_id}` | Submit flow step |
-| `config_entries/get` | Retrieve config entry |
-| `config_entries/delete` | Delete config entry |
+| Transport | Command / Path | Purpose |
+|-----------|----------------|---------|
+| WS | `config_entries/get` | Retrieve config-entry metadata |
+| `/core` | `POST /api/config/config_entries/flow` | Start flow |
+| `/core` | `POST /api/config/config_entries/flow/{flow_id}` | Submit flow step |
+| `/core` | `DELETE /api/config/config_entries/entry/{entry_id}` | Delete config entry |
+
+Observed locally on Markus's HA on 2026-03-19: raw WS `config_entries/flow` did not succeed in this session; relay `/core` returned the expected config-flow responses.
 
 **Supported flow helpers:** template, group, utility_meter, derivative, min_max, threshold, integration, statistics, trend, random, filter, tod, generic_thermostat, switch_as_x, generic_hygrostat
 

@@ -11,7 +11,7 @@ description: Use when creating, updating, deleting, or listing Home Assistant he
 
 - **Storage-based family** — full CRUD for:
   - `input_boolean`, `input_number`, `input_text`, `input_select`, `input_datetime`, `input_button`, `counter`, `timer`, `schedule`
-- **Config-entry family (PR1 foundation)** — list/read/create/delete for:
+- **Config-entry family (PR1 foundation)** — list, metadata-read, create, delete for:
   - `utility_meter`, `derivative`, `integration`, `min_max`, `threshold`, `tod`
 
 Config-entry family in this slice does **not** support update yet.
@@ -42,7 +42,7 @@ Write payloads with the client's native file-writing tool, then use:
 Family-specific transport:
 
 - **Storage-based family:** WS CRUD + WS list
-- **Config-entry family:** WS `config_entries/get` + WS entity-registry joins for list/read; relay `/core` for create/delete writes
+- **Config-entry family:** WS `config_entries/get` + WS entity-registry joins for list/metadata-read; relay `/core` for create/delete writes
 
 ## Flow
 
@@ -204,6 +204,9 @@ If multiple matches remain, present max 5 candidates and ask one blocking questi
 
 #### Reading a single helper
 
+Read is metadata-only in this slice.
+Do not claim full domain-specific config readback from this path.
+
 1. Resolve by one of:
    - `entry_id`
    - config-entry title
@@ -215,18 +218,21 @@ If multiple matches remain, present max 5 candidates and ask one blocking questi
 ```text
 **Helper: {title}** (config-entry `{domain}`)
 - **Entry ID:** {entry_id}
-- **State:** {state}
+- **Config-entry state:** {state}
 - **Linked entities:** {linked_entities summary}
+- **Read scope:** metadata only in this slice
 - **Supports update:** not in this slice
 ```
 
 #### Creating a helper
 
-1. Validate the requested domain against `skills/ha-nova/helper-flow-schemas.md`.
+1. Confirm the requested domain is supported in `skills/ha-nova/helper-flow-schemas.md`.
+   - treat that file as observed field inventory, not as a full validation schema
+   - if required field semantics remain uncertain, fail loud and ask one blocking question
 2. For this slice, all six supported create flows were observed locally as:
    - `step_id: user`
    - `last_step: true`
-3. Prepare the final field set using the domain-specific section in `skills/ha-nova/helper-flow-schemas.md`.
+3. Prepare the final field set using the observed domain-specific field inventory in `skills/ha-nova/helper-flow-schemas.md`.
 4. Preview:
    - title/name
    - domain

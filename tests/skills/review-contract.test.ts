@@ -47,7 +47,8 @@ describe("review contract", () => {
   it("keeps shared references aligned to H-01..H-10", () => {
     expect(writeSkill).toContain("H-01..H-10");
     expect(helperSkill).toContain("H-01..H-10");
-    expect(reviewAgent).toContain("H-01..H-10");
+    expect(reviewSkill).toContain("Helper (storage-based family): H-01..H-10");
+    expect(reviewAgent).toContain("Helper (storage-based family):** H-01..H-10.");
     expect(architectureDoc).toContain("H-01..H-10");
   });
 
@@ -59,6 +60,10 @@ describe("review contract", () => {
     expect(helperSkill).toContain("direct helper-backed threshold");
     expect(helperSkill).toContain("Do not pretend H-01..H-10 apply here");
     expect(helperSkill).toContain("minimal config-entry post-write contract");
+    expect(reviewSkill).toContain("Helper (config-entry family, PR1 foundation): metadata-only review");
+    expect(reviewSkill).toContain("do not apply H-01..H-10");
+    expect(reviewAgent).toContain("metadata-only review");
+    expect(reviewAgent).toContain("Do not apply H-01..H-10");
   });
 
   it("documents contributor-facing taxonomy entry points", () => {
