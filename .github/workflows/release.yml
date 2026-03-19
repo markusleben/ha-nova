@@ -50,7 +50,7 @@ jobs:
         run: bash scripts/release/verify-release-metadata.sh "${GITHUB_REF_NAME}"
 
       - name: GoReleaser
-        uses: goreleaser/goreleaser-action@v6
+        uses: goreleaser/goreleaser-action@v7
         with:
           version: "~> v2"
           args: release --clean --skip=sign
