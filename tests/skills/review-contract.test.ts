@@ -73,10 +73,22 @@ describe("review contract", () => {
     expect(reviewChecks).toContain("R-16 [HIGH]");
     expect(reviewChecks).toContain("Templated event name");
     expect(reviewChecks).toContain("`event_type:` does not evaluate templates");
-    expect(reviewSkill).toContain("R-01..R-16");
-    expect(reviewAgent).toContain("R-01..R-16");
-    expect(architectureDoc).toContain("R-01..R-16");
+    expect(reviewSkill).toContain("R-01..R-17");
+    expect(reviewAgent).toContain("R-01..R-17");
+    expect(architectureDoc).toContain("R-01..R-17");
     expect(templateGuidelines).toContain("Event trigger names must be literal strings");
     expect(templateGuidelines).toContain("do not template `event_type:`");
+  });
+
+  it("documents narrow overwrite/rebound detection as R-17", () => {
+    expect(reviewChecks).toContain("R-17 [MEDIUM → HIGH]");
+    expect(reviewChecks).toContain("Intra-config overwrite/rebound risk");
+    expect(reviewChecks).toContain("Never use collision-scan results to trigger R-17");
+    expect(reviewChecks).toContain("`live/incremental`");
+    expect(reviewChecks).toContain("`recompute/reset`");
+    expect(reviewChecks).toContain("fixed preset branches");
+    expect(reviewSkill).toContain("R-17 is an intra-config branch comparison only");
+    expect(reviewAgent).toContain("Do not derive it from collision-scan matches");
+    expect(architectureDoc).toContain("R-17` is intra-config only");
   });
 });

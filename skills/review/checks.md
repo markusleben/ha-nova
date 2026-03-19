@@ -36,6 +36,17 @@ Load this catalog from `skills/review/SKILL.md` Step 1 before evaluating finding
 - R-14 [MEDIUM]: Dead trigger — trigger has `id:` but that ID is never referenced in any `condition: trigger`, `choose:`, or template expression; likely copy-paste remnant or unfinished logic
 - R-15 [MEDIUM]: Asymmetric error handling — same physical action (e.g., `cover.open_cover`, `climate.set_temperature`) appears in multiple branches but only some have retry/fallback logic; inconsistent reliability across code paths
 - R-16 [HIGH]: Templated event name — `event_type:` does not evaluate templates in event triggers; the automation attaches to the literal string and silently misses the intended event. Use a fixed `event_type` and move dynamic logic into conditions or event data handling.
+- R-17 [MEDIUM → HIGH]: Intra-config overwrite/rebound risk — the same entity/helper is written in 2+ distinct control-flow branches and the write basis is mixed. Typical risk shape: one branch advances live state incrementally, another branch later recomputes or resets from snapshot/start value/timer/fallback/baseline. Default to MEDIUM. Escalate to HIGH only when a later branch can plausibly overwrite/reset value already advanced by an earlier branch.
+
+## R-17 Evidence Boundary
+
+- Apply only within one automation or one script. Never use collision-scan results to trigger R-17.
+- First confirm same target entity/helper is written in 2+ distinct control-flow paths such as `choose`, `default`, `if`/`then`/`else`, timeout, recovery, or fallback branches.
+- Then compare write-basis classes:
+  - `live/incremental`: increment/decrement, add/subtract from current state, or otherwise advance existing value
+  - `recompute/reset`: set from snapshot, start value, timer duration, fallback constant, or baseline rebuild
+- Skip when all writes use the same basis class, when the writes are idempotent duplicates, or when fixed preset branches are the intended behavior.
+- Do not use R-17 for generic repeated writes, cross-automation conflicts, or existing `mode: parallel` race cases already covered by R-08 / F-05.
 
 ## Performance (Medium)
 
