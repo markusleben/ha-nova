@@ -43,6 +43,51 @@ Before every RC or final tag:
 - if any relevant delta appears after the last bot-reviewed commit, stop release work and restart the full cycle: push -> `@codex review` -> actual bot result -> checks green
 - run at least two independent subagent review passes on the final release-bound delta with distinct focuses before relying on Codex review
 
+## Release Worthiness
+
+Do not cut a new version just because `main` moved.
+
+Default rule:
+- release when the merged delta changes shipped behavior, installer/update flow, release/runtime compatibility, or fixes a user-facing bug people can actually hit
+- batch docs-only, test-only, process-only, and internal maintenance into the next real user-facing release unless they fix the release path itself
+
+Examples that usually justify a version:
+- new user-visible capability
+- user-facing bug fix
+- installer/update/uninstall behavior change
+- client integration behavior change
+- published artifact or release automation fix that affects real installs
+
+Examples that usually do not justify an immediate standalone version:
+- release-note wording only
+- internal process/docs policy changes
+- test-only hardening
+- CI-only cleanup that does not affect shipped artifacts
+
+## Dependabot Fast Lane
+
+Keep Dependabot automation narrow:
+
+- safe lane: dev-only npm minor/patch updates that touch only `package.json` / `package-lock.json`
+- manual lane: workflow files, release automation, installer/update paths, runtime/security-sensitive paths, and anything outside the narrow manifest lane
+- require `dependency-review` on `main` so auto-merge cannot bypass dependency-risk screening
+- require `manifest-review-gate` on `main` so non-safe manifest changes still need an explicit maintainer acknowledgement
+- `codex-review-gate` is advisory on `main`; safe-lane auto-merge must not wait on Codex bot latency
+
+Reason:
+- this keeps low-risk maintenance fast without teaching the repo to auto-merge changes that alter the release runway or shipped behavior
+- maintainers can verify the live GitHub setting drift with `bash scripts/release/verify-github-main-protection.sh`
+
+## Codex Review Policy
+
+- `codex-review-gate` is advisory on `main`, not a required branch-protection check
+- native GitHub gates stay hard on `main`: required reviews, CODEOWNERS-sensitive paths, `ci-gate`, `analyze`, `dependency-review`, and `manifest-review-gate`
+- for release-bound or otherwise high-risk deltas, still wait for an actual Codex bot result on the final SHA before merge/tag/release
+- use `bash scripts/release/verify-github-main-protection.sh` to confirm the live `main` branch protection still matches this policy
+
+Reason:
+- GitHub branch protection is most reliable when only deterministic native checks block merges; Codex remains a strong review layer without turning bot latency or timeout semantics into merge fragility
+
 ## Release Candidate Gate
 
 Before creating a public release, run an RC pass.

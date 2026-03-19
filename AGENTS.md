@@ -65,6 +65,7 @@ Work style: Be radically precise. No fluff. Pure information only (drop grammar;
 - **Relevant delta means:** any code, tests, docs-that-change-behavior, scripts, workflow files, release metadata, installer/update flow, or release notes change that alters the commit to merge or tag.
 - **Push is not review:** a new push never inherits the previous clean review state.
 - **A clean bot result is SHA-specific:** it applies only to the exact commit SHA it reviewed; any later SHA is unreviewed until the full cycle completes again.
+- **Codex advisory rule:** `codex-review-gate` is advisory on `main`; do not treat it as a required branch-protection gate for routine PRs.
 - **No local-only release shortcuts:** if a follow-up fix matters enough to keep, it must go through GitHub review before merge/tag/release.
 - **Release/tag/publish gate:** never create/move a release tag, start RC/final publish, or call a commit release-ready unless the exact remote commit state intended for tag/release is represented by the latest fully reviewed PR state with no unreviewed deltas beyond it.
 - **Release-bound review hardening:** before PR merge or release tag, run at least two independent subagent review passes on the final delta with distinct focus areas (for example runtime/product logic and release/process/workflow risk), fix their findings, then request/await Codex review.
@@ -72,15 +73,16 @@ Work style: Be radically precise. No fluff. Pure information only (drop grammar;
   The `codex-review-gate` workflow waits ~9 min for the Codex review bot. Bot signals: `eyes` reaction = review in progress, `👍` reaction = no findings, review comments = findings.
   - [ ] 1. `gh pr create ...`
   - [ ] 2. Run at least two independent subagent review passes on the exact current PR delta with distinct focuses; fix issues before relying on Codex review.
-  - [ ] 3. `gh pr checks <nr> --watch` — wait for ALL checks including `codex-review-gate`
+  - [ ] 3. `gh pr checks <nr> --watch` — wait for ALL required checks; for release-bound/high-risk deltas also wait for `codex-review-gate`
   - [ ] 4. Check bot signal across all channels: `gh api repos/<o>/<r>/issues/<nr>/reactions` (👍 = clean), `gh api repos/<o>/<r>/pulls/<nr>/reviews` (PR-level review findings), `gh api repos/<o>/<r>/pulls/<nr>/comments` (inline findings), and issue/discussion comments on the PR.
   - [ ] 5. If findings OR any new relevant delta is introduced afterward → fix, push, then **trigger re-review**: `gh pr comment <nr> --body "@codex review"` — this is the ONLY reliable way to get the bot to review fix commits (pushes alone do NOT trigger re-review). Then go back to step 2.
-  - [ ] 6. Only proceed after an actual Codex bot result for the current latest commit SHA; timeout alone is NOT enough. Then resolve ALL review threads (branch protection blocks unresolved):
+  - [ ] 6. Resolve ALL review threads before merge (branch protection blocks unresolved):
          `gh api graphql -f query='{ repository(owner:"<o>",name:"<r>") { pullRequest(number:<nr>) { reviewThreads(first:20) { nodes { id isResolved } } } } }'`
          Then for each unresolved: `gh api graphql -f query='mutation { resolveReviewThread(input:{threadId:"<id>"}) { thread { isResolved } } }'`
-  - [ ] 7. Confirm the PR head SHA is still the same SHA that received the latest clean/current bot result. If SHA changed, go back to step 2.
-  - [ ] 8. `gh pr merge --squash --delete-branch` (use `--admin` only if branch protection blocks after all steps passed)
-  - [ ] 9. For squash merge flows, tag/release only the remote merge commit produced from that reviewed PR state; any later delta requires a new PR/review cycle.
+  - [ ] 7. For release-bound/high-risk deltas, only proceed after an actual Codex bot result for the current latest commit SHA; timeout alone is NOT enough.
+  - [ ] 8. For release-bound/high-risk deltas, confirm the PR head SHA is still the same SHA that received the latest clean/current bot result. If SHA changed, go back to step 2.
+  - [ ] 9. `gh pr merge --squash --delete-branch` (use `--admin` only if branch protection blocks after all steps passed)
+  - [ ] 10. For squash merge flows, tag/release only the remote merge commit produced from that reviewed PR state; any later delta requires a new PR/review cycle.
 
 ## Error Handling
 - Expected issues: explicit result types (not throw/try/catch).
@@ -138,6 +140,10 @@ Use below list to store and recall user notes when asked to do so.
 - Release guard: Claude marketplace sync changes must ship with regression coverage for plain GitHub URL, structured GitHub source, and structured GitHub source with pinned `ref`; pinned refs are release blockers if they compare equal to the floating default source.
 - Release notes preference: keep them short and user-centric. Prioritize `New Features`, optional `What To Watch` only for real behavior/breaking/action-needed changes, and selective `Bug Fixes` only for important user-facing fixes. Do not dump every minor fix into release notes.
 - Release preflight requirement: before every release/RC/tag/publish flow, proactively audit open PRs with special focus on Dependabot and workflow/release-related PRs. Classify them as `blocker now` vs `separate later`. Never pull in a red or unreviewed workflow/release PR right before publish just because it is open.
+- Release-worthiness rule (user requirement): not every merged change deserves an immediate new version or release. Default to batching docs/tests/process-only/internal maintenance into the next real user-facing release unless the change fixes the live release path, published artifacts, installer/update flow, or another issue users can actually hit in the shipped product.
+- Dependabot fast-lane rule (user requirement): automate only the safe lane. Dev-only npm minor/patch manifest updates may auto-approve/auto-merge after required checks pass; workflow/release/installer/runtime/security changes stay manual.
+- Codex advisory rule (user requirement): on `main`, Codex is a review signal and escalation layer, not a required branch-protection check; for release-bound/high-risk deltas, still wait for a real Codex result on the final SHA.
+- Main-branch protection drift check (user requirement): when repo policy changes, verify the live `main` branch protection with `bash scripts/release/verify-github-main-protection.sh` so GitHub settings do not silently drift away from the documented contract.
 - Codex review hygiene (user requirement): for release-bound PRs, wait for the real Codex bot response; do not treat workflow timeout as a clean review.
 - Review invalidation hygiene (user requirement): if any relevant delta lands after the last reviewed commit, release readiness resets to zero until that exact new commit state completes a fresh PR + `@codex review` + real bot response cycle.
 - Subagent review hygiene (user requirement): for release-bound or high-risk changes, use at least two independent subagent review passes with distinct focuses before merge/tag so Codex review is a final net, not the first serious audit.

@@ -6,7 +6,8 @@ updates:
       interval: weekly
     open-pull-requests-limit: 5
     groups:
-      npm-minor-patch:
+      npm-dev-minor-patch:
+        dependency-type: development
         update-types:
           - minor
           - patch

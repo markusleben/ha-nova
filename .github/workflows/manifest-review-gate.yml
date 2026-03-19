@@ -1,0 +1,97 @@
+name: Manifest Review Gate
+
+on:
+  pull_request_target:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+      - labeled
+      - unlabeled
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
+jobs:
+  manifest-review-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch Dependabot metadata
+        id: metadata
+        if: ${{ github.event.pull_request.user.login == 'dependabot[bot]' }}
+        uses: dependabot/fetch-metadata@d7267f607e9d3fb96fc2fbe83e0af444713e90b7
+        with:
+          github-token: ${{ github.token }}
+
+      - name: Enforce manifest review policy
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_ACTION: ${{ github.event.action }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          MANIFEST_APPROVERS: markusleben
+          PACKAGE_ECOSYSTEM: ${{ steps.metadata.outputs.package-ecosystem }}
+          DEPENDENCY_GROUP: ${{ steps.metadata.outputs.dependency-group }}
+          UPDATE_TYPE: ${{ steps.metadata.outputs.update-type }}
+        run: |
+          set -euo pipefail
+
+          mapfile -t changed_files < <(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/files" --paginate --jq '.[].filename')
+
+          manifest_changed=false
+          non_manifest_changed=false
+          for changed_file in "${changed_files[@]}"; do
+            case "${changed_file}" in
+              package.json|package-lock.json)
+                manifest_changed=true
+                ;;
+              *)
+                non_manifest_changed=true
+                ;;
+            esac
+          done
+
+          if [[ "${manifest_changed}" != "true" ]]; then
+            echo "No package manifest changes detected."
+            exit 0
+          fi
+
+          if [[ "${PR_AUTHOR}" == "dependabot[bot]" && \
+                "${PACKAGE_ECOSYSTEM}" == "npm" && \
+                "${DEPENDENCY_GROUP}" == "npm-dev-minor-patch" && \
+                "${non_manifest_changed}" != "true" && \
+                ( "${UPDATE_TYPE}" == "version-update:semver-minor" || "${UPDATE_TYPE}" == "version-update:semver-patch" ) ]]; then
+            echo "Safe Dependabot manifest lane detected."
+            exit 0
+          fi
+
+          if [[ "${EVENT_ACTION}" == "synchronize" ]]; then
+            gh pr edit "${PR_NUMBER}" --remove-label "manifest-review:approved" || true
+          fi
+
+          approver="$(
+            gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/timeline" \
+              --paginate \
+              --slurp \
+              -H "Accept: application/vnd.github+json" \
+              --jq '
+                [
+                  .[][]
+                  | select((.event == "labeled" or .event == "unlabeled") and .label.name == "manifest-review:approved")
+                ]
+                | last
+                | select(.event == "labeled")
+                | .actor.login
+              '
+          )"
+
+          if [[ -n "${approver}" ]] && printf '%s\n' "${MANIFEST_APPROVERS}" | tr ',' '\n' | grep -qx "${approver}"; then
+            echo "Maintainer manifest-review label present from ${approver}."
+            exit 0
+          fi
+
+          echo "::error::Package manifest changes require maintainer review. Add the label manifest-review:approved after review from an approved maintainer."
+          exit 1

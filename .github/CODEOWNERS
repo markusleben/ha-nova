@@ -1,13 +1,23 @@
-# Global fallback owner
-* @markusleben
-
-# GitHub process and automation ownership
+# Sensitive automation, release, and runtime ownership
+# Package manifests intentionally stay outside CODEOWNERS so the safe Dependabot
+# lane can auto-approve only dev-only npm minor/patch manifest updates after the
+# required checks pass.
 /.github/ @markusleben
+/.claude-plugin/ @markusleben
+/.goreleaser.yml @markusleben
+/install.sh @markusleben
+/install.ps1 @markusleben
+/version.json @markusleben
+/clients/ @markusleben
+/cli/ @markusleben
+/hooks/ @markusleben
+/nova/ @markusleben
 
 # Core project areas
-/app/ @markusleben
-/src/ @markusleben
 /skills/ @markusleben
 /scripts/ @markusleben
 /tests/ @markusleben
-/docs/ @markusleben
+/docs/reference/ @markusleben
+/docs/releasing.md @markusleben
+/README.md @markusleben
+/PROJECT.md @markusleben

@@ -1,0 +1,179 @@
+name: Dependabot Safe Auto-Merge
+
+on:
+  pull_request_target:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+  workflow_run:
+    workflows:
+      - CI
+      - CodeQL
+      - Dependency Review
+      - Manifest Review Gate
+    types:
+      - completed
+
+permissions:
+  actions: read
+  checks: read
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  approve-safe-dev-deps:
+    if: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.user.login == 'dependabot[bot]' && !github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@d7267f607e9d3fb96fc2fbe83e0af444713e90b7
+        with:
+          github-token: ${{ github.token }}
+
+      - name: Evaluate safe auto-merge lane
+        id: guard
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PACKAGE_ECOSYSTEM: ${{ steps.metadata.outputs.package-ecosystem }}
+          DEPENDENCY_GROUP: ${{ steps.metadata.outputs.dependency-group }}
+          UPDATE_TYPE: ${{ steps.metadata.outputs.update-type }}
+        run: |
+          set -euo pipefail
+
+          eligible=false
+          reason=""
+
+          if [[ "${PACKAGE_ECOSYSTEM}" != "npm" ]]; then
+            reason="package ecosystem is not npm"
+          elif [[ "${DEPENDENCY_GROUP}" != "npm-dev-minor-patch" ]]; then
+            reason="dependency group is not the safe dev-only lane"
+          elif [[ "${UPDATE_TYPE}" != "version-update:semver-minor" && "${UPDATE_TYPE}" != "version-update:semver-patch" ]]; then
+            reason="update type is not minor or patch"
+          else
+            mapfile -t changed_files < <(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/files" --paginate --jq '.[].filename')
+            if [[ ${#changed_files[@]} -eq 0 ]]; then
+              reason="no changed files returned by GitHub API"
+            else
+              for changed_file in "${changed_files[@]}"; do
+                case "${changed_file}" in
+                  package.json|package-lock.json) ;;
+                  *)
+                    reason="changed file outside safe manifest lane: ${changed_file}"
+                    break
+                    ;;
+                esac
+              done
+            fi
+          fi
+
+          if [[ -z "${reason}" ]]; then
+            eligible=true
+            reason="safe dev-only npm manifest update"
+          fi
+
+          echo "eligible=${eligible}" >> "${GITHUB_OUTPUT}"
+          echo "reason=${reason}" >> "${GITHUB_OUTPUT}"
+          {
+            echo "### Dependabot safe auto-merge"
+            echo
+            echo "- eligible: ${eligible}"
+            echo "- reason: ${reason}"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Approve safe Dependabot PR
+        if: ${{ steps.guard.outputs.eligible == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          set -euo pipefail
+          review_decision="$(gh pr view "${PR_URL}" --json reviewDecision --jq '.reviewDecision')"
+          if [[ "${review_decision}" != "APPROVED" ]]; then
+            gh pr review --approve "${PR_URL}" --body "Safe Dependabot lane: dev-only npm minor/patch manifest update."
+          fi
+
+      - name: Mark PR for safe auto-merge
+        if: ${{ steps.guard.outputs.eligible == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          gh pr edit "${PR_NUMBER}" --add-label "dependabot-safe:auto-merge"
+
+      - name: Remove safe auto-merge marker when lane becomes ineligible
+        if: ${{ steps.guard.outputs.eligible != 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          gh pr edit "${PR_NUMBER}" --remove-label "dependabot-safe:auto-merge" || true
+
+  enable-safe-auto-merge:
+    if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enable auto-merge after all required checks pass
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+
+          prs="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}" --jq '.pull_requests[].number')"
+          if [[ -z "${prs}" ]]; then
+            echo "No PRs attached to workflow run."
+            exit 0
+          fi
+
+          for pr_number in ${prs}; do
+            pr_json="$(gh pr view "${pr_number}" --json headRefOid,isDraft,labels,url)"
+            pr_sha="$(printf '%s' "${pr_json}" | jq -r '.headRefOid')"
+            is_draft="$(printf '%s' "${pr_json}" | jq -r '.isDraft')"
+            labels="$(printf '%s' "${pr_json}" | jq -r '.labels[].name')"
+            if [[ "${is_draft}" == "true" ]]; then
+              continue
+            fi
+            if [[ "${pr_sha}" != "${RUN_SHA}" ]]; then
+              continue
+            fi
+            if ! printf '%s\n' "${labels}" | grep -qx "dependabot-safe:auto-merge"; then
+              continue
+            fi
+            label_actor="$(
+              gh api "repos/${GITHUB_REPOSITORY}/issues/${pr_number}/timeline" \
+                --paginate \
+                --slurp \
+                -H "Accept: application/vnd.github+json" \
+                --jq '
+                  [
+                    .[][]
+                    | select((.event == "labeled" or .event == "unlabeled") and .label.name == "dependabot-safe:auto-merge")
+                  ]
+                  | last
+                  | select(.event == "labeled")
+                  | .actor.login
+                '
+            )"
+            if [[ "${label_actor}" != "github-actions[bot]" ]]; then
+              continue
+            fi
+
+            checks_json="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${pr_sha}/check-runs?per_page=100")"
+            for required_check in ci-gate analyze dependency-review manifest-review-gate; do
+              conclusion="$(printf '%s' "${checks_json}" | jq -r --arg name "${required_check}" '[.check_runs[] | select(.name == $name) | .conclusion] | last // ""')"
+              if [[ "${conclusion}" != "success" ]]; then
+                echo "Required check ${required_check} not green for PR #${pr_number}; skipping auto-merge."
+                continue 2
+              fi
+            done
+
+            gh pr merge "${pr_number}" --auto --squash
+          done
