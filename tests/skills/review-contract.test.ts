@@ -48,7 +48,7 @@ describe("review contract", () => {
     expect(writeSkill).toContain("H-01..H-10");
     expect(helperSkill).toContain("H-01..H-10");
     expect(reviewSkill).toContain("Helper (storage-based family): H-01..H-10");
-    expect(reviewAgent).toContain("Helper (storage-based family):** H-01..H-10.");
+    expect(reviewAgent).toContain("**Helper (storage-based family):** H-01..H-10.");
     expect(architectureDoc).toContain("H-01..H-10");
   });
 
@@ -64,6 +64,26 @@ describe("review contract", () => {
     expect(reviewSkill).toContain("do not apply H-01..H-10");
     expect(reviewAgent).toContain("metadata-only review");
     expect(reviewAgent).toContain("Do not apply H-01..H-10");
+  });
+
+  it("documents config-entry helper target resolution before metadata-only review", () => {
+    expect(reviewSkill).toContain("config-entry helper review is metadata-only in this slice, but target resolution must still normalize to a real `entry_id`");
+    expect(reviewSkill).toContain('{"type":"config_entries/get"}');
+    expect(reviewSkill).toContain('{"type":"config/entity_registry/list"}');
+    expect(reviewSkill).toContain("exact `entry_id`");
+    expect(reviewSkill).toContain("linked `entity_id` by matching entity-registry `config_entry_id`");
+    expect(reviewSkill).toContain("Skip this step for config-entry helpers — `entry_id` is already the canonical identity.");
+    expect(reviewSkill).toContain("For config-entry helpers, persist the canonical metadata item from step 2 to `<target-file>`");
+    expect(reviewSkill).toContain("For standalone config-entry helper review in this PR1 slice, skip this step entirely.");
+    expect(reviewSkill).toContain("If the target already in context is a config-entry helper metadata item: skip Target Resolution entirely and go straight to the metadata-only helper review lane in Step 1.");
+    expect(reviewSkill).toContain("Do not attempt primary-controlled-entity state reads or Quick-Fix detection from that metadata-only path.");
+    expect(reviewSkill).toContain("in Step 2, derive collision candidates from `linked_entities[]`, not from config actions");
+    expect(reviewSkill).toContain("config-entry helper metadata item: use `linked_entities[]` from the canonical metadata item; do not attempt action extraction");
+    expect(reviewSkill).toContain("helper (config-entry family): use up to 3 `linked_entities[]` from the canonical metadata item");
+    expect(reviewAgent).toContain("helper (config-entry family): `entry_id`");
+    expect(reviewAgent).toContain("helper (config-entry family): canonical metadata item (`entry_id`, `domain`, `title`, `state`, `linked_entities[]`)");
+    expect(reviewAgent).toContain("In Step 2, derive collision candidates from `linked_entities[]`, not from action extraction.");
+    expect(reviewAgent).toContain("helper (config-entry family): use up to 3 `linked_entities[]` from `{CONFIG}`");
   });
 
   it("documents contributor-facing taxonomy entry points", () => {

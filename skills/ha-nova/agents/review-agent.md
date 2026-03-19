@@ -6,7 +6,13 @@ Purpose: post-write quality review and standalone automation/script/helper analy
 
 - `{DOMAIN}`: `automation`, `script`, or `helper`
 - `{TARGET_ID}`: config id of the written/analyzed item
-- `{CONFIG}`: full config JSON (from apply read-back or fresh read)
+  - automation/script: `unique_id`
+  - helper (storage-based family): helper entity_id or internal helper id already resolved upstream
+  - helper (config-entry family): `entry_id`
+- `{CONFIG}`: resolved review payload
+  - automation/script: full config JSON (from apply read-back or fresh read)
+  - helper (storage-based family): helper config/list item
+  - helper (config-entry family): canonical metadata item (`entry_id`, `domain`, `title`, `state`, `linked_entities[]`)
 - `{MODE}`: `post-write` or `standalone`
 
 ## Hard Scope
@@ -66,7 +72,7 @@ Which checks to apply by domain:
 - **Automation:** S-01..S-03, R-01..R-17, P-01..P-05, M-01..M-04. If actions reference helpers, also H-01..H-10 on those helpers.
 - **Script:** All automation checks plus F-01..F-08.
 - **Helper (storage-based family):** H-01..H-10.
-- **Helper (config-entry family, PR1 foundation):** metadata-only review. Do not apply H-01..H-10; inspect config-entry metadata, linked entities, and `search/related` only.
+- **Helper (config-entry family, PR1 foundation):** metadata-only review. Do not apply H-01..H-10; inspect config-entry metadata, linked entities, and `search/related` only. In Step 2, derive collision candidates from `linked_entities[]`, not from action extraction.
 - `R-17` is an intra-config branch comparison only. Do not derive it from collision-scan matches or cross-item conflicts.
 
 If H-09/H-10 evaluation needs live helper evidence, read `state`, `attributes.min`, `attributes.max`, and `attributes.step` from `/api/states/{helper_entity_id}`. If any of those values are missing or non-numeric, skip H-09/H-10. Use `skills/review/checks.md` → Helper Threshold Evidence for the operator-aware threshold rules.
@@ -75,8 +81,11 @@ If H-09/H-10 evaluation needs live helper evidence, read `state`, `attributes.mi
 
 Find other automations/scripts that control the same entities.
 
-1. Extract all target entity_ids from `{CONFIG}` actions (the entities being controlled).
-2. For the top 3 most significant target entities, run `search/related`:
+1. Build the candidate entity list:
+   - automation/script: extract target entity_ids from `{CONFIG}` actions
+   - helper (storage-based family): use the helper entity_id
+   - helper (config-entry family): use up to 3 `linked_entities[]` from `{CONFIG}`
+2. For the top 3 most significant candidate entities, run `search/related`:
    - create `<payload-file>` with `{"type":"search/related","item_type":"entity","item_id":"{entity_id}"}`
    - run `ha-nova relay ws --data-file <payload-file>`
 3. Collect related automations/scripts (exclude `{TARGET_ID}` itself).

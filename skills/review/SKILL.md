@@ -31,7 +31,12 @@ Relay CLI: `ha-nova relay`
 
 ### Target Resolution
 
-If user provides an exact entity_id (e.g., `automation.kitchen_lights`), skip search and go directly to config read.
+If user provides an exact automation/script `entity_id` (e.g., `automation.kitchen_lights`), skip search and go directly to config read.
+
+For helpers, resolve the family first:
+- storage-based family: entity_id domain is one of `input_boolean`, `input_number`, `input_text`, `input_select`, `input_datetime`, `input_button`, `counter`, `timer`, `schedule`
+- config-entry family in this PR1 slice: domain is one of `utility_meter`, `derivative`, `integration`, `min_max`, `threshold`, `tod`
+- config-entry helper review is metadata-only in this slice, but target resolution must still normalize to a real `entry_id`
 
 If the target config is not already in the thread context, resolve it yourself:
 1. Search by name using entity registry (compact fields: `ei`=entity_id, `en`=name/alias):
@@ -47,20 +52,39 @@ If the target config is not already in the thread context, resolve it yourself:
    Filter the resulting text with the client's native search/filter tool, not shell-specific pipelines.
    For scripts: `select(.ei | startswith("script."))`.
    For helpers: `(.ei | split(".")[0]) as $domain | select(["input_boolean","input_number","input_text","input_select","input_datetime","input_button","counter","timer","schedule"] | index($domain))`.
-2. If multiple matches: present top candidates (max 5) and ask one clarifying question. Never guess.
-3. Resolve `unique_id` (config key) — the entity_id slug and config key differ for UI-created items (see `relay-api.md` → ID Types):
+2. If the helper might be from the config-entry family, also read:
+   ```text
+   ha-nova relay ws --data-file <payload-file> --out <entries-file>
+   ha-nova relay ws --data-file <payload-file> --out <registry-file>
+   ```
+   with:
+   - `{"type":"config_entries/get"}`
+   - `{"type":"config/entity_registry/list"}`
+   Resolve the target by one of:
+   - exact `entry_id`
+   - config-entry `title` within the six supported domains
+   - linked `entity_id` by matching entity-registry `config_entry_id`
+   Build the canonical metadata item:
+   - `entry_id`
+   - `domain`
+   - `title`
+   - `state`
+   - `linked_entities[]`
+3. If multiple matches remain: present top candidates (max 5) and ask one clarifying question. Never guess.
+4. For automation/script targets, resolve `unique_id` (config key) — the entity_id slug and config key differ for UI-created items (see `relay-api.md` → ID Types):
    Create `<payload-file>` with the `config/entity_registry/get` request, then run:
    ```text
    ha-nova relay ws --data-file <payload-file> --jq .data.unique_id
    ```
    For scripts: use `"entity_id":"script.<slug>"`.
-4. Read config via REST using the resolved `unique_id` (save to temp file — configs can be 10-30 KB, shell output truncates):
+   Skip this step for config-entry helpers — `entry_id` is already the canonical identity.
+5. Read the target:
    ```text
    # Automation:
    ha-nova relay core --method GET --path /api/config/automation/config/<unique_id> --jq-file <config-filter-file> --out <target-file>
    # Script:
    ha-nova relay core --method GET --path /api/config/script/config/<unique_id> --jq-file <config-filter-file> --out <target-file>
-   # Helper (WS, not REST):
+   # Helper (storage-based family, WS list + filter):
    ha-nova relay ws --data-file <payload-file> --jq-file <helper-filter-file> --out <target-file>
    ```
    Write `<config-filter-file>` with:
@@ -71,8 +95,9 @@ If the target config is not already in the thread context, resolve it yourself:
    ```jq
    if .ok then [.data[] | select(.name | test("<search_term>";"i"))] else error("relay error: \(.error.message // "unknown")") end
    ```
+   For config-entry helpers, persist the canonical metadata item from step 2 to `<target-file>` instead of attempting `{type}/list`.
    Then read the file with the native file-reading tool for complete, untruncated access.
-5. After reading the config, extract the **primary controlled entity** from the config actions (the first significant entity_id being controlled, e.g., `light.kitchen`, `climate.living_room` — NOT the automation/script entity itself). Read its current state (for Quick-Fix detection at end of review):
+6. After reading the config for an automation or script, extract the **primary controlled entity** from the config actions (the first significant entity_id being controlled, e.g., `light.kitchen`, `climate.living_room` — NOT the automation/script entity itself). Read its current state (for Quick-Fix detection at end of review):
    ```text
    ha-nova relay core --method GET --path /api/states/<controlled_entity_id> --jq-file <state-filter-file> --out <state-file>
    ```
@@ -81,9 +106,11 @@ If the target config is not already in the thread context, resolve it yourself:
    if .ok then .data.body else empty end
    ```
    If no controlled entity found in actions, or state read fails: continue review — Quick-Fix will be skipped.
+   For standalone config-entry helper review in this PR1 slice, skip this step entirely. There is no config body with actions to analyze for a primary controlled entity.
 
 If config is already in the thread context (e.g., user pasted YAML):
-- If entity_id is known: skip Target Resolution entirely, go straight to Config Quality Review (Step 1). But still read the primary controlled entity's state (step 5 above) for Quick-Fix detection — this step is independent of Target Resolution.
+- If entity_id is known for an automation or script: skip Target Resolution entirely, go straight to Config Quality Review (Step 1). But still read the primary controlled entity's state (step 6 above) for Quick-Fix detection — this step is independent of Target Resolution.
+- If the target already in context is a config-entry helper metadata item: skip Target Resolution entirely and go straight to the metadata-only helper review lane in Step 1. Do not attempt primary-controlled-entity state reads or Quick-Fix detection from that metadata-only path.
 - If entity_id is unknown: run Target Resolution search (above) to find entity_id. If not found, proceed with Config Quality Review only. Note in output: "Collision scan skipped — no entity_id available."
 
 Do NOT invoke `ha-nova:entity-discovery` or `ha-nova:read` as separate skills — handle everything within this review flow.
@@ -135,6 +162,7 @@ Analyze config against the review catalog plus any additional issues found in th
   - do not apply H-01..H-10
   - confirm config-entry metadata is present
   - inspect linked entities when available
+  - in Step 2, derive collision candidates from `linked_entities[]`, not from config actions
   - run `search/related` on up to 3 linked entities
   - say explicitly that config-entry helper review is limited in this slice
 - If an automation or script references helpers in actions or direct thresholds, also apply H-01..H-10 to those helpers
@@ -150,13 +178,20 @@ Analyze config against the review catalog plus any additional issues found in th
 
 Find other automations/scripts that control the same entities.
 
-1. Extract all target entity_ids from config actions (the entities being controlled).
-2. For the top 3 most significant target entities, run `search/related`:
+Branch by target family:
+- automation/script/storage-based helper: use action-derived target entities as before
+- config-entry helper metadata item: use `linked_entities[]` from the canonical metadata item; do not attempt action extraction
+
+1. Build the candidate entity list:
+   - automation/script: extract all target entity_ids from config actions (the entities being controlled)
+   - helper (storage-based family): use the helper entity_id
+   - helper (config-entry family): use up to 3 `linked_entities[]` from the canonical metadata item
+2. For the top 3 most significant candidate entities, run `search/related`:
    ```text
    ha-nova relay ws --data-file <payload-file>
    ```
 3. Collect related automations/scripts (exclude current target).
-4. Read configs of related items (max 5). Resolve `unique_id` first (see Target Resolution step 3), then:
+4. Read configs of related items (max 5). Resolve `unique_id` first for automation/script targets (see Target Resolution step 4), then:
    ```text
    # Automation:
    ha-nova relay core --method GET --path /api/config/automation/config/<unique_id> --jq-file <config-filter-file> --out <related-file>
