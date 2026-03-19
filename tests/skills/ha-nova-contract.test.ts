@@ -28,7 +28,8 @@ describe("ha-nova contract", () => {
     expect(context).toContain("config change on automation/script → `ha-nova:write`");
     expect(context).toContain("helper change → `ha-nova:helper`");
     expect(context).toContain("automation/script: `entity_id`, `unique_id`, current config");
-    expect(context).toContain("helper: `entity_id`, helper type, internal helper id when already known");
+    expect(context).toContain("storage-based family: `entity_id`, helper type, internal helper id when already known");
+    expect(context).toContain("config-entry family: `entry_id`, domain, title, linked entities when already known");
     expect(context).toContain("one skill at a time, never parallel");
   });
 
@@ -95,6 +96,7 @@ describe("ha-nova contract", () => {
 
   it("documents relay API contract centrally", () => {
     const relayApi = readFileSync("skills/ha-nova/relay-api.md", "utf8");
+    const apiMatrix = readFileSync("docs/reference/ha-api-matrix.md", "utf8");
 
     expect(relayApi).toContain("GET /health");
     expect(relayApi).toContain("POST /ws");
@@ -113,6 +115,12 @@ describe("ha-nova contract", () => {
     expect(relayApi).toContain("Timeout and Retry Guidance");
     expect(relayApi).toContain("Safe Bulk Patterns");
     expect(relayApi).toContain("Do not rely on external `jq` pipes");
+    expect(apiMatrix).toContain("Config Entry Flow");
+    expect(apiMatrix).toContain("WS | `config_entries/get` | Retrieve config-entry metadata");
+    expect(apiMatrix).toContain("`POST /api/config/config_entries/flow`");
+    expect(apiMatrix).toContain("`POST /api/config/config_entries/flow/{flow_id}`");
+    expect(apiMatrix).toContain("`DELETE /api/config/config_entries/entry/{entry_id}`");
+    expect(apiMatrix).toContain("raw WS `config_entries/flow` did not succeed in this session");
   });
 
   it("documents tiered best-practice gate", () => {
@@ -236,6 +244,7 @@ describe("ha-nova contract", () => {
       "skills/ha-nova/template-guidelines.md",
       "skills/ha-nova/safe-refactoring.md",
       "skills/ha-nova/helper-schemas.md",
+      "skills/ha-nova/helper-flow-schemas.md",
       "skills/ha-nova/update-guide.md",
       "skills/ha-nova/agents/resolve-agent.md",
       "skills/ha-nova/agents/apply-agent.md",

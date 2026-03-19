@@ -137,6 +137,7 @@ Match user intent to exactly one skill:
 | **any HA task not matched above** — dashboards, blueprints, history, energy, areas, zones, any raw relay/ws/core write | `ha-nova:fallback` **(mandatory fallback — never skip)** |
 
 **"Analyze my automation"** → `ha-nova:review` (NOT read + review)
+**"Review my utility meter helper"** → `ha-nova:review` (config-entry helper review is metadata-only in this PR1 slice)
 **"Show my automations"** → `ha-nova:read` (NOT review)
 **"Create an automation"** → `ha-nova:write` (NOT read + write)
 **"Create an input_boolean"** → `ha-nova:helper` (NOT write)
@@ -154,7 +155,9 @@ After any `read` or `review` task, re-evaluate intent once before continuing:
 - helper change → `ha-nova:helper`
 - pass along the resolved identifiers needed by the next skill:
   - automation/script: `entity_id`, `unique_id`, current config
-  - helper: `entity_id`, helper type, internal helper id when already known
+  - helper:
+    - storage-based family: `entity_id`, helper type, internal helper id when already known
+    - config-entry family: `entry_id`, domain, title, linked entities when already known
 - always pass along the requested change
 - keep this sequential: one skill at a time, never parallel
 
