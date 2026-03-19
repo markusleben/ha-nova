@@ -132,8 +132,8 @@ describe("release contract", () => {
     expect(rcWorkflow).toContain("Upload RC artifacts");
     expect(rcWorkflow).toContain("Smoke bundles");
     expect(rcWorkflow).toContain("version_tag must match vX.Y.Z-rcN");
-    expect(rcWorkflow).toContain("actions/upload-artifact@v4");
-    expect(rcWorkflow).toContain("actions/download-artifact@v4");
+    expect(rcWorkflow).toContain("actions/upload-artifact@v7");
+    expect(rcWorkflow).toContain("actions/download-artifact@v8");
     expect(rcWorkflow).toContain("gh release create");
     expect(rcWorkflow).toContain("--prerelease");
     expect(rcWorkflow).toContain('install_ref="${GITHUB_REF_NAME}"');

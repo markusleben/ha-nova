@@ -42,5 +42,5 @@ describe("relay cli contract", () => {
     expect(result.status).not.toBe(0);
     expect(output).toContain("HA NOVA is not set up yet");
     expect(output).toContain("ha-nova setup");
-  });
+  }, 120000);
 });

@@ -30,7 +30,7 @@ jobs:
     steps:
       - name: Fetch Dependabot metadata
         id: metadata
-        uses: dependabot/fetch-metadata@d7267f607e9d3fb96fc2fbe83e0af444713e90b7
+        uses: dependabot/fetch-metadata@21025c705c08248db411dc16f3619e6b5f9ea21a
         with:
           github-token: ${{ github.token }}
 
@@ -39,22 +39,42 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          DEPENDENCY_NAMES: ${{ steps.metadata.outputs.dependency-names }}
           PACKAGE_ECOSYSTEM: ${{ steps.metadata.outputs.package-ecosystem }}
           DEPENDENCY_GROUP: ${{ steps.metadata.outputs.dependency-group }}
           UPDATE_TYPE: ${{ steps.metadata.outputs.update-type }}
+          SAFE_MANUAL_DEPENDENCIES: vitest,vite,typescript,tsx,rollup,rolldown,esbuild
         run: |
           set -euo pipefail
 
           eligible=false
           reason=""
+          manual_dependency=""
 
-          if [[ "${PACKAGE_ECOSYSTEM}" != "npm" ]]; then
-            reason="package ecosystem is not npm"
+          if [[ "${PACKAGE_ECOSYSTEM}" != "npm" && "${PACKAGE_ECOSYSTEM}" != "npm_and_yarn" ]]; then
+            reason="package ecosystem is not npm/npm_and_yarn"
           elif [[ "${DEPENDENCY_GROUP}" != "npm-dev-minor-patch" ]]; then
             reason="dependency group is not the safe dev-only lane"
           elif [[ "${UPDATE_TYPE}" != "version-update:semver-minor" && "${UPDATE_TYPE}" != "version-update:semver-patch" ]]; then
             reason="update type is not minor or patch"
           else
+            while IFS= read -r dependency_name; do
+              dependency_name="$(printf '%s' "${dependency_name}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+              if [[ -z "${dependency_name}" ]]; then
+                continue
+              fi
+              if printf '%s\n' "${SAFE_MANUAL_DEPENDENCIES}" | tr ',' '\n' | grep -Fxq "${dependency_name}"; then
+                manual_dependency="${dependency_name}"
+                break
+              fi
+            done < <(printf '%s' "${DEPENDENCY_NAMES}" | tr ',' '\n')
+
+            if [[ -n "${manual_dependency}" ]]; then
+              reason="dependency requires manual review due to toolchain risk: ${manual_dependency}"
+            fi
+          fi
+
+          if [[ -z "${reason}" ]]; then
             mapfile -t changed_files < <(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/files" --paginate --jq '.[].filename')
             if [[ ${#changed_files[@]} -eq 0 ]]; then
               reason="no changed files returned by GitHub API"
@@ -159,19 +179,21 @@ jobs:
             if ! printf '%s\n' "${labels}" | grep -qx "dependabot-safe:auto-merge"; then
               continue
             fi
-            label_actor="$(
+            timeline_json="$(
               gh api "repos/${GITHUB_REPOSITORY}/issues/${pr_number}/timeline" \
                 --paginate \
                 --slurp \
-                -H "Accept: application/vnd.github+json" \
-                --jq '
+                -H "Accept: application/vnd.github+json"
+            )"
+            label_actor="$(
+              printf '%s' "${timeline_json}" | jq -r '
                   [
                     .[][]
                     | select((.event == "labeled" or .event == "unlabeled") and .label.name == "dependabot-safe:auto-merge")
                   ]
                   | last
                   | select(.event == "labeled")
-                  | .actor.login
+                  | .actor.login // ""
                 '
             )"
             if [[ "${label_actor}" != "github-actions[bot]" ]]; then

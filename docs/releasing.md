@@ -69,6 +69,7 @@ Examples that usually do not justify an immediate standalone version:
 Keep Dependabot automation narrow:
 
 - safe lane: dev-only npm minor/patch updates that touch only `package.json` / `package-lock.json`
+- safe lane excludes toolchain-risk dependencies such as `vitest`, `vite`, `typescript`, `tsx`, `rollup`, `rolldown`, and `esbuild`; those stay manual even if they are dev-only manifest bumps
 - manual lane: workflow files, release automation, installer/update paths, runtime/security-sensitive paths, and anything outside the narrow manifest lane
 - require `dependency-review` on `main` so auto-merge cannot bypass dependency-risk screening
 - require `manifest-review-gate` on `main` so non-safe manifest changes still need an explicit maintainer acknowledgement
