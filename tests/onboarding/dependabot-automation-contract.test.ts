@@ -71,6 +71,8 @@ describe("dependabot automation contract", () => {
     expect(manifestGate).toContain("MANIFEST_APPROVERS: markusleben");
     expect(manifestGate).toContain("EVENT_ACTION: ${{ github.event.action }}");
     expect(manifestGate).toContain('GH_REPO: ${{ github.repository }}');
+    expect(manifestGate).toContain('changed_files_json="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/files" --paginate)"');
+    expect(manifestGate).toContain("printf '%s' \"${changed_files_json}\" | jq -r '.[].filename'");
     expect(manifestGate).toContain("No package manifest changes detected.");
     expect(manifestGate).toContain("Safe Dependabot manifest lane detected.");
     expect(manifestGate).toContain('if [[ "${EVENT_ACTION}" == "synchronize" ]]; then');

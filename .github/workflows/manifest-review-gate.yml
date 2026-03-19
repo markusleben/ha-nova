@@ -40,7 +40,8 @@ jobs:
         run: |
           set -euo pipefail
 
-          mapfile -t changed_files < <(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/files" --paginate --jq '.[].filename')
+          changed_files_json="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/files" --paginate)"
+          mapfile -t changed_files < <(printf '%s' "${changed_files_json}" | jq -r '.[].filename')
 
           manifest_changed=false
           non_manifest_changed=false
