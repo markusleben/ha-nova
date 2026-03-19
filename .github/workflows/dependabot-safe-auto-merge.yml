@@ -89,6 +89,9 @@ jobs:
                 esac
               done
             fi
+          fi
+
+          if [[ -z "${reason}" ]]; then
             eligible=true
             reason="safe dev-only npm manifest update"
           fi
