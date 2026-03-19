@@ -116,13 +116,14 @@ describe("helper contract", () => {
       expect(skillDoc).toContain("config-entry layer first");
       expect(skillDoc).toContain("Capture a pre-create baseline");
       expect(skillDoc).toContain("<entries-before-file>");
-      expect(skillDoc).toContain("capture the created `entry_id`");
-      expect(skillDoc).toContain("if the flow result omits `entry_id`");
-      expect(skillDoc).toContain("before vs after by `entry_id`");
+      expect(skillDoc).toContain("re-read `config_entries/get` into `<entries-after-file>`");
+      expect(skillDoc).toContain("if the terminal flow result includes `entry_id`");
+      expect(skillDoc).toContain("if the terminal flow result omits `entry_id`");
+      expect(skillDoc).toContain("diff `config_entries/get` before vs after by `entry_id`");
       expect(skillDoc).toContain("domain/title match is supportive context only");
       expect(skillDoc).toContain("Entity disappearance is secondary evidence only");
       expect(flowSchemasDoc).toContain("Verification source of truth");
-      expect(flowSchemasDoc).toContain("terminal flow result");
+      expect(flowSchemasDoc).toContain("terminal flow result confirmed in the after-read");
       expect(flowSchemasDoc).toContain("before/after `entry_id` diff");
       expect(flowSchemasDoc).toContain("pre-create `config_entries/get` baseline");
       expect(flowSchemasDoc).toContain("entry absent in `config_entries/get`");

@@ -248,10 +248,10 @@ If multiple matches remain, present max 5 candidates and ask one blocking questi
    ```
    `<submit-payload-file>` must contain the form fields only.
 9. Verify success at the config-entry layer first:
-   - capture the created `entry_id` from the terminal flow result when available
-   - if the flow result omits `entry_id`, re-read `config_entries/get` into `<entries-after-file>`
-   - otherwise diff `config_entries/get` before vs after by `entry_id`
-   - `passed=true` only when a new `entry_id` appeared for this create
+   - re-read `config_entries/get` into `<entries-after-file>`
+   - if the terminal flow result includes `entry_id`, `passed=true` only when that same `entry_id` is present in `<entries-after-file>`
+   - if the terminal flow result omits `entry_id`, diff `config_entries/get` before vs after by `entry_id`
+   - in the diff fallback, `passed=true` only when a new `entry_id` appeared for this create
    - domain/title match is supportive context only, never the success condition
 10. Resolve `linked_entities[]` through the entity registry as secondary evidence only.
 11. Run config-entry-family post-write review (see below).

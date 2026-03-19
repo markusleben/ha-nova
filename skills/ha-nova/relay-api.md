@@ -219,7 +219,7 @@ Delete:
 Verification rules:
 
 - create/delete success is decided at the config-entry layer first
-- create success = created `entry_id` from the terminal flow result, or a before/after `config_entries/get` diff by `entry_id`
+- create success = `entry_id` from the terminal flow result confirmed in the after-read, or a before/after `config_entries/get` diff by `entry_id` if the flow omits it
 - the before/after fallback requires a pre-create `config_entries/get` baseline
 - use `config_entries/get` as the source of truth
 - resolve linked entities from `config/entity_registry/list` by matching `config_entry_id`
