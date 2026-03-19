@@ -69,4 +69,26 @@ describe("ha safety contract", () => {
     expect(fallbackSkill).toContain("invalid Home Assistant premises");
     expect(fallbackSkill).toContain("wrong premise");
   });
+
+  it("keeps non-mutation skills on an explicit handoff boundary", () => {
+    const readSkill = readFileSync("skills/read/SKILL.md", "utf8");
+    const reviewSkill = readFileSync("skills/review/SKILL.md", "utf8");
+    const discoverySkill = readFileSync("skills/entity-discovery/SKILL.md", "utf8");
+    const onboardingSkill = readFileSync("skills/onboarding/SKILL.md", "utf8");
+
+    expect(readSkill).toContain("MUST NOT issue `POST`, `PUT`, `PATCH`, or `DELETE` relay requests.");
+    expect(readSkill).toContain("MUST NOT call service endpoints or any other mutation path learned during the read flow.");
+    expect(readSkill).toContain("hand off to `ha-nova:write`");
+
+    expect(reviewSkill).toContain("No `POST`, `PUT`, `PATCH`, or `DELETE` config writes through the relay.");
+    expect(reviewSkill).toContain("hand off to `ha-nova:write`");
+    expect(reviewSkill).toContain("hand off to `ha-nova:helper`");
+    expect(reviewSkill).toContain("The Quick-Fix service call in Step 4 is the only write exception in this skill.");
+
+    expect(discoverySkill).toContain("No `POST`, `PUT`, `PATCH`, or `DELETE` relay writes.");
+    expect(discoverySkill).toContain("hand off to the write-capable skill");
+
+    expect(onboardingSkill).toContain("Diagnostics only.");
+    expect(onboardingSkill).toContain("Do not use this skill for config writes");
+  });
 });

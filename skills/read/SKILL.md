@@ -18,7 +18,11 @@ Read operations only:
 
 Not for helpers — use `ha-nova:helper` for helper list/read.
 
-No writes. For analysis/review/audit, route through parent `ha-nova` skill — it dispatches the review agent after the read.
+No writes.
+- MUST NOT issue `POST`, `PUT`, `PATCH`, or `DELETE` relay requests.
+- MUST NOT call service endpoints or any other mutation path learned during the read flow.
+- If the task becomes a config change, stop and hand off to `ha-nova:write` with resolved IDs and current config.
+- Knowing the relay path is not permission to write.
 
 ## Bootstrap (once per session)
 

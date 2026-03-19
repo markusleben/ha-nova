@@ -85,6 +85,19 @@ For each consumer automation/script found in Step 1:
 
 Re-run `search/related` on the NEW entity_id to confirm all references are updated. Check that no configs still reference the old ID.
 
+## Safe Migration Pattern
+
+Use this when replacing an automation, script, or helper with a new target instead of editing in place.
+
+1. Read and review the legacy config.
+2. Build the new config through the normal write/helper flow.
+3. Verify config read-back plus runtime presence.
+4. Disable the legacy item instead of deleting immediately.
+5. Let the new item soak.
+6. Run consumer check again before final cleanup.
+
+This is a sequential skill pattern: Review -> Write/Helper -> Verify -> Review. Do not keep multiple HA NOVA skills active at the same time.
+
 ## Orphan Cleanup
 
 Find and clean up unused helpers. Uses review check H-07.
@@ -111,6 +124,12 @@ If no automations or scripts reference it, it's an orphan candidate.
    ```
 2. For each, run `search/related` and collect those with zero automation/script references.
 3. Present the list to the user — some "orphans" may be intentionally UI-only (e.g., dashboard controls).
+
+## search/related Signal Strength
+
+- Helpers: strong signal for direct consumers
+- Automations and scripts: medium signal; direct refs are good, templates can still hide usage
+- Scenes: weak signal; always do a manual check before destructive cleanup
 
 ### Cleanup
 

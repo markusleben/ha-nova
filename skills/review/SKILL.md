@@ -15,6 +15,10 @@ Read-only quality review for automations, scripts, and helpers:
 - Quick-Fix: if an acute state problem is detected, offer a single corrective service call
 
 Read-only analysis. Exception: after explicit user confirmation, one Quick-Fix service call may be executed to correct an acute state problem detected during review.
+- No `POST`, `PUT`, `PATCH`, or `DELETE` config writes through the relay.
+- If the user wants to change an automation or script, hand off to `ha-nova:write`.
+- If the user wants to change a helper, hand off to `ha-nova:helper`.
+- The Quick-Fix service call in Step 4 is the only write exception in this skill.
 
 ## Bootstrap
 

@@ -9,6 +9,7 @@ description: Use when HA NOVA Relay requests fail due to onboarding, connectivit
 ## Scope
 
 Use when HA NOVA requests fail due to onboarding, connectivity, or auth issues.
+Diagnostics only. Do not use this skill for config writes or routine HA operations after readiness is restored.
 
 ## Bootstrap
 

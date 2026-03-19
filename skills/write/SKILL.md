@@ -31,6 +31,8 @@ If this fails, run onboarding: `ha-nova setup`.
 1. Read `skills/ha-nova/agents/resolve-agent.md`.
 2. Fill template placeholders (domain, operation, user intent).
 3. Dispatch general-purpose agent. Extract: entities, target_id, target_exists, current_config, bp_status, suggested_enhancements.
+   - update/delete: resolve `entity_id -> unique_id` via registry first
+   - slug is naming convenience only
 4. On ambiguity: ask user. On no-match: ask for exact entity_id.
    - If broad targeting is ambiguous, reuse the existing single blocking question.
    - Do not add a second ambiguity question in the same turn.
@@ -45,11 +47,10 @@ If this fails, run onboarding: `ha-nova setup`.
    Load `best-practices.md` only if gate evaluation needed.
 3. Suggestions + Pre-Write Checks (skip for `delete`):
    - **3a) Suggestions**: Show `suggested_enhancements` from resolve-agent (max 4, numbered). User accepts by number (all, partial like "1 and 3", or "skip") → merge accepted into config BEFORE preview.
-     Skip when: `SUGGESTED_ENHANCEMENTS: none`, or `update` where the suggested enhancement is already present in current_config.
-     Example: `1. Sunset offset — add -15min for civil twilight  2. Mode: restart — re-trigger resets timer` → User: "1" → only offset merged.
+     Skip when: `SUGGESTED_ENHANCEMENTS: none`, or already present on `update`.
    - **3b) Static Checks**: Enter via `skills/review/SKILL.md` Step 1 and load the detailed rules from `skills/review/checks.md`. Run S/R/P/M checks analytically on the draft YAML — no relay calls needed (scripts: also F-01..F-08; if actions reference helpers: also H-01..H-08. Defer H-09/H-10 to Phase 4 because they require live helper evidence).
      🔴 findings → inline warning with fix suggestion. 🟠🟡 findings → advisory below preview. Clean → skip.
-     Track reported findings by check type for dedup in Phase 4 — user proceeding past a warning = implicit ack.
+     Track findings by check type for dedup in Phase 4.
 4. Preview: structured summary (alias, ID, entities, triggers, conditions, actions, mode) + full YAML config.
    - Delete preview MUST include the consumer-check result before confirmation: either the affected consumers or an explicit no-consumer result.
 5. Confirmation: create/update=natural, delete=tokenized `confirm:<token>` (strict: only exact token accepted, see context skill → Safety Baseline).
@@ -62,7 +63,7 @@ If this fails, run onboarding: `ha-nova setup`.
 4. Report user-facing result. No raw curl/JSON in output.
    - Do not report destructive success until verification proves the target is gone.
 
-Fallback: If agent dispatch unavailable, execute inline serially. **MUST** include domain reload: `POST /api/services/{domain}/reload` with `{}` body via relay core.
+Fallback: If agent dispatch unavailable, execute inline serially and include domain reload.
 
 ### Phase 4: Post-Write Review (MANDATORY)
 
@@ -70,15 +71,16 @@ Do NOT report results to the user until this phase is complete. Run inline (do N
 
 Follow the Post-Write Review Standard from `docs/reference/skill-architecture.md`:
 
-1. Re-read the written config using the `target_id` from Phase 1 (do NOT re-resolve by slug — the entity slug may differ from expectations):
+1. Re-read the written config using the `target_id` from Phase 1 (do NOT re-resolve by slug):
    - automation: `ha-nova relay core --method GET --path /api/config/automation/config/<target_id> --jq-file <filter-file> --out <result-file>`
    - Script: `/api/config/script/config/<target_id>`
    - write `<filter-file>` with:
      ```jq
      if .ok then .data.body else error("relay error: \(.error.message // "unknown")") end
      ```
-   - for simple counts, use `ha-nova relay jq --file <result-file> length`
-   - for non-trivial follow-up JSON checks, use `ha-nova relay jq --file <result-file> --jq-file <filter-file>`
+   - use relay jq for counts and follow-up checks
+   - for create/update, reload the domain, resolve the actual `entity_id` from entity registry by matching `unique_id == <target_id>`, then read `/api/states/{entity_id}` to confirm runtime presence
+   - if the actual `entity_id` differs from expectation, report it and point to `skills/ha-nova/safe-refactoring.md`; do not silently assume the requested slug won
 2. S/R/P/M/F checks (narrowed):
    - Compare read-back vs draft on core fields (automations: `alias`,`triggers`,`conditions`,`actions`,`mode`,`description`; scripts: `alias`,`sequence`,`mode`,`description`,`variables`,`fields`). Ignore metadata (`id`,`unique_id`,`created_at`,`modified_at`,`editor`,`enabled`).
    - Note: HA may normalize keys during write (`trigger`→`triggers`, `action`→`actions`, `condition`→`conditions`). Account for plural aliasing when comparing — these are not real diffs.
