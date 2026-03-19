@@ -22,7 +22,7 @@ func runUpdate(paths runtimePaths, args []string) int {
 
 	targetVersion := strings.TrimPrefix(strings.TrimSpace(*versionFlag), "v")
 	if targetVersion == "" {
-		release, err := fetchLatestRelease(paths, true)
+		release, err := fetchLatestRelease(paths, true, false)
 		if err != nil {
 			printHumanErr("%s", err)
 			return 1

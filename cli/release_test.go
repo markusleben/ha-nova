@@ -139,6 +139,53 @@ func TestBuildUpdateCheckResultMarksFetchedStaleCacheAsFresh(t *testing.T) {
 	}
 }
 
+func TestRunUpdateIgnoresFreshReleaseCacheWhenResolvingTargetVersion(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(paths.VersionFile), 0o755); err != nil {
+		t.Fatalf("mkdir version dir: %v", err)
+	}
+	if err := os.WriteFile(paths.VersionFile, []byte(`{"skill_version":"0.2.3","min_relay_version":"0.1.0"}`), 0o644); err != nil {
+		t.Fatalf("write version file: %v", err)
+	}
+	if err := writeJSONFile(paths.UpdateCacheFile, releaseInfo{Version: "0.2.1", HTMLURL: "https://example.invalid/releases/v0.2.1"}, 0o644); err != nil {
+		t.Fatalf("write cache: %v", err)
+	}
+
+	originalHTTPClient := httpClient
+	defer func() {
+		httpClient = originalHTTPClient
+	}()
+	httpClient = &http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			body := `{"tag_name":"v0.2.3","html_url":"https://example.test/release"}`
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(body)),
+				Header:     make(http.Header),
+			}, nil
+		}),
+	}
+
+	output := captureStdout(t, func() {
+		if exitCode := runUpdate(paths, nil); exitCode != 0 {
+			t.Fatalf("runUpdate() exit = %d, want 0", exitCode)
+		}
+	})
+
+	if !strings.Contains(output, "Already up to date: v0.2.3") {
+		t.Fatalf("expected up-to-date message, got %q", output)
+	}
+	if strings.Contains(output, "target v0.2.1") {
+		t.Fatalf("expected update target to ignore fresh cache, got %q", output)
+	}
+}
+
 func TestRunCheckUpdateJSON(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
