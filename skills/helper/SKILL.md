@@ -241,8 +241,10 @@ If multiple matches remain, present max 5 candidates and ask one blocking questi
    ha-nova relay core --method POST --path /api/config/config_entries/flow/{flow_id} --body-file <payload-file>
    ```
 8. Verify success at the config-entry layer first:
-   - re-read `config_entries/get`
-   - confirm an entry for the domain/title now exists
+   - capture the created `entry_id` from the terminal flow result when available
+   - otherwise diff `config_entries/get` before vs after by `entry_id`
+   - `passed=true` only when a new `entry_id` appeared for this create
+   - domain/title match is supportive context only, never the success condition
 9. Resolve `linked_entities[]` through the entity registry as secondary evidence only.
 10. Run config-entry-family post-write review (see below).
 

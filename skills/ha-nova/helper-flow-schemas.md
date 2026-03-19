@@ -23,7 +23,7 @@ This file covers the PR1 foundation slice only:
 - Delete mutation path:
   - `DELETE /api/config/config_entries/entry/{entry_id}`
 - Verification source of truth:
-  - create success = entry present in `config_entries/get`
+  - create success = created `entry_id` returned by the terminal flow result, or a before/after `entry_id` diff if the flow result omits it
   - delete success = entry absent in `config_entries/get`
   - linked entity appearance/disappearance is secondary evidence only
 

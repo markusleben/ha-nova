@@ -114,8 +114,13 @@ describe("helper contract", () => {
 
     it("uses config-entry-first verification for the config-entry family", () => {
       expect(skillDoc).toContain("config-entry layer first");
+      expect(skillDoc).toContain("capture the created `entry_id`");
+      expect(skillDoc).toContain("before vs after by `entry_id`");
+      expect(skillDoc).toContain("domain/title match is supportive context only");
       expect(skillDoc).toContain("Entity disappearance is secondary evidence only");
       expect(flowSchemasDoc).toContain("Verification source of truth");
+      expect(flowSchemasDoc).toContain("terminal flow result");
+      expect(flowSchemasDoc).toContain("before/after `entry_id` diff");
       expect(flowSchemasDoc).toContain("entry absent in `config_entries/get`");
     });
   });

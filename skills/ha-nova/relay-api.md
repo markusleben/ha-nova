@@ -214,6 +214,7 @@ Delete:
 Verification rules:
 
 - create/delete success is decided at the config-entry layer first
+- create success = created `entry_id` from the terminal flow result, or a before/after `config_entries/get` diff by `entry_id`
 - use `config_entries/get` as the source of truth
 - resolve linked entities from `config/entity_registry/list` by matching `config_entry_id`
 - linked entity appearance/disappearance is secondary evidence only

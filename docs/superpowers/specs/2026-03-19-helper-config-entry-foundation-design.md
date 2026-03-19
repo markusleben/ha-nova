@@ -51,7 +51,8 @@ Additional observations from `config_entries/get`:
 - config-entry canonical identity is `entry_id`
 - create/delete mutations use relay `/core`
 - list/read uses WS `config_entries/get` and entity-registry joins
-- success is config-entry-first, entity-second
+- create success must prove a new `entry_id`, either from the terminal flow result or a before/after `config_entries/get` diff
+- delete success stays config-entry-first, entity-second
 - fallback keeps unsupported and not-yet-delivered config-entry helper families
 
 ## Out of Scope
