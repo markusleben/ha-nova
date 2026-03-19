@@ -191,6 +191,8 @@ describe("helper contract", () => {
       expect(skillDoc).toContain("do not silently ignore non-exposed requested fields");
       expect(skillDoc).toContain("fail loud instead of guessing its current value");
       expect(skillDoc).toContain("do not submit read-only fields");
+      expect(skillDoc).toContain("if the start response explicitly shows that options editing is unsupported");
+      expect(skillDoc).toContain("surface that relay/HA error directly instead of relabeling it as unsupported");
       expect(skillDoc).toContain("two-key window invariant");
       expect(skillDoc).toContain("drop the old third key explicitly");
       expect(skillDoc).toContain("fail loud as unverifiable update on this HA version");

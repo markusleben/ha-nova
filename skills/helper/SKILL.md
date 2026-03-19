@@ -299,7 +299,7 @@ If multiple matches remain, present max 5 candidates and ask one blocking questi
    - `supports_options`
    - if multiple candidates remain after resolution, stop and ask one blocking question
    - never guess between duplicate titles or ambiguous linked-entity matches
-2. If `supports_options` is false or the options-flow start call fails for this entry:
+2. If `supports_options` is false for this entry:
    - fail loud with `update unsupported for this helper on this HA version`
    - do not recreate
    - do not guess a direct patch body
@@ -309,6 +309,8 @@ If multiple matches remain, present max 5 candidates and ask one blocking questi
    ```
    with `<start-payload-file>` containing `{"handler":"<entry_id>","show_advanced_options":false}`.
 4. Read the start response and extract `flow_id` before continuing.
+   - if the start response explicitly shows that options editing is unsupported for this entry on this HA version, fail loud with `update unsupported for this helper on this HA version`
+   - if the start call fails for another reason, surface that relay/HA error directly instead of relabeling it as unsupported
    - persist it in a variable or note file
    - fail loud if the start response did not return `flow_id`
 5. Capture the current editable options snapshot from the returned form:
