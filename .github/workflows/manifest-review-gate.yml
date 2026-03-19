@@ -22,7 +22,7 @@ jobs:
       - name: Fetch Dependabot metadata
         id: metadata
         if: ${{ github.event.pull_request.user.login == 'dependabot[bot]' }}
-        uses: dependabot/fetch-metadata@d7267f607e9d3fb96fc2fbe83e0af444713e90b7
+        uses: dependabot/fetch-metadata@21025c705c08248db411dc16f3619e6b5f9ea21a
         with:
           github-token: ${{ github.token }}
 
@@ -34,9 +34,11 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
           MANIFEST_APPROVERS: markusleben
+          DEPENDENCY_NAMES: ${{ steps.metadata.outputs.dependency-names }}
           PACKAGE_ECOSYSTEM: ${{ steps.metadata.outputs.package-ecosystem }}
           DEPENDENCY_GROUP: ${{ steps.metadata.outputs.dependency-group }}
           UPDATE_TYPE: ${{ steps.metadata.outputs.update-type }}
+          SAFE_MANUAL_DEPENDENCIES: vitest,vite,typescript,tsx,rollup,rolldown,esbuild
         run: |
           set -euo pipefail
 
@@ -61,9 +63,22 @@ jobs:
             exit 0
           fi
 
+          manual_dependency=""
+          while IFS= read -r dependency_name; do
+            dependency_name="$(printf '%s' "${dependency_name}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+            if [[ -z "${dependency_name}" ]]; then
+              continue
+            fi
+            if printf '%s\n' "${SAFE_MANUAL_DEPENDENCIES}" | tr ',' '\n' | grep -Fxq "${dependency_name}"; then
+              manual_dependency="${dependency_name}"
+              break
+            fi
+          done < <(printf '%s' "${DEPENDENCY_NAMES}" | tr ',' '\n')
+
           if [[ "${PR_AUTHOR}" == "dependabot[bot]" && \
-                "${PACKAGE_ECOSYSTEM}" == "npm" && \
+                ( "${PACKAGE_ECOSYSTEM}" == "npm" || "${PACKAGE_ECOSYSTEM}" == "npm_and_yarn" ) && \
                 "${DEPENDENCY_GROUP}" == "npm-dev-minor-patch" && \
+                -z "${manual_dependency}" && \
                 "${non_manifest_changed}" != "true" && \
                 ( "${UPDATE_TYPE}" == "version-update:semver-minor" || "${UPDATE_TYPE}" == "version-update:semver-patch" ) ]]; then
             echo "Safe Dependabot manifest lane detected."
@@ -74,19 +89,21 @@ jobs:
             gh pr edit "${PR_NUMBER}" --remove-label "manifest-review:approved"
           fi
 
-          approver="$(
+          timeline_json="$(
             gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/timeline" \
               --paginate \
               --slurp \
-              -H "Accept: application/vnd.github+json" \
-              --jq '
+              -H "Accept: application/vnd.github+json"
+          )"
+          approver="$(
+            printf '%s' "${timeline_json}" | jq -r '
                 [
                   .[][]
                   | select((.event == "labeled" or .event == "unlabeled") and .label.name == "manifest-review:approved")
                 ]
                 | last
                 | select(.event == "labeled")
-                | .actor.login
+                | .actor.login // ""
               '
           )"
 
