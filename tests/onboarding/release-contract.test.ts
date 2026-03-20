@@ -203,12 +203,8 @@ describe("release contract", () => {
         cwd: process.cwd(),
         encoding: "utf8",
       });
-      const visible = tracked.status === 0 || spawnSync("git", ["status", "--short", "--untracked-files=all", "--", file], {
-        cwd: process.cwd(),
-        encoding: "utf8",
-      }).stdout.trim().length > 0;
       expect(existsSync(file)).toBe(true);
-      expect(visible).toBe(true);
+      expect(tracked.status).toBe(0);
     }
   });
 
