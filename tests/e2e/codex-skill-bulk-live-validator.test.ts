@@ -1604,7 +1604,7 @@ events = [
         "item": {
             "id": "cmd_payload",
             "type": "command_execution",
-            "command": "cat <<'EOF' > payload.json\\n{\\"type\\":\\"automation/reload\\"}\\nEOF",
+            "command": "cat <<'EOF' > payload.tmp\\n{\\"type\\":\\"automation/reload\\"}\\nEOF",
             "aggregated_output": "",
             "exit_code": 0,
             "status": "completed",
@@ -1615,7 +1615,7 @@ events = [
         "item": {
             "id": "cmd_ws",
             "type": "command_execution",
-            "command": "ha-nova relay ws --data-file payload.json",
+            "command": "ha-nova relay ws --data-file payload.tmp",
             "aggregated_output": "",
             "exit_code": 0,
             "status": "completed",

@@ -79,6 +79,30 @@ def require_cmd(command: str) -> None:
         die(f"Required command not found: {command}")
 
 
+def relay_ws_data_files(commands: list[str]) -> set[str]:
+    data_files: set[str] = set()
+    pattern = re.compile(r"""--data-file(?:=|\s+)(?:"([^"]+)"|'([^']+)'|([^\s]+))""")
+    for command in commands:
+        for match in pattern.finditer(command):
+            data_file = next((group for group in match.groups() if group), "")
+            if data_file:
+                data_files.add(data_file)
+    return data_files
+
+
+def stages_known_ws_data_file(command: str, data_files: set[str]) -> bool:
+    for data_file in data_files:
+        file_pattern = re.escape(data_file)
+        if re.search(rf"(?:>\s*|>>\s*|tee\s+)(?:\"{file_pattern}\"|'{file_pattern}'|{file_pattern})(?:\s|$)", command):
+            return True
+        if re.search(
+            rf"\b(?:cp|mv)\s+(?:\"[^\"]+\"|'[^']+'|[^\s]+)\s+(?:\"{file_pattern}\"|'{file_pattern}'|{file_pattern})(?:\s|$)",
+            command,
+        ):
+            return True
+    return False
+
+
 def resolve_codex_binary() -> str:
     wrapper = shutil.which("codex")
     if wrapper is None:
@@ -555,6 +579,8 @@ def started_and_completed_command_items(events: list[dict]) -> tuple[list[dict],
 def structural_errors(events: list[dict], raw_text: str) -> list[str]:
     errors: list[str] = []
     started_commands, completed_commands = started_and_completed_command_items(events)
+    all_commands = [item.get("command", "") for item in started_commands + completed_commands]
+    ws_data_files = relay_ws_data_files(all_commands)
     static_check_items: dict[str, dict] = {}
     for index, item in enumerate(started_commands + completed_commands):
         item_id = str(item.get("id") or f"command-{index}")
@@ -606,16 +632,12 @@ def structural_errors(events: list[dict], raw_text: str) -> list[str]:
             errors.append("in_place_tempfile_rewrite_detected")
         if re.search(r"\b(?:envsubst|eval|source)\b", command):
             errors.append("template_expansion_command_detected")
-        stages_json_payload = re.search(
-            r"(?:>\s*[^\s|&;]+\.json\b|>>\s*[^\s|&;]+\.json\b|\btee\s+[^\s|&;]+\.json\b|\b(?:cp|mv)\s+[^\s|&;]+\.json\b\s+[^\s|&;]+\.json\b)",
-            command,
-        ) is not None
         if (
             re.search(
                 r'"type"\s*:\s*"[^"\n]*(?:call_service|/create|/update|/delete|/remove|/save|/edit|/set|/reload|/execute|/install|/uninstall|/start|/stop|/restart|/turn_on|/turn_off|/toggle)\b',
                 command,
             ) is not None
-            and ("ha-nova relay ws" in command or stages_json_payload)
+            and ("ha-nova relay ws" in command or stages_known_ws_data_file(command, ws_data_files))
         ):
             errors.append("mutation_ws_type_detected")
         if re.search(r"ha-nova relay core[^\n]*--method\s+(POST|PUT|PATCH|DELETE)\b", command):
