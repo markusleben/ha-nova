@@ -30,7 +30,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          EVENT_ACTION: ${{ github.event.action }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
           MANIFEST_APPROVERS: markusleben
@@ -116,7 +115,8 @@ jobs:
                 [
                   .[][]
                   | select(
-                      .event == "synchronize" or
+                      .event == "committed" or
+                      .event == "head_ref_force_pushed" or
                       .event == "reopened" or
                       .event == "ready_for_review" or
                       (.event == "unlabeled" and .label.name == "manifest-review:approved")
