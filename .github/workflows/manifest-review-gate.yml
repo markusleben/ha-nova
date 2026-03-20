@@ -85,10 +85,6 @@ jobs:
             exit 0
           fi
 
-          if [[ "${EVENT_ACTION}" == "synchronize" ]]; then
-            gh pr edit "${PR_NUMBER}" --remove-label "manifest-review:approved"
-          fi
-
           timeline_json="$(
             gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/timeline" \
               --paginate \
@@ -99,15 +95,42 @@ jobs:
             printf '%s' "${timeline_json}" | jq -r '
                 [
                   .[][]
-                  | select((.event == "labeled" or .event == "unlabeled") and .label.name == "manifest-review:approved")
+                  | select(.event == "labeled" and .label.name == "manifest-review:approved")
                 ]
                 | last
-                | select(.event == "labeled")
                 | .actor.login // ""
               '
           )"
+          approval_labeled_at="$(
+            printf '%s' "${timeline_json}" | jq -r '
+                [
+                  .[][]
+                  | select(.event == "labeled" and .label.name == "manifest-review:approved")
+                ]
+                | last
+                | .created_at // ""
+              '
+          )"
+          latest_invalidating_at="$(
+            printf '%s' "${timeline_json}" | jq -r '
+                [
+                  .[][]
+                  | select(
+                      .event == "synchronize" or
+                      .event == "reopened" or
+                      .event == "ready_for_review" or
+                      (.event == "unlabeled" and .label.name == "manifest-review:approved")
+                    )
+                ]
+                | last
+                | .created_at // ""
+              '
+          )"
 
-          if [[ -n "${approver}" ]] && printf '%s\n' "${MANIFEST_APPROVERS}" | tr ',' '\n' | grep -qx "${approver}"; then
+          if [[ -n "${approver}" ]] && \
+             printf '%s\n' "${MANIFEST_APPROVERS}" | tr ',' '\n' | grep -qx "${approver}" && \
+             [[ -n "${approval_labeled_at}" ]] && \
+             [[ -z "${latest_invalidating_at}" || "${approval_labeled_at}" > "${latest_invalidating_at}" ]]; then
             echo "Maintainer manifest-review label present from ${approver}."
             exit 0
           fi
