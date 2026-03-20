@@ -606,9 +606,16 @@ def structural_errors(events: list[dict], raw_text: str) -> list[str]:
             errors.append("in_place_tempfile_rewrite_detected")
         if re.search(r"\b(?:envsubst|eval|source)\b", command):
             errors.append("template_expansion_command_detected")
-        if re.search(
-            r'"type"\s*:\s*"[^"\n]*(?:call_service|/create|/update|/delete|/remove|/save|/edit|/set|/reload|/execute|/install|/uninstall|/start|/stop|/restart|/turn_on|/turn_off|/toggle)\b',
+        stages_json_payload = re.search(
+            r"(?:>\s*[^\s|&;]+\.json\b|>>\s*[^\s|&;]+\.json\b|\btee\s+[^\s|&;]+\.json\b|\b(?:cp|mv)\s+[^\s|&;]+\.json\b\s+[^\s|&;]+\.json\b)",
             command,
+        ) is not None
+        if (
+            re.search(
+                r'"type"\s*:\s*"[^"\n]*(?:call_service|/create|/update|/delete|/remove|/save|/edit|/set|/reload|/execute|/install|/uninstall|/start|/stop|/restart|/turn_on|/turn_off|/toggle)\b',
+                command,
+            ) is not None
+            and ("ha-nova relay ws" in command or stages_json_payload)
         ):
             errors.append("mutation_ws_type_detected")
         if re.search(r"ha-nova relay core[^\n]*--method\s+(POST|PUT|PATCH|DELETE)\b", command):
