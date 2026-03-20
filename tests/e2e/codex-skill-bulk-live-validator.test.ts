@@ -2,8 +2,10 @@ import { spawnSync } from "node:child_process";
 
 import { describe, expect, it } from "vitest";
 
+type PythonRuntimeCandidate = [command: string, prefixArgs: string[]];
+
 function runPythonValidator(script: string) {
-  const candidates = process.platform === "win32"
+  const candidates: PythonRuntimeCandidate[] = process.platform === "win32"
     ? [["py", ["-3"]], ["python", []], ["python3", []]]
     : [["python3", []], ["python", []], ["py", ["-3"]]];
 
