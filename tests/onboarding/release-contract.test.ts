@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -11,6 +11,7 @@ describe("release contract", () => {
   const workflow = readFileSync(".github/workflows/release.yml", "utf8");
   const rcWorkflow = readFileSync(".github/workflows/release-candidate.yml", "utf8");
   const bundleBuilder = readFileSync("scripts/release/build-install-bundle.sh", "utf8");
+  const pythonRunner = readFileSync("scripts/e2e/run-python-script.mjs", "utf8");
   const expectedGoreleaserActionRef = "goreleaser/goreleaser-action@v7";
   const pkg = JSON.parse(readFileSync("package.json", "utf8")) as {
     scripts?: Record<string, string>;
@@ -147,6 +148,11 @@ describe("release contract", () => {
     const releasing = readFileSync("docs/releasing.md", "utf8");
 
     expect(releasing).toContain("Release Notes Structure");
+    expect(releasing).toContain("Bulk Release Preflight");
+    expect(releasing).toContain("npm run test:bulk:release");
+    expect(releasing).toContain("npm run test:bulk:manual:area-review");
+    expect(releasing).toContain("maintainer-host bulk gate");
+    expect(releasing).toContain("real local HA + relay + Codex environment");
     expect(releasing).toContain("Why This Release Exists");
     expect(releasing).toContain("What You Get");
     expect(releasing).toContain("Upgrade Notes");
@@ -161,6 +167,56 @@ describe("release contract", () => {
     expect(releasing).toContain("one direct admin collaborator");
     expect(releasing).toContain("npm run release:rc:local");
     expect(releasing).toContain("only Claude currently has the extra automatic SessionStart update banner");
+  });
+
+  it("keeps bulk release preflight separate from the host-safe verify command", () => {
+    const releasing = readFileSync("docs/releasing.md", "utf8");
+
+    expect(releasing).toContain("`npm run verify` stays the canonical automated repo gate.");
+    expect(releasing).toContain("It does not talk to a real Home Assistant instance or a live Codex/relay session.");
+    expect(releasing).toContain("do not move these live bulk checks into GitHub runner CI");
+    expect(releasing).toContain("The deterministic `#87` bulk contract is machine-checked here through the tracked `test:safe` suite");
+    expect(pkg.scripts?.verify).not.toContain("test:bulk:fast");
+    expect(pkg.scripts?.verify).not.toContain("test:bulk:smoke");
+    expect(pkg.scripts?.verify).not.toContain("test:bulk:manual:area-review");
+  });
+
+  it("keeps the bulk scenario split and backing assets visible in the release delta", () => {
+    expect(pkg.scripts?.["e2e:skill:codex:bulk"]).toContain("run-python-script.mjs");
+    expect(pkg.scripts?.["test:bulk:smoke"]).toBe(
+      "node scripts/e2e/run-python-script.mjs scripts/e2e/codex-ha-nova-bulk-live-e2e.py prefix_inventory area_inventory label_inventory"
+    );
+    expect(pkg.scripts?.["test:bulk:manual:area-review"]).toBe(
+      "node scripts/e2e/run-python-script.mjs scripts/e2e/codex-ha-nova-bulk-live-e2e.py area_review"
+    );
+    expect(pkg.scripts?.["test:bulk:release"]).toContain("test:bulk:smoke");
+    expect(pkg.scripts?.["test:bulk:release"]).toContain("test:safe");
+    for (const file of [
+      "scripts/e2e/run-python-script.mjs",
+      "scripts/e2e/codex-ha-nova-bulk-live-e2e.py",
+      "skills/ha-nova/bulk-patterns.md",
+      "skills/ha-nova/config-body-filter.jq",
+      "tests/e2e/codex-skill-bulk-live-validator.test.ts",
+      "tests/skills/bulk-audit-contract.test.ts",
+    ]) {
+      const tracked = spawnSync("git", ["ls-files", "--error-unmatch", file], {
+        cwd: process.cwd(),
+        encoding: "utf8",
+      });
+      const visible = tracked.status === 0 || spawnSync("git", ["status", "--short", "--untracked-files=all", "--", file], {
+        cwd: process.cwd(),
+        encoding: "utf8",
+      }).stdout.trim().length > 0;
+      expect(existsSync(file)).toBe(true);
+      expect(visible).toBe(true);
+    }
+  });
+
+  it("documents the Python launcher fallback order used by the bulk runner", () => {
+    expect(pythonRunner).toContain('process.platform === "win32"');
+    expect(pythonRunner).toContain('[["py", ["-3"]], ["python", []], ["python3", []]]');
+    expect(pythonRunner).toContain('[["python3", []], ["python", []], ["py", ["-3"]]]');
+    expect(pythonRunner).toContain("Python 3 runtime not found. Install python3, python, or py -3.");
   });
 
   it("documents fresh-install smoke as installer -> wizard handoff instead of a separate setup command", () => {

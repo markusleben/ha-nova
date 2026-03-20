@@ -73,7 +73,7 @@ describe("review contract", () => {
     expect(reviewSkill).toContain("exact `entry_id`");
     expect(reviewSkill).toContain("linked `entity_id` by matching entity-registry `config_entry_id`");
     expect(reviewSkill).toContain("Skip this step for config-entry helpers — `entry_id` is already the canonical identity.");
-    expect(reviewSkill).toContain("For config-entry helpers, persist the canonical metadata item from step 2 to `<target-file>`");
+    expect(reviewSkill).toContain("For config-entry helpers, persist the canonical metadata item from step 3 to `<target-file>`");
     expect(reviewSkill).toContain("For standalone config-entry helper review, skip this step entirely.");
     expect(reviewSkill).toContain("If the target already in context is a config-entry helper metadata item: skip Target Resolution entirely and go straight to the config-entry helper review lane in Step 1.");
     expect(reviewSkill).toContain("Do not attempt primary-controlled-entity state reads or Quick-Fix detection from that path.");
@@ -123,5 +123,32 @@ describe("review contract", () => {
     expect(reviewSkill).toContain("supported config-entry family: domain is one of `utility_meter`, `derivative`, `integration`, `min_max`, `threshold`, `tod`, `statistics`, `group`, `history_stats`");
     expect(reviewSkill).toContain("Helper (config-entry family): minimal config-entry review");
     expect(reviewAgent).toContain("**Helper (config-entry family):** minimal config-entry review");
+  });
+
+  it("keeps standalone bulk review separate from post-write review-agent output", () => {
+    expect(reviewSkill).toContain("Bulk Mode Gate");
+    expect(reviewSkill).toContain("For resolved targets `> 1`, return exactly these 6 sections");
+    expect(reviewSkill).toContain("Section 2 — Summary");
+    expect(reviewSkill).toContain("bulk workset max 5 targets");
+    expect(reviewSkill).toContain("more than one resolved target -> current review set = the resolved targets in deterministic order, trimmed to the first 5 only when more than 5 targets match");
+    expect(reviewSkill).not.toContain("2-3 resolved targets -> current review set = all resolved targets, reviewed serially in deterministic order");
+    expect(reviewSkill).not.toContain("more than 3 resolved targets -> current review set = first 5 targets only");
+    expect(reviewSkill).toContain('use `search/related` with `item_type:"area"` before any registry-first fallback');
+    expect(reviewSkill).toContain("keyed object (`automation`, `script`, `entity`, `device`, ...)");
+    expect(reviewSkill).toContain("do not ask a clarifying question just because multiple matches remain");
+    expect(reviewSkill).toContain("do not resolve unique_ids, read configs, read states, or run collision scans outside the current review set");
+    expect(reviewSkill).toContain("never build a full matched-set config cache or evidence snapshot; if caching helps, cache only the current review set");
+    expect(reviewSkill).toContain("resolve `unique_id`, config, state, and related-item evidence per target inside the current workset only; no prefetch for the remaining matched targets");
+    expect(reviewSkill).toContain("Quick-Fix is single-target only");
+    expect(reviewSkill).toContain("step 7 above");
+    expect(reviewSkill).toContain("step 3 to `<target-file>`");
+    expect(reviewSkill).toContain("Target Resolution step 5");
+    expect(reviewSkill).toContain("Never build a config snapshot for the full matched set during bulk review");
+    expect(reviewSkill).toContain("POSIX shell example");
+    expect(reviewSkill).toContain("On Windows/PowerShell, use the native file-writing equivalent");
+    expect(reviewSkill).toContain("keep shared temp files serial or use dedicated payload filenames per probe");
+    expect(reviewAgent).toContain("This agent is for single-target review only.");
+    expect(reviewAgent).toContain("Ignore the standalone bulk-review mode");
+    expect(reviewAgent).toContain("single-target output format");
   });
 });

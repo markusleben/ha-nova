@@ -83,6 +83,8 @@ describe("ha-nova contract", () => {
     const files = [
       "skills/ha-nova/relay-api.md",
       "skills/ha-nova/best-practices.md",
+      "skills/ha-nova/config-body-filter.jq",
+      "skills/ha-nova/bulk-patterns.md",
       "skills/ha-nova/agents/resolve-agent.md",
       "skills/ha-nova/agents/apply-agent.md",
       "skills/ha-nova/agents/review-agent.md",
@@ -97,6 +99,7 @@ describe("ha-nova contract", () => {
   it("documents relay API contract centrally", () => {
     const relayApi = readFileSync("skills/ha-nova/relay-api.md", "utf8");
     const apiMatrix = readFileSync("docs/reference/ha-api-matrix.md", "utf8");
+    const architecture = readFileSync("docs/reference/skill-architecture.md", "utf8");
 
     expect(relayApi).toContain("GET /health");
     expect(relayApi).toContain("POST /ws");
@@ -115,6 +118,13 @@ describe("ha-nova contract", () => {
     expect(relayApi).toContain("Timeout and Retry Guidance");
     expect(relayApi).toContain("Safe Bulk Patterns");
     expect(relayApi).toContain("Do not rely on external `jq` pipes");
+    expect(relayApi).toContain('`search/related` for `item_type:"area"`');
+    expect(relayApi).toContain("automation shortlist -> `(.data.automation // [])[]`");
+    expect(relayApi).toContain("Compact entity registry (`config/entity_registry/list_for_display`): `data.entities[]`");
+    expect(relayApi).toContain("Full entity registry (`config/entity_registry/list`): `data[]`");
+    expect(relayApi).toContain("Area registry (`config/area_registry/list`): `data[]` with canonical `area_id`");
+    expect(relayApi).toContain("Do not invent a `--jq` flag for `ha-nova relay jq`");
+    expect(relayApi).not.toContain("Full entity registry (`config/entity_registry/list`): `data.entities[]`");
     expect(apiMatrix).toContain("Config Entry Flow");
     expect(apiMatrix).toContain("WS | `config_entries/get` | Retrieve config-entry metadata");
     expect(apiMatrix).toContain("`POST /api/config/config_entries/flow`");
@@ -125,6 +135,11 @@ describe("ha-nova contract", () => {
     expect(apiMatrix).toContain("raw WS `config_entries/flow` did not succeed in this session");
     expect(apiMatrix).toContain("Helper-owned config-entry domains");
     expect(apiMatrix).toContain("live-proven end-to-end subtype is `sensor`");
+    expect(apiMatrix).toContain("| `{type}/list` | input_boolean, input_number, input_text, input_datetime, input_select, input_button, counter, timer, schedule |");
+    expect(apiMatrix).not.toContain("schedule, zone, person, tag");
+    expect(architecture).toContain("config-body-filter.jq");
+    expect(architecture).toContain("room/area bulk resolution is area-first");
+    expect(architecture).toContain("materialize and trim the current workset before any per-item reads");
   });
 
   it("keeps the architecture exclusion boundary aligned with helper-owned config-entry domains", () => {
@@ -262,6 +277,7 @@ describe("ha-nova contract", () => {
       "skills/fallback/SKILL.md",
       "skills/ha-nova/relay-api.md",
       "skills/ha-nova/best-practices.md",
+      "skills/ha-nova/bulk-patterns.md",
       "skills/ha-nova/payload-schemas.md",
       "skills/ha-nova/automation-patterns.md",
       "skills/ha-nova/template-guidelines.md",

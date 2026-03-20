@@ -63,7 +63,7 @@ Which HA operations require REST, WS, or filesystem?
 ### Helper CRUD (storage-based, direct WS commands)
 | WS Type Pattern | Supported types |
 |-----------------|-------------------|
-| `{type}/list` | input_boolean, input_number, input_text, input_datetime, input_select, input_button, counter, timer, schedule, zone, person, tag |
+| `{type}/list` | input_boolean, input_number, input_text, input_datetime, input_select, input_button, counter, timer, schedule |
 | `{type}/create` | Same types - creates helpers with type-specific params |
 | `{type}/update` | Same types |
 | `{type}/delete` | Same types (requires `unique_id`, not `entity_id`) |

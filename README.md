@@ -2,7 +2,7 @@
   <a href="https://github.com/markusleben/ha-nova/actions/workflows/ci.yml"><img src="https://github.com/markusleben/ha-nova/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://github.com/markusleben/ha-nova/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
   <img src="https://img.shields.io/badge/node-%3E%3D20-brightgreen" alt="Node >= 20">
-  <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey" alt="macOS | Windows | Linux">
+  <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux*-lightgrey" alt="macOS | Windows | Linux*">
 </p>
 
 ## What is HA NOVA?
@@ -17,7 +17,7 @@ The *relay* is a small app running on your HA server. It keeps your token where 
 
 A setup wizard handles installation. Pick your AI client, follow the prompts, done.
 
-Works with **Claude Code, Claude Desktop (Code tab), Codex CLI, OpenCode, and Gemini CLI**.
+Client adapters exist for **Claude Code, Claude Desktop (Code tab), Codex CLI, OpenCode, and Gemini CLI**. See the validation matrix below for current platform confidence.
 
 > **Early access.** The core works well, but expect rough edges. Back up your configs before letting AI touch anything. Hit a problem? [Open an issue](https://github.com/markusleben/ha-nova/issues).
 
@@ -78,7 +78,7 @@ Deleting anything needs a confirmation code — not just "yes", an actual code. 
 |---------|-------------|
 | *"Turn on the porch light at sunset and off at 11 PM"* | Creates a fully reviewed automation through the safety flow |
 | *"Why didn't my motion automation trigger last night?"* | Digs into trace logs and explains what actually went wrong |
-| *"Check my automations for problems"* | Runs a full config audit across your setup |
+| *"Check my automations for problems"* | Runs a read-only bulk audit in deterministic 5-item worksets and reports `matched / audited / remaining` |
 | *"Turn off the living room lights"* | Turns it off, confirms the new state |
 | *"Show me all sensors in the bedroom"* | Finds entities by room, area, or name |
 | *"Create a counter helper for my coffee intake"* | Creates it, shows the result |
@@ -112,10 +112,10 @@ Both approaches work. MCP servers have broader client support. HA NOVA trades th
 |-------|-------------|
 | ✏️ **write** | Create, update, delete automations and scripts through the 4-phase safety flow |
 | 📖 **read** | Browse configs, inspect automations, debug with trace analysis |
-| 🔍 **review** | Audit for 40+ common mistakes, conflicts, and best-practice violations |
+| 🔍 **review** | Audit single configs or run read-only bulk reviews with deterministic worksets and explicit continuation |
 | 🎛️ **service-call** | Control devices: lights, climate, covers, switches, media players |
-| 🔎 **entity-discovery** | Find entities by name, room, or area |
-| 🧩 **helper** | Manage helpers (input_boolean, counter, timer, schedule, and more) |
+| 🔎 **entity-discovery** | Find entities and build bulk inventories by `prefix`, `domain`, `area`, or `label` |
+| 🧩 **helper** | Manage storage helpers plus 9 config-entry helper domains such as `utility_meter`, `threshold`, `statistics`, and `history_stats` |
 | 🛡️ **fallback** | Safety fallback for dashboards, blueprints, energy, areas, and more |
 | 🚀 **onboarding** | Setup diagnostics and troubleshooting |
 
@@ -144,6 +144,8 @@ Current validation matrix:
 - macOS: Claude, Codex, OpenCode, Gemini
 - Linux: installer/update/uninstall path is covered by build + CI smoke, but this release is not yet fully live-validated on a real Linux machine
 - Windows: Claude and Gemini are validated. Codex and OpenCode lanes exist, but are still experimental
+
+`*` Linux support currently means shared installer/update flow plus CI smoke, not the same real-machine validation level as macOS.
 
 > **Not a terminal person?** Claude Desktop gives you the same thing in a regular app window. Run the installer, select "Claude Code" (same integration path), open the **Code** tab, pick a workspace folder, and start.
 

@@ -97,7 +97,7 @@ These are configured via the HA UI (Settings → Helpers or Integrations), not v
 | Weekly on/off schedule | `schedule` | UI-editable, creates binary sensor |
 | Time-of-day binary (morning/night) | `tod` | Supports sunrise/sunset offsets |
 
-> **⏳ Relay support planned** — these config-entry helpers cannot be created via the relay yet (see [#81](https://github.com/markusleben/ha-nova/issues/81)). For now, guide the user to set them up in the HA UI. When the relay supports config-entry flows, this limitation will be removed.
+> **Relay-backed config-entry flows are now supported** for the helper-owned domains listed above through `ha-nova:helper`. Keep guidance narrow: unsupported helper families still fall back to the HA UI or `ha-nova:fallback`, and `group` must follow the live menu/form flow instead of guessed fields.
 
 ## Zigbee Button Patterns
 

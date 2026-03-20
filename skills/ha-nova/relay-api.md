@@ -19,6 +19,8 @@ Single source of truth for Relay calls used by HA NOVA skills.
 For agent-dispatched flows, use the CLI wrapper instead of raw curl:
 
 1. Write request JSON with the client's native file-writing tool.
+   - POSIX heredocs are examples only; on Windows/PowerShell use the native file-writing equivalent while preserving the same JSON and jq file contents.
+   - Write the final request body directly. Do not create placeholder payload templates such as `REPLACE_ENTITY_ID` and patch them later with `perl -0pi`, `sed -i`, or similar in-place rewrite commands.
 2. Use file-based relay flags as the default contract:
    - `ha-nova relay ws --data-file <payload-file>`
    - `ha-nova relay core --method <METHOD> --path <PATH> --body-file <payload-file>`
@@ -43,7 +45,7 @@ Inline `-d` / `--body` remains available for small diagnostics, but it is not th
 - Error: `{ "ok": false, "error": { "code": "...", "message": "..." } }`
 
 Parsing varies by endpoint:
-- `/ws` responses: upstream payload is in `.data` directly (e.g., `.data.entities[]`)
+- `/ws` responses: upstream payload is in `.data` directly; the exact shape depends on the WS message type
 - `/core` responses: upstream payload is in `.data.body` (with `.data.status` for HTTP status)
 
 ## ID Types & Resolution
@@ -70,8 +72,11 @@ Create `<payload-file>` with:
 Then run:
 
 ```text
-ha-nova relay ws --data-file <payload-file> --jq .data.unique_id
+ha-nova relay ws --data-file <payload-file> --out <registry-file>
+ha-nova relay jq -r --file <registry-file> '.data.unique_id'
 ```
+
+The jq filter quoting above is a POSIX example. On Windows/PowerShell pass the same filter with native argument quoting.
 
 Use the resolved `unique_id` with:
 - Config reads: `GET /api/config/automation/config/{unique_id}`
@@ -100,11 +105,21 @@ Request examples:
 
 Expected success body:
 - `ok=true`
-- Entity registry: `data.entities[]` with abbreviated keys (`ei`=entity_id, `en`=name, `ai`=area_id)
+- Compact entity registry (`config/entity_registry/list_for_display`): `data.entities[]` with abbreviated keys (`ei`=entity_id, `en`=name, `ai`=area_id)
+- Full entity registry (`config/entity_registry/list`): `data[]`
+- Area registry (`config/area_registry/list`): `data[]` with canonical `area_id`; do not expect a generic `id`
+- `search/related` for `item_type:"area"`: `data` is a keyed object such as `automation[]`, `script[]`, `entity[]`, `device[]`
+- `search/related` for `item_type:"entity"`: `data` is a related-item collection; filter by the requested target family before counting or follow-up reads
 - `get_states`: `data` is an array of full state objects (thousands of entries — avoid for discovery)
 
 Parsing rule:
-- Entity registry: `.data.entities[]` — filter with jq `select(.ei | startswith("automation."))`.
+- Compact entity registry: `.data.entities[]` — filter with jq `select(.ei | startswith("automation."))`.
+- Full entity registry: `(.data // [])[]`.
+- `search/related` area projection:
+  - automation shortlist -> `(.data.automation // [])[]`
+  - script shortlist -> `(.data.script // [])[]`
+  - entity shortlist -> `(.data.entity // [])[]`
+  - `.data.entity` is only a fallback seed when automation/script arrays are absent
 - `get_states`: treat as `(.data // [])[]`, filter only object entries with string `entity_id`.
 
 ## /core Contract
@@ -135,6 +150,7 @@ Parsing rule:
 - Success flag: `.ok`
 - Upstream status: `.data.status`
 - Upstream payload: `.data.body`
+- Preferred config-body jq file: `skills/ha-nova/config-body-filter.jq`
 
 ## Frequent HA API Paths
 
@@ -351,8 +367,16 @@ For bulk inspection or review preparation:
 1. save discovery output with `--out <result-file>`
 2. keep JSON filtering in `--jq-file` or `ha-nova relay jq --file <result-file>`
 3. iterate over the saved shortlist with native file/loop tools
+4. follow selector semantics, stable ordering, and workset limits from `skills/ha-nova/bulk-patterns.md`
 
 Do not rely on external `jq` pipes as the canonical path.
+
+## `relay jq` Usage
+
+- Usage: `ha-nova relay jq [--file <result-file>] [-e] [-r] [--jq-file <filter-file>] '<filter>'`
+- The jq filter is positional unless `--jq-file` is used.
+- The single-quoted positional filter shown here is a POSIX example. On Windows/PowerShell pass the same filter with native argument quoting.
+- Do not invent a `--jq` flag for `ha-nova relay jq`; that flag belongs to `ha-nova relay ws` / `ha-nova relay core`.
 
 ## Runtime Env
 

@@ -14,6 +14,7 @@ Operate Home Assistant through HA NOVA with a minimal user-facing flow:
 - preview before write
 - one blocking question only when required
 - compact result output
+- when scope exceeds one target, scale manually with the same rules and report the exact audited subset
 
 ## Runtime Prerequisite
 
@@ -139,9 +140,11 @@ Match user intent to exactly one skill:
 **"Analyze my automation"** → `ha-nova:review` (NOT read + review)
 **"Review my utility meter helper"** → `ha-nova:review` (minimal config-entry helper review)
 **"Show my automations"** → `ha-nova:read` (NOT review)
+**"Show all automations with prefix kitchen_"** → `ha-nova:entity-discovery` (bulk inventory, not full YAML dump)
 **"Create an automation"** → `ha-nova:write` (NOT read + write)
 **"Create an input_boolean"** → `ha-nova:helper` (NOT write)
 **"Show my helpers"** → `ha-nova:helper` (NOT read)
+**"Review all automations in area Living Room"** → `ha-nova:review` (area-first aggregate review when more than one target resolves)
 **"Create a timer"** → ambiguous! Ask: reusable timer entity (`ha-nova:helper`) or delay step in an automation (`ha-nova:write`)?
 **"Show my energy dashboard"** → `ha-nova:fallback` (no dedicated skill)
 **"Import a blueprint"** → `ha-nova:fallback` (relay-ready, no skill)
@@ -160,8 +163,9 @@ After any `read` or `review` task, re-evaluate intent once before continuing:
     - config-entry family: `entry_id`, domain, title, linked entities when already known
 - always pass along the requested change
 - keep this sequential: one skill at a time, never parallel
+- for multi-target scope, keep the same safety and evidence rules; see `skills/ha-nova/bulk-patterns.md`
 
-**Problem-description intents** ("X doesn't work", "Y is wrong", "stopped working"): dispatch to `ha-nova:review`. Review will analyze the config AND check current entity state — if an acute fix is possible, it offers a Quick-Fix service call at the end.
+**Problem-description intents** ("X doesn't work", "Y is wrong", "stopped working"): dispatch to `ha-nova:review`. Review will analyze the config AND check current entity state — if an acute fix is possible, it offers a Quick-Fix service call at the end. Bulk review is the exception: it stays read-only and does not offer Quick-Fix.
 
 ## Latency Policy
 
@@ -169,6 +173,7 @@ After any `read` or `review` task, re-evaluate intent once before continuing:
 - For first read/list, try Relay `/ws` directly.
 - For write flows, keep main-thread file reads minimal:
   - context skill (this file)
+  - `skills/ha-nova/bulk-patterns.md` only for multi-target discovery/review work
   - `skills/ha-nova/relay-api.md`
   - one agent template per phase
 - No proactive doctor in success path.

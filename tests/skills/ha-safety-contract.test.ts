@@ -84,6 +84,7 @@ describe("ha safety contract", () => {
     expect(reviewSkill).toContain("hand off to `ha-nova:write`");
     expect(reviewSkill).toContain("hand off to `ha-nova:helper`");
     expect(reviewSkill).toContain("The Quick-Fix service call in Step 4 is the only write exception in this skill.");
+    expect(reviewSkill).toContain("Bulk review is stricter: no Quick-Fix, no service calls, no write exception.");
 
     expect(discoverySkill).toContain("No `POST`, `PUT`, `PATCH`, or `DELETE` relay writes.");
     expect(discoverySkill).toContain("hand off to the write-capable skill");
