@@ -1570,6 +1570,78 @@ with tempfile.TemporaryDirectory() as tmpdir:
     expect(result.errors).toContain("mutation_ws_type_detected");
   });
 
+  it("fails when a mutating ws payload is created separately before the relay call", () => {
+    const result = runPythonValidator(`
+import importlib.util
+import json
+import sys
+import tempfile
+from pathlib import Path
+
+spec = importlib.util.spec_from_file_location("bulk_live_validator", "scripts/e2e/codex-ha-nova-bulk-live-e2e.py")
+module = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = module
+spec.loader.exec_module(module)
+
+fixture = {
+    "id": "review_area",
+    "matches": ["automation.a", "automation.b", "automation.c", "automation.d", "automation.e", "automation.f"],
+    "audited": ["automation.a", "automation.b", "automation.c", "automation.d", "automation.e"],
+    "remaining": 1,
+    "non_audited": ["automation.f"],
+}
+
+status_line = (
+    "**Scope**\\n**Summary**\\n**High-Risk Findings**\\n**Repeated Patterns**\\n**Items Checked**\\n**Collisions by Cluster**\\n"
+    "NOVA_BULK_REVIEW_RESULT id=review_area matched=6 audited=5 remaining=1 "
+    "item_ids=[\\"automation.a\\",\\"automation.b\\",\\"automation.c\\",\\"automation.d\\",\\"automation.e\\"] "
+    "quick_fix_offered=false sections=[\\"Scope\\",\\"Summary\\",\\"High-Risk Findings\\",\\"Repeated Patterns\\",\\"Items Checked\\",\\"Collisions by Cluster\\"]"
+)
+
+events = [
+    {
+        "type": "item.completed",
+        "item": {
+            "id": "cmd_payload",
+            "type": "command_execution",
+            "command": "cat <<'EOF' > payload.json\\n{\\"type\\":\\"automation/reload\\"}\\nEOF",
+            "aggregated_output": "",
+            "exit_code": 0,
+            "status": "completed",
+        },
+    },
+    {
+        "type": "item.completed",
+        "item": {
+            "id": "cmd_ws",
+            "type": "command_execution",
+            "command": "ha-nova relay ws --data-file payload.json",
+            "aggregated_output": "",
+            "exit_code": 0,
+            "status": "completed",
+        },
+    },
+    {
+        "type": "item.completed",
+        "item": {
+            "id": "msg_final",
+            "type": "agent_message",
+            "text": status_line,
+        },
+    },
+]
+
+with tempfile.TemporaryDirectory() as tmpdir:
+    raw_log = Path(tmpdir) / "review.jsonl"
+    raw_log.write_text("\\n".join(json.dumps(event) for event in events), encoding="utf-8")
+    result = module.validate_case("review", "area_review", fixture, raw_log, 0)
+    print(json.dumps({"status": result.status, "errors": result.errors}))
+`);
+
+    expect(result.status).toBe("fail");
+    expect(result.errors).toContain("mutation_ws_type_detected");
+  });
+
   it("fails when codex exits non-zero even if the transcript looks complete", () => {
     const result = runPythonValidator(`
 import importlib.util

@@ -606,7 +606,7 @@ def structural_errors(events: list[dict], raw_text: str) -> list[str]:
             errors.append("in_place_tempfile_rewrite_detected")
         if re.search(r"\b(?:envsubst|eval|source)\b", command):
             errors.append("template_expansion_command_detected")
-        if "ha-nova relay ws" in command and re.search(
+        if re.search(
             r'"type"\s*:\s*"[^"\n]*(?:call_service|/create|/update|/delete|/remove|/save|/edit|/set|/reload|/execute|/install|/uninstall|/start|/stop|/restart|/turn_on|/turn_off|/toggle)\b',
             command,
         ):
