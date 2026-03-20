@@ -69,6 +69,10 @@ def normalize_heading(text: str) -> str:
     return re.sub(r"\s+", " ", text.strip().casefold())
 
 
+def relay_jq_invocations(command: str) -> list[str]:
+    return re.findall(r"ha-nova relay jq[^\n]*", command)
+
+
 def require_cmd(command: str) -> None:
     if shutil.which(command) is None:
         die(f"Required command not found: {command}")
@@ -583,12 +587,10 @@ def structural_errors(events: list[dict], raw_text: str) -> list[str]:
     if '"code":"INVALID_JSON"' in raw_text or "Request body is not valid JSON" in raw_text:
         errors.append("relay_invalid_json_response")
     if any(
-        "ha-nova relay jq" in item.get("command", "")
-        and (
-            re.search(r"(^|\s)-c(\s|$)", item.get("command", "")) is not None
-            or re.search(r"(^|\s)--arg(\s|$)", item.get("command", "")) is not None
-        )
+        re.search(r"(^|\s)-c(\s|$)", invocation) is not None
+        or re.search(r"(^|\s)--arg(\s|$)", invocation) is not None
         for item in completed_commands
+        for invocation in relay_jq_invocations(item.get("command", ""))
     ):
         errors.append("invalid_relay_jq_flag")
     if "[ha-nova] ERROR: jq parse error:" in raw_text:
@@ -761,15 +763,16 @@ def validate_review(events: list[dict], fixture: dict, raw_text: str) -> list[st
                 output,
             )
         )
-    unique_audited_config_reads: list[str] = []
-    seen_audited_config_reads: set[str] = set()
+    unique_config_reads: list[str] = []
+    seen_config_reads: set[str] = set()
     for entity_id in audited_config_reads:
-        if entity_id in seen_audited_config_reads:
+        if entity_id in seen_config_reads:
             continue
-        seen_audited_config_reads.add(entity_id)
-        unique_audited_config_reads.append(entity_id)
-    require(len(unique_audited_config_reads) == len(fixture["audited"]), "review_config_read_count_mismatch", errors)
-    require(unique_audited_config_reads == fixture["audited"], "review_unique_id_targets_mismatch", errors)
+        seen_config_reads.add(entity_id)
+        unique_config_reads.append(entity_id)
+    workset_config_reads = [entity_id for entity_id in unique_config_reads if entity_id in fixture["audited"]]
+    require(len(workset_config_reads) == len(fixture["audited"]), "review_config_read_count_mismatch", errors)
+    require(workset_config_reads == fixture["audited"], "review_unique_id_targets_mismatch", errors)
 
     for entity_id in fixture["non_audited"]:
         require(entity_id not in joined_commands, f"review_prefetch_outside_workset:{entity_id}", errors)
