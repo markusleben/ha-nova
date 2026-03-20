@@ -1648,6 +1648,80 @@ with tempfile.TemporaryDirectory() as tmpdir:
     expect(result.errors).toContain("codex_exit_nonzero:23");
   });
 
+  it("allows one retryable relay read failure when a later relay read succeeds", () => {
+    const result = runPythonValidator(`
+import importlib.util
+import json
+import sys
+import tempfile
+from pathlib import Path
+
+spec = importlib.util.spec_from_file_location("bulk_live_validator", "scripts/e2e/codex-ha-nova-bulk-live-e2e.py")
+module = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = module
+spec.loader.exec_module(module)
+
+fixture = {
+    "id": "inventory_label",
+    "matches": ["automation.a", "automation.b", "automation.c"],
+    "displayed": ["automation.a", "automation.b", "automation.c"],
+}
+
+events = [
+    {
+        "type": "item.completed",
+        "item": {
+            "id": "cmd_selector_fail",
+            "type": "command_execution",
+            "command": "ha-nova relay ws --data-file payload.json --jq-file filter.jq --out result.json {\\"type\\":\\"config/entity_registry/list\\"}",
+            "aggregated_output": "[ha-nova] ERROR: context deadline exceeded (Client.Timeout or context cancellation while reading body)",
+            "exit_code": 1,
+            "status": "completed",
+        },
+    },
+    {
+        "type": "item.completed",
+        "item": {
+            "id": "cmd_selector_retry",
+            "type": "command_execution",
+            "command": "ha-nova relay ws --data-file payload.json --out raw.json {\\"type\\":\\"config/entity_registry/list\\"}",
+            "aggregated_output": "{\\"ok\\":true,\\"data\\":[]}",
+            "exit_code": 0,
+            "status": "completed",
+        },
+    },
+    {
+        "type": "item.completed",
+        "item": {
+            "id": "cmd_wrapper",
+            "type": "command_execution",
+            "command": "ha-nova relay jq --file raw.json --jq-file wrapper.jq > result.json",
+            "aggregated_output": "{\\"matched\\":3,\\"displayed\\":3,\\"remaining\\":0,\\"values\\":[\\"automation.a\\",\\"automation.b\\",\\"automation.c\\"],\\"rows\\":[]}",
+            "exit_code": 0,
+            "status": "completed",
+        },
+    },
+    {
+        "type": "item.completed",
+        "item": {
+            "id": "msg_final",
+            "type": "agent_message",
+            "text": "NOVA_BULK_INVENTORY_RESULT id=inventory_label matched=3 displayed=3 remaining=0 values=[\\"automation.a\\",\\"automation.b\\",\\"automation.c\\"]",
+        },
+    },
+]
+
+with tempfile.TemporaryDirectory() as tmpdir:
+    raw_log = Path(tmpdir) / "inventory.jsonl"
+    raw_log.write_text("\\n".join(json.dumps(event) for event in events), encoding="utf-8")
+    result = module.validate_case("inventory", "label_inventory", fixture, raw_log, 0)
+    print(json.dumps({"status": result.status, "errors": result.errors}))
+`);
+
+    expect(result.status).toBe("pass");
+    expect(result.errors).toEqual([]);
+  });
+
   it("accepts markdown heading levels for bulk-review sections", () => {
     const result = runPythonValidator(`
 import importlib.util

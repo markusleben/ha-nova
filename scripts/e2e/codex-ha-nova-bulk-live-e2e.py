@@ -568,11 +568,28 @@ def structural_errors(events: list[dict], raw_text: str) -> list[str]:
     if incomplete_command_ids:
         errors.append("incomplete_transcript")
 
-    for item in completed_commands:
+    retryable_read_failure_consumed = False
+    for index, item in enumerate(completed_commands):
         exit_code = item.get("exit_code")
         if isinstance(exit_code, int) and exit_code != 0:
             command = item.get("command", "")
-            errors.append(f"failed_command_exit:{exit_code}:{command[:120]}")
+            output = item.get("aggregated_output", "")
+            later_successful_relay_read = any(
+                later_item.get("exit_code") == 0
+                and re.search(r"\bha-nova relay (?:ws|core|jq)\b", later_item.get("command", "")) is not None
+                for later_item in completed_commands[index + 1 :]
+            )
+            retryable_relay_read_failure = (
+                not retryable_read_failure_consumed
+                and re.search(r"\bha-nova relay (?:ws|core)\b", command) is not None
+                and re.search(r"\b(?:call_service|/create|/update|/delete|/remove|/save|/edit|/set|/reload|/execute|/install|/uninstall|/start|/stop|/restart|/turn_on|/turn_off|/toggle)\b", command) is None
+                and re.search(r"(?i)(?:context deadline exceeded|client\.timeout|timed out|timeout while reading body|relay error)", output) is not None
+                and later_successful_relay_read
+            )
+            if retryable_relay_read_failure:
+                retryable_read_failure_consumed = True
+            else:
+                errors.append(f"failed_command_exit:{exit_code}:{command[:120]}")
     for item in static_check_items.values():
         command = item.get("command", "")
         standalone_jq_count = len(re.findall(r"(?<![\w./-])jq(?=\s|$)", command))
