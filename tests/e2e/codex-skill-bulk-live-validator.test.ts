@@ -76,6 +76,7 @@ checks = {
     "powershell_equivalent": "PowerShell or Windows shells must use their native equivalent" in prompt,
     "shell_native_inspection": "shell-native inspection command" in prompt,
     "same_block_entity_visibility": "same command block that executes that lookup" in prompt,
+    "config_read_marker": "Every config-body read must emit a parseable target marker" in prompt,
 }
 
 errors = [name for name, ok in checks.items() if not ok]
@@ -2438,6 +2439,78 @@ with tempfile.TemporaryDirectory() as tmpdir:
 
     expect(result.status).toBe("fail");
     expect(result.errors).toContain("review_unapproved_extra_config_read:automation.unexpected_overlap");
+  });
+
+  it("fails when a config-body read does not emit a parseable target marker", () => {
+    const result = runPythonValidator(`
+import importlib.util
+import json
+import sys
+import tempfile
+from pathlib import Path
+
+spec = importlib.util.spec_from_file_location("bulk_live_validator", "scripts/e2e/codex-ha-nova-bulk-live-e2e.py")
+module = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = module
+spec.loader.exec_module(module)
+
+fixture = {
+    "id": "review_area",
+    "matches": ["automation.a", "automation.b", "automation.c", "automation.d", "automation.e", "automation.f"],
+    "audited": ["automation.a", "automation.b", "automation.c", "automation.d", "automation.e"],
+    "remaining": 1,
+    "non_audited": ["automation.f"],
+}
+
+status_line = (
+    "Scope\\nSummary\\nHigh-Risk Findings\\nRepeated Patterns\\nItems Checked\\nCollisions by Cluster\\n"
+    "NOVA_BULK_REVIEW_RESULT id=review_area matched=6 audited=5 remaining=1 "
+    "item_ids=[\\"automation.a\\",\\"automation.b\\",\\"automation.c\\",\\"automation.d\\",\\"automation.e\\"] "
+    "quick_fix_offered=false sections=[\\"Scope\\",\\"Summary\\",\\"High-Risk Findings\\",\\"Repeated Patterns\\",\\"Items Checked\\",\\"Collisions by Cluster\\"]"
+)
+
+events = [
+    {
+        "type": "item.completed",
+        "item": {
+            "id": "cmd_area",
+            "type": "command_execution",
+            "command": "ha-nova relay ws --data-file payload.json --out result.json {\\"type\\":\\"search/related\\",\\"item_type\\":\\"area\\",\\"item_id\\":\\"arbeitszimmer\\"}",
+            "aggregated_output": "",
+            "exit_code": 0,
+            "status": "completed",
+        },
+    },
+    {
+        "type": "item.completed",
+        "item": {
+            "id": "cmd_configs",
+            "type": "command_execution",
+            "command": "ha-nova relay core --method GET --path /api/config/automation/config/$unique_id --jq-file config_filter.jq --out config.json",
+            "aggregated_output": "{\\"id\\":\\"hidden\\"}",
+            "exit_code": 0,
+            "status": "completed",
+        },
+    },
+    {
+        "type": "item.completed",
+        "item": {
+            "id": "msg_final",
+            "type": "agent_message",
+            "text": status_line,
+        },
+    },
+]
+
+with tempfile.TemporaryDirectory() as tmpdir:
+    raw_log = Path(tmpdir) / "review.jsonl"
+    raw_log.write_text("\\n".join(json.dumps(event) for event in events), encoding="utf-8")
+    result = module.validate_case("review", "area_review", fixture, raw_log, 0)
+    print(json.dumps({"status": result.status, "errors": result.errors}))
+`);
+
+    expect(result.status).toBe("fail");
+    expect(result.errors).toContain("review_unidentified_config_read");
   });
 
   it("fails when a non-audited config read only appears in aggregated output", () => {

@@ -378,12 +378,13 @@ Hard requirements:
 33. When a Relay call already emits the exact workset or summary shape you need, reuse that output directly instead of adding extra relay-jq reshaping passes with mismatched assumptions about the file shape.
 34. Do not store JSON arrays in shell variables for later command generation. Persist candidate arrays or entity-id lines to files, then iterate from those files.
 35. When you prepare a per-entity `config/entity_registry/get` payload, write the final payload contents in the same command block that executes that lookup so the concrete `entity_id` stays visible in the transcript. Do not hide different target lookups behind one opaque reused payload file.
-36. Keep Relay operations serial whenever the same temp directory is in play. Do not start parallel command executions that rewrite a shared payload or jq file. If you need multiple collision probes, either run them one at a time or give each probe its own dedicated payload filename before launching it.
-37. Do not glob for temp files, probe alternate temp names, or run extra shell-debug checks after a successful Relay call. Reuse the exact file path you created.
-38. Reuse the exact jq idioms from `{BULK_PATTERNS_FILE}` for `prefix`, `area`, `label`, and inventory summary wrappers. Do not invent regex-heavy replacements when the shared doc already gives a simpler filter.
-39. Keep the run read-only even if one item looks acutely wrong.
-40. Keep the aggregate explanation concise. Once you have enough evidence for the six required sections and the status line, finish the response instead of expanding the narrative.
-41. End the final answer with exactly one machine-readable status line:
+36. Every config-body read must emit a parseable target marker in the transcript output, such as `ENTITY=<entity_id>`, `ITEM[n]=<entity_id>`, `1|<entity_id>|...`, or `=== <entity_id> ===`, so each read stays attributable.
+37. Keep Relay operations serial whenever the same temp directory is in play. Do not start parallel command executions that rewrite a shared payload or jq file. If you need multiple collision probes, either run them one at a time or give each probe its own dedicated payload filename before launching it.
+38. Do not glob for temp files, probe alternate temp names, or run extra shell-debug checks after a successful Relay call. Reuse the exact file path you created.
+39. Reuse the exact jq idioms from `{BULK_PATTERNS_FILE}` for `prefix`, `area`, `label`, and inventory summary wrappers. Do not invent regex-heavy replacements when the shared doc already gives a simpler filter.
+40. Keep the run read-only even if one item looks acutely wrong.
+41. Keep the aggregate explanation concise. Once you have enough evidence for the six required sections and the status line, finish the response instead of expanding the narrative.
+42. End the final answer with exactly one machine-readable status line:
    NOVA_BULK_REVIEW_RESULT id={scenario_id} matched=<int> audited=<int> remaining=<int> item_ids=<json_array_of_audited_entity_ids> quick_fix_offered=<true|false> sections=<json_array_of_exact_section_titles>
 """
 
@@ -784,7 +785,9 @@ def validate_review(events: list[dict], fixture: dict, raw_text: str) -> list[st
         command = item.get("command", "")
         if re.search(r"/api/config/(?:automation|script)/config/", command) is None:
             continue
-        config_read_records.append((command, extract_config_read_ids(item.get("aggregated_output", ""))))
+        entity_ids = extract_config_read_ids(item.get("aggregated_output", ""))
+        require(bool(entity_ids), "review_unidentified_config_read", errors)
+        config_read_records.append((command, entity_ids))
     audited_config_reads = [entity_id for _, entity_ids in config_read_records for entity_id in entity_ids]
     unique_config_reads: list[str] = []
     seen_config_reads: set[str] = set()
