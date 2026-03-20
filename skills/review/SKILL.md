@@ -326,6 +326,8 @@ Report result (new state or failure).
 
 Localize all headings to the user's language (see `skills/ha-nova/SKILL.md` → Output Localization).
 
+Exception: if a maintainer-provided release-validation or machine-check prompt explicitly pins exact section titles, follow that override exactly so automated validation can compare the fixed headings.
+
 ### Standard mode
 
 For resolved targets `== 1`, keep the current 7-section output:

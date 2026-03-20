@@ -4,13 +4,14 @@ from __future__ import annotations
 import json
 import os
 import platform
+import queue
 import re
-import selectors
 import shutil
 import signal
 import subprocess
 import sys
 import tempfile
+import threading
 import traceback
 import time
 from collections import defaultdict
@@ -432,11 +433,20 @@ def run_codex(prompt: str, raw_log: Path, marker: str) -> int:
             **popen_kwargs,
         )
         assert process.stdout is not None
-        selector = selectors.DefaultSelector()
-        selector.register(process.stdout, selectors.EVENT_READ)
+        lines: queue.Queue[str | None] = queue.Queue()
+
+        def drain_stdout() -> None:
+            assert process.stdout is not None
+            for line in process.stdout:
+                lines.put(line)
+            lines.put(None)
+
+        reader = threading.Thread(target=drain_stdout, daemon=True)
+        reader.start()
 
         try:
             deadline = time.monotonic() + SCENARIO_TIMEOUT_SEC
+            saw_eof = False
             while True:
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
@@ -448,15 +458,16 @@ def run_codex(prompt: str, raw_log: Path, marker: str) -> int:
                         stop_process_group(process, signal.SIGKILL)
                         return process.wait(timeout=5)
 
-                ready = selector.select(timeout=min(0.25, remaining))
-                if not ready:
+                try:
+                    line = lines.get(timeout=min(0.25, remaining))
+                except queue.Empty:
                     if process.poll() is not None:
                         stop_process_group(process, signal.SIGTERM)
                         return process.returncode
                     continue
 
-                line = process.stdout.readline()
-                if not line:
+                if line is None:
+                    saw_eof = True
                     if process.poll() is not None:
                         stop_process_group(process, signal.SIGTERM)
                         return process.returncode
@@ -481,13 +492,14 @@ def run_codex(prompt: str, raw_log: Path, marker: str) -> int:
 
                 post_marker_deadline = time.monotonic() + 20
                 while time.monotonic() < post_marker_deadline:
-                    grace_ready = selector.select(timeout=0.25)
-                    if not grace_ready:
+                    try:
+                        trailing = lines.get(timeout=0.25)
+                    except queue.Empty:
                         if process.poll() is not None:
                             return process.returncode
                         continue
-                    trailing = process.stdout.readline()
-                    if not trailing:
+                    if trailing is None:
+                        saw_eof = True
                         if process.poll() is not None:
                             return process.returncode
                         continue
@@ -503,7 +515,8 @@ def run_codex(prompt: str, raw_log: Path, marker: str) -> int:
                         return process.wait(timeout=5)
                 return process.returncode
         finally:
-            selector.close()
+            if process.poll() is not None or saw_eof:
+                reader.join(timeout=1)
 
 
 def load_events(raw_log: Path) -> list[dict]:
@@ -688,9 +701,10 @@ def validate_review(events: list[dict], fixture: dict, raw_text: str) -> list[st
         require(item_ids == fixture["audited"], "review_item_ids_mismatch", errors)
         require(quick_fix_offered is False, "review_quick_fix_flag_mismatch", errors)
         require(len(sections) == len(REVIEW_SECTIONS), "review_sections_length_mismatch", errors)
+        require(sections == REVIEW_SECTIONS, "review_sections_status_line_mismatch", errors)
 
-    expected_sections = sections if match else REVIEW_SECTIONS
-    normalized_sections = [normalize_heading(section) for section in expected_sections]
+    expected_sections = REVIEW_SECTIONS
+    normalized_sections = [normalize_heading(section) for section in REVIEW_SECTIONS]
     found_sections: list[str] = []
     for line in body_text.splitlines():
         heading = re.match(r"^(?:#{1,6}\s+)?(?:\*\*)?(.+?)(?:\*\*)?$", line.strip())

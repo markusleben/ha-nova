@@ -1,13 +1,30 @@
-import { execFileSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 
 import { describe, expect, it } from "vitest";
 
 function runPythonValidator(script: string) {
-  const output = execFileSync("python3", ["-c", script], {
-    cwd: process.cwd(),
-    encoding: "utf8",
-  });
-  return JSON.parse(output) as { status: string; errors: string[] };
+  const candidates = process.platform === "win32"
+    ? [["py", ["-3"]], ["python", []], ["python3", []]]
+    : [["python3", []], ["python", []], ["py", ["-3"]]];
+
+  for (const [command, prefixArgs] of candidates) {
+    const result = spawnSync(command, [...prefixArgs, "-c", script], {
+      cwd: process.cwd(),
+      encoding: "utf8",
+    });
+    if (result.error && "code" in result.error && result.error.code === "ENOENT") {
+      continue;
+    }
+    if (result.error) {
+      throw result.error;
+    }
+    if (result.status !== 0) {
+      throw new Error(result.stderr || result.stdout || `Python exited with ${result.status}`);
+    }
+    return JSON.parse(result.stdout) as { status: string; errors: string[] };
+  }
+
+  throw new Error("Python 3 runtime not found");
 }
 
 describe("codex bulk live validator", () => {
@@ -313,7 +330,7 @@ with tempfile.TemporaryDirectory() as tmpdir:
     expect(result.errors).toEqual([]);
   });
 
-  it("accepts localized bulk section headings when the status line reports the same titles", () => {
+  it("fails when the transcript swaps the required bulk section headings for localized titles", () => {
     const result = runPythonValidator(`
 import importlib.util
 import json
@@ -400,8 +417,101 @@ with tempfile.TemporaryDirectory() as tmpdir:
     print(json.dumps({"status": result.status, "errors": result.errors}))
 `);
 
-    expect(result.status).toBe("pass");
-    expect(result.errors).toEqual([]);
+    expect(result.status).toBe("fail");
+    expect(result.errors).toContain("review_sections_status_line_mismatch");
+    expect(result.errors).toContain("review_sections_mismatch");
+  });
+
+  it("fails when the status line and body agree on arbitrary headings instead of the required contract", () => {
+    const result = runPythonValidator(`
+import importlib.util
+import json
+import sys
+import tempfile
+from pathlib import Path
+
+spec = importlib.util.spec_from_file_location("bulk_live_validator", "scripts/e2e/codex-ha-nova-bulk-live-e2e.py")
+module = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = module
+spec.loader.exec_module(module)
+
+fixture = {
+    "id": "review_area",
+    "matches": [
+        "automation.a",
+        "automation.b",
+        "automation.c",
+        "automation.d",
+        "automation.e",
+        "automation.f",
+    ],
+    "audited": [
+        "automation.a",
+        "automation.b",
+        "automation.c",
+        "automation.d",
+        "automation.e",
+    ],
+    "remaining": 1,
+    "non_audited": ["automation.f"],
+}
+
+status_line = (
+    "Alpha\\nBeta\\nGamma\\nDelta\\nEpsilon\\nZeta\\n"
+    "NOVA_BULK_REVIEW_RESULT id=review_area matched=6 audited=5 remaining=1 "
+    "item_ids=[\\"automation.a\\",\\"automation.b\\",\\"automation.c\\",\\"automation.d\\",\\"automation.e\\"] "
+    "quick_fix_offered=false sections=[\\"Alpha\\",\\"Beta\\",\\"Gamma\\",\\"Delta\\",\\"Epsilon\\",\\"Zeta\\"]"
+)
+
+events = [
+    {
+        "type": "item.completed",
+        "item": {
+            "id": "cmd_area",
+            "type": "command_execution",
+            "command": "ha-nova relay ws --data-file payload.json --out result.json {\\"type\\":\\"search/related\\",\\"item_type\\":\\"area\\",\\"item_id\\":\\"arbeitszimmer\\"}",
+            "aggregated_output": "",
+            "exit_code": 0,
+            "status": "completed",
+        },
+    },
+    {
+        "type": "item.completed",
+        "item": {
+            "id": "cmd_configs",
+            "type": "command_execution",
+            "command": "ha-nova relay core --method GET --path /api/config/automation/config/$unique_id --jq-file config_filter.jq --out config.json",
+            "aggregated_output": "\\n".join([
+                "1|automation.a|111|/tmp/config-1.json",
+                "2|automation.b|222|/tmp/config-2.json",
+                "3|automation.c|333|/tmp/config-3.json",
+                "4|automation.d|444|/tmp/config-4.json",
+                "5|automation.e|555|/tmp/config-5.json",
+            ]),
+            "exit_code": 0,
+            "status": "completed",
+        },
+    },
+    {
+        "type": "item.completed",
+        "item": {
+            "id": "msg_final",
+            "type": "agent_message",
+            "text": status_line,
+        },
+    },
+]
+
+with tempfile.TemporaryDirectory() as tmpdir:
+    raw_log = Path(tmpdir) / "review.jsonl"
+    raw_log.write_text("\\n".join(json.dumps(event) for event in events), encoding="utf-8")
+    result = module.validate_case("review", "area_review", fixture, raw_log, 0)
+    print(json.dumps({"status": result.status, "errors": result.errors}))
+`);
+
+    expect(result.status).toBe("fail");
+    expect(result.errors).toContain("review_sections_status_line_mismatch");
+    expect(result.errors).toContain("review_sections_mismatch");
   });
 
   it("fails when the transcript contains relay invalid-json responses", () => {
