@@ -698,10 +698,7 @@ def is_related_collision_evidence(item: dict) -> bool:
 
     if not isinstance(aggregated_output, str):
         return False
-    return re.search(
-        r"(?mi)^(?:RELATED_COLLISION_EVIDENCE|COLLISION_EVIDENCE|RELATED_EVIDENCE)=.+$",
-        aggregated_output,
-    ) is not None
+    return re.search(r"(?mi)^COLLISION_EVIDENCE=.+$", aggregated_output) is not None
 
 
 def validate_inventory(events: list[dict], fixture: dict, selector_pattern: str) -> list[str]:
