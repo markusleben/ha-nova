@@ -678,6 +678,32 @@ def extract_config_read_ids(output: str) -> list[str]:
     return config_read_ids
 
 
+def is_related_collision_evidence(item: dict) -> bool:
+    command = item.get("command", "")
+    item_id = item.get("id", "")
+    aggregated_output = item.get("aggregated_output", "")
+
+    command_or_id_patterns = (
+        r"(?i)\b(?:related|collision)\b",
+        r"(?i)\b(?:related|collision)[-_](?:config|target|read|cluster)\b",
+        r"(?i)\b(?:config|target|read|cluster)[-_](?:related|collision)\b",
+    )
+    if any(
+        re.search(pattern, text) is not None
+        for pattern in command_or_id_patterns
+        for text in (command, item_id)
+        if isinstance(text, str)
+    ):
+        return True
+
+    if not isinstance(aggregated_output, str):
+        return False
+    return re.search(
+        r"(?i)(?:\b(?:related|collision)\b.{0,40}\b(?:evidence|reason|cluster|overlap)\b|\b(?:evidence|reason|cluster|overlap)\b.{0,40}\b(?:related|collision)\b)",
+        aggregated_output,
+    ) is not None
+
+
 def validate_inventory(events: list[dict], fixture: dict, selector_pattern: str) -> list[str]:
     errors: list[str] = []
     messages = [event["item"].get("text", "") for event in events if event.get("type") == "item.completed" and event.get("item", {}).get("type") == "agent_message"]
@@ -797,14 +823,14 @@ def validate_review(events: list[dict], fixture: dict, raw_text: str) -> list[st
     for pattern in (r"/api/states/", r"/api/services/"):
         require(re.search(pattern, joined_commands) is None, f"forbidden_command:{pattern}", errors)
 
-    config_read_records: list[tuple[str, list[str]]] = []
+    config_read_records: list[tuple[dict, list[str]]] = []
     for item in completed_commands:
         command = item.get("command", "")
         if re.search(r"/api/config/(?:automation|script)/config/", command) is None:
             continue
         entity_ids = extract_config_read_ids(item.get("aggregated_output", ""))
         require(bool(entity_ids), "review_unidentified_config_read", errors)
-        config_read_records.append((command, entity_ids))
+        config_read_records.append((item, entity_ids))
     audited_config_reads = [entity_id for _, entity_ids in config_read_records for entity_id in entity_ids]
     unique_config_reads: list[str] = []
     seen_config_reads: set[str] = set()
@@ -818,8 +844,8 @@ def validate_review(events: list[dict], fixture: dict, raw_text: str) -> list[st
     require(workset_config_reads == fixture["audited"], "review_unique_id_targets_mismatch", errors)
 
     explicit_related_reads: set[str] = set()
-    for command, entity_ids in config_read_records:
-        if re.search(r"(?i)(?:related|collision)", command) is None:
+    for item, entity_ids in config_read_records:
+        if not is_related_collision_evidence(item):
             continue
         for entity_id in entity_ids:
             if entity_id not in fixture["audited"] and entity_id not in fixture["non_audited"]:
