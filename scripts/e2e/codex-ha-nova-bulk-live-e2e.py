@@ -680,18 +680,17 @@ def extract_config_read_ids(output: str) -> list[str]:
 
 def is_related_collision_evidence(item: dict) -> bool:
     command = item.get("command", "")
-    item_id = item.get("id", "")
     aggregated_output = item.get("aggregated_output", "")
 
-    command_or_id_patterns = (
+    command_patterns = (
         r"(?i)(?:^|[-_\s])(?:related|collision)(?:$|[-_\s])",
         r"(?i)\b(?:related|collision)[-_](?:config|target|read|cluster)\b",
         r"(?i)\b(?:config|target|read|cluster)[-_](?:related|collision)\b",
     )
     if any(
         re.search(pattern, text) is not None
-        for pattern in command_or_id_patterns
-        for text in (command, item_id)
+        for pattern in command_patterns
+        for text in (command,)
         if isinstance(text, str)
     ):
         return True
