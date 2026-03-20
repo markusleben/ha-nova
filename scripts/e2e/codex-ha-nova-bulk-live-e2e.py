@@ -620,6 +620,46 @@ def require(condition: bool, error: str, errors: list[str]) -> None:
         errors.append(error)
 
 
+def extract_config_read_ids(output: str) -> list[str]:
+    config_read_ids: list[str] = []
+    config_read_ids.extend(
+        match.group(1).strip()
+        for match in re.finditer(
+            r"(?m)^(?:\s*\d+\s*(?:\||\t)\s*)?((?:automation|script)\.[^|\t\n]+)\s*(?:\||\t)\s*[^\s|\t\n]+(?:\s*(?:\||\t)\s*[^\t\n]*\.json)?$",
+            output,
+        )
+    )
+    config_read_ids.extend(
+        match.group(1).strip()
+        for match in re.finditer(
+            r"(?m)^===\s*(?:\d+\s+)?((?:automation|script)\.[^=\n]+?)\s*===\s*$",
+            output,
+        )
+    )
+    config_read_ids.extend(
+        match.group(1).strip()
+        for match in re.finditer(
+            r"(?m)^\s*((?:automation|script)\.[^\n]+)\nFILE\s+[^\n]*config-\d+\.json$",
+            output,
+        )
+    )
+    config_read_ids.extend(
+        match.group(1).strip()
+        for match in re.finditer(
+            r"(?m)^ENTITY=((?:automation|script)\.[^\n]+)$",
+            output,
+        )
+    )
+    config_read_ids.extend(
+        match.group(1).strip()
+        for match in re.finditer(
+            r"(?m)^ITEM\[\d+\]=((?:automation|script)\.[^\n]+)$",
+            output,
+        )
+    )
+    return config_read_ids
+
+
 def validate_inventory(events: list[dict], fixture: dict, selector_pattern: str) -> list[str]:
     errors: list[str] = []
     messages = [event["item"].get("text", "") for event in events if event.get("type") == "item.completed" and event.get("item", {}).get("type") == "agent_message"]
@@ -739,47 +779,13 @@ def validate_review(events: list[dict], fixture: dict, raw_text: str) -> list[st
     for pattern in (r"/api/states/", r"/api/services/"):
         require(re.search(pattern, joined_commands) is None, f"forbidden_command:{pattern}", errors)
 
-    audited_config_reads: list[str] = []
+    config_read_records: list[tuple[str, list[str]]] = []
     for item in completed_commands:
         command = item.get("command", "")
         if re.search(r"/api/config/(?:automation|script)/config/", command) is None:
             continue
-        output = item.get("aggregated_output", "")
-        audited_config_reads.extend(
-            match.group(1).strip()
-            for match in re.finditer(
-                r"(?m)^(?:\s*\d+\s*(?:\||\t)\s*)?((?:automation|script)\.[^|\t\n]+)\s*(?:\||\t)\s*[^\s|\t\n]+(?:\s*(?:\||\t)\s*[^\t\n]*\.json)?$",
-                output,
-            )
-        )
-        audited_config_reads.extend(
-            match.group(1).strip()
-            for match in re.finditer(
-                r"(?m)^===\s*(?:\d+\s+)?((?:automation|script)\.[^=\n]+?)\s*===\s*$",
-                output,
-            )
-        )
-        audited_config_reads.extend(
-            match.group(1).strip()
-            for match in re.finditer(
-                r"(?m)^\s*((?:automation|script)\.[^\n]+)\nFILE\s+[^\n]*config-\d+\.json$",
-                output,
-            )
-        )
-        audited_config_reads.extend(
-            match.group(1).strip()
-            for match in re.finditer(
-                r"(?m)^ENTITY=((?:automation|script)\.[^\n]+)$",
-                output,
-            )
-        )
-        audited_config_reads.extend(
-            match.group(1).strip()
-            for match in re.finditer(
-                r"(?m)^ITEM\[\d+\]=((?:automation|script)\.[^\n]+)$",
-                output,
-            )
-        )
+        config_read_records.append((command, extract_config_read_ids(item.get("aggregated_output", ""))))
+    audited_config_reads = [entity_id for _, entity_ids in config_read_records for entity_id in entity_ids]
     unique_config_reads: list[str] = []
     seen_config_reads: set[str] = set()
     for entity_id in audited_config_reads:
@@ -790,6 +796,22 @@ def validate_review(events: list[dict], fixture: dict, raw_text: str) -> list[st
     workset_config_reads = [entity_id for entity_id in unique_config_reads if entity_id in fixture["audited"]]
     require(len(workset_config_reads) == len(fixture["audited"]), "review_config_read_count_mismatch", errors)
     require(workset_config_reads == fixture["audited"], "review_unique_id_targets_mismatch", errors)
+
+    explicit_related_reads: set[str] = set()
+    for command, entity_ids in config_read_records:
+        if re.search(r"(?i)(?:related|collision)", command) is None:
+            continue
+        for entity_id in entity_ids:
+            if entity_id not in fixture["audited"] and entity_id not in fixture["non_audited"]:
+                explicit_related_reads.add(entity_id)
+    extra_config_reads = [
+        entity_id
+        for entity_id in unique_config_reads
+        if entity_id not in fixture["audited"] and entity_id not in fixture["non_audited"]
+    ]
+    require(len(explicit_related_reads) <= 1, "review_multiple_extra_related_config_reads", errors)
+    for entity_id in extra_config_reads:
+        require(entity_id in explicit_related_reads, f"review_unapproved_extra_config_read:{entity_id}", errors)
 
     for entity_id in fixture["non_audited"]:
         require(entity_id not in unique_config_reads, f"review_prefetch_outside_workset:{entity_id}", errors)
