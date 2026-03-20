@@ -86,6 +86,79 @@ print(json.dumps({"status": "pass" if not errors else "fail", "errors": errors})
     expect(result.errors).toEqual([]);
   });
 
+  it("keeps draining queued stdout after the child process exits", () => {
+    const result = runPythonValidator(`
+import importlib.util
+import json
+import sys
+import tempfile
+import time
+from pathlib import Path
+
+spec = importlib.util.spec_from_file_location("bulk_live_validator", "scripts/e2e/codex-ha-nova-bulk-live-e2e.py")
+module = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = module
+spec.loader.exec_module(module)
+
+class FakeStdout:
+    def __init__(self, owner):
+        self.owner = owner
+
+    def __iter__(self):
+        marker_line = json.dumps({
+            "type": "item.completed",
+            "item": {"type": "agent_message", "text": "Scope\\nNOVA_MARKER"}
+        }) + "\\n"
+        trailing_line = json.dumps({
+            "type": "item.completed",
+            "item": {"type": "agent_message", "text": "late_line"}
+        }) + "\\n"
+        yield marker_line
+        self.owner.exited = True
+        time.sleep(0.3)
+        yield trailing_line
+
+class FakeProcess:
+    def __init__(self):
+        self.exited = False
+        self.stdout = FakeStdout(self)
+        self.returncode = 0
+        self.pid = 12345
+
+    def poll(self):
+        return 0 if self.exited else None
+
+    def wait(self, timeout=None):
+        self.returncode = 0
+        return 0
+
+    def terminate(self):
+        self.exited = True
+
+    def kill(self):
+        self.exited = True
+
+fake_process = FakeProcess()
+module.subprocess.Popen = lambda *args, **kwargs: fake_process
+module.stop_process_group = lambda *args, **kwargs: None
+module.SCENARIO_TIMEOUT_SEC = 5
+
+with tempfile.TemporaryDirectory() as tmpdir:
+    raw_log = Path(tmpdir) / "run.jsonl"
+    rc = module.run_codex("prompt", raw_log, "NOVA_MARKER")
+    raw_text = raw_log.read_text(encoding="utf-8")
+    checks = {
+        "exit_code": rc == 0,
+        "late_line_drained": "late_line" in raw_text,
+    }
+    errors = [name for name, ok in checks.items() if not ok]
+    print(json.dumps({"status": "pass" if not errors else "fail", "errors": errors}))
+`);
+
+    expect(result.status).toBe("pass");
+    expect(result.errors).toEqual([]);
+  });
+
   it("accepts audited config coverage from aggregated read output", () => {
     const result = runPythonValidator(`
 import importlib.util

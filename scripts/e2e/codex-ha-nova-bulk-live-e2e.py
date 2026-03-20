@@ -435,12 +435,14 @@ def run_codex(prompt: str, raw_log: Path, marker: str) -> int:
         )
         assert process.stdout is not None
         lines: queue.Queue[str | None] = queue.Queue()
+        reader_done = threading.Event()
 
         def drain_stdout() -> None:
             assert process.stdout is not None
             for line in process.stdout:
                 lines.put(line)
             lines.put(None)
+            reader_done.set()
 
         reader = threading.Thread(target=drain_stdout, daemon=True)
         reader.start()
@@ -463,14 +465,13 @@ def run_codex(prompt: str, raw_log: Path, marker: str) -> int:
                     line = lines.get(timeout=min(0.25, remaining))
                 except queue.Empty:
                     if process.poll() is not None:
-                        stop_process_group(process, signal.SIGTERM)
-                        return process.returncode
+                        if reader_done.wait(timeout=min(0.25, max(remaining, 0))):
+                            continue
                     continue
 
                 if line is None:
                     saw_eof = True
                     if process.poll() is not None:
-                        stop_process_group(process, signal.SIGTERM)
                         return process.returncode
                     continue
 
@@ -491,12 +492,12 @@ def run_codex(prompt: str, raw_log: Path, marker: str) -> int:
                 if marker not in item.get("text", ""):
                     continue
 
-                post_marker_deadline = time.monotonic() + 20
+                post_marker_deadline = min(deadline, time.monotonic() + 20)
                 while time.monotonic() < post_marker_deadline:
                     try:
                         trailing = lines.get(timeout=0.25)
                     except queue.Empty:
-                        if process.poll() is not None:
+                        if process.poll() is not None and reader_done.is_set():
                             return process.returncode
                         continue
                     if trailing is None:
@@ -506,6 +507,7 @@ def run_codex(prompt: str, raw_log: Path, marker: str) -> int:
                         continue
                     handle.write(trailing)
                     handle.flush()
+                    post_marker_deadline = min(deadline, time.monotonic() + 20)
 
                 if process.poll() is None:
                     stop_process_group(process, signal.SIGTERM)
