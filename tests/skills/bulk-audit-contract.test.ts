@@ -31,7 +31,9 @@ describe("bulk audit contract", () => {
     expect(bulkPatterns).toContain("Helper-in-area is not a first-class bulk selector contract");
     expect(bulkPatterns).toContain("Dedupe the resolved shortlist on canonical `entity_id`");
     expect(bulkPatterns).toContain("Materialize the current audit workset before any config, state, or collision reads");
-    expect(bulkPatterns).toContain("Never resolve `unique_id` values or build a config snapshot for targets outside the current audit workset");
+    expect(bulkPatterns).toContain("Never read configs for matched-but-non-audited remainder targets outside the current audit workset");
+    expect(bulkPatterns).toContain("Never resolve `unique_id` values or build a config snapshot for matched-but-non-audited remainder targets outside the current audit workset");
+    expect(bulkPatterns).toContain("If collision classification needs proof from a directly related target that is not part of the matched remainder set");
     expect(bulkPatterns).toContain("do not prefetch configs, states, or related-item evidence for the remainder");
     expect(bulkPatterns).toContain("## Reference Filters");
     expect(bulkPatterns).toContain("prefer one temp directory with fixed names");
@@ -93,7 +95,8 @@ describe("bulk audit contract", () => {
     expect(reviewSkill).toContain("skills/ha-nova/bulk-patterns.md");
     expect(reviewSkill).toContain("audit only the current workset (max 5 targets)");
     expect(reviewSkill).toContain("stop after that one workset; do not start a second batch in the same standalone request");
-    expect(reviewSkill).toContain("do not resolve unique_ids, read configs, read states, or run collision scans outside the current review set");
+    expect(reviewSkill).toContain("do not resolve unique_ids, read configs, read states, or run collision scans for matched-but-non-audited remainder targets outside the current review set");
+    expect(reviewSkill).toContain("a narrow collision explanation may inspect a directly related target that is not part of the matched remainder");
     expect(reviewSkill).toContain("never build a full matched-set config cache or evidence snapshot; if caching helps, cache only the current review set");
     expect(reviewSkill).toContain("resolve `unique_id`, config, state, and related-item evidence per target inside the current workset only; no prefetch for the remaining matched targets");
     expect(reviewSkill).toContain("paste that jq program body exactly as shown");

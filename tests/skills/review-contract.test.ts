@@ -136,7 +136,8 @@ describe("review contract", () => {
     expect(reviewSkill).toContain('use `search/related` with `item_type:"area"` before any registry-first fallback');
     expect(reviewSkill).toContain("keyed object (`automation`, `script`, `entity`, `device`, ...)");
     expect(reviewSkill).toContain("do not ask a clarifying question just because multiple matches remain");
-    expect(reviewSkill).toContain("do not resolve unique_ids, read configs, read states, or run collision scans outside the current review set");
+    expect(reviewSkill).toContain("do not resolve unique_ids, read configs, read states, or run collision scans for matched-but-non-audited remainder targets outside the current review set");
+    expect(reviewSkill).toContain("a narrow collision explanation may inspect a directly related target that is not part of the matched remainder");
     expect(reviewSkill).toContain("never build a full matched-set config cache or evidence snapshot; if caching helps, cache only the current review set");
     expect(reviewSkill).toContain("resolve `unique_id`, config, state, and related-item evidence per target inside the current workset only; no prefetch for the remaining matched targets");
     expect(reviewSkill).toContain("Quick-Fix is single-target only");
