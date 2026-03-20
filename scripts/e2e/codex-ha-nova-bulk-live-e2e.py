@@ -699,7 +699,7 @@ def is_related_collision_evidence(item: dict) -> bool:
     if not isinstance(aggregated_output, str):
         return False
     return re.search(
-        r"(?i)(?:\b(?:related|collision)\b.{0,40}\b(?:evidence|reason|cluster|overlap)\b|\b(?:evidence|reason|cluster|overlap)\b.{0,40}\b(?:related|collision)\b)",
+        r"(?mi)^(?:RELATED_COLLISION_EVIDENCE|COLLISION_EVIDENCE|RELATED_EVIDENCE)=.+$",
         aggregated_output,
     ) is not None
 

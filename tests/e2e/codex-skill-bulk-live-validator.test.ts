@@ -2426,7 +2426,7 @@ with tempfile.TemporaryDirectory() as tmpdir:
     expect(result.errors).toEqual([]);
   });
 
-  it("allows one extra config read when the transcript body marks it as collision evidence", () => {
+  it("allows one extra config read when the transcript body uses an explicit collision-evidence marker", () => {
     const result = runPythonValidator(`
 import importlib.util
 import json
@@ -2489,7 +2489,7 @@ events = [
             "id": "cmd_extra_config",
             "type": "command_execution",
             "command": "ha-nova relay core --method GET --path /api/config/automation/config/$extra_unique_id --jq-file config_filter.jq --out config.json",
-            "aggregated_output": "Collision evidence for shared helper overlap\\nENTITY=automation.extra_overlap\\nUNIQUE_ID=999\\n{\\"id\\": \\"999\\"}",
+            "aggregated_output": "COLLISION_EVIDENCE=shared_helper_overlap\\nENTITY=automation.extra_overlap\\nUNIQUE_ID=999\\n{\\"id\\": \\"999\\"}",
             "exit_code": 0,
             "status": "completed",
         },

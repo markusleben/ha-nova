@@ -59,6 +59,7 @@ If the target config is not already in the thread context, resolve it yourself:
    - carry the exact matched count plus current review-set size into Bulk Mode Gate
    - do not resolve unique_ids, read configs, read states, or run collision scans for matched-but-non-audited remainder targets outside the current review set
    - a narrow collision explanation may inspect one extra target outside the matched remainder when needed to classify a cluster; keep that read explicit, read-only, outside the audited-item count, and clearly marked as related/collision evidence in the transcript
+   - prefer explicit command/file naming such as `related-config`; if the marker must live in transcript body text, emit a line like `COLLISION_EVIDENCE=<reason>`
    - never build a full matched-set config cache or evidence snapshot; if caching helps, cache only the current review set
    - once the shortlist or workset is saved, keep that file immutable; use dedicated filenames for later registry, config, and collision outputs
    - if the user intentionally requested a bulk selector, do not ask a clarifying question just because multiple matches remain
