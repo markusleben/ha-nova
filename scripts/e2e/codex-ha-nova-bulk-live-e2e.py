@@ -684,7 +684,7 @@ def is_related_collision_evidence(item: dict) -> bool:
     aggregated_output = item.get("aggregated_output", "")
 
     command_or_id_patterns = (
-        r"(?i)\b(?:related|collision)\b",
+        r"(?i)(?:^|[-_\s])(?:related|collision)(?:$|[-_\s])",
         r"(?i)\b(?:related|collision)[-_](?:config|target|read|cluster)\b",
         r"(?i)\b(?:config|target|read|cluster)[-_](?:related|collision)\b",
     )
