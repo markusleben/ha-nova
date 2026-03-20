@@ -53,7 +53,7 @@ Rules:
 - `test:bulk:release` is the maintainer-host bulk gate: the deterministic bulk contract is already covered by `npm run verify` through `test:safe`; this command adds live stable inventory smoke, then reruns the full safe suite on the same host
 - `test:bulk:manual:area-review` is the explicit aggregate bulk-review proof; keep the resulting transcript or summary artifact with the release notes / sign-off record
 - do not move these live bulk checks into GitHub runner CI; they depend on a real local HA + relay + Codex environment
-- the live bulk commands require a Python 3 runtime plus `codex` on `PATH`; the npm wrapper resolves `python3`, `python`, or Windows `py -3`
+- the live bulk commands require `ha-nova` and `codex` on `PATH` plus a Python 3 runtime; the npm wrapper resolves `python3`, `python`, or Windows `py -3`, and the harness immediately verifies `ha-nova relay health` before starting
 - if any relevant delta lands after the last successful bulk sign-off, rerun both commands on the new SHA
 - `npm run verify` and the bulk preflight must agree on the same reviewed commit state before RC or tag work continues
 

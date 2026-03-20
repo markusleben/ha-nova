@@ -59,7 +59,7 @@ HA NOVA installs the integration layer. Install the AI client itself separately 
 - macOS / Linux: `curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/main/scripts/legacy-uninstall.sh | bash`
 - Windows: `irm https://raw.githubusercontent.com/markusleben/ha-nova/main/scripts/legacy-uninstall.ps1 | iex`
 
-**Already installed?** `ha-nova setup` | **Something broken?** `ha-nova doctor`
+**Already installed?** `ha-nova check-update` or `ha-nova update` | **Need to reconfigure?** `ha-nova setup` | **Something broken?** `ha-nova doctor`
 
 ## 💬 What Can You Do With It?
 
