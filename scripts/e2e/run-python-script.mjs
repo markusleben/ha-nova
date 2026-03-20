@@ -12,6 +12,22 @@ const candidates = process.platform === "win32"
   : [["python3", []], ["python", []], ["py", ["-3"]]];
 
 for (const [command, prefixArgs] of candidates) {
+  const probe = spawnSync(command, [...prefixArgs, "--version"], {
+    stdio: "ignore",
+  });
+
+  if (probe.error && "code" in probe.error && probe.error.code === "ENOENT") {
+    continue;
+  }
+
+  if (probe.error) {
+    throw probe.error;
+  }
+
+  if (probe.status !== 0) {
+    continue;
+  }
+
   const result = spawnSync(command, [...prefixArgs, scriptPath, ...scriptArgs], {
     stdio: "inherit",
   });

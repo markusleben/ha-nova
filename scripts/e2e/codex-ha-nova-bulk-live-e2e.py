@@ -640,7 +640,7 @@ def structural_errors(events: list[dict], raw_text: str) -> list[str]:
             and ("ha-nova relay ws" in command or stages_known_ws_data_file(command, ws_data_files))
         ):
             errors.append("mutation_ws_type_detected")
-        if re.search(r"ha-nova relay core[^\n]*--method\s+(POST|PUT|PATCH|DELETE)\b", command):
+        if re.search(r"(?i)ha-nova relay core[^\n]*--method\s+(POST|PUT|PATCH|DELETE)\b", command):
             errors.append("mutation_core_method_detected")
         if re.search(r"ha-nova relay (?:(?:jq|ws|core)(?:\s+(?:--help|-h|help|version))?|(?:--help|-h|help|version))['\"]?$", command.strip()):
             errors.append("cli_help_probe_detected")

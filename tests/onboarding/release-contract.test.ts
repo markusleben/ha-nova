@@ -212,6 +212,9 @@ describe("release contract", () => {
     expect(pythonRunner).toContain('process.platform === "win32"');
     expect(pythonRunner).toContain('[["py", ["-3"]], ["python", []], ["python3", []]]');
     expect(pythonRunner).toContain('[["python3", []], ["python", []], ["py", ["-3"]]]');
+    expect(pythonRunner).toContain('spawnSync(command, [...prefixArgs, "--version"]');
+    expect(pythonRunner).toContain("if (probe.status !== 0) {");
+    expect(pythonRunner).toContain("continue;");
     expect(pythonRunner).toContain("Python 3 runtime not found. Install python3, python, or py -3.");
   });
 

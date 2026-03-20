@@ -2155,7 +2155,7 @@ events = [
         "item": {
             "id": "cmd_configs",
             "type": "command_execution",
-            "command": "ha-nova relay core --method POST --path /api/config/automation/config/111 --body-file payload.json",
+            "command": "ha-nova relay core --method post --path /api/config/automation/config/111 --body-file payload.json",
             "aggregated_output": "\\n".join([
                 "1|automation.a|111|/tmp/config-1.json",
                 "2|automation.b|222|/tmp/config-2.json",
