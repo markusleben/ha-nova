@@ -184,7 +184,7 @@ When the shortlist is still a plain JSON array of `entity_id` strings, use this 
 - Never read configs for matched-but-non-audited remainder targets outside the current audit workset.
 - Never continue automatically into a second workset inside the same response.
 - Never resolve `unique_id` values or build a config snapshot for matched-but-non-audited remainder targets outside the current audit workset.
-- If collision classification needs proof from a directly related target that is not part of the matched remainder set, keep that read explicit, read-only, and outside the audited-item count.
+- If collision classification needs one extra target outside the matched remainder set, keep it explicit, read-only, outside the audited-item count, and clearly marked as related/collision evidence in the transcript.
 - If more than 5 targets match:
   - audit the first 5 in deterministic order
   - report `matched N / audited 5 / remaining R`
