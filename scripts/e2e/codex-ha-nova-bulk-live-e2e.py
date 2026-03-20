@@ -305,7 +305,7 @@ Hard requirements:
 11. Never call external `jq`; use only relay-native `--jq` / `--jq-file` or `ha-nova relay jq`.
 12. Any explanatory example or snippet you show must stay cross-OS. Do not rely on macOS-only, Linux-only, or Windows-only path assumptions in user-facing text.
 13. Create transient selector files inside exactly one temp directory and reuse fixed file names such as `payload.json`, `filter.jq`, and `result.json`.
-14. Write transient JSON and jq files with literal heredocs like `cat <<'EOF' > "$payload_file"`. Do not assemble payloads or filters with `printf` fragments or shell-escaped string concatenation.
+14. Write transient JSON and jq files with the native file-writing flow for the current shell. POSIX shells may use literal heredocs like `cat <<'EOF' > "$payload_file"`; PowerShell or Windows shells must use their native equivalent. Do not assemble payloads or filters with `printf` fragments or shell-escaped string concatenation.
 15. Do not create payload or jq template files with placeholder tokens such as `REPLACE_ENTITY_ID`, `REPLACE_AREA_ID`, or `REPLACE_LABEL_ID`. Write the final JSON or jq contents directly in one step.
 16. Do not mutate payload or jq files afterward with `perl -0pi`, `sed -i`, or similar replacement commands. If a value is dynamic, generate the final file contents directly for that request.
 17. Treat every `<...>` token from skill docs as documentation only. Replace it manually with a concrete quoted path before execution. Never execute a command that still contains angle-bracket placeholders, and never materialize those placeholders with `sed`, `perl`, `envsubst`, `eval`, `source`, or command-substitution pipelines.
@@ -357,7 +357,7 @@ Hard requirements:
 13. Never call external `jq`; use only relay-native `--jq` / `--jq-file` or `ha-nova relay jq`.
 14. Any explanatory example or snippet you show must stay cross-OS. Do not rely on macOS-only, Linux-only, or Windows-only path assumptions in user-facing text.
 15. Create transient selector files inside exactly one temp directory and reuse fixed file names such as `payload.json`, `filter.jq`, and `result.json`.
-16. Write transient JSON and jq files with literal heredocs like `cat <<'EOF' > "$payload_file"`. Do not assemble payloads or filters with `printf` fragments or shell-escaped string concatenation.
+16. Write transient JSON and jq files with the native file-writing flow for the current shell. POSIX shells may use literal heredocs like `cat <<'EOF' > "$payload_file"`; PowerShell or Windows shells must use their native equivalent. Do not assemble payloads or filters with `printf` fragments or shell-escaped string concatenation.
 17. Do not create payload or jq template files with placeholder tokens such as `REPLACE_ENTITY_ID`, `REPLACE_AREA_ID`, or `REPLACE_LABEL_ID`. Write the final JSON or jq contents directly in one step.
 18. Do not mutate payload or jq files afterward with `perl -0pi`, `sed -i`, or similar replacement commands. If a value is dynamic, generate the final file contents directly for that request.
 19. Treat every `<...>` token from skill docs as documentation only. Replace it manually with a concrete quoted path before execution. Never execute a command that still contains angle-bracket placeholders, and never materialize those placeholders with `sed`, `perl`, `envsubst`, `eval`, `source`, or command-substitution pipelines.
@@ -368,7 +368,7 @@ Hard requirements:
 24. For config-body reads, prefer copying the canonical jq file `{ROOT / "skills" / "ha-nova" / "config-body-filter.jq"}` into your temp directory and using that copied file directly as `"$config_filter_file"`. Do not recreate the jq program from shell text unless that file copy fails.
 25. The canonical jq file body is exactly:
    if .ok then .data.body else error("relay error: \\(.error.message // "unknown")") end
-26. If you must recreate the jq file, print it once with `sed -n '1p' "$config_filter_file"` before the first config read. Do not compare that line against a shell-escaped string, do not store the jq program in a shell variable, and do not wrap it in an `if [ "$line" != ... ]` guard.
+26. If you must recreate the jq file, print its first line once with a shell-native inspection command before the first config read. On POSIX, `sed -n '1p' "$config_filter_file"` is acceptable; on PowerShell or Windows shells use the native equivalent. Do not compare that line against a shell-escaped string, do not store the jq program in a shell variable, and do not wrap it in a shell-specific string-comparison guard.
 27. If the printed line is not the exact canonical jq expression, overwrite the same file with the canonical contents before continuing. Do not create alternate filenames such as `config-body-filter.jq`.
 28. For automation `unique_id` resolution, use the safe two-step skill contract: `ha-nova relay ws --data-file <payload-file> --out <registry-file>` and then `ha-nova relay jq -r --file <registry-file> '.data.unique_id'`. Do not create a separate jq file for `.data.unique_id`, do not rely on quoted JSON-string output, and do not strip quotes with shell substitutions.
 29. After the area-shortlist jq `(.data.automation // []) | sort`, the saved result file is a plain JSON array of automation `entity_id` strings. Keep that array shape for workset trimming and counts unless you intentionally map the strings into row objects first.
@@ -377,12 +377,13 @@ Hard requirements:
 32. Do not run `--help`, bare `ha-nova relay jq`, or bare `ha-nova relay ws` to probe CLI usage. The repo-local skill contract is authoritative. If you need an unquoted scalar from a Relay result file, use `ha-nova relay jq -r --file <result-file> '<filter>'`.
 33. When a Relay call already emits the exact workset or summary shape you need, reuse that output directly instead of adding extra relay-jq reshaping passes with mismatched assumptions about the file shape.
 34. Do not store JSON arrays in shell variables for later command generation. Persist candidate arrays or entity-id lines to files, then iterate from those files.
-35. Keep Relay operations serial whenever the same temp directory is in play. Do not start parallel command executions that rewrite a shared payload or jq file. If you need multiple collision probes, either run them one at a time or give each probe its own dedicated payload filename before launching it.
-36. Do not glob for temp files, probe alternate temp names, or run extra shell-debug checks after a successful Relay call. Reuse the exact file path you created.
-37. Reuse the exact jq idioms from `{BULK_PATTERNS_FILE}` for `prefix`, `area`, `label`, and inventory summary wrappers. Do not invent regex-heavy replacements when the shared doc already gives a simpler filter.
-38. Keep the run read-only even if one item looks acutely wrong.
-39. Keep the aggregate explanation concise. Once you have enough evidence for the six required sections and the status line, finish the response instead of expanding the narrative.
-40. End the final answer with exactly one machine-readable status line:
+35. When you prepare a per-entity `config/entity_registry/get` payload, write the final payload contents in the same command block that executes that lookup so the concrete `entity_id` stays visible in the transcript. Do not hide different target lookups behind one opaque reused payload file.
+36. Keep Relay operations serial whenever the same temp directory is in play. Do not start parallel command executions that rewrite a shared payload or jq file. If you need multiple collision probes, either run them one at a time or give each probe its own dedicated payload filename before launching it.
+37. Do not glob for temp files, probe alternate temp names, or run extra shell-debug checks after a successful Relay call. Reuse the exact file path you created.
+38. Reuse the exact jq idioms from `{BULK_PATTERNS_FILE}` for `prefix`, `area`, `label`, and inventory summary wrappers. Do not invent regex-heavy replacements when the shared doc already gives a simpler filter.
+39. Keep the run read-only even if one item looks acutely wrong.
+40. Keep the aggregate explanation concise. Once you have enough evidence for the six required sections and the status line, finish the response instead of expanding the narrative.
+41. End the final answer with exactly one machine-readable status line:
    NOVA_BULK_REVIEW_RESULT id={scenario_id} matched=<int> audited=<int> remaining=<int> item_ids=<json_array_of_audited_entity_ids> quick_fix_offered=<true|false> sections=<json_array_of_exact_section_titles>
 """
 
@@ -789,6 +790,7 @@ def validate_review(events: list[dict], fixture: dict, raw_text: str) -> list[st
     require(workset_config_reads == fixture["audited"], "review_unique_id_targets_mismatch", errors)
 
     for entity_id in fixture["non_audited"]:
+        require(entity_id not in unique_config_reads, f"review_prefetch_outside_workset:{entity_id}", errors)
         require(entity_id not in joined_commands, f"review_prefetch_outside_workset:{entity_id}", errors)
     return errors
 
