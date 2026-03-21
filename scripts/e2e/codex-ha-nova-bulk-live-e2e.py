@@ -102,18 +102,32 @@ def command_data_files(command: str) -> set[str]:
 
 def staged_output_files(command: str) -> set[str]:
     staged_files: set[str] = set()
-    redirect_pattern = re.compile(r"""(?:>>\s*|>\s*|tee\s+)(?:"([^"]+)"|'([^']+)'|([^\s;]+))""")
-    for match in redirect_pattern.finditer(command):
+    redirect_pattern = re.compile(r"""(?:>>\s*|>\s*)(?:"([^"]+)"|'([^']+)'|([^\s;]+))""")
+    tee_pattern = re.compile(r"""tee(?:\s+-[A-Za-z]+)*\s+(?:"([^"]+)"|'([^']+)'|([^\s;]+))""")
+    for pattern in (redirect_pattern, tee_pattern):
+        for match in pattern.finditer(command):
+            staged_file = next((group for group in match.groups() if group), "")
+            if staged_file:
+                staged_files.add(staged_file)
+    return staged_files
+
+
+def tee_targets(command: str) -> set[str]:
+    targets: set[str] = set()
+    tee_pattern = re.compile(r"""tee(?:\s+-[A-Za-z]+)*\s+(?:"([^"]+)"|'([^']+)'|([^\s;]+))""")
+    for match in tee_pattern.finditer(command):
         staged_file = next((group for group in match.groups() if group), "")
         if staged_file:
-            staged_files.add(staged_file)
-    return staged_files
+            targets.add(staged_file)
+    return targets
 
 
 def stages_known_ws_data_file(command: str, data_files: set[str]) -> bool:
     for data_file in data_files:
         file_pattern = re.escape(data_file)
-        if re.search(rf"(?:>>\s*|>\s*|tee\s+)(?:\"{file_pattern}\"|'{file_pattern}'|{file_pattern})(?:\s|;|$)", command):
+        if re.search(rf"(?:>>\s*|>\s*)(?:\"{file_pattern}\"|'{file_pattern}'|{file_pattern})(?:\s|;|$)", command):
+            return True
+        if data_file in tee_targets(command):
             return True
         if re.search(
             rf"\b(?:cp|mv)\s+(?:\"[^\"]+\"|'[^']+'|[^\s;]+)\s+(?:\"{file_pattern}\"|'{file_pattern}'|{file_pattern})(?:\s|;|$)",
@@ -892,7 +906,7 @@ def inspect_related_jq_usage(command: str, prepared_related_entity_payloads: set
 
 def has_batched_config_loop(command: str) -> bool:
     loop_patterns = (
-        r"while\s+(?:IFS=\s*)?read\s+-r\b",
+        r"while\s+(?:IFS=\s*)?read(?:\s+-r)?\b",
         r"for\s+[A-Za-z_][A-Za-z0-9_]*\s+in\b",
         r"\bxargs\b[^\n]*\s-n\s*1\b",
         r"\bxargs\b[^\n]*\s-I(?:\S+)?(?:\s|$)",
