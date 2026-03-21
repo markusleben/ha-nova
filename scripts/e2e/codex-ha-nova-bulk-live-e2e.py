@@ -144,13 +144,36 @@ def command_has_related_entity_payload(command: str) -> bool:
     )
 
 
+def copied_or_moved_targets(text: str) -> list[tuple[str, str]]:
+    transfers: list[tuple[str, str]] = []
+    pattern = re.compile(
+        r"""\b(?:cp|mv)\s+(?:"([^"]+)"|'([^']+)'|([^\s;]+))\s+(?:"([^"]+)"|'([^']+)'|([^\s;]+))"""
+    )
+    for match in pattern.finditer(text):
+        source = next((group for group in match.groups()[:3] if group), "")
+        destination = next((group for group in match.groups()[3:] if group), "")
+        if source and destination:
+            transfers.append((source, destination))
+    return transfers
+
+
 def update_related_entity_payloads_for_text(text: str, staged_files: set[str], related_payloads: set[str]) -> None:
     if not staged_files:
+        for source, destination in copied_or_moved_targets(text):
+            if source in related_payloads:
+                related_payloads.add(destination)
+            else:
+                related_payloads.discard(destination)
         return
     if command_has_related_entity_payload(text):
         related_payloads.update(staged_files)
-        return
-    related_payloads.difference_update(staged_files)
+    else:
+        related_payloads.difference_update(staged_files)
+    for source, destination in copied_or_moved_targets(text):
+        if source in related_payloads:
+            related_payloads.add(destination)
+        else:
+            related_payloads.discard(destination)
 
 
 def split_shell_statements(text: str) -> list[str]:
