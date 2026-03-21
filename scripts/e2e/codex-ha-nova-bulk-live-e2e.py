@@ -81,7 +81,7 @@ def require_cmd(command: str) -> None:
 
 def relay_ws_data_files(commands: list[str]) -> set[str]:
     data_files: set[str] = set()
-    pattern = re.compile(r"""--data-file(?:=|\s+)(?:"([^"]+)"|'([^']+)'|([^\s]+))""")
+    pattern = re.compile(r"""--data-file(?:=|\s+)(?:"([^"]+)"|'([^']+)'|([^\s;]+))""")
     for command in commands:
         for match in pattern.finditer(command):
             data_file = next((group for group in match.groups() if group), "")
@@ -92,7 +92,7 @@ def relay_ws_data_files(commands: list[str]) -> set[str]:
 
 def command_data_files(command: str) -> set[str]:
     data_files: set[str] = set()
-    pattern = re.compile(r"""--data-file(?:=|\s+)(?:"([^"]+)"|'([^']+)'|([^\s]+))""")
+    pattern = re.compile(r"""--data-file(?:=|\s+)(?:"([^"]+)"|'([^']+)'|([^\s;]+))""")
     for match in pattern.finditer(command):
         data_file = next((group for group in match.groups() if group), "")
         if data_file:
@@ -102,7 +102,7 @@ def command_data_files(command: str) -> set[str]:
 
 def staged_output_files(command: str) -> set[str]:
     staged_files: set[str] = set()
-    redirect_pattern = re.compile(r"""(?:>\s*|>>\s*|tee\s+)(?:"([^"]+)"|'([^']+)'|([^\s]+))""")
+    redirect_pattern = re.compile(r"""(?:>>\s*|>\s*|tee\s+)(?:"([^"]+)"|'([^']+)'|([^\s;]+))""")
     for match in redirect_pattern.finditer(command):
         staged_file = next((group for group in match.groups() if group), "")
         if staged_file:
@@ -113,10 +113,10 @@ def staged_output_files(command: str) -> set[str]:
 def stages_known_ws_data_file(command: str, data_files: set[str]) -> bool:
     for data_file in data_files:
         file_pattern = re.escape(data_file)
-        if re.search(rf"(?:>\s*|>>\s*|tee\s+)(?:\"{file_pattern}\"|'{file_pattern}'|{file_pattern})(?:\s|$)", command):
+        if re.search(rf"(?:>>\s*|>\s*|tee\s+)(?:\"{file_pattern}\"|'{file_pattern}'|{file_pattern})(?:\s|;|$)", command):
             return True
         if re.search(
-            rf"\b(?:cp|mv)\s+(?:\"[^\"]+\"|'[^']+'|[^\s]+)\s+(?:\"{file_pattern}\"|'{file_pattern}'|{file_pattern})(?:\s|$)",
+            rf"\b(?:cp|mv)\s+(?:\"[^\"]+\"|'[^']+'|[^\s;]+)\s+(?:\"{file_pattern}\"|'{file_pattern}'|{file_pattern})(?:\s|;|$)",
             command,
         ):
             return True
@@ -128,6 +128,68 @@ def command_has_related_entity_payload(command: str) -> bool:
         re.search(r'''"type"\s*:\s*"search/related"''', command) is not None
         and re.search(r'''"item_type"\s*:\s*"entity"|item_type:\s*entity''', command) is not None
     )
+
+
+def update_related_entity_payloads_for_text(text: str, staged_files: set[str], related_payloads: set[str]) -> None:
+    if not staged_files:
+        return
+    if command_has_related_entity_payload(text):
+        related_payloads.update(staged_files)
+        return
+    related_payloads.difference_update(staged_files)
+
+
+def split_shell_statements(text: str) -> list[str]:
+    statements: list[str] = []
+    current: list[str] = []
+    quote: str | None = None
+    escape = False
+
+    index = 0
+    while index < len(text):
+        char = text[index]
+        if escape:
+            current.append(char)
+            escape = False
+            index += 1
+            continue
+        if char == "\\" and quote != "'":
+            current.append(char)
+            escape = True
+            index += 1
+            continue
+        if quote is not None:
+            current.append(char)
+            if char == quote:
+                quote = None
+            index += 1
+            continue
+        if char in ("'", '"'):
+            current.append(char)
+            quote = char
+            index += 1
+            continue
+        if char == ";":
+            statement = "".join(current).strip()
+            if statement:
+                statements.append(statement)
+            current = []
+            index += 1
+            continue
+        if char in ("&", "|") and index + 1 < len(text) and text[index + 1] == char:
+            statement = "".join(current).strip()
+            if statement:
+                statements.append(statement)
+            current = []
+            index += 2
+            continue
+        current.append(char)
+        index += 1
+
+    statement = "".join(current).strip()
+    if statement:
+        statements.append(statement)
+    return statements
 
 
 def resolve_codex_binary() -> str:
@@ -792,21 +854,40 @@ def is_related_collision_evidence(item: dict) -> bool:
     return re.search(r"(?mi)^COLLISION_EVIDENCE=.+$", aggregated_output) is not None
 
 
-def has_inline_related_jq_filter(command: str, prepared_related_entity_payloads: set[str]) -> bool:
-    ws_jq_data_files = {
-        data_file
-        for line in command.splitlines()
-        if re.search(r"ha-nova relay ws", line) is not None and "--jq-file" in line
-        for data_file in command_data_files(line)
-    }
-    if not ws_jq_data_files:
-        return False
-    same_block_related_payloads = staged_output_files(command) if command_has_related_entity_payload(command) else set()
-    if same_block_related_payloads and any(data_file in same_block_related_payloads for data_file in ws_jq_data_files):
-        return True
-    if command_has_related_entity_payload(command) and not same_block_related_payloads:
-        return True
-    return any(data_file in prepared_related_entity_payloads for data_file in ws_jq_data_files)
+def inspect_related_jq_usage(command: str, prepared_related_entity_payloads: set[str]) -> tuple[bool, set[str]]:
+    related_payloads = set(prepared_related_entity_payloads)
+    lines = command.splitlines()
+    index = 0
+
+    while index < len(lines):
+        line = lines[index]
+        heredoc_match = re.search(r"""<<-?\s*(['"]?)([A-Za-z0-9_]+)\1""", line)
+        if heredoc_match is not None:
+            terminator = heredoc_match.group(2)
+            block_lines = [line]
+            index += 1
+            while index < len(lines):
+                block_lines.append(lines[index])
+                if lines[index].strip() == terminator:
+                    break
+                index += 1
+            update_related_entity_payloads_for_text(
+                "\n".join(block_lines),
+                staged_output_files(line),
+                related_payloads,
+            )
+        else:
+            for statement in split_shell_statements(line):
+                if re.search(r"ha-nova relay ws", statement) is not None and "--jq-file" in statement:
+                    if command_has_related_entity_payload(statement):
+                        return True, related_payloads
+                    if any(data_file in related_payloads for data_file in command_data_files(statement)):
+                        return True, related_payloads
+                update_related_entity_payloads_for_text(statement, staged_output_files(statement), related_payloads)
+
+        index += 1
+
+    return False, related_payloads
 
 
 def has_batched_config_loop(command: str) -> bool:
@@ -815,6 +896,7 @@ def has_batched_config_loop(command: str) -> bool:
         r"for\s+[A-Za-z_][A-Za-z0-9_]*\s+in\b",
         r"\bxargs\b[^\n]*\s-n\s*1\b",
         r"\bxargs\b[^\n]*\s-I(?:\S+)?(?:\s|$)",
+        r"\bxargs\b[^\n]*\s-i(?:\S+)?(?:\s|$)",
     )
     return any(re.search(pattern, command) is not None for pattern in loop_patterns)
 
@@ -883,14 +965,13 @@ def validate_review(events: list[dict], fixture: dict, raw_text: str) -> list[st
     )
     prepared_related_entity_payloads: set[str] = set()
     for command in commands:
-        if has_inline_related_jq_filter(command, prepared_related_entity_payloads):
+        has_inline_related_jq, prepared_related_entity_payloads = inspect_related_jq_usage(
+            command,
+            prepared_related_entity_payloads,
+        )
+        if has_inline_related_jq:
             errors.append("review_inline_related_jq_filter")
             break
-        staged_payloads = staged_output_files(command)
-        if command_has_related_entity_payload(command):
-            prepared_related_entity_payloads.update(staged_payloads)
-        else:
-            prepared_related_entity_payloads.difference_update(staged_payloads)
 
     match = re.search(
         r"NOVA_BULK_REVIEW_RESULT id="

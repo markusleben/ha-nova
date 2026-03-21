@@ -3558,6 +3558,78 @@ with tempfile.TemporaryDirectory() as tmpdir:
     expect(result.errors).toContain("review_inline_related_jq_filter");
   });
 
+  it("fails when collision search/related builds the payload through append redirection before inline jq reuse", () => {
+    const result = runPythonValidator(`
+import importlib.util
+import json
+import sys
+import tempfile
+from pathlib import Path
+
+spec = importlib.util.spec_from_file_location("bulk_live_validator", "scripts/e2e/codex-ha-nova-bulk-live-e2e.py")
+module = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = module
+spec.loader.exec_module(module)
+
+fixture = {
+    "id": "review_area",
+    "matches": ["automation.a"],
+    "audited": ["automation.a"],
+    "remaining": 0,
+    "non_audited": [],
+}
+
+status_line = (
+    "Scope\\nSummary\\nHigh-Risk Findings\\nRepeated Patterns\\nItems Checked\\nCollisions by Cluster\\n"
+    "NOVA_BULK_REVIEW_RESULT id=review_area matched=1 audited=1 remaining=0 "
+    "item_ids=[\\"automation.a\\"] "
+    "quick_fix_offered=false sections=[\\"Scope\\",\\"Summary\\",\\"High-Risk Findings\\",\\"Repeated Patterns\\",\\"Items Checked\\",\\"Collisions by Cluster\\"]"
+)
+
+events = [
+    {
+        "type": "item.completed",
+        "item": {
+            "id": "cmd_area",
+            "type": "command_execution",
+            "command": "ha-nova relay ws --data-file payload.json --out result.json {\\"type\\":\\"search/related\\",\\"item_type\\":\\"area\\",\\"item_id\\":\\"arbeitszimmer\\"}",
+            "aggregated_output": "",
+            "exit_code": 0,
+            "status": "completed",
+        },
+    },
+    {
+        "type": "item.completed",
+        "item": {
+            "id": "cmd_payload",
+            "type": "command_execution",
+            "command": ": > entity-payload.json\\nprintf '{\\"type\\":\\"search/related\\",\\"item_type\\":\\"entity\\",\\"item_id\\":\\"light.a\\"}' >> entity-payload.json\\nha-nova relay ws --data-file entity-payload.json --jq-file related-filter.jq --out related.json",
+            "aggregated_output": "",
+            "exit_code": 0,
+            "status": "completed",
+        },
+    },
+    {
+        "type": "item.completed",
+        "item": {
+            "id": "msg_final",
+            "type": "agent_message",
+            "text": status_line,
+        },
+    },
+]
+
+with tempfile.TemporaryDirectory() as tmpdir:
+    raw_log = Path(tmpdir) / "review.jsonl"
+    raw_log.write_text("\\n".join(json.dumps(event) for event in events), encoding="utf-8")
+    result = module.validate_case("review", "area_review", fixture, raw_log, 0)
+    print(json.dumps({"status": result.status, "errors": result.errors}))
+`);
+
+    expect(result.status).toBe("fail");
+    expect(result.errors).toContain("review_inline_related_jq_filter");
+  });
+
   it("does not flag inline related jq when a reused payload filename was overwritten with unrelated data", () => {
     const result = runPythonValidator(`
 import importlib.util
@@ -3638,6 +3710,255 @@ events = [
             "type": "command_execution",
             "command": "ha-nova relay ws --data-file payload.json --jq-file area-projection.jq --out rows.json",
             "aggregated_output": "",
+            "exit_code": 0,
+            "status": "completed",
+        },
+    },
+    {
+        "type": "item.completed",
+        "item": {
+            "id": "msg_final",
+            "type": "agent_message",
+            "text": status_line,
+        },
+    },
+]
+
+with tempfile.TemporaryDirectory() as tmpdir:
+    raw_log = Path(tmpdir) / "review.jsonl"
+    raw_log.write_text("\\n".join(json.dumps(event) for event in events), encoding="utf-8")
+    result = module.validate_case("review", "area_review", fixture, raw_log, 0)
+    print(json.dumps({"status": result.status, "errors": result.errors}))
+`);
+
+    expect(result.status).toBe("pass");
+    expect(result.errors).toEqual([]);
+  });
+
+  it("does not flag inline related jq when the same command block overwrites a related payload before reuse", () => {
+    const result = runPythonValidator(`
+import importlib.util
+import json
+import sys
+import tempfile
+from pathlib import Path
+
+spec = importlib.util.spec_from_file_location("bulk_live_validator", "scripts/e2e/codex-ha-nova-bulk-live-e2e.py")
+module = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = module
+spec.loader.exec_module(module)
+
+fixture = {
+    "id": "review_area",
+    "matches": ["automation.a"],
+    "audited": ["automation.a"],
+    "remaining": 0,
+    "non_audited": [],
+}
+
+status_line = (
+    "Scope\\nSummary\\nHigh-Risk Findings\\nRepeated Patterns\\nItems Checked\\nCollisions by Cluster\\n"
+    "NOVA_BULK_REVIEW_RESULT id=review_area matched=1 audited=1 remaining=0 "
+    "item_ids=[\\"automation.a\\"] "
+    "quick_fix_offered=false sections=[\\"Scope\\",\\"Summary\\",\\"High-Risk Findings\\",\\"Repeated Patterns\\",\\"Items Checked\\",\\"Collisions by Cluster\\"]"
+)
+
+events = [
+    {
+        "type": "item.completed",
+        "item": {
+            "id": "cmd_area",
+            "type": "command_execution",
+            "command": "ha-nova relay ws --data-file payload.json --out result.json {\\"type\\":\\"search/related\\",\\"item_type\\":\\"area\\",\\"item_id\\":\\"arbeitszimmer\\"}",
+            "aggregated_output": "",
+            "exit_code": 0,
+            "status": "completed",
+        },
+    },
+    {
+        "type": "item.completed",
+        "item": {
+            "id": "cmd_config",
+            "type": "command_execution",
+            "command": "printf 'ITEM[1]=automation.a\\\\n'\\nha-nova relay core --method GET --path /api/config/automation/config/$unique_id --jq-file config_filter.jq --out config.json",
+            "aggregated_output": "UNIQUE_ID[1]=111\\n{\\"id\\": \\"111\\"}",
+            "exit_code": 0,
+            "status": "completed",
+        },
+    },
+    {
+        "type": "item.completed",
+        "item": {
+            "id": "cmd_projection_then_reuse",
+            "type": "command_execution",
+            "command": "cat <<'EOF' > payload.json\\n{\\"type\\": \\"search/related\\", \\"item_type\\": \\"entity\\", \\"item_id\\": \\"light.a\\"}\\nEOF\\ncat <<'EOF' > payload.json\\n{\\"type\\": \\"config/entity_registry/get\\", \\"entity_id\\": \\"automation.a\\"}\\nEOF\\nha-nova relay ws --data-file payload.json --jq-file area-projection.jq --out rows.json",
+            "aggregated_output": "",
+            "exit_code": 0,
+            "status": "completed",
+        },
+    },
+    {
+        "type": "item.completed",
+        "item": {
+            "id": "msg_final",
+            "type": "agent_message",
+            "text": status_line,
+        },
+    },
+]
+
+with tempfile.TemporaryDirectory() as tmpdir:
+    raw_log = Path(tmpdir) / "review.jsonl"
+    raw_log.write_text("\\n".join(json.dumps(event) for event in events), encoding="utf-8")
+    result = module.validate_case("review", "area_review", fixture, raw_log, 0)
+    print(json.dumps({"status": result.status, "errors": result.errors}))
+`);
+
+    expect(result.status).toBe("pass");
+    expect(result.errors).toEqual([]);
+  });
+
+  it("does not flag inline related jq when a single shell line overwrites a related payload before reuse", () => {
+    const result = runPythonValidator(`
+import importlib.util
+import json
+import sys
+import tempfile
+from pathlib import Path
+
+spec = importlib.util.spec_from_file_location("bulk_live_validator", "scripts/e2e/codex-ha-nova-bulk-live-e2e.py")
+module = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = module
+spec.loader.exec_module(module)
+
+fixture = {
+    "id": "review_area",
+    "matches": ["automation.a"],
+    "audited": ["automation.a"],
+    "remaining": 0,
+    "non_audited": [],
+}
+
+status_line = (
+    "Scope\\nSummary\\nHigh-Risk Findings\\nRepeated Patterns\\nItems Checked\\nCollisions by Cluster\\n"
+    "NOVA_BULK_REVIEW_RESULT id=review_area matched=1 audited=1 remaining=0 "
+    "item_ids=[\\"automation.a\\"] "
+    "quick_fix_offered=false sections=[\\"Scope\\",\\"Summary\\",\\"High-Risk Findings\\",\\"Repeated Patterns\\",\\"Items Checked\\",\\"Collisions by Cluster\\"]"
+)
+
+events = [
+    {
+        "type": "item.completed",
+        "item": {
+            "id": "cmd_area",
+            "type": "command_execution",
+            "command": "ha-nova relay ws --data-file payload.json --out result.json {\\"type\\":\\"search/related\\",\\"item_type\\":\\"area\\",\\"item_id\\":\\"arbeitszimmer\\"}",
+            "aggregated_output": "",
+            "exit_code": 0,
+            "status": "completed",
+        },
+    },
+    {
+        "type": "item.completed",
+        "item": {
+            "id": "cmd_projection_then_reuse",
+            "type": "command_execution",
+            "command": "printf '{\\"type\\":\\"search/related\\",\\"item_type\\":\\"entity\\",\\"item_id\\":\\"light.a\\"}' > payload.json; printf '{\\"type\\":\\"config/entity_registry/get\\",\\"entity_id\\":\\"automation.a\\"}' > payload.json; ha-nova relay ws --data-file payload.json --jq-file area-projection.jq --out rows.json",
+            "aggregated_output": "",
+            "exit_code": 0,
+            "status": "completed",
+        },
+    },
+    {
+        "type": "item.completed",
+        "item": {
+            "id": "cmd_config",
+            "type": "command_execution",
+            "command": "printf 'ITEM[1]=automation.a\\\\n'\\nha-nova relay core --method GET --path /api/config/automation/config/$unique_id --jq-file config_filter.jq --out config.json",
+            "aggregated_output": "UNIQUE_ID[1]=111\\n{\\"id\\": \\"111\\"}",
+            "exit_code": 0,
+            "status": "completed",
+        },
+    },
+    {
+        "type": "item.completed",
+        "item": {
+            "id": "msg_final",
+            "type": "agent_message",
+            "text": status_line,
+        },
+    },
+]
+
+with tempfile.TemporaryDirectory() as tmpdir:
+    raw_log = Path(tmpdir) / "review.jsonl"
+    raw_log.write_text("\\n".join(json.dumps(event) for event in events), encoding="utf-8")
+    result = module.validate_case("review", "area_review", fixture, raw_log, 0)
+    print(json.dumps({"status": result.status, "errors": result.errors}))
+`);
+
+    expect(result.status).toBe("pass");
+    expect(result.errors).toEqual([]);
+  });
+
+  it("does not flag inline related jq when an && chain overwrites a related payload before reuse", () => {
+    const result = runPythonValidator(`
+import importlib.util
+import json
+import sys
+import tempfile
+from pathlib import Path
+
+spec = importlib.util.spec_from_file_location("bulk_live_validator", "scripts/e2e/codex-ha-nova-bulk-live-e2e.py")
+module = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = module
+spec.loader.exec_module(module)
+
+fixture = {
+    "id": "review_area",
+    "matches": ["automation.a"],
+    "audited": ["automation.a"],
+    "remaining": 0,
+    "non_audited": [],
+}
+
+status_line = (
+    "Scope\\nSummary\\nHigh-Risk Findings\\nRepeated Patterns\\nItems Checked\\nCollisions by Cluster\\n"
+    "NOVA_BULK_REVIEW_RESULT id=review_area matched=1 audited=1 remaining=0 "
+    "item_ids=[\\"automation.a\\"] "
+    "quick_fix_offered=false sections=[\\"Scope\\",\\"Summary\\",\\"High-Risk Findings\\",\\"Repeated Patterns\\",\\"Items Checked\\",\\"Collisions by Cluster\\"]"
+)
+
+events = [
+    {
+        "type": "item.completed",
+        "item": {
+            "id": "cmd_area",
+            "type": "command_execution",
+            "command": "ha-nova relay ws --data-file payload.json --out result.json {\\"type\\":\\"search/related\\",\\"item_type\\":\\"area\\",\\"item_id\\":\\"arbeitszimmer\\"}",
+            "aggregated_output": "",
+            "exit_code": 0,
+            "status": "completed",
+        },
+    },
+    {
+        "type": "item.completed",
+        "item": {
+            "id": "cmd_projection_then_reuse",
+            "type": "command_execution",
+            "command": "printf '{\\"type\\":\\"search/related\\",\\"item_type\\":\\"entity\\",\\"item_id\\":\\"light.a\\"}' > payload.json && printf '{\\"type\\":\\"config/entity_registry/get\\",\\"entity_id\\":\\"automation.a\\"}' > payload.json && ha-nova relay ws --data-file payload.json --jq-file area-projection.jq --out rows.json",
+            "aggregated_output": "",
+            "exit_code": 0,
+            "status": "completed",
+        },
+    },
+    {
+        "type": "item.completed",
+        "item": {
+            "id": "cmd_config",
+            "type": "command_execution",
+            "command": "printf 'ITEM[1]=automation.a\\\\n'\\nha-nova relay core --method GET --path /api/config/automation/config/$unique_id --jq-file config_filter.jq --out config.json",
+            "aggregated_output": "UNIQUE_ID[1]=111\\n{\\"id\\": \\"111\\"}",
             "exit_code": 0,
             "status": "completed",
         },
@@ -3875,6 +4196,89 @@ events = [
             "id": "cmd_configs",
             "type": "command_execution",
             "command": "cat workset.txt | xargs -I{} sh -c 'ha-nova relay core --method GET --path /api/config/automation/config/$unique_id --jq-file config_filter.jq --out config.json'",
+            "aggregated_output": "\\n".join([
+                "ITEM[1]=automation.a",
+                "UNIQUE_ID[1]=111",
+                "ITEM[2]=automation.b",
+                "UNIQUE_ID[2]=222",
+                "ITEM[3]=automation.c",
+                "UNIQUE_ID[3]=333",
+                "ITEM[4]=automation.d",
+                "UNIQUE_ID[4]=444",
+                "ITEM[5]=automation.e",
+                "UNIQUE_ID[5]=555",
+            ]),
+            "exit_code": 0,
+            "status": "completed",
+        },
+    },
+    {
+        "type": "item.completed",
+        "item": {
+            "id": "msg_final",
+            "type": "agent_message",
+            "text": status_line,
+        },
+    },
+]
+
+with tempfile.TemporaryDirectory() as tmpdir:
+    raw_log = Path(tmpdir) / "review.jsonl"
+    raw_log.write_text("\\n".join(json.dumps(event) for event in events), encoding="utf-8")
+    result = module.validate_case("review", "area_review", fixture, raw_log, 0)
+    print(json.dumps({"status": result.status, "errors": result.errors}))
+`);
+
+    expect(result.status).toBe("fail");
+    expect(result.errors).toContain("review_batched_config_loop");
+  });
+
+  it("fails when bulk review batches config reads through xargs -i", () => {
+    const result = runPythonValidator(`
+import importlib.util
+import json
+import sys
+import tempfile
+from pathlib import Path
+
+spec = importlib.util.spec_from_file_location("bulk_live_validator", "scripts/e2e/codex-ha-nova-bulk-live-e2e.py")
+module = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = module
+spec.loader.exec_module(module)
+
+fixture = {
+    "id": "review_area",
+    "matches": ["automation.a", "automation.b", "automation.c", "automation.d", "automation.e", "automation.f"],
+    "audited": ["automation.a", "automation.b", "automation.c", "automation.d", "automation.e"],
+    "remaining": 1,
+    "non_audited": ["automation.f"],
+}
+
+status_line = (
+    "Scope\\nSummary\\nHigh-Risk Findings\\nRepeated Patterns\\nItems Checked\\nCollisions by Cluster\\n"
+    "NOVA_BULK_REVIEW_RESULT id=review_area matched=6 audited=5 remaining=1 "
+    "item_ids=[\\"automation.a\\",\\"automation.b\\",\\"automation.c\\",\\"automation.d\\",\\"automation.e\\"] "
+    "quick_fix_offered=false sections=[\\"Scope\\",\\"Summary\\",\\"High-Risk Findings\\",\\"Repeated Patterns\\",\\"Items Checked\\",\\"Collisions by Cluster\\"]"
+)
+
+events = [
+    {
+        "type": "item.completed",
+        "item": {
+            "id": "cmd_area",
+            "type": "command_execution",
+            "command": "ha-nova relay ws --data-file payload.json --out result.json {\\"type\\":\\"search/related\\",\\"item_type\\":\\"area\\",\\"item_id\\":\\"arbeitszimmer\\"}",
+            "aggregated_output": "",
+            "exit_code": 0,
+            "status": "completed",
+        },
+    },
+    {
+        "type": "item.completed",
+        "item": {
+            "id": "cmd_configs",
+            "type": "command_execution",
+            "command": "cat workset.txt | xargs -i{} sh -c 'ha-nova relay core --method GET --path /api/config/automation/config/$unique_id --jq-file config_filter.jq --out config.json'",
             "aggregated_output": "\\n".join([
                 "ITEM[1]=automation.a",
                 "UNIQUE_ID[1]=111",
