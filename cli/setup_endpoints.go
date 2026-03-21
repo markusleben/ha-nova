@@ -44,6 +44,10 @@ func guessHomeAssistantURLBase(input string) string {
 }
 
 func resolveHomeAssistantURLBase(input string) (string, error) {
+	return resolveHomeAssistantURLBaseWithProbe(input, probeHTTP)
+}
+
+func resolveHomeAssistantURLBaseWithProbe(input string, probe func(string) error) (string, error) {
 	normalized := strings.TrimSpace(strings.TrimRight(input, "/"))
 	host := normalizeHostInput(normalized)
 
@@ -58,7 +62,7 @@ func resolveHomeAssistantURLBase(input string) (string, error) {
 	}
 
 	for _, candidate := range candidates {
-		if err := probeHTTP(candidate); err == nil {
+		if err := probe(candidate); err == nil {
 			return candidate, nil
 		}
 	}

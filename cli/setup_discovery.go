@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"context"
+	"net"
+	"net/http"
 	"os/exec"
 	"regexp"
 	"runtime"
@@ -10,7 +12,20 @@ import (
 	"time"
 )
 
-var resolveHAURLBaseForDiscovery = resolveHomeAssistantURLBase
+var discoveryHTTPClient = &http.Client{
+	Timeout: 2 * time.Second,
+	Transport: &http.Transport{
+		DialContext: (&net.Dialer{Timeout: 750 * time.Millisecond}).DialContext,
+	},
+}
+
+func resolveHomeAssistantURLBaseDiscovery(input string) (string, error) {
+	return resolveHomeAssistantURLBaseWithProbe(input, func(url string) error {
+		return probeHTTPWithClient(discoveryHTTPClient, url)
+	})
+}
+
+var resolveHAURLBaseForDiscovery = resolveHomeAssistantURLBaseDiscovery
 var discoverHAViaMDNSForDiscovery = discoverHAViaMDNS
 var collectARPHostsForDiscovery = collectARPHosts
 var runMDNSBrowseForDiscovery = runMDNSBrowse

@@ -149,6 +149,11 @@ describe("review contract", () => {
     expect(reviewSkill).toContain("POSIX shell example");
     expect(reviewSkill).toContain("On Windows/PowerShell, use the native file-writing equivalent");
     expect(reviewSkill).toContain("keep shared temp files serial or use dedicated payload filenames per probe");
+    expect(reviewSkill).toContain("save the raw `search/related` response first");
+    expect(reviewSkill).toContain("separate follow-up step with `ha-nova relay jq --file <related-file> '<filter>'`");
+    expect(reviewSkill).toContain("do not attach a complex `--jq-file` filter directly to the `search/related` relay call during collision scan");
+    expect(reviewSkill).toContain("do not batch multiple audited config-body reads into one shell loop");
+    expect(reviewSkill).toContain("run one dedicated command block per audited target");
     expect(reviewAgent).toContain("This agent is for single-target review only.");
     expect(reviewAgent).toContain("Ignore the standalone bulk-review mode");
     expect(reviewAgent).toContain("single-target output format");

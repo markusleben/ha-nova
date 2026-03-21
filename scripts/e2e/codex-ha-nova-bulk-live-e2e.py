@@ -90,6 +90,26 @@ def relay_ws_data_files(commands: list[str]) -> set[str]:
     return data_files
 
 
+def command_data_files(command: str) -> set[str]:
+    data_files: set[str] = set()
+    pattern = re.compile(r"""--data-file(?:=|\s+)(?:"([^"]+)"|'([^']+)'|([^\s]+))""")
+    for match in pattern.finditer(command):
+        data_file = next((group for group in match.groups() if group), "")
+        if data_file:
+            data_files.add(data_file)
+    return data_files
+
+
+def staged_output_files(command: str) -> set[str]:
+    staged_files: set[str] = set()
+    redirect_pattern = re.compile(r"""(?:>\s*|>>\s*|tee\s+)(?:"([^"]+)"|'([^']+)'|([^\s]+))""")
+    for match in redirect_pattern.finditer(command):
+        staged_file = next((group for group in match.groups() if group), "")
+        if staged_file:
+            staged_files.add(staged_file)
+    return staged_files
+
+
 def stages_known_ws_data_file(command: str, data_files: set[str]) -> bool:
     for data_file in data_files:
         file_pattern = re.escape(data_file)
@@ -101,6 +121,13 @@ def stages_known_ws_data_file(command: str, data_files: set[str]) -> bool:
         ):
             return True
     return False
+
+
+def command_has_related_entity_payload(command: str) -> bool:
+    return (
+        re.search(r'''"type"\s*:\s*"search/related"''', command) is not None
+        and re.search(r'''"item_type"\s*:\s*"entity"|item_type:\s*entity''', command) is not None
+    )
 
 
 def resolve_codex_binary() -> str:
@@ -406,9 +433,11 @@ Hard requirements:
 37. Keep Relay operations serial whenever the same temp directory is in play. Do not start parallel command executions that rewrite a shared payload or jq file. If you need multiple collision probes, either run them one at a time or give each probe its own dedicated payload filename before launching it.
 38. Do not glob for temp files, probe alternate temp names, or run extra shell-debug checks after a successful Relay call. Reuse the exact file path you created.
 39. Reuse the exact jq idioms from `{BULK_PATTERNS_FILE}` for `prefix`, `area`, `label`, and inventory summary wrappers. Do not invent regex-heavy replacements when the shared doc already gives a simpler filter.
-40. Keep the run read-only even if one item looks acutely wrong.
-41. Keep the aggregate explanation concise. Once you have enough evidence for the six required sections and the status line, finish the response instead of expanding the narrative.
-42. End the final answer with exactly one machine-readable status line:
+40. For collision `search/related` reads, save the raw Relay response first. If you need an `automation` / `script` projection, do it in a separate `ha-nova relay jq --file <related-file> '<filter>'` step. Do not attach a complex `--jq-file` filter directly to the `search/related` relay call.
+41. Do not batch multiple audited config-body reads into one shell loop. Run one dedicated command block per audited target so `ITEM[n]`, `UNIQUE_ID[n]`, and config evidence stay attributable.
+42. Keep the run read-only even if one item looks acutely wrong.
+43. Keep the aggregate explanation concise. Once you have enough evidence for the six required sections and the status line, finish the response instead of expanding the narrative.
+44. End the final answer with exactly one machine-readable status line:
    NOVA_BULK_REVIEW_RESULT id={scenario_id} matched=<int> audited=<int> remaining=<int> item_ids=<json_array_of_audited_entity_ids> quick_fix_offered=<true|false> sections=<json_array_of_exact_section_titles>
 """
 
@@ -704,6 +733,40 @@ def extract_config_read_ids(output: str) -> list[str]:
             output,
         )
     )
+    config_read_ids.extend(
+        match.group(1).strip()
+        for match in re.finditer(
+            r"""ITEM\[\d+\]=((?:automation|script)\.[^\\'" \n]+)""",
+            output,
+        )
+    )
+    config_read_ids.extend(
+        match.group(1).strip()
+        for match in re.finditer(
+            r"(?m)^RELATED_ITEM=((?:automation|script)\.[^\n]+)$",
+            output,
+        )
+    )
+    return config_read_ids
+
+
+def extract_command_config_read_ids(command: str, *, related: bool) -> list[str]:
+    config_read_ids: list[str] = []
+    config_read_ids.extend(
+        match.group(1).strip()
+        for match in re.finditer(
+            r"""ITEM\[\d+\]=((?:automation|script)\.[^\\'" \n]+)""",
+            command,
+        )
+    )
+    if related:
+        config_read_ids.extend(
+            match.group(1).strip()
+            for match in re.finditer(
+                r'''"entity_id"\s*:\s*"((?:automation|script)\.[^"\n]+)"''',
+                command,
+            )
+        )
     return config_read_ids
 
 
@@ -727,6 +790,33 @@ def is_related_collision_evidence(item: dict) -> bool:
     if not isinstance(aggregated_output, str):
         return False
     return re.search(r"(?mi)^COLLISION_EVIDENCE=.+$", aggregated_output) is not None
+
+
+def has_inline_related_jq_filter(command: str, prepared_related_entity_payloads: set[str]) -> bool:
+    ws_jq_data_files = {
+        data_file
+        for line in command.splitlines()
+        if re.search(r"ha-nova relay ws", line) is not None and "--jq-file" in line
+        for data_file in command_data_files(line)
+    }
+    if not ws_jq_data_files:
+        return False
+    same_block_related_payloads = staged_output_files(command) if command_has_related_entity_payload(command) else set()
+    if same_block_related_payloads and any(data_file in same_block_related_payloads for data_file in ws_jq_data_files):
+        return True
+    if command_has_related_entity_payload(command) and not same_block_related_payloads:
+        return True
+    return any(data_file in prepared_related_entity_payloads for data_file in ws_jq_data_files)
+
+
+def has_batched_config_loop(command: str) -> bool:
+    loop_patterns = (
+        r"while\s+(?:IFS=\s*)?read\s+-r\b",
+        r"for\s+[A-Za-z_][A-Za-z0-9_]*\s+in\b",
+        r"\bxargs\b[^\n]*\s-n\s*1\b",
+        r"\bxargs\b[^\n]*\s-I(?:\S+)?(?:\s|$)",
+    )
+    return any(re.search(pattern, command) is not None for pattern in loop_patterns)
 
 
 def validate_inventory(events: list[dict], fixture: dict, selector_pattern: str) -> list[str]:
@@ -791,6 +881,16 @@ def validate_review(events: list[dict], fixture: dict, raw_text: str) -> list[st
         "area_related_lookup_missing",
         errors,
     )
+    prepared_related_entity_payloads: set[str] = set()
+    for command in commands:
+        if has_inline_related_jq_filter(command, prepared_related_entity_payloads):
+            errors.append("review_inline_related_jq_filter")
+            break
+        staged_payloads = staged_output_files(command)
+        if command_has_related_entity_payload(command):
+            prepared_related_entity_payloads.update(staged_payloads)
+        else:
+            prepared_related_entity_payloads.difference_update(staged_payloads)
 
     match = re.search(
         r"NOVA_BULK_REVIEW_RESULT id="
@@ -853,7 +953,12 @@ def validate_review(events: list[dict], fixture: dict, raw_text: str) -> list[st
         command = item.get("command", "")
         if re.search(r"/api/config/(?:automation|script)/config/", command) is None:
             continue
+        related_collision_evidence = is_related_collision_evidence(item)
+        if has_batched_config_loop(command):
+            errors.append("review_batched_config_loop")
         entity_ids = extract_config_read_ids(item.get("aggregated_output", ""))
+        if not entity_ids:
+            entity_ids = extract_command_config_read_ids(command, related=related_collision_evidence)
         require(bool(entity_ids), "review_unidentified_config_read", errors)
         config_read_records.append((item, entity_ids))
     audited_config_reads = [entity_id for _, entity_ids in config_read_records for entity_id in entity_ids]

@@ -254,6 +254,9 @@ Branch by target family:
    ```text
    ha-nova relay ws --data-file <payload-file>
    ```
+   - save the raw `search/related` response first
+   - if you need to narrow the result to `automation` / `script`, do that in a separate follow-up step with `ha-nova relay jq --file <related-file> '<filter>'`
+   - do not attach a complex `--jq-file` filter directly to the `search/related` relay call during collision scan
 3. Collect related automations/scripts (exclude current target).
 4. Read configs of related items (max 5 for a single target; keep a tighter shared budget across a bulk workset). Resolve `unique_id` first for automation/script targets (see Target Resolution step 5), then:
    ```text
@@ -263,6 +266,10 @@ Branch by target family:
    ha-nova relay core --method GET --path /api/config/script/config/<unique_id> --jq-file <config-filter-file> --out <related-file>
    ```
 5. If no related items found, report "no conflicts" in the Conflicts section and skip Step 3.
+
+Bulk review execution rule:
+- do not batch multiple audited config-body reads into one shell loop
+- run one dedicated command block per audited target so `ITEM[n]`, `UNIQUE_ID[n]`, and config evidence stay attributable
 
 ### Trace Analysis (on request)
 
