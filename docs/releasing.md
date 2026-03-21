@@ -3,7 +3,13 @@
 ## Version Bump
 
 ```bash
-npm run bump -- 0.2.0
+npm run bump -- <version>
+```
+
+For the current train:
+
+```bash
+npm run bump -- 0.3.0
 ```
 
 This updates all 5 version files atomically:
@@ -23,12 +29,33 @@ npm run verify
 
 This is the host-safe default gate.
 It covers release metadata sync, TypeScript, the safe Vitest suite, build/docs validation, and Go CLI verification.
+The deterministic `#87` bulk contract is machine-checked here through the tracked `test:safe` suite on every RC/final workflow SHA.
 It must not open browsers or touch real secure stores on the maintainer host.
 
 Hard rule:
 - final tag version, `version.json`, `package.json`, `package-lock.json`, `.claude-plugin/plugin.json`, and `.claude-plugin/marketplace.json` must match
 - the Claude marketplace entry must keep `source: "./"` so installed bundles stay on the local plugin update path instead of drifting to a remote repo source
 - Claude marketplace source parity must be regression-covered for all three shapes: plain GitHub URL, structured GitHub repo source, and structured GitHub repo source with pinned `ref`; a pinned `ref` must never compare equal to the floating default source
+
+## Bulk Release Preflight
+
+`npm run verify` stays the canonical automated repo gate.
+It does not talk to a real Home Assistant instance or a live Codex/relay session.
+
+For the `#87` bulk release train, maintainers must also run the local live bulk sign-off commands on the exact SHA intended for RC or final tag:
+
+```bash
+npm run test:bulk:release
+npm run test:bulk:manual:area-review
+```
+
+Rules:
+- `test:bulk:release` is the maintainer-host bulk gate: the deterministic bulk contract is already covered by `npm run verify` through `test:safe`; this command adds live stable inventory smoke, then reruns the full safe suite on the same host
+- `test:bulk:manual:area-review` is the explicit aggregate bulk-review proof; keep the resulting transcript or summary artifact with the release notes / sign-off record
+- do not move these live bulk checks into GitHub runner CI; they depend on a real local HA + relay + Codex environment
+- the live bulk commands require `ha-nova` and `codex` on `PATH` plus a Python 3 runtime; the npm wrapper resolves `python3`, `python`, or Windows `py -3`, and the harness immediately verifies `ha-nova relay health` before starting
+- if any relevant delta lands after the last successful bulk sign-off, rerun both commands on the new SHA
+- `npm run verify` and the bulk preflight must agree on the same reviewed commit state before RC or tag work continues
 
 ## Release Preflight
 
@@ -381,6 +408,12 @@ Smoke the matrix you actually intend to claim for the target platform.
 Baseline:
 - macOS: `codex`, `claude`, `opencode`, `gemini`
 - Windows: `claude`, `gemini`, plus any extra client lane you explicitly want to claim
+- Linux: keep wording conservative unless a real Secret Service-backed machine was live-tested; CI smoke alone does not upgrade Linux to full real-machine validation
+
+Adapter families to cover before release messaging claims cross-client update confidence:
+- Claude / Claude Desktop Code tab: `plugin_marketplace`
+- Codex and OpenCode: `skill_tree`
+- Gemini: `skill_flat`
 
 Release notes must keep platform support and client-lane validation separate:
 - Windows platform support: installer + Go runtime + bundle packaging

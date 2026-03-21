@@ -18,3 +18,10 @@ docs/choices.md
 
 # Local notes
 docs/internal/
+
+# Local validation artifacts
+.artifacts/
+
+# Python cache artifacts from local validation harnesses
+__pycache__/
+*.py[cod]

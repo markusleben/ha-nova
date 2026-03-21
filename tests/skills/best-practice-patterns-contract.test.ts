@@ -253,10 +253,13 @@ describe("best-practice patterns contract", () => {
       expect(content).toContain("history_stats");
     });
 
-    it("marks config-entry helpers with planned relay support", () => {
+    it("documents the current relay-backed config-entry helper support boundary", () => {
       content ??= readFileSync(file, "utf8");
-      expect(content).toContain("Relay support planned");
-      expect(content).toContain("#81");
+      expect(content).toContain("Relay-backed config-entry flows are now supported");
+      expect(content).toContain("unsupported helper families still fall back");
+      expect(content).toContain("group");
+      expect(content).toContain("live menu/form flow");
+      expect(content).not.toContain("Relay support planned");
     });
 
     it("includes Zigbee Button Patterns section", () => {

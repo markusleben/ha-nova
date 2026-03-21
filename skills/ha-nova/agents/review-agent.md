@@ -114,6 +114,8 @@ See `skills/review/checks.md` → Known Safe Patterns / Known Problem Patterns f
 
 ## Output Format
 
-Follow the output format defined in `skills/review/SKILL.md` → Output Format. Same 7 sections (without Instant Help — not applicable to post-write agent reviews), same order. Localize per `skills/ha-nova/SKILL.md` → Output Localization.
+This agent is for single-target review only. Ignore the standalone bulk-review mode from `skills/review/SKILL.md`.
+
+Follow the single-target output format defined in `skills/review/SKILL.md` → Output Format. Same 7 sections (without Instant Help — not applicable to post-write agent reviews), same order. Localize per `skills/ha-nova/SKILL.md` → Output Localization.
 
 For post-write reviews, Section 1 (Review target) must include `mode: post-write`.

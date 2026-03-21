@@ -17,6 +17,8 @@ skills/
   ha-nova/best-practices.md     (reference doc)
   ha-nova/payload-schemas.md    (reference doc)
   ha-nova/helper-schemas.md     (reference doc — helper type payloads)
+  ha-nova/config-body-filter.jq (shared jq asset — canonical REST config-body extractor)
+  ha-nova/bulk-patterns.md      (reference doc — bulk selectors, workset, aggregate audit rules)
   ha-nova/template-guidelines.md (reference doc — when to use templates vs native primitives)
   ha-nova/safe-refactoring.md   (reference doc — rename, delete, orphan cleanup workflows)
   ha-nova/automation-patterns.md (reference doc — native HA constructs vs templates)
@@ -117,6 +119,9 @@ Fallback:
 - `/ws config/entity_registry/list_for_display` for list operations
 - `/core` config reads for single-item get operations
 - one blocking question only if target ambiguity remains
+- multi-target scope is inventory-only; use the shared bulk selector rules from `skills/ha-nova/bulk-patterns.md`
+- room/area bulk resolution is area-first: resolve the area, then use `search/related` on the area response object instead of assuming compact-registry `ai` is populated
+- do not dump full YAML for many targets in one response
 
 ## Review Architecture
 
@@ -126,6 +131,9 @@ Fallback:
 - Conflict analysis: 3-step test (polarity → temporal → guard conditions)
 - `R-17` is intra-config only; collision scan stays cross-item conflict work, not overwrite/rebound detection
 - Known safe/problem pattern matching from `skills/review/checks.md`
+- resolved targets `== 1`: current single-target review output stays
+- resolved targets `> 1`: switch to aggregate multi-target mode automatically, materialize and trim the current workset before any per-item reads, audit max 5 items in stable order, aggregate findings by pattern, and report `matched / audited / remaining`
+- bulk mode disables Quick-Fix; it stays strictly read-only
 
 ## Helper Architecture
 
