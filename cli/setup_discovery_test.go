@@ -1,18 +1,21 @@
 package main
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestDetectDefaultHAHostPrefersReachableRelayHost(t *testing.T) {
-	originalResolve := resolveHAURLBaseForDiscovery
+	originalResolve := resolveHAURLBaseWithinTimeoutForDiscovery
 	originalMDNS := discoverHAViaMDNSForDiscovery
 	originalARP := collectARPHostsForDiscovery
 	defer func() {
-		resolveHAURLBaseForDiscovery = originalResolve
+		resolveHAURLBaseWithinTimeoutForDiscovery = originalResolve
 		discoverHAViaMDNSForDiscovery = originalMDNS
 		collectARPHostsForDiscovery = originalARP
 	}()
 
-	resolveHAURLBaseForDiscovery = func(input string) (string, error) {
+	resolveHAURLBaseWithinTimeoutForDiscovery = func(input string, _ time.Duration) (string, error) {
 		if input == "192.168.1.20" {
 			return "http://192.168.1.20:8123", nil
 		}
@@ -31,16 +34,16 @@ func TestDetectDefaultHAHostPrefersReachableRelayHost(t *testing.T) {
 }
 
 func TestDetectDefaultHAHostFallsBackToMDNSBeforeHomeassistantLocal(t *testing.T) {
-	originalResolve := resolveHAURLBaseForDiscovery
+	originalResolve := resolveHAURLBaseWithinTimeoutForDiscovery
 	originalMDNS := discoverHAViaMDNSForDiscovery
 	originalARP := collectARPHostsForDiscovery
 	defer func() {
-		resolveHAURLBaseForDiscovery = originalResolve
+		resolveHAURLBaseWithinTimeoutForDiscovery = originalResolve
 		discoverHAViaMDNSForDiscovery = originalMDNS
 		collectARPHostsForDiscovery = originalARP
 	}()
 
-	resolveHAURLBaseForDiscovery = func(input string) (string, error) {
+	resolveHAURLBaseWithinTimeoutForDiscovery = func(input string, _ time.Duration) (string, error) {
 		if input == "ha-box.local" {
 			return "http://ha-box.local:8123", nil
 		}
@@ -56,16 +59,18 @@ func TestDetectDefaultHAHostFallsBackToMDNSBeforeHomeassistantLocal(t *testing.T
 }
 
 func TestDetectDefaultHAHostFallsBackToHomeassistantLocal(t *testing.T) {
-	originalResolve := resolveHAURLBaseForDiscovery
+	originalResolve := resolveHAURLBaseWithinTimeoutForDiscovery
 	originalMDNS := discoverHAViaMDNSForDiscovery
 	originalARP := collectARPHostsForDiscovery
 	defer func() {
-		resolveHAURLBaseForDiscovery = originalResolve
+		resolveHAURLBaseWithinTimeoutForDiscovery = originalResolve
 		discoverHAViaMDNSForDiscovery = originalMDNS
 		collectARPHostsForDiscovery = originalARP
 	}()
 
-	resolveHAURLBaseForDiscovery = func(string) (string, error) { return "", assertDiscoveryFailure{} }
+	resolveHAURLBaseWithinTimeoutForDiscovery = func(string, time.Duration) (string, error) {
+		return "", assertDiscoveryFailure{}
+	}
 	discoverHAViaMDNSForDiscovery = func() string { return "" }
 	collectARPHostsForDiscovery = func() []string { return nil }
 
@@ -76,16 +81,16 @@ func TestDetectDefaultHAHostFallsBackToHomeassistantLocal(t *testing.T) {
 }
 
 func TestDetectDefaultHAHostTreatsReachableHomeassistantLocalAsConfirmed(t *testing.T) {
-	originalResolve := resolveHAURLBaseForDiscovery
+	originalResolve := resolveHAURLBaseWithinTimeoutForDiscovery
 	originalMDNS := discoverHAViaMDNSForDiscovery
 	originalARP := collectARPHostsForDiscovery
 	defer func() {
-		resolveHAURLBaseForDiscovery = originalResolve
+		resolveHAURLBaseWithinTimeoutForDiscovery = originalResolve
 		discoverHAViaMDNSForDiscovery = originalMDNS
 		collectARPHostsForDiscovery = originalARP
 	}()
 
-	resolveHAURLBaseForDiscovery = func(input string) (string, error) {
+	resolveHAURLBaseWithinTimeoutForDiscovery = func(input string, _ time.Duration) (string, error) {
 		if input == "homeassistant.local" {
 			return "http://homeassistant.local:8123", nil
 		}
@@ -101,16 +106,16 @@ func TestDetectDefaultHAHostTreatsReachableHomeassistantLocalAsConfirmed(t *test
 }
 
 func TestDetectDefaultHAHostUsesResolveFallbackVariants(t *testing.T) {
-	originalResolve := resolveHAURLBaseForDiscovery
+	originalResolve := resolveHAURLBaseWithinTimeoutForDiscovery
 	originalMDNS := discoverHAViaMDNSForDiscovery
 	originalARP := collectARPHostsForDiscovery
 	defer func() {
-		resolveHAURLBaseForDiscovery = originalResolve
+		resolveHAURLBaseWithinTimeoutForDiscovery = originalResolve
 		discoverHAViaMDNSForDiscovery = originalMDNS
 		collectARPHostsForDiscovery = originalARP
 	}()
 
-	resolveHAURLBaseForDiscovery = func(input string) (string, error) {
+	resolveHAURLBaseWithinTimeoutForDiscovery = func(input string, _ time.Duration) (string, error) {
 		if input == "ha-box.local" {
 			return "https://ha-box.local", nil
 		}
@@ -126,16 +131,16 @@ func TestDetectDefaultHAHostUsesResolveFallbackVariants(t *testing.T) {
 }
 
 func TestDetectDefaultHAHostIncludesARPFallbackCandidates(t *testing.T) {
-	originalResolve := resolveHAURLBaseForDiscovery
+	originalResolve := resolveHAURLBaseWithinTimeoutForDiscovery
 	originalMDNS := discoverHAViaMDNSForDiscovery
 	originalARP := collectARPHostsForDiscovery
 	defer func() {
-		resolveHAURLBaseForDiscovery = originalResolve
+		resolveHAURLBaseWithinTimeoutForDiscovery = originalResolve
 		discoverHAViaMDNSForDiscovery = originalMDNS
 		collectARPHostsForDiscovery = originalARP
 	}()
 
-	resolveHAURLBaseForDiscovery = func(input string) (string, error) {
+	resolveHAURLBaseWithinTimeoutForDiscovery = func(input string, _ time.Duration) (string, error) {
 		if input == "192.168.1.77" {
 			return "http://192.168.1.77:8123", nil
 		}
@@ -147,6 +152,38 @@ func TestDetectDefaultHAHostIncludesARPFallbackCandidates(t *testing.T) {
 	got := detectDefaultHAHost(runtimeConfig{})
 	if got != "192.168.1.77" {
 		t.Fatalf("detectDefaultHAHost() = %q, want %q", got, "192.168.1.77")
+	}
+}
+
+func TestDetectDefaultHAHostChoiceStopsAfterOverallTimeout(t *testing.T) {
+	originalResolve := resolveHAURLBaseWithinTimeoutForDiscovery
+	originalMDNS := discoverHAViaMDNSForDiscovery
+	originalARP := collectARPHostsForDiscovery
+	originalTimeout := setupDiscoveryOverallTimeout
+	defer func() {
+		resolveHAURLBaseWithinTimeoutForDiscovery = originalResolve
+		discoverHAViaMDNSForDiscovery = originalMDNS
+		collectARPHostsForDiscovery = originalARP
+		setupDiscoveryOverallTimeout = originalTimeout
+	}()
+
+	setupDiscoveryOverallTimeout = 20 * time.Millisecond
+	discoverHAViaMDNSForDiscovery = func() string { return "" }
+	collectARPHostsForDiscovery = func() []string { return nil }
+
+	calls := 0
+	resolveHAURLBaseWithinTimeoutForDiscovery = func(input string, timeout time.Duration) (string, error) {
+		calls++
+		time.Sleep(timeout + 5*time.Millisecond)
+		return "", assertDiscoveryFailure{}
+	}
+
+	host, discovered := detectDefaultHAHostChoice(runtimeConfig{})
+	if host != "homeassistant.local" || discovered {
+		t.Fatalf("detectDefaultHAHostChoice() = (%q, %v), want (%q, false)", host, discovered, "homeassistant.local")
+	}
+	if calls != 1 {
+		t.Fatalf("calls = %d, want 1", calls)
 	}
 }
 

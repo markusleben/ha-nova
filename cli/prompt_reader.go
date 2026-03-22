@@ -5,33 +5,71 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 )
 
-func promptLineWithOptions(reader *bufio.Reader, out io.Writer, label, defaultValue string, allowWizardNav bool) (string, error) {
-	fmt.Fprint(out, "  ")
-	fmt.Fprint(out, label)
-	if defaultValue != "" {
-		fmt.Fprintf(out, " [%s]", defaultValue)
-	}
-	fmt.Fprint(out, ": ")
+var setupNextPromptSkipsStaleBlankInput bool
+var setupStaleBlankInputWindow = 150 * time.Millisecond
 
-	line, err := reader.ReadString('\n')
-	if err != nil {
-		return "", err
+func armSetupNextPromptSkipsStaleBlankInput() {
+	setupNextPromptSkipsStaleBlankInput = true
+}
+
+func consumeSetupNextPromptSkipsStaleBlankInput() bool {
+	armed := setupNextPromptSkipsStaleBlankInput
+	setupNextPromptSkipsStaleBlankInput = false
+	return armed
+}
+
+func clearSetupNextPromptSkipsStaleBlankInput() {
+	setupNextPromptSkipsStaleBlankInput = false
+}
+
+func rerenderSetupPromptAfterStaleBlank(out io.Writer) {
+	if resolveSetupUISession(out).enhanced() {
+		fmt.Fprint(out, "\r\033[2K")
+		return
 	}
-	line = strings.TrimSpace(line)
-	if allowWizardNav {
-		switch strings.ToLower(line) {
-		case "back":
-			return "", errSetupBack
-		case "exit":
-			return "", errSetupExit
+	fmt.Fprintln(out)
+}
+
+func promptLineWithOptions(reader *bufio.Reader, out io.Writer, label, defaultValue string, allowWizardNav bool) (string, error) {
+	var staleBlankDeadline time.Time
+	if consumeSetupNextPromptSkipsStaleBlankInput() {
+		staleBlankDeadline = time.Now().Add(setupStaleBlankInputWindow)
+	}
+
+	for {
+		fmt.Fprint(out, "  ")
+		fmt.Fprint(out, label)
+		if defaultValue != "" {
+			fmt.Fprintf(out, " [%s]", defaultValue)
 		}
+		fmt.Fprint(out, ": ")
+
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			return "", err
+		}
+		line = strings.TrimSpace(line)
+		if !staleBlankDeadline.IsZero() && line == "" && !time.Now().After(staleBlankDeadline) {
+			rerenderSetupPromptAfterStaleBlank(out)
+			continue
+		}
+		staleBlankDeadline = time.Time{}
+		if allowWizardNav {
+			switch strings.ToLower(line) {
+			case "back":
+				return "", errSetupBack
+			case "exit":
+				return "", errSetupExit
+			}
+		}
+		if line == "" {
+			return defaultValue, nil
+		}
+		return line, nil
 	}
-	if line == "" {
-		return defaultValue, nil
-	}
-	return line, nil
 }
 
 func promptYesNoWithOptions(reader *bufio.Reader, out io.Writer, label string, defaultYes, allowWizardNav bool) (bool, error) {

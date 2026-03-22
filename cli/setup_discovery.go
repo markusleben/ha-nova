@@ -10,12 +10,13 @@ import (
 	"time"
 )
 
-var resolveHAURLBaseForDiscovery = resolveHomeAssistantURLBase
+var resolveHAURLBaseWithinTimeoutForDiscovery = resolveHomeAssistantURLBaseWithinTimeout
 var discoverHAViaMDNSForDiscovery = discoverHAViaMDNS
 var collectARPHostsForDiscovery = collectARPHosts
 var runMDNSBrowseForDiscovery = runMDNSBrowse
 var runMDNSLookupForDiscovery = runMDNSLookup
 var mdnsAvailableForDiscovery = defaultMDNSDiscoveryAvailable
+var setupDiscoveryOverallTimeout = 20 * time.Second
 
 func detectDefaultHAHost(cfg runtimeConfig) string {
 	host, _ := detectDefaultHAHostChoice(cfg)
@@ -23,11 +24,16 @@ func detectDefaultHAHost(cfg runtimeConfig) string {
 }
 
 func detectDefaultHAHostChoice(cfg runtimeConfig) (string, bool) {
+	deadline := time.Now().Add(setupDiscoveryOverallTimeout)
 	for _, candidate := range collectCandidateHosts(cfg) {
 		if candidate == "" {
 			continue
 		}
-		if _, err := resolveHAURLBaseForDiscovery(candidate); err == nil {
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
+			break
+		}
+		if _, err := resolveHAURLBaseWithinTimeoutForDiscovery(candidate, remaining); err == nil {
 			return candidate, true
 		}
 	}

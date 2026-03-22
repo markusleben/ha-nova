@@ -6,6 +6,7 @@ import (
 	"io"
 	"strings"
 	"testing"
+	"time"
 )
 
 func testSetupClientChoices() []setupClientChoice {
@@ -164,6 +165,82 @@ func TestPromptWizardLineFromReaderAddsPromptGap(t *testing.T) {
 	}
 	if !strings.HasPrefix(output.String(), "\n  Press Enter to open your browser: ") {
 		t.Fatalf("expected wizard prompt to start on its own spaced line:\n%q", output.String())
+	}
+}
+
+func TestPromptLineFromReaderSkipsSingleStaleBlankAfterProtectedProgress(t *testing.T) {
+	clearSetupNextPromptSkipsStaleBlankInput()
+	defer clearSetupNextPromptSkipsStaleBlankInput()
+
+	armSetupNextPromptSkipsStaleBlankInput()
+
+	reader := bufio.NewReader(strings.NewReader("\n192.168.1.123\n"))
+	output := &bytes.Buffer{}
+
+	host, err := promptLineFromReader(reader, output, "Home Assistant address", "homeassistant.local")
+	if err != nil {
+		t.Fatalf("promptLineFromReader() error: %v", err)
+	}
+	if host != "192.168.1.123" {
+		t.Fatalf("host = %q, want %q", host, "192.168.1.123")
+	}
+	if strings.Count(output.String(), "Home Assistant address") != 2 {
+		t.Fatalf("expected prompt to be re-rendered after stale blank input:\n%s", output.String())
+	}
+}
+
+func TestPromptLineFromReaderSkipsMultipleStaleBlanksAfterProtectedProgress(t *testing.T) {
+	clearSetupNextPromptSkipsStaleBlankInput()
+	defer clearSetupNextPromptSkipsStaleBlankInput()
+
+	armSetupNextPromptSkipsStaleBlankInput()
+
+	reader := bufio.NewReader(strings.NewReader("\n\n192.168.1.123\n"))
+	output := &bytes.Buffer{}
+
+	host, err := promptLineFromReader(reader, output, "Home Assistant address", "homeassistant.local")
+	if err != nil {
+		t.Fatalf("promptLineFromReader() error: %v", err)
+	}
+	if host != "192.168.1.123" {
+		t.Fatalf("host = %q, want %q", host, "192.168.1.123")
+	}
+	if strings.Count(output.String(), "Home Assistant address") != 3 {
+		t.Fatalf("expected prompt to be re-rendered for each stale blank input:\n%s", output.String())
+	}
+}
+
+func TestPromptLineFromReaderAllowsDelayedBlankDefaultAfterProtectedProgress(t *testing.T) {
+	clearSetupNextPromptSkipsStaleBlankInput()
+	defer clearSetupNextPromptSkipsStaleBlankInput()
+
+	originalWindow := setupStaleBlankInputWindow
+	defer func() {
+		setupStaleBlankInputWindow = originalWindow
+	}()
+	setupStaleBlankInputWindow = 25 * time.Millisecond
+
+	armSetupNextPromptSkipsStaleBlankInput()
+
+	inputReader, inputWriter := io.Pipe()
+	defer inputReader.Close()
+
+	go func() {
+		time.Sleep(2 * setupStaleBlankInputWindow)
+		_, _ = inputWriter.Write([]byte("\n"))
+		_ = inputWriter.Close()
+	}()
+
+	output := &bytes.Buffer{}
+	host, err := promptLineFromReader(bufio.NewReader(inputReader), output, "Home Assistant address", "homeassistant.local")
+	if err != nil {
+		t.Fatalf("promptLineFromReader() error: %v", err)
+	}
+	if host != "homeassistant.local" {
+		t.Fatalf("host = %q, want %q", host, "homeassistant.local")
+	}
+	if strings.Count(output.String(), "Home Assistant address") != 1 {
+		t.Fatalf("did not expect prompt to be re-rendered for delayed blank input:\n%s", output.String())
 	}
 }
 

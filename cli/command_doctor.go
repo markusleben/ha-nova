@@ -157,11 +157,15 @@ func fetchRelayHealth(relayBaseURL, token string) ([]byte, error) {
 }
 
 func probeHTTP(url string) error {
+	return probeHTTPWithClient(httpClient, url)
+}
+
+func probeHTTPWithClient(client *http.Client, url string) error {
 	req, err := http.NewRequest("GET", strings.TrimRight(url, "/"), nil)
 	if err != nil {
 		return err
 	}
-	resp, err := httpClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}

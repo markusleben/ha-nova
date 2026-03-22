@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/url"
 	"strings"
+	"time"
 )
 
 var resolveHAURLBaseForFlags = resolveHomeAssistantURLBase
@@ -44,6 +45,10 @@ func guessHomeAssistantURLBase(input string) string {
 }
 
 func resolveHomeAssistantURLBase(input string) (string, error) {
+	return resolveHomeAssistantURLBaseWithinTimeout(input, 0)
+}
+
+func resolveHomeAssistantURLBaseWithinTimeout(input string, timeout time.Duration) (string, error) {
 	normalized := strings.TrimSpace(strings.TrimRight(input, "/"))
 	host := normalizeHostInput(normalized)
 
@@ -57,8 +62,22 @@ func resolveHomeAssistantURLBase(input string) (string, error) {
 		candidates = append(candidates, "http://"+host+":8123", "http://"+host, "https://"+host)
 	}
 
+	client := httpClient
+	var deadline time.Time
+	if timeout > 0 {
+		deadline = time.Now().Add(timeout)
+	}
 	for _, candidate := range candidates {
-		if err := probeHTTP(candidate); err == nil {
+		if !deadline.IsZero() {
+			remaining := time.Until(deadline)
+			if remaining <= 0 {
+				return "", fmt.Errorf("could not reach Home Assistant at %s", input)
+			}
+			timeoutClient := *httpClient
+			timeoutClient.Timeout = remaining
+			client = &timeoutClient
+		}
+		if err := probeHTTPWithClient(client, candidate); err == nil {
 			return candidate, nil
 		}
 	}
@@ -97,6 +116,9 @@ func promptValidHAHostFromReader(reader *bufio.Reader, out io.Writer, defaultHos
 
 		renderSetupErrorLine(out, "Could not reach Home Assistant at: %s", input)
 		fmt.Fprintln(out, "  Make sure Home Assistant is running and reachable from this computer.")
+		if resolveSetupUISession(out).animatesSpinner() {
+			armSetupNextPromptSkipsStaleBlankInput()
+		}
 		retry, retryErr := promptWizardYesNoFromReader(reader, out, "Try a different address?", true)
 		if retryErr != nil {
 			return "", "", retryErr
