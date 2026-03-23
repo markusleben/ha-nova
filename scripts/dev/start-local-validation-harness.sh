@@ -8,6 +8,7 @@ RELAY_PORT="${RELAY_PORT:-8791}"
 WITH_MOCK=0
 SKIP_BUILD=0
 REPORTED_VERSION="${REPORTED_VERSION:-}"
+LOCAL_WINGET_MANIFEST_READY=0
 
 usage() {
   cat <<'EOF'
@@ -104,7 +105,19 @@ finally:
 PY
 }
 
+rebuild_local_winget_manifest() {
+  local windows_host="$1"
+  if [[ -z "${windows_host}" ]]; then
+    return 1
+  fi
+  HA_NOVA_WINGET_INSTALLER_URL="http://${windows_host}:${BUNDLE_PORT}/dist/install-bundles/ha-nova-installer-bundle-windows-amd64.zip" \
+    bash scripts/release/build-winget-manifest.sh >/dev/null
+}
+
 cd "${ROOT_DIR}"
+
+LAN_IP="$(detect_lan_ip)"
+WINDOWS_HOST="${LAN_IP:-<your-mac-lan-ip>}"
 
 if [[ "${SKIP_BUILD}" != "1" ]]; then
   npm run release:rc:local
@@ -134,6 +147,12 @@ if [[ -z "${REPORTED_VERSION}" ]]; then
   exit 1
 fi
 
+WINDOWS_MANIFEST="dist/winget/ha-nova-winget-manifest-v${REPORTED_VERSION}.zip"
+
+if rebuild_local_winget_manifest "${LAN_IP}"; then
+  LOCAL_WINGET_MANIFEST_READY=1
+fi
+
 ensure_port_free "${BUNDLE_PORT}" "Bundle server"
 if [[ "${WITH_MOCK}" == "1" ]]; then
   ensure_port_free "${HA_PORT}" "HA mock"
@@ -153,6 +172,7 @@ for asset_path in \
   "dist/install-bundles/ha-nova-installer-bundle-macos-amd64.tar.gz.sha256" \
   "dist/install-bundles/ha-nova-installer-bundle-windows-amd64.zip" \
   "dist/install-bundles/ha-nova-installer-bundle-windows-amd64.zip.sha256" \
+  "${WINDOWS_MANIFEST}" \
   "install.ps1"
 do
   if ! wait_for_url "http://127.0.0.1:${BUNDLE_PORT}/${asset_path}"; then
@@ -176,9 +196,6 @@ if [[ "${WITH_MOCK}" == "1" ]]; then
     exit 1
   fi
 fi
-
-LAN_IP="$(detect_lan_ip)"
-WINDOWS_HOST="${LAN_IP:-<your-mac-lan-ip>}"
 
 cat <<EOF
 
@@ -204,8 +221,25 @@ Windows install:
   \$env:HA_NOVA_CLAUDE_MARKETPLACE_LOCAL='1'
   \$env:HA_NOVA_BUNDLE_URL='http://${WINDOWS_HOST}:${BUNDLE_PORT}/dist/install-bundles/ha-nova-installer-bundle-windows-amd64.zip'
   \$env:HA_NOVA_BUNDLE_SHA256_URL='http://${WINDOWS_HOST}:${BUNDLE_PORT}/dist/install-bundles/ha-nova-installer-bundle-windows-amd64.zip.sha256'
+  \$ProgressPreference='SilentlyContinue'
   irm http://${WINDOWS_HOST}:${BUNDLE_PORT}/install.ps1 | iex
 EOF
+
+if [[ "${LOCAL_WINGET_MANIFEST_READY}" == "1" ]]; then
+  cat <<EOF
+
+Windows local winget manifest install:
+  # once as Administrator:
+  winget settings --enable LocalManifestFiles
+
+  \$work = "\$env:TEMP\\ha-nova-winget-test"
+  Remove-Item -LiteralPath \$work -Recurse -Force -ErrorAction SilentlyContinue
+  New-Item -ItemType Directory -Force -Path \$work | Out-Null
+  curl.exe -fL http://${WINDOWS_HOST}:${BUNDLE_PORT}/${WINDOWS_MANIFEST} -o "\$work\\ha-nova-winget-manifest.zip"
+  Expand-Archive -LiteralPath "\$work\\ha-nova-winget-manifest.zip" -DestinationPath "\$work\\manifest" -Force
+  winget install --manifest "\$work\\manifest\\manifests\\m\\markusleben\\ha-nova\\${REPORTED_VERSION}" --accept-package-agreements --accept-source-agreements
+EOF
+fi
 
 if [[ "${WITH_MOCK}" == "1" ]]; then
   cat <<EOF

@@ -11,6 +11,12 @@ describe("release contract", () => {
   const workflow = readFileSync(".github/workflows/release.yml", "utf8");
   const rcWorkflow = readFileSync(".github/workflows/release-candidate.yml", "utf8");
   const bundleBuilder = readFileSync("scripts/release/build-install-bundle.sh", "utf8");
+  const wingetManifestBuilder = readFileSync("scripts/release/build-winget-manifest.sh", "utf8");
+  const wingetSubmissionHelper = readFileSync("scripts/release/prepare-winget-pkgs-submission.sh", "utf8");
+  const onboardingLifecycleSpec = readFileSync("docs/superpowers/specs/2026-03-22-onboarding-lifecycle-implementation.md", "utf8");
+  const windowsDistributionUxSpec = readFileSync("docs/superpowers/specs/2026-03-22-windows-distribution-ux-review.md", "utf8");
+  const activeContractCleanupSpec = readFileSync("docs/superpowers/specs/2026-03-23-active-onboarding-contract-cleanup.md", "utf8");
+  const wingetValidationCleanupSpec = readFileSync("docs/superpowers/specs/2026-03-23-winget-validation-warning-cleanup.md", "utf8");
   const pythonRunner = readFileSync("scripts/e2e/run-python-script.mjs", "utf8");
   const expectedGoreleaserActionRef = "goreleaser/goreleaser-action@v7";
   const pkg = JSON.parse(readFileSync("package.json", "utf8")) as {
@@ -29,9 +35,17 @@ describe("release contract", () => {
     expect(goreleaser).toContain("## What You Get");
     expect(goreleaser).toContain("install.sh");
     expect(goreleaser).toContain("install.ps1");
+    expect(goreleaser).toContain("$ProgressPreference = 'SilentlyContinue'");
     expect(goreleaser).toContain("## Upgrade Notes");
     expect(goreleaser).toContain("ha-nova update");
     expect(goreleaser).toContain("ha-nova check-update");
+    expect(goreleaser).toContain("A `winget` manifest is attached as a release handoff artifact");
+    expect(goreleaser).toContain("the public Windows package is not live until that manifest is published and proven on a fresh Windows VM.");
+    expect(goreleaser).toContain("Default `ha-nova uninstall` is standard remove.");
+    expect(goreleaser).toContain("Use `ha-nova uninstall --purge` for a full local wipe.");
+    expect(goreleaser).toContain("%APPDATA%\\ha-nova");
+    expect(goreleaser).toContain("%LOCALAPPDATA%\\ha-nova\\cache");
+    expect(goreleaser).toContain("Keep exactly one Windows install channel per machine.");
     expect(goreleaser).toContain("Legacy pre-Go installs still require the legacy cleanup script before reinstalling.");
     expect(goreleaser).not.toContain("~/.config/ha-nova/update");
   });
@@ -68,6 +82,49 @@ describe("release contract", () => {
     expect(bundleBuilder).not.toContain("legacy-uninstall.ps1");
   });
 
+  it("builds a winget manifest from the published Windows bundle instead of a raw bootstrap script", () => {
+    expect(wingetManifestBuilder).toContain("ha-nova-installer-bundle-windows-amd64.zip");
+    expect(wingetManifestBuilder).toContain('MANIFEST_VERSION="${MANIFEST_VERSION:-1.12.0}"');
+    expect(wingetManifestBuilder).toContain("PackageIdentifier: ${PACKAGE_IDENTIFIER}");
+    expect(wingetManifestBuilder).toContain("InstallerType: zip");
+    expect(wingetManifestBuilder).toContain("NestedInstallerType: portable");
+    expect(wingetManifestBuilder).toContain("# yaml-language-server: \\$schema=https://aka.ms/winget-manifest.installer.${MANIFEST_VERSION}.schema.json");
+    expect(wingetManifestBuilder).toContain("# yaml-language-server: \\$schema=https://aka.ms/winget-manifest.defaultLocale.${MANIFEST_VERSION}.schema.json");
+    expect(wingetManifestBuilder).toContain("# yaml-language-server: \\$schema=https://aka.ms/winget-manifest.version.${MANIFEST_VERSION}.schema.json");
+    expect(wingetManifestBuilder).toContain("RelativeFilePath: ha-nova/ha-nova.exe");
+    expect(wingetManifestBuilder).toContain("PortableCommandAlias: ha-nova");
+    expect(wingetManifestBuilder).toContain("ha-nova-winget-manifest-");
+    expect(wingetManifestBuilder).not.toContain("Scope: user");
+    expect(wingetManifestBuilder).not.toContain("install.ps1");
+  });
+
+  it("stages a public winget-pkgs submission payload from the generated manifest archive", () => {
+    expect(wingetSubmissionHelper).toContain("ha-nova-winget-manifest-v");
+    expect(wingetSubmissionHelper).toContain("winget validate --manifest");
+    expect(wingetSubmissionHelper).toContain("without warnings");
+    expect(wingetSubmissionHelper).toContain("microsoft/winget-pkgs");
+    expect(wingetSubmissionHelper).toContain("InstallerUrl mismatch");
+    expect(wingetSubmissionHelper).toContain("winget-pkgs-maintainer-checklist.md");
+    expect(wingetSubmissionHelper).toContain("winget-pkgs-pr-body.md");
+    expect(wingetSubmissionHelper).toContain("winget-pkgs-copy-path.txt");
+    expect(wingetSubmissionHelper).toContain("winget-pkgs-gh-commands.md");
+    expect(wingetSubmissionHelper).toContain("UPSTREAM_BASE_BRANCH");
+    expect(wingetSubmissionHelper).toContain("FORK_REPO");
+    expect(wingetSubmissionHelper).toContain('printf \'%s\\n\' "${raw#v}"');
+    expect(wingetSubmissionHelper).toContain('InstallerSha256 mismatch. Expected');
+    expect(wingetSubmissionHelper).toContain('Bundle SHA sidecar mismatch.');
+    expect(wingetSubmissionHelper).toContain("winget show --id ${PACKAGE_IDENTIFIER} --exact --source winget");
+    expect(wingetSubmissionHelper).toContain("## Initial Published-Source Proof");
+    expect(wingetSubmissionHelper).toContain("## Upgrade Continuity Proof");
+    expect(wingetSubmissionHelper).toContain("no longer resolves from the removed install");
+    expect(wingetSubmissionHelper).toContain("If this is the first public \\`winget\\` publication");
+    expect(wingetSubmissionHelper).toContain("<staged-submission-root-on-your-host>");
+    expect(wingetSubmissionHelper).toContain("<staged-manifest-dir-on-your-validation-host>");
+    expect(wingetSubmissionHelper).toContain('STAGED_ROOT="<set-this-to-your-staged-submission-root>"');
+    expect(wingetSubmissionHelper).toContain('$StagedRoot = "<set-this-to-your-staged-submission-root>"');
+    expect(pkg.scripts?.["release:winget:stage-submission"]).toBe("bash scripts/release/prepare-winget-pkgs-submission.sh");
+  });
+
   it("runs the canonical verify command before publishing and smoke-checks install, update, and uninstall afterwards", () => {
     expect(workflow).toContain("actions/setup-node@v6");
     expect(workflow).toContain('node-version: "20"');
@@ -80,14 +137,29 @@ describe("release contract", () => {
     expect(workflow).toContain("environment:");
     expect(workflow).toContain("name: production");
     expect(workflow).toContain("Build install bundles");
+    expect(workflow).toContain("Build winget manifests");
     expect(workflow).toContain("Upload install bundles");
+    expect(workflow).toContain("Upload winget manifests");
+    expect(workflow).toContain("Upload release winget manifests artifact");
+    expect(workflow).toContain("actions/upload-artifact@v7");
     expect(workflow).toContain("dist/install-bundles");
+    expect(workflow).toContain("dist/winget/*.zip");
     expect(workflow).toContain("Post-publish smoke installers");
     expect(workflow).toContain("install.ps1");
     expect(workflow).toContain("bash install.sh");
+    expect(workflow).toContain("Programs\\ha-nova\\ha-nova.exe");
+    expect(workflow).toContain("Expected Windows runtime at");
     expect(workflow).toContain("check-update --quiet");
     expect(workflow).toContain("update --version");
     expect(workflow).toContain("uninstall --yes");
+    expect(workflow).toContain("Start-Sleep -Milliseconds 500");
+    expect(workflow).toContain("uninstall-status.json");
+    expect(workflow).toContain("Windows uninstall did not complete cleanly");
+    expect(workflow).toContain("Download release winget manifests");
+    expect(workflow).toContain("actions/download-artifact@v8");
+    expect(workflow).toContain("Validate Windows winget manifest");
+    expect(workflow).toContain("winget validate --manifest $manifestDir");
+    expect(workflow).toContain("winget validate emitted warnings");
   });
 
   it("keeps release signing policy consistent with the active workflow", () => {
@@ -128,19 +200,37 @@ describe("release contract", () => {
     expect(rcWorkflow).toContain(expectedGoreleaserActionRef);
     expect(rcWorkflow).toContain("args: build --snapshot --clean");
     expect(rcWorkflow).toContain("Build install bundles");
+    expect(rcWorkflow).toContain("Build winget manifests");
+    expect(rcWorkflow).toContain("bash scripts/release/build-winget-manifest.sh");
+    expect(rcWorkflow).toContain('"${GITHUB_REPOSITORY}"');
+    expect(rcWorkflow).toContain('"${VERSION_TAG}"');
     expect(rcWorkflow).toContain('bash scripts/release/build-install-bundle.sh "${VERSION_TAG#v}"');
     expect(rcWorkflow).toContain("Build install bundles");
     expect(rcWorkflow).toContain("Upload RC artifacts");
+    expect(rcWorkflow).toContain("Upload RC winget manifests");
+    expect(rcWorkflow).toContain("Download RC winget manifests");
+    expect(rcWorkflow).toContain("dist/winget/manifests/**");
+    expect(rcWorkflow).toContain("dist/winget/*.zip");
     expect(rcWorkflow).toContain("Smoke bundles");
     expect(rcWorkflow).toContain("version_tag must match vX.Y.Z-rcN");
     expect(rcWorkflow).toContain("actions/upload-artifact@v7");
     expect(rcWorkflow).toContain("actions/download-artifact@v8");
     expect(rcWorkflow).toContain("gh release create");
     expect(rcWorkflow).toContain("--prerelease");
-    expect(rcWorkflow).toContain('install_ref="${GITHUB_REF_NAME}"');
+    expect(rcWorkflow).toContain("assets=(dist/install-bundles/* dist/winget/*.zip dist/winget/*.sha256)");
+    expect(rcWorkflow).toContain('install_ref="${GITHUB_SHA}"');
+    expect(rcWorkflow).not.toContain('install_ref="${GITHUB_REF_NAME}"');
     expect(rcWorkflow).toContain("raw.githubusercontent.com/markusleben/ha-nova/");
     expect(rcWorkflow).toContain("install.sh | HA_NOVA_VERSION=");
     expect(rcWorkflow).toContain("install.ps1");
+    expect(rcWorkflow).toContain("Public Windows path is still install.ps1 until the winget package is published and proven on a fresh Windows VM.");
+    expect(rcWorkflow).toContain("Default ha-nova uninstall is standard remove; use ha-nova uninstall --purge for a full local wipe.");
+    expect(rcWorkflow).toContain("Canonical Windows HA NOVA paths are %APPDATA%\\\\ha-nova and %LOCALAPPDATA%\\\\ha-nova\\\\cache.");
+    expect(rcWorkflow).toContain("Keep exactly one Windows install channel per machine.");
+    expect(rcWorkflow).toContain("submit the attached winget artifact, wait for public source visibility, then run the published-source winget smoke");
+    expect(rcWorkflow).toContain("Validate Windows winget manifest");
+    expect(rcWorkflow).toContain("winget validate --manifest $manifestDir");
+    expect(rcWorkflow).toContain("winget validate emitted warnings");
     expect(rcWorkflow).not.toContain("goreleaser release");
   });
 
@@ -166,7 +256,53 @@ describe("release contract", () => {
     expect(releasing).toContain("if `required reviewers` is configured");
     expect(releasing).toContain("one direct admin collaborator");
     expect(releasing).toContain("npm run release:rc:local");
+    expect(releasing).toContain("Public Winget Handoff");
+    expect(releasing).toContain("npm run release:winget:stage-submission");
+    expect(releasing).toContain("prepare-winget-pkgs-submission.sh");
+    expect(releasing).toContain("already-built local release artifact");
+    expect(releasing).toContain("dist/winget/ha-nova-winget-manifest-<tag>.zip");
+    expect(releasing).toContain("winget-pkgs-maintainer-checklist.md");
+    expect(releasing).toContain("winget-pkgs-pr-body.md");
+    expect(releasing).toContain("winget-pkgs-copy-path.txt");
+    expect(releasing).toContain("winget-pkgs-gh-commands.md");
     expect(releasing).toContain("only Claude currently has the extra automatic SessionStart update banner");
+    expect(releasing).toContain("Keep `.goreleaser.yml` and RC notes in `release-candidate.yml` aligned");
+    expect(releasing).toContain("RC is the pre-publish gate");
+    expect(releasing).toContain("`release.yml` smoke runs after publish");
+    expect(releasing).toContain("winget validate --manifest <dir>` on Windows and require a warning-free success result");
+    expect(releasing).toContain("winget show --id markusleben.ha-nova --exact --source winget");
+    expect(releasing).toContain("do not use the local harness");
+    expect(releasing).toContain("initial fresh-VM published-source install/check-update/uninstall proof");
+    expect(releasing).toContain("Treat public `winget upgrade` as a second proof lane");
+    expect(releasing).toContain("previous published `markusleben.ha-nova` version installed");
+    expect(releasing).toContain("keep release-note/doc wording conservative about public `winget upgrade` until that continuity proof exists");
+    expect(releasing).toContain("run the same flow only if Secret Service is available");
+    expect(releasing).toContain("if not live-tested, do not call the release fully verified on Linux");
+    expect(releasing).toContain("CI smoke alone does not upgrade Linux to full real-machine validation");
+    expect(releasing).toContain("Do not switch public Windows docs to `winget` until the actual manifest/release publication is live and the initial fresh-VM published-source proof has passed");
+    expect(releasing).toContain("install.ps1`-based until the `winget` manifest is published and proven on a fresh Windows VM");
+    expect(releasing).toContain("Do this from the exact commit SHA or immutable tag that published the prerelease, not from a moving branch ref and not from `main`.");
+    expect(releasing).toContain("moving branch can fetch newer installer bootstrap code against older RC assets");
+    expect(releasing).toContain("<rc-commit-or-tag>");
+    expect(releasing).toContain("verify `check-update`, `update`, `uninstall --yes`, `uninstall --yes --purge`, and direct `winget uninstall` never guess silently which channel to mutate");
+    expect(releasing).not.toContain("`ha-nova uninstall` must remove only the current Go install");
+    expect(releasing).toContain("Windows uninstall continues in the background and that it is safe to close the terminal");
+    expect(releasing).toContain("if you force a helper failure during validation, confirm `ha-nova doctor` blocks with the exact recovery command");
+    expect(releasing).toContain("warning-free Windows `winget validate`");
+    expect(releasing).toContain("polls until `%LOCALAPPDATA%\\\\Programs\\\\ha-nova` is gone and `%LOCALAPPDATA%\\\\ha-nova\\\\uninstall-status.json` is gone");
+    expect(releasing).toContain("audit open PRs, especially Dependabot and workflow/release PRs");
+  });
+
+  it("keeps future-state winget specs distinct from the current public Windows contract", () => {
+    expect(onboardingLifecycleSpec).toContain("Future-state Windows primary distribution, after public `winget` publication + proof, is `winget`.");
+    expect(onboardingLifecycleSpec).toContain("Current public Windows entrypoint until that publication/proof remains `install.ps1`.");
+    expect(windowsDistributionUxSpec).toContain("Choose option 2 as the target architecture");
+    expect(windowsDistributionUxSpec).toContain("Until public publication + proof exists, `install.ps1` remains the current public Windows path.");
+    expect(activeContractCleanupSpec).toContain("Historical future-state docs must not be read as the current public Windows contract");
+    expect(wingetValidationCleanupSpec).toContain("Remove avoidable `winget validate` warnings");
+    expect(wingetValidationCleanupSpec).toContain("Add YAML schema headers");
+    expect(wingetValidationCleanupSpec).toContain("Drop installer fields that the current portable package shape does not support cleanly");
+    expect(wingetValidationCleanupSpec).toContain("warning-free `winget validate` as the expected pre-PR outcome");
   });
 
   it("keeps bulk release preflight separate from the host-safe verify command", () => {
@@ -269,6 +405,206 @@ describe("release contract", () => {
     expect(readFileSync(join(outputDir, "ha-nova-installer-bundle-windows-amd64.zip.sha256"), "utf8")).toContain(
       "ha-nova-installer-bundle-windows-amd64.zip"
     );
+  });
+
+  it("builds a winget manifest tree and archive from the bundled Windows asset", () => {
+    const distDir = mkdtempSync(join(tmpdir(), "ha-nova-winget-dist-"));
+    const bundleDir = join(distDir, "install-bundles");
+    const manifestRoot = join(distDir, "winget", "manifests", "m", "markusleben", "ha-nova", "0.3.0");
+
+    mkdirSync(bundleDir, { recursive: true });
+    writeFileSync(join(bundleDir, "ha-nova-installer-bundle-windows-amd64.zip"), "fake-bundle");
+    writeFileSync(
+      join(bundleDir, "ha-nova-installer-bundle-windows-amd64.zip.sha256"),
+      "4207F78DA0027952482882209CDF761C1F2846191CAE1C2D21E64693B74A0622  ha-nova-installer-bundle-windows-amd64.zip\n"
+    );
+
+    const result = spawnSync(
+      "bash",
+      ["scripts/release/build-winget-manifest.sh", "0.3.0", "markusleben/ha-nova", "v0.3.0"],
+      {
+        cwd: process.cwd(),
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          DIST_DIR: distDir,
+        },
+        timeout: 30000,
+      }
+    );
+
+    expect(result.status).toBe(0);
+    expect(readFileSync(join(manifestRoot, "markusleben.ha-nova.installer.yaml"), "utf8")).toContain(
+      "InstallerUrl: https://github.com/markusleben/ha-nova/releases/download/v0.3.0/ha-nova-installer-bundle-windows-amd64.zip"
+    );
+    expect(readFileSync(join(manifestRoot, "markusleben.ha-nova.installer.yaml"), "utf8")).toContain(
+      "# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.12.0.schema.json"
+    );
+    expect(readFileSync(join(manifestRoot, "markusleben.ha-nova.installer.yaml"), "utf8")).toContain(
+      "RelativeFilePath: ha-nova/ha-nova.exe"
+    );
+    expect(readFileSync(join(manifestRoot, "markusleben.ha-nova.locale.en-US.yaml"), "utf8")).toContain("PackageName: HA NOVA");
+    expect(readFileSync(join(manifestRoot, "markusleben.ha-nova.locale.en-US.yaml"), "utf8")).toContain(
+      "# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.12.0.schema.json"
+    );
+    expect(readFileSync(join(manifestRoot, "markusleben.ha-nova.yaml"), "utf8")).toContain(
+      "# yaml-language-server: $schema=https://aka.ms/winget-manifest.version.1.12.0.schema.json"
+    );
+    expect(readFileSync(join(manifestRoot, "markusleben.ha-nova.installer.yaml"), "utf8")).not.toContain("Scope: user");
+    expect(readFileSync(join(distDir, "winget", "ha-nova-winget-manifest-v0.3.0.zip.sha256"), "utf8")).toContain(
+      "ha-nova-winget-manifest-v0.3.0.zip"
+    );
+  });
+
+  it("normalizes a leading v in the requested winget manifest version", () => {
+    const distDir = mkdtempSync(join(tmpdir(), "ha-nova-winget-version-"));
+    const bundleDir = join(distDir, "install-bundles");
+    const manifestRoot = join(distDir, "winget", "manifests", "m", "markusleben", "ha-nova", "0.3.0");
+
+    mkdirSync(bundleDir, { recursive: true });
+    writeFileSync(join(bundleDir, "ha-nova-installer-bundle-windows-amd64.zip"), "fake-bundle");
+    writeFileSync(
+      join(bundleDir, "ha-nova-installer-bundle-windows-amd64.zip.sha256"),
+      "4207F78DA0027952482882209CDF761C1F2846191CAE1C2D21E64693B74A0622  ha-nova-installer-bundle-windows-amd64.zip\n"
+    );
+
+    const result = spawnSync(
+      "bash",
+      ["scripts/release/build-winget-manifest.sh", "v0.3.0", "markusleben/ha-nova"],
+      {
+        cwd: process.cwd(),
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          DIST_DIR: distDir,
+        },
+        timeout: 30000,
+      }
+    );
+
+    expect(result.status).toBe(0);
+    expect(existsSync(join(manifestRoot, "markusleben.ha-nova.installer.yaml"))).toBe(true);
+    expect(existsSync(join(distDir, "winget", "ha-nova-winget-manifest-v0.3.0.zip"))).toBe(true);
+    expect(existsSync(join(distDir, "winget", "ha-nova-winget-manifest-vv0.3.0.zip"))).toBe(false);
+    expect(readFileSync(join(manifestRoot, "markusleben.ha-nova.installer.yaml"), "utf8")).toContain("PackageVersion: 0.3.0");
+  });
+
+  it("fails winget manifest generation when the Windows bundle sha sidecar does not match the bundle bytes", () => {
+    const distDir = mkdtempSync(join(tmpdir(), "ha-nova-winget-sha-"));
+    const bundleDir = join(distDir, "install-bundles");
+
+    mkdirSync(bundleDir, { recursive: true });
+    writeFileSync(join(bundleDir, "ha-nova-installer-bundle-windows-amd64.zip"), "fake-bundle");
+    writeFileSync(
+      join(bundleDir, "ha-nova-installer-bundle-windows-amd64.zip.sha256"),
+      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA  ha-nova-installer-bundle-windows-amd64.zip\n"
+    );
+
+    const result = spawnSync(
+      "bash",
+      ["scripts/release/build-winget-manifest.sh", "0.3.0", "markusleben/ha-nova", "v0.3.0"],
+      {
+        cwd: process.cwd(),
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          DIST_DIR: distDir,
+        },
+        timeout: 30000,
+      }
+    );
+
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("Bundle SHA sidecar mismatch");
+  });
+
+  it("stages a winget maintainer checklist and PR body next to the staged submission payload", () => {
+    const distDir = mkdtempSync(join(tmpdir(), "ha-nova-winget-stage-"));
+    const bundleDir = join(distDir, "install-bundles");
+    const manifestRoot = join(distDir, "winget", "manifests", "m", "markusleben", "ha-nova", "0.3.0");
+
+    mkdirSync(bundleDir, { recursive: true });
+    writeFileSync(join(bundleDir, "ha-nova-installer-bundle-windows-amd64.zip"), "fake-bundle");
+    writeFileSync(
+      join(bundleDir, "ha-nova-installer-bundle-windows-amd64.zip.sha256"),
+      "4207F78DA0027952482882209CDF761C1F2846191CAE1C2D21E64693B74A0622  ha-nova-installer-bundle-windows-amd64.zip\n"
+    );
+
+    const buildResult = spawnSync(
+      "bash",
+      ["scripts/release/build-winget-manifest.sh", "0.3.0", "markusleben/ha-nova", "v0.3.0"],
+      {
+        cwd: process.cwd(),
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          DIST_DIR: distDir,
+        },
+        timeout: 30000,
+      }
+    );
+    expect(buildResult.status).toBe(0);
+
+    const stageResult = spawnSync(
+      "bash",
+      ["scripts/release/prepare-winget-pkgs-submission.sh", "0.3.0", "markusleben/ha-nova", "v0.3.0"],
+      {
+        cwd: process.cwd(),
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          DIST_DIR: distDir,
+          FORK_REPO: "alt-user/winget-pkgs",
+        },
+        timeout: 30000,
+      }
+    );
+
+    const stageRoot = join(distDir, "winget", "submission", "markusleben.ha-nova", "0.3.0");
+    const checklist = join(stageRoot, "winget-pkgs-maintainer-checklist.md");
+    const prBody = join(stageRoot, "winget-pkgs-pr-body.md");
+    const copyPath = join(stageRoot, "winget-pkgs-copy-path.txt");
+    const commands = join(stageRoot, "winget-pkgs-gh-commands.md");
+
+    expect(stageResult.status).toBe(0);
+    expect(readFileSync(copyPath, "utf8")).toContain("manifests/m/markusleben/ha-nova/0.3.0");
+    expect(readFileSync(prBody, "utf8")).toContain("Add markusleben.ha-nova version 0.3.0");
+    expect(readFileSync(prBody, "utf8")).toContain("Source installer URL: https://github.com/markusleben/ha-nova/releases/download/v0.3.0/ha-nova-installer-bundle-windows-amd64.zip");
+    const checklistContents = readFileSync(checklist, "utf8");
+    const prBodyContents = readFileSync(prBody, "utf8");
+    const commandsContents = readFileSync(commands, "utf8");
+
+    expect(prBodyContents).toContain("- [ ] `winget validate --manifest");
+    expect(prBodyContents).toContain("completed on Windows without warnings");
+    expect(prBodyContents).toContain("- [ ] Initial published-source install/check-update/uninstall smoke will run after merge/publication");
+    expect(checklistContents).toContain("## Initial Published-Source Proof");
+    expect(checklistContents).toContain("## Upgrade Continuity Proof");
+    expect(checklistContents).toContain("`ha-nova check-update`");
+    expect(checklistContents).toContain("confirm `ha-nova` no longer resolves");
+    expect(checklistContents).toContain("do not enable or rely on `LocalManifestFiles`");
+    expect(checklistContents).toContain("first public `winget` publication");
+    expect(checklistContents).toContain("<staged-submission-root-on-your-host>/manifests/m/markusleben/ha-nova/0.3.0");
+    expect(checklistContents).not.toContain(stageRoot);
+    expect(commandsContents).toContain('STAGED_ROOT="<set-this-to-your-staged-submission-root>"');
+    expect(commandsContents).toContain('$StagedRoot = "<set-this-to-your-staged-submission-root>"');
+    expect(commandsContents).toContain('PR_BODY="$STAGED_ROOT/winget-pkgs-pr-body.md"');
+    expect(commandsContents).not.toContain(stageRoot);
+    expect(commandsContents).toContain("gh repo clone alt-user/winget-pkgs");
+    expect(commandsContents).toContain("cd winget-pkgs");
+    expect(commandsContents).toContain("Copy-Item");
+    expect(commandsContents).toContain("--repo microsoft/winget-pkgs");
+    expect(commandsContents).toContain("--base master");
+    expect(commandsContents).toContain("--head alt-user:ha-nova-0.3.0");
+    expect(stageResult.stdout).toContain('winget validate --manifest "<staged-manifest-dir-on-your-validation-host>"');
+    expect(stageResult.stdout).toContain("same-host default from this checkout:");
+    expect(stageResult.stdout).toContain("require a warning-free success result before opening any PR");
+    expect(stageResult.stdout).toContain("winget show --id markusleben.ha-nova --exact --source winget");
+    expect(stageResult.stdout).toContain("<staged-submission-root-on-your-pr-host>/winget-pkgs-pr-body.md");
+    expect(stageResult.stdout).toContain("<staged-submission-root-on-your-pr-host>/winget-pkgs-gh-commands.md");
+    expect(stageResult.stdout).not.toContain(`body: ${stageRoot}`);
+    expect(stageResult.stdout).not.toContain(`commands: ${stageRoot}`);
+    expect(stageResult.stdout).toContain("Generated helper files:");
+    expect(stageResult.stdout).toContain(`staged submission root: ${stageRoot}`);
   });
 
 

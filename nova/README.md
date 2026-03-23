@@ -12,8 +12,8 @@ to Home Assistant. All intelligence lives in Markdown skills — the relay provi
 secure, authenticated API access.
 
 - Persistent WebSocket connection
-- macOS Keychain token isolation
-- Zero business logic (~1.5K LOC)
+- OS-backed credential storage on supported platforms
+- Lean relay surface; product logic lives in Markdown skills
 
 [![Full documentation →][docs-shield]][docs]
 

@@ -8,19 +8,14 @@ describe("safe test system contract", () => {
   };
   const platform = readFileSync("cli/platform.go", "utf8");
   const keyringService = readFileSync("cli/keyring_service.go", "utf8");
-  const macPlatform = readFileSync("scripts/onboarding/platform/macos.sh", "utf8");
-  const windowsPlatform = readFileSync("scripts/onboarding/platform/windows.sh", "utf8");
   const helpers = readFileSync("tests/onboarding/_helpers.ts", "utf8");
   const contributing = readFileSync("CONTRIBUTING.md", "utf8");
   const releasing = readFileSync("docs/releasing.md", "utf8");
 
   it("keeps npm test and verify host-safe", () => {
-    expect(pkg.scripts?.["test:safe"]).toContain("--exclude tests/onboarding/macos-onboarding-script-contract.test.ts");
-    expect(pkg.scripts?.["test:safe"]).toContain("--exclude tests/onboarding/setup-fresh-install.test.ts");
-    expect(pkg.scripts?.["test:safe"]).toContain("--exclude tests/onboarding/setup-resume.test.ts");
-    expect(pkg.scripts?.["test:safe"]).toContain("--exclude tests/onboarding/setup-relay-failures.test.ts");
+    expect(pkg.scripts?.["test:safe"]).toBe("vitest run");
     expect(pkg.scripts?.test).toBe("npm run test:safe");
-    expect(pkg.scripts?.["test:watch"]).toContain("--exclude tests/onboarding/macos-onboarding-script-contract.test.ts");
+    expect(pkg.scripts?.["test:watch"]).toBe("vitest");
     expect(pkg.scripts?.verify).toBe(
       "npm run verify:release-metadata && npm run typecheck && npm run test:safe && npm run build && bash scripts/check-docs.sh && npm run test:cli"
     );
@@ -33,11 +28,9 @@ describe("safe test system contract", () => {
     expect(pkg.scripts?.["test:desktop:windows:rdp"]).toContain("windows-desktop-setup.ps1");
   });
 
-  it("supports a shared no-browser guard in Go and shell helpers", () => {
+  it("keeps the Go runtime no-browser guard for setup flows", () => {
     expect(platform).toContain('os.Getenv("HA_NOVA_NO_BROWSER") == "1"');
     expect(platform).toContain("clipboard disabled");
-    expect(macPlatform).toContain('HA_NOVA_NO_BROWSER');
-    expect(windowsPlatform).toContain('HA_NOVA_NO_BROWSER');
   });
 
   it("supports a file-based test keyring override", () => {
@@ -55,8 +48,6 @@ describe("safe test system contract", () => {
     expect(contributing).toContain("test:desktop:macos");
     expect(contributing).toContain("test:desktop:windows:headless");
     expect(contributing).toContain("test:desktop:windows:rdp");
-    expect(contributing).toContain("dev:legacy:onboarding:macos");
-    expect(contributing).toContain("host-touching");
     expect(contributing).toContain("start-local-validation-harness");
     expect(contributing).toContain("dev:validation:harness");
     expect(contributing).toContain("pkill -f");
@@ -64,7 +55,6 @@ describe("safe test system contract", () => {
     expect(releasing).toContain("test:desktop:macos");
     expect(releasing).toContain("test:desktop:windows:headless");
     expect(releasing).toContain("test:desktop:windows:rdp");
-    expect(releasing).toContain("dev:legacy:onboarding:macos");
     expect(releasing).toContain("start-local-validation-harness");
     expect(releasing).toContain("dev:validation:harness");
     expect(releasing).toContain("pkill -f");

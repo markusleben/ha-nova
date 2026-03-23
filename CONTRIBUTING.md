@@ -36,18 +36,24 @@ Windows validation stays script-first in the VM:
 - desktop/RDP: `npm run test:desktop:windows:rdp`
 - set `HA_NOVA_BUNDLE_URL` and `HA_NOVA_BUNDLE_SHA256_URL` first
 - optional for RDP: set `HA_NOVA_CLIENT=claude|codex|opencode|gemini`
+- for release-bound Windows work, use `scripts/dev/windows-clean-test-state.ps1` first and follow the private RC checklist in `docs/releasing.md`
 
-Legacy macOS shell onboarding helpers still exist for historical debugging only:
-- `npm run dev:legacy:onboarding:macos`
-- `npm run dev:legacy:onboarding:macos:doctor`
-- `npm run dev:legacy:onboarding:macos:ready`
-- `npm run dev:legacy:onboarding:macos:quick`
-- They are host-touching and not part of the host-safe validation path.
+Repo-dev refresh stays separate from product installs:
+- `npm run dev:sync`
+- `npm run dev:install:codex-skill`
+- `npm run dev:install:claude-skill`
+- `npm run dev:install:opencode-skill`
+- `npm run dev:install:gemini-skill`
+- `npm run dev:install:skills`
+
+Preferred contributor flow:
+- use `npm run dev:install:*` when you need a fresh local skill install for one client
+- use `npm run dev:sync` when you already have a repo-local install and just need the latest repo state pushed into those local client caches/wrappers
 
 Emergency macOS cleanup if a desktop helper was interrupted:
 
 ```bash
-pkill -f 'npm run dev:validation:harness|start-local-validation-harness\\.sh|http\\.server 8917|vitest|macos-setup\\.sh|mock-ha-relay\\.py|ha-nova setup' || true
+pkill -f 'npm run dev:validation:harness|start-local-validation-harness\\.sh|http\\.server 8917|vitest|mock-ha-relay\\.py|ha-nova setup' || true
 ```
 
 If you are only touching the Go runtime, the minimum fast path is:
@@ -147,6 +153,9 @@ Follow the reporting guidance in `SECURITY.md`.
 
 ## 🛠️ Dev Helpers
 
-Shell onboarding helpers under `scripts/onboarding/` still exist for repo-dev and test harness support.
+The only remaining `scripts/onboarding/` files are repo-dev helpers:
+- `scripts/onboarding/install-local-skills.sh`
+- `scripts/onboarding/bin/ha-nova`
+
 They are not part of the supported end-user product contract.
 They are also not part of the default host-safe verification gate.

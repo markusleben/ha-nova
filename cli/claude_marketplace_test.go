@@ -54,6 +54,40 @@ func TestInstallClaudePluginRefreshesMatchingMarketplaceWhenGitHubMarketplaceAlr
 	}
 }
 
+func TestInstallClaudePluginAcceptsBOMPrefixedMarketplaceRegistry(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+
+	if err := os.MkdirAll(filepath.Join(home, ".claude", "plugins"), 0o755); err != nil {
+		t.Fatalf("mkdir plugins: %v", err)
+	}
+	data := append([]byte{0xEF, 0xBB, 0xBF}, []byte(`{"ha-nova":{"source":"https://github.com/markusleben/ha-nova"}}`)...)
+	if err := os.WriteFile(filepath.Join(home, ".claude", "plugins", "known_marketplaces.json"), data, 0o644); err != nil {
+		t.Fatalf("write known marketplaces: %v", err)
+	}
+
+	logPath := filepath.Join(home, "claude.log")
+	t.Setenv("PATH", installClaudeMarketplaceMock(t, logPath, "")+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	writeClaudeMarketplaceFixture(t, paths.InstallRoot)
+	if err := installClaudePlugin(paths, paths.InstallRoot); err != nil {
+		t.Fatalf("installClaudePlugin() error: %v", err)
+	}
+
+	logData, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatalf("read log: %v", err)
+	}
+	if !strings.Contains(string(logData), "plugin marketplace update ha-nova") {
+		t.Fatalf("expected marketplace update for BOM-prefixed registry, got:\n%s", string(logData))
+	}
+}
+
 func TestInstallClaudePluginAcceptsStructuredGitHubMarketplaceSource(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

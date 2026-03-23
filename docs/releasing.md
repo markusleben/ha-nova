@@ -157,6 +157,8 @@ Rules:
 - If there is nothing users need to do, omit `What To Watch` entirely.
 - If there are breaking changes, put them under `What To Watch` in plain language first. Technical detail can follow in one short bullet if needed.
 - Call out client-specific behavior only when it matters to users. Example: only Claude currently has the extra automatic SessionStart update banner.
+- For onboarding/lifecycle releases, explicitly call out uninstall mode changes, Windows path migrations, and whether `winget` is publicly available yet or only internal groundwork.
+- Keep `.goreleaser.yml` and RC notes in `release-candidate.yml` aligned on the same lifecycle truth; do not let final and prerelease notes drift.
 
 Suggested template:
 
@@ -207,6 +209,7 @@ It must complete:
 - `npm run verify`
 - `goreleaser build --snapshot --clean`
 - `./scripts/release/build-install-bundle.sh`
+- `./scripts/release/build-winget-manifest.sh`
 - bundle smoke on `ubuntu-latest`, `macos-latest`, `windows-latest`
 
 Optional public RC path:
@@ -222,11 +225,16 @@ What the GitHub RC proves:
 - the release page keeps installers as the supported user path instead of suggesting direct bundle execution
 - the release body keeps the fixed user-facing note structure instead of falling back to a flat commit dump
 - release metadata stays version-synced; if `version_tag` is provided, its base version must match `version.json`
+- the `winget` handoff manifest is regenerated from the same tagged Windows bundle payload
 
 What the GitHub RC does not prove:
 - the public installer path
 - real update/uninstall against published release assets
 - manual client setup on real machines
+
+Important gate rule:
+- RC is the pre-publish gate
+- `release.yml` smoke runs after publish and is only a safety net, not the release approval step
 
 When `publish_release=true`, the RC workflow becomes the bridge to the public installer path by publishing the bundle assets as a prerelease.
 It still does not auto-run the real public installer smoke; that final check remains manual on real machines by design.
@@ -241,6 +249,58 @@ If not available, use the GitHub RC workflow instead.
 ```bash
 npm run release:rc:local
 ```
+
+## Public Winget Handoff
+
+The generated `ha-nova-winget-manifest-<tag>.zip` is the handoff artifact for `microsoft/winget-pkgs`.
+Local staging expects that `dist/winget/ha-nova-winget-manifest-<tag>.zip` already exists from a prior local build, RC artifact download, or release artifact sync.
+
+Stage the exact submission payload from an already-built local release artifact:
+
+```bash
+npm run release:winget:stage-submission
+```
+
+Or for a specific version/tag:
+
+```bash
+bash scripts/release/prepare-winget-pkgs-submission.sh 0.3.0 markusleben/ha-nova v0.3.0
+```
+
+That helper:
+- unpacks the exact generated manifest ZIP into `dist/winget/submission/...`
+- verifies the staged `InstallerUrl` points at the published GitHub release bundle, not a local harness override
+- verifies the manifest `InstallerSha256` matches the actual Windows bundle bytes and any local `.sha256` sidecar
+- writes a staged maintainer checklist, PR body, and upstream copy path next to the submission payload
+- writes a bash + PowerShell PR command guide that stays usable even when Windows validation and PR creation happen on different hosts
+- prints the exact next steps for warning-free `winget validate`, `winget-pkgs` PR creation, and the final fresh-VM public-source smoke
+
+Generated helper artifacts:
+- `dist/winget/submission/<package>/<version>/winget-pkgs-maintainer-checklist.md`
+- `dist/winget/submission/<package>/<version>/winget-pkgs-pr-body.md`
+- `dist/winget/submission/<package>/<version>/winget-pkgs-copy-path.txt`
+- `dist/winget/submission/<package>/<version>/winget-pkgs-gh-commands.md`
+
+Use them as the source of truth for the actual maintainer submission step instead of reconstructing the PR by hand.
+The commands file should be treated as the source of truth for the real fork/branch/commit/push/PR step after Windows validation succeeds, with separate bash and PowerShell variants plus an explicit staged-root placeholder for cross-host handoffs.
+
+Required sequence before any public doc flip:
+1. stage the manifest payload from the release ZIP
+2. run `winget validate --manifest <dir>` on Windows and require a warning-free success result
+3. open and merge the `winget-pkgs` PR
+4. wait until `winget show --id markusleben.ha-nova --exact --source winget` shows the expected published version
+5. run the initial fresh-VM published-source install/check-update/uninstall proof
+6. only then switch public docs and release-note wording to `winget` as the primary Windows path
+
+Do not switch public Windows install docs to `winget install` until the exact staged manifest has been submitted, merged, and proven on a fresh Windows machine with:
+- `winget install --id markusleben.ha-nova --exact`
+- `ha-nova check-update`
+- `winget uninstall --id markusleben.ha-nova --exact`
+
+Treat public `winget upgrade` as a second proof lane:
+- validate it from a separate Windows snapshot that already has the previous published `markusleben.ha-nova` version installed
+- if this is the first public `winget` publication and no older public version exists yet, record upgrade continuity as pending and re-run it on the next published `winget` release
+- keep release-note/doc wording conservative about public `winget upgrade` until that continuity proof exists
 
 ### 3. Fresh Install Smoke Matrix
 
@@ -260,32 +320,58 @@ npm run release:rc:local
   - `ha-nova relay version`
   - `ha-nova update --version <same-version>`
   - `ha-nova uninstall --yes`
-  - then poll `Test-Path $HOME\.local\share\ha-nova` for a few seconds until it flips to `False`; Windows uninstall finalizes via a short-lived helper
+  - confirm this standard remove keeps local config/token state by design
+  - confirm the CLI says Windows uninstall continues in the background and that it is safe to close the terminal
+  - then poll `Test-Path "$env:LOCALAPPDATA\\Programs\\ha-nova"` for a few seconds until it flips to `False`; Windows uninstall finalizes via a short-lived helper
+  - if you force a helper failure during validation, confirm `ha-nova doctor` blocks with the exact recovery command and rerunning that command clears the marker
+  - on a separate fresh snapshot, also verify `ha-nova uninstall --yes --purge`
+  - after purge, confirm `%APPDATA%\\ha-nova` and `%LOCALAPPDATA%\\ha-nova\\cache` are gone
 - Linux:
   - run the same flow only if Secret Service is available
   - if not live-tested, do not call the release fully verified on Linux
 
 GitHub RC smoke covers the built bundles directly.
-The tagged `Release` workflow later covers the public installer path plus `check-update`, same-version `update`, and `uninstall` against published assets.
+The tagged `Release` workflow later covers the public installer path plus `check-update`, same-version `update`, warning-free Windows `winget validate`, and `uninstall` against published assets.
+For Windows, treat that final workflow as complete only after it polls until `%LOCALAPPDATA%\\Programs\\ha-nova` is gone and `%LOCALAPPDATA%\\ha-nova\\uninstall-status.json` is gone; the detached helper can finish a few seconds after the foreground command returns.
 This manual matrix exists to cover real machines before public publish.
+
+Current Windows release reality:
+- public Windows installer smoke is still `install.ps1`-based until the `winget` manifest is published and proven on a fresh Windows VM
+- every tag now also builds a `ha-nova-winget-manifest-<tag>.zip` handoff artifact from the Windows installer bundle
+- upload that manifest asset with the release and treat it as the source of truth for any later `winget-pkgs` submission
+- do not advertise `winget install` / `winget upgrade` in release notes before publication plus fresh-VM proof exists
+- if you are validating a private or future `winget` lane, treat it as an extra explicit source-aware test path, not as the current public contract
+- if mixed bundle + `winget` installs are detected, verify that `ha-nova check-update` warns and `ha-nova update` fails loud instead of guessing the target channel
+- current GitHub RC/final smoke still proves only the bundle lane; source-aware `winget` / mixed-channel behavior is a private Windows RC blocker until the public package is published and proven
+
+Published-source proof rules:
+- use a fresh Windows VM
+- do not use the local harness
+- do not use a local manifest path
+- do not set `HA_NOVA_BUNDLE_URL`, `HA_NOVA_BUNDLE_SHA256_URL`, or `HA_NOVA_VERSION`
+- do not enable or rely on `LocalManifestFiles` for this proof
+- prove package visibility first with `winget show --id markusleben.ha-nova --exact --source winget`
+- for the initial public-launch proof, run `winget install`, then `ha-nova check-update`, then `winget uninstall`
+- for upgrade continuity, use a separate snapshot with the previous published version already installed before running `winget upgrade`
 
 ### Public RC Installer Test
 
 After publishing an RC prerelease like `v0.1.13-rc1`, test the real installer path with a fresh `HOME`.
-Do this from the RC branch/ref that published the prerelease, not from `main`.
-Reason: `main` must not point at a new installer contract before the matching public release exists.
+Do this from the exact commit SHA or immutable tag that published the prerelease, not from a moving branch ref and not from `main`.
+Reason: a moving branch can fetch newer installer bootstrap code against older RC assets and produce a false green prerelease signal.
 
 macOS / Linux:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/<rc-branch>/install.sh | HA_NOVA_VERSION=v0.1.13-rc1 bash
+curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/<rc-commit-or-tag>/install.sh | HA_NOVA_VERSION=v0.1.13-rc1 bash
 ```
 
 Windows:
 
 ```powershell
 $env:HA_NOVA_VERSION = 'v0.1.13-rc1'
-irm https://raw.githubusercontent.com/markusleben/ha-nova/<rc-branch>/install.ps1 | iex
+$ProgressPreference = 'SilentlyContinue'
+irm https://raw.githubusercontent.com/markusleben/ha-nova/<rc-commit-or-tag>/install.ps1 | iex
 ```
 
 This is the first public-path check that proves the one-liner can actually fetch the published bundle assets.
@@ -295,7 +381,7 @@ This is the first public-path check that proves the one-liner can actually fetch
 Safest path before any public release:
 - do not merge to `main`
 - do not create a public prerelease
-- build local/private bundles and point the installers at them explicitly
+- build local/private bundles and the matching local `winget` handoff manifest, then point the installers at the bundle explicitly
 
 Example with a local bundle server from the repo checkout:
 
@@ -326,10 +412,31 @@ $env:HA_NOVA_CLAUDE_MARKETPLACE_LOCAL = '1'
 $env:HA_NOVA_BUNDLE_URL = 'http://<host>:8917/ha-nova-installer-bundle-windows-amd64.zip'
 $env:HA_NOVA_BUNDLE_SHA256_URL = 'http://<host>:8917/ha-nova-installer-bundle-windows-amd64.zip.sha256'
 $env:HA_NOVA_NO_SETUP = '1'
+$ProgressPreference = 'SilentlyContinue'
 powershell -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
 For override-based tests, installer version comes from `bundle.json`. `HA_NOVA_VERSION` is optional and acts only as an extra expected-version assertion.
+
+### Windows Private RC Checklist
+
+Run this before any Windows installer/update release is called ready:
+
+1. Reset the VM or snapshot to a clean state.
+   Start with `scripts/dev/windows-clean-test-state.ps1`.
+2. Run the bundle lane on a clean machine.
+   Use `install.ps1`, complete setup, run `ha-nova version`, `ha-nova doctor`, `ha-nova check-update`, and `ha-nova update --version <same-version>`.
+3. Prove clean update behavior with an older bundle.
+   Install an older private/public RC bundle first, then update to the current candidate and verify client sync completes afterward.
+4. Verify uninstall semantics.
+   Run `ha-nova uninstall --yes`, confirm config/token retention by design, confirm the CLI says background uninstall is safe to close, then wait until `%LOCALAPPDATA%\\Programs\\ha-nova` plus `%LOCALAPPDATA%\\ha-nova\\uninstall-status.json` are both gone. On a separate snapshot run `ha-nova uninstall --yes --purge` and confirm `%APPDATA%\\ha-nova` plus `%LOCALAPPDATA%\\ha-nova\\cache` are gone.
+   Also force one helper-failure path during validation and confirm `ha-nova doctor` blocks with the exact recovery command until rerunning that command clears the marker.
+5. Rehearse the future `winget` lane deliberately, if available.
+   Verify `install.ps1` refuses to create a second Windows channel on top of an existing `winget` install, and verify mixed-channel states warn on `check-update` and fail loud on `update`.
+6. Rehearse both mixed-channel directions if available.
+   Test bundle-active-plus-winget-present and winget-active-plus-bundle-present. For both, verify `check-update`, `update`, `uninstall --yes`, `uninstall --yes --purge`, and direct `winget uninstall` never guess silently which channel to mutate.
+7. Run the Windows Claude cache regression explicitly.
+   Seed both known stale Claude cache layouts, run install or update with `HA_NOVA_CLAUDE_MARKETPLACE_LOCAL=1`, then prove Claude is using the freshly staged payload rather than a cached older plugin copy.
 
 ### Desktop Validation Helpers
 
@@ -361,7 +468,7 @@ For manual real-machine validation, prefer:
 npm run dev:validation:harness
 ```
 
-That helper rebuilds fresh local bundles by default, serves the repo root on `:8917` so both `install.ps1` and `dist/install-bundles/*` are reachable, prints copy/paste install commands for macOS and Windows, and can also start the tiny HA + fake relay `/health` mock with `--with-mock`.
+That helper rebuilds fresh local bundles by default, rebuilds the local Windows manifest ZIP so it points at the live local bundle URL, serves the repo root on `:8917` so both `install.ps1`, `dist/install-bundles/*`, and `dist/winget/*.zip` are reachable, prints copy/paste install commands for macOS plus both Windows paths (`install.ps1` and local `winget --manifest`), and can also start the tiny HA + fake relay `/health` mock with `--with-mock`.
 The printed local commands also set `HA_NOVA_CLAUDE_MARKETPLACE_LOCAL=1` so Claude validation uses the freshly built local payload instead of the GitHub marketplace source.
 Do not start an extra manual `http.server` on `:8917` next to these helpers; they either start their own server or the harness does it for you.
 
@@ -381,12 +488,13 @@ The desktop runner now treats failed `setup`, failed `doctor`, failed same-versi
 Default `npm run verify` intentionally does not execute any of these desktop lanes.
 The helper runners isolate token storage with `HA_NOVA_TEST_KEYRING_FILE` on macOS and `HA_NOVA_KEYRING_SERVICE` on Windows.
 The file override is intentionally guarded behind `HA_NOVA_ALLOW_INSECURE_TEST_KEYRING=1` so a leaked path env var alone cannot silently downgrade real secure storage.
-Older `dev:legacy:onboarding:macos*` npm scripts remain only for historical shell debugging and are not part of the safe validation lane.
+The removed legacy macOS shell onboarding scripts are no longer part of the safe validation lane.
+For Windows release sign-off, treat the checklist above as the truth: the npm helper lanes are convenience wrappers, not the release decision by themselves.
 
 Emergency macOS cleanup if a desktop helper was interrupted:
 
 ```bash
-pkill -f 'npm run dev:validation:harness|start-local-validation-harness\\.sh|http\\.server 8917|vitest|macos-setup\\.sh|mock-ha-relay\\.py|ha-nova setup' || true
+pkill -f 'npm run dev:validation:harness|start-local-validation-harness\\.sh|http\\.server 8917|vitest|mock-ha-relay\\.py|ha-nova setup' || true
 ```
 
 ### 4. Recovery Matrix
@@ -399,7 +507,10 @@ pkill -f 'npm run dev:validation:harness|start-local-validation-harness\\.sh|htt
   - fresh reinstall succeeds afterward
 - mixed machine:
   - `legacy-uninstall.*` must not remove a valid current Go install
-  - `ha-nova uninstall` must remove only the current Go install
+  - `ha-nova uninstall` must fail loud until the channel conflict is resolved; it must not guess which current install to mutate
+- release assets:
+  - `install.sh` / `install.ps1` stay the user-facing entrypoints until the package is live
+  - `ha-nova-winget-manifest-<tag>.zip` must point at the published Windows bundle asset, never at `install.ps1`
 
 ### 5. Client Matrix
 
@@ -424,6 +535,7 @@ Per client:
 - verify the wizard-installed skill/plugin presence
 - run one minimal real read-only command
 - verify uninstall cleanup
+- for Claude on Windows, also verify the refreshed marketplace/plugin payload is the new one after install/update so stale cache layouts cannot silently win
 
 If the install smoke intentionally skipped client setup or you are repairing a lane manually, use `ha-nova setup <client>` as the explicit recovery path.
 
@@ -443,6 +555,11 @@ Must not contain active instructions for:
 - `~/.config/ha-nova/relay`
 - `~/.config/ha-nova/update`
 
+Also check:
+- `docs/reference/skill-architecture.md`
+
+That active reference doc must not imply the removed macOS shell onboarding family still exists as current product truth.
+
 ### 7. PR / Release Notes
 
 For installer/runtime/platform releases, call out all of these explicitly:
@@ -453,6 +570,17 @@ For installer/runtime/platform releases, call out all of these explicitly:
 - Any client lanes that remain experimental on Windows
 - Existing installs update through `ha-nova check-update` / `ha-nova update`; only Claude currently has the extra automatic SessionStart update banner
 - Tell users not to download and run the release `ha-nova-installer-bundle-*.tar.gz` / `.zip` assets directly; those are installer payloads, not the supported end-user path
+- If uninstall semantics changed, say plainly whether default `ha-nova uninstall` is standard remove or full purge
+- If Windows paths changed, say plainly that `%APPDATA%\\ha-nova` / `%LOCALAPPDATA%\\ha-nova` are now canonical and legacy `~/.local` / `~/.config` data is migrated or cleaned up
+- If the release ships only the generated `winget` manifest artifact but not a live `winget` community publication yet, say that clearly and keep `install.ps1` as the documented Windows install path
+- Attach the generated `winget` manifest artifact to RC/final releases and submit that exact bundle to the public `winget-pkgs` flow before documenting `winget install` for users
+- If mixed Windows install channels are now detected, say that HA NOVA warns/fails loud until users keep only one channel
+- If `install.ps1` now refuses to install on top of an existing `winget` install, say plainly that one Windows install channel per machine is supported
+
+Before tag/release:
+- audit open PRs, especially Dependabot and workflow/release PRs, as `blocker now` vs `separate later`
+- do not pull in red or unreviewed workflow/release changes at the last minute
+- final release SHA must complete the current review cycle, including the required subagent and Codex review hygiene for release-bound changes
 
 ## Final Publish
 
@@ -466,6 +594,7 @@ Maintainer-only step:
 - only maintainers with permission to create protected `v*` tags should run this
 - if `required reviewers` is configured, final publish pauses at the `production` environment until a reviewer approves it
 - approving `production` is the explicit checkpoint to confirm the latest RC passed; the workflow does not auto-check RC status for you
+- do not treat post-publish `release.yml` smoke as the reason to publish; it is confirmation after the fact
 
 ```bash
 git add version.json package.json package-lock.json .claude-plugin/plugin.json .claude-plugin/marketplace.json
@@ -492,7 +621,9 @@ Relay is rebuilt via Docker on the HA host — no npm publish. Users update by p
 ## Post-Release
 
 - `git tag -l 'v*'` — verify tag exists
-- All clients: users run `ha-nova update` (auto-detects installed clients)
+- Bundle/dev installs: users run `ha-nova update` (auto-detects installed clients)
+- Do not switch public Windows docs to `winget` until the actual manifest/release publication is live and the initial fresh-VM published-source proof has passed
+- Keep the release-uploaded `ha-nova-winget-manifest-<tag>.zip` in sync with the tagged Windows bundle before opening any `winget-pkgs` submission
 - Claude Code users refresh via `ha-nova update` (which re-registers the local marketplace entry; private validation can still force the explicit local override)
 - Claude SessionStart will show `UPDATE AVAILABLE` to users still on the old version
 - Other clients use the same shared updater path, but do not currently inject an equivalent startup banner automatically

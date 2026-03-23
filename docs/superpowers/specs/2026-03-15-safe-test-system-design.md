@@ -1,5 +1,7 @@
 # Safe Test System Design
 
+> Historical design note: this design already landed as the current safe-default test contract. Remaining shell wrappers are dev/compat-only and are not first-class product test surfaces.
+
 ## Goal
 
 Define the smallest test architecture that keeps everyday local and CI runs safe on maintainers' machines while still proving macOS and Windows release-critical behavior before publish.

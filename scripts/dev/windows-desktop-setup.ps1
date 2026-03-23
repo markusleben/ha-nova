@@ -64,6 +64,7 @@ $env:HA_NOVA_CLAUDE_MARKETPLACE_LOCAL = "1"
 $env:HA_NOVA_NO_SETUP = "1"
 $env:HA_NOVA_NO_BROWSER = "1"
 $env:HA_NOVA_KEYRING_SERVICE = "ha-nova.test.desktop.$Client"
+$LocalAppDataDir = if ($env:LOCALAPPDATA) { $env:LOCALAPPDATA } else { Join-Path $HOME "AppData\Local" }
 
 $log = [System.Collections.Generic.List[string]]::new()
 & "$PSScriptRoot\..\..\install.ps1" | ForEach-Object { $log.Add([string]$_) }
@@ -77,7 +78,7 @@ $setupExit = $setupResult.ExitCode
 $log.Add("SETUP_EXIT:$setupExit")
 $doctorExit = -1
 $updateExit = -1
-$InstallDir = Join-Path $HOME ".local\share\ha-nova"
+$InstallDir = Join-Path $LocalAppDataDir "Programs\ha-nova"
 if ($setupExit -eq 0) {
   $doctorResult = Invoke-Cli -Arguments @("doctor")
   $doctorResult.Lines | ForEach-Object { $log.Add($_) }

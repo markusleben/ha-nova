@@ -34,6 +34,7 @@ func loadState(paths runtimePaths) (installState, error) {
 	if state.ClientInstallModes == nil {
 		state.ClientInstallModes = map[string]string{}
 	}
+	state.InstallSource = normalizeInstallSource(state.InstallSource)
 	sort.Strings(state.InstalledClients)
 	return state, nil
 }
@@ -54,6 +55,7 @@ func saveState(paths runtimePaths, state installState) error {
 	if state.ClientInstallModes == nil {
 		state.ClientInstallModes = map[string]string{}
 	}
+	state.InstallSource = normalizeInstallSource(state.InstallSource)
 	sort.Strings(state.InstalledClients)
 	if err := os.MkdirAll(filepath.Dir(paths.StateFile), 0o755); err != nil {
 		return err

@@ -1,5 +1,7 @@
 # RC Prerelease Publish Implementation Plan
 
+> Historical plan note: the RC prerelease workflow described here has already been folded into the live release automation. Read it as implementation history, not as the current release runbook.
+
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Let the existing RC workflow optionally publish bundle-based GitHub prereleases for real public installer testing.

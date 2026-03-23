@@ -12,8 +12,36 @@ windows_shell_allows_exe() {
   return 1
 }
 
+windows_localappdata_dir() {
+  local value="${LOCALAPPDATA:-}"
+  if [[ -z "${value}" ]]; then
+    if windows_shell_allows_exe; then
+      printf '%s\n' "${HOME}/AppData/Local"
+      return 0
+    fi
+    return 1
+  fi
+
+  if command -v cygpath >/dev/null 2>&1; then
+    cygpath -u "${value}"
+    return 0
+  fi
+
+  printf '%s\n' "${value}"
+}
+
 find_runtime_binary() {
-  local candidates=(
+  local candidates=()
+  local localappdata
+
+  if localappdata="$(windows_localappdata_dir)"; then
+    candidates+=(
+      "${localappdata}/Programs/ha-nova/ha-nova.exe"
+      "${localappdata}/Microsoft/WinGet/Links/ha-nova.exe"
+    )
+  fi
+
+  candidates+=(
     "${HOME}/.local/bin/ha-nova"
     "${HOME}/.local/bin/ha-nova.exe"
     "${HOME}/.local/share/ha-nova/ha-nova"
@@ -135,5 +163,5 @@ exec_repo_dev_runtime() {
 
   local binary_path
   binary_path="$(build_repo_dev_runtime)" || return 1
-  exec "${binary_path}" "$@"
+  HA_NOVA_DEV_ROOT="${REPO_ROOT}" exec "${binary_path}" "$@"
 }

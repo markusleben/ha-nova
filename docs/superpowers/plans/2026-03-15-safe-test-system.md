@@ -1,5 +1,7 @@
 # Safe Test System Implementation Plan
 
+> Historical plan note: this document describes the transition into the current safe-by-default test system. Treat old shell onboarding references as superseded implementation history.
+
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make the default local/CI test system host-safe while keeping explicit macOS and Windows desktop validation available for release proof.

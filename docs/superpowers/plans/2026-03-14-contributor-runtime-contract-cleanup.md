@@ -1,5 +1,7 @@
 # Contributor Runtime Contract Cleanup Implementation Plan
 
+> Historical plan note: the Go-first contributor/runtime cleanup from this plan has already landed. Any remaining shell wrappers are dev/compat shims, not unfinished product lifecycle work.
+
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Align contributor workflow, dev helpers, tests, and docs with the Go-first hard-cut runtime.

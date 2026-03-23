@@ -315,3 +315,46 @@ func TestApplyStagedBundleWithRollbackRestoresPreviousInstallRoot(t *testing.T) 
 		t.Fatalf("expected previous runtime restored, got %q", string(data))
 	}
 }
+
+func TestRunUpdateRejectsExplicitVersionForWingetManagedInstall(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("LOCALAPPDATA", filepath.Join(home, "AppData", "Local"))
+	t.Setenv("APPDATA", filepath.Join(home, "AppData", "Roaming"))
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+
+	state := installState{
+		SchemaVersion: stateSchemaVersion,
+		InstallSource: installSourceWinget,
+	}
+	if err := saveState(paths, state); err != nil {
+		t.Fatalf("saveState() error: %v", err)
+	}
+	wingetLink := windowsWingetLinkPath(home)
+	if err := os.MkdirAll(filepath.Dir(wingetLink), 0o755); err != nil {
+		t.Fatalf("mkdir winget link dir: %v", err)
+	}
+	if err := os.WriteFile(wingetLink, []byte("winget"), 0o755); err != nil {
+		t.Fatalf("write winget link: %v", err)
+	}
+
+	originalPlatform := channelChecksUseWindowsPlatform
+	defer func() {
+		channelChecksUseWindowsPlatform = originalPlatform
+	}()
+	channelChecksUseWindowsPlatform = func() bool { return true }
+
+	exitCode, output := captureCommandOutput(t, func() int {
+		return runUpdate(paths, []string{"--version", "0.2.2"})
+	})
+	if exitCode != 1 {
+		t.Fatalf("runUpdate() exit = %d, want 1\n%s", exitCode, output)
+	}
+	if !strings.Contains(output, "explicit --version is not supported for winget-managed installs") {
+		t.Fatalf("expected explicit-version rejection, got:\n%s", output)
+	}
+}

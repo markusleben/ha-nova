@@ -83,7 +83,7 @@ func TestFinalizeWindowsUninstallRemovesInstallAndState(t *testing.T) {
 		t.Fatalf("write cache: %v", err)
 	}
 
-	if err := finalizeWindowsUninstall(paths, &uninstallReport{}); err != nil {
+	if err := finalizeWindowsUninstall(paths, &uninstallReport{}, uninstallModeStandard, nil); err != nil {
 		t.Fatalf("finalize windows uninstall: %v", err)
 	}
 	if _, err := os.Stat(paths.InstallRoot); !isNotExist(err) {
@@ -133,7 +133,7 @@ func TestFinalizeWindowsUninstallWarnsAboutClaudeProjectMemoryArtifacts(t *testi
 	}
 
 	report := &uninstallReport{}
-	if err := finalizeWindowsUninstall(paths, report); err != nil {
+	if err := finalizeWindowsUninstall(paths, report, uninstallModeStandard, nil); err != nil {
 		t.Fatalf("finalize windows uninstall: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(projectMemoryDir, "ha-nova-skills.md")); err != nil {
@@ -183,11 +183,8 @@ func TestRunInternalUninstallPrintsFinalSuccess(t *testing.T) {
 	if !strings.Contains(output, "HA NOVA removed") {
 		t.Fatalf("expected final uninstall success output:\n%s", output)
 	}
-	if !strings.Contains(output, "If PowerShell is still waiting now, press Ctrl+C once to return to a fresh prompt.") {
-		t.Fatalf("expected final Ctrl+C guidance at the end of internal uninstall output:\n%s", output)
-	}
-	if strings.Index(output, "HA NOVA removed") > strings.Index(output, "If PowerShell is still waiting now, press Ctrl+C once to return to a fresh prompt.") {
-		t.Fatalf("expected Ctrl+C guidance after final success line:\n%s", output)
+	if strings.Contains(output, "If PowerShell is still waiting now, press Ctrl+C once to return to a fresh prompt.") {
+		t.Fatalf("did not expect old console-coupled Ctrl+C guidance:\n%s", output)
 	}
 	if cleanupPath != filepath.Join(home, "temp-helper.exe") {
 		t.Fatalf("expected helper cleanup to be scheduled, got %q", cleanupPath)
@@ -237,15 +234,25 @@ func TestRunInternalUninstallPrintsPartialRemovalDetailsWhenTokenDeleteFails(t *
 	}
 
 	exitCode, output := captureCommandOutput(t, func() int {
-		return runInternalUninstall(paths, []string{"--self-path", filepath.Join(home, "temp-helper.exe")})
+		return runInternalUninstall(paths, []string{"--self-path", filepath.Join(home, "temp-helper.exe"), "--purge"})
 	})
 	if exitCode == 0 {
 		t.Fatalf("expected internal uninstall to fail when token deletion fails:\n%s", output)
 	}
-	if !strings.Contains(output, "Removed: "+paths.InstallRoot) {
-		t.Fatalf("expected partial removal details before token deletion error:\n%s", output)
+	if strings.Contains(output, "Removed: "+paths.InstallRoot) {
+		t.Fatalf("runtime should remain until recovery can rerun uninstall:\n%s", output)
 	}
 	if !strings.Contains(output, "failed to remove relay auth token") {
 		t.Fatalf("expected relay token deletion failure in output:\n%s", output)
+	}
+	if _, err := os.Stat(paths.InstallRoot); err != nil {
+		t.Fatalf("expected install root to remain after failed helper cleanup, got %v", err)
+	}
+	marker, err := loadWindowsUninstallStatus(paths)
+	if err != nil {
+		t.Fatalf("loadWindowsUninstallStatus() error: %v", err)
+	}
+	if marker.Status != windowsUninstallStatusFailed {
+		t.Fatalf("marker status = %q, want failed", marker.Status)
 	}
 }

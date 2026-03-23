@@ -21,4 +21,10 @@ describe("dev-sync contract", () => {
     expect(content).toContain('sync_symlink_client "Codex"');
     expect(content).toContain('sync_symlink_client "OpenCode"');
   });
+
+  it("generates the version-check wrapper directly instead of copying a tracked shell shim", () => {
+    expect(content).toContain('write_repo_cli_wrapper "${config_dir}/version-check" "check-update" "--quiet"');
+    expect(content).not.toContain('scripts/version-check.sh');
+    expect(content).not.toContain('scripts/update.sh');
+  });
 });

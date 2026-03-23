@@ -128,11 +128,7 @@ func runSetup(paths runtimePaths, args []string) int {
 		return 1
 	}
 	state.Version = localVersion(paths)
-	if resolveSourceRoot(paths) == paths.InstallRoot {
-		state.InstallSource = "bundle"
-	} else {
-		state.InstallSource = "dev"
-	}
+	state.InstallSource = detectInstallSource(paths, state)
 	if err := saveStateForSetup(paths, state); err != nil {
 		rollbackSetupPersistence(
 			paths,

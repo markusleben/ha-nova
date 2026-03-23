@@ -176,9 +176,25 @@ Still excluded from `ha-nova:helper`:
 - All inline, no agents — research + web search + experimental relay calls
 - Safety: all experimental relay calls follow Write Safety by Endpoint Type guardrails (full-overwrite, field-level replace, merge, delete)
 
-## Installer Contract
+## Dev Installer Contract
 
-`scripts/onboarding/install-local-skills.sh`:
+The remaining shell-adjacent scripts are a development/compatibility surface, not a second product lifecycle.
+
+Active dev helpers:
+- `scripts/onboarding/install-local-skills.sh`
+- `scripts/onboarding/bin/ha-nova`
+- `scripts/dev-sync.sh`
+
+Rules for this helper family:
+- no end-user installer contract
+- no product lifecycle logic beyond runtime discovery and forwarding
+- no Git/network self-update flow
+- keep behavior narrow: local skill refresh, local cache refresh, runtime forwarding, or pre-Go compatibility only
+
+`scripts/onboarding/install-local-skills.sh` is the main repo-local installer helper.
+`npm run dev:sync` / `scripts/dev-sync.sh` is the canonical repo-local refresh helper once a local install already exists.
+
+It handles repo-local skill refreshes for development and validation:
 - source skill tree: `skills/` (repo-local, flat layout)
 - client-specific install strategies:
   - **Claude Code:** stages a local marketplace root under `~/.config/ha-nova/claude-marketplace`, registers it with `claude plugin marketplace add`, then installs/reinstalls `ha-nova@ha-nova`
@@ -187,6 +203,15 @@ Still excluded from `ha-nova:helper`:
   - **Gemini CLI:** Flat copy `~/.gemini/skills/ha-nova-*/SKILL.md` (1-level limit), with namespaced sub-skill names matching those folder names
 - cleans up legacy flat skill directories (old `ha-nova-*` prefixed dirs)
 - supports targets: `codex`, `claude`, `opencode`, `gemini`, `all`
+
+The other helper roles are intentionally smaller:
+- `scripts/onboarding/bin/ha-nova` forwards repo-local setup/update/check-update calls into the Go runtime
+- repo/dev compatibility wrappers such as `~/.config/ha-nova/version-check` are generated from `scripts/onboarding/install-local-skills.sh` or `scripts/dev-sync.sh`, not tracked as standalone repo scripts
+- `scripts/dev-sync.sh` refreshes detected local client installs and Claude cache state during development
+
+The end-user installer contract is:
+- `install.sh` / `install.ps1` bootstrap the runtime, handle legacy gating, and hand off into `ha-nova setup`
+- `ha-nova setup` owns product setup, migration, and client attachment
 
 ## Skill Section Template
 
@@ -240,7 +265,7 @@ When creating a new skill under `skills/{name}/SKILL.md`:
 7. `scripts/onboarding/install-local-skills.sh` — verify dynamic discovery picks up new skill
 8. `README.md` / `PROJECT.md` — add skill to overview table/list
 9. `version.json` — bump patch version
-10. For file-based clients, re-run `bash scripts/onboarding/install-local-skills.sh <client>` and start a new session. Use `bash scripts/dev-sync.sh` only when you need the Claude cache sync helper.
+10. For file-based clients, re-run `npm run dev:install:<client>-skill` and start a new session. Use `npm run dev:sync` only when you need the Claude cache sync helper or already have a repo-local install to refresh.
 
 ## Review Check Single Source of Truth
 

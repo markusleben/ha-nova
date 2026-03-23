@@ -1,6 +1,6 @@
 # Go Relay CLI — Design Spec
 
-> Historical design note: parts of this spec predate the Go-first product runtime. Current public contract is `ha-nova setup`, `ha-nova relay ...`, `ha-nova check-update`, and `ha-nova update`; raw `~/.config/ha-nova/relay` paths are migration-only shims.
+> Historical design note: large parts of this spec predate the shipped Go-first product runtime. Current public contract is `ha-nova setup`, `ha-nova relay ...`, `ha-nova check-update`, `ha-nova update`, and native `install.sh` / `install.ps1`; raw relay file paths plus `version-check` / `update` wrappers are migration or dev/compat shims only.
 
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 

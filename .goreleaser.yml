@@ -96,15 +96,20 @@ release:
 
     **Windows (PowerShell):**
     ```powershell
+    $ProgressPreference = 'SilentlyContinue'
     irm https://raw.githubusercontent.com/markusleben/ha-nova/main/install.ps1 | iex
     ```
 
     Windows currently ships an `amd64` bundle only. On Windows ARM64, use x64 emulation.
     Windows validation in this release may still be narrower than macOS; check the README support matrix before claiming client-lane parity.
+    A `winget` manifest is attached as a release handoff artifact, but the public Windows package is not live until that manifest is published and proven on a fresh Windows VM.
 
     ## Upgrade Notes
 
     Already installed? Run `ha-nova check-update` or `ha-nova update`.
+    Default `ha-nova uninstall` is standard remove. Use `ha-nova uninstall --purge` for a full local wipe.
+    Current Windows installs use `%APPDATA%\ha-nova` and `%LOCALAPPDATA%\ha-nova\cache` as the canonical config/cache locations.
+    Keep exactly one Windows install channel per machine. `install.ps1` will not install on top of an existing `winget` install.
     Legacy pre-Go installs still require the legacy cleanup script before reinstalling.
 
     > The bundle assets below are consumed by the installers automatically. Only use them directly for maintainer-level debugging or raw binary validation.

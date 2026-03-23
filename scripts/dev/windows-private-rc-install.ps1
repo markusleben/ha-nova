@@ -50,7 +50,8 @@ $uninstallResult = Invoke-Cli -Arguments @("uninstall", "--yes")
 $uninstallResult.Lines | ForEach-Object { $log.Add($_) }
 $log.Add("UNINSTALL_EXIT:$($uninstallResult.ExitCode)")
 
-$installDir = Join-Path $HOME ".local\share\ha-nova"
+$LocalAppDataDir = if ($env:LOCALAPPDATA) { $env:LOCALAPPDATA } else { Join-Path $HOME "AppData\Local" }
+$installDir = Join-Path $LocalAppDataDir "Programs\ha-nova"
 for ($i = 0; $i -lt 20; $i++) {
   if (-not (Test-Path -LiteralPath $installDir)) { break }
   Start-Sleep -Milliseconds 500

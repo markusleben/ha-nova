@@ -8,7 +8,19 @@ Update the active HA NOVA install and any supported client integrations on this 
 ha-nova update
 ```
 
-The CLI auto-detects which client integrations are installed and refreshes each using the appropriate method. On Windows, the HA NOVA core path is verified; individual client coverage still depends on the client runtime you actually have available on that machine.
+The CLI auto-detects which client integrations are installed and refreshes each using the appropriate method.
+
+Update routing is source-aware:
+- bundle and dev installs use the HA NOVA updater directly
+- `winget`-managed installs delegate to `winget upgrade`
+
+For `winget`-managed installs, `ha-nova update --version <x>` is intentionally unsupported. Use plain `ha-nova update` and let the package manager choose the published version.
+
+`ha-nova check-update` follows the active install source as well. For `winget` installs it checks the package-manager channel, not just raw GitHub releases. On Windows, if both bundle and `winget` installs are detected, HA NOVA warns instead of guessing which channel you meant.
+
+On Windows, `install.ps1` also refuses to install on top of an existing `winget` install. Keep one Windows install channel per machine.
+
+On Windows, the HA NOVA core path is verified; individual client coverage still depends on the client runtime you actually have available on that machine.
 
 **Older installations** may still use a migration shim. If `ha-nova update` is missing or fails before launch:
 1. Re-run the installer for your platform
@@ -41,6 +53,7 @@ HA NOVA uses three update archetypes depending on the client:
 | Gemini | Flat-copy | Rebuild flat markdown copies from the active HA NOVA install |
 
 After client updates, shared tools are refreshed from the active HA NOVA install.
+For `winget`-managed Windows installs, the post-update client sync resolves the live winget runtime first instead of trusting whichever `ha-nova` happens to be first on `PATH`.
 
 ## Check Versions
 

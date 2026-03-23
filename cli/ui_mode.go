@@ -34,6 +34,8 @@ const (
 	humanNoticeKindUpToDate          humanNoticeKind = "up_to_date"
 	humanNoticeKindUpdateAvailable   humanNoticeKind = "update_available"
 	humanNoticeKindUpdateCheckFailed humanNoticeKind = "update_check_failed"
+	humanNoticeKindChannelConflict   humanNoticeKind = "channel_conflict"
+	humanNoticeKindLocalManifest     humanNoticeKind = "local_manifest"
 	humanNoticeKindRelayOutdated     humanNoticeKind = "relay_outdated"
 )
 

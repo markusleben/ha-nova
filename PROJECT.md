@@ -20,6 +20,7 @@ Current release-facing support matrix:
 - Linux: installer/runtime path is built and CI-smoked; full release validation still depends on a real Secret Service-backed Linux run
 - Windows: platform installer/runtime support is live; Claude and Gemini are smoke-validated, Codex/OpenCode lanes remain experimental until explicit Windows smoke completes
 - Windows bundle currently ships `amd64` only; Windows ARM64 uses x64 emulation
+- Current public Windows entrypoint remains `install.ps1` until the generated `winget` manifest is published and proven as a real package
 
 - Codex CLI:
   - one-link guided flow via raw instructions

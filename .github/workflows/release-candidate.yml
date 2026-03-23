@@ -72,11 +72,31 @@ jobs:
             bash scripts/release/build-install-bundle.sh
           fi
 
+      - name: Build winget manifests
+        env:
+          VERSION_TAG: ${{ inputs.version_tag }}
+        run: |
+          set -euo pipefail
+          if [[ -n "${VERSION_TAG}" ]]; then
+            bash scripts/release/build-winget-manifest.sh "${VERSION_TAG#v}" "${GITHUB_REPOSITORY}" "${VERSION_TAG}"
+          else
+            bash scripts/release/build-winget-manifest.sh
+          fi
+
       - name: Upload RC artifacts
         uses: actions/upload-artifact@v7
         with:
           name: rc-install-bundles
           path: dist/install-bundles/*
+
+      - name: Upload RC winget manifests
+        uses: actions/upload-artifact@v7
+        with:
+          name: rc-winget-manifests
+          path: |
+            dist/winget/manifests/**
+            dist/winget/*.zip
+            dist/winget/*.sha256
 
   smoke-bundles:
     name: Smoke bundles (${{ matrix.os }})
@@ -95,6 +115,12 @@ jobs:
         with:
           name: rc-install-bundles
           path: dist/install-bundles
+
+      - name: Download RC winget manifests
+        uses: actions/download-artifact@v8
+        with:
+          name: rc-winget-manifests
+          path: dist/winget
 
       - name: Smoke Unix bundles
         if: runner.os != 'Windows'
@@ -122,6 +148,24 @@ jobs:
             throw "bundle.json missing from Windows RC bundle"
           }
           & (Join-Path $workdir "ha-nova\ha-nova.exe") version
+
+      - name: Validate Windows winget manifest
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $installerManifest = Get-ChildItem -Path "dist/winget/manifests" -Recurse -Filter "*.installer.yaml" | Select-Object -First 1
+          if (-not $installerManifest) {
+            throw "winget installer manifest missing from RC artifacts"
+          }
+          $manifestDir = Split-Path -Parent $installerManifest.FullName
+          $output = & winget validate --manifest $manifestDir 2>&1
+          $output | ForEach-Object { Write-Host $_ }
+          if ($LASTEXITCODE -ne 0) {
+            throw "winget validate failed for $manifestDir"
+          }
+          if (($output | Out-String) -match 'warning') {
+            throw "winget validate emitted warnings for $manifestDir"
+          }
 
   publish-rc-release:
     name: Publish RC prerelease
@@ -156,6 +200,12 @@ jobs:
           name: rc-install-bundles
           path: dist/install-bundles
 
+      - name: Download RC winget manifests
+        uses: actions/download-artifact@v8
+        with:
+          name: rc-winget-manifests
+          path: dist/winget
+
       - name: Publish install bundles as prerelease
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -163,17 +213,19 @@ jobs:
         run: |
           set -euo pipefail
           title="HA NOVA ${VERSION_TAG}"
-          install_ref="${GITHUB_REF_NAME}"
-          notes=$'Bundle-based release candidate for public installer testing.\n\nInstall script ref: '"${install_ref}"$'\n\nmacOS / Linux:\n  curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/'"${install_ref}"$'/install.sh | HA_NOVA_VERSION='"${VERSION_TAG}"$' bash\n\nWindows (PowerShell):\n  $env:HA_NOVA_VERSION = '\'''"${VERSION_TAG}"$''\''\n  irm https://raw.githubusercontent.com/markusleben/ha-nova/'"${install_ref}"$'/install.ps1 | iex\n\nNext step after publish: run the real public installer smoke in a fresh home/profile.'
+          install_ref="${GITHUB_SHA}"
+          notes=$'Bundle-based release candidate for public installer testing.\n\nInstall script ref: '"${install_ref}"$'\n\nmacOS / Linux:\n  curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/'"${install_ref}"$'/install.sh | HA_NOVA_VERSION='"${VERSION_TAG}"$' bash\n\nWindows (PowerShell):\n  $env:HA_NOVA_VERSION = '\'''"${VERSION_TAG}"$''\''\n  $ProgressPreference = '\''SilentlyContinue'\''\n  irm https://raw.githubusercontent.com/markusleben/ha-nova/'"${install_ref}"$'/install.ps1 | iex\n\nWindows notes:\n- Public Windows path is still install.ps1 until the winget package is published and proven on a fresh Windows VM.\n- The attached winget manifest artifact is a publication handoff, not a live install channel yet.\n- Default ha-nova uninstall is standard remove; use ha-nova uninstall --purge for a full local wipe.\n- Canonical Windows HA NOVA paths are %APPDATA%\\ha-nova and %LOCALAPPDATA%\\ha-nova\\cache.\n- Keep exactly one Windows install channel per machine.\n\nNext step after publish: submit the attached winget artifact, wait for public source visibility, then run the published-source winget smoke in a fresh home/profile.'
+          shopt -s nullglob
+          assets=(dist/install-bundles/* dist/winget/*.zip dist/winget/*.sha256)
 
           if gh release view "${VERSION_TAG}" -R "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            gh release upload "${VERSION_TAG}" dist/install-bundles/* --clobber -R "${GITHUB_REPOSITORY}"
+            gh release upload "${VERSION_TAG}" "${assets[@]}" --clobber -R "${GITHUB_REPOSITORY}"
             gh release edit "${VERSION_TAG}" --prerelease --title "${title}" --notes "${notes}" -R "${GITHUB_REPOSITORY}"
             exit 0
           fi
 
           gh release create "${VERSION_TAG}" \
-            dist/install-bundles/* \
+            "${assets[@]}" \
             --prerelease \
             --title "${title}" \
             --notes "${notes}" \

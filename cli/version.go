@@ -27,6 +27,7 @@ type updateCheckResult struct {
 	LatestVersion   string `json:"latest_version,omitempty"`
 	UpdateAvailable bool   `json:"update_available"`
 	Source          string `json:"source"`
+	InstallSource   string `json:"install_source,omitempty"`
 	HTMLURL         string `json:"html_url,omitempty"`
 	CacheStatus     string `json:"cache_status"`
 	Message         string `json:"message"`

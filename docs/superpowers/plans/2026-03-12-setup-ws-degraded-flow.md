@@ -1,5 +1,7 @@
 # Setup WS-Degraded Flow Implementation Plan
 
+> Historical plan note: this Bash-onboarding plan was superseded by the Go-owned setup/doctor lifecycle. Keep it only as implementation history, not as an active execution guide.
+
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make `ha-nova setup` handle degraded relay-to-HA WebSocket connectivity inside setup and avoid false `Setup complete!` banners.

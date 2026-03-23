@@ -11,6 +11,30 @@ REPO_ROOT="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
 synced=()
 file_clients_synced=0
 
+print_claude_repair_hint() {
+  echo "[dev:sync] GUARDRAIL: rerun 'npm run dev:sync'; if Claude still stays detached, run 'ha-nova setup claude'."
+}
+
+state_lists_client() {
+  local client="$1"
+  local state_file="${HOME}/.config/ha-nova/state.json"
+  [[ ! -f "$state_file" ]] && return 1
+  sed -n '/"installed_clients"[[:space:]]*:/,/\]/{p;}' "$state_file" | grep -Fq "\"${client}\""
+}
+
+write_repo_cli_wrapper() {
+  local target_path="$1"
+  local subcommand="$2"
+  local extra_args="${3:-}"
+
+  cat > "${target_path}" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+exec "${REPO_ROOT}/scripts/onboarding/bin/ha-nova" ${subcommand}${extra_args:+ ${extra_args}} "\$@"
+EOF
+  chmod 755 "${target_path}"
+}
+
 refresh_file_client() {
   local name="$1"
   local target="$2"
@@ -50,7 +74,17 @@ sync_gemini() {
 # ─── Claude Code plugin cache ────────────────────────────────────────
 sync_claude() {
   local plugins_json="${HOME}/.claude/plugins/installed_plugins.json"
+  local state_expects_claude=0
+  if state_lists_client "claude"; then
+    state_expects_claude=1
+  fi
+
   if [[ ! -f "$plugins_json" ]]; then
+    if [[ "$state_expects_claude" -eq 1 ]]; then
+      echo "[dev:sync] Claude Code: configured in state.json but plugin record is missing — reinstalling"
+      refresh_file_client "Claude Code" "claude"
+      return
+    fi
     echo "[dev:sync] Claude Code: no installed_plugins.json found — skipped"
     return
   fi
@@ -63,6 +97,11 @@ sync_claude() {
   )
 
   if [[ -z "$install_path" ]]; then
+    if [[ "$state_expects_claude" -eq 1 ]]; then
+      echo "[dev:sync] Claude Code: configured in state.json but plugin installPath is missing — reinstalling"
+      refresh_file_client "Claude Code" "claude"
+      return
+    fi
     echo "[dev:sync] Claude Code: ha-nova plugin not installed — skipped"
     return
   fi
@@ -157,19 +196,9 @@ sync_shared_tools() {
     echo "[dev:sync] Warning: Go not installed or cli/ missing — relay CLI not updated"
   fi
 
-  # Sync version-check, update script + version.json
-  local vc_src="${REPO_ROOT}/scripts/version-check.sh"
-  if [[ -f "$vc_src" ]]; then
-    cp "$vc_src" "${config_dir}/version-check"
-    chmod 755 "${config_dir}/version-check"
-    cp "${REPO_ROOT}/version.json" "${config_dir}/version.json"
-  fi
-
-  local update_src="${REPO_ROOT}/scripts/update.sh"
-  if [[ -f "$update_src" ]]; then
-    cp "$update_src" "${config_dir}/update"
-    chmod 755 "${config_dir}/update"
-  fi
+  # Sync version-check wrapper + version.json for repo/dev compatibility paths.
+  write_repo_cli_wrapper "${config_dir}/version-check" "check-update" "--quiet"
+  cp "${REPO_ROOT}/version.json" "${config_dir}/version.json"
 
   echo "[dev:sync] Shared tools refreshed"
   synced+=("Shared tools")
@@ -201,7 +230,7 @@ verify_plugin_integrity() {
       return  # all good
     fi
     echo "[dev:sync] GUARDRAIL: installPath exists but is missing plugin files: ${install_path}"
-    echo "[dev:sync] GUARDRAIL: run 'bash scripts/dev-sync.sh' again or reinstall: claude plugin install ha-nova@ha-nova"
+    print_claude_repair_hint
     return
   fi
 
@@ -218,7 +247,7 @@ verify_plugin_integrity() {
 
   if [[ -z "$actual_dir" ]]; then
     echo "[dev:sync] GUARDRAIL: no versioned directory found under ${cache_parent}"
-    echo "[dev:sync] GUARDRAIL: reinstall required: claude plugin install ha-nova@ha-nova"
+    print_claude_repair_hint
     return
   fi
 

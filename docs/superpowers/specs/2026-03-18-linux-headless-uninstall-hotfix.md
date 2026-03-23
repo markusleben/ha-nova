@@ -29,12 +29,14 @@ Rules:
 
 - missing token: still non-fatal
 - desktop keyring unavailable on read: non-fatal, add an uninstall note
+- desktop keyring unavailable on delete after runtime removal: non-fatal, add an uninstall note
 - other read failures: still fatal
-- delete failures after a successful read: still fatal
+- other delete failures after a successful read: still fatal
 
 ## Verification
 
 - add regression coverage for headless Secret Service read failure
+- add regression coverage for headless Secret Service delete failure after runtime removal
 - add regression coverage that generic keyring read failures still fail loud
 - rerun targeted CLI uninstall tests
 - rerun full Go CLI tests

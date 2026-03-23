@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 )
 
@@ -10,6 +11,12 @@ var scheduleWindowsSelfDeleteForUninstall = scheduleWindowsSelfDelete
 var waitForParentReleaseForReplace = waitForParentRelease
 var applyStagedBundleWithRollbackForReplace = applyStagedBundleWithRollback
 var postUpdateSyncForReplace = postUpdateSync
+var runWingetUpgradeForUpdate = runWingetUpgrade
+var launchWindowsWingetUpgradeForUpdate = launchWindowsWingetUpgrade
+var runInstalledSyncForWingetUpdate = runUpdatedRuntimeClientSync
+var scheduleWindowsSelfDeleteForUpdate = scheduleWindowsSelfDelete
+var waitForParentReleaseForWingetUpdate = waitForParentRelease
+var execLookPathForLifecycle = exec.LookPath
 var copyToClipboardForSetup = copyToClipboard
 var openBrowserForSetup = openBrowser
 var writeRelayAuthTokenForSetup = writeRelayAuthToken

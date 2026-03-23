@@ -80,10 +80,60 @@ func fetchLatestRelease(paths runtimePaths, quiet bool, allowCache bool) (releas
 func buildUpdateCheckResult(paths runtimePaths) updateCheckResult {
 	current := localVersion(paths)
 	_, cacheStatus := inspectCachedRelease(paths)
+	state := loadStateOrDefault(paths)
+	channels := inspectInstallChannels(paths, state)
 	result := updateCheckResult{
 		CurrentVersion: current,
-		Source:         "github_releases",
+		InstallSource:  channels.CurrentSource,
 	}
+	if channels.Conflict {
+		result.Source = "mixed_channels"
+		result.CacheStatus = "not_used"
+		result.Status = "channel_conflict"
+		result.Message = installChannelConflictMessage(channels, "ha-nova update")
+		return result
+	}
+
+	if channels.CurrentSource == installSourceWinget {
+		result.Source = "winget"
+		result.CacheStatus = "not_used"
+		status, err := queryWingetPackageStatusForChannels()
+		if err != nil {
+			result.Status = "check_failed"
+			result.Message = fmt.Sprintf("could not check winget package status (%s)", err)
+			return result
+		}
+		if !status.Installed {
+			result.Status = "check_failed"
+			result.Message = "could not confirm the winget-managed install in package inventory"
+			return result
+		}
+		if status.InstalledVersion != "" {
+			result.CurrentVersion = strings.TrimPrefix(status.InstalledVersion, "v")
+		}
+		if status.InventoryScope == "local_manifest" {
+			result.Source = "winget_local_manifest"
+			result.Status = "local_manifest"
+			result.Message = fmt.Sprintf("Installed via local winget manifest: v%s", result.CurrentVersion)
+			return result
+		}
+		if status.UpgradeAvailable {
+			result.Status = "update_available"
+			result.UpdateAvailable = true
+			result.LatestVersion = strings.TrimPrefix(status.AvailableVersion, "v")
+			if result.LatestVersion == "" {
+				result.Message = fmt.Sprintf("Update available via winget: v%s -> newer package | Run: ha-nova update", result.CurrentVersion)
+			} else {
+				result.Message = fmt.Sprintf("Update available via winget: v%s -> v%s | Run: ha-nova update", result.CurrentVersion, result.LatestVersion)
+			}
+			return result
+		}
+		result.Status = "up_to_date"
+		result.Message = fmt.Sprintf("Up to date in winget: v%s", result.CurrentVersion)
+		return result
+	}
+
+	result.Source = "github_releases"
 
 	release, err := fetchLatestRelease(paths, true, true)
 	if err != nil {
@@ -139,6 +189,21 @@ func humanNoticeFromUpdateCheckResult(result updateCheckResult, quiet bool) huma
 		return humanNotice{
 			level:   humanNoticeWarning,
 			kind:    humanNoticeKindUpdateAvailable,
+			message: result.Message,
+		}
+	case "local_manifest":
+		if quiet {
+			return humanNotice{}
+		}
+		return humanNotice{
+			level:   humanNoticeInfo,
+			kind:    humanNoticeKindLocalManifest,
+			message: result.Message,
+		}
+	case "channel_conflict":
+		return humanNotice{
+			level:   humanNoticeWarning,
+			kind:    humanNoticeKindChannelConflict,
 			message: result.Message,
 		}
 	default:

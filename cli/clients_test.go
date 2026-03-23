@@ -303,6 +303,46 @@ func TestInstallClaudePluginLocalModeClearsCurrentClaudeCacheRoot(t *testing.T) 
 	}
 }
 
+func TestInstallClaudePluginLocalModeAcceptsBOMPrefixedInstalledPluginsRegistry(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("HA_NOVA_CLAUDE_MARKETPLACE_LOCAL", "1")
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+
+	if err := os.MkdirAll(filepath.Join(home, ".claude", "plugins"), 0o755); err != nil {
+		t.Fatalf("mkdir plugins: %v", err)
+	}
+	data := append([]byte{0xEF, 0xBB, 0xBF}, []byte(`{"plugins":["ha-nova@ha-nova"]}`)...)
+	if err := os.WriteFile(filepath.Join(home, ".claude", "plugins", "installed_plugins.json"), data, 0o644); err != nil {
+		t.Fatalf("write installed plugins: %v", err)
+	}
+
+	logPath := filepath.Join(home, "claude.log")
+	t.Setenv("PATH", installClaudeMock(t, home, logPath)+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	sourceRoot := paths.InstallRoot
+	writeClaudeMarketplaceFixture(t, sourceRoot)
+	if err := installClaudePlugin(paths, sourceRoot); err != nil {
+		t.Fatalf("installClaudePlugin() error: %v", err)
+	}
+
+	logData, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatalf("read log: %v", err)
+	}
+	log := string(logData)
+	if !strings.Contains(log, "plugin remove ha-nova@ha-nova") {
+		t.Fatalf("expected local mode to remove stale plugin first, got:\n%s", log)
+	}
+	if !strings.Contains(log, "plugin install ha-nova@ha-nova") {
+		t.Fatalf("expected local mode to install fresh plugin, got:\n%s", log)
+	}
+}
+
 func TestInstallClaudePluginLocalModeRemovesPluginBeforeDeletingCache(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

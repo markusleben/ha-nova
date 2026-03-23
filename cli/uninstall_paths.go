@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 )
 
-func removeManagedConfigArtifacts(paths runtimePaths, report *uninstallReport) error {
-	for _, path := range managedConfigArtifactPaths(paths) {
+func removeManagedConfigArtifacts(paths runtimePaths, report *uninstallReport, purge bool) error {
+	for _, path := range managedConfigArtifactPaths(paths, purge) {
 		if err := removePathWithReport(path, report); err != nil && !isNotExist(err) {
 			return err
 		}
@@ -23,9 +23,8 @@ func removeManagedCacheArtifacts(paths runtimePaths, report *uninstallReport) er
 	return removeDirIfEmptyWithReport(paths.CacheDir, report)
 }
 
-func managedConfigArtifactPaths(paths runtimePaths) []string {
+func managedConfigArtifactPaths(paths runtimePaths, purge bool) []string {
 	pathsList := []string{
-		paths.ConfigFile,
 		paths.StateFile,
 		filepath.Join(paths.ConfigDir, "relay"),
 		filepath.Join(paths.ConfigDir, "relay.exe"),
@@ -38,8 +37,8 @@ func managedConfigArtifactPaths(paths runtimePaths) []string {
 		filepath.Join(paths.ConfigDir, "doctor-cache.env"),
 		filepath.Join(paths.ConfigDir, "claude-marketplace"),
 	}
-	if testKeyring := relayAuthTokenTestFile(); testKeyring != "" {
-		pathsList = append(pathsList, testKeyring)
+	if purge {
+		pathsList = append(pathsList, paths.ConfigFile)
 	}
 	return pathsList
 }

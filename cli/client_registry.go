@@ -44,14 +44,9 @@ func loadClientRegistry(paths runtimePaths) ([]clientRegistryEntry, error) {
 }
 
 func locateClientRegistry(paths runtimePaths) (string, error) {
-	candidates := []string{
-		filepath.Join(resolveSourceRoot(paths), "clients", "registry.json"),
-	}
-	if cwd, err := os.Getwd(); err == nil {
-		candidates = append(candidates,
-			filepath.Join(cwd, "clients", "registry.json"),
-			filepath.Join(cwd, "..", "clients", "registry.json"),
-		)
+	candidates := []string{}
+	for _, root := range sourceRootCandidates(paths) {
+		candidates = append(candidates, filepath.Join(root, "clients", "registry.json"))
 	}
 	for _, candidate := range candidates {
 		if _, err := os.Stat(candidate); err == nil {

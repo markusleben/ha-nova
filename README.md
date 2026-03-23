@@ -42,8 +42,12 @@ macOS is live-validated. Linux uses the same installer and CI smoke path, but th
 ### Windows PowerShell
 
 ```powershell
+$ProgressPreference = 'SilentlyContinue'
 irm https://raw.githubusercontent.com/markusleben/ha-nova/main/install.ps1 | iex
 ```
+
+Current public Windows install path: `install.ps1`.
+A `winget` manifest is generated per release, but the public package is not live until that manifest is published in the Windows Package Manager community repository and proven on a fresh Windows VM.
 
 Windows ships an `amd64` bundle. ARM64 uses x64 emulation.
 
@@ -59,7 +63,9 @@ HA NOVA installs the integration layer. Install the AI client itself separately 
 - macOS / Linux: `curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/main/scripts/legacy-uninstall.sh | bash`
 - Windows: `irm https://raw.githubusercontent.com/markusleben/ha-nova/main/scripts/legacy-uninstall.ps1 | iex`
 
-**Already installed?** `ha-nova check-update` or `ha-nova update` | **Need to reconfigure?** `ha-nova setup` | **Something broken?** `ha-nova doctor`
+**Already installed?** `ha-nova check-update` or `ha-nova update` | **Need to reconfigure?** `ha-nova setup` | **Something broken?** `ha-nova doctor` | **Need a full local wipe?** `ha-nova uninstall --purge`
+
+Default `ha-nova uninstall` is now a standard remove. It removes the managed runtime, skills, and cache, but keeps local HA NOVA connection config and secure token for easier reinstall/repair. Use `--purge` for the old full-cleanup behavior.
 
 ## 💬 What Can You Do With It?
 

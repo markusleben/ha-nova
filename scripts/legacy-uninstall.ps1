@@ -5,7 +5,10 @@ param()
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
+$LocalAppDataDir = if ($env:LOCALAPPDATA) { $env:LOCALAPPDATA } else { Join-Path $HOME "AppData\Local" }
 $InstallDir = Join-Path $HOME ".local\share\ha-nova"
+$CurrentInstallDir = Join-Path $LocalAppDataDir "Programs\ha-nova"
+$WingetPortableLink = Join-Path $LocalAppDataDir "Microsoft\WinGet\Links\ha-nova.exe"
 $ConfigDir = Join-Path $HOME ".config\ha-nova"
 
 function Fail([string]$Message) {
@@ -18,7 +21,12 @@ function Remove-IfExists([string]$Path) {
   }
 }
 
-if (Test-Path -LiteralPath (Join-Path $InstallDir "bundle.json")) {
+if (
+  (Test-Path -LiteralPath (Join-Path $InstallDir "bundle.json")) -or
+  (Test-Path -LiteralPath (Join-Path $CurrentInstallDir "bundle.json")) -or
+  (Test-Path -LiteralPath (Join-Path $CurrentInstallDir "ha-nova.exe")) -or
+  (Test-Path -LiteralPath $WingetPortableLink)
+) {
   Fail "A current Go install was detected. Use: ha-nova uninstall"
 }
 
