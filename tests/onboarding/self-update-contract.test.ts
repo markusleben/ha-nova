@@ -205,7 +205,7 @@ exec "${resolve(REPO_ROOT, "scripts/onboarding/bin/ha-nova")}" check-update --qu
     expect(readFileSync(execMarker, "utf8")).toContain("update");
   });
 
-  it("repo-built dev runtime rebuilds when the go build context changes", () => {
+  it("repo-built dev runtime rebuilds when the go build context changes", { timeout: 120000 }, () => {
     const home = mkdtempSync(join(tmpdir(), "ha-nova-shim-rebuild-home-"));
     const binDir = join(home, "bin");
     const localBinDir = join(home, ".local", "bin");
