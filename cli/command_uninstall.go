@@ -210,10 +210,14 @@ func launchWindowsUninstall(paths runtimePaths, mode uninstallMode) error {
 	if mode == uninstallModePurge {
 		args = append(args, "--purge")
 	}
-	return launchWindowsDetachedHelper(tempHelper, args...)
+	return launchWindowsDetachedHelper(tempHelper, paths.UninstallStatusFile, args...)
 }
 
 func launchWindowsWingetUninstall(mode uninstallMode) error {
+	paths, err := detectPaths()
+	if err != nil {
+		return err
+	}
 	tempHelper, err := stageWindowsLifecycleHelper("ha-nova-winget-uninstall-")
 	if err != nil {
 		return err
@@ -222,7 +226,7 @@ func launchWindowsWingetUninstall(mode uninstallMode) error {
 	if mode == uninstallModePurge {
 		args = append(args, "--purge")
 	}
-	return launchWindowsDetachedHelper(tempHelper, args...)
+	return launchWindowsDetachedHelper(tempHelper, paths.UninstallStatusFile, args...)
 }
 
 func scheduleWindowsSelfDelete(path string) error {
