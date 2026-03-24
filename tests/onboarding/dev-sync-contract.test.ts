@@ -27,4 +27,12 @@ describe("dev-sync contract", () => {
     expect(content).not.toContain('scripts/version-check.sh');
     expect(content).not.toContain('scripts/update.sh');
   });
+
+  it("keeps Claude plugin record rewrites portable across BSD and GNU sed", () => {
+    expect(content).toContain("inplace_sed()");
+    expect(content).toContain('if [[ "$(uname -s)" == "Darwin" ]]');
+    expect(content).toContain('sed -i \'\' "$@"');
+    expect(content).toContain('sed -i "$@"');
+    expect(content).not.toContain('sed -i \'\' "/"ha-nova@ha-nova"');
+  });
 });
