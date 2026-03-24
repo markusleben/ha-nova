@@ -1,13 +1,17 @@
 # Support
 
-## Where to Ask
+## Found a Bug?
 
-- Bugs: open a GitHub issue using the bug form.
-- Feature requests: open a GitHub issue using the feature form.
-- Security issues: follow `SECURITY.md` (do not post publicly).
+Open a GitHub issue using the bug form. Include exact steps to reproduce, your environment, and any command output.
 
-## Before Opening an Issue
+## Got an Idea?
 
-1. Check existing issues.
-2. Include exact steps to reproduce.
-3. Include environment details and command output.
+Open a GitHub issue using the feature form.
+
+## Security Issue?
+
+Follow `SECURITY.md`. Do not post publicly.
+
+## Before You Open an Issue
+
+Check if someone already reported it. Saves everyone time.
