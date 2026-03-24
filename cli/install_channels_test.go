@@ -29,6 +29,18 @@ HA NOVA   markusleben.ha-nova   0.3.0    0.4.0      winget
 	}
 }
 
+func TestIsWingetNoApplicationsFoundExitCodeHandlesSignedAndUnsignedRepresentations(t *testing.T) {
+	if !isWingetNoApplicationsFoundExitCode(int(wingetNoApplicationsFoundExitCode)) {
+		t.Fatal("expected unsigned winget no-match exit code to be recognized")
+	}
+	if !isWingetNoApplicationsFoundExitCode(-1978335212) {
+		t.Fatal("expected signed winget no-match exit code to be recognized")
+	}
+	if isWingetNoApplicationsFoundExitCode(1) {
+		t.Fatal("did not expect generic exit code to be treated as winget no-match")
+	}
+}
+
 func TestBuildUpdateCheckResultUsesWingetChannelTruth(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

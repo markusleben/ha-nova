@@ -290,18 +290,18 @@ func runUpdatedRuntimeClientSync() error {
 func resolveUpdatedRuntimeSyncBinary(paths runtimePaths) (string, error) {
 	binaryName := publicBinaryName()
 	if channelChecksUseWindowsPlatform() {
+		linkPath := windowsWingetLinkPath(paths.Home)
+		if _, err := os.Stat(linkPath); err == nil {
+			return linkPath, nil
+		}
+		if root := resolveWingetBundleRoot(paths.Home); root != "" {
+			candidate := filepath.Join(root, binaryName)
+			if _, err := os.Stat(candidate); err == nil {
+				return candidate, nil
+			}
+		}
 		state := loadStateOrDefault(paths)
 		if normalizeInstallSource(state.InstallSource) == installSourceWinget {
-			linkPath := windowsWingetLinkPath(paths.Home)
-			if _, err := os.Stat(linkPath); err == nil {
-				return linkPath, nil
-			}
-			if root := resolveWingetBundleRoot(paths.Home); root != "" {
-				candidate := filepath.Join(root, binaryName)
-				if _, err := os.Stat(candidate); err == nil {
-					return candidate, nil
-				}
-			}
 			return "", fmt.Errorf("cannot locate live winget-managed %s", binaryName)
 		}
 	}

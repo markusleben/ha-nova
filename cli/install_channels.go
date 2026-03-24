@@ -1,8 +1,10 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -30,6 +32,8 @@ var channelChecksUseWindowsPlatform = func() bool {
 }
 
 var queryWingetPackageStatusForChannels = queryWingetPackageStatus
+
+const wingetNoApplicationsFoundExitCode uint32 = 0x8A150014
 
 func inspectInstallChannels(paths runtimePaths, state installState) installChannelSnapshot {
 	snapshot := installChannelSnapshot{
@@ -216,12 +220,24 @@ func runWingetListForStatus(args ...string) (string, error) {
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		trimmed := strings.TrimSpace(string(output))
-		if strings.Contains(trimmed, "No installed package found matching input criteria.") {
+		if isWingetNoApplicationsFoundError(err) {
 			return trimmed, nil
 		}
-		return "", fmt.Errorf("%w: %s", err, strings.TrimSpace(string(output)))
+		return "", fmt.Errorf("%w: %s", err, trimmed)
 	}
 	return string(output), nil
+}
+
+func isWingetNoApplicationsFoundError(err error) bool {
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) || exitErr.ProcessState == nil {
+		return false
+	}
+	return isWingetNoApplicationsFoundExitCode(exitErr.ProcessState.ExitCode())
+}
+
+func isWingetNoApplicationsFoundExitCode(code int) bool {
+	return uint32(code) == wingetNoApplicationsFoundExitCode
 }
 
 var wingetVersionPattern = regexp.MustCompile(`^[vV]?\d+(?:\.\d+){0,4}(?:[-+][A-Za-z0-9._-]+)?$`)

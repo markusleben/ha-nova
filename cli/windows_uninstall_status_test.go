@@ -134,6 +134,32 @@ func TestInspectWindowsUninstallStatusKeepsFailedMarkerVisibleWithoutRuntime(t *
 	}
 }
 
+func TestCollectWindowsUninstallRemainingPathsSkipsKeptConfigDirForStandardMode(t *testing.T) {
+	enableWindowsUninstallStatusChecks(t)
+
+	root := t.TempDir()
+	paths := runtimePaths{
+		ConfigDir:       filepath.Join(root, "AppData", "Roaming", "ha-nova"),
+		ConfigFile:      filepath.Join(root, "AppData", "Roaming", "ha-nova", "config.json"),
+		StateFile:       filepath.Join(root, "AppData", "Roaming", "ha-nova", "state.json"),
+		CacheDir:        filepath.Join(root, "AppData", "Local", "ha-nova", "cache"),
+		UpdateCacheFile: filepath.Join(root, "AppData", "Local", "ha-nova", "cache", "latest-release.json"),
+	}
+	if err := os.MkdirAll(paths.ConfigDir, 0o755); err != nil {
+		t.Fatalf("mkdir config dir: %v", err)
+	}
+	if err := os.WriteFile(paths.ConfigFile, []byte("{}"), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	remaining := collectWindowsUninstallRemainingPaths(paths, uninstallModeStandard, installSourceBundle)
+	for _, candidate := range remaining {
+		if filepath.Clean(candidate) == filepath.Clean(paths.ConfigDir) {
+			t.Fatalf("standard uninstall residue unexpectedly included kept config dir: %v", remaining)
+		}
+	}
+}
+
 func TestRunDoctorBlocksOnFailedWindowsUninstallStatus(t *testing.T) {
 	enableWindowsUninstallStatusChecks(t)
 

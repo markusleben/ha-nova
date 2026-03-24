@@ -291,10 +291,9 @@ func collectWindowsUninstallRemainingPaths(paths runtimePaths, mode uninstallMod
 		paths.UpdateCacheFile,
 		paths.CacheDir,
 		filepath.Join(paths.ConfigDir, "claude-marketplace"),
-		paths.ConfigDir,
 	}
 	if mode == uninstallModePurge {
-		candidates = append(candidates, paths.ConfigFile)
+		candidates = append(candidates, paths.ConfigFile, paths.ConfigDir)
 	}
 	if normalizeInstallSource(installSource) == installSourceWinget {
 		candidates = append(candidates, windowsWingetLinkPath(paths.Home))

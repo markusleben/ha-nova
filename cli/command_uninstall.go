@@ -29,18 +29,18 @@ func runInternalUninstall(_ runtimePaths, args []string) int {
 		printHumanErr("%s", err)
 		return 1
 	}
-	waitForParentRelease(*parentPID)
 	paths, err := detectPaths()
 	if err != nil {
 		printHumanErr("%s", err)
 		return 1
 	}
-	preflight := collectUninstallPreflight(paths)
 	status, err := beginWindowsUninstallStatus(paths, uninstallModeFromFlag(*purge), installSourceBundle)
 	if err != nil {
 		printHumanErr("cannot persist Windows uninstall recovery state: %s", err)
 		return 1
 	}
+	waitForParentReleaseForUninstall(*parentPID)
+	preflight := collectUninstallPreflight(paths)
 	report := &uninstallReport{}
 	if err := finalizeWindowsUninstall(paths, report, uninstallModeFromFlag(*purge), status); err != nil {
 		report.printDetails()
@@ -124,7 +124,7 @@ func runUninstall(paths runtimePaths, args []string) int {
 
 	report := &uninstallReport{}
 	if source == installSourceWinget {
-		if err := runWingetUninstall(); err != nil {
+		if err := runWingetUninstallForUninstall(); err != nil {
 			printHumanErr("winget uninstall failed: %s", err)
 			return 1
 		}
@@ -158,19 +158,19 @@ func runInternalWingetUninstall(_ runtimePaths, args []string) int {
 		printHumanErr("%s", err)
 		return 1
 	}
-	waitForParentRelease(*parentPID)
 	paths, err := detectPaths()
 	if err != nil {
 		printHumanErr("%s", err)
 		return 1
 	}
-	preflight := collectUninstallPreflight(paths)
 	mode := uninstallModeFromFlag(*purge)
 	status, err := beginWindowsUninstallStatus(paths, mode, installSourceWinget)
 	if err != nil {
 		printHumanErr("cannot persist Windows uninstall recovery state: %s", err)
 		return 1
 	}
+	waitForParentReleaseForWingetUninstall(*parentPID)
+	preflight := collectUninstallPreflight(paths)
 	report := &uninstallReport{}
 	if err := finalizeLocalUninstallWithProgress(paths, loadStateOrDefault(paths), report, mode, func(step string) error {
 		return updateWindowsUninstallStatusProgress(paths, status)
@@ -183,7 +183,7 @@ func runInternalWingetUninstall(_ runtimePaths, args []string) int {
 		printHumanErr("cannot persist Windows uninstall recovery state: %s", err)
 		return 1
 	}
-	if err := runWingetUninstall(); err != nil {
+	if err := runWingetUninstallForUninstall(); err != nil {
 		printHumanErr("winget uninstall failed: %s", failWindowsUninstallStatus(paths, status, "winget_runtime_cleanup", err))
 		return 1
 	}

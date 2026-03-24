@@ -8,6 +8,9 @@ import (
 )
 
 var scheduleWindowsSelfDeleteForUninstall = scheduleWindowsSelfDelete
+var waitForParentReleaseForUninstall = waitForParentRelease
+var waitForParentReleaseForWingetUninstall = waitForParentRelease
+var runWingetUninstallForUninstall = runWingetUninstall
 var waitForParentReleaseForReplace = waitForParentRelease
 var applyStagedBundleWithRollbackForReplace = applyStagedBundleWithRollback
 var postUpdateSyncForReplace = postUpdateSync

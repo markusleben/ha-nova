@@ -302,3 +302,42 @@ func TestResolveUpdatedRuntimeSyncBinaryFallsBackToWingetPackageRootWhenLinkMiss
 		t.Fatalf("resolveUpdatedRuntimeSyncBinary() = %q, want %q", got, candidate)
 	}
 }
+
+func TestResolveUpdatedRuntimeSyncBinaryUsesWingetLinkWithoutPersistedState(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("LOCALAPPDATA", filepath.Join(home, "AppData", "Local"))
+	t.Setenv("APPDATA", filepath.Join(home, "AppData", "Roaming"))
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+
+	linkPath := windowsWingetLinkPath(home)
+	if err := os.MkdirAll(filepath.Dir(linkPath), 0o755); err != nil {
+		t.Fatalf("mkdir winget link dir: %v", err)
+	}
+	if err := os.WriteFile(linkPath, []byte("winget"), 0o755); err != nil {
+		t.Fatalf("write winget link: %v", err)
+	}
+
+	originalPlatform := channelChecksUseWindowsPlatform
+	originalLookPath := execLookPathForLifecycle
+	defer func() {
+		channelChecksUseWindowsPlatform = originalPlatform
+		execLookPathForLifecycle = originalLookPath
+	}()
+	channelChecksUseWindowsPlatform = func() bool { return true }
+	execLookPathForLifecycle = func(file string) (string, error) {
+		return "wrong-path.exe", nil
+	}
+
+	got, err := resolveUpdatedRuntimeSyncBinary(paths)
+	if err != nil {
+		t.Fatalf("resolveUpdatedRuntimeSyncBinary() error: %v", err)
+	}
+	if got != linkPath {
+		t.Fatalf("resolveUpdatedRuntimeSyncBinary() = %q, want %q", got, linkPath)
+	}
+}
