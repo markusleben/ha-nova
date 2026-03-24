@@ -84,7 +84,7 @@ Fast-path rule during iteration:
 - do not wait for a full manual review pass before asking Codex
 - after each relevant fix, run only targeted local verification, push immediately, and immediately trigger `@codex review`
 - while CI and Codex are already running, run the two subagent review passes in parallel
-- only the final merge/tag-ready SHA must satisfy all three together: green checks, clean/current Codex result, clean/current subagent passes
+- only the final merge/tag-ready SHA may be treated as cleared, and only when all three agree on that exact SHA: green checks, clean/current Codex result, clean/current subagent passes
 
 ## Release Worthiness
 
