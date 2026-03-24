@@ -13,6 +13,7 @@ Adopt the faster safe review loop for release-bound and other high-risk PRs:
 ## Decision
 
 - Do not serialize Codex review behind manual/subagent review during normal fix iteration.
+- For the initial PR SHA and every later relevant SHA, request Codex immediately; if Codex does not produce a real result on that SHA, request it again on the same SHA instead of silently proceeding.
 - Keep the strict final gate unchanged:
   - exact latest SHA
   - green required checks

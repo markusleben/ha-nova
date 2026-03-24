@@ -82,9 +82,10 @@ Before every RC or final tag:
 
 Fast-path rule during iteration:
 - do not wait for a full manual review pass before asking Codex
-- after each relevant fix, run only targeted local verification, push immediately, and immediately trigger `@codex review`
+- for the initial PR SHA and after each relevant fix, run only targeted local verification, push immediately if needed, and immediately trigger `@codex review`
 - while CI and Codex are already running, run the two subagent review passes in parallel
 - only the final merge/tag-ready SHA may be treated as cleared, and only when all three agree on that exact SHA: green checks, clean/current Codex result, clean/current subagent passes
+- if Codex times out or never posts a real result on the current SHA, re-request `@codex review` on that same SHA before treating the PR as review-clean
 
 ## Release Worthiness
 

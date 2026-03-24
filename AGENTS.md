@@ -72,7 +72,7 @@ Work style: Be radically precise. No fluff. Pure information only (drop grammar;
 - **PR Merge / Release Commit Gate — MANDATORY CHECKLIST (do NOT skip any step):**
   The `codex-review-gate` workflow waits ~9 min for the Codex review bot. Bot signals: `eyes` reaction = review in progress, `👍` reaction = no findings, review comments = findings.
   - [ ] 1. `gh pr create ...`
-  - [ ] 2. For each relevant fix iteration: run targeted local verification only, push immediately, then immediately trigger Codex re-review: `gh pr comment <nr> --body "@codex review"`.
+  - [ ] 2. For the initial PR SHA and for every later relevant SHA: run targeted local verification only, push immediately if needed, then immediately trigger Codex review/re-review: `gh pr comment <nr> --body "@codex review"`.
   - [ ] 3. While CI/Codex are already running on that pushed SHA, run at least two independent subagent review passes on the exact current PR delta with distinct focuses; do this in parallel, not serially after the bot.
   - [ ] 4. `gh pr checks <nr> --watch` — wait for ALL required checks; for release-bound/high-risk deltas also wait for `codex-review-gate`
   - [ ] 5. Check bot signal across all channels: `gh api repos/<o>/<r>/issues/<nr>/reactions` (👍 = clean), `gh api repos/<o>/<r>/pulls/<nr>/reviews` (PR-level review findings), `gh api repos/<o>/<r>/pulls/<nr>/comments` (inline findings), and issue/discussion comments on the PR.
@@ -81,7 +81,7 @@ Work style: Be radically precise. No fluff. Pure information only (drop grammar;
          `gh api graphql -f query='{ repository(owner:"<o>",name:"<r>") { pullRequest(number:<nr>) { reviewThreads(first:20) { nodes { id isResolved } } } } }'`
          Then for each unresolved: `gh api graphql -f query='mutation { resolveReviewThread(input:{threadId:"<id>"}) { thread { isResolved } } }'`
   - [ ] 8. For release-bound/high-risk deltas, only proceed after an actual Codex bot result for the current latest commit SHA; timeout alone is NOT enough.
-  - [ ] 9. For release-bound/high-risk deltas, confirm the PR head SHA is still the same SHA that received the latest clean/current bot result and the latest clean subagent passes. If SHA changed, go back to step 3.
+  - [ ] 9. For release-bound/high-risk deltas, confirm the PR head SHA is still the same SHA that received the latest clean/current bot result and the latest clean subagent passes. If SHA changed, or if Codex timed out/skipped and there is still no real/current bot result for that exact SHA, go back to step 2.
   - [ ] 10. `gh pr merge --squash --delete-branch` (use `--admin` only if branch protection blocks after all steps passed)
   - [ ] 11. For squash merge flows, tag/release only the remote merge commit produced from that reviewed PR state; any later delta requires a new PR/review cycle.
 
