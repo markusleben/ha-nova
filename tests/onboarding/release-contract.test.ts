@@ -103,6 +103,10 @@ describe("release contract", () => {
 
   it("stages a public winget-pkgs submission payload from the generated manifest archive", () => {
     expect(wingetSubmissionHelper).toContain("ha-nova-winget-manifest-v");
+    expect(wingetSubmissionHelper).toContain('WINGET_STAGE_SOURCE="${WINGET_STAGE_SOURCE:-release_asset}"');
+    expect(wingetSubmissionHelper).toContain("WINGET_STAGE_SOURCE=release_asset");
+    expect(wingetSubmissionHelper).toContain("Expected release_asset or local_dist.");
+    expect(wingetSubmissionHelper).toContain("gh release download");
     expect(wingetSubmissionHelper).toContain("winget validate --manifest");
     expect(wingetSubmissionHelper).toContain("without warnings");
     expect(wingetSubmissionHelper).toContain("microsoft/winget-pkgs");
@@ -273,6 +277,9 @@ describe("release contract", () => {
     expect(releasing).toContain("prepare-winget-pkgs-submission.sh");
     expect(releasing).toContain("For the real public submission, stage it from the exact final stable GitHub release asset.");
     expect(releasing).toContain("Local `dist/` output or RC artifact downloads are rehearsal-only.");
+    expect(releasing).toContain("`npm run release:winget:stage-submission` now defaults to `WINGET_STAGE_SOURCE=release_asset`.");
+    expect(releasing).toContain("Only use `WINGET_STAGE_SOURCE=local_dist` for private rehearsal or contract validation.");
+    expect(releasing).toContain("The helper refuses prerelease tags in `release_asset` mode.");
     expect(releasing).toContain("ha-nova-winget-manifest-<tag>.zip");
     expect(releasing).toContain("winget-pkgs-maintainer-checklist.md");
     expect(releasing).toContain("winget-pkgs-pr-body.md");
@@ -292,6 +299,12 @@ describe("release contract", () => {
     expect(releasing).toContain("previous published `markusleben.ha-nova` version installed");
     expect(releasing).toContain("keep release-note/doc wording conservative about public `winget upgrade` until that continuity proof exists");
     expect(releasing).toContain("winget upgrade --id markusleben.ha-nova --exact --source winget");
+    expect(releasing).toContain("release/winget-publication-state.json");
+    expect(releasing).toContain('set `publication_phase = "pr_open"`');
+    expect(releasing).toContain('set `public_install_proven = true`');
+    expect(releasing).toContain('set `public_upgrade_proven = true`');
+    expect(releasing).toContain("keep `automation_enabled = false`");
+    expect(releasing).toContain("never open a second public `winget` submission while `pending_version` is non-empty");
     expect(releasing).toContain("run the same flow only if Secret Service is available");
     expect(releasing).toContain("if not live-tested, do not call the release fully verified on Linux");
     expect(releasing).toContain("CI smoke alone does not upgrade Linux to full real-machine validation");
@@ -571,6 +584,7 @@ describe("release contract", () => {
           ...process.env,
           DIST_DIR: distDir,
           FORK_REPO: "alt-user/winget-pkgs",
+          WINGET_STAGE_SOURCE: "local_dist",
         },
         timeout: 30000,
       }
@@ -613,6 +627,7 @@ describe("release contract", () => {
     expect(commandsContents).toContain("--head alt-user:ha-nova-0.3.0");
     expect(stageResult.stdout).toContain('winget validate --manifest "<staged-manifest-dir-on-your-validation-host>"');
     expect(stageResult.stdout).toContain("same-host default from this checkout:");
+    expect(stageResult.stdout).toContain("staged from: local_dist");
     expect(stageResult.stdout).toContain("require a warning-free success result before opening any PR");
     expect(stageResult.stdout).toContain("winget show --id markusleben.ha-nova --exact --source winget");
     expect(stageResult.stdout).toContain("<staged-submission-root-on-your-pr-host>/winget-pkgs-pr-body.md");
@@ -621,6 +636,122 @@ describe("release contract", () => {
     expect(stageResult.stdout).not.toContain(`commands: ${stageRoot}`);
     expect(stageResult.stdout).toContain("Generated helper files:");
     expect(stageResult.stdout).toContain(`staged submission root: ${stageRoot}`);
+  });
+
+  it("defaults winget submission staging to the exact final release assets", () => {
+    const distDir = mkdtempSync(join(tmpdir(), "ha-nova-winget-release-asset-"));
+    const sourceDistDir = mkdtempSync(join(tmpdir(), "ha-nova-winget-release-src-"));
+    const bundleDir = join(sourceDistDir, "install-bundles");
+    const fixtureDir = mkdtempSync(join(tmpdir(), "ha-nova-winget-release-fixture-"));
+    const fakeGhDir = mkdtempSync(join(tmpdir(), "ha-nova-fake-gh-"));
+    const fakeGhPath = join(fakeGhDir, "gh");
+
+    mkdirSync(bundleDir, { recursive: true });
+    writeFileSync(join(bundleDir, "ha-nova-installer-bundle-windows-amd64.zip"), "fake-bundle");
+    writeFileSync(
+      join(bundleDir, "ha-nova-installer-bundle-windows-amd64.zip.sha256"),
+      "4207F78DA0027952482882209CDF761C1F2846191CAE1C2D21E64693B74A0622  ha-nova-installer-bundle-windows-amd64.zip\n"
+    );
+
+    const buildResult = spawnSync(
+      "bash",
+      ["scripts/release/build-winget-manifest.sh", "0.3.0", "markusleben/ha-nova", "v0.3.0"],
+      {
+        cwd: process.cwd(),
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          DIST_DIR: sourceDistDir,
+        },
+        timeout: 30000,
+      }
+    );
+    expect(buildResult.status).toBe(0);
+
+    for (const asset of [
+      "ha-nova-winget-manifest-v0.3.0.zip",
+      "ha-nova-installer-bundle-windows-amd64.zip",
+      "ha-nova-installer-bundle-windows-amd64.zip.sha256",
+    ]) {
+      writeFileSync(join(fixtureDir, asset), readFileSync(join(sourceDistDir, asset.startsWith("ha-nova-winget-manifest") ? "winget" : "install-bundles", asset)));
+    }
+
+    writeFileSync(
+      fakeGhPath,
+      `#!/usr/bin/env bash
+set -euo pipefail
+if [[ "$1" != "release" || "$2" != "download" ]]; then
+  echo "unexpected gh args: $*" >&2
+  exit 1
+fi
+dest=""
+shift 3
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -D)
+      dest="$2"
+      shift 2
+      ;;
+    -p)
+      cp "${fixtureDir}/$2" "$dest/$2"
+      shift 2
+      ;;
+    -R)
+      shift 2
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+`,
+      { mode: 0o755 }
+    );
+
+    const stageResult = spawnSync(
+      "bash",
+      ["scripts/release/prepare-winget-pkgs-submission.sh", "0.3.0", "markusleben/ha-nova", "v0.3.0"],
+      {
+        cwd: process.cwd(),
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          DIST_DIR: distDir,
+          PATH: `${fakeGhDir}:${process.env.PATH ?? ""}`,
+        },
+        timeout: 30000,
+      }
+    );
+
+    const stageRoot = join(distDir, "winget", "submission", "markusleben.ha-nova", "0.3.0");
+    expect(stageResult.status).toBe(0);
+    expect(stageResult.stdout).toContain("staged from: release_asset");
+    expect(readFileSync(join(stageRoot, "winget-pkgs-pr-body.md"), "utf8")).toContain(
+      "Source installer URL: https://github.com/markusleben/ha-nova/releases/download/v0.3.0/ha-nova-installer-bundle-windows-amd64.zip"
+    );
+  });
+
+  it("refuses prerelease tags when staging a public winget submission from release assets", () => {
+    const fakeGhDir = mkdtempSync(join(tmpdir(), "ha-nova-fake-gh-pre-"));
+    const fakeGhPath = join(fakeGhDir, "gh");
+    writeFileSync(fakeGhPath, "#!/usr/bin/env bash\nexit 0\n", { mode: 0o755 });
+
+    const result = spawnSync(
+      "bash",
+      ["scripts/release/prepare-winget-pkgs-submission.sh", "0.3.0", "markusleben/ha-nova", "v0.3.0-rc1"],
+      {
+        cwd: process.cwd(),
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          PATH: `${fakeGhDir}:${process.env.PATH ?? ""}`,
+        },
+        timeout: 30000,
+      }
+    );
+
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("WINGET_STAGE_SOURCE=release_asset only accepts final stable tags");
   });
 
 

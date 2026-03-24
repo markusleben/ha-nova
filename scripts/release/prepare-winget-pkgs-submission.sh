@@ -13,6 +13,7 @@ WINDOWS_BUNDLE_SHA_PATH="${WINDOWS_BUNDLE_PATH}.sha256"
 UPSTREAM_REPO="${UPSTREAM_REPO:-microsoft/winget-pkgs}"
 FORK_REPO="${FORK_REPO:-markusleben/winget-pkgs}"
 UPSTREAM_BASE_BRANCH="${UPSTREAM_BASE_BRANCH:-master}"
+WINGET_STAGE_SOURCE="${WINGET_STAGE_SOURCE:-release_asset}"
 
 normalize_version() {
   local raw="$1"
@@ -27,6 +28,18 @@ CHECKLIST_PATH="${STAGE_ROOT}/winget-pkgs-maintainer-checklist.md"
 PR_BODY_PATH="${STAGE_ROOT}/winget-pkgs-pr-body.md"
 COPY_PATH_FILE="${STAGE_ROOT}/winget-pkgs-copy-path.txt"
 COMMANDS_PATH="${STAGE_ROOT}/winget-pkgs-gh-commands.md"
+TEMP_ROOT=""
+BUNDLE_PATH=""
+BUNDLE_SHA_PATH=""
+ARCHIVE_PATH=""
+
+cleanup() {
+  if [[ -n "${TEMP_ROOT}" && -d "${TEMP_ROOT}" ]]; then
+    rm -rf "${TEMP_ROOT}"
+  fi
+}
+
+trap cleanup EXIT
 
 log() {
   echo "[prepare-winget-pkgs-submission] $*"
@@ -57,6 +70,40 @@ manifest_root() {
   first_segment="${first_segment:0:1}"
   package_suffix="${PACKAGE_IDENTIFIER#*.}"
   printf '%s/manifests/%s/%s/%s/%s\n' "${STAGE_ROOT}" "${first_segment}" "${PACKAGE_IDENTIFIER%%.*}" "${package_suffix}" "${VERSION}"
+}
+
+is_prerelease_tag() {
+  local tag="$1"
+  [[ "${tag}" == *-* ]]
+}
+
+prepare_stage_inputs() {
+  case "${WINGET_STAGE_SOURCE}" in
+    local_dist)
+      ARCHIVE_PATH="${OUTPUT_DIR}/ha-nova-winget-manifest-v${VERSION}.zip"
+      BUNDLE_PATH="${DIST_DIR}/install-bundles/${WINDOWS_BUNDLE_NAME}"
+      BUNDLE_SHA_PATH="${BUNDLE_PATH}.sha256"
+      ;;
+    release_asset)
+      command -v gh >/dev/null 2>&1 || die "gh is required when WINGET_STAGE_SOURCE=release_asset."
+      if is_prerelease_tag "${RELEASE_TAG}"; then
+        die "WINGET_STAGE_SOURCE=release_asset only accepts final stable tags. Got ${RELEASE_TAG}."
+      fi
+      TEMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/ha-nova-winget-release-XXXXXX")"
+      ARCHIVE_PATH="${TEMP_ROOT}/ha-nova-winget-manifest-${RELEASE_TAG}.zip"
+      BUNDLE_PATH="${TEMP_ROOT}/${WINDOWS_BUNDLE_NAME}"
+      BUNDLE_SHA_PATH="${BUNDLE_PATH}.sha256"
+      gh release download "${RELEASE_TAG}" \
+        -R "${REPO_SLUG}" \
+        -D "${TEMP_ROOT}" \
+        -p "ha-nova-winget-manifest-${RELEASE_TAG}.zip" \
+        -p "${WINDOWS_BUNDLE_NAME}" \
+        -p "${WINDOWS_BUNDLE_NAME}.sha256" >/dev/null
+      ;;
+    *)
+      die "Unsupported WINGET_STAGE_SOURCE=${WINGET_STAGE_SOURCE}. Expected release_asset or local_dist."
+      ;;
+  esac
 }
 
 write_artifacts() {
@@ -238,9 +285,10 @@ EOF
 
 main() {
   [[ -n "${VERSION}" ]] || die "Could not determine HA NOVA version."
-  [[ -f "${ARCHIVE_PATH}" ]] || die "Missing winget manifest archive: ${ARCHIVE_PATH}"
-  [[ -f "${WINDOWS_BUNDLE_PATH}" ]] || die "Missing Windows install bundle for hash verification: ${WINDOWS_BUNDLE_PATH}"
   command -v unzip >/dev/null 2>&1 || die "unzip is required to stage the winget submission payload."
+  prepare_stage_inputs
+  [[ -f "${ARCHIVE_PATH}" ]] || die "Missing winget manifest archive: ${ARCHIVE_PATH}"
+  [[ -f "${BUNDLE_PATH}" ]] || die "Missing Windows install bundle for hash verification: ${BUNDLE_PATH}"
 
   local expected_url installer_manifest installer_url installer_sha manifest_dir bundle_sha sidecar_sha
   expected_url="https://github.com/${REPO_SLUG}/releases/download/${RELEASE_TAG}/${WINDOWS_BUNDLE_NAME}"
@@ -255,15 +303,15 @@ main() {
 
   installer_url="$(sed -n 's/^[[:space:]]*InstallerUrl:[[:space:]]*//p' "${installer_manifest}" | head -1)"
   installer_sha="$(sed -n 's/^[[:space:]]*InstallerSha256:[[:space:]]*//p' "${installer_manifest}" | head -1)"
-  bundle_sha="$(compute_sha256 "${WINDOWS_BUNDLE_PATH}")"
+  bundle_sha="$(compute_sha256 "${BUNDLE_PATH}")"
 
   [[ "${installer_url}" == "${expected_url}" ]] || die "InstallerUrl mismatch. Expected ${expected_url}, got ${installer_url}. Rebuild the winget manifest without local override URLs before staging a public submission."
   [[ -n "${installer_sha}" ]] || die "InstallerSha256 missing from ${installer_manifest}"
-  [[ "${installer_sha}" == "${bundle_sha}" ]] || die "InstallerSha256 mismatch. Expected ${bundle_sha} from ${WINDOWS_BUNDLE_PATH}, got ${installer_sha}."
-  if [[ -f "${WINDOWS_BUNDLE_SHA_PATH}" ]]; then
-    sidecar_sha="$(awk 'NF { print toupper($1); exit }' "${WINDOWS_BUNDLE_SHA_PATH}")"
-    [[ -n "${sidecar_sha}" ]] || die "Bundle SHA sidecar is empty: ${WINDOWS_BUNDLE_SHA_PATH}"
-    [[ "${sidecar_sha}" == "${bundle_sha}" ]] || die "Bundle SHA sidecar mismatch. Expected ${bundle_sha}, got ${sidecar_sha} from ${WINDOWS_BUNDLE_SHA_PATH}."
+  [[ "${installer_sha}" == "${bundle_sha}" ]] || die "InstallerSha256 mismatch. Expected ${bundle_sha} from ${BUNDLE_PATH}, got ${installer_sha}."
+  if [[ -f "${BUNDLE_SHA_PATH}" ]]; then
+    sidecar_sha="$(awk 'NF { print toupper($1); exit }' "${BUNDLE_SHA_PATH}")"
+    [[ -n "${sidecar_sha}" ]] || die "Bundle SHA sidecar is empty: ${BUNDLE_SHA_PATH}"
+    [[ "${sidecar_sha}" == "${bundle_sha}" ]] || die "Bundle SHA sidecar mismatch. Expected ${bundle_sha}, got ${sidecar_sha} from ${BUNDLE_SHA_PATH}."
   fi
 
   write_artifacts "${manifest_dir}" "${installer_url}" "${installer_sha}"
@@ -276,6 +324,7 @@ Next steps:
        winget validate --manifest "<staged-manifest-dir-on-your-validation-host>"
        same-host default from this checkout: ${manifest_dir}
        require a warning-free success result before opening any PR
+       staged from: ${WINGET_STAGE_SOURCE}
   2. Fork microsoft/winget-pkgs and copy the staged files to:
        $(cat "${COPY_PATH_FILE}")
   3. Open a PR against ${UPSTREAM_REPO} ${UPSTREAM_BASE_BRANCH} using:

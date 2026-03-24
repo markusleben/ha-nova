@@ -68,22 +68,21 @@ Work style: Be radically precise. No fluff. Pure information only (drop grammar;
 - **Codex advisory rule:** `codex-review-gate` is advisory on `main`; do not treat it as a required branch-protection gate for routine PRs.
 - **No local-only release shortcuts:** if a follow-up fix matters enough to keep, it must go through GitHub review before merge/tag/release.
 - **Release/tag/publish gate:** never create/move a release tag, start RC/final publish, or call a commit release-ready unless the exact remote commit state intended for tag/release is represented by the latest fully reviewed PR state with no unreviewed deltas beyond it.
-- **Release-bound review hardening:** use the fast path during iteration: after each relevant fix, run only targeted local verification, push immediately, and trigger `@codex review` immediately; run the two independent subagent review passes in parallel while CI/Codex are already running. For final merge/tag clearance, Codex is still only a final net on top of the exact same SHA that already has two current clean subagent passes.
+- **Release-bound review hardening:** do local/self review before opening the PR. After the PR exists, use the fast path only: after each relevant fix, run targeted local verification, push immediately, and trigger `@codex review` immediately. After PR creation, Codex bot + CI are the review path; do not add extra local review gates in between.
 - **PR Merge / Release Commit Gate — MANDATORY CHECKLIST (do NOT skip any step):**
   The `codex-review-gate` workflow waits ~9 min for the Codex review bot. Bot signals: `eyes` reaction = review in progress, `👍` reaction = no findings, review comments = findings.
   - [ ] 1. `gh pr create ...`
   - [ ] 2. For the initial PR SHA and for every later relevant SHA: run targeted local verification only, push immediately if needed, then immediately trigger Codex review/re-review: `gh pr comment <nr> --body "@codex review"`.
-  - [ ] 3. While CI/Codex are already running on that pushed SHA, run at least two independent subagent review passes on the exact current PR delta with distinct focuses; do this in parallel, not serially after the bot.
-  - [ ] 4. `gh pr checks <nr> --watch` — wait for ALL required checks; for release-bound/high-risk deltas also wait for `codex-review-gate`
-  - [ ] 5. Check bot signal across all channels: `gh api repos/<o>/<r>/issues/<nr>/reactions` (👍 = clean), `gh api repos/<o>/<r>/pulls/<nr>/reviews` (PR-level review findings), `gh api repos/<o>/<r>/pulls/<nr>/comments` (inline findings), and issue/discussion comments on the PR.
-  - [ ] 6. If findings OR any new relevant delta is introduced afterward → fix, run targeted verification, push immediately, then **trigger re-review**: `gh pr comment <nr> --body "@codex review"` — pushes alone do NOT trigger re-review. Then go back to step 3 for the new SHA.
-  - [ ] 7. Resolve ALL review threads before merge (branch protection blocks unresolved):
+  - [ ] 3. `gh pr checks <nr> --watch` — wait for ALL required checks; for release-bound/high-risk deltas also wait for `codex-review-gate`
+  - [ ] 4. Check bot signal across all channels: `gh api repos/<o>/<r>/issues/<nr>/reactions` (👍 = clean), `gh api repos/<o>/<r>/pulls/<nr>/reviews` (PR-level review findings), `gh api repos/<o>/<r>/pulls/<nr>/comments` (inline findings), and issue/discussion comments on the PR.
+  - [ ] 5. If findings OR any new relevant delta is introduced afterward → fix, run targeted verification, push immediately, then **trigger re-review**: `gh pr comment <nr> --body "@codex review"` — pushes alone do NOT trigger re-review. Then go back to step 2 for the new SHA.
+  - [ ] 6. Resolve ALL review threads before merge (branch protection blocks unresolved):
          `gh api graphql -f query='{ repository(owner:"<o>",name:"<r>") { pullRequest(number:<nr>) { reviewThreads(first:20) { nodes { id isResolved } } } } }'`
          Then for each unresolved: `gh api graphql -f query='mutation { resolveReviewThread(input:{threadId:"<id>"}) { thread { isResolved } } }'`
-  - [ ] 8. For release-bound/high-risk deltas, only proceed after an actual Codex bot result for the current latest commit SHA; timeout alone is NOT enough.
-  - [ ] 9. For release-bound/high-risk deltas, confirm the PR head SHA is still the same SHA that received the latest clean/current bot result and the latest clean subagent passes. If SHA changed, or if Codex timed out/skipped and there is still no real/current bot result for that exact SHA, go back to step 2.
-  - [ ] 10. `gh pr merge --squash --delete-branch` (use `--admin` only if branch protection blocks after all steps passed)
-  - [ ] 11. For squash merge flows, tag/release only the remote merge commit produced from that reviewed PR state; any later delta requires a new PR/review cycle.
+  - [ ] 7. For release-bound/high-risk deltas, only proceed after an actual Codex bot result for the current latest commit SHA; timeout alone is NOT enough.
+  - [ ] 8. For release-bound/high-risk deltas, confirm the PR head SHA is still the same SHA that received the latest clean/current bot result. If SHA changed, or if Codex timed out/skipped and there is still no real/current bot result for that exact SHA, go back to step 2.
+  - [ ] 9. `gh pr merge --squash --delete-branch` (use `--admin` only if branch protection blocks after all steps passed)
+  - [ ] 10. For squash merge flows, tag/release only the remote merge commit produced from that reviewed PR state; any later delta requires a new PR/review cycle.
 
 ## Error Handling
 - Expected issues: explicit result types (not throw/try/catch).
@@ -148,5 +147,5 @@ Use below list to store and recall user notes when asked to do so.
 - Main-branch protection drift check (user requirement): when repo policy changes, verify the live `main` branch protection with `bash scripts/release/verify-github-main-protection.sh` so GitHub settings do not silently drift away from the documented contract.
 - Codex review hygiene (user requirement): for release-bound PRs, wait for the real Codex bot response; do not treat workflow timeout as a clean review.
 - Review invalidation hygiene (user requirement): if any relevant delta lands after the last reviewed commit, release readiness resets to zero until that exact new commit state completes a fresh PR + `@codex review` + real bot response cycle.
-- Subagent review hygiene (user requirement): for release-bound or high-risk changes, use at least two independent subagent review passes with distinct focuses on the final merge/tag SHA so Codex review remains a final net for release clearance, even if Codex was also triggered earlier during fix iteration.
-- Review speed rule (user requirement): do not serialize Codex and subagent review unnecessarily. After each relevant push, trigger `@codex review` immediately; run subagent reviews and CI in parallel; only the final merge/tag decision must wait for all clean signals on the same SHA.
+- Subagent review hygiene (user requirement): after PR creation, do not insert extra local subagent review gates into the normal fix loop; Codex bot is the final review instance for merge/tag clearance.
+- Review speed rule (user requirement): after each relevant push, trigger `@codex review` immediately and let CI run; fix only real Codex/CI findings after the PR exists.

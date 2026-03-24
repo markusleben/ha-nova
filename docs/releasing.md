@@ -78,13 +78,12 @@ Before every RC or final tag:
 - review clearance is tied to the exact commit state that will be tagged, not to the branch/topic in general
 - a clean bot result applies only to the exact commit SHA it reviewed; any later SHA is unreviewed until the cycle completes again
 - if any relevant delta appears after the last bot-reviewed commit, stop release work and restart the full cycle: push -> `@codex review` -> actual bot result -> checks green
-- run at least two independent subagent review passes on the final release-bound delta with distinct focuses before relying on Codex review
 
 Fast-path rule during iteration:
 - do not wait for a full manual review pass before asking Codex
 - for the initial PR SHA and after each relevant fix, run only targeted local verification, push immediately if needed, and immediately trigger `@codex review`
-- while CI and Codex are already running, run the two subagent review passes in parallel
-- only the final merge/tag-ready SHA may be treated as cleared, and only when all three agree on that exact SHA: green checks, clean/current Codex result, clean/current subagent passes
+- after the PR exists, do not add extra local review gates in between; Codex bot + CI are the review path
+- only the final merge/tag-ready SHA may be treated as cleared when required checks are green and the current Codex bot result on that exact SHA is clean
 - if Codex times out or never posts a real result on the current SHA, re-request `@codex review` on that same SHA before treating the PR as review-clean
 
 ## Release Worthiness
@@ -274,6 +273,8 @@ npm run release:rc:local
 The generated `ha-nova-winget-manifest-<tag>.zip` is the handoff artifact for `microsoft/winget-pkgs`.
 For the real public submission, stage it from the exact final stable GitHub release asset.
 Local `dist/` output or RC artifact downloads are rehearsal-only.
+`npm run release:winget:stage-submission` now defaults to `WINGET_STAGE_SOURCE=release_asset`.
+Only use `WINGET_STAGE_SOURCE=local_dist` for private rehearsal or contract validation.
 
 Stage the real public submission payload from the exact final stable release artifact:
 
@@ -286,6 +287,8 @@ Only use the explicit script form when you need to target a specific final stabl
 ```bash
 bash scripts/release/prepare-winget-pkgs-submission.sh 0.3.0 markusleben/ha-nova v0.3.0
 ```
+
+The helper refuses prerelease tags in `release_asset` mode.
 
 That helper:
 - unpacks the exact generated manifest ZIP into `dist/winget/submission/...`
@@ -303,6 +306,15 @@ Generated helper artifacts:
 
 Use them as the source of truth for the actual maintainer submission step instead of reconstructing the PR by hand.
 The commands file should be treated as the source of truth for the real fork/branch/commit/push/PR step after Windows validation succeeds, with separate bash and PowerShell variants plus an explicit staged-root placeholder for cross-host handoffs.
+
+Track the public package lane in `release/winget-publication-state.json`:
+- set `publication_phase = "pr_open"` and `pending_version = "<tag version>"` when the `winget-pkgs` PR opens
+- move `publication_phase` to `merged_waiting_visibility` after merge
+- move `publication_phase` to `visible_waiting_install_proof` once `winget show --source winget` sees the version
+- set `public_install_proven = true`, `publication_phase = "install_proven_waiting_upgrade_proof"`, and `current_public_version` after the fresh-VM install/check-update/uninstall proof passes
+- set `public_upgrade_proven = true`, `publication_phase = "upgrade_proven"`, and keep `current_public_version` on the latest proved public version only after a later published-to-published `winget upgrade` proof passes
+- keep `automation_enabled = false` until both proofs are true and the team explicitly enables automated update PRs
+- never open a second public `winget` submission while `pending_version` is non-empty and `publication_phase` is not yet terminal
 
 Required sequence before any public doc flip:
 1. stage the manifest payload from the release ZIP
@@ -601,7 +613,7 @@ For installer/runtime/platform releases, call out all of these explicitly:
 Before tag/release:
 - audit open PRs, especially Dependabot and workflow/release PRs, as `blocker now` vs `separate later`
 - do not pull in red or unreviewed workflow/release changes at the last minute
-- final release SHA must complete the current review cycle, including the required subagent and Codex review hygiene for release-bound changes
+- final release SHA must complete the current review cycle, including the current Codex bot hygiene for release-bound changes
 
 ## Final Publish
 
