@@ -2,64 +2,50 @@ package main
 
 import (
 	"os"
-	"path/filepath"
+	"os/exec"
+	"strings"
 	"testing"
 )
 
-func TestDetectInstallSourcePrefersLiveBundleRuntimeOverStaleWingetState(t *testing.T) {
-	home := t.TempDir()
-	bundleRoot := windowsBundleInstallRoot(home)
-	if err := os.MkdirAll(bundleRoot, 0o755); err != nil {
-		t.Fatalf("mkdir bundle root: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(bundleRoot, publicBinaryName()), []byte("bundle"), 0o755); err != nil {
-		t.Fatalf("write bundle binary: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(bundleRoot, "bundle.json"), []byte(`{"version":"0.3.0"}`), 0o644); err != nil {
-		t.Fatalf("write bundle metadata: %v", err)
-	}
-
-	originalPlatform := channelChecksUseWindowsPlatform
-	originalExec := executablePathForInstallSource
+func TestRunWingetUninstallUsesPurgeFlags(t *testing.T) {
+	originalLookPath := execLookPathForLifecycle
+	originalExec := execCommandForLifecycle
 	defer func() {
-		channelChecksUseWindowsPlatform = originalPlatform
-		executablePathForInstallSource = originalExec
+		execLookPathForLifecycle = originalLookPath
+		execCommandForLifecycle = originalExec
 	}()
-	channelChecksUseWindowsPlatform = func() bool { return true }
-	executablePathForInstallSource = func() (string, error) {
-		return filepath.Join(bundleRoot, publicBinaryName()), nil
+
+	execLookPathForLifecycle = func(file string) (string, error) {
+		return "/usr/bin/" + file, nil
 	}
 
-	paths := runtimePaths{
-		Home:        home,
-		InstallRoot: bundleRoot,
+	var gotName string
+	var gotArgs []string
+	execCommandForLifecycle = func(name string, args ...string) *exec.Cmd {
+		gotName = name
+		gotArgs = append([]string{}, args...)
+		cmd := exec.Command(os.Args[0], "-test.run=TestHelperProcessRunWingetUninstall")
+		cmd.Env = append(os.Environ(), "GO_WANT_HELPER_PROCESS_RUN_WINGET_UNINSTALL=1")
+		return cmd
 	}
-	got := detectInstallSource(paths, installState{InstallSource: installSourceWinget})
-	if got != installSourceBundle {
-		t.Fatalf("detectInstallSource() = %q, want %q", got, installSourceBundle)
+
+	if err := runWingetUninstall(uninstallModePurge); err != nil {
+		t.Fatalf("runWingetUninstall() error: %v", err)
+	}
+	if gotName != "winget" {
+		t.Fatalf("command = %q, want winget", gotName)
+	}
+	joined := strings.Join(gotArgs, " ")
+	for _, want := range []string{"uninstall", "--id", wingetPackageID, "--exact", "--accept-source-agreements", "--purge", "--force"} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("winget uninstall args missing %q: %q", want, joined)
+		}
 	}
 }
 
-func TestDetectInstallSourceIgnoresStaleWingetStateWithoutLiveWingetInstall(t *testing.T) {
-	home := t.TempDir()
-
-	originalPlatform := channelChecksUseWindowsPlatform
-	originalExec := executablePathForInstallSource
-	defer func() {
-		channelChecksUseWindowsPlatform = originalPlatform
-		executablePathForInstallSource = originalExec
-	}()
-	channelChecksUseWindowsPlatform = func() bool { return true }
-	executablePathForInstallSource = func() (string, error) {
-		return filepath.Join(windowsBundleInstallRoot(home), publicBinaryName()), nil
+func TestHelperProcessRunWingetUninstall(t *testing.T) {
+	if os.Getenv("GO_WANT_HELPER_PROCESS_RUN_WINGET_UNINSTALL") != "1" {
+		return
 	}
-
-	paths := runtimePaths{
-		Home:        home,
-		InstallRoot: windowsBundleInstallRoot(home),
-	}
-	got := detectInstallSource(paths, installState{InstallSource: installSourceWinget})
-	if got != installSourceBundle {
-		t.Fatalf("detectInstallSource() = %q, want %q", got, installSourceBundle)
-	}
+	os.Exit(0)
 }

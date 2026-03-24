@@ -124,7 +124,7 @@ func runUninstall(paths runtimePaths, args []string) int {
 
 	report := &uninstallReport{}
 	if source == installSourceWinget {
-		if err := runWingetUninstallForUninstall(); err != nil {
+		if err := runWingetUninstallForUninstall(mode); err != nil {
 			printHumanErr("winget uninstall failed: %s", err)
 			return 1
 		}
@@ -183,7 +183,7 @@ func runInternalWingetUninstall(_ runtimePaths, args []string) int {
 		printHumanErr("cannot persist Windows uninstall recovery state: %s", err)
 		return 1
 	}
-	if err := runWingetUninstallForUninstall(); err != nil {
+	if err := runWingetUninstallForUninstall(mode); err != nil {
 		printHumanErr("winget uninstall failed: %s", failWindowsUninstallStatus(paths, status, "winget_runtime_cleanup", err))
 		return 1
 	}
@@ -384,10 +384,17 @@ func handleWindowsUninstallRecovery(recovery windowsUninstallStatusInspection, r
 		return 1
 	case windowsUninstallStatusKindInterrupted, windowsUninstallStatusKindFailed, windowsUninstallStatusKindCorrupt:
 		requiredMode := normalizeUninstallMode(recovery.Status.Mode)
-		if recovery.Kind == windowsUninstallStatusKindCorrupt {
-			requiredMode = uninstallModeStandard
-		}
 		requestedMode = normalizeUninstallMode(string(requestedMode))
+		if recovery.Kind == windowsUninstallStatusKindCorrupt {
+			printHumanWarn("%s", recovery.Summary)
+			printHumanInfo("Retrying Windows uninstall recovery.")
+			return 0
+		}
+		if requiredMode == uninstallModePurge && requestedMode == uninstallModeStandard && strings.TrimSpace(recovery.Status.FailingStep) == "token_cleanup" {
+			printHumanWarn("%s", recovery.Summary)
+			printHumanWarn("Retrying Windows uninstall recovery with standard remove; relay token/config cleanup will stay skipped.")
+			return 0
+		}
 		if requestedMode != requiredMode {
 			printHumanErr("%s", recovery.Summary)
 			printHumanWarn("Recovery: run `%s`.", recovery.RecoveryCommand)

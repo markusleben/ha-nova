@@ -296,11 +296,29 @@ func TestRunUninstallBlocksStandardRecoveryAfterPurgeTokenFailure(t *testing.T) 
 			RecoveryCommand: "ha-nova uninstall --yes --purge",
 		}, uninstallModeStandard)
 	})
-	if exitCode != 1 {
-		t.Fatalf("runUninstall() exit = %d, want 1\n%s", exitCode, output)
+	if exitCode != 0 {
+		t.Fatalf("runUninstall() exit = %d, want 0\n%s", exitCode, output)
 	}
-	if !strings.Contains(output, "Recovery: run `ha-nova uninstall --yes --purge`.") {
-		t.Fatalf("expected purge recovery hint:\n%s", output)
+	if !strings.Contains(output, "Retrying Windows uninstall recovery with standard remove") {
+		t.Fatalf("expected standard fallback hint:\n%s", output)
+	}
+}
+
+func TestRunUninstallAllowsPurgeRecoveryWhenMarkerIsCorrupt(t *testing.T) {
+	enableWindowsUninstallStatusChecks(t)
+
+	exitCode, output := captureCommandOutput(t, func() int {
+		return handleWindowsUninstallRecovery(windowsUninstallStatusInspection{
+			Kind:            windowsUninstallStatusKindCorrupt,
+			Summary:         "A previous background HA NOVA uninstall left an unreadable recovery marker.",
+			RecoveryCommand: "ha-nova uninstall --yes",
+		}, uninstallModePurge)
+	})
+	if exitCode != 0 {
+		t.Fatalf("runUninstall() exit = %d, want 0\n%s", exitCode, output)
+	}
+	if !strings.Contains(output, "Retrying Windows uninstall recovery.") {
+		t.Fatalf("expected corrupt-marker recovery retry:\n%s", output)
 	}
 }
 

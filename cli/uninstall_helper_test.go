@@ -310,7 +310,12 @@ func TestRunInternalWingetUninstallPersistsMarkerBeforeWait(t *testing.T) {
 		}
 		waitObservedMarker = true
 	}
-	runWingetUninstallForUninstall = func() error { return nil }
+	runWingetUninstallForUninstall = func(mode uninstallMode) error {
+		if mode != uninstallModeStandard {
+			t.Fatalf("winget uninstall mode = %q, want standard", mode)
+		}
+		return nil
+	}
 	scheduleWindowsSelfDeleteForUninstall = func(path string) error { return nil }
 
 	exitCode, output := captureCommandOutput(t, func() int {

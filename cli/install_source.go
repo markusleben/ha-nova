@@ -132,7 +132,7 @@ func isWingetManagedPath(path string) bool {
 }
 
 func runWingetUpgrade() error {
-	if _, err := exec.LookPath("winget"); err != nil {
+	if _, err := execLookPathForLifecycle("winget"); err != nil {
 		return err
 	}
 	cmd := execCommandForLifecycle("winget", "upgrade", "--id", wingetPackageID, "--exact", "--accept-source-agreements", "--accept-package-agreements")
@@ -141,11 +141,15 @@ func runWingetUpgrade() error {
 	return cmd.Run()
 }
 
-func runWingetUninstall() error {
-	if _, err := exec.LookPath("winget"); err != nil {
+func runWingetUninstall(mode uninstallMode) error {
+	if _, err := execLookPathForLifecycle("winget"); err != nil {
 		return err
 	}
-	cmd := execCommandForLifecycle("winget", "uninstall", "--id", wingetPackageID, "--exact", "--accept-source-agreements")
+	args := []string{"uninstall", "--id", wingetPackageID, "--exact", "--accept-source-agreements", "--purge"}
+	if mode == uninstallModePurge {
+		args = append(args, "--force")
+	}
+	cmd := execCommandForLifecycle("winget", args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
