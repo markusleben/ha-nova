@@ -384,17 +384,10 @@ func handleWindowsUninstallRecovery(recovery windowsUninstallStatusInspection, r
 		return 1
 	case windowsUninstallStatusKindInterrupted, windowsUninstallStatusKindFailed, windowsUninstallStatusKindCorrupt:
 		requiredMode := normalizeUninstallMode(recovery.Status.Mode)
-		requestedMode = normalizeUninstallMode(string(requestedMode))
 		if recovery.Kind == windowsUninstallStatusKindCorrupt {
-			printHumanWarn("%s", recovery.Summary)
-			printHumanInfo("Retrying Windows uninstall recovery.")
-			return 0
+			requiredMode = uninstallModeStandard
 		}
-		if requiredMode == uninstallModePurge && requestedMode == uninstallModeStandard && strings.TrimSpace(recovery.Status.FailingStep) == "token_cleanup" {
-			printHumanWarn("%s", recovery.Summary)
-			printHumanWarn("Retrying Windows uninstall recovery with standard remove; relay token/config cleanup will stay skipped.")
-			return 0
-		}
+		requestedMode = normalizeUninstallMode(string(requestedMode))
 		if requestedMode != requiredMode {
 			printHumanErr("%s", recovery.Summary)
 			printHumanWarn("Recovery: run `%s`.", recovery.RecoveryCommand)

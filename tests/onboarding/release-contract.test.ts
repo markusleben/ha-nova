@@ -237,7 +237,9 @@ describe("release contract", () => {
     expect(rcWorkflow).toContain("Default ha-nova uninstall is standard remove; use ha-nova uninstall --purge for a full local wipe.");
     expect(rcWorkflow).toContain("Windows now uses %APPDATA%\\\\ha-nova and %LOCALAPPDATA%\\\\ha-nova\\\\cache as the canonical config and cache paths.");
     expect(rcWorkflow).toContain("Keep exactly one Windows install channel per machine.");
-    expect(rcWorkflow).toContain("submit the attached winget artifact, wait for public source visibility, then run the published-source winget smoke");
+    expect(rcWorkflow).toContain("The attached winget manifest artifact is a rehearsal handoff, not a live install channel and not the final public submission payload.");
+    expect(rcWorkflow).toContain("use the attached winget artifact only for rehearsal/validation");
+    expect(rcWorkflow).toContain("The real public winget-pkgs submission must be restaged later from the exact final stable release artifact.");
     expect(rcWorkflow).toContain("Validate Windows winget manifest");
     expect(rcWorkflow).toContain("winget validate --manifest $manifestDir");
     expect(rcWorkflow).toContain("winget validate emitted warnings");
@@ -269,8 +271,9 @@ describe("release contract", () => {
     expect(releasing).toContain("Public Winget Handoff");
     expect(releasing).toContain("npm run release:winget:stage-submission");
     expect(releasing).toContain("prepare-winget-pkgs-submission.sh");
-    expect(releasing).toContain("already-built local release artifact");
-    expect(releasing).toContain("dist/winget/ha-nova-winget-manifest-<tag>.zip");
+    expect(releasing).toContain("For the real public submission, stage it from the exact final stable GitHub release asset.");
+    expect(releasing).toContain("Local `dist/` output or RC artifact downloads are rehearsal-only.");
+    expect(releasing).toContain("ha-nova-winget-manifest-<tag>.zip");
     expect(releasing).toContain("winget-pkgs-maintainer-checklist.md");
     expect(releasing).toContain("winget-pkgs-pr-body.md");
     expect(releasing).toContain("winget-pkgs-copy-path.txt");
@@ -281,11 +284,14 @@ describe("release contract", () => {
     expect(releasing).toContain("`release.yml` smoke runs after publish");
     expect(releasing).toContain("winget validate --manifest <dir>` on Windows and require a warning-free success result");
     expect(releasing).toContain("winget show --id markusleben.ha-nova --exact --source winget");
+    expect(releasing).toContain("winget install --id markusleben.ha-nova --exact --source winget");
+    expect(releasing).toContain("winget uninstall --id markusleben.ha-nova --exact --source winget");
     expect(releasing).toContain("do not use the local harness");
     expect(releasing).toContain("initial fresh-VM published-source install/check-update/uninstall proof");
     expect(releasing).toContain("Treat public `winget upgrade` as a second proof lane");
     expect(releasing).toContain("previous published `markusleben.ha-nova` version installed");
     expect(releasing).toContain("keep release-note/doc wording conservative about public `winget upgrade` until that continuity proof exists");
+    expect(releasing).toContain("winget upgrade --id markusleben.ha-nova --exact --source winget");
     expect(releasing).toContain("run the same flow only if Secret Service is available");
     expect(releasing).toContain("if not live-tested, do not call the release fully verified on Linux");
     expect(releasing).toContain("CI smoke alone does not upgrade Linux to full real-machine validation");

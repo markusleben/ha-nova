@@ -272,15 +272,16 @@ npm run release:rc:local
 ## Public Winget Handoff
 
 The generated `ha-nova-winget-manifest-<tag>.zip` is the handoff artifact for `microsoft/winget-pkgs`.
-Local staging expects that `dist/winget/ha-nova-winget-manifest-<tag>.zip` already exists from a prior local build, RC artifact download, or release artifact sync.
+For the real public submission, stage it from the exact final stable GitHub release asset.
+Local `dist/` output or RC artifact downloads are rehearsal-only.
 
-Stage the exact submission payload from an already-built local release artifact:
+Stage the real public submission payload from the exact final stable release artifact:
 
 ```bash
 npm run release:winget:stage-submission
 ```
 
-Or for a specific version/tag:
+Only use the explicit script form when you need to target a specific final stable tag:
 
 ```bash
 bash scripts/release/prepare-winget-pkgs-submission.sh 0.3.0 markusleben/ha-nova v0.3.0
@@ -313,13 +314,15 @@ Required sequence before any public doc flip:
 
 Do not switch public Windows install docs to `winget install` until the exact staged manifest has been submitted, merged, and proven on a fresh Windows machine with:
 - `winget install --id markusleben.ha-nova --exact`
+- `winget install --id markusleben.ha-nova --exact --source winget`
 - `ha-nova check-update`
-- `winget uninstall --id markusleben.ha-nova --exact`
+- `winget uninstall --id markusleben.ha-nova --exact --source winget`
 
 Treat public `winget upgrade` as a second proof lane:
 - validate it from a separate Windows snapshot that already has the previous published `markusleben.ha-nova` version installed
 - if this is the first public `winget` publication and no older public version exists yet, record upgrade continuity as pending and re-run it on the next published `winget` release
 - keep release-note/doc wording conservative about public `winget upgrade` until that continuity proof exists
+- use `winget upgrade --id markusleben.ha-nova --exact --source winget` for that proof so the command cannot drift to another configured source
 
 ### 3. Fresh Install Smoke Matrix
 
