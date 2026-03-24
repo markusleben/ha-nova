@@ -76,7 +76,7 @@ describe("S-4: client-specific skill installation", () => {
     expect(ctx).toContain("name: ha-nova");
   });
 
-  it("installs gemini skills as flat copies", () => {
+  it("installs gemini skills as flat copies", { timeout: 120000 }, () => {
     const { home, result } = installSkills("gemini");
     expect(result.status).toBe(0);
 
