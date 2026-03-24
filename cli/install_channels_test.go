@@ -292,6 +292,26 @@ func TestResolveWingetBundleRootUsesSingleLiveCandidate(t *testing.T) {
 	}
 }
 
+func TestResolveWingetBundleRootFallsBackToSingleCandidateWhenLinkMissing(t *testing.T) {
+	home := t.TempDir()
+
+	want := filepath.Join(windowsWingetPackageRoot(home), wingetPackageID+"_0.4.0_x64", "ha-nova")
+	if err := os.MkdirAll(want, 0o755); err != nil {
+		t.Fatalf("mkdir winget bundle root: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(want, publicBinaryName()), []byte("winget"), 0o755); err != nil {
+		t.Fatalf("write winget binary: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(want, "bundle.json"), []byte(`{"version":"0.4.0"}`), 0o644); err != nil {
+		t.Fatalf("write winget metadata: %v", err)
+	}
+
+	got := resolveWingetBundleRoot(home)
+	if filepath.Clean(got) != filepath.Clean(want) {
+		t.Fatalf("resolveWingetBundleRoot() = %q, want %q", got, want)
+	}
+}
+
 func TestRunUpdateFailsLoudOnMixedWindowsChannels(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

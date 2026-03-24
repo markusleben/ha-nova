@@ -387,7 +387,8 @@ func handleWindowsUninstallRecovery(recovery windowsUninstallStatusInspection, r
 		if recovery.Kind == windowsUninstallStatusKindCorrupt {
 			requiredMode = uninstallModeStandard
 		}
-		if normalizeUninstallMode(string(requestedMode)) != requiredMode {
+		requestedMode = normalizeUninstallMode(string(requestedMode))
+		if requestedMode != requiredMode {
 			printHumanErr("%s", recovery.Summary)
 			printHumanWarn("Recovery: run `%s`.", recovery.RecoveryCommand)
 			return 1

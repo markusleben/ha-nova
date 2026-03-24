@@ -9,7 +9,7 @@ npm run bump -- <version>
 For the current train:
 
 ```bash
-npm run bump -- 0.3.0
+npm run bump -- 0.3.1
 ```
 
 This updates all 5 version files atomically:
@@ -20,6 +20,16 @@ This updates all 5 version files atomically:
 - `.claude-plugin/marketplace.json`
 
 To also bump `min_relay_version` (when skills require relay endpoints not present in older relay versions), edit `version.json` manually after the bump.
+
+Before any RC or final release work, hard-check the next version against the already published GitHub releases:
+
+```bash
+npm run verify:next-release-version -- v0.3.1
+```
+
+Hard rule:
+- never reuse an already published stable version
+- never create an RC/final tag whose base version is less than or equal to the latest published stable release
 
 ## Verify
 
@@ -149,6 +159,8 @@ Default structure:
 - `Bug Fixes`
 
 Rules:
+- Keep the headings fixed across releases.
+- If a section does not apply, omit that section instead of inventing filler.
 - Keep notes short and concrete.
 - Prefer user-visible outcomes over implementation detail.
 - Do not list every small fix.
@@ -565,9 +577,8 @@ That active reference doc must not imply the removed macOS shell onboarding fami
 For installer/runtime/platform releases, call out all of these explicitly:
 - Windows platform support is now live through `install.ps1` + the Go runtime
 - Windows currently ships an `amd64` bundle only; Windows ARM64 uses x64 emulation
-- Current Windows client validation matrix for this exact release
 - Default `npm run verify` is intentionally host-safe; desktop/private-RC validation stays separate
-- Any client lanes that remain experimental on Windows
+- Only describe Windows validation scope that was actually proven for this exact release; do not imply broader client parity than was tested
 - Existing installs update through `ha-nova check-update` / `ha-nova update`; only Claude currently has the extra automatic SessionStart update banner
 - Tell users not to download and run the release `ha-nova-installer-bundle-*.tar.gz` / `.zip` assets directly; those are installer payloads, not the supported end-user path
 - If uninstall semantics changed, say plainly whether default `ha-nova uninstall` is standard remove or full purge

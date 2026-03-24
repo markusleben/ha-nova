@@ -46,4 +46,16 @@ describe("S-11: version bump", () => {
     const pkg = JSON.parse(readFileSync("package.json", "utf8"));
     expect(pkg.scripts?.bump).toContain("bump-version.sh");
   });
+
+  it("exposes a next-release version guard", () => {
+    const pkg = JSON.parse(readFileSync("package.json", "utf8"));
+    const content = readFileSync("scripts/release/verify-next-release-version.sh", "utf8");
+    expect(pkg.scripts?.["verify:next-release-version"]).toContain("verify-next-release-version.sh");
+    expect(content.startsWith("#!/")).toBe(true);
+    expect(content).toContain("gh");
+    expect(content).toContain("latest published stable");
+    expect(content).toContain("already exists on GitHub releases");
+    expect(content).toContain("HA_NOVA_ALLOW_EXISTING_RELEASE_TAG");
+    expect(content).toContain("rerun allowed for existing");
+  });
 });

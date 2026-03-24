@@ -252,3 +252,53 @@ func TestResolveUpdatedRuntimeSyncBinaryPrefersWingetLink(t *testing.T) {
 		t.Fatalf("resolveUpdatedRuntimeSyncBinary() = %q, want %q", got, linkPath)
 	}
 }
+
+func TestResolveUpdatedRuntimeSyncBinaryFallsBackToWingetPackageRootWhenLinkMissing(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("LOCALAPPDATA", filepath.Join(home, "AppData", "Local"))
+	t.Setenv("APPDATA", filepath.Join(home, "AppData", "Roaming"))
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+	state := installState{
+		SchemaVersion: stateSchemaVersion,
+		InstallSource: installSourceWinget,
+	}
+	if err := saveState(paths, state); err != nil {
+		t.Fatalf("saveState() error: %v", err)
+	}
+
+	root := filepath.Join(windowsWingetPackageRoot(home), wingetPackageID+"_0.4.0_x64", "ha-nova")
+	if err := os.MkdirAll(root, 0o755); err != nil {
+		t.Fatalf("mkdir winget package root: %v", err)
+	}
+	candidate := filepath.Join(root, publicBinaryName())
+	if err := os.WriteFile(candidate, []byte("winget"), 0o755); err != nil {
+		t.Fatalf("write winget binary: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "bundle.json"), []byte(`{"version":"0.4.0"}`), 0o644); err != nil {
+		t.Fatalf("write winget metadata: %v", err)
+	}
+
+	originalPlatform := channelChecksUseWindowsPlatform
+	originalLookPath := execLookPathForLifecycle
+	defer func() {
+		channelChecksUseWindowsPlatform = originalPlatform
+		execLookPathForLifecycle = originalLookPath
+	}()
+	channelChecksUseWindowsPlatform = func() bool { return true }
+	execLookPathForLifecycle = func(file string) (string, error) {
+		return "wrong-path.exe", nil
+	}
+
+	got, err := resolveUpdatedRuntimeSyncBinary(paths)
+	if err != nil {
+		t.Fatalf("resolveUpdatedRuntimeSyncBinary() error: %v", err)
+	}
+	if got != candidate {
+		t.Fatalf("resolveUpdatedRuntimeSyncBinary() = %q, want %q", got, candidate)
+	}
+}

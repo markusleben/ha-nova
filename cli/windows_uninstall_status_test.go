@@ -256,6 +256,28 @@ func TestRunUninstallBlocksWrongRecoveryMode(t *testing.T) {
 	}
 }
 
+func TestRunUninstallBlocksStandardRecoveryAfterPurgeTokenFailure(t *testing.T) {
+	enableWindowsUninstallStatusChecks(t)
+
+	exitCode, output := captureCommandOutput(t, func() int {
+		return handleWindowsUninstallRecovery(windowsUninstallStatusInspection{
+			Kind:    windowsUninstallStatusKindFailed,
+			Summary: "HA NOVA uninstall could not remove the stored relay token.",
+			Status: windowsUninstallStatus{
+				Mode:        string(uninstallModePurge),
+				FailingStep: "token_cleanup",
+			},
+			RecoveryCommand: "ha-nova uninstall --yes --purge",
+		}, uninstallModeStandard)
+	})
+	if exitCode != 1 {
+		t.Fatalf("runUninstall() exit = %d, want 1\n%s", exitCode, output)
+	}
+	if !strings.Contains(output, "Recovery: run `ha-nova uninstall --yes --purge`.") {
+		t.Fatalf("expected purge recovery hint:\n%s", output)
+	}
+}
+
 func TestFinalizeWindowsUninstallLeavesRuntimeWhenRecoveryFails(t *testing.T) {
 	enableWindowsUninstallStatusChecks(t)
 	stubUninstallRelayTokenDeletion(t, "test-relay-token", assertError("credential manager unavailable"))

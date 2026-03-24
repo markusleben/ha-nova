@@ -1,6 +1,6 @@
 {
   "name": "ha-nova",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "AI-powered Home Assistant management through LLM coding agents",
   "private": true,
   "type": "module",
@@ -33,9 +33,9 @@
   "scripts": {
     "bump": "bash scripts/bump-version.sh",
     "build": "node --input-type=module -e \"import { rmSync } from 'node:fs'; rmSync('nova/dist', { recursive: true, force: true });\" && tsc -p nova/tsconfig.json",
-  "dev": "tsx watch nova/src/runtime/main.ts",
-  "dev:sync": "bash scripts/dev-sync.sh",
-  "dev:install:codex-skill": "bash scripts/onboarding/install-local-skills.sh codex",
+    "dev": "tsx watch nova/src/runtime/main.ts",
+    "dev:sync": "bash scripts/dev-sync.sh",
+    "dev:install:codex-skill": "bash scripts/onboarding/install-local-skills.sh codex",
     "dev:install:claude-skill": "bash scripts/onboarding/install-local-skills.sh claude",
     "dev:install:opencode-skill": "bash scripts/onboarding/install-local-skills.sh opencode",
     "dev:install:gemini-skill": "bash scripts/onboarding/install-local-skills.sh gemini",
@@ -66,6 +66,7 @@
     "typecheck": "tsc --noEmit",
     "update:ha-reference": "node scripts/update-ha-template-reference.mjs",
     "verify:release-metadata": "bash scripts/release/verify-release-metadata.sh",
+    "verify:next-release-version": "bash scripts/release/verify-next-release-version.sh",
     "verify": "npm run verify:release-metadata && npm run typecheck && npm run test:safe && npm run build && bash scripts/check-docs.sh && npm run test:cli",
     "release:rc:local": "goreleaser build --snapshot --clean && bash scripts/release/build-install-bundle.sh && bash scripts/release/build-winget-manifest.sh",
     "release:winget:stage-submission": "bash scripts/release/prepare-winget-pkgs-submission.sh",

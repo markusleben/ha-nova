@@ -95,9 +95,6 @@ func windowsWingetPackageRoot(home string) string {
 
 func resolveWingetBundleRoot(home string) string {
 	linkPath := windowsWingetLinkPath(home)
-	if _, err := os.Stat(linkPath); err != nil {
-		return ""
-	}
 	if root := resolveWingetBundleRootFromLink(linkPath); root != "" {
 		return root
 	}

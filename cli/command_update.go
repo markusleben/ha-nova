@@ -291,7 +291,7 @@ func resolveUpdatedRuntimeSyncBinary(paths runtimePaths) (string, error) {
 	binaryName := publicBinaryName()
 	if channelChecksUseWindowsPlatform() {
 		state := loadStateOrDefault(paths)
-		if detectInstallSource(paths, state) == installSourceWinget {
+		if normalizeInstallSource(state.InstallSource) == installSourceWinget {
 			linkPath := windowsWingetLinkPath(paths.Home)
 			if _, err := os.Stat(linkPath); err == nil {
 				return linkPath, nil

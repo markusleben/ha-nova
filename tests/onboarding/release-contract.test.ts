@@ -37,6 +37,7 @@ describe("release contract", () => {
     expect(goreleaser).toContain("install.ps1");
     expect(goreleaser).toContain("$ProgressPreference = 'SilentlyContinue'");
     expect(goreleaser).toContain("## Upgrade Notes");
+    expect(goreleaser).toContain("validated install and client flows for this release");
     expect(goreleaser).toContain("ha-nova update");
     expect(goreleaser).toContain("ha-nova check-update");
     expect(goreleaser).toContain("A `winget` manifest is attached as a release handoff artifact");
@@ -47,6 +48,7 @@ describe("release contract", () => {
     expect(goreleaser).toContain("%LOCALAPPDATA%\\ha-nova\\cache");
     expect(goreleaser).toContain("Keep exactly one Windows install channel per machine.");
     expect(goreleaser).toContain("Legacy pre-Go installs still require the legacy cleanup script before reinstalling.");
+    expect(goreleaser).toContain("Do not download and run the raw `ha-nova-installer-bundle-*.tar.gz` / `.zip` assets directly;");
     expect(goreleaser).not.toContain("~/.config/ha-nova/update");
   });
 
@@ -56,11 +58,12 @@ describe("release contract", () => {
     expect(goreleaser).toContain("regexp: '^feat(\\(.+\\))?!?:.+$'");
     expect(goreleaser).toContain("title: Bug Fixes");
     expect(goreleaser).toContain("regexp: '^fix(\\(.+\\))?!?:.+$'");
-    expect(goreleaser).toContain("title: UX, Docs, and Refactors");
-    expect(goreleaser).toContain("regexp: '^(docs|refactor|perf|style)(\\(.+\\))?!?:.+$'");
-    expect(goreleaser).toContain("title: Internal Maintenance");
-    expect(goreleaser).toContain("regexp: '^(build|ci|chore|test)(\\(.+\\))?!?:.+$'");
     expect(goreleaser).toContain('      - "^Merge "');
+    expect(goreleaser).toContain("^(docs|refactor|perf|style|build|ci|chore|test)(\\(.+\\))?!?:.+$");
+    expect(goreleaser).not.toContain("^[^:]+:.*$");
+    expect(goreleaser).not.toContain("title: UX, Docs, and Refactors");
+    expect(goreleaser).not.toContain("title: Internal Maintenance");
+    expect(goreleaser).not.toContain("title: Other Changes");
   });
 
   it("builds macOS, Linux, and Windows install bundles with bundle metadata", () => {
@@ -134,6 +137,9 @@ describe("release contract", () => {
     expect(pkg.scripts?.verify).toContain("verify:release-metadata");
     expect(workflow).toContain("Verify release metadata");
     expect(workflow).toContain('verify-release-metadata.sh "${GITHUB_REF_NAME}"');
+    expect(workflow).toContain("Verify next release version");
+    expect(workflow).toContain('verify-next-release-version.sh "${GITHUB_REF_NAME}"');
+    expect(workflow).toContain('HA_NOVA_ALLOW_EXISTING_RELEASE_TAG: "1"');
     expect(workflow).toContain("environment:");
     expect(workflow).toContain("name: production");
     expect(workflow).toContain("Build install bundles");
@@ -213,6 +219,10 @@ describe("release contract", () => {
     expect(rcWorkflow).toContain("dist/winget/*.zip");
     expect(rcWorkflow).toContain("Smoke bundles");
     expect(rcWorkflow).toContain("version_tag must match vX.Y.Z-rcN");
+    expect(rcWorkflow).toContain("Verify next release version");
+    expect(rcWorkflow).toContain('verify-next-release-version.sh "${VERSION_TAG}"');
+    expect(rcWorkflow).toContain('HA_NOVA_ALLOW_EXISTING_RELEASE_TAG: "1"');
+    expect(rcWorkflow.indexOf("name: Checkout")).toBeLessThan(rcWorkflow.indexOf("name: Verify next release version"));
     expect(rcWorkflow).toContain("actions/upload-artifact@v7");
     expect(rcWorkflow).toContain("actions/download-artifact@v8");
     expect(rcWorkflow).toContain("gh release create");
@@ -223,9 +233,9 @@ describe("release contract", () => {
     expect(rcWorkflow).toContain("raw.githubusercontent.com/markusleben/ha-nova/");
     expect(rcWorkflow).toContain("install.sh | HA_NOVA_VERSION=");
     expect(rcWorkflow).toContain("install.ps1");
-    expect(rcWorkflow).toContain("Public Windows path is still install.ps1 until the winget package is published and proven on a fresh Windows VM.");
+    expect(rcWorkflow).toContain("Public Windows path stays install.ps1 until the winget package is published and proven on a fresh Windows VM.");
     expect(rcWorkflow).toContain("Default ha-nova uninstall is standard remove; use ha-nova uninstall --purge for a full local wipe.");
-    expect(rcWorkflow).toContain("Canonical Windows HA NOVA paths are %APPDATA%\\\\ha-nova and %LOCALAPPDATA%\\\\ha-nova\\\\cache.");
+    expect(rcWorkflow).toContain("Windows now uses %APPDATA%\\\\ha-nova and %LOCALAPPDATA%\\\\ha-nova\\\\cache as the canonical config and cache paths.");
     expect(rcWorkflow).toContain("Keep exactly one Windows install channel per machine.");
     expect(rcWorkflow).toContain("submit the attached winget artifact, wait for public source visibility, then run the published-source winget smoke");
     expect(rcWorkflow).toContain("Validate Windows winget manifest");

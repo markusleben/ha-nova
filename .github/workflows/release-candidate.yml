@@ -194,6 +194,12 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Verify next release version
+        env:
+          VERSION_TAG: ${{ inputs.version_tag }}
+          HA_NOVA_ALLOW_EXISTING_RELEASE_TAG: "1"
+        run: bash scripts/release/verify-next-release-version.sh "${VERSION_TAG}"
+
       - name: Download RC artifacts
         uses: actions/download-artifact@v8
         with:
@@ -214,7 +220,7 @@ jobs:
           set -euo pipefail
           title="HA NOVA ${VERSION_TAG}"
           install_ref="${GITHUB_SHA}"
-          notes=$'Bundle-based release candidate for public installer testing.\n\nInstall script ref: '"${install_ref}"$'\n\nmacOS / Linux:\n  curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/'"${install_ref}"$'/install.sh | HA_NOVA_VERSION='"${VERSION_TAG}"$' bash\n\nWindows (PowerShell):\n  $env:HA_NOVA_VERSION = '\'''"${VERSION_TAG}"$''\''\n  $ProgressPreference = '\''SilentlyContinue'\''\n  irm https://raw.githubusercontent.com/markusleben/ha-nova/'"${install_ref}"$'/install.ps1 | iex\n\nWindows notes:\n- Public Windows path is still install.ps1 until the winget package is published and proven on a fresh Windows VM.\n- The attached winget manifest artifact is a publication handoff, not a live install channel yet.\n- Default ha-nova uninstall is standard remove; use ha-nova uninstall --purge for a full local wipe.\n- Canonical Windows HA NOVA paths are %APPDATA%\\ha-nova and %LOCALAPPDATA%\\ha-nova\\cache.\n- Keep exactly one Windows install channel per machine.\n\nNext step after publish: submit the attached winget artifact, wait for public source visibility, then run the published-source winget smoke in a fresh home/profile.'
+          notes=$'Bundle-based release candidate for installer testing.\n\nInstall script ref: '"${install_ref}"$'\n\nmacOS / Linux:\n  curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/'"${install_ref}"$'/install.sh | HA_NOVA_VERSION='"${VERSION_TAG}"$' bash\n\nWindows (PowerShell):\n  $env:HA_NOVA_VERSION = '\'''"${VERSION_TAG}"$''\''\n  $ProgressPreference = '\''SilentlyContinue'\''\n  irm https://raw.githubusercontent.com/markusleben/ha-nova/'"${install_ref}"$'/install.ps1 | iex\n\nWindows notes:\n- Public Windows path stays install.ps1 until the winget package is published and proven on a fresh Windows VM.\n- The attached winget manifest artifact is a publication handoff, not a live install channel.\n- Default ha-nova uninstall is standard remove; use ha-nova uninstall --purge for a full local wipe.\n- Windows now uses %APPDATA%\\ha-nova and %LOCALAPPDATA%\\ha-nova\\cache as the canonical config and cache paths.\n- Keep exactly one Windows install channel per machine.\n\nNext step after publish: submit the attached winget artifact, wait for public source visibility, then run the published-source winget smoke on a fresh Windows VM.'
           shopt -s nullglob
           assets=(dist/install-bundles/* dist/winget/*.zip dist/winget/*.sha256)
 
