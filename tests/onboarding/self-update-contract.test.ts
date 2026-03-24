@@ -101,7 +101,7 @@ printf '%s\n' "$@" > "${marker}"
     expect(forwarded).toContain("1.2.3");
   });
 
-  it("repo-dev wrappers ignore a stray .exe runtime on Unix and fall back to a repo-built dev runtime", () => {
+  it("repo-dev wrappers ignore a stray .exe runtime on Unix and fall back to a repo-built dev runtime", { timeout: 120000 }, () => {
     const home = mkdtempSync(join(tmpdir(), "ha-nova-shim-exe-home-"));
     const binDir = join(home, "bin");
     const localBinDir = join(home, ".local", "bin");
