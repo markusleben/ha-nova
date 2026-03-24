@@ -80,6 +80,12 @@ Before every RC or final tag:
 - if any relevant delta appears after the last bot-reviewed commit, stop release work and restart the full cycle: push -> `@codex review` -> actual bot result -> checks green
 - run at least two independent subagent review passes on the final release-bound delta with distinct focuses before relying on Codex review
 
+Fast-path rule during iteration:
+- do not wait for a full manual review pass before asking Codex
+- after each relevant fix, run only targeted local verification, push immediately, and immediately trigger `@codex review`
+- while CI and Codex are already running, run the two subagent review passes in parallel
+- only the final merge/tag-ready SHA must satisfy all three together: green checks, clean/current Codex result, clean/current subagent passes
+
 ## Release Worthiness
 
 Do not cut a new version just because `main` moved.
