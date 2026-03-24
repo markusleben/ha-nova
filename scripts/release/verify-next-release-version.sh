@@ -78,13 +78,14 @@ if (!repo) {
 
 let releases;
 try {
-  releases = JSON.parse(
-    execFileSync("gh", ["api", `repos/${repo}/releases?per_page=50`], {
+  const pages = JSON.parse(
+    execFileSync("gh", ["api", "--paginate", "--slurp", `repos/${repo}/releases?per_page=100`], {
       cwd: rootDir,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
     }),
   );
+  releases = Array.isArray(pages) ? pages.flatMap((page) => (Array.isArray(page) ? page : [])) : [];
 } catch (error) {
   const detail = error.stderr || error.message || String(error);
   fail(`gh api failed for ${repo}: ${detail.trim()}`);

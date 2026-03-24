@@ -53,6 +53,8 @@ describe("S-11: version bump", () => {
     expect(pkg.scripts?.["verify:next-release-version"]).toContain("verify-next-release-version.sh");
     expect(content.startsWith("#!/")).toBe(true);
     expect(content).toContain("gh");
+    expect(content).toContain("--paginate");
+    expect(content).toContain("--slurp");
     expect(content).toContain("latest published stable");
     expect(content).toContain("already exists on GitHub releases");
     expect(content).toContain("HA_NOVA_ALLOW_EXISTING_RELEASE_TAG");

@@ -53,9 +53,12 @@ describe("install.ps1 contract", () => {
   it("stays PowerShell-native without Git Bash assumptions", () => {
     expect(content).toContain("Get-Command winget");
     expect(content).toContain("Microsoft\\WinGet\\Links\\ha-nova.exe");
+    expect(content).toContain("Microsoft\\WinGet\\Packages");
     expect(content).toContain("winget-managed HA NOVA install was detected");
     expect(content).toContain("winget upgrade --id");
     expect(content).toContain("winget uninstall --id");
+    expect(content).toContain('return "unknown"');
+    expect(content).toContain('& $wingetCommand.Source list ha-nova');
     expect(content).not.toContain("Git.Git");
     expect(content).not.toContain("git-bash.exe");
     expect(content).not.toContain("bash.exe");

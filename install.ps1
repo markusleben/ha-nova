@@ -15,6 +15,7 @@ $AppDataDir = if ($env:APPDATA) { $env:APPDATA } else { Join-Path $HOME "AppData
 $InstallDir = Join-Path $LocalAppDataDir "Programs\ha-nova"
 $PublicCommandDir = $InstallDir
 $WingetPortableLink = Join-Path $LocalAppDataDir "Microsoft\WinGet\Links\ha-nova.exe"
+$WingetPackagesDir = Join-Path $LocalAppDataDir "Microsoft\WinGet\Packages"
 $LegacyUninstallUrl = "https://raw.githubusercontent.com/markusleben/ha-nova/main/scripts/legacy-uninstall.ps1"
 $ConfigDir = Join-Path $AppDataDir "ha-nova"
 $UninstallStatusPath = Join-Path $LocalAppDataDir "ha-nova\uninstall-status.json"
@@ -202,18 +203,54 @@ Then run this installer again.
 "@
 }
 
-function Test-WingetInstallInventory {
+function Test-WingetBundleRoot {
+  param(
+    [string]$Candidate
+  )
+
+  if (-not $Candidate) {
+    return $false
+  }
+
+  $root = $Candidate.TrimEnd('\')
+  return (Test-Path -LiteralPath (Join-Path $root "ha-nova.exe")) -and (Test-Path -LiteralPath (Join-Path $root "bundle.json"))
+}
+
+function Test-WingetPackageRootInstall {
+  $packageRoots = @(Get-ChildItem -LiteralPath $WingetPackagesDir -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "$WingetPackageId*" })
+  foreach ($packageRoot in $packageRoots) {
+    if (Test-WingetBundleRoot -Candidate (Join-Path $packageRoot.FullName "ha-nova")) {
+      return $true
+    }
+    if (Test-WingetBundleRoot -Candidate $packageRoot.FullName) {
+      return $true
+    }
+  }
+
+  return $false
+}
+
+function Get-WingetInstallInventoryState {
   $wingetCommand = Get-Command winget -ErrorAction SilentlyContinue
   if (-not $wingetCommand) {
-    return $false
+    return "absent"
   }
 
   try {
     $output = & $wingetCommand.Source list --id $WingetPackageId --exact --source winget 2>$null | Out-String
-    return $output -match [regex]::Escape($WingetPackageId)
+    if ($output -match [regex]::Escape($WingetPackageId)) {
+      return "installed"
+    }
+
+    $fallbackOutput = & $wingetCommand.Source list ha-nova 2>$null | Out-String
+    if ($fallbackOutput -match [regex]::Escape($WingetPackageId)) {
+      return "installed"
+    }
+
+    return "absent"
   }
   catch {
-    return $false
+    return "unknown"
   }
 }
 
@@ -222,7 +259,15 @@ function Test-WingetInstall {
     return $true
   }
 
-  return Test-WingetInstallInventory
+  $inventoryState = Get-WingetInstallInventoryState
+  if ($inventoryState -eq "installed") {
+    return $true
+  }
+  if ($inventoryState -eq "unknown") {
+    return $true
+  }
+
+  return Test-WingetPackageRootInstall
 }
 
 function Stop-ForWingetInstall {
