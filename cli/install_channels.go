@@ -81,8 +81,14 @@ func bundleInstallPresentOnDisk(root string) bool {
 
 func wingetInstallPresentOnDisk(home string) bool {
 	linkPath := windowsWingetLinkPath(home)
-	_, err := os.Stat(linkPath)
-	return err == nil
+	if _, err := os.Stat(linkPath); err == nil {
+		return true
+	}
+	status, err := queryWingetPackageStatusForChannels()
+	if err == nil {
+		return status.Installed
+	}
+	return resolveWingetBundleRoot(home) != ""
 }
 
 func windowsBundleInstallRoot(home string) string {
