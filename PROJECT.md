@@ -16,14 +16,14 @@ Client-specific install docs are convenience wrappers around that flow.
 
 Current release support matrix:
 - macOS: Claude, Codex, OpenCode, Gemini
-- Linux: installer and runtime path built and CI-smoked. Full release validation still needs a real Secret Service-backed Linux run.
+- Linux: installer and runtime path built and CI-smoked. full release validation still depends on a real Secret Service-backed Linux run.
 - Windows: platform installer and runtime support is live. Claude and Gemini are smoke-validated. Codex and OpenCode lanes remain experimental.
 - Windows bundle ships `amd64` only. ARM64 uses x64 emulation.
 - Public Windows entrypoint is `install.ps1` until the generated `winget` manifest is published and proven.
 
 Client setup commands:
 - **Codex CLI:** `ha-nova setup codex` installs skills into `~/.agents/skills/ha-nova`
-- **Claude Code / Desktop:** `ha-nova setup claude` installs or repairs the Claude plugin integration
+- **Claude Code / Desktop:** `ha-nova setup claude` installs or repairs the Claude plugin integration. Claude Desktop uses the same Claude integration path via the Code tab and GitHub marketplace path.
 - **OpenCode:** `ha-nova setup opencode` installs or repairs the OpenCode skill integration
 - **Gemini CLI:** `ha-nova setup gemini` installs or repairs the Gemini skill integration
 
@@ -43,7 +43,7 @@ Deliverables:
 1. Relay MVP: `GET /health`, `POST /ws`, `POST /core`
 2. Context skill: `ha-nova` (auto-loaded via SessionStart hook; sub-skills discovered independently)
 3. Sub-skills (flat under `skills/`): write, read, helper, entity-discovery, service-call, review, fallback, onboarding
-4. Shared references under `skills/ha-nova/` (relay-api, best-practices, payload-schemas, helper-schemas, template-guidelines, safe-refactoring, automation-patterns, update-guide, agents)
+4. Shared references under `skills/ha-nova/` (`relay-api.md`, `best-practices.md`, `payload-schemas.md`, `helper-schemas.md`, `template-guidelines.md`, `safe-refactoring.md`, `automation-patterns.md`, `update-guide.md`, `agents.md`)
 
 ## Tech Stack
 
@@ -57,6 +57,6 @@ Deliverables:
 
 - Relay code stays intentionally dumb. No business logic, no domain validation, no caching.
 - Intelligence belongs in Skills, not in the server.
-- Language: skills and skill-like source docs are English only.
+- Language: skills and skill-like source docs stay English-only.
 - Commits: English, Conventional Commits.
 - Keep files under ~400 LOC when practical.
