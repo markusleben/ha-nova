@@ -6,7 +6,7 @@ Adopt the faster safe review loop for release-bound and other high-risk PRs:
 - fix
 - targeted local verification
 - immediate push
-- immediate `@codex review`
+- immediate `@codex`
 - subagent review and CI in parallel
 - final merge/tag gate only on the exact last clean SHA
 

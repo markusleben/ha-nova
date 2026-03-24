@@ -263,9 +263,6 @@ function Test-WingetInstall {
   if ($inventoryState -eq "installed") {
     return $true
   }
-  if ($inventoryState -eq "unknown") {
-    return $true
-  }
 
   return Test-WingetPackageRootInstall
 }

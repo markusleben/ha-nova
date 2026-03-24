@@ -77,14 +77,14 @@ Before every RC or final tag:
 - for the release PR itself, wait for the actual Codex bot result; `codex-review-gate` timeout alone is not enough
 - review clearance is tied to the exact commit state that will be tagged, not to the branch/topic in general
 - a clean bot result applies only to the exact commit SHA it reviewed; any later SHA is unreviewed until the cycle completes again
-- if any relevant delta appears after the last bot-reviewed commit, stop release work and restart the full cycle: push -> `@codex review` -> actual bot result -> checks green
+- if any relevant delta appears after the last bot-reviewed commit, stop release work and restart the full cycle: push -> `@codex` -> actual bot result -> checks green
 
 Fast-path rule during iteration:
 - do not wait for a full manual review pass before asking Codex
-- for the initial PR SHA and after each relevant fix, run only targeted local verification, push immediately if needed, and immediately trigger `@codex review`
+- for the initial PR SHA and after each relevant fix, run only targeted local verification, push immediately if needed, and immediately trigger `@codex`
 - after the PR exists, do not add extra local review gates in between; Codex bot + CI are the review path
 - only the final merge/tag-ready SHA may be treated as cleared when required checks are green and the current Codex bot result on that exact SHA is clean
-- if Codex times out or never posts a real result on the current SHA, re-request `@codex review` on that same SHA before treating the PR as review-clean
+- if Codex times out or never posts a real result on the current SHA, re-request `@codex` on that same SHA before treating the PR as review-clean
 
 ## Release Worthiness
 
