@@ -14,6 +14,7 @@ const (
 	bundleFormatVersion   = 1
 	keyringServiceName    = "ha-nova.relay-auth-token"
 	updateCacheTTLSeconds = 24 * 60 * 60
+	windowsInstallRootEnv  = "HA_NOVA_INSTALL_ROOT"
 )
 
 type runtimePaths struct {
@@ -51,7 +52,9 @@ func detectPaths() (runtimePaths, error) {
 		localDataDir = filepath.Join(localAppData, "ha-nova")
 		cacheDir = filepath.Join(localDataDir, "cache")
 		installRoot = filepath.Join(localAppData, "Programs", "ha-nova")
-		if exePath, err := executablePathForInstallSource(); err == nil {
+		if override := strings.TrimSpace(os.Getenv(windowsInstallRootEnv)); override != "" {
+			installRoot = filepath.Clean(override)
+		} else if exePath, err := executablePathForInstallSource(); err == nil {
 			exeRoot := filepath.Dir(exePath)
 			if _, err := os.Stat(filepath.Join(exeRoot, "bundle.json")); err == nil {
 				installRoot = exeRoot

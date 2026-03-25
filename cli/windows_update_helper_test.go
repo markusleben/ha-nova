@@ -138,6 +138,14 @@ func TestBuildWindowsDetachedHelperCommandStartsHiddenHelperViaWrapper(t *testin
 	}
 }
 
+func TestHelperInstallRootEnvExportsCallerInstallRoot(t *testing.T) {
+	got := helperInstallRootEnv(`C:\Users\markus\.local\share\ha-nova`)
+	want := []string{`HA_NOVA_INSTALL_ROOT=C:\Users\markus\.local\share\ha-nova`}
+	if strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Fatalf("helperInstallRootEnv() = %q, want %q", got, want)
+	}
+}
+
 func TestWindowsHiddenPowerShellLaunchProfileKeepsPipesButHidesWindow(t *testing.T) {
 	profile := windowsHiddenPowerShellLaunchProfile()
 	if profile.attachOutput {

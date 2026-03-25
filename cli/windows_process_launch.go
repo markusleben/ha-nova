@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 )
@@ -73,7 +74,15 @@ func buildWindowsDetachedHelperCommand(helperPath string, statusPath string, sta
 }
 
 func launchWindowsDetachedHelper(helperPath string, statusPath string, statusTicks int64, args ...string) error {
-	return buildWindowsDetachedHelperCommand(helperPath, statusPath, statusTicks, args...).Run()
+	return launchWindowsDetachedHelperWithEnv(helperPath, statusPath, statusTicks, nil, args...)
+}
+
+func launchWindowsDetachedHelperWithEnv(helperPath string, statusPath string, statusTicks int64, extraEnv []string, args ...string) error {
+	cmd := buildWindowsDetachedHelperCommand(helperPath, statusPath, statusTicks, args...)
+	if len(extraEnv) > 0 {
+		cmd.Env = append(os.Environ(), extraEnv...)
+	}
+	return cmd.Run()
 }
 
 func buildWindowsCleanupCommand(path string) *exec.Cmd {
@@ -102,6 +111,13 @@ func buildWindowsHiddenPowerShellCommand(command string) *exec.Cmd {
 		},
 		windowsHiddenPowerShellLaunchProfile(),
 	)
+}
+
+func helperInstallRootEnv(installRoot string) []string {
+	if strings.TrimSpace(installRoot) == "" {
+		return nil
+	}
+	return []string{windowsInstallRootEnv + "=" + installRoot}
 }
 
 func buildWindowsCommandWithProfile(name string, args []string, profile windowsProcessLaunchProfile) *exec.Cmd {

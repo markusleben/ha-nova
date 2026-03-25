@@ -215,7 +215,7 @@ func launchWindowsUninstall(paths runtimePaths, mode uninstallMode) error {
 	if mode == uninstallModePurge {
 		args = append(args, "--purge")
 	}
-	return launchWindowsDetachedHelper(tempHelper, paths.UninstallStatusFile, statusTicks, args...)
+	return launchWindowsDetachedHelperWithEnv(tempHelper, paths.UninstallStatusFile, statusTicks, helperInstallRootEnv(paths.InstallRoot), args...)
 }
 
 func launchWindowsWingetUninstall(mode uninstallMode) error {
@@ -231,7 +231,7 @@ func launchWindowsWingetUninstall(mode uninstallMode) error {
 	if mode == uninstallModePurge {
 		args = append(args, "--purge")
 	}
-	return launchWindowsDetachedHelper(tempHelper, paths.UninstallStatusFile, windowsUninstallStatusMarkerTicks(paths.UninstallStatusFile), args...)
+	return launchWindowsDetachedHelperWithEnv(tempHelper, paths.UninstallStatusFile, windowsUninstallStatusMarkerTicks(paths.UninstallStatusFile), helperInstallRootEnv(paths.InstallRoot), args...)
 }
 
 func scheduleWindowsSelfDelete(path string) error {

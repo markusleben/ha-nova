@@ -157,7 +157,7 @@ func runCheckUpdate(paths runtimePaths, args []string) int {
 	if notice.kind == humanNoticeKindUpdateAvailable {
 		return 0
 	}
-	if notice.kind == humanNoticeKindUpdateCheckFailed {
+	if notice.kind == humanNoticeKindUpdateCheckFailed || notice.kind == humanNoticeKindChannelConflict {
 		return 1
 	}
 	return 0

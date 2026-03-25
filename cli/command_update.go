@@ -277,15 +277,21 @@ func launchWindowsReplace(paths runtimePaths, stageRoot string) error {
 		return err
 	}
 	cmd := buildWindowsHelperCommand(tempHelper, "internal-replace", "--parent-pid", strconv.Itoa(os.Getpid()), "--stage-root", stageRoot)
+	cmd.Env = append(os.Environ(), helperInstallRootEnv(paths.InstallRoot)...)
 	return cmd.Start()
 }
 
 func launchWindowsWingetUpgrade() error {
+	paths, err := detectPaths()
+	if err != nil {
+		return err
+	}
 	tempHelper, err := stageWindowsLifecycleHelper("ha-nova-winget-upgrade-")
 	if err != nil {
 		return err
 	}
 	cmd := buildWindowsHelperCommand(tempHelper, "internal-winget-upgrade", "--parent-pid", strconv.Itoa(os.Getpid()), "--self-path", tempHelper)
+	cmd.Env = append(os.Environ(), helperInstallRootEnv(paths.InstallRoot)...)
 	return cmd.Start()
 }
 
