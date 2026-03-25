@@ -86,7 +86,6 @@ manifest_root() {
 write_version_manifest() {
   local file="$1"
   cat > "${file}" <<EOF
-# yaml-language-server: \$schema=https://aka.ms/winget-manifest.version.${MANIFEST_VERSION}.schema.json
 PackageIdentifier: ${PACKAGE_IDENTIFIER}
 PackageVersion: ${VERSION}
 DefaultLocale: ${PACKAGE_LOCALE}
@@ -105,7 +104,6 @@ write_default_locale_manifest() {
   license_id="$(package_json_value license)"
 
   cat > "${file}" <<EOF
-# yaml-language-server: \$schema=https://aka.ms/winget-manifest.defaultLocale.${MANIFEST_VERSION}.schema.json
 PackageIdentifier: ${PACKAGE_IDENTIFIER}
 PackageVersion: ${VERSION}
 PackageLocale: ${PACKAGE_LOCALE}
@@ -133,7 +131,6 @@ EOF
 write_installer_manifest() {
   local file="$1" installer_sha="$2"
   cat > "${file}" <<EOF
-# yaml-language-server: \$schema=https://aka.ms/winget-manifest.installer.${MANIFEST_VERSION}.schema.json
 PackageIdentifier: ${PACKAGE_IDENTIFIER}
 PackageVersion: ${VERSION}
 InstallerType: zip
