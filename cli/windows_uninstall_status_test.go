@@ -84,6 +84,37 @@ func TestInspectWindowsUninstallStatusTreatsStaleRunningAsInterrupted(t *testing
 	}
 }
 
+func TestInspectWindowsUninstallStatusKeepsAliveHelperRunningBeyondTimeout(t *testing.T) {
+	enableWindowsUninstallStatusChecks(t)
+
+	root := t.TempDir()
+	paths := runtimePaths{
+		InstallRoot:         filepath.Join(root, "Programs", "ha-nova"),
+		PublicBinary:        filepath.Join(root, "Programs", "ha-nova", publicBinaryName()),
+		UninstallStatusFile: filepath.Join(root, "uninstall-status.json"),
+	}
+	if err := os.MkdirAll(paths.InstallRoot, 0o755); err != nil {
+		t.Fatalf("mkdir install root: %v", err)
+	}
+	if err := os.WriteFile(paths.PublicBinary, []byte("binary"), 0o755); err != nil {
+		t.Fatalf("write runtime: %v", err)
+	}
+	if err := writeWindowsUninstallStatus(paths, windowsUninstallStatus{
+		Status:        windowsUninstallStatusRunning,
+		Mode:          string(uninstallModePurge),
+		HelperPID:     4242,
+		StartedAt:     windowsUninstallStatusNow().Add(-30 * time.Minute),
+		LastUpdatedAt: windowsUninstallStatusNow().Add(-30 * time.Minute),
+	}); err != nil {
+		t.Fatalf("writeWindowsUninstallStatus() error: %v", err)
+	}
+
+	inspection := inspectWindowsUninstallStatus(paths)
+	if inspection.Kind != windowsUninstallStatusKindRunning {
+		t.Fatalf("inspectWindowsUninstallStatus() kind = %q, want running", inspection.Kind)
+	}
+}
+
 func TestInspectWindowsUninstallStatusTreatsCorruptJSONAsRecoveryState(t *testing.T) {
 	enableWindowsUninstallStatusChecks(t)
 

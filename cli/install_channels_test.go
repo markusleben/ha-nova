@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestParseWingetPackageStatusParsesInstalledAndAvailableVersions(t *testing.T) {
@@ -353,6 +354,47 @@ func TestResolveWingetBundleRootFallsBackToSingleCandidateWhenLinkMissing(t *tes
 	got := resolveWingetBundleRoot(home)
 	if filepath.Clean(got) != filepath.Clean(want) {
 		t.Fatalf("resolveWingetBundleRoot() = %q, want %q", got, want)
+	}
+}
+
+func TestResolveWingetBundleRootPrefersNewestCandidateWhenMultipleExist(t *testing.T) {
+	home := t.TempDir()
+
+	older := filepath.Join(windowsWingetPackageRoot(home), wingetPackageID+"_0.4.0_x64", "ha-nova")
+	if err := os.MkdirAll(older, 0o755); err != nil {
+		t.Fatalf("mkdir older winget bundle root: %v", err)
+	}
+	olderBinary := filepath.Join(older, publicBinaryName())
+	if err := os.WriteFile(olderBinary, []byte("older"), 0o755); err != nil {
+		t.Fatalf("write older winget binary: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(older, "bundle.json"), []byte(`{"version":"0.4.0"}`), 0o644); err != nil {
+		t.Fatalf("write older winget metadata: %v", err)
+	}
+	oldTime := time.Date(2026, 3, 24, 10, 0, 0, 0, time.UTC)
+	if err := os.Chtimes(olderBinary, oldTime, oldTime); err != nil {
+		t.Fatalf("chtimes older binary: %v", err)
+	}
+
+	newer := filepath.Join(windowsWingetPackageRoot(home), wingetPackageID+"_0.4.1_x64", "ha-nova")
+	if err := os.MkdirAll(newer, 0o755); err != nil {
+		t.Fatalf("mkdir newer winget bundle root: %v", err)
+	}
+	newerBinary := filepath.Join(newer, publicBinaryName())
+	if err := os.WriteFile(newerBinary, []byte("newer"), 0o755); err != nil {
+		t.Fatalf("write newer winget binary: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(newer, "bundle.json"), []byte(`{"version":"0.4.1"}`), 0o644); err != nil {
+		t.Fatalf("write newer winget metadata: %v", err)
+	}
+	newTime := oldTime.Add(5 * time.Minute)
+	if err := os.Chtimes(newerBinary, newTime, newTime); err != nil {
+		t.Fatalf("chtimes newer binary: %v", err)
+	}
+
+	got := resolveWingetBundleRoot(home)
+	if filepath.Clean(got) != filepath.Clean(newer) {
+		t.Fatalf("resolveWingetBundleRoot() = %q, want %q", got, newer)
 	}
 }
 

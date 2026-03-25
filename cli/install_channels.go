@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 )
 
@@ -109,10 +110,10 @@ func resolveWingetBundleRoot(home string) string {
 		return root
 	}
 	candidates := listWingetBundleRoots(home)
-	if len(candidates) == 1 {
-		return candidates[0]
+	if len(candidates) == 0 {
+		return ""
 	}
-	return ""
+	return candidates[0]
 }
 
 func resolveWingetBundleRootFromLink(linkPath string) string {
@@ -167,6 +168,18 @@ func listWingetBundleRoots(home string) []string {
 		}
 		roots = append(roots, root)
 	}
+	sort.SliceStable(roots, func(i, j int) bool {
+		leftInfo, leftErr := os.Stat(filepath.Join(roots[i], publicBinaryName()))
+		rightInfo, rightErr := os.Stat(filepath.Join(roots[j], publicBinaryName()))
+		if leftErr == nil && rightErr == nil {
+			leftTime := leftInfo.ModTime().UTC()
+			rightTime := rightInfo.ModTime().UTC()
+			if !leftTime.Equal(rightTime) {
+				return leftTime.After(rightTime)
+			}
+		}
+		return filepath.Clean(roots[i]) > filepath.Clean(roots[j])
+	})
 	return roots
 }
 

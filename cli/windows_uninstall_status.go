@@ -259,14 +259,7 @@ func windowsUninstallStatusStillActive(status windowsUninstallStatus) bool {
 	if status.HelperPID <= 0 || !windowsUninstallStatusProcessAlive(status.HelperPID) {
 		return false
 	}
-	updated := status.LastUpdatedAt
-	if updated.IsZero() {
-		updated = status.StartedAt
-	}
-	if updated.IsZero() {
-		return false
-	}
-	return windowsUninstallStatusNow().UTC().Sub(updated.UTC()) < windowsUninstallStatusTimeout
+	return true
 }
 
 func windowsUninstallErrorSummary(step string, err error) string {
