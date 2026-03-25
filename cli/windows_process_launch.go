@@ -122,7 +122,10 @@ func helperInstallRootEnv(installRoot string) []string {
 	if strings.TrimSpace(installRoot) == "" {
 		return nil
 	}
-	return []string{windowsInstallRootEnv + "=" + installRoot}
+	return []string{
+		windowsInstallRootAllowEnv + "=1",
+		windowsInstallRootEnv + "=" + installRoot,
+	}
 }
 
 func buildWindowsCommandWithProfile(name string, args []string, profile windowsProcessLaunchProfile) *exec.Cmd {

@@ -268,6 +268,56 @@ func TestRunCheckUpdateReturnsFailureForChannelConflict(t *testing.T) {
 	}
 }
 
+func TestRunCheckUpdateJSONReturnsFailureForChannelConflict(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("LOCALAPPDATA", filepath.Join(home, "AppData", "Local"))
+	t.Setenv("APPDATA", filepath.Join(home, "AppData", "Roaming"))
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(paths.StateFile), 0o755); err != nil {
+		t.Fatalf("mkdir state dir: %v", err)
+	}
+	if err := saveState(paths, installState{
+		SchemaVersion: stateSchemaVersion,
+		InstallSource: installSourceBundle,
+	}); err != nil {
+		t.Fatalf("saveState() error: %v", err)
+	}
+
+	bundleRoot := windowsBundleInstallRoot(home)
+	if err := os.MkdirAll(bundleRoot, 0o755); err != nil {
+		t.Fatalf("mkdir bundle root: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(bundleRoot, publicBinaryName()), []byte("bundle"), 0o755); err != nil {
+		t.Fatalf("write bundle binary: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(bundleRoot, "bundle.json"), []byte(`{"version":"0.3.0"}`), 0o644); err != nil {
+		t.Fatalf("write bundle metadata: %v", err)
+	}
+
+	wingetLink := windowsWingetLinkPath(home)
+	if err := os.MkdirAll(filepath.Dir(wingetLink), 0o755); err != nil {
+		t.Fatalf("mkdir winget link dir: %v", err)
+	}
+	if err := os.WriteFile(wingetLink, []byte("winget"), 0o755); err != nil {
+		t.Fatalf("write winget link: %v", err)
+	}
+
+	originalPlatform := channelChecksUseWindowsPlatform
+	defer func() {
+		channelChecksUseWindowsPlatform = originalPlatform
+	}()
+	channelChecksUseWindowsPlatform = func() bool { return true }
+
+	if exitCode := runCheckUpdate(paths, []string{"--json"}); exitCode != 1 {
+		t.Fatalf("runCheckUpdate(--json) exit = %d, want 1", exitCode)
+	}
+}
+
 func TestRunCheckUpdateTextModeUsesSingleFetch(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

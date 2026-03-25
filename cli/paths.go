@@ -9,12 +9,13 @@ import (
 )
 
 const (
-	configSchemaVersion   = 1
-	stateSchemaVersion    = 1
-	bundleFormatVersion   = 1
-	keyringServiceName    = "ha-nova.relay-auth-token"
-	updateCacheTTLSeconds = 24 * 60 * 60
-	windowsInstallRootEnv  = "HA_NOVA_INSTALL_ROOT"
+	configSchemaVersion        = 1
+	stateSchemaVersion         = 1
+	bundleFormatVersion        = 1
+	keyringServiceName         = "ha-nova.relay-auth-token"
+	updateCacheTTLSeconds      = 24 * 60 * 60
+	windowsInstallRootEnv      = "HA_NOVA_INSTALL_ROOT"
+	windowsInstallRootAllowEnv = "HA_NOVA_ALLOW_INSTALL_ROOT_OVERRIDE"
 )
 
 type runtimePaths struct {
@@ -52,7 +53,7 @@ func detectPaths() (runtimePaths, error) {
 		localDataDir = filepath.Join(localAppData, "ha-nova")
 		cacheDir = filepath.Join(localDataDir, "cache")
 		installRoot = filepath.Join(localAppData, "Programs", "ha-nova")
-		if override := strings.TrimSpace(os.Getenv(windowsInstallRootEnv)); override != "" {
+		if override := strings.TrimSpace(os.Getenv(windowsInstallRootEnv)); override != "" && allowWindowsInstallRootOverride() {
 			installRoot = filepath.Clean(override)
 		} else if exePath, err := executablePathForInstallSource(); err == nil {
 			exeRoot := filepath.Dir(exePath)
@@ -87,6 +88,21 @@ func detectPaths() (runtimePaths, error) {
 		migrateLegacyWindowsDirs(paths)
 	}
 	return paths, nil
+}
+
+func allowWindowsInstallRootOverride() bool {
+	if strings.TrimSpace(os.Getenv(windowsInstallRootAllowEnv)) == "1" {
+		return true
+	}
+	if len(os.Args) < 2 {
+		return false
+	}
+	switch os.Args[1] {
+	case "internal-replace", "internal-winget-upgrade", "internal-uninstall", "internal-winget-uninstall":
+		return true
+	default:
+		return false
+	}
 }
 
 func publicCommandName() string {

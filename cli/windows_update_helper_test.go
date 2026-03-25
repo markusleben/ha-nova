@@ -143,9 +143,16 @@ func TestBuildWindowsDetachedHelperCommandPropagatesInstallRootEnv(t *testing.T)
 		"helper.exe",
 		`C:\Users\markus\AppData\Local\ha-nova\uninstall-status.json`,
 		1234,
-		[]string{`HA_NOVA_INSTALL_ROOT=C:\Users\markus\.local\share\ha-nova`},
+		[]string{
+			`HA_NOVA_ALLOW_INSTALL_ROOT_OVERRIDE=1`,
+			`HA_NOVA_INSTALL_ROOT=C:\Users\markus\.local\share\ha-nova`,
+		},
 		"internal-uninstall",
 	)
+	allowWant := `$env:HA_NOVA_ALLOW_INSTALL_ROOT_OVERRIDE = '1'; `
+	if !strings.Contains(strings.Join(cmd.Args, " "), allowWant) {
+		t.Fatalf("expected detached helper command to set install-root override allow env, got %q", strings.Join(cmd.Args, " "))
+	}
 	want := `$env:HA_NOVA_INSTALL_ROOT = 'C:\Users\markus\.local\share\ha-nova'; `
 	if !strings.Contains(strings.Join(cmd.Args, " "), want) {
 		t.Fatalf("expected detached helper command to set install-root env, got %q", strings.Join(cmd.Args, " "))
@@ -154,7 +161,10 @@ func TestBuildWindowsDetachedHelperCommandPropagatesInstallRootEnv(t *testing.T)
 
 func TestHelperInstallRootEnvExportsCallerInstallRoot(t *testing.T) {
 	got := helperInstallRootEnv(`C:\Users\markus\.local\share\ha-nova`)
-	want := []string{`HA_NOVA_INSTALL_ROOT=C:\Users\markus\.local\share\ha-nova`}
+	want := []string{
+		`HA_NOVA_ALLOW_INSTALL_ROOT_OVERRIDE=1`,
+		`HA_NOVA_INSTALL_ROOT=C:\Users\markus\.local\share\ha-nova`,
+	}
 	if strings.Join(got, "|") != strings.Join(want, "|") {
 		t.Fatalf("helperInstallRootEnv() = %q, want %q", got, want)
 	}
