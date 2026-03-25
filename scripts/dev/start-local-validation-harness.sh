@@ -107,11 +107,15 @@ PY
 
 rebuild_local_winget_manifest() {
   local windows_host="$1"
+  local reported_version="$2"
   if [[ -z "${windows_host}" ]]; then
     return 1
   fi
+  if [[ -z "${reported_version}" ]]; then
+    return 1
+  fi
   HA_NOVA_WINGET_INSTALLER_URL="http://${windows_host}:${BUNDLE_PORT}/dist/install-bundles/ha-nova-installer-bundle-windows-amd64.zip" \
-    bash scripts/release/build-winget-manifest.sh >/dev/null
+    bash scripts/release/build-winget-manifest.sh "${reported_version}" >/dev/null
 }
 
 cd "${ROOT_DIR}"
@@ -149,7 +153,7 @@ fi
 
 WINDOWS_MANIFEST="dist/winget/ha-nova-winget-manifest-v${REPORTED_VERSION}.zip"
 
-if rebuild_local_winget_manifest "${LAN_IP}"; then
+if rebuild_local_winget_manifest "${LAN_IP}" "${REPORTED_VERSION}"; then
   LOCAL_WINGET_MANIFEST_READY=1
 fi
 

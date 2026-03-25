@@ -64,6 +64,7 @@ describe("desktop validation helpers contract", () => {
     expect(harness).toContain("--with-mock");
     expect(harness).toContain("ensure_port_free");
     expect(harness).toContain("bundle_reported_version");
+    expect(harness).toContain('build-winget-manifest.sh "${reported_version}"');
     expect(harness).toContain("port ${port} is already in use");
     expect(harness).toContain("Harness asset missing or not reachable");
   });

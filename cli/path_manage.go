@@ -29,7 +29,10 @@ func removeManagedPath(paths runtimePaths, state installState) {
 
 func removeManagedPathWithReport(paths runtimePaths, state installState) (string, error) {
 	if runtime.GOOS == "windows" && (strings.EqualFold(state.PathTarget, "user-path") || isWindowsInstallSourcePath(paths.BinDir)) {
-		if !state.PathManaged && runtime.GOOS != "windows" {
+		if !state.PathManaged && strings.TrimSpace(paths.BinDir) == "" {
+			return "", nil
+		}
+		if !state.PathManaged && strings.TrimSpace(paths.BinDir) != "" && !isWindowsInstallSourcePath(paths.BinDir) {
 			return "", nil
 		}
 		current, err := readWindowsUserPath()
