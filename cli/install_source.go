@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -14,10 +15,12 @@ const (
 	wingetPackageID       = "markusleben.ha-nova"
 	wingetPortableLinks   = `\microsoft\winget\links\`
 	wingetPortablePackage = `\microsoft\winget\packages\`
+	wingetUpdateNotApplicableExitCode uint32 = 0x8A15002B
 )
 
 var executablePathForInstallSource = os.Executable
 var execCommandForLifecycle = exec.Command
+var errWingetUpdateNotApplicable = errors.New("winget update not applicable")
 
 func normalizeInstallSource(value string) string {
 	switch strings.ToLower(strings.TrimSpace(value)) {
@@ -138,7 +141,13 @@ func runWingetUpgrade() error {
 	cmd := execCommandForLifecycle("winget", "upgrade", "--id", wingetPackageID, "--exact", "--accept-source-agreements", "--accept-package-agreements")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	if err := cmd.Run(); err != nil {
+		if isWingetUpdateNotApplicableError(err) {
+			return errWingetUpdateNotApplicable
+		}
+		return err
+	}
+	return nil
 }
 
 func runWingetUninstall(mode uninstallMode) error {
@@ -153,4 +162,16 @@ func runWingetUninstall(mode uninstallMode) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
+}
+
+func isWingetUpdateNotApplicableError(err error) bool {
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) || exitErr.ProcessState == nil {
+		return false
+	}
+	return isWingetUpdateNotApplicableExitCode(exitErr.ProcessState.ExitCode())
+}
+
+func isWingetUpdateNotApplicableExitCode(code int) bool {
+	return uint32(code) == wingetUpdateNotApplicableExitCode
 }

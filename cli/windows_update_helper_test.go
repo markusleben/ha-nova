@@ -133,7 +133,7 @@ func TestBuildWindowsDetachedHelperCommandStartsHiddenHelperViaWrapper(t *testin
 	if cmd.Stdout != nil || cmd.Stderr != nil {
 		t.Fatalf("expected detached helper command to avoid parent output streams")
 	}
-	if got, want := strings.Join(cmd.Args, " "), `powershell.exe -NoProfile -NonInteractive -Command $statusPath = 'C:\Users\markus\AppData\Local\ha-nova\uninstall-status.json'; $statusTicks = 1234; $deadline = [DateTime]::UtcNow.AddSeconds(5); $p = Start-Process -FilePath 'helper.exe' -ArgumentList @('internal-uninstall') -WindowStyle Hidden -PassThru -ErrorAction Stop; if ($null -eq $p) { throw 'failed to start detached helper' }; while ([DateTime]::UtcNow -lt $deadline) { if (Test-Path -LiteralPath $statusPath) { if ($statusTicks -lt 0) { exit 0 }; $item = Get-Item -LiteralPath $statusPath -ErrorAction Stop; if ($item.LastWriteTimeUtc.Ticks -gt $statusTicks) { exit 0 } }; $p.Refresh(); if ($p.HasExited) { throw 'detached helper exited before signaling readiness' }; Start-Sleep -Milliseconds 100 }; throw 'detached helper did not signal readiness'`; got != want {
+	if got, want := strings.Join(cmd.Args, " "), `powershell.exe -NoProfile -NonInteractive -Command $statusPath = 'C:\Users\markus\AppData\Local\ha-nova\uninstall-status.json'; $statusTicks = 1234; $baselineTicks = $statusTicks; if (Test-Path -LiteralPath $statusPath) { $baselineTicks = (Get-Item -LiteralPath $statusPath -ErrorAction Stop).LastWriteTimeUtc.Ticks }; $deadline = [DateTime]::UtcNow.AddSeconds(5); $p = Start-Process -FilePath 'helper.exe' -ArgumentList @('internal-uninstall') -WindowStyle Hidden -PassThru -ErrorAction Stop; if ($null -eq $p) { throw 'failed to start detached helper' }; while ([DateTime]::UtcNow -lt $deadline) { if (Test-Path -LiteralPath $statusPath) { if ($baselineTicks -lt 0) { exit 0 }; $item = Get-Item -LiteralPath $statusPath -ErrorAction Stop; if ($item.LastWriteTimeUtc.Ticks -gt $baselineTicks) { exit 0 } }; $p.Refresh(); if ($p.HasExited) { throw 'detached helper exited before signaling readiness' }; Start-Sleep -Milliseconds 100 }; throw 'detached helper did not signal readiness'`; got != want {
 		t.Fatalf("detached helper args = %q, want %q", got, want)
 	}
 }
@@ -204,6 +204,41 @@ func TestRunInternalWingetUpgradeRunsPostUpdateSync(t *testing.T) {
 	}
 	if !strings.Contains(output, "Updated via winget") {
 		t.Fatalf("expected winget success output:\n%s", output)
+	}
+}
+
+func TestRunInternalWingetUpgradeTreatsNoApplicableUpdateAsSuccess(t *testing.T) {
+	originalWait := waitForParentReleaseForWingetUpdate
+	originalUpgrade := runWingetUpgradeForUpdate
+	originalSync := runInstalledSyncForWingetUpdate
+	originalCleanup := scheduleWindowsSelfDeleteForUpdate
+	defer func() {
+		waitForParentReleaseForWingetUpdate = originalWait
+		runWingetUpgradeForUpdate = originalUpgrade
+		runInstalledSyncForWingetUpdate = originalSync
+		scheduleWindowsSelfDeleteForUpdate = originalCleanup
+	}()
+
+	waitForParentReleaseForWingetUpdate = func(parentPID int) {}
+	runWingetUpgradeForUpdate = func() error { return errWingetUpdateNotApplicable }
+	synced := false
+	runInstalledSyncForWingetUpdate = func() error {
+		synced = true
+		return nil
+	}
+	scheduleWindowsSelfDeleteForUpdate = func(path string) error { return nil }
+
+	exitCode, output := captureCommandOutput(t, func() int {
+		return runInternalWingetUpgrade(runtimePaths{}, []string{"--parent-pid", "0", "--self-path", "helper.exe"})
+	})
+	if exitCode != 0 {
+		t.Fatalf("runInternalWingetUpgrade() exit = %d\n%s", exitCode, output)
+	}
+	if !synced {
+		t.Fatal("expected winget no-op helper path to keep client sync")
+	}
+	if !strings.Contains(output, "Already up to date via winget") {
+		t.Fatalf("expected no-op winget output:\n%s", output)
 	}
 }
 

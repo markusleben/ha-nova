@@ -43,6 +43,18 @@ func TestRunWingetUninstallUsesPurgeFlags(t *testing.T) {
 	}
 }
 
+func TestIsWingetUpdateNotApplicableExitCodeHandlesSignedAndUnsignedRepresentations(t *testing.T) {
+	if !isWingetUpdateNotApplicableExitCode(int(wingetUpdateNotApplicableExitCode)) {
+		t.Fatal("expected unsigned winget update-not-applicable exit code to be recognized")
+	}
+	if !isWingetUpdateNotApplicableExitCode(-1978335189) {
+		t.Fatal("expected signed winget update-not-applicable exit code to be recognized")
+	}
+	if isWingetUpdateNotApplicableExitCode(1) {
+		t.Fatal("did not expect generic exit code to be treated as update-not-applicable")
+	}
+}
+
 func TestHelperProcessRunWingetUninstall(t *testing.T) {
 	if os.Getenv("GO_WANT_HELPER_PROCESS_RUN_WINGET_UNINSTALL") != "1" {
 		return

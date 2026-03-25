@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -54,6 +55,14 @@ func runUpdate(paths runtimePaths, args []string) int {
 			return 0
 		}
 		if err := runWingetUpgradeForUpdate(); err != nil {
+			if errors.Is(err, errWingetUpdateNotApplicable) {
+				if err := runInstalledSyncForWingetUpdate(); err != nil {
+					printPostUpdateSyncFailure(err)
+					return 1
+				}
+				printHumanInfo("Already up to date via winget")
+				return 0
+			}
 			printHumanErr("winget update failed: %s", err)
 			return 1
 		}
@@ -138,6 +147,14 @@ func runInternalWingetUpgrade(_ runtimePaths, args []string) int {
 	}()
 	waitForParentReleaseForWingetUpdate(*parentPID)
 	if err := runWingetUpgradeForUpdate(); err != nil {
+		if errors.Is(err, errWingetUpdateNotApplicable) {
+			if err := runInstalledSyncForWingetUpdate(); err != nil {
+				printPostUpdateSyncFailure(err)
+				return 1
+			}
+			printHumanInfo("Already up to date via winget")
+			return 0
+		}
 		printHumanErr("winget update failed: %s", err)
 		return 1
 	}
