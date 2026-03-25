@@ -426,6 +426,47 @@ func TestInspectInstallChannelsDoesNotInventBundlePresenceFromAmbiguousSource(t 
 	}
 }
 
+func TestResolvedBundleInstallRootIgnoresWingetManagedSourceRoot(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("LOCALAPPDATA", filepath.Join(home, "AppData", "Local"))
+	t.Setenv("APPDATA", filepath.Join(home, "AppData", "Roaming"))
+
+	originalPlatform := channelChecksUseWindowsPlatform
+	defer func() {
+		channelChecksUseWindowsPlatform = originalPlatform
+	}()
+	channelChecksUseWindowsPlatform = func() bool { return true }
+
+	wingetRoot := filepath.Join(windowsWingetPackageRoot(home), wingetPackageID+"_0.4.0_x64", "ha-nova")
+	if err := os.MkdirAll(wingetRoot, 0o755); err != nil {
+		t.Fatalf("mkdir winget root: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(wingetRoot, publicBinaryName()), []byte("winget"), 0o755); err != nil {
+		t.Fatalf("write winget binary: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(wingetRoot, "bundle.json"), []byte(`{"version":"0.4.0"}`), 0o644); err != nil {
+		t.Fatalf("write winget metadata: %v", err)
+	}
+
+	originalExecutable := executablePathForInstallSource
+	defer func() {
+		executablePathForInstallSource = originalExecutable
+	}()
+	executablePathForInstallSource = func() (string, error) {
+		return filepath.Join(wingetRoot, publicBinaryName()), nil
+	}
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+
+	if got, want := filepath.Clean(resolvedBundleInstallRoot(paths)), filepath.Clean(windowsBundleInstallRoot(home)); got != want {
+		t.Fatalf("resolvedBundleInstallRoot() = %q, want %q", got, want)
+	}
+}
+
 func TestResolveWingetBundleRootPrefersNewestCandidateWhenMultipleExist(t *testing.T) {
 	home := t.TempDir()
 

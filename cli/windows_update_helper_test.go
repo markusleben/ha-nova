@@ -138,6 +138,20 @@ func TestBuildWindowsDetachedHelperCommandStartsHiddenHelperViaWrapper(t *testin
 	}
 }
 
+func TestBuildWindowsDetachedHelperCommandPropagatesInstallRootEnv(t *testing.T) {
+	cmd := buildWindowsDetachedHelperCommandWithEnv(
+		"helper.exe",
+		`C:\Users\markus\AppData\Local\ha-nova\uninstall-status.json`,
+		1234,
+		[]string{`HA_NOVA_INSTALL_ROOT=C:\Users\markus\.local\share\ha-nova`},
+		"internal-uninstall",
+	)
+	want := `$env:HA_NOVA_INSTALL_ROOT = 'C:\Users\markus\.local\share\ha-nova'; `
+	if !strings.Contains(strings.Join(cmd.Args, " "), want) {
+		t.Fatalf("expected detached helper command to set install-root env, got %q", strings.Join(cmd.Args, " "))
+	}
+}
+
 func TestHelperInstallRootEnvExportsCallerInstallRoot(t *testing.T) {
 	got := helperInstallRootEnv(`C:\Users\markus\.local\share\ha-nova`)
 	want := []string{`HA_NOVA_INSTALL_ROOT=C:\Users\markus\.local\share\ha-nova`}

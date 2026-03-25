@@ -26,9 +26,9 @@ func windowsHelperLaunchProfile() windowsProcessLaunchProfile {
 
 func windowsDetachedHelperLaunchProfile() windowsProcessLaunchProfile {
 	return windowsProcessLaunchProfile{
-		createNoWindow:        true,
-		hideWindow:            true,
-		inheritHandles:        true,
+		createNoWindow: true,
+		hideWindow:     true,
+		inheritHandles: true,
 	}
 }
 
@@ -54,10 +54,15 @@ func buildWindowsHelperCommand(helperPath string, args ...string) *exec.Cmd {
 }
 
 func buildWindowsDetachedHelperCommand(helperPath string, statusPath string, statusTicks int64, args ...string) *exec.Cmd {
+	return buildWindowsDetachedHelperCommandWithEnv(helperPath, statusPath, statusTicks, nil, args...)
+}
+
+func buildWindowsDetachedHelperCommandWithEnv(helperPath string, statusPath string, statusTicks int64, extraEnv []string, args ...string) *exec.Cmd {
 	command := fmt.Sprintf(
-		`$statusPath = '%s'; $statusTicks = %d; $baselineTicks = $statusTicks; if (Test-Path -LiteralPath $statusPath) { $baselineTicks = (Get-Item -LiteralPath $statusPath -ErrorAction Stop).LastWriteTimeUtc.Ticks }; $deadline = [DateTime]::UtcNow.AddSeconds(5); $p = Start-Process -FilePath '%s' -ArgumentList @(%s) -WindowStyle Hidden -PassThru -ErrorAction Stop; if ($null -eq $p) { throw 'failed to start detached helper' }; while ([DateTime]::UtcNow -lt $deadline) { if (Test-Path -LiteralPath $statusPath) { if ($baselineTicks -lt 0) { exit 0 }; $item = Get-Item -LiteralPath $statusPath -ErrorAction Stop; if ($item.LastWriteTimeUtc.Ticks -gt $baselineTicks) { exit 0 } }; $p.Refresh(); if ($p.HasExited) { throw 'detached helper exited before signaling readiness' }; Start-Sleep -Milliseconds 100 }; throw 'detached helper did not signal readiness'`,
+		`$statusPath = '%s'; $statusTicks = %d; $baselineTicks = $statusTicks; if (Test-Path -LiteralPath $statusPath) { $baselineTicks = (Get-Item -LiteralPath $statusPath -ErrorAction Stop).LastWriteTimeUtc.Ticks }; %s$deadline = [DateTime]::UtcNow.AddSeconds(5); $p = Start-Process -FilePath '%s' -ArgumentList @(%s) -WindowStyle Hidden -PassThru -ErrorAction Stop; if ($null -eq $p) { throw 'failed to start detached helper' }; while ([DateTime]::UtcNow -lt $deadline) { if (Test-Path -LiteralPath $statusPath) { if ($baselineTicks -lt 0) { exit 0 }; $item = Get-Item -LiteralPath $statusPath -ErrorAction Stop; if ($item.LastWriteTimeUtc.Ticks -gt $baselineTicks) { exit 0 } }; $p.Refresh(); if ($p.HasExited) { throw 'detached helper exited before signaling readiness' }; Start-Sleep -Milliseconds 100 }; throw 'detached helper did not signal readiness'`,
 		quotePowerShellSingleString(statusPath),
 		statusTicks,
+		joinPowerShellEnvAssignments(extraEnv),
 		quotePowerShellSingleString(helperPath),
 		joinPowerShellStringArray(args),
 	)
@@ -78,7 +83,7 @@ func launchWindowsDetachedHelper(helperPath string, statusPath string, statusTic
 }
 
 func launchWindowsDetachedHelperWithEnv(helperPath string, statusPath string, statusTicks int64, extraEnv []string, args ...string) error {
-	cmd := buildWindowsDetachedHelperCommand(helperPath, statusPath, statusTicks, args...)
+	cmd := buildWindowsDetachedHelperCommandWithEnv(helperPath, statusPath, statusTicks, extraEnv, args...)
 	if len(extraEnv) > 0 {
 		cmd.Env = append(os.Environ(), extraEnv...)
 	}
@@ -139,4 +144,20 @@ func joinPowerShellStringArray(values []string) string {
 		quoted = append(quoted, fmt.Sprintf(`'%s'`, quotePowerShellSingleString(value)))
 	}
 	return strings.Join(quoted, ", ")
+}
+
+func joinPowerShellEnvAssignments(values []string) string {
+	if len(values) == 0 {
+		return ""
+	}
+	assignments := make([]string, 0, len(values))
+	for _, value := range values {
+		key, raw, ok := strings.Cut(value, "=")
+		key = strings.TrimSpace(key)
+		if !ok || key == "" {
+			continue
+		}
+		assignments = append(assignments, fmt.Sprintf(`$env:%s = '%s'; `, key, quotePowerShellSingleString(raw)))
+	}
+	return strings.Join(assignments, "")
 }

@@ -315,6 +315,64 @@ func TestRunUninstallFailsLoudOnWindowsInstallChannelConflict(t *testing.T) {
 	}
 }
 
+func TestRunUninstallLeavesBundleRuntimeWhenLocalCleanupFails(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING", "1")
+	t.Setenv("HA_NOVA_TEST_KEYRING_FILE", filepath.Join(home, ".config", "ha-nova", ".test-relay-auth-token"))
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+	for _, path := range []string{
+		paths.InstallRoot,
+		paths.ConfigDir,
+		filepath.Dir(paths.UpdateCacheFile),
+		filepath.Dir(paths.PublicBinary),
+	} {
+		if err := os.MkdirAll(path, 0o755); err != nil {
+			t.Fatalf("mkdir %s: %v", path, err)
+		}
+	}
+	runtimePath := filepath.Join(paths.InstallRoot, publicBinaryName())
+	if err := os.WriteFile(runtimePath, []byte("binary"), 0o755); err != nil {
+		t.Fatalf("write install binary: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(paths.InstallRoot, "bundle.json"), []byte(`{"version":"0.3.1"}`), 0o644); err != nil {
+		t.Fatalf("write bundle metadata: %v", err)
+	}
+	if err := os.WriteFile(paths.UpdateCacheFile, []byte("{}"), 0o644); err != nil {
+		t.Fatalf("write update cache: %v", err)
+	}
+	if err := os.WriteFile(paths.PublicBinary, []byte("shim"), 0o755); err != nil {
+		t.Fatalf("write public binary: %v", err)
+	}
+
+	originalRead := readRelayAuthTokenForUninstall
+	originalDelete := deleteRelayAuthTokenForUninstall
+	defer func() {
+		readRelayAuthTokenForUninstall = originalRead
+		deleteRelayAuthTokenForUninstall = originalDelete
+	}()
+	readRelayAuthTokenForUninstall = func() (string, error) {
+		return "test-relay-token", nil
+	}
+	deleteRelayAuthTokenForUninstall = func() error {
+		return errors.New("secure store unavailable")
+	}
+
+	exitCode, output := captureCommandOutput(t, func() int {
+		return runUninstall(paths, []string{"--yes", "--purge"})
+	})
+	if exitCode != 1 {
+		t.Fatalf("runUninstall() exit = %d, want 1\n%s", exitCode, output)
+	}
+	if _, err := os.Stat(runtimePath); err != nil {
+		t.Fatalf("expected runtime to remain after failed local cleanup, got %v", err)
+	}
+}
+
 func TestApplyUninstallTokenPolicySkipsHeadlessLinuxSecretServiceDeleteFailure(t *testing.T) {
 	originalRead := readRelayAuthTokenForUninstall
 	originalDelete := deleteRelayAuthTokenForUninstall

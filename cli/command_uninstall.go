@@ -131,16 +131,17 @@ func runUninstall(paths runtimePaths, args []string) int {
 			return 1
 		}
 		report.addRemoved("winget package " + wingetPackageID)
-	} else if source == installSourceBundle {
-		if err := removeBundleRuntime(paths, report); err != nil {
-			printHumanErr("%s", err)
-			return 1
-		}
 	}
 
 	if err := finalizeLocalUninstall(paths, state, report, mode); err != nil {
 		printHumanErr("%s", err)
 		return 1
+	}
+	if source == installSourceBundle {
+		if err := removeBundleRuntime(paths, report); err != nil {
+			printHumanErr("%s", err)
+			return 1
+		}
 	}
 
 	applyUninstallPreflightNotes(report, preflight)

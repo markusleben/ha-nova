@@ -159,10 +159,12 @@ func buildUpdateCheckResult(paths runtimePaths) updateCheckResult {
 }
 
 func updateCheckExitCode(result updateCheckResult) int {
-	if result.Status == "check_failed" || result.Status == "channel_conflict" {
+	switch result.Status {
+	case "check_failed", "channel_conflict":
 		return 1
+	default:
+		return 0
 	}
-	return 0
 }
 
 func humanNoticeFromUpdateCheckResult(result updateCheckResult, quiet bool) humanNotice {

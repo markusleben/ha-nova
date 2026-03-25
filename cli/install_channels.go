@@ -54,7 +54,7 @@ func inspectInstallChannels(paths runtimePaths, state installState) installChann
 
 func resolvedBundleInstallRoot(paths runtimePaths) string {
 	root := windowsBundleInstallRoot(paths.Home)
-	if candidate := strings.TrimSpace(resolveSourceRoot(paths)); candidate != "" && bundleInstallPresentOnDisk(candidate) {
+	if candidate := strings.TrimSpace(resolveSourceRoot(paths)); candidate != "" && !isWingetManagedPath(candidate) && bundleInstallPresentOnDisk(candidate) {
 		return candidate
 	}
 	return root
