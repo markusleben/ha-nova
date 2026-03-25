@@ -648,12 +648,10 @@ EOF
     chmod 755 "${relay_cli_target}"
   fi
 
-  # Version check script + local version.json (for flat-copy installs without git repo)
-  if [[ -f "${REPO_ROOT}/scripts/version-check.sh" ]]; then
-    write_repo_cli_wrapper "${HOME}/.config/ha-nova/version-check" "check-update" "--quiet"
-    cp "${REPO_ROOT}/version.json" "${HOME}/.config/ha-nova/version.json"
-    log "[${target}] Installed version-check + version.json"
-  fi
+  # Version check wrapper + local version.json (for flat-copy installs without git repo)
+  write_repo_cli_wrapper "${HOME}/.config/ha-nova/version-check" "check-update" "--quiet"
+  cp "${REPO_ROOT}/version.json" "${HOME}/.config/ha-nova/version.json"
+  log "[${target}] Installed version-check + version.json"
 
 }
 

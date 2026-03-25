@@ -21,4 +21,18 @@ describe("dev-sync contract", () => {
     expect(content).toContain('sync_symlink_client "Codex"');
     expect(content).toContain('sync_symlink_client "OpenCode"');
   });
+
+  it("generates the version-check wrapper directly instead of copying a tracked shell shim", () => {
+    expect(content).toContain('write_repo_cli_wrapper "${config_dir}/version-check" "check-update" "--quiet"');
+    expect(content).not.toContain('scripts/version-check.sh');
+    expect(content).not.toContain('scripts/update.sh');
+  });
+
+  it("keeps Claude plugin record rewrites portable across BSD and GNU sed", () => {
+    expect(content).toContain("inplace_sed()");
+    expect(content).toContain('if [[ "$(uname -s)" == "Darwin" ]]');
+    expect(content).toContain('sed -i \'\' "$@"');
+    expect(content).toContain('sed -i "$@"');
+    expect(content).not.toContain('sed -i \'\' "/"ha-nova@ha-nova"');
+  });
 });

@@ -1,5 +1,7 @@
 # Safe Test Architecture Design
 
+> Historical design note: the safe/default vs desktop-lane split here is now the live test contract. Any shell-era onboarding references are implementation history, not active product guidance.
+
 ## Goal
 
 Define the smallest test architecture that keeps a maintainer host safe by default while still proving HA NOVA's installer and setup behavior on macOS and Windows before release.

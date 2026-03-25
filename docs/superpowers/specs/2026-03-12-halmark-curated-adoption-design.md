@@ -1,5 +1,7 @@
 # HALMark Curated Adoption Design
 
+> Historical design note: this snapshot predates the final fallback-skill consolidation. References to `skills/guide/SKILL.md` are archival only; current fallback behavior lives under `skills/fallback/SKILL.md`.
+
 **Date:** 2026-03-12
 **Status:** Proposed
 **Source reviewed:** `https://github.com/nathan-curtis/HALMark` (main branch, accessed 2026-03-12)

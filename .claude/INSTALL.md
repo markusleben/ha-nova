@@ -11,8 +11,12 @@ curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/main/install.sh
 ### Windows PowerShell
 
 ```powershell
+$ProgressPreference = 'SilentlyContinue'
 irm https://raw.githubusercontent.com/markusleben/ha-nova/main/install.ps1 | iex
 ```
+
+Current public Windows install path: `install.ps1`.
+A `winget` manifest is generated for each release, but the public package is not live until that manifest is published and proven on a fresh Windows VM.
 
 Windows currently ships an `amd64` bundle. On Windows ARM64, use x64 emulation.
 
@@ -112,7 +116,12 @@ Common commands:
 ha-nova setup claude
 ha-nova update
 ha-nova uninstall
+ha-nova uninstall --purge
 ```
+
+`ha-nova uninstall` now means standard remove and keeps local HA NOVA connection config plus the secure token for easier reinstall/repair. Use `ha-nova uninstall --purge` for a full local wipe.
+
+Recent Windows builds also migrate older `~/.local` / `~/.config` HA NOVA data into native `%LOCALAPPDATA%` / `%APPDATA%` locations automatically.
 
 Old pre-Go install?
 

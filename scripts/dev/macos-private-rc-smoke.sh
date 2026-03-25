@@ -3,7 +3,17 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 BUNDLE_SERVER_BASE_URL="${BUNDLE_SERVER_BASE_URL:-http://127.0.0.1:8917}"
-TMP_HOME="$(mktemp -d "${TMPDIR:-/tmp}/ha-nova-macos-smoke.XXXXXX")"
+
+normalize_path() {
+  python3 - "$1" <<'PY'
+import os
+import sys
+
+print(os.path.normpath(sys.argv[1]))
+PY
+}
+
+TMP_HOME="$(normalize_path "$(mktemp -d "${TMPDIR:-/tmp}/ha-nova-macos-smoke.XXXXXX")")"
 
 detect_bundle_name() {
   case "$(uname -m)" in
@@ -37,6 +47,8 @@ bash "${ROOT_DIR}/install.sh"
 "${TMP_HOME}/.local/bin/ha-nova" uninstall --yes
 
 test ! -e "${TMP_HOME}/.local/share/ha-nova"
-test ! -e "${TMP_HOME}/.config/ha-nova"
+test ! -e "${TMP_HOME}/.config/ha-nova/config.json"
+test ! -e "${TMP_HOME}/.config/ha-nova/state.json"
+test ! -e "${TMP_HOME}/.cache/ha-nova"
 
 printf 'MACOS_PRIVATE_RC_SMOKE_OK:%s\n' "${TMP_HOME}"

@@ -132,7 +132,7 @@ func rewriteClaudeMarketplaceManifest(manifestPath, pluginSource string) ([]byte
 	}
 
 	var manifest map[string]any
-	if err := json.Unmarshal(data, &manifest); err != nil {
+	if err := unmarshalClaudeJSON(data, &manifest); err != nil {
 		return nil, err
 	}
 
@@ -223,7 +223,7 @@ func readClaudeMarketplaceSource(home string) (claudeMarketplaceSource, bool, er
 	}
 
 	var raw any
-	if err := json.Unmarshal(data, &raw); err != nil {
+	if err := unmarshalClaudeJSON(data, &raw); err != nil {
 		return claudeMarketplaceSource{}, false, err
 	}
 	return claudeMarketplaceSourceFromValue(raw)

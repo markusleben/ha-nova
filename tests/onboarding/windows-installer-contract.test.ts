@@ -50,34 +50,56 @@ describe("install.ps1 contract", () => {
     expect(content).not.toContain("npm install");
   });
 
-  it("stays PowerShell-native without Git Bash or winget assumptions", () => {
-    expect(content).not.toContain("winget");
+  it("stays PowerShell-native without Git Bash assumptions", () => {
+    expect(content).toContain("Get-Command winget");
+    expect(content).toContain("Microsoft\\WinGet\\Links\\ha-nova.exe");
+    expect(content).toContain("Microsoft\\WinGet\\Packages");
+    expect(content).toContain("winget-managed HA NOVA install was detected");
+    expect(content).toContain("winget upgrade --id");
+    expect(content).toContain("winget uninstall --id");
+    expect(content).toContain('return "unknown"');
+    expect(content).toContain('& $wingetCommand.Source list ha-nova');
+    expect(content).not.toContain('if ($inventoryState -eq "unknown")');
+    expect(content).not.toContain("return Test-WingetPackageRootInstall");
     expect(content).not.toContain("Git.Git");
     expect(content).not.toContain("git-bash.exe");
     expect(content).not.toContain("bash.exe");
+  });
+
+  it("blocks over an unfinished background uninstall instead of layering a new install", () => {
+    expect(content).toContain("uninstall-status.json");
+    expect(content).toContain("A background HA NOVA uninstall is still running on Windows.");
+    expect(content).toContain("A previous background HA NOVA uninstall did not finish cleanly.");
+    expect(content).toContain("ha-nova uninstall --yes");
+    expect(content).toContain("ha-nova uninstall --yes --purge");
   });
 
   it("detects legacy installs and prints the dedicated cleanup one-liner", () => {
     expect(content).toContain("legacy-uninstall.ps1");
     expect(content).toContain("raw.githubusercontent.com/markusleben/ha-nova/main/scripts/legacy-uninstall.ps1");
     expect(content).toContain("onboarding.env");
-    expect(content).toContain("version-check");
+    expect(content).toContain("check-update.cmd");
+    expect(content).not.toContain('(Join-Path $LegacyConfigDir "relay")');
+    expect(content).not.toContain('(Join-Path $LegacyConfigDir "relay.exe")');
+    expect(content).not.toContain('(Join-Path $LegacyConfigDir "version-check")');
   });
 
-  it("adds the install root to PATH and starts setup through the Go runtime", () => {
+  it("uses native Windows app locations and starts setup through the Go runtime", () => {
+    expect(content).toContain("LOCALAPPDATA");
+    expect(content).toContain("APPDATA");
+    expect(content).toContain("Programs\\ha-nova");
     expect(content).toContain("$PublicCommandDir = $InstallDir");
     expect(content).toContain("Ensure-InstallDirOnPath");
-    expect(content).toContain("Write-State");
-    expect(content).toContain("path_managed");
     expect(content).toContain("HA_NOVA_NO_SETUP");
     expect(content).toContain("Start-Setup");
     expect(content).toContain("& $BinaryPath setup");
     expect(content).not.toContain("ha-nova.cmd");
   });
 
-  it("preserves managed PATH ownership on reinstall", () => {
-    expect(content).toContain("$existing.path_managed -eq $true");
-    expect(content).toContain('$existing.path_target -eq "user-path"');
-    expect(content).toContain("$PathManaged = $true");
+  it("keeps bootstrap logic out of product state persistence", () => {
+    expect(content).not.toContain("Write-State");
+    expect(content).not.toContain("state.json");
+    expect(content).not.toContain("install_source");
+    expect(content).not.toContain("path_managed");
   });
 });

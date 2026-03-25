@@ -1,5 +1,7 @@
 # Safe Test Architecture Implementation Plan
 
+> Historical plan note: this split is already implemented. Default `verify` is the current safe gate; any remaining shell wrappers mentioned here are historical or dev-only, not active product test lanes.
+
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make HA NOVA verification safe by default on a maintainer host while keeping explicit macOS and Windows desktop validation lanes for release proof.

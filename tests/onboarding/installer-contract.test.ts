@@ -57,7 +57,10 @@ describe("install.sh contract", () => {
     expect(content).toContain("legacy-uninstall.sh");
     expect(content).toContain("raw.githubusercontent.com/markusleben/ha-nova/main/scripts/legacy-uninstall.sh");
     expect(content).toContain("onboarding.env");
-    expect(content).toContain("version-check");
+    expect(content).toContain("check-update.cmd");
+    expect(content).not.toContain('[[ -f "${CONFIG_DIR}/relay" ]]');
+    expect(content).not.toContain('[[ -f "${CONFIG_DIR}/relay.exe" ]]');
+    expect(content).not.toContain('[[ -f "${CONFIG_DIR}/version-check" ]]');
   });
 
   it("installs ha-nova into ~/.local/bin as a single public command and manages PATH", () => {
@@ -65,18 +68,15 @@ describe("install.sh contract", () => {
     expect(content).toContain("BIN_LINK");
     expect(content).toContain("install_binary");
     expect(content).toContain("ensure_bin_dir_on_path()");
-    expect(content).toContain("write_state()");
-    expect(content).toContain('"path_managed"');
     expect(content).toContain('export PATH="$HOME/.local/bin:$PATH"');
     expect(content).not.toContain('cp "${runtime_bin}" "${BIN_DIR}/ha-nova"');
   });
 
-  it("preserves configured client state on reinstall instead of resetting it", () => {
-    expect(content).toContain('if [[ -f "${STATE_FILE}" ]]');
-    expect(content).toContain('grep -Eq \'"path_managed"[[:space:]]*:[[:space:]]*true\' "${STATE_FILE}"');
-    expect(content).toContain('awk -v version="${version}" -v path_managed="${path_managed_json}" -v path_target="${PATH_RC_FILE}"');
-    expect(content).toContain('/"install_source"[[:space:]]*:/');
-    expect(content).toContain('/"path_target"[[:space:]]*:/');
+  it("keeps bootstrap logic out of product state persistence", () => {
+    expect(content).not.toContain("write_state()");
+    expect(content).not.toContain("STATE_FILE");
+    expect(content).not.toContain("install_source");
+    expect(content).not.toContain("path_managed");
   });
 
   it("starts ha-nova setup only when interactive and respects HA_NOVA_NO_SETUP", () => {

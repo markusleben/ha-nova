@@ -83,7 +83,7 @@ func TestFinalizeWindowsUninstallRemovesInstallAndState(t *testing.T) {
 		t.Fatalf("write cache: %v", err)
 	}
 
-	if err := finalizeWindowsUninstall(paths, &uninstallReport{}); err != nil {
+	if err := finalizeWindowsUninstall(paths, &uninstallReport{}, uninstallModeStandard, nil); err != nil {
 		t.Fatalf("finalize windows uninstall: %v", err)
 	}
 	if _, err := os.Stat(paths.InstallRoot); !isNotExist(err) {
@@ -133,7 +133,7 @@ func TestFinalizeWindowsUninstallWarnsAboutClaudeProjectMemoryArtifacts(t *testi
 	}
 
 	report := &uninstallReport{}
-	if err := finalizeWindowsUninstall(paths, report); err != nil {
+	if err := finalizeWindowsUninstall(paths, report, uninstallModeStandard, nil); err != nil {
 		t.Fatalf("finalize windows uninstall: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(projectMemoryDir, "ha-nova-skills.md")); err != nil {
@@ -165,13 +165,26 @@ func TestRunInternalUninstallPrintsFinalSuccess(t *testing.T) {
 	}
 
 	originalCleanup := scheduleWindowsSelfDeleteForUninstall
+	originalWait := waitForParentReleaseForUninstall
 	defer func() {
 		scheduleWindowsSelfDeleteForUninstall = originalCleanup
+		waitForParentReleaseForUninstall = originalWait
 	}()
 	cleanupPath := ""
+	waitObservedMarker := false
 	scheduleWindowsSelfDeleteForUninstall = func(path string) error {
 		cleanupPath = path
 		return nil
+	}
+	waitForParentReleaseForUninstall = func(parentPID int) {
+		marker, err := loadWindowsUninstallStatus(paths)
+		if err != nil {
+			t.Fatalf("loadWindowsUninstallStatus() during wait error: %v", err)
+		}
+		if marker.Status != windowsUninstallStatusRunning {
+			t.Fatalf("marker status during wait = %q, want running", marker.Status)
+		}
+		waitObservedMarker = true
 	}
 
 	exitCode, output := captureCommandOutput(t, func() int {
@@ -183,14 +196,14 @@ func TestRunInternalUninstallPrintsFinalSuccess(t *testing.T) {
 	if !strings.Contains(output, "HA NOVA removed") {
 		t.Fatalf("expected final uninstall success output:\n%s", output)
 	}
-	if !strings.Contains(output, "If PowerShell is still waiting now, press Ctrl+C once to return to a fresh prompt.") {
-		t.Fatalf("expected final Ctrl+C guidance at the end of internal uninstall output:\n%s", output)
-	}
-	if strings.Index(output, "HA NOVA removed") > strings.Index(output, "If PowerShell is still waiting now, press Ctrl+C once to return to a fresh prompt.") {
-		t.Fatalf("expected Ctrl+C guidance after final success line:\n%s", output)
+	if strings.Contains(output, "If PowerShell is still waiting now, press Ctrl+C once to return to a fresh prompt.") {
+		t.Fatalf("did not expect old console-coupled Ctrl+C guidance:\n%s", output)
 	}
 	if cleanupPath != filepath.Join(home, "temp-helper.exe") {
 		t.Fatalf("expected helper cleanup to be scheduled, got %q", cleanupPath)
+	}
+	if !waitObservedMarker {
+		t.Fatal("expected wait hook to observe running uninstall marker")
 	}
 }
 
@@ -225,9 +238,11 @@ func TestRunInternalUninstallPrintsPartialRemovalDetailsWhenTokenDeleteFails(t *
 
 	originalRead := readRelayAuthTokenForUninstall
 	originalDelete := deleteRelayAuthTokenForUninstall
+	originalWait := waitForParentReleaseForUninstall
 	defer func() {
 		readRelayAuthTokenForUninstall = originalRead
 		deleteRelayAuthTokenForUninstall = originalDelete
+		waitForParentReleaseForUninstall = originalWait
 	}()
 	readRelayAuthTokenForUninstall = func() (string, error) {
 		return "test-relay-token", nil
@@ -235,17 +250,84 @@ func TestRunInternalUninstallPrintsPartialRemovalDetailsWhenTokenDeleteFails(t *
 	deleteRelayAuthTokenForUninstall = func() error {
 		return errors.New("credential manager unavailable")
 	}
+	waitForParentReleaseForUninstall = func(parentPID int) {}
 
 	exitCode, output := captureCommandOutput(t, func() int {
-		return runInternalUninstall(paths, []string{"--self-path", filepath.Join(home, "temp-helper.exe")})
+		return runInternalUninstall(paths, []string{"--self-path", filepath.Join(home, "temp-helper.exe"), "--purge"})
 	})
 	if exitCode == 0 {
 		t.Fatalf("expected internal uninstall to fail when token deletion fails:\n%s", output)
 	}
-	if !strings.Contains(output, "Removed: "+paths.InstallRoot) {
-		t.Fatalf("expected partial removal details before token deletion error:\n%s", output)
+	if strings.Contains(output, "Removed: "+paths.InstallRoot) {
+		t.Fatalf("runtime should remain until recovery can rerun uninstall:\n%s", output)
 	}
 	if !strings.Contains(output, "failed to remove relay auth token") {
 		t.Fatalf("expected relay token deletion failure in output:\n%s", output)
+	}
+	if _, err := os.Stat(paths.InstallRoot); err != nil {
+		t.Fatalf("expected install root to remain after failed helper cleanup, got %v", err)
+	}
+	marker, err := loadWindowsUninstallStatus(paths)
+	if err != nil {
+		t.Fatalf("loadWindowsUninstallStatus() error: %v", err)
+	}
+	if marker.Status != windowsUninstallStatusFailed {
+		t.Fatalf("marker status = %q, want failed", marker.Status)
+	}
+}
+
+func TestRunInternalWingetUninstallPersistsMarkerBeforeWait(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("LOCALAPPDATA", filepath.Join(home, "AppData", "Local"))
+	t.Setenv("APPDATA", filepath.Join(home, "AppData", "Roaming"))
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+
+	originalWait := waitForParentReleaseForWingetUninstall
+	originalWingetUninstall := runWingetUninstallForUninstall
+	originalCleanup := scheduleWindowsSelfDeleteForUninstall
+	defer func() {
+		waitForParentReleaseForWingetUninstall = originalWait
+		runWingetUninstallForUninstall = originalWingetUninstall
+		scheduleWindowsSelfDeleteForUninstall = originalCleanup
+	}()
+
+	waitObservedMarker := false
+	waitForParentReleaseForWingetUninstall = func(parentPID int) {
+		marker, err := loadWindowsUninstallStatus(paths)
+		if err != nil {
+			t.Fatalf("loadWindowsUninstallStatus() during winget wait error: %v", err)
+		}
+		if marker.Status != windowsUninstallStatusRunning {
+			t.Fatalf("winget marker status during wait = %q, want running", marker.Status)
+		}
+		if marker.InstallSource != installSourceWinget {
+			t.Fatalf("winget marker install source = %q, want winget", marker.InstallSource)
+		}
+		waitObservedMarker = true
+	}
+	runWingetUninstallForUninstall = func(mode uninstallMode) error {
+		if mode != uninstallModeStandard {
+			t.Fatalf("winget uninstall mode = %q, want standard", mode)
+		}
+		return nil
+	}
+	scheduleWindowsSelfDeleteForUninstall = func(path string) error { return nil }
+
+	exitCode, output := captureCommandOutput(t, func() int {
+		return runInternalWingetUninstall(paths, []string{"--self-path", filepath.Join(home, "temp-helper.exe")})
+	})
+	if exitCode != 0 {
+		t.Fatalf("runInternalWingetUninstall() exit = %d\n%s", exitCode, output)
+	}
+	if !waitObservedMarker {
+		t.Fatal("expected winget wait hook to observe running uninstall marker")
+	}
+	if _, err := os.Stat(paths.UninstallStatusFile); !isNotExist(err) {
+		t.Fatalf("expected winget uninstall marker to be removed after success, got err=%v", err)
 	}
 }

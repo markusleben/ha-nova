@@ -1,5 +1,7 @@
 # HALMark Curated Adoption Implementation Plan
 
+> Historical plan note: this plan predates the final fallback-skill shape. References to `skills/guide/SKILL.md` are obsolete; current fallback coverage lives under `skills/fallback/SKILL.md`.
+
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add a small, high-signal HALMark-inspired safety subset to HA NOVA as skill policy, review checks, attribution, and contract tests without changing relay runtime.

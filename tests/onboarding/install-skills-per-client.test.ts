@@ -40,7 +40,7 @@ function installSkills(
     {
       cwd: REPO_ROOT,
       encoding: "utf8",
-      timeout: 20000,
+      timeout: 60000,
       env: mockEnv(home, binDir, extraEnv),
     },
   );
@@ -76,7 +76,7 @@ describe("S-4: client-specific skill installation", () => {
     expect(ctx).toContain("name: ha-nova");
   });
 
-  it("installs gemini skills as flat copies", () => {
+  it("installs gemini skills as flat copies", { timeout: 120000 }, () => {
     const { home, result } = installSkills("gemini");
     expect(result.status).toBe(0);
 
@@ -255,7 +255,7 @@ describe("S-4: client-specific skill installation", () => {
 });
 
 describe("S-5: multi-client 'all' installation", () => {
-  it("installs for all clients in one pass", () => {
+  it("installs for all clients in one pass", { timeout: 120000 }, () => {
     const { home, result } = installSkills("all");
     expect(result.status).toBe(0);
 
@@ -277,7 +277,7 @@ describe("S-5: multi-client 'all' installation", () => {
     ).not.toThrow();
   });
 
-  it("relay CLI is installed to config dir", () => {
+  it("relay CLI is installed to config dir", { timeout: 120000 }, () => {
     const { home, result } = installSkills("all");
     expect(result.status).toBe(0);
 

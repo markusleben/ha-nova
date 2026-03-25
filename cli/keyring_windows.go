@@ -3,20 +3,14 @@
 package main
 
 import (
-	"encoding/base64"
 	"fmt"
 	"os"
-	"os/exec"
 	"os/user"
 	"path/filepath"
 	"strings"
 
 	"github.com/zalando/go-keyring"
 )
-
-func encodeBase64Token(value string) string {
-	return base64.StdEncoding.EncodeToString([]byte(value))
-}
 
 func readRelayAuthToken() (string, error) {
 	if token, overridden, err := readRelayAuthTokenOverride(); overridden {
@@ -40,7 +34,15 @@ func readRelayAuthToken() (string, error) {
 	}
 	legacy, legacyErr := readLegacyWindowsRelayAuthToken(service)
 	if legacyErr == nil && strings.TrimSpace(legacy) != "" {
-		return strings.TrimSpace(legacy), nil
+		trimmed := strings.TrimSpace(legacy)
+		if setErr := keyring.Set(service, u.Username, trimmed); setErr != nil {
+			printHumanWarn("legacy Windows relay token migration failed: %s", setErr)
+			return trimmed, nil
+		}
+		if deleteErr := deleteLegacyWindowsRelayAuthToken(service); deleteErr != nil {
+			printHumanWarn("legacy Windows relay token cleanup failed after migration: %s", deleteErr)
+		}
+		return trimmed, nil
 	}
 	if err != keyring.ErrNotFound {
 		return "", relayAuthTokenReadError(service, err)
@@ -64,9 +66,6 @@ func writeRelayAuthToken(token string) error {
 	}
 	if err := keyring.Set(relayAuthTokenServiceName(), u.Username, token); err != nil {
 		return err
-	}
-	if err := writeLegacyWindowsRelayAuthToken(relayAuthTokenServiceName(), token); err != nil {
-		printHumanWarn("legacy Windows relay token mirror write failed: %s", err)
 	}
 	return nil
 }
@@ -123,25 +122,11 @@ func readLegacyWindowsRelayAuthToken(service string) (string, error) {
 	}
 	psPath := strings.ReplaceAll(path, `'`, `''`)
 	command := "$blob = Get-Content -LiteralPath '" + psPath + `' -Raw; if ([string]::IsNullOrWhiteSpace($blob)) { exit 1 }; $secure = ConvertTo-SecureString -String $blob; $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure); try { [Console]::Out.Write([Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr)) } finally { if ($bstr -ne [IntPtr]::Zero) { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr) } }`
-	out, err := exec.Command("powershell.exe", "-NoProfile", "-NonInteractive", "-Command", command).Output()
+	out, err := buildWindowsHiddenPowerShellCommand(command).Output()
 	if err != nil {
 		return "", err
 	}
 	return string(out), nil
-}
-
-func writeLegacyWindowsRelayAuthToken(service, token string) error {
-	path, err := legacyWindowsRelayAuthTokenPath(service)
-	if err != nil {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
-	psPath := strings.ReplaceAll(path, `'`, `''`)
-	encoded := encodeBase64Token(token)
-	command := "$secure = ConvertTo-SecureString -String ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('" + encoded + "'))) -AsPlainText -Force; $blob = ConvertFrom-SecureString -SecureString $secure; [IO.File]::WriteAllText('" + psPath + "', $blob)"
-	return exec.Command("powershell.exe", "-NoProfile", "-NonInteractive", "-Command", command).Run()
 }
 
 func deleteLegacyWindowsRelayAuthToken(service string) error {

@@ -45,6 +45,7 @@ changelog:
   filters:
     exclude:
       - "^Merge "
+      - '^(docs|refactor|perf|style|build|ci|chore|test)(\(.+\))?!?:.+$'
   groups:
     - title: New Features
       regexp: '^feat(\(.+\))?!?:.+$'
@@ -52,14 +53,6 @@ changelog:
     - title: Bug Fixes
       regexp: '^fix(\(.+\))?!?:.+$'
       order: 10
-    - title: UX, Docs, and Refactors
-      regexp: '^(docs|refactor|perf|style)(\(.+\))?!?:.+$'
-      order: 20
-    - title: Internal Maintenance
-      regexp: '^(build|ci|chore|test)(\(.+\))?!?:.+$'
-      order: 30
-    - title: Other Changes
-      order: 999
 
 snapshot:
   version_template: "{{ incpatch .Version }}-snapshot"
@@ -74,20 +67,13 @@ release:
   header: |
     ## Why This Release Exists
 
-    This release keeps HA NOVA easier to install, safer to update, and clearer to operate across supported platforms.
-    Read the grouped sections below for the user-facing changes, fixes, and upgrade notes.
+    This release makes HA NOVA easier to install, safer to update, and clearer to remove across supported platforms.
 
     ## What You Get
 
-    - user-visible features grouped under `New Features`
-    - bug fixes grouped under `Bug Fixes`
-    - UX, docs, and cleanup grouped separately so maintainers can scan them without burying product changes
-
-    ## Install or Update
-
-    Do not download the `ha-nova-installer-bundle-*.tar.gz` / `.zip` assets below and try to run them directly.
-    They are installer payloads, not standalone apps.
-    Use the installer commands below, or run `ha-nova update` from an existing install.
+    - More reliable setup, doctor, update, and uninstall behavior in the validated install and client flows for this release.
+    - Stronger Windows lifecycle handling, including clearer install-channel detection and safer uninstall recovery.
+    - A `winget` manifest is attached as a release handoff artifact for the future public Windows package path.
 
     **macOS / Linux:**
     ```sh
@@ -96,16 +82,21 @@ release:
 
     **Windows (PowerShell):**
     ```powershell
+    $ProgressPreference = 'SilentlyContinue'
     irm https://raw.githubusercontent.com/markusleben/ha-nova/main/install.ps1 | iex
     ```
 
     Windows currently ships an `amd64` bundle only. On Windows ARM64, use x64 emulation.
-    Windows validation in this release may still be narrower than macOS; check the README support matrix before claiming client-lane parity.
+    A `winget` manifest is attached as a release handoff artifact, but the public Windows package is not live until that manifest is published and proven on a fresh Windows VM.
+    Do not download and run the raw `ha-nova-installer-bundle-*.tar.gz` / `.zip` assets directly; those are installer payloads, not the supported end-user path.
 
     ## Upgrade Notes
 
-    Already installed? Run `ha-nova check-update` or `ha-nova update`.
-    Legacy pre-Go installs still require the legacy cleanup script before reinstalling.
+    - Already installed? Run `ha-nova check-update` or `ha-nova update`.
+    - Default `ha-nova uninstall` is standard remove. Use `ha-nova uninstall --purge` for a full local wipe.
+    - Windows now uses `%APPDATA%\ha-nova` and `%LOCALAPPDATA%\ha-nova\cache` as the canonical config and cache paths.
+    - Keep exactly one Windows install channel per machine. `install.ps1` will not install on top of an existing `winget` install.
+    - Legacy pre-Go installs still require the legacy cleanup script before reinstalling.
 
     > The bundle assets below are consumed by the installers automatically. Only use them directly for maintainer-level debugging or raw binary validation.
   footer: |

@@ -11,11 +11,9 @@ BIN_DIR="${HOME}/.local/bin"
 BIN_LINK="${BIN_DIR}/ha-nova"
 LEGACY_UNINSTALL_URL="https://raw.githubusercontent.com/markusleben/ha-nova/main/scripts/legacy-uninstall.sh"
 CONFIG_DIR="${HOME}/.config/ha-nova"
-STATE_FILE="${CONFIG_DIR}/state.json"
 PATH_BLOCK_HEADER="# Added by HA NOVA"
 PATH_RC_FILE=""
 TMP_DIR=""
-PATH_MANAGED="0"
 PLAIN_UI="0"
 UI_RESET=""
 UI_BOLD=""
@@ -109,11 +107,8 @@ is_current_install() {
 
 has_legacy_install() {
   [[ -f "${CONFIG_DIR}/onboarding.env" ]] && return 0
-  [[ -f "${CONFIG_DIR}/relay" ]] && return 0
-  [[ -f "${CONFIG_DIR}/relay.exe" ]] && return 0
   [[ -f "${CONFIG_DIR}/update" ]] && return 0
   [[ -f "${CONFIG_DIR}/update.cmd" ]] && return 0
-  [[ -f "${CONFIG_DIR}/version-check" ]] && return 0
   [[ -f "${CONFIG_DIR}/check-update.cmd" ]] && return 0
   [[ -d "${INSTALL_DIR}/scripts/onboarding" && ! -f "${INSTALL_DIR}/bundle.json" ]] && return 0
   return 1
@@ -233,7 +228,6 @@ ensure_bin_dir_on_path() {
 # Added by HA NOVA
 export PATH="$HOME/.local/bin:$PATH"
 EOF
-  PATH_MANAGED="1"
   info "Added ${BIN_DIR} to PATH in ${rc_file}"
 }
 
@@ -388,47 +382,6 @@ install_binary() {
   ln -sfn "${runtime_bin}" "${BIN_LINK}"
 }
 
-write_state() {
-  local version_tag="$1"
-  local version="${version_tag#v}"
-  local path_managed_json="false"
-  local tmp_state=""
-  mkdir -p "${CONFIG_DIR}"
-
-  if [[ "${PATH_MANAGED}" == "1" ]]; then
-    path_managed_json="true"
-  elif [[ -f "${STATE_FILE}" ]] && grep -Eq '"path_managed"[[:space:]]*:[[:space:]]*true' "${STATE_FILE}"; then
-    path_managed_json="true"
-  fi
-
-  if [[ -f "${STATE_FILE}" ]]; then
-    tmp_state="${STATE_FILE}.tmp.$$"
-    awk -v version="${version}" -v path_managed="${path_managed_json}" -v path_target="${PATH_RC_FILE}" '
-      /"version"[[:space:]]*:/ { print "  \"version\": \"" version "\","; next }
-      /"install_source"[[:space:]]*:/ { print "  \"install_source\": \"bundle\","; next }
-      /"path_managed"[[:space:]]*:/ { print "  \"path_managed\": " path_managed ","; next }
-      /"path_target"[[:space:]]*:/ { print "  \"path_target\": \"" path_target "\""; next }
-      { print }
-    ' "${STATE_FILE}" > "${tmp_state}"
-    mv "${tmp_state}" "${STATE_FILE}"
-    chmod 600 "${STATE_FILE}"
-    return 0
-  fi
-
-  cat > "${STATE_FILE}" <<EOF
-{
-  "schema_version": 1,
-  "version": "${version}",
-  "install_source": "bundle",
-  "installed_clients": [],
-  "client_install_modes": {},
-  "path_managed": ${path_managed_json},
-  "path_target": "${PATH_RC_FILE}"
-}
-EOF
-  chmod 600 "${STATE_FILE}"
-}
-
 run_setup() {
   local runtime_bin="$1"
 
@@ -481,7 +434,6 @@ main() {
   install_bundle "${bundle_root}"
   install_binary
   ensure_bin_dir_on_path
-  write_state "${installed_tag}"
   info "Installed HA NOVA ${installed_tag}"
   echo ""
   note "Need help later? Run: ha-nova doctor"

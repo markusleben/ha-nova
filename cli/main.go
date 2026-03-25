@@ -45,8 +45,12 @@ func dispatch(paths runtimePaths, argv0 string, args []string) int {
 		return 0
 	case "internal-replace":
 		return runInternalReplace(paths, args[1:])
+	case "internal-winget-upgrade":
+		return runInternalWingetUpgrade(paths, args[1:])
 	case "internal-uninstall":
 		return runInternalUninstall(paths, args[1:])
+	case "internal-winget-uninstall":
+		return runInternalWingetUninstall(paths, args[1:])
 	case "internal-sync-clients":
 		return runInternalSyncClients(paths, args[1:])
 	case "-h", "--help", "help":
@@ -67,7 +71,7 @@ func printUsage() {
 	fmt.Fprintln(os.Stdout, "  ha-nova doctor")
 	fmt.Fprintln(os.Stdout, "  ha-nova check-update [--quiet] [--json]")
 	fmt.Fprintln(os.Stdout, "  ha-nova update [--version <tag>]")
-	fmt.Fprintln(os.Stdout, "  ha-nova uninstall [--yes]")
+	fmt.Fprintln(os.Stdout, "  ha-nova uninstall [--yes] [--purge]")
 	fmt.Fprintln(os.Stdout, "  ha-nova relay <health|ws|core|jq|version>")
 	fmt.Fprintln(os.Stdout, "  ha-nova version")
 }

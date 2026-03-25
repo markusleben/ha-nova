@@ -11,6 +11,19 @@ import (
 )
 
 func runDoctor(paths runtimePaths, _ []string) int {
+	if recovery := inspectWindowsUninstallStatus(paths); recovery.Kind != windowsUninstallStatusKindNone {
+		switch recovery.Kind {
+		case windowsUninstallStatusKindRunning:
+			printHumanErr("%s", recovery.Summary)
+			printHumanWarn("Wait for the background uninstall to finish, then rerun `ha-nova doctor`.")
+			return 1
+		case windowsUninstallStatusKindInterrupted, windowsUninstallStatusKindFailed, windowsUninstallStatusKindCorrupt:
+			printHumanErr("%s", recovery.Summary)
+			printHumanWarn("Recovery: run `%s`.", recovery.RecoveryCommand)
+			return 1
+		}
+	}
+
 	cfg, cfgErr := loadConfig(paths)
 	token, tokenErr := readRelayAuthToken()
 	state := loadStateOrDefault(paths)
@@ -76,26 +89,43 @@ func runDoctor(paths runtimePaths, _ []string) int {
 		printHumanErr("%s", err)
 		status = 1
 	} else if len(clientStatuses) > 0 {
+		installSource := detectInstallSource(paths, state)
 		for _, client := range clientStatuses {
 			switch {
 			case client.Ready:
 				printHumanInfo("%s ready now", client.Label)
 			case !client.RuntimeDetected:
 				printHumanWarn("%s configured, but client runtime not detected now", client.Label)
+				printHumanWarn("%s", doctorClientRepairHint(client, installSource))
 				status = 1
 			case !client.Attached:
 				printHumanWarn("%s configured, but HA NOVA is not attached", client.Label)
+				printHumanWarn("%s", doctorClientRepairHint(client, installSource))
 				status = 1
 			}
 		}
 	}
 	if notice := checkForUpdate(paths, false); !notice.empty() && notice.kind != humanNoticeKindUpToDate {
 		printHumanNotice(notice)
+		if notice.kind == humanNoticeKindChannelConflict {
+			status = 1
+		}
 	}
 	if status == 0 {
 		printHumanInfo("Doctor checks passed")
 	}
 	return status
+}
+
+func doctorClientRepairHint(client clientStatus, installSource string) string {
+	switch {
+	case !client.RuntimeDetected:
+		return fmt.Sprintf("Repair: install or reopen %s, then run `ha-nova setup %s`.", client.Label, client.ID)
+	case installSource == installSourceDev:
+		return fmt.Sprintf("Repair: run `npm run dev:sync` or `ha-nova setup %s`.", client.ID)
+	default:
+		return fmt.Sprintf("Repair: run `ha-nova setup %s`.", client.ID)
+	}
 }
 
 func runCheckUpdate(paths runtimePaths, args []string) int {
@@ -124,13 +154,7 @@ func runCheckUpdate(paths runtimePaths, args []string) int {
 		return 0
 	}
 	printHumanNotice(notice)
-	if notice.kind == humanNoticeKindUpdateAvailable {
-		return 0
-	}
-	if notice.kind == humanNoticeKindUpdateCheckFailed {
-		return 1
-	}
-	return 0
+	return updateCheckExitCode(result)
 }
 
 func fetchRelayHealth(relayBaseURL, token string) ([]byte, error) {
@@ -157,11 +181,15 @@ func fetchRelayHealth(relayBaseURL, token string) ([]byte, error) {
 }
 
 func probeHTTP(url string) error {
+	return probeHTTPWithClient(httpClient, url)
+}
+
+func probeHTTPWithClient(client *http.Client, url string) error {
 	req, err := http.NewRequest("GET", strings.TrimRight(url, "/"), nil)
 	if err != nil {
 		return err
 	}
-	resp, err := httpClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}

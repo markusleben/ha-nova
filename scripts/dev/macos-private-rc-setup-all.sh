@@ -6,7 +6,17 @@ BUNDLE_SERVER_BASE_URL="${BUNDLE_SERVER_BASE_URL:-http://127.0.0.1:8917}"
 MOCK_HA_PORT="${MOCK_HA_PORT:-8123}"
 MOCK_RELAY_PORT="${MOCK_RELAY_PORT:-8791}"
 RELAY_TOKEN="${RELAY_TOKEN:-test-relay-token}"
-TMP_HOME="$(mktemp -d "${TMPDIR:-/tmp}/ha-nova-macos-setup-all.XXXXXX")"
+
+normalize_path() {
+  python3 - "$1" <<'PY'
+import os
+import sys
+
+print(os.path.normpath(sys.argv[1]))
+PY
+}
+
+TMP_HOME="$(normalize_path "$(mktemp -d "${TMPDIR:-/tmp}/ha-nova-macos-setup-all.XXXXXX")")"
 LOG_PATH="${LOG_PATH:-${TMP_HOME}/ha-nova-macos-setup-all.log}"
 
 detect_bundle_name() {
@@ -59,7 +69,7 @@ bundle_name="$(detect_bundle_name)"
 bundle_url="${HA_NOVA_BUNDLE_URL:-${BUNDLE_SERVER_BASE_URL}/${bundle_name}.tar.gz}"
 bundle_sha_url="${HA_NOVA_BUNDLE_SHA256_URL:-${bundle_url}.sha256}"
 local_bundle_path="${ROOT_DIR}/dist/install-bundles/${bundle_name}.tar.gz"
-if [[ -z "${MOCK_REPORTED_VERSION}" ]]; then
+if [[ -z "${MOCK_REPORTED_VERSION:-}" ]]; then
   if [[ "${BUNDLE_SERVER_BASE_URL}" != "http://127.0.0.1:8917" || (-n "${HA_NOVA_BUNDLE_URL:-}" && "${bundle_url}" != "${BUNDLE_SERVER_BASE_URL}/${bundle_name}.tar.gz") ]]; then
     echo "Set MOCK_REPORTED_VERSION explicitly when overriding the bundle source." >&2
     exit 1
@@ -104,6 +114,8 @@ runtime_bin="${TMP_HOME}/.local/bin/ha-nova"
 } 2>&1 | tee "${LOG_PATH}"
 
 test ! -e "${TMP_HOME}/.local/share/ha-nova"
-test ! -e "${TMP_HOME}/.config/ha-nova"
+test -e "${TMP_HOME}/.config/ha-nova/config.json"
+test ! -e "${TMP_HOME}/.config/ha-nova/state.json"
+test ! -e "${TMP_HOME}/.cache/ha-nova"
 
 printf 'MACOS_PRIVATE_RC_SETUP_ALL_OK:%s\n' "${LOG_PATH}"

@@ -26,5 +26,8 @@ describe("legacy cleanup contract", () => {
     expect(content).toContain("onboarding.env");
     expect(content).toContain("version-check");
     expect(content).toContain("ha-nova uninstall");
+    expect(content).toContain("Programs\\ha-nova");
+    expect(content).toContain("Microsoft\\WinGet\\Links\\ha-nova.exe");
+    expect(content).toContain("A current Go install was detected");
   });
 });

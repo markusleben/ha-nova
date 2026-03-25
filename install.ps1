@@ -7,13 +7,20 @@ $ErrorActionPreference = "Stop"
 
 $RepoOwner = "markusleben"
 $RepoName = "ha-nova"
+$WingetPackageId = "markusleben.ha-nova"
 $LatestReleaseUrl = "https://api.github.com/repos/markusleben/ha-nova/releases/latest"
 $ReleaseBaseUrl = "https://github.com/$RepoOwner/$RepoName/releases/download"
-$InstallDir = Join-Path $HOME ".local\share\ha-nova"
+$LocalAppDataDir = if ($env:LOCALAPPDATA) { $env:LOCALAPPDATA } else { Join-Path $HOME "AppData\Local" }
+$AppDataDir = if ($env:APPDATA) { $env:APPDATA } else { Join-Path $HOME "AppData\Roaming" }
+$InstallDir = Join-Path $LocalAppDataDir "Programs\ha-nova"
 $PublicCommandDir = $InstallDir
+$WingetPortableLink = Join-Path $LocalAppDataDir "Microsoft\WinGet\Links\ha-nova.exe"
+$WingetPackagesDir = Join-Path $LocalAppDataDir "Microsoft\WinGet\Packages"
 $LegacyUninstallUrl = "https://raw.githubusercontent.com/markusleben/ha-nova/main/scripts/legacy-uninstall.ps1"
-$ConfigDir = Join-Path $HOME ".config\ha-nova"
-$StatePath = Join-Path $ConfigDir "state.json"
+$ConfigDir = Join-Path $AppDataDir "ha-nova"
+$UninstallStatusPath = Join-Path $LocalAppDataDir "ha-nova\uninstall-status.json"
+$LegacyConfigDir = Join-Path $HOME ".config\ha-nova"
+$LegacyInstallDir = Join-Path $HOME ".local\share\ha-nova"
 $UsePlainUi = $false
 
 function Test-PlainUi {
@@ -168,13 +175,10 @@ function Test-CurrentInstall {
 
 function Test-LegacyInstall {
   $legacyPaths = @(
-    (Join-Path $ConfigDir "onboarding.env"),
-    (Join-Path $ConfigDir "relay"),
-    (Join-Path $ConfigDir "relay.exe"),
-    (Join-Path $ConfigDir "update"),
-    (Join-Path $ConfigDir "update.cmd"),
-    (Join-Path $ConfigDir "version-check"),
-    (Join-Path $ConfigDir "check-update.cmd")
+    (Join-Path $LegacyConfigDir "onboarding.env"),
+    (Join-Path $LegacyConfigDir "update"),
+    (Join-Path $LegacyConfigDir "update.cmd"),
+    (Join-Path $LegacyConfigDir "check-update.cmd")
   )
 
   foreach ($path in $legacyPaths) {
@@ -183,7 +187,7 @@ function Test-LegacyInstall {
     }
   }
 
-  $legacyScriptsDir = Join-Path $InstallDir "scripts\onboarding"
+  $legacyScriptsDir = Join-Path $LegacyInstallDir "scripts\onboarding"
   return (Test-Path -LiteralPath $legacyScriptsDir) -and -not (Test-CurrentInstall)
 }
 
@@ -194,6 +198,327 @@ This installer does not migrate legacy installs in place.
 
 Run the cleanup first:
   irm $LegacyUninstallUrl | iex
+
+Then run this installer again.
+"@
+}
+
+function Test-WingetBundleRoot {
+  param(
+    [string]$Candidate
+  )
+
+  if (-not $Candidate) {
+    return $false
+  }
+
+  $root = $Candidate.TrimEnd('\')
+  return (Test-Path -LiteralPath (Join-Path $root "ha-nova.exe")) -and (Test-Path -LiteralPath (Join-Path $root "bundle.json"))
+}
+
+function Test-WingetPackageRootInstall {
+  $packageRoots = @(Get-ChildItem -LiteralPath $WingetPackagesDir -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "$WingetPackageId*" })
+  foreach ($packageRoot in $packageRoots) {
+    if (Test-WingetBundleRoot -Candidate (Join-Path $packageRoot.FullName "ha-nova")) {
+      return $true
+    }
+    if (Test-WingetBundleRoot -Candidate $packageRoot.FullName) {
+      return $true
+    }
+  }
+
+  return $false
+}
+
+function Get-WingetInstallInventoryState {
+  $wingetCommand = Get-Command winget -ErrorAction SilentlyContinue
+  if (-not $wingetCommand) {
+    return "absent"
+  }
+
+  try {
+    $output = & $wingetCommand.Source list --id $WingetPackageId --exact --source winget 2>$null | Out-String
+    if ($output -match [regex]::Escape($WingetPackageId)) {
+      return "installed"
+    }
+
+    $fallbackOutput = & $wingetCommand.Source list ha-nova 2>$null | Out-String
+    if ($fallbackOutput -match [regex]::Escape($WingetPackageId)) {
+      return "installed"
+    }
+
+    return "absent"
+  }
+  catch {
+    return "unknown"
+  }
+}
+
+function Test-WingetInstall {
+  if (Test-Path -LiteralPath $WingetPortableLink) {
+    return $true
+  }
+
+  $inventoryState = Get-WingetInstallInventoryState
+  if ($inventoryState -eq "installed") {
+    return $true
+  }
+
+  return $false
+}
+
+function Stop-ForWingetInstall {
+  Fail @"
+A winget-managed HA NOVA install was detected.
+This bundle installer will not create a second Windows install channel.
+
+Keep a single Windows install channel:
+  Update existing install:
+    winget upgrade --id $WingetPackageId --exact
+
+  Remove existing install first:
+    winget uninstall --id $WingetPackageId --exact
+
+Then rerun install.ps1 only if you intentionally want the bundle fallback path.
+"@
+}
+
+function Get-UninstallRecoveryCommand {
+  param(
+    [string]$Mode
+  )
+
+  if ($Mode -eq "purge") {
+    return "ha-nova uninstall --yes --purge"
+  }
+
+  return "ha-nova uninstall --yes"
+}
+
+function Normalize-RecoveryPath {
+  param(
+    [string]$Path
+  )
+
+  if (-not $Path) {
+    return ""
+  }
+
+  try {
+    return [System.IO.Path]::GetFullPath($Path).TrimEnd('\').ToLowerInvariant()
+  }
+  catch {
+    return $Path.TrimEnd('\').ToLowerInvariant()
+  }
+}
+
+function Test-UserPathContainsEntry {
+  param(
+    [string]$TargetPath
+  )
+
+  $normalizedTarget = Normalize-RecoveryPath -Path $TargetPath
+  if (-not $normalizedTarget) {
+    return $false
+  }
+
+  $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+  if (-not $userPath) {
+    return $false
+  }
+
+  foreach ($entry in ($userPath -split ";")) {
+    if ((Normalize-RecoveryPath -Path $entry) -eq $normalizedTarget) {
+      return $true
+    }
+  }
+
+  return $false
+}
+
+function Get-ExistingUninstallRemainingPaths {
+  param(
+    $Status
+  )
+
+  $remaining = @()
+  foreach ($candidate in @($Status.remaining_paths)) {
+    $candidatePath = [string]$candidate
+    if ($candidatePath -and (Test-Path -LiteralPath $candidatePath)) {
+      $remaining += $candidatePath
+    }
+  }
+
+  return @($remaining | Select-Object -Unique)
+}
+
+function Get-UninstallRecoveryState {
+  if (-not (Test-Path -LiteralPath $UninstallStatusPath)) {
+    return $null
+  }
+
+  $status = $null
+  try {
+    $status = Get-Content -LiteralPath $UninstallStatusPath -Raw | ConvertFrom-Json
+  }
+  catch {
+    $bundleRuntimePresent = Test-Path -LiteralPath (Join-Path $InstallDir "ha-nova.exe")
+    $wingetRuntimePresent = Test-Path -LiteralPath $WingetPortableLink
+    $pathResidue = Test-UserPathContainsEntry -TargetPath $InstallDir
+    if (-not ($bundleRuntimePresent -or $wingetRuntimePresent) -and -not $pathResidue) {
+      Remove-Item -LiteralPath $UninstallStatusPath -Force -ErrorAction SilentlyContinue
+      return $null
+    }
+    return [pscustomobject]@{
+      Kind = "failed"
+      Summary = "A previous background HA NOVA uninstall left an unreadable recovery marker."
+      RecoveryCommand = (Get-UninstallRecoveryCommand -Mode "standard")
+      RemainingPaths = @()
+      RuntimePresent = ($bundleRuntimePresent -or $wingetRuntimePresent)
+      PathResidue = $pathResidue
+    }
+  }
+
+  if ($status.status -eq "success") {
+    Remove-Item -LiteralPath $UninstallStatusPath -Force -ErrorAction SilentlyContinue
+    return $null
+  }
+
+  $mode = if ($status.mode -eq "purge") { "purge" } else { "standard" }
+  $recoveryCommand = Get-UninstallRecoveryCommand -Mode $mode
+  $bundleRuntimePresent = Test-Path -LiteralPath (Join-Path $InstallDir "ha-nova.exe")
+  $wingetRuntimePresent = Test-Path -LiteralPath $WingetPortableLink
+  $runtimePresent = $bundleRuntimePresent -or $wingetRuntimePresent
+  $remainingPaths = Get-ExistingUninstallRemainingPaths -Status $status
+  $pathResidue = Test-UserPathContainsEntry -TargetPath $InstallDir
+
+  if ($status.status -eq "running") {
+    $updatedAt = $null
+    if ($status.last_updated_at) {
+      try {
+        $updatedAt = [DateTimeOffset]::Parse([string]$status.last_updated_at)
+      }
+      catch {
+        $updatedAt = $null
+      }
+    }
+    if (-not $updatedAt -and $status.started_at) {
+      try {
+        $updatedAt = [DateTimeOffset]::Parse([string]$status.started_at)
+      }
+      catch {
+        $updatedAt = $null
+      }
+    }
+
+    $helperAlive = $false
+    if ($status.helper_pid) {
+      try {
+        $helperAlive = $null -ne (Get-Process -Id ([int]$status.helper_pid) -ErrorAction SilentlyContinue)
+      }
+      catch {
+        $helperAlive = $false
+      }
+    }
+
+    if ($helperAlive -and $updatedAt -and ([DateTimeOffset]::UtcNow - $updatedAt.ToUniversalTime()).TotalMinutes -lt 10) {
+      return [pscustomobject]@{
+        Kind = "running"
+        Summary = "A background HA NOVA uninstall is still running on Windows."
+        RecoveryCommand = $recoveryCommand
+        RemainingPaths = $remainingPaths
+        RuntimePresent = $runtimePresent
+        PathResidue = $pathResidue
+      }
+    }
+
+    if (-not $runtimePresent -and -not $pathResidue -and $remainingPaths.Count -eq 0) {
+      Remove-Item -LiteralPath $UninstallStatusPath -Force -ErrorAction SilentlyContinue
+      return $null
+    }
+
+    return [pscustomobject]@{
+      Kind = "failed"
+      Summary = "A previous background HA NOVA uninstall was interrupted before it finished."
+      RecoveryCommand = $recoveryCommand
+      RemainingPaths = $remainingPaths
+      RuntimePresent = $runtimePresent
+      PathResidue = $pathResidue
+    }
+  }
+
+  if ($status.status -eq "failed") {
+    if (-not $runtimePresent -and -not $pathResidue -and $remainingPaths.Count -eq 0) {
+      Remove-Item -LiteralPath $UninstallStatusPath -Force -ErrorAction SilentlyContinue
+      return $null
+    }
+
+    $summary = if ($status.error_summary) { [string]$status.error_summary } else { "A previous background HA NOVA uninstall did not finish cleanly." }
+    return [pscustomobject]@{
+      Kind = "failed"
+      Summary = $summary
+      RecoveryCommand = $recoveryCommand
+      RemainingPaths = $remainingPaths
+      RuntimePresent = $runtimePresent
+      PathResidue = $pathResidue
+    }
+  }
+
+  return [pscustomobject]@{
+    Kind = "failed"
+    Summary = "A previous background HA NOVA uninstall left an unreadable recovery marker."
+    RecoveryCommand = $recoveryCommand
+    RemainingPaths = $remainingPaths
+    RuntimePresent = $runtimePresent
+    PathResidue = $pathResidue
+  }
+}
+
+function Stop-ForUninstallRecovery {
+  param(
+    [Parameter(Mandatory = $true)]$Recovery
+  )
+
+  if ($Recovery.Kind -eq "running") {
+    Fail @"
+A background HA NOVA uninstall is still running on Windows.
+Wait for it to finish, then run:
+  ha-nova doctor
+
+If cleanup did not complete, repair it with:
+  $($Recovery.RecoveryCommand)
+"@
+  }
+
+  if (-not $Recovery.RuntimePresent) {
+    $instructions = @()
+    if ($Recovery.PathResidue) {
+      $instructions += "Remove the stale Windows user PATH entry for $InstallDir."
+    }
+    foreach ($path in @($Recovery.RemainingPaths)) {
+      $instructions += "Remove: $path"
+    }
+    if ($instructions.Count -eq 0) {
+      $instructions += "Clean up the stale HA NOVA uninstall marker at $UninstallStatusPath."
+    }
+
+    Fail @"
+$($Recovery.Summary)
+
+The HA NOVA runtime is no longer available, so the normal recovery command cannot run.
+
+Manual cleanup required:
+  $($instructions -join "`n  ")
+
+Then run this installer again.
+"@
+  }
+
+  Fail @"
+$($Recovery.Summary)
+
+Run the cleanup first:
+  $($Recovery.RecoveryCommand)
 
 Then run this installer again.
 "@
@@ -256,6 +581,12 @@ function Install-Bundle {
       Fail "Downloaded bundle version v$bundleVersion does not match requested version v$Version."
     }
 
+    if ((Test-Path -LiteralPath (Join-Path $LegacyInstallDir "bundle.json")) -and -not (Test-Path -LiteralPath $InstallDir)) {
+      New-Item -ItemType Directory -Force -Path (Split-Path -Parent $InstallDir) | Out-Null
+      Move-Item -LiteralPath $LegacyInstallDir -Destination $InstallDir -Force
+      Write-Info "Migrated previous Windows install to $InstallDir"
+    }
+
     $installParent = Split-Path -Parent $InstallDir
     $nextRoot = Join-Path $installParent (".ha-nova-next-" + [guid]::NewGuid().ToString("N"))
     $backupRoot = Join-Path $installParent (".ha-nova-old-" + [guid]::NewGuid().ToString("N"))
@@ -292,7 +623,7 @@ function Ensure-InstallDirOnPath {
   $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
   $parts = @()
   if ($userPath) {
-    $parts = $userPath -split ";" | Where-Object { $_ }
+    $parts = $userPath -split ";" | Where-Object { $_ -and $_ -ne $LegacyInstallDir }
   }
 
   if ($parts -contains $PublicCommandDir) {
@@ -307,46 +638,14 @@ function Ensure-InstallDirOnPath {
   return $true
 }
 
-function Write-State {
-  param(
-    [Parameter(Mandatory = $true)][string]$Version,
-    [Parameter(Mandatory = $true)][bool]$PathManaged
-  )
-
-  New-Item -ItemType Directory -Force -Path $ConfigDir | Out-Null
-  $installedClients = @()
-  $clientInstallModes = @{}
-
-  if (Test-Path -LiteralPath $StatePath) {
-    try {
-      $existing = Get-Content -LiteralPath $StatePath -Raw | ConvertFrom-Json
-      if ($existing.installed_clients) {
-        $installedClients = @($existing.installed_clients)
-      }
-      if ($existing.client_install_modes) {
-        $clientInstallModes = @{}
-        foreach ($property in $existing.client_install_modes.PSObject.Properties) {
-          $clientInstallModes[$property.Name] = $property.Value
-        }
-      }
-      if ($existing.path_managed -eq $true -and $existing.path_target -eq "user-path") {
-        $PathManaged = $true
-      }
-    }
-    catch {
-    }
+function Cleanup-LegacyBundleInstall {
+  if ($LegacyInstallDir -eq $InstallDir) {
+    return
   }
-
-  $state = [ordered]@{
-    schema_version = 1
-    version = $Version
-    install_source = "bundle"
-    installed_clients = $installedClients
-    client_install_modes = $clientInstallModes
-    path_managed = $PathManaged
-    path_target = "user-path"
+  if ((Test-Path -LiteralPath $LegacyInstallDir) -and (Test-Path -LiteralPath (Join-Path $LegacyInstallDir "bundle.json"))) {
+    Remove-Item -LiteralPath $LegacyInstallDir -Recurse -Force
+    Write-Info "Removed legacy Windows install root $LegacyInstallDir"
   }
-  $state | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $StatePath -Encoding UTF8
 }
 
 function Start-Setup {
@@ -379,11 +678,17 @@ $version = Get-DownloadInstallVersion
 if (-not (Test-CurrentInstall) -and (Test-LegacyInstall)) {
   Stop-ForLegacyInstall
 }
+if ($uninstallRecovery = Get-UninstallRecoveryState) {
+  Stop-ForUninstallRecovery -Recovery $uninstallRecovery
+}
+if (Test-WingetInstall) {
+  Stop-ForWingetInstall
+}
 $bundleResult = Install-Bundle -Version $version
 $pathManaged = Ensure-InstallDirOnPath
 if ($expectedVersion -and $bundleResult.Version -ne $expectedVersion) {
   Fail "Downloaded bundle version v$($bundleResult.Version) does not match requested version v$expectedVersion."
 }
-Write-State -Version $bundleResult.Version -PathManaged ([bool]$pathManaged)
+Cleanup-LegacyBundleInstall
 Write-Info "Installed HA NOVA v$($bundleResult.Version)"
 Start-Setup -BinaryPath (Join-Path $InstallDir "ha-nova.exe")

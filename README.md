@@ -17,7 +17,7 @@ The *relay* is a small app running on your HA server. It keeps your token where 
 
 A setup wizard handles installation. Pick your AI client, follow the prompts, done.
 
-Client adapters exist for **Claude Code, Claude Desktop (Code tab), Codex CLI, OpenCode, and Gemini CLI**. See the validation matrix below for current platform confidence.
+Works with **Claude Code, Claude Desktop (Code tab), Codex CLI, OpenCode, and Gemini CLI**.
 
 > **Early access.** The core works well, but expect rough edges. Back up your configs before letting AI touch anything. Hit a problem? [Open an issue](https://github.com/markusleben/ha-nova/issues).
 
@@ -42,9 +42,9 @@ macOS is live-validated. Linux uses the same installer and CI smoke path, but th
 ### Windows PowerShell
 
 ```powershell
+$ProgressPreference = 'SilentlyContinue'
 irm https://raw.githubusercontent.com/markusleben/ha-nova/main/install.ps1 | iex
 ```
-
 Windows ships an `amd64` bundle. ARM64 uses x64 emulation.
 
 Claude and Gemini are validated on Windows. Codex and OpenCode lanes exist but are still experimental.
@@ -59,7 +59,9 @@ HA NOVA installs the integration layer. Install the AI client itself separately 
 - macOS / Linux: `curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/main/scripts/legacy-uninstall.sh | bash`
 - Windows: `irm https://raw.githubusercontent.com/markusleben/ha-nova/main/scripts/legacy-uninstall.ps1 | iex`
 
-**Already installed?** `ha-nova check-update` or `ha-nova update` | **Need to reconfigure?** `ha-nova setup` | **Something broken?** `ha-nova doctor`
+**Already installed?** `ha-nova check-update` or `ha-nova update` | **Need to reconfigure?** `ha-nova setup` | **Something broken?** `ha-nova doctor` | **Need a full local wipe?** `ha-nova uninstall --purge`
+
+Default `ha-nova uninstall` is now a standard remove. It removes the managed runtime, skills, and cache, but keeps local HA NOVA connection config and secure token for easier reinstall/repair. Use `--purge` for the old full-cleanup behavior.
 
 ## 💬 What Can You Do With It?
 
@@ -78,7 +80,7 @@ Deleting anything needs a confirmation code — not just "yes", an actual code. 
 |---------|-------------|
 | *"Turn on the porch light at sunset and off at 11 PM"* | Creates a fully reviewed automation through the safety flow |
 | *"Why didn't my motion automation trigger last night?"* | Digs into trace logs and explains what actually went wrong |
-| *"Check my automations for problems"* | Runs a read-only bulk audit in deterministic 5-item worksets and reports `matched / audited / remaining` |
+| *"Check my automations for problems"* | Runs a full config audit across your setup |
 | *"Turn off the living room lights"* | Turns it off, confirms the new state |
 | *"Show me all sensors in the bedroom"* | Finds entities by room, area, or name |
 | *"Create a counter helper for my coffee intake"* | Creates it, shows the result |
@@ -91,7 +93,7 @@ Deleting anything needs a confirmation code — not just "yes", an actual code. 
 
 **Skills** are plain text files on your machine. Rules, logic, workflows — all in markdown. The AI loads only the skill it needs for the current task. Adding a capability means writing a markdown file. No code, no compilation, no deployment.
 
-**The Relay** runs on your Home Assistant server. It keeps the token on the server, handles WebSocket features, and handles anything that needs direct host access. It stays small on purpose — the intelligence lives in the skills, not the relay.
+**The Relay** runs on your Home Assistant server. It keeps the token on the server, handles WebSocket features and anything that needs direct host access. It stays small on purpose — the intelligence lives in the skills, not the relay.
 
 ### 📊 How does this compare to MCP servers?
 
@@ -112,10 +114,10 @@ Both approaches work. MCP servers have broader client support. HA NOVA trades th
 |-------|-------------|
 | ✏️ **write** | Create, update, delete automations and scripts through the 4-phase safety flow |
 | 📖 **read** | Browse configs, inspect automations, debug with trace analysis |
-| 🔍 **review** | Audit single configs or run read-only bulk reviews with deterministic worksets and explicit continuation |
+| 🔍 **review** | Audit for 40+ common mistakes, conflicts, and best-practice violations |
 | 🎛️ **service-call** | Control devices: lights, climate, covers, switches, media players |
-| 🔎 **entity-discovery** | Find entities and build bulk inventories by `prefix`, `domain`, `area`, or `label` |
-| 🧩 **helper** | Manage storage helpers plus 9 config-entry helper domains such as `utility_meter`, `threshold`, `statistics`, and `history_stats` |
+| 🔎 **entity-discovery** | Find entities by name, room, area, or label |
+| 🧩 **helper** | Manage helpers (input_boolean, counter, timer, utility_meter, and more) |
 | 🛡️ **fallback** | Safety fallback for dashboards, blueprints, energy, areas, and more |
 | 🚀 **onboarding** | Setup diagnostics and troubleshooting |
 

@@ -1509,6 +1509,76 @@ func TestPromptValidHAHostRetriesDifferentAddressAndUsesNewHost(t *testing.T) {
 	}
 }
 
+func TestPromptValidHAHostIgnoresStaleBlankAfterDiscoveryProgress(t *testing.T) {
+	originalResolve := resolveHAURLBaseForSetup
+	defer func() {
+		resolveHAURLBaseForSetup = originalResolve
+		clearSetupNextPromptSkipsStaleBlankInput()
+	}()
+
+	resolveHAURLBaseForSetup = func(input string) (string, error) {
+		switch input {
+		case "ha-box.local":
+			return "http://ha-box.local:8123", nil
+		case "192.168.1.123":
+			return "http://192.168.1.123:8123", nil
+		default:
+			return "", fmt.Errorf("unreachable: %s", input)
+		}
+	}
+
+	armSetupNextPromptSkipsStaleBlankInput()
+
+	reader := bufio.NewReader(strings.NewReader("\n192.168.1.123\n"))
+	output := &strings.Builder{}
+
+	host, haURL, err := promptValidHAHostFromReader(reader, output, "ha-box.local")
+	if err != nil {
+		t.Fatalf("promptValidHAHostFromReader() error: %v", err)
+	}
+	if host != "192.168.1.123" {
+		t.Fatalf("host = %q, want %q", host, "192.168.1.123")
+	}
+	if haURL != "http://192.168.1.123:8123" {
+		t.Fatalf("haURL = %q, want %q", haURL, "http://192.168.1.123:8123")
+	}
+}
+
+func TestPromptValidHAHostIgnoresMultipleStaleBlanksAfterDiscoveryProgress(t *testing.T) {
+	originalResolve := resolveHAURLBaseForSetup
+	defer func() {
+		resolveHAURLBaseForSetup = originalResolve
+		clearSetupNextPromptSkipsStaleBlankInput()
+	}()
+
+	resolveHAURLBaseForSetup = func(input string) (string, error) {
+		switch input {
+		case "ha-box.local":
+			return "http://ha-box.local:8123", nil
+		case "192.168.1.123":
+			return "http://192.168.1.123:8123", nil
+		default:
+			return "", fmt.Errorf("unreachable: %s", input)
+		}
+	}
+
+	armSetupNextPromptSkipsStaleBlankInput()
+
+	reader := bufio.NewReader(strings.NewReader("\n\n192.168.1.123\n"))
+	output := &strings.Builder{}
+
+	host, haURL, err := promptValidHAHostFromReader(reader, output, "ha-box.local")
+	if err != nil {
+		t.Fatalf("promptValidHAHostFromReader() error: %v", err)
+	}
+	if host != "192.168.1.123" {
+		t.Fatalf("host = %q, want %q", host, "192.168.1.123")
+	}
+	if haURL != "http://192.168.1.123:8123" {
+		t.Fatalf("haURL = %q, want %q", haURL, "http://192.168.1.123:8123")
+	}
+}
+
 func TestInteractiveSetupCompletedResumePersistsHostOnlyOverride(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

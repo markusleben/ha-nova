@@ -5,15 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
 )
-
-func resolveSourceRoot(paths runtimePaths) string {
-	if override := strings.TrimSpace(os.Getenv("HA_NOVA_DEV_ROOT")); override != "" {
-		return override
-	}
-	return paths.InstallRoot
-}
 
 func installClients(paths runtimePaths, state *installState, clients []string) error {
 	sourceRoot := resolveSourceRoot(paths)

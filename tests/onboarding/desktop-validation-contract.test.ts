@@ -52,14 +52,19 @@ describe("desktop validation helpers contract", () => {
     expect(harness).toContain("mock-ha-relay.py");
     expect(harness).toContain("HA_NOVA_BUNDLE_URL");
     expect(harness).toContain("HA_NOVA_BUNDLE_SHA256_URL");
+    expect(harness).toContain("HA_NOVA_WINGET_INSTALLER_URL");
     expect(harness).toContain("HA_NOVA_CLAUDE_MARKETPLACE_LOCAL");
     expect(harness).toContain("ha-nova-installer-bundle-macos-arm64.tar.gz");
     expect(harness).toContain("ha-nova-installer-bundle-macos-amd64.tar.gz");
     expect(harness).toContain("ha-nova-installer-bundle-windows-amd64.zip");
+    expect(harness).toContain("ha-nova-winget-manifest-v");
     expect(harness).toContain("install.ps1 | iex");
+    expect(harness).toContain("winget settings --enable LocalManifestFiles");
+    expect(harness).toContain("winget install --manifest");
     expect(harness).toContain("--with-mock");
     expect(harness).toContain("ensure_port_free");
     expect(harness).toContain("bundle_reported_version");
+    expect(harness).toContain('build-winget-manifest.sh "${reported_version}"');
     expect(harness).toContain("port ${port} is already in use");
     expect(harness).toContain("Harness asset missing or not reachable");
   });
@@ -69,6 +74,8 @@ describe("desktop validation helpers contract", () => {
     expect(macosSuite).toContain("python3 -m http.server");
     expect(macosSuite).toContain("wait_for_server()");
     expect(macosSuite).toContain("BUNDLE_SERVER_BASE_URL");
+    expect(macosSuite).toContain("ensure_port_free");
+    expect(macosSuite).toContain("port ${port} is already in use");
     expect(macosSuite).toContain("macos-private-rc-smoke.sh");
     expect(macosSuite).toContain("macos-private-rc-setup-all.sh");
     expect(macosSuite).toContain("macos-private-rc-client.sh claude");
@@ -94,6 +101,8 @@ describe("desktop validation helpers contract", () => {
     expect(macosSetupAll).toContain("HA_NOVA_TEST_KEYRING_FILE");
     expect(macosSetupAll).toContain("HA_NOVA_KEYRING_SERVICE");
     expect(macosSetupAll).toContain('MOCK_REPORTED_VERSION');
+    expect(macosSetupAll).toContain('${MOCK_REPORTED_VERSION:-}');
+    expect(macosSetupAll).toContain("os.path.normpath");
     expect(macosSetupAll).toContain("bundle_reported_version");
     expect(macosSetupAll).toContain("Set MOCK_REPORTED_VERSION explicitly when overriding the bundle source.");
     expect(macosSetupAll).toContain("wait_for_mock_server()");
@@ -105,6 +114,9 @@ describe("desktop validation helpers contract", () => {
     expect(macosSetupAll).toContain('same_version="$("${runtime_bin}" version)"');
     expect(macosSetupAll).toContain('"${runtime_bin}" update --version "${same_version}"');
     expect(macosSetupAll).toContain('"${runtime_bin}" uninstall --yes');
+    expect(macosSetupAll).toContain('test -e "${TMP_HOME}/.config/ha-nova/config.json"');
+    expect(macosSetupAll).toContain('test ! -e "${TMP_HOME}/.config/ha-nova/state.json"');
+    expect(macosSetupAll).toContain('test ! -e "${TMP_HOME}/.cache/ha-nova"');
   });
 
   it("keeps the macOS per-client lane explicit about expected client artifacts", () => {
@@ -116,7 +128,10 @@ describe("desktop validation helpers contract", () => {
     expect(macosClient).toContain("HA_NOVA_NO_BROWSER=1");
     expect(macosClient).toContain("wait_for_mock_server()");
     expect(macosClient).toContain('MOCK_REPORTED_VERSION');
+    expect(macosClient).toContain('${MOCK_REPORTED_VERSION:-}');
+    expect(macosClient).toContain("os.path.normpath");
     expect(macosClient).toContain("bundle_reported_version");
+    expect(macosClient).toContain("claude_marketplace_points_to_root()");
     expect(macosClient).toContain("Set MOCK_REPORTED_VERSION explicitly when overriding the bundle source.");
     expect(macosClient).toContain('--relay-url "http://127.0.0.1:${MOCK_RELAY_PORT}"');
     expect(macosClient).toContain(".agents/skills/ha-nova/ha-nova/SKILL.md");
@@ -124,18 +139,36 @@ describe("desktop validation helpers contract", () => {
     expect(macosClient).toContain(".gemini/skills/ha-nova/SKILL.md");
     expect(macosClient).toContain(".claude/plugins/installed_plugins.json");
     expect(macosClient).toContain(".claude/plugins/known_marketplaces.json");
+    expect(macosClient).toContain('claude_marketplace_points_to_root "${TMP_HOME}/.claude/plugins/known_marketplaces.json"');
     expect(macosClient).toContain("ha-nova@ha-nova");
+    expect(macosClient).toContain('test -e "${TMP_HOME}/.config/ha-nova/config.json"');
+    expect(macosClient).toContain('test ! -e "${TMP_HOME}/.config/ha-nova/state.json"');
+    expect(macosClient).toContain('test ! -e "${TMP_HOME}/.cache/ha-nova"');
   });
 
   it("keeps the Windows cleanup helper scoped to HA NOVA-owned paths", () => {
+    expect(windowsCleanup).toContain('Programs\\ha-nova');
+    expect(windowsCleanup).toContain('AppData\\Roaming');
+    expect(windowsCleanup).toContain('Join-Path $LocalAppDataDir "ha-nova"');
+    expect(windowsCleanup).toContain('Microsoft\\WinGet\\Links\\ha-nova.exe');
+    expect(windowsCleanup).toContain('markusleben.ha-nova');
     expect(windowsCleanup).toContain(".agents\\skills\\ha-nova");
     expect(windowsCleanup).toContain(".config\\opencode\\skills\\ha-nova");
     expect(windowsCleanup).toContain(".gemini\\skills\\ha-nova");
     expect(windowsCleanup).toContain(".claude\\plugins\\installed_plugins.json");
-    expect(windowsCleanup).toContain(".config\\ha-nova\\claude-marketplace");
+    expect(windowsCleanup).toContain('Join-Path $ConfigDir "claude-marketplace"');
     expect(windowsCleanup).toContain("Remove-ClaudePluginRecord");
+    expect(windowsCleanup).toContain("Remove-ClaudeMarketplaceRecord");
+    expect(windowsCleanup).toContain(".claude\\plugins\\known_marketplaces.json");
+    expect(windowsCleanup).toContain('Remove-Item -LiteralPath $marketplacesJson -Force -ErrorAction SilentlyContinue');
     expect(windowsCleanup).toContain("Remove-HANovaTestCredentials");
+    expect(windowsCleanup).toContain("Remove-HANovaUserEnvironment");
+    expect(windowsCleanup).toContain('HKCU:\\Environment\\$name');
+    expect(windowsCleanup).toContain("HA_NOVA_KEYRING_SERVICE");
+    expect(windowsCleanup).toContain("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING");
+    expect(windowsCleanup).toContain("HA_NOVA_TEST_KEYRING_FILE");
     expect(windowsCleanup).toContain("cmdkey.exe");
+    expect(windowsCleanup).toContain("ha-nova.relay-auth-token");
     expect(windowsCleanup).not.toContain('Join-Path $HOME ".agents")');
     expect(windowsCleanup).not.toContain('Join-Path $HOME ".config\\opencode")');
     expect(windowsCleanup).not.toContain('Join-Path $HOME ".gemini")');
@@ -146,6 +179,7 @@ describe("desktop validation helpers contract", () => {
     expect(windowsInstall).toContain("UNINSTALL_EXIT:");
     expect(windowsInstall).toContain("HA_NOVA_KEYRING_SERVICE");
     expect(windowsInstall).toContain('HA_NOVA_CLAUDE_MARKETPLACE_LOCAL = "1"');
+    expect(windowsInstall).toContain('Programs\\ha-nova');
     expect(windowsInstall).toContain("cmd.exe /d /s /c");
     expect(windowsInstall).toContain('throw "ha-nova version failed"');
     expect(windowsInstall).toContain('throw "ha-nova uninstall failed"');
@@ -156,6 +190,7 @@ describe("desktop validation helpers contract", () => {
     expect(windowsDesktop).toContain("UNINSTALL_EXIT:");
     expect(windowsDesktop).toContain("HA_NOVA_KEYRING_SERVICE");
     expect(windowsDesktop).toContain('HA_NOVA_CLAUDE_MARKETPLACE_LOCAL = "1"');
+    expect(windowsDesktop).toContain('Programs\\ha-nova');
     expect(windowsDesktop).toContain("Get-MergedPath");
     expect(windowsDesktop).toContain('$env:Path = Get-MergedPath');
     expect(windowsDesktop).toContain('[string]$HAHost = "127.0.0.1"');
@@ -180,6 +215,10 @@ describe("desktop validation helpers contract", () => {
     expect(macosSmoke).toContain("HA_NOVA_BUNDLE_SHA256_URL");
     expect(macosSmoke).toContain("HA_NOVA_NO_SETUP=1");
     expect(macosSmoke).toContain("HA_NOVA_NO_BROWSER=1");
+    expect(macosSmoke).toContain("os.path.normpath");
+    expect(macosSmoke).toContain('test ! -e "${TMP_HOME}/.config/ha-nova/config.json"');
+    expect(macosSmoke).toContain('test ! -e "${TMP_HOME}/.config/ha-nova/state.json"');
+    expect(macosSmoke).toContain('test ! -e "${TMP_HOME}/.cache/ha-nova"');
     expect(macosSmoke).toContain('printf \'MACOS_PRIVATE_RC_SMOKE_OK:');
   });
 });

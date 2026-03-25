@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -8,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 )
+
+var utf8BOM = []byte{0xEF, 0xBB, 0xBF}
 
 func installClaudePlugin(paths runtimePaths, sourceRoot string) error {
 	if _, err := exec.LookPath("claude"); err != nil {
@@ -111,7 +114,7 @@ func claudePluginInstalled(home string) bool {
 		return false
 	}
 	var raw map[string]any
-	if err := json.Unmarshal(data, &raw); err == nil {
+	if err := unmarshalClaudeJSON(data, &raw); err == nil {
 		return claudeInstalledPluginsContain(raw["plugins"])
 	}
 	return strings.Contains(string(data), "ha-nova@ha-nova")
@@ -155,7 +158,7 @@ func removeClaudeMarketplaceRecord(home string) (bool, error) {
 	}
 
 	var raw any
-	if err := json.Unmarshal(data, &raw); err != nil {
+	if err := unmarshalClaudeJSON(data, &raw); err != nil {
 		return false, err
 	}
 	filtered, removed := removeClaudeMarketplaceValue(raw)
@@ -180,7 +183,7 @@ func removeClaudePluginRecord(home string) error {
 	}
 
 	var raw map[string]any
-	if err := json.Unmarshal(data, &raw); err != nil {
+	if err := unmarshalClaudeJSON(data, &raw); err != nil {
 		return err
 	}
 	filtered, removed := removeClaudeInstalledPluginValue(raw["plugins"])
@@ -194,6 +197,10 @@ func removeClaudePluginRecord(home string) error {
 		return err
 	}
 	return os.WriteFile(path, updated, 0o644)
+}
+
+func unmarshalClaudeJSON(data []byte, target any) error {
+	return json.Unmarshal(bytes.TrimPrefix(data, utf8BOM), target)
 }
 
 func removeClaudePluginCache(home string) error {

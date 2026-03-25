@@ -20,6 +20,9 @@ func applyWindowsProcessLaunchProfile(cmd *exec.Cmd, profile windowsProcessLaunc
 	if profile.createNewProcessGroup {
 		creationFlags |= windows.CREATE_NEW_PROCESS_GROUP
 	}
+	if profile.createNoWindow {
+		creationFlags |= windows.CREATE_NO_WINDOW
+	}
 	if profile.detached {
 		creationFlags |= windows.DETACHED_PROCESS
 	}

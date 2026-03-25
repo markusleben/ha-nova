@@ -8,12 +8,21 @@ MOCK_RELAY_PORT="${MOCK_RELAY_PORT:-8791}"
 RELAY_TOKEN="${RELAY_TOKEN:-test-relay-token}"
 CLIENT="${1:-}"
 
+normalize_path() {
+  python3 - "$1" <<'PY'
+import os
+import sys
+
+print(os.path.normpath(sys.argv[1]))
+PY
+}
+
 if [[ -z "${CLIENT}" ]]; then
   echo "Usage: $0 <claude|codex|opencode|gemini>" >&2
   exit 1
 fi
 
-TMP_HOME="$(mktemp -d "${TMPDIR:-/tmp}/ha-nova-macos-client.XXXXXX")"
+TMP_HOME="$(normalize_path "$(mktemp -d "${TMPDIR:-/tmp}/ha-nova-macos-client.XXXXXX")")"
 LOG_PATH="${LOG_PATH:-${TMP_HOME}/ha-nova-macos-${CLIENT}.log}"
 
 detect_bundle_name() {
@@ -30,6 +39,45 @@ bundle_reported_version() {
   version_member="$(tar -tzf "${bundle_path}" 2>/dev/null | grep -E '(^|/)version\.json$' | head -1 || true)"
   [[ -n "${version_member}" ]] || return 1
   tar -xOf "${bundle_path}" "${version_member}" 2>/dev/null | node -e 'const fs=require("fs"); const data=JSON.parse(fs.readFileSync(0,"utf8")); console.log(data.skill_version || data.version || "");'
+}
+
+claude_marketplace_points_to_root() {
+  local known_marketplaces="$1"
+  local expected_root="$2"
+  python3 - "${known_marketplaces}" "${expected_root}" <<'PY'
+import json
+import os
+import sys
+
+path = sys.argv[1]
+expected = os.path.normpath(sys.argv[2])
+
+with open(path, "r", encoding="utf-8") as handle:
+    data = json.load(handle)
+
+entry = data.get("ha-nova")
+if not isinstance(entry, dict):
+    raise SystemExit(1)
+
+candidates = []
+source = entry.get("source")
+if isinstance(source, str):
+    candidates.append(source)
+elif isinstance(source, dict):
+    source_path = source.get("path")
+    if isinstance(source_path, str):
+        candidates.append(source_path)
+
+install_location = entry.get("installLocation")
+if isinstance(install_location, str):
+    candidates.append(install_location)
+
+for candidate in candidates:
+    if os.path.normpath(candidate) == expected:
+        raise SystemExit(0)
+
+raise SystemExit(1)
+PY
 }
 
 cleanup() {
@@ -66,7 +114,7 @@ bundle_name="$(detect_bundle_name)"
 bundle_url="${HA_NOVA_BUNDLE_URL:-${BUNDLE_SERVER_BASE_URL}/${bundle_name}.tar.gz}"
 bundle_sha_url="${HA_NOVA_BUNDLE_SHA256_URL:-${bundle_url}.sha256}"
 local_bundle_path="${ROOT_DIR}/dist/install-bundles/${bundle_name}.tar.gz"
-if [[ -z "${MOCK_REPORTED_VERSION}" ]]; then
+if [[ -z "${MOCK_REPORTED_VERSION:-}" ]]; then
   if [[ "${BUNDLE_SERVER_BASE_URL}" != "http://127.0.0.1:8917" || (-n "${HA_NOVA_BUNDLE_URL:-}" && "${bundle_url}" != "${BUNDLE_SERVER_BASE_URL}/${bundle_name}.tar.gz") ]]; then
     echo "Set MOCK_REPORTED_VERSION explicitly when overriding the bundle source." >&2
     exit 1
@@ -119,7 +167,7 @@ case "${CLIENT}" in
   claude)
     command -v claude >/dev/null 2>&1
     grep -Fq '"ha-nova@ha-nova"' "${TMP_HOME}/.claude/plugins/installed_plugins.json"
-    grep -Fq "\"${TMP_HOME}/.local/share/ha-nova\"" "${TMP_HOME}/.claude/plugins/known_marketplaces.json"
+    claude_marketplace_points_to_root "${TMP_HOME}/.claude/plugins/known_marketplaces.json" "${TMP_HOME}/.config/ha-nova/claude-marketplace"
     ;;
   *)
     echo "Unsupported client: ${CLIENT}" >&2
@@ -129,7 +177,9 @@ esac
 
 "${runtime_bin}" uninstall --yes >/dev/null
 test ! -e "${TMP_HOME}/.local/share/ha-nova"
-test ! -e "${TMP_HOME}/.config/ha-nova"
+test -e "${TMP_HOME}/.config/ha-nova/config.json"
+test ! -e "${TMP_HOME}/.config/ha-nova/state.json"
+test ! -e "${TMP_HOME}/.cache/ha-nova"
 if [[ "${CLIENT}" == "claude" ]]; then
   if [[ -f "${TMP_HOME}/.claude/plugins/installed_plugins.json" ]]; then
     ! grep -Fq '"ha-nova@ha-nova"' "${TMP_HOME}/.claude/plugins/installed_plugins.json"

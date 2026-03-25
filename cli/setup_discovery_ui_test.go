@@ -81,23 +81,32 @@ func TestDetectDefaultHAHostWithFeedbackShowsSpinnerAfterDebounceForSlowTTYDisco
 	originalDetect := detectDefaultHAHostChoiceForSetup
 	originalTTY := writerSupportsTTYForSetup
 	originalInput := uiInputSupportsTTY
+	originalANSI := uiOutputSupportsANSI
+	originalEnv := uiEnvLookup
 	originalMin := setupDiscoveryMinimumVisibleDuration
+	originalTimeout := setupDiscoveryOverallTimeout
 	defer func() {
 		detectDefaultHAHostChoiceForSetup = originalDetect
 		writerSupportsTTYForSetup = originalTTY
 		uiInputSupportsTTY = originalInput
+		uiOutputSupportsANSI = originalANSI
+		uiEnvLookup = originalEnv
 		setupDiscoveryMinimumVisibleDuration = originalMin
+		setupDiscoveryOverallTimeout = originalTimeout
 	}()
 
 	detectDefaultHAHostChoiceForSetup = func(cfg runtimeConfig) (string, bool) {
-		time.Sleep(30 * time.Millisecond)
+		time.Sleep(1200 * time.Millisecond)
 		return "192.168.1.124", true
 	}
 	writerSupportsTTYForSetup = func(out io.Writer) bool {
 		return true
 	}
 	uiInputSupportsTTY = func() bool { return true }
+	uiOutputSupportsANSI = func(io.Writer) bool { return true }
+	uiEnvLookup = func(string) string { return "" }
 	setupDiscoveryMinimumVisibleDuration = 10 * time.Millisecond
+	setupDiscoveryOverallTimeout = 2 * time.Second
 
 	output := &strings.Builder{}
 	host, discovered := detectDefaultHAHostWithFeedback(output, runtimeConfig{})
@@ -111,6 +120,9 @@ func TestDetectDefaultHAHostWithFeedbackShowsSpinnerAfterDebounceForSlowTTYDisco
 	rendered := output.String()
 	if !strings.Contains(rendered, "Discovering Home Assistant on your network...") {
 		t.Fatalf("missing discovery spinner label:\n%s", rendered)
+	}
+	if !strings.Contains(rendered, "2s left") || !strings.Contains(rendered, "1s left") {
+		t.Fatalf("missing countdown label updates:\n%s", rendered)
 	}
 	if !strings.Contains(rendered, "Found Home Assistant candidate: 192.168.1.124") {
 		t.Fatalf("missing discovery result:\n%s", rendered)

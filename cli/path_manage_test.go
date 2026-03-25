@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -92,5 +93,22 @@ func TestRemoveManagedPathWithReportDoesNotStripGenericLocalBinExportWithoutHANO
 	}
 	if string(got) != original {
 		t.Fatalf("expected generic PATH line to stay untouched:\n%s", string(got))
+	}
+}
+
+func TestRemoveManagedPathWithReportSkipsWindowsUserPathBranchOnUnix(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("unix-only regression")
+	}
+
+	removed, err := removeManagedPathWithReport(runtimePaths{}, installState{
+		PathManaged: false,
+		PathTarget:  "user-path",
+	})
+	if err != nil {
+		t.Fatalf("expected unix cleanup to ignore Windows user-path marker, got %v", err)
+	}
+	if removed != "" {
+		t.Fatalf("did not expect cleanup report, got %q", removed)
 	}
 }

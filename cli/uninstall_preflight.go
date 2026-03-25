@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io"
+	"path/filepath"
 	"runtime"
 )
 
@@ -11,30 +12,33 @@ type uninstallPreflight struct {
 	tokenUnavailable  string
 }
 
-func renderUninstallPreflight(out io.Writer) {
+func renderUninstallPreflight(out io.Writer, paths runtimePaths, source string) {
 	session := resolveStatusUISession(out)
 	renderSimpleHeader(out, session, "HA NOVA Uninstall")
-	fmt.Fprintf(out, "  %s\n", session.style("strong", "This will remove:"))
+	fmt.Fprintf(out, "  %s\n", session.style("strong", "Standard remove:"))
 	fmt.Fprintf(out, "    %s Skills from installed AI clients\n", session.bullet())
-	fmt.Fprintf(out, "    %s Local install (~/.local/share/ha-nova)\n", session.bullet())
-	fmt.Fprintf(out, "    %s %s\n", session.bullet(), uninstallCLILineLabel())
-	fmt.Fprintf(out, "    %s Managed config files (~/.config/ha-nova/)\n", session.bullet())
-	fmt.Fprintf(out, "    %s Managed cache files (~/.cache/ha-nova/)\n", session.bullet())
+	fmt.Fprintf(out, "    %s %s\n", session.bullet(), uninstallRuntimeLineLabel(paths, source))
+	fmt.Fprintf(out, "    %s Managed local state and cache\n", session.bullet())
+	fmt.Fprintln(out)
+	fmt.Fprintf(out, "  %s\n", session.style("strong", "Full purge also removes:"))
+	fmt.Fprintf(out, "    %s Home Assistant connection config\n", session.bullet())
 	fmt.Fprintf(out, "    %s %s\n", session.bullet(), uninstallTokenLineLabel())
 	fmt.Fprintln(out)
-	renderSetupParagraphTight(out, session.style("muted", "Windows note: a short-lived helper finishes the uninstall after the running ha-nova.exe exits."))
+	if runtime.GOOS == "windows" && source == installSourceBundle {
+		renderSetupParagraphTight(out, session.style("muted", uninstallWindowsBundleNote()))
+	}
 	fmt.Fprintln(out)
 }
 
-func uninstallCLILineLabel() string {
-	return uninstallCLILineLabelForOS(runtime.GOOS)
-}
-
-func uninstallCLILineLabelForOS(goos string) string {
-	if goos == "windows" {
-		return "Installed CLI binary (~/.local/share/ha-nova/ha-nova.exe)"
+func uninstallRuntimeLineLabel(paths runtimePaths, source string) string {
+	switch source {
+	case installSourceWinget:
+		return "Installed CLI runtime (winget-managed package)"
+	case installSourceBundle:
+		return "Installed CLI runtime (" + filepath.Join(paths.InstallRoot, publicBinaryName()) + ")"
+	default:
+		return "Installed AI client bindings and local HA NOVA state"
 	}
-	return "CLI link (~/.local/bin/ha-nova)"
 }
 
 func uninstallTokenLineLabel() string {
@@ -46,6 +50,10 @@ func uninstallTokenLineLabel() string {
 	default:
 		return "secure storage token (ha-nova.relay-auth-token)"
 	}
+}
+
+func uninstallWindowsBundleNote() string {
+	return "Windows bundle note: a short-lived helper finishes the uninstall after the running ha-nova.exe exits. Please wait a moment for the final removal to complete."
 }
 
 func collectUninstallPreflight(paths runtimePaths) uninstallPreflight {

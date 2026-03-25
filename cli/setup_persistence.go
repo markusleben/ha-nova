@@ -30,11 +30,7 @@ func persistInteractiveSetupState(paths runtimePaths, cfg runtimeConfig, state *
 	}
 
 	state.Version = localVersion(paths)
-	if resolveSourceRoot(paths) == paths.InstallRoot {
-		state.InstallSource = "bundle"
-	} else {
-		state.InstallSource = "dev"
-	}
+	state.InstallSource = detectInstallSource(paths, *state)
 	if err := saveStateForSetupPersistence(paths, *state); err != nil {
 		restoreRelayAuthToken(previousToken, hadPreviousToken, tokenChanged)
 		restoreOptionalFile(paths.ConfigFile, configSnapshot, hadConfigSnapshot)
