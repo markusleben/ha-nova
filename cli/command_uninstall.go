@@ -206,11 +206,12 @@ func launchWindowsUninstall(paths runtimePaths, mode uninstallMode) error {
 	if err := copyFile(filepath.Join(paths.InstallRoot, publicBinaryName()), tempHelper); err != nil {
 		return err
 	}
+	statusTicks := windowsUninstallStatusMarkerTicks(paths.UninstallStatusFile)
 	args := []string{"internal-uninstall", "--parent-pid", strconv.Itoa(os.Getpid()), "--self-path", tempHelper}
 	if mode == uninstallModePurge {
 		args = append(args, "--purge")
 	}
-	return launchWindowsDetachedHelper(tempHelper, paths.UninstallStatusFile, args...)
+	return launchWindowsDetachedHelper(tempHelper, paths.UninstallStatusFile, statusTicks, args...)
 }
 
 func launchWindowsWingetUninstall(mode uninstallMode) error {
@@ -226,7 +227,7 @@ func launchWindowsWingetUninstall(mode uninstallMode) error {
 	if mode == uninstallModePurge {
 		args = append(args, "--purge")
 	}
-	return launchWindowsDetachedHelper(tempHelper, paths.UninstallStatusFile, args...)
+	return launchWindowsDetachedHelper(tempHelper, paths.UninstallStatusFile, windowsUninstallStatusMarkerTicks(paths.UninstallStatusFile), args...)
 }
 
 func scheduleWindowsSelfDelete(path string) error {

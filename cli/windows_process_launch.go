@@ -52,10 +52,11 @@ func buildWindowsHelperCommand(helperPath string, args ...string) *exec.Cmd {
 	return buildWindowsCommandWithProfile(helperPath, args, windowsHelperLaunchProfile())
 }
 
-func buildWindowsDetachedHelperCommand(helperPath string, statusPath string, args ...string) *exec.Cmd {
+func buildWindowsDetachedHelperCommand(helperPath string, statusPath string, statusTicks int64, args ...string) *exec.Cmd {
 	command := fmt.Sprintf(
-		`$statusPath = '%s'; $deadline = [DateTime]::UtcNow.AddSeconds(5); $p = Start-Process -FilePath '%s' -ArgumentList @(%s) -WindowStyle Hidden -PassThru -ErrorAction Stop; if ($null -eq $p) { throw 'failed to start detached helper' }; while ([DateTime]::UtcNow -lt $deadline) { if (Test-Path -LiteralPath $statusPath) { exit 0 }; $p.Refresh(); if ($p.HasExited) { throw 'detached helper exited before signaling readiness' }; Start-Sleep -Milliseconds 100 }; throw 'detached helper did not signal readiness'`,
+		`$statusPath = '%s'; $statusTicks = %d; $deadline = [DateTime]::UtcNow.AddSeconds(5); $p = Start-Process -FilePath '%s' -ArgumentList @(%s) -WindowStyle Hidden -PassThru -ErrorAction Stop; if ($null -eq $p) { throw 'failed to start detached helper' }; while ([DateTime]::UtcNow -lt $deadline) { if (Test-Path -LiteralPath $statusPath) { if ($statusTicks -lt 0) { exit 0 }; $item = Get-Item -LiteralPath $statusPath -ErrorAction Stop; if ($item.LastWriteTimeUtc.Ticks -gt $statusTicks) { exit 0 } }; $p.Refresh(); if ($p.HasExited) { throw 'detached helper exited before signaling readiness' }; Start-Sleep -Milliseconds 100 }; throw 'detached helper did not signal readiness'`,
 		quotePowerShellSingleString(statusPath),
+		statusTicks,
 		quotePowerShellSingleString(helperPath),
 		joinPowerShellStringArray(args),
 	)
@@ -71,8 +72,8 @@ func buildWindowsDetachedHelperCommand(helperPath string, statusPath string, arg
 	)
 }
 
-func launchWindowsDetachedHelper(helperPath string, statusPath string, args ...string) error {
-	return buildWindowsDetachedHelperCommand(helperPath, statusPath, args...).Run()
+func launchWindowsDetachedHelper(helperPath string, statusPath string, statusTicks int64, args ...string) error {
+	return buildWindowsDetachedHelperCommand(helperPath, statusPath, statusTicks, args...).Run()
 }
 
 func buildWindowsCleanupCommand(path string) *exec.Cmd {

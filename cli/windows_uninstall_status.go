@@ -230,6 +230,17 @@ func removeWindowsUninstallStatus(paths runtimePaths) error {
 	return nil
 }
 
+func windowsUninstallStatusMarkerTicks(path string) int64 {
+	if strings.TrimSpace(path) == "" {
+		return -1
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return -1
+	}
+	return info.ModTime().UTC().UnixNano()
+}
+
 func windowsUninstallRecoveryCommand(mode uninstallMode) string {
 	if normalizeUninstallMode(string(mode)) == uninstallModePurge {
 		return "ha-nova uninstall --yes --purge"

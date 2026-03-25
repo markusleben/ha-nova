@@ -129,11 +129,11 @@ func TestWindowsDetachedHelperLaunchProfileKeepsWrapperHidden(t *testing.T) {
 }
 
 func TestBuildWindowsDetachedHelperCommandStartsHiddenHelperViaWrapper(t *testing.T) {
-	cmd := buildWindowsDetachedHelperCommand("helper.exe", `C:\Users\markus\AppData\Local\ha-nova\uninstall-status.json`, "internal-uninstall")
+	cmd := buildWindowsDetachedHelperCommand("helper.exe", `C:\Users\markus\AppData\Local\ha-nova\uninstall-status.json`, 1234, "internal-uninstall")
 	if cmd.Stdout != nil || cmd.Stderr != nil {
 		t.Fatalf("expected detached helper command to avoid parent output streams")
 	}
-	if got, want := strings.Join(cmd.Args, " "), `powershell.exe -NoProfile -NonInteractive -Command $statusPath = 'C:\Users\markus\AppData\Local\ha-nova\uninstall-status.json'; $deadline = [DateTime]::UtcNow.AddSeconds(5); $p = Start-Process -FilePath 'helper.exe' -ArgumentList @('internal-uninstall') -WindowStyle Hidden -PassThru -ErrorAction Stop; if ($null -eq $p) { throw 'failed to start detached helper' }; while ([DateTime]::UtcNow -lt $deadline) { if (Test-Path -LiteralPath $statusPath) { exit 0 }; $p.Refresh(); if ($p.HasExited) { throw 'detached helper exited before signaling readiness' }; Start-Sleep -Milliseconds 100 }; throw 'detached helper did not signal readiness'`; got != want {
+	if got, want := strings.Join(cmd.Args, " "), `powershell.exe -NoProfile -NonInteractive -Command $statusPath = 'C:\Users\markus\AppData\Local\ha-nova\uninstall-status.json'; $statusTicks = 1234; $deadline = [DateTime]::UtcNow.AddSeconds(5); $p = Start-Process -FilePath 'helper.exe' -ArgumentList @('internal-uninstall') -WindowStyle Hidden -PassThru -ErrorAction Stop; if ($null -eq $p) { throw 'failed to start detached helper' }; while ([DateTime]::UtcNow -lt $deadline) { if (Test-Path -LiteralPath $statusPath) { if ($statusTicks -lt 0) { exit 0 }; $item = Get-Item -LiteralPath $statusPath -ErrorAction Stop; if ($item.LastWriteTimeUtc.Ticks -gt $statusTicks) { exit 0 } }; $p.Refresh(); if ($p.HasExited) { throw 'detached helper exited before signaling readiness' }; Start-Sleep -Milliseconds 100 }; throw 'detached helper did not signal readiness'`; got != want {
 		t.Fatalf("detached helper args = %q, want %q", got, want)
 	}
 }
