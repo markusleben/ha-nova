@@ -17,7 +17,7 @@ describe("safe test system contract", () => {
     expect(pkg.scripts?.test).toBe("npm run test:safe");
     expect(pkg.scripts?.["test:watch"]).toBe("vitest");
     expect(pkg.scripts?.verify).toBe(
-      "npm run verify:release-metadata && npm run typecheck && npm run test:safe && npm run build && bash scripts/check-docs.sh && npm run test:cli"
+      "npm run verify:release-metadata && bash scripts/release/verify-blocked-files.sh && npm run typecheck && npm run test:safe && npm run build && bash scripts/check-docs.sh && npm run test:cli"
     );
     expect(pkg.scripts?.verify).not.toContain("test:desktop");
   });
