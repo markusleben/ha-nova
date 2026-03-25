@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -337,6 +338,33 @@ func TestWingetInstallPresentOnDiskUsesInventoryWhenLinkMissing(t *testing.T) {
 	}
 }
 
+func TestWingetInstallPresentOnDiskIgnoresStalePackageRootsWhenInventoryFails(t *testing.T) {
+	home := t.TempDir()
+
+	staleRoot := filepath.Join(windowsWingetPackageRoot(home), wingetPackageID+"_0.4.0_x64", "ha-nova")
+	if err := os.MkdirAll(staleRoot, 0o755); err != nil {
+		t.Fatalf("mkdir stale winget root: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(staleRoot, publicBinaryName()), []byte("stale"), 0o755); err != nil {
+		t.Fatalf("write stale winget binary: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(staleRoot, "bundle.json"), []byte(`{"version":"0.4.0"}`), 0o644); err != nil {
+		t.Fatalf("write stale winget metadata: %v", err)
+	}
+
+	originalStatus := queryWingetPackageStatusForChannels
+	defer func() {
+		queryWingetPackageStatusForChannels = originalStatus
+	}()
+	queryWingetPackageStatusForChannels = func() (wingetPackageStatus, error) {
+		return wingetPackageStatus{}, errors.New("winget unavailable")
+	}
+
+	if wingetInstallPresentOnDisk(home) {
+		t.Fatal("expected stale winget package roots to be ignored when live evidence is missing")
+	}
+}
+
 func TestResolveWingetBundleRootFallsBackToSingleCandidateWhenLinkMissing(t *testing.T) {
 	home := t.TempDir()
 
@@ -354,6 +382,47 @@ func TestResolveWingetBundleRootFallsBackToSingleCandidateWhenLinkMissing(t *tes
 	got := resolveWingetBundleRoot(home)
 	if filepath.Clean(got) != filepath.Clean(want) {
 		t.Fatalf("resolveWingetBundleRoot() = %q, want %q", got, want)
+	}
+}
+
+func TestInspectInstallChannelsDoesNotInventBundlePresenceFromAmbiguousSource(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("LOCALAPPDATA", filepath.Join(home, "AppData", "Local"))
+	t.Setenv("APPDATA", filepath.Join(home, "AppData", "Roaming"))
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+	wingetLink := windowsWingetLinkPath(home)
+	if err := os.MkdirAll(filepath.Dir(wingetLink), 0o755); err != nil {
+		t.Fatalf("mkdir winget link dir: %v", err)
+	}
+	if err := os.WriteFile(wingetLink, []byte("winget"), 0o755); err != nil {
+		t.Fatalf("write winget link: %v", err)
+	}
+
+	originalPlatform := channelChecksUseWindowsPlatform
+	originalStatus := queryWingetPackageStatusForChannels
+	defer func() {
+		channelChecksUseWindowsPlatform = originalPlatform
+		queryWingetPackageStatusForChannels = originalStatus
+	}()
+	channelChecksUseWindowsPlatform = func() bool { return true }
+	queryWingetPackageStatusForChannels = func() (wingetPackageStatus, error) {
+		return wingetPackageStatus{Installed: true}, nil
+	}
+
+	snapshot := inspectInstallChannels(paths, installState{})
+	if snapshot.BundlePresent {
+		t.Fatal("expected ambiguous bundle source detection without on-disk runtime to keep BundlePresent false")
+	}
+	if !snapshot.WingetPresent {
+		t.Fatal("expected winget presence to come from live link/inventory evidence")
+	}
+	if snapshot.Conflict {
+		t.Fatal("did not expect a false mixed-channel conflict")
 	}
 }
 

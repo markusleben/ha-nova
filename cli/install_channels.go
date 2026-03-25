@@ -48,19 +48,15 @@ func inspectInstallChannels(paths runtimePaths, state installState) installChann
 	snapshot.WingetLinkPath = windowsWingetLinkPath(paths.Home)
 
 	if snapshot.CurrentSource == installSourceBundle {
-		snapshot.BundlePresent = true
 		if root := resolveSourceRoot(paths); strings.TrimSpace(root) != "" {
-			snapshot.BundlePath = root
+			if bundleInstallPresentOnDisk(root) {
+				snapshot.BundlePath = root
+			}
 		}
-	} else {
-		snapshot.BundlePresent = bundleInstallPresentOnDisk(snapshot.BundlePath)
 	}
+	snapshot.BundlePresent = bundleInstallPresentOnDisk(snapshot.BundlePath)
 
-	if snapshot.CurrentSource == installSourceWinget {
-		snapshot.WingetPresent = true
-	} else {
-		snapshot.WingetPresent = wingetInstallPresentOnDisk(paths.Home)
-	}
+	snapshot.WingetPresent = wingetInstallPresentOnDisk(paths.Home)
 
 	snapshot.Conflict = snapshot.BundlePresent && snapshot.WingetPresent
 	return snapshot
@@ -89,7 +85,7 @@ func wingetInstallPresentOnDisk(home string) bool {
 	if err == nil {
 		return status.Installed
 	}
-	return resolveWingetBundleRoot(home) != ""
+	return false
 }
 
 func windowsBundleInstallRoot(home string) string {
