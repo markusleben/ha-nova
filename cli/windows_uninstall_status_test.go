@@ -84,7 +84,7 @@ func TestInspectWindowsUninstallStatusTreatsStaleRunningAsInterrupted(t *testing
 	}
 }
 
-func TestInspectWindowsUninstallStatusKeepsAliveHelperRunningBeyondTimeout(t *testing.T) {
+func TestInspectWindowsUninstallStatusTreatsAliveButStaleMarkerAsInterrupted(t *testing.T) {
 	enableWindowsUninstallStatusChecks(t)
 
 	root := t.TempDir()
@@ -110,8 +110,45 @@ func TestInspectWindowsUninstallStatusKeepsAliveHelperRunningBeyondTimeout(t *te
 	}
 
 	inspection := inspectWindowsUninstallStatus(paths)
-	if inspection.Kind != windowsUninstallStatusKindRunning {
-		t.Fatalf("inspectWindowsUninstallStatus() kind = %q, want running", inspection.Kind)
+	if inspection.Kind != windowsUninstallStatusKindInterrupted {
+		t.Fatalf("inspectWindowsUninstallStatus() kind = %q, want interrupted", inspection.Kind)
+	}
+}
+
+func TestWindowsUninstallHeartbeatRefreshesStatusMarker(t *testing.T) {
+	root := t.TempDir()
+	paths := runtimePaths{UninstallStatusFile: filepath.Join(root, "uninstall-status.json")}
+
+	originalNow := windowsUninstallStatusNow
+	originalInterval := windowsUninstallHeartbeatInterval
+	t.Cleanup(func() {
+		windowsUninstallStatusNow = originalNow
+		windowsUninstallHeartbeatInterval = originalInterval
+	})
+
+	current := time.Date(2026, 3, 25, 10, 0, 0, 0, time.UTC)
+	windowsUninstallStatusNow = func() time.Time {
+		current = current.Add(time.Second)
+		return current
+	}
+	windowsUninstallHeartbeatInterval = 5 * time.Millisecond
+
+	status, err := beginWindowsUninstallStatus(paths, uninstallModeStandard, installSourceBundle)
+	if err != nil {
+		t.Fatalf("beginWindowsUninstallStatus() error: %v", err)
+	}
+	initial := status.LastUpdatedAt
+
+	stopHeartbeat := startWindowsUninstallHeartbeat(paths, status)
+	time.Sleep(20 * time.Millisecond)
+	stopHeartbeat()
+
+	marker, err := loadWindowsUninstallStatus(paths)
+	if err != nil {
+		t.Fatalf("loadWindowsUninstallStatus() error: %v", err)
+	}
+	if !marker.LastUpdatedAt.After(initial) {
+		t.Fatalf("expected heartbeat to refresh last_updated_at, got %s <= %s", marker.LastUpdatedAt, initial)
 	}
 }
 

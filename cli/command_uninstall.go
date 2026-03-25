@@ -39,6 +39,8 @@ func runInternalUninstall(_ runtimePaths, args []string) int {
 		printHumanErr("cannot persist Windows uninstall recovery state: %s", err)
 		return 1
 	}
+	stopHeartbeat := startWindowsUninstallHeartbeat(paths, status)
+	defer stopHeartbeat()
 	waitForParentReleaseForUninstall(*parentPID)
 	preflight := collectUninstallPreflight(paths)
 	report := &uninstallReport{}
@@ -169,6 +171,8 @@ func runInternalWingetUninstall(_ runtimePaths, args []string) int {
 		printHumanErr("cannot persist Windows uninstall recovery state: %s", err)
 		return 1
 	}
+	stopHeartbeat := startWindowsUninstallHeartbeat(paths, status)
+	defer stopHeartbeat()
 	waitForParentReleaseForWingetUninstall(*parentPID)
 	preflight := collectUninstallPreflight(paths)
 	report := &uninstallReport{}

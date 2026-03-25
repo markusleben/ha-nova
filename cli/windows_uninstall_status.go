@@ -59,6 +59,7 @@ var windowsUninstallStatusChecksEnabled = func() bool {
 }
 
 var windowsUninstallStatusNow = time.Now
+var windowsUninstallHeartbeatInterval = time.Minute
 
 var windowsUninstallStatusProcessAlive = func(pid int) bool {
 	if pid <= 0 || runtime.GOOS != "windows" {
@@ -167,6 +168,35 @@ func updateWindowsUninstallStatusProgress(paths runtimePaths, status *windowsUni
 	return writeWindowsUninstallStatus(paths, *status)
 }
 
+func startWindowsUninstallHeartbeat(paths runtimePaths, status *windowsUninstallStatus) func() {
+	if status == nil {
+		return func() {}
+	}
+	interval := windowsUninstallHeartbeatInterval
+	if interval <= 0 {
+		interval = time.Minute
+	}
+	stopCh := make(chan struct{})
+	doneCh := make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		defer close(doneCh)
+		for {
+			select {
+			case <-ticker.C:
+				_ = updateWindowsUninstallStatusProgress(paths, status)
+			case <-stopCh:
+				return
+			}
+		}
+	}()
+	return func() {
+		close(stopCh)
+		<-doneCh
+	}
+}
+
 func failWindowsUninstallStatus(paths runtimePaths, status *windowsUninstallStatus, step string, err error) error {
 	if status == nil {
 		return err
@@ -260,7 +290,14 @@ func windowsUninstallStatusStillActive(status windowsUninstallStatus) bool {
 	if status.HelperPID <= 0 || !windowsUninstallStatusProcessAlive(status.HelperPID) {
 		return false
 	}
-	return true
+	updated := status.LastUpdatedAt
+	if updated.IsZero() {
+		updated = status.StartedAt
+	}
+	if updated.IsZero() {
+		return false
+	}
+	return windowsUninstallStatusNow().UTC().Sub(updated.UTC()) < windowsUninstallStatusTimeout
 }
 
 func windowsUninstallErrorSummary(step string, err error) string {

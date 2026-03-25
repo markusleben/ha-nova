@@ -60,6 +60,7 @@ describe("install.ps1 contract", () => {
     expect(content).toContain('return "unknown"');
     expect(content).toContain('& $wingetCommand.Source list ha-nova');
     expect(content).not.toContain('if ($inventoryState -eq "unknown")');
+    expect(content).not.toContain("return Test-WingetPackageRootInstall");
     expect(content).not.toContain("Git.Git");
     expect(content).not.toContain("git-bash.exe");
     expect(content).not.toContain("bash.exe");

@@ -264,7 +264,7 @@ function Test-WingetInstall {
     return $true
   }
 
-  return Test-WingetPackageRootInstall
+  return $false
 }
 
 function Stop-ForWingetInstall {
