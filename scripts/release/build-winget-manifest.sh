@@ -9,7 +9,7 @@ REPO_SLUG="${2:-markusleben/ha-nova}"
 PACKAGE_IDENTIFIER="${PACKAGE_IDENTIFIER:-markusleben.ha-nova}"
 PACKAGE_NAME="${PACKAGE_NAME:-HA NOVA}"
 PACKAGE_LOCALE="${PACKAGE_LOCALE:-en-US}"
-MANIFEST_VERSION="${MANIFEST_VERSION:-1.12.0}"
+MANIFEST_VERSION="${MANIFEST_VERSION:-1.9.0}"
 WINDOWS_BUNDLE_NAME="ha-nova-installer-bundle-windows-amd64.zip"
 WINDOWS_BUNDLE_PATH="${DIST_DIR}/install-bundles/${WINDOWS_BUNDLE_NAME}"
 WINDOWS_BUNDLE_SHA_PATH="${WINDOWS_BUNDLE_PATH}.sha256"
@@ -83,9 +83,19 @@ manifest_root() {
   printf '%s/manifests/%s/%s/%s/%s\n' "${OUTPUT_DIR}" "${first_segment}" "${PACKAGE_IDENTIFIER%%.*}" "${package_suffix}" "${VERSION}"
 }
 
+write_schema_header() {
+  local file="$1" manifest_type="$2"
+  cat > "${file}" <<EOF
+# Created by HA NOVA release automation
+# yaml-language-server: \$schema=https://aka.ms/winget-manifest.${manifest_type}.${MANIFEST_VERSION}.schema.json
+
+EOF
+}
+
 write_version_manifest() {
   local file="$1"
-  cat > "${file}" <<EOF
+  write_schema_header "${file}" "version"
+  cat >> "${file}" <<EOF
 PackageIdentifier: ${PACKAGE_IDENTIFIER}
 PackageVersion: ${VERSION}
 DefaultLocale: ${PACKAGE_LOCALE}
@@ -103,7 +113,8 @@ write_default_locale_manifest() {
   description="$(package_json_value description)"
   license_id="$(package_json_value license)"
 
-  cat > "${file}" <<EOF
+  write_schema_header "${file}" "defaultLocale"
+  cat >> "${file}" <<EOF
 PackageIdentifier: ${PACKAGE_IDENTIFIER}
 PackageVersion: ${VERSION}
 PackageLocale: ${PACKAGE_LOCALE}
@@ -130,7 +141,8 @@ EOF
 
 write_installer_manifest() {
   local file="$1" installer_sha="$2"
-  cat > "${file}" <<EOF
+  write_schema_header "${file}" "installer"
+  cat >> "${file}" <<EOF
 PackageIdentifier: ${PACKAGE_IDENTIFIER}
 PackageVersion: ${VERSION}
 InstallerType: zip

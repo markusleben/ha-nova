@@ -87,11 +87,12 @@ describe("release contract", () => {
 
   it("builds a winget manifest from the published Windows bundle instead of a raw bootstrap script", () => {
     expect(wingetManifestBuilder).toContain("ha-nova-installer-bundle-windows-amd64.zip");
-    expect(wingetManifestBuilder).toContain('MANIFEST_VERSION="${MANIFEST_VERSION:-1.12.0}"');
+    expect(wingetManifestBuilder).toContain('MANIFEST_VERSION="${MANIFEST_VERSION:-1.9.0}"');
     expect(wingetManifestBuilder).toContain("PackageIdentifier: ${PACKAGE_IDENTIFIER}");
     expect(wingetManifestBuilder).toContain("InstallerType: zip");
     expect(wingetManifestBuilder).toContain("NestedInstallerType: portable");
-    expect(wingetManifestBuilder).not.toContain("yaml-language-server");
+    expect(wingetManifestBuilder).toContain("yaml-language-server");
+    expect(wingetManifestBuilder).toContain("# Created by HA NOVA release automation");
     expect(wingetManifestBuilder).toContain("RelativeFilePath: ha-nova/ha-nova.exe");
     expect(wingetManifestBuilder).toContain("PortableCommandAlias: ha-nova");
     expect(wingetManifestBuilder).toContain("ha-nova-winget-manifest-");
@@ -466,18 +467,18 @@ describe("release contract", () => {
     expect(readFileSync(join(manifestRoot, "markusleben.ha-nova.installer.yaml"), "utf8")).toContain(
       "InstallerUrl: https://github.com/markusleben/ha-nova/releases/download/v0.3.0/ha-nova-installer-bundle-windows-amd64.zip"
     );
-    expect(readFileSync(join(manifestRoot, "markusleben.ha-nova.installer.yaml"), "utf8")).not.toContain(
-      "yaml-language-server"
+    expect(readFileSync(join(manifestRoot, "markusleben.ha-nova.installer.yaml"), "utf8")).toContain(
+      "# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.9.0.schema.json"
     );
     expect(readFileSync(join(manifestRoot, "markusleben.ha-nova.installer.yaml"), "utf8")).toContain(
       "RelativeFilePath: ha-nova/ha-nova.exe"
     );
     expect(readFileSync(join(manifestRoot, "markusleben.ha-nova.locale.en-US.yaml"), "utf8")).toContain("PackageName: HA NOVA");
-    expect(readFileSync(join(manifestRoot, "markusleben.ha-nova.locale.en-US.yaml"), "utf8")).not.toContain(
-      "yaml-language-server"
+    expect(readFileSync(join(manifestRoot, "markusleben.ha-nova.locale.en-US.yaml"), "utf8")).toContain(
+      "# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.9.0.schema.json"
     );
-    expect(readFileSync(join(manifestRoot, "markusleben.ha-nova.yaml"), "utf8")).not.toContain(
-      "yaml-language-server"
+    expect(readFileSync(join(manifestRoot, "markusleben.ha-nova.yaml"), "utf8")).toContain(
+      "# yaml-language-server: $schema=https://aka.ms/winget-manifest.version.1.9.0.schema.json"
     );
     expect(readFileSync(join(manifestRoot, "markusleben.ha-nova.installer.yaml"), "utf8")).not.toContain("Scope: user");
     expect(readFileSync(join(distDir, "winget", "ha-nova-winget-manifest-v0.3.0.zip.sha256"), "utf8")).toContain(
