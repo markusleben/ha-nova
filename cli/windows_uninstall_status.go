@@ -18,6 +18,7 @@ const (
 	windowsUninstallStatusFailed        = "failed"
 	windowsUninstallStatusSuccess       = "success"
 	windowsUninstallStatusTimeout       = 10 * time.Minute
+	windowsDotNetEpochTicks             = int64(621355968000000000)
 )
 
 type windowsUninstallStatus struct {
@@ -238,7 +239,7 @@ func windowsUninstallStatusMarkerTicks(path string) int64 {
 	if err != nil {
 		return -1
 	}
-	return info.ModTime().UTC().UnixNano()
+	return info.ModTime().UTC().UnixNano()/100 + windowsDotNetEpochTicks
 }
 
 func windowsUninstallRecoveryCommand(mode uninstallMode) string {

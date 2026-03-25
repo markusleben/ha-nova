@@ -413,6 +413,24 @@ func TestFinalizeWindowsUninstallLeavesRuntimeWhenRecoveryFails(t *testing.T) {
 	}
 }
 
+func TestWindowsUninstallStatusMarkerTicksUsesDotNetTicks(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "uninstall-status.json")
+	if err := os.WriteFile(path, []byte("{}"), 0o600); err != nil {
+		t.Fatalf("write marker: %v", err)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat marker: %v", err)
+	}
+
+	got := windowsUninstallStatusMarkerTicks(path)
+	want := info.ModTime().UTC().UnixNano()/100 + windowsDotNetEpochTicks
+	if got != want {
+		t.Fatalf("windowsUninstallStatusMarkerTicks() = %d, want %d", got, want)
+	}
+}
+
 func assertError(message string) error {
 	return &staticError{message: message}
 }
