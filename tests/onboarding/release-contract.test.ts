@@ -143,6 +143,7 @@ describe("release contract", () => {
     expect(workflow).toContain('verify-release-metadata.sh "${GITHUB_REF_NAME}"');
     expect(workflow).toContain("Verify next release version");
     expect(workflow).toContain('verify-next-release-version.sh "${GITHUB_REF_NAME}"');
+    expect(workflow).toContain("GH_TOKEN: ${{ github.token }}");
     expect(workflow).toContain('HA_NOVA_ALLOW_EXISTING_RELEASE_TAG: "1"');
     expect(workflow).toContain("environment:");
     expect(workflow).toContain("name: production");
@@ -225,6 +226,7 @@ describe("release contract", () => {
     expect(rcWorkflow).toContain("version_tag must match vX.Y.Z-rcN");
     expect(rcWorkflow).toContain("Verify next release version");
     expect(rcWorkflow).toContain('verify-next-release-version.sh "${VERSION_TAG}"');
+    expect(rcWorkflow).toContain("GH_TOKEN: ${{ github.token }}");
     expect(rcWorkflow).toContain('HA_NOVA_ALLOW_EXISTING_RELEASE_TAG: "1"');
     expect(rcWorkflow.indexOf("name: Checkout")).toBeLessThan(rcWorkflow.indexOf("name: Verify next release version"));
     expect(rcWorkflow).toContain("actions/upload-artifact@v7");

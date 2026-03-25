@@ -51,6 +51,7 @@ jobs:
 
       - name: Verify next release version
         env:
+          GH_TOKEN: ${{ github.token }}
           HA_NOVA_ALLOW_EXISTING_RELEASE_TAG: "1"
         run: bash scripts/release/verify-next-release-version.sh "${GITHUB_REF_NAME}"
 
