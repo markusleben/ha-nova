@@ -13,5 +13,7 @@ Then use the right channel:
 
 ## Conduct Reports
 
-To report a Code of Conduct incident, contact the maintainer privately via GitHub profile.
+To report a Code of Conduct incident, contact the maintainer privately via GitHub:
+- profile: `https://github.com/markusleben`
+- handle: `@markusleben`
 Do not post conduct reports in public issues or pull requests.

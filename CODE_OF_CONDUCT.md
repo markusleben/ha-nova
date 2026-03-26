@@ -25,5 +25,6 @@ They may remove or edit comments, commits, issues, or pull requests that violate
 
 ## Reporting
 
-Report conduct incidents privately to the maintainer via the GitHub profile/contact path listed in `SUPPORT.md`.
+Report conduct incidents privately to the maintainer via the GitHub profile/contact path listed in `SUPPORT.md`:
+`https://github.com/markusleben`
 Do not report conduct incidents in public issues or pull requests.

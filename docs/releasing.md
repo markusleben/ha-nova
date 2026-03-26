@@ -170,7 +170,7 @@ $env:HA_NOVA_VERSION = 'vX.Y.Z-rcN'
 irm https://raw.githubusercontent.com/markusleben/ha-nova/<rc-tag>/install.ps1 | iex
 ```
 
-Installed runtime:
+Installed runtime (self-managed, non-`winget` only):
 
 ```bash
 ha-nova update --version vX.Y.Z-rcN
