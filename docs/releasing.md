@@ -63,6 +63,22 @@ Default rule:
 - release when the merged delta changes shipped behavior, installer/update flow, release/runtime compatibility, or fixes a user-facing bug people can actually hit
 - batch docs-only, test-only, process-only, and internal maintenance into the next real user-facing release unless they fix the release path itself
 
+## Dependabot Fast Lane
+
+Safe auto-merge is intentionally narrow.
+
+Allowed fast lane:
+- dev-only npm minor/patch updates that touch only `package.json` / `package-lock.json` (root or `nova/`)
+
+Explicit exclusions:
+- safe lane excludes toolchain-risk dependencies such as `vitest`, `vite`, `typescript`, `tsx`, `rollup`, `rolldown`, and `esbuild`
+- workflow, installer, runtime, release, security, and non-manifest changes stay manual
+
+Required protection posture on `main`:
+- require `dependency-review` on `main`
+- require `manifest-review-gate` on `main`
+- `codex-review-gate` is advisory on `main`
+
 ## Release Candidate Gate
 
 Before creating a public release, run an RC pass.
@@ -187,6 +203,12 @@ Rules:
 - do not run them against `main` or a public stable release without intent
 - the harness serves `install.ps1` plus `dist/install-bundles/*`
 - the Windows helper path is always the bundle installer path, not a package-manager path
+
+Emergency macOS cleanup if a desktop helper was interrupted:
+
+```bash
+pkill -f 'npm run dev:validation:harness|start-local-validation-harness\\.sh|http\\.server 8917|vitest|mock-ha-relay\\.py|ha-nova setup' || true
+```
 
 ## Final Publish
 
