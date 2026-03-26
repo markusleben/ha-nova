@@ -16,8 +16,9 @@ describe("safe test system contract", () => {
     expect(pkg.scripts?.["test:safe"]).toBe("vitest run");
     expect(pkg.scripts?.test).toBe("npm run test:safe");
     expect(pkg.scripts?.["test:watch"]).toBe("vitest");
+    expect(pkg.scripts?.["verify:security"]).toBe("bash scripts/release/verify-npm-audit.sh");
     expect(pkg.scripts?.verify).toBe(
-      "npm run verify:release-metadata && bash scripts/release/verify-blocked-files.sh && npm run typecheck && npm run test:safe && npm run build && bash scripts/check-docs.sh && npm run test:cli"
+      "npm run verify:release-metadata && npm run verify:security && bash scripts/release/verify-blocked-files.sh && npm run typecheck && npm run test:safe && npm run build && bash scripts/check-docs.sh && npm run test:cli"
     );
     expect(pkg.scripts?.verify).not.toContain("test:desktop");
   });
@@ -58,5 +59,6 @@ describe("safe test system contract", () => {
     expect(releasing).toContain("start-local-validation-harness");
     expect(releasing).toContain("dev:validation:harness");
     expect(releasing).toContain("pkill -f");
+    expect(releasing).toContain("verify-npm-audit.sh");
   });
 });

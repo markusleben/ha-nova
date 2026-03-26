@@ -38,9 +38,17 @@ npm run verify
 ```
 
 This is the host-safe default gate.
-It covers release metadata sync, TypeScript, the safe Vitest suite, build/docs validation, and Go CLI verification.
+It covers release metadata sync, production `npm audit` on both the root and `nova/` lockfiles, TypeScript, the safe Vitest suite, build/docs validation, and Go CLI verification.
 The deterministic `#87` bulk contract is machine-checked here through the tracked `test:safe` suite on every RC/final workflow SHA.
 It must not open browsers or touch real secure stores on the maintainer host.
+
+The canonical production dependency audit helper is:
+
+```bash
+bash scripts/release/verify-npm-audit.sh
+```
+
+It is intentionally part of `npm run verify` and PR/main CI so shipped dependency regressions are caught locally and in CI before Dependabot has to surface them later as repository alerts.
 
 Hard rule:
 - final tag version, `version.json`, `package.json`, `package-lock.json`, `.claude-plugin/plugin.json`, and `.claude-plugin/marketplace.json` must match

@@ -20,7 +20,7 @@ npm ci
 npm run verify
 ```
 
-`npm run verify` is host-safe by design. It runs TypeScript checks, the safe Vitest suite, and Go CLI tests.
+`npm run verify` is host-safe by design. It runs release metadata checks, production `npm audit` on both the root and `nova/` lockfiles, TypeScript checks, the safe Vitest suite, and Go CLI tests.
 It must not open browsers or touch real secure stores on a maintainer machine.
 
 Explicit desktop validation stays separate:
