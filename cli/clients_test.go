@@ -94,8 +94,8 @@ func TestInstallClaudePluginUsesLocalMarketplaceForInstalledWinget(t *testing.T)
 	logPath := filepath.Join(home, "claude.log")
 	t.Setenv("PATH", installClaudeMock(t, home, logPath)+string(os.PathListSeparator)+os.Getenv("PATH"))
 
-	writeClaudeMarketplaceFixture(t, paths.InstallRoot)
-	if err := installClaudePlugin(paths, paths.InstallRoot); err != nil {
+	writeClaudeMarketplaceFixture(t, wingetRoot)
+	if err := installClaudePlugin(paths, resolveSourceRoot(paths)); err != nil {
 		t.Fatalf("installClaudePlugin() error: %v", err)
 	}
 
@@ -110,6 +110,74 @@ func TestInstallClaudePluginUsesLocalMarketplaceForInstalledWinget(t *testing.T)
 	}
 	if !strings.Contains(log, "plugin marketplace add "+marketplaceRoot) {
 		t.Fatalf("expected winget install to use staged local marketplace, got:\n%s", log)
+	}
+}
+
+func TestInstallClaudePluginFallsBackToGitHubMarketplaceForIncompleteWingetPayload(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("LOCALAPPDATA", filepath.Join(home, "AppData", "Local"))
+	t.Setenv("APPDATA", filepath.Join(home, "AppData", "Roaming"))
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+
+	state := installState{
+		SchemaVersion: stateSchemaVersion,
+		InstallSource: installSourceWinget,
+	}
+	if err := saveState(paths, state); err != nil {
+		t.Fatalf("saveState() error: %v", err)
+	}
+
+	wingetRoot := filepath.Join(windowsWingetPackageRoot(home), wingetPackageID+"_0.4.0_x64", "ha-nova")
+	if err := os.MkdirAll(wingetRoot, 0o755); err != nil {
+		t.Fatalf("mkdir winget root: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(wingetRoot, publicBinaryName()), []byte("winget"), 0o755); err != nil {
+		t.Fatalf("write winget binary: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(wingetRoot, "bundle.json"), []byte(`{"version":"0.4.0"}`), 0o644); err != nil {
+		t.Fatalf("write winget metadata: %v", err)
+	}
+	wingetLink := windowsWingetLinkPath(home)
+	if err := os.MkdirAll(filepath.Dir(wingetLink), 0o755); err != nil {
+		t.Fatalf("mkdir winget link dir: %v", err)
+	}
+	if err := os.WriteFile(wingetLink, []byte("winget"), 0o755); err != nil {
+		t.Fatalf("write winget link: %v", err)
+	}
+
+	originalPlatform := channelChecksUseWindowsPlatform
+	originalExecutable := executablePathForInstallSource
+	defer func() {
+		channelChecksUseWindowsPlatform = originalPlatform
+		executablePathForInstallSource = originalExecutable
+	}()
+	channelChecksUseWindowsPlatform = func() bool { return true }
+	executablePathForInstallSource = func() (string, error) {
+		return filepath.Join(wingetRoot, publicBinaryName()), nil
+	}
+
+	logPath := filepath.Join(home, "claude.log")
+	t.Setenv("PATH", installClaudeMock(t, home, logPath)+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	if err := installClaudePlugin(paths, resolveSourceRoot(paths)); err != nil {
+		t.Fatalf("installClaudePlugin() error: %v", err)
+	}
+
+	logData, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatalf("read log: %v", err)
+	}
+	log := string(logData)
+	if !strings.Contains(log, "plugin marketplace add https://github.com/markusleben/ha-nova") {
+		t.Fatalf("expected incomplete winget payload to fall back to GitHub marketplace, got:\n%s", log)
+	}
+	if strings.Contains(log, "plugin validate ") {
+		t.Fatalf("did not expect local marketplace validation for incomplete winget payload, got:\n%s", log)
 	}
 }
 
@@ -801,8 +869,32 @@ exit 0
 func writeClaudeMarketplaceFixture(t *testing.T, sourceRoot string) {
 	t.Helper()
 
+	if err := os.MkdirAll(filepath.Join(sourceRoot, "clients"), 0o755); err != nil {
+		t.Fatalf("mkdir clients dir: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(sourceRoot, "skills", "ha-nova"), 0o755); err != nil {
+		t.Fatalf("mkdir skills dir: %v", err)
+	}
 	if err := os.MkdirAll(filepath.Join(sourceRoot, ".claude-plugin"), 0o755); err != nil {
 		t.Fatalf("mkdir plugin dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(sourceRoot, publicBinaryName()), []byte("bundle"), 0o755); err != nil {
+		t.Fatalf("write bundle binary: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(sourceRoot, "bundle.json"), []byte(`{"version":"0.1.12"}`), 0o644); err != nil {
+		t.Fatalf("write bundle.json: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(sourceRoot, "clients", "registry.json"), []byte(`{"clients":[{"id":"claude","label":"Claude Code","adapter_kind":"plugin_marketplace","supported_os":["macos","linux","windows"]}]}`), 0o644); err != nil {
+		t.Fatalf("write clients registry: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(sourceRoot, "skills", "ha-nova", "SKILL.md"), []byte("name: ha-nova"), 0o644); err != nil {
+		t.Fatalf("write skill fixture: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(sourceRoot, ".claude-plugin", "plugin.json"), []byte(`{
+  "name":"ha-nova",
+  "version":"0.1.12"
+}`), 0o644); err != nil {
+		t.Fatalf("write plugin.json: %v", err)
 	}
 	if err := os.WriteFile(filepath.Join(sourceRoot, ".claude-plugin", "marketplace.json"), []byte(`{
   "name":"ha-nova",

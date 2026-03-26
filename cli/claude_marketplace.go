@@ -35,15 +35,42 @@ func useLocalClaudeMarketplace(paths runtimePaths, sourceRoot string) bool {
 	if strings.EqualFold(strings.TrimSpace(os.Getenv("HA_NOVA_CLAUDE_MARKETPLACE_LOCAL")), "1") {
 		return true
 	}
-	if filepath.Clean(sourceRoot) != filepath.Clean(paths.InstallRoot) {
-		return true
-	}
 	switch detectInstallSource(paths, loadStateOrDefault(paths)) {
-	case installSourceBundle, installSourceWinget:
+	case installSourceDev:
 		return true
+	case installSourceBundle, installSourceWinget:
+		return shippedClaudeMarketplacePresentOnDisk(sourceRoot)
 	default:
 		return false
 	}
+}
+
+func shippedClaudeMarketplacePresentOnDisk(sourceRoot string) bool {
+	sourceRoot = strings.TrimSpace(sourceRoot)
+	if sourceRoot == "" {
+		return false
+	}
+	requiredFiles := []string{
+		filepath.Join(sourceRoot, "bundle.json"),
+		filepath.Join(sourceRoot, "clients", "registry.json"),
+		filepath.Join(sourceRoot, ".claude-plugin", "marketplace.json"),
+		filepath.Join(sourceRoot, ".claude-plugin", "plugin.json"),
+	}
+	for _, path := range requiredFiles {
+		if _, err := os.Stat(path); err != nil {
+			return false
+		}
+	}
+	requiredDirs := []string{
+		filepath.Join(sourceRoot, "skills"),
+	}
+	for _, path := range requiredDirs {
+		info, err := os.Stat(path)
+		if err != nil || !info.IsDir() {
+			return false
+		}
+	}
+	return true
 }
 
 func prepareClaudeMarketplaceRoot(paths runtimePaths, sourceRoot string) (string, error) {

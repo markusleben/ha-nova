@@ -261,6 +261,93 @@ func TestInstallClaudePluginRestoresPinnedGitURLMarketplaceRefWhenReplaceFails(t
 	}
 }
 
+func TestInstallClaudePluginFallsBackToGitHubMarketplaceWithoutInstalledBundlePayload(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+
+	if err := os.RemoveAll(paths.InstallRoot); err != nil {
+		t.Fatalf("remove install root: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(home, ".claude", "plugins"), 0o755); err != nil {
+		t.Fatalf("mkdir plugins: %v", err)
+	}
+
+	logPath := filepath.Join(home, "claude.log")
+	t.Setenv("PATH", installClaudeMarketplaceMock(t, logPath, "")+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	if err := installClaudePlugin(paths, paths.InstallRoot); err != nil {
+		t.Fatalf("installClaudePlugin() error: %v", err)
+	}
+
+	logData, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatalf("read log: %v", err)
+	}
+	log := string(logData)
+	if !strings.Contains(log, "plugin marketplace add https://github.com/markusleben/ha-nova") {
+		t.Fatalf("expected GitHub marketplace fallback when no installed Claude payload exists:\n%s", log)
+	}
+	if strings.Contains(log, "plugin validate ") {
+		t.Fatalf("did not expect local marketplace validation without an installed Claude payload:\n%s", log)
+	}
+	if strings.Contains(log, "plugin marketplace add "+filepath.Join(paths.ConfigDir, "claude-marketplace")) {
+		t.Fatalf("did not expect local staged marketplace add without an installed Claude payload:\n%s", log)
+	}
+}
+
+func TestInstallClaudePluginFallsBackToGitHubMarketplaceWithoutStageableClaudePayload(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+
+	if err := os.MkdirAll(filepath.Join(paths.InstallRoot, ".claude-plugin"), 0o755); err != nil {
+		t.Fatalf("mkdir plugin dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(paths.InstallRoot, "bundle.json"), []byte(`{"version":"0.3.1"}`), 0o644); err != nil {
+		t.Fatalf("write bundle.json: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(paths.InstallRoot, ".claude-plugin", "marketplace.json"), []byte(`{"plugins":[{"name":"ha-nova","source":"./"}]}`), 0o644); err != nil {
+		t.Fatalf("write marketplace.json: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(paths.InstallRoot, ".claude-plugin", "plugin.json"), []byte(`{"name":"ha-nova","version":"0.3.1"}`), 0o644); err != nil {
+		t.Fatalf("write plugin.json: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(home, ".claude", "plugins"), 0o755); err != nil {
+		t.Fatalf("mkdir plugins: %v", err)
+	}
+
+	logPath := filepath.Join(home, "claude.log")
+	t.Setenv("PATH", installClaudeMarketplaceMock(t, logPath, "")+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	if err := installClaudePlugin(paths, paths.InstallRoot); err != nil {
+		t.Fatalf("installClaudePlugin() error: %v", err)
+	}
+
+	logData, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatalf("read log: %v", err)
+	}
+	log := string(logData)
+	if !strings.Contains(log, "plugin marketplace add https://github.com/markusleben/ha-nova") {
+		t.Fatalf("expected GitHub marketplace fallback when shipped Claude payload is incomplete:\n%s", log)
+	}
+	if strings.Contains(log, "plugin validate ") {
+		t.Fatalf("did not expect local marketplace validation without a complete shipped Claude payload:\n%s", log)
+	}
+	if strings.Contains(log, "plugin marketplace add "+filepath.Join(paths.ConfigDir, "claude-marketplace")) {
+		t.Fatalf("did not expect local staged marketplace add without a complete shipped Claude payload:\n%s", log)
+	}
+}
+
 func TestSameClaudeMarketplaceSourceTreatsPinnedGitHubRefsAsDistinct(t *testing.T) {
 	current := claudeMarketplaceSourceFromRaw(map[string]any{
 		"source": "github",
