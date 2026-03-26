@@ -2,7 +2,7 @@
 
 Canonical instructions moved to:
 
-- `/.codex/INSTALL.md`
+- `.codex/INSTALL.md`
 
 If you fetched this file via an old link, use:
 

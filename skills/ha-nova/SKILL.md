@@ -159,8 +159,8 @@ After any `read` or `review` task, re-evaluate intent once before continuing:
 - pass along the resolved identifiers needed by the next skill:
   - automation/script: `entity_id`, `unique_id`, current config
   - helper:
-    - storage-based family: `entity_id`, helper type, internal helper id when already known
-    - config-entry family: `entry_id`, domain, title, linked entities when already known
+    - storage-based family: `entity_id`, helper type, internal helper id (include if available from prior context; the receiving skill will resolve missing fields)
+    - config-entry family: `entry_id`, domain, title, linked entities (include if available from prior context; the receiving skill will resolve missing fields)
 - always pass along the requested change
 - keep this sequential: one skill at a time, never parallel
 - for multi-target scope, keep the same safety and evidence rules; see `skills/ha-nova/bulk-patterns.md`

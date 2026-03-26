@@ -13,5 +13,5 @@ Then use the right channel:
 
 ## Conduct Reports
 
-To report a Code of Conduct incident, open a private GitHub issue with the `conduct` label.
-If a private issue is not possible, contact the maintainer directly via GitHub profile.
+To report a Code of Conduct incident, contact the maintainer privately via GitHub profile.
+Do not post conduct reports in public issues or pull requests.

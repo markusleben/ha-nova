@@ -20,18 +20,18 @@ A `winget` manifest is generated for each release, but the public package is not
 
 Windows currently ships an `amd64` bundle. On Windows ARM64, use x64 emulation.
 
-Install the OpenCode client separately first. HA NOVA only installs the skills/config side; it does not prove the OpenCode runtime for you. For Windows, prefer **WSL** for the OpenCode client if you have the choice. Once the client itself works, run the HA NOVA installer above and choose `OpenCode` when prompted.
-Current HA NOVA Windows support for OpenCode is still experimental until explicit Windows smoke completes.
+On Windows, install the OpenCode client separately first. HA NOVA handles skills and config, not the OpenCode runtime itself. Prefer WSL if you have the choice. Once the client works, run the HA NOVA installer. The installer launches a setup wizard — choose `OpenCode` when prompted.
+Windows support for OpenCode is still experimental until explicit Windows smoke completes.
 
 ## Already Set Up?
 
-Run diagnostics:
+Check if everything works:
 
 ```bash
 ha-nova doctor
 ```
 
-Common commands:
+Useful commands:
 
 ```bash
 ha-nova setup opencode
@@ -50,6 +50,14 @@ Old pre-Go install?
 
 - macOS / Linux: `curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/main/scripts/legacy-uninstall.sh | bash`
 - Windows PowerShell: `irm https://raw.githubusercontent.com/markusleben/ha-nova/main/scripts/legacy-uninstall.ps1 | iex`
+
+## What's Next
+
+After setup, the context skill (`ha-nova`) loads automatically at session start. Sub-skills like `ha-nova:read`, `ha-nova:write`, `ha-nova:review`, and others are available on demand.
+
+## Troubleshooting
+
+Run `ha-nova doctor` to diagnose connectivity, config, and skill registration issues.
 
 ## Related
 

@@ -252,8 +252,13 @@ describe("release contract", () => {
     expect(rcWorkflow).toContain("install.sh | HA_NOVA_VERSION=");
     expect(rcWorkflow).toContain("install.ps1");
     expect(rcWorkflow).toContain("Public Windows path stays install.ps1 until the winget package is published and proven on a fresh Windows VM.");
+    expect(rcWorkflow).toContain("On Windows, RC testing uses the installer commands above.");
+    expect(rcWorkflow).toContain("Do not treat the normal Windows stable path as an RC path.");
     expect(rcWorkflow).toContain("Claude shipped installs use the local staged HA NOVA release payload on disk.");
     expect(rcWorkflow).toContain("run ha-nova update and then restart Claude");
+    expect(rcWorkflow).toContain("ha-nova update --version");
+    expect(rcWorkflow).toContain("Installed runtime:");
+    expect(rcWorkflow).toContain("Return to stable later:");
     expect(rcWorkflow).toContain("Default ha-nova uninstall is standard remove; use ha-nova uninstall --purge for a full local wipe.");
     expect(rcWorkflow).toContain("Windows now uses %APPDATA%\\\\ha-nova and %LOCALAPPDATA%\\\\ha-nova\\\\cache as the canonical config and cache paths.");
     expect(rcWorkflow).toContain("Keep exactly one Windows install channel per machine.");
@@ -263,6 +268,8 @@ describe("release contract", () => {
     expect(rcWorkflow).toContain("Validate Windows winget manifest");
     expect(rcWorkflow).toContain("winget validate --manifest $manifestDir");
     expect(rcWorkflow).toContain("winget validate emitted warnings");
+    expect(rcWorkflow).toContain("fresh machines/profiles");
+    expect(rcWorkflow).toContain("clean VM/snapshot");
     expect(rcWorkflow).not.toContain("goreleaser release");
   });
 
@@ -337,6 +344,31 @@ describe("release contract", () => {
     expect(releasing).toContain("warning-free Windows `winget validate`");
     expect(releasing).toContain("polls until `%LOCALAPPDATA%\\\\Programs\\\\ha-nova` is gone and `%LOCALAPPDATA%\\\\ha-nova\\\\uninstall-status.json` is gone");
     expect(releasing).toContain("audit open PRs, especially Dependabot and workflow/release PRs");
+    expect(releasing).toContain("## Release Channels (KISS)");
+    expect(releasing).toContain("tester-only prerelease shape");
+    expect(releasing).toContain("do not add a stored preview/stable channel toggle");
+    expect(releasing).toContain("ha-nova update --version vX.Y.Z-rcN");
+    expect(releasing).toContain("Return an RC install to stable:");
+    expect(releasing).toContain("## Winget Scope");
+    expect(releasing).toContain("only `stable` releases are candidates for public `winget` rollout");
+    expect(releasing).toContain("On Windows, RC testing uses the installer commands above.");
+    expect(releasing).toContain("Do not treat the normal Windows stable path as an RC path.");
+    expect(releasing).toContain("<rc-tag>");
+    expect(releasing).not.toContain("<rc-branch>");
+    expect(releasing).toContain("## RC / Stable Validation Matrix");
+    expect(releasing).toContain("keep the matrix small but explicit");
+    expect(releasing).toContain("`winget` is not part of RC validation");
+    expect(releasing).toContain("Secret Service-capable machine");
+    expect(releasing).toContain("fresh machines/profiles");
+    expect(releasing).toContain("clean VM/snapshot");
+    expect(releasing).not.toContain("fresh machine/profile");
+    expect(releasing).toContain("go test ./... -run 'TestCompareReleaseVersions");
+    expect(releasing).toContain("TestRunUpdateExactRCFromStableInstallsThatRC");
+    expect(releasing).toContain("exact RC install by rerunning the installer with `HA_NOVA_VERSION=vX.Y.Z-rcN`");
+    expect(releasing).toContain("exact RC install by rerunning `install.ps1` with `HA_NOVA_VERSION=vX.Y.Z-rcN`");
+    expect(releasing).toContain("ha-nova uninstall --yes");
+    expect(releasing).toContain("fresh machines/profiles");
+    expect(releasing).toContain("clean VM/snapshot");
   });
 
   it("keeps future-state winget specs distinct from the current public Windows contract", () => {

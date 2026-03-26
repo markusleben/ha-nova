@@ -81,6 +81,7 @@ Common service calls for helper entities:
 - **input_button:** `input_button.press`
 - **counter:** `counter.increment`, `counter.decrement`, `counter.reset`, `counter.set_value` (`value`)
 - **timer:** `timer.start` (optional `duration`), `timer.pause`, `timer.cancel`, `timer.finish`, `timer.change` (`duration`)
+- **schedule:** `schedule.reload` (reloads all schedule entities from config)
 
 Example:
 ```json

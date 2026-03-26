@@ -5,7 +5,10 @@ import { describe, expect, it } from "vitest";
 describe("project docs contract", () => {
   const project = readFileSync("PROJECT.md", "utf8");
   const support = readFileSync("SUPPORT.md", "utf8");
+  const codeOfConduct = readFileSync("CODE_OF_CONDUCT.md", "utf8");
   const novaReadme = readFileSync("nova/README.md", "utf8");
+  const novaDocs = readFileSync("nova/DOCS.md", "utf8");
+  const bridgeArchitecture = readFileSync("docs/reference/bridge-architecture.md", "utf8");
   const governance = readFileSync("docs/reference/documentation-governance.md", "utf8");
   const breadcrumbs = readFileSync("docs/breadcrumbs.md", "utf8");
 
@@ -35,7 +38,17 @@ describe("project docs contract", () => {
     expect(support).toContain("Run `ha-nova doctor` first.");
     expect(support).toContain("Then use the right channel:");
     expect(support).toContain("follow `SECURITY.md`");
+    expect(support).toContain("contact the maintainer privately via GitHub profile");
+    expect(support).toContain("Do not post conduct reports in public issues or pull requests.");
     expect(support).not.toContain("## Before Opening an Issue");
+  });
+
+  it("keeps conduct reporting on a real private path", () => {
+    expect(codeOfConduct).toContain("Report conduct incidents privately to the maintainer");
+    expect(codeOfConduct).toContain("GitHub profile/contact path");
+    expect(codeOfConduct).toContain("Do not report conduct incidents in public issues or pull requests.");
+    expect(codeOfConduct).not.toContain("private GitHub issue");
+    expect(support).not.toContain("private GitHub issue");
   });
 
   it("keeps nova/README.md as a pointer instead of a second relay truth surface", () => {
@@ -44,6 +57,15 @@ describe("project docs contract", () => {
     expect(novaReadme).toContain("`nova/DOCS.md` for Home Assistant App / relay setup");
     expect(novaReadme).toContain("intentionally only a pointer");
     expect(novaReadme).not.toContain("Persistent WebSocket connection");
+  });
+
+  it("keeps nova/DOCS.md aligned with the relay architecture reference", () => {
+    expect(bridgeArchitecture).toContain("Requires the relay bearer token like the other implemented endpoints.");
+    expect(bridgeArchitecture).toContain("Wrapped in the standard envelope");
+    expect(novaDocs).toContain("including `GET /health`");
+    expect(novaDocs).toContain("Authorization: Bearer <token>");
+    expect(novaDocs).toContain('"ok": true');
+    expect(novaDocs).toContain('"data": {');
   });
 
   it("treats superpowers docs as archive-only history", () => {

@@ -1,11 +1,14 @@
 # NOVA Relay: Architecture Reference
 
 > **Implementation status:** Only Phase 1a is implemented. Phases 1c, 2, and 3 are planned.
+> Phase 1b was folded into 1a during development (the `/core` REST proxy was
+> originally scoped as a separate phase but shipped together with `/ws` and `/health`).
 
 ## Overview
 
 The Relay is a lean App that runs on the HA host and provides three capabilities
-that a remote Skill cannot: WebSocket proxy (implemented), filesystem access (planned), backups (planned).
+that a remote Skill cannot: WebSocket proxy (implemented), REST core proxy (implemented),
+filesystem access (planned), backups (planned).
 
 ## Endpoints
 
@@ -17,34 +20,43 @@ POST /ws
 POST /core
 ```
 
-### Phase 1c (+ Subscriptions) — PLANNED
+### Phase 1c (+ Subscriptions) — PLANNED, NOT IMPLEMENTED
 
 ```
 POST /ws/subscribe
 ```
 
-### Phase 2 (+ Backups) — PLANNED
+### Phase 2 (+ Backups) — PLANNED, NOT IMPLEMENTED
 
 ```
 POST /backups
 ```
 
-### Phase 3 (+ Filesystem) — PLANNED
+### Phase 3 (+ Filesystem) — PLANNED, NOT IMPLEMENTED
 
 ```
 POST /files
 ```
 
-## Endpoint Specifications
+---
+
+## Endpoint Specifications — Implemented
 
 ### `GET /health`
+
+Returns relay status. Wrapped in the standard envelope (`{ ok: true, data: ... }`).
+Requires the relay bearer token like the other implemented endpoints.
+
 ```json
 Response 200:
 {
-  "status": "ok",
-  "ha_ws_connected": true,
-  "version": "1.0.0",
-  "uptime_s": 3600
+  "ok": true,
+  "data": {
+    "status": "ok",
+    "ha_ws_connected": true,
+    "version": "0.2.0",
+    "uptime_s": 3600
+  }
 }
 ```
 
@@ -68,6 +80,10 @@ Response 4xx/5xx:
 }
 ```
 
+Validation: request body must contain a non-empty string field `type`.
+On validation failure: `400 VALIDATION_ERROR`.
+On upstream failure: `502 UPSTREAM_WS_ERROR` or `502 UPSTREAM_WS_TIMEOUT`.
+
 Optional: Batch mode
 ```json
 Request (Array):
@@ -85,6 +101,58 @@ Response 200:
   ]
 }
 ```
+
+### `POST /core` — REST Core Proxy
+
+Proxies arbitrary HA REST API calls through the Relay. Used by write, helper,
+and review skills to call HA REST endpoints without needing the upstream token.
+
+```json
+Request:
+{
+  "method": "GET",        // "GET" | "POST" | "DELETE"
+  "path": "/api/states",  // must start with /api/
+  "body": { ... }         // optional, used with POST
+}
+
+Response 200:
+{
+  "ok": true,
+  "data": {
+    "status": 200,
+    "body": [ ... ]
+  }
+}
+
+Response 400 (validation):
+{
+  "ok": false,
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Request body must contain: method ('GET'|'POST'|'DELETE') and path ('/api/...')"
+  }
+}
+
+Response 502 (upstream failure):
+{
+  "ok": false,
+  "error": { "code": "UPSTREAM_HTTP_ERROR", "message": "..." }
+}
+```
+
+Security:
+- `path` must start with `/api/`; absolute URLs are rejected.
+- Path traversal (`..`, `\`, encoded variants) is blocked via iterative decode + check.
+- Path length capped at 2048 characters.
+- Control characters in path are rejected.
+- Upstream request timeout: 10 s (default).
+
+---
+
+## Endpoint Specifications — Planned (NOT IMPLEMENTED)
+
+> The following endpoints are designed but have no implementation yet.
+> Specifications may change before implementation.
 
 ### `POST /ws/subscribe` — Event Subscription
 ```json
@@ -141,14 +209,30 @@ Security:
 { "action": "delete", "file": "automations/old-backup.json.gz" }
 ```
 
-## Auth
+---
 
-Same long-lived access token as for HA:
-```
-Authorization: Bearer {HA_TOKEN}
-```
+## Auth — Dual-Token Model
 
-The Relay validates the token by comparing it with the configured token (single-tenant).
+The Relay uses two separate tokens for inbound and upstream authentication:
+
+| Token | Env Var | Purpose |
+|-------|---------|---------|
+| Relay auth token | `RELAY_AUTH_TOKEN` | Authenticates inbound client requests to the Relay |
+| HA Long-Lived Access Token | `HA_LLAT` | Authenticates Relay requests upstream to Home Assistant (WS + REST) |
+
+**Inbound (client -> Relay):**
+```
+Authorization: Bearer {RELAY_AUTH_TOKEN}
+```
+Validated via timing-safe comparison (`node:crypto.timingSafeEqual`). On failure: `401 UNAUTHORIZED`.
+
+**Upstream (Relay -> HA):**
+The Relay uses `HA_LLAT` to authenticate with Home Assistant. For WebSocket it creates a
+long-lived token auth via `home-assistant-js-websocket`. For REST calls (`/core` proxy)
+it adds `Authorization: Bearer {HA_LLAT}` to upstream `fetch()` requests.
+
+The two tokens are independent. `RELAY_AUTH_TOKEN` is chosen by the operator;
+`HA_LLAT` is generated inside Home Assistant.
 
 ## WS Forwarding Policy
 
@@ -157,34 +241,52 @@ Message-type filtering is not applied locally.
 
 ## Configuration
 
-```yaml
-# Required
-HA_URL: "http://homeassistant:8123"
-HA_TOKEN: "<long-lived-access-token>"
+All configuration is via environment variables. The `run` entrypoint script
+resolves values from HA app options and sets them before starting Node.
 
-# Optional
-RELAY_PORT: 8791              # Default: 8791
-LOG_LEVEL: "info"              # trace|debug|info|warn|error
-CONFIG_ROOT: "/homeassistant"  # HA config directory
-BACKUP_DIR: "/data/backups"    # Backup storage
-BACKUP_COMPRESS: true
-BACKUP_RETENTION_DAYS: 30
-WRITABLE_ROOTS: "/homeassistant/ha_mcp"
+```yaml
+# Required (both must be non-empty)
+RELAY_AUTH_TOKEN: "<operator-chosen-secret>"   # Inbound client auth
+HA_LLAT: "<ha-long-lived-access-token>"        # Upstream HA auth
+
+# Optional (with defaults)
+HA_URL: "http://homeassistant:8123"            # Default: http://homeassistant:8123
+RELAY_PORT: 8791                               # Default: 8791
+LOG_LEVEL: "info"                              # trace|debug|info|warn|error, default: info
+RELAY_VERSION: "dev"                           # Injected by run script from bashio
+APP_OPTIONS_PATH: "/data/options.json"         # HA app options file path
 ```
 
 ## Tech Stack
 
 - TypeScript / Node.js >=20
 - No HTTP framework (Node.js `http.createServer`)
-- Dependencies: `ws`, `yaml`, `axios`, `home-assistant-js-websocket`
-- Estimated scope: ~700 core lines (Phase 1a), ~2,000-3,000 lines final
+- REST client uses native `fetch()` (no axios at runtime)
+- WS client uses `home-assistant-js-websocket` (the only directly imported production dependency)
+- `axios`, `ws`, `yaml` are listed in `package.json` but not directly imported by relay source code; they are transitive or reserved for future phases
+- Current scope: ~1,500 lines across ~20 `.ts` files (Phase 1a)
+
+## Standard Envelope
+
+All responses follow the same JSON envelope (defined in `types/api.ts`):
+
+```typescript
+// Success
+{ ok: true, data: T }
+
+// Error
+{ ok: false, error: { code: string, message: string } }
+```
+
+HTTP status is 200 for success. Error status codes: 400 (validation), 401 (auth),
+404 (route not found), 502 (upstream failure), 500 (internal).
 
 ## What the Relay does NOT do
 
 - No business logic
-- No validation rules
+- No validation rules (beyond request format and path safety)
 - No state caching
 - No consent gating
 - No session management
-- No metrics (logging only)
+- No metrics (structured JSON logging only)
 - No MCP protocol

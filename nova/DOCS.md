@@ -6,17 +6,18 @@ It provides secure, authenticated access to Home Assistant's APIs and extends th
 ## How It Works
 
 ```
-AI Client → NOVA Relay (this add-on) → Home Assistant APIs
+AI Client → NOVA Relay (this App) → Home Assistant APIs
 ```
 
-Your AI client (Claude Code, Codex, OpenCode, Gemini CLI) connects to the relay
-using an auth token. Intelligence lives in the AI client's skills, not in the relay.
+Your AI client (Claude Code, Claude Desktop, Codex, OpenCode, Gemini CLI) connects
+to the relay using an auth token. Intelligence lives in the AI client's skills, not
+in the relay.
 
 ## Configuration
 
 | Option | Description |
 |--------|-------------|
-| **Relay Auth Token** | Shared secret between your AI client and this relay. Generated automatically during setup. Both sides must use the exact same value. |
+| **Relay Auth Token** | Shared secret between your AI client and this relay. Generated automatically during setup. The relay and your AI client must use the exact same value. |
 | **Home Assistant Access Token** | A Long-Lived Access Token from your HA profile. Create one at: **Profile > Security > Long-Lived Access Tokens**. |
 
 ### Network
@@ -24,6 +25,16 @@ using an auth token. Intelligence lives in the AI client's skills, not in the re
 | Port | Description |
 |------|-------------|
 | 8791/tcp | Relay HTTP API |
+
+## Endpoints
+
+The relay exposes three endpoints. All relay requests, including `GET /health`, require the Relay Auth Token via `Authorization: Bearer <token>`.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/health` | Relay health check (version, uptime, WS status) |
+| POST | `/ws` | WebSocket proxy — forwards commands to HA's WS API |
+| POST | `/core` | REST API proxy — forwards requests to HA's Core REST API (`/api/...`) |
 
 ## Setup
 
@@ -55,20 +66,30 @@ and relay version.
 You can also check the relay directly:
 
 ```bash
-curl http://<your-ha-ip>:8791/health
+curl \
+  -H "Authorization: Bearer <relay-auth-token>" \
+  http://<your-ha-ip>:8791/health
 ```
 
 A healthy response looks like:
 
 ```json
-{"status": "ok", "ha_ws_connected": true, "version": "0.1.0"}
+{
+  "ok": true,
+  "data": {
+    "status": "ok",
+    "ha_ws_connected": true,
+    "version": "0.2.0",
+    "uptime_s": 3621
+  }
+}
 ```
 
 ## Troubleshooting
 
 **Relay not reachable**
 
-- Verify the add-on is running (green icon in the header)
+- Verify the App is running (green icon in the header)
 - Check that port 8791 is not blocked by your network/firewall
 - Ensure the correct host IP is configured in your AI client
 
@@ -81,15 +102,15 @@ A healthy response looks like:
 **WebSocket not connected**
 
 - The relay connects to HA's WebSocket API on startup
-- Check the add-on logs for connection errors
-- Restart the add-on to force a reconnect
+- Check the App logs for connection errors
+- Restart the App to force a reconnect
 
 ## Logs
 
-Add-on logs are available in the **Log** tab above. Look for:
+App logs are available in the **Log** tab above. Look for:
 
 - `Relay listening` — relay started successfully
-- `Relay bootstrap` — shows which auth method is active
+- `Relay bootstrap` — shows auth source and capability
 - Any `error` or `warn` messages indicate issues
 
 ## Support
