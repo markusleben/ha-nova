@@ -72,7 +72,7 @@
 **Files:**
 - Modify: `package.json`
 - Modify: `docs/releasing.md`
-- Modify: `docs/superpowers/plans/2026-03-15-desktop-validation.md`
+- Modify: `docs/archive/superpowers/plans/2026-03-15-desktop-validation.md`
 
 - [ ] Add explicit commands for:
   - `test:desktop:macos`
@@ -132,4 +132,4 @@
 
 ## Execution Handoff
 
-Plan complete and saved to `docs/superpowers/plans/2026-03-15-safe-test-system.md`. Ready to execute?
+Plan complete and saved to `docs/archive/superpowers/plans/2026-03-15-safe-test-system.md`. Ready to execute?

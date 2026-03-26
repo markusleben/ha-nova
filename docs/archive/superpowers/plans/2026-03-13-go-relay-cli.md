@@ -10,7 +10,7 @@
 
 **Tech Stack:** Go 1.22+, gojq, go-keyring, goreleaser
 
-**Spec:** `docs/superpowers/specs/2026-03-13-go-relay-cli-design.md`
+**Spec:** `docs/archive/superpowers/specs/2026-03-13-go-relay-cli-design.md`
 
 ---
 

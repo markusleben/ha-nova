@@ -146,6 +146,38 @@ A `domain=light` filter is infrastructure (a WHERE clause). A fuzzy scorer that 
 - The meaning of codes like `R-10` or `H-09` is explained in `docs/reference/skill-architecture.md`.
 - Keep those codes internal. User-facing output must use localized descriptive finding titles instead of exposing the codes directly.
 
+## 📝 Writing Skills
+
+Skills are plain Markdown files under `skills/`. To add or modify a skill:
+
+1. Follow the **Skill Section Template** in `docs/reference/skill-architecture.md` (required sections: Scope, Bootstrap, Flow, Output Format, Safety, Guardrails).
+2. Study existing skills as examples — start with `skills/service-call/SKILL.md` for a straightforward inline skill.
+3. Add dispatch entries and update the skill tree per the **Adding a New Skill** checklist in `docs/reference/skill-architecture.md`.
+
+All skill files must be 100% English. See `docs/reference/skill-architecture.md` for the full architecture and conventions.
+
+## 📚 Documentation Rules
+
+Use the active documentation map in `docs/reference/documentation-governance.md`.
+
+Working defaults:
+- public product/install/support truth belongs in `README.md`
+- contributor workflow belongs in `CONTRIBUTING.md`
+- release/runbook truth belongs in `docs/releasing.md`
+- relay/API/reference truth belongs in `docs/reference/`
+- Home Assistant App / relay operator truth belongs in `nova/DOCS.md`
+- active skill behavior belongs in `skills/**/SKILL.md`
+
+Do not create new active docs under `docs/archive/superpowers/`.
+That archive path is historical work-history, not the current place for active product truth.
+
+If you need a temporary working doc:
+- create it under `docs/work/`
+- keep it short
+- use one file per topic
+- update the real SSOT in the same PR that lands the behavior
+- archive or delete the temporary work doc immediately after
+
 ## 🔒 Security
 
 Do not open public issues for vulnerabilities.

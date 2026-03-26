@@ -10,6 +10,7 @@ describe("release contract", () => {
   const goreleaser = readFileSync(".goreleaser.yml", "utf8");
   const workflow = readFileSync(".github/workflows/release.yml", "utf8");
   const rcWorkflow = readFileSync(".github/workflows/release-candidate.yml", "utf8");
+  const prTemplate = readFileSync(".github/PULL_REQUEST_TEMPLATE.md", "utf8");
   const bundleBuilder = readFileSync("scripts/release/build-install-bundle.sh", "utf8");
   const wingetManifestBuilder = readFileSync("scripts/release/build-winget-manifest.sh", "utf8");
   const wingetSubmissionHelper = readFileSync("scripts/release/prepare-winget-pkgs-submission.sh", "utf8");
@@ -52,6 +53,8 @@ describe("release contract", () => {
     expect(goreleaser).toContain("Legacy pre-Go installs still require the legacy cleanup script before reinstalling.");
     expect(goreleaser).toContain("Do not download and run the raw `ha-nova-installer-bundle-*.tar.gz` / `.zip` assets directly;");
     expect(goreleaser).not.toContain("~/.config/ha-nova/update");
+    expect(goreleaser).not.toContain("HA_NOVA_VERSION=");
+    expect(goreleaser).not.toContain("winget install --id markusleben.ha-nova --exact");
   });
 
   it("groups release notes into user-facing sections instead of a flat commit dump", () => {
@@ -190,6 +193,13 @@ describe("release contract", () => {
     expect(pkg.scripts?.verify).not.toContain("test:desktop");
   });
 
+  it("keeps the PR template aligned to the canonical verify gate", () => {
+    expect(prTemplate).toContain("`npm run verify`");
+    expect(prTemplate).not.toContain("`npm run typecheck`");
+    expect(prTemplate).not.toContain("`npm test`");
+    expect(prTemplate).not.toContain("`cd cli && go test ./...`");
+  });
+
   it("runs release metadata verification in regular PR/main CI before typecheck and tests", () => {
     expect(ciWorkflow).toContain("name: CI");
     expect(ciWorkflow).toContain("name: Verify release metadata");
@@ -238,6 +248,7 @@ describe("release contract", () => {
     expect(rcWorkflow).toContain('install_ref="${GITHUB_SHA}"');
     expect(rcWorkflow).not.toContain('install_ref="${GITHUB_REF_NAME}"');
     expect(rcWorkflow).toContain("raw.githubusercontent.com/markusleben/ha-nova/");
+    expect(rcWorkflow).toContain("Stable users should ignore this prerelease.");
     expect(rcWorkflow).toContain("install.sh | HA_NOVA_VERSION=");
     expect(rcWorkflow).toContain("install.ps1");
     expect(rcWorkflow).toContain("Public Windows path stays install.ps1 until the winget package is published and proven on a fresh Windows VM.");
