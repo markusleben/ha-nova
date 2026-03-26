@@ -11,12 +11,11 @@ curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/main/install.sh
 ### Windows PowerShell
 
 ```powershell
-$ProgressPreference = 'SilentlyContinue'
 irm https://raw.githubusercontent.com/markusleben/ha-nova/main/install.ps1 | iex
 ```
 
-Current public Windows install path: `install.ps1`.
-A `winget` manifest is generated for each release, but the public package is not live until that manifest is published and proven on a fresh Windows VM.
+Windows uses a single supported install path: `install.ps1`.
+HA NOVA installs itself locally; Home Assistant Relay setup and token steps stay guided in the browser.
 
 Windows currently ships an `amd64` bundle. On Windows ARM64, use x64 emulation.
 

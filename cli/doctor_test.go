@@ -107,64 +107,6 @@ func TestRunDoctorDoesNotClaimConnectedWhenHAProbeFails(t *testing.T) {
 	}
 }
 
-func TestRunDoctorStaysCleanForLocalWingetManifestInstall(t *testing.T) {
-	paths, _ := doctorTestSetup(t)
-	if err := saveState(paths, installState{
-		SchemaVersion: stateSchemaVersion,
-		InstallSource: installSourceWinget,
-	}); err != nil {
-		t.Fatalf("saveState() error: %v", err)
-	}
-	wingetLink := windowsWingetLinkPath(paths.Home)
-	if err := os.MkdirAll(filepath.Dir(wingetLink), 0o755); err != nil {
-		t.Fatalf("mkdir winget link dir: %v", err)
-	}
-	if err := os.WriteFile(wingetLink, []byte("winget"), 0o755); err != nil {
-		t.Fatalf("write winget link: %v", err)
-	}
-
-	originalPlatform := channelChecksUseWindowsPlatform
-	originalStatus := queryWingetPackageStatusForChannels
-	originalHealth := fetchRelayHealthForReadiness
-	originalWSPing := probeRelayWSPingForReadiness
-	defer func() {
-		channelChecksUseWindowsPlatform = originalPlatform
-		queryWingetPackageStatusForChannels = originalStatus
-		fetchRelayHealthForReadiness = originalHealth
-		probeRelayWSPingForReadiness = originalWSPing
-	}()
-	channelChecksUseWindowsPlatform = func() bool { return true }
-	queryWingetPackageStatusForChannels = func() (wingetPackageStatus, error) {
-		return wingetPackageStatus{
-			Installed:        true,
-			InstalledVersion: "0.3.0",
-			InventoryScope:   "local_manifest",
-		}, nil
-	}
-	fetchRelayHealthForReadiness = func(relayBaseURL, token string) ([]byte, error) {
-		return []byte(`{"status":"ok","data":{"ha_ws_connected":true},"version":"0.1.12"}`), nil
-	}
-	probeRelayWSPingForReadiness = func(relayBaseURL, token string) (relayWSPingResponse, error) {
-		return relayWSPingResponse{StatusCode: http.StatusOK, Body: []byte(`{"type":"pong"}`)}, nil
-	}
-
-	exitCode, output := captureCommandOutput(t, func() int {
-		return runDoctor(paths, nil)
-	})
-	if exitCode != 0 {
-		t.Fatalf("runDoctor() exit = %d, want 0\n%s", exitCode, output)
-	}
-	if strings.Contains(output, "could not confirm the winget-managed install in package inventory") {
-		t.Fatalf("doctor should not warn for local winget manifest inventory:\n%s", output)
-	}
-	if !strings.Contains(output, "Installed via local winget manifest") {
-		t.Fatalf("doctor should explain local winget manifest inventory:\n%s", output)
-	}
-	if !strings.Contains(output, "Doctor checks passed") {
-		t.Fatalf("doctor output missing success line:\n%s", output)
-	}
-}
-
 func TestRunDoctorReportsSecureStoreUnavailableInsteadOfMissingToken(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

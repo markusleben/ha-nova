@@ -150,12 +150,6 @@ func TestRunUninstallShowsPreflightAndRelayStillRunningNote(t *testing.T) {
 	}
 }
 
-func TestUninstallRuntimeLineLabelForWingetUsesChannelCopy(t *testing.T) {
-	if got := uninstallRuntimeLineLabel(runtimePaths{}, installSourceWinget); got != "Installed CLI runtime (winget-managed package)" {
-		t.Fatalf("unexpected winget runtime label: %q", got)
-	}
-}
-
 func TestUninstallWindowsBundleNoteMentionsWait(t *testing.T) {
 	got := uninstallWindowsBundleNote()
 	if !strings.Contains(got, "Please wait a moment") {
@@ -217,101 +211,6 @@ func TestApplyUninstallTokenPolicyFailsLoudWhenDeleteFails(t *testing.T) {
 	}
 	if len(report.removed) != 0 {
 		t.Fatalf("did not expect token removal to be reported on failure: %+v", report.removed)
-	}
-}
-
-func TestRunUninstallFailsLoudOnWindowsInstallChannelConflict(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING", "1")
-	t.Setenv("HA_NOVA_TEST_KEYRING_FILE", filepath.Join(home, ".config", "ha-nova", ".test-relay-auth-token"))
-
-	paths, err := detectPaths()
-	if err != nil {
-		t.Fatalf("detectPaths() error: %v", err)
-	}
-	for _, path := range []string{
-		paths.InstallRoot,
-		filepath.Dir(paths.PublicBinary),
-		paths.ConfigDir,
-		filepath.Dir(paths.UpdateCacheFile),
-	} {
-		if err := os.MkdirAll(path, 0o755); err != nil {
-			t.Fatalf("mkdir %s: %v", path, err)
-		}
-	}
-	if err := os.WriteFile(filepath.Join(paths.InstallRoot, publicBinaryName()), []byte("bundle"), 0o755); err != nil {
-		t.Fatalf("write bundle binary: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(paths.InstallRoot, "bundle.json"), []byte(`{"version":"0.3.0"}`), 0o644); err != nil {
-		t.Fatalf("write bundle metadata: %v", err)
-	}
-	if err := os.WriteFile(paths.PublicBinary, []byte("shim"), 0o755); err != nil {
-		t.Fatalf("write public binary: %v", err)
-	}
-	if err := os.WriteFile(paths.UpdateCacheFile, []byte("{}"), 0o644); err != nil {
-		t.Fatalf("write update cache: %v", err)
-	}
-	cfg := runtimeConfig{
-		HAHost: "192.168.1.5",
-		HAURL:  "http://192.168.1.5:8123",
-	}
-	if err := saveConfig(paths, cfg); err != nil {
-		t.Fatalf("saveConfig() error: %v", err)
-	}
-	if err := writeRelayAuthToken("test-relay-token"); err != nil {
-		t.Fatalf("writeRelayAuthToken() error: %v", err)
-	}
-	state := installState{
-		SchemaVersion: stateSchemaVersion,
-		InstallSource: installSourceBundle,
-	}
-	if err := saveState(paths, state); err != nil {
-		t.Fatalf("saveState() error: %v", err)
-	}
-	wingetLink := windowsWingetLinkPath(home)
-	if err := os.MkdirAll(filepath.Dir(wingetLink), 0o755); err != nil {
-		t.Fatalf("mkdir winget link dir: %v", err)
-	}
-	if err := os.WriteFile(wingetLink, []byte("winget"), 0o755); err != nil {
-		t.Fatalf("write winget link: %v", err)
-	}
-
-	originalPlatform := channelChecksUseWindowsPlatform
-	defer func() {
-		channelChecksUseWindowsPlatform = originalPlatform
-	}()
-	channelChecksUseWindowsPlatform = func() bool { return true }
-
-	cases := [][]string{
-		{"--yes"},
-		{"--yes", "--purge"},
-	}
-	for _, args := range cases {
-		exitCode, output := captureCommandOutput(t, func() int {
-			return runUninstall(paths, args)
-		})
-		if exitCode != 1 {
-			t.Fatalf("runUninstall(%v) exit = %d, want 1\n%s", args, exitCode, output)
-		}
-		if !strings.Contains(output, "Windows install channel conflict") {
-			t.Fatalf("expected conflict error for %v, got:\n%s", args, output)
-		}
-		if !strings.Contains(output, "Keep only one Windows install channel before running 'ha-nova uninstall'.") {
-			t.Fatalf("expected uninstall guidance for %v, got:\n%s", args, output)
-		}
-		if _, err := os.Stat(paths.ConfigFile); err != nil {
-			t.Fatalf("expected config to remain untouched for %v, got %v", args, err)
-		}
-		if _, err := os.Stat(paths.UpdateCacheFile); err != nil {
-			t.Fatalf("expected update cache to remain untouched for %v, got %v", args, err)
-		}
-		if _, err := os.Stat(paths.StateFile); err != nil {
-			t.Fatalf("expected state to remain untouched for %v, got %v", args, err)
-		}
-		if _, err := os.Stat(wingetLink); err != nil {
-			t.Fatalf("expected winget link to remain untouched for %v, got %v", args, err)
-		}
 	}
 }
 

@@ -313,10 +313,10 @@ func windowsUninstallErrorSummary(step string, err error) string {
 		return "HA NOVA uninstall could not remove managed cache artifacts."
 	case "token_cleanup":
 		return "HA NOVA uninstall could not remove the stored relay token."
+	case "legacy_windows_package_cleanup":
+		return "HA NOVA uninstall could not remove older private/test Windows package residue."
 	case "bundle_runtime_cleanup":
 		return "HA NOVA uninstall could not remove the Windows bundle runtime."
-	case "winget_runtime_cleanup":
-		return "HA NOVA uninstall could not remove the Windows winget package."
 	default:
 		if err != nil {
 			return strings.TrimSpace(err.Error())
@@ -334,11 +334,9 @@ func collectWindowsUninstallRemainingPaths(paths runtimePaths, mode uninstallMod
 		paths.CacheDir,
 		filepath.Join(paths.ConfigDir, "claude-marketplace"),
 	}
+	candidates = append(candidates, legacyWindowsPackageResiduePaths(paths)...)
 	if mode == uninstallModePurge {
 		candidates = append(candidates, paths.ConfigFile, paths.ConfigDir)
-	}
-	if normalizeInstallSource(installSource) == installSourceWinget {
-		candidates = append(candidates, windowsWingetLinkPath(paths.Home))
 	}
 	remaining := []string{}
 	for _, candidate := range candidates {

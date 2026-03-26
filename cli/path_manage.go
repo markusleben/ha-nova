@@ -165,6 +165,5 @@ func setWindowsUserPath(value string) error {
 func isWindowsInstallSourcePath(path string) bool {
 	clean := strings.ToLower(filepath.Clean(path))
 	return strings.HasSuffix(clean, `\programs\ha-nova`) ||
-		strings.Contains(clean, `\appdata\local\programs\ha-nova`) ||
-		isWingetManagedPath(path)
+		strings.Contains(clean, `\appdata\local\programs\ha-nova`)
 }

@@ -32,11 +32,6 @@ func resolveClaudeMarketplaceSource(paths runtimePaths, sourceRoot string) (stri
 	switch detectInstallSource(paths, loadStateOrDefault(paths)) {
 	case installSourceDev:
 		return prepareClaudeMarketplaceRoot(paths, sourceRoot)
-	case installSourceWinget:
-		if !shippedClaudeMarketplacePresentOnDisk(sourceRoot) {
-			return "", fmt.Errorf("installed Claude payload missing from shipped winget runtime")
-		}
-		return prepareClaudeMarketplaceRoot(paths, sourceRoot)
 	case installSourceBundle:
 		if shippedClaudeMarketplacePresentOnDisk(sourceRoot) {
 			return prepareClaudeMarketplaceRoot(paths, sourceRoot)
@@ -57,7 +52,7 @@ func useLocalClaudeMarketplace(paths runtimePaths, sourceRoot string) bool {
 	switch detectInstallSource(paths, loadStateOrDefault(paths)) {
 	case installSourceDev:
 		return true
-	case installSourceBundle, installSourceWinget:
+	case installSourceBundle:
 		return shippedClaudeMarketplacePresentOnDisk(sourceRoot)
 	default:
 		return false

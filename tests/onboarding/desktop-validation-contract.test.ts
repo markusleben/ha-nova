@@ -41,8 +41,8 @@ describe("desktop validation helpers contract", () => {
     expect(releasing).toContain("test:desktop:windows:rdp");
     expect(releasing).toContain("scripts/dev/windows-private-rc-install.ps1");
     expect(releasing).toContain("scripts/dev/windows-desktop-setup.ps1");
-    expect(releasing).toContain("Do not run them against `main` or a public release.");
-    expect(releasing).toContain("pkill -f");
+    expect(releasing).toContain("use them only for private validation against local or RC bundles");
+    expect(releasing).toContain("do not run them against `main` or a public stable release without intent");
   });
 
   it("ships a single local validation harness entrypoint", () => {
@@ -52,21 +52,18 @@ describe("desktop validation helpers contract", () => {
     expect(harness).toContain("mock-ha-relay.py");
     expect(harness).toContain("HA_NOVA_BUNDLE_URL");
     expect(harness).toContain("HA_NOVA_BUNDLE_SHA256_URL");
-    expect(harness).toContain("HA_NOVA_WINGET_INSTALLER_URL");
     expect(harness).toContain("HA_NOVA_CLAUDE_MARKETPLACE_LOCAL");
     expect(harness).toContain("ha-nova-installer-bundle-macos-arm64.tar.gz");
     expect(harness).toContain("ha-nova-installer-bundle-macos-amd64.tar.gz");
     expect(harness).toContain("ha-nova-installer-bundle-windows-amd64.zip");
-    expect(harness).toContain("ha-nova-winget-manifest-v");
     expect(harness).toContain("install.ps1 | iex");
-    expect(harness).toContain("winget settings --enable LocalManifestFiles");
-    expect(harness).toContain("winget install --manifest");
     expect(harness).toContain("--with-mock");
     expect(harness).toContain("ensure_port_free");
     expect(harness).toContain("bundle_reported_version");
-    expect(harness).toContain('build-winget-manifest.sh "${reported_version}"');
     expect(harness).toContain("port ${port} is already in use");
     expect(harness).toContain("Harness asset missing or not reachable");
+    expect(harness).not.toContain("winget");
+    expect(harness).not.toContain("$ProgressPreference");
   });
 
   it("keeps the macOS suite self-refreshing and self-contained", () => {

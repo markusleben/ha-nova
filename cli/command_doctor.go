@@ -107,9 +107,6 @@ func runDoctor(paths runtimePaths, _ []string) int {
 	}
 	if notice := checkForUpdate(paths, false); !notice.empty() && notice.kind != humanNoticeKindUpToDate {
 		printHumanNotice(notice)
-		if notice.kind == humanNoticeKindChannelConflict {
-			status = 1
-		}
 	}
 	if status == 0 {
 		printHumanInfo("Doctor checks passed")

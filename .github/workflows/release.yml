@@ -66,25 +66,10 @@ jobs:
       - name: Build install bundles
         run: bash scripts/release/build-install-bundle.sh "${GITHUB_REF_NAME#v}"
 
-      - name: Build winget manifests
-        run: bash scripts/release/build-winget-manifest.sh "${GITHUB_REF_NAME#v}" "${GITHUB_REPOSITORY}" "${GITHUB_REF_NAME}"
-
       - name: Upload install bundles
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh release upload "$GITHUB_REF_NAME" dist/install-bundles/* --clobber
-
-      - name: Upload winget manifests
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload "$GITHUB_REF_NAME" dist/winget/*.zip dist/winget/*.sha256 --clobber
-
-      - name: Upload release winget manifests artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: release-winget-manifests
-          path: dist/winget/manifests
-          if-no-files-found: error
 
   smoke-installers:
     name: Post-publish smoke installers (${{ matrix.os }})
@@ -143,29 +128,4 @@ jobs:
               throw "Windows uninstall did not complete cleanly"
             }
             throw "Windows uninstall did not remove $installRoot"
-          }
-
-      - name: Download release winget manifests
-        if: runner.os == 'Windows'
-        uses: actions/download-artifact@v8
-        with:
-          name: release-winget-manifests
-          path: dist/winget
-
-      - name: Validate Windows winget manifest
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $installerManifest = Get-ChildItem -Path "dist/winget" -Recurse -Filter "*.installer.yaml" | Select-Object -First 1
-          if (-not $installerManifest) {
-            throw "winget installer manifest missing from release artifacts"
-          }
-          $manifestDir = Split-Path -Parent $installerManifest.FullName
-          $output = & winget validate --manifest $manifestDir 2>&1
-          $output | ForEach-Object { Write-Host $_ }
-          if ($LASTEXITCODE -ne 0) {
-            throw "winget validate failed for $manifestDir"
-          }
-          if (($output | Out-String) -match 'warning') {
-            throw "winget validate emitted warnings for $manifestDir"
           }

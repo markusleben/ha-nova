@@ -37,7 +37,6 @@ find_runtime_binary() {
   if localappdata="$(windows_localappdata_dir)"; then
     candidates+=(
       "${localappdata}/Programs/ha-nova/ha-nova.exe"
-      "${localappdata}/Microsoft/WinGet/Links/ha-nova.exe"
     )
   fi
 

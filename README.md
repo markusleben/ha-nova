@@ -42,7 +42,6 @@ macOS is live-validated. Linux uses the same installer and CI smoke path, but th
 ### Windows PowerShell
 
 ```powershell
-$ProgressPreference = 'SilentlyContinue'
 irm https://raw.githubusercontent.com/markusleben/ha-nova/main/install.ps1 | iex
 ```
 Windows ships an `amd64` bundle. ARM64 uses x64 emulation.
@@ -52,6 +51,8 @@ Claude and Gemini are validated on Windows. Codex and OpenCode lanes exist but a
 The wizard handles relay, tokens, and client setup. Once done, open your client and try: *"Show me all my automations."*
 
 HA NOVA installs the integration layer. Install the AI client itself separately if you haven't already.
+Windows uses a single supported install path: `install.ps1`.
+HA NOVA installs itself locally; Home Assistant Relay setup and token steps stay guided in the browser.
 
 > Do not download the release `ha-nova-installer-bundle-*.tar.gz` / `.zip` assets and try to launch them manually. Those archives are installer payloads. Use `install.sh`, `install.ps1`, or `ha-nova update`.
 

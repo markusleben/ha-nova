@@ -72,8 +72,7 @@ release:
     ## What You Get
 
     - More reliable setup, doctor, update, and uninstall behavior in the validated install and client flows for this release.
-    - Stronger Windows lifecycle handling, including clearer install-channel detection and safer uninstall recovery.
-    - A `winget` manifest is attached as a release handoff artifact for the future public Windows package path.
+    - Stronger Windows lifecycle handling, including safer install, update, and uninstall recovery on supported machines.
 
     **macOS / Linux:**
     ```sh
@@ -82,12 +81,11 @@ release:
 
     **Windows (PowerShell):**
     ```powershell
-    $ProgressPreference = 'SilentlyContinue'
     irm https://raw.githubusercontent.com/markusleben/ha-nova/main/install.ps1 | iex
     ```
 
     Windows currently ships an `amd64` bundle only. On Windows ARM64, use x64 emulation.
-    A `winget` manifest is attached as a release handoff artifact, but the public Windows package is not live until that manifest is published and proven on a fresh Windows VM.
+    Windows uses a single supported install path: `install.ps1`.
     Do not download and run the raw `ha-nova-installer-bundle-*.tar.gz` / `.zip` assets directly; those are installer payloads, not the supported end-user path.
 
     ## Upgrade Notes
@@ -96,7 +94,7 @@ release:
     - Claude shipped installs use the local staged HA NOVA release payload on disk. When HA NOVA shows an update notice, run `ha-nova update` and then restart Claude.
     - Default `ha-nova uninstall` is standard remove. Use `ha-nova uninstall --purge` for a full local wipe.
     - Windows now uses `%APPDATA%\ha-nova` and `%LOCALAPPDATA%\ha-nova\cache` as the canonical config and cache paths.
-    - Keep exactly one Windows install channel per machine. `install.ps1` will not install on top of an existing `winget` install.
+    - Home Assistant Relay setup and token steps remain guided in the browser after local install completes.
     - Legacy pre-Go installs still require the legacy cleanup script before reinstalling.
 
     > The bundle assets below are consumed by the installers automatically. Only use them directly for maintainer-level debugging or raw binary validation.

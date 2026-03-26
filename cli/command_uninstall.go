@@ -73,14 +73,9 @@ func runUninstall(paths runtimePaths, args []string) int {
 	}
 
 	state := loadStateOrDefault(paths)
-	channels := inspectInstallChannels(paths, state)
-	source := channels.CurrentSource
+	source := detectInstallSource(paths, state)
 	mode := uninstallModeFromFlag(*purge)
 	recoveryMode := false
-	if channels.Conflict {
-		printHumanErr("%s", installChannelConflictMessage(channels, "ha-nova uninstall"))
-		return 1
-	}
 	if recovery := inspectWindowsUninstallStatus(paths); recovery.Kind != windowsUninstallStatusKindNone {
 		if exitCode := handleWindowsUninstallRecovery(recovery, mode); exitCode != 0 {
 			return exitCode
@@ -113,26 +108,16 @@ func runUninstall(paths runtimePaths, args []string) int {
 		printHumanInfo("It is safe to close this terminal now.")
 		return 0
 	}
-	if runtime.GOOS == "windows" && source == installSourceWinget {
+	if channelChecksUseWindowsPlatform() && source == installSourceLegacyWindowsPackage {
 		printUninstallPreflightNotes(os.Stdout, preflight)
-		if err := launchWindowsWingetUninstall(mode); err != nil {
-			printHumanErr("cannot finish Windows winget uninstall: %s", err)
-			return 1
-		}
-		printHumanInfo("HA NOVA uninstall continues in the background on Windows.")
-		printHumanInfo("It is safe to close this terminal now.")
-		return 0
+		printHumanErr("Legacy private/test Windows package installs are no longer supported for in-place `ha-nova uninstall`.")
+		printHumanWarn("Remove the old HA NOVA app in Installed Apps / App Installer.")
+		printHumanWarn("Then reinstall with the supported Windows path:")
+		printHumanWarn("  irm https://raw.githubusercontent.com/markusleben/ha-nova/main/install.ps1 | iex")
+		return 1
 	}
 
 	report := &uninstallReport{}
-	if source == installSourceWinget {
-		if err := runWingetUninstallForUninstall(mode); err != nil {
-			printHumanErr("winget uninstall failed: %s", err)
-			return 1
-		}
-		report.addRemoved("winget package " + wingetPackageID)
-	}
-
 	if err := finalizeLocalUninstall(paths, state, report, mode); err != nil {
 		printHumanErr("%s", err)
 		return 1
@@ -151,61 +136,6 @@ func runUninstall(paths runtimePaths, args []string) int {
 	return 0
 }
 
-func runInternalWingetUninstall(_ runtimePaths, args []string) int {
-	fs := flag.NewFlagSet("internal-winget-uninstall", flag.ContinueOnError)
-	fs.SetOutput(io.Discard)
-	parentPID := fs.Int("parent-pid", 0, "parent pid")
-	selfPath := fs.String("self-path", "", "temp helper path")
-	purge := fs.Bool("purge", false, "remove config and token")
-	if err := fs.Parse(args); err != nil {
-		printHumanErr("%s", err)
-		return 1
-	}
-	paths, err := detectPaths()
-	if err != nil {
-		printHumanErr("%s", err)
-		return 1
-	}
-	mode := uninstallModeFromFlag(*purge)
-	status, err := beginWindowsUninstallStatus(paths, mode, installSourceWinget)
-	if err != nil {
-		printHumanErr("cannot persist Windows uninstall recovery state: %s", err)
-		return 1
-	}
-	stopHeartbeat := startWindowsUninstallHeartbeat(paths, status)
-	defer stopHeartbeat()
-	waitForParentReleaseForWingetUninstall(*parentPID)
-	preflight := collectUninstallPreflight(paths)
-	report := &uninstallReport{}
-	if err := finalizeLocalUninstallWithProgress(paths, loadStateOrDefault(paths), report, mode, func(step string) error {
-		return updateWindowsUninstallStatusProgress(paths, status)
-	}); err != nil {
-		report.printDetails()
-		printHumanErr("%s", failWindowsUninstallStatus(paths, status, normalizeUninstallFailureStep(err), err))
-		return 1
-	}
-	if err := updateWindowsUninstallStatusProgress(paths, status); err != nil {
-		printHumanErr("cannot persist Windows uninstall recovery state: %s", err)
-		return 1
-	}
-	if err := runWingetUninstallForUninstall(mode); err != nil {
-		printHumanErr("winget uninstall failed: %s", failWindowsUninstallStatus(paths, status, "winget_runtime_cleanup", err))
-		return 1
-	}
-	report.addRemoved("winget package " + wingetPackageID)
-	applyUninstallPreflightNotes(report, preflight)
-	if report.print() {
-		printHumanInfo("HA NOVA removed")
-	}
-	if err := finishWindowsUninstallStatus(paths, status); err != nil {
-		printHumanWarn("could not clear Windows uninstall recovery state: %s", err)
-	}
-	if err := scheduleWindowsSelfDeleteForUninstall(*selfPath); err != nil {
-		printHumanWarn("could not schedule uninstall helper cleanup: %s", err)
-	}
-	return 0
-}
-
 func launchWindowsUninstall(paths runtimePaths, mode uninstallMode) error {
 	tempHelper := filepath.Join(os.TempDir(), "ha-nova-uninstall-"+strconv.Itoa(os.Getpid())+".exe")
 	if err := copyFile(filepath.Join(paths.InstallRoot, publicBinaryName()), tempHelper); err != nil {
@@ -217,22 +147,6 @@ func launchWindowsUninstall(paths runtimePaths, mode uninstallMode) error {
 		args = append(args, "--purge")
 	}
 	return launchWindowsDetachedHelperWithEnv(tempHelper, paths.UninstallStatusFile, statusTicks, helperInstallRootEnv(paths.InstallRoot), args...)
-}
-
-func launchWindowsWingetUninstall(mode uninstallMode) error {
-	paths, err := detectPaths()
-	if err != nil {
-		return err
-	}
-	tempHelper, err := stageWindowsLifecycleHelper("ha-nova-winget-uninstall-")
-	if err != nil {
-		return err
-	}
-	args := []string{"internal-winget-uninstall", "--parent-pid", strconv.Itoa(os.Getpid()), "--self-path", tempHelper}
-	if mode == uninstallModePurge {
-		args = append(args, "--purge")
-	}
-	return launchWindowsDetachedHelperWithEnv(tempHelper, paths.UninstallStatusFile, windowsUninstallStatusMarkerTicks(paths.UninstallStatusFile), helperInstallRootEnv(paths.InstallRoot), args...)
 }
 
 func scheduleWindowsSelfDelete(path string) error {
@@ -282,6 +196,9 @@ func finalizeWindowsUninstall(paths runtimePaths, report *uninstallReport, mode 
 		return updateWindowsUninstallStatusProgress(paths, status)
 	}); err != nil {
 		return failWindowsUninstallStatus(paths, status, normalizeUninstallFailureStep(err), err)
+	}
+	if err := removeLegacyWindowsPackageResidueForUninstall(paths, report); err != nil {
+		report.addNote("Could not remove older private/test Windows package residue: " + err.Error())
 	}
 	if err := updateWindowsUninstallStatusProgress(paths, status); err != nil {
 		return fmt.Errorf("cannot persist Windows uninstall recovery state: %w", err)
