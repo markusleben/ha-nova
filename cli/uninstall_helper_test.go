@@ -147,6 +147,50 @@ func TestFinalizeWindowsUninstallWarnsAboutClaudeProjectMemoryArtifacts(t *testi
 	}
 }
 
+func TestFinalizeWindowsUninstallContinuesWhenLegacyCleanupFails(t *testing.T) {
+	stubUninstallRelayTokenDeletion(t, "test-relay-token", nil)
+
+	originalLegacyCleanup := removeLegacyWindowsPackageResidueForUninstall
+	t.Cleanup(func() {
+		removeLegacyWindowsPackageResidueForUninstall = originalLegacyCleanup
+	})
+	removeLegacyWindowsPackageResidueForUninstall = func(_ runtimePaths, _ *uninstallReport) error {
+		return errors.New("legacy package path is locked")
+	}
+
+	parent := t.TempDir()
+	paths := runtimePaths{
+		Home:            parent,
+		InstallRoot:     filepath.Join(parent, ".local", "share", "ha-nova"),
+		ConfigDir:       filepath.Join(parent, ".config", "ha-nova"),
+		StateFile:       filepath.Join(parent, ".config", "ha-nova", "state.json"),
+		UpdateCacheFile: filepath.Join(parent, ".cache", "ha-nova", "latest-release.json"),
+	}
+	if err := os.MkdirAll(paths.InstallRoot, 0o755); err != nil {
+		t.Fatalf("mkdir install root: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(paths.InstallRoot, publicBinaryName()), []byte("binary"), 0o755); err != nil {
+		t.Fatalf("write runtime: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(paths.StateFile), 0o755); err != nil {
+		t.Fatalf("mkdir config: %v", err)
+	}
+	if err := os.WriteFile(paths.StateFile, []byte(`{"schema_version":1}`), 0o600); err != nil {
+		t.Fatalf("write state: %v", err)
+	}
+
+	report := &uninstallReport{}
+	if err := finalizeWindowsUninstall(paths, report, uninstallModeStandard, nil); err != nil {
+		t.Fatalf("finalizeWindowsUninstall() error: %v", err)
+	}
+	if _, err := os.Stat(paths.InstallRoot); !isNotExist(err) {
+		t.Fatalf("expected install root removed, got err=%v", err)
+	}
+	if !strings.Contains(strings.Join(report.notes, "\n"), "Could not remove older private/test Windows package residue: legacy package path is locked") {
+		t.Fatalf("expected legacy cleanup warning, got notes=%#v", report.notes)
+	}
+}
+
 func TestRunInternalUninstallPrintsFinalSuccess(t *testing.T) {
 	stubUninstallRelayTokenDeletion(t, "test-relay-token", nil)
 

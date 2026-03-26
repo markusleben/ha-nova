@@ -10,6 +10,8 @@ import (
 
 const legacyWindowsPackageID = "markusleben.ha-nova"
 
+var removeLegacyWindowsPackageResidueForUninstall = removeLegacyWindowsPackageResidue
+
 func legacyWindowsPackageLinkPath(paths runtimePaths) string {
 	return filepath.Join(windowsLocalAppDataDir(paths.Home), "Microsoft", "WinGet", "Links", publicBinaryName())
 }

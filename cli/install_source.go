@@ -31,6 +31,9 @@ func detectInstallSource(paths runtimePaths, state installState) string {
 	if strings.TrimSpace(os.Getenv("HA_NOVA_DEV_ROOT")) != "" {
 		return installSourceDev
 	}
+	if legacyWindowsPackageSourcePresent(paths, state) {
+		return installSourceLegacyWindowsPackage
+	}
 
 	sourceRoot := resolveSourceRoot(paths)
 	if sourceRoot != "" {
@@ -43,9 +46,6 @@ func detectInstallSource(paths runtimePaths, state installState) string {
 		if filepath.Clean(sourceRoot) != filepath.Clean(paths.InstallRoot) {
 			return installSourceDev
 		}
-	}
-	if legacyWindowsPackageSourcePresent(paths, state) {
-		return installSourceLegacyWindowsPackage
 	}
 
 	if normalizeInstallSource(state.InstallSource) == installSourceBundle && bundleInstallPresentOnDisk(paths.InstallRoot) {
