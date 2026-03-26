@@ -122,12 +122,20 @@ func buildUpdateCheckResult(paths runtimePaths) updateCheckResult {
 
 	result.Status = "update_available"
 	result.UpdateAvailable = true
+	updateGuidance := updateGuidanceForInstallSource(result.InstallSource)
 	if isStableTargetFromRC(current, release.Version) {
-		result.Message = fmt.Sprintf("Return to stable: v%s -> v%s | Run: ha-nova update", current, release.Version)
+		result.Message = fmt.Sprintf("Return to stable: v%s -> v%s | %s", current, release.Version, updateGuidance)
 		return result
 	}
-	result.Message = fmt.Sprintf("Update available: v%s -> v%s | Run: ha-nova update", current, release.Version)
+	result.Message = fmt.Sprintf("Update available: v%s -> v%s | %s", current, release.Version, updateGuidance)
 	return result
+}
+
+func updateGuidanceForInstallSource(source string) string {
+	if normalizeInstallSource(source) == installSourceLegacyWindowsPackage {
+		return "Remove the old HA NOVA app in Installed Apps / App Installer, then reinstall with: irm https://raw.githubusercontent.com/markusleben/ha-nova/main/install.ps1 | iex"
+	}
+	return "Run: ha-nova update"
 }
 
 func updateCheckExitCode(result updateCheckResult) int {

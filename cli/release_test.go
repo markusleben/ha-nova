@@ -58,6 +58,59 @@ func TestCheckForUpdateReturnsStructuredUpdateAvailableNotice(t *testing.T) {
 	}
 }
 
+func TestBuildUpdateCheckResultGuidesLegacyWindowsPackageReinstall(t *testing.T) {
+	originalPlatform := channelChecksUseWindowsPlatform
+	originalExecutable := executablePathForInstallSource
+	defer func() {
+		channelChecksUseWindowsPlatform = originalPlatform
+		executablePathForInstallSource = originalExecutable
+	}()
+
+	channelChecksUseWindowsPlatform = func() bool { return true }
+	executablePathForInstallSource = func() (string, error) {
+		return filepath.Join(t.TempDir(), publicBinaryName()), nil
+	}
+
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(paths.VersionFile), 0o755); err != nil {
+		t.Fatalf("mkdir version dir: %v", err)
+	}
+	if err := os.WriteFile(paths.VersionFile, []byte(`{"skill_version":"0.1.0","min_relay_version":"0.1.0"}`), 0o644); err != nil {
+		t.Fatalf("write version file: %v", err)
+	}
+	if err := writeJSONFile(paths.UpdateCacheFile, releaseInfo{Version: "0.2.0", HTMLURL: "https://example.invalid/releases/v0.2.0"}, 0o644); err != nil {
+		t.Fatalf("write cache: %v", err)
+	}
+	if err := saveState(paths, installState{InstallSource: "winget"}); err != nil {
+		t.Fatalf("saveState() error: %v", err)
+	}
+
+	result := buildUpdateCheckResult(paths)
+	if result.Status != "update_available" {
+		t.Fatalf("result.Status = %q, want update_available", result.Status)
+	}
+	if result.InstallSource != installSourceLegacyWindowsPackage {
+		t.Fatalf("result.InstallSource = %q, want %q", result.InstallSource, installSourceLegacyWindowsPackage)
+	}
+	if strings.Contains(result.Message, "Run: ha-nova update") {
+		t.Fatalf("unexpected in-place update guidance for legacy Windows package: %q", result.Message)
+	}
+	for _, want := range []string{
+		"Installed Apps / App Installer",
+		"install.ps1 | iex",
+	} {
+		if !strings.Contains(result.Message, want) {
+			t.Fatalf("expected legacy reinstall guidance %q in %q", want, result.Message)
+		}
+	}
+}
+
 func TestBuildUpdateCheckResultUsesFreshCache(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
