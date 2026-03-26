@@ -24,11 +24,13 @@ func legacyWindowsPackageResiduePaths(paths runtimePaths) []string {
 	if err != nil {
 		return normalizePathList(residue)
 	}
+	legacyID := strings.ToLower(legacyWindowsPackageID)
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
 		}
-		if !strings.HasPrefix(strings.ToLower(entry.Name()), legacyWindowsPackageID) {
+		entryName := strings.ToLower(entry.Name())
+		if entryName != legacyID && !strings.HasPrefix(entryName, legacyID+"_") {
 			continue
 		}
 		residue = append(residue, filepath.Join(legacyWindowsPackagesRoot(paths), entry.Name()))
