@@ -40,6 +40,8 @@ describe("release contract", () => {
     expect(goreleaser).toContain("validated install and client flows for this release");
     expect(goreleaser).toContain("ha-nova update");
     expect(goreleaser).toContain("ha-nova check-update");
+    expect(goreleaser).toContain("Claude shipped installs use the local staged HA NOVA release payload on disk.");
+    expect(goreleaser).toContain("run `ha-nova update` and then restart Claude");
     expect(goreleaser).toContain("A `winget` manifest is attached as a release handoff artifact");
     expect(goreleaser).toContain("the public Windows package is not live until that manifest is published and proven on a fresh Windows VM.");
     expect(goreleaser).toContain("Default `ha-nova uninstall` is standard remove.");
@@ -239,6 +241,8 @@ describe("release contract", () => {
     expect(rcWorkflow).toContain("install.sh | HA_NOVA_VERSION=");
     expect(rcWorkflow).toContain("install.ps1");
     expect(rcWorkflow).toContain("Public Windows path stays install.ps1 until the winget package is published and proven on a fresh Windows VM.");
+    expect(rcWorkflow).toContain("Claude shipped installs use the local staged HA NOVA release payload on disk.");
+    expect(rcWorkflow).toContain("run ha-nova update and then restart Claude");
     expect(rcWorkflow).toContain("Default ha-nova uninstall is standard remove; use ha-nova uninstall --purge for a full local wipe.");
     expect(rcWorkflow).toContain("Windows now uses %APPDATA%\\\\ha-nova and %LOCALAPPDATA%\\\\ha-nova\\\\cache as the canonical config and cache paths.");
     expect(rcWorkflow).toContain("Keep exactly one Windows install channel per machine.");
@@ -287,6 +291,7 @@ describe("release contract", () => {
     expect(releasing).toContain("winget-pkgs-copy-path.txt");
     expect(releasing).toContain("winget-pkgs-gh-commands.md");
     expect(releasing).toContain("only Claude currently has the extra automatic SessionStart update banner");
+    expect(releasing).toContain("Claude shipped installs use the local staged release payload on disk; HA NOVA surfaces update notices and users refresh with `ha-nova update` plus a Claude restart");
     expect(releasing).toContain("Keep `.goreleaser.yml` and RC notes in `release-candidate.yml` aligned");
     expect(releasing).toContain("RC is the pre-publish gate");
     expect(releasing).toContain("`release.yml` smoke runs after publish");

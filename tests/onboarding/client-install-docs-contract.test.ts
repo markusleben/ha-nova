@@ -33,11 +33,14 @@ describe("client install docs contract", () => {
     expect(claudeInstall).toContain("install-local-skills.sh claude");
     expect(claudeInstall).toContain("HA_NOVA_CLAUDE_MARKETPLACE_LOCAL=1");
     expect(claudeInstall).toContain("Default behavior for real installs:");
-    expect(claudeInstall).toContain("GitHub repo");
+    expect(claudeInstall).toContain("installed HA NOVA release payload on disk");
+    expect(claudeInstall).toContain("HA NOVA itself tells you when a newer release exists");
+    expect(claudeInstall).toContain("run `ha-nova update` and then restart Claude");
     expect(claudeInstall).toContain("Local validation / private-RC behavior:");
-    expect(claudeInstall).toContain("https://github.com/markusleben/ha-nova");
-    expect(claudeInstall).toContain("claude plugin update ha-nova@ha-nova");
-    expect(claudeInstall).toContain("claude plugin install ha-nova@ha-nova");
+    expect(claudeInstall).toContain("ha-nova setup claude");
+    expect(claudeInstall).toContain("ha-nova doctor");
+    expect(claudeInstall).not.toContain("Claude plugin updates then follow the repo");
+    expect(claudeInstall).not.toContain("claude plugin marketplace add https://github.com/markusleben/ha-nova");
     expect(claudeInstall).toContain("Claude Desktop in the **Code** tab uses this same Claude integration path.");
     expect(claudeInstall).toContain("Local repo checkout (macOS / Linux only)");
     expect(claudeInstall).toContain("ha-nova uninstall --purge");
