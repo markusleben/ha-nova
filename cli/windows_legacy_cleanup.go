@@ -20,11 +20,11 @@ func legacyWindowsPackagesRoot(paths runtimePaths) string {
 	return filepath.Join(windowsLocalAppDataDir(paths.Home), "Microsoft", "WinGet", "Packages")
 }
 
-func legacyWindowsPackageResiduePaths(paths runtimePaths) []string {
-	residue := []string{legacyWindowsPackageLinkPath(paths)}
+func legacyWindowsPackageDirectories(paths runtimePaths) []string {
+	directories := []string{}
 	entries, err := os.ReadDir(legacyWindowsPackagesRoot(paths))
 	if err != nil {
-		return normalizePathList(residue)
+		return directories
 	}
 	legacyID := strings.ToLower(legacyWindowsPackageID)
 	for _, entry := range entries {
@@ -35,8 +35,14 @@ func legacyWindowsPackageResiduePaths(paths runtimePaths) []string {
 		if entryName != legacyID && !strings.HasPrefix(entryName, legacyID+"_") {
 			continue
 		}
-		residue = append(residue, filepath.Join(legacyWindowsPackagesRoot(paths), entry.Name()))
+		directories = append(directories, filepath.Join(legacyWindowsPackagesRoot(paths), entry.Name()))
 	}
+	sort.Strings(directories)
+	return normalizePathList(directories)
+}
+
+func legacyWindowsPackageResiduePaths(paths runtimePaths) []string {
+	residue := append([]string{legacyWindowsPackageLinkPath(paths)}, legacyWindowsPackageDirectories(paths)...)
 	sort.Strings(residue)
 	return normalizePathList(residue)
 }

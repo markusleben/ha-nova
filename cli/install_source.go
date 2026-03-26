@@ -107,8 +107,11 @@ func legacyWindowsPackageSourcePresent(paths runtimePaths) bool {
 	if exePath, err := executablePathForInstallSource(); err == nil && isLegacyWindowsPackageManagedPath(exePath) {
 		return true
 	}
-	for _, residue := range legacyWindowsPackageResiduePaths(paths) {
-		if fileExists(residue) {
+	if fileExists(legacyWindowsPackageLinkPath(paths)) {
+		return true
+	}
+	for _, packageDir := range legacyWindowsPackageDirectories(paths) {
+		if fileExists(filepath.Join(packageDir, publicBinaryName())) {
 			return true
 		}
 	}

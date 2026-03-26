@@ -126,6 +126,46 @@ func TestDetectInstallSourceIgnoresLegacyWindowsStateOutsideWindows(t *testing.T
 	}
 }
 
+func TestDetectInstallSourceIgnoresEmptyLegacyWindowsPackageDirectories(t *testing.T) {
+	originalPlatform := channelChecksUseWindowsPlatform
+	originalExecutable := executablePathForInstallSource
+	defer func() {
+		channelChecksUseWindowsPlatform = originalPlatform
+		executablePathForInstallSource = originalExecutable
+	}()
+
+	channelChecksUseWindowsPlatform = func() bool { return true }
+
+	home := t.TempDir()
+	installRoot := filepath.Join(home, "AppData", "Local", "Programs", "ha-nova")
+	if err := os.MkdirAll(installRoot, 0o755); err != nil {
+		t.Fatalf("mkdir install root: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(installRoot, publicBinaryName()), []byte("bundle"), 0o755); err != nil {
+		t.Fatalf("write bundle binary: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(installRoot, "bundle.json"), []byte(`{"bundle_format_version":1}`), 0o644); err != nil {
+		t.Fatalf("write bundle metadata: %v", err)
+	}
+	emptyLegacyDir := filepath.Join(home, "AppData", "Local", "Microsoft", "WinGet", "Packages", "markusleben.ha-nova_0.3.1_x64__test")
+	if err := os.MkdirAll(emptyLegacyDir, 0o755); err != nil {
+		t.Fatalf("mkdir empty legacy dir: %v", err)
+	}
+
+	executablePathForInstallSource = func() (string, error) {
+		return filepath.Join(installRoot, publicBinaryName()), nil
+	}
+
+	paths := runtimePaths{
+		Home:        home,
+		InstallRoot: installRoot,
+	}
+
+	if got := detectInstallSource(paths, installState{}); got != installSourceBundle {
+		t.Fatalf("detectInstallSource() = %q, want %q", got, installSourceBundle)
+	}
+}
+
 func TestRunUpdateGuidesLegacyWindowsPackageReinstall(t *testing.T) {
 	originalPlatform := channelChecksUseWindowsPlatform
 	originalExecutable := executablePathForInstallSource
