@@ -12,6 +12,10 @@ Use these files as the current sources of truth:
   - contributor workflow and contribution rules
 - `PROJECT.md`
   - short internal product context only
+- `SUPPORT.md`
+  - thin active support and conduct-routing page
+- `CODE_OF_CONDUCT.md`
+  - active conduct policy and private reporting contract
 - `docs/releasing.md`
   - release and validation runbook
 - `docs/reference/bridge-architecture.md`
@@ -24,6 +28,8 @@ Use these files as the current sources of truth:
   - client-specific install overlays; derived active docs that must stay aligned with `README.md`
 - `nova/DOCS.md`
   - Home Assistant App / relay operator truth
+- `nova/README.md`
+  - active pointer doc that routes readers to `README.md` or `nova/DOCS.md`
 - `skills/**/SKILL.md`
   - active skill/runtime behavior
 
@@ -71,6 +77,8 @@ Rules:
 
 Active paths:
 - root docs listed above
+- `SUPPORT.md`
+- `CODE_OF_CONDUCT.md`
 - `docs/reference/`
 - `docs/releasing.md`
 - `docs/work/`
@@ -79,6 +87,7 @@ Active paths:
 - `.gemini/INSTALL.md`
 - `.opencode/INSTALL.md`
 - `nova/DOCS.md`
+- `nova/README.md`
 - `skills/**/SKILL.md`
 
 Archive paths:

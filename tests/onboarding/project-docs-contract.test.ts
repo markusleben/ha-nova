@@ -38,7 +38,8 @@ describe("project docs contract", () => {
     expect(support).toContain("Run `ha-nova doctor` first.");
     expect(support).toContain("Then use the right channel:");
     expect(support).toContain("follow `SECURITY.md`");
-    expect(support).toContain("contact the maintainer privately via GitHub profile");
+    expect(support).toContain("contact the maintainer privately via GitHub:");
+    expect(support).toContain("`https://github.com/markusleben`");
     expect(support).toContain("Do not post conduct reports in public issues or pull requests.");
     expect(support).not.toContain("## Before Opening an Issue");
   });
@@ -46,6 +47,7 @@ describe("project docs contract", () => {
   it("keeps conduct reporting on a real private path", () => {
     expect(codeOfConduct).toContain("Report conduct incidents privately to the maintainer");
     expect(codeOfConduct).toContain("GitHub profile/contact path");
+    expect(codeOfConduct).toContain("`https://github.com/markusleben`");
     expect(codeOfConduct).toContain("Do not report conduct incidents in public issues or pull requests.");
     expect(codeOfConduct).not.toContain("private GitHub issue");
     expect(support).not.toContain("private GitHub issue");
@@ -78,6 +80,9 @@ describe("project docs contract", () => {
     expect(governance).toContain("keep active work docs under `docs/work/`");
     expect(governance).toContain("`docs/work/`");
     expect(governance).toContain("`.claude/INSTALL.md`, `.codex/INSTALL.md`, `.gemini/INSTALL.md`, `.opencode/INSTALL.md`");
+    expect(governance).toContain("`SUPPORT.md`");
+    expect(governance).toContain("`CODE_OF_CONDUCT.md`");
+    expect(governance).toContain("`nova/README.md`");
     expect(breadcrumbs).toContain("Historical breadcrumb log:");
     expect(breadcrumbs).toContain("`docs/archive/breadcrumbs.md`");
     expect(breadcrumbs).not.toContain("docs/superpowers/");
