@@ -47,7 +47,7 @@ func detectInstallSource(paths runtimePaths, state installState) string {
 			return installSourceDev
 		}
 	}
-	if normalizeInstallSource(state.InstallSource) == installSourceLegacyWindowsPackage && !bundleInstallPresentOnDisk(paths.InstallRoot) {
+	if channelChecksUseWindowsPlatform() && normalizeInstallSource(state.InstallSource) == installSourceLegacyWindowsPackage && !bundleInstallPresentOnDisk(paths.InstallRoot) {
 		return installSourceLegacyWindowsPackage
 	}
 

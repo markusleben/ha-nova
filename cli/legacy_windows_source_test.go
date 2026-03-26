@@ -103,6 +103,29 @@ func TestDetectInstallSourceDoesNotPinStaleLegacyStateAfterBundleReinstall(t *te
 	}
 }
 
+func TestDetectInstallSourceIgnoresLegacyWindowsStateOutsideWindows(t *testing.T) {
+	originalPlatform := channelChecksUseWindowsPlatform
+	originalExecutable := executablePathForInstallSource
+	defer func() {
+		channelChecksUseWindowsPlatform = originalPlatform
+		executablePathForInstallSource = originalExecutable
+	}()
+
+	channelChecksUseWindowsPlatform = func() bool { return false }
+	executablePathForInstallSource = func() (string, error) {
+		return filepath.Join(t.TempDir(), publicBinaryName()), nil
+	}
+
+	paths := runtimePaths{
+		Home:        t.TempDir(),
+		InstallRoot: filepath.Join(t.TempDir(), "ha-nova"),
+	}
+
+	if got := detectInstallSource(paths, installState{InstallSource: "winget"}); got != installSourceBundle {
+		t.Fatalf("detectInstallSource() = %q, want %q", got, installSourceBundle)
+	}
+}
+
 func TestRunUpdateGuidesLegacyWindowsPackageReinstall(t *testing.T) {
 	originalPlatform := channelChecksUseWindowsPlatform
 	originalExecutable := executablePathForInstallSource
