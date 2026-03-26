@@ -5,7 +5,7 @@
 <!-- Copyright (c) Sergey Kadentsev (@sergeykad), Julien Lapointe (@julienld) -->
 
 Compact reference for native HA constructs that LLMs commonly replace with templates.
-For template decision trees see `template-guidelines.md`. For review checks see `checks.md`.
+For template decision trees see `template-guidelines.md`. For review checks see `skills/review/checks.md`.
 
 ## Action Flow Control
 

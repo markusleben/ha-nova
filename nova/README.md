@@ -1,23 +1,9 @@
 # NOVA Relay
 
-AI-powered Home Assistant control through LLM coding agents.
+Thin relay for the HA NOVA product.
 
-![Supports aarch64 Architecture][aarch64-shield]
-![Supports amd64 Architecture][amd64-shield]
+Use:
+- `README.md` for the public product/install/support view
+- `nova/DOCS.md` for Home Assistant App / relay setup, endpoints, health, logs, and troubleshooting
 
-## About
-
-Thin relay that connects AI coding clients (Claude Code, Codex, Gemini CLI, OpenCode)
-to Home Assistant. All intelligence lives in Markdown skills — the relay provides
-secure, authenticated API access.
-
-- Persistent WebSocket connection
-- OS-backed credential storage on supported platforms
-- Lean relay surface; product logic lives in Markdown skills
-
-[![Full documentation →][docs-shield]][docs]
-
-[aarch64-shield]: https://img.shields.io/badge/aarch64-yes-green.svg
-[amd64-shield]: https://img.shields.io/badge/amd64-yes-green.svg
-[docs-shield]: https://img.shields.io/badge/docs-GitHub-blue.svg
-[docs]: https://github.com/markusleben/ha-nova
+This file is intentionally only a pointer so relay/operator truth lives in one place.

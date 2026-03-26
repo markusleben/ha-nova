@@ -17,7 +17,7 @@
 **Files:**
 - Modify: `cli/clients_test.go`
 - Modify: `tests/onboarding/install-skills-per-client.test.ts`
-- Reference: `docs/superpowers/specs/2026-03-16-claude-current-cache-layout-design.md`
+- Reference: `docs/archive/superpowers/specs/2026-03-16-claude-current-cache-layout-design.md`
 
 - [ ] Add a Go test for current direct-root Claude cache layout
 - [ ] Add a shell-contract test for current direct-root Claude cache layout

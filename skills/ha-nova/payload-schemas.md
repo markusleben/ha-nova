@@ -8,6 +8,11 @@ These are JSON payloads for `POST /api/config/{domain}/config/{id}` via the `/co
 Required fields: `alias`, `triggers`, `conditions`, `actions`, `mode`.
 Use plural forms only (`triggers`, `conditions`, `actions`).
 
+**`max` field:** Optional top-level integer used with `queued` and `parallel` modes.
+- `queued`: caps the maximum queue depth (how many pending runs can wait).
+- `parallel`: caps the maximum concurrency (how many runs execute simultaneously).
+Omit `max` for `single` and `restart` modes (they have no queue/concurrency concept).
+
 ### 1. Simple: State Trigger + Single Action
 
 ```json

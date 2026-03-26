@@ -133,6 +133,12 @@ This is more reliable than keyword search or assuming `.ai` is populated for roo
 
 If ambiguity remains: present top candidates (max 10), ask one selection question.
 
+## Safety
+
+- Read-only — this skill never modifies Home Assistant state or config.
+- No `POST`, `PUT`, `PATCH`, or `DELETE` relay writes.
+- All communication with Home Assistant goes through `ha-nova relay` exclusively.
+
 ## Guardrails
 
 - never guess entity IDs

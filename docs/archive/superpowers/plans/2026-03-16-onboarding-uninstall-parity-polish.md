@@ -17,7 +17,7 @@
 **Files:**
 - Modify: `cli/setup_interactive_test.go`
 - Modify: `cli/uninstall_test.go`
-- Reference: `docs/superpowers/specs/2026-03-16-onboarding-uninstall-parity-polish-design.md`
+- Reference: `docs/archive/superpowers/specs/2026-03-16-onboarding-uninstall-parity-polish-design.md`
 
 - [ ] **Step 1: Add a failing setup test**
   - require Step 2 output to mention:

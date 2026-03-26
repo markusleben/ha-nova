@@ -4,36 +4,15 @@
 
 ha-nova is a Home Assistant AI integration. It replaces an 88,000-line MCP server with a lean API Relay plus LLM Skills.
 
-- **Relay:** Runs as a Home Assistant App. Around 1,500 lines of code, pure transport layer (health, WS proxy, core relay).
-- **Skills:** Markdown files that teach LLMs how to control Home Assistant. Best practices, workflows, API knowledge. No code.
-- **Direct path:** About 60% of operations go straight to the HA REST API without relay hops.
+- **Relay:** Runs as a Home Assistant App, ~1,500 LOC, pure transport layer (WS proxy, REST forwarding, token storage)
+- **Skills:** Markdown files that instruct LLMs on Home Assistant control (best practices, workflows, API knowledge)
+- **Direct path:** Many operations go directly to the HA REST API without relay hops
 
-## Client Installation Paths
-
-Primary onboarding target is non-technical end users.
-Official entrypoints are the OS bootstrapper and `ha-nova setup`.
-Client-specific install docs are convenience wrappers around that flow.
-
-Current release support matrix:
-- macOS: Claude, Codex, OpenCode, Gemini
-- Linux: installer and runtime path built and CI-smoked. full release validation still depends on a real Secret Service-backed Linux run.
-- Windows: platform installer and runtime support is live. Claude and Gemini are smoke-validated. Codex and OpenCode lanes remain experimental.
-- Windows bundle ships `amd64` only. ARM64 uses x64 emulation.
-- Public Windows entrypoint is `install.ps1` until the generated `winget` manifest is published and proven.
-
-Client setup commands:
-- **Codex CLI:** `ha-nova setup codex` installs skills into `~/.agents/skills/ha-nova`
-- **Claude Code / Desktop:** `ha-nova setup claude` installs or repairs the Claude plugin integration. Claude Desktop uses the same Claude integration path via the Code tab and the locally staged release payload.
-- **OpenCode:** `ha-nova setup opencode` installs or repairs the OpenCode skill integration
-- **Gemini CLI:** `ha-nova setup gemini` installs or repairs the Gemini skill integration
-
-Each client also supports a one-link guided flow via raw instructions from the repo.
-
-## Documentation
-
-- `docs/reference/ha-api-matrix.md` — which HA operations need REST vs WS vs filesystem
-- `docs/reference/bridge-architecture.md` — relay endpoint spec
-- `docs/reference/skill-architecture.md` — skill hierarchy and bootstrap design
+This file is internal product context only.
+Public install, support, and platform truth lives in `README.md`.
+Contributor workflow lives in `CONTRIBUTING.md`.
+Release/runbook truth lives in `docs/releasing.md`.
+Active doc ownership lives in `docs/reference/documentation-governance.md`.
 
 ## Current Phase
 

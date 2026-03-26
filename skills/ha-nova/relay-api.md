@@ -339,24 +339,47 @@ Get detailed trace:
 
 Trace response includes: `trace.trigger`, `trace.condition`, `trace.action` nodes with `result`, `timestamp`, and `changed_variables`.
 
-## Error Codes (Common)
+## Error Handling
 
-- `400 / VALIDATION_ERROR`: invalid request shape or missing fields
-- `401 / UNAUTHORIZED`: relay auth token invalid
-- `403 / FORBIDDEN`: request rejected by relay policy
-- `404 / NOT_FOUND`: target id/path missing
-- `409 / CONFLICT`: target state changed during write
-- `422 / UNPROCESSABLE_ENTITY`: HA rejected payload semantics
-- `502 / UPSTREAM_WS_ERROR`: relay could not reach HA websocket/upstream
-- `504 / TIMEOUT`: relay upstream request timed out
+Relay errors and upstream HA errors arrive differently. Agents must distinguish them.
+
+### Relay Errors (HTTP-level)
+
+These are top-level HTTP errors produced by the relay itself. The response has `ok: false` and an HTTP status >= 400.
+
+- `400 / INVALID_JSON`: request body is not valid JSON
+- `400 / VALIDATION_ERROR`: missing required fields (e.g. ws `type`, core `method`/`path`)
+- `400 / CORE_PATH_INVALID`: core API path failed validation
+- `401 / UNAUTHORIZED`: relay auth token missing or invalid
+- `404 / NOT_FOUND`: unknown relay route
+- `500 / INTERNAL_ERROR`: unexpected relay server error
+- `502 / UPSTREAM_WS_ERROR`: relay could not reach HA websocket
+- `502 / UPSTREAM_WS_TIMEOUT`: WS request to HA timed out
+- `502 / UPSTREAM_HTTP_ERROR`: core HTTP request to HA failed
+- `502 / UPSTREAM_HTTP_TIMEOUT`: core HTTP request to HA timed out
+
+Check: HTTP status >= 400, or envelope `.ok == false`.
+
+### Upstream HA Errors (inside success envelope)
+
+When the relay successfully proxies to HA but HA itself returns an error, the response is `{ok: true, data: {status: <HA status>, body: ...}}`. Common upstream status codes:
+
+- `409`: target state changed during write (conflict)
+- `422`: HA rejected payload semantics (unprocessable entity)
+- `404`: HA resource not found at the requested API path
+- `405`: HA does not support the HTTP method for that path
+
+Check: envelope `.ok == true`, then inspect `.data.status` for non-2xx values.
 
 ## Timeout and Retry Guidance
 
-For mutating and verify-critical calls use:
-- `--connect-timeout 5`
-- `--max-time 15`
+The CLI has hardcoded timeouts (not user-configurable):
+- **Connect timeout:** 5 seconds
+- **HTTP request timeout:** 15 seconds
 
-On `504 / TIMEOUT`:
+The relay server has its own internal upstream timeout of 10 seconds per WS/HTTP request to HA.
+
+On `502 / UPSTREAM_*_TIMEOUT` or CLI-level timeout:
 - verify state/config first before retrying
 - retry exactly once only when verification shows no state change
 - if config read-back succeeded but reload timed out, treat it as partial verification and confirm registry/state before retrying

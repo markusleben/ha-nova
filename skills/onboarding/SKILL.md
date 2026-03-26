@@ -36,6 +36,21 @@ If missing: `ha-nova setup`
 - doctor detail:
   - `ha-nova doctor`
 
+## Output Format
+
+Return a short diagnostic report:
+1. **Status** — one-line result (e.g., "Relay reachable", "Auth token mismatch")
+2. **Details** — error code or relevant diagnostic output (only on failure)
+3. **Next step** — one concrete remediation command (only on failure)
+
+On success, keep the response to the status line only. Do not dump raw relay output.
+
+## Safety
+
+- Diagnostics only — this skill never modifies Home Assistant state, config, or relay settings.
+- Never ask the user to paste tokens or secrets in chat.
+- All communication with Home Assistant goes through `ha-nova relay` exclusively.
+
 ## Guardrails
 
 - no proactive doctor/ready in normal success path

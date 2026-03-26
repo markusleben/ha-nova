@@ -6,7 +6,7 @@
 npm run bump -- <version>
 ```
 
-For the current train:
+Example:
 
 ```bash
 npm run bump -- 0.3.1
@@ -140,6 +140,114 @@ GitHub automation:
 - `ci.yml` = normal PR / main quality gate
 - `release-candidate.yml` = manual RC build + bundle smoke, with optional prerelease bundle publish
 - `release.yml` = final tagged publish
+
+## Release Channels (KISS)
+
+Use exactly two release shapes:
+
+- `stable` = final public release tag `vX.Y.Z`
+- `rc` = prerelease tag `vX.Y.Z-rcN`
+
+Rules:
+- `stable` is the only normal public channel
+- `rc` is a tester-only prerelease shape, not a persistent channel users subscribe to
+- do not add a stored preview/stable channel toggle to the product at this stage
+- normal install and normal `ha-nova check-update` / `ha-nova update` always target stable
+- explicit prerelease selection is still supported via exact version pinning only
+
+Supported RC selection:
+
+macOS / Linux:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/<rc-tag>/install.sh | HA_NOVA_VERSION=vX.Y.Z-rcN bash
+```
+
+Windows:
+
+```powershell
+$env:HA_NOVA_VERSION = 'vX.Y.Z-rcN'
+irm https://raw.githubusercontent.com/markusleben/ha-nova/<rc-tag>/install.ps1 | iex
+```
+
+Installed runtime (self-managed, non-`winget` only):
+
+```bash
+ha-nova update --version vX.Y.Z-rcN
+```
+
+Return an RC install to stable:
+
+```bash
+ha-nova update
+```
+
+Do not document exact version pins in the normal stable quick-start.
+Those commands are for maintainers, testers, and targeted fix confirmation only.
+On Windows, RC testing uses the installer commands above.
+Do not treat the normal Windows stable path as an RC path.
+
+## Winget Scope
+
+Keep `winget` out of the high-frequency release loop.
+
+Rules:
+- only `stable` releases are candidates for public `winget` rollout
+- `rc` releases never require `winget`
+- a new `winget` package is only needed when a new stable version is intentionally promoted on that Windows surface
+- until public `winget` publication plus published-source proof is complete, stable Windows docs and stable release notes must keep `install.ps1` as the single recommended user path
+- do not show RC commands or preview guidance inside stable release notes
+- do not present `install.ps1` and `winget` as equal choices in stable notes; pick one supported Windows path and state it plainly
+
+## RC / Stable Validation Matrix
+
+Keep the real-world test pass small but explicit.
+
+Minimum automated gate:
+- `bash scripts/check-docs.sh`
+- `npx vitest run tests/onboarding/release-contract.test.ts`
+- `cd cli && go test ./... -run 'TestCompareReleaseVersions|TestBuildUpdateCheckResultOffersStableUpgradeFromRC|TestBuildUpdateCheckResultRejectsInvalidLatestReleaseTag|TestCheckRelayVersionReturnsStructuredOutdatedNotice|TestCheckRelayVersionWarnsOnUnsupportedRelayVersionFormat|TestRunUpdateRejectsUnsupportedPrereleaseFormat|TestRunUpdateExactRCFromStableInstallsThatRC|TestRunUpdateReturnsSelfManagedRCToStable|TestRunUpdateExactStablePinFromRCInstallsThatStable|TestRunUpdateTreatsSameRCTargetAsUpToDate|TestRunUpdateIgnoresFreshReleaseCacheWhenResolvingTargetVersion|TestRunCheckUpdate'`
+- `npx vitest run tests/onboarding/windows-installer-contract.test.ts tests/onboarding/installer-contract.test.ts tests/onboarding/self-update-contract.test.ts tests/onboarding/go-runtime-contract.test.ts`
+
+Minimum manual gate before calling an RC ready:
+
+macOS self-managed:
+1. fresh stable install
+2. exact RC install by rerunning the installer with `HA_NOVA_VERSION=vX.Y.Z-rcN`
+3. `ha-nova check-update`
+4. plain `ha-nova update`
+5. verify latest stable restored
+6. `ha-nova doctor`
+7. `ha-nova uninstall --yes`
+
+Linux self-managed:
+1. same steps as macOS
+2. count this lane as release evidence only on a live Secret Service-capable machine
+3. if that live Linux lane is not available, keep the RC-ready claim macOS-first instead of implying full Linux proof
+
+Windows self-managed:
+1. fresh stable install via `install.ps1`
+2. exact RC install by rerunning `install.ps1` with `HA_NOVA_VERSION=vX.Y.Z-rcN`
+3. `ha-nova check-update`
+4. plain `ha-nova update`
+5. verify latest stable restored
+6. `ha-nova doctor`
+7. `ha-nova uninstall --yes`
+
+RC prerelease rehearsal:
+1. publish one RC
+2. copy the exact commands from the prerelease notes
+3. verify install works on fresh machines/profiles
+4. for the Windows lane, use a clean VM/snapshot, not just a reused profile
+5. verify `ha-nova update --version vX.Y.Z-rcN`
+6. verify plain `ha-nova update` returns to stable
+7. verify stable release notes remain RC-free
+
+Rules:
+- do not broaden this into a second preview test matrix
+- test only the shipped KISS contract
+- `winget` is not part of RC validation
+- keep the matrix small but explicit; do not replace the commands above with vague "relevant tests" wording
 
 ## Release Notes Structure
 

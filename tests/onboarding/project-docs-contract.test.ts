@@ -4,36 +4,28 @@ import { describe, expect, it } from "vitest";
 
 describe("project docs contract", () => {
   const project = readFileSync("PROJECT.md", "utf8");
-  const readme = readFileSync("README.md", "utf8");
-  const skillArchitecture = readFileSync("docs/reference/skill-architecture.md", "utf8");
+  const support = readFileSync("SUPPORT.md", "utf8");
+  const codeOfConduct = readFileSync("CODE_OF_CONDUCT.md", "utf8");
+  const novaReadme = readFileSync("nova/README.md", "utf8");
+  const novaDocs = readFileSync("nova/DOCS.md", "utf8");
+  const bridgeArchitecture = readFileSync("docs/reference/bridge-architecture.md", "utf8");
+  const governance = readFileSync("docs/reference/documentation-governance.md", "utf8");
 
-  it("describes the active Claude installation model", () => {
-    expect(project).toContain("Claude Desktop");
-    expect(project).toContain("Code tab");
-    expect(project).toContain("same Claude integration path");
-    expect(project).toContain("locally staged release payload");
-    expect(project).not.toContain("GitHub marketplace path");
-    expect(project).not.toContain("planned after Codex/Claude Code flow is stable");
-    expect(project).not.toContain("no public package yet");
-    expect(project).not.toContain("registers the local bundle as a Claude plugin");
+  it("keeps PROJECT.md scoped to internal product context instead of public install truth", () => {
+    expect(project).toContain("This file is internal product context only.");
+    expect(project).toContain("Public install, support, and platform truth lives in `README.md`.");
+    expect(project).toContain("Contributor workflow lives in `CONTRIBUTING.md`.");
+    expect(project).toContain("Release/runbook truth lives in `docs/releasing.md`.");
+    expect(project).not.toContain("Current release-facing support matrix:");
+    expect(project).not.toContain("Fetch and follow instructions from https://raw.githubusercontent.com/markusleben/ha-nova/main/.codex/INSTALL.md");
   });
 
-  it("keeps the Windows public contract at published-and-proven instead of publication-only", () => {
-    expect(project).toContain("published and proven");
-    expect(project).not.toContain("actually published as a real package");
-  });
-
-  it("keeps Linux support wording conservative until a real Secret Service machine was live-tested", () => {
-    expect(readme).toContain("Linux uses the same installer and CI smoke path, but this release is not yet fully live-validated on a real Linux machine.");
-    expect(readme).toContain("Linux support currently means shared installer/update flow plus CI smoke");
-    expect(project).toContain("full release validation still depends on a real Secret Service-backed Linux run");
-    expect(project).not.toContain("Linux: fully validated");
-  });
-
-  it("tracks the current skill inventory and reference set", () => {
+  it("tracks the active architecture surfaces and current skill inventory", () => {
     expect(project).toContain("fallback");
     expect(project).toContain("automation-patterns.md");
-    expect(project).not.toContain("guide, onboarding");
+    expect(project).toContain("documentation-governance.md");
+    expect(project).not.toContain("## Active Documentation");
+    expect(project).not.toContain("## Current Product Surfaces");
   });
 
   it("scopes the English-only policy to skills and skill-like source docs", () => {
@@ -41,15 +33,56 @@ describe("project docs contract", () => {
     expect(project).not.toContain("English-only across the whole project");
   });
 
-  it("documents the remaining shell-adjacent helpers as dev shims, not a second product lifecycle", () => {
-    expect(skillArchitecture).toContain("Active dev helpers:");
-    expect(skillArchitecture).toContain("scripts/dev-sync.sh");
-    expect(skillArchitecture).toContain("~/.config/ha-nova/version-check");
-    expect(skillArchitecture).toContain("generated");
-    expect(skillArchitecture).not.toContain("scripts/update.sh");
-    expect(skillArchitecture).not.toContain("scripts/version-check.sh");
-    expect(skillArchitecture).toContain("no end-user installer contract");
-    expect(skillArchitecture).not.toContain("macos-onboarding.sh");
-    expect(skillArchitecture).not.toContain("macos-setup.sh");
+  it("keeps SUPPORT.md as a thin routing page", () => {
+    expect(support).toContain("Run `ha-nova doctor` first.");
+    expect(support).toContain("Then use the right channel:");
+    expect(support).toContain("follow `SECURITY.md`");
+    expect(support).toContain("contact the maintainer privately via GitHub:");
+    expect(support).toContain("`https://github.com/markusleben`");
+    expect(support).toContain("Do not post conduct reports in public issues or pull requests.");
+    expect(support).not.toContain("## Before Opening an Issue");
+  });
+
+  it("keeps conduct reporting on a real private path", () => {
+    expect(codeOfConduct).toContain("Report conduct incidents privately to the maintainer");
+    expect(codeOfConduct).toContain("GitHub profile/contact path");
+    expect(codeOfConduct).toContain("`https://github.com/markusleben`");
+    expect(codeOfConduct).toContain("Do not report conduct incidents in public issues or pull requests.");
+    expect(codeOfConduct).not.toContain("private GitHub issue");
+    expect(support).not.toContain("private GitHub issue");
+  });
+
+  it("keeps nova/README.md as a pointer instead of a second relay truth surface", () => {
+    expect(novaReadme).toContain("Use:");
+    expect(novaReadme).toContain("`README.md` for the public product/install/support view");
+    expect(novaReadme).toContain("`nova/DOCS.md` for Home Assistant App / relay setup");
+    expect(novaReadme).toContain("intentionally only a pointer");
+    expect(novaReadme).not.toContain("Persistent WebSocket connection");
+  });
+
+  it("keeps nova/DOCS.md aligned with the relay architecture reference", () => {
+    expect(bridgeArchitecture).toContain("Requires the relay bearer token like the other implemented endpoints.");
+    expect(bridgeArchitecture).toContain("Wrapped in the standard envelope");
+    expect(novaDocs).toContain("including `GET /health`");
+    expect(novaDocs).toContain("Authorization: Bearer <token>");
+    expect(novaDocs).toContain('"ok": true');
+    expect(novaDocs).toContain('"data": {');
+  });
+
+  it("treats superpowers docs as archive-only history", () => {
+    expect(governance).toContain("`docs/archive/superpowers/` contains historical superpowers plans/specs only");
+    expect(governance).toContain("do not create new active docs under `docs/archive/superpowers/`");
+    expect(governance).not.toContain("do not create new active docs under `docs/superpowers/`");
+  });
+
+  it("defines a canonical active work-doc path and keeps breadcrumbs short/current", () => {
+    expect(governance).toContain("keep active work docs under `docs/work/`");
+    expect(governance).toContain("`docs/work/`");
+    expect(governance).toContain("`.claude/INSTALL.md`, `.codex/INSTALL.md`, `.gemini/INSTALL.md`, `.opencode/INSTALL.md`");
+    expect(governance).toContain("`SUPPORT.md`");
+    expect(governance).toContain("`CODE_OF_CONDUCT.md`");
+    expect(governance).toContain("`nova/README.md`");
+    expect(governance).toContain("`docs/archive/breadcrumbs.md` is the long historical breadcrumb ledger");
+    expect(governance).toContain("keep the root `docs/breadcrumbs.md` short and current only");
   });
 });

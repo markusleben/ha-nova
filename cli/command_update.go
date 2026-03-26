@@ -21,7 +21,11 @@ func runUpdate(paths runtimePaths, args []string) int {
 		return 1
 	}
 
-	targetVersion := strings.TrimPrefix(strings.TrimSpace(*versionFlag), "v")
+	targetVersion, err := normalizeExplicitVersion(*versionFlag)
+	if err != nil {
+		printHumanErr("%s", err)
+		return 1
+	}
 	state := loadStateOrDefault(paths)
 	channels := inspectInstallChannels(paths, state)
 	if channels.Conflict {
@@ -84,8 +88,12 @@ func runUpdate(paths runtimePaths, args []string) int {
 	}
 	currentVersion := localVersion(paths)
 	if currentVersion != "dev" {
-		cmp := compareSemver(currentVersion, targetVersion)
-		if cmp >= 0 {
+		cmp, err := compareReleaseVersions(currentVersion, targetVersion)
+		if err != nil {
+			printHumanErr("cannot compare version v%s with target v%s: %s", currentVersion, targetVersion, err)
+			return 1
+		}
+		if cmp >= 0 && !isStableTargetFromRC(currentVersion, targetVersion) {
 			return syncInstalledClientsForCurrentVersion(paths, currentVersion, targetVersion, cmp)
 		}
 	}
@@ -233,11 +241,11 @@ func syncInstalledClientsForCurrentVersion(paths runtimePaths, currentVersion, t
 }
 
 func postUpdateSync(paths runtimePaths) error {
-	state := loadStateOrDefault(paths)
 	detectedClients, err := detectInstalledClients(paths)
 	if err != nil {
 		return err
 	}
+	state := loadStateOrDefault(paths)
 	configured := normalizeClients(append(append([]string{}, state.InstalledClients...), detectedClients...))
 	failed := []string{}
 	for _, client := range configured {

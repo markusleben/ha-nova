@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 describe("client install docs contract", () => {
   const readme = readFileSync("README.md", "utf8");
+  const governance = readFileSync("docs/reference/documentation-governance.md", "utf8");
   const claudeInstall = readFileSync(".claude/INSTALL.md", "utf8");
   const codexInstall = readFileSync(".codex/INSTALL.md", "utf8");
   const geminiInstall = readFileSync(".gemini/INSTALL.md", "utf8");
@@ -21,7 +22,7 @@ describe("client install docs contract", () => {
 
   it("documents Claude Windows prerequisites and migration only in the Claude install doc", () => {
     expect(claudeInstall).toContain("Windows");
-    expect(claudeInstall).toContain("smoke-validated");
+    expect(claudeInstall).toContain("validated on Windows for this release");
     expect(claudeInstall).toContain("Current public Windows install path: `install.ps1`.");
     expect(claudeInstall).toContain("A `winget` manifest is generated for each release");
     expect(claudeInstall).toContain("published and proven on a fresh Windows VM");
@@ -65,11 +66,11 @@ describe("client install docs contract", () => {
     expect(codexInstall).toContain("experimental until explicit Windows smoke completes");
     expect(geminiInstall).toContain("smoke-validated for this release");
     expect(opencodeInstall).toContain("experimental until explicit Windows smoke completes");
-    expect(opencodeInstall).toContain("Install the OpenCode client separately");
+    expect(opencodeInstall).toContain("install the OpenCode client separately first");
     expect(codexInstall).toContain("install the Codex client separately");
     expect(geminiInstall).toContain("install the Gemini client separately");
     expect(codexInstall).toContain("No automatic startup update banner yet on Codex.");
-    expect(geminiInstall).toContain("No automatic startup update banner yet on Gemini.");
+    expect(geminiInstall).toContain("No automatic startup update banner on Gemini yet.");
     expect(opencodeInstall).toContain("No automatic startup update banner yet on OpenCode.");
     expect(codexInstall).toContain("ha-nova check-update");
     expect(geminiInstall).toContain("ha-nova check-update");
@@ -81,5 +82,10 @@ describe("client install docs contract", () => {
     expect(geminiInstall).not.toContain("A `winget` package is planned");
     expect(opencodeInstall).not.toContain("A `winget` package is planned");
     expect(opencodeInstall).not.toContain("App installation, authentication, and skill setup");
+  });
+
+  it("classifies per-client install docs as active derived install overlays", () => {
+    expect(governance).toContain("`.claude/INSTALL.md`, `.codex/INSTALL.md`, `.gemini/INSTALL.md`, `.opencode/INSTALL.md`");
+    expect(governance).toContain("client-specific install overlays; derived active docs");
   });
 });

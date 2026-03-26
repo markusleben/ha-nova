@@ -20,18 +20,18 @@ A `winget` manifest is generated for each release, but the public package is not
 
 Windows currently ships an `amd64` bundle. On Windows ARM64, use x64 emulation.
 
-On Windows, install the Gemini client separately first. HA NOVA only installs the skills/config side; it does not prove the Gemini runtime for you. Client availability can differ from macOS/Linux, so follow the Gemini project's own Windows instructions first, then run the HA NOVA installer above and choose `Gemini CLI`.
-Current HA NOVA Windows support for Gemini is smoke-validated for this release.
+On Windows, install the Gemini client separately first. HA NOVA handles skills and config, not the Gemini runtime itself. Follow Gemini's own Windows instructions, then run the HA NOVA installer. The installer launches a setup wizard — choose `Gemini CLI` when prompted.
+Windows support for Gemini is smoke-validated for this release.
 
 ## Already Set Up?
 
-Run diagnostics:
+Check if everything works:
 
 ```bash
 ha-nova doctor
 ```
 
-Common commands:
+Useful commands:
 
 ```bash
 ha-nova setup gemini
@@ -47,14 +47,22 @@ Recent Windows builds also migrate older `~/.local` / `~/.config` HA NOVA data i
 Gemini-specific note:
 
 - HA NOVA installs namespaced sub-skills under `~/.gemini/skills/ha-nova-*`.
-- Those namespaced identifiers are also the installed Gemini skill names, so Gemini does not have to guess between folder names and shorter shared repo names.
+- Those namespaced identifiers are also the installed Gemini skill names — Gemini doesn't have to guess between folder names and shorter shared repo names.
 
-No automatic startup update banner yet on Gemini. Use `ha-nova check-update` or `ha-nova doctor` when you want an explicit update check.
+No automatic startup update banner on Gemini yet. Run `ha-nova check-update` or `ha-nova doctor` for an explicit update check.
 
 Old pre-Go install?
 
 - macOS / Linux: `curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/main/scripts/legacy-uninstall.sh | bash`
 - Windows PowerShell: `irm https://raw.githubusercontent.com/markusleben/ha-nova/main/scripts/legacy-uninstall.ps1 | iex`
+
+## What's Next
+
+After setup, the context skill (`ha-nova`) loads automatically at session start. Sub-skills like `ha-nova:read`, `ha-nova:write`, `ha-nova:review`, and others are available on demand.
+
+## Troubleshooting
+
+Run `ha-nova doctor` to diagnose connectivity, config, and skill registration issues.
 
 ## Related
 

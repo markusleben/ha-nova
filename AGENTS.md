@@ -113,7 +113,7 @@ Work style: Be radically precise. No fluff. Pure information only (drop grammar;
    4) Can the question be answered by choosing an opinionated default?
       - If yes: choose a default, document it in , and continue.
 - When you choose opinionated defaults, document them in `/docs/choices.md` as you work.
-- Leave breadcrumb notes in thread and `/docs/breadcrumbs.md`.
+- Leave breadcrumb notes in thread and `/docs/breadcrumbs.md` (root file stays short/current; long history lives in `/docs/archive/breadcrumbs.md`).
 - When writing to `/docs/choices.md` or `/docs/breadcrumbs.md` categorize by date (tail)
 - If you must ask the user:
 -- Ask exclusively blocking question only.
@@ -129,6 +129,7 @@ Use below list to store and recall user notes when asked to do so.
 
 - Project: ha-nova — Home Assistant AI Integration (Relay + Skills). See `PROJECT.md` for full context.
 - Reference docs in `docs/reference/` are mandatory reading before working on Relay or Skills.
+- Documentation governance: active product/reference/runbook docs live in `README.md`, `PROJECT.md`, `SUPPORT.md`, `CODE_OF_CONDUCT.md`, `CONTRIBUTING.md`, `docs/reference/`, `docs/releasing.md`, `docs/work/`, per-client install overlays (`.claude/.codex/.gemini/.opencode/INSTALL.md`), `nova/DOCS.md`, `nova/README.md`, and `skills/**/SKILL.md`; legacy superpowers history now lives under `docs/archive/superpowers/` and must not receive new active docs.
 - For graphics/diagrams, labels must stay consistent across all views (top view, side view, etc.).
 - Relay stays dumb, Skills stay smart. No business logic in the server.
 - Preferred terminology (2026+): use "App" instead of "Add-on", except where technical API paths force legacy terms (for example `/addons/*`).

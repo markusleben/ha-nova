@@ -19,7 +19,7 @@
 **Files:**
 - Modify: `package.json`
 - Modify: `docs/releasing.md`
-- Modify: `docs/superpowers/specs/2026-03-15-safe-test-architecture-design.md`
+- Modify: `docs/archive/superpowers/specs/2026-03-15-safe-test-architecture-design.md`
 
 - [ ] List the exact safe suites/scripts allowed in `verify`
 - [ ] Remove desktop/host-affecting suites from the default chain
@@ -91,7 +91,7 @@
 
 **Files:**
 - Modify: `docs/releasing.md`
-- Modify: `docs/superpowers/plans/2026-03-15-desktop-validation.md`
+- Modify: `docs/archive/superpowers/plans/2026-03-15-desktop-validation.md`
 - Modify: client install docs only if support wording changes
 
 - [ ] Document exactly four lanes: verify-safe, macOS desktop, Windows headless, Windows desktop

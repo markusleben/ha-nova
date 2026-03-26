@@ -4,6 +4,11 @@ All notable changes to this project are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+Recent changes are tracked in [GitHub releases](https://github.com/markusleben/ha-nova/releases)
+and merged PRs. This changelog will be updated with the next tagged relay version.
+
 ## [Relay 0.2.0] - 2026-03-07
 
 ### Changed

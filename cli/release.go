@@ -69,6 +69,9 @@ func fetchLatestRelease(paths runtimePaths, quiet bool, allowCache bool) (releas
 	if version == "" {
 		return releaseInfo{}, fmt.Errorf("latest release tag missing")
 	}
+	if _, err := parseReleaseVersion(version); err != nil {
+		return releaseInfo{}, fmt.Errorf("latest release tag invalid: %w", err)
+	}
 	info := releaseInfo{Version: version, HTMLURL: release.HTMLURL, AssetName: bundleAssetName()}
 	cacheReleaseInfo(paths, info)
 	if !quiet {
@@ -146,7 +149,18 @@ func buildUpdateCheckResult(paths runtimePaths) updateCheckResult {
 	result.CacheStatus = "fresh"
 	result.LatestVersion = release.Version
 	result.HTMLURL = release.HTMLURL
-	if current == "dev" || compareSemver(current, release.Version) >= 0 {
+	if current == "dev" {
+		result.Status = "up_to_date"
+		result.Message = fmt.Sprintf("Up to date: v%s", current)
+		return result
+	}
+	cmp, err := compareReleaseVersions(current, release.Version)
+	if err != nil {
+		result.Status = "check_failed"
+		result.Message = fmt.Sprintf("could not compare versions (%s)", err)
+		return result
+	}
+	if cmp >= 0 && !isStableTargetFromRC(current, release.Version) {
 		result.Status = "up_to_date"
 		result.Message = fmt.Sprintf("Up to date: v%s", current)
 		return result
@@ -154,6 +168,10 @@ func buildUpdateCheckResult(paths runtimePaths) updateCheckResult {
 
 	result.Status = "update_available"
 	result.UpdateAvailable = true
+	if isStableTargetFromRC(current, release.Version) {
+		result.Message = fmt.Sprintf("Return to stable: v%s -> v%s | Run: ha-nova update", current, release.Version)
+		return result
+	}
 	result.Message = fmt.Sprintf("Update available: v%s -> v%s | Run: ha-nova update", current, release.Version)
 	return result
 }
