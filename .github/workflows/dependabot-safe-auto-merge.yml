@@ -81,7 +81,7 @@ jobs:
             else
               for changed_file in "${changed_files[@]}"; do
                 case "${changed_file}" in
-                  package.json|package-lock.json) ;;
+                  package.json|package-lock.json|nova/package.json|nova/package-lock.json) ;;
                   *)
                     reason="changed file outside safe manifest lane: ${changed_file}"
                     break

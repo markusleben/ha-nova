@@ -13,6 +13,8 @@ describe("dependabot automation contract", () => {
 
   it("keeps the safe dev-only npm lane in a dedicated Dependabot group", () => {
     expect(dependabot).toContain("package-ecosystem: npm");
+    expect(dependabot).toContain('directory: "/"');
+    expect(dependabot).toContain('directory: "/nova"');
     expect(dependabot).toContain("npm-dev-minor-patch:");
     expect(dependabot).toContain("dependency-type: development");
     expect(dependabot).toContain("update-types:");
@@ -57,7 +59,7 @@ describe("dependabot automation contract", () => {
     expect(workflow).toContain('[[ "${DEPENDENCY_GROUP}" != "npm-dev-minor-patch" ]]');
     expect(workflow).toContain('[[ "${UPDATE_TYPE}" != "version-update:semver-minor" && "${UPDATE_TYPE}" != "version-update:semver-patch" ]]');
     expect(workflow).toContain('dependency requires manual review due to toolchain risk');
-    expect(workflow).toContain('package.json|package-lock.json');
+    expect(workflow).toContain('package.json|package-lock.json|nova/package.json|nova/package-lock.json');
     expect(workflow).toContain("gh pr review --approve");
     expect(workflow).toContain("dependabot-safe:auto-merge");
     expect(workflow).toContain("--json autoMergeRequest,labels");
@@ -102,7 +104,7 @@ describe("dependabot automation contract", () => {
     expect(manifestGate).not.toContain('gh pr edit "${PR_NUMBER}" --remove-label "manifest-review:approved"');
     expect(manifestGate).not.toContain('.event == "synchronize" or');
     expect(manifestGate).toContain("Package manifest changes require maintainer review. Add the label manifest-review:approved after review from an approved maintainer.");
-    expect(manifestGate).toContain('package.json|package-lock.json');
+    expect(manifestGate).toContain('package.json|package-lock.json|nova/package.json|nova/package-lock.json');
     expect(manifestGate).toContain('DEPENDENCY_GROUP: ${{ steps.metadata.outputs.dependency-group }}');
     expect(manifestGate).toContain('UPDATE_TYPE: ${{ steps.metadata.outputs.update-type }}');
     expect(manifestGate).not.toContain("actions/checkout");
@@ -112,7 +114,7 @@ describe("dependabot automation contract", () => {
     expect(releasing).toContain("## Release Worthiness");
     expect(releasing).toContain("Do not cut a new version just because `main` moved.");
     expect(releasing).toContain("## Dependabot Fast Lane");
-    expect(releasing).toContain("dev-only npm minor/patch updates that touch only `package.json` / `package-lock.json`");
+    expect(releasing).toContain("dev-only npm minor/patch updates that touch only `package.json` / `package-lock.json` (root or `nova/`)");
     expect(releasing).toContain("safe lane excludes toolchain-risk dependencies such as `vitest`, `vite`, `typescript`, `tsx`, `rollup`, `rolldown`, and `esbuild`");
     expect(releasing).toContain("require `dependency-review` on `main`");
     expect(releasing).toContain("require `manifest-review-gate` on `main`");
