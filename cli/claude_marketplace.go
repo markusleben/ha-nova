@@ -25,10 +25,29 @@ type claudeMarketplaceSource struct {
 }
 
 func resolveClaudeMarketplaceSource(paths runtimePaths, sourceRoot string) (string, error) {
-	if !useLocalClaudeMarketplace(paths, sourceRoot) {
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("HA_NOVA_CLAUDE_MARKETPLACE_LOCAL")), "1") {
+		return prepareClaudeMarketplaceRoot(paths, sourceRoot)
+	}
+
+	switch detectInstallSource(paths, loadStateOrDefault(paths)) {
+	case installSourceDev:
+		return prepareClaudeMarketplaceRoot(paths, sourceRoot)
+	case installSourceWinget:
+		if !shippedClaudeMarketplacePresentOnDisk(sourceRoot) {
+			return "", fmt.Errorf("installed Claude payload missing from shipped winget runtime")
+		}
+		return prepareClaudeMarketplaceRoot(paths, sourceRoot)
+	case installSourceBundle:
+		if shippedClaudeMarketplacePresentOnDisk(sourceRoot) {
+			return prepareClaudeMarketplaceRoot(paths, sourceRoot)
+		}
+		if bundleInstallPresentOnDisk(sourceRoot) {
+			return "", fmt.Errorf("installed Claude payload missing from shipped bundle runtime")
+		}
+		return defaultClaudeMarketplaceURL, nil
+	default:
 		return defaultClaudeMarketplaceURL, nil
 	}
-	return prepareClaudeMarketplaceRoot(paths, sourceRoot)
 }
 
 func useLocalClaudeMarketplace(paths runtimePaths, sourceRoot string) bool {

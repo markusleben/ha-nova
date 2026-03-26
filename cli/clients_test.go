@@ -164,20 +164,24 @@ func TestInstallClaudePluginFallsBackToGitHubMarketplaceForIncompleteWingetPaylo
 	logPath := filepath.Join(home, "claude.log")
 	t.Setenv("PATH", installClaudeMock(t, home, logPath)+string(os.PathListSeparator)+os.Getenv("PATH"))
 
-	if err := installClaudePlugin(paths, resolveSourceRoot(paths)); err != nil {
-		t.Fatalf("installClaudePlugin() error: %v", err)
+	err = installClaudePlugin(paths, resolveSourceRoot(paths))
+	if err == nil {
+		t.Fatal("expected installClaudePlugin() to fail when a shipped winget payload is incomplete")
+	}
+	if !strings.Contains(err.Error(), "installed Claude payload missing from shipped winget runtime") {
+		t.Fatalf("expected shipped winget payload error, got: %v", err)
 	}
 
-	logData, err := os.ReadFile(logPath)
-	if err != nil {
-		t.Fatalf("read log: %v", err)
+	logData, readErr := os.ReadFile(logPath)
+	if readErr != nil && !os.IsNotExist(readErr) {
+		t.Fatalf("read log: %v", readErr)
 	}
 	log := string(logData)
-	if !strings.Contains(log, "plugin marketplace add https://github.com/markusleben/ha-nova") {
-		t.Fatalf("expected incomplete winget payload to fall back to GitHub marketplace, got:\n%s", log)
+	if strings.Contains(log, "plugin marketplace add https://github.com/markusleben/ha-nova") {
+		t.Fatalf("did not expect shipped winget fallback to floating GitHub:\n%s", log)
 	}
-	if strings.Contains(log, "plugin validate ") {
-		t.Fatalf("did not expect local marketplace validation for incomplete winget payload, got:\n%s", log)
+	if strings.Contains(log, "plugin validate ") || strings.Contains(log, "plugin marketplace add "+filepath.Join(paths.ConfigDir, "claude-marketplace")) {
+		t.Fatalf("did not expect local staging commands for incomplete winget payload:\n%s", log)
 	}
 }
 

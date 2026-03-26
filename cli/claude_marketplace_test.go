@@ -312,6 +312,9 @@ func TestInstallClaudePluginFallsBackToGitHubMarketplaceWithoutStageableClaudePa
 	if err := os.MkdirAll(filepath.Join(paths.InstallRoot, ".claude-plugin"), 0o755); err != nil {
 		t.Fatalf("mkdir plugin dir: %v", err)
 	}
+	if err := os.WriteFile(filepath.Join(paths.InstallRoot, publicBinaryName()), []byte("bundle"), 0o755); err != nil {
+		t.Fatalf("write bundle binary: %v", err)
+	}
 	if err := os.WriteFile(filepath.Join(paths.InstallRoot, "bundle.json"), []byte(`{"version":"0.3.1"}`), 0o644); err != nil {
 		t.Fatalf("write bundle.json: %v", err)
 	}
@@ -328,23 +331,24 @@ func TestInstallClaudePluginFallsBackToGitHubMarketplaceWithoutStageableClaudePa
 	logPath := filepath.Join(home, "claude.log")
 	t.Setenv("PATH", installClaudeMarketplaceMock(t, logPath, "")+string(os.PathListSeparator)+os.Getenv("PATH"))
 
-	if err := installClaudePlugin(paths, paths.InstallRoot); err != nil {
-		t.Fatalf("installClaudePlugin() error: %v", err)
+	err = installClaudePlugin(paths, paths.InstallRoot)
+	if err == nil {
+		t.Fatal("expected installClaudePlugin() to fail when a shipped bundle payload is incomplete")
+	}
+	if !strings.Contains(err.Error(), "installed Claude payload missing from shipped bundle runtime") {
+		t.Fatalf("expected shipped bundle payload error, got: %v", err)
 	}
 
-	logData, err := os.ReadFile(logPath)
-	if err != nil {
-		t.Fatalf("read log: %v", err)
+	logData, readErr := os.ReadFile(logPath)
+	if readErr != nil && !os.IsNotExist(readErr) {
+		t.Fatalf("read log: %v", readErr)
 	}
 	log := string(logData)
-	if !strings.Contains(log, "plugin marketplace add https://github.com/markusleben/ha-nova") {
-		t.Fatalf("expected GitHub marketplace fallback when shipped Claude payload is incomplete:\n%s", log)
+	if strings.Contains(log, "plugin marketplace add https://github.com/markusleben/ha-nova") {
+		t.Fatalf("did not expect shipped bundle fallback to floating GitHub:\n%s", log)
 	}
-	if strings.Contains(log, "plugin validate ") {
-		t.Fatalf("did not expect local marketplace validation without a complete shipped Claude payload:\n%s", log)
-	}
-	if strings.Contains(log, "plugin marketplace add "+filepath.Join(paths.ConfigDir, "claude-marketplace")) {
-		t.Fatalf("did not expect local staged marketplace add without a complete shipped Claude payload:\n%s", log)
+	if strings.Contains(log, "plugin validate ") || strings.Contains(log, "plugin marketplace add "+filepath.Join(paths.ConfigDir, "claude-marketplace")) {
+		t.Fatalf("did not expect local staging commands for incomplete shipped bundle payload:\n%s", log)
 	}
 }
 
