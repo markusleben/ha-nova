@@ -69,8 +69,7 @@
     "verify:security": "bash scripts/release/verify-npm-audit.sh",
     "verify:next-release-version": "bash scripts/release/verify-next-release-version.sh",
     "verify": "npm run verify:release-metadata && npm run verify:security && bash scripts/release/verify-blocked-files.sh && npm run typecheck && npm run test:safe && npm run build && bash scripts/check-docs.sh && npm run test:cli",
-    "release:rc:local": "goreleaser build --snapshot --clean && bash scripts/release/build-install-bundle.sh && bash scripts/release/build-winget-manifest.sh",
-    "release:winget:stage-submission": "bash scripts/release/prepare-winget-pkgs-submission.sh",
+    "release:rc:local": "goreleaser build --snapshot --clean && bash scripts/release/build-install-bundle.sh",
     "prepare": "husky"
   },
   "dependencies": {

@@ -59,10 +59,6 @@ func detectPaths() (runtimePaths, error) {
 			exeRoot := filepath.Dir(exePath)
 			if _, err := os.Stat(filepath.Join(exeRoot, "bundle.json")); err == nil {
 				installRoot = exeRoot
-			} else if isWingetManagedPath(exePath) {
-				if wingetRoot := resolveWingetBundleRoot(home); wingetRoot != "" {
-					installRoot = wingetRoot
-				}
 			}
 		}
 		binDir = installRoot
@@ -98,7 +94,7 @@ func allowWindowsInstallRootOverride() bool {
 		return false
 	}
 	switch os.Args[1] {
-	case "internal-replace", "internal-winget-upgrade", "internal-uninstall", "internal-winget-uninstall":
+	case "internal-replace", "internal-uninstall":
 		return true
 	default:
 		return false

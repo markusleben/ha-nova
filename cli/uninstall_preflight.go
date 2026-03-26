@@ -32,8 +32,6 @@ func renderUninstallPreflight(out io.Writer, paths runtimePaths, source string) 
 
 func uninstallRuntimeLineLabel(paths runtimePaths, source string) string {
 	switch source {
-	case installSourceWinget:
-		return "Installed CLI runtime (winget-managed package)"
 	case installSourceBundle:
 		return "Installed CLI runtime (" + filepath.Join(paths.InstallRoot, publicBinaryName()) + ")"
 	default:

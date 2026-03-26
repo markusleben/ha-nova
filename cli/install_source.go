@@ -1,26 +1,17 @@
 package main
 
 import (
-	"errors"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 )
 
 const (
-	installSourceBundle   = "bundle"
-	installSourceDev      = "dev"
-	installSourceWinget   = "winget"
-	wingetPackageID       = "markusleben.ha-nova"
-	wingetPortableLinks   = `\microsoft\winget\links\`
-	wingetPortablePackage = `\microsoft\winget\packages\`
-	wingetUpdateNotApplicableExitCode uint32 = 0x8A15002B
+	installSourceBundle = "bundle"
+	installSourceDev    = "dev"
 )
 
 var executablePathForInstallSource = os.Executable
-var execCommandForLifecycle = exec.Command
-var errWingetUpdateNotApplicable = errors.New("winget update not applicable")
 
 func normalizeInstallSource(value string) string {
 	switch strings.ToLower(strings.TrimSpace(value)) {
@@ -28,8 +19,6 @@ func normalizeInstallSource(value string) string {
 		return installSourceBundle
 	case installSourceDev:
 		return installSourceDev
-	case installSourceWinget:
-		return installSourceWinget
 	default:
 		return ""
 	}
@@ -38,13 +27,6 @@ func normalizeInstallSource(value string) string {
 func detectInstallSource(paths runtimePaths, state installState) string {
 	if strings.TrimSpace(os.Getenv("HA_NOVA_DEV_ROOT")) != "" {
 		return installSourceDev
-	}
-
-	exePath, _ := executablePathForInstallSource()
-	if channelChecksUseWindowsPlatform() {
-		if isWingetManagedPath(exePath) || isWingetManagedPath(resolveSourceRoot(paths)) {
-			return installSourceWinget
-		}
 	}
 
 	sourceRoot := resolveSourceRoot(paths)
@@ -59,17 +41,9 @@ func detectInstallSource(paths runtimePaths, state installState) string {
 			return installSourceDev
 		}
 	}
-	if source := normalizeInstallSource(state.InstallSource); source != "" {
-		switch source {
-		case installSourceWinget:
-			if channelChecksUseWindowsPlatform() && wingetInstallPresentOnDisk(paths.Home) {
-				return source
-			}
-		case installSourceBundle:
-			if bundleInstallPresentOnDisk(paths.InstallRoot) {
-				return source
-			}
-		}
+
+	if normalizeInstallSource(state.InstallSource) == installSourceBundle && bundleInstallPresentOnDisk(paths.InstallRoot) {
+		return installSourceBundle
 	}
 	return installSourceBundle
 }
@@ -82,11 +56,6 @@ func resolveSourceRoot(paths runtimePaths) string {
 		exeRoot := filepath.Dir(exePath)
 		if _, err := os.Stat(filepath.Join(exeRoot, "bundle.json")); err == nil {
 			return exeRoot
-		}
-		if channelChecksUseWindowsPlatform() && isWingetManagedPath(exePath) {
-			if wingetRoot := resolveWingetBundleRoot(paths.Home); wingetRoot != "" {
-				return wingetRoot
-			}
 		}
 	}
 	return paths.InstallRoot
@@ -114,64 +83,10 @@ func sourceRootCandidates(paths runtimePaths) []string {
 	if exePath, err := executablePathForInstallSource(); err == nil {
 		addCandidate(filepath.Dir(exePath))
 	}
-	if channelChecksUseWindowsPlatform() {
-		addCandidate(resolveWingetBundleRoot(paths.Home))
-	}
 	addCandidate(paths.InstallRoot)
 	if cwd, err := os.Getwd(); err == nil {
 		addCandidate(cwd)
 		addCandidate(filepath.Join(cwd, ".."))
 	}
 	return candidates
-}
-
-func isWingetManagedPath(path string) bool {
-	if !channelChecksUseWindowsPlatform() {
-		return false
-	}
-	clean := strings.ToLower(filepath.Clean(path))
-	clean = strings.ReplaceAll(clean, "/", `\`)
-	return strings.Contains(clean, wingetPortableLinks) || strings.Contains(clean, wingetPortablePackage)
-}
-
-func runWingetUpgrade() error {
-	if _, err := execLookPathForLifecycle("winget"); err != nil {
-		return err
-	}
-	cmd := execCommandForLifecycle("winget", "upgrade", "--id", wingetPackageID, "--exact", "--accept-source-agreements", "--accept-package-agreements")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		if isWingetUpdateNotApplicableError(err) {
-			return errWingetUpdateNotApplicable
-		}
-		return err
-	}
-	return nil
-}
-
-func runWingetUninstall(mode uninstallMode) error {
-	if _, err := execLookPathForLifecycle("winget"); err != nil {
-		return err
-	}
-	args := []string{"uninstall", "--id", wingetPackageID, "--exact", "--accept-source-agreements", "--purge"}
-	if mode == uninstallModePurge {
-		args = append(args, "--force")
-	}
-	cmd := execCommandForLifecycle("winget", args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
-}
-
-func isWingetUpdateNotApplicableError(err error) bool {
-	var exitErr *exec.ExitError
-	if !errors.As(err, &exitErr) || exitErr.ProcessState == nil {
-		return false
-	}
-	return isWingetUpdateNotApplicableExitCode(exitErr.ProcessState.ExitCode())
-}
-
-func isWingetUpdateNotApplicableExitCode(code int) bool {
-	return uint32(code) == wingetUpdateNotApplicableExitCode
 }

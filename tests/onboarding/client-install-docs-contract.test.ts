@@ -23,9 +23,8 @@ describe("client install docs contract", () => {
   it("documents Claude Windows prerequisites and migration only in the Claude install doc", () => {
     expect(claudeInstall).toContain("Windows");
     expect(claudeInstall).toContain("validated on Windows for this release");
-    expect(claudeInstall).toContain("Current public Windows install path: `install.ps1`.");
-    expect(claudeInstall).toContain("A `winget` manifest is generated for each release");
-    expect(claudeInstall).toContain("published and proven on a fresh Windows VM");
+    expect(claudeInstall).toContain("Windows uses a single supported install path: `install.ps1`.");
+    expect(claudeInstall).toContain("HA NOVA installs itself locally; Home Assistant Relay setup and token steps stay guided in the browser.");
     expect(claudeInstall).toContain("Git for Windows");
     expect(claudeInstall).toContain("WSL");
     expect(claudeInstall).toContain("claude install");
@@ -45,7 +44,7 @@ describe("client install docs contract", () => {
     expect(claudeInstall).toContain("Claude Desktop in the **Code** tab uses this same Claude integration path.");
     expect(claudeInstall).toContain("Local repo checkout (macOS / Linux only)");
     expect(claudeInstall).toContain("ha-nova uninstall --purge");
-    expect(claudeInstall).not.toContain("A `winget` package is planned");
+    expect(claudeInstall).not.toContain("winget");
     expect(claudeInstall).not.toContain("use the repo root instead");
   });
 
@@ -53,15 +52,12 @@ describe("client install docs contract", () => {
     expect(codexInstall).toContain("Windows");
     expect(geminiInstall).toContain("Windows");
     expect(opencodeInstall).toContain("Windows");
-    expect(codexInstall).toContain("Current public Windows install path: `install.ps1`.");
-    expect(geminiInstall).toContain("Current public Windows install path: `install.ps1`.");
-    expect(opencodeInstall).toContain("Current public Windows install path: `install.ps1`.");
-    expect(codexInstall).toContain("A `winget` manifest is generated for each release");
-    expect(geminiInstall).toContain("A `winget` manifest is generated for each release");
-    expect(opencodeInstall).toContain("A `winget` manifest is generated for each release");
-    expect(codexInstall).toContain("published and proven on a fresh Windows VM");
-    expect(geminiInstall).toContain("published and proven on a fresh Windows VM");
-    expect(opencodeInstall).toContain("published and proven on a fresh Windows VM");
+    expect(codexInstall).toContain("Windows uses a single supported install path: `install.ps1`.");
+    expect(geminiInstall).toContain("Windows uses a single supported install path: `install.ps1`.");
+    expect(opencodeInstall).toContain("Windows uses a single supported install path: `install.ps1`.");
+    expect(codexInstall).toContain("HA NOVA installs itself locally; Home Assistant Relay setup and token steps stay guided in the browser.");
+    expect(geminiInstall).toContain("HA NOVA installs itself locally; Home Assistant Relay setup and token steps stay guided in the browser.");
+    expect(opencodeInstall).toContain("HA NOVA installs itself locally; Home Assistant Relay setup and token steps stay guided in the browser.");
     expect(opencodeInstall).toContain("WSL");
     expect(codexInstall).toContain("experimental until explicit Windows smoke completes");
     expect(geminiInstall).toContain("smoke-validated for this release");
@@ -78,9 +74,9 @@ describe("client install docs contract", () => {
     expect(codexInstall).toContain("ha-nova uninstall --purge");
     expect(geminiInstall).toContain("ha-nova uninstall --purge");
     expect(opencodeInstall).toContain("ha-nova uninstall --purge");
-    expect(codexInstall).not.toContain("A `winget` package is planned");
-    expect(geminiInstall).not.toContain("A `winget` package is planned");
-    expect(opencodeInstall).not.toContain("A `winget` package is planned");
+    expect(codexInstall).not.toContain("winget");
+    expect(geminiInstall).not.toContain("winget");
+    expect(opencodeInstall).not.toContain("winget");
     expect(opencodeInstall).not.toContain("App installation, authentication, and skill setup");
   });
 

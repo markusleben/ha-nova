@@ -315,8 +315,6 @@ func windowsUninstallErrorSummary(step string, err error) string {
 		return "HA NOVA uninstall could not remove the stored relay token."
 	case "bundle_runtime_cleanup":
 		return "HA NOVA uninstall could not remove the Windows bundle runtime."
-	case "winget_runtime_cleanup":
-		return "HA NOVA uninstall could not remove the Windows winget package."
 	default:
 		if err != nil {
 			return strings.TrimSpace(err.Error())
@@ -336,9 +334,6 @@ func collectWindowsUninstallRemainingPaths(paths runtimePaths, mode uninstallMod
 	}
 	if mode == uninstallModePurge {
 		candidates = append(candidates, paths.ConfigFile, paths.ConfigDir)
-	}
-	if normalizeInstallSource(installSource) == installSourceWinget {
-		candidates = append(candidates, windowsWingetLinkPath(paths.Home))
 	}
 	remaining := []string{}
 	for _, candidate := range candidates {

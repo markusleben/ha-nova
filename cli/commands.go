@@ -9,16 +9,10 @@ import (
 
 var scheduleWindowsSelfDeleteForUninstall = scheduleWindowsSelfDelete
 var waitForParentReleaseForUninstall = waitForParentRelease
-var waitForParentReleaseForWingetUninstall = waitForParentRelease
-var runWingetUninstallForUninstall = runWingetUninstall
 var waitForParentReleaseForReplace = waitForParentRelease
 var applyStagedBundleWithRollbackForReplace = applyStagedBundleWithRollback
 var postUpdateSyncForReplace = postUpdateSync
-var runWingetUpgradeForUpdate = runWingetUpgrade
-var launchWindowsWingetUpgradeForUpdate = launchWindowsWingetUpgrade
-var runInstalledSyncForWingetUpdate = runUpdatedRuntimeClientSync
 var scheduleWindowsSelfDeleteForUpdate = scheduleWindowsSelfDelete
-var waitForParentReleaseForWingetUpdate = waitForParentRelease
 var execLookPathForLifecycle = exec.LookPath
 var copyToClipboardForSetup = copyToClipboard
 var openBrowserForSetup = openBrowser

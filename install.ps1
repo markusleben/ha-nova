@@ -7,15 +7,15 @@ $ErrorActionPreference = "Stop"
 
 $RepoOwner = "markusleben"
 $RepoName = "ha-nova"
-$WingetPackageId = "markusleben.ha-nova"
+$LegacyWindowsPackageId = "markusleben.ha-nova"
 $LatestReleaseUrl = "https://api.github.com/repos/markusleben/ha-nova/releases/latest"
 $ReleaseBaseUrl = "https://github.com/$RepoOwner/$RepoName/releases/download"
 $LocalAppDataDir = if ($env:LOCALAPPDATA) { $env:LOCALAPPDATA } else { Join-Path $HOME "AppData\Local" }
 $AppDataDir = if ($env:APPDATA) { $env:APPDATA } else { Join-Path $HOME "AppData\Roaming" }
 $InstallDir = Join-Path $LocalAppDataDir "Programs\ha-nova"
 $PublicCommandDir = $InstallDir
-$WingetPortableLink = Join-Path $LocalAppDataDir "Microsoft\WinGet\Links\ha-nova.exe"
-$WingetPackagesDir = Join-Path $LocalAppDataDir "Microsoft\WinGet\Packages"
+$LegacyWindowsPackageLink = Join-Path $LocalAppDataDir "Microsoft\WinGet\Links\ha-nova.exe"
+$LegacyWindowsPackagesDir = Join-Path $LocalAppDataDir "Microsoft\WinGet\Packages"
 $LegacyUninstallUrl = "https://raw.githubusercontent.com/markusleben/ha-nova/main/scripts/legacy-uninstall.ps1"
 $ConfigDir = Join-Path $AppDataDir "ha-nova"
 $UninstallStatusPath = Join-Path $LocalAppDataDir "ha-nova\uninstall-status.json"
@@ -203,7 +203,7 @@ Then run this installer again.
 "@
 }
 
-function Test-WingetBundleRoot {
+function Test-OldWindowsPackageBundleRoot {
   param(
     [string]$Candidate
   )
@@ -216,13 +216,17 @@ function Test-WingetBundleRoot {
   return (Test-Path -LiteralPath (Join-Path $root "ha-nova.exe")) -and (Test-Path -LiteralPath (Join-Path $root "bundle.json"))
 }
 
-function Test-WingetPackageRootInstall {
-  $packageRoots = @(Get-ChildItem -LiteralPath $WingetPackagesDir -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "$WingetPackageId*" })
+function Test-OldWindowsPackageInstall {
+  if (Test-Path -LiteralPath $LegacyWindowsPackageLink) {
+    return $true
+  }
+
+  $packageRoots = @(Get-ChildItem -LiteralPath $LegacyWindowsPackagesDir -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "$LegacyWindowsPackageId*" })
   foreach ($packageRoot in $packageRoots) {
-    if (Test-WingetBundleRoot -Candidate (Join-Path $packageRoot.FullName "ha-nova")) {
+    if (Test-OldWindowsPackageBundleRoot -Candidate (Join-Path $packageRoot.FullName "ha-nova")) {
       return $true
     }
-    if (Test-WingetBundleRoot -Candidate $packageRoot.FullName) {
+    if (Test-OldWindowsPackageBundleRoot -Candidate $packageRoot.FullName) {
       return $true
     }
   }
@@ -230,56 +234,19 @@ function Test-WingetPackageRootInstall {
   return $false
 }
 
-function Get-WingetInstallInventoryState {
-  $wingetCommand = Get-Command winget -ErrorAction SilentlyContinue
-  if (-not $wingetCommand) {
-    return "absent"
-  }
-
-  try {
-    $output = & $wingetCommand.Source list --id $WingetPackageId --exact --source winget 2>$null | Out-String
-    if ($output -match [regex]::Escape($WingetPackageId)) {
-      return "installed"
-    }
-
-    $fallbackOutput = & $wingetCommand.Source list ha-nova 2>$null | Out-String
-    if ($fallbackOutput -match [regex]::Escape($WingetPackageId)) {
-      return "installed"
-    }
-
-    return "absent"
-  }
-  catch {
-    return "unknown"
-  }
-}
-
-function Test-WingetInstall {
-  if (Test-Path -LiteralPath $WingetPortableLink) {
-    return $true
-  }
-
-  $inventoryState = Get-WingetInstallInventoryState
-  if ($inventoryState -eq "installed") {
-    return $true
-  }
-
-  return $false
-}
-
-function Stop-ForWingetInstall {
+function Stop-ForOldWindowsPackageInstall {
   Fail @"
-A winget-managed HA NOVA install was detected.
-This bundle installer will not create a second Windows install channel.
+An older private or test Windows package install of HA NOVA was detected.
+This installer will not create a second Windows install state.
 
-Keep a single Windows install channel:
-  Update existing install:
-    winget upgrade --id $WingetPackageId --exact
+Remove the older HA NOVA app from Windows first:
+  Installed Apps / App Installer -> uninstall HA NOVA
 
-  Remove existing install first:
-    winget uninstall --id $WingetPackageId --exact
+If Windows left stale package files behind, remove:
+  $LegacyWindowsPackageLink
+  $LegacyWindowsPackagesDir\$LegacyWindowsPackageId*
 
-Then rerun install.ps1 only if you intentionally want the bundle fallback path.
+Then rerun install.ps1.
 "@
 }
 
@@ -363,9 +330,8 @@ function Get-UninstallRecoveryState {
   }
   catch {
     $bundleRuntimePresent = Test-Path -LiteralPath (Join-Path $InstallDir "ha-nova.exe")
-    $wingetRuntimePresent = Test-Path -LiteralPath $WingetPortableLink
     $pathResidue = Test-UserPathContainsEntry -TargetPath $InstallDir
-    if (-not ($bundleRuntimePresent -or $wingetRuntimePresent) -and -not $pathResidue) {
+    if (-not $bundleRuntimePresent -and -not $pathResidue) {
       Remove-Item -LiteralPath $UninstallStatusPath -Force -ErrorAction SilentlyContinue
       return $null
     }
@@ -374,7 +340,7 @@ function Get-UninstallRecoveryState {
       Summary = "A previous background HA NOVA uninstall left an unreadable recovery marker."
       RecoveryCommand = (Get-UninstallRecoveryCommand -Mode "standard")
       RemainingPaths = @()
-      RuntimePresent = ($bundleRuntimePresent -or $wingetRuntimePresent)
+      RuntimePresent = $bundleRuntimePresent
       PathResidue = $pathResidue
     }
   }
@@ -387,8 +353,7 @@ function Get-UninstallRecoveryState {
   $mode = if ($status.mode -eq "purge") { "purge" } else { "standard" }
   $recoveryCommand = Get-UninstallRecoveryCommand -Mode $mode
   $bundleRuntimePresent = Test-Path -LiteralPath (Join-Path $InstallDir "ha-nova.exe")
-  $wingetRuntimePresent = Test-Path -LiteralPath $WingetPortableLink
-  $runtimePresent = $bundleRuntimePresent -or $wingetRuntimePresent
+  $runtimePresent = $bundleRuntimePresent
   $remainingPaths = Get-ExistingUninstallRemainingPaths -Status $status
   $pathResidue = Test-UserPathContainsEntry -TargetPath $InstallDir
 
@@ -524,6 +489,22 @@ Then run this installer again.
 "@
 }
 
+function Invoke-WebRequestWithQuietProgress {
+  param(
+    [Parameter(Mandatory = $true)][string]$Uri,
+    [Parameter(Mandatory = $true)][string]$OutFile
+  )
+
+  $previousProgressPreference = $global:ProgressPreference
+  try {
+    $global:ProgressPreference = "SilentlyContinue"
+    Invoke-WebRequest -Uri $Uri -OutFile $OutFile
+  }
+  finally {
+    $global:ProgressPreference = $previousProgressPreference
+  }
+}
+
 function Install-Bundle {
   param(
     [string]$Version
@@ -541,8 +522,8 @@ function Install-Bundle {
   New-Item -ItemType Directory -Force -Path $extractDir | Out-Null
 
   try {
-    Invoke-WebRequest -Uri $bundleUrl -OutFile $archivePath
-    Invoke-WebRequest -Uri (Get-BundleChecksumUrl -Version $Version) -OutFile $checksumPath
+    Invoke-WebRequestWithQuietProgress -Uri $bundleUrl -OutFile $archivePath
+    Invoke-WebRequestWithQuietProgress -Uri (Get-BundleChecksumUrl -Version $Version) -OutFile $checksumPath
     $expectedHash = (Get-Content -LiteralPath $checksumPath -Raw).Trim().Split()[0]
     $actualHash = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant()
     if (-not $expectedHash -or $actualHash -ne $expectedHash.ToLowerInvariant()) {
@@ -681,11 +662,11 @@ if (-not (Test-CurrentInstall) -and (Test-LegacyInstall)) {
 if ($uninstallRecovery = Get-UninstallRecoveryState) {
   Stop-ForUninstallRecovery -Recovery $uninstallRecovery
 }
-if (Test-WingetInstall) {
-  Stop-ForWingetInstall
+if (Test-OldWindowsPackageInstall) {
+  Stop-ForOldWindowsPackageInstall
 }
 $bundleResult = Install-Bundle -Version $version
-$pathManaged = Ensure-InstallDirOnPath
+Ensure-InstallDirOnPath | Out-Null
 if ($expectedVersion -and $bundleResult.Version -ne $expectedVersion) {
   Fail "Downloaded bundle version v$($bundleResult.Version) does not match requested version v$expectedVersion."
 }

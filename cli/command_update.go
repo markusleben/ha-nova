@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -26,12 +25,6 @@ func runUpdate(paths runtimePaths, args []string) int {
 		printHumanErr("%s", err)
 		return 1
 	}
-	state := loadStateOrDefault(paths)
-	channels := inspectInstallChannels(paths, state)
-	if channels.Conflict {
-		printHumanErr("%s", installChannelConflictMessage(channels, "ha-nova update"))
-		return 1
-	}
 	if recovery := inspectWindowsUninstallStatus(paths); recovery.Kind != windowsUninstallStatusKindNone {
 		switch recovery.Kind {
 		case windowsUninstallStatusKindRunning:
@@ -43,40 +36,6 @@ func runUpdate(paths runtimePaths, args []string) int {
 			printHumanWarn("Recovery: run `%s` first.", recovery.RecoveryCommand)
 			return 1
 		}
-	}
-	if channels.CurrentSource == installSourceWinget {
-		if targetVersion != "" {
-			printHumanErr("explicit --version is not supported for winget-managed installs")
-			return 1
-		}
-		if runtime.GOOS == "windows" {
-			if err := launchWindowsWingetUpgradeForUpdate(); err != nil {
-				printHumanErr("cannot start Windows winget updater: %s", err)
-				return 1
-			}
-			printHumanInfo("Update handed off to a Windows helper.")
-			printHumanWarn("If the command path does not refresh immediately, open a new terminal.")
-			return 0
-		}
-		if err := runWingetUpgradeForUpdate(); err != nil {
-			if errors.Is(err, errWingetUpdateNotApplicable) {
-				if err := runInstalledSyncForWingetUpdate(); err != nil {
-					printPostUpdateSyncFailure(err)
-					return 1
-				}
-				printHumanInfo("Already up to date via winget")
-				return 0
-			}
-			printHumanErr("winget update failed: %s", err)
-			return 1
-		}
-		if err := runInstalledSyncForWingetUpdate(); err != nil {
-			printPostUpdateSyncFailure(err)
-			return 1
-		}
-		printHumanInfo("Updated via winget")
-		printHumanWarn("If the command path does not refresh immediately, open a new terminal.")
-		return 0
 	}
 	if targetVersion == "" {
 		release, err := fetchLatestRelease(paths, true, false)
@@ -136,42 +95,6 @@ func runUpdate(paths runtimePaths, args []string) int {
 		printHumanWarn("updated to v%s, but could not remove the previous install backup: %s", localVersion(paths), err)
 	}
 	printHumanInfo("Updated to v%s", localVersion(paths))
-	return 0
-}
-
-func runInternalWingetUpgrade(_ runtimePaths, args []string) int {
-	fs := flag.NewFlagSet("internal-winget-upgrade", flag.ContinueOnError)
-	fs.SetOutput(io.Discard)
-	parentPID := fs.Int("parent-pid", 0, "parent pid")
-	selfPath := fs.String("self-path", "", "temp helper path")
-	if err := fs.Parse(args); err != nil {
-		printHumanErr("%s", err)
-		return 1
-	}
-	defer func() {
-		if err := scheduleWindowsSelfDeleteForUpdate(*selfPath); err != nil {
-			printHumanWarn("could not schedule update helper cleanup: %s", err)
-		}
-	}()
-	waitForParentReleaseForWingetUpdate(*parentPID)
-	if err := runWingetUpgradeForUpdate(); err != nil {
-		if errors.Is(err, errWingetUpdateNotApplicable) {
-			if err := runInstalledSyncForWingetUpdate(); err != nil {
-				printPostUpdateSyncFailure(err)
-				return 1
-			}
-			printHumanInfo("Already up to date via winget")
-			return 0
-		}
-		printHumanErr("winget update failed: %s", err)
-		return 1
-	}
-	if err := runInstalledSyncForWingetUpdate(); err != nil {
-		printPostUpdateSyncFailure(err)
-		return 1
-	}
-	printHumanInfo("Updated via winget")
-	printHumanWarn("If the command path does not refresh immediately, open a new terminal.")
 	return 0
 }
 
@@ -287,58 +210,4 @@ func launchWindowsReplace(paths runtimePaths, stageRoot string) error {
 	cmd := buildWindowsHelperCommand(tempHelper, "internal-replace", "--parent-pid", strconv.Itoa(os.Getpid()), "--stage-root", stageRoot)
 	cmd.Env = append(os.Environ(), helperInstallRootEnv(paths.InstallRoot)...)
 	return cmd.Start()
-}
-
-func launchWindowsWingetUpgrade() error {
-	paths, err := detectPaths()
-	if err != nil {
-		return err
-	}
-	tempHelper, err := stageWindowsLifecycleHelper("ha-nova-winget-upgrade-")
-	if err != nil {
-		return err
-	}
-	cmd := buildWindowsHelperCommand(tempHelper, "internal-winget-upgrade", "--parent-pid", strconv.Itoa(os.Getpid()), "--self-path", tempHelper)
-	cmd.Env = append(os.Environ(), helperInstallRootEnv(paths.InstallRoot)...)
-	return cmd.Start()
-}
-
-func runUpdatedRuntimeClientSync() error {
-	paths, err := detectPaths()
-	if err != nil {
-		return fmt.Errorf("cannot determine runtime paths for post-update sync: %w", err)
-	}
-	commandPath, err := resolveUpdatedRuntimeSyncBinary(paths)
-	if err != nil {
-		return err
-	}
-	cmd := execCommandForLifecycle(commandPath, "internal-sync-clients")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
-}
-
-func resolveUpdatedRuntimeSyncBinary(paths runtimePaths) (string, error) {
-	binaryName := publicBinaryName()
-	if channelChecksUseWindowsPlatform() {
-		linkPath := windowsWingetLinkPath(paths.Home)
-		if _, err := os.Stat(linkPath); err == nil {
-			return linkPath, nil
-		}
-		if root := resolveWingetBundleRoot(paths.Home); root != "" {
-			candidate := filepath.Join(root, binaryName)
-			if _, err := os.Stat(candidate); err == nil {
-				return candidate, nil
-			}
-		}
-		state := loadStateOrDefault(paths)
-		if normalizeInstallSource(state.InstallSource) == installSourceWinget {
-			return "", fmt.Errorf("cannot locate live winget-managed %s", binaryName)
-		}
-	}
-	commandPath, err := execLookPathForLifecycle(binaryName)
-	if err != nil {
-		return "", fmt.Errorf("cannot locate updated %s on PATH: %w", binaryName, err)
-	}
-	return commandPath, nil
 }

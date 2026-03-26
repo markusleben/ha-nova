@@ -28,11 +28,11 @@ describe("legacy shell shims", () => {
     const runtime = readFileSync(resolve(REPO_ROOT, "scripts/lib/runtime.sh"), "utf8");
 
     expect(runtime).toContain("Programs/ha-nova/ha-nova.exe");
-    expect(runtime).toContain("Microsoft/WinGet/Links/ha-nova.exe");
     expect(runtime).toContain("windows_localappdata_dir()");
     expect(runtime.indexOf("Programs/ha-nova/ha-nova.exe")).toBeLessThan(
       runtime.indexOf(".local/share/ha-nova/ha-nova.exe")
     );
+    expect(runtime).not.toContain("Microsoft/WinGet/Links/ha-nova.exe");
   });
 
   it("prefers the native Windows runtime over a stale legacy .local runtime", () => {
