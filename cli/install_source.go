@@ -7,8 +7,9 @@ import (
 )
 
 const (
-	installSourceBundle = "bundle"
-	installSourceDev    = "dev"
+	installSourceBundle               = "bundle"
+	installSourceDev                  = "dev"
+	installSourceLegacyWindowsPackage = "legacy_windows_package"
 )
 
 var executablePathForInstallSource = os.Executable
@@ -19,6 +20,8 @@ func normalizeInstallSource(value string) string {
 		return installSourceBundle
 	case installSourceDev:
 		return installSourceDev
+	case installSourceLegacyWindowsPackage, "winget":
+		return installSourceLegacyWindowsPackage
 	default:
 		return ""
 	}
@@ -40,6 +43,9 @@ func detectInstallSource(paths runtimePaths, state installState) string {
 		if filepath.Clean(sourceRoot) != filepath.Clean(paths.InstallRoot) {
 			return installSourceDev
 		}
+	}
+	if legacyWindowsPackageSourcePresent(paths, state) {
+		return installSourceLegacyWindowsPackage
 	}
 
 	if normalizeInstallSource(state.InstallSource) == installSourceBundle && bundleInstallPresentOnDisk(paths.InstallRoot) {
@@ -89,4 +95,28 @@ func sourceRootCandidates(paths runtimePaths) []string {
 		addCandidate(filepath.Join(cwd, ".."))
 	}
 	return candidates
+}
+
+func legacyWindowsPackageSourcePresent(paths runtimePaths, state installState) bool {
+	if !channelChecksUseWindowsPlatform() {
+		return false
+	}
+	if strings.TrimSpace(state.InstallSource) != "" && normalizeInstallSource(state.InstallSource) == installSourceLegacyWindowsPackage {
+		return true
+	}
+	if exePath, err := executablePathForInstallSource(); err == nil && isLegacyWindowsPackageManagedPath(exePath) {
+		return true
+	}
+	for _, residue := range legacyWindowsPackageResiduePaths(paths) {
+		if fileExists(residue) {
+			return true
+		}
+	}
+	return false
+}
+
+func isLegacyWindowsPackageManagedPath(path string) bool {
+	clean := strings.ToLower(filepath.Clean(path))
+	clean = strings.ReplaceAll(clean, "/", `\`)
+	return strings.Contains(clean, `\microsoft\winget\links\`) || strings.Contains(clean, `\microsoft\winget\packages\`)
 }

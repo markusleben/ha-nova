@@ -108,6 +108,14 @@ func runUninstall(paths runtimePaths, args []string) int {
 		printHumanInfo("It is safe to close this terminal now.")
 		return 0
 	}
+	if channelChecksUseWindowsPlatform() && source == installSourceLegacyWindowsPackage {
+		printUninstallPreflightNotes(os.Stdout, preflight)
+		printHumanErr("Legacy private/test Windows package installs are no longer supported for in-place `ha-nova uninstall`.")
+		printHumanWarn("Remove the old HA NOVA app in Installed Apps / App Installer.")
+		printHumanWarn("Then reinstall with the supported Windows path:")
+		printHumanWarn("  irm https://raw.githubusercontent.com/markusleben/ha-nova/main/install.ps1 | iex")
+		return 1
+	}
 
 	report := &uninstallReport{}
 	if err := finalizeLocalUninstall(paths, state, report, mode); err != nil {

@@ -25,6 +25,14 @@ func runUpdate(paths runtimePaths, args []string) int {
 		printHumanErr("%s", err)
 		return 1
 	}
+	state := loadStateOrDefault(paths)
+	source := detectInstallSource(paths, state)
+	if source == installSourceLegacyWindowsPackage {
+		printHumanErr("Legacy private/test Windows package installs are no longer supported for in-place update.")
+		printHumanWarn("Remove the old HA NOVA app in Installed Apps / App Installer, then reinstall with:")
+		printHumanWarn("  irm https://raw.githubusercontent.com/markusleben/ha-nova/main/install.ps1 | iex")
+		return 1
+	}
 	if recovery := inspectWindowsUninstallStatus(paths); recovery.Kind != windowsUninstallStatusKindNone {
 		switch recovery.Kind {
 		case windowsUninstallStatusKindRunning:
