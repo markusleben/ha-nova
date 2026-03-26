@@ -48,7 +48,7 @@ jobs:
           non_manifest_changed=false
           for changed_file in "${changed_files[@]}"; do
             case "${changed_file}" in
-              package.json|package-lock.json)
+              package.json|package-lock.json|nova/package.json|nova/package-lock.json)
                 manifest_changed=true
                 ;;
               *)
