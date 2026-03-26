@@ -189,6 +189,9 @@ func finalizeWindowsUninstall(paths runtimePaths, report *uninstallReport, mode 
 	}); err != nil {
 		return failWindowsUninstallStatus(paths, status, normalizeUninstallFailureStep(err), err)
 	}
+	if err := removeLegacyWindowsPackageResidue(paths, report); err != nil {
+		return failWindowsUninstallStatus(paths, status, "legacy_windows_package_cleanup", err)
+	}
 	if err := updateWindowsUninstallStatusProgress(paths, status); err != nil {
 		return fmt.Errorf("cannot persist Windows uninstall recovery state: %w", err)
 	}
