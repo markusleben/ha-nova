@@ -31,7 +31,7 @@ func detectInstallSource(paths runtimePaths, state installState) string {
 	if strings.TrimSpace(os.Getenv("HA_NOVA_DEV_ROOT")) != "" {
 		return installSourceDev
 	}
-	if legacyWindowsPackageSourcePresent(paths, state) {
+	if legacyWindowsPackageSourcePresent(paths) {
 		return installSourceLegacyWindowsPackage
 	}
 
@@ -46,6 +46,9 @@ func detectInstallSource(paths runtimePaths, state installState) string {
 		if filepath.Clean(sourceRoot) != filepath.Clean(paths.InstallRoot) {
 			return installSourceDev
 		}
+	}
+	if normalizeInstallSource(state.InstallSource) == installSourceLegacyWindowsPackage && !bundleInstallPresentOnDisk(paths.InstallRoot) {
+		return installSourceLegacyWindowsPackage
 	}
 
 	if normalizeInstallSource(state.InstallSource) == installSourceBundle && bundleInstallPresentOnDisk(paths.InstallRoot) {
@@ -97,12 +100,9 @@ func sourceRootCandidates(paths runtimePaths) []string {
 	return candidates
 }
 
-func legacyWindowsPackageSourcePresent(paths runtimePaths, state installState) bool {
+func legacyWindowsPackageSourcePresent(paths runtimePaths) bool {
 	if !channelChecksUseWindowsPlatform() {
 		return false
-	}
-	if strings.TrimSpace(state.InstallSource) != "" && normalizeInstallSource(state.InstallSource) == installSourceLegacyWindowsPackage {
-		return true
 	}
 	if exePath, err := executablePathForInstallSource(); err == nil && isLegacyWindowsPackageManagedPath(exePath) {
 		return true
