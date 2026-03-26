@@ -10,7 +10,6 @@ describe("project docs contract", () => {
   const novaDocs = readFileSync("nova/DOCS.md", "utf8");
   const bridgeArchitecture = readFileSync("docs/reference/bridge-architecture.md", "utf8");
   const governance = readFileSync("docs/reference/documentation-governance.md", "utf8");
-  const breadcrumbs = readFileSync("docs/breadcrumbs.md", "utf8");
 
   it("keeps PROJECT.md scoped to internal product context instead of public install truth", () => {
     expect(project).toContain("This file is internal product context only.");
@@ -83,8 +82,7 @@ describe("project docs contract", () => {
     expect(governance).toContain("`SUPPORT.md`");
     expect(governance).toContain("`CODE_OF_CONDUCT.md`");
     expect(governance).toContain("`nova/README.md`");
-    expect(breadcrumbs).toContain("Historical breadcrumb log:");
-    expect(breadcrumbs).toContain("`docs/archive/breadcrumbs.md`");
-    expect(breadcrumbs).not.toContain("docs/superpowers/");
+    expect(governance).toContain("`docs/archive/breadcrumbs.md` is the long historical breadcrumb ledger");
+    expect(governance).toContain("keep the root `docs/breadcrumbs.md` short and current only");
   });
 });
