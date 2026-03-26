@@ -114,6 +114,9 @@ describe("dependabot automation contract", () => {
     expect(releasing).toContain("## Release Worthiness");
     expect(releasing).toContain("Do not cut a new version just because `main` moved.");
     expect(releasing).toContain("## Dependabot Fast Lane");
+    expect(releasing).toContain("Manifest-label rule:");
+    expect(releasing).toContain("manifest-review:approved");
+    expect(releasing).toContain("before `@codex`");
     expect(releasing).toContain("dev-only npm minor/patch updates that touch only `package.json` / `package-lock.json` (root or `nova/`)");
     expect(releasing).toContain("safe lane excludes toolchain-risk dependencies such as `vitest`, `vite`, `typescript`, `tsx`, `rollup`, `rolldown`, and `esbuild`");
     expect(releasing).toContain("require `dependency-review` on `main`");
@@ -123,6 +126,8 @@ describe("dependabot automation contract", () => {
     expect(agents).toContain("Dependabot fast-lane rule");
     expect(agents).toContain("Toolchain-risk dev dependency rule");
     expect(agents).toContain("Codex advisory rule");
+    expect(agents).toContain("Manifest-label rule");
+    expect(agents).toContain("gh pr edit <nr> --add-label manifest-review:approved");
   });
 
   it("pins the expected main branch protection policy for maintainer verification", () => {

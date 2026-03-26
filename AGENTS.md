@@ -69,20 +69,22 @@ Work style: Be radically precise. No fluff. Pure information only (drop grammar;
 - **No local-only release shortcuts:** if a follow-up fix matters enough to keep, it must go through GitHub review before merge/tag/release.
 - **Release/tag/publish gate:** never create/move a release tag, start RC/final publish, or call a commit release-ready unless the exact remote commit state intended for tag/release is represented by the latest fully reviewed PR state with no unreviewed deltas beyond it.
 - **Release-bound review hardening:** do local/self review before opening the PR. After the PR exists, use the fast path only: after each relevant fix, run targeted local verification, push immediately, and trigger `@codex` immediately. After PR creation, Codex bot + CI are the review path; do not add extra local review gates in between.
+- **Manifest-label rule:** if a PR changes `package.json`, `package-lock.json`, `nova/package.json`, or `nova/package-lock.json`, add `manifest-review:approved` immediately after `gh pr create` and before `@codex` / `gh pr checks --watch`.
 - **PR Merge / Release Commit Gate — MANDATORY CHECKLIST (do NOT skip any step):**
   The `codex-review-gate` workflow waits ~9 min for the Codex review bot. Bot signals: `eyes` reaction = review in progress, `👍` reaction = no findings, review comments = findings.
   - [ ] 1. `gh pr create ...`
-  - [ ] 2. For the initial PR SHA and for every later relevant SHA: run targeted local verification only, push immediately if needed, then immediately trigger Codex review/re-review: `gh pr comment <nr> --body "@codex"`.
-  - [ ] 3. `gh pr checks <nr> --watch` — wait for ALL required checks; for release-bound/high-risk deltas also wait for `codex-review-gate`
-  - [ ] 4. Check bot signal across all channels: `gh api repos/<o>/<r>/issues/<nr>/reactions` (👍 = clean), `gh api repos/<o>/<r>/pulls/<nr>/reviews` (PR-level review findings), `gh api repos/<o>/<r>/pulls/<nr>/comments` (inline findings), and issue/discussion comments on the PR.
-  - [ ] 5. If findings OR any new relevant delta is introduced afterward → fix, run targeted verification, push immediately, then **trigger re-review**: `gh pr comment <nr> --body "@codex"` — pushes alone do NOT trigger re-review. Then go back to step 2 for the new SHA.
-  - [ ] 6. Resolve ALL review threads before merge (branch protection blocks unresolved):
+  - [ ] 2. If the PR changes `package.json`, `package-lock.json`, `nova/package.json`, or `nova/package-lock.json`, add the maintainer label immediately: `gh pr edit <nr> --add-label manifest-review:approved`
+  - [ ] 3. For the initial PR SHA and for every later relevant SHA: run targeted local verification only, push immediately if needed, then immediately trigger Codex review/re-review: `gh pr comment <nr> --body "@codex"`.
+  - [ ] 4. `gh pr checks <nr> --watch` — wait for ALL required checks; for release-bound/high-risk deltas also wait for `codex-review-gate`
+  - [ ] 5. Check bot signal across all channels: `gh api repos/<o>/<r>/issues/<nr>/reactions` (👍 = clean), `gh api repos/<o>/<r>/pulls/<nr>/reviews` (PR-level review findings), `gh api repos/<o>/<r>/pulls/<nr>/comments` (inline findings), and issue/discussion comments on the PR.
+  - [ ] 6. If findings OR any new relevant delta is introduced afterward → fix, run targeted verification, push immediately, then **trigger re-review**: `gh pr comment <nr> --body "@codex"` — pushes alone do NOT trigger re-review. Then go back to step 3 for the new SHA.
+  - [ ] 7. Resolve ALL review threads before merge (branch protection blocks unresolved):
          `gh api graphql -f query='{ repository(owner:"<o>",name:"<r>") { pullRequest(number:<nr>) { reviewThreads(first:20) { nodes { id isResolved } } } } }'`
          Then for each unresolved: `gh api graphql -f query='mutation { resolveReviewThread(input:{threadId:"<id>"}) { thread { isResolved } } }'`
-  - [ ] 7. For release-bound/high-risk deltas, only proceed after an actual Codex bot result for the current latest commit SHA; timeout alone is NOT enough.
-  - [ ] 8. For release-bound/high-risk deltas, confirm the PR head SHA is still the same SHA that received the latest clean/current bot result. If SHA changed, or if Codex timed out/skipped and there is still no real/current bot result for that exact SHA, go back to step 2.
-  - [ ] 9. `gh pr merge --squash --delete-branch` (use `--admin` only if branch protection blocks after all steps passed)
-  - [ ] 10. For squash merge flows, tag/release only the remote merge commit produced from that reviewed PR state; any later delta requires a new PR/review cycle.
+  - [ ] 8. For release-bound/high-risk deltas, only proceed after an actual Codex bot result for the current latest commit SHA; timeout alone is NOT enough.
+  - [ ] 9. For release-bound/high-risk deltas, confirm the PR head SHA is still the same SHA that received the latest clean/current bot result. If SHA changed, or if Codex timed out/skipped and there is still no real/current bot result for that exact SHA, go back to step 3.
+  - [ ] 10. `gh pr merge --squash --delete-branch` (use `--admin` only if branch protection blocks after all steps passed)
+  - [ ] 11. For squash merge flows, tag/release only the remote merge commit produced from that reviewed PR state; any later delta requires a new PR/review cycle.
 
 ## Error Handling
 - Expected issues: explicit result types (not throw/try/catch).
