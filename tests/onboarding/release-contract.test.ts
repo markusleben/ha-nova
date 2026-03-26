@@ -14,10 +14,10 @@ describe("release contract", () => {
   const bundleBuilder = readFileSync("scripts/release/build-install-bundle.sh", "utf8");
   const wingetManifestBuilder = readFileSync("scripts/release/build-winget-manifest.sh", "utf8");
   const wingetSubmissionHelper = readFileSync("scripts/release/prepare-winget-pkgs-submission.sh", "utf8");
-  const onboardingLifecycleSpec = readFileSync("docs/superpowers/specs/2026-03-22-onboarding-lifecycle-implementation.md", "utf8");
-  const windowsDistributionUxSpec = readFileSync("docs/superpowers/specs/2026-03-22-windows-distribution-ux-review.md", "utf8");
-  const activeContractCleanupSpec = readFileSync("docs/superpowers/specs/2026-03-23-active-onboarding-contract-cleanup.md", "utf8");
-  const wingetValidationCleanupSpec = readFileSync("docs/superpowers/specs/2026-03-23-winget-validation-warning-cleanup.md", "utf8");
+  const onboardingLifecycleSpec = readFileSync("docs/archive/superpowers/specs/2026-03-22-onboarding-lifecycle-implementation.md", "utf8");
+  const windowsDistributionUxSpec = readFileSync("docs/archive/superpowers/specs/2026-03-22-windows-distribution-ux-review.md", "utf8");
+  const activeContractCleanupSpec = readFileSync("docs/archive/superpowers/specs/2026-03-23-active-onboarding-contract-cleanup.md", "utf8");
+  const wingetValidationCleanupSpec = readFileSync("docs/archive/superpowers/specs/2026-03-23-winget-validation-warning-cleanup.md", "utf8");
   const pythonRunner = readFileSync("scripts/e2e/run-python-script.mjs", "utf8");
   const expectedGoreleaserActionRef = "goreleaser/goreleaser-action@v7";
   const pkg = JSON.parse(readFileSync("package.json", "utf8")) as {
@@ -263,7 +263,7 @@ describe("release contract", () => {
     expect(rcWorkflow).toContain("Windows now uses %APPDATA%\\\\ha-nova and %LOCALAPPDATA%\\\\ha-nova\\\\cache as the canonical config and cache paths.");
     expect(rcWorkflow).toContain("Keep exactly one Windows install channel per machine.");
     expect(rcWorkflow).toContain("The attached winget manifest artifact is a rehearsal handoff, not a live install channel and not the final public submission payload.");
-    expect(rcWorkflow).toContain("use the attached winget artifact only for rehearsal/validation");
+    expect(rcWorkflow).toContain("Use the attached winget artifact only for rehearsal/validation");
     expect(rcWorkflow).toContain("The real public winget-pkgs submission must be restaged later from the exact final stable release artifact.");
     expect(rcWorkflow).toContain("Validate Windows winget manifest");
     expect(rcWorkflow).toContain("winget validate --manifest $manifestDir");

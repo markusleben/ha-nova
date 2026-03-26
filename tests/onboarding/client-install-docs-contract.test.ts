@@ -22,7 +22,7 @@ describe("client install docs contract", () => {
 
   it("documents Claude Windows prerequisites and migration only in the Claude install doc", () => {
     expect(claudeInstall).toContain("Windows");
-    expect(claudeInstall).toContain("smoke-validated");
+    expect(claudeInstall).toContain("validated on Windows for this release");
     expect(claudeInstall).toContain("Current public Windows install path: `install.ps1`.");
     expect(claudeInstall).toContain("A `winget` manifest is generated for each release");
     expect(claudeInstall).toContain("published and proven on a fresh Windows VM");
@@ -69,9 +69,9 @@ describe("client install docs contract", () => {
     expect(opencodeInstall).toContain("install the OpenCode client separately first");
     expect(codexInstall).toContain("install the Codex client separately");
     expect(geminiInstall).toContain("install the Gemini client separately");
-    expect(codexInstall).toContain("No automatic startup update banner on Codex yet.");
+    expect(codexInstall).toContain("No automatic startup update banner yet on Codex.");
     expect(geminiInstall).toContain("No automatic startup update banner on Gemini yet.");
-    expect(opencodeInstall).toContain("No automatic startup update banner on OpenCode yet.");
+    expect(opencodeInstall).toContain("No automatic startup update banner yet on OpenCode.");
     expect(codexInstall).toContain("ha-nova check-update");
     expect(geminiInstall).toContain("ha-nova check-update");
     expect(opencodeInstall).toContain("ha-nova check-update");
