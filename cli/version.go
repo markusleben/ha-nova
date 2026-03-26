@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -33,29 +34,121 @@ type updateCheckResult struct {
 	Message         string `json:"message"`
 }
 
-func compareSemver(a, b string) int {
-	ap := parseSemver(a)
-	bp := parseSemver(b)
-	for i := 0; i < 3; i++ {
-		if ap[i] < bp[i] {
-			return -1
-		}
-		if ap[i] > bp[i] {
-			return 1
-		}
-	}
-	return 0
+type parsedReleaseVersion struct {
+	Major int
+	Minor int
+	Patch int
+	RC    int
 }
 
-func parseSemver(s string) [3]int {
-	parts := strings.SplitN(strings.TrimPrefix(strings.TrimSpace(s), "v"), ".", 3)
-	var v [3]int
-	for i := range parts {
-		if i < 3 {
-			v[i], _ = strconv.Atoi(parts[i])
+var errUnsupportedVersionFormat = errors.New("unsupported version format")
+
+func compareReleaseVersions(a, b string) (int, error) {
+	ap, err := parseReleaseVersion(a)
+	if err != nil {
+		return 0, err
+	}
+	bp, err := parseReleaseVersion(b)
+	if err != nil {
+		return 0, err
+	}
+	for i := 0; i < 3; i++ {
+		var av, bv int
+		switch i {
+		case 0:
+			av, bv = ap.Major, bp.Major
+		case 1:
+			av, bv = ap.Minor, bp.Minor
+		default:
+			av, bv = ap.Patch, bp.Patch
+		}
+		if av < bv {
+			return -1, nil
+		}
+		if av > bv {
+			return 1, nil
 		}
 	}
-	return v
+	switch {
+	case ap.RC == 0 && bp.RC > 0:
+		return 1, nil
+	case ap.RC > 0 && bp.RC == 0:
+		return -1, nil
+	case ap.RC < bp.RC:
+		return -1, nil
+	case ap.RC > bp.RC:
+		return 1, nil
+	}
+	return 0, nil
+}
+
+func parseReleaseVersion(s string) (parsedReleaseVersion, error) {
+	raw := strings.TrimSpace(strings.TrimPrefix(s, "v"))
+	if raw == "" {
+		return parsedReleaseVersion{}, fmt.Errorf("%w: empty version", errUnsupportedVersionFormat)
+	}
+	base := raw
+	rc := 0
+	if strings.Count(raw, "-") > 1 {
+		return parsedReleaseVersion{}, fmt.Errorf("%w: %q", errUnsupportedVersionFormat, s)
+	}
+	if dash := strings.IndexByte(raw, '-'); dash >= 0 {
+		base = raw[:dash]
+		suffix := raw[dash+1:]
+		if !strings.HasPrefix(suffix, "rc") {
+			return parsedReleaseVersion{}, fmt.Errorf("%w: %q", errUnsupportedVersionFormat, s)
+		}
+		value := strings.TrimPrefix(suffix, "rc")
+		if value == "" {
+			return parsedReleaseVersion{}, fmt.Errorf("%w: %q", errUnsupportedVersionFormat, s)
+		}
+		parsedRC, err := strconv.Atoi(value)
+		if err != nil || parsedRC < 1 {
+			return parsedReleaseVersion{}, fmt.Errorf("%w: %q", errUnsupportedVersionFormat, s)
+		}
+		rc = parsedRC
+	}
+	parts := strings.Split(base, ".")
+	if len(parts) != 3 {
+		return parsedReleaseVersion{}, fmt.Errorf("%w: %q", errUnsupportedVersionFormat, s)
+	}
+	values := [3]int{}
+	for i, part := range parts {
+		if part == "" {
+			return parsedReleaseVersion{}, fmt.Errorf("%w: %q", errUnsupportedVersionFormat, s)
+		}
+		value, err := strconv.Atoi(part)
+		if err != nil || value < 0 {
+			return parsedReleaseVersion{}, fmt.Errorf("%w: %q", errUnsupportedVersionFormat, s)
+		}
+		values[i] = value
+	}
+	return parsedReleaseVersion{
+		Major: values[0],
+		Minor: values[1],
+		Patch: values[2],
+		RC:    rc,
+	}, nil
+}
+
+func isRCVersion(s string) bool {
+	parsed, err := parseReleaseVersion(s)
+	return err == nil && parsed.RC > 0
+}
+
+func normalizeExplicitVersion(raw string) (string, error) {
+	normalized := strings.TrimPrefix(strings.TrimSpace(raw), "v")
+	if normalized == "" {
+		return "", nil
+	}
+	if _, err := parseReleaseVersion(normalized); err != nil {
+		return "", fmt.Errorf("unsupported version format %q; use X.Y.Z or X.Y.Z-rcN", raw)
+	}
+	return normalized, nil
+}
+
+func isStableTargetFromRC(currentVersion, targetVersion string) bool {
+	return currentVersion != targetVersion && isRCVersion(currentVersion) && !isRCVersion(targetVersion)
 }
 
 func localVersion(paths runtimePaths) string {
@@ -109,7 +202,15 @@ func checkRelayVersion(paths runtimePaths, healthBody []byte) humanNotice {
 		return humanNotice{}
 	}
 
-	if compareSemver(health.Version, v.MinRelayVersion) < 0 {
+	cmp, err := compareReleaseVersions(health.Version, v.MinRelayVersion)
+	if err != nil {
+		return humanNotice{
+			level:   humanNoticeWarning,
+			kind:    humanNoticeKindRelayOutdated,
+			message: fmt.Sprintf("Relay version check unavailable: unsupported relay version format (relay v%s, minimum v%s). Inform the user: update the NOVA Relay App in Home Assistant.", health.Version, v.MinRelayVersion),
+		}
+	}
+	if cmp < 0 {
 		return humanNotice{
 			level:   humanNoticeWarning,
 			kind:    humanNoticeKindRelayOutdated,

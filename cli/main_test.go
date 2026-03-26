@@ -67,7 +67,7 @@ func TestLoadConfigMissing(t *testing.T) {
 	}
 }
 
-func TestCompareSemver(t *testing.T) {
+func TestCompareReleaseVersions(t *testing.T) {
 	tests := []struct {
 		a, b string
 		want int // -1 = a<b, 0 = a==b, 1 = a>b
@@ -77,11 +77,54 @@ func TestCompareSemver(t *testing.T) {
 		{"0.2.0", "0.1.0", 1},
 		{"1.0.0", "0.9.9", 1},
 		{"0.1.0", "0.1.1", -1},
+		{"0.3.1", "0.3.1-rc1", 1},
+		{"0.3.1-rc1", "0.3.1", -1},
+		{"0.3.1-rc2", "0.3.1-rc1", 1},
+		{"0.3.2-rc1", "0.3.1", 1},
 	}
 	for _, tt := range tests {
-		got := compareSemver(tt.a, tt.b)
+		got, err := compareReleaseVersions(tt.a, tt.b)
+		if err != nil {
+			t.Fatalf("compareReleaseVersions(%q, %q) error: %v", tt.a, tt.b, err)
+		}
 		if got != tt.want {
-			t.Errorf("compareSemver(%q, %q) = %d, want %d", tt.a, tt.b, got, tt.want)
+			t.Errorf("compareReleaseVersions(%q, %q) = %d, want %d", tt.a, tt.b, got, tt.want)
+		}
+	}
+}
+
+func TestParseReleaseVersionRejectsUnsupportedFormats(t *testing.T) {
+	tests := []string{
+		"",
+		"0.3",
+		"0.3.1-beta1",
+		"0.3.1-rc0",
+		"0.3.1-rc1-extra",
+	}
+
+	for _, input := range tests {
+		if _, err := parseReleaseVersion(input); err == nil {
+			t.Fatalf("parseReleaseVersion(%q) expected error", input)
+		}
+	}
+}
+
+func TestParseReleaseVersionAcceptsSupportedForms(t *testing.T) {
+	tests := []struct {
+		input string
+		want  parsedReleaseVersion
+	}{
+		{"v0.3.1", parsedReleaseVersion{Major: 0, Minor: 3, Patch: 1}},
+		{"0.3.1-rc2", parsedReleaseVersion{Major: 0, Minor: 3, Patch: 1, RC: 2}},
+	}
+
+	for _, tt := range tests {
+		got, err := parseReleaseVersion(tt.input)
+		if err != nil {
+			t.Fatalf("parseReleaseVersion(%q) error: %v", tt.input, err)
+		}
+		if got != tt.want {
+			t.Fatalf("parseReleaseVersion(%q) = %#v, want %#v", tt.input, got, tt.want)
 		}
 	}
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"net/http"
 	"os"
@@ -218,6 +219,42 @@ func TestRunCheckUpdateJSON(t *testing.T) {
 	}
 }
 
+func TestRunCheckUpdateJSONOffersStableReturnFromRC(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(paths.VersionFile), 0o755); err != nil {
+		t.Fatalf("mkdir version dir: %v", err)
+	}
+	if err := os.WriteFile(paths.VersionFile, []byte(`{"skill_version":"0.4.0-rc1","min_relay_version":"0.1.0"}`), 0o644); err != nil {
+		t.Fatalf("write version file: %v", err)
+	}
+	if err := writeJSONFile(paths.UpdateCacheFile, releaseInfo{Version: "0.3.1", HTMLURL: "https://example.invalid/releases/v0.3.1"}, 0o644); err != nil {
+		t.Fatalf("write cache: %v", err)
+	}
+
+	output := captureStdout(t, func() {
+		if exitCode := runCheckUpdate(paths, []string{"--json"}); exitCode != 0 {
+			t.Fatalf("runCheckUpdate() exit = %d, want 0", exitCode)
+		}
+	})
+
+	var result updateCheckResult
+	if err := json.Unmarshal([]byte(output), &result); err != nil {
+		t.Fatalf("json.Unmarshal output error: %v\noutput=%s", err, output)
+	}
+	if result.Status != "update_available" {
+		t.Fatalf("result.Status = %q, want update_available", result.Status)
+	}
+	if result.Message != "Return to stable: v0.4.0-rc1 -> v0.3.1 | Run: ha-nova update" {
+		t.Fatalf("unexpected JSON stable return guidance: %q", result.Message)
+	}
+}
+
 func TestRunCheckUpdateReturnsFailureForChannelConflict(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -360,6 +397,74 @@ func TestRunCheckUpdateTextModeUsesSingleFetch(t *testing.T) {
 	}
 }
 
+func TestRunCheckUpdateTextModeOffersStableReturnFromRC(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(paths.VersionFile), 0o755); err != nil {
+		t.Fatalf("mkdir version dir: %v", err)
+	}
+	if err := os.WriteFile(paths.VersionFile, []byte(`{"skill_version":"0.4.0-rc1","min_relay_version":"0.1.0"}`), 0o644); err != nil {
+		t.Fatalf("write version file: %v", err)
+	}
+	if err := writeJSONFile(paths.UpdateCacheFile, releaseInfo{Version: "0.3.1", HTMLURL: "https://example.invalid/releases/v0.3.1"}, 0o644); err != nil {
+		t.Fatalf("write cache: %v", err)
+	}
+
+	output := captureStderr(t, func() {
+		if exitCode := runCheckUpdate(paths, nil); exitCode != 0 {
+			t.Fatalf("runCheckUpdate() exit = %d, want 0", exitCode)
+		}
+	})
+
+	if !strings.Contains(output, "Return to stable: v0.4.0-rc1 -> v0.3.1 | Run: ha-nova update") {
+		t.Fatalf("expected text stable return guidance, got %q", output)
+	}
+}
+
+func TestBuildUpdateCheckResultRejectsInvalidLatestReleaseTag(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(paths.VersionFile), 0o755); err != nil {
+		t.Fatalf("mkdir version dir: %v", err)
+	}
+	if err := os.WriteFile(paths.VersionFile, []byte(`{"skill_version":"0.3.0","min_relay_version":"0.1.0"}`), 0o644); err != nil {
+		t.Fatalf("write version file: %v", err)
+	}
+
+	originalHTTPClient := httpClient
+	defer func() {
+		httpClient = originalHTTPClient
+	}()
+	httpClient = &http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			body := `{"tag_name":"v0.4.0-beta1","html_url":"https://example.test/release"}`
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(body)),
+				Header:     make(http.Header),
+			}, nil
+		}),
+	}
+
+	result := buildUpdateCheckResult(paths)
+	if result.Status != "check_failed" {
+		t.Fatalf("result.Status = %q, want check_failed", result.Status)
+	}
+	if !strings.Contains(result.Message, "latest release tag invalid") {
+		t.Fatalf("expected invalid latest release tag error, got %q", result.Message)
+	}
+}
+
 func TestCheckRelayVersionReturnsStructuredOutdatedNotice(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -383,6 +488,33 @@ func TestCheckRelayVersionReturnsStructuredOutdatedNotice(t *testing.T) {
 		t.Fatalf("notice.level = %q, want %q", notice.level, humanNoticeWarning)
 	}
 	if !strings.Contains(notice.message, "Relay outdated: v0.1.0 is below minimum v0.2.0") {
+		t.Fatalf("unexpected relay warning message: %q", notice.message)
+	}
+}
+
+func TestCheckRelayVersionWarnsOnUnsupportedRelayVersionFormat(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(paths.VersionFile), 0o755); err != nil {
+		t.Fatalf("mkdir version dir: %v", err)
+	}
+	if err := os.WriteFile(paths.VersionFile, []byte(`{"skill_version":"0.2.0","min_relay_version":"0.2.0"}`), 0o644); err != nil {
+		t.Fatalf("write version file: %v", err)
+	}
+
+	notice := checkRelayVersion(paths, []byte(`{"version":"0.2.0-beta1"}`))
+	if notice.kind != humanNoticeKindRelayOutdated {
+		t.Fatalf("notice.kind = %q, want %q", notice.kind, humanNoticeKindRelayOutdated)
+	}
+	if notice.level != humanNoticeWarning {
+		t.Fatalf("notice.level = %q, want %q", notice.level, humanNoticeWarning)
+	}
+	if !strings.Contains(notice.message, "unsupported relay version format") {
 		t.Fatalf("unexpected relay warning message: %q", notice.message)
 	}
 }
