@@ -181,6 +181,7 @@ describe("release contract", () => {
 
   it("keeps npm run verify aligned with CI-safe release gates", () => {
     expect(pkg.scripts?.verify).toContain("npm run verify:release-metadata");
+    expect(pkg.scripts?.verify).toContain("npm run verify:security");
     expect(pkg.scripts?.verify).toContain("npm run typecheck");
     expect(pkg.scripts?.verify).toContain("npm run test:safe");
     expect(pkg.scripts?.verify).toContain("npm run build");
@@ -200,6 +201,8 @@ describe("release contract", () => {
     expect(ciWorkflow).toContain("name: CI");
     expect(ciWorkflow).toContain("name: Verify release metadata");
     expect(ciWorkflow).toContain("bash scripts/release/verify-release-metadata.sh");
+    expect(ciWorkflow).toContain("name: Verify npm production audit");
+    expect(ciWorkflow).toContain("bash scripts/release/verify-npm-audit.sh");
     expect(ciWorkflow).toContain("pull_request:");
     expect(ciWorkflow).toContain("branches:");
     expect(ciWorkflow).toContain("- main");
@@ -340,6 +343,7 @@ describe("release contract", () => {
     expect(releasing).toContain("warning-free Windows `winget validate`");
     expect(releasing).toContain("polls until `%LOCALAPPDATA%\\\\Programs\\\\ha-nova` is gone and `%LOCALAPPDATA%\\\\ha-nova\\\\uninstall-status.json` is gone");
     expect(releasing).toContain("audit open PRs, especially Dependabot and workflow/release PRs");
+    expect(releasing).toContain("verify-npm-audit.sh");
     expect(releasing).toContain("## Release Channels (KISS)");
     expect(releasing).toContain("tester-only prerelease shape");
     expect(releasing).toContain("do not add a stored preview/stable channel toggle");

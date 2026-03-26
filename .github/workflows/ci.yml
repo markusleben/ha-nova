@@ -74,6 +74,9 @@ jobs:
       - name: Verify release metadata
         run: bash scripts/release/verify-release-metadata.sh
 
+      - name: Verify npm production audit
+        run: bash scripts/release/verify-npm-audit.sh
+
       - name: Typecheck
         run: npm run typecheck
 
