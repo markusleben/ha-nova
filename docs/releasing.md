@@ -426,7 +426,6 @@ npm run dev:validation:harness
 macOS / Linux:
 
 ```bash
-HA_NOVA_CLAUDE_MARKETPLACE_LOCAL=1 \
 HA_NOVA_BUNDLE_URL=http://127.0.0.1:8917/<bundle-name>.tar.gz \
 HA_NOVA_BUNDLE_SHA256_URL=http://127.0.0.1:8917/<bundle-name>.tar.gz.sha256 \
 HA_NOVA_NO_SETUP=1 \
@@ -442,7 +441,6 @@ Use the matching bundle name for the machine under test:
 Windows:
 
 ```powershell
-$env:HA_NOVA_CLAUDE_MARKETPLACE_LOCAL = '1'
 $env:HA_NOVA_BUNDLE_URL = 'http://<host>:8917/ha-nova-installer-bundle-windows-amd64.zip'
 $env:HA_NOVA_BUNDLE_SHA256_URL = 'http://<host>:8917/ha-nova-installer-bundle-windows-amd64.zip.sha256'
 $env:HA_NOVA_NO_SETUP = '1'
@@ -470,7 +468,7 @@ Run this before any Windows installer/update release is called ready:
 6. Rehearse both mixed-channel directions if available.
    Test bundle-active-plus-winget-present and winget-active-plus-bundle-present. For both, verify `check-update`, `update`, `uninstall --yes`, `uninstall --yes --purge`, and direct `winget uninstall` never guess silently which channel to mutate.
 7. Run the Windows Claude cache regression explicitly.
-   Seed both known stale Claude cache layouts, run install or update with `HA_NOVA_CLAUDE_MARKETPLACE_LOCAL=1`, then prove Claude is using the freshly staged payload rather than a cached older plugin copy.
+   Seed both known stale Claude cache layouts, run install or update, then prove Claude is using the freshly staged local release payload rather than a cached older plugin copy.
 
 ### Desktop Validation Helpers
 
@@ -503,7 +501,7 @@ npm run dev:validation:harness
 ```
 
 That helper rebuilds fresh local bundles by default, rebuilds the local Windows manifest ZIP so it points at the live local bundle URL, serves the repo root on `:8917` so both `install.ps1`, `dist/install-bundles/*`, and `dist/winget/*.zip` are reachable, prints copy/paste install commands for macOS plus both Windows paths (`install.ps1` and local `winget --manifest`), and can also start the tiny HA + fake relay `/health` mock with `--with-mock`.
-The printed local commands also set `HA_NOVA_CLAUDE_MARKETPLACE_LOCAL=1` so Claude validation uses the freshly built local payload instead of the GitHub marketplace source.
+The printed local commands still set `HA_NOVA_CLAUDE_MARKETPLACE_LOCAL=1` as an explicit force-local guard, but shipped installs should already land on the same freshly staged local release payload by default.
 Do not start an extra manual `http.server` on `:8917` next to these helpers; they either start their own server or the harness does it for you.
 
 Windows:
@@ -602,6 +600,7 @@ For installer/runtime/platform releases, call out all of these explicitly:
 - Default `npm run verify` is intentionally host-safe; desktop/private-RC validation stays separate
 - Only describe Windows validation scope that was actually proven for this exact release; do not imply broader client parity than was tested
 - Existing installs update through `ha-nova check-update` / `ha-nova update`; only Claude currently has the extra automatic SessionStart update banner
+- Claude shipped installs use the local staged release payload on disk; HA NOVA surfaces update notices and users refresh with `ha-nova update` plus a Claude restart
 - Tell users not to download and run the release `ha-nova-installer-bundle-*.tar.gz` / `.zip` assets directly; those are installer payloads, not the supported end-user path
 - If uninstall semantics changed, say plainly whether default `ha-nova uninstall` is standard remove or full purge
 - If Windows paths changed, say plainly that `%APPDATA%\\ha-nova` / `%LOCALAPPDATA%\\ha-nova` are now canonical and legacy `~/.local` / `~/.config` data is migrated or cleaned up
@@ -657,7 +656,7 @@ Relay is rebuilt via Docker on the HA host — no npm publish. Users update by p
 - Bundle/dev installs: users run `ha-nova update` (auto-detects installed clients)
 - Do not switch public Windows docs to `winget` until the actual manifest/release publication is live and the initial fresh-VM published-source proof has passed
 - Keep the release-uploaded `ha-nova-winget-manifest-<tag>.zip` in sync with the tagged Windows bundle before opening any `winget-pkgs` submission
-- Claude Code users refresh via `ha-nova update` (which re-registers the local marketplace entry; private validation can still force the explicit local override)
+- Claude Code users refresh via `ha-nova update` (which re-stages the local marketplace entry from the installed release payload; private validation can still force the explicit local override)
 - Claude SessionStart will show `UPDATE AVAILABLE` to users still on the old version
 - Other clients use the same shared updater path, but do not currently inject an equivalent startup banner automatically
 - Legacy pre-Go installs are not updated in place; they must run the dedicated legacy cleanup script first, then reinstall with `install.sh` / `install.ps1`

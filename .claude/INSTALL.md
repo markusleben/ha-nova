@@ -48,38 +48,31 @@ npm.cmd install -g @anthropic-ai/claude-code
 `ha-nova setup claude` handles the local plugin registration automatically.
 
 Default behavior for real installs:
-- HA NOVA registers the Claude marketplace from the GitHub repo
-- Claude plugin updates then follow the repo, as intended by Claude marketplaces
+- HA NOVA stages the Claude marketplace from the installed HA NOVA release payload on disk
+- Claude does not follow the repo automatically anymore
+- HA NOVA itself tells you when a newer release exists
+- when you see an update notice, run `ha-nova update` and then restart Claude
 
 Local validation / private-RC behavior:
 - set `HA_NOVA_CLAUDE_MARKETPLACE_LOCAL=1`
-- HA NOVA then registers a local marketplace root instead of GitHub
+- HA NOVA keeps forcing the same local staged marketplace path
 - use this only when validating freshly built local bundles
 - this path is intentionally a fresh local reinstall, not an in-place marketplace update
 
 If you need to repair it manually:
 
-### macOS / Linux
-
 ```sh
-claude plugin marketplace remove ha-nova
-claude plugin marketplace add https://github.com/markusleben/ha-nova
-claude plugin update ha-nova@ha-nova
+ha-nova setup claude
+ha-nova doctor
 ```
 
-### Windows PowerShell
-
-```powershell
-claude plugin marketplace remove ha-nova
-claude plugin marketplace add https://github.com/markusleben/ha-nova
-claude plugin update ha-nova@ha-nova
-```
-
-If this is the first install and `update` says the plugin is missing, run:
+If HA NOVA already showed an update notice, run:
 
 ```text
-claude plugin install ha-nova@ha-nova
+ha-nova update
 ```
+
+Then restart Claude.
 
 ## Local repo checkout (macOS / Linux only)
 

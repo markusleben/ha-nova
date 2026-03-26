@@ -25,17 +25,71 @@ type claudeMarketplaceSource struct {
 }
 
 func resolveClaudeMarketplaceSource(paths runtimePaths, sourceRoot string) (string, error) {
-	if !useLocalClaudeMarketplace(paths, sourceRoot) {
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("HA_NOVA_CLAUDE_MARKETPLACE_LOCAL")), "1") {
+		return prepareClaudeMarketplaceRoot(paths, sourceRoot)
+	}
+
+	switch detectInstallSource(paths, loadStateOrDefault(paths)) {
+	case installSourceDev:
+		return prepareClaudeMarketplaceRoot(paths, sourceRoot)
+	case installSourceWinget:
+		if !shippedClaudeMarketplacePresentOnDisk(sourceRoot) {
+			return "", fmt.Errorf("installed Claude payload missing from shipped winget runtime")
+		}
+		return prepareClaudeMarketplaceRoot(paths, sourceRoot)
+	case installSourceBundle:
+		if shippedClaudeMarketplacePresentOnDisk(sourceRoot) {
+			return prepareClaudeMarketplaceRoot(paths, sourceRoot)
+		}
+		if bundleInstallPresentOnDisk(sourceRoot) {
+			return "", fmt.Errorf("installed Claude payload missing from shipped bundle runtime")
+		}
+		return defaultClaudeMarketplaceURL, nil
+	default:
 		return defaultClaudeMarketplaceURL, nil
 	}
-	return prepareClaudeMarketplaceRoot(paths, sourceRoot)
 }
 
 func useLocalClaudeMarketplace(paths runtimePaths, sourceRoot string) bool {
 	if strings.EqualFold(strings.TrimSpace(os.Getenv("HA_NOVA_CLAUDE_MARKETPLACE_LOCAL")), "1") {
 		return true
 	}
-	return sourceRoot != paths.InstallRoot
+	switch detectInstallSource(paths, loadStateOrDefault(paths)) {
+	case installSourceDev:
+		return true
+	case installSourceBundle, installSourceWinget:
+		return shippedClaudeMarketplacePresentOnDisk(sourceRoot)
+	default:
+		return false
+	}
+}
+
+func shippedClaudeMarketplacePresentOnDisk(sourceRoot string) bool {
+	sourceRoot = strings.TrimSpace(sourceRoot)
+	if sourceRoot == "" {
+		return false
+	}
+	requiredFiles := []string{
+		filepath.Join(sourceRoot, "bundle.json"),
+		filepath.Join(sourceRoot, "clients", "registry.json"),
+		filepath.Join(sourceRoot, ".claude-plugin", "marketplace.json"),
+		filepath.Join(sourceRoot, ".claude-plugin", "plugin.json"),
+	}
+	for _, path := range requiredFiles {
+		if _, err := os.Stat(path); err != nil {
+			return false
+		}
+	}
+	requiredDirs := []string{
+		filepath.Join(sourceRoot, "skills"),
+	}
+	for _, path := range requiredDirs {
+		info, err := os.Stat(path)
+		if err != nil || !info.IsDir() {
+			return false
+		}
+	}
+	return true
 }
 
 func prepareClaudeMarketplaceRoot(paths runtimePaths, sourceRoot string) (string, error) {
@@ -46,7 +100,21 @@ func prepareClaudeMarketplaceRoot(paths runtimePaths, sourceRoot string) (string
 
 	targetRoot := filepath.Join(paths.ConfigDir, "claude-marketplace")
 	localSource := "./ha-nova"
-	if err := stageClaudeMarketplacePluginRoot(filepath.Join(targetRoot, "ha-nova"), absSourceRoot); err != nil {
+	if err := os.MkdirAll(paths.ConfigDir, 0o755); err != nil {
+		return "", err
+	}
+	stageRoot, err := os.MkdirTemp(paths.ConfigDir, "claude-marketplace-stage-")
+	if err != nil {
+		return "", err
+	}
+	stageActive := true
+	defer func() {
+		if stageActive {
+			_ = os.RemoveAll(stageRoot)
+		}
+	}()
+
+	if err := stageClaudeMarketplacePluginRoot(filepath.Join(stageRoot, "ha-nova"), absSourceRoot); err != nil {
 		return "", err
 	}
 
@@ -55,13 +123,90 @@ func prepareClaudeMarketplaceRoot(paths runtimePaths, sourceRoot string) (string
 		return "", err
 	}
 
-	if err := os.MkdirAll(filepath.Join(targetRoot, ".claude-plugin"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(stageRoot, ".claude-plugin"), 0o755); err != nil {
 		return "", err
 	}
-	if err := os.WriteFile(filepath.Join(targetRoot, ".claude-plugin", "marketplace.json"), marketplaceData, 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(stageRoot, ".claude-plugin", "marketplace.json"), marketplaceData, 0o644); err != nil {
 		return "", err
 	}
+
+	if err := validateClaudeMarketplaceRoot(stageRoot); err != nil {
+		return "", err
+	}
+	if err := replaceClaudeMarketplaceRoot(targetRoot, stageRoot); err != nil {
+		return "", err
+	}
+	stageActive = false
 	return targetRoot, nil
+}
+
+func validateClaudeMarketplaceRoot(root string) error {
+	root = strings.TrimSpace(root)
+	if root == "" {
+		return fmt.Errorf("Claude marketplace root missing")
+	}
+	if _, err := os.Stat(filepath.Join(root, ".claude-plugin", "marketplace.json")); err != nil {
+		return fmt.Errorf("Claude marketplace manifest missing: %w", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "ha-nova")); err != nil {
+		return fmt.Errorf("Claude marketplace plugin payload missing: %w", err)
+	}
+	cmd := exec.Command("claude", "plugin", "validate", root)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("claude plugin command failed: %s (%s)", strings.Join(cmd.Args[1:], " "), strings.TrimSpace(string(output)))
+	}
+	return nil
+}
+
+func replaceClaudeMarketplaceRoot(targetRoot, stagedRoot string) error {
+	targetRoot = filepath.Clean(targetRoot)
+	stagedRoot = filepath.Clean(stagedRoot)
+	backupRoot := targetRoot + ".backup"
+
+	if err := os.RemoveAll(backupRoot); err != nil {
+		return err
+	}
+
+	hadExisting := false
+	if _, err := os.Lstat(targetRoot); err == nil {
+		hadExisting = true
+		if err := os.Rename(targetRoot, backupRoot); err != nil {
+			return err
+		}
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+
+	if err := os.Rename(stagedRoot, targetRoot); err != nil {
+		if hadExisting {
+			_ = os.Rename(backupRoot, targetRoot)
+		}
+		return err
+	}
+	return nil
+}
+
+func cleanupClaudeMarketplaceBackup(targetRoot string) error {
+	backupRoot := filepath.Clean(targetRoot) + ".backup"
+	if err := os.RemoveAll(backupRoot); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
+}
+
+func restoreClaudeMarketplaceBackup(targetRoot string) error {
+	targetRoot = filepath.Clean(targetRoot)
+	backupRoot := targetRoot + ".backup"
+	if _, err := os.Lstat(backupRoot); err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	if err := os.RemoveAll(targetRoot); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return os.Rename(backupRoot, targetRoot)
 }
 
 func ensureClaudeMarketplaceRegistration(home, desiredSource string) error {

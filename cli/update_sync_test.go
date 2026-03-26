@@ -35,8 +35,11 @@ func TestPostUpdateSyncRefreshesDetectedInstalledClientsWithoutState(t *testing.
 	if err != nil {
 		t.Fatalf("read log: %v", err)
 	}
-	if !strings.Contains(string(logData), "plugin update ha-nova@ha-nova") {
-		t.Fatalf("expected detected Claude install to be refreshed, got:\n%s", string(logData))
+	if !strings.Contains(string(logData), "plugin remove ha-nova@ha-nova") {
+		t.Fatalf("expected detected Claude install to be reset before reinstall, got:\n%s", string(logData))
+	}
+	if !strings.Contains(string(logData), "plugin install ha-nova@ha-nova") {
+		t.Fatalf("expected detected Claude install to be reinstalled from the local staged payload, got:\n%s", string(logData))
 	}
 	if !strings.Contains(string(logData), "plugin marketplace add ") {
 		t.Fatalf("expected Claude marketplace to be refreshed, got:\n%s", string(logData))

@@ -47,7 +47,7 @@ HA NOVA uses three update archetypes depending on the client:
 
 | Client | Archetype | What happens |
 |--------|-----------|--------------|
-| Claude Code | Native | Refresh local marketplace metadata + verify/update the installed plugin |
+| Claude Code | Native | Re-stage the local marketplace from the installed release payload, then verify/reinstall the plugin |
 | Codex | Linked/Copy | Refresh installed skill tree from the active HA NOVA install |
 | OpenCode | Linked/Copy | Refresh installed skill tree from the active HA NOVA install |
 | Gemini | Flat-copy | Rebuild flat markdown copies from the active HA NOVA install |
@@ -70,6 +70,7 @@ Two checks run automatically:
 
 The `doctor` command runs both checks synchronously and also refreshes the update cache.
 Other clients use the same shared CLI updater path (`ha-nova check-update`, `ha-nova doctor`, `ha-nova update`), but do not currently inject the same automatic SessionStart banner.
+Installed Claude uses the tested HA NOVA release payload on disk; update discovery stays automatic where HA NOVA already provides it.
 
 ## Agent-Driven Updates
 
@@ -79,4 +80,4 @@ When the agent detects `UPDATE AVAILABLE` in its session context, it can run the
 ha-nova update
 ```
 
-After a successful update, the user must start a new session for the updated skills to take effect.
+After a successful update, the user must start a new Claude session for the updated payload to take effect.

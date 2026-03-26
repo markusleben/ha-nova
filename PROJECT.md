@@ -23,7 +23,7 @@ Current release support matrix:
 
 Client setup commands:
 - **Codex CLI:** `ha-nova setup codex` installs skills into `~/.agents/skills/ha-nova`
-- **Claude Code / Desktop:** `ha-nova setup claude` installs or repairs the Claude plugin integration. Claude Desktop uses the same Claude integration path via the Code tab and GitHub marketplace path.
+- **Claude Code / Desktop:** `ha-nova setup claude` installs or repairs the Claude plugin integration. Claude Desktop uses the same Claude integration path via the Code tab and the locally staged release payload.
 - **OpenCode:** `ha-nova setup opencode` installs or repairs the OpenCode skill integration
 - **Gemini CLI:** `ha-nova setup gemini` installs or repairs the Gemini skill integration
 

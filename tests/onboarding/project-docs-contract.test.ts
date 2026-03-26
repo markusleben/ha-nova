@@ -11,7 +11,8 @@ describe("project docs contract", () => {
     expect(project).toContain("Claude Desktop");
     expect(project).toContain("Code tab");
     expect(project).toContain("same Claude integration path");
-    expect(project).toContain("GitHub marketplace path");
+    expect(project).toContain("locally staged release payload");
+    expect(project).not.toContain("GitHub marketplace path");
     expect(project).not.toContain("planned after Codex/Claude Code flow is stable");
     expect(project).not.toContain("no public package yet");
     expect(project).not.toContain("registers the local bundle as a Claude plugin");

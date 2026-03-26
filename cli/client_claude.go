@@ -26,23 +26,30 @@ func installClaudePlugin(paths runtimePaths, sourceRoot string) error {
 	if err != nil {
 		return err
 	}
-	if err := ensureClaudeMarketplaceRegistration(paths.Home, marketplaceRoot); err != nil {
-		if restoreState.hasSource || restoreState.pluginInstalled {
-			if restoreErr := restoreClaudeLocalState(paths.Home, restoreState); restoreErr != nil {
-				return fmt.Errorf("%w (Claude rollback failed: %v)", err, restoreErr)
+	restoreMarketplace := func(cause error) error {
+		if localMode {
+			if restoreErr := restoreClaudeMarketplaceBackup(marketplaceRoot); restoreErr != nil {
+				return fmt.Errorf("%w (Claude marketplace rollback failed: %v)", cause, restoreErr)
 			}
 		}
-		return err
+		if restoreState.hasSource || restoreState.pluginInstalled {
+			if restoreErr := restoreClaudeLocalState(paths.Home, restoreState); restoreErr != nil {
+				return fmt.Errorf("%w (Claude rollback failed: %v)", cause, restoreErr)
+			}
+		} else if clearErr := clearClaudeMarketplaceRegistration(paths.Home); clearErr != nil {
+			return fmt.Errorf("%w (Claude rollback failed: %v)", cause, clearErr)
+		}
+		return cause
+	}
+	if err := ensureClaudeMarketplaceRegistration(paths.Home, marketplaceRoot); err != nil {
+		return restoreMarketplace(err)
 	}
 
 	refreshArgs := []string{"plugin", "install", "ha-nova@ha-nova"}
 	alreadyInstalled := claudePluginInstalled(paths.Home)
 	if localMode {
 		if err := resetClaudeLocalPluginState(paths.Home); err != nil {
-			if restoreErr := restoreClaudeLocalState(paths.Home, restoreState); restoreErr != nil {
-				return fmt.Errorf("%w (Claude rollback failed: %v)", err, restoreErr)
-			}
-			return err
+			return restoreMarketplace(err)
 		}
 		alreadyInstalled = false
 	} else if alreadyInstalled {
@@ -52,9 +59,7 @@ func installClaudePlugin(paths runtimePaths, sourceRoot string) error {
 	cmd := exec.Command("claude", refreshArgs...)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		if localMode {
-			if restoreErr := restoreClaudeLocalState(paths.Home, restoreState); restoreErr != nil {
-				return fmt.Errorf("claude plugin command failed: %s (%s); Claude rollback failed: %v", strings.Join(refreshArgs, " "), strings.TrimSpace(string(output)), restoreErr)
-			}
+			return restoreMarketplace(fmt.Errorf("claude plugin command failed: %s (%s)", strings.Join(refreshArgs, " "), strings.TrimSpace(string(output))))
 		}
 		if alreadyInstalled {
 			text := strings.TrimSpace(string(output))
@@ -69,7 +74,15 @@ func installClaudePlugin(paths runtimePaths, sourceRoot string) error {
 		}
 		return fmt.Errorf("claude plugin command failed: %s (%s)", strings.Join(refreshArgs, " "), strings.TrimSpace(string(output)))
 	}
-	return verifyClaudePluginInstalled(paths.Home)
+	if err := verifyClaudePluginInstalled(paths.Home); err != nil {
+		return restoreMarketplace(err)
+	}
+	if localMode {
+		if err := cleanupClaudeMarketplaceBackup(marketplaceRoot); err != nil {
+			printHumanWarn("Claude marketplace backup cleanup skipped: %s", err)
+		}
+	}
+	return nil
 }
 
 func verifyClaudePluginInstalled(home string) error {
