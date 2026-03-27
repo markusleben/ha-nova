@@ -38,8 +38,9 @@ describe("codex review live e2e contract", () => {
     expect(content).toContain("count_shell_network_hits");
     expect(content).toContain("count_onboarding_check_hits");
     expect(content).toContain("count_home_assistant_read_hits");
-    expect(content).toContain("python(3)?");
-    expect(content).toContain("requests|urllib|httpx");
+    expect(content).toContain('re.search(r"\\bpython3?\\b", command)');
+    expect(content).toContain('re.search(r"\\b(requests|urllib|httpx)\\b", command)');
+    expect(content).not.toContain("python(3)?[^[:cntrl:]]*(requests|urllib|httpx)");
     expect(content).toContain("(ha-nova|nova|onboarding)");
     expect(content).toContain("(doctor|ready|quick)");
     expect(content).toContain('scenario_prompt_lc');
@@ -107,6 +108,13 @@ describe("codex review live e2e contract", () => {
       expect(Number.isInteger(scenario.max_duration_sec)).toBe(true);
       expect(scenario.max_duration_sec).toBeGreaterThan(0);
     }
+  });
+
+  it("detects multiline python network commands in the review live harness", () => {
+    const content = readFileSync("scripts/e2e/codex-ha-nova-review-live-e2e.sh", "utf8");
+
+    expect(content).toContain('if re.search(r"\\bpython3?\\b", command) and re.search(r"\\b(requests|urllib|httpx)\\b", command)');
+    expect(content).toContain("command_execution");
   });
 
   it("exposes npm command for review live harness", () => {

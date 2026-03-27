@@ -113,3 +113,16 @@ Historical breadcrumb log:
 - Commit the follow-up harness fixes
 - Push the new SHA
 - Trigger `@codex` again and wait for a clean current review on that exact commit
+
+## 2026-03-27: Post-Merge Follow-Up for PR #142
+
+### Completed
+- Confirmed that a new Codex inline finding landed after the merge for PR #142 on SHA `c94e36f`
+- Identified the process mistake: merge happened after `codex-review-gate` turned green but before the SHA-specific bot review objects had visibly settled in GitHub
+- Patched the review-live harness to detect multiline Python network calls in `command_execution` payloads by checking interpreter and network-library tokens independently
+- Added regression coverage so the contract now rejects the old same-line-only detector shape
+
+### Next
+- Run the targeted review-live contract suite
+- Commit the post-merge follow-up fix on a new branch
+- Open a small follow-up PR and wait for a fresh clean Codex result before merging
