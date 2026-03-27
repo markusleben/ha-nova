@@ -173,9 +173,50 @@ count_external_research_hits() {
 count_shell_network_hits() {
   local scenario_log="$1"
 
-  count_command_hits \
-    "$scenario_log" \
-    '(curl|wget|httpie|lynx|links|elinks|xh|python(3)?[^[:cntrl:]]*(requests|urllib|httpx)|node[^[:cntrl:]]*(fetch|https?://)|ruby[^[:cntrl:]]*(Net::HTTP|open-uri))'
+  python3 - "$scenario_log" <<'PY'
+import json
+import re
+import sys
+
+count = 0
+
+with open(sys.argv[1], encoding="utf-8") as handle:
+    for raw_line in handle:
+        try:
+            event = json.loads(raw_line)
+        except json.JSONDecodeError:
+            continue
+
+        if event.get("type") != "item.completed":
+            continue
+
+        item = event.get("item") or {}
+        if item.get("type") != "command_execution":
+            continue
+
+        command = (item.get("command") or "").lower()
+        if not command:
+            continue
+
+        if re.search(r"\b(curl|wget|httpie|lynx|links|elinks|xh)\b", command):
+            count += 1
+            continue
+
+        if re.search(r"\bpython3?\b", command) and re.search(r"\b(requests|urllib|httpx)\b", command):
+            count += 1
+            continue
+
+        if re.search(r"\bnode\b", command) and (
+            re.search(r"\bfetch\b", command) or re.search(r"https?://", command)
+        ):
+            count += 1
+            continue
+
+        if re.search(r"\bruby\b", command) and re.search(r"(net::http|open-uri)", command):
+            count += 1
+
+print(count)
+PY
 }
 
 count_onboarding_check_hits() {
