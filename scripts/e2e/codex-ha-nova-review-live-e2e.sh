@@ -170,6 +170,22 @@ count_external_research_hits() {
   ' "$scenario_log" 2>/dev/null || true
 }
 
+count_shell_network_hits() {
+  local scenario_log="$1"
+
+  count_command_hits \
+    "$scenario_log" \
+    '(curl|wget|httpie|lynx|links|elinks|xh|python(3)?[^[:cntrl:]]*(requests|urllib|httpx)|node[^[:cntrl:]]*(fetch|https?://)|ruby[^[:cntrl:]]*(Net::HTTP|open-uri))'
+}
+
+count_onboarding_check_hits() {
+  local scenario_log="$1"
+
+  count_command_hits \
+    "$scenario_log" \
+    '((ha-nova|nova|onboarding)[^[:cntrl:]]*(doctor|ready|quick)|((doctor|ready|quick)[^[:cntrl:]]*(ha-nova|nova|onboarding)))'
+}
+
 assert_text_sequence() {
   local haystack="$1"
   shift
@@ -208,6 +224,8 @@ run_scenario() {
   local last_agent_message=""
   local helper_script_count
   local external_research_count
+  local shell_network_count
+  local onboarding_check_count
 
   build_prompt_file "$scenario_prompt" "$prompt_file"
 
@@ -237,9 +255,16 @@ run_scenario() {
   fi
 
   external_research_count="$(count_external_research_hits "$parsed_log")"
-  if [[ "$external_research_count" -gt 0 ]]; then
+  shell_network_count="$(count_shell_network_hits "$parsed_log")"
+  if [[ "$((external_research_count + shell_network_count))" -gt 0 ]]; then
     status="fail"
     validation_error="unexpected_external_research_detected"
+  fi
+
+  onboarding_check_count="$(count_onboarding_check_hits "$parsed_log")"
+  if [[ "$status" == "pass" && "$onboarding_check_count" -gt 0 ]]; then
+    status="fail"
+    validation_error="forbidden_onboarding_check_detected"
   fi
 
   if [[ "$status" == "pass" ]]; then

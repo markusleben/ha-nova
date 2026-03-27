@@ -35,6 +35,12 @@ describe("codex review live e2e contract", () => {
     expect(content).toContain('test("^(exa|Ref|web)$")');
     expect(content).toContain("search_query");
     expect(content).toContain("ref_read_url");
+    expect(content).toContain("count_shell_network_hits");
+    expect(content).toContain("count_onboarding_check_hits");
+    expect(content).toContain("python(3)?");
+    expect(content).toContain("requests|urllib|httpx");
+    expect(content).toContain("(ha-nova|nova|onboarding)");
+    expect(content).toContain("(doctor|ready|quick)");
     expect(content).toContain("must_contain_text");
     expect(content).toContain("must_not_contain_text");
     expect(content).toContain("ordered_text");
@@ -43,6 +49,7 @@ describe("codex review live e2e contract", () => {
     expect(content).toContain("Review scenario suite failed");
     expect(content).toContain("helper_script_usage_detected");
     expect(content).toContain("unexpected_external_research_detected");
+    expect(content).toContain("forbidden_onboarding_check_detected");
     expect(content).toContain("ordered_text_mismatch");
     expect(content).toContain("section_order_mismatch");
     expect(content).toContain("required_text_missing");

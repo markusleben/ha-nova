@@ -89,3 +89,15 @@ Historical breadcrumb log:
 ### Next
 - Run the targeted review-live contract suite
 - If green, commit the follow-up fix, push, and trigger `@codex` again for the new SHA
+
+## 2026-03-27: PR #142 Review Follow-Up 2
+
+### Completed
+- Fixed two new Codex findings in the review-live harness by treating shell-based network fetch commands as forbidden external research
+- Added an explicit transcript guard for onboarding `ready` / `doctor` / `quick` checks so the hard prompt rule is enforced in validation, not just wording
+- Re-ran the focused review-live contract suite and shell syntax check successfully
+
+### Next
+- Commit the follow-up harness fix
+- Push the new SHA
+- Trigger `@codex` again and wait for a fresh clean result on that exact commit
