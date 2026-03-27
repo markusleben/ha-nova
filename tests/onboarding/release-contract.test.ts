@@ -13,10 +13,14 @@ describe("release contract", () => {
   };
 
   it("keeps release notes aligned to the single supported Windows install path", () => {
-    expect(goreleaser).toContain("install.sh");
-    expect(goreleaser).toContain("install.ps1");
+    expect(goreleaser).toContain("Stable install commands are release-pinned for this tag.");
+    expect(goreleaser).toContain("https://raw.githubusercontent.com/markusleben/ha-nova/{{ .Tag }}/install.sh");
+    expect(goreleaser).toContain("HA_NOVA_VERSION={{ .Tag }}");
+    expect(goreleaser).toContain("https://raw.githubusercontent.com/markusleben/ha-nova/{{ .Tag }}/install.ps1");
     expect(goreleaser).toContain("Windows uses a single supported install path: `install.ps1`.");
     expect(goreleaser).toContain("Home Assistant Relay setup and token steps remain guided in the browser");
+    expect(goreleaser).not.toContain("raw.githubusercontent.com/markusleben/ha-nova/main/install.sh");
+    expect(goreleaser).not.toContain("raw.githubusercontent.com/markusleben/ha-nova/main/install.ps1");
     expect(goreleaser).not.toContain("$ProgressPreference = 'SilentlyContinue'");
     expect(goreleaser).not.toContain("winget");
   });
@@ -65,15 +69,20 @@ describe("release contract", () => {
     expect(installer).not.toContain("winget uninstall --id");
   });
 
-  it("keeps release docs aligned to the no-winget contract", () => {
+  it("keeps release docs aligned to the pinned stable install contract", () => {
     expect(releasing).toContain("Windows uses a single supported install path: `install.ps1`");
+    expect(releasing).toContain("Supported stable selection:");
+    expect(releasing).toContain("curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/<stable-tag>/install.sh | HA_NOVA_VERSION=vX.Y.Z bash");
+    expect(releasing).toContain("irm https://raw.githubusercontent.com/markusleben/ha-nova/<stable-tag>/install.ps1 | iex");
+    expect(releasing).toContain("stable release notes must publish tag-pinned install commands, never `main` bootstrap URLs");
     expect(releasing).toContain("Desktop Validation Helpers");
     expect(releasing).toContain("scripts/dev/start-local-validation-harness.sh");
     expect(releasing).toContain("scripts/dev/windows-clean-test-state.ps1");
     expect(releasing).toContain("scripts/dev/windows-private-rc-install.ps1");
     expect(releasing).toContain("scripts/dev/windows-desktop-setup.ps1");
     expect(releasing).toContain("npm run dev:validation:harness");
-    expect(releasing).toContain("irm https://raw.githubusercontent.com/markusleben/ha-nova/main/install.ps1 | iex");
+    expect(releasing).not.toContain("raw.githubusercontent.com/markusleben/ha-nova/main/install.sh");
+    expect(releasing).not.toContain("raw.githubusercontent.com/markusleben/ha-nova/main/install.ps1");
     expect(releasing).not.toContain("winget");
     expect(releasing).not.toContain("$ProgressPreference = 'SilentlyContinue'");
   });

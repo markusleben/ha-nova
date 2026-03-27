@@ -1,26 +1,25 @@
 # Installing HA NOVA for Codex
 
 ## Quick Start
+>
+> **Stable install (recommended)**
+> 1. Open the [latest GitHub release](https://github.com/markusleben/ha-nova/releases/latest)
+> 2. Copy the one-liner for your OS
+> 3. Run it unchanged
+>
+> This makes sure you install exactly the version shown on that release page.
 
 ### macOS / Linux
 
-```sh
-curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/main/install.sh | bash
-```
-
 ### Windows PowerShell
 
-```powershell
-irm https://raw.githubusercontent.com/markusleben/ha-nova/main/install.ps1 | iex
-```
-
 Windows uses a single supported install path: `install.ps1`.
-HA NOVA installs itself locally; Home Assistant Relay setup and token steps stay guided in the browser.
+HA NOVA installs itself on your computer; the Home Assistant connection steps stay guided in the browser.
 
-Windows currently ships an `amd64` bundle. On Windows ARM64, use x64 emulation.
+Windows currently ships an x64 build. On Windows ARM64, use x64 emulation.
 
-On Windows, install the Codex client separately first. HA NOVA handles skills and config, not the Codex runtime itself. Follow Codex's own Windows instructions, then run the HA NOVA installer. The installer launches a setup wizard — choose `Codex CLI` when prompted.
-Windows support for Codex is still experimental until explicit Windows smoke completes.
+On Windows, install the Codex client separately first. HA NOVA handles the skills and setup, not the Codex app itself. Follow Codex's own Windows instructions, then run the HA NOVA installer. The installer launches a setup wizard — choose `Codex CLI` when prompted.
+Windows support for Codex is still early and not fully tested yet.
 
 ## Already Set Up?
 
@@ -39,11 +38,11 @@ ha-nova uninstall
 ha-nova uninstall --purge
 ```
 
-`ha-nova uninstall` now means standard remove and keeps local HA NOVA connection config plus the secure token for easier reinstall/repair. Use `ha-nova uninstall --purge` for a full local wipe.
+`ha-nova uninstall` now means standard remove and keeps your local HA NOVA connection settings and sign-in for easier reinstall/repair. Use `ha-nova uninstall --purge` for a full local wipe.
 
 Recent Windows builds also migrate older `~/.local` / `~/.config` HA NOVA data into native `%LOCALAPPDATA%` / `%APPDATA%` locations automatically.
 
-No automatic startup update banner yet on Codex. Use `ha-nova check-update` or `ha-nova doctor` when you want an explicit update check.
+Codex does not show an HA NOVA update notice automatically yet. Use `ha-nova check-update` or `ha-nova doctor` when you want to check manually.
 
 Old pre-Go install?
 
@@ -52,11 +51,11 @@ Old pre-Go install?
 
 ## What's Next
 
-After setup, the context skill (`ha-nova`) loads automatically at session start. Sub-skills like `ha-nova:read`, `ha-nova:write`, `ha-nova:review`, and others are available on demand.
+After setup, HA NOVA commands like `ha-nova:read`, `ha-nova:write`, and `ha-nova:review` are available when you need them.
 
 ## Troubleshooting
 
-Run `ha-nova doctor` to diagnose connectivity, config, and skill registration issues.
+Run `ha-nova doctor` to check connection and setup problems.
 
 ## Related
 

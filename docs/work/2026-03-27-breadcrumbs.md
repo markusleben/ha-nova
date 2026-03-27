@@ -5,6 +5,19 @@ Current breadcrumb notes only.
 Historical breadcrumb log:
 - `docs/archive/breadcrumbs.md`
 
+## 2026-03-27: Stable Install Contract
+
+### Completed
+- Re-reviewed the stable install path end-to-end and confirmed the current public contract was still mixed: `main` bootstrap plus latest-release payload
+- Chose the fully release-pinned stable model as the next product contract
+- Wrote a small work spec so the change stays focused on public docs, release-note generation, and onboarding contracts
+- Promoted the new stable-install message from low-contrast prose into a short 3-step callout so the canonical user action is obvious in README and the per-client install overlays
+
+### Next
+- Remove public stable one-liners from `main` docs and replace them with a link to the latest GitHub release
+- Update the stable release-note template to publish tag-pinned installer commands plus matching `HA_NOVA_VERSION`
+- Tighten onboarding contract tests so stable public surfaces fail if they advertise `main/install.sh` or `main/install.ps1`
+
 ## 2026-03-27: Review Synthesis + R-18 Follow-Up
 
 ### Completed

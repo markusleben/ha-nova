@@ -1,23 +1,22 @@
 # Installing HA NOVA for Claude Code
 
 ## Quick Start
+>
+> **Stable install (recommended)**
+> 1. Open the [latest GitHub release](https://github.com/markusleben/ha-nova/releases/latest)
+> 2. Copy the one-liner for your OS
+> 3. Run it unchanged
+>
+> This makes sure you install exactly the version shown on that release page.
 
 ### macOS / Linux
 
-```sh
-curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/main/install.sh | bash
-```
-
 ### Windows PowerShell
 
-```powershell
-irm https://raw.githubusercontent.com/markusleben/ha-nova/main/install.ps1 | iex
-```
-
 Windows uses a single supported install path: `install.ps1`.
-HA NOVA installs itself locally; Home Assistant Relay setup and token steps stay guided in the browser.
+HA NOVA installs itself on your computer; the Home Assistant connection steps stay guided in the browser.
 
-Windows currently ships an `amd64` bundle. On Windows ARM64, use x64 emulation.
+Windows currently ships an x64 build. On Windows ARM64, use x64 emulation.
 
 The installer launches a setup wizard — choose `Claude Code` when prompted for your AI client.
 
@@ -26,7 +25,7 @@ Claude Desktop in the **Code** tab uses this same Claude integration path.
 ## Windows Notes
 
 Install Claude Code itself separately if you haven't already.
-Claude is validated on Windows for this release.
+Claude has been tested on Windows for this release.
 
 Claude Code on Windows may need extra setup:
 - May require Git for Windows or WSL, depending on your setup.
@@ -44,10 +43,10 @@ npm.cmd install -g @anthropic-ai/claude-code
 
 ## Activating Skills
 
-`ha-nova setup claude` handles local plugin registration automatically.
+`ha-nova setup claude` connects Claude to HA NOVA automatically.
 
 Default behavior for real installs:
-- HA NOVA stages the Claude marketplace from the installed HA NOVA release payload on disk
+- HA NOVA uses the Claude marketplace files that came with your installed HA NOVA version
 - Claude does not follow the repo automatically anymore
 - HA NOVA itself tells you when a newer release exists
 - when you see an update notice, run `ha-nova update` and then restart Claude
@@ -82,8 +81,8 @@ export HA_NOVA_CLAUDE_MARKETPLACE_LOCAL=1
 bash scripts/onboarding/install-local-skills.sh claude
 ```
 
-This keeps Claude pointed at the current local checkout payload for testing/development.
-The local validation path also refreshes the Claude plugin cache before reinstalling — edited skills won't stay stuck behind an old cached payload.
+This keeps Claude pointed at the current local checkout files for testing/development.
+The local validation path also refreshes the Claude plugin cache before reinstalling — edited skills won't stay stuck behind old cached files.
 
 Skills are then available as `/ha-nova:read`, `/ha-nova:write`, etc.
 
@@ -92,7 +91,7 @@ Skills are then available as `/ha-nova:read`, `/ha-nova:write`, etc.
 claude --plugin-dir /path/to/your/ha-nova-checkout
 ```
 
-On Windows, prefer the installed-bundle path or rerun `ha-nova setup claude` instead of `--plugin-dir`.
+On Windows, prefer the normal installed path or rerun `ha-nova setup claude` instead of `--plugin-dir`.
 
 ## Already Set Up?
 
@@ -111,7 +110,7 @@ ha-nova uninstall
 ha-nova uninstall --purge
 ```
 
-`ha-nova uninstall` now means standard remove and keeps local HA NOVA connection config plus the secure token for easier reinstall/repair. Use `ha-nova uninstall --purge` for a full local wipe.
+`ha-nova uninstall` now means standard remove and keeps your local HA NOVA connection settings and sign-in for easier reinstall/repair. Use `ha-nova uninstall --purge` for a full local wipe.
 
 Recent Windows builds also migrate older `~/.local` / `~/.config` HA NOVA data into native `%LOCALAPPDATA%` / `%APPDATA%` locations automatically.
 
