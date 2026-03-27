@@ -30,31 +30,30 @@ Works with **Claude Code, Claude Desktop (Code tab), Codex CLI, OpenCode, and Ge
 ## 🚀 Quick Start
 
 > **You need:** Home Assistant OS or Supervised. Node.js only for local dev, not for normal use.
+>
+> **Stable install (recommended)**
+> 1. Open the [latest GitHub release](https://github.com/markusleben/ha-nova/releases/latest)
+> 2. Copy the one-liner for your OS
+> 3. Run it unchanged
+>
+> This makes sure you install exactly the version shown on that release page.
 
 ### macOS / Linux
 
-```sh
-curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/main/install.sh | bash
-```
-
-macOS is live-validated. Linux uses the same installer and CI smoke path, but this release is not yet fully live-validated on a real Linux machine.
+macOS has been tested on a real machine. Linux uses the same installer and passes automated checks, but has not had the same real-machine testing yet.
 
 ### Windows PowerShell
+Windows currently ships an x64 build. On Windows ARM64, use x64 emulation.
 
-```powershell
-irm https://raw.githubusercontent.com/markusleben/ha-nova/main/install.ps1 | iex
-```
-Windows ships an `amd64` bundle. ARM64 uses x64 emulation.
+Claude and Gemini are the Windows paths we have tested most. Codex and OpenCode on Windows are still early.
 
-Claude and Gemini are validated on Windows. Codex and OpenCode lanes exist but are still experimental.
+The wizard guides you through the Home Assistant connection and client setup. Once done, open your client and try: *"Show me all my automations."*
 
-The wizard handles relay, tokens, and client setup. Once done, open your client and try: *"Show me all my automations."*
-
-HA NOVA installs the integration layer. Install the AI client itself separately if you haven't already.
+HA NOVA installs the local HA NOVA tools. Install the AI client itself separately if you haven't already.
 Windows uses a single supported install path: `install.ps1`.
-HA NOVA installs itself locally; Home Assistant Relay setup and token steps stay guided in the browser.
+HA NOVA installs itself on your computer; the Home Assistant connection steps stay guided in the browser.
 
-> Do not download the release `ha-nova-installer-bundle-*.tar.gz` / `.zip` assets and try to launch them manually. Those archives are installer payloads. Use `install.sh`, `install.ps1`, or `ha-nova update`.
+> Do not download the release `ha-nova-installer-bundle-*.tar.gz` / `.zip` assets and try to launch them manually. Those archives are files the installer uses behind the scenes. Use `install.sh`, `install.ps1`, or `ha-nova update`.
 
 **Old pre-Go install?**
 - macOS / Linux: `curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/main/scripts/legacy-uninstall.sh | bash`
@@ -62,18 +61,18 @@ HA NOVA installs itself locally; Home Assistant Relay setup and token steps stay
 
 **Already installed?** `ha-nova check-update` or `ha-nova update` | **Need to reconfigure?** `ha-nova setup` | **Something broken?** `ha-nova doctor` | **Need a full local wipe?** `ha-nova uninstall --purge`
 
-Default `ha-nova uninstall` is now a standard remove. It removes the managed runtime, skills, and cache, but keeps local HA NOVA connection config and secure token for easier reinstall/repair. Use `--purge` for the old full-cleanup behavior.
+Default `ha-nova uninstall` is now a standard remove. It removes the installed HA NOVA files, skills, and cache, but keeps your saved HA NOVA connection settings and sign-in for easier reinstall/repair. Use `--purge` for the old full-cleanup behavior.
 
 ## 💬 What Can You Do With It?
 
 Anything that touches your config goes through a four-step safety flow:
 
-1. **Research** — finds your devices, checks existing configs, resolves entity IDs
+1. **Research** — finds your devices, checks your current setup, and matches the right device names
 2. **Preview** — shows you exactly what will be written. Nothing happens until you say OK.
 3. **Apply & Verify** — writes it, reads it back, checks it actually stuck
 4. **Review** — audits against 40+ rules for common mistakes, conflicts, and reliability issues
 
-Turning on a light stays lightweight. But anything that creates or changes automations goes through the full flow. No guessed entity IDs, no random writes, no surprises.
+Turning on a light stays lightweight. But anything that creates or changes automations goes through the full flow. No guessed device names, no random writes, no surprises.
 
 Deleting anything needs a confirmation code — not just "yes", an actual code. Because "yes" is too easy.
 
@@ -81,7 +80,7 @@ Deleting anything needs a confirmation code — not just "yes", an actual code. 
 |---------|-------------|
 | *"Turn on the porch light at sunset and off at 11 PM"* | Creates a fully reviewed automation through the safety flow |
 | *"Why didn't my motion automation trigger last night?"* | Digs into trace logs and explains what actually went wrong |
-| *"Check my automations for problems"* | Runs a full config audit across your setup |
+| *"Check my automations for problems"* | Checks your automations for mistakes and reliability issues |
 | *"Turn off the living room lights"* | Turns it off, confirms the new state |
 | *"Show me all sensors in the bedroom"* | Finds entities by room, area, or name |
 | *"Create a counter helper for my coffee intake"* | Creates it, shows the result |
@@ -145,10 +144,10 @@ Want to add a new capability? → [CONTRIBUTING.md](CONTRIBUTING.md)
 
 Current validation matrix:
 - macOS: Claude, Codex, OpenCode, Gemini
-- Linux: installer/update/uninstall path is covered by build + CI smoke, but this release is not yet fully live-validated on a real Linux machine
-- Windows: Claude and Gemini are validated. Codex and OpenCode lanes exist, but are still experimental
+- Linux: installer/update/uninstall passes build and automated checks, but has not had the same real-machine testing as macOS yet
+- Windows: Claude and Gemini are the paths we have tested most; Codex and OpenCode are still early
 
-`*` Linux support currently means shared installer/update flow plus CI smoke, not the same real-machine validation level as macOS.
+`*` Linux support currently means the shared installer/update flow passes automated checks, but has not had the same real-machine testing as macOS yet.
 
 > **Not a terminal person?** Claude Desktop gives you the same thing in a regular app window. Run the installer, select "Claude Code" (same integration path), open the **Code** tab, pick a workspace folder, and start.
 
@@ -175,7 +174,7 @@ HA NOVA is the result.
 ## 📁 Project Structure
 
 ```
-cli/         Go local runtime (setup, doctor, update, uninstall, relay)
+cli/         Local command-line app (setup, doctor, update, uninstall, relay)
 nova/        Relay app (runs on your HA server)
 skills/      AI skills (markdown files)
 scripts/     Setup, deploy, diagnostics

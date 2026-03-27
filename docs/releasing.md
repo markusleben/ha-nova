@@ -121,6 +121,21 @@ $env:HA_NOVA_VERSION = 'vX.Y.Z-rcN'
 irm https://raw.githubusercontent.com/markusleben/ha-nova/<rc-tag>/install.ps1 | iex
 ```
 
+Supported stable selection:
+
+macOS / Linux:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/<stable-tag>/install.sh | HA_NOVA_VERSION=vX.Y.Z bash
+```
+
+Windows:
+
+```powershell
+$env:HA_NOVA_VERSION = 'vX.Y.Z'
+irm https://raw.githubusercontent.com/markusleben/ha-nova/<stable-tag>/install.ps1 | iex
+```
+
 Installed runtime:
 
 ```bash
@@ -181,8 +196,10 @@ Rules:
 - prefer user-visible outcomes over implementation detail
 - do not list every small fix
 - call out Windows installer/update/uninstall changes when they affect real users
-- state the supported Windows command plainly:
-  - `irm https://raw.githubusercontent.com/markusleben/ha-nova/main/install.ps1 | iex`
+- stable release notes must publish tag-pinned install commands, never `main` bootstrap URLs
+- keep the supported Windows command plain and release-pinned:
+  - `$env:HA_NOVA_VERSION = 'vX.Y.Z'`
+  - `irm https://raw.githubusercontent.com/markusleben/ha-nova/vX.Y.Z/install.ps1 | iex`
 
 ## Desktop Validation Helpers
 
@@ -227,13 +244,14 @@ For a final stable release:
 macOS / Linux:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/<stable-tag>/install.sh | HA_NOVA_VERSION=vX.Y.Z bash
 ```
 
 Windows:
 
 ```powershell
-irm https://raw.githubusercontent.com/markusleben/ha-nova/main/install.ps1 | iex
+$env:HA_NOVA_VERSION = 'vX.Y.Z'
+irm https://raw.githubusercontent.com/markusleben/ha-nova/<stable-tag>/install.ps1 | iex
 ```
 
 5. smoke:
