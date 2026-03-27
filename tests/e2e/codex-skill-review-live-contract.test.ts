@@ -37,10 +37,15 @@ describe("codex review live e2e contract", () => {
     expect(content).toContain("ref_read_url");
     expect(content).toContain("count_shell_network_hits");
     expect(content).toContain("count_onboarding_check_hits");
+    expect(content).toContain("count_home_assistant_read_hits");
     expect(content).toContain("python(3)?");
     expect(content).toContain("requests|urllib|httpx");
     expect(content).toContain("(ha-nova|nova|onboarding)");
     expect(content).toContain("(doctor|ready|quick)");
+    expect(content).toContain('scenario_prompt_lc');
+    expect(content).toContain('allow_home_assistant_reads');
+    expect(content).toContain('home assistant reads');
+    expect(content).toContain('validation_error="home_assistant_read_detected"');
     expect(content).toContain("must_contain_text");
     expect(content).toContain("must_not_contain_text");
     expect(content).toContain("ordered_text");
@@ -50,6 +55,7 @@ describe("codex review live e2e contract", () => {
     expect(content).toContain("helper_script_usage_detected");
     expect(content).toContain("unexpected_external_research_detected");
     expect(content).toContain("forbidden_onboarding_check_detected");
+    expect(content).toContain("home_assistant_read_detected");
     expect(content).toContain("ordered_text_mismatch");
     expect(content).toContain("section_order_mismatch");
     expect(content).toContain("required_text_missing");

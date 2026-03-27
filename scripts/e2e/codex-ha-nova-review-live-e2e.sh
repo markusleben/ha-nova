@@ -186,6 +186,14 @@ count_onboarding_check_hits() {
     '((ha-nova|nova|onboarding)[^[:cntrl:]]*(doctor|ready|quick)|((doctor|ready|quick)[^[:cntrl:]]*(ha-nova|nova|onboarding)))'
 }
 
+count_home_assistant_read_hits() {
+  local scenario_log="$1"
+
+  count_command_hits \
+    "$scenario_log" \
+    '(^|[[:space:][:punct:]])(ha-nova|nova)([[:space:]][^[:cntrl:]]*)?[[:space:]]+(relay|read)([[:space:]]|$)'
+}
+
 assert_text_sequence() {
   local haystack="$1"
   shift
@@ -226,6 +234,14 @@ run_scenario() {
   local external_research_count
   local shell_network_count
   local onboarding_check_count
+  local home_assistant_read_count
+  local allow_home_assistant_reads="false"
+  local scenario_prompt_lc
+
+  scenario_prompt_lc="$(printf '%s' "$scenario_prompt" | tr '[:upper:]' '[:lower:]')"
+  if [[ "$scenario_prompt_lc" == *"home assistant reads"* ]] || [[ "$scenario_prompt_lc" == *"read from home assistant"* ]] || [[ "$scenario_prompt_lc" == *"relay read"* ]]; then
+    allow_home_assistant_reads="true"
+  fi
 
   build_prompt_file "$scenario_prompt" "$prompt_file"
 
@@ -265,6 +281,12 @@ run_scenario() {
   if [[ "$status" == "pass" && "$onboarding_check_count" -gt 0 ]]; then
     status="fail"
     validation_error="forbidden_onboarding_check_detected"
+  fi
+
+  home_assistant_read_count="$(count_home_assistant_read_hits "$parsed_log")"
+  if [[ "$status" == "pass" && "$allow_home_assistant_reads" != "true" && "$home_assistant_read_count" -gt 0 ]]; then
+    status="fail"
+    validation_error="home_assistant_read_detected"
   fi
 
   if [[ "$status" == "pass" ]]; then

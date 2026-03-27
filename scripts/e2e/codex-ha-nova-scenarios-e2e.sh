@@ -290,7 +290,9 @@ run_scenario() {
         break
       fi
     done < <(echo "$must_contain_text_json" | jq -r '.[]')
+  fi
 
+  if [[ "$status" == "pass" ]]; then
     while IFS= read -r forbidden_text; do
       if [[ -z "$forbidden_text" ]]; then
         continue

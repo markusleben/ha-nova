@@ -51,6 +51,7 @@ describe("codex skill scenario e2e contract", () => {
     expect(content).toContain("required_text_missing");
     expect(content).toContain("forbidden_text_present");
     expect(content).toContain("json_array_values");
+    expect(content).toMatch(/if \[\[ "\$status" == "pass" \]\]; then\s+while IFS= read -r forbidden_text;/);
   });
 
   it("ships default scenario definitions", () => {

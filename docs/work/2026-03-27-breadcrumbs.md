@@ -101,3 +101,15 @@ Historical breadcrumb log:
 - Commit the follow-up harness fix
 - Push the new SHA
 - Trigger `@codex` again and wait for a fresh clean result on that exact commit
+
+## 2026-03-27: PR #142 Review Follow-Up 3
+
+### Completed
+- Fixed the new review-live finding by blocking Home Assistant read commands unless a scenario prompt explicitly opts in
+- Fixed the generic scenario harness so `must_not_contain_text` validation cannot overwrite an earlier failure code
+- Re-ran both affected e2e contract suites and both shell syntax checks successfully
+
+### Next
+- Commit the follow-up harness fixes
+- Push the new SHA
+- Trigger `@codex` again and wait for a clean current review on that exact commit
