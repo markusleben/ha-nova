@@ -79,14 +79,15 @@ Follow the Post-Write Review Standard from `docs/reference/skill-architecture.md
      ```jq
      if .ok then .data.body else error("relay error: \(.error.message // "unknown")") end
      ```
-   - for create/update, reload the domain, resolve the actual `entity_id` from entity registry, then read `/api/states/{entity_id}` to confirm runtime presence
+   - use relay jq for follow-up checks
+   - for create/update, reload the domain, resolve the actual `entity_id` from entity registry by matching `unique_id == <target_id>`, then read `/api/states/{entity_id}` to confirm runtime presence
    - if the actual `entity_id` differs from expectation, report it and point to `skills/ha-nova/safe-refactoring.md`; do not silently assume the requested slug won
 2. S/R/P/M/F checks (narrowed):
    - Compare read-back vs draft on core fields. Ignore metadata (`id`,`unique_id`,`created_at`,`modified_at`,`editor`,`enabled`).
    - Note: HA may normalize keys during write (`trigger`→`triggers`, `action`→`actions`, `condition`→`conditions`). Account for plural aliasing when comparing — these are not real diffs.
-   - Core fields differ (beyond aliasing) → full checks from `review/SKILL.md` Step 1. Match → skip the normal subset as "covered in pre-write review," but still re-run the storage-sensitive R-18 subset against persisted read-back config.
+   - Core fields differ (beyond aliasing) → full checks from `review/SKILL.md` Step 1. Match → skip the normal subset as "covered in pre-write review," but still re-run the storage-sensitive R-18 subset against the persisted read-back config.
    - **Dedup**: findings from Phase 2 Step 3b that user saw MUST NOT repeat. Track by check type, not code.
-   - Exception: if R-18 still matches on the persisted read-back config, report it again as a persisted runtime risk even when the user already saw the pre-write warning.
+   - Exception: if R-18 still matches on the persisted read-back config, report it again as a persisted runtime risk even when the user already saw the pre-write warning. The save step itself is the reason for the follow-up finding.
    - If persisted R-18 remains, add a manual next step to inspect traces after the next real run. Do not auto-trigger or auto-read traces.
    - If actions reference helpers: always run H-01..H-10.
 3. Run collision scan:

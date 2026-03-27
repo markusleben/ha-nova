@@ -166,7 +166,6 @@ describe("review contract", () => {
     expect(reviewAgent).toContain("valid evidence stays local to the current review context");
     expect(reviewAgent).toContain("if purpose is unclear, move the item into Questions to consider instead of Suggestions");
   });
-
   it("keeps standalone config-entry helper review aligned to the 9 helper-owned domains", () => {
     expect(reviewSkill).toContain("supported config-entry family: domain is one of `utility_meter`, `derivative`, `integration`, `min_max`, `threshold`, `tod`, `statistics`, `group`, `history_stats`");
     expect(reviewSkill).toContain("Helper (config-entry family): minimal config-entry review");

@@ -108,7 +108,7 @@ describe("codex skill scenario e2e contract", () => {
     }
   });
 
-  it("ships focused R-18 wording scenarios with explicit text assertions", () => {
+  it("ships focused R-18 wording scenarios without changing the scenario schema", () => {
     const content = readFileSync("scripts/e2e/codex-ha-nova-scenarios.json", "utf8");
     const scenarios = JSON.parse(content) as ScenarioDefinition[];
 
@@ -132,6 +132,14 @@ describe("codex skill scenario e2e contract", () => {
     expect(fragileAlpha?.must_contain_text).toContain("REST/UI write can break dependent variables in this block");
     expect(fragileAlpha?.must_contain_text).toContain("fragile alphabetical order");
     expect(fragileAlpha?.must_contain_text).toContain("check_flag -> reading");
+
+    const safeAlpha = byId.get("r18-safe-alpha-order");
+    expect(safeAlpha).toBeDefined();
+    expect(safeAlpha?.expect.type).toBe("json_array_values");
+    expect(safeAlpha?.must_contain_text).toContain("No R-18 risk detected");
+    expect(safeAlpha?.must_contain_text).toContain("safe alphabetical order");
+    expect(safeAlpha?.prompt).toContain('a_reading: "{{ states(\'sensor.flow_rate\') | float(-999) }}"');
+    expect(safeAlpha?.prompt).toContain('check_flag: "{{ a_reading > -998 }}"');
 
     const safeSet = byId.get("r18-safe-set-local");
     expect(safeSet).toBeDefined();
