@@ -80,7 +80,7 @@ Follow the Post-Write Review Standard from `docs/reference/skill-architecture.md
      if .ok then .data.body else error("relay error: \(.error.message // "unknown")") end
      ```
    - use relay jq for follow-up checks
-   - for create/update, reload the domain, resolve the actual `entity_id` from entity registry, then read `/api/states/{entity_id}` to confirm runtime presence
+   - for create/update, reload the domain, resolve the actual `entity_id` from entity registry by matching `unique_id == <target_id>`, then read `/api/states/{entity_id}` to confirm runtime presence
    - if the actual `entity_id` differs from expectation, report it and point to `skills/ha-nova/safe-refactoring.md`; do not silently assume the requested slug won
 2. S/R/P/M/F checks (narrowed):
    - Compare read-back vs draft on core fields. Ignore metadata (`id`,`unique_id`,`created_at`,`modified_at`,`editor`,`enabled`).

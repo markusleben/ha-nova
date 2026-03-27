@@ -121,6 +121,8 @@ describe("codex skill scenario e2e contract", () => {
     expect(safeAlpha?.expect.type).toBe("json_array_values");
     expect(safeAlpha?.must_contain_text).toContain("No R-18 risk detected");
     expect(safeAlpha?.must_contain_text).toContain("safe alphabetical order");
+    expect(safeAlpha?.prompt).toContain('a_reading: "{{ states(\'sensor.flow_rate\') | float(-999) }}"');
+    expect(safeAlpha?.prompt).toContain('check_flag: "{{ a_reading > -998 }}"');
 
     const safeSet = byId.get("r18-safe-set-local");
     expect(safeSet).toBeDefined();

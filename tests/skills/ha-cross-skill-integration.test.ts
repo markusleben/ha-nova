@@ -116,6 +116,7 @@ describe("ha cross-skill integration", () => {
 
     expect(writeSkill).toContain("entity_id -> unique_id");
     expect(writeSkill).toContain("resolve the actual `entity_id` from entity registry");
+    expect(writeSkill).toContain("matching `unique_id == <target_id>`");
     expect(writeSkill).toContain("do not silently assume the requested slug won");
   });
 });
