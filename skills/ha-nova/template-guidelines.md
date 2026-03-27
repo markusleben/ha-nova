@@ -107,6 +107,33 @@ conditions:
     value_template: "{{ now().hour >= 22 or now().hour < 6 }}"
 ```
 
+### Self-Contained Dependent Values
+
+Do not rely on sibling-variable order inside one `variables:` mapping when one variable depends on another.
+
+Prefer a self-contained template with internal `{% set %}` statements:
+
+```yaml
+# Good: dependency stays inside one template
+variables:
+  flow_status: >
+    {% set reading = states('sensor.flow_rate') | float(-999) %}
+    {{ "ok" if reading > -998 else "missing" }}
+```
+
+Or split the dependency across ordered `variables` actions when later actions need the intermediate value:
+
+```yaml
+sequence:
+  - variables:
+      reading: "{{ states('sensor.flow_rate') | float(-999) }}"
+  - variables:
+      flow_status: "{{ 'ok' if reading > -998 else 'missing' }}"
+  - action: notify.notify
+    data:
+      message: "{{ flow_status }}"
+```
+
 ## Anti-Patterns
 
 These are caught by review checks — listed here for reference:
@@ -119,3 +146,4 @@ These are caught by review checks — listed here for reference:
 | Template trigger using `now()` | P-04 | Re-evaluates only once per minute | Use `time_pattern` for sub-minute precision |
 | `states()` in `trigger_variables` | M-04 | Evaluated at attach time, immediately stale | Move to `variables:` or use in template directly |
 | Templated event trigger name | R-16 | Event trigger names are attached literally; dynamic `event_type` never matches the intended event | Event trigger names must be literal strings; do not template `event_type:` |
+| Same-block sibling variable dependency in one `variables:` mapping | R-18 | REST/UI storage can reorder mapping keys, so a variable may render before the sibling it references | Use a self-contained template with internal `{% set %}`, or split the dependency into ordered `variables` actions |
