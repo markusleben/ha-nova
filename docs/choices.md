@@ -1469,3 +1469,8 @@ Superseded in structure by the 2026-03-12 catalog split below. Keep the threshol
 
 - **Windows uninstall residue rule:** bundle uninstall must also remove old private/test Windows package residue under `%LOCALAPPDATA%\\Microsoft\\WinGet\\...`.
 - **Reason:** those leftovers are no longer a supported install channel, but they remain a hard reinstall blocker in `install.ps1`; leaving them behind turns uninstall -> reinstall into a manual cleanup loop.
+
+## 2026-03-27
+
+- **Review-live duration schema rule:** `max_duration_sec` in the review-live harness must be a positive integer, not any numeric value.
+- **Reason:** the harness passes that field through `int(...)`; allowing fractional JSON values creates a late runtime failure instead of an early deterministic schema error.

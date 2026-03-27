@@ -78,3 +78,14 @@ Historical breadcrumb log:
 
 ### Next
 - Keep future dependency-policy changes aligned with the same root + `nova/` verify contract
+
+## 2026-03-27: PR #142 Review Follow-Up
+
+### Completed
+- Rechecked PR #142 on the latest branch SHA instead of assuming the earlier Codex result still applied
+- Confirmed the old R-18 scenario findings were already fixed locally and pushed on `8c1fe36`
+- Hardened the review-live harness schema so `max_duration_sec` must be a positive integer and added contract coverage for that rule
+
+### Next
+- Run the targeted review-live contract suite
+- If green, commit the follow-up fix, push, and trigger `@codex` again for the new SHA

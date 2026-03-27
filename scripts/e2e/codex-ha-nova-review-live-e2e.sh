@@ -91,7 +91,12 @@ validate_scenario_file() {
         or
         (.section_order | type == "array" and length > 1 and all(.[]; type == "string" and length > 0))
       )
-      and ((.max_duration_sec // 90) | type == "number" and . > 0)
+      and (
+        (.max_duration_sec // 90)
+        | type == "number"
+        and . > 0
+        and . == floor
+      )
     )
   ' "$SCENARIO_FILE" >/dev/null || die "Invalid review scenario file format: ${SCENARIO_FILE}"
 }

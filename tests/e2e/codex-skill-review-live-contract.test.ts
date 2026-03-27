@@ -39,6 +39,7 @@ describe("codex review live e2e contract", () => {
     expect(content).toContain("must_not_contain_text");
     expect(content).toContain("ordered_text");
     expect(content).toContain("section_order");
+    expect(content).toContain("and . == floor");
     expect(content).toContain("Review scenario suite failed");
     expect(content).toContain("helper_script_usage_detected");
     expect(content).toContain("unexpected_external_research_detected");
@@ -79,6 +80,20 @@ describe("codex review live e2e contract", () => {
     expect(emptyQuestions?.section_order).toEqual(
       expect.arrayContaining(["Review target", "Questions to consider", "Summary"])
     );
+  });
+
+  it("uses integer-only max_duration_sec values in review live scenarios", () => {
+    const content = readFileSync("scripts/e2e/codex-ha-nova-review-live-scenarios.json", "utf8");
+    const scenarios = JSON.parse(content) as ReviewScenarioDefinition[];
+
+    for (const scenario of scenarios) {
+      if (scenario.max_duration_sec === undefined) {
+        continue;
+      }
+
+      expect(Number.isInteger(scenario.max_duration_sec)).toBe(true);
+      expect(scenario.max_duration_sec).toBeGreaterThan(0);
+    }
   });
 
   it("exposes npm command for review live harness", () => {
