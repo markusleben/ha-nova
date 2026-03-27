@@ -126,11 +126,12 @@ describe("codex skill scenario e2e contract", () => {
     expect(localBlock?.must_contain_text).toContain("local variables block");
     expect(localBlock?.must_contain_text).toContain("check_flag -> reading");
 
-    const safeAlpha = byId.get("r18-safe-alpha-order");
-    expect(safeAlpha).toBeDefined();
-    expect(safeAlpha?.expect.type).toBe("json_array_values");
-    expect(safeAlpha?.must_contain_text).toContain("No R-18 risk detected");
-    expect(safeAlpha?.must_contain_text).toContain("safe alphabetical order");
+    const fragileAlpha = byId.get("r18-fragile-alpha-order");
+    expect(fragileAlpha).toBeDefined();
+    expect(fragileAlpha?.expect.type).toBe("json_array_values");
+    expect(fragileAlpha?.must_contain_text).toContain("REST/UI write can break dependent variables in this block");
+    expect(fragileAlpha?.must_contain_text).toContain("fragile alphabetical order");
+    expect(fragileAlpha?.must_contain_text).toContain("check_flag -> reading");
 
     const safeSet = byId.get("r18-safe-set-local");
     expect(safeSet).toBeDefined();

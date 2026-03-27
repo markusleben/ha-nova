@@ -28,8 +28,13 @@ describe("codex review live e2e contract", () => {
     expect(content).toContain("Use only the local repo skills plus the pasted YAML");
     expect(content).toContain("Do not browse the web");
     expect(content).toContain("Do not use Exa, Ref, web search, or official-doc lookup tools.");
+    expect(content).toContain("Treat the local repo skill guidance as authoritative for this harness");
+    expect(content).toContain("state the uncertainty from local context instead of researching");
     expect(content).toContain("count_external_research_hits");
     expect(content).toContain('(.type == "web_search")');
+    expect(content).toContain('test("^(exa|Ref|web)$")');
+    expect(content).toContain("search_query");
+    expect(content).toContain("ref_read_url");
     expect(content).toContain("must_contain_text");
     expect(content).toContain("must_not_contain_text");
     expect(content).toContain("ordered_text");

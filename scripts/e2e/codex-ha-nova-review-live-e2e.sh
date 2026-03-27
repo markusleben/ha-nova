@@ -113,8 +113,10 @@ Hard requirements:
 4. Use only the local repo skills plus the pasted YAML in this prompt.
 5. Do not browse the web and do not use external research tools or docs fetches.
 6. Do not use Exa, Ref, web search, or official-doc lookup tools.
-7. Do not run onboarding ready/doctor/quick checks.
-8. Do not modify repository files.
+7. Treat the local repo skill guidance as authoritative for this harness even if you feel uncertain.
+8. If a conclusion would require external docs, state the uncertainty from local context instead of researching.
+9. Do not run onboarding ready/doctor/quick checks.
+10. Do not modify repository files.
 EOF_PROMPT
 }
 
@@ -154,9 +156,9 @@ count_external_research_hits() {
           (.type == "web_search")
           or
           (
-            (.server // "" | test("^(exa|Ref)$"))
+            (.server // "" | test("^(exa|Ref|web)$"))
             or
-            (.tool // "" | test("^(get_code_context_exa|web_search_exa|ref_search_documentation|ref_read_url)$"))
+            (.tool // "" | test("^(get_code_context_exa|web_search_exa|ref_search_documentation|ref_read_url|search_query|open|click|find|screenshot|image_query|sports|finance|weather|time)$"))
           )
         )
     ] | length

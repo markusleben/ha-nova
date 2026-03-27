@@ -113,14 +113,15 @@
     "max_duration_sec": 90
   },
   {
-    "id": "r18-safe-alpha-order",
-    "prompt": "Use ha nova review skill on this pasted YAML only. Explain the result in English. If there is no R-18 risk, include this exact phrase: No R-18 risk detected. safe alphabetical order. End with NOVA_SCENARIO_RESULT id=r18-safe-alpha-order values=[\"safe\"]. YAML: automation:\n  - alias: R18 safe alpha order\n    variables:\n      reading: \"{{ states('sensor.flow_rate') | float(-999) }}\"\n      check_flag: \"{{ reading > -998 }}\"\n    actions:\n      - action: notify.notify\n        data:\n          message: \"{{ check_flag }}\"",
+    "id": "r18-fragile-alpha-order",
+    "prompt": "Use ha nova review skill on this pasted YAML only. Explain the result in English. Include this exact phrase if you detect the issue: REST/UI write can break dependent variables in this block. fragile alphabetical order. Also include this exact pair if you detect it: check_flag -> reading. End with NOVA_SCENARIO_RESULT id=r18-fragile-alpha-order values=[\"r18_detected\"]. YAML: automation:\n  - alias: R18 fragile alpha order\n    variables:\n      check_flag: \"{{ reading > -998 }}\"\n      reading: \"{{ states('sensor.flow_rate') | float(-999) }}\"\n    actions:\n      - action: notify.notify\n        data:\n          message: \"{{ check_flag }}\"",
     "expect": {
       "type": "json_array_values"
     },
     "must_contain_text": [
-      "No R-18 risk detected",
-      "safe alphabetical order"
+      "REST/UI write can break dependent variables in this block",
+      "fragile alphabetical order",
+      "check_flag -> reading"
     ],
     "max_duration_sec": 90
   },
