@@ -117,6 +117,7 @@ All user-facing output MUST follow these rules:
 - **Finding titles**: Each finding gets a short descriptive title (2-5 words) explaining WHAT the issue is. Example: "Missing template fallback", not "R-01". Localize at runtime.
 - **Internal codes**: Check codes (R-01, S-01, H-01, M-01, P-01, F-01, etc.) are for YOUR analysis reference only. NEVER show them in user-facing output.
 - **Consistency**: Same sections, same order, every time. The user must recognize the structure across reviews.
+- **Review confidence split**: In review output, uncertainty belongs in `Questions to consider`; only confident recommendations belong in `Suggestions`.
 
 ## Skill Dispatch (Critical)
 

@@ -112,6 +112,33 @@ For each related automation/script, apply the 3-step conflict test:
 - Mutually exclusive conditions (e.g., `sleep_mode: on` vs `off`) → **no conflict, skip**
 - No mutual exclusion → **real conflict risk, report**
 
+### Step 4: Standalone Questions + Suggestions (`{MODE}` == `standalone` only)
+
+If `{MODE}` is `post-write`, skip this step completely.
+
+For standalone automation/script reviews:
+- run the Explorative Questions step from `skills/review/SKILL.md`
+- emit at most 3 non-binding prompts
+- no severity emojis
+- no internal check codes
+- if no complexity gate matches, keep the Questions to consider section and mark it as localized "not needed"
+
+For standalone remove/simplify ideas:
+- treat existing logic as deliberate until the current review context justifies its purpose
+- valid evidence stays local to the current review context: config structure, alias/description text, pasted comments, already loaded related configs, or explicit thread history already present
+- if purpose is unclear, move the item into Questions to consider instead of Suggestions
+
+After the design-intent gate, rank confident suggestions by intervention depth:
+1. Fix existing
+2. Simplify existing
+3. Extend existing
+4. Add new
+
+Rules:
+- dedupe overlapping ideas
+- cap confident suggestions at 4
+- do not place watchdog/new-component ideas above a smaller root-cause fix
+
 ### Known Safe/Problem Patterns
 
 See `skills/review/checks.md` → Known Safe Patterns / Known Problem Patterns for the complete list.
@@ -120,6 +147,21 @@ See `skills/review/checks.md` → Known Safe Patterns / Known Problem Patterns f
 
 This agent is for single-target review only. Ignore the standalone bulk-review mode from `skills/review/SKILL.md`.
 
-Follow the single-target output format defined in `skills/review/SKILL.md` → Output Format. Same output format as single-target review, minus the Instant Help section (6 sections total), same order. Localize per `skills/ha-nova/SKILL.md` → Output Localization.
+Localize per `skills/ha-nova/SKILL.md` → Output Localization.
 
-For post-write reviews, Section 1 (Review target) must include `mode: post-write`.
+If `{MODE}` is `standalone`, follow the single-target output format from `skills/review/SKILL.md`, minus the Instant Help section:
+- Section 1 — Review target
+- Section 2 — Findings
+- Section 3 — Collision check
+- Section 4 — Conflicts
+- Section 5 — Questions to consider
+- Section 6 — Suggestions
+- Section 7 — Summary
+
+If `{MODE}` is `post-write`, stay compact and aligned with the post-write contract:
+- Section 1 — Review target (`mode: post-write`)
+- Section 2 — Findings
+- Section 3 — Collision check
+- Section 4 — Advisory
+
+Do not emit Questions to consider or ranked standalone Suggestions in post-write mode.

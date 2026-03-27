@@ -16,7 +16,7 @@ Not for helpers — use `ha-nova:helper` instead.
 
 ## Bootstrap (once per session)
 
-Verify relay CLI is available:
+Verify relay CLI:
 
 ```text
 ha-nova relay health
@@ -30,14 +30,13 @@ If this fails, run onboarding: `ha-nova setup`.
 
 1. Read `skills/ha-nova/agents/resolve-agent.md`.
 2. Fill template placeholders (domain, operation, user intent).
-3. Dispatch general-purpose agent. Extract: entities, target_id, target_exists, current_config, bp_status, suggested_enhancements.
+3. Dispatch agent. Extract: entities, target_id, target_exists, current_config, bp_status, suggested_enhancements.
    - update/delete: resolve `entity_id -> unique_id` via registry first
-   - slug is naming convenience only
 4. On ambiguity: ask user. On no-match: ask for exact entity_id.
    - If broad targeting is ambiguous, reuse the single blocking question.
    - Do not add a second ambiguity question in the same turn.
    - If the requested change depends on an invalid Home Assistant premise, correct the premise explicitly before continuing.
-5. ID generation for `create`: automations=Unix timestamp, scripts=descriptive slug.
+5. ID generation for `create`: automations=Unix timestamp, scripts=slug.
 
 ### Phase 2: Preview + Confirm (Main Thread)
 
@@ -51,8 +50,9 @@ If this fails, run onboarding: `ha-nova setup`.
    - **3b) Static Checks**: Enter via `skills/review/SKILL.md` Step 1 and load the detailed rules from `skills/review/checks.md`. Run S/R/P/M checks analytically on the draft YAML — no relay calls needed (scripts: also F-01..F-08; if actions reference helpers: also H-01..H-08. Defer H-09/H-10 to Phase 4 because they require live helper evidence).
      🔴 findings → inline warning with fix suggestion. 🟠🟡 findings → advisory below preview. Clean → skip.
      If R-18 matches, warn explicitly that a REST/UI write can break dependent variables in that block. Keep it advisory-only: do not block the write and do not require extra confirmation.
-     Track findings by check type for dedup in Phase 4, except for the storage-sensitive R-18 follow-up below.
-4. Preview: structured summary (alias, ID, entities, triggers, conditions, actions, mode) + full YAML config.
+     If the user proceeds after an R-18 warning, tell them to inspect traces after the next real run. Do not auto-trigger the config or auto-read traces here.
+     Track findings by check type for dedup in Phase 4, except for the R-18 follow-up below.
+4. Preview: summary (alias, ID, entities, triggers, conditions, actions, mode) + full YAML config.
    - Delete preview MUST include the consumer-check result before confirmation: either the affected consumers or an explicit no-consumer result.
 5. Confirmation: create/update=natural, delete=tokenized `confirm:<token>` (strict: only exact token accepted, see context skill → Safety Baseline).
 
@@ -60,15 +60,15 @@ If this fails, run onboarding: `ha-nova setup`.
 
 1. Read `skills/ha-nova/agents/apply-agent.md`.
 2. Fill template with confirmed payload.
-3. Dispatch general-purpose agent. Expect: success, write_status, verification.
+3. Dispatch agent. Expect: success, write_status, verification.
 4. Report user-facing result. No raw curl/JSON in output.
    - Do not report destructive success until verification proves the target is gone.
 
-Fallback: If agent dispatch unavailable, execute inline serially and include domain reload.
+Fallback: If agent dispatch unavailable, execute inline.
 
 ### Phase 4: Post-Write Review (MANDATORY)
 
-Do NOT report results until this phase is complete. Run inline (do NOT invoke `ha-nova:review` as a separate skill).
+Do NOT report results until complete. Run inline (do NOT invoke `ha-nova:review` as a separate skill).
 
 Follow the Post-Write Review Standard from `docs/reference/skill-architecture.md`:
 
@@ -81,13 +81,14 @@ Follow the Post-Write Review Standard from `docs/reference/skill-architecture.md
      ```
    - use relay jq for follow-up checks
    - for create/update, reload the domain, resolve the actual `entity_id` from entity registry by matching `unique_id == <target_id>`, then read `/api/states/{entity_id}` to confirm runtime presence
-   - if the actual `entity_id` differs from expectation, report it and point to `skills/ha-nova/safe-refactoring.md`; do not silently assume the requested slug won
+   - if the actual `entity_id` differs, report it and point to `skills/ha-nova/safe-refactoring.md`; do not silently assume the requested slug won
 2. S/R/P/M/F checks (narrowed):
    - Compare read-back vs draft on core fields. Ignore metadata (`id`,`unique_id`,`created_at`,`modified_at`,`editor`,`enabled`).
    - Note: HA may normalize keys during write (`trigger`→`triggers`, `action`→`actions`, `condition`→`conditions`). Account for plural aliasing when comparing — these are not real diffs.
    - Core fields differ (beyond aliasing) → full checks from `review/SKILL.md` Step 1. Match → skip the normal subset as "covered in pre-write review," but still re-run the storage-sensitive R-18 subset against the persisted read-back config.
    - **Dedup**: findings from Phase 2 Step 3b that user saw MUST NOT repeat. Track by check type, not code.
-   - Exception: if R-18 still matches on the persisted read-back config, report it again as a persisted runtime risk even when the user already saw the pre-write warning. The save step itself is the reason for the follow-up finding.
+   - Exception: if R-18 still matches on the persisted read-back config, report it again as a persisted runtime risk even when the user already saw the pre-write warning.
+   - If persisted R-18 remains, add a manual next step to inspect traces after the next real run. Do not auto-trigger or auto-read traces.
    - If actions reference helpers: always run H-01..H-10.
 3. Run collision scan:
    - create `<payload-file>` with `{"type":"search/related","item_type":"entity","item_id":"<entity_id>"}`

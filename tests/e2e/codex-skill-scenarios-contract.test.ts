@@ -19,6 +19,7 @@ type ScenarioDefinition = {
   expected_error?: string;
   forbid_patterns?: string[];
   must_contain_text?: string[];
+  must_not_contain_text?: string[];
   max_duration_sec?: number;
 };
 
@@ -43,11 +44,14 @@ describe("codex skill scenario e2e contract", () => {
     expect(content).toContain("expected_error");
     expect(content).toContain("forbid_patterns");
     expect(content).toContain("must_contain_text");
+    expect(content).toContain("must_not_contain_text");
     expect(content).toContain("expected_status_mismatch");
     expect(content).toContain("expected_error_mismatch");
     expect(content).toContain("forbidden_pattern_detected");
     expect(content).toContain("required_text_missing");
+    expect(content).toContain("forbidden_text_present");
     expect(content).toContain("json_array_values");
+    expect(content).toMatch(/if \[\[ "\$status" == "pass" \]\]; then\s+while IFS= read -r forbidden_text;/);
   });
 
   it("ships default scenario definitions", () => {
@@ -91,6 +95,13 @@ describe("codex skill scenario e2e contract", () => {
         expect(scenario.must_contain_text.length).toBeGreaterThan(0);
         expect(scenario.must_contain_text.every((text) => typeof text === "string" && text.length > 0)).toBe(true);
       }
+      if (typeof scenario.must_not_contain_text !== "undefined") {
+        expect(Array.isArray(scenario.must_not_contain_text)).toBe(true);
+        expect(scenario.must_not_contain_text.length).toBeGreaterThan(0);
+        expect(scenario.must_not_contain_text.every((text) => typeof text === "string" && text.length > 0)).toBe(
+          true
+        );
+      }
       if (typeof scenario.max_duration_sec !== "undefined") {
         expect(typeof scenario.max_duration_sec).toBe("number");
         expect(scenario.max_duration_sec).toBeGreaterThan(0);
@@ -115,6 +126,13 @@ describe("codex skill scenario e2e contract", () => {
     expect(localBlock?.expect.type).toBe("json_array_values");
     expect(localBlock?.must_contain_text).toContain("local variables block");
     expect(localBlock?.must_contain_text).toContain("check_flag -> reading");
+
+    const fragileAlpha = byId.get("r18-fragile-alpha-order");
+    expect(fragileAlpha).toBeDefined();
+    expect(fragileAlpha?.expect.type).toBe("json_array_values");
+    expect(fragileAlpha?.must_contain_text).toContain("REST/UI write can break dependent variables in this block");
+    expect(fragileAlpha?.must_contain_text).toContain("fragile alphabetical order");
+    expect(fragileAlpha?.must_contain_text).toContain("check_flag -> reading");
 
     const safeAlpha = byId.get("r18-safe-alpha-order");
     expect(safeAlpha).toBeDefined();

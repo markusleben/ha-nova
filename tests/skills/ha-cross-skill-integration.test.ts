@@ -84,6 +84,8 @@ describe("ha cross-skill integration", () => {
     expect(writeSkill).toContain("storage-sensitive R-18 subset");
     expect(writeSkill).toContain("persisted runtime risk");
     expect(writeSkill).toContain("report it again");
+    expect(writeSkill).toContain("inspect traces after the next real run");
+    expect(writeSkill).toContain("Do not auto-trigger or auto-read traces");
 
     // Post-write review format uses localized headings with emoji severity
     expect(writeSkill).toContain("Findings");
