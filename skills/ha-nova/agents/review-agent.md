@@ -68,12 +68,16 @@ Do NOT flag valid HA builtins as errors.
 
 Enter through `skills/review/SKILL.md` Step 1, then load `skills/review/checks.md` for the complete check catalog. Apply all domain-appropriate checks to `{CONFIG}`. Report only violations found.
 
+Traverse all `variables:` mappings in `{CONFIG}`, not just the top-level block. Include root `variables:` on the automation/script plus local `variables:` actions inside `choose`, `if` / `then` / `else`, `default`, `repeat`, and nested `sequence` blocks.
+
 Which checks to apply by domain:
-- **Automation:** S-01..S-03, R-01..R-17, P-01..P-05, M-01..M-04. If actions reference helpers, also H-01..H-10 on those helpers.
+- **Automation:** S-01..S-03, R-01..R-18, P-01..P-05, M-01..M-04. If actions reference helpers, also H-01..H-10 on those helpers.
 - **Script:** All automation checks plus F-01..F-08.
 - **Helper (storage-based family):** H-01..H-10.
 - **Helper (config-entry family):** minimal config-entry review. Do not apply H-01..H-10; inspect config-entry metadata, linked entities, and `search/related` only. In Step 2, derive collision candidates from `linked_entities[]`, not from action extraction.
 - `R-17` is an intra-config branch comparison only. Do not derive it from collision-scan matches or cross-item conflicts.
+- `R-18` applies only to sibling-variable references within one `variables:` mapping. Ignore cross-action and cross-scope references, script `fields`, HA builtins, and `{% set %}` locals inside the same template.
+- When `R-18` matches, report the block context plus at least one concrete variable pair. Because `{CONFIG}` here comes from HA read-back or a fresh HA config read, describe the result as a persisted runtime risk.
 
 If H-09/H-10 evaluation needs live helper evidence, read `state`, `attributes.min`, `attributes.max`, and `attributes.step` from `/api/states/{helper_entity_id}`. If any of those values are missing or non-numeric, skip H-09/H-10. Use `skills/review/checks.md` → Helper Threshold Evidence for the operator-aware threshold rules.
 
@@ -108,6 +112,33 @@ For each related automation/script, apply the 3-step conflict test:
 - Mutually exclusive conditions (e.g., `sleep_mode: on` vs `off`) → **no conflict, skip**
 - No mutual exclusion → **real conflict risk, report**
 
+### Step 4: Standalone Questions + Suggestions (`{MODE}` == `standalone` only)
+
+If `{MODE}` is `post-write`, skip this step completely.
+
+For standalone automation/script reviews:
+- run the Explorative Questions step from `skills/review/SKILL.md`
+- emit at most 3 non-binding prompts
+- no severity emojis
+- no internal check codes
+- if no complexity gate matches, keep the Questions to consider section and mark it as localized "not needed"
+
+For standalone remove/simplify ideas:
+- treat existing logic as deliberate until the current review context justifies its purpose
+- valid evidence stays local to the current review context: config structure, alias/description text, pasted comments, already loaded related configs, or explicit thread history already present
+- if purpose is unclear, move the item into Questions to consider instead of Suggestions
+
+After the design-intent gate, rank confident suggestions by intervention depth:
+1. Fix existing
+2. Simplify existing
+3. Extend existing
+4. Add new
+
+Rules:
+- dedupe overlapping ideas
+- cap confident suggestions at 4
+- do not place watchdog/new-component ideas above a smaller root-cause fix
+
 ### Known Safe/Problem Patterns
 
 See `skills/review/checks.md` → Known Safe Patterns / Known Problem Patterns for the complete list.
@@ -116,6 +147,21 @@ See `skills/review/checks.md` → Known Safe Patterns / Known Problem Patterns f
 
 This agent is for single-target review only. Ignore the standalone bulk-review mode from `skills/review/SKILL.md`.
 
-Follow the single-target output format defined in `skills/review/SKILL.md` → Output Format. Same output format as single-target review, minus the Instant Help section (6 sections total), same order. Localize per `skills/ha-nova/SKILL.md` → Output Localization.
+Localize per `skills/ha-nova/SKILL.md` → Output Localization.
 
-For post-write reviews, Section 1 (Review target) must include `mode: post-write`.
+If `{MODE}` is `standalone`, follow the single-target output format from `skills/review/SKILL.md`, minus the Instant Help section:
+- Section 1 — Review target
+- Section 2 — Findings
+- Section 3 — Collision check
+- Section 4 — Conflicts
+- Section 5 — Questions to consider
+- Section 6 — Suggestions
+- Section 7 — Summary
+
+If `{MODE}` is `post-write`, stay compact and aligned with the post-write contract:
+- Section 1 — Review target (`mode: post-write`)
+- Section 2 — Findings
+- Section 3 — Collision check
+- Section 4 — Advisory
+
+Do not emit Questions to consider or ranked standalone Suggestions in post-write mode.

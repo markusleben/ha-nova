@@ -37,6 +37,7 @@ Load this catalog from `skills/review/SKILL.md` Step 1 before evaluating finding
 - R-15 [MEDIUM]: Asymmetric error handling — same physical action (e.g., `cover.open_cover`, `climate.set_temperature`) appears in multiple branches but only some have retry/fallback logic; inconsistent reliability across code paths
 - R-16 [HIGH]: Templated event name — `event_type:` does not evaluate templates in event triggers; the automation attaches to the literal string and silently misses the intended event. Use a fixed `event_type` and move dynamic logic into conditions or event data handling.
 - R-17 [MEDIUM → HIGH]: Intra-config overwrite/rebound risk — the same entity/helper is written in 2+ distinct control-flow branches and the write basis is mixed. Typical risk shape: one branch advances live state incrementally, another branch later recomputes or resets from snapshot/start value/timer/fallback/baseline. Default to MEDIUM. Escalate to HIGH only when a later branch can plausibly overwrite/reset value already advanced by an earlier branch.
+- R-18 [HIGH]: Same-block sibling variable dependency with alphabetically later target — within one `variables:` mapping, variable A references sibling variable B from that same `variables:` mapping and B sorts alphabetically after A. HA storage/API writes may reorder mapping keys, so the saved variable order can evaluate A before B. Apply to top-level and local `variables:` blocks only when at least one concrete fragile pair exists. Report the block context plus at least one concrete pair (for example `check_flag -> reading`). For draft or pasted YAML, frame this as future write fragility. For HA read-back or post-write review, frame it as a persisted runtime risk.
 
 ## R-17 Evidence Boundary
 
@@ -47,6 +48,22 @@ Load this catalog from `skills/review/SKILL.md` Step 1 before evaluating finding
   - `recompute/reset`: set from snapshot, start value, timer duration, fallback constant, or baseline rebuild
 - Skip when all writes use the same basis class, when the writes are idempotent duplicates, or when fixed preset branches are the intended behavior.
 - Do not use R-17 for generic repeated writes, cross-automation conflicts, or existing `mode: parallel` race cases already covered by R-08 / F-05.
+
+## R-18 Evidence Boundary
+
+- Apply only within one `variables:` mapping. Never derive R-18 from references that cross action boundaries, sequence steps, or outer scopes.
+- Traverse all `variables:` mappings in the config, not just the top-level block:
+  - root `variables:` on the automation or script
+  - local `variables:` actions inside `choose`, `if` / `then` / `else`, `default`, `repeat`, and nested `sequence` blocks
+- First confirm the referenced name is a sibling variable declared in that same mapping.
+- Then confirm the referenced sibling sorts alphabetically after the variable that references it.
+- Skip HA builtins and runtime vars such as `trigger`, `this`, `wait`, `repeat`, `states()`, `is_state()`, and similar documented helpers.
+- Skip `{% set %}` locals inside one template. Those are internal to the template and do not depend on sibling key order in the outer `variables:` mapping.
+- Skip script `fields` references and values inherited from previous `variables` actions or outer scopes.
+- Use conservative matching. Do not infer a dependency from broad substring overlap or from names that only appear inside string literals/comments.
+- Preferred fixes:
+  - use a self-contained template with internal `{% set %}` statements
+  - split the dependency across ordered `variables` actions when later actions need the derived value
 
 ## Performance (Medium)
 

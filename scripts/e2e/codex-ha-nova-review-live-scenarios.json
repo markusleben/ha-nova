@@ -1,0 +1,66 @@
+[
+  {
+    "id": "review-question-not-confident-removal",
+    "prompt": "Use ha nova review skill on this pasted YAML only. Explain the result in English. Keep the stable single-target review structure. If one branch only looks redundant but its purpose is unclear, include the exact heading Questions to consider and the exact phrase Question, not confident recommendation. Do not include the exact phrase Remove the redundant branch. YAML: automation:\n  - alias: Fence check\n    triggers:\n      - trigger: state\n        entity_id: sensor.level\n    actions:\n      - action: notify.notify\n        data:\n          message: >\n            {{ 'on' if states('binary_sensor.main') == 'on' or states('binary_sensor.bridge') == 'on' else 'off' }}",
+    "must_contain_text": [
+      "Review target",
+      "Questions to consider",
+      "Question, not confident recommendation"
+    ],
+    "must_not_contain_text": [
+      "Remove the redundant branch"
+    ],
+    "section_order": [
+      "Review target",
+      "Findings",
+      "Collision check",
+      "Conflicts",
+      "Questions to consider",
+      "Suggestions",
+      "Summary"
+    ],
+    "max_duration_sec": 90
+  },
+  {
+    "id": "review-ranks-root-cause-before-watchdog",
+    "prompt": "Use ha nova review skill on this pasted YAML only. Explain the result in English. Keep the stable single-target review structure. In Suggestions, include these exact phrases if you produce confident suggestions: Fix existing and Add new. YAML: automation:\n  - alias: Stuck state example\n    mode: single\n    triggers:\n      - trigger: state\n        entity_id: sensor.flow_status\n    actions:\n      - action: notify.notify\n        data:\n          message: >\n            {{ 'stuck' if states('sensor.flow_status') == 'stuck' else 'ok' }}",
+    "must_contain_text": [
+      "Suggestions",
+      "Fix existing",
+      "Add new"
+    ],
+    "ordered_text": [
+      "Suggestions",
+      "Fix existing",
+      "Add new"
+    ],
+    "section_order": [
+      "Review target",
+      "Findings",
+      "Collision check",
+      "Conflicts",
+      "Questions to consider",
+      "Suggestions",
+      "Summary"
+    ],
+    "max_duration_sec": 90
+  },
+  {
+    "id": "review-questions-section-not-needed",
+    "prompt": "Use ha nova review skill on this pasted YAML only. Explain the result in English. Keep the stable single-target review structure. Include the exact heading Questions to consider and the exact phrase not needed if that section is empty. YAML: automation:\n  - alias: Simple motion light\n    mode: single\n    triggers:\n      - trigger: state\n        entity_id: binary_sensor.motion\n        to: 'on'\n    actions:\n      - action: light.turn_on\n        target:\n          entity_id: light.hallway",
+    "must_contain_text": [
+      "Questions to consider",
+      "not needed"
+    ],
+    "section_order": [
+      "Review target",
+      "Findings",
+      "Collision check",
+      "Conflicts",
+      "Questions to consider",
+      "Suggestions",
+      "Summary"
+    ],
+    "max_duration_sec": 90
+  }
+]

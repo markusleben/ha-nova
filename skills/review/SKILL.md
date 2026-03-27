@@ -12,6 +12,8 @@ Read-only quality review for automations, scripts, and helpers:
 - Config quality checks (safety, reliability, performance, style)
 - Collision scan (other automations targeting same entities)
 - Conflict analysis (real conflicts vs safe patterns)
+- Explorative questions for complex automation/script behavior
+- Suggestion synthesis that separates open questions from confident recommendations
 - Quick-Fix: if an acute state problem is detected, offer a single corrective service call
 - Bulk review: aggregate the same checks across a deterministic multi-target workset
 
@@ -173,7 +175,7 @@ Bulk mode rules:
 - dedupe official-doc verification by pattern across the workset; do not refetch the same doc page per item
 - cap related-config deep reads across the whole workset, not per item
 - aggregate findings by repeated pattern, but preserve affected item lists
-- skip Step 4 entirely; bulk mode does not offer Quick-Fix
+- skip Steps 4-6 entirely; bulk mode does not offer Quick-Fix, exploratory questions, or single-target suggestion synthesis
 - persist collision candidate sets to files when needed; do not embed JSON arrays in shell variables for later command generation
 - when multiple Relay probes are needed inside one temp directory, keep shared temp files serial or use dedicated payload filenames per probe
 - write each Relay payload file as the final JSON body for that request; do not create placeholder templates and patch them later
@@ -208,6 +210,8 @@ Do NOT flag valid HA builtins or documented behavior as errors.
 
 Analyze config against the review catalog plus any additional issues found in the official docs. Report only violations found.
 
+Traverse all `variables:` mappings in the config, not just the top-level block. Include root `variables:` on the automation/script plus local `variables:` actions inside `choose`, `if` / `then` / `else`, `default`, `repeat`, and nested `sequence` blocks.
+
 **Rule Catalog**
 - Load `skills/review/checks.md` before evaluating findings.
 - `skills/review/SKILL.md` is the stable review entrypoint; `skills/review/checks.md` is the full rule catalog.
@@ -219,7 +223,7 @@ Analyze config against the review catalog plus any additional issues found in th
 - Codes are internal only; never show them in user-facing output
 
 **Apply these families by domain:**
-- Automation: S-01..S-03, R-01..R-17, P-01..P-05, M-01..M-04
+- Automation: S-01..S-03, R-01..R-18, P-01..P-05, M-01..M-04
 - Script: automation families plus F-01..F-08
 - Helper (storage-based family): H-01..H-10
 - Helper (config-entry family): minimal config-entry review
@@ -231,6 +235,8 @@ Analyze config against the review catalog plus any additional issues found in th
   - say explicitly that config-entry helper review does not use the storage-helper H rules
 - If an automation or script references helpers in actions or direct thresholds, also apply H-01..H-10 to those helpers
 - R-17 is an intra-config branch comparison only. Never emit it from collision scan or cross-automation conflict analysis.
+- R-18 applies only to sibling-variable references within one `variables:` mapping. Never emit it for cross-action or cross-scope references, script `fields`, HA builtins, or `{% set %}` locals inside the same template.
+- For R-18 output, include the block context plus at least one concrete variable pair. For pasted YAML or draft configs, describe it as future write fragility. For HA read-back or post-write review, describe it as a persisted runtime risk.
 
 **Live helper evidence for H-09/H-10:**
 - See `skills/review/checks.md` → Helper Threshold Evidence
@@ -305,7 +311,7 @@ After completing Steps 1-3, check if the current entity state (from the earlier 
 **Does NOT qualify:**
 - State is simply "not what user wants" without clear automation-intent evidence — that's a service-call request, not a review finding
 - Fix requires config change (that's a Suggestions item)
-- Multiple equally valid corrections exist (ambiguous — note in Suggestions section instead)
+- Multiple equally valid corrections exist (ambiguous — note in Questions to consider instead)
 - State read failed or entity unavailable — skip, note in Instant Help section: localized "skipped (state unavailable)"
 
 **If qualified:**
@@ -324,6 +330,62 @@ ha-nova relay core --method GET --path /api/states/{entity_id}
 ```
 Report result (new state or failure).
 
+### Step 5: Explorative Questions (standalone automation/script only)
+
+Skip this step in bulk mode and for helper reviews.
+
+Run this step only when at least one complexity gate matches:
+- state-machine pattern: explicit state tracking plus threshold comparisons on the same signal across different branches
+- loop-capable control flow: `repeat:` present, or `choose:` with 3+ branches
+- periodic trigger (`time_pattern`) combined with actuator control such as `switch`, `light`, `cover`, `climate`, or `valve`
+
+Ask only non-binding "what happens if...?" questions that go beyond the fixed checklist:
+- boundary values and exact equality
+- cycles and anti-cycling gaps
+- sustained conditions that stay true for hours
+- time extremes such as HA restart mid-cycle
+- branch interplay and helper/variable overwrites
+- failure and recovery when one step in a sequence fails
+- `queued` / `parallel` behavior under rapid repeat triggers
+
+Rules:
+- return max 3 prompts
+- no severity emojis
+- no internal check codes
+- do not restate an existing formal finding unless there is remaining uncertainty that the finding alone does not cover
+- if no complexity gate matches, keep the Questions to consider section and mark it as localized "not needed"
+
+### Step 6: Suggestion Synthesis (standalone single-target only)
+
+Skip this step in bulk mode.
+
+Derive candidate suggestions only from verified evidence already present in the current review context:
+- matched findings from Step 1
+- verified conflicts from Step 3
+- current config structure
+- already loaded related-config evidence
+- alias/description text, pasted comments, or explicit history already present in the thread
+
+Do not invent intent or removal justification from appearance alone.
+
+**Design-intent gate for remove/simplify ideas:**
+- treat existing logic as deliberate until proven otherwise
+- removal/simplification is allowed only when the current context justifies the purpose of that logic and shows it is obsolete, contradictory, or unnecessarily complex
+- if the purpose cannot be established, downgrade the idea into Questions to consider instead of presenting it as a confident suggestion
+
+After the gate, rank confident suggestions by intervention depth:
+1. Fix existing
+2. Simplify existing
+3. Extend existing
+4. Add new
+
+Rules:
+- dedupe overlapping ideas
+- cap the Suggestions section at 4 items
+- do not place a new watchdog, monitor, or helper above a smaller root-cause fix
+- do not suggest large refactors when a smaller change can eliminate the current verified problem
+- if no confident recommendation remains after gating, output localized "none"
+
 ## Output Format
 
 Localize all headings to the user's language (see `skills/ha-nova/SKILL.md` → Output Localization).
@@ -332,7 +394,7 @@ Exception: if a maintainer-provided release-validation or machine-check prompt e
 
 ### Standard mode
 
-For resolved targets `== 1`, keep the current 7-section output:
+For resolved targets `== 1`, keep this 8-section output in the same order every time:
 
 **Section 1 — Review target:**
 - domain (automation / script / helper) and target entity_id
@@ -352,17 +414,25 @@ For resolved targets `== 1`, keep the current 7-section output:
 - each: entity_id, what this automation does vs what the other does, risk description
 - 🔴 = real conflict, 🟠 = potential, 🟡 = info (safe pattern)
 
-**Section 5 — Suggestions:**
-- concrete improvement ideas
+**Section 5 — Questions to consider:**
+- non-binding questions and edge-case prompts only
+- use this section for exploratory prompts and intent-uncertain remove/simplify follow-ups
+- no severity emojis
+- or localized "none" / "not needed"
+
+**Section 6 — Suggestions:**
+- confident improvement ideas only
 - each: short title + what it does + why it helps
+- rank by intervention depth: Fix existing → Simplify existing → Extend existing → Add new
+- do not place intent-uncertain removals/simplifications here
 - or "none"
 
-**Section 6 — Summary:**
+**Section 7 — Summary:**
 - one-paragraph natural language summary
 - mention total findings count and highest severity emoji
 - if clean: localized equivalent of "Config looks clean — no issues detected."
 
-**Section 7 — Instant help:**
+**Section 8 — Instant help:**
 - if no acute state problem: localized "not needed"
 - if state read failed: localized "skipped (state unavailable)"
 - if fixable problem detected: current state, expected state, proposed service call, confirmation prompt

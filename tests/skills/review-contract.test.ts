@@ -7,6 +7,7 @@ const reviewChecks = readFileSync("skills/review/checks.md", "utf8");
 const writeSkill = readFileSync("skills/write/SKILL.md", "utf8");
 const helperSkill = readFileSync("skills/helper/SKILL.md", "utf8");
 const reviewAgent = readFileSync("skills/ha-nova/agents/review-agent.md", "utf8");
+const contextSkill = readFileSync("skills/ha-nova/SKILL.md", "utf8");
 const architectureDoc = readFileSync("docs/reference/skill-architecture.md", "utf8");
 const contributingDoc = readFileSync("CONTRIBUTING.md", "utf8");
 const templateGuidelines = readFileSync("skills/ha-nova/template-guidelines.md", "utf8");
@@ -100,9 +101,9 @@ describe("review contract", () => {
     expect(reviewChecks).toContain("R-16 [HIGH]");
     expect(reviewChecks).toContain("Templated event name");
     expect(reviewChecks).toContain("`event_type:` does not evaluate templates");
-    expect(reviewSkill).toContain("R-01..R-17");
-    expect(reviewAgent).toContain("R-01..R-17");
-    expect(architectureDoc).toContain("R-01..R-17");
+    expect(reviewSkill).toContain("R-01..R-18");
+    expect(reviewAgent).toContain("R-01..R-18");
+    expect(architectureDoc).toContain("R-01..R-18");
     expect(templateGuidelines).toContain("Event trigger names must be literal strings");
     expect(templateGuidelines).toContain("do not template `event_type:`");
   });
@@ -117,6 +118,53 @@ describe("review contract", () => {
     expect(reviewSkill).toContain("R-17 is an intra-config branch comparison only");
     expect(reviewAgent).toContain("Do not derive it from collision-scan matches");
     expect(architectureDoc).toContain("R-17` is intra-config only");
+  });
+
+  it("documents storage-sensitive sibling variable dependencies as R-18", () => {
+    expect(reviewChecks).toContain("R-18 [HIGH]");
+    expect(reviewChecks).toContain("Same-block sibling variable dependency");
+    expect(reviewChecks).toContain("same `variables:` mapping");
+    expect(reviewChecks).toContain("sorts alphabetically after");
+    expect(reviewChecks).toContain("Traverse all `variables:` mappings");
+    expect(reviewChecks).toContain("`{% set %}` locals");
+    expect(reviewChecks).toContain("script `fields`");
+    expect(reviewChecks).toContain("cross action boundaries");
+    expect(reviewChecks).toContain("self-contained template");
+    expect(reviewChecks).toContain("ordered `variables` actions");
+    expect(reviewSkill).toContain("Traverse all `variables:` mappings");
+    expect(reviewSkill).toContain("future write fragility");
+    expect(reviewSkill).toContain("persisted runtime risk");
+    expect(reviewSkill).toContain("concrete variable pair");
+    expect(reviewAgent).toContain("Traverse all `variables:` mappings");
+    expect(reviewAgent).toContain("persisted runtime risk");
+    expect(templateGuidelines).toContain("Do not rely on sibling-variable order inside one `variables:` mapping");
+    expect(templateGuidelines).toContain("self-contained template with internal `{% set %}`");
+    expect(templateGuidelines).toContain("ordered `variables` actions");
+    expect(architectureDoc).toContain("`R-18` is same-mapping only");
+  });
+
+  it("documents the standalone questions-versus-suggestions split", () => {
+    expect(reviewSkill).toContain("### Step 5: Explorative Questions");
+    expect(reviewSkill).toContain("### Step 6: Suggestion Synthesis");
+    expect(reviewSkill).toContain("Questions to consider");
+    expect(reviewSkill).toContain("Suggestions");
+    expect(reviewSkill).toContain('localized "not needed"');
+    expect(reviewSkill).toContain('output localized "none"');
+    expect(reviewSkill).toContain("Fix existing");
+    expect(reviewSkill).toContain("Simplify existing");
+    expect(reviewSkill).toContain("Extend existing");
+    expect(reviewSkill).toContain("Add new");
+    expect(contextSkill).toContain("Review confidence split");
+    expect(architectureDoc).toContain("Questions to consider");
+    expect(architectureDoc).toContain("intervention depth");
+  });
+
+  it("documents the design-intent gate before remove or simplify suggestions", () => {
+    expect(reviewSkill).toContain("Design-intent gate for remove/simplify ideas");
+    expect(reviewSkill).toContain("treat existing logic as deliberate until proven otherwise");
+    expect(reviewSkill).toContain("downgrade the idea into Questions to consider");
+    expect(reviewAgent).toContain("valid evidence stays local to the current review context");
+    expect(reviewAgent).toContain("if purpose is unclear, move the item into Questions to consider instead of Suggestions");
   });
 
   it("keeps standalone config-entry helper review aligned to the 9 helper-owned domains", () => {
@@ -149,8 +197,16 @@ describe("review contract", () => {
     expect(reviewSkill).toContain("POSIX shell example");
     expect(reviewSkill).toContain("On Windows/PowerShell, use the native file-writing equivalent");
     expect(reviewSkill).toContain("keep shared temp files serial or use dedicated payload filenames per probe");
+    expect(reviewSkill).toContain("Section 5 — Questions to consider");
+    expect(reviewSkill).toContain("Section 6 — Suggestions");
+    expect(reviewSkill).toContain("Section 7 — Summary");
+    expect(reviewSkill).toContain("Section 8 — Instant help");
     expect(reviewAgent).toContain("This agent is for single-target review only.");
     expect(reviewAgent).toContain("Ignore the standalone bulk-review mode");
     expect(reviewAgent).toContain("single-target output format");
+    expect(reviewAgent).toContain("Section 5 — Questions to consider");
+    expect(reviewAgent).toContain("Section 7 — Summary");
+    expect(reviewAgent).toContain("Section 4 — Advisory");
+    expect(reviewAgent).toContain("Do not emit Questions to consider or ranked standalone Suggestions in post-write mode.");
   });
 });

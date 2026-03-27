@@ -79,6 +79,14 @@ describe("ha-nova contract", () => {
     expect(context).toContain("Next Step");
   });
 
+  it("documents the review confidence split in the context skill", () => {
+    const context = readFileSync("skills/ha-nova/SKILL.md", "utf8");
+
+    expect(context).toContain("Review confidence split");
+    expect(context).toContain("Questions to consider");
+    expect(context).toContain("Suggestions");
+  });
+
   it("keeps new reference files present", () => {
     const files = [
       "skills/ha-nova/relay-api.md",
@@ -225,6 +233,10 @@ describe("ha-nova contract", () => {
     expect(review).toContain("mode: post-write");
     expect(review).toContain("post-write");
     expect(review).toContain("standalone");
+    expect(review).toContain("Section 5 — Questions to consider");
+    expect(review).toContain("Section 6 — Suggestions");
+    expect(review).toContain("Section 7 — Summary");
+    expect(review).toContain("Section 4 — Advisory");
   });
 
   it("keeps all operational subskills concise (<1000 words)", () => {

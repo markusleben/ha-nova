@@ -109,7 +109,9 @@ describe("bulk audit contract", () => {
     expect(reviewSkill).toContain("do not compare it against a shell-escaped string");
     expect(reviewSkill).toContain('do not wrap it in an `if [ "$line" != ... ]` guard');
     expect(reviewSkill).toContain("do not ask a clarifying question just because multiple matches remain");
-    expect(reviewSkill).toContain("skip Step 4 entirely; bulk mode does not offer Quick-Fix");
+    expect(reviewSkill).toContain(
+      "skip Steps 4-6 entirely; bulk mode does not offer Quick-Fix, exploratory questions, or single-target suggestion synthesis"
+    );
     expect(reviewSkill).toContain("wait for an explicit follow-up request before continuing");
     expect(reviewSkill).toContain("Quick-Fix is single-target only");
     expect(reviewSkill).toContain("For resolved targets `> 1`, return exactly these 6 sections");

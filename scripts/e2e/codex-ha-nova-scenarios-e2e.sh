@@ -55,6 +55,11 @@ validate_scenario_file() {
         or
         (.must_contain_text | type == "array" and length > 0 and all(.[]; type == "string" and length > 0))
       )
+      and (
+        (has("must_not_contain_text") | not)
+        or
+        (.must_not_contain_text | type == "array" and length > 0 and all(.[]; type == "string" and length > 0))
+      )
     )
   ' "$SCENARIO_FILE" >/dev/null || die "Invalid scenario file format: ${SCENARIO_FILE}"
 }
@@ -131,7 +136,8 @@ run_scenario() {
   local expected_error="${9}"
   local forbid_patterns_json="${10}"
   local must_contain_text_json="${11}"
-  local max_duration_sec="${12}"
+  local must_not_contain_text_json="${12}"
+  local max_duration_sec="${13}"
 
   local prompt_file="${LOG_DIR}/${index}-${scenario_id}.prompt.txt"
   local scenario_log="${LOG_DIR}/${index}-${scenario_id}.jsonl"
@@ -139,9 +145,9 @@ run_scenario() {
   local end_ts
   local duration_sec
   local codex_status
-  local final_line
-  local last_agent_message
-  local values_json
+  local final_line=""
+  local last_agent_message=""
+  local values_json='[]'
   local validation_error=""
   local status="pass"
   local observed_status
@@ -284,6 +290,17 @@ run_scenario() {
         break
       fi
     done < <(echo "$must_contain_text_json" | jq -r '.[]')
+
+    while IFS= read -r forbidden_text; do
+      if [[ -z "$forbidden_text" ]]; then
+        continue
+      fi
+      if [[ "$last_agent_message" == *"$forbidden_text"* ]]; then
+        status="fail"
+        validation_error="forbidden_text_present"
+        break
+      fi
+    done < <(echo "$must_not_contain_text_json" | jq -r '.[]')
   else
     last_agent_message=""
   fi
@@ -385,6 +402,7 @@ main() {
       "$(jq -r ".[$idx].expected_error // \"\"" "$SCENARIO_FILE")" \
       "$(jq -c ".[$idx].forbid_patterns // []" "$SCENARIO_FILE")" \
       "$(jq -c ".[$idx].must_contain_text // []" "$SCENARIO_FILE")" \
+      "$(jq -c ".[$idx].must_not_contain_text // []" "$SCENARIO_FILE")" \
       "$(jq -r ".[$idx].max_duration_sec // 60" "$SCENARIO_FILE")"
   done
 
