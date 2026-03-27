@@ -100,9 +100,9 @@ describe("review contract", () => {
     expect(reviewChecks).toContain("R-16 [HIGH]");
     expect(reviewChecks).toContain("Templated event name");
     expect(reviewChecks).toContain("`event_type:` does not evaluate templates");
-    expect(reviewSkill).toContain("R-01..R-17");
-    expect(reviewAgent).toContain("R-01..R-17");
-    expect(architectureDoc).toContain("R-01..R-17");
+    expect(reviewSkill).toContain("R-01..R-18");
+    expect(reviewAgent).toContain("R-01..R-18");
+    expect(architectureDoc).toContain("R-01..R-18");
     expect(templateGuidelines).toContain("Event trigger names must be literal strings");
     expect(templateGuidelines).toContain("do not template `event_type:`");
   });
@@ -117,6 +117,29 @@ describe("review contract", () => {
     expect(reviewSkill).toContain("R-17 is an intra-config branch comparison only");
     expect(reviewAgent).toContain("Do not derive it from collision-scan matches");
     expect(architectureDoc).toContain("R-17` is intra-config only");
+  });
+
+  it("documents storage-sensitive sibling variable dependencies as R-18", () => {
+    expect(reviewChecks).toContain("R-18 [HIGH]");
+    expect(reviewChecks).toContain("Same-block sibling variable dependency");
+    expect(reviewChecks).toContain("same `variables:` mapping");
+    expect(reviewChecks).toContain("sorts alphabetically after");
+    expect(reviewChecks).toContain("Traverse all `variables:` mappings");
+    expect(reviewChecks).toContain("`{% set %}` locals");
+    expect(reviewChecks).toContain("script `fields`");
+    expect(reviewChecks).toContain("cross action boundaries");
+    expect(reviewChecks).toContain("self-contained template");
+    expect(reviewChecks).toContain("ordered `variables` actions");
+    expect(reviewSkill).toContain("Traverse all `variables:` mappings");
+    expect(reviewSkill).toContain("future write fragility");
+    expect(reviewSkill).toContain("persisted runtime risk");
+    expect(reviewSkill).toContain("concrete variable pair");
+    expect(reviewAgent).toContain("Traverse all `variables:` mappings");
+    expect(reviewAgent).toContain("persisted runtime risk");
+    expect(templateGuidelines).toContain("Do not rely on sibling-variable order inside one `variables:` mapping");
+    expect(templateGuidelines).toContain("self-contained template with internal `{% set %}`");
+    expect(templateGuidelines).toContain("ordered `variables` actions");
+    expect(architectureDoc).toContain("`R-18` is same-mapping only");
   });
 
   it("keeps standalone config-entry helper review aligned to the 9 helper-owned domains", () => {

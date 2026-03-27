@@ -86,5 +86,66 @@
       "MVP boundary: automation create is not available in this scenario suite."
     ],
     "max_duration_sec": 90
+  },
+  {
+    "id": "r18-draft-risk-top-level",
+    "prompt": "Use ha nova review skill on this pasted YAML only. Explain the result in English. Include this exact phrase if you detect the issue: REST/UI write can break dependent variables in this block. Also include this exact pair if you detect it: check_flag -> reading. End with NOVA_SCENARIO_RESULT id=r18-draft-risk-top-level values=[\"r18_detected\"]. YAML: automation:\n  - alias: R18 top level fragile\n    variables:\n      check_flag: \"{{ reading > -998 }}\"\n      reading: \"{{ states('sensor.flow_rate') | float(-999) }}\"\n    actions:\n      - action: notify.notify\n        data:\n          message: \"{{ check_flag }}\"",
+    "expect": {
+      "type": "json_array_values"
+    },
+    "must_contain_text": [
+      "REST/UI write can break dependent variables in this block",
+      "check_flag -> reading"
+    ],
+    "max_duration_sec": 90
+  },
+  {
+    "id": "r18-draft-risk-local-block",
+    "prompt": "Use ha nova review skill on this pasted YAML only. Explain the result in English. If you detect a local-block R-18 issue, include these exact phrases: REST/UI write can break dependent variables in this block. local variables block. pair: check_flag -> reading. End with NOVA_SCENARIO_RESULT id=r18-draft-risk-local-block values=[\"r18_detected\"]. YAML: automation:\n  - alias: R18 local block fragile\n    actions:\n      - if:\n          - condition: state\n            entity_id: input_boolean.guard\n            state: \"on\"\n        then:\n          - variables:\n              check_flag: \"{{ reading > -998 }}\"\n              reading: \"{{ states('sensor.flow_rate') | float(-999) }}\"\n          - action: notify.notify\n            data:\n              message: \"{{ check_flag }}\"",
+    "expect": {
+      "type": "json_array_values"
+    },
+    "must_contain_text": [
+      "REST/UI write can break dependent variables in this block",
+      "local variables block",
+      "check_flag -> reading"
+    ],
+    "max_duration_sec": 90
+  },
+  {
+    "id": "r18-safe-alpha-order",
+    "prompt": "Use ha nova review skill on this pasted YAML only. Explain the result in English. If there is no R-18 risk, include this exact phrase: No R-18 risk detected. safe alphabetical order. End with NOVA_SCENARIO_RESULT id=r18-safe-alpha-order values=[\"safe\"]. YAML: automation:\n  - alias: R18 safe alpha order\n    variables:\n      a_reading: \"{{ states('sensor.flow_rate') | float(-999) }}\"\n      check_flag: \"{{ a_reading > -998 }}\"\n    actions:\n      - action: notify.notify\n        data:\n          message: \"{{ check_flag }}\"",
+    "expect": {
+      "type": "json_array_values"
+    },
+    "must_contain_text": [
+      "No R-18 risk detected",
+      "safe alphabetical order"
+    ],
+    "max_duration_sec": 90
+  },
+  {
+    "id": "r18-safe-set-local",
+    "prompt": "Use ha nova review skill on this pasted YAML only. Explain the result in English. If there is no R-18 risk, include this exact phrase: No R-18 risk detected. self-contained template. End with NOVA_SCENARIO_RESULT id=r18-safe-set-local values=[\"safe\"]. YAML: automation:\n  - alias: R18 safe set local\n    variables:\n      flow_status: >\n        {% set reading = states('sensor.flow_rate') | float(-999) %}\n        {{ 'ok' if reading > -998 else 'missing' }}\n    actions:\n      - action: notify.notify\n        data:\n          message: \"{{ flow_status }}\"",
+    "expect": {
+      "type": "json_array_values"
+    },
+    "must_contain_text": [
+      "No R-18 risk detected",
+      "self-contained template"
+    ],
+    "max_duration_sec": 90
+  },
+  {
+    "id": "r18-safe-ordered-actions",
+    "prompt": "Use ha nova review skill on this pasted YAML only. Explain the result in English. If there is no R-18 risk, include this exact phrase: No R-18 risk detected. ordered variables actions. End with NOVA_SCENARIO_RESULT id=r18-safe-ordered-actions values=[\"safe\"]. YAML: script:\n  r18_safe_ordered_actions:\n    sequence:\n      - variables:\n          reading: \"{{ states('sensor.flow_rate') | float(-999) }}\"\n      - variables:\n          check_flag: \"{{ reading > -998 }}\"\n      - action: notify.notify\n        data:\n          message: \"{{ check_flag }}\"",
+    "expect": {
+      "type": "json_array_values"
+    },
+    "must_contain_text": [
+      "No R-18 risk detected",
+      "ordered variables actions"
+    ],
+    "max_duration_sec": 90
   }
 ]

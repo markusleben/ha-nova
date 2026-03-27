@@ -64,6 +64,9 @@ describe("ha cross-skill integration", () => {
     expect(writeSkill).toContain("🔴 findings");
     expect(writeSkill).toContain("🟠🟡 findings");
     expect(writeSkill).toContain("dedup in Phase 4");
+    expect(writeSkill).toContain("REST/UI write can break dependent variables");
+    expect(writeSkill).toContain("do not block the write");
+    expect(writeSkill).toContain("do not require extra confirmation");
   });
 
   it("includes HA normalization awareness and dedup in post-write review", () => {
@@ -78,6 +81,9 @@ describe("ha cross-skill integration", () => {
     expect(writeSkill).toContain("Dedup");
     expect(writeSkill).toContain("MUST NOT repeat");
     expect(writeSkill).toContain("check type");
+    expect(writeSkill).toContain("storage-sensitive R-18 subset");
+    expect(writeSkill).toContain("persisted runtime risk");
+    expect(writeSkill).toContain("report it again");
 
     // Post-write review format uses localized headings with emoji severity
     expect(writeSkill).toContain("Findings");
@@ -110,6 +116,7 @@ describe("ha cross-skill integration", () => {
 
     expect(writeSkill).toContain("entity_id -> unique_id");
     expect(writeSkill).toContain("resolve the actual `entity_id` from entity registry");
+    expect(writeSkill).toContain("matching `unique_id == <target_id>`");
     expect(writeSkill).toContain("do not silently assume the requested slug won");
   });
 });

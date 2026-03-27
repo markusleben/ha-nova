@@ -126,10 +126,11 @@ Fallback:
 ## Review Architecture
 
 `ha-nova:review` is a self-contained read-only reviewer:
-- Config quality: safety (S-01..S-03), reliability (R-01..R-17), performance (P-01..P-05), style (M-01..M-04), script-specific (F-01..F-08), helper-specific (H-01..H-10)
+- Config quality: safety (S-01..S-03), reliability (R-01..R-18), performance (P-01..P-05), style (M-01..M-04), script-specific (F-01..F-08), helper-specific (H-01..H-10)
 - Collision scan: `search/related` on top 3 target entities
 - Conflict analysis: 3-step test (polarity → temporal → guard conditions)
 - `R-17` is intra-config only; collision scan stays cross-item conflict work, not overwrite/rebound detection
+- `R-18` is same-mapping only; it checks storage-sensitive sibling-variable references inside one `variables:` block, not cross-scope references
 - Known safe/problem pattern matching from `skills/review/checks.md`
 - resolved targets `== 1`: current single-target review output stays
 - resolved targets `> 1`: switch to aggregate multi-target mode automatically, materialize and trim the current workset before any per-item reads, audit max 5 items in stable order, aggregate findings by pattern, and report `matched / audited / remaining`
@@ -245,6 +246,8 @@ After any mutation (automation, script, or helper):
    - **Helpers:**
      - storage-based family: H checks only
      - config-entry family: minimal config-entry review contract + collision scan on linked entities
+   - Traverse all `variables:` blocks, not just the top-level block.
+   - Storage-sensitive checks such as `R-18` may still be reported from the persisted read-back config even when the rest of the config matches the draft. Do not suppress them purely as pre-write dedup.
    Focus on 🔴 findings. Report 🟠🟡 findings as advisory.
 3. Collision scan: `search/related` for top target entities, max 3 related configs (standalone review uses max 5)
 4. Output format (MUST appear in every post-write response) — localize headings per `skills/ha-nova/SKILL.md` → Output Localization:

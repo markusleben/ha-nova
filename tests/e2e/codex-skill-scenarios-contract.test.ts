@@ -98,6 +98,45 @@ describe("codex skill scenario e2e contract", () => {
     }
   });
 
+  it("ships focused R-18 wording scenarios without changing the scenario schema", () => {
+    const content = readFileSync("scripts/e2e/codex-ha-nova-scenarios.json", "utf8");
+    const scenarios = JSON.parse(content) as ScenarioDefinition[];
+
+    const byId = new Map(scenarios.map((scenario) => [scenario.id, scenario]));
+
+    const topLevel = byId.get("r18-draft-risk-top-level");
+    expect(topLevel).toBeDefined();
+    expect(topLevel?.expect.type).toBe("json_array_values");
+    expect(topLevel?.must_contain_text).toContain("REST/UI write can break dependent variables in this block");
+    expect(topLevel?.must_contain_text).toContain("check_flag -> reading");
+
+    const localBlock = byId.get("r18-draft-risk-local-block");
+    expect(localBlock).toBeDefined();
+    expect(localBlock?.expect.type).toBe("json_array_values");
+    expect(localBlock?.must_contain_text).toContain("local variables block");
+    expect(localBlock?.must_contain_text).toContain("check_flag -> reading");
+
+    const safeAlpha = byId.get("r18-safe-alpha-order");
+    expect(safeAlpha).toBeDefined();
+    expect(safeAlpha?.expect.type).toBe("json_array_values");
+    expect(safeAlpha?.must_contain_text).toContain("No R-18 risk detected");
+    expect(safeAlpha?.must_contain_text).toContain("safe alphabetical order");
+    expect(safeAlpha?.prompt).toContain('a_reading: "{{ states(\'sensor.flow_rate\') | float(-999) }}"');
+    expect(safeAlpha?.prompt).toContain('check_flag: "{{ a_reading > -998 }}"');
+
+    const safeSet = byId.get("r18-safe-set-local");
+    expect(safeSet).toBeDefined();
+    expect(safeSet?.expect.type).toBe("json_array_values");
+    expect(safeSet?.must_contain_text).toContain("No R-18 risk detected");
+    expect(safeSet?.must_contain_text).toContain("self-contained template");
+
+    const safeActions = byId.get("r18-safe-ordered-actions");
+    expect(safeActions).toBeDefined();
+    expect(safeActions?.expect.type).toBe("json_array_values");
+    expect(safeActions?.must_contain_text).toContain("No R-18 risk detected");
+    expect(safeActions?.must_contain_text).toContain("ordered variables actions");
+  });
+
   it("exposes npm command for scenario harness", () => {
     const pkg = JSON.parse(readFileSync("package.json", "utf8")) as {
       scripts?: Record<string, string>;
