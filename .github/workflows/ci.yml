@@ -68,26 +68,17 @@ jobs:
           node-version: 20
           cache: npm
 
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.24"
+          cache-dependency-path: cli/go.sum
+
       - name: Install
         run: npm ci
 
-      - name: Verify release metadata
-        run: bash scripts/release/verify-release-metadata.sh
-
-      - name: Verify npm production audit
-        run: bash scripts/release/verify-npm-audit.sh
-
-      - name: Typecheck
-        run: npm run typecheck
-
-      - name: Test
-        run: npm test
-
-      - name: Build
-        run: npm run build
-
-      - name: Docs fact-check
-        run: bash scripts/check-docs.sh
+      - name: Verify repository
+        run: npm run verify
 
   go-build:
     name: go-build
@@ -102,10 +93,7 @@ jobs:
           go-version: "1.24"
           cache-dependency-path: cli/go.sum
 
-      - name: Test
-        run: cd cli && go test -v ./...
-
-      - name: Build (all targets)
+      - name: Build (cross-target)
         run: |
           cd cli
           GOOS=darwin GOARCH=arm64 go build -o /dev/null .
