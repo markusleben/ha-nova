@@ -1,15 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-log() {
-  echo "[install-local-skills] $*"
-}
-
-die() {
-  echo "[install-local-skills] $*" >&2
-  exit 1
-}
-
 usage() {
   cat <<'USAGE'
 Usage:
@@ -29,122 +20,12 @@ USAGE
 }
 
 SCRIPT_DIR="$(cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../.." && pwd)"
+# shellcheck source=lib/install-local-skills-common.sh
+. "${SCRIPT_DIR}/lib/install-local-skills-common.sh"
+REPO_ROOT="$(repo_root_from_bash_source "${BASH_SOURCE[0]}" "../..")"
 SOURCE_SKILLS_DIR="${REPO_ROOT}/skills"
-
-detect_platform_id() {
-  local platform_source="${HA_NOVA_PLATFORM_OVERRIDE:-$(uname -s)}"
-
-  case "$platform_source" in
-    macos|Darwin)
-      printf 'macos'
-      ;;
-    windows|MINGW*|MSYS*|CYGWIN*)
-      printf 'windows'
-      ;;
-    Linux)
-      printf 'linux'
-      ;;
-    *)
-      printf '%s' "$platform_source" | tr '[:upper:]' '[:lower:]'
-      ;;
-  esac
-}
-
 CURRENT_PLATFORM_ID="$(detect_platform_id)"
 
-should_copy_file_client_install() {
-  [[ "${HA_NOVA_FORCE_COPY_INSTALL:-0}" == "1" || "${CURRENT_PLATFORM_ID}" == "windows" ]]
-}
-
-normalize_release_arch() {
-  local arch_name="${1:-$(uname -m)}"
-
-  case "$arch_name" in
-    x86_64|amd64) printf 'amd64' ;;
-    aarch64|arm64)
-      if [[ "${CURRENT_PLATFORM_ID}" == "windows" ]]; then
-        printf 'amd64'
-      else
-        printf 'arm64'
-      fi
-      ;;
-    i386|i686) printf '386' ;;
-    *) printf '%s' "$arch_name" ;;
-  esac
-}
-
-normalize_release_os() {
-  case "${CURRENT_PLATFORM_ID}" in
-    macos) printf 'darwin' ;;
-    windows) printf 'windows' ;;
-    linux) printf 'linux' ;;
-    *) printf '%s' "${CURRENT_PLATFORM_ID}" ;;
-  esac
-}
-
-relay_binary_name() {
-  if [[ "${CURRENT_PLATFORM_ID}" == "windows" ]]; then
-    printf 'relay.exe'
-    return
-  fi
-
-  printf 'relay'
-}
-
-bundled_relay_path() {
-  local relay_name
-  relay_name="$(relay_binary_name)"
-
-  for candidate in \
-    "${HA_NOVA_BUNDLED_RELAY:-}" \
-    "${REPO_ROOT}/bin/${relay_name}" \
-    "${REPO_ROOT}/bundle/bin/${relay_name}"
-  do
-    if [[ -n "$candidate" && -f "$candidate" ]]; then
-      printf '%s' "$candidate"
-      return 0
-    fi
-  done
-
-  return 1
-}
-
-copy_tree_install() {
-  local source_dir="$1"
-  local target_dir="$2"
-
-  rm -rf "${target_dir}"
-  cp -R "${source_dir}" "${target_dir}"
-}
-
-write_repo_cli_wrapper() {
-  local target_path="$1"
-  local subcommand="$2"
-  local extra_args="${3:-}"
-
-  cat > "${target_path}" <<EOF
-#!/usr/bin/env bash
-set -euo pipefail
-exec "${REPO_ROOT}/scripts/onboarding/bin/ha-nova" ${subcommand}${extra_args:+ ${extra_args}} "\$@"
-EOF
-  chmod 755 "${target_path}"
-}
-
-# Legacy flat skill directories to clean up
-LEGACY_FLAT_SKILLS=(
-  "ha-nova-write"
-  "ha-nova-read"
-  "ha-nova-helper"
-  "ha-nova-entity-discovery"
-  "ha-nova-onboarding"
-  "ha-nova-service-call"
-  "ha-nova-review"
-  "ha-nova-guide"
-  "ha-nova-fallback"
-)
-
-# Sub-skills that get flat-copied for Gemini (auto-discovered from skills/)
 GEMINI_SUB_SKILLS=()
 for _skill_dir in "${SOURCE_SKILLS_DIR}"/*/SKILL.md; do
   _skill_name="$(basename "$(dirname "$_skill_dir")")"
@@ -171,10 +52,8 @@ rewrite_flat_markdown() {
   local installed_skill_name
 
   installed_skill_name="$(gemini_installed_skill_name "${skill_name}")"
-
   content="$(cat "${src}")"
 
-  # Same-skill companions should stay local after flat copy.
   for companion in "${source_dir}"/*.md; do
     local companion_name
     companion_name="$(basename "${companion}")"
@@ -185,7 +64,6 @@ rewrite_flat_markdown() {
     content="${content//${same_skill_ref}/${same_skill_local}}"
   done
 
-  # Shared docs and cross-skill references resolve back to the source clone.
   content="$(
     printf '%s' "${content}" | HA_NOVA_ROOT="${REPO_ROOT}" perl -0pe '
       s{`docs/reference/([^`]+)`}{sprintf("`%s/docs/reference/%s`", $ENV{HA_NOVA_ROOT}, $1)}ge;
@@ -228,100 +106,13 @@ copy_flat_skill_markdown() {
   done
 }
 
-cleanup_legacy() {
-  local user_skills_dir="$1"
-  local target="$2"
-
-  # Legacy flat skill directories
-  for legacy_skill in "${LEGACY_FLAT_SKILLS[@]}"; do
-    local legacy_path="${user_skills_dir}/${legacy_skill}"
-    if [[ -e "${legacy_path}" || -L "${legacy_path}" ]]; then
-      rm -rf "${legacy_path}"
-      log "[${target}] Cleaned up legacy flat skill: ${legacy_path}"
-    fi
-  done
-
-  # Legacy nested copy (from pre-symlink era)
-  local nested_path="${user_skills_dir}/ha-nova"
-  if [[ -d "${nested_path}" && ! -L "${nested_path}" ]]; then
-    rm -rf "${nested_path}"
-    log "[${target}] Cleaned up legacy nested copy: ${nested_path}"
-  fi
-}
-
-cleanup_legacy_flat_only() {
-  local user_skills_dir="$1"
-  local target="$2"
-
-  for legacy_skill in "${LEGACY_FLAT_SKILLS[@]}"; do
-    local legacy_path="${user_skills_dir}/${legacy_skill}"
-    if [[ -e "${legacy_path}" || -L "${legacy_path}" ]]; then
-      rm -rf "${legacy_path}"
-      log "[${target}] Cleaned up legacy flat skill: ${legacy_path}"
-    fi
-  done
-}
-
-# Migration: remove un-prefixed Gemini dirs left by OLD update.sh that ran
-# after the skill-rename (source dirs changed from ha-nova-read/ to read/).
-# OLD update.sh copied to ~/.gemini/skills/read/ instead of ha-nova-read/.
-# The ha-nova* orphan glob never catches these — explicit cleanup needed.
-cleanup_gemini_unprefixed() {
-  local skills_dir="$1"
-
-  for skill_dir in "${SOURCE_SKILLS_DIR}"/*/SKILL.md; do
-    local src_name
-    src_name="$(basename "$(dirname "$skill_dir")")"
-    [[ "$src_name" == "ha-nova" ]] && continue
-    local bare_dir="${skills_dir}/${src_name}"
-    if [[ -d "$bare_dir" && -f "${bare_dir}/SKILL.md" ]] && \
-       grep -q 'ha-nova' "${bare_dir}/SKILL.md" 2>/dev/null; then
-      rm -rf "$bare_dir"
-      log "[gemini] Removed un-prefixed migration artifact: ${src_name}"
-    fi
-  done
-}
-
-# Auto-detect and remove orphaned ha-nova* dirs in Gemini's flat-copy tree.
-# Works like rsync --delete: anything in the target that doesn't exist in source gets removed.
-cleanup_gemini_orphans() {
-  local skills_dir="$1"
-
-  # First: clean up un-prefixed dirs from OLD update.sh transition
-  cleanup_gemini_unprefixed "$skills_dir"
-
-  # Build valid list with ha-nova- prefix (Gemini target names).
-  # Source dirs are short (read/, write/), Gemini dirs are ha-nova-read/, ha-nova-write/.
-  local valid_skills="ha-nova"
-  for skill_dir in "${SOURCE_SKILLS_DIR}"/*/SKILL.md; do
-    local src_name
-    src_name="$(basename "$(dirname "$skill_dir")")"
-    if [[ "$src_name" == "ha-nova" ]]; then
-      continue  # context skill — already in valid_skills
-    fi
-    valid_skills="${valid_skills}"$'\n'"ha-nova-${src_name}"
-  done
-
-  # Scan target for ha-nova* dirs and remove orphans
-  for existing in "${skills_dir}"/ha-nova*/; do
-    [[ ! -d "$existing" ]] && continue
-    local name
-    name="$(basename "$existing")"
-    if ! printf '%s\n' "$valid_skills" | grep -qx "$name"; then
-      rm -rf "$existing"
-      log "[gemini] Removed orphaned skill: ${name}"
-    fi
-  done
-}
-
-install_symlink() {
+install_symlink_tree() {
   local target="$1"
   local user_skills_dir="$2"
 
   mkdir -p "${user_skills_dir}"
   cleanup_legacy "${user_skills_dir}" "${target}"
 
-  # Remove existing symlink if present
   if [[ -L "${user_skills_dir}/ha-nova" ]]; then
     rm -f "${user_skills_dir}/ha-nova"
   fi
@@ -341,272 +132,46 @@ install_symlink() {
   log "[${target}] Symlink unavailable; copied: ${user_skills_dir}/ha-nova <- ${SOURCE_SKILLS_DIR}"
 }
 
-install_gemini_flat() {
-  local user_skills_dir="${HOME}/.gemini/skills"
-  mkdir -p "${user_skills_dir}"
+# shellcheck source=lib/install-local-skills-gemini.sh
+. "${SCRIPT_DIR}/lib/install-local-skills-gemini.sh"
+# shellcheck source=lib/install-local-skills-claude.sh
+. "${SCRIPT_DIR}/lib/install-local-skills-claude.sh"
+# shellcheck source=lib/install-local-skills-repo-dev.sh
+. "${SCRIPT_DIR}/lib/install-local-skills-repo-dev.sh"
 
-  # Clean up legacy Gemini installs from the shared agents root without
-  # touching the current Codex install if one exists there.
-  cleanup_legacy_flat_only "${HOME}/.agents/skills" "gemini-legacy"
-
-  # Auto-cleanup: remove any ha-nova* dir that doesn't match a current skill.
-  # This catches renamed/deleted skills without needing a manual legacy list.
-  cleanup_gemini_orphans "${user_skills_dir}"
-
-  # Context skill as ha-nova/SKILL.md (flat, level 1)
-  local context_dir="${user_skills_dir}/ha-nova"
-  if [[ -d "${context_dir}" ]]; then
-    # Existing directory (legacy copy) — replace with fresh copy
-    rm -rf "${context_dir}"
-    copy_flat_skill_markdown "ha-nova" "${context_dir}"
-    log "[gemini] Installed: ha-nova/SKILL.md (context skill, replaced legacy copy)"
-  else
-    copy_flat_skill_markdown "ha-nova" "${context_dir}"
-    log "[gemini] Installed: ha-nova/SKILL.md (context skill)"
-  fi
-
-  # Sub-skills get ha-nova- prefix for Gemini (flat, level 1).
-  # Source dirs are short names (read/, write/), target dirs are ha-nova-read/, ha-nova-write/.
-  for sub in "${GEMINI_SUB_SKILLS[@]}"; do
-    local dest_name="ha-nova-${sub}"
-    local dest_dir="${user_skills_dir}/${dest_name}"
-    if [[ -f "${SOURCE_SKILLS_DIR}/${sub}/SKILL.md" ]]; then
-      copy_flat_skill_markdown "${sub}" "${dest_dir}"
-      log "[gemini] Installed: ${dest_name}/SKILL.md"
-    fi
-  done
+require_repo_invariants() {
+  [[ -d "${SOURCE_SKILLS_DIR}" ]] || die "Missing repo skills directory: ${SOURCE_SKILLS_DIR}"
+  [[ -f "${REPO_ROOT}/version.json" ]] || die "Missing repo version file: ${REPO_ROOT}/version.json"
+  [[ -x "${REPO_ROOT}/scripts/onboarding/bin/ha-nova" ]] || die "Missing repo helper runtime shim: ${REPO_ROOT}/scripts/onboarding/bin/ha-nova"
 }
 
-claude_marketplace_root() {
-  printf '%s' "${HOME}/.config/ha-nova/claude-marketplace"
-}
+require_target_prereqs() {
+  local target="$1"
 
-claude_plugin_cache_root() {
-  printf '%s' "${HOME}/.claude/plugins/cache/ha-nova"
-}
-
-stage_claude_marketplace_plugin_root() {
-  local marketplace_root
-  marketplace_root="$(claude_marketplace_root)"
-  local plugin_root="${marketplace_root}/ha-nova"
-
-  mkdir -p "${marketplace_root}"
-  rm -rf "${plugin_root}"
-
-  if should_copy_file_client_install; then
-    copy_tree_install "${REPO_ROOT}" "${plugin_root}"
-    printf '%s' "${plugin_root}"
-    return 0
-  fi
-
-  if ln -sfn "${REPO_ROOT}" "${plugin_root}"; then
-    printf '%s' "${plugin_root}"
-    return 0
-  fi
-
-  copy_tree_install "${REPO_ROOT}" "${plugin_root}"
-  printf '%s' "${plugin_root}"
-}
-
-write_claude_marketplace() {
-  local marketplace_root
-  marketplace_root="$(claude_marketplace_root)"
-  local manifest_dir="${marketplace_root}/.claude-plugin"
-  local plugin_version
-  local plugin_root
-  plugin_root="$(stage_claude_marketplace_plugin_root)"
-  plugin_version="$(
-    sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
-      "${REPO_ROOT}/.claude-plugin/plugin.json" | head -1
-  )"
-
-  mkdir -p "${manifest_dir}"
-  cat > "${manifest_dir}/marketplace.json" <<EOF
-{
-  "name": "ha-nova",
-  "owner": {
-    "name": "Markus Leben"
-  },
-  "plugins": [
-    {
-      "name": "ha-nova",
-      "source": "./ha-nova",
-      "version": "${plugin_version}",
-      "description": "AI-powered Home Assistant control through LLM skills and a local relay"
-    }
-  ]
-}
-EOF
-
-  printf '%s' "${marketplace_root}"
-}
-
-claude_plugin_installed() {
-  local plugins_json="${HOME}/.claude/plugins/installed_plugins.json"
-  [[ -f "${plugins_json}" ]] || return 1
-  grep -Fq '"ha-nova@ha-nova"' "${plugins_json}"
-}
-
-read_claude_marketplace_source() {
-  local known_marketplaces="${HOME}/.claude/plugins/known_marketplaces.json"
-  [[ -f "${known_marketplaces}" ]] || return 0
-
-  python3 - "${known_marketplaces}" <<'PY'
-import json
-import sys
-from pathlib import Path
-
-path = Path(sys.argv[1])
-raw = json.loads(path.read_text())
-
-def iter_entries(value):
-    if isinstance(value, dict):
-        if "ha-nova" in value:
-            yield value["ha-nova"]
-        else:
-            for entry in value.values():
-                yield entry
-    elif isinstance(value, list):
-        for entry in value:
-            yield entry
-
-for entry in iter_entries(raw):
-    if isinstance(entry, dict):
-        name = entry.get("name")
-        if name not in (None, "", "ha-nova"):
-            continue
-        source = entry.get("source")
-        if isinstance(source, dict):
-            source = source.get("url") or source.get("path")
-        if isinstance(source, str) and source.strip():
-            print(source.strip())
-            break
-PY
-}
-
-remove_claude_plugin_record() {
-  local plugins_json="${HOME}/.claude/plugins/installed_plugins.json"
-  [[ -f "${plugins_json}" ]] || return 0
-
-  python3 - "${plugins_json}" <<'PY'
-import json
-import sys
-from pathlib import Path
-
-path = Path(sys.argv[1])
-raw = json.loads(path.read_text())
-plugins = raw.get("plugins")
-changed = False
-
-if isinstance(plugins, dict):
-    if "ha-nova@ha-nova" in plugins:
-        del plugins["ha-nova@ha-nova"]
-        changed = True
-elif isinstance(plugins, list):
-    filtered = []
-    for item in plugins:
-        if item == "ha-nova@ha-nova":
-            changed = True
-            continue
-        if isinstance(item, dict) and any(item.get(key) == "ha-nova@ha-nova" for key in ("name", "id", "plugin")):
-            changed = True
-            continue
-        filtered.append(item)
-    if changed:
-        raw["plugins"] = filtered
-
-if changed:
-    path.write_text(json.dumps(raw))
-PY
-}
-
-reset_local_claude_plugin_state() {
-  if claude_plugin_installed; then
-    local output=""
-    if ! output="$(claude plugin remove ha-nova@ha-nova 2>&1)"; then
-      if ! printf '%s' "${output}" | grep -Eiq 'not found|not installed'; then
-        echo "[claude] Plugin remove failed: ha-nova@ha-nova" >&2
-        return 1
+  case "${target}" in
+    claude)
+      command -v claude >/dev/null 2>&1 || die "[claude] Claude CLI not found in PATH"
+      if claude_plugin_state_helper_required; then
+        claude_plugin_state_runtime_ready || die "[claude] Node.js not found in PATH (required for local plugin state helper)"
       fi
-    fi
-  fi
-
-  remove_claude_plugin_record
-  rm -rf "$(claude_plugin_cache_root)"
-}
-
-restore_local_claude_state() {
-  local previous_source="$1"
-  local previous_plugin_installed="$2"
-
-  claude plugin marketplace remove ha-nova >/dev/null 2>&1 || true
-  if [[ -n "${previous_source}" ]]; then
-    claude plugin marketplace add "${previous_source}" >/dev/null 2>&1 || true
-  fi
-
-  if [[ "${previous_plugin_installed}" == "1" ]]; then
-    claude plugin install ha-nova@ha-nova >/dev/null 2>&1 || true
-  else
-    claude plugin remove ha-nova@ha-nova >/dev/null 2>&1 || true
-    remove_claude_plugin_record
-    rm -rf "$(claude_plugin_cache_root)"
-  fi
-}
-
-install_claude_plugin() {
-  if ! command -v claude &>/dev/null; then
-    die "[claude] Claude CLI not found in PATH"
-  fi
-
-  local previous_source=""
-  previous_source="$(read_claude_marketplace_source)"
-  local previous_plugin_installed="0"
-  if claude_plugin_installed; then
-    previous_plugin_installed="1"
-  fi
-
-  local marketplace_root
-  marketplace_root="$(write_claude_marketplace)"
-
-  # Remove stale marketplace registration first; ignore absence/errors.
-  claude plugin marketplace remove ha-nova >/dev/null 2>&1 || true
-
-  # Add marketplace (idempotent — overwrites if already present)
-  if claude plugin marketplace add "${marketplace_root}" 2>/dev/null; then
-    log "[claude] Marketplace registered: ${marketplace_root}"
-  else
-    restore_local_claude_state "${previous_source}" "${previous_plugin_installed}"
-    die "[claude] Marketplace registration failed: ${marketplace_root}"
-  fi
-
-  if ! reset_local_claude_plugin_state; then
-    restore_local_claude_state "${previous_source}" "${previous_plugin_installed}"
-    die "[claude] Plugin reset failed: ha-nova@ha-nova"
-  fi
-
-  if claude plugin install ha-nova@ha-nova 2>/dev/null; then
-    if claude_plugin_installed; then
-      log "[claude] Plugin installed fresh: ha-nova@ha-nova"
-    else
-      log "[claude] Plugin installed: ha-nova@ha-nova"
-    fi
-  else
-    restore_local_claude_state "${previous_source}" "${previous_plugin_installed}"
-    die "[claude] Plugin install failed: ha-nova@ha-nova"
-  fi
+      ;;
+  esac
 }
 
 install_target() {
   local target="$1"
-  case "$target" in
+
+  require_target_prereqs "${target}"
+
+  case "${target}" in
     codex)
-      install_symlink "codex" "${HOME}/.agents/skills"
+      install_symlink_tree "codex" "${HOME}/.agents/skills"
       ;;
     claude)
       install_claude_plugin
       ;;
     opencode)
-      install_symlink "opencode" "${HOME}/.config/opencode/skills"
+      install_symlink_tree "opencode" "${HOME}/.config/opencode/skills"
       ;;
     gemini)
       install_gemini_flat
@@ -616,56 +181,22 @@ install_target() {
       ;;
   esac
 
-  # Repo/dev helper wrappers. These keep legacy local entrypoints working
-  # against the repo runtime without depending on release assets.
-  local relay_cli_target="${HOME}/.config/ha-nova/relay"
-  local relay_binary_target="${relay_cli_target}"
-  mkdir -p "${HOME}/.config/ha-nova"
-  if [[ "${CURRENT_PLATFORM_ID}" != "windows" ]]; then
-    write_repo_cli_wrapper "${relay_cli_target}" "relay"
-    log "[${target}] Installed relay wrapper: ${relay_cli_target}"
-  else
-    relay_binary_target="${HOME}/.config/ha-nova/relay.exe"
-    local bundled_relay
-    if bundled_relay="$(bundled_relay_path)"; then
-      cp "${bundled_relay}" "${relay_binary_target}"
-      chmod 755 "${relay_binary_target}"
-      log "[${target}] Installed bundled relay CLI: ${relay_binary_target}"
-    else
-      write_repo_cli_wrapper "${relay_cli_target}" "relay"
-      relay_binary_target=""
-      log "[${target}] Installed relay wrapper: ${relay_cli_target}"
-    fi
-  fi
-
-  if [[ "${CURRENT_PLATFORM_ID}" == "windows" && -n "${relay_binary_target}" && -f "${relay_binary_target}" ]]; then
-    cat > "${relay_cli_target}" <<'EOF'
-#!/usr/bin/env bash
-set -euo pipefail
-SCRIPT_DIR="$(cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-exec "${SCRIPT_DIR}/relay.exe" "$@"
-EOF
-    chmod 755 "${relay_cli_target}"
-  fi
-
-  # Version check wrapper + local version.json (for flat-copy installs without git repo)
-  write_repo_cli_wrapper "${HOME}/.config/ha-nova/version-check" "check-update" "--quiet"
-  cp "${REPO_ROOT}/version.json" "${HOME}/.config/ha-nova/version.json"
-  log "[${target}] Installed version-check + version.json"
-
+  install_repo_dev_helpers "${target}"
 }
 
 main() {
   local target="${1:-}"
 
-  if [[ -z "$target" ]]; then
+  require_repo_invariants
+
+  if [[ -z "${target}" ]]; then
     usage
     die "No target specified. Please provide a target explicitly."
   fi
 
-  case "$target" in
+  case "${target}" in
     codex|claude|opencode|gemini)
-      install_target "$target"
+      install_target "${target}"
       ;;
     all)
       install_target "codex"

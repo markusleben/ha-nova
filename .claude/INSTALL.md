@@ -1,123 +1,77 @@
-# Installing HA NOVA for Claude Code
+# Claude Code Install Overlay
 
-## Quick Start
->
-> **Stable install (recommended)**
-> 1. Open the [latest GitHub release](https://github.com/markusleben/ha-nova/releases/latest)
-> 2. Copy the one-liner for your OS
-> 3. Run it unchanged
->
-> This makes sure you install exactly the version shown on that release page.
+This page only covers Claude-specific deltas.
 
-### macOS / Linux
+For the stable installer, lifecycle commands, and general troubleshooting, use [README.md](../README.md) and the [latest GitHub release](https://github.com/markusleben/ha-nova/releases/latest).
 
-### Windows PowerShell
+## Setup Choice
 
-Windows uses a single supported install path: `install.ps1`.
-HA NOVA installs itself on your computer; the Home Assistant connection steps stay guided in the browser.
-
-Windows currently ships an x64 build. On Windows ARM64, use x64 emulation.
-
-The installer launches a setup wizard — choose `Claude Code` when prompted for your AI client.
-
-Claude Desktop in the **Code** tab uses this same Claude integration path.
+- Use the normal HA NOVA installer flow.
+- In the setup wizard, choose `Claude Code`.
+- Claude Desktop in the **Code** tab uses this same integration path.
 
 ## Windows Notes
 
-Install Claude Code itself separately if you haven't already.
-Claude has been tested on Windows for this release.
+- Install Git for Windows first and keep its `Add to PATH` option enabled.
+- Then install Claude Code with the official native Windows installer:
 
-Claude Code on Windows may need extra setup:
-- May require Git for Windows or WSL, depending on your setup.
-- If Claude shows an installer-migration hint:
+```powershell
+irm https://claude.ai/install.ps1 | iex
+```
+
+- After install, open a fresh PowerShell window and verify:
+
+```powershell
+claude --version
+claude doctor
+```
+
+- Native Windows Claude also needs Git for Windows, because Claude Code requires Git Bash there.
+- Claude is the Windows path we have tested most for this release.
+- If Git Bash is missing, `ha-nova setup all` skips Claude on Windows instead of failing the whole setup run.
+- If you prefer not to install Git for Windows, use Claude inside WSL instead.
+- If Git is installed but Claude still cannot find Git Bash, set `CLAUDE_CODE_GIT_BASH_PATH` to your `bash.exe` location in Claude's `settings.json`.
+- If you are migrating from the older npm install, run:
 
 ```powershell
 claude install
 ```
 
-- Still on the older npm path and `npm.ps1` is blocked?
+- Then remove the old global npm package:
 
 ```powershell
-npm.cmd install -g @anthropic-ai/claude-code
+npm.cmd uninstall -g @anthropic-ai/claude-code
 ```
 
-## Activating Skills
+- Only use the old npm path if you are explicitly migrating or repairing an older install.
 
-`ha-nova setup claude` connects Claude to HA NOVA automatically.
+## Updates and Repair
 
-Default behavior for real installs:
-- HA NOVA uses the Claude marketplace files that came with your installed HA NOVA version
-- Claude does not follow the repo automatically anymore
-- HA NOVA itself tells you when a newer release exists
-- when you see an update notice, run `ha-nova update` and then restart Claude
+- Connect or repair with `ha-nova setup claude`.
+- Shipped installs use the Claude marketplace files that came with your installed HA NOVA version.
+- HA NOVA itself shows Claude update notices. When you see one, run `ha-nova update` and then restart Claude.
+- If the Claude path looks broken, run `ha-nova setup claude` and then `ha-nova doctor`.
 
-Local validation / private-RC behavior:
-- set `HA_NOVA_CLAUDE_MARKETPLACE_LOCAL=1`
-- HA NOVA keeps forcing the same local staged marketplace path
-- use this only when validating freshly built local bundles
-- this path is intentionally a fresh local reinstall, not an in-place marketplace update
+## Local Repo Checkout (macOS / Linux only)
 
-To repair it manually:
+For repo-local development, stage a local Claude marketplace:
 
-```sh
-ha-nova setup claude
-ha-nova doctor
-```
-
-If HA NOVA already showed an update notice, run:
-
-```text
-ha-nova update
-```
-
-Then restart Claude.
-
-## Local repo checkout (macOS / Linux only)
-
-Working from a local repo checkout instead of an installed bundle? Let HA NOVA stage a local marketplace:
-
-```sh
+```bash
 export HA_NOVA_CLAUDE_MARKETPLACE_LOCAL=1
 bash scripts/onboarding/install-local-skills.sh claude
 ```
 
-This keeps Claude pointed at the current local checkout files for testing/development.
-The local validation path also refreshes the Claude plugin cache before reinstalling — edited skills won't stay stuck behind old cached files.
+That keeps Claude pointed at the current checkout for validation work and refreshes the local plugin cache before reinstalling.
 
-Skills are then available as `/ha-nova:read`, `/ha-nova:write`, etc.
+Skills are then available as `/ha-nova:read`, `/ha-nova:write`, and related commands.
 
-**Alternative — per-session (development, macOS / Linux only):**
-```sh
+Alternative per-session path:
+
+```bash
 claude --plugin-dir /path/to/your/ha-nova-checkout
 ```
 
 On Windows, prefer the normal installed path or rerun `ha-nova setup claude` instead of `--plugin-dir`.
-
-## Already Set Up?
-
-Check if everything works:
-
-```bash
-ha-nova doctor
-```
-
-Useful commands:
-
-```bash
-ha-nova setup claude
-ha-nova update
-ha-nova uninstall
-ha-nova uninstall --purge
-```
-
-`ha-nova uninstall` now means standard remove and keeps your local HA NOVA connection settings and sign-in for easier reinstall/repair. Use `ha-nova uninstall --purge` for a full local wipe.
-
-Recent Windows builds also migrate older `~/.local` / `~/.config` HA NOVA data into native `%LOCALAPPDATA%` / `%APPDATA%` locations automatically.
-
-Old pre-Go install?
-
-- macOS / Linux: `curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/main/scripts/legacy-uninstall.sh | bash`
-- Windows PowerShell: `irm https://raw.githubusercontent.com/markusleben/ha-nova/main/scripts/legacy-uninstall.ps1 | iex`
 
 ## Related
 
