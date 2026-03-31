@@ -333,5 +333,5 @@ EOF
               fi
             done
 
-            gh pr merge "${pr_number}" --squash
+            gh pr merge "${pr_number}" --auto --squash
           done

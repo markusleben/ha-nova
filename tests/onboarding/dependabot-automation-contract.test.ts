@@ -119,8 +119,7 @@ describe("dependabot automation contract", () => {
     expect(workflow).toContain('if [[ "${label_actor}" != "github-actions[bot]" ]]; then');
     expect(workflow).toContain('for required_check in "${required_checks[@]}"; do');
     expect(workflow).toContain('Policy fingerprint drifted for PR #${pr_number}; removing safe label.');
-    expect(workflow).toContain('gh pr merge "${pr_number}" --squash');
-    expect(workflow).not.toContain('--auto --squash');
+    expect(workflow).toContain('gh pr merge "${pr_number}" --auto --squash');
     expect(workflow).not.toContain("actions/checkout");
   });
 
