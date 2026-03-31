@@ -106,6 +106,9 @@ describe("dependabot automation contract", () => {
     expect(workflow).toContain("SAFE_POLICY_MARKER");
     expect(workflow).toContain("policy_sha=${POLICY_SHA}");
     expect(workflow).toContain("recorded_policy_sha");
+    expect(workflow).toContain('issues/${PR_NUMBER}/comments" --paginate --slurp');
+    expect(workflow).toContain('issues/${pr_number}/comments" --paginate --slurp');
+    expect(workflow).toContain(".[][]");
     expect(workflow).toContain('GH_REPO: ${{ github.repository }}');
     expect(workflow).toContain('dependency requires manual review due to toolchain risk');
     expect(workflow).toContain("gh pr review --approve");

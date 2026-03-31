@@ -186,11 +186,11 @@ safe_label=${SAFE_LABEL}
 policy_sha=${POLICY_SHA}
 EOF
           )"
-          comments_json="$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" --paginate)"
+          comments_json="$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" --paginate --slurp)"
           comment_id="$(
             printf '%s' "${comments_json}" | jq -r --arg marker "${SAFE_POLICY_MARKER}" '
               [
-                .[]
+                .[][]
                 | select(.user.login == "github-actions[bot]" and (.body | contains($marker)))
               ]
               | last
@@ -214,10 +214,10 @@ EOF
         run: |
           set -euo pipefail
           pr_json="$(gh pr view "${PR_NUMBER}" --json autoMergeRequest,labels)"
-          comments_json="$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" --paginate)"
+          comments_json="$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" --paginate --slurp)"
           comment_ids="$(
             printf '%s' "${comments_json}" | jq -r --arg marker "${SAFE_POLICY_MARKER}" '
-              .[]
+              .[][]
               | select(.user.login == "github-actions[bot]" and (.body | contains($marker)))
               | .id
             '
@@ -282,11 +282,11 @@ EOF
               continue
             fi
 
-            comments_json="$(gh api "repos/${GITHUB_REPOSITORY}/issues/${pr_number}/comments" --paginate)"
+            comments_json="$(gh api "repos/${GITHUB_REPOSITORY}/issues/${pr_number}/comments" --paginate --slurp)"
             policy_comment="$(
               printf '%s' "${comments_json}" | jq -r --arg marker "${SAFE_POLICY_MARKER}" '
                 [
-                  .[]
+                  .[][]
                   | select(.user.login == "github-actions[bot]" and (.body | contains($marker)))
                 ]
                 | last
