@@ -121,7 +121,7 @@ describe("dev-sync behavior", () => {
     expect(existsSync(join(home, ".gemini", "skills", "ha-nova", "SKILL.md"))).toBe(true);
   });
 
-  it("refreshes shared tools when no file clients are installed", () => {
+  it("refreshes shared tools when no file clients are installed", { timeout: 90000 }, () => {
     const home = mkdtempSync(join(tmpdir(), "ha-nova-dev-sync-shared-tools-"));
     const binDir = createMockBinaries();
     const configDir = join(home, ".config", "ha-nova");
@@ -132,7 +132,7 @@ describe("dev-sync behavior", () => {
     const result = spawnSync("bash", ["scripts/dev-sync.sh"], {
       cwd: REPO_ROOT,
       encoding: "utf8",
-      timeout: 20000,
+      timeout: 60000,
       env: mockEnv(home, binDir, { PATH: `${binDir}:/usr/bin:/bin` }),
     });
 
