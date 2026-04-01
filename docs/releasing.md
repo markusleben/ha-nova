@@ -30,6 +30,7 @@ npm run verify
 
 This is the host-safe default gate.
 It covers release metadata sync, production `npm audit` on both the root and `nova/` lockfiles, TypeScript, the safe Vitest suite, build/docs validation, and Go CLI verification.
+Internally, it uses `test:safe:core` so the docs, onboarding, and release contract slices do not run twice. `test:safe:core` is pinned by `scripts/test/safe-core-files.json`, and the onboarding slice starts with `npm run verify:installers`, which checks that the committed public installers still match `scripts/install-src/`.
 
 The canonical production dependency audit helper is:
 
@@ -152,34 +153,129 @@ ha-nova update
 
 Minimum automated gate:
 - `bash scripts/check-docs.sh`
+- `npm run verify:installers`
 - `npx vitest run tests/onboarding/release-contract.test.ts`
 - `npx vitest run tests/onboarding/client-install-docs-contract.test.ts tests/onboarding/desktop-validation-contract.test.ts tests/onboarding/self-update-contract.test.ts`
 - `cd cli && go test ./...`
 
 Minimum manual gate before calling an RC ready:
 
-macOS self-managed:
-1. fresh stable install
-2. exact RC install by rerunning the installer with `HA_NOVA_VERSION=vX.Y.Z-rcN`
-3. `ha-nova check-update`
-4. plain `ha-nova update`
-5. verify latest stable restored
-6. `ha-nova doctor`
-7. `ha-nova uninstall --yes`
+macOS self-managed lifecycle:
+1. before this lane, make sure at least one supported client already runs from the same local macOS Terminal session
+2. fresh stable install via the public `install.sh` flow in a local interactive macOS Terminal
+3. confirm setup starts in the same session; fail if the supported path drops straight to a manual `ha-nova setup` instruction
+4. exact RC install by rerunning the installer with `HA_NOVA_VERSION=vX.Y.Z-rcN`
+5. `ha-nova check-update`
+6. plain `ha-nova update`
+7. verify latest stable restored
+8. `ha-nova doctor`
+9. `ha-nova uninstall --yes`
+10. confirm standard uninstall removed runtime/state/cache and kept the Home Assistant config/token
+11. reinstall the runtime, then run `ha-nova uninstall --yes --purge`
+12. confirm purge removed runtime/config/state/cache and deleted the relay auth token
 
 Windows self-managed:
-1. fresh stable install via `install.ps1`
-2. exact RC install by rerunning `install.ps1` with `HA_NOVA_VERSION=vX.Y.Z-rcN`
-3. `ha-nova check-update`
-4. plain `ha-nova update`
-5. verify latest stable restored
-6. `ha-nova doctor`
-7. `ha-nova uninstall --yes`
+1. on fresh-profile runs, preinstall at least one supported client and verify it already runs on that exact machine/session
+2. fresh stable install via `install.ps1` from a local PowerShell console or Windows Terminal session
+3. confirm the supported path starts guided setup automatically; fail if it ends with a manual `ha-nova setup` instruction
+4. exact RC install by rerunning `install.ps1` with `HA_NOVA_VERSION=vX.Y.Z-rcN`
+5. confirm the RC install uses the same guided setup contract: no second terminal command, browser/GUI steps allowed
+6. `ha-nova check-update`
+7. plain `ha-nova update`
+8. verify latest stable restored
+9. `ha-nova doctor`
+10. `ha-nova uninstall --yes`
+11. confirm standard uninstall removed runtime/state/cache, cleared `%LOCALAPPDATA%\ha-nova\uninstall-status.json`, and kept the Home Assistant config/token
+12. reinstall the runtime, then run `ha-nova uninstall --yes --purge`
+13. confirm purge removed runtime/config/state/cache, deleted the relay auth token, and cleared `%LOCALAPPDATA%\ha-nova\uninstall-status.json`
+
+Windows uninstall contract:
+- bundle uninstall completes through a short background handoff once the helper and recovery marker are ready
+- do not promise same-console completion on Windows after the handoff message
+- do not run follow-up `ha-nova` commands from the same shell immediately after the handoff
+- if HA NOVA is still present after 10 seconds, open a new shell and run `ha-nova doctor`
 
 Rules:
 - Windows uses a single supported install path: `install.ps1`
+- supported public Windows onboarding means one `irm .../install.ps1 | iex` command in a local PowerShell console or Windows Terminal session
+- if at least one supported client is already runnable, the supported public Windows path must not end with `Next step: ha-nova setup`
+- if at least one supported client is already runnable, the supported public Windows path must positively prove that setup started automatically in the same session
+- if no supported client is ready yet, the same public installer path is still valid when it installs HA NOVA locally, explains the missing client prerequisite, and exits cleanly
+- `scripts/dev/windows-desktop-setup.ps1` proves same-version update smoke plus standard/purge uninstall semantics; the cross-version background replace path is still covered by the manual RC/stable matrix above
 - do not present any package-manager alternative as an equal public path
 - keep the matrix small but explicit; do not replace the commands above with vague "relevant tests" wording
+
+### macOS Public Onboarding Lane
+
+This is the release-bound macOS host proof. It complements the private RC helpers; they do not replace it.
+
+Prerequisites for this lane:
+- use a local interactive macOS Terminal session
+- if you want to prove the full guided-setup path, preinstall at least one supported client and verify it already runs from that exact shell
+
+Supported public outcomes:
+- if at least one supported client is already runnable, the public `install.sh` flow must start `ha-nova setup` in the same Terminal session
+- if no supported client is ready yet, the same public `install.sh` flow is still valid when it installs HA NOVA locally, prints the missing client prerequisite guidance, and exits cleanly
+
+Entry point:
+- `npm run dev:validation:harness`
+- then run the printed macOS install command for your host architecture from the same local Terminal session
+
+Rules:
+- use the real public `install.sh` flow; do not set `HA_NOVA_NO_SETUP=1`
+- keep this lane manual and host-local; private helpers with `HA_NOVA_NO_SETUP=1` do not prove the same-session setup handoff
+- keep the missing-client outcome explicit; do not treat it as a hard installer failure
+
+### Windows Public Onboarding Lane
+
+This is the release-bound Windows UX proof. It is separate from `npm run verify` and separate from the private RC helper scripts.
+
+Prerequisites for this lane:
+- on `clean` / fresh-profile runs, preinstall at least one supported client and verify it already runs from the same local shell
+- native Windows Claude also needs Git for Windows / Git Bash
+- native Windows Gemini also needs Node.js
+
+Additional supported public outcome:
+- if no supported client is ready yet, the same helper may also be used to prove the graceful install-only path: HA NOVA installs locally, shows the missing client prerequisite guidance, and does not fail the installer
+
+Supported matrix for this lane:
+- Windows 10 + PowerShell 5.1 + standard user + fresh profile
+- Windows 10 + PowerShell 7 + standard user + fresh profile
+- Windows 11 + PowerShell 5.1 + standard user + fresh profile
+- Windows 11 + PowerShell 7 + standard user + fresh profile
+- stale uninstall marker
+- stable-over-stable reinstall/update
+- rerunning the same public one-liner after a successful install
+
+Entry point:
+- `npm run test:desktop:windows:public`
+- or `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\windows-public-onboarding.ps1`
+
+Rules:
+- use the real public `install.ps1` flow; do not set `HA_NOVA_NO_SETUP=1`
+- keep this lane release-bound; do not move it into host-safe PR CI
+- RC validation uses the same public UX contract as stable, only with an RC bundle source
+
+Evidence record for each run:
+- `windows_version`
+- `powershell_version`
+- `host_form`
+- `standard_user`
+- `install_source`
+- `start_state`
+- `ready_clients`
+- `expected_public_result`
+- `installer_exit_code`
+- `local_install_completed`
+- `setup_auto_started`
+- `second_terminal_command_needed`
+- `manual_fallback_displayed`
+- `client_prerequisite_guidance_displayed`
+- `final_verdict`
+
+Release defaults:
+- RC: at least one real public Windows onboarding proof on Windows 11 + PowerShell 7 before prerelease publish
+- Stable: full 4-host matrix plus `reinstall` and `stale-uninstall-marker` runs before final publish when installer/onboarding changed
 
 ## Release Notes Style
 
@@ -214,17 +310,36 @@ Private/manual validation entrypoints:
 - `scripts/dev/windows-clean-test-state.ps1`
 - `scripts/dev/windows-private-rc-install.ps1`
 - `scripts/dev/windows-desktop-setup.ps1`
+- `scripts/dev/windows-public-onboarding.ps1`
 - npm wrappers:
   - `npm run dev:validation:harness`
   - `npm run test:desktop:macos`
   - `npm run test:desktop:windows:headless`
   - `npm run test:desktop:windows:rdp`
+  - `npm run test:desktop:windows:public`
 
 Rules:
-- use them only for private validation against local or RC bundles
+- use the macOS/private Windows helpers only for private validation against local or RC bundles
 - do not run them against `main` or a public stable release without intent
+- `scripts/dev/macos-private-rc-suite.sh` is the canonical technical start for private macOS lanes because it rebuilds RC bundles and starts the local bundle server
+- `scripts/dev/macos-private-rc-smoke.sh`, `scripts/dev/macos-private-rc-setup-all.sh`, and `scripts/dev/macos-private-rc-client.sh` are leaf lanes; run them only after the suite or an equivalent fresh bundle/server setup
+- the private macOS helpers set `HA_NOVA_NO_SETUP=1`; they do not prove the public same-session `install.sh` setup handoff
 - the harness serves `install.ps1` plus `dist/install-bundles/*`
+- `scripts/dev/macos-private-rc-smoke.sh` proves private standard-remove plus purge cleanup against fresh temp homes
+- `scripts/dev/macos-private-rc-setup-all.sh` proves private same-version setup/doctor/update/uninstall lifecycle plus standard config/token retention
+- `scripts/dev/macos-private-rc-client.sh` proves client-specific artifact install/remove results; `setup-all` is not a substitute for those client assertions
 - the Windows helper path is always the bundle installer path, not a package-manager path
+- `scripts/dev/windows-desktop-setup.ps1` is a private mechanics/lifecycle lane, not the source of truth for enhanced setup UI fidelity
+- `scripts/dev/windows-desktop-setup.ps1` must verify post-update version stability, standard uninstall semantics, purge uninstall semantics, and cleared Windows uninstall recovery markers
+- Windows bundle uninstall is background-complete, not same-console-complete; private helpers must wait for recovery-marker clearance explicitly
+- `scripts/dev/windows-desktop-setup.ps1` proves token keep/delete semantics through the file-based test keyring override for deterministic desktop validation; real Windows Credential Manager interop stays covered by runtime tests and `tests/onboarding/windows-keyring-interop-contract.test.ts`
+- `scripts/dev/windows-private-rc-install.ps1` must wait for the background uninstall to finish and fail if `%LOCALAPPDATA%\ha-nova\uninstall-status.json` remains
+
+Public Windows onboarding proof:
+- `scripts/dev/windows-public-onboarding.ps1` is the only helper in this group that targets the public end-user contract
+- it must continue to execute the real installer inline, without extra output piping or suppression around the installer run itself
+- it exists to prove the supported `install.ps1` one-liner either starts setup automatically without a second terminal command or lands in the documented local-install-plus-missing-client-guidance path
+- it writes a small evidence record for release signoff; keep the record structured, not screenshot-only
 
 Emergency macOS cleanup if a desktop helper was interrupted:
 

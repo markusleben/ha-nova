@@ -2,6 +2,19 @@ import { constants, readFileSync, statSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
+function expectFragmentsInOrder(haystack: string, fragments: string[]) {
+  let cursor = 0;
+  for (const fragment of fragments) {
+    const index = haystack.indexOf(fragment, cursor);
+    expect(index).toBeGreaterThanOrEqual(0);
+    cursor = index + fragment.length;
+  }
+}
+
+function expectNoFullVitestSweep(verifyScript: string) {
+  expect(verifyScript).not.toMatch(/(^|&& )npm run test:safe($| &&)/);
+}
+
 describe("codex live skill e2e contract", () => {
   it("provides executable codex live e2e harness script", () => {
     const file = "scripts/e2e/codex-ha-nova-live-skill-e2e.sh";
@@ -58,12 +71,24 @@ describe("codex live skill e2e contract", () => {
   it("exposes npm scripts for contributor verification and live e2e checks", () => {
     const pkg = JSON.parse(readFileSync("package.json", "utf8"));
     expect(pkg.scripts?.["onboarding:macos:quick"]).toBeUndefined();
-    expect(pkg.scripts?.verify).toBe(
-      "npm run verify:release-metadata && npm run verify:security && bash scripts/release/verify-blocked-files.sh && npm run typecheck && npm run test:safe && npm run build && bash scripts/check-docs.sh && npm run test:cli"
-    );
-    expect(pkg.scripts?.verify).toContain("npm run verify:release-metadata");
-    expect(pkg.scripts?.verify).toContain("npm run verify:security");
+    const verify = pkg.scripts?.verify ?? "";
+    expectFragmentsInOrder(verify, [
+      "npm run verify:security",
+      "bash scripts/release/verify-blocked-files.sh",
+      "npm run typecheck",
+      "npm run verify:docs",
+      "npm run test:safe:core",
+      "npm run verify:onboarding",
+      "npm run build",
+      "npm run test:cli",
+      "npm run verify:release-contracts",
+    ]);
+    expectNoFullVitestSweep(verify);
+    expect(verify).toContain("npm run verify:release-contracts");
+    expect(verify).toContain("npm run verify:security");
     expect(pkg.scripts?.test).toBe("npm run test:safe");
+    expect(pkg.scripts?.["test:safe:core"]).toBe("node scripts/test/run-safe-core.mjs");
+    expect(pkg.scripts?.["verify:installers"]).toBe("node scripts/install-src/build-installers.mjs --check");
     expect(pkg.scripts?.["e2e:skill:codex"]).toBeDefined();
   });
 });

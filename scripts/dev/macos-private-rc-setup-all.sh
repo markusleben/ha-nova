@@ -1,39 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/validation-common.sh
+. "${SCRIPT_DIR}/lib/validation-common.sh"
+ROOT_DIR="$(validation_repo_root "${BASH_SOURCE[0]}" "../..")"
 BUNDLE_SERVER_BASE_URL="${BUNDLE_SERVER_BASE_URL:-http://127.0.0.1:8917}"
 MOCK_HA_PORT="${MOCK_HA_PORT:-8123}"
 MOCK_RELAY_PORT="${MOCK_RELAY_PORT:-8791}"
 RELAY_TOKEN="${RELAY_TOKEN:-test-relay-token}"
 
-normalize_path() {
-  python3 - "$1" <<'PY'
-import os
-import sys
-
-print(os.path.normpath(sys.argv[1]))
-PY
-}
-
-TMP_HOME="$(normalize_path "$(mktemp -d "${TMPDIR:-/tmp}/ha-nova-macos-setup-all.XXXXXX")")"
-LOG_PATH="${LOG_PATH:-${TMP_HOME}/ha-nova-macos-setup-all.log}"
-
-detect_bundle_name() {
-  case "$(uname -m)" in
-    x86_64) printf '%s\n' "ha-nova-installer-bundle-macos-amd64" ;;
-    arm64) printf '%s\n' "ha-nova-installer-bundle-macos-arm64" ;;
-    *) echo "Unsupported macOS arch: $(uname -m)" >&2; exit 1 ;;
-  esac
-}
-
-bundle_reported_version() {
-  local bundle_path="$1"
-  local version_member
-  version_member="$(tar -tzf "${bundle_path}" 2>/dev/null | grep -E '(^|/)version\.json$' | head -1 || true)"
-  [[ -n "${version_member}" ]] || return 1
-  tar -xOf "${bundle_path}" "${version_member}" 2>/dev/null | node -e 'const fs=require("fs"); const data=JSON.parse(fs.readFileSync(0,"utf8")); console.log(data.skill_version || data.version || "");'
-}
+TMP_HOME="$(create_temp_dir "${TMPDIR:-/tmp}/ha-nova-macos-setup-all.XXXXXX")"
+LOG_PATH="${LOG_PATH:-$(create_temp_file "${TMPDIR:-/tmp}/ha-nova-macos-setup-all.XXXXXX")}"
 
 cleanup() {
   if [[ -n "${MOCK_PID:-}" ]]; then
@@ -65,17 +43,10 @@ wait_for_mock_server() {
   exit 1
 }
 
-bundle_name="$(detect_bundle_name)"
-bundle_url="${HA_NOVA_BUNDLE_URL:-${BUNDLE_SERVER_BASE_URL}/${bundle_name}.tar.gz}"
-bundle_sha_url="${HA_NOVA_BUNDLE_SHA256_URL:-${bundle_url}.sha256}"
-local_bundle_path="${ROOT_DIR}/dist/install-bundles/${bundle_name}.tar.gz"
-if [[ -z "${MOCK_REPORTED_VERSION:-}" ]]; then
-  if [[ "${BUNDLE_SERVER_BASE_URL}" != "http://127.0.0.1:8917" || (-n "${HA_NOVA_BUNDLE_URL:-}" && "${bundle_url}" != "${BUNDLE_SERVER_BASE_URL}/${bundle_name}.tar.gz") ]]; then
-    echo "Set MOCK_REPORTED_VERSION explicitly when overriding the bundle source." >&2
-    exit 1
-  fi
-  MOCK_REPORTED_VERSION="$(bundle_reported_version "${local_bundle_path}")"
-fi
+bundle_url="$(macos_bundle_url "${BUNDLE_SERVER_BASE_URL}")"
+bundle_sha_url="$(macos_bundle_sha_url "${bundle_url}")"
+MOCK_REPORTED_VERSION="$(require_default_bundle_version_or_explicit_mock "${ROOT_DIR}" "${BUNDLE_SERVER_BASE_URL}" "${bundle_url}")"
+require_bundle_assets_ready "${bundle_url}" "${bundle_sha_url}"
 
 python3 "${ROOT_DIR}/scripts/dev/mock-ha-relay.py" \
   --ha-port "${MOCK_HA_PORT}" \
@@ -97,6 +68,7 @@ export HA_NOVA_ALLOW_INSECURE_TEST_KEYRING=1
 export HA_NOVA_TEST_KEYRING_FILE="${TMP_HOME}/.config/ha-nova/.test-relay-auth-token"
 export HA_NOVA_KEYRING_SERVICE="ha-nova.test.$(basename "${TMP_HOME}").setup-all"
 runtime_bin="${TMP_HOME}/.local/bin/ha-nova"
+token_file="${HA_NOVA_TEST_KEYRING_FILE}"
 
 {
   bash "${ROOT_DIR}/install.sh"
@@ -117,5 +89,8 @@ test ! -e "${TMP_HOME}/.local/share/ha-nova"
 test -e "${TMP_HOME}/.config/ha-nova/config.json"
 test ! -e "${TMP_HOME}/.config/ha-nova/state.json"
 test ! -e "${TMP_HOME}/.cache/ha-nova"
+test -e "${token_file}"
+test "$(tr -d '\r\n' < "${token_file}")" = "${RELAY_TOKEN}"
+test ! -e "${TMP_HOME}/.local/bin/ha-nova"
 
 printf 'MACOS_PRIVATE_RC_SETUP_ALL_OK:%s\n' "${LOG_PATH}"

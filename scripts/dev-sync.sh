@@ -7,12 +7,33 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
+# shellcheck source=onboarding/lib/install-local-skills-common.sh
+. "${REPO_ROOT}/scripts/onboarding/lib/install-local-skills-common.sh"
+# shellcheck source=onboarding/lib/install-local-skills-claude.sh
+. "${REPO_ROOT}/scripts/onboarding/lib/install-local-skills-claude.sh"
+
+CLAUDE_PLUGIN_STATE_TOOL="$(claude_plugin_state_tool)"
 
 synced=()
 file_clients_synced=0
 
 print_claude_repair_hint() {
   echo "[dev:sync] GUARDRAIL: rerun 'npm run dev:sync'; if Claude still stays detached, run 'ha-nova setup claude'."
+}
+
+require_repo_invariants() {
+  [[ -d "${REPO_ROOT}/skills" ]] || {
+    echo "[dev:sync] ERROR: missing repo skills directory: ${REPO_ROOT}/skills" >&2
+    exit 1
+  }
+  [[ -f "${REPO_ROOT}/version.json" ]] || {
+    echo "[dev:sync] ERROR: missing repo version file: ${REPO_ROOT}/version.json" >&2
+    exit 1
+  }
+  [[ -x "${REPO_ROOT}/scripts/onboarding/bin/ha-nova" ]] || {
+    echo "[dev:sync] ERROR: missing repo helper runtime shim: ${REPO_ROOT}/scripts/onboarding/bin/ha-nova" >&2
+    exit 1
+  }
 }
 
 state_lists_client() {
@@ -22,25 +43,14 @@ state_lists_client() {
   sed -n '/"installed_clients"[[:space:]]*:/,/\]/{p;}' "$state_file" | grep -Fq "\"${client}\""
 }
 
-inplace_sed() {
-  if [[ "$(uname -s)" == "Darwin" ]]; then
-    sed -i '' "$@"
-    return
+file_client_install_present() {
+  local install_root="$1"
+
+  if [[ -L "${install_root}" && -e "${install_root}" ]]; then
+    return 0
   fi
-  sed -i "$@"
-}
 
-write_repo_cli_wrapper() {
-  local target_path="$1"
-  local subcommand="$2"
-  local extra_args="${3:-}"
-
-  cat > "${target_path}" <<EOF
-#!/usr/bin/env bash
-set -euo pipefail
-exec "${REPO_ROOT}/scripts/onboarding/bin/ha-nova" ${subcommand}${extra_args:+ ${extra_args}} "\$@"
-EOF
-  chmod 755 "${target_path}"
+  [[ -d "${install_root}" && -f "${install_root}/ha-nova/SKILL.md" ]]
 }
 
 refresh_file_client() {
@@ -53,12 +63,12 @@ refresh_file_client() {
   file_clients_synced=1
 }
 
-sync_symlink_client() {
+sync_file_client() {
   local name="$1"
   local link_path="$2"
   local target="$3"
 
-  if [[ -L "$link_path" && -e "$link_path" ]]; then
+  if file_client_install_present "$link_path"; then
     refresh_file_client "$name" "$target"
     return
   fi
@@ -79,33 +89,45 @@ sync_gemini() {
   echo "[dev:sync] Gemini: not installed — skipped"
 }
 
-# ─── Claude Code plugin cache ────────────────────────────────────────
 sync_claude() {
   local plugins_json="${HOME}/.claude/plugins/installed_plugins.json"
   local state_expects_claude=0
+  local helper_required=0
   if state_lists_client "claude"; then
     state_expects_claude=1
   fi
+  if claude_plugin_state_helper_required; then
+    helper_required=1
+  fi
 
-  if [[ ! -f "$plugins_json" ]]; then
-    if [[ "$state_expects_claude" -eq 1 ]]; then
+  if [[ "${state_expects_claude}" -eq 0 && "${helper_required}" -eq 0 ]]; then
+    echo "[dev:sync] Claude Code: ha-nova plugin not installed — skipped"
+    return
+  fi
+
+  if [[ "${state_expects_claude}" -eq 1 && "${helper_required}" -eq 0 ]]; then
+    echo "[dev:sync] Claude Code: configured in state.json but plugin record is missing — reinstalling"
+    refresh_file_client "Claude Code" "claude"
+    return
+  fi
+
+  require_claude_plugin_state_tool "[dev:sync] ERROR:" || exit 1
+
+  if [[ ! -f "${plugins_json}" ]]; then
+    if [[ "${state_expects_claude}" -eq 1 ]]; then
       echo "[dev:sync] Claude Code: configured in state.json but plugin record is missing — reinstalling"
       refresh_file_client "Claude Code" "claude"
       return
     fi
-    echo "[dev:sync] Claude Code: no installed_plugins.json found — skipped"
+    echo "[dev:sync] Claude Code: ha-nova plugin not installed — skipped"
     return
   fi
 
-  # Extract installPath for ha-nova@ha-nova (no jq dependency)
   local install_path
-  install_path=$(
-    sed -n '/"ha-nova@ha-nova"/,/installPath/s/.*"installPath"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
-      "$plugins_json" | head -1
-  )
+  install_path="$(claude_plugin_state_value "install_path" "${plugins_json}")"
 
-  if [[ -z "$install_path" ]]; then
-    if [[ "$state_expects_claude" -eq 1 ]]; then
+  if [[ -z "${install_path}" ]]; then
+    if [[ "${state_expects_claude}" -eq 1 ]]; then
       echo "[dev:sync] Claude Code: configured in state.json but plugin installPath is missing — reinstalling"
       refresh_file_client "Claude Code" "claude"
       return
@@ -114,88 +136,55 @@ sync_claude() {
     return
   fi
 
-  # Expand ~ if present
   install_path="${install_path/#\~/$HOME}"
 
-  # ── Version-resilient cache discovery ──────────────────────────────
-  # Claude Code stores plugins at cache/{registry}/{name}/{version}/.
-  # After a version bump the old path may be gone while a new one exists.
-  # Strategy: try exact path first → fallback to latest versioned dir →
-  # if nothing exists, create the correct dir for the current repo version.
-  if [[ ! -d "$install_path" ]]; then
-    local cache_parent
-    cache_parent="$(dirname "$install_path")"   # e.g. cache/ha-nova/ha-nova
+  if [[ ! -d "${install_path}" ]]; then
+    local cache_parent actual_dir repo_version
+    cache_parent="$(dirname "${install_path}")"
+    actual_dir=""
 
-    local actual_dir=""
-    if [[ -d "$cache_parent" ]]; then
-      # Find the latest (or only) versioned subdir
-      actual_dir=$(ls -1d "${cache_parent}"/[0-9]* 2>/dev/null | sort -V | tail -1 || true)
+    if [[ -d "${cache_parent}" ]]; then
+      actual_dir="$(ls -1d "${cache_parent}"/[0-9]* 2>/dev/null | sort -V | tail -1 || true)"
     fi
 
-    if [[ -z "$actual_dir" ]]; then
-      # No versioned dir at all — create one for the repo version
-      local repo_version
-      repo_version=$(sed -n 's/.*"skill_version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "${REPO_ROOT}/version.json")
-      if [[ -z "$repo_version" ]]; then
+    if [[ -z "${actual_dir}" ]]; then
+      repo_version="$(repo_skill_version)"
+      if [[ -z "${repo_version}" ]]; then
         echo "[dev:sync] Claude Code: could not read version from version.json — skipped"
         return
       fi
       actual_dir="${cache_parent}/${repo_version}"
-      mkdir -p "$actual_dir"
+      mkdir -p "${actual_dir}"
       echo "[dev:sync] Claude Code: created cache dir ${actual_dir}"
     else
-      echo "[dev:sync] Claude Code: installPath stale ($install_path), found ${actual_dir}"
+      echo "[dev:sync] Claude Code: installPath stale (${install_path}), found ${actual_dir}"
     fi
 
-    install_path="$actual_dir"
+    install_path="${actual_dir}"
   fi
 
-  # Sync skills, hooks, plugin manifest, and version
   rsync -a --delete "${REPO_ROOT}/skills/" "${install_path}/skills/"
   rsync -a --delete "${REPO_ROOT}/hooks/" "${install_path}/hooks/"
   rsync -a --delete "${REPO_ROOT}/.claude-plugin/" "${install_path}/.claude-plugin/"
   cp "${REPO_ROOT}/version.json" "${install_path}/version.json"
 
-  # ── Keep installed_plugins.json in sync ────────────────────────────
-  # Update installPath and version so Claude Code finds the plugin.
   local repo_version
-  repo_version=$(sed -n 's/.*"skill_version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "${REPO_ROOT}/version.json")
-  # Keep absolute paths — Claude Code uses absolute, not ~-prefixed
-  local abs_path="$install_path"
-
-  # Update installPath
-  local old_path_pattern
-  old_path_pattern=$(sed -n '/"ha-nova@ha-nova"/,/installPath/s/.*"installPath"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$plugins_json" | head -1)
-  if [[ -n "$old_path_pattern" && "$old_path_pattern" != "$abs_path" ]]; then
-    # Scope replacement to ha-nova block only
-    inplace_sed "/"ha-nova@ha-nova"/,/installPath/{s|\"installPath\": \"${old_path_pattern}\"|\"installPath\": \"${abs_path}\"|;}" "$plugins_json"
-  fi
-
-  # Update version
-  local old_version
-  old_version=$(sed -n '/"ha-nova@ha-nova"/,/\"version\"/s/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$plugins_json" | head -1)
-  if [[ -n "$old_version" && "$old_version" != "$repo_version" ]]; then
-    # Scope the replacement to the ha-nova block: replace first occurrence of old version after ha-nova@ha-nova
-    inplace_sed "/"ha-nova@ha-nova"/,/\"version\"/{s/\"version\": \"${old_version}\"/\"version\": \"${repo_version}\"/;}" "$plugins_json"
-  fi
+  repo_version="$(repo_skill_version)"
+  node "${CLAUDE_PLUGIN_STATE_TOOL}" repair-plugin-record "${plugins_json}" "${install_path}" "${repo_version}"
 
   echo "[dev:sync] Claude Code plugin cache synced (v${repo_version}) → ${install_path}"
   synced+=("Claude Code")
 }
 
-# ─── Shared tools fallback ───────────────────────────────────────────
-# install-local-skills.sh already refreshes these for file-based clients.
-# Keep this fallback for Claude-only setups.
 sync_shared_tools() {
   local relay_dst="${HOME}/.config/ha-nova/relay"
   local config_dir="${HOME}/.config/ha-nova"
 
-  if [[ ! -f "$relay_dst" ]]; then
+  if [[ ! -f "${relay_dst}" ]]; then
     echo "[dev:sync] Shared tools: not installed — skipped"
     return
   fi
 
-  # Build relay binary from local Go source (dev workflow — no GitHub download)
   if command -v go &>/dev/null && [[ -d "${REPO_ROOT}/cli" ]]; then
     (cd "${REPO_ROOT}/cli" && go build -o "${relay_dst}" .)
     chmod 755 "${relay_dst}"
@@ -204,7 +193,6 @@ sync_shared_tools() {
     echo "[dev:sync] Warning: Go not installed or cli/ missing — relay CLI not updated"
   fi
 
-  # Sync version-check wrapper + version.json for repo/dev compatibility paths.
   write_repo_cli_wrapper "${config_dir}/version-check" "check-update" "--quiet"
   cp "${REPO_ROOT}/version.json" "${config_dir}/version.json"
 
@@ -212,74 +200,58 @@ sync_shared_tools() {
   synced+=("Shared tools")
 }
 
-# ─── Guardrail: verify installed_plugins.json integrity ──────────────
-# Detects and auto-fixes mismatches between installPath in
-# installed_plugins.json and the actual cache directory on disk.
-# Prevents broken plugin discovery even after manual path manipulation.
 verify_plugin_integrity() {
   local plugins_json="${HOME}/.claude/plugins/installed_plugins.json"
-  [[ ! -f "$plugins_json" ]] && return
+  [[ -f "${plugins_json}" ]] || return 0
+  claude_plugin_record_present || return 0
 
-  local install_path
-  install_path=$(
-    sed -n '/"ha-nova@ha-nova"/,/installPath/s/.*"installPath"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
-      "$plugins_json" | head -1
-  )
-  [[ -z "$install_path" ]] && return
+  require_claude_plugin_state_tool "[dev:sync] ERROR:" || exit 1
 
-  # Keep raw JSON value for sed matching; expand for filesystem checks
-  local raw_install_path="$install_path"
-  install_path="${install_path/#\~/$HOME}"
+  local raw_install_path
+  raw_install_path="$(claude_plugin_state_value "install_path" "${plugins_json}")"
+  [[ -z "${raw_install_path}" ]] && return 0
 
-  # Happy path: installPath exists on disk
-  if [[ -d "$install_path" ]]; then
-    # Verify it actually contains plugin files (hooks/skills)
+  local install_path="${raw_install_path/#\~/$HOME}"
+  if [[ -d "${install_path}" ]]; then
     if [[ -f "${install_path}/hooks/session-start" && -d "${install_path}/skills" ]]; then
-      return  # all good
+      return 0
     fi
     echo "[dev:sync] GUARDRAIL: installPath exists but is missing plugin files: ${install_path}"
     print_claude_repair_hint
-    return
+    return 0
   fi
 
-  # installPath does NOT exist — find the actual versioned dir
   echo "[dev:sync] GUARDRAIL: installPath in installed_plugins.json does not exist: ${install_path}"
 
-  local cache_parent
-  cache_parent="$(dirname "$install_path")"  # e.g. cache/ha-nova/ha-nova
-
-  local actual_dir=""
-  if [[ -d "$cache_parent" ]]; then
-    actual_dir=$(ls -1d "${cache_parent}"/[0-9]* 2>/dev/null | sort -V | tail -1 || true)
+  local cache_parent actual_dir
+  cache_parent="$(dirname "${install_path}")"
+  actual_dir=""
+  if [[ -d "${cache_parent}" ]]; then
+    actual_dir="$(ls -1d "${cache_parent}"/[0-9]* 2>/dev/null | sort -V | tail -1 || true)"
   fi
 
-  if [[ -z "$actual_dir" ]]; then
+  if [[ -z "${actual_dir}" ]]; then
     echo "[dev:sync] GUARDRAIL: no versioned directory found under ${cache_parent}"
     print_claude_repair_hint
-    return
+    return 0
   fi
 
-  # Fix installed_plugins.json — match raw JSON value (may contain ~), replace with absolute path
-  inplace_sed "/"ha-nova@ha-nova"/,/installPath/{s|\"installPath\": \"${raw_install_path}\"|\"installPath\": \"${actual_dir}\"|;}" "$plugins_json"
-
-  # Also fix the version field to match the directory name
-  local dir_version; dir_version=$(basename "$actual_dir")
-  local old_version
-  old_version=$(sed -n '/"ha-nova@ha-nova"/,/\"version\"/s/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$plugins_json" | head -1)
-  if [[ -n "$old_version" && "$old_version" != "$dir_version" ]]; then
-    inplace_sed "/"ha-nova@ha-nova"/,/\"version\"/{s/\"version\": \"${old_version}\"/\"version\": \"${dir_version}\"/;}" "$plugins_json"
-  fi
+  local dir_version
+  dir_version="$(basename "${actual_dir}")"
+  node "${CLAUDE_PLUGIN_STATE_TOOL}" repair-plugin-record "${plugins_json}" "${actual_dir}" "${dir_version}"
 
   echo "[dev:sync] GUARDRAIL: FIXED installPath: ${install_path} → ${actual_dir}"
   echo "[dev:sync] GUARDRAIL: plugin discovery restored"
+  return 0
 }
 
-# ─── Run ──────────────────────────────────────────────────────────────
-sync_symlink_client "Codex" "${HOME}/.agents/skills/ha-nova" "codex"
-sync_symlink_client "OpenCode" "${HOME}/.config/opencode/skills/ha-nova" "opencode"
+require_repo_invariants
+
+sync_file_client "Codex" "${HOME}/.agents/skills/ha-nova" "codex"
+sync_file_client "OpenCode" "${HOME}/.config/opencode/skills/ha-nova" "opencode"
 sync_gemini
 sync_claude
-if [[ "$file_clients_synced" -eq 0 ]]; then
+if [[ "${file_clients_synced}" -eq 0 ]]; then
   sync_shared_tools
 fi
 verify_plugin_integrity

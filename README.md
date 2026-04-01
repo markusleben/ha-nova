@@ -29,7 +29,7 @@ Works with **Claude Code, Claude Desktop (Code tab), Codex CLI, OpenCode, and Ge
 
 ## 🚀 Quick Start
 
-> **You need:** Home Assistant OS or Supervised. Node.js only for local dev, not for normal use.
+> **You need:** Home Assistant OS or Supervised. HA NOVA itself does not need Node.js for normal use, but some AI clients do.
 >
 > **Stable install (recommended)**
 > 1. Open the [latest GitHub release](https://github.com/markusleben/ha-nova/releases/latest)
@@ -45,12 +45,15 @@ macOS has been tested on a real machine. Linux uses the same installer and passe
 ### Windows PowerShell
 Windows currently ships an x64 build. On Windows ARM64, use x64 emulation.
 
-Claude and Gemini are the Windows paths we have tested most. Codex and OpenCode on Windows are still early.
+Claude currently has the deepest Windows validation. Gemini CLI has basic Windows validation for this release. Codex and OpenCode on Windows are still early.
 
 The wizard guides you through the Home Assistant connection and client setup. Once done, open your client and try: *"Show me all my automations."*
 
 HA NOVA installs the local HA NOVA tools. Install the AI client itself separately if you haven't already.
 Windows uses a single supported install path: `install.ps1`.
+Native Windows client prerequisites still apply: Claude Code needs Git for Windows / Git Bash, and Gemini CLI needs Node.js. See [.claude/INSTALL.md](.claude/INSTALL.md) and [.gemini/INSTALL.md](.gemini/INSTALL.md) before running the HA NOVA installer.
+On a supported local PowerShell or Windows Terminal session, that same one-liner starts the guided setup flow directly when at least one supported client is already installed and runnable; no second terminal command is needed.
+If no supported client is ready yet, HA NOVA still installs locally and tells you which client prerequisite is still missing.
 HA NOVA installs itself on your computer; the Home Assistant connection steps stay guided in the browser.
 
 > Do not download the release `ha-nova-installer-bundle-*.tar.gz` / `.zip` assets and try to launch them manually. Those archives are files the installer uses behind the scenes. Use `install.sh`, `install.ps1`, or `ha-nova update`.
@@ -145,7 +148,7 @@ Want to add a new capability? → [CONTRIBUTING.md](CONTRIBUTING.md)
 Current validation matrix:
 - macOS: Claude, Codex, OpenCode, Gemini
 - Linux: installer/update/uninstall passes build and automated checks, but has not had the same real-machine testing as macOS yet
-- Windows: Claude and Gemini are the paths we have tested most; Codex and OpenCode are still early
+- Windows: Claude has the deepest validation today; Gemini has basic Windows validation; Codex and OpenCode are still early
 
 `*` Linux support currently means the shared installer/update flow passes automated checks, but has not had the same real-machine testing as macOS yet.
 

@@ -25,7 +25,7 @@ Use these files as the current sources of truth:
 - `docs/reference/skill-architecture.md`
   - skill topology and contributor index
 - `.claude/INSTALL.md`, `.codex/INSTALL.md`, `.gemini/INSTALL.md`, `.opencode/INSTALL.md`
-  - client-specific install overlays; derived active docs that must stay aligned with `README.md`
+  - client-specific install overlays; derived active docs that cover client deltas only and must point back to `README.md` for the shared install contract
 - `nova/DOCS.md`
   - Home Assistant App / relay operator truth
 - `nova/README.md`

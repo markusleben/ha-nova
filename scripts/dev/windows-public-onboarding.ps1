@@ -1,0 +1,239 @@
+[CmdletBinding()]
+param(
+  [ValidateSet("stable", "rc")][string]$InstallSource = "stable",
+  [ValidateSet("clean", "reinstall", "stale-uninstall-marker")][string]$StartState = "clean",
+  [string]$BundleUrl,
+  [string]$BundleSha256Url,
+  [string]$ResultPath = "$HOME\ha-nova-public-onboarding.json"
+)
+
+$ErrorActionPreference = "Stop"
+if ($PSVersionTable.PSVersion.Major -ge 7) {
+  $PSNativeCommandUseErrorActionPreference = $false
+}
+
+$RepoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+$InstallScript = Join-Path $RepoRoot "install.ps1"
+$WindowsCleanup = Join-Path $PSScriptRoot "windows-clean-test-state.ps1"
+$LocalAppDataDir = if ($env:LOCALAPPDATA) { $env:LOCALAPPDATA } else { Join-Path $HOME "AppData\Local" }
+$InstallDir = Join-Path $LocalAppDataDir "Programs\ha-nova"
+$UninstallStatusPath = Join-Path $LocalAppDataDir "ha-nova\uninstall-status.json"
+$TranscriptPath = Join-Path ([System.IO.Path]::GetTempPath()) ("ha-nova-public-onboarding-" + [guid]::NewGuid().ToString("N") + ".log")
+$GitBashCandidates = @(
+  "$env:ProgramFiles\Git\bin\bash.exe",
+  "${env:ProgramFiles(x86)}\Git\bin\bash.exe",
+  "$env:LOCALAPPDATA\Programs\Git\bin\bash.exe"
+)
+
+function Get-HostForm {
+  if ($env:WT_SESSION) {
+    return "windows-terminal"
+  }
+  return "powershell-console"
+}
+
+function Test-StandardUser {
+  $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+  $principal = New-Object Security.Principal.WindowsPrincipal($identity)
+  return -not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+function Test-CommandAvailable {
+  param([Parameter(Mandatory = $true)][string]$Name)
+
+  try {
+    $null = Get-Command $Name -ErrorAction Stop
+    return $true
+  }
+  catch {
+    return $false
+  }
+}
+
+function Test-ClaudeGitBashAvailable {
+  if ($env:CLAUDE_CODE_GIT_BASH_PATH -and (Test-Path -LiteralPath $env:CLAUDE_CODE_GIT_BASH_PATH)) {
+    return $true
+  }
+  foreach ($candidate in $GitBashCandidates) {
+    if ($candidate -and (Test-Path -LiteralPath $candidate)) {
+      return $true
+    }
+  }
+  return $false
+}
+
+function Get-ReadyClients {
+  $clients = @()
+  if ((Test-CommandAvailable "claude") -and (Test-ClaudeGitBashAvailable)) {
+    $clients += "claude"
+  }
+  if ((Test-CommandAvailable "gemini") -and (Test-CommandAvailable "node")) {
+    $clients += "gemini"
+  }
+  if (Test-CommandAvailable "codex") {
+    $clients += "codex"
+  }
+  if (Test-CommandAvailable "opencode") {
+    $clients += "opencode"
+  }
+  return $clients
+}
+
+function Set-InstallEnv {
+  param(
+    [Parameter(Mandatory = $true)][string]$Source,
+    [bool]$DisableSetup = $false
+  )
+
+  Remove-Item Env:HA_NOVA_BUNDLE_URL -ErrorAction SilentlyContinue
+  Remove-Item Env:HA_NOVA_BUNDLE_SHA256_URL -ErrorAction SilentlyContinue
+  Remove-Item Env:HA_NOVA_NO_SETUP -ErrorAction SilentlyContinue
+  Remove-Item Env:HA_NOVA_NO_BROWSER -ErrorAction SilentlyContinue
+
+  if ($Source -eq "rc") {
+    if (-not $BundleUrl -or -not $BundleSha256Url) {
+      throw "BundleUrl and BundleSha256Url are required for InstallSource=rc"
+    }
+    $env:HA_NOVA_BUNDLE_URL = $BundleUrl
+    $env:HA_NOVA_BUNDLE_SHA256_URL = $BundleSha256Url
+  }
+
+  if ($DisableSetup) {
+    $env:HA_NOVA_NO_SETUP = "1"
+    $env:HA_NOVA_NO_BROWSER = "1"
+  }
+}
+
+function Initialize-StartState {
+  param(
+    [Parameter(Mandatory = $true)][string]$State,
+    [Parameter(Mandatory = $true)][string]$Source
+  )
+
+  & $WindowsCleanup | Out-Null
+
+  switch ($State) {
+    "clean" {
+      return
+    }
+    "reinstall" {
+      Set-InstallEnv -Source $Source -DisableSetup $true
+      try {
+        Invoke-Expression (Get-Content -LiteralPath $InstallScript -Raw) | Out-Null
+      }
+      finally {
+        Set-InstallEnv -Source $Source -DisableSetup $false
+      }
+      return
+    }
+    "stale-uninstall-marker" {
+      $markerDir = Split-Path -Parent $UninstallStatusPath
+      New-Item -ItemType Directory -Force -Path $markerDir | Out-Null
+      @'
+{
+  "status": "failed",
+  "mode": "standard",
+  "error_summary": "stale uninstall marker seeded for public onboarding validation",
+  "remaining_paths": []
+}
+'@ | Set-Content -LiteralPath $UninstallStatusPath -Encoding UTF8
+      return
+    }
+  }
+}
+
+function Invoke-PublicInstaller {
+  $exitCode = 0
+  $caught = $null
+  $transcriptStarted = $false
+
+  try {
+    Start-Transcript -Path $TranscriptPath -Force | Out-Null
+    $transcriptStarted = $true
+    Invoke-Expression (Get-Content -LiteralPath $InstallScript -Raw)
+    if ($LASTEXITCODE) {
+      $exitCode = $LASTEXITCODE
+    }
+  }
+  catch {
+    $caught = $_
+    if ($LASTEXITCODE) {
+      $exitCode = $LASTEXITCODE
+    }
+    elseif ($_.Exception.HResult) {
+      $exitCode = 1
+    }
+  }
+  finally {
+    if ($transcriptStarted) {
+      Stop-Transcript | Out-Null
+    }
+  }
+
+  return @{
+    ExitCode = $exitCode
+    Error = $caught
+  }
+}
+
+Initialize-StartState -State $StartState -Source $InstallSource
+Set-InstallEnv -Source $InstallSource -DisableSetup $false
+$readyClients = @(Get-ReadyClients)
+
+$result = Invoke-PublicInstaller
+$transcript = if (Test-Path -LiteralPath $TranscriptPath) {
+  Get-Content -LiteralPath $TranscriptPath -Raw
+}
+else {
+  ""
+}
+
+$setupAutoStarted = (
+  $transcript -match "Press Enter to continue setup" -or
+  $transcript -match "Install NOVA Relay in Home Assistant" -or
+  $transcript -match "Set up Relay Auth Token" -or
+  $transcript -match "Setup complete!" -or
+  $transcript -match "Setup cancelled"
+)
+$manualFallbackDisplayed = (
+  $transcript -match [regex]::Escape("Next step: ha-nova setup") -or
+  $transcript -match [regex]::Escape("Finish setup later from a local PowerShell or Windows Terminal session:")
+)
+$missingClientGuidanceDisplayed = (
+  $transcript -match [regex]::Escape("No supported AI client is ready on this machine yet.") -and
+  $transcript -match [regex]::Escape("Install one supported client first, then rerun: ha-nova setup")
+)
+$localInstallCompleted = Test-Path -LiteralPath $InstallDir
+$expectedPublicResult = if ($readyClients.Count -gt 0) { "guided-setup" } else { "missing-client-guidance" }
+$evidence = [ordered]@{
+  windows_version = [System.Environment]::OSVersion.Version.ToString()
+  powershell_version = $PSVersionTable.PSVersion.ToString()
+  host_form = Get-HostForm
+  standard_user = Test-StandardUser
+  install_source = $InstallSource
+  start_state = $StartState
+  ready_clients = $readyClients
+  expected_public_result = $expectedPublicResult
+  installer_exit_code = $result.ExitCode
+  local_install_completed = $localInstallCompleted
+  setup_auto_started = $setupAutoStarted
+  second_terminal_command_needed = $manualFallbackDisplayed
+  manual_fallback_displayed = $manualFallbackDisplayed
+  client_prerequisite_guidance_displayed = $missingClientGuidanceDisplayed
+  final_verdict = if (
+    ($readyClients.Count -gt 0 -and $result.ExitCode -eq 0 -and $setupAutoStarted -and -not $manualFallbackDisplayed) -or
+    ($readyClients.Count -eq 0 -and $result.ExitCode -eq 0 -and $localInstallCompleted -and $missingClientGuidanceDisplayed)
+  ) { "pass" } else { "fail" }
+}
+
+$evidence | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $ResultPath -Encoding UTF8
+
+Write-Host ("PUBLIC_WINDOWS_ONBOARDING_EVIDENCE:" + $ResultPath)
+Write-Host ("PUBLIC_WINDOWS_ONBOARDING_VERDICT:" + $evidence.final_verdict)
+
+if ($null -ne $result.Error) {
+  throw $result.Error
+}
+if ($evidence.final_verdict -ne "pass") {
+  throw "public Windows onboarding validation failed"
+}

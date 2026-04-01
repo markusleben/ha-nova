@@ -49,6 +49,32 @@ function installSkills(
 }
 
 describe("S-4: client-specific skill installation", () => {
+  it("cleans legacy flat skills during codex install", () => {
+    const home = mkdtempSync(join(tmpdir(), "ha-nova-skill-codex-legacy-"));
+    const claudeLogFile = join(home, "claude.log");
+    const binDir = createMockBinaries({ claudeLogFile });
+
+    mkdirSync(join(home, ".agents", "skills", "ha-nova-read"), { recursive: true });
+    writeFileSync(join(home, ".agents", "skills", "ha-nova-read", "SKILL.md"), "legacy\n");
+    mkdirSync(join(home, ".agents", "skills", "ha-nova"), { recursive: true });
+    writeFileSync(join(home, ".agents", "skills", "ha-nova", "stale.txt"), "stale\n");
+
+    const result = spawnSync(
+      "bash",
+      ["scripts/onboarding/install-local-skills.sh", "codex"],
+      {
+        cwd: REPO_ROOT,
+        encoding: "utf8",
+        timeout: 60000,
+        env: mockEnv(home, binDir),
+      },
+    );
+
+    expect(result.status).toBe(0);
+    expect(existsSync(join(home, ".agents", "skills", "ha-nova-read"))).toBe(false);
+    expect(readlinkSync(join(home, ".agents", "skills", "ha-nova"))).toBe(join(REPO_ROOT, "skills"));
+  });
+
   it("installs codex skills as symlink", () => {
     const { home, result } = installSkills("codex");
     expect(result.status).toBe(0);
@@ -159,6 +185,172 @@ describe("S-4: client-specific skill installation", () => {
 
     expect(result.status).not.toBe(0);
     expect(result.stderr + result.stdout).toContain("[claude] Claude CLI not found in PATH");
+  });
+
+  it("installs Claude without Node.js when no prior local Claude state exists", () => {
+    const home = mkdtempSync(join(tmpdir(), "ha-nova-skill-claude-node-optional-"));
+    const claudeLogFile = join(home, "claude.log");
+    const binDir = createMockBinaries({ claudeLogFile });
+    writeFileSync(join(binDir, "node"), "#!/usr/bin/env bash\nexit 127\n", { mode: 0o755 });
+
+    const result = spawnSync(
+      "bash",
+      ["scripts/onboarding/install-local-skills.sh", "claude"],
+      {
+        cwd: REPO_ROOT,
+        encoding: "utf8",
+        timeout: 20000,
+        env: {
+          ...mockEnv(home, binDir),
+          PATH: `${binDir}:${process.env.PATH ?? ""}`,
+        },
+      },
+    );
+
+    expect(result.status).toBe(0);
+    const claudeLog = readFileSync(claudeLogFile, "utf8");
+    expect(claudeLog).toContain("plugin marketplace add");
+    expect(claudeLog).toContain("plugin install ha-nova@ha-nova");
+  });
+
+  it("installs Claude without Node.js when unrelated Claude plugin metadata exists", () => {
+    const home = mkdtempSync(join(tmpdir(), "ha-nova-skill-claude-node-unrelated-"));
+    const claudeLogFile = join(home, "claude.log");
+    const binDir = createMockBinaries({ claudeLogFile });
+    writeFileSync(join(binDir, "node"), "#!/usr/bin/env bash\nexit 127\n", { mode: 0o755 });
+    mkdirSync(join(home, ".claude", "plugins"), { recursive: true });
+    writeFileSync(
+      join(home, ".claude", "plugins", "installed_plugins.json"),
+      '{"plugins":["other-plugin"]}',
+    );
+    writeFileSync(
+      join(home, ".claude", "plugins", "known_marketplaces.json"),
+      '{"other-plugin":{"name":"other-plugin","source":{"url":"https://example.invalid/other"}}}',
+    );
+
+    const result = spawnSync(
+      "bash",
+      ["scripts/onboarding/install-local-skills.sh", "claude"],
+      {
+        cwd: REPO_ROOT,
+        encoding: "utf8",
+        timeout: 20000,
+        env: {
+          ...mockEnv(home, binDir),
+          PATH: `${binDir}:${process.env.PATH ?? ""}`,
+        },
+      },
+    );
+
+    expect(result.status).toBe(0);
+    const claudeLog = readFileSync(claudeLogFile, "utf8");
+    expect(claudeLog).toContain("plugin marketplace add");
+    expect(claudeLog).toContain("plugin install ha-nova@ha-nova");
+  });
+
+  it("fails loudly when Node.js is missing for the Claude helper path", () => {
+    const home = mkdtempSync(join(tmpdir(), "ha-nova-skill-claude-node-missing-"));
+    const claudeLogFile = join(home, "claude.log");
+    const binDir = createMockBinaries({ claudeLogFile });
+    writeFileSync(join(binDir, "node"), "#!/usr/bin/env bash\nexit 127\n", { mode: 0o755 });
+    mkdirSync(join(home, ".claude", "plugins"), { recursive: true });
+    writeFileSync(
+      join(home, ".claude", "plugins", "installed_plugins.json"),
+      '{"plugins":["ha-nova@ha-nova"]}',
+    );
+
+    const result = spawnSync(
+      "bash",
+      ["scripts/onboarding/install-local-skills.sh", "claude"],
+      {
+        cwd: REPO_ROOT,
+        encoding: "utf8",
+        timeout: 20000,
+        env: {
+          ...mockEnv(home, binDir),
+          PATH: `${binDir}:${process.env.PATH ?? ""}`,
+        },
+      },
+    );
+
+    expect(result.status).not.toBe(0);
+    expect(result.stderr + result.stdout).toContain("[claude] Node.js not found in PATH");
+  });
+
+  it("fails loudly when Claude install cannot restore a previous plugin without a marketplace source", () => {
+    const home = mkdtempSync(join(tmpdir(), "ha-nova-skill-claude-missing-marketplace-"));
+    const claudeLogFile = join(home, "claude.log");
+    const binDir = createMockBinaries({ claudeLogFile });
+    mkdirSync(join(home, ".claude", "plugins"), { recursive: true });
+    writeFileSync(
+      join(home, ".claude", "plugins", "installed_plugins.json"),
+      JSON.stringify({
+        "ha-nova@ha-nova": {
+          installPath: "/tmp/ha-nova/0.3.1",
+          version: "0.3.1",
+        },
+      }),
+    );
+    writeFileSync(
+      join(binDir, "claude"),
+      `#!/usr/bin/env bash
+printf '%s\\n' "$*" >> "${claudeLogFile}"
+if [[ "$1" == "plugin" && "$2" == "install" ]]; then
+  exit 1
+fi
+exit 0
+`,
+      { mode: 0o755 },
+    );
+
+    const result = spawnSync(
+      "bash",
+      ["scripts/onboarding/install-local-skills.sh", "claude"],
+      {
+        cwd: REPO_ROOT,
+        encoding: "utf8",
+        timeout: 20000,
+        env: mockEnv(home, binDir),
+      },
+    );
+
+    expect(result.status).not.toBe(0);
+    expect(result.stderr + result.stdout).toContain("previous Claude state could not be restored automatically");
+    expect(readFileSync(claudeLogFile, "utf8")).toContain("plugin install ha-nova@ha-nova");
+  });
+
+  it("fails loudly when repo version.json is missing", () => {
+    const fakeRoot = mkdtempSync(join(tmpdir(), "ha-nova-skill-fixture-"));
+    const binDir = createMockBinaries();
+
+    mkdirSync(join(fakeRoot, "scripts", "onboarding", "lib"), { recursive: true });
+    mkdirSync(join(fakeRoot, "scripts", "onboarding", "bin"), { recursive: true });
+    mkdirSync(join(fakeRoot, "skills", "ha-nova"), { recursive: true });
+
+    for (const rel of [
+      "scripts/onboarding/install-local-skills.sh",
+      "scripts/onboarding/lib/install-local-skills-common.sh",
+      "scripts/onboarding/lib/install-local-skills-claude.sh",
+      "scripts/onboarding/lib/install-local-skills-gemini.sh",
+      "scripts/onboarding/lib/install-local-skills-repo-dev.sh",
+    ]) {
+      writeFileSync(join(fakeRoot, rel), readFileSync(join(REPO_ROOT, rel), "utf8"), { mode: 0o755 });
+    }
+    writeFileSync(join(fakeRoot, "scripts", "onboarding", "bin", "ha-nova"), "#!/usr/bin/env bash\nexit 0\n", { mode: 0o755 });
+
+    const result = spawnSync(
+      "bash",
+      ["scripts/onboarding/install-local-skills.sh", "codex"],
+      {
+        cwd: fakeRoot,
+        encoding: "utf8",
+        timeout: 20000,
+        env: mockEnv(fakeRoot, binDir),
+      },
+    );
+
+    expect(result.status).not.toBe(0);
+    expect(result.stderr + result.stdout).toContain("Missing repo version file");
   });
 
   it("reinstalls an existing Claude plugin for local repo validation", () => {
