@@ -71,13 +71,15 @@ Enter through `skills/review/SKILL.md` Step 1, then load `skills/review/checks.m
 Traverse all `variables:` mappings in `{CONFIG}`, not just the top-level block. Include root `variables:` on the automation/script plus local `variables:` actions inside `choose`, `if` / `then` / `else`, `default`, `repeat`, and nested `sequence` blocks.
 
 Which checks to apply by domain:
-- **Automation:** S-01..S-03, R-01..R-18, P-01..P-05, M-01..M-04. If actions reference helpers, also H-01..H-10 on those helpers.
+- **Automation:** S-01..S-03, R-01..R-19, P-01..P-05, M-01..M-04. If actions reference helpers, also H-01..H-10 on those helpers.
 - **Script:** All automation checks plus F-01..F-08.
 - **Helper (storage-based family):** H-01..H-10.
 - **Helper (config-entry family):** minimal config-entry review. Do not apply H-01..H-10; inspect config-entry metadata, linked entities, and `search/related` only. In Step 2, derive collision candidates from `linked_entities[]`, not from action extraction.
 - `R-17` is an intra-config branch comparison only. Do not derive it from collision-scan matches or cross-item conflicts.
 - `R-18` applies only to sibling-variable references within one `variables:` mapping. Ignore cross-action and cross-scope references, script `fields`, HA builtins, and `{% set %}` locals inside the same template.
 - When `R-18` matches, report the block context plus at least one concrete variable pair. Because `{CONFIG}` here comes from HA read-back or a fresh HA config read, describe the result as a persisted runtime risk.
+- `R-19` applies only to `if` + `elif` chains with entity-state-style branch guards and a terminal bare `else` that contains a direct `trigger.id` comparison. Skip single `if` / `else`, `trigger.id` in `elif`, non-entity-state selector trees, `else` blocks with extra explicit guards, and `choose` + `condition: trigger`.
+- When `R-19` matches, state: final else branch is only reached when the earlier entity-state branches are false. Move the `trigger.id` check into an explicit `elif`. Or refactor to `choose` + `condition: trigger`.
 
 If H-09/H-10 evaluation needs live helper evidence, read `state`, `attributes.min`, `attributes.max`, and `attributes.step` from `/api/states/{helper_entity_id}`. If any of those values are missing or non-numeric, skip H-09/H-10. Use `skills/review/checks.md` → Helper Threshold Evidence for the operator-aware threshold rules.
 

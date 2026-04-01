@@ -24,6 +24,96 @@ require_cmd() {
   command -v "$cmd" >/dev/null 2>&1 || die "Required command not found: ${cmd}"
 }
 
+normalize_jsonl_transcript() {
+  local input_file="$1"
+
+  python3 - "$input_file" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as handle:
+    for lineno, raw_line in enumerate(handle, start=1):
+        line = raw_line.strip()
+        if not line:
+            continue
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError as exc:
+            sys.stderr.write(f"invalid jsonl transcript line {lineno}: {exc}\n")
+            sys.exit(2)
+        if not isinstance(event, dict):
+            sys.stderr.write(f"invalid jsonl transcript line {lineno}: expected object event\n")
+            sys.exit(3)
+        print(json.dumps(event, separators=(",", ":")))
+PY
+}
+
+run_codex_with_timeout() {
+  local timeout_sec="$1"
+  local prompt_file="$2"
+  local scenario_log="$3"
+
+  python3 - "$timeout_sec" "$PROJECT_ROOT" "$prompt_file" "$scenario_log" <<'PY'
+import pathlib
+import subprocess
+import sys
+
+timeout_sec = int(sys.argv[1])
+project_root = sys.argv[2]
+prompt_file = pathlib.Path(sys.argv[3])
+scenario_log = pathlib.Path(sys.argv[4])
+prompt = prompt_file.read_text(encoding="utf-8")
+
+with scenario_log.open("w", encoding="utf-8") as log_file:
+    try:
+        completed = subprocess.run(
+            [
+                "codex",
+                "exec",
+                "--ephemeral",
+                "--json",
+                "--sandbox",
+                "danger-full-access",
+                "-C",
+                project_root,
+                prompt,
+            ],
+            stdout=log_file,
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=timeout_sec,
+            check=False,
+        )
+        sys.exit(completed.returncode)
+    except subprocess.TimeoutExpired:
+        sys.exit(124)
+PY
+}
+
+wait_for_log_completion() {
+  local file="$1"
+  local previous_size="-1"
+  local stable_reads=0
+  local current_size
+
+  for _ in $(seq 1 20); do
+    current_size="$(wc -c <"$file" 2>/dev/null || echo 0)"
+    if [[ "$current_size" == "$previous_size" && "$current_size" != "0" ]]; then
+      stable_reads="$((stable_reads + 1))"
+    else
+      stable_reads=0
+    fi
+    previous_size="$current_size"
+
+    if [[ "$stable_reads" -ge 2 ]] && grep -q '"type":"turn.completed"' "$file" 2>/dev/null; then
+      return 0
+    fi
+    sleep 1
+  done
+
+  return 0
+}
+
 validate_scenario_file() {
   [[ -f "$SCENARIO_FILE" ]] || die "Scenario file not found: ${SCENARIO_FILE}"
   jq -e '
@@ -86,13 +176,64 @@ Hard requirements:
 EOF_PROMPT
 }
 
-extract_final_status_line() {
+extract_status_metadata() {
   local scenario_log="$1"
 
-  jq -r '
-    select(.type == "item.completed" and .item.type == "agent_message")
-    | .item.text
-  ' "$scenario_log" 2>/dev/null | awk '/NOVA_SCENARIO_RESULT/ { line=$0 } END { print line }' || true
+  python3 - "$scenario_log" <<'PY'
+import json
+import re
+import sys
+
+events = []
+with open(sys.argv[1], encoding="utf-8") as handle:
+    for raw_line in handle:
+        try:
+            event = json.loads(raw_line)
+        except json.JSONDecodeError:
+            sys.stderr.write("invalid jsonl transcript while extracting scenario status metadata\n")
+            sys.exit(2)
+        events.append(event)
+
+status_line = ""
+status_line_count = 0
+status_line_event_idx = 0
+last_agent_message = ""
+last_agent_message_last_line = ""
+unexpected_events_after_final_message = 0
+status_line_pattern = re.compile(r"^NOVA_SCENARIO_RESULT id=.* values=.*$", re.MULTILINE)
+
+for idx, event in enumerate(events, start=1):
+    item = event.get("item") or {}
+    if event.get("type") == "item.completed" and item.get("type") == "agent_message":
+        text = item.get("text") or ""
+        last_agent_message = text
+        matches = status_line_pattern.findall(text)
+        if matches:
+            status_line_count += len(matches)
+            status_line = matches[-1]
+            status_line_event_idx = idx
+        stripped_lines = [line.strip() for line in text.splitlines() if line.strip()]
+        if stripped_lines:
+            last_agent_message_last_line = stripped_lines[-1]
+
+for idx, event in enumerate(events, start=1):
+    if status_line_event_idx == 0 or idx <= status_line_event_idx:
+        continue
+    item = event.get("item") or {}
+    if event.get("type") == "turn.completed":
+        continue
+    if item.get("type") == "todo_list":
+        continue
+    unexpected_events_after_final_message += 1
+
+print(json.dumps({
+    "status_line": status_line,
+    "status_line_count": status_line_count,
+    "last_agent_message": last_agent_message,
+    "last_agent_message_last_line": last_agent_message_last_line,
+    "unexpected_events_after_final_message": unexpected_events_after_final_message,
+}))
+PY
 }
 
 extract_last_agent_message() {
@@ -112,6 +253,14 @@ count_command_hits() {
     select(.type == "item.completed" and .item.type == "command_execution")
     | .item.command
   ' "$scenario_log" 2>/dev/null | grep -E -c "$pattern" || true
+}
+
+count_helper_script_exec_hits() {
+  local scenario_log="$1"
+
+  count_command_hits \
+    "$scenario_log" \
+    '(^|[^[:alnum:]_./-])(\./)?scripts/(smoke|e2e|dev)/|\\b(bash|sh|zsh|python3?|node|bunx?|bun|tsx)\\b[^[:cntrl:]]*\\b(\./)?scripts/(smoke|e2e|dev)/'
 }
 
 first_command_index() {
@@ -141,12 +290,16 @@ run_scenario() {
 
   local prompt_file="${LOG_DIR}/${index}-${scenario_id}.prompt.txt"
   local scenario_log="${LOG_DIR}/${index}-${scenario_id}.jsonl"
+  local parsed_log="${LOG_DIR}/${index}-${scenario_id}.parsed.jsonl"
   local start_ts
   local end_ts
   local duration_sec
   local codex_status
   local final_line=""
   local last_agent_message=""
+  local last_agent_message_last_line=""
+  local status_line_count
+  local unexpected_events_after_final_message
   local values_json='[]'
   local validation_error=""
   local status="pass"
@@ -166,25 +319,56 @@ run_scenario() {
 
   start_ts="$(date +%s)"
   set +e
-  codex exec \
-    --ephemeral \
-    --json \
-    --sandbox danger-full-access \
-    -C "$PROJECT_ROOT" \
-    "$(cat "$prompt_file")" >"$scenario_log" 2>&1
+  run_codex_with_timeout "$max_duration_sec" "$prompt_file" "$scenario_log"
   codex_status="$?"
   set -e
   end_ts="$(date +%s)"
   duration_sec="$((end_ts - start_ts))"
 
-  if [[ "$status" == "pass" ]] && ! jq -e '.' "$scenario_log" >/dev/null 2>&1; then
+  if [[ "$status" == "pass" && "$codex_status" -ne 0 ]]; then
     status="fail"
-    validation_error="invalid_jsonl_transcript"
+    if [[ "$codex_status" -eq 124 ]]; then
+      validation_error="duration_exceeded"
+    else
+      validation_error="codex_exec_failed"
+    fi
   fi
 
   if [[ "$status" == "pass" ]]; then
-    final_line="$(extract_final_status_line "$scenario_log")"
-    if [[ -z "$final_line" ]]; then
+    wait_for_log_completion "$scenario_log"
+    grep -q '"type":"turn.completed"' "$scenario_log" || {
+      status="fail"
+      validation_error="incomplete_transcript"
+    }
+  fi
+
+  if [[ "$status" == "pass" ]]; then
+    local normalized_tmp="${parsed_log}.tmp"
+    rm -f "$normalized_tmp" "$parsed_log"
+    if normalize_jsonl_transcript "$scenario_log" >"$normalized_tmp"; then
+      mv "$normalized_tmp" "$parsed_log"
+    else
+      rm -f "$normalized_tmp" "$parsed_log"
+      status="fail"
+      validation_error="invalid_jsonl_transcript"
+    fi
+  fi
+
+  if [[ "$status" == "pass" ]]; then
+    if [[ ! -s "$parsed_log" ]]; then
+      status="fail"
+      validation_error="invalid_jsonl_transcript"
+    fi
+  fi
+
+  if [[ "$status" == "pass" ]]; then
+    extract_status_metadata "$parsed_log" >"${parsed_log%.jsonl}.status.json"
+    final_line="$(jq -r '.status_line' "${parsed_log%.jsonl}.status.json")"
+    status_line_count="$(jq -r '.status_line_count' "${parsed_log%.jsonl}.status.json")"
+    last_agent_message="$(jq -r '.last_agent_message' "${parsed_log%.jsonl}.status.json")"
+    last_agent_message_last_line="$(jq -r '.last_agent_message_last_line' "${parsed_log%.jsonl}.status.json")"
+    unexpected_events_after_final_message="$(jq -r '.unexpected_events_after_final_message' "${parsed_log%.jsonl}.status.json")"
+    if [[ "$status_line_count" -ne 1 || -z "$final_line" ]]; then
       status="fail"
       validation_error="missing_final_status_line"
     fi
@@ -194,6 +378,16 @@ run_scenario() {
     if [[ "$final_line" != NOVA_SCENARIO_RESULT\ id=${scenario_id}\ values=* ]]; then
       status="fail"
       validation_error="unexpected_final_status_format"
+    fi
+  fi
+
+  if [[ "$status" == "pass" ]]; then
+    if [[ "$last_agent_message_last_line" != "$final_line" ]]; then
+      status="fail"
+      validation_error="status_line_not_final"
+    elif [[ "$unexpected_events_after_final_message" -ne 0 ]]; then
+      status="fail"
+      validation_error="trailing_events_after_final_message"
     fi
   fi
 
@@ -234,13 +428,13 @@ run_scenario() {
     validation_error="duration_exceeded"
   fi
 
-  command_count="$(count_command_hits "$scenario_log" '.*')"
-  doctor_count="$(count_command_hits "$scenario_log" '(^|[[:space:]])ha-nova[[:space:]]+doctor([[:space:]]|$)')"
-  helper_script_count="$(count_command_hits "$scenario_log" 'scripts/(smoke|e2e)/')"
+  command_count="$(count_command_hits "$parsed_log" '.*')"
+  doctor_count="$(count_command_hits "$parsed_log" '(^|[[:space:]])ha-nova[[:space:]]+doctor([[:space:]]|$)')"
+  helper_script_count="$(count_helper_script_exec_hits "$parsed_log")"
 
-  ws_idx="$(first_command_index "$scenario_log" '/ws')"
-  health_idx="$(first_command_index "$scenario_log" '/health')"
-  doctor_idx="$(first_command_index "$scenario_log" '(^|[[:space:]])ha-nova[[:space:]]+doctor([[:space:]]|$)')"
+  ws_idx="$(first_command_index "$parsed_log" 'relay[[:space:]]+ws([[:space:]]|$)')"
+  health_idx="$(first_command_index "$parsed_log" '/health')"
+  doctor_idx="$(first_command_index "$parsed_log" '(^|[[:space:]])ha-nova[[:space:]]+doctor([[:space:]]|$)')"
   if [[ -n "$ws_idx" && -n "$health_idx" && "$health_idx" -lt "$ws_idx" ]]; then
     health_before_ws="true"
   fi
@@ -270,7 +464,7 @@ run_scenario() {
       if [[ -z "$forbidden_pattern" ]]; then
         continue
       fi
-      if [[ "$(count_command_hits "$scenario_log" "$forbidden_pattern")" -gt 0 ]]; then
+      if [[ "$(count_command_hits "$parsed_log" "$forbidden_pattern")" -gt 0 ]]; then
         status="fail"
         validation_error="forbidden_pattern_detected"
         break
@@ -279,7 +473,6 @@ run_scenario() {
   fi
 
   if [[ "$status" == "pass" ]]; then
-    last_agent_message="$(extract_last_agent_message "$scenario_log")"
     while IFS= read -r required_text; do
       if [[ -z "$required_text" ]]; then
         continue

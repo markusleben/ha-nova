@@ -36,9 +36,24 @@ Historical breadcrumb log:
 - Hardened the review-live harness prompt to forbid Exa/Ref/web research and added an explicit `unexpected_external_research_detected` failure path
 
 ### Next
-- Re-run the focused skill/scenario contract suites and tighten any remaining wording mismatches
-- Run the new review-live harness against the 3 core standalone review scenarios and tune prompt wording only if the harness exposes output instability
+- Keep `#128` closed on the verified SHA unless a future exact-SHA repro proves a real product gap
 - Use the `R-18` repro runbook the next time real-HA verification is needed instead of adding more product-side runtime logic first
+
+### 2026-03-31 Status
+- Verified `#128` against `origin/main` SHA `7b9fd11782751e34e35a3e79fc0fe64d1bd5c1b1`
+- Added exact-SHA evidence plus focused relay trace proof and closed the issue without a new product change
+- Kept the runbook active as the ongoing repro source of truth instead of reopening product-side runtime hardening
+
+## 2026-03-31: Conservative R-19 Follow-Up
+
+### Completed
+- Added `R-19` as a conservative branch-structure reliability warning for direct `trigger.id` checks inside a terminal bare `else` after entity-state `if` / `elif` guards
+- Kept `R-19` out of trigger-intent inference; the warning is anchored only to the visible branch structure
+- Extended standalone-review and review-live scenario suites with flagged and safe `R-19` cases
+- Added a dedicated write-review live harness so Phase 2 pre-write warning behavior is proved without changing the generic CRUD harness
+
+### Next
+- Keep future `R-19` refinements anchored to explicit branch structure unless a separate issue justifies broader intent inference
 
 ## 2026-03-26: WinGet Removal
 

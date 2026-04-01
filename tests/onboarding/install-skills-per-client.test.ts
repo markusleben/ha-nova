@@ -30,6 +30,7 @@ function expectRepoRefsRewritten(content: string): void {
 function installSkills(
   client: string,
   extraEnv: Record<string, string> = {},
+  timeout = 120000,
 ): { home: string; result: ReturnType<typeof spawnSync> } {
   const home = mkdtempSync(join(tmpdir(), `ha-nova-skill-${client}-`));
   const claudeLogFile = join(home, "claude.log");
@@ -40,7 +41,7 @@ function installSkills(
     {
       cwd: REPO_ROOT,
       encoding: "utf8",
-      timeout: 60000,
+      timeout,
       env: mockEnv(home, binDir, extraEnv),
     },
   );

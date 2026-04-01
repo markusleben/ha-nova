@@ -101,9 +101,9 @@ describe("review contract", () => {
     expect(reviewChecks).toContain("R-16 [HIGH]");
     expect(reviewChecks).toContain("Templated event name");
     expect(reviewChecks).toContain("`event_type:` does not evaluate templates");
-    expect(reviewSkill).toContain("R-01..R-18");
-    expect(reviewAgent).toContain("R-01..R-18");
-    expect(architectureDoc).toContain("R-01..R-18");
+    expect(reviewSkill).toContain("R-01..R-19");
+    expect(reviewAgent).toContain("R-01..R-19");
+    expect(architectureDoc).toContain("R-01..R-19");
     expect(templateGuidelines).toContain("Event trigger names must be literal strings");
     expect(templateGuidelines).toContain("do not template `event_type:`");
   });
@@ -141,6 +141,19 @@ describe("review contract", () => {
     expect(templateGuidelines).toContain("self-contained template with internal `{% set %}`");
     expect(templateGuidelines).toContain("ordered `variables` actions");
     expect(architectureDoc).toContain("`R-18` is same-mapping only");
+  });
+
+  it("documents unreachable trigger fallbacks as R-19", () => {
+    expect(reviewChecks).toContain("R-19 [MEDIUM]");
+    expect(reviewChecks).toContain("Unreachable `trigger.id` in bare `else` branch");
+    expect(reviewChecks).toContain("terminal bare `else`");
+    expect(reviewChecks).toContain("move the `trigger.id` check into an explicit `elif`");
+    expect(reviewChecks).toContain("refactor to `choose` + `condition: trigger`");
+    expect(reviewSkill).toContain("R-19 applies only to Jinja2 chains with `if` plus at least one `elif`");
+    expect(reviewSkill).toContain("final else branch is only reached when the earlier entity-state branches are false");
+    expect(reviewAgent).toContain("terminal bare `else` that contains a direct `trigger.id` comparison");
+    expect(architectureDoc).toContain("`R-19` is branch-structure reachability only");
+    expect(templateGuidelines).toContain("Direct `trigger.id` check in a terminal bare `else`");
   });
 
   it("documents the standalone questions-versus-suggestions split", () => {

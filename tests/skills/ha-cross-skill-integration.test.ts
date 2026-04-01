@@ -67,6 +67,7 @@ describe("ha cross-skill integration", () => {
     expect(writeSkill).toContain("REST/UI write can break dependent variables");
     expect(writeSkill).toContain("do not block the write");
     expect(writeSkill).toContain("do not require extra confirmation");
+    expect(writeSkill).toContain("final else branch is only reached when the earlier entity-state branches are false");
   });
 
   it("includes HA normalization awareness and dedup in post-write review", () => {
@@ -86,6 +87,7 @@ describe("ha cross-skill integration", () => {
     expect(writeSkill).toContain("report it again");
     expect(writeSkill).toContain("inspect traces after the next real run");
     expect(writeSkill).toContain("Do not auto-trigger or auto-read traces");
+    expect(writeSkill).toContain("`R-19` follows normal dedup");
 
     // Post-write review format uses localized headings with emoji severity
     expect(writeSkill).toContain("Findings");

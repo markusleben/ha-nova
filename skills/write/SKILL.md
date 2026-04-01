@@ -12,8 +12,6 @@ Mutations only:
 - domains: `automation`, `script`
 - operations: `create`, `update`, `delete`
 
-Not for helpers — use `ha-nova:helper` instead.
-
 ## Bootstrap (once per session)
 
 Verify relay CLI:
@@ -30,27 +28,26 @@ If this fails, run onboarding: `ha-nova setup`.
 
 1. Read `skills/ha-nova/agents/resolve-agent.md`.
 2. Fill template placeholders (domain, operation, user intent).
-3. Dispatch agent. Extract: entities, target_id, target_exists, current_config, bp_status, suggested_enhancements.
+3. Dispatch agent. Extract: target_id, current_config, bp_status, suggested_enhancements.
    - update/delete: resolve `entity_id -> unique_id` via registry first
-4. On ambiguity: ask user. On no-match: ask for exact entity_id.
-   - If broad targeting is ambiguous, reuse the single blocking question.
-   - Do not add a second ambiguity question in the same turn.
-   - If the requested change depends on an invalid Home Assistant premise, correct the premise explicitly before continuing.
+4. On ambiguity/no-match: use a single blocking question and ask for the exact entity_id when needed.
+   - Do not add a second ambiguity question.
+   - If the requested change depends on an invalid Home Assistant premise, correct it before continuing.
 5. ID generation for `create`: automations=Unix timestamp, scripts=slug.
 
 ### Phase 2: Preview + Confirm (Main Thread)
 
 1. Build config. For update: full-replacement merge (base=current, overlay=user changes).
    - Do not rewrite unrelated structure, aliases, or formatting for a narrow requested change.
-2. BP gate: fresh->continue, stale+simple->warn, stale+complex->block.
-   Load `best-practices.md` only if needed.
+2. BP gate: fresh->continue, stale+simple->warn, stale+complex->block. Load `best-practices.md` only if needed.
 3. Suggestions + Pre-Write Checks (skip for `delete`):
    - **3a) Suggestions**: Show `suggested_enhancements` from resolve-agent (max 4, numbered). User accepts by number or "skip" → merge accepted into config BEFORE preview.
      Skip when: `SUGGESTED_ENHANCEMENTS: none`, or already present on `update`.
-   - **3b) Static Checks**: Enter via `skills/review/SKILL.md` Step 1 and load the detailed rules from `skills/review/checks.md`. Run S/R/P/M checks analytically on the draft YAML — no relay calls needed (scripts: also F-01..F-08; if actions reference helpers: also H-01..H-08. Defer H-09/H-10 to Phase 4 because they require live helper evidence).
-     🔴 findings → inline warning with fix suggestion. 🟠🟡 findings → advisory below preview. Clean → skip.
-     If R-18 matches, warn explicitly that a REST/UI write can break dependent variables in that block. Keep it advisory-only: do not block the write and do not require extra confirmation.
+   - **3b) Static Checks**: Enter via `skills/review/SKILL.md` Step 1 plus `skills/review/checks.md`. Run S/R/P/M checks analytically on the draft YAML — no relay calls (scripts: F-01..F-08; helper references: H-01..H-08. Defer H-09/H-10 to Phase 4 for live evidence).
+     🔴 findings → inline warning + fix. 🟠🟡 findings → advisory below preview. Clean → skip.
+     If R-18 matches, warn that a REST/UI write can break dependent variables in that block. Keep it advisory-only: do not block the write and do not require extra confirmation.
      If the user proceeds after an R-18 warning, tell them to inspect traces after the next real run. Do not auto-trigger the config or auto-read traces here.
+     If R-19 matches, warn with: final else branch is only reached when the earlier entity-state branches are false. Move the `trigger.id` check into an explicit `elif`. Or refactor to `choose` + `condition: trigger`. Keep it advisory-only: do not block the write and do not require extra confirmation.
      Track findings by check type for dedup in Phase 4, except for the R-18 follow-up below.
 4. Preview: summary (alias, ID, entities, triggers, conditions, actions, mode) + full YAML config.
    - Delete preview MUST include the consumer-check result before confirmation: either the affected consumers or an explicit no-consumer result.
@@ -68,9 +65,7 @@ Fallback: If agent dispatch unavailable, execute inline.
 
 ### Phase 4: Post-Write Review (MANDATORY)
 
-Do NOT report results until complete. Run inline (do NOT invoke `ha-nova:review` as a separate skill).
-
-Follow the Post-Write Review Standard from `docs/reference/skill-architecture.md`:
+Do NOT report results until complete. Run inline; do NOT invoke `ha-nova:review` separately. Follow the Post-Write Review Standard from `docs/reference/skill-architecture.md`:
 
 1. Re-read the written config using the `target_id` from Phase 1 (do NOT re-resolve by slug):
    - automation: `ha-nova relay core --method GET --path /api/config/automation/config/<target_id> --jq-file <filter-file> --out <result-file>`
@@ -79,7 +74,6 @@ Follow the Post-Write Review Standard from `docs/reference/skill-architecture.md
      ```jq
      if .ok then .data.body else error("relay error: \(.error.message // "unknown")") end
      ```
-   - use relay jq for follow-up checks
    - for create/update, reload the domain, resolve the actual `entity_id` from entity registry by matching `unique_id == <target_id>`, then read `/api/states/{entity_id}` to confirm runtime presence
    - if the actual `entity_id` differs, report it and point to `skills/ha-nova/safe-refactoring.md`; do not silently assume the requested slug won
 2. S/R/P/M/F checks (narrowed):
@@ -87,22 +81,23 @@ Follow the Post-Write Review Standard from `docs/reference/skill-architecture.md
    - Note: HA may normalize keys during write (`trigger`→`triggers`, `action`→`actions`, `condition`→`conditions`). Account for plural aliasing when comparing — these are not real diffs.
    - Core fields differ (beyond aliasing) → full checks from `review/SKILL.md` Step 1. Match → skip the normal subset as "covered in pre-write review," but still re-run the storage-sensitive R-18 subset against the persisted read-back config.
    - **Dedup**: findings from Phase 2 Step 3b that user saw MUST NOT repeat. Track by check type, not code.
-   - Exception: if R-18 still matches on the persisted read-back config, report it again as a persisted runtime risk even when the user already saw the pre-write warning.
-   - If persisted R-18 remains, add a manual next step to inspect traces after the next real run. Do not auto-trigger or auto-read traces.
-   - If actions reference helpers: always run H-01..H-10.
+    - Exception: if R-18 still matches on the persisted read-back config, report it again as a persisted runtime risk even when the user already saw the pre-write warning.
+    - `R-19` follows normal dedup. If the user already saw the pre-write warning, do not repeat it after the write unless it appears as a new distinct finding category.
+    - If persisted R-18 remains, add a manual next step to inspect traces after the next real run. Do not auto-trigger or auto-read traces.
+    - If actions reference helpers: always run H-01..H-10.
 3. Run collision scan:
    - create `<payload-file>` with `{"type":"search/related","item_type":"entity","item_id":"<entity_id>"}`
    - run `ha-nova relay ws --data-file <payload-file>`
    - read max 3 related configs.
-4. Response MUST include a Post-Write Review section with localized headings (see `skills/ha-nova/SKILL.md` → Output Localization):
-   - **Findings**: 🔴🟠🟡 findings with descriptive titles + fix suggestions, or localized "no issues found"
-   - **Collision check**: conflicts with related automations/scripts, or localized "no conflicts"
-   - **Advisory**: 🟠🟡 findings, or omit if none
+4. Response MUST include localized Post-Write Review headings (see `skills/ha-nova/SKILL.md` → Output Localization):
+   - **Findings**
+   - **Collision check**
+   - **Advisory**
 5. Findings are advisory — write already succeeded.
 
 ## Output Format
 
-see `skills/ha-nova/SKILL.md` → Response Format. Automations and scripts use structured summary + YAML.
+see `skills/ha-nova/SKILL.md` → Response Format.
 
 ## Safety
 
@@ -116,13 +111,11 @@ see `skills/ha-nova/SKILL.md` → Response Format. Automations and scripts use s
 
 - Never use raw `get_states` — use targeted registry/config reads
 - Max 3 related configs in collision scan
-- No agent dispatch for helper CRUD (use `ha-nova:helper` instead)
 
 ## References
 
 - Relay API: `skills/ha-nova/relay-api.md`
 - Payload Schemas: `skills/ha-nova/payload-schemas.md`
-- Helper Schemas: `skills/ha-nova/helper-schemas.md`
 - Best Practices: `skills/ha-nova/best-practices.md`
 - Automation Patterns: `skills/ha-nova/automation-patterns.md`
 - Template Guidelines: `skills/ha-nova/template-guidelines.md`

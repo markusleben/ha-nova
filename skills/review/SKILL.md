@@ -223,7 +223,7 @@ Traverse all `variables:` mappings in the config, not just the top-level block. 
 - Codes are internal only; never show them in user-facing output
 
 **Apply these families by domain:**
-- Automation: S-01..S-03, R-01..R-18, P-01..P-05, M-01..M-04
+- Automation: S-01..S-03, R-01..R-19, P-01..P-05, M-01..M-04
 - Script: automation families plus F-01..F-08
 - Helper (storage-based family): H-01..H-10
 - Helper (config-entry family): minimal config-entry review
@@ -237,6 +237,8 @@ Traverse all `variables:` mappings in the config, not just the top-level block. 
 - R-17 is an intra-config branch comparison only. Never emit it from collision scan or cross-automation conflict analysis.
 - R-18 applies only to sibling-variable references within one `variables:` mapping. Never emit it for cross-action or cross-scope references, script `fields`, HA builtins, or `{% set %}` locals inside the same template.
 - For R-18 output, include the block context plus at least one concrete variable pair. For pasted YAML or draft configs, describe it as future write fragility. For HA read-back or post-write review, describe it as a persisted runtime risk.
+- R-19 applies only to Jinja2 chains with `if` plus at least one `elif`, entity-state-style branch guards, and a terminal bare `else` that contains a direct `trigger.id` comparison. Skip single `if` / `else`, `trigger.id` in `elif`, non-entity-state selector trees, `else` blocks with extra explicit guards, and `choose` + `condition: trigger`.
+- For R-19 output, state: final else branch is only reached when the earlier entity-state branches are false. Move the `trigger.id` check into an explicit `elif`. Or refactor to `choose` + `condition: trigger`.
 
 **Live helper evidence for H-09/H-10:**
 - See `skills/review/checks.md` → Helper Threshold Evidence

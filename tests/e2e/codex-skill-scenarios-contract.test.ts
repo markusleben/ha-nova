@@ -1,4 +1,7 @@
-import { constants, readFileSync, statSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { constants, existsSync, mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -23,6 +26,16 @@ type ScenarioDefinition = {
   max_duration_sec?: number;
 };
 
+function extractShellFunction(content: string, name: string): string {
+  const match = content.match(new RegExp(String.raw`${name}\(\)\s*\{[\s\S]*?\n\}`, "m"));
+
+  if (!match) {
+    throw new Error(`shell function not found: ${name}`);
+  }
+
+  return match[0] ?? "";
+}
+
 describe("codex skill scenario e2e contract", () => {
   it("provides executable scenario harness", () => {
     const file = "scripts/e2e/codex-ha-nova-scenarios-e2e.sh";
@@ -31,7 +44,10 @@ describe("codex skill scenario e2e contract", () => {
 
     expect((stats.mode & constants.S_IXUSR) !== 0).toBe(true);
     expect(content.startsWith("#!/usr/bin/env bash")).toBe(true);
-    expect(content).toContain("codex exec");
+    expect(content).toContain('"codex"');
+    expect(content).toContain('"exec"');
+    expect(content).toContain("run_codex_with_timeout");
+    expect(content).toContain("wait_for_log_completion");
     expect(content).toContain("NOVA_SCENARIO_RESULT");
     expect(content).toContain("doctor readiness gate once");
     expect(content).toContain("Scenario suite failed");
@@ -39,6 +55,9 @@ describe("codex skill scenario e2e contract", () => {
     expect(content).toContain("helper_script_usage_detected");
     expect(content).toContain("health_preflight_before_ws_detected");
     expect(content).toContain("invalid_jsonl_transcript");
+    expect(content).toContain("incomplete_transcript");
+    expect(content).toContain("status_line_not_final");
+    expect(content).toContain("trailing_events_after_final_message");
     expect(content).toContain("count_mode");
     expect(content).toContain("expected_status");
     expect(content).toContain("expected_error");
@@ -52,6 +71,13 @@ describe("codex skill scenario e2e contract", () => {
     expect(content).toContain("forbidden_text_present");
     expect(content).toContain("json_array_values");
     expect(content).toMatch(/if \[\[ "\$status" == "pass" \]\]; then\s+while IFS= read -r forbidden_text;/);
+    expect(content).toContain('normalized_tmp="${parsed_log}.tmp"');
+    expect(content).toContain('normalize_jsonl_transcript "$scenario_log" >"$normalized_tmp"');
+    expect(content).toContain('mv "$normalized_tmp" "$parsed_log"');
+    expect(content).toContain('rm -f "$normalized_tmp" "$parsed_log"');
+    expect(content).not.toContain('normalize_jsonl_transcript "$scenario_log" >"$parsed_log" || true');
+    expect(content).toContain('(\\./)?scripts/(smoke|e2e|dev)/');
+    expect(content).toContain('bash|sh|zsh|python3?|node|bunx?|bun|tsx');
   });
 
   it("ships default scenario definitions", () => {
@@ -153,6 +179,173 @@ describe("codex skill scenario e2e contract", () => {
     expect(safeActions?.expect.type).toBe("json_array_values");
     expect(safeActions?.must_contain_text).toContain("No R-18 risk detected");
     expect(safeActions?.must_contain_text).toContain("ordered variables actions");
+  });
+
+  it("ships focused R-19 wording scenarios without changing the scenario schema", () => {
+    const content = readFileSync("scripts/e2e/codex-ha-nova-scenarios.json", "utf8");
+    const scenarios = JSON.parse(content) as ScenarioDefinition[];
+
+    const byId = new Map(scenarios.map((scenario) => [scenario.id, scenario]));
+
+    const flagged = byId.get("r19-bare-else-trigger-flagged");
+    expect(flagged).toBeDefined();
+    expect(flagged?.expect.type).toBe("json_array_values");
+    expect(flagged?.must_contain_text).toContain(
+      "final else branch is only reached when the earlier entity-state branches are false"
+    );
+    expect(flagged?.must_contain_text).toContain("Move the `trigger.id` check into an explicit `elif`");
+    expect(flagged?.must_contain_text).toContain("Or refactor to `choose` + `condition: trigger`");
+
+    const safe = byId.get("r19-safe-non-state-selector-tree");
+    expect(safe).toBeDefined();
+    expect(safe?.expect.type).toBe("json_array_values");
+    expect(safe?.must_contain_text).toContain("No R-19 risk detected");
+    expect(safe?.must_contain_text).toContain("mode selector tree");
+    expect(safe?.must_not_contain_text).toContain(
+      "final else branch is only reached when the earlier entity-state branches are false"
+    );
+
+    const numericTree = byId.get("r19-safe-numeric-range-selector-tree");
+    expect(numericTree).toBeDefined();
+    expect(numericTree?.expect.type).toBe("json_array_values");
+    expect(numericTree?.must_contain_text).toContain("No R-19 risk detected");
+    expect(numericTree?.must_contain_text).toContain("numeric range selector tree");
+    expect(numericTree?.must_not_contain_text).toContain(
+      "final else branch is only reached when the earlier entity-state branches are false"
+    );
+
+    const timeTree = byId.get("r19-safe-time-window-selector-tree");
+    expect(timeTree).toBeDefined();
+    expect(timeTree?.expect.type).toBe("json_array_values");
+    expect(timeTree?.must_contain_text).toContain("No R-19 risk detected");
+    expect(timeTree?.must_contain_text).toContain("time window selector tree");
+    expect(timeTree?.must_not_contain_text).toContain(
+      "final else branch is only reached when the earlier entity-state branches are false"
+    );
+
+    const singleIfElse = byId.get("r19-safe-single-if-else");
+    expect(singleIfElse).toBeDefined();
+    expect(singleIfElse?.expect.type).toBe("json_array_values");
+    expect(singleIfElse?.must_contain_text).toContain("No R-19 risk detected");
+    expect(singleIfElse?.must_contain_text).toContain("single if else");
+    expect(singleIfElse?.must_not_contain_text).toContain(
+      "final else branch is only reached when the earlier entity-state branches are false"
+    );
+
+    const explicitElif = byId.get("r19-safe-trigger-id-elif");
+    expect(explicitElif).toBeDefined();
+    expect(explicitElif?.expect.type).toBe("json_array_values");
+    expect(explicitElif?.must_contain_text).toContain("No R-19 risk detected");
+    expect(explicitElif?.must_contain_text).toContain("explicit elif trigger id");
+    expect(explicitElif?.must_not_contain_text).toContain(
+      "final else branch is only reached when the earlier entity-state branches are false"
+    );
+
+    const extraGuard = byId.get("r19-safe-else-extra-guard");
+    expect(extraGuard).toBeDefined();
+    expect(extraGuard?.expect.type).toBe("json_array_values");
+    expect(extraGuard?.must_contain_text).toContain("No R-19 risk detected");
+    expect(extraGuard?.must_contain_text).toContain("else extra guard");
+    expect(extraGuard?.must_not_contain_text).toContain(
+      "final else branch is only reached when the earlier entity-state branches are false"
+    );
+
+    const chooseTrigger = byId.get("r19-safe-choose-condition-trigger");
+    expect(chooseTrigger).toBeDefined();
+    expect(chooseTrigger?.expect.type).toBe("json_array_values");
+    expect(chooseTrigger?.must_contain_text).toContain("No R-19 risk detected");
+    expect(chooseTrigger?.must_contain_text).toContain("choose condition trigger routing");
+    expect(chooseTrigger?.must_not_contain_text).toContain(
+      "final else branch is only reached when the earlier entity-state branches are false"
+    );
+  });
+
+  it("proves malformed and non-object JSONL transcripts fail atomically without leaving partial parsed output", () => {
+    const content = readFileSync("scripts/e2e/codex-ha-nova-scenarios-e2e.sh", "utf8");
+    const normalizeFn = extractShellFunction(content, "normalize_jsonl_transcript");
+    const tempDir = mkdtempSync(join(tmpdir(), "ha-nova-scenarios-jsonl-"));
+    const runAtomicNormalization = (name: string, invalidLine: string) => {
+      const scenarioLog = join(tempDir, `${name}.jsonl`);
+      const parsedLog = join(tempDir, `${name}.parsed.jsonl`);
+
+      writeFileSync(
+        scenarioLog,
+        `${JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: "ok" } })}\n${invalidLine}\n`
+      );
+
+      let failure: unknown;
+      try {
+        execFileSync(
+          "bash",
+          [
+            "-lc",
+            `set -euo pipefail
+${normalizeFn}
+scenario_log="$1"
+parsed_log="$2"
+normalized_tmp="\${parsed_log}.tmp"
+rm -f "$normalized_tmp" "$parsed_log"
+if normalize_jsonl_transcript "$scenario_log" >"$normalized_tmp"; then
+  mv "$normalized_tmp" "$parsed_log"
+else
+  rm -f "$normalized_tmp" "$parsed_log"
+  exit 99
+fi`,
+            "bash",
+            scenarioLog,
+            parsedLog,
+          ],
+          { encoding: "utf8", stdio: "pipe" }
+        );
+      } catch (error) {
+        failure = error;
+      }
+
+      expect(failure).toMatchObject({ status: 99 });
+      expect(existsSync(parsedLog)).toBe(false);
+      expect(existsSync(`${parsedLog}.tmp`)).toBe(false);
+    };
+
+    runAtomicNormalization("malformed", '{"bad":');
+    runAtomicNormalization("non-object", "[]");
+  });
+
+  it("detects direct and zsh-prefixed helper script escapes", () => {
+    const content = readFileSync("scripts/e2e/codex-ha-nova-scenarios-e2e.sh", "utf8");
+    const countCommandHitsFn = extractShellFunction(content, "count_command_hits");
+    const countHelperScriptExecHitsFn = extractShellFunction(content, "count_helper_script_exec_hits");
+    const tempDir = mkdtempSync(join(tmpdir(), "ha-nova-scenarios-helper-"));
+    const parsedLog = join(tempDir, "parsed.jsonl");
+
+    writeFileSync(
+      parsedLog,
+      [
+        JSON.stringify({
+          type: "item.completed",
+          item: { type: "command_execution", command: "./scripts/e2e/demo.sh" },
+        }),
+        JSON.stringify({
+          type: "item.completed",
+          item: { type: "command_execution", command: "zsh scripts/dev/demo.sh" },
+        }),
+      ].join("\n") + "\n"
+    );
+
+    const output = execFileSync(
+      "bash",
+      [
+        "-lc",
+        `set -euo pipefail
+${countCommandHitsFn}
+${countHelperScriptExecHitsFn}
+count_helper_script_exec_hits "$1"`,
+        "bash",
+        parsedLog,
+      ],
+      { encoding: "utf8" }
+    );
+
+    expect(output.trim()).toBe("2");
   });
 
   it("exposes npm command for scenario harness", () => {
