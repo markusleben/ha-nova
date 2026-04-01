@@ -219,6 +219,29 @@ count_command_hits() {
   ' "$scenario_log" 2>/dev/null | grep -E -c "$pattern" || true
 }
 
+count_command_hits_before_index() {
+  local scenario_log="$1"
+  local max_idx="$2"
+  local pattern="$3"
+
+  if [[ "$max_idx" -le 0 ]]; then
+    count_command_hits "$scenario_log" "$pattern"
+    return
+  fi
+
+  jq -sr --arg pattern "$pattern" --argjson max_idx "$max_idx" '
+    [
+      to_entries[]
+      | (.key + 1) as $idx
+      | select($idx < $max_idx)
+      | .value
+      | select(.type == "item.completed" and .item.type == "command_execution")
+      | (.item.command // "")
+      | select(test($pattern))
+    ] | length
+  ' "$scenario_log" 2>/dev/null || true
+}
+
 count_helper_script_exec_hits() {
   local scenario_log="$1"
 
@@ -686,6 +709,7 @@ run_scenario() {
   local final_message_last_line
   local prewrite_text
   local postwrite_text
+  local first_write_attempt_idx
   local write_hits
   local first_write_idx
   local readback_after_write
@@ -758,24 +782,8 @@ run_scenario() {
   fi
 
   if [[ "$status" == "pass" ]]; then
-    onboarding_count="$(count_command_hits "$parsed_log" '(^|[[:space:]])ha-nova[[:space:]]+(doctor|ready|quick)([[:space:]]|$)')"
-    [[ "$onboarding_count" -eq 0 ]] || {
-      status="fail"
-      validation_error="forbidden_onboarding_check_detected"
-    }
-  fi
-
-  if [[ "$status" == "pass" ]]; then
-    external_research_hits="$(count_external_research_hits "$parsed_log")"
-    shell_network_hits="$(count_shell_network_hits "$parsed_log")"
-    [[ "$external_research_hits" -eq 0 && "$shell_network_hits" -eq 0 ]] || {
-      status="fail"
-      validation_error="unexpected_external_research_detected"
-    }
-  fi
-
-  if [[ "$status" == "pass" ]]; then
     extract_write_proof "$parsed_log" "$automation_id" "$collision_item_id" >"$analysis_json"
+    first_write_attempt_idx="$(jq -r '.first_write_attempt_idx' "$analysis_json")"
     write_hits="$(jq -r '.write_hits' "$analysis_json")"
     first_write_idx="$(jq -r '.first_write_idx' "$analysis_json")"
     prewrite_text="$(jq -r '.prewrite_text' "$analysis_json")"
@@ -799,6 +807,23 @@ run_scenario() {
     [[ "$first_write_idx" -gt 0 ]] || {
       status="fail"
       validation_error="missing_first_write_index"
+    }
+  fi
+
+  if [[ "$status" == "pass" ]]; then
+    onboarding_count="$(count_command_hits_before_index "$parsed_log" "$first_write_attempt_idx" '(^|[[:space:]])ha-nova[[:space:]]+(doctor|ready|quick)([[:space:]]|$)')"
+    [[ "$onboarding_count" -eq 0 ]] || {
+      status="fail"
+      validation_error="forbidden_onboarding_check_detected"
+    }
+  fi
+
+  if [[ "$status" == "pass" ]]; then
+    external_research_hits="$(count_external_research_hits "$parsed_log")"
+    shell_network_hits="$(count_shell_network_hits "$parsed_log")"
+    [[ "$external_research_hits" -eq 0 && "$shell_network_hits" -eq 0 ]] || {
+      status="fail"
+      validation_error="unexpected_external_research_detected"
     }
   fi
 

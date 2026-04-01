@@ -274,6 +274,51 @@ count_helper_script_exec_hits "$1"`,
     expect(output.trim()).toBe("2");
   });
 
+  it("counts onboarding checks only before the first write attempt", () => {
+    const content = readFileSync("scripts/e2e/codex-ha-nova-write-review-live-e2e.sh", "utf8");
+    const countCommandHitsFn = extractShellFunction(content, "count_command_hits");
+    const countCommandHitsBeforeIndexFn = extractShellFunction(content, "count_command_hits_before_index");
+    const tempDir = mkdtempSync(join(tmpdir(), "ha-nova-write-onboarding-"));
+    const parsedLog = join(tempDir, "parsed.jsonl");
+
+    writeFileSync(
+      parsedLog,
+      [
+        JSON.stringify({
+          type: "item.completed",
+          item: { type: "command_execution", command: "ha-nova doctor" },
+        }),
+        JSON.stringify({
+          type: "item.completed",
+          item: {
+            type: "command_execution",
+            command: "ha-nova relay core --method=POST --path=/api/config/automation/config/test-id --body-file draft.json",
+          },
+        }),
+        JSON.stringify({
+          type: "item.completed",
+          item: { type: "command_execution", command: "ha-nova doctor" },
+        }),
+      ].join("\n") + "\n"
+    );
+
+    const output = execFileSync(
+      "bash",
+      [
+        "-lc",
+        `set -euo pipefail
+${countCommandHitsFn}
+${countCommandHitsBeforeIndexFn}
+count_command_hits_before_index "$1" 2 '(^|[[:space:]])ha-nova[[:space:]]+(doctor|ready|quick)([[:space:]]|$)'`,
+        "bash",
+        parsedLog,
+      ],
+      { encoding: "utf8" }
+    );
+
+    expect(output.trim()).toBe("1");
+  });
+
   it("proves multiline shell continuations and long-option equals syntax in write proof parsing", () => {
     const scriptContent = readFileSync("scripts/e2e/codex-ha-nova-write-review-live-e2e.sh", "utf8");
     const python = extractWriteProofPython(scriptContent);
