@@ -23,6 +23,9 @@ permissions:
   issues: write
   pull-requests: write
 
+env:
+  SAFE_POLICY_MARKER: "<!-- ha-nova-dependabot-safe-policy -->"
+
 jobs:
   approve-safe-dev-deps:
     if: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.user.login == 'dependabot[bot]' && !github.event.pull_request.draft }}
@@ -43,19 +46,48 @@ jobs:
           PACKAGE_ECOSYSTEM: ${{ steps.metadata.outputs.package-ecosystem }}
           DEPENDENCY_GROUP: ${{ steps.metadata.outputs.dependency-group }}
           UPDATE_TYPE: ${{ steps.metadata.outputs.update-type }}
-          SAFE_MANUAL_DEPENDENCIES: vitest,vite,typescript,tsx,rollup,rolldown,esbuild
+          POLICY_REF: ${{ github.event.pull_request.base.sha }}
         run: |
           set -euo pipefail
+
+          POLICY_FILE="$(mktemp)"
+          gh api "repos/${GITHUB_REPOSITORY}/contents/.github/policy/repo-policy.json?ref=${POLICY_REF}" \
+            --jq '.content' \
+            | tr -d '\n' \
+            | base64 --decode > "${POLICY_FILE}"
+          safe_label="$(jq -r '.dependabot_safe_lane.label' "${POLICY_FILE}")"
+          mapfile -t allowed_package_ecosystems < <(jq -r '.dependabot_safe_lane.allowed_package_ecosystems[]' "${POLICY_FILE}")
+          dependabot_dependency_group="$(jq -r '.dependabot_safe_lane.dependency_group' "${POLICY_FILE}")"
+          mapfile -t allowed_update_types < <(jq -r '.dependabot_safe_lane.allowed_update_types[]' "${POLICY_FILE}")
+          mapfile -t safe_manual_dependencies < <(jq -r '.dependabot_safe_lane.manual_review_dependencies[]' "${POLICY_FILE}")
+          mapfile -t manifest_sensitive_files < <(jq -r '.manifest_review.manifest_sensitive_files[]' "${POLICY_FILE}")
+          policy_sha="$(sha256sum "${POLICY_FILE}" | awk '{print $1}')"
 
           eligible=false
           reason=""
           manual_dependency=""
 
-          if [[ "${PACKAGE_ECOSYSTEM}" != "npm" && "${PACKAGE_ECOSYSTEM}" != "npm_and_yarn" ]]; then
+          package_ecosystem_allowed=false
+          for allowed_package_ecosystem in "${allowed_package_ecosystems[@]}"; do
+            if [[ "${PACKAGE_ECOSYSTEM}" == "${allowed_package_ecosystem}" ]]; then
+              package_ecosystem_allowed=true
+              break
+            fi
+          done
+
+          update_type_allowed=false
+          for allowed_update_type in "${allowed_update_types[@]}"; do
+            if [[ "${UPDATE_TYPE}" == "${allowed_update_type}" ]]; then
+              update_type_allowed=true
+              break
+            fi
+          done
+
+          if [[ "${package_ecosystem_allowed}" != "true" ]]; then
             reason="package ecosystem is not npm/npm_and_yarn"
-          elif [[ "${DEPENDENCY_GROUP}" != "npm-dev-minor-patch" ]]; then
+          elif [[ "${DEPENDENCY_GROUP}" != "${dependabot_dependency_group}" ]]; then
             reason="dependency group is not the safe dev-only lane"
-          elif [[ "${UPDATE_TYPE}" != "version-update:semver-minor" && "${UPDATE_TYPE}" != "version-update:semver-patch" ]]; then
+          elif [[ "${update_type_allowed}" != "true" ]]; then
             reason="update type is not minor or patch"
           else
             while IFS= read -r dependency_name; do
@@ -63,7 +95,7 @@ jobs:
               if [[ -z "${dependency_name}" ]]; then
                 continue
               fi
-              if printf '%s\n' "${SAFE_MANUAL_DEPENDENCIES}" | tr ',' '\n' | grep -Fxq "${dependency_name}"; then
+              if printf '%s\n' "${safe_manual_dependencies[@]}" | grep -Fxq "${dependency_name}"; then
                 manual_dependency="${dependency_name}"
                 break
               fi
@@ -80,13 +112,18 @@ jobs:
               reason="no changed files returned by GitHub API"
             else
               for changed_file in "${changed_files[@]}"; do
-                case "${changed_file}" in
-                  package.json|package-lock.json|nova/package.json|nova/package-lock.json) ;;
-                  *)
+                file_is_manifest=false
+                for manifest_sensitive_file in "${manifest_sensitive_files[@]}"; do
+                  if [[ "${changed_file}" == "${manifest_sensitive_file}" ]]; then
+                    file_is_manifest=true
+                    break
+                  fi
+                done
+
+                if [[ "${file_is_manifest}" != "true" ]]; then
                     reason="changed file outside safe manifest lane: ${changed_file}"
                     break
-                    ;;
-                esac
+                fi
               done
             fi
           fi
@@ -97,7 +134,9 @@ jobs:
           fi
 
           echo "eligible=${eligible}" >> "${GITHUB_OUTPUT}"
+          echo "policy-sha=${policy_sha}" >> "${GITHUB_OUTPUT}"
           echo "reason=${reason}" >> "${GITHUB_OUTPUT}"
+          echo "safe-label=${safe_label}" >> "${GITHUB_OUTPUT}"
           {
             echo "### Dependabot safe auto-merge"
             echo
@@ -124,9 +163,46 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          SAFE_LABEL: ${{ steps.guard.outputs.safe-label }}
         run: |
           set -euo pipefail
-          gh pr edit "${PR_NUMBER}" --add-label "dependabot-safe:auto-merge"
+          gh pr edit "${PR_NUMBER}" --add-label "${SAFE_LABEL}"
+
+      - name: Record safe-lane policy fingerprint
+        if: ${{ steps.guard.outputs.eligible == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          SAFE_LABEL: ${{ steps.guard.outputs.safe-label }}
+          POLICY_SHA: ${{ steps.guard.outputs.policy-sha }}
+        run: |
+          set -euo pipefail
+
+          comment_body="$(
+            cat <<EOF
+${SAFE_POLICY_MARKER}
+safe_label=${SAFE_LABEL}
+policy_sha=${POLICY_SHA}
+EOF
+          )"
+          comments_json="$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" --paginate --slurp)"
+          comment_id="$(
+            printf '%s' "${comments_json}" | jq -r --arg marker "${SAFE_POLICY_MARKER}" '
+              [
+                .[][]
+                | select(.user.login == "github-actions[bot]" and (.body | contains($marker)))
+              ]
+              | last
+              | .id // ""
+            '
+          )"
+
+          if [[ -n "${comment_id}" ]]; then
+            gh api "repos/${GITHUB_REPOSITORY}/issues/comments/${comment_id}" --method PATCH -f body="${comment_body}" >/dev/null
+          else
+            gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" --method POST -f body="${comment_body}" >/dev/null
+          fi
 
       - name: Remove safe auto-merge marker when lane becomes ineligible
         if: ${{ steps.guard.outputs.eligible != 'true' }}
@@ -134,30 +210,56 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          SAFE_LABEL: ${{ steps.guard.outputs.safe-label }}
         run: |
           set -euo pipefail
           pr_json="$(gh pr view "${PR_NUMBER}" --json autoMergeRequest,labels)"
+          comments_json="$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" --paginate --slurp)"
+          comment_ids="$(
+            printf '%s' "${comments_json}" | jq -r --arg marker "${SAFE_POLICY_MARKER}" '
+              .[][]
+              | select(.user.login == "github-actions[bot]" and (.body | contains($marker)))
+              | .id
+            '
+          )"
 
           if printf '%s' "${pr_json}" | jq -e '.autoMergeRequest != null' >/dev/null; then
             gh pr merge "${PR_NUMBER}" --disable-auto
           fi
 
-          if printf '%s' "${pr_json}" | jq -e '.labels[]? | select(.name == "dependabot-safe:auto-merge")' >/dev/null; then
-            gh pr edit "${PR_NUMBER}" --remove-label "dependabot-safe:auto-merge"
+          if printf '%s' "${pr_json}" | jq -e --arg label "${SAFE_LABEL}" '.labels[]? | select(.name == $label)' >/dev/null; then
+            gh pr edit "${PR_NUMBER}" --remove-label "${SAFE_LABEL}"
+          fi
+
+          if [[ -n "${comment_ids}" ]]; then
+            while IFS= read -r comment_id; do
+              [[ -n "${comment_id}" ]] || continue
+              gh api "repos/${GITHUB_REPOSITORY}/issues/comments/${comment_id}" --method DELETE >/dev/null
+            done <<< "${comment_ids}"
           fi
 
   enable-safe-auto-merge:
     if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     steps:
-      - name: Enable auto-merge after all required checks pass
+      - name: Merge safe Dependabot PRs after all required checks pass
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           RUN_ID: ${{ github.event.workflow_run.id }}
           RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+          POLICY_REF: ${{ github.event.repository.default_branch }}
         run: |
           set -euo pipefail
+
+          POLICY_FILE="$(mktemp)"
+          gh api "repos/${GITHUB_REPOSITORY}/contents/.github/policy/repo-policy.json?ref=${POLICY_REF}" \
+            --jq '.content' \
+            | tr -d '\n' \
+            | base64 --decode > "${POLICY_FILE}"
+          safe_label="$(jq -r '.dependabot_safe_lane.label' "${POLICY_FILE}")"
+          mapfile -t required_checks < <(jq -r '.main_branch_protection.required_status_checks[]' "${POLICY_FILE}")
+          policy_sha="$(sha256sum "${POLICY_FILE}" | awk '{print $1}')"
 
           prs="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}" --jq '.pull_requests[].number')"
           if [[ -z "${prs}" ]]; then
@@ -166,7 +268,7 @@ jobs:
           fi
 
           for pr_number in ${prs}; do
-            pr_json="$(gh pr view "${pr_number}" --json headRefOid,isDraft,labels,url)"
+            pr_json="$(gh pr view "${pr_number}" --json autoMergeRequest,headRefOid,isDraft,labels,url)"
             pr_sha="$(printf '%s' "${pr_json}" | jq -r '.headRefOid')"
             is_draft="$(printf '%s' "${pr_json}" | jq -r '.isDraft')"
             labels="$(printf '%s' "${pr_json}" | jq -r '.labels[].name')"
@@ -176,9 +278,31 @@ jobs:
             if [[ "${pr_sha}" != "${RUN_SHA}" ]]; then
               continue
             fi
-            if ! printf '%s\n' "${labels}" | grep -qx "dependabot-safe:auto-merge"; then
+            if ! printf '%s\n' "${labels}" | grep -qx "${safe_label}"; then
               continue
             fi
+
+            comments_json="$(gh api "repos/${GITHUB_REPOSITORY}/issues/${pr_number}/comments" --paginate --slurp)"
+            policy_comment="$(
+              printf '%s' "${comments_json}" | jq -r --arg marker "${SAFE_POLICY_MARKER}" '
+                [
+                  .[][]
+                  | select(.user.login == "github-actions[bot]" and (.body | contains($marker)))
+                ]
+                | last
+                | .body // ""
+              '
+            )"
+            recorded_policy_sha="$(printf '%s\n' "${policy_comment}" | awk -F= '/^policy_sha=/{print $2; exit}')"
+            if [[ -z "${recorded_policy_sha}" || "${recorded_policy_sha}" != "${policy_sha}" ]]; then
+              echo "Policy fingerprint drifted for PR #${pr_number}; removing safe label."
+              if printf '%s' "${pr_json}" | jq -e '.autoMergeRequest != null' >/dev/null; then
+                gh pr merge "${pr_number}" --disable-auto >/dev/null || true
+              fi
+              gh pr edit "${pr_number}" --remove-label "${safe_label}" >/dev/null || true
+              continue
+            fi
+
             timeline_json="$(
               gh api "repos/${GITHUB_REPOSITORY}/issues/${pr_number}/timeline" \
                 --paginate \
@@ -186,10 +310,10 @@ jobs:
                 -H "Accept: application/vnd.github+json"
             )"
             label_actor="$(
-              printf '%s' "${timeline_json}" | jq -r '
+              printf '%s' "${timeline_json}" | jq -r --arg label "${safe_label}" '
                   [
                     .[][]
-                    | select((.event == "labeled" or .event == "unlabeled") and .label.name == "dependabot-safe:auto-merge")
+                    | select((.event == "labeled" or .event == "unlabeled") and .label.name == $label)
                   ]
                   | last
                   | select(.event == "labeled")
@@ -201,7 +325,7 @@ jobs:
             fi
 
             checks_json="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${pr_sha}/check-runs?per_page=100")"
-            for required_check in ci-gate analyze dependency-review manifest-review-gate; do
+            for required_check in "${required_checks[@]}"; do
               conclusion="$(printf '%s' "${checks_json}" | jq -r --arg name "${required_check}" '[.check_runs[] | select(.name == $name) | .conclusion] | last // ""')"
               if [[ "${conclusion}" != "success" ]]; then
                 echo "Required check ${required_check} not green for PR #${pr_number}; skipping auto-merge."

@@ -1,0 +1,43 @@
+{
+  "manifest_review": {
+    "label": "manifest-review:approved",
+    "approvers": ["markusleben"],
+    "manifest_sensitive_files": [
+      "package.json",
+      "package-lock.json",
+      "nova/package.json",
+      "nova/package-lock.json"
+    ]
+  },
+  "dependabot_safe_lane": {
+    "label": "dependabot-safe:auto-merge",
+    "allowed_package_ecosystems": ["npm", "npm_and_yarn"],
+    "dependency_group": "npm-dev-minor-patch",
+    "allowed_update_types": [
+      "version-update:semver-minor",
+      "version-update:semver-patch"
+    ],
+    "manual_review_dependencies": [
+      "vitest",
+      "vite",
+      "typescript",
+      "tsx",
+      "rollup",
+      "rolldown",
+      "esbuild"
+    ]
+  },
+  "main_branch_protection": {
+    "required_status_checks": [
+      "analyze",
+      "ci-gate",
+      "dependency-review",
+      "manifest-review-gate"
+    ],
+    "advisory_checks": ["codex-review-gate"],
+    "required_approving_review_count": 1,
+    "require_code_owner_reviews": true,
+    "required_conversation_resolution": true,
+    "strict_required_status_checks": false
+  }
+}
