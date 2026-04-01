@@ -69,7 +69,7 @@ describe("codex review live e2e contract", () => {
     const scenarios = JSON.parse(content) as ReviewScenarioDefinition[];
 
     expect(Array.isArray(scenarios)).toBe(true);
-    expect(scenarios.length).toBe(3);
+    expect(scenarios.length).toBeGreaterThanOrEqual(11);
 
     const byId = new Map(scenarios.map((scenario) => [scenario.id, scenario]));
 
@@ -93,6 +93,78 @@ describe("codex review live e2e contract", () => {
     );
     expect(emptyQuestions?.section_order).toEqual(
       expect.arrayContaining(["Review target", "Questions to consider", "Summary"])
+    );
+
+    const r19Flagged = byId.get("review-r19-bare-else-trigger-flagged");
+    expect(r19Flagged).toBeDefined();
+    expect(r19Flagged?.must_contain_text).toEqual(
+      expect.arrayContaining([
+        "Findings",
+        "final else branch is only reached when the earlier entity-state branches are false",
+        "Move the `trigger.id` check into an explicit `elif`",
+        "Or refactor to `choose` + `condition: trigger`",
+      ])
+    );
+
+    const r19Safe = byId.get("review-r19-safe-mode-selector-tree");
+    expect(r19Safe).toBeDefined();
+    expect(r19Safe?.must_contain_text).toEqual(expect.arrayContaining(["No R-19 risk detected", "mode selector tree"]));
+    expect(r19Safe?.must_not_contain_text).toContain(
+      "final else branch is only reached when the earlier entity-state branches are false"
+    );
+
+    const r19SafeNumericRange = byId.get("review-r19-safe-numeric-range-selector-tree");
+    expect(r19SafeNumericRange).toBeDefined();
+    expect(r19SafeNumericRange?.must_contain_text).toEqual(
+      expect.arrayContaining(["No R-19 risk detected", "numeric range selector tree"])
+    );
+    expect(r19SafeNumericRange?.must_not_contain_text).toContain(
+      "final else branch is only reached when the earlier entity-state branches are false"
+    );
+
+    const r19SafeTimeWindow = byId.get("review-r19-safe-time-window-selector-tree");
+    expect(r19SafeTimeWindow).toBeDefined();
+    expect(r19SafeTimeWindow?.must_contain_text).toEqual(
+      expect.arrayContaining(["No R-19 risk detected", "time window selector tree"])
+    );
+    expect(r19SafeTimeWindow?.must_not_contain_text).toContain(
+      "final else branch is only reached when the earlier entity-state branches are false"
+    );
+
+    const r19SafeSingleIfElse = byId.get("review-r19-safe-single-if-else");
+    expect(r19SafeSingleIfElse).toBeDefined();
+    expect(r19SafeSingleIfElse?.must_contain_text).toEqual(
+      expect.arrayContaining(["No R-19 risk detected", "single if else"])
+    );
+    expect(r19SafeSingleIfElse?.must_not_contain_text).toContain(
+      "final else branch is only reached when the earlier entity-state branches are false"
+    );
+
+    const r19SafeExplicitElif = byId.get("review-r19-safe-explicit-elif-trigger-id");
+    expect(r19SafeExplicitElif).toBeDefined();
+    expect(r19SafeExplicitElif?.must_contain_text).toEqual(
+      expect.arrayContaining(["No R-19 risk detected", "explicit elif trigger id"])
+    );
+    expect(r19SafeExplicitElif?.must_not_contain_text).toContain(
+      "final else branch is only reached when the earlier entity-state branches are false"
+    );
+
+    const r19SafeExtraGuard = byId.get("review-r19-safe-else-extra-guard");
+    expect(r19SafeExtraGuard).toBeDefined();
+    expect(r19SafeExtraGuard?.must_contain_text).toEqual(
+      expect.arrayContaining(["No R-19 risk detected", "else extra guard"])
+    );
+    expect(r19SafeExtraGuard?.must_not_contain_text).toContain(
+      "final else branch is only reached when the earlier entity-state branches are false"
+    );
+
+    const r19SafeChooseTrigger = byId.get("review-r19-safe-choose-condition-trigger");
+    expect(r19SafeChooseTrigger).toBeDefined();
+    expect(r19SafeChooseTrigger?.must_contain_text).toEqual(
+      expect.arrayContaining(["No R-19 risk detected", "choose condition trigger routing"])
+    );
+    expect(r19SafeChooseTrigger?.must_not_contain_text).toContain(
+      "final else branch is only reached when the earlier entity-state branches are false"
     );
   });
 

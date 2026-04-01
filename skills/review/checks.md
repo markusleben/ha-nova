@@ -38,6 +38,7 @@ Load this catalog from `skills/review/SKILL.md` Step 1 before evaluating finding
 - R-16 [HIGH]: Templated event name — `event_type:` does not evaluate templates in event triggers; the automation attaches to the literal string and silently misses the intended event. Use a fixed `event_type` and move dynamic logic into conditions or event data handling.
 - R-17 [MEDIUM → HIGH]: Intra-config overwrite/rebound risk — the same entity/helper is written in 2+ distinct control-flow branches and the write basis is mixed. Typical risk shape: one branch advances live state incrementally, another branch later recomputes or resets from snapshot/start value/timer/fallback/baseline. Default to MEDIUM. Escalate to HIGH only when a later branch can plausibly overwrite/reset value already advanced by an earlier branch.
 - R-18 [HIGH]: Same-block sibling variable dependency with alphabetically later target — within one `variables:` mapping, variable A references sibling variable B from that same `variables:` mapping and B sorts alphabetically after A. HA storage/API writes may reorder mapping keys, so the saved variable order can evaluate A before B. Apply to top-level and local `variables:` blocks only when at least one concrete fragile pair exists. Report the block context plus at least one concrete pair (for example `check_flag -> reading`). For draft or pasted YAML, frame this as future write fragility. For HA read-back or post-write review, frame it as a persisted runtime risk.
+- R-19 [MEDIUM]: Unreachable `trigger.id` in bare `else` branch — a Jinja2 `if` + `elif` chain uses entity-state-style guards, and the terminal bare `else` contains a direct `trigger.id` comparison. final else branch is only reached when the earlier entity-state branches are false. Move the `trigger.id` check into an explicit `elif`. Or refactor to `choose` + `condition: trigger`.
 
 ## R-17 Evidence Boundary
 
@@ -64,6 +65,23 @@ Load this catalog from `skills/review/SKILL.md` Step 1 before evaluating finding
 - Preferred fixes:
   - use a self-contained template with internal `{% set %}` statements
   - split the dependency across ordered `variables` actions when later actions need the derived value
+
+## R-19 Evidence Boundary
+
+- Apply only to Jinja2 `if` / `elif` / `else` chains with at least one `elif`. Skip single `if` / `else` binaries.
+- First confirm the `if` / `elif` guards are entity-state-style conditions:
+  - direct `is_state(...)`
+  - direct `states(...)`
+  - or local variables clearly derived from those calls
+- Then confirm the terminal `else` is a bare catch-all and contains a direct `trigger.id` comparison.
+- Skip `trigger.id` checks that already live in an explicit `elif`.
+- Skip non-entity-state selector trees such as mode, numeric-range, or time-range dispatch.
+- Skip `else` bodies that add explicit extra state guards alongside the `trigger.id` comparison.
+- Skip the preferred `choose` + `condition: trigger` routing pattern entirely.
+- Keep the warning branch-structure-specific. Do not infer trigger intent from aliases, names, or external semantics.
+- Preferred fixes:
+  - move the `trigger.id` check into an explicit `elif`
+  - or refactor to `choose` + `condition: trigger`
 
 ## Performance (Medium)
 

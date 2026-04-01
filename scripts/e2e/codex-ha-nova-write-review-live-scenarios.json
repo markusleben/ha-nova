@@ -1,0 +1,210 @@
+[
+  {
+    "id": "write-r19-flagged-prewrite",
+    "prompt": "Create a disposable automation whose template logic uses entity-state `if` / `elif` branches and a terminal bare `else` with `trigger.id == 'midnight_fallback'`. Use `input_boolean.mcp_stress_toggle` as the action target so the collision scan can stay deterministic. During preview, if you detect the issue, include these exact phrases: final else branch is only reached when the earlier entity-state branches are false. Move the `trigger.id` check into an explicit `elif`. Or refactor to `choose` + `condition: trigger`.",
+    "must_contain_prewrite_text": [
+      "## Preview Payload",
+      "PREWRITE CHECK: R-19 detected",
+      "final else branch is only reached when the earlier entity-state branches are false",
+      "Move the `trigger.id` check into an explicit `elif`",
+      "Or refactor to `choose` + `condition: trigger`"
+    ],
+    "must_contain_postwrite_text": [
+      "Post-Write Review",
+      "Findings",
+      "Collision check"
+    ],
+    "must_not_contain_prewrite_text": [
+      "PREWRITE CHECK: clean"
+    ],
+    "must_not_contain_postwrite_text": [
+      "final else branch is only reached when the earlier entity-state branches are false",
+      "Move the `trigger.id` check into an explicit `elif`",
+      "Or refactor to `choose` + `condition: trigger`"
+    ],
+    "collision_item_id": "input_boolean.mcp_stress_toggle",
+    "max_duration_sec": 360
+  },
+  {
+    "id": "write-r19-safe-no-warning",
+    "prompt": "Create a disposable automation that routes by trigger IDs with `choose` + `condition: trigger` instead of a bare `else` `trigger.id` check. Use `input_boolean.mcp_stress_toggle` as the action target so the collision scan can stay deterministic. Keep the preview clean: do not add any R-19 warning text when the draft is safe.",
+    "must_contain_prewrite_text": [
+      "## Preview Payload",
+      "PREWRITE CHECK: clean"
+    ],
+    "must_contain_postwrite_text": [
+      "Post-Write Review",
+      "Findings",
+      "Collision check"
+    ],
+    "must_not_contain_postwrite_text": [
+      "final else branch is only reached when the earlier entity-state branches are false",
+      "Move the `trigger.id` check into an explicit `elif`",
+      "Or refactor to `choose` + `condition: trigger`"
+    ],
+    "must_not_contain_prewrite_text": [
+      "PREWRITE CHECK: R-19 detected",
+      "final else branch is only reached when the earlier entity-state branches are false",
+      "Move the `trigger.id` check into an explicit `elif`",
+      "Or refactor to `choose` + `condition: trigger`"
+    ],
+    "collision_item_id": "input_boolean.mcp_stress_toggle",
+    "max_duration_sec": 360
+  },
+  {
+    "id": "write-r19-safe-single-if-else",
+    "prompt": "Create a disposable automation whose template logic uses a single entity-state `if` / `else` pair with `trigger.id == 'nightly_check'` only inside that binary `else`. Use `input_boolean.mcp_stress_toggle` as the action target so the collision scan can stay deterministic. Keep the preview clean: do not add any R-19 warning text when the draft is safe.",
+    "must_contain_prewrite_text": [
+      "## Preview Payload",
+      "PREWRITE CHECK: clean"
+    ],
+    "must_contain_postwrite_text": [
+      "Post-Write Review",
+      "Findings",
+      "Collision check"
+    ],
+    "must_not_contain_postwrite_text": [
+      "final else branch is only reached when the earlier entity-state branches are false",
+      "Move the `trigger.id` check into an explicit `elif`",
+      "Or refactor to `choose` + `condition: trigger`"
+    ],
+    "must_not_contain_prewrite_text": [
+      "PREWRITE CHECK: R-19 detected",
+      "final else branch is only reached when the earlier entity-state branches are false",
+      "Move the `trigger.id` check into an explicit `elif`",
+      "Or refactor to `choose` + `condition: trigger`"
+    ],
+    "collision_item_id": "input_boolean.mcp_stress_toggle",
+    "max_duration_sec": 360
+  },
+  {
+    "id": "write-r19-safe-explicit-elif-trigger-id",
+    "prompt": "Create a disposable automation whose template logic uses entity-state `if` / `elif` branches, but keeps the `trigger.id == 'midnight_fallback'` check in an explicit `elif` instead of a bare terminal `else`. Use `input_boolean.mcp_stress_toggle` as the action target so the collision scan can stay deterministic. Keep the preview clean: do not add any R-19 warning text when the draft is safe.",
+    "must_contain_prewrite_text": [
+      "## Preview Payload",
+      "PREWRITE CHECK: clean"
+    ],
+    "must_contain_postwrite_text": [
+      "Post-Write Review",
+      "Findings",
+      "Collision check"
+    ],
+    "must_not_contain_postwrite_text": [
+      "final else branch is only reached when the earlier entity-state branches are false",
+      "Move the `trigger.id` check into an explicit `elif`",
+      "Or refactor to `choose` + `condition: trigger`"
+    ],
+    "must_not_contain_prewrite_text": [
+      "PREWRITE CHECK: R-19 detected",
+      "final else branch is only reached when the earlier entity-state branches are false",
+      "Move the `trigger.id` check into an explicit `elif`",
+      "Or refactor to `choose` + `condition: trigger`"
+    ],
+    "collision_item_id": "input_boolean.mcp_stress_toggle",
+    "max_duration_sec": 360
+  },
+  {
+    "id": "write-r19-safe-else-extra-guard",
+    "prompt": "Create a disposable automation whose template logic uses entity-state `if` / `elif` branches and a terminal `else`, but the `else` adds an extra explicit guard together with `trigger.id == 'midnight_fallback'` instead of using a bare catch-all trigger fallback. Use `input_boolean.mcp_stress_toggle` as the action target so the collision scan can stay deterministic. Keep the preview clean: do not add any R-19 warning text when the draft is safe.",
+    "must_contain_prewrite_text": [
+      "## Preview Payload",
+      "PREWRITE CHECK: clean"
+    ],
+    "must_contain_postwrite_text": [
+      "Post-Write Review",
+      "Findings",
+      "Collision check"
+    ],
+    "must_not_contain_postwrite_text": [
+      "final else branch is only reached when the earlier entity-state branches are false",
+      "Move the `trigger.id` check into an explicit `elif`",
+      "Or refactor to `choose` + `condition: trigger`"
+    ],
+    "must_not_contain_prewrite_text": [
+      "PREWRITE CHECK: R-19 detected",
+      "final else branch is only reached when the earlier entity-state branches are false",
+      "Move the `trigger.id` check into an explicit `elif`",
+      "Or refactor to `choose` + `condition: trigger`"
+    ],
+    "collision_item_id": "input_boolean.mcp_stress_toggle",
+    "max_duration_sec": 360
+  },
+  {
+    "id": "write-r19-safe-mode-selector-tree",
+    "prompt": "Create a disposable automation whose template logic branches on a non-entity-state mode selector tree, not on entity-state-style guards, with `trigger.id` used only for the matching mode path. Use `input_boolean.mcp_stress_toggle` as the action target so the collision scan can stay deterministic. Keep the preview clean: do not add any R-19 warning text when the draft is safe.",
+    "must_contain_prewrite_text": [
+      "## Preview Payload",
+      "PREWRITE CHECK: clean"
+    ],
+    "must_contain_postwrite_text": [
+      "Post-Write Review",
+      "Findings",
+      "Collision check"
+    ],
+    "must_not_contain_postwrite_text": [
+      "final else branch is only reached when the earlier entity-state branches are false",
+      "Move the `trigger.id` check into an explicit `elif`",
+      "Or refactor to `choose` + `condition: trigger`"
+    ],
+    "must_not_contain_prewrite_text": [
+      "PREWRITE CHECK: R-19 detected",
+      "final else branch is only reached when the earlier entity-state branches are false",
+      "Move the `trigger.id` check into an explicit `elif`",
+      "Or refactor to `choose` + `condition: trigger`"
+    ],
+    "collision_item_id": "input_boolean.mcp_stress_toggle",
+    "max_duration_sec": 360
+  },
+  {
+    "id": "write-r19-safe-numeric-range-selector-tree",
+    "prompt": "Create a disposable automation whose template logic branches on numeric range thresholds instead of entity-state-style guards, with `trigger.id` used only for the matching numeric path. Use `input_boolean.mcp_stress_toggle` as the action target so the collision scan can stay deterministic. Keep the preview clean: do not add any R-19 warning text when the draft is safe.",
+    "must_contain_prewrite_text": [
+      "## Preview Payload",
+      "PREWRITE CHECK: clean"
+    ],
+    "must_contain_postwrite_text": [
+      "Post-Write Review",
+      "Findings",
+      "Collision check"
+    ],
+    "must_not_contain_postwrite_text": [
+      "final else branch is only reached when the earlier entity-state branches are false",
+      "Move the `trigger.id` check into an explicit `elif`",
+      "Or refactor to `choose` + `condition: trigger`"
+    ],
+    "must_not_contain_prewrite_text": [
+      "PREWRITE CHECK: R-19 detected",
+      "final else branch is only reached when the earlier entity-state branches are false",
+      "Move the `trigger.id` check into an explicit `elif`",
+      "Or refactor to `choose` + `condition: trigger`"
+    ],
+    "collision_item_id": "input_boolean.mcp_stress_toggle",
+    "max_duration_sec": 360
+  },
+  {
+    "id": "write-r19-safe-time-window-selector-tree",
+    "prompt": "Create a disposable automation whose template logic branches on explicit time-window selectors instead of entity-state-style guards, with `trigger.id` used only for the matching time-window path. Use `input_boolean.mcp_stress_toggle` as the action target so the collision scan can stay deterministic. Keep the preview clean: do not add any R-19 warning text when the draft is safe.",
+    "must_contain_prewrite_text": [
+      "## Preview Payload",
+      "PREWRITE CHECK: clean"
+    ],
+    "must_contain_postwrite_text": [
+      "Post-Write Review",
+      "Findings",
+      "Collision check"
+    ],
+    "must_not_contain_postwrite_text": [
+      "final else branch is only reached when the earlier entity-state branches are false",
+      "Move the `trigger.id` check into an explicit `elif`",
+      "Or refactor to `choose` + `condition: trigger`"
+    ],
+    "must_not_contain_prewrite_text": [
+      "PREWRITE CHECK: R-19 detected",
+      "final else branch is only reached when the earlier entity-state branches are false",
+      "Move the `trigger.id` check into an explicit `elif`",
+      "Or refactor to `choose` + `condition: trigger`"
+    ],
+    "collision_item_id": "input_boolean.mcp_stress_toggle",
+    "max_duration_sec": 360
+  }
+]
