@@ -197,13 +197,10 @@ jobs:
         run: |
           set -euo pipefail
 
-          comment_body="$(
-            cat <<EOF
-${SAFE_POLICY_MARKER}
-safe_label=${SAFE_LABEL}
-policy_sha=${POLICY_SHA}
-EOF
-          )"
+          comment_body="$(printf '%s\n%s\n%s\n' \
+            "${SAFE_POLICY_MARKER}" \
+            "safe_label=${SAFE_LABEL}" \
+            "policy_sha=${POLICY_SHA}")"
           comments_json="$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" --paginate --slurp)"
           comment_id="$(
             printf '%s' "${comments_json}" | jq -r --arg marker "${SAFE_POLICY_MARKER}" '
