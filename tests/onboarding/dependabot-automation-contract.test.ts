@@ -92,7 +92,15 @@ describe("dependabot automation contract", () => {
   it("only auto-approves and auto-merges the safe Dependabot manifest lane without checking out PR code", () => {
     expect(prepareWorkflow).toContain("pull_request_target:");
     expect(prepareWorkflow).not.toContain("workflow_run:");
-    expect(prepareWorkflow).toContain('POLICY_REF: ${{ github.event.pull_request.base.sha }}');
+    expect(prepareWorkflow).toContain("Capture PR context");
+    expect(prepareWorkflow).toContain("github.event_path");
+    expect(prepareWorkflow).toContain("pull_request.number //");
+    expect(prepareWorkflow).toContain("pull_request.user.login //");
+    expect(prepareWorkflow).toContain("pull_request.draft // false");
+    expect(prepareWorkflow).toContain('if: ${{ github.event_name == \'pull_request_target\' }}');
+    expect(prepareWorkflow).toContain('if: ${{ steps.pr.outputs.should-process == \'true\' }}');
+    expect(prepareWorkflow).toContain('PR_NUMBER: ${{ steps.pr.outputs.pr-number }}');
+    expect(prepareWorkflow).toContain('POLICY_REF: ${{ steps.pr.outputs.pr-base-sha }}');
     expect(prepareWorkflow).toContain("dependabot[bot]");
     expect(prepareWorkflow).toContain("dependabot/fetch-metadata@21025c705c08248db411dc16f3619e6b5f9ea21a");
     expect(prepareWorkflow).toContain('DEPENDENCY_NAMES: ${{ steps.metadata.outputs.dependency-names }}');
@@ -114,6 +122,9 @@ describe("dependabot automation contract", () => {
     expect(prepareWorkflow).toContain('gh pr edit "${PR_NUMBER}" --remove-label "${SAFE_LABEL}"');
     expect(prepareWorkflow).not.toContain("actions/checkout");
     expect(prepareWorkflow).not.toContain("workflow_run");
+    expect(prepareWorkflow).not.toContain("github.event.pull_request.number");
+    expect(prepareWorkflow).not.toContain("github.event.pull_request.base.sha");
+    expect(prepareWorkflow).not.toContain("github.event.pull_request.html_url");
 
     expect(mergeWorkflow).toContain("workflow_run:");
     expect(mergeWorkflow).not.toContain("pull_request_target:");
