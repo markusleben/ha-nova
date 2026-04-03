@@ -6,6 +6,7 @@ describe("dependabot automation contract", () => {
   const agents = readFileSync("AGENTS.md", "utf8");
   const codeowners = readFileSync(".github/CODEOWNERS", "utf8");
   const dependabot = readFileSync(".github/dependabot.yml", "utf8");
+  const prepareWorkflow = readFileSync(".github/workflows/dependabot-safe-lane-prepare.yml", "utf8");
   const manifestGate = readFileSync(".github/workflows/manifest-review-gate.yml", "utf8");
   const policy = JSON.parse(readFileSync(".github/policy/repo-policy.json", "utf8")) as {
     manifest_review: {
@@ -31,7 +32,7 @@ describe("dependabot automation contract", () => {
   };
   const protectionScript = readFileSync("scripts/release/verify-github-main-protection.sh", "utf8");
   const releasing = readFileSync("docs/releasing.md", "utf8");
-  const workflow = readFileSync(".github/workflows/dependabot-safe-auto-merge.yml", "utf8");
+  const mergeWorkflow = readFileSync(".github/workflows/dependabot-safe-auto-merge.yml", "utf8");
 
   it("keeps the safe dev-only npm lane in a dedicated Dependabot group", () => {
     expect(policy.manifest_review.label).toBe("manifest-review:approved");
@@ -89,41 +90,49 @@ describe("dependabot automation contract", () => {
   });
 
   it("only auto-approves and auto-merges the safe Dependabot manifest lane without checking out PR code", () => {
-    expect(workflow).toContain("pull_request_target:");
-    expect(workflow).toContain("workflow_run:");
-    expect(workflow).toContain("github.event.workflow_run.conclusion == 'success'");
-    expect(workflow).toContain('POLICY_REF: ${{ github.event.pull_request.base.sha }}');
-    expect(workflow).toContain('POLICY_REF: ${{ github.event.repository.default_branch }}');
-    expect(workflow).not.toContain("github.event.workflow_run.event == 'pull_request'");
-    expect(workflow).toContain("dependabot[bot]");
-    expect(workflow).toContain("dependabot/fetch-metadata@21025c705c08248db411dc16f3619e6b5f9ea21a");
-    expect(workflow).toContain('DEPENDENCY_NAMES: ${{ steps.metadata.outputs.dependency-names }}');
-    expect(workflow).toContain('PACKAGE_ECOSYSTEM: ${{ steps.metadata.outputs.package-ecosystem }}');
-    expect(workflow).toContain('DEPENDENCY_GROUP: ${{ steps.metadata.outputs.dependency-group }}');
-    expect(workflow).toContain('UPDATE_TYPE: ${{ steps.metadata.outputs.update-type }}');
-    expect(workflow).toContain("safe-label=${safe_label}");
-    expect(workflow).toContain("policy-sha=${policy_sha}");
-    expect(workflow).toContain("SAFE_POLICY_MARKER");
-    expect(workflow).toContain("policy_sha=${POLICY_SHA}");
-    expect(workflow).toContain("recorded_policy_sha");
-    expect(workflow).toContain('issues/${PR_NUMBER}/comments" --paginate --slurp');
-    expect(workflow).toContain('issues/${pr_number}/comments" --paginate --slurp');
-    expect(workflow).toContain(".[][]");
-    expect(workflow).toContain('GH_REPO: ${{ github.repository }}');
-    expect(workflow).toContain('dependency requires manual review due to toolchain risk');
-    expect(workflow).toContain("gh pr review --approve");
-    expect(workflow).toContain("--json autoMergeRequest,labels");
-    expect(workflow).toContain('jq -e \'.autoMergeRequest != null\'');
-    expect(workflow).toContain('gh pr merge "${PR_NUMBER}" --disable-auto');
-    expect(workflow).toContain('jq -e --arg label "${SAFE_LABEL}" \'.labels[]? | select(.name == $label)\'');
-    expect(workflow).toContain('gh pr edit "${PR_NUMBER}" --remove-label "${SAFE_LABEL}"');
-    expect(workflow).toContain('issues/${pr_number}/timeline');
-    expect(workflow).toContain('timeline_json="$(');
-    expect(workflow).toContain('if [[ "${label_actor}" != "github-actions[bot]" ]]; then');
-    expect(workflow).toContain('for required_check in "${required_checks[@]}"; do');
-    expect(workflow).toContain('Policy fingerprint drifted for PR #${pr_number}; removing safe label.');
-    expect(workflow).toContain('gh pr merge "${pr_number}" --auto --squash');
-    expect(workflow).not.toContain("actions/checkout");
+    expect(prepareWorkflow).toContain("pull_request_target:");
+    expect(prepareWorkflow).not.toContain("workflow_run:");
+    expect(prepareWorkflow).toContain('POLICY_REF: ${{ github.event.pull_request.base.sha }}');
+    expect(prepareWorkflow).toContain("dependabot[bot]");
+    expect(prepareWorkflow).toContain("dependabot/fetch-metadata@21025c705c08248db411dc16f3619e6b5f9ea21a");
+    expect(prepareWorkflow).toContain('DEPENDENCY_NAMES: ${{ steps.metadata.outputs.dependency-names }}');
+    expect(prepareWorkflow).toContain('PACKAGE_ECOSYSTEM: ${{ steps.metadata.outputs.package-ecosystem }}');
+    expect(prepareWorkflow).toContain('DEPENDENCY_GROUP: ${{ steps.metadata.outputs.dependency-group }}');
+    expect(prepareWorkflow).toContain('UPDATE_TYPE: ${{ steps.metadata.outputs.update-type }}');
+    expect(prepareWorkflow).toContain("safe-label=${safe_label}");
+    expect(prepareWorkflow).toContain("policy-sha=${policy_sha}");
+    expect(prepareWorkflow).toContain("SAFE_POLICY_MARKER");
+    expect(prepareWorkflow).toContain("policy_sha=${POLICY_SHA}");
+    expect(prepareWorkflow).toContain('issues/${PR_NUMBER}/comments" --paginate --slurp');
+    expect(prepareWorkflow).toContain('GH_REPO: ${{ github.repository }}');
+    expect(prepareWorkflow).toContain('dependency requires manual review due to toolchain risk');
+    expect(prepareWorkflow).toContain("gh pr review --approve");
+    expect(prepareWorkflow).toContain("--json autoMergeRequest,labels");
+    expect(prepareWorkflow).toContain('jq -e \'.autoMergeRequest != null\'');
+    expect(prepareWorkflow).toContain('gh pr merge "${PR_NUMBER}" --disable-auto');
+    expect(prepareWorkflow).toContain('jq -e --arg label "${SAFE_LABEL}" \'.labels[]? | select(.name == $label)\'');
+    expect(prepareWorkflow).toContain('gh pr edit "${PR_NUMBER}" --remove-label "${SAFE_LABEL}"');
+    expect(prepareWorkflow).not.toContain("actions/checkout");
+    expect(prepareWorkflow).not.toContain("workflow_run");
+
+    expect(mergeWorkflow).toContain("workflow_run:");
+    expect(mergeWorkflow).not.toContain("pull_request_target:");
+    expect(mergeWorkflow).toContain("github.event.workflow_run.conclusion == 'success'");
+    expect(mergeWorkflow).toContain('POLICY_REF: ${{ github.event.repository.default_branch }}');
+    expect(mergeWorkflow).not.toContain("github.event.workflow_run.event == 'pull_request'");
+    expect(mergeWorkflow).toContain("SAFE_POLICY_MARKER");
+    expect(mergeWorkflow).toContain("recorded_policy_sha");
+    expect(mergeWorkflow).toContain('issues/${pr_number}/comments" --paginate --slurp');
+    expect(mergeWorkflow).toContain(".[][]");
+    expect(mergeWorkflow).toContain('GH_REPO: ${{ github.repository }}');
+    expect(mergeWorkflow).toContain('issues/${pr_number}/timeline');
+    expect(mergeWorkflow).toContain('timeline_json="$(');
+    expect(mergeWorkflow).toContain('if [[ "${label_actor}" != "github-actions[bot]" ]]; then');
+    expect(mergeWorkflow).toContain('for required_check in "${required_checks[@]}"; do');
+    expect(mergeWorkflow).toContain('Policy fingerprint drifted for PR #${pr_number}; removing safe label.');
+    expect(mergeWorkflow).toContain('gh pr merge "${pr_number}" --auto --squash');
+    expect(mergeWorkflow).not.toContain("dependabot/fetch-metadata");
+    expect(mergeWorkflow).not.toContain("actions/checkout");
   });
 
   it("blocks non-safe manifest changes unless a maintainer labels them approved", () => {
