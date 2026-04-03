@@ -1,6 +1,6 @@
 {
   "name": "ha-nova",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "AI-powered Home Assistant management through LLM coding agents",
   "private": true,
   "type": "module",
