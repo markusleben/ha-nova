@@ -1,0 +1,231 @@
+name: Dependabot Safe Lane Prepare
+
+on:
+  pull_request_target:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+
+permissions:
+  actions: read
+  checks: read
+  contents: write
+  issues: write
+  pull-requests: write
+
+env:
+  SAFE_POLICY_MARKER: "<!-- ha-nova-dependabot-safe-policy -->"
+
+jobs:
+  approve-safe-dev-deps:
+    if: ${{ github.event.pull_request.user.login == 'dependabot[bot]' && !github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@21025c705c08248db411dc16f3619e6b5f9ea21a
+        with:
+          github-token: ${{ github.token }}
+
+      - name: Evaluate safe auto-merge lane
+        id: guard
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          DEPENDENCY_NAMES: ${{ steps.metadata.outputs.dependency-names }}
+          PACKAGE_ECOSYSTEM: ${{ steps.metadata.outputs.package-ecosystem }}
+          DEPENDENCY_GROUP: ${{ steps.metadata.outputs.dependency-group }}
+          UPDATE_TYPE: ${{ steps.metadata.outputs.update-type }}
+          POLICY_REF: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+
+          POLICY_FILE="$(mktemp)"
+          gh api "repos/${GITHUB_REPOSITORY}/contents/.github/policy/repo-policy.json?ref=${POLICY_REF}" \
+            --jq '.content' \
+            | tr -d '\n' \
+            | base64 --decode > "${POLICY_FILE}"
+          safe_label="$(jq -r '.dependabot_safe_lane.label' "${POLICY_FILE}")"
+          mapfile -t allowed_package_ecosystems < <(jq -r '.dependabot_safe_lane.allowed_package_ecosystems[]' "${POLICY_FILE}")
+          dependabot_dependency_group="$(jq -r '.dependabot_safe_lane.dependency_group' "${POLICY_FILE}")"
+          mapfile -t allowed_update_types < <(jq -r '.dependabot_safe_lane.allowed_update_types[]' "${POLICY_FILE}")
+          mapfile -t safe_manual_dependencies < <(jq -r '.dependabot_safe_lane.manual_review_dependencies[]' "${POLICY_FILE}")
+          mapfile -t manifest_sensitive_files < <(jq -r '.manifest_review.manifest_sensitive_files[]' "${POLICY_FILE}")
+          policy_sha="$(sha256sum "${POLICY_FILE}" | awk '{print $1}')"
+
+          eligible=false
+          reason=""
+          manual_dependency=""
+
+          package_ecosystem_allowed=false
+          for allowed_package_ecosystem in "${allowed_package_ecosystems[@]}"; do
+            if [[ "${PACKAGE_ECOSYSTEM}" == "${allowed_package_ecosystem}" ]]; then
+              package_ecosystem_allowed=true
+              break
+            fi
+          done
+
+          update_type_allowed=false
+          for allowed_update_type in "${allowed_update_types[@]}"; do
+            if [[ "${UPDATE_TYPE}" == "${allowed_update_type}" ]]; then
+              update_type_allowed=true
+              break
+            fi
+          done
+
+          if [[ "${package_ecosystem_allowed}" != "true" ]]; then
+            reason="package ecosystem is not npm/npm_and_yarn"
+          elif [[ "${DEPENDENCY_GROUP}" != "${dependabot_dependency_group}" ]]; then
+            reason="dependency group is not the safe dev-only lane"
+          elif [[ "${update_type_allowed}" != "true" ]]; then
+            reason="update type is not minor or patch"
+          else
+            while IFS= read -r dependency_name; do
+              dependency_name="$(printf '%s' "${dependency_name}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+              if [[ -z "${dependency_name}" ]]; then
+                continue
+              fi
+              if printf '%s\n' "${safe_manual_dependencies[@]}" | grep -Fxq "${dependency_name}"; then
+                manual_dependency="${dependency_name}"
+                break
+              fi
+            done < <(printf '%s' "${DEPENDENCY_NAMES}" | tr ',' '\n')
+
+            if [[ -n "${manual_dependency}" ]]; then
+              reason="dependency requires manual review due to toolchain risk: ${manual_dependency}"
+            fi
+          fi
+
+          if [[ -z "${reason}" ]]; then
+            mapfile -t changed_files < <(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/files" --paginate --jq '.[].filename')
+            if [[ ${#changed_files[@]} -eq 0 ]]; then
+              reason="no changed files returned by GitHub API"
+            else
+              for changed_file in "${changed_files[@]}"; do
+                file_is_manifest=false
+                for manifest_sensitive_file in "${manifest_sensitive_files[@]}"; do
+                  if [[ "${changed_file}" == "${manifest_sensitive_file}" ]]; then
+                    file_is_manifest=true
+                    break
+                  fi
+                done
+
+                if [[ "${file_is_manifest}" != "true" ]]; then
+                    reason="changed file outside safe manifest lane: ${changed_file}"
+                    break
+                fi
+              done
+            fi
+          fi
+
+          if [[ -z "${reason}" ]]; then
+            eligible=true
+            reason="safe dev-only npm manifest update"
+          fi
+
+          echo "eligible=${eligible}" >> "${GITHUB_OUTPUT}"
+          echo "policy-sha=${policy_sha}" >> "${GITHUB_OUTPUT}"
+          echo "reason=${reason}" >> "${GITHUB_OUTPUT}"
+          echo "safe-label=${safe_label}" >> "${GITHUB_OUTPUT}"
+          {
+            echo "### Dependabot safe auto-merge"
+            echo
+            echo "- eligible: ${eligible}"
+            echo "- reason: ${reason}"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Approve safe Dependabot PR
+        if: ${{ steps.guard.outputs.eligible == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          set -euo pipefail
+          review_decision="$(gh pr view "${PR_URL}" --json reviewDecision --jq '.reviewDecision')"
+          if [[ "${review_decision}" != "APPROVED" ]]; then
+            gh pr review --approve "${PR_URL}" --body "Safe Dependabot lane: dev-only npm minor/patch manifest update."
+          fi
+
+      - name: Mark PR for safe auto-merge
+        if: ${{ steps.guard.outputs.eligible == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          SAFE_LABEL: ${{ steps.guard.outputs.safe-label }}
+        run: |
+          set -euo pipefail
+          gh pr edit "${PR_NUMBER}" --add-label "${SAFE_LABEL}"
+
+      - name: Record safe-lane policy fingerprint
+        if: ${{ steps.guard.outputs.eligible == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          SAFE_LABEL: ${{ steps.guard.outputs.safe-label }}
+          POLICY_SHA: ${{ steps.guard.outputs.policy-sha }}
+        run: |
+          set -euo pipefail
+
+          comment_body="$(
+            cat <<EOF
+${SAFE_POLICY_MARKER}
+safe_label=${SAFE_LABEL}
+policy_sha=${POLICY_SHA}
+EOF
+          )"
+          comments_json="$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" --paginate --slurp)"
+          comment_id="$(
+            printf '%s' "${comments_json}" | jq -r --arg marker "${SAFE_POLICY_MARKER}" '
+              [
+                .[][]
+                | select(.user.login == "github-actions[bot]" and (.body | contains($marker)))
+              ]
+              | last
+              | .id // ""
+            '
+          )"
+
+          if [[ -n "${comment_id}" ]]; then
+            gh api "repos/${GITHUB_REPOSITORY}/issues/comments/${comment_id}" --method PATCH -f body="${comment_body}" >/dev/null
+          else
+            gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" --method POST -f body="${comment_body}" >/dev/null
+          fi
+
+      - name: Remove safe auto-merge marker when lane becomes ineligible
+        if: ${{ steps.guard.outputs.eligible != 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          SAFE_LABEL: ${{ steps.guard.outputs.safe-label }}
+        run: |
+          set -euo pipefail
+          pr_json="$(gh pr view "${PR_NUMBER}" --json autoMergeRequest,labels)"
+          comments_json="$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" --paginate --slurp)"
+          comment_ids="$(
+            printf '%s' "${comments_json}" | jq -r --arg marker "${SAFE_POLICY_MARKER}" '
+              .[][]
+              | select(.user.login == "github-actions[bot]" and (.body | contains($marker)))
+              | .id
+            '
+          )"
+
+          if printf '%s' "${pr_json}" | jq -e '.autoMergeRequest != null' >/dev/null; then
+            gh pr merge "${PR_NUMBER}" --disable-auto
+          fi
+
+          if printf '%s' "${pr_json}" | jq -e --arg label "${SAFE_LABEL}" '.labels[]? | select(.name == $label)' >/dev/null; then
+            gh pr edit "${PR_NUMBER}" --remove-label "${SAFE_LABEL}"
+          fi
+
+          if [[ -n "${comment_ids}" ]]; then
+            while IFS= read -r comment_id; do
+              [[ -n "${comment_id}" ]] || continue
+              gh api "repos/${GITHUB_REPOSITORY}/issues/comments/${comment_id}" --method DELETE >/dev/null
+            done <<< "${comment_ids}"
+          fi
