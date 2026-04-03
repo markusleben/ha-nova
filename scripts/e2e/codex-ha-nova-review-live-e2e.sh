@@ -291,7 +291,7 @@ count_installed_skill_copy_hits() {
 
   count_command_hits \
     "$scenario_log" \
-    '(\~|/Users/[^[:space:]]+)?/\.local/share/ha-nova/skills/'
+    '(\~|/Users/[^[:space:]]+|/home/[^[:space:]]+)/\.local/share/ha-nova/skills/'
 }
 
 normalize_match_text() {
@@ -316,7 +316,7 @@ import sys
 
 direct_re = re.compile(r'^(?:\./)?scripts/(?:smoke|e2e|dev)/\S+')
 shell_re = re.compile(
-    r'(?:^|[\s\'"`])(?:env\s+)?(?:\S*/)?(?:bash|sh|zsh|python3?|node|bunx?|bun|tsx)\b[^\n]*\b(?:\./)?scripts/(?:smoke|e2e|dev)/\S+'
+    r'(?:^|[\s\'"`])(?:(?:env(?:\s+[A-Za-z_][A-Za-z0-9_]*=\S+)*|timeout(?:\s+\S+){1,2})\s+)*(?:\S*/)?(?:bash|sh|zsh|python3?|node|bunx?|bun|tsx)\b[^\n]*\b(?:\./)?scripts/(?:smoke|e2e|dev)/\S+'
 )
 
 count = 0

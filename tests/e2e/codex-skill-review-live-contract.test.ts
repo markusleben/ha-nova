@@ -341,6 +341,13 @@ normalize_jsonl_transcript "$1"`
             command: '/bin/zsh -lc "sed -n \'1,220p\' skills/review/SKILL.md"',
           },
         }),
+        JSON.stringify({
+          type: "item.completed",
+          item: {
+            type: "command_execution",
+            command: '/bin/zsh -lc "sed -n \'1,220p\' /home/alice/.local/share/ha-nova/skills/review/SKILL.md"',
+          },
+        }),
       ].join("\n") + "\n"
     );
 
@@ -354,7 +361,7 @@ count_installed_skill_copy_hits "$1"`
     );
 
     const hits = execFileSync("bash", [scriptFile, parsedLog], { encoding: "utf8", stdio: "pipe" });
-    expect(hits.trim()).toBe("1");
+    expect(hits.trim()).toBe("2");
 
     rmSync(tempDir, { recursive: true, force: true });
   });
@@ -383,6 +390,20 @@ count_installed_skill_copy_hits "$1"`
             command: "env bash scripts/dev/demo.sh",
           },
         }),
+        JSON.stringify({
+          type: "item.completed",
+          item: {
+            type: "command_execution",
+            command: "env FOO=1 bash scripts/e2e/demo.sh",
+          },
+        }),
+        JSON.stringify({
+          type: "item.completed",
+          item: {
+            type: "command_execution",
+            command: "timeout 10 bash scripts/dev/demo.sh",
+          },
+        }),
       ].join("\n") + "\n"
     );
 
@@ -395,7 +416,7 @@ count_helper_script_exec_hits "$1"`
     );
 
     const hits = execFileSync("bash", [scriptFile, parsedLog], { encoding: "utf8", stdio: "pipe" });
-    expect(hits.trim()).toBe("2");
+    expect(hits.trim()).toBe("4");
 
     rmSync(tempDir, { recursive: true, force: true });
   });
