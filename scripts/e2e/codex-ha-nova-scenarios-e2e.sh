@@ -14,6 +14,11 @@ log() {
   echo "[codex-scenarios-e2e] $*"
 }
 
+CLI_CMD_PATTERN='([[:alnum:]_./-]*ha-nova|[.]/cli/cli|cli/cli)'
+CLI_DOCTOR_PATTERN="${CLI_CMD_PATTERN}([[:space:]]+[[:alnum:]_./-]+){0,2}[[:space:]]+(doctor|ready|quick)"
+GO_RUN_PATTERN='go[[:space:]]+run([[:space:]]+[[:alnum:]_./-]+){1,4}'
+RELAY_HEALTH_PATTERN="((^|[[:space:][:punct:]])(${CLI_CMD_PATTERN}|${GO_RUN_PATTERN})[[:space:]]+relay[[:space:]]+health([[:space:][:punct:]]|$))|/health"
+
 die() {
   echo "[codex-scenarios-e2e] $*" >&2
   exit 1
@@ -24,17 +29,36 @@ require_cmd() {
   command -v "$cmd" >/dev/null 2>&1 || die "Required command not found: ${cmd}"
 }
 
+contains_rule_code_marker() {
+  local text="$1"
+
+  printf '%s\n' "$text" | grep -Eiq '(^|[^[:alnum:]_.])([SRPMFH])-[0-9]{2}($|[^[:alnum:]_])|(^|[^[:alnum:]_.])([SRPMFH])[0-9]+($|[^[:alnum:]_])'
+}
+
 normalize_jsonl_transcript() {
   local input_file="$1"
 
   python3 - "$input_file" <<'PY'
 import json
+import re
 import sys
 
 with open(sys.argv[1], encoding="utf-8") as handle:
     for lineno, raw_line in enumerate(handle, start=1):
         line = raw_line.strip()
         if not line:
+            continue
+        if line == "Reading additional input from stdin...":
+            continue
+        if re.match(
+            r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when UnexpectedContentType\(Some\(\"text/plain; body: upstream connect error or disconnect/reset before headers\..*\"\)\)$",
+            line,
+        ):
+            continue
+        if re.match(
+            r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z ERROR codex_api::endpoint::responses_websocket: failed to connect to websocket: .*$",
+            line,
+        ):
             continue
         try:
             event = json.loads(line)
@@ -88,6 +112,25 @@ with scenario_log.open("w", encoding="utf-8") as log_file:
     except subprocess.TimeoutExpired:
         sys.exit(124)
 PY
+}
+
+should_retry_empty_start_timeout() {
+  local codex_status="$1"
+  local scenario_log="$2"
+
+  if [[ "$codex_status" -ne 124 || ! -f "$scenario_log" ]]; then
+    return 1
+  fi
+
+  if grep -q '"type":"item.started"' "$scenario_log" 2>/dev/null; then
+    return 1
+  fi
+
+  if grep -q '"type":"item.completed"' "$scenario_log" 2>/dev/null; then
+    return 1
+  fi
+
+  return 0
 }
 
 wait_for_log_completion() {
@@ -157,10 +200,14 @@ validate_scenario_file() {
 build_prompt_file() {
   local scenario_id="$1"
   local scenario_prompt="$2"
-  local prompt_file="$3"
+  local expect_type="$3"
+  local expected_prefix="$4"
+  local expected_count="$5"
+  local expected_error="$6"
+  local prompt_file="$7"
 
   cat > "$prompt_file" <<EOF_PROMPT
-Use the local skill "ha-nova" for this task.
+Use the repo-local HA NOVA workflow from this checkout for this task.
 
 User request:
 ${scenario_prompt}
@@ -168,12 +215,60 @@ ${scenario_prompt}
 Hard requirements:
 1. Work in English only.
 2. Use App + Relay terminology.
-3. Do not run onboarding ready/doctor/quick checks before the first Home Assistant action unless the user request explicitly requires it.
-4. For a simple read-only request, run the fastest viable one-shot path.
-5. Do not modify repository files.
-6. Final output must contain exactly one status line:
+3. Treat pasted-YAML prompts as local review tasks unless the prompt explicitly requires Home Assistant reads.
+4. Use only repo-local files from this checkout plus the pasted YAML in the prompt.
+5. Never read installed skill copies from ~/.local/share/ha-nova/skills or any other home-directory skill mirror.
+6. If you need skill guidance, default allowed repo-local files are: skills/ha-nova/SKILL.md, skills/review/SKILL.md, skills/review/checks.md, docs/reference/ha-template-reference.md.
+7. Do not browse the web and do not use Exa, Ref, web search, or official-doc lookup tools.
+8. Treat the local repo skill guidance as authoritative for this harness even if you feel uncertain.
+9. If a conclusion would require external docs, state the uncertainty from local context instead of researching.
+10. Do not run onboarding ready/doctor/quick checks before the first Home Assistant action unless the user request explicitly requires it.
+11. For a simple read-only request, run the fastest viable one-shot path.
+12. Do not modify repository files.
+13. Never include internal rule codes such as R-18, R18, R-19, R19, S-01, H-09, or similar check identifiers in user-facing output, even if the prompt names them.
+14. Do not emit interim progress updates, evidence-loading notes, or meta narration. Return only the final user-facing result and the final status line.
+15. Final output must contain exactly one status line:
    NOVA_SCENARIO_RESULT id=${scenario_id} values=<json_array_of_entity_ids>
 EOF_PROMPT
+
+  if [[ "$expect_type" == "entity_id_prefix_count" ]]; then
+    cat >> "$prompt_file" <<EOF_FASTPATH
+
+Fast path for this scenario:
+- This is a simple entity-id inventory request for prefix ${expected_prefix} with up to ${expected_count} results.
+- Do not inspect unrelated repo files, test harness files, package.json, install scripts, or other project metadata.
+- If you need repo guidance, stop at skills/ha-nova/SKILL.md and skills/ha-nova/relay-api.md.
+- Do not read scripts/e2e/*.sh for this request.
+- Use one relay ws call against config/entity_registry/list_for_display and filter the result directly.
+EOF_FASTPATH
+  elif [[ "$expect_type" == "json_array_values" ]]; then
+    cat >> "$prompt_file" <<EOF_REVIEWPATH
+
+Minimal local-review path for this scenario:
+- This is a pasted-YAML review case. Base the answer on the pasted YAML plus the four allowed local references only.
+- If you need local references, read each of these at most once: skills/ha-nova/SKILL.md, skills/review/SKILL.md, skills/review/checks.md, docs/reference/ha-template-reference.md.
+- Do not run repo-wide follow-up searches, excerpt hunts, package inspection, or additional discovery commands after reading those references.
+- After those direct reads, analyze the YAML and finish immediately.
+EOF_REVIEWPATH
+  fi
+
+  if [[ "$expected_error" == "proactive_doctor_or_ready_detected" ]]; then
+    cat >> "$prompt_file" <<EOF_DOCTOR_FAIL
+
+Minimal negative-path requirement for this scenario:
+- This scenario intentionally expects one prohibited proactive doctor/ready/quick check.
+- Run exactly one doctor/ready/quick command before the first relay call, then do one minimal relay ws inventory read and finish.
+- Do not inspect repo metadata, CLI help output, test harness files, package manifests, or binary discovery paths for this scenario.
+EOF_DOCTOR_FAIL
+  elif [[ "$expected_error" == "health_preflight_before_ws_detected" ]]; then
+    cat >> "$prompt_file" <<EOF_HEALTH_FAIL
+
+Minimal negative-path requirement for this scenario:
+- This scenario intentionally expects one prohibited relay health preflight.
+- Run exactly one relay health command before the first relay ws/core action, then do one minimal relay ws inventory read and finish.
+- Do not inspect repo metadata, CLI help output, test harness files, package manifests, or binary discovery paths for this scenario.
+EOF_HEALTH_FAIL
+  fi
 }
 
 extract_status_metadata() {
@@ -245,6 +340,15 @@ extract_last_agent_message() {
   ' "$scenario_log" 2>/dev/null || true
 }
 
+extract_all_agent_messages() {
+  local scenario_log="$1"
+
+  jq -sr -r '
+    map(select(.type == "item.completed" and .item.type == "agent_message") | .item.text)
+    | join("\n\n")
+  ' "$scenario_log" 2>/dev/null || true
+}
+
 count_command_hits() {
   local scenario_log="$1"
   local pattern="$2"
@@ -258,9 +362,47 @@ count_command_hits() {
 count_helper_script_exec_hits() {
   local scenario_log="$1"
 
-  count_command_hits \
-    "$scenario_log" \
-    '(^|[^[:alnum:]_./-])(\./)?scripts/(smoke|e2e|dev)/|\\b(bash|sh|zsh|python3?|node|bunx?|bun|tsx)\\b[^[:cntrl:]]*\\b(\./)?scripts/(smoke|e2e|dev)/'
+  if [[ ! -f "$scenario_log" ]]; then
+    echo 0
+    return 0
+  fi
+
+  python3 - "$scenario_log" <<'PY'
+import json
+import re
+import sys
+
+direct_re = re.compile(r'^(?:\./)?scripts/(?:smoke|e2e|dev)/\S+')
+shell_re = re.compile(
+    r'(?:^|[\s\'"`])(?:env(?:\s+[A-Za-z_][A-Za-z0-9_]*=\S+)*\s+)?(?:timeout\s+\S+\s+)?(?:\S*/)?(?:bash|sh|zsh|python3?|node|bunx?|bun|tsx)\b[^\n]*\b(?:\./)?scripts/(?:smoke|e2e|dev)/\S+'
+)
+
+count = 0
+
+with open(sys.argv[1], encoding="utf-8") as handle:
+    for raw_line in handle:
+        try:
+            event = json.loads(raw_line)
+        except json.JSONDecodeError:
+            continue
+        if event.get("type") != "item.completed":
+            continue
+        item = event.get("item") or {}
+        if item.get("type") != "command_execution":
+            continue
+        command = (item.get("command") or "").strip()
+        if not command:
+            continue
+        for segment in re.split(r'(?:&&|\|\||;|\n)', command):
+            segment = segment.strip()
+            if not segment:
+                continue
+            if direct_re.search(segment) or shell_re.search(segment):
+                count += 1
+                break
+
+print(count)
+PY
 }
 
 first_command_index() {
@@ -297,6 +439,8 @@ run_scenario() {
   local codex_status
   local final_line=""
   local last_agent_message=""
+  local all_agent_messages=""
+  local all_agent_messages_without_status=""
   local last_agent_message_last_line=""
   local status_line_count
   local unexpected_events_after_final_message
@@ -309,19 +453,33 @@ run_scenario() {
   local scenario_error
   local command_count
   local doctor_count
+  local health_count
   local helper_script_count
-  local ws_idx
+  local ws_action_idx
+  local ha_action_idx
   local health_idx
   local doctor_idx
-  local health_before_ws="false"
+  local doctor_before_action="false"
+  local health_before_action="false"
 
-  build_prompt_file "$scenario_id" "$scenario_prompt" "$prompt_file"
+  build_prompt_file "$scenario_id" "$scenario_prompt" "$expect_type" "$expected_prefix" "$expected_count" "$expected_error" "$prompt_file"
 
   start_ts="$(date +%s)"
   set +e
   run_codex_with_timeout "$max_duration_sec" "$prompt_file" "$scenario_log"
   codex_status="$?"
   set -e
+
+  if should_retry_empty_start_timeout "$codex_status" "$scenario_log"; then
+    log "Retrying ${scenario_id} after empty startup timeout"
+    rm -f "$scenario_log"
+    start_ts="$(date +%s)"
+    set +e
+    run_codex_with_timeout "$max_duration_sec" "$prompt_file" "$scenario_log"
+    codex_status="$?"
+    set -e
+  fi
+
   end_ts="$(date +%s)"
   duration_sec="$((end_ts - start_ts))"
 
@@ -342,15 +500,17 @@ run_scenario() {
     }
   fi
 
-  if [[ "$status" == "pass" ]]; then
-    local normalized_tmp="${parsed_log}.tmp"
-    rm -f "$normalized_tmp" "$parsed_log"
+  local normalized_tmp="${parsed_log}.tmp"
+  rm -f "$normalized_tmp" "$parsed_log"
+  if [[ -s "$scenario_log" ]]; then
     if normalize_jsonl_transcript "$scenario_log" >"$normalized_tmp"; then
       mv "$normalized_tmp" "$parsed_log"
     else
       rm -f "$normalized_tmp" "$parsed_log"
-      status="fail"
-      validation_error="invalid_jsonl_transcript"
+      if [[ "$status" == "pass" ]]; then
+        status="fail"
+        validation_error="invalid_jsonl_transcript"
+      fi
     fi
   fi
 
@@ -366,6 +526,8 @@ run_scenario() {
     final_line="$(jq -r '.status_line' "${parsed_log%.jsonl}.status.json")"
     status_line_count="$(jq -r '.status_line_count' "${parsed_log%.jsonl}.status.json")"
     last_agent_message="$(jq -r '.last_agent_message' "${parsed_log%.jsonl}.status.json")"
+    all_agent_messages="$(extract_all_agent_messages "$parsed_log")"
+    all_agent_messages_without_status="$(printf '%s\n' "$all_agent_messages" | sed '/^NOVA_SCENARIO_RESULT id=.* values=.*$/d')"
     last_agent_message_last_line="$(jq -r '.last_agent_message_last_line' "${parsed_log%.jsonl}.status.json")"
     unexpected_events_after_final_message="$(jq -r '.unexpected_events_after_final_message' "${parsed_log%.jsonl}.status.json")"
     if [[ "$status_line_count" -ne 1 || -z "$final_line" ]]; then
@@ -423,40 +585,55 @@ run_scenario() {
     values_json='[]'
   fi
 
-  if [[ "$status" == "pass" && "$duration_sec" -gt "$max_duration_sec" ]]; then
-    status="fail"
-    validation_error="duration_exceeded"
-  fi
-
   command_count="$(count_command_hits "$parsed_log" '.*')"
-  doctor_count="$(count_command_hits "$parsed_log" '(^|[[:space:]])ha-nova[[:space:]]+doctor([[:space:]]|$)')"
+  doctor_count="$(count_command_hits "$parsed_log" "(^|[[:space:][:punct:]])${CLI_DOCTOR_PATTERN}([[:space:][:punct:]]|$)")"
+  health_count="$(count_command_hits "$parsed_log" "$RELAY_HEALTH_PATTERN")"
   helper_script_count="$(count_helper_script_exec_hits "$parsed_log")"
 
-  ws_idx="$(first_command_index "$parsed_log" 'relay[[:space:]]+ws([[:space:]]|$)')"
-  health_idx="$(first_command_index "$parsed_log" '/health')"
-  doctor_idx="$(first_command_index "$parsed_log" '(^|[[:space:]])ha-nova[[:space:]]+doctor([[:space:]]|$)')"
-  if [[ -n "$ws_idx" && -n "$health_idx" && "$health_idx" -lt "$ws_idx" ]]; then
-    health_before_ws="true"
+  ws_action_idx="$(first_command_index "$parsed_log" 'relay[[:space:]]+ws([[:space:]]|$)')"
+  ha_action_idx="$(first_command_index "$parsed_log" 'relay[[:space:]]+(ws|core)([[:space:]]|$)')"
+  health_idx="$(first_command_index "$parsed_log" "$RELAY_HEALTH_PATTERN")"
+  doctor_idx="$(first_command_index "$parsed_log" "(^|[[:space:][:punct:]])${CLI_DOCTOR_PATTERN}([[:space:][:punct:]]|$)")"
+  if [[ -n "$doctor_idx" && ( -z "$ha_action_idx" || "$doctor_idx" -lt "$ha_action_idx" ) ]]; then
+    doctor_before_action="true"
+  fi
+  if [[ -n "$health_idx" && ( -z "$ha_action_idx" || "$health_idx" -lt "$ha_action_idx" ) ]]; then
+    health_before_action="true"
   fi
 
-  if [[ "$status" == "pass" && "$expect_type" == "entity_id_prefix_count" && -z "$ws_idx" ]]; then
+  if [[ "$status" == "pass" && "$expect_type" == "entity_id_prefix_count" && -z "$ws_action_idx" ]]; then
     status="fail"
     validation_error="missing_ws_request"
   fi
 
-  if [[ "$status" == "pass" && "$expect_type" == "entity_id_prefix_count" && "$health_before_ws" == "true" ]]; then
-    status="fail"
-    validation_error="health_preflight_before_ws_detected"
-  fi
-
-  if [[ "$status" == "pass" && "$expect_type" == "entity_id_prefix_count" && -n "$doctor_idx" && -n "$ws_idx" && "$doctor_idx" -lt "$ws_idx" ]]; then
+  if [[ "$status" == "pass" && "$doctor_before_action" == "true" ]]; then
     status="fail"
     validation_error="proactive_doctor_or_ready_detected"
+  fi
+
+  if [[ "$status" == "pass" && "$health_before_action" == "true" ]]; then
+    status="fail"
+    validation_error="health_preflight_before_ws_detected"
   fi
 
   if [[ "$status" == "pass" && "$helper_script_count" -gt 0 ]]; then
     status="fail"
     validation_error="helper_script_usage_detected"
+  fi
+
+  if [[ "$status" == "fail" && "$validation_error" == "duration_exceeded" ]]; then
+    if [[ "$doctor_before_action" == "true" ]]; then
+      validation_error="proactive_doctor_or_ready_detected"
+    elif [[ "$health_before_action" == "true" ]]; then
+      validation_error="health_preflight_before_ws_detected"
+    elif [[ "$helper_script_count" -gt 0 ]]; then
+      validation_error="helper_script_usage_detected"
+    fi
+  fi
+
+  if [[ "$status" == "pass" && "$duration_sec" -gt "$max_duration_sec" ]]; then
+    status="fail"
+    validation_error="duration_exceeded"
   fi
 
   if [[ "$status" == "pass" ]]; then
@@ -490,7 +667,7 @@ run_scenario() {
       if [[ -z "$forbidden_text" ]]; then
         continue
       fi
-      if [[ "$last_agent_message" == *"$forbidden_text"* ]]; then
+      if [[ "$all_agent_messages_without_status" == *"$forbidden_text"* ]]; then
         status="fail"
         validation_error="forbidden_text_present"
         break
@@ -498,6 +675,11 @@ run_scenario() {
     done < <(echo "$must_not_contain_text_json" | jq -r '.[]')
   else
     last_agent_message=""
+  fi
+
+  if [[ "$status" == "pass" ]] && contains_rule_code_marker "$all_agent_messages_without_status"; then
+    status="fail"
+    validation_error="rule_code_marker_present"
   fi
 
   observed_status="$status"
@@ -532,7 +714,7 @@ run_scenario() {
     --argjson command_count "$command_count" \
     --argjson doctor_count "$doctor_count" \
     --argjson helper_script_count "$helper_script_count" \
-    --argjson health_before_ws "$health_before_ws" \
+    --argjson health_before_action "$health_before_action" \
     --arg expected_count_mode "$expected_count_mode" \
     --arg log_file "$scenario_log" \
     --argjson values "$values_json" \
@@ -551,7 +733,7 @@ run_scenario() {
       command_count: $command_count,
       proactive_doctor_count: $doctor_count,
       helper_script_count: $helper_script_count,
-      health_before_ws: $health_before_ws,
+      health_before_action: $health_before_action,
       expected_count_mode: $expected_count_mode,
       final_line: $final_line,
       values: $values,

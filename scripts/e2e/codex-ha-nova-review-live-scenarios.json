@@ -1,14 +1,22 @@
 [
   {
     "id": "review-question-not-confident-removal",
-    "prompt": "Use ha nova review skill on this pasted YAML only. Explain the result in English. Keep the stable single-target review structure. If one branch only looks redundant but its purpose is unclear, include the exact heading Questions to consider and the exact phrase Question, not confident recommendation. Do not include the exact phrase Remove the redundant branch. YAML: automation:\n  - alias: Fence check\n    triggers:\n      - trigger: state\n        entity_id: sensor.level\n    actions:\n      - action: notify.notify\n        data:\n          message: >\n            {{ 'on' if states('binary_sensor.main') == 'on' or states('binary_sensor.bridge') == 'on' else 'off' }}",
+    "prompt": "Use ha nova review skill on this pasted YAML only. Explain the result in English. Keep the stable single-target review structure. For this scenario, treat the duplicated binary-sensor checks as plausibly redundant but not confidently removable. Include the exact heading Questions to consider and the exact phrase Purpose is unclear; verify before removing it. Keep Suggestions empty with the exact phrase No confident suggestions. Do not include the exact phrase Remove the redundant branch. Do not use internal rule codes in the user-facing text. YAML: automation:\n  - alias: Fence check\n    mode: single\n    triggers:\n      - trigger: state\n        entity_id: sensor.level\n        to: 'high'\n    actions:\n      - action: notify.notify\n        data:\n          message: >\n            {{ 'on' if states('binary_sensor.main') == 'on' or states('binary_sensor.bridge') == 'on' else 'off' }}",
     "must_contain_text": [
       "Review target",
       "Questions to consider",
-      "Question, not confident recommendation"
+      "Purpose is unclear; verify before removing it.",
+      "Suggestions",
+      "No confident suggestions."
     ],
     "must_not_contain_text": [
-      "Remove the redundant branch"
+      "Remove the redundant branch",
+      "Simplify existing",
+      "Fix existing",
+      "Extend existing",
+      "Add new",
+      "R-19",
+      "R19"
     ],
     "section_order": [
       "Review target",
@@ -17,17 +25,22 @@
       "Conflicts",
       "Questions to consider",
       "Suggestions",
-      "Summary"
+      "Summary",
+      "Instant help"
     ],
     "max_duration_sec": 240
   },
   {
     "id": "review-ranks-root-cause-before-watchdog",
-    "prompt": "Use ha nova review skill on this pasted YAML only. Explain the result in English. Keep the stable single-target review structure. In Suggestions, include these exact phrases if you produce confident suggestions: Fix existing and Add new. YAML: automation:\n  - alias: Stuck state example\n    mode: single\n    triggers:\n      - trigger: state\n        entity_id: sensor.flow_status\n    actions:\n      - action: notify.notify\n        data:\n          message: >\n            {{ 'stuck' if states('sensor.flow_status') == 'stuck' else 'ok' }}",
+    "prompt": "Use ha nova review skill on this pasted YAML only. Explain the result in English. Keep the stable single-target review structure. For this scenario, you have enough context for two confident Suggestions items: first `Fix existing` for the direct trigger/filter correction, then `Add new` for an optional monitoring or watchdog follow-up that stays secondary to the root-cause fix. In Suggestions, include these exact phrases: Fix existing and Add new. Do not use internal rule codes in the user-facing text. YAML: automation:\n  - alias: Stuck state example\n    mode: single\n    triggers:\n      - trigger: state\n        entity_id: sensor.flow_status\n    actions:\n      - action: notify.notify\n        data:\n          message: >\n            {{ 'stuck' if states('sensor.flow_status') == 'stuck' else 'ok' }}",
     "must_contain_text": [
       "Suggestions",
       "Fix existing",
       "Add new"
+    ],
+    "must_not_contain_text": [
+      "R-19",
+      "R19"
     ],
     "ordered_text": [
       "Suggestions",
@@ -41,16 +54,21 @@
       "Conflicts",
       "Questions to consider",
       "Suggestions",
-      "Summary"
+      "Summary",
+      "Instant help"
     ],
     "max_duration_sec": 240
   },
   {
     "id": "review-questions-section-not-needed",
-    "prompt": "Use ha nova review skill on this pasted YAML only. Explain the result in English. Keep the stable single-target review structure. Include the exact heading Questions to consider and the exact phrase not needed if that section is empty. YAML: automation:\n  - alias: Simple motion light\n    mode: single\n    triggers:\n      - trigger: state\n        entity_id: binary_sensor.motion\n        to: 'on'\n    actions:\n      - action: light.turn_on\n        target:\n          entity_id: light.hallway",
+    "prompt": "Use ha nova review skill on this pasted YAML only. Explain the result in English. Keep the stable single-target review structure. This simple turn-on-only motion automation is complete as written for this scenario; do not invent speculative follow-up questions about turn-off behavior, timers, or missing companion automations. Include the exact heading Questions to consider and the exact phrase No follow-up questions right now. for this case. Do not use internal rule codes in the user-facing text. YAML: automation:\n  - alias: Simple motion light\n    mode: single\n    triggers:\n      - trigger: state\n        entity_id: binary_sensor.motion\n        to: 'on'\n    actions:\n      - action: light.turn_on\n        target:\n          entity_id: light.hallway",
     "must_contain_text": [
       "Questions to consider",
-      "not needed"
+      "No follow-up questions right now."
+    ],
+    "must_not_contain_text": [
+      "R-19",
+      "R19"
     ],
     "section_order": [
       "Review target",
@@ -59,18 +77,25 @@
       "Conflicts",
       "Questions to consider",
       "Suggestions",
-      "Summary"
+      "Summary",
+      "Instant help"
     ],
     "max_duration_sec": 240
   },
   {
     "id": "review-r19-bare-else-trigger-flagged",
-    "prompt": "Use ha nova review skill on this pasted YAML only. Explain the result in English. Keep the stable single-target review structure. If you detect the issue, include these exact phrases: final else branch is only reached when the earlier entity-state branches are false. Move the `trigger.id` check into an explicit `elif`. Or refactor to `choose` + `condition: trigger`. YAML: automation:\n  - alias: Review R19 flagged\n    triggers:\n      - trigger: state\n        entity_id: person.a\n        to: home\n        id: person_a_arrived\n      - trigger: time\n        at: '00:00:00'\n        id: midnight_fallback\n    actions:\n      - choose:\n          - conditions:\n              - condition: template\n                value_template: >\n                  {% set home_a = is_state('person.a', 'home') %}\n                  {% set home_b = is_state('person.b', 'home') %}\n                  {% if home_a and home_b %}\n                    {{ states('sensor.metric') | float(0) < 20 }}\n                  {% elif home_a %}\n                    {{ states('sensor.metric_a') | float(0) < 18 }}\n                  {% elif home_b %}\n                    {{ states('sensor.metric_b') | float(0) < 22 }}\n                  {% else %}\n                    {{ trigger.id == 'midnight_fallback' }}\n                  {% endif %}\n            sequence:\n              - action: climate.set_temperature\n                target:\n                  entity_id: climate.living_room\n                data:\n                  temperature: 20",
+    "prompt": "Use ha nova review skill on this pasted YAML only. Explain the result in English. Keep the stable single-target review structure. If you detect the issue, include these exact phrases: final else branch is only reached when the earlier entity-state branches are false. Move the `trigger.id` check into an explicit `elif`. Or refactor to `choose` + `condition: trigger`. Do not use internal rule codes in the user-facing text. YAML: automation:\n  - alias: Review trigger fallback flagged\n    triggers:\n      - trigger: state\n        entity_id: person.a\n        to: home\n        id: person_a_arrived\n      - trigger: time\n        at: '00:00:00'\n        id: midnight_fallback\n    actions:\n      - choose:\n          - conditions:\n              - condition: template\n                value_template: >\n                  {% set home_a = is_state('person.a', 'home') %}\n                  {% set home_b = is_state('person.b', 'home') %}\n                  {% if home_a and home_b %}\n                    {{ states('sensor.metric') | float(0) < 20 }}\n                  {% elif home_a %}\n                    {{ states('sensor.metric_a') | float(0) < 18 }}\n                  {% elif home_b %}\n                    {{ states('sensor.metric_b') | float(0) < 22 }}\n                  {% else %}\n                    {{ trigger.id == 'midnight_fallback' }}\n                  {% endif %}\n            sequence:\n              - action: climate.set_temperature\n                target:\n                  entity_id: climate.living_room\n                data:\n                  temperature: 20",
     "must_contain_text": [
       "Findings",
+      "Why:",
+      "Fix:",
       "final else branch is only reached when the earlier entity-state branches are false",
       "Move the `trigger.id` check into an explicit `elif`",
       "Or refactor to `choose` + `condition: trigger`"
+    ],
+    "must_not_contain_text": [
+      "R-19",
+      "R19"
     ],
     "section_order": [
       "Review target",
@@ -79,19 +104,22 @@
       "Conflicts",
       "Questions to consider",
       "Suggestions",
-      "Summary"
+      "Summary",
+      "Instant help"
     ],
     "max_duration_sec": 240
   },
   {
     "id": "review-r19-safe-single-if-else",
-    "prompt": "Use ha nova review skill on this pasted YAML only. Explain the result in English. Keep the stable single-target review structure. If there is no R-19 risk, include both exact substrings: No R-19 risk detected. single if else. YAML: automation:\n  - alias: Review R19 safe single if else\n    triggers:\n      - trigger: time\n        at: '23:00:00'\n        id: nightly_check\n    actions:\n      - choose:\n          - conditions:\n              - condition: template\n                value_template: >\n                  {% if is_state('person.a', 'home') %}\n                    {{ true }}\n                  {% else %}\n                    {{ trigger.id == 'nightly_check' }}\n                  {% endif %}\n            sequence:\n              - action: light.turn_on\n                target:\n                  entity_id: light.hallway",
+    "prompt": "Use ha nova review skill on this pasted YAML only. Explain the result in English. Keep the stable single-target review structure. If the config is safe, include both exact substrings: No issues found in this review. Safe pattern: single if else. Do not use internal rule codes in the user-facing text. YAML: automation:\n  - alias: Review safe single if else\n    mode: single\n    triggers:\n      - trigger: time\n        at: '23:00:00'\n        id: nightly_check\n    actions:\n      - choose:\n          - conditions:\n              - condition: template\n                value_template: >\n                  {% if is_state('person.a', 'home') %}\n                    {{ true }}\n                  {% else %}\n                    {{ trigger.id == 'nightly_check' }}\n                  {% endif %}\n            sequence:\n              - action: light.turn_on\n                target:\n                  entity_id: light.hallway\n        default: []",
     "must_contain_text": [
-      "No R-19 risk detected",
-      "single if else"
+      "No issues found in this review.",
+      "Safe pattern: single if else."
     ],
     "must_not_contain_text": [
-      "final else branch is only reached when the earlier entity-state branches are false"
+      "final else branch is only reached when the earlier entity-state branches are false",
+      "R-19",
+      "R19"
     ],
     "section_order": [
       "Review target",
@@ -100,19 +128,22 @@
       "Conflicts",
       "Questions to consider",
       "Suggestions",
-      "Summary"
+      "Summary",
+      "Instant help"
     ],
     "max_duration_sec": 240
   },
   {
     "id": "review-r19-safe-explicit-elif-trigger-id",
-    "prompt": "Use ha nova review skill on this pasted YAML only. Explain the result in English. Keep the stable single-target review structure. If there is no R-19 risk, include both exact substrings: No R-19 risk detected. explicit elif trigger id. YAML: automation:\n  - alias: Review R19 safe explicit elif trigger id\n    triggers:\n      - trigger: state\n        entity_id: person.a\n        to: home\n        id: person_a_arrived\n      - trigger: time\n        at: '00:00:00'\n        id: midnight_fallback\n    actions:\n      - choose:\n          - conditions:\n              - condition: template\n                value_template: >\n                  {% if is_state('person.a', 'home') %}\n                    {{ true }}\n                  {% elif trigger.id == 'midnight_fallback' %}\n                    {{ true }}\n                  {% else %}\n                    {{ false }}\n                  {% endif %}\n            sequence:\n              - action: light.turn_on\n                target:\n                  entity_id: light.hallway",
+    "prompt": "Use ha nova review skill on this pasted YAML only. Explain the result in English. Keep the stable single-target review structure. If the config is safe, include both exact substrings: No issues found in this review. Safe pattern: explicit elif trigger id. Do not use internal rule codes in the user-facing text. YAML: automation:\n  - alias: Review safe explicit elif trigger id\n    mode: single\n    triggers:\n      - trigger: state\n        entity_id: person.a\n        to: home\n        id: person_a_arrived\n      - trigger: time\n        at: '00:00:00'\n        id: midnight_fallback\n    actions:\n      - choose:\n          - conditions:\n              - condition: template\n                value_template: >\n                  {% if trigger.id == 'person_a_arrived' and is_state('person.a', 'home') %}\n                    {{ true }}\n                  {% elif trigger.id == 'midnight_fallback' %}\n                    {{ true }}\n                  {% else %}\n                    {{ false }}\n                  {% endif %}\n            sequence:\n              - action: light.turn_on\n                target:\n                  entity_id: light.hallway\n        default: []",
     "must_contain_text": [
-      "No R-19 risk detected",
-      "explicit elif trigger id"
+      "No issues found in this review.",
+      "Safe pattern: explicit elif trigger id."
     ],
     "must_not_contain_text": [
-      "final else branch is only reached when the earlier entity-state branches are false"
+      "final else branch is only reached when the earlier entity-state branches are false",
+      "R-19",
+      "R19"
     ],
     "section_order": [
       "Review target",
@@ -121,19 +152,22 @@
       "Conflicts",
       "Questions to consider",
       "Suggestions",
-      "Summary"
+      "Summary",
+      "Instant help"
     ],
     "max_duration_sec": 240
   },
   {
     "id": "review-r19-safe-else-extra-guard",
-    "prompt": "Use ha nova review skill on this pasted YAML only. Explain the result in English. Keep the stable single-target review structure. If there is no R-19 risk, include both exact substrings: No R-19 risk detected. else extra guard. YAML: automation:\n  - alias: Review R19 safe else extra guard\n    triggers:\n      - trigger: state\n        entity_id: person.a\n        to: home\n        id: person_a_arrived\n      - trigger: time\n        at: '00:00:00'\n        id: midnight_fallback\n    actions:\n      - choose:\n          - conditions:\n              - condition: template\n                value_template: >\n                  {% set home_a = is_state('person.a', 'home') %}\n                  {% if home_a %}\n                    {{ true }}\n                  {% elif is_state('person.b', 'home') %}\n                    {{ false }}\n                  {% else %}\n                    {{ trigger.id == 'midnight_fallback' and is_state('binary_sensor.guard', 'on') }}\n                  {% endif %}\n            sequence:\n              - action: light.turn_on\n                target:\n                  entity_id: light.hallway",
+    "prompt": "Use ha nova review skill on this pasted YAML only. Explain the result in English. Keep the stable single-target review structure. If the config is safe, include both exact substrings: No issues found in this review. Safe pattern: else extra guard. Do not use internal rule codes in the user-facing text. YAML: automation:\n  - alias: Review safe else extra guard\n    mode: single\n    triggers:\n      - trigger: state\n        entity_id: person.a\n        to: home\n        id: person_a_arrived\n      - trigger: time\n        at: '00:00:00'\n        id: midnight_fallback\n    actions:\n      - choose:\n          - conditions:\n              - condition: template\n                value_template: >\n                  {% set home_a = is_state('person.a', 'home') %}\n                  {% if trigger.id == 'person_a_arrived' and home_a %}\n                    {{ true }}\n                  {% elif is_state('person.b', 'home') %}\n                    {{ false }}\n                  {% else %}\n                    {{ trigger.id == 'midnight_fallback' and is_state('binary_sensor.guard', 'on') }}\n                  {% endif %}\n            sequence:\n              - action: light.turn_on\n                target:\n                  entity_id: light.hallway\n        default: []",
     "must_contain_text": [
-      "No R-19 risk detected",
-      "else extra guard"
+      "No issues found in this review.",
+      "Safe pattern: else extra guard."
     ],
     "must_not_contain_text": [
-      "final else branch is only reached when the earlier entity-state branches are false"
+      "final else branch is only reached when the earlier entity-state branches are false",
+      "R-19",
+      "R19"
     ],
     "section_order": [
       "Review target",
@@ -142,19 +176,22 @@
       "Conflicts",
       "Questions to consider",
       "Suggestions",
-      "Summary"
+      "Summary",
+      "Instant help"
     ],
     "max_duration_sec": 240
   },
   {
     "id": "review-r19-safe-mode-selector-tree",
-    "prompt": "Use ha nova review skill on this pasted YAML only. Explain the result in English. Keep the stable single-target review structure. If there is no R-19 risk, include both exact substrings: No R-19 risk detected. mode selector tree. YAML: automation:\n  - alias: Review R19 safe\n    triggers:\n      - trigger: state\n        entity_id: input_select.house_mode\n        id: mode_changed\n      - trigger: time\n        at: '23:00:00'\n        id: default_trigger\n    actions:\n      - choose:\n          - conditions:\n              - condition: template\n                value_template: >\n                  {% set mode = states('input_select.house_mode') %}\n                  {% if mode == 'party' %}\n                    {{ trigger.id == 'mode_changed' }}\n                  {% elif mode == 'sleep' %}\n                    {{ trigger.id == 'mode_changed' }}\n                  {% else %}\n                    {{ trigger.id == 'default_trigger' }}\n                  {% endif %}\n            sequence:\n              - action: light.turn_on\n                target:\n                  entity_id: light.hallway",
+    "prompt": "Use ha nova review skill on this pasted YAML only. Explain the result in English. Keep the stable single-target review structure. If the config is safe, include both exact substrings: No issues found in this review. Safe pattern: mode selector tree. Do not use internal rule codes in the user-facing text. YAML: automation:\n  - alias: Review safe mode selector tree\n    mode: single\n    triggers:\n      - trigger: state\n        entity_id: input_select.house_mode\n        to: party\n        id: party_mode\n      - trigger: state\n        entity_id: input_select.house_mode\n        to: sleep\n        id: sleep_mode\n      - trigger: time\n        at: '23:00:00'\n        id: default_trigger\n    actions:\n      - choose:\n          - conditions:\n              - condition: template\n                value_template: >\n                  {% set mode = states('input_select.house_mode') %}\n                  {% if mode == 'party' %}\n                    {{ trigger.id == 'party_mode' }}\n                  {% elif mode == 'sleep' %}\n                    {{ trigger.id == 'sleep_mode' }}\n                  {% else %}\n                    {{ trigger.id == 'default_trigger' }}\n                  {% endif %}\n            sequence:\n              - action: light.turn_on\n                target:\n                  entity_id: light.hallway\n        default: []",
     "must_contain_text": [
-      "No R-19 risk detected",
-      "mode selector tree"
+      "No issues found in this review.",
+      "Safe pattern: mode selector tree."
     ],
     "must_not_contain_text": [
-      "final else branch is only reached when the earlier entity-state branches are false"
+      "final else branch is only reached when the earlier entity-state branches are false",
+      "R-19",
+      "R19"
     ],
     "section_order": [
       "Review target",
@@ -163,19 +200,22 @@
       "Conflicts",
       "Questions to consider",
       "Suggestions",
-      "Summary"
+      "Summary",
+      "Instant help"
     ],
     "max_duration_sec": 240
   },
   {
     "id": "review-r19-safe-numeric-range-selector-tree",
-    "prompt": "Use ha nova review skill on this pasted YAML only. Explain the result in English. Keep the stable single-target review structure. If there is no R-19 risk, include both exact substrings: No R-19 risk detected. numeric range selector tree. YAML: automation:\n  - alias: Review R19 safe numeric range selector tree\n    triggers:\n      - trigger: state\n        entity_id: sensor.garden_temp\n        id: temp_changed\n      - trigger: time\n        at: '05:30:00'\n        id: dawn_fallback\n    actions:\n      - choose:\n          - conditions:\n              - condition: template\n                value_template: >\n                  {% set temp = states('sensor.garden_temp') | float(0) %}\n                  {% if temp < 5 %}\n                    {{ trigger.id == 'temp_changed' }}\n                  {% elif temp < 18 %}\n                    {{ trigger.id == 'temp_changed' }}\n                  {% else %}\n                    {{ trigger.id == 'dawn_fallback' }}\n                  {% endif %}\n            sequence:\n              - action: switch.turn_on\n                target:\n                  entity_id: switch.heater",
+    "prompt": "Use ha nova review skill on this pasted YAML only. Explain the result in English. Keep the stable single-target review structure. If the config is safe, include both exact substrings: No issues found in this review. Safe pattern: numeric range selector tree. Do not use internal rule codes in the user-facing text. YAML: automation:\n  - alias: Review safe numeric range selector tree\n    mode: single\n    triggers:\n      - trigger: numeric_state\n        entity_id: sensor.garden_temp\n        below: 5\n        id: temp_cold\n      - trigger: numeric_state\n        entity_id: sensor.garden_temp\n        above: 5\n        below: 18\n        id: temp_mild\n      - trigger: time\n        at: '05:30:00'\n        id: dawn_fallback\n    actions:\n      - choose:\n          - conditions:\n              - condition: template\n                value_template: >\n                  {% set raw_temp = states('sensor.garden_temp') %}\n                  {% if not is_number(raw_temp) %}\n                    {{ false }}\n                  {% else %}\n                    {% set temp = raw_temp | float %}\n                    {% if temp < 5 %}\n                      {{ trigger.id == 'temp_cold' }}\n                    {% elif temp < 18 %}\n                      {{ trigger.id == 'temp_mild' }}\n                    {% else %}\n                      {{ trigger.id == 'dawn_fallback' }}\n                    {% endif %}\n                  {% endif %}\n            sequence:\n              - action: switch.turn_on\n                target:\n                  entity_id: switch.heater\n        default: []",
     "must_contain_text": [
-      "No R-19 risk detected",
-      "numeric range selector tree"
+      "No issues found in this review.",
+      "Safe pattern: numeric range selector tree."
     ],
     "must_not_contain_text": [
-      "final else branch is only reached when the earlier entity-state branches are false"
+      "final else branch is only reached when the earlier entity-state branches are false",
+      "R-19",
+      "R19"
     ],
     "section_order": [
       "Review target",
@@ -184,19 +224,22 @@
       "Conflicts",
       "Questions to consider",
       "Suggestions",
-      "Summary"
+      "Summary",
+      "Instant help"
     ],
     "max_duration_sec": 240
   },
   {
     "id": "review-r19-safe-time-window-selector-tree",
-    "prompt": "Use ha nova review skill on this pasted YAML only. Explain the result in English. Keep the stable single-target review structure. If there is no R-19 risk, include both exact substrings: No R-19 risk detected. time window selector tree. YAML: automation:\n  - alias: Review R19 safe time window selector tree\n    triggers:\n      - trigger: time_pattern\n        minutes: '/15'\n        id: periodic_tick\n      - trigger: time\n        at: '22:30:00'\n        id: night_fallback\n    actions:\n      - choose:\n          - conditions:\n              - condition: template\n                value_template: >\n                  {% set hour = now().hour %}\n                  {% if hour < 6 %}\n                    {{ trigger.id == 'periodic_tick' }}\n                  {% elif hour < 22 %}\n                    {{ trigger.id == 'periodic_tick' }}\n                  {% else %}\n                    {{ trigger.id == 'night_fallback' }}\n                  {% endif %}\n            sequence:\n              - action: light.turn_on\n                target:\n                  entity_id: light.path",
+    "prompt": "Use ha nova review skill on this pasted YAML only. Explain the result in English. Keep the stable single-target review structure. If the config is safe, include both exact substrings: No issues found in this review. Safe pattern: time window selector tree. Do not use internal rule codes in the user-facing text. YAML: automation:\n  - alias: Review safe time window selector tree\n    mode: single\n    triggers:\n      - trigger: time_pattern\n        minutes: '/15'\n        id: periodic_tick\n      - trigger: time\n        at: '22:30:00'\n        id: night_fallback\n    actions:\n      - choose:\n          - conditions:\n              - condition: template\n                value_template: >\n                  {% set hour = now().hour %}\n                  {% if hour < 6 %}\n                    {{ trigger.id == 'periodic_tick' }}\n                  {% elif hour < 22 %}\n                    {{ trigger.id == 'periodic_tick' }}\n                  {% else %}\n                    {{ trigger.id == 'night_fallback' }}\n                  {% endif %}\n            sequence:\n              - action: light.turn_on\n                target:\n                  entity_id: light.path\n        default: []",
     "must_contain_text": [
-      "No R-19 risk detected",
-      "time window selector tree"
+      "No issues found in this review.",
+      "Safe pattern: time window selector tree."
     ],
     "must_not_contain_text": [
-      "final else branch is only reached when the earlier entity-state branches are false"
+      "final else branch is only reached when the earlier entity-state branches are false",
+      "R-19",
+      "R19"
     ],
     "section_order": [
       "Review target",
@@ -205,19 +248,22 @@
       "Conflicts",
       "Questions to consider",
       "Suggestions",
-      "Summary"
+      "Summary",
+      "Instant help"
     ],
     "max_duration_sec": 240
   },
   {
     "id": "review-r19-safe-choose-condition-trigger",
-    "prompt": "Use ha nova review skill on this pasted YAML only. Explain the result in English. Keep the stable single-target review structure. If there is no R-19 risk, include both exact substrings: No R-19 risk detected. choose condition trigger routing. YAML: automation:\n  - alias: Review R19 safe choose condition trigger routing\n    triggers:\n      - trigger: state\n        entity_id: person.a\n        to: home\n        id: person_a_arrived\n      - trigger: time\n        at: '00:00:00'\n        id: midnight_fallback\n    actions:\n      - choose:\n          - conditions:\n              - condition: trigger\n                id: person_a_arrived\n            sequence:\n              - action: light.turn_on\n                target:\n                  entity_id: light.hallway\n          - conditions:\n              - condition: trigger\n                id: midnight_fallback\n            sequence:\n              - action: light.turn_off\n                target:\n                  entity_id: light.hallway",
+    "prompt": "Use ha nova review skill on this pasted YAML only. Explain the result in English. Keep the stable single-target review structure. If the config is safe, include both exact substrings: No issues found in this review. Safe pattern: choose condition trigger routing. Do not use internal rule codes in the user-facing text. YAML: automation:\n  - alias: Review safe choose condition trigger routing\n    mode: single\n    triggers:\n      - trigger: state\n        entity_id: person.a\n        to: home\n        id: person_a_arrived\n      - trigger: time\n        at: '00:00:00'\n        id: midnight_fallback\n    actions:\n      - choose:\n          - conditions:\n              - condition: trigger\n                id: person_a_arrived\n            sequence:\n              - action: light.turn_on\n                target:\n                  entity_id: light.hallway\n          - conditions:\n              - condition: trigger\n                id: midnight_fallback\n            sequence:\n              - action: light.turn_off\n                target:\n                  entity_id: light.hallway\n        default: []",
     "must_contain_text": [
-      "No R-19 risk detected",
-      "choose condition trigger routing"
+      "No issues found in this review.",
+      "Safe pattern: choose condition trigger routing."
     ],
     "must_not_contain_text": [
-      "final else branch is only reached when the earlier entity-state branches are false"
+      "final else branch is only reached when the earlier entity-state branches are false",
+      "R-19",
+      "R19"
     ],
     "section_order": [
       "Review target",
@@ -226,7 +272,8 @@
       "Conflicts",
       "Questions to consider",
       "Suggestions",
-      "Summary"
+      "Summary",
+      "Instant help"
     ],
     "max_duration_sec": 240
   }

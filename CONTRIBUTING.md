@@ -42,7 +42,7 @@ Canonical verify entrypoints:
 - `npm run verify:release-contracts`
 - `npm run verify`
 
-Implementation detail: `npm run verify` uses `test:safe:core` between the docs and onboarding slices so those owned contract tests do not rerun twice. `test:safe:core` is a closed allowlist in `scripts/test/safe-core-files.json`, and `npm run verify:onboarding` starts with `npm run verify:installers` so the committed public installers cannot drift away from `scripts/install-src/`.
+Implementation detail: `npm run verify` uses `test:safe:core` between the docs and onboarding slices so those owned contract tests do not rerun twice. `test:safe:core` is a closed allowlist in `scripts/test/safe-core-files.json`, and `npm run verify:onboarding` starts with `npm run verify:installers` so the committed public installers are checked directly before the wider onboarding contract slice runs.
 
 ## Architecture Boundaries
 

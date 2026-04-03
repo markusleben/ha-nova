@@ -133,6 +133,7 @@ Fallback:
 - Suggestion synthesis: standalone single-target review splits uncertainty into **Questions to consider** and keeps only confident recommendations in **Suggestions**
 - Remove/simplify ideas pass a design-intent gate before they can become confident suggestions
 - Confident suggestions are ranked by intervention depth: fix existing → simplify existing → extend existing → add new
+- User-facing review text never shows internal rule codes; findings use a short descriptive title plus `Why` and `Fix`, and clean states stay generic
 - `R-17` is intra-config only; collision scan stays cross-item conflict work, not overwrite/rebound detection
 - `R-18` is same-mapping only; it checks storage-sensitive sibling-variable references inside one `variables:` block, not cross-scope references
 - `R-19` is branch-structure reachability only; it covers direct `trigger.id` checks in a terminal bare `else` after entity-state `if` / `elif` guards, without intent inference
@@ -259,9 +260,10 @@ After any mutation (automation, script, or helper):
    Focus on 🔴 findings. Report 🟠🟡 findings as advisory.
 3. Collision scan: `search/related` for top target entities, max 3 related configs (standalone review uses max 5)
 4. Output format (MUST appear in every post-write response) — localize headings per `skills/ha-nova/SKILL.md` → Output Localization:
-   - **Findings**: 🔴🟠🟡 findings with descriptive titles + fix suggestions, or localized "no issues found"
-   - **Collision check**: conflicts or localized "no conflicts"
-   - **Advisory**: 🟠🟡 findings, or omit if none
+   - **Findings**: 🔴🟠🟡 findings with short descriptive titles plus `Why` / `Fix`, or the localized equivalent of "No issues found in this review."
+   - **Collision check**: conflicts, or the localized equivalent of "No related items found." when the scan found none, or "No conflicts found." when related items were checked without a collision risk.
+   - **Advisory**: 🟠🟡 findings, or the localized equivalent of "No additional advisories."
+   - Do not emit `Questions to consider`, `Suggestions`, or `Instant help` in post-write mode.
 
 ## Adding a New Skill — Checklist
 

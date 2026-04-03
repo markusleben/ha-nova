@@ -13,7 +13,7 @@ Purpose: post-write quality review and standalone automation/script/helper analy
   - automation/script: full config JSON (from apply read-back or fresh read)
   - helper (storage-based family): helper config/list item
   - helper (config-entry family): canonical metadata item (`entry_id`, `domain`, `title`, `state`, `linked_entities[]`)
-- `{MODE}`: `post-write` or `standalone`
+- `{MODE}`: `post-write` or `standalone` (`standalone` here means the single-target agent handoff, never bulk mode)
 
 ## Hard Scope
 
@@ -123,7 +123,7 @@ For standalone automation/script reviews:
 - emit at most 3 non-binding prompts
 - no severity emojis
 - no internal check codes
-- if no complexity gate matches, keep the Questions to consider section and mark it as localized "not needed"
+- if no complexity gate matches, keep the Questions to consider section and mark it as the localized equivalent of "No follow-up questions right now."
 
 For standalone remove/simplify ideas:
 - treat existing logic as deliberate until the current review context justifies its purpose
@@ -139,6 +139,7 @@ After the design-intent gate, rank confident suggestions by intervention depth:
 Rules:
 - dedupe overlapping ideas
 - cap confident suggestions at 4
+- when the same verified problem supports both a smaller direct fix and a larger optional monitoring/fallback addition, include both and keep the smaller fix first
 - do not place watchdog/new-component ideas above a smaller root-cause fix
 
 ### Known Safe/Problem Patterns
@@ -147,11 +148,11 @@ See `skills/review/checks.md` → Known Safe Patterns / Known Problem Patterns f
 
 ## Output Format
 
-This agent is for single-target review only. Ignore the standalone bulk-review mode from `skills/review/SKILL.md`.
+This agent is for single-target review only. Ignore the separate bulk-review mode. Ignore the standalone bulk-review mode from `skills/review/SKILL.md`.
 
 Localize per `skills/ha-nova/SKILL.md` → Output Localization.
 
-If `{MODE}` is `standalone`, follow the single-target output format from `skills/review/SKILL.md`, minus the Instant Help section:
+If `{MODE}` is `standalone`, follow the single-target standalone output format from `skills/review/SKILL.md`:
 - Section 1 — Review target
 - Section 2 — Findings
 - Section 3 — Collision check
@@ -159,11 +160,15 @@ If `{MODE}` is `standalone`, follow the single-target output format from `skills
 - Section 5 — Questions to consider
 - Section 6 — Suggestions
 - Section 7 — Summary
+- Section 8 — Instant help
+Keep the findings microformat aligned with `skills/review/SKILL.md`: severity emoji + short title, then `Why:` and `Fix:` lines. Do not introduce separate wording rules here.
 
 If `{MODE}` is `post-write`, stay compact and aligned with the post-write contract:
-- Section 1 — Review target (`mode: post-write`)
-- Section 2 — Findings
-- Section 3 — Collision check
-- Section 4 — Advisory
+- Section 1 — Findings
+- Section 2 — Collision check
+- Section 3 — Advisory
+- If the collision scan found no related items, use the localized equivalent of "No related items found."
+- If related items were checked and no collision risk remains, use the localized equivalent of "No conflicts found."
+- If Advisory is empty, use the localized equivalent of "No additional advisories."
 
 Do not emit Questions to consider or ranked standalone Suggestions in post-write mode.

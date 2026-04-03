@@ -24,17 +24,31 @@ require_cmd() {
   command -v "$cmd" >/dev/null 2>&1 || die "Required command not found: ${cmd}"
 }
 
+contains_rule_code_marker() {
+  local text="$1"
+
+  printf '%s\n' "$text" | grep -Eiq '(^|[^[:alnum:]_.])([SRPMFH])-[0-9]{2}($|[^[:alnum:]_])|(^|[^[:alnum:]_.])([SRPMFH])[0-9]+($|[^[:alnum:]_])'
+}
+
 normalize_jsonl_transcript() {
   local input_file="$1"
 
   python3 - "$input_file" <<'PY'
 import json
+import re
 import sys
 
 with open(sys.argv[1], encoding="utf-8") as handle:
     for lineno, raw_line in enumerate(handle, start=1):
         line = raw_line.strip()
         if not line:
+            continue
+        if line == "Reading additional input from stdin...":
+            continue
+        if re.match(
+            r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z ERROR codex_core::tools::router: error=write_stdin failed: stdin is closed for this session; rerun exec_command with tty=true to keep stdin open$",
+            line,
+        ):
             continue
         try:
             event = json.loads(line)
@@ -88,6 +102,12 @@ with scenario_log.open("w", encoding="utf-8") as log_file:
     except subprocess.TimeoutExpired:
         sys.exit(124)
 PY
+}
+
+log_has_transient_capacity_failure() {
+  local scenario_log="$1"
+
+  grep -Fq 'Selected model is at capacity. Please try a different model.' "$scenario_log" 2>/dev/null
 }
 
 wait_for_log_completion() {
@@ -189,23 +209,39 @@ Hard requirements:
 7. This is a real write-flow scenario. Create or replace exactly one disposable automation whose final config id is "${automation_id}".
 8. For this harness, prefer the deterministic automation id even if the normal write skill would otherwise generate a timestamp for a fresh create.
 9. Preview payload first; explicit confirmation is granted by this prompt.
-10. Do not delete the automation yourself; the harness will clean it up after the session.
-11. Do not modify repository files.
-12. After the normal user-facing result, include a ## Post-Write Review section that uses the exact labels "Findings" and "Collision check".
-13. End with exactly one final machine line on its own line:
+10. Do not run --help, dry-run probes, CLI shape checks, or fallback discovery commands. Use the repo-local skill contract directly.
+11. Do not retry the write flow with alternate commands after a failed attempt. Use one clean write path only.
+12. Do not delete the automation yourself; the harness will clean it up after the session.
+13. Do not modify repository files.
+14. After the normal user-facing result, include a ## Post-Write Review section that uses the exact labels "Findings", "Collision check", and "Advisory".
+15. If the Findings section has no items, print exactly: No issues found in this review.
+16. If the collision scan finds no related items, print exactly: No related items found.
+17. If the collision scan found related items but no real conflict remains after evaluation, print exactly: No conflicts found.
+18. If the Advisory section has no items, print exactly: No additional advisories.
+19. Do not repeat a Pre-write check line inside the post-write section. Do not duplicate the same item in both Findings and Advisory.
+20. End with exactly one final machine line on its own line:
     NOVA_WRITE_REVIEW_RESULT id=${scenario_id} automation_id=${automation_id} status=ok
-14. Use the canonical automation payload keys "triggers", "conditions", and "actions".
-15. Keep repo reads minimal. Load only the repo-local ha-nova / write skill material you actually need. Do not inspect unrelated tests, workflows, or release files.
-16. Before the apply step, include a ## Preview Payload section that shows the payload with the canonical keys.
-17. Before the apply step, print exactly one explicit prewrite verdict line:
-    - safe draft: PREWRITE CHECK: clean
-    - R-19 draft: PREWRITE CHECK: R-19 detected
-18. After the preview, immediately apply the write and then perform exactly these post-write checks in order: config read-back, automation reload, one target entity state read, one collision scan.
-19. Keep the collision-scan evidence explicit. The successful command block that runs \`ha-nova relay ws --data-file ...\` must also inline or create the \`search/related\` payload for the target entity in that same command block. Use one dedicated payload file for that collision scan command block, make the \`--data-file\` argument point to that same file, and write that payload file exactly once before the ws call. Do not hide the collision target only inside a previously prepared external file.
-20. After those checks, stop and print the final user-facing result, the ## Post-Write Review section, and the machine line. Do not emit extra messages after the machine line.
-21. Before the first HA action, read at most these repo-local files unless a write would otherwise fail: skills/ha-nova/SKILL.md, skills/write/SKILL.md, skills/review/checks.md, skills/ha-nova/payload-schemas.md.
-22. Do not read docs/reference/, tests/, workflows, or release files for this harness.
-23. Do not emit todo lists, meta progress updates, or extra planning summaries. Move directly from the minimal local reads to preview payload, explicit prewrite verdict, apply, ordered checks, final result, and machine line.
+21. Use the canonical automation payload keys "triggers", "conditions", and "actions".
+22. Keep repo reads minimal. Load only the repo-local ha-nova / write skill material you actually need. Do not inspect unrelated tests, workflows, or release files.
+23. Before the apply step, include exactly one ## Preview Payload section that shows the payload with the canonical keys. Do not print a second ## Preview Payload section. If you reconsider the draft, revise silently before sending the final answer.
+24. Before the apply step, print exactly one explicit prewrite verdict line:
+    - safe draft: Pre-write check: no issues worth flagging before save.
+    - flagged draft: Pre-write check: this draft may not behave as intended.
+25. After the preview, immediately apply the write and then perform exactly these post-write checks in order: config read-back, automation reload, one target entity state read, one collision scan.
+26. The one target entity state read must be a single GET to /api/states/input_boolean.mcp_stress_toggle.
+27. Keep the collision-scan evidence explicit. The successful command block that runs \`ha-nova relay ws --data-file ...\` must also inline or create the \`search/related\` payload for the target entity in that same command block. Use one dedicated payload file for that collision scan command block, make the \`--data-file\` argument point to that same file, and write that payload file exactly once before the ws call. Do not hide the collision target only inside a previously prepared external file.
+28. Do not include internal shorthand like R18 or R19 in preview aliases, descriptions, or any other user-facing names.
+29. In the final user-facing result, do not echo raw related automation ids, raw config ids, or other machine-like related-item identifiers from the collision scan. Summarize overlap in natural language or by count instead.
+30. Use this exact simple Relay sequence after the preview: one POST write with --body-file, one raw GET read-back for the same config path, one POST reload to /api/services/automation/reload, one raw GET state read to /api/states/input_boolean.mcp_stress_toggle, one ws collision scan with --data-file. Do not use /api/config/automation/reload. Do not add jq/jq-file filters, extra parsing helper steps, or alternate Relay variants.
+31. Use simple deterministic local filenames such as draft.json, readback.json, reload.json, state.json, and collision.json. Do not use mktemp.
+32. If you use inline Python to create local JSON payload files, use \`python3\` only. Do not use \`python\`.
+33. Any shell command block that contains the write flow must begin with \`set -e\` so a local prep error aborts before the write. Do not continue after a prep error and do not retry with a second write path.
+34. In user-facing text, never print tool-call syntax, JSON command envelopes, raw exec transcripts, or fragments like \`to=functions.exec_command\`, \`to=multi_tool_use.parallel\`, or \`{\"cmd\":...\` . The only allowed JSON in user-facing output is the fenced preview payload, plus the final machine line.
+35. The first agent message after the repo-local file reads must be the preview block plus the explicit prewrite verdict. Do not announce that the write is running before the preview is shown.
+36. After those checks, stop and print the final user-facing result, the ## Post-Write Review section, and the machine line. Do not emit extra messages after the machine line.
+37. Before the first HA action, read at most these repo-local files unless a write would otherwise fail: skills/ha-nova/SKILL.md, skills/write/SKILL.md, skills/review/checks.md, skills/ha-nova/payload-schemas.md.
+38. Do not read docs/reference/, tests/, workflows, or release files for this harness.
+39. Do not emit todo lists, meta progress updates, or extra planning summaries. Move directly from the minimal local reads to preview payload, explicit prewrite verdict, apply, ordered checks, final result, and machine line.
 EOF_PROMPT
 }
 
@@ -245,9 +281,42 @@ count_command_hits_before_index() {
 count_helper_script_exec_hits() {
   local scenario_log="$1"
 
-  count_command_hits \
-    "$scenario_log" \
-    '(^|[^[:alnum:]_./-])(\./)?scripts/(smoke|e2e|dev)/|\\b(bash|sh|zsh|python3?|node|bunx?|bun|tsx)\\b[^[:cntrl:]]*\\b(\./)?scripts/(smoke|e2e|dev)/'
+  python3 - "$scenario_log" <<'PY'
+import json
+import re
+import sys
+
+direct_re = re.compile(r'^(?:\./)?scripts/(?:smoke|e2e|dev)/\S+')
+shell_re = re.compile(
+    r'(?:^|[\s\'"`])(?:env(?:\s+[A-Za-z_][A-Za-z0-9_]*=\S+)*\s+)?(?:timeout\s+\S+\s+)?(?:\S*/)?(?:bash|sh|zsh|python3?|node|bunx?|bun|tsx)\b[^\n]*\b(?:\./)?scripts/(?:smoke|e2e|dev)/\S+'
+)
+
+count = 0
+
+with open(sys.argv[1], encoding="utf-8") as handle:
+    for raw_line in handle:
+        try:
+            event = json.loads(raw_line)
+        except json.JSONDecodeError:
+            continue
+        if event.get("type") != "item.completed":
+            continue
+        item = event.get("item") or {}
+        if item.get("type") != "command_execution":
+            continue
+        command = (item.get("command") or "").strip()
+        if not command:
+            continue
+        for segment in re.split(r'(?:&&|\|\||;|\n)', command):
+            segment = segment.strip()
+            if not segment:
+                continue
+            if direct_re.search(segment) or shell_re.search(segment):
+                count += 1
+                break
+
+print(count)
+PY
 }
 
 count_external_research_hits() {
@@ -262,6 +331,11 @@ count_external_research_hits() {
           (.type == "mcp_tool_call")
           or
           (.type == "web_search")
+        )
+      | select(
+          (.type != "web_search")
+          or
+          ((.query // "") | test("^time:\\s*\\{") | not)
         )
       | select(
           (.type == "web_search")
@@ -358,15 +432,23 @@ unexpected_events_after_final_message = 0
 first_write_idx = 0
 first_write_attempt_idx = 0
 first_write_pos = -1
+write_attempts = 0
+successful_write_attempts = 0
 write_hits = 0
 readback_after_write_key = None
 reload_after_write_key = None
 state_after_write_key = None
 collision_after_write_key = None
+readback_after_write_count = 0
+reload_after_write_count = 0
+wrong_reload_after_write_count = 0
+state_after_write_count = 0
+collision_after_write_count = 0
 
 post_pattern = re.compile(r'"method"\s*:\s*"POST"|(?:^|\s)-X\s+POST\b|--method(?:=|\s+)POST\b')
 get_pattern = re.compile(r'"method"\s*:\s*"GET"|(?:^|\s)-X\s+GET\b|--method(?:=|\s+)GET\b')
 reload_pattern = re.compile(r"/api/services/automation/reload")
+wrong_reload_pattern = re.compile(r"/api/config/automation/reload")
 state_target_pattern = re.compile(
     rf"/api/states/{re.escape(collision_item_id)}(?=$|[^A-Za-z0-9_])"
 ) if collision_item_id else re.compile(r"$^")
@@ -388,6 +470,9 @@ def first_pattern_pos_after(command: str, pattern: re.Pattern[str], min_pos: int
 def first_pattern_pos(command: str, pattern: re.Pattern[str]) -> int:
     match = pattern.search(command)
     return match.start() if match else -1
+
+def count_pattern_after(command: str, pattern: re.Pattern[str], min_pos: int) -> int:
+    return sum(1 for match in pattern.finditer(command) if match.start() > min_pos)
 
 def maybe_set_key(current, idx: int, pos: int):
     if pos < 0:
@@ -411,7 +496,7 @@ def command_segment_bounds(command: str, pos: int):
 
 def path_is_bound_to_arg(command: str, pos: int) -> bool:
     prefix = command[max(0, pos - 48):pos]
-    return bool(re.search(r"--path(?:=|\s+)['\"]?$", prefix))
+    return bool(re.search(r"--path(?:=|\s+)(?:\\?['\"])?$", prefix))
 
 def first_path_arg_operation_pos_after(command: str, positions: list[int], method_re: re.Pattern[str], min_pos: int):
     for pos in positions:
@@ -421,6 +506,16 @@ def first_path_arg_operation_pos_after(command: str, positions: list[int], metho
         if method_re.search(command[segment_start:segment_end]):
             return pos
     return -1
+
+def count_path_arg_operations_after(command: str, positions: list[int], method_re: re.Pattern[str], min_pos: int):
+    count = 0
+    for pos in positions:
+        if pos <= min_pos or not path_is_bound_to_arg(command, pos):
+            continue
+        segment_start, segment_end = command_segment_bounds(command, pos)
+        if method_re.search(command[segment_start:segment_end]):
+            count += 1
+    return count
 
 def extract_target_path_positions(command: str):
     literal_path_pattern = re.compile(
@@ -438,6 +533,14 @@ def extract_target_path_positions(command: str):
 
 def first_target_operation_pos_after(command: str, method_re: re.Pattern[str], min_pos: int):
     return first_path_arg_operation_pos_after(
+        command,
+        extract_target_path_positions(command),
+        method_re,
+        min_pos,
+    )
+
+def count_target_operations_after(command: str, method_re: re.Pattern[str], min_pos: int):
+    return count_path_arg_operations_after(
         command,
         extract_target_path_positions(command),
         method_re,
@@ -463,14 +566,23 @@ def normalize_ref(token: str) -> str:
 
 def extract_state_target_positions(command: str):
     positions = [match.start() for match in state_target_pattern.finditer(command)]
-    for match in re.finditer(rf"\b([A-Za-z_][A-Za-z0-9_]*)=(['\"]?){re.escape(collision_item_id)}\2", command):
-        var_name = match.group(1)
-        ref_pattern = re.compile(rf"/api/states/\$\{{?{re.escape(var_name)}\}}?(?=$|[^A-Za-z0-9_])")
-        positions.extend(ref_match.start() for ref_match in ref_pattern.finditer(command))
+    if collision_item_id:
+        for match in re.finditer(rf"\b([A-Za-z_][A-Za-z0-9_]*)=(['\"]?){re.escape(collision_item_id)}\2", command):
+            var_name = match.group(1)
+            ref_pattern = re.compile(rf"/api/states/\$\{{?{re.escape(var_name)}\}}?(?=$|[^A-Za-z0-9_])")
+            positions.extend(ref_match.start() for ref_match in ref_pattern.finditer(command))
     return sorted(set(positions))
 
 def first_state_target_pos_after(command: str, min_pos: int):
     return first_path_arg_operation_pos_after(
+        command,
+        extract_state_target_positions(command),
+        get_pattern,
+        min_pos,
+    )
+
+def count_state_target_operations_after(command: str, min_pos: int):
+    return count_path_arg_operations_after(
         command,
         extract_state_target_positions(command),
         get_pattern,
@@ -522,23 +634,113 @@ def first_ws_data_file_ref_after(command: str, min_pos: int):
         ws_segment = command[ws_match.start():segment_end]
         data_file_match = re.search(r'--data-file(?:=|\s+)([^\s;]+)', ws_segment)
         if data_file_match:
-            return ws_match.start(), normalize_ref(data_file_match.group(1))
-        return ws_match.start(), ""
-    return -1, ""
+            return ws_match.start(), normalize_ref(data_file_match.group(1)), idx
+        return ws_match.start(), "", idx
+    return -1, "", -1
+
+def collision_payload_ref_counts_for_ws(command: str, ws_matches, ws_idx: int):
+    context_start = ws_matches[ws_idx - 1].end() if ws_idx > 0 else 0
+    ws_pos = ws_matches[ws_idx].start()
+    return extract_collision_payload_ref_counts_before(command[context_start:], ws_pos - context_start)
+
+def count_data_file_ref_mentions(text: str, data_file_ref: str):
+    if not data_file_ref:
+        return 0
+    if "/" in data_file_ref or "." in data_file_ref:
+        return text.count(data_file_ref)
+
+    patterns = [
+        rf"\b{re.escape(data_file_ref)}\b",
+        rf"\${re.escape(data_file_ref)}\b",
+        rf"\$\{{{re.escape(data_file_ref)}\}}",
+    ]
+    return sum(len(re.findall(pattern, text)) for pattern in patterns)
+
+def command_has_visible_collision_payload_context_for_ref(command: str, ws_matches, ws_idx: int, data_file_ref: str):
+    context_start = ws_matches[ws_idx - 1].end() if ws_idx > 0 else 0
+    ws_pos = ws_matches[ws_idx].start()
+    context_before_ws = command[context_start:ws_pos]
+
+    if not collision_item_id or collision_item_id not in context_before_ws:
+        return False
+    if not collision_pattern.search(context_before_ws):
+        return False
+    if not data_file_ref:
+        return False
+
+    ref_counts = collision_payload_ref_counts_for_ws(command, ws_matches, ws_idx)
+    if ref_counts.get(data_file_ref, 0) > 0:
+        return True
+
+    # Shell blocks sometimes echo the exact data-file ref near the payload write; accept
+    # that only when the same ref is visibly present in the collision-payload context.
+    return count_data_file_ref_mentions(context_before_ws, data_file_ref) > 0
 
 def first_collision_scan_pos_after(command: str, min_pos: int):
-    ws_pos, data_file_ref = first_ws_data_file_ref_after(command, min_pos)
+    ws_pos, data_file_ref, ws_idx = first_ws_data_file_ref_after(command, min_pos)
     if ws_pos < 0:
         return -1
 
     # The proof must stay inside one successful command block: the same command that
     # executes `ha-nova relay ws --data-file ...` must also show the visible collision
     # payload context for the target entity.
-    visible_payload_ref_counts = extract_collision_payload_ref_counts_before(command, ws_pos)
-    visible_payload_refs = set(visible_payload_ref_counts)
-    if data_file_ref and len(visible_payload_refs) == 1 and visible_payload_ref_counts.get(data_file_ref) == 1:
+    ws_matches = list(relay_ws_pattern.finditer(command))
+    if command_has_visible_collision_payload_context_for_ref(command, ws_matches, ws_idx, data_file_ref):
         return ws_pos
     return -1
+
+def count_collision_scans_after(command: str, min_pos: int):
+    count = 0
+    ws_matches = list(relay_ws_pattern.finditer(command))
+    for idx, ws_match in enumerate(ws_matches):
+        if ws_match.start() <= min_pos:
+            continue
+        segment_start, segment_end = command_segment_bounds(command, ws_match.start())
+        segment = command[segment_start:segment_end]
+        ws_offset = ws_match.start() - segment_start
+        next_ws_offset = ws_matches[idx + 1].start() - segment_start if idx + 1 < len(ws_matches) and ws_matches[idx + 1].start() < segment_end else len(segment)
+        ws_segment = segment[ws_offset:next_ws_offset]
+        data_file_match = re.search(r'--data-file(?:=|\s+)([^\s;]+)', ws_segment)
+        if not data_file_match:
+            continue
+        data_file_ref = normalize_ref(data_file_match.group(1))
+        if command_has_visible_collision_payload_context_for_ref(command, ws_matches, idx, data_file_ref):
+            count += 1
+    return count
+
+def normalize_postwrite_item(line: str):
+    line = line.strip()
+    if not line:
+        return ""
+    line = re.sub(r"^[-*]\s+", "", line)
+    line = re.sub(r"^\d+\.\s+", "", line)
+    line = re.sub(r"^[🔴🟠🟡]\s*", "", line)
+    return re.sub(r"\s+", " ", line).strip().lower()
+
+def collect_postwrite_items(section_text: str, empty_markers):
+    items = []
+    for raw_line in section_text.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        if status_line_pattern.match(line):
+            continue
+        if line in empty_markers:
+            continue
+        if line.startswith("Why:") or line.startswith("Fix:"):
+            continue
+        normalized = normalize_postwrite_item(line)
+        if normalized:
+            items.append(normalized)
+    return items
+
+def strip_status_lines(text: str) -> str:
+    kept_lines = []
+    for raw_line in text.splitlines():
+        if status_line_pattern.match(raw_line.strip()):
+            continue
+        kept_lines.append(raw_line)
+    return "\n".join(kept_lines).strip()
 
 for idx, event in enumerate(events, start=1):
     item = event.get("item") or {}
@@ -555,39 +757,51 @@ for idx, event in enumerate(events, start=1):
         if first_write_attempt_idx == 0:
             pre_messages.append(text)
         else:
-            post_messages.append(text)
+            stripped_text = strip_status_lines(text)
+            if stripped_text:
+                post_messages.append(stripped_text)
 
     if event.get("type") == "item.completed" and item.get("type") == "command_execution":
         command = collapse_shell_line_continuations(item.get("command") or "")
         exit_code = item.get("exit_code")
         write_attempt_pos = first_target_operation_pos_after(command, post_pattern, -1)
+        write_attempts += count_target_operations_after(command, post_pattern, -1)
         if write_attempt_pos >= 0 and first_write_attempt_idx == 0:
             first_write_attempt_idx = idx
         write_pos = write_attempt_pos
+        if write_pos >= 0 and first_write_idx == 0:
+            first_write_idx = idx
+            first_write_pos = write_pos
         if write_pos >= 0 and exit_code == 0:
+            successful_write_attempts += count_target_operations_after(command, post_pattern, -1)
             write_hits += 1
-            if first_write_idx == 0:
-                first_write_idx = idx
-                first_write_pos = write_pos
         if first_write_idx > 0 and exit_code == 0:
             if idx == first_write_idx:
+                readback_pos = first_target_operation_pos_after(command, get_pattern, first_write_pos)
+                readback_after_write_count += count_target_operations_after(command, get_pattern, first_write_pos)
                 readback_after_write_key = maybe_set_key(
                     readback_after_write_key,
                     idx,
-                    first_target_operation_pos_after(command, get_pattern, first_write_pos),
+                    readback_pos,
                 )
+                reload_pos = first_pattern_pos_after(command, reload_pattern, first_write_pos)
+                reload_after_write_count += count_pattern_after(command, reload_pattern, first_write_pos)
+                wrong_reload_after_write_count += count_pattern_after(command, wrong_reload_pattern, first_write_pos)
                 reload_after_write_key = maybe_set_key(
                     reload_after_write_key,
                     idx,
-                    first_pattern_pos_after(command, reload_pattern, first_write_pos),
+                    reload_pos,
                 )
                 if command_bound_to_state_target(command):
+                    state_pos = first_state_target_pos_after(command, first_write_pos)
+                    state_after_write_count += count_state_target_operations_after(command, first_write_pos)
                     state_after_write_key = maybe_set_key(
                         state_after_write_key,
                         idx,
-                        first_state_target_pos_after(command, first_write_pos),
+                        state_pos,
                     )
                 collision_pos = first_collision_scan_pos_after(command, first_write_pos)
+                collision_after_write_count += count_collision_scans_after(command, first_write_pos)
                 if collision_pos >= 0:
                     collision_after_write_key = maybe_set_key(
                         collision_after_write_key,
@@ -596,24 +810,31 @@ for idx, event in enumerate(events, start=1):
                     )
             else:
                 readback_pos = first_target_operation_pos_after(command, get_pattern, -1)
+                readback_after_write_count += count_target_operations_after(command, get_pattern, -1)
                 if readback_pos >= 0:
                     readback_after_write_key = maybe_set_key(
                         readback_after_write_key,
                         idx,
                         readback_pos,
                     )
+                reload_pos = first_pattern_pos(command, reload_pattern)
+                reload_after_write_count += count_pattern_after(command, reload_pattern, -1)
+                wrong_reload_after_write_count += count_pattern_after(command, wrong_reload_pattern, -1)
                 reload_after_write_key = maybe_set_key(
                     reload_after_write_key,
                     idx,
-                    first_pattern_pos(command, reload_pattern),
+                    reload_pos,
                 )
                 if command_bound_to_state_target(command):
+                    state_pos = first_state_target_pos_after(command, -1)
+                    state_after_write_count += count_state_target_operations_after(command, -1)
                     state_after_write_key = maybe_set_key(
                         state_after_write_key,
                         idx,
-                        first_state_target_pos_after(command, -1),
+                        state_pos,
                     )
                 collision_pos = first_collision_scan_pos_after(command, -1)
+                collision_after_write_count += count_collision_scans_after(command, -1)
                 if collision_pos >= 0:
                     collision_after_write_key = maybe_set_key(
                         collision_after_write_key,
@@ -632,10 +853,6 @@ for idx, event in enumerate(events, start=1):
     if event.get("type") != "turn.completed":
         unexpected_events_after_final_message += 1
 
-readback_after_write = 1 if readback_after_write_key else 0
-reload_after_write = 1 if reload_after_write_key else 0
-state_after_write = 1 if state_after_write_key else 0
-collision_after_write = 1 if collision_after_write_key else 0
 ordered_postwrite_verification = bool(
     readback_after_write_key
     and reload_after_write_key
@@ -647,21 +864,24 @@ ordered_postwrite_verification = bool(
 result = {
     "first_write_attempt_idx": first_write_attempt_idx,
     "first_write_idx": first_write_idx,
+    "write_attempts": write_attempts,
+    "successful_write_attempts": successful_write_attempts,
     "write_hits": write_hits,
     "prewrite_text": "\n\n".join([part for part in pre_messages if part]),
     "postwrite_text": "\n\n".join([part for part in post_messages if part]),
     "status_line": status_line,
     "status_line_count": status_line_count,
     "final_message_last_line": final_message_last_line,
-    "readback_after_write": readback_after_write,
-    "reload_after_write": reload_after_write,
-    "state_after_write": state_after_write,
-    "collision_after_write": collision_after_write,
+    "readback_after_write": readback_after_write_count,
+    "reload_after_write": reload_after_write_count,
+    "wrong_reload_after_write": wrong_reload_after_write_count,
+    "state_after_write": state_after_write_count,
+    "collision_after_write": collision_after_write_count,
     "ordered_postwrite_verification": ordered_postwrite_verification,
     "unexpected_events_after_final_message": unexpected_events_after_final_message,
 }
 preview_sections = re.findall(
-    r"## Preview Payload\b(.*?)(?=\nPREWRITE CHECK:|\n## |\Z)",
+    r"## Preview Payload\b(.*?)(?=\nPre-write check:|\n## |\Z)",
     result["prewrite_text"],
     re.DOTALL,
 )
@@ -670,6 +890,27 @@ result["preview_has_canonical_keys"] = (
     len(preview_sections) == 1
     and all(key in preview_sections[0] for key in ("triggers", "conditions", "actions"))
 )
+findings_match = re.search(
+    r"(?ms)^(?:##\s*)?Post-Write Review\s*\n.*?^\s*(?:#+\s*)?(?:\*\*)?Findings(?:\*\*)?\s*\n(.*?)^\s*(?:#+\s*)?(?:\*\*)?Collision check(?:\*\*)?\s*\n(.*?)^\s*(?:#+\s*)?(?:\*\*)?Advisory(?:\*\*)?\s*(?:\n(.*))?$",
+    result["postwrite_text"],
+)
+findings_text = findings_match.group(1).strip() if findings_match else ""
+collision_text = findings_match.group(2).strip() if findings_match else ""
+advisory_text = findings_match.group(3).strip() if findings_match and findings_match.group(3) else ""
+findings_items = collect_postwrite_items(findings_text, {"No issues found in this review."})
+collision_items = collect_postwrite_items(collision_text, {"No related items found.", "No conflicts found."})
+advisory_items = collect_postwrite_items(advisory_text, {"No additional advisories."})
+result["duplicate_findings_advisory_items"] = sorted(set(findings_items) & set(advisory_items))
+result["postwrite_repeats_prewrite_verdict"] = "Pre-write check:" in result["postwrite_text"]
+result["findings_has_empty_state"] = "No issues found in this review." in findings_text
+result["findings_requires_empty_state"] = bool(findings_match and not findings_items)
+result["collision_has_empty_state"] = (
+    "No related items found." in collision_text or "No conflicts found." in collision_text
+)
+result["collision_requires_empty_state"] = bool(findings_match and not collision_items)
+result["advisory_has_empty_state"] = "No additional advisories." in advisory_text
+result["advisory_requires_empty_state"] = bool(findings_match and not advisory_items)
+result["postwrite_section_structure_valid"] = bool(findings_match)
 print(json.dumps(result))
 PY
 }
@@ -711,12 +952,24 @@ run_scenario() {
   local postwrite_text
   local first_write_attempt_idx
   local write_hits
+  local write_attempts
+  local successful_write_attempts
   local first_write_idx
   local readback_after_write
   local reload_after_write
+  local wrong_reload_after_write
   local state_after_write
   local collision_after_write
   local ordered_postwrite_verification
+  local duplicate_findings_advisory_items_count
+  local postwrite_repeats_prewrite_verdict
+  local findings_has_empty_state
+  local findings_requires_empty_state
+  local collision_has_empty_state
+  local collision_requires_empty_state
+  local advisory_has_empty_state
+  local advisory_requires_empty_state
+  local postwrite_section_structure_valid
   local unexpected_events_after_final_message
   local preview_section_count
   local preview_has_canonical_keys
@@ -724,14 +977,29 @@ run_scenario() {
   local onboarding_count
   local external_research_hits
   local shell_network_hits
+  local codex_attempt=1
 
   build_prompt_file "$scenario_id" "$scenario_prompt" "$automation_id" "$prompt_file"
 
   start_ts="$(date +%s)"
-  set +e
-  run_codex_with_timeout "$max_duration_sec" "$prompt_file" "$scenario_log"
-  codex_status="$?"
-  set -e
+  while true; do
+    set +e
+    run_codex_with_timeout "$max_duration_sec" "$prompt_file" "$scenario_log"
+    codex_status="$?"
+    set -e
+
+    if [[ "$codex_status" -eq 0 ]]; then
+      break
+    fi
+
+    if [[ "$codex_attempt" -ge 2 ]] || [[ ! -s "$scenario_log" ]] || ! log_has_transient_capacity_failure "$scenario_log"; then
+      break
+    fi
+
+    log "Retrying ${scenario_id} after transient model-capacity failure"
+    codex_attempt="$((codex_attempt + 1))"
+    sleep 2
+  done
   end_ts="$(date +%s)"
   duration_sec="$((end_ts - start_ts))"
 
@@ -785,6 +1053,8 @@ run_scenario() {
     extract_write_proof "$parsed_log" "$automation_id" "$collision_item_id" >"$analysis_json"
     first_write_attempt_idx="$(jq -r '.first_write_attempt_idx' "$analysis_json")"
     write_hits="$(jq -r '.write_hits' "$analysis_json")"
+    write_attempts="$(jq -r '.write_attempts' "$analysis_json")"
+    successful_write_attempts="$(jq -r '.successful_write_attempts' "$analysis_json")"
     first_write_idx="$(jq -r '.first_write_idx' "$analysis_json")"
     prewrite_text="$(jq -r '.prewrite_text' "$analysis_json")"
     postwrite_text="$(jq -r '.postwrite_text' "$analysis_json")"
@@ -793,9 +1063,19 @@ run_scenario() {
     final_message_last_line="$(jq -r '.final_message_last_line' "$analysis_json")"
     readback_after_write="$(jq -r '.readback_after_write' "$analysis_json")"
     reload_after_write="$(jq -r '.reload_after_write' "$analysis_json")"
+    wrong_reload_after_write="$(jq -r '.wrong_reload_after_write' "$analysis_json")"
     state_after_write="$(jq -r '.state_after_write' "$analysis_json")"
     collision_after_write="$(jq -r '.collision_after_write' "$analysis_json")"
     ordered_postwrite_verification="$(jq -r '.ordered_postwrite_verification' "$analysis_json")"
+    duplicate_findings_advisory_items_count="$(jq -r '.duplicate_findings_advisory_items | length' "$analysis_json")"
+    postwrite_repeats_prewrite_verdict="$(jq -r '.postwrite_repeats_prewrite_verdict' "$analysis_json")"
+    findings_has_empty_state="$(jq -r '.findings_has_empty_state' "$analysis_json")"
+    findings_requires_empty_state="$(jq -r '.findings_requires_empty_state' "$analysis_json")"
+    collision_has_empty_state="$(jq -r '.collision_has_empty_state' "$analysis_json")"
+    collision_requires_empty_state="$(jq -r '.collision_requires_empty_state' "$analysis_json")"
+    advisory_has_empty_state="$(jq -r '.advisory_has_empty_state' "$analysis_json")"
+    advisory_requires_empty_state="$(jq -r '.advisory_requires_empty_state' "$analysis_json")"
+    postwrite_section_structure_valid="$(jq -r '.postwrite_section_structure_valid' "$analysis_json")"
     unexpected_events_after_final_message="$(jq -r '.unexpected_events_after_final_message' "$analysis_json")"
     preview_section_count="$(jq -r '.preview_section_count' "$analysis_json")"
     preview_has_canonical_keys="$(jq -r '.preview_has_canonical_keys' "$analysis_json")"
@@ -807,6 +1087,10 @@ run_scenario() {
     [[ "$first_write_idx" -gt 0 ]] || {
       status="fail"
       validation_error="missing_first_write_index"
+    }
+    [[ "$write_attempts" -eq 1 ]] || {
+      status="fail"
+      validation_error="multiple_write_attempts_detected"
     }
   fi
 
@@ -849,14 +1133,24 @@ run_scenario() {
   fi
 
   if [[ "$status" == "pass" ]]; then
-    [[ "$postwrite_text" == *"Post-Write Review"* && "$postwrite_text" == *"Findings"* && "$postwrite_text" == *"Collision check"* ]] || {
+    [[ "$postwrite_text" == *"Post-Write Review"* && "$postwrite_text" == *"Findings"* && "$postwrite_text" == *"Collision check"* && "$postwrite_text" == *"Advisory"* ]] || {
       status="fail"
       validation_error="missing_postwrite_review_section"
     }
   fi
 
+  if [[ "$status" == "pass" && "$postwrite_section_structure_valid" != "true" ]]; then
+    status="fail"
+    validation_error="postwrite_section_structure_invalid"
+  fi
+
+  if [[ "$status" == "pass" && "$wrong_reload_after_write" -gt 0 ]]; then
+    status="fail"
+    validation_error="wrong_reload_path_detected"
+  fi
+
   if [[ "$status" == "pass" ]]; then
-    [[ "$readback_after_write" -gt 0 && "$reload_after_write" -gt 0 && "$state_after_write" -gt 0 && "$collision_after_write" -gt 0 ]] || {
+    [[ "$readback_after_write" -ge 1 && "$reload_after_write" -ge 1 && "$state_after_write" -ge 1 && "$collision_after_write" -ge 1 ]] || {
       status="fail"
       validation_error="missing_postwrite_verification"
     }
@@ -874,6 +1168,31 @@ run_scenario() {
       status="fail"
       validation_error="missing_prewrite_preview_section"
     }
+  fi
+
+  if [[ "$status" == "pass" && "$postwrite_repeats_prewrite_verdict" == "true" ]]; then
+    status="fail"
+    validation_error="prewrite_verdict_repeated_postwrite"
+  fi
+
+  if [[ "$status" == "pass" && "$duplicate_findings_advisory_items_count" -gt 0 ]]; then
+    status="fail"
+    validation_error="duplicate_findings_advisory_item"
+  fi
+
+  if [[ "$status" == "pass" && "$findings_requires_empty_state" == "true" && "$findings_has_empty_state" != "true" ]]; then
+    status="fail"
+    validation_error="missing_findings_empty_state"
+  fi
+
+  if [[ "$status" == "pass" && "$collision_requires_empty_state" == "true" && "$collision_has_empty_state" != "true" ]]; then
+    status="fail"
+    validation_error="missing_collision_empty_state"
+  fi
+
+  if [[ "$status" == "pass" && "$advisory_requires_empty_state" == "true" && "$advisory_has_empty_state" != "true" ]]; then
+    status="fail"
+    validation_error="missing_advisory_empty_state"
   fi
 
   if [[ "$status" == "pass" && "$must_contain_json" != "[]" ]]; then
@@ -898,6 +1217,11 @@ run_scenario() {
     done < <(jq -r '.[]' <<<"$must_not_contain_json")
   fi
 
+  if [[ "$status" == "pass" ]] && contains_rule_code_marker "$prewrite_text"; then
+    status="fail"
+    validation_error="rule_code_marker_present_prewrite"
+  fi
+
   if [[ "$status" == "pass" && "$must_contain_postwrite_json" != "[]" ]]; then
     while IFS= read -r required_text; do
       [[ -z "$required_text" ]] && continue
@@ -918,6 +1242,11 @@ run_scenario() {
         break
       fi
     done < <(jq -r '.[]' <<<"$must_not_contain_postwrite_json")
+  fi
+
+  if [[ "$status" == "pass" ]] && contains_rule_code_marker "$postwrite_text"; then
+    status="fail"
+    validation_error="rule_code_marker_present_postwrite"
   fi
 
   jq -n \

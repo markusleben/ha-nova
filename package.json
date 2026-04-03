@@ -68,7 +68,7 @@
     "test:bulk:release": "npm run test:bulk:fast && npm run test:bulk:smoke && npm run test:safe",
     "test:watch": "vitest",
     "verify:docs": "bash scripts/check-docs.sh && npx vitest run tests/onboarding/project-docs-contract.test.ts tests/onboarding/client-install-docs-contract.test.ts",
-    "verify:installers": "node scripts/install-src/build-installers.mjs --check",
+    "verify:installers": "npx vitest run tests/onboarding/installer-contract.test.ts",
     "verify:onboarding": "npm run verify:installers && npx vitest run tests/onboarding/install-skills-per-client.test.ts tests/onboarding/dev-sync-contract.test.ts tests/onboarding/dev-sync-behavior.test.ts tests/onboarding/claude-plugin-state-helper.test.ts tests/onboarding/installer-contract.test.ts tests/onboarding/relay-cli-contract.test.ts tests/onboarding/self-update-contract.test.ts tests/onboarding/platform-dispatch.test.ts tests/onboarding/linux-keyring-contract.test.ts tests/onboarding/macos-keyring-contract.test.ts tests/onboarding/windows-keyring-interop-contract.test.ts tests/onboarding/legacy-cleanup-contract.test.ts tests/onboarding/onboarding-skill-contract.test.ts tests/onboarding/go-runtime-contract.test.ts tests/onboarding/safe-test-system-contract.test.ts tests/onboarding/bump-version.test.ts",
     "verify:release-contracts": "npm run verify:release-metadata && npx vitest run tests/onboarding/release-contract.test.ts tests/onboarding/desktop-validation-contract.test.ts tests/onboarding/desktop-validation-behavior.test.ts tests/onboarding/dependabot-automation-contract.test.ts",
     "typecheck": "tsc --noEmit",

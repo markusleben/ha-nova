@@ -87,6 +87,18 @@ describe("ha-nova contract", () => {
     expect(context).toContain("Suggestions");
   });
 
+  it("keeps output localization rules code-free and mode-scoped", () => {
+    const context = readFileSync("skills/ha-nova/SKILL.md", "utf8");
+
+    expect(context).toContain("Internal codes");
+    expect(context).toContain("NEVER show them in user-facing output");
+    expect(context).toContain("findings, summaries, clean states, or pre-write verdicts");
+    expect(context).toContain("Machine-like identifiers");
+    expect(context).toContain("summarize them in natural language or by count");
+    expect(context).toContain("Within a given review mode");
+    expect(context).toContain("Single-target standalone review, bulk review, and post-write review each have their own stable shape.");
+  });
+
   it("keeps new reference files present", () => {
     const files = [
       "skills/ha-nova/relay-api.md",
@@ -230,13 +242,13 @@ describe("ha-nova contract", () => {
     // Review entry stays at review/SKILL.md; detailed checks live in review/checks.md.
     expect(review).toContain("skills/review/SKILL.md");
     expect(review).toContain("skills/review/checks.md");
-    expect(review).toContain("mode: post-write");
     expect(review).toContain("post-write");
     expect(review).toContain("standalone");
     expect(review).toContain("Section 5 — Questions to consider");
     expect(review).toContain("Section 6 — Suggestions");
     expect(review).toContain("Section 7 — Summary");
-    expect(review).toContain("Section 4 — Advisory");
+    expect(review).toContain("Section 8 — Instant help");
+    expect(review).toContain("Section 3 — Advisory");
   });
 
   it("keeps all operational subskills concise (<1000 words)", () => {

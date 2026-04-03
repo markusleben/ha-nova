@@ -35,7 +35,7 @@ describe("safe test system contract", () => {
     expect(pkg.scripts?.["test:watch"]).toBe("vitest");
     expect(pkg.scripts?.["verify:security"]).toBe("bash scripts/release/verify-npm-audit.sh");
     expect(pkg.scripts?.["verify:docs"]).toContain("scripts/check-docs.sh");
-    expect(pkg.scripts?.["verify:installers"]).toBe("node scripts/install-src/build-installers.mjs --check");
+    expect(pkg.scripts?.["verify:installers"]).toBe("npx vitest run tests/onboarding/installer-contract.test.ts");
     expect(pkg.scripts?.["verify:onboarding"]).toContain("tests/onboarding/install-skills-per-client.test.ts");
     expect(pkg.scripts?.["verify:onboarding"]).toContain("npm run verify:installers");
     expect(pkg.scripts?.["verify:release-contracts"]).toContain("tests/onboarding/release-contract.test.ts");
