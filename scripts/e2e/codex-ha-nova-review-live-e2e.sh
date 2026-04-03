@@ -24,6 +24,44 @@ require_cmd() {
   command -v "$cmd" >/dev/null 2>&1 || die "Required command not found: ${cmd}"
 }
 
+contains_rule_code_marker() {
+  local text="$1"
+
+  printf '%s\n' "$text" | grep -Eiq '(^|[^[:alnum:]_.])([SRPMFH])-[0-9]{2}($|[^[:alnum:]_])|(^|[^[:alnum:]_.])([SRPMFH])[0-9]+($|[^[:alnum:]_])'
+}
+
+normalize_jsonl_transcript() {
+  local input_file="$1"
+
+  python3 - "$input_file" <<'PY'
+import json
+import re
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as handle:
+    for lineno, raw_line in enumerate(handle, start=1):
+        line = raw_line.strip()
+        if not line:
+            continue
+        if line == "Reading additional input from stdin...":
+            continue
+        if re.match(
+            r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z ERROR codex_core::tools::router: error=write_stdin failed: stdin is closed for this session; rerun exec_command with tty=true to keep stdin open$",
+            line,
+        ):
+            continue
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError as exc:
+            sys.stderr.write(f"invalid jsonl transcript line {lineno}: {exc}\n")
+            sys.exit(2)
+        if not isinstance(event, dict):
+            sys.stderr.write(f"invalid jsonl transcript line {lineno}: expected object event\n")
+            sys.exit(3)
+        print(json.dumps(event, separators=(",", ":")))
+PY
+}
+
 run_codex_with_timeout() {
   local timeout_sec="$1"
   local prompt_file="$2"
@@ -106,7 +144,7 @@ build_prompt_file() {
   local prompt_file="$2"
 
   cat > "$prompt_file" <<EOF_PROMPT
-Use the local skill "ha-nova" for this task.
+Use the repo-local HA NOVA review workflow from this checkout for this task.
 
 User request:
 ${scenario_prompt}
@@ -116,12 +154,16 @@ Hard requirements:
 2. Use App + Relay terminology.
 3. Treat this as a pasted-YAML review unless the prompt explicitly requires Home Assistant reads.
 4. Use only the local repo skills plus the pasted YAML in this prompt.
-5. Do not browse the web and do not use external research tools or docs fetches.
-6. Do not use Exa, Ref, web search, or official-doc lookup tools.
-7. Treat the local repo skill guidance as authoritative for this harness even if you feel uncertain.
-8. If a conclusion would require external docs, state the uncertainty from local context instead of researching.
-9. Do not run onboarding ready/doctor/quick checks.
-10. Do not modify repository files.
+5. Never read installed skill copies from ~/.local/share/ha-nova/skills or any other home-directory skill mirror.
+6. Read only repo-local files from this checkout when you need skill guidance. Default allowed files for this harness: skills/ha-nova/SKILL.md, skills/review/SKILL.md, skills/review/checks.md, docs/reference/ha-template-reference.md.
+7. Do not browse the web and do not use external research tools or docs fetches.
+8. Do not use Exa, Ref, web search, or official-doc lookup tools.
+9. Treat the local repo skill guidance as authoritative for this harness even if you feel uncertain.
+10. If a conclusion would require external docs, state the uncertainty from local context instead of researching.
+11. Do not run onboarding ready/doctor/quick checks.
+12. Do not modify repository files.
+13. Use the exact English standalone review headings on their own lines in this order: Review target, Findings, Collision check, Conflicts, Questions to consider, Suggestions, Summary, Instant help.
+14. In Findings, every issue must use the review finding microformat: severity emoji + short title, then a Why: line and a Fix: line.
 EOF_PROMPT
 }
 
@@ -131,6 +173,15 @@ extract_last_agent_message() {
   jq -sr -r '
     map(select(.type == "item.completed" and .item.type == "agent_message") | .item.text)
     | if length == 0 then "" else .[-1] end
+  ' "$scenario_log" 2>/dev/null || true
+}
+
+extract_all_agent_messages() {
+  local scenario_log="$1"
+
+  jq -sr -r '
+    map(select(.type == "item.completed" and .item.type == "agent_message") | .item.text)
+    | join("\n\n")
   ' "$scenario_log" 2>/dev/null || true
 }
 
@@ -235,6 +286,67 @@ count_home_assistant_read_hits() {
     '(^|[[:space:][:punct:]])(ha-nova|nova)([[:space:]][^[:cntrl:]]*)?[[:space:]]+(relay|read)([[:space:]]|$)'
 }
 
+count_installed_skill_copy_hits() {
+  local scenario_log="$1"
+
+  count_command_hits \
+    "$scenario_log" \
+    '(\~|/Users/[^[:space:]]+|/home/[^[:space:]]+)/\.local/share/ha-nova/skills/'
+}
+
+normalize_match_text() {
+  local text="$1"
+
+  python3 - "$text" <<'PY'
+import re
+import sys
+
+text = sys.argv[1]
+print(re.sub(r"\\+`", "`", text), end="")
+PY
+}
+
+count_helper_script_exec_hits() {
+  local scenario_log="$1"
+
+  python3 - "$scenario_log" <<'PY'
+import json
+import re
+import sys
+
+direct_re = re.compile(r'^(?:\./)?scripts/(?:smoke|e2e|dev)/\S+')
+shell_re = re.compile(
+    r'(?:^|[\s\'"`])(?:(?:env(?:\s+[A-Za-z_][A-Za-z0-9_]*=\S+)*|timeout(?:\s+\S+){1,2})\s+)*(?:\S*/)?(?:bash|sh|zsh|python3?|node|bunx?|bun|tsx)\b[^\n]*\b(?:\./)?scripts/(?:smoke|e2e|dev)/\S+'
+)
+
+count = 0
+
+with open(sys.argv[1], encoding="utf-8") as handle:
+    for raw_line in handle:
+        try:
+            event = json.loads(raw_line)
+        except json.JSONDecodeError:
+            continue
+        if event.get("type") != "item.completed":
+            continue
+        item = event.get("item") or {}
+        if item.get("type") != "command_execution":
+            continue
+        command = (item.get("command") or "").strip()
+        if not command:
+            continue
+        for segment in re.split(r'(?:&&|\|\||;|\n)', command):
+            segment = segment.strip()
+            if not segment:
+                continue
+            if direct_re.search(segment) or shell_re.search(segment):
+                count += 1
+                break
+
+print(count)
+PY
+}
+
 assert_text_sequence() {
   local haystack="$1"
   shift
@@ -249,6 +361,27 @@ assert_text_sequence() {
   done
 
   return 0
+}
+
+assert_heading_sequence() {
+  local haystack="$1"
+  shift
+
+  python3 - "$haystack" "$@" <<'PY'
+import re
+import sys
+
+text = sys.argv[1]
+remaining = text
+
+for heading in sys.argv[2:]:
+    match = re.search(rf'(?m)^[ \t]*{re.escape(heading)}[ \t]*$', remaining)
+    if not match:
+        sys.exit(1)
+    remaining = remaining[match.end():]
+
+sys.exit(0)
+PY
 }
 
 run_scenario() {
@@ -271,11 +404,13 @@ run_scenario() {
   local status="pass"
   local validation_error=""
   local last_agent_message=""
+  local all_agent_messages=""
   local helper_script_count
   local external_research_count
   local shell_network_count
   local onboarding_check_count
   local home_assistant_read_count
+  local installed_skill_copy_count
   local allow_home_assistant_reads="false"
   local scenario_prompt_lc
 
@@ -297,15 +432,22 @@ run_scenario() {
   if [[ "$codex_status" -eq 124 ]]; then
     status="fail"
     validation_error="duration_exceeded"
+  elif [[ "$codex_status" -ne 0 ]]; then
+    status="fail"
+    validation_error="codex_execution_failed"
   fi
 
-  jq -Rrc 'fromjson? | select(type == "object")' "$scenario_log" >"$parsed_log" || true
+  if normalize_jsonl_transcript "$scenario_log" >"$parsed_log"; then
+    :
+  else
+    : >"$parsed_log"
+  fi
   if [[ "$status" == "pass" && ! -s "$parsed_log" ]]; then
     status="fail"
     validation_error="invalid_jsonl_transcript"
   fi
 
-  helper_script_count="$(count_command_hits "$parsed_log" 'scripts/(smoke|dev|e2e)/')"
+  helper_script_count="$(count_helper_script_exec_hits "$parsed_log")"
   if [[ "$status" == "pass" && "$helper_script_count" -gt 0 ]]; then
     status="fail"
     validation_error="helper_script_usage_detected"
@@ -330,8 +472,17 @@ run_scenario() {
     validation_error="home_assistant_read_detected"
   fi
 
+  installed_skill_copy_count="$(count_installed_skill_copy_hits "$parsed_log")"
+  if [[ "$status" == "pass" && "$installed_skill_copy_count" -gt 0 ]]; then
+    status="fail"
+    validation_error="installed_skill_copy_used"
+  fi
+
   if [[ "$status" == "pass" ]]; then
     last_agent_message="$(extract_last_agent_message "$parsed_log")"
+    all_agent_messages="$(extract_all_agent_messages "$parsed_log")"
+    last_agent_message="$(normalize_match_text "$last_agent_message")"
+    all_agent_messages="$(normalize_match_text "$all_agent_messages")"
     if [[ -z "$last_agent_message" ]]; then
       status="fail"
       validation_error="missing_agent_message"
@@ -361,12 +512,17 @@ run_scenario() {
       if [[ -z "$forbidden_text" ]]; then
         continue
       fi
-      if [[ "$last_agent_message" == *"$forbidden_text"* ]]; then
+      if [[ "$all_agent_messages" == *"$forbidden_text"* ]]; then
         status="fail"
         validation_error="forbidden_text_present"
         break
       fi
     done < <(echo "$must_not_contain_text_json" | jq -r '.[]')
+  fi
+
+  if [[ "$status" == "pass" ]] && contains_rule_code_marker "$all_agent_messages"; then
+    status="fail"
+    validation_error="rule_code_marker_present"
   fi
 
   if [[ "$status" == "pass" && "$ordered_text_json" != "[]" ]]; then
@@ -379,7 +535,7 @@ run_scenario() {
 
   if [[ "$status" == "pass" && "$section_order_json" != "[]" ]]; then
     mapfile -t ordered_sections < <(echo "$section_order_json" | jq -r '.[]')
-    if ! assert_text_sequence "$last_agent_message" "${ordered_sections[@]}"; then
+    if ! assert_heading_sequence "$last_agent_message" "${ordered_sections[@]}"; then
       status="fail"
       validation_error="section_order_mismatch"
     fi

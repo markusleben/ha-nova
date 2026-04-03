@@ -314,7 +314,7 @@ After completing Steps 1-3, check if the current entity state (from the earlier 
 - State is simply "not what user wants" without clear automation-intent evidence — that's a service-call request, not a review finding
 - Fix requires config change (that's a Suggestions item)
 - Multiple equally valid corrections exist (ambiguous — note in Questions to consider instead)
-- State read failed or entity unavailable — skip, note in Instant Help section: localized "skipped (state unavailable)"
+- State read failed or entity unavailable — skip, note in Instant Help section: localized equivalent of "Skipped: current state unavailable."
 
 **If qualified:**
 1. Show current state vs expected state
@@ -355,7 +355,7 @@ Rules:
 - no severity emojis
 - no internal check codes
 - do not restate an existing formal finding unless there is remaining uncertainty that the finding alone does not cover
-- if no complexity gate matches, keep the Questions to consider section and mark it as localized "not needed"
+- if no complexity gate matches, keep the Questions to consider section and mark it as the localized equivalent of "No follow-up questions right now."
 
 ### Step 6: Suggestion Synthesis (standalone single-target only)
 
@@ -384,15 +384,16 @@ After the gate, rank confident suggestions by intervention depth:
 Rules:
 - dedupe overlapping ideas
 - cap the Suggestions section at 4 items
+- when the same verified problem supports both a smaller direct fix and a larger optional monitoring/fallback addition, include both as confident suggestions and keep the smaller fix first
 - do not place a new watchdog, monitor, or helper above a smaller root-cause fix
 - do not suggest large refactors when a smaller change can eliminate the current verified problem
-- if no confident recommendation remains after gating, output localized "none"
+- if no confident recommendation remains after gating, output the localized equivalent of "No confident suggestions."
 
 ## Output Format
 
 Localize all headings to the user's language (see `skills/ha-nova/SKILL.md` → Output Localization).
 
-Exception: if a maintainer-provided release-validation or machine-check prompt explicitly pins exact section titles, follow that override exactly so automated validation can compare the fixed headings.
+Exception: if a maintainer-provided release-validation or machine-check prompt explicitly pins exact section titles or machine markers, follow that override exactly so automated validation can compare the fixed headings. This exception does not allow internal check codes in normal user-facing prose.
 
 ### Standard mode
 
@@ -403,16 +404,21 @@ For resolved targets `== 1`, keep this 8-section output in the same order every 
 
 **Section 2 — Findings:**
 - numbered list or "no issues found"
-- each: `🔴|🟠|🟡 Descriptive title — explanation + fix suggestion`
+- each finding uses:
+  - `🔴|🟠|🟡 Short descriptive title`
+  - `Why: ...`
+  - `Fix: ...`
 - 🔴 = high/critical, 🟠 = medium, 🟡 = low/info
-- title must describe WHAT the issue is (2-5 words), NOT an internal code
+- title must describe WHAT the issue is in one short phrase, NOT an internal code
+- if clean: localized equivalent of "No issues found in this review."
 
 **Section 3 — Collision check:**
 - list the checked entity names
 - short result: how many related automations/scripts found
+- if no related items were found: localized equivalent of "No related items found."
 
 **Section 4 — Conflicts:**
-- numbered conflicts or "none"
+- numbered conflicts or localized equivalent of "No conflicts found."
 - each: entity_id, what this automation does vs what the other does, risk description
 - 🔴 = real conflict, 🟠 = potential, 🟡 = info (safe pattern)
 
@@ -420,23 +426,23 @@ For resolved targets `== 1`, keep this 8-section output in the same order every 
 - non-binding questions and edge-case prompts only
 - use this section for exploratory prompts and intent-uncertain remove/simplify follow-ups
 - no severity emojis
-- or localized "none" / "not needed"
+- or localized equivalent of "No follow-up questions right now."
 
 **Section 6 — Suggestions:**
 - confident improvement ideas only
 - each: short title + what it does + why it helps
 - rank by intervention depth: Fix existing → Simplify existing → Extend existing → Add new
 - do not place intent-uncertain removals/simplifications here
-- or "none"
+- or localized equivalent of "No confident suggestions."
 
 **Section 7 — Summary:**
 - one-paragraph natural language summary
 - mention total findings count and highest severity emoji
-- if clean: localized equivalent of "Config looks clean — no issues detected."
+- if clean: localized equivalent of "No issues found in this review."
 
 **Section 8 — Instant help:**
-- if no acute state problem: localized "not needed"
-- if state read failed: localized "skipped (state unavailable)"
+- if no acute state problem: localized equivalent of "No quick fix suggested."
+- if state read failed: localized equivalent of "Skipped: current state unavailable."
 - if fixable problem detected: current state, expected state, proposed service call, confirmation prompt
 
 ### Aggregate multi-target mode

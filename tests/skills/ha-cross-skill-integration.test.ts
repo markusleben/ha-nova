@@ -68,6 +68,8 @@ describe("ha cross-skill integration", () => {
     expect(writeSkill).toContain("do not block the write");
     expect(writeSkill).toContain("do not require extra confirmation");
     expect(writeSkill).toContain("final else branch is only reached when the earlier entity-state branches are false");
+    expect(writeSkill).toContain('Pre-write check: no issues worth flagging before save.');
+    expect(writeSkill).toContain('Pre-write check: this draft may not behave as intended.');
   });
 
   it("includes HA normalization awareness and dedup in post-write review", () => {
@@ -92,6 +94,12 @@ describe("ha cross-skill integration", () => {
     // Post-write review format uses localized headings with emoji severity
     expect(writeSkill).toContain("Findings");
     expect(writeSkill).toContain("Collision check");
+    expect(writeSkill).toContain("Advisory");
+    expect(writeSkill).toContain('localized equivalent of "No related items found."');
+    expect(writeSkill).toContain('localized equivalent of "No conflicts found."');
+    expect(writeSkill).toContain('localized equivalent of "No additional advisories."');
+    expect(writeSkill).toContain("Do not emit `Questions to consider`, `Suggestions`, or `Instant help` in post-write mode.");
+    expect(writeSkill).toContain("Do not repeat the same advisory item in both **Findings** and **Advisory**.");
     expect(writeSkill).toContain("Output Localization");
   });
 

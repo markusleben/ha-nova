@@ -89,7 +89,7 @@
   },
   {
     "id": "r18-draft-risk-top-level",
-    "prompt": "Use ha nova review skill on this pasted YAML only. Explain the result in English. Include this exact phrase if you detect the issue: REST/UI write can break dependent variables in this block. Also include this exact pair if you detect it: check_flag -> reading. End with NOVA_SCENARIO_RESULT id=r18-draft-risk-top-level values=[\"r18_detected\"]. YAML: automation:\n  - alias: R18 top level fragile\n    variables:\n      check_flag: \"{{ reading > -998 }}\"\n      reading: \"{{ states('sensor.flow_rate') | float(-999) }}\"\n    actions:\n      - action: notify.notify\n        data:\n          message: \"{{ check_flag }}\"",
+    "prompt": "Use ha nova review skill on this pasted YAML only. Explain the result in English. Include this exact phrase if you detect the issue: REST/UI write can break dependent variables in this block. Also include this exact pair if you detect it: check_flag -> reading. End with NOVA_SCENARIO_RESULT id=r18-draft-risk-top-level values=[\"r18_detected\"]. YAML: automation:\n  - alias: Top level variable order fragile\n    variables:\n      check_flag: \"{{ reading > -998 }}\"\n      reading: \"{{ states('sensor.flow_rate') | float(-999) }}\"\n    actions:\n      - action: notify.notify\n        data:\n          message: \"{{ check_flag }}\"",
     "expect": {
       "type": "json_array_values"
     },
@@ -97,11 +97,15 @@
       "REST/UI write can break dependent variables in this block",
       "check_flag -> reading"
     ],
+    "must_not_contain_text": [
+      "R-18",
+      "R18"
+    ],
     "max_duration_sec": 90
   },
   {
     "id": "r18-draft-risk-local-block",
-    "prompt": "Use ha nova review skill on this pasted YAML only. Explain the result in English. If you detect a local-block R-18 issue, include these exact phrases: REST/UI write can break dependent variables in this block. local variables block. pair: check_flag -> reading. End with NOVA_SCENARIO_RESULT id=r18-draft-risk-local-block values=[\"r18_detected\"]. YAML: automation:\n  - alias: R18 local block fragile\n    actions:\n      - if:\n          - condition: state\n            entity_id: input_boolean.guard\n            state: \"on\"\n        then:\n          - variables:\n              check_flag: \"{{ reading > -998 }}\"\n              reading: \"{{ states('sensor.flow_rate') | float(-999) }}\"\n          - action: notify.notify\n            data:\n              message: \"{{ check_flag }}\"",
+    "prompt": "Use ha nova review skill on this pasted YAML only. Explain the result in English. If you detect a local-block R-18 issue, include these exact phrases: REST/UI write can break dependent variables in this block. local variables block. pair: check_flag -> reading. End with NOVA_SCENARIO_RESULT id=r18-draft-risk-local-block values=[\"r18_detected\"]. YAML: automation:\n  - alias: Local block variable order fragile\n    actions:\n      - if:\n          - condition: state\n            entity_id: input_boolean.guard\n            state: \"on\"\n        then:\n          - variables:\n              check_flag: \"{{ reading > -998 }}\"\n              reading: \"{{ states('sensor.flow_rate') | float(-999) }}\"\n          - action: notify.notify\n            data:\n              message: \"{{ check_flag }}\"",
     "expect": {
       "type": "json_array_values"
     },
@@ -110,11 +114,15 @@
       "local variables block",
       "check_flag -> reading"
     ],
+    "must_not_contain_text": [
+      "R-18",
+      "R18"
+    ],
     "max_duration_sec": 90
   },
   {
     "id": "r18-fragile-alpha-order",
-    "prompt": "Use ha nova review skill on this pasted YAML only. Explain the result in English. Include this exact phrase if you detect the issue: REST/UI write can break dependent variables in this block. fragile alphabetical order. Also include this exact pair if you detect it: check_flag -> reading. End with NOVA_SCENARIO_RESULT id=r18-fragile-alpha-order values=[\"r18_detected\"]. YAML: automation:\n  - alias: R18 fragile alpha order\n    variables:\n      check_flag: \"{{ reading > -998 }}\"\n      reading: \"{{ states('sensor.flow_rate') | float(-999) }}\"\n    actions:\n      - action: notify.notify\n        data:\n          message: \"{{ check_flag }}\"",
+    "prompt": "Use ha nova review skill on this pasted YAML only. Explain the result in English. Include this exact phrase if you detect the issue: REST/UI write can break dependent variables in this block. fragile alphabetical order. Also include this exact pair if you detect it: check_flag -> reading. End with NOVA_SCENARIO_RESULT id=r18-fragile-alpha-order values=[\"r18_detected\"]. YAML: automation:\n  - alias: Fragile alphabetical order\n    variables:\n      check_flag: \"{{ reading > -998 }}\"\n      reading: \"{{ states('sensor.flow_rate') | float(-999) }}\"\n    actions:\n      - action: notify.notify\n        data:\n          message: \"{{ check_flag }}\"",
     "expect": {
       "type": "json_array_values"
     },
@@ -123,47 +131,63 @@
       "fragile alphabetical order",
       "check_flag -> reading"
     ],
+    "must_not_contain_text": [
+      "R-18",
+      "R18"
+    ],
     "max_duration_sec": 90
   },
   {
     "id": "r18-safe-alpha-order",
-    "prompt": "Use ha nova review skill on this pasted YAML only. Explain the result in English. If there is no R-18 risk, include this exact phrase: No R-18 risk detected. safe alphabetical order. End with NOVA_SCENARIO_RESULT id=r18-safe-alpha-order values=[\"safe\"]. YAML: automation:\n  - alias: R18 safe alpha order\n    variables:\n      a_reading: \"{{ states('sensor.flow_rate') | float(-999) }}\"\n      check_flag: \"{{ a_reading > -998 }}\"\n    actions:\n      - action: notify.notify\n        data:\n          message: \"{{ check_flag }}\"",
+    "prompt": "Use ha nova review skill on this pasted YAML only. Explain the result in English. If the config is safe, include these exact phrases: No issues found in this review. Safe pattern: safe alphabetical order. End with NOVA_SCENARIO_RESULT id=r18-safe-alpha-order values=[\"safe\"]. YAML: automation:\n  - alias: Safe alphabetical order\n    variables:\n      a_reading: \"{{ states('sensor.flow_rate') | float(-999) }}\"\n      check_flag: \"{{ a_reading > -998 }}\"\n    actions:\n      - action: notify.notify\n        data:\n          message: \"{{ check_flag }}\"",
     "expect": {
       "type": "json_array_values"
     },
     "must_contain_text": [
-      "No R-18 risk detected",
-      "safe alphabetical order"
+      "No issues found in this review.",
+      "Safe pattern: safe alphabetical order."
+    ],
+    "must_not_contain_text": [
+      "R-18",
+      "R18"
     ],
     "max_duration_sec": 90
   },
   {
     "id": "r18-safe-set-local",
-    "prompt": "Use ha nova review skill on this pasted YAML only. Explain the result in English. If there is no R-18 risk, include this exact phrase: No R-18 risk detected. self-contained template. End with NOVA_SCENARIO_RESULT id=r18-safe-set-local values=[\"safe\"]. YAML: automation:\n  - alias: R18 safe set local\n    variables:\n      flow_status: >\n        {% set reading = states('sensor.flow_rate') | float(-999) %}\n        {{ 'ok' if reading > -998 else 'missing' }}\n    actions:\n      - action: notify.notify\n        data:\n          message: \"{{ flow_status }}\"",
+    "prompt": "Use ha nova review skill on this pasted YAML only. Explain the result in English. If the config is safe, include these exact phrases: No issues found in this review. Safe pattern: self-contained template. End with NOVA_SCENARIO_RESULT id=r18-safe-set-local values=[\"safe\"]. YAML: automation:\n  - alias: Safe self-contained template\n    variables:\n      flow_status: >\n        {% set reading = states('sensor.flow_rate') | float(-999) %}\n        {{ 'ok' if reading > -998 else 'missing' }}\n    actions:\n      - action: notify.notify\n        data:\n          message: \"{{ flow_status }}\"",
     "expect": {
       "type": "json_array_values"
     },
     "must_contain_text": [
-      "No R-18 risk detected",
-      "self-contained template"
+      "No issues found in this review.",
+      "Safe pattern: self-contained template."
+    ],
+    "must_not_contain_text": [
+      "R-18",
+      "R18"
     ],
     "max_duration_sec": 90
   },
   {
     "id": "r18-safe-ordered-actions",
-    "prompt": "Use ha nova review skill on this pasted YAML only. Explain the result in English. If there is no R-18 risk, include this exact phrase: No R-18 risk detected. ordered variables actions. End with NOVA_SCENARIO_RESULT id=r18-safe-ordered-actions values=[\"safe\"]. YAML: script:\n  r18_safe_ordered_actions:\n    sequence:\n      - variables:\n          reading: \"{{ states('sensor.flow_rate') | float(-999) }}\"\n      - variables:\n          check_flag: \"{{ reading > -998 }}\"\n      - action: notify.notify\n        data:\n          message: \"{{ check_flag }}\"",
+    "prompt": "Use ha nova review skill on this pasted YAML only. Explain the result in English. If the config is safe, include these exact phrases: No issues found in this review. Safe pattern: ordered variables actions. End with NOVA_SCENARIO_RESULT id=r18-safe-ordered-actions values=[\"safe\"]. YAML: script:\n  r18_safe_ordered_actions:\n    sequence:\n      - variables:\n          reading: \"{{ states('sensor.flow_rate') | float(-999) }}\"\n      - variables:\n          check_flag: \"{{ reading > -998 }}\"\n      - action: notify.notify\n        data:\n          message: \"{{ check_flag }}\"",
     "expect": {
       "type": "json_array_values"
     },
     "must_contain_text": [
-      "No R-18 risk detected",
-      "ordered variables actions"
+      "No issues found in this review.",
+      "Safe pattern: ordered variables actions."
+    ],
+    "must_not_contain_text": [
+      "R-18",
+      "R18"
     ],
     "max_duration_sec": 90
   },
   {
     "id": "r19-bare-else-trigger-flagged",
-    "prompt": "Use ha nova review skill on this pasted YAML only. Explain the result in English. If you detect the issue, include these exact phrases: final else branch is only reached when the earlier entity-state branches are false. Move the `trigger.id` check into an explicit `elif`. Or refactor to `choose` + `condition: trigger`. End with NOVA_SCENARIO_RESULT id=r19-bare-else-trigger-flagged values=[\"r19_detected\"]. YAML: automation:\n  - alias: R19 bare else trigger fallback\n    triggers:\n      - trigger: state\n        entity_id: person.a\n        to: home\n        id: person_a_arrived\n      - trigger: time\n        at: '00:00:00'\n        id: midnight_fallback\n    actions:\n      - choose:\n          - conditions:\n              - condition: template\n                value_template: >\n                  {% set home_a = is_state('person.a', 'home') %}\n                  {% set home_b = is_state('person.b', 'home') %}\n                  {% if home_a and home_b %}\n                    {{ states('sensor.metric') | float(0) < 20 }}\n                  {% elif home_a %}\n                    {{ states('sensor.metric_a') | float(0) < 18 }}\n                  {% elif home_b %}\n                    {{ states('sensor.metric_b') | float(0) < 22 }}\n                  {% else %}\n                    {{ trigger.id == 'midnight_fallback' }}\n                  {% endif %}\n            sequence:\n              - action: climate.set_temperature\n                target:\n                  entity_id: climate.living_room\n                data:\n                  temperature: 20",
+    "prompt": "Use ha nova review skill on this pasted YAML only. Explain the result in English. If you detect the issue, include these exact phrases: final else branch is only reached when the earlier entity-state branches are false. Move the `trigger.id` check into an explicit `elif`. Or refactor to `choose` + `condition: trigger`. End with NOVA_SCENARIO_RESULT id=r19-bare-else-trigger-flagged values=[\"r19_detected\"]. YAML: automation:\n  - alias: Bare else trigger fallback\n    triggers:\n      - trigger: state\n        entity_id: person.a\n        to: home\n        id: person_a_arrived\n      - trigger: time\n        at: '00:00:00'\n        id: midnight_fallback\n    actions:\n      - choose:\n          - conditions:\n              - condition: template\n                value_template: >\n                  {% set home_a = is_state('person.a', 'home') %}\n                  {% set home_b = is_state('person.b', 'home') %}\n                  {% if home_a and home_b %}\n                    {{ states('sensor.metric') | float(0) < 20 }}\n                  {% elif home_a %}\n                    {{ states('sensor.metric_a') | float(0) < 18 }}\n                  {% elif home_b %}\n                    {{ states('sensor.metric_b') | float(0) < 22 }}\n                  {% else %}\n                    {{ trigger.id == 'midnight_fallback' }}\n                  {% endif %}\n            sequence:\n              - action: climate.set_temperature\n                target:\n                  entity_id: climate.living_room\n                data:\n                  temperature: 20",
     "expect": {
       "type": "json_array_values"
     },
@@ -172,110 +196,128 @@
       "Move the `trigger.id` check into an explicit `elif`",
       "Or refactor to `choose` + `condition: trigger`"
     ],
+    "must_not_contain_text": [
+      "R-19",
+      "R19"
+    ],
     "max_duration_sec": 240
   },
   {
     "id": "r19-safe-non-state-selector-tree",
-    "prompt": "Use ha nova review skill on this pasted YAML only. Explain the result in English. If there is no R-19 risk, include both exact substrings: No R-19 risk detected. mode selector tree. End with NOVA_SCENARIO_RESULT id=r19-safe-non-state-selector-tree values=[\"safe\"]. YAML: automation:\n  - alias: R19 safe mode selector tree\n    triggers:\n      - trigger: state\n        entity_id: input_select.house_mode\n        id: mode_changed\n      - trigger: time\n        at: '23:00:00'\n        id: default_trigger\n    actions:\n      - choose:\n          - conditions:\n              - condition: template\n                value_template: >\n                  {% set mode = states('input_select.house_mode') %}\n                  {% if mode == 'party' %}\n                    {{ trigger.id == 'mode_changed' }}\n                  {% elif mode == 'sleep' %}\n                    {{ trigger.id == 'mode_changed' }}\n                  {% else %}\n                    {{ trigger.id == 'default_trigger' }}\n                  {% endif %}\n            sequence:\n              - action: light.turn_on\n                target:\n                  entity_id: light.hallway",
+    "prompt": "Use ha nova review skill on this pasted YAML only. Explain the result in English. If the config is safe, include these exact phrases: No issues found in this review. Safe pattern: mode selector tree. End with NOVA_SCENARIO_RESULT id=r19-safe-non-state-selector-tree values=[\"safe\"]. YAML: automation:\n  - alias: Safe mode selector tree\n    triggers:\n      - trigger: state\n        entity_id: input_select.house_mode\n        id: mode_changed\n      - trigger: time\n        at: '23:00:00'\n        id: default_trigger\n    actions:\n      - choose:\n          - conditions:\n              - condition: template\n                value_template: >\n                  {% set mode = states('input_select.house_mode') %}\n                  {% if mode == 'party' %}\n                    {{ trigger.id == 'mode_changed' }}\n                  {% elif mode == 'sleep' %}\n                    {{ trigger.id == 'mode_changed' }}\n                  {% else %}\n                    {{ trigger.id == 'default_trigger' }}\n                  {% endif %}\n            sequence:\n              - action: light.turn_on\n                target:\n                  entity_id: light.hallway",
     "expect": {
       "type": "json_array_values"
     },
     "must_contain_text": [
-      "No R-19 risk detected",
-      "mode selector tree"
+      "No issues found in this review.",
+      "Safe pattern: mode selector tree."
     ],
     "must_not_contain_text": [
-      "final else branch is only reached when the earlier entity-state branches are false"
+      "final else branch is only reached when the earlier entity-state branches are false",
+      "R-19",
+      "R19"
     ],
     "max_duration_sec": 240
   },
   {
     "id": "r19-safe-numeric-range-selector-tree",
-    "prompt": "Use ha nova review skill on this pasted YAML only. Explain the result in English. If there is no R-19 risk, include both exact substrings: No R-19 risk detected. numeric range selector tree. End with NOVA_SCENARIO_RESULT id=r19-safe-numeric-range-selector-tree values=[\"safe\"]. YAML: automation:\n  - alias: R19 safe numeric range selector tree\n    triggers:\n      - trigger: state\n        entity_id: sensor.garden_temp\n        id: temp_changed\n      - trigger: time\n        at: '05:30:00'\n        id: dawn_fallback\n    actions:\n      - choose:\n          - conditions:\n              - condition: template\n                value_template: >\n                  {% set temp = states('sensor.garden_temp') | float(0) %}\n                  {% if temp < 5 %}\n                    {{ trigger.id == 'temp_changed' }}\n                  {% elif temp < 18 %}\n                    {{ trigger.id == 'temp_changed' }}\n                  {% else %}\n                    {{ trigger.id == 'dawn_fallback' }}\n                  {% endif %}\n            sequence:\n              - action: switch.turn_on\n                target:\n                  entity_id: switch.heater",
+    "prompt": "Use ha nova review skill on this pasted YAML only. Explain the result in English. If the config is safe, include these exact phrases: No issues found in this review. Safe pattern: numeric range selector tree. End with NOVA_SCENARIO_RESULT id=r19-safe-numeric-range-selector-tree values=[\"safe\"]. YAML: automation:\n  - alias: Safe numeric range selector tree\n    triggers:\n      - trigger: numeric_state\n        entity_id: sensor.garden_temp\n        below: 5\n        id: temp_cold\n      - trigger: numeric_state\n        entity_id: sensor.garden_temp\n        above: 4.9\n        below: 18\n        id: temp_mild\n      - trigger: time\n        at: '05:30:00'\n        id: dawn_fallback\n    actions:\n      - variables:\n          temp: \"{{ states('sensor.garden_temp') | float(999) }}\"\n      - choose:\n          - conditions:\n              - condition: template\n                value_template: >\n                  {% if temp < 5 %}\n                    {{ trigger.id == 'temp_cold' }}\n                  {% elif temp < 18 %}\n                    {{ trigger.id == 'temp_mild' }}\n                  {% else %}\n                    {{ trigger.id == 'dawn_fallback' }}\n                  {% endif %}\n            sequence:\n              - action: switch.turn_on\n                target:\n                  entity_id: switch.heater",
     "expect": {
       "type": "json_array_values"
     },
     "must_contain_text": [
-      "No R-19 risk detected",
-      "numeric range selector tree"
+      "No issues found in this review.",
+      "Safe pattern: numeric range selector tree."
     ],
     "must_not_contain_text": [
-      "final else branch is only reached when the earlier entity-state branches are false"
+      "final else branch is only reached when the earlier entity-state branches are false",
+      "R-19",
+      "R19"
     ],
     "max_duration_sec": 240
   },
   {
     "id": "r19-safe-time-window-selector-tree",
-    "prompt": "Use ha nova review skill on this pasted YAML only. Explain the result in English. If there is no R-19 risk, include both exact substrings: No R-19 risk detected. time window selector tree. End with NOVA_SCENARIO_RESULT id=r19-safe-time-window-selector-tree values=[\"safe\"]. YAML: automation:\n  - alias: R19 safe time window selector tree\n    triggers:\n      - trigger: time_pattern\n        minutes: '/15'\n        id: periodic_tick\n      - trigger: time\n        at: '22:30:00'\n        id: night_fallback\n    actions:\n      - choose:\n          - conditions:\n              - condition: template\n                value_template: >\n                  {% set hour = now().hour %}\n                  {% if hour < 6 %}\n                    {{ trigger.id == 'periodic_tick' }}\n                  {% elif hour < 22 %}\n                    {{ trigger.id == 'periodic_tick' }}\n                  {% else %}\n                    {{ trigger.id == 'night_fallback' }}\n                  {% endif %}\n            sequence:\n              - action: light.turn_on\n                target:\n                  entity_id: light.path",
+    "prompt": "Use ha nova review skill on this pasted YAML only. Explain the result in English. If the config is safe, include these exact phrases: No issues found in this review. Safe pattern: time window selector tree. End with NOVA_SCENARIO_RESULT id=r19-safe-time-window-selector-tree values=[\"safe\"]. YAML: automation:\n  - alias: Safe time window selector tree\n    triggers:\n      - trigger: time_pattern\n        minutes: '/15'\n        id: periodic_tick\n      - trigger: time\n        at: '22:30:00'\n        id: night_fallback\n    actions:\n      - choose:\n          - conditions:\n              - condition: template\n                value_template: >\n                  {% set hour = now().hour %}\n                  {% if hour < 6 %}\n                    {{ trigger.id == 'periodic_tick' }}\n                  {% elif hour < 22 %}\n                    {{ trigger.id == 'periodic_tick' }}\n                  {% else %}\n                    {{ trigger.id == 'night_fallback' }}\n                  {% endif %}\n            sequence:\n              - action: light.turn_on\n                target:\n                  entity_id: light.path",
     "expect": {
       "type": "json_array_values"
     },
     "must_contain_text": [
-      "No R-19 risk detected",
-      "time window selector tree"
+      "No issues found in this review.",
+      "Safe pattern: time window selector tree."
     ],
     "must_not_contain_text": [
-      "final else branch is only reached when the earlier entity-state branches are false"
+      "final else branch is only reached when the earlier entity-state branches are false",
+      "R-19",
+      "R19"
     ],
     "max_duration_sec": 240
   },
   {
     "id": "r19-safe-single-if-else",
-    "prompt": "Use ha nova review skill on this pasted YAML only. Explain the result in English. If there is no R-19 risk, include both exact substrings: No R-19 risk detected. single if else. End with NOVA_SCENARIO_RESULT id=r19-safe-single-if-else values=[\"safe\"]. YAML: automation:\n  - alias: R19 safe single if else\n    triggers:\n      - trigger: time\n        at: '23:00:00'\n        id: nightly_check\n    actions:\n      - choose:\n          - conditions:\n              - condition: template\n                value_template: >\n                  {% if is_state('person.a', 'home') %}\n                    {{ true }}\n                  {% else %}\n                    {{ trigger.id == 'nightly_check' }}\n                  {% endif %}\n            sequence:\n              - action: light.turn_on\n                target:\n                  entity_id: light.hallway",
+    "prompt": "Use ha nova review skill on this pasted YAML only. Explain the result in English. If the config is safe, include these exact phrases: No issues found in this review. Safe pattern: single if else. End with NOVA_SCENARIO_RESULT id=r19-safe-single-if-else values=[\"safe\"]. YAML: automation:\n  - alias: Safe single if else\n    triggers:\n      - trigger: time\n        at: '23:00:00'\n        id: nightly_check\n    actions:\n      - choose:\n          - conditions:\n              - condition: template\n                value_template: >\n                  {% if is_state('person.a', 'home') %}\n                    {{ true }}\n                  {% else %}\n                    {{ trigger.id == 'nightly_check' }}\n                  {% endif %}\n            sequence:\n              - action: light.turn_on\n                target:\n                  entity_id: light.hallway",
     "expect": {
       "type": "json_array_values"
     },
     "must_contain_text": [
-      "No R-19 risk detected",
-      "single if else"
+      "No issues found in this review.",
+      "Safe pattern: single if else."
     ],
     "must_not_contain_text": [
-      "final else branch is only reached when the earlier entity-state branches are false"
+      "final else branch is only reached when the earlier entity-state branches are false",
+      "R-19",
+      "R19"
     ],
     "max_duration_sec": 240
   },
   {
     "id": "r19-safe-trigger-id-elif",
-    "prompt": "Use ha nova review skill on this pasted YAML only. Explain the result in English. If there is no R-19 risk, include both exact substrings: No R-19 risk detected. explicit elif trigger id. End with NOVA_SCENARIO_RESULT id=r19-safe-trigger-id-elif values=[\"safe\"]. YAML: automation:\n  - alias: R19 safe explicit elif trigger id\n    triggers:\n      - trigger: state\n        entity_id: person.a\n        to: home\n        id: person_a_arrived\n      - trigger: time\n        at: '00:00:00'\n        id: midnight_fallback\n    actions:\n      - choose:\n          - conditions:\n              - condition: template\n                value_template: >\n                  {% if is_state('person.a', 'home') %}\n                    {{ true }}\n                  {% elif trigger.id == 'midnight_fallback' %}\n                    {{ true }}\n                  {% else %}\n                    {{ false }}\n                  {% endif %}\n            sequence:\n              - action: light.turn_on\n                target:\n                  entity_id: light.hallway",
+    "prompt": "Use ha nova review skill on this pasted YAML only. Explain the result in English. If the config is safe, include these exact phrases: No issues found in this review. Safe pattern: explicit elif trigger id. End with NOVA_SCENARIO_RESULT id=r19-safe-trigger-id-elif values=[\"safe\"]. YAML: automation:\n  - alias: Safe explicit elif trigger id\n    triggers:\n      - trigger: state\n        entity_id: person.a\n        to: home\n        id: person_a_arrived\n      - trigger: time\n        at: '00:00:00'\n        id: midnight_fallback\n    actions:\n      - choose:\n          - conditions:\n              - condition: template\n                value_template: >\n                  {% if is_state('person.a', 'home') %}\n                    {{ true }}\n                  {% elif trigger.id == 'midnight_fallback' %}\n                    {{ true }}\n                  {% else %}\n                    {{ false }}\n                  {% endif %}\n            sequence:\n              - action: light.turn_on\n                target:\n                  entity_id: light.hallway",
     "expect": {
       "type": "json_array_values"
     },
     "must_contain_text": [
-      "No R-19 risk detected",
-      "explicit elif trigger id"
+      "No issues found in this review.",
+      "Safe pattern: explicit elif trigger id."
     ],
     "must_not_contain_text": [
-      "final else branch is only reached when the earlier entity-state branches are false"
+      "final else branch is only reached when the earlier entity-state branches are false",
+      "R-19",
+      "R19"
     ],
     "max_duration_sec": 240
   },
   {
     "id": "r19-safe-else-extra-guard",
-    "prompt": "Use ha nova review skill on this pasted YAML only. Explain the result in English. If there is no R-19 risk, include both exact substrings: No R-19 risk detected. else extra guard. End with NOVA_SCENARIO_RESULT id=r19-safe-else-extra-guard values=[\"safe\"]. YAML: automation:\n  - alias: R19 safe else extra guard\n    triggers:\n      - trigger: state\n        entity_id: person.a\n        to: home\n        id: person_a_arrived\n      - trigger: time\n        at: '00:00:00'\n        id: midnight_fallback\n    actions:\n      - choose:\n          - conditions:\n              - condition: template\n                value_template: >\n                  {% set home_a = is_state('person.a', 'home') %}\n                  {% if home_a %}\n                    {{ true }}\n                  {% elif is_state('person.b', 'home') %}\n                    {{ false }}\n                  {% else %}\n                    {{ trigger.id == 'midnight_fallback' and is_state('binary_sensor.guard', 'on') }}\n                  {% endif %}\n            sequence:\n              - action: light.turn_on\n                target:\n                  entity_id: light.hallway",
+    "prompt": "Use ha nova review skill on this pasted YAML only. Explain the result in English. If the config is safe, include these exact phrases: No issues found in this review. Safe pattern: else extra guard. End with NOVA_SCENARIO_RESULT id=r19-safe-else-extra-guard values=[\"safe\"]. YAML: automation:\n  - alias: Safe else extra guard\n    triggers:\n      - trigger: state\n        entity_id: person.a\n        to: home\n        id: person_a_arrived\n      - trigger: time\n        at: '00:00:00'\n        id: midnight_fallback\n    actions:\n      - choose:\n          - conditions:\n              - condition: template\n                value_template: >\n                  {% set home_a = is_state('person.a', 'home') %}\n                  {% if home_a %}\n                    {{ true }}\n                  {% elif is_state('person.b', 'home') %}\n                    {{ false }}\n                  {% else %}\n                    {{ trigger.id == 'midnight_fallback' and is_state('binary_sensor.guard', 'on') }}\n                  {% endif %}\n            sequence:\n              - action: light.turn_on\n                target:\n                  entity_id: light.hallway",
     "expect": {
       "type": "json_array_values"
     },
     "must_contain_text": [
-      "No R-19 risk detected",
-      "else extra guard"
+      "No issues found in this review.",
+      "Safe pattern: else extra guard."
     ],
     "must_not_contain_text": [
-      "final else branch is only reached when the earlier entity-state branches are false"
+      "final else branch is only reached when the earlier entity-state branches are false",
+      "R-19",
+      "R19"
     ],
     "max_duration_sec": 240
   },
   {
     "id": "r19-safe-choose-condition-trigger",
-    "prompt": "Use ha nova review skill on this pasted YAML only. Explain the result in English. If there is no R-19 risk, include both exact substrings: No R-19 risk detected. choose condition trigger routing. End with NOVA_SCENARIO_RESULT id=r19-safe-choose-condition-trigger values=[\"safe\"]. YAML: automation:\n  - alias: R19 safe choose condition trigger routing\n    triggers:\n      - trigger: state\n        entity_id: person.a\n        to: home\n        id: person_a_arrived\n      - trigger: time\n        at: '00:00:00'\n        id: midnight_fallback\n    actions:\n      - choose:\n          - conditions:\n              - condition: trigger\n                id: person_a_arrived\n            sequence:\n              - action: light.turn_on\n                target:\n                  entity_id: light.hallway\n          - conditions:\n              - condition: trigger\n                id: midnight_fallback\n            sequence:\n              - action: light.turn_off\n                target:\n                  entity_id: light.hallway",
+    "prompt": "Use ha nova review skill on this pasted YAML only. Explain the result in English. If the config is safe, include these exact phrases: No issues found in this review. Safe pattern: choose condition trigger routing. End with NOVA_SCENARIO_RESULT id=r19-safe-choose-condition-trigger values=[\"safe\"]. YAML: automation:\n  - alias: Safe choose condition trigger routing\n    triggers:\n      - trigger: state\n        entity_id: person.a\n        to: home\n        id: person_a_arrived\n      - trigger: time\n        at: '00:00:00'\n        id: midnight_fallback\n    actions:\n      - choose:\n          - conditions:\n              - condition: trigger\n                id: person_a_arrived\n            sequence:\n              - action: light.turn_on\n                target:\n                  entity_id: light.hallway\n          - conditions:\n              - condition: trigger\n                id: midnight_fallback\n            sequence:\n              - action: light.turn_off\n                target:\n                  entity_id: light.hallway",
     "expect": {
       "type": "json_array_values"
     },
     "must_contain_text": [
-      "No R-19 risk detected",
-      "choose condition trigger routing"
+      "No issues found in this review.",
+      "Safe pattern: choose condition trigger routing."
     ],
     "must_not_contain_text": [
-      "final else branch is only reached when the earlier entity-state branches are false"
+      "final else branch is only reached when the earlier entity-state branches are false",
+      "R-19",
+      "R19"
     ],
     "max_duration_sec": 240
   }

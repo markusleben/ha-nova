@@ -30,7 +30,7 @@ npm run verify
 
 This is the host-safe default gate.
 It covers release metadata sync, production `npm audit` on both the root and `nova/` lockfiles, TypeScript, the safe Vitest suite, build/docs validation, and Go CLI verification.
-Internally, it uses `test:safe:core` so the docs, onboarding, and release contract slices do not run twice. `test:safe:core` is pinned by `scripts/test/safe-core-files.json`, and the onboarding slice starts with `npm run verify:installers`, which checks that the committed public installers still match `scripts/install-src/`.
+Internally, it uses `test:safe:core` so the docs, onboarding, and release contract slices do not run twice. `test:safe:core` is pinned by `scripts/test/safe-core-files.json`, and the onboarding slice starts with `npm run verify:installers`, which checks the committed public installers directly before the wider onboarding contract slice runs.
 
 The canonical production dependency audit helper is:
 

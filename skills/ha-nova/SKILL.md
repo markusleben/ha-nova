@@ -114,9 +114,10 @@ Keep orchestration details internal on normal success paths.
 All user-facing output MUST follow these rules:
 - **Language**: Localize all section headings and labels to the user's language. Use idiomatic phrasing, not literal translations.
 - **Severity**: 3 levels only — 🔴 (high/critical) 🟠 (medium) 🟡 (low/info). No text severity labels needed — the emoji is sufficient.
-- **Finding titles**: Each finding gets a short descriptive title (2-5 words) explaining WHAT the issue is. Example: "Missing template fallback", not "R-01". Localize at runtime.
-- **Internal codes**: Check codes (R-01, S-01, H-01, M-01, P-01, F-01, etc.) are for YOUR analysis reference only. NEVER show them in user-facing output.
-- **Consistency**: Same sections, same order, every time. The user must recognize the structure across reviews.
+- **Finding titles**: Each finding gets one short descriptive phrase explaining WHAT the issue is. Example: "Missing template fallback", not "R-01". Localize at runtime.
+- **Internal codes**: Check codes (R-01, S-01, H-01, M-01, P-01, F-01, etc.) are for YOUR analysis reference only. NEVER show them in user-facing output, including findings, summaries, clean states, or pre-write verdicts.
+- **Machine-like identifiers**: If raw automation ids, helper ids, or entity ids would make the output more technical than helpful, summarize them in natural language or by count instead of echoing the raw id verbatim.
+- **Consistency**: Within a given review mode, keep the same sections in the same order every time. Single-target standalone review, bulk review, and post-write review each have their own stable shape.
 - **Review confidence split**: In review output, uncertainty belongs in `Questions to consider`; only confident recommendations belong in `Suggestions`.
 
 ## Skill Dispatch (Critical)

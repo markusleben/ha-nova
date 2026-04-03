@@ -161,8 +161,8 @@ describe("review contract", () => {
     expect(reviewSkill).toContain("### Step 6: Suggestion Synthesis");
     expect(reviewSkill).toContain("Questions to consider");
     expect(reviewSkill).toContain("Suggestions");
-    expect(reviewSkill).toContain('localized "not needed"');
-    expect(reviewSkill).toContain('output localized "none"');
+    expect(reviewSkill).toContain('localized equivalent of "No follow-up questions right now."');
+    expect(reviewSkill).toContain('localized equivalent of "No confident suggestions."');
     expect(reviewSkill).toContain("Fix existing");
     expect(reviewSkill).toContain("Simplify existing");
     expect(reviewSkill).toContain("Extend existing");
@@ -170,6 +170,18 @@ describe("review contract", () => {
     expect(contextSkill).toContain("Review confidence split");
     expect(architectureDoc).toContain("Questions to consider");
     expect(architectureDoc).toContain("intervention depth");
+    expect(reviewSkill).toContain("Why: ...");
+    expect(reviewSkill).toContain("Fix: ...");
+  });
+
+  it("documents compact post-write empty-state semantics without rule codes", () => {
+    expect(contextSkill).toContain("NEVER show them in user-facing output");
+    expect(contextSkill).toContain("findings, summaries, clean states, or pre-write verdicts");
+    expect(architectureDoc).toContain('localized equivalent of "No related items found." when the scan found none');
+    expect(architectureDoc).toContain('"No conflicts found." when related items were checked without a collision risk');
+    expect(writeSkill).toContain('localized equivalent of "No related items found."');
+    expect(writeSkill).toContain('localized equivalent of "No conflicts found."');
+    expect(writeSkill).toContain('localized equivalent of "No additional advisories."');
   });
 
   it("documents the design-intent gate before remove or simplify suggestions", () => {
@@ -214,11 +226,12 @@ describe("review contract", () => {
     expect(reviewSkill).toContain("Section 7 — Summary");
     expect(reviewSkill).toContain("Section 8 — Instant help");
     expect(reviewAgent).toContain("This agent is for single-target review only.");
-    expect(reviewAgent).toContain("Ignore the standalone bulk-review mode");
-    expect(reviewAgent).toContain("single-target output format");
+    expect(reviewAgent).toContain("Ignore the separate bulk-review mode");
+    expect(reviewAgent).toContain("single-target standalone output format");
     expect(reviewAgent).toContain("Section 5 — Questions to consider");
     expect(reviewAgent).toContain("Section 7 — Summary");
-    expect(reviewAgent).toContain("Section 4 — Advisory");
+    expect(reviewAgent).toContain("Section 8 — Instant help");
+    expect(reviewAgent).toContain("Section 3 — Advisory");
     expect(reviewAgent).toContain("Do not emit Questions to consider or ranked standalone Suggestions in post-write mode.");
   });
 });
