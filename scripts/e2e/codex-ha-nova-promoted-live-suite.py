@@ -227,11 +227,16 @@ def main(argv: list[str]) -> int:
                 continue
             parsed = json.loads(summary_files[-1].read_text())
             scenario_result = (parsed.get("results") or [{}])[0]
+            errors = list(scenario_result.get("errors", []))
+            status = scenario_result.get("status", "fail")
+            if result.returncode != 0:
+                errors.append("scenario_exit_nonzero")
+                status = "fail"
             results.append(
                 {
                     "scenario_id": scenario,
-                    "status": scenario_result.get("status", "fail"),
-                    "errors": scenario_result.get("errors", []),
+                    "status": status,
+                    "errors": errors,
                     "exit_code": result.returncode,
                     "summary_file": str(summary_files[-1]),
                 }

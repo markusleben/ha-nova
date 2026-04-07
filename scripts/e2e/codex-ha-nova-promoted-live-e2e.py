@@ -788,9 +788,7 @@ def history_fixture() -> dict[str, Any]:
         and item["entity_id"].split(".", 1)[0] in preferred_domains
         and item.get("state") not in {"unknown", "unavailable"}
     ]
-    neutral_candidates = [
-        entity_id for entity_id in candidates if entity_id and NEUTRAL_HISTORY_ENTITY_RE.search(entity_id)
-    ][:40]
+    neutral_candidates = [entity_id for entity_id in candidates if entity_id and NEUTRAL_HISTORY_ENTITY_RE.search(entity_id)]
     if not neutral_candidates:
         die("Unable to discover a neutral history fixture with a bounded successful history query")
     for entity_id in neutral_candidates:
@@ -826,7 +824,7 @@ def statistics_fixture() -> dict[str, Any]:
     neutral_candidates = [entity_id for entity_id in candidates if NEUTRAL_HISTORY_ENTITY_RE.search(entity_id)]
     if not neutral_candidates:
         die("Unable to discover a neutral statistics-capable entity fixture")
-    for entity_id in neutral_candidates[:50]:
+    for entity_id in neutral_candidates:
         try:
             response = relay_ws(
                 {

@@ -121,7 +121,6 @@ describe("codex promoted skill live e2e contract", () => {
     expect(content).toContain("NEUTRAL_HISTORY_ENTITY_RE = re.compile(");
     expect(content).toContain("neutral_candidates = [");
     expect(content).toContain("if entity_id and NEUTRAL_HISTORY_ENTITY_RE.search(entity_id)");
-    expect(content).toContain("][:40]");
     expect(content).toContain("neutral_candidates = [entity_id for entity_id in candidates if NEUTRAL_HISTORY_ENTITY_RE.search(entity_id)]");
     expect(content).toContain("len(failed_commands) == 1");
     expect(content).toContain('"ha-nova relay ws --data-file" in failed_commands[0].get("command", "")');
@@ -148,6 +147,8 @@ describe("codex promoted skill live e2e contract", () => {
     expect(content).toContain('run_python(["--cleanup-only"], env=cleanup_env, timeout_sec=SUITE_CLEANUP_TIMEOUT_SEC)');
     expect(content).toContain("collect_residue()");
     expect(content).toContain("PROMOTED_SUITE_KEEP_OUTPUT");
+    expect(content).toContain('if result.returncode != 0:');
+    expect(content).toContain('errors.append("scenario_exit_nonzero")');
     expect(content).toContain("if exit_code == 0 and not KEEP_OUTPUT and CREATED_OUTPUT_ROOT:");
     expect(content).toContain('if not parsed.get("ok"):');
     expect(content).toContain('raise subprocess.CalledProcessError(1, "ha-nova relay ws", output=raw)');
