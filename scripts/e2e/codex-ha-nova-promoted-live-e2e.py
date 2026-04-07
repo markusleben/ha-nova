@@ -635,6 +635,12 @@ def category_seed(scope: str, name: str, entity_id: str | None = None) -> dict[s
 
 def cleanup_category(scope: str, category_id: str | None) -> None:
     if not category_id:
+        try:
+            categories = relay_ws({"type": "config/category_registry/list", "scope": scope}).get("data", [])
+        except subprocess.CalledProcessError:
+            return
+        for category in categories:
+            cleanup_category(scope, category.get("category_id"))
         return
     try:
         relay_ws({"type": "config/category_registry/delete", "scope": scope, "category_id": category_id})
@@ -679,7 +685,8 @@ def artifact_output_dirs() -> list[Path]:
     temp_root = Path(tempfile.gettempdir())
     return sorted(
         output_dir
-        for output_dir in temp_root.glob("ha-nova-codex-promoted-live.*")
+        for pattern in ("ha-nova-codex-promoted-live.*", "ha-nova-promoted-suite.*")
+        for output_dir in temp_root.glob(pattern)
         if output_dir.resolve() != ACTIVE_OUTPUT_DIR
     )
 

@@ -110,6 +110,8 @@ describe("codex promoted skill live e2e contract", () => {
     expect(content).toContain("cleanup_stale_promoted_organize_metadata()");
     expect(content).toContain("cleanup_promoted_output_dirs()");
     expect(content).toContain("cleanup_entity_category_scope(scope)");
+    expect(content).toContain('relay_ws({"type": "config/category_registry/list", "scope": scope})');
+    expect(content).toContain('for pattern in ("ha-nova-codex-promoted-live.*", "ha-nova-promoted-suite.*")');
     expect(content).toContain("if output_dir.resolve() != ACTIVE_OUTPUT_DIR");
     expect(content).not.toContain("sensor.wetterstation_actual_temperature");
     expect(content).toContain("NEUTRAL_HISTORY_ENTITY_RE = re.compile(");
