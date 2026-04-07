@@ -20,7 +20,9 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[2]
-OUTPUT_DIR = Path(os.environ.get("OUTPUT_DIR", tempfile.mkdtemp(prefix="ha-nova-codex-promoted-live-run.")))
+ACTIVE_OUTPUT_PREFIX = "ha-nova-codex-promoted-live-active."
+STALE_OUTPUT_PATTERNS = ("ha-nova-codex-promoted-live.*", "ha-nova-promoted-suite.*")
+OUTPUT_DIR = Path(os.environ.get("OUTPUT_DIR", tempfile.mkdtemp(prefix=ACTIVE_OUTPUT_PREFIX)))
 ACTIVE_OUTPUT_DIR = OUTPUT_DIR.resolve()
 ACTIVE_OUTPUT_PROTECTED_DIRS = {ACTIVE_OUTPUT_DIR, *ACTIVE_OUTPUT_DIR.parents}
 RUN_ID = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -686,7 +688,7 @@ def artifact_output_dirs() -> list[Path]:
     temp_root = Path(tempfile.gettempdir())
     return sorted(
         output_dir
-        for pattern in ("ha-nova-codex-promoted-live.*", "ha-nova-promoted-suite.*")
+        for pattern in STALE_OUTPUT_PATTERNS
         for output_dir in temp_root.glob(pattern)
         if not is_protected_output_dir(output_dir)
     )
@@ -890,10 +892,10 @@ Hard requirements:
 def build_dashboard_lifecycle_prompt(fixture: dict[str, Any]) -> tuple[str, str]:
     status_line = f'NOVA_PROMOTED_SKILL_RESULT id=dashboard_storage_lifecycle ok url_path={fixture["url_path"]} title="{fixture["final_title"]}"'
     task = f"""Create a new storage dashboard shell titled `{fixture["initial_title"]}` at url path `{fixture["url_path"]}` with icon `mdi:test-tube`, hidden from the sidebar, and admin-only.
-After creation, read its config. If it is empty or missing, save a full config with one view titled `{fixture["view_title"]}`.
+Immediately save a full config with one view titled `{fixture["view_title"]}`.
+Read the dashboard config after that save to verify the new view exists.
 Then update the dashboard metadata so the title becomes `{fixture["final_title"]}`, the icon becomes `mdi:view-dashboard-edit`, `show_in_sidebar` becomes true, and `require_admin` becomes false.
-Read back through dashboard list and dashboard config to verify everything stuck.
-If the first config read on the fresh dashboard fails because no config exists yet, treat that as the missing-config case and continue without retrying the same failing read.
+Read back through dashboard list and dashboard config again to verify everything stuck.
 For the metadata update payload, use `dashboard_id` plus only `title`, `icon`, `show_in_sidebar`, and `require_admin`; do not resend `url_path` or `mode`.
 Do not probe any other dashboard's config to infer behavior for this target.
 
@@ -1109,27 +1111,6 @@ Return the normal history-skill shape with `Target`, `Window`, `Summary`, `Key p
 def validate_dashboard_lifecycle(events: list[dict[str, Any]], invalid_lines: list[str], fixture: dict[str, Any], status_line: str) -> list[str]:
     errors, commands, _messages, _final_message = common_errors(events, invalid_lines, status_line)
     text = "\n".join(item.get("command", "") for item in commands)
-    failed_commands = [
-        item
-        for item in commands
-        if isinstance(item.get("exit_code"), int) and item.get("exit_code") != 0
-    ]
-    failed_output = command_output(failed_commands[0]) if len(failed_commands) == 1 else ""
-    first_save_index = next((index for index, item in enumerate(commands) if "lovelace/config/save" in command_output(item)), -1)
-    failed_index = next((index for index, item in enumerate(commands) if item in failed_commands), -1)
-    if (
-        len(failed_commands) == 1
-        and failed_index != -1
-        and first_save_index != -1
-        and failed_index < first_save_index
-        and "ha-nova relay ws --data-file" in failed_commands[0].get("command", "")
-        and "lovelace/config" in failed_output
-        and fixture["url_path"] in failed_output
-        and any(token in failed_output.lower() for token in ("not found", "404", "missing", "no config"))
-        and "lovelace/config/save" in text
-        and count_ws_mentions(text, "lovelace/config") >= 2
-    ):
-        errors = [error for error in errors if error != "failed_command_exit"]
     if count_ws_mentions(text, "lovelace/dashboards/list") < 1:
         errors.append("dashboard_list_readback_missing")
     for token, error in (

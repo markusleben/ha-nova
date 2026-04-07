@@ -13,7 +13,9 @@ describe("codex promoted skill live e2e contract", () => {
     expect(content).toContain(
       'SCENARIO_ORDER = (\n    "dashboard_storage_lifecycle",\n    "dashboard_card_flow",\n    "dashboard_resource_flow",\n    "dashboard_delete_token",\n    "dashboard_delete_reject_natural",\n    "organize_category_flow",\n    "organize_floor_area_flow",\n    "organize_label_entity_flow",\n    "organize_category_delete_token",\n    "history_timeline",\n    "history_statistics",\n)'
     );
-    expect(content).toContain('OUTPUT_DIR = Path(os.environ.get("OUTPUT_DIR", tempfile.mkdtemp(prefix="ha-nova-codex-promoted-live-run.")))');
+    expect(content).toContain('ACTIVE_OUTPUT_PREFIX = "ha-nova-codex-promoted-live-active."');
+    expect(content).toContain('STALE_OUTPUT_PATTERNS = ("ha-nova-codex-promoted-live.*", "ha-nova-promoted-suite.*")');
+    expect(content).toContain('OUTPUT_DIR = Path(os.environ.get("OUTPUT_DIR", tempfile.mkdtemp(prefix=ACTIVE_OUTPUT_PREFIX)))');
     expect(content).toContain("ACTIVE_OUTPUT_DIR = OUTPUT_DIR.resolve()");
     expect(content).toContain("ACTIVE_OUTPUT_PROTECTED_DIRS = {ACTIVE_OUTPUT_DIR, *ACTIVE_OUTPUT_DIR.parents}");
     expect(content).toContain('SCENARIO_TIMEOUT_SEC = int(os.environ.get("PROMOTED_E2E_SCENARIO_TIMEOUT_SEC", "420"))');
@@ -41,7 +43,8 @@ describe("codex promoted skill live e2e contract", () => {
     expect(content).toContain("List the current Lovelace resources first.");
     expect(content).toContain("Then create a new Lovelace resource");
     expect(content).toContain("update the same resource");
-    expect(content).toContain("If the first config read on the fresh dashboard fails because no config exists yet");
+    expect(content).toContain("Immediately save a full config with one view titled");
+    expect(content).toContain("Read the dashboard config after that save to verify the new view exists.");
     expect(content).toContain("do not resend `url_path` or `mode`");
     expect(content).toContain("Do not probe any other dashboard's config to infer behavior for this target.");
     expect(content).toContain("The delete preview was already shown in the previous turn");
@@ -112,7 +115,7 @@ describe("codex promoted skill live e2e contract", () => {
     expect(content).toContain("cleanup_promoted_output_dirs()");
     expect(content).toContain("cleanup_entity_category_scope(scope)");
     expect(content).toContain('relay_ws({"type": "config/category_registry/list", "scope": scope})');
-    expect(content).toContain('for pattern in ("ha-nova-codex-promoted-live.*", "ha-nova-promoted-suite.*")');
+    expect(content).toContain("for pattern in STALE_OUTPUT_PATTERNS");
     expect(content).toContain("if not is_protected_output_dir(output_dir)");
     expect(content).toContain("def is_protected_output_dir(path: Path) -> bool:");
     expect(content).toContain("ACTIVE_OUTPUT_DIR.is_relative_to(resolved)");
@@ -126,16 +129,10 @@ describe("codex promoted skill live e2e contract", () => {
     expect(content).toContain("neutral_candidates = [");
     expect(content).toContain("if entity_id and NEUTRAL_HISTORY_ENTITY_RE.search(entity_id)");
     expect(content).toContain("neutral_candidates = [entity_id for entity_id in candidates if NEUTRAL_HISTORY_ENTITY_RE.search(entity_id)]");
-    expect(content).toContain("len(failed_commands) == 1");
-    expect(content).toContain('"ha-nova relay ws --data-file" in failed_commands[0].get("command", "")');
-    expect(content).toContain('failed_output = command_output(failed_commands[0]) if len(failed_commands) == 1 else ""');
-    expect(content).toContain('first_save_index = next((index for index, item in enumerate(commands) if "lovelace/config/save" in command_output(item)), -1)');
-    expect(content).toContain('failed_index = next((index for index, item in enumerate(commands) if item in failed_commands), -1)');
-    expect(content).toContain("failed_index < first_save_index");
-    expect(content).toContain('"lovelace/config" in failed_output');
-    expect(content).toContain('fixture["url_path"] in failed_output');
-    expect(content).toContain('any(token in failed_output.lower() for token in ("not found", "404", "missing", "no config"))');
-    expect(content).not.toContain('re.search(r"config[-_](?:read|initial)", item.get("command", ""))');
+    expect(content).not.toContain("failed_output = command_output(");
+    expect(content).not.toContain("failed_index < first_save_index");
+    expect(content).not.toContain('fixture["url_path"] in failed_output');
+    expect(content).not.toContain("If the first config read on the fresh dashboard fails because no config exists yet");
     expect(content).not.toContain("person.markus");
   });
 
