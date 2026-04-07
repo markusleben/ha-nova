@@ -123,6 +123,9 @@ describe("codex promoted skill live e2e contract", () => {
     expect(content).toContain("if entity_id and NEUTRAL_HISTORY_ENTITY_RE.search(entity_id)");
     expect(content).toContain("][:40]");
     expect(content).toContain("neutral_candidates = [entity_id for entity_id in candidates if NEUTRAL_HISTORY_ENTITY_RE.search(entity_id)]");
+    expect(content).toContain("len(failed_commands) == 1");
+    expect(content).toContain('"ha-nova relay ws --data-file" in failed_commands[0].get("command", "")');
+    expect(content).not.toContain('re.search(r"config[-_](?:read|initial)", item.get("command", ""))');
     expect(content).not.toContain("person.markus");
   });
 

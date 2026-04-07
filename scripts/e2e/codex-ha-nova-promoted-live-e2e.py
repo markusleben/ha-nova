@@ -1105,11 +1105,12 @@ def validate_dashboard_lifecycle(events: list[dict[str, Any]], invalid_lines: li
         for item in commands
         if isinstance(item.get("exit_code"), int) and item.get("exit_code") != 0
     ]
-    if failed_commands and all(
-        "ha-nova relay ws --data-file" in item.get("command", "")
-        and re.search(r"config[-_](?:read|initial)", item.get("command", "")) is not None
-        for item in failed_commands
-    ) and "lovelace/config/save" in text and count_ws_mentions(text, "lovelace/config") >= 1:
+    if (
+        len(failed_commands) == 1
+        and "ha-nova relay ws --data-file" in failed_commands[0].get("command", "")
+        and "lovelace/config/save" in text
+        and count_ws_mentions(text, "lovelace/config") >= 2
+    ):
         errors = [error for error in errors if error != "failed_command_exit"]
     if count_ws_mentions(text, "lovelace/dashboards/list") < 1:
         errors.append("dashboard_list_readback_missing")
