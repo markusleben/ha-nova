@@ -93,7 +93,9 @@ describe("dependabot automation contract", () => {
     expect(prepareWorkflow).toContain("pull_request_target:");
     expect(prepareWorkflow).not.toContain("workflow_run:");
     expect(prepareWorkflow).toContain("Capture PR context");
-    expect(prepareWorkflow).toContain("github.event_path");
+    expect(prepareWorkflow).toContain('event_path="${GITHUB_EVENT_PATH:-}"');
+    expect(prepareWorkflow).toContain('if [[ -z "${event_path}" || ! -f "${event_path}" ]]');
+    expect(prepareWorkflow).toContain('echo "should-process=false" >> "${GITHUB_OUTPUT}"');
     expect(prepareWorkflow).toContain("pull_request.number //");
     expect(prepareWorkflow).toContain("pull_request.user.login //");
     expect(prepareWorkflow).toContain("pull_request.draft // false");
