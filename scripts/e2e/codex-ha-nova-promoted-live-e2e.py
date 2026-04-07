@@ -22,6 +22,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[2]
 OUTPUT_DIR = Path(os.environ.get("OUTPUT_DIR", tempfile.mkdtemp(prefix="ha-nova-codex-promoted-live.")))
 ACTIVE_OUTPUT_DIR = OUTPUT_DIR.resolve()
+ACTIVE_OUTPUT_PROTECTED_DIRS = {ACTIVE_OUTPUT_DIR, *ACTIVE_OUTPUT_DIR.parents}
 RUN_ID = datetime.now().strftime("%Y%m%d-%H%M%S")
 LOG_DIR = OUTPUT_DIR / f"logs-{RUN_ID}"
 RESULTS_FILE = OUTPUT_DIR / f"results-{RUN_ID}.ndjson"
@@ -687,7 +688,7 @@ def artifact_output_dirs() -> list[Path]:
         output_dir
         for pattern in ("ha-nova-codex-promoted-live.*", "ha-nova-promoted-suite.*")
         for output_dir in temp_root.glob(pattern)
-        if output_dir.resolve() != ACTIVE_OUTPUT_DIR
+        if output_dir.resolve() not in ACTIVE_OUTPUT_PROTECTED_DIRS
     )
 
 
@@ -1426,7 +1427,7 @@ def main(argv: list[str]) -> int:
     results: list[ScenarioResult] = []
     cleanup_dashboards: list[dict[str, Any]] = []
     cleanup_resources: list[str] = []
-    cleanup_categories: list[tuple[str, str | None]] = []
+    cleanup_categories: list[dict[str, Any]] = []
     cleanup_areas: list[str] = []
     cleanup_floors: list[str] = []
     cleanup_labels: list[str] = []
@@ -1514,7 +1515,7 @@ def main(argv: list[str]) -> int:
             prompt, status_line = build_organize_category_flow_prompt(fixture)
             result = run_case("organize_category_flow", prompt, status_line, validate_organize_category_flow, fixture)
             results.append(result)
-            cleanup_categories.append((fixture["scope"], fixture.get("category_id")))
+            cleanup_categories.append(fixture)
 
         if "organize_floor_area_flow" in requested or "organize_label_entity_flow" in requested:
             suffix = str(int(time.time()))
@@ -1588,7 +1589,7 @@ def main(argv: list[str]) -> int:
                 "token": f"confirm:del-category-{suffix}",
             }
             fixtures["organize_category_delete_token"] = fixture
-            cleanup_categories.append((scope, category["category_id"]))
+            cleanup_categories.append(fixture)
             prompt, status_line = build_organize_category_delete_prompt(fixture)
             results.append(run_case("organize_category_delete_token", prompt, status_line, validate_organize_category_delete, fixture))
 
@@ -1645,9 +1646,10 @@ def main(argv: list[str]) -> int:
     finally:
         for restore in entity_metadata_restores:
             cleanup_entity_metadata(restore["entity_id"], restore["labels"], restore["aliases"])
-        for scope, category_id in cleanup_categories:
+        for category_fixture in cleanup_categories:
+            scope = category_fixture["scope"]
             cleanup_entity_category_scope(scope)
-            cleanup_category(scope, category_id)
+            cleanup_category(scope, category_fixture.get("category_id"))
         for label_id in cleanup_labels:
             cleanup_label(label_id)
         for area_id in cleanup_areas:

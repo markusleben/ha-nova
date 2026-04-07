@@ -15,6 +15,7 @@ describe("codex promoted skill live e2e contract", () => {
     );
     expect(content).toContain('OUTPUT_DIR = Path(os.environ.get("OUTPUT_DIR"');
     expect(content).toContain("ACTIVE_OUTPUT_DIR = OUTPUT_DIR.resolve()");
+    expect(content).toContain("ACTIVE_OUTPUT_PROTECTED_DIRS = {ACTIVE_OUTPUT_DIR, *ACTIVE_OUTPUT_DIR.parents}");
     expect(content).toContain('SCENARIO_TIMEOUT_SEC = int(os.environ.get("PROMOTED_E2E_SCENARIO_TIMEOUT_SEC", "420"))');
     expect(content).toContain("codex");
     expect(content).toContain("ha-nova");
@@ -112,7 +113,10 @@ describe("codex promoted skill live e2e contract", () => {
     expect(content).toContain("cleanup_entity_category_scope(scope)");
     expect(content).toContain('relay_ws({"type": "config/category_registry/list", "scope": scope})');
     expect(content).toContain('for pattern in ("ha-nova-codex-promoted-live.*", "ha-nova-promoted-suite.*")');
-    expect(content).toContain("if output_dir.resolve() != ACTIVE_OUTPUT_DIR");
+    expect(content).toContain("if output_dir.resolve() not in ACTIVE_OUTPUT_PROTECTED_DIRS");
+    expect(content).toContain("cleanup_categories: list[dict[str, Any]] = []");
+    expect(content).toContain("cleanup_categories.append(fixture)");
+    expect(content).toContain('cleanup_category(scope, category_fixture.get("category_id"))');
     expect(content).not.toContain("sensor.wetterstation_actual_temperature");
     expect(content).toContain("NEUTRAL_HISTORY_ENTITY_RE = re.compile(");
     expect(content).toContain("neutral_candidates = [");
