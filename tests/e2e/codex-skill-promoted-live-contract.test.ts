@@ -13,7 +13,7 @@ describe("codex promoted skill live e2e contract", () => {
     expect(content).toContain(
       'SCENARIO_ORDER = (\n    "dashboard_storage_lifecycle",\n    "dashboard_card_flow",\n    "dashboard_resource_flow",\n    "dashboard_delete_token",\n    "dashboard_delete_reject_natural",\n    "organize_category_flow",\n    "organize_floor_area_flow",\n    "organize_label_entity_flow",\n    "organize_category_delete_token",\n    "history_timeline",\n    "history_statistics",\n)'
     );
-    expect(content).toContain('OUTPUT_DIR = Path(os.environ.get("OUTPUT_DIR"');
+    expect(content).toContain('OUTPUT_DIR = Path(os.environ.get("OUTPUT_DIR", tempfile.mkdtemp(prefix="ha-nova-codex-promoted-live-run.")))');
     expect(content).toContain("ACTIVE_OUTPUT_DIR = OUTPUT_DIR.resolve()");
     expect(content).toContain("ACTIVE_OUTPUT_PROTECTED_DIRS = {ACTIVE_OUTPUT_DIR, *ACTIVE_OUTPUT_DIR.parents}");
     expect(content).toContain('SCENARIO_TIMEOUT_SEC = int(os.environ.get("PROMOTED_E2E_SCENARIO_TIMEOUT_SEC", "420"))');
@@ -129,6 +129,9 @@ describe("codex promoted skill live e2e contract", () => {
     expect(content).toContain("len(failed_commands) == 1");
     expect(content).toContain('"ha-nova relay ws --data-file" in failed_commands[0].get("command", "")');
     expect(content).toContain('failed_output = command_output(failed_commands[0]) if len(failed_commands) == 1 else ""');
+    expect(content).toContain('first_save_index = next((index for index, item in enumerate(commands) if "lovelace/config/save" in command_output(item)), -1)');
+    expect(content).toContain('failed_index = next((index for index, item in enumerate(commands) if item in failed_commands), -1)');
+    expect(content).toContain("failed_index < first_save_index");
     expect(content).toContain('"lovelace/config" in failed_output');
     expect(content).toContain('fixture["url_path"] in failed_output');
     expect(content).toContain('any(token in failed_output.lower() for token in ("not found", "404", "missing", "no config"))');

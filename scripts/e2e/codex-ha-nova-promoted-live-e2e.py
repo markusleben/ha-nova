@@ -20,7 +20,7 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[2]
-OUTPUT_DIR = Path(os.environ.get("OUTPUT_DIR", tempfile.mkdtemp(prefix="ha-nova-codex-promoted-live.")))
+OUTPUT_DIR = Path(os.environ.get("OUTPUT_DIR", tempfile.mkdtemp(prefix="ha-nova-codex-promoted-live-run.")))
 ACTIVE_OUTPUT_DIR = OUTPUT_DIR.resolve()
 ACTIVE_OUTPUT_PROTECTED_DIRS = {ACTIVE_OUTPUT_DIR, *ACTIVE_OUTPUT_DIR.parents}
 RUN_ID = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -1115,8 +1115,13 @@ def validate_dashboard_lifecycle(events: list[dict[str, Any]], invalid_lines: li
         if isinstance(item.get("exit_code"), int) and item.get("exit_code") != 0
     ]
     failed_output = command_output(failed_commands[0]) if len(failed_commands) == 1 else ""
+    first_save_index = next((index for index, item in enumerate(commands) if "lovelace/config/save" in command_output(item)), -1)
+    failed_index = next((index for index, item in enumerate(commands) if item in failed_commands), -1)
     if (
         len(failed_commands) == 1
+        and failed_index != -1
+        and first_save_index != -1
+        and failed_index < first_save_index
         and "ha-nova relay ws --data-file" in failed_commands[0].get("command", "")
         and "lovelace/config" in failed_output
         and fixture["url_path"] in failed_output
