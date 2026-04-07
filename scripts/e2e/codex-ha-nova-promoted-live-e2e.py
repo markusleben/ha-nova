@@ -1356,10 +1356,10 @@ def validate_history(events: list[dict[str, Any]], invalid_lines: list[str], fix
     transcript = transcript_text(commands)
     command_text = "\n".join(item.get("command", "") for item in commands)
     history_re = re.compile(
-        rf"/api/history/period/[^\"'\s?]+\?[^\"'\s]*filter_entity_id={re.escape(fixture['entity_id'])}[^\"'\s]*end_time={re.escape(fixture['end'])}"
+        rf"/api/history/period/[^\"'\s?]+\?(?=[^\"'\s]*filter_entity_id={re.escape(fixture['entity_id'])})(?=[^\"'\s]*end_time={re.escape(fixture['end'])})"
     )
     logbook_re = re.compile(
-        rf"/api/logbook/[^\"'\s?]+\?[^\"'\s]*entity={re.escape(fixture['entity_id'])}[^\"'\s]*end_time={re.escape(fixture['end'])}"
+        rf"/api/logbook/[^\"'\s?]+\?(?=[^\"'\s]*entity={re.escape(fixture['entity_id'])})(?=[^\"'\s]*end_time={re.escape(fixture['end'])})"
     )
     if not history_re.search(transcript):
         errors.append("bounded_history_call_missing")

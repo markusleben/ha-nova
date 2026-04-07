@@ -141,7 +141,8 @@ describe("codex promoted skill live e2e contract", () => {
     expect(content).toContain('SUITE_CLEANUP_TIMEOUT_SEC = int(os.environ.get("PROMOTED_SUITE_CLEANUP_TIMEOUT_SEC", "120"))');
     expect(content).toContain("stop_process_group(");
     expect(content).toContain('"start_new_session"] = True');
-    expect(content).toContain('run_python(["--cleanup-only"], timeout_sec=SUITE_CLEANUP_TIMEOUT_SEC)');
+    expect(content).toContain('cleanup_env["OUTPUT_DIR"] = str(OUTPUT_ROOT)');
+    expect(content).toContain('run_python(["--cleanup-only"], env=cleanup_env, timeout_sec=SUITE_CLEANUP_TIMEOUT_SEC)');
     expect(content).toContain("collect_residue()");
     expect(content).toContain("PROMOTED_SUITE_KEEP_OUTPUT");
     expect(content).toContain("if exit_code == 0 and not KEEP_OUTPUT and CREATED_OUTPUT_ROOT:");

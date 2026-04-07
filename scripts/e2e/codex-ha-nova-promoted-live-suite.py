@@ -194,7 +194,10 @@ def main(argv: list[str]) -> int:
     scenarios = parse_requested(argv)
     OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
 
-    cleanup = run_python(["--cleanup-only"], timeout_sec=SUITE_CLEANUP_TIMEOUT_SEC)
+    cleanup_env = os.environ.copy()
+    cleanup_env["OUTPUT_DIR"] = str(OUTPUT_ROOT)
+
+    cleanup = run_python(["--cleanup-only"], env=cleanup_env, timeout_sec=SUITE_CLEANUP_TIMEOUT_SEC)
     if cleanup.returncode != 0:
         die("initial promoted cleanup failed")
 
@@ -234,7 +237,7 @@ def main(argv: list[str]) -> int:
                 }
             )
 
-        cleanup = run_python(["--cleanup-only"], timeout_sec=SUITE_CLEANUP_TIMEOUT_SEC)
+        cleanup = run_python(["--cleanup-only"], env=cleanup_env, timeout_sec=SUITE_CLEANUP_TIMEOUT_SEC)
         residue = collect_residue()
         summary = {
             "requested": scenarios,
@@ -254,7 +257,7 @@ def main(argv: list[str]) -> int:
             subprocess.run(["trash", str(OUTPUT_ROOT)], cwd=ROOT, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         return exit_code
     finally:
-        run_python(["--cleanup-only"], timeout_sec=SUITE_CLEANUP_TIMEOUT_SEC)
+        run_python(["--cleanup-only"], env=cleanup_env, timeout_sec=SUITE_CLEANUP_TIMEOUT_SEC)
 
 
 if __name__ == "__main__":
