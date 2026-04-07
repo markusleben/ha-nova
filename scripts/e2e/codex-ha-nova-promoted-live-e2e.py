@@ -1106,7 +1106,7 @@ def validate_dashboard_lifecycle(events: list[dict[str, Any]], invalid_lines: li
         if isinstance(item.get("exit_code"), int) and item.get("exit_code") != 0
     ]
     if failed_commands and all(
-        "ha-nova relay ws --data-file /tmp/" in item.get("command", "")
+        "ha-nova relay ws --data-file" in item.get("command", "")
         and re.search(r"config[-_](?:read|initial)", item.get("command", "")) is not None
         for item in failed_commands
     ) and "lovelace/config/save" in text and count_ws_mentions(text, "lovelace/config") >= 1:

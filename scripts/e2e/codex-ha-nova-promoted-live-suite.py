@@ -16,7 +16,9 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 SCENARIO_SCRIPT = ROOT / "scripts" / "e2e" / "codex-ha-nova-promoted-live-e2e.py"
-OUTPUT_ROOT = Path(os.environ.get("OUTPUT_DIR", tempfile.mkdtemp(prefix="ha-nova-promoted-suite.")))
+OUTPUT_ROOT_ENV = os.environ.get("OUTPUT_DIR")
+OUTPUT_ROOT = Path(OUTPUT_ROOT_ENV) if OUTPUT_ROOT_ENV else Path(tempfile.mkdtemp(prefix="ha-nova-promoted-suite."))
+CREATED_OUTPUT_ROOT = OUTPUT_ROOT_ENV is None
 RUN_ID = datetime.now().strftime("%Y%m%d-%H%M%S")
 SUMMARY_FILE = OUTPUT_ROOT / f"summary-{RUN_ID}.json"
 RESULTS_FILE = OUTPUT_ROOT / f"results-{RUN_ID}.ndjson"
@@ -248,7 +250,7 @@ def main(argv: list[str]) -> int:
         SUMMARY_FILE.write_text(json.dumps(summary, indent=2), encoding="utf-8")
         log(f"Summary: {SUMMARY_FILE}")
         exit_code = 0 if summary["failed"] == 0 and cleanup.returncode == 0 and residue_empty(residue) else 1
-        if exit_code == 0 and not KEEP_OUTPUT:
+        if exit_code == 0 and not KEEP_OUTPUT and CREATED_OUTPUT_ROOT:
             subprocess.run(["trash", str(OUTPUT_ROOT)], cwd=ROOT, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         return exit_code
     finally:

@@ -134,6 +134,8 @@ describe("codex promoted skill live e2e contract", () => {
     expect((stats.mode & constants.S_IXUSR) !== 0).toBe(true);
     expect(content.startsWith("#!/usr/bin/env python3")).toBe(true);
     expect(content).toContain('SCENARIO_SCRIPT = ROOT / "scripts" / "e2e" / "codex-ha-nova-promoted-live-e2e.py"');
+    expect(content).toContain('OUTPUT_ROOT_ENV = os.environ.get("OUTPUT_DIR")');
+    expect(content).toContain("CREATED_OUTPUT_ROOT = OUTPUT_ROOT_ENV is None");
     expect(content).toContain("SMOKE_SCENARIOS = (");
     expect(content).toContain('SUITE_SCENARIO_TIMEOUT_SEC = int(os.environ.get("PROMOTED_SUITE_SCENARIO_TIMEOUT_SEC", "540"))');
     expect(content).toContain('SUITE_CLEANUP_TIMEOUT_SEC = int(os.environ.get("PROMOTED_SUITE_CLEANUP_TIMEOUT_SEC", "120"))');
@@ -142,6 +144,7 @@ describe("codex promoted skill live e2e contract", () => {
     expect(content).toContain('run_python(["--cleanup-only"], timeout_sec=SUITE_CLEANUP_TIMEOUT_SEC)');
     expect(content).toContain("collect_residue()");
     expect(content).toContain("PROMOTED_SUITE_KEEP_OUTPUT");
+    expect(content).toContain("if exit_code == 0 and not KEEP_OUTPUT and CREATED_OUTPUT_ROOT:");
     expect(content).toContain('if not parsed.get("ok"):');
     expect(content).toContain('raise subprocess.CalledProcessError(1, "ha-nova relay ws", output=raw)');
   });
