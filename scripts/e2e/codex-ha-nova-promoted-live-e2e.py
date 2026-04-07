@@ -21,6 +21,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 OUTPUT_DIR = Path(os.environ.get("OUTPUT_DIR", tempfile.mkdtemp(prefix="ha-nova-codex-promoted-live.")))
+ACTIVE_OUTPUT_DIR = OUTPUT_DIR.resolve()
 RUN_ID = datetime.now().strftime("%Y%m%d-%H%M%S")
 LOG_DIR = OUTPUT_DIR / f"logs-{RUN_ID}"
 RESULTS_FILE = OUTPUT_DIR / f"results-{RUN_ID}.ndjson"
@@ -676,7 +677,11 @@ def cleanup_entity_metadata(entity_id: str, labels: list[str], aliases: list[str
 
 def artifact_output_dirs() -> list[Path]:
     temp_root = Path(tempfile.gettempdir())
-    return sorted(temp_root.glob("ha-nova-codex-promoted-live.*"))
+    return sorted(
+        output_dir
+        for output_dir in temp_root.glob("ha-nova-codex-promoted-live.*")
+        if output_dir.resolve() != ACTIVE_OUTPUT_DIR
+    )
 
 
 def stale_scopes_from_artifacts() -> set[str]:

@@ -14,6 +14,7 @@ describe("codex promoted skill live e2e contract", () => {
       'SCENARIO_ORDER = (\n    "dashboard_storage_lifecycle",\n    "dashboard_card_flow",\n    "dashboard_resource_flow",\n    "dashboard_delete_token",\n    "dashboard_delete_reject_natural",\n    "organize_category_flow",\n    "organize_floor_area_flow",\n    "organize_label_entity_flow",\n    "organize_category_delete_token",\n    "history_timeline",\n    "history_statistics",\n)'
     );
     expect(content).toContain('OUTPUT_DIR = Path(os.environ.get("OUTPUT_DIR"');
+    expect(content).toContain("ACTIVE_OUTPUT_DIR = OUTPUT_DIR.resolve()");
     expect(content).toContain('SCENARIO_TIMEOUT_SEC = int(os.environ.get("PROMOTED_E2E_SCENARIO_TIMEOUT_SEC", "420"))');
     expect(content).toContain("codex");
     expect(content).toContain("ha-nova");
@@ -109,6 +110,7 @@ describe("codex promoted skill live e2e contract", () => {
     expect(content).toContain("cleanup_stale_promoted_organize_metadata()");
     expect(content).toContain("cleanup_promoted_output_dirs()");
     expect(content).toContain("cleanup_entity_category_scope(scope)");
+    expect(content).toContain("if output_dir.resolve() != ACTIVE_OUTPUT_DIR");
     expect(content).not.toContain("sensor.wetterstation_actual_temperature");
     expect(content).toContain("NEUTRAL_HISTORY_ENTITY_RE = re.compile(");
     expect(content).toContain("neutral_candidates = [entity_id for entity_id in candidates if entity_id and NEUTRAL_HISTORY_ENTITY_RE.search(entity_id)]");
