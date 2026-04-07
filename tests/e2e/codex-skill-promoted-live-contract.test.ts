@@ -89,6 +89,7 @@ describe("codex promoted skill live e2e contract", () => {
     expect(content).toContain("final_label_missing");
     expect(content).toContain("organize_floor_area_flow");
     expect(content).toContain("organize_label_entity_flow");
+    expect(content).toContain('if "organize_category_flow" in requested or "organize_category_delete_token" in requested:');
     expect(content).toContain('entity[-_]get');
     expect(content).toContain("entity_category_scope_not_cleared_after_delete");
     expect(content).toContain("bounded_history_call_missing");

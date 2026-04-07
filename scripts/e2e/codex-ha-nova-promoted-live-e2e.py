@@ -1484,7 +1484,9 @@ def main(argv: list[str]) -> int:
             results.append(run_case("dashboard_delete_reject_natural", prompt, status_line, validate_dashboard_delete_reject, fixture))
             cleanup_dashboards.append(fixture)
 
-        entity_fixture = discover_entity_fixture()
+        entity_fixture: dict[str, Any] | None = None
+        if "organize_category_flow" in requested or "organize_category_delete_token" in requested:
+            entity_fixture = discover_entity_fixture()
 
         if "organize_category_flow" in requested:
             suffix = str(int(time.time()))
