@@ -59,7 +59,7 @@ If enum semantics, required/optional behavior, or cross-field rules are uncertai
   - delete success = entry absent in `config_entries/get`
   - linked entity appearance/disappearance is secondary evidence only
 
-Observed locally on Markus's HA on 2026-03-19:
+Observed locally on a real HA instance on 2026-03-19:
 
 - all 9 create flows succeeded through relay `/core`
 - all 9 create flows produced loaded entries with `supports_options: true`

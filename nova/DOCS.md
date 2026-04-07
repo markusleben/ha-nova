@@ -40,9 +40,9 @@ The relay exposes three endpoints. All relay requests, including `GET /health`, 
 
 The easiest way to set up everything (relay + AI client + skills):
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/main/install.sh | bash
-```
+- open [README.md](../README.md)
+- open the [latest GitHub release](https://github.com/markusleben/ha-nova/releases/latest)
+- copy the stable install one-liner for your OS and run it unchanged
 
 Or if you already have the repo:
 

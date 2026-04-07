@@ -91,7 +91,7 @@ Write the resolved lowercase prefix literal directly into the jq file and reuse 
   .data.entities[]
   | select(.ei | startswith("automation."))
   | {entity_id: .ei, name: (.en // ""), area_id: (.ai // ""), suffix: (.ei | split(".")[1])}
-  | select((.suffix | ascii_downcase | startswith("growbox")) or (.name | ascii_downcase | startswith("growbox")))
+  | select((.suffix | ascii_downcase | startswith("morning")) or (.name | ascii_downcase | startswith("morning")))
   | del(.suffix)
 ]
 | sort_by(.entity_id)
@@ -127,13 +127,13 @@ Resolve the real `label_id` first, then match that exact registry label assignme
 [
   .data[]
   | select(.entity_id | startswith("automation."))
-  | select(any((.labels // [])[]; . == "label_kitchen"))
+  | select(any((.labels // [])[]; . == "label_alpha"))
   | {entity_id, name: (.name // ""), area_id: (.area_id // "")}
 ]
 | sort_by(.entity_id)
 ```
 
-- Replace `"label_kitchen"` with the resolved canonical `label_id` literal before running the filter.
+- Replace `"label_alpha"` with the resolved canonical `label_id` literal before running the filter.
 
 ### Inventory summary wrapper
 

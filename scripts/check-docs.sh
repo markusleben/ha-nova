@@ -34,13 +34,13 @@ else
 fi
 
 # ── 2. Skill count ──
-# README claims "9 skill files"
-echo "[2] Skill directory count (README claims 9)"
+# Active skill inventory expects 12 top-level skill directories
+echo "[2] Skill directory count (current inventory expects 12)"
 SKILL_COUNT=$(find "$REPO_ROOT/skills" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')
-if (( SKILL_COUNT == 9 )); then
+if (( SKILL_COUNT == 12 )); then
   pass "skills/ has ${SKILL_COUNT} directories"
 else
-  fail "skills/ has ${SKILL_COUNT} directories — README says 9. Update README and diagram."
+  fail "skills/ has ${SKILL_COUNT} directories — active docs/contracts expect 12. Update README and architecture docs."
 fi
 
 # ── 3. No MCP protocol in relay ──

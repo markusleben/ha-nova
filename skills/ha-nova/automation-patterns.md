@@ -139,7 +139,7 @@ conditions:
 actions:
   - action: light.turn_on
     target:
-      entity_id: light.living_room
+      entity_id: light.main_light
     data:
       brightness_pct: 80
 
@@ -147,7 +147,7 @@ actions:
 actions:
   - action: light.turn_on
     data:
-      entity_id: light.living_room
+      entity_id: light.main_light
       brightness_pct: 80
 ```
 
@@ -156,9 +156,9 @@ actions:
 ```yaml
 target:
   entity_id:
-    - light.living_room
-    - light.kitchen
-  area_id: bedroom       # all lights in bedroom area
+    - light.zone_a
+    - light.zone_b
+  area_id: area_alpha       # all lights in that area
 ```
 
 ### entity_id vs device_id

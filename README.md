@@ -25,7 +25,7 @@ Works with **Claude Code, Claude Desktop (Code tab), Codex CLI, OpenCode, and Ge
 
 <img src="assets/demo.webp" alt="HA NOVA demo: creating a smart automation from plain English">
 
-> *"When I get home, set the living room lights to a warm welcome ambiance"* — one sentence in, a fully reviewed automation out, including suggestions you might not have thought of.
+> *"When I get home, set my main lights to a warm welcome scene"* — one sentence in, a fully reviewed automation out, including suggestions you might not have thought of.
 
 ## 🚀 Quick Start
 
@@ -84,9 +84,9 @@ Deleting anything needs a confirmation code — not just "yes", an actual code. 
 | *"Turn on the porch light at sunset and off at 11 PM"* | Creates a fully reviewed automation through the safety flow |
 | *"Why didn't my motion automation trigger last night?"* | Digs into trace logs and explains what actually went wrong |
 | *"Check my automations for problems"* | Checks your automations for mistakes and reliability issues |
-| *"Turn off the living room lights"* | Turns it off, confirms the new state |
-| *"Show me all sensors in the bedroom"* | Finds entities by room, area, or name |
-| *"Create a counter helper for my coffee intake"* | Creates it, shows the result |
+| *"Turn off the main lights"* | Turns it off, confirms the new state |
+| *"Show me all temperature sensors"* | Finds entities by room, area, or name |
+| *"Create a counter helper for daily checks"* | Creates it, shows the result |
 
 ## ⚙️ How It Works
 
@@ -118,10 +118,13 @@ Both approaches work. MCP servers have broader client support. HA NOVA trades th
 | ✏️ **write** | Create, update, delete automations and scripts through the 4-phase safety flow |
 | 📖 **read** | Browse configs, inspect automations, debug with trace analysis |
 | 🔍 **review** | Audit for 40+ common mistakes, conflicts, and best-practice violations |
+| 🧱 **dashboard** | Manage storage dashboards, Lovelace resources, and targeted card changes safely without risky partial saves |
+| 🗂️ **organize** | Manage areas, floors, labels, categories, and richer entity/device metadata |
+| 🕒 **history** | Read bounded history, logbook timelines, and long-term statistics with compact summaries |
 | 🎛️ **service-call** | Control devices: lights, climate, covers, switches, media players |
 | 🔎 **entity-discovery** | Find entities by name, room, area, or label |
 | 🧩 **helper** | Manage helpers (input_boolean, counter, timer, utility_meter, and more) |
-| 🛡️ **fallback** | Safety fallback for dashboards, blueprints, energy, areas, and more |
+| 🛡️ **fallback** | Safety fallback for blueprints, energy, calendars, zones, and advanced admin surfaces |
 | 🚀 **onboarding** | Setup diagnostics and troubleshooting |
 
 Want to add a new capability? → [CONTRIBUTING.md](CONTRIBUTING.md)

@@ -122,6 +122,9 @@ repo_claude_plugin_version() {
 }
 
 LEGACY_FLAT_SKILLS=(
+  "ha-nova-dashboard"
+  "ha-nova-organize"
+  "ha-nova-history"
   "ha-nova-write"
   "ha-nova-read"
   "ha-nova-helper"
