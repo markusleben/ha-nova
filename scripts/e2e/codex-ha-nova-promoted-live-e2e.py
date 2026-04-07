@@ -783,6 +783,8 @@ def cleanup_stale_promoted_organize_metadata() -> None:
 
 def cleanup_promoted_output_dirs() -> None:
     for output_dir in artifact_output_dirs():
+        if is_protected_output_dir(output_dir):
+            continue
         trash_path(output_dir)
 
 
@@ -1118,6 +1120,7 @@ def validate_dashboard_lifecycle(events: list[dict[str, Any]], invalid_lines: li
         and "ha-nova relay ws --data-file" in failed_commands[0].get("command", "")
         and "lovelace/config" in failed_output
         and fixture["url_path"] in failed_output
+        and any(token in failed_output.lower() for token in ("not found", "404", "missing", "no config"))
         and "lovelace/config/save" in text
         and count_ws_mentions(text, "lovelace/config") >= 2
     ):
