@@ -132,7 +132,10 @@ def relay_ws(payload: dict[str, Any]) -> dict[str, Any]:
             cwd=ROOT,
             text=True,
         )
-        return json.loads(raw)
+        parsed = json.loads(raw)
+        if not parsed.get("ok"):
+            raise subprocess.CalledProcessError(1, "ha-nova relay ws", output=raw)
+        return parsed
     finally:
         payload_path.unlink(missing_ok=True)
 

@@ -113,7 +113,9 @@ describe("codex promoted skill live e2e contract", () => {
     expect(content).toContain("if output_dir.resolve() != ACTIVE_OUTPUT_DIR");
     expect(content).not.toContain("sensor.wetterstation_actual_temperature");
     expect(content).toContain("NEUTRAL_HISTORY_ENTITY_RE = re.compile(");
-    expect(content).toContain("neutral_candidates = [entity_id for entity_id in candidates if entity_id and NEUTRAL_HISTORY_ENTITY_RE.search(entity_id)]");
+    expect(content).toContain("neutral_candidates = [");
+    expect(content).toContain("if entity_id and NEUTRAL_HISTORY_ENTITY_RE.search(entity_id)");
+    expect(content).toContain("][:40]");
     expect(content).toContain("neutral_candidates = [entity_id for entity_id in candidates if NEUTRAL_HISTORY_ENTITY_RE.search(entity_id)]");
     expect(content).not.toContain("person.markus");
   });
@@ -134,6 +136,8 @@ describe("codex promoted skill live e2e contract", () => {
     expect(content).toContain('run_python(["--cleanup-only"], timeout_sec=SUITE_CLEANUP_TIMEOUT_SEC)');
     expect(content).toContain("collect_residue()");
     expect(content).toContain("PROMOTED_SUITE_KEEP_OUTPUT");
+    expect(content).toContain('if not parsed.get("ok"):');
+    expect(content).toContain('raise subprocess.CalledProcessError(1, "ha-nova relay ws", output=raw)');
   });
 
   it("exposes an npm script for the promoted live harness", () => {
