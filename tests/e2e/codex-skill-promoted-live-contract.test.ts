@@ -113,7 +113,10 @@ describe("codex promoted skill live e2e contract", () => {
     expect(content).toContain("cleanup_entity_category_scope(scope)");
     expect(content).toContain('relay_ws({"type": "config/category_registry/list", "scope": scope})');
     expect(content).toContain('for pattern in ("ha-nova-codex-promoted-live.*", "ha-nova-promoted-suite.*")');
-    expect(content).toContain("if output_dir.resolve() not in ACTIVE_OUTPUT_PROTECTED_DIRS");
+    expect(content).toContain("if not is_protected_output_dir(output_dir)");
+    expect(content).toContain("def is_protected_output_dir(path: Path) -> bool:");
+    expect(content).toContain("ACTIVE_OUTPUT_DIR.is_relative_to(resolved)");
+    expect(content).toContain("resolved.is_relative_to(ACTIVE_OUTPUT_DIR)");
     expect(content).toContain("cleanup_categories: list[dict[str, Any]] = []");
     expect(content).toContain("cleanup_categories.append(fixture)");
     expect(content).toContain('cleanup_category(scope, category_fixture.get("category_id"))');
@@ -124,6 +127,9 @@ describe("codex promoted skill live e2e contract", () => {
     expect(content).toContain("neutral_candidates = [entity_id for entity_id in candidates if NEUTRAL_HISTORY_ENTITY_RE.search(entity_id)]");
     expect(content).toContain("len(failed_commands) == 1");
     expect(content).toContain('"ha-nova relay ws --data-file" in failed_commands[0].get("command", "")');
+    expect(content).toContain('failed_output = command_output(failed_commands[0]) if len(failed_commands) == 1 else ""');
+    expect(content).toContain('"lovelace/config" in failed_output');
+    expect(content).toContain('fixture["url_path"] in failed_output');
     expect(content).not.toContain('re.search(r"config[-_](?:read|initial)", item.get("command", ""))');
     expect(content).not.toContain("person.markus");
   });

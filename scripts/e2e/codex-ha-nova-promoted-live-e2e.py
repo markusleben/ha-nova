@@ -688,7 +688,16 @@ def artifact_output_dirs() -> list[Path]:
         output_dir
         for pattern in ("ha-nova-codex-promoted-live.*", "ha-nova-promoted-suite.*")
         for output_dir in temp_root.glob(pattern)
-        if output_dir.resolve() not in ACTIVE_OUTPUT_PROTECTED_DIRS
+        if not is_protected_output_dir(output_dir)
+    )
+
+
+def is_protected_output_dir(path: Path) -> bool:
+    resolved = path.resolve()
+    return (
+        resolved in ACTIVE_OUTPUT_PROTECTED_DIRS
+        or ACTIVE_OUTPUT_DIR.is_relative_to(resolved)
+        or resolved.is_relative_to(ACTIVE_OUTPUT_DIR)
     )
 
 
@@ -1103,9 +1112,12 @@ def validate_dashboard_lifecycle(events: list[dict[str, Any]], invalid_lines: li
         for item in commands
         if isinstance(item.get("exit_code"), int) and item.get("exit_code") != 0
     ]
+    failed_output = command_output(failed_commands[0]) if len(failed_commands) == 1 else ""
     if (
         len(failed_commands) == 1
         and "ha-nova relay ws --data-file" in failed_commands[0].get("command", "")
+        and "lovelace/config" in failed_output
+        and fixture["url_path"] in failed_output
         and "lovelace/config/save" in text
         and count_ws_mentions(text, "lovelace/config") >= 2
     ):
