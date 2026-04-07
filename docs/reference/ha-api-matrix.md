@@ -38,27 +38,28 @@ Which HA operations require REST, WS, or filesystem?
 | WS Type | Purpose |
 |---------|-----|
 | `config/area_registry/list` | All areas |
-| `config/area_registry/create` | Create area (`name`, `icon`, `floor_id`, `labels`) |
-| `config/area_registry/update` | Update area |
+| `config/area_registry/create` | Create area (`name`, `floor_id`, `icon`, `picture`, `aliases`) |
+| `config/area_registry/update` | Update area metadata |
 | `config/area_registry/delete` | Delete area |
 | `config/floor_registry/list` | All floors |
-| `config/floor_registry/create` | Create floor |
-| `config/floor_registry/update` | Update floor |
+| `config/floor_registry/create` | Create floor (`name`, `level`, `icon`, `aliases`) |
+| `config/floor_registry/update` | Update floor metadata |
 | `config/floor_registry/delete` | Delete floor |
 | `config/label_registry/list` | All labels |
-| `config/label_registry/create` | Create label |
-| `config/label_registry/update` | Update label |
+| `config/label_registry/create` | Create label (`name`, `color`, `icon`, `description`) |
+| `config/label_registry/update` | Update label metadata |
 | `config/label_registry/delete` | Delete label |
-| `config/category_registry/list` | All categories |
-| `config/category_registry/create` | Create category |
-| `config/category_registry/update` | Update category |
-| `config/category_registry/delete` | Delete category |
+| `config/category_registry/list` | All categories for one `scope` |
+| `config/category_registry/create` | Create category for one `scope` (`name`, `icon`) |
+| `config/category_registry/update` | Update category metadata for one `scope` |
+| `config/category_registry/delete` | Delete category for one `scope` |
 | `config/entity_registry/list` | All entity registry entries |
 | `config/entity_registry/get` | Single entity registry entry |
-| `config/entity_registry/update` | Rename entity, labels, area, disable, hide |
+| `config/entity_registry/update` | Rename entity, aliases, labels, area, scoped `categories`, disable, hide |
 | `config/entity_registry/remove` | Remove entity from registry |
 | `config/device_registry/list` | All devices |
-| `config/device_registry/update` | Assign device area, labels, name |
+| `config/device_registry/update` | Assign device area, labels, name, disable |
+| `config/device_registry/remove_config_entry` | Detach config entry from device |
 
 ### Helper CRUD (storage-based, direct WS commands)
 | WS Type Pattern | Supported types |
@@ -78,7 +79,7 @@ Which HA operations require REST, WS, or filesystem?
 | `/core` | `POST /api/config/config_entries/options/flow/{flow_id}` | Submit options-flow step |
 | `/core` | `DELETE /api/config/config_entries/entry/{entry_id}` | Delete config entry |
 
-Observed locally on Markus's HA on 2026-03-19: raw WS `config_entries/flow` did not succeed in this session; relay `/core` returned the expected config-flow responses.
+Observed locally on a real HA instance on 2026-03-19: raw WS `config_entries/flow` did not succeed in this session; relay `/core` returned the expected config-flow responses.
 
 **Helper-owned config-entry domains:** utility_meter, derivative, integration, min_max, threshold, tod, statistics, group, history_stats
 `group` is menu-driven; the live-proven end-to-end subtype is `sensor`, and other subtypes must stay anchored to the live step schema instead of guessed fields.
@@ -87,11 +88,23 @@ Observed locally on Markus's HA on 2026-03-19: raw WS `config_entries/flow` did 
 ### Dashboard / Lovelace
 | WS Type | Purpose |
 |---------|-----|
+| `lovelace/dashboards/list` | List dashboards and URL paths |
+| `lovelace/dashboards/create` | Create storage dashboard shell |
+| `lovelace/dashboards/update` | Update dashboard metadata by `dashboard_id` |
+| `lovelace/dashboards/delete` | Delete dashboard by `dashboard_id` |
 | `lovelace/config` | Read dashboard config (URL path as parameter) |
 | `lovelace/config/save` | Save dashboard config |
-| `lovelace/config/delete` | Delete dashboard |
+| `lovelace/config/delete` | Delete the selected dashboard config object by `url_path` (not the collection delete path used by `ha-nova:dashboard`) |
 | `lovelace/resources` | List UI resources |
-| `lovelace/info` | Dashboard info |
+| `lovelace/resources/create` | Create UI resource (`res_type`, `url`) |
+| `lovelace/resources/update` | Update UI resource by `resource_id` |
+| `lovelace/resources/delete` | Delete UI resource by `resource_id` |
+| `lovelace/info` | Global Lovelace resource mode |
+
+### Recorder statistics
+| WS Type | Purpose |
+|---------|-----|
+| `recorder/statistics_during_period` | Bounded long-term statistics for eligible entities |
 
 ### Energy
 | WS Type | Purpose |
@@ -139,5 +152,14 @@ Observed locally on Markus's HA on 2026-03-19: raw WS `config_entries/flow` did 
 - **Automation/Script REST API** is undocumented but stable (used by the HA frontend)
 - **Legacy template sensors** (`sensor:` + `platform: template`) are deprecated since 2025.12, end in 2026.6
 - **Helper delete** requires `unique_id`, not `entity_id`
+- **Dashboard write/delete eligibility** comes from `lovelace/dashboards/list` (`mode=storage`), not from `lovelace/info`
+- **Dashboard content writes are full-document saves** and must preserve unrelated views/cards
+- **Lovelace resources have dedicated CRUD** via `lovelace/resources|create|update|delete`
+- **Category CRUD is scope-based** and entity category assignment uses `config/entity_registry/update` with a `categories` map
+  - every `config/category_registry/*` call must include `scope`
+  - set one scope: `{"categories":{"<scope>":"<category_id>"}}`
+  - clear one scope: `{"categories":{"<scope>":null}}`
+  - do not rely on `{"categories":{}}` to clear an existing scoped category
+- **Long-term trends use recorder statistics**, not wide history scans, when the question spans many days
 - **Services** can be called with `?return_response` for response data
 - **ETag caching** for `/api/services` saves bandwidth on repeated calls

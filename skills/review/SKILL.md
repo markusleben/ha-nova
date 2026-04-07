@@ -35,7 +35,7 @@ Relay CLI: `ha-nova relay`
 
 ### Target Resolution
 
-If user provides an exact automation/script `entity_id` (e.g., `automation.kitchen_lights`), skip search and go directly to config read.
+If user provides an exact automation/script `entity_id` (e.g., `automation.main_lights`), skip search and go directly to config read.
 
 For helpers, resolve the family first:
 - storage-based family: entity_id domain is one of `input_boolean`, `input_number`, `input_text`, `input_select`, `input_datetime`, `input_button`, `counter`, `timer`, `schedule`
@@ -136,7 +136,7 @@ If the target config is not already in the thread context, resolve it yourself:
    ```
    For config-entry helpers, persist the canonical metadata item from step 3 to `<target-file>` instead of attempting `{type}/list`.
    Then read the file with the native file-reading tool for complete, untruncated access.
-7. After reading the config for an automation or script, extract the **primary controlled entity** from the config actions (the first significant entity_id being controlled, e.g., `light.kitchen`, `climate.living_room` — NOT the automation/script entity itself). Read its current state (for Quick-Fix detection at end of review):
+7. After reading the config for an automation or script, extract the **primary controlled entity** from the config actions (the first significant entity_id being controlled, e.g., `light.main_light`, `climate.main_zone` — NOT the automation/script entity itself). Read its current state (for Quick-Fix detection at end of review):
    ```text
    ha-nova relay core --method GET --path /api/states/<controlled_entity_id> --jq-file <state-filter-file> --out <state-file>
    ```

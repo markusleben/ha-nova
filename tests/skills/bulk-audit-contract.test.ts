@@ -49,8 +49,8 @@ describe("bulk audit contract", () => {
     expect(bulkPatterns).toContain('(.data.automation // []) | sort');
     expect(bulkPatterns).toContain("plain JSON array of automation `entity_id` strings");
     expect(bulkPatterns).toContain("Keep that array shape for workset trimming and count calculations");
-    expect(bulkPatterns).toContain('select(any((.labels // [])[]; . == "label_kitchen"))');
-    expect(bulkPatterns).toContain('Replace `"label_kitchen"` with the resolved canonical `label_id` literal');
+    expect(bulkPatterns).toContain('select(any((.labels // [])[]; . == "label_alpha"))');
+    expect(bulkPatterns).toContain('Replace `"label_alpha"` with the resolved canonical `label_id` literal');
     expect(bulkPatterns).toContain('values: ($rows[0:20] | map(.entity_id))');
     expect(bulkPatterns).toContain("rows: ($rows[0:20])");
     expect(bulkPatterns).toContain("When the shortlist is still a plain JSON array of `entity_id` strings");
@@ -130,9 +130,9 @@ describe("bulk audit contract", () => {
 
   it("keeps context routing and safety aligned to the bulk split", () => {
     expect(contextSkill).toContain("scale manually with the same rules");
-    expect(contextSkill).toContain('"Show all automations with prefix kitchen_"');
+    expect(contextSkill).toContain('"Show all automations with prefix routine_"');
     expect(contextSkill).toContain("ha-nova:entity-discovery");
-    expect(contextSkill).toContain('"Review all automations in area Living Room"');
+    expect(contextSkill).toContain('"Review all automations in area Area Alpha"');
     expect(contextSkill).toContain("area-first aggregate review when more than one target resolves");
     expect(contextSkill).not.toContain("resolved set is >3");
     expect(contextSkill).toContain("Bulk review is the exception: it stays read-only and does not offer Quick-Fix.");

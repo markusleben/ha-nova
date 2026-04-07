@@ -13,6 +13,9 @@ func TestInstallGeminiClientUsesNamespacedFlatSkillNames(t *testing.T) {
 	skillsRoot := filepath.Join(sourceRoot, "skills")
 	for _, skill := range []string{
 		"ha-nova",
+		"dashboard",
+		"organize",
+		"history",
 		"write",
 		"read",
 		"helper",
@@ -41,6 +44,9 @@ func TestInstallGeminiClientUsesNamespacedFlatSkillNames(t *testing.T) {
 
 	for _, skill := range []string{
 		"ha-nova",
+		"ha-nova-dashboard",
+		"ha-nova-organize",
+		"ha-nova-history",
 		"ha-nova-write",
 		"ha-nova-read",
 		"ha-nova-helper",

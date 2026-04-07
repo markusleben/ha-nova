@@ -182,31 +182,28 @@ def parse_requested_scenarios(argv: list[str]) -> list[str]:
 
 
 def discover_prefix_fixture(compact: list[dict]) -> dict:
-    prefix_value = "growbox"
-    prefix_matches = sorted(entity["ei"] for entity in compact if entity["ei"].startswith("automation.growbox"))
-    if len(prefix_matches) < 6:
-        prefix_candidates: dict[str, list[str]] = defaultdict(list)
-        for entity in compact:
-            entity_id = entity.get("ei")
-            if not isinstance(entity_id, str) or not entity_id.startswith("automation."):
-                continue
-            suffix = entity_id.split(".", 1)[1].lower()
-            prefix = suffix.split("_", 1)[0]
-            if not re.match(r"^[a-z][a-z0-9-]{3,}$", prefix):
-                continue
-            if prefix == "automation":
-                continue
-            prefix_candidates[prefix].append(entity_id)
-        ranked_prefixes = [
-            {"selector": selector, "matches": sorted(set(matches))}
-            for selector, matches in prefix_candidates.items()
-            if len(matches) >= 6
-        ]
-        ranked_prefixes.sort(key=lambda item: (-len(item["matches"]), item["selector"]))
-        if not ranked_prefixes:
-            die("Need at least one automation prefix fixture with 6+ matches")
-        prefix_value = ranked_prefixes[0]["selector"]
-        prefix_matches = ranked_prefixes[0]["matches"]
+    prefix_candidates: dict[str, list[str]] = defaultdict(list)
+    for entity in compact:
+        entity_id = entity.get("ei")
+        if not isinstance(entity_id, str) or not entity_id.startswith("automation."):
+            continue
+        suffix = entity_id.split(".", 1)[1].lower()
+        prefix = suffix.split("_", 1)[0]
+        if not re.match(r"^[a-z][a-z0-9-]{3,}$", prefix):
+            continue
+        if prefix == "automation":
+            continue
+        prefix_candidates[prefix].append(entity_id)
+    ranked_prefixes = [
+        {"selector": selector, "matches": sorted(set(matches))}
+        for selector, matches in prefix_candidates.items()
+        if len(matches) >= 6
+    ]
+    ranked_prefixes.sort(key=lambda item: (-len(item["matches"]), item["selector"]))
+    if not ranked_prefixes:
+        die("Need at least one automation prefix fixture with 6+ matches")
+    prefix_value = ranked_prefixes[0]["selector"]
+    prefix_matches = ranked_prefixes[0]["matches"]
 
     return {
         "id": "inventory_prefix",

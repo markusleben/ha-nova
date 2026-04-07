@@ -9,6 +9,9 @@ describe("ha-nova contract", () => {
     expect(context).toContain("ha-nova:write");
     expect(context).toContain("ha-nova:read");
     expect(context).toContain("ha-nova:helper");
+    expect(context).toContain("ha-nova:dashboard");
+    expect(context).toContain("ha-nova:organize");
+    expect(context).toContain("ha-nova:history");
     expect(context).toContain("ha-nova:service-call");
     expect(context).toContain("ha-nova:entity-discovery");
     expect(context).toContain("ha-nova:onboarding");
@@ -19,6 +22,83 @@ describe("ha-nova contract", () => {
     expect(context).not.toContain("core/intents.md");
     expect(context).not.toContain("Lazy Discovery Protocol");
     expect(context).not.toContain("Orchestration Hard Gate");
+  });
+
+  it("routes dashboard, organization, and history intents to dedicated skills", () => {
+    const context = readFileSync("skills/ha-nova/SKILL.md", "utf8");
+
+    expect(context).toContain('| list, show, read dashboards, Lovelace resources, or dashboard structure | `ha-nova:dashboard` |');
+    expect(context).toContain('| create, update, delete storage dashboards / Lovelace configs / Lovelace resources / dashboard cards | `ha-nova:dashboard` |');
+    expect(context).toContain('| organize areas, floors, labels, categories, devices, entities | `ha-nova:organize` |');
+    expect(context).toContain('| assign or remove entity categories | `ha-nova:organize` |');
+    expect(context).toContain('| show history, logbook timelines, or long-term statistics | `ha-nova:history` |');
+    expect(context).toContain('"Show my main dashboard"** → `ha-nova:dashboard`');
+    expect(context).toContain('"Create a dashboard called Test Board"** → `ha-nova:dashboard`');
+    expect(context).toContain('"Delete the Test dashboard"** → `ha-nova:dashboard`');
+    expect(context).toContain('"Add a markdown card to my dashboard"** → `ha-nova:dashboard`');
+    expect(context).toContain('"List my Lovelace resources"** → `ha-nova:dashboard`');
+    expect(context).toContain('"Move this sensor to Area Alpha"** → `ha-nova:organize`');
+    expect(context).toContain('"Put this sensor in category Category Alpha"** → `ha-nova:organize`');
+    expect(context).toContain('"Add an alias to this area"** → `ha-nova:organize`');
+    expect(context).toContain('"Show history for sensor X"** → `ha-nova:history`');
+    expect(context).toContain('"Show temperature trends for the last month"** → `ha-nova:history`');
+    expect(context).toContain('"Remove this entity from Home Assistant"** → `ha-nova:fallback`');
+    expect(context).toContain('"Detach this config entry from the device"** → `ha-nova:fallback`');
+    expect(context).not.toContain('"Show history for sensor X"** → `ha-nova:fallback`');
+    expect(context).not.toContain('"Modify my dashboard"** → `ha-nova:fallback`');
+  });
+
+  it("documents storage-only dashboard lifecycle, resources, and category ownership in dedicated skills", () => {
+    const dashboard = readFileSync("skills/dashboard/SKILL.md", "utf8");
+    const organize = readFileSync("skills/organize/SKILL.md", "utf8");
+
+    expect(dashboard).toContain("create a new storage dashboard shell");
+    expect(dashboard).toContain("delete an existing storage dashboard");
+    expect(dashboard).toContain("list Lovelace resources");
+    expect(dashboard).toContain("inspect the current dashboard structure");
+    expect(dashboard).toContain("create, update, and delete Lovelace resources");
+    expect(dashboard).toContain("add, update, move, and delete cards inside existing views");
+    expect(dashboard).toContain("only write/delete when the dashboard `mode` is `storage`");
+    expect(dashboard).toContain("`dashboard_id` for `lovelace/dashboards/update|delete`");
+    expect(dashboard).toContain("`url_path` for `lovelace/config|save`");
+    expect(dashboard).toContain("`lovelace/dashboards/create`");
+    expect(dashboard).toContain("`lovelace/dashboards/update`");
+    expect(dashboard).toContain("`lovelace/dashboards/delete`");
+    expect(dashboard).toContain("`lovelace/resources`");
+    expect(dashboard).toContain("`lovelace/resources/create`");
+    expect(dashboard).toContain("`lovelace/resources/update`");
+    expect(dashboard).toContain("`lovelace/resources/delete`");
+    expect(dashboard).toContain("only send changed metadata fields supported there: `title`, `icon`, `show_in_sidebar`, `require_admin`");
+    expect(dashboard).toContain("do not resend `url_path`, `mode`, or unrelated config fields in the update payload");
+    expect(dashboard).toContain("new cards may be created only from this built-in allowlist");
+    expect(dashboard).toContain("existing custom cards may only be moved, deleted, or shallow-updated when the exact field already exists");
+    expect(dashboard).toContain("Never probe a different dashboard's config just to infer behavior for the target dashboard.");
+    expect(dashboard).toContain("Dashboard/resource delete uses exact token confirmation only.");
+    expect(dashboard).toContain("Never use `lovelace/config/delete` as the dashboard delete path.");
+    expect(dashboard).not.toContain("For create/delete or unrelated dashboard-adjacent admin work, hand off to `ha-nova:fallback`.");
+
+    expect(organize).toContain("- categories: list/create/update/delete");
+    expect(organize).toContain("- entity metadata updates: rename, move to area, assign/clear/add/remove labels, assign/remove categories, disable, hide, aliases");
+    expect(organize).toContain("- device metadata updates: rename, move to area, assign/clear/add/remove labels, disable");
+    expect(organize).toContain("area: `name`, `floor_id`, `icon`, `picture`, `aliases`");
+    expect(organize).toContain("floor: `name`, `level`, `icon`, `aliases`");
+    expect(organize).toContain("label: `name`, `color`, `icon`, `description`");
+    expect(organize).toContain("category: `name`, `icon`, exact `scope`");
+    expect(organize).toContain("every category registry call must include the exact `scope`");
+    expect(organize).toContain("do not call `config/category_registry/list|create|update|delete` without `scope`");
+    expect(organize).toContain('category assignment uses `categories: {"<scope>":"<category_id>"}`');
+    expect(organize).toContain('category removal for one scope uses `categories: {"<scope>": null}`');
+    expect(organize).toContain("do not send `categories: {}` when the goal is to clear one existing scoped category");
+    expect(organize).toContain("replace all labels");
+    expect(organize).toContain("add labels");
+    expect(organize).toContain("remove labels");
+    expect(organize).toContain("clear labels");
+    expect(organize).toContain("- entity category assignment/removal per scope");
+    expect(organize).toContain("`config/category_registry/list|create|update|delete`");
+    expect(organize).toContain("category assignment/removal is entity-only in this skill");
+    expect(organize).toContain("device category assignment");
+    expect(organize).toContain("Delete uses token confirmation only.");
+    expect(organize).toContain("One category scope at a time.");
   });
 
   it("keeps sequential intent re-dispatch guidance in the context skill", () => {
@@ -155,9 +235,42 @@ describe("ha-nova contract", () => {
     expect(apiMatrix).toContain("raw WS `config_entries/flow` did not succeed in this session");
     expect(apiMatrix).toContain("Helper-owned config-entry domains");
     expect(apiMatrix).toContain("live-proven end-to-end subtype is `sensor`");
+    expect(apiMatrix).toContain("`config/device_registry/remove_config_entry`");
+    expect(apiMatrix).toContain("`lovelace/dashboards/list`");
+    expect(apiMatrix).toContain("`lovelace/dashboards/create`");
+    expect(apiMatrix).toContain("`lovelace/dashboards/update` | Update dashboard metadata by `dashboard_id`");
+    expect(apiMatrix).toContain("`lovelace/dashboards/delete`");
+    expect(apiMatrix).toContain("`lovelace/config/delete` | Delete the selected dashboard config object");
+    expect(apiMatrix).toContain("`lovelace/resources/create` | Create UI resource (`res_type`, `url`)");
+    expect(apiMatrix).toContain("`lovelace/resources/update` | Update UI resource by `resource_id`");
+    expect(apiMatrix).toContain("`lovelace/resources/delete` | Delete UI resource by `resource_id`");
+    expect(apiMatrix).toContain("`recorder/statistics_during_period` | Bounded long-term statistics for eligible entities");
+    expect(apiMatrix).toContain('set one scope: `{"categories":{"<scope>":"<category_id>"}}`');
+    expect(apiMatrix).toContain('clear one scope: `{"categories":{"<scope>":null}}`');
+    expect(apiMatrix).toContain('do not rely on `{"categories":{}}` to clear an existing scoped category');
+    expect(apiMatrix).toContain("every `config/category_registry/*` call must include `scope`");
+    expect(apiMatrix).not.toContain("`lovelace/config/delete` | Delete dashboard");
     expect(apiMatrix).toContain("| `{type}/list` | input_boolean, input_number, input_text, input_datetime, input_select, input_button, counter, timer, schedule |");
     expect(apiMatrix).not.toContain("schedule, zone, person, tag");
     expect(architecture).toContain("config-body-filter.jq");
+    expect(architecture).toContain("dashboard/SKILL.md");
+    expect(architecture).toContain("organize/SKILL.md");
+    expect(architecture).toContain("history/SKILL.md");
+    expect(architecture).toContain("`ha-nova:dashboard` owns safe storage-dashboard work");
+    expect(architecture).toContain("list Lovelace resources");
+    expect(architecture).toContain("create/update/delete Lovelace resources");
+    expect(architecture).toContain("add/update/move/delete cards inside existing views");
+    expect(architecture).toContain("create a storage dashboard shell");
+    expect(architecture).toContain("`dashboard_id` is the mutation identifier for `update|delete`");
+    expect(architecture).toContain("metadata update sends `dashboard_id` plus only changed metadata fields");
+    expect(architecture).toContain("`ha-nova:organize` owns metadata-first Home Assistant organization");
+    expect(architecture).toContain("areas / floors / labels / categories CRUD");
+    expect(architecture).toContain("entity category assignment/removal by scope");
+    expect(architecture).toContain("areas: `floor_id`, `icon`, `picture`, `aliases`");
+    expect(architecture).toContain("entity/device label updates may replace, add, remove, or clear labels");
+    expect(architecture).toContain("every `config/category_registry/*` call includes the exact `scope`");
+    expect(architecture).toContain("`ha-nova:history` is a bounded read-only timeline skill");
+    expect(architecture).toContain("long-term trends via `recorder/statistics_during_period`");
     expect(architecture).toContain("room/area bulk resolution is area-first");
     expect(architecture).toContain("materialize and trim the current workset before any per-item reads");
   });
@@ -253,6 +366,9 @@ describe("ha-nova contract", () => {
 
   it("keeps all operational subskills concise (<1000 words)", () => {
     const skills = [
+      "skills/dashboard/SKILL.md",
+      "skills/organize/SKILL.md",
+      "skills/history/SKILL.md",
       "skills/write/SKILL.md",
       "skills/read/SKILL.md",
       "skills/entity-discovery/SKILL.md",
@@ -265,9 +381,28 @@ describe("ha-nova contract", () => {
     }
   });
 
+  it("keeps the history skill read-only, bounded, and stats-aware", () => {
+    const history = readFileSync("skills/history/SKILL.md", "utf8");
+
+    expect(history).toContain("Read-only timeline work:");
+    expect(history).toContain("long-term statistics over a bounded time range");
+    expect(history).toContain("`recorder/statistics_during_period`");
+    expect(history).toContain("Do not invent a `--jq` flag.");
+    expect(history).toContain("prefer simple reductions that do not depend on fragile timestamp parsing");
+    expect(history).toContain("do not build complex jq expressions just to recover min/max event timestamps");
+    expect(history).toContain("history series: `.data.body[0]`");
+    expect(history).toContain("logbook entries: `.data.body`");
+    expect(history).toContain("Recorder statistics response stays under WS `.data`.");
+    expect(history).toContain("do not probe `.[0]` or `.[0][0]` against the relay envelope");
+    expect(history).toContain("otherwise default to the last 30 days for statistics/trend questions");
+  });
+
   it("keeps all HA NOVA skills in source tree", () => {
     const files = [
       "skills/ha-nova/SKILL.md",
+      "skills/dashboard/SKILL.md",
+      "skills/organize/SKILL.md",
+      "skills/history/SKILL.md",
       "skills/write/SKILL.md",
       "skills/read/SKILL.md",
       "skills/helper/SKILL.md",
@@ -290,6 +425,9 @@ describe("ha-nova contract", () => {
   it("enforces English-only content across all skill files", () => {
     const allSkillFiles = [
       "skills/ha-nova/SKILL.md",
+      "skills/dashboard/SKILL.md",
+      "skills/organize/SKILL.md",
+      "skills/history/SKILL.md",
       "skills/write/SKILL.md",
       "skills/read/SKILL.md",
       "skills/helper/SKILL.md",
@@ -346,6 +484,9 @@ describe("ha-nova contract", () => {
 
   it("enforces relay CLI bootstrap across all operational subskills", () => {
     const skills = [
+      "skills/dashboard/SKILL.md",
+      "skills/organize/SKILL.md",
+      "skills/history/SKILL.md",
       "skills/write/SKILL.md",
       "skills/read/SKILL.md",
       "skills/entity-discovery/SKILL.md",
@@ -363,6 +504,9 @@ describe("ha-nova contract", () => {
 
   it("keeps active skills on a shell-agnostic relay contract", () => {
     const files = [
+      "skills/dashboard/SKILL.md",
+      "skills/organize/SKILL.md",
+      "skills/history/SKILL.md",
       "skills/read/SKILL.md",
       "skills/review/SKILL.md",
       "skills/helper/SKILL.md",
@@ -433,12 +577,15 @@ describe("ha-nova contract", () => {
     expect(bestPractices).toContain("native file-writing tool");
 
     const fallback = readFileSync("skills/fallback/SKILL.md", "utf8");
-    expect(fallback).toContain("<history-path>");
-    expect(fallback).toContain("<logbook-path>");
     expect(fallback).toContain("<calendar-events-path>");
-    expect(fallback).not.toContain("--path '/api/history/");
-    expect(fallback).not.toContain("--path '/api/logbook/");
     expect(fallback).not.toContain("--path '/api/calendars/");
+    expect(fallback).toContain("| Dashboard / Lovelace (storage lifecycle, cards, resources) | Covered | dashboard |");
+    expect(fallback).toContain("| History Queries | Covered | history |");
+    expect(fallback).toContain("| Statistics / Trend Queries | Covered | history |");
+    expect(fallback).toContain("| Area / Floor CRUD | Covered | organize |");
+    expect(fallback).toContain("| Label CRUD / Rich label metadata | Covered | organize |");
+    expect(fallback).toContain("| Category CRUD / Entity category assignment | Covered | organize |");
+    expect(fallback).toContain("| Entity remove / Device config-entry detach | Relay-Ready | this skill |");
   });
 
   it("keeps migration and search-related guidance in the shared refactoring doc", () => {

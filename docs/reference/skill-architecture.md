@@ -2,7 +2,7 @@
 
 ## Overview
 
-HA NOVA uses a flat skill layout with one context skill and 8 independent sub-skills under `skills/`.
+HA NOVA uses a flat skill layout with one context skill and 11 independent sub-skills under `skills/`.
 
 The repo skill tree is the single source of truth. Client installers adapt that same tree to each client's packaging rules:
 - Claude: plugin marketplace payload
@@ -27,6 +27,9 @@ skills/
   read/SKILL.md                         (ha-nova:read — automation/script list/get/trace)
   write/SKILL.md                        (ha-nova:write — automation/script create/update/delete)
   helper/SKILL.md                       (ha-nova:helper — helper CRUD: list/read/create/update/delete)
+  dashboard/SKILL.md                    (ha-nova:dashboard — storage dashboards, Lovelace resources, card operations)
+  organize/SKILL.md                     (ha-nova:organize — areas/floors/labels/categories/entity+device metadata)
+  history/SKILL.md                      (ha-nova:history — bounded history/logbook/statistics reads)
   review/SKILL.md                       (ha-nova:review — config quality review + collision scan)
   entity-discovery/SKILL.md             (ha-nova:entity-discovery — entity lookup)
   service-call/SKILL.md                 (ha-nova:service-call — service calls + runtime control)
@@ -72,6 +75,9 @@ Current mapping:
 | read | inline | 1-2 calls, direct output |
 | write | **agents** | 5-7 calls, entity resolution fallback, singular/plural normalization, domain reload |
 | helper | inline | response-driven relay flows, direct preview/confirm loop, no agent-only normalization requirement |
+| dashboard | inline | read → merge → preview → full-save → readback verify, all user-facing |
+| organize | inline | field-level registry mutations with direct preview/readback |
+| history | inline | read-only bounded timeline lookups |
 | review | inline | analysis is client-side, relay calls are reads only |
 | entity-discovery | inline | 1-2 calls, search + return |
 | service-call | inline | 2-3 calls, preview + execute |
@@ -122,6 +128,80 @@ Fallback:
 - multi-target scope is inventory-only; use the shared bulk selector rules from `skills/ha-nova/bulk-patterns.md`
 - room/area bulk resolution is area-first: resolve the area, then use `search/related` on the area response object instead of assuming compact-registry `ai` is populated
 - do not dump full YAML for many targets in one response
+
+## Dashboard Architecture
+
+`ha-nova:dashboard` owns safe storage-dashboard work:
+- list dashboards
+- read one dashboard config
+- list Lovelace resources
+- inspect dashboard structure (views, cards, badges, header cards)
+- create a storage dashboard shell
+- update dashboard metadata
+- create/update/delete Lovelace resources
+- add/update/move/delete cards inside existing views
+- delete a storage dashboard
+
+Write contract:
+- resolve `dashboard_id`, `url_path`, and `mode` through `lovelace/dashboards/list`
+- only `mode=storage` may be created/updated/deleted here
+- metadata changes go through `lovelace/dashboards/create|update|delete`
+- metadata update sends `dashboard_id` plus only changed metadata fields: `title`, `icon`, `show_in_sidebar`, `require_admin`
+- `dashboard_id` is the mutation identifier for `update|delete`; `url_path` is the config identifier for `lovelace/config|save`
+- resource CRUD goes through `lovelace/resources|create|update|delete`
+- content edits always read the current full config first
+- resolve the exact target card/badge/header by view + title/entity/type/position before changing it
+- merge in memory
+- preview the merged result
+- save through `lovelace/config/save` with the full config only
+- read back and verify the intended change plus unrelated-view survival
+
+Still excluded:
+- broad raw Lovelace editing without a concrete requested change
+- view create/delete/reorder
+- non-storage dashboard writes/deletes
+- freeform new custom-card creation
+- energy dashboard preferences
+
+## Organize Architecture
+
+`ha-nova:organize` owns metadata-first Home Assistant organization:
+- areas / floors / labels / categories CRUD
+- entity registry metadata updates
+- entity category assignment/removal by scope
+- device registry metadata updates
+
+Mutation rules:
+- exact target resolution first
+- every `config/category_registry/*` call includes the exact `scope`
+- rich metadata stays first-class:
+  - areas: `floor_id`, `icon`, `picture`, `aliases`
+  - floors: `level`, `icon`, `aliases`
+  - labels: `color`, `icon`, `description`
+  - categories: `icon`
+- entity/device label updates may replace, add, remove, or clear labels
+- field-level preview before write
+- destructive area/floor/label/category delete requires impact preview + token confirmation
+- read back the changed registry fields after every mutation
+
+Still excluded:
+- entity removal
+- device config-entry detachment
+- device category assignment
+- zones / persons / tags
+
+## History Architecture
+
+`ha-nova:history` is a bounded read-only timeline skill:
+- entity history via `/api/history/period`
+- human-readable timeline via `/api/logbook`
+- long-term trends via `recorder/statistics_during_period`
+- summary-first answers
+
+Rules:
+- always use a bounded time window
+- prefer concise summaries over raw dumps
+- reject or narrow oversized requests
 
 ## Review Architecture
 
@@ -179,7 +259,7 @@ Still excluded from `ha-nova:helper`:
 ## Fallback Architecture
 
 `ha-nova:fallback` is the mandatory safety fallback for HA features without a dedicated skill:
-- Covers: dashboards, blueprints, history, logbook, areas, zones, labels, energy, calendars, entity registry, system health
+- Covers: blueprints, zones/persons/tags, energy, calendars, system health, destructive registry admin, unsupported config-entry helper families
 - Three-tier capability map: Covered (redirect to existing skill), Relay-Ready (experimental relay calls), External (web search)
 - All inline, no agents — research + web search + experimental relay calls
 - Safety: all experimental relay calls follow Write Safety by Endpoint Type guardrails (full-overwrite, field-level replace, merge, delete)

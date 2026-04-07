@@ -17,13 +17,13 @@ Omit `max` for `single` and `restart` modes (they have no queue/concurrency conc
 
 ```json
 {
-  "alias": "Kitchen motion light",
+  "alias": "Motion light",
   "triggers": [
-    { "trigger": "state", "entity_id": "binary_sensor.motion_kitchen", "to": "on" }
+    { "trigger": "state", "entity_id": "binary_sensor.motion_sensor", "to": "on" }
   ],
   "conditions": [],
   "actions": [
-    { "action": "light.turn_on", "target": { "entity_id": "light.kitchen" } }
+    { "action": "light.turn_on", "target": { "entity_id": "light.main_light" } }
   ],
   "mode": "single"
 }
@@ -38,10 +38,10 @@ Omit `max` for `single` and `restart` modes (they have no queue/concurrency conc
     { "trigger": "time", "at": "00:00:00" }
   ],
   "conditions": [
-    { "condition": "state", "entity_id": "person.markus", "state": "not_home" }
+    { "condition": "state", "entity_id": "person.resident", "state": "not_home" }
   ],
   "actions": [
-    { "action": "light.turn_off", "target": { "entity_id": "light.living_room" } }
+    { "action": "light.turn_off", "target": { "entity_id": "light.main_light" } }
   ],
   "mode": "single"
 }
@@ -113,7 +113,7 @@ Scripts use `sequence` (not `actions`).
 {
   "alias": "Bedtime routine",
   "sequence": [
-    { "action": "light.turn_off", "target": { "entity_id": "light.living_room" } },
+    { "action": "light.turn_off", "target": { "entity_id": "light.main_light" } },
     { "action": "lock.lock", "target": { "entity_id": "lock.front_door" } }
   ],
   "mode": "single"
@@ -151,12 +151,12 @@ Scripts use `sequence` (not `actions`).
 
 ```json
 {
-  "alias": "Garage door safety close",
+  "alias": "Cover safety close",
   "sequence": [
-    { "action": "notify.mobile_app", "data": { "message": "Garage closing in 30s" } },
+    { "action": "notify.mobile_app", "data": { "message": "Cover closing in 30s" } },
     { "delay": { "seconds": 30 } },
-    { "wait_template": "{{ is_state('binary_sensor.garage_obstruction', 'off') }}", "timeout": "00:01:00", "continue_on_timeout": false },
-    { "action": "cover.close_cover", "target": { "entity_id": "cover.garage_door" } }
+    { "wait_template": "{{ is_state('binary_sensor.cover_safe_to_close', 'on') }}", "timeout": "00:01:00", "continue_on_timeout": false },
+    { "action": "cover.close_cover", "target": { "entity_id": "cover.main_cover" } }
   ],
   "mode": "single"
 }
@@ -242,7 +242,7 @@ Demonstrates: `mode: parallel`, multi-entity trigger, dynamic target via `trigge
   "triggers": [
     {
       "trigger": "state",
-      "entity_id": ["binary_sensor.bedroom_window", "binary_sensor.living_room_window", "binary_sensor.kitchen_window"],
+      "entity_id": ["binary_sensor.zone_a_window", "binary_sensor.zone_b_window", "binary_sensor.zone_c_window"],
       "to": "on"
     }
   ],

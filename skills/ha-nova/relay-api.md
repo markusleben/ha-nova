@@ -54,8 +54,8 @@ HA uses different identifiers depending on the API. Skills MUST use the correct 
 
 | ID Type | Example | Used By |
 |---------|---------|---------|
-| `entity_id` | `automation.kitchen_lights` | Entity registry, states, `search/related`, service calls |
-| `unique_id` (config key) | `1766434159701` (UI) or `motion_kitchen` (YAML) | REST config API, `trace/list`, `trace/get` |
+| `entity_id` | `automation.main_lights` | Entity registry, states, `search/related`, service calls |
+| `unique_id` (config key) | `1766434159701` (UI) or `motion_main` (YAML) | REST config API, `trace/list`, `trace/get` |
 
 **The entity_id slug and the unique_id are NOT the same** for UI-created items. HA generates a numeric `unique_id` for items created through the UI. YAML-defined items typically use the slug as both.
 
@@ -108,6 +108,7 @@ Expected success body:
 - Compact entity registry (`config/entity_registry/list_for_display`): `data.entities[]` with abbreviated keys (`ei`=entity_id, `en`=name, `ai`=area_id)
 - Full entity registry (`config/entity_registry/list`): `data[]`
 - Area registry (`config/area_registry/list`): `data[]` with canonical `area_id`; do not expect a generic `id`
+- Recorder statistics (`recorder/statistics_during_period`): `data.<statistic_id>[]`
 - `search/related` for `item_type:"area"`: `data` is a keyed object such as `automation[]`, `script[]`, `entity[]`, `device[]`
 - `search/related` for `item_type:"entity"`: `data` is a related-item collection; filter by the requested target family before counting or follow-up reads
 - `get_states`: `data` is an array of full state objects (thousands of entries — avoid for discovery)
@@ -169,6 +170,21 @@ State/config helpers:
 - `GET /api/states/{entity_id}`
 - `POST /api/services/automation/reload`
 - `POST /api/services/script/reload`
+
+Dashboard / Lovelace WS:
+- `lovelace/dashboards/list`
+- `lovelace/dashboards/create`
+- `lovelace/dashboards/update`
+- `lovelace/dashboards/delete`
+- `lovelace/config`
+- `lovelace/config/save`
+- `lovelace/resources`
+- `lovelace/resources/create`
+- `lovelace/resources/update`
+- `lovelace/resources/delete`
+
+Recorder statistics WS:
+- `recorder/statistics_during_period`
 
 ## Helper CRUD (via /ws)
 
@@ -272,7 +288,7 @@ Verification rules:
 - resolve linked entities from `config/entity_registry/list` by matching `config_entry_id`
 - linked entity appearance/disappearance is secondary evidence only
 
-Observed locally on Markus's HA on 2026-03-19:
+Observed locally on a real HA instance on 2026-03-19:
 
 - all 9 supported domains completed real create/update/delete loops through relay `/core`
 - raw WS `config_entries/flow` did not succeed in this session
@@ -296,7 +312,7 @@ List all available services:
 
 Call a service:
 ```json
-{"method":"POST","path":"/api/services/light/turn_on","body":{"entity_id":"light.living_room","brightness":128}}
+{"method":"POST","path":"/api/services/light/turn_on","body":{"entity_id":"light.main_light","brightness":128}}
 ```
 
 Call with response data:

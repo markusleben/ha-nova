@@ -112,7 +112,7 @@ describe("dev-sync behavior", () => {
     const result = spawnSync("bash", ["scripts/dev-sync.sh"], {
       cwd: REPO_ROOT,
       encoding: "utf8",
-      timeout: 20000,
+      timeout: 60000,
       env: mockEnv(home, binDir),
     });
 

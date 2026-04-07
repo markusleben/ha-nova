@@ -65,6 +65,8 @@ describe("project docs contract", () => {
     expect(bridgeArchitecture).toContain("Wrapped in the standard envelope");
     expect(novaDocs).toContain("including `GET /health`");
     expect(novaDocs).toContain("Authorization: Bearer <token>");
+    expect(novaDocs).toContain("[latest GitHub release](https://github.com/markusleben/ha-nova/releases/latest)");
+    expect(novaDocs).not.toContain("raw.githubusercontent.com/markusleben/ha-nova/main/install.sh");
     expect(novaDocs).toContain('"ok": true');
     expect(novaDocs).toContain('"data": {');
   });

@@ -1,6 +1,6 @@
 ---
 name: fallback
-description: Mandatory fallback for any HA NOVA task without a dedicated subskill. Must be invoked before any raw relay write operation. Covers dashboards, blueprints, history, logbook, areas, zones, labels, energy, calendars, entity registry, system health, Apps, HACS, and Zigbee/Z-Wave.
+description: Mandatory fallback for any HA NOVA task without a dedicated subskill. Must be invoked before any raw relay write operation. Covers blueprints, energy, calendars, zones/persons/tags, destructive registry admin, system health, Apps, HACS, Zigbee/Z-Wave, and unsupported config-entry helper families.
 ---
 
 # HA NOVA Fallback
@@ -48,18 +48,21 @@ For every Relay-Ready call in this skill:
 | Entity Search | Covered | entity-discovery |
 | Service Calls | Covered | service-call |
 | Relay Setup | Covered | onboarding |
-| Dashboard / Lovelace | Relay-Ready | this skill |
+| Dashboard / Lovelace (storage lifecycle, cards, resources) | Covered | dashboard |
+| History Queries | Covered | history |
+| Logbook Queries | Covered | history |
+| Statistics / Trend Queries | Covered | history |
+| Area / Floor CRUD | Covered | organize |
+| Label CRUD / Rich label metadata | Covered | organize |
+| Category CRUD / Entity category assignment | Covered | organize |
+| Entity / Device metadata updates | Covered | organize |
 | Blueprints | Relay-Ready | this skill |
-| History Queries | Relay-Ready | this skill |
-| Logbook Queries | Relay-Ready | this skill |
-| Area / Floor CRUD | Relay-Ready | this skill |
-| Label / Category CRUD | Relay-Ready | this skill |
 | Zone / Person / Tag Mgmt | Relay-Ready | this skill |
 | Energy Configuration | Relay-Ready | this skill |
 | System Health / Repairs | Relay-Ready | this skill |
 | Calendar Queries | Relay-Ready | this skill |
 | Other Config-Entry Helpers | Relay-Ready | this skill |
-| Entity Registry Edits | Relay-Ready | this skill |
+| Entity remove / Device config-entry detach | Relay-Ready | this skill |
 | Event Subscriptions | Roadmap Phase 1c | -- |
 | Template / YAML Sensors | Roadmap Phase 3 | -- |
 | Configuration Backups | Roadmap Phase 2 | -- |
@@ -91,26 +94,6 @@ For every Relay-Ready call in this skill:
 
 ## Relay-Ready Features
 
-### Dashboard / Lovelace -- RELAY-READY
-
-View and edit Lovelace dashboard configurations (views, cards, themes).
-
-**Search:** `home assistant lovelace dashboard yaml api ws editing 2026`
-
-**Experimental relay calls (no skill guardrails):**
-```text
-# Read dashboard config
-ha-nova relay ws --data-file <payload-file> --out <result-file>
-
-# Dashboard info
-ha-nova relay ws --data-file <payload-file>
-
-# Save dashboard config
-ha-nova relay ws --data-file <payload-file>
-```
-
-**Risks:** `lovelace/config/save` performs a FULL OVERWRITE — no merge, no partial update. There is no `lovelace/config/update` endpoint. The only safe pattern is read → modify in memory → save full config. Use `url_path` to target a specific dashboard (omit for default). No optimistic locking — last writer wins silently.
-
 ### Blueprints -- RELAY-READY
 
 List and import automation/script blueprints from the community or custom URLs.
@@ -123,60 +106,6 @@ ha-nova relay ws --data-file <payload-file>
 ```
 
 **Risks:** Imported blueprints execute when instantiated. Review blueprint source before import.
-
-### History Queries -- RELAY-READY
-
-Query past state changes for any entity within a time range.
-
-**Search:** `home assistant history api rest states period filter 2026`
-
-**Experimental relay calls (no skill guardrails):**
-```text
-ha-nova relay core --method GET --path <history-path> --jq .data.body
-```
-Use `<history-path>` for the full `/api/history/period/...?...&...` query string.
-
-**Risks:** None (read-only). Large time ranges may return very large responses.
-
-### Logbook Queries -- RELAY-READY
-
-Query the logbook for human-readable event entries (state changes, automations fired).
-
-**Search:** `home assistant logbook api rest query filter 2026`
-
-**Experimental relay calls (no skill guardrails):**
-```text
-ha-nova relay core --method GET --path <logbook-path> --jq .data.body
-```
-Use `<logbook-path>` for the full `/api/logbook/...?...&...` query string.
-
-**Risks:** None (read-only).
-
-### Area / Floor CRUD -- RELAY-READY
-
-Create, rename, or delete areas and floors used to organize devices and entities.
-
-**Search:** `home assistant area floor registry api websocket crud 2026`
-
-**Experimental relay calls (no skill guardrails):**
-```text
-ha-nova relay ws --data-file <payload-file>
-```
-
-**Risks:** Area/floor deletes are irreversible — all devices/entities lose their area assignment (cascade-clean, not cascade-delete). Re-creating an area with the same name does NOT restore old assignments. `update` is a safe merge (only provided fields change).
-
-### Label / Category CRUD -- RELAY-READY
-
-Manage labels and categories for organizing entities and automations.
-
-**Search:** `home assistant label category registry api websocket 2026`
-
-**Experimental relay calls (no skill guardrails):**
-```text
-ha-nova relay ws --data-file <payload-file>
-```
-
-**Risks:** Minimal. Labels/categories are metadata only.
 
 ### Zone / Person / Tag Management -- RELAY-READY
 
@@ -282,26 +211,24 @@ ha-nova relay core --method DELETE --path /api/config/config_entries/entry/{entr
 
 **Risks:** Multi-step flows are complex. Each step returns the next step's schema. Update support can be domain- and version-specific. Delete requires correct `entry_id` resolution first. Prefer HA UI for these.
 
-### Entity Registry Edits -- RELAY-READY
+### Entity Removal / Device Detach -- RELAY-READY
 
-Rename entities, change area/label assignments, disable or hide entities.
-For safe rename/delete workflows with consumer impact checks, see `skills/ha-nova/safe-refactoring.md`.
+Destructive registry admin that is still outside `ha-nova:organize` v1:
+- remove an entity from the entity registry
+- remove a config entry from a device
 
-**Search:** `home assistant entity registry update rename disable api 2026`
+**Search:** `home assistant entity registry remove device remove config entry websocket api 2026`
 
 **Experimental relay calls (no skill guardrails):**
 ```text
-# Get entity
+# Remove entity
 ha-nova relay ws --data-file <payload-file>
 
-# Update entity
-ha-nova relay ws --data-file <payload-file>
-
-# Remove entity (irreversible)
+# Remove config entry from device
 ha-nova relay ws --data-file <payload-file>
 ```
 
-**Risks:** `remove` soft-deletes the entity for 30 days — integration-managed entities are restored with customizations on re-discovery, but manually-created entities (helpers) will not be auto-restored. Prefer `update` with `disabled_by: "user"` (reversible) over `remove`.
+**Risks:** Entity remove is not the same as a reversible rename/disable. Device detach depends on integration support and can sever the current device/config-entry relationship. Preview impact first.
 
 ## Roadmap Features
 

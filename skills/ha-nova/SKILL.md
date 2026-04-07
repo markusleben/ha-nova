@@ -67,7 +67,7 @@ Rules:
 - Confirmation tiers:
   - `create`/`update`: natural confirmation bound to active preview.
   - `delete`/destructive: token confirmation `confirm:<token>`.
-    **Strict token enforcement:** User MUST reply with the exact token string (e.g., `confirm:del-kitchen-lights`). Any other response — including "yes", "sure, delete it", "do it", or any natural-language confirmation — is NOT valid. Reject and re-prompt with the exact token required.
+    **Strict token enforcement:** User MUST reply with the exact token string (e.g., `confirm:del-main-lights`). Any other response — including "yes", "sure, delete it", "do it", or any natural-language confirmation — is NOT valid. Reject and re-prompt with the exact token required.
 - Ask exactly one blocking question only if ambiguity remains.
 - **No raw relay writes without a skill**: If no dedicated subskill matches, you MUST invoke `ha-nova:fallback` before any raw `relay ws` or `relay core` write operation. Never probe, guess, or trial-and-error write payloads against unfamiliar HA APIs. Some WS endpoints (e.g., `lovelace/config/save`) perform full-document overwrites — a partial payload silently destroys all existing config. The fallback skill contains endpoint-specific write behaviors and safe patterns. Skipping it risks data loss.
 - Failure format must include:
@@ -96,7 +96,11 @@ Rules:
 
 ## Response Format
 
-Render structured summary + YAML for both reads and writes:
+Render domain-specific summaries:
+- automations / scripts / helpers: use the structured summary + YAML / payload format below
+- dashboards / organize / history: use the compact domain-specific output format defined by that skill
+
+For automations / scripts / helpers:
 1. `Automation` or `Script` (name + ID)
 2. `Entities` (all entity_ids in triggers/conditions/actions)
 3. Domain-specific fields:
@@ -133,27 +137,44 @@ Match user intent to exactly one skill:
 | create, update, delete automations/scripts | `ha-nova:write` (resolves + reviews internally) |
 | list, show, read helpers | `ha-nova:helper` |
 | create, update, delete helpers | `ha-nova:helper` |
+| list, show, read dashboards, Lovelace resources, or dashboard structure | `ha-nova:dashboard` |
+| create, update, delete storage dashboards / Lovelace configs / Lovelace resources / dashboard cards | `ha-nova:dashboard` |
+| organize areas, floors, labels, categories, devices, entities | `ha-nova:organize` |
+| assign or remove entity categories | `ha-nova:organize` |
+| show history, logbook timelines, or long-term statistics | `ha-nova:history` |
 | turn on/off, toggle, set, call a service | `ha-nova:service-call` |
 | enable/disable/trigger an automation | `ha-nova:service-call` |
 | find entities by name, room, area | `ha-nova:entity-discovery` |
 | fix relay/auth/connectivity errors | `ha-nova:onboarding` |
-| **any HA task not matched above** — dashboards, blueprints, history, energy, areas, zones, any raw relay/ws/core write | `ha-nova:fallback` **(mandatory fallback — never skip)** |
+| **any HA task not matched above** — blueprints, energy, calendars, zones/persons/tags, unsupported admin writes, any unfamiliar raw relay/ws/core write | `ha-nova:fallback` **(mandatory fallback — never skip)** |
 
 **"Analyze my automation"** → `ha-nova:review` (NOT read + review)
 **"Review my utility meter helper"** → `ha-nova:review` (minimal config-entry helper review)
 **"Show my automations"** → `ha-nova:read` (NOT review)
-**"Show all automations with prefix kitchen_"** → `ha-nova:entity-discovery` (bulk inventory, not full YAML dump)
+**"Show all automations with prefix routine_"** → `ha-nova:entity-discovery` (bulk inventory, not full YAML dump)
 **"Create an automation"** → `ha-nova:write` (NOT read + write)
 **"Create an input_boolean"** → `ha-nova:helper` (NOT write)
 **"Show my helpers"** → `ha-nova:helper` (NOT read)
-**"Review all automations in area Living Room"** → `ha-nova:review` (area-first aggregate review when more than one target resolves)
+**"Show my main dashboard"** → `ha-nova:dashboard`
+**"Create a dashboard called Test Board"** → `ha-nova:dashboard`
+**"Delete the Test dashboard"** → `ha-nova:dashboard`
+**"Add a markdown card to my dashboard"** → `ha-nova:dashboard`
+**"List my Lovelace resources"** → `ha-nova:dashboard`
+**"Move this sensor to Area Alpha"** → `ha-nova:organize`
+**"Put this sensor in category Category Alpha"** → `ha-nova:organize`
+**"Add an alias to this area"** → `ha-nova:organize`
+**"What happened to sensor X last night?"** → `ha-nova:history`
+**"Show temperature trends for the last month"** → `ha-nova:history`
+**"Review all automations in area Area Alpha"** → `ha-nova:review` (area-first aggregate review when more than one target resolves)
 **"Create a timer"** → ambiguous! Ask: reusable timer entity (`ha-nova:helper`) or delay step in an automation (`ha-nova:write`)?
 **"Show my energy dashboard"** → `ha-nova:fallback` (no dedicated skill)
 **"Import a blueprint"** → `ha-nova:fallback` (relay-ready, no skill)
 **"How do I manage Apps?"** → `ha-nova:fallback` (external, web search)
-**"Show history for sensor X"** → `ha-nova:fallback` (relay-ready, no skill)
-**"Modify my dashboard"** → `ha-nova:fallback` (NEVER raw `lovelace/config/save` without this skill)
-**"Save the Lovelace config"** → `ha-nova:fallback` (NEVER direct WS write without read-merge-verify)
+**"Show history for sensor X"** → `ha-nova:history`
+**"Modify my dashboard"** → `ha-nova:dashboard`
+**"Save the Lovelace config"** → `ha-nova:dashboard` (must resolve storage mode, then read-merge-verify)
+**"Remove this entity from Home Assistant"** → `ha-nova:fallback`
+**"Detach this config entry from the device"** → `ha-nova:fallback`
 
 After any `read` or `review` task, re-evaluate intent once before continuing:
 - config change on automation/script → `ha-nova:write`

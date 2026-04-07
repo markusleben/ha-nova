@@ -41,8 +41,8 @@ module = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = module
 spec.loader.exec_module(module)
 
-review_prompt = module.build_review_prompt("review_area", "Review all automations in area Arbeitszimmer.")
-inventory_prompt = module.build_inventory_prompt("inventory_area", "Show all automations in area Arbeitszimmer.")
+review_prompt = module.build_review_prompt("review_area", "Review all automations in area Area Alpha.")
+inventory_prompt = module.build_inventory_prompt("inventory_area", "Show all automations in area Area Alpha.")
 
 checks = {
     "review_repo_skill": str(module.REVIEW_SKILL_FILE) in review_prompt,
@@ -70,7 +70,7 @@ module = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = module
 spec.loader.exec_module(module)
 
-prompt = module.build_review_prompt("review_area", "Review all automations in area Arbeitszimmer.")
+prompt = module.build_review_prompt("review_area", "Review all automations in area Area Alpha.")
 checks = {
     "native_file_writing": "native file-writing flow for the current shell" in prompt,
     "powershell_equivalent": "PowerShell or Windows shells must use their native equivalent" in prompt,
