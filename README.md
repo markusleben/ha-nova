@@ -22,7 +22,7 @@
 > *"When I get home, set my main lights to a warm welcome scene"* — one sentence in, a fully reviewed automation out, including suggestions you might not have thought of.
 
 <p align="center">
-  <b><a href="#-what-you-can-do">What it does</a></b> · <b><a href="#%EF%B8%8F-safe-by-design">Is it safe?</a></b> · <b><a href="#-get-started">Get started</a></b> · <b><a href="#%EF%B8%8F-how-it-works">How it works</a></b>
+  <b><a href="#-what-you-can-do">What it does</a></b> · <b><a href="#%EF%B8%8F-safe-by-design">Is it safe?</a></b> · <b><a href="#-get-started">Get started</a></b> · <b><a href="#-how-it-works">How it works</a></b>
 </p>
 
 > **Early access.** The core works, and this is a good time to help shape the product. Back up your configs before letting AI touch anything. Hit a problem? [Open an issue](https://github.com/markusleben/ha-nova/issues).
@@ -137,7 +137,7 @@ Once it finishes, try: *"Show me all my automations."*
 
 When HA NOVA gets a new workflow, that's a text file update on your machine. The Relay doesn't change. No rebuild, no restart, no risk to a running system.
 
-And because the Relay sits right next to Home Assistant, it can do things a remote client can't. Coming soon: automatic backups of every automation change — a safety net Home Assistant doesn't offer natively.
+And because the Relay sits right next to Home Assistant, it can do things a remote client can't. Coming soon: per-change automation snapshots — so you can always roll back, something Home Assistant doesn't do out of the box.
 
 ---
 
@@ -183,7 +183,7 @@ Want to add a new capability? → [CONTRIBUTING.md](CONTRIBUTING.md)
 | [Claude Code](https://github.com/anthropics/claude-code) | Terminal |
 | [Claude Desktop](https://claude.com/download) (Code tab) | Desktop app |
 | [Codex CLI](https://github.com/openai/codex) | Terminal |
-| [OpenCode](https://github.com/nicepkg/OpenCode) | Terminal |
+| [OpenCode](https://github.com/opencode-ai/opencode) | Terminal |
 | [Gemini CLI](https://github.com/google-gemini/gemini-cli) | Terminal |
 
 ---
