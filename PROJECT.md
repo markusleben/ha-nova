@@ -21,7 +21,7 @@ Active doc ownership lives in `docs/reference/documentation-governance.md`.
 Deliverables:
 1. Relay MVP: `GET /health`, `POST /ws`, `POST /core`
 2. Context skill: `ha-nova` (auto-loaded via SessionStart hook; sub-skills discovered independently)
-3. Sub-skills (flat under `skills/`): write, read, helper, entity-discovery, service-call, review, fallback, onboarding
+3. Sub-skills (flat under `skills/`): write, read, review, dashboard, organize, history, helper, entity-discovery, service-call, fallback, onboarding
 4. Shared references under `skills/ha-nova/` (`relay-api.md`, `best-practices.md`, `payload-schemas.md`, `helper-schemas.md`, `template-guidelines.md`, `safe-refactoring.md`, `automation-patterns.md`, `update-guide.md`, `agents.md`)
 
 ## Tech Stack

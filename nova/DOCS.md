@@ -116,5 +116,5 @@ App logs are available in the **Log** tab above. Look for:
 ## Support
 
 - [GitHub Issues](https://github.com/markusleben/ha-nova/issues)
-- [Setup Guide](https://github.com/markusleben/ha-nova#quick-start)
+- [Setup Guide](https://github.com/markusleben/ha-nova#-get-started)
 - [Full Documentation](https://github.com/markusleben/ha-nova)
