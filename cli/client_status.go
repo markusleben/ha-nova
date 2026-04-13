@@ -70,7 +70,7 @@ func clientAttachmentPresent(paths runtimePaths, client string) bool {
 		return fileExists(filepath.Join(paths.Home, ".gemini", "skills", "ha-nova", "SKILL.md")) &&
 			fileExists(filepath.Join(paths.Home, ".gemini", "skills", "ha-nova-review", "SKILL.md"))
 	case "claude":
-		return claudePluginInstalled(paths.Home)
+		return claudePluginAttached(paths.Home)
 	default:
 		return false
 	}

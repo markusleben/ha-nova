@@ -225,6 +225,60 @@ func TestRunDoctorShowsDevSyncHintForDetachedConfiguredClaudeOnDevInstall(t *tes
 	}
 }
 
+func TestRunDoctorShowsRepairHintWhenClaudeMarketplaceMissing(t *testing.T) {
+	withClientRuntimeAvailability(t, map[string]bool{"claude": true})
+
+	paths, _ := doctorTestSetup(t)
+	originalHealth := fetchRelayHealthForReadiness
+	originalWSPing := probeRelayWSPingForReadiness
+	defer func() {
+		fetchRelayHealthForReadiness = originalHealth
+		probeRelayWSPingForReadiness = originalWSPing
+	}()
+	fetchRelayHealthForReadiness = func(relayBaseURL, token string) ([]byte, error) {
+		return []byte(`{"status":"ok","data":{"ha_ws_connected":true},"version":"0.1.12"}`), nil
+	}
+	probeRelayWSPingForReadiness = func(relayBaseURL, token string) (relayWSPingResponse, error) {
+		return relayWSPingResponse{StatusCode: http.StatusOK, Body: []byte(`{"type":"pong"}`)}, nil
+	}
+
+	state := loadStateOrDefault(paths)
+	state.InstalledClients = []string{"claude"}
+	if err := saveState(paths, state); err != nil {
+		t.Fatalf("saveState() error: %v", err)
+	}
+
+	installPath := filepath.Join(paths.Home, ".claude", "plugins", "cache", "ha-nova", "ha-nova", "0.3.2")
+	if err := os.MkdirAll(installPath, 0o755); err != nil {
+		t.Fatalf("MkdirAll() error: %v", err)
+	}
+	pluginsDir := filepath.Join(paths.Home, ".claude", "plugins")
+	if err := os.MkdirAll(pluginsDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll() error: %v", err)
+	}
+	installed := `{"plugins":{"ha-nova@ha-nova":[{"scope":"user","installPath":"` + installPath + `","version":"0.3.2"}]}}`
+	if err := os.WriteFile(filepath.Join(pluginsDir, "installed_plugins.json"), []byte(installed), 0o644); err != nil {
+		t.Fatalf("WriteFile(installed_plugins.json) error: %v", err)
+	}
+	marketplaces := `{"claude-plugins-official":{"source":{"source":"github","repo":"anthropics/claude-plugins-official"}}}`
+	if err := os.WriteFile(filepath.Join(pluginsDir, "known_marketplaces.json"), []byte(marketplaces), 0o644); err != nil {
+		t.Fatalf("WriteFile(known_marketplaces.json) error: %v", err)
+	}
+
+	exitCode, output := captureCommandOutput(t, func() int {
+		return runDoctor(paths, nil)
+	})
+	if exitCode == 0 {
+		t.Fatalf("expected doctor to degrade when Claude marketplace is missing:\n%s", output)
+	}
+	if !strings.Contains(output, "Claude Code configured, but HA NOVA is not attached") {
+		t.Fatalf("expected detached Claude warning for missing marketplace:\n%s", output)
+	}
+	if !strings.Contains(output, "Repair: run `ha-nova setup claude`.") {
+		t.Fatalf("expected concrete Claude repair hint for missing marketplace:\n%s", output)
+	}
+}
+
 func doctorTestSetup(t *testing.T) (runtimePaths, runtimeConfig) {
 	t.Helper()
 

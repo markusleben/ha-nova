@@ -704,6 +704,7 @@ func TestInteractiveSetupAlreadyDoneUsesResumeBanner(t *testing.T) {
 		t.Fatalf("mkdir plugins: %v", err)
 	}
 	writeInstalledClaudePluginFixture(t, home)
+	writeClaudeMarketplaceRegistrationFixture(t, home, filepath.Join(paths.ConfigDir, "claude-marketplace"))
 
 	stdout, stderr := captureInteractiveSetupIO(t, "", func() int {
 		return interactiveSetup(paths, cfg, state, "claude", "", "", "", "")
@@ -943,6 +944,7 @@ func TestInteractiveSetupCompletedResumeRejectsBrokenHostOverride(t *testing.T) 
 		t.Fatalf("mkdir plugins: %v", err)
 	}
 	writeInstalledClaudePluginFixture(t, home)
+	writeClaudeMarketplaceRegistrationFixture(t, home, filepath.Join(paths.ConfigDir, "claude-marketplace"))
 
 	exitCode := 0
 	stdout, stderr := captureInteractiveSetupIO(t, "", func() int {
@@ -1653,6 +1655,7 @@ func TestInteractiveSetupCompletedResumePersistsHostOnlyOverride(t *testing.T) {
 		t.Fatalf("mkdir plugins: %v", err)
 	}
 	writeInstalledClaudePluginFixture(t, home)
+	writeClaudeMarketplaceRegistrationFixture(t, home, filepath.Join(paths.ConfigDir, "claude-marketplace"))
 
 	stdout, stderr := captureInteractiveSetupIO(t, "", func() int {
 		return interactiveSetup(paths, cfg, state, "claude", "192.168.1.123", "", "", "")

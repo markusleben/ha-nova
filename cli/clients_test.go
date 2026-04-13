@@ -797,6 +797,26 @@ func writeInstalledClaudePluginFixture(t *testing.T, home string) {
 	}
 }
 
+func writeClaudeMarketplaceRegistrationFixture(t *testing.T, home, source string) {
+	t.Helper()
+
+	if err := os.MkdirAll(filepath.Join(home, ".claude", "plugins"), 0o755); err != nil {
+		t.Fatalf("mkdir plugins path: %v", err)
+	}
+	path := filepath.Join(home, ".claude", "plugins", "known_marketplaces.json")
+	content := fmt.Sprintf(`{
+  "ha-nova": {
+    "source": {
+      "source": "directory",
+      "path": %q
+    }
+  }
+}`, source)
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("write known marketplaces: %v", err)
+	}
+}
+
 func shellQuote(value string) string {
 	return "'" + strings.ReplaceAll(value, "'", `'\''`) + "'"
 }

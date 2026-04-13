@@ -22,6 +22,7 @@ func TestPostUpdateSyncRefreshesDetectedInstalledClientsWithoutState(t *testing.
 		t.Fatalf("mkdir plugins: %v", err)
 	}
 	writeInstalledClaudePluginFixture(t, home)
+	writeClaudeMarketplaceRegistrationFixture(t, home, filepath.Join(paths.ConfigDir, "claude-marketplace"))
 	writeClaudeMarketplaceFixture(t, paths.InstallRoot)
 
 	logPath := filepath.Join(home, "claude.log")
@@ -41,8 +42,8 @@ func TestPostUpdateSyncRefreshesDetectedInstalledClientsWithoutState(t *testing.
 	if !strings.Contains(string(logData), "plugin install ha-nova@ha-nova") {
 		t.Fatalf("expected detected Claude install to be reinstalled from the local staged payload, got:\n%s", string(logData))
 	}
-	if !strings.Contains(string(logData), "plugin marketplace add ") {
-		t.Fatalf("expected Claude marketplace to be refreshed, got:\n%s", string(logData))
+	if !strings.Contains(string(logData), "plugin marketplace add ") && !strings.Contains(string(logData), "plugin marketplace update ha-nova") {
+		t.Fatalf("expected Claude marketplace to be added or refreshed, got:\n%s", string(logData))
 	}
 
 	state, err := loadState(paths)
@@ -79,6 +80,7 @@ func TestPostUpdateSyncRefreshesAllDetectedClients(t *testing.T) {
 		t.Fatalf("mkdir Claude plugins: %v", err)
 	}
 	writeInstalledClaudePluginFixture(t, home)
+	writeClaudeMarketplaceRegistrationFixture(t, home, filepath.Join(paths.ConfigDir, "claude-marketplace"))
 
 	if err := os.MkdirAll(filepath.Join(home, ".agents", "skills", "ha-nova", "ha-nova"), 0o755); err != nil {
 		t.Fatalf("mkdir Codex attachment: %v", err)
@@ -121,8 +123,8 @@ func TestPostUpdateSyncRefreshesAllDetectedClients(t *testing.T) {
 	if !strings.Contains(string(logData), "plugin install ha-nova@ha-nova") {
 		t.Fatalf("expected detected Claude install to be refreshed, got:\n%s", string(logData))
 	}
-	if !strings.Contains(string(logData), "plugin marketplace add ") {
-		t.Fatalf("expected Claude marketplace to be refreshed, got:\n%s", string(logData))
+	if !strings.Contains(string(logData), "plugin marketplace add ") && !strings.Contains(string(logData), "plugin marketplace update ha-nova") {
+		t.Fatalf("expected Claude marketplace to be added or refreshed, got:\n%s", string(logData))
 	}
 
 	state, err := loadState(paths)
