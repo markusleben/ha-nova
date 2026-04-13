@@ -205,3 +205,67 @@ func TestClientAppearsInstalledForClaudeIgnoresBrokenInstallPathRecord(t *testin
 		t.Fatal("expected broken Claude installPath record to count as not installed")
 	}
 }
+
+func TestClientAppearsInstalledForClaudeIgnoresBlankInstallPathRecord(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+
+	if err := os.MkdirAll(filepath.Join(home, ".claude", "plugins"), 0o755); err != nil {
+		t.Fatalf("mkdir plugins: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(home, ".claude", "plugins", "installed_plugins.json"), []byte(`{
+  "plugins": {
+    "ha-nova@ha-nova": [
+      {
+        "installPath": ""
+      }
+    ]
+  }
+}`), 0o644); err != nil {
+		t.Fatalf("write installed_plugins.json: %v", err)
+	}
+
+	entry, ok, err := findRegistryClient(paths, "claude")
+	if err != nil {
+		t.Fatalf("findRegistryClient() error: %v", err)
+	}
+	if !ok {
+		t.Fatal("expected claude registry entry")
+	}
+	if evaluateClientStatus(paths, installState{}, entry).Ready {
+		t.Fatal("expected blank Claude installPath record to count as not installed")
+	}
+}
+
+func TestClientAppearsInstalledForClaudeIgnoresUnparseableRegistry(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+
+	if err := os.MkdirAll(filepath.Join(home, ".claude", "plugins"), 0o755); err != nil {
+		t.Fatalf("mkdir plugins: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(home, ".claude", "plugins", "installed_plugins.json"), []byte(`{"plugins":{"ha-nova@ha-nova":`), 0o644); err != nil {
+		t.Fatalf("write installed_plugins.json: %v", err)
+	}
+
+	entry, ok, err := findRegistryClient(paths, "claude")
+	if err != nil {
+		t.Fatalf("findRegistryClient() error: %v", err)
+	}
+	if !ok {
+		t.Fatal("expected claude registry entry")
+	}
+	if evaluateClientStatus(paths, installState{}, entry).Ready {
+		t.Fatal("expected unparseable Claude registry to count as not installed")
+	}
+}

@@ -66,7 +66,10 @@ func installClaudePlugin(paths runtimePaths, sourceRoot string) error {
 			if strings.Contains(strings.ToLower(text), "not found") || strings.Contains(strings.ToLower(text), "not installed") {
 				installCmd := exec.Command("claude", "plugin", "install", "ha-nova@ha-nova")
 				if installOutput, installErr := installCmd.CombinedOutput(); installErr == nil {
-					return verifyClaudePluginInstalled(paths.Home)
+					if err := verifyClaudePluginAttachment(paths.Home, marketplaceRoot); err != nil {
+						return restoreMarketplace(err)
+					}
+					return nil
 				} else {
 					return fmt.Errorf("claude plugin command failed: %s (%s)", strings.Join(installCmd.Args[1:], " "), strings.TrimSpace(string(installOutput)))
 				}
@@ -74,7 +77,7 @@ func installClaudePlugin(paths runtimePaths, sourceRoot string) error {
 		}
 		return fmt.Errorf("claude plugin command failed: %s (%s)", strings.Join(refreshArgs, " "), strings.TrimSpace(string(output)))
 	}
-	if err := verifyClaudePluginInstalled(paths.Home); err != nil {
+	if err := verifyClaudePluginAttachment(paths.Home, marketplaceRoot); err != nil {
 		return restoreMarketplace(err)
 	}
 	if localMode {
@@ -85,7 +88,10 @@ func installClaudePlugin(paths runtimePaths, sourceRoot string) error {
 	return nil
 }
 
-func verifyClaudePluginInstalled(home string) error {
+func verifyClaudePluginAttachment(home, desiredMarketplaceSource string) error {
+	if err := verifyClaudeMarketplaceRegistration(home, desiredMarketplaceSource); err != nil {
+		return err
+	}
 	if !claudePluginInstalled(home) {
 		return fmt.Errorf("Claude plugin ha-nova@ha-nova not found after sync")
 	}
@@ -122,15 +128,8 @@ func claudePluginInstalled(home string) bool {
 	if strings.TrimSpace(home) == "" {
 		return false
 	}
-	data, err := os.ReadFile(filepath.Join(home, ".claude", "plugins", "installed_plugins.json"))
-	if err != nil {
-		return false
-	}
-	var raw map[string]any
-	if err := unmarshalClaudeJSON(data, &raw); err == nil {
-		return claudeInstalledPluginsContain(raw["plugins"])
-	}
-	return strings.Contains(string(data), "ha-nova@ha-nova")
+	_, installed, known := readClaudePluginState(home)
+	return known && installed
 }
 
 func removeClaudeMarketplace(home string, report *uninstallReport) error {
@@ -293,11 +292,56 @@ func claudePluginInstallValuePresent(value any) bool {
 	case map[string]any:
 		installPath, _ := typed["installPath"].(string)
 		if strings.TrimSpace(installPath) == "" {
-			return true
+			return false
 		}
 		return fileExists(installPath)
 	default:
 		return true
+	}
+}
+
+func readClaudePluginState(home string) (recordPresent bool, installed bool, known bool) {
+	if strings.TrimSpace(home) == "" {
+		return false, false, true
+	}
+	data, err := os.ReadFile(filepath.Join(home, ".claude", "plugins", "installed_plugins.json"))
+	if err != nil {
+		if isNotExist(err) {
+			return false, false, true
+		}
+		return false, false, false
+	}
+
+	var raw map[string]any
+	if err := unmarshalClaudeJSON(data, &raw); err == nil {
+		recordPresent = claudeInstalledPluginRecordPresent(raw["plugins"])
+		installed = claudeInstalledPluginsContain(raw["plugins"])
+		return recordPresent, installed, true
+	}
+	return false, false, false
+}
+
+func claudeInstalledPluginRecordPresent(value any) bool {
+	switch typed := value.(type) {
+	case []any:
+		for _, entry := range typed {
+			if claudeInstalledPluginRecordPresent(entry) {
+				return true
+			}
+		}
+		return false
+	case map[string]any:
+		if pluginValue, ok := typed["ha-nova@ha-nova"]; ok {
+			return claudeInstalledPluginRecordPresent(pluginValue)
+		}
+		for _, key := range []string{"name", "id", "plugin"} {
+			if name, ok := typed[key].(string); ok && name == "ha-nova@ha-nova" {
+				return true
+			}
+		}
+		return false
+	default:
+		return claudePluginRecordMatches(value)
 	}
 }
 

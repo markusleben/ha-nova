@@ -202,6 +202,28 @@ func TestInstallClaudePluginUpdatesExistingPlugin(t *testing.T) {
 	}
 }
 
+func TestInstallClaudePluginFailsWhenMarketplaceDisappearsAfterInstall(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("HA_NOVA_TEST_CLAUDE_DROP_MARKETPLACE_ON_INSTALL", "1")
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+
+	logPath := filepath.Join(home, "claude.log")
+	t.Setenv("PATH", installClaudeMock(t, home, logPath)+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	sourceRoot := paths.InstallRoot
+	writeClaudeMarketplaceFixture(t, sourceRoot)
+
+	err = installClaudePlugin(paths, sourceRoot)
+	if err == nil || !strings.Contains(err.Error(), "Claude marketplace ha-nova not found after sync") {
+		t.Fatalf("expected marketplace verification failure, got %v", err)
+	}
+}
+
 func TestInstallClaudePluginLocalModeReinstallsAndClearsCache(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -426,6 +448,42 @@ func TestInstallClaudePluginFallsBackToInstallWhenUpdateStateIsStale(t *testing.
 	}
 	if !strings.Contains(log, "plugin install ha-nova@ha-nova") {
 		t.Fatalf("expected fresh install for local marketplace sync, got:\n%s", log)
+	}
+}
+
+func TestInstallClaudePluginFallbackInstallRestoresStateWhenMarketplaceDisappears(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+
+	if err := os.MkdirAll(filepath.Join(home, ".claude", "plugins"), 0o755); err != nil {
+		t.Fatalf("mkdir plugins: %v", err)
+	}
+	writeInstalledClaudePluginFixture(t, home)
+
+	logPath := filepath.Join(home, "claude.log")
+	t.Setenv("HA_NOVA_TEST_CLAUDE_UPDATE_STALE", "1")
+	t.Setenv("HA_NOVA_TEST_CLAUDE_DROP_MARKETPLACE_ON_INSTALL", "1")
+	t.Setenv("PATH", installClaudeMock(t, home, logPath)+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	sourceRoot := paths.InstallRoot
+	writeClaudeMarketplaceFixture(t, sourceRoot)
+
+	err = installClaudePlugin(paths, sourceRoot)
+	if err == nil || !strings.Contains(err.Error(), "Claude marketplace ha-nova not found after sync") {
+		t.Fatalf("expected fallback install verification failure, got %v", err)
+	}
+
+	source, hasSource, readErr := readClaudeMarketplaceSource(home)
+	if readErr != nil {
+		t.Fatalf("readClaudeMarketplaceSource() error: %v", readErr)
+	}
+	if hasSource {
+		t.Fatalf("expected rollback to restore pre-install empty marketplace state, got %+v", source)
 	}
 }
 
@@ -692,6 +750,9 @@ JSON
       exit 1
     fi
     write_installed
+    if [[ "${HA_NOVA_TEST_CLAUDE_DROP_MARKETPLACE_ON_INSTALL:-0}" == "1" ]]; then
+      rm -f "${known_file}"
+    fi
     ;;
  "plugin update ha-nova@ha-nova")
     if [[ "${HA_NOVA_TEST_CLAUDE_UPDATE_STALE:-0}" == "1" ]]; then
