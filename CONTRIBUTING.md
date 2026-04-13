@@ -122,6 +122,16 @@ Emergency cleanup if a local desktop-validation helper was interrupted:
 pkill -f 'npm run dev:validation:harness|start-local-validation-harness\.sh|http\.server 8917|vitest|mock-ha-relay\.py|ha-nova setup' || true
 ```
 
+## Project Structure
+
+```
+cli/         Local command-line app (setup, doctor, update, uninstall, relay)
+nova/        Relay app (runs on your HA server)
+skills/      AI skills (markdown files)
+scripts/     Setup, deploy, diagnostics
+tests/       Test suite
+```
+
 ## Security
 
 Do not open public issues for vulnerabilities. Follow `SECURITY.md`.
