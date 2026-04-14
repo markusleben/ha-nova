@@ -67,6 +67,7 @@ describe("Claude plugin state helper", () => {
     const snapshot = JSON.parse(result.stdout);
     expect(snapshot.attached).toBe(true);
     expect(snapshot.plugin.recordPresent).toBe(true);
+    expect(snapshot.plugin.usableInstallPath).toBe(true);
     expect(snapshot.plugin.installPath).toBe(installPath);
     expect(snapshot.plugin.version).toBe("0.4.0");
     expect(snapshot.marketplace.present).toBe(true);
@@ -117,6 +118,7 @@ describe("Claude plugin state helper", () => {
     const snapshot = JSON.parse(snapshotResult.stdout);
     expect(snapshot.attached).toBe(false);
     expect(snapshot.plugin.recordPresent).toBe(false);
+    expect(snapshot.plugin.usableInstallPath).toBe(false);
     expect(snapshot.marketplace.present).toBe(false);
   });
 
@@ -153,6 +155,7 @@ describe("Claude plugin state helper", () => {
     expect(event.snapshot.home).toBe(home);
     expect(latestSnapshot.home).toBe(home);
     expect(latestSnapshot.plugin.recordPresent).toBe(false);
+    expect(latestSnapshot.plugin.usableInstallPath).toBe(false);
     expect(latestSnapshot.files.installedPlugins.exists).toBe(true);
   });
 
@@ -190,8 +193,36 @@ describe("Claude plugin state helper", () => {
     expect(result.status).toBe(0);
 
     const snapshot = JSON.parse(result.stdout);
-    expect(snapshot.plugin.recordPresent).toBe(false);
+    expect(snapshot.plugin.recordPresent).toBe(true);
+    expect(snapshot.plugin.usableInstallPath).toBe(false);
     expect(snapshot.plugin.installPath).toBe("");
+    expect(snapshot.attached).toBe(false);
+  });
+
+  it("treats a legacy string entry as installed but not attached", () => {
+    const home = mkdtempSync(join(tmpdir(), "ha-nova-claude-legacy-string-"));
+    mkdirSync(join(home, ".claude", "plugins"), { recursive: true });
+    writeFileSync(
+      join(home, ".claude", "plugins", "installed_plugins.json"),
+      JSON.stringify({
+        version: 2,
+        plugins: ["ha-nova@ha-nova"],
+      }, null, 2) + "\n",
+    );
+
+    const inspect = runHelper([
+      "inspect-installed-plugin",
+      join(home, ".claude", "plugins", "installed_plugins.json"),
+    ]);
+    expect(inspect.status).toBe(0);
+    expect(inspect.stdout).toContain("installed=1");
+
+    const snapshotResult = runHelper(["snapshot-home", home]);
+    expect(snapshotResult.status).toBe(0);
+
+    const snapshot = JSON.parse(snapshotResult.stdout);
+    expect(snapshot.plugin.recordPresent).toBe(true);
+    expect(snapshot.plugin.usableInstallPath).toBe(false);
     expect(snapshot.attached).toBe(false);
   });
 

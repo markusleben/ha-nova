@@ -164,6 +164,7 @@ function readPluginSnapshot(path) {
   if (!summary.exists || !summary.parseable) {
     return {
       recordPresent: false,
+      usableInstallPath: false,
       installPath: "",
       version: "",
       entries: 0,
@@ -180,7 +181,8 @@ function readPluginSnapshot(path) {
     .find((value) => typeof value === "string" && value.trim()) ?? "";
 
   return {
-    recordPresent: installPath !== "",
+    recordPresent: entries.length > 0,
+    usableInstallPath: installPath !== "",
     installPath,
     version,
     entries: entries.length,
@@ -404,9 +406,10 @@ function buildSnapshot(home) {
   return {
     capturedAt: new Date().toISOString(),
     home: resolvedHome,
-    attached: plugin.recordPresent && marketplace.source !== "",
+    attached: plugin.usableInstallPath && marketplace.source !== "",
     plugin: {
       recordPresent: plugin.recordPresent,
+      usableInstallPath: plugin.usableInstallPath,
       installPath: plugin.installPath,
       version: plugin.version,
       entries: plugin.entries,
@@ -461,6 +464,7 @@ function buildChangeSet(previous, next) {
   const fields = [
     "attached",
     "plugin.recordPresent",
+    "plugin.usableInstallPath",
     "plugin.installPath",
     "plugin.version",
     "marketplace.present",
