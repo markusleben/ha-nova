@@ -266,6 +266,30 @@ describe("Claude plugin state helper", () => {
     expect(snapshot.files.knownMarketplaces.error).toBe("");
   });
 
+  it("preserves pinned GitHub refs in marketplace source output", () => {
+    const home = mkdtempSync(join(tmpdir(), "ha-nova-claude-known-pinned-"));
+    mkdirSync(join(home, ".claude", "plugins"), { recursive: true });
+    writeFileSync(
+      join(home, ".claude", "plugins", "known_marketplaces.json"),
+      JSON.stringify({
+        "ha-nova": {
+          source: {
+            source: "github",
+            repo: "markusleben/ha-nova",
+            ref: "v0.2.2",
+          },
+        },
+      }, null, 2) + "\n",
+    );
+
+    const result = runHelper(["snapshot-home", home]);
+    expect(result.status).toBe(0);
+
+    const snapshot = JSON.parse(result.stdout);
+    expect(snapshot.marketplace.present).toBe(true);
+    expect(snapshot.marketplace.source).toBe("markusleben/ha-nova#v0.2.2");
+  });
+
   it("keeps snapshot output when known marketplaces json is invalid", () => {
     const home = mkdtempSync(join(tmpdir(), "ha-nova-claude-invalid-known-"));
     mkdirSync(join(home, ".claude", "plugins"), { recursive: true });
@@ -284,6 +308,20 @@ describe("Claude plugin state helper", () => {
     const snapshot = JSON.parse(result.stdout);
     expect(snapshot.marketplace.present).toBe(false);
     expect(snapshot.marketplace.source).toBe("");
+    expect(snapshot.files.knownMarketplaces.parseable).toBe(false);
+    expect(snapshot.files.knownMarketplaces.error.length).toBeGreaterThan(0);
+  });
+
+  it("keeps snapshot output when a tracked registry path is a directory", () => {
+    const home = mkdtempSync(join(tmpdir(), "ha-nova-claude-dir-known-"));
+    mkdirSync(join(home, ".claude", "plugins", "known_marketplaces.json"), { recursive: true });
+
+    const result = runHelper(["snapshot-home", home]);
+    expect(result.status).toBe(0);
+
+    const snapshot = JSON.parse(result.stdout);
+    expect(snapshot.marketplace.present).toBe(false);
+    expect(snapshot.files.knownMarketplaces.exists).toBe(true);
     expect(snapshot.files.knownMarketplaces.parseable).toBe(false);
     expect(snapshot.files.knownMarketplaces.error.length).toBeGreaterThan(0);
   });

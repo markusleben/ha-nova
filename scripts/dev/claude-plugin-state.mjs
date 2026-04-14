@@ -43,17 +43,44 @@ function fileSummary(path) {
     };
   }
 
-  const raw = readFileSync(resolved);
-  const stat = statSync(resolved);
+  let stat;
+  try {
+    stat = statSync(resolved);
+  } catch (error) {
+    return {
+      path: resolved,
+      exists: true,
+      parseable: false,
+      size: 0,
+      mtimeMs: 0,
+      sha256: "",
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+
   const summary = {
     path: resolved,
     exists: true,
     parseable: false,
     size: stat.size,
     mtimeMs: stat.mtimeMs,
-    sha256: createHash("sha256").update(raw).digest("hex"),
+    sha256: "",
     error: "",
   };
+
+  if (!stat.isFile()) {
+    summary.error = "not a file";
+    return summary;
+  }
+
+  let raw;
+  try {
+    raw = readFileSync(resolved);
+  } catch (error) {
+    summary.error = error instanceof Error ? error.message : String(error);
+    return summary;
+  }
+  summary.sha256 = createHash("sha256").update(raw).digest("hex");
 
   try {
     parseJsonText(raw.toString("utf8"));
@@ -310,15 +337,40 @@ function findMarketplaceEntry(raw) {
   return null;
 }
 
+function sourceCommandFromObject(source) {
+  const ref = typeof source.ref === "string" ? source.ref.trim() : "";
+  if (typeof source.url === "string" && source.url.trim()) {
+    const url = source.url.trim();
+    return ref ? `${url}#${ref}` : url;
+  }
+  if (typeof source.path === "string" && source.path.trim()) {
+    return source.path.trim();
+  }
+  if (typeof source.repo === "string" && source.repo.trim()) {
+    const repo = source.repo.trim().replace(/\.git$/u, "").replace(/^\/+/u, "");
+    if (typeof source.source === "string" && source.source.trim().toLowerCase() === "github") {
+      return ref ? `${repo}#${ref}` : repo;
+    }
+    return ref ? `${repo}#${ref}` : repo;
+  }
+  if (typeof source.source === "string") {
+    const value = source.source.trim();
+    if (value && value.toLowerCase() !== "github") {
+      return value;
+    }
+  }
+  return "";
+}
+
 function readMarketplaceSource(path) {
   const raw = readJson(path);
   const entry = findMarketplaceEntry(raw);
   if (!entry) {
     return "";
   }
-  let source = entry.source;
-  if (source && typeof source === "object") {
-    source = source.url ?? source.path ?? source.repo ?? "";
+  const source = entry.source;
+  if (source && typeof source === "object" && !Array.isArray(source)) {
+    return sourceCommandFromObject(source);
   }
   return typeof source === "string" ? source.trim() : "";
 }
