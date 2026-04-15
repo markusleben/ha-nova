@@ -331,3 +331,41 @@ func TestClientAppearsInstalledForClaudeRejectsLegacyFlatMarketplaceRoot(t *test
 		t.Fatal("expected legacy flat Claude marketplace root to count as not installed")
 	}
 }
+
+func TestClientAppearsInstalledForClaudeIgnoresForeignPluginArrayEntries(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+
+	if err := os.MkdirAll(filepath.Join(home, ".claude", "plugins"), 0o755); err != nil {
+		t.Fatalf("mkdir plugins: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(home, ".claude", "plugins", "installed_plugins.json"), []byte(`{
+  "plugins": [
+    {
+      "name": "context7@claude-plugins-official",
+      "installPath": "/tmp/context7"
+    }
+  ]
+}`), 0o644); err != nil {
+		t.Fatalf("write installed_plugins.json: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(home, ".claude", "plugins", "known_marketplaces.json"), []byte(`{"ha-nova":{"source":"https://github.com/markusleben/ha-nova"}}`), 0o644); err != nil {
+		t.Fatalf("write known_marketplaces.json: %v", err)
+	}
+
+	entry, ok, err := findRegistryClient(paths, "claude")
+	if err != nil {
+		t.Fatalf("findRegistryClient() error: %v", err)
+	}
+	if !ok {
+		t.Fatal("expected claude registry entry")
+	}
+	if evaluateClientStatus(paths, installState{}, entry).Ready {
+		t.Fatal("expected foreign Claude plugin array entries to count as not installed")
+	}
+}
