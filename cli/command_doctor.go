@@ -99,7 +99,11 @@ func runDoctor(paths runtimePaths, _ []string) int {
 				printHumanWarn("%s", doctorClientRepairHint(client, installSource))
 				status = 1
 			case !client.Attached:
-				printHumanWarn("%s configured, but HA NOVA is not attached", client.Label)
+				if client.ID == "claude" {
+					printHumanWarn("%s is not attached correctly", client.Label)
+				} else {
+					printHumanWarn("%s configured, but HA NOVA is not attached", client.Label)
+				}
 				printHumanWarn("%s", doctorClientRepairHint(client, installSource))
 				status = 1
 			}

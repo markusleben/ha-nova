@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func TestInstallClaudePluginMigratesGitHubMarketplaceToLocalStagedSource(t *testing.T) {
+func TestInstallClaudePluginMigratesFloatingGitHubMarketplaceToVersionedLocalSnapshot(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 
@@ -41,15 +41,18 @@ func TestInstallClaudePluginMigratesGitHubMarketplaceToLocalStagedSource(t *test
 		t.Fatalf("read log: %v", err)
 	}
 	log := string(logData)
-	marketplaceRoot := filepath.Join(paths.ConfigDir, "claude-marketplace")
-	if !strings.Contains(log, "plugin validate "+marketplaceRoot) {
-		t.Fatalf("expected staged marketplace validation before migration:\n%s", log)
+	expectedRoot, err := claudeMarketplaceReleaseRoot(paths, "0.1.12")
+	if err != nil {
+		t.Fatalf("claudeMarketplaceReleaseRoot() error: %v", err)
 	}
 	if !strings.Contains(log, "plugin marketplace remove ha-nova") {
-		t.Fatalf("expected legacy GitHub marketplace removal before local re-add:\n%s", log)
+		t.Fatalf("expected floating GitHub marketplace to be replaced with a local release snapshot:\n%s", log)
 	}
-	if !strings.Contains(log, "plugin marketplace add "+marketplaceRoot) {
-		t.Fatalf("expected staged local marketplace re-add:\n%s", log)
+	if !strings.Contains(log, "plugin validate ") {
+		t.Fatalf("expected floating GitHub marketplace migration to validate a staged local release snapshot:\n%s", log)
+	}
+	if !strings.Contains(log, "plugin marketplace add "+expectedRoot) {
+		t.Fatalf("expected local release snapshot after replacement:\n%s", log)
 	}
 	if !strings.Contains(log, "plugin install ha-nova@ha-nova") {
 		t.Fatalf("expected plugin install to continue, got:\n%s", log)
@@ -85,13 +88,16 @@ func TestInstallClaudePluginAcceptsBOMPrefixedMarketplaceRegistry(t *testing.T) 
 	if err != nil {
 		t.Fatalf("read log: %v", err)
 	}
-	marketplaceRoot := filepath.Join(paths.ConfigDir, "claude-marketplace")
-	if !strings.Contains(string(logData), "plugin marketplace add "+marketplaceRoot) {
-		t.Fatalf("expected BOM-prefixed registry to migrate to staged local marketplace, got:\n%s", string(logData))
+	expectedRoot, err := claudeMarketplaceReleaseRoot(paths, "0.1.12")
+	if err != nil {
+		t.Fatalf("claudeMarketplaceReleaseRoot() error: %v", err)
+	}
+	if !strings.Contains(string(logData), "plugin marketplace add "+expectedRoot) {
+		t.Fatalf("expected BOM-prefixed registry to migrate to the local release snapshot, got:\n%s", string(logData))
 	}
 }
 
-func TestInstallClaudePluginAcceptsStructuredGitHubMarketplaceSource(t *testing.T) {
+func TestInstallClaudePluginMigratesStructuredGitHubMarketplaceSourceToVersionedLocalSnapshot(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 
@@ -124,19 +130,19 @@ func TestInstallClaudePluginAcceptsStructuredGitHubMarketplaceSource(t *testing.
 		t.Fatalf("read log: %v", err)
 	}
 	log := string(logData)
-	marketplaceRoot := filepath.Join(paths.ConfigDir, "claude-marketplace")
-	if !strings.Contains(log, "plugin marketplace add "+marketplaceRoot) {
-		t.Fatalf("expected structured GitHub marketplace to migrate to staged local source:\n%s", log)
+	expectedRoot, err := claudeMarketplaceReleaseRoot(paths, "0.1.12")
+	if err != nil {
+		t.Fatalf("claudeMarketplaceReleaseRoot() error: %v", err)
 	}
 	if !strings.Contains(log, "plugin marketplace remove ha-nova") {
-		t.Fatalf("expected structured GitHub marketplace removal before local add:\n%s", log)
+		t.Fatalf("expected structured GitHub marketplace to be replaced with a local release snapshot:\n%s", log)
 	}
-	if strings.Contains(log, "plugin marketplace add https://github.com/markusleben/ha-nova") {
-		t.Fatalf("did not expect structured GitHub marketplace to remain on floating GitHub:\n%s", log)
+	if !strings.Contains(log, "plugin marketplace add "+expectedRoot) {
+		t.Fatalf("expected structured GitHub marketplace to migrate to the local release snapshot:\n%s", log)
 	}
 }
 
-func TestInstallClaudePluginReplacesPinnedGitHubMarketplaceRef(t *testing.T) {
+func TestInstallClaudePluginReplacesPinnedGitHubMarketplaceRefWithVersionedLocalSnapshot(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 
@@ -169,12 +175,15 @@ func TestInstallClaudePluginReplacesPinnedGitHubMarketplaceRef(t *testing.T) {
 		t.Fatalf("read log: %v", err)
 	}
 	log := string(logData)
+	expectedRoot, err := claudeMarketplaceReleaseRoot(paths, "0.1.12")
+	if err != nil {
+		t.Fatalf("claudeMarketplaceReleaseRoot() error: %v", err)
+	}
 	if !strings.Contains(log, "plugin marketplace remove ha-nova") {
 		t.Fatalf("expected pinned marketplace removal before re-add:\n%s", log)
 	}
-	marketplaceRoot := filepath.Join(paths.ConfigDir, "claude-marketplace")
-	if !strings.Contains(log, "plugin marketplace add "+marketplaceRoot) {
-		t.Fatalf("expected pinned marketplace to be replaced with staged local source:\n%s", log)
+	if !strings.Contains(log, "plugin marketplace add "+expectedRoot) {
+		t.Fatalf("expected pinned marketplace to be replaced with the current local release snapshot:\n%s", log)
 	}
 	if strings.Contains(log, "plugin marketplace update ha-nova") {
 		t.Fatalf("did not expect pinned marketplace to be treated as a matching source:\n%s", log)
@@ -202,13 +211,17 @@ func TestInstallClaudePluginRestoresPinnedGitHubMarketplaceRefWhenReplaceFails(t
 	}
 
 	logPath := filepath.Join(home, "claude.log")
-	failCommand := "plugin marketplace add " + filepath.Join(paths.ConfigDir, "claude-marketplace")
+	expectedRoot, err := claudeMarketplaceReleaseRoot(paths, "0.1.12")
+	if err != nil {
+		t.Fatalf("claudeMarketplaceReleaseRoot() error: %v", err)
+	}
+	failCommand := "plugin marketplace add " + expectedRoot
 	t.Setenv("PATH", installClaudeMarketplaceMock(t, logPath, failCommand)+string(os.PathListSeparator)+os.Getenv("PATH"))
 
 	writeClaudeMarketplaceFixture(t, paths.InstallRoot)
 	err = installClaudePlugin(paths, paths.InstallRoot)
 	if err == nil {
-		t.Fatal("expected installClaudePlugin() to fail when staged local marketplace add fails")
+		t.Fatal("expected installClaudePlugin() to fail when local release snapshot replace fails")
 	}
 
 	logData, readErr := os.ReadFile(logPath)
@@ -242,13 +255,17 @@ func TestInstallClaudePluginRestoresPinnedGitURLMarketplaceRefWhenReplaceFails(t
 	}
 
 	logPath := filepath.Join(home, "claude.log")
-	failCommand := "plugin marketplace add " + filepath.Join(paths.ConfigDir, "claude-marketplace")
+	expectedRoot, err := claudeMarketplaceReleaseRoot(paths, "0.1.12")
+	if err != nil {
+		t.Fatalf("claudeMarketplaceReleaseRoot() error: %v", err)
+	}
+	failCommand := "plugin marketplace add " + expectedRoot
 	t.Setenv("PATH", installClaudeMarketplaceMock(t, logPath, failCommand)+string(os.PathListSeparator)+os.Getenv("PATH"))
 
 	writeClaudeMarketplaceFixture(t, paths.InstallRoot)
 	err = installClaudePlugin(paths, paths.InstallRoot)
 	if err == nil {
-		t.Fatal("expected installClaudePlugin() to fail when staged local marketplace add fails")
+		t.Fatal("expected installClaudePlugin() to fail when local release snapshot replace fails")
 	}
 
 	logData, readErr := os.ReadFile(logPath)
@@ -261,7 +278,7 @@ func TestInstallClaudePluginRestoresPinnedGitURLMarketplaceRefWhenReplaceFails(t
 	}
 }
 
-func TestInstallClaudePluginFallsBackToGitHubMarketplaceWithoutInstalledBundlePayload(t *testing.T) {
+func TestInstallClaudePluginFailsWithoutInstalledBundlePayload(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 
@@ -280,27 +297,16 @@ func TestInstallClaudePluginFallsBackToGitHubMarketplaceWithoutInstalledBundlePa
 	logPath := filepath.Join(home, "claude.log")
 	t.Setenv("PATH", installClaudeMarketplaceMock(t, logPath, "")+string(os.PathListSeparator)+os.Getenv("PATH"))
 
-	if err := installClaudePlugin(paths, paths.InstallRoot); err != nil {
-		t.Fatalf("installClaudePlugin() error: %v", err)
+	err = installClaudePlugin(paths, paths.InstallRoot)
+	if err == nil {
+		t.Fatal("expected installClaudePlugin() to fail when the installed bundle payload is missing")
 	}
-
-	logData, err := os.ReadFile(logPath)
-	if err != nil {
-		t.Fatalf("read log: %v", err)
-	}
-	log := string(logData)
-	if !strings.Contains(log, "plugin marketplace add https://github.com/markusleben/ha-nova") {
-		t.Fatalf("expected GitHub marketplace fallback when no installed Claude payload exists:\n%s", log)
-	}
-	if strings.Contains(log, "plugin validate ") {
-		t.Fatalf("did not expect local marketplace validation without an installed Claude payload:\n%s", log)
-	}
-	if strings.Contains(log, "plugin marketplace add "+filepath.Join(paths.ConfigDir, "claude-marketplace")) {
-		t.Fatalf("did not expect local staged marketplace add without an installed Claude payload:\n%s", log)
+	if !strings.Contains(err.Error(), "Claude release snapshot payload missing") {
+		t.Fatalf("expected missing release snapshot payload error, got %v", err)
 	}
 }
 
-func TestInstallClaudePluginFallsBackToGitHubMarketplaceWithoutStageableClaudePayload(t *testing.T) {
+func TestInstallClaudePluginFailsWithoutStageableClaudePayload(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 
@@ -333,22 +339,10 @@ func TestInstallClaudePluginFallsBackToGitHubMarketplaceWithoutStageableClaudePa
 
 	err = installClaudePlugin(paths, paths.InstallRoot)
 	if err == nil {
-		t.Fatal("expected installClaudePlugin() to fail when a shipped bundle payload is incomplete")
+		t.Fatal("expected installClaudePlugin() to fail when the shipped Claude payload is incomplete")
 	}
-	if !strings.Contains(err.Error(), "installed Claude payload missing from shipped bundle runtime") {
-		t.Fatalf("expected shipped bundle payload error, got: %v", err)
-	}
-
-	logData, readErr := os.ReadFile(logPath)
-	if readErr != nil && !os.IsNotExist(readErr) {
-		t.Fatalf("read log: %v", readErr)
-	}
-	log := string(logData)
-	if strings.Contains(log, "plugin marketplace add https://github.com/markusleben/ha-nova") {
-		t.Fatalf("did not expect shipped bundle fallback to floating GitHub:\n%s", log)
-	}
-	if strings.Contains(log, "plugin validate ") || strings.Contains(log, "plugin marketplace add "+filepath.Join(paths.ConfigDir, "claude-marketplace")) {
-		t.Fatalf("did not expect local staging commands for incomplete shipped bundle payload:\n%s", log)
+	if !strings.Contains(err.Error(), "Claude release snapshot payload missing") {
+		t.Fatalf("expected incomplete payload to fail with missing release snapshot payload error, got %v", err)
 	}
 }
 
@@ -364,7 +358,7 @@ func TestSameClaudeMarketplaceSourceTreatsPinnedGitHubRefsAsDistinct(t *testing.
 	}
 }
 
-func TestInstallClaudePluginReplacesStaleMarketplaceWithLocalStagedSource(t *testing.T) {
+func TestInstallClaudePluginReplacesStaleMarketplaceWithVersionedLocalSnapshot(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 
@@ -397,12 +391,15 @@ func TestInstallClaudePluginReplacesStaleMarketplaceWithLocalStagedSource(t *tes
 		t.Fatalf("read log: %v", err)
 	}
 	log := string(logData)
+	expectedRoot, err := claudeMarketplaceReleaseRoot(paths, "0.1.12")
+	if err != nil {
+		t.Fatalf("claudeMarketplaceReleaseRoot() error: %v", err)
+	}
 	if !strings.Contains(log, "plugin marketplace remove ha-nova") {
 		t.Fatalf("expected stale marketplace removal before local re-add:\n%s", log)
 	}
-	marketplaceRoot := filepath.Join(paths.ConfigDir, "claude-marketplace")
-	if !strings.Contains(log, "plugin marketplace add "+marketplaceRoot) {
-		t.Fatalf("expected staged local marketplace re-add after stale marketplace removal:\n%s", log)
+	if !strings.Contains(log, "plugin marketplace add "+expectedRoot) {
+		t.Fatalf("expected stale marketplace to be replaced with the local release snapshot:\n%s", log)
 	}
 }
 
@@ -427,7 +424,11 @@ func TestInstallClaudePluginRestoresExistingMarketplaceWhenLocalReplaceFails(t *
 	}
 
 	logPath := filepath.Join(home, "claude.log")
-	failCommand := "plugin marketplace add " + filepath.Join(paths.ConfigDir, "claude-marketplace")
+	expectedRoot, err := claudeMarketplaceReleaseRoot(paths, "0.1.12")
+	if err != nil {
+		t.Fatalf("claudeMarketplaceReleaseRoot() error: %v", err)
+	}
+	failCommand := "plugin marketplace add " + expectedRoot
 	t.Setenv("PATH", installClaudeMarketplaceMock(t, logPath, failCommand)+string(os.PathListSeparator)+os.Getenv("PATH"))
 
 	writeClaudeMarketplaceFixture(t, paths.InstallRoot)
@@ -452,6 +453,7 @@ func TestInstallClaudePluginRestoresExistingMarketplaceWhenLocalReplaceFails(t *
 func TestInstallClaudePluginKeepsExistingLocalMarketplaceWhenValidationFails(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("HA_NOVA_CLAUDE_MARKETPLACE_LOCAL", "1")
 
 	paths, err := detectPaths()
 	if err != nil {
@@ -494,6 +496,7 @@ func TestInstallClaudePluginKeepsExistingLocalMarketplaceWhenValidationFails(t *
 func TestInstallClaudePluginRestoresExistingLocalMarketplaceWhenInstallFailsAfterCutover(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("HA_NOVA_CLAUDE_MARKETPLACE_LOCAL", "1")
 
 	paths, err := detectPaths()
 	if err != nil {

@@ -22,7 +22,9 @@ func TestPostUpdateSyncRefreshesDetectedInstalledClientsWithoutState(t *testing.
 		t.Fatalf("mkdir plugins: %v", err)
 	}
 	writeInstalledClaudePluginFixture(t, home)
-	writeClaudeMarketplaceRegistrationFixture(t, home, filepath.Join(paths.ConfigDir, "claude-marketplace"))
+	if err := os.WriteFile(filepath.Join(home, ".claude", "plugins", "known_marketplaces.json"), []byte(`{"ha-nova":{"source":"https://github.com/markusleben/ha-nova"}}`), 0o644); err != nil {
+		t.Fatalf("write known marketplaces: %v", err)
+	}
 	writeClaudeMarketplaceFixture(t, paths.InstallRoot)
 
 	logPath := filepath.Join(home, "claude.log")
@@ -36,14 +38,18 @@ func TestPostUpdateSyncRefreshesDetectedInstalledClientsWithoutState(t *testing.
 	if err != nil {
 		t.Fatalf("read log: %v", err)
 	}
-	if !strings.Contains(string(logData), "plugin remove ha-nova@ha-nova") {
-		t.Fatalf("expected detected Claude install to be reset before reinstall, got:\n%s", string(logData))
+	expectedRoot, err := claudeMarketplaceReleaseRoot(paths, "0.1.12")
+	if err != nil {
+		t.Fatalf("claudeMarketplaceReleaseRoot() error: %v", err)
 	}
 	if !strings.Contains(string(logData), "plugin install ha-nova@ha-nova") {
-		t.Fatalf("expected detected Claude install to be reinstalled from the local staged payload, got:\n%s", string(logData))
+		t.Fatalf("expected detected Claude install to be reinstalled from the release snapshot, got:\n%s", string(logData))
 	}
-	if !strings.Contains(string(logData), "plugin marketplace add ") && !strings.Contains(string(logData), "plugin marketplace update ha-nova") {
-		t.Fatalf("expected Claude marketplace to be added or refreshed, got:\n%s", string(logData))
+	if !strings.Contains(string(logData), "plugin marketplace add "+expectedRoot) {
+		t.Fatalf("expected Claude marketplace to point at the exact local release snapshot, got:\n%s", string(logData))
+	}
+	if strings.Contains(string(logData), "github.com/markusleben/ha-nova.git") {
+		t.Fatalf("did not expect update sync to use GitHub for bundle installs, got:\n%s", string(logData))
 	}
 
 	state, err := loadState(paths)
@@ -52,6 +58,52 @@ func TestPostUpdateSyncRefreshesDetectedInstalledClientsWithoutState(t *testing.
 	}
 	if !containsClient(state.InstalledClients, "claude") {
 		t.Fatalf("expected saved state to include detected Claude install, got %+v", state.InstalledClients)
+	}
+}
+
+func TestPostUpdateSyncRepairsConfiguredClaudeWhenMarketplaceRecordIsMissing(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+
+	if err := os.MkdirAll(filepath.Join(home, ".claude", "plugins"), 0o755); err != nil {
+		t.Fatalf("mkdir plugins: %v", err)
+	}
+	writeInstalledClaudePluginFixture(t, home)
+	writeClaudeMarketplaceFixture(t, paths.InstallRoot)
+
+	logPath := filepath.Join(home, "claude.log")
+	t.Setenv("PATH", installClaudeMock(t, home, logPath)+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	state := installState{
+		SchemaVersion:    stateSchemaVersion,
+		InstalledClients: []string{"claude"},
+	}
+	if err := saveState(paths, state); err != nil {
+		t.Fatalf("saveState() error: %v", err)
+	}
+
+	if err := postUpdateSync(paths); err != nil {
+		t.Fatalf("postUpdateSync() error: %v", err)
+	}
+
+	logData, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatalf("read log: %v", err)
+	}
+	expectedRoot, err := claudeMarketplaceReleaseRoot(paths, "0.1.12")
+	if err != nil {
+		t.Fatalf("claudeMarketplaceReleaseRoot() error: %v", err)
+	}
+	if !strings.Contains(string(logData), "plugin marketplace add "+expectedRoot) {
+		t.Fatalf("expected configured Claude repair to restore the exact local release snapshot, got:\n%s", string(logData))
+	}
+	if !strings.Contains(string(logData), "plugin install ha-nova@ha-nova") {
+		t.Fatalf("expected configured Claude repair to reinstall the plugin, got:\n%s", string(logData))
 	}
 }
 
@@ -80,7 +132,9 @@ func TestPostUpdateSyncRefreshesAllDetectedClients(t *testing.T) {
 		t.Fatalf("mkdir Claude plugins: %v", err)
 	}
 	writeInstalledClaudePluginFixture(t, home)
-	writeClaudeMarketplaceRegistrationFixture(t, home, filepath.Join(paths.ConfigDir, "claude-marketplace"))
+	if err := os.WriteFile(filepath.Join(home, ".claude", "plugins", "known_marketplaces.json"), []byte(`{"ha-nova":{"source":"https://github.com/markusleben/ha-nova"}}`), 0o644); err != nil {
+		t.Fatalf("write known marketplaces: %v", err)
+	}
 
 	if err := os.MkdirAll(filepath.Join(home, ".agents", "skills", "ha-nova", "ha-nova"), 0o755); err != nil {
 		t.Fatalf("mkdir Codex attachment: %v", err)
@@ -123,8 +177,12 @@ func TestPostUpdateSyncRefreshesAllDetectedClients(t *testing.T) {
 	if !strings.Contains(string(logData), "plugin install ha-nova@ha-nova") {
 		t.Fatalf("expected detected Claude install to be refreshed, got:\n%s", string(logData))
 	}
-	if !strings.Contains(string(logData), "plugin marketplace add ") && !strings.Contains(string(logData), "plugin marketplace update ha-nova") {
-		t.Fatalf("expected Claude marketplace to be added or refreshed, got:\n%s", string(logData))
+	expectedRoot := claudeMarketplaceDevRoot(paths)
+	if !strings.Contains(string(logData), "plugin marketplace add "+expectedRoot) {
+		t.Fatalf("expected detected Claude install to use the dev marketplace root, got:\n%s", string(logData))
+	}
+	if strings.Contains(string(logData), "github.com/markusleben/ha-nova.git") {
+		t.Fatalf("did not expect detected Claude install to use GitHub for bundle installs, got:\n%s", string(logData))
 	}
 
 	state, err := loadState(paths)
@@ -182,6 +240,7 @@ func TestPostUpdateSyncContinuesOtherClientsAfterClaudeFailure(t *testing.T) {
 
 	logPath := filepath.Join(home, "claude.log")
 	t.Setenv("PATH", installClaudeMock(t, home, logPath)+string(os.PathListSeparator)+os.Getenv("PATH"))
+	writeInstalledClaudePluginFixture(t, home)
 
 	state := installState{
 		SchemaVersion:    stateSchemaVersion,
@@ -241,6 +300,7 @@ func TestRunUpdateAlreadyCurrentRetriesInstalledClientSync(t *testing.T) {
 	logPath := filepath.Join(home, "claude.log")
 	t.Setenv("PATH", installClaudeMock(t, home, logPath)+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("HA_NOVA_TEST_CLAUDE_INSTALL_FAIL", "1")
+	writeInstalledClaudePluginFixture(t, home)
 
 	state := installState{
 		SchemaVersion:    stateSchemaVersion,

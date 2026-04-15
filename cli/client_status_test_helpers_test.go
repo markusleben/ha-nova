@@ -31,7 +31,7 @@ func withClientAttachmentPresence(t *testing.T, attached map[string]bool) {
 	t.Helper()
 
 	original := clientAttachmentPresentForStatus
-	clientAttachmentPresentForStatus = func(paths runtimePaths, client string) bool {
+	clientAttachmentPresentForStatus = func(paths runtimePaths, _ installState, client string) bool {
 		if value, ok := attached[client]; ok {
 			return value
 		}

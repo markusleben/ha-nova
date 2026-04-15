@@ -180,7 +180,7 @@ func TestRunDoctorShowsRepairHintForDetachedConfiguredClaude(t *testing.T) {
 	if exitCode == 0 {
 		t.Fatalf("expected doctor to degrade for detached Claude:\n%s", output)
 	}
-	if !strings.Contains(output, "Claude Code configured, but HA NOVA is not attached") {
+	if !strings.Contains(output, "Claude Code is not attached correctly") {
 		t.Fatalf("expected detached Claude warning:\n%s", output)
 	}
 	if !strings.Contains(output, "Repair: run `ha-nova setup claude`.") {
@@ -271,7 +271,7 @@ func TestRunDoctorShowsRepairHintWhenClaudeMarketplaceMissing(t *testing.T) {
 	if exitCode == 0 {
 		t.Fatalf("expected doctor to degrade when Claude marketplace is missing:\n%s", output)
 	}
-	if !strings.Contains(output, "Claude Code configured, but HA NOVA is not attached") {
+	if !strings.Contains(output, "Claude Code is not attached correctly") {
 		t.Fatalf("expected detached Claude warning for missing marketplace:\n%s", output)
 	}
 	if !strings.Contains(output, "Repair: run `ha-nova setup claude`.") {

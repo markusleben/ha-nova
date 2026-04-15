@@ -28,8 +28,15 @@ func evaluateClientStatus(paths runtimePaths, state installState, client clientR
 		Label:         client.Label,
 		SupportedOnOS: clientSupportedOnCurrentOS(client),
 	}
-	status.Attached = clientAttachmentPresentForStatus(paths, client.ID)
+	claudeSnapshot := claudeInstallSnapshot{}
+	if client.ID == "claude" {
+		claudeSnapshot = inspectClaudeInstallSnapshot(paths, state)
+	}
+	status.Attached = clientAttachmentPresentForStatus(paths, state, client.ID)
 	status.Configured = containsClient(state.InstalledClients, client.ID) || status.Attached
+	if client.ID == "claude" && (claudeSnapshot.MarketplaceFound || claudeSnapshot.PluginFound) {
+		status.Configured = true
+	}
 	status.RuntimeDetected = clientRuntimeDetectedForStatus(client.ID)
 	status.Ready = status.SupportedOnOS && status.RuntimeDetected && status.Attached
 	status.Reason = clientStatusReason(client.ID, status)
@@ -60,7 +67,7 @@ func clientRuntimeCommand(client string) string {
 	}
 }
 
-func clientAttachmentPresent(paths runtimePaths, client string) bool {
+func clientAttachmentPresent(paths runtimePaths, state installState, client string) bool {
 	switch client {
 	case "codex":
 		return fileExists(filepath.Join(paths.Home, ".agents", "skills", "ha-nova", "ha-nova", "SKILL.md"))
@@ -70,7 +77,7 @@ func clientAttachmentPresent(paths runtimePaths, client string) bool {
 		return fileExists(filepath.Join(paths.Home, ".gemini", "skills", "ha-nova", "SKILL.md")) &&
 			fileExists(filepath.Join(paths.Home, ".gemini", "skills", "ha-nova-review", "SKILL.md"))
 	case "claude":
-		return claudePluginAttached(paths.Home)
+		return inspectClaudeInstallSnapshot(paths, state).Attached
 	default:
 		return false
 	}

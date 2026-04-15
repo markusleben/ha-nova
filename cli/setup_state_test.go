@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -229,6 +230,9 @@ func TestClientAppearsInstalledForClaudeIgnoresBlankInstallPathRecord(t *testing
 }`), 0o644); err != nil {
 		t.Fatalf("write installed_plugins.json: %v", err)
 	}
+	if err := os.WriteFile(filepath.Join(home, ".claude", "plugins", "known_marketplaces.json"), []byte(`{"ha-nova":{"source":"https://github.com/markusleben/ha-nova"}}`), 0o644); err != nil {
+		t.Fatalf("write known_marketplaces.json: %v", err)
+	}
 
 	entry, ok, err := findRegistryClient(paths, "claude")
 	if err != nil {
@@ -267,5 +271,63 @@ func TestClientAppearsInstalledForClaudeIgnoresUnparseableRegistry(t *testing.T)
 	}
 	if evaluateClientStatus(paths, installState{}, entry).Ready {
 		t.Fatal("expected unparseable Claude registry to count as not installed")
+		t.Fatal("expected unparseable Claude registry to count as not installed")
+	}
+}
+
+func TestClientAppearsInstalledForClaudeRequiresMarketplaceRecord(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+
+	if err := os.MkdirAll(filepath.Join(home, ".claude", "plugins"), 0o755); err != nil {
+		t.Fatalf("mkdir plugins: %v", err)
+	}
+	writeInstalledClaudePluginFixture(t, home)
+
+	entry, ok, err := findRegistryClient(paths, "claude")
+	if err != nil {
+		t.Fatalf("findRegistryClient() error: %v", err)
+	}
+	if !ok {
+		t.Fatal("expected claude registry entry")
+	}
+	if evaluateClientStatus(paths, installState{}, entry).Ready {
+		t.Fatal("expected missing Claude marketplace record to count as not installed")
+	}
+}
+
+func TestClientAppearsInstalledForClaudeRejectsLegacyFlatMarketplaceRoot(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+
+	if err := os.MkdirAll(filepath.Join(home, ".claude", "plugins"), 0o755); err != nil {
+		t.Fatalf("mkdir plugins: %v", err)
+	}
+	writeClaudeMarketplaceFixture(t, paths.InstallRoot)
+	writeInstalledClaudePluginFixture(t, home)
+	legacyRoot := filepath.Join(home, ".config", "ha-nova", "claude-marketplace")
+	if err := os.WriteFile(filepath.Join(home, ".claude", "plugins", "known_marketplaces.json"), []byte(fmt.Sprintf(`{"ha-nova":{"source":%q}}`, legacyRoot)), 0o644); err != nil {
+		t.Fatalf("write known_marketplaces.json: %v", err)
+	}
+
+	entry, ok, err := findRegistryClient(paths, "claude")
+	if err != nil {
+		t.Fatalf("findRegistryClient() error: %v", err)
+	}
+	if !ok {
+		t.Fatal("expected claude registry entry")
+	}
+	if evaluateClientStatus(paths, installState{}, entry).Ready {
+		t.Fatal("expected legacy flat Claude marketplace root to count as not installed")
 	}
 }

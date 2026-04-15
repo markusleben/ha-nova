@@ -17,7 +17,6 @@ func installClaudePlugin(paths runtimePaths, sourceRoot string) error {
 		return fmt.Errorf("Claude CLI not found in PATH; install Claude Code first")
 	}
 
-	localMode := useLocalClaudeMarketplace(paths, sourceRoot)
 	restoreState, err := captureClaudeLocalRestoreState(paths.Home)
 	if err != nil {
 		return err
@@ -26,6 +25,7 @@ func installClaudePlugin(paths runtimePaths, sourceRoot string) error {
 	if err != nil {
 		return err
 	}
+	localMode := !strings.Contains(claudeMarketplaceCompareKey(marketplaceRoot), "github:")
 	restoreMarketplace := func(cause error) error {
 		if localMode {
 			if restoreErr := restoreClaudeMarketplaceBackup(marketplaceRoot); restoreErr != nil {
@@ -58,26 +58,24 @@ func installClaudePlugin(paths runtimePaths, sourceRoot string) error {
 
 	cmd := exec.Command("claude", refreshArgs...)
 	if output, err := cmd.CombinedOutput(); err != nil {
+		commandErr := fmt.Errorf("claude plugin command failed: %s (%s)", strings.Join(refreshArgs, " "), strings.TrimSpace(string(output)))
 		if localMode {
-			return restoreMarketplace(fmt.Errorf("claude plugin command failed: %s (%s)", strings.Join(refreshArgs, " "), strings.TrimSpace(string(output))))
+			return restoreMarketplace(commandErr)
 		}
 		if alreadyInstalled {
 			text := strings.TrimSpace(string(output))
 			if strings.Contains(strings.ToLower(text), "not found") || strings.Contains(strings.ToLower(text), "not installed") {
 				installCmd := exec.Command("claude", "plugin", "install", "ha-nova@ha-nova")
 				if installOutput, installErr := installCmd.CombinedOutput(); installErr == nil {
-					if err := verifyClaudePluginAttachment(paths.Home, marketplaceRoot); err != nil {
-						return restoreMarketplace(err)
-					}
-					return nil
+					return verifyClaudePluginInstalled(paths.Home, marketplaceRoot)
 				} else {
-					return fmt.Errorf("claude plugin command failed: %s (%s)", strings.Join(installCmd.Args[1:], " "), strings.TrimSpace(string(installOutput)))
+					return restoreMarketplace(fmt.Errorf("claude plugin command failed: %s (%s)", strings.Join(installCmd.Args[1:], " "), strings.TrimSpace(string(installOutput))))
 				}
 			}
 		}
-		return fmt.Errorf("claude plugin command failed: %s (%s)", strings.Join(refreshArgs, " "), strings.TrimSpace(string(output)))
+		return restoreMarketplace(commandErr)
 	}
-	if err := verifyClaudePluginAttachment(paths.Home, marketplaceRoot); err != nil {
+	if err := verifyClaudePluginInstalled(paths.Home, marketplaceRoot); err != nil {
 		return restoreMarketplace(err)
 	}
 	if localMode {
@@ -88,12 +86,23 @@ func installClaudePlugin(paths runtimePaths, sourceRoot string) error {
 	return nil
 }
 
-func verifyClaudePluginAttachment(home, desiredMarketplaceSource string) error {
-	if err := verifyClaudeMarketplaceRegistration(home, desiredMarketplaceSource); err != nil {
+func verifyClaudePluginInstalled(home, desiredSource string) error {
+	pluginPresent, usableInstallPath := readClaudePluginInstallSnapshot(home)
+	if !pluginPresent {
+		return fmt.Errorf("Claude plugin ha-nova@ha-nova not found after sync")
+	}
+	if !usableInstallPath {
+		return fmt.Errorf("Claude plugin ha-nova@ha-nova installPath missing after sync")
+	}
+	currentSource, hasCurrentSource, err := readClaudeMarketplaceSource(home)
+	if err != nil {
 		return err
 	}
-	if !claudePluginInstalled(home) {
-		return fmt.Errorf("Claude plugin ha-nova@ha-nova not found after sync")
+	if !hasCurrentSource {
+		return fmt.Errorf("Claude marketplace ha-nova not found after sync")
+	}
+	if !sameClaudeMarketplaceSource(currentSource, desiredSource) {
+		return fmt.Errorf("Claude marketplace ha-nova source mismatch after sync")
 	}
 	return nil
 }
