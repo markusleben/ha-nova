@@ -190,3 +190,26 @@ Historical breadcrumb log:
 - Open a focused PR for the Claude release-snapshot fix
 - Wait for CI + Codex on the exact PR SHA
 - Merge and ship as a small patch release so all users get the same production attach model
+
+## 2026-04-15
+
+### Release Prep
+- Started isolated `v0.4.2` release prep in fresh clone `/tmp/ha-nova-v042-prep` because the main workspace is dirty and behind/ahead of `origin/main`.
+- Confirmed release delta from `v0.4.1..main` is only the merged Claude release-snapshot fix in `#173`.
+- Wrote minimal release prep spec:
+  - `docs/work/2026-04-15-v0.4.2-release-prep-spec.md`
+- Drafted release body:
+  - `docs/work/2026-04-15-v0.4.2-release-body.md`
+- Bumped release metadata to `0.4.2` in:
+  - `version.json`
+  - `package.json`
+  - `package-lock.json`
+  - `.claude-plugin/plugin.json`
+  - `.claude-plugin/marketplace.json`
+- Verified release prep locally:
+  - `npm run verify:next-release-version -- v0.4.2`
+  - `npm run verify:release-metadata`
+  - `npm run verify:release-contracts`
+  - `npx vitest run tests/onboarding/bump-version.test.ts tests/onboarding/release-contract.test.ts`
+  - `cd cli && go test ./... -run 'TestInstallClaudePlugin|TestPostUpdateSync|TestClientAppearsInstalledForClaude|TestRunDoctor'`
+  - `git diff --check`
