@@ -154,3 +154,39 @@ Historical breadcrumb log:
 - Run the targeted review-live contract suite
 - Commit the post-merge follow-up fix on a new branch
 - Open a small follow-up PR and wait for a fresh clean Codex result before merging
+
+## 2026-04-14: Claude Release Snapshot Implementation
+
+### Completed
+- Replaced the Claude production default with an exact versioned local release snapshot under `~/.config/ha-nova/claude-marketplace/releases/vX.Y.Z`
+- Kept the flat local marketplace root for dev / explicit override only
+- Removed the bundle-path fallback to floating GitHub; missing or incomplete Claude payload now fails loudly
+- Tightened Claude attach truth so healthy state requires:
+  - marketplace record present
+  - plugin record present
+  - usable `installPath`
+  - expected marketplace source match
+- Added regression coverage for:
+  - bundle install -> versioned local snapshot
+  - legacy GitHub source migration -> versioned local snapshot
+  - missing marketplace repair on same-version update
+  - old flat local root no longer counting as healthy
+  - bundle payload missing -> loud failure
+- Proved the behavior on macOS both in:
+  - an isolated temp-`HOME`
+  - the real user profile after backup + deliberate marketplace removal
+
+### Verification
+- `cd cli && go test ./... -run 'TestInstallClaudePlugin|TestPostUpdateSync|TestClientAppearsInstalledForClaude|TestRunDoctor'`
+- `npx vitest run tests/onboarding/install-skills-per-client.test.ts tests/onboarding/dev-sync-behavior.test.ts tests/onboarding/desktop-validation-contract.test.ts tests/onboarding/client-install-docs-contract.test.ts tests/onboarding/dev-sync-contract.test.ts`
+- `git diff --check`
+- Real macOS checks:
+  - `go run . doctor`
+  - `claude plugin list`
+  - `claude plugin marketplace list`
+  - deliberate marketplace removal -> same-version `update --version 0.4.1` repair back to the versioned local snapshot
+
+### Next
+- Open a focused PR for the Claude release-snapshot fix
+- Wait for CI + Codex on the exact PR SHA
+- Merge and ship as a small patch release so all users get the same production attach model

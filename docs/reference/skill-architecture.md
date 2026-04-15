@@ -50,7 +50,7 @@ The context skill (`ha-nova`) stays the stable entrypoint; sub-skills remain ind
 
 ## Repo-local Hook Note
 
-`hooks/session-start` still exists as a repo-local development helper, but it is **not** the production installation model for Claude. Production Claude installs come from the plugin marketplace path, and HA NOVA intentionally keeps the local marketplace layout anchored to `source: "./"` inside the plugin bundle.
+`hooks/session-start` still exists as a repo-local development helper, but it is **not** the production installation model for Claude. Production Claude installs use a versioned local release snapshot under `~/.config/ha-nova/claude-marketplace/releases/vX.Y.Z`. The flat local staged marketplace layout stays a repo-local development tool only.
 
 ## Agent vs Inline Decision Rule
 
@@ -285,7 +285,7 @@ Rules for this helper family:
 It handles repo-local skill refreshes for development and validation:
 - source skill tree: `skills/` (repo-local, flat layout)
 - client-specific install strategies:
-  - **Claude Code:** stages a local marketplace root under `~/.config/ha-nova/claude-marketplace`, registers it with `claude plugin marketplace add`, then installs/reinstalls `ha-nova@ha-nova`
+  - **Claude Code:** for repo-local development only, stages a local marketplace root under `~/.config/ha-nova/claude-marketplace`, registers it with `claude plugin marketplace add`, then installs/reinstalls `ha-nova@ha-nova`
   - **Codex CLI:** symlink on Unix, copy fallback on Windows at `~/.agents/skills/ha-nova`
   - **OpenCode:** symlink on Unix, copy fallback on Windows at `~/.config/opencode/skills/ha-nova`
   - **Gemini CLI:** Flat copy `~/.gemini/skills/ha-nova-*/SKILL.md` (1-level limit), with namespaced sub-skill names matching those folder names
@@ -300,6 +300,7 @@ The other helper roles are intentionally smaller:
 The end-user installer contract is:
 - `install.sh` / `install.ps1` bootstrap the runtime, handle legacy gating, and hand off into `ha-nova setup`
 - `ha-nova setup` owns product setup, migration, and client attachment
+- bundled Claude installs attach to a versioned local release snapshot under `~/.config/ha-nova/claude-marketplace/releases/vX.Y.Z`; the flat `~/.config/ha-nova/claude-marketplace` root stays repo/dev-only
 
 ## Skill Section Template
 

@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func TestInstallClaudePluginUsesLocalMarketplaceByDefaultForInstalledBundle(t *testing.T) {
+func TestInstallClaudePluginUsesVersionedLocalMarketplaceByDefaultForInstalledBundle(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 
@@ -31,15 +31,21 @@ func TestInstallClaudePluginUsesLocalMarketplaceByDefaultForInstalledBundle(t *t
 		t.Fatalf("read log: %v", err)
 	}
 	log := string(logData)
-	marketplaceRoot := filepath.Join(paths.ConfigDir, "claude-marketplace")
-	if !strings.Contains(log, "plugin validate "+marketplaceRoot) {
-		t.Fatalf("expected staged marketplace validation before install, got:\n%s", log)
+	expectedRoot, err := claudeMarketplaceReleaseRoot(paths, "0.1.12")
+	if err != nil {
+		t.Fatalf("claudeMarketplaceReleaseRoot() error: %v", err)
 	}
-	if !strings.Contains(log, "plugin marketplace add "+marketplaceRoot) {
-		t.Fatalf("expected marketplace add to use staged local marketplace by default, got:\n%s", log)
+	if !strings.Contains(log, "plugin validate ") {
+		t.Fatalf("expected staged marketplace validation before registering the release snapshot, got:\n%s", log)
+	}
+	if !strings.Contains(log, "plugin marketplace add "+expectedRoot) {
+		t.Fatalf("expected marketplace add to use the exact local release snapshot, got:\n%s", log)
 	}
 	if !strings.Contains(log, "plugin install ha-nova@ha-nova") {
 		t.Fatalf("expected plugin install command, got:\n%s", log)
+	}
+	if strings.Contains(log, "github.com/markusleben/ha-nova.git") {
+		t.Fatalf("did not expect bundle install to use a GitHub source, got:\n%s", log)
 	}
 }
 
@@ -124,6 +130,7 @@ func TestInstallClaudePluginStagesDevMarketplaceOutsideRepoRoot(t *testing.T) {
 	t.Setenv("PATH", installClaudeMock(t, home, logPath)+string(os.PathListSeparator)+os.Getenv("PATH"))
 
 	sourceRoot := filepath.Join(t.TempDir(), "repo")
+	t.Setenv("HA_NOVA_DEV_ROOT", sourceRoot)
 	writeClaudeMarketplaceFixture(t, sourceRoot)
 	if err := installClaudePlugin(paths, sourceRoot); err != nil {
 		t.Fatalf("installClaudePlugin() error: %v", err)
@@ -187,18 +194,21 @@ func TestInstallClaudePluginUpdatesExistingPlugin(t *testing.T) {
 		t.Fatalf("read log: %v", err)
 	}
 	log := string(logData)
-	marketplaceRoot := filepath.Join(paths.ConfigDir, "claude-marketplace")
-	if !strings.Contains(log, "plugin marketplace add "+marketplaceRoot) {
-		t.Fatalf("expected local marketplace registration for existing plugin, got:\n%s", log)
+	expectedRoot, err := claudeMarketplaceReleaseRoot(paths, "0.1.12")
+	if err != nil {
+		t.Fatalf("claudeMarketplaceReleaseRoot() error: %v", err)
+	}
+	if !strings.Contains(log, "plugin marketplace add "+expectedRoot) {
+		t.Fatalf("expected local release marketplace registration for existing plugin, got:\n%s", log)
 	}
 	if !strings.Contains(log, "plugin remove ha-nova@ha-nova") {
-		t.Fatalf("expected local marketplace sync to reset plugin first, got:\n%s", log)
+		t.Fatalf("expected local release sync to reset plugin first, got:\n%s", log)
 	}
 	if !strings.Contains(log, "plugin install ha-nova@ha-nova") {
-		t.Fatalf("expected local marketplace sync to install fresh plugin, got:\n%s", log)
+		t.Fatalf("expected local release sync to use a fresh install, got:\n%s", log)
 	}
 	if strings.Contains(log, "plugin update ha-nova@ha-nova") {
-		t.Fatalf("did not expect local marketplace sync to use update, got:\n%s", log)
+		t.Fatalf("did not expect local release sync to use plugin update, got:\n%s", log)
 	}
 }
 
@@ -443,11 +453,18 @@ func TestInstallClaudePluginFallsBackToInstallWhenUpdateStateIsStale(t *testing.
 		t.Fatalf("read log: %v", err)
 	}
 	log := string(logData)
-	if !strings.Contains(log, "plugin remove ha-nova@ha-nova") {
-		t.Fatalf("expected stale local plugin reset before reinstall, got:\n%s", log)
+	expectedRoot, err := claudeMarketplaceReleaseRoot(paths, "0.1.12")
+	if err != nil {
+		t.Fatalf("claudeMarketplaceReleaseRoot() error: %v", err)
 	}
 	if !strings.Contains(log, "plugin install ha-nova@ha-nova") {
-		t.Fatalf("expected fresh install for local marketplace sync, got:\n%s", log)
+		t.Fatalf("expected stale update fallback to install fresh plugin, got:\n%s", log)
+	}
+	if !strings.Contains(log, "plugin marketplace add "+expectedRoot) {
+		t.Fatalf("expected stale update fallback to keep the local release snapshot source, got:\n%s", log)
+	}
+	if !strings.Contains(log, "plugin remove ha-nova@ha-nova") {
+		t.Fatalf("expected stale update fallback to reset the plugin first, got:\n%s", log)
 	}
 }
 

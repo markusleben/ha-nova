@@ -11,8 +11,6 @@ import (
 	"strings"
 )
 
-const defaultClaudeMarketplaceURL = "https://github.com/markusleben/ha-nova"
-
 type claudeLocalRestoreState struct {
 	source          claudeMarketplaceSource
 	hasSource       bool
@@ -26,37 +24,31 @@ type claudeMarketplaceSource struct {
 
 func resolveClaudeMarketplaceSource(paths runtimePaths, sourceRoot string) (string, error) {
 	if strings.EqualFold(strings.TrimSpace(os.Getenv("HA_NOVA_CLAUDE_MARKETPLACE_LOCAL")), "1") {
-		return prepareClaudeMarketplaceRoot(paths, sourceRoot)
+		return prepareClaudeMarketplaceRoot(paths, sourceRoot, claudeMarketplaceDevRoot(paths))
 	}
 
 	switch detectInstallSource(paths, loadStateOrDefault(paths)) {
 	case installSourceDev:
-		return prepareClaudeMarketplaceRoot(paths, sourceRoot)
-	case installSourceBundle:
-		if shippedClaudeMarketplacePresentOnDisk(sourceRoot) {
-			return prepareClaudeMarketplaceRoot(paths, sourceRoot)
-		}
-		if bundleInstallPresentOnDisk(sourceRoot) {
-			return "", fmt.Errorf("installed Claude payload missing from shipped bundle runtime")
-		}
-		return defaultClaudeMarketplaceURL, nil
+		return prepareClaudeMarketplaceRoot(paths, sourceRoot, claudeMarketplaceDevRoot(paths))
 	default:
-		return defaultClaudeMarketplaceURL, nil
+		if !shippedClaudeMarketplacePresentOnDisk(sourceRoot) {
+			return "", fmt.Errorf("Claude release snapshot payload missing from installed bundle")
+		}
+		version, err := claudeMarketplaceVersionForSourceRoot(paths, sourceRoot)
+		if err != nil {
+			return "", err
+		}
+		targetRoot, err := claudeMarketplaceReleaseRoot(paths, version)
+		if err != nil {
+			return "", err
+		}
+		return prepareClaudeMarketplaceRoot(paths, sourceRoot, targetRoot)
 	}
 }
 
 func useLocalClaudeMarketplace(paths runtimePaths, sourceRoot string) bool {
-	if strings.EqualFold(strings.TrimSpace(os.Getenv("HA_NOVA_CLAUDE_MARKETPLACE_LOCAL")), "1") {
-		return true
-	}
-	switch detectInstallSource(paths, loadStateOrDefault(paths)) {
-	case installSourceDev:
-		return true
-	case installSourceBundle:
-		return shippedClaudeMarketplacePresentOnDisk(sourceRoot)
-	default:
-		return false
-	}
+	source, err := resolveClaudeMarketplaceSource(paths, sourceRoot)
+	return err == nil && !strings.Contains(claudeMarketplaceCompareKey(source), "github:")
 }
 
 func shippedClaudeMarketplacePresentOnDisk(sourceRoot string) bool {
@@ -87,15 +79,14 @@ func shippedClaudeMarketplacePresentOnDisk(sourceRoot string) bool {
 	return true
 }
 
-func prepareClaudeMarketplaceRoot(paths runtimePaths, sourceRoot string) (string, error) {
+func prepareClaudeMarketplaceRoot(paths runtimePaths, sourceRoot string, targetRoot string) (string, error) {
 	absSourceRoot, err := filepath.Abs(sourceRoot)
 	if err != nil {
 		return "", err
 	}
 
-	targetRoot := filepath.Join(paths.ConfigDir, "claude-marketplace")
 	localSource := "./ha-nova"
-	if err := os.MkdirAll(paths.ConfigDir, 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(targetRoot), 0o755); err != nil {
 		return "", err
 	}
 	stageRoot, err := os.MkdirTemp(paths.ConfigDir, "claude-marketplace-stage-")
@@ -210,6 +201,9 @@ func ensureClaudeMarketplaceRegistration(home, desiredSource string) error {
 		return err
 	}
 	if hasCurrentSource && sameClaudeMarketplaceSource(currentSource, desiredSource) {
+		if !strings.Contains(claudeMarketplaceCompareKey(desiredSource), "github:") {
+			return verifyClaudeMarketplaceRegistration(home, desiredSource)
+		}
 		if err := updateClaudeMarketplaceRegistration(); err != nil {
 			return err
 		}
@@ -338,6 +332,11 @@ func verifyClaudeMarketplaceRegistration(home, desiredSource string) error {
 		return fmt.Errorf("Claude marketplace ha-nova source mismatch after sync")
 	}
 	return nil
+}
+
+func claudeMarketplaceRegistered(home string) bool {
+	_, hasCurrentSource, err := readClaudeMarketplaceSource(home)
+	return err == nil && hasCurrentSource
 }
 
 func clearClaudeMarketplaceRegistration(home string) error {

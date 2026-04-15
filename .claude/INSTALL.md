@@ -48,7 +48,7 @@ npm.cmd uninstall -g @anthropic-ai/claude-code
 ## Updates and Repair
 
 - Connect or repair with `ha-nova setup claude`.
-- Shipped installs use the Claude marketplace files that came with your installed HA NOVA version.
+- Shipped installs use a local HA NOVA release snapshot under `~/.config/ha-nova/claude-marketplace/releases/vX.Y.Z`.
 - HA NOVA itself shows Claude update notices. When you see one, run `ha-nova update` and then restart Claude.
 - If the Claude path looks broken, run `ha-nova setup claude` and then `ha-nova doctor`.
 
