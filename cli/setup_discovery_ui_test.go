@@ -37,6 +37,30 @@ func TestDetectDefaultHAHostWithFeedbackReportsResultWithoutTTYSpinner(t *testin
 	}
 }
 
+func TestDetectDefaultHAHostWithFeedbackAsksForManualAddressWhenNothingWasConfirmed(t *testing.T) {
+	originalDetect := detectDefaultHAHostChoiceForSetup
+	defer func() {
+		detectDefaultHAHostChoiceForSetup = originalDetect
+	}()
+
+	detectDefaultHAHostChoiceForSetup = func(cfg runtimeConfig) (string, bool) {
+		return "", false
+	}
+
+	output := &strings.Builder{}
+	host, discovered := detectDefaultHAHostWithFeedback(output, runtimeConfig{})
+
+	if host != "" {
+		t.Fatalf("host = %q, want blank", host)
+	}
+	if discovered {
+		t.Fatal("expected discovered=false")
+	}
+	if !strings.Contains(output.String(), "enter the Home Assistant address manually") {
+		t.Fatalf("missing manual entry guidance:\n%s", output.String())
+	}
+}
+
 func TestDetectDefaultHAHostWithFeedbackDoesNotDelayFastTTYDiscovery(t *testing.T) {
 	originalDetect := detectDefaultHAHostChoiceForSetup
 	originalTTY := writerSupportsTTYForSetup

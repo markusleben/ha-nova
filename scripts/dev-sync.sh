@@ -13,6 +13,7 @@ REPO_ROOT="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
 . "${REPO_ROOT}/scripts/onboarding/lib/install-local-skills-claude.sh"
 
 CLAUDE_PLUGIN_STATE_TOOL="$(claude_plugin_state_tool)"
+CURRENT_PLATFORM_ID="$(detect_platform_id)"
 
 synced=()
 file_clients_synced=0
@@ -87,6 +88,15 @@ sync_gemini() {
   fi
 
   echo "[dev:sync] Gemini: not installed — skipped"
+}
+
+sync_hermes() {
+  if [[ "${CURRENT_PLATFORM_ID}" == "windows" ]]; then
+    echo "[dev:sync] Hermes Agent: native Windows sync not supported — use the WSL2/Linux HA NOVA install instead"
+    return
+  fi
+
+  sync_file_client "Hermes Agent" "${HOME}/.hermes/skills/ha-nova" "hermes"
 }
 
 sync_claude() {
@@ -250,6 +260,7 @@ require_repo_invariants
 sync_file_client "Codex" "${HOME}/.agents/skills/ha-nova" "codex"
 sync_file_client "OpenCode" "${HOME}/.config/opencode/skills/ha-nova" "opencode"
 sync_gemini
+sync_hermes
 sync_claude
 if [[ "${file_clients_synced}" -eq 0 ]]; then
   sync_shared_tools

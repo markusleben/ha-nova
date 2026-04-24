@@ -81,6 +81,7 @@ describe("install.sh contract", () => {
 
   it("starts ha-nova setup only when interactive and respects HA_NOVA_NO_SETUP", () => {
     expect(content).toContain("has_interactive_tty()");
+    expect(content).toContain('if : 2>/dev/null </dev/tty; then');
     expect(content).toContain("HA_NOVA_NO_SETUP");
     expect(content).toContain('run_setup "${BIN_LINK}"');
     expect(content).toContain("Next step: ha-nova setup");

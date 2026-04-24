@@ -23,7 +23,7 @@ func detectDefaultHAHostWithFeedback(out io.Writer, cfg runtimeConfig) (string, 
 	})
 	armSetupNextPromptSkipsStaleBlankInput()
 	if err != nil {
-		return "homeassistant.local", false
+		return preferredUnverifiedHAHost(cfg), false
 	}
 	renderSetupDiscoveryResult(out, found.host, found.discovered)
 	return found.host, found.discovered

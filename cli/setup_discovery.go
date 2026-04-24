@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"net"
 	"os/exec"
 	"regexp"
 	"runtime"
@@ -17,6 +18,7 @@ var runMDNSBrowseForDiscovery = runMDNSBrowse
 var runMDNSLookupForDiscovery = runMDNSLookup
 var mdnsAvailableForDiscovery = defaultMDNSDiscoveryAvailable
 var setupDiscoveryOverallTimeout = 20 * time.Second
+var setupDiscoveryPlatformOS = runtime.GOOS
 
 func detectDefaultHAHost(cfg runtimeConfig) string {
 	host, _ := detectDefaultHAHostChoice(cfg)
@@ -37,7 +39,16 @@ func detectDefaultHAHostChoice(cfg runtimeConfig) (string, bool) {
 			return candidate, true
 		}
 	}
-	return "homeassistant.local", false
+	return preferredUnverifiedHAHost(cfg), false
+}
+
+func preferredUnverifiedHAHost(cfg runtimeConfig) string {
+	for _, candidate := range []string{cfg.HAHost, cfg.HAURL, cfg.RelayBaseURL} {
+		if host := normalizeHostInput(candidate); host != "" {
+			return host
+		}
+	}
+	return ""
 }
 
 func collectCandidateHosts(cfg runtimeConfig) []string {
@@ -77,6 +88,9 @@ func discoverHAViaMDNS() string {
 	instanceOut, err := runMDNSBrowseForDiscovery()
 	if err != nil {
 		return ""
+	}
+	if setupDiscoveryPlatformOS == "linux" {
+		return parseAvahiBrowseHost(instanceOut)
 	}
 	instance := parseMDNSBrowseInstance(instanceOut)
 	if instance == "" {
@@ -148,15 +162,28 @@ func parseARPHosts(output string) []string {
 }
 
 func defaultMDNSDiscoveryAvailable() bool {
-	if runtime.GOOS != "darwin" {
+	var binary string
+	switch setupDiscoveryPlatformOS {
+	case "darwin":
+		binary = "dns-sd"
+	case "linux":
+		binary = "avahi-browse"
+	default:
 		return false
 	}
-	_, err := exec.LookPath("dns-sd")
+	_, err := exec.LookPath(binary)
 	return err == nil
 }
 
 func runMDNSBrowse() (string, error) {
-	return runCommandAllowingTimeoutOutput(3*time.Second, "dns-sd", "-B", "_home-assistant._tcp", "local")
+	switch setupDiscoveryPlatformOS {
+	case "darwin":
+		return runCommandAllowingTimeoutOutput(3*time.Second, "dns-sd", "-B", "_home-assistant._tcp", "local")
+	case "linux":
+		return runCommandAllowingTimeoutOutput(3*time.Second, "avahi-browse", "-rt", "_home-assistant._tcp")
+	default:
+		return "", exec.ErrNotFound
+	}
 }
 
 func runMDNSLookup(instance string) (string, error) {
@@ -197,6 +224,31 @@ func parseMDNSLookupHost(output string) string {
 			value = strings.Fields(value)[0]
 			return normalizeHostInput(value)
 		}
+	}
+	return ""
+}
+
+func parseAvahiBrowseHost(output string) string {
+	urlPattern := regexp.MustCompile(`(?:internal_url|base_url)=([^"\s]+)`)
+	if match := urlPattern.FindStringSubmatch(output); len(match) >= 2 {
+		return normalizeHostInput(match[1])
+	}
+
+	addressPattern := regexp.MustCompile(`(?m)^\s*address = \[([^\]]+)\]\s*$`)
+	matches := addressPattern.FindAllStringSubmatch(output, -1)
+	for _, match := range matches {
+		candidate := strings.TrimSpace(match[1])
+		if ip := net.ParseIP(candidate); ip != nil && ip.To4() != nil {
+			return candidate
+		}
+	}
+	if len(matches) > 0 {
+		return strings.TrimSpace(matches[0][1])
+	}
+
+	hostPattern := regexp.MustCompile(`(?m)^\s*hostname = \[([^\]]+)\]\s*$`)
+	if match := hostPattern.FindStringSubmatch(output); len(match) >= 2 {
+		return normalizeHostInput(match[1])
 	}
 	return ""
 }
