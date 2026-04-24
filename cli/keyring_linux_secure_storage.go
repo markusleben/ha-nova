@@ -175,13 +175,12 @@ func initializeLinuxSecureStorage(conn *dbus.Conn, secret []byte) error {
 		secretCollectionDBusInterface + ".Label": dbus.MakeVariant(secretServiceDefaultCollectionLabel),
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), secureStorageUnlockTimeout)
-	defer cancel()
-
 	var collection dbus.ObjectPath
+	createCtx, createCancel := context.WithTimeout(context.Background(), secureStorageUnlockTimeout)
 	err = conn.Object(secretServiceDBusName, dbus.ObjectPath(secretServiceDBusPath)).
-		CallWithContext(ctx, gnomeKeyringCreateWithPasswordMethod, 0, properties, payload).
+		CallWithContext(createCtx, gnomeKeyringCreateWithPasswordMethod, 0, properties, payload).
 		Store(&collection)
+	createCancel()
 	if err != nil {
 		return normalizeLinuxKeyringErrorWithoutAmbiguousClassification(err)
 	}
@@ -189,10 +188,13 @@ func initializeLinuxSecureStorage(conn *dbus.Conn, secret []byte) error {
 		return desktopKeyringInitializationRequiredError("GNOME Keyring did not create a default collection")
 	}
 
+	aliasCtx, aliasCancel := context.WithTimeout(context.Background(), secureStorageUnlockTimeout)
 	if err := conn.Object(secretServiceDBusName, dbus.ObjectPath(secretServiceDBusPath)).
-		CallWithContext(ctx, secretServiceDBusInterface+".SetAlias", 0, secretServiceDefaultCollectionAlias, collection).Err; err != nil {
+		CallWithContext(aliasCtx, secretServiceDBusInterface+".SetAlias", 0, secretServiceDefaultCollectionAlias, collection).Err; err != nil {
+		aliasCancel()
 		return normalizeLinuxKeyringErrorWithoutAmbiguousClassification(err)
 	}
+	aliasCancel()
 	return nil
 }
 
