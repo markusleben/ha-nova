@@ -244,17 +244,23 @@ func secretServiceOwnerInfo(conn *dbus.Conn) (secretServiceOwnerProcess, error) 
 	bus := conn.Object(dbusServiceName, dbus.ObjectPath(dbusServicePath))
 
 	var owner string
-	if err := bus.Call(dbusServiceInterface+".GetNameOwner", 0, secretServiceDBusName).Store(&owner); err != nil {
+	ownerCtx, ownerCancel := context.WithTimeout(context.Background(), relayAuthTokenPreflightTimeout)
+	if err := bus.CallWithContext(ownerCtx, dbusServiceInterface+".GetNameOwner", 0, secretServiceDBusName).Store(&owner); err != nil {
+		ownerCancel()
 		return secretServiceOwnerProcess{}, normalizeLinuxKeyringError(err)
 	}
+	ownerCancel()
 	if owner == "" {
 		return secretServiceOwnerProcess{}, desktopKeyringUnavailableError("Secret Service owner unavailable")
 	}
 
 	var pid uint32
-	if err := bus.Call(dbusServiceInterface+".GetConnectionUnixProcessID", 0, owner).Store(&pid); err != nil {
-		return secretServiceOwnerProcess{}, err
+	pidCtx, pidCancel := context.WithTimeout(context.Background(), relayAuthTokenPreflightTimeout)
+	if err := bus.CallWithContext(pidCtx, dbusServiceInterface+".GetConnectionUnixProcessID", 0, owner).Store(&pid); err != nil {
+		pidCancel()
+		return secretServiceOwnerProcess{}, normalizeLinuxKeyringError(err)
 	}
+	pidCancel()
 	if pid == 0 {
 		return secretServiceOwnerProcess{}, fmt.Errorf("Secret Service owner pid unavailable")
 	}
