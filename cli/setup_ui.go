@@ -171,8 +171,10 @@ func renderSetupDiscoveryResult(out io.Writer, host string, discovered bool) {
 	session := resolveSetupUISession(out)
 	if discovered {
 		fmt.Fprintf(out, "  %s Found Home Assistant candidate: %s\n", session.style("success", session.successMarker()), host)
+	} else if strings.TrimSpace(host) != "" {
+		fmt.Fprintf(out, "  %s No confirmed Home Assistant found automatically; using your saved address as a starting point: %s\n", session.style("warning", session.warningMarker()), host)
 	} else {
-		fmt.Fprintf(out, "  %s No confirmed Home Assistant found automatically; defaulting to homeassistant.local\n", session.style("warning", session.warningMarker()))
+		fmt.Fprintf(out, "  %s No confirmed Home Assistant found automatically; enter the Home Assistant address manually\n", session.style("warning", session.warningMarker()))
 	}
 	fmt.Fprintln(out)
 }

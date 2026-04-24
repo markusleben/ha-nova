@@ -115,7 +115,7 @@ build_unix_bundle() {
   prepare_bundle_root "${stage_dir}" "${os_name}" "${arch_name}" >/dev/null
 
   output="${OUTPUT_DIR}/ha-nova-installer-bundle-${os_name}-${arch_name}.tar.gz"
-  tar -czf "${output}" -C "${stage_dir}" ha-nova
+  COPYFILE_DISABLE=1 tar --format ustar -czf "${output}" -C "${stage_dir}" ha-nova
   rm -rf "${stage_dir}"
   log "Built ${output}"
 }

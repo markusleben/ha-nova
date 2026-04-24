@@ -58,7 +58,7 @@ func TestDetectDefaultHAHostFallsBackToMDNSBeforeHomeassistantLocal(t *testing.T
 	}
 }
 
-func TestDetectDefaultHAHostFallsBackToHomeassistantLocal(t *testing.T) {
+func TestDetectDefaultHAHostLeavesDefaultBlankWhenNothingWasConfirmed(t *testing.T) {
 	originalResolve := resolveHAURLBaseWithinTimeoutForDiscovery
 	originalMDNS := discoverHAViaMDNSForDiscovery
 	originalARP := collectARPHostsForDiscovery
@@ -75,8 +75,8 @@ func TestDetectDefaultHAHostFallsBackToHomeassistantLocal(t *testing.T) {
 	collectARPHostsForDiscovery = func() []string { return nil }
 
 	got := detectDefaultHAHost(runtimeConfig{})
-	if got != "homeassistant.local" {
-		t.Fatalf("detectDefaultHAHost() = %q, want %q", got, "homeassistant.local")
+	if got != "" {
+		t.Fatalf("detectDefaultHAHost() = %q, want blank", got)
 	}
 }
 
@@ -179,11 +179,33 @@ func TestDetectDefaultHAHostChoiceStopsAfterOverallTimeout(t *testing.T) {
 	}
 
 	host, discovered := detectDefaultHAHostChoice(runtimeConfig{})
-	if host != "homeassistant.local" || discovered {
-		t.Fatalf("detectDefaultHAHostChoice() = (%q, %v), want (%q, false)", host, discovered, "homeassistant.local")
+	if host != "" || discovered {
+		t.Fatalf("detectDefaultHAHostChoice() = (%q, %v), want blank false result", host, discovered)
 	}
 	if calls != 1 {
 		t.Fatalf("calls = %d, want 1", calls)
+	}
+}
+
+func TestDetectDefaultHAHostChoiceFallsBackToSavedAddressWhenNoHostWasConfirmed(t *testing.T) {
+	originalResolve := resolveHAURLBaseWithinTimeoutForDiscovery
+	originalMDNS := discoverHAViaMDNSForDiscovery
+	originalARP := collectARPHostsForDiscovery
+	defer func() {
+		resolveHAURLBaseWithinTimeoutForDiscovery = originalResolve
+		discoverHAViaMDNSForDiscovery = originalMDNS
+		collectARPHostsForDiscovery = originalARP
+	}()
+
+	resolveHAURLBaseWithinTimeoutForDiscovery = func(string, time.Duration) (string, error) {
+		return "", assertDiscoveryFailure{}
+	}
+	discoverHAViaMDNSForDiscovery = func() string { return "" }
+	collectARPHostsForDiscovery = func() []string { return nil }
+
+	host, discovered := detectDefaultHAHostChoice(runtimeConfig{HAURL: "http://saved-ha.local:8123"})
+	if host != "saved-ha.local" || discovered {
+		t.Fatalf("detectDefaultHAHostChoice() = (%q, %v), want (%q, false)", host, discovered, "saved-ha.local")
 	}
 }
 
@@ -269,12 +291,15 @@ func TestDiscoverHAViaMDNSKeepsLookupOutputAfterTimeoutStyleCompletion(t *testin
 	originalBrowse := runMDNSBrowseForDiscovery
 	originalLookup := runMDNSLookupForDiscovery
 	originalAvailable := mdnsAvailableForDiscovery
+	originalPlatform := setupDiscoveryPlatformOS
 	defer func() {
 		runMDNSBrowseForDiscovery = originalBrowse
 		runMDNSLookupForDiscovery = originalLookup
 		mdnsAvailableForDiscovery = originalAvailable
+		setupDiscoveryPlatformOS = originalPlatform
 	}()
 
+	setupDiscoveryPlatformOS = "darwin"
 	mdnsAvailableForDiscovery = func() bool { return true }
 	runMDNSBrowseForDiscovery = func() (string, error) {
 		return `Browsing for _home-assistant._tcp.local
@@ -293,6 +318,54 @@ func TestDiscoverHAViaMDNSKeepsLookupOutputAfterTimeoutStyleCompletion(t *testin
 	got := discoverHAViaMDNS()
 	if got != "192.168.1.5" {
 		t.Fatalf("discoverHAViaMDNS() = %q, want %q", got, "192.168.1.5")
+	}
+}
+
+func TestParseAvahiBrowseHostReturnsInternalURLHost(t *testing.T) {
+	output := `+ enp0s31f6 IPv4 Home Assistant _home-assistant._tcp local
+= enp0s31f6 IPv4 Home Assistant _home-assistant._tcp local
+   hostname = [homeassistant.local]
+   address = [fe80::1234]
+   address = [192.168.1.55]
+   port = [8123]
+   txt = ["internal_url=http://192.168.1.55:8123" "base_url=http://192.168.1.55:8123"]
+`
+
+	got := parseAvahiBrowseHost(output)
+	if got != "192.168.1.55" {
+		t.Fatalf("parseAvahiBrowseHost() = %q, want %q", got, "192.168.1.55")
+	}
+}
+
+func TestDiscoverHAViaMDNSUsesAvahiBrowseOnLinux(t *testing.T) {
+	originalBrowse := runMDNSBrowseForDiscovery
+	originalLookup := runMDNSLookupForDiscovery
+	originalAvailable := mdnsAvailableForDiscovery
+	originalPlatform := setupDiscoveryPlatformOS
+	defer func() {
+		runMDNSBrowseForDiscovery = originalBrowse
+		runMDNSLookupForDiscovery = originalLookup
+		mdnsAvailableForDiscovery = originalAvailable
+		setupDiscoveryPlatformOS = originalPlatform
+	}()
+
+	setupDiscoveryPlatformOS = "linux"
+	mdnsAvailableForDiscovery = func() bool { return true }
+	runMDNSBrowseForDiscovery = func() (string, error) {
+		return `= enp0s31f6 IPv4 Home Assistant _home-assistant._tcp local
+   hostname = [homeassistant.local]
+   address = [192.168.1.56]
+   port = [8123]
+`, nil
+	}
+	runMDNSLookupForDiscovery = func(instance string) (string, error) {
+		t.Fatalf("runMDNSLookupForDiscovery called with %q; avahi-browse output should be self-contained", instance)
+		return "", nil
+	}
+
+	got := discoverHAViaMDNS()
+	if got != "192.168.1.56" {
+		t.Fatalf("discoverHAViaMDNS() = %q, want %q", got, "192.168.1.56")
 	}
 }
 

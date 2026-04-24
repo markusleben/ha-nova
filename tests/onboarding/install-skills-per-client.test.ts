@@ -146,6 +146,30 @@ describe("S-4: client-specific skill installation", () => {
     }
   });
 
+  it("does not delete user-owned bare Gemini skills during cleanup", { timeout: 120000 }, () => {
+    const home = mkdtempSync(join(tmpdir(), "ha-nova-skill-gemini-user-owned-"));
+    const claudeLogFile = join(home, "claude.log");
+    const binDir = createMockBinaries({ claudeLogFile });
+    const userSkill = join(home, ".gemini", "skills", "read");
+
+    mkdirSync(userSkill, { recursive: true });
+    writeFileSync(join(userSkill, "SKILL.md"), "name: read\nThis is my own ha-nova helper note.\n");
+
+    const result = spawnSync(
+      "bash",
+      ["scripts/onboarding/install-local-skills.sh", "gemini"],
+      {
+        cwd: REPO_ROOT,
+        encoding: "utf8",
+        timeout: 60000,
+        env: mockEnv(home, binDir),
+      },
+    );
+
+    expect(result.status).toBe(0);
+    expect(readFileSync(join(userSkill, "SKILL.md"), "utf8")).toContain("This is my own");
+  });
+
   it("installs hermes skills with directory names aligned to their namespaced skill IDs", () => {
     const { home, result } = installSkills("hermes");
     expect(result.status).toBe(0);

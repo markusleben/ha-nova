@@ -104,7 +104,8 @@ func TestInteractiveSetupFreshInstallShowsWizardAndInstallsGeminiSkills(t *testi
 		}
 	}
 	if !strings.Contains(output, "Found Home Assistant candidate:") &&
-		!strings.Contains(output, "No confirmed Home Assistant found automatically; defaulting to homeassistant.local") {
+		!strings.Contains(output, "No confirmed Home Assistant found automatically; enter the Home Assistant address manually") &&
+		!strings.Contains(output, "No confirmed Home Assistant found automatically; using your saved address as a starting point:") {
 		t.Fatalf("wizard output missing discovery result:\n%s", output)
 	}
 	discoveryIdx := strings.Index(output, "Discovering Home Assistant on your network...")

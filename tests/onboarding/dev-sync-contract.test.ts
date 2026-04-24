@@ -24,6 +24,14 @@ describe("dev-sync contract", () => {
     expect(content).toContain('sync_file_client "OpenCode"');
   });
 
+  it("syncs Hermes only on POSIX-style installs", () => {
+    expect(content).toContain('CURRENT_PLATFORM_ID="$(detect_platform_id)"');
+    expect(content).toContain('sync_hermes()');
+    expect(content).toContain('sync_file_client "Hermes Agent" "${HOME}/.hermes/skills/ha-nova" "hermes"');
+    expect(content).toContain("native Windows sync not supported");
+    expect(content).toContain("WSL2/Linux HA NOVA install");
+  });
+
   it("generates the version-check wrapper directly instead of copying a tracked shell shim", () => {
     expect(content).toContain('write_repo_cli_wrapper "${config_dir}/version-check" "check-update" "--quiet"');
     expect(content).not.toContain('scripts/version-check.sh');

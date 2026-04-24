@@ -132,7 +132,7 @@ has_interactive_tty() {
     return 0
   fi
 
-  if : </dev/tty 2>/dev/null; then
+  if : 2>/dev/null </dev/tty; then
     return 0
   fi
 
