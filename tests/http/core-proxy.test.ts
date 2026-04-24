@@ -313,15 +313,92 @@ describe("core proxy endpoint", () => {
       }
     });
   });
+
+  it("returns 413 before routing when core body exceeds the configured limit", async () => {
+    const router = createRouter();
+    let routed = false;
+    router.register("POST", "/core", () => {
+      routed = true;
+      return { ok: true };
+    });
+
+    const { baseUrl } = await startServer(servers, router, 48);
+    const response = await fetch(`${baseUrl}/core`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${TEST_AUTH_TOKEN}`,
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({
+        method: "GET",
+        path: "/api/states",
+        pad: "x".repeat(48)
+      })
+    });
+
+    expect(response.status).toBe(413);
+    expect(routed).toBe(false);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      error: {
+        code: "PAYLOAD_TOO_LARGE",
+        message: "Request body exceeds 48 bytes"
+      }
+    });
+  });
+
+  it("accepts an exact-limit valid core body", async () => {
+    const router = createRouter();
+    router.register(
+      "POST",
+      "/core",
+      createCoreProxyHandler({
+        coreClient: {
+          request: async (input) => ({
+            status: 200,
+            body: {
+              method: input.method,
+              path: input.path
+            }
+          })
+        }
+      })
+    );
+
+    const body = jsonBodyWithPad('{"method":"GET","path":"/api/states","body":{"pad":"', '"}}', 96);
+    const { baseUrl } = await startServer(servers, router, Buffer.byteLength(body));
+    const response = await fetch(`${baseUrl}/core`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${TEST_AUTH_TOKEN}`,
+        "content-type": "application/json"
+      },
+      body
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      ok: true,
+      data: {
+        status: 200,
+        body: {
+          method: "GET",
+          path: "/api/states"
+        }
+      }
+    });
+  });
 });
 
 async function startServer(
   servers: Array<ReturnType<typeof createHttpServer>>,
-  router: ReturnType<typeof createRouter>
+  router: ReturnType<typeof createRouter>,
+  maxJsonBodyBytes?: number
 ): Promise<{ baseUrl: string }> {
   const server = createHttpServer({
     authToken: TEST_AUTH_TOKEN,
-    router
+    router,
+    ...(maxJsonBodyBytes === undefined ? {} : { maxJsonBodyBytes })
   });
 
   servers.push(server);
@@ -341,4 +418,13 @@ async function startServer(
   return {
     baseUrl: `http://127.0.0.1:${address.port}`
   };
+}
+
+function jsonBodyWithPad(prefix: string, suffix: string, targetBytes: number): string {
+  const fixedBytes = Buffer.byteLength(prefix) + Buffer.byteLength(suffix);
+  const padBytes = targetBytes - fixedBytes;
+  if (padBytes < 0) {
+    throw new Error("targetBytes is smaller than fixed JSON body");
+  }
+  return `${prefix}${"x".repeat(padBytes)}${suffix}`;
 }

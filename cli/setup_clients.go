@@ -59,7 +59,15 @@ func indexNumber(value int) string {
 }
 
 func resolveSetupClients(paths runtimePaths, target string) ([]string, []string, error) {
-	choices, err := buildSetupClientChoices(paths, loadStateOrDefault(paths))
+	state, err := loadStateOrDefaultChecked(paths)
+	if err != nil {
+		return nil, nil, err
+	}
+	return resolveSetupClientsWithState(paths, target, state)
+}
+
+func resolveSetupClientsWithState(paths runtimePaths, target string, state installState) ([]string, []string, error) {
+	choices, err := buildSetupClientChoices(paths, state)
 	if err != nil {
 		return nil, nil, err
 	}

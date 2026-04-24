@@ -28,7 +28,11 @@ func runDoctor(paths runtimePaths, _ []string) int {
 
 	cfg, cfgErr := loadConfig(paths)
 	token, tokenErr := readRelayAuthTokenForDoctor()
-	state := loadStateOrDefault(paths)
+	state, stateErr := loadStateOrDefaultChecked(paths)
+	if stateErr != nil {
+		printHumanErr("%s", stateErr)
+		return 1
+	}
 	status := 0
 
 	if cfgErr == nil {

@@ -83,7 +83,14 @@ func fetchLatestRelease(paths runtimePaths, quiet bool, allowCache bool) (releas
 func buildUpdateCheckResult(paths runtimePaths) updateCheckResult {
 	current := localVersion(paths)
 	_, cacheStatus := inspectCachedRelease(paths)
-	state := loadStateOrDefault(paths)
+	state, err := loadStateOrDefaultChecked(paths)
+	if err != nil {
+		return updateCheckResult{
+			CurrentVersion: current,
+			Status:         "check_failed",
+			Message:        err.Error(),
+		}
+	}
 	channels := inspectInstallChannels(paths, state)
 	result := updateCheckResult{
 		CurrentVersion: current,

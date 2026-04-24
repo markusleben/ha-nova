@@ -22,6 +22,12 @@ func stageBundle(paths runtimePaths, version string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	keepStageDir := false
+	defer func() {
+		if !keepStageDir {
+			_ = os.RemoveAll(stageDir)
+		}
+	}()
 
 	archivePath := filepath.Join(stageDir, bundleAssetName())
 	checksumURL := strings.TrimSpace(os.Getenv("HA_NOVA_BUNDLE_SHA256_URL"))
@@ -74,7 +80,15 @@ func stageBundle(paths runtimePaths, version string) (string, error) {
 	if err := validateBundleRoot(stageRoot); err != nil {
 		return "", err
 	}
+	keepStageDir = true
 	return stageRoot, nil
+}
+
+func cleanupStagedBundle(stageRoot string) {
+	stageDir := filepath.Dir(stageRoot)
+	if strings.HasPrefix(filepath.Base(stageDir), "ha-nova-stage-") {
+		_ = os.RemoveAll(stageDir)
+	}
 }
 
 func extractArchive(archivePath, destDir string) error {

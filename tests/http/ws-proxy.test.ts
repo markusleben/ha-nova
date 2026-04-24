@@ -158,15 +158,78 @@ describe("ws proxy endpoint", () => {
       }
     });
   });
+
+  it("returns 413 before routing when ws body exceeds the configured limit", async () => {
+    const router = createRouter();
+    let routed = false;
+    router.register("POST", "/ws", () => {
+      routed = true;
+      return { ok: true };
+    });
+
+    const { baseUrl } = await startServer(servers, router, 32);
+    const response = await fetch(`${baseUrl}/ws`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${TEST_AUTH_TOKEN}`,
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({ type: "ping", pad: "x".repeat(32) })
+    });
+
+    expect(response.status).toBe(413);
+    expect(routed).toBe(false);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      error: {
+        code: "PAYLOAD_TOO_LARGE",
+        message: "Request body exceeds 32 bytes"
+      }
+    });
+  });
+
+  it("accepts an exact-limit valid ws body", async () => {
+    const router = createRouter();
+    router.register(
+      "POST",
+      "/ws",
+      createWsProxyHandler({
+        wsClient: {
+          sendMessage: async (message) => ({ echoed: message.type })
+        }
+      })
+    );
+
+    const body = jsonBodyWithPad('{"type":"ping","pad":"', '"}', 64);
+    const { baseUrl } = await startServer(servers, router, Buffer.byteLength(body));
+    const response = await fetch(`${baseUrl}/ws`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${TEST_AUTH_TOKEN}`,
+        "content-type": "application/json"
+      },
+      body
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      ok: true,
+      data: {
+        echoed: "ping"
+      }
+    });
+  });
 });
 
 async function startServer(
   servers: Array<ReturnType<typeof createHttpServer>>,
-  router: ReturnType<typeof createRouter>
+  router: ReturnType<typeof createRouter>,
+  maxJsonBodyBytes?: number
 ): Promise<{ baseUrl: string }> {
   const server = createHttpServer({
     authToken: TEST_AUTH_TOKEN,
-    router
+    router,
+    ...(maxJsonBodyBytes === undefined ? {} : { maxJsonBodyBytes })
   });
 
   servers.push(server);
@@ -186,4 +249,13 @@ async function startServer(
   return {
     baseUrl: `http://127.0.0.1:${address.port}`
   };
+}
+
+function jsonBodyWithPad(prefix: string, suffix: string, targetBytes: number): string {
+  const fixedBytes = Buffer.byteLength(prefix) + Buffer.byteLength(suffix);
+  const padBytes = targetBytes - fixedBytes;
+  if (padBytes < 0) {
+    throw new Error("targetBytes is smaller than fixed JSON body");
+  }
+  return `${prefix}${"x".repeat(padBytes)}${suffix}`;
 }

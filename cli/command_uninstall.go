@@ -72,7 +72,11 @@ func runUninstall(paths runtimePaths, args []string) int {
 		return 1
 	}
 
-	state := loadStateOrDefault(paths)
+	state, err := loadStateOrDefaultChecked(paths)
+	if err != nil {
+		printHumanErr("%s", err)
+		return 1
+	}
 	source := detectInstallSource(paths, state)
 	mode := uninstallModeFromFlag(*purge)
 	recoveryMode := false
