@@ -10,6 +10,8 @@ import (
 	"strings"
 )
 
+var readRelayAuthTokenForDoctor = readRelayAuthToken
+
 func runDoctor(paths runtimePaths, _ []string) int {
 	if recovery := inspectWindowsUninstallStatus(paths); recovery.Kind != windowsUninstallStatusKindNone {
 		switch recovery.Kind {
@@ -25,7 +27,7 @@ func runDoctor(paths runtimePaths, _ []string) int {
 	}
 
 	cfg, cfgErr := loadConfig(paths)
-	token, tokenErr := readRelayAuthToken()
+	token, tokenErr := readRelayAuthTokenForDoctor()
 	state := loadStateOrDefault(paths)
 	status := 0
 
@@ -40,6 +42,9 @@ func runDoctor(paths runtimePaths, _ []string) int {
 		printHumanInfo("Relay auth token present in secure storage")
 	} else {
 		printHumanErr("%s", relayAuthTokenProblemMessage(tokenErr))
+		if hint := setupSecureStorageRecoveryHint(tokenErr); hint != "" {
+			printHumanWarn("%s", hint)
+		}
 		return 1
 	}
 
