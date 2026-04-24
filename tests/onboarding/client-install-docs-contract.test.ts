@@ -20,17 +20,20 @@ describe("client install docs contract", () => {
   const codexInstall = readFileSync(".codex/INSTALL.md", "utf8");
   const geminiInstall = readFileSync(".gemini/INSTALL.md", "utf8");
   const opencodeInstall = readFileSync(".opencode/INSTALL.md", "utf8");
+  const hermesInstall = readFileSync(".hermes/INSTALL.md", "utf8");
+  const hermesReleaseGate = readFileSync("docs/work/2026-04-24-hermes-release-claim-gating.md", "utf8");
 
   it("keeps the README at product level, not client-migration level", () => {
     expect(readme).not.toContain("claude install");
     expect(readme).not.toContain("npm.cmd");
-    expect(readme).not.toContain("WSL");
     expect(readme).not.toContain("5 tested clients");
     expect(readme).toContain("ha-nova uninstall --purge");
     expect(readme).toContain("Copy the one-liner for your OS");
     expect(readme).toContain("https://github.com/markusleben/ha-nova/releases/latest");
     expect(readme).toContain("Git for Windows / Git Bash");
     expect(readme).toContain("Gemini CLI needs Node.js");
+    expect(readme).not.toContain("Hermes Agent");
+    expect(readme).not.toContain("docs/reference/hermes-platform-validation.md");
     expect(readme).not.toContain("raw.githubusercontent.com/markusleben/ha-nova/main/install.sh");
     expect(readme).not.toContain("raw.githubusercontent.com/markusleben/ha-nova/main/install.ps1");
   });
@@ -40,6 +43,7 @@ describe("client install docs contract", () => {
     expectOverlayToPointBackToReadme(codexInstall);
     expectOverlayToPointBackToReadme(geminiInstall);
     expectOverlayToPointBackToReadme(opencodeInstall);
+    expectOverlayToPointBackToReadme(hermesInstall);
   });
 
   it("documents Claude-specific setup, Windows caveats, and local marketplace behavior", () => {
@@ -70,7 +74,7 @@ describe("client install docs contract", () => {
     expect(claudeInstall).not.toContain("ha-nova setup opencode");
   });
 
-  it("documents Codex, Gemini, and OpenCode deltas without inheriting Claude-only behavior", () => {
+  it("documents Codex, Gemini, OpenCode, and Hermes deltas without inheriting Claude-only behavior", () => {
     expect(codexInstall).toContain("Codex CLI");
     expect(codexInstall).toContain("Install the Codex client separately");
     expect(codexInstall).toContain("ha-nova setup codex");
@@ -96,13 +100,32 @@ describe("client install docs contract", () => {
     expect(opencodeInstall).toContain("WSL");
     expect(opencodeInstall).toContain("still early and not fully tested yet");
 
+    expect(hermesInstall).toContain("Hermes Agent");
+    expect(hermesInstall).toContain("not part of the current stable release");
+    expect(hermesInstall).toContain("ha-nova setup hermes");
+    expect(hermesInstall).toContain("ha-nova check-update");
+    expect(hermesInstall).toContain("What Supported Means Here");
+    expect(hermesInstall).toContain("Platform Routing");
+    expect(hermesInstall).toContain("Network Model");
+    expect(hermesInstall).toContain("GNOME Keyring");
+    expect(hermesInstall).toContain("WSL2");
+    expect(hermesInstall).toContain("Windows native");
+    expect(hermesInstall).toContain("~/.hermes/skills/ha-nova/");
+    expect(hermesInstall).toContain("ha-nova-read");
+    expect(hermesInstall).toContain("skills_list");
+    expect(hermesInstall).toContain("skill_view");
+
     expect(codexInstall).not.toContain("HA_NOVA_CLAUDE_MARKETPLACE_LOCAL=1");
     expect(geminiInstall).not.toContain("HA_NOVA_CLAUDE_MARKETPLACE_LOCAL=1");
     expect(opencodeInstall).not.toContain("HA_NOVA_CLAUDE_MARKETPLACE_LOCAL=1");
+    expect(hermesInstall).not.toContain("HA_NOVA_CLAUDE_MARKETPLACE_LOCAL=1");
+    expect(hermesInstall).not.toContain("CLAUDE_CODE_GIT_BASH_PATH");
+    expect(hermesInstall).not.toContain("ha-nova setup claude");
+    expect(hermesInstall).not.toContain("Git Bash");
   });
 
   it("classifies per-client install docs as active derived install overlays", () => {
-    expect(governance).toContain("`.claude/INSTALL.md`, `.codex/INSTALL.md`, `.gemini/INSTALL.md`, `.opencode/INSTALL.md`");
+    expect(governance).toContain("`.claude/INSTALL.md`, `.codex/INSTALL.md`, `.gemini/INSTALL.md`, `.opencode/INSTALL.md`, `.hermes/INSTALL.md`");
     expect(governance).toContain("client-specific install overlays");
     expect(governance).toContain("cover client deltas only");
     expect(governance).toContain("point back to `README.md`");
@@ -113,5 +136,13 @@ describe("client install docs contract", () => {
     expect(readme).toContain("Gemini CLI has basic validation");
     expect(geminiInstall).toContain("Gemini has basic Windows validation for this release.");
     expect(claudeInstall).toContain("Claude is the Windows path we have tested most for this release.");
+  });
+
+  it("keeps Hermes in the release train without promoting the public README claim early", () => {
+    expect(hermesReleaseGate).toContain("Status: active");
+    expect(hermesReleaseGate).toContain("Keep public `README.md` release-conservative until the final release PR.");
+    expect(hermesReleaseGate).toContain("restore the public Hermes claim in `README.md`, if release proof is complete");
+    expect(hermesInstall).toContain("not part of the current stable release until the final release PR");
+    expect(readme).not.toContain("Hermes Agent");
   });
 });

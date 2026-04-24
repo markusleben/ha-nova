@@ -118,6 +118,7 @@ describe("desktop validation helpers contract", () => {
     expect(macosSuite).toContain("macos-private-rc-smoke.sh");
     expect(macosSuite).toContain("macos-private-rc-setup-all.sh");
     expect(macosSuite).toContain("macos-private-rc-client.sh claude");
+    expect(macosSuite).toContain("macos-private-rc-client.sh hermes");
   });
 
   it("keeps the mock server intentionally tiny and dependency-free", () => {
@@ -164,7 +165,7 @@ describe("desktop validation helpers contract", () => {
   });
 
   it("keeps the macOS per-client lane explicit about expected client artifacts", () => {
-    expect(macosClient).toContain("Usage: $0 <claude|codex|opencode|gemini>");
+    expect(macosClient).toContain("Usage: $0 <claude|codex|opencode|gemini|hermes>");
     expect(macosClient).toContain("HA_NOVA_KEYRING_SERVICE");
     expect(macosClient).toContain("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING=1");
     expect(macosClient).toContain("HA_NOVA_TEST_KEYRING_FILE");
@@ -178,6 +179,9 @@ describe("desktop validation helpers contract", () => {
     expect(macosClient).toContain(".agents/skills/ha-nova/ha-nova/SKILL.md");
     expect(macosClient).toContain(".config/opencode/skills/ha-nova/ha-nova/SKILL.md");
     expect(macosClient).toContain(".gemini/skills/ha-nova/SKILL.md");
+    expect(macosClient).toContain(".hermes/skills/ha-nova/ha-nova/SKILL.md");
+    expect(macosClient).toContain(".hermes/skills/ha-nova/ha-nova-read/SKILL.md");
+    expect(macosClient).toContain("name: ha-nova-read");
     expect(macosClient).toContain(".claude/plugins/installed_plugins.json");
     expect(macosClient).toContain(".claude/plugins/known_marketplaces.json");
     expect(macosClient).toContain('claude_marketplace_points_to_root "${TMP_HOME}/.claude/plugins/known_marketplaces.json"');
@@ -186,6 +190,7 @@ describe("desktop validation helpers contract", () => {
     expect(macosClient).toContain('test -e "${TMP_HOME}/.config/ha-nova/config.json"');
     expect(macosClient).toContain('test ! -e "${TMP_HOME}/.config/ha-nova/state.json"');
     expect(macosClient).toContain('test ! -e "${TMP_HOME}/.cache/ha-nova"');
+    expect(macosClient).toContain('test ! -e "${TMP_HOME}/.hermes/skills/ha-nova"');
   });
 
   it("keeps the Windows cleanup helper scoped to HA NOVA-owned paths", () => {

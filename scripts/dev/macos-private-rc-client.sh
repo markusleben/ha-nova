@@ -12,7 +12,7 @@ RELAY_TOKEN="${RELAY_TOKEN:-test-relay-token}"
 CLIENT="${1:-}"
 
 if [[ -z "${CLIENT}" ]]; then
-  echo "Usage: $0 <claude|codex|opencode|gemini>" >&2
+  echo "Usage: $0 <claude|codex|opencode|gemini|hermes>" >&2
   exit 1
 fi
 
@@ -135,6 +135,12 @@ case "${CLIENT}" in
     test -f "${TMP_HOME}/.gemini/skills/ha-nova/SKILL.md"
     test -f "${TMP_HOME}/.gemini/skills/ha-nova-review/SKILL.md"
     ;;
+  hermes)
+    command -v hermes >/dev/null 2>&1
+    test -f "${TMP_HOME}/.hermes/skills/ha-nova/ha-nova/SKILL.md"
+    test -f "${TMP_HOME}/.hermes/skills/ha-nova/ha-nova-read/SKILL.md"
+    grep -Fq 'name: ha-nova-read' "${TMP_HOME}/.hermes/skills/ha-nova/ha-nova-read/SKILL.md"
+    ;;
   claude)
     command -v claude >/dev/null 2>&1
     grep -Fq '"ha-nova@ha-nova"' "${TMP_HOME}/.claude/plugins/installed_plugins.json"
@@ -152,6 +158,9 @@ test ! -e "${TMP_HOME}/.local/share/ha-nova"
 test -e "${TMP_HOME}/.config/ha-nova/config.json"
 test ! -e "${TMP_HOME}/.config/ha-nova/state.json"
 test ! -e "${TMP_HOME}/.cache/ha-nova"
+if [[ "${CLIENT}" == "hermes" ]]; then
+  test ! -e "${TMP_HOME}/.hermes/skills/ha-nova"
+fi
 if [[ "${CLIENT}" == "claude" ]]; then
   if [[ -f "${TMP_HOME}/.claude/plugins/installed_plugins.json" ]]; then
     ! grep -Fq '"ha-nova@ha-nova"' "${TMP_HOME}/.claude/plugins/installed_plugins.json"

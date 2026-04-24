@@ -1,0 +1,179 @@
+name: Hermes platform validation
+description: Share a real-machine Hermes + HA NOVA validation result
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for real validation results only.
+
+        Privacy rule:
+        - never paste Home Assistant long-lived access tokens
+        - never paste relay auth tokens
+        - never paste local keyring passwords
+        - never paste unredacted shell history
+        - redact hostnames, LAN IPs, local paths, and anything else private unless they are essential
+
+        Redact secrets before you submit anything.
+
+  - type: input
+    id: ha_nova_version
+    attributes:
+      label: HA NOVA version
+      placeholder: v0.4.0
+    validations:
+      required: true
+
+  - type: input
+    id: hermes_version
+    attributes:
+      label: Hermes version
+      placeholder: 0.0.x
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - macOS native
+        - Linux native
+        - Windows native (unsupported today; use WSL2 for the supported path)
+        - Windows + WSL2
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install_source
+    attributes:
+      label: Install source
+      options:
+        - latest public release
+        - release candidate or private bundle
+        - local checkout or local build
+        - other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: host_form
+    attributes:
+      label: Host form
+      options:
+        - real hardware
+        - virtual machine
+        - container or devcontainer
+        - remote CI-style environment
+        - other
+    validations:
+      required: true
+
+  - type: input
+    id: os_details
+    attributes:
+      label: OS / distro / version
+      placeholder: Ubuntu 24.04.1 LTS / macOS 15.x / Windows 11 24H2
+    validations:
+      required: true
+
+  - type: input
+    id: helper_or_overrides
+    attributes:
+      label: Helper script or `HA_NOVA_*` overrides used
+      description: Say `none` if you used the plain supported path. Redact hostnames, LAN IPs, and private paths.
+      placeholder: none / linux-headless-setup-check.sh + HA_NOVA_LIVE_SETUP_CMD / HA_NOVA_VERSION=...
+    validations:
+      required: true
+
+  - type: input
+    id: session_details
+    attributes:
+      label: Desktop environment / session type
+      placeholder: GNOME desktop session, KDE Plasma, SSH in same desktop user session, WSL shell
+    validations:
+      required: true
+
+  - type: input
+    id: secret_service_backend
+    attributes:
+      label: Secret Service backend if known
+      placeholder: GNOME Keyring / KWallet / none / unknown
+    validations:
+      required: true
+
+  - type: dropdown
+    id: setup_path
+    attributes:
+      label: Setup path used
+      options:
+        - fresh install
+        - repair
+        - locked keyring recovery
+        - fresh-init keyring recovery
+        - update + repair
+        - other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: entrypoint_used
+    attributes:
+      label: Entry point used
+      options:
+        - public installer flow
+        - reran `ha-nova setup hermes`
+        - helper script driven setup
+        - local/manual install path
+        - other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: result
+    attributes:
+      label: Result
+      options:
+        - worked
+        - partial
+        - failed
+    validations:
+      required: true
+
+  - type: dropdown
+    id: hermes_skills_visible
+    attributes:
+      label: Did `hermes skills list` show `ha-nova*` skills?
+      options:
+        - yes
+        - partial
+        - no
+        - not checked
+    validations:
+      required: true
+
+  - type: textarea
+    id: where_stopped
+    attributes:
+      label: Where did it stop or what exactly worked?
+      description: Include the exact step, prompt, or command phase. Redact hostnames, LAN IPs, private paths, and secrets.
+      placeholder: Setup reached secure storage recovery, accepted password, then failed before token save...
+    validations:
+      required: true
+
+  - type: textarea
+    id: doctor_output
+    attributes:
+      label: Optional redacted `ha-nova doctor` output
+      description: Redact tokens, passwords, hostnames, and anything private before posting.
+      placeholder: Paste only the parts that matter, already redacted.
+    validations:
+      required: false
+
+  - type: textarea
+    id: extra_notes
+    attributes:
+      label: Extra notes
+      description: Anything else that would help compare this environment against the validation matrix? Redact hostnames, LAN IPs, private paths, and secrets.
+    validations:
+      required: false

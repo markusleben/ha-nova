@@ -37,6 +37,9 @@ func evaluateClientStatus(paths runtimePaths, state installState, client clientR
 	if client.ID == "claude" && (claudeSnapshot.MarketplaceFound || claudeSnapshot.PluginFound) {
 		status.Configured = true
 	}
+	if client.ID == "hermes" && hermesLegacyBundlePresent(paths.Home) {
+		status.Configured = true
+	}
 	status.RuntimeDetected = clientRuntimeDetectedForStatus(client.ID)
 	status.Ready = status.SupportedOnOS && status.RuntimeDetected && status.Attached
 	status.Reason = clientStatusReason(client.ID, status)
@@ -62,6 +65,8 @@ func clientRuntimeCommand(client string) string {
 		return "opencode"
 	case "gemini":
 		return "gemini"
+	case "hermes":
+		return "hermes"
 	default:
 		return ""
 	}
@@ -76,6 +81,8 @@ func clientAttachmentPresent(paths runtimePaths, state installState, client stri
 	case "gemini":
 		return fileExists(filepath.Join(paths.Home, ".gemini", "skills", "ha-nova", "SKILL.md")) &&
 			fileExists(filepath.Join(paths.Home, ".gemini", "skills", "ha-nova-review", "SKILL.md"))
+	case "hermes":
+		return hermesBundlePresent(paths.Home)
 	case "claude":
 		return inspectClaudeInstallSnapshot(paths, state).Attached
 	default:
@@ -117,6 +124,8 @@ func clientStatusReason(client string, status clientStatus) string {
 		return "install OpenCode first"
 	case "gemini":
 		return "install Gemini CLI first"
+	case "hermes":
+		return "install Hermes Agent first"
 	default:
 		return "install this client first"
 	}

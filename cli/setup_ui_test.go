@@ -15,7 +15,8 @@ func testSetupClientChoices() []setupClientChoice {
 		{Number: "2", Value: "codex", Label: "Codex CLI", Resolved: []string{"codex"}},
 		{Number: "3", Value: "opencode", Label: "OpenCode", Resolved: []string{"opencode"}},
 		{Number: "4", Value: "gemini", Label: "Gemini CLI", Resolved: []string{"gemini"}},
-		{Number: "5", Value: "all", Label: "All available clients", Resolved: []string{"claude", "codex", "opencode", "gemini"}},
+		{Number: "5", Value: "hermes", Label: "Hermes Agent", Resolved: []string{"hermes"}},
+		{Number: "6", Value: "all", Label: "All available clients", Resolved: []string{"claude", "codex", "opencode", "gemini", "hermes"}},
 	}
 }
 
@@ -38,8 +39,9 @@ func TestPromptSetupClientShowsLegacyListAndDefaultsToClaude(t *testing.T) {
 		"2) Codex CLI",
 		"3) OpenCode",
 		"4) Gemini CLI",
-		"5) All available clients",
-		"Enter [1-5] (default 1, or type 'exit'): ",
+		"5) Hermes Agent",
+		"6) All available clients",
+		"Enter [1-6] (default 1, or type 'exit'): ",
 	} {
 		if !strings.Contains(rendered, want) {
 			t.Fatalf("prompt output missing %q:\n%s", want, rendered)

@@ -22,8 +22,8 @@ func TestBuildSetupClientChoicesDisablesMissingRuntime(t *testing.T) {
 	if err != nil {
 		t.Fatalf("buildSetupClientChoices() error: %v", err)
 	}
-	if len(choices) != 5 {
-		t.Fatalf("expected 5 setup choices, got %d", len(choices))
+	if len(choices) != 6 {
+		t.Fatalf("expected 6 setup choices, got %d", len(choices))
 	}
 	for _, choice := range choices {
 		if !choice.Disabled {
@@ -52,18 +52,26 @@ func TestBuildSetupClientChoicesShowsAvailableClientsBeforeDisabledOnes(t *testi
 	for _, choice := range choices {
 		gotValues = append(gotValues, choice.Value)
 	}
-	wantValues := []string{"claude", "gemini", "codex", "opencode", "all"}
+	wantValues := []string{"claude", "gemini", "codex", "opencode", "hermes", "all"}
 	if strings.Join(gotValues, ",") != strings.Join(wantValues, ",") {
 		t.Fatalf("choice order = %v, want %v", gotValues, wantValues)
 	}
 	if choices[0].Disabled || choices[1].Disabled {
 		t.Fatalf("expected available clients first, got %+v", choices)
 	}
-	if !choices[2].Disabled || !choices[3].Disabled {
-		t.Fatalf("expected disabled clients after available ones, got %+v", choices)
+	for _, choice := range choices[2:5] {
+		if !choice.Disabled {
+			t.Fatalf("expected disabled clients after available ones, got %+v", choices)
+		}
 	}
-	if choices[4].Number != "5" {
-		t.Fatalf("expected all-choice numbering to be recomputed, got %q", choices[4].Number)
+	if choices[5].Disabled {
+		t.Fatalf("expected all choice to stay available when at least one client is available, got %+v", choices)
+	}
+	if choices[5].Value != "all" {
+		t.Fatalf("expected all choice to stay last, got %+v", choices)
+	}
+	if choices[5].Number != "6" {
+		t.Fatalf("expected all-choice numbering to be recomputed, got %q", choices[5].Number)
 	}
 }
 
@@ -84,8 +92,8 @@ func TestResolveSetupClientsForAllReturnsOnlyAvailableClients(t *testing.T) {
 	if len(resolved) != 1 || resolved[0] != "claude" {
 		t.Fatalf("expected all to resolve only Claude, got %+v", resolved)
 	}
-	if len(skipped) != 3 {
-		t.Fatalf("expected three skipped clients, got %+v", skipped)
+	if len(skipped) != 4 {
+		t.Fatalf("expected four skipped clients, got %+v", skipped)
 	}
 }
 

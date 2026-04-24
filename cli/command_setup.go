@@ -254,7 +254,7 @@ func normalizeSetupArgs(args []string) []string {
 
 func isSetupTarget(value string) bool {
 	switch strings.ToLower(strings.TrimSpace(value)) {
-	case "all", "claude", "codex", "opencode", "gemini":
+	case "all", "claude", "codex", "opencode", "gemini", "hermes":
 		return true
 	default:
 		return false

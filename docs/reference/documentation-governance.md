@@ -24,7 +24,7 @@ Use these files as the current sources of truth:
   - HA transport/routing truth
 - `docs/reference/skill-architecture.md`
   - skill topology and contributor index
-- `.claude/INSTALL.md`, `.codex/INSTALL.md`, `.gemini/INSTALL.md`, `.opencode/INSTALL.md`
+- `.claude/INSTALL.md`, `.codex/INSTALL.md`, `.gemini/INSTALL.md`, `.opencode/INSTALL.md`, `.hermes/INSTALL.md`
   - client-specific install overlays; derived active docs that cover client deltas only and must point back to `README.md` for the shared install contract
 - `nova/DOCS.md`
   - Home Assistant App / relay operator truth
@@ -86,6 +86,7 @@ Active paths:
 - `.codex/INSTALL.md`
 - `.gemini/INSTALL.md`
 - `.opencode/INSTALL.md`
+- `.hermes/INSTALL.md`
 - `nova/DOCS.md`
 - `nova/README.md`
 - `skills/**/SKILL.md`

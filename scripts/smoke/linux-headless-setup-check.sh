@@ -19,6 +19,8 @@ Important:
 Optional env:
   HA_NOVA_LIVE_SETUP_CMD   Interactive setup command to run remotely
                            default: HA_NOVA_NO_BROWSER=1 ha-nova setup
+                           Hermes proof override:
+                           HA_NOVA_LIVE_SETUP_CMD='HA_NOVA_NO_BROWSER=1 ha-nova setup hermes'
   HA_NOVA_LIVE_SKIP_INSTALL=1
                            Skip the remote install command and run setup only
                            repair/debug only; not a full release-lane proof

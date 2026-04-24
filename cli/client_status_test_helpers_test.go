@@ -24,6 +24,7 @@ func withAllClientRuntimesAvailable(t *testing.T) {
 		"codex":    true,
 		"opencode": true,
 		"gemini":   true,
+		"hermes":   true,
 	})
 }
 

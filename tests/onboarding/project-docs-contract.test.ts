@@ -10,6 +10,8 @@ describe("project docs contract", () => {
   const novaDocs = readFileSync("nova/DOCS.md", "utf8");
   const bridgeArchitecture = readFileSync("docs/reference/bridge-architecture.md", "utf8");
   const governance = readFileSync("docs/reference/documentation-governance.md", "utf8");
+  const hermesValidation = readFileSync("docs/reference/hermes-platform-validation.md", "utf8");
+  const hermesValidationIssue = readFileSync(".github/ISSUE_TEMPLATE/hermes-platform-validation.yml", "utf8");
 
   it("keeps PROJECT.md scoped to internal product context instead of public install truth", () => {
     expect(project).toContain("This file is internal product context only.");
@@ -80,11 +82,46 @@ describe("project docs contract", () => {
   it("defines a canonical active work-doc path and keeps breadcrumbs short/current", () => {
     expect(governance).toContain("keep active work docs under `docs/work/`");
     expect(governance).toContain("`docs/work/`");
-    expect(governance).toContain("`.claude/INSTALL.md`, `.codex/INSTALL.md`, `.gemini/INSTALL.md`, `.opencode/INSTALL.md`");
+    expect(governance).toContain("`.claude/INSTALL.md`, `.codex/INSTALL.md`, `.gemini/INSTALL.md`, `.opencode/INSTALL.md`, `.hermes/INSTALL.md`");
     expect(governance).toContain("`SUPPORT.md`");
     expect(governance).toContain("`CODE_OF_CONDUCT.md`");
     expect(governance).toContain("`nova/README.md`");
     expect(governance).toContain("`docs/archive/breadcrumbs.md` is the long historical breadcrumb ledger");
     expect(governance).toContain("keep the root `docs/breadcrumbs.md` short and current only");
+  });
+
+  it("tracks Hermes support evidence in a dedicated active reference doc", () => {
+    expect(hermesValidation).toContain("This is the active truth source for Hermes support evidence in HA NOVA.");
+    expect(hermesValidation).toContain("## Support Status");
+    expect(hermesValidation).toContain("Supported with limitation");
+    expect(hermesValidation).toContain("Not supported");
+    expect(hermesValidation).toContain("## Evidence Status");
+    expect(hermesValidation).toContain("Maintainer-validated");
+    expect(hermesValidation).toContain("Community validation");
+    expect(hermesValidation).toContain("Planned / not yet validated");
+    expect(hermesValidation).toContain("## Repair Check");
+    expect(hermesValidation).toContain("configured but not attached");
+    expect(hermesValidation).toContain("Hermes Agent ready now");
+    expect(hermesValidation).toContain("GNOME Keyring");
+    expect(hermesValidation).toContain("WSL2");
+    expect(hermesValidation).toContain("Native Windows Hermes is not part of the HA NOVA support model.");
+  });
+
+  it("keeps community validation intake structured and privacy-safe", () => {
+    expect(hermesValidationIssue).toContain("Hermes platform validation");
+    expect(hermesValidationIssue).toContain("never paste Home Assistant long-lived access tokens");
+    expect(hermesValidationIssue).toContain("never paste relay auth tokens");
+    expect(hermesValidationIssue).toContain("never paste local keyring passwords");
+    expect(hermesValidationIssue).toContain("Windows native (unsupported today; use WSL2 for the supported path)");
+    expect(hermesValidationIssue).toContain("Install source");
+    expect(hermesValidationIssue).toContain("Host form");
+    expect(hermesValidationIssue).toContain("Helper script or `HA_NOVA_*` overrides used");
+    expect(hermesValidationIssue).toContain("Entry point used");
+    expect(hermesValidationIssue).toContain("Redact hostnames, LAN IPs, private paths, and secrets");
+    expect(hermesValidationIssue).toContain("hermes skills list");
+    expect(hermesValidationIssue).toContain("ha-nova*");
+    expect(hermesValidationIssue).toContain("Optional redacted `ha-nova doctor` output");
+    expect(hermesValidationIssue).toContain("session");
+    expect(hermesValidationIssue).toContain("Secret Service backend");
   });
 });

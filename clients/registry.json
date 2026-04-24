@@ -23,6 +23,12 @@
       "label": "Gemini CLI",
       "adapter_kind": "skill_flat",
       "supported_os": ["macos", "linux", "windows"]
+    },
+    {
+      "id": "hermes",
+      "label": "Hermes Agent",
+      "adapter_kind": "skill_tree",
+      "supported_os": ["macos", "linux"]
     }
   ]
 }

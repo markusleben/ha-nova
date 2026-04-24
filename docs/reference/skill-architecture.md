@@ -8,6 +8,7 @@ The repo skill tree is the single source of truth. Client installers adapt that 
 - Claude: plugin marketplace payload
 - Codex / OpenCode: nested skill tree
 - Gemini: flat copied skill directories
+- Hermes: namespaced nested copied skill tree with directory names aligned to installed skill IDs
 
 Installed skill tree:
 ```
@@ -45,6 +46,7 @@ The canonical skill entrypoints remain `skills/*/SKILL.md`.
 - Codex and OpenCode load the nested `ha-nova` skill tree directly.
 - Gemini receives flat copied skill directories because it only supports one skill level.
 - Gemini sub-skills are installed with namespaced identifiers such as `ha-nova-entity-discovery` so the flat folder names and activation names stay aligned.
+- Hermes receives a nested copied `ha-nova` bundle under `~/.hermes/skills/ha-nova`, with namespaced sub-skill directories such as `ha-nova-entity-discovery/` whose directory names and frontmatter names stay identical.
 
 The context skill (`ha-nova`) stays the stable entrypoint; sub-skills remain independently discoverable by description and naming.
 
@@ -289,8 +291,9 @@ It handles repo-local skill refreshes for development and validation:
   - **Codex CLI:** symlink on Unix, copy fallback on Windows at `~/.agents/skills/ha-nova`
   - **OpenCode:** symlink on Unix, copy fallback on Windows at `~/.config/opencode/skills/ha-nova`
   - **Gemini CLI:** Flat copy `~/.gemini/skills/ha-nova-*/SKILL.md` (1-level limit), with namespaced sub-skill names matching those folder names
+  - **Hermes Agent:** Namespaced nested copy under `~/.hermes/skills/ha-nova/ha-nova-*`, with sub-skill directory names and frontmatter names both using the same `ha-nova-*` identifier
 - cleans up legacy flat skill directories (old `ha-nova-*` prefixed dirs)
-- supports targets: `codex`, `claude`, `opencode`, `gemini`, `all`
+- supports targets: `codex`, `claude`, `opencode`, `gemini`, `hermes`, `all`
 
 The other helper roles are intentionally smaller:
 - `scripts/onboarding/bin/ha-nova` forwards repo-local setup/update/check-update calls into the Go runtime

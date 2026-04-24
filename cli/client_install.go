@@ -48,6 +48,8 @@ func installClient(paths runtimePaths, sourceRoot, client string) (string, error
 			return installTreeClient(filepath.Join(paths.Home, ".agents", "skills"), filepath.Join(sourceRoot, "skills"), preferSymlinkForCurrentOS())
 		case "opencode":
 			return installTreeClient(filepath.Join(paths.Home, ".config", "opencode", "skills"), filepath.Join(sourceRoot, "skills"), preferSymlinkForCurrentOS())
+		case "hermes":
+			return "copy", installHermesClient(paths.Home, sourceRoot)
 		default:
 			return "", fmt.Errorf("unsupported skill-tree client: %s", client)
 		}
