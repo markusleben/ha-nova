@@ -97,6 +97,78 @@ func TestRunSetupSecureStorageRecoveryFlowRetriesOnlyOnRetryableError(t *testing
 	}
 }
 
+func TestRunSetupSecureStorageRecoveryFlowRecomputesPlanAfterRetryableKeyringError(t *testing.T) {
+	originalSupport := detectPlatformSecureStorageRecoverySupportForSetup
+	originalInfer := inferPlatformSecureStorageRecoveryActionForSetup
+	originalRunRecovery := runPlatformSecureStorageRecoveryForSetup
+	originalReadSecret := readSetupSecretInputForSetup
+	originalTTY := writerSupportsTTYForSetup
+	originalInputTTY := uiInputSupportsTTY
+	defer func() {
+		detectPlatformSecureStorageRecoverySupportForSetup = originalSupport
+		inferPlatformSecureStorageRecoveryActionForSetup = originalInfer
+		runPlatformSecureStorageRecoveryForSetup = originalRunRecovery
+		readSetupSecretInputForSetup = originalReadSecret
+		writerSupportsTTYForSetup = originalTTY
+		uiInputSupportsTTY = originalInputTTY
+	}()
+
+	detectPlatformSecureStorageRecoverySupportForSetup = func() (bool, error) { return true, nil }
+	inferPlatformSecureStorageRecoveryActionForSetup = func(err error) (platformSecureStorageRecoveryAction, error) {
+		switch {
+		case isDesktopKeyringInitializationRequiredError(err):
+			return platformSecureStorageRecoveryInitialize, nil
+		case isDesktopKeyringLockedError(err):
+			return platformSecureStorageRecoveryUnlock, nil
+		default:
+			return "", nil
+		}
+	}
+
+	var actions []platformSecureStorageRecoveryAction
+	runPlatformSecureStorageRecoveryForSetup = func(action platformSecureStorageRecoveryAction, _ []byte) error {
+		actions = append(actions, action)
+		if len(actions) == 1 {
+			return desktopKeyringLockedError("default Secret Service collection is locked")
+		}
+		return nil
+	}
+	secretReads := 0
+	readSetupSecretInputForSetup = func(int) ([]byte, error) {
+		secretReads++
+		switch secretReads {
+		case 1, 2:
+			return []byte("new-keyring-password"), nil
+		default:
+			return []byte("existing-keyring-password"), nil
+		}
+	}
+	writerSupportsTTYForSetup = func(io.Writer) bool { return true }
+	uiInputSupportsTTY = func() bool { return true }
+
+	var out bytes.Buffer
+	state := setupSecureStorageRecoveryState{}
+	result, err := runSetupSecureStorageRecoveryFlow(
+		bufio.NewReader(strings.NewReader("\n\n")),
+		&out,
+		desktopKeyringInitializationRequiredError("no default Secret Service collection configured"),
+		&state,
+		setupSecureStorageRecoveryInitialAttempt,
+	)
+	if err != nil {
+		t.Fatalf("expected recomputed recovery flow to succeed, got %v", err)
+	}
+	if result != setupSecureStorageRecoveryRecovered {
+		t.Fatalf("expected recovered result, got %q", result)
+	}
+	if len(actions) != 2 || actions[0] != platformSecureStorageRecoveryInitialize || actions[1] != platformSecureStorageRecoveryUnlock {
+		t.Fatalf("expected initialize then unlock actions, got %v", actions)
+	}
+	if !strings.Contains(out.String(), "Local secure storage is locked") {
+		t.Fatalf("expected retry to show the recomputed unlock copy, got:\n%s", out.String())
+	}
+}
+
 func TestRunSetupSecureStorageRecoveryFlowBackDoesNotConsumeAttempt(t *testing.T) {
 	originalSupport := detectPlatformSecureStorageRecoverySupportForSetup
 	originalTTY := writerSupportsTTYForSetup

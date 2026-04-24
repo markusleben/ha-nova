@@ -125,15 +125,16 @@ func runSetupSecureStorageRecoveryFlow(reader *bufio.Reader, out io.Writer, trig
 		return "", errors.New("secure storage recovery state missing")
 	}
 
-	plan, available, err := resolveSetupSecureStorageRecoveryPlan(triggerErr)
-	if !available {
-		if err == nil {
-			err = errors.New("local secure storage recovery is unavailable")
-		}
-		return "", err
-	}
-
+	recoveryErr := triggerErr
 	for {
+		plan, available, err := resolveSetupSecureStorageRecoveryPlan(recoveryErr)
+		if !available {
+			if err == nil {
+				err = errors.New("local secure storage recovery is unavailable")
+			}
+			return "", err
+		}
+
 		renderSetupSecureStorageRecoveryPage(out, plan)
 		unlockNow, err := promptWizardYesNoFromReader(reader, out, plan.prompt, true)
 		if err != nil {
@@ -182,6 +183,9 @@ func runSetupSecureStorageRecoveryFlow(reader *bufio.Reader, out io.Writer, trig
 		}
 		if !isRetryableSetupSecureStorageRecoveryError(runErr) {
 			return "", runErr
+		}
+		if isDesktopKeyringSetupRequiredError(runErr) {
+			recoveryErr = runErr
 		}
 
 		renderSetupErrorLine(out, "%s", runErr)
