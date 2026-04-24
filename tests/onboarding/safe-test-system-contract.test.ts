@@ -1,4 +1,7 @@
-import { readFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { spawnSync } from "node:child_process";
 
 import { describe, expect, it } from "vitest";
 
@@ -34,10 +37,14 @@ describe("safe test system contract", () => {
     expect(pkg.scripts?.test).toBe("npm run test:safe");
     expect(pkg.scripts?.["test:watch"]).toBe("vitest");
     expect(pkg.scripts?.["verify:security"]).toBe("bash scripts/release/verify-npm-audit.sh");
+    expect(pkg.scripts?.["preverify:docs"]).toBe("node scripts/test/assert-vitest-files-exist.mjs verify:docs");
     expect(pkg.scripts?.["verify:docs"]).toContain("scripts/check-docs.sh");
+    expect(pkg.scripts?.["preverify:installers"]).toBe("node scripts/test/assert-vitest-files-exist.mjs verify:installers");
     expect(pkg.scripts?.["verify:installers"]).toBe("npx vitest run tests/onboarding/installer-contract.test.ts");
+    expect(pkg.scripts?.["preverify:onboarding"]).toBe("node scripts/test/assert-vitest-files-exist.mjs verify:onboarding");
     expect(pkg.scripts?.["verify:onboarding"]).toContain("tests/onboarding/install-skills-per-client.test.ts");
     expect(pkg.scripts?.["verify:onboarding"]).toContain("npm run verify:installers");
+    expect(pkg.scripts?.["preverify:release-contracts"]).toBe("node scripts/test/assert-vitest-files-exist.mjs verify:release-contracts");
     expect(pkg.scripts?.["verify:release-contracts"]).toContain("tests/onboarding/release-contract.test.ts");
     expect(pkg.scripts?.["verify:release-contracts"]).toContain("tests/onboarding/desktop-validation-behavior.test.ts");
     const verify = pkg.scripts?.verify ?? "";
@@ -54,6 +61,33 @@ describe("safe test system contract", () => {
     ]);
     expectNoFullVitestSweep(verify);
     expect(verify).not.toContain("test:desktop");
+  });
+
+  it("fails scripted Vitest runs before missing files can be skipped", () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "ha-nova-test-guard-"));
+    try {
+      mkdirSync(join(tempDir, "tests"), { recursive: true });
+      writeFileSync(
+        join(tempDir, "package.json"),
+        JSON.stringify({
+          scripts: {
+            broken: "npx vitest run tests/missing.test.ts",
+            valid: "npx vitest run tests/present.test.ts",
+          },
+        }),
+      );
+      writeFileSync(join(tempDir, "tests/present.test.ts"), "import { it } from 'vitest'; it('passes', () => {});\n");
+
+      const guardPath = join(process.cwd(), "scripts/test/assert-vitest-files-exist.mjs");
+      const broken = spawnSync(process.execPath, [guardPath, "broken"], { cwd: tempDir, encoding: "utf8" });
+      expect(broken.status).toBe(1);
+      expect(broken.stderr).toContain("references missing test files: tests/missing.test.ts");
+
+      const valid = spawnSync(process.execPath, [guardPath, "valid"], { cwd: tempDir, encoding: "utf8" });
+      expect(valid.status).toBe(0);
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
   });
 
   it("defines an explicit macOS desktop validation command instead of mixing it into npm test", () => {
