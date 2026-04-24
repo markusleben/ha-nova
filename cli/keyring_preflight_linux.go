@@ -25,10 +25,9 @@ type relayAuthTokenPreflightSessionBusResult struct {
 }
 
 type relayAuthTokenPreflightSessionBusCall struct {
-	done     chan struct{}
-	result   relayAuthTokenPreflightSessionBusResult
-	waiters  int
-	consumed bool
+	done    chan struct{}
+	result  relayAuthTokenPreflightSessionBusResult
+	waiters int
 }
 
 var relayAuthTokenPreflightSessionBusState struct {
@@ -80,25 +79,13 @@ func runRelayAuthTokenPreflightSessionBusCall(call *relayAuthTokenPreflightSessi
 		relayAuthTokenPreflightSessionBusState.current = nil
 	}
 	close(call.done)
-	shouldClose := call.waiters == 0 && conn != nil
 	relayAuthTokenPreflightSessionBusState.Unlock()
-
-	if shouldClose {
-		_ = conn.Close()
-	}
 }
 
 func finishRelayAuthTokenPreflightSessionBusCall(call *relayAuthTokenPreflightSessionBusCall) (*dbus.Conn, error) {
 	relayAuthTokenPreflightSessionBusState.Lock()
 	outcome := call.result
 	call.waiters--
-	if outcome.conn != nil {
-		if call.consumed {
-			relayAuthTokenPreflightSessionBusState.Unlock()
-			return nil, context.DeadlineExceeded
-		}
-		call.consumed = true
-	}
 	relayAuthTokenPreflightSessionBusState.Unlock()
 	return outcome.conn, outcome.err
 }
@@ -108,22 +95,7 @@ func releaseRelayAuthTokenPreflightSessionBusCall(call *relayAuthTokenPreflightS
 	if call.waiters > 0 {
 		call.waiters--
 	}
-	done := false
-	select {
-	case <-call.done:
-		done = true
-	default:
-	}
-	var conn *dbus.Conn
-	if done && call.waiters == 0 && !call.consumed && call.result.conn != nil {
-		conn = call.result.conn
-		call.result.conn = nil
-	}
 	relayAuthTokenPreflightSessionBusState.Unlock()
-
-	if conn != nil {
-		_ = conn.Close()
-	}
 }
 
 func relayAuthTokenPlatformSetupPreflightImpl() error {
