@@ -174,6 +174,22 @@ macOS self-managed lifecycle:
 11. reinstall the runtime, then run `ha-nova uninstall --yes --purge`
 12. confirm purge removed runtime/config/state/cache and deleted the relay auth token
 
+Linux real-machine onboarding:
+Helper:
+- use `scripts/smoke/linux-headless-setup-check.sh` as the executable assistant for the SSH/headless Linux lane; pass the host and install command via env, never hardcode host-specific details in the repo
+- by default the helper runs `HA_NOVA_NO_BROWSER=1 ha-nova setup`
+- `HA_NOVA_LIVE_SKIP_INSTALL=1` is for repair/debug passes only; it does not satisfy the full release-bound fresh-install proof for this lane
+1. use a real Linux host with a desktop user session; when validating the SSH/headless recovery path, use an SSH shell inside that same logged-in user session
+2. fresh stable install via the public `install.sh` flow
+3. if secure storage is unavailable because no Secret Service provider is running, confirm setup fails with the explicit provider prerequisite message instead of raw `org.freedesktop.secrets` D-Bus text
+4. if secure storage is present but the default collection is still locked or uninitialized and the active Secret Service owner is GNOME Keyring, confirm interactive `ha-nova setup` offers the built-in local secure-storage recovery step before host/token work
+5. if the same locked/uninitialized state exists on a non-GNOME Secret Service backend, confirm setup stays fail-loud with the explicit prerequisite guidance and does not pretend inline recovery is available
+6. confirm the locked-flow copy asks for the existing local Linux keyring password, while the uninitialized-flow copy asks the user to create and confirm a new local Linux keyring password
+7. confirm a wrong local keyring password keeps the user on the locked recovery step with a clear local secure-storage error, and confirm a correct password unlocks the keyring and resumes setup
+8. confirm the fresh-init recovery path can create the default GNOME Keyring collection over SSH and then resumes setup without sending the user to a desktop GUI
+9. finish setup, then run `ha-nova doctor`
+10. confirm the relay token is saved and can be reused by a second `ha-nova setup` / `ha-nova doctor` invocation without repeating recovery
+
 Windows self-managed:
 1. on fresh-profile runs, preinstall at least one supported client and verify it already runs on that exact machine/session
 2. fresh stable install via `install.ps1` from a local PowerShell console or Windows Terminal session
@@ -204,6 +220,7 @@ Rules:
 - `scripts/dev/windows-desktop-setup.ps1` proves same-version update smoke plus standard/purge uninstall semantics; the cross-version background replace path is still covered by the manual RC/stable matrix above
 - do not present any package-manager alternative as an equal public path
 - keep the matrix small but explicit; do not replace the commands above with vague "relevant tests" wording
+- when Linux setup or secure-storage behavior changes, the release-bound manual matrix must include the Linux real-machine onboarding lane above; macOS/Windows proofs are not a substitute for it
 
 ### macOS Public Onboarding Lane
 

@@ -15,6 +15,58 @@ var probeHTTPForSetup = probeHTTP
 var fetchRelayHealthForSetup = fetchRelayHealth
 var detectDefaultHAHostForSetup = detectDefaultHAHost
 var probeRelayWSPingForSetup = probeRelayWSPing
+var readRelayAuthTokenForSetup = readRelayAuthToken
+
+func printRelayTokenStorageSetupWarning(err error) {
+	switch {
+	case isDesktopKeyringSessionUnavailableError(err):
+		printHumanWarn("secure storage unavailable in this Linux session; run HA NOVA from a terminal inside the Linux desktop session on this machine so local secure storage is available")
+	case isDesktopKeyringUnavailableError(err):
+		printHumanWarn("secure storage unavailable on this Linux machine; start a Secret Service provider (for example GNOME Keyring or KWallet Secrets) before finishing setup")
+	case isDesktopKeyringInitializationRequiredError(err):
+		printHumanWarn("secure storage is present but not initialized on this Linux machine; finish local secure storage setup before finishing setup")
+	case isDesktopKeyringLockedError(err):
+		printHumanWarn("secure storage is present but locked on this Linux machine; unlock the default keyring before finishing setup")
+	case isDesktopKeyringSetupRequiredError(err):
+		printHumanWarn("secure storage is present but not ready on this Linux machine; finish local secure storage setup before finishing setup")
+	case err != nil:
+		printHumanWarn("%s", relayAuthTokenProblemMessage(err))
+	}
+}
+
+func maybeHandleInteractiveSetupCurrentState(reader *bufio.Reader, out io.Writer, paths runtimePaths, cfg runtimeConfig, current setupState, overrideApplied bool) (bool, int) {
+	if !(current.ConfigOK || current.TokenOK || current.RelayOK || current.WSOK || current.SkillsOK) {
+		return false, 0
+	}
+
+	renderSetupHeader(out)
+	renderSetupStatusSummary(out, current)
+	if current.IsComplete() {
+		if overrideApplied {
+			if err := saveConfig(paths, cfg); err != nil {
+				printHumanErr("cannot save config: %s", err)
+				return true, 1
+			}
+		}
+		renderSetupAlreadyDoneBanner(out)
+		return true, 0
+	}
+	if summary := current.SkipSummary(); summary != "" {
+		fmt.Fprintf(out, "  Already done: %s\n\n", summary)
+	}
+	if writerSupportsTTYForSetup(out) {
+		_, err := promptWizardLineFromReader(reader, out, "Press Enter to continue setup", "")
+		if err == errSetupExit {
+			printHumanInfo("Setup cancelled")
+			return true, 0
+		}
+		if err != nil && err != errSetupBack {
+			printHumanErr("%s", err)
+			return true, 1
+		}
+	}
+	return false, 0
+}
 
 func promptYesNoFromReader(reader *bufio.Reader, out io.Writer, label string, defaultYes bool) (bool, error) {
 	return promptYesNoWithOptions(reader, out, label, defaultYes, false)
@@ -42,6 +94,7 @@ func maskSecretHint(value string) string {
 func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState, target string, hostFlag, haURLFlag, relayURLFlag, relayTokenFlag string) int {
 	const (
 		setupStageClient = iota
+		setupStageSecureStorageRecovery
 		setupStageHost
 		setupStageRelayInstall
 		setupStageToken
@@ -59,20 +112,13 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 	}
 	selectedClients := []string{}
 	skippedClients := []string{}
+	secureStorageRecovery := setupSecureStorageRecoveryState{}
 
 	savedTokenBeforeSetup := ""
 	hadSavedTokenBeforeSetup := false
-	if savedToken, err := readRelayAuthToken(); err == nil && strings.TrimSpace(savedToken) != "" {
-		savedTokenBeforeSetup = strings.TrimSpace(savedToken)
-		hadSavedTokenBeforeSetup = true
-	} else if err != nil && !isMissingRelayAuthTokenError(err) {
-		printHumanWarn("secure storage unavailable: %s", err)
-	}
-
+	tokenStoragePreflightErr := error(nil)
+	tokenStorageRecoveryReadBlocked := false
 	existingToken := strings.TrimSpace(relayTokenFlag)
-	if existingToken == "" {
-		existingToken = savedTokenBeforeSetup
-	}
 
 	promptedClient := false
 	if target == "" {
@@ -107,6 +153,27 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 		}
 	}
 
+	tokenStoragePreflightErr = relayAuthTokenSetupPreflightForSetup()
+	if tokenStoragePreflightErr == nil {
+		if savedToken, err := readRelayAuthTokenForSetup(); err == nil && strings.TrimSpace(savedToken) != "" {
+			savedTokenBeforeSetup = strings.TrimSpace(savedToken)
+			hadSavedTokenBeforeSetup = true
+		} else if err != nil && setupSecureStorageRecoveryAvailableNow(err) {
+			tokenStoragePreflightErr = err
+			tokenStorageRecoveryReadBlocked = true
+		} else if err != nil && !isMissingRelayAuthTokenError(err) {
+			printRelayTokenStorageSetupWarning(err)
+		}
+	} else if !setupSecureStorageRecoveryAvailableNow(tokenStoragePreflightErr) {
+		printRelayTokenStorageSetupWarning(tokenStoragePreflightErr)
+		printHumanErr("%s", relayAuthTokenSetupSaveError(tokenStoragePreflightErr))
+		return 1
+	}
+
+	if existingToken == "" {
+		existingToken = savedTokenBeforeSetup
+	}
+
 	overrideApplied := strings.TrimSpace(hostFlag) != "" || strings.TrimSpace(haURLFlag) != "" || strings.TrimSpace(relayURLFlag) != ""
 	skipLLATWalkthrough := strings.TrimSpace(hostFlag) != "" && strings.TrimSpace(relayTokenFlag) != ""
 	if overrideApplied {
@@ -118,39 +185,19 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 		}
 	}
 
-	current := detectSetupState(paths, cfg, state, target)
-	if current.ConfigOK || current.TokenOK || current.RelayOK || current.WSOK || current.SkillsOK {
-		renderSetupHeader(os.Stdout)
-		renderSetupStatusSummary(os.Stdout, current)
-		if current.IsComplete() {
-			if overrideApplied {
-				if err := saveConfig(paths, cfg); err != nil {
-					printHumanErr("cannot save config: %s", err)
-					return 1
-				}
-			}
-			renderSetupAlreadyDoneBanner(os.Stdout)
-			return 0
-		}
-		if summary := current.SkipSummary(); summary != "" {
-			fmt.Fprintf(os.Stdout, "  Already done: %s\n\n", summary)
-		}
-		if writerSupportsTTYForSetup(os.Stdout) {
-			_, err := promptWizardLineFromReader(reader, os.Stdout, "Press Enter to continue setup", "")
-			if err == errSetupExit {
-				printHumanInfo("Setup cancelled")
-				return 0
-			}
-			if err != nil && err != errSetupBack {
-				printHumanErr("%s", err)
-				return 1
-			}
+	current := detectSetupStateWithToken(paths, cfg, state, target, savedTokenBeforeSetup, hadSavedTokenBeforeSetup)
+	if tokenStoragePreflightErr == nil {
+		if handled, code := maybeHandleInteractiveSetupCurrentState(reader, os.Stdout, paths, cfg, current, overrideApplied); handled {
+			return code
 		}
 	}
 
 	stage := setupStageHost
+	if tokenStoragePreflightErr != nil {
+		stage = setupStageSecureStorageRecovery
+	}
 	verifyFirstReuseFlow := false
-	if cfg.HAHost != "" && cfg.HAURL != "" {
+	if stage != setupStageSecureStorageRecovery && cfg.HAHost != "" && cfg.HAURL != "" {
 		switch {
 		case existingToken != "" && current.RelayOK && !current.WSOK:
 			stage = setupStageVerify
@@ -193,7 +240,88 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 				printHumanErr("%s", err)
 				return 1
 			}
+			if tokenStoragePreflightErr != nil {
+				stage = setupStageSecureStorageRecovery
+			} else {
+				stage = setupStageHost
+			}
+
+		case setupStageSecureStorageRecovery:
+			result, err := runSetupSecureStorageRecoveryFlow(reader, os.Stdout, tokenStoragePreflightErr, &secureStorageRecovery, setupSecureStorageRecoveryInitialAttempt)
+			if err == errSetupBack {
+				if promptedClient {
+					stage = setupStageClient
+					continue
+				}
+				printHumanInfo("Setup cancelled")
+				return 0
+			}
+			if err == errSetupExit {
+				printHumanInfo("Setup cancelled")
+				return 0
+			}
+			if err != nil {
+				printHumanErr("%s", err)
+				return 1
+			}
+			if result != setupSecureStorageRecoveryRecovered {
+				if tokenStorageRecoveryReadBlocked {
+					printHumanErr("%s", relayAuthTokenSetupReadError(tokenStoragePreflightErr))
+				} else {
+					printHumanErr("%s", relayAuthTokenSetupSaveError(tokenStoragePreflightErr))
+				}
+				return 1
+			}
+
+			tokenStoragePreflightErr = relayAuthTokenSetupPreflightForSetup()
+			if tokenStoragePreflightErr != nil {
+				printRelayTokenStorageSetupWarning(tokenStoragePreflightErr)
+				printHumanErr("%s", relayAuthTokenSetupSaveError(tokenStoragePreflightErr))
+				return 1
+			}
+			tokenStorageRecoveryReadBlocked = false
+			savedTokenBeforeSetup = ""
+			hadSavedTokenBeforeSetup = false
+			if savedToken, err := readRelayAuthTokenForSetup(); err == nil && strings.TrimSpace(savedToken) != "" {
+				savedTokenBeforeSetup = strings.TrimSpace(savedToken)
+				hadSavedTokenBeforeSetup = true
+			} else if err != nil && !isMissingRelayAuthTokenError(err) {
+				printHumanErr("%s", relayAuthTokenSetupReadError(err))
+				return 1
+			}
+			if strings.TrimSpace(relayTokenFlag) == "" {
+				existingToken = savedTokenBeforeSetup
+			}
+			current = detectSetupStateWithToken(paths, cfg, state, target, savedTokenBeforeSetup, hadSavedTokenBeforeSetup)
+			if current.IsComplete() {
+				if overrideApplied {
+					if err := saveConfig(paths, cfg); err != nil {
+						printHumanErr("cannot save config: %s", err)
+						return 1
+					}
+				}
+				renderSetupAlreadyDoneBanner(os.Stdout)
+				return 0
+			}
 			stage = setupStageHost
+			verifyFirstReuseFlow = false
+			if cfg.HAHost != "" && cfg.HAURL != "" {
+				switch {
+				case existingToken != "" && current.RelayOK && !current.WSOK:
+					stage = setupStageVerify
+					verifyFirstReuseFlow = true
+				case existingToken != "":
+					if relayTokenFlag != "" {
+						stage = setupStageToken
+					} else {
+						stage = setupStageVerify
+						verifyFirstReuseFlow = true
+					}
+				default:
+					stage = setupStageToken
+				}
+			}
+			continue
 
 		case setupStageHost:
 			defaultHost, _ := detectDefaultHAHostWithFeedback(os.Stdout, cfg)
@@ -264,12 +392,10 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 			stage = setupStageToken
 
 		case setupStageToken:
-			current = detectSetupState(paths, cfg, state, target)
+			current = detectSetupStateWithToken(paths, cfg, state, target, savedTokenBeforeSetup, hadSavedTokenBeforeSetup)
 			existingToken = ""
-			if relayTokenFlag == "" {
-				if existing, err := readRelayAuthToken(); err == nil {
-					existingToken = strings.TrimSpace(existing)
-				}
+			if relayTokenFlag == "" && hadSavedTokenBeforeSetup {
+				existingToken = savedTokenBeforeSetup
 			}
 			if relayTokenFlag != "" {
 				token = strings.TrimSpace(relayTokenFlag)
@@ -432,14 +558,14 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 				return 1
 			}
 			if !ok {
-				if err := persistInteractiveSetupState(paths, cfg, &state, savedTokenBeforeSetup, hadSavedTokenBeforeSetup, token); err != nil {
+				if err := persistInteractiveSetupStateWithRecovery(reader, os.Stdout, paths, cfg, &state, savedTokenBeforeSetup, hadSavedTokenBeforeSetup, token, &secureStorageRecovery); err != nil {
 					printHumanErr("%s", err)
 					return 1
 				}
 				renderSetupIncompleteBanner(os.Stdout, issue)
 				return 1
 			}
-			if err := persistInteractiveSetupState(paths, cfg, &state, savedTokenBeforeSetup, hadSavedTokenBeforeSetup, token); err != nil {
+			if err := persistInteractiveSetupStateWithRecovery(reader, os.Stdout, paths, cfg, &state, savedTokenBeforeSetup, hadSavedTokenBeforeSetup, token, &secureStorageRecovery); err != nil {
 				printHumanErr("%s", err)
 				return 1
 			}
@@ -469,4 +595,27 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 			return 0
 		}
 	}
+}
+
+func persistInteractiveSetupStateWithRecovery(reader *bufio.Reader, out io.Writer, paths runtimePaths, cfg runtimeConfig, state *installState, previousToken string, hadPreviousToken bool, token string, recovery *setupSecureStorageRecoveryState) error {
+	err := persistInteractiveSetupState(paths, cfg, state, previousToken, hadPreviousToken, token)
+	if err == nil {
+		return nil
+	}
+	if !isDesktopKeyringSetupRequiredError(err) || recovery == nil || recovery.saveRetryAttempted || !setupSecureStorageRecoveryAvailableNow(err) {
+		return err
+	}
+
+	result, recoveryErr := runSetupSecureStorageRecoveryFlow(reader, out, err, recovery, setupSecureStorageRecoverySaveRetryAttempt)
+	if recoveryErr != nil {
+		if recoveryErr == errSetupExit || recoveryErr == errSetupBack {
+			return relayAuthTokenSetupSaveError(err)
+		}
+		return recoveryErr
+	}
+	if result != setupSecureStorageRecoveryRecovered {
+		return relayAuthTokenSetupSaveError(err)
+	}
+
+	return persistInteractiveSetupState(paths, cfg, state, previousToken, hadPreviousToken, token)
 }

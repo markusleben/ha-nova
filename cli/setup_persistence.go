@@ -19,7 +19,7 @@ func persistInteractiveSetupState(paths runtimePaths, cfg runtimeConfig, state *
 	tokenChanged := token != previousToken
 	if tokenChanged {
 		if err := writeRelayAuthTokenForSetupPersistence(token); err != nil {
-			return fmt.Errorf("cannot save relay token: %s", err)
+			return relayAuthTokenSetupSaveError(err)
 		}
 	}
 	if err := saveConfigForSetupPersistence(paths, cfg); err != nil {

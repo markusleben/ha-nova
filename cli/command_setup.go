@@ -79,12 +79,23 @@ func runSetup(paths runtimePaths, args []string) int {
 		cfg.RelayBaseURL = "http://" + cfg.HAHost + ":8791"
 	}
 
+	tokenStoragePreflightErr := relayAuthTokenSetupPreflightForSetup()
 	token := strings.TrimSpace(*relayToken)
 	if token == "" {
+		if tokenStoragePreflightErr != nil {
+			printHumanErr("%s", relayAuthTokenProblemMessage(tokenStoragePreflightErr))
+			if hint := setupSecureStorageRecoveryHint(tokenStoragePreflightErr); hint != "" {
+				printHumanWarn("%s", hint)
+			}
+			return 1
+		}
 		if existing, err := readRelayAuthToken(); err == nil {
 			token = existing
 		} else if !isMissingRelayAuthTokenError(err) {
 			printHumanErr("%s", relayAuthTokenProblemMessage(err))
+			if hint := setupSecureStorageRecoveryHint(err); hint != "" {
+				printHumanWarn("%s", hint)
+			}
 			return 1
 		}
 	}
@@ -101,6 +112,13 @@ func runSetup(paths runtimePaths, args []string) int {
 		return 1
 	}
 
+	if tokenStoragePreflightErr != nil {
+		printHumanErr("%s", relayAuthTokenSetupSaveError(tokenStoragePreflightErr))
+		if hint := setupSecureStorageRecoveryHint(tokenStoragePreflightErr); hint != "" {
+			printHumanWarn("%s", hint)
+		}
+		return 1
+	}
 	previousToken, tokenErr := readRelayAuthToken()
 	hadPreviousToken := tokenErr == nil && strings.TrimSpace(previousToken) != ""
 	tokenChanged := !hadPreviousToken || previousToken != token
@@ -116,8 +134,18 @@ func runSetup(paths runtimePaths, args []string) int {
 		return 1
 	}
 	if tokenChanged {
+		if err := relayAuthTokenSetupPreflightForSetup(); err != nil {
+			printHumanErr("%s", relayAuthTokenSetupSaveError(err))
+			if hint := setupSecureStorageRecoveryHint(err); hint != "" {
+				printHumanWarn("%s", hint)
+			}
+			return 1
+		}
 		if err := writeRelayAuthTokenForSetup(token); err != nil {
-			printHumanErr("cannot save relay token: %s", err)
+			printHumanErr("%s", relayAuthTokenSetupSaveError(err))
+			if hint := setupSecureStorageRecoveryHint(err); hint != "" {
+				printHumanWarn("%s", hint)
+			}
 			return 1
 		}
 	}

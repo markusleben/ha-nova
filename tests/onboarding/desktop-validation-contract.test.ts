@@ -10,6 +10,7 @@ describe("desktop validation helpers contract", () => {
   const macosSmoke = readFileSync("scripts/dev/macos-private-rc-smoke.sh", "utf8");
   const macosSetupAll = readFileSync("scripts/dev/macos-private-rc-setup-all.sh", "utf8");
   const macosClient = readFileSync("scripts/dev/macos-private-rc-client.sh", "utf8");
+  const linuxHeadless = readFileSync("scripts/smoke/linux-headless-setup-check.sh", "utf8");
   const validationCommon = readFileSync("scripts/dev/lib/validation-common.sh", "utf8");
   const mockServer = readFileSync("scripts/dev/mock-ha-relay.py", "utf8");
   const windowsCleanup = readFileSync("scripts/dev/windows-clean-test-state.ps1", "utf8");
@@ -24,6 +25,7 @@ describe("desktop validation helpers contract", () => {
       "scripts/dev/macos-private-rc-setup-all.sh",
       "scripts/dev/macos-private-rc-client.sh",
       "scripts/dev/start-local-validation-harness.sh",
+      "scripts/smoke/linux-headless-setup-check.sh",
     ]) {
       const stats = statSync(path);
       expect((stats.mode & constants.S_IXUSR) !== 0).toBe(true);
@@ -67,6 +69,21 @@ describe("desktop validation helpers contract", () => {
     expect(releasing).toContain("file-based test keyring override");
     expect(releasing).toContain("Windows Credential Manager interop stays covered");
     expect(releasing).toContain("open a new shell and run `ha-nova doctor`");
+    expect(releasing).toContain("Linux real-machine onboarding");
+    expect(releasing).toContain("scripts/smoke/linux-headless-setup-check.sh");
+    expect(releasing).toContain("same logged-in user session");
+    expect(releasing).toContain("explicit provider prerequisite message instead of raw `org.freedesktop.secrets` D-Bus text");
+    expect(releasing).toContain("local Linux keyring password");
+  });
+
+  it("keeps the Linux headless helper explicit and privacy-safe", () => {
+    expect(linuxHeadless).toContain("HA_NOVA_LIVE_SSH_HOST");
+    expect(linuxHeadless).toContain("HA_NOVA_LIVE_INSTALL_CMD");
+    expect(linuxHeadless).toContain("DBUS_SESSION_BUS_ADDRESS");
+    expect(linuxHeadless).toContain("org.freedesktop.Secret.Service.ReadAlias default");
+    expect(linuxHeadless).toContain("HA_NOVA_NO_BROWSER=1 ha-nova setup");
+    expect(linuxHeadless).toContain("store hostnames, tokens, or passwords");
+    expect(linuxHeadless).toContain("same logged-in desktop");
   });
 
   it("ships a single local validation harness entrypoint", () => {

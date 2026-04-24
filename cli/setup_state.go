@@ -38,13 +38,17 @@ func (s setupState) SkipSummary() string {
 }
 
 func detectSetupState(paths runtimePaths, cfg runtimeConfig, state installState, target string) setupState {
+	token, err := readRelayAuthToken()
+	return detectSetupStateWithToken(paths, cfg, state, target, token, err == nil && strings.TrimSpace(token) != "")
+}
+
+func detectSetupStateWithToken(paths runtimePaths, cfg runtimeConfig, state installState, target, token string, tokenOK bool) setupState {
 	current := setupState{
 		ConfigOK: cfg.HAHost != "" && cfg.HAURL != "" && cfg.RelayBaseURL != "",
 		SkillsOK: clientsAppearInstalled(paths, target, state),
 	}
 
-	token, err := readRelayAuthToken()
-	if err == nil && strings.TrimSpace(token) != "" {
+	if tokenOK && strings.TrimSpace(token) != "" {
 		current.TokenOK = true
 	}
 	if !current.ConfigOK || !current.TokenOK {
