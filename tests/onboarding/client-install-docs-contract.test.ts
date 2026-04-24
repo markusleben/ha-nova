@@ -21,6 +21,7 @@ describe("client install docs contract", () => {
   const geminiInstall = readFileSync(".gemini/INSTALL.md", "utf8");
   const opencodeInstall = readFileSync(".opencode/INSTALL.md", "utf8");
   const hermesInstall = readFileSync(".hermes/INSTALL.md", "utf8");
+  const hermesReleaseGate = readFileSync("docs/work/2026-04-24-hermes-release-claim-gating.md", "utf8");
 
   it("keeps the README at product level, not client-migration level", () => {
     expect(readme).not.toContain("claude install");
@@ -31,8 +32,8 @@ describe("client install docs contract", () => {
     expect(readme).toContain("https://github.com/markusleben/ha-nova/releases/latest");
     expect(readme).toContain("Git for Windows / Git Bash");
     expect(readme).toContain("Gemini CLI needs Node.js");
-    expect(readme).toContain("Hermes Agent is supported through WSL2, not native Windows");
-    expect(readme).toContain("docs/reference/hermes-platform-validation.md");
+    expect(readme).not.toContain("Hermes Agent");
+    expect(readme).not.toContain("docs/reference/hermes-platform-validation.md");
     expect(readme).not.toContain("raw.githubusercontent.com/markusleben/ha-nova/main/install.sh");
     expect(readme).not.toContain("raw.githubusercontent.com/markusleben/ha-nova/main/install.ps1");
   });
@@ -100,6 +101,7 @@ describe("client install docs contract", () => {
     expect(opencodeInstall).toContain("still early and not fully tested yet");
 
     expect(hermesInstall).toContain("Hermes Agent");
+    expect(hermesInstall).toContain("not part of the current stable release");
     expect(hermesInstall).toContain("ha-nova setup hermes");
     expect(hermesInstall).toContain("ha-nova check-update");
     expect(hermesInstall).toContain("What Supported Means Here");
@@ -134,5 +136,13 @@ describe("client install docs contract", () => {
     expect(readme).toContain("Gemini CLI has basic validation");
     expect(geminiInstall).toContain("Gemini has basic Windows validation for this release.");
     expect(claudeInstall).toContain("Claude is the Windows path we have tested most for this release.");
+  });
+
+  it("keeps Hermes in the release train without promoting the public README claim early", () => {
+    expect(hermesReleaseGate).toContain("Status: active");
+    expect(hermesReleaseGate).toContain("Keep public `README.md` release-conservative until the final release PR.");
+    expect(hermesReleaseGate).toContain("restore the public Hermes claim in `README.md`, if release proof is complete");
+    expect(hermesInstall).toContain("not part of the current stable release until the final release PR");
+    expect(readme).not.toContain("Hermes Agent");
   });
 });

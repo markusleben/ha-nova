@@ -2,6 +2,8 @@
 
 This page only covers Hermes-specific deltas.
 
+> **Release status:** Hermes support is implemented for the next HA NOVA release train, but it is not part of the current stable release until the final release PR, tag, and artifacts publish it. Until then, `README.md` remains the stable public product truth.
+
 For the stable installer, lifecycle commands, and general troubleshooting, use [README.md](../README.md) and the [latest GitHub release](https://github.com/markusleben/ha-nova/releases/latest).
 
 ## Setup Choice
