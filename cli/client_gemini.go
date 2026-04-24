@@ -26,7 +26,7 @@ func installGeminiClient(home, sourceRoot string) error {
 		return err
 	}
 
-	subSkills, err := geminiSourceSubSkills(sourceRoot)
+	subSkills, err := sourceSubSkills(sourceRoot)
 	if err != nil {
 		return err
 	}
@@ -46,7 +46,7 @@ func installGeminiClient(home, sourceRoot string) error {
 	return nil
 }
 
-func geminiSourceSubSkills(sourceRoot string) ([]string, error) {
+func sourceSubSkills(sourceRoot string) ([]string, error) {
 	entries, err := os.ReadDir(filepath.Join(sourceRoot, "skills"))
 	if err != nil {
 		if os.IsNotExist(err) {

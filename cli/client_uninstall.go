@@ -14,8 +14,11 @@ func removeInstalledClients(paths runtimePaths, state installState) error {
 
 func removeInstalledClientsWithReport(paths runtimePaths, state installState, report *uninstallReport) error {
 	clients := append([]string{}, state.InstalledClients...)
+	if hermesBundlePresent(paths.Home) || hermesLegacyBundlePresent(paths.Home) {
+		clients = normalizeClients(append(clients, "hermes"))
+	}
 	if len(clients) == 0 {
-		clients = []string{"claude", "codex", "opencode", "gemini"}
+		clients = []string{"claude", "codex", "opencode", "gemini", "hermes"}
 	}
 	sort.Strings(clients)
 	for _, client := range clients {
@@ -85,6 +88,10 @@ func removeInstalledClientsWithReport(paths runtimePaths, state installState, re
 			}
 		case "gemini":
 			if err := removeSkillEntriesWithReport(filepath.Join(paths.Home, ".gemini", "skills"), report); err != nil {
+				return err
+			}
+		case "hermes":
+			if err := removeSkillEntriesWithReport(filepath.Join(paths.Home, ".hermes", "skills"), report); err != nil {
 				return err
 			}
 		}

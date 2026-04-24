@@ -8,6 +8,7 @@ Usage:
   bash scripts/onboarding/install-local-skills.sh claude
   bash scripts/onboarding/install-local-skills.sh opencode
   bash scripts/onboarding/install-local-skills.sh gemini
+  bash scripts/onboarding/install-local-skills.sh hermes
   bash scripts/onboarding/install-local-skills.sh all
 
 Targets:
@@ -15,7 +16,8 @@ Targets:
   claude   -> stage local Claude marketplace + install ha-nova@ha-nova
   opencode -> link/copy ~/.config/opencode/skills/ha-nova -> repo skills
   gemini   -> flat copy ~/.gemini/skills/ha-nova-*/SKILL.md (+ local companion .md files)
-  all      -> install for codex + claude + opencode + gemini
+  hermes   -> namespaced copy ~/.hermes/skills/ha-nova/ha-nova-*
+  all      -> install for codex + claude + opencode + gemini + hermes (non-Windows)
 USAGE
 }
 
@@ -106,6 +108,95 @@ copy_flat_skill_markdown() {
   done
 }
 
+hermes_installed_skill_name() {
+  local skill_name="$1"
+  if [[ -z "${skill_name}" || "${skill_name}" == "ha-nova" ]]; then
+    printf 'ha-nova'
+    return
+  fi
+  printf 'ha-nova-%s' "${skill_name}"
+}
+
+rewrite_hermes_markdown() {
+  local skill_name="$1"
+  local source_dir="$2"
+  local src="$3"
+  local dest="$4"
+  local content
+  local installed_skill_name
+
+  installed_skill_name="$(hermes_installed_skill_name "${skill_name}")"
+  content="$(cat "${src}")"
+
+  for companion in "${source_dir}"/*.md; do
+    local companion_name
+    companion_name="$(basename "${companion}")"
+    [[ "${companion_name}" == "SKILL.md" ]] && continue
+    local same_skill_ref same_skill_local
+    printf -v same_skill_ref '`skills/%s/%s`' "${skill_name}" "${companion_name}"
+    printf -v same_skill_local '`%s`' "${companion_name}"
+    content="${content//${same_skill_ref}/${same_skill_local}}"
+  done
+
+  content="$(
+    printf '%s' "${content}" | HA_NOVA_ROOT="${REPO_ROOT}" perl -0pe '
+      s{`docs/reference/([^`]+)`}{sprintf("`%s/docs/reference/%s`", $ENV{HA_NOVA_ROOT}, $1)}ge;
+      s{`skills/([^`]+)`}{sprintf("`%s/skills/%s`", $ENV{HA_NOVA_ROOT}, $1)}ge;
+    '
+  )"
+
+  for sub_skill in "${GEMINI_SUB_SKILLS[@]}"; do
+    content="${content//ha-nova:${sub_skill}/ha-nova-${sub_skill}}"
+  done
+
+  if [[ "${skill_name}" != "ha-nova" ]]; then
+    content="$(
+      printf '%s' "${content}" | SKILL_NAME="${skill_name}" INSTALLED_SKILL_NAME="${installed_skill_name}" perl -0pe '
+        s/^name:\s*\Q$ENV{SKILL_NAME}\E$/name: $ENV{INSTALLED_SKILL_NAME}/m;
+      '
+    )"
+  fi
+
+  printf '%s' "${content}" > "${dest}"
+}
+
+copy_hermes_skill_markdown() {
+  local skill_name="$1"
+  local source_dir="${SOURCE_SKILLS_DIR}/${skill_name}"
+  local dest_dir="$2"
+
+  mkdir -p "${dest_dir}"
+  find "${dest_dir}" -maxdepth 1 -type f -name '*.md' -exec rm -f {} +
+
+  if [[ -f "${source_dir}/SKILL.md" ]]; then
+    rewrite_hermes_markdown "${skill_name}" "${source_dir}" "${source_dir}/SKILL.md" "${dest_dir}/SKILL.md"
+  fi
+
+  for companion in "${source_dir}"/*.md; do
+    local companion_name
+    companion_name="$(basename "${companion}")"
+    [[ "${companion_name}" == "SKILL.md" ]] && continue
+    rewrite_hermes_markdown "${skill_name}" "${source_dir}" "${companion}" "${dest_dir}/${companion_name}"
+  done
+}
+
+install_hermes_tree() {
+  local target_root="${HOME}/.hermes/skills/ha-nova"
+
+  [[ "${CURRENT_PLATFORM_ID}" == "windows" ]] && die "[hermes] Hermes Agent is supported through WSL2, not native Windows"
+  command -v hermes >/dev/null 2>&1 || die "[hermes] Hermes Agent not found in PATH"
+
+  rm -rf "${target_root}"
+  mkdir -p "${target_root}"
+
+  copy_hermes_skill_markdown "ha-nova" "${target_root}/ha-nova"
+  for skill_name in "${GEMINI_SUB_SKILLS[@]}"; do
+    copy_hermes_skill_markdown "${skill_name}" "${target_root}/$(hermes_installed_skill_name "${skill_name}")"
+  done
+
+  log "[hermes] Copied namespaced skill tree: ${target_root}"
+}
+
 install_symlink_tree() {
   local target="$1"
   local user_skills_dir="$2"
@@ -176,6 +267,9 @@ install_target() {
     gemini)
       install_gemini_flat
       ;;
+    hermes)
+      install_hermes_tree
+      ;;
     *)
       die "Unsupported target: ${target}"
       ;;
@@ -195,7 +289,7 @@ main() {
   fi
 
   case "${target}" in
-    codex|claude|opencode|gemini)
+    codex|claude|opencode|gemini|hermes)
       install_target "${target}"
       ;;
     all)
@@ -203,6 +297,9 @@ main() {
       install_target "gemini"
       install_target "claude"
       install_target "opencode"
+      if [[ "${CURRENT_PLATFORM_ID}" != "windows" ]]; then
+        install_target "hermes"
+      fi
       ;;
     -h|--help|help)
       usage

@@ -146,6 +146,54 @@ describe("S-4: client-specific skill installation", () => {
     }
   });
 
+  it("installs hermes skills with directory names aligned to their namespaced skill IDs", () => {
+    const { home, result } = installSkills("hermes");
+    expect(result.status).toBe(0);
+
+    const hermesRoot = join(home, ".hermes/skills/ha-nova");
+    const context = readFileSync(join(hermesRoot, "ha-nova", "SKILL.md"), "utf8");
+    expect(context).toContain("name: ha-nova");
+    expect(context).toContain("ha-nova-entity-discovery");
+
+    for (const src of SOURCE_SUB_SKILLS) {
+      const installedName = `ha-nova-${src}`;
+      const content = readFileSync(join(hermesRoot, installedName, "SKILL.md"), "utf8");
+      expect(content).toContain(`name: ha-nova-${src}`);
+      expectRepoRefsRewritten(content);
+    }
+
+    const checks = readFileSync(join(hermesRoot, "ha-nova-review", "checks.md"), "utf8");
+    expect(checks).toContain("Canonical path: `checks.md`");
+    expect(checks).not.toContain("skills/review/checks.md");
+    expect(existsSync(join(hermesRoot, "review"))).toBe(false);
+  });
+
+  it("fails loudly for hermes on native Windows", () => {
+    const { result } = installSkills("hermes", { HA_NOVA_PLATFORM_OVERRIDE: "windows" });
+    expect(result.status).not.toBe(0);
+    expect(String(result.stderr) + String(result.stdout)).toContain("Hermes Agent is supported through WSL2, not native Windows");
+  });
+
+  it("fails loudly when Hermes Agent is missing from PATH", () => {
+    const home = mkdtempSync(join(tmpdir(), "ha-nova-skill-hermes-missing-"));
+    const result = spawnSync(
+      "bash",
+      ["scripts/onboarding/install-local-skills.sh", "hermes"],
+      {
+        cwd: REPO_ROOT,
+        encoding: "utf8",
+        timeout: 20000,
+        env: {
+          ...mockEnv(home, "", {}),
+          PATH: "/usr/bin:/bin",
+        },
+      },
+    );
+
+    expect(result.status).not.toBe(0);
+    expect(result.stderr + result.stdout).toContain("Hermes Agent not found in PATH");
+  });
+
   it("installs claude skills via plugin system", () => {
     const { home, result } = installSkills("claude");
     expect(result.status).toBe(0);
@@ -467,6 +515,10 @@ describe("S-5: multi-client 'all' installation", () => {
 
     expect(() =>
       statSync(join(home, ".gemini/skills", "ha-nova-review", "checks.md")),
+    ).not.toThrow();
+
+    expect(() =>
+      statSync(join(home, ".hermes/skills/ha-nova/ha-nova/SKILL.md")),
     ).not.toThrow();
   });
 

@@ -235,6 +235,8 @@ func setupClientLabel(client string) string {
 		return "OpenCode"
 	case "gemini":
 		return "Gemini CLI"
+	case "hermes":
+		return "Hermes Agent"
 	case "all":
 		return "your available AI assistants"
 	default:

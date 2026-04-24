@@ -177,7 +177,7 @@ macOS self-managed lifecycle:
 Linux real-machine onboarding:
 Helper:
 - use `scripts/smoke/linux-headless-setup-check.sh` as the executable assistant for the SSH/headless Linux lane; pass the host and install command via env, never hardcode host-specific details in the repo
-- by default the helper runs `HA_NOVA_NO_BROWSER=1 ha-nova setup`
+- by default the helper runs `HA_NOVA_NO_BROWSER=1 ha-nova setup`; for Hermes-specific proof, set `HA_NOVA_LIVE_SETUP_CMD='HA_NOVA_NO_BROWSER=1 ha-nova setup hermes'`
 - `HA_NOVA_LIVE_SKIP_INSTALL=1` is for repair/debug passes only; it does not satisfy the full release-bound fresh-install proof for this lane
 1. use a real Linux host with a desktop user session; when validating the SSH/headless recovery path, use an SSH shell inside that same logged-in user session
 2. fresh stable install via the public `install.sh` flow
@@ -188,7 +188,10 @@ Helper:
 7. confirm a wrong local keyring password keeps the user on the locked recovery step with a clear local secure-storage error, and confirm a correct password unlocks the keyring and resumes setup
 8. confirm the fresh-init recovery path can create the default GNOME Keyring collection over SSH and then resumes setup without sending the user to a desktop GUI
 9. finish setup, then run `ha-nova doctor`
-10. confirm the relay token is saved and can be reused by a second `ha-nova setup` / `ha-nova doctor` invocation without repeating recovery
+10. if the lane includes Hermes or a pre-fix Hermes bundle, confirm `ha-nova doctor` reports a repairable Hermes mismatch instead of silently hiding it
+11. run `ha-nova setup hermes` and confirm the Hermes route repairs cleanly
+12. re-run `ha-nova doctor` and confirm it reports `Hermes Agent ready now`
+13. confirm the relay token is saved and can be reused by a second `ha-nova setup` / `ha-nova doctor` invocation without repeating recovery
 
 Windows self-managed:
 1. on fresh-profile runs, preinstall at least one supported client and verify it already runs on that exact machine/session

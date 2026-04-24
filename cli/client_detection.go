@@ -15,6 +15,12 @@ func detectInstalledClients(paths runtimePaths) ([]string, error) {
 			}
 			continue
 		}
+		if entry.ID == "hermes" {
+			if status.RuntimeDetected && (status.Attached || hermesLegacyBundlePresent(paths.Home)) {
+				clients = append(clients, entry.ID)
+			}
+			continue
+		}
 		if status.Attached && status.RuntimeDetected {
 			clients = append(clients, entry.ID)
 		}

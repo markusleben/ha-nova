@@ -45,3 +45,4 @@ After setup, HA NOVA commands like `ha-nova:read`, `ha-nova:write`, and `ha-nova
 - Claude Code: `.claude/INSTALL.md`
 - Codex: `.codex/INSTALL.md`
 - OpenCode: `.opencode/INSTALL.md`
+- Hermes Agent: `.hermes/INSTALL.md`

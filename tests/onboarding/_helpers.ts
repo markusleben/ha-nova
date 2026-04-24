@@ -34,7 +34,7 @@ export interface MockHomeOpts {
   /** Create a fake keychain token file (since we mock `security`) */
   keychainToken?: string;
   /** Pre-install skills for this client */
-  skills?: "codex" | "gemini" | "opencode" | "claude" | "all";
+  skills?: "codex" | "gemini" | "opencode" | "claude" | "hermes" | "all";
 }
 
 /**
@@ -226,6 +226,8 @@ exit 0
 `,
     { mode: 0o755 },
   );
+
+  writeFileSync(join(binDir, "hermes"), "#!/usr/bin/env bash\nexit 0\n", { mode: 0o755 });
 
   return binDir;
 }

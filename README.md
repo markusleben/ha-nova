@@ -12,7 +12,11 @@
 </p>
 
 <p align="center">
-  Works with <b>Claude Code</b> · <b>Claude Desktop</b> · <b>Codex CLI</b> · <b>OpenCode</b> · <b>Gemini CLI</b>
+  Works with <b>Claude Code</b> · <b>Claude Desktop</b> · <b>Codex CLI</b> · <b>OpenCode</b> · <b>Gemini CLI</b> · <b>Hermes Agent*</b>
+</p>
+
+<p align="center">
+  <sub>* Hermes follows the native macOS/Linux path and uses WSL2 on Windows. Current proof status: <a href="docs/reference/hermes-platform-validation.md">validation matrix</a>.</sub>
 </p>
 
 <p align="center">
@@ -94,8 +98,10 @@ Once it finishes, try: *"Show me all my automations."*
 - Claude Code is the most tested client on Windows today
 - Gemini CLI has basic validation
 - Codex and OpenCode are still early
+- Hermes Agent is supported through WSL2, not native Windows
+- If you use Hermes on Windows, open your WSL shell and run the Linux/WSL HA NOVA install plus `ha-nova setup hermes` there, not from native PowerShell
 - Native prerequisites: Claude Code needs Git for Windows / Git Bash; Gemini CLI needs Node.js
-- See [.claude/INSTALL.md](.claude/INSTALL.md) and [.gemini/INSTALL.md](.gemini/INSTALL.md)
+- See [.claude/INSTALL.md](.claude/INSTALL.md), [.gemini/INSTALL.md](.gemini/INSTALL.md), and [.hermes/INSTALL.md](.hermes/INSTALL.md)
 
 > Do not download the `ha-nova-installer-bundle-*.tar.gz` / `.zip` assets manually. Those archives are used by the installer behind the scenes. Always use the one-liner or `ha-nova update`.
 
@@ -185,6 +191,7 @@ Want to add a new capability? → [CONTRIBUTING.md](CONTRIBUTING.md)
 | [Codex CLI](https://github.com/openai/codex) | Terminal |
 | [OpenCode](https://github.com/opencode-ai/opencode) | Terminal |
 | [Gemini CLI](https://github.com/google-gemini/gemini-cli) | Terminal |
+| [Hermes Agent](https://github.com/NousResearch/hermes-agent) | Terminal (native macOS/Linux, WSL2 on Windows) |
 
 ---
 
