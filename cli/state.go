@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -26,8 +27,38 @@ func loadState(paths runtimePaths) (installState, error) {
 
 	var state installState
 	if err := json.Unmarshal(data, &state); err != nil {
+		return installState{}, fmt.Errorf("HA NOVA state file is corrupt: %s. Move or remove %s, then rerun setup if needed", err, paths.StateFile)
+	}
+	return normalizeState(state), nil
+}
+
+func loadStateOrDefault(paths runtimePaths) installState {
+	state, err := loadStateOrDefaultChecked(paths)
+	if err != nil {
+		return defaultInstallState()
+	}
+	return state
+}
+
+func loadStateOrDefaultChecked(paths runtimePaths) (installState, error) {
+	state, err := loadState(paths)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return defaultInstallState(), nil
+		}
 		return installState{}, err
 	}
+	return state, nil
+}
+
+func defaultInstallState() installState {
+	return installState{
+		SchemaVersion:      stateSchemaVersion,
+		ClientInstallModes: map[string]string{},
+	}
+}
+
+func normalizeState(state installState) installState {
 	if state.SchemaVersion == 0 {
 		state.SchemaVersion = stateSchemaVersion
 	}
@@ -36,17 +67,6 @@ func loadState(paths runtimePaths) (installState, error) {
 	}
 	state.InstallSource = normalizeInstallSource(state.InstallSource)
 	sort.Strings(state.InstalledClients)
-	return state, nil
-}
-
-func loadStateOrDefault(paths runtimePaths) installState {
-	state, err := loadState(paths)
-	if err != nil {
-		return installState{
-			SchemaVersion:      stateSchemaVersion,
-			ClientInstallModes: map[string]string{},
-		}
-	}
 	return state
 }
 

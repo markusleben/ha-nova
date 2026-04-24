@@ -26,7 +26,11 @@ func runSetup(paths runtimePaths, args []string) int {
 	}
 
 	cfg, _ := loadConfig(paths)
-	state := loadStateOrDefault(paths)
+	state, err := loadStateOrDefaultChecked(paths)
+	if err != nil {
+		printHumanErr("%s", err)
+		return 1
+	}
 
 	if !*nonInteractive {
 		return interactiveSetup(paths, cfg, state, target, *host, *haURL, *relayURL, *relayToken)
@@ -35,7 +39,7 @@ func runSetup(paths runtimePaths, args []string) int {
 	if target == "" {
 		target = "all"
 	}
-	selectedClients, skippedClients, err := resolveSetupClients(paths, target)
+	selectedClients, skippedClients, err := resolveSetupClientsWithState(paths, target, state)
 	if err != nil {
 		printHumanErr("%s", err)
 		return 1

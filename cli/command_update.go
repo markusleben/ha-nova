@@ -25,7 +25,11 @@ func runUpdate(paths runtimePaths, args []string) int {
 		printHumanErr("%s", err)
 		return 1
 	}
-	state := loadStateOrDefault(paths)
+	state, err := loadStateOrDefaultChecked(paths)
+	if err != nil {
+		printHumanErr("%s", err)
+		return 1
+	}
 	source := detectInstallSource(paths, state)
 	if source == installSourceLegacyWindowsPackage {
 		printHumanErr("Legacy private/test Windows package installs are no longer supported for in-place update.")
@@ -79,6 +83,7 @@ func runUpdate(paths runtimePaths, args []string) int {
 		printHumanInfo("Update staged. Restart your shell/client after the updater finishes.")
 		return 0
 	}
+	defer cleanupStagedBundle(stageRoot)
 
 	rollbackInstall, commitInstall, err := applyStagedBundleWithRollback(paths, stageRoot)
 	if err != nil {
@@ -119,6 +124,7 @@ func runInternalReplace(paths runtimePaths, args []string) int {
 		printHumanErr("missing --stage-root")
 		return 1
 	}
+	defer cleanupStagedBundle(*stageRoot)
 	waitForParentReleaseForReplace(*parentPID)
 	rollbackInstall, commitInstall, err := applyStagedBundleWithRollbackForReplace(paths, *stageRoot)
 	if err != nil {

@@ -1,15 +1,20 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 
 import { authorizeRequest } from "../security/auth.js";
-import { invalidJson, toErrorResponse } from "./errors.js";
+import { invalidJson, payloadTooLarge, toErrorResponse } from "./errors.js";
 import type { Router } from "./router.js";
+
+export const DEFAULT_MAX_JSON_BODY_BYTES = 1_048_576;
 
 export interface HttpServerOptions {
   authToken: string;
   router: Router;
+  maxJsonBodyBytes?: number;
 }
 
 export function createHttpServer(options: HttpServerOptions): Server {
+  const maxJsonBodyBytes = options.maxJsonBodyBytes ?? DEFAULT_MAX_JSON_BODY_BYTES;
+
   return createServer(async (request, response) => {
     try {
       const authResult = authorizeRequest(request.headers.authorization, options.authToken);
@@ -26,7 +31,7 @@ export function createHttpServer(options: HttpServerOptions): Server {
 
       const method = request.method?.toUpperCase() ?? "GET";
       const path = toPathname(request.url);
-      const body = await parseJsonBody(request);
+      const body = await parseJsonBody(request, maxJsonBodyBytes);
       const data = await options.router.dispatch(method, path, {
         request,
         path,
@@ -52,13 +57,13 @@ function toPathname(urlValue: string | undefined): string {
   return new URL(urlValue, "http://localhost").pathname;
 }
 
-async function parseJsonBody(request: IncomingMessage): Promise<unknown> {
+async function parseJsonBody(request: IncomingMessage, maxBytes: number): Promise<unknown> {
   const method = request.method?.toUpperCase() ?? "GET";
   if (method === "GET" || method === "HEAD") {
     return null;
   }
 
-  const rawBody = await readBody(request);
+  const rawBody = await readBody(request, maxBytes);
   if (!rawBody) {
     return null;
   }
@@ -70,11 +75,17 @@ async function parseJsonBody(request: IncomingMessage): Promise<unknown> {
   }
 }
 
-async function readBody(request: IncomingMessage): Promise<string> {
+async function readBody(request: IncomingMessage, maxBytes: number): Promise<string> {
   const chunks: Buffer[] = [];
+  let totalBytes = 0;
 
   for await (const chunk of request) {
-    chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
+    const buffer = typeof chunk === "string" ? Buffer.from(chunk) : chunk;
+    totalBytes += buffer.byteLength;
+    if (totalBytes > maxBytes) {
+      throw payloadTooLarge(maxBytes);
+    }
+    chunks.push(buffer);
   }
 
   return Buffer.concat(chunks).toString("utf8");

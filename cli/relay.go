@@ -23,13 +23,14 @@ var httpClient = &http.Client{
 }
 
 type relayRequestOptions struct {
-	InlineJSON string
-	JSONFile   string
-	JQFilter   string
-	JQFile     string
-	OutputFile string
-	Method     string
-	Path       string
+	InlineJSON   string
+	JSONFile     string
+	JQFilter     string
+	JQFile       string
+	OutputFile   string
+	Method       string
+	Path         string
+	StrictStatus bool
 }
 
 func runRelayCommand(paths runtimePaths, args []string) int {
@@ -72,6 +73,7 @@ func parseRelayFlags(command string, args []string) (relayRequestOptions, error)
 		fs.StringVar(&opts.InlineJSON, "body", "", "inline JSON body")
 		fs.StringVar(&opts.InlineJSON, "d", "", "inline JSON body")
 		fs.StringVar(&opts.JSONFile, "body-file", "", "path to JSON body file")
+		fs.BoolVar(&opts.StrictStatus, "strict-status", false, "exit nonzero for any upstream HTTP error status")
 	default:
 		return opts, fmt.Errorf("unsupported relay command: %s", command)
 	}
@@ -193,6 +195,10 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 		printErr("%s", err)
 		return 1
 	}
+	upstreamExitStatus := 0
+	if endpoint == "core" {
+		upstreamExitStatus = relayCoreUpstreamExitStatus(bodyBytes, opts.StrictStatus)
+	}
 
 	jqFilter, err := loadJQFilter(opts)
 	if err != nil {
@@ -225,6 +231,28 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 	}
 
 	if resp.StatusCode >= 400 {
+		return 1
+	}
+	if upstreamExitStatus != 0 {
+		return upstreamExitStatus
+	}
+	return 0
+}
+
+func relayCoreUpstreamExitStatus(body []byte, strict bool) int {
+	var envelope struct {
+		OK   bool `json:"ok"`
+		Data struct {
+			Status int `json:"status"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(body, &envelope); err != nil || !envelope.OK {
+		return 0
+	}
+	if envelope.Data.Status >= 500 {
+		return 1
+	}
+	if strict && envelope.Data.Status >= 400 {
 		return 1
 	}
 	return 0
