@@ -2,7 +2,7 @@
 
 This page only covers Hermes-specific deltas.
 
-> **Release status:** Hermes support is implemented for the next HA NOVA release train, but it is not part of the current stable release until the final release PR, tag, and artifacts publish it. Until then, `README.md` remains the stable public product truth.
+> **Release status:** Hermes is planned for the next HA NOVA release. It is not included in the current stable release yet. Until the final release is published, `README.md` remains the stable product page.
 
 For the stable installer, lifecycle commands, and general troubleshooting, use [README.md](../README.md) and the [latest GitHub release](https://github.com/markusleben/ha-nova/releases/latest).
 
@@ -21,15 +21,15 @@ Support status:
 
 Evidence status:
 - `Maintainer-validated` means the maintainer ran that exact path on a real machine recently.
-- `Community validation` is welcome and useful, but it is advisory only and does not replace maintainer release proof.
+- Community test reports are welcome and useful, but they are advisory only and do not replace maintainer release proof.
 - `Planned / not yet validated` means the path is part of the intended support model, but the current release cycle does not claim a fresh maintainer proof yet.
 
 ## Platform Routing
 
-Current support/evidence truth lives in [docs/reference/hermes-platform-validation.md](../docs/reference/hermes-platform-validation.md).
+Current support and test status lives in [docs/reference/hermes-platform-validation.md](../docs/reference/hermes-platform-validation.md).
 
-- macOS native Hermes follows the native macOS path.
-- Linux native Hermes is the current focus for inline secure-storage recovery; GNOME Keyring is the actively maintainer-validated path.
+- On macOS, use the native Hermes app/CLI path.
+- On Linux, GNOME Keyring is the path we actively test for inline secure-storage recovery.
 - Linux non-GNOME Secret Service backends stay supported only when secure local storage already works; inline recovery is not claimed there yet.
 - Windows native Hermes is not supported. Use WSL2 instead.
 - Windows + WSL2 Hermes must run entirely inside the same WSL shell where `hermes --help` already works.
@@ -58,7 +58,7 @@ Current support/evidence truth lives in [docs/reference/hermes-platform-validati
 - Connect or repair with `ha-nova setup hermes`.
 - `ha-nova setup hermes` also repairs older Hermes installs whose bare sub-skill directory names could make `skills_list` and `skill_view` disagree.
 - On Windows with WSL2, run update and repair commands from the same WSL shell where Hermes is installed.
-- Validate the current route and proof status in [docs/reference/hermes-platform-validation.md](../docs/reference/hermes-platform-validation.md).
+- Check the current route and test status in [docs/reference/hermes-platform-validation.md](../docs/reference/hermes-platform-validation.md).
 - Validate the install with `ha-nova doctor`.
 - Hermes does not surface HA NOVA update notices automatically yet. Use `ha-nova check-update` or `ha-nova doctor` when you want to check manually.
 
@@ -75,8 +75,8 @@ After setup, HA NOVA skills are available inside Hermes with the HA NOVA namespa
 
 ## Community Validation
 
-- If you validate Hermes on another macOS build, Linux distro, desktop session, or Secret Service backend, open the Hermes platform validation issue template and redact all tokens and secrets.
-- Community validation helps us expand the matrix faster, but maintainer-validated rows stay the release signoff source of truth.
+- If you test Hermes on another macOS build, Linux distro, desktop session, or Secret Service backend, open the Hermes platform validation issue template and redact all tokens and secrets.
+- Community reports help us expand platform coverage faster, but maintainer-run tests stay the release signoff source of truth.
 
 ## Related
 

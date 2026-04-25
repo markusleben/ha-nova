@@ -1,8 +1,8 @@
-# Hermes Platform Validation
+# Hermes Platform Test Status
 
-This is the active truth source for Hermes support evidence in HA NOVA.
+This page tracks which Hermes paths HA NOVA intends to support and which ones have been tested on real machines.
 
-> **Release status:** This matrix tracks the next release train. Hermes support is not part of the current stable release until the final release PR publishes matching README claims, release notes, tag, and artifacts.
+> **Release status:** This page tracks work for the next release. Hermes is not included in the current stable release yet; the final release PR must publish matching README copy, release notes, tag, and artifacts.
 
 Use it to answer two separate questions cleanly:
 
@@ -15,10 +15,10 @@ Use it to answer two separate questions cleanly:
 - `Supported with limitation`: the route is real, but one UX slice is intentionally narrower today.
 - `Not supported`: the route is outside the current HA NOVA support model.
 
-## Evidence Status
+## Test Status
 
 - `Maintainer-validated`: the maintainer ran this exact route on a real machine recently enough to cite it for release confidence.
-- `Community validation`: a user reported a real result for this route. Helpful signal; not release signoff on its own.
+- `Community report`: a user reported a real result for this route. Helpful signal; not release signoff on its own.
 - `Planned / not yet validated`: the route belongs to the support model, but does not yet have a fresh maintainer proof in this matrix.
 
 ## Current Matrix
@@ -40,7 +40,7 @@ Use it to answer two separate questions cleanly:
 
 ## Community Validation Rules
 
-- Community reports are advisory only. They help expand the matrix, but they do not replace maintainer-validated release proof.
+- Community reports are advisory only. They help expand platform coverage, but they do not replace maintainer-run release proof.
 - Never paste Home Assistant long-lived access tokens, relay auth tokens, keyring passwords, or unredacted shell history into an issue.
 - Prefer structured reports through the Hermes platform validation issue template so distro, session, and backend details stay comparable.
 

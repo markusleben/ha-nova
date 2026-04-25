@@ -90,14 +90,14 @@ describe("project docs contract", () => {
     expect(governance).toContain("keep the root `docs/breadcrumbs.md` short and current only");
   });
 
-  it("tracks Hermes support evidence in a dedicated active reference doc", () => {
-    expect(hermesValidation).toContain("This is the active truth source for Hermes support evidence in HA NOVA.");
+  it("tracks Hermes platform support and test status in a dedicated active reference doc", () => {
+    expect(hermesValidation).toContain("This page tracks which Hermes paths HA NOVA intends to support and which ones have been tested on real machines.");
     expect(hermesValidation).toContain("## Support Status");
     expect(hermesValidation).toContain("Supported with limitation");
     expect(hermesValidation).toContain("Not supported");
-    expect(hermesValidation).toContain("## Evidence Status");
+    expect(hermesValidation).toContain("## Test Status");
     expect(hermesValidation).toContain("Maintainer-validated");
-    expect(hermesValidation).toContain("Community validation");
+    expect(hermesValidation).toContain("Community report");
     expect(hermesValidation).toContain("Planned / not yet validated");
     expect(hermesValidation).toContain("## Repair Check");
     expect(hermesValidation).toContain("configured but not attached");

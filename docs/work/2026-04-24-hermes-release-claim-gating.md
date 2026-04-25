@@ -8,7 +8,7 @@ Ship Hermes Agent support in the next HA NOVA release without letting the public
 
 ## Scope
 
-- Keep the Hermes implementation, registry entry, installer behavior, tests, `.hermes/INSTALL.md`, and validation matrix in the Hermes support PR.
+- Keep the Hermes implementation, registry entry, installer behavior, tests, `.hermes/INSTALL.md`, and platform test-status doc in the Hermes support PR.
 - Keep public `README.md` release-conservative until the final release PR.
 - Use a final release PR to flip the public README support claim after the release-bound proof matrix is complete.
 
@@ -16,7 +16,7 @@ Ship Hermes Agent support in the next HA NOVA release without letting the public
 
 - `README.md` is stable public product truth.
 - `.hermes/INSTALL.md` is the Hermes overlay for the unreleased next release while this work is still in-flight.
-- `docs/reference/hermes-platform-validation.md` is the proof matrix and must record the strongest current evidence without overstating unvalidated routes.
+- `docs/reference/hermes-platform-validation.md` records platform test status and must state the strongest current proof without overstating untested routes.
 - The final release PR must either:
   - restore the public Hermes claim in `README.md`, if release proof is complete, or
   - keep Hermes absent from the public support list, if proof is incomplete.

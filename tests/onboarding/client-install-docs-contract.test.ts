@@ -101,7 +101,7 @@ describe("client install docs contract", () => {
     expect(opencodeInstall).toContain("still early and not fully tested yet");
 
     expect(hermesInstall).toContain("Hermes Agent");
-    expect(hermesInstall).toContain("not part of the current stable release");
+    expect(hermesInstall).toContain("not included in the current stable release yet");
     expect(hermesInstall).toContain("ha-nova setup hermes");
     expect(hermesInstall).toContain("ha-nova check-update");
     expect(hermesInstall).toContain("What Supported Means Here");
@@ -142,7 +142,7 @@ describe("client install docs contract", () => {
     expect(hermesReleaseGate).toContain("Status: active");
     expect(hermesReleaseGate).toContain("Keep public `README.md` release-conservative until the final release PR.");
     expect(hermesReleaseGate).toContain("restore the public Hermes claim in `README.md`, if release proof is complete");
-    expect(hermesInstall).toContain("not part of the current stable release until the final release PR");
+    expect(hermesInstall).toContain("not included in the current stable release yet");
     expect(readme).not.toContain("Hermes Agent");
   });
 });
