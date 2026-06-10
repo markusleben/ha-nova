@@ -139,7 +139,7 @@ Self-trigger / feedback loop = the automation triggers on an entity that it also
   2. the forward branch writes a dedicated state flag (any helper type)
   3. the reverse branch contains no guard on that flag — neither a `condition:` entry nor a template check
 - Skip when no capture flag exists at all — mixed write bases without a flag are R-17 territory, not R-21.
-- Skip when the reverse branch guards on the saved snapshot itself instead of the flag (for example "only restore when the snapshot helper is not `unknown`") — that is an equivalent re-entry guard.
+- Treat a guard on the saved snapshot itself (for example "only restore when the snapshot helper is not `unknown`") as an equivalent re-entry guard ONLY when the restore path also clears/resets that snapshot after restoring. A persistent snapshot that is never cleared can still hold a value from an earlier cycle, so the guard does not prevent stale restores — flag it.
 - Skip pairs where the reverse action is idempotent and stateless (for example plain `light.turn_off` without restoring saved values) — the hazard is restoring stale captured state, not symmetric toggling.
 - Never derive the pair from cross-automation analysis; both branches must live in one config item.
 
