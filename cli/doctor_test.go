@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -349,4 +350,188 @@ func captureCommandOutput(t *testing.T, fn func() int) (int, string) {
 	_ = stderrWriter.Close()
 
 	return exitCode, (<-stdoutDone) + (<-stderrDone)
+}
+
+func TestRunDoctorShowsInteractiveRecoveryHintForRecoverableLinuxSecureStorage(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	haServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	}))
+	t.Cleanup(haServer.Close)
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+	if err := saveConfig(paths, runtimeConfig{
+		HAHost:       normalizeHostInput(haServer.URL),
+		HAURL:        haServer.URL,
+		RelayBaseURL: "http://relay.test:8791",
+	}); err != nil {
+		t.Fatalf("saveConfig() error: %v", err)
+	}
+
+	originalRead := readRelayAuthTokenForDoctor
+	originalSupport := detectPlatformSecureStorageRecoverySupportForSetup
+	defer func() {
+		readRelayAuthTokenForDoctor = originalRead
+		detectPlatformSecureStorageRecoverySupportForSetup = originalSupport
+	}()
+	readRelayAuthTokenForDoctor = func() (string, error) {
+		return "", desktopKeyringLockedError("default Secret Service collection is locked")
+	}
+	detectPlatformSecureStorageRecoverySupportForSetup = func() (bool, error) {
+		return true, nil
+	}
+
+	exitCode, output := captureCommandOutput(t, func() int {
+		return runDoctor(paths, nil)
+	})
+	if exitCode == 0 {
+		t.Fatalf("expected doctor to fail when secure storage needs recovery:\n%s", output)
+	}
+	if !strings.Contains(output, "Recovery: run `ha-nova setup` interactively to unlock local secure storage on this Linux machine.") {
+		t.Fatalf("expected interactive recovery hint:\n%s", output)
+	}
+}
+
+func TestRunDoctorReportsConfiguredServiceTokenFile(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("service token files are not supported on native Windows")
+	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	haServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	}))
+	t.Cleanup(haServer.Close)
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+	cfg := runtimeConfig{
+		HAHost:         normalizeHostInput(haServer.URL),
+		HAURL:          haServer.URL,
+		RelayBaseURL:   "http://relay.test:8791",
+		RelayTokenFile: defaultRelayAuthTokenFile(paths),
+	}
+	if err := saveConfig(paths, cfg); err != nil {
+		t.Fatalf("saveConfig() error: %v", err)
+	}
+	if err := writeRelayAuthTokenFile(cfg.RelayTokenFile, "test-relay-token"); err != nil {
+		t.Fatalf("writeRelayAuthTokenFile() error = %v", err)
+	}
+
+	originalHealth := fetchRelayHealthForReadiness
+	originalWSPing := probeRelayWSPingForReadiness
+	defer func() {
+		fetchRelayHealthForReadiness = originalHealth
+		probeRelayWSPingForReadiness = originalWSPing
+	}()
+	fetchRelayHealthForReadiness = func(relayBaseURL, token string) ([]byte, error) {
+		return []byte(`{"status":"ok","data":{"ha_ws_connected":true},"version":"0.1.12"}`), nil
+	}
+	probeRelayWSPingForReadiness = func(relayBaseURL, token string) (relayWSPingResponse, error) {
+		return relayWSPingResponse{StatusCode: http.StatusOK, Body: []byte(`{"type":"pong"}`)}, nil
+	}
+
+	exitCode, output := captureCommandOutput(t, func() int {
+		return runDoctor(paths, nil)
+	})
+	if exitCode != 0 {
+		t.Fatalf("runDoctor() exit = %d, want 0\n%s", exitCode, output)
+	}
+	if !strings.Contains(output, "Relay auth token present in service token file") {
+		t.Fatalf("expected service-token-file wording:\n%s", output)
+	}
+}
+
+func TestRunDoctorShowsRepairHintForDetachedConfiguredHermes(t *testing.T) {
+	withClientRuntimeAvailability(t, map[string]bool{"hermes": true})
+
+	paths, _ := doctorTestSetup(t)
+	originalHealth := fetchRelayHealthForReadiness
+	originalWSPing := probeRelayWSPingForReadiness
+	defer func() {
+		fetchRelayHealthForReadiness = originalHealth
+		probeRelayWSPingForReadiness = originalWSPing
+	}()
+	fetchRelayHealthForReadiness = func(relayBaseURL, token string) ([]byte, error) {
+		return []byte(`{"status":"ok","data":{"ha_ws_connected":true},"version":"0.1.12"}`), nil
+	}
+	probeRelayWSPingForReadiness = func(relayBaseURL, token string) (relayWSPingResponse, error) {
+		return relayWSPingResponse{StatusCode: http.StatusOK, Body: []byte(`{"type":"pong"}`)}, nil
+	}
+
+	state := loadStateOrDefault(paths)
+	state.InstalledClients = []string{"hermes"}
+	if err := saveState(paths, state); err != nil {
+		t.Fatalf("saveState() error: %v", err)
+	}
+
+	exitCode, output := captureCommandOutput(t, func() int {
+		return runDoctor(paths, nil)
+	})
+	if exitCode == 0 {
+		t.Fatalf("expected doctor to degrade for detached Hermes:\n%s", output)
+	}
+	if !strings.Contains(output, "Hermes Agent configured, but HA NOVA is not attached") {
+		t.Fatalf("expected detached Hermes warning:\n%s", output)
+	}
+	if !strings.Contains(output, "Repair: run `ha-nova setup hermes`.") {
+		t.Fatalf("expected concrete Hermes repair hint:\n%s", output)
+	}
+}
+
+func TestRunDoctorShowsRepairHintForLegacyHermesBundleWithoutState(t *testing.T) {
+	withClientRuntimeAvailability(t, map[string]bool{"hermes": true})
+
+	paths, _ := doctorTestSetup(t)
+	originalHealth := fetchRelayHealthForReadiness
+	originalWSPing := probeRelayWSPingForReadiness
+	defer func() {
+		fetchRelayHealthForReadiness = originalHealth
+		probeRelayWSPingForReadiness = originalWSPing
+	}()
+	fetchRelayHealthForReadiness = func(relayBaseURL, token string) ([]byte, error) {
+		return []byte(`{"status":"ok","data":{"ha_ws_connected":true},"version":"0.1.12"}`), nil
+	}
+	probeRelayWSPingForReadiness = func(relayBaseURL, token string) (relayWSPingResponse, error) {
+		return relayWSPingResponse{StatusCode: http.StatusOK, Body: []byte(`{"type":"pong"}`)}, nil
+	}
+
+	hermesRoot := filepath.Join(paths.Home, ".hermes", "skills", "ha-nova")
+	if err := os.MkdirAll(filepath.Join(hermesRoot, "ha-nova"), 0o755); err != nil {
+		t.Fatalf("mkdir Hermes context skill: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(hermesRoot, "ha-nova", "SKILL.md"), []byte("name: ha-nova"), 0o644); err != nil {
+		t.Fatalf("write Hermes context skill: %v", err)
+	}
+	for _, skillDir := range hermesLegacyRequiredSkillDirs[1:] {
+		if err := os.MkdirAll(filepath.Join(hermesRoot, skillDir), 0o755); err != nil {
+			t.Fatalf("mkdir legacy Hermes skill %s: %v", skillDir, err)
+		}
+		if err := os.WriteFile(filepath.Join(hermesRoot, skillDir, "SKILL.md"), []byte("name: "+skillDir), 0o644); err != nil {
+			t.Fatalf("write legacy Hermes skill %s: %v", skillDir, err)
+		}
+	}
+
+	exitCode, output := captureCommandOutput(t, func() int {
+		return runDoctor(paths, nil)
+	})
+	if exitCode == 0 {
+		t.Fatalf("expected doctor to degrade for legacy Hermes bundle:\n%s", output)
+	}
+	if !strings.Contains(output, "Hermes Agent configured, but HA NOVA is not attached") {
+		t.Fatalf("expected legacy Hermes warning:\n%s", output)
+	}
+	if !strings.Contains(output, "Repair: run `ha-nova setup hermes`.") {
+		t.Fatalf("expected legacy Hermes repair hint:\n%s", output)
+	}
 }

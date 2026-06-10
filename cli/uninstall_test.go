@@ -72,6 +72,123 @@ func TestRunUninstallReportsConcreteRemovalsAndTokenPolicy(t *testing.T) {
 	}
 }
 
+func TestRunUninstallStandardKeepsServiceTokenFile(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("service token files are not supported on native Windows")
+	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+	cfg := runtimeConfig{
+		HAHost:         "192.168.1.5",
+		HAURL:          "http://192.168.1.5:8123",
+		RelayBaseURL:   "http://192.168.1.5:8791",
+		RelayTokenFile: defaultRelayAuthTokenFile(paths),
+	}
+	if err := saveConfig(paths, cfg); err != nil {
+		t.Fatalf("saveConfig() error: %v", err)
+	}
+	if err := writeRelayAuthTokenFile(cfg.RelayTokenFile, "service-token"); err != nil {
+		t.Fatalf("writeRelayAuthTokenFile() error: %v", err)
+	}
+
+	exitCode, output := captureCommandOutput(t, func() int {
+		return runUninstall(paths, []string{"--yes"})
+	})
+	if exitCode != 0 {
+		t.Fatalf("runUninstall() exit = %d\n%s", exitCode, output)
+	}
+	if _, err := os.Stat(cfg.RelayTokenFile); err != nil {
+		t.Fatalf("expected standard uninstall to keep service token file: %v", err)
+	}
+	if _, err := os.Stat(paths.ConfigFile); err != nil {
+		t.Fatalf("expected standard uninstall to keep config file: %v", err)
+	}
+}
+
+func TestRunUninstallPurgeRemovesServiceTokenFileAfterConfig(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("service token files are not supported on native Windows")
+	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+	cfg := runtimeConfig{
+		HAHost:         "192.168.1.5",
+		HAURL:          "http://192.168.1.5:8123",
+		RelayBaseURL:   "http://192.168.1.5:8791",
+		RelayTokenFile: defaultRelayAuthTokenFile(paths),
+	}
+	if err := saveConfig(paths, cfg); err != nil {
+		t.Fatalf("saveConfig() error: %v", err)
+	}
+	if err := writeRelayAuthTokenFile(cfg.RelayTokenFile, "service-token"); err != nil {
+		t.Fatalf("writeRelayAuthTokenFile() error: %v", err)
+	}
+
+	exitCode, output := captureCommandOutput(t, func() int {
+		return runUninstall(paths, []string{"--yes", "--purge"})
+	})
+	if exitCode != 0 {
+		t.Fatalf("runUninstall() exit = %d\n%s", exitCode, output)
+	}
+	if _, err := os.Stat(cfg.RelayTokenFile); !isNotExist(err) {
+		t.Fatalf("expected purge to remove service token file, err=%v", err)
+	}
+	if _, err := os.Stat(paths.ConfigFile); !isNotExist(err) {
+		t.Fatalf("expected purge to remove config file, err=%v", err)
+	}
+}
+
+func TestRunUninstallPurgeRemovesUnsafeServiceTokenFileAfterConfig(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("service token files are not supported on native Windows")
+	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+	cfg := runtimeConfig{
+		HAHost:         "192.168.1.5",
+		HAURL:          "http://192.168.1.5:8123",
+		RelayBaseURL:   "http://192.168.1.5:8791",
+		RelayTokenFile: defaultRelayAuthTokenFile(paths),
+	}
+	if err := saveConfig(paths, cfg); err != nil {
+		t.Fatalf("saveConfig() error: %v", err)
+	}
+	if err := writeRelayAuthTokenFile(cfg.RelayTokenFile, "service-token"); err != nil {
+		t.Fatalf("writeRelayAuthTokenFile() error: %v", err)
+	}
+	if err := os.Chmod(cfg.RelayTokenFile, 0o644); err != nil {
+		t.Fatalf("chmod service token file: %v", err)
+	}
+
+	exitCode, output := captureCommandOutput(t, func() int {
+		return runUninstall(paths, []string{"--yes", "--purge"})
+	})
+	if exitCode != 0 {
+		t.Fatalf("runUninstall() exit = %d\n%s", exitCode, output)
+	}
+	if _, err := os.Stat(cfg.RelayTokenFile); !isNotExist(err) {
+		t.Fatalf("expected purge to remove unsafe service token file, err=%v", err)
+	}
+	if _, err := os.Stat(paths.ConfigFile); !isNotExist(err) {
+		t.Fatalf("expected purge to remove config file, err=%v", err)
+	}
+}
+
 func TestRunUninstallShowsPreflightAndRelayStillRunningNote(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -551,5 +668,58 @@ func TestRunUninstallStandardRemoveKeepsConfigAndTokenForReinstall(t *testing.T)
 	}
 	if !strings.Contains(output, "Kept Home Assistant connection config and stored relay token") {
 		t.Fatalf("expected standard uninstall retention note:\n%s", output)
+	}
+}
+
+func TestApplyUninstallKeyringTokenBestEffortRemovesLeftoverDesktopToken(t *testing.T) {
+	originalRead := readRelayAuthTokenForUninstall
+	originalDelete := deleteRelayAuthTokenForUninstall
+	defer func() {
+		readRelayAuthTokenForUninstall = originalRead
+		deleteRelayAuthTokenForUninstall = originalDelete
+	}()
+
+	deleted := false
+	readRelayAuthTokenForUninstall = func() (string, error) {
+		return "stale-desktop-token", nil
+	}
+	deleteRelayAuthTokenForUninstall = func() error {
+		deleted = true
+		return nil
+	}
+
+	report := &uninstallReport{}
+	applyUninstallKeyringTokenBestEffort(report)
+	if !deleted {
+		t.Fatalf("expected leftover keyring token to be deleted")
+	}
+	if len(report.removed) != 1 || !strings.Contains(report.removed[0], "credential store") {
+		t.Fatalf("expected credential store removal to be reported, got %+v", report.removed)
+	}
+}
+
+func TestApplyUninstallKeyringTokenBestEffortToleratesLockedKeyring(t *testing.T) {
+	originalRead := readRelayAuthTokenForUninstall
+	originalDelete := deleteRelayAuthTokenForUninstall
+	defer func() {
+		readRelayAuthTokenForUninstall = originalRead
+		deleteRelayAuthTokenForUninstall = originalDelete
+	}()
+
+	readRelayAuthTokenForUninstall = func() (string, error) {
+		return "", desktopKeyringLockedError("default secret service collection is locked")
+	}
+	deleteRelayAuthTokenForUninstall = func() error {
+		t.Fatalf("delete must not run when the keyring read failed")
+		return nil
+	}
+
+	report := &uninstallReport{}
+	applyUninstallKeyringTokenBestEffort(report)
+	if len(report.removed) != 0 {
+		t.Fatalf("did not expect removals, got %+v", report.removed)
+	}
+	if len(report.notes) != 1 || !strings.Contains(report.notes[0], "credential store") {
+		t.Fatalf("expected a manual-cleanup note, got %+v", report.notes)
 	}
 }

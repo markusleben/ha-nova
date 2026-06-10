@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 )
 
@@ -15,6 +16,11 @@ var errDesktopKeyringUnavailable = errors.New("desktop keyring unavailable")
 var errDesktopKeyringSetupRequired = errors.New("desktop keyring setup required")
 var errDesktopKeyringLocked = errors.New("desktop keyring locked")
 var errDesktopKeyringInitializationRequired = errors.New("desktop keyring initialization required")
+var errRelayAuthTokenFileInvalid = errors.New("relay token file invalid")
+var errRelayTokenStorageConfigUnreadable = errors.New("relay token storage config unreadable")
+
+var relayAuthTokenFilePathOverride string
+var relayAuthTokenFilePlatformOS = runtime.GOOS
 
 func relayAuthTokenServiceName() string {
 	if override := strings.TrimSpace(os.Getenv("HA_NOVA_KEYRING_SERVICE")); override != "" {
@@ -46,6 +52,174 @@ func readRelayAuthTokenOverride() (string, bool, error) {
 		return "", true, err
 	}
 	return strings.TrimSpace(string(data)), true, nil
+}
+
+func relayAuthTokenFileServiceName(path string) string {
+	return "service token file " + path
+}
+
+func defaultRelayAuthTokenFile(paths runtimePaths) string {
+	return filepath.Join(paths.ConfigDir, "relay-token")
+}
+
+func relayAuthTokenFilePathFromConfig() (string, bool, error) {
+	if relayAuthTokenFilePathOverride != "" {
+		return relayAuthTokenFilePathOverride, true, nil
+	}
+	paths, err := detectPaths()
+	if err != nil {
+		return "", false, err
+	}
+	// Read the raw config instead of loadConfig: token storage must not
+	// depend on relay_base_url being set, and an unreadable config must
+	// fail loud instead of silently falling back to the OS keyring — on
+	// headless Linux that fallback can hang in Secret Service unlock
+	// prompts even though a token file is configured (issue #200).
+	cfg, err := loadJSONConfig(paths.ConfigFile)
+	if err != nil {
+		if isNotExist(err) {
+			return "", false, nil
+		}
+		return "", true, fmt.Errorf("%w: %v (fix or remove the config file, or rerun: ha-nova setup)", errRelayTokenStorageConfigUnreadable, err)
+	}
+	path := strings.TrimSpace(cfg.RelayTokenFile)
+	if path == "" {
+		return "", false, nil
+	}
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(paths.ConfigDir, path)
+	}
+	return filepath.Clean(path), true, nil
+}
+
+func readRelayAuthTokenFile(path string) (string, error) {
+	if err := validateRelayAuthTokenFile(path); err != nil {
+		if isNotExist(err) {
+			return "", missingRelayAuthTokenError(relayAuthTokenFileServiceName(path))
+		}
+		return "", relayAuthTokenReadError(relayAuthTokenFileServiceName(path), err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", relayAuthTokenReadError(relayAuthTokenFileServiceName(path), err)
+	}
+	token := strings.TrimSpace(string(data))
+	if token == "" {
+		return "", relayAuthTokenReadError(relayAuthTokenFileServiceName(path), fmt.Errorf("%w: empty file", errRelayAuthTokenFileInvalid))
+	}
+	return token, nil
+}
+
+func writeRelayAuthTokenFile(path, token string) error {
+	if relayAuthTokenFilePlatformOS == "windows" {
+		return fmt.Errorf("cannot write relay auth token: %w: service token files are not supported on native Windows", errRelayAuthTokenFileInvalid)
+	}
+	token = strings.TrimSpace(token)
+	if token == "" {
+		return fmt.Errorf("cannot write relay auth token: %w: empty token", errRelayAuthTokenFileInvalid)
+	}
+	parent := filepath.Dir(path)
+	if err := os.MkdirAll(parent, 0o700); err != nil {
+		return fmt.Errorf("cannot write relay auth token: %w", err)
+	}
+	if err := hardenRelayAuthTokenFileParent(parent); err != nil {
+		return fmt.Errorf("cannot write relay auth token: %w", err)
+	}
+	if info, err := os.Lstat(path); err == nil {
+		if info.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("cannot write relay auth token: %w: symlink not allowed", errRelayAuthTokenFileInvalid)
+		}
+		if !info.Mode().IsRegular() {
+			return fmt.Errorf("cannot write relay auth token: %w: not a regular file", errRelayAuthTokenFileInvalid)
+		}
+		if err := validateRelayAuthTokenFile(path); err != nil {
+			return fmt.Errorf("cannot write relay auth token: %w", err)
+		}
+	} else if !isNotExist(err) {
+		return fmt.Errorf("cannot write relay auth token: %w", err)
+	}
+	if err := os.WriteFile(path, []byte(token+"\n"), 0o600); err != nil {
+		return fmt.Errorf("cannot write relay auth token: %w", err)
+	}
+	if err := os.Chmod(path, 0o600); err != nil {
+		return fmt.Errorf("cannot write relay auth token: %w", err)
+	}
+	return nil
+}
+
+func deleteRelayAuthTokenFile(path string) error {
+	if err := os.Remove(path); err != nil && !isNotExist(err) {
+		return fmt.Errorf("cannot delete relay auth token: %w", err)
+	}
+	return nil
+}
+
+func validateRelayAuthTokenFile(path string) error {
+	if relayAuthTokenFilePlatformOS == "windows" {
+		return fmt.Errorf("%w: service token files are not supported on native Windows", errRelayAuthTokenFileInvalid)
+	}
+	parent := filepath.Dir(path)
+	if err := validateRelayAuthTokenFileParent(parent); err != nil {
+		return err
+	}
+	info, err := os.Lstat(path)
+	if err != nil {
+		return err
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("%w: symlink not allowed", errRelayAuthTokenFileInvalid)
+	}
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("%w: not a regular file", errRelayAuthTokenFileInvalid)
+	}
+	if info.Mode().Perm()&0o077 != 0 {
+		return fmt.Errorf("%w: permissions must be 0600 or stricter", errRelayAuthTokenFileInvalid)
+	}
+	if err := validateRelayAuthTokenFileOwner(info); err != nil {
+		return err
+	}
+	return nil
+}
+
+func hardenRelayAuthTokenFileParent(parent string) error {
+	info, err := os.Stat(parent)
+	if err != nil {
+		return err
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("%w: parent is not a directory", errRelayAuthTokenFileInvalid)
+	}
+	if err := validateRelayAuthTokenFileOwner(info); err != nil {
+		return err
+	}
+	if info.Mode().Perm()&0o022 != 0 {
+		if err := os.Chmod(parent, 0o700); err != nil {
+			return err
+		}
+	}
+	return validateRelayAuthTokenFileParent(parent)
+}
+
+func validateRelayAuthTokenFileParent(parent string) error {
+	info, err := os.Stat(parent)
+	if err != nil {
+		return err
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("%w: parent is not a directory", errRelayAuthTokenFileInvalid)
+	}
+	if info.Mode().Perm()&0o022 != 0 {
+		return fmt.Errorf("%w: parent directory must not be group/world writable", errRelayAuthTokenFileInvalid)
+	}
+	if err := validateRelayAuthTokenFileOwner(info); err != nil {
+		return err
+	}
+	return nil
+}
+
+func relayAuthTokenFileEnabled() bool {
+	_, ok, err := relayAuthTokenFilePathFromConfig()
+	return ok && err == nil
 }
 
 func missingRelayAuthTokenError(service string) error {
@@ -109,6 +283,9 @@ func relayAuthTokenProblemMessage(err error) string {
 	}
 	if isDesktopKeyringSetupRequiredError(err) {
 		return "secure storage is present but not ready on this Linux machine; rerun `ha-nova setup` interactively to finish local secure storage setup"
+	}
+	if errors.Is(err, errRelayAuthTokenFileInvalid) {
+		return fmt.Sprintf("service token file is not usable: %s", err)
 	}
 	return fmt.Sprintf("relay auth token unavailable: %s", err)
 }
@@ -287,6 +464,46 @@ func writeRelayAuthTokenOverride(token string) (bool, error) {
 		return true, err
 	}
 	return true, os.WriteFile(path, []byte(token), 0o600)
+}
+
+func readRelayAuthTokenFileOverride() (string, bool, error) {
+	path, ok, err := relayAuthTokenFilePathFromConfig()
+	if err != nil || !ok {
+		return "", ok, err
+	}
+	token, err := readRelayAuthTokenFile(path)
+	return token, true, err
+}
+
+func writeRelayAuthTokenFileOverride(token string) (bool, error) {
+	path, ok, err := relayAuthTokenFilePathFromConfig()
+	if errors.Is(err, errRelayTokenStorageConfigUnreadable) {
+		// Setup rewrites the config anyway; an unreadable config must not
+		// block the repair path, only reads fail loud.
+		return false, nil
+	}
+	if err != nil || !ok {
+		return ok, err
+	}
+	return true, writeRelayAuthTokenFile(path, token)
+}
+
+func deleteRelayAuthTokenFileOverride() (bool, error) {
+	path, ok, err := relayAuthTokenFilePathFromConfig()
+	if errors.Is(err, errRelayTokenStorageConfigUnreadable) {
+		return false, nil
+	}
+	if err != nil || !ok {
+		return ok, err
+	}
+	return true, deleteRelayAuthTokenFile(path)
+}
+
+func relayAuthTokenStorageLabel() string {
+	if path, ok, err := relayAuthTokenFilePathFromConfig(); err == nil && ok {
+		return relayAuthTokenFileServiceName(path)
+	}
+	return "secure storage"
 }
 
 func deleteRelayAuthTokenOverride() (bool, error) {

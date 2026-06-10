@@ -177,21 +177,24 @@ macOS self-managed lifecycle:
 Linux real-machine onboarding:
 Helper:
 - use `scripts/smoke/linux-headless-setup-check.sh` as the executable assistant for the SSH/headless Linux lane; pass the host and install command via env, never hardcode host-specific details in the repo
-- by default the helper runs `HA_NOVA_NO_BROWSER=1 ha-nova setup`; for Hermes-specific proof, set `HA_NOVA_LIVE_SETUP_CMD='HA_NOVA_NO_BROWSER=1 ha-nova setup hermes'`
+- by default the helper runs `HA_NOVA_NO_BROWSER=1 ha-nova setup`; for Hermes desktop-keyring proof, set `HA_NOVA_LIVE_SETUP_CMD='HA_NOVA_NO_BROWSER=1 ha-nova setup hermes'`; for Hermes service/gateway proof, set `HA_NOVA_LIVE_SETUP_CMD='HA_NOVA_NO_BROWSER=1 ha-nova setup --service hermes'`
 - `HA_NOVA_LIVE_SKIP_INSTALL=1` is for repair/debug passes only; it does not satisfy the full release-bound fresh-install proof for this lane
 1. use a real Linux host with a desktop user session; when validating the SSH/headless recovery path, use an SSH shell inside that same logged-in user session
 2. fresh stable install via the public `install.sh` flow
-3. if secure storage is unavailable because no Secret Service provider is running, confirm setup fails with the explicit provider prerequisite message instead of raw `org.freedesktop.secrets` D-Bus text
-4. if secure storage is present but the default collection is still locked or uninitialized and the active Secret Service owner is GNOME Keyring, confirm interactive `ha-nova setup` offers the built-in local secure-storage recovery step before host/token work
-5. if the same locked/uninitialized state exists on a non-GNOME Secret Service backend, confirm setup stays fail-loud with the explicit prerequisite guidance and does not pretend inline recovery is available
-6. confirm the locked-flow copy asks for the existing local Linux keyring password, while the uninitialized-flow copy asks the user to create and confirm a new local Linux keyring password
-7. confirm a wrong local keyring password keeps the user on the locked recovery step with a clear local secure-storage error, and confirm a correct password unlocks the keyring and resumes setup
-8. confirm the fresh-init recovery path can create the default GNOME Keyring collection over SSH and then resumes setup without sending the user to a desktop GUI
-9. finish setup, then run `ha-nova doctor`
-10. if the lane includes Hermes or a pre-fix Hermes bundle, confirm `ha-nova doctor` reports a repairable Hermes mismatch instead of silently hiding it
-11. run `ha-nova setup hermes` and confirm the Hermes route repairs cleanly
-12. re-run `ha-nova doctor` and confirm it reports `Hermes Agent ready now`
-13. confirm the relay token is saved and can be reused by a second `ha-nova setup` / `ha-nova doctor` invocation without repeating recovery
+3. confirm Home Assistant auto-discovery prefers a real reachable result over an unverified `.local` guess when Avahi/mDNS evidence exists
+4. if secure storage is unavailable because no Secret Service provider is running, confirm setup fails with the explicit provider prerequisite message instead of raw `org.freedesktop.secrets` D-Bus text
+5. if secure storage is present but the default collection is still locked or uninitialized and the active Secret Service owner is GNOME Keyring, confirm interactive `ha-nova setup` offers the built-in local secure-storage recovery step before host/token work
+6. if the same locked/uninitialized state exists on a non-GNOME Secret Service backend, confirm setup stays fail-loud with the explicit prerequisite guidance and does not pretend inline recovery is available
+7. confirm the locked-flow copy asks for the existing local Linux keyring password, while the uninitialized-flow copy asks the user to create and confirm a new local Linux keyring password
+8. confirm a wrong local keyring password keeps the user on the locked recovery step with a clear local secure-storage error, and confirm a correct password unlocks the keyring and resumes setup
+9. confirm the fresh-init recovery path can create the default GNOME Keyring collection headlessly over SSH and then resumes setup without sending the user to a desktop GUI
+10. finish setup, then run `ha-nova doctor`
+11. if the lane includes Hermes or a pre-fix Hermes bundle, confirm `ha-nova doctor` reports a repairable Hermes mismatch instead of silently hiding it
+12. run `ha-nova setup hermes` and confirm the Hermes route repairs cleanly
+13. re-run `ha-nova doctor` and confirm it reports `Hermes Agent ready now`
+14. confirm the relay token is saved and can be reused by a second `ha-nova setup` / `ha-nova doctor` invocation without repeating recovery
+15. for the Hermes service/gateway lane, run `ha-nova setup --service hermes`, then `ha-nova doctor`, then one authenticated relay call from a fresh SSH/service-like shell without an unlocked desktop keyring
+16. for the Hermes service/gateway lane, run `ha-nova uninstall --yes --purge` and confirm the service token file is removed
 
 Windows self-managed:
 1. on fresh-profile runs, preinstall at least one supported client and verify it already runs on that exact machine/session

@@ -27,7 +27,7 @@ claude_marketplace_record_present() {
 }
 
 claude_plugin_state_helper_required() {
-  claude_plugin_record_present || claude_marketplace_record_present
+  claude_plugin_record_present
 }
 
 require_claude_plugin_state_tool() {

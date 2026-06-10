@@ -5,9 +5,11 @@ import { describe, expect, it } from "vitest";
 describe("release contract", () => {
   const goreleaser = readFileSync(".goreleaser.yml", "utf8");
   const installer = readFileSync("install.ps1", "utf8");
+  const bundleBuilder = readFileSync("scripts/release/build-install-bundle.sh", "utf8");
   const releaseWorkflow = readFileSync(".github/workflows/release.yml", "utf8");
   const rcWorkflow = readFileSync(".github/workflows/release-candidate.yml", "utf8");
   const releasing = readFileSync("docs/releasing.md", "utf8");
+  const linuxHeadlessHelper = readFileSync("scripts/smoke/linux-headless-setup-check.sh", "utf8");
   const pkg = JSON.parse(readFileSync("package.json", "utf8")) as {
     scripts?: Record<string, string>;
   };
@@ -34,6 +36,10 @@ describe("release contract", () => {
     expect(existsSync("scripts/release/build-winget-manifest.sh")).toBe(false);
     expect(existsSync("scripts/release/prepare-winget-pkgs-submission.sh")).toBe(false);
     expect(existsSync("release/winget-publication-state.json")).toBe(false);
+  });
+
+  it("builds Unix install bundles without macOS copyfile metadata noise", () => {
+    expect(bundleBuilder).toContain('COPYFILE_DISABLE=1 tar --format ustar -czf "${output}" -C "${stage_dir}" ha-nova');
   });
 
   it("keeps the final release workflow free of winget artifacts and validation", () => {
@@ -75,15 +81,44 @@ describe("release contract", () => {
     expect(releasing).toContain("curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/<stable-tag>/install.sh | HA_NOVA_VERSION=vX.Y.Z bash");
     expect(releasing).toContain("irm https://raw.githubusercontent.com/markusleben/ha-nova/<stable-tag>/install.ps1 | iex");
     expect(releasing).toContain("stable release notes must publish tag-pinned install commands, never `main` bootstrap URLs");
-    expect(releasing).toContain("Desktop Validation Helpers");
-    expect(releasing).toContain("scripts/dev/start-local-validation-harness.sh");
-    expect(releasing).toContain("scripts/dev/windows-clean-test-state.ps1");
-    expect(releasing).toContain("scripts/dev/windows-private-rc-install.ps1");
-    expect(releasing).toContain("scripts/dev/windows-desktop-setup.ps1");
     expect(releasing).toContain("npm run dev:validation:harness");
     expect(releasing).not.toContain("raw.githubusercontent.com/markusleben/ha-nova/main/install.sh");
     expect(releasing).not.toContain("raw.githubusercontent.com/markusleben/ha-nova/main/install.ps1");
     expect(releasing).not.toContain("winget");
     expect(releasing).not.toContain("$ProgressPreference = 'SilentlyContinue'");
+  });
+
+  it("keeps the Linux real-machine onboarding lane documented for Linux setup changes", () => {
+    expect(releasing).toContain("Linux real-machine onboarding:");
+    expect(releasing).toContain("scripts/smoke/linux-headless-setup-check.sh");
+    expect(releasing).toContain("by default the helper runs `HA_NOVA_NO_BROWSER=1 ha-nova setup`");
+    expect(releasing).toContain("HA_NOVA_LIVE_SETUP_CMD='HA_NOVA_NO_BROWSER=1 ha-nova setup hermes'");
+    expect(releasing).toContain("HA_NOVA_LIVE_SETUP_CMD='HA_NOVA_NO_BROWSER=1 ha-nova setup --service hermes'");
+    expect(releasing).toContain("HA_NOVA_LIVE_SKIP_INSTALL=1");
+    expect(releasing).toContain("Secret Service");
+    expect(releasing).toContain("GNOME Keyring");
+    expect(releasing).toContain("non-GNOME");
+    expect(releasing).toContain("local Linux keyring password");
+    expect(releasing).toContain("headlessly over SSH");
+    expect(releasing).toContain("repairable Hermes mismatch");
+    expect(releasing).toContain("run `ha-nova setup hermes` and confirm the Hermes route repairs cleanly");
+    expect(releasing).toContain("run `ha-nova setup --service hermes`, then `ha-nova doctor`, then one authenticated relay call from a fresh SSH/service-like shell without an unlocked desktop keyring");
+    expect(releasing).toContain("confirm the service token file is removed");
+    expect(releasing).toContain("Hermes Agent ready now");
+    expect(releasing).toContain("when Linux setup or secure-storage behavior changes, the release-bound manual matrix must include the Linux real-machine onboarding lane above");
+  });
+
+  it("keeps the Linux live helper generic by default and Hermes-specific only by override", () => {
+    expect(linuxHeadlessHelper).toContain("default: HA_NOVA_NO_BROWSER=1 ha-nova setup");
+    expect(linuxHeadlessHelper).toContain("HA_NOVA_LIVE_SETUP_CMD='HA_NOVA_NO_BROWSER=1 ha-nova setup hermes'");
+    expect(linuxHeadlessHelper).toContain("release-lane proof");
+    expect(linuxHeadlessHelper).toContain("remote user D-Bus session");
+    expect(linuxHeadlessHelper).toContain("remote gdbus");
+    expect(linuxHeadlessHelper).toContain(
+      'setup_cmd="${HA_NOVA_LIVE_SETUP_CMD:-HA_NOVA_NO_BROWSER=1 ha-nova setup}"'
+    );
+    expect(linuxHeadlessHelper).not.toContain(
+      'setup_cmd="${HA_NOVA_LIVE_SETUP_CMD:-HA_NOVA_NO_BROWSER=1 ha-nova setup hermes}"'
+    );
   });
 });

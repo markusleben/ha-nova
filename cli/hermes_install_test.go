@@ -112,3 +112,37 @@ func TestInstallHermesClientFailsWhenContextSkillIsMissing(t *testing.T) {
 		t.Fatalf("expected missing Hermes context skill error, got %v", err)
 	}
 }
+
+// Mirror of TestRewriteFlatMarkdownAbsolutizesCrossSkillRefs for the Hermes
+// rewriter: the Go and bash installers must produce the same ref shapes.
+func TestRewriteHermesMarkdownAbsolutizesCrossSkillRefs(t *testing.T) {
+	sourceRoot := t.TempDir()
+	sourceDir := filepath.Join(sourceRoot, "skills", "write")
+	if err := os.MkdirAll(sourceDir, 0o755); err != nil {
+		t.Fatalf("mkdir source skill: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(sourceDir, "patterns.md"), []byte("companion"), 0o644); err != nil {
+		t.Fatalf("write companion: %v", err)
+	}
+
+	content := "Same-skill: `skills/write/patterns.md`. Cross-skill: `skills/review/SKILL.md`.\n" +
+		"Agent template: `skills/ha-nova/agents/apply-agent.md`. Filter: `skills/ha-nova/config-body-filter.jq`.\n" +
+		"Docs: `docs/reference/ha-template-reference.md`.\n"
+
+	got := rewriteHermesMarkdown("write", content, sourceDir, sourceRoot, []string{"write", "review"})
+
+	for _, want := range []string{
+		"`patterns.md`",
+		"`" + filepath.Join(sourceRoot, "skills", "review", "SKILL.md") + "`",
+		"`" + filepath.Join(sourceRoot, "skills", "ha-nova", "agents", "apply-agent.md") + "`",
+		"`" + filepath.Join(sourceRoot, "skills", "ha-nova", "config-body-filter.jq") + "`",
+		"`" + filepath.Join(sourceRoot, "docs", "reference", "ha-template-reference.md") + "`",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("expected rewritten content to contain %q, got:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "`skills/") {
+		t.Fatalf("expected no relative skills/ refs to remain, got:\n%s", got)
+	}
+}

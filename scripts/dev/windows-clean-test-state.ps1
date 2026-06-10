@@ -240,7 +240,21 @@ function Remove-WingetTestInstall {
   }
 }
 
+function Remove-HermesWslSkills {
+  $wsl = Get-Command wsl.exe -ErrorAction SilentlyContinue
+  if ($null -eq $wsl) {
+    return
+  }
+
+  try {
+    & $wsl.Source sh -lc 'rm -rf ~/.hermes/skills/ha-nova' 2>$null | Out-Null
+  }
+  catch {
+  }
+}
+
 Remove-WingetTestInstall
+Remove-HermesWslSkills
 Remove-InstallRootWithRuntime -Root $InstallDir
 if ($LegacyInstallDir -ne $InstallDir) {
   Remove-InstallRootWithRuntime -Root $LegacyInstallDir
@@ -257,6 +271,7 @@ $paths = @(
   (Join-Path $HOME ".agents\skills\ha-nova"),
   (Join-Path $HOME ".config\opencode\skills\ha-nova"),
   (Join-Path $HOME ".gemini\skills\ha-nova"),
+  (Join-Path $HOME ".hermes\skills\ha-nova"),
   (Join-Path $HOME ".gemini\skills\ha-nova-dashboard"),
   (Join-Path $HOME ".gemini\skills\ha-nova-organize"),
   (Join-Path $HOME ".gemini\skills\ha-nova-history"),

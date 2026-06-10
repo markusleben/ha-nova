@@ -163,6 +163,21 @@ func TestPostUpdateSyncRefreshesAllDetectedClients(t *testing.T) {
 		t.Fatalf("write Gemini review skill: %v", err)
 	}
 
+	if err := os.MkdirAll(filepath.Join(home, ".hermes", "skills", "ha-nova", "ha-nova"), 0o755); err != nil {
+		t.Fatalf("mkdir Hermes context skill: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(home, ".hermes", "skills", "ha-nova", "ha-nova", "SKILL.md"), []byte("name: ha-nova"), 0o644); err != nil {
+		t.Fatalf("write Hermes context skill: %v", err)
+	}
+	for _, skillDir := range hermesLegacyRequiredSkillDirs[1:] {
+		if err := os.MkdirAll(filepath.Join(home, ".hermes", "skills", "ha-nova", skillDir), 0o755); err != nil {
+			t.Fatalf("mkdir Hermes skill %s: %v", skillDir, err)
+		}
+		if err := os.WriteFile(filepath.Join(home, ".hermes", "skills", "ha-nova", skillDir, "SKILL.md"), []byte("name: "+skillDir), 0o644); err != nil {
+			t.Fatalf("write Hermes skill %s: %v", skillDir, err)
+		}
+	}
+
 	logPath := filepath.Join(home, "claude.log")
 	t.Setenv("PATH", installClaudeMock(t, home, logPath)+string(os.PathListSeparator)+os.Getenv("PATH"))
 
@@ -189,7 +204,7 @@ func TestPostUpdateSyncRefreshesAllDetectedClients(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadState() error: %v", err)
 	}
-	for _, client := range []string{"claude", "codex", "opencode", "gemini"} {
+	for _, client := range []string{"claude", "codex", "opencode", "gemini", "hermes"} {
 		if !containsClient(state.InstalledClients, client) {
 			t.Fatalf("expected saved state to include %s, got %+v", client, state.InstalledClients)
 		}
@@ -197,6 +212,19 @@ func TestPostUpdateSyncRefreshesAllDetectedClients(t *testing.T) {
 
 	if _, err := os.Stat(filepath.Join(home, ".gemini", "skills", "ha-nova-review", "SKILL.md")); err != nil {
 		t.Fatalf("expected Gemini skill refresh output: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(home, ".hermes", "skills", "ha-nova", "ha-nova-read", "SKILL.md")); err != nil {
+		t.Fatalf("expected Hermes skill refresh output: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(home, ".hermes", "skills", "ha-nova", "read")); !os.IsNotExist(err) {
+		t.Fatalf("expected legacy Hermes read directory to be migrated away, got err=%v", err)
+	}
+	readData, err := os.ReadFile(filepath.Join(home, ".hermes", "skills", "ha-nova", "ha-nova-read", "SKILL.md"))
+	if err != nil {
+		t.Fatalf("read migrated Hermes read skill: %v", err)
+	}
+	if !strings.Contains(string(readData), "name: ha-nova-read") {
+		t.Fatalf("expected migrated Hermes read skill to use canonical namespaced frontmatter, got %q", string(readData))
 	}
 
 	codexInfo, err := os.Lstat(filepath.Join(home, ".agents", "skills", "ha-nova"))
@@ -321,6 +349,61 @@ func TestRunUpdateAlreadyCurrentRetriesInstalledClientSync(t *testing.T) {
 
 	if !claudePluginInstalled(home) {
 		t.Fatal("expected Claude plugin to be installed after retry")
+	}
+}
+
+func TestRunUpdateAlreadyCurrentMigratesLegacyHermesBundle(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd() error: %v", err)
+	}
+	t.Setenv("HA_NOVA_DEV_ROOT", filepath.Clean(filepath.Join(cwd, "..")))
+
+	originalRuntimeDetected := clientRuntimeDetectedForStatus
+	clientRuntimeDetectedForStatus = func(string) bool { return true }
+	t.Cleanup(func() {
+		clientRuntimeDetectedForStatus = originalRuntimeDetected
+	})
+
+	if err := os.MkdirAll(filepath.Dir(paths.VersionFile), 0o755); err != nil {
+		t.Fatalf("mkdir version dir: %v", err)
+	}
+	if err := os.WriteFile(paths.VersionFile, []byte(`{"skill_version":"0.2.2","min_relay_version":"0.1.0"}`), 0o644); err != nil {
+		t.Fatalf("write version file: %v", err)
+	}
+
+	if err := os.MkdirAll(filepath.Join(home, ".hermes", "skills", "ha-nova", "ha-nova"), 0o755); err != nil {
+		t.Fatalf("mkdir Hermes context skill: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(home, ".hermes", "skills", "ha-nova", "ha-nova", "SKILL.md"), []byte("name: ha-nova\n"), 0o644); err != nil {
+		t.Fatalf("write Hermes context skill: %v", err)
+	}
+	for _, skillDir := range hermesLegacyRequiredSkillDirs[1:] {
+		if err := os.MkdirAll(filepath.Join(home, ".hermes", "skills", "ha-nova", skillDir), 0o755); err != nil {
+			t.Fatalf("mkdir legacy Hermes skill %s: %v", skillDir, err)
+		}
+		if err := os.WriteFile(filepath.Join(home, ".hermes", "skills", "ha-nova", skillDir, "SKILL.md"), []byte("name: "+skillDir+"\n"), 0o644); err != nil {
+			t.Fatalf("write legacy Hermes skill %s: %v", skillDir, err)
+		}
+	}
+
+	if exitCode := runUpdate(paths, []string{"--version", "0.2.2"}); exitCode != 0 {
+		t.Fatalf("runUpdate() exit = %d, want 0", exitCode)
+	}
+
+	if _, err := os.Stat(filepath.Join(home, ".hermes", "skills", "ha-nova", "ha-nova-review", "SKILL.md")); err != nil {
+		t.Fatalf("expected migrated Hermes review skill: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(home, ".hermes", "skills", "ha-nova", "review")); !os.IsNotExist(err) {
+		t.Fatalf("expected legacy Hermes review directory to be removed, got err=%v", err)
 	}
 }
 

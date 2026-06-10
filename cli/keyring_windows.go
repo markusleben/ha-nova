@@ -22,6 +22,9 @@ func readRelayAuthToken() (string, error) {
 		}
 		return token, nil
 	}
+	if token, overridden, err := readRelayAuthTokenFileOverride(); overridden {
+		return token, err
+	}
 	u, err := user.Current()
 	if err != nil {
 		return "", fmt.Errorf("cannot determine current user: %w", err)
@@ -60,6 +63,9 @@ func writeRelayAuthToken(token string) error {
 		}
 		return nil
 	}
+	if overridden, err := writeRelayAuthTokenFileOverride(token); overridden {
+		return err
+	}
 	u, err := user.Current()
 	if err != nil {
 		return fmt.Errorf("cannot determine current user: %w", err)
@@ -76,6 +82,9 @@ func deleteRelayAuthToken() error {
 			return fmt.Errorf("cannot delete relay auth token: %w", err)
 		}
 		return nil
+	}
+	if overridden, err := deleteRelayAuthTokenFileOverride(); overridden {
+		return err
 	}
 	u, err := user.Current()
 	if err != nil {

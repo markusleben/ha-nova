@@ -13,7 +13,8 @@ The CLI auto-detects which client integrations are installed and refreshes each 
 Update routing is simple:
 - bundle and dev installs use the HA NOVA updater directly
 
-On Windows, the supported install path remains `install.ps1`, and `ha-nova update` keeps using the installed HA NOVA runtime directly.
+On native Windows, the supported HA NOVA install path remains `install.ps1`, and `ha-nova update` keeps using the installed HA NOVA runtime directly.
+Hermes on Windows is the exception: use the Linux/WSL HA NOVA install and run Hermes update/setup commands from inside that WSL shell.
 
 `ha-nova check-update` compares the installed version against the latest GitHub release and keeps the shared update cache fresh for follow-up commands.
 
@@ -48,9 +49,10 @@ HA NOVA uses three update archetypes depending on the client:
 | Codex | Linked/Copy | Refresh installed skill tree from the active HA NOVA install |
 | OpenCode | Linked/Copy | Refresh installed skill tree from the active HA NOVA install |
 | Gemini | Flat-copy | Rebuild flat markdown copies from the active HA NOVA install |
+| Hermes Agent | Namespaced copy | Rebuild the Hermes-local namespaced skill bundle from the active HA NOVA install |
 
 After client updates, shared tools are refreshed from the active HA NOVA install.
-On Windows, post-update client sync uses the installed HA NOVA runtime directly.
+On native Windows, post-update client sync uses the installed HA NOVA runtime directly. Hermes-on-Windows should be updated from the WSL2 install instead.
 
 ## Check Versions
 
@@ -77,4 +79,4 @@ When the agent detects `UPDATE AVAILABLE` in its session context, it can run the
 ha-nova update
 ```
 
-After a successful update, the user must start a new Claude session for the updated payload to take effect.
+After a successful update, the user must start a new client session for the updated payload to take effect.

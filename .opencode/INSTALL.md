@@ -9,6 +9,7 @@ For the stable installer, lifecycle commands, and general troubleshooting, use [
 - Use the normal HA NOVA installer flow.
 - In the setup wizard, choose `OpenCode`.
 - Install the OpenCode client separately; HA NOVA handles the skills and onboarding, not the OpenCode app itself.
+- OpenCode Desktop uses the same skill path as the terminal client: `~/.config/opencode/skills/ha-nova`.
 
 ## Windows Notes
 

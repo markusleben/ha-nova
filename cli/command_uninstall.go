@@ -250,6 +250,12 @@ func finalizeLocalUninstall(paths runtimePaths, state installState, report *unin
 }
 
 func finalizeLocalUninstallWithProgress(paths runtimePaths, state installState, report *uninstallReport, mode uninstallMode, beforeStep func(string) error) error {
+	relayTokenFile := ""
+	if mode == uninstallModePurge {
+		if cfg, err := loadConfig(paths); err == nil {
+			relayTokenFile = strings.TrimSpace(cfg.RelayTokenFile)
+		}
+	}
 	if beforeStep != nil {
 		if err := beforeStep("client_integrations"); err != nil {
 			return fmt.Errorf("failed before client_integrations: %w", err)
@@ -295,8 +301,27 @@ func finalizeLocalUninstallWithProgress(paths runtimePaths, state installState, 
 				return fmt.Errorf("failed before token_cleanup: %w", err)
 			}
 		}
-		if err := applyUninstallTokenPolicy(report); err != nil {
-			return fmt.Errorf("failed to remove relay auth token: %w", err)
+		tokenFileHandled := false
+		if relayTokenFile != "" {
+			var err error
+			tokenFileHandled, err = applyUninstallServiceTokenFilePolicy(paths, relayTokenFile, report)
+			if err != nil {
+				return fmt.Errorf("failed to remove relay auth token: %w", err)
+			}
+		}
+		if tokenFileHandled {
+			applyUninstallKeyringTokenBestEffort(report)
+		}
+		if !tokenFileHandled {
+			restoreTokenFileOverride := func() {}
+			if relayTokenFile != "" {
+				restoreTokenFileOverride = withRelayAuthTokenFileOverride(relayTokenFile)
+			}
+			if err := applyUninstallTokenPolicy(report); err != nil {
+				restoreTokenFileOverride()
+				return fmt.Errorf("failed to remove relay auth token: %w", err)
+			}
+			restoreTokenFileOverride()
 		}
 		if err := removeDirIfEmptyWithReport(paths.ConfigDir, report); err != nil {
 			return fmt.Errorf("failed to remove managed config directory: %w", err)

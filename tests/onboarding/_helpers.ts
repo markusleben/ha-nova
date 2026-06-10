@@ -227,6 +227,7 @@ exit 0
     { mode: 0o755 },
   );
 
+  // --- hermes mock (fast no-op CLI) ---
   writeFileSync(join(binDir, "hermes"), "#!/usr/bin/env bash\nexit 0\n", { mode: 0o755 });
 
   return binDir;

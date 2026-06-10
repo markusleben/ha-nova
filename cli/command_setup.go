@@ -15,6 +15,7 @@ func runSetup(paths runtimePaths, args []string) int {
 	relayURL := fs.String("relay-url", "", "Relay base URL")
 	relayToken := fs.String("relay-token", "", "Relay auth token")
 	nonInteractive := fs.Bool("non-interactive", false, "Disable prompts")
+	serviceMode := fs.Bool("service", false, "Use a service-safe relay token file instead of desktop secure storage")
 	if err := fs.Parse(normalizeSetupArgs(args)); err != nil {
 		printHumanErr("%s", err)
 		return 1
@@ -33,11 +34,15 @@ func runSetup(paths runtimePaths, args []string) int {
 	}
 
 	if !*nonInteractive {
-		return interactiveSetup(paths, cfg, state, target, *host, *haURL, *relayURL, *relayToken)
+		return interactiveSetup(paths, cfg, state, target, *host, *haURL, *relayURL, *relayToken, *serviceMode)
 	}
 
 	if target == "" {
 		target = "all"
+	}
+	if *serviceMode && target == "all" {
+		printHumanErr("service credentials require a specific client; use: ha-nova setup --service <client>")
+		return 1
 	}
 	selectedClients, skippedClients, err := resolveSetupClientsWithState(paths, target, state)
 	if err != nil {
@@ -60,17 +65,18 @@ func runSetup(paths runtimePaths, args []string) int {
 		printHumanErr("%s", err)
 		return 1
 	}
-	if cfg.HAHost == "" && cfg.HAURL != "" {
-		cfg.HAHost = strings.TrimPrefix(strings.TrimPrefix(cfg.HAURL, "http://"), "https://")
-		cfg.HAHost = strings.TrimSuffix(cfg.HAHost, ":8123")
-	}
-	if cfg.HAHost == "" && !*nonInteractive {
-		answer, err := promptLine("Home Assistant host", cfg.HAHost)
-		if err != nil {
+	if *serviceMode {
+		if err := requireSelectedClientServiceCredentials(paths, selectedClients); err != nil {
 			printHumanErr("%s", err)
 			return 1
 		}
-		cfg.HAHost = strings.TrimSpace(answer)
+		cfg = enableServiceRelayTokenFile(paths, cfg)
+		restoreTokenFileOverride := withRelayAuthTokenFileOverride(cfg.RelayTokenFile)
+		defer restoreTokenFileOverride()
+	}
+	if cfg.HAHost == "" && cfg.HAURL != "" {
+		cfg.HAHost = strings.TrimPrefix(strings.TrimPrefix(cfg.HAURL, "http://"), "https://")
+		cfg.HAHost = strings.TrimSuffix(cfg.HAHost, ":8123")
 	}
 	if cfg.HAHost == "" {
 		printHumanErr("missing Home Assistant host; use --host or run interactively")
@@ -177,14 +183,6 @@ func runSetup(paths runtimePaths, args []string) int {
 	}
 
 	printHumanInfo("Saved HA NOVA configuration")
-	if !*nonInteractive {
-		if err := copyToClipboardForSetup(token); err == nil {
-			printHumanInfo("Copied relay token to clipboard")
-		}
-		if err := openBrowserForSetup(cfg.HAURL + "/hassio/addon/2368fcfa_ha_nova_relay/config"); err != nil {
-			printHumanWarn("Browser launch skipped; open this URL manually if needed: %s/hassio/addon/2368fcfa_ha_nova_relay/config", cfg.HAURL)
-		}
-	}
 
 	_, issue, ok := verifySetupConnectionOnce(os.Stdout, cfg, token)
 	if !ok {
@@ -242,15 +240,31 @@ func restoreRelayAuthToken(previousToken string, hadPreviousToken, tokenChanged 
 }
 
 func normalizeSetupArgs(args []string) []string {
-	if len(args) < 2 {
-		return args
-	}
-	if strings.HasPrefix(args[0], "-") || !isSetupTarget(args[0]) {
-		return args
-	}
-	for _, arg := range args[1:] {
+	targetIndex := -1
+	skipNext := false
+	for index, arg := range args {
+		if skipNext {
+			skipNext = false
+			continue
+		}
 		if strings.HasPrefix(arg, "-") {
-			return append(append([]string{}, args[1:]...), args[0])
+			if setupFlagRequiresValue(arg) {
+				skipNext = true
+			}
+			continue
+		}
+		if !strings.HasPrefix(arg, "-") {
+			targetIndex = index
+		}
+	}
+	if targetIndex < 0 || targetIndex == len(args)-1 {
+		return args
+	}
+	for _, arg := range args[targetIndex+1:] {
+		if strings.HasPrefix(arg, "-") {
+			normalized := append([]string{}, args[:targetIndex]...)
+			normalized = append(normalized, args[targetIndex+1:]...)
+			return append(normalized, args[targetIndex])
 		}
 	}
 	return args
@@ -259,6 +273,19 @@ func normalizeSetupArgs(args []string) []string {
 func isSetupTarget(value string) bool {
 	switch strings.ToLower(strings.TrimSpace(value)) {
 	case "all", "claude", "codex", "opencode", "gemini", "hermes":
+		return true
+	default:
+		return false
+	}
+}
+
+func setupFlagRequiresValue(arg string) bool {
+	name := strings.TrimLeft(arg, "-")
+	if strings.Contains(name, "=") {
+		return false
+	}
+	switch name {
+	case "host", "ha-url", "relay-url", "relay-token":
 		return true
 	default:
 		return false

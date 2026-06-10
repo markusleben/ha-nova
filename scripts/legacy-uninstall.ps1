@@ -44,6 +44,15 @@ foreach ($path in $legacyPaths) {
   Remove-IfExists $path
 }
 
+$wsl = Get-Command wsl.exe -ErrorAction SilentlyContinue
+if ($null -ne $wsl) {
+  try {
+    & $wsl.Source sh -lc 'rm -rf ~/.hermes/skills/ha-nova' 2>$null | Out-Null
+  }
+  catch {
+  }
+}
+
 $legacyScriptsDir = Join-Path $InstallDir "scripts\onboarding"
 if ((Test-Path -LiteralPath $legacyScriptsDir) -and -not (Test-Path -LiteralPath (Join-Path $InstallDir "bundle.json"))) {
   Remove-Item -LiteralPath $InstallDir -Recurse -Force
@@ -53,6 +62,7 @@ $skillRoots = @(
   (Join-Path $HOME ".agents\skills"),
   (Join-Path $HOME ".config\opencode\skills"),
   (Join-Path $HOME ".gemini\skills"),
+  (Join-Path $HOME ".hermes\skills"),
   (Join-Path $HOME ".claude\skills")
 )
 

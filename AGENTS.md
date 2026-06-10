@@ -61,6 +61,12 @@ Work style: Be radically precise. No fluff. Pure information only (drop grammar;
 - Avoid manual `git stash`; if Git auto-stashes during pull/rebase, that’s fine (hint, not hard guardrail).
 - If user types a command (“pull and push”), that’s consent for that command.
 - Big review: `git --no-pager diff --color=never`.
+- **Worktree simplicity:** keep local `main` clean; do not do feature work there.
+- **One topic, one branch:** avoid mixed runtime/docs/release/installer branches unless the behavior truly cannot be separated.
+- **Dirty legacy worktrees are read-only source material:** port changes explicitly into clean branches; do not PR or release directly from them.
+- **README is stable release truth:** do not add future feature claims to `README.md`; keep planned or unreleased claims in active `docs/work/*` notes until release.
+- **Local PR checkpoint:** before creating any PR, show the user `git status --short --branch`, `git diff --stat`, public-claim diffs such as `README.md`, targeted tests run, and remaining risks.
+- **KISS process rule:** prefer fewer rules and fewer files; add process docs/scripts only when they remove a recurring real problem.
 - **Review clearance is commit-specific:** any new relevant delta after the last bot-reviewed commit invalidates prior review clearance.
 - **Relevant delta means:** any code, tests, docs-that-change-behavior, scripts, workflow files, release metadata, installer/update flow, or release notes change that alters the commit to merge or tag.
 - **Push is not review:** a new push never inherits the previous clean review state.
@@ -70,10 +76,12 @@ Work style: Be radically precise. No fluff. Pure information only (drop grammar;
 - **Release/tag/publish gate:** never create/move a release tag, start RC/final publish, or call a commit release-ready unless the exact remote commit state intended for tag/release is represented by the latest fully reviewed PR state with no unreviewed deltas beyond it.
 - **Release-bound review hardening:** do local/self review before opening the PR. After the PR exists, use the fast path only: after each relevant fix, run targeted local verification, push immediately, and trigger `@codex` immediately. After PR creation, Codex bot + CI are the review path; do not add extra local review gates in between.
 - **Manifest-label rule:** if a PR changes `package.json`, `package-lock.json`, `nova/package.json`, or `nova/package-lock.json`, add `manifest-review:approved` immediately after `gh pr create` and before `@codex` / `gh pr checks --watch`.
+- **Manifest-label invalidation rule:** after any later relevant SHA on a manifest-changing PR (push, force-push, rebase, or cherry-pick rewrite), re-apply `manifest-review:approved` on that current PR state before expecting `manifest-review-gate` to pass.
 - **PR Merge / Release Commit Gate — MANDATORY CHECKLIST (do NOT skip any step):**
   The `codex-review-gate` workflow waits ~9 min for the Codex review bot. Bot signals: `eyes` reaction = review in progress, `👍` reaction = no findings, review comments = findings.
   - [ ] 1. `gh pr create ...`
   - [ ] 2. If the PR changes `package.json`, `package-lock.json`, `nova/package.json`, or `nova/package-lock.json`, add the maintainer label immediately: `gh pr edit <nr> --add-label manifest-review:approved`
+  - [ ] 2a. If any later relevant SHA lands on that PR, remove/re-add the label on the latest PR state before re-checking: `gh pr edit <nr> --remove-label manifest-review:approved || true && gh pr edit <nr> --add-label manifest-review:approved`
   - [ ] 3. For the initial PR SHA and for every later relevant SHA: run targeted local verification only, push immediately if needed, then immediately trigger Codex review/re-review: `gh pr comment <nr> --body "@codex"`.
   - [ ] 4. `gh pr checks <nr> --watch` — wait for ALL required checks; for release-bound/high-risk deltas also wait for `codex-review-gate`
   - [ ] 5. Check bot signal across all channels: `gh api repos/<o>/<r>/issues/<nr>/reactions` (👍 = clean), `gh api repos/<o>/<r>/pulls/<nr>/reviews` (PR-level review findings), `gh api repos/<o>/<r>/pulls/<nr>/comments` (inline findings), and issue/discussion comments on the PR.

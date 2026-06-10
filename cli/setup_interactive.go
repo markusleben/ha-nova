@@ -91,7 +91,7 @@ func maskSecretHint(value string) string {
 	return "***" + value[len(value)-4:]
 }
 
-func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState, target string, hostFlag, haURLFlag, relayURLFlag, relayTokenFlag string) int {
+func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState, target string, hostFlag, haURLFlag, relayURLFlag, relayTokenFlag string, serviceMode bool) int {
 	const (
 		setupStageClient = iota
 		setupStageSecureStorageRecovery
@@ -153,7 +153,49 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 		}
 	}
 
+	restoreTokenFileOverride := func() {}
+	defer func() {
+		restoreTokenFileOverride()
+	}()
+	if serviceMode {
+		if target == "all" {
+			printHumanErr("service credentials require a specific client; use: ha-nova setup --service <client>")
+			return 1
+		}
+		if err := requireSelectedClientServiceCredentials(paths, selectedClients); err != nil {
+			printHumanErr("%s", err)
+			return 1
+		}
+		cfg = enableServiceRelayTokenFile(paths, cfg)
+		restoreTokenFileOverride = withRelayAuthTokenFileOverride(cfg.RelayTokenFile)
+	}
+
 	tokenStoragePreflightErr = relayAuthTokenSetupPreflightForSetup()
+	if !serviceMode {
+		serviceCredentials, serviceClientID, hasServiceCredentials, serviceErr := selectedClientsServiceCredentialHint(paths, selectedClients)
+		if serviceErr != nil {
+			printHumanErr("%s", serviceErr)
+			return 1
+		}
+		if hasServiceCredentials && shouldOfferServiceCredentials(tokenStoragePreflightErr) {
+			useServiceCredentials, err := promptSetupServiceCredentialsInteractive(reader, os.Stdout, serviceCredentials, serviceClientID)
+			if err == errSetupExit {
+				printHumanInfo("Setup cancelled")
+				return 0
+			}
+			if err != nil {
+				printHumanErr("%s", err)
+				return 1
+			}
+			if useServiceCredentials {
+				serviceMode = true
+				restoreTokenFileOverride()
+				cfg = enableServiceRelayTokenFile(paths, cfg)
+				restoreTokenFileOverride = withRelayAuthTokenFileOverride(cfg.RelayTokenFile)
+				tokenStoragePreflightErr = relayAuthTokenSetupPreflightForSetup()
+			}
+		}
+	}
 	if tokenStoragePreflightErr == nil {
 		if savedToken, err := readRelayAuthTokenForSetup(); err == nil && strings.TrimSpace(savedToken) != "" {
 			savedTokenBeforeSetup = strings.TrimSpace(savedToken)

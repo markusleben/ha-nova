@@ -3,9 +3,30 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
+
+func TestClientRuntimeDetectedFindsUserLocalBin(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("user-local executable fallback is Unix-style")
+	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("PATH", t.TempDir())
+	binDir := filepath.Join(home, ".local", "bin")
+	if err := os.MkdirAll(binDir, 0o755); err != nil {
+		t.Fatalf("mkdir user local bin: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(binDir, "hermes"), []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatalf("write hermes executable: %v", err)
+	}
+
+	if !clientRuntimeDetected("hermes") {
+		t.Fatal("expected runtime detection to find ~/.local/bin/hermes when PATH omits it")
+	}
+}
 
 func TestBuildSetupClientChoicesDisablesMissingRuntime(t *testing.T) {
 	withClientRuntimeAvailability(t, map[string]bool{})

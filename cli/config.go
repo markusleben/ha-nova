@@ -7,10 +7,11 @@ import (
 )
 
 type runtimeConfig struct {
-	SchemaVersion int    `json:"schema_version"`
-	HAHost        string `json:"ha_host"`
-	HAURL         string `json:"ha_url"`
-	RelayBaseURL  string `json:"relay_base_url"`
+	SchemaVersion  int    `json:"schema_version"`
+	HAHost         string `json:"ha_host"`
+	HAURL          string `json:"ha_url"`
+	RelayBaseURL   string `json:"relay_base_url"`
+	RelayTokenFile string `json:"relay_token_file,omitempty"`
 }
 
 type config = runtimeConfig

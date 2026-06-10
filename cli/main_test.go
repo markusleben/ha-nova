@@ -300,3 +300,21 @@ func TestNormalizeSetupArgsMovesTargetAfterFlags(t *testing.T) {
 		t.Fatalf("normalizeSetupArgs() = %v, want %v", got, want)
 	}
 }
+
+func TestNormalizeSetupArgsMovesFutureRegistryTargetAfterFlags(t *testing.T) {
+	got := normalizeSetupArgs([]string{
+		"future-client",
+		"--service",
+		"--host", "127.0.0.1",
+	})
+
+	want := []string{
+		"--service",
+		"--host", "127.0.0.1",
+		"future-client",
+	}
+
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("normalizeSetupArgs() = %v, want %v", got, want)
+	}
+}

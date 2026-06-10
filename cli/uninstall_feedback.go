@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -95,4 +96,62 @@ func applyUninstallTokenPolicy(report *uninstallReport) error {
 		report.addRemoved("relay auth token")
 	}
 	return nil
+}
+
+// applyUninstallKeyringTokenBestEffort removes a leftover relay token from
+// the OS credential store after the service token file was already handled.
+// An earlier desktop-mode setup may have stored a token there before the
+// user switched to service mode. Service machines often run headless with a
+// locked or absent keyring, so failures only add a note instead of aborting
+// the purge.
+func applyUninstallKeyringTokenBestEffort(report *uninstallReport) {
+	if !shouldDeleteRelayAuthTokenOnUninstall() {
+		return
+	}
+	token, err := readRelayAuthTokenForUninstall()
+	if err != nil {
+		if !isMissingRelayAuthTokenError(err) {
+			report.addNote("Could not check the OS credential store for a leftover relay token. If an earlier desktop-mode setup stored one, remove the 'ha-nova' entry manually.")
+		}
+		return
+	}
+	if strings.TrimSpace(token) == "" {
+		return
+	}
+	if err := deleteRelayAuthTokenForUninstall(); err != nil {
+		report.addNote("Could not remove the leftover relay token from the OS credential store. Remove the 'ha-nova' entry manually.")
+		return
+	}
+	report.addRemoved("relay auth token (OS credential store)")
+}
+
+func applyUninstallServiceTokenFilePolicy(paths runtimePaths, path string, report *uninstallReport) (bool, error) {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return false, nil
+	}
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(paths.ConfigDir, path)
+	}
+	path = filepath.Clean(path)
+	configDir := filepath.Clean(paths.ConfigDir)
+	rel, err := filepath.Rel(configDir, path)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+		return false, nil
+	}
+	info, err := os.Lstat(path)
+	if err != nil {
+		if isNotExist(err) {
+			return true, nil
+		}
+		return true, err
+	}
+	if info.IsDir() {
+		return true, nil
+	}
+	if err := os.Remove(path); err != nil && !isNotExist(err) {
+		return true, err
+	}
+	report.addRemoved("relay auth token")
+	return true, nil
 }

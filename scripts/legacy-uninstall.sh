@@ -38,6 +38,7 @@ fi
 remove_glob_matches "${HOME}/.agents/skills/ha-nova*"
 remove_glob_matches "${HOME}/.config/opencode/skills/ha-nova*"
 remove_glob_matches "${HOME}/.gemini/skills/ha-nova*"
+remove_glob_matches "${HOME}/.hermes/skills/ha-nova*"
 remove_glob_matches "${HOME}/.claude/skills/ha-nova*"
 
 echo "[ha-nova:legacy-uninstall] Legacy HA NOVA cleanup finished."

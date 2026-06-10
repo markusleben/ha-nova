@@ -17,8 +17,8 @@ var collectARPHostsForDiscovery = collectARPHosts
 var runMDNSBrowseForDiscovery = runMDNSBrowse
 var runMDNSLookupForDiscovery = runMDNSLookup
 var mdnsAvailableForDiscovery = defaultMDNSDiscoveryAvailable
-var setupDiscoveryOverallTimeout = 20 * time.Second
 var setupDiscoveryPlatformOS = runtime.GOOS
+var setupDiscoveryOverallTimeout = 20 * time.Second
 
 func detectDefaultHAHost(cfg runtimeConfig) string {
 	host, _ := detectDefaultHAHostChoice(cfg)
@@ -40,15 +40,6 @@ func detectDefaultHAHostChoice(cfg runtimeConfig) (string, bool) {
 		}
 	}
 	return preferredUnverifiedHAHost(cfg), false
-}
-
-func preferredUnverifiedHAHost(cfg runtimeConfig) string {
-	for _, candidate := range []string{cfg.HAHost, cfg.HAURL, cfg.RelayBaseURL} {
-		if host := normalizeHostInput(candidate); host != "" {
-			return host
-		}
-	}
-	return ""
 }
 
 func collectCandidateHosts(cfg runtimeConfig) []string {
@@ -78,6 +69,15 @@ func collectCandidateHosts(cfg runtimeConfig) []string {
 	}
 
 	return candidates
+}
+
+func preferredUnverifiedHAHost(cfg runtimeConfig) string {
+	for _, candidate := range []string{cfg.HAHost, cfg.HAURL, cfg.RelayBaseURL} {
+		if host := normalizeHostInput(candidate); host != "" {
+			return host
+		}
+	}
+	return ""
 }
 
 func discoverHAViaMDNS() string {

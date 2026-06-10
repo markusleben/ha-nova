@@ -12,6 +12,7 @@ import (
 var keyringGetWithService = keyring.Get
 var keyringSetWithService = keyring.Set
 var keyringDeleteWithService = keyring.Delete
+var inspectLinuxSecureStorageStateForKeyring = inspectLinuxSecureStorageState
 
 func readRelayAuthToken() (string, error) {
 	if token, overridden, err := readRelayAuthTokenOverride(); overridden {
@@ -23,6 +24,9 @@ func readRelayAuthToken() (string, error) {
 		}
 		return token, nil
 	}
+	if token, overridden, err := readRelayAuthTokenFileOverride(); overridden {
+		return token, err
+	}
 	return readSecretWithService(relayAuthTokenServiceName())
 }
 
@@ -33,6 +37,9 @@ func writeRelayAuthToken(token string) error {
 		}
 		return nil
 	}
+	if overridden, err := writeRelayAuthTokenFileOverride(token); overridden {
+		return err
+	}
 	return writeSecretWithService(relayAuthTokenServiceName(), token)
 }
 
@@ -42,6 +49,9 @@ func deleteRelayAuthToken() error {
 			return fmt.Errorf("cannot delete relay auth token: %w", err)
 		}
 		return nil
+	}
+	if overridden, err := deleteRelayAuthTokenFileOverride(); overridden {
+		return err
 	}
 	return deleteSecretWithService(relayAuthTokenServiceName())
 }
@@ -55,6 +65,9 @@ func currentKeyringUsername() (string, error) {
 }
 
 func readSecretWithService(service string) (string, error) {
+	if err := relayAuthTokenLinuxReadPreflight(); err != nil {
+		return "", relayAuthTokenReadError(service, err)
+	}
 	username, err := currentKeyringUsername()
 	if err != nil {
 		return "", err
@@ -79,6 +92,9 @@ func writeSecretWithService(service, token string) error {
 }
 
 func deleteSecretWithService(service string) error {
+	if err := relayAuthTokenLinuxReadPreflight(); err != nil {
+		return err
+	}
 	username, err := currentKeyringUsername()
 	if err != nil {
 		return err
@@ -87,4 +103,19 @@ func deleteSecretWithService(service string) error {
 		return normalizeLinuxKeyringError(err)
 	}
 	return nil
+}
+
+func relayAuthTokenLinuxReadPreflight() error {
+	state, err := inspectLinuxSecureStorageStateForKeyring()
+	if err != nil {
+		return err
+	}
+	switch state.kind {
+	case linuxSecureStorageStateNeedsInit:
+		return desktopKeyringInitializationRequiredError("no default Secret Service collection configured")
+	case linuxSecureStorageStateLocked:
+		return desktopKeyringLockedError("default Secret Service collection is locked")
+	default:
+		return nil
+	}
 }

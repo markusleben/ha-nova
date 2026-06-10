@@ -233,6 +233,9 @@ func validateBundleRoot(stageRoot string) error {
 	if _, err := os.Stat(registryPath); err != nil {
 		return fmt.Errorf("client registry missing from staged update")
 	}
+	if err := validateClientRegistryFile(registryPath); err != nil {
+		return err
+	}
 	meta, err := loadBundleMetadataFile(metaPath)
 	if err != nil {
 		return err

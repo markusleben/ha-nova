@@ -68,6 +68,8 @@ describe("project docs contract", () => {
     expect(novaDocs).toContain("including `GET /health`");
     expect(novaDocs).toContain("Authorization: Bearer <token>");
     expect(novaDocs).toContain("[latest GitHub release](https://github.com/markusleben/ha-nova/releases/latest)");
+    expect(novaDocs).toContain("local Relay token");
+    expect(novaDocs).not.toContain("keychain token");
     expect(novaDocs).not.toContain("raw.githubusercontent.com/markusleben/ha-nova/main/install.sh");
     expect(novaDocs).toContain('"ok": true');
     expect(novaDocs).toContain('"data": {');

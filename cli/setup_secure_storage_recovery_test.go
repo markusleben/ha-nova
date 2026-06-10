@@ -338,7 +338,7 @@ func TestInteractiveSetupRecoveryBackDoesNotBypassGate(t *testing.T) {
 
 	exitCode := 0
 	stdout, stderr := captureInteractiveSetupIO(t, input, func() int {
-		exitCode = interactiveSetup(paths, runtimeConfig{}, loadStateOrDefault(paths), "", "", "", relayServer.URL, "")
+		exitCode = interactiveSetup(paths, runtimeConfig{}, loadStateOrDefault(paths), "", "", "", relayServer.URL, "", false)
 		return exitCode
 	})
 	if exitCode != 0 {
@@ -436,7 +436,7 @@ func TestInteractiveSetupRecoversWhenSavedTokenReadNeedsRecovery(t *testing.T) {
 
 	exitCode := 0
 	stdout, stderr := captureInteractiveSetupIO(t, input, func() int {
-		exitCode = interactiveSetup(paths, runtimeConfig{}, loadStateOrDefault(paths), "", "", "", relayServer.URL, "")
+		exitCode = interactiveSetup(paths, runtimeConfig{}, loadStateOrDefault(paths), "", "", "", relayServer.URL, "", false)
 		return exitCode
 	})
 	if exitCode != 0 {
@@ -532,7 +532,7 @@ func TestInteractiveSetupReusesSavedTokenAfterReadRecovery(t *testing.T) {
 
 	exitCode := 0
 	stdout, stderr := captureInteractiveSetupIO(t, input, func() int {
-		exitCode = interactiveSetup(paths, runtimeConfig{}, loadStateOrDefault(paths), "", "", "", relayServer.URL, "")
+		exitCode = interactiveSetup(paths, runtimeConfig{}, loadStateOrDefault(paths), "", "", "", relayServer.URL, "", false)
 		return exitCode
 	})
 	if exitCode != 0 {
@@ -586,7 +586,7 @@ func TestInteractiveSetupDeclinedReadRecoveryMentionsSavedTokenAccess(t *testing
 
 	exitCode := 0
 	stdout, stderr := captureInteractiveSetupIO(t, joinSetupInputs([]string{"4", "n"}), func() int {
-		exitCode = interactiveSetup(paths, runtimeConfig{}, loadStateOrDefault(paths), "", "", "", "http://relay.test:8791", "")
+		exitCode = interactiveSetup(paths, runtimeConfig{}, loadStateOrDefault(paths), "", "", "", "http://relay.test:8791", "", false)
 		return exitCode
 	})
 	if exitCode != 1 {
@@ -684,7 +684,7 @@ func TestInteractiveSetupRetriesSaveTimeRecoveryInline(t *testing.T) {
 
 	exitCode := 0
 	stdout, stderr := captureInteractiveSetupIO(t, input, func() int {
-		exitCode = interactiveSetup(paths, runtimeConfig{}, loadStateOrDefault(paths), "", "", "", relayServer.URL, "")
+		exitCode = interactiveSetup(paths, runtimeConfig{}, loadStateOrDefault(paths), "", "", "", relayServer.URL, "", false)
 		return exitCode
 	})
 	if exitCode != 0 {
@@ -788,7 +788,7 @@ func TestInteractiveSetupRetriesSaveTimeInitializationRecoveryInline(t *testing.
 
 	exitCode := 0
 	stdout, stderr := captureInteractiveSetupIO(t, input, func() int {
-		exitCode = interactiveSetup(paths, runtimeConfig{}, loadStateOrDefault(paths), "", "", "", relayServer.URL, "")
+		exitCode = interactiveSetup(paths, runtimeConfig{}, loadStateOrDefault(paths), "", "", "", relayServer.URL, "", false)
 		return exitCode
 	})
 	if exitCode != 0 {

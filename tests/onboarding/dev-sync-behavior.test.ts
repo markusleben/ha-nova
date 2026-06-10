@@ -309,4 +309,29 @@ describe("dev-sync behavior", () => {
     expect(result.status).not.toBe(0);
     expect(result.stderr + result.stdout).toContain("[dev:sync] ERROR: Node.js not found in PATH");
   });
+
+  it("skips stale Claude marketplace-only metadata without requiring Node.js", () => {
+    const home = mkdtempSync(join(tmpdir(), "ha-nova-dev-sync-claude-marketplace-only-"));
+    const claudeLogFile = join(home, "claude.log");
+    const binDir = createMockBinaries({ claudeLogFile });
+    writeFileSync(join(binDir, "node"), "#!/usr/bin/env bash\nexit 127\n", { mode: 0o755 });
+    mkdirSync(join(home, ".claude", "plugins"), { recursive: true });
+    writeFileSync(
+      join(home, ".claude", "plugins", "known_marketplaces.json"),
+      '{"ha-nova":{"source":"https://github.com/markusleben/ha-nova"}}',
+    );
+
+    const result = spawnSync("bash", ["scripts/dev-sync.sh"], {
+      cwd: REPO_ROOT,
+      encoding: "utf8",
+      timeout: 20000,
+      env: {
+        ...mockEnv(home, binDir),
+        PATH: `${binDir}:${process.env.PATH ?? ""}`,
+      },
+    });
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("Claude Code: ha-nova plugin not installed");
+  });
 });

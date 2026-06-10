@@ -1,4 +1,5 @@
 {
+  "registry_format_version": 1,
   "clients": [
     {
       "id": "claude",
@@ -28,7 +29,14 @@
       "id": "hermes",
       "label": "Hermes Agent",
       "adapter_kind": "skill_tree",
-      "supported_os": ["macos", "linux"]
+      "supported_os": ["macos", "linux"],
+      "setup": {
+        "service_credentials": {
+          "recommended_when": ["headless", "locked_keyring", "systemd_user_service"],
+          "label": "Service / gateway mode",
+          "help": "Use this when Hermes runs from SSH, systemd, headless, or gateway sessions without an unlocked desktop keyring. Keep desktop keyring mode for a normal desktop terminal."
+        }
+      }
     }
   ]
 }

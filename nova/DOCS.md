@@ -60,7 +60,7 @@ Run the built-in health check:
 ha-nova doctor
 ```
 
-This verifies: config file, keychain token, relay reachability, WebSocket connection,
+This verifies: config file, local Relay token, relay reachability, WebSocket connection,
 and relay version.
 
 You can also check the relay directly:

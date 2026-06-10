@@ -201,7 +201,7 @@ func removeClaudeMarketplaceRecord(home string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	return true, os.WriteFile(path, updated, 0o644)
+	return true, writeFileAtomic(path, updated, 0o644)
 }
 
 func removeClaudePluginRecord(home string) error {
@@ -228,7 +228,7 @@ func removeClaudePluginRecord(home string) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, updated, 0o644)
+	return writeFileAtomic(path, updated, 0o644)
 }
 
 func unmarshalClaudeJSON(data []byte, target any) error {
