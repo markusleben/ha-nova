@@ -126,10 +126,11 @@ func readClaudePluginInstallState(home string) (found, usable, stateUnreadable b
 func claudePluginInstallSnapshotFromValue(value any) (bool, bool) {
 	switch typed := value.(type) {
 	case []any:
-		recordFound := len(typed) > 0
+		recordFound := false
 		usableInstallPath := false
 		for _, entry := range typed {
-			_, usable := claudePluginInstallSnapshotFromValue(entry)
+			found, usable := claudePluginInstallSnapshotFromValue(entry)
+			recordFound = recordFound || found
 			usableInstallPath = usableInstallPath || usable
 		}
 		return recordFound, usableInstallPath
