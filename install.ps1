@@ -7,15 +7,12 @@ $ErrorActionPreference = "Stop"
 
 $RepoOwner = "markusleben"
 $RepoName = "ha-nova"
-$LegacyWindowsPackageId = "markusleben.ha-nova"
 $LatestReleaseUrl = "https://api.github.com/repos/markusleben/ha-nova/releases/latest"
 $ReleaseBaseUrl = "https://github.com/$RepoOwner/$RepoName/releases/download"
 $LocalAppDataDir = if ($env:LOCALAPPDATA) { $env:LOCALAPPDATA } else { Join-Path $HOME "AppData\Local" }
 $AppDataDir = if ($env:APPDATA) { $env:APPDATA } else { Join-Path $HOME "AppData\Roaming" }
 $InstallDir = Join-Path $LocalAppDataDir "Programs\ha-nova"
 $PublicCommandDir = $InstallDir
-$LegacyWindowsPackageLink = Join-Path $LocalAppDataDir "Microsoft\WinGet\Links\ha-nova.exe"
-$LegacyWindowsPackagesDir = Join-Path $LocalAppDataDir "Microsoft\WinGet\Packages"
 $LegacyUninstallUrl = "https://raw.githubusercontent.com/markusleben/ha-nova/main/scripts/legacy-uninstall.ps1"
 $ConfigDir = Join-Path $AppDataDir "ha-nova"
 $UninstallStatusPath = Join-Path $LocalAppDataDir "ha-nova\uninstall-status.json"
@@ -200,53 +197,6 @@ Run the cleanup first:
   irm $LegacyUninstallUrl | iex
 
 Then run this installer again.
-"@
-}
-
-function Test-OldWindowsPackageBundleRoot {
-  param(
-    [string]$Candidate
-  )
-
-  if (-not $Candidate) {
-    return $false
-  }
-
-  $root = $Candidate.TrimEnd('\')
-  return (Test-Path -LiteralPath (Join-Path $root "ha-nova.exe")) -and (Test-Path -LiteralPath (Join-Path $root "bundle.json"))
-}
-
-function Test-OldWindowsPackageInstall {
-  if (Test-Path -LiteralPath $LegacyWindowsPackageLink) {
-    return $true
-  }
-
-  $packageRoots = @(Get-ChildItem -LiteralPath $LegacyWindowsPackagesDir -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "$LegacyWindowsPackageId*" })
-  foreach ($packageRoot in $packageRoots) {
-    if (Test-OldWindowsPackageBundleRoot -Candidate (Join-Path $packageRoot.FullName "ha-nova")) {
-      return $true
-    }
-    if (Test-OldWindowsPackageBundleRoot -Candidate $packageRoot.FullName) {
-      return $true
-    }
-  }
-
-  return $false
-}
-
-function Stop-ForOldWindowsPackageInstall {
-  Fail @"
-An older private or test Windows package install of HA NOVA was detected.
-This installer will not create a second Windows install state.
-
-Remove the older HA NOVA app from Windows first:
-  Installed Apps / App Installer -> uninstall HA NOVA
-
-If Windows left stale package files behind, remove:
-  $LegacyWindowsPackageLink
-  $LegacyWindowsPackagesDir\$LegacyWindowsPackageId*
-
-Then rerun install.ps1.
 "@
 }
 
@@ -489,7 +439,7 @@ Then run this installer again.
 "@
 }
 
-function Invoke-WebRequestWithQuietProgress {
+function Invoke-DownloadFile {
   param(
     [Parameter(Mandatory = $true)][string]$Uri,
     [Parameter(Mandatory = $true)][string]$OutFile
@@ -522,8 +472,8 @@ function Install-Bundle {
   New-Item -ItemType Directory -Force -Path $extractDir | Out-Null
 
   try {
-    Invoke-WebRequestWithQuietProgress -Uri $bundleUrl -OutFile $archivePath
-    Invoke-WebRequestWithQuietProgress -Uri (Get-BundleChecksumUrl -Version $Version) -OutFile $checksumPath
+    Invoke-DownloadFile -Uri $bundleUrl -OutFile $archivePath
+    Invoke-DownloadFile -Uri (Get-BundleChecksumUrl -Version $Version) -OutFile $checksumPath
     $expectedHash = (Get-Content -LiteralPath $checksumPath -Raw).Trim().Split()[0]
     $actualHash = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant()
     if (-not $expectedHash -or $actualHash -ne $expectedHash.ToLowerInvariant()) {
@@ -661,9 +611,6 @@ if (-not (Test-CurrentInstall) -and (Test-LegacyInstall)) {
 }
 if ($uninstallRecovery = Get-UninstallRecoveryState) {
   Stop-ForUninstallRecovery -Recovery $uninstallRecovery
-}
-if (Test-OldWindowsPackageInstall) {
-  Stop-ForOldWindowsPackageInstall
 }
 $bundleResult = Install-Bundle -Version $version
 Ensure-InstallDirOnPath | Out-Null

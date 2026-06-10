@@ -61,7 +61,7 @@ describe("release contract", () => {
   });
 
   it("keeps the Windows installer bundle-managed while preserving quiet download UX", () => {
-    expect(installer).toContain("Invoke-WebRequestWithQuietProgress");
+    expect(installer).toContain("Invoke-DownloadFile");
     expect(installer).toContain('$global:ProgressPreference = "SilentlyContinue"');
     expect(installer).not.toContain("Stop-ForWingetInstall");
     expect(installer).not.toContain("Get-Command winget");
