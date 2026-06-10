@@ -20,7 +20,18 @@ var errRelayAuthTokenFileInvalid = errors.New("relay token file invalid")
 var errRelayTokenStorageConfigUnreadable = errors.New("relay token storage config unreadable")
 
 var relayAuthTokenFilePathOverride string
+var relayAuthTokenFileSuppressed bool
 var relayAuthTokenFilePlatformOS = runtime.GOOS
+
+// withRelayAuthTokenFileSuppressed routes token reads/deletes to the OS
+// credential store even when the config references a token file. Purge uses
+// it after the token file was already removed so a leftover desktop-mode
+// keyring entry still gets cleaned up.
+func withRelayAuthTokenFileSuppressed() func() {
+	previous := relayAuthTokenFileSuppressed
+	relayAuthTokenFileSuppressed = true
+	return func() { relayAuthTokenFileSuppressed = previous }
+}
 
 func relayAuthTokenServiceName() string {
 	if override := strings.TrimSpace(os.Getenv("HA_NOVA_KEYRING_SERVICE")); override != "" {
@@ -63,6 +74,9 @@ func defaultRelayAuthTokenFile(paths runtimePaths) string {
 }
 
 func relayAuthTokenFilePathFromConfig() (string, bool, error) {
+	if relayAuthTokenFileSuppressed {
+		return "", false, nil
+	}
 	if relayAuthTokenFilePathOverride != "" {
 		return relayAuthTokenFilePathOverride, true, nil
 	}

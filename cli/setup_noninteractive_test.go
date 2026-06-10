@@ -239,7 +239,7 @@ func TestRunSetupNonInteractiveServiceModeRequiresRegistryCapability(t *testing.
 	exitCode, output := captureCommandOutput(t, func() int {
 		return runSetup(paths, []string{
 			"--service",
-			"--host", "192.168.1.5",
+			"--host", "203.0.113.1",
 			"--relay-token", "test-relay-token",
 			"--non-interactive",
 			"gemini",
@@ -270,7 +270,7 @@ func TestRunSetupNonInteractiveServiceModeRequiresSpecificClient(t *testing.T) {
 	exitCode, output := captureCommandOutput(t, func() int {
 		return runSetup(paths, []string{
 			"--service",
-			"--host", "192.168.1.5",
+			"--host", "203.0.113.1",
 			"--relay-token", "test-relay-token",
 			"--non-interactive",
 			"all",

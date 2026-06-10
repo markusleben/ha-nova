@@ -367,3 +367,28 @@ func TestRelayTokenStorageHonorsTokenFileWithoutRelayBaseURL(t *testing.T) {
 		t.Fatalf("unexpected token %q", token)
 	}
 }
+
+func TestRelayAuthTokenFileSuppressionRoutesToKeyring(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+	if err := os.MkdirAll(paths.ConfigDir, 0o700); err != nil {
+		t.Fatalf("mkdir config dir: %v", err)
+	}
+	if err := os.WriteFile(paths.ConfigFile, []byte(`{"relay_token_file":"relay-token"}`), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	if _, ok, err := relayAuthTokenFilePathFromConfig(); !ok || err != nil {
+		t.Fatalf("expected token file to be configured, got ok=%v err=%v", ok, err)
+	}
+
+	restore := withRelayAuthTokenFileSuppressed()
+	defer restore()
+	if path, ok, err := relayAuthTokenFilePathFromConfig(); ok || err != nil || path != "" {
+		t.Fatalf("expected suppression to report no token file, got path=%q ok=%v err=%v", path, ok, err)
+	}
+}

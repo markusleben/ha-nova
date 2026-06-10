@@ -60,16 +60,18 @@ func runSetup(paths runtimePaths, args []string) int {
 		}
 	}
 
+	if *serviceMode {
+		if err := requireSelectedClientServiceCredentials(paths, selectedClients); err != nil {
+			printHumanErr("%s", err)
+			return 1
+		}
+	}
 	cfg, err = applySetupFlagOverrides(cfg, *host, *haURL, *relayURL)
 	if err != nil {
 		printHumanErr("%s", err)
 		return 1
 	}
 	if *serviceMode {
-		if err := requireSelectedClientServiceCredentials(paths, selectedClients); err != nil {
-			printHumanErr("%s", err)
-			return 1
-		}
 		cfg = enableServiceRelayTokenFile(paths, cfg)
 		restoreTokenFileOverride := withRelayAuthTokenFileOverride(cfg.RelayTokenFile)
 		defer restoreTokenFileOverride()

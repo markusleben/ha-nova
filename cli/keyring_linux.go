@@ -27,6 +27,12 @@ func readRelayAuthToken() (string, error) {
 	if token, overridden, err := readRelayAuthTokenFileOverride(); overridden {
 		return token, err
 	}
+	// Fail fast with the local credential-store class instead of letting
+	// go-keyring hang in a Secret Service unlock prompt (issue #200). The
+	// recovery probe uses the low-level wrappers directly and stays exempt.
+	if err := relayAuthTokenLinuxReadPreflight(); err != nil {
+		return "", relayAuthTokenReadError(relayAuthTokenServiceName(), err)
+	}
 	return readSecretWithService(relayAuthTokenServiceName())
 }
 
@@ -53,6 +59,9 @@ func deleteRelayAuthToken() error {
 	if overridden, err := deleteRelayAuthTokenFileOverride(); overridden {
 		return err
 	}
+	if err := relayAuthTokenLinuxReadPreflight(); err != nil {
+		return err
+	}
 	return deleteSecretWithService(relayAuthTokenServiceName())
 }
 
@@ -65,9 +74,6 @@ func currentKeyringUsername() (string, error) {
 }
 
 func readSecretWithService(service string) (string, error) {
-	if err := relayAuthTokenLinuxReadPreflight(); err != nil {
-		return "", relayAuthTokenReadError(service, err)
-	}
 	username, err := currentKeyringUsername()
 	if err != nil {
 		return "", err
@@ -92,9 +98,6 @@ func writeSecretWithService(service, token string) error {
 }
 
 func deleteSecretWithService(service string) error {
-	if err := relayAuthTokenLinuxReadPreflight(); err != nil {
-		return err
-	}
 	username, err := currentKeyringUsername()
 	if err != nil {
 		return err

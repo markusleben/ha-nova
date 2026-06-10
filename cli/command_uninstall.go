@@ -310,7 +310,9 @@ func finalizeLocalUninstallWithProgress(paths runtimePaths, state installState, 
 			}
 		}
 		if tokenFileHandled {
+			restoreSuppression := withRelayAuthTokenFileSuppressed()
 			applyUninstallKeyringTokenBestEffort(report)
+			restoreSuppression()
 		}
 		if !tokenFileHandled {
 			restoreTokenFileOverride := func() {}
