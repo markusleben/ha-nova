@@ -167,6 +167,14 @@ reset_local_claude_plugin_state() {
 restore_local_claude_state() {
   local previous_source="$1"
   local previous_plugin_installed="$2"
+  local previous_marketplace_present="${3:-0}"
+
+  if [[ "${previous_marketplace_present}" == "1" && -z "${previous_source}" && "${previous_plugin_installed}" != "1" ]]; then
+    # The original marketplace source is unknown (for example Node.js was
+    # unavailable for the state helper). Keep the current record instead of
+    # deleting user state we cannot restore.
+    return 1
+  fi
 
   claude plugin marketplace remove ha-nova >/dev/null 2>&1 || true
   if [[ "${previous_plugin_installed}" == "1" && -z "${previous_source}" ]]; then
@@ -191,8 +199,9 @@ fail_after_claude_restore_attempt() {
   local message="$1"
   local previous_source="$2"
   local previous_plugin_installed="$3"
+  local previous_marketplace_present="${4:-0}"
 
-  if ! restore_local_claude_state "${previous_source}" "${previous_plugin_installed}"; then
+  if ! restore_local_claude_state "${previous_source}" "${previous_plugin_installed}" "${previous_marketplace_present}"; then
     die "${message}; previous Claude state could not be restored automatically"
   fi
 
@@ -202,13 +211,21 @@ fail_after_claude_restore_attempt() {
 install_claude_plugin() {
   local previous_source=""
   local previous_plugin_installed="0"
+  local previous_marketplace_present="0"
 
+  if claude_marketplace_record_present; then
+    previous_marketplace_present="1"
+  fi
   if claude_plugin_state_helper_required; then
     require_claude_plugin_state_tool "[claude]" || exit 1
     previous_source="$(read_claude_marketplace_source)"
     if claude_plugin_installed; then
       previous_plugin_installed="1"
     fi
+  elif [[ "${previous_marketplace_present}" == "1" ]] && claude_plugin_state_runtime_ready; then
+    # Best effort: capture the original source when Node.js happens to be
+    # available, without requiring it for marketplace-only state.
+    previous_source="$(read_claude_marketplace_source)"
   fi
 
   local marketplace_root
@@ -219,16 +236,16 @@ install_claude_plugin() {
   if claude plugin marketplace add "${marketplace_root}" 2>/dev/null; then
     log "[claude] Marketplace registered: ${marketplace_root}"
   else
-    fail_after_claude_restore_attempt "[claude] Marketplace registration failed: ${marketplace_root}" "${previous_source}" "${previous_plugin_installed}"
+    fail_after_claude_restore_attempt "[claude] Marketplace registration failed: ${marketplace_root}" "${previous_source}" "${previous_plugin_installed}" "${previous_marketplace_present}"
   fi
 
   if ! reset_local_claude_plugin_state; then
-    fail_after_claude_restore_attempt "[claude] Plugin reset failed: ha-nova@ha-nova" "${previous_source}" "${previous_plugin_installed}"
+    fail_after_claude_restore_attempt "[claude] Plugin reset failed: ha-nova@ha-nova" "${previous_source}" "${previous_plugin_installed}" "${previous_marketplace_present}"
   fi
 
   if claude plugin install ha-nova@ha-nova 2>/dev/null; then
     log "[claude] Plugin installed: ha-nova@ha-nova"
   else
-    fail_after_claude_restore_attempt "[claude] Plugin install failed: ha-nova@ha-nova" "${previous_source}" "${previous_plugin_installed}"
+    fail_after_claude_restore_attempt "[claude] Plugin install failed: ha-nova@ha-nova" "${previous_source}" "${previous_plugin_installed}" "${previous_marketplace_present}"
   fi
 }

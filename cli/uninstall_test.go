@@ -723,3 +723,42 @@ func TestApplyUninstallKeyringTokenBestEffortToleratesLockedKeyring(t *testing.T
 		t.Fatalf("expected a manual-cleanup note, got %+v", report.notes)
 	}
 }
+
+func TestPurgeFindsServiceTokenFileWhenConfigIsIncomplete(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+	if err := os.MkdirAll(paths.ConfigDir, 0o700); err != nil {
+		t.Fatalf("mkdir config dir: %v", err)
+	}
+	// Incomplete service-mode config: relay_base_url missing, token file set.
+	if err := os.WriteFile(paths.ConfigFile, []byte(`{"relay_token_file":"relay-token"}`), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	tokenPath := defaultRelayAuthTokenFile(paths)
+	if err := writeRelayAuthTokenFile(tokenPath, "service-token"); err != nil {
+		t.Fatalf("write token file: %v", err)
+	}
+
+	originalRead := readRelayAuthTokenForUninstall
+	originalDelete := deleteRelayAuthTokenForUninstall
+	defer func() {
+		readRelayAuthTokenForUninstall = originalRead
+		deleteRelayAuthTokenForUninstall = originalDelete
+	}()
+	readRelayAuthTokenForUninstall = func() (string, error) {
+		return "", missingRelayAuthTokenError("test keyring")
+	}
+	deleteRelayAuthTokenForUninstall = func() error { return nil }
+
+	report := &uninstallReport{}
+	if err := finalizeLocalUninstall(paths, installState{}, report, uninstallModePurge); err != nil {
+		t.Fatalf("finalizeLocalUninstall() error: %v", err)
+	}
+	if _, err := os.Stat(tokenPath); !isNotExist(err) {
+		t.Fatalf("expected service token file to be purged despite incomplete config, err=%v", err)
+	}
+}

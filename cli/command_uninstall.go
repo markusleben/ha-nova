@@ -252,7 +252,10 @@ func finalizeLocalUninstall(paths runtimePaths, state installState, report *unin
 func finalizeLocalUninstallWithProgress(paths runtimePaths, state installState, report *uninstallReport, mode uninstallMode, beforeStep func(string) error) error {
 	relayTokenFile := ""
 	if mode == uninstallModePurge {
-		if cfg, err := loadConfig(paths); err == nil {
+		// Read the raw config: token-file cleanup must not depend on setup
+		// completeness (loadConfig fails when relay_base_url is missing,
+		// which would silently skip service token file removal on purge).
+		if cfg, err := loadJSONConfig(paths.ConfigFile); err == nil {
 			relayTokenFile = strings.TrimSpace(cfg.RelayTokenFile)
 		}
 	}
