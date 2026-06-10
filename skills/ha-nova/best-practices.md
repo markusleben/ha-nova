@@ -164,3 +164,28 @@ triggers:
   - what failed
   - why
   - next concrete step
+
+## Persistence Model (restart survival)
+
+Which Home Assistant constructs survive a restart. Any save → modify → restore design with a restart-recovery path (a `homeassistant` start trigger) must keep the saved state in a persistent construct. Apply this during planning, before recommending an approach — not only during review.
+
+Persistent (survive restart):
+- `input_boolean`, `input_number`, `input_text`, `input_select`, `input_datetime` (state restored from disk — UNLESS a YAML-configured `initial:` value is set; `initial:` overrides restore and resets the helper on every restart)
+- `counter` (restored; `restore: false` opts out)
+- `timer` only with `restore: true` (default does NOT restore running timers)
+- YAML/UI-defined scenes (the definition persists; activating one is still a one-shot action)
+- config-entry helpers and integration entities backed by restore state
+
+Transient (lost on restart):
+- `scene.create` runtime snapshots
+- automation/script `variables:` (execution-scoped)
+- `trigger_variables` (attach-time, see also the stale-snapshot reliability check)
+- `input_*` helpers with a YAML `initial:` value (reset to that value on boot)
+- running script/automation state, `wait_*` state, queued/parallel run backlog
+- timers without `restore: true`
+
+Rules:
+- If a restore path is reachable from a startup trigger, every value it reads must come from the persistent list.
+- Never recommend `scene.create` for snapshots that must survive a restart; use helpers instead.
+- Verify the save-target helper does not set a YAML `initial:` value when the saved value must survive restarts.
+- When proposing a save/restore design, state explicitly whether it survives a restart.

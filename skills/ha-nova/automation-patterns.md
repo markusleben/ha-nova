@@ -181,3 +181,8 @@ actions:
     data:
       message: "High: {{ forecast['weather.home'].forecast[0].temperature }}°C"
 ```
+
+## Save / Restore Patterns
+
+- Save → modify → restore designs that must survive a restart: check `skills/ha-nova/best-practices.md` → Persistence Model before choosing the storage construct. `scene.create` snapshots and `variables:` do not survive restarts.
+- Pair the forward (save) branch with a state flag and guard the reverse (restore) branch on that flag; clear the flag after restoring. An unguarded reverse branch overwrites user-set state after cycles where the forward branch never ran.

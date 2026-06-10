@@ -11,6 +11,11 @@ const contextSkill = readFileSync("skills/ha-nova/SKILL.md", "utf8");
 const architectureDoc = readFileSync("docs/reference/skill-architecture.md", "utf8");
 const contributingDoc = readFileSync("CONTRIBUTING.md", "utf8");
 const templateGuidelines = readFileSync("skills/ha-nova/template-guidelines.md", "utf8");
+const bestPractices = readFileSync("skills/ha-nova/best-practices.md", "utf8");
+const automationPatterns = readFileSync(
+  "skills/ha-nova/automation-patterns.md",
+  "utf8",
+);
 
 describe("review contract", () => {
   it("keeps the review facade pointed at the externalized rule catalog", () => {
@@ -24,7 +29,15 @@ describe("review contract", () => {
     expect(reviewChecks).toContain("Check Taxonomy (internal only)");
     expect(reviewChecks).toContain("Category letter = family");
     expect(reviewChecks).toContain("Severity is separate from the code");
-    expect(reviewChecks).toContain("never show them in user-facing output");
+  });
+
+  it("hoists the internal-code suppression rule into a top-level output guardrail", () => {
+    expect(reviewChecks).toContain("## Output Guardrail (Critical)");
+    expect(reviewChecks).toContain("NEVER show them in ANY user-facing message");
+    expect(reviewChecks).toContain("describe each finding in plain language");
+    expect(reviewChecks).toContain("not only during formal review runs");
+    expect(reviewSkill).toContain("describe findings in plain language");
+    expect(contextSkill).toContain("NEVER show them in ANY message to the user");
   });
 
   it("documents the new helper threshold checks in the catalog", () => {
@@ -101,9 +114,9 @@ describe("review contract", () => {
     expect(reviewChecks).toContain("R-16 [HIGH]");
     expect(reviewChecks).toContain("Templated event name");
     expect(reviewChecks).toContain("`event_type:` does not evaluate templates");
-    expect(reviewSkill).toContain("R-01..R-19");
-    expect(reviewAgent).toContain("R-01..R-19");
-    expect(architectureDoc).toContain("R-01..R-19");
+    expect(reviewSkill).toContain("R-01..R-22");
+    expect(reviewAgent).toContain("R-01..R-22");
+    expect(architectureDoc).toContain("R-01..R-22");
     expect(templateGuidelines).toContain("Event trigger names must be literal strings");
     expect(templateGuidelines).toContain("do not template `event_type:`");
   });
@@ -156,6 +169,27 @@ describe("review contract", () => {
     expect(templateGuidelines).toContain("Direct `trigger.id` check in a terminal bare `else`");
   });
 
+  it("documents the reverse-branch re-entry guard check as R-21", () => {
+    expect(reviewChecks).toContain("R-21 [HIGH]");
+    expect(reviewChecks).toContain("re-entry guard on capture-state flag");
+    expect(reviewChecks).toContain("## R-21 Evidence Boundary");
+    expect(reviewChecks).toContain("R-17 territory, not R-21");
+    expect(automationPatterns).toContain(
+      "guard the reverse (restore) branch on that flag",
+    );
+  });
+
+  it("documents the persistence model and the restart-restore check as R-22", () => {
+    expect(reviewChecks).toContain("R-22 [HIGH]");
+    expect(reviewChecks).toContain("Restart-dependent restore from transient storage");
+    expect(reviewChecks).toContain("## R-22 Evidence Boundary");
+    expect(reviewChecks).toContain("Persistence Model");
+    expect(bestPractices).toContain("## Persistence Model (restart survival)");
+    expect(bestPractices).toContain("`scene.create` runtime snapshots");
+    expect(bestPractices).toContain("timer` only with `restore: true");
+    expect(automationPatterns).toContain("## Save / Restore Patterns");
+  });
+
   it("documents the standalone questions-versus-suggestions split", () => {
     expect(reviewSkill).toContain("### Step 5: Explorative Questions");
     expect(reviewSkill).toContain("### Step 6: Suggestion Synthesis");
@@ -175,8 +209,8 @@ describe("review contract", () => {
   });
 
   it("documents compact post-write empty-state semantics without rule codes", () => {
-    expect(contextSkill).toContain("NEVER show them in user-facing output");
-    expect(contextSkill).toContain("findings, summaries, clean states, or pre-write verdicts");
+    expect(contextSkill).toContain("NEVER show them in ANY message to the user");
+    expect(contextSkill).toContain("findings, summaries, clean states, pre-write verdicts");
     expect(architectureDoc).toContain('localized equivalent of "No related items found." when the scan found none');
     expect(architectureDoc).toContain('"No conflicts found." when related items were checked without a collision risk');
     expect(writeSkill).toContain('localized equivalent of "No related items found."');

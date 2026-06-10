@@ -5,7 +5,7 @@ description: Use when the user wants Home Assistant operations through HA NOVA (
 
 # HA NOVA Context Skill
 
-This context is auto-loaded via SessionStart hook. Sub-skills are discovered independently by Claude Code via their descriptions.
+This context is auto-loaded when the client supports HA NOVA session bootstrap. Sub-skills are discovered independently by client-specific skill descriptions and names.
 
 ## Mission
 
@@ -119,7 +119,7 @@ All user-facing output MUST follow these rules:
 - **Language**: Localize all section headings and labels to the user's language. Use idiomatic phrasing, not literal translations.
 - **Severity**: 3 levels only — 🔴 (high/critical) 🟠 (medium) 🟡 (low/info). No text severity labels needed — the emoji is sufficient.
 - **Finding titles**: Each finding gets one short descriptive phrase explaining WHAT the issue is. Example: "Missing template fallback", not "R-01". Localize at runtime.
-- **Internal codes**: Check codes (R-01, S-01, H-01, M-01, P-01, F-01, etc.) are for YOUR analysis reference only. NEVER show them in user-facing output, including findings, summaries, clean states, or pre-write verdicts.
+- **Internal codes**: Check codes (R-01, S-01, H-01, M-01, P-01, F-01, etc.) are for YOUR analysis reference only. NEVER show them in ANY message to the user — not in findings, summaries, clean states, pre-write verdicts, and also not in debugging help, brainstorming, or casual Q&A. Describe the issue in plain language instead.
 - **Machine-like identifiers**: If raw automation ids, helper ids, or entity ids would make the output more technical than helpful, summarize them in natural language or by count instead of echoing the raw id verbatim.
 - **Consistency**: Within a given review mode, keep the same sections in the same order every time. Single-target standalone review, bulk review, and post-write review each have their own stable shape.
 - **Review confidence split**: In review output, uncertainty belongs in `Questions to consider`; only confident recommendations belong in `Suggestions`.
