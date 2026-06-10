@@ -71,7 +71,7 @@ Enter through `skills/review/SKILL.md` Step 1, then load `skills/review/checks.m
 Traverse all `variables:` mappings in `{CONFIG}`, not just the top-level block. Include root `variables:` on the automation/script plus local `variables:` actions inside `choose`, `if` / `then` / `else`, `default`, `repeat`, and nested `sequence` blocks.
 
 Which checks to apply by domain:
-- **Automation:** S-01..S-03, R-01..R-19, P-01..P-05, M-01..M-04. If actions reference helpers, also H-01..H-10 on those helpers.
+- **Automation:** S-01..S-03, R-01..R-22, P-01..P-05, M-01..M-03. If actions reference helpers, also H-01..H-10 on those helpers.
 - **Script:** All automation checks plus F-01..F-08.
 - **Helper (storage-based family):** H-01..H-10.
 - **Helper (config-entry family):** minimal config-entry review. Do not apply H-01..H-10; inspect config-entry metadata, linked entities, and `search/related` only. In Step 2, derive collision candidates from `linked_entities[]`, not from action extraction.

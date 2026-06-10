@@ -220,10 +220,10 @@ Traverse all `variables:` mappings in the config, not just the top-level block. 
 - Format: `{CATEGORY}-{NN}` (example: `H-09`)
 - Category letter = family
 - Severity is separate from the code
-- Codes are internal only; never show them in user-facing output
+- Codes are internal only; NEVER show them in any user-facing message (reports, chat replies, follow-up questions) — describe findings in plain language instead
 
 **Apply these families by domain:**
-- Automation: S-01..S-03, R-01..R-19, P-01..P-05, M-01..M-04
+- Automation: S-01..S-03, R-01..R-22, P-01..P-05, M-01..M-03
 - Script: automation families plus F-01..F-08
 - Helper (storage-based family): H-01..H-10
 - Helper (config-entry family): minimal config-entry review

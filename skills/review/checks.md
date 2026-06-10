@@ -4,13 +4,19 @@ Canonical path: `skills/review/checks.md`
 
 Load this catalog from `skills/review/SKILL.md` Step 1 before evaluating findings.
 
+## Output Guardrail (Critical)
+
+- Check codes (`R-17`, `S-01`, `H-02`, ...) are internal reasoning artifacts. NEVER show them in ANY user-facing message — review reports, chat replies, debugging help, brainstorming, casual Q&A.
+- Instead, describe each finding in plain language: a short descriptive title plus why it matters and how to fix it.
+- This guardrail applies whenever check knowledge is used, not only during formal review runs.
+
 ## Check Taxonomy (internal only)
 
 - Format: `{CATEGORY}-{NN}` (example: `H-09`)
 - Category letter = family: `S` safety, `R` reliability, `P` performance, `M` style, `F` script-specific, `H` helper-specific
 - Number = running rule number within that family
 - Severity is separate from the code
-- Codes are for your internal reasoning only; never show them in user-facing output
+- Code visibility is governed by the Output Guardrail above
 
 ## Safety (Critical)
 
@@ -21,17 +27,17 @@ Load this catalog from `skills/review/SKILL.md` Step 1 before evaluating finding
 ## Reliability (High)
 
 - R-01 [HIGH]: `float`/`int` template filter without `default` argument
-- R-02 [HIGH]: `trigger: state` trigger without `to:` (fires on every attribute change)
+- R-02 [MEDIUM → HIGH]: `trigger: state` trigger without `to:` (fires on every attribute change). Default MEDIUM. Escalate to HIGH with concrete pile-up evidence (see R-02 Evidence Boundary).
 - R-03 [MEDIUM]: Physical sensor trigger on inactive/cleared state (no-motion, door closed) without `for:` debounce — immediate-response triggers (motion detected → on) are fine without `for:`
-- R-04 [HIGH]: `wait_for_trigger` or `wait_template` without `timeout:`
+- R-04 [MEDIUM → HIGH]: `wait_for_trigger` or `wait_template` without `timeout:`. Default to MEDIUM as a defensive safety-net recommendation. Escalate to HIGH only with concrete unrecoverable-hang evidence (see R-04 Evidence Boundary).
 - R-05 [MEDIUM]: `mode` not explicitly set (defaults to `single` — re-invocations dropped with warning)
 - R-06 [HIGH]: `mode: single` combined with `delay:` or `wait_*` (trigger drops during wait, logged as warning)
 - R-07 [HIGH]: `mode: restart` with asymmetric on/off action pairs (partial execution risk)
 - R-08 [HIGH]: `mode: parallel` referencing shared mutable state (`input_number`, `counter`, `input_boolean`)
 - R-09 [MEDIUM]: `choose:` without `default:` branch (silently does nothing when no condition matches)
-- R-10 [HIGH]: `mode: queued` with `delay:` or `wait_*` blocks and `max:` ≤ 3 combined with ≥ 3 triggers — queue saturation risk (triggers dropped with WARNING log when queue full during delays; truly silent only if `max_exceeded: silent` is set); severity escalates if any trigger also violates R-02 (unfiltered `trigger: state` without `to:` multiplies trigger frequency)
+- R-10 [HIGH]: `mode: queued` with `delay:` or `wait_*` blocks and `max:` ≤ 3 combined with ≥ 3 triggers — queue saturation risk (triggers dropped with WARNING log when queue full during delays; truly silent only if `max_exceeded: silent` is set); severity intensifies if any trigger also matches R-02 at HIGH (unfiltered `trigger: state` without `to:` plus pile-up-prone mode multiplies trigger frequency)
 - R-11 [HIGH]: `float(0)` or `int(0)` default on sensor values used in physical calculations (temperature, humidity, pressure) — 0 is physically wrong and produces silently incorrect results; use `float(none)` with an availability guard (`has_value()`) or a realistic fallback value
-- R-12 [HIGH]: Self-trigger / feedback loop — automation triggers on an entity (e.g., `input_select`, `input_boolean`, `input_number`) that it also sets in its own actions; HA has NO built-in self-trigger protection; with `mode: queued` or `mode: parallel` this creates an infinite loop consuming queue slots; fix: remove the trigger, add a `condition` guard, or use `mode: single` as partial protection
+- R-12 [MEDIUM → HIGH]: Self-trigger / feedback loop — automation triggers on an entity (e.g., `input_select`, `input_boolean`, `input_number`) that it also sets in its own actions; HA has NO built-in self-trigger protection. Default MEDIUM. Escalate to HIGH with `mode: queued` or `mode: parallel` (every self-write enqueues another run until `max:` is hit). Fix: remove the trigger, add a `condition` guard comparing new vs. previous value, or use `mode: single` as partial protection. See R-12 Evidence Boundary.
 - R-13 [MEDIUM]: Trigger without `id:` in `choose:`-based automations — makes `trigger.id` matching impossible; branches using `condition: trigger` require trigger IDs to function
 - R-14 [MEDIUM]: Dead trigger — trigger has `id:` but that ID is never referenced in any `condition: trigger`, `choose:`, or template expression; likely copy-paste remnant or unfinished logic
 - R-15 [MEDIUM]: Asymmetric error handling — same physical action (e.g., `cover.open_cover`, `climate.set_temperature`) appears in multiple branches but only some have retry/fallback logic; inconsistent reliability across code paths
@@ -39,6 +45,49 @@ Load this catalog from `skills/review/SKILL.md` Step 1 before evaluating finding
 - R-17 [MEDIUM → HIGH]: Intra-config overwrite/rebound risk — the same entity/helper is written in 2+ distinct control-flow branches and the write basis is mixed. Typical risk shape: one branch advances live state incrementally, another branch later recomputes or resets from snapshot/start value/timer/fallback/baseline. Default to MEDIUM. Escalate to HIGH only when a later branch can plausibly overwrite/reset value already advanced by an earlier branch.
 - R-18 [HIGH]: Same-block sibling variable dependency with alphabetically later target — within one `variables:` mapping, variable A references sibling variable B from that same `variables:` mapping and B sorts alphabetically after A. HA storage/API writes may reorder mapping keys, so the saved variable order can evaluate A before B. Apply to top-level and local `variables:` blocks only when at least one concrete fragile pair exists. Report the block context plus at least one concrete pair (for example `check_flag -> reading`). For draft or pasted YAML, frame this as future write fragility. For HA read-back or post-write review, frame it as a persisted runtime risk.
 - R-19 [MEDIUM]: Unreachable `trigger.id` in bare `else` branch — a Jinja2 `if` + `elif` chain uses entity-state-style guards, and the terminal bare `else` contains a direct `trigger.id` comparison. final else branch is only reached when the earlier entity-state branches are false. Move the `trigger.id` check into an explicit `elif`. Or refactor to `choose` + `condition: trigger`.
+- R-20 [MEDIUM]: `trigger_variables` using `states()`, `is_state()`, `state_attr()`, or other state-snapshot helpers — evaluated once at attach time; the captured value is stale for the lifetime of the automation and silently produces wrong values (not stylistic — real reliability hazard). Fix: use a top-level `variables:` block evaluated per run, or read state inside the action template instead. (Migrated from former M-04.)
+- R-21 [HIGH]: Reverse branch without re-entry guard on capture-state flag — a complementary forward/reverse branch pair (save/restore, activate/deactivate, arm/disarm) where the forward branch saves state and sets a flag (any helper type, for example an `input_boolean`), but the reverse branch fires on its trigger alone without a condition that the flag is set. The reverse branch then also runs after cycles where the forward branch never executed and silently overwrites user-set state with stale helper values — no error, no log. Fix: guard the reverse branch on the flag being set, and clear the flag after restoring. Applies to `choose:` branches, `if/else` actions, and trigger-id-split action chains; bidirectional. See R-21 Evidence Boundary.
+- R-22 [HIGH]: Restart-dependent restore from transient storage — a restore path is reachable from a Home Assistant startup trigger (`trigger: homeassistant` with `event: start`), but the state it restores was captured in a transient construct (`scene.create` runtime snapshot, automation/script `variables:`, `trigger_variables`, timer without `restore: true`). Transient constructs do not survive a restart, so the startup restore path silently does nothing or applies wrong values. Fix: persist the saved state in a helper (`input_number`, `input_text`, `input_select`, ...) or another persistent construct — see `skills/ha-nova/best-practices.md` → Persistence Model. See R-22 Evidence Boundary.
+
+## R-02 Evidence Boundary
+
+Without `to:`, a `trigger: state` fires on every attribute change of the entity. The footgun is real but its blast radius depends entirely on the automation's mode:
+
+- Default severity: **MEDIUM**. Frame as "you probably did not mean for this to fire on every attribute change". Suggested wording: *"Add `to:` so the trigger only fires when the state actually changes — without it, every attribute update (signal strength, last seen, etc.) re-runs the automation."*
+- Escalate to **HIGH** only with concrete pile-up evidence:
+  - `mode: queued` — every attribute change consumes a queue slot; high-frequency entities (motion sensors, signal-strength reporters, climate devices) can saturate the queue.
+  - `mode: parallel` — every attribute change spawns a parallel run; combined with shared mutable state this is the same hazard as R-08.
+  - Action chain has non-idempotent side effects (counter increments, notifications, service calls that change physical state) — every spurious fire is a real-world side effect.
+- Do not escalate purely on `mode: single` or `mode: restart`. With `single`, surplus fires drop with a warning (log noise, not breakage). With `restart`, the action is bounded.
+- Skip when an explicit `not_to:`/`not_from:` filter is present and adequately scopes the trigger.
+
+## R-04 Evidence Boundary
+
+The pattern (a `wait_*` action without `timeout:`) is a defensive lint, not always an active bug. Severity must reflect whether the worst-case hang is recoverable.
+
+- Default severity: **MEDIUM**. The wait pattern is suboptimal but most setups recover via re-trigger or natural state changes. Frame as a safety-net recommendation, not an alarm. Suggested wording shape: *"Add `timeout:` as a safety net — `mode: restart` already protects most cases, but a stuck sensor would still hang the chain."*
+- Escalate to **HIGH** only with at least one concrete unrecoverable-hang signal:
+  - `mode: single` — re-triggers are dropped while the wait is active, so a stuck condition has no recovery path. (This may also match R-06; keep R-04 distinct only when the wait itself is the diagnostic anchor.)
+  - The wait sits inside a `repeat:` loop with no other timeout/break — every iteration can hang independently and queue up.
+  - The awaited entity has a known-flaky platform signature (battery-powered Zigbee/BLE sensors with no `availability:`, deprecated integrations, MQTT topics with no LWT) — a stuck `on` state is the realistic failure mode, not a hypothetical one.
+  - The action chain following the wait is on a critical path (e.g., off-actions, alarm disarm, security gating) where a permanent hang is materially harmful.
+- Do not escalate to HIGH purely because of `mode: restart`. Restart is a real mitigation: any new trigger event resets the wait. The only restart case worth HIGH is when the trigger is so rare that "next event" is unrealistic (e.g., daily-only triggers).
+- Suggested fix tone:
+  - MEDIUM: *"Add `timeout:` (e.g., `'00:10:00'`) with `continue_on_timeout: true` as a defensive guard."*
+  - HIGH: *"Add `timeout:` immediately — without it the action chain has no exit and `mode: single` provides no recovery."*
+
+## R-12 Evidence Boundary
+
+Self-trigger / feedback loop = the automation triggers on an entity that it also writes in its own actions. HA has no built-in self-trigger protection; whether this becomes an infinite loop depends on `mode:`.
+
+- Default severity: **MEDIUM**. With `mode: single`, the second self-write while a run is active is dropped (HA logs a warning). The loop is bounded but every run produces warning-spam and the intended logic likely still misfires once. Suggested wording: *"This automation triggers on an entity it also writes — with `mode: single` the loop is bounded but every run logs a self-trigger warning. Add a `condition:` guard comparing new vs. previous value, or remove the self-targeting trigger."*
+- Escalate to **HIGH** with concrete unbounded-loop evidence:
+  - `mode: queued` — every self-write enqueues another run until `max:` is hit. With default `max: 10` this is ten queued runs per write, plus dropped events afterward.
+  - `mode: parallel` — every self-write spawns a parallel run; combined with shared state this is catastrophic.
+  - `mode: restart` — every self-write restarts the current run mid-execution; the loop never terminates, the action chain never completes.
+- Skip when a `condition:` guard provably breaks the cycle (e.g., compare `trigger.to_state.state != trigger.from_state.state`, or check an idempotent set with `is_state(...)` before writing).
+- Skip when the trigger and action target the same entity but with structurally different values (e.g., trigger on `state == on`, action sets `state == off`).
+- This rule must verify trigger/action overlap independently. Do not infer from H-09 co-match alone.
 
 ## R-17 Evidence Boundary
 
@@ -83,12 +132,32 @@ Load this catalog from `skills/review/SKILL.md` Step 1 before evaluating finding
   - move the `trigger.id` check into an explicit `elif`
   - or refactor to `choose` + `condition: trigger`
 
+## R-21 Evidence Boundary
+
+- Apply only when all three hold:
+  1. two branches in one automation or script form a complementary forward/reverse pair acting on the same target state
+  2. the forward branch writes a dedicated state flag (any helper type)
+  3. the reverse branch contains no guard on that flag — neither a `condition:` entry nor a template check
+- Skip when no capture flag exists at all — mixed write bases without a flag are R-17 territory, not R-21.
+- Skip when the reverse branch guards on the saved snapshot itself instead of the flag (for example "only restore when the snapshot helper is not `unknown`") — that is an equivalent re-entry guard.
+- Skip pairs where the reverse action is idempotent and stateless (for example plain `light.turn_off` without restoring saved values) — the hazard is restoring stale captured state, not symmetric toggling.
+- Never derive the pair from cross-automation analysis; both branches must live in one config item.
+
+## R-22 Evidence Boundary
+
+- Apply only when both hold:
+  1. a trigger or branch explicitly handles HA startup (`trigger: homeassistant` with `event: start`, or a trigger id routed into a startup branch)
+  2. that startup path reads state captured by a construct from the transient list in `skills/ha-nova/best-practices.md` → Persistence Model
+- Without a startup trigger, transient snapshots are fine for short-lived save/restore cycles — do not flag them.
+- `scene.create` alone is not a finding; the finding is the combination with a restart-recovery expectation.
+- When the storage construct is ambiguous (for example a custom integration entity), ask instead of flagging.
+
 ## Performance (Medium)
 
 - P-01: `trigger: template` trigger that could be a `trigger: state` trigger (see `skills/ha-nova/template-guidelines.md` → Decision Tree)
 - P-02: `homeassistant.update_entity` inside a `repeat:` loop without meaningful delay
 - P-03: Polling loop (`repeat: while:` + short `delay:`) instead of `wait_for_trigger`
-- P-04: Template trigger using `now()` for time-sensitive logic — re-evaluates only once per minute; for sub-minute precision use `time_pattern` trigger or a dedicated sensor
+- P-04 [MEDIUM → HIGH]: Template trigger using `now()` for time-sensitive logic — re-evaluates only once per minute; for sub-minute precision use `time_pattern` trigger or a dedicated sensor. Default MEDIUM. Escalate to HIGH only with concrete sub-minute precision needs (see P-04 Evidence Boundary).
 - P-05 [LOW]: `trigger: device` with `device_id` where a `trigger: state` with `entity_id` would work — `device_id` is not persistent across device re-adds; exception: Zigbee2MQTT autodiscovered device triggers and ZHA button/remote events (see `skills/ha-nova/best-practices.md` → Zigbee Button Patterns)
 
 ## Style (Low)
@@ -96,7 +165,7 @@ Load this catalog from `skills/review/SKILL.md` Step 1 before evaluating finding
 - M-01: Missing `alias:`
 - M-02: Deprecated `service:` key instead of `action:`
 - M-03: `entity_id:` under `data:` instead of `target: entity_id:`
-- M-04: `trigger_variables` using `states()` (evaluated at attach time, will be stale)
+- M-04: *retired — moved to Reliability as R-20*
 
 ## Script-Specific (apply ONLY when domain is `script`, skip for automations)
 
@@ -104,7 +173,7 @@ Load this catalog from `skills/review/SKILL.md` Step 1 before evaluating finding
 - F-02 [HIGH]: `fields:` with `required: true` or `default:` but no `| default(...)` guard in `variables:` block — `required` and `default` are UI-only, not enforced at runtime
 - F-03 [MEDIUM]: Template `{{ field_name }}` in sequence without corresponding `variables:` guard — fails silently when caller omits field
 - F-04 [MEDIUM]: `mode: queued` or `mode: parallel` without explicit `max:` value
-- F-05 [MEDIUM]: `mode: parallel` with actions writing to same entity (race condition)
+- F-05 [HIGH]: `mode: parallel` with actions writing to same entity (race condition) — same hazard as R-08; severity raised for parity. Use `mode: queued` or sequence-level locks if parallel concurrency is required.
 - F-06 [MEDIUM]: `action: script.turn_on` (non-blocking) when next step depends on result — use blocking `action: script.{id}` instead
 - F-07 [LOW]: Script contains `wait_for_trigger:` at top of sequence with no preceding logic — likely should be an automation
 - F-08 [LOW]: Hardcoded values that vary per call-site should be `fields:` parameters (human-judgment check — flag only obvious cases like repeated entity_ids or magic numbers)
@@ -117,10 +186,23 @@ Load this catalog from `skills/review/SKILL.md` Step 1 before evaluating finding
 - H-04 [LOW]: `input_select` `initial` not set — defaults to first option, may not be intended
 - H-05 [MEDIUM]: `counter` without `minimum`/`maximum` — unbounded growth risk
 - H-06 [LOW]: `timer` without `duration` — must be set via service call before start
-- H-07 [MEDIUM]: Orphaned helper — not referenced by any automation/script (check via `search/related`; for cleanup workflow see `skills/ha-nova/safe-refactoring.md` → Orphan Cleanup)
+- H-07 [LOW]: Orphaned helper — not referenced by any automation/script (cleanup hint, not a runtime hazard; check via `search/related`; for cleanup workflow see `skills/ha-nova/safe-refactoring.md` → Orphan Cleanup)
 - H-08 [LOW]: Naming inconsistency — mixed patterns across helpers (e.g., `sleep_mode` vs `Sleep Mode` vs `sleepMode`)
-- H-09 [MEDIUM → HIGH]: Threshold effectively weakened — `input_number` is used as a direct threshold and its current value sits at or near the boundary that makes the guard trivially easy to satisfy. Operator-aware: `>`/`>=` is risky near `min`; `<`/`<=` is risky near `max`. "Near" means within `1 × step`, including the exact boundary. Escalate to HIGH only with concrete loop evidence (`repeat:`, or R-10/R-12 also applies).
+- H-09 [MEDIUM → HIGH]: Threshold effectively weakened — `input_number` is used as a direct threshold and its current value sits at or near the boundary that makes the guard trivially easy to satisfy. Operator-aware: `>`/`>=` is risky near `min`; `<`/`<=` is risky near `max`. "Near" means within `1 × step`, including the exact boundary. Escalate to HIGH only with concrete loop evidence (`repeat:`, or R-10/R-12 matched at HIGH also applies).
 - H-10 [LOW]: Threshold value off the configured step grid — current `input_number` value does not land on the configured `step` lattice relative to `min`; likely set programmatically rather than through the UI. Supplementary signal for H-09, not a severity escalator by itself.
+
+## P-04 Evidence Boundary
+
+`now()` in a template trigger is re-evaluated only when another tracked entity in the template changes, or once per minute as a fallback. For sub-minute precision the trigger is materially broken — it cannot fire at the resolution the surrounding logic implies.
+
+- Default severity: **MEDIUM**. Suggested wording: *"This template trigger uses `now()`, which only re-evaluates when a tracked entity changes or once per minute. For sub-minute precision use a `time_pattern` trigger or a dedicated time sensor."*
+- Escalate to **HIGH** with concrete sub-minute precision evidence:
+  - A sibling `for:` or `timeout:` shorter than 60 seconds — the trigger cannot resolve before the deadline.
+  - The template compares `now()` to a timestamp delta below 60 seconds (e.g., `(now() - states(...).last_changed).total_seconds() < 30`).
+  - The automation gates safety/security actions (alarm arming, lock state, presence-based access) where minute-level drift is materially harmful.
+  - The automation is a watchdog whose stated purpose (in `alias:`/`description:` or referenced helpers) is to detect stale data — once-per-minute evaluation can mask the very stalled-data condition the watchdog is designed to detect.
+- Skip entirely when `time_pattern` or a dedicated time sensor (`sensor.time`, `sensor.date_time`) is already present in the same trigger block.
+- Do not escalate purely on the presence of `now()`. The minute-cadence is acceptable for hour-/day-scale logic.
 
 ## Helper Threshold Evidence (for H-09/H-10)
 

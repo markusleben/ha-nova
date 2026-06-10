@@ -171,8 +171,9 @@ describe("ha-nova contract", () => {
     const context = readFileSync("skills/ha-nova/SKILL.md", "utf8");
 
     expect(context).toContain("Internal codes");
-    expect(context).toContain("NEVER show them in user-facing output");
-    expect(context).toContain("findings, summaries, clean states, or pre-write verdicts");
+    expect(context).toContain("NEVER show them in ANY message to the user");
+    expect(context).toContain("findings, summaries, clean states, pre-write verdicts");
+    expect(context).toContain("debugging help, brainstorming, or casual Q&A");
     expect(context).toContain("Machine-like identifiers");
     expect(context).toContain("summarize them in natural language or by count");
     expect(context).toContain("Within a given review mode");

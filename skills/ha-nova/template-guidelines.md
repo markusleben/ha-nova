@@ -144,7 +144,7 @@ These are caught by review checks — listed here for reference:
 | `float(0)` on physical sensor | R-01, R-11 | 0 is wrong for temperature/humidity | Use `float(none)` + `has_value()` guard |
 | `wait_template` without `timeout:` | R-04 | Blocks forever if condition never met | Add `timeout:` |
 | Template trigger using `now()` | P-04 | Re-evaluates only once per minute | Use `time_pattern` for sub-minute precision |
-| `states()` in `trigger_variables` | M-04 | Evaluated at attach time, immediately stale | Move to `variables:` or use in template directly |
+| `states()` in `trigger_variables` | R-20 | Evaluated at attach time, immediately stale | Move to `variables:` or use in template directly |
 | Templated event trigger name | R-16 | Event trigger names are attached literally; dynamic `event_type` never matches the intended event | Event trigger names must be literal strings; do not template `event_type:` |
 | Same-block sibling variable dependency in one `variables:` mapping | R-18 | REST/UI storage can reorder mapping keys, so a variable may render before the sibling it references | Use a self-contained template with internal `{% set %}`, or split the dependency into ordered `variables` actions |
 | Direct `trigger.id` check in a terminal bare `else` after entity-state `if` / `elif` guards | R-19 | final else branch is only reached when the earlier entity-state branches are false | Move the `trigger.id` check into an explicit `elif`, or refactor to `choose` + `condition: trigger` |
