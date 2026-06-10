@@ -31,21 +31,28 @@ func detectInstallSource(paths runtimePaths, state installState) string {
 	if strings.TrimSpace(os.Getenv("HA_NOVA_DEV_ROOT")) != "" {
 		return installSourceDev
 	}
-	if legacyWindowsPackageSourcePresent(paths) {
+	if legacyWindowsPackageBinaryRunning() {
 		return installSourceLegacyWindowsPackage
 	}
 
+	// A current bundle install on disk takes precedence over on-disk WinGet
+	// legacy residue: install.ps1 no longer blocks on leftover private/test
+	// WinGet package paths, so a fresh bundle install over residue must
+	// classify as bundle — update/uninstall then work, and uninstall removes
+	// the residue via removeLegacyWindowsPackageResidue. Only a binary that
+	// itself runs from a WinGet-managed path still classifies as legacy.
 	sourceRoot := resolveSourceRoot(paths)
-	if sourceRoot != "" {
-		if bundleInstallPresentOnDisk(sourceRoot) {
-			if filepath.Clean(sourceRoot) != filepath.Clean(paths.InstallRoot) {
-				return installSourceDev
-			}
-			return installSourceBundle
-		}
+	if sourceRoot != "" && bundleInstallPresentOnDisk(sourceRoot) {
 		if filepath.Clean(sourceRoot) != filepath.Clean(paths.InstallRoot) {
 			return installSourceDev
 		}
+		return installSourceBundle
+	}
+	if legacyWindowsPackageSourcePresent(paths) {
+		return installSourceLegacyWindowsPackage
+	}
+	if sourceRoot != "" && filepath.Clean(sourceRoot) != filepath.Clean(paths.InstallRoot) {
+		return installSourceDev
 	}
 	if channelChecksUseWindowsPlatform() && normalizeInstallSource(state.InstallSource) == installSourceLegacyWindowsPackage && !bundleInstallPresentOnDisk(paths.InstallRoot) {
 		return installSourceLegacyWindowsPackage
@@ -100,11 +107,19 @@ func sourceRootCandidates(paths runtimePaths) []string {
 	return candidates
 }
 
+func legacyWindowsPackageBinaryRunning() bool {
+	if !channelChecksUseWindowsPlatform() {
+		return false
+	}
+	exePath, err := executablePathForInstallSource()
+	return err == nil && isLegacyWindowsPackageManagedPath(exePath)
+}
+
 func legacyWindowsPackageSourcePresent(paths runtimePaths) bool {
 	if !channelChecksUseWindowsPlatform() {
 		return false
 	}
-	if exePath, err := executablePathForInstallSource(); err == nil && isLegacyWindowsPackageManagedPath(exePath) {
+	if legacyWindowsPackageBinaryRunning() {
 		return true
 	}
 	if fileExists(legacyWindowsPackageLinkPath(paths)) {

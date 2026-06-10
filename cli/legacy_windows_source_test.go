@@ -247,3 +247,83 @@ func TestRunUninstallGuidesLegacyWindowsPackageRemoval(t *testing.T) {
 		}
 	}
 }
+
+func TestDetectInstallSourcePrefersFreshBundleOverOnDiskWinGetResidue(t *testing.T) {
+	originalPlatform := channelChecksUseWindowsPlatform
+	originalExecutable := executablePathForInstallSource
+	defer func() {
+		channelChecksUseWindowsPlatform = originalPlatform
+		executablePathForInstallSource = originalExecutable
+	}()
+
+	channelChecksUseWindowsPlatform = func() bool { return true }
+
+	home := t.TempDir()
+	installRoot := filepath.Join(home, "AppData", "Local", "Programs", "ha-nova")
+	if err := os.MkdirAll(installRoot, 0o755); err != nil {
+		t.Fatalf("mkdir install root: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(installRoot, publicBinaryName()), []byte("bundle"), 0o755); err != nil {
+		t.Fatalf("write bundle binary: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(installRoot, "bundle.json"), []byte(`{"bundle_format_version":1}`), 0o644); err != nil {
+		t.Fatalf("write bundle metadata: %v", err)
+	}
+
+	// Leftover WinGet residue on disk, but the running binary is the fresh
+	// bundle install: update/uninstall must work, uninstall cleans the
+	// residue. install.ps1 no longer blocks this state.
+	linksDir := filepath.Join(home, "AppData", "Local", "Microsoft", "WinGet", "Links")
+	if err := os.MkdirAll(linksDir, 0o755); err != nil {
+		t.Fatalf("mkdir links dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(linksDir, publicBinaryName()), []byte("legacy"), 0o755); err != nil {
+		t.Fatalf("write legacy link: %v", err)
+	}
+
+	executablePathForInstallSource = func() (string, error) {
+		return filepath.Join(installRoot, publicBinaryName()), nil
+	}
+
+	paths := runtimePaths{
+		Home:        home,
+		InstallRoot: installRoot,
+	}
+
+	if got := detectInstallSource(paths, installState{}); got != installSourceBundle {
+		t.Fatalf("detectInstallSource() = %q, want %q", got, installSourceBundle)
+	}
+}
+
+func TestDetectInstallSourceKeepsLegacyForOnDiskResidueWithoutBundle(t *testing.T) {
+	originalPlatform := channelChecksUseWindowsPlatform
+	originalExecutable := executablePathForInstallSource
+	defer func() {
+		channelChecksUseWindowsPlatform = originalPlatform
+		executablePathForInstallSource = originalExecutable
+	}()
+
+	channelChecksUseWindowsPlatform = func() bool { return true }
+
+	home := t.TempDir()
+	linksDir := filepath.Join(home, "AppData", "Local", "Microsoft", "WinGet", "Links")
+	if err := os.MkdirAll(linksDir, 0o755); err != nil {
+		t.Fatalf("mkdir links dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(linksDir, publicBinaryName()), []byte("legacy"), 0o755); err != nil {
+		t.Fatalf("write legacy link: %v", err)
+	}
+
+	executablePathForInstallSource = func() (string, error) {
+		return filepath.Join(t.TempDir(), publicBinaryName()), nil
+	}
+
+	paths := runtimePaths{
+		Home:        home,
+		InstallRoot: filepath.Join(home, "AppData", "Local", "Programs", "ha-nova"),
+	}
+
+	if got := detectInstallSource(paths, installState{}); got != installSourceLegacyWindowsPackage {
+		t.Fatalf("detectInstallSource() = %q, want %q", got, installSourceLegacyWindowsPackage)
+	}
+}
