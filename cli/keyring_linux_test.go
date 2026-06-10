@@ -9,7 +9,8 @@ import (
 	"github.com/zalando/go-keyring"
 )
 
-func TestReadSecretWithServiceStopsBeforeKeyringWhenLinuxStorageLocked(t *testing.T) {
+func TestReadRelayAuthTokenStopsBeforeKeyringWhenLinuxStorageLocked(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	originalInspect := inspectLinuxSecureStorageStateForKeyring
 	originalGet := keyringGetWithService
 	defer func() {
@@ -21,17 +22,19 @@ func TestReadSecretWithServiceStopsBeforeKeyringWhenLinuxStorageLocked(t *testin
 		return linuxSecureStorageState{kind: linuxSecureStorageStateLocked}, nil
 	}
 	keyringGetWithService = func(service, username string) (string, error) {
-		t.Fatal("readSecretWithService called go-keyring even though the default collection is locked")
+		t.Fatal("readRelayAuthToken called go-keyring even though the default collection is locked")
 		return "", keyring.ErrNotFound
 	}
 
-	_, err := readSecretWithService("ha-nova.test")
+	_, err := readRelayAuthToken()
 	if !isDesktopKeyringLockedError(err) {
 		t.Fatalf("expected locked keyring classification, got %v", err)
 	}
 }
 
-func TestReadSecretWithServiceUsesKeyringWhenLinuxStorageWritable(t *testing.T) {
+// The secure-storage recovery probe stubs the keyring vars and must reach
+// them directly: the low-level wrapper stays preflight-free by contract.
+func TestReadSecretWithServiceBypassesPreflight(t *testing.T) {
 	originalInspect := inspectLinuxSecureStorageStateForKeyring
 	originalGet := keyringGetWithService
 	defer func() {
@@ -40,7 +43,8 @@ func TestReadSecretWithServiceUsesKeyringWhenLinuxStorageWritable(t *testing.T) 
 	}()
 
 	inspectLinuxSecureStorageStateForKeyring = func() (linuxSecureStorageState, error) {
-		return linuxSecureStorageState{kind: linuxSecureStorageStateWritable}, nil
+		t.Fatal("readSecretWithService must not run the preflight; the recovery probe depends on direct keyring access")
+		return linuxSecureStorageState{}, nil
 	}
 	keyringGetWithService = func(service, username string) (string, error) {
 		return "relay-token", nil
@@ -55,7 +59,8 @@ func TestReadSecretWithServiceUsesKeyringWhenLinuxStorageWritable(t *testing.T) 
 	}
 }
 
-func TestReadSecretWithServiceClassifiesLinuxStorageInspectionErrors(t *testing.T) {
+func TestReadRelayAuthTokenClassifiesLinuxStorageInspectionErrors(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	originalInspect := inspectLinuxSecureStorageStateForKeyring
 	originalGet := keyringGetWithService
 	defer func() {
@@ -67,11 +72,11 @@ func TestReadSecretWithServiceClassifiesLinuxStorageInspectionErrors(t *testing.
 		return linuxSecureStorageState{}, desktopKeyringUnavailableError("Secret Service preflight timed out")
 	}
 	keyringGetWithService = func(service, username string) (string, error) {
-		t.Fatal("readSecretWithService called go-keyring after preflight failure")
+		t.Fatal("readRelayAuthToken called go-keyring after preflight failure")
 		return "", errors.New("unreachable")
 	}
 
-	_, err := readSecretWithService("ha-nova.test")
+	_, err := readRelayAuthToken()
 	if !isDesktopKeyringUnavailableError(err) {
 		t.Fatalf("expected unavailable keyring classification, got %v", err)
 	}

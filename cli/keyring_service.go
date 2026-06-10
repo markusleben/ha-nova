@@ -78,7 +78,15 @@ func relayAuthTokenFilePathFromConfig() (string, bool, error) {
 		return "", false, nil
 	}
 	if relayAuthTokenFilePathOverride != "" {
-		return relayAuthTokenFilePathOverride, true, nil
+		path := relayAuthTokenFilePathOverride
+		if !filepath.IsAbs(path) {
+			paths, err := detectPaths()
+			if err != nil {
+				return "", false, err
+			}
+			path = filepath.Join(paths.ConfigDir, path)
+		}
+		return filepath.Clean(path), true, nil
 	}
 	paths, err := detectPaths()
 	if err != nil {
