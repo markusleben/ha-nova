@@ -72,14 +72,20 @@ func runSetup(paths runtimePaths, args []string) int {
 		return 1
 	}
 	formerServiceTokenFile := ""
-	formerServiceToken := ""
+	migrationToken := ""
 	if *serviceMode {
+		// Read any already-stored token BEFORE the file override redirects
+		// token reads, so `--service` without --relay-token migrates an
+		// existing desktop-keyring token into the service token file.
+		if existing, err := readRelayAuthToken(); err == nil {
+			migrationToken = strings.TrimSpace(existing)
+		}
 		cfg = enableServiceRelayTokenFile(paths, cfg)
 		restoreTokenFileOverride := withRelayAuthTokenFileOverride(cfg.RelayTokenFile)
 		defer restoreTokenFileOverride()
 	} else {
 		var liftTokenFileSuppression func()
-		cfg, formerServiceTokenFile, formerServiceToken, liftTokenFileSuppression = disableServiceRelayTokenFile(paths, cfg)
+		cfg, formerServiceTokenFile, migrationToken, liftTokenFileSuppression = disableServiceRelayTokenFile(paths, cfg)
 		defer liftTokenFileSuppression()
 	}
 	if cfg.HAHost == "" && cfg.HAURL != "" {
@@ -109,10 +115,10 @@ func runSetup(paths runtimePaths, args []string) int {
 		}
 		if existing, err := readRelayAuthToken(); err == nil {
 			token = existing
-		} else if isMissingRelayAuthTokenError(err) && formerServiceToken != "" {
-			// Returning from service to desktop mode: migrate the token from
-			// the former service token file into the OS keyring.
-			token = formerServiceToken
+		} else if isMissingRelayAuthTokenError(err) && migrationToken != "" {
+			// Mode switch in either direction: migrate the token that was
+			// stored in the previous backend (keyring or service file).
+			token = migrationToken
 		} else if !isMissingRelayAuthTokenError(err) {
 			printHumanErr("%s", relayAuthTokenProblemMessage(err))
 			if hint := setupSecureStorageRecoveryHint(err); hint != "" {

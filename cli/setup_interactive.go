@@ -173,6 +173,12 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 			printHumanErr("%s", err)
 			return 1
 		}
+		// Read any already-stored token BEFORE the file override redirects
+		// token reads, so an existing desktop-keyring token can be offered
+		// for migration into the service token file.
+		if existing, err := readRelayAuthToken(); err == nil {
+			formerServiceToken = strings.TrimSpace(existing)
+		}
 		cfg = enableServiceRelayTokenFile(paths, cfg)
 		restoreTokenFileOverride = withRelayAuthTokenFileOverride(cfg.RelayTokenFile)
 	}
