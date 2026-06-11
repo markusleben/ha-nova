@@ -8,9 +8,21 @@ updates:
     groups:
       npm-dev-minor-patch:
         dependency-type: development
+        exclude-patterns:
+          - vitest
+          - vite
+          - typescript
+          - tsx
+          - rollup
+          - rolldown
+          - esbuild
         update-types:
           - minor
           - patch
+      npm-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
 
   - package-ecosystem: npm
     directory: "/nova"
@@ -20,12 +32,28 @@ updates:
     groups:
       npm-dev-minor-patch:
         dependency-type: development
+        exclude-patterns:
+          - vitest
+          - vite
+          - typescript
+          - tsx
+          - rollup
+          - rolldown
+          - esbuild
         update-types:
           - minor
           - patch
+      npm-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
 
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    groups:
+      github-actions-all:
+        patterns:
+          - "*"
