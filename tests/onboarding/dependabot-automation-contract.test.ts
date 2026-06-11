@@ -104,7 +104,7 @@ describe("dependabot automation contract", () => {
     expect(prepareWorkflow).toContain('PR_NUMBER: ${{ steps.pr.outputs.pr-number }}');
     expect(prepareWorkflow).toContain('POLICY_REF: ${{ steps.pr.outputs.pr-base-sha }}');
     expect(prepareWorkflow).toContain("dependabot[bot]");
-    expect(prepareWorkflow).toContain("dependabot/fetch-metadata@21025c705c08248db411dc16f3619e6b5f9ea21a");
+    expect(prepareWorkflow).toContain("dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98");
     expect(prepareWorkflow).toContain('DEPENDENCY_NAMES: ${{ steps.metadata.outputs.dependency-names }}');
     expect(prepareWorkflow).toContain('PACKAGE_ECOSYSTEM: ${{ steps.metadata.outputs.package-ecosystem }}');
     expect(prepareWorkflow).toContain('DEPENDENCY_GROUP: ${{ steps.metadata.outputs.dependency-group }}');
@@ -152,7 +152,7 @@ describe("dependabot automation contract", () => {
     expect(manifestGate).toContain("pull_request_target:");
     expect(manifestGate).toContain('POLICY_REF: ${{ github.event.pull_request.base.sha }}');
     expect(manifestGate).toContain('GH_REPO: ${{ github.repository }}');
-    expect(manifestGate).toContain("dependabot/fetch-metadata@21025c705c08248db411dc16f3619e6b5f9ea21a");
+    expect(manifestGate).toContain("dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98");
     expect(manifestGate).toContain('DEPENDENCY_NAMES: ${{ steps.metadata.outputs.dependency-names }}');
     expect(manifestGate).toContain('changed_files_json="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/files" --paginate)"');
     expect(manifestGate).toContain("printf '%s' \"${changed_files_json}\" | jq -r '.[].filename'");
