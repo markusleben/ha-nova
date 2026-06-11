@@ -58,3 +58,40 @@ func TestFinalizeServiceTokenFileMigrationWritesKeyringBeforeDeleting(t *testing
 		t.Fatalf("expected former service token file to be removed, err=%v", err)
 	}
 }
+
+func TestDisableServiceRelayTokenFileKeepsExternalPaths(t *testing.T) {
+	if relayAuthTokenFilePlatformOS == "windows" {
+		t.Skip("service token files are not supported on native Windows")
+	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+	externalDir := filepath.Join(home, "secrets")
+	if err := os.MkdirAll(externalDir, 0o700); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	externalToken := filepath.Join(externalDir, "relay-token")
+	if err := writeRelayAuthTokenFile(externalToken, "external-token"); err != nil {
+		t.Fatalf("write token file: %v", err)
+	}
+
+	cfg, cleanupPath, formerToken, restore := disableServiceRelayTokenFile(paths, runtimeConfig{RelayTokenFile: externalToken})
+	defer restore()
+	if cfg.RelayTokenFile != "" {
+		t.Fatalf("expected RelayTokenFile to be cleared, got %q", cfg.RelayTokenFile)
+	}
+	if cleanupPath != "" {
+		t.Fatalf("expected no cleanup path for external token files, got %q", cleanupPath)
+	}
+	if formerToken != "external-token" {
+		t.Fatalf("formerToken = %q, want external-token", formerToken)
+	}
+
+	finalizeServiceTokenFileMigration(cleanupPath, "external-token")
+	if _, err := os.Stat(externalToken); err != nil {
+		t.Fatalf("expected external token file to survive migration, err=%v", err)
+	}
+}

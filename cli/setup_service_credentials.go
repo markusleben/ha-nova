@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"strings"
 )
@@ -43,7 +44,16 @@ func disableServiceRelayTokenFile(paths runtimePaths, cfg runtimeConfig) (runtim
 		formerToken = token
 	}
 	cfg.RelayTokenFile = ""
-	return cfg, path, formerToken, withRelayAuthTokenFileSuppressed()
+	cleanupPath := path
+	configDir := filepath.Clean(paths.ConfigDir)
+	if rel, err := filepath.Rel(configDir, path); err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+		// User-managed token file outside the managed config directory:
+		// migrate the credential, but never delete the file — the same
+		// boundary purge applies for external paths.
+		cleanupPath = ""
+		printHumanInfo("Keeping the external relay token file in place: %s", path)
+	}
+	return cfg, cleanupPath, formerToken, withRelayAuthTokenFileSuppressed()
 }
 
 // finalizeServiceTokenFileMigration force-writes the active token into the
