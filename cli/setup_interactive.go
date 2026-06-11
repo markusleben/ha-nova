@@ -220,15 +220,16 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 		printHumanErr("%s", relayAuthTokenSetupSaveError(tokenStoragePreflightErr))
 		return 1
 	}
-	if !hadSavedTokenBeforeSetup && formerServiceToken != "" {
-		// Returning from service to desktop mode: offer the token from the
-		// former service token file so the user does not have to re-paste it.
-		savedTokenBeforeSetup = formerServiceToken
-		hadSavedTokenBeforeSetup = true
-	}
-
 	if existingToken == "" {
 		existingToken = savedTokenBeforeSetup
+	}
+	if existingToken == "" && !hadSavedTokenBeforeSetup && formerServiceToken != "" {
+		// Returning from service to desktop mode: prefill the token from the
+		// former service token file so the user does not have to re-paste it,
+		// but deliberately do NOT mark it as a previously stored token —
+		// persistence must treat it as new and write it into the OS keyring
+		// before the saved config stops referencing the token file.
+		existingToken = formerServiceToken
 	}
 
 	overrideApplied := strings.TrimSpace(hostFlag) != "" || strings.TrimSpace(haURLFlag) != "" || strings.TrimSpace(relayURLFlag) != ""
