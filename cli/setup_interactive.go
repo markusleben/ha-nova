@@ -157,6 +157,13 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 	defer func() {
 		restoreTokenFileOverride()
 	}()
+	formerServiceTokenFile := ""
+	formerServiceToken := ""
+	if !serviceMode {
+		var liftTokenFileSuppression func()
+		cfg, formerServiceTokenFile, formerServiceToken, liftTokenFileSuppression = disableServiceRelayTokenFile(paths, cfg)
+		defer liftTokenFileSuppression()
+	}
 	if serviceMode {
 		if target == "all" {
 			printHumanErr("service credentials require a specific client; use: ha-nova setup --service <client>")
@@ -189,6 +196,8 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 			}
 			if useServiceCredentials {
 				serviceMode = true
+				formerServiceTokenFile = ""
+				formerServiceToken = ""
 				restoreTokenFileOverride()
 				cfg = enableServiceRelayTokenFile(paths, cfg)
 				restoreTokenFileOverride = withRelayAuthTokenFileOverride(cfg.RelayTokenFile)
@@ -210,6 +219,12 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 		printRelayTokenStorageSetupWarning(tokenStoragePreflightErr)
 		printHumanErr("%s", relayAuthTokenSetupSaveError(tokenStoragePreflightErr))
 		return 1
+	}
+	if !hadSavedTokenBeforeSetup && formerServiceToken != "" {
+		// Returning from service to desktop mode: offer the token from the
+		// former service token file so the user does not have to re-paste it.
+		savedTokenBeforeSetup = formerServiceToken
+		hadSavedTokenBeforeSetup = true
 	}
 
 	if existingToken == "" {
@@ -633,6 +648,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 				printHumanErr("cannot save state: %s", err)
 				return 1
 			}
+			cleanupFormerServiceTokenFile(formerServiceTokenFile)
 			renderSetupCompleteBanner(os.Stdout, selectedClients)
 			return 0
 		}

@@ -74,9 +74,6 @@ func defaultRelayAuthTokenFile(paths runtimePaths) string {
 }
 
 func relayAuthTokenFilePathFromConfig() (string, bool, error) {
-	if relayAuthTokenFileSuppressed {
-		return "", false, nil
-	}
 	if relayAuthTokenFilePathOverride != "" {
 		path := relayAuthTokenFilePathOverride
 		if !filepath.IsAbs(path) {
@@ -87,6 +84,9 @@ func relayAuthTokenFilePathFromConfig() (string, bool, error) {
 			path = filepath.Join(paths.ConfigDir, path)
 		}
 		return filepath.Clean(path), true, nil
+	}
+	if relayAuthTokenFileSuppressed {
+		return "", false, nil
 	}
 	paths, err := detectPaths()
 	if err != nil {

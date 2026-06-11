@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"path/filepath"
+	"strings"
 )
 
 func enableServiceRelayTokenFile(paths runtimePaths, cfg runtimeConfig) runtimeConfig {
@@ -19,6 +21,42 @@ func withRelayAuthTokenFileOverride(path string) func() {
 	return func() {
 		relayAuthTokenFilePathOverride = previous
 	}
+}
+
+// disableServiceRelayTokenFile returns token storage to the OS keyring when
+// setup runs without --service: the documented desktop path must not keep
+// using a previously configured service token file. It clears the config
+// field, suppresses token-file routing for the rest of the run, and returns
+// the absolute former file path plus its token (best effort) so setup can
+// migrate the credential and remove the file after success.
+func disableServiceRelayTokenFile(paths runtimePaths, cfg runtimeConfig) (runtimeConfig, string, string, func()) {
+	path := strings.TrimSpace(cfg.RelayTokenFile)
+	if path == "" {
+		return cfg, "", "", func() {}
+	}
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(paths.ConfigDir, path)
+	}
+	path = filepath.Clean(path)
+	formerToken := ""
+	if token, err := readRelayAuthTokenFile(path); err == nil {
+		formerToken = token
+	}
+	cfg.RelayTokenFile = ""
+	return cfg, path, formerToken, withRelayAuthTokenFileSuppressed()
+}
+
+// cleanupFormerServiceTokenFile removes the now-orphaned service token file
+// after a successful desktop-mode setup so no secret copy stays behind.
+func cleanupFormerServiceTokenFile(path string) {
+	if path == "" {
+		return
+	}
+	if err := deleteRelayAuthTokenFile(path); err != nil {
+		printHumanWarn("Could not remove the former service token file %s: %s", path, err)
+		return
+	}
+	printHumanInfo("Token storage returned to OS secure storage; removed the former service token file.")
 }
 
 func selectedClientsServiceCredentialHint(paths runtimePaths, selectedClients []string) (clientRegistryServiceCredentials, string, bool, error) {

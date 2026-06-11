@@ -71,10 +71,16 @@ func runSetup(paths runtimePaths, args []string) int {
 		printHumanErr("%s", err)
 		return 1
 	}
+	formerServiceTokenFile := ""
+	formerServiceToken := ""
 	if *serviceMode {
 		cfg = enableServiceRelayTokenFile(paths, cfg)
 		restoreTokenFileOverride := withRelayAuthTokenFileOverride(cfg.RelayTokenFile)
 		defer restoreTokenFileOverride()
+	} else {
+		var liftTokenFileSuppression func()
+		cfg, formerServiceTokenFile, formerServiceToken, liftTokenFileSuppression = disableServiceRelayTokenFile(paths, cfg)
+		defer liftTokenFileSuppression()
 	}
 	if cfg.HAHost == "" && cfg.HAURL != "" {
 		cfg.HAHost = strings.TrimPrefix(strings.TrimPrefix(cfg.HAURL, "http://"), "https://")
@@ -103,6 +109,10 @@ func runSetup(paths runtimePaths, args []string) int {
 		}
 		if existing, err := readRelayAuthToken(); err == nil {
 			token = existing
+		} else if isMissingRelayAuthTokenError(err) && formerServiceToken != "" {
+			// Returning from service to desktop mode: migrate the token from
+			// the former service token file into the OS keyring.
+			token = formerServiceToken
 		} else if !isMissingRelayAuthTokenError(err) {
 			printHumanErr("%s", relayAuthTokenProblemMessage(err))
 			if hint := setupSecureStorageRecoveryHint(err); hint != "" {
@@ -211,6 +221,7 @@ func runSetup(paths runtimePaths, args []string) int {
 		return 1
 	}
 
+	cleanupFormerServiceTokenFile(formerServiceTokenFile)
 	return runDoctor(paths, nil)
 }
 

@@ -405,3 +405,94 @@ func TestRunSetupNonInteractiveFailsOnLinuxKeyringPreflightBeforeWrite(t *testin
 		t.Fatalf("expected token file not to be written after preflight failure, err=%v", err)
 	}
 }
+
+func TestRunSetupNonInteractiveDesktopModeMigratesAwayFromServiceTokenFile(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("service token files are not supported on native Windows")
+	}
+	withClientRuntimeAvailability(t, map[string]bool{"hermes": true})
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("HA_NOVA_DEV_ROOT", repoRootForSetupTest(t))
+	keyringFile := filepath.Join(home, ".test-relay-auth-token")
+	t.Setenv("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING", "1")
+	t.Setenv("HA_NOVA_TEST_KEYRING_FILE", keyringFile)
+
+	haServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer haServer.Close()
+
+	originalHealth := fetchRelayHealthForSetup
+	originalWSPing := probeRelayWSPingForSetup
+	originalReadinessHealth := fetchRelayHealthForReadiness
+	originalReadinessWSPing := probeRelayWSPingForReadiness
+	defer func() {
+		fetchRelayHealthForSetup = originalHealth
+		probeRelayWSPingForSetup = originalWSPing
+		fetchRelayHealthForReadiness = originalReadinessHealth
+		probeRelayWSPingForReadiness = originalReadinessWSPing
+	}()
+	fetchRelayHealthForSetup = func(relayBaseURL, token string) ([]byte, error) {
+		return []byte(`{"status":"ok","data":{"ha_ws_connected":true}}`), nil
+	}
+	probeRelayWSPingForSetup = func(relayBaseURL, token string) (relayWSPingResponse, error) {
+		return relayWSPingResponse{StatusCode: http.StatusOK, Body: []byte(`{"ok":true,"data":null}`)}, nil
+	}
+	fetchRelayHealthForReadiness = func(relayBaseURL, token string) ([]byte, error) {
+		return []byte(`{"status":"ok","data":{"ha_ws_connected":true}}`), nil
+	}
+	probeRelayWSPingForReadiness = func(relayBaseURL, token string) (relayWSPingResponse, error) {
+		return relayWSPingResponse{StatusCode: http.StatusOK, Body: []byte(`{"ok":true,"data":null}`)}, nil
+	}
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+
+	// Previous service-mode install: config references the token file.
+	if err := os.MkdirAll(paths.ConfigDir, 0o700); err != nil {
+		t.Fatalf("mkdir config dir: %v", err)
+	}
+	tokenFilePath := defaultRelayAuthTokenFile(paths)
+	if err := writeRelayAuthTokenFile(tokenFilePath, "service-token"); err != nil {
+		t.Fatalf("write service token file: %v", err)
+	}
+	if err := saveConfig(paths, runtimeConfig{HAHost: "ha.test", HAURL: "http://ha.test:8123", RelayBaseURL: "http://relay.test:8791", RelayTokenFile: "relay-token"}); err != nil {
+		t.Fatalf("saveConfig() error: %v", err)
+	}
+
+	// Documented desktop path: setup without --service and without a token
+	// flag must migrate the credential back to the OS keyring.
+	exitCode, output := captureCommandOutput(t, func() int {
+		return runSetup(paths, []string{
+			"--host", normalizeHostInput(haServer.URL),
+			"--ha-url", haServer.URL,
+			"--relay-url", "http://relay.test:8791",
+			"--non-interactive",
+			"hermes",
+		})
+	})
+	if exitCode != 0 {
+		t.Fatalf("expected desktop setup to succeed:\n%s", output)
+	}
+	cfg, err := loadConfig(paths)
+	if err != nil {
+		t.Fatalf("loadConfig() error = %v", err)
+	}
+	if cfg.RelayTokenFile != "" {
+		t.Fatalf("RelayTokenFile = %q, want empty (desktop mode)", cfg.RelayTokenFile)
+	}
+	if _, err := os.Stat(tokenFilePath); !isNotExist(err) {
+		t.Fatalf("expected former service token file to be removed, err=%v", err)
+	}
+	migrated, err := os.ReadFile(keyringFile)
+	if err != nil {
+		t.Fatalf("read keyring file: %v", err)
+	}
+	if strings.TrimSpace(string(migrated)) != "service-token" {
+		t.Fatalf("migrated token = %q, want service-token", strings.TrimSpace(string(migrated)))
+	}
+}
