@@ -64,10 +64,22 @@ describe("dependabot automation contract", () => {
     expect(dependabot).toContain('directory: "/nova"');
     expect(dependabot).toContain("npm-dev-minor-patch:");
     expect(dependabot).toContain("dependency-type: development");
+    expect(dependabot).toContain("exclude-patterns:");
+    for (const dependency of policy.dependabot_safe_lane.manual_review_dependencies) {
+      expect(dependabot).toContain(`- ${dependency}`);
+    }
     expect(dependabot).toContain("update-types:");
     expect(dependabot).toContain("- minor");
     expect(dependabot).toContain("- patch");
     expect(dependabot).not.toContain("npm-minor-patch:");
+  });
+
+  it("groups security updates and actions bumps to prevent single-dep PR deadlocks", () => {
+    expect(dependabot).toContain("npm-security:");
+    expect(dependabot).toContain("applies-to: security-updates");
+    expect(dependabot).toContain("github-actions-all:");
+    const securityGroups = dependabot.match(/npm-security:/g) ?? [];
+    expect(securityGroups.length).toBe(2);
   });
 
   it("limits code owner review to sensitive paths and leaves package manifests out of CODEOWNERS", () => {
