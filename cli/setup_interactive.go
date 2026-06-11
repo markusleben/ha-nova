@@ -178,7 +178,10 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 	}
 
 	tokenStoragePreflightErr = relayAuthTokenSetupPreflightForSetup()
-	if !serviceMode {
+	// Service credentials stay a client-scoped deployment decision: only
+	// offer the mid-flow switch for a specific target, mirroring the
+	// explicit `--service all` rejection above.
+	if !serviceMode && target != "all" {
 		serviceCredentials, serviceClientID, hasServiceCredentials, serviceErr := selectedClientsServiceCredentialHint(paths, selectedClients)
 		if serviceErr != nil {
 			printHumanErr("%s", serviceErr)
