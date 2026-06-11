@@ -648,7 +648,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 				printHumanErr("cannot save state: %s", err)
 				return 1
 			}
-			cleanupFormerServiceTokenFile(formerServiceTokenFile)
+			finalizeServiceTokenFileMigration(formerServiceTokenFile, token)
 			renderSetupCompleteBanner(os.Stdout, selectedClients)
 			return 0
 		}

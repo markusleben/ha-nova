@@ -221,7 +221,7 @@ func runSetup(paths runtimePaths, args []string) int {
 		return 1
 	}
 
-	cleanupFormerServiceTokenFile(formerServiceTokenFile)
+	finalizeServiceTokenFileMigration(formerServiceTokenFile, token)
 	return runDoctor(paths, nil)
 }
 

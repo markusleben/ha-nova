@@ -46,6 +46,24 @@ func disableServiceRelayTokenFile(paths runtimePaths, cfg runtimeConfig) (runtim
 	return cfg, path, formerToken, withRelayAuthTokenFileSuppressed()
 }
 
+// finalizeServiceTokenFileMigration force-writes the active token into the
+// OS keyring before removing the former service token file, so the
+// migration can never delete the only stored copy of the credential —
+// regardless of whether the persistence layer considered the token
+// unchanged (it compares values, not destination stores).
+func finalizeServiceTokenFileMigration(path, token string) {
+	if path == "" {
+		return
+	}
+	if strings.TrimSpace(token) != "" {
+		if err := writeRelayAuthToken(token); err != nil {
+			printHumanWarn("Keeping the former service token file %s: could not store the token in OS secure storage: %s", path, err)
+			return
+		}
+	}
+	cleanupFormerServiceTokenFile(path)
+}
+
 // cleanupFormerServiceTokenFile removes the now-orphaned service token file
 // after a successful desktop-mode setup so no secret copy stays behind.
 func cleanupFormerServiceTokenFile(path string) {
@@ -88,6 +106,7 @@ func requireSelectedClientServiceCredentials(paths runtimePaths, selectedClients
 func shouldOfferServiceCredentials(tokenStorageErr error) bool {
 	if tokenStorageErr != nil {
 		return isDesktopKeyringSessionUnavailableError(tokenStorageErr) ||
+			isDesktopKeyringUnavailableError(tokenStorageErr) ||
 			isDesktopKeyringLockedError(tokenStorageErr) ||
 			isDesktopKeyringInitializationRequiredError(tokenStorageErr) ||
 			isDesktopKeyringSetupRequiredError(tokenStorageErr)
