@@ -318,15 +318,20 @@ func finalizeLocalUninstallWithProgress(paths runtimePaths, state installState, 
 			restoreSuppression()
 		}
 		if !tokenFileHandled {
-			restoreTokenFileOverride := func() {}
+			restoreSuppression := func() {}
 			if relayTokenFile != "" {
-				restoreTokenFileOverride = withRelayAuthTokenFileOverride(relayTokenFile)
+				// The configured token file lies outside the managed config
+				// directory; the boundary check above deliberately left it
+				// alone. Never delete user-managed files — clean only the OS
+				// keyring copy.
+				restoreSuppression = withRelayAuthTokenFileSuppressed()
+				report.addNote(fmt.Sprintf("Kept the relay token file outside the HA NOVA config directory: %s", relayTokenFile))
 			}
 			if err := applyUninstallTokenPolicy(report); err != nil {
-				restoreTokenFileOverride()
+				restoreSuppression()
 				return fmt.Errorf("failed to remove relay auth token: %w", err)
 			}
-			restoreTokenFileOverride()
+			restoreSuppression()
 		}
 		if err := removeDirIfEmptyWithReport(paths.ConfigDir, report); err != nil {
 			return fmt.Errorf("failed to remove managed config directory: %w", err)

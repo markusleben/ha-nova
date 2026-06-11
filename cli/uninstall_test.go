@@ -762,3 +762,66 @@ func TestPurgeFindsServiceTokenFileWhenConfigIsIncomplete(t *testing.T) {
 		t.Fatalf("expected service token file to be purged despite incomplete config, err=%v", err)
 	}
 }
+
+func TestPurgeKeepsExternalTokenFileAndCleansKeyringOnly(t *testing.T) {
+	if relayAuthTokenFilePlatformOS == "windows" {
+		t.Skip("service token files are not supported on native Windows")
+	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+	if err := os.MkdirAll(paths.ConfigDir, 0o700); err != nil {
+		t.Fatalf("mkdir config dir: %v", err)
+	}
+
+	// User-managed token file OUTSIDE the managed config directory.
+	externalDir := filepath.Join(home, "secrets")
+	if err := os.MkdirAll(externalDir, 0o700); err != nil {
+		t.Fatalf("mkdir external dir: %v", err)
+	}
+	externalToken := filepath.Join(externalDir, "relay-token")
+	if err := os.WriteFile(externalToken, []byte("external-token\n"), 0o600); err != nil {
+		t.Fatalf("write external token: %v", err)
+	}
+	if err := os.WriteFile(paths.ConfigFile, []byte(`{"relay_token_file":"`+externalToken+`"}`), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	originalRead := readRelayAuthTokenForUninstall
+	originalDelete := deleteRelayAuthTokenForUninstall
+	defer func() {
+		readRelayAuthTokenForUninstall = originalRead
+		deleteRelayAuthTokenForUninstall = originalDelete
+	}()
+	keyringDeleted := false
+	readRelayAuthTokenForUninstall = func() (string, error) {
+		return "keyring-token", nil
+	}
+	deleteRelayAuthTokenForUninstall = func() error {
+		keyringDeleted = true
+		return nil
+	}
+
+	report := &uninstallReport{}
+	if err := finalizeLocalUninstall(paths, installState{}, report, uninstallModePurge); err != nil {
+		t.Fatalf("finalizeLocalUninstall() error: %v", err)
+	}
+	if _, err := os.Stat(externalToken); err != nil {
+		t.Fatalf("expected external token file to be left untouched, err=%v", err)
+	}
+	if !keyringDeleted {
+		t.Fatalf("expected the OS keyring copy to be cleaned")
+	}
+	foundNote := false
+	for _, note := range report.notes {
+		if strings.Contains(note, "outside the HA NOVA config directory") {
+			foundNote = true
+		}
+	}
+	if !foundNote {
+		t.Fatalf("expected a kept-external-file note, got %+v", report.notes)
+	}
+}
