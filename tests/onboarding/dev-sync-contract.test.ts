@@ -10,6 +10,10 @@ describe("dev-sync contract", () => {
     expect(content).toContain('bash "${REPO_ROOT}/scripts/onboarding/install-local-skills.sh" "$target"');
     expect(content).toContain('refresh_file_client "$name" "$target"');
     expect(content).toContain('refresh_file_client "Gemini" "gemini"');
+    expect(content).toContain('CURRENT_PLATFORM_ID="$(detect_platform_id)"');
+    expect(content).toContain("sync_hermes()");
+    expect(content).toContain('sync_file_client "Hermes Agent" "${HOME}/.hermes/skills/ha-nova" "hermes"');
+    expect(content).toContain("native Windows sync not supported");
   });
 
   it("keeps legacy Gemini marker support during migration", () => {

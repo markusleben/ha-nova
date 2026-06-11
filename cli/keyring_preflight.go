@@ -7,5 +7,8 @@ func relayAuthTokenSetupPreflight() error {
 	if relayAuthTokenTestFile() != "" {
 		return nil
 	}
+	if relayAuthTokenFileEnabled() {
+		return nil
+	}
 	return relayAuthTokenPlatformSetupPreflight()
 }

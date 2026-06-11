@@ -1,5 +1,5 @@
 /**
- * S-4: Client-specific skill installation (4 clients)
+ * S-4: Client-specific skill installation (5 clients)
  * S-5: Multi-client ("all")
  */
 import { existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, readlinkSync, statSync, writeFileSync } from "node:fs";
@@ -184,6 +184,18 @@ describe("S-4: client-specific skill installation", () => {
       const content = readFileSync(join(hermesRoot, installedName, "SKILL.md"), "utf8");
       expect(content).toContain(`name: ha-nova-${src}`);
       expectRepoRefsRewritten(content);
+
+      const companionFiles = readdirSync(join(REPO_ROOT, "skills", src))
+        .filter((file) => file.endsWith(".md") && file !== "SKILL.md");
+
+      for (const companion of companionFiles) {
+        const companionContent = readFileSync(
+          join(hermesRoot, installedName, companion),
+          "utf8",
+        );
+        expect(companionContent.length).toBeGreaterThan(0);
+        expectRepoRefsRewritten(companionContent);
+      }
     }
 
     const checks = readFileSync(join(hermesRoot, "ha-nova-review", "checks.md"), "utf8");
@@ -347,6 +359,37 @@ describe("S-4: client-specific skill installation", () => {
 
     expect(result.status).not.toBe(0);
     expect(result.stderr + result.stdout).toContain("[claude] Node.js not found in PATH");
+  });
+
+  it("installs Claude without Node.js when only a stale ha-nova marketplace record exists", () => {
+    const home = mkdtempSync(join(tmpdir(), "ha-nova-skill-claude-marketplace-only-"));
+    const claudeLogFile = join(home, "claude.log");
+    const binDir = createMockBinaries({ claudeLogFile });
+    writeFileSync(join(binDir, "node"), "#!/usr/bin/env bash\nexit 127\n", { mode: 0o755 });
+    mkdirSync(join(home, ".claude", "plugins"), { recursive: true });
+    writeFileSync(
+      join(home, ".claude", "plugins", "known_marketplaces.json"),
+      '{"ha-nova":{"source":"https://github.com/markusleben/ha-nova"}}',
+    );
+
+    const result = spawnSync(
+      "bash",
+      ["scripts/onboarding/install-local-skills.sh", "claude"],
+      {
+        cwd: REPO_ROOT,
+        encoding: "utf8",
+        timeout: 20000,
+        env: {
+          ...mockEnv(home, binDir),
+          PATH: `${binDir}:${process.env.PATH ?? ""}`,
+        },
+      },
+    );
+
+    expect(result.status).toBe(0);
+    const claudeLog = readFileSync(claudeLogFile, "utf8");
+    expect(claudeLog).toContain("plugin marketplace add");
+    expect(claudeLog).toContain("plugin install ha-nova@ha-nova");
   });
 
   it("fails loudly when Claude install cannot restore a previous plugin without a marketplace source", () => {
@@ -536,6 +579,10 @@ describe("S-5: multi-client 'all' installation", () => {
         statSync(join(home, ".gemini/skills", sub, "SKILL.md")),
       ).not.toThrow();
     }
+
+    expect(() =>
+      statSync(join(home, ".hermes/skills/ha-nova/ha-nova/SKILL.md")),
+    ).not.toThrow();
 
     expect(() =>
       statSync(join(home, ".gemini/skills", "ha-nova-review", "checks.md")),

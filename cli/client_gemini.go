@@ -9,7 +9,6 @@ import (
 	"strings"
 )
 
-var sameSkillRefPattern = regexp.MustCompile("`skills/([^`/]+)/([^`]+)`")
 var sharedSkillRefPattern = regexp.MustCompile("`skills/([^`]+)`")
 var docsRefPattern = regexp.MustCompile("`docs/reference/([^`]+)`")
 
@@ -147,9 +146,6 @@ func rewriteFlatMarkdown(skillName, content, sourceDir, sourceRoot string, subSk
 		return fmt.Sprintf("`%s`", filepath.Join(sourceRoot, "docs", "reference", parts[1]))
 	})
 	content = sharedSkillRefPattern.ReplaceAllStringFunc(content, func(match string) string {
-		if sameSkillRefPattern.MatchString(match) {
-			return match
-		}
 		parts := sharedSkillRefPattern.FindStringSubmatch(match)
 		return fmt.Sprintf("`%s`", filepath.Join(sourceRoot, "skills", parts[1]))
 	})

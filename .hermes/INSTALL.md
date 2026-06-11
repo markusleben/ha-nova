@@ -1,15 +1,16 @@
 # Hermes Agent Install Overlay
 
-This page only covers Hermes-specific deltas.
-
 > **Release status:** Hermes support is implemented for the next HA NOVA release train, but it is not part of the current stable release until the final release PR, tag, and artifacts publish it. Until then, `README.md` remains the stable public product truth.
+
+This page only covers Hermes-specific deltas.
 
 For the stable installer, lifecycle commands, and general troubleshooting, use [README.md](../README.md) and the [latest GitHub release](https://github.com/markusleben/ha-nova/releases/latest).
 
 ## Setup Choice
 
-- Use the normal HA NOVA installer flow.
-- In the setup wizard, choose `Hermes Agent`.
+- Desktop terminal path: run `ha-nova setup hermes`.
+- Service, headless, SSH, systemd user service, or gateway path: run `ha-nova setup --service hermes`.
+- If you run `ha-nova setup hermes` and HA NOVA detects that the desktop keyring is locked or unavailable, setup asks whether to switch to the service/gateway token file.
 - Install Hermes separately; HA NOVA handles the skills and onboarding, not the Hermes app itself.
 
 ## What Supported Means Here
@@ -45,17 +46,19 @@ Current support/evidence truth lives in [docs/reference/hermes-platform-validati
 
 ## Linux Notes
 
-- On Linux, HA NOVA expects a working Secret Service session for secure local token storage.
+- On Linux desktop sessions, HA NOVA uses the OS Secret Service / keyring for secure local token storage.
+- For Hermes sessions that run without an unlocked desktop keyring, use `ha-nova setup --service hermes`. This stores only the Relay Auth Token in `~/.config/ha-nova/relay-token` with strict local file permissions.
 - If HA NOVA asks for a local Linux keyring password, it stays on this machine. HA NOVA only uses it to unlock or create local secure storage. It is not your Relay token, not your Home Assistant token, and it is not sent to the Relay, Home Assistant, Hermes, or any AI provider.
 - If no Secret Service provider is running, setup fails early with an explicit prerequisite message instead of raw `org.freedesktop.secrets` D-Bus errors.
 - If Linux is using GNOME Keyring and the default collection is locked or uninitialized, `ha-nova setup hermes` can guide recovery inline.
 - If Linux uses another Secret Service backend, keep the backend working first; HA NOVA does not pretend inline GNOME-only recovery exists there.
-- If you run setup or repair over SSH, use the same logged-in desktop user session that owns the user D-Bus / Secret Service session.
+- If you run setup or repair over SSH and want desktop keyring storage, use the same logged-in desktop user session that owns the user D-Bus / Secret Service session. If that is not available, use the service path instead.
 
 ## Updates and Repair
 
 - Run `ha-nova doctor` first. If Hermes is configured but not attached, doctor points you to `ha-nova setup hermes`.
 - Connect or repair with `ha-nova setup hermes`.
+- Repair service or gateway credentials with `ha-nova setup --service hermes`.
 - `ha-nova setup hermes` also repairs older Hermes installs whose bare sub-skill directory names could make `skills_list` and `skill_view` disagree.
 - On Windows with WSL2, run update and repair commands from the same WSL shell where Hermes is installed.
 - Validate the current route and proof status in [docs/reference/hermes-platform-validation.md](../docs/reference/hermes-platform-validation.md).

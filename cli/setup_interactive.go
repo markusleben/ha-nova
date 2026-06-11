@@ -91,7 +91,7 @@ func maskSecretHint(value string) string {
 	return "***" + value[len(value)-4:]
 }
 
-func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState, target string, hostFlag, haURLFlag, relayURLFlag, relayTokenFlag string) int {
+func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState, target string, hostFlag, haURLFlag, relayURLFlag, relayTokenFlag string, serviceMode bool) int {
 	const (
 		setupStageClient = iota
 		setupStageSecureStorageRecovery
@@ -153,7 +153,67 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 		}
 	}
 
+	restoreTokenFileOverride := func() {}
+	defer func() {
+		restoreTokenFileOverride()
+	}()
+	formerServiceTokenFile := ""
+	formerServiceToken := ""
+	if !serviceMode {
+		var liftTokenFileSuppression func()
+		cfg, formerServiceTokenFile, formerServiceToken, liftTokenFileSuppression = disableServiceRelayTokenFile(paths, cfg)
+		defer liftTokenFileSuppression()
+	}
+	if serviceMode {
+		if target == "all" {
+			printHumanErr("service credentials require a specific client; use: ha-nova setup --service <client>")
+			return 1
+		}
+		if err := requireSelectedClientServiceCredentials(paths, selectedClients); err != nil {
+			printHumanErr("%s", err)
+			return 1
+		}
+		// Read any already-stored token BEFORE the file override redirects
+		// token reads, so an existing desktop-keyring token can be offered
+		// for migration into the service token file.
+		if existing, err := readRelayAuthToken(); err == nil {
+			formerServiceToken = strings.TrimSpace(existing)
+		}
+		cfg = enableServiceRelayTokenFile(paths, cfg)
+		restoreTokenFileOverride = withRelayAuthTokenFileOverride(cfg.RelayTokenFile)
+	}
+
 	tokenStoragePreflightErr = relayAuthTokenSetupPreflightForSetup()
+	// Service credentials stay a client-scoped deployment decision: only
+	// offer the mid-flow switch for a specific target, mirroring the
+	// explicit `--service all` rejection above.
+	if !serviceMode && target != "all" {
+		serviceCredentials, serviceClientID, hasServiceCredentials, serviceErr := selectedClientsServiceCredentialHint(paths, selectedClients)
+		if serviceErr != nil {
+			printHumanErr("%s", serviceErr)
+			return 1
+		}
+		if hasServiceCredentials && shouldOfferServiceCredentials(tokenStoragePreflightErr) {
+			useServiceCredentials, err := promptSetupServiceCredentialsInteractive(reader, os.Stdout, serviceCredentials, serviceClientID)
+			if err == errSetupExit {
+				printHumanInfo("Setup cancelled")
+				return 0
+			}
+			if err != nil {
+				printHumanErr("%s", err)
+				return 1
+			}
+			if useServiceCredentials {
+				serviceMode = true
+				formerServiceTokenFile = ""
+				formerServiceToken = ""
+				restoreTokenFileOverride()
+				cfg = enableServiceRelayTokenFile(paths, cfg)
+				restoreTokenFileOverride = withRelayAuthTokenFileOverride(cfg.RelayTokenFile)
+				tokenStoragePreflightErr = relayAuthTokenSetupPreflightForSetup()
+			}
+		}
+	}
 	if tokenStoragePreflightErr == nil {
 		if savedToken, err := readRelayAuthTokenForSetup(); err == nil && strings.TrimSpace(savedToken) != "" {
 			savedTokenBeforeSetup = strings.TrimSpace(savedToken)
@@ -169,9 +229,16 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 		printHumanErr("%s", relayAuthTokenSetupSaveError(tokenStoragePreflightErr))
 		return 1
 	}
-
 	if existingToken == "" {
 		existingToken = savedTokenBeforeSetup
+	}
+	if existingToken == "" && !hadSavedTokenBeforeSetup && formerServiceToken != "" {
+		// Returning from service to desktop mode: prefill the token from the
+		// former service token file so the user does not have to re-paste it,
+		// but deliberately do NOT mark it as a previously stored token —
+		// persistence must treat it as new and write it into the OS keyring
+		// before the saved config stops referencing the token file.
+		existingToken = formerServiceToken
 	}
 
 	overrideApplied := strings.TrimSpace(hostFlag) != "" || strings.TrimSpace(haURLFlag) != "" || strings.TrimSpace(relayURLFlag) != ""
@@ -591,6 +658,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 				printHumanErr("cannot save state: %s", err)
 				return 1
 			}
+			finalizeServiceTokenFileMigration(formerServiceTokenFile, token)
 			renderSetupCompleteBanner(os.Stdout, selectedClients)
 			return 0
 		}

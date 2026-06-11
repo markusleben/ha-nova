@@ -250,6 +250,15 @@ func finalizeLocalUninstall(paths runtimePaths, state installState, report *unin
 }
 
 func finalizeLocalUninstallWithProgress(paths runtimePaths, state installState, report *uninstallReport, mode uninstallMode, beforeStep func(string) error) error {
+	relayTokenFile := ""
+	if mode == uninstallModePurge {
+		// Read the raw config: token-file cleanup must not depend on setup
+		// completeness (loadConfig fails when relay_base_url is missing,
+		// which would silently skip service token file removal on purge).
+		if cfg, err := loadJSONConfig(paths.ConfigFile); err == nil {
+			relayTokenFile = strings.TrimSpace(cfg.RelayTokenFile)
+		}
+	}
 	if beforeStep != nil {
 		if err := beforeStep("client_integrations"); err != nil {
 			return fmt.Errorf("failed before client_integrations: %w", err)
@@ -295,8 +304,34 @@ func finalizeLocalUninstallWithProgress(paths runtimePaths, state installState, 
 				return fmt.Errorf("failed before token_cleanup: %w", err)
 			}
 		}
-		if err := applyUninstallTokenPolicy(report); err != nil {
-			return fmt.Errorf("failed to remove relay auth token: %w", err)
+		tokenFileHandled := false
+		if relayTokenFile != "" {
+			var err error
+			tokenFileHandled, err = applyUninstallServiceTokenFilePolicy(paths, relayTokenFile, report)
+			if err != nil {
+				return fmt.Errorf("failed to remove relay auth token: %w", err)
+			}
+		}
+		if tokenFileHandled {
+			restoreSuppression := withRelayAuthTokenFileSuppressed()
+			applyUninstallKeyringTokenBestEffort(report)
+			restoreSuppression()
+		}
+		if !tokenFileHandled {
+			restoreSuppression := func() {}
+			if relayTokenFile != "" {
+				// The configured token file lies outside the managed config
+				// directory; the boundary check above deliberately left it
+				// alone. Never delete user-managed files — clean only the OS
+				// keyring copy.
+				restoreSuppression = withRelayAuthTokenFileSuppressed()
+				report.addNote(fmt.Sprintf("Kept the relay token file outside the HA NOVA config directory: %s", relayTokenFile))
+			}
+			if err := applyUninstallTokenPolicy(report); err != nil {
+				restoreSuppression()
+				return fmt.Errorf("failed to remove relay auth token: %w", err)
+			}
+			restoreSuppression()
 		}
 		if err := removeDirIfEmptyWithReport(paths.ConfigDir, report); err != nil {
 			return fmt.Errorf("failed to remove managed config directory: %w", err)

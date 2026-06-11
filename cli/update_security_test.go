@@ -96,6 +96,26 @@ func TestValidateBundleRootRejectsMissingClientRegistry(t *testing.T) {
 	}
 }
 
+func TestValidateBundleRootRejectsInvalidClientRegistry(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "bundle.json"), []byte(fmt.Sprintf(`{"bundle_format_version":1,"os":"%s","arch":"%s","binary_name":"%s"}`, bundlePlatformOS(), bundlePlatformArch(), publicBinaryName())), 0o644); err != nil {
+		t.Fatalf("write bundle.json: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "clients"), 0o755); err != nil {
+		t.Fatalf("mkdir clients: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "clients", "registry.json"), []byte(`{"clients":[{"id":"hermes","label":"Hermes Agent","adapter_kind":"skill_tree","supported_os":["linux"],"setup":{"service_credentials":{"recommended_when":["maybe"],"label":"Service mode","help":"Use for service sessions."}}}]}`), 0o644); err != nil {
+		t.Fatalf("write registry.json: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, publicBinaryName()), []byte("binary"), 0o755); err != nil {
+		t.Fatalf("write binary: %v", err)
+	}
+
+	if err := validateBundleRoot(root); err == nil {
+		t.Fatal("expected invalid client registry to fail validation")
+	}
+}
+
 func TestVerifyFileChecksumAcceptsMatchingSHA256(t *testing.T) {
 	dir := t.TempDir()
 	archivePath := filepath.Join(dir, "ha-nova-installer-bundle-linux-amd64.tar.gz")

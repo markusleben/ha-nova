@@ -79,26 +79,59 @@ describe("client install docs contract", () => {
     expect(codexInstall).toContain("Install the Codex client separately");
     expect(codexInstall).toContain("ha-nova setup codex");
     expect(codexInstall).toContain("ha-nova check-update");
-    expect(codexInstall).toContain("still early and not fully tested yet");
+    expect(codexInstall).not.toContain("claude install");
+    expect(codexInstall).not.toContain("CLAUDE_CODE_GIT_BASH_PATH");
+    expect(codexInstall).not.toContain("Git Bash");
 
     expect(geminiInstall).toContain("Gemini CLI");
     expect(geminiInstall).toContain("Install the Gemini client separately");
     expect(geminiInstall).toContain("ha-nova setup gemini");
     expect(geminiInstall).toContain("ha-nova check-update");
-    expect(geminiInstall).toContain("basic Windows validation");
     expect(geminiInstall).toContain("Node.js");
     expect(geminiInstall).toContain("node --version");
     expect(geminiInstall).toContain("gemini --version");
     expect(geminiInstall).toContain("open a fresh PowerShell window");
     expect(geminiInstall).toContain("skips Gemini");
     expect(geminiInstall).toContain("~/.gemini/skills/ha-nova-*");
+    expect(geminiInstall).not.toContain("claude install");
+    expect(geminiInstall).not.toContain("CLAUDE_CODE_GIT_BASH_PATH");
+    expect(geminiInstall).not.toContain("Git Bash");
 
     expect(opencodeInstall).toContain("OpenCode");
     expect(opencodeInstall).toContain("Install the OpenCode client separately");
     expect(opencodeInstall).toContain("ha-nova setup opencode");
     expect(opencodeInstall).toContain("ha-nova check-update");
     expect(opencodeInstall).toContain("WSL");
-    expect(opencodeInstall).toContain("still early and not fully tested yet");
+    expect(opencodeInstall).not.toContain("claude install");
+    expect(opencodeInstall).not.toContain("CLAUDE_CODE_GIT_BASH_PATH");
+    expect(opencodeInstall).not.toContain("Git Bash");
+
+    expect(hermesInstall).toContain("Hermes Agent");
+    expect(hermesInstall).toContain("ha-nova setup hermes");
+    expect(hermesInstall).toContain("ha-nova check-update");
+    expect(hermesInstall).toContain("What Supported Means Here");
+    expect(hermesInstall).toContain("Platform Routing");
+    expect(hermesInstall).toContain("Network Model");
+    expect(hermesInstall).toContain("Supported with limitation");
+    expect(hermesInstall).toContain("Not supported");
+    expect(hermesInstall).toContain("Maintainer-validated");
+    expect(hermesInstall).toContain("Community validation");
+    expect(hermesInstall).toContain("GNOME Keyring");
+    expect(hermesInstall).toContain("WSL2");
+    expect(hermesInstall).toContain("Windows native");
+    expect(hermesInstall).toContain("local-first HA NOVA client");
+    expect(hermesInstall).toContain("same home network or a private VPN/overlay route");
+    expect(hermesInstall).toContain("generic public VPS");
+    expect(hermesInstall).toContain("Do not expose the HA NOVA Relay directly to the public internet.");
+    expect(hermesInstall).toContain("docs/reference/hermes-platform-validation.md");
+    expect(hermesInstall).toContain("~/.hermes/skills/ha-nova/");
+    expect(hermesInstall).toContain("ha-nova-read");
+    expect(hermesInstall).toContain("stays on this machine");
+    expect(hermesInstall).toContain("not your Relay token");
+    expect(hermesInstall).toContain("not sent to the Relay, Home Assistant, Hermes, or any AI provider");
+    expect(hermesInstall).toContain("doctor points you to `ha-nova setup hermes`");
+    expect(hermesInstall).toContain("skills_list");
+    expect(hermesInstall).toContain("skill_view");
 
     expect(hermesInstall).toContain("Hermes Agent");
     expect(hermesInstall).toContain("not part of the current stable release");
@@ -121,6 +154,8 @@ describe("client install docs contract", () => {
     expect(hermesInstall).not.toContain("HA_NOVA_CLAUDE_MARKETPLACE_LOCAL=1");
     expect(hermesInstall).not.toContain("CLAUDE_CODE_GIT_BASH_PATH");
     expect(hermesInstall).not.toContain("ha-nova setup claude");
+    expect(hermesInstall).not.toContain("ha-nova setup gemini");
+    expect(hermesInstall).not.toContain("ha-nova setup opencode");
     expect(hermesInstall).not.toContain("Git Bash");
   });
 
@@ -131,11 +166,16 @@ describe("client install docs contract", () => {
     expect(governance).toContain("point back to `README.md`");
   });
 
-  it("keeps README and Windows client overlays aligned on prerequisites and validation depth", () => {
-    expect(readme).toContain("Claude Code is the most tested client on Windows today");
-    expect(readme).toContain("Gemini CLI has basic validation");
-    expect(geminiInstall).toContain("Gemini has basic Windows validation for this release.");
-    expect(claudeInstall).toContain("Claude is the Windows path we have tested most for this release.");
+  it("keeps README and Windows client overlays aligned on prerequisites and Windows guidance", () => {
+    expect(readme).toContain("Windows");
+    expect(readme).toContain("Git for Windows / Git Bash");
+    expect(readme).toContain("Gemini CLI needs Node.js");
+    expect(claudeInstall).toContain("Windows Notes");
+    expect(geminiInstall).toContain("Windows Notes");
+    expect(geminiInstall).toContain("Node.js");
+    expect(geminiInstall).toContain("open a fresh PowerShell window");
+    expect(claudeInstall).toContain("Git for Windows");
+    expect(claudeInstall).toContain("Git Bash");
   });
 
   it("keeps Hermes in the release train without promoting the public README claim early", () => {

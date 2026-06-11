@@ -39,6 +39,7 @@
     "dev:install:claude-skill": "bash scripts/onboarding/install-local-skills.sh claude",
     "dev:install:opencode-skill": "bash scripts/onboarding/install-local-skills.sh opencode",
     "dev:install:gemini-skill": "bash scripts/onboarding/install-local-skills.sh gemini",
+    "dev:install:hermes-skill": "bash scripts/onboarding/install-local-skills.sh hermes",
     "dev:install:skills": "bash scripts/onboarding/install-local-skills.sh all",
     "dev:watch:claude-state": "bash scripts/dev/watch-claude-state.sh",
     "dev:validation:harness": "bash scripts/dev/start-local-validation-harness.sh",

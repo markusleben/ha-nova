@@ -202,6 +202,7 @@ describe("desktop validation helpers contract", () => {
     expect(windowsCleanup).toContain(".agents\\skills\\ha-nova");
     expect(windowsCleanup).toContain(".config\\opencode\\skills\\ha-nova");
     expect(windowsCleanup).toContain(".gemini\\skills\\ha-nova");
+    expect(windowsCleanup).toContain(".hermes\\skills\\ha-nova");
     expect(windowsCleanup).toContain(".claude\\plugins\\installed_plugins.json");
     expect(windowsCleanup).toContain('Join-Path $ConfigDir "claude-marketplace"');
     expect(windowsCleanup).toContain("Remove-ClaudePluginRecord");
@@ -210,6 +211,8 @@ describe("desktop validation helpers contract", () => {
     expect(windowsCleanup).toContain('Remove-Item -LiteralPath $marketplacesJson -Force -ErrorAction SilentlyContinue');
     expect(windowsCleanup).toContain("Remove-HANovaTestCredentials");
     expect(windowsCleanup).toContain("Remove-HANovaUserEnvironment");
+    expect(windowsCleanup).toContain("Remove-HermesWslSkills");
+    expect(windowsCleanup).toContain("wsl.exe");
     expect(windowsCleanup).toContain('HKCU:\\Environment\\$name');
     expect(windowsCleanup).toContain("HA_NOVA_KEYRING_SERVICE");
     expect(windowsCleanup).toContain("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING");

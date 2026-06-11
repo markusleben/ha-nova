@@ -12,7 +12,22 @@ import (
 
 var readRelayAuthTokenForDoctor = readRelayAuthToken
 
-func runDoctor(paths runtimePaths, _ []string) int {
+func runDoctor(paths runtimePaths, args []string) int {
+	fs := flag.NewFlagSet("doctor", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	autoRepair := fs.Bool("auto-repair", false, "silently reattach drifted clients before reporting")
+	quiet := fs.Bool("quiet", false, "suppress info lines; only print warnings, errors, and repair actions")
+	if err := fs.Parse(args); err != nil {
+		printHumanErr("%s", err)
+		return 1
+	}
+	doctorInfo := func(format string, parts ...any) {
+		if *quiet {
+			return
+		}
+		printHumanInfo(format, parts...)
+	}
+
 	if recovery := inspectWindowsUninstallStatus(paths); recovery.Kind != windowsUninstallStatusKindNone {
 		switch recovery.Kind {
 		case windowsUninstallStatusKindRunning:
@@ -36,16 +51,19 @@ func runDoctor(paths runtimePaths, _ []string) int {
 	status := 0
 
 	if cfgErr == nil {
-		printHumanInfo("Config present: %s", paths.ConfigFile)
+		doctorInfo("Config present: %s", paths.ConfigFile)
 	} else {
 		printHumanErr("%s", cfgErr)
 		return 1
 	}
 
 	if tokenErr == nil && token != "" {
-		printHumanInfo("Relay auth token present in secure storage")
+		doctorInfo("Relay auth token present in %s", relayAuthTokenStorageLabel())
 	} else {
 		printHumanErr("%s", relayAuthTokenProblemMessage(tokenErr))
+		if hint := doctorServiceCredentialRecoveryHint(paths, state, tokenErr); hint != "" {
+			printHumanWarn("%s", hint)
+		}
 		if hint := setupSecureStorageRecoveryHint(tokenErr); hint != "" {
 			printHumanWarn("%s", hint)
 		}
@@ -56,7 +74,7 @@ func runDoctor(paths runtimePaths, _ []string) int {
 		printHumanErr("Home Assistant unreachable: %s", err)
 		status = 1
 	} else {
-		printHumanInfo("Home Assistant reachable: %s", cfg.HAURL)
+		doctorInfo("Home Assistant reachable: %s", cfg.HAURL)
 	}
 	haReachable := status == 0
 
@@ -65,7 +83,7 @@ func runDoctor(paths runtimePaths, _ []string) int {
 		printHumanErr("Relay health failed: %s", readiness.HealthErr)
 		status = 1
 	} else {
-		printHumanInfo("Relay health reachable: %s/health", cfg.RelayBaseURL)
+		doctorInfo("Relay health reachable: %s/health", cfg.RelayBaseURL)
 		if notice := checkRelayVersion(paths, readiness.HealthBody); !notice.empty() {
 			printHumanNotice(notice)
 			status = 1
@@ -74,9 +92,9 @@ func runDoctor(paths runtimePaths, _ []string) int {
 			switch {
 			case readiness.WSReady:
 				if readiness.UsedWSPing {
-					printHumanInfo("Relay /ws ping succeeded")
+					doctorInfo("Relay /ws ping succeeded")
 				}
-				printHumanInfo("Connected to Home Assistant")
+				doctorInfo("Connected to Home Assistant")
 			case readiness.LLATIssue:
 				printHumanErr("Relay reports degraded upstream WS capability")
 				printHumanErr(`The Home Assistant Access Token field ("ha_llat") in NOVA Relay is missing or invalid`)
@@ -98,11 +116,33 @@ func runDoctor(paths runtimePaths, _ []string) int {
 		printHumanErr("%s", err)
 		status = 1
 	} else if len(clientStatuses) > 0 {
+		if *autoRepair {
+			needsRepair := false
+			for _, c := range clientStatuses {
+				if c.RuntimeDetected && !c.Attached && !c.Ready {
+					needsRepair = true
+					break
+				}
+			}
+			if needsRepair {
+				for _, outcome := range runClientAutoRepair(paths, clientStatuses) {
+					switch {
+					case outcome.Repaired:
+						printHumanInfo("Auto-repaired %s attachment", outcome.ClientLabel)
+					case outcome.Err != nil:
+						printHumanWarn("Auto-repair %s failed: %s", outcome.ClientLabel, outcome.Err)
+					}
+				}
+				if refreshed, refreshErr := configuredClientStatuses(paths, state); refreshErr == nil {
+					clientStatuses = refreshed
+				}
+			}
+		}
 		installSource := detectInstallSource(paths, state)
 		for _, client := range clientStatuses {
 			switch {
 			case client.Ready:
-				printHumanInfo("%s ready now", client.Label)
+				doctorInfo("%s ready now", client.Label)
 			case !client.RuntimeDetected:
 				printHumanWarn("%s configured, but client runtime not detected now", client.Label)
 				printHumanWarn("%s", doctorClientRepairHint(client, installSource))
@@ -122,7 +162,7 @@ func runDoctor(paths runtimePaths, _ []string) int {
 		printHumanNotice(notice)
 	}
 	if status == 0 {
-		printHumanInfo("Doctor checks passed")
+		doctorInfo("Doctor checks passed")
 	}
 	return status
 }

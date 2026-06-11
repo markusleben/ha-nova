@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 )
 
 type clientStatus struct {
@@ -52,7 +53,25 @@ func clientRuntimeDetected(client string) bool {
 		return false
 	}
 	_, err := exec.LookPath(command)
-	return err == nil
+	if err == nil {
+		return true
+	}
+	return executableInUserLocalBin(command)
+}
+
+func executableInUserLocalBin(command string) bool {
+	if strings.ContainsRune(command, os.PathSeparator) {
+		return false
+	}
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		return false
+	}
+	info, err := os.Stat(filepath.Join(home, ".local", "bin", command))
+	if err != nil || info.IsDir() {
+		return false
+	}
+	return info.Mode().Perm()&0o111 != 0
 }
 
 func clientRuntimeCommand(client string) string {
@@ -107,7 +126,7 @@ func configuredClientStatuses(paths runtimePaths, state installState) ([]clientS
 
 func clientStatusReason(client string, status clientStatus) string {
 	if !status.SupportedOnOS {
-		return fmt.Sprintf("not supported on %s", bundlePlatformOS())
+		return clientUnsupportedOSReason(client, bundlePlatformOS())
 	}
 	if status.RuntimeDetected {
 		return ""
@@ -129,6 +148,13 @@ func clientStatusReason(client string, status clientStatus) string {
 	default:
 		return "install this client first"
 	}
+}
+
+func clientUnsupportedOSReason(client, osName string) string {
+	if client == "hermes" && osName == "windows" {
+		return "not supported on native Windows; run HA NOVA setup inside WSL2 instead"
+	}
+	return fmt.Sprintf("not supported on %s", osName)
 }
 
 func fileExists(path string) bool {

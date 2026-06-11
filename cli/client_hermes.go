@@ -139,9 +139,6 @@ func rewriteHermesMarkdown(skillName, content, sourceDir, sourceRoot string, sub
 		return fmt.Sprintf("`%s`", filepath.Join(sourceRoot, "docs", "reference", parts[1]))
 	})
 	content = sharedSkillRefPattern.ReplaceAllStringFunc(content, func(match string) string {
-		if sameSkillRefPattern.MatchString(match) {
-			return match
-		}
 		parts := sharedSkillRefPattern.FindStringSubmatch(match)
 		return fmt.Sprintf("`%s`", filepath.Join(sourceRoot, "skills", parts[1]))
 	})

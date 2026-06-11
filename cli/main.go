@@ -64,6 +64,7 @@ func printUsage() {
 	fmt.Fprintln(os.Stdout, "")
 	fmt.Fprintln(os.Stdout, "Usage:")
 	fmt.Fprintln(os.Stdout, "  ha-nova setup [client]")
+	fmt.Fprintln(os.Stdout, "  ha-nova setup --service [client]")
 	fmt.Fprintln(os.Stdout, "  ha-nova doctor")
 	fmt.Fprintln(os.Stdout, "  ha-nova check-update [--quiet] [--json]")
 	fmt.Fprintln(os.Stdout, "  ha-nova update [--version <tag>]")

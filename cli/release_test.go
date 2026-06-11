@@ -308,7 +308,6 @@ func TestRunCheckUpdateJSONOffersStableReturnFromRC(t *testing.T) {
 	}
 }
 
-
 func TestRunCheckUpdateTextModeUsesSingleFetch(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

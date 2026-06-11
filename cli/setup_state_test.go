@@ -369,3 +369,46 @@ func TestClientAppearsInstalledForClaudeIgnoresForeignPluginArrayEntries(t *test
 		t.Fatal("expected foreign Claude plugin array entries to count as not installed")
 	}
 }
+
+func TestClientAppearsInstalledForHermesRequiresCompleteBundle(t *testing.T) {
+	withClientRuntimeAvailability(t, map[string]bool{"hermes": true})
+
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+
+	if err := os.MkdirAll(filepath.Join(home, ".hermes", "skills", "ha-nova", "ha-nova"), 0o755); err != nil {
+		t.Fatalf("mkdir Hermes context skill: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(home, ".hermes", "skills", "ha-nova", "ha-nova", "SKILL.md"), []byte("name: ha-nova"), 0o644); err != nil {
+		t.Fatalf("write Hermes context skill: %v", err)
+	}
+
+	entry, ok, err := findRegistryClient(paths, "hermes")
+	if err != nil {
+		t.Fatalf("findRegistryClient() error: %v", err)
+	}
+	if !ok {
+		t.Fatal("expected hermes registry entry")
+	}
+	if evaluateClientStatus(paths, installState{}, entry).Ready {
+		t.Fatal("expected incomplete Hermes bundle to count as not installed")
+	}
+
+	for _, skillDir := range hermesRequiredSkillDirs[1:] {
+		if err := os.MkdirAll(filepath.Join(home, ".hermes", "skills", "ha-nova", skillDir), 0o755); err != nil {
+			t.Fatalf("mkdir Hermes skill %s: %v", skillDir, err)
+		}
+		if err := os.WriteFile(filepath.Join(home, ".hermes", "skills", "ha-nova", skillDir, "SKILL.md"), []byte("name: "+skillDir), 0o644); err != nil {
+			t.Fatalf("write Hermes skill %s: %v", skillDir, err)
+		}
+	}
+
+	if !evaluateClientStatus(paths, installState{}, entry).Ready {
+		t.Fatal("expected complete Hermes bundle to count as installed")
+	}
+}

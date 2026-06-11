@@ -93,7 +93,7 @@ fi
 
 # ── 8. Supported clients match install scripts ──
 echo "[8] Supported AI clients have install scripts"
-for client in claude codex opencode gemini; do
+for client in claude codex opencode gemini hermes; do
   SCRIPT_EXISTS=$(grep -c "install.*${client}" "$REPO_ROOT/package.json" 2>/dev/null || true)
   if (( SCRIPT_EXISTS > 0 )); then
     pass "Install script for ${client} found"

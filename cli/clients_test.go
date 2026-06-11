@@ -699,6 +699,64 @@ func TestRemoveInstalledClientsRemovesBrokenClaudeRecordWhenPluginInstallPathIsG
 	}
 }
 
+func TestRemoveInstalledClientsRemovesHermesSkillTree(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+
+	hermesRoot := filepath.Join(home, ".hermes", "skills", "ha-nova")
+	if err := os.MkdirAll(filepath.Join(hermesRoot, "ha-nova"), 0o755); err != nil {
+		t.Fatalf("mkdir Hermes context skill: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(hermesRoot, "ha-nova", "SKILL.md"), []byte("name: ha-nova"), 0o644); err != nil {
+		t.Fatalf("write Hermes context skill: %v", err)
+	}
+
+	if err := removeInstalledClients(paths, installState{InstalledClients: []string{"hermes"}}); err != nil {
+		t.Fatalf("removeInstalledClients() error: %v", err)
+	}
+	if _, err := os.Stat(hermesRoot); !os.IsNotExist(err) {
+		t.Fatalf("expected Hermes skill tree to be removed, got err=%v", err)
+	}
+}
+
+func TestRemoveInstalledClientsRemovesHermesSkillTreeWhenStateMissesHermes(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+
+	hermesRoot := filepath.Join(home, ".hermes", "skills", "ha-nova")
+	if err := os.MkdirAll(filepath.Join(hermesRoot, "ha-nova"), 0o755); err != nil {
+		t.Fatalf("mkdir Hermes context skill: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(hermesRoot, "ha-nova", "SKILL.md"), []byte("name: ha-nova"), 0o644); err != nil {
+		t.Fatalf("write Hermes context skill: %v", err)
+	}
+	for _, skillDir := range hermesLegacyRequiredSkillDirs[1:] {
+		if err := os.MkdirAll(filepath.Join(hermesRoot, skillDir), 0o755); err != nil {
+			t.Fatalf("mkdir legacy Hermes skill %s: %v", skillDir, err)
+		}
+		if err := os.WriteFile(filepath.Join(hermesRoot, skillDir, "SKILL.md"), []byte("name: "+skillDir), 0o644); err != nil {
+			t.Fatalf("write legacy Hermes skill %s: %v", skillDir, err)
+		}
+	}
+
+	if err := removeInstalledClients(paths, installState{InstalledClients: []string{"codex"}}); err != nil {
+		t.Fatalf("removeInstalledClients() error: %v", err)
+	}
+	if _, err := os.Stat(hermesRoot); !os.IsNotExist(err) {
+		t.Fatalf("expected legacy Hermes skill tree to be removed, got err=%v", err)
+	}
+}
+
 func installClaudeMock(t *testing.T, home, logPath string) string {
 	t.Helper()
 
@@ -897,4 +955,15 @@ func writeClaudeMarketplaceRegistrationFixture(t *testing.T, home, source string
 
 func shellQuote(value string) string {
 	return "'" + strings.ReplaceAll(value, "'", `'\''`) + "'"
+}
+
+func TestClientUnsupportedOSReasonRoutesHermesOnWindowsToWSL2(t *testing.T) {
+	got := clientUnsupportedOSReason("hermes", "windows")
+	if !strings.Contains(got, "WSL2") {
+		t.Fatalf("expected WSL2 routing hint for hermes on windows, got %q", got)
+	}
+
+	if got := clientUnsupportedOSReason("opencode", "windows"); got != "not supported on windows" {
+		t.Fatalf("expected generic unsupported message for opencode, got %q", got)
+	}
 }
