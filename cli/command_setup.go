@@ -26,7 +26,15 @@ func runSetup(paths runtimePaths, args []string) int {
 		target = remaining[0]
 	}
 
-	cfg, _ := loadConfig(paths)
+	cfg, cfgErr := loadConfig(paths)
+	if cfgErr != nil {
+		// Preserve credential routing from an incomplete config: the token
+		// file setting decides where token reads/writes go, so the repair
+		// path must see it even when relay_base_url is missing.
+		if raw, rawErr := loadJSONConfig(paths.ConfigFile); rawErr == nil {
+			cfg.RelayTokenFile = raw.RelayTokenFile
+		}
+	}
 	state, err := loadStateOrDefaultChecked(paths)
 	if err != nil {
 		printHumanErr("%s", err)
