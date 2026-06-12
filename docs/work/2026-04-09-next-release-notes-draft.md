@@ -1,13 +1,15 @@
 ## New Features
 
-- Hermes Agent is now a first-class HA NOVA client path. HA NOVA now installs the bundled Hermes skill set directly, supports native macOS/Linux plus WSL2 on Windows, and can repair older Hermes installs with the simple `ha-nova doctor` -> `ha-nova setup hermes` flow.
-- Linux setup can now recover a locked or fresh GNOME Keyring inline during `ha-nova setup`, including SSH into the same logged-in desktop session.
-- HA NOVA now ships dedicated `dashboard`, `organize`, and `history` skills, making those workflows easier to discover and safer to use.
-- Gemini now picks up newly shipped HA NOVA sub-skills automatically during install and sync.
+- Service / gateway mode for headless setups: `ha-nova setup --service hermes` stores the relay token in a hardened local file instead of the desktop keyring — built for SSH, systemd, and gateway sessions. Running plain `ha-nova setup hermes` later migrates the token back into the OS keyring automatically and cleans the file up.
+- Hermes Agent early support (preview): HA NOVA installs its bundled Hermes skill set with both desktop and service setup paths, and `ha-nova doctor` points straight to the repair command when an older Hermes install drifts. Linux is validated today; macOS native and Windows WSL2 validation is tracked in `docs/reference/hermes-platform-validation.md`.
+- Linux keyring recovery: `ha-nova setup` can now unlock or initialize a locked/fresh GNOME Keyring inline — including over SSH into the same logged-in desktop session.
+- Self-healing client attachment: when a Claude Code update detaches HA NOVA, it reattaches itself automatically in the background — no manual repair needed.
+- Smarter automation reviews: new checks catch restore branches that can fire without their save step ever running, and restart-recovery designs built on storage that does not survive a reboot.
 
 ## Bug Fixes
 
-- Updated `axios` to `1.15.0` in both the main app and the Relay package to close critical production dependency findings.
+- Headless Linux: the CLI no longer hangs in Secret Service unlock prompts when a relay token file is configured, and unreadable configs fail loud with a fix hint instead of silently falling back to the keyring.
+- Security: updated `axios` to `1.17.0` and `ws` to `8.21.0` in both the main app and the Relay package, closing all open dependency alerts.
 
 ## Install
 
