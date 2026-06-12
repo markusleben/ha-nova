@@ -134,7 +134,7 @@ describe("client install docs contract", () => {
     expect(hermesInstall).toContain("skill_view");
 
     expect(hermesInstall).toContain("Hermes Agent");
-    expect(hermesInstall).toContain("not part of the current stable release");
+    expect(hermesInstall).toContain("early support (preview) starting with HA NOVA v0.5.0");
     expect(hermesInstall).toContain("ha-nova setup hermes");
     expect(hermesInstall).toContain("ha-nova check-update");
     expect(hermesInstall).toContain("What Supported Means Here");
@@ -182,7 +182,7 @@ describe("client install docs contract", () => {
     expect(hermesReleaseGate).toContain("Status: active");
     expect(hermesReleaseGate).toContain("Keep public `README.md` release-conservative until the final release PR.");
     expect(hermesReleaseGate).toContain("restore the public Hermes claim in `README.md`, if release proof is complete");
-    expect(hermesInstall).toContain("not part of the current stable release until the final release PR");
+    expect(hermesInstall).toContain("once that validation matrix is complete");
     expect(readme).not.toContain("Hermes Agent");
   });
 });
