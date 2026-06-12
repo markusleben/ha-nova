@@ -2,9 +2,9 @@ package main
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
-	"strconv"
 	"strings"
 )
 
@@ -157,9 +157,18 @@ func readWindowsUserPath() (string, error) {
 	return strings.TrimSpace(string(out)), err
 }
 
+func buildSetWindowsUserPathCommand(value string) *exec.Cmd {
+	// The full PATH value must never travel on the command line: real user
+	// PATHs can be tens of kilobytes and CreateProcess caps the command
+	// line at 32K, failing with "The filename or extension is too long".
+	// Hand the value over via the environment instead.
+	cmd := buildWindowsHiddenPowerShellCommand(`[Environment]::SetEnvironmentVariable("Path", $env:HA_NOVA_SET_USER_PATH, "User")`)
+	cmd.Env = append(os.Environ(), "HA_NOVA_SET_USER_PATH="+value)
+	return cmd
+}
+
 func setWindowsUserPath(value string) error {
-	cmd := buildWindowsHiddenPowerShellCommand(`[Environment]::SetEnvironmentVariable("Path", ` + strconv.Quote(value) + `, "User")`)
-	return cmd.Run()
+	return buildSetWindowsUserPathCommand(value).Run()
 }
 
 func isWindowsInstallSourcePath(path string) bool {
