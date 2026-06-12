@@ -62,6 +62,9 @@ jobs:
           args: release --clean --skip=sign
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # RC and final tags can point at the same commit; without this pin
+          # GoReleaser auto-detects the tag and may publish onto the wrong release.
+          GORELEASER_CURRENT_TAG: ${{ github.ref_name }}
 
       - name: Build install bundles
         run: bash scripts/release/build-install-bundle.sh "${GITHUB_REF_NAME#v}"
