@@ -53,6 +53,10 @@ describe("release contract", () => {
     expect(releaseWorkflow).not.toContain("dist/winget");
   });
 
+  it("pins the GoReleaser release tag to the triggering workflow ref", () => {
+    expect(releaseWorkflow).toContain("GORELEASER_CURRENT_TAG: ${{ github.ref_name }}");
+  });
+
   it("keeps the RC workflow free of winget artifacts and guidance", () => {
     expect(rcWorkflow).toContain("Build install bundles");
     expect(rcWorkflow).toContain("Upload RC artifacts");
