@@ -253,13 +253,33 @@ function Test-UserPathContainsEntry {
   return $false
 }
 
+function Get-UninstallStatusField {
+  param(
+    $Status,
+    [string]$Name
+  )
+
+  # The background uninstall helper writes marker fields incrementally; a
+  # killed helper can leave a marker without optional fields. Under
+  # Set-StrictMode, direct access to a missing property throws, so all
+  # optional marker reads must go through this accessor.
+  if ($null -eq $Status) {
+    return $null
+  }
+  $property = $Status.PSObject.Properties[$Name]
+  if ($null -eq $property) {
+    return $null
+  }
+  return $property.Value
+}
+
 function Get-ExistingUninstallRemainingPaths {
   param(
     $Status
   )
 
   $remaining = @()
-  foreach ($candidate in @($Status.remaining_paths)) {
+  foreach ($candidate in @(Get-UninstallStatusField -Status $Status -Name "remaining_paths")) {
     $candidatePath = [string]$candidate
     if ($candidatePath -and (Test-Path -LiteralPath $candidatePath)) {
       $remaining += $candidatePath
@@ -295,31 +315,31 @@ function Get-UninstallRecoveryState {
     }
   }
 
-  if ($status.status -eq "success") {
+  if ((Get-UninstallStatusField -Status $status -Name "status") -eq "success") {
     Remove-Item -LiteralPath $UninstallStatusPath -Force -ErrorAction SilentlyContinue
     return $null
   }
 
-  $mode = if ($status.mode -eq "purge") { "purge" } else { "standard" }
+  $mode = if ((Get-UninstallStatusField -Status $status -Name "mode") -eq "purge") { "purge" } else { "standard" }
   $recoveryCommand = Get-UninstallRecoveryCommand -Mode $mode
   $bundleRuntimePresent = Test-Path -LiteralPath (Join-Path $InstallDir "ha-nova.exe")
   $runtimePresent = $bundleRuntimePresent
   $remainingPaths = Get-ExistingUninstallRemainingPaths -Status $status
   $pathResidue = Test-UserPathContainsEntry -TargetPath $InstallDir
 
-  if ($status.status -eq "running") {
+  if ((Get-UninstallStatusField -Status $status -Name "status") -eq "running") {
     $updatedAt = $null
-    if ($status.last_updated_at) {
+    if (Get-UninstallStatusField -Status $status -Name "last_updated_at") {
       try {
-        $updatedAt = [DateTimeOffset]::Parse([string]$status.last_updated_at)
+        $updatedAt = [DateTimeOffset]::Parse([string](Get-UninstallStatusField -Status $status -Name "last_updated_at"))
       }
       catch {
         $updatedAt = $null
       }
     }
-    if (-not $updatedAt -and $status.started_at) {
+    if (-not $updatedAt -and (Get-UninstallStatusField -Status $status -Name "started_at")) {
       try {
-        $updatedAt = [DateTimeOffset]::Parse([string]$status.started_at)
+        $updatedAt = [DateTimeOffset]::Parse([string](Get-UninstallStatusField -Status $status -Name "started_at"))
       }
       catch {
         $updatedAt = $null
@@ -327,9 +347,9 @@ function Get-UninstallRecoveryState {
     }
 
     $helperAlive = $false
-    if ($status.helper_pid) {
+    if (Get-UninstallStatusField -Status $status -Name "helper_pid") {
       try {
-        $helperAlive = $null -ne (Get-Process -Id ([int]$status.helper_pid) -ErrorAction SilentlyContinue)
+        $helperAlive = $null -ne (Get-Process -Id ([int](Get-UninstallStatusField -Status $status -Name "helper_pid")) -ErrorAction SilentlyContinue)
       }
       catch {
         $helperAlive = $false
@@ -362,13 +382,13 @@ function Get-UninstallRecoveryState {
     }
   }
 
-  if ($status.status -eq "failed") {
+  if ((Get-UninstallStatusField -Status $status -Name "status") -eq "failed") {
     if (-not $runtimePresent -and -not $pathResidue -and $remainingPaths.Count -eq 0) {
       Remove-Item -LiteralPath $UninstallStatusPath -Force -ErrorAction SilentlyContinue
       return $null
     }
 
-    $summary = if ($status.error_summary) { [string]$status.error_summary } else { "A previous background HA NOVA uninstall did not finish cleanly." }
+    $summary = if (Get-UninstallStatusField -Status $status -Name "error_summary") { [string](Get-UninstallStatusField -Status $status -Name "error_summary") } else { "A previous background HA NOVA uninstall did not finish cleanly." }
     return [pscustomobject]@{
       Kind = "failed"
       Summary = $summary

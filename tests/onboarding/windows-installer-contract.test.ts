@@ -81,6 +81,14 @@ describe("install.ps1 contract", () => {
     expect(content).not.toContain("bash.exe");
   });
 
+  it("reads optional uninstall marker fields through the defensive accessor", () => {
+    expect(content).toContain("function Get-UninstallStatusField");
+    expect(content).toContain('$Status.PSObject.Properties[$Name]');
+    expect(content).not.toContain("$Status.remaining_paths");
+    expect(content).not.toContain("$status.error_summary");
+    expect(content).not.toContain("$status.helper_pid");
+  });
+
   it("blocks over an unfinished background uninstall instead of layering a new install", () => {
     expect(content).toContain("uninstall-status.json");
     expect(content).toContain(

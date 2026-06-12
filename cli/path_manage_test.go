@@ -112,3 +112,26 @@ func TestRemoveManagedPathWithReportSkipsWindowsUserPathBranchOnUnix(t *testing.
 		t.Fatalf("did not expect cleanup report, got %q", removed)
 	}
 }
+
+func TestBuildSetWindowsUserPathCommandKeepsValueOffTheCommandLine(t *testing.T) {
+	longPath := strings.Repeat(`C:\Users\test\some\very\long\path\entry;`, 800) // ~32K, beyond the CreateProcess limit
+	cmd := buildSetWindowsUserPathCommand(longPath)
+
+	for _, arg := range cmd.Args {
+		if strings.Contains(arg, "very\\long\\path") {
+			t.Fatalf("PATH value must not appear on the command line")
+		}
+	}
+	if !strings.Contains(strings.Join(cmd.Args, " "), "$env:HA_NOVA_SET_USER_PATH") {
+		t.Fatalf("command must read the value from the environment, got %v", cmd.Args)
+	}
+	found := false
+	for _, kv := range cmd.Env {
+		if kv == "HA_NOVA_SET_USER_PATH="+longPath {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected the PATH value in the command environment")
+	}
+}
