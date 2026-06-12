@@ -1,6 +1,6 @@
 # Hermes Agent Install Overlay
 
-> **Release status:** Hermes support is implemented for the next HA NOVA release train, but it is not part of the current stable release until the final release PR, tag, and artifacts publish it. Until then, `README.md` remains the stable public product truth.
+> **Release status:** Hermes ships as early support (preview) starting with HA NOVA v0.5.0. The Linux route is maintainer-validated; macOS native and Windows WSL2 validation is tracked in [docs/reference/hermes-platform-validation.md](../docs/reference/hermes-platform-validation.md). `README.md` lists Hermes in the public client list once that validation matrix is complete.
 
 This page only covers Hermes-specific deltas.
 
