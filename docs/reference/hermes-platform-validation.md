@@ -2,7 +2,7 @@
 
 This is the active truth source for Hermes support evidence in HA NOVA.
 
-> **Release status:** This matrix tracks the next release train. Hermes support is not part of the current stable release until the final release PR publishes matching README claims, release notes, tag, and artifacts.
+> **Release status:** Hermes ships as early support (preview) starting with HA NOVA v0.5.0. This matrix is the evidence truth for each route; the public `README.md` client-list claim follows once the full matrix below is maintainer-validated.
 
 Use it to answer two separate questions cleanly:
 
