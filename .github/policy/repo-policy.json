@@ -39,5 +39,13 @@
     "require_code_owner_reviews": true,
     "required_conversation_resolution": true,
     "strict_required_status_checks": false
+  },
+  "release_tag_protection": {
+    "name": "release-tags-protection",
+    "ref_include": "refs/tags/v*",
+    "required_rules": ["creation", "update", "deletion"],
+    "forbidden_bypass_actor_types": ["Integration", "DeployKey"],
+    "maintainer_bypass_actor_types": ["RepositoryRole", "Team", "OrganizationAdmin"],
+    "rationale": "The 'creation' rule blocks the Actions token from minting v* tags, so release tags are maintainer-pushed and the RC workflow never auto-publishes. verify-release-pipeline.sh fails if a non-human automation actor (Integration/GitHub App or DeployKey) can bypass — that would re-enable the broken auto-publish path — and also fails if no human maintainer role (RepositoryRole/Team/OrganizationAdmin) can bypass, since then nobody could push the release tag and the tag-first flow would break."
   }
 }

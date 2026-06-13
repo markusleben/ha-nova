@@ -1,15 +1,21 @@
+# Build + bundle smoke only — this workflow never publishes a release.
+#
+# The repository's `release-tags-protection` ruleset blocks the Actions token
+# from creating `v*` tags, so an automated release-publish step here would only
+# fail with HTTP 422. Real RC publishing is the tag-first dress rehearsal: a
+# maintainer pushes a `vX.Y.Z-rcN` tag and `release.yml` runs the full pipeline
+# (GoReleaser marks `-rcN` as a prerelease via `prerelease: auto`).
+# See docs/releasing.md -> "Release Candidate Gate".
+#
+# Use this workflow to sanity-check the build and the install bundles on all
+# three runners *before* cutting any tag, without polluting tags or releases.
 name: Release Candidate
 
 on:
   workflow_dispatch:
     inputs:
-      publish_release:
-        description: "Publish a public prerelease with install bundles after smoke passes"
-        required: false
-        default: false
-        type: boolean
       version_tag:
-        description: "Prerelease tag to publish, for example v0.1.13-rc1"
+        description: "Optional prerelease tag for bundle naming, for example v0.1.13-rc1"
         required: false
         type: string
 
@@ -122,69 +128,3 @@ jobs:
             throw "bundle.json missing from Windows RC bundle"
           }
           & (Join-Path $workdir "ha-nova\ha-nova.exe") version
-
-  publish-rc-release:
-    name: Publish RC prerelease
-    if: ${{ inputs.publish_release }}
-    needs: smoke-bundles
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Validate RC publish inputs
-        env:
-          VERSION_TAG: ${{ inputs.version_tag }}
-        run: |
-          set -euo pipefail
-          if [[ -z "${VERSION_TAG}" ]]; then
-            echo "::error::version_tag is required when publish_release=true"
-            exit 1
-          fi
-          if [[ ! "${VERSION_TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-rc[0-9]+$ ]]; then
-            echo "::error::version_tag must match vX.Y.Z-rcN"
-            exit 1
-          fi
-
-      - name: Checkout
-        uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-
-      - name: Verify next release version
-        env:
-          GH_TOKEN: ${{ github.token }}
-          VERSION_TAG: ${{ inputs.version_tag }}
-          HA_NOVA_ALLOW_EXISTING_RELEASE_TAG: "1"
-        run: bash scripts/release/verify-next-release-version.sh "${VERSION_TAG}"
-
-      - name: Download RC artifacts
-        uses: actions/download-artifact@v8
-        with:
-          name: rc-install-bundles
-          path: dist/install-bundles
-
-      - name: Publish install bundles as prerelease
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VERSION_TAG: ${{ inputs.version_tag }}
-        run: |
-          set -euo pipefail
-          title="HA NOVA ${VERSION_TAG}"
-          install_ref="${GITHUB_SHA}"
-          notes=$'Preview / RC only. Stable users should ignore this prerelease.\n\nBundle-based release candidate for installer testing.\n\nInstall script ref: '"${install_ref}"$'\n\nmacOS / Linux:\n  curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/'"${install_ref}"$'/install.sh | HA_NOVA_VERSION='"${VERSION_TAG}"$' bash\n\nWindows (PowerShell):\n  $env:HA_NOVA_VERSION = '\'''"${VERSION_TAG}"$''\''\n  irm https://raw.githubusercontent.com/markusleben/ha-nova/'"${install_ref}"$'/install.ps1 | iex\n\nInstalled runtime:\n  ha-nova update --version '"${VERSION_TAG}"$'\n\nReturn to stable later:\n  ha-nova update\n\nWindows notes:\n- Windows uses a single supported install path: install.ps1.\n- On Windows, RC testing uses the installer commands above.\n- Do not treat the normal Windows stable path as an RC path.\n- Claude shipped installs use the local staged HA NOVA release payload on disk. When HA NOVA shows an update notice, run ha-nova update and then restart Claude.\n- Default ha-nova uninstall is standard remove; use ha-nova uninstall --purge for a full local wipe.\n- Windows now uses %APPDATA%\\ha-nova and %LOCALAPPDATA%\\ha-nova\\cache as the canonical config and cache paths.\n\nNext step after prerelease publish: run the real public installer smoke on fresh machines/profiles. For the Windows lane, use a clean VM/snapshot, not just a reused profile.'
-          shopt -s nullglob
-          assets=(dist/install-bundles/*)
-
-          if gh release view "${VERSION_TAG}" -R "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            gh release upload "${VERSION_TAG}" "${assets[@]}" --clobber -R "${GITHUB_REPOSITORY}"
-            gh release edit "${VERSION_TAG}" --prerelease --title "${title}" --notes "${notes}" -R "${GITHUB_REPOSITORY}"
-            exit 0
-          fi
-
-          gh release create "${VERSION_TAG}" \
-            "${assets[@]}" \
-            --prerelease \
-            --title "${title}" \
-            --notes "${notes}" \
-            --target "${GITHUB_SHA}" \
-            -R "${GITHUB_REPOSITORY}"

@@ -61,13 +61,37 @@ describe("release contract", () => {
     expect(rcWorkflow).toContain("Build install bundles");
     expect(rcWorkflow).toContain("Upload RC artifacts");
     expect(rcWorkflow).toContain("Smoke Windows bundle");
-    expect(rcWorkflow).toContain("Windows uses a single supported install path: install.ps1.");
     expect(rcWorkflow).not.toContain("Build winget manifests");
     expect(rcWorkflow).not.toContain("Upload RC winget manifests");
     expect(rcWorkflow).not.toContain("Download RC winget manifests");
     expect(rcWorkflow).not.toContain("winget validate");
     expect(rcWorkflow).not.toContain("$ProgressPreference = 'SilentlyContinue'");
     expect(rcWorkflow).not.toContain("dist/winget");
+  });
+
+  it("keeps the RC workflow build-and-smoke only, never publishing a release", () => {
+    // The v* tag ruleset blocks the Actions token from creating tags, so any
+    // automated publish here only 422s. Real RC publishing is the tag-first
+    // rehearsal driven by release.yml. Guard the trap from coming back.
+    expect(rcWorkflow).not.toContain("gh release create");
+    expect(rcWorkflow).not.toContain("gh release edit");
+    expect(rcWorkflow).not.toContain("gh release upload");
+    expect(rcWorkflow).not.toContain("publish_release");
+    expect(rcWorkflow).not.toContain("publish-rc-release");
+  });
+
+  it("keeps GoReleaser marking prerelease tags automatically", () => {
+    // -rcN dress-rehearsal tags must publish as a prerelease, not a stable
+    // release. release.yml relies on this for the tag-first rehearsal.
+    expect(goreleaser).toMatch(/^\s*prerelease:\s*auto\s*$/m);
+  });
+
+  it("gives RC tags preview release notes instead of the stable header", () => {
+    // The tag-first rehearsal publishes the -rcN tag via release.yml, so the
+    // GoReleaser header must switch to preview framing for prerelease tags
+    // rather than reusing the stable "Why This Release Exists" copy.
+    expect(goreleaser).toContain("{{ if .Prerelease }}## Preview / Release Candidate");
+    expect(goreleaser).toContain("Stable users should ignore this prerelease");
   });
 
   it("keeps the Windows installer bundle-managed while preserving quiet download UX", () => {
@@ -90,6 +114,14 @@ describe("release contract", () => {
     expect(releasing).not.toContain("raw.githubusercontent.com/markusleben/ha-nova/main/install.ps1");
     expect(releasing).not.toContain("winget");
     expect(releasing).not.toContain("$ProgressPreference = 'SilentlyContinue'");
+  });
+
+  it("documents the mandatory tag-first release rehearsal and its drift guard", () => {
+    expect(releasing).toContain("tag-first dress rehearsal");
+    expect(releasing).toContain("bash scripts/release/verify-release-pipeline.sh");
+    expect(releasing).toContain("HA_NOVA_RELEASE_AUDIT_REQUIRE_BYPASS=1");
+    expect(releasing).toContain("release-pipeline-audit.yml");
+    expect(releasing).toContain("GORELEASER_CURRENT_TAG");
   });
 
   it("keeps the Linux real-machine onboarding lane documented for Linux setup changes", () => {
