@@ -90,8 +90,7 @@ describe("release contract", () => {
     // The tag-first rehearsal publishes the -rcN tag via release.yml, so the
     // GoReleaser header must switch to preview framing for prerelease tags
     // rather than reusing the stable "Why This Release Exists" copy.
-    expect(goreleaser).toContain('{{ if contains .Tag "-rc" }}');
-    expect(goreleaser).toContain("## Preview / Release Candidate");
+    expect(goreleaser).toContain("{{ if .Prerelease }}## Preview / Release Candidate");
     expect(goreleaser).toContain("Stable users should ignore this prerelease");
   });
 

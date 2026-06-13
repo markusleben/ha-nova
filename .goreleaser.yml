@@ -65,7 +65,7 @@ release:
   prerelease: auto
   name_template: "HA NOVA v{{.Version}}"
   header: |
-    {{ if contains .Tag "-rc" }}## Preview / Release Candidate
+    {{ if .Prerelease }}## Preview / Release Candidate
 
     This is a release candidate for installer and onboarding testing. Stable users should ignore this prerelease; normal `ha-nova update` stays on stable.
 
