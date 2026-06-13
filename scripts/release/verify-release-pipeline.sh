@@ -117,6 +117,20 @@ printf '%s' "${ruleset}" \
   | jq -e --arg r "${expected_ref}" '(.conditions.ref_name.include | index($r)) != null' >/dev/null \
   || fail "Tag ruleset '${expected_name}' must include ${expected_ref}."
 
+# GitHub applies ref-name exclude over include, so an exclude pattern can
+# silently neutralize the include. Fail if any exclude pattern would match a
+# real release tag (glob-matched, the same fnmatch semantics GitHub uses).
+neutralizing_exclude=""
+while IFS= read -r excl; do
+  [[ -z "${excl}" ]] && continue
+  if [[ "${excl}" == "~ALL" || "refs/tags/v1.2.3" == ${excl} ]]; then
+    neutralizing_exclude="${excl}"
+    break
+  fi
+done < <(printf '%s' "${ruleset}" | jq -r '.conditions.ref_name.exclude[]?')
+[[ -z "${neutralizing_exclude}" ]] \
+  || fail "Tag ruleset '${expected_name}' excludes release tags via '${neutralizing_exclude}', which neutralizes the ${expected_ref} protection. Remove that exclusion."
+
 missing_rules="$(printf '%s' "${ruleset}" | jq -r --slurpfile p "${POLICY_FILE}" '
   ($p[0].release_tag_protection.required_rules - [.rules[].type]) | join(", ")
 ')"
