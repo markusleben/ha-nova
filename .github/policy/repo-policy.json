@@ -39,5 +39,12 @@
     "require_code_owner_reviews": true,
     "required_conversation_resolution": true,
     "strict_required_status_checks": false
+  },
+  "release_tag_protection": {
+    "name": "release-tags-protection",
+    "ref_include": "refs/tags/v*",
+    "required_rules": ["creation", "update", "deletion"],
+    "forbidden_bypass_actor_types": ["Integration"],
+    "rationale": "The 'creation' rule blocks the Actions token from minting v* tags, so release tags are maintainer-pushed and the RC workflow never auto-publishes. An Integration (GitHub App) bypass would silently re-enable that broken path; verify-release-pipeline.sh fails if one appears."
   }
 }

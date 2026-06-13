@@ -1,0 +1,31 @@
+name: Release Pipeline Audit
+
+# Catches release-pipeline drift between releases, so a broken publish path is
+# found within a week instead of at the next release. Runs the same contract
+# check maintainers run locally (scripts/release/verify-release-pipeline.sh).
+#
+# Static workflow invariants are always verified. Live tag-ruleset drift
+# detection needs an admin-scoped token: add a fine-grained PAT with
+# "Administration: read" as the RELEASE_AUDIT_TOKEN secret to enable it.
+# Without that secret the live layer auto-skips with a notice (no false red).
+
+on:
+  schedule:
+    - cron: "30 7 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    name: Verify release pipeline contract
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Verify release pipeline contract
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_AUDIT_TOKEN || secrets.GITHUB_TOKEN }}
+        run: bash scripts/release/verify-release-pipeline.sh "${{ github.repository }}"

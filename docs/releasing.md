@@ -87,12 +87,44 @@ Required protection posture on `main`:
 
 ## Release Candidate Gate
 
-Before creating a public release, run an RC pass.
+Every public release goes through a **tag-first dress rehearsal** first. It is
+mandatory: it runs the exact stable pipeline against a prerelease, so any
+pipeline breakage surfaces on the `-rcN` tag and never on the stable publish.
 
 GitHub automation:
 - `ci.yml` = normal PR / main quality gate
-- `release-candidate.yml` = manual RC build + bundle smoke, with optional prerelease bundle publish
-- `release.yml` = final tagged publish
+- `release-candidate.yml` = manual build + 3-runner bundle smoke, **no publish** (a quick pre-tag sanity check that pollutes no tags)
+- `release.yml` = the tagged publish, used for **both** the `-rcN` rehearsal and the final tag
+
+**Why tag-first.** The `release-tags-protection` ruleset blocks the Actions
+token from creating `v*` tags, so no workflow can self-publish a release (an
+RC-publish workflow step would only fail with HTTP 422). A maintainer — who can
+bypass the ruleset — pushes the tag, and `release.yml` does the rest. GoReleaser
+is pinned to the pushed tag via `GORELEASER_CURRENT_TAG`, so an `-rcN` tag and
+the final tag may safely point at the same commit.
+
+**Rehearsal steps:**
+
+1. On the fully reviewed, merged `main` commit, verify the pipeline contract is intact:
+   ```bash
+   bash scripts/release/verify-release-pipeline.sh
+   ```
+2. Push the rehearsal tag on that exact commit (maintainer bypass):
+   ```bash
+   git tag vX.Y.Z-rcN <reviewed-merge-sha>
+   git push origin vX.Y.Z-rcN
+   ```
+3. Wait for `release.yml` to finish green: it runs verify + GoReleaser
+   (auto-marked prerelease via `prerelease: auto`) + install bundles + the
+   three-runner public-install smoke.
+4. Verify the published RC over the real public install path (see
+   "Supported RC selection" below), including at least one real Windows 11 +
+   PowerShell onboarding proof on a clean VM/snapshot.
+5. Only after the rehearsal is clean, cut the final tag (see "Final Publish").
+
+The weekly `release-pipeline-audit.yml` workflow runs the same contract check
+between releases so a broken publish path is caught within a week, not at the
+next release.
 
 ## Release Channels
 
@@ -372,10 +404,12 @@ pkill -f 'npm run dev:validation:harness|start-local-validation-harness\\.sh|htt
 
 ## Final Publish
 
-For a final stable release:
+For a final stable release (only after the tag-first rehearsal above is clean):
 
 1. merge the reviewed PR state
-2. tag the exact reviewed remote merge commit
+2. as a maintainer, tag the exact reviewed remote merge commit — the same commit
+   the `-rcN` rehearsal validated — and push it (`git push origin vX.Y.Z`); the
+   ruleset blocks the Actions token, so the tag is maintainer-pushed
 3. let `release.yml` publish the raw binaries and install bundles
 4. verify the published stable commands:
 
