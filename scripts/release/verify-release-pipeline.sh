@@ -137,6 +137,15 @@ if printf '%s' "${ruleset}" | jq -e 'has("bypass_actors")' >/dev/null 2>&1; then
   ')"
   [[ -z "${forbidden_present}" ]] \
     || fail "Tag ruleset '${expected_name}' grants a forbidden bypass actor type (${forbidden_present}); automated v* tag creation is no longer blocked. Update the release flow contract deliberately."
+
+  # The maintainer-pushed tag-first flow needs at least one allowed (human/role)
+  # bypass actor. An empty or App-only bypass list means no maintainer can push
+  # v* tags — the documented release flow would be broken — so require one.
+  allowed_bypass_count="$(printf '%s' "${ruleset}" | jq --slurpfile p "${POLICY_FILE}" '
+    [.bypass_actors[].actor_type] - $p[0].release_tag_protection.forbidden_bypass_actor_types | length
+  ')"
+  [[ "${allowed_bypass_count}" -ge 1 ]] \
+    || fail "Tag ruleset '${expected_name}' has no maintainer (non-App) bypass actor; nobody can push v* release tags and the tag-first release flow cannot work. Restore a maintainer bypass on the ruleset."
   bypass_status="verified"
 elif [[ "${REQUIRE_BYPASS}" == "1" ]]; then
   fail "Cannot read bypass actors for '${expected_name}' — GitHub returns them only to requesters with write access to the ruleset. Run as a maintainer (admin 'gh auth') or give RELEASE_AUDIT_TOKEN ruleset write access; the no-App-bypass guard is required for a release."
