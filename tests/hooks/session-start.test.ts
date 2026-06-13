@@ -80,6 +80,24 @@ describe("S-6: session-start hook", () => {
     expect(hookContent).not.toContain("api.github.com/repos/markusleben/ha-nova/releases/latest");
   });
 
+  it("keeps the SessionStart refresh throttle within the CLI freshness floor", () => {
+    // The hook's spawn throttle must stay <= the CLI's release-cache TTL, or a
+    // newly published release stays hidden from the session banner until the
+    // longer window expires (this is exactly how the 24h cache hid v0.5.0).
+    const hook = readFileSync("hooks/session-start", "utf8");
+    const paths = readFileSync("cli/paths.go", "utf8");
+
+    const hookTtl = Number(hook.match(/update_ttl=(\d+)/)?.[1]);
+    const cliExpr = paths.match(/updateCacheTTLSeconds\s*=\s*([0-9*\s]+)/)?.[1] ?? "";
+    const cliTtl = cliExpr.split("*").reduce((acc, part) => acc * Number(part.trim()), 1);
+
+    expect(hookTtl).toBeGreaterThan(0);
+    expect(cliTtl).toBeGreaterThan(0);
+    expect(hookTtl).toBeLessThanOrEqual(cliTtl);
+    expect(cliTtl).toBeLessThanOrEqual(3600);
+    expect(hook).not.toContain("update_ttl=86400");
+  });
+
   it("does not leak secrets in JSON output", () => {
     const result = spawnSync("bash", ["hooks/session-start"], {
       cwd: REPO_ROOT,

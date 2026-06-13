@@ -9,11 +9,17 @@ import (
 )
 
 const (
-	configSchemaVersion        = 1
-	stateSchemaVersion         = 1
-	bundleFormatVersion        = 1
-	keyringServiceName         = "ha-nova.relay-auth-token"
-	updateCacheTTLSeconds      = 24 * 60 * 60
+	configSchemaVersion = 1
+	stateSchemaVersion  = 1
+	bundleFormatVersion = 1
+	keyringServiceName  = "ha-nova.relay-auth-token"
+	// Short cache floor: within this window check-update reuses the cached
+	// result without touching the network. Beyond it, fetchLatestRelease
+	// revalidates with a conditional request (If-None-Match), so a freshly
+	// published release is detected within the hour instead of being hidden for
+	// a full day. Keep this small — a long TTL means users stay blind to a new
+	// release until it expires.
+	updateCacheTTLSeconds      = 60 * 60
 	windowsInstallRootEnv      = "HA_NOVA_INSTALL_ROOT"
 	windowsInstallRootAllowEnv = "HA_NOVA_ALLOW_INSTALL_ROOT_OVERRIDE"
 )

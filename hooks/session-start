@@ -83,10 +83,14 @@ if [[ -f "$version_file" ]]; then
   fi
   # No relay CLI = not onboarded yet, skip silently
 
-  # --- Cached release update check (stale-while-revalidate via CLI, TTL 24h) ---
+  # --- Cached release update check (stale-while-revalidate via CLI) ---
+  # This TTL only throttles how often we spawn the background CLI refresh; the
+  # CLI owns real freshness (short floor + conditional revalidation). Keep it
+  # <= the CLI's updateCacheTTLSeconds (cli/paths.go), otherwise a new release
+  # stays hidden from the session banner until this longer window expires.
   update_cache_dir="${HOME}/.cache/ha-nova"
   update_cache_file="${update_cache_dir}/latest-release.json"
-  update_ttl=86400
+  update_ttl=3600
 
   needs_refresh="1"
   if [[ -f "$update_cache_file" ]]; then

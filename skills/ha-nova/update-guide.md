@@ -64,7 +64,7 @@ On native Windows, post-update client sync uses the installed HA NOVA runtime di
 
 Two checks run automatically:
 
-1. **Skill update check** — `ha-nova check-update` compares the installed version against the latest GitHub release (cached 24h). Claude Code SessionStart reads the same shared release cache and can trigger a background CLI refresh when the cache is stale. Other clients should run the quiet check once on the first HA NOVA skill use in a session.
+1. **Skill update check** — `ha-nova check-update` compares the installed version against the latest GitHub release. The result is cached briefly, then revalidated against GitHub with a conditional request, so a newly published release is detected promptly instead of being hidden until a long cache expires. Claude Code SessionStart reads the same shared release cache and can trigger a background CLI refresh when the cache is stale. Other clients should run the quiet check once on the first HA NOVA skill use in a session.
 2. **Relay compat check** — `ha-nova relay health` compares Relay version against `min_relay_version`. Claude Code SessionStart context can surface the same warning independently.
 
 The `doctor` command runs both checks synchronously and also refreshes the update cache.
