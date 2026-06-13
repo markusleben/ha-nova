@@ -41,6 +41,18 @@ fail() {
 }
 note() { echo "::notice::$*"; }
 
+# Skip a live check when it cannot run — but never in strict mode. The release
+# preflight sets HA_NOVA_RELEASE_AUDIT_REQUIRE_BYPASS=1 precisely to prove the
+# live tag-ruleset / no-App-bypass guard, so any inability to run it there is a
+# hard failure rather than a green "static checks only" pass.
+skip_or_fail() {
+  if [[ "${REQUIRE_BYPASS}" == "1" ]]; then
+    fail "$* Strict release preflight (HA_NOVA_RELEASE_AUDIT_REQUIRE_BYPASS=1) requires the live tag-ruleset contract to be fully verified; run as a maintainer with admin 'gh auth'."
+  fi
+  note "$* Skipping the live tag-ruleset drift check."
+  exit 0
+}
+
 command -v jq >/dev/null 2>&1 || fail "jq is required to verify the release pipeline contract."
 [[ -f "${POLICY_FILE}" ]] || fail "Missing repo policy file at ${POLICY_FILE}."
 
@@ -75,16 +87,14 @@ fi
 
 echo "[verify-release-pipeline] static workflow contract OK"
 
-# --- Live tag-ruleset contract (admin token; auto-skips otherwise) ----------
+# --- Live tag-ruleset contract (admin token; auto-skips unless strict) -------
 if ! command -v gh >/dev/null 2>&1; then
-  note "gh not available; skipping live tag-ruleset drift check."
-  exit 0
+  skip_or_fail "gh not available, so the live tag-ruleset contract cannot be checked."
 fi
 
 rulesets_json="$(gh api "repos/${REPO}/rulesets" 2>/dev/null || true)"
 if [[ -z "${rulesets_json}" ]] || ! printf '%s' "${rulesets_json}" | jq -e 'type == "array"' >/dev/null 2>&1; then
-  note "Cannot read ${REPO} rulesets with the current token; skipping live tag-ruleset drift check. Run with a maintainer 'gh auth' or set RELEASE_AUDIT_TOKEN to enable it."
-  exit 0
+  skip_or_fail "Cannot read ${REPO} rulesets with the current token (run with a maintainer 'gh auth' or set RELEASE_AUDIT_TOKEN)."
 fi
 
 expected_name="$(jq -r '.release_tag_protection.name' "${POLICY_FILE}")"
@@ -94,8 +104,7 @@ ruleset_id="$(printf '%s' "${rulesets_json}" | jq -r --arg n "${expected_name}" 
 
 ruleset="$(gh api "repos/${REPO}/rulesets/${ruleset_id}" 2>/dev/null || true)"
 if [[ -z "${ruleset}" ]] || ! printf '%s' "${ruleset}" | jq -e '.rules' >/dev/null 2>&1; then
-  note "Cannot read ruleset ${ruleset_id} detail with the current token; skipping deep tag-ruleset drift check."
-  exit 0
+  skip_or_fail "Cannot read ruleset ${ruleset_id} detail with the current token."
 fi
 
 [[ "$(printf '%s' "${ruleset}" | jq -r '.enforcement')" == "active" ]] \
