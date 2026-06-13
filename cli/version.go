@@ -20,6 +20,10 @@ type releaseInfo struct {
 	Version   string `json:"version"`
 	HTMLURL   string `json:"html_url,omitempty"`
 	AssetName string `json:"asset_name,omitempty"`
+	// ETag from the GitHub latest-release response. Sent back as If-None-Match
+	// so an unchanged release returns a cheap 304 (off the rate limit) while a
+	// new release returns 200 and is detected immediately.
+	ETag string `json:"etag,omitempty"`
 }
 
 type updateCheckResult struct {
@@ -240,11 +244,6 @@ func inspectCachedRelease(paths runtimePaths) (releaseInfo, string) {
 		return cached, "stale"
 	}
 	return cached, "fresh"
-}
-
-func loadCachedRelease(paths runtimePaths) (releaseInfo, bool) {
-	cached, status := inspectCachedRelease(paths)
-	return cached, status == "fresh"
 }
 
 func cacheReleaseInfo(paths runtimePaths, info releaseInfo) {

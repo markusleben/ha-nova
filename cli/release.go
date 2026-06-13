@@ -38,10 +38,11 @@ func rawBinaryAssetName() string {
 }
 
 func fetchLatestRelease(paths runtimePaths, quiet bool, allowCache bool) (releaseInfo, error) {
-	if allowCache {
-		if cached, ok := loadCachedRelease(paths); ok {
-			return cached, nil
-		}
+	cached, cacheStatus := inspectCachedRelease(paths)
+	hasCache := cacheStatus != "miss" && cached.Version != ""
+	// Within the short TTL floor, reuse the cache without touching the network.
+	if allowCache && cacheStatus == "fresh" {
+		return cached, nil
 	}
 
 	req, err := http.NewRequest("GET", latestReleaseURL, nil)
@@ -50,13 +51,35 @@ func fetchLatestRelease(paths runtimePaths, quiet bool, allowCache bool) (releas
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("User-Agent", "ha-nova/"+localVersion(paths))
+	// Revalidate cheaply: an unchanged release answers 304 (off the rate limit);
+	// a new release answers 200 and is picked up immediately.
+	if allowCache && hasCache && cached.ETag != "" {
+		req.Header.Set("If-None-Match", cached.ETag)
+	}
 
 	resp, err := httpClient.Do(req)
 	if err != nil {
+		// Offline or transient failure: a known release beats a hard error.
+		if allowCache && hasCache {
+			return cached, nil
+		}
 		return releaseInfo{}, err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotModified && hasCache {
+		// Nothing changed; refresh the cache window so later checks stay cheap.
+		cacheReleaseInfo(paths, cached)
+		if !quiet {
+			printHumanInfo("Latest release: v%s", cached.Version)
+		}
+		return cached, nil
+	}
+
 	if resp.StatusCode >= 400 {
+		if allowCache && hasCache {
+			return cached, nil
+		}
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
 		return releaseInfo{}, fmt.Errorf("GitHub latest release lookup failed: %s", strings.TrimSpace(string(body)))
 	}
@@ -72,7 +95,12 @@ func fetchLatestRelease(paths runtimePaths, quiet bool, allowCache bool) (releas
 	if _, err := parseReleaseVersion(version); err != nil {
 		return releaseInfo{}, fmt.Errorf("latest release tag invalid: %w", err)
 	}
-	info := releaseInfo{Version: version, HTMLURL: release.HTMLURL, AssetName: bundleAssetName()}
+	info := releaseInfo{
+		Version:   version,
+		HTMLURL:   release.HTMLURL,
+		AssetName: bundleAssetName(),
+		ETag:      strings.TrimSpace(resp.Header.Get("ETag")),
+	}
 	cacheReleaseInfo(paths, info)
 	if !quiet {
 		printHumanInfo("Latest release: v%s", version)
