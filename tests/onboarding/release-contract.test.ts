@@ -86,6 +86,15 @@ describe("release contract", () => {
     expect(goreleaser).toMatch(/^\s*prerelease:\s*auto\s*$/m);
   });
 
+  it("gives RC tags preview release notes instead of the stable header", () => {
+    // The tag-first rehearsal publishes the -rcN tag via release.yml, so the
+    // GoReleaser header must switch to preview framing for prerelease tags
+    // rather than reusing the stable "Why This Release Exists" copy.
+    expect(goreleaser).toContain('{{ if contains .Tag "-rc" }}');
+    expect(goreleaser).toContain("## Preview / Release Candidate");
+    expect(goreleaser).toContain("Stable users should ignore this prerelease");
+  });
+
   it("keeps the Windows installer bundle-managed while preserving quiet download UX", () => {
     expect(installer).toContain("Invoke-DownloadFile");
     expect(installer).toContain('$global:ProgressPreference = "SilentlyContinue"');

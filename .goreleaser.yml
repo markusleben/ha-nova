@@ -65,7 +65,25 @@ release:
   prerelease: auto
   name_template: "HA NOVA v{{.Version}}"
   header: |
-    ## Why This Release Exists
+    {{ if contains .Tag "-rc" }}## Preview / Release Candidate
+
+    This is a release candidate for installer and onboarding testing. Stable users should ignore this prerelease; normal `ha-nova update` stays on stable.
+
+    Install this exact RC (release-pinned for this tag):
+
+    **macOS / Linux:**
+    ```sh
+    curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/{{ .Tag }}/install.sh | HA_NOVA_VERSION={{ .Tag }} bash
+    ```
+
+    **Windows (PowerShell):**
+    ```powershell
+    $env:HA_NOVA_VERSION = '{{ .Tag }}'
+    irm https://raw.githubusercontent.com/markusleben/ha-nova/{{ .Tag }}/install.ps1 | iex
+    ```
+
+    Windows uses a single supported install path: `install.ps1`. Return an RC install to stable later with `ha-nova update`.
+    {{ else }}## Why This Release Exists
 
     This release makes HA NOVA easier to install, safer to update, and clearer to remove across supported platforms.
 
@@ -101,6 +119,7 @@ release:
     - Legacy pre-Go installs still require the legacy cleanup script before reinstalling.
 
     > The bundle assets below are consumed by the installers automatically. Only use them directly for maintainer-level debugging or raw binary validation.
+    {{ end }}
   footer: |
     ---
     **Full documentation:** [github.com/markusleben/ha-nova](https://github.com/markusleben/ha-nova)
