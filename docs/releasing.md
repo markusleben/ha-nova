@@ -105,9 +105,12 @@ the final tag may safely point at the same commit.
 
 **Rehearsal steps:**
 
-1. On the fully reviewed, merged `main` commit, verify the pipeline contract is intact:
+1. On the fully reviewed, merged `main` commit, verify the pipeline contract is
+   intact. Run this as a maintainer (admin `gh auth`) so the no-App-bypass guard
+   is verified — strict mode fails closed if the token cannot read the ruleset's
+   bypass actors:
    ```bash
-   bash scripts/release/verify-release-pipeline.sh
+   HA_NOVA_RELEASE_AUDIT_REQUIRE_BYPASS=1 bash scripts/release/verify-release-pipeline.sh
    ```
 2. Push the rehearsal tag on that exact commit (maintainer bypass):
    ```bash

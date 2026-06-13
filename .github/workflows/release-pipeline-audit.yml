@@ -4,13 +4,15 @@ name: Release Pipeline Audit
 # found within a week instead of at the next release. Runs the same contract
 # check maintainers run locally (scripts/release/verify-release-pipeline.sh).
 #
-# Static workflow invariants are always verified. Live tag-ruleset drift
-# detection needs an admin-scoped token: add a fine-grained PAT with
-# repository "Administration: write" as the RELEASE_AUDIT_TOKEN secret to enable
-# it. Write access is required because GitHub only returns a ruleset's
-# bypass_actors to requesters with write access, and the no-App-bypass guard
-# fails closed rather than report a false OK if it cannot see them. Without the
-# secret the live layer auto-skips with a notice (no false red).
+# Static workflow invariants are always verified. The live tag-ruleset
+# structure (active, target, ref, creation rule) is verified with the default
+# GITHUB_TOKEN. The no-App-bypass guard additionally needs ruleset write access,
+# because GitHub only returns bypass_actors to requesters with write access — so
+# without a write-scoped token it is skipped with a notice (the weekly audit
+# stays green rather than going red on every run). To verify it here too, add a
+# fine-grained PAT with repository "Administration: write" as the
+# RELEASE_AUDIT_TOKEN secret. The release preflight enforces the guard via
+# HA_NOVA_RELEASE_AUDIT_REQUIRE_BYPASS=1 regardless (see docs/releasing.md).
 
 on:
   schedule:

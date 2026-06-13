@@ -7,14 +7,15 @@
 #   2. The live GitHub tag-ruleset state that makes "release tags are
 #      maintainer-pushed, the RC workflow never auto-publishes" actually true.
 #
-# The live layer needs an admin-scoped token. It auto-skips with a notice when
-# the current token cannot read rulesets at all (e.g. the default CI
-# GITHUB_TOKEN), so the same script serves both as a maintainer preflight
-# command and as the tokenless weekly audit. Verifying the no-App-bypass guard
-# additionally needs *write* access to the ruleset — GitHub only returns
-# bypass_actors to requesters with write access — so the token must be a
-# maintainer `gh auth` or a RELEASE_AUDIT_TOKEN with ruleset write access; a
-# read-only token fails closed on that guard rather than reporting a false OK.
+# The live layer auto-skips entirely with a notice when the current token cannot
+# read rulesets at all (e.g. a token with no repo access), so the same script
+# serves both as a maintainer preflight command and as the weekly audit.
+# Verifying the no-App-bypass guard additionally needs *write* access to the
+# ruleset — GitHub only returns bypass_actors to requesters with write access.
+# When the token can read the ruleset but not bypass_actors (e.g. the default CI
+# GITHUB_TOKEN), the no-App-bypass guard is skipped with a notice so the weekly
+# audit stays green; the release preflight sets
+# HA_NOVA_RELEASE_AUDIT_REQUIRE_BYPASS=1 to make that case fail closed instead.
 #
 # Background: the v0.5.0 release exposed two pipeline traps — a GoReleaser tag
 # auto-detection footgun when an rc tag and the final tag share a commit, and
@@ -26,6 +27,13 @@ REPO="${1:-markusleben/ha-nova}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 POLICY_FILE="${ROOT_DIR}/.github/policy/repo-policy.json"
+
+# The no-App-bypass guard needs ruleset write access to see bypass_actors. By
+# default it skips with a notice when the token cannot see them, so the weekly
+# audit on the read-only default token does not go red on every run. The
+# release preflight sets HA_NOVA_RELEASE_AUDIT_REQUIRE_BYPASS=1 to make that
+# case fail closed, so a release never proceeds with the guard unverified.
+REQUIRE_BYPASS="${HA_NOVA_RELEASE_AUDIT_REQUIRE_BYPASS:-0}"
 
 fail() {
   echo "::error::$*" >&2
@@ -107,20 +115,26 @@ missing_rules="$(printf '%s' "${ruleset}" | jq -r --slurpfile p "${POLICY_FILE}"
   || fail "Tag ruleset '${expected_name}' is missing required rule(s): ${missing_rules}. The 'creation' rule is what blocks the Actions token from minting v* tags."
 
 # GitHub only returns bypass_actors to requesters with write access to the
-# ruleset. With a read-only token the field is omitted entirely, and treating
-# an absent field as an empty list would silently hide the exact App bypass
-# this guard exists to catch. Fail closed instead of reporting a false OK.
-if ! printf '%s' "${ruleset}" | jq -e 'has("bypass_actors")' >/dev/null 2>&1; then
-  fail "Cannot read bypass actors for '${expected_name}' — GitHub returns them only to requesters with write access to the ruleset. Run as a maintainer (admin 'gh auth') or give RELEASE_AUDIT_TOKEN ruleset write access; the no-App-bypass guard cannot be verified otherwise."
+# ruleset; a read-only token omits the field entirely. Treating an absent field
+# as an empty list would silently hide the exact App bypass this guard catches,
+# so never enforce against an absent field. Skip with a notice by default (the
+# read-only weekly audit), and fail closed when the release preflight asks for
+# strict verification.
+if printf '%s' "${ruleset}" | jq -e 'has("bypass_actors")' >/dev/null 2>&1; then
+  forbidden_present="$(printf '%s' "${ruleset}" | jq -r --slurpfile p "${POLICY_FILE}" '
+    [.bypass_actors[].actor_type] as $have
+    | [$p[0].release_tag_protection.forbidden_bypass_actor_types[] | select(. as $t | $have | index($t))]
+    | join(", ")
+  ')"
+  [[ -z "${forbidden_present}" ]] \
+    || fail "Tag ruleset '${expected_name}' grants a forbidden bypass actor type (${forbidden_present}); automated v* tag creation is no longer blocked. Update the release flow contract deliberately."
+  bypass_status="verified"
+elif [[ "${REQUIRE_BYPASS}" == "1" ]]; then
+  fail "Cannot read bypass actors for '${expected_name}' — GitHub returns them only to requesters with write access to the ruleset. Run as a maintainer (admin 'gh auth') or give RELEASE_AUDIT_TOKEN ruleset write access; the no-App-bypass guard is required for a release."
+else
+  note "bypass_actors not visible for '${expected_name}' (token lacks ruleset write access); skipping the no-App-bypass guard. Run with a maintainer token or set HA_NOVA_RELEASE_AUDIT_REQUIRE_BYPASS=1 to enforce it."
+  bypass_status="skipped (read-only token)"
 fi
 
-forbidden_present="$(printf '%s' "${ruleset}" | jq -r --slurpfile p "${POLICY_FILE}" '
-  [.bypass_actors[].actor_type] as $have
-  | [$p[0].release_tag_protection.forbidden_bypass_actor_types[] | select(. as $t | $have | index($t))]
-  | join(", ")
-')"
-[[ -z "${forbidden_present}" ]] \
-  || fail "Tag ruleset '${expected_name}' grants a forbidden bypass actor type (${forbidden_present}); automated v* tag creation is no longer blocked. Update the release flow contract deliberately."
-
-echo "[verify-release-pipeline] live tag-ruleset contract OK (${expected_name})"
+echo "[verify-release-pipeline] live tag-ruleset contract OK (${expected_name}; bypass guard: ${bypass_status})"
 echo "[verify-release-pipeline] OK: ${REPO}"

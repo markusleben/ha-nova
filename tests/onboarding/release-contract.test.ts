@@ -111,6 +111,7 @@ describe("release contract", () => {
   it("documents the mandatory tag-first release rehearsal and its drift guard", () => {
     expect(releasing).toContain("tag-first dress rehearsal");
     expect(releasing).toContain("bash scripts/release/verify-release-pipeline.sh");
+    expect(releasing).toContain("HA_NOVA_RELEASE_AUDIT_REQUIRE_BYPASS=1");
     expect(releasing).toContain("release-pipeline-audit.yml");
     expect(releasing).toContain("GORELEASER_CURRENT_TAG");
   });
