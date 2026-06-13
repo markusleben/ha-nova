@@ -7,11 +7,14 @@
 #   2. The live GitHub tag-ruleset state that makes "release tags are
 #      maintainer-pushed, the RC workflow never auto-publishes" actually true.
 #
-# The live layer needs an admin-scoped token to read repository rulesets. It
-# auto-skips with a notice when the current token cannot read them (e.g. the
-# default CI GITHUB_TOKEN), so the same script serves both as a maintainer
-# preflight command and as the tokenless weekly audit. Set RELEASE_AUDIT_TOKEN
-# (or run with a maintainer `gh auth`) to exercise the live layer.
+# The live layer needs an admin-scoped token. It auto-skips with a notice when
+# the current token cannot read rulesets at all (e.g. the default CI
+# GITHUB_TOKEN), so the same script serves both as a maintainer preflight
+# command and as the tokenless weekly audit. Verifying the no-App-bypass guard
+# additionally needs *write* access to the ruleset — GitHub only returns
+# bypass_actors to requesters with write access — so the token must be a
+# maintainer `gh auth` or a RELEASE_AUDIT_TOKEN with ruleset write access; a
+# read-only token fails closed on that guard rather than reporting a false OK.
 #
 # Background: the v0.5.0 release exposed two pipeline traps — a GoReleaser tag
 # auto-detection footgun when an rc tag and the final tag share a commit, and
@@ -103,8 +106,16 @@ missing_rules="$(printf '%s' "${ruleset}" | jq -r --slurpfile p "${POLICY_FILE}"
 [[ -z "${missing_rules}" ]] \
   || fail "Tag ruleset '${expected_name}' is missing required rule(s): ${missing_rules}. The 'creation' rule is what blocks the Actions token from minting v* tags."
 
+# GitHub only returns bypass_actors to requesters with write access to the
+# ruleset. With a read-only token the field is omitted entirely, and treating
+# an absent field as an empty list would silently hide the exact App bypass
+# this guard exists to catch. Fail closed instead of reporting a false OK.
+if ! printf '%s' "${ruleset}" | jq -e 'has("bypass_actors")' >/dev/null 2>&1; then
+  fail "Cannot read bypass actors for '${expected_name}' — GitHub returns them only to requesters with write access to the ruleset. Run as a maintainer (admin 'gh auth') or give RELEASE_AUDIT_TOKEN ruleset write access; the no-App-bypass guard cannot be verified otherwise."
+fi
+
 forbidden_present="$(printf '%s' "${ruleset}" | jq -r --slurpfile p "${POLICY_FILE}" '
-  [.bypass_actors[]?.actor_type] as $have
+  [.bypass_actors[].actor_type] as $have
   | [$p[0].release_tag_protection.forbidden_bypass_actor_types[] | select(. as $t | $have | index($t))]
   | join(", ")
 ')"

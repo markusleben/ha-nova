@@ -6,8 +6,11 @@ name: Release Pipeline Audit
 #
 # Static workflow invariants are always verified. Live tag-ruleset drift
 # detection needs an admin-scoped token: add a fine-grained PAT with
-# "Administration: read" as the RELEASE_AUDIT_TOKEN secret to enable it.
-# Without that secret the live layer auto-skips with a notice (no false red).
+# repository "Administration: write" as the RELEASE_AUDIT_TOKEN secret to enable
+# it. Write access is required because GitHub only returns a ruleset's
+# bypass_actors to requesters with write access, and the no-App-bypass guard
+# fails closed rather than report a false OK if it cannot see them. Without the
+# secret the live layer auto-skips with a notice (no false red).
 
 on:
   schedule:
