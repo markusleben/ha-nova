@@ -69,7 +69,12 @@ func runUpdate(paths runtimePaths, args []string) int {
 		targetVersion = release.Version
 	}
 	currentVersion := localVersion(paths)
-	if currentVersion != "dev" {
+	// A dev build forcing a restore (--force) must stage the release even when its
+	// version.json matches the target: localVersion reads version.json (a release
+	// value like 0.6.0, not "dev"), so without this the up-to-date short-circuit
+	// below keeps the dev binary in place and --force silently does nothing.
+	forcingDevRestore := BuildChannel == "dev" && *forceFlag
+	if currentVersion != "dev" && !forcingDevRestore {
 		cmp, err := compareReleaseVersions(currentVersion, targetVersion)
 		if err != nil {
 			printHumanErr("cannot compare version v%s with target v%s: %s", currentVersion, targetVersion, err)
