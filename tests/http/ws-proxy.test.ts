@@ -108,7 +108,16 @@ describe("ws proxy endpoint", () => {
     );
 
     const { baseUrl } = await startServer(servers, router);
-    for (const type of ["subscribe_events", "subscribe_trigger", "subscribe_entities", "render_template"]) {
+    for (const type of [
+      "subscribe_events",
+      "subscribe_trigger",
+      "subscribe_entities",
+      "render_template",
+      // Slash-namespaced subscription commands also open upstream subscriptions
+      // even though they do not start with `subscribe_`.
+      "config_entries/subscribe",
+      "config_entries/flow/subscribe",
+    ]) {
       const response = await fetch(`${baseUrl}/ws`, {
         method: "POST",
         headers: {

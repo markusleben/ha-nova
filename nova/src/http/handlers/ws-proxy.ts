@@ -52,6 +52,17 @@ function parseWsRequestBody(body: unknown): HaWsRequest {
 }
 
 function isSubscriptionWsType(type: string): boolean {
-  const t = type.trim();
-  return t.startsWith("subscribe_") || t === "render_template";
+  const t = type.trim().toLowerCase();
+  // These open an upstream subscription this request/response relay can't deliver,
+  // so a client could silently accumulate upstream churn. Block the classic
+  // `subscribe_*` commands, any slash-namespaced `.../subscribe[/...]` command
+  // (e.g. config_entries/subscribe, config_entries/flow/subscribe) — which also
+  // store connection.subscriptions and emit events after the initial result — and
+  // the streaming `render_template`.
+  return (
+    t === "render_template" ||
+    t.startsWith("subscribe_") ||
+    t.endsWith("/subscribe") ||
+    t.includes("/subscribe/")
+  );
 }
