@@ -66,9 +66,12 @@ describe("dev-sync contract", () => {
     expect(content).toContain("restore the release with 'ha-nova update --force'");
     expect(content).not.toContain("restore the release with 'ha-nova update'\"");
     // A failed CLI build must fail the whole sync, not silently leave a stale
-    // runtime behind refreshed skills that call new ha-nova subcommands.
+    // runtime behind refreshed skills that call new ha-nova subcommands. The
+    // missing-Go / missing-cli branch is the same stale-runtime gap, so it must set
+    // the failure too whenever clients were already synced.
     expect(content).toContain("cli_build_failed=1");
     expect(content).toContain('if [[ "${cli_build_failed}" -eq 1 ]]; then');
+    expect(content).toContain('if [[ "${#synced[@]}" -gt 0 ]]; then');
     // Wired into the main flow right after the Claude sync.
     expect(content).toContain("sync_claude\nsync_cli_runtime\n");
   });

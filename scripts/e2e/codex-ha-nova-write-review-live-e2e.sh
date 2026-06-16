@@ -790,6 +790,18 @@ def postwrite_label_is_empty_heading(section_text: str, label: str) -> bool:
     return not any(bucket in label_block for bucket in FORBIDDEN_EMPTY_BUCKETS)
 
 
+def postwrite_review_has_content(block: str) -> bool:
+    # The post-write review must carry substance: section content or, when clean, a
+    # single confirmation line. A bare heading with nothing under it (status lines
+    # are already stripped upstream) is the all-empty review the contract forbids —
+    # it must collapse to a confirmation line instead.
+    for raw_line in block.splitlines()[1:]:
+        line = raw_line.strip()
+        if line and not status_line_pattern.match(line):
+            return True
+    return False
+
+
 def strip_status_lines(text: str) -> str:
     kept_lines = []
     for raw_line in text.splitlines():
@@ -976,8 +988,11 @@ empty_postwrite_labels = [
     if postwrite_label_is_empty_heading(postwrite_review_block, label)
 ]
 result["empty_postwrite_labels"] = empty_postwrite_labels
+result["postwrite_review_has_content"] = postwrite_review_has_content(postwrite_review_block)
 result["postwrite_section_structure_valid"] = (
-    bool(postwrite_review_match) and not empty_postwrite_labels
+    bool(postwrite_review_match)
+    and not empty_postwrite_labels
+    and result["postwrite_review_has_content"]
 )
 print(json.dumps(result))
 PY

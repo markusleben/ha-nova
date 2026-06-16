@@ -330,6 +330,12 @@ dev_runtime_target() {
 sync_cli_runtime() {
   if ! command -v go >/dev/null 2>&1 || [[ ! -f "${REPO_ROOT}/cli/main.go" ]]; then
     echo "[dev:sync] CLI: Go toolchain or cli/ missing — CLI not rebuilt (new ha-nova subcommands stay unavailable)"
+    # If clients were already refreshed to the 0.6 skills, the installed runtime is
+    # now stale against them (missing diff/snapshot) — same stale-runtime gap as a
+    # failed build. Fail the sync so it is fixed now, not at the next live dev write.
+    if [[ "${#synced[@]}" -gt 0 ]]; then
+      cli_build_failed=1
+    fi
     return
   fi
 
