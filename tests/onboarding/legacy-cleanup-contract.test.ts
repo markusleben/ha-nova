@@ -47,5 +47,11 @@ describe("legacy cleanup contract", () => {
       "Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue",
     );
     expect(content).not.toMatch(/-Recurse -Force(?! -ErrorAction)/);
+    // ...but a locked BLOCKER file must not slip through as a false success: the
+    // script verifies the install.ps1 Test-LegacyInstall blockers are actually
+    // gone and Fails with the residue list, or the user loops (cleanup reports OK
+    // while the installer keeps detecting residue and aborting).
+    expect(content).toContain("$blockerResidue");
+    expect(content).toContain("Could not remove some legacy files");
   });
 });

@@ -17,4 +17,14 @@ describe("macOS keyring contract", () => {
     expect(content).toContain("relayAuthTokenServiceName()");
     expect(content).not.toContain("login.keychain-db");
   });
+
+  it("reads the relay token through go-keyring so the base64 envelope is decoded", () => {
+    // go-keyring's Set base64-wraps the stored value (go-keyring-base64:...); the
+    // read path MUST use keyring.Get to decode it. A raw `security
+    // find-generic-password -w` read returns the encoded value and would
+    // authenticate every relay call with the wrong bearer token.
+    expect(content).toContain("keyring.Get(service, u.Username)");
+    expect(content).toContain("keyring.ErrNotFound");
+    expect(content).not.toContain('"find-generic-password"');
+  });
 });

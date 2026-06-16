@@ -78,4 +78,20 @@ foreach ($root in $skillRoots) {
   }
 }
 
+# The deletes above are best-effort so a locked non-blocker file can't abort the
+# whole cleanup. But install.ps1's Test-LegacyInstall keeps aborting while any of
+# these blocker files remain, so verify they are actually gone and fail loudly
+# with the residue list rather than reporting a false success.
+$blockerPaths = @(
+  (Join-Path $ConfigDir "onboarding.env"),
+  (Join-Path $ConfigDir "update"),
+  (Join-Path $ConfigDir "update.cmd"),
+  (Join-Path $ConfigDir "check-update.cmd"),
+  (Join-Path $InstallDir "scripts\onboarding")
+)
+$blockerResidue = @($blockerPaths | Where-Object { Test-Path -LiteralPath $_ })
+if ($blockerResidue.Count -gt 0) {
+  Fail "Could not remove some legacy files (one may be locked or in use):`n  $($blockerResidue -join "`n  ")`nClose any running ha-nova or relay process, then run this cleanup again."
+}
+
 Write-Host "[ha-nova:legacy-uninstall] Legacy HA NOVA cleanup finished."
