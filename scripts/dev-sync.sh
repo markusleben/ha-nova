@@ -273,21 +273,37 @@ claude_marketplace_source_dir() {
   ' "${km}" 2>/dev/null || true
 }
 
+# True when $1 resolves to a path inside the repo working tree. The repo ships a
+# tracked helper shim (scripts/onboarding/bin/ha-nova); if a dev puts that dir on
+# PATH, `command -v ha-nova` resolves to it. Building the Go runtime onto it would
+# clobber a tracked file, so dev_runtime_target rejects any in-repo candidate.
+path_within_repo() {
+  local candidate="$1" repo_real cand_dir cand_real
+  repo_real="$(cd "${REPO_ROOT}" 2>/dev/null && pwd -P)" || return 1
+  cand_dir="$(cd "$(dirname "${candidate}")" 2>/dev/null && pwd -P)" || return 1
+  cand_real="${cand_dir}/$(basename "${candidate}")"
+  [[ "${cand_real}" == "${repo_real}" || "${cand_real}" == "${repo_real}/"* ]]
+}
+
 # Resolve the real binary that the installed `ha-nova` actually runs, so the CLI
 # rebuild lands on the path every client's skill calls — not a side path.
 dev_runtime_target() {
-  local p
+  local p resolved
   p="$(command -v ha-nova 2>/dev/null || true)"
   if [[ -n "${p}" ]]; then
     if [[ -L "${p}" ]]; then
-      local t
-      t="$(readlink "${p}")"
-      [[ "${t}" == /* ]] || t="$(cd "$(dirname "${p}")" && pwd)/${t}"
-      printf '%s\n' "${t}"
+      resolved="$(readlink "${p}")"
+      [[ "${resolved}" == /* ]] || resolved="$(cd "$(dirname "${p}")" && pwd)/${resolved}"
+    else
+      resolved="${p}"
+    fi
+    # Never hand back an in-repo path: a tracked helper shim on PATH would be
+    # overwritten by `go build -o`. Fall through to the real install root so the
+    # rebuild lands on the runtime clients actually call.
+    if ! path_within_repo "${resolved}"; then
+      printf '%s\n' "${resolved}"
       return 0
     fi
-    printf '%s\n' "${p}"
-    return 0
   fi
   if [[ -e "${HOME}/.local/share/ha-nova/ha-nova" ]]; then
     printf '%s\n' "${HOME}/.local/share/ha-nova/ha-nova"

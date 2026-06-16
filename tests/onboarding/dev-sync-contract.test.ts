@@ -58,6 +58,10 @@ describe("dev-sync contract", () => {
     expect(content).toContain('go build -ldflags "$(dev_build_ldflags)" -o "${target}"');
     // Guarded to a runtime under the current HOME so test sandboxes never build.
     expect(content).toContain('"${HOME}"/*) ;;');
+    // Never rebuild onto a tracked in-repo helper shim that happens to be on PATH:
+    // dev_runtime_target rejects any candidate inside the repo working tree.
+    expect(content).toContain("path_within_repo()");
+    expect(content).toContain('if ! path_within_repo "${resolved}"; then');
     expect(content).toContain("restore the release with 'ha-nova update'");
     // Wired into the main flow right after the Claude sync.
     expect(content).toContain("sync_claude\nsync_cli_runtime\n");
