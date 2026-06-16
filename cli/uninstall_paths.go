@@ -36,6 +36,7 @@ func managedConfigArtifactPaths(paths runtimePaths, purge bool) []string {
 		filepath.Join(paths.ConfigDir, "onboarding.env"),
 		filepath.Join(paths.ConfigDir, "doctor-cache.env"),
 		filepath.Join(paths.ConfigDir, "claude-marketplace"),
+		filepath.Join(paths.ConfigDir, "undo-snapshot.json"),
 	}
 	if purge {
 		pathsList = append(pathsList, paths.ConfigFile)
@@ -44,7 +45,10 @@ func managedConfigArtifactPaths(paths runtimePaths, purge bool) []string {
 }
 
 func managedCacheArtifactPaths(paths runtimePaths) []string {
-	return []string{paths.UpdateCacheFile}
+	return []string{
+		paths.UpdateCacheFile,
+		filepath.Join(paths.CacheDir, "automation-bp-snapshot.json"),
+	}
 }
 
 func removeDirIfEmptyWithReport(path string, report *uninstallReport) error {

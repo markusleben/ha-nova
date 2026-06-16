@@ -52,10 +52,18 @@ func attemptClientAutoRepair(paths runtimePaths, client clientStatus) autoRepair
 		return outcome
 	}
 
+	// A dev-synced build must never auto-repair. The session-start hook runs
+	// `doctor --auto-repair` through the installed binary, which dev-sync rebuilt
+	// with BuildChannel=dev. Without this, the common mixed dev install
+	// (release-style version.json + dev-synced skills + dev-built binary) fails
+	// the attach check — its registered marketplace points at the dev root, not
+	// the release snapshot — so auto-repair would re-stage the release plugin
+	// over the dev-synced client on every session. `installSourceDev` alone does
+	// not catch this case (the installed binary has no HA_NOVA_DEV_ROOT).
 	state := loadStateOrDefault(paths)
-	if normalizeInstallSource(detectInstallSource(paths, state)) == installSourceDev {
+	if BuildChannel == "dev" || normalizeInstallSource(detectInstallSource(paths, state)) == installSourceDev {
 		outcome.Skipped = true
-		outcome.SkipReason = "dev install mode"
+		outcome.SkipReason = "dev build / dev install mode"
 		return outcome
 	}
 

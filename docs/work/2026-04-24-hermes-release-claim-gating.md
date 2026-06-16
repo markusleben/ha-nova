@@ -1,6 +1,8 @@
 # Hermes Release Claim Gating
 
-Status: active
+Status: resolved (v0.6.0)
+
+> **Resolution (v0.6.0):** Hermes is now listed in the public `README.md` as a **preview** client — honestly scoped (Linux/GNOME Keyring maintainer-validated; macOS and Windows-via-WSL2 experimental; native Windows unsupported). This satisfies the gate's intent: ship Hermes without overclaiming stable support. Note the gate was **re-scoped** — from "withhold the public claim until the full matrix is validated" (the rules below) to "a preview claim is fine as long as each route is honestly scoped." The rules below describe that original stable-claim gate and are kept for history only; they are no longer binding.
 
 ## Goal
 

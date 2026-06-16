@@ -211,11 +211,13 @@ describe("review contract", () => {
   it("documents compact post-write empty-state semantics without rule codes", () => {
     expect(contextSkill).toContain("NEVER show them in ANY message to the user");
     expect(contextSkill).toContain("findings, summaries, clean states, pre-write verdicts");
-    expect(architectureDoc).toContain('localized equivalent of "No related items found." when the scan found none');
-    expect(architectureDoc).toContain('"No conflicts found." when related items were checked without a collision risk');
-    expect(writeSkill).toContain('localized equivalent of "No related items found."');
-    expect(writeSkill).toContain('localized equivalent of "No conflicts found."');
-    expect(writeSkill).toContain('localized equivalent of "No additional advisories."');
+    // Post-write review omits empty sections instead of printing "none" buckets.
+    expect(architectureDoc).toContain('never print an empty "none" bucket');
+    expect(architectureDoc).toContain("collapse to one localized confirmation line");
+    expect(writeSkill).toContain('never print an empty "none" bucket');
+    expect(writeSkill).toContain("collapse to one localized confirmation line");
+    // Standalone review still states a clean result (it answers an explicit request).
+    expect(contextSkill).toContain('"no issues found" is worth stating');
   });
 
   it("documents the design-intent gate before remove or simplify suggestions", () => {
@@ -265,7 +267,9 @@ describe("review contract", () => {
     expect(reviewAgent).toContain("Section 5 — Questions to consider");
     expect(reviewAgent).toContain("Section 7 — Summary");
     expect(reviewAgent).toContain("Section 8 — Instant help");
-    expect(reviewAgent).toContain("Section 3 — Advisory");
+    // Post-write mode now omits empty sections instead of fixed numbered "none" headings.
+    expect(reviewAgent).toContain('never print an empty "none" bucket');
+    expect(reviewAgent).not.toContain('"No additional advisories."');
     expect(reviewAgent).toContain("Do not emit Questions to consider or ranked standalone Suggestions in post-write mode.");
   });
 });

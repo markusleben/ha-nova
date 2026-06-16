@@ -295,6 +295,7 @@ Rules for all experimental relay calls in this skill:
 - **Field-level list replacements** (e.g., `energy/save_prefs`): omitted top-level keys are preserved, but each provided key replaces its entire list. To add one item, read the existing list first, append, then save back the full list.
 - **Web search before write**: always search for current payload schema before constructing any write payload. HA APIs evolve across versions — the examples in this skill are starting points, not authoritative schemas.
 - Every experimental call must show: "EXPERIMENTAL: No skill guardrails. Proceed with caution."
+- **No diff or auto-undo here**: these writes have no `## Changes` preview or `revert`. When a write may be hard to reverse, say so plainly and point to Home Assistant Backups (Settings > System > Backups) as the safety net before confirming.
 - One resource at a time (no batch writes)
 - Delete requires tokenized confirmation (`confirm:<token>`)
 - Never guess IDs: resolve via list/search first

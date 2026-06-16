@@ -13,7 +13,8 @@ describe("ha cross-skill integration", () => {
     expect(writeSkill).toContain("skills/review/SKILL.md");
     expect(writeSkill).toContain("full-replacement merge (base=current, overlay=user changes)");
     expect(writeSkill).toContain("confirm:<token>");
-    expect(writeSkill).toContain("full YAML config");
+    expect(writeSkill).toContain("## Changes");
+    expect(writeSkill).toContain("show yaml");
     expect(writeSkill).toContain("Fallback: If agent dispatch unavailable");
   });
 
@@ -91,16 +92,19 @@ describe("ha cross-skill integration", () => {
     expect(writeSkill).toContain("Do not auto-trigger or auto-read traces");
     expect(writeSkill).toContain("`R-19` follows normal dedup");
 
-    // Post-write review format uses localized headings with emoji severity
+    // Post-write review reports only substance — empty sections are omitted, not shown as "none" buckets
     expect(writeSkill).toContain("Findings");
     expect(writeSkill).toContain("Collision check");
     expect(writeSkill).toContain("Advisory");
-    expect(writeSkill).toContain('localized equivalent of "No related items found."');
-    expect(writeSkill).toContain('localized equivalent of "No conflicts found."');
-    expect(writeSkill).toContain('localized equivalent of "No additional advisories."');
-    expect(writeSkill).toContain("Do not emit `Questions to consider`, `Suggestions`, or `Instant help` in post-write mode.");
-    expect(writeSkill).toContain("Do not repeat the same advisory item in both **Findings** and **Advisory**.");
+    expect(writeSkill).toContain('never print an empty "none" bucket');
+    expect(writeSkill).toContain("collapse to one localized confirmation line");
+    expect(writeSkill).toContain("Never emit `Questions to consider`, `Suggestions`, or `Instant help` post-write");
+    expect(writeSkill).toContain("never repeat an item across **Findings** and **Advisory**");
     expect(writeSkill).toContain("Output Localization");
+    // The old always-on "none" buckets must be gone (that was the noise the maintainer flagged).
+    expect(writeSkill).not.toContain('localized equivalent of "No related items found."');
+    expect(writeSkill).not.toContain('localized equivalent of "No conflicts found."');
+    expect(writeSkill).not.toContain('localized equivalent of "No additional advisories."');
   });
 
   it("keeps write flows constrained to one ambiguity question and no unrequested rewrites", () => {

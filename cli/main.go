@@ -9,6 +9,17 @@ import (
 // Version is set by goreleaser via ldflags.
 var Version = "dev"
 
+// BuildChannel and BuildStamp are injected via -ldflags by scripts/dev-sync.sh
+// for locally rebuilt dev binaries. Released builds leave them empty, so
+// `ha-nova version` prints only the bare version. This lets any client's LLM be
+// asked "which build is loaded?" and answer dev-vs-release deterministically,
+// without touching skill files — so it works for symlinked and copied skill
+// installs alike.
+var (
+	BuildChannel = ""
+	BuildStamp   = ""
+)
+
 func main() {
 	paths, err := detectPaths()
 	if err != nil {
@@ -40,8 +51,12 @@ func dispatch(paths runtimePaths, argv0 string, args []string) int {
 		return runUninstall(paths, args[1:])
 	case "relay":
 		return runRelayCommand(paths, args[1:])
+	case "snapshot":
+		return runSnapshotCommand(paths, args[1:])
+	case "diff":
+		return runDiffCommand(paths, args[1:])
 	case "version":
-		fmt.Fprintln(os.Stdout, localVersion(paths))
+		fmt.Fprintln(os.Stdout, versionDisplay(paths))
 		return 0
 	case "internal-replace":
 		return runInternalReplace(paths, args[1:])
@@ -70,5 +85,7 @@ func printUsage() {
 	fmt.Fprintln(os.Stdout, "  ha-nova update [--version <tag>]")
 	fmt.Fprintln(os.Stdout, "  ha-nova uninstall [--yes] [--purge]")
 	fmt.Fprintln(os.Stdout, "  ha-nova relay <health|ws|core|jq|version>")
+	fmt.Fprintln(os.Stdout, "  ha-nova snapshot <save|show|verify>")
+	fmt.Fprintln(os.Stdout, "  ha-nova diff --before <file> --after <file>")
 	fmt.Fprintln(os.Stdout, "  ha-nova version")
 }

@@ -17,6 +17,7 @@ CURRENT_PLATFORM_ID="$(detect_platform_id)"
 
 synced=()
 file_clients_synced=0
+cli_build_failed=0
 
 print_claude_repair_hint() {
   echo "[dev:sync] GUARDRAIL: rerun 'npm run dev:sync'; if Claude still stays detached, run 'ha-nova setup claude'."
@@ -178,6 +179,36 @@ sync_claude() {
   rsync -a --delete "${REPO_ROOT}/.claude-plugin/" "${install_path}/.claude-plugin/"
   cp "${REPO_ROOT}/version.json" "${install_path}/version.json"
 
+  # Claude re-stages the plugin FROM the marketplace source on restart — update
+  # it too, so a restart keeps dev skills instead of clobbering them.
+  # Dev marketplace root nests under `ha-nova/`; a release snapshot has `skills/`
+  # directly. Handle both, and never write outside HOME (keeps test sandboxes safe).
+  local mkt_src mkt_parent
+  mkt_src="$(claude_marketplace_source_dir)"
+  mkt_parent=""
+  if [[ -n "${mkt_src}" && "${mkt_src}" == "${HOME}"/* ]]; then
+    if [[ -d "${mkt_src}/ha-nova/skills" ]]; then
+      mkt_parent="${mkt_src}/ha-nova"
+    elif [[ -d "${mkt_src}/skills" ]]; then
+      mkt_parent="${mkt_src}"
+    fi
+  fi
+  # If the marketplace source resolves into the repo (dev-mode symlink), it is
+  # already always-live — rsyncing/stamping would write back into the repo. Skip.
+  if [[ -n "${mkt_parent}" ]]; then
+    local mkt_real
+    mkt_real="$(cd "${mkt_parent}" 2>/dev/null && pwd -P || true)"
+    if [[ -z "${mkt_real}" || "${mkt_real}" == "${REPO_ROOT}" || "${mkt_real}" == "${REPO_ROOT}/"* ]]; then
+      echo "[dev:sync] Claude marketplace source is the live repo — already current, skip"
+      mkt_parent=""
+    fi
+  fi
+  if [[ -n "${mkt_parent}" ]]; then
+    rsync -a --delete "${REPO_ROOT}/skills/" "${mkt_parent}/skills/"
+    cp "${REPO_ROOT}/version.json" "${mkt_parent}/version.json" 2>/dev/null || true
+    echo "[dev:sync] Claude marketplace source synced → ${mkt_parent}"
+  fi
+
   local repo_version
   repo_version="$(repo_skill_version)"
   node "${CLAUDE_PLUGIN_STATE_TOOL}" repair-plugin-record "${plugins_json}" "${install_path}" "${repo_version}"
@@ -196,6 +227,10 @@ sync_shared_tools() {
   fi
 
   if command -v go &>/dev/null && [[ -d "${REPO_ROOT}/cli" ]]; then
+    # The dev build channel (ha-nova version self-report) is stamped onto the
+    # runtime binary by sync_cli_runtime — the single owner of the stamp. This
+    # shared-tools build stays plain (and, in a repo-dev install, relay_dst is a
+    # wrapper script this rarely-taken branch would otherwise clobber).
     (cd "${REPO_ROOT}/cli" && go build -o "${relay_dst}" .)
     chmod 755 "${relay_dst}"
     echo "[dev:sync] Built and deployed relay CLI from local Go source"
@@ -208,6 +243,127 @@ sync_shared_tools() {
 
   echo "[dev:sync] Shared tools refreshed"
   synced+=("Shared tools")
+}
+
+# ldflags that stamp a local dev build so `ha-nova version` self-reports DEV.
+# Released builds never pass these, so they print only the bare version — the
+# published install stays untouched. The signal lives in the shared CLI, not in
+# skill files, so it works for every client (symlinked Codex/OpenCode or copied
+# Claude/Gemini) and can never pollute the committed skill source.
+dev_build_ldflags() {
+  local sha stamp
+  sha="$(git -C "${REPO_ROOT}" rev-parse --short HEAD 2>/dev/null || echo local)"
+  stamp="$(date '+%Y-%m-%dT%H:%M' 2>/dev/null || echo unknown)"
+  printf -- '-X main.BuildChannel=dev -X main.BuildStamp=%s-%s' "${stamp}" "${sha}"
+}
+
+# The directory Claude stages the ha-nova plugin FROM (its marketplace source).
+# Updating it keeps dev skills alive across a Claude restart instead of clobbered.
+claude_marketplace_source_dir() {
+  local km="${HOME}/.claude/plugins/known_marketplaces.json"
+  [[ -f "${km}" ]] || return 0
+  command -v node >/dev/null 2>&1 || return 0
+  node -e '
+    try {
+      const fs = require("fs");
+      const j = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+      const m = j["ha-nova"];
+      const src = m && m.source;
+      // Mirror the Go reader (claudeMarketplaceSourceFromRaw): a marketplace source
+      // is either an object ({path|url|...}) or a plain string path. Object form ->
+      // source.path; string form -> the string itself (the literal "github" is a
+      // type marker, not a path). Missing the string form skipped the rsync, so a
+      // Claude restart re-staged stale skills over the fresh dev sync. The caller
+      // only rsyncs when this is an absolute dir under $HOME, so a URL/relative
+      // string is filtered there.
+      const fromObject = (src && typeof src === "object" && src.path) || "";
+      const fromString = (typeof src === "string" && src.trim().toLowerCase() !== "github") ? src.trim() : "";
+      const p = fromObject || fromString || (m && m.installLocation) || "";
+      if (p) process.stdout.write(p);
+    } catch (e) {}
+  ' "${km}" 2>/dev/null || true
+}
+
+# True when $1 resolves to a path inside the repo working tree. The repo ships a
+# tracked helper shim (scripts/onboarding/bin/ha-nova); if a dev puts that dir on
+# PATH, `command -v ha-nova` resolves to it. Building the Go runtime onto it would
+# clobber a tracked file, so dev_runtime_target rejects any in-repo candidate.
+path_within_repo() {
+  local candidate="$1" repo_real cand_dir cand_real
+  repo_real="$(cd "${REPO_ROOT}" 2>/dev/null && pwd -P)" || return 1
+  cand_dir="$(cd "$(dirname "${candidate}")" 2>/dev/null && pwd -P)" || return 1
+  cand_real="${cand_dir}/$(basename "${candidate}")"
+  [[ "${cand_real}" == "${repo_real}" || "${cand_real}" == "${repo_real}/"* ]]
+}
+
+# Resolve the real binary that the installed `ha-nova` actually runs, so the CLI
+# rebuild lands on the path every client's skill calls — not a side path.
+dev_runtime_target() {
+  local p resolved
+  p="$(command -v ha-nova 2>/dev/null || true)"
+  if [[ -n "${p}" ]]; then
+    if [[ -L "${p}" ]]; then
+      resolved="$(readlink "${p}")"
+      [[ "${resolved}" == /* ]] || resolved="$(cd "$(dirname "${p}")" && pwd)/${resolved}"
+    else
+      resolved="${p}"
+    fi
+    # Never hand back an in-repo path: a tracked helper shim on PATH would be
+    # overwritten by `go build -o`. Fall through to the real install root so the
+    # rebuild lands on the runtime clients actually call.
+    if ! path_within_repo "${resolved}"; then
+      printf '%s\n' "${resolved}"
+      return 0
+    fi
+  fi
+  if [[ -e "${HOME}/.local/share/ha-nova/ha-nova" ]]; then
+    printf '%s\n' "${HOME}/.local/share/ha-nova/ha-nova"
+    return 0
+  fi
+  return 1
+}
+
+# Rebuild the local Go CLI onto the runtime binary the installed clients call,
+# so skills and CLI stay in lockstep for live dev testing. This is a local dev
+# build (unstamped version); restore the released CLI with `ha-nova update --force`
+# (a plain `ha-nova update` is refused once the build is stamped BuildChannel=dev).
+sync_cli_runtime() {
+  if ! command -v go >/dev/null 2>&1 || [[ ! -f "${REPO_ROOT}/cli/main.go" ]]; then
+    echo "[dev:sync] CLI: Go toolchain or cli/ missing — CLI not rebuilt (new ha-nova subcommands stay unavailable)"
+    # If clients were already refreshed to the 0.6 skills, the installed runtime is
+    # now stale against them (missing diff/snapshot) — same stale-runtime gap as a
+    # failed build. Fail the sync so it is fixed now, not at the next live dev write.
+    if [[ "${#synced[@]}" -gt 0 ]]; then
+      cli_build_failed=1
+    fi
+    return
+  fi
+
+  local target
+  if ! target="$(dev_runtime_target)"; then
+    echo "[dev:sync] CLI: no installed ha-nova runtime found — run 'ha-nova setup' first, then re-sync"
+    return
+  fi
+
+  # Only build onto a runtime under the current HOME — never a foreign install or
+  # a test sandbox whose mocked PATH resolves ha-nova to the developer's real one.
+  case "${target}" in
+    "${HOME}"/*) ;;
+    *)
+      echo "[dev:sync] CLI: runtime ${target} is outside HOME — skipping CLI build"
+      return
+      ;;
+  esac
+
+  if (cd "${REPO_ROOT}/cli" && go build -ldflags "$(dev_build_ldflags)" -o "${target}" .); then
+    chmod 755 "${target}" 2>/dev/null || true
+    echo "[dev:sync] CLI: built local Go source → ${target}"
+    echo "[dev:sync] CLI: local dev build active — 'ha-nova version' now reports DEV; restore the release with 'ha-nova update --force'"
+    synced+=("CLI")
+  else
+    echo "[dev:sync] CLI: go build failed — fix the error above, then re-sync" >&2
+    cli_build_failed=1
+  fi
 }
 
 verify_plugin_integrity() {
@@ -262,6 +418,7 @@ sync_file_client "OpenCode" "${HOME}/.config/opencode/skills/ha-nova" "opencode"
 sync_gemini
 sync_hermes
 sync_claude
+sync_cli_runtime
 if [[ "${file_clients_synced}" -eq 0 ]]; then
   sync_shared_tools
 fi
@@ -271,4 +428,12 @@ if [[ ${#synced[@]} -eq 0 ]]; then
   echo "[dev:sync] Nothing to sync — no clients detected."
 else
   echo "[dev:sync] Done: ${synced[*]}"
+fi
+
+# A failed CLI build leaves the installed runtime stale while the refreshed skills
+# already call new ha-nova subcommands (diff/snapshot) — fail the sync loudly so it
+# is fixed now, not at the next live dev write.
+if [[ "${cli_build_failed}" -eq 1 ]]; then
+  echo "[dev:sync] CLI build failed — installed runtime is stale vs the refreshed 0.6 skills. Fix the build above, then re-run." >&2
+  exit 1
 fi

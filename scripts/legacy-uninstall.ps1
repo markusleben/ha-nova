@@ -17,7 +17,10 @@ function Fail([string]$Message) {
 
 function Remove-IfExists([string]$Path) {
   if (Test-Path -LiteralPath $Path) {
-    Remove-Item -LiteralPath $Path -Recurse -Force
+    # Best-effort: a locked legacy file (running relay.exe, AV handle) must not
+    # abort the whole cleanup under Stop mode and trap the user in a loop where
+    # the installer still detects legacy residue.
+    Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction SilentlyContinue
   }
 }
 
@@ -55,7 +58,7 @@ if ($null -ne $wsl) {
 
 $legacyScriptsDir = Join-Path $InstallDir "scripts\onboarding"
 if ((Test-Path -LiteralPath $legacyScriptsDir) -and -not (Test-Path -LiteralPath (Join-Path $InstallDir "bundle.json"))) {
-  Remove-Item -LiteralPath $InstallDir -Recurse -Force
+  Remove-Item -LiteralPath $InstallDir -Recurse -Force -ErrorAction SilentlyContinue
 }
 
 $skillRoots = @(
@@ -71,8 +74,24 @@ foreach ($root in $skillRoots) {
     continue
   }
   Get-ChildItem -LiteralPath $root -Filter "ha-nova*" -ErrorAction SilentlyContinue | ForEach-Object {
-    Remove-Item -LiteralPath $_.FullName -Recurse -Force
+    Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue
   }
+}
+
+# The deletes above are best-effort so a locked non-blocker file can't abort the
+# whole cleanup. But install.ps1's Test-LegacyInstall keeps aborting while any of
+# these blocker files remain, so verify they are actually gone and fail loudly
+# with the residue list rather than reporting a false success.
+$blockerPaths = @(
+  (Join-Path $ConfigDir "onboarding.env"),
+  (Join-Path $ConfigDir "update"),
+  (Join-Path $ConfigDir "update.cmd"),
+  (Join-Path $ConfigDir "check-update.cmd"),
+  (Join-Path $InstallDir "scripts\onboarding")
+)
+$blockerResidue = @($blockerPaths | Where-Object { Test-Path -LiteralPath $_ })
+if ($blockerResidue.Count -gt 0) {
+  Fail "Could not remove some legacy files (one may be locked or in use):`n  $($blockerResidue -join "`n  ")`nClose any running ha-nova or relay process, then run this cleanup again."
 }
 
 Write-Host "[ha-nova:legacy-uninstall] Legacy HA NOVA cleanup finished."

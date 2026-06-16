@@ -7,6 +7,8 @@ import (
 	"os/exec"
 	"os/user"
 	"strings"
+
+	"github.com/zalando/go-keyring"
 )
 
 func readRelayAuthToken() (string, error) {
@@ -28,22 +30,18 @@ func readRelayAuthToken() (string, error) {
 	}
 	service := relayAuthTokenServiceName()
 
-	cmd := exec.Command(
-		"security", "find-generic-password",
-		"-a", u.Username,
-		"-s", service,
-		"-w",
-	)
-	out, err := cmd.CombinedOutput()
+	// Read through go-keyring so the base64 envelope its writer (keyring.Set)
+	// adds is decoded back to the raw token. Reading the item with raw
+	// `security ... -w` returns the encoded `go-keyring-base64:...` value, which
+	// would authenticate every relay call with the wrong bearer token.
+	token, err := keyring.Get(service, u.Username)
 	if err != nil {
-		text := strings.TrimSpace(string(out))
-		lower := strings.ToLower(text)
-		if strings.Contains(lower, "could not be found") || strings.Contains(lower, "item could not be found") {
+		if err == keyring.ErrNotFound {
 			return "", missingRelayAuthTokenError(service)
 		}
-		return "", relayAuthTokenReadError(service, fmt.Errorf("%w (%s)", err, text))
+		return "", relayAuthTokenReadError(service, err)
 	}
-	return strings.TrimSpace(string(out)), nil
+	return token, nil
 }
 
 func writeRelayAuthToken(token string) error {
@@ -62,15 +60,14 @@ func writeRelayAuthToken(token string) error {
 	}
 	service := relayAuthTokenServiceName()
 
-	cmd := exec.Command(
-		"security", "add-generic-password",
-		"-U",
-		"-a", u.Username,
-		"-s", service,
-		"-w", token,
-	)
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("cannot write relay auth token: %w (%s)", err, strings.TrimSpace(string(output)))
+	// Write via go-keyring, whose macOS backend pipes the command through
+	// `security -i` (stdin) instead of passing the secret as a CLI argument — so
+	// the token never appears in the process argv (visible to `ps`). go-keyring
+	// base64-wraps the stored value, so the read path MUST use keyring.Get
+	// (above) to decode it; delete matches by `-s <service> -a <user>` and needs
+	// no value, so it carries no argv exposure.
+	if err := keyring.Set(service, u.Username, token); err != nil {
+		return fmt.Errorf("cannot write relay auth token: %w", err)
 	}
 	return nil
 }

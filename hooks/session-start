@@ -99,7 +99,12 @@ if [[ -f "$version_file" ]]; then
     latest_skill_version=$(extract_json_string "version" "$cached_json")
     if [[ -n "$latest_skill_version" && "$latest_skill_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ && -n "$SKILL_VERSION" ]] && semver_lt "$SKILL_VERSION" "$latest_skill_version"; then
       if command -v ha-nova >/dev/null 2>&1; then
-        update_notice="[ha-nova] UPDATE AVAILABLE: v${SKILL_VERSION} -> v${latest_skill_version}. Ask the user if they want you to run: ha-nova update (new session required after update)\\n"
+        # A locally dev-synced build (`ha-nova version` reports "local DEV build")
+        # must not be nudged to update — that would overwrite the dev tree. The
+        # release path is unaffected: released binaries omit the marker.
+        if ! ha-nova version 2>/dev/null | grep -q "local DEV build"; then
+          update_notice="[ha-nova] UPDATE AVAILABLE: v${SKILL_VERSION} -> v${latest_skill_version}. Ask the user if they want you to run: ha-nova update (new session required after update)\\n"
+        fi
       else
         update_notice="[ha-nova] UPDATE AVAILABLE: v${SKILL_VERSION} -> v${latest_skill_version}. Repo-dev fallback only: update the local checkout manually, then re-run setup. (new session required after update)\\n"
       fi

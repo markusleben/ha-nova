@@ -69,6 +69,33 @@ func TestAttemptClientAutoRepair_SkipsWhenAlreadyAttached(t *testing.T) {
 	}
 }
 
+func TestAttemptClientAutoRepair_SkipsOnDevBuild(t *testing.T) {
+	// A dev-synced build (BuildChannel=dev) must never auto-repair, even when the
+	// client looks drifted (not attached) — otherwise the session-start hook
+	// clobbers the dev-synced Claude plugin with the release every session.
+	orig := BuildChannel
+	t.Cleanup(func() { BuildChannel = orig })
+	BuildChannel = "dev"
+
+	client := clientStatus{
+		ID:              "claude",
+		Label:           "Claude Code",
+		RuntimeDetected: true,
+		Ready:           false,
+		Attached:        false,
+	}
+	got := attemptClientAutoRepair(runtimePaths{}, client)
+	if got.Repaired {
+		t.Fatal("a dev build must never be repaired (clobbered)")
+	}
+	if !got.Skipped {
+		t.Fatalf("expected Skipped=true on a dev build, got %+v", got)
+	}
+	if !strings.Contains(got.SkipReason, "dev") {
+		t.Fatalf("expected SkipReason to mention 'dev', got %q", got.SkipReason)
+	}
+}
+
 func TestAttemptClientAutoRepair_SkipsClaudeWhenStateUnreadable(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

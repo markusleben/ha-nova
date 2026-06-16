@@ -213,11 +213,11 @@ Hard requirements:
 11. Do not retry the write flow with alternate commands after a failed attempt. Use one clean write path only.
 12. Do not delete the automation yourself; the harness will clean it up after the session.
 13. Do not modify repository files.
-14. After the normal user-facing result, include a ## Post-Write Review section that uses the exact labels "Findings", "Collision check", and "Advisory".
-15. If the Findings section has no items, print exactly: No issues found in this review.
-16. If the collision scan finds no related items, print exactly: No related items found.
-17. If the collision scan found related items but no real conflict remains after evaluation, print exactly: No conflicts found.
-18. If the Advisory section has no items, print exactly: No additional advisories.
+14. After the normal user-facing result, include a ## Post-Write Review section. Report only what has substance: show a "Findings", "Collision check", or "Advisory" label only for a section that actually has content.
+15. Omit every empty section. Never print any of these exact strings anywhere in the post-write section: No issues found in this review. / No related items found. / No conflicts found. / No additional advisories.
+16. Show the "Collision check" label only when the collision scan returned related items. The scan still runs every time; when it returns nothing, suppress its output instead of printing an empty bucket.
+17. When nothing is worth reporting, collapse the Post-Write Review to a single confirmation line (for example "Verified - no issues or conflicts"). Do not print empty headings.
+18. Show the "Advisory" label only when there is at least one advisory item; otherwise omit it entirely.
 19. Do not repeat a Pre-write check line inside the post-write section. Do not duplicate the same item in both Findings and Advisory.
 20. End with exactly one final machine line on its own line:
     NOVA_WRITE_REVIEW_RESULT id=${scenario_id} automation_id=${automation_id} status=ok
@@ -717,7 +717,19 @@ def normalize_postwrite_item(line: str):
     line = re.sub(r"^[🔴🟠🟡]\s*", "", line)
     return re.sub(r"\s+", " ", line).strip().lower()
 
-def collect_postwrite_items(section_text: str, empty_markers):
+FORBIDDEN_EMPTY_BUCKETS = (
+    "No issues found in this review.",
+    "No related items found.",
+    "No conflicts found.",
+    "No additional advisories.",
+)
+
+POSTWRITE_LABEL_PATTERN = re.compile(
+    r"(?mi)^\s*(?:#+\s*)?(?:\*\*)?(?:Findings|Collision check|Advisory)(?:\*\*)?\s*$"
+)
+
+
+def collect_postwrite_items(section_text: str):
     items = []
     for raw_line in section_text.splitlines():
         line = raw_line.strip()
@@ -725,7 +737,7 @@ def collect_postwrite_items(section_text: str, empty_markers):
             continue
         if status_line_pattern.match(line):
             continue
-        if line in empty_markers:
+        if line in FORBIDDEN_EMPTY_BUCKETS:
             continue
         if line.startswith("Why:") or line.startswith("Fix:"):
             continue
@@ -733,6 +745,62 @@ def collect_postwrite_items(section_text: str, empty_markers):
         if normalized:
             items.append(normalized)
     return items
+
+
+def extract_postwrite_label_block(section_text: str, label: str) -> str:
+    label_pattern = re.compile(
+        rf"(?mi)^\s*(?:#+\s*)?(?:\*\*)?{re.escape(label)}(?:\*\*)?\s*$"
+    )
+    start_match = label_pattern.search(section_text)
+    if not start_match:
+        return ""
+    block_start = start_match.end()
+    next_label = POSTWRITE_LABEL_PATTERN.search(section_text, block_start)
+    next_heading = re.search(r"(?m)^\s*##\s", section_text[block_start:])
+    block_end = len(section_text)
+    if next_label:
+        block_end = min(block_end, next_label.start())
+    if next_heading:
+        block_end = min(block_end, block_start + next_heading.start())
+    return section_text[block_start:block_end].strip()
+
+
+POSTWRITE_OPTIONAL_LABELS = ("Findings", "Collision check", "Advisory")
+
+
+def postwrite_label_present(section_text: str, label: str) -> bool:
+    return bool(
+        re.search(
+            rf"(?mi)^\s*(?:#+\s*)?(?:\*\*)?{re.escape(label)}(?:\*\*)?\s*$",
+            section_text,
+        )
+    )
+
+
+def postwrite_label_is_empty_heading(section_text: str, label: str) -> bool:
+    # A label with substantive items is fine; a label carrying only a forbidden
+    # "none" bucket is already caught by postwrite_forbidden_empty_bucket. Flag only
+    # a label with literally nothing under it — the dangling empty heading the
+    # post-write contract forbids and that no other signal catches.
+    if not postwrite_label_present(section_text, label):
+        return False
+    label_block = extract_postwrite_label_block(section_text, label)
+    if collect_postwrite_items(label_block):
+        return False
+    return not any(bucket in label_block for bucket in FORBIDDEN_EMPTY_BUCKETS)
+
+
+def postwrite_review_has_content(block: str) -> bool:
+    # The post-write review must carry substance: section content or, when clean, a
+    # single confirmation line. A bare heading with nothing under it (status lines
+    # are already stripped upstream) is the all-empty review the contract forbids —
+    # it must collapse to a confirmation line instead.
+    for raw_line in block.splitlines()[1:]:
+        line = raw_line.strip()
+        if line and not status_line_pattern.match(line):
+            return True
+    return False
+
 
 def strip_status_lines(text: str) -> str:
     kept_lines = []
@@ -890,27 +958,42 @@ result["preview_has_canonical_keys"] = (
     len(preview_sections) == 1
     and all(key in preview_sections[0] for key in ("triggers", "conditions", "actions"))
 )
-findings_match = re.search(
-    r"(?ms)^(?:##\s*)?Post-Write Review\s*\n.*?^\s*(?:#+\s*)?(?:\*\*)?Findings(?:\*\*)?\s*\n(.*?)^\s*(?:#+\s*)?(?:\*\*)?Collision check(?:\*\*)?\s*\n(.*?)^\s*(?:#+\s*)?(?:\*\*)?Advisory(?:\*\*)?\s*(?:\n(.*))?$",
+# The post-write contract no longer mandates fixed Findings/Collision check/Advisory
+# headings: report only sections with substance, omit empties, and never print a
+# "none" bucket. Structure is valid as soon as a Post-Write Review section exists.
+postwrite_review_match = re.search(
+    r"(?ms)^(?:##\s*)?Post-Write Review\b.*",
     result["postwrite_text"],
 )
-findings_text = findings_match.group(1).strip() if findings_match else ""
-collision_text = findings_match.group(2).strip() if findings_match else ""
-advisory_text = findings_match.group(3).strip() if findings_match and findings_match.group(3) else ""
-findings_items = collect_postwrite_items(findings_text, {"No issues found in this review."})
-collision_items = collect_postwrite_items(collision_text, {"No related items found.", "No conflicts found."})
-advisory_items = collect_postwrite_items(advisory_text, {"No additional advisories."})
+postwrite_review_block = postwrite_review_match.group(0) if postwrite_review_match else ""
+# Findings and Advisory are optional; parse them only when present so we can still
+# block the same item appearing in both sections.
+findings_text = extract_postwrite_label_block(postwrite_review_block, "Findings")
+advisory_text = extract_postwrite_label_block(postwrite_review_block, "Advisory")
+findings_items = collect_postwrite_items(findings_text)
+advisory_items = collect_postwrite_items(advisory_text)
 result["duplicate_findings_advisory_items"] = sorted(set(findings_items) & set(advisory_items))
 result["postwrite_repeats_prewrite_verdict"] = "Pre-write check:" in result["postwrite_text"]
-result["findings_has_empty_state"] = "No issues found in this review." in findings_text
-result["findings_requires_empty_state"] = bool(findings_match and not findings_items)
-result["collision_has_empty_state"] = (
-    "No related items found." in collision_text or "No conflicts found." in collision_text
+result["postwrite_forbidden_empty_bucket"] = any(
+    bucket in result["postwrite_text"] for bucket in FORBIDDEN_EMPTY_BUCKETS
 )
-result["collision_requires_empty_state"] = bool(findings_match and not collision_items)
-result["advisory_has_empty_state"] = "No additional advisories." in advisory_text
-result["advisory_requires_empty_state"] = bool(findings_match and not advisory_items)
-result["postwrite_section_structure_valid"] = bool(findings_match)
+# A bare optional label with no substantive items is an empty heading, which the
+# post-write contract forbids ("show a label only for a section that actually has
+# content"). Treat that as an invalid structure so the gate cannot pass an empty
+# post-write review; the FORBIDDEN_EMPTY_BUCKETS check only catches the old fixed
+# "none" strings, not a label left dangling with nothing under it.
+empty_postwrite_labels = [
+    label
+    for label in POSTWRITE_OPTIONAL_LABELS
+    if postwrite_label_is_empty_heading(postwrite_review_block, label)
+]
+result["empty_postwrite_labels"] = empty_postwrite_labels
+result["postwrite_review_has_content"] = postwrite_review_has_content(postwrite_review_block)
+result["postwrite_section_structure_valid"] = (
+    bool(postwrite_review_match)
+    and not empty_postwrite_labels
+    and result["postwrite_review_has_content"]
+)
 print(json.dumps(result))
 PY
 }
@@ -963,12 +1046,7 @@ run_scenario() {
   local ordered_postwrite_verification
   local duplicate_findings_advisory_items_count
   local postwrite_repeats_prewrite_verdict
-  local findings_has_empty_state
-  local findings_requires_empty_state
-  local collision_has_empty_state
-  local collision_requires_empty_state
-  local advisory_has_empty_state
-  local advisory_requires_empty_state
+  local postwrite_forbidden_empty_bucket
   local postwrite_section_structure_valid
   local unexpected_events_after_final_message
   local preview_section_count
@@ -1069,12 +1147,7 @@ run_scenario() {
     ordered_postwrite_verification="$(jq -r '.ordered_postwrite_verification' "$analysis_json")"
     duplicate_findings_advisory_items_count="$(jq -r '.duplicate_findings_advisory_items | length' "$analysis_json")"
     postwrite_repeats_prewrite_verdict="$(jq -r '.postwrite_repeats_prewrite_verdict' "$analysis_json")"
-    findings_has_empty_state="$(jq -r '.findings_has_empty_state' "$analysis_json")"
-    findings_requires_empty_state="$(jq -r '.findings_requires_empty_state' "$analysis_json")"
-    collision_has_empty_state="$(jq -r '.collision_has_empty_state' "$analysis_json")"
-    collision_requires_empty_state="$(jq -r '.collision_requires_empty_state' "$analysis_json")"
-    advisory_has_empty_state="$(jq -r '.advisory_has_empty_state' "$analysis_json")"
-    advisory_requires_empty_state="$(jq -r '.advisory_requires_empty_state' "$analysis_json")"
+    postwrite_forbidden_empty_bucket="$(jq -r '.postwrite_forbidden_empty_bucket' "$analysis_json")"
     postwrite_section_structure_valid="$(jq -r '.postwrite_section_structure_valid' "$analysis_json")"
     unexpected_events_after_final_message="$(jq -r '.unexpected_events_after_final_message' "$analysis_json")"
     preview_section_count="$(jq -r '.preview_section_count' "$analysis_json")"
@@ -1133,7 +1206,7 @@ run_scenario() {
   fi
 
   if [[ "$status" == "pass" ]]; then
-    [[ "$postwrite_text" == *"Post-Write Review"* && "$postwrite_text" == *"Findings"* && "$postwrite_text" == *"Collision check"* && "$postwrite_text" == *"Advisory"* ]] || {
+    [[ "$postwrite_text" == *"Post-Write Review"* ]] || {
       status="fail"
       validation_error="missing_postwrite_review_section"
     }
@@ -1180,19 +1253,9 @@ run_scenario() {
     validation_error="duplicate_findings_advisory_item"
   fi
 
-  if [[ "$status" == "pass" && "$findings_requires_empty_state" == "true" && "$findings_has_empty_state" != "true" ]]; then
+  if [[ "$status" == "pass" && "$postwrite_forbidden_empty_bucket" == "true" ]]; then
     status="fail"
-    validation_error="missing_findings_empty_state"
-  fi
-
-  if [[ "$status" == "pass" && "$collision_requires_empty_state" == "true" && "$collision_has_empty_state" != "true" ]]; then
-    status="fail"
-    validation_error="missing_collision_empty_state"
-  fi
-
-  if [[ "$status" == "pass" && "$advisory_requires_empty_state" == "true" && "$advisory_has_empty_state" != "true" ]]; then
-    status="fail"
-    validation_error="missing_advisory_empty_state"
+    validation_error="forbidden_empty_bucket_present"
   fi
 
   if [[ "$status" == "pass" && "$must_contain_json" != "[]" ]]; then

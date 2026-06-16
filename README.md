@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  Works with <b>Claude Code</b> · <b>Claude Desktop</b> · <b>Codex CLI</b> · <b>OpenCode</b> · <b>Gemini CLI</b>
+  Works with <b>Claude Code</b> · <b>Claude Desktop</b> · <b>Codex CLI</b> · <b>OpenCode</b> · <b>Gemini CLI</b> · <b>Hermes Agent</b> (preview)
 </p>
 
 <p align="center">
@@ -59,6 +59,7 @@ We built this because we didn't trust AI with our own config either.
 3. **You approve it.** Deletes require a specific confirmation code — not just "yes."
 4. **Writes and verifies.** Reads the config back to confirm the change stuck.
 5. **Audits itself.** Checks for mistakes, conflicts, and reliability issues.
+6. **Lets you take it back.** Reply `revert` to undo the last update — or use Home Assistant Backups anytime.
 
 **The ground rules — always:**
 
@@ -137,7 +138,7 @@ Once it finishes, try: *"Show me all my automations."*
 
 When HA NOVA gets a new workflow, that's a text file update on your machine. The Relay doesn't change. No rebuild, no restart, no risk to a running system.
 
-And because the Relay sits right next to Home Assistant, it can do things a remote client can't. Coming soon: per-change automation snapshots — so you can always roll back, something Home Assistant doesn't do out of the box.
+And because the Relay sits right next to Home Assistant, it can do things a remote client can't — like snapshotting an automation before it updates it, so you can revert that last change with a single word. Home Assistant Backups have your back for everything else.
 
 ---
 
@@ -145,7 +146,6 @@ And because the Relay sits right next to Home Assistant, it can do things a remo
 
 HA NOVA is early — and that's the point. Here's where it's going:
 
-- **Automation backups** — snapshot every automation before a change, so you can always roll back
 - **Deeper reviews everywhere** — the full 40+ rule audit, expanding beyond automations
 - **Community skills** — write a new workflow as a markdown file, share it with everyone
 - **Broader platform testing** — real-machine coverage for Linux and Windows ARM
@@ -185,6 +185,9 @@ Want to add a new capability? → [CONTRIBUTING.md](CONTRIBUTING.md)
 | [Codex CLI](https://github.com/openai/codex) | Terminal |
 | [OpenCode](https://github.com/opencode-ai/opencode) | Terminal |
 | [Gemini CLI](https://github.com/google-gemini/gemini-cli) | Terminal |
+| Hermes Agent (preview) | Terminal |
+
+> **Hermes is in preview.** The Linux desktop route (GNOME Keyring) is maintainer-validated; macOS and Windows-via-WSL2 are experimental, and native Windows isn't supported. Details: [.hermes/INSTALL.md](.hermes/INSTALL.md).
 
 ---
 

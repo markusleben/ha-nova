@@ -91,6 +91,48 @@ describe("ws proxy endpoint", () => {
     });
   });
 
+  it("rejects subscription/stream ws types with 400 and does not forward them", async () => {
+    const router = createRouter();
+    let forwarded = false;
+    router.register(
+      "POST",
+      "/ws",
+      createWsProxyHandler({
+        wsClient: {
+          sendMessage: async () => {
+            forwarded = true;
+            return { ok: true };
+          }
+        }
+      })
+    );
+
+    const { baseUrl } = await startServer(servers, router);
+    for (const type of [
+      "subscribe_events",
+      "subscribe_trigger",
+      "subscribe_entities",
+      "render_template",
+      // Slash-namespaced subscription commands also open upstream subscriptions
+      // even though they do not start with `subscribe_`.
+      "config_entries/subscribe",
+      "config_entries/flow/subscribe",
+    ]) {
+      const response = await fetch(`${baseUrl}/ws`, {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${TEST_AUTH_TOKEN}`,
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({ type })
+      });
+      expect(response.status, type).toBe(400);
+      const json = (await response.json()) as { error: { code: string } };
+      expect(json.error.code, type).toBe("UNSUPPORTED_WS_TYPE");
+    }
+    expect(forwarded).toBe(false);
+  });
+
   it("returns 400 for missing message type", async () => {
     const router = createRouter();
 

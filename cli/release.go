@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strings"
 )
 
@@ -27,14 +25,6 @@ func bundleAssetName() string {
 		ext = ".zip"
 	}
 	return fmt.Sprintf("ha-nova-installer-bundle-%s-%s%s", bundlePlatformOS(), bundlePlatformArch(), ext)
-}
-
-func rawBinaryAssetName() string {
-	name := fmt.Sprintf("ha-nova-%s-%s", bundlePlatformOS(), bundlePlatformArch())
-	if bundlePlatformOS() == "windows" {
-		return name + ".exe"
-	}
-	return name
 }
 
 func fetchLatestRelease(paths runtimePaths, quiet bool, allowCache bool) (releaseInfo, error) {
@@ -127,6 +117,26 @@ func buildUpdateCheckResult(paths runtimePaths) updateCheckResult {
 
 	result.Source = "github_releases"
 
+	// A locally dev-synced build (BuildChannel=dev, injected by scripts/dev-sync.sh)
+	// must never be nudged to update — and the check must not even require the
+	// network. localVersion reads the real version.json (e.g. 0.6.0), so without
+	// this short-circuit a dev tree below the latest release would be told to
+	// `ha-nova update` and overwrite itself; worse, an offline dev box (no cache,
+	// no network) would fall into the fetch-failure path below and surface a
+	// misleading "check_failed" instead of a clean skip. Run it BEFORE the GitHub
+	// lookup. Released binaries leave BuildChannel empty, so the real update path
+	// is untouched.
+	if current == "dev" || BuildChannel == "dev" {
+		result.CacheStatus = cacheStatus
+		result.Status = "up_to_date"
+		if BuildChannel == "dev" {
+			result.Message = "Local dev build (dev-sync) — update check skipped"
+		} else {
+			result.Message = fmt.Sprintf("Up to date: v%s", current)
+		}
+		return result
+	}
+
 	release, err := fetchLatestRelease(paths, true, true)
 	if err != nil {
 		result.CacheStatus = cacheStatus
@@ -138,11 +148,6 @@ func buildUpdateCheckResult(paths runtimePaths) updateCheckResult {
 	result.CacheStatus = "fresh"
 	result.LatestVersion = release.Version
 	result.HTMLURL = release.HTMLURL
-	if current == "dev" {
-		result.Status = "up_to_date"
-		result.Message = fmt.Sprintf("Up to date: v%s", current)
-		return result
-	}
 	cmp, err := compareReleaseVersions(current, release.Version)
 	if err != nil {
 		result.Status = "check_failed"
@@ -215,12 +220,4 @@ func humanNoticeFromUpdateCheckResult(result updateCheckResult, quiet bool) huma
 
 func checkForUpdate(paths runtimePaths, quiet bool) humanNotice {
 	return humanNoticeFromUpdateCheckResult(buildUpdateCheckResult(paths), quiet)
-}
-
-func findBundleBinary(stageDir string) string {
-	candidate := filepath.Join(stageDir, "ha-nova", publicBinaryName())
-	if _, err := os.Stat(candidate); err == nil {
-		return candidate
-	}
-	return filepath.Join(stageDir, publicBinaryName())
 }

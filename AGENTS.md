@@ -140,7 +140,7 @@ Use below list to store and recall user notes when asked to do so.
 
 - Project: ha-nova — Home Assistant AI Integration (Relay + Skills). See `PROJECT.md` for full context.
 - Reference docs in `docs/reference/` are mandatory reading before working on Relay or Skills.
-- Documentation governance: active product/reference/runbook docs live in `README.md`, `PROJECT.md`, `SUPPORT.md`, `CODE_OF_CONDUCT.md`, `CONTRIBUTING.md`, `docs/reference/`, `docs/releasing.md`, `docs/work/`, per-client install overlays (`.claude/.codex/.gemini/.opencode/INSTALL.md`), `nova/DOCS.md`, `nova/README.md`, and `skills/**/SKILL.md`; legacy superpowers history now lives under `docs/archive/superpowers/` and must not receive new active docs.
+- Documentation governance: active product/reference/runbook docs live in `README.md`, `PROJECT.md`, `SUPPORT.md`, `CODE_OF_CONDUCT.md`, `CONTRIBUTING.md`, `docs/reference/`, `docs/releasing.md`, `docs/work/`, per-client install overlays (`.claude/.codex/.gemini/.opencode/.hermes/INSTALL.md`), `nova/DOCS.md`, `nova/README.md`, and `skills/**/SKILL.md`; legacy superpowers history now lives under `docs/archive/superpowers/` and must not receive new active docs.
 - For graphics/diagrams, labels must stay consistent across all views (top view, side view, etc.).
 - Relay stays dumb, Skills stay smart. No business logic in the server.
 - Preferred terminology (2026+): use "App" instead of "Add-on", except where technical API paths force legacy terms (for example `/addons/*`).

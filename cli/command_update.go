@@ -15,6 +15,7 @@ func runUpdate(paths runtimePaths, args []string) int {
 	fs := flag.NewFlagSet("update", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	versionFlag := fs.String("version", "", "explicit version")
+	forceFlag := fs.Bool("force", false, "proceed even from a local dev build (restores the release over the dev tree)")
 	if err := fs.Parse(args); err != nil {
 		printHumanErr("%s", err)
 		return 1
@@ -23,6 +24,17 @@ func runUpdate(paths runtimePaths, args []string) int {
 	targetVersion, err := normalizeExplicitVersion(*versionFlag)
 	if err != nil {
 		printHumanErr("%s", err)
+		return 1
+	}
+	explicitTarget := targetVersion != ""
+
+	// A locally dev-synced build (BuildChannel=dev) must not be silently replaced
+	// with the published release: `ha-nova update` with no explicit target would
+	// overwrite the developer's working tree. The nudge is already suppressed for
+	// dev builds; this guards the explicit command too. Require --version/--force.
+	if BuildChannel == "dev" && targetVersion == "" && !*forceFlag {
+		printHumanErr("Local dev build detected (dev-sync) — `ha-nova update` would replace it with the published release.")
+		printHumanWarn("To restore the release deliberately, re-run with `--force` (or `--version <tag>`).")
 		return 1
 	}
 	state, err := loadStateOrDefaultChecked(paths)
@@ -58,7 +70,13 @@ func runUpdate(paths runtimePaths, args []string) int {
 		targetVersion = release.Version
 	}
 	currentVersion := localVersion(paths)
-	if currentVersion != "dev" {
+	// On a dev build, an explicit restore (--force OR --version <tag>, both
+	// offered by the guard above) must stage the release even when version.json
+	// matches the target: localVersion reads version.json (a release value like
+	// 0.6.0, not "dev"), so without this the up-to-date short-circuit below keeps
+	// the dev binary in place and the restore silently does nothing.
+	forcingDevRestore := BuildChannel == "dev" && (*forceFlag || explicitTarget)
+	if currentVersion != "dev" && !forcingDevRestore {
 		cmp, err := compareReleaseVersions(currentVersion, targetVersion)
 		if err != nil {
 			printHumanErr("cannot compare version v%s with target v%s: %s", currentVersion, targetVersion, err)

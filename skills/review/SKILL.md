@@ -250,6 +250,8 @@ Traverse all `variables:` mappings in the config, not just the top-level block. 
 
 Find other automations/scripts that control the same entities.
 
+For updates, this same scan is also run pre-write as an advisory impact preview (see `ha-nova:write` Phase 2 Step 3c and the `ha-nova:helper` update flows). The post-write run here stays mandatory and authoritative against the persisted config.
+
 Branch by target family:
 - automation/script/storage-based helper: use action-derived target entities as before
 - config-entry helper metadata item: use `linked_entities[]` from the canonical metadata item; do not attempt action extraction

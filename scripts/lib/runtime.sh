@@ -144,9 +144,16 @@ build_repo_dev_runtime() {
   mkdir -p "$(dirname "${binary_path}")"
 
   if repo_dev_binary_needs_rebuild "${binary_path}" "${meta_path}" "${current_metadata}"; then
+    # Stamp the dev build channel so `ha-nova version` self-reports DEV from the
+    # repo-dev runtime too. Without it, the session-start hook and check-update
+    # can't detect a dev build on a pure repo-dev install and would nudge it to
+    # update over itself. Released binaries omit these flags.
+    local sha stamp
+    sha="$(git -C "${REPO_ROOT}" rev-parse --short HEAD 2>/dev/null || echo local)"
+    stamp="$(date '+%Y-%m-%dT%H:%M' 2>/dev/null || echo unknown)"
     (
       cd "${REPO_ROOT}/cli"
-      go build -o "${binary_path}" .
+      go build -ldflags "-X main.BuildChannel=dev -X main.BuildStamp=${stamp}-${sha}" -o "${binary_path}" .
     )
     chmod +x "${binary_path}" 2>/dev/null || true
     printf '%s\n' "${current_metadata}" > "${meta_path}"

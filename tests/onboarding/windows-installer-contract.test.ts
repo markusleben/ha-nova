@@ -101,6 +101,64 @@ describe("install.ps1 contract", () => {
     expect(content).toContain("ha-nova uninstall --yes --purge");
   });
 
+  it("forces array shape on the remaining-paths accessor so .Count is StrictMode-safe", () => {
+    // Regression: a fresh re-install over a leftover uninstall marker crashed
+    // right after the banner with PropertyNotFoundStrict on `.Count`. PowerShell
+    // unrolls a function's `return @(...)`: zero remaining paths collapse to
+    // $null and a single path to a bare String, neither of which exposes .Count
+    // under Set-StrictMode -Version Latest. The call site must re-wrap in @(...).
+    expect(content).toContain(
+      "$remainingPaths = @(Get-ExistingUninstallRemainingPaths -Status $status)",
+    );
+    expect(content).not.toMatch(
+      /\$remainingPaths = Get-ExistingUninstallRemainingPaths/,
+    );
+  });
+
+  it("makes post-install directory cleanup best-effort so an antivirus file lock cannot abort the install", () => {
+    // Regression: a fresh install completed (runtime live in InstallDir) but the
+    // installer still crashed with a Win32 "Access is denied" on
+    // `Remove-Item $tempRoot`, because Defender briefly holds a handle on the
+    // freshly extracted unsigned ha-nova.exe and $ErrorActionPreference="Stop"
+    // turns the failed delete into a terminating error - AFTER install yet
+    // BEFORE PATH setup / setup launch. Both the temp dir and the old backup are
+    // disposable post-swap, so their deletes must tolerate a lock.
+    expect(content).toContain('$ErrorActionPreference = "Stop"');
+    expect(content).toContain(
+      "Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue",
+    );
+    expect(content).toContain(
+      "Remove-Item -LiteralPath $backupRoot -Recurse -Force -ErrorAction SilentlyContinue",
+    );
+    expect(content).not.toMatch(
+      /Remove-Item -LiteralPath \$tempRoot -Recurse -Force(?! -ErrorAction)/,
+    );
+    expect(content).not.toMatch(
+      /Remove-Item -LiteralPath \$backupRoot -Recurse -Force(?! -ErrorAction)/,
+    );
+  });
+
+  it("hardens install-time edge cases (legacy migration, running exe, empty checksum, PATH dedup, recovery null)", () => {
+    // Legacy->current migration must not abort the installer on a locked legacy binary.
+    expect(content).toContain("Could not migrate the previous Windows install");
+    // The swap that stages the old install aside must catch a running/locked ha-nova.exe.
+    expect(content).toContain("a ha-nova process may still be running");
+    // An empty .sha256 download must Fail cleanly, not throw a null-method stacktrace.
+    expect(content).toContain("$checksumRaw = Get-Content -LiteralPath $checksumPath -Raw");
+    expect(content).toContain("if (-not $checksumRaw) {");
+    // PATH membership compares NORMALIZED paths so a cased/trailing-slash variant
+    // is not treated as missing (which would prepend a duplicate every update).
+    expect(content).toContain(
+      "$normalizedTarget = Normalize-RecoveryPath -Path $PublicCommandDir",
+    );
+    expect(content).not.toContain("if ($parts -contains $PublicCommandDir) {");
+    // Recovery state must be null-checked explicitly, not via assignment truthiness
+    // (same array-unrolling family as the fixed .Count crash).
+    expect(content).toContain("$uninstallRecovery = Get-UninstallRecoveryState\n");
+    expect(content).toContain("if ($null -ne $uninstallRecovery) {");
+    expect(content).not.toContain("if ($uninstallRecovery = Get-UninstallRecoveryState) {");
+  });
+
   it("detects legacy installs and prints the dedicated cleanup one-liner", () => {
     expect(content).toContain("legacy-uninstall.ps1");
     expect(content).toContain(

@@ -46,11 +46,6 @@ func resolveClaudeMarketplaceSource(paths runtimePaths, sourceRoot string) (stri
 	}
 }
 
-func useLocalClaudeMarketplace(paths runtimePaths, sourceRoot string) bool {
-	source, err := resolveClaudeMarketplaceSource(paths, sourceRoot)
-	return err == nil && !strings.Contains(claudeMarketplaceCompareKey(source), "github:")
-}
-
 func shippedClaudeMarketplacePresentOnDisk(sourceRoot string) bool {
 	sourceRoot = strings.TrimSpace(sourceRoot)
 	if sourceRoot == "" {

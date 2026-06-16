@@ -5,10 +5,26 @@ import { describe, expect, it } from "vitest";
 describe("macOS keyring contract", () => {
   const content = readFileSync("cli/keyring_darwin.go", "utf8");
 
-  it("trusts the security tool explicitly when writing the relay token", () => {
-    expect(content).toContain('"security", "add-generic-password"');
+  it("writes the relay token without exposing it in process argv", () => {
+    // The write path must NOT pass the secret as a `security ... -w <token>`
+    // command-line argument (visible via ps). It uses go-keyring, whose macOS
+    // backend pipes the command through `security -i` (stdin) instead.
+    expect(content).toContain("keyring.Set(service, u.Username, token)");
+    expect(content).not.toContain('"-w", token');
+    expect(content).not.toContain('"add-generic-password"');
+    // No ACL-trust flag (which would prompt); same service; default keychain.
     expect(content).not.toContain('"-T", "/usr/bin/security"');
     expect(content).toContain("relayAuthTokenServiceName()");
     expect(content).not.toContain("login.keychain-db");
+  });
+
+  it("reads the relay token through go-keyring so the base64 envelope is decoded", () => {
+    // go-keyring's Set base64-wraps the stored value (go-keyring-base64:...); the
+    // read path MUST use keyring.Get to decode it. A raw `security
+    // find-generic-password -w` read returns the encoded value and would
+    // authenticate every relay call with the wrong bearer token.
+    expect(content).toContain("keyring.Get(service, u.Username)");
+    expect(content).toContain("keyring.ErrNotFound");
+    expect(content).not.toContain('"find-generic-password"');
   });
 });

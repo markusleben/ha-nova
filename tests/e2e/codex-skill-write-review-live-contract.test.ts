@@ -70,9 +70,10 @@ describe("codex write-review live e2e contract", () => {
     expect(content).toContain("forbidden_postwrite_text_present");
     expect(content).toContain("prewrite_verdict_repeated_postwrite");
     expect(content).toContain("duplicate_findings_advisory_item");
-    expect(content).toContain("missing_findings_empty_state");
-    expect(content).toContain("missing_collision_empty_state");
-    expect(content).toContain("missing_advisory_empty_state");
+    expect(content).toContain("forbidden_empty_bucket_present");
+    expect(content).not.toContain("missing_findings_empty_state");
+    expect(content).not.toContain("missing_collision_empty_state");
+    expect(content).not.toContain("missing_advisory_empty_state");
     expect(content).toContain("postwrite_section_structure_invalid");
     expect(content).toContain("incomplete_transcript");
     expect(content).toContain("duration_exceeded");
@@ -107,10 +108,17 @@ describe("codex write-review live e2e contract", () => {
     expect(content).toContain("conditions");
     expect(content).toContain(cleanPrewriteVerdict);
     expect(content).toContain(warnedPrewriteVerdict);
-    expect(content).toContain("If the Findings section has no items, print exactly: No issues found in this review.");
-    expect(content).toContain("If the collision scan finds no related items, print exactly: No related items found.");
-    expect(content).toContain("If the collision scan found related items but no real conflict remains after evaluation, print exactly: No conflicts found.");
-    expect(content).toContain("If the Advisory section has no items, print exactly: No additional advisories.");
+    expect(content).toContain("Report only what has substance");
+    expect(content).toContain("Omit every empty section.");
+    expect(content).toContain(
+      "Never print any of these exact strings anywhere in the post-write section: No issues found in this review. / No related items found. / No conflicts found. / No additional advisories."
+    );
+    expect(content).toContain('Show the "Collision check" label only when the collision scan returned related items.');
+    expect(content).toContain("collapse the Post-Write Review to a single confirmation line");
+    expect(content).toContain('Show the "Advisory" label only when there is at least one advisory item');
+    expect(content).not.toContain("If the Findings section has no items, print exactly: No issues found in this review.");
+    expect(content).not.toContain("If the collision scan finds no related items, print exactly: No related items found.");
+    expect(content).not.toContain("If the Advisory section has no items, print exactly: No additional advisories.");
     expect(content).toContain("Do not repeat a Pre-write check line inside the post-write section.");
     expect(content).toContain("config read-back, automation reload, one target entity state read, one collision scan");
     expect(content).toContain("The one target entity state read must be a single GET to /api/states/input_boolean.mcp_stress_toggle.");
@@ -137,7 +145,9 @@ describe("codex write-review live e2e contract", () => {
     expect(content).toContain("direct_re = re.compile");
     expect(content).toContain("scripts/(?:smoke|e2e|dev)/\\S+");
     expect(content).toContain("^(?:##\\s*)?Post-Write Review");
-    expect(content).toContain("(?:\\*\\*)?Findings(?:\\*\\*)?");
+    expect(content).toContain("(?:\\*\\*)?(?:Findings|Collision check|Advisory)(?:\\*\\*)?");
+    expect(content).toContain("postwrite_forbidden_empty_bucket");
+    expect(content).toContain("FORBIDDEN_EMPTY_BUCKETS");
     expect(content).toContain("shell_re = re.compile");
     expect(content).toContain("bash|sh|zsh|python3?|node|bunx?|bun|tsx");
     expect(content).toContain("Before the first HA action, read at most these repo-local files unless a write would otherwise fail");
@@ -195,15 +205,9 @@ fi`,
     expect(flagged?.must_contain_prewrite_text).toEqual(
       expect.arrayContaining(["## Preview Payload", warnedPrewriteVerdict, ...r19WarningText])
     );
-    expect(flagged?.must_contain_postwrite_text).toEqual(
-      expect.arrayContaining([
-        "Post-Write Review",
-        "Findings",
-        "No issues found in this review.",
-        "Collision check",
-        "Advisory",
-      ])
-    );
+    // Omit-empty contract: a clean post-write requires only the heading; no "none" buckets.
+    expect(flagged?.must_contain_postwrite_text).toEqual(["Post-Write Review"]);
+    expect(flagged?.must_contain_postwrite_text).not.toContain("No issues found in this review.");
     expect(flagged?.collision_item_id).toBe("input_boolean.mcp_stress_toggle");
     expect(flagged?.must_not_contain_postwrite_text).toEqual(
       expect.arrayContaining([
@@ -231,17 +235,13 @@ fi`,
         "check_flag -> reading",
       ])
     );
-    expect(persistedR18?.must_contain_postwrite_text).toEqual(
-      expect.arrayContaining([
-        "Post-Write Review",
-        "Findings",
-        "Collision check",
-        "Advisory",
-        "REST/UI write can break dependent variables in this block",
-        "check_flag -> reading",
-        "inspect traces after the next real run",
-      ])
-    );
+    // Real persisted R-18 findings keep their content; the bare empty labels are gone.
+    expect(persistedR18?.must_contain_postwrite_text).toEqual([
+      "Post-Write Review",
+      "REST/UI write can break dependent variables in this block",
+      "check_flag -> reading",
+      "inspect traces after the next real run",
+    ]);
     expect(persistedR18?.must_not_contain_postwrite_text).toEqual(
       expect.arrayContaining([
         cleanPrewriteVerdict,
@@ -261,15 +261,8 @@ fi`,
       expect(scenario?.must_contain_prewrite_text).toEqual(
         expect.arrayContaining(["## Preview Payload", cleanPrewriteVerdict])
       );
-      expect(scenario?.must_contain_postwrite_text).toEqual(
-      expect.arrayContaining([
-        "Post-Write Review",
-        "Findings",
-        "No issues found in this review.",
-        "Collision check",
-        "Advisory",
-      ])
-      );
+      expect(scenario?.must_contain_postwrite_text).toEqual(["Post-Write Review"]);
+      expect(scenario?.must_contain_postwrite_text).not.toContain("No issues found in this review.");
       expect(scenario?.must_not_contain_prewrite_text).toEqual(
         expect.arrayContaining([warnedPrewriteVerdict, ...r19WarningText, "R-19", "R19"])
       );
@@ -841,57 +834,13 @@ count_command_hits_before_index "$1" 2 '(^|[[:space:]])ha-nova[[:space:]]+(docto
     rmSync(tempDir, { recursive: true, force: true });
   });
 
-  it("marks malformed post-write section order as invalid", () => {
+  it("flags a post-write section that prints a forbidden empty 'none' bucket", () => {
     const scriptContent = readFileSync("scripts/e2e/codex-ha-nova-write-review-live-e2e.sh", "utf8");
     const python = extractWriteProofPython(scriptContent);
-    const tempDir = mkdtempSync(join(tmpdir(), "ha-nova-write-proof-order-"));
+    const tempDir = mkdtempSync(join(tmpdir(), "ha-nova-write-proof-forbidden-bucket-"));
     const scenarioLog = join(tempDir, "scenario.jsonl");
     const pythonFile = join(tempDir, "extract_write_proof.py");
-    const automationId = "nova_write_review_order_case";
-    const collisionItemId = "input_boolean.mcp_stress_toggle";
-
-    const events = [
-      {
-        type: "item.completed",
-        item: {
-          type: "agent_message",
-          text: [
-            "Post-Write Review",
-            "Advisory",
-            "No additional advisories.",
-            "Findings",
-            "No issues found in this review.",
-            "Collision check",
-            "No conflicts found.",
-            `NOVA_WRITE_REVIEW_RESULT id=test automation_id=${automationId} status=ok`,
-          ].join("\n"),
-        },
-      },
-    ];
-
-    writeFileSync(scenarioLog, `${events.map((event) => JSON.stringify(event)).join("\n")}\n`);
-    writeFileSync(pythonFile, python);
-
-    const result = JSON.parse(
-      execFileSync("python3", [pythonFile, scenarioLog, automationId, collisionItemId], {
-        encoding: "utf8",
-      })
-    ) as {
-      postwrite_section_structure_valid: boolean;
-    };
-
-    expect(result.postwrite_section_structure_valid).toBe(false);
-
-    rmSync(tempDir, { recursive: true, force: true });
-  });
-
-  it("accepts markdown heading levels for post-write section labels", () => {
-    const scriptContent = readFileSync("scripts/e2e/codex-ha-nova-write-review-live-e2e.sh", "utf8");
-    const python = extractWriteProofPython(scriptContent);
-    const tempDir = mkdtempSync(join(tmpdir(), "ha-nova-write-proof-markdown-headings-"));
-    const scenarioLog = join(tempDir, "scenario.jsonl");
-    const pythonFile = join(tempDir, "extract_write_proof.py");
-    const automationId = "nova_write_review_markdown_heading_case";
+    const automationId = "nova_write_review_forbidden_bucket_case";
     const collisionItemId = "input_boolean.mcp_stress_toggle";
 
     const events = [
@@ -943,10 +892,8 @@ count_command_hits_before_index "$1" 2 '(^|[[:space:]])ha-nova[[:space:]]+(docto
             "## Post-Write Review",
             "### Findings",
             "No issues found in this review.",
-            "",
             "### Collision check",
             "No conflicts found.",
-            "",
             "### Advisory",
             "No additional advisories.",
             `NOVA_WRITE_REVIEW_RESULT id=test automation_id=${automationId} status=ok`,
@@ -964,15 +911,268 @@ count_command_hits_before_index "$1" 2 '(^|[[:space:]])ha-nova[[:space:]]+(docto
       })
     ) as {
       postwrite_section_structure_valid: boolean;
-      findings_has_empty_state: boolean;
-      collision_has_empty_state: boolean;
-      advisory_has_empty_state: boolean;
+      postwrite_forbidden_empty_bucket: boolean;
+    };
+
+    // A Post-Write Review heading is present, so the structure itself stays valid,
+    // but printing any "none" bucket must be flagged so the bash gate fails the run.
+    expect(result.postwrite_section_structure_valid).toBe(true);
+    expect(result.postwrite_forbidden_empty_bucket).toBe(true);
+
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  it("flags a post-write section with a bare optional label that has no items", () => {
+    const scriptContent = readFileSync("scripts/e2e/codex-ha-nova-write-review-live-e2e.sh", "utf8");
+    const python = extractWriteProofPython(scriptContent);
+    const tempDir = mkdtempSync(join(tmpdir(), "ha-nova-write-proof-empty-heading-"));
+    const scenarioLog = join(tempDir, "scenario.jsonl");
+    const pythonFile = join(tempDir, "extract_write_proof.py");
+    const automationId = "nova_write_review_empty_heading_case";
+    const collisionItemId = "input_boolean.mcp_stress_toggle";
+
+    const events = [
+      {
+        type: "item.completed",
+        item: {
+          type: "command_execution",
+          exit_code: 0,
+          command: `ha-nova relay core --method=POST --path=/api/config/automation/config/${automationId} --body-file=draft.json`,
+        },
+      },
+      {
+        type: "item.completed",
+        item: {
+          type: "command_execution",
+          exit_code: 0,
+          command: `ha-nova relay core --method=GET --path=/api/config/automation/config/${automationId}`,
+        },
+      },
+      {
+        type: "item.completed",
+        item: {
+          type: "command_execution",
+          exit_code: 0,
+          command: "ha-nova relay core --method=POST --path=/api/services/automation/reload",
+        },
+      },
+      {
+        type: "item.completed",
+        item: {
+          type: "command_execution",
+          exit_code: 0,
+          command: `ha-nova relay core --method=GET --path=/api/states/${collisionItemId}`,
+        },
+      },
+      {
+        type: "item.completed",
+        item: {
+          type: "command_execution",
+          exit_code: 0,
+          command: `printf '{"type":"search/related","item_id":"${collisionItemId}"}' > payload.json && ha-nova relay ws --data-file=payload.json`,
+        },
+      },
+      {
+        type: "item.completed",
+        item: {
+          type: "agent_message",
+          // Bare optional labels with nothing under them — and crucially no "none"
+          // bucket string, so postwrite_forbidden_empty_bucket does NOT catch it.
+          // The empty-heading structure check must.
+          text: [
+            "## Post-Write Review",
+            "**Findings**",
+            "**Advisory**",
+            `NOVA_WRITE_REVIEW_RESULT id=test automation_id=${automationId} status=ok`,
+          ].join("\n"),
+        },
+      },
+    ];
+
+    writeFileSync(scenarioLog, `${events.map((event) => JSON.stringify(event)).join("\n")}\n`);
+    writeFileSync(pythonFile, python);
+
+    const result = JSON.parse(
+      execFileSync("python3", [pythonFile, scenarioLog, automationId, collisionItemId], {
+        encoding: "utf8",
+      })
+    ) as {
+      postwrite_section_structure_valid: boolean;
+      postwrite_forbidden_empty_bucket: boolean;
+      empty_postwrite_labels: string[];
+    };
+
+    // No "none" bucket is printed, so the forbidden-bucket signal stays false; the
+    // dangling empty labels must instead make the structure invalid so the gate fails.
+    expect(result.postwrite_forbidden_empty_bucket).toBe(false);
+    expect(result.postwrite_section_structure_valid).toBe(false);
+    expect(result.empty_postwrite_labels).toEqual(["Findings", "Advisory"]);
+
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  it("flags a post-write review that is just a heading with no content", () => {
+    const scriptContent = readFileSync("scripts/e2e/codex-ha-nova-write-review-live-e2e.sh", "utf8");
+    const python = extractWriteProofPython(scriptContent);
+    const tempDir = mkdtempSync(join(tmpdir(), "ha-nova-write-proof-heading-only-"));
+    const scenarioLog = join(tempDir, "scenario.jsonl");
+    const pythonFile = join(tempDir, "extract_write_proof.py");
+    const automationId = "nova_write_review_heading_only_case";
+    const collisionItemId = "input_boolean.mcp_stress_toggle";
+
+    const events = [
+      {
+        type: "item.completed",
+        item: {
+          type: "command_execution",
+          exit_code: 0,
+          command: `ha-nova relay core --method=POST --path=/api/config/automation/config/${automationId} --body-file=draft.json`,
+        },
+      },
+      {
+        type: "item.completed",
+        item: {
+          type: "command_execution",
+          exit_code: 0,
+          command: `ha-nova relay core --method=GET --path=/api/config/automation/config/${automationId}`,
+        },
+      },
+      {
+        type: "item.completed",
+        item: {
+          type: "command_execution",
+          exit_code: 0,
+          command: "ha-nova relay core --method=POST --path=/api/services/automation/reload",
+        },
+      },
+      {
+        type: "item.completed",
+        item: {
+          type: "command_execution",
+          exit_code: 0,
+          command: `ha-nova relay core --method=GET --path=/api/states/${collisionItemId}`,
+        },
+      },
+      {
+        type: "item.completed",
+        item: {
+          type: "command_execution",
+          exit_code: 0,
+          command: `printf '{"type":"search/related","item_id":"${collisionItemId}"}' > payload.json && ha-nova relay ws --data-file=payload.json`,
+        },
+      },
+      {
+        type: "item.completed",
+        item: {
+          type: "agent_message",
+          // A bare "## Post-Write Review" heading followed only by the machine result
+          // line — no sections, no confirmation line. The all-empty review must
+          // collapse to a confirmation line, so this structure is invalid.
+          text: [
+            "## Post-Write Review",
+            `NOVA_WRITE_REVIEW_RESULT id=test automation_id=${automationId} status=ok`,
+          ].join("\n"),
+        },
+      },
+    ];
+
+    writeFileSync(scenarioLog, `${events.map((event) => JSON.stringify(event)).join("\n")}\n`);
+    writeFileSync(pythonFile, python);
+
+    const result = JSON.parse(
+      execFileSync("python3", [pythonFile, scenarioLog, automationId, collisionItemId], {
+        encoding: "utf8",
+      })
+    ) as {
+      postwrite_section_structure_valid: boolean;
+      postwrite_review_has_content: boolean;
+    };
+
+    expect(result.postwrite_review_has_content).toBe(false);
+    expect(result.postwrite_section_structure_valid).toBe(false);
+
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  it("accepts a clean post-write section that omits empty sections and ends with one confirmation line", () => {
+    const scriptContent = readFileSync("scripts/e2e/codex-ha-nova-write-review-live-e2e.sh", "utf8");
+    const python = extractWriteProofPython(scriptContent);
+    const tempDir = mkdtempSync(join(tmpdir(), "ha-nova-write-proof-clean-omit-empty-"));
+    const scenarioLog = join(tempDir, "scenario.jsonl");
+    const pythonFile = join(tempDir, "extract_write_proof.py");
+    const automationId = "nova_write_review_clean_omit_empty_case";
+    const collisionItemId = "input_boolean.mcp_stress_toggle";
+
+    const events = [
+      {
+        type: "item.completed",
+        item: {
+          type: "command_execution",
+          exit_code: 0,
+          command: `ha-nova relay core --method=POST --path=/api/config/automation/config/${automationId} --body-file=draft.json`,
+        },
+      },
+      {
+        type: "item.completed",
+        item: {
+          type: "command_execution",
+          exit_code: 0,
+          command: `ha-nova relay core --method=GET --path=/api/config/automation/config/${automationId}`,
+        },
+      },
+      {
+        type: "item.completed",
+        item: {
+          type: "command_execution",
+          exit_code: 0,
+          command: "ha-nova relay core --method=POST --path=/api/services/automation/reload",
+        },
+      },
+      {
+        type: "item.completed",
+        item: {
+          type: "command_execution",
+          exit_code: 0,
+          command: `ha-nova relay core --method=GET --path=/api/states/${collisionItemId}`,
+        },
+      },
+      {
+        type: "item.completed",
+        item: {
+          type: "command_execution",
+          exit_code: 0,
+          command: `printf '{"type":"search/related","item_id":"${collisionItemId}"}' > payload.json && ha-nova relay ws --data-file=payload.json`,
+        },
+      },
+      {
+        type: "item.completed",
+        item: {
+          type: "agent_message",
+          text: [
+            "## Post-Write Review",
+            "Verified - no issues or conflicts.",
+            `NOVA_WRITE_REVIEW_RESULT id=test automation_id=${automationId} status=ok`,
+          ].join("\n"),
+        },
+      },
+    ];
+
+    writeFileSync(scenarioLog, `${events.map((event) => JSON.stringify(event)).join("\n")}\n`);
+    writeFileSync(pythonFile, python);
+
+    const result = JSON.parse(
+      execFileSync("python3", [pythonFile, scenarioLog, automationId, collisionItemId], {
+        encoding: "utf8",
+      })
+    ) as {
+      postwrite_section_structure_valid: boolean;
+      postwrite_forbidden_empty_bucket: boolean;
+      duplicate_findings_advisory_items: string[];
     };
 
     expect(result.postwrite_section_structure_valid).toBe(true);
-    expect(result.findings_has_empty_state).toBe(true);
-    expect(result.collision_has_empty_state).toBe(true);
-    expect(result.advisory_has_empty_state).toBe(true);
+    expect(result.postwrite_forbidden_empty_bucket).toBe(false);
+    expect(result.duplicate_findings_advisory_items).toEqual([]);
 
     rmSync(tempDir, { recursive: true, force: true });
   });
@@ -1045,7 +1245,7 @@ count_command_hits_before_index "$1" 2 '(^|[[:space:]])ha-nova[[:space:]]+(docto
             "Why: Example",
             "Fix: Example",
             "Collision check",
-            "No related items found.",
+            "- Overlaps with one existing automation on the shared toggle.",
             "Advisory",
             "Pre-write check: this draft may not behave as intended.",
             "🔴 Shared issue",
@@ -1065,10 +1265,12 @@ count_command_hits_before_index "$1" 2 '(^|[[:space:]])ha-nova[[:space:]]+(docto
     ) as {
       duplicate_findings_advisory_items: string[];
       postwrite_repeats_prewrite_verdict: boolean;
+      postwrite_forbidden_empty_bucket: boolean;
     };
 
     expect(result.postwrite_repeats_prewrite_verdict).toBe(true);
     expect(result.duplicate_findings_advisory_items).toContain("shared issue");
+    expect(result.postwrite_forbidden_empty_bucket).toBe(false);
 
     rmSync(tempDir, { recursive: true, force: true });
   });
@@ -1163,13 +1365,13 @@ count_command_hits_before_index "$1" 2 '(^|[[:space:]])ha-nova[[:space:]]+(docto
     rmSync(tempDir, { recursive: true, force: true });
   });
 
-  it("requires the advisory empty state when the advisory section has no items", () => {
+  it("accepts a collision scenario that shows the Collision check with the related item", () => {
     const scriptContent = readFileSync("scripts/e2e/codex-ha-nova-write-review-live-e2e.sh", "utf8");
     const python = extractWriteProofPython(scriptContent);
-    const tempDir = mkdtempSync(join(tmpdir(), "ha-nova-write-proof-empty-advisory-"));
+    const tempDir = mkdtempSync(join(tmpdir(), "ha-nova-write-proof-collision-related-"));
     const scenarioLog = join(tempDir, "scenario.jsonl");
     const pythonFile = join(tempDir, "extract_write_proof.py");
-    const automationId = "nova_write_review_empty_advisory_case";
+    const automationId = "nova_write_review_collision_related_case";
     const collisionItemId = "input_boolean.mcp_stress_toggle";
 
     const events = [
@@ -1218,12 +1420,10 @@ count_command_hits_before_index "$1" 2 '(^|[[:space:]])ha-nova[[:space:]]+(docto
         item: {
           type: "agent_message",
           text: [
-            "Post-Write Review",
-            "Findings",
-            "No issues found in this review.",
-            "Collision check",
-            "No conflicts found.",
-            "Advisory",
+            "## Post-Write Review",
+            "**Collision check**",
+            "- Overlaps with one existing automation that also drives the shared toggle.",
+            "- No opposing action remains after evaluation, so no real conflict.",
             `NOVA_WRITE_REVIEW_RESULT id=test automation_id=${automationId} status=ok`,
           ].join("\n"),
         },
@@ -1238,12 +1438,16 @@ count_command_hits_before_index "$1" 2 '(^|[[:space:]])ha-nova[[:space:]]+(docto
         encoding: "utf8",
       })
     ) as {
-      advisory_has_empty_state: boolean;
-      advisory_requires_empty_state: boolean;
+      postwrite_section_structure_valid: boolean;
+      postwrite_forbidden_empty_bucket: boolean;
+      postwrite_text: string;
     };
 
-    expect(result.advisory_requires_empty_state).toBe(true);
-    expect(result.advisory_has_empty_state).toBe(false);
+    // A collision scenario surfaces the Collision check section with the related
+    // item; it must stay clean of any forbidden "none" bucket string.
+    expect(result.postwrite_section_structure_valid).toBe(true);
+    expect(result.postwrite_forbidden_empty_bucket).toBe(false);
+    expect(result.postwrite_text).toContain("Collision check");
 
     rmSync(tempDir, { recursive: true, force: true });
   });

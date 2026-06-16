@@ -32,7 +32,7 @@ describe("client install docs contract", () => {
     expect(readme).toContain("https://github.com/markusleben/ha-nova/releases/latest");
     expect(readme).toContain("Git for Windows / Git Bash");
     expect(readme).toContain("Gemini CLI needs Node.js");
-    expect(readme).not.toContain("Hermes Agent");
+    // Hermes is now a listed (preview) client like the others; the gate is resolved.
     expect(readme).not.toContain("docs/reference/hermes-platform-validation.md");
     expect(readme).not.toContain("raw.githubusercontent.com/markusleben/ha-nova/main/install.sh");
     expect(readme).not.toContain("raw.githubusercontent.com/markusleben/ha-nova/main/install.ps1");
@@ -134,7 +134,7 @@ describe("client install docs contract", () => {
     expect(hermesInstall).toContain("skill_view");
 
     expect(hermesInstall).toContain("Hermes Agent");
-    expect(hermesInstall).toContain("early support (preview) starting with HA NOVA v0.5.0");
+    expect(hermesInstall).toContain("early support (preview)");
     expect(hermesInstall).toContain("ha-nova setup hermes");
     expect(hermesInstall).toContain("ha-nova check-update");
     expect(hermesInstall).toContain("What Supported Means Here");
@@ -178,11 +178,14 @@ describe("client install docs contract", () => {
     expect(claudeInstall).toContain("Git Bash");
   });
 
-  it("keeps Hermes in the release train without promoting the public README claim early", () => {
-    expect(hermesReleaseGate).toContain("Status: active");
-    expect(hermesReleaseGate).toContain("Keep public `README.md` release-conservative until the final release PR.");
-    expect(hermesReleaseGate).toContain("restore the public Hermes claim in `README.md`, if release proof is complete");
-    expect(hermesInstall).toContain("once that validation matrix is complete");
-    expect(readme).not.toContain("Hermes Agent");
+  it("lists Hermes as a preview client now that the release-claim gate is resolved", () => {
+    // v0.6.0 resolved the gate: Hermes is in the public README as a PREVIEW client,
+    // honestly scoped (Linux validated; macOS/WSL2 experimental; native Windows unsupported).
+    expect(hermesReleaseGate).toContain("Status: resolved (v0.6.0)");
+    expect(hermesReleaseGate).toContain("listed in the public `README.md` as a **preview** client");
+    expect(hermesInstall).toContain("client since v0.6.0");
+    expect(readme).toContain("Hermes Agent");
+    expect(readme).toContain("Hermes is in preview");
+    expect(readme).toContain("native Windows isn't supported");
   });
 });

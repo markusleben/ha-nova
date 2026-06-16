@@ -9,7 +9,7 @@ It provides secure, authenticated access to Home Assistant's APIs and extends th
 AI Client → NOVA Relay (this App) → Home Assistant APIs
 ```
 
-Your AI client (Claude Code, Claude Desktop, Codex, OpenCode, Gemini CLI) connects
+Your AI client (Claude Code, Claude Desktop, Codex, OpenCode, Gemini CLI, Hermes Agent) connects
 to the relay using an auth token. Intelligence lives in the AI client's skills, not
 in the relay.
 
@@ -79,7 +79,7 @@ A healthy response looks like:
   "data": {
     "status": "ok",
     "ha_ws_connected": true,
-    "version": "0.2.0",
+    "version": "0.2.1",
     "uptime_s": 3621
   }
 }
