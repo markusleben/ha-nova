@@ -62,7 +62,9 @@ describe("dev-sync contract", () => {
     // dev_runtime_target rejects any candidate inside the repo working tree.
     expect(content).toContain("path_within_repo()");
     expect(content).toContain('if ! path_within_repo "${resolved}"; then');
-    expect(content).toContain("restore the release with 'ha-nova update'");
+    // The dev guard refuses a plain `ha-nova update`, so the hint must name --force.
+    expect(content).toContain("restore the release with 'ha-nova update --force'");
+    expect(content).not.toContain("restore the release with 'ha-nova update'\"");
     // Wired into the main flow right after the Claude sync.
     expect(content).toContain("sync_claude\nsync_cli_runtime\n");
   });

@@ -314,7 +314,8 @@ dev_runtime_target() {
 
 # Rebuild the local Go CLI onto the runtime binary the installed clients call,
 # so skills and CLI stay in lockstep for live dev testing. This is a local dev
-# build (unstamped version); restore the released CLI with `ha-nova update`.
+# build (unstamped version); restore the released CLI with `ha-nova update --force`
+# (a plain `ha-nova update` is refused once the build is stamped BuildChannel=dev).
 sync_cli_runtime() {
   if ! command -v go >/dev/null 2>&1 || [[ ! -f "${REPO_ROOT}/cli/main.go" ]]; then
     echo "[dev:sync] CLI: Go toolchain or cli/ missing — CLI not rebuilt (new ha-nova subcommands stay unavailable)"
@@ -340,7 +341,7 @@ sync_cli_runtime() {
   if (cd "${REPO_ROOT}/cli" && go build -ldflags "$(dev_build_ldflags)" -o "${target}" .); then
     chmod 755 "${target}" 2>/dev/null || true
     echo "[dev:sync] CLI: built local Go source → ${target}"
-    echo "[dev:sync] CLI: local dev build active — 'ha-nova version' now reports DEV; restore the release with 'ha-nova update'"
+    echo "[dev:sync] CLI: local dev build active — 'ha-nova version' now reports DEV; restore the release with 'ha-nova update --force'"
     synced+=("CLI")
   else
     echo "[dev:sync] CLI: go build failed — fix the error above, then re-sync" >&2
