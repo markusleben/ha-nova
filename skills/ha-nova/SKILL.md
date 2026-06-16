@@ -164,6 +164,7 @@ Match user intent to exactly one skill:
 | enable/disable/trigger an automation | `ha-nova:service-call` |
 | find entities by name, room, area | `ha-nova:entity-discovery` |
 | fix relay/auth/connectivity errors | `ha-nova:onboarding` |
+| undo, revert, or restore the last automation/script/helper change | the skill that wrote it — `ha-nova:write` (automation/script) or `ha-nova:helper` (helper); the snapshot-restore flow lives there, not in fallback. Run `ha-nova snapshot show` to see the saved target if unsure |
 | **any HA task not matched above** — blueprints, energy, calendars, zones/persons/tags, unsupported admin writes, any unfamiliar raw relay/ws/core write | `ha-nova:fallback` **(mandatory fallback — never skip)** |
 
 **"Analyze my automation"** → `ha-nova:review` (NOT read + review)
@@ -173,6 +174,7 @@ Match user intent to exactly one skill:
 **"Create an automation"** → `ha-nova:write` (NOT read + write)
 **"Create an input_boolean"** → `ha-nova:helper` (NOT write)
 **"Show my helpers"** → `ha-nova:helper` (NOT read)
+**"Revert that"** / **"Undo the last change"** → re-invoke the skill that made it: `ha-nova:write` (automation/script) or `ha-nova:helper` (helper) — the `revert` / snapshot-restore flow lives there (see `write-safety.md` → Update-Revert), never `ha-nova:fallback`
 **"Show my main dashboard"** → `ha-nova:dashboard`
 **"Create a dashboard called Test Board"** → `ha-nova:dashboard`
 **"Delete the Test dashboard"** → `ha-nova:dashboard`

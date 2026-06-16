@@ -130,7 +130,7 @@ If 0 results: try synonyms or shorter stems. Never dump entire domains.
    ```
 6. Verify by re-reading the same list item.
 7. Run storage-family post-write review (see below).
-8. Update-Revert: after the verified update, capture the snapshot and offer `revert` — see `skills/ha-nova/write-safety.md` → Update-Revert. Storage-family restore re-issues this `{type}/update` with `before_config` (the pre-update list item); `expected_after` is the post-update read-back.
+8. Update-Revert: after the verified update, capture the snapshot and offer `revert` — see `skills/ha-nova/write-safety.md` → Update-Revert. Storage-family restore rebuilds a schema-valid `{type}/update` from `before_config` (typed `{type}_id` from its `id` + writable fields only — never the raw list item, which lacks `{type}_id` and carries read-only `id`/`entity_id`); `expected_after` is the post-update read-back.
 
 #### Deleting a helper
 

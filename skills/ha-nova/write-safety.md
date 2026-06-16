@@ -150,8 +150,12 @@ fallback in the same breath — never a bare "undo":
    write path, then verify it like any other write:
    - `ha-nova:write` (automation/script): run the apply phase with
      `OPERATION=update`, `TARGET_ID=<target_id>`, `PAYLOAD=before_config`.
-   - `ha-nova:helper` storage family: re-issue the storage `{type}/update` WS
-     call with `before_config`, then re-read the list item to confirm.
+   - `ha-nova:helper` storage family: rebuild a schema-valid `{type}/update`
+     payload from `before_config` — set `{type}_id` from its stored `id` and
+     include only writable update fields (drop read-only `id`/`entity_id`; see
+     `skills/ha-nova/helper-schemas.md` → Common Rules). Sending the raw
+     `before_config` list item fails: it lacks the required `{type}_id`. Re-issue
+     that `{type}/update` WS call, then re-read the list item to confirm.
    - `ha-nova:helper` config-entry family: no auto-revert (options-flow writes
      are multi-step) — point to HA Backups.
 
