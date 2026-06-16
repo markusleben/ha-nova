@@ -76,6 +76,28 @@ func TestDiffNumberRepresentationIsNotADrift(t *testing.T) {
 	}
 }
 
+func TestDecodeJSONNumberRejectsTrailingTokens(t *testing.T) {
+	// A file with a second object / trailing garbage must fail, not silently compare
+	// only the first object — diff or the revert drift check would otherwise operate
+	// on a partial config (e.g. an LLM/file tool appends a second JSON object).
+	for _, in := range []string{
+		`{"mode":"restart"}{"mode":"single"}`,
+		`{"mode":"restart"}` + "\n" + `{"mode":"single"}`,
+		`{"mode":"restart"} garbage`,
+		`{"mode":"restart"} 5`,
+	} {
+		if _, err := decodeJSONNumber([]byte(in)); err == nil {
+			t.Fatalf("expected trailing-token rejection for %q", in)
+		}
+	}
+	// A single object — including trailing whitespace/newline — still decodes cleanly.
+	for _, in := range []string{`{"mode":"single"}`, `{"mode":"single"}` + "\n", "  {\"a\":1}  "} {
+		if _, err := decodeJSONNumber([]byte(in)); err != nil {
+			t.Fatalf("unexpected error for valid single object %q: %v", in, err)
+		}
+	}
+}
+
 func TestDiffTypeOnlyChangeShowsType(t *testing.T) {
 	// A number→string (or bool→string) change must not render a confusing "5 → 5";
 	// the type disambiguates it.

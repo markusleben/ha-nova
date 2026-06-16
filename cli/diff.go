@@ -78,6 +78,13 @@ func decodeJSONNumber(data []byte) (interface{}, error) {
 	if err := dec.Decode(&v); err != nil {
 		return nil, err
 	}
+	// The input must be exactly one JSON value. json.Decoder stops at the end of the
+	// first value, so a truncated/garbage file like `{…}\n{…}` would otherwise
+	// silently compare only its first object — making diff or the revert drift check
+	// operate on a partial config instead of failing the malformed input.
+	if _, err := dec.Token(); err != io.EOF {
+		return nil, fmt.Errorf("config must be a single JSON object")
+	}
 	return v, nil
 }
 
