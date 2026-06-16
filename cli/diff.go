@@ -352,7 +352,10 @@ func formatValue(v interface{}) string {
 		if t == "" {
 			return `""`
 		}
-		return t
+		// Escape control chars (newlines/tabs from a multiline description or
+		// template) and cap length so one value can't split a `## Changes` bullet
+		// into unprefixed lines — the skill prints this stdout verbatim.
+		return truncate(escapeInline(t))
 	case bool:
 		if t {
 			return "true"
@@ -417,6 +420,10 @@ func truncate(s string) string {
 		return s
 	}
 	return s[:max] + "…"
+}
+
+func escapeInline(s string) string {
+	return strings.NewReplacer("\n", `\n`, "\r", `\r`, "\t", `\t`).Replace(s)
 }
 
 // valuesEqual compares two decoded JSON values for semantic equality. Numbers

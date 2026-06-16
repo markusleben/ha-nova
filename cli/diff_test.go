@@ -2,6 +2,7 @@ package main
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -43,6 +44,19 @@ func TestDiffMissingVsEmptyIsNotAChange(t *testing.T) {
 	assertLines(t, diffLines(t, `{"alias":"X","conditions":[]}`, `{"alias":"X"}`), nil)
 	assertLines(t, diffLines(t, `{"alias":"X","data":{}}`, `{"alias":"X"}`), nil)
 	assertLines(t, diffLines(t, `{"alias":"X","note":null}`, `{"alias":"X"}`), nil)
+}
+
+func TestDiffEscapesMultilineStringValues(t *testing.T) {
+	// A multiline string value (automation description/template) must not embed a
+	// raw newline/tab that splits the `## Changes` bullet into unprefixed lines —
+	// the skill prints `ha-nova diff` stdout verbatim.
+	got := diffLines(t, `{"description":"old\nline"}`, `{"description":"new\tval"}`)
+	if len(got) != 1 {
+		t.Fatalf("expected 1 change, got %#v", got)
+	}
+	if strings.ContainsAny(got[0], "\n\r\t") {
+		t.Fatalf("diff line must not contain a raw control char: %q", got[0])
+	}
 }
 
 func TestDiffNumberRepresentationIsNotADrift(t *testing.T) {

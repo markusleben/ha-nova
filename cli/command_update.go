@@ -26,6 +26,7 @@ func runUpdate(paths runtimePaths, args []string) int {
 		printHumanErr("%s", err)
 		return 1
 	}
+	explicitTarget := targetVersion != ""
 
 	// A locally dev-synced build (BuildChannel=dev) must not be silently replaced
 	// with the published release: `ha-nova update` with no explicit target would
@@ -69,11 +70,12 @@ func runUpdate(paths runtimePaths, args []string) int {
 		targetVersion = release.Version
 	}
 	currentVersion := localVersion(paths)
-	// A dev build forcing a restore (--force) must stage the release even when its
-	// version.json matches the target: localVersion reads version.json (a release
-	// value like 0.6.0, not "dev"), so without this the up-to-date short-circuit
-	// below keeps the dev binary in place and --force silently does nothing.
-	forcingDevRestore := BuildChannel == "dev" && *forceFlag
+	// On a dev build, an explicit restore (--force OR --version <tag>, both
+	// offered by the guard above) must stage the release even when version.json
+	// matches the target: localVersion reads version.json (a release value like
+	// 0.6.0, not "dev"), so without this the up-to-date short-circuit below keeps
+	// the dev binary in place and the restore silently does nothing.
+	forcingDevRestore := BuildChannel == "dev" && (*forceFlag || explicitTarget)
 	if currentVersion != "dev" && !forcingDevRestore {
 		cmp, err := compareReleaseVersions(currentVersion, targetVersion)
 		if err != nil {
