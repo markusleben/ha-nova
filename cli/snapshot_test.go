@@ -207,6 +207,27 @@ func TestSnapshotVerifyIgnoresHAManagedID(t *testing.T) {
 	}
 }
 
+func TestSnapshotVerifyDriftsOnHelperIdChange(t *testing.T) {
+	// A storage helper's `id` is the {type}_id the revert rebuilds its update from.
+	// If the helper was deleted/recreated with the same visible fields but a new
+	// internal id, content compares equal — but a blind restore would target the
+	// stale id and fail. An id present on both sides that differs must read as drift.
+	snap := undoSnapshot{
+		ExpectedAfter: []byte(`{"id":"5","name":"Sleep timer","duration":"00:30:00"}`),
+	}
+	if match, err := snapshotMatchesLive(snap, []byte(`{"id":"9","name":"Sleep timer","duration":"00:30:00"}`)); err != nil {
+		t.Fatalf("compare failed: %v", err)
+	} else if match {
+		t.Fatal("a helper id change with the same visible fields must be reported as drift")
+	}
+	// Same id + content still matches (no false drift from the identity check).
+	if match, err := snapshotMatchesLive(snap, []byte(`{"id":"5","name":"Sleep timer","duration":"00:30:00"}`)); err != nil {
+		t.Fatalf("compare failed: %v", err)
+	} else if !match {
+		t.Fatal("same id and content must match")
+	}
+}
+
 func TestSnapshotVerifyIgnoresHAEmptyOptionalFields(t *testing.T) {
 	// Regression caught by live verification against real HA data: a real
 	// automation carries description: "" (and an id) that the skill's filtered

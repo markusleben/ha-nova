@@ -215,13 +215,16 @@ func loadUndoSnapshot(paths runtimePaths) (undoSnapshot, error) {
 
 // snapshotMatchesLive reports whether the live config still matches the stored
 // post-write read-back. It compares at the CONTENT level — using the same
-// normalisation as `ha-nova diff` — so HA-managed bookkeeping (id, unique_id,
-// created_at, …) and singular/plural alias differences are never mistaken for
-// drift. Object key order is irrelevant; array order stays significant. Only a
-// real content change (an external edit) refuses the blind restore.
+// normalisation as `ha-nova diff` — so volatile HA bookkeeping (created_at,
+// last_triggered, …) and singular/plural alias differences are never mistaken for
+// drift. Object key order is irrelevant; array order stays significant.
 //
-// This must stay aligned with `ha-nova diff`: if the two ever disagreed, the
-// drift guard would cry wolf on every revert and train the model to ignore it.
+// Identity is the exception: a storage helper's `id` is the `{type}_id` the revert
+// rebuilds its update from, so if the target was deleted/recreated with the same
+// visible fields but a new internal id, the content compares equal yet a blind
+// restore would apply to a stale id and fail. When `id`/`unique_id` are present on
+// BOTH sides and differ, treat it as drift. A key the stored snapshot omitted
+// (older/filtered read-back) can't be compared, so it is never treated as drift.
 func snapshotMatchesLive(snap undoSnapshot, liveRaw []byte) (bool, error) {
 	expected, err := configObjectFromBytes(snap.ExpectedAfter)
 	if err != nil {
@@ -231,5 +234,23 @@ func snapshotMatchesLive(snap undoSnapshot, liveRaw []byte) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("live config is not valid JSON: %s", err)
 	}
-	return len(renderConfigChanges(expected, live)) == 0, nil
+	if len(renderConfigChanges(expected, live)) != 0 {
+		return false, nil
+	}
+	return identityKeysMatch(expected, live), nil
+}
+
+// identityKeysMatch reports whether the identity keys agree. Only a value present
+// on both sides that differs counts as a mismatch — a key the snapshot omitted is
+// uncomparable, not drift (preserves the HA-managed-id behaviour where a filtered
+// snapshot has no id but the live config carries one).
+func identityKeysMatch(expected, live map[string]interface{}) bool {
+	for _, k := range []string{"id", "unique_id"} {
+		ev, eok := expected[k]
+		lv, lok := live[k]
+		if eok && lok && !valuesEqual(ev, lv) {
+			return false
+		}
+	}
+	return true
 }
