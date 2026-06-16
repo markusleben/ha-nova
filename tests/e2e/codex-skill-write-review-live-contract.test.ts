@@ -922,6 +922,95 @@ count_command_hits_before_index "$1" 2 '(^|[[:space:]])ha-nova[[:space:]]+(docto
     rmSync(tempDir, { recursive: true, force: true });
   });
 
+  it("flags a post-write section with a bare optional label that has no items", () => {
+    const scriptContent = readFileSync("scripts/e2e/codex-ha-nova-write-review-live-e2e.sh", "utf8");
+    const python = extractWriteProofPython(scriptContent);
+    const tempDir = mkdtempSync(join(tmpdir(), "ha-nova-write-proof-empty-heading-"));
+    const scenarioLog = join(tempDir, "scenario.jsonl");
+    const pythonFile = join(tempDir, "extract_write_proof.py");
+    const automationId = "nova_write_review_empty_heading_case";
+    const collisionItemId = "input_boolean.mcp_stress_toggle";
+
+    const events = [
+      {
+        type: "item.completed",
+        item: {
+          type: "command_execution",
+          exit_code: 0,
+          command: `ha-nova relay core --method=POST --path=/api/config/automation/config/${automationId} --body-file=draft.json`,
+        },
+      },
+      {
+        type: "item.completed",
+        item: {
+          type: "command_execution",
+          exit_code: 0,
+          command: `ha-nova relay core --method=GET --path=/api/config/automation/config/${automationId}`,
+        },
+      },
+      {
+        type: "item.completed",
+        item: {
+          type: "command_execution",
+          exit_code: 0,
+          command: "ha-nova relay core --method=POST --path=/api/services/automation/reload",
+        },
+      },
+      {
+        type: "item.completed",
+        item: {
+          type: "command_execution",
+          exit_code: 0,
+          command: `ha-nova relay core --method=GET --path=/api/states/${collisionItemId}`,
+        },
+      },
+      {
+        type: "item.completed",
+        item: {
+          type: "command_execution",
+          exit_code: 0,
+          command: `printf '{"type":"search/related","item_id":"${collisionItemId}"}' > payload.json && ha-nova relay ws --data-file=payload.json`,
+        },
+      },
+      {
+        type: "item.completed",
+        item: {
+          type: "agent_message",
+          // Bare optional labels with nothing under them — and crucially no "none"
+          // bucket string, so postwrite_forbidden_empty_bucket does NOT catch it.
+          // The empty-heading structure check must.
+          text: [
+            "## Post-Write Review",
+            "**Findings**",
+            "**Advisory**",
+            `NOVA_WRITE_REVIEW_RESULT id=test automation_id=${automationId} status=ok`,
+          ].join("\n"),
+        },
+      },
+    ];
+
+    writeFileSync(scenarioLog, `${events.map((event) => JSON.stringify(event)).join("\n")}\n`);
+    writeFileSync(pythonFile, python);
+
+    const result = JSON.parse(
+      execFileSync("python3", [pythonFile, scenarioLog, automationId, collisionItemId], {
+        encoding: "utf8",
+      })
+    ) as {
+      postwrite_section_structure_valid: boolean;
+      postwrite_forbidden_empty_bucket: boolean;
+      empty_postwrite_labels: string[];
+    };
+
+    // No "none" bucket is printed, so the forbidden-bucket signal stays false; the
+    // dangling empty labels must instead make the structure invalid so the gate fails.
+    expect(result.postwrite_forbidden_empty_bucket).toBe(false);
+    expect(result.postwrite_section_structure_valid).toBe(false);
+    expect(result.empty_postwrite_labels).toEqual(["Findings", "Advisory"]);
+
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+
   it("accepts a clean post-write section that omits empty sections and ends with one confirmation line", () => {
     const scriptContent = readFileSync("scripts/e2e/codex-ha-nova-write-review-live-e2e.sh", "utf8");
     const python = extractWriteProofPython(scriptContent);

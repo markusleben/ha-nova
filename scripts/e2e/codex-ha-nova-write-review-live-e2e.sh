@@ -764,6 +764,32 @@ def extract_postwrite_label_block(section_text: str, label: str) -> str:
         block_end = min(block_end, block_start + next_heading.start())
     return section_text[block_start:block_end].strip()
 
+
+POSTWRITE_OPTIONAL_LABELS = ("Findings", "Collision check", "Advisory")
+
+
+def postwrite_label_present(section_text: str, label: str) -> bool:
+    return bool(
+        re.search(
+            rf"(?mi)^\s*(?:#+\s*)?(?:\*\*)?{re.escape(label)}(?:\*\*)?\s*$",
+            section_text,
+        )
+    )
+
+
+def postwrite_label_is_empty_heading(section_text: str, label: str) -> bool:
+    # A label with substantive items is fine; a label carrying only a forbidden
+    # "none" bucket is already caught by postwrite_forbidden_empty_bucket. Flag only
+    # a label with literally nothing under it — the dangling empty heading the
+    # post-write contract forbids and that no other signal catches.
+    if not postwrite_label_present(section_text, label):
+        return False
+    label_block = extract_postwrite_label_block(section_text, label)
+    if collect_postwrite_items(label_block):
+        return False
+    return not any(bucket in label_block for bucket in FORBIDDEN_EMPTY_BUCKETS)
+
+
 def strip_status_lines(text: str) -> str:
     kept_lines = []
     for raw_line in text.splitlines():
@@ -939,7 +965,20 @@ result["postwrite_repeats_prewrite_verdict"] = "Pre-write check:" in result["pos
 result["postwrite_forbidden_empty_bucket"] = any(
     bucket in result["postwrite_text"] for bucket in FORBIDDEN_EMPTY_BUCKETS
 )
-result["postwrite_section_structure_valid"] = bool(postwrite_review_match)
+# A bare optional label with no substantive items is an empty heading, which the
+# post-write contract forbids ("show a label only for a section that actually has
+# content"). Treat that as an invalid structure so the gate cannot pass an empty
+# post-write review; the FORBIDDEN_EMPTY_BUCKETS check only catches the old fixed
+# "none" strings, not a label left dangling with nothing under it.
+empty_postwrite_labels = [
+    label
+    for label in POSTWRITE_OPTIONAL_LABELS
+    if postwrite_label_is_empty_heading(postwrite_review_block, label)
+]
+result["empty_postwrite_labels"] = empty_postwrite_labels
+result["postwrite_section_structure_valid"] = (
+    bool(postwrite_review_match) and not empty_postwrite_labels
+)
 print(json.dumps(result))
 PY
 }
