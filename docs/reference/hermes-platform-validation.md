@@ -2,7 +2,7 @@
 
 This is the active truth source for Hermes support evidence in HA NOVA.
 
-> **Release status:** Hermes ships as early support (preview) starting with HA NOVA v0.5.0. This matrix is the evidence truth for each route; the public `README.md` client-list claim follows once the full matrix below is maintainer-validated.
+> **Release status:** Hermes ships as early support (preview) and is listed in the public `README.md` as a **preview** client since v0.6.0. This matrix is the evidence truth for each route: the Linux desktop route (Ubuntu/GNOME Keyring) is maintainer-validated; macOS native and Windows-via-WSL2 remain experimental until a fresh maintainer proof is recorded below. Native Windows is not supported.
 
 Use it to answer two separate questions cleanly:
 

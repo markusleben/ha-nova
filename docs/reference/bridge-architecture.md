@@ -54,7 +54,7 @@ Response 200:
   "data": {
     "status": "ok",
     "ha_ws_connected": true,
-    "version": "0.2.0",
+    "version": "0.2.1",
     "uptime_s": 3600
   }
 }

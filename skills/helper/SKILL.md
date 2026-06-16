@@ -122,7 +122,7 @@ If 0 results: try synonyms or shorter stems. Never dump entire domains.
 
 1. Resolve target from `{type}/list` by `name` or internal `id`.
 2. Extract `id` from the list response (this is the `{type}_id` for the update command).
-3. Preview current vs proposed values.
+3. Preview current vs proposed as a `## Changes` diff (see `skills/ha-nova/write-safety.md` → Pre-Write Diff). Then run a pre-write impact check — `search/related` on this helper entity (see `skills/review/SKILL.md` Step 2) — and surface affected automations/scripts as an advisory. Advisory only; never block.
 4. Ask for natural confirmation.
 5. Execute:
    ```text
@@ -130,14 +130,15 @@ If 0 results: try synonyms or shorter stems. Never dump entire domains.
    ```
 6. Verify by re-reading the same list item.
 7. Run storage-family post-write review (see below).
+8. Update-Revert: after the verified update, capture the snapshot and offer `revert` — see `skills/ha-nova/write-safety.md` → Update-Revert. Storage-family restore re-issues this `{type}/update` with `before_config` (the pre-update list item); `expected_after` is the post-update read-back.
 
 #### Deleting a helper
 
-1. Resolve target from `{type}/list`.
-2. Preview:
+1. Resolve target from `{type}/list`; extract its `id` (the `{type}_id` used for the delete call — internal, not shown to the user).
+2. Preview (see `skills/ha-nova/write-safety.md` → Output hygiene — no raw internal id):
    - name
    - type
-   - internal `id`
+   - entity_id
 3. Token confirmation: `confirm:<token>` (strict: only exact token accepted; see context skill → Safety Baseline).
 4. Execute:
    ```text
@@ -325,7 +326,7 @@ If multiple matches remain, present max 5 candidates and ask one blocking questi
    - do not invent values for fields the current step does not expose
    - for `history_stats`, preserve HA's two-key window invariant across `start`, `end`, and `duration`
    - for `history_stats`, if the requested change switches to a different valid window pair, drop the old third key explicitly so the submit body still contains exactly two of `start`, `end`, and `duration`
-7. Preview current vs proposed values.
+7. Preview current vs proposed as a `## Changes` diff (see `skills/ha-nova/write-safety.md` → Pre-Write Diff).
 8. Ask for natural confirmation.
 9. Submit the current step:
    ```text
@@ -404,12 +405,9 @@ Instead, run the minimal config-entry post-write contract:
    - if linked entities were found, run `search/related` against up to 3 linked entities
 5. **Advisory**
    - say that storage-helper H-01..H-10 checks do not apply to this family
+   - config-entry updates are not auto-revertible (options-flow writes are multi-step); for undo, point the user to Home Assistant Backups
 
-Response MUST still include a localized Post-Write Review section with:
-
-- **Findings**
-- **Collision check**
-- **Advisory**
+Report only what has substance (same rule as the write flow — see `skills/write/SKILL.md` Phase 4): keep **Verification** (and the editable snapshot when present), but omit an empty **Collision check** or **Advisory** — never an empty "none" bucket. When the write is clean, the verification plus a single localized confirmation line suffices.
 
 ## Output Format
 

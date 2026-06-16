@@ -173,6 +173,21 @@ func localVersion(paths runtimePaths) string {
 	return "dev"
 }
 
+// versionDisplay renders the user-facing `ha-nova version` line. Locally
+// dev-synced builds append a clearly-labeled DEV suffix so "which build is
+// loaded?" is answerable in any client; released builds print the bare version.
+func versionDisplay(paths runtimePaths) string {
+	v := localVersion(paths)
+	if BuildChannel != "dev" {
+		return v
+	}
+	stamp := BuildStamp
+	if stamp == "" {
+		stamp = "unstamped"
+	}
+	return fmt.Sprintf("%s (local DEV build — dev-sync %s)", v, stamp)
+}
+
 func readVersionJSON(path string) (versionJSON, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {

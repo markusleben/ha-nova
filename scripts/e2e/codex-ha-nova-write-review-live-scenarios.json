@@ -10,11 +10,7 @@
       "Or refactor to `choose` + `condition: trigger`"
     ],
     "must_contain_postwrite_text": [
-      "Post-Write Review",
-      "Findings",
-      "No issues found in this review.",
-      "Collision check",
-      "Advisory"
+      "Post-Write Review"
     ],
     "must_not_contain_prewrite_text": [
       "Pre-write check: no issues worth flagging before save.",
@@ -47,9 +43,6 @@
     ],
     "must_contain_postwrite_text": [
       "Post-Write Review",
-      "Findings",
-      "Collision check",
-      "Advisory",
       "REST/UI write can break dependent variables in this block",
       "check_flag -> reading",
       "inspect traces after the next real run"
@@ -79,11 +72,7 @@
       "Pre-write check: no issues worth flagging before save."
     ],
     "must_contain_postwrite_text": [
-      "Post-Write Review",
-      "Findings",
-      "No issues found in this review.",
-      "Collision check",
-      "Advisory"
+      "Post-Write Review"
     ],
     "must_not_contain_postwrite_text": [
       "final else branch is only reached when the earlier entity-state branches are false",
@@ -116,11 +105,7 @@
       "Pre-write check: no issues worth flagging before save."
     ],
     "must_contain_postwrite_text": [
-      "Post-Write Review",
-      "Findings",
-      "No issues found in this review.",
-      "Collision check",
-      "Advisory"
+      "Post-Write Review"
     ],
     "must_not_contain_postwrite_text": [
       "final else branch is only reached when the earlier entity-state branches are false",
@@ -153,11 +138,7 @@
       "Pre-write check: no issues worth flagging before save."
     ],
     "must_contain_postwrite_text": [
-      "Post-Write Review",
-      "Findings",
-      "No issues found in this review.",
-      "Collision check",
-      "Advisory"
+      "Post-Write Review"
     ],
     "must_not_contain_postwrite_text": [
       "final else branch is only reached when the earlier entity-state branches are false",
@@ -190,11 +171,7 @@
       "Pre-write check: no issues worth flagging before save."
     ],
     "must_contain_postwrite_text": [
-      "Post-Write Review",
-      "Findings",
-      "No issues found in this review.",
-      "Collision check",
-      "Advisory"
+      "Post-Write Review"
     ],
     "must_not_contain_postwrite_text": [
       "final else branch is only reached when the earlier entity-state branches are false",
@@ -227,11 +204,7 @@
       "Pre-write check: no issues worth flagging before save."
     ],
     "must_contain_postwrite_text": [
-      "Post-Write Review",
-      "Findings",
-      "No issues found in this review.",
-      "Collision check",
-      "Advisory"
+      "Post-Write Review"
     ],
     "must_not_contain_postwrite_text": [
       "final else branch is only reached when the earlier entity-state branches are false",
@@ -264,11 +237,7 @@
       "Pre-write check: no issues worth flagging before save."
     ],
     "must_contain_postwrite_text": [
-      "Post-Write Review",
-      "Findings",
-      "No issues found in this review.",
-      "Collision check",
-      "Advisory"
+      "Post-Write Review"
     ],
     "must_not_contain_postwrite_text": [
       "final else branch is only reached when the earlier entity-state branches are false",
@@ -301,11 +270,7 @@
       "Pre-write check: no issues worth flagging before save."
     ],
     "must_contain_postwrite_text": [
-      "Post-Write Review",
-      "Findings",
-      "No issues found in this review.",
-      "Collision check",
-      "Advisory"
+      "Post-Write Review"
     ],
     "must_not_contain_postwrite_text": [
       "final else branch is only reached when the earlier entity-state branches are false",

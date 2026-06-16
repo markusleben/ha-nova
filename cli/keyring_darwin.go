@@ -7,6 +7,8 @@ import (
 	"os/exec"
 	"os/user"
 	"strings"
+
+	"github.com/zalando/go-keyring"
 )
 
 func readRelayAuthToken() (string, error) {
@@ -62,15 +64,14 @@ func writeRelayAuthToken(token string) error {
 	}
 	service := relayAuthTokenServiceName()
 
-	cmd := exec.Command(
-		"security", "add-generic-password",
-		"-U",
-		"-a", u.Username,
-		"-s", service,
-		"-w", token,
-	)
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("cannot write relay auth token: %w (%s)", err, strings.TrimSpace(string(output)))
+	// Write via go-keyring, whose macOS backend pipes the command through
+	// `security -i` (stdin) instead of passing the secret as a CLI argument — so
+	// the token never appears in the process argv (visible to `ps`). It writes
+	// the same `-s <service> -a <user>` generic-password item the read path below
+	// looks up. (The read/delete paths use `security ... -w` with NO value, which
+	// only emits the secret on stdout, so they carry no argv exposure.)
+	if err := keyring.Set(service, u.Username, token); err != nil {
+		return fmt.Errorf("cannot write relay auth token: %w", err)
 	}
 	return nil
 }

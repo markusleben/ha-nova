@@ -256,24 +256,6 @@ func TestRunJQExitStatusLastValue(t *testing.T) {
 	}
 }
 
-func TestExtractPayload(t *testing.T) {
-	tests := []struct {
-		args []string
-		want string
-	}{
-		{[]string{"-d", `{"type":"get_states"}`}, `{"type":"get_states"}`},
-		{[]string{}, ""},
-		{[]string{"-d"}, ""},
-		{[]string{"-H", "X-Custom: foo", "-d", `{"x":1}`}, `{"x":1}`},
-	}
-	for _, tt := range tests {
-		got := extractPayload(tt.args)
-		if got != tt.want {
-			t.Errorf("extractPayload(%v) = %q, want %q", tt.args, got, tt.want)
-		}
-	}
-}
-
 func TestDispatchDoesNotTreatArgv0RelayAsSpecial(t *testing.T) {
 	paths := runtimePaths{}
 	if exitCode := dispatch(paths, "relay", []string{"health"}); exitCode == 0 {

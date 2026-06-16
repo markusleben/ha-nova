@@ -141,17 +141,6 @@ func claudePluginInstalled(home string) bool {
 	return known && installed
 }
 
-func claudePluginAttached(home string) bool {
-	if !claudePluginInstalled(home) {
-		return false
-	}
-	_, hasMarketplace, err := readClaudeMarketplaceSource(home)
-	if err != nil {
-		return false
-	}
-	return hasMarketplace
-}
-
 func removeClaudeMarketplace(home string, report *uninstallReport) error {
 	if _, err := exec.LookPath("claude"); err != nil {
 		removed, err := removeClaudeMarketplaceRecord(home)

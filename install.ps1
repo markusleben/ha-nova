@@ -324,7 +324,12 @@ function Get-UninstallRecoveryState {
   $recoveryCommand = Get-UninstallRecoveryCommand -Mode $mode
   $bundleRuntimePresent = Test-Path -LiteralPath (Join-Path $InstallDir "ha-nova.exe")
   $runtimePresent = $bundleRuntimePresent
-  $remainingPaths = Get-ExistingUninstallRemainingPaths -Status $status
+  # PowerShell unrolls a function's `return @(...)` on the way out: zero items
+  # collapse to $null and a single item to a bare scalar. Under
+  # Set-StrictMode -Version Latest, `.Count` on either throws
+  # PropertyNotFoundStrict, which aborted a fresh re-install over a leftover
+  # uninstall marker right after the banner. Re-wrap to guarantee array shape.
+  $remainingPaths = @(Get-ExistingUninstallRemainingPaths -Status $status)
   $pathResidue = Test-UserPathContainsEntry -TargetPath $InstallDir
 
   if ((Get-UninstallStatusField -Status $status -Name "status") -eq "running") {
@@ -494,7 +499,11 @@ function Install-Bundle {
   try {
     Invoke-DownloadFile -Uri $bundleUrl -OutFile $archivePath
     Invoke-DownloadFile -Uri (Get-BundleChecksumUrl -Version $Version) -OutFile $checksumPath
-    $expectedHash = (Get-Content -LiteralPath $checksumPath -Raw).Trim().Split()[0]
+    $checksumRaw = Get-Content -LiteralPath $checksumPath -Raw
+    if (-not $checksumRaw) {
+      Fail "Downloaded bundle checksum verification failed."
+    }
+    $expectedHash = $checksumRaw.Trim().Split()[0]
     $actualHash = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant()
     if (-not $expectedHash -or $actualHash -ne $expectedHash.ToLowerInvariant()) {
       Fail "Downloaded bundle checksum verification failed."
@@ -534,7 +543,12 @@ function Install-Bundle {
 
     if ((Test-Path -LiteralPath (Join-Path $LegacyInstallDir "bundle.json")) -and -not (Test-Path -LiteralPath $InstallDir)) {
       New-Item -ItemType Directory -Force -Path (Split-Path -Parent $InstallDir) | Out-Null
-      Move-Item -LiteralPath $LegacyInstallDir -Destination $InstallDir -Force
+      try {
+        Move-Item -LiteralPath $LegacyInstallDir -Destination $InstallDir -Force
+      }
+      catch {
+        Fail "Could not migrate the previous Windows install at $LegacyInstallDir (a file may be in use). Close ha-nova and retry."
+      }
       Write-Info "Migrated previous Windows install to $InstallDir"
     }
 
@@ -546,13 +560,22 @@ function Install-Bundle {
     Copy-Item -Path $bundleRoot -Destination $nextRoot -Recurse -Force
 
     if (Test-Path -LiteralPath $InstallDir) {
-      Move-Item -LiteralPath $InstallDir -Destination $backupRoot -Force
+      try {
+        Move-Item -LiteralPath $InstallDir -Destination $backupRoot -Force
+      }
+      catch {
+        Remove-Item -LiteralPath $nextRoot -Recurse -Force -ErrorAction SilentlyContinue
+        Fail "Could not replace the existing HA NOVA install - a ha-nova process may still be running. Close it (and any running relay), then run the installer again."
+      }
     }
 
     try {
       Move-Item -LiteralPath $nextRoot -Destination $InstallDir -Force
       if (Test-Path -LiteralPath $backupRoot) {
-        Remove-Item -LiteralPath $backupRoot -Recurse -Force
+        # The new runtime is already live in $InstallDir; deleting the old copy
+        # is best-effort. A locked file here (same antivirus race as below) must
+        # not throw into the catch, which would roll back the successful swap.
+        Remove-Item -LiteralPath $backupRoot -Recurse -Force -ErrorAction SilentlyContinue
       }
       return [ordered]@{ Version = $bundleVersion }
     }
@@ -565,21 +588,33 @@ function Install-Bundle {
   }
   finally {
     if (Test-Path -LiteralPath $tempRoot) {
-      Remove-Item -LiteralPath $tempRoot -Recurse -Force
+      # Best-effort cleanup: antivirus (Defender real-time) can briefly hold an
+      # exclusive handle on the freshly extracted, unsigned ha-nova.exe. Under
+      # $ErrorActionPreference = "Stop" a throw here would abort the installer
+      # AFTER a successful install but BEFORE PATH setup and setup launch,
+      # leaving HA NOVA installed yet unreachable. The temp dir lives under
+      # %TEMP% and is reaped by Windows regardless.
+      Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
     }
   }
 }
 
 function Ensure-InstallDirOnPath {
   $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+  $normalizedTarget = Normalize-RecoveryPath -Path $PublicCommandDir
   $parts = @()
   if ($userPath) {
-    $parts = $userPath -split ";" | Where-Object { $_ -and $_ -ne $LegacyInstallDir }
+    $parts = @($userPath -split ";" | Where-Object { $_ -and $_ -ne $LegacyInstallDir })
   }
 
-  if ($parts -contains $PublicCommandDir) {
-    Write-Info "$PublicCommandDir already configured in PATH"
-    return $false
+  # Compare normalized (full-path, case-insensitive, no trailing slash) so a
+  # differently-cased or trailing-backslash variant is not treated as missing,
+  # which would prepend a duplicate PATH entry on every re-install/update.
+  foreach ($entry in $parts) {
+    if ((Normalize-RecoveryPath -Path $entry) -eq $normalizedTarget) {
+      Write-Info "$PublicCommandDir already configured in PATH"
+      return $false
+    }
   }
 
   $newPath = @($PublicCommandDir) + $parts
@@ -629,7 +664,8 @@ $version = Get-DownloadInstallVersion
 if (-not (Test-CurrentInstall) -and (Test-LegacyInstall)) {
   Stop-ForLegacyInstall
 }
-if ($uninstallRecovery = Get-UninstallRecoveryState) {
+$uninstallRecovery = Get-UninstallRecoveryState
+if ($null -ne $uninstallRecovery) {
   Stop-ForUninstallRecovery -Recovery $uninstallRecovery
 }
 $bundleResult = Install-Bundle -Version $version

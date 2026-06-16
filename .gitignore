@@ -16,6 +16,9 @@ cli/cli
 docs/breadcrumbs.md
 docs/choices.md
 
+# Local agent/IDE settings (never release)
+.claude/settings.local.json
+
 # Local notes
 docs/internal/
 

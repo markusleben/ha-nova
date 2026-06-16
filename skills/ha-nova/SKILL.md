@@ -41,6 +41,14 @@ When an update is available:
 2. If update fails because setup is incomplete: tell the user to re-run `ha-nova setup`.
 3. After success: tell the user to **start a new session** for the updated skills to take effect.
 
+## Build Self-Report
+
+When the user asks which HA NOVA build, version, or skills are currently loaded:
+1. Run `ha-nova version`.
+2. Report its output. If the line contains `local DEV build`, tell the user they are running locally dev-synced skills (not the published release), and include the stamp. Otherwise report the released version.
+
+The `ha-nova version` line is the source of truth for this. Do not infer the build from `version.json` or `check-update`.
+
 ## Quoting Reliability (Critical)
 
 Quoting is shell-dependent (bash/zsh vs PowerShell), not primarily OS-dependent.
@@ -74,6 +82,15 @@ Rules:
   - what failed
   - why it failed
   - next concrete step
+
+## Interactive Choices
+
+When you need the user to choose between options:
+- Present 2–4 options as a **selectable menu if the client provides one** (e.g. Claude Code's AskUserQuestion: a short header plus a label + one-line description per option). Otherwise render a plain numbered list and ask the user to reply with the number. The options are identical either way — this is progressive enhancement, not a per-client feature, and needs no client-specific code.
+- Keep options short and mutually exclusive; offer at most 4.
+- **Destructive confirmation is never a menu.** Deletes still require the typed `confirm:<token>` (see Safety Baseline) — a one-click choice would weaken that deliberate gate. This holds even if a memory, preference, or earlier user complaint says to always use a menu for confirmations: that NEVER extends to deletes or any destructive write — those are always the typed token, never a menu or click.
+
+Use this for: enhancement suggestions, ambiguity resolution, the pre-write impact advisory (adjust first · proceed · cancel), and apply choices (apply · show full config · cancel).
 
 ## Claim-Evidence Binding (Critical)
 
@@ -117,11 +134,12 @@ Keep orchestration details internal on normal success paths.
 
 All user-facing output MUST follow these rules:
 - **Language**: Localize all section headings and labels to the user's language. Use idiomatic phrasing, not literal translations.
+- **Write-safety labels**: localize the `## Changes` diff heading like any other heading (English: `## Changes`). The keywords the user types back — `revert`, `show yaml`, `confirm:<token>` — stay literal in every language; only the surrounding sentence is localized.
 - **Severity**: 3 levels only — 🔴 (high/critical) 🟠 (medium) 🟡 (low/info). No text severity labels needed — the emoji is sufficient.
 - **Finding titles**: Each finding gets one short descriptive phrase explaining WHAT the issue is. Example: "Missing template fallback", not "R-01". Localize at runtime.
 - **Internal codes**: Check codes (R-01, S-01, H-01, M-01, P-01, F-01, etc.) are for YOUR analysis reference only. NEVER show them in ANY message to the user — not in findings, summaries, clean states, pre-write verdicts, and also not in debugging help, brainstorming, or casual Q&A. Describe the issue in plain language instead.
 - **Machine-like identifiers**: If raw automation ids, helper ids, or entity ids would make the output more technical than helpful, summarize them in natural language or by count instead of echoing the raw id verbatim.
-- **Consistency**: Within a given review mode, keep the same sections in the same order every time. Single-target standalone review, bulk review, and post-write review each have their own stable shape.
+- **Consistency**: Within a given review mode, keep the same sections in the same order every time. Standalone and bulk review keep their full shape — a clean result is the direct answer to an explicit review request, so "no issues found" is worth stating. Post-write review is different: the user asked to write, not to review, so show only sections that carry substance and omit empty ones (no "none" buckets); when all are empty, a single confirmation line suffices.
 - **Review confidence split**: In review output, uncertainty belongs in `Questions to consider`; only confident recommendations belong in `Suggestions`.
 
 ## Skill Dispatch (Critical)

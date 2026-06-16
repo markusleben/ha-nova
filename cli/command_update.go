@@ -15,6 +15,7 @@ func runUpdate(paths runtimePaths, args []string) int {
 	fs := flag.NewFlagSet("update", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	versionFlag := fs.String("version", "", "explicit version")
+	forceFlag := fs.Bool("force", false, "proceed even from a local dev build (restores the release over the dev tree)")
 	if err := fs.Parse(args); err != nil {
 		printHumanErr("%s", err)
 		return 1
@@ -23,6 +24,16 @@ func runUpdate(paths runtimePaths, args []string) int {
 	targetVersion, err := normalizeExplicitVersion(*versionFlag)
 	if err != nil {
 		printHumanErr("%s", err)
+		return 1
+	}
+
+	// A locally dev-synced build (BuildChannel=dev) must not be silently replaced
+	// with the published release: `ha-nova update` with no explicit target would
+	// overwrite the developer's working tree. The nudge is already suppressed for
+	// dev builds; this guards the explicit command too. Require --version/--force.
+	if BuildChannel == "dev" && targetVersion == "" && !*forceFlag {
+		printHumanErr("Local dev build detected (dev-sync) — `ha-nova update` would replace it with the published release.")
+		printHumanWarn("To restore the release deliberately, re-run with `--force` (or `--version <tag>`).")
 		return 1
 	}
 	state, err := loadStateOrDefaultChecked(paths)

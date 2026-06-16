@@ -35,5 +35,23 @@ function parseWsRequestBody(body: unknown): HaWsRequest {
     throw new HttpError(400, "VALIDATION_ERROR", "Request body must contain a string field 'type'");
   }
 
+  // The relay is request/response only. Subscription and live-update commands
+  // resolve only on their initial ack and then emit events the relay cannot
+  // deliver, forcing the HA client library to auto-unsubscribe — useless over
+  // request/response. Reject them at the boundary so a client can't churn or
+  // accumulate upstream subscriptions.
+  if (isSubscriptionWsType(type)) {
+    throw new HttpError(
+      400,
+      "UNSUPPORTED_WS_TYPE",
+      `WS type '${type.trim()}' is a subscription or live-update command; the relay supports request/response commands only`,
+    );
+  }
+
   return body as HaWsRequest;
+}
+
+function isSubscriptionWsType(type: string): boolean {
+  const t = type.trim();
+  return t.startsWith("subscribe_") || t === "render_template";
 }

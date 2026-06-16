@@ -53,6 +53,22 @@ describe("install.sh contract", () => {
     expect(content).toContain(".local/share/ha-nova");
   });
 
+  it("keeps temp/backup cleanup best-effort so an antivirus/indexer lock cannot abort a completed install", () => {
+    // Regression: under `set -euo pipefail` an unguarded `rm -rf` on the freshly
+    // extracted unsigned binary (macOS Gatekeeper/XProtect/Spotlight holding it,
+    // or an NFS .nfsXXXX handle) would abort AFTER a successful swap but BEFORE
+    // PATH setup + setup launch — installed yet unreachable. Cleanup must tolerate
+    // a failed delete, and the swap must catch a lock instead of orphaning next_root.
+    expect(content).toContain('rm -rf "${TMP_DIR}" 2>/dev/null || true');
+    expect(content).toContain('rm -rf "${backup_root}" 2>/dev/null || true');
+    expect(content).toContain('if ! mv "${INSTALL_DIR}" "${backup_root}"; then');
+    // The rollback (restore the old install if the swap-in fails) must itself be
+    // best-effort so a busy backup_root can't crash the failure path under set -e.
+    expect(content).toContain(
+      '[[ -d "${backup_root}" ]] && mv "${backup_root}" "${INSTALL_DIR}" 2>/dev/null || true',
+    );
+  });
+
   it("detects legacy installs and prints the dedicated cleanup one-liner", () => {
     expect(content).toContain("legacy-uninstall.sh");
     expect(content).toContain("raw.githubusercontent.com/markusleben/ha-nova/main/scripts/legacy-uninstall.sh");

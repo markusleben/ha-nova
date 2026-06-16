@@ -1,6 +1,6 @@
 # Hermes Agent Install Overlay
 
-> **Release status:** Hermes ships as early support (preview) starting with HA NOVA v0.5.0. The Ubuntu/GNOME Keyring Linux route is maintainer-validated; validation for other Linux Secret Service backends, macOS native, and Windows WSL2 is tracked in [docs/reference/hermes-platform-validation.md](../docs/reference/hermes-platform-validation.md). `README.md` lists Hermes in the public client list once that validation matrix is complete.
+> **Release status:** Hermes ships as early support (preview) and is listed in the public `README.md` as a **preview** client since v0.6.0. The Ubuntu/GNOME Keyring Linux route is maintainer-validated; validation for other Linux Secret Service backends, macOS native, and Windows WSL2 is experimental and tracked in [docs/reference/hermes-platform-validation.md](../docs/reference/hermes-platform-validation.md). Native Windows is not supported.
 
 This page only covers Hermes-specific deltas.
 

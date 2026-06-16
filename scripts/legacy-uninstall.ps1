@@ -17,7 +17,10 @@ function Fail([string]$Message) {
 
 function Remove-IfExists([string]$Path) {
   if (Test-Path -LiteralPath $Path) {
-    Remove-Item -LiteralPath $Path -Recurse -Force
+    # Best-effort: a locked legacy file (running relay.exe, AV handle) must not
+    # abort the whole cleanup under Stop mode and trap the user in a loop where
+    # the installer still detects legacy residue.
+    Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction SilentlyContinue
   }
 }
 
@@ -55,7 +58,7 @@ if ($null -ne $wsl) {
 
 $legacyScriptsDir = Join-Path $InstallDir "scripts\onboarding"
 if ((Test-Path -LiteralPath $legacyScriptsDir) -and -not (Test-Path -LiteralPath (Join-Path $InstallDir "bundle.json"))) {
-  Remove-Item -LiteralPath $InstallDir -Recurse -Force
+  Remove-Item -LiteralPath $InstallDir -Recurse -Force -ErrorAction SilentlyContinue
 }
 
 $skillRoots = @(
@@ -71,7 +74,7 @@ foreach ($root in $skillRoots) {
     continue
   }
   Get-ChildItem -LiteralPath $root -Filter "ha-nova*" -ErrorAction SilentlyContinue | ForEach-Object {
-    Remove-Item -LiteralPath $_.FullName -Recurse -Force
+    Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue
   }
 }
 

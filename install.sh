@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# HA NOVA Installer — curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/main/install.sh | bash
+# HA NOVA Installer - curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/main/install.sh | bash
 set -euo pipefail
 
 REPO_OWNER="markusleben"
@@ -92,7 +92,12 @@ fail() {
 }
 
 cleanup() {
-  [[ -n "${TMP_DIR}" && -d "${TMP_DIR}" ]] && rm -rf "${TMP_DIR}"
+  # Best-effort: a transient EBUSY (macOS Gatekeeper/XProtect/Spotlight scanning
+  # the freshly extracted unsigned binary, or an NFS .nfsXXXX handle) must not
+  # turn a successful install into a non-zero exit through this EXIT trap.
+  if [[ -n "${TMP_DIR}" && -d "${TMP_DIR}" ]]; then
+    rm -rf "${TMP_DIR}" 2>/dev/null || true
+  fi
 }
 
 trap cleanup EXIT
@@ -354,20 +359,32 @@ install_bundle() {
   local bundle_root="$1"
   local install_parent next_root backup_root
   install_parent="$(dirname "${INSTALL_DIR}")"
-  next_root="${install_parent}/.ha-nova-next-$$"
-  backup_root="${install_parent}/.ha-nova-old-$$"
+  # Higher-entropy temp names than bare $$ - PIDs recycle, so a prior aborted run
+  # could leave a same-named dir with a busy file. The swap must stay on
+  # INSTALL_DIR's filesystem, so mktemp in /tmp is not an option.
+  next_root="${install_parent}/.ha-nova-next-$$-${RANDOM}"
+  backup_root="${install_parent}/.ha-nova-old-$$-${RANDOM}"
 
   mkdir -p "${install_parent}"
-  rm -rf "${next_root}" "${backup_root}"
+  rm -rf "${next_root}" "${backup_root}" 2>/dev/null || true
   mkdir -p "${next_root}"
   cp -R "${bundle_root}/." "${next_root}/"
 
   if [[ -d "${INSTALL_DIR}" ]]; then
-    mv "${INSTALL_DIR}" "${backup_root}"
+    # Stage the existing install aside. If this fails (a file in use), clean up
+    # and stop with a clear message rather than letting set -e abort mid-swap and
+    # orphan next_root.
+    if ! mv "${INSTALL_DIR}" "${backup_root}"; then
+      rm -rf "${next_root}" 2>/dev/null || true
+      fail "Could not stage the existing HA NOVA install for replacement (a file may be in use). Close ha-nova and retry."
+    fi
   fi
 
   if mv "${next_root}" "${INSTALL_DIR}"; then
-    rm -rf "${backup_root}"
+    # Best-effort: the new runtime is already live in INSTALL_DIR. A locked file
+    # in the old copy (antivirus/indexer handle) must not fail the function and
+    # trigger the false rollback below on an install that already succeeded.
+    rm -rf "${backup_root}" 2>/dev/null || true
     return 0
   fi
 

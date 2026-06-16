@@ -103,37 +103,6 @@ func loadBundleMetadata(paths runtimePaths) (bundleMetadata, error) {
 	return meta, nil
 }
 
-func loadBundleMetadataOrDefault(paths runtimePaths) bundleMetadata {
-	meta, err := loadBundleMetadata(paths)
-	if err == nil {
-		return meta
-	}
-	return bundleMetadata{
-		BundleFormatVersion: bundleFormatVersion,
-		Version:             localVersion(paths),
-		OS:                  bundlePlatformOS(),
-		Arch:                bundlePlatformArch(),
-		BinaryName:          publicBinaryName(),
-	}
-}
-
-func saveBundleMetadata(paths runtimePaths, meta bundleMetadata) error {
-	meta.BundleFormatVersion = bundleFormatVersion
-	if meta.BinaryName == "" {
-		meta.BinaryName = publicBinaryName()
-	}
-	if meta.OS == "" {
-		meta.OS = bundlePlatformOS()
-	}
-	if meta.Arch == "" {
-		meta.Arch = bundlePlatformArch()
-	}
-	if err := os.MkdirAll(filepath.Dir(paths.BundleFile), 0o755); err != nil {
-		return err
-	}
-	return writeJSONFile(paths.BundleFile, meta, 0o644)
-}
-
 func writeJSONFile(path string, value interface{}, mode os.FileMode) error {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -187,11 +156,6 @@ func mergeStateClients(state *installState, clients []string) {
 	}
 	merged := append(append([]string{}, state.InstalledClients...), clients...)
 	state.InstalledClients = normalizeClients(merged)
-}
-
-func stateExists(paths runtimePaths) bool {
-	_, err := os.Stat(paths.StateFile)
-	return err == nil
 }
 
 func isNotExist(err error) bool {

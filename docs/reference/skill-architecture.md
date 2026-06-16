@@ -24,6 +24,7 @@ skills/
   ha-nova/safe-refactoring.md   (reference doc — rename, delete, orphan cleanup workflows)
   ha-nova/automation-patterns.md (reference doc — native HA constructs vs templates)
   ha-nova/update-guide.md       (reference doc — version checks and update flows)
+  ha-nova/write-safety.md       (reference doc — pre-write diff + durable update-revert; SSOT for write/ + helper/)
   ha-nova/agents/               (agent templates: resolve, apply, review)
   read/SKILL.md                         (ha-nova:read — automation/script list/get/trace)
   write/SKILL.md                        (ha-nova:write — automation/script create/update/delete)
@@ -101,6 +102,8 @@ Current mapping:
 
 2. Preview + Decide (Main Thread)
 - build final payload
+- lead the preview with a `## Changes` diff; full YAML only on `show yaml` (see `ha-nova/write-safety.md` → Pre-Write Diff)
+- update: pre-write impact advisory via `search/related` at preview time (review/ Step 2)
 - show compact preview blocks
 - ask one decision question only if ambiguous
 - confirmation tier:
@@ -116,6 +119,7 @@ Current mapping:
 4. Review (inline, do NOT invoke `ha-nova:review` as separate skill)
 - post-write config quality checks, collision scan, conflict analysis
 - findings are advisory (write already succeeded)
+- update: capture a durable revert snapshot and offer `revert` (see `ha-nova/write-safety.md` → Update-Revert); create/delete point to HA Backups
 
 Fallback:
 - if agent dispatch unavailable, execute same phases inline serially.
@@ -343,10 +347,11 @@ After any mutation (automation, script, or helper):
    - All other checks, including `R-19`, follow normal pre-write/post-write dedup. The explicit persisted-repeat exception stays unique to `R-18`.
    Focus on 🔴 findings. Report 🟠🟡 findings as advisory.
 3. Collision scan: `search/related` for top target entities, max 3 related configs (standalone review uses max 5)
-4. Output format (MUST appear in every post-write response) — localize headings per `skills/ha-nova/SKILL.md` → Output Localization:
-   - **Findings**: 🔴🟠🟡 findings with short descriptive titles plus `Why` / `Fix`, or the localized equivalent of "No issues found in this review."
-   - **Collision check**: conflicts, or the localized equivalent of "No related items found." when the scan found none, or "No conflicts found." when related items were checked without a collision risk.
-   - **Advisory**: 🟠🟡 findings, or the localized equivalent of "No additional advisories."
+4. Output format — localize headings per `skills/ha-nova/SKILL.md` → Output Localization. Report only what has substance; the scans still run, only their empty output is suppressed:
+   - **Findings**: 🔴🟠🟡 findings with short descriptive titles plus `Why` / `Fix` — only when there are real issues.
+   - **Collision check**: only when related items exist (list them + the conflict verdict).
+   - **Advisory**: 🟠🟡 findings — only when non-empty.
+   - Omit any section with nothing to report — never print an empty "none" bucket. When all are empty, collapse to one localized confirmation line (e.g. "Verified — no issues or conflicts").
    - Do not emit `Questions to consider`, `Suggestions`, or `Instant help` in post-write mode.
 
 ## Adding a New Skill — Checklist

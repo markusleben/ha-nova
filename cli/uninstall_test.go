@@ -17,6 +17,26 @@ func TestUninstallTokenLabelMatchesPlatform(t *testing.T) {
 	}
 }
 
+func TestUninstallManagedArtifactsIncludeWriteSafetyState(t *testing.T) {
+	// The write-safety undo store (ConfigDir) and the best-practice cache
+	// (CacheDir) must be purged, or a "full purge" leaves those dirs behind.
+	paths := runtimePaths{ConfigDir: "/cfg", CacheDir: "/cache"}
+	contains := func(list []string, want string) bool {
+		for _, p := range list {
+			if p == want {
+				return true
+			}
+		}
+		return false
+	}
+	if got := managedConfigArtifactPaths(paths, true); !contains(got, filepath.Join("/cfg", "undo-snapshot.json")) {
+		t.Errorf("config artifacts missing undo-snapshot.json: %v", got)
+	}
+	if got := managedCacheArtifactPaths(paths); !contains(got, filepath.Join("/cache", "automation-bp-snapshot.json")) {
+		t.Errorf("cache artifacts missing automation-bp-snapshot.json: %v", got)
+	}
+}
+
 func TestRunUninstallReportsConcreteRemovalsAndTokenPolicy(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

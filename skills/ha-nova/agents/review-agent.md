@@ -163,12 +163,8 @@ If `{MODE}` is `standalone`, follow the single-target standalone output format f
 - Section 8 — Instant help
 Keep the findings microformat aligned with `skills/review/SKILL.md`: severity emoji + short title, then `Why:` and `Fix:` lines. Do not introduce separate wording rules here.
 
-If `{MODE}` is `post-write`, stay compact and aligned with the post-write contract:
-- Section 1 — Findings
-- Section 2 — Collision check
-- Section 3 — Advisory
-- If the collision scan found no related items, use the localized equivalent of "No related items found."
-- If related items were checked and no collision risk remains, use the localized equivalent of "No conflicts found."
-- If Advisory is empty, use the localized equivalent of "No additional advisories."
+If `{MODE}` is `post-write`, stay compact and aligned with the post-write contract — report only what has substance (the scans still run; only their empty output is suppressed):
+- **Findings**: real issues only. **Collision check**: only when related items exist (list them + the verdict). **Advisory**: only when non-empty.
+- Omit any section with nothing to report — never print an empty "none" bucket. If nothing is worth reporting, collapse to one localized confirmation line.
 
 Do not emit Questions to consider or ranked standalone Suggestions in post-write mode.

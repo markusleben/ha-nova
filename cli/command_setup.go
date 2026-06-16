@@ -297,15 +297,6 @@ func normalizeSetupArgs(args []string) []string {
 	return args
 }
 
-func isSetupTarget(value string) bool {
-	switch strings.ToLower(strings.TrimSpace(value)) {
-	case "all", "claude", "codex", "opencode", "gemini", "hermes":
-		return true
-	default:
-		return false
-	}
-}
-
 func setupFlagRequiresValue(arg string) bool {
 	name := strings.TrimLeft(arg, "-")
 	if strings.Contains(name, "=") {

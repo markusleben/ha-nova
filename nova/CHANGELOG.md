@@ -9,6 +9,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic
 Recent changes are tracked in [GitHub releases](https://github.com/markusleben/ha-nova/releases)
 and merged PRs. This changelog will be updated with the next tagged relay version.
 
+## [Relay 0.2.1] - 2026-06-15
+
+### Changed
+- **WS proxy hardening** — the relay now rejects subscription and live-update WS commands (`subscribe_*`, `render_template`) at the boundary with a 400. They resolve only on their initial ack and then emit events the relay cannot deliver, forcing the client to auto-unsubscribe — useless over the relay's request/response model, so blocking them avoids needless upstream subscription churn.
+
 ## [Relay 0.2.0] - 2026-03-07
 
 ### Changed

@@ -402,15 +402,3 @@ func relayAuthTokenExistsForUninstall() bool {
 	token, err := readRelayAuthTokenForUninstall()
 	return err == nil && strings.TrimSpace(token) != ""
 }
-
-func stageWindowsLifecycleHelper(prefix string) (string, error) {
-	tempHelper := filepath.Join(os.TempDir(), prefix+strconv.Itoa(os.Getpid())+".exe")
-	currentExe, err := executablePathForInstallSource()
-	if err != nil {
-		return "", err
-	}
-	if err := copyFile(currentExe, tempHelper); err != nil {
-		return "", err
-	}
-	return tempHelper, nil
-}
