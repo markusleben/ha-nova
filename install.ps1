@@ -20,6 +20,25 @@ $LegacyConfigDir = Join-Path $HOME ".config\ha-nova"
 $LegacyInstallDir = Join-Path $HOME ".local\share\ha-nova"
 $UsePlainUi = $false
 
+# Best-effort path removal that never aborts the installer. Antivirus (Defender
+# real-time) or an indexer can briefly hold an exclusive handle on a freshly
+# written, unsigned file. `Remove-Item -Recurse` then throws a TERMINATING
+# Win32Exception ("Access is denied") that -ErrorAction SilentlyContinue does NOT
+# suppress under Set-StrictMode + $ErrorActionPreference = "Stop", which would
+# abort a successful install before PATH/setup. The try/catch swallows it; temp,
+# backup, and status-marker paths are reaped by Windows regardless.
+function Remove-PathQuiet {
+  param([Parameter(Mandatory = $true)][string]$Path)
+  if (-not (Test-Path -LiteralPath $Path)) {
+    return
+  }
+  try {
+    Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction SilentlyContinue
+  }
+  catch {
+  }
+}
+
 function Test-PlainUi {
   if ($env:HA_NOVA_PLAIN_UI -eq "1") {
     return $true
@@ -302,7 +321,7 @@ function Get-UninstallRecoveryState {
     $bundleRuntimePresent = Test-Path -LiteralPath (Join-Path $InstallDir "ha-nova.exe")
     $pathResidue = Test-UserPathContainsEntry -TargetPath $InstallDir
     if (-not $bundleRuntimePresent -and -not $pathResidue) {
-      Remove-Item -LiteralPath $UninstallStatusPath -Force -ErrorAction SilentlyContinue
+      Remove-PathQuiet -Path $UninstallStatusPath
       return $null
     }
     return [pscustomobject]@{
@@ -316,7 +335,7 @@ function Get-UninstallRecoveryState {
   }
 
   if ((Get-UninstallStatusField -Status $status -Name "status") -eq "success") {
-    Remove-Item -LiteralPath $UninstallStatusPath -Force -ErrorAction SilentlyContinue
+    Remove-PathQuiet -Path $UninstallStatusPath
     return $null
   }
 
@@ -373,7 +392,7 @@ function Get-UninstallRecoveryState {
     }
 
     if (-not $runtimePresent -and -not $pathResidue -and $remainingPaths.Count -eq 0) {
-      Remove-Item -LiteralPath $UninstallStatusPath -Force -ErrorAction SilentlyContinue
+      Remove-PathQuiet -Path $UninstallStatusPath
       return $null
     }
 
@@ -389,7 +408,7 @@ function Get-UninstallRecoveryState {
 
   if ((Get-UninstallStatusField -Status $status -Name "status") -eq "failed") {
     if (-not $runtimePresent -and -not $pathResidue -and $remainingPaths.Count -eq 0) {
-      Remove-Item -LiteralPath $UninstallStatusPath -Force -ErrorAction SilentlyContinue
+      Remove-PathQuiet -Path $UninstallStatusPath
       return $null
     }
 
@@ -564,7 +583,7 @@ function Install-Bundle {
         Move-Item -LiteralPath $InstallDir -Destination $backupRoot -Force
       }
       catch {
-        Remove-Item -LiteralPath $nextRoot -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-PathQuiet -Path $nextRoot
         Fail "Could not replace the existing HA NOVA install - a ha-nova process may still be running. Close it (and any running relay), then run the installer again."
       }
     }
@@ -575,7 +594,7 @@ function Install-Bundle {
         # The new runtime is already live in $InstallDir; deleting the old copy
         # is best-effort. A locked file here (same antivirus race as below) must
         # not throw into the catch, which would roll back the successful swap.
-        Remove-Item -LiteralPath $backupRoot -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-PathQuiet -Path $backupRoot
       }
       return [ordered]@{ Version = $bundleVersion }
     }
@@ -587,15 +606,13 @@ function Install-Bundle {
     }
   }
   finally {
-    if (Test-Path -LiteralPath $tempRoot) {
-      # Best-effort cleanup: antivirus (Defender real-time) can briefly hold an
-      # exclusive handle on the freshly extracted, unsigned ha-nova.exe. Under
-      # $ErrorActionPreference = "Stop" a throw here would abort the installer
-      # AFTER a successful install but BEFORE PATH setup and setup launch,
-      # leaving HA NOVA installed yet unreachable. The temp dir lives under
-      # %TEMP% and is reaped by Windows regardless.
-      Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
-    }
+    # Best-effort cleanup: antivirus (Defender real-time) can briefly hold an
+    # exclusive handle on the freshly extracted, unsigned ha-nova.exe. A throw here
+    # would abort the installer AFTER a successful install but BEFORE PATH setup and
+    # setup launch, leaving HA NOVA installed yet unreachable. Remove-PathQuiet
+    # swallows the terminating "Access is denied"; the temp dir lives under %TEMP%
+    # and is reaped by Windows regardless.
+    Remove-PathQuiet -Path $tempRoot
   }
 }
 

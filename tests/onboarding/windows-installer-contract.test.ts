@@ -115,27 +115,28 @@ describe("install.ps1 contract", () => {
     );
   });
 
-  it("makes post-install directory cleanup best-effort so an antivirus file lock cannot abort the install", () => {
-    // Regression: a fresh install completed (runtime live in InstallDir) but the
-    // installer still crashed with a Win32 "Access is denied" on
-    // `Remove-Item $tempRoot`, because Defender briefly holds a handle on the
-    // freshly extracted unsigned ha-nova.exe and $ErrorActionPreference="Stop"
-    // turns the failed delete into a terminating error - AFTER install yet
-    // BEFORE PATH setup / setup launch. Both the temp dir and the old backup are
-    // disposable post-swap, so their deletes must tolerate a lock.
+  it("makes post-install directory cleanup survive an antivirus file lock without aborting the install", () => {
+    // Regression (live RC proof): a fresh install completed (runtime live in
+    // InstallDir) but the installer still crashed with a Win32 "Access is denied"
+    // on `Remove-Item $tempRoot`, because Defender briefly holds a handle on the
+    // freshly extracted unsigned ha-nova.exe and `Remove-Item -Recurse` then throws
+    // a TERMINATING Win32Exception that -ErrorAction SilentlyContinue does NOT
+    // suppress under Set-StrictMode + $ErrorActionPreference="Stop" - AFTER install
+    // yet BEFORE PATH setup / setup launch. The best-effort deletes must therefore
+    // go through a try/catch helper, not a bare -ErrorAction.
     expect(content).toContain('$ErrorActionPreference = "Stop"');
-    expect(content).toContain(
-      "Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue",
+    // The helper wraps Remove-Item in try/catch so the terminating exception is
+    // swallowed - the -ErrorAction-only form was insufficient and crashed the live install.
+    expect(content).toMatch(
+      /function Remove-PathQuiet[\s\S]*?try\s*\{[\s\S]*?Remove-Item -LiteralPath \$Path -Recurse -Force -ErrorAction SilentlyContinue[\s\S]*?\}\s*\r?\n\s*catch\s*\{/,
     );
-    expect(content).toContain(
-      "Remove-Item -LiteralPath $backupRoot -Recurse -Force -ErrorAction SilentlyContinue",
-    );
-    expect(content).not.toMatch(
-      /Remove-Item -LiteralPath \$tempRoot -Recurse -Force(?! -ErrorAction)/,
-    );
-    expect(content).not.toMatch(
-      /Remove-Item -LiteralPath \$backupRoot -Recurse -Force(?! -ErrorAction)/,
-    );
+    // The disposable post-swap deletes route through the helper, not a bare Remove-Item.
+    expect(content).toContain("Remove-PathQuiet -Path $tempRoot");
+    expect(content).toContain("Remove-PathQuiet -Path $backupRoot");
+    // No bare Remove-Item on these roots survives - the -ErrorAction-only form
+    // crashed the live install, so it must be gone.
+    expect(content).not.toMatch(/Remove-Item -LiteralPath \$tempRoot/);
+    expect(content).not.toMatch(/Remove-Item -LiteralPath \$backupRoot/);
   });
 
   it("hardens install-time edge cases (legacy migration, running exe, empty checksum, PATH dedup, recovery null)", () => {
