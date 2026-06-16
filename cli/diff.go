@@ -102,6 +102,14 @@ func normalizeConfig(m map[string]interface{}) map[string]interface{} {
 		}
 		if canon, ok := diffPluralAlias[k]; ok {
 			k = canon
+			// HA accepts a singular `trigger: {…}` as the one-item plural list
+			// `triggers: [{…}]`. Wrap a single-object aliased value so a
+			// singular-object vs plural-list form compares equal instead of reading
+			// as a map-vs-list fake change — which would also block a safe revert
+			// through the shared snapshot-verify comparator.
+			if obj, isObj := v.(map[string]interface{}); isObj {
+				v = []interface{}{obj}
+			}
 		}
 		out[k] = v
 	}

@@ -65,6 +65,10 @@ describe("dev-sync contract", () => {
     // The dev guard refuses a plain `ha-nova update`, so the hint must name --force.
     expect(content).toContain("restore the release with 'ha-nova update --force'");
     expect(content).not.toContain("restore the release with 'ha-nova update'\"");
+    // A failed CLI build must fail the whole sync, not silently leave a stale
+    // runtime behind refreshed skills that call new ha-nova subcommands.
+    expect(content).toContain("cli_build_failed=1");
+    expect(content).toContain('if [[ "${cli_build_failed}" -eq 1 ]]; then');
     // Wired into the main flow right after the Claude sync.
     expect(content).toContain("sync_claude\nsync_cli_runtime\n");
   });

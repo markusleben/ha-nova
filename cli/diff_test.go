@@ -143,6 +143,22 @@ func TestDiffPluralAliasStillDetectsRealChange(t *testing.T) {
 	assertLines(t, got, []string{"- Trigger 1 (to): on → off"})
 }
 
+func TestDiffSingularObjectVsPluralListIsNotAChange(t *testing.T) {
+	// HA accepts a single trigger as an object (`trigger: {…}`) and stores it as a
+	// one-item plural list (`triggers: [{…}]`). The two forms must compare equal,
+	// or snapshot verify would cry false drift and block a safe revert.
+	assertLines(t, diffLines(t,
+		`{"trigger":{"platform":"state","entity_id":"x"},"mode":"single"}`,
+		`{"triggers":[{"platform":"state","entity_id":"x"}],"mode":"single"}`), nil)
+	assertLines(t, diffLines(t,
+		`{"condition":{"condition":"state","state":"on"}}`,
+		`{"conditions":[{"condition":"state","state":"on"}]}`), nil)
+	// A real difference inside the wrapped object is still detected.
+	if got := diffLines(t, `{"trigger":{"to":"on"}}`, `{"triggers":[{"to":"off"}]}`); len(got) != 1 {
+		t.Fatalf("expected 1 change for trigger to on->off, got %#v", got)
+	}
+}
+
 func TestDiffIgnoresMetadata(t *testing.T) {
 	got := diffLines(t,
 		`{"id":"1700000000000","unique_id":"1700000000000","mode":"single"}`,

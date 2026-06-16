@@ -17,6 +17,7 @@ CURRENT_PLATFORM_ID="$(detect_platform_id)"
 
 synced=()
 file_clients_synced=0
+cli_build_failed=0
 
 print_claude_repair_hint() {
   echo "[dev:sync] GUARDRAIL: rerun 'npm run dev:sync'; if Claude still stays detached, run 'ha-nova setup claude'."
@@ -355,6 +356,7 @@ sync_cli_runtime() {
     synced+=("CLI")
   else
     echo "[dev:sync] CLI: go build failed — fix the error above, then re-sync" >&2
+    cli_build_failed=1
   fi
 }
 
@@ -420,4 +422,12 @@ if [[ ${#synced[@]} -eq 0 ]]; then
   echo "[dev:sync] Nothing to sync — no clients detected."
 else
   echo "[dev:sync] Done: ${synced[*]}"
+fi
+
+# A failed CLI build leaves the installed runtime stale while the refreshed skills
+# already call new ha-nova subcommands (diff/snapshot) — fail the sync loudly so it
+# is fixed now, not at the next live dev write.
+if [[ "${cli_build_failed}" -eq 1 ]]; then
+  echo "[dev:sync] CLI build failed — installed runtime is stale vs the refreshed 0.6 skills. Fix the build above, then re-run." >&2
+  exit 1
 fi
