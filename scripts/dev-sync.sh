@@ -267,7 +267,17 @@ claude_marketplace_source_dir() {
       const fs = require("fs");
       const j = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
       const m = j["ha-nova"];
-      const p = m ? ((m.source && typeof m.source === "object" && m.source.path) || m.installLocation || "") : "";
+      const src = m && m.source;
+      // Mirror the Go reader (claudeMarketplaceSourceFromRaw): a marketplace source
+      // is either an object ({path|url|...}) or a plain string path. Object form ->
+      // source.path; string form -> the string itself (the literal "github" is a
+      // type marker, not a path). Missing the string form skipped the rsync, so a
+      // Claude restart re-staged stale skills over the fresh dev sync. The caller
+      // only rsyncs when this is an absolute dir under $HOME, so a URL/relative
+      // string is filtered there.
+      const fromObject = (src && typeof src === "object" && src.path) || "";
+      const fromString = (typeof src === "string" && src.trim().toLowerCase() !== "github") ? src.trim() : "";
+      const p = fromObject || fromString || (m && m.installLocation) || "";
       if (p) process.stdout.write(p);
     } catch (e) {}
   ' "${km}" 2>/dev/null || true

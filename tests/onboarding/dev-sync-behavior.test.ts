@@ -334,4 +334,43 @@ describe("dev-sync behavior", () => {
     expect(result.status).toBe(0);
     expect(result.stdout).toContain("Claude Code: ha-nova plugin not installed");
   });
+
+  it("extracts string-form Claude marketplace sources (not just object form)", () => {
+    // A marketplace source can be a plain string path (the Go reader supports it
+    // and fixtures use it). When the dev-sync parser only read object-shaped
+    // source.path, the rsync was skipped and a Claude restart re-staged stale dev
+    // skills over the fresh sync. Exercise the real parser function in isolation.
+    const binDir = createMockBinaries();
+    const extractAndRun = [
+      `eval "$(sed -n '/^claude_marketplace_source_dir() {/,/^}/p' scripts/dev-sync.sh)"`,
+      "claude_marketplace_source_dir",
+    ].join("\n");
+    const sourceDir = (knownMarketplaces: unknown): string => {
+      const home = mkdtempSync(join(tmpdir(), "ha-nova-mkt-src-"));
+      mkdirSync(join(home, ".claude", "plugins"), { recursive: true });
+      writeFileSync(
+        join(home, ".claude", "plugins", "known_marketplaces.json"),
+        JSON.stringify(knownMarketplaces),
+      );
+      const r = spawnSync("bash", ["-c", extractAndRun], {
+        cwd: REPO_ROOT,
+        encoding: "utf8",
+        timeout: 20000,
+        env: mockEnv(home, binDir),
+      });
+      expect(r.status).toBe(0);
+      return r.stdout.trim();
+    };
+
+    // String path source — the regression (object-only parsing returned "").
+    expect(sourceDir({ "ha-nova": { source: "/Users/x/.claude/plugins/marketplaces/ha-nova" } })).toBe(
+      "/Users/x/.claude/plugins/marketplaces/ha-nova",
+    );
+    // Object source.path still resolves.
+    expect(sourceDir({ "ha-nova": { source: { path: "/Users/x/mkt" } } })).toBe("/Users/x/mkt");
+    // "github" is a type marker, not a path → empty (mirrors the Go reader).
+    expect(sourceDir({ "ha-nova": { source: "github", repo: "markusleben/ha-nova" } })).toBe("");
+    // installLocation fallback when there is no source.
+    expect(sourceDir({ "ha-nova": { installLocation: "/Users/x/loc" } })).toBe("/Users/x/loc");
+  });
 });

@@ -88,6 +88,9 @@ describe("dev-sync contract", () => {
     expect(content).not.toContain("HA-NOVA-DEV-BUILD");
     // Marketplace source sync stays: keeps dev skills alive across a Claude restart.
     expect(content).toContain("claude_marketplace_source_dir()");
+    // The parser must read string-form sources too (the Go reader + fixtures use
+    // them); object-only parsing skipped the rsync and a restart clobbered dev skills.
+    expect(content).toContain('typeof src === "string"');
     expect(content).toContain('"${mkt_src}" == "${HOME}"/*');
   });
 
