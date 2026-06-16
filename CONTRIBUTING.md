@@ -112,7 +112,7 @@ These are useful, but they are not the default contributor path:
 
 Use `npm run dev:install:*` when you need a fresh repo-local skill install for one client. Use `npm run dev:sync` only when that repo-dev install already exists and you just need the current checkout pushed into the local client state.
 
-`npm run dev:sync` also rebuilds the local Go CLI onto the runtime `ha-nova` your clients call, so skill **and** CLI changes go live together — this is the clear way to live-test new CLI subcommands. Start a fresh client session afterwards so the synced skills load, then use the skill normally. Restore the released CLI any time with `ha-nova update`.
+`npm run dev:sync` also rebuilds the local Go CLI onto the runtime `ha-nova` your clients call, so skill **and** CLI changes go live together — this is the clear way to live-test new CLI subcommands. Start a fresh client session afterwards so the synced skills load, then use the skill normally. The rebuilt CLI is stamped `BuildChannel=dev`, so a plain `ha-nova update` is refused to protect your working tree — restore the released CLI any time with `ha-nova update --force` (or `ha-nova update --version <tag>`).
 
 `scripts/onboarding/install-local-skills.sh` and `scripts/onboarding/bin/ha-nova` are repo-dev helpers, not supported end-user product interfaces.
 
