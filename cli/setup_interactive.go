@@ -654,6 +654,9 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 				renderSetupIncompleteBanner(os.Stdout, setupIssueSkillsInstall)
 				return 1
 			}
+			// Clients were just synced from the canonical install root; mark this
+			// version verified so the post-update self-heal stays a no-op here.
+			state.ClientsVerifiedVersion = localVersion(paths)
 			if err := saveState(paths, state); err != nil {
 				printHumanErr("cannot save state: %s", err)
 				return 1

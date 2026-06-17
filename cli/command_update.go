@@ -195,6 +195,12 @@ func syncInstalledClientsForCurrentVersion(paths runtimePaths, currentVersion, t
 	return 0
 }
 
+// postUpdateSync re-syncs every configured client from the canonical install
+// root and stamps the client-verification marker (state.ClientsVerifiedVersion).
+// The marker is stamped after the whole pass regardless of per-client failures,
+// so the post-update self-heal (see ensureClientsVerifiedForCurrentVersion) runs
+// at most once per version and a persistently-failing client cannot retrigger a
+// full re-sync (failed clients stay tracked in state for the normal retry paths).
 func postUpdateSync(paths runtimePaths) error {
 	detectedClients, err := detectInstalledClients(paths)
 	if err != nil {
@@ -224,7 +230,9 @@ func postUpdateSync(paths runtimePaths) error {
 		printHumanInfo("Client synced: %s", client)
 	}
 	state.InstalledClients = configured
-	state.Version = localVersion(paths)
+	version := localVersion(paths)
+	state.Version = version
+	state.ClientsVerifiedVersion = version
 	if err := saveState(paths, state); err != nil {
 		return err
 	}

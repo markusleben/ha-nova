@@ -17,6 +17,19 @@ import (
 	"time"
 )
 
+// Transient sibling directories the in-place updater creates next to the install
+// root while swapping bundles. They exist only for the duration of an update and
+// are renamed/removed by commit()/rollback(). resolveSourceRoot keys off these
+// prefixes to never resolve the client source from a moved-aside backup (see
+// isTransientInstallBackup) — on Linux the running binary is renamed INTO
+// `.ha-nova-old-*`, so os.Executable() would otherwise point client sync at the
+// stale, about-to-be-deleted tree.
+const (
+	installBackupPrefixNext   = ".ha-nova-next-"
+	installBackupPrefixOld    = ".ha-nova-old-"
+	installBackupPrefixFailed = ".ha-nova-failed-"
+)
+
 func stageBundle(paths runtimePaths, version string) (string, error) {
 	stageDir, err := os.MkdirTemp("", "ha-nova-stage-*")
 	if err != nil {
@@ -277,8 +290,8 @@ func replaceInstallRootWithBackup(installRoot, stageRoot string) (installRootRep
 		return installRootReplacement{}, err
 	}
 
-	nextRoot := filepath.Join(parent, ".ha-nova-next-"+strconv.FormatInt(time.Now().UnixNano(), 10))
-	backupRoot := filepath.Join(parent, ".ha-nova-old-"+strconv.FormatInt(time.Now().UnixNano(), 10))
+	nextRoot := filepath.Join(parent, installBackupPrefixNext+strconv.FormatInt(time.Now().UnixNano(), 10))
+	backupRoot := filepath.Join(parent, installBackupPrefixOld+strconv.FormatInt(time.Now().UnixNano(), 10))
 	if err := copyDir(stageRoot, nextRoot); err != nil {
 		_ = os.RemoveAll(nextRoot)
 		return installRootReplacement{}, err
@@ -317,7 +330,7 @@ func (r installRootReplacement) commit() error {
 func (r installRootReplacement) rollback(paths runtimePaths) error {
 	failedRoot := ""
 	if _, err := os.Stat(paths.InstallRoot); err == nil {
-		failedRoot = filepath.Join(filepath.Dir(paths.InstallRoot), ".ha-nova-failed-"+strconv.FormatInt(time.Now().UnixNano(), 10))
+		failedRoot = filepath.Join(filepath.Dir(paths.InstallRoot), installBackupPrefixFailed+strconv.FormatInt(time.Now().UnixNano(), 10))
 		if err := os.Rename(paths.InstallRoot, failedRoot); err != nil {
 			return err
 		}

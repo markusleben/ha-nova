@@ -230,6 +230,9 @@ func runSetup(paths runtimePaths, args []string) int {
 		printHumanErr("client installation failed: %s", err)
 		return 1
 	}
+	// Clients were just synced from the canonical install root; mark this version
+	// verified so the post-update self-heal stays a no-op for this install.
+	state.ClientsVerifiedVersion = localVersion(paths)
 	if err := saveStateForSetup(paths, state); err != nil {
 		printHumanErr("cannot save state: %s", err)
 		return 1
