@@ -16,11 +16,19 @@ function Fail([string]$Message) {
 }
 
 function Remove-IfExists([string]$Path) {
-  if (Test-Path -LiteralPath $Path) {
-    # Best-effort: a locked legacy file (running relay.exe, AV handle) must not
-    # abort the whole cleanup under Stop mode and trap the user in a loop where
-    # the installer still detects legacy residue.
+  if (-not (Test-Path -LiteralPath $Path)) {
+    return
+  }
+  # Best-effort: a locked legacy file (running relay.exe, AV handle) must not abort
+  # the whole cleanup under Stop mode and trap the user in a loop where the
+  # installer still detects legacy residue. `Remove-Item -Recurse` throws a
+  # TERMINATING Win32Exception ("Access is denied") that -ErrorAction SilentlyContinue
+  # does NOT suppress, so wrap it in try/catch. The blocker-residue check below still
+  # fails loudly if a real blocker survives, so this never hides a stuck cleanup.
+  try {
     Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction SilentlyContinue
+  }
+  catch {
   }
 }
 
@@ -58,7 +66,7 @@ if ($null -ne $wsl) {
 
 $legacyScriptsDir = Join-Path $InstallDir "scripts\onboarding"
 if ((Test-Path -LiteralPath $legacyScriptsDir) -and -not (Test-Path -LiteralPath (Join-Path $InstallDir "bundle.json"))) {
-  Remove-Item -LiteralPath $InstallDir -Recurse -Force -ErrorAction SilentlyContinue
+  Remove-IfExists $InstallDir
 }
 
 $skillRoots = @(
@@ -74,7 +82,7 @@ foreach ($root in $skillRoots) {
     continue
   }
   Get-ChildItem -LiteralPath $root -Filter "ha-nova*" -ErrorAction SilentlyContinue | ForEach-Object {
-    Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-IfExists $_.FullName
   }
 }
 
