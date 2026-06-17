@@ -31,6 +31,27 @@ func setupHealableInstall(t *testing.T) runtimePaths {
 	return paths
 }
 
+func TestAllTrackedClientsSynced(t *testing.T) {
+	cases := []struct {
+		name    string
+		tracked []string
+		synced  []string
+		want    bool
+	}{
+		{"all tracked synced", []string{"codex", "hermes"}, []string{"codex", "hermes"}, true},
+		{"subset leaves a tracked client unsynced", []string{"codex", "hermes"}, []string{"codex"}, false},
+		{"fresh install (nothing tracked)", nil, []string{"codex"}, true},
+		{"synced superset still covers tracked", []string{"codex"}, []string{"codex", "hermes"}, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := allTrackedClientsSynced(tc.tracked, tc.synced); got != tc.want {
+				t.Fatalf("allTrackedClientsSynced(%v, %v) = %v, want %v", tc.tracked, tc.synced, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestEnsureClientsVerifiedSelfHealsOnceThenNoOp(t *testing.T) {
 	paths := setupHealableInstall(t)
 	codexLink := filepath.Join(paths.Home, ".agents", "skills", "ha-nova")

@@ -1,5 +1,24 @@
 package main
 
+// allTrackedClientsSynced reports whether every client currently tracked in state
+// was part of the just-synced set. It gates the ClientsVerifiedVersion stamp in
+// setup: a sync that touched only a subset (e.g. a single-client `setup` over a
+// multi-client install) must NOT mark the whole version verified, or the
+// self-heal would short-circuit and never repair the untouched, still-stale
+// clients.
+func allTrackedClientsSynced(tracked, synced []string) bool {
+	syncedSet := make(map[string]struct{}, len(synced))
+	for _, c := range synced {
+		syncedSet[c] = struct{}{}
+	}
+	for _, c := range tracked {
+		if _, ok := syncedSet[c]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
 // ensureClientsVerifiedForCurrentVersion re-syncs client integrations once after
 // a version change, then records the version in state so it stays a no-op until
 // the next change.
