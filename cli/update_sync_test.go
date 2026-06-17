@@ -295,11 +295,11 @@ func TestPostUpdateSyncContinuesOtherClientsAfterClaudeFailure(t *testing.T) {
 	if !containsClient(saved.InstalledClients, "claude") {
 		t.Fatalf("expected failed Claude client to remain configured for retry, got %+v", saved.InstalledClients)
 	}
-	// Retry-loop guard: the client-verification marker must be stamped even when a
-	// client fails, so the post-update self-heal does not re-run a full sync on
-	// every command (the failed client stays tracked for the normal retry paths).
-	if saved.ClientsVerifiedVersion == "" || saved.ClientsVerifiedVersion != saved.Version {
-		t.Fatalf("expected marker stamped despite per-client failure, got marker=%q version=%q", saved.ClientsVerifiedVersion, saved.Version)
+	// The client-verification marker must NOT be stamped when a client failed, so
+	// the self-heal re-attempts it on the next check-update/doctor instead of
+	// short-circuiting and leaving it stale for the whole version.
+	if saved.ClientsVerifiedVersion != "" {
+		t.Fatalf("expected marker left unstamped after a per-client failure, got %q", saved.ClientsVerifiedVersion)
 	}
 }
 

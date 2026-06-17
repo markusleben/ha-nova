@@ -90,6 +90,40 @@ func TestEnsureClientsVerifiedSelfHealsOnceThenNoOp(t *testing.T) {
 	}
 }
 
+// TestPostUpdateSyncLeavesMarkerUnstampedWhenClientSkipped guards Codex's second
+// P1: a tracked client whose runtime is absent in this environment is skipped, and
+// the marker must stay unstamped so the self-heal repairs it once the runtime
+// reappears (rather than short-circuiting forever on a premature marker).
+func TestPostUpdateSyncLeavesMarkerUnstampedWhenClientSkipped(t *testing.T) {
+	paths := setupHealableInstall(t)
+	// Override the runtime probe so the tracked client is skipped, not synced.
+	clientRuntimeDetectedForStatus = func(string) bool { return false }
+
+	if err := saveState(paths, installState{
+		SchemaVersion:    stateSchemaVersion,
+		Version:          "0.6.1",
+		InstalledClients: []string{"codex"},
+	}); err != nil {
+		t.Fatalf("saveState() error: %v", err)
+	}
+
+	// A skip is not a failure, so postUpdateSync returns nil.
+	if err := postUpdateSync(paths); err != nil {
+		t.Fatalf("postUpdateSync() error: %v", err)
+	}
+
+	state, err := loadState(paths)
+	if err != nil {
+		t.Fatalf("loadState() error: %v", err)
+	}
+	if state.ClientsVerifiedVersion != "" {
+		t.Fatalf("a skipped (runtime-absent) tracked client must leave the marker unstamped, got %q", state.ClientsVerifiedVersion)
+	}
+	if state.Version != "0.6.1" {
+		t.Fatalf("state.Version should still advance to the running version, got %q", state.Version)
+	}
+}
+
 func TestEnsureClientsVerifiedSkipsDevBuild(t *testing.T) {
 	paths := setupHealableInstall(t)
 	codexLink := filepath.Join(paths.Home, ".agents", "skills", "ha-nova")

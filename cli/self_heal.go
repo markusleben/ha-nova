@@ -74,9 +74,10 @@ func ensureClientsVerifiedForCurrentVersion(paths runtimePaths) {
 	if loadStateOrDefault(paths).ClientsVerifiedVersion == version {
 		return
 	}
-	// postUpdateSync stamps the marker after the pass (even on per-client failure),
-	// so a persistently-failing client cannot retrigger a full re-sync next time.
+	// postUpdateSync stamps the marker only when every client synced cleanly, so a
+	// client that was skipped (runtime absent) or failed correctly re-attempts on
+	// the next check-update/doctor instead of being marked verified prematurely.
 	if err := postUpdateSync(paths); err != nil {
-		printHumanWarn("Client self-heal incomplete (retries on next version change): %s", err)
+		printHumanWarn("Client self-heal incomplete (retries on next run): %s", err)
 	}
 }

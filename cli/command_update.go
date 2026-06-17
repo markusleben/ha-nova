@@ -195,12 +195,18 @@ func syncInstalledClientsForCurrentVersion(paths runtimePaths, currentVersion, t
 	return 0
 }
 
-// postUpdateSync re-syncs every configured client from the canonical install
-// root and stamps the client-verification marker (state.ClientsVerifiedVersion).
-// The marker is stamped after the whole pass regardless of per-client failures,
-// so the post-update self-heal (see ensureClientsVerifiedForCurrentVersion) runs
-// at most once per version and a persistently-failing client cannot retrigger a
-// full re-sync (failed clients stay tracked in state for the normal retry paths).
+// postUpdateSync re-syncs every configured client from the canonical install root
+// and, when the whole set verified cleanly, stamps the client-verification marker
+// (state.ClientsVerifiedVersion) that gates the post-update self-heal (see
+// ensureClientsVerifiedForCurrentVersion).
+//
+// The marker is stamped only when EVERY configured client was actually synced —
+// not when one was skipped because its runtime is absent in this environment, and
+// not when one failed. Otherwise a client skipped here (e.g. its CLI is not on
+// PATH right now) would be marked verified and then never repaired once its
+// runtime reappears, because the marker would already match. Leaving the marker
+// unset re-attempts those clients on the next check-update/doctor (which run at
+// most once per session), so the cost of an unresolvable client stays bounded.
 func postUpdateSync(paths runtimePaths) error {
 	detectedClients, err := detectInstalledClients(paths)
 	if err != nil {
@@ -209,6 +215,7 @@ func postUpdateSync(paths runtimePaths) error {
 	state := loadStateOrDefault(paths)
 	configured := normalizeClients(append(append([]string{}, state.InstalledClients...), detectedClients...))
 	failed := []string{}
+	skipped := false
 	for _, client := range configured {
 		entry, ok, err := findRegistryClient(paths, client)
 		if err != nil {
@@ -220,6 +227,7 @@ func postUpdateSync(paths runtimePaths) error {
 		status := evaluateClientStatus(paths, state, entry)
 		if !status.RuntimeDetected {
 			printHumanWarn("Skipping %s until the client runtime is installed in this environment", entry.Label)
+			skipped = true
 			continue
 		}
 		if err := installClients(paths, &state, []string{client}); err != nil {
@@ -232,7 +240,9 @@ func postUpdateSync(paths runtimePaths) error {
 	state.InstalledClients = configured
 	version := localVersion(paths)
 	state.Version = version
-	state.ClientsVerifiedVersion = version
+	if len(failed) == 0 && !skipped {
+		state.ClientsVerifiedVersion = version
+	}
 	if err := saveState(paths, state); err != nil {
 		return err
 	}
