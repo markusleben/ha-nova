@@ -201,12 +201,18 @@ func syncInstalledClientsForCurrentVersion(paths runtimePaths, currentVersion, t
 // ensureClientsVerifiedForCurrentVersion).
 //
 // The marker is stamped only when EVERY configured client was actually synced —
-// not when one was skipped because its runtime is absent in this environment, and
-// not when one failed. Otherwise a client skipped here (e.g. its CLI is not on
-// PATH right now) would be marked verified and then never repaired once its
-// runtime reappears, because the marker would already match. Leaving the marker
-// unset re-attempts those clients on the next check-update/doctor (which run at
-// most once per session), so the cost of an unresolvable client stays bounded.
+// not when one was skipped because its runtime is absent in this environment, not
+// when one failed, and not when the post-sync residue scan still finds a
+// transient-backup path in a synced tree. Otherwise a client skipped here (e.g.
+// its CLI is not on PATH right now) would be marked verified and then never
+// repaired once its runtime reappears, because the marker would already match.
+// Leaving the marker unset re-attempts those clients on the next
+// check-update/doctor (which run at most once per session), so the cost of an
+// unresolvable client stays bounded.
+//
+// The residue scan is the in-tool guarantee behind "Updated == clean": if a sync
+// ever resolves from a stale backup, the user gets a loud warning + recovery hint
+// instead of a silent success. For a fixed (>=0.6.2) binary it never fires.
 func postUpdateSync(paths runtimePaths) error {
 	detectedClients, err := detectInstalledClients(paths)
 	if err != nil {
@@ -240,11 +246,24 @@ func postUpdateSync(paths runtimePaths) error {
 	state.InstalledClients = configured
 	version := localVersion(paths)
 	state.Version = version
-	if len(failed) == 0 && !skipped {
+	// Verify the just-synced trees are actually clean before marking the version
+	// verified: a residue scan catches a sync that resolved from a transient backup
+	// (the pre-0.6.1 bug class), so "Updated" never silently means "updated-ish".
+	residue := transientBackupResidue(paths, configured)
+	if len(failed) == 0 && !skipped && len(residue) == 0 {
 		state.ClientsVerifiedVersion = version
+	} else if len(residue) > 0 {
+		// Residue is definitive evidence the tree is stale, so a previously-matching
+		// marker is now wrong — clear it (do not merely skip re-stamping) so the
+		// self-heal, which short-circuits on a matching marker, actually re-runs.
+		state.ClientsVerifiedVersion = ""
 	}
 	if err := saveState(paths, state); err != nil {
 		return err
+	}
+	if len(residue) > 0 {
+		printHumanWarn("These clients still reference a temporary update backup and are not fully up to date: %s", strings.Join(normalizeClients(residue), ", "))
+		printHumanWarn("Run `ha-nova doctor` to refresh them.")
 	}
 	if len(failed) > 0 {
 		return fmt.Errorf("failed clients: %s", strings.Join(normalizeClients(failed), ", "))

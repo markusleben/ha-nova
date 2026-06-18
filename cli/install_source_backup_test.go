@@ -224,6 +224,17 @@ func TestPostUpdateSyncAfterRealSwapSyncsFromInstallRootNotBackup(t *testing.T) 
 	if !strings.HasPrefix(resolved, installRootResolved) {
 		t.Fatalf("Codex skill tree resolved to %q, want a path under the install root %q", resolved, installRootResolved)
 	}
+
+	// A clean post-swap sync (no skip/fail and no transient-backup residue) must
+	// stamp the verification marker, proving the residue scan does not false-flag a
+	// correctly synced tree.
+	healed, err := loadState(paths)
+	if err != nil {
+		t.Fatalf("loadState() error: %v", err)
+	}
+	if healed.ClientsVerifiedVersion != "0.6.1" {
+		t.Fatalf("clean post-swap sync must stamp the marker to 0.6.1, got %q", healed.ClientsVerifiedVersion)
+	}
 }
 
 func findTransientBackup(t *testing.T, parent string) string {
