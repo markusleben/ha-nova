@@ -78,6 +78,50 @@ func TestTransientBackupResidueAggregatesDirtyClients(t *testing.T) {
 	}
 }
 
+// TestPostUpdateSyncClearsMatchingMarkerOnResidue guards Codex's P2: if the marker
+// already equals the running version but the residue scan finds a stale tree, the
+// marker must be CLEARED (not just left matching), or the self-heal would
+// short-circuit and never repair the stale client.
+func TestPostUpdateSyncClearsMatchingMarkerOnResidue(t *testing.T) {
+	if isWindowsRuntime() {
+		t.Skip("symlink residue is a non-Windows skill-tree concern")
+	}
+	paths := setupHealableInstall(t)
+	// Codex runtime absent → it is skipped and keeps its pre-existing dirty symlink;
+	// Hermes present → re-synced clean.
+	clientRuntimeDetectedForStatus = func(id string) bool { return id != "codex" }
+
+	codexLink := filepath.Join(paths.Home, ".agents", "skills", "ha-nova")
+	if err := os.MkdirAll(filepath.Dir(codexLink), 0o755); err != nil {
+		t.Fatalf("mkdir codex parent: %v", err)
+	}
+	if err := os.Symlink(filepath.Join(paths.Home, ".local", "share", installBackupPrefixOld+"42", "skills"), codexLink); err != nil {
+		t.Fatalf("symlink: %v", err)
+	}
+
+	// Marker already matches the running version (e.g. stamped by a prior run).
+	if err := saveState(paths, installState{
+		SchemaVersion:          stateSchemaVersion,
+		Version:                "0.6.1",
+		ClientsVerifiedVersion: "0.6.1",
+		InstalledClients:       []string{"hermes", "codex"},
+	}); err != nil {
+		t.Fatalf("saveState() error: %v", err)
+	}
+
+	if err := postUpdateSync(paths); err != nil {
+		t.Fatalf("postUpdateSync() error: %v", err)
+	}
+
+	state, err := loadState(paths)
+	if err != nil {
+		t.Fatalf("loadState() error: %v", err)
+	}
+	if state.ClientsVerifiedVersion != "" {
+		t.Fatalf("residue must clear the matching marker so the self-heal re-runs, got %q", state.ClientsVerifiedVersion)
+	}
+}
+
 func isWindowsRuntime() bool {
 	return os.PathSeparator == '\\'
 }
