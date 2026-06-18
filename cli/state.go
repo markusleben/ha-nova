@@ -10,13 +10,20 @@ import (
 )
 
 type installState struct {
-	SchemaVersion      int               `json:"schema_version"`
-	Version            string            `json:"version"`
-	InstallSource      string            `json:"install_source"`
-	InstalledClients   []string          `json:"installed_clients"`
-	ClientInstallModes map[string]string `json:"client_install_modes"`
-	PathManaged        bool              `json:"path_managed"`
-	PathTarget         string            `json:"path_target"`
+	SchemaVersion int    `json:"schema_version"`
+	Version       string `json:"version"`
+	// ClientsVerifiedVersion records the version whose client integrations
+	// (Hermes/Codex/OpenCode/Gemini/Claude) were last (re)synced from the
+	// canonical install root. It gates the post-update self-heal: a pre-0.6.1
+	// binary never wrote it, so after a v0.6.0->v0.6.1 in-place update the marker
+	// lags state.Version and the next command re-syncs once. Empty/omitted means
+	// "unknown — verify on next run".
+	ClientsVerifiedVersion string            `json:"clients_verified_version,omitempty"`
+	InstallSource          string            `json:"install_source"`
+	InstalledClients       []string          `json:"installed_clients"`
+	ClientInstallModes     map[string]string `json:"client_install_modes"`
+	PathManaged            bool              `json:"path_managed"`
+	PathTarget             string            `json:"path_target"`
 }
 
 func loadState(paths runtimePaths) (installState, error) {

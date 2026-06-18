@@ -41,6 +41,10 @@ func runDoctor(paths runtimePaths, args []string) int {
 		}
 	}
 
+	// Self-heal client integrations once after a version change (complements
+	// --auto-repair below, which only re-attaches drifted clients). Best-effort.
+	ensureClientsVerifiedForCurrentVersion(paths)
+
 	cfg, cfgErr := loadConfig(paths)
 	token, tokenErr := readRelayAuthTokenForDoctor()
 	state, stateErr := loadStateOrDefaultChecked(paths)
@@ -198,6 +202,12 @@ func runCheckUpdate(paths runtimePaths, args []string) int {
 		}
 		return updateCheckExitCode(result)
 	}
+
+	// Human/quiet path only (the `--json` branch above stays machine-clean): every
+	// client runs `check-update` on first skill use per session, so this is the
+	// universal point to self-heal client integrations once after a version change.
+	// Best-effort; never blocks the update check.
+	ensureClientsVerifiedForCurrentVersion(paths)
 
 	notice := humanNoticeFromUpdateCheckResult(result, *quiet)
 	if notice.empty() {

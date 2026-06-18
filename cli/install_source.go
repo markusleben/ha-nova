@@ -64,14 +64,34 @@ func detectInstallSource(paths runtimePaths, state installState) string {
 	return installSourceBundle
 }
 
+// isTransientInstallBackup reports whether dir is one of the updater's transient
+// swap siblings (.ha-nova-next-/old-/failed-). During an in-place update the
+// running binary is renamed into `.ha-nova-old-*` (and that backup still carries
+// a bundle.json), so os.Executable() inside postUpdateSync would otherwise make
+// resolveSourceRoot pick the stale, about-to-be-deleted tree as the client
+// source. Keying off the backup basename is the only signal that distinguishes
+// this from a legitimate portable install whose exe sits in a stable custom dir.
+func isTransientInstallBackup(dir string) bool {
+	base := filepath.Base(filepath.Clean(dir))
+	return strings.HasPrefix(base, installBackupPrefixOld) ||
+		strings.HasPrefix(base, installBackupPrefixNext) ||
+		strings.HasPrefix(base, installBackupPrefixFailed)
+}
+
 func resolveSourceRoot(paths runtimePaths) string {
 	if override := strings.TrimSpace(os.Getenv("HA_NOVA_DEV_ROOT")); override != "" {
 		return filepath.Clean(override)
 	}
 	if exePath, err := executablePathForInstallSource(); err == nil {
 		exeRoot := filepath.Dir(exePath)
-		if _, err := os.Stat(filepath.Join(exeRoot, "bundle.json")); err == nil {
-			return exeRoot
+		// Never resolve the source from a transient update backup: the swap
+		// guarantees paths.InstallRoot already holds the fresh bundle before
+		// postUpdateSync runs (and the restored old bundle after a rollback) —
+		// both correct, while the backup is stale and about to be deleted.
+		if !isTransientInstallBackup(exeRoot) {
+			if _, err := os.Stat(filepath.Join(exeRoot, "bundle.json")); err == nil {
+				return exeRoot
+			}
 		}
 	}
 	return paths.InstallRoot
@@ -97,7 +117,11 @@ func sourceRootCandidates(paths runtimePaths) []string {
 		addCandidate(override)
 	}
 	if exePath, err := executablePathForInstallSource(); err == nil {
-		addCandidate(filepath.Dir(exePath))
+		// Same guard as resolveSourceRoot: a transient update backup must never
+		// become a client-registry source candidate (locateClientRegistry).
+		if exeDir := filepath.Dir(exePath); !isTransientInstallBackup(exeDir) {
+			addCandidate(exeDir)
+		}
 	}
 	addCandidate(paths.InstallRoot)
 	if cwd, err := os.Getwd(); err == nil {
