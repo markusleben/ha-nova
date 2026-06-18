@@ -20,31 +20,33 @@ import (
 func transientBackupResidue(paths runtimePaths, clients []string) []string {
 	dirty := []string{}
 	for _, client := range clients {
-		root := clientSkillTreeRoot(paths, client)
-		if root == "" {
-			continue
-		}
-		if pathHasTransientBackupResidue(root) {
-			dirty = append(dirty, client)
+		for _, root := range clientSkillTreeRoots(paths, client) {
+			if pathHasTransientBackupResidue(root) {
+				dirty = append(dirty, client)
+				break
+			}
 		}
 	}
 	return dirty
 }
 
-// clientSkillTreeRoot maps a client id to the on-disk root where its synced
-// skills live. Returns "" for clients without a scannable skill tree.
-func clientSkillTreeRoot(paths runtimePaths, client string) string {
+// clientSkillTreeRoots maps a client id to the on-disk root(s) where ITS synced
+// HA NOVA skills live. Returns nil for clients without a scannable skill tree.
+// Gemini uses a flat layout shared with the user's other skills, so only the
+// `ha-nova*` entries are ours — never scan unrelated Gemini skills.
+func clientSkillTreeRoots(paths runtimePaths, client string) []string {
 	switch client {
 	case "hermes":
-		return filepath.Join(paths.Home, ".hermes", "skills", "ha-nova")
+		return []string{filepath.Join(paths.Home, ".hermes", "skills", "ha-nova")}
 	case "codex":
-		return filepath.Join(paths.Home, ".agents", "skills", "ha-nova")
+		return []string{filepath.Join(paths.Home, ".agents", "skills", "ha-nova")}
 	case "opencode":
-		return filepath.Join(paths.Home, ".config", "opencode", "skills", "ha-nova")
+		return []string{filepath.Join(paths.Home, ".config", "opencode", "skills", "ha-nova")}
 	case "gemini":
-		return filepath.Join(paths.Home, ".gemini", "skills")
+		matches, _ := filepath.Glob(filepath.Join(paths.Home, ".gemini", "skills", "ha-nova*"))
+		return matches
 	default:
-		return ""
+		return nil
 	}
 }
 

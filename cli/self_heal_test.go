@@ -97,7 +97,9 @@ func TestEnsureClientsVerifiedSelfHealsOnceThenNoOp(t *testing.T) {
 func TestPostUpdateSyncLeavesMarkerUnstampedWhenClientSkipped(t *testing.T) {
 	paths := setupHealableInstall(t)
 	// Override the runtime probe so the tracked client is skipped, not synced.
+	origRuntime := clientRuntimeDetectedForStatus
 	clientRuntimeDetectedForStatus = func(string) bool { return false }
+	t.Cleanup(func() { clientRuntimeDetectedForStatus = origRuntime })
 
 	if err := saveState(paths, installState{
 		SchemaVersion:    stateSchemaVersion,

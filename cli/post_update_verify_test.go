@@ -89,7 +89,9 @@ func TestPostUpdateSyncClearsMatchingMarkerOnResidue(t *testing.T) {
 	paths := setupHealableInstall(t)
 	// Codex runtime absent → it is skipped and keeps its pre-existing dirty symlink;
 	// Hermes present → re-synced clean.
+	origRuntime := clientRuntimeDetectedForStatus
 	clientRuntimeDetectedForStatus = func(id string) bool { return id != "codex" }
+	t.Cleanup(func() { clientRuntimeDetectedForStatus = origRuntime })
 
 	codexLink := filepath.Join(paths.Home, ".agents", "skills", "ha-nova")
 	if err := os.MkdirAll(filepath.Dir(codexLink), 0o755); err != nil {
