@@ -98,10 +98,8 @@ func clientAttachmentPresent(paths runtimePaths, state installState, client stri
 	case "opencode":
 		return fileExists(filepath.Join(paths.Home, ".config", "opencode", "skills", "ha-nova", "ha-nova", "SKILL.md"))
 	case "antigravity":
-		return (fileExists(filepath.Join(antigravitySkillsRoot(paths.Home), "ha-nova", "SKILL.md")) &&
-			fileExists(filepath.Join(antigravitySkillsRoot(paths.Home), "ha-nova-review", "SKILL.md"))) ||
-			(fileExists(filepath.Join(legacyGeminiSkillsRoot(paths.Home), "ha-nova", "SKILL.md")) &&
-				fileExists(filepath.Join(legacyGeminiSkillsRoot(paths.Home), "ha-nova-review", "SKILL.md")))
+		return fileExists(filepath.Join(antigravitySkillsRoot(paths.Home), "ha-nova", "SKILL.md")) &&
+			fileExists(filepath.Join(antigravitySkillsRoot(paths.Home), "ha-nova-review", "SKILL.md"))
 	case "hermes":
 		return hermesBundlePresent(paths.Home)
 	case "claude":

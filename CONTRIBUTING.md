@@ -103,7 +103,8 @@ These are useful, but they are not the default contributor path:
 - `npm run dev:install:codex-skill`
 - `npm run dev:install:claude-skill`
 - `npm run dev:install:opencode-skill`
-- `npm run dev:install:gemini-skill`
+- `npm run dev:install:antigravity-skill`
+- `npm run dev:install:gemini-skill` (legacy alias for Antigravity)
 - `npm run dev:install:skills`
 - `npm run test:desktop:macos`
 - `npm run test:desktop:windows:headless`
