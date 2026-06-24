@@ -80,6 +80,11 @@ conditions:
 
 ### Notification Formatting
 
+Notification titles and messages are user-facing copy. During unrelated updates,
+preserve existing notification wording and templates exactly; do not restyle,
+relocalize, or restructure them unless the user explicitly asks for notification
+copy changes.
+
 ```yaml
 actions:
   - action: notify.mobile

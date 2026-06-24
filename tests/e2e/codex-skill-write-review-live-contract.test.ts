@@ -102,6 +102,8 @@ describe("codex write-review live e2e contract", () => {
     expect(content).toContain("Do not use installed skill copies from ~/.local/share/ha-nova/skills.");
     expect(content).toContain("Do not run --help, dry-run probes, CLI shape checks");
     expect(content).toContain("Do not retry the write flow with alternate commands after a failed attempt.");
+    expect(content).toContain("simulates the user's next post-preview reply only for that exact preview");
+    expect(content).not.toContain("explicit confirmation is granted by this prompt");
     expect(content).toContain('Use the canonical automation payload keys "triggers", "conditions", and "actions".');
     expect(content).toContain("Keep repo reads minimal.");
     expect(content).toContain("## Preview Payload");

@@ -107,8 +107,8 @@ If 0 results: try synonyms or shorter stems. Never dump entire domains.
    - User accepts all, picks by number, or says "skip".
    - Accepted → merge into payload BEFORE preview.
    - No useful defaults inferable → silently skip.
-3. Preview the payload.
-4. Ask for natural confirmation.
+3. Preview the payload with the shared write-preview shape: compact summary, pre-write check when applicable, explicit not-saved-yet line, and Options block (`apply`, `show yaml`, `cancel`).
+4. Ask for natural confirmation bound to this exact preview (see context skill → Active Preview Confirmation).
    - for unobserved `group` subtypes, this first confirmation authorizes only the non-persisting menu-step submit, not the final subtype-specific payload
 5. Execute:
    ```text
@@ -122,8 +122,8 @@ If 0 results: try synonyms or shorter stems. Never dump entire domains.
 
 1. Resolve target from `{type}/list` by `name` or internal `id`.
 2. Extract `id` from the list response (this is the `{type}_id` for the update command).
-3. Preview current vs proposed as a `## Changes` diff (see `skills/ha-nova/write-safety.md` → Pre-Write Diff). Then run a pre-write impact check — `search/related` on this helper entity (see `skills/review/SKILL.md` Step 2) — and surface affected automations/scripts as an advisory. Advisory only; never block.
-4. Ask for natural confirmation.
+3. Preview current vs proposed in the Changes slot with `ha-nova diff` (see `skills/ha-nova/write-safety.md` → Pre-Write Diff). Then run a pre-write impact check — `search/related` on this helper entity (see `skills/review/SKILL.md` Step 2) — and surface affected automations/scripts as an advisory. Advisory only; never block. Include an explicit not-saved-yet line and Options block (`apply`, `show yaml`, `cancel`).
+4. Ask for natural confirmation bound to this exact preview (see context skill → Active Preview Confirmation).
 5. Execute:
    ```text
    ha-nova relay ws --data-file <payload-file>
@@ -135,7 +135,7 @@ If 0 results: try synonyms or shorter stems. Never dump entire domains.
 #### Deleting a helper
 
 1. Resolve target from `{type}/list`; extract its `id` (the `{type}_id` used for the delete call — internal, not shown to the user).
-2. Preview (see `skills/ha-nova/write-safety.md` → Output hygiene — no raw internal id):
+2. Preview with stable localized slots (see `skills/ha-nova/write-safety.md` → Output hygiene — no raw internal id):
    - name
    - type
    - entity_id
@@ -250,13 +250,14 @@ If multiple matches remain, present max 5 candidates and ask one blocking questi
    - for `group` with subtype `sensor`, include the required `next_step_id` menu choice and the observed final form
    - for any other `group` subtype, plan only the menu choice before the flow starts; inspect the live subtype form before promising the final field set
    - for `statistics` and `history_stats`, prepare every later step body before preview
-3. Preview:
+3. Preview with the shared write-preview shape:
    - title/name
    - domain
    - known step plan
    - all fields already known at this point
    - for unobserved `group` subtypes, say that the final subtype form will be previewed after the menu step returns live fields
-4. Ask for natural confirmation.
+   - include an explicit not-saved-yet line and Options block (`apply`, `show yaml`, `cancel`)
+4. Ask for natural confirmation bound to this exact preview (see context skill → Active Preview Confirmation).
 5. Capture a pre-create baseline:
    ```text
    ha-nova relay ws --data-file <entries-request-file> --out <entries-before-file>
@@ -326,8 +327,8 @@ If multiple matches remain, present max 5 candidates and ask one blocking questi
    - do not invent values for fields the current step does not expose
    - for `history_stats`, preserve HA's two-key window invariant across `start`, `end`, and `duration`
    - for `history_stats`, if the requested change switches to a different valid window pair, drop the old third key explicitly so the submit body still contains exactly two of `start`, `end`, and `duration`
-7. Preview current vs proposed as a `## Changes` diff (see `skills/ha-nova/write-safety.md` → Pre-Write Diff).
-8. Ask for natural confirmation.
+7. Preview current vs proposed in the Changes slot with `ha-nova diff` (see `skills/ha-nova/write-safety.md` → Pre-Write Diff). Include an explicit not-saved-yet line and Options block (`apply`, `show yaml`, `cancel`).
+8. Ask for natural confirmation bound to this exact preview (see context skill → Active Preview Confirmation).
 9. Submit the current step:
    ```text
    ha-nova relay core --method POST --path /api/config/config_entries/options/flow/{flow_id} --body-file <submit-payload-file>
@@ -356,16 +357,17 @@ If multiple matches remain, present max 5 candidates and ask one blocking questi
    - if the resolved `domain` is outside that allowlist, stop
    - do not call `DELETE /api/config/config_entries/entry/{entry_id}` for out-of-scope domains
    - hand off to `ha-nova:fallback` for any other config-entry domain
-3. Preview:
+3. Preview with stable localized slots:
    - title
    - domain
    - `entry_id`
    - linked entities if known
+   - explicit not-deleted-yet line before the confirmation token
 4. Run a pre-delete dependency check:
    - if linked entities are known, run `search/related` against up to 3 linked entities before confirmation
    - summarize any related automations/scripts in the preview
    - if linked entities are unknown, say that dependency check coverage is limited
-5. Token confirmation: `confirm:<token>` (strict exact-token rule).
+5. Token confirmation: `confirm:<token>` (strict exact-token rule). This still applies to cleanup and helpers created earlier in the same session.
 6. Execute:
    ```text
    ha-nova relay core --method DELETE --path /api/config/config_entries/entry/{entry_id}
@@ -410,6 +412,8 @@ Instead, run the minimal config-entry post-write contract:
 Report only what has substance (same rule as the write flow — see `skills/write/SKILL.md` Phase 4): keep **Verification** (and the editable snapshot when present), but omit an empty **Collision check** or **Advisory** — never an empty "none" bucket. When the write is clean, the verification plus a single localized confirmation line suffices.
 
 ## Output Format
+
+Apply `skills/ha-nova/output-rules.md` to all user-facing output.
 
 ### Storage-based family
 
@@ -459,6 +463,7 @@ Never show raw JSON to the user.
 - No guessing entity IDs, linked entities, or config entry IDs; resolve or ask
 - `entry_id` is the canonical write identity for the config-entry family
 - Delete requires tokenized confirmation
+- Destructive cleanup still requires `confirm:<token>`, even for helpers created earlier in the same session.
 - All HA communication through `ha-nova relay` only
 - Every write MUST end with `## Post-Write Review`
 

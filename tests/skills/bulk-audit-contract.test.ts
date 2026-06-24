@@ -76,7 +76,7 @@ describe("bulk audit contract", () => {
   });
 
   it("keeps read bulk scope inventory-only", () => {
-    expect(readSkill).toContain("Multi-target scope is inventory-only");
+    expect(readSkill).toContain("Multi-target is inventory-only");
     expect(readSkill).toContain("bulk-patterns.md");
     expect(readSkill).toContain("keep full YAML reads single-target only");
     expect(readSkill).toContain("return the compact table only");

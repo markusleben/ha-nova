@@ -54,7 +54,7 @@ Response 200:
   "data": {
     "status": "ok",
     "ha_ws_connected": true,
-    "version": "0.2.1",
+    "version": "0.2.3",
     "uptime_s": 3600
   }
 }
@@ -83,6 +83,22 @@ Response 4xx/5xx:
 Validation: request body must contain a non-empty string field `type`.
 On validation failure: `400 VALIDATION_ERROR`.
 On upstream failure: `502 UPSTREAM_WS_ERROR` or `502 UPSTREAM_WS_TIMEOUT`.
+For finite event-response WS commands, a Skill may opt in to bounded event
+collection with an explicit envelope:
+
+```json
+{
+  "message": { "type": "system_health/info" },
+  "collect_events": {
+    "until_type": "finish",
+    "max_events": 100,
+    "timeout_ms": 10000
+  }
+}
+```
+
+The Relay forwards `message`, collects events until `until_type`, and returns
+them as `data.events`. It does not inspect command semantics or event payloads.
 
 Optional: Batch mode
 ```json

@@ -19,6 +19,8 @@ describe("app deploy script contract", () => {
     expect(content).toContain(".env");
     expect(content).toContain("ha store reload");
     expect(content).toContain("ha apps rebuild");
+    expect(content).toContain("ha apps update");
+    expect(content).toContain("instead[[:space:]]+of[[:space:]]+rebuild");
     expect(content).toContain("ha apps start");
     expect(content).toContain("docker rmi -f");
     expect(content).toContain("metadata_needs_reinstall");
@@ -26,5 +28,14 @@ describe("app deploy script contract", () => {
     expect(content).toContain("restore_app_options");
     expect(content).toContain("base64");
     expect(content).toContain("--raw-json");
+    expect(content).toContain("OPTIONS_PAYLOAD=");
+    expect(content).toContain("-d \"$OPTIONS_PAYLOAD\"");
+    expect(content).toContain("Dockerfile package.json package-lock.json tsconfig.json run config.yaml");
+    expect(content).toContain("SRC_DIR=\"${PROJECT_ROOT}/nova/src\"");
+    expect(content).toContain("-r \"${SRC_DIR}/.\"");
+    expect(content).toContain("print_safe_app_status");
+    expect(content).toContain("ha apps info ${SUPERVISOR_SLUG} --raw-json");
+    expect(content).toContain("\"update_available\": data.get(\"update_available\")");
+    expect(content).not.toContain("remote \"ha apps info ${SUPERVISOR_SLUG}\" || true");
   });
 });

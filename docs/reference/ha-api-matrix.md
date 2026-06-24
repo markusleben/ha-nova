@@ -127,10 +127,11 @@ Observed locally on a real HA instance on 2026-03-19: raw WS `config_entries/flo
 |---------|-----|
 | `config/automation/list` | Automations with metadata |
 | `repairs/list_issues` | Repairs/Deprecation Issues |
+| `config_entries/get` | Config-entry metadata; health uses not-loaded entries as integration status |
+| `system_health/info` | System health finite event response (Skill opts into Relay `collect_events` until `finish`) |
 | `homeassistant/expose_entity/list` | Voice-Assistant Exposure |
 | `subscribe_events` | Event subscription (real time) |
 | `subscribe_trigger` | Trigger subscription |
-| `system_health/info` | System health (subscription pattern) |
 | `blueprint/list` | List blueprints |
 | `blueprint/import` | Import blueprint |
 

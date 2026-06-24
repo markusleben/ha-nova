@@ -117,6 +117,33 @@ func TestRunSnapshotSaveReadsStdinRoundTrip(t *testing.T) {
 	}
 }
 
+func TestRunSnapshotSaveExplainsEmptyStdin(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths: %v", err)
+	}
+
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	w.Close()
+	oldStdin := os.Stdin
+	os.Stdin = r
+	t.Cleanup(func() { os.Stdin = oldStdin })
+
+	exitCode, output := captureCommandOutput(t, func() int {
+		return runSnapshotCommand(paths, []string{"save"})
+	})
+	if exitCode != 1 {
+		t.Fatalf("save empty stdin exit = %d, want 1", exitCode)
+	}
+	if !strings.Contains(output, "snapshot save requires --data-file <record-file> or JSON on stdin") {
+		t.Fatalf("unexpected output:\n%s", output)
+	}
+}
+
 func TestRunDiffCommandContract(t *testing.T) {
 	// Missing a required flag → exit 1.
 	if code := runDiffCommand(runtimePaths{}, []string{"--before", "only.json"}); code != 1 {
@@ -139,5 +166,22 @@ func TestRunDiffCommandContract(t *testing.T) {
 	})
 	if !strings.Contains(out, "Mode: single → restart") {
 		t.Fatalf("diff stdout = %q, want the deterministic change line", out)
+	}
+
+	outPath := filepath.Join(dir, "diff.txt")
+	out = captureStdout(t, func() {
+		if code := runDiffCommand(runtimePaths{}, []string{"--before", before, "--after", after, "--out", outPath}); code != 0 {
+			t.Fatalf("diff --out: exit = %d, want 0", code)
+		}
+	})
+	if strings.TrimSpace(out) != "" {
+		t.Fatalf("diff --out stdout = %q, want empty", out)
+	}
+	data, err := os.ReadFile(outPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := string(data), "- Mode: single → restart\n"; got != want {
+		t.Fatalf("diff file = %q, want %q", got, want)
 	}
 }

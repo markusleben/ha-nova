@@ -13,8 +13,9 @@ describe("ha cross-skill integration", () => {
     expect(writeSkill).toContain("skills/review/SKILL.md");
     expect(writeSkill).toContain("full-replacement merge (base=current, overlay=user changes)");
     expect(writeSkill).toContain("confirm:<token>");
-    expect(writeSkill).toContain("## Changes");
+    expect(writeSkill).toContain("Changes slot");
     expect(writeSkill).toContain("show yaml");
+    expect(writeSkill).toContain("cancel");
     expect(writeSkill).toContain("Fallback: If agent dispatch unavailable");
   });
 
@@ -26,6 +27,8 @@ describe("ha cross-skill integration", () => {
     expect(writeSkill).toContain("skills/ha-nova/agents/resolve-agent.md");
     expect(writeSkill).toContain("skills/ha-nova/agents/apply-agent.md");
     expect(writeSkill).toContain("skills/review/SKILL.md");
+    expect(writeSkill).toContain("config/entity_registry/get");
+    expect(writeSkill).toContain("list_for_display` only for search/disambiguation");
   });
 
   it("keeps write skill concise and phase-driven", () => {
@@ -77,6 +80,8 @@ describe("ha cross-skill integration", () => {
     const writeSkill = readFileSync("skills/write/SKILL.md", "utf8");
 
     // HA plural aliasing awareness
+    expect(writeSkill).toContain("Compare read-back vs draft as normalized objects, not raw JSON strings");
+    expect(writeSkill).toContain("key order is irrelevant");
     expect(writeSkill).toContain("trigger");
     expect(writeSkill).toContain("triggers");
     expect(writeSkill).toContain("plural aliasing");
@@ -100,7 +105,7 @@ describe("ha cross-skill integration", () => {
     expect(writeSkill).toContain("collapse to one localized confirmation line");
     expect(writeSkill).toContain("Never emit `Questions to consider`, `Suggestions`, or `Instant help` post-write");
     expect(writeSkill).toContain("never repeat an item across **Findings** and **Advisory**");
-    expect(writeSkill).toContain("Output Localization");
+    expect(writeSkill).toContain("skills/ha-nova/output-rules.md");
     // The old always-on "none" buckets must be gone (that was the noise the maintainer flagged).
     expect(writeSkill).not.toContain('localized equivalent of "No related items found."');
     expect(writeSkill).not.toContain('localized equivalent of "No conflicts found."');
@@ -110,12 +115,36 @@ describe("ha cross-skill integration", () => {
   it("keeps write flows constrained to one ambiguity question and no unrequested rewrites", () => {
     const writeSkill = readFileSync("skills/write/SKILL.md", "utf8");
     const refactorGuide = readFileSync("skills/ha-nova/safe-refactoring.md", "utf8");
+    const templateGuidelines = readFileSync("skills/ha-nova/template-guidelines.md", "utf8");
 
     expect(writeSkill).toContain("unrelated structure, aliases, or formatting");
+    expect(writeSkill).toContain("Treat notification copy as user-authored content");
+    expect(writeSkill).toContain("must not restyle, relocalize, or restructure existing notification text");
+    expect(writeSkill).toContain("change only the requested copy");
     expect(writeSkill).toContain("single blocking question");
     expect(writeSkill).toContain("second ambiguity question");
     expect(refactorGuide).toContain("directly affected consumers");
     expect(refactorGuide).toContain("Do not rewrite, rename, disable, or delete unrelated configs");
+    expect(templateGuidelines).toContain("preserve existing notification wording and templates exactly");
+  });
+
+  it("keeps write preview output terminal-friendly and action-oriented", () => {
+    const outputRules = readFileSync("skills/ha-nova/output-rules.md", "utf8");
+    const writeSafety = readFileSync("skills/ha-nova/write-safety.md", "utf8");
+
+    expect(outputRules).toContain("Terminal-Friendly Shape");
+    expect(outputRules).toContain("Localize section headings and labels to the user's language");
+    expect(outputRules).toContain("Do not mix English slot labels such as `Changes`, `Options`, or `Pre-write check` into a German response");
+    expect(outputRules).toContain("Prefer plain short labels over decorative Markdown headings");
+    expect(outputRules).toContain("preview summary, changes, pre-write check/impact, save status, options");
+    expect(outputRules).toContain("Use stable localized labels for those slots across a conversation");
+    expect(outputRules).toContain("same label and in the same order");
+    expect(outputRules).toContain("omit that slot instead of printing an empty placeholder");
+    expect(outputRules).toContain("nothing has been saved yet before showing the options");
+    expect(outputRules).toContain("literal `apply`, `show yaml`, and `cancel`");
+    expect(writeSafety).toContain("Save-status slot: explicitly say that nothing has been saved yet");
+    expect(writeSafety).toContain("historical slot name, not a required literal Markdown heading");
+    expect(writeSafety).toContain("<localized options label>:");
   });
 
   it("keeps write flow aligned to unique_id-first resolution and runtime verification", () => {

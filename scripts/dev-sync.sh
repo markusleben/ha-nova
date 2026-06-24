@@ -251,10 +251,11 @@ sync_shared_tools() {
 # skill files, so it works for every client (symlinked Codex/OpenCode or copied
 # Claude/Gemini) and can never pollute the committed skill source.
 dev_build_ldflags() {
-  local sha stamp
+  local sha stamp version
   sha="$(git -C "${REPO_ROOT}" rev-parse --short HEAD 2>/dev/null || echo local)"
   stamp="$(date '+%Y-%m-%dT%H:%M' 2>/dev/null || echo unknown)"
-  printf -- '-X main.BuildChannel=dev -X main.BuildStamp=%s-%s' "${stamp}" "${sha}"
+  version="$(repo_skill_version)"
+  printf -- '-X main.Version=%s -X main.BuildChannel=dev -X main.BuildStamp=%s-%s' "${version:-dev}" "${stamp}" "${sha}"
 }
 
 # The directory Claude stages the ha-nova plugin FROM (its marketplace source).
@@ -357,6 +358,7 @@ sync_cli_runtime() {
 
   if (cd "${REPO_ROOT}/cli" && go build -ldflags "$(dev_build_ldflags)" -o "${target}" .); then
     chmod 755 "${target}" 2>/dev/null || true
+    cp "${REPO_ROOT}/version.json" "$(dirname "${target}")/version.json" 2>/dev/null || true
     echo "[dev:sync] CLI: built local Go source → ${target}"
     echo "[dev:sync] CLI: local dev build active — 'ha-nova version' now reports DEV; restore the release with 'ha-nova update --force'"
     synced+=("CLI")
@@ -364,6 +366,35 @@ sync_cli_runtime() {
     echo "[dev:sync] CLI: go build failed — fix the error above, then re-sync" >&2
     cli_build_failed=1
   fi
+}
+
+stamp_dev_sync_state() {
+  local state_file="${HOME}/.config/ha-nova/state.json"
+  local repo_version
+  repo_version="$(repo_skill_version)"
+
+  [[ -n "${repo_version}" ]] || return 0
+  [[ -f "${state_file}" ]] || return 0
+  command -v node >/dev/null 2>&1 || return 0
+  node -e 'process.exit(0)' >/dev/null 2>&1 || return 0
+
+  node - "${state_file}" "${repo_version}" <<'NODE'
+const fs = require("fs");
+
+const stateFile = process.argv[2];
+const version = process.argv[3];
+
+try {
+  const raw = fs.readFileSync(stateFile, "utf8");
+  const state = raw.trim() ? JSON.parse(raw) : {};
+  state.schema_version = state.schema_version || 1;
+  state.version = version;
+  state.clients_verified_version = version;
+  fs.writeFileSync(stateFile, `${JSON.stringify(state, null, 2)}\n`, { mode: 0o600 });
+} catch (err) {
+  process.stderr.write(`[dev:sync] Warning: state.json not stamped (${err.message})\n`);
+}
+NODE
 }
 
 verify_plugin_integrity() {
@@ -423,6 +454,9 @@ if [[ "${file_clients_synced}" -eq 0 ]]; then
   sync_shared_tools
 fi
 verify_plugin_integrity
+if [[ "${cli_build_failed}" -eq 0 ]]; then
+  stamp_dev_sync_state
+fi
 
 if [[ ${#synced[@]} -eq 0 ]]; then
   echo "[dev:sync] Nothing to sync — no clients detected."
@@ -434,6 +468,6 @@ fi
 # already call new ha-nova subcommands (diff/snapshot) — fail the sync loudly so it
 # is fixed now, not at the next live dev write.
 if [[ "${cli_build_failed}" -eq 1 ]]; then
-  echo "[dev:sync] CLI build failed — installed runtime is stale vs the refreshed 0.6 skills. Fix the build above, then re-run." >&2
+  echo "[dev:sync] CLI build failed — installed runtime is stale vs the refreshed skills. Fix the build above, then re-run." >&2
   exit 1
 fi

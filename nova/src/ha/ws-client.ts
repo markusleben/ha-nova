@@ -12,11 +12,23 @@ export interface HaWsRequest {
 
 export interface HaWsConnection {
   sendMessagePromise(message: HaWsRequest): Promise<unknown>;
+  subscribeMessage?(
+    callback: (event: unknown) => void,
+    message: HaWsRequest,
+    options?: { resubscribe?: boolean }
+  ): Promise<() => void | Promise<void>>;
 }
 
 export interface HaWsClient {
   sendMessage<T>(message: HaWsRequest): Promise<T>;
+  collectMessageEvents<T>(message: HaWsRequest, options?: HaWsEventCollectionOptions): Promise<T[]>;
   isConnected(): boolean;
+}
+
+export interface HaWsEventCollectionOptions {
+  finishEventType?: string;
+  maxEvents?: number;
+  timeoutMs?: number;
 }
 
 export interface HaWsClientOptions {
@@ -67,6 +79,98 @@ export function createHaWsClient(options: HaWsClientOptions): HaWsClient {
         throw new HaWsClientError("UPSTREAM_WS_ERROR", message, error);
       }
     },
+    async collectMessageEvents<T>(
+      message: HaWsRequest,
+      collectionOptions: HaWsEventCollectionOptions = {}
+    ): Promise<T[]> {
+      const upstream = await getOrCreateConnection();
+      const subscribeMessage = upstream.subscribeMessage;
+      if (!subscribeMessage) {
+        throw new HaWsClientError(
+          "UPSTREAM_WS_ERROR",
+          "WS event collection is not supported by this connection"
+        );
+      }
+
+      const finishEventType = collectionOptions.finishEventType ?? "finish";
+      const maxEvents = collectionOptions.maxEvents ?? 100;
+      const timeoutMs = collectionOptions.timeoutMs ?? requestTimeoutMs;
+      const events: T[] = [];
+      let unsubscribe: (() => void | Promise<void>) | undefined;
+
+      try {
+        return await withTimeout(
+          new Promise<T[]>((resolve, reject) => {
+            let settled = false;
+            const settleResolve = (value: T[]) => {
+              if (!settled) {
+                settled = true;
+                resolve(value);
+              }
+            };
+            const settleReject = (error: unknown) => {
+              if (!settled) {
+                settled = true;
+                reject(error);
+              }
+            };
+
+            subscribeMessage(
+              (event: unknown) => {
+                if (settled) {
+                  return;
+                }
+
+                events.push(event as T);
+                if (isEventType(event, finishEventType)) {
+                  settleResolve([...events]);
+                  return;
+                }
+
+                if (events.length >= maxEvents) {
+                  settleReject(
+                    new HaWsClientError(
+                      "UPSTREAM_WS_ERROR",
+                      `WS event collection exceeded ${maxEvents} events`
+                    )
+                  );
+                }
+              },
+              message,
+              { resubscribe: false }
+            )
+              .then((cancel) => {
+                unsubscribe = cancel;
+              })
+              .catch(settleReject);
+          }),
+          timeoutMs
+        );
+      } catch (error) {
+        resetConnection();
+        if (error instanceof TimeoutError) {
+          throw new HaWsClientError(
+            "UPSTREAM_WS_TIMEOUT",
+            `WS event collection timed out after ${timeoutMs}ms`,
+            error
+          );
+        }
+
+        if (error instanceof HaWsClientError) {
+          throw error;
+        }
+
+        const errorMessage =
+          error instanceof Error && error.message
+            ? error.message
+            : "WS event collection failed";
+        throw new HaWsClientError("UPSTREAM_WS_ERROR", errorMessage, error);
+      } finally {
+        if (unsubscribe) {
+          await unsubscribe();
+        }
+      }
+    },
     isConnected(): boolean {
       return connection !== undefined;
     }
@@ -98,4 +202,12 @@ export function createHaWsClient(options: HaWsClientOptions): HaWsClient {
   function resetConnection(): void {
     connection = undefined;
   }
+}
+
+function isEventType(event: unknown, type: string): boolean {
+  return (
+    !!event &&
+    typeof event === "object" &&
+    (event as { type?: unknown }).type === type
+  );
 }

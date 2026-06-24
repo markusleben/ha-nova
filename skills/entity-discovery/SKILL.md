@@ -23,6 +23,10 @@ Read-only behavior.
 Verify relay CLI: `ha-nova relay health`
 If this fails: `ha-nova setup`
 
+## Output Rules
+
+Apply `skills/ha-nova/output-rules.md` to all user-facing output.
+
 ## Relay Contract
 
 Use file-based relay requests by default:

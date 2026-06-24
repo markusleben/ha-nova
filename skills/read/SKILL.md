@@ -1,6 +1,6 @@
 ---
 name: read
-description: Use when listing or reading Home Assistant automation and script configs through HA NOVA Relay. For analysis or review, use ha-nova:review instead.
+description: List/read Home Assistant automation and script configs through HA NOVA Relay. For analysis, use ha-nova:review.
 ---
 
 # HA NOVA Read
@@ -16,9 +16,9 @@ Read only:
 - `automation.trace`
 - `script.trace`
 
-Not for helpers — use `ha-nova:helper` for helper list/read.
+Not for helpers — use `ha-nova:helper`.
 
-Multi-target scope is inventory-only:
+Multi-target is inventory-only:
 - use `skills/ha-nova/bulk-patterns.md` for `prefix` / `domain` / `area` / `label`
 - keep full YAML reads single-target only
 
@@ -34,12 +34,12 @@ If this fails: `ha-nova setup`
 
 ## Relay Contract
 
-Use file-based relay requests:
+Use file-based requests:
 
-1. Write final JSON payloads with the client's native file-writing tool. Do not create placeholder templates and patch them later with `perl -0pi`, `sed -i`, or similar rewrites.
-2. Use `ha-nova relay ws --data-file <payload-file>`.
-3. Use `ha-nova relay core --method <METHOD> --path <PATH> --body-file <payload-file>` when a body is needed.
-4. Use `--jq-file <filter-file>` for non-trivial filters and `--out <result-file>` for large responses.
+1. Write final JSON with the client's native file-writing tool. Do not create placeholder templates and patch them later with `perl -0pi`, `sed -i`, or similar rewrites.
+2. Run `ha-nova relay ws --data-file <payload-file>`.
+3. Use `ha-nova relay core --method <METHOD> --path <PATH> --body-file <payload-file>`.
+4. Use `--jq-file <filter-file>` for complex filters and `--out <result-file>` for large responses. `relay jq` is single-input; compare files natively.
 
 ## Flow
 
@@ -73,7 +73,7 @@ For bulk inventory by `prefix`, `domain`, `area`, or `label`, reuse `skills/ha-n
 
 ### Keyword search
 
-Use short keyword stems and always limit results.
+Use short stems; limit results.
 
 ```text
 ha-nova relay ws --data-file <payload-file> --jq-file <filter-file>
@@ -85,7 +85,7 @@ Write `<filter-file>` with:
 [.data.entities[] | select(.ei | startswith("automation.")) | select((.ei + " " + (.en // "")) | test("KEYWORD";"i")) | {entity_id: .ei, name: .en, area_id: .ai}] | .[0:20]
 ```
 
-If 0 results: try synonyms or shorter stems: `test("kw1|kw2";"i")`.
+If 0 results: try synonyms/shorter stems: `test("kw1|kw2";"i")`.
 
 For "automations in room X": stay inside `read` and follow the area-first `search/related` flow from `skills/ha-nova/bulk-patterns.md`.
 
@@ -109,7 +109,7 @@ Resolve the config key via entity registry first; UI-created items often use num
      ```
    - if the contents differ, overwrite the same `<filter-file>` with the canonical line before the first config read; do not create alternate config-filter filenames
    - POSIX heredocs shown elsewhere are examples only; on Windows/PowerShell preserve the same jq body with native file writing
-3. Validate JSON:
+3. Validate:
    - `ha-nova relay jq --file <result-file> -e --jq-file <filter-file>`
    - use `type == "object"`
 4. For counts or follow-up transforms, use `ha-nova relay jq --file <result-file>` with `length` or `--jq-file <filter-file>`.
@@ -135,6 +135,8 @@ ha-nova relay ws --data-file <payload-file>
 If id is ambiguous, ask one clarifying question. Never use raw `get_states`.
 
 ## Output Format
+
+Apply `skills/ha-nova/output-rules.md` to all user-facing output.
 
 After reading a config, present:
 
@@ -169,13 +171,16 @@ Never show raw JSON to the user.
 
 For trace queries:
 
-1. Resolve the `unique_id` (config key). **`item_id` requires the `unique_id`, NOT the entity_id slug**.
+Prefer CLI helpers: `ha-nova trace latest <entity> --json`, `ha-nova trace list <entity> --json`, `ha-nova trace get <entity> <run_id> --json`. They resolve `unique_id` and normalize trace shapes. If none exist, explain that Home Assistant keeps only recent traces and YAML automations/scripts need an `id`.
+
+Manual relay path:
+
+1. Resolve the `unique_id`. **`item_id` requires the `unique_id`, NOT the entity_id slug**.
    Create `<payload-file>` with the `config/entity_registry/get` request, then run:
    ```text
    ha-nova relay ws --data-file <payload-file> --out <registry-file>
    ha-nova relay jq -r --file <registry-file> '.data.unique_id'
    ```
-   The jq filter quoting above is a POSIX example. On Windows/PowerShell pass the same filter with native argument quoting.
 2. List recent traces using the resolved `unique_id`:
    Create `<payload-file>` with:
    ```json
@@ -184,8 +189,9 @@ For trace queries:
    ```text
    ha-nova relay ws --data-file <payload-file>
    ```
-   For scripts: `"domain":"script"`.
-3. For a detailed trace, save `trace/get` to `<result-file>`:
+   For scripts: `"domain":"script"`. Trace lists may be `.data` array or `.data.traces`; inspect first.
+   Pick the newest real `run_id`. Do not use a list index such as `"0"` or `"4"`.
+3. For a detailed trace, prefer `ha-nova trace get`; otherwise save `trace/get` to `<result-file>`:
    Create `<payload-file>` with:
    ```json
    {"type":"trace/get","domain":"automation","item_id":"{unique_id}","run_id":"{run_id}"}
@@ -196,8 +202,9 @@ For trace queries:
    ```
    Read the file with your native file-reading tool.
 4. Summarize timestamp, trigger, conditions, actions, and result.
-5. If traces do not cover the relevant period, optionally check `last_changed` via `/api/states/{entity_id}`.
-6. Before presenting conclusions, verify `item_id` in trace data matches the target's `unique_id`. see `skills/ha-nova/SKILL.md` → Claim-Evidence Binding.
+5. Treat trace config as historical; compare current config separately.
+6. If traces do not cover the relevant period, optionally check `last_changed` via `/api/states/{entity_id}`.
+7. Before presenting conclusions, verify `item_id` in trace data matches the target's `unique_id`. see `skills/ha-nova/SKILL.md` → Claim-Evidence Binding.
 
 ## Latency Policy
 

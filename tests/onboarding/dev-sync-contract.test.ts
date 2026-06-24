@@ -54,6 +54,7 @@ describe("dev-sync contract", () => {
 
   it("rebuilds the local Go CLI onto the runtime ha-nova for lockstep dev testing", () => {
     expect(content).toContain("sync_cli_runtime()");
+    expect(content).toContain("stamp_dev_sync_state()");
     expect(content).toContain("dev_runtime_target()");
     expect(content).toContain('go build -ldflags "$(dev_build_ldflags)" -o "${target}"');
     // Guarded to a runtime under the current HOME so test sandboxes never build.
@@ -81,8 +82,13 @@ describe("dev-sync contract", () => {
     // files — so it survives in symlink clients (Codex) and never pollutes the
     // committed skill source. Released builds omit these flags -> bare version.
     expect(content).toContain("dev_build_ldflags()");
+    expect(content).toContain("-X main.Version=");
     expect(content).toContain("-X main.BuildChannel=dev");
     expect(content).toContain("-X main.BuildStamp=");
+    expect(content).toContain('cp "${REPO_ROOT}/version.json" "$(dirname "${target}")/version.json"');
+    expect(content).toContain('[[ -f "${state_file}" ]] || return 0');
+    expect(content).toContain("node -e 'process.exit(0)' >/dev/null 2>&1 || return 0");
+    expect(content).toContain("state.clients_verified_version = version");
     // The stamp has a SINGLE owner: sync_cli_runtime, which builds the runtime
     // binary `ha-nova` actually resolves to. The shared-tools relay build stays
     // plain (in repo-dev installs relay_dst is a wrapper this would clobber).

@@ -62,12 +62,12 @@ describe("codex skill scenario e2e contract", () => {
     expect(content).toContain('if [[ "$expect_type" == "entity_id_prefix_count" ]]; then');
     expect(content).toContain("Fast path for this scenario:");
     expect(content).toContain("Do not inspect unrelated repo files, test harness files, package.json, install scripts, or other project metadata.");
-    expect(content).toContain("If you need repo guidance, stop at skills/ha-nova/SKILL.md and skills/ha-nova/relay-api.md.");
+    expect(content).toContain("If you need repo guidance, stop at skills/ha-nova/SKILL.md, directly referenced skills/ha-nova/*.md reference files, and skills/ha-nova/relay-api.md.");
     expect(content).toContain("Do not read scripts/e2e/*.sh for this request.");
     expect(content).toContain("Use one relay ws call against config/entity_registry/list_for_display and filter the result directly.");
     expect(content).toContain('elif [[ "$expect_type" == "json_array_values" ]]; then');
     expect(content).toContain("Minimal local-review path for this scenario:");
-    expect(content).toContain("If you need local references, read each of these at most once: skills/ha-nova/SKILL.md, skills/review/SKILL.md, skills/review/checks.md, docs/reference/ha-template-reference.md.");
+    expect(content).toContain("If you need local references, read each of these at most once: skills/ha-nova/SKILL.md, directly referenced skills/ha-nova/*.md reference files, skills/review/SKILL.md, skills/review/checks.md, docs/reference/ha-template-reference.md.");
     expect(content).toContain("Do not run repo-wide follow-up searches, excerpt hunts, package inspection, or additional discovery commands after reading those references.");
     expect(content).toContain('if [[ "$expected_error" == "proactive_doctor_or_ready_detected" ]]; then');
     expect(content).toContain("This scenario intentionally expects one prohibited proactive doctor/ready/quick check.");

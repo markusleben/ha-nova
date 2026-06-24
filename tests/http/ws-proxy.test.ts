@@ -133,6 +133,179 @@ describe("ws proxy endpoint", () => {
     expect(forwarded).toBe(false);
   });
 
+  it("collects bounded ws event responses through explicit envelope", async () => {
+    const router = createRouter();
+    let sentType = "";
+    let collectOptions: unknown;
+    router.register(
+      "POST",
+      "/ws",
+      createWsProxyHandler({
+        wsClient: {
+          sendMessage: async () => {
+            throw new Error("should collect events instead");
+          },
+          collectMessageEvents: async (message, options) => {
+            sentType = message.type;
+            collectOptions = options;
+            return [
+              { type: "initial", data: { homeassistant: { info: { version: "2026.6.4" } } } },
+              { type: "finish" },
+            ];
+          }
+        }
+      })
+    );
+
+    const { baseUrl } = await startServer(servers, router);
+    const response = await fetch(`${baseUrl}/ws`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${TEST_AUTH_TOKEN}`,
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({
+        message: { type: "system_health/info" },
+        collect_events: {
+          until_type: "finish",
+          max_events: 50,
+          timeout_ms: 5000,
+        },
+      })
+    });
+
+    expect(response.status).toBe(200);
+    expect(sentType).toBe("system_health/info");
+    expect(collectOptions).toEqual({
+      finishEventType: "finish",
+      maxEvents: 50,
+      timeoutMs: 5000,
+    });
+    await expect(response.json()).resolves.toEqual({
+      ok: true,
+      data: {
+        events: [
+          { type: "initial", data: { homeassistant: { info: { version: "2026.6.4" } } } },
+          { type: "finish" },
+        ]
+      }
+    });
+  });
+
+  it("does not collect events implicitly for system-health", async () => {
+    const router = createRouter();
+    let collected = false;
+    router.register(
+      "POST",
+      "/ws",
+      createWsProxyHandler({
+        wsClient: {
+          sendMessage: async (message) => ({ ack: message.type, data: null }),
+          collectMessageEvents: async () => {
+            collected = true;
+            return [];
+          },
+        },
+      })
+    );
+
+    const { baseUrl } = await startServer(servers, router);
+    const response = await fetch(`${baseUrl}/ws`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${TEST_AUTH_TOKEN}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ type: "system_health/info" }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(collected).toBe(false);
+    await expect(response.json()).resolves.toEqual({
+      ok: true,
+      data: {
+        ack: "system_health/info",
+        data: null,
+      },
+    });
+  });
+
+  it("rejects invalid ws event collection bounds", async () => {
+    const router = createRouter();
+    router.register(
+      "POST",
+      "/ws",
+      createWsProxyHandler({
+        wsClient: {
+          sendMessage: async () => ({ ok: true }),
+          collectMessageEvents: async () => [],
+        },
+      })
+    );
+
+    const { baseUrl } = await startServer(servers, router);
+    for (const collect_events of [
+      null,
+      { until_type: "" },
+      { max_events: 101 },
+      { timeout_ms: 10_001 },
+    ]) {
+      const response = await fetch(`${baseUrl}/ws`, {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${TEST_AUTH_TOKEN}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          message: { type: "system_health/info" },
+          collect_events,
+        }),
+      });
+      expect(response.status).toBe(400);
+      const json = (await response.json()) as { error: { code: string } };
+      expect(json.error.code).toBe("VALIDATION_ERROR");
+    }
+  });
+
+  it("rejects subscription ws types inside event collection envelope", async () => {
+    const router = createRouter();
+    let forwarded = false;
+    router.register(
+      "POST",
+      "/ws",
+      createWsProxyHandler({
+        wsClient: {
+          sendMessage: async () => {
+            forwarded = true;
+            return { ok: true };
+          },
+          collectMessageEvents: async () => {
+            forwarded = true;
+            return [];
+          },
+        },
+      })
+    );
+
+    const { baseUrl } = await startServer(servers, router);
+    const response = await fetch(`${baseUrl}/ws`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${TEST_AUTH_TOKEN}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        message: { type: "subscribe_events" },
+        collect_events: { until_type: "finish" },
+      }),
+    });
+
+    expect(response.status).toBe(400);
+    const json = (await response.json()) as { error: { code: string } };
+    expect(json.error.code).toBe("UNSUPPORTED_WS_TYPE");
+    expect(forwarded).toBe(false);
+  });
+
   it("returns 400 for missing message type", async () => {
     const router = createRouter();
 

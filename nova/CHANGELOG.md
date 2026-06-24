@@ -9,6 +9,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic
 Recent changes are tracked in [GitHub releases](https://github.com/markusleben/ha-nova/releases)
 and merged PRs. This changelog will be updated with the next tagged relay version.
 
+## [Relay 0.2.3] - 2026-06-21
+
+### Changed
+- **Generic WS event collection** — event-response WS commands are now collected through an explicit bounded `collect_events` envelope. Skills choose the WS message and stop condition; the Relay only forwards and enforces transport limits.
+
+## [Relay 0.2.2] - 2026-06-21
+
+### Added
+- **Finite WS event collection** — the relay now collects `system_health/info` event responses until `finish` and returns them as `data.events`, so Home Status can include real System Health details instead of an empty ack.
+
 ## [Relay 0.2.1] - 2026-06-15
 
 ### Changed

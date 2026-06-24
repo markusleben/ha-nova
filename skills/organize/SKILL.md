@@ -59,6 +59,7 @@ Use `search/related` when a delete needs a quick impact preview on linked items.
 3. For create/update:
    - build the smallest valid payload
    - preview the exact fields that will change
+   - confirm this exact preview before executing
    - rich metadata owned here:
      - area: `name`, `floor_id`, `icon`, `picture`, `aliases`
      - floor: `name`, `level`, `icon`, `aliases`
@@ -96,20 +97,26 @@ Do not guess unsupported fields.
 
 ## Output Format
 
+Apply `skills/ha-nova/output-rules.md` to all user-facing output.
+
 - `Target`
 - `Current metadata`
 - `Requested change`
 - `Impact` for deletes
+- `Save status` / `Delete status` before confirmation
+- `Options` / confirmation token
 - `Verification`
 - `Next step`
+
+Use stable localized slot labels in this order for previews; omit empty slots, but do not invent ad-hoc headings.
 
 Default to a compact field summary, not raw registry JSON.
 
 ## Safety
 
 - Never guess ids.
-- Create/update uses natural confirmation after preview.
-- Delete uses token confirmation only.
+- Create/update uses natural confirmation after preview, bound to the exact displayed payload (see context skill → Active Preview Confirmation).
+- Delete uses token confirmation only, even for cleanup of items created earlier in the same session.
 - If the user asks for entity removal, device category assignment, or config-entry detachment, stop and hand off to `ha-nova:fallback`.
 
 ## Guardrails

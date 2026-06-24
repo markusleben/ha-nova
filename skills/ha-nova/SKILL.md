@@ -64,6 +64,9 @@ Rules:
 - Never call external `jq`; use relay-native `--jq` / `--jq-file` or `ha-nova relay jq`.
 - When a filter contains `select`, `test`, `startswith`, or more than one pipeline stage, default to `--jq-file` even if inline quoting might work.
 - Use native file-writing and file-reading tools for temp files. Do not teach `cat`, heredocs, Python, or Node as the primary JSON path.
+- Use client-private scratch storage outside the project workspace for relay payload/result files; never allocate scratch directories or files from visible shell commands.
+- Scratch files are internal. Do not create them under the repo working tree, and do not mention scratch paths, payload files, filter files, or "edited files" in user-facing output unless the user asks for debugging details.
+- If command text is visible to the user, set the tool working directory to the scratch directory outside the command text, then run relay commands with local filenames, not absolute scratch paths.
 - Use inline `-d` / `--body` only for tiny diagnostics when shell quoting is already known-good.
 
 ## Safety Baseline
@@ -72,10 +75,18 @@ Rules:
 - Correct invalid Home Assistant premises explicitly.
 - Do it briefly and technically.
 - Preview every write payload.
+- Active preview confirmation:
+  - A user instruction given before the preview exists is never valid write confirmation.
+  - Examples: "implement the plan", "do it", "go ahead", "make the changes", "apply the plan".
+  - Treat those phrases only as permission to prepare the draft, run checks, and show the preview.
+  - A live HA write requires confirmation after the concrete preview is shown: diff for updates, payload summary for creates/service calls/experimental writes, delete impact plus token, or grouped manifest for allowed multi-target writes.
+  - Confirmation is bound to the displayed operation, target set, endpoint/service, and exact payload/diff/manifest. If target, scope, endpoint, payload, draft, or manifest changes, confirmation expires; show the updated preview and ask again.
+  - Multi-target confirmation is valid only where the owning skill supports multi-target writes. Otherwise process targets sequentially with separate preview and confirmation.
 - Confirmation tiers:
   - `create`/`update`: natural confirmation bound to active preview.
   - `delete`/destructive: token confirmation `confirm:<token>`.
     **Strict token enforcement:** User MUST reply with the exact token string (e.g., `confirm:del-main-lights`). Any other response — including "yes", "sure, delete it", "do it", or any natural-language confirmation — is NOT valid. Reject and re-prompt with the exact token required.
+    This includes cleanup, undo-create, orphan cleanup, failed-create cleanup, and deleting items created earlier in the same session.
 - Ask exactly one blocking question only if ambiguity remains.
 - **No raw relay writes without a skill**: If no dedicated subskill matches, you MUST invoke `ha-nova:fallback` before any raw `relay ws` or `relay core` write operation. Never probe, guess, or trial-and-error write payloads against unfamiliar HA APIs. Some WS endpoints (e.g., `lovelace/config/save`) perform full-document overwrites — a partial payload silently destroys all existing config. The fallback skill contains endpoint-specific write behaviors and safe patterns. Skipping it risks data loss.
 - Failure format must include:
@@ -130,17 +141,10 @@ For automations / scripts / helpers:
 
 Keep orchestration details internal on normal success paths.
 
-## Output Localization (Critical)
+## Output Rules (Critical)
 
-All user-facing output MUST follow these rules:
-- **Language**: Localize all section headings and labels to the user's language. Use idiomatic phrasing, not literal translations.
-- **Write-safety labels**: localize the `## Changes` diff heading like any other heading (English: `## Changes`). The keywords the user types back — `revert`, `show yaml`, `confirm:<token>` — stay literal in every language; only the surrounding sentence is localized.
-- **Severity**: 3 levels only — 🔴 (high/critical) 🟠 (medium) 🟡 (low/info). No text severity labels needed — the emoji is sufficient.
-- **Finding titles**: Each finding gets one short descriptive phrase explaining WHAT the issue is. Example: "Missing template fallback", not "R-01". Localize at runtime.
-- **Internal codes**: Check codes (R-01, S-01, H-01, M-01, P-01, F-01, etc.) are for YOUR analysis reference only. NEVER show them in ANY message to the user — not in findings, summaries, clean states, pre-write verdicts, and also not in debugging help, brainstorming, or casual Q&A. Describe the issue in plain language instead.
-- **Machine-like identifiers**: If raw automation ids, helper ids, or entity ids would make the output more technical than helpful, summarize them in natural language or by count instead of echoing the raw id verbatim.
-- **Consistency**: Within a given review mode, keep the same sections in the same order every time. Standalone and bulk review keep their full shape — a clean result is the direct answer to an explicit review request, so "no issues found" is worth stating. Post-write review is different: the user asked to write, not to review, so show only sections that carry substance and omit empty ones (no "none" buckets); when all are empty, a single confirmation line suffices.
-- **Review confidence split**: In review output, uncertainty belongs in `Questions to consider`; only confident recommendations belong in `Suggestions`.
+Before any user-facing response, read and apply `skills/ha-nova/output-rules.md`.
+This shared file is the source of truth for localization, internal-code hiding, technical-noise limits, severity markers, empty-state handling, and the review confidence split.
 
 ## Skill Dispatch (Critical)
 
@@ -160,12 +164,14 @@ Match user intent to exactly one skill:
 | organize areas, floors, labels, categories, devices, entities | `ha-nova:organize` |
 | assign or remove entity categories | `ha-nova:organize` |
 | show history, logbook timelines, or long-term statistics | `ha-nova:history` |
+| check home status, repairs, system health, integration issues, unavailable entities, or low batteries | `ha-nova:health` |
+| list calendars or show calendar events | `ha-nova:calendar` |
 | turn on/off, toggle, set, call a service | `ha-nova:service-call` |
 | enable/disable/trigger an automation | `ha-nova:service-call` |
 | find entities by name, room, area | `ha-nova:entity-discovery` |
 | fix relay/auth/connectivity errors | `ha-nova:onboarding` |
 | undo, revert, or restore the last automation/script/helper change | the skill that wrote it — `ha-nova:write` (automation/script) or `ha-nova:helper` (helper); the snapshot-restore flow lives there, not in fallback. Run `ha-nova snapshot show` to see the saved target if unsure |
-| **any HA task not matched above** — blueprints, energy, calendars, zones/persons/tags, unsupported admin writes, any unfamiliar raw relay/ws/core write | `ha-nova:fallback` **(mandatory fallback — never skip)** |
+| **any HA task not matched above** — blueprints, energy, zones/persons/tags, unsupported admin writes, any unfamiliar raw relay/ws/core write | `ha-nova:fallback` **(mandatory fallback — never skip)** |
 
 **"Analyze my automation"** → `ha-nova:review` (NOT read + review)
 **"Review my utility meter helper"** → `ha-nova:review` (minimal config-entry helper review)
@@ -185,6 +191,10 @@ Match user intent to exactly one skill:
 **"Add an alias to this area"** → `ha-nova:organize`
 **"What happened to sensor X last night?"** → `ha-nova:history`
 **"Show temperature trends for the last month"** → `ha-nova:history`
+**"Are there any repair issues?"** → `ha-nova:health`
+**"Why are devices unavailable?"** → `ha-nova:health`
+**"Show my calendars"** → `ha-nova:calendar`
+**"What's on my calendar this week?"** → `ha-nova:calendar`
 **"Review all automations in area Area Alpha"** → `ha-nova:review` (area-first aggregate review when more than one target resolves)
 **"Create a timer"** → ambiguous! Ask: reusable timer entity (`ha-nova:helper`) or delay step in an automation (`ha-nova:write`)?
 **"Show my energy dashboard"** → `ha-nova:fallback` (no dedicated skill)

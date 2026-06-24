@@ -1,0 +1,120 @@
+import { readFileSync } from "node:fs";
+
+import { describe, expect, it } from "vitest";
+
+describe("health and calendar skill contracts", () => {
+  it("defines a read-only home status skill with repairs and finite-event system health", () => {
+    const health = readFileSync("skills/health/SKILL.md", "utf8");
+
+    expect(health).toContain("name: health");
+    expect(health).toContain("description: Use when checking Home Assistant home status");
+    expect(health).toContain("repairs/deprecation issues");
+    expect(health).toContain("integration entries that are not loaded");
+    expect(health).toContain("unavailable/unknown entity summary");
+    expect(health).toContain("low battery/SOC summary");
+    expect(health).toContain("best-effort system health info");
+    expect(health).toContain("/api/config");
+    expect(health).toContain("/api/components");
+    expect(health).toContain("/api/states");
+    expect(health).not.toContain("/api/error_log");
+    expect(health).not.toContain("error log");
+    expect(health).toContain('{"type":"repairs/list_issues"}');
+    expect(health).toContain('{"type":"config_entries/get"}');
+    expect(health).toContain('{"message":{"type":"system_health/info"},"collect_events":{"until_type":"finish","max_events":100,"timeout_ms":10000}}');
+    expect(health).toContain("The Skill opts into generic Relay event collection through `collect_events`");
+    expect(health).toContain("data.events");
+    expect(health).toContain("Relay App 0.2.3 or newer");
+    expect(health).toContain("Read `data.version` from the health response.");
+    expect(health).toContain("If Relay App version is below `0.2.3`, do not call `system_health/info`");
+    expect(health).toContain("include the current relay version");
+    expect(health).toContain("## Data Shapes");
+    expect(health).toContain("REST `/api/config`, `/api/components`, `/api/states`: use `.data.body`");
+    expect(health).toContain("WS `repairs/list_issues`: use `.data.issues`");
+    expect(health).toContain("WS `config_entries/get`: use `.data` as an array");
+    expect(health).toContain("WS `system_health/info`: use `.data.events` as an array; event kind is `.type`");
+    expect(health).toContain("Normalize each saved relay result separately before summarizing");
+    expect(health).toContain("Do not run one combined `jq` normalizer across config, components, states, repairs, integrations, and system health.");
+    expect(health).toContain("Normalize each source file into a small source-specific shape first");
+    expect(health).toContain("Use type checks in `jq` filters before indexing arrays or objects.");
+    expect(health).toContain("Use `--jq-file` for non-trivial filters.");
+    expect(health).toContain("Avoid complex inline jq, especially regex that must be shell-escaped.");
+    expect(health).toContain("System Health event payloads are mixed-shape.");
+    expect(health).toContain('require `(.data | type) == "object"`');
+    expect(health).toContain("scalar `.data` values such as strings, numbers, booleans, or null are informational only");
+    expect(health).toContain("failed update detection must consider only `update` events whose `.data` is an object");
+    expect(health).toContain("Low-battery detection must be structured");
+    expect(health).toContain('attributes.device_class == "battery"');
+    expect(health).toContain("do not use shell-escaped regex on `entity_id` for the main battery filter");
+    expect(health).toContain("never as the main signal");
+    expect(health).toContain("Do not show intermediate parser or `jq` errors to the user");
+    expect(health).toContain("Compute overall internally as `ok`, `attention`, or `limited`");
+    expect(health).toContain("show the overall value as a localized human phrase, not the raw enum");
+    expect(health).toContain("checked time");
+    expect(health).toContain("source coverage");
+    expect(health).toContain("top 3 by severity/created date");
+    expect(health).toContain("disabled_by` set as intentionally disabled context");
+    expect(health).toContain("show up to 5 non-disabled `setup_error`, `setup_retry`, `migration_error`, then `not_loaded` entries");
+    expect(health).toContain("deprioritize noisy/stateless domains `button`, `event`, `scene`, and `stt`");
+    expect(health).toContain("do not imply a battery replacement unless the entity is clearly a device battery");
+    expect(health).toContain("failed object-shaped `update` events first");
+    expect(health).toContain("remove IP addresses, hostnames, URLs, tokens, and long raw exception text");
+    expect(health).toContain("repairs first");
+    expect(health).toContain("then integration `setup_error`/`setup_retry`");
+    expect(health).toContain("These names are semantic output slots, not literal headings.");
+    expect(health).toContain("skills/ha-nova/output-rules.md");
+    expect(health).toContain("Do not mix English labels with localized prose unless the label is a Home Assistant state/value.");
+    expect(health).toContain("Keep Home Assistant state values such as `unavailable`, `unknown`, `setup_error`, `setup_retry`, and `not_loaded` literal");
+    expect(health).toContain("Never call repair/fix/ignore/delete issue commands.");
+    expect(health).toContain("Never restart/reload Home Assistant from this skill.");
+    expect(health).toContain("Never call update, backup, or service actions from this skill.");
+    expect(health).toContain("--data-file");
+    expect(health).toContain("--out <result-file>");
+    expect(health).toContain("--jq-file");
+  });
+
+  it("defines a REST-only calendar skill with bounded event windows", () => {
+    const calendar = readFileSync("skills/calendar/SKILL.md", "utf8");
+
+    expect(calendar).toContain("name: calendar");
+    expect(calendar).toContain("description: Use when listing Home Assistant calendars");
+    expect(calendar).toContain("/api/calendars");
+    expect(calendar).toContain("/api/calendars/<entity_id>?start=<start>&end=<end>");
+    expect(calendar).toContain("default to now through the next 7 days");
+    expect(calendar).toContain("Always use bounded windows.");
+    expect(calendar).toContain("No event writes.");
+    expect(calendar).toContain("Never guess a calendar id from a partial name");
+    expect(calendar).toContain("REST through relay core only");
+    expect(calendar).toContain("--out <result-file>");
+    expect(calendar).toContain("--jq-file");
+    expect(calendar).not.toContain("relay ws");
+    expect(calendar).not.toContain("POST");
+    expect(calendar).not.toContain("DELETE");
+  });
+
+  it("updates architecture and fallback ownership for the new dedicated skills", () => {
+    const architecture = readFileSync("docs/reference/skill-architecture.md", "utf8");
+    const fallback = readFileSync("skills/fallback/SKILL.md", "utf8");
+    const history = readFileSync("skills/history/SKILL.md", "utf8");
+
+    expect(architecture).toContain("13 independent sub-skills");
+    expect(architecture).toContain("health/SKILL.md");
+    expect(architecture).toContain("calendar/SKILL.md");
+    expect(architecture).toContain("`ha-nova:health` is a read-only home-status skill");
+    expect(architecture).toContain("integration setup/load status through `config_entries/get`");
+    expect(architecture).toContain("generic bounded WS event collection for `system_health/info`");
+    expect(architecture).toContain("skip `system_health/info` when Relay App version is below 0.2.3");
+    expect(architecture).toContain("capped examples, sanitized integration reasons");
+    expect(architecture).toContain("deprioritize noisy/stateless domains");
+    expect(architecture).not.toContain("current-session error log");
+    expect(architecture).toContain("`ha-nova:calendar` is a REST-only read skill");
+    expect(architecture).not.toContain("energy, calendars, system health");
+
+    expect(fallback).toContain("| System Health / Repairs | Covered | health |");
+    expect(fallback).toContain("| Calendar Queries | Covered | calendar |");
+    expect(fallback).not.toContain("### System Health / Repairs -- RELAY-READY");
+    expect(fallback).not.toContain("### Calendar Queries -- RELAY-READY");
+
+    expect(history).toContain("calendar queries (use `ha-nova:calendar`)");
+    expect(history).not.toContain("fallback` for calendars");
+  });
+});

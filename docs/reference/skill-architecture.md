@@ -2,7 +2,7 @@
 
 ## Overview
 
-HA NOVA uses a flat skill layout with one context skill and 11 independent sub-skills under `skills/`.
+HA NOVA uses a flat skill layout with one context skill and 13 independent sub-skills under `skills/`.
 
 The repo skill tree is the single source of truth. Client installers adapt that same tree to each client's packaging rules:
 - Claude: plugin marketplace payload
@@ -18,6 +18,7 @@ skills/
   ha-nova/best-practices.md     (reference doc)
   ha-nova/payload-schemas.md    (reference doc)
   ha-nova/helper-schemas.md     (reference doc — helper type payloads)
+  ha-nova/output-rules.md       (reference doc — shared user-facing output rules)
   ha-nova/config-body-filter.jq (shared jq asset — canonical REST config-body extractor)
   ha-nova/bulk-patterns.md      (reference doc — bulk selectors, workset, aggregate audit rules)
   ha-nova/template-guidelines.md (reference doc — when to use templates vs native primitives)
@@ -32,6 +33,8 @@ skills/
   dashboard/SKILL.md                    (ha-nova:dashboard — storage dashboards, Lovelace resources, card operations)
   organize/SKILL.md                     (ha-nova:organize — areas/floors/labels/categories/entity+device metadata)
   history/SKILL.md                      (ha-nova:history — bounded history/logbook/statistics reads)
+  health/SKILL.md                       (ha-nova:health — read-only home status, repairs, system health)
+  calendar/SKILL.md                     (ha-nova:calendar — read-only calendar lists and bounded event windows)
   review/SKILL.md                       (ha-nova:review — config quality review + collision scan)
   entity-discovery/SKILL.md             (ha-nova:entity-discovery — entity lookup)
   service-call/SKILL.md                 (ha-nova:service-call — service calls + runtime control)
@@ -81,6 +84,8 @@ Current mapping:
 | dashboard | inline | read → merge → preview → full-save → readback verify, all user-facing |
 | organize | inline | field-level registry mutations with direct preview/readback |
 | history | inline | read-only bounded timeline lookups |
+| health | inline | read-only status aggregation, best-effort diagnostics |
+| calendar | inline | REST-only bounded calendar event reads |
 | review | inline | analysis is client-side, relay calls are reads only |
 | entity-discovery | inline | 1-2 calls, search + return |
 | service-call | inline | 2-3 calls, preview + execute |
@@ -102,13 +107,14 @@ Current mapping:
 
 2. Preview + Decide (Main Thread)
 - build final payload
-- lead the preview with a `## Changes` diff; full YAML only on `show yaml` (see `ha-nova/write-safety.md` → Pre-Write Diff)
+- lead the preview with a terminal-friendly Changes slot; full YAML only on `show yaml` (see `ha-nova/write-safety.md` → Pre-Write Diff)
 - update: pre-write impact advisory via `search/related` at preview time (review/ Step 2)
 - show compact preview blocks
 - ask one decision question only if ambiguous
 - confirmation tier:
   - create/update: natural confirmation bound to active preview
   - delete: tokenized `confirm:<token>`
+  - pre-preview wording such as "implement the plan", "do it", or "go ahead" authorizes draft/check/preview work only; if the previewed payload, target, or manifest changes, confirmation expires
 
 3. Apply + Verify (Agent)
 - write via relay `/core`
@@ -209,10 +215,40 @@ Rules:
 - prefer concise summaries over raw dumps
 - reject or narrow oversized requests
 
+## Health Architecture
+
+`ha-nova:health` is a read-only home-status skill:
+- repairs/deprecation issues through `repairs/list_issues`
+- integration setup/load status through `config_entries/get`
+- system health through generic bounded WS event collection for `system_health/info`
+- config/components through `/api/config` and `/api/components`
+- unavailable/unknown and low-battery summaries through `/api/states`
+
+Rules:
+- no repair/fix/ignore actions
+- no restart/reload/service calls
+- check `ha-nova relay health` and skip `system_health/info` when Relay App version is below 0.2.3
+- summarize by source and bind conclusions to evidence
+- keep Home Status compact: overall state, source coverage, capped examples, sanitized integration reasons
+- deprioritize noisy/stateless domains (`button`, `event`, `scene`, `stt`) in unavailable/unknown examples
+- localize output slot headings and labels; keep HA state values literal when used as evidence
+
+## Calendar Architecture
+
+`ha-nova:calendar` is a REST-only read skill:
+- list calendars through `/api/calendars`
+- read events through `/api/calendars/{entity_id}?start=<timestamp>&end=<timestamp>`
+
+Rules:
+- default to the next 7 days
+- always use a bounded event window
+- resolve ambiguous calendar names before querying events
+- no event create/update/delete actions
+
 ## Review Architecture
 
 `ha-nova:review` is a self-contained read-only reviewer:
-- Config quality: safety (S-01..S-03), reliability (R-01..R-22), performance (P-01..P-05), style (M-01..M-03; M-04 retired, moved to R-20), script-specific (F-01..F-08), helper-specific (H-01..H-10)
+- Config quality: safety (S-01..S-03), reliability (R-01..R-24), performance (P-01..P-05), style (M-01..M-03; M-04 retired, moved to R-20), script-specific (F-01..F-08), helper-specific (H-01..H-10)
 - Collision scan: `search/related` on top 3 target entities
 - Conflict analysis: 3-step test (polarity → temporal → guard conditions)
 - Explorative questions: standalone automation/script reviews add a gated edge-case pass for complex behavior
@@ -223,6 +259,8 @@ Rules:
 - `R-17` is intra-config only; collision scan stays cross-item conflict work, not overwrite/rebound detection
 - `R-18` is same-mapping only; it checks storage-sensitive sibling-variable references inside one `variables:` block, not cross-scope references
 - `R-19` is branch-structure reachability only; it covers direct `trigger.id` checks in a terminal bare `else` after entity-state `if` / `elif` guards, without intent inference
+- `R-23` catches boolean-like templates compared to string boolean literals such as `"True"` / `"False"`
+- `R-24` is a low-severity capacity-source advisory when a capacity-like variable reads `available_energy`
 - Known safe/problem pattern matching from `skills/review/checks.md`
 - resolved targets `== 1`: stable 8-section single-target output (`Review target`, `Findings`, `Collision check`, `Conflicts`, `Questions to consider`, `Suggestions`, `Summary`, `Instant help`)
 - resolved targets `> 1`: switch to aggregate multi-target mode automatically, materialize and trim the current workset before any per-item reads, audit max 5 items in stable order, aggregate findings by pattern, and report `matched / audited / remaining`
@@ -265,7 +303,7 @@ Still excluded from `ha-nova:helper`:
 ## Fallback Architecture
 
 `ha-nova:fallback` is the mandatory safety fallback for HA features without a dedicated skill:
-- Covers: blueprints, zones/persons/tags, energy, calendars, system health, destructive registry admin, unsupported config-entry helper families
+- Covers: blueprints, zones/persons/tags, energy, destructive registry admin, unsupported config-entry helper families
 - Three-tier capability map: Covered (redirect to existing skill), Relay-Ready (experimental relay calls), External (web search)
 - All inline, no agents — research + web search + experimental relay calls
 - Safety: all experimental relay calls follow Write Safety by Endpoint Type guardrails (full-overwrite, field-level replace, merge, delete)
@@ -344,10 +382,10 @@ After any mutation (automation, script, or helper):
    - Traverse all `variables:` blocks, not just the top-level block.
    - Storage-sensitive checks such as `R-18` may still be reported from the persisted read-back config even when the rest of the config matches the draft. Do not suppress them purely as pre-write dedup.
    - If persisted `R-18` remains after a write, add a manual next step to inspect traces after the next real run. Do not auto-trigger the config or auto-read traces from post-write review.
-   - All other checks, including `R-19`, follow normal pre-write/post-write dedup. The explicit persisted-repeat exception stays unique to `R-18`.
+   - All other checks, including `R-19`, `R-23`, and `R-24`, follow normal pre-write/post-write dedup. The explicit persisted-repeat exception stays unique to `R-18`.
    Focus on 🔴 findings. Report 🟠🟡 findings as advisory.
 3. Collision scan: `search/related` for top target entities, max 3 related configs (standalone review uses max 5)
-4. Output format — localize headings per `skills/ha-nova/SKILL.md` → Output Localization. Report only what has substance; the scans still run, only their empty output is suppressed:
+4. Output format — apply `skills/ha-nova/output-rules.md`. Use semantic slots, not literal Markdown headings, in terminal-like clients. Report only what has substance; the scans still run, only their empty output is suppressed:
    - **Findings**: 🔴🟠🟡 findings with short descriptive titles plus `Why` / `Fix` — only when there are real issues.
    - **Collision check**: only when related items exist (list them + the conflict verdict).
    - **Advisory**: 🟠🟡 findings — only when non-empty.
@@ -360,14 +398,15 @@ When creating a new skill under `skills/{name}/SKILL.md`:
 
 1. Skill file follows Skill Section Template (see above)
 2. `skills/ha-nova/SKILL.md` — add to Dispatch table + add disambiguation examples
-3. `skills/ha-nova/SKILL.md` — add domain to Response Format if needed
-4. `skills/review/SKILL.md` — keep entrypoint/flow aligned; add or update detailed rules in `skills/review/checks.md`
-5. `docs/reference/skill-architecture.md` — add to skill tree + add Architecture section
-6. `docs/reference/skill-architecture.md` — add to Agent vs Inline table
-7. `scripts/onboarding/install-local-skills.sh` — verify dynamic discovery picks up new skill
-8. `README.md` / `PROJECT.md` — add skill to overview table/list
-9. `version.json` — bump patch version
-10. For file-based clients, re-run `npm run dev:install:<client>-skill` and start a new session. Use `npm run dev:sync` only when you need the Claude cache sync helper or already have a repo-local install to refresh.
+3. `skills/{name}/SKILL.md` — reference `skills/ha-nova/output-rules.md` in its output section
+4. `skills/ha-nova/SKILL.md` — add domain to Response Format if needed
+5. `skills/review/SKILL.md` — keep entrypoint/flow aligned; add or update detailed rules in `skills/review/checks.md`
+6. `docs/reference/skill-architecture.md` — add to skill tree + add Architecture section
+7. `docs/reference/skill-architecture.md` — add to Agent vs Inline table
+8. `scripts/onboarding/install-local-skills.sh` — verify dynamic discovery picks up new skill
+9. `README.md` / `PROJECT.md` — add skill to overview table/list
+10. `version.json` — bump patch version
+11. For file-based clients, re-run `npm run dev:install:<client>-skill` and start a new session. Use `npm run dev:sync` only when you need the Claude cache sync helper or already have a repo-local install to refresh.
 
 ## Review Check Single Source of Truth
 
@@ -400,6 +439,8 @@ Global safety expectations:
 - no guessed ids
 - preview before any write
 - delete requires tokenized confirmation
+- pre-preview approval is never write confirmation; live writes require confirmation after the concrete preview/diff/payload/manifest is shown
+- multi-target writes require a grouped manifest only where the owning skill already supports multi-target writes; otherwise process targets sequentially
 - structured failure output: what failed / why / next step
 - diagnostics only after real capability failure
 - claim-evidence binding: verify data-target match before presenting conclusions (see context skill)

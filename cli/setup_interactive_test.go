@@ -964,6 +964,12 @@ func TestInteractiveSetupExitAtTokenChoiceCancelsCleanly(t *testing.T) {
 }
 
 func TestInteractiveSetupInitialClientPageAllowsRepeatedBack(t *testing.T) {
+	originalDetect := detectDefaultHAHostChoiceForSetup
+	t.Cleanup(func() { detectDefaultHAHostChoiceForSetup = originalDetect })
+	detectDefaultHAHostChoiceForSetup = func(cfg runtimeConfig) (string, bool) {
+		return "", false
+	}
+
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("HA_NOVA_NO_BROWSER", "1")

@@ -82,13 +82,14 @@ Critical behavior:
    - only `mode=storage` is writable/deletable here
    - if `mode` is not `storage`, stop and explain that this skill will not write or delete it
 3. Choose the mutation path.
-   - create shell: preview `title`, `url_path`, `icon`, `require_admin`, `show_in_sidebar`, then call `lovelace/dashboards/create`
-   - metadata update: preview the exact metadata fields, then call `lovelace/dashboards/update` with `dashboard_id`
+   - create shell: preview `title`, `url_path`, `icon`, `require_admin`, `show_in_sidebar`, confirm this exact preview, then call `lovelace/dashboards/create`
+   - metadata update: preview the exact metadata fields, confirm this exact preview, then call `lovelace/dashboards/update` with `dashboard_id`
      - only send changed metadata fields supported there: `title`, `icon`, `show_in_sidebar`, `require_admin`
      - do not resend `url_path`, `mode`, or unrelated config fields in the update payload
    - resource inventory: use `lovelace/resources`
    - resource create/update:
      - preview `res_type` and `url`
+     - confirm this exact preview
      - call `lovelace/resources/create|update`
    - resource delete:
      - preview the exact resource identity
@@ -100,10 +101,12 @@ Critical behavior:
      - resolve the exact target by view, title/heading text, entity reference, card type, or explicit position
      - merge the requested change in memory
      - preview a concise diff/excerpt
+     - confirm this exact preview
      - save the full merged config with `lovelace/config/save`
      - new cards may be created only from this built-in allowlist:
        - `entity`, `entities`, `button`, `tile`, `gauge`, `sensor`, `markdown`, `history-graph`
      - existing custom cards may only be moved, deleted, or shallow-updated when the exact field already exists
+     - persisted card removal is destructive and requires exact token confirmation `confirm:<token>`; only discarding an unpersisted draft card is non-destructive
    - delete:
      - preview the exact dashboard identity
      - require exact token confirmation `confirm:<token>`
@@ -119,6 +122,8 @@ Critical behavior:
 
 ## Output Format
 
+Apply `skills/ha-nova/output-rules.md` to all user-facing output.
+
 For list/read:
 - `Dashboard`
 - `Target`
@@ -129,16 +134,20 @@ For create/update/delete:
 - `Dashboard`
 - `Mode`
 - `Planned change`
+- `Save status` / `Delete status` before confirmation
+- `Options` / confirmation token
 - `Verification`
 - `Next step`
+
+Use stable localized slot labels in this order for previews; omit empty slots, but do not invent ad-hoc headings.
 
 Do not dump the full dashboard JSON/YAML by default.
 
 ## Safety
 
 - No guessed `url_path` or `dashboard_id` values.
-- Create/update uses natural confirmation after preview.
-- Dashboard/resource delete uses exact token confirmation only.
+- Create/update uses natural confirmation after preview, bound to the exact displayed payload/diff (see context skill → Active Preview Confirmation).
+- Dashboard/resource/card delete uses exact token confirmation only, even for items created earlier in the same session.
 - If the requested change would require a broad re-layout instead of a targeted edit, say so before writing.
 
 ## Guardrails

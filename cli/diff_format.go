@@ -8,7 +8,7 @@ import (
 
 // This file holds the presentation half of `ha-nova diff`: turning a computed
 // change (a path plus before/after values) into the stable, human-readable text
-// the skill prints verbatim under "## Changes". The comparison and tree-walk
+// the skill prints verbatim under the localized changes slot. The comparison and tree-walk
 // logic lives in diff.go; splitting the two keeps each file focused and under the
 // repo's size guardrail.
 
@@ -93,9 +93,9 @@ func formatValue(v interface{}) string {
 		if t == "" {
 			return `""`
 		}
-		// Escape control chars (newlines/tabs from a multiline description or
-		// template) and cap length so one value can't split a `## Changes` bullet
-		// into unprefixed lines — the skill prints this stdout verbatim.
+			// Escape control chars (newlines/tabs from a multiline description or
+			// template) and cap length so one value can't split a changes bullet
+			// into unprefixed lines — the skill prints this CLI output verbatim.
 		return truncate(escapeInline(t))
 	case bool:
 		if t {
@@ -156,7 +156,7 @@ func compactJSON(v interface{}) string {
 }
 
 func truncate(s string) string {
-	const max = 60
+	const max = 180
 	if len(s) <= max {
 		return s
 	}

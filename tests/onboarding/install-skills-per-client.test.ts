@@ -112,6 +112,17 @@ describe("S-4: client-specific skill installation", () => {
     expect(ctx).toContain("name: ha-nova");
     expect(ctx).toContain("ha-nova:ha-nova-entity-discovery");
 
+    const contextCompanionFiles = readdirSync(join(REPO_ROOT, "skills", "ha-nova"))
+      .filter((file) => file.endsWith(".md") && file !== "SKILL.md");
+    for (const companion of contextCompanionFiles) {
+      const companionContent = readFileSync(
+        join(home, ".gemini/skills/ha-nova", companion),
+        "utf8",
+      );
+      expect(companionContent.length).toBeGreaterThan(0);
+      expectRepoRefsRewritten(companionContent);
+    }
+
     // Sub-skills as separate flat directories (ha-nova- prefix for Gemini)
     for (const src of SOURCE_SUB_SKILLS) {
       const geminiDir = `ha-nova-${src}`;
@@ -178,6 +189,17 @@ describe("S-4: client-specific skill installation", () => {
     const context = readFileSync(join(hermesRoot, "ha-nova", "SKILL.md"), "utf8");
     expect(context).toContain("name: ha-nova");
     expect(context).toContain("ha-nova-entity-discovery");
+
+    const contextCompanionFiles = readdirSync(join(REPO_ROOT, "skills", "ha-nova"))
+      .filter((file) => file.endsWith(".md") && file !== "SKILL.md");
+    for (const companion of contextCompanionFiles) {
+      const companionContent = readFileSync(
+        join(hermesRoot, "ha-nova", companion),
+        "utf8",
+      );
+      expect(companionContent.length).toBeGreaterThan(0);
+      expectRepoRefsRewritten(companionContent);
+    }
 
     for (const src of SOURCE_SUB_SKILLS) {
       const installedName = `ha-nova-${src}`;

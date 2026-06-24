@@ -136,7 +136,7 @@ Once it finishes, try: *"Show me all my automations."*
 
 **The Relay** lives on your Home Assistant server. It's the only part that talks to Home Assistant directly, and it keeps your access token there — never on your laptop, never in a prompt.
 
-When HA NOVA gets a new workflow, that's a text file update on your machine. The Relay doesn't change. No rebuild, no restart, no risk to a running system.
+Most new HA NOVA workflows are text-file skill updates on your machine. When a workflow needs a new transport capability, the Relay changes only at that transport boundary and still does not learn Home Assistant business logic.
 
 And because the Relay sits right next to Home Assistant, it can do things a remote client can't — like snapshotting an automation before it updates it, so you can revert that last change with a single word. Home Assistant Backups have your back for everything else.
 
@@ -156,7 +156,7 @@ HA NOVA is early — and that's the point. Here's where it's going:
 
 ## 🧩 Skills
 
-11 skills, each a markdown file you can read and edit.
+13 task skills plus the HA NOVA context skill, each a markdown file you can read and edit.
 
 | Skill | What it does |
 |:------|:-------------|
@@ -166,6 +166,8 @@ HA NOVA is early — and that's the point. Here's where it's going:
 | 🧱 **dashboard** | Edit dashboards, cards, and Lovelace resources safely |
 | 🗂️ **organize** | Manage areas, floors, labels, and entity metadata |
 | 🕒 **history** | Query history, logbook timelines, and long-term stats |
+| 🏠 **health** | Summarize Home Assistant status, repairs, integrations, system health, and noisy entities |
+| 📅 **calendar** | Read calendars and bounded event windows |
 | 🎛️ **service-call** | Control lights, climate, covers, switches, and media players |
 | 🔎 **entity-discovery** | Find entities by name, room, area, or label |
 | 🧩 **helper** | Create and manage helpers: counters, timers, input booleans, more |
@@ -173,6 +175,8 @@ HA NOVA is early — and that's the point. Here's where it's going:
 | 🚀 **onboarding** | Diagnose setup issues and troubleshoot connections |
 
 Want to add a new capability? → [CONTRIBUTING.md](CONTRIBUTING.md)
+
+Current skills require NOVA Relay `0.2.3` or newer.
 
 ---
 

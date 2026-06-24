@@ -91,4 +91,26 @@ describe("ha ws client", () => {
     await expect(client.sendMessage({ type: "recover" })).resolves.toEqual({ echoed: "retry:recover" });
     expect(connectCalls).toBe(2);
   });
+
+  it("collects subscription events until finish and unsubscribes", async () => {
+    let unsubscribed = false;
+    const client = createHaWsClient({
+      createConnection: async () => ({
+        sendMessagePromise: async () => ({ ok: true }),
+        subscribeMessage: async (callback, message) => {
+          callback({ type: "initial", data: { source: message.type } });
+          callback({ type: "finish" });
+          return () => {
+            unsubscribed = true;
+          };
+        }
+      })
+    });
+
+    await expect(client.collectMessageEvents({ type: "system_health/info" })).resolves.toEqual([
+      { type: "initial", data: { source: "system_health/info" } },
+      { type: "finish" },
+    ]);
+    expect(unsubscribed).toBe(true);
+  });
 });

@@ -27,6 +27,9 @@ For agent-dispatched flows, use the CLI wrapper instead of raw curl:
    - `ha-nova relay ... --out <result-file>`
    - `ha-nova relay ... --jq-file <filter-file>` for non-trivial filters
    - `ha-nova relay ... --jq .field` only for short selectors without shell-special characters
+3. Use client-private scratch storage outside the project workspace for payload/result files. Do not allocate scratch directories or files from visible shell commands just to hold relay JSON. Scratch files are internal execution artifacts; do not create them under the repo working tree and do not present them as user-facing edits. If command text is visible to the user, set the tool working directory to the scratch directory outside the command text, then run relay commands with local filenames (`payload.json`, `result.json`, `filter.jq`) instead of absolute scratch paths.
+
+`ha-nova relay jq` is a small single-input JSON filter, not full GNU jq CLI compatibility. Supported flags are `-r`, `-e`, `-c` (accepted as compact-output compatibility; JSON output is already compact), `--file <input-file>`, and `--jq-file <filter-file>`. Do not pass other GNU jq flags. Do not use jq `input`/`inputs`, `input_filename`, or multi-file programs; compare two saved JSON files with the client's native JSON parser instead.
 
 Examples:
 
@@ -37,7 +40,9 @@ ha-nova relay core --method POST --path /api/services/light/turn_on --body-file 
 ```
 
 The wrapper handles auth (OS credential store), headers, timeouts, and base URL internally.
-Inline `-d` / `--body` remains available for small diagnostics, but it is not the canonical cross-platform path.
+Inline `--body` is not supported for WebSocket relay calls; WS request bodies MUST use `--data-file`.
+Inline `--body` may be used only for tiny `ha-nova relay core` diagnostics when quoting is already known-good; it is not the canonical cross-platform path.
+Relay API examples are not write authorization. Any live write still needs the owning skill's active-preview confirmation flow before execution.
 
 ## Standard Envelope
 
@@ -62,6 +67,8 @@ HA uses different identifiers depending on the API. Skills MUST use the correct 
 ### Standard Resolution: entity_id → unique_id
 
 When you have an entity_id and need the config key for REST or trace APIs:
+
+If the exact automation/script `entity_id` is known, use `config/entity_registry/get` directly. Do not call `config/entity_registry/list` just to find one known entity. Use `config/entity_registry/list_for_display` only for search or disambiguation by name.
 
 Create `<payload-file>` with:
 
@@ -354,6 +361,8 @@ Get detailed trace:
 ```
 
 Trace response includes: `trace.trigger`, `trace.condition`, `trace.action` nodes with `result`, `timestamp`, and `changed_variables`.
+
+`run_id` must come from a `trace/list` item. Do not pass a list index as `run_id`. If no traces are returned, explain that Home Assistant keeps only recent traces and YAML automations/scripts need an `id` to expose traces.
 
 ## Error Handling
 

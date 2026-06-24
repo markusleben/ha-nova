@@ -14,6 +14,47 @@ describe("ha safety contract", () => {
     expect(writeSkill).toContain("No guessing entity_ids; resolve or ask");
   });
 
+  it("rejects pre-preview blanket approval for live writes", () => {
+    const context = readFileSync("skills/ha-nova/SKILL.md", "utf8");
+    const applyAgent = readFileSync("skills/ha-nova/agents/apply-agent.md", "utf8");
+    const architecture = readFileSync("docs/reference/skill-architecture.md", "utf8");
+    const relayApi = readFileSync("skills/ha-nova/relay-api.md", "utf8");
+
+    expect(context).toContain("Active preview confirmation");
+    expect(context).toContain("A user instruction given before the preview exists is never valid write confirmation.");
+    for (const phrase of ["implement the plan", "do it", "go ahead", "make the changes", "apply the plan"]) {
+      expect(context).toContain(`"${phrase}"`);
+    }
+    expect(context).toContain("permission to prepare the draft, run checks, and show the preview");
+    expect(context).toContain("Confirmation is bound to the displayed operation, target set, endpoint/service, and exact payload/diff/manifest");
+    expect(context).toContain("confirmation expires");
+    expect(context).toContain("Multi-target confirmation is valid only where the owning skill supports multi-target writes");
+
+    expect(applyAgent).toContain("Apply precondition");
+    expect(applyAgent).toContain("pre-preview-only");
+    expect(applyAgent).toContain("BLOCKED: confirmation missing or stale");
+
+    expect(architecture).toContain("pre-preview approval is never write confirmation");
+    expect(relayApi).toContain("Relay API examples are not write authorization");
+  });
+
+  it("keeps mutation-capable skills tied to active-preview confirmation", () => {
+    const mutationDocs = [
+      "skills/write/SKILL.md",
+      "skills/helper/SKILL.md",
+      "skills/dashboard/SKILL.md",
+      "skills/organize/SKILL.md",
+      "skills/service-call/SKILL.md",
+      "skills/review/SKILL.md",
+      "skills/fallback/SKILL.md",
+    ];
+
+    for (const file of mutationDocs) {
+      const content = readFileSync(file, "utf8");
+      expect(content, file).toContain("Active Preview Confirmation");
+    }
+  });
+
   it("requires structured failure output", () => {
     const router = readFileSync("skills/ha-nova/SKILL.md", "utf8");
     const writeSkill = readFileSync("skills/write/SKILL.md", "utf8");

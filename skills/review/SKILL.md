@@ -223,7 +223,7 @@ Traverse all `variables:` mappings in the config, not just the top-level block. 
 - Codes are internal only; NEVER show them in any user-facing message (reports, chat replies, follow-up questions) — describe findings in plain language instead
 
 **Apply these families by domain:**
-- Automation: S-01..S-03, R-01..R-22, P-01..P-05, M-01..M-03
+- Automation: S-01..S-03, R-01..R-24, P-01..P-05, M-01..M-03
 - Script: automation families plus F-01..F-08
 - Helper (storage-based family): H-01..H-10
 - Helper (config-entry family): minimal config-entry review
@@ -239,6 +239,8 @@ Traverse all `variables:` mappings in the config, not just the top-level block. 
 - For R-18 output, include the block context plus at least one concrete variable pair. For pasted YAML or draft configs, describe it as future write fragility. For HA read-back or post-write review, describe it as a persisted runtime risk.
 - R-19 applies only to Jinja2 chains with `if` plus at least one `elif`, entity-state-style branch guards, and a terminal bare `else` that contains a direct `trigger.id` comparison. Skip single `if` / `else`, `trigger.id` in `elif`, non-entity-state selector trees, `else` blocks with extra explicit guards, and `choose` + `condition: trigger`.
 - For R-19 output, state: final else branch is only reached when the earlier entity-state branches are false. Move the `trigger.id` check into an explicit `elif`. Or refactor to `choose` + `condition: trigger`.
+- R-23 applies only to boolean-like templates compared to string boolean literals (`'True'`, `'true'`, `'False'`, `'false'`) in either comparison direction. Do not flag bare boolean checks such as `is true` or `== true`.
+- R-24 is advisory only and applies only when a capacity-like variable reads an `available_energy` source. Do not hard-code integration-specific replacement entities.
 
 **Live helper evidence for H-09/H-10:**
 - See `skills/review/checks.md` → Helper Threshold Evidence
@@ -278,9 +280,11 @@ Branch by target family:
 
 When the user reports runtime issues ("automation didn't fire", "wrong behavior last night"):
 1. Follow the trace procedure in `skills/read/SKILL.md` → Trace Debugging
-2. Cross-reference trace findings with config quality findings from Step 1
-3. Verify `item_id` in every trace matches the target's `unique_id` before attributing results. see `skills/ha-nova/SKILL.md` → Claim-Evidence Binding.
-4. Include trace-based findings in the Findings section with a descriptive title (e.g., `🔴 Condition blocked — condition was never met in last 3 runs`). Localize at runtime per `skills/ha-nova/SKILL.md` → Output Localization.
+2. Prefer the normalized CLI helper fields from `ha-nova trace latest/list/get --json`; they are enough for run selection, result status, timestamp, item binding, and most review findings.
+3. Inspect raw trace internals only when step-level evidence is required. Raw trace nodes can be arrays of event records; type-check before reading `path`, `result`, `changed_variables`, or `error`, and avoid large jq projections as the standard path.
+4. Cross-reference trace findings with config quality findings from Step 1
+5. Verify `item_id` in every trace matches the target's `unique_id` before attributing results. see `skills/ha-nova/SKILL.md` → Claim-Evidence Binding.
+6. Include trace-based findings in the Findings section with a descriptive title (e.g., `🔴 Condition blocked — condition was never met in last 3 runs`). Localize at runtime per `skills/ha-nova/output-rules.md`.
 
 ### Step 3: Conflict Analysis
 
@@ -321,7 +325,7 @@ After completing Steps 1-3, check if the current entity state (from the earlier 
 **If qualified:**
 1. Show current state vs expected state
 2. Show exact service call that would fix it
-3. Ask for natural confirmation (same tier as `ha-nova:service-call` — no token needed, service calls are reversible)
+3. Ask for natural confirmation bound to this exact service-call preview (same tier as `ha-nova:service-call`; see context skill → Active Preview Confirmation; no token needed for ordinary service calls)
 
 **On confirmation:**
 Execute via Relay:
@@ -393,7 +397,7 @@ Rules:
 
 ## Output Format
 
-Localize all headings to the user's language (see `skills/ha-nova/SKILL.md` → Output Localization).
+Apply `skills/ha-nova/output-rules.md` to all user-facing output.
 
 Exception: if a maintainer-provided release-validation or machine-check prompt explicitly pins exact section titles or machine markers, follow that override exactly so automated validation can compare the fixed headings. This exception does not allow internal check codes in normal user-facing prose.
 

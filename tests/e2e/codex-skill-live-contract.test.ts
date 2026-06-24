@@ -32,6 +32,8 @@ describe("codex live skill e2e contract", () => {
     expect(content).toContain("E2E_REQUIRE_QUICK_GATE");
     expect(content).toContain("fromjson? | select(type == \"object\")");
     expect(content).toMatch(/Parallelize independent stages/i);
+    expect(content).toContain("simulates the user's next post-preview reply only for that exact preview");
+    expect(content).not.toContain("explicit confirmation is granted by this prompt");
     expect(content).toMatch(/E2E_SUBAGENT_POLICY.*(deny|require)/);
     expect(content).toMatch(/relay \/core/i);
     expect(content).toMatch(/verify-absent/i);

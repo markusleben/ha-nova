@@ -18,10 +18,10 @@ Not in scope:
 - live subscriptions
 - system logs
 - trace debugging
-- calendar queries
+- calendar queries (use `ha-nova:calendar`)
 - giant raw exports
 
-Use `ha-nova:read` for traces and `ha-nova:fallback` for calendars or subscriptions.
+Use `ha-nova:read` for traces, `ha-nova:calendar` for calendars, and `ha-nova:fallback` for subscriptions.
 
 ## Bootstrap (once per session)
 
@@ -74,6 +74,8 @@ Recorder statistics response stays under WS `.data`.
 6. Only show raw excerpts if the user explicitly asks.
 
 ## Output Format
+
+Apply `skills/ha-nova/output-rules.md` to all user-facing output.
 
 - `Target`
 - `Window`
