@@ -29,6 +29,7 @@ describe("app deploy script contract", () => {
     expect(content).toContain("base64");
     expect(content).toContain("--raw-json");
     expect(content).toContain("OPTIONS_PAYLOAD=");
+    expect(content).toContain("-d \"$OPTIONS_JSON\"");
     expect(content).toContain("-d \"$OPTIONS_PAYLOAD\"");
     expect(content).toContain("Dockerfile package.json package-lock.json tsconfig.json run config.yaml");
     expect(content).toContain("SRC_DIR=\"${PROJECT_ROOT}/nova/src\"");

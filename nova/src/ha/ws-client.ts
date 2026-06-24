@@ -97,6 +97,7 @@ export function createHaWsClient(options: HaWsClientOptions): HaWsClient {
       const timeoutMs = collectionOptions.timeoutMs ?? requestTimeoutMs;
       const events: T[] = [];
       let unsubscribe: (() => void | Promise<void>) | undefined;
+      let unsubscribeOnAck = false;
 
       try {
         return await withTimeout(
@@ -141,6 +142,9 @@ export function createHaWsClient(options: HaWsClientOptions): HaWsClient {
             )
               .then((cancel) => {
                 unsubscribe = cancel;
+                if (unsubscribeOnAck) {
+                  void Promise.resolve(cancel()).catch(() => undefined);
+                }
               })
               .catch(settleReject);
           }),
@@ -168,6 +172,8 @@ export function createHaWsClient(options: HaWsClientOptions): HaWsClient {
       } finally {
         if (unsubscribe) {
           await unsubscribe();
+        } else {
+          unsubscribeOnAck = true;
         }
       }
     },
