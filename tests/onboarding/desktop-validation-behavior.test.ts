@@ -14,7 +14,7 @@ describe("desktop validation helper behavior", () => {
     expect(macosSuite).toContain('wait_for_server');
     expect(macosSuite).toContain('export BUNDLE_SERVER_BASE_URL="http://127.0.0.1:${BUNDLE_SERVER_PORT}"');
     expect(macosSuite).toMatch(
-      /bash scripts\/dev\/macos-private-rc-smoke\.sh[\s\S]+bash scripts\/dev\/macos-private-rc-setup-all\.sh[\s\S]+bash scripts\/dev\/macos-private-rc-client\.sh codex[\s\S]+bash scripts\/dev\/macos-private-rc-client\.sh opencode[\s\S]+bash scripts\/dev\/macos-private-rc-client\.sh gemini[\s\S]+bash scripts\/dev\/macos-private-rc-client\.sh claude/,
+      /bash scripts\/dev\/macos-private-rc-smoke\.sh[\s\S]+bash scripts\/dev\/macos-private-rc-setup-all\.sh[\s\S]+bash scripts\/dev\/macos-private-rc-client\.sh codex[\s\S]+bash scripts\/dev\/macos-private-rc-client\.sh opencode[\s\S]+bash scripts\/dev\/macos-private-rc-client\.sh antigravity[\s\S]+bash scripts\/dev\/macos-private-rc-client\.sh claude/,
     );
   });
 

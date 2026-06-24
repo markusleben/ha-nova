@@ -60,6 +60,6 @@ bash scripts/dev/macos-private-rc-smoke.sh
 bash scripts/dev/macos-private-rc-setup-all.sh
 bash scripts/dev/macos-private-rc-client.sh codex
 bash scripts/dev/macos-private-rc-client.sh opencode
-bash scripts/dev/macos-private-rc-client.sh gemini
+bash scripts/dev/macos-private-rc-client.sh antigravity
 bash scripts/dev/macos-private-rc-client.sh hermes
 bash scripts/dev/macos-private-rc-client.sh claude

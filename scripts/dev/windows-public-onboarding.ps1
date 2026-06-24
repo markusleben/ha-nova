@@ -67,8 +67,8 @@ function Get-ReadyClients {
   if ((Test-CommandAvailable "claude") -and (Test-ClaudeGitBashAvailable)) {
     $clients += "claude"
   }
-  if ((Test-CommandAvailable "gemini") -and (Test-CommandAvailable "node")) {
-    $clients += "gemini"
+  if (Test-CommandAvailable "agy") {
+    $clients += "antigravity"
   }
   if (Test-CommandAvailable "codex") {
     $clients += "codex"

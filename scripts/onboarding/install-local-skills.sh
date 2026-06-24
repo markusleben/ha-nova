@@ -7,7 +7,7 @@ Usage:
   bash scripts/onboarding/install-local-skills.sh codex
   bash scripts/onboarding/install-local-skills.sh claude
   bash scripts/onboarding/install-local-skills.sh opencode
-  bash scripts/onboarding/install-local-skills.sh gemini
+  bash scripts/onboarding/install-local-skills.sh antigravity
   bash scripts/onboarding/install-local-skills.sh hermes
   bash scripts/onboarding/install-local-skills.sh all
 
@@ -15,9 +15,9 @@ Targets:
   codex    -> link/copy ~/.agents/skills/ha-nova -> repo skills
   claude   -> stage local Claude marketplace + install ha-nova@ha-nova
   opencode -> link/copy ~/.config/opencode/skills/ha-nova -> repo skills
-  gemini   -> flat copy ~/.gemini/skills/ha-nova-*/SKILL.md (+ local companion .md files)
+  antigravity -> flat copy ~/.gemini/antigravity/skills/ha-nova-*/SKILL.md (+ local companion .md files)
   hermes   -> namespaced copy ~/.hermes/skills/ha-nova/ha-nova-*
-  all      -> install for codex + claude + opencode + gemini + hermes (non-Windows)
+  all      -> install for codex + claude + opencode + antigravity + hermes (non-Windows)
 USAGE
 }
 
@@ -28,15 +28,15 @@ REPO_ROOT="$(repo_root_from_bash_source "${BASH_SOURCE[0]}" "../..")"
 SOURCE_SKILLS_DIR="${REPO_ROOT}/skills"
 CURRENT_PLATFORM_ID="$(detect_platform_id)"
 
-GEMINI_SUB_SKILLS=()
+FLAT_SUB_SKILLS=()
 for _skill_dir in "${SOURCE_SKILLS_DIR}"/*/SKILL.md; do
   _skill_name="$(basename "$(dirname "$_skill_dir")")"
   [[ "$_skill_name" == "ha-nova" ]] && continue
-  GEMINI_SUB_SKILLS+=("$_skill_name")
+  FLAT_SUB_SKILLS+=("$_skill_name")
 done
 unset _skill_dir _skill_name
 
-gemini_installed_skill_name() {
+flat_installed_skill_name() {
   local skill_name="$1"
   if [[ -z "${skill_name}" || "${skill_name}" == "ha-nova" ]]; then
     printf 'ha-nova'
@@ -53,7 +53,7 @@ rewrite_flat_markdown() {
   local content
   local installed_skill_name
 
-  installed_skill_name="$(gemini_installed_skill_name "${skill_name}")"
+  installed_skill_name="$(flat_installed_skill_name "${skill_name}")"
   content="$(cat "${src}")"
 
   for companion in "${source_dir}"/*.md; do
@@ -73,8 +73,8 @@ rewrite_flat_markdown() {
     '
   )"
 
-  for gemini_sub_skill in "${GEMINI_SUB_SKILLS[@]}"; do
-    content="${content//ha-nova:${gemini_sub_skill}/ha-nova:ha-nova-${gemini_sub_skill}}"
+  for flat_sub_skill in "${FLAT_SUB_SKILLS[@]}"; do
+    content="${content//ha-nova:${flat_sub_skill}/ha-nova:ha-nova-${flat_sub_skill}}"
   done
 
   if [[ "${skill_name}" != "ha-nova" ]]; then
@@ -145,7 +145,7 @@ rewrite_hermes_markdown() {
     '
   )"
 
-  for sub_skill in "${GEMINI_SUB_SKILLS[@]}"; do
+  for sub_skill in "${FLAT_SUB_SKILLS[@]}"; do
     content="${content//ha-nova:${sub_skill}/ha-nova-${sub_skill}}"
   done
 
@@ -190,7 +190,7 @@ install_hermes_tree() {
   mkdir -p "${target_root}"
 
   copy_hermes_skill_markdown "ha-nova" "${target_root}/ha-nova"
-  for skill_name in "${GEMINI_SUB_SKILLS[@]}"; do
+  for skill_name in "${FLAT_SUB_SKILLS[@]}"; do
     copy_hermes_skill_markdown "${skill_name}" "${target_root}/$(hermes_installed_skill_name "${skill_name}")"
   done
 
@@ -223,8 +223,8 @@ install_symlink_tree() {
   log "[${target}] Symlink unavailable; copied: ${user_skills_dir}/ha-nova <- ${SOURCE_SKILLS_DIR}"
 }
 
-# shellcheck source=lib/install-local-skills-gemini.sh
-. "${SCRIPT_DIR}/lib/install-local-skills-gemini.sh"
+# shellcheck source=lib/install-local-skills-antigravity.sh
+. "${SCRIPT_DIR}/lib/install-local-skills-antigravity.sh"
 # shellcheck source=lib/install-local-skills-claude.sh
 . "${SCRIPT_DIR}/lib/install-local-skills-claude.sh"
 # shellcheck source=lib/install-local-skills-repo-dev.sh
@@ -251,6 +251,7 @@ require_target_prereqs() {
 
 install_target() {
   local target="$1"
+  local helper_target="$target"
 
   require_target_prereqs "${target}"
 
@@ -264,8 +265,9 @@ install_target() {
     opencode)
       install_symlink_tree "opencode" "${HOME}/.config/opencode/skills"
       ;;
-    gemini)
-      install_gemini_flat
+    antigravity|gemini)
+      install_antigravity_flat
+      helper_target="antigravity"
       ;;
     hermes)
       install_hermes_tree
@@ -275,7 +277,7 @@ install_target() {
       ;;
   esac
 
-  install_repo_dev_helpers "${target}"
+  install_repo_dev_helpers "${helper_target}"
 }
 
 main() {
@@ -289,12 +291,12 @@ main() {
   fi
 
   case "${target}" in
-    codex|claude|opencode|gemini|hermes)
+    codex|claude|opencode|antigravity|gemini|hermes)
       install_target "${target}"
       ;;
     all)
       install_target "codex"
-      install_target "gemini"
+      install_target "antigravity"
       install_target "claude"
       install_target "opencode"
       if [[ "${CURRENT_PLATFORM_ID}" != "windows" ]]; then

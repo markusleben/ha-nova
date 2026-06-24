@@ -12,7 +12,7 @@ import (
 )
 
 func TestRunSetupNonInteractiveVerifiesBeforeInstallingClients(t *testing.T) {
-	withClientRuntimeAvailability(t, map[string]bool{"gemini": true})
+	withClientRuntimeAvailability(t, map[string]bool{"antigravity": true})
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("HA_NOVA_NO_BROWSER", "1")
@@ -46,7 +46,7 @@ func TestRunSetupNonInteractiveVerifiesBeforeInstallingClients(t *testing.T) {
 
 	exitCode, output := captureCommandOutput(t, func() int {
 		return runSetup(paths, []string{
-			"gemini",
+			"antigravity",
 			"--host", normalizeHostInput(haServer.URL),
 			"--ha-url", haServer.URL,
 			"--relay-url", "http://relay.test:8791",
@@ -60,8 +60,8 @@ func TestRunSetupNonInteractiveVerifiesBeforeInstallingClients(t *testing.T) {
 	if !strings.Contains(output, "Setup incomplete") {
 		t.Fatalf("expected incomplete setup banner:\n%s", output)
 	}
-	if _, err := os.Stat(filepath.Join(home, ".gemini", "skills", "ha-nova", "SKILL.md")); !isNotExist(err) {
-		t.Fatalf("expected gemini skills not to be installed on failed readiness, err=%v", err)
+	if _, err := os.Stat(filepath.Join(home, ".gemini", "antigravity", "skills", "ha-nova", "SKILL.md")); !isNotExist(err) {
+		t.Fatalf("expected Antigravity skills not to be installed on failed readiness, err=%v", err)
 	}
 	if _, err := os.Stat(paths.ConfigFile); !isNotExist(err) {
 		t.Fatalf("expected failed non-interactive setup to roll config back, err=%v", err)
@@ -75,7 +75,7 @@ func TestRunSetupNonInteractiveVerifiesBeforeInstallingClients(t *testing.T) {
 }
 
 func TestRunSetupNonInteractiveSkipsClipboardAndBrowserSideEffects(t *testing.T) {
-	withClientRuntimeAvailability(t, map[string]bool{"gemini": true})
+	withClientRuntimeAvailability(t, map[string]bool{"antigravity": true})
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING", "1")
@@ -133,7 +133,7 @@ func TestRunSetupNonInteractiveSkipsClipboardAndBrowserSideEffects(t *testing.T)
 
 	exitCode, output := captureCommandOutput(t, func() int {
 		return runSetup(paths, []string{
-			"gemini",
+			"antigravity",
 			"--host", normalizeHostInput(haServer.URL),
 			"--ha-url", haServer.URL,
 			"--relay-url", "http://relay.test:8791",
@@ -226,7 +226,7 @@ func TestRunSetupNonInteractiveServiceModeWritesRelayTokenFile(t *testing.T) {
 }
 
 func TestRunSetupNonInteractiveServiceModeRequiresRegistryCapability(t *testing.T) {
-	withClientRuntimeAvailability(t, map[string]bool{"gemini": true})
+	withClientRuntimeAvailability(t, map[string]bool{"antigravity": true})
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("HA_NOVA_DEV_ROOT", repoRootForSetupTest(t))
@@ -242,13 +242,13 @@ func TestRunSetupNonInteractiveServiceModeRequiresRegistryCapability(t *testing.
 			"--host", "203.0.113.1",
 			"--relay-token", "test-relay-token",
 			"--non-interactive",
-			"gemini",
+			"antigravity",
 		})
 	})
 	if exitCode == 0 {
 		t.Fatalf("expected service setup to fail for client without registry capability:\n%s", output)
 	}
-	if !strings.Contains(output, "Gemini CLI does not support service credentials") {
+	if !strings.Contains(output, "Google Antigravity CLI does not support service credentials") {
 		t.Fatalf("expected registry capability error:\n%s", output)
 	}
 	if _, err := os.Stat(defaultRelayAuthTokenFile(paths)); !isNotExist(err) {

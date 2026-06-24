@@ -102,8 +102,8 @@ describe("dev-sync behavior", () => {
     expect(existsSync(join(home, ".config/opencode/skills", "ha-nova", "ha-nova", "SKILL.md"))).toBe(true);
   });
 
-  it("refreshes Gemini when only the legacy marker exists", { timeout: 60000 }, () => {
-    const home = mkdtempSync(join(tmpdir(), "ha-nova-dev-sync-gemini-legacy-"));
+  it("refreshes Antigravity when only the legacy Gemini marker exists", { timeout: 60000 }, () => {
+    const home = mkdtempSync(join(tmpdir(), "ha-nova-dev-sync-antigravity-legacy-"));
     const binDir = createMockBinaries();
 
     mkdirSync(join(home, ".agents", "skills", "ha-nova-read"), { recursive: true });
@@ -117,8 +117,9 @@ describe("dev-sync behavior", () => {
     });
 
     expect(result.status).toBe(0);
-    expect(result.stdout).toContain("Gemini: refreshed via install-local-skills.sh gemini");
-    expect(existsSync(join(home, ".gemini", "skills", "ha-nova", "SKILL.md"))).toBe(true);
+    expect(result.stdout).toContain("Google Antigravity CLI: refreshed via install-local-skills.sh antigravity");
+    expect(existsSync(join(home, ".gemini", "antigravity", "skills", "ha-nova", "SKILL.md"))).toBe(true);
+    expect(existsSync(join(home, ".gemini", "skills", "ha-nova-read", "SKILL.md"))).toBe(false);
   });
 
   it("refreshes shared tools when no file clients are installed", { timeout: 90000 }, () => {

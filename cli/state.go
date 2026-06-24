@@ -13,7 +13,7 @@ type installState struct {
 	SchemaVersion int    `json:"schema_version"`
 	Version       string `json:"version"`
 	// ClientsVerifiedVersion records the version whose client integrations
-	// (Hermes/Codex/OpenCode/Gemini/Claude) were last (re)synced from the
+	// (Hermes/Codex/OpenCode/Antigravity/Claude) were last (re)synced from the
 	// canonical install root. It gates the post-update self-heal: a pre-0.6.1
 	// binary never wrote it, so after a v0.6.0->v0.6.1 in-place update the marker
 	// lags state.Version and the next command re-syncs once. Empty/omitted means
@@ -73,7 +73,8 @@ func normalizeState(state installState) installState {
 		state.ClientInstallModes = map[string]string{}
 	}
 	state.InstallSource = normalizeInstallSource(state.InstallSource)
-	sort.Strings(state.InstalledClients)
+	state.InstalledClients = normalizeClients(state.InstalledClients)
+	state.ClientInstallModes = normalizeClientInstallModes(state.ClientInstallModes)
 	return state
 }
 
@@ -83,7 +84,8 @@ func saveState(paths runtimePaths, state installState) error {
 		state.ClientInstallModes = map[string]string{}
 	}
 	state.InstallSource = normalizeInstallSource(state.InstallSource)
-	sort.Strings(state.InstalledClients)
+	state.InstalledClients = normalizeClients(state.InstalledClients)
+	state.ClientInstallModes = normalizeClientInstallModes(state.ClientInstallModes)
 	if err := os.MkdirAll(filepath.Dir(paths.StateFile), 0o755); err != nil {
 		return err
 	}
@@ -144,6 +146,7 @@ func normalizeClients(values []string) []string {
 	}
 	set := map[string]struct{}{}
 	for _, value := range values {
+		value = canonicalClientID(value)
 		if value == "" {
 			continue
 		}
@@ -155,6 +158,33 @@ func normalizeClients(values []string) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+func normalizeClientInstallModes(values map[string]string) map[string]string {
+	if len(values) == 0 {
+		return map[string]string{}
+	}
+	out := map[string]string{}
+	for key, value := range values {
+		canonical := canonicalClientID(key)
+		if canonical == "" {
+			continue
+		}
+		if key == "gemini" {
+			if _, exists := out[canonical]; exists {
+				continue
+			}
+		}
+		out[canonical] = value
+	}
+	return out
+}
+
+func canonicalClientID(value string) string {
+	if value == "gemini" {
+		return "antigravity"
+	}
+	return value
 }
 
 func mergeStateClients(state *installState, clients []string) {

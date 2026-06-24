@@ -54,7 +54,7 @@ func installClient(paths runtimePaths, sourceRoot, client string) (string, error
 			return "", fmt.Errorf("unsupported skill-tree client: %s", client)
 		}
 	case "skill_flat":
-		return "copy", installGeminiClient(paths.Home, sourceRoot)
+		return "copy", installAntigravityClient(paths.Home, sourceRoot)
 	case "plugin_marketplace":
 		return "plugin", installClaudePlugin(paths, sourceRoot)
 	default:

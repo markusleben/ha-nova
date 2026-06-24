@@ -291,7 +291,7 @@ This is the release-bound Windows UX proof. It is separate from `npm run verify`
 Prerequisites for this lane:
 - on `clean` / fresh-profile runs, preinstall at least one supported client and verify it already runs from the same local shell
 - native Windows Claude also needs Git for Windows / Git Bash
-- native Windows Gemini also needs Node.js
+- native Windows Google Antigravity CLI must provide `agy`
 
 Additional supported public outcome:
 - if no supported client is ready yet, the same helper may also be used to prove the graceful install-only path: HA NOVA installs locally, shows the missing client prerequisite guidance, and does not fail the installer

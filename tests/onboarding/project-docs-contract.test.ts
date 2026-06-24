@@ -84,7 +84,7 @@ describe("project docs contract", () => {
   it("defines a canonical active work-doc path and keeps breadcrumbs short/current", () => {
     expect(governance).toContain("keep active work docs under `docs/work/`");
     expect(governance).toContain("`docs/work/`");
-    expect(governance).toContain("`.claude/INSTALL.md`, `.codex/INSTALL.md`, `.gemini/INSTALL.md`, `.opencode/INSTALL.md`, `.hermes/INSTALL.md`");
+    expect(governance).toContain("`.claude/INSTALL.md`, `.codex/INSTALL.md`, `.antigravity/INSTALL.md`, `.opencode/INSTALL.md`, `.hermes/INSTALL.md`");
     expect(governance).toContain("`SUPPORT.md`");
     expect(governance).toContain("`CODE_OF_CONDUCT.md`");
     expect(governance).toContain("`nova/README.md`");

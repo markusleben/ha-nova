@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  Works with <b>Claude Code</b> · <b>Claude Desktop</b> · <b>Codex CLI</b> · <b>OpenCode</b> · <b>Gemini CLI</b> · <b>Hermes Agent</b> (preview)
+  Works with <b>Claude Code</b> · <b>Claude Desktop</b> · <b>Codex CLI</b> · <b>OpenCode</b> · <b>Google Antigravity CLI</b> · <b>Hermes Agent</b> (preview)
 </p>
 
 <p align="center">
@@ -93,10 +93,10 @@ Once it finishes, try: *"Show me all my automations."*
 
 **Windows** — ships x64 builds (ARM64 works via x64 emulation).
 - Claude Code is the most tested client on Windows today
-- Gemini CLI has basic validation
+- Google Antigravity CLI has basic validation
 - Codex and OpenCode are still early
-- Native prerequisites: Claude Code needs Git for Windows / Git Bash; Gemini CLI needs Node.js
-- See [.claude/INSTALL.md](.claude/INSTALL.md) and [.gemini/INSTALL.md](.gemini/INSTALL.md)
+- Native prerequisites: Claude Code needs Git for Windows / Git Bash; Google Antigravity CLI must provide `agy`
+- See [.claude/INSTALL.md](.claude/INSTALL.md) and [.antigravity/INSTALL.md](.antigravity/INSTALL.md)
 
 > Do not download the `ha-nova-installer-bundle-*.tar.gz` / `.zip` assets manually. Those archives are used by the installer behind the scenes. Always use the one-liner or `ha-nova update`.
 
@@ -188,7 +188,7 @@ Current skills require NOVA Relay `0.2.3` or newer.
 | [Claude Desktop](https://claude.com/download) (Code tab) | Desktop app |
 | [Codex CLI](https://github.com/openai/codex) | Terminal |
 | [OpenCode](https://github.com/opencode-ai/opencode) | Terminal |
-| [Gemini CLI](https://github.com/google-gemini/gemini-cli) | Terminal |
+| [Google Antigravity CLI](https://antigravity.google/) | Terminal |
 | Hermes Agent (preview) | Terminal |
 
 > **Hermes is in preview.** The Linux desktop route (GNOME Keyring) is maintainer-validated; macOS and Windows-via-WSL2 are experimental, and native Windows isn't supported. Details: [.hermes/INSTALL.md](.hermes/INSTALL.md).

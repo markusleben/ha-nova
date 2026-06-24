@@ -54,7 +54,7 @@ func TestBuildSetupClientChoicesDisablesMissingRuntime(t *testing.T) {
 }
 
 func TestBuildSetupClientChoicesShowsAvailableClientsBeforeDisabledOnes(t *testing.T) {
-	withClientRuntimeAvailability(t, map[string]bool{"claude": true, "gemini": true})
+	withClientRuntimeAvailability(t, map[string]bool{"claude": true, "antigravity": true})
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("PATH", t.TempDir())
@@ -73,7 +73,7 @@ func TestBuildSetupClientChoicesShowsAvailableClientsBeforeDisabledOnes(t *testi
 	for _, choice := range choices {
 		gotValues = append(gotValues, choice.Value)
 	}
-	wantValues := []string{"claude", "gemini", "codex", "opencode", "hermes", "all"}
+	wantValues := []string{"claude", "antigravity", "codex", "opencode", "hermes", "all"}
 	if strings.Join(gotValues, ",") != strings.Join(wantValues, ",") {
 		t.Fatalf("choice order = %v, want %v", gotValues, wantValues)
 	}

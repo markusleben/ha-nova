@@ -18,7 +18,7 @@ func removeInstalledClientsWithReport(paths runtimePaths, state installState, re
 		clients = normalizeClients(append(clients, "hermes"))
 	}
 	if len(clients) == 0 {
-		clients = []string{"claude", "codex", "opencode", "gemini", "hermes"}
+		clients = []string{"claude", "codex", "opencode", "antigravity", "hermes"}
 	}
 	sort.Strings(clients)
 	for _, client := range clients {
@@ -86,8 +86,11 @@ func removeInstalledClientsWithReport(paths runtimePaths, state installState, re
 			if err := removeSkillEntriesWithReport(filepath.Join(paths.Home, ".config", "opencode", "skills"), report); err != nil {
 				return err
 			}
-		case "gemini":
-			if err := removeSkillEntriesWithReport(filepath.Join(paths.Home, ".gemini", "skills"), report); err != nil {
+		case "antigravity":
+			if err := removeSkillEntriesWithReport(antigravitySkillsRoot(paths.Home), report); err != nil {
+				return err
+			}
+			if err := removeSkillEntriesWithReport(legacyGeminiSkillsRoot(paths.Home), report); err != nil {
 				return err
 			}
 		case "hermes":

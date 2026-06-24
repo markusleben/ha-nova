@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestInstallGeminiClientUsesNamespacedFlatSkillNames(t *testing.T) {
+func TestInstallAntigravityClientUsesNamespacedFlatSkillNames(t *testing.T) {
 	home := t.TempDir()
 	sourceRoot := filepath.Join(t.TempDir(), "source")
 	skillsRoot := filepath.Join(sourceRoot, "skills")
@@ -38,8 +38,8 @@ func TestInstallGeminiClientUsesNamespacedFlatSkillNames(t *testing.T) {
 		}
 	}
 
-	if err := installGeminiClient(home, sourceRoot); err != nil {
-		t.Fatalf("installGeminiClient() error: %v", err)
+	if err := installAntigravityClient(home, sourceRoot); err != nil {
+		t.Fatalf("installAntigravityClient() error: %v", err)
 	}
 
 	for _, skill := range []string{
@@ -56,25 +56,25 @@ func TestInstallGeminiClientUsesNamespacedFlatSkillNames(t *testing.T) {
 		"ha-nova-review",
 		"ha-nova-fallback",
 	} {
-		if _, err := os.Stat(filepath.Join(home, ".gemini", "skills", skill, "SKILL.md")); err != nil {
-			t.Fatalf("expected Gemini skill %s to exist: %v", skill, err)
+		if _, err := os.Stat(filepath.Join(antigravitySkillsRoot(home), skill, "SKILL.md")); err != nil {
+			t.Fatalf("expected Antigravity skill %s to exist: %v", skill, err)
 		}
 	}
 
-	entityDiscovery, err := os.ReadFile(filepath.Join(home, ".gemini", "skills", "ha-nova-entity-discovery", "SKILL.md"))
+	entityDiscovery, err := os.ReadFile(filepath.Join(antigravitySkillsRoot(home), "ha-nova-entity-discovery", "SKILL.md"))
 	if err != nil {
-		t.Fatalf("read Gemini entity-discovery skill: %v", err)
+		t.Fatalf("read Antigravity entity-discovery skill: %v", err)
 	}
 	if !strings.Contains(string(entityDiscovery), "name: ha-nova-entity-discovery") {
-		t.Fatalf("expected Gemini entity-discovery skill to use namespaced frontmatter name, got %q", string(entityDiscovery))
+		t.Fatalf("expected Antigravity entity-discovery skill to use namespaced frontmatter name, got %q", string(entityDiscovery))
 	}
 
-	contextSkill, err := os.ReadFile(filepath.Join(home, ".gemini", "skills", "ha-nova", "SKILL.md"))
+	contextSkill, err := os.ReadFile(filepath.Join(antigravitySkillsRoot(home), "ha-nova", "SKILL.md"))
 	if err != nil {
-		t.Fatalf("read Gemini context skill: %v", err)
+		t.Fatalf("read Antigravity context skill: %v", err)
 	}
 	if !strings.Contains(string(contextSkill), "ha-nova:ha-nova-entity-discovery") {
-		t.Fatalf("expected Gemini context skill to rewrite dispatch refs, got %q", string(contextSkill))
+		t.Fatalf("expected Antigravity context skill to rewrite dispatch refs, got %q", string(contextSkill))
 	}
 }
 

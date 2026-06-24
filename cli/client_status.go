@@ -82,8 +82,8 @@ func clientRuntimeCommand(client string) string {
 		return "codex"
 	case "opencode":
 		return "opencode"
-	case "gemini":
-		return "gemini"
+	case "antigravity":
+		return "agy"
 	case "hermes":
 		return "hermes"
 	default:
@@ -97,9 +97,11 @@ func clientAttachmentPresent(paths runtimePaths, state installState, client stri
 		return fileExists(filepath.Join(paths.Home, ".agents", "skills", "ha-nova", "ha-nova", "SKILL.md"))
 	case "opencode":
 		return fileExists(filepath.Join(paths.Home, ".config", "opencode", "skills", "ha-nova", "ha-nova", "SKILL.md"))
-	case "gemini":
-		return fileExists(filepath.Join(paths.Home, ".gemini", "skills", "ha-nova", "SKILL.md")) &&
-			fileExists(filepath.Join(paths.Home, ".gemini", "skills", "ha-nova-review", "SKILL.md"))
+	case "antigravity":
+		return (fileExists(filepath.Join(antigravitySkillsRoot(paths.Home), "ha-nova", "SKILL.md")) &&
+			fileExists(filepath.Join(antigravitySkillsRoot(paths.Home), "ha-nova-review", "SKILL.md"))) ||
+			(fileExists(filepath.Join(legacyGeminiSkillsRoot(paths.Home), "ha-nova", "SKILL.md")) &&
+				fileExists(filepath.Join(legacyGeminiSkillsRoot(paths.Home), "ha-nova-review", "SKILL.md")))
 	case "hermes":
 		return hermesBundlePresent(paths.Home)
 	case "claude":
@@ -141,8 +143,8 @@ func clientStatusReason(client string, status clientStatus) string {
 			return "install OpenCode natively first, or run HA NOVA setup inside WSL"
 		}
 		return "install OpenCode first"
-	case "gemini":
-		return "install Gemini CLI first"
+	case "antigravity":
+		return "install Google Antigravity CLI first"
 	case "hermes":
 		return "install Hermes Agent first"
 	default:

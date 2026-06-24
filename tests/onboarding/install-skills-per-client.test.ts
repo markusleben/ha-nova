@@ -16,8 +16,8 @@ const SOURCE_SUB_SKILLS = readdirSync(join(REPO_ROOT, "skills"), { withFileTypes
   .map((entry) => entry.name)
   .sort();
 
-/** Gemini install directory names under ~/.gemini/skills/ (ha-nova- prefix) */
-const GEMINI_SUB_SKILLS = SOURCE_SUB_SKILLS.map((s) => `ha-nova-${s}`);
+/** Antigravity install directory names under ~/.gemini/antigravity/skills/ (ha-nova- prefix) */
+const ANTIGRAVITY_SUB_SKILLS = SOURCE_SUB_SKILLS.map((s) => `ha-nova-${s}`);
 
 const REWRITTEN_REPO_REF = /`(?:\/|[A-Za-z]:[\\/])[^`\n]*(?:\/skills\/|\/docs\/reference\/)[^`\n]*`/;
 
@@ -103,12 +103,12 @@ describe("S-4: client-specific skill installation", () => {
     expect(ctx).toContain("name: ha-nova");
   });
 
-  it("installs gemini skills as flat copies", { timeout: 120000 }, () => {
-    const { home, result } = installSkills("gemini");
+  it("installs antigravity skills as flat copies", { timeout: 120000 }, () => {
+    const { home, result } = installSkills("antigravity");
     expect(result.status).toBe(0);
 
     // Context skill
-    const ctx = readFileSync(join(home, ".gemini/skills/ha-nova/SKILL.md"), "utf8");
+    const ctx = readFileSync(join(home, ".gemini/antigravity/skills/ha-nova/SKILL.md"), "utf8");
     expect(ctx).toContain("name: ha-nova");
     expect(ctx).toContain("ha-nova:ha-nova-entity-discovery");
 
@@ -116,18 +116,18 @@ describe("S-4: client-specific skill installation", () => {
       .filter((file) => file.endsWith(".md") && file !== "SKILL.md");
     for (const companion of contextCompanionFiles) {
       const companionContent = readFileSync(
-        join(home, ".gemini/skills/ha-nova", companion),
+        join(home, ".gemini/antigravity/skills/ha-nova", companion),
         "utf8",
       );
       expect(companionContent.length).toBeGreaterThan(0);
       expectRepoRefsRewritten(companionContent);
     }
 
-    // Sub-skills as separate flat directories (ha-nova- prefix for Gemini)
+    // Sub-skills as separate flat directories (ha-nova- prefix for Antigravity)
     for (const src of SOURCE_SUB_SKILLS) {
-      const geminiDir = `ha-nova-${src}`;
+      const antigravityDir = `ha-nova-${src}`;
       const content = readFileSync(
-        join(home, ".gemini/skills", geminiDir, "SKILL.md"),
+        join(home, ".gemini/antigravity/skills", antigravityDir, "SKILL.md"),
         "utf8",
       );
       expect(content).toContain(`name: ha-nova-${src}`);
@@ -139,7 +139,7 @@ describe("S-4: client-specific skill installation", () => {
 
       for (const companion of companionFiles) {
         const companionContent = readFileSync(
-          join(home, ".gemini/skills", geminiDir, companion),
+          join(home, ".gemini/antigravity/skills", antigravityDir, companion),
           "utf8",
         );
         expect(companionContent.length).toBeGreaterThan(0);
@@ -149,7 +149,7 @@ describe("S-4: client-specific skill installation", () => {
       if (src === "review") {
         expect(content).toContain("`checks.md`");
         expect(content).not.toContain("skills/review/checks.md");
-        const checks = readFileSync(join(home, ".gemini/skills", "ha-nova-review", "checks.md"), "utf8");
+        const checks = readFileSync(join(home, ".gemini/antigravity/skills", "ha-nova-review", "checks.md"), "utf8");
         expect(checks).toContain("H-09 [MEDIUM → HIGH]");
         expect(checks).toContain("Canonical path: `checks.md`");
         expect(checks).not.toContain("skills/review/checks.md");
@@ -157,14 +157,37 @@ describe("S-4: client-specific skill installation", () => {
     }
   });
 
-  it("does not delete user-owned bare Gemini skills during cleanup", { timeout: 120000 }, () => {
-    const home = mkdtempSync(join(tmpdir(), "ha-nova-skill-gemini-user-owned-"));
+  it("does not delete user-owned bare Antigravity skills during cleanup", { timeout: 120000 }, () => {
+    const home = mkdtempSync(join(tmpdir(), "ha-nova-skill-antigravity-user-owned-"));
     const claudeLogFile = join(home, "claude.log");
     const binDir = createMockBinaries({ claudeLogFile });
-    const userSkill = join(home, ".gemini", "skills", "read");
+    const userSkill = join(home, ".gemini", "antigravity", "skills", "read");
 
     mkdirSync(userSkill, { recursive: true });
     writeFileSync(join(userSkill, "SKILL.md"), "name: read\nThis is my own ha-nova helper note.\n");
+
+    const result = spawnSync(
+      "bash",
+      ["scripts/onboarding/install-local-skills.sh", "antigravity"],
+      {
+        cwd: REPO_ROOT,
+        encoding: "utf8",
+        timeout: 60000,
+        env: mockEnv(home, binDir),
+      },
+    );
+
+    expect(result.status).toBe(0);
+    expect(readFileSync(join(userSkill, "SKILL.md"), "utf8")).toContain("This is my own");
+  });
+
+  it("accepts legacy gemini target as an antigravity alias and removes HA NOVA-owned legacy Gemini copies", { timeout: 120000 }, () => {
+    const home = mkdtempSync(join(tmpdir(), "ha-nova-skill-gemini-alias-"));
+    const claudeLogFile = join(home, "claude.log");
+    const binDir = createMockBinaries({ claudeLogFile });
+
+    mkdirSync(join(home, ".gemini", "skills", "ha-nova-read"), { recursive: true });
+    writeFileSync(join(home, ".gemini", "skills", "ha-nova-read", "SKILL.md"), "legacy\n");
 
     const result = spawnSync(
       "bash",
@@ -178,7 +201,8 @@ describe("S-4: client-specific skill installation", () => {
     );
 
     expect(result.status).toBe(0);
-    expect(readFileSync(join(userSkill, "SKILL.md"), "utf8")).toContain("This is my own");
+    expect(existsSync(join(home, ".gemini", "antigravity", "skills", "ha-nova", "SKILL.md"))).toBe(true);
+    expect(existsSync(join(home, ".gemini", "skills", "ha-nova-read", "SKILL.md"))).toBe(false);
   });
 
   it("installs hermes skills with directory names aligned to their namespaced skill IDs", () => {
@@ -468,7 +492,7 @@ exit 0
       "scripts/onboarding/install-local-skills.sh",
       "scripts/onboarding/lib/install-local-skills-common.sh",
       "scripts/onboarding/lib/install-local-skills-claude.sh",
-      "scripts/onboarding/lib/install-local-skills-gemini.sh",
+      "scripts/onboarding/lib/install-local-skills-antigravity.sh",
       "scripts/onboarding/lib/install-local-skills-repo-dev.sh",
     ]) {
       writeFileSync(join(fakeRoot, rel), readFileSync(join(REPO_ROOT, rel), "utf8"), { mode: 0o755 });
@@ -595,10 +619,10 @@ describe("S-5: multi-client 'all' installation", () => {
     // OpenCode symlink
     expect(() => readlinkSync(join(home, ".config/opencode/skills/ha-nova"))).not.toThrow();
 
-    // Gemini flat copies
-    for (const sub of GEMINI_SUB_SKILLS) {
+    // Antigravity flat copies
+    for (const sub of ANTIGRAVITY_SUB_SKILLS) {
       expect(() =>
-        statSync(join(home, ".gemini/skills", sub, "SKILL.md")),
+        statSync(join(home, ".gemini/antigravity/skills", sub, "SKILL.md")),
       ).not.toThrow();
     }
 
@@ -607,7 +631,7 @@ describe("S-5: multi-client 'all' installation", () => {
     ).not.toThrow();
 
     expect(() =>
-      statSync(join(home, ".gemini/skills", "ha-nova-review", "checks.md")),
+      statSync(join(home, ".gemini/antigravity/skills", "ha-nova-review", "checks.md")),
     ).not.toThrow();
 
     expect(() =>

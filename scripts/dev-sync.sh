@@ -78,17 +78,19 @@ sync_file_client() {
   echo "[dev:sync] ${name}: not installed — skipped"
 }
 
-sync_gemini() {
-  local context_marker="${HOME}/.gemini/skills/ha-nova/SKILL.md"
-  local current_marker="${HOME}/.gemini/skills/ha-nova-read/SKILL.md"
+sync_antigravity() {
+  local context_marker="${HOME}/.gemini/antigravity/skills/ha-nova/SKILL.md"
+  local current_marker="${HOME}/.gemini/antigravity/skills/ha-nova-read/SKILL.md"
+  local legacy_context_marker="${HOME}/.gemini/skills/ha-nova/SKILL.md"
+  local legacy_current_marker="${HOME}/.gemini/skills/ha-nova-read/SKILL.md"
   local legacy_marker="${HOME}/.agents/skills/ha-nova-read/SKILL.md"
 
-  if [[ -f "$context_marker" || -f "$current_marker" || -f "$legacy_marker" ]]; then
-    refresh_file_client "Gemini" "gemini"
+  if [[ -f "$context_marker" || -f "$current_marker" || -f "$legacy_context_marker" || -f "$legacy_current_marker" || -f "$legacy_marker" ]]; then
+    refresh_file_client "Google Antigravity CLI" "antigravity"
     return
   fi
 
-  echo "[dev:sync] Gemini: not installed — skipped"
+  echo "[dev:sync] Google Antigravity CLI: not installed — skipped"
 }
 
 sync_hermes() {
@@ -249,7 +251,7 @@ sync_shared_tools() {
 # Released builds never pass these, so they print only the bare version — the
 # published install stays untouched. The signal lives in the shared CLI, not in
 # skill files, so it works for every client (symlinked Codex/OpenCode or copied
-# Claude/Gemini) and can never pollute the committed skill source.
+# Claude/Antigravity) and can never pollute the committed skill source.
 dev_build_ldflags() {
   local sha stamp version
   sha="$(git -C "${REPO_ROOT}" rev-parse --short HEAD 2>/dev/null || echo local)"
@@ -446,7 +448,7 @@ require_repo_invariants
 
 sync_file_client "Codex" "${HOME}/.agents/skills/ha-nova" "codex"
 sync_file_client "OpenCode" "${HOME}/.config/opencode/skills/ha-nova" "opencode"
-sync_gemini
+sync_antigravity
 sync_hermes
 sync_claude
 sync_cli_runtime

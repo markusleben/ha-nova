@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 
-cleanup_gemini_unprefixed() {
+cleanup_antigravity_unprefixed() {
   :
 }
 
-cleanup_gemini_orphans() {
+cleanup_antigravity_orphans() {
   local skills_dir="$1"
 
-  cleanup_gemini_unprefixed "$skills_dir"
+  cleanup_antigravity_unprefixed "$skills_dir"
 
   local valid_skills="ha-nova"
   for skill_dir in "${SOURCE_SKILLS_DIR}"/*/SKILL.md; do
@@ -23,31 +23,41 @@ cleanup_gemini_orphans() {
     name="$(basename "$existing")"
     if ! printf '%s\n' "$valid_skills" | grep -qx "$name"; then
       rm -rf "$existing"
-      log "[gemini] Removed orphaned skill: ${name}"
+      log "[antigravity] Removed orphaned skill: ${name}"
     fi
   done
 }
 
-install_gemini_flat() {
-  local user_skills_dir="${HOME}/.gemini/skills"
+cleanup_legacy_gemini_flat() {
+  local legacy_skills_dir="${HOME}/.gemini/skills"
+  for existing in "${legacy_skills_dir}"/ha-nova*/; do
+    [[ ! -d "$existing" ]] && continue
+    rm -rf "$existing"
+    log "[antigravity] Removed legacy Gemini skill: $(basename "$existing")"
+  done
+}
+
+install_antigravity_flat() {
+  local user_skills_dir="${HOME}/.gemini/antigravity/skills"
   mkdir -p "${user_skills_dir}"
 
   cleanup_legacy_flat_only "${HOME}/.agents/skills" "gemini-legacy"
-  cleanup_gemini_orphans "${user_skills_dir}"
+  cleanup_legacy_gemini_flat
+  cleanup_antigravity_orphans "${user_skills_dir}"
 
   local context_dir="${user_skills_dir}/ha-nova"
   if [[ -d "${context_dir}" ]]; then
     rm -rf "${context_dir}"
   fi
   copy_flat_skill_markdown "ha-nova" "${context_dir}"
-  log "[gemini] Installed: ha-nova/SKILL.md (context skill)"
+  log "[antigravity] Installed: ha-nova/SKILL.md (context skill)"
 
-  for sub in "${GEMINI_SUB_SKILLS[@]}"; do
+  for sub in "${FLAT_SUB_SKILLS[@]}"; do
     local dest_name="ha-nova-${sub}"
     local dest_dir="${user_skills_dir}/${dest_name}"
     if [[ -f "${SOURCE_SKILLS_DIR}/${sub}/SKILL.md" ]]; then
       copy_flat_skill_markdown "${sub}" "${dest_dir}"
-      log "[gemini] Installed: ${dest_name}/SKILL.md"
+      log "[antigravity] Installed: ${dest_name}/SKILL.md"
     fi
   done
 }

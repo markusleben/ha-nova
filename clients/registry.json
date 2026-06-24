@@ -20,8 +20,8 @@
       "supported_os": ["macos", "linux", "windows"]
     },
     {
-      "id": "gemini",
-      "label": "Gemini CLI",
+      "id": "antigravity",
+      "label": "Google Antigravity CLI",
       "adapter_kind": "skill_flat",
       "supported_os": ["macos", "linux", "windows"]
     },

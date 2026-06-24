@@ -68,13 +68,13 @@ func TestTransientBackupResidueAggregatesDirtyClients(t *testing.T) {
 
 	// Hermes (copy) clean.
 	writeBundleTestFile(t, filepath.Join(home, ".hermes", "skills", "ha-nova", "ha-nova", "SKILL.md"), "name: ha-nova\n", 0o644)
-	// Gemini (copy) dirty: a baked transient-backup path.
-	writeBundleTestFile(t, filepath.Join(home, ".gemini", "skills", "ha-nova", "SKILL.md"),
+	// Antigravity (copy) dirty: a baked transient-backup path.
+	writeBundleTestFile(t, filepath.Join(home, ".gemini", "antigravity", "skills", "ha-nova", "SKILL.md"),
 		"name: ha-nova\n`"+filepath.Join(home, installBackupPrefixOld+"7", "docs")+"`\n", 0o644)
 
-	dirty := transientBackupResidue(paths, []string{"hermes", "gemini", "claude"})
-	if len(dirty) != 1 || dirty[0] != "gemini" {
-		t.Fatalf("expected only gemini flagged as residue, got %v", dirty)
+	dirty := transientBackupResidue(paths, []string{"hermes", "antigravity", "claude"})
+	if len(dirty) != 1 || dirty[0] != "antigravity" {
+		t.Fatalf("expected only antigravity flagged as residue, got %v", dirty)
 	}
 }
 

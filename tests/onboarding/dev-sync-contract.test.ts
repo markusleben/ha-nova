@@ -9,7 +9,7 @@ describe("dev-sync contract", () => {
   it("delegates file clients back to install-local-skills.sh", () => {
     expect(content).toContain('bash "${REPO_ROOT}/scripts/onboarding/install-local-skills.sh" "$target"');
     expect(content).toContain('refresh_file_client "$name" "$target"');
-    expect(content).toContain('refresh_file_client "Gemini" "gemini"');
+    expect(content).toContain('refresh_file_client "Google Antigravity CLI" "antigravity"');
     expect(content).toContain('CURRENT_PLATFORM_ID="$(detect_platform_id)"');
     expect(content).toContain("sync_hermes()");
     expect(content).toContain('sync_file_client "Hermes Agent" "${HOME}/.hermes/skills/ha-nova" "hermes"');
@@ -17,6 +17,7 @@ describe("dev-sync contract", () => {
   });
 
   it("keeps legacy Gemini marker support during migration", () => {
+    expect(content).toContain('.gemini/antigravity/skills/ha-nova-read/SKILL.md');
     expect(content).toContain('.gemini/skills/ha-nova-read/SKILL.md');
     expect(content).toContain('.agents/skills/ha-nova-read/SKILL.md');
   });

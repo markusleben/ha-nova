@@ -20,11 +20,11 @@ func withClientRuntimeAvailability(t *testing.T, available map[string]bool) {
 func withAllClientRuntimesAvailable(t *testing.T) {
 	t.Helper()
 	withClientRuntimeAvailability(t, map[string]bool{
-		"claude":   true,
-		"codex":    true,
-		"opencode": true,
-		"gemini":   true,
-		"hermes":   true,
+		"claude":      true,
+		"codex":       true,
+		"opencode":    true,
+		"antigravity": true,
+		"hermes":      true,
 	})
 }
 

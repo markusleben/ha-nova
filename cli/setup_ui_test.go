@@ -14,9 +14,9 @@ func testSetupClientChoices() []setupClientChoice {
 		{Number: "1", Value: "claude", Label: "Claude Code", Resolved: []string{"claude"}},
 		{Number: "2", Value: "codex", Label: "Codex CLI", Resolved: []string{"codex"}},
 		{Number: "3", Value: "opencode", Label: "OpenCode", Resolved: []string{"opencode"}},
-		{Number: "4", Value: "gemini", Label: "Gemini CLI", Resolved: []string{"gemini"}},
+		{Number: "4", Value: "antigravity", Label: "Google Antigravity CLI", Resolved: []string{"antigravity"}},
 		{Number: "5", Value: "hermes", Label: "Hermes Agent", Resolved: []string{"hermes"}},
-		{Number: "6", Value: "all", Label: "All available clients", Resolved: []string{"claude", "codex", "opencode", "gemini", "hermes"}},
+		{Number: "6", Value: "all", Label: "All available clients", Resolved: []string{"claude", "codex", "opencode", "antigravity", "hermes"}},
 	}
 }
 
@@ -38,7 +38,7 @@ func TestPromptSetupClientShowsLegacyListAndDefaultsToClaude(t *testing.T) {
 		"1) Claude Code",
 		"2) Codex CLI",
 		"3) OpenCode",
-		"4) Gemini CLI",
+		"4) Google Antigravity CLI",
 		"5) Hermes Agent",
 		"6) All available clients",
 		"Enter [1-6] (default 1, or type 'exit'): ",
@@ -57,8 +57,8 @@ func TestPromptSetupClientAcceptsNumberSelection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("promptSetupClient() error: %v", err)
 	}
-	if got != "gemini" {
-		t.Fatalf("promptSetupClient() = %q, want %q", got, "gemini")
+	if got != "antigravity" {
+		t.Fatalf("promptSetupClient() = %q, want %q", got, "antigravity")
 	}
 }
 
@@ -83,8 +83,8 @@ func TestPromptSetupClientRepromptsOnInvalidInput(t *testing.T) {
 	if err != nil {
 		t.Fatalf("promptSetupClient() error: %v", err)
 	}
-	if got != "gemini" {
-		t.Fatalf("promptSetupClient() = %q, want %q", got, "gemini")
+	if got != "antigravity" {
+		t.Fatalf("promptSetupClient() = %q, want %q", got, "antigravity")
 	}
 	if !strings.Contains(output.String(), "Invalid choice") {
 		t.Fatalf("expected invalid-choice guidance in output:\n%s", output.String())
@@ -123,8 +123,8 @@ func TestPromptReadersCanBeReusedAcrossSequentialSetupQuestions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("promptSetupClientFromReader() error: %v", err)
 	}
-	if client != "gemini" {
-		t.Fatalf("client = %q, want gemini", client)
+	if client != "antigravity" {
+		t.Fatalf("client = %q, want antigravity", client)
 	}
 
 	host, err := promptLineFromReader(reader, output, "Home Assistant address (IP, hostname, or URL)", "homeassistant.local")
@@ -431,12 +431,12 @@ func TestRenderSetupCompleteBannerUsesClientLabel(t *testing.T) {
 func TestRenderSetupCompleteBannerShowsInstalledClientsForMultipleTargets(t *testing.T) {
 	output := &bytes.Buffer{}
 
-	renderSetupCompleteBanner(output, []string{"claude", "gemini"})
+	renderSetupCompleteBanner(output, []string{"claude", "antigravity"})
 
 	rendered := output.String()
 	for _, want := range []string{
 		"Installed for: ",
-		"Claude Code, Gemini CLI",
+		"Claude Code, Google Antigravity CLI",
 		"Open your installed AI assistants and try asking:",
 	} {
 		if !strings.Contains(rendered, want) {

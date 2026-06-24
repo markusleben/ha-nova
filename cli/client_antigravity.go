@@ -12,15 +12,23 @@ import (
 var sharedSkillRefPattern = regexp.MustCompile("`skills/([^`]+)`")
 var docsRefPattern = regexp.MustCompile("`docs/reference/([^`]+)`")
 
-func geminiInstalledSkillName(skillName string) string {
+func antigravityInstalledSkillName(skillName string) string {
 	if strings.TrimSpace(skillName) == "" || skillName == "ha-nova" {
 		return "ha-nova"
 	}
 	return "ha-nova-" + skillName
 }
 
-func installGeminiClient(home, sourceRoot string) error {
-	skillsRoot := filepath.Join(home, ".gemini", "skills")
+func antigravitySkillsRoot(home string) string {
+	return filepath.Join(home, ".gemini", "antigravity", "skills")
+}
+
+func legacyGeminiSkillsRoot(home string) string {
+	return filepath.Join(home, ".gemini", "skills")
+}
+
+func installAntigravityClient(home, sourceRoot string) error {
+	skillsRoot := antigravitySkillsRoot(home)
 	if err := os.MkdirAll(skillsRoot, 0o755); err != nil {
 		return err
 	}
@@ -30,15 +38,18 @@ func installGeminiClient(home, sourceRoot string) error {
 		return err
 	}
 
-	if err := cleanupGeminiOrphans(skillsRoot, sourceRoot); err != nil {
+	if err := cleanupFlatSkillOrphans(skillsRoot, sourceRoot); err != nil {
+		return err
+	}
+	if err := cleanupLegacyGeminiSkills(home); err != nil {
 		return err
 	}
 
-	if err := writeFlatSkill(filepath.Join(sourceRoot, "skills"), "ha-nova", filepath.Join(skillsRoot, geminiInstalledSkillName("ha-nova")), sourceRoot, subSkills); err != nil {
+	if err := writeFlatSkill(filepath.Join(sourceRoot, "skills"), "ha-nova", filepath.Join(skillsRoot, antigravityInstalledSkillName("ha-nova")), sourceRoot, subSkills); err != nil {
 		return err
 	}
 	for _, skill := range subSkills {
-		if err := writeFlatSkill(filepath.Join(sourceRoot, "skills"), skill, filepath.Join(skillsRoot, geminiInstalledSkillName(skill)), sourceRoot, subSkills); err != nil {
+		if err := writeFlatSkill(filepath.Join(sourceRoot, "skills"), skill, filepath.Join(skillsRoot, antigravityInstalledSkillName(skill)), sourceRoot, subSkills); err != nil {
 			return err
 		}
 	}
@@ -68,14 +79,14 @@ func sourceSubSkills(sourceRoot string) ([]string, error) {
 	return subSkills, nil
 }
 
-func cleanupGeminiOrphans(skillsRoot, sourceRoot string) error {
-	valid := map[string]struct{}{geminiInstalledSkillName("ha-nova"): {}}
+func cleanupFlatSkillOrphans(skillsRoot, sourceRoot string) error {
+	valid := map[string]struct{}{antigravityInstalledSkillName("ha-nova"): {}}
 	matches, err := filepath.Glob(filepath.Join(sourceRoot, "skills", "*", "SKILL.md"))
 	if err != nil {
 		return err
 	}
 	for _, match := range matches {
-		valid[geminiInstalledSkillName(filepath.Base(filepath.Dir(match)))] = struct{}{}
+		valid[antigravityInstalledSkillName(filepath.Base(filepath.Dir(match)))] = struct{}{}
 	}
 
 	entries, err := os.ReadDir(skillsRoot)
@@ -90,6 +101,19 @@ func cleanupGeminiOrphans(skillsRoot, sourceRoot string) error {
 			continue
 		}
 		if err := os.RemoveAll(filepath.Join(skillsRoot, entry.Name())); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func cleanupLegacyGeminiSkills(home string) error {
+	matches, err := filepath.Glob(filepath.Join(legacyGeminiSkillsRoot(home), "ha-nova*"))
+	if err != nil {
+		return err
+	}
+	for _, match := range matches {
+		if err := os.RemoveAll(match); err != nil {
 			return err
 		}
 	}
@@ -149,23 +173,23 @@ func rewriteFlatMarkdown(skillName, content, sourceDir, sourceRoot string, subSk
 		parts := sharedSkillRefPattern.FindStringSubmatch(match)
 		return fmt.Sprintf("`%s`", filepath.Join(sourceRoot, "skills", parts[1]))
 	})
-	content = rewriteGeminiSkillDispatchRefs(content, subSkills)
-	content = rewriteGeminiSkillFrontmatter(skillName, content)
+	content = rewriteAntigravitySkillDispatchRefs(content, subSkills)
+	content = rewriteAntigravitySkillFrontmatter(skillName, content)
 	return content
 }
 
-func rewriteGeminiSkillDispatchRefs(content string, subSkills []string) string {
+func rewriteAntigravitySkillDispatchRefs(content string, subSkills []string) string {
 	for _, skill := range subSkills {
-		content = strings.ReplaceAll(content, "ha-nova:"+skill, "ha-nova:"+geminiInstalledSkillName(skill))
+		content = strings.ReplaceAll(content, "ha-nova:"+skill, "ha-nova:"+antigravityInstalledSkillName(skill))
 	}
 	return content
 }
 
-func rewriteGeminiSkillFrontmatter(skillName, content string) string {
+func rewriteAntigravitySkillFrontmatter(skillName, content string) string {
 	if strings.TrimSpace(skillName) == "" || skillName == "ha-nova" {
 		return content
 	}
 	short := "name: " + skillName
-	full := "name: " + geminiInstalledSkillName(skillName)
+	full := "name: " + antigravityInstalledSkillName(skillName)
 	return strings.Replace(content, short, full, 1)
 }
