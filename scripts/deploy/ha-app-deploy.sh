@@ -349,7 +349,7 @@ if ! curl -fsS \
   -H "Authorization: Bearer ${SUPERVISOR_TOKEN}" \
   -H "Content-Type: application/json" \
   "http://supervisor/addons/${SUPERVISOR_SLUG}/options/validate" \
-  -d "$OPTIONS_PAYLOAD" >/dev/null; then
+  -d "$OPTIONS_JSON" >/dev/null; then
   echo "[ha-app-deploy] Options validation failed (schema may have changed); skipping restore." >&2
   exit 1
 fi

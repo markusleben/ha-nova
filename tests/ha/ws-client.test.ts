@@ -113,4 +113,26 @@ describe("ha ws client", () => {
     ]);
     expect(unsubscribed).toBe(true);
   });
+
+  it("unsubscribes when event collection times out before subscription ack", async () => {
+    let unsubscribed = false;
+    const client = createHaWsClient({
+      createConnection: async () => ({
+        sendMessagePromise: async () => ({ ok: true }),
+        subscribeMessage: async () => {
+          await new Promise((resolve) => setTimeout(resolve, 30));
+          return () => {
+            unsubscribed = true;
+          };
+        }
+      }),
+      requestTimeoutMs: 10
+    });
+
+    await expect(client.collectMessageEvents({ type: "system_health/info" })).rejects.toMatchObject({
+      code: "UPSTREAM_WS_TIMEOUT"
+    } satisfies Partial<HaWsClientError>);
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    expect(unsubscribed).toBe(true);
+  });
 });
