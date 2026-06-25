@@ -77,5 +77,5 @@ On Windows, prefer the normal installed path or rerun `ha-nova setup claude` ins
 
 - Codex: `.codex/INSTALL.md`
 - OpenCode: `.opencode/INSTALL.md`
-- Google Antigravity CLI: `.antigravity/INSTALL.md`
+- Google Antigravity: `.antigravity/INSTALL.md`
 - Hermes Agent: `.hermes/INSTALL.md`

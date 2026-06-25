@@ -117,7 +117,7 @@ describe("dev-sync behavior", () => {
     });
 
     expect(result.status).toBe(0);
-    expect(result.stdout).toContain("Google Antigravity CLI: refreshed via install-local-skills.sh antigravity");
+    expect(result.stdout).toContain("Google Antigravity: refreshed via install-local-skills.sh antigravity");
     expect(existsSync(join(home, ".gemini", "config", "skills", "ha-nova", "SKILL.md"))).toBe(true);
     expect(existsSync(join(home, ".gemini", "skills", "ha-nova-read", "SKILL.md"))).toBe(false);
   });
@@ -176,7 +176,7 @@ describe("dev-sync behavior", () => {
     const syncedRegistry = readFileSync(join(runtimeDir, "clients", "registry.json"), "utf8");
     const syncedBundle = readFileSync(join(runtimeDir, "bundle.json"), "utf8");
     expect(syncedRegistry).toContain('"id": "antigravity"');
-    expect(syncedRegistry).toContain('"label": "Google Antigravity CLI"');
+    expect(syncedRegistry).toContain('"label": "Google Antigravity"');
     expect(syncedRegistry).not.toContain('"id":"gemini"');
     expect(syncedBundle).toContain('"version": "0.7.0"');
     expect(syncedBundle).toContain('"bundle_format_version": 1');

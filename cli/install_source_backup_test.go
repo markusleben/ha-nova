@@ -49,7 +49,7 @@ func writeMinimalBundleTree(t *testing.T, root, version string, includeWriteSafe
 		`{"clients":[`+
 			`{"id":"hermes","label":"Hermes Agent","adapter_kind":"skill_tree","supported_os":["macos","linux"]},`+
 			`{"id":"codex","label":"Codex CLI","adapter_kind":"skill_tree","supported_os":["macos","linux","windows"]},`+
-			`{"id":"antigravity","label":"Google Antigravity CLI","adapter_kind":"skill_flat","supported_os":["macos","linux","windows"]}`+
+			`{"id":"antigravity","label":"Google Antigravity","adapter_kind":"skill_flat","supported_os":["macos","linux","windows"]}`+
 			`]}`, 0o644)
 	writeBundleTestFile(t, filepath.Join(root, "docs", "reference", "foo.md"), "# Foo\n", 0o644)
 	ctx := "---\nname: ha-nova\n---\n\nContext skill. See `docs/reference/foo.md` for details.\n"

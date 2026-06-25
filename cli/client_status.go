@@ -48,12 +48,53 @@ func evaluateClientStatus(paths runtimePaths, state installState, client clientR
 }
 
 func clientRuntimeDetected(client string) bool {
+	if client == "antigravity" && antigravityRuntimeDetected() {
+		return true
+	}
 	command := clientRuntimeCommand(client)
 	if command == "" {
 		return false
 	}
 	_, err := exec.LookPath(command)
 	if err == nil {
+		return true
+	}
+	return executableInUserLocalBin(command)
+}
+
+func antigravityRuntimeDetected() bool {
+	if commandRuntimeDetected("agy") {
+		return true
+	}
+	home, err := os.UserHomeDir()
+	if err == nil && home != "" {
+		for _, dir := range []string{
+			filepath.Join(home, ".gemini", "antigravity"),
+			filepath.Join(home, ".gemini", "antigravity-ide"),
+		} {
+			if info, err := os.Stat(dir); err == nil && info.IsDir() {
+				return true
+			}
+		}
+	}
+	if runtime.GOOS == "darwin" {
+		for _, app := range []string{
+			"/Applications/Antigravity.app",
+			"/Applications/Antigravity IDE.app",
+		} {
+			if info, err := os.Stat(app); err == nil && info.IsDir() {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func commandRuntimeDetected(command string) bool {
+	if command == "" {
+		return false
+	}
+	if _, err := exec.LookPath(command); err == nil {
 		return true
 	}
 	return executableInUserLocalBin(command)
@@ -142,7 +183,7 @@ func clientStatusReason(client string, status clientStatus) string {
 		}
 		return "install OpenCode first"
 	case "antigravity":
-		return "install Google Antigravity CLI first"
+		return "install Google Antigravity Desktop or CLI first"
 	case "hermes":
 		return "install Hermes Agent first"
 	default:

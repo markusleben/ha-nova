@@ -86,11 +86,11 @@ sync_antigravity() {
   local legacy_marker="${HOME}/.agents/skills/ha-nova-read/SKILL.md"
 
   if [[ -f "$context_marker" || -f "$current_marker" || -f "$legacy_context_marker" || -f "$legacy_current_marker" || -f "$legacy_marker" ]]; then
-    refresh_file_client "Google Antigravity CLI" "antigravity"
+    refresh_file_client "Google Antigravity" "antigravity"
     return
   fi
 
-  echo "[dev:sync] Google Antigravity CLI: not installed — skipped"
+  echo "[dev:sync] Google Antigravity: not installed — skipped"
 }
 
 sync_hermes() {

@@ -9,7 +9,7 @@ describe("dev-sync contract", () => {
   it("delegates file clients back to install-local-skills.sh", () => {
     expect(content).toContain('bash "${REPO_ROOT}/scripts/onboarding/install-local-skills.sh" "$target"');
     expect(content).toContain('refresh_file_client "$name" "$target"');
-    expect(content).toContain('refresh_file_client "Google Antigravity CLI" "antigravity"');
+    expect(content).toContain('refresh_file_client "Google Antigravity" "antigravity"');
     expect(content).toContain('CURRENT_PLATFORM_ID="$(detect_platform_id)"');
     expect(content).toContain("sync_hermes()");
     expect(content).toContain('sync_file_client "Hermes Agent" "${HOME}/.hermes/skills/ha-nova" "hermes"');

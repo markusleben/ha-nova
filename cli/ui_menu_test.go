@@ -122,7 +122,7 @@ func TestRenderSetupMenuBlockUsesCRLFForRawTerminalLayout(t *testing.T) {
 		DefaultValue: "claude",
 		Options: []setupMenuOption{
 			{Value: "claude", Label: "Claude Code"},
-			{Value: "antigravity", Label: "Google Antigravity CLI"},
+			{Value: "antigravity", Label: "Google Antigravity"},
 		},
 	}, 0)
 

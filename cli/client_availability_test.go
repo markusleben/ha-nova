@@ -28,6 +28,20 @@ func TestClientRuntimeDetectedFindsUserLocalBin(t *testing.T) {
 	}
 }
 
+func TestAntigravityRuntimeDetectedFindsDesktopProfileWithoutCLI(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("PATH", t.TempDir())
+	profileDir := filepath.Join(home, ".gemini", "antigravity")
+	if err := os.MkdirAll(profileDir, 0o755); err != nil {
+		t.Fatalf("mkdir desktop profile: %v", err)
+	}
+
+	if !clientRuntimeDetected("antigravity") {
+		t.Fatal("expected Antigravity runtime detection to accept desktop profile without agy")
+	}
+}
+
 func TestBuildSetupClientChoicesDisablesMissingRuntime(t *testing.T) {
 	withClientRuntimeAvailability(t, map[string]bool{})
 	home := t.TempDir()

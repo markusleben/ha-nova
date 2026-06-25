@@ -217,7 +217,7 @@ func TestRunClientAutoRepair_HandlesEmptyList(t *testing.T) {
 func TestRunClientAutoRepair_PreservesOrder(t *testing.T) {
 	clients := []clientStatus{
 		{ID: "codex", Label: "Codex CLI", Ready: true, RuntimeDetected: true, Attached: true},
-		{ID: "antigravity", Label: "Google Antigravity CLI", Ready: true, RuntimeDetected: true, Attached: true},
+		{ID: "antigravity", Label: "Google Antigravity", Ready: true, RuntimeDetected: true, Attached: true},
 	}
 	got := runClientAutoRepair(runtimePaths{}, clients)
 	if len(got) != 2 {

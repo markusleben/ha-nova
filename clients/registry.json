@@ -21,7 +21,7 @@
     },
     {
       "id": "antigravity",
-      "label": "Google Antigravity CLI",
+      "label": "Google Antigravity",
       "adapter_kind": "skill_flat",
       "supported_os": ["macos", "linux", "windows"]
     },

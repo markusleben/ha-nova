@@ -236,7 +236,7 @@ func setupClientLabel(client string) string {
 	case "opencode":
 		return "OpenCode"
 	case "antigravity":
-		return "Google Antigravity CLI"
+		return "Google Antigravity"
 	case "hermes":
 		return "Hermes Agent"
 	case "all":

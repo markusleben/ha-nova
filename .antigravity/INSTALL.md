@@ -1,4 +1,4 @@
-# Google Antigravity CLI Install Overlay
+# Google Antigravity Install Overlay
 
 This page only covers Google Antigravity-specific deltas.
 
@@ -7,19 +7,20 @@ For the stable installer, lifecycle commands, and general troubleshooting, use [
 ## Setup Choice
 
 - Use the normal HA NOVA installer flow.
-- In the setup wizard, choose `Google Antigravity CLI`.
+- In the setup wizard, choose `Google Antigravity`.
 - Install the Antigravity client separately; HA NOVA handles the skills and onboarding, not the Antigravity app itself.
 
 ## Windows Notes
 
-- Install Google Antigravity first, then run the HA NOVA installer.
-- After installing it, open a fresh PowerShell window and verify:
+- Install Google Antigravity Desktop or CLI first, then run the HA NOVA installer.
+- If you use Antigravity CLI, open a fresh PowerShell window and verify:
 
 ```powershell
 agy --version
 ```
 
-- If the command fails, fix that first before running `ha-nova setup`.
+- If you use the desktop app only, a working desktop install is enough; `agy` is not required.
+- If you use CLI and the command fails, fix that first before running `ha-nova setup`.
 - Antigravity has basic Windows validation for this release.
 
 ## Updates and Repair
@@ -37,7 +38,7 @@ agy --version
 
 ## What You Get
 
-After setup, HA NOVA commands like `ha-nova:read`, `ha-nova:write`, and `ha-nova:review` are available inside Google Antigravity CLI.
+After setup, HA NOVA commands like `ha-nova:read`, `ha-nova:write`, and `ha-nova:review` are available inside Google Antigravity.
 
 ## Related
 

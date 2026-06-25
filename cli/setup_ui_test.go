@@ -14,7 +14,7 @@ func testSetupClientChoices() []setupClientChoice {
 		{Number: "1", Value: "claude", Label: "Claude Code", Resolved: []string{"claude"}},
 		{Number: "2", Value: "codex", Label: "Codex CLI", Resolved: []string{"codex"}},
 		{Number: "3", Value: "opencode", Label: "OpenCode", Resolved: []string{"opencode"}},
-		{Number: "4", Value: "antigravity", Label: "Google Antigravity CLI", Resolved: []string{"antigravity"}},
+		{Number: "4", Value: "antigravity", Label: "Google Antigravity", Resolved: []string{"antigravity"}},
 		{Number: "5", Value: "hermes", Label: "Hermes Agent", Resolved: []string{"hermes"}},
 		{Number: "6", Value: "all", Label: "All available clients", Resolved: []string{"claude", "codex", "opencode", "antigravity", "hermes"}},
 	}
@@ -38,7 +38,7 @@ func TestPromptSetupClientShowsLegacyListAndDefaultsToClaude(t *testing.T) {
 		"1) Claude Code",
 		"2) Codex CLI",
 		"3) OpenCode",
-		"4) Google Antigravity CLI",
+		"4) Google Antigravity",
 		"5) Hermes Agent",
 		"6) All available clients",
 		"Enter [1-6] (default 1, or type 'exit'): ",
@@ -436,7 +436,7 @@ func TestRenderSetupCompleteBannerShowsInstalledClientsForMultipleTargets(t *tes
 	rendered := output.String()
 	for _, want := range []string{
 		"Installed for: ",
-		"Claude Code, Google Antigravity CLI",
+		"Claude Code, Google Antigravity",
 		"Open your installed AI assistants and try asking:",
 	} {
 		if !strings.Contains(rendered, want) {

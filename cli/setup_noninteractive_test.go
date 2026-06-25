@@ -248,7 +248,7 @@ func TestRunSetupNonInteractiveServiceModeRequiresRegistryCapability(t *testing.
 	if exitCode == 0 {
 		t.Fatalf("expected service setup to fail for client without registry capability:\n%s", output)
 	}
-	if !strings.Contains(output, "Google Antigravity CLI does not support service credentials") {
+	if !strings.Contains(output, "Google Antigravity does not support service credentials") {
 		t.Fatalf("expected registry capability error:\n%s", output)
 	}
 	if _, err := os.Stat(defaultRelayAuthTokenFile(paths)); !isNotExist(err) {

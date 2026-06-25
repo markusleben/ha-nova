@@ -5,11 +5,11 @@ Status: active
 
 ## Context
 
-Google announced the transition from Gemini CLI to Antigravity CLI for individual/free/Pro/Ultra users. HA NOVA should not ship a new release that still presents Gemini CLI as the current Google terminal client.
+Google announced the transition from Gemini CLI to Antigravity for individual/free/Pro/Ultra users. HA NOVA should not ship a new release that still presents Gemini CLI as the current Google client.
 
 ## Scope
 
-- Replace the public Gemini client surface with Google Antigravity CLI.
+- Replace the public Gemini client surface with Google Antigravity.
 - Install Antigravity flat skills under `~/.gemini/config/skills/ha-nova-*`.
 - Keep `gemini` as a legacy setup/install alias that resolves to Antigravity.
 - Clean HA NOVA-owned legacy Gemini flat skills from `~/.gemini/skills/ha-nova*` during Antigravity install/uninstall.

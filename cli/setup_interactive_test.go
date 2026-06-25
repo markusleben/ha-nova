@@ -83,7 +83,7 @@ func TestInteractiveSetupFreshInstallShowsWizardAndInstallsAntigravitySkills(t *
 	for _, want := range []string{
 		"Which AI client do you use?",
 		"1) Claude Code",
-		"4) Google Antigravity CLI",
+		"4) Google Antigravity",
 		"5) Hermes Agent",
 		"Discovering Home Assistant on your network...",
 		"I'll open your browser to add the HA NOVA repository.",
@@ -98,7 +98,7 @@ func TestInteractiveSetupFreshInstallShowsWizardAndInstallsAntigravitySkills(t *
 		"Here it is again:",
 		"Press Enter to open your HA profile",
 		"Press Enter to open the relay settings",
-		"Setting up HA NOVA for Google Antigravity CLI...",
+		"Setting up HA NOVA for Google Antigravity...",
 		"Setup complete!",
 	} {
 		if !strings.Contains(output, want) {
