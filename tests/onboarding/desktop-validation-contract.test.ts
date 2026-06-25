@@ -178,7 +178,7 @@ describe("desktop validation helpers contract", () => {
     expect(macosClient).toContain('--relay-url "http://127.0.0.1:${MOCK_RELAY_PORT}"');
     expect(macosClient).toContain(".agents/skills/ha-nova/ha-nova/SKILL.md");
     expect(macosClient).toContain(".config/opencode/skills/ha-nova/ha-nova/SKILL.md");
-    expect(macosClient).toContain(".gemini/antigravity/skills/ha-nova/SKILL.md");
+    expect(macosClient).toContain(".gemini/config/skills/ha-nova/SKILL.md");
     expect(macosClient).toContain(".hermes/skills/ha-nova/ha-nova/SKILL.md");
     expect(macosClient).toContain(".hermes/skills/ha-nova/ha-nova-read/SKILL.md");
     expect(macosClient).toContain("name: ha-nova-read");
@@ -201,7 +201,7 @@ describe("desktop validation helpers contract", () => {
     expect(windowsCleanup).toContain('markusleben.ha-nova');
     expect(windowsCleanup).toContain(".agents\\skills\\ha-nova");
     expect(windowsCleanup).toContain(".config\\opencode\\skills\\ha-nova");
-    expect(windowsCleanup).toContain(".gemini\\antigravity\\skills\\ha-nova");
+    expect(windowsCleanup).toContain(".gemini\\config\\skills\\ha-nova");
     expect(windowsCleanup).toContain(".gemini\\skills\\ha-nova");
     expect(windowsCleanup).toContain(".hermes\\skills\\ha-nova");
     expect(windowsCleanup).toContain(".claude\\plugins\\installed_plugins.json");

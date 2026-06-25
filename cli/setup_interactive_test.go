@@ -134,10 +134,10 @@ func TestInteractiveSetupFreshInstallShowsWizardAndInstallsAntigravitySkills(t *
 		t.Fatalf("expected LLAT step to repeat relay token as reminder:\n%s", output)
 	}
 
-	if _, err := os.Stat(filepath.Join(home, ".gemini", "antigravity", "skills", "ha-nova", "SKILL.md")); err != nil {
+	if _, err := os.Stat(filepath.Join(home, ".gemini", "config", "skills", "ha-nova", "SKILL.md")); err != nil {
 		t.Fatalf("expected Antigravity main skill to exist: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(home, ".gemini", "antigravity", "skills", "ha-nova-review", "SKILL.md")); err != nil {
+	if _, err := os.Stat(filepath.Join(home, ".gemini", "config", "skills", "ha-nova-review", "SKILL.md")); err != nil {
 		t.Fatalf("expected Antigravity review skill to exist: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(home, ".config", "ha-nova", "config.json")); err != nil {

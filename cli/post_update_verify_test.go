@@ -69,7 +69,7 @@ func TestTransientBackupResidueAggregatesDirtyClients(t *testing.T) {
 	// Hermes (copy) clean.
 	writeBundleTestFile(t, filepath.Join(home, ".hermes", "skills", "ha-nova", "ha-nova", "SKILL.md"), "name: ha-nova\n", 0o644)
 	// Antigravity (copy) dirty: a baked transient-backup path.
-	writeBundleTestFile(t, filepath.Join(home, ".gemini", "antigravity", "skills", "ha-nova", "SKILL.md"),
+	writeBundleTestFile(t, filepath.Join(home, ".gemini", "config", "skills", "ha-nova", "SKILL.md"),
 		"name: ha-nova\n`"+filepath.Join(home, installBackupPrefixOld+"7", "docs")+"`\n", 0o644)
 
 	dirty := transientBackupResidue(paths, []string{"hermes", "antigravity", "claude"})

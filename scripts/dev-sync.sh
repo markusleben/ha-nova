@@ -79,8 +79,8 @@ sync_file_client() {
 }
 
 sync_antigravity() {
-  local context_marker="${HOME}/.gemini/antigravity/skills/ha-nova/SKILL.md"
-  local current_marker="${HOME}/.gemini/antigravity/skills/ha-nova-read/SKILL.md"
+  local context_marker="${HOME}/.gemini/config/skills/ha-nova/SKILL.md"
+  local current_marker="${HOME}/.gemini/config/skills/ha-nova-read/SKILL.md"
   local legacy_context_marker="${HOME}/.gemini/skills/ha-nova/SKILL.md"
   local legacy_current_marker="${HOME}/.gemini/skills/ha-nova-read/SKILL.md"
   local legacy_marker="${HOME}/.agents/skills/ha-nova-read/SKILL.md"

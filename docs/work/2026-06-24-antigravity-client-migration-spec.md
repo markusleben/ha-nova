@@ -10,7 +10,7 @@ Google announced the transition from Gemini CLI to Antigravity CLI for individua
 ## Scope
 
 - Replace the public Gemini client surface with Google Antigravity CLI.
-- Install Antigravity flat skills under `~/.gemini/antigravity/skills/ha-nova-*`.
+- Install Antigravity flat skills under `~/.gemini/config/skills/ha-nova-*`.
 - Keep `gemini` as a legacy setup/install alias that resolves to Antigravity.
 - Clean HA NOVA-owned legacy Gemini flat skills from `~/.gemini/skills/ha-nova*` during Antigravity install/uninstall.
 - Update README, client overlays, reference docs, dev validation helpers, and tests.

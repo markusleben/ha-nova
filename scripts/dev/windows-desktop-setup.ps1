@@ -136,8 +136,8 @@ if ($setupExit -eq 0 -and $doctorExit -eq 0 -and $versionResult.ExitCode -eq 0) 
 $checks = @(
   @{ Name = "codex"; Path = Join-Path $HOME ".agents\skills\ha-nova\ha-nova\SKILL.md" },
   @{ Name = "opencode"; Path = Join-Path $HOME ".config\opencode\skills\ha-nova\ha-nova\SKILL.md" },
-  @{ Name = "antigravity-root"; Path = Join-Path $HOME ".gemini\antigravity\skills\ha-nova\SKILL.md" },
-  @{ Name = "antigravity-sub"; Path = Join-Path $HOME ".gemini\antigravity\skills\ha-nova-review\SKILL.md" },
+  @{ Name = "antigravity-root"; Path = Join-Path $HOME ".gemini\config\skills\ha-nova\SKILL.md" },
+  @{ Name = "antigravity-sub"; Path = Join-Path $HOME ".gemini\config\skills\ha-nova-review\SKILL.md" },
   @{ Name = "claude-installed-plugins"; Path = Join-Path $HOME ".claude\plugins\installed_plugins.json" }
 )
 foreach ($check in $checks) {
@@ -157,8 +157,8 @@ switch ($Client) {
   }
   "antigravity" {
     if (
-      (-not (Test-Path -LiteralPath (Join-Path $HOME ".gemini\antigravity\skills\ha-nova\SKILL.md"))) -or
-      (-not (Test-Path -LiteralPath (Join-Path $HOME ".gemini\antigravity\skills\ha-nova-review\SKILL.md")))
+      (-not (Test-Path -LiteralPath (Join-Path $HOME ".gemini\config\skills\ha-nova\SKILL.md"))) -or
+      (-not (Test-Path -LiteralPath (Join-Path $HOME ".gemini\config\skills\ha-nova-review\SKILL.md")))
     ) {
       $validationError = "antigravity skill tree missing"
     }
@@ -188,8 +188,8 @@ switch ($Client) {
     $requiredPaths = @(
       (Join-Path $HOME ".agents\skills\ha-nova\ha-nova\SKILL.md"),
       (Join-Path $HOME ".config\opencode\skills\ha-nova\ha-nova\SKILL.md"),
-      (Join-Path $HOME ".gemini\antigravity\skills\ha-nova\SKILL.md"),
-      (Join-Path $HOME ".gemini\antigravity\skills\ha-nova-review\SKILL.md"),
+      (Join-Path $HOME ".gemini\config\skills\ha-nova\SKILL.md"),
+      (Join-Path $HOME ".gemini\config\skills\ha-nova-review\SKILL.md"),
       (Join-Path $HOME ".claude\plugins\installed_plugins.json")
     )
     foreach ($requiredPath in $requiredPaths) {

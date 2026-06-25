@@ -31,7 +31,7 @@ agy --version
 
 ## Antigravity-Specific Skill Layout
 
-- HA NOVA installs Antigravity skills under `~/.gemini/antigravity/skills/ha-nova-*`.
+- HA NOVA installs Antigravity skills under `~/.gemini/config/skills/ha-nova-*`.
 - The `ha-nova-*` naming avoids conflicts with other Antigravity skills.
 - HA NOVA-owned legacy Gemini flat skills under `~/.gemini/skills/ha-nova*` are removed during Antigravity setup.
 

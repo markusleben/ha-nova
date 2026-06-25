@@ -89,7 +89,7 @@ describe("client install docs contract", () => {
     expect(antigravityInstall).toContain("ha-nova check-update");
     expect(antigravityInstall).toContain("agy --version");
     expect(antigravityInstall).toContain("open a fresh PowerShell window");
-    expect(antigravityInstall).toContain("~/.gemini/antigravity/skills/ha-nova-*");
+    expect(antigravityInstall).toContain("~/.gemini/config/skills/ha-nova-*");
     expect(antigravityInstall).toContain("ha-nova setup gemini");
     expect(antigravityInstall).not.toContain("claude install");
     expect(antigravityInstall).not.toContain("CLAUDE_CODE_GIT_BASH_PATH");

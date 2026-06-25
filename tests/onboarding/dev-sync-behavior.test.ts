@@ -118,7 +118,7 @@ describe("dev-sync behavior", () => {
 
     expect(result.status).toBe(0);
     expect(result.stdout).toContain("Google Antigravity CLI: refreshed via install-local-skills.sh antigravity");
-    expect(existsSync(join(home, ".gemini", "antigravity", "skills", "ha-nova", "SKILL.md"))).toBe(true);
+    expect(existsSync(join(home, ".gemini", "config", "skills", "ha-nova", "SKILL.md"))).toBe(true);
     expect(existsSync(join(home, ".gemini", "skills", "ha-nova-read", "SKILL.md"))).toBe(false);
   });
 

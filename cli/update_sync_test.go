@@ -150,16 +150,16 @@ func TestPostUpdateSyncRefreshesAllDetectedClients(t *testing.T) {
 		t.Fatalf("write OpenCode attachment: %v", err)
 	}
 
-	if err := os.MkdirAll(filepath.Join(home, ".gemini", "antigravity", "skills", "ha-nova"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(home, ".gemini", "config", "skills", "ha-nova"), 0o755); err != nil {
 		t.Fatalf("mkdir Antigravity context skill: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(home, ".gemini", "antigravity", "skills", "ha-nova", "SKILL.md"), []byte("name: ha-nova"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(home, ".gemini", "config", "skills", "ha-nova", "SKILL.md"), []byte("name: ha-nova"), 0o644); err != nil {
 		t.Fatalf("write Antigravity context skill: %v", err)
 	}
-	if err := os.MkdirAll(filepath.Join(home, ".gemini", "antigravity", "skills", "ha-nova-review"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(home, ".gemini", "config", "skills", "ha-nova-review"), 0o755); err != nil {
 		t.Fatalf("mkdir Antigravity review skill: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(home, ".gemini", "antigravity", "skills", "ha-nova-review", "SKILL.md"), []byte("name: ha-nova-review"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(home, ".gemini", "config", "skills", "ha-nova-review", "SKILL.md"), []byte("name: ha-nova-review"), 0o644); err != nil {
 		t.Fatalf("write Antigravity review skill: %v", err)
 	}
 
@@ -210,7 +210,7 @@ func TestPostUpdateSyncRefreshesAllDetectedClients(t *testing.T) {
 		}
 	}
 
-	if _, err := os.Stat(filepath.Join(home, ".gemini", "antigravity", "skills", "ha-nova-review", "SKILL.md")); err != nil {
+	if _, err := os.Stat(filepath.Join(home, ".gemini", "config", "skills", "ha-nova-review", "SKILL.md")); err != nil {
 		t.Fatalf("expected Antigravity skill refresh output: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(home, ".hermes", "skills", "ha-nova", "ha-nova-read", "SKILL.md")); err != nil {

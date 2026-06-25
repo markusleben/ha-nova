@@ -132,8 +132,8 @@ case "${CLIENT}" in
     test -f "${TMP_HOME}/.config/opencode/skills/ha-nova/ha-nova/SKILL.md"
     ;;
   antigravity)
-    test -f "${TMP_HOME}/.gemini/antigravity/skills/ha-nova/SKILL.md"
-    test -f "${TMP_HOME}/.gemini/antigravity/skills/ha-nova-review/SKILL.md"
+    test -f "${TMP_HOME}/.gemini/config/skills/ha-nova/SKILL.md"
+    test -f "${TMP_HOME}/.gemini/config/skills/ha-nova-review/SKILL.md"
     ;;
   hermes)
     command -v hermes >/dev/null 2>&1

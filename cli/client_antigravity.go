@@ -20,7 +20,7 @@ func antigravityInstalledSkillName(skillName string) string {
 }
 
 func antigravitySkillsRoot(home string) string {
-	return filepath.Join(home, ".gemini", "antigravity", "skills")
+	return filepath.Join(home, ".gemini", "config", "skills")
 }
 
 func legacyGeminiSkillsRoot(home string) string {

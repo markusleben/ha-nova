@@ -16,7 +16,7 @@ const SOURCE_SUB_SKILLS = readdirSync(join(REPO_ROOT, "skills"), { withFileTypes
   .map((entry) => entry.name)
   .sort();
 
-/** Antigravity install directory names under ~/.gemini/antigravity/skills/ (ha-nova- prefix) */
+/** Antigravity install directory names under ~/.gemini/config/skills/ (ha-nova- prefix) */
 const ANTIGRAVITY_SUB_SKILLS = SOURCE_SUB_SKILLS.map((s) => `ha-nova-${s}`);
 
 const REWRITTEN_REPO_REF = /`(?:\/|[A-Za-z]:[\\/])[^`\n]*(?:\/skills\/|\/docs\/reference\/)[^`\n]*`/;
@@ -108,7 +108,7 @@ describe("S-4: client-specific skill installation", () => {
     expect(result.status).toBe(0);
 
     // Context skill
-    const ctx = readFileSync(join(home, ".gemini/antigravity/skills/ha-nova/SKILL.md"), "utf8");
+    const ctx = readFileSync(join(home, ".gemini/config/skills/ha-nova/SKILL.md"), "utf8");
     expect(ctx).toContain("name: ha-nova");
     expect(ctx).toContain("ha-nova:ha-nova-entity-discovery");
 
@@ -116,7 +116,7 @@ describe("S-4: client-specific skill installation", () => {
       .filter((file) => file.endsWith(".md") && file !== "SKILL.md");
     for (const companion of contextCompanionFiles) {
       const companionContent = readFileSync(
-        join(home, ".gemini/antigravity/skills/ha-nova", companion),
+        join(home, ".gemini/config/skills/ha-nova", companion),
         "utf8",
       );
       expect(companionContent.length).toBeGreaterThan(0);
@@ -127,7 +127,7 @@ describe("S-4: client-specific skill installation", () => {
     for (const src of SOURCE_SUB_SKILLS) {
       const antigravityDir = `ha-nova-${src}`;
       const content = readFileSync(
-        join(home, ".gemini/antigravity/skills", antigravityDir, "SKILL.md"),
+        join(home, ".gemini/config/skills", antigravityDir, "SKILL.md"),
         "utf8",
       );
       expect(content).toContain(`name: ha-nova-${src}`);
@@ -139,7 +139,7 @@ describe("S-4: client-specific skill installation", () => {
 
       for (const companion of companionFiles) {
         const companionContent = readFileSync(
-          join(home, ".gemini/antigravity/skills", antigravityDir, companion),
+          join(home, ".gemini/config/skills", antigravityDir, companion),
           "utf8",
         );
         expect(companionContent.length).toBeGreaterThan(0);
@@ -149,7 +149,7 @@ describe("S-4: client-specific skill installation", () => {
       if (src === "review") {
         expect(content).toContain("`checks.md`");
         expect(content).not.toContain("skills/review/checks.md");
-        const checks = readFileSync(join(home, ".gemini/antigravity/skills", "ha-nova-review", "checks.md"), "utf8");
+        const checks = readFileSync(join(home, ".gemini/config/skills", "ha-nova-review", "checks.md"), "utf8");
         expect(checks).toContain("H-09 [MEDIUM → HIGH]");
         expect(checks).toContain("Canonical path: `checks.md`");
         expect(checks).not.toContain("skills/review/checks.md");
@@ -161,7 +161,7 @@ describe("S-4: client-specific skill installation", () => {
     const home = mkdtempSync(join(tmpdir(), "ha-nova-skill-antigravity-user-owned-"));
     const claudeLogFile = join(home, "claude.log");
     const binDir = createMockBinaries({ claudeLogFile });
-    const userSkill = join(home, ".gemini", "antigravity", "skills", "read");
+    const userSkill = join(home, ".gemini", "config", "skills", "read");
 
     mkdirSync(userSkill, { recursive: true });
     writeFileSync(join(userSkill, "SKILL.md"), "name: read\nThis is my own ha-nova helper note.\n");
@@ -201,7 +201,7 @@ describe("S-4: client-specific skill installation", () => {
     );
 
     expect(result.status).toBe(0);
-    expect(existsSync(join(home, ".gemini", "antigravity", "skills", "ha-nova", "SKILL.md"))).toBe(true);
+    expect(existsSync(join(home, ".gemini", "config", "skills", "ha-nova", "SKILL.md"))).toBe(true);
     expect(existsSync(join(home, ".gemini", "skills", "ha-nova-read", "SKILL.md"))).toBe(false);
   });
 
@@ -622,7 +622,7 @@ describe("S-5: multi-client 'all' installation", () => {
     // Antigravity flat copies
     for (const sub of ANTIGRAVITY_SUB_SKILLS) {
       expect(() =>
-        statSync(join(home, ".gemini/antigravity/skills", sub, "SKILL.md")),
+        statSync(join(home, ".gemini/config/skills", sub, "SKILL.md")),
       ).not.toThrow();
     }
 
@@ -631,7 +631,7 @@ describe("S-5: multi-client 'all' installation", () => {
     ).not.toThrow();
 
     expect(() =>
-      statSync(join(home, ".gemini/antigravity/skills", "ha-nova-review", "checks.md")),
+      statSync(join(home, ".gemini/config/skills", "ha-nova-review", "checks.md")),
     ).not.toThrow();
 
     expect(() =>

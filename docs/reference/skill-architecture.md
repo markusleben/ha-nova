@@ -332,7 +332,7 @@ It handles repo-local skill refreshes for development and validation:
   - **Claude Code:** for repo-local development only, stages a local marketplace root under `~/.config/ha-nova/claude-marketplace`, registers it with `claude plugin marketplace add`, then installs/reinstalls `ha-nova@ha-nova`
   - **Codex CLI:** symlink on Unix, copy fallback on Windows at `~/.agents/skills/ha-nova`
   - **OpenCode:** symlink on Unix, copy fallback on Windows at `~/.config/opencode/skills/ha-nova`
-  - **Google Antigravity CLI:** Flat copy `~/.gemini/antigravity/skills/ha-nova-*/SKILL.md` (1-level limit), with namespaced sub-skill names matching those folder names
+  - **Google Antigravity CLI:** Flat copy `~/.gemini/config/skills/ha-nova-*/SKILL.md` (1-level limit), with namespaced sub-skill names matching those folder names
   - **Hermes Agent:** Namespaced nested copy under `~/.hermes/skills/ha-nova/ha-nova-*`, with sub-skill directory names and frontmatter names both using the same `ha-nova-*` identifier
 - cleans up legacy flat skill directories (old `ha-nova-*` prefixed dirs)
 - supports targets: `codex`, `claude`, `opencode`, `antigravity`, `hermes`, `all`; `gemini` is accepted as a legacy alias for Antigravity

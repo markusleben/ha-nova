@@ -15,7 +15,7 @@ Targets:
   codex    -> link/copy ~/.agents/skills/ha-nova -> repo skills
   claude   -> stage local Claude marketplace + install ha-nova@ha-nova
   opencode -> link/copy ~/.config/opencode/skills/ha-nova -> repo skills
-  antigravity -> flat copy ~/.gemini/antigravity/skills/ha-nova-*/SKILL.md (+ local companion .md files)
+  antigravity -> flat copy ~/.gemini/config/skills/ha-nova-*/SKILL.md (+ local companion .md files)
   hermes   -> namespaced copy ~/.hermes/skills/ha-nova/ha-nova-*
   all      -> install for codex + claude + opencode + antigravity + hermes (non-Windows)
 USAGE

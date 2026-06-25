@@ -38,7 +38,7 @@ cleanup_legacy_gemini_flat() {
 }
 
 install_antigravity_flat() {
-  local user_skills_dir="${HOME}/.gemini/antigravity/skills"
+  local user_skills_dir="${HOME}/.gemini/config/skills"
   mkdir -p "${user_skills_dir}"
 
   cleanup_legacy_flat_only "${HOME}/.agents/skills" "gemini-legacy"

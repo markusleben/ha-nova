@@ -17,7 +17,7 @@ describe("dev-sync contract", () => {
   });
 
   it("keeps legacy Gemini marker support during migration", () => {
-    expect(content).toContain('.gemini/antigravity/skills/ha-nova-read/SKILL.md');
+    expect(content).toContain('.gemini/config/skills/ha-nova-read/SKILL.md');
     expect(content).toContain('.gemini/skills/ha-nova-read/SKILL.md');
     expect(content).toContain('.agents/skills/ha-nova-read/SKILL.md');
   });

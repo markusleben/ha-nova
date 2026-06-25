@@ -60,7 +60,7 @@ func TestRunSetupNonInteractiveVerifiesBeforeInstallingClients(t *testing.T) {
 	if !strings.Contains(output, "Setup incomplete") {
 		t.Fatalf("expected incomplete setup banner:\n%s", output)
 	}
-	if _, err := os.Stat(filepath.Join(home, ".gemini", "antigravity", "skills", "ha-nova", "SKILL.md")); !isNotExist(err) {
+	if _, err := os.Stat(filepath.Join(home, ".gemini", "config", "skills", "ha-nova", "SKILL.md")); !isNotExist(err) {
 		t.Fatalf("expected Antigravity skills not to be installed on failed readiness, err=%v", err)
 	}
 	if _, err := os.Stat(paths.ConfigFile); !isNotExist(err) {
