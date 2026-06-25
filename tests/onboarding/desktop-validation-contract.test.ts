@@ -202,7 +202,13 @@ describe("desktop validation helpers contract", () => {
     expect(windowsCleanup).toContain(".agents\\skills\\ha-nova");
     expect(windowsCleanup).toContain(".config\\opencode\\skills\\ha-nova");
     expect(windowsCleanup).toContain(".gemini\\config\\skills\\ha-nova");
+    expect(windowsCleanup).toContain(".gemini\\config\\skills\\ha-nova-calendar");
+    expect(windowsCleanup).toContain(".gemini\\config\\skills\\ha-nova-health");
+    expect(windowsCleanup).toContain(".gemini\\config\\skills\\ha-nova-guide");
     expect(windowsCleanup).toContain(".gemini\\skills\\ha-nova");
+    expect(windowsCleanup).toContain(".gemini\\skills\\ha-nova-calendar");
+    expect(windowsCleanup).toContain(".gemini\\skills\\ha-nova-health");
+    expect(windowsCleanup).toContain(".gemini\\skills\\ha-nova-guide");
     expect(windowsCleanup).toContain(".hermes\\skills\\ha-nova");
     expect(windowsCleanup).toContain(".claude\\plugins\\installed_plugins.json");
     expect(windowsCleanup).toContain('Join-Path $ConfigDir "claude-marketplace"');

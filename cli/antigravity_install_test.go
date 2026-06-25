@@ -125,7 +125,7 @@ func TestRemoveInstalledClientsForAntigravityRemovesManagedCurrentAndLegacySkill
 	paths := runtimePaths{Home: home}
 
 	for _, root := range []string{antigravitySkillsRoot(home), legacyGeminiSkillsRoot(home)} {
-		for _, skill := range []string{"ha-nova", "ha-nova-read"} {
+		for _, skill := range []string{"ha-nova", "ha-nova-read", "ha-nova-guide"} {
 			dir := filepath.Join(root, skill)
 			if err := os.MkdirAll(dir, 0o755); err != nil {
 				t.Fatalf("mkdir %s: %v", dir, err)
@@ -157,8 +157,10 @@ func TestRemoveInstalledClientsForAntigravityRemovesManagedCurrentAndLegacySkill
 	for _, removed := range []string{
 		filepath.Join(antigravitySkillsRoot(home), "ha-nova", "SKILL.md"),
 		filepath.Join(antigravitySkillsRoot(home), "ha-nova-read", "SKILL.md"),
+		filepath.Join(antigravitySkillsRoot(home), "ha-nova-guide", "SKILL.md"),
 		filepath.Join(legacyGeminiSkillsRoot(home), "ha-nova", "SKILL.md"),
 		filepath.Join(legacyGeminiSkillsRoot(home), "ha-nova-read", "SKILL.md"),
+		filepath.Join(legacyGeminiSkillsRoot(home), "ha-nova-guide", "SKILL.md"),
 	} {
 		if _, err := os.Stat(removed); !os.IsNotExist(err) {
 			t.Fatalf("expected managed Antigravity skill to be removed: %s", removed)

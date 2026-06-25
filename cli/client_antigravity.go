@@ -11,6 +11,7 @@ import (
 
 var sharedSkillRefPattern = regexp.MustCompile("`skills/([^`]+)`")
 var docsRefPattern = regexp.MustCompile("`docs/reference/([^`]+)`")
+var retiredAntigravitySkillNames = []string{"ha-nova-guide"}
 
 func antigravityInstalledSkillName(skillName string) string {
 	if strings.TrimSpace(skillName) == "" || skillName == "ha-nova" {
@@ -80,6 +81,9 @@ func managedAntigravitySkillNames(subSkills []string) map[string]struct{} {
 	names := map[string]struct{}{antigravityInstalledSkillName("ha-nova"): {}}
 	for _, skill := range subSkills {
 		names[antigravityInstalledSkillName(skill)] = struct{}{}
+	}
+	for _, skill := range retiredAntigravitySkillNames {
+		names[skill] = struct{}{}
 	}
 	return names
 }
