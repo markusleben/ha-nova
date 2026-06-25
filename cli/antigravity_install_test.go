@@ -114,3 +114,47 @@ func TestRewriteFlatMarkdownAbsolutizesCrossSkillRefs(t *testing.T) {
 		t.Fatalf("expected no relative skills/ refs to remain, got:\n%s", got)
 	}
 }
+
+func TestRemoveInstalledClientsForAntigravityRemovesManagedCurrentAndLegacySkillsOnly(t *testing.T) {
+	home := t.TempDir()
+	paths := runtimePaths{Home: home}
+
+	for _, root := range []string{antigravitySkillsRoot(home), legacyGeminiSkillsRoot(home)} {
+		for _, skill := range []string{"ha-nova", "ha-nova-read"} {
+			dir := filepath.Join(root, skill)
+			if err := os.MkdirAll(dir, 0o755); err != nil {
+				t.Fatalf("mkdir %s: %v", dir, err)
+			}
+			if err := os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte("name: "+skill), 0o644); err != nil {
+				t.Fatalf("write %s: %v", skill, err)
+			}
+		}
+	}
+
+	userOwned := filepath.Join(antigravitySkillsRoot(home), "read")
+	if err := os.MkdirAll(userOwned, 0o755); err != nil {
+		t.Fatalf("mkdir user-owned skill: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(userOwned, "SKILL.md"), []byte("name: read"), 0o644); err != nil {
+		t.Fatalf("write user-owned skill: %v", err)
+	}
+
+	err := removeInstalledClientsWithReport(paths, installState{InstalledClients: []string{"antigravity"}}, &uninstallReport{})
+	if err != nil {
+		t.Fatalf("removeInstalledClientsWithReport() error: %v", err)
+	}
+
+	for _, removed := range []string{
+		filepath.Join(antigravitySkillsRoot(home), "ha-nova", "SKILL.md"),
+		filepath.Join(antigravitySkillsRoot(home), "ha-nova-read", "SKILL.md"),
+		filepath.Join(legacyGeminiSkillsRoot(home), "ha-nova", "SKILL.md"),
+		filepath.Join(legacyGeminiSkillsRoot(home), "ha-nova-read", "SKILL.md"),
+	} {
+		if _, err := os.Stat(removed); !os.IsNotExist(err) {
+			t.Fatalf("expected managed Antigravity skill to be removed: %s", removed)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(userOwned, "SKILL.md")); err != nil {
+		t.Fatalf("expected user-owned Antigravity skill to remain: %v", err)
+	}
+}
