@@ -56,6 +56,8 @@ describe("S-4: client-specific skill installation", () => {
 
     mkdirSync(join(home, ".agents", "skills", "ha-nova-read"), { recursive: true });
     writeFileSync(join(home, ".agents", "skills", "ha-nova-read", "SKILL.md"), "legacy\n");
+    mkdirSync(join(home, ".agents", "skills", "ha-nova-health"), { recursive: true });
+    writeFileSync(join(home, ".agents", "skills", "ha-nova-health", "SKILL.md"), "legacy\n");
     mkdirSync(join(home, ".agents", "skills", "ha-nova"), { recursive: true });
     writeFileSync(join(home, ".agents", "skills", "ha-nova", "stale.txt"), "stale\n");
 
@@ -72,6 +74,7 @@ describe("S-4: client-specific skill installation", () => {
 
     expect(result.status).toBe(0);
     expect(existsSync(join(home, ".agents", "skills", "ha-nova-read"))).toBe(false);
+    expect(existsSync(join(home, ".agents", "skills", "ha-nova-health"))).toBe(false);
     expect(readlinkSync(join(home, ".agents", "skills", "ha-nova"))).toBe(join(REPO_ROOT, "skills"));
   });
 

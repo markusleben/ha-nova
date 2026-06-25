@@ -359,8 +359,15 @@ sync_cli_runtime() {
   esac
 
   if (cd "${REPO_ROOT}/cli" && go build -ldflags "$(dev_build_ldflags)" -o "${target}" .); then
+    local target_root
+    target_root="$(dirname "${target}")"
     chmod 755 "${target}" 2>/dev/null || true
-    cp "${REPO_ROOT}/version.json" "$(dirname "${target}")/version.json" 2>/dev/null || true
+    cp "${REPO_ROOT}/version.json" "${target_root}/version.json" 2>/dev/null || true
+    rsync -a --delete "${REPO_ROOT}/skills/" "${target_root}/skills/"
+    mkdir -p "${target_root}/docs/reference"
+    rsync -a --delete "${REPO_ROOT}/docs/reference/" "${target_root}/docs/reference/"
+    mkdir -p "${target_root}/clients"
+    cp "${REPO_ROOT}/clients/registry.json" "${target_root}/clients/registry.json"
     echo "[dev:sync] CLI: built local Go source → ${target}"
     echo "[dev:sync] CLI: local dev build active — 'ha-nova version' now reports DEV; restore the release with 'ha-nova update --force'"
     synced+=("CLI")

@@ -13,8 +13,10 @@ func TestInstallAntigravityClientUsesNamespacedFlatSkillNames(t *testing.T) {
 	skillsRoot := filepath.Join(sourceRoot, "skills")
 	for _, skill := range []string{
 		"ha-nova",
+		"calendar",
 		"dashboard",
 		"organize",
+		"health",
 		"history",
 		"write",
 		"read",
@@ -44,8 +46,10 @@ func TestInstallAntigravityClientUsesNamespacedFlatSkillNames(t *testing.T) {
 
 	for _, skill := range []string{
 		"ha-nova",
+		"ha-nova-calendar",
 		"ha-nova-dashboard",
 		"ha-nova-organize",
+		"ha-nova-health",
 		"ha-nova-history",
 		"ha-nova-write",
 		"ha-nova-read",

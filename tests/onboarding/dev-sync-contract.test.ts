@@ -86,7 +86,12 @@ describe("dev-sync contract", () => {
     expect(content).toContain("-X main.Version=");
     expect(content).toContain("-X main.BuildChannel=dev");
     expect(content).toContain("-X main.BuildStamp=");
-    expect(content).toContain('cp "${REPO_ROOT}/version.json" "$(dirname "${target}")/version.json"');
+    expect(content).toContain('target_root="$(dirname "${target}")"');
+    expect(content).toContain('cp "${REPO_ROOT}/version.json" "${target_root}/version.json"');
+    expect(content).toContain('rsync -a --delete "${REPO_ROOT}/skills/" "${target_root}/skills/"');
+    expect(content).toContain('rsync -a --delete "${REPO_ROOT}/docs/reference/" "${target_root}/docs/reference/"');
+    expect(content).toContain('mkdir -p "${target_root}/clients"');
+    expect(content).toContain('cp "${REPO_ROOT}/clients/registry.json" "${target_root}/clients/registry.json"');
     expect(content).toContain('[[ -f "${state_file}" ]] || return 0');
     expect(content).toContain("node -e 'process.exit(0)' >/dev/null 2>&1 || return 0");
     expect(content).toContain("state.clients_verified_version = version");

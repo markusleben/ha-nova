@@ -1,4 +1,4 @@
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -141,6 +141,45 @@ describe("dev-sync behavior", () => {
     expect(result.stdout).toContain("Shared tools refreshed");
     expect(existsSync(join(configDir, "version-check"))).toBe(true);
     expect(existsSync(join(configDir, "version.json"))).toBe(true);
+  });
+
+  it("copies the current client registry next to the dev-synced CLI runtime", { timeout: 90000 }, () => {
+    const home = mkdtempSync(join(tmpdir(), "ha-nova-dev-sync-client-registry-"));
+    const binDir = createMockBinaries();
+    const runtimeDir = join(home, ".local", "share", "ha-nova");
+    const pathBinDir = join(home, ".local", "bin");
+
+    mkdirSync(join(runtimeDir, "clients"), { recursive: true });
+    mkdirSync(pathBinDir, { recursive: true });
+    const initialBuild = spawnSync("go", ["build", "-o", join(runtimeDir, "ha-nova"), "."], {
+      cwd: join(REPO_ROOT, "cli"),
+      encoding: "utf8",
+      timeout: 90000,
+    });
+    expect(initialBuild.status).toBe(0);
+    symlinkSync(join(runtimeDir, "ha-nova"), join(pathBinDir, "ha-nova"));
+    writeFileSync(
+      join(runtimeDir, "clients", "registry.json"),
+      '{"clients":[{"id":"gemini","label":"Gemini CLI","adapter_kind":"skill_tree","supported_os":["macos"]}]}\n',
+    );
+
+    const result = spawnSync("bash", ["scripts/dev-sync.sh"], {
+      cwd: REPO_ROOT,
+      encoding: "utf8",
+      timeout: 90000,
+      env: mockEnv(home, binDir, { PATH: `${pathBinDir}:${binDir}:${process.env.PATH ?? ""}` }),
+    });
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("CLI: built local Go source");
+
+    const syncedRegistry = readFileSync(join(runtimeDir, "clients", "registry.json"), "utf8");
+    expect(syncedRegistry).toContain('"id": "antigravity"');
+    expect(syncedRegistry).toContain('"label": "Google Antigravity CLI"');
+    expect(syncedRegistry).not.toContain('"id":"gemini"');
+    expect(existsSync(join(runtimeDir, "skills", "calendar", "SKILL.md"))).toBe(true);
+    expect(existsSync(join(runtimeDir, "skills", "health", "SKILL.md"))).toBe(true);
+    expect(existsSync(join(runtimeDir, "docs", "reference", "skill-architecture.md"))).toBe(true);
   });
 
   it("fails loudly when repo version.json is missing", () => {
