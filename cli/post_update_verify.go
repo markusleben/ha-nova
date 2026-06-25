@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -33,7 +34,8 @@ func transientBackupResidue(paths runtimePaths, clients []string) []string {
 // clientSkillTreeRoots maps a client id to the on-disk root(s) where ITS synced
 // HA NOVA skills live. Returns nil for clients without a scannable skill tree.
 // Antigravity uses a flat layout shared with the user's other skills, so only
-// the `ha-nova*` entries are ours — never scan unrelated Antigravity skills.
+// the exact HA NOVA-managed skill names are ours — never scan unrelated
+// Antigravity skills just because they share a prefix.
 func clientSkillTreeRoots(paths runtimePaths, client string) []string {
 	switch client {
 	case "hermes":
@@ -43,10 +45,16 @@ func clientSkillTreeRoots(paths runtimePaths, client string) []string {
 	case "opencode":
 		return []string{filepath.Join(paths.Home, ".config", "opencode", "skills", "ha-nova")}
 	case "antigravity":
-		matches, _ := filepath.Glob(filepath.Join(antigravitySkillsRoot(paths.Home), "ha-nova*"))
-		legacyMatches, _ := filepath.Glob(filepath.Join(legacyGeminiSkillsRoot(paths.Home), "ha-nova*"))
-		matches = append(matches, legacyMatches...)
-		return matches
+		subSkills, _ := sourceSubSkills(resolveSourceRoot(paths))
+		roots := []string{}
+		for skill := range managedAntigravitySkillNames(subSkills) {
+			roots = append(roots,
+				filepath.Join(antigravitySkillsRoot(paths.Home), skill),
+				filepath.Join(legacyGeminiSkillsRoot(paths.Home), skill),
+			)
+		}
+		sort.Strings(roots)
+		return roots
 	default:
 		return nil
 	}

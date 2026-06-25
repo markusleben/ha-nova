@@ -157,14 +157,14 @@ describe("S-4: client-specific skill installation", () => {
     }
   });
 
-  it("does not delete user-owned bare Antigravity skills during cleanup", { timeout: 120000 }, () => {
+  it("does not delete user-owned Antigravity skills during cleanup", { timeout: 120000 }, () => {
     const home = mkdtempSync(join(tmpdir(), "ha-nova-skill-antigravity-user-owned-"));
     const claudeLogFile = join(home, "claude.log");
     const binDir = createMockBinaries({ claudeLogFile });
-    const userSkill = join(home, ".gemini", "config", "skills", "read");
+    const userSkill = join(home, ".gemini", "config", "skills", "ha-novation");
 
     mkdirSync(userSkill, { recursive: true });
-    writeFileSync(join(userSkill, "SKILL.md"), "name: read\nThis is my own ha-nova helper note.\n");
+    writeFileSync(join(userSkill, "SKILL.md"), "name: ha-novation\nThis is my own ha-nova helper note.\n");
 
     const result = spawnSync(
       "bash",
@@ -188,6 +188,8 @@ describe("S-4: client-specific skill installation", () => {
 
     mkdirSync(join(home, ".gemini", "skills", "ha-nova-read"), { recursive: true });
     writeFileSync(join(home, ".gemini", "skills", "ha-nova-read", "SKILL.md"), "legacy\n");
+    mkdirSync(join(home, ".gemini", "skills", "ha-nova-lab"), { recursive: true });
+    writeFileSync(join(home, ".gemini", "skills", "ha-nova-lab", "SKILL.md"), "user-owned\n");
 
     const result = spawnSync(
       "bash",
@@ -203,6 +205,7 @@ describe("S-4: client-specific skill installation", () => {
     expect(result.status).toBe(0);
     expect(existsSync(join(home, ".gemini", "config", "skills", "ha-nova", "SKILL.md"))).toBe(true);
     expect(existsSync(join(home, ".gemini", "skills", "ha-nova-read", "SKILL.md"))).toBe(false);
+    expect(existsSync(join(home, ".gemini", "skills", "ha-nova-lab", "SKILL.md"))).toBe(true);
   });
 
   it("installs hermes skills with directory names aligned to their namespaced skill IDs", () => {

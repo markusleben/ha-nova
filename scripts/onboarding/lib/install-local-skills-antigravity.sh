@@ -4,33 +4,18 @@ cleanup_antigravity_unprefixed() {
   :
 }
 
-cleanup_antigravity_orphans() {
-  local skills_dir="$1"
-
-  cleanup_antigravity_unprefixed "$skills_dir"
-
-  local valid_skills="ha-nova"
+cleanup_legacy_gemini_flat() {
+  local legacy_skills_dir="${HOME}/.gemini/skills"
+  local managed_skills=("ha-nova")
   for skill_dir in "${SOURCE_SKILLS_DIR}"/*/SKILL.md; do
     local src_name
     src_name="$(basename "$(dirname "$skill_dir")")"
     [[ "$src_name" == "ha-nova" ]] && continue
-    valid_skills="${valid_skills}"$'\n'"ha-nova-${src_name}"
+    managed_skills+=("ha-nova-${src_name}")
   done
 
-  for existing in "${skills_dir}"/ha-nova*/; do
-    [[ ! -d "$existing" ]] && continue
-    local name
-    name="$(basename "$existing")"
-    if ! printf '%s\n' "$valid_skills" | grep -qx "$name"; then
-      rm -rf "$existing"
-      log "[antigravity] Removed orphaned skill: ${name}"
-    fi
-  done
-}
-
-cleanup_legacy_gemini_flat() {
-  local legacy_skills_dir="${HOME}/.gemini/skills"
-  for existing in "${legacy_skills_dir}"/ha-nova*/; do
+  for name in "${managed_skills[@]}"; do
+    local existing="${legacy_skills_dir}/${name}"
     [[ ! -d "$existing" ]] && continue
     rm -rf "$existing"
     log "[antigravity] Removed legacy Gemini skill: $(basename "$existing")"
@@ -43,7 +28,7 @@ install_antigravity_flat() {
 
   cleanup_legacy_flat_only "${HOME}/.agents/skills" "gemini-legacy"
   cleanup_legacy_gemini_flat
-  cleanup_antigravity_orphans "${user_skills_dir}"
+  cleanup_antigravity_unprefixed "${user_skills_dir}"
 
   local context_dir="${user_skills_dir}/ha-nova"
   if [[ -d "${context_dir}" ]]; then

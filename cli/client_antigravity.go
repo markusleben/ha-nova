@@ -38,10 +38,7 @@ func installAntigravityClient(home, sourceRoot string) error {
 		return err
 	}
 
-	if err := cleanupFlatSkillOrphans(skillsRoot, sourceRoot); err != nil {
-		return err
-	}
-	if err := cleanupLegacyGeminiSkills(home); err != nil {
+	if err := cleanupLegacyGeminiSkills(home, subSkills); err != nil {
 		return err
 	}
 
@@ -79,41 +76,17 @@ func sourceSubSkills(sourceRoot string) ([]string, error) {
 	return subSkills, nil
 }
 
-func cleanupFlatSkillOrphans(skillsRoot, sourceRoot string) error {
-	valid := map[string]struct{}{antigravityInstalledSkillName("ha-nova"): {}}
-	matches, err := filepath.Glob(filepath.Join(sourceRoot, "skills", "*", "SKILL.md"))
-	if err != nil {
-		return err
+func managedAntigravitySkillNames(subSkills []string) map[string]struct{} {
+	names := map[string]struct{}{antigravityInstalledSkillName("ha-nova"): {}}
+	for _, skill := range subSkills {
+		names[antigravityInstalledSkillName(skill)] = struct{}{}
 	}
-	for _, match := range matches {
-		valid[antigravityInstalledSkillName(filepath.Base(filepath.Dir(match)))] = struct{}{}
-	}
-
-	entries, err := os.ReadDir(skillsRoot)
-	if err != nil {
-		return err
-	}
-	for _, entry := range entries {
-		if !entry.IsDir() || !strings.HasPrefix(entry.Name(), "ha-nova") {
-			continue
-		}
-		if _, ok := valid[entry.Name()]; ok {
-			continue
-		}
-		if err := os.RemoveAll(filepath.Join(skillsRoot, entry.Name())); err != nil {
-			return err
-		}
-	}
-	return nil
+	return names
 }
 
-func cleanupLegacyGeminiSkills(home string) error {
-	matches, err := filepath.Glob(filepath.Join(legacyGeminiSkillsRoot(home), "ha-nova*"))
-	if err != nil {
-		return err
-	}
-	for _, match := range matches {
-		if err := os.RemoveAll(match); err != nil {
+func cleanupLegacyGeminiSkills(home string, subSkills []string) error {
+	for skill := range managedAntigravitySkillNames(subSkills) {
+		if err := os.RemoveAll(filepath.Join(legacyGeminiSkillsRoot(home), skill)); err != nil {
 			return err
 		}
 	}
