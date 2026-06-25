@@ -46,6 +46,13 @@ describe("client install docs contract", () => {
     expectOverlayToPointBackToReadme(hermesInstall);
   });
 
+  it("keeps reciprocal client overlay links on the current Antigravity overlay", () => {
+    for (const overlay of [claudeInstall, codexInstall, opencodeInstall, hermesInstall]) {
+      expect(overlay).toContain("Google Antigravity CLI: `.antigravity/INSTALL.md`");
+      expect(overlay).not.toContain(".gemini/INSTALL.md");
+    }
+  });
+
   it("documents Claude-specific setup, Windows caveats, and local marketplace behavior", () => {
     expect(claudeInstall).toContain("Claude Code");
     expect(claudeInstall).toContain("Claude Desktop");

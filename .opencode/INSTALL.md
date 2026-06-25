@@ -31,5 +31,5 @@ After setup, HA NOVA commands like `ha-nova:read`, `ha-nova:write`, and `ha-nova
 
 - Claude Code: `.claude/INSTALL.md`
 - Codex: `.codex/INSTALL.md`
-- Gemini CLI: `.gemini/INSTALL.md`
+- Google Antigravity CLI: `.antigravity/INSTALL.md`
 - Hermes Agent: `.hermes/INSTALL.md`
