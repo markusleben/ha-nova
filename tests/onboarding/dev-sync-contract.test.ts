@@ -83,11 +83,13 @@ describe("dev-sync contract", () => {
     // files — so it survives in symlink clients (Codex) and never pollutes the
     // committed skill source. Released builds omit these flags -> bare version.
     expect(content).toContain("dev_build_ldflags()");
+    expect(content).toContain("write_dev_bundle_metadata()");
     expect(content).toContain("-X main.Version=");
     expect(content).toContain("-X main.BuildChannel=dev");
     expect(content).toContain("-X main.BuildStamp=");
     expect(content).toContain('target_root="$(dirname "${target}")"');
     expect(content).toContain('cp "${REPO_ROOT}/version.json" "${target_root}/version.json"');
+    expect(content).toContain('write_dev_bundle_metadata "${target_root}" "${repo_version:-dev}"');
     expect(content).toContain('rsync -a --delete "${REPO_ROOT}/skills/" "${target_root}/skills/"');
     expect(content).toContain('rsync -a --delete "${REPO_ROOT}/docs/reference/" "${target_root}/docs/reference/"');
     expect(content).toContain('mkdir -p "${target_root}/clients"');

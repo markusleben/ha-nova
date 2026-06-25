@@ -174,9 +174,12 @@ describe("dev-sync behavior", () => {
     expect(result.stdout).toContain("CLI: built local Go source");
 
     const syncedRegistry = readFileSync(join(runtimeDir, "clients", "registry.json"), "utf8");
+    const syncedBundle = readFileSync(join(runtimeDir, "bundle.json"), "utf8");
     expect(syncedRegistry).toContain('"id": "antigravity"');
     expect(syncedRegistry).toContain('"label": "Google Antigravity CLI"');
     expect(syncedRegistry).not.toContain('"id":"gemini"');
+    expect(syncedBundle).toContain('"version": "0.7.0"');
+    expect(syncedBundle).toContain('"bundle_format_version": 1');
     expect(existsSync(join(runtimeDir, "skills", "calendar", "SKILL.md"))).toBe(true);
     expect(existsSync(join(runtimeDir, "skills", "health", "SKILL.md"))).toBe(true);
     expect(existsSync(join(runtimeDir, "docs", "reference", "skill-architecture.md"))).toBe(true);

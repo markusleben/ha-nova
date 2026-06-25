@@ -260,6 +260,41 @@ dev_build_ldflags() {
   printf -- '-X main.Version=%s -X main.BuildChannel=dev -X main.BuildStamp=%s-%s' "${version:-dev}" "${stamp}" "${sha}"
 }
 
+dev_bundle_os() {
+  case "$(uname -s 2>/dev/null || echo unknown)" in
+    Darwin) printf '%s\n' "macos" ;;
+    Linux) printf '%s\n' "linux" ;;
+    MINGW*|MSYS*|CYGWIN*) printf '%s\n' "windows" ;;
+    *) printf '%s\n' "unknown" ;;
+  esac
+}
+
+dev_bundle_arch() {
+  case "$(uname -m 2>/dev/null || echo unknown)" in
+    x86_64|amd64) printf '%s\n' "amd64" ;;
+    arm64|aarch64) printf '%s\n' "arm64" ;;
+    *) uname -m 2>/dev/null || printf '%s\n' "unknown" ;;
+  esac
+}
+
+write_dev_bundle_metadata() {
+  local target_root="$1" version="$2" os_name arch_name binary_name
+  os_name="$(dev_bundle_os)"
+  arch_name="$(dev_bundle_arch)"
+  binary_name="ha-nova"
+  [[ "${os_name}" == "windows" ]] && binary_name="ha-nova.exe"
+
+  cat > "${target_root}/bundle.json" <<EOF
+{
+  "bundle_format_version": 1,
+  "version": "${version}",
+  "os": "${os_name}",
+  "arch": "${arch_name}",
+  "binary_name": "${binary_name}"
+}
+EOF
+}
+
 # The directory Claude stages the ha-nova plugin FROM (its marketplace source).
 # Updating it keeps dev skills alive across a Claude restart instead of clobbered.
 claude_marketplace_source_dir() {
@@ -359,10 +394,12 @@ sync_cli_runtime() {
   esac
 
   if (cd "${REPO_ROOT}/cli" && go build -ldflags "$(dev_build_ldflags)" -o "${target}" .); then
-    local target_root
+    local target_root repo_version
     target_root="$(dirname "${target}")"
+    repo_version="$(repo_skill_version)"
     chmod 755 "${target}" 2>/dev/null || true
     cp "${REPO_ROOT}/version.json" "${target_root}/version.json" 2>/dev/null || true
+    write_dev_bundle_metadata "${target_root}" "${repo_version:-dev}"
     rsync -a --delete "${REPO_ROOT}/skills/" "${target_root}/skills/"
     mkdir -p "${target_root}/docs/reference"
     rsync -a --delete "${REPO_ROOT}/docs/reference/" "${target_root}/docs/reference/"
