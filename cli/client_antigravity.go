@@ -31,6 +31,10 @@ func legacyGeminiSkillsRoot(home string) string {
 	return filepath.Join(home, ".gemini", "skills")
 }
 
+func legacyCodexGeminiSkillsRoot(home string) string {
+	return filepath.Join(home, ".agents", "skills")
+}
+
 func antigravityRuntimeDetected() bool {
 	for _, command := range antigravityRuntimeCommands() {
 		if commandRuntimeDetected(command) {
@@ -98,6 +102,9 @@ func installAntigravityClient(home, sourceRoot string) error {
 	if err := cleanupLegacyGeminiSkills(home, subSkills); err != nil {
 		return err
 	}
+	if err := cleanupLegacyCodexGeminiFlatSkills(home, subSkills); err != nil {
+		return err
+	}
 	if err := cleanupRetiredAntigravitySkills(skillsRoot); err != nil {
 		return err
 	}
@@ -147,9 +154,29 @@ func managedAntigravitySkillNames(subSkills []string) map[string]struct{} {
 	return names
 }
 
+func legacyAntigravityFlatSkillNames(subSkills []string) map[string]struct{} {
+	names := map[string]struct{}{}
+	for _, skill := range subSkills {
+		names[antigravityInstalledSkillName(skill)] = struct{}{}
+	}
+	for _, skill := range retiredAntigravitySkillNames {
+		names[skill] = struct{}{}
+	}
+	return names
+}
+
 func cleanupLegacyGeminiSkills(home string, subSkills []string) error {
 	for skill := range managedAntigravitySkillNames(subSkills) {
 		if err := os.RemoveAll(filepath.Join(legacyGeminiSkillsRoot(home), skill)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func cleanupLegacyCodexGeminiFlatSkills(home string, subSkills []string) error {
+	for skill := range legacyAntigravityFlatSkillNames(subSkills) {
+		if err := os.RemoveAll(filepath.Join(legacyCodexGeminiSkillsRoot(home), skill)); err != nil {
 			return err
 		}
 	}

@@ -16,11 +16,16 @@ cleanup_legacy_gemini_flat() {
   done
 }
 
+cleanup_legacy_codex_gemini_flat() {
+  cleanup_legacy_flat_only "${HOME}/.agents/skills" "antigravity-legacy-codex"
+}
+
 install_antigravity_flat() {
   local user_skills_dir="${HOME}/.gemini/config/skills"
   mkdir -p "${user_skills_dir}"
 
   cleanup_legacy_gemini_flat
+  cleanup_legacy_codex_gemini_flat
 
   local context_dir="${user_skills_dir}/ha-nova"
   if [[ -d "${context_dir}" ]]; then

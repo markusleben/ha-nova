@@ -115,6 +115,52 @@ func TestInstallAntigravityClientRemovesRetiredCurrentSkills(t *testing.T) {
 	}
 }
 
+func TestInstallAntigravityClientRemovesLegacyCodexGeminiFlatSkillsOnly(t *testing.T) {
+	home := t.TempDir()
+	sourceRoot := filepath.Join(t.TempDir(), "source")
+	for _, skill := range []string{"ha-nova", "read"} {
+		dir := filepath.Join(sourceRoot, "skills", skill)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatalf("mkdir source skill %s: %v", skill, err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte("name: "+skill+"\n"), 0o644); err != nil {
+			t.Fatalf("write source skill %s: %v", skill, err)
+		}
+	}
+
+	for _, skill := range []string{"ha-nova-read", "ha-nova-guide", "ha-nova-lab"} {
+		dir := filepath.Join(legacyCodexGeminiSkillsRoot(home), skill)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatalf("mkdir legacy Codex-scope Gemini skill %s: %v", skill, err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte("name: "+skill+"\n"), 0o644); err != nil {
+			t.Fatalf("write legacy Codex-scope Gemini skill %s: %v", skill, err)
+		}
+	}
+	codexRootSkill := filepath.Join(legacyCodexGeminiSkillsRoot(home), "ha-nova", "SKILL.md")
+	if err := os.MkdirAll(filepath.Dir(codexRootSkill), 0o755); err != nil {
+		t.Fatalf("mkdir Codex root skill: %v", err)
+	}
+	if err := os.WriteFile(codexRootSkill, []byte("name: ha-nova\n"), 0o644); err != nil {
+		t.Fatalf("write Codex root skill: %v", err)
+	}
+
+	if err := installAntigravityClient(home, sourceRoot); err != nil {
+		t.Fatalf("installAntigravityClient() error: %v", err)
+	}
+
+	for _, removed := range []string{"ha-nova-read", "ha-nova-guide"} {
+		if _, err := os.Stat(filepath.Join(legacyCodexGeminiSkillsRoot(home), removed, "SKILL.md")); !os.IsNotExist(err) {
+			t.Fatalf("expected legacy Codex-scope Gemini flat skill %s to be removed, stat err=%v", removed, err)
+		}
+	}
+	for _, kept := range []string{"ha-nova", "ha-nova-lab"} {
+		if _, err := os.Stat(filepath.Join(legacyCodexGeminiSkillsRoot(home), kept, "SKILL.md")); err != nil {
+			t.Fatalf("expected %s to remain: %v", kept, err)
+		}
+	}
+}
+
 // Matches the bash installer (scripts/onboarding/install-local-skills.sh):
 // same-skill companion refs become bare filenames, every other `skills/...`
 // or `docs/reference/...` ref becomes an absolute path into the source root
@@ -157,7 +203,7 @@ func TestRemoveInstalledClientsForAntigravityRemovesManagedCurrentAndLegacySkill
 	t.Setenv("HA_NOVA_DEV_ROOT", repoRootForSetupTest(t))
 	paths := runtimePaths{Home: home}
 
-	for _, root := range []string{antigravitySkillsRoot(home), legacyGeminiSkillsRoot(home)} {
+	for _, root := range []string{antigravitySkillsRoot(home), legacyGeminiSkillsRoot(home), legacyCodexGeminiSkillsRoot(home)} {
 		for _, skill := range []string{"ha-nova", "ha-nova-read", "ha-nova-guide"} {
 			dir := filepath.Join(root, skill)
 			if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -172,6 +218,7 @@ func TestRemoveInstalledClientsForAntigravityRemovesManagedCurrentAndLegacySkill
 	userOwned := []string{
 		filepath.Join(antigravitySkillsRoot(home), "ha-novation"),
 		filepath.Join(legacyGeminiSkillsRoot(home), "ha-nova-lab"),
+		filepath.Join(legacyCodexGeminiSkillsRoot(home), "ha-nova-lab"),
 	}
 	for _, dir := range userOwned {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -194,10 +241,15 @@ func TestRemoveInstalledClientsForAntigravityRemovesManagedCurrentAndLegacySkill
 		filepath.Join(legacyGeminiSkillsRoot(home), "ha-nova", "SKILL.md"),
 		filepath.Join(legacyGeminiSkillsRoot(home), "ha-nova-read", "SKILL.md"),
 		filepath.Join(legacyGeminiSkillsRoot(home), "ha-nova-guide", "SKILL.md"),
+		filepath.Join(legacyCodexGeminiSkillsRoot(home), "ha-nova-read", "SKILL.md"),
+		filepath.Join(legacyCodexGeminiSkillsRoot(home), "ha-nova-guide", "SKILL.md"),
 	} {
 		if _, err := os.Stat(removed); !os.IsNotExist(err) {
 			t.Fatalf("expected managed Antigravity skill to be removed: %s", removed)
 		}
+	}
+	if _, err := os.Stat(filepath.Join(legacyCodexGeminiSkillsRoot(home), "ha-nova", "SKILL.md")); err != nil {
+		t.Fatalf("expected Codex root skill to remain after Antigravity uninstall: %v", err)
 	}
 	for _, dir := range userOwned {
 		if _, err := os.Stat(filepath.Join(dir, "SKILL.md")); err != nil {

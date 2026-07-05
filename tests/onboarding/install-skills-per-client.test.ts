@@ -195,6 +195,14 @@ describe("S-4: client-specific skill installation", () => {
     writeFileSync(join(home, ".gemini", "skills", "ha-nova-guide", "SKILL.md"), "retired\n");
     mkdirSync(join(home, ".gemini", "skills", "ha-nova-lab"), { recursive: true });
     writeFileSync(join(home, ".gemini", "skills", "ha-nova-lab", "SKILL.md"), "user-owned\n");
+    mkdirSync(join(home, ".agents", "skills", "ha-nova-read"), { recursive: true });
+    writeFileSync(join(home, ".agents", "skills", "ha-nova-read", "SKILL.md"), "legacy codex-scope copy\n");
+    mkdirSync(join(home, ".agents", "skills", "ha-nova-guide"), { recursive: true });
+    writeFileSync(join(home, ".agents", "skills", "ha-nova-guide", "SKILL.md"), "retired codex-scope copy\n");
+    mkdirSync(join(home, ".agents", "skills", "ha-nova"), { recursive: true });
+    writeFileSync(join(home, ".agents", "skills", "ha-nova", "SKILL.md"), "current codex root\n");
+    mkdirSync(join(home, ".agents", "skills", "ha-nova-lab"), { recursive: true });
+    writeFileSync(join(home, ".agents", "skills", "ha-nova-lab", "SKILL.md"), "user-owned codex-scope\n");
 
     const result = spawnSync(
       "bash",
@@ -212,6 +220,10 @@ describe("S-4: client-specific skill installation", () => {
     expect(existsSync(join(home, ".gemini", "skills", "ha-nova-read", "SKILL.md"))).toBe(false);
     expect(existsSync(join(home, ".gemini", "skills", "ha-nova-guide", "SKILL.md"))).toBe(false);
     expect(existsSync(join(home, ".gemini", "skills", "ha-nova-lab", "SKILL.md"))).toBe(true);
+    expect(existsSync(join(home, ".agents", "skills", "ha-nova-read", "SKILL.md"))).toBe(false);
+    expect(existsSync(join(home, ".agents", "skills", "ha-nova-guide", "SKILL.md"))).toBe(false);
+    expect(existsSync(join(home, ".agents", "skills", "ha-nova", "SKILL.md"))).toBe(true);
+    expect(existsSync(join(home, ".agents", "skills", "ha-nova-lab", "SKILL.md"))).toBe(true);
   });
 
   it("installs hermes skills with directory names aligned to their namespaced skill IDs", () => {

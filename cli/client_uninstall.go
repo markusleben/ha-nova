@@ -95,6 +95,9 @@ func removeInstalledClientsWithReport(paths runtimePaths, state installState, re
 			if err := removeManagedFlatSkillEntriesWithReport(legacyGeminiSkillsRoot(paths.Home), subSkills, report); err != nil {
 				return err
 			}
+			if err := removeLegacyFlatSkillEntriesWithReport(legacyCodexGeminiSkillsRoot(paths.Home), subSkills, report); err != nil {
+				return err
+			}
 		case "hermes":
 			if err := removeSkillEntriesWithReport(filepath.Join(paths.Home, ".hermes", "skills"), report); err != nil {
 				return err
@@ -119,6 +122,15 @@ func removeSkillEntriesWithReport(skillsRoot string, report *uninstallReport) er
 
 func removeManagedFlatSkillEntriesWithReport(skillsRoot string, subSkills []string, report *uninstallReport) error {
 	for skill := range managedAntigravitySkillNames(subSkills) {
+		if err := removePathWithReport(filepath.Join(skillsRoot, skill), report); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func removeLegacyFlatSkillEntriesWithReport(skillsRoot string, subSkills []string, report *uninstallReport) error {
+	for skill := range legacyAntigravityFlatSkillNames(subSkills) {
 		if err := removePathWithReport(filepath.Join(skillsRoot, skill), report); err != nil {
 			return err
 		}
