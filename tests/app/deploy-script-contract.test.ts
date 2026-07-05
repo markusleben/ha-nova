@@ -33,6 +33,7 @@ describe("app deploy script contract", () => {
     expect(content).toContain("-d \"$OPTIONS_PAYLOAD\"");
     expect(content).toContain("Dockerfile package.json package-lock.json tsconfig.json run config.yaml");
     expect(content).toContain("SRC_DIR=\"${PROJECT_ROOT}/nova/src\"");
+    expect(content).toContain("rm -rf ${REMOTE_ADDON_DIR}/src && mkdir -p ${REMOTE_ADDON_DIR}/src");
     expect(content).toContain("-r \"${SRC_DIR}/.\"");
     expect(content).toContain("print_safe_app_status");
     expect(content).toContain("ha apps info ${SUPERVISOR_SLUG} --raw-json");

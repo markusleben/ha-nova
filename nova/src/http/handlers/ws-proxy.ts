@@ -51,13 +51,28 @@ function parseWsRequestBody(body: unknown): ParsedWsProxyRequest {
     throw new HttpError(400, "VALIDATION_ERROR", "Request body must contain a string field 'type'");
   }
 
-  if ("message" in body || "collect_events" in body) {
-    return parseEnvelopeRequest(body as Record<string, unknown>);
+  const raw = body as Record<string, unknown>;
+  if (isEventCollectionEnvelope(raw)) {
+    return parseEnvelopeRequest(raw);
   }
 
   const message = parseHaWsMessage(body);
   rejectUnsupportedWsType(message.type);
   return { message };
+}
+
+function isEventCollectionEnvelope(body: Record<string, unknown>): boolean {
+  return !("type" in body) &&
+    "collect_events" in body &&
+    isWsMessageLike(body.message);
+}
+
+function isWsMessageLike(value: unknown): boolean {
+  return !!value &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    typeof (value as { type?: unknown }).type === "string" &&
+    (value as { type: string }).type.trim().length > 0;
 }
 
 function parseEnvelopeRequest(body: Record<string, unknown>): ParsedWsProxyRequest {

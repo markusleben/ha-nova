@@ -230,6 +230,53 @@ describe("ws proxy endpoint", () => {
     });
   });
 
+  it("forwards normal ws messages that use envelope field names", async () => {
+    const router = createRouter();
+    let forwarded: unknown;
+    let collected = false;
+    router.register(
+      "POST",
+      "/ws",
+      createWsProxyHandler({
+        wsClient: {
+          sendMessage: async (message) => {
+            forwarded = message;
+            return { forwarded: true };
+          },
+          collectMessageEvents: async () => {
+            collected = true;
+            return [];
+          },
+        },
+      })
+    );
+
+    const payload = {
+      type: "custom/command",
+      message: { type: "nested/payload" },
+      collect_events: { until_type: "finish" },
+    };
+    const { baseUrl } = await startServer(servers, router);
+    const response = await fetch(`${baseUrl}/ws`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${TEST_AUTH_TOKEN}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    expect(response.status).toBe(200);
+    expect(forwarded).toEqual(payload);
+    expect(collected).toBe(false);
+    await expect(response.json()).resolves.toEqual({
+      ok: true,
+      data: {
+        forwarded: true,
+      },
+    });
+  });
+
   it("rejects invalid ws event collection bounds", async () => {
     const router = createRouter();
     router.register(

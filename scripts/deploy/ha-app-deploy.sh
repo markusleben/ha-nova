@@ -488,7 +488,7 @@ fi
 
 SRC_DIR="${PROJECT_ROOT}/nova/src"
 if [[ -d "$SRC_DIR" ]]; then
-  remote "mkdir -p ${REMOTE_ADDON_DIR}/src"
+  remote "rm -rf ${REMOTE_ADDON_DIR}/src && mkdir -p ${REMOTE_ADDON_DIR}/src"
   scp -i "$HA_SSH_KEY" \
     -o StrictHostKeyChecking=accept-new \
     -o BatchMode=yes \
