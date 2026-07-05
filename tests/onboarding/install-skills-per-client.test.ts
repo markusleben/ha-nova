@@ -191,6 +191,8 @@ describe("S-4: client-specific skill installation", () => {
 
     mkdirSync(join(home, ".gemini", "skills", "ha-nova-read"), { recursive: true });
     writeFileSync(join(home, ".gemini", "skills", "ha-nova-read", "SKILL.md"), "legacy\n");
+    mkdirSync(join(home, ".gemini", "skills", "ha-nova-guide"), { recursive: true });
+    writeFileSync(join(home, ".gemini", "skills", "ha-nova-guide", "SKILL.md"), "retired\n");
     mkdirSync(join(home, ".gemini", "skills", "ha-nova-lab"), { recursive: true });
     writeFileSync(join(home, ".gemini", "skills", "ha-nova-lab", "SKILL.md"), "user-owned\n");
 
@@ -208,6 +210,7 @@ describe("S-4: client-specific skill installation", () => {
     expect(result.status).toBe(0);
     expect(existsSync(join(home, ".gemini", "config", "skills", "ha-nova", "SKILL.md"))).toBe(true);
     expect(existsSync(join(home, ".gemini", "skills", "ha-nova-read", "SKILL.md"))).toBe(false);
+    expect(existsSync(join(home, ".gemini", "skills", "ha-nova-guide", "SKILL.md"))).toBe(false);
     expect(existsSync(join(home, ".gemini", "skills", "ha-nova-lab", "SKILL.md"))).toBe(true);
   });
 

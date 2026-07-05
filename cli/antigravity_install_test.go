@@ -82,6 +82,39 @@ func TestInstallAntigravityClientUsesNamespacedFlatSkillNames(t *testing.T) {
 	}
 }
 
+func TestInstallAntigravityClientRemovesRetiredCurrentSkills(t *testing.T) {
+	home := t.TempDir()
+	sourceRoot := filepath.Join(t.TempDir(), "source")
+	for _, skill := range []string{"ha-nova", "read"} {
+		dir := filepath.Join(sourceRoot, "skills", skill)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatalf("mkdir source skill %s: %v", skill, err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte("name: "+skill+"\n"), 0o644); err != nil {
+			t.Fatalf("write source skill %s: %v", skill, err)
+		}
+	}
+
+	retired := filepath.Join(antigravitySkillsRoot(home), "ha-nova-guide", "SKILL.md")
+	if err := os.MkdirAll(filepath.Dir(retired), 0o755); err != nil {
+		t.Fatalf("mkdir retired skill: %v", err)
+	}
+	if err := os.WriteFile(retired, []byte("name: ha-nova-guide\n"), 0o644); err != nil {
+		t.Fatalf("write retired skill: %v", err)
+	}
+
+	if err := installAntigravityClient(home, sourceRoot); err != nil {
+		t.Fatalf("installAntigravityClient() error: %v", err)
+	}
+
+	if _, err := os.Stat(retired); !os.IsNotExist(err) {
+		t.Fatalf("expected retired Antigravity skill to be removed, stat err=%v", err)
+	}
+	if _, err := os.Stat(filepath.Join(antigravitySkillsRoot(home), "ha-nova", "SKILL.md")); err != nil {
+		t.Fatalf("expected current Antigravity root skill to remain: %v", err)
+	}
+}
+
 // Matches the bash installer (scripts/onboarding/install-local-skills.sh):
 // same-skill companion refs become bare filenames, every other `skills/...`
 // or `docs/reference/...` ref becomes an absolute path into the source root

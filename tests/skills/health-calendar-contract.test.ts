@@ -40,8 +40,10 @@ describe("health and calendar skill contracts", () => {
     expect(health).toContain("Avoid complex inline jq, especially regex that must be shell-escaped.");
     expect(health).toContain("System Health event payloads are mixed-shape.");
     expect(health).toContain('require `(.data | type) == "object"`');
+    expect(health).toContain("failure can be signaled on the event itself (`success:false` or `error`)");
+    expect(health).toContain("`.data.success == false` or `.data.error`");
     expect(health).toContain("scalar `.data` values such as strings, numbers, booleans, or null are informational only");
-    expect(health).toContain("failed update detection must consider only `update` events whose `.data` is an object");
+    expect(health).toContain("failed update detection must consider only `update` events whose event-level fields or object-shaped `.data` explicitly indicate failure");
     expect(health).toContain("Low-battery detection must be structured");
     expect(health).toContain('attributes.device_class == "battery"');
     expect(health).toContain("do not use shell-escaped regex on `entity_id` for the main battery filter");

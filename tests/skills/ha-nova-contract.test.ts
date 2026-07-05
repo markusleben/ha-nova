@@ -644,6 +644,8 @@ describe("ha-nova contract", () => {
     expect(updateGuide).toContain("ha-nova relay jq --file ~/.config/ha-nova/version.json .skill_version");
     expect(updateGuide).not.toContain("cat ~/.config/ha-nova/version.json");
     expect(updateGuide).toContain("Other clients use the same shared CLI updater path");
+    expect(updateGuide).toContain("| Google Antigravity | Flat-copy | Rebuild namespaced flat markdown copies from the active HA NOVA install |");
+    expect(updateGuide).not.toContain("| Gemini | Flat-copy |");
 
     const bestPractices = readFileSync("skills/ha-nova/best-practices.md", "utf8");
     expect(bestPractices).not.toContain('cat > "${HOME}/.cache/ha-nova/automation-bp-snapshot.json"');

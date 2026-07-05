@@ -40,7 +40,9 @@ describe("safe test system contract", () => {
     expect(pkg.scripts?.["preverify:docs"]).toBe("node scripts/test/assert-vitest-files-exist.mjs verify:docs");
     expect(pkg.scripts?.["verify:docs"]).toContain("scripts/check-docs.sh");
     expect(pkg.scripts?.["preverify:installers"]).toBe("node scripts/test/assert-vitest-files-exist.mjs verify:installers");
-    expect(pkg.scripts?.["verify:installers"]).toBe("npx vitest run tests/onboarding/installer-contract.test.ts");
+    expect(pkg.scripts?.["verify:installers"]).toBe(
+      "npx vitest run tests/onboarding/installer-contract.test.ts tests/onboarding/windows-installer-contract.test.ts",
+    );
     expect(pkg.scripts?.["preverify:onboarding"]).toBe("node scripts/test/assert-vitest-files-exist.mjs verify:onboarding");
     expect(pkg.scripts?.["verify:onboarding"]).toContain("tests/onboarding/install-skills-per-client.test.ts");
     expect(pkg.scripts?.["verify:onboarding"]).toContain("npm run verify:installers");
@@ -92,8 +94,12 @@ describe("safe test system contract", () => {
 
   it("defines an explicit macOS desktop validation command instead of mixing it into npm test", () => {
     expect(pkg.scripts?.["test:desktop:macos"]).toContain("macos-private-rc-suite.sh");
+    expect(pkg.scripts?.["test:desktop:linux:antigravity"]).toContain("linux-headless-setup-check.sh");
+    expect(pkg.scripts?.["test:desktop:linux:antigravity"]).toContain("ha-nova setup antigravity");
     expect(pkg.scripts?.["test:desktop:windows:headless"]).toContain("windows-private-rc-install.ps1");
     expect(pkg.scripts?.["test:desktop:windows:rdp"]).toContain("windows-desktop-setup.ps1");
+    expect(pkg.scripts?.["test:desktop:windows:antigravity"]).toContain("windows-desktop-setup.ps1");
+    expect(pkg.scripts?.["test:desktop:windows:antigravity"]).toContain("-Client antigravity");
   });
 
   it("keeps the Go runtime no-browser guard for setup flows", () => {

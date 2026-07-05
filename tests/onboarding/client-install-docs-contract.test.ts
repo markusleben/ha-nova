@@ -32,6 +32,9 @@ describe("client install docs contract", () => {
     expect(readme).toContain("https://github.com/markusleben/ha-nova/releases/latest");
     expect(readme).toContain("Git for Windows / Git Bash");
     expect(readme).toContain("Google Antigravity Desktop or CLI must be installed");
+    expect(readme).toContain("Google Antigravity is the current Google client path");
+    expect(readme).toContain("`ha-nova setup gemini` remains a legacy alias");
+    expect(readme).not.toContain("%LOCALAPPDATA%\\Programs\\antigravity\\Antigravity.exe");
     // Hermes is now a listed (preview) client like the others; the gate is resolved.
     expect(readme).not.toContain("docs/reference/hermes-platform-validation.md");
     expect(readme).not.toContain("raw.githubusercontent.com/markusleben/ha-nova/main/install.sh");
@@ -92,12 +95,20 @@ describe("client install docs contract", () => {
 
     expect(antigravityInstall).toContain("Google Antigravity");
     expect(antigravityInstall).toContain("Desktop or CLI");
+    expect(antigravityInstall).toContain("Former Gemini Users");
+    expect(antigravityInstall).toContain("current Google client path");
     expect(antigravityInstall).toContain("Install the Antigravity client separately");
     expect(antigravityInstall).toContain("ha-nova setup antigravity");
     expect(antigravityInstall).toContain("ha-nova check-update");
     expect(antigravityInstall).toContain("agy --version");
-    expect(antigravityInstall).toContain("If you use the desktop app only, a working desktop install is enough; `agy` is not required.");
+    expect(antigravityInstall).toContain("If you use Desktop only on Windows, HA NOVA detects the standard per-user install");
+    expect(antigravityInstall).toContain("%LOCALAPPDATA%\\Programs\\Antigravity\\Antigravity.exe");
+    expect(antigravityInstall).toContain("working `antigravity` or `antigravity-ide` launcher is enough");
+    expect(antigravityInstall).toContain("does not guess tarball extraction paths");
+    expect(antigravityInstall).toContain("/Applications/Antigravity.app");
+    expect(antigravityInstall).toContain("/Applications/Antigravity IDE.app");
     expect(antigravityInstall).toContain("open a fresh PowerShell window");
+    expect(antigravityInstall).toContain("~/.gemini/config/skills/ha-nova/");
     expect(antigravityInstall).toContain("~/.gemini/config/skills/ha-nova-*");
     expect(antigravityInstall).toContain("ha-nova setup gemini");
     expect(antigravityInstall).not.toContain("claude install");
@@ -179,6 +190,7 @@ describe("client install docs contract", () => {
     expect(readme).toContain("Google Antigravity Desktop or CLI must be installed");
     expect(claudeInstall).toContain("Windows Notes");
     expect(antigravityInstall).toContain("Windows Notes");
+    expect(antigravityInstall).toContain("Linux Notes");
     expect(antigravityInstall).toContain("agy --version");
     expect(antigravityInstall).toContain("open a fresh PowerShell window");
     expect(claudeInstall).toContain("Git for Windows");

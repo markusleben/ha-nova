@@ -14,7 +14,7 @@ Mutations only:
 
 ## Bootstrap (once per session)
 
-Verify relay CLI:
+Verify Relay:
 
 ```text
 ha-nova relay health
@@ -27,17 +27,17 @@ If this fails, run onboarding: `ha-nova setup`.
 ### Phase 1: Resolve (Agent)
 
 1. Read `skills/ha-nova/agents/resolve-agent.md`.
-2. Fill template placeholders.
-3. Dispatch agent. Extract `target_id`, `current_config`, `bp_status`, `suggested_enhancements`.
+2. Fill placeholders.
+3. Dispatch. Extract `target_id`, `current_config`, `bp_status`, `suggested_enhancements`.
    - update/delete: resolve known `entity_id -> unique_id` with `config/entity_registry/get`; use `config/entity_registry/list_for_display` only for search/disambiguation
-4. On ambiguity/no-match: use a single blocking question for the exact entity_id. Do not add a second ambiguity question. Correct invalid Home Assistant premises before continuing.
+4. On ambiguity/no-match: ask one blocking question for the exact entity_id. No second ambiguity question. Correct invalid premises.
 5. `create` IDs: automations=Unix timestamp, scripts=slug.
 
 ### Phase 2: Preview + Confirm (Main Thread)
 
 1. Build config. For update: full-replacement merge (base=current, overlay=user changes).
-   - Do not rewrite unrelated structure, aliases, or formatting for a narrow requested change.
-   - Treat notification copy as user-authored content: preserve notification titles, messages, templates, notification metadata; rename/timing changes must not restyle, relocalize, or restructure existing notification text; requested wording changes change only the requested copy.
+   - Do not rewrite unrelated structure, aliases, or formatting for a narrow change.
+   - Treat notification copy as user-authored content: preserve notification titles, messages, templates, metadata. Rename/timing changes must not restyle, relocalize, or restructure existing text; requested wording changes change only the requested copy.
 2. BP gate (`skills/ha-nova/write-safety.md`): fresh/stale+simple->continue, stale+complex->block.
 3. Suggestions + Pre-Write Checks (skip for `delete`):
    - **3a) Suggestions**: Show `suggested_enhancements` (max 4, numbered/menu). User accepts numbers or "skip" → merge accepted into config BEFORE preview. Skip when `SUGGESTED_ENHANCEMENTS: none`.
@@ -47,22 +47,23 @@ If this fails, run onboarding: `ha-nova setup`.
      - any flagged draft → localized equivalent of "Pre-write check: this draft may not behave as intended."
      🔴 findings → inline warning + fix. 🟠🟡 findings → advisory below preview. Keep wording code-free.
      Advisories do not block the write and do not require extra confirmation:
-     - R-18: REST/UI write can break dependent variables in that block. Tell user to inspect traces after the next real run; do not auto-trigger/read traces.
+     - R-18: REST/UI write can break dependent variables in that block. Tell user to inspect traces after the next real run; do not auto-trigger/read them.
      - R-19: final else branch is only reached when the earlier entity-state branches are false. Move `trigger.id` into `elif` or refactor to `choose` + `condition: trigger`.
      - If R-23 matches: boolean-like template values are compared to string `"True"`/`"False"`; use the boolean directly or direct negation.
      - If R-24 matches: `available_energy` may be current charge, not capacity; ask user to verify maximum/nominal source. Never auto-rewrite integration-specific entity IDs.
      Track findings by check type for dedup in Phase 4, except R-18.
    - **3c) Pre-Write Impact (update only)**: run `review/` Step 2 `search/related`; show affected automations/scripts as advisory. Skip `create`/`delete`.
 4. Preview (see `skills/ha-nova/write-safety.md` for the fixed shape):
-   - update: **run** `ha-nova diff` (prefer `--out <diff-file>`), print the diff output **verbatim** in the Changes slot — never write it yourself (see `skills/ha-nova/write-safety.md`). create: summary. Show `apply`, `show yaml`, and `cancel` options.
+   - update: **run** `ha-nova diff` (prefer `--out <diff-file>`), print the diff output **verbatim** in the Changes slot — never write it yourself. create: summary. Create/update previews show `apply`, `show yaml`, and `cancel` options.
    - Delete preview MUST include the consumer-check result before confirmation: either the affected consumers or an explicit no-consumer result.
+   - Delete previews do not show `apply`, `show yaml`, `cancel`, or any menu; ask only for the exact `confirm:<token>` or cancellation.
 5. Confirmation: create/update=natural, delete=tokenized `confirm:<token>`. Active Preview Confirmation is required; delete is the typed token, never a menu. Pre-preview consent is draft-only; payload/diff changes need preview.
 
 ### Phase 3: Apply + Verify (Agent)
 
 1. Read `skills/ha-nova/agents/apply-agent.md`.
-2. Fill template with confirmed payload.
-3. Dispatch agent. Expect: success, write_status, verification.
+2. Fill with confirmed payload.
+3. Dispatch. Expect: success, write_status, verification.
 4. Report result. No raw curl/JSON in output.
    - Do not report destructive success until verification proves the target is gone.
 
@@ -79,7 +80,7 @@ Do NOT invoke `ha-nova:review` separately.
      ```jq
      if .ok then .data.body else error("relay error: \(.error.message // "unknown")") end
      ```
-   - for create/update, reload domain, resolve the actual `entity_id` from entity registry by matching `unique_id == <target_id>`, then read `/api/states/{entity_id}` to confirm runtime presence
+   - for create/update, reload domain, resolve actual `entity_id` by matching `unique_id == <target_id>`, then read `/api/states/{entity_id}` to confirm runtime presence
    - if the actual `entity_id` differs, report it and point to `skills/ha-nova/safe-refactoring.md`; do not silently assume the requested slug won
 2. S/R/P/M/F checks (narrowed):
    - Compare read-back vs draft as normalized objects, not raw JSON strings; key order is irrelevant. Ignore metadata (`id`,`unique_id`,`created_at`,`modified_at`,`editor`,`enabled`).
@@ -95,7 +96,7 @@ Do NOT invoke `ha-nova:review` separately.
    - **Findings**: real issues only. **Collision check**: only when related items exist (list them + the verdict). **Advisory**: only when non-empty. Omit any section with nothing to report — never print an empty "none" bucket.
    - If nothing is worth reporting, collapse to one localized confirmation line (e.g. "Verified — no issues or conflicts").
    - Never emit `Questions to consider`, `Suggestions`, or `Instant help` post-write; never repeat an item across **Findings** and **Advisory**.
-5. Update-Revert (update only): after a verified update, **run `ha-nova snapshot save`** and offer `revert`; on revert use `ha-nova snapshot show/verify`, never from memory (see `skills/ha-nova/write-safety.md`). `create`/`delete` → HA Backups.
+5. Update-Revert: updates only → **run `ha-nova snapshot save`** and offer `revert` (see `skills/ha-nova/write-safety.md`). Creates → cleanup via normal HA NOVA delete flow with preview, `confirm:<token>`, and absence verification. Deletes → Home Assistant Backups.
 
 ## Output Format
 

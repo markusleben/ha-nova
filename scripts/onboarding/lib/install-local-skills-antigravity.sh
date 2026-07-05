@@ -1,18 +1,12 @@
 #!/usr/bin/env bash
 
-cleanup_antigravity_unprefixed() {
-  :
-}
-
 cleanup_legacy_gemini_flat() {
   local legacy_skills_dir="${HOME}/.gemini/skills"
   local managed_skills=("ha-nova")
-  for skill_dir in "${SOURCE_SKILLS_DIR}"/*/SKILL.md; do
-    local src_name
-    src_name="$(basename "$(dirname "$skill_dir")")"
-    [[ "$src_name" == "ha-nova" ]] && continue
-    managed_skills+=("ha-nova-${src_name}")
-  done
+  local legacy_name
+  while IFS= read -r legacy_name; do
+    [[ -n "$legacy_name" ]] && managed_skills+=("$legacy_name")
+  done < <(legacy_flat_skill_names)
 
   for name in "${managed_skills[@]}"; do
     local existing="${legacy_skills_dir}/${name}"
@@ -26,9 +20,7 @@ install_antigravity_flat() {
   local user_skills_dir="${HOME}/.gemini/config/skills"
   mkdir -p "${user_skills_dir}"
 
-  cleanup_legacy_flat_only "${HOME}/.agents/skills" "gemini-legacy"
   cleanup_legacy_gemini_flat
-  cleanup_antigravity_unprefixed "${user_skills_dir}"
 
   local context_dir="${user_skills_dir}/ha-nova"
   if [[ -d "${context_dir}" ]]; then

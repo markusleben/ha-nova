@@ -3,6 +3,8 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -207,5 +209,102 @@ func TestInstallClientFailsOnUnknownAdapterKind(t *testing.T) {
 
 	if _, err := installClient(paths, root, "claude"); err == nil {
 		t.Fatal("expected unknown adapter kind to fail")
+	}
+}
+
+func TestInstallClientRejectsGenericSkillFlatClient(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("HA_NOVA_DEV_ROOT", root)
+	withClientRuntimeAvailability(t, map[string]bool{"future": true})
+
+	writeTestRegistry(t, root, `{"clients":[{"id":"future","label":"Future Client","adapter_kind":"skill_flat","supported_os":["macos","linux","windows"]}]}`)
+
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+
+	if _, err := installClient(paths, root, "future"); err == nil || !strings.Contains(err.Error(), "unsupported skill-flat client: future") {
+		t.Fatalf("expected unsupported skill-flat client error, got %v", err)
+	}
+}
+
+func TestInstallClientRejectsGenericSkillTreeClient(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("HA_NOVA_DEV_ROOT", root)
+	withClientRuntimeAvailability(t, map[string]bool{"future": true})
+
+	writeTestRegistry(t, root, `{"clients":[{"id":"future","label":"Future Client","adapter_kind":"skill_tree","supported_os":["macos","linux","windows"]}]}`)
+
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+
+	if _, err := installClient(paths, root, "future"); err == nil || !strings.Contains(err.Error(), "unsupported skill-tree client: future") {
+		t.Fatalf("expected unsupported skill-tree client error, got %v", err)
+	}
+}
+
+func TestInstallClientRejectsGenericPluginMarketplaceClient(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("HA_NOVA_DEV_ROOT", root)
+	withClientRuntimeAvailability(t, map[string]bool{"future": true})
+
+	writeTestRegistry(t, root, `{"clients":[{"id":"future","label":"Future Client","adapter_kind":"plugin_marketplace","supported_os":["macos","linux","windows"]}]}`)
+
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+
+	if _, err := installClient(paths, root, "future"); err == nil || !strings.Contains(err.Error(), "unsupported plugin-marketplace client: future") {
+		t.Fatalf("expected unsupported plugin-marketplace client error, got %v", err)
+	}
+}
+
+func TestInstallClientAcceptsLegacyGeminiAlias(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake PATH executable setup is Unix-style")
+	}
+	root := t.TempDir()
+	t.Setenv("HA_NOVA_DEV_ROOT", root)
+	writeTestRegistry(t, root, `{"clients":[{"id":"antigravity","label":"Google Antigravity","adapter_kind":"skill_flat","supported_os":["macos","linux","windows"]}]}`)
+
+	skillDir := filepath.Join(root, "skills", "ha-nova")
+	if err := os.MkdirAll(skillDir, 0o755); err != nil {
+		t.Fatalf("mkdir source skill: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte("name: ha-nova\n"), 0o644); err != nil {
+		t.Fatalf("write source skill: %v", err)
+	}
+
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	binDir := t.TempDir()
+	t.Setenv("PATH", binDir)
+	if err := os.WriteFile(filepath.Join(binDir, "agy"), []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatalf("write fake agy: %v", err)
+	}
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+
+	mode, err := installClient(paths, root, "gemini")
+	if err != nil {
+		t.Fatalf("installClient(gemini) error: %v", err)
+	}
+	if mode != "copy" {
+		t.Fatalf("mode = %q, want copy", mode)
+	}
+	if _, err := os.Stat(filepath.Join(antigravitySkillsRoot(home), "ha-nova", "SKILL.md")); err != nil {
+		t.Fatalf("expected Antigravity skill installed through gemini alias: %v", err)
 	}
 }

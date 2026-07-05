@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strings"
 )
@@ -12,6 +13,8 @@ import (
 var sharedSkillRefPattern = regexp.MustCompile("`skills/([^`]+)`")
 var docsRefPattern = regexp.MustCompile("`docs/reference/([^`]+)`")
 var retiredAntigravitySkillNames = []string{"ha-nova-guide"}
+var antigravityRuntimePlatformOS = runtime.GOOS
+var antigravityMacApplicationsRoot = "/Applications"
 
 func antigravityInstalledSkillName(skillName string) string {
 	if strings.TrimSpace(skillName) == "" || skillName == "ha-nova" {
@@ -28,6 +31,59 @@ func legacyGeminiSkillsRoot(home string) string {
 	return filepath.Join(home, ".gemini", "skills")
 }
 
+func antigravityRuntimeDetected() bool {
+	for _, command := range antigravityRuntimeCommands() {
+		if commandRuntimeDetected(command) {
+			return true
+		}
+	}
+
+	home, err := os.UserHomeDir()
+	if err == nil && home != "" {
+		for _, file := range antigravityDesktopFileMarkers(home) {
+			if info, err := os.Stat(file); err == nil && !info.IsDir() {
+				return true
+			}
+		}
+	}
+
+	for _, dir := range antigravityDesktopDirMarkers() {
+		if info, err := os.Stat(dir); err == nil && info.IsDir() {
+			return true
+		}
+	}
+	return false
+}
+
+func antigravityRuntimeCommands() []string {
+	commands := []string{"agy"}
+	if antigravityRuntimePlatformOS == "linux" {
+		commands = append(commands, "antigravity", "antigravity-ide")
+	}
+	return commands
+}
+
+func antigravityDesktopDirMarkers() []string {
+	if antigravityRuntimePlatformOS != "darwin" {
+		return nil
+	}
+	return []string{
+		filepath.Join(antigravityMacApplicationsRoot, "Antigravity.app"),
+		filepath.Join(antigravityMacApplicationsRoot, "Antigravity IDE.app"),
+	}
+}
+
+func antigravityDesktopFileMarkers(home string) []string {
+	if antigravityRuntimePlatformOS != "windows" || strings.TrimSpace(home) == "" {
+		return nil
+	}
+	localAppData := windowsLocalAppDataDir(home)
+	return []string{
+		filepath.Join(localAppData, "Programs", "antigravity", "Antigravity.exe"),
+		filepath.Join(localAppData, "Programs", "Antigravity", "Antigravity.exe"),
+	}
+}
+
 func installAntigravityClient(home, sourceRoot string) error {
 	skillsRoot := antigravitySkillsRoot(home)
 	if err := os.MkdirAll(skillsRoot, 0o755); err != nil {
@@ -40,6 +96,9 @@ func installAntigravityClient(home, sourceRoot string) error {
 	}
 
 	if err := cleanupLegacyGeminiSkills(home, subSkills); err != nil {
+		return err
+	}
+	if err := cleanupRetiredAntigravitySkills(skillsRoot); err != nil {
 		return err
 	}
 
@@ -91,6 +150,15 @@ func managedAntigravitySkillNames(subSkills []string) map[string]struct{} {
 func cleanupLegacyGeminiSkills(home string, subSkills []string) error {
 	for skill := range managedAntigravitySkillNames(subSkills) {
 		if err := os.RemoveAll(filepath.Join(legacyGeminiSkillsRoot(home), skill)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func cleanupRetiredAntigravitySkills(skillsRoot string) error {
+	for _, skill := range retiredAntigravitySkillNames {
+		if err := os.RemoveAll(filepath.Join(skillsRoot, skill)); err != nil {
 			return err
 		}
 	}

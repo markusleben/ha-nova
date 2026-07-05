@@ -19,10 +19,25 @@ describe("desktop validation helper behavior", () => {
   });
 
   it("accepts public Windows onboarding only for the two documented success paths", () => {
-    expect(windowsPublic).toContain('$expectedPublicResult = if ($readyClients.Count -gt 0) { "guided-setup" } else { "missing-client-guidance" }');
+    expect(windowsPublic).toMatch(/function Test-AntigravityAvailable[\s\S]+Test-CommandAvailable "agy"[\s\S]+return \$true[\s\S]+return Test-AntigravityDesktopAvailable/);
+    expect(windowsPublic).toMatch(/function Test-AntigravityDesktopAvailable[\s\S]+Programs\\antigravity\\Antigravity\.exe[\s\S]+return \$true/);
+    expect(windowsPublic).toMatch(/function Get-ReadyClients[\s\S]+if \(Test-AntigravityAvailable\) \{[\s\S]+\$clients \+= "antigravity"/);
+    expect(windowsPublic).toContain("$expectedPublicResult = if ($RequireAntigravityDesktopOnly) {");
+    expect(windowsPublic).toContain('"antigravity-desktop-guided-setup"');
+    expect(windowsPublic).toContain('elseif ($readyClients.Count -gt 0) { "guided-setup" } else { "missing-client-guidance" }');
     expect(windowsPublic).toContain('$readyClients.Count -gt 0 -and $result.ExitCode -eq 0 -and $setupAutoStarted -and -not $manualFallbackDisplayed');
     expect(windowsPublic).toContain('$readyClients.Count -eq 0 -and $result.ExitCode -eq 0 -and $localInstallCompleted -and $missingClientGuidanceDisplayed');
     expect(windowsPublic).toContain('throw "public Windows onboarding validation failed"');
     expect(windowsPublic).not.toContain('second_terminal_command_needed -eq $true');
+  });
+
+  it("keeps Antigravity Desktop-only proof from passing through agy or missing-client fallback", () => {
+    expect(windowsPublic).toContain("$desktopOnlyProofPassed = (");
+    expect(windowsPublic).toContain("$RequireAntigravityDesktopOnly -and");
+    expect(windowsPublic).toContain("$antigravityDesktopAvailable -and");
+    expect(windowsPublic).toContain("(-not $agyAvailable) -and");
+    expect(windowsPublic).toContain('($readyClients -contains "antigravity") -and');
+    expect(windowsPublic).toContain('((-not $RequireAntigravityDesktopOnly) -and $readyClients.Count -gt 0');
+    expect(windowsPublic).toContain('((-not $RequireAntigravityDesktopOnly) -and $readyClients.Count -eq 0');
   });
 });

@@ -125,7 +125,7 @@ Current mapping:
 4. Review (inline, do NOT invoke `ha-nova:review` as separate skill)
 - post-write config quality checks, collision scan, conflict analysis
 - findings are advisory (write already succeeded)
-- update: capture a durable revert snapshot and offer `revert` (see `ha-nova/write-safety.md` → Update-Revert); create/delete point to HA Backups
+- update: capture a durable revert snapshot and offer `revert` (see `ha-nova/write-safety.md` → Update-Revert); creates clean up through the normal delete flow; deletes have no HA NOVA revert
 
 Fallback:
 - if agent dispatch unavailable, execute same phases inline serially.
@@ -332,7 +332,7 @@ It handles repo-local skill refreshes for development and validation:
   - **Claude Code:** for repo-local development only, stages a local marketplace root under `~/.config/ha-nova/claude-marketplace`, registers it with `claude plugin marketplace add`, then installs/reinstalls `ha-nova@ha-nova`
   - **Codex CLI:** symlink on Unix, copy fallback on Windows at `~/.agents/skills/ha-nova`
   - **OpenCode:** symlink on Unix, copy fallback on Windows at `~/.config/opencode/skills/ha-nova`
-  - **Google Antigravity:** Flat copy `~/.gemini/config/skills/ha-nova-*/SKILL.md` (1-level limit), with namespaced sub-skill names matching those folder names
+  - **Google Antigravity:** Flat copy `~/.gemini/config/skills/ha-nova/SKILL.md` plus `~/.gemini/config/skills/ha-nova-*/SKILL.md` sub-skills (1-level limit), with namespaced sub-skill names matching those folder names
   - **Hermes Agent:** Namespaced nested copy under `~/.hermes/skills/ha-nova/ha-nova-*`, with sub-skill directory names and frontmatter names both using the same `ha-nova-*` identifier
 - cleans up legacy flat skill directories (old `ha-nova-*` prefixed dirs)
 - supports targets: `codex`, `claude`, `opencode`, `antigravity`, `hermes`, `all`; `gemini` is accepted as a legacy alias for Antigravity

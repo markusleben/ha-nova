@@ -106,8 +106,8 @@ describe("dev-sync behavior", () => {
     const home = mkdtempSync(join(tmpdir(), "ha-nova-dev-sync-antigravity-legacy-"));
     const binDir = createMockBinaries();
 
-    mkdirSync(join(home, ".agents", "skills", "ha-nova-read"), { recursive: true });
-    writeFileSync(join(home, ".agents", "skills", "ha-nova-read", "SKILL.md"), "name: ha-nova-read\n");
+    mkdirSync(join(home, ".gemini", "skills", "ha-nova-read"), { recursive: true });
+    writeFileSync(join(home, ".gemini", "skills", "ha-nova-read", "SKILL.md"), "name: ha-nova-read\n");
 
     const result = spawnSync("bash", ["scripts/dev-sync.sh"], {
       cwd: REPO_ROOT,
@@ -120,6 +120,25 @@ describe("dev-sync behavior", () => {
     expect(result.stdout).toContain("Google Antigravity: refreshed via install-local-skills.sh antigravity");
     expect(existsSync(join(home, ".gemini", "config", "skills", "ha-nova", "SKILL.md"))).toBe(true);
     expect(existsSync(join(home, ".gemini", "skills", "ha-nova-read", "SKILL.md"))).toBe(false);
+  });
+
+  it("does not refresh Antigravity from stale Codex flat-copy markers", { timeout: 60000 }, () => {
+    const home = mkdtempSync(join(tmpdir(), "ha-nova-dev-sync-antigravity-codex-stale-"));
+    const binDir = createMockBinaries();
+
+    mkdirSync(join(home, ".agents", "skills", "ha-nova-read"), { recursive: true });
+    writeFileSync(join(home, ".agents", "skills", "ha-nova-read", "SKILL.md"), "name: ha-nova-read\n");
+
+    const result = spawnSync("bash", ["scripts/dev-sync.sh"], {
+      cwd: REPO_ROOT,
+      encoding: "utf8",
+      timeout: 60000,
+      env: mockEnv(home, binDir),
+    });
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("Google Antigravity: not installed — skipped");
+    expect(existsSync(join(home, ".gemini", "config", "skills", "ha-nova", "SKILL.md"))).toBe(false);
   });
 
   it("refreshes shared tools when no file clients are installed", { timeout: 90000 }, () => {

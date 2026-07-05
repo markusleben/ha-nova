@@ -4,6 +4,7 @@ param(
   [ValidateSet("clean", "reinstall", "stale-uninstall-marker")][string]$StartState = "clean",
   [string]$BundleUrl,
   [string]$BundleSha256Url,
+  [switch]$RequireAntigravityDesktopOnly,
   [string]$ResultPath = "$HOME\ha-nova-public-onboarding.json"
 )
 
@@ -62,12 +63,34 @@ function Test-ClaudeGitBashAvailable {
   return $false
 }
 
+function Test-AntigravityAvailable {
+  if (Test-CommandAvailable "agy") {
+    return $true
+  }
+
+  return Test-AntigravityDesktopAvailable
+}
+
+function Test-AntigravityDesktopAvailable {
+  $localAppDataDir = if ($env:LOCALAPPDATA) { $env:LOCALAPPDATA } else { Join-Path $HOME "AppData\Local" }
+  $desktopCandidates = @(
+    (Join-Path $localAppDataDir "Programs\antigravity\Antigravity.exe"),
+    (Join-Path $localAppDataDir "Programs\Antigravity\Antigravity.exe")
+  )
+  foreach ($candidate in $desktopCandidates) {
+    if ($candidate -and (Test-Path -LiteralPath $candidate)) {
+      return $true
+    }
+  }
+  return $false
+}
+
 function Get-ReadyClients {
   $clients = @()
   if ((Test-CommandAvailable "claude") -and (Test-ClaudeGitBashAvailable)) {
     $clients += "claude"
   }
-  if (Test-CommandAvailable "agy") {
+  if (Test-AntigravityAvailable) {
     $clients += "antigravity"
   }
   if (Test-CommandAvailable "codex") {
@@ -179,6 +202,8 @@ function Invoke-PublicInstaller {
 Initialize-StartState -State $StartState -Source $InstallSource
 Set-InstallEnv -Source $InstallSource -DisableSetup $false
 $readyClients = @(Get-ReadyClients)
+$agyAvailable = Test-CommandAvailable "agy"
+$antigravityDesktopAvailable = Test-AntigravityDesktopAvailable
 
 $result = Invoke-PublicInstaller
 $transcript = if (Test-Path -LiteralPath $TranscriptPath) {
@@ -204,7 +229,19 @@ $missingClientGuidanceDisplayed = (
   $transcript -match [regex]::Escape("Install one supported client first, then rerun: ha-nova setup")
 )
 $localInstallCompleted = Test-Path -LiteralPath $InstallDir
-$expectedPublicResult = if ($readyClients.Count -gt 0) { "guided-setup" } else { "missing-client-guidance" }
+$expectedPublicResult = if ($RequireAntigravityDesktopOnly) {
+  "antigravity-desktop-guided-setup"
+}
+elseif ($readyClients.Count -gt 0) { "guided-setup" } else { "missing-client-guidance" }
+$desktopOnlyProofPassed = (
+  $RequireAntigravityDesktopOnly -and
+  $antigravityDesktopAvailable -and
+  (-not $agyAvailable) -and
+  ($readyClients -contains "antigravity") -and
+  $result.ExitCode -eq 0 -and
+  $setupAutoStarted -and
+  (-not $manualFallbackDisplayed)
+)
 $evidence = [ordered]@{
   windows_version = [System.Environment]::OSVersion.Version.ToString()
   powershell_version = $PSVersionTable.PSVersion.ToString()
@@ -212,6 +249,9 @@ $evidence = [ordered]@{
   standard_user = Test-StandardUser
   install_source = $InstallSource
   start_state = $StartState
+  require_antigravity_desktop_only = [bool]$RequireAntigravityDesktopOnly
+  agy_available = $agyAvailable
+  antigravity_desktop_available = $antigravityDesktopAvailable
   ready_clients = $readyClients
   expected_public_result = $expectedPublicResult
   installer_exit_code = $result.ExitCode
@@ -221,8 +261,9 @@ $evidence = [ordered]@{
   manual_fallback_displayed = $manualFallbackDisplayed
   client_prerequisite_guidance_displayed = $missingClientGuidanceDisplayed
   final_verdict = if (
-    ($readyClients.Count -gt 0 -and $result.ExitCode -eq 0 -and $setupAutoStarted -and -not $manualFallbackDisplayed) -or
-    ($readyClients.Count -eq 0 -and $result.ExitCode -eq 0 -and $localInstallCompleted -and $missingClientGuidanceDisplayed)
+    $desktopOnlyProofPassed -or
+    ((-not $RequireAntigravityDesktopOnly) -and $readyClients.Count -gt 0 -and $result.ExitCode -eq 0 -and $setupAutoStarted -and -not $manualFallbackDisplayed) -or
+    ((-not $RequireAntigravityDesktopOnly) -and $readyClients.Count -eq 0 -and $result.ExitCode -eq 0 -and $localInstallCompleted -and $missingClientGuidanceDisplayed)
   ) { "pass" } else { "fail" }
 }
 

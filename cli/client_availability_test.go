@@ -28,17 +28,125 @@ func TestClientRuntimeDetectedFindsUserLocalBin(t *testing.T) {
 	}
 }
 
-func TestAntigravityRuntimeDetectedFindsDesktopProfileWithoutCLI(t *testing.T) {
+func TestAntigravityRuntimeDetectedIgnoresStaleDesktopProfileWithoutRuntime(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("PATH", t.TempDir())
+	withAntigravityRuntimePlatform(t, "linux")
 	profileDir := filepath.Join(home, ".gemini", "antigravity")
 	if err := os.MkdirAll(profileDir, 0o755); err != nil {
 		t.Fatalf("mkdir desktop profile: %v", err)
 	}
 
+	if clientRuntimeDetected("antigravity") {
+		t.Fatal("expected stale Antigravity profile without CLI, launcher, or app marker to be ignored")
+	}
+}
+
+func withAntigravityRuntimePlatform(t *testing.T, osName string) {
+	t.Helper()
+	originalGOOS := antigravityRuntimePlatformOS
+	antigravityRuntimePlatformOS = osName
+	t.Cleanup(func() {
+		antigravityRuntimePlatformOS = originalGOOS
+	})
+}
+
+func withAntigravityMacApplicationsRoot(t *testing.T, root string) {
+	t.Helper()
+	originalRoot := antigravityMacApplicationsRoot
+	antigravityMacApplicationsRoot = root
+	t.Cleanup(func() {
+		antigravityMacApplicationsRoot = originalRoot
+	})
+}
+
+func writeWindowsAntigravityDesktopMarker(t *testing.T, home string) {
+	t.Helper()
+	localAppData := filepath.Join(home, "AppData", "Local")
+	t.Setenv("LOCALAPPDATA", localAppData)
+	app := filepath.Join(localAppData, "Programs", "antigravity", "Antigravity.exe")
+	if err := os.MkdirAll(filepath.Dir(app), 0o755); err != nil {
+		t.Fatalf("mkdir Antigravity app dir: %v", err)
+	}
+	if err := os.WriteFile(app, []byte("desktop app marker"), 0o644); err != nil {
+		t.Fatalf("write Antigravity app marker: %v", err)
+	}
+}
+
+func TestAntigravityRuntimeDetectedFindsMacDesktopAppWithoutCLI(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("PATH", t.TempDir())
+	appsRoot := t.TempDir()
+	withAntigravityRuntimePlatform(t, "darwin")
+	withAntigravityMacApplicationsRoot(t, appsRoot)
+
+	app := filepath.Join(appsRoot, "Antigravity.app")
+	if err := os.MkdirAll(app, 0o755); err != nil {
+		t.Fatalf("mkdir Antigravity app marker: %v", err)
+	}
+
 	if !clientRuntimeDetected("antigravity") {
-		t.Fatal("expected Antigravity runtime detection to accept desktop profile without agy")
+		t.Fatal("expected Antigravity runtime detection to accept macOS Desktop app without agy")
+	}
+}
+
+func TestAntigravityRuntimeDetectedFindsWindowsDesktopAppWithoutCLI(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("PATH", t.TempDir())
+	withAntigravityRuntimePlatform(t, "windows")
+	writeWindowsAntigravityDesktopMarker(t, home)
+
+	if !clientRuntimeDetected("antigravity") {
+		t.Fatal("expected Antigravity runtime detection to accept Windows Desktop app without agy")
+	}
+}
+
+func TestSetupClientChoicesEnableAntigravityForWindowsDesktopAppWithoutCLI(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("PATH", t.TempDir())
+	withAntigravityRuntimePlatform(t, "windows")
+	writeWindowsAntigravityDesktopMarker(t, home)
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+	choices, err := buildSetupClientChoices(paths, installState{})
+	if err != nil {
+		t.Fatalf("buildSetupClientChoices() error: %v", err)
+	}
+	for _, choice := range choices {
+		if choice.Value == "antigravity" {
+			if choice.Disabled {
+				t.Fatalf("expected Antigravity choice to be enabled for Windows Desktop app, got %+v", choice)
+			}
+			return
+		}
+	}
+	t.Fatalf("expected Antigravity choice, got %+v", choices)
+}
+
+func TestAntigravityRuntimeDetectedFindsLinuxDesktopCommandWithoutCLI(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix executable mode test")
+	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	binDir := t.TempDir()
+	t.Setenv("PATH", binDir)
+	withAntigravityRuntimePlatform(t, "linux")
+
+	app := filepath.Join(binDir, "antigravity")
+	if err := os.WriteFile(app, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatalf("write Antigravity desktop command: %v", err)
+	}
+
+	if !clientRuntimeDetected("antigravity") {
+		t.Fatal("expected Antigravity runtime detection to accept Linux Desktop command without agy")
 	}
 }
 

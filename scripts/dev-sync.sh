@@ -83,9 +83,8 @@ sync_antigravity() {
   local current_marker="${HOME}/.gemini/config/skills/ha-nova-read/SKILL.md"
   local legacy_context_marker="${HOME}/.gemini/skills/ha-nova/SKILL.md"
   local legacy_current_marker="${HOME}/.gemini/skills/ha-nova-read/SKILL.md"
-  local legacy_marker="${HOME}/.agents/skills/ha-nova-read/SKILL.md"
 
-  if [[ -f "$context_marker" || -f "$current_marker" || -f "$legacy_context_marker" || -f "$legacy_current_marker" || -f "$legacy_marker" ]]; then
+  if [[ -f "$context_marker" || -f "$current_marker" || -f "$legacy_context_marker" || -f "$legacy_current_marker" ]]; then
     refresh_file_client "Google Antigravity" "antigravity"
     return
   fi

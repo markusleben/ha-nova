@@ -223,7 +223,7 @@ Hard requirements:
     NOVA_WRITE_REVIEW_RESULT id=${scenario_id} automation_id=${automation_id} status=ok
 21. Use the canonical automation payload keys "triggers", "conditions", and "actions".
 22. Keep repo reads minimal. Load only the repo-local ha-nova / write skill material you actually need. Do not inspect unrelated tests, workflows, or release files.
-23. Before the apply step, include exactly one ## Preview Payload section that shows the payload with the canonical keys. Do not print a second ## Preview Payload section. If you reconsider the draft, revise silently before sending the final answer.
+23. Before the apply step, include exactly one Preview Payload slot that shows the payload with the canonical keys. A Markdown `##` prefix is allowed but not required. Do not print a second Preview Payload slot. If you reconsider the draft, revise silently before sending the final answer.
 24. Before the apply step, print exactly one explicit prewrite verdict line:
     - safe draft: Pre-write check: no issues worth flagging before save.
     - flagged draft: Pre-write check: this draft may not behave as intended.
@@ -949,9 +949,9 @@ result = {
     "unexpected_events_after_final_message": unexpected_events_after_final_message,
 }
 preview_sections = re.findall(
-    r"## Preview Payload\b(.*?)(?=\nPre-write check:|\n## |\Z)",
+    r"^(?:##\s*)?Preview Payload\b(.*?)(?=\nPre-write check:|\n(?:##\s*)?[A-Z][^\n]*:|\n## |\Z)",
     result["prewrite_text"],
-    re.DOTALL,
+    re.MULTILINE | re.DOTALL,
 )
 result["preview_section_count"] = len(preview_sections)
 result["preview_has_canonical_keys"] = (

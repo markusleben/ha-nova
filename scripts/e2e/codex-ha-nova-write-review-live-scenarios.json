@@ -3,7 +3,7 @@
     "id": "write-r19-flagged-prewrite",
     "prompt": "Create a disposable automation whose template logic uses entity-state `if` / `elif` branches and a terminal bare `else` with `trigger.id == 'midnight_fallback'`. Use `input_boolean.mcp_stress_toggle` as the action target so the collision scan can stay deterministic. During preview, if you detect the issue, include these exact phrases: Pre-write check: this draft may not behave as intended. final else branch is only reached when the earlier entity-state branches are false. Move the `trigger.id` check into an explicit `elif`. Or refactor to `choose` + `condition: trigger`. Do not use internal rule codes in the user-facing text.",
     "must_contain_prewrite_text": [
-      "## Preview Payload",
+      "Preview Payload",
       "Pre-write check: this draft may not behave as intended.",
       "final else branch is only reached when the earlier entity-state branches are false",
       "Move the `trigger.id` check into an explicit `elif`",
@@ -36,7 +36,7 @@
     "id": "write-r18-persisted-postwrite-repeat",
     "prompt": "Create a disposable automation with a top-level `variables:` block where `check_flag` references `reading` before `reading` is declared. Use `input_boolean.mcp_stress_toggle` as the action target so the collision scan can stay deterministic. During preview, if you detect the issue, include these exact phrases: Pre-write check: this draft may not behave as intended. REST/UI write can break dependent variables in this block. check_flag -> reading. After the write, if the persisted runtime risk remains, repeat that warning in the post-write review and include this exact phrase: inspect traces after the next real run. Do not use internal rule codes in the user-facing text.",
     "must_contain_prewrite_text": [
-      "## Preview Payload",
+      "Preview Payload",
       "Pre-write check: this draft may not behave as intended.",
       "REST/UI write can break dependent variables in this block",
       "check_flag -> reading"
@@ -68,7 +68,7 @@
     "id": "write-r19-safe-no-warning",
     "prompt": "Create a disposable automation that routes by trigger IDs with `choose` + `condition: trigger` instead of a bare `else` `trigger.id` check. Use `input_boolean.mcp_stress_toggle` as the action target so the collision scan can stay deterministic. Keep the preview clean: do not add any internal rule-code warning text when the draft is safe.",
     "must_contain_prewrite_text": [
-      "## Preview Payload",
+      "Preview Payload",
       "Pre-write check: no issues worth flagging before save."
     ],
     "must_contain_postwrite_text": [
@@ -101,7 +101,7 @@
     "id": "write-r19-safe-single-if-else",
     "prompt": "Create a disposable automation whose template logic uses a single entity-state `if` / `else` pair with `trigger.id == 'nightly_check'` only inside that binary `else`. Use `input_boolean.mcp_stress_toggle` as the action target so the collision scan can stay deterministic. Keep the preview clean: do not add any internal rule-code warning text when the draft is safe.",
     "must_contain_prewrite_text": [
-      "## Preview Payload",
+      "Preview Payload",
       "Pre-write check: no issues worth flagging before save."
     ],
     "must_contain_postwrite_text": [
@@ -134,7 +134,7 @@
     "id": "write-r19-safe-explicit-elif-trigger-id",
     "prompt": "Create a disposable automation whose template logic uses entity-state `if` / `elif` branches, but keeps the `trigger.id == 'midnight_fallback'` check in an explicit `elif` instead of a bare terminal `else`. Use `input_boolean.mcp_stress_toggle` only as the static action target so the collision scan can stay deterministic. Do not use that target toggle as a trigger source, condition source, or template source; keep all branch logic on other harmless entities such as `sun.sun` or `person.markus`, so the automation does not self-trigger on the same entity it writes. Keep the target action itself static and reload-safe, for example `input_boolean.turn_on` with the deterministic target; put the branching logic only inside a harmless template field such as a variable or message text, never inside the `action` service name. Keep the preview clean: do not add any internal rule-code warning text when the draft is safe.",
     "must_contain_prewrite_text": [
-      "## Preview Payload",
+      "Preview Payload",
       "Pre-write check: no issues worth flagging before save."
     ],
     "must_contain_postwrite_text": [
@@ -167,7 +167,7 @@
     "id": "write-r19-safe-else-extra-guard",
     "prompt": "Create a disposable automation whose template logic uses entity-state `if` / `elif` branches and a terminal `else`, but the `else` adds an extra explicit guard together with `trigger.id == 'midnight_fallback'` instead of using a bare catch-all trigger fallback. Use `input_boolean.mcp_stress_toggle` as the action target so the collision scan can stay deterministic. Keep the preview clean: do not add any internal rule-code warning text when the draft is safe.",
     "must_contain_prewrite_text": [
-      "## Preview Payload",
+      "Preview Payload",
       "Pre-write check: no issues worth flagging before save."
     ],
     "must_contain_postwrite_text": [
@@ -200,7 +200,7 @@
     "id": "write-r19-safe-mode-selector-tree",
     "prompt": "Create a disposable automation whose template logic branches on a non-entity-state mode selector tree, not on entity-state-style guards, with `trigger.id` used only for the matching mode path. Use `input_boolean.mcp_stress_toggle` as the action target so the collision scan can stay deterministic. Keep the preview clean: do not add any internal rule-code warning text when the draft is safe.",
     "must_contain_prewrite_text": [
-      "## Preview Payload",
+      "Preview Payload",
       "Pre-write check: no issues worth flagging before save."
     ],
     "must_contain_postwrite_text": [
@@ -233,7 +233,7 @@
     "id": "write-r19-safe-numeric-range-selector-tree",
     "prompt": "Create a disposable automation whose template logic branches on numeric range thresholds instead of entity-state-style guards, with `trigger.id` used only for the matching numeric path. Use `input_boolean.mcp_stress_toggle` as the action target so the collision scan can stay deterministic. Keep the trigger shape reload-safe and unambiguous: avoid `time_pattern` minute lists, and prefer valid fixed `time` triggers or another clearly valid trigger form that does not rely on ambiguous `minutes` formatting. Express the numeric selector tree with harmless numeric template comparisons such as `<`, `>=`, or bounded ranges inside `condition: template` or a similar valid template field; do not use `condition: numeric_state` unless you provide a real entity-based numeric_state schema with `entity_id`. Keep the preview clean: do not add any internal rule-code warning text when the draft is safe.",
     "must_contain_prewrite_text": [
-      "## Preview Payload",
+      "Preview Payload",
       "Pre-write check: no issues worth flagging before save."
     ],
     "must_contain_postwrite_text": [
@@ -264,9 +264,9 @@
   },
   {
     "id": "write-r19-safe-time-window-selector-tree",
-    "prompt": "Create a disposable automation whose branching is driven by explicit time-window trigger ids instead of entity-state-style guards. Use exactly two time triggers with stable ids such as `morning_window` and `evening_window`, and route the final action with `choose` + `condition: trigger` for the exact matching window path. Do not add a `variables` step, selector template, or any other template expression in this scenario. Emit exactly one `## Preview Payload` section total; do not print a revised second preview. Use `input_boolean.mcp_stress_toggle` as the action target so the collision scan can stay deterministic. Keep the preview clean: do not add any internal rule-code warning text when the draft is safe.",
+    "prompt": "Create a disposable automation whose branching is driven by explicit time-window trigger ids instead of entity-state-style guards. Use exactly two time triggers with stable ids such as `morning_window` and `evening_window`, and route the final action with `choose` + `condition: trigger` for the exact matching window path. Do not add a `variables` step, selector template, or any other template expression in this scenario. Emit exactly one `Preview Payload` section total; do not print a revised second preview. Use `input_boolean.mcp_stress_toggle` as the action target so the collision scan can stay deterministic. Keep the preview clean: do not add any internal rule-code warning text when the draft is safe.",
     "must_contain_prewrite_text": [
-      "## Preview Payload",
+      "Preview Payload",
       "Pre-write check: no issues worth flagging before save."
     ],
     "must_contain_postwrite_text": [

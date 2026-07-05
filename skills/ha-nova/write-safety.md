@@ -118,11 +118,13 @@ semantic placeholders; localize them before showing the user:
 
 ## Update-Revert (durable, identity-preserving)
 
-Scope: **update only**. A create is undone by deleting the new item; that delete
-still requires a delete preview, exact `confirm:<token>`, and absence
-verification, even when the item was created earlier in the same session. A
-delete is undone by restoring a Home Assistant Backup. Both are out of scope
-here — point the user to HA Backups (Settings > System > Backups) for those.
+Scope: **update only**. A create is undone by deleting the new item through the
+normal HA NOVA delete flow; that delete still requires a delete preview, exact
+`confirm:<token>`, and absence verification, even when the item was created earlier in the same session.
+Do not call this `revert`, and do not imply that manual deletion or a full Home Assistant Backup restore is the only cleanup path.
+A delete has no HA NOVA `revert`; rollback requires restoring a suitable existing
+Home Assistant Backup, or recreating the item. Point the user to HA Backups
+(Settings > System > Backups) for that case.
 
 ### 1. Capture the snapshot (after a verified update)
 
@@ -162,10 +164,10 @@ Record shape:
 
 ### 2. Offer the revert
 
-After reporting the update, offer a localized affordance that names the durable
-fallback in the same breath — never a bare "undo":
+After reporting the update, offer a localized affordance that names the point-in-time
+rollback option in the same breath — never a bare "undo":
 
-> reply `revert` to undo this change — or use Home Assistant Backups anytime.
+> reply `revert` to undo this update; for point-in-time rollback, restore a suitable existing Home Assistant Backup.
 
 ### 3. Execute `revert`
 

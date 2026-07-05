@@ -38,16 +38,7 @@ function Invoke-Cli {
     [Parameter(Mandatory = $true)][string[]]$Arguments
   )
 
-  $escaped = $Arguments | ForEach-Object {
-    if ($_ -match '[\s"]') {
-      '"' + ($_.Replace('"', '\"')) + '"'
-    }
-    else {
-      $_
-    }
-  }
-  $commandLine = "ha-nova " + ($escaped -join " ") + " 2>&1"
-  $lines = & cmd.exe /d /s /c $commandLine
+  $lines = & ha-nova @Arguments 2>&1
   $exitCode = $LASTEXITCODE
   return @{
     Lines = @($lines | ForEach-Object { [string]$_ })
@@ -76,16 +67,17 @@ function Wait-ForCondition {
 & "$PSScriptRoot\windows-clean-test-state.ps1" | Out-Null
 
 $env:Path = Get-MergedPath
+$AppDataDir = if ($env:APPDATA) { $env:APPDATA } else { Join-Path $HOME "AppData\Roaming" }
 $env:HA_NOVA_BUNDLE_URL = $BundleUrl
 $env:HA_NOVA_BUNDLE_SHA256_URL = $BundleSha256Url
 $env:HA_NOVA_CLAUDE_MARKETPLACE_LOCAL = "1"
 $env:HA_NOVA_NO_SETUP = "1"
 $env:HA_NOVA_NO_BROWSER = "1"
 $env:HA_NOVA_ALLOW_INSECURE_TEST_KEYRING = "1"
-$env:HA_NOVA_TEST_KEYRING_FILE = Join-Path $HOME ".config\ha-nova\.test-relay-auth-token"
+$env:HA_NOVA_TEST_KEYRING_FILE = Join-Path $AppDataDir "ha-nova\.test-relay-auth-token"
 $env:HA_NOVA_KEYRING_SERVICE = "ha-nova.test.desktop.$Client"
 $LocalAppDataDir = if ($env:LOCALAPPDATA) { $env:LOCALAPPDATA } else { Join-Path $HOME "AppData\Local" }
-$ConfigDir = Join-Path $env:APPDATA "ha-nova"
+$ConfigDir = Join-Path $AppDataDir "ha-nova"
 $ConfigFile = Join-Path $ConfigDir "config.json"
 $StateFile = Join-Path $ConfigDir "state.json"
 $CacheDir = Join-Path $LocalAppDataDir "ha-nova\cache"

@@ -16,10 +16,10 @@ describe("dev-sync contract", () => {
     expect(content).toContain("native Windows sync not supported");
   });
 
-  it("keeps legacy Gemini marker support during migration", () => {
+  it("keeps legacy Gemini marker support without stale Codex flat-copy markers", () => {
     expect(content).toContain('.gemini/config/skills/ha-nova-read/SKILL.md');
     expect(content).toContain('.gemini/skills/ha-nova-read/SKILL.md');
-    expect(content).toContain('.agents/skills/ha-nova-read/SKILL.md');
+    expect(content).not.toContain('.agents/skills/ha-nova-read/SKILL.md');
   });
 
   it("requires symlink markers for Codex and OpenCode", () => {

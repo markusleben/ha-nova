@@ -106,7 +106,7 @@ describe("codex write-review live e2e contract", () => {
     expect(content).not.toContain("explicit confirmation is granted by this prompt");
     expect(content).toContain('Use the canonical automation payload keys "triggers", "conditions", and "actions".');
     expect(content).toContain("Keep repo reads minimal.");
-    expect(content).toContain("## Preview Payload");
+    expect(content).toContain("Preview Payload");
     expect(content).toContain("conditions");
     expect(content).toContain(cleanPrewriteVerdict);
     expect(content).toContain(warnedPrewriteVerdict);
@@ -161,8 +161,8 @@ describe("codex write-review live e2e contract", () => {
     expect(content).toContain("/api/services/automation/reload");
     expect(content).toContain("/api/states/");
     expect(content).toContain('"type":"search/related"');
-    expect(content).toContain("include exactly one ## Preview Payload section");
-    expect(content).toContain("Do not print a second ## Preview Payload section.");
+    expect(content).toContain("include exactly one Preview Payload slot");
+    expect(content).toContain("Do not print a second Preview Payload slot.");
     expect(content).toContain("If you use inline Python to create local JSON payload files, use \\`python3\\` only. Do not use \\`python\\`.");
     expect(content).toContain("Any shell command block that contains the write flow must begin with \\`set -e\\`");
     expect(content).toContain("never print tool-call syntax, JSON command envelopes, raw exec transcripts");
@@ -205,7 +205,7 @@ fi`,
     const flagged = byId.get("write-r19-flagged-prewrite");
     expect(flagged).toBeDefined();
     expect(flagged?.must_contain_prewrite_text).toEqual(
-      expect.arrayContaining(["## Preview Payload", warnedPrewriteVerdict, ...r19WarningText])
+      expect.arrayContaining(["Preview Payload", warnedPrewriteVerdict, ...r19WarningText])
     );
     // Omit-empty contract: a clean post-write requires only the heading; no "none" buckets.
     expect(flagged?.must_contain_postwrite_text).toEqual(["Post-Write Review"]);
@@ -231,7 +231,7 @@ fi`,
     expect(persistedR18).toBeDefined();
     expect(persistedR18?.must_contain_prewrite_text).toEqual(
       expect.arrayContaining([
-        "## Preview Payload",
+        "Preview Payload",
         warnedPrewriteVerdict,
         "REST/UI write can break dependent variables in this block",
         "check_flag -> reading",
@@ -261,7 +261,7 @@ fi`,
       expect(scenario).toBeDefined();
       expect(scenario?.collision_item_id).toBe("input_boolean.mcp_stress_toggle");
       expect(scenario?.must_contain_prewrite_text).toEqual(
-        expect.arrayContaining(["## Preview Payload", cleanPrewriteVerdict])
+        expect.arrayContaining(["Preview Payload", cleanPrewriteVerdict])
       );
       expect(scenario?.must_contain_postwrite_text).toEqual(["Post-Write Review"]);
       expect(scenario?.must_contain_postwrite_text).not.toContain("No issues found in this review.");
@@ -291,7 +291,7 @@ fi`,
     assertSafeScenario("write-r19-safe-time-window-selector-tree");
     expect(byId.get("write-r19-safe-time-window-selector-tree")?.prompt).toContain("Use exactly two time triggers");
     expect(byId.get("write-r19-safe-time-window-selector-tree")?.prompt).toContain("Do not add a `variables` step, selector template, or any other template expression");
-    expect(byId.get("write-r19-safe-time-window-selector-tree")?.prompt).toContain("Emit exactly one `## Preview Payload` section total");
+    expect(byId.get("write-r19-safe-time-window-selector-tree")?.prompt).toContain("Emit exactly one `Preview Payload` section total");
   });
 
   it("uses integer-only max_duration_sec values in write-review live scenarios", () => {
@@ -552,7 +552,7 @@ count_command_hits_before_index "$1" 2 '(^|[[:space:]])ha-nova[[:space:]]+(docto
         type: "item.completed",
         item: {
           type: "agent_message",
-          text: `## Preview Payload\ntriggers:\nconditions:\nactions:\n${cleanPrewriteVerdict}`,
+          text: `Preview Payload\ntriggers:\nconditions:\nactions:\n${cleanPrewriteVerdict}`,
         },
       },
       {
@@ -1193,7 +1193,7 @@ count_command_hits_before_index "$1" 2 '(^|[[:space:]])ha-nova[[:space:]]+(docto
         type: "item.completed",
         item: {
           type: "agent_message",
-          text: `## Preview Payload\ntriggers:\nconditions:\nactions:\n${warnedPrewriteVerdict}`,
+          text: `Preview Payload\ntriggers:\nconditions:\nactions:\n${warnedPrewriteVerdict}`,
         },
       },
       {
@@ -1476,7 +1476,7 @@ count_command_hits_before_index "$1" 2 '(^|[[:space:]])ha-nova[[:space:]]+(docto
         type: "item.completed",
         item: {
           type: "agent_message",
-          text: `## Preview Payload\ntriggers:\nconditions:\nactions:\n${cleanPrewriteVerdict}`,
+          text: `Preview Payload\ntriggers:\nconditions:\nactions:\n${cleanPrewriteVerdict}`,
         },
       },
       {
@@ -1504,7 +1504,7 @@ count_command_hits_before_index "$1" 2 '(^|[[:space:]])ha-nova[[:space:]]+(docto
 
     expect(result.first_write_attempt_idx).toBe(1);
     expect(result.preview_section_count).toBe(0);
-    expect(result.prewrite_text).not.toContain("## Preview Payload");
+    expect(result.prewrite_text).not.toContain("Preview Payload");
 
     rmSync(tempDir, { recursive: true, force: true });
   });

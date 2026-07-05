@@ -177,6 +177,7 @@ describe("helper contract", () => {
       expect(skillDoc).toContain("allowed here: `utility_meter`, `derivative`, `integration`, `min_max`, `threshold`, `tod`, `statistics`, `group`, `history_stats`");
       expect(skillDoc).toContain("do not call `DELETE /api/config/config_entries/entry/{entry_id}` for out-of-scope domains");
       expect(skillDoc).toContain("hand off to `ha-nova:fallback` for any other config-entry domain");
+      expect(skillDoc).toContain("`entry_id` only when needed to disambiguate duplicate titles/domains");
       expect(skillDoc).not.toContain("unsupported `group` subtype path");
     });
 

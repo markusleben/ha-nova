@@ -59,9 +59,10 @@ Use `--jq-file` for non-trivial filters. Avoid complex inline jq, especially reg
 
 System Health event payloads are mixed-shape. For events from `.data.events[]`:
 - read the event kind from `.type`
-- before reading `.data.success`, `.data.error`, `.data.info`, or any nested field, require `(.data | type) == "object"`
+- before reading `.data.info` or any nested field, require `(.data | type) == "object"`
+- failure can be signaled on the event itself (`success:false` or `error`) or inside object-shaped `.data` (`.data.success == false` or `.data.error`)
 - scalar `.data` values such as strings, numbers, booleans, or null are informational only; do not count them as failed checks and do not let them break jq filters
-- failed update detection must consider only `update` events whose `.data` is an object and whose object explicitly indicates failure
+- failed update detection must consider only `update` events whose event-level fields or object-shaped `.data` explicitly indicate failure
 
 Low-battery detection must be structured:
 - primary numeric detector: entities whose `attributes.device_class == "battery"` and numeric state is below 20
