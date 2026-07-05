@@ -57,7 +57,7 @@ agy --version
 
 ## What You Get
 
-After setup, HA NOVA commands like `ha-nova:read`, `ha-nova:write`, and `ha-nova:review` are available inside Google Antigravity.
+After setup, HA NOVA commands like `ha-nova:ha-nova-read`, `ha-nova:ha-nova-write`, and `ha-nova:ha-nova-review` are available inside Google Antigravity.
 
 ## Related
 

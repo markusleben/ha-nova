@@ -110,6 +110,10 @@ describe("client install docs contract", () => {
     expect(antigravityInstall).toContain("open a fresh PowerShell window");
     expect(antigravityInstall).toContain("~/.gemini/config/skills/ha-nova/");
     expect(antigravityInstall).toContain("~/.gemini/config/skills/ha-nova-*");
+    expect(antigravityInstall).toContain("ha-nova:ha-nova-read");
+    expect(antigravityInstall).toContain("ha-nova:ha-nova-write");
+    expect(antigravityInstall).toContain("ha-nova:ha-nova-review");
+    expect(antigravityInstall).not.toContain("`ha-nova:read`, `ha-nova:write`, and `ha-nova:review`");
     expect(antigravityInstall).toContain("ha-nova setup gemini");
     expect(antigravityInstall).not.toContain("claude install");
     expect(antigravityInstall).not.toContain("CLAUDE_CODE_GIT_BASH_PATH");
