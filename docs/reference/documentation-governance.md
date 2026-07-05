@@ -26,7 +26,7 @@ Use these files as the current sources of truth:
   - skill topology and contributor index
 - `docs/reference/client-integration.md`
   - client registry and setup capability truth
-- `.claude/INSTALL.md`, `.codex/INSTALL.md`, `.gemini/INSTALL.md`, `.opencode/INSTALL.md`, `.hermes/INSTALL.md`
+- `.claude/INSTALL.md`, `.codex/INSTALL.md`, `.antigravity/INSTALL.md`, `.opencode/INSTALL.md`, `.hermes/INSTALL.md`
   - client-specific install overlays; derived active docs that cover client deltas only and must point back to `README.md` for the shared install contract
 - `nova/DOCS.md`
   - Home Assistant App / relay operator truth
@@ -86,7 +86,7 @@ Active paths:
 - `docs/work/`
 - `.claude/INSTALL.md`
 - `.codex/INSTALL.md`
-- `.gemini/INSTALL.md`
+- `.antigravity/INSTALL.md`
 - `.opencode/INSTALL.md`
 - `.hermes/INSTALL.md`
 - `nova/DOCS.md`

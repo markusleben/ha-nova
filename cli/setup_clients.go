@@ -75,6 +75,7 @@ func resolveSetupClientsWithState(paths runtimePaths, target string, state insta
 }
 
 func resolveSetupClientsWithChoices(choices []setupClientChoice, target string) ([]string, []string, error) {
+	target = canonicalClientID(target)
 	for _, choice := range choices {
 		if choice.Value != target {
 			continue

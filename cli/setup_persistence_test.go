@@ -57,7 +57,7 @@ func TestPersistInteractiveSetupStateRollsBackConfigAndTokenWhenStateSaveFails(t
 	}
 	nextState := installState{
 		SchemaVersion:      stateSchemaVersion,
-		InstalledClients:   []string{"gemini"},
+		InstalledClients:   []string{"antigravity"},
 		ClientInstallModes: map[string]string{},
 	}
 
@@ -138,7 +138,7 @@ func TestPersistInteractiveSetupStateRestoresSnapshotWhenConfigSaveFails(t *test
 	}
 	nextState := installState{
 		SchemaVersion:      stateSchemaVersion,
-		InstalledClients:   []string{"gemini"},
+		InstalledClients:   []string{"antigravity"},
 		ClientInstallModes: map[string]string{},
 	}
 

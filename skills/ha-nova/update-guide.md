@@ -48,7 +48,7 @@ HA NOVA uses three update archetypes depending on the client:
 | Claude Code | Native | Re-stage the local marketplace from the installed release payload, then verify/reinstall the plugin |
 | Codex | Linked/Copy | Refresh installed skill tree from the active HA NOVA install |
 | OpenCode | Linked/Copy | Refresh installed skill tree from the active HA NOVA install |
-| Gemini | Flat-copy | Rebuild flat markdown copies from the active HA NOVA install |
+| Google Antigravity | Flat-copy | Rebuild namespaced flat markdown copies from the active HA NOVA install |
 | Hermes Agent | Namespaced copy | Rebuild the Hermes-local namespaced skill bundle from the active HA NOVA install |
 
 After client updates, shared tools are refreshed from the active HA NOVA install.

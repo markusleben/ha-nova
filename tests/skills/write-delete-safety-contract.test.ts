@@ -96,7 +96,7 @@ describe("write delete safety contract", () => {
     expect(writeSafety).toContain("Do not silently restyle, relocalize, shorten, expand, or restructure existing");
     expect(writeSafety).toContain("notification text during a rename, refactor, timing change");
     expect(writeSafety).toContain("A count-only array line");
-    expect(writeSkill).toContain("preserve notification titles, messages, templates, notification metadata");
+    expect(writeSkill).toContain("preserve notification titles, messages, templates, metadata");
   });
 
   it("forces the diff/snapshot tools to be run, not hand-computed", () => {

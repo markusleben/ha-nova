@@ -121,32 +121,30 @@ repo_claude_plugin_version() {
   read_version_json_field "${REPO_ROOT}/.claude-plugin/plugin.json" "version"
 }
 
-LEGACY_FLAT_SKILLS=(
-  "ha-nova-dashboard"
-  "ha-nova-organize"
-  "ha-nova-history"
-  "ha-nova-write"
-  "ha-nova-read"
-  "ha-nova-helper"
-  "ha-nova-entity-discovery"
-  "ha-nova-onboarding"
-  "ha-nova-service-call"
-  "ha-nova-review"
-  "ha-nova-guide"
-  "ha-nova-fallback"
-)
+legacy_flat_skill_names() {
+  local skill_md skill_name
+  if [[ -d "${SOURCE_SKILLS_DIR:-}" ]]; then
+    for skill_md in "${SOURCE_SKILLS_DIR}"/*/SKILL.md; do
+      [[ -e "${skill_md}" ]] || continue
+      skill_name="$(basename "$(dirname "${skill_md}")")"
+      [[ "${skill_name}" == "ha-nova" ]] && continue
+      printf 'ha-nova-%s\n' "${skill_name}"
+    done
+  fi
+  printf 'ha-nova-guide\n'
+}
 
 cleanup_legacy() {
   local user_skills_dir="$1"
   local target="$2"
 
-  for legacy_skill in "${LEGACY_FLAT_SKILLS[@]}"; do
+  while IFS= read -r legacy_skill; do
     local legacy_path="${user_skills_dir}/${legacy_skill}"
     if [[ -e "${legacy_path}" || -L "${legacy_path}" ]]; then
       rm -rf "${legacy_path}"
       log "[${target}] Cleaned up legacy flat skill: ${legacy_path}"
     fi
-  done
+  done < <(legacy_flat_skill_names)
 
   local nested_path="${user_skills_dir}/ha-nova"
   if [[ -d "${nested_path}" && ! -L "${nested_path}" ]]; then
@@ -159,11 +157,11 @@ cleanup_legacy_flat_only() {
   local user_skills_dir="$1"
   local target="$2"
 
-  for legacy_skill in "${LEGACY_FLAT_SKILLS[@]}"; do
+  while IFS= read -r legacy_skill; do
     local legacy_path="${user_skills_dir}/${legacy_skill}"
     if [[ -e "${legacy_path}" || -L "${legacy_path}" ]]; then
       rm -rf "${legacy_path}"
       log "[${target}] Cleaned up legacy flat skill: ${legacy_path}"
     fi
-  done
+  done < <(legacy_flat_skill_names)
 }

@@ -360,8 +360,8 @@ If multiple matches remain, present max 5 candidates and ask one blocking questi
 3. Preview with stable localized slots:
    - title
    - domain
-   - `entry_id`
    - linked entities if known
+   - `entry_id` only when needed to disambiguate duplicate titles/domains
    - explicit not-deleted-yet line before the confirmation token
 4. Run a pre-delete dependency check:
    - if linked entities are known, run `search/related` against up to 3 linked entities before confirmation
@@ -465,7 +465,7 @@ Never show raw JSON to the user.
 - Delete requires tokenized confirmation
 - Destructive cleanup still requires `confirm:<token>`, even for helpers created earlier in the same session.
 - All HA communication through `ha-nova relay` only
-- Every write MUST end with `## Post-Write Review`
+- Every write MUST end with the Post-Write Review slot; use terminal-friendly labels where Markdown headings add noise.
 
 ## Guardrails
 

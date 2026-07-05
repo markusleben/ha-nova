@@ -66,11 +66,16 @@ describe("desktop validation helpers contract", () => {
     expect(releasing).toContain("execute the real installer inline");
     expect(releasing).toContain("Additional supported public outcome:");
     expect(releasing).toContain("local-install-plus-missing-client-guidance path");
+    expect(releasing).toContain("standard per-user Desktop install");
+    expect(releasing).toContain("%LOCALAPPDATA%\\Programs\\Antigravity\\Antigravity.exe");
+    expect(releasing).toContain("Hermes does not count on native Windows");
     expect(releasing).toContain("file-based test keyring override");
     expect(releasing).toContain("Windows Credential Manager interop stays covered");
     expect(releasing).toContain("open a new shell and run `ha-nova doctor`");
     expect(releasing).toContain("Linux real-machine onboarding");
     expect(releasing).toContain("scripts/smoke/linux-headless-setup-check.sh");
+    expect(releasing).toContain("npm run test:desktop:linux:antigravity");
+    expect(releasing).toContain("HA_NOVA_LIVE_SETUP_CMD='HA_NOVA_NO_BROWSER=1 ha-nova setup antigravity'");
     expect(releasing).toContain("same logged-in user session");
     expect(releasing).toContain("explicit provider prerequisite message instead of raw `org.freedesktop.secrets` D-Bus text");
     expect(releasing).toContain("local Linux keyring password");
@@ -84,6 +89,8 @@ describe("desktop validation helpers contract", () => {
     expect(linuxHeadless).toContain("HA_NOVA_NO_BROWSER=1 ha-nova setup");
     expect(linuxHeadless).toContain("store hostnames, tokens, or passwords");
     expect(linuxHeadless).toContain("same logged-in desktop");
+    expect(packageJson).toContain('"test:desktop:linux:antigravity"');
+    expect(packageJson).toContain("ha-nova setup antigravity");
   });
 
   it("ships a single local validation harness entrypoint", () => {
@@ -165,7 +172,7 @@ describe("desktop validation helpers contract", () => {
   });
 
   it("keeps the macOS per-client lane explicit about expected client artifacts", () => {
-    expect(macosClient).toContain("Usage: $0 <claude|codex|opencode|gemini|hermes>");
+    expect(macosClient).toContain("Usage: $0 <claude|codex|opencode|antigravity|hermes>");
     expect(macosClient).toContain("HA_NOVA_KEYRING_SERVICE");
     expect(macosClient).toContain("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING=1");
     expect(macosClient).toContain("HA_NOVA_TEST_KEYRING_FILE");
@@ -178,7 +185,7 @@ describe("desktop validation helpers contract", () => {
     expect(macosClient).toContain('--relay-url "http://127.0.0.1:${MOCK_RELAY_PORT}"');
     expect(macosClient).toContain(".agents/skills/ha-nova/ha-nova/SKILL.md");
     expect(macosClient).toContain(".config/opencode/skills/ha-nova/ha-nova/SKILL.md");
-    expect(macosClient).toContain(".gemini/skills/ha-nova/SKILL.md");
+    expect(macosClient).toContain(".gemini/config/skills/ha-nova/SKILL.md");
     expect(macosClient).toContain(".hermes/skills/ha-nova/ha-nova/SKILL.md");
     expect(macosClient).toContain(".hermes/skills/ha-nova/ha-nova-read/SKILL.md");
     expect(macosClient).toContain("name: ha-nova-read");
@@ -201,7 +208,14 @@ describe("desktop validation helpers contract", () => {
     expect(windowsCleanup).toContain('markusleben.ha-nova');
     expect(windowsCleanup).toContain(".agents\\skills\\ha-nova");
     expect(windowsCleanup).toContain(".config\\opencode\\skills\\ha-nova");
+    expect(windowsCleanup).toContain(".gemini\\config\\skills\\ha-nova");
+    expect(windowsCleanup).toContain(".gemini\\config\\skills\\ha-nova-calendar");
+    expect(windowsCleanup).toContain(".gemini\\config\\skills\\ha-nova-health");
+    expect(windowsCleanup).toContain(".gemini\\config\\skills\\ha-nova-guide");
     expect(windowsCleanup).toContain(".gemini\\skills\\ha-nova");
+    expect(windowsCleanup).toContain(".gemini\\skills\\ha-nova-calendar");
+    expect(windowsCleanup).toContain(".gemini\\skills\\ha-nova-health");
+    expect(windowsCleanup).toContain(".gemini\\skills\\ha-nova-guide");
     expect(windowsCleanup).toContain(".hermes\\skills\\ha-nova");
     expect(windowsCleanup).toContain(".claude\\plugins\\installed_plugins.json");
     expect(windowsCleanup).toContain('Join-Path $ConfigDir "claude-marketplace"');
@@ -222,6 +236,20 @@ describe("desktop validation helpers contract", () => {
     expect(windowsCleanup).not.toContain('Join-Path $HOME ".agents")');
     expect(windowsCleanup).not.toContain('Join-Path $HOME ".config\\opencode")');
     expect(windowsCleanup).not.toContain('Join-Path $HOME ".gemini")');
+  });
+
+  it("lets Windows public onboarding detect Antigravity Desktop without agy", () => {
+    expect(windowsPublic).toContain("function Test-AntigravityAvailable");
+    expect(windowsPublic).toContain("function Test-AntigravityDesktopAvailable");
+    expect(windowsPublic).toContain('Test-CommandAvailable "agy"');
+    expect(windowsPublic).toContain('Programs\\antigravity\\Antigravity.exe');
+    expect(windowsPublic).toContain('Programs\\Antigravity\\Antigravity.exe');
+    expect(windowsPublic).toContain("if (Test-AntigravityAvailable)");
+    expect(windowsPublic).toContain("[switch]$RequireAntigravityDesktopOnly");
+    expect(windowsPublic).toContain("antigravity_desktop_available");
+    expect(windowsPublic).toContain("agy_available");
+    expect(windowsPublic).toContain('"antigravity-desktop-guided-setup"');
+    expect(packageJson).toContain("HA_NOVA_REQUIRE_ANTIGRAVITY_DESKTOP_ONLY");
   });
 
   it("treats Windows installer and desktop runner failures as hard failures", () => {
@@ -259,6 +287,8 @@ describe("desktop validation helpers contract", () => {
     expect(windowsDesktop).toContain("HA_NOVA_KEYRING_SERVICE");
     expect(windowsDesktop).toContain("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING");
     expect(windowsDesktop).toContain("HA_NOVA_TEST_KEYRING_FILE");
+    expect(windowsDesktop).toContain('Join-Path $AppDataDir "ha-nova\\.test-relay-auth-token"');
+    expect(windowsDesktop).not.toContain('Join-Path $HOME ".config\\ha-nova\\.test-relay-auth-token"');
     expect(windowsDesktop).toContain('HA_NOVA_CLAUDE_MARKETPLACE_LOCAL = "1"');
     expect(windowsDesktop).toContain('Programs\\ha-nova');
     expect(windowsDesktop).toContain("Get-MergedPath");
@@ -266,7 +296,9 @@ describe("desktop validation helpers contract", () => {
     expect(windowsDesktop).toContain('$env:Path = Get-MergedPath');
     expect(windowsDesktop).toContain('[string]$HAHost = "127.0.0.1"');
     expect(windowsDesktop).not.toContain('[string]$Host = "127.0.0.1"');
-    expect(windowsDesktop).toContain("cmd.exe /d /s /c");
+    expect(windowsDesktop).toContain("& ha-nova @Arguments 2>&1");
+    expect(windowsDesktop).not.toContain("cmd.exe /d /s /c");
+    expect(windowsDesktop).toContain('$AppDataDir = if ($env:APPDATA)');
     expect(windowsDesktop).toContain('claude installed_plugins.json missing');
     expect(windowsDesktop).toContain('claude known_marketplaces.json missing');
     expect(windowsDesktop).toContain('ha-nova@ha-nova');
@@ -287,6 +319,8 @@ describe("desktop validation helpers contract", () => {
     expect(windowsDesktop).toContain('throw "purge uninstall left config unexpectedly"');
     expect(windowsDesktop).toContain('throw "purge uninstall left recovery marker unexpectedly"');
     expect(windowsDesktop).toContain('throw "purge uninstall left relay token unexpectedly"');
+    expect(packageJson).toContain('"test:desktop:windows:antigravity"');
+    expect(packageJson).toContain("-Client antigravity");
   });
 
   it("ships a dedicated public Windows onboarding validator with structured evidence", () => {

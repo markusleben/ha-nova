@@ -39,15 +39,15 @@ func TestPromptSetupClientInteractiveUsesEnhancedMenuWhenAvailable(t *testing.T)
 	uiInputSupportsTTY = func() bool { return true }
 	uiOutputSupportsANSI = func(io.Writer) bool { return true }
 
-	runner := &stubSetupMenuRunner{answer: "gemini"}
+	runner := &stubSetupMenuRunner{answer: "antigravity"}
 	interactiveSetupMenuRunner = runner
 
 	got, err := promptSetupClientInteractive(bufio.NewReader(strings.NewReader("")), &bytes.Buffer{}, testSetupClientChoices(), "claude")
 	if err != nil {
 		t.Fatalf("promptSetupClientInteractive() error: %v", err)
 	}
-	if got != "gemini" {
-		t.Fatalf("promptSetupClientInteractive() = %q, want gemini", got)
+	if got != "antigravity" {
+		t.Fatalf("promptSetupClientInteractive() = %q, want antigravity", got)
 	}
 	if runner.calls != 1 {
 		t.Fatalf("menu runner calls = %d, want 1", runner.calls)
@@ -122,7 +122,7 @@ func TestRenderSetupMenuBlockUsesCRLFForRawTerminalLayout(t *testing.T) {
 		DefaultValue: "claude",
 		Options: []setupMenuOption{
 			{Value: "claude", Label: "Claude Code"},
-			{Value: "gemini", Label: "Gemini CLI"},
+			{Value: "antigravity", Label: "Google Antigravity"},
 		},
 	}, 0)
 

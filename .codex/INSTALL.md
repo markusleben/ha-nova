@@ -29,5 +29,5 @@ After setup, HA NOVA commands like `ha-nova:read`, `ha-nova:write`, and `ha-nova
 
 - Claude Code: `.claude/INSTALL.md`
 - OpenCode: `.opencode/INSTALL.md`
-- Gemini CLI: `.gemini/INSTALL.md`
+- Google Antigravity: `.antigravity/INSTALL.md`
 - Hermes Agent: `.hermes/INSTALL.md`

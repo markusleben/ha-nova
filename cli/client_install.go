@@ -26,12 +26,14 @@ func installClients(paths runtimePaths, state *installState, clients []string) e
 }
 
 func installClient(paths runtimePaths, sourceRoot, client string) (string, error) {
+	requestedClient := client
+	client = canonicalClientID(client)
 	entry, ok, err := findRegistryClient(paths, client)
 	if err != nil {
 		return "", err
 	}
 	if !ok {
-		return "", fmt.Errorf("unsupported client: %s", client)
+		return "", fmt.Errorf("unsupported client: %s", requestedClient)
 	}
 	status := evaluateClientStatus(paths, installState{}, entry)
 	if !status.SupportedOnOS {
@@ -54,8 +56,14 @@ func installClient(paths runtimePaths, sourceRoot, client string) (string, error
 			return "", fmt.Errorf("unsupported skill-tree client: %s", client)
 		}
 	case "skill_flat":
-		return "copy", installGeminiClient(paths.Home, sourceRoot)
+		if client != "antigravity" {
+			return "", fmt.Errorf("unsupported skill-flat client: %s", client)
+		}
+		return "copy", installAntigravityClient(paths.Home, sourceRoot)
 	case "plugin_marketplace":
+		if client != "claude" {
+			return "", fmt.Errorf("unsupported plugin-marketplace client: %s", client)
+		}
 		return "plugin", installClaudePlugin(paths, sourceRoot)
 	default:
 		return "", fmt.Errorf("unsupported adapter kind: %s", entry.AdapterKind)

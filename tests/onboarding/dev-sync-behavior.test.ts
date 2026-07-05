@@ -1,4 +1,4 @@
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -102,8 +102,28 @@ describe("dev-sync behavior", () => {
     expect(existsSync(join(home, ".config/opencode/skills", "ha-nova", "ha-nova", "SKILL.md"))).toBe(true);
   });
 
-  it("refreshes Gemini when only the legacy marker exists", { timeout: 60000 }, () => {
-    const home = mkdtempSync(join(tmpdir(), "ha-nova-dev-sync-gemini-legacy-"));
+  it("refreshes Antigravity when only the legacy Gemini marker exists", { timeout: 60000 }, () => {
+    const home = mkdtempSync(join(tmpdir(), "ha-nova-dev-sync-antigravity-legacy-"));
+    const binDir = createMockBinaries();
+
+    mkdirSync(join(home, ".gemini", "skills", "ha-nova-read"), { recursive: true });
+    writeFileSync(join(home, ".gemini", "skills", "ha-nova-read", "SKILL.md"), "name: ha-nova-read\n");
+
+    const result = spawnSync("bash", ["scripts/dev-sync.sh"], {
+      cwd: REPO_ROOT,
+      encoding: "utf8",
+      timeout: 60000,
+      env: mockEnv(home, binDir),
+    });
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("Google Antigravity: refreshed via install-local-skills.sh antigravity");
+    expect(existsSync(join(home, ".gemini", "config", "skills", "ha-nova", "SKILL.md"))).toBe(true);
+    expect(existsSync(join(home, ".gemini", "skills", "ha-nova-read", "SKILL.md"))).toBe(false);
+  });
+
+  it("does not refresh Antigravity from stale Codex flat-copy markers", { timeout: 60000 }, () => {
+    const home = mkdtempSync(join(tmpdir(), "ha-nova-dev-sync-antigravity-codex-stale-"));
     const binDir = createMockBinaries();
 
     mkdirSync(join(home, ".agents", "skills", "ha-nova-read"), { recursive: true });
@@ -117,8 +137,8 @@ describe("dev-sync behavior", () => {
     });
 
     expect(result.status).toBe(0);
-    expect(result.stdout).toContain("Gemini: refreshed via install-local-skills.sh gemini");
-    expect(existsSync(join(home, ".gemini", "skills", "ha-nova", "SKILL.md"))).toBe(true);
+    expect(result.stdout).toContain("Google Antigravity: not installed — skipped");
+    expect(existsSync(join(home, ".gemini", "config", "skills", "ha-nova", "SKILL.md"))).toBe(false);
   });
 
   it("refreshes shared tools when no file clients are installed", { timeout: 90000 }, () => {
@@ -140,6 +160,48 @@ describe("dev-sync behavior", () => {
     expect(result.stdout).toContain("Shared tools refreshed");
     expect(existsSync(join(configDir, "version-check"))).toBe(true);
     expect(existsSync(join(configDir, "version.json"))).toBe(true);
+  });
+
+  it("copies the current client registry next to the dev-synced CLI runtime", { timeout: 90000 }, () => {
+    const home = mkdtempSync(join(tmpdir(), "ha-nova-dev-sync-client-registry-"));
+    const binDir = createMockBinaries();
+    const runtimeDir = join(home, ".local", "share", "ha-nova");
+    const pathBinDir = join(home, ".local", "bin");
+
+    mkdirSync(join(runtimeDir, "clients"), { recursive: true });
+    mkdirSync(pathBinDir, { recursive: true });
+    const initialBuild = spawnSync("go", ["build", "-o", join(runtimeDir, "ha-nova"), "."], {
+      cwd: join(REPO_ROOT, "cli"),
+      encoding: "utf8",
+      timeout: 90000,
+    });
+    expect(initialBuild.status).toBe(0);
+    symlinkSync(join(runtimeDir, "ha-nova"), join(pathBinDir, "ha-nova"));
+    writeFileSync(
+      join(runtimeDir, "clients", "registry.json"),
+      '{"clients":[{"id":"gemini","label":"Gemini CLI","adapter_kind":"skill_tree","supported_os":["macos"]}]}\n',
+    );
+
+    const result = spawnSync("bash", ["scripts/dev-sync.sh"], {
+      cwd: REPO_ROOT,
+      encoding: "utf8",
+      timeout: 90000,
+      env: mockEnv(home, binDir, { PATH: `${pathBinDir}:${binDir}:${process.env.PATH ?? ""}` }),
+    });
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("CLI: built local Go source");
+
+    const syncedRegistry = readFileSync(join(runtimeDir, "clients", "registry.json"), "utf8");
+    const syncedBundle = readFileSync(join(runtimeDir, "bundle.json"), "utf8");
+    expect(syncedRegistry).toContain('"id": "antigravity"');
+    expect(syncedRegistry).toContain('"label": "Google Antigravity"');
+    expect(syncedRegistry).not.toContain('"id":"gemini"');
+    expect(syncedBundle).toContain('"version": "0.7.0"');
+    expect(syncedBundle).toContain('"bundle_format_version": 1');
+    expect(existsSync(join(runtimeDir, "skills", "calendar", "SKILL.md"))).toBe(true);
+    expect(existsSync(join(runtimeDir, "skills", "health", "SKILL.md"))).toBe(true);
+    expect(existsSync(join(runtimeDir, "docs", "reference", "skill-architecture.md"))).toBe(true);
   });
 
   it("fails loudly when repo version.json is missing", () => {

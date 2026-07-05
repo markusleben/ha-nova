@@ -217,14 +217,14 @@ func TestRunClientAutoRepair_HandlesEmptyList(t *testing.T) {
 func TestRunClientAutoRepair_PreservesOrder(t *testing.T) {
 	clients := []clientStatus{
 		{ID: "codex", Label: "Codex CLI", Ready: true, RuntimeDetected: true, Attached: true},
-		{ID: "gemini", Label: "Gemini CLI", Ready: true, RuntimeDetected: true, Attached: true},
+		{ID: "antigravity", Label: "Google Antigravity", Ready: true, RuntimeDetected: true, Attached: true},
 	}
 	got := runClientAutoRepair(runtimePaths{}, clients)
 	if len(got) != 2 {
 		t.Fatalf("expected 2 outcomes, got %d", len(got))
 	}
-	if got[0].ClientID != "codex" || got[1].ClientID != "gemini" {
-		t.Fatalf("expected order codex,gemini; got %s,%s", got[0].ClientID, got[1].ClientID)
+	if got[0].ClientID != "codex" || got[1].ClientID != "antigravity" {
+		t.Fatalf("expected order codex,antigravity; got %s,%s", got[0].ClientID, got[1].ClientID)
 	}
 	for _, oc := range got {
 		if oc.Repaired || oc.Err != nil {

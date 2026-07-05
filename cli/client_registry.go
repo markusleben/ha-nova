@@ -120,6 +120,7 @@ func locateClientRegistry(paths runtimePaths) (string, error) {
 }
 
 func findRegistryClient(paths runtimePaths, id string) (clientRegistryEntry, bool, error) {
+	id = canonicalClientID(id)
 	clients, err := loadClientRegistry(paths)
 	if err != nil {
 		return clientRegistryEntry{}, false, err

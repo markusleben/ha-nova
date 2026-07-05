@@ -119,9 +119,9 @@ describe("ha cross-skill integration", () => {
 
     expect(writeSkill).toContain("unrelated structure, aliases, or formatting");
     expect(writeSkill).toContain("Treat notification copy as user-authored content");
-    expect(writeSkill).toContain("must not restyle, relocalize, or restructure existing notification text");
+    expect(writeSkill).toContain("must not restyle, relocalize, or restructure existing text");
     expect(writeSkill).toContain("change only the requested copy");
-    expect(writeSkill).toContain("single blocking question");
+    expect(writeSkill).toContain("ask one blocking question");
     expect(writeSkill).toContain("second ambiguity question");
     expect(refactorGuide).toContain("directly affected consumers");
     expect(refactorGuide).toContain("Do not rewrite, rename, disable, or delete unrelated configs");
@@ -136,15 +136,34 @@ describe("ha cross-skill integration", () => {
     expect(outputRules).toContain("Localize section headings and labels to the user's language");
     expect(outputRules).toContain("Do not mix English slot labels such as `Changes`, `Options`, or `Pre-write check` into a German response");
     expect(outputRules).toContain("Prefer plain short labels over decorative Markdown headings");
-    expect(outputRules).toContain("preview summary, changes, pre-write check/impact, save status, options");
+    expect(outputRules).toContain("preview summary, changes or summary, pre-write check/impact, save status, options");
     expect(outputRules).toContain("Use stable localized labels for those slots across a conversation");
     expect(outputRules).toContain("same label and in the same order");
     expect(outputRules).toContain("omit that slot instead of printing an empty placeholder");
     expect(outputRules).toContain("nothing has been saved yet before showing the options");
     expect(outputRules).toContain("literal `apply`, `show yaml`, and `cancel`");
+    expect(outputRules).toContain("Keep delete previews structured in this order");
+    expect(outputRules).toContain("Delete previews must say nothing has been deleted yet");
+    expect(outputRules).toContain("never render `apply`, `show yaml`, `cancel`, or a selectable menu");
+    expect(outputRules).toContain("Internal task, card, or payload labels are execution artifacts too.");
+    expect(outputRules).toContain("Automation Payload");
+    expect(outputRules).toContain("Apply And Verify");
     expect(writeSafety).toContain("Save-status slot: explicitly say that nothing has been saved yet");
     expect(writeSafety).toContain("historical slot name, not a required literal Markdown heading");
     expect(writeSafety).toContain("<localized options label>:");
+  });
+
+  it("keeps create cleanup honest without implying backup-only rollback", () => {
+    const writeSkill = readFileSync("skills/write/SKILL.md", "utf8");
+    const writeSafety = readFileSync("skills/ha-nova/write-safety.md", "utf8");
+
+    expect(writeSkill).toContain("Creates → cleanup via normal HA NOVA delete flow");
+    expect(writeSkill).toContain("preview, `confirm:<token>`, and absence verification");
+    expect(writeSafety).toContain("A create is undone by deleting the new item through the");
+    expect(writeSafety).toContain("manual deletion or a full Home Assistant Backup restore is the only cleanup path");
+    expect(writeSafety).toContain("Do not call this `revert`");
+    expect(writeSafety).toContain("A delete has no HA NOVA `revert`");
+    expect(writeSafety).toContain("suitable existing Home Assistant Backup");
   });
 
   it("keeps write flow aligned to unique_id-first resolution and runtime verification", () => {
@@ -160,7 +179,7 @@ describe("ha cross-skill integration", () => {
     expect(applyAgent).toContain("runtime_state");
 
     expect(writeSkill).toContain("entity_id -> unique_id");
-    expect(writeSkill).toContain("resolve the actual `entity_id` from entity registry");
+    expect(writeSkill).toContain("resolve actual `entity_id` by matching `unique_id == <target_id>`");
     expect(writeSkill).toContain("matching `unique_id == <target_id>`");
     expect(writeSkill).toContain("do not silently assume the requested slug won");
   });

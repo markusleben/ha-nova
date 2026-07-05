@@ -105,8 +105,7 @@ describe("ha safety contract", () => {
 
     expect(router).toContain("invalid Home Assistant premises");
     expect(router).toContain("briefly and technically");
-    expect(writeSkill).toContain("invalid Home Assistant premise");
-    expect(writeSkill).toContain("before continuing");
+    expect(writeSkill).toContain("Correct invalid premises");
     expect(fallbackSkill).toContain("invalid Home Assistant premises");
     expect(fallbackSkill).toContain("wrong premise");
   });

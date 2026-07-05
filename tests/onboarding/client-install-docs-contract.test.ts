@@ -18,7 +18,7 @@ describe("client install docs contract", () => {
   const governance = readFileSync("docs/reference/documentation-governance.md", "utf8");
   const claudeInstall = readFileSync(".claude/INSTALL.md", "utf8");
   const codexInstall = readFileSync(".codex/INSTALL.md", "utf8");
-  const geminiInstall = readFileSync(".gemini/INSTALL.md", "utf8");
+  const antigravityInstall = readFileSync(".antigravity/INSTALL.md", "utf8");
   const opencodeInstall = readFileSync(".opencode/INSTALL.md", "utf8");
   const hermesInstall = readFileSync(".hermes/INSTALL.md", "utf8");
   const hermesReleaseGate = readFileSync("docs/work/2026-04-24-hermes-release-claim-gating.md", "utf8");
@@ -31,7 +31,10 @@ describe("client install docs contract", () => {
     expect(readme).toContain("Copy the one-liner for your OS");
     expect(readme).toContain("https://github.com/markusleben/ha-nova/releases/latest");
     expect(readme).toContain("Git for Windows / Git Bash");
-    expect(readme).toContain("Gemini CLI needs Node.js");
+    expect(readme).toContain("Google Antigravity Desktop or CLI must be installed");
+    expect(readme).toContain("Google Antigravity is the current Google client path");
+    expect(readme).toContain("`ha-nova setup gemini` remains a legacy alias");
+    expect(readme).not.toContain("%LOCALAPPDATA%\\Programs\\antigravity\\Antigravity.exe");
     // Hermes is now a listed (preview) client like the others; the gate is resolved.
     expect(readme).not.toContain("docs/reference/hermes-platform-validation.md");
     expect(readme).not.toContain("raw.githubusercontent.com/markusleben/ha-nova/main/install.sh");
@@ -41,9 +44,16 @@ describe("client install docs contract", () => {
   it("keeps client overlays scoped to client-specific deltas", () => {
     expectOverlayToPointBackToReadme(claudeInstall);
     expectOverlayToPointBackToReadme(codexInstall);
-    expectOverlayToPointBackToReadme(geminiInstall);
+    expectOverlayToPointBackToReadme(antigravityInstall);
     expectOverlayToPointBackToReadme(opencodeInstall);
     expectOverlayToPointBackToReadme(hermesInstall);
+  });
+
+  it("keeps reciprocal client overlay links on the current Antigravity overlay", () => {
+    for (const overlay of [claudeInstall, codexInstall, opencodeInstall, hermesInstall]) {
+      expect(overlay).toContain("Google Antigravity: `.antigravity/INSTALL.md`");
+      expect(overlay).not.toContain(".gemini/INSTALL.md");
+    }
   });
 
   it("documents Claude-specific setup, Windows caveats, and local marketplace behavior", () => {
@@ -70,11 +80,11 @@ describe("client install docs contract", () => {
     expect(claudeInstall).toContain("claude --plugin-dir");
     expect(claudeInstall).toContain("/ha-nova:read");
     expect(claudeInstall).not.toContain("ha-nova setup codex");
-    expect(claudeInstall).not.toContain("ha-nova setup gemini");
+    expect(claudeInstall).not.toContain("ha-nova setup antigravity");
     expect(claudeInstall).not.toContain("ha-nova setup opencode");
   });
 
-  it("documents Codex, Gemini, OpenCode, and Hermes deltas without inheriting Claude-only behavior", () => {
+  it("documents Codex, Antigravity, OpenCode, and Hermes deltas without inheriting Claude-only behavior", () => {
     expect(codexInstall).toContain("Codex CLI");
     expect(codexInstall).toContain("Install the Codex client separately");
     expect(codexInstall).toContain("ha-nova setup codex");
@@ -83,19 +93,31 @@ describe("client install docs contract", () => {
     expect(codexInstall).not.toContain("CLAUDE_CODE_GIT_BASH_PATH");
     expect(codexInstall).not.toContain("Git Bash");
 
-    expect(geminiInstall).toContain("Gemini CLI");
-    expect(geminiInstall).toContain("Install the Gemini client separately");
-    expect(geminiInstall).toContain("ha-nova setup gemini");
-    expect(geminiInstall).toContain("ha-nova check-update");
-    expect(geminiInstall).toContain("Node.js");
-    expect(geminiInstall).toContain("node --version");
-    expect(geminiInstall).toContain("gemini --version");
-    expect(geminiInstall).toContain("open a fresh PowerShell window");
-    expect(geminiInstall).toContain("skips Gemini");
-    expect(geminiInstall).toContain("~/.gemini/skills/ha-nova-*");
-    expect(geminiInstall).not.toContain("claude install");
-    expect(geminiInstall).not.toContain("CLAUDE_CODE_GIT_BASH_PATH");
-    expect(geminiInstall).not.toContain("Git Bash");
+    expect(antigravityInstall).toContain("Google Antigravity");
+    expect(antigravityInstall).toContain("Desktop or CLI");
+    expect(antigravityInstall).toContain("Former Gemini Users");
+    expect(antigravityInstall).toContain("current Google client path");
+    expect(antigravityInstall).toContain("Install the Antigravity client separately");
+    expect(antigravityInstall).toContain("ha-nova setup antigravity");
+    expect(antigravityInstall).toContain("ha-nova check-update");
+    expect(antigravityInstall).toContain("agy --version");
+    expect(antigravityInstall).toContain("If you use Desktop only on Windows, HA NOVA detects the standard per-user install");
+    expect(antigravityInstall).toContain("%LOCALAPPDATA%\\Programs\\Antigravity\\Antigravity.exe");
+    expect(antigravityInstall).toContain("working `antigravity` or `antigravity-ide` launcher is enough");
+    expect(antigravityInstall).toContain("does not guess tarball extraction paths");
+    expect(antigravityInstall).toContain("/Applications/Antigravity.app");
+    expect(antigravityInstall).toContain("/Applications/Antigravity IDE.app");
+    expect(antigravityInstall).toContain("open a fresh PowerShell window");
+    expect(antigravityInstall).toContain("~/.gemini/config/skills/ha-nova/");
+    expect(antigravityInstall).toContain("~/.gemini/config/skills/ha-nova-*");
+    expect(antigravityInstall).toContain("ha-nova:ha-nova-read");
+    expect(antigravityInstall).toContain("ha-nova:ha-nova-write");
+    expect(antigravityInstall).toContain("ha-nova:ha-nova-review");
+    expect(antigravityInstall).not.toContain("`ha-nova:read`, `ha-nova:write`, and `ha-nova:review`");
+    expect(antigravityInstall).toContain("ha-nova setup gemini");
+    expect(antigravityInstall).not.toContain("claude install");
+    expect(antigravityInstall).not.toContain("CLAUDE_CODE_GIT_BASH_PATH");
+    expect(antigravityInstall).not.toContain("Git Bash");
 
     expect(opencodeInstall).toContain("OpenCode");
     expect(opencodeInstall).toContain("Install the OpenCode client separately");
@@ -149,18 +171,18 @@ describe("client install docs contract", () => {
     expect(hermesInstall).toContain("skill_view");
 
     expect(codexInstall).not.toContain("HA_NOVA_CLAUDE_MARKETPLACE_LOCAL=1");
-    expect(geminiInstall).not.toContain("HA_NOVA_CLAUDE_MARKETPLACE_LOCAL=1");
+    expect(antigravityInstall).not.toContain("HA_NOVA_CLAUDE_MARKETPLACE_LOCAL=1");
     expect(opencodeInstall).not.toContain("HA_NOVA_CLAUDE_MARKETPLACE_LOCAL=1");
     expect(hermesInstall).not.toContain("HA_NOVA_CLAUDE_MARKETPLACE_LOCAL=1");
     expect(hermesInstall).not.toContain("CLAUDE_CODE_GIT_BASH_PATH");
     expect(hermesInstall).not.toContain("ha-nova setup claude");
-    expect(hermesInstall).not.toContain("ha-nova setup gemini");
+    expect(hermesInstall).not.toContain("ha-nova setup antigravity");
     expect(hermesInstall).not.toContain("ha-nova setup opencode");
     expect(hermesInstall).not.toContain("Git Bash");
   });
 
   it("classifies per-client install docs as active derived install overlays", () => {
-    expect(governance).toContain("`.claude/INSTALL.md`, `.codex/INSTALL.md`, `.gemini/INSTALL.md`, `.opencode/INSTALL.md`, `.hermes/INSTALL.md`");
+    expect(governance).toContain("`.claude/INSTALL.md`, `.codex/INSTALL.md`, `.antigravity/INSTALL.md`, `.opencode/INSTALL.md`, `.hermes/INSTALL.md`");
     expect(governance).toContain("client-specific install overlays");
     expect(governance).toContain("cover client deltas only");
     expect(governance).toContain("point back to `README.md`");
@@ -169,11 +191,12 @@ describe("client install docs contract", () => {
   it("keeps README and Windows client overlays aligned on prerequisites and Windows guidance", () => {
     expect(readme).toContain("Windows");
     expect(readme).toContain("Git for Windows / Git Bash");
-    expect(readme).toContain("Gemini CLI needs Node.js");
+    expect(readme).toContain("Google Antigravity Desktop or CLI must be installed");
     expect(claudeInstall).toContain("Windows Notes");
-    expect(geminiInstall).toContain("Windows Notes");
-    expect(geminiInstall).toContain("Node.js");
-    expect(geminiInstall).toContain("open a fresh PowerShell window");
+    expect(antigravityInstall).toContain("Windows Notes");
+    expect(antigravityInstall).toContain("Linux Notes");
+    expect(antigravityInstall).toContain("agy --version");
+    expect(antigravityInstall).toContain("open a fresh PowerShell window");
     expect(claudeInstall).toContain("Git for Windows");
     expect(claudeInstall).toContain("Git Bash");
   });
