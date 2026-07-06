@@ -1,4 +1,8 @@
-import { constants, readFileSync, statSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { execFileSync } from "node:child_process";
+import { constants, mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
@@ -66,6 +70,88 @@ describe("install.ps1 contract", () => {
     );
     expect(content).not.toContain(
       "$ProgressPreference = 'SilentlyContinue'",
+    );
+  });
+
+  it("uses resilient native downloads for GitHub release assets", () => {
+    expect(content).toContain("function Initialize-WebSecurity");
+    expect(content).toContain("function Invoke-GitHubJson");
+    expect(content).toContain("[Net.SecurityProtocolType]::Tls12");
+    expect(content).toContain("function Get-DownloadHeaders");
+    expect(content).toContain("function Invoke-DownloadFileWithMethod");
+    expect(content).toContain("function Invoke-DownloadFileVerified");
+    expect(content).toContain('"User-Agent" = "ha-nova-installer"');
+    expect(content).toContain("UseBasicParsing");
+    expect(content).toContain("MaximumRedirection = 10");
+    expect(content).toContain("[System.Net.Http.HttpClient]");
+    expect(content).toContain("DefaultProxyCredentials");
+    expect(content).toContain("Start-BitsTransfer");
+    expect(content).toContain("Could not download HA NOVA release asset");
+    expect(content).toContain("Could not download and verify HA NOVA release asset");
+    expect(content).toContain("Could not read the latest HA NOVA release from GitHub");
+    expect(content).toContain("github.com release downloads");
+    expect(content).toContain("$release = Invoke-GitHubJson -Uri $LatestReleaseUrl");
+    expect(content).toContain("Initialize-WebSecurity\n\n$expectedVersion");
+    expect(content).toContain("HA_NOVA_INSTALLER_TEST_EXPORT");
+  });
+
+  it("retries a hash-mismatched primary download with the next transport", async () => {
+    try {
+      execFileSync("pwsh", ["-NoProfile", "-Command", "exit 0"], { stdio: "ignore" });
+    } catch {
+      return;
+    }
+
+    const payload = Buffer.from("verified fallback payload", "utf8");
+    const expectedHash = createHash("sha256").update(payload).digest("hex");
+    const tempDir = mkdtempSync(join(tmpdir(), "ha-nova-installer-test-"));
+    const outFile = join(tempDir, "bundle.zip");
+    const probe = join(tempDir, "probe.ps1");
+    const installScript = join(process.cwd(), "install.ps1").replaceAll("'", "''");
+    const escapedOutFile = outFile.replaceAll("'", "''");
+    writeFileSync(
+      probe,
+      `
+$ErrorActionPreference = "Stop"
+$env:HA_NOVA_INSTALLER_TEST_EXPORT = "1"
+. '${installScript}'
+function Get-DownloadMethods {
+  return @("Invoke-WebRequest", "HttpClient", "BITS")
+}
+function Invoke-DownloadFileWithMethod {
+  param(
+    [string]$Method,
+    [string]$Uri,
+    [string]$OutFile
+  )
+  $script:methods += $Method
+  if ($Method -eq "Invoke-WebRequest") {
+    Set-Content -LiteralPath $OutFile -Value "not the expected archive" -NoNewline
+    return
+  }
+  if ($Method -eq "HttpClient") {
+    Set-Content -LiteralPath $OutFile -Value "verified fallback payload" -NoNewline
+    return
+  }
+  throw "BITS should not run after verified HttpClient success"
+}
+$script:methods = @()
+Invoke-DownloadFileVerified -Uri "https://example.invalid/bundle.zip" -OutFile '${escapedOutFile}' -ExpectedSha256 "${expectedHash}"
+$actual = [System.IO.File]::ReadAllText('${escapedOutFile}')
+if (-not $actual.Contains("verified fallback payload")) {
+  throw "fallback did not replace the mismatched primary download"
+}
+if (($script:methods -join ",") -ne "Invoke-WebRequest,HttpClient") {
+  throw "unexpected download method sequence: $($script:methods -join ',')"
+}
+`,
+      "utf8",
+    );
+
+    execFileSync(
+      "pwsh",
+      ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", probe],
+      { stdio: "pipe" },
     );
   });
 

@@ -51,38 +51,18 @@ func stageBundle(paths runtimePaths, version string) (string, error) {
 	if checksumURL == "" {
 		checksumURL = downloadURL + ".sha256"
 	}
-	resp, err := httpClient.Get(downloadURL)
+	// Checksum first: it is the ground truth for whether a bundle download is
+	// usable, so a wrong-bytes bundle (proxy page, truncated cache) can be
+	// discarded and re-downloaded instead of failing the update outright.
+	checksumPath := archivePath + ".sha256"
+	if err := downloadAssetFile(checksumURL, checksumPath); err != nil {
+		return "", err
+	}
+	manifestBytes, err := os.ReadFile(checksumPath)
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode >= 400 {
-		return "", fmt.Errorf("download failed: HTTP %d", resp.StatusCode)
-	}
-	out, err := os.Create(archivePath)
-	if err != nil {
-		return "", err
-	}
-	if _, err := io.Copy(out, resp.Body); err != nil {
-		out.Close()
-		return "", err
-	}
-	if err := out.Close(); err != nil {
-		return "", err
-	}
-	checksumResp, err := httpClient.Get(checksumURL)
-	if err != nil {
-		return "", err
-	}
-	defer checksumResp.Body.Close()
-	if checksumResp.StatusCode >= 400 {
-		return "", fmt.Errorf("checksum download failed: HTTP %d", checksumResp.StatusCode)
-	}
-	manifestBytes, err := io.ReadAll(checksumResp.Body)
-	if err != nil {
-		return "", err
-	}
-	if err := verifyFileChecksum(archivePath, string(manifestBytes)); err != nil {
+	if err := downloadAssetFileVerified(downloadURL, archivePath, string(manifestBytes)); err != nil {
 		return "", err
 	}
 

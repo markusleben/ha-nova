@@ -1,6 +1,39 @@
-import { constants, readFileSync, statSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { execFile, execFileSync } from "node:child_process";
+import { createServer, type Server } from "node:http";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { promisify } from "node:util";
+import { constants, mkdtempSync, readFileSync, statSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
+
+const execFileAsync = promisify(execFile);
+
+function hasBash(): boolean {
+  try {
+    execFileSync("bash", ["-c", "exit 0"], { stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function listen(server: Server): Promise<number> {
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  if (address === null || typeof address === "string") {
+    throw new Error("test server did not expose a port");
+  }
+  return address.port;
+}
+
+async function runInstallerFunctions(script: string): Promise<void> {
+  await execFileAsync("bash", [
+    "-c",
+    `set -euo pipefail; export HA_NOVA_INSTALLER_TEST_EXPORT=1 HA_NOVA_PLAIN_UI=1; source install.sh; ${script}`,
+  ]);
+}
 
 describe("install.sh contract", () => {
   const content = readFileSync("install.sh", "utf8");
@@ -103,6 +136,88 @@ describe("install.sh contract", () => {
     expect(content).toContain("Next step: ha-nova setup");
     expect(content).toContain("Need help later? Run: ha-nova doctor");
   });
+
+  it("uses resilient curl downloads with checksum-first verification", () => {
+    expect(content).toContain("fetch_url()");
+    expect(content).toContain("--connect-timeout 15");
+    expect(content).toContain("--retry 4");
+    expect(content).toContain("--retry-all-errors");
+    expect(content).toContain("download_bundle_archive()");
+    expect(content).toContain('fail_download "the HA NOVA release bundle"');
+    expect(content).toContain('fail_download "the HA NOVA bundle checksum"');
+    expect(content).toContain("Could not read the latest HA NOVA release from");
+    expect(content).toContain("HA_NOVA_INSTALLER_TEST_EXPORT");
+    // Checksum is downloaded before the bundle so a wrong-bytes archive can be
+    // discarded and re-downloaded once before failing.
+    const helper = content.slice(content.indexOf("download_bundle_archive()"));
+    expect(helper.indexOf("${checksum_url}")).toBeLessThan(helper.indexOf("${archive_url}"));
+    expect(helper).toContain('rm -f "${archive_path}"');
+  });
+
+  it("retries a transient server error during download", async () => {
+    if (!hasBash()) {
+      return;
+    }
+
+    let calls = 0;
+    const server = createServer((req, res) => {
+      calls += 1;
+      if (calls === 1) {
+        res.writeHead(503).end("flaky");
+        return;
+      }
+      res.writeHead(200).end("payload");
+    });
+    const port = await listen(server);
+    const outFile = join(mkdtempSync(join(tmpdir(), "ha-nova-installer-test-")), "asset");
+
+    try {
+      await runInstallerFunctions(`fetch_url "http://127.0.0.1:${port}/asset" "${outFile}"`);
+    } finally {
+      server.close();
+    }
+
+    expect(calls).toBe(2);
+    expect(readFileSync(outFile, "utf8")).toBe("payload");
+  }, 30_000);
+
+  it("re-downloads the bundle once when the checksum does not match", async () => {
+    if (!hasBash()) {
+      return;
+    }
+
+    const payload = "verified bundle payload";
+    const expectedHash = createHash("sha256").update(payload).digest("hex");
+    let bundleCalls = 0;
+    const server = createServer((req, res) => {
+      if (req.url === "/bundle.sha256") {
+        res.writeHead(200).end(`${expectedHash}  bundle\n`);
+        return;
+      }
+      bundleCalls += 1;
+      if (bundleCalls === 1) {
+        // 200 OK with wrong bytes: proxy substitution / captive portal.
+        res.writeHead(200).end("<html>not the bundle</html>");
+        return;
+      }
+      res.writeHead(200).end(payload);
+    });
+    const port = await listen(server);
+    const tempDir = mkdtempSync(join(tmpdir(), "ha-nova-installer-test-"));
+    const archiveFile = join(tempDir, "bundle.tar.gz");
+    const checksumFile = `${archiveFile}.sha256`;
+
+    try {
+      await runInstallerFunctions(
+        `download_bundle_archive "http://127.0.0.1:${port}/bundle" "http://127.0.0.1:${port}/bundle.sha256" "${archiveFile}" "${checksumFile}"`,
+      );
+    } finally {
+      server.close();
+    }
+
+    expect(bundleCalls).toBe(2);
+    expect(readFileSync(archiveFile, "utf8")).toBe(payload);
+  }, 30_000);
 
   it("does not use sudo or eval", () => {
     expect(content).not.toContain("sudo ");

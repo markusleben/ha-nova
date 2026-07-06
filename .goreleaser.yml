@@ -83,26 +83,14 @@ release:
     ```
 
     Windows uses a single supported install path: `install.ps1`. Return an RC install to stable later with `ha-nova update`.
-    {{ else }}## New Features
+    {{ else }}## Bug Fixes
 
-    - Home Assistant status checks summarize repairs, integrations, System Health, entity availability, and low-battery signals.
-    - Calendar reads can list calendars and fetch bounded event windows.
-    - `ha-nova trace latest` finds the newest automation or script trace without guessing run IDs.
-    - Google Antigravity is now the current Google client path; `ha-nova setup gemini` remains a legacy alias.
-    - Install/status JSON gives clearer support data for local debugging.
-
-    ## Bug Fixes
-
-    - Review catches boolean-like templates compared to string `"True"` / `"False"` values.
-    - Review warns about same-block `variables:` dependencies regardless of key order.
-    - Review flags capacity-like variables that may accidentally use current `available_energy` instead of maximum or nominal capacity.
-    - Write previews are clearer in terminal clients and keep notification title/message changes visible.
-    - Deletes treat verified absence as success and avoid unsafe alternate delete retries.
+    - Windows installer downloads are more resilient on fresh Windows systems: the installer sets modern TLS defaults, sends GitHub-friendly headers, retries release assets with native fallback transports, and retries the ZIP download when a proxy or partial transfer produces content that fails SHA256 verification.
 
     ## What To Watch
 
-    - Current skills require NOVA Relay `0.2.3` or newer.
-    - Google Antigravity detection is intentionally narrow: standard Windows per-user Desktop install or `agy`, and Linux `agy` / `antigravity` / `antigravity-ide` on `PATH`.
+    - If a network, proxy, or firewall blocks GitHub Release downloads entirely, install still cannot complete, but the installer now reports one HA NOVA download error with the attempted transports instead of leaking a raw `Invoke-WebRequest` stack trace.
+    - The already-published `v0.7.0` tag is immutable. Use `v0.7.1` or the latest release command below for this Windows installer fix.
 
     Stable install commands are release-pinned for this tag.
 

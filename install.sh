@@ -14,6 +14,7 @@ CONFIG_DIR="${HOME}/.config/ha-nova"
 PATH_BLOCK_HEADER="# Added by HA NOVA"
 PATH_RC_FILE=""
 TMP_DIR=""
+CURL_RETRY_ALL="__unset__"
 PLAIN_UI="0"
 UI_RESET=""
 UI_BOLD=""
@@ -152,6 +153,33 @@ require_interactive_tty() {
   fail "Interactive input required. Re-run in a terminal."
 }
 
+# Single download path for every remote asset. Bare `curl -fsSL` gives up on
+# the first transient hiccup (flaky WLAN, throttling CDN edge, HTTP 5xx) and
+# surfaces a raw curl abort. Retries with a connect timeout keep the README
+# one-liner working on the connections real users actually have.
+fetch_url() {
+  local url="$1"
+  local out="$2"
+
+  if [[ "${CURL_RETRY_ALL}" == "__unset__" ]]; then
+    CURL_RETRY_ALL=""
+    # --retry-all-errors needs curl >= 7.71; probe without touching the
+    # network (unknown option makes curl fail before --version prints).
+    if curl --retry-all-errors --version >/dev/null 2>&1; then
+      CURL_RETRY_ALL="--retry-all-errors"
+    fi
+  fi
+
+  # shellcheck disable=SC2086
+  curl -fsSL --connect-timeout 15 --retry 4 --retry-delay 1 ${CURL_RETRY_ALL} "${url}" -o "${out}"
+}
+
+fail_download() {
+  local label="$1"
+  local url="$2"
+  fail "Could not download ${label}: ${url} — check that this machine can reach github.com release downloads, then rerun the install command."
+}
+
 extract_json_string() {
   local key="$1"
   local json_file="$2"
@@ -260,7 +288,9 @@ expected_version_tag() {
 
 fetch_latest_version_tag() {
   local json_file="${TMP_DIR}/latest-release.json"
-  curl -fsSL "${LATEST_RELEASE_API}" -o "${json_file}"
+  if ! fetch_url "${LATEST_RELEASE_API}" "${json_file}"; then
+    fail "Could not read the latest HA NOVA release from ${LATEST_RELEASE_API} — set HA_NOVA_VERSION to an exact version or check that this machine can reach api.github.com."
+  fi
 
   local tag
   tag="$(extract_json_string "tag_name" "${json_file}")"
@@ -326,20 +356,40 @@ bundle_version_tag() {
   normalize_version_tag "${version}"
 }
 
+# Checksum first: it is the ground truth for whether a bundle download is
+# usable, so a wrong-bytes archive (proxy HTML page, captive portal, truncated
+# cache) gets one clean re-download instead of failing the install outright.
+download_bundle_archive() {
+  local archive_url="$1"
+  local checksum_url="$2"
+  local archive_path="$3"
+  local checksum_path="$4"
+  local expected actual
+
+  fetch_url "${checksum_url}" "${checksum_path}" || fail_download "the HA NOVA bundle checksum" "${checksum_url}"
+  expected="$(awk '{print $1}' "${checksum_path}" | head -1)"
+  [[ -n "${expected}" ]] || fail "Downloaded bundle checksum verification failed."
+
+  fetch_url "${archive_url}" "${archive_path}" || fail_download "the HA NOVA release bundle" "${archive_url}"
+  actual="$(compute_sha256 "${archive_path}")"
+  if [[ "${actual}" != "${expected}" ]]; then
+    rm -f "${archive_path}"
+    fetch_url "${archive_url}" "${archive_path}" || fail_download "the HA NOVA release bundle" "${archive_url}"
+    actual="$(compute_sha256 "${archive_path}")"
+  fi
+  [[ "${actual}" == "${expected}" ]] || fail "Downloaded bundle checksum verification failed for ${archive_url}."
+}
+
 download_bundle() {
   local version_tag="$1"
-  local archive_name archive_path checksum_path extract_dir bundle_root expected actual bundle_os bundle_arch bundle_binary
+  local archive_name archive_path checksum_path extract_dir bundle_root bundle_os bundle_arch bundle_binary
   archive_name="$(bundle_name)"
   archive_path="${TMP_DIR}/${archive_name}"
   checksum_path="${archive_path}.sha256"
   extract_dir="${TMP_DIR}/extract"
 
   mkdir -p "${extract_dir}"
-  curl -fsSL "$(bundle_download_url "${version_tag}")" -o "${archive_path}"
-  curl -fsSL "$(bundle_checksum_url "${version_tag}")" -o "${checksum_path}"
-  expected="$(awk '{print $1}' "${checksum_path}" | head -1)"
-  actual="$(compute_sha256 "${archive_path}")"
-  [[ -n "${expected}" && "${actual}" == "${expected}" ]] || fail "Downloaded bundle checksum verification failed."
+  download_bundle_archive "$(bundle_download_url "${version_tag}")" "$(bundle_checksum_url "${version_tag}")" "${archive_path}" "${checksum_path}"
   tar -xzf "${archive_path}" -C "${extract_dir}"
 
   bundle_root="${extract_dir}/ha-nova"
@@ -456,5 +506,12 @@ main() {
   note "Need help later? Run: ha-nova doctor"
   run_setup "${BIN_LINK}"
 }
+
+# Test-only export guard: behavior tests source the installer functions
+# without running the installer (mirrors HA_NOVA_INSTALLER_TEST_EXPORT in
+# install.ps1).
+if [[ "${HA_NOVA_INSTALLER_TEST_EXPORT:-0}" == "1" ]]; then
+  return 0 2>/dev/null || exit 0
+fi
 
 main "$@"

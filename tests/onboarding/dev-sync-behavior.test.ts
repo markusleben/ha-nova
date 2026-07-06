@@ -197,7 +197,10 @@ describe("dev-sync behavior", () => {
     expect(syncedRegistry).toContain('"id": "antigravity"');
     expect(syncedRegistry).toContain('"label": "Google Antigravity"');
     expect(syncedRegistry).not.toContain('"id":"gemini"');
-    expect(syncedBundle).toContain('"version": "0.7.0"');
+    // Read the expected version from the repo manifest so a release bump
+    // cannot silently break this behavior test.
+    const repoVersion = JSON.parse(readFileSync(join(REPO_ROOT, "version.json"), "utf8")).skill_version;
+    expect(syncedBundle).toContain(`"version": "${repoVersion}"`);
     expect(syncedBundle).toContain('"bundle_format_version": 1');
     expect(existsSync(join(runtimeDir, "skills", "calendar", "SKILL.md"))).toBe(true);
     expect(existsSync(join(runtimeDir, "skills", "health", "SKILL.md"))).toBe(true);
