@@ -29,6 +29,10 @@ const assetDownloadAttempts = 3
 // assetRetryDelay is a variable so tests can run the retry loop without sleeps.
 var assetRetryDelay = time.Second
 
+// assetBodyIdleTimeout bounds stalled body reads without imposing a total
+// download timeout. Slow downloads can continue as long as bytes keep arriving.
+var assetBodyIdleTimeout = 30 * time.Second
+
 func downloadAssetFile(url, dest string) error {
 	return downloadAssetFileWithVerify(url, dest, "")
 }
@@ -87,7 +91,7 @@ func downloadAssetFileOnce(url, dest string) (retryable bool, err error) {
 	if err != nil {
 		return false, err
 	}
-	written, copyErr := io.Copy(out, resp.Body)
+	written, copyErr := copyWithIdleTimeout(out, resp.Body, assetBodyIdleTimeout)
 	closeErr := out.Close()
 	if copyErr != nil {
 		_ = os.Remove(dest)
@@ -102,4 +106,47 @@ func downloadAssetFileOnce(url, dest string) (retryable bool, err error) {
 		return true, fmt.Errorf("download produced no data")
 	}
 	return false, nil
+}
+
+func copyWithIdleTimeout(dst io.Writer, src io.ReadCloser, timeout time.Duration) (int64, error) {
+	if timeout <= 0 {
+		return io.Copy(dst, src)
+	}
+
+	buf := make([]byte, 32*1024)
+	var written int64
+	for {
+		type readResult struct {
+			n   int
+			err error
+		}
+		resultCh := make(chan readResult, 1)
+		go func() {
+			n, err := src.Read(buf)
+			resultCh <- readResult{n: n, err: err}
+		}()
+
+		select {
+		case result := <-resultCh:
+			if result.n > 0 {
+				nw, err := dst.Write(buf[:result.n])
+				written += int64(nw)
+				if err != nil {
+					return written, err
+				}
+				if nw != result.n {
+					return written, io.ErrShortWrite
+				}
+			}
+			if result.err != nil {
+				if result.err == io.EOF {
+					return written, nil
+				}
+				return written, result.err
+			}
+		case <-time.After(timeout):
+			_ = src.Close()
+			return written, fmt.Errorf("download body idle timeout after %s", timeout)
+		}
+	}
 }

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func disableAssetRetryDelay(t *testing.T) {
@@ -95,6 +96,45 @@ func TestDownloadAssetFileRetriesEmptyBody(t *testing.T) {
 	}
 	if got := calls.Load(); got != 2 {
 		t.Fatalf("server calls = %d, want 2", got)
+	}
+}
+
+func TestDownloadAssetFileRetriesStalledBodyRead(t *testing.T) {
+	disableAssetRetryDelay(t)
+	originalIdleTimeout := assetBodyIdleTimeout
+	assetBodyIdleTimeout = 20 * time.Millisecond
+	t.Cleanup(func() { assetBodyIdleTimeout = originalIdleTimeout })
+
+	var calls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if calls.Add(1) == 1 {
+			flusher, ok := w.(http.Flusher)
+			if !ok {
+				http.Error(w, "flush unavailable", http.StatusInternalServerError)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+			flusher.Flush()
+			time.Sleep(200 * time.Millisecond)
+			return
+		}
+		fmt.Fprint(w, "payload")
+	}))
+	defer server.Close()
+
+	dest := filepath.Join(t.TempDir(), "asset")
+	if err := downloadAssetFile(server.URL, dest); err != nil {
+		t.Fatalf("downloadAssetFile() error: %v", err)
+	}
+	if got := calls.Load(); got != 2 {
+		t.Fatalf("server calls = %d, want 2", got)
+	}
+	data, err := os.ReadFile(dest)
+	if err != nil {
+		t.Fatalf("read dest: %v", err)
+	}
+	if string(data) != "payload" {
+		t.Fatalf("dest content = %q, want payload", data)
 	}
 }
 
