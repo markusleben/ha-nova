@@ -106,6 +106,94 @@ function Fail([string]$Message) {
   throw $Message
 }
 
+function Initialize-WebSecurity {
+  try {
+    $protocols = [Net.SecurityProtocolType]::Tls12
+    if ([Enum]::GetNames([Net.SecurityProtocolType]) -contains "Tls13") {
+      $protocols = $protocols -bor [Net.SecurityProtocolType]::Tls13
+    }
+    [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor $protocols
+  }
+  catch {
+  }
+}
+
+function Get-DownloadHeaders {
+  return @{
+    Accept = "application/octet-stream"
+    "User-Agent" = "ha-nova-installer"
+  }
+}
+
+function Get-DownloadMethods {
+  $methods = @("Invoke-WebRequest", "HttpClient")
+  if (Get-Command Start-BitsTransfer -ErrorAction SilentlyContinue) {
+    $methods += "BITS"
+  }
+  return $methods
+}
+
+function Invoke-GitHubJson {
+  param(
+    [Parameter(Mandatory = $true)][string]$Uri
+  )
+
+  $errors = @()
+  try {
+    $params = @{
+      Uri = $Uri
+      Headers = @{
+        Accept = "application/vnd.github+json"
+        "User-Agent" = "ha-nova-installer"
+      }
+    }
+    if ((Get-Command Invoke-RestMethod).Parameters.ContainsKey("UseBasicParsing")) {
+      $params.UseBasicParsing = $true
+    }
+    return Invoke-RestMethod @params
+  }
+  catch {
+    $errors += "Invoke-RestMethod: $($_.Exception.Message)"
+  }
+
+  try {
+    Add-Type -AssemblyName System.Net.Http
+    $handler = [System.Net.Http.HttpClientHandler]::new()
+    $handler.AllowAutoRedirect = $true
+    $handler.UseProxy = $true
+    $defaultProxy = [System.Net.WebRequest]::DefaultWebProxy
+    if ($defaultProxy) {
+      $defaultProxy.Credentials = [System.Net.CredentialCache]::DefaultCredentials
+      $handler.Proxy = $defaultProxy
+    }
+    try {
+      $handler.DefaultProxyCredentials = [System.Net.CredentialCache]::DefaultCredentials
+    }
+    catch {
+    }
+    $client = [System.Net.Http.HttpClient]::new($handler)
+    try {
+      $client.Timeout = [TimeSpan]::FromMinutes(2)
+      $client.DefaultRequestHeaders.UserAgent.ParseAdd("ha-nova-installer")
+      $client.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json")
+      $response = $client.GetAsync($Uri).GetAwaiter().GetResult()
+      if (-not $response.IsSuccessStatusCode) {
+        throw "HTTP $([int]$response.StatusCode) $($response.ReasonPhrase)"
+      }
+      return ($response.Content.ReadAsStringAsync().GetAwaiter().GetResult() | ConvertFrom-Json)
+    }
+    finally {
+      $client.Dispose()
+      $handler.Dispose()
+    }
+  }
+  catch {
+    $errors += "HttpClient: $($_.Exception.Message)"
+  }
+
+  Fail "Could not read the latest HA NOVA release from GitHub: $Uri`nAttempts:`n- $($errors -join "`n- ")`nSet HA_NOVA_VERSION to an exact version or check that this Windows session can reach api.github.com."
+}
+
 function Test-InteractiveSession {
   try {
     return -not [Console]::IsInputRedirected
@@ -137,10 +225,7 @@ function Get-ExpectedInstallVersion {
 }
 
 function Get-LatestInstallVersion {
-  $release = Invoke-RestMethod -Uri $LatestReleaseUrl -Headers @{
-    Accept = "application/vnd.github+json"
-    "User-Agent" = "ha-nova-installer"
-  }
+  $release = Invoke-GitHubJson -Uri $LatestReleaseUrl
   if (-not $release.tag_name) {
     Fail "Could not determine the latest HA NOVA release."
   }
@@ -483,6 +568,77 @@ Then run this installer again.
 "@
 }
 
+function Invoke-DownloadFileWithMethod {
+  param(
+    [Parameter(Mandatory = $true)][string]$Method,
+    [Parameter(Mandatory = $true)][string]$Uri,
+    [Parameter(Mandatory = $true)][string]$OutFile
+  )
+
+  try {
+    Remove-Item -LiteralPath $OutFile -Force -ErrorAction SilentlyContinue
+  }
+  catch {
+  }
+
+  switch ($Method) {
+    "Invoke-WebRequest" {
+      $params = @{
+        Uri = $Uri
+        OutFile = $OutFile
+        Headers = Get-DownloadHeaders
+        MaximumRedirection = 10
+      }
+      if ((Get-Command Invoke-WebRequest).Parameters.ContainsKey("UseBasicParsing")) {
+        $params.UseBasicParsing = $true
+      }
+      Invoke-WebRequest @params
+    }
+    "HttpClient" {
+      Add-Type -AssemblyName System.Net.Http
+      $handler = [System.Net.Http.HttpClientHandler]::new()
+      $handler.AllowAutoRedirect = $true
+      $handler.UseProxy = $true
+      $defaultProxy = [System.Net.WebRequest]::DefaultWebProxy
+      if ($defaultProxy) {
+        $defaultProxy.Credentials = [System.Net.CredentialCache]::DefaultCredentials
+        $handler.Proxy = $defaultProxy
+      }
+      try {
+        $handler.DefaultProxyCredentials = [System.Net.CredentialCache]::DefaultCredentials
+      }
+      catch {
+      }
+      $handler.AutomaticDecompression = [System.Net.DecompressionMethods]::GZip -bor [System.Net.DecompressionMethods]::Deflate
+      $client = [System.Net.Http.HttpClient]::new($handler)
+      try {
+        $client.Timeout = [TimeSpan]::FromMinutes(10)
+        $client.DefaultRequestHeaders.UserAgent.ParseAdd("ha-nova-installer")
+        $client.DefaultRequestHeaders.Accept.ParseAdd("application/octet-stream")
+        $response = $client.GetAsync($Uri).GetAwaiter().GetResult()
+        if (-not $response.IsSuccessStatusCode) {
+          throw "HTTP $([int]$response.StatusCode) $($response.ReasonPhrase)"
+        }
+        [System.IO.File]::WriteAllBytes($OutFile, $response.Content.ReadAsByteArrayAsync().GetAwaiter().GetResult())
+      }
+      finally {
+        $client.Dispose()
+        $handler.Dispose()
+      }
+    }
+    "BITS" {
+      Start-BitsTransfer -Source $Uri -Destination $OutFile -TransferType Download -ErrorAction Stop
+    }
+    default {
+      throw "Unsupported download method: $Method"
+    }
+  }
+
+  if (-not (Test-Path -LiteralPath $OutFile) -or ((Get-Item -LiteralPath $OutFile).Length -le 0)) {
+    throw "download produced no file"
+  }
+}
+
 function Invoke-DownloadFile {
   param(
     [Parameter(Mandatory = $true)][string]$Uri,
@@ -490,9 +646,52 @@ function Invoke-DownloadFile {
   )
 
   $previousProgressPreference = $global:ProgressPreference
+  $errors = @()
   try {
     $global:ProgressPreference = "SilentlyContinue"
-    Invoke-WebRequest -Uri $Uri -OutFile $OutFile
+    foreach ($method in @(Get-DownloadMethods)) {
+      try {
+        Invoke-DownloadFileWithMethod -Method $method -Uri $Uri -OutFile $OutFile
+        return
+      }
+      catch {
+        $errors += "${method}: $($_.Exception.Message)"
+      }
+    }
+
+    Fail "Could not download HA NOVA release asset: $Uri`nAttempts:`n- $($errors -join "`n- ")`nCheck that this Windows session can reach github.com release downloads, then rerun the README install command."
+  }
+  finally {
+    $global:ProgressPreference = $previousProgressPreference
+  }
+}
+
+function Invoke-DownloadFileVerified {
+  param(
+    [Parameter(Mandatory = $true)][string]$Uri,
+    [Parameter(Mandatory = $true)][string]$OutFile,
+    [Parameter(Mandatory = $true)][string]$ExpectedSha256
+  )
+
+  $previousProgressPreference = $global:ProgressPreference
+  $errors = @()
+  try {
+    $global:ProgressPreference = "SilentlyContinue"
+    foreach ($method in @(Get-DownloadMethods)) {
+      try {
+        Invoke-DownloadFileWithMethod -Method $method -Uri $Uri -OutFile $OutFile
+        $actualHash = (Get-FileHash -LiteralPath $OutFile -Algorithm SHA256).Hash.ToLowerInvariant()
+        if ($actualHash -eq $ExpectedSha256.ToLowerInvariant()) {
+          return
+        }
+        $errors += "${method}: checksum mismatch ($actualHash)"
+      }
+      catch {
+        $errors += "${method}: $($_.Exception.Message)"
+      }
+    }
+
+    Fail "Could not download and verify HA NOVA release asset: $Uri`nAttempts:`n- $($errors -join "`n- ")`nCheck that this Windows session can reach github.com release downloads, then rerun the README install command."
   }
   finally {
     $global:ProgressPreference = $previousProgressPreference
@@ -516,17 +715,16 @@ function Install-Bundle {
   New-Item -ItemType Directory -Force -Path $extractDir | Out-Null
 
   try {
-    Invoke-DownloadFile -Uri $bundleUrl -OutFile $archivePath
     Invoke-DownloadFile -Uri (Get-BundleChecksumUrl -Version $Version) -OutFile $checksumPath
     $checksumRaw = Get-Content -LiteralPath $checksumPath -Raw
     if (-not $checksumRaw) {
       Fail "Downloaded bundle checksum verification failed."
     }
     $expectedHash = $checksumRaw.Trim().Split()[0]
-    $actualHash = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant()
-    if (-not $expectedHash -or $actualHash -ne $expectedHash.ToLowerInvariant()) {
+    if (-not $expectedHash) {
       Fail "Downloaded bundle checksum verification failed."
     }
+    Invoke-DownloadFileVerified -Uri $bundleUrl -OutFile $archivePath -ExpectedSha256 $expectedHash
     Expand-Archive -LiteralPath $archivePath -DestinationPath $extractDir -Force
 
     $bundleRoot = Join-Path $extractDir "ha-nova"
@@ -673,8 +871,13 @@ function Start-Setup {
   & $BinaryPath setup
 }
 
+if ($env:HA_NOVA_INSTALLER_TEST_EXPORT -eq "1") {
+  return
+}
+
 $UsePlainUi = Test-PlainUi
 Write-Banner
+Initialize-WebSecurity
 
 $expectedVersion = Get-ExpectedInstallVersion
 $version = Get-DownloadInstallVersion

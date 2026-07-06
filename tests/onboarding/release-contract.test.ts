@@ -10,6 +10,7 @@ describe("release contract", () => {
   const rcWorkflow = readFileSync(".github/workflows/release-candidate.yml", "utf8");
   const releasing = readFileSync("docs/releasing.md", "utf8");
   const releaseBody = readFileSync("docs/work/2026-06-22-v0.7.0-release-body.md", "utf8");
+  const hotfixBody = readFileSync("docs/work/2026-07-06-v0.7.1-release-body.md", "utf8");
   const linuxHeadlessHelper = readFileSync("scripts/smoke/linux-headless-setup-check.sh", "utf8");
   const pkg = JSON.parse(readFileSync("package.json", "utf8")) as {
     scripts?: Record<string, string>;
@@ -55,13 +56,18 @@ describe("release contract", () => {
   });
 
   it("keeps v0.7.0 release-facing wording user-facing", () => {
-    expect(goreleaser).toContain("Home Assistant status checks");
-    expect(goreleaser).not.toContain("Home Status checks");
     expect(releaseBody).toContain("Home Assistant status checks");
     expect(releaseBody).not.toContain("Home Status skill");
-    expect(goreleaser).toContain("Google Antigravity is now the current Google client path");
-    expect(goreleaser).toContain("`ha-nova setup gemini` remains a legacy alias");
     expect(releaseBody).toContain("Google Antigravity support replaces the old Gemini-facing client surface");
+  });
+
+  it("keeps v0.7.1 release-facing wording scoped to the Windows installer hotfix", () => {
+    expect(goreleaser).toContain("Windows installer downloads are more resilient");
+    expect(goreleaser).toContain("raw `Invoke-WebRequest` stack trace");
+    expect(goreleaser).toContain("Use `v0.7.1` or the latest release command");
+    expect(hotfixBody).toContain("Windows installer downloads are more resilient");
+    expect(hotfixBody).toContain("`v0.7.0` tag is immutable");
+    expect(hotfixBody).not.toContain("Home Status skill");
   });
 
   it("pins the GoReleaser release tag to the triggering workflow ref", () => {
