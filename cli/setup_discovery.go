@@ -45,7 +45,7 @@ func detectDefaultHAHostChoice(cfg runtimeConfig) (string, string, bool) {
 			break
 		}
 		if _, err := resolveHAURLBaseWithinTimeoutForDiscovery(candidate, remaining); err == nil {
-			if ip := confirmedIPv4ForMDNSHost(candidate); ip != "" {
+			if ip := confirmedIPv4ForMDNSHost(candidate, time.Until(deadline)); ip != "" {
 				return ip, candidate, true
 			}
 			return candidate, "", true
@@ -54,15 +54,19 @@ func detectDefaultHAHostChoice(cfg runtimeConfig) (string, string, bool) {
 	return preferredUnverifiedHAHost(cfg), "", false
 }
 
-func confirmedIPv4ForMDNSHost(host string) string {
-	if !strings.HasSuffix(strings.ToLower(host), ".local") {
+func confirmedIPv4ForMDNSHost(host string, remaining time.Duration) string {
+	if remaining <= 0 {
 		return ""
 	}
-	ip := resolveHostToIPv4ForDiscovery(host, setupDiscoveryIPResolveTimeout)
+	trimmed := strings.TrimSuffix(strings.ToLower(host), ".")
+	if !strings.HasSuffix(trimmed, ".local") {
+		return ""
+	}
+	ip := resolveHostToIPv4ForDiscovery(host, min(setupDiscoveryIPResolveTimeout, remaining))
 	if ip == "" || ip == host {
 		return ""
 	}
-	if _, err := resolveHAURLBaseWithinTimeoutForDiscovery(ip, setupDiscoveryIPProbeTimeout); err != nil {
+	if _, err := resolveHAURLBaseWithinTimeoutForDiscovery(ip, min(setupDiscoveryIPProbeTimeout, remaining)); err != nil {
 		return ""
 	}
 	return ip

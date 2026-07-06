@@ -14,7 +14,10 @@ func verifySetupConnection(reader *bufio.Reader, out io.Writer, cfg runtimeConfi
 			return "", true, nil
 		}
 		lastIssue = issue
-		if reuseToken {
+		// Connection-level failures get the repair menu on first runs too, so
+		// a wrong/stale Home Assistant address is recoverable right where it
+		// fails instead of only via multi-step back navigation.
+		if reuseToken || issue == setupIssueRelayUnreachable {
 			action, repairErr := runSetupRepairFlow(reader, out, cfg, readiness, issue, allowRelayTokenStep)
 			if repairErr != nil {
 				return "", false, repairErr
@@ -26,6 +29,8 @@ func verifySetupConnection(reader *bufio.Reader, out io.Writer, cfg runtimeConfi
 				return issue, false, errSetupRelayTokenStep
 			case setupRepairActionChangeHost:
 				return issue, false, errSetupHostStep
+			case setupRepairActionStop:
+				return issue, false, nil
 			case setupRepairActionBack:
 				return issue, false, errSetupBack
 			default:

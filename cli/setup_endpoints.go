@@ -122,7 +122,7 @@ func promptValidHAHostFromReader(reader *bufio.Reader, out io.Writer, defaultHos
 		fmt.Fprintln(out, "  Make sure Home Assistant is running and reachable from this computer.")
 		if strings.HasSuffix(strings.ToLower(normalizeHostInput(input)), ".local") {
 			fmt.Fprintln(out, `  Tip: names like "homeassistant.local" can be unreliable (especially on Windows).`)
-			fmt.Fprintln(out, "  Try the IP address instead — find it in your router, or in HA under Settings > System > Network.")
+			fmt.Fprintln(out, "  Try the IP address instead — find it in your router, or in Home Assistant under Settings > System > Network.")
 		}
 		if resolveSetupUISession(out).animatesSpinner() {
 			armSetupNextPromptSkipsStaleBlankInput()
@@ -164,7 +164,9 @@ func applySelectedSetupHost(cfg runtimeConfig, host, haURL, relayURLOverride str
 		cfg.HAHost = normalizeHostInput(host)
 	}
 	if strings.TrimSpace(haURL) != "" {
-		cfg.HAURL = strings.TrimSpace(haURL)
+		// Trailing slashes would corrupt derived deeplinks like
+		// <HAURL>/_my_redirect/... into a double-slash path.
+		cfg.HAURL = strings.TrimRight(strings.TrimSpace(haURL), "/")
 	}
 	if strings.TrimSpace(relayURLOverride) != "" {
 		cfg.RelayBaseURL = strings.TrimSpace(relayURLOverride)

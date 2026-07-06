@@ -12,7 +12,8 @@ func TestRenderSetupIntroExplainsProjectAndBrowserBehavior(t *testing.T) {
 	rendered := output.String()
 	for _, want := range []string{
 		"connects your AI assistant",
-		"This setup walks you through:",
+		"This setup will:",
+		`the "skills"`,
 		"press Enter — that opens a",
 		"come back to this window",
 		"You'll need:",

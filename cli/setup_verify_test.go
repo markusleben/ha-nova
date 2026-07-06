@@ -147,6 +147,7 @@ func TestVerifySetupConnectionReuseTokenConnectionIssueCanRouteToHostStep(t *tes
 
 	output := &bytes.Buffer{}
 	issue, ok, err := verifySetupConnection(bufio.NewReader(strings.NewReader("2\n")), output, runtimeConfig{
+		HAHost:       "homeassistant.local",
 		HAURL:        "http://homeassistant.local:8123",
 		RelayBaseURL: "http://homeassistant.local:8791",
 	}, "token", true, true)

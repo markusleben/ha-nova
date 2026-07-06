@@ -25,6 +25,7 @@ const (
 	setupRepairActionBack              setupRepairAction = "back"
 	setupRepairActionBackToRelayToken  setupRepairAction = "relay_token"
 	setupRepairActionChangeHost        setupRepairAction = "change_host"
+	setupRepairActionStop              setupRepairAction = "stop"
 )
 
 type setupRepairChoice struct {
@@ -61,7 +62,7 @@ func relayHealthIssueLooksLikeRelayAuth(err error) bool {
 func runSetupRepairFlow(reader *bufio.Reader, out io.Writer, cfg runtimeConfig, readiness relayReadiness, issue string, allowRelayTokenStep bool) (setupRepairAction, error) {
 	mode := detectSetupRepairMode(readiness, issue)
 	for {
-		renderSetupRepairPage(out, mode)
+		renderSetupRepairPage(out, mode, cfg.HAHost)
 		action, err := promptSetupRepairActionInteractive(reader, out, mode, allowRelayTokenStep)
 		if err != nil {
 			return "", err
@@ -72,22 +73,28 @@ func runSetupRepairFlow(reader *bufio.Reader, out io.Writer, cfg runtimeConfig, 
 			openBrowserShowingURL(out, haProfileSecurityURL(cfg.HAURL))
 		case setupRepairActionOpenRelaySettings:
 			openBrowserShowingURL(out, haRelayAppPageURL(cfg.HAURL))
-		case setupRepairActionRetry, setupRepairActionBack, setupRepairActionBackToRelayToken, setupRepairActionChangeHost:
+			renderSetupParagraphTight(out, `The tokens live on the "Configuration" tab of that page.`)
+		case setupRepairActionRetry, setupRepairActionBack, setupRepairActionBackToRelayToken, setupRepairActionChangeHost, setupRepairActionStop:
 			return action, nil
 		}
 	}
 }
 
-func renderSetupRepairPage(out io.Writer, mode setupRepairMode) {
+func renderSetupRepairPage(out io.Writer, mode setupRepairMode, haHost string) {
 	renderSetupSectionTitle(out, "Repair this connection step")
 	switch mode {
 	case setupRepairModeConnection:
-		renderSetupParagraph(out,
+		lines := []string{
 			"Home Assistant or NOVA Relay is still unreachable from this device.",
 			"Fix the local connection first, then retry this step.",
-			`Tip: names like "homeassistant.local" can stop working (especially on Windows).`,
-			"Try the IP address instead — find it in your router, or in HA under Settings > System > Network.",
-		)
+		}
+		if strings.HasSuffix(strings.ToLower(strings.TrimSpace(haHost)), ".local") {
+			lines = append(lines,
+				`Tip: names like "homeassistant.local" can stop working (especially on Windows).`,
+				"Try the IP address instead — find it in your router, or in Home Assistant under Settings > System > Network.",
+			)
+		}
+		renderSetupParagraph(out, lines...)
 	case setupRepairModeLLAT:
 		renderSetupParagraph(out,
 			"This device's Relay Auth Token worked.",
@@ -147,7 +154,8 @@ func setupRepairChoices(mode setupRepairMode, allowRelayTokenStep bool) ([]setup
 		return []setupRepairChoice{
 			{Number: "1", Value: setupRepairActionRetry, Label: "Retry now"},
 			{Number: "2", Value: setupRepairActionChangeHost, Label: "Change Home Assistant address"},
-			{Number: "3", Value: setupRepairActionBack, Label: "Back"},
+			{Number: "3", Value: setupRepairActionStop, Label: "Stop for now (progress is saved)"},
+			{Number: "4", Value: setupRepairActionBack, Label: "Back"},
 		}, "1"
 	case setupRepairModeLLAT:
 		return []setupRepairChoice{

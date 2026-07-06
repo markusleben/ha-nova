@@ -221,15 +221,18 @@ func renderSetupIncompleteBanner(out io.Writer, issue string) {
 	switch issue {
 	case setupIssueWSDegraded:
 		fmt.Fprintln(out, "  NOVA Relay is reachable, but Home Assistant WebSocket is not connected yet.")
-		fmt.Fprintln(out, "  Open Home Assistant > Settings > Apps > NOVA Relay, verify the app settings, and restart the App.")
+		fmt.Fprintln(out, "  Open Home Assistant > Settings > Apps > NOVA Relay (older Home Assistant: Settings > Add-ons), verify the app settings, and restart the App.")
 	case setupIssueRelayUnreachable:
 		fmt.Fprintln(out, "  HA NOVA saved your local setup, but the relay could not be verified yet.")
-		fmt.Fprintln(out, "  Open Home Assistant > Settings > Apps > NOVA Relay, start the app, then try again.")
+		fmt.Fprintln(out, "  Open Home Assistant > Settings > Apps > NOVA Relay (older Home Assistant: Settings > Add-ons) and start the app.")
 	case setupIssueSkillsInstall:
 		fmt.Fprintln(out, "  The Home Assistant connection is configured, but local skill installation still needs another run.")
 		fmt.Fprintln(out, "  Re-run setup or install the HA NOVA skills again for your client.")
 	default:
 		fmt.Fprintln(out, "  HA NOVA saved your local setup, but the system is not fully ready yet.")
+	}
+	if issue != setupIssueSkillsInstall {
+		fmt.Fprintln(out, `  Then run "ha-nova setup" again — it continues where you left off.`)
 	}
 	fmt.Fprintln(out)
 }
