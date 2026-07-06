@@ -44,7 +44,8 @@ describe("runtime bootstrap", () => {
         seenSource = input.upstreamAuth.source;
         return {
           isConnected: () => true,
-          sendMessage: async <T>() => ({ ok: true } as T)
+          sendMessage: async <T>() => ({ ok: true } as T),
+          collectMessageEvents: async <T>() => [] as T[]
         };
       },
       createRestClient: (input) => {
@@ -95,7 +96,8 @@ describe("runtime bootstrap", () => {
       readAppOptions: () => ({}),
       createWsClient: () => ({
         isConnected: () => true,
-        sendMessage: async <T>() => ({ type: "pong" } as T)
+        sendMessage: async <T>() => ({ type: "pong" } as T),
+        collectMessageEvents: async <T>() => [] as T[]
       })
     });
 
@@ -153,7 +155,8 @@ describe("runtime bootstrap", () => {
       readAppOptions: () => ({}),
       createWsClient: () => ({
         isConnected: () => true,
-        sendMessage: async <T>() => ({ type: "pong" } as T)
+        sendMessage: async <T>() => ({ type: "pong" } as T),
+        collectMessageEvents: async <T>() => [] as T[]
       }),
       createRestClient: () => ({
         request: async (input) => {
@@ -224,7 +227,8 @@ describe("runtime bootstrap", () => {
       readAppOptions: () => ({}),
       createWsClient: () => ({
         isConnected: () => true,
-        sendMessage: async <T>() => ({ type: "pong" } as T)
+        sendMessage: async <T>() => ({ type: "pong" } as T),
+        collectMessageEvents: async <T>() => [] as T[]
       }),
       logger: {
         info: (message, context) => {

@@ -1,0 +1,70 @@
+---
+name: calendar
+description: Use when listing Home Assistant calendars or reading bounded calendar event windows through HA NOVA Relay.
+---
+
+# HA NOVA Calendar
+
+## Scope
+
+Read-only calendar work:
+- list calendar entities
+- read events for one calendar over a bounded window
+- summarize upcoming events across selected calendars
+
+Not in scope:
+- create, update, delete, or edit calendar events
+- recurring-event management
+- calendar dashboard edits
+- automation writes that use calendar triggers
+
+## Bootstrap
+
+Verify relay CLI: `ha-nova relay health`
+If this fails: `ha-nova setup`
+
+## Relay Contract
+
+Use REST through relay core only:
+- `ha-nova relay core --method GET --path /api/calendars --out <result-file>`
+- `ha-nova relay core --method GET --path <calendar-events-path> --out <result-file>`
+- `ha-nova relay jq --file <result-file> --jq-file <filter-file>`
+
+`<calendar-events-path>` is:
+`/api/calendars/<calendar_entity_id>?start=<timestamp>&end=<timestamp>`
+
+Relay-core response body is under `.data.body`.
+
+## Flow
+
+1. List calendars with `/api/calendars`.
+2. Resolve the requested calendar by exact `entity_id` or exact/clear name match.
+3. If multiple calendars match, ask one blocking question.
+4. Set a bounded event window:
+   - if the user gave start/end, use them
+   - otherwise default to now through the next 7 days
+   - if the user asks for an unbounded or very broad range, narrow it before querying
+5. Query events with `/api/calendars/<entity_id>?start=<start>&end=<end>`.
+6. Summarize events:
+   - title/summary
+   - start and end
+   - all-day vs timed
+   - location only when useful
+   - omit private descriptions unless the user explicitly asks
+
+## Output Format
+
+Apply `skills/ha-nova/output-rules.md` to all user-facing output.
+
+- `Calendar`
+- `Window`
+- `Events`
+- `Next step`
+
+For multiple calendars, group by calendar and keep each group short.
+
+## Safety
+
+- Read-only skill. No event writes.
+- Always use bounded windows.
+- Never guess a calendar id from a partial name when multiple matches exist.

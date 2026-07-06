@@ -18,7 +18,7 @@ func removeInstalledClientsWithReport(paths runtimePaths, state installState, re
 		clients = normalizeClients(append(clients, "hermes"))
 	}
 	if len(clients) == 0 {
-		clients = []string{"claude", "codex", "opencode", "gemini", "hermes"}
+		clients = []string{"claude", "codex", "opencode", "antigravity", "hermes"}
 	}
 	sort.Strings(clients)
 	for _, client := range clients {
@@ -86,8 +86,16 @@ func removeInstalledClientsWithReport(paths runtimePaths, state installState, re
 			if err := removeSkillEntriesWithReport(filepath.Join(paths.Home, ".config", "opencode", "skills"), report); err != nil {
 				return err
 			}
-		case "gemini":
-			if err := removeSkillEntriesWithReport(filepath.Join(paths.Home, ".gemini", "skills"), report); err != nil {
+		case "antigravity":
+			sourceRoot := resolveSourceRoot(paths)
+			subSkills, _ := sourceSubSkills(sourceRoot)
+			if err := removeManagedFlatSkillEntriesWithReport(antigravitySkillsRoot(paths.Home), subSkills, report); err != nil {
+				return err
+			}
+			if err := removeManagedFlatSkillEntriesWithReport(legacyGeminiSkillsRoot(paths.Home), subSkills, report); err != nil {
+				return err
+			}
+			if err := removeLegacyFlatSkillEntriesWithReport(legacyCodexGeminiSkillsRoot(paths.Home), subSkills, report); err != nil {
 				return err
 			}
 		case "hermes":
@@ -106,6 +114,24 @@ func removeSkillEntriesWithReport(skillsRoot string, report *uninstallReport) er
 	}
 	for _, match := range matches {
 		if err := removePathWithReport(match, report); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func removeManagedFlatSkillEntriesWithReport(skillsRoot string, subSkills []string, report *uninstallReport) error {
+	for skill := range managedAntigravitySkillNames(subSkills) {
+		if err := removePathWithReport(filepath.Join(skillsRoot, skill), report); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func removeLegacyFlatSkillEntriesWithReport(skillsRoot string, subSkills []string, report *uninstallReport) error {
+	for skill := range legacyAntigravityFlatSkillNames(subSkills) {
+		if err := removePathWithReport(filepath.Join(skillsRoot, skill), report); err != nil {
 			return err
 		}
 	}

@@ -9,6 +9,7 @@ describe("release contract", () => {
   const releaseWorkflow = readFileSync(".github/workflows/release.yml", "utf8");
   const rcWorkflow = readFileSync(".github/workflows/release-candidate.yml", "utf8");
   const releasing = readFileSync("docs/releasing.md", "utf8");
+  const releaseBody = readFileSync("docs/work/2026-06-22-v0.7.0-release-body.md", "utf8");
   const linuxHeadlessHelper = readFileSync("scripts/smoke/linux-headless-setup-check.sh", "utf8");
   const pkg = JSON.parse(readFileSync("package.json", "utf8")) as {
     scripts?: Record<string, string>;
@@ -51,6 +52,16 @@ describe("release contract", () => {
     expect(releaseWorkflow).not.toContain("release-winget-manifests");
     expect(releaseWorkflow).not.toContain("winget validate");
     expect(releaseWorkflow).not.toContain("dist/winget");
+  });
+
+  it("keeps v0.7.0 release-facing wording user-facing", () => {
+    expect(goreleaser).toContain("Home Assistant status checks");
+    expect(goreleaser).not.toContain("Home Status checks");
+    expect(releaseBody).toContain("Home Assistant status checks");
+    expect(releaseBody).not.toContain("Home Status skill");
+    expect(goreleaser).toContain("Google Antigravity is now the current Google client path");
+    expect(goreleaser).toContain("`ha-nova setup gemini` remains a legacy alias");
+    expect(releaseBody).toContain("Google Antigravity support replaces the old Gemini-facing client surface");
   });
 
   it("pins the GoReleaser release tag to the triggering workflow ref", () => {
@@ -128,6 +139,8 @@ describe("release contract", () => {
     expect(releasing).toContain("Linux real-machine onboarding:");
     expect(releasing).toContain("scripts/smoke/linux-headless-setup-check.sh");
     expect(releasing).toContain("by default the helper runs `HA_NOVA_NO_BROWSER=1 ha-nova setup`");
+    expect(releasing).toContain("npm run test:desktop:linux:antigravity");
+    expect(releasing).toContain("HA_NOVA_LIVE_SETUP_CMD='HA_NOVA_NO_BROWSER=1 ha-nova setup antigravity'");
     expect(releasing).toContain("HA_NOVA_LIVE_SETUP_CMD='HA_NOVA_NO_BROWSER=1 ha-nova setup hermes'");
     expect(releasing).toContain("HA_NOVA_LIVE_SETUP_CMD='HA_NOVA_NO_BROWSER=1 ha-nova setup --service hermes'");
     expect(releasing).toContain("HA_NOVA_LIVE_SKIP_INSTALL=1");
@@ -147,6 +160,8 @@ describe("release contract", () => {
   it("keeps the Linux live helper generic by default and Hermes-specific only by override", () => {
     expect(linuxHeadlessHelper).toContain("default: HA_NOVA_NO_BROWSER=1 ha-nova setup");
     expect(linuxHeadlessHelper).toContain("HA_NOVA_LIVE_SETUP_CMD='HA_NOVA_NO_BROWSER=1 ha-nova setup hermes'");
+    expect(pkg.scripts?.["test:desktop:linux:antigravity"]).toContain("linux-headless-setup-check.sh");
+    expect(pkg.scripts?.["test:desktop:linux:antigravity"]).toContain("ha-nova setup antigravity");
     expect(linuxHeadlessHelper).toContain("release-lane proof");
     expect(linuxHeadlessHelper).toContain("remote user D-Bus session");
     expect(linuxHeadlessHelper).toContain("remote gdbus");

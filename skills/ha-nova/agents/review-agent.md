@@ -71,7 +71,7 @@ Enter through `skills/review/SKILL.md` Step 1, then load `skills/review/checks.m
 Traverse all `variables:` mappings in `{CONFIG}`, not just the top-level block. Include root `variables:` on the automation/script plus local `variables:` actions inside `choose`, `if` / `then` / `else`, `default`, `repeat`, and nested `sequence` blocks.
 
 Which checks to apply by domain:
-- **Automation:** S-01..S-03, R-01..R-22, P-01..P-05, M-01..M-03. If actions reference helpers, also H-01..H-10 on those helpers.
+- **Automation:** S-01..S-03, R-01..R-24, P-01..P-05, M-01..M-03. If actions reference helpers, also H-01..H-10 on those helpers.
 - **Script:** All automation checks plus F-01..F-08.
 - **Helper (storage-based family):** H-01..H-10.
 - **Helper (config-entry family):** minimal config-entry review. Do not apply H-01..H-10; inspect config-entry metadata, linked entities, and `search/related` only. In Step 2, derive collision candidates from `linked_entities[]`, not from action extraction.
@@ -80,6 +80,8 @@ Which checks to apply by domain:
 - When `R-18` matches, report the block context plus at least one concrete variable pair. Because `{CONFIG}` here comes from HA read-back or a fresh HA config read, describe the result as a persisted runtime risk.
 - `R-19` applies only to `if` + `elif` chains with entity-state-style branch guards and a terminal bare `else` that contains a direct `trigger.id` comparison. Skip single `if` / `else`, `trigger.id` in `elif`, non-entity-state selector trees, `else` blocks with extra explicit guards, and `choose` + `condition: trigger`.
 - When `R-19` matches, state: final else branch is only reached when the earlier entity-state branches are false. Move the `trigger.id` check into an explicit `elif`. Or refactor to `choose` + `condition: trigger`.
+- `R-23` applies only to boolean-like templates compared to string boolean literals (`'True'`, `'true'`, `'False'`, `'false'`) in either comparison direction. Do not flag bare boolean checks such as `is true` or `== true`.
+- `R-24` is advisory only and applies only when a capacity-like variable reads an `available_energy` source. Do not hard-code integration-specific replacement entities.
 
 If H-09/H-10 evaluation needs live helper evidence, read `state`, `attributes.min`, `attributes.max`, and `attributes.step` from `/api/states/{helper_entity_id}`. If any of those values are missing or non-numeric, skip H-09/H-10. Use `skills/review/checks.md` → Helper Threshold Evidence for the operator-aware threshold rules.
 
@@ -150,7 +152,7 @@ See `skills/review/checks.md` → Known Safe Patterns / Known Problem Patterns f
 
 This agent is for single-target review only. Ignore the separate bulk-review mode. Ignore the standalone bulk-review mode from `skills/review/SKILL.md`.
 
-Localize per `skills/ha-nova/SKILL.md` → Output Localization.
+Apply `skills/ha-nova/output-rules.md` to all user-facing output.
 
 If `{MODE}` is `standalone`, follow the single-target standalone output format from `skills/review/SKILL.md`:
 - Section 1 — Review target

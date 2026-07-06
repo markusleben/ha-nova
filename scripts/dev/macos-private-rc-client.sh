@@ -12,7 +12,7 @@ RELAY_TOKEN="${RELAY_TOKEN:-test-relay-token}"
 CLIENT="${1:-}"
 
 if [[ -z "${CLIENT}" ]]; then
-  echo "Usage: $0 <claude|codex|opencode|gemini|hermes>" >&2
+  echo "Usage: $0 <claude|codex|opencode|antigravity|hermes>" >&2
   exit 1
 fi
 
@@ -131,9 +131,9 @@ case "${CLIENT}" in
   opencode)
     test -f "${TMP_HOME}/.config/opencode/skills/ha-nova/ha-nova/SKILL.md"
     ;;
-  gemini)
-    test -f "${TMP_HOME}/.gemini/skills/ha-nova/SKILL.md"
-    test -f "${TMP_HOME}/.gemini/skills/ha-nova-review/SKILL.md"
+  antigravity)
+    test -f "${TMP_HOME}/.gemini/config/skills/ha-nova/SKILL.md"
+    test -f "${TMP_HOME}/.gemini/config/skills/ha-nova-review/SKILL.md"
     ;;
   hermes)
     command -v hermes >/dev/null 2>&1

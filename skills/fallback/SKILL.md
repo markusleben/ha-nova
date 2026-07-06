@@ -1,6 +1,6 @@
 ---
 name: fallback
-description: Mandatory fallback for any HA NOVA task without a dedicated subskill. Must be invoked before any raw relay write operation. Covers blueprints, energy, calendars, zones/persons/tags, destructive registry admin, system health, Apps, HACS, Zigbee/Z-Wave, and unsupported config-entry helper families.
+description: Mandatory fallback for any HA NOVA task without a dedicated subskill. Must be invoked before any raw relay write operation. Covers blueprints, energy, zones/persons/tags, destructive registry admin, Apps, HACS, Zigbee/Z-Wave, and unsupported config-entry helper families.
 ---
 
 # HA NOVA Fallback
@@ -21,6 +21,10 @@ All relay calls in this skill are experimental -- always follow Safety Guardrail
 - Correct invalid Home Assistant premises explicitly.
 - Do not silently compensate for a wrong premise.
 - Keep corrections brief and technical, not preachy.
+
+## Output Rules
+
+Apply `skills/ha-nova/output-rules.md` to all user-facing output.
 
 ## Bootstrap (only before Relay-Ready calls)
 
@@ -52,6 +56,8 @@ For every Relay-Ready call in this skill:
 | History Queries | Covered | history |
 | Logbook Queries | Covered | history |
 | Statistics / Trend Queries | Covered | history |
+| System Health / Repairs | Covered | health |
+| Calendar Queries | Covered | calendar |
 | Area / Floor CRUD | Covered | organize |
 | Label CRUD / Rich label metadata | Covered | organize |
 | Category CRUD / Entity category assignment | Covered | organize |
@@ -59,8 +65,6 @@ For every Relay-Ready call in this skill:
 | Blueprints | Relay-Ready | this skill |
 | Zone / Person / Tag Mgmt | Relay-Ready | this skill |
 | Energy Configuration | Relay-Ready | this skill |
-| System Health / Repairs | Relay-Ready | this skill |
-| Calendar Queries | Relay-Ready | this skill |
 | Other Config-Entry Helpers | Relay-Ready | this skill |
 | Entity remove / Device config-entry detach | Relay-Ready | this skill |
 | Event Subscriptions | Roadmap Phase 1c | -- |
@@ -79,7 +83,7 @@ For every Relay-Ready call in this skill:
    a. FIRST: Search web using the provided Search query — understand current payload schema before any call
    b. Show experimental relay call examples informed by search results
    c. Preview full payload before any write — never guess fields
-   d. Execute only after user confirms preview
+   d. Execute only after user confirms that exact preview (see context skill → Active Preview Confirmation)
 4. If "Roadmap":
    a. Explain which phase and what blocks it
    b. Search web for manual workaround or alternative approach
@@ -132,34 +136,6 @@ ha-nova relay ws --data-file <payload-file>
 ```
 
 **Risks:** Field-level list replacement — omitted top-level keys (`energy_sources`, `device_consumption`, `device_consumption_water`) are preserved, but each provided key replaces its entire list. To add one source: read existing via `energy/get_prefs`, append to list, save back full list. Requires admin auth.
-
-### System Health / Repairs -- RELAY-READY
-
-Check system health status and view deprecation/repair issues.
-
-**Search:** `home assistant system health repairs issues api 2026`
-
-**Experimental relay calls (no skill guardrails):**
-```text
-ha-nova relay ws --data-file <payload-file>
-```
-
-**Risks:** None (read-only). Note: `system_health/info` uses a subscription pattern -- call via relay returns first response only.
-
-### Calendar Queries -- RELAY-READY
-
-List calendars and query upcoming events.
-
-**Search:** `home assistant calendar api rest events query 2026`
-
-**Experimental relay calls (no skill guardrails):**
-```text
-ha-nova relay core --method GET --path /api/calendars --jq .data.body
-ha-nova relay core --method GET --path <calendar-events-path> --jq .data.body
-```
-Use `<calendar-events-path>` for the full `/api/calendars/<calendar_id>?start=...&end=...` query string.
-
-**Risks:** None (read-only).
 
 ### Other Config-Entry Helpers -- RELAY-READY
 
@@ -294,10 +270,11 @@ Rules for all experimental relay calls in this skill:
 - **Full-document overwrites** (e.g., `lovelace/config/save`): MUST read full config, merge changes in memory, preview merged result, then write. There is no partial update endpoint — the entire config is replaced.
 - **Field-level list replacements** (e.g., `energy/save_prefs`): omitted top-level keys are preserved, but each provided key replaces its entire list. To add one item, read the existing list first, append, then save back the full list.
 - **Web search before write**: always search for current payload schema before constructing any write payload. HA APIs evolve across versions — the examples in this skill are starting points, not authoritative schemas.
-- Every experimental call must show: "EXPERIMENTAL: No skill guardrails. Proceed with caution."
+- Every experimental call must show: "EXPERIMENTAL: No dedicated subskill schema guardrails. Proceed with caution."
 - **No diff or auto-undo here**: these writes have no `## Changes` preview or `revert`. When a write may be hard to reverse, say so plainly and point to Home Assistant Backups (Settings > System > Backups) as the safety net before confirming.
 - One resource at a time (no batch writes)
 - Delete requires tokenized confirmation (`confirm:<token>`)
+- Broad pre-preview approval is never write confirmation; changed payloads require a fresh preview and confirmation.
 - Never guess IDs: resolve via list/search first
 - Experimental results may be unexpected — verify data-target match before presenting conclusions (see `skills/ha-nova/SKILL.md` → Claim-Evidence Binding)
 

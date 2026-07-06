@@ -21,9 +21,10 @@ import (
 func runDiffCommand(_ runtimePaths, args []string) int {
 	fs := flag.NewFlagSet("diff", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
-	var beforePath, afterPath string
+	var beforePath, afterPath, outPath string
 	fs.StringVar(&beforePath, "before", "", "path to the current/before config JSON")
 	fs.StringVar(&afterPath, "after", "", "path to the proposed/after config JSON")
+	fs.StringVar(&outPath, "out", "", "optional path to write the rendered diff")
 	if err := fs.Parse(args); err != nil {
 		printErr("%s", err)
 		return 1
@@ -42,7 +43,19 @@ func runDiffCommand(_ runtimePaths, args []string) int {
 		printErr("cannot read after config: %s", err)
 		return 1
 	}
-	for _, line := range renderConfigChanges(before, after) {
+	lines := renderConfigChanges(before, after)
+	if strings.TrimSpace(outPath) != "" {
+		rendered := ""
+		if len(lines) > 0 {
+			rendered = strings.Join(lines, "\n") + "\n"
+		}
+		if err := os.WriteFile(outPath, []byte(rendered), 0o644); err != nil {
+			printErr("cannot write diff output: %s", err)
+			return 1
+		}
+		return 0
+	}
+	for _, line := range lines {
 		fmt.Fprintln(os.Stdout, line)
 	}
 	return 0
@@ -220,6 +233,7 @@ func diffArrays(segs []segment, before, after []interface{}, changes *[]configCh
 			path:  pathString(segs),
 			text:  fmt.Sprintf("%s: %d → %d items", humanizeLabel(segs), len(before), len(after)),
 		})
+		diffNotificationCopyInCommonItems(segs, before, after, changes)
 		return
 	}
 	for i := range before {

@@ -14,6 +14,7 @@ export interface AppOptions {
   wsClient: {
     isConnected(): boolean;
     sendMessage(message: HaWsRequest): Promise<unknown>;
+    collectMessageEvents(message: HaWsRequest): Promise<unknown[]>;
   };
   coreClient: {
     request(input: CoreProxyRequest): Promise<CoreProxyResponse>;

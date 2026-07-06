@@ -6,7 +6,7 @@ ha-nova is a Home Assistant AI integration. It replaces an 88,000-line MCP serve
 
 - **Relay:** Runs as a Home Assistant App, ~1,500 LOC, pure transport layer (WS proxy, REST forwarding, token storage)
 - **Skills:** Markdown files that instruct LLMs on Home Assistant control (best practices, workflows, API knowledge)
-- **Direct path:** Many operations go directly to the HA REST API without relay hops
+- **Relay path:** Skills use HA NOVA Relay for Home Assistant REST/WS transport; business logic stays in Markdown skills, not in the Relay
 
 This file is internal product context only.
 Public install, support, and platform truth lives in `README.md`.
@@ -21,7 +21,7 @@ Active doc ownership lives in `docs/reference/documentation-governance.md`.
 Deliverables:
 1. Relay MVP: `GET /health`, `POST /ws`, `POST /core`
 2. Context skill: `ha-nova` (auto-loaded via SessionStart hook; sub-skills discovered independently)
-3. Sub-skills (flat under `skills/`): write, read, review, dashboard, organize, history, helper, entity-discovery, service-call, fallback, onboarding
+3. Sub-skills (flat under `skills/`): write, read, review, dashboard, organize, history, helper, health, calendar, entity-discovery, service-call, fallback, onboarding
 4. Shared references under `skills/ha-nova/` (`relay-api.md`, `best-practices.md`, `payload-schemas.md`, `helper-schemas.md`, `template-guidelines.md`, `safe-refactoring.md`, `automation-patterns.md`, `update-guide.md`, `agents.md`)
 
 ## Tech Stack

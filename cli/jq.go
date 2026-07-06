@@ -108,7 +108,7 @@ func applyJQFilter(filter string, input []byte, raw bool) (jqResult, error) {
 
 func runJQ(args []string) int {
 	if len(args) == 0 {
-		fmt.Fprintln(os.Stderr, "Usage: relay jq [-r] [-e] [--jq-file <filter-file>] '<filter>'")
+		fmt.Fprintln(os.Stderr, "Usage: relay jq [-r] [-e] [-c] [--jq-file <filter-file>] '<filter>'")
 		return 1
 	}
 
@@ -123,6 +123,8 @@ func runJQ(args []string) int {
 			raw = true
 		case "-e":
 			exitStatus = true
+		case "-c":
+			// JSON output is already compact; accept jq muscle memory as a no-op.
 		case "--file":
 			if len(remaining) < 2 {
 				fmt.Fprintln(os.Stderr, "missing value for --file")
@@ -148,7 +150,7 @@ func runJQ(args []string) int {
 		return 1
 	}
 	if filterFile == "" && len(remaining) == 0 {
-		fmt.Fprintln(os.Stderr, "Usage: relay jq [-r] [-e] [--jq-file <filter-file>] '<filter>'")
+		fmt.Fprintln(os.Stderr, "Usage: relay jq [-r] [-e] [-c] [--jq-file <filter-file>] '<filter>'")
 		return 1
 	}
 	filter := ""

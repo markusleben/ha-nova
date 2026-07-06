@@ -1,4 +1,4 @@
-import { constants, existsSync, readFileSync, statSync } from "node:fs";
+import { constants, existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
@@ -12,6 +12,8 @@ describe("ha-nova contract", () => {
     expect(context).toContain("ha-nova:dashboard");
     expect(context).toContain("ha-nova:organize");
     expect(context).toContain("ha-nova:history");
+    expect(context).toContain("ha-nova:health");
+    expect(context).toContain("ha-nova:calendar");
     expect(context).toContain("ha-nova:service-call");
     expect(context).toContain("ha-nova:entity-discovery");
     expect(context).toContain("ha-nova:onboarding");
@@ -32,6 +34,8 @@ describe("ha-nova contract", () => {
     expect(context).toContain('| organize areas, floors, labels, categories, devices, entities | `ha-nova:organize` |');
     expect(context).toContain('| assign or remove entity categories | `ha-nova:organize` |');
     expect(context).toContain('| show history, logbook timelines, or long-term statistics | `ha-nova:history` |');
+    expect(context).toContain('| check home status, repairs, system health, integration issues, unavailable entities, or low batteries | `ha-nova:health` |');
+    expect(context).toContain('| list calendars or show calendar events | `ha-nova:calendar` |');
     expect(context).toContain('"Show my main dashboard"** → `ha-nova:dashboard`');
     expect(context).toContain('"Create a dashboard called Test Board"** → `ha-nova:dashboard`');
     expect(context).toContain('"Delete the Test dashboard"** → `ha-nova:dashboard`');
@@ -42,10 +46,15 @@ describe("ha-nova contract", () => {
     expect(context).toContain('"Add an alias to this area"** → `ha-nova:organize`');
     expect(context).toContain('"Show history for sensor X"** → `ha-nova:history`');
     expect(context).toContain('"Show temperature trends for the last month"** → `ha-nova:history`');
+    expect(context).toContain('"Are there any repair issues?"** → `ha-nova:health`');
+    expect(context).toContain('"Why are devices unavailable?"** → `ha-nova:health`');
+    expect(context).toContain('"Show my calendars"** → `ha-nova:calendar`');
+    expect(context).toContain('"What\'s on my calendar this week?"** → `ha-nova:calendar`');
     expect(context).toContain('"Remove this entity from Home Assistant"** → `ha-nova:fallback`');
     expect(context).toContain('"Detach this config entry from the device"** → `ha-nova:fallback`');
     expect(context).not.toContain('"Show history for sensor X"** → `ha-nova:fallback`');
     expect(context).not.toContain('"Modify my dashboard"** → `ha-nova:fallback`');
+    expect(context).not.toContain("energy, calendars, zones/persons/tags");
   });
 
   it("documents storage-only dashboard lifecycle, resources, and category ownership in dedicated skills", () => {
@@ -73,7 +82,9 @@ describe("ha-nova contract", () => {
     expect(dashboard).toContain("new cards may be created only from this built-in allowlist");
     expect(dashboard).toContain("existing custom cards may only be moved, deleted, or shallow-updated when the exact field already exists");
     expect(dashboard).toContain("Never probe a different dashboard's config just to infer behavior for the target dashboard.");
-    expect(dashboard).toContain("Dashboard/resource delete uses exact token confirmation only.");
+    expect(dashboard).toContain("Dashboard/resource/card delete uses exact token confirmation only");
+    expect(dashboard).toContain("persisted card removal is destructive and requires exact token confirmation `confirm:<token>`");
+    expect(dashboard).toContain("Active Preview Confirmation");
     expect(dashboard).toContain("Never use `lovelace/config/delete` as the dashboard delete path.");
     expect(dashboard).not.toContain("For create/delete or unrelated dashboard-adjacent admin work, hand off to `ha-nova:fallback`.");
 
@@ -97,7 +108,8 @@ describe("ha-nova contract", () => {
     expect(organize).toContain("`config/category_registry/list|create|update|delete`");
     expect(organize).toContain("category assignment/removal is entity-only in this skill");
     expect(organize).toContain("device category assignment");
-    expect(organize).toContain("Delete uses token confirmation only.");
+    expect(organize).toContain("Delete uses token confirmation only, even for cleanup of items created earlier in the same session.");
+    expect(organize).toContain("Active Preview Confirmation");
     expect(organize).toContain("One category scope at a time.");
   });
 
@@ -169,34 +181,55 @@ describe("ha-nova contract", () => {
     expect(context).toContain("Next Step");
   });
 
-  it("documents the review confidence split in the context skill", () => {
-    const context = readFileSync("skills/ha-nova/SKILL.md", "utf8");
+  it("documents the review confidence split in the shared output rules", () => {
+    const outputRules = readFileSync("skills/ha-nova/output-rules.md", "utf8");
 
-    expect(context).toContain("Review confidence split");
-    expect(context).toContain("Questions to consider");
-    expect(context).toContain("Suggestions");
+    expect(outputRules).toContain("Questions to consider");
+    expect(outputRules).toContain("Suggestions");
   });
 
   it("keeps output localization rules code-free and mode-scoped", () => {
     const context = readFileSync("skills/ha-nova/SKILL.md", "utf8");
+    const outputRules = readFileSync("skills/ha-nova/output-rules.md", "utf8");
 
-    expect(context).toContain("Internal codes");
-    expect(context).toContain("NEVER show them in ANY message to the user");
-    expect(context).toContain("findings, summaries, clean states, pre-write verdicts");
-    expect(context).toContain("debugging help, brainstorming, or casual Q&A");
-    expect(context).toContain("Machine-like identifiers");
-    expect(context).toContain("summarize them in natural language or by count");
-    expect(context).toContain("Within a given review mode");
+    expect(context).toContain("skills/ha-nova/output-rules.md");
+    expect(context).toContain("internal-code hiding");
+    expect(outputRules).toContain("Localize section headings and labels");
+    expect(outputRules).toContain("Keep Home Assistant state values");
+    expect(outputRules).toContain("Never show internal check codes");
+    expect(outputRules).toContain("findings, summaries, clean states, pre-write verdicts");
+    expect(outputRules).toContain("debugging help, brainstorming, and casual Q&A");
+    expect(outputRules).toContain("Summarize long inventories by counts");
+    expect(outputRules).toContain("If raw automation IDs, helper IDs, config IDs, or entity IDs");
     // Standalone/bulk keep their full shape; post-write omits empty sections (less noise).
-    expect(context).toContain("Standalone and bulk review keep their full shape");
-    expect(context).toContain('"no issues found" is worth stating');
-    expect(context).toContain('omit empty ones (no "none" buckets)');
+    expect(outputRules).toContain("Standalone and bulk review keep their full shape");
+    expect(outputRules).toContain('"no issues found" result is useful');
+    expect(outputRules).toContain('Do not print empty "none" buckets');
+  });
+
+  it("requires every skill entrypoint to reference the shared output rules", () => {
+    const skillDirs = readdirSync("skills", { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name);
+
+    for (const skillDir of skillDirs) {
+      const skillPath = `skills/${skillDir}/SKILL.md`;
+      if (!existsSync(skillPath)) {
+        continue;
+      }
+
+      const skill = readFileSync(skillPath, "utf8");
+      expect(skill, `${skillPath} must reference shared output rules`).toContain(
+        "skills/ha-nova/output-rules.md",
+      );
+    }
   });
 
   it("keeps new reference files present", () => {
     const files = [
       "skills/ha-nova/relay-api.md",
       "skills/ha-nova/best-practices.md",
+      "skills/ha-nova/output-rules.md",
       "skills/ha-nova/config-body-filter.jq",
       "skills/ha-nova/bulk-patterns.md",
       "skills/ha-nova/agents/resolve-agent.md",
@@ -220,8 +253,19 @@ describe("ha-nova contract", () => {
     expect(relayApi).toContain("POST /core");
     expect(relayApi).toContain("--data-file");
     expect(relayApi).toContain("--body-file");
+    expect(relayApi).toContain("Inline `--body` is not supported for WebSocket relay calls");
+    expect(relayApi).toContain("WS request bodies MUST use `--data-file`");
+    expect(relayApi).toContain("Inline `--body` may be used only for tiny `ha-nova relay core` diagnostics");
     expect(relayApi).toContain("--out");
     expect(relayApi).toContain("--jq-file <filter-file>");
+    expect(relayApi).toContain("Supported flags are `-r`, `-e`, `-c`");
+    expect(relayApi).toContain("JSON output is already compact");
+    expect(relayApi).toContain("small single-input JSON filter");
+    expect(relayApi).toContain("Do not use jq `input`/`inputs`");
+    expect(relayApi).toContain("input_filename");
+    expect(relayApi).not.toContain("relay jq -n");
+    expect(relayApi).toContain("native JSON parser");
+    expect(relayApi).toContain("Do not pass other GNU jq flags");
     expect(relayApi).not.toContain("ha-nova relay ws -d '{");
     expect(relayApi).toContain("{ \"ok\": true, \"data\": ... }");
     expect(relayApi).toContain("/api/config/automation/config/{id}");
@@ -236,6 +280,8 @@ describe("ha-nova contract", () => {
     expect(relayApi).toContain("automation shortlist -> `(.data.automation // [])[]`");
     expect(relayApi).toContain("Compact entity registry (`config/entity_registry/list_for_display`): `data.entities[]`");
     expect(relayApi).toContain("Full entity registry (`config/entity_registry/list`): `data[]`");
+    expect(relayApi).toContain("If the exact automation/script `entity_id` is known, use `config/entity_registry/get` directly.");
+    expect(relayApi).toContain("Use `config/entity_registry/list_for_display` only for search or disambiguation by name.");
     expect(relayApi).toContain("Area registry (`config/area_registry/list`): `data[]` with canonical `area_id`");
     expect(relayApi).toContain("Do not invent a `--jq` flag for `ha-nova relay jq`");
     expect(relayApi).not.toContain("Full entity registry (`config/entity_registry/list`): `data.entities[]`");
@@ -259,6 +305,7 @@ describe("ha-nova contract", () => {
     expect(apiMatrix).toContain("`lovelace/resources/update` | Update UI resource by `resource_id`");
     expect(apiMatrix).toContain("`lovelace/resources/delete` | Delete UI resource by `resource_id`");
     expect(apiMatrix).toContain("`recorder/statistics_during_period` | Bounded long-term statistics for eligible entities");
+    expect(apiMatrix).toContain("`system_health/info` | System health finite event response (Skill opts into Relay `collect_events` until `finish`)");
     expect(apiMatrix).toContain('set one scope: `{"categories":{"<scope>":"<category_id>"}}`');
     expect(apiMatrix).toContain('clear one scope: `{"categories":{"<scope>":null}}`');
     expect(apiMatrix).toContain('do not rely on `{"categories":{}}` to clear an existing scoped category');
@@ -270,6 +317,8 @@ describe("ha-nova contract", () => {
     expect(architecture).toContain("dashboard/SKILL.md");
     expect(architecture).toContain("organize/SKILL.md");
     expect(architecture).toContain("history/SKILL.md");
+    expect(architecture).toContain("health/SKILL.md");
+    expect(architecture).toContain("calendar/SKILL.md");
     expect(architecture).toContain("`ha-nova:dashboard` owns safe storage-dashboard work");
     expect(architecture).toContain("list Lovelace resources");
     expect(architecture).toContain("create/update/delete Lovelace resources");
@@ -284,6 +333,8 @@ describe("ha-nova contract", () => {
     expect(architecture).toContain("entity/device label updates may replace, add, remove, or clear labels");
     expect(architecture).toContain("every `config/category_registry/*` call includes the exact `scope`");
     expect(architecture).toContain("`ha-nova:history` is a bounded read-only timeline skill");
+    expect(architecture).toContain("`ha-nova:health` is a read-only home-status skill");
+    expect(architecture).toContain("`ha-nova:calendar` is a REST-only read skill");
     expect(architecture).toContain("long-term trends via `recorder/statistics_during_period`");
     expect(architecture).toContain("room/area bulk resolution is area-first");
     expect(architecture).toContain("materialize and trim the current workset before any per-item reads");
@@ -363,7 +414,7 @@ describe("ha-nova contract", () => {
     expect(review).not.toContain("{RELAY_BASE_URL}");
     expect(review).not.toContain("{RELAY_AUTH_TOKEN}");
     expect(review).toContain("Output Format");
-    expect(review).toContain("Output Localization");
+    expect(review).toContain("skills/ha-nova/output-rules.md");
     expect(review).toContain("search/related");
     expect(review).toContain("complementary pair");
     // Review entry stays at review/SKILL.md; detailed checks live in review/checks.md.
@@ -547,6 +598,7 @@ describe("ha-nova contract", () => {
       const content = readFileSync(file, "utf8");
       expect(content, `${file} should teach file-based relay payloads`).toMatch(/--(data-file|body-file|out)\b/);
       expect(content, `${file} should not teach inline ws/core JSON as canonical path`).not.toContain("relay ws -d '{");
+      expect(content, `${file} should not teach ws --body`).not.toContain("relay ws --body");
       expect(content, `${file} should not teach inline core JSON as canonical path`).not.toContain("relay core -d '{");
       expect(content, `${file} should not rely on /tmp`).not.toContain("/tmp/");
       expect(content, `${file} should not rely on python post-processing`).not.toContain("python -c");
@@ -592,13 +644,23 @@ describe("ha-nova contract", () => {
     expect(updateGuide).toContain("ha-nova relay jq --file ~/.config/ha-nova/version.json .skill_version");
     expect(updateGuide).not.toContain("cat ~/.config/ha-nova/version.json");
     expect(updateGuide).toContain("Other clients use the same shared CLI updater path");
+    expect(updateGuide).toContain("| Google Antigravity | Flat-copy | Rebuild namespaced flat markdown copies from the active HA NOVA install |");
+    expect(updateGuide).not.toContain("| Gemini | Flat-copy |");
 
     const bestPractices = readFileSync("skills/ha-nova/best-practices.md", "utf8");
     expect(bestPractices).not.toContain('cat > "${HOME}/.cache/ha-nova/automation-bp-snapshot.json"');
     expect(bestPractices).toContain("native file-writing tool");
 
+    const relayApi = readFileSync("skills/ha-nova/relay-api.md", "utf8");
+    expect(relayApi).toContain("Do not allocate scratch directories or files from visible shell commands");
+    expect(relayApi).toContain("set the tool working directory to the scratch directory outside the command text");
+
     const fallback = readFileSync("skills/fallback/SKILL.md", "utf8");
-    expect(fallback).toContain("<calendar-events-path>");
+    expect(fallback).toContain("| System Health / Repairs | Covered | health |");
+    expect(fallback).toContain("| Calendar Queries | Covered | calendar |");
+    expect(fallback).not.toContain("### System Health / Repairs -- RELAY-READY");
+    expect(fallback).not.toContain("### Calendar Queries -- RELAY-READY");
+    expect(fallback).not.toContain("<calendar-events-path>");
     expect(fallback).not.toContain("--path '/api/calendars/");
     expect(fallback).toContain("| Dashboard / Lovelace (storage lifecycle, cards, resources) | Covered | dashboard |");
     expect(fallback).toContain("| History Queries | Covered | history |");

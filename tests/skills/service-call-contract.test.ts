@@ -51,6 +51,31 @@ describe("service call contract", () => {
     it("skill uses /core endpoint for execution", () => {
       expect(skillDoc).toMatch(/relay.*core/);
     });
+
+    it("binds service-call confirmation to the active preview", () => {
+      expect(skillDoc).toContain("Active Preview Confirmation");
+      expect(skillDoc).toContain("Earlier planning consent is draft-only");
+      expect(skillDoc).toContain("For batch service calls, show a grouped manifest first");
+      expect(skillDoc).toContain("No token confirmation needed for ordinary service calls");
+      expect(skillDoc).not.toContain("service calls are reversible actions");
+    });
+
+    it("uses stable preview slots before live service execution", () => {
+      expect(skillDoc).toContain("Preview the service call with stable localized slots");
+      expect(skillDoc).toContain("explicit not-executed-yet line before confirmation");
+      expect(skillDoc).toContain("Options block with the execute/apply choice and `cancel`");
+      expect(skillDoc).toContain("Do not offer `show yaml` unless the user asks for raw payload details");
+    });
+
+    it("treats automation and script execution as explicit live runtime actions", () => {
+      expect(skillDoc).toContain("automation.trigger");
+      expect(skillDoc).toContain("direct script execution");
+      expect(skillDoc).toContain("script.turn_on");
+      expect(skillDoc).toContain("Never call them automatically from read, review, write, or post-write verification");
+      expect(skillDoc).toContain("whether `skip_condition` is set");
+      expect(skillDoc).toContain("Treat `skip_condition: true` as higher risk");
+      expect(skillDoc).toContain("confirmation bound to that exact runtime-call preview");
+    });
   });
 
   describe("state delta before preview", () => {

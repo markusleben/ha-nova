@@ -171,6 +171,55 @@ func TestClientAppearsInstalledForClaudeIgnoresStaleStateWithoutPluginRecord(t *
 	}
 }
 
+func TestClientAppearsInstalledForAntigravityIgnoresLegacyGeminiRoot(t *testing.T) {
+	withClientRuntimeAvailability(t, map[string]bool{"antigravity": true})
+
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+
+	for _, skill := range []string{"ha-nova", "ha-nova-review"} {
+		legacySkill := filepath.Join(legacyGeminiSkillsRoot(home), skill)
+		if err := os.MkdirAll(legacySkill, 0o755); err != nil {
+			t.Fatalf("mkdir legacy skill %s: %v", skill, err)
+		}
+		if err := os.WriteFile(filepath.Join(legacySkill, "SKILL.md"), []byte("name: "+skill), 0o644); err != nil {
+			t.Fatalf("write legacy skill %s: %v", skill, err)
+		}
+	}
+
+	entry, ok, err := findRegistryClient(paths, "antigravity")
+	if err != nil {
+		t.Fatalf("findRegistryClient() error: %v", err)
+	}
+	if !ok {
+		t.Fatal("expected antigravity registry entry")
+	}
+	status := evaluateClientStatus(paths, installState{}, entry)
+	if status.Attached || status.Ready {
+		t.Fatalf("legacy Gemini root must not count as current Antigravity attachment: %+v", status)
+	}
+
+	for _, skill := range []string{"ha-nova", "ha-nova-review"} {
+		currentSkill := filepath.Join(antigravitySkillsRoot(home), skill)
+		if err := os.MkdirAll(currentSkill, 0o755); err != nil {
+			t.Fatalf("mkdir antigravity skill %s: %v", skill, err)
+		}
+		if err := os.WriteFile(filepath.Join(currentSkill, "SKILL.md"), []byte("name: "+skill), 0o644); err != nil {
+			t.Fatalf("write antigravity skill %s: %v", skill, err)
+		}
+	}
+
+	status = evaluateClientStatus(paths, installState{}, entry)
+	if !status.Attached || !status.Ready {
+		t.Fatalf("current Antigravity root should count as attached and ready: %+v", status)
+	}
+}
+
 func TestClientAppearsInstalledForClaudeIgnoresBrokenInstallPathRecord(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

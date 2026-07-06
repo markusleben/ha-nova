@@ -155,7 +155,7 @@ Hard requirements:
 3. Treat this as a pasted-YAML review unless the prompt explicitly requires Home Assistant reads.
 4. Use only the local repo skills plus the pasted YAML in this prompt.
 5. Never read installed skill copies from ~/.local/share/ha-nova/skills or any other home-directory skill mirror.
-6. Read only repo-local files from this checkout when you need skill guidance. Default allowed files for this harness: skills/ha-nova/SKILL.md, skills/review/SKILL.md, skills/review/checks.md, docs/reference/ha-template-reference.md.
+6. Read only repo-local files from this checkout when you need skill guidance. Default allowed files for this harness: skills/ha-nova/SKILL.md, directly referenced skills/ha-nova/*.md reference files, skills/review/SKILL.md, skills/review/checks.md, docs/reference/ha-template-reference.md.
 7. Do not browse the web and do not use external research tools or docs fetches.
 8. Do not use Exa, Ref, web search, or official-doc lookup tools.
 9. Treat the local repo skill guidance as authoritative for this harness even if you feel uncertain.

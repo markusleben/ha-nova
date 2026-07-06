@@ -873,13 +873,14 @@ Hard requirements:
 2. Use App + Relay terminology.
 3. Read only these repo-local files for skill guidance:
    - `{ROOT / "skills" / "ha-nova" / "SKILL.md"}`
+   - directly referenced `{ROOT / "skills" / "ha-nova" / "*.md"}` reference files if needed
    - `{skill_path}`
    - `{ROOT / "skills" / "ha-nova" / "relay-api.md"}` if needed
 4. Do not open installed skill copies under `~/.local/share/ha-nova/skills`, `~/.agents/skills`, or other home-directory mirrors.
 5. Use the current local HA NOVA setup directly. Do not run health, doctor, or readiness preflights unless the first relay call fails.
 6. Do not browse the web and do not use external docs or research tools.
 7. Do not run project helper scripts.
-8. Do not search the repo for implementation hints beyond those three allowed files.
+8. Do not search the repo for implementation hints beyond those allowed files.
 9. Do not modify repository files.
 10. Do not probe CLI syntax with `--help` or other trial commands.
 11. Do not wrap relay commands in ad-hoc debug shells, loops, or extra shell variables. Use minimal one-shot commands only.
@@ -949,7 +950,7 @@ def build_dashboard_delete_token_prompt(fixture: dict[str, Any]) -> tuple[str, s
     token = fixture["token"]
     status_line = f'NOVA_PROMOTED_SKILL_RESULT id=dashboard_delete_token ok url_path={fixture["url_path"]} deleted=true'
     task = f"""You are handling the delete step for the existing storage dashboard at url path `{fixture["url_path"]}`.
-The delete preview was already shown in the previous turn and the exact confirmation token was `{token}`.
+In this test fixture, the previous turn showed the concrete delete preview for this exact dashboard and the exact confirmation token was `{token}`.
 The user's current reply is exactly `{token}`.
 Resolve the dashboard, execute only the delete path, verify the dashboard is gone from the dashboard list, and finish.
 Use Relay WebSocket calls only for this dashboard flow.
@@ -961,7 +962,7 @@ def build_dashboard_delete_reject_prompt(fixture: dict[str, Any]) -> tuple[str, 
     token = fixture["token"]
     status_line = f'NOVA_PROMOTED_SKILL_RESULT id=dashboard_delete_reject_natural ok url_path={fixture["url_path"]} refused=true'
     task = f"""You are handling the delete step for the existing storage dashboard at url path `{fixture["url_path"]}`.
-The delete preview was already shown in the previous turn and the exact confirmation token was `{token}`.
+In this test fixture, the previous turn showed the concrete delete preview for this exact dashboard and the exact confirmation token was `{token}`.
 The user's current reply is only `yes`.
 Do not delete anything. Explain briefly that the exact token is still required, include the token literally, and stop.
 Use Relay WebSocket calls only for this dashboard flow.
@@ -1075,7 +1076,7 @@ def build_organize_category_delete_prompt(fixture: dict[str, Any]) -> tuple[str,
         f'category_id={fixture["category_id"]} deleted=true'
     )
     task = f"""You are handling the delete step for category `{fixture["category_id"]}` in scope `{fixture["scope"]}`.
-The delete preview was already shown in the previous turn and the exact confirmation token was `{token}`.
+In this test fixture, the previous turn showed the concrete delete preview for this exact category and scope, and the exact confirmation token was `{token}`.
 The user's current reply is exactly `{token}`.
 Delete the category, verify it is absent from the category registry for that scope, and verify entity `{fixture["entity_id"]}` no longer keeps that category in the same scope.
 Every category registry call in this scenario must include the provided scope."""

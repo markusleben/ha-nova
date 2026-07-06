@@ -187,11 +187,10 @@ ha-nova update
 ## RC / Stable Validation Matrix
 
 Minimum automated gate:
-- `bash scripts/check-docs.sh`
-- `npm run verify:installers`
-- `npx vitest run tests/onboarding/release-contract.test.ts`
-- `npx vitest run tests/onboarding/client-install-docs-contract.test.ts tests/onboarding/desktop-validation-contract.test.ts tests/onboarding/self-update-contract.test.ts`
-- `cd cli && go test ./...`
+- `npm run verify`
+- `npm run verify:next-release-version -- vX.Y.Z-rcN` before an RC tag
+- `npm run verify:next-release-version -- vX.Y.Z` before the final tag
+- `HA_NOVA_RELEASE_AUDIT_REQUIRE_BYPASS=1 bash scripts/release/verify-release-pipeline.sh` before any release tag/publish step
 
 Minimum manual gate before calling an RC ready:
 
@@ -212,7 +211,7 @@ macOS self-managed lifecycle:
 Linux real-machine onboarding:
 Helper:
 - use `scripts/smoke/linux-headless-setup-check.sh` as the executable assistant for the SSH/headless Linux lane; pass the host and install command via env, never hardcode host-specific details in the repo
-- by default the helper runs `HA_NOVA_NO_BROWSER=1 ha-nova setup`; for Hermes desktop-keyring proof, set `HA_NOVA_LIVE_SETUP_CMD='HA_NOVA_NO_BROWSER=1 ha-nova setup hermes'`; for Hermes service/gateway proof, set `HA_NOVA_LIVE_SETUP_CMD='HA_NOVA_NO_BROWSER=1 ha-nova setup --service hermes'`
+- by default the helper runs `HA_NOVA_NO_BROWSER=1 ha-nova setup`; for Google Antigravity proof, use `npm run test:desktop:linux:antigravity` or set `HA_NOVA_LIVE_SETUP_CMD='HA_NOVA_NO_BROWSER=1 ha-nova setup antigravity'`; for Hermes desktop-keyring proof, set `HA_NOVA_LIVE_SETUP_CMD='HA_NOVA_NO_BROWSER=1 ha-nova setup hermes'`; for Hermes service/gateway proof, set `HA_NOVA_LIVE_SETUP_CMD='HA_NOVA_NO_BROWSER=1 ha-nova setup --service hermes'`
 - `HA_NOVA_LIVE_SKIP_INSTALL=1` is for repair/debug passes only; it does not satisfy the full release-bound fresh-install proof for this lane
 1. use a real Linux host with a desktop user session; when validating the SSH/headless recovery path, use an SSH shell inside that same logged-in user session
 2. fresh stable install via the public `install.sh` flow
@@ -291,10 +290,12 @@ This is the release-bound Windows UX proof. It is separate from `npm run verify`
 Prerequisites for this lane:
 - on `clean` / fresh-profile runs, preinstall at least one supported client and verify it already runs from the same local shell
 - native Windows Claude also needs Git for Windows / Git Bash
-- native Windows Gemini also needs Node.js
+- native Windows Google Antigravity must provide either a standard per-user Desktop install (`%LOCALAPPDATA%\Programs\antigravity\Antigravity.exe` or `%LOCALAPPDATA%\Programs\Antigravity\Antigravity.exe`) or CLI (`agy`)
+- for this native Windows lane, counted ready clients are Claude Code with Git Bash, Google Antigravity Desktop/CLI, Codex CLI, and OpenCode; Hermes does not count on native Windows
 
 Additional supported public outcome:
 - if no supported client is ready yet, the same helper may also be used to prove the graceful install-only path: HA NOVA installs locally, shows the missing client prerequisite guidance, and does not fail the installer
+- optional Desktop-only proof: set `HA_NOVA_REQUIRE_ANTIGRAVITY_DESKTOP_ONLY=1` for the public Windows helper; that lane requires the standard Antigravity Desktop marker and fails if readiness only comes from `agy`
 
 Supported matrix for this lane:
 - Windows 10 + PowerShell 5.1 + standard user + fresh profile
@@ -332,7 +333,8 @@ Evidence record for each run:
 - `final_verdict`
 
 Release defaults:
-- RC: at least one real public Windows onboarding proof on Windows 11 + PowerShell 7 before prerelease publish
+- RC before tag: local/private bundle proof is acceptable only as a pre-tag sanity check
+- RC after publish: at least one real public Windows onboarding proof on Windows 11 + PowerShell 7 against the published prerelease installer
 - Stable: full 4-host matrix plus `reinstall` and `stale-uninstall-marker` runs before final publish when installer/onboarding changed
 
 ## Release Notes Style

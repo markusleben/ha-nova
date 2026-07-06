@@ -39,6 +39,11 @@ Use `ha-nova relay` for all HA communication. It handles auth, headers, and time
 - `ha-nova relay ws --data-file <payload-file>` - canonical WebSocket relay path
 - `ha-nova relay core --method <METHOD> --path <PATH> --body-file <payload-file>` - canonical Core API relay path
 - `ha-nova relay ... --out <result-file>` - canonical large-output path
+- Use client-private scratch storage outside the project workspace for payload/result files.
+- Do not allocate scratch directories or files from visible shell commands for relay JSON.
+- Do not create relay scratch files under the repo working tree.
+- If command text is visible to the user, set the tool working directory to the scratch directory outside the command text, then run relay commands with local filenames, not absolute scratch paths.
+- Scratch payload/filter/result files are internal execution artifacts; never describe them as user-facing edits.
 - Response envelope: `{"ok":true,"data":...}` or `{"ok":false,"error":{...}}`
 - /core response: `{"ok":true,"data":{"status":200,"body":{...}}}`
 

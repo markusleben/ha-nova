@@ -5,6 +5,8 @@ import { describe, expect, it } from "vitest";
 const writeSkill = readFileSync("skills/write/SKILL.md", "utf8");
 const refactorGuide = readFileSync("skills/ha-nova/safe-refactoring.md", "utf8");
 const writeSafety = readFileSync("skills/ha-nova/write-safety.md", "utf8");
+const applyAgent = readFileSync("skills/ha-nova/agents/apply-agent.md", "utf8");
+const resolveAgent = readFileSync("skills/ha-nova/agents/resolve-agent.md", "utf8");
 
 describe("write delete safety contract", () => {
   it("requires delete previews to surface consumer-check results before confirmation", () => {
@@ -19,12 +21,13 @@ describe("write delete safety contract", () => {
   });
 
   it("wires pre-write diff, pre-write impact, and update-revert into the write flow", () => {
-    expect(writeSkill).toContain("## Changes");
+    expect(writeSkill).toContain("Changes slot");
     expect(writeSkill).toContain("Pre-Write Impact");
     expect(writeSkill).toContain("Update-Revert");
     expect(writeSkill).toContain("skills/ha-nova/write-safety.md");
     // YAML is opt-in, not dumped by default, for a non-technical audience.
     expect(writeSkill).toContain("show yaml");
+    expect(writeSkill).toContain("cancel");
   });
 
   it("defines diff + durable update-revert in the shared owner doc", () => {
@@ -52,10 +55,48 @@ describe("write delete safety contract", () => {
     expect(writeSafety).toContain("continue silently");
   });
 
+  it("keeps scratch files out of user-facing output", () => {
+    const outputRules = readFileSync("skills/ha-nova/output-rules.md", "utf8");
+    const context = readFileSync("skills/ha-nova/SKILL.md", "utf8");
+
+    expect(outputRules).toContain("Scratch payload/filter/result files are internal execution artifacts");
+    expect(outputRules).toContain("Do not mention or echo scratch file paths");
+    expect(outputRules).toContain("Do not create them under the repo working tree");
+    expect(outputRules).toContain("visible command text contains absolute scratch paths");
+    expect(outputRules).toContain("scratch location/tooling was wrong");
+    expect(outputRules).toContain('"edited files"');
+    expect(context).toContain("Scratch files are internal");
+    expect(context).toContain("Do not create them under the repo working tree");
+    expect(context).toContain("client-private scratch storage outside the project workspace");
+    expect(context).toContain("never allocate scratch directories or files from visible shell commands");
+    expect(context).toContain("set the tool working directory to the scratch directory outside the command text");
+    expect(context).toContain("local filenames, not absolute scratch paths");
+    expect(resolveAgent).toContain("Do not allocate scratch directories or files from visible shell commands");
+    expect(resolveAgent).toContain("Do not create relay scratch files under the repo working tree");
+    expect(resolveAgent).toContain("set the tool working directory to the scratch directory outside the command text");
+    expect(resolveAgent).toContain("local filenames, not absolute scratch paths");
+    expect(applyAgent).toContain("do not allocate scratch directories or files from visible shell commands");
+    expect(applyAgent).toContain("Do not create relay scratch files under the repo working tree");
+    expect(applyAgent).toContain("set the tool working directory to the scratch directory outside the command text");
+    expect(applyAgent).toContain("local filenames, not absolute scratch paths");
+    expect(applyAgent).toContain("never describe them as user-facing edits");
+  });
+
   it("renders the diff deterministically via the CLI, printed verbatim", () => {
     expect(writeSafety).toContain("ha-nova diff");
+    expect(writeSafety).toContain("--out <diff-file>");
     expect(writeSafety).toContain("verbatim");
     expect(writeSkill).toContain("ha-nova diff");
+    expect(writeSkill).toContain("prefer `--out <diff-file>`");
+  });
+
+  it("protects notification copy from unrequested rewrites", () => {
+    expect(writeSafety).toContain("User-authored notification copy");
+    expect(writeSafety).toContain("Notification text is user-authored copy");
+    expect(writeSafety).toContain("Do not silently restyle, relocalize, shorten, expand, or restructure existing");
+    expect(writeSafety).toContain("notification text during a rename, refactor, timing change");
+    expect(writeSafety).toContain("A count-only array line");
+    expect(writeSkill).toContain("preserve notification titles, messages, templates, metadata");
   });
 
   it("forces the diff/snapshot tools to be run, not hand-computed", () => {
@@ -64,7 +105,7 @@ describe("write delete safety contract", () => {
     expect(writeSkill).toContain("never write it yourself");
     expect(writeSafety).toContain("There is no hand-computed fallback");
     // The example is de-realized so it cannot be copied as a hand-rendered block.
-    expect(writeSafety).toContain("paste the ha-nova diff stdout");
+    expect(writeSafety).toContain("paste the ha-nova diff file/stdout");
     // Snapshot save is an explicit command; revert reads before_config only from it.
     expect(writeSkill).toContain("**run `ha-nova snapshot save`**");
     expect(writeSafety).toContain("only** source of `before_config`");
@@ -73,5 +114,20 @@ describe("write delete safety contract", () => {
 
   it("keeps delete a typed token even under menu pressure", () => {
     expect(writeSkill).toContain("delete is the typed token, never a menu");
+  });
+
+  it("requires tokenized delete confirmation for same-session cleanup", () => {
+    expect(writeSkill).toContain("Destructive cleanup still requires `confirm:<token>`");
+    expect(writeSafety).toContain("even when the item was created earlier in the same session");
+    expect(refactorGuide).toContain("cleanup, undo-create, orphan cleanup, failed-create cleanup");
+  });
+
+  it("treats post-delete absence evidence as successful verification without alternate delete retries", () => {
+    expect(applyAgent).toContain("config read-back not-found after DELETE is expected absence evidence");
+    expect(applyAgent).toContain("entity state not-found after DELETE is expected absence evidence");
+    expect(applyAgent).toContain("`config/entity_registry/get` may return `UPSTREAM_WS_ERROR` after deletion");
+    expect(applyAgent).toContain("do not retry alternate deletes");
+    expect(applyAgent).toContain("config/entity_registry/list_for_display");
+    expect(applyAgent).toContain("no exact `entity_id` match");
   });
 });

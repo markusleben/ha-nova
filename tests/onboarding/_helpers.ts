@@ -34,7 +34,7 @@ export interface MockHomeOpts {
   /** Create a fake keychain token file (since we mock `security`) */
   keychainToken?: string;
   /** Pre-install skills for this client */
-  skills?: "codex" | "gemini" | "opencode" | "claude" | "hermes" | "all";
+  skills?: "codex" | "antigravity" | "opencode" | "claude" | "hermes" | "all";
 }
 
 /**

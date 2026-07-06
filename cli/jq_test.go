@@ -48,6 +48,43 @@ func TestRunJQSupportsFilterFile(t *testing.T) {
 	}
 }
 
+func TestRunJQAcceptsCompactFlagAsNoop(t *testing.T) {
+	t.Helper()
+
+	tempDir := t.TempDir()
+	inputPath := filepath.Join(tempDir, "input.json")
+
+	if err := os.WriteFile(inputPath, []byte(`{"items":[1,2,3]}`), 0o644); err != nil {
+		t.Fatalf("write input: %v", err)
+	}
+
+	originalStdout := os.Stdout
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("pipe: %v", err)
+	}
+	os.Stdout = writer
+	defer func() {
+		_ = writer.Close()
+		os.Stdout = originalStdout
+	}()
+
+	exitCode := runJQ([]string{"-c", "--file", inputPath, ".items"})
+	_ = writer.Close()
+
+	var output bytes.Buffer
+	if _, err := output.ReadFrom(reader); err != nil {
+		t.Fatalf("read output: %v", err)
+	}
+
+	if exitCode != 0 {
+		t.Fatalf("expected exit code 0, got %d", exitCode)
+	}
+	if got := output.String(); got != "[1,2,3]\n" {
+		t.Fatalf("expected compact jq output %q, got %q", "[1,2,3]\n", got)
+	}
+}
+
 func TestRunJQRejectsInlineFilterAndFilterFileTogether(t *testing.T) {
 	t.Helper()
 

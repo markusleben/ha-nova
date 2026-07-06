@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -32,8 +33,9 @@ func transientBackupResidue(paths runtimePaths, clients []string) []string {
 
 // clientSkillTreeRoots maps a client id to the on-disk root(s) where ITS synced
 // HA NOVA skills live. Returns nil for clients without a scannable skill tree.
-// Gemini uses a flat layout shared with the user's other skills, so only the
-// `ha-nova*` entries are ours — never scan unrelated Gemini skills.
+// Antigravity uses a flat layout shared with the user's other skills, so only
+// the exact HA NOVA-managed skill names are ours — never scan unrelated
+// Antigravity skills just because they share a prefix.
 func clientSkillTreeRoots(paths runtimePaths, client string) []string {
 	switch client {
 	case "hermes":
@@ -42,9 +44,17 @@ func clientSkillTreeRoots(paths runtimePaths, client string) []string {
 		return []string{filepath.Join(paths.Home, ".agents", "skills", "ha-nova")}
 	case "opencode":
 		return []string{filepath.Join(paths.Home, ".config", "opencode", "skills", "ha-nova")}
-	case "gemini":
-		matches, _ := filepath.Glob(filepath.Join(paths.Home, ".gemini", "skills", "ha-nova*"))
-		return matches
+	case "antigravity":
+		subSkills, _ := sourceSubSkills(resolveSourceRoot(paths))
+		roots := []string{}
+		for skill := range managedAntigravitySkillNames(subSkills) {
+			roots = append(roots,
+				filepath.Join(antigravitySkillsRoot(paths.Home), skill),
+				filepath.Join(legacyGeminiSkillsRoot(paths.Home), skill),
+			)
+		}
+		sort.Strings(roots)
+		return roots
 	default:
 		return nil
 	}
@@ -53,8 +63,8 @@ func clientSkillTreeRoots(paths runtimePaths, client string) []string {
 // pathHasTransientBackupResidue reports whether the install at root still points
 // at, or was copied from, a transient update backup. Symlink installs
 // (codex/opencode) are residue when the link targets a backup or dangles; copy
-// installs (hermes/gemini) are residue when any synced markdown bakes a backup
-// path.
+// installs (hermes/antigravity) are residue when any synced markdown bakes a
+// backup path.
 func pathHasTransientBackupResidue(root string) bool {
 	info, err := os.Lstat(root)
 	if err != nil {

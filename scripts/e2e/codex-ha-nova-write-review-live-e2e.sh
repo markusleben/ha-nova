@@ -208,7 +208,7 @@ Hard requirements:
 6. Do not run onboarding ready/doctor/quick checks before the first HA action.
 7. This is a real write-flow scenario. Create or replace exactly one disposable automation whose final config id is "${automation_id}".
 8. For this harness, prefer the deterministic automation id even if the normal write skill would otherwise generate a timestamp for a fresh create.
-9. Preview payload first; explicit confirmation is granted by this prompt.
+9. Preview payload first. This harness simulates the user's next post-preview reply only for that exact preview; if the payload changes after preview, repeat preview before applying.
 10. Do not run --help, dry-run probes, CLI shape checks, or fallback discovery commands. Use the repo-local skill contract directly.
 11. Do not retry the write flow with alternate commands after a failed attempt. Use one clean write path only.
 12. Do not delete the automation yourself; the harness will clean it up after the session.
@@ -223,7 +223,7 @@ Hard requirements:
     NOVA_WRITE_REVIEW_RESULT id=${scenario_id} automation_id=${automation_id} status=ok
 21. Use the canonical automation payload keys "triggers", "conditions", and "actions".
 22. Keep repo reads minimal. Load only the repo-local ha-nova / write skill material you actually need. Do not inspect unrelated tests, workflows, or release files.
-23. Before the apply step, include exactly one ## Preview Payload section that shows the payload with the canonical keys. Do not print a second ## Preview Payload section. If you reconsider the draft, revise silently before sending the final answer.
+23. Before the apply step, include exactly one Preview Payload slot that shows the payload with the canonical keys. A Markdown `##` prefix is allowed but not required. Do not print a second Preview Payload slot. If you reconsider the draft, revise silently before sending the final answer.
 24. Before the apply step, print exactly one explicit prewrite verdict line:
     - safe draft: Pre-write check: no issues worth flagging before save.
     - flagged draft: Pre-write check: this draft may not behave as intended.
@@ -239,7 +239,7 @@ Hard requirements:
 34. In user-facing text, never print tool-call syntax, JSON command envelopes, raw exec transcripts, or fragments like \`to=functions.exec_command\`, \`to=multi_tool_use.parallel\`, or \`{\"cmd\":...\` . The only allowed JSON in user-facing output is the fenced preview payload, plus the final machine line.
 35. The first agent message after the repo-local file reads must be the preview block plus the explicit prewrite verdict. Do not announce that the write is running before the preview is shown.
 36. After those checks, stop and print the final user-facing result, the ## Post-Write Review section, and the machine line. Do not emit extra messages after the machine line.
-37. Before the first HA action, read at most these repo-local files unless a write would otherwise fail: skills/ha-nova/SKILL.md, skills/write/SKILL.md, skills/review/checks.md, skills/ha-nova/payload-schemas.md.
+37. Before the first HA action, read at most these repo-local files unless a write would otherwise fail: skills/ha-nova/SKILL.md, directly referenced skills/ha-nova/*.md reference files, skills/write/SKILL.md, skills/review/checks.md.
 38. Do not read docs/reference/, tests/, workflows, or release files for this harness.
 39. Do not emit todo lists, meta progress updates, or extra planning summaries. Move directly from the minimal local reads to preview payload, explicit prewrite verdict, apply, ordered checks, final result, and machine line.
 EOF_PROMPT
@@ -949,9 +949,9 @@ result = {
     "unexpected_events_after_final_message": unexpected_events_after_final_message,
 }
 preview_sections = re.findall(
-    r"## Preview Payload\b(.*?)(?=\nPre-write check:|\n## |\Z)",
+    r"^(?:##\s*)?Preview Payload\b(.*?)(?=\nPre-write check:|\n(?:##\s*)?[A-Z][^\n]*:|\n## |\Z)",
     result["prewrite_text"],
-    re.DOTALL,
+    re.MULTILINE | re.DOTALL,
 )
 result["preview_section_count"] = len(preview_sections)
 result["preview_has_canonical_keys"] = (

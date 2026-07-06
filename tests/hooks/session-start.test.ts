@@ -41,6 +41,8 @@ describe("S-6: session-start hook", () => {
     expect(json.additional_context).toContain("ha-nova:write");
     expect(json.additional_context).toContain("ha-nova:review");
     expect(json.additional_context).toContain("ha-nova:entity-discovery");
+    expect(json.additional_context).toContain("ha-nova:health");
+    expect(json.additional_context).toContain("ha-nova:calendar");
     expect(json.additional_context).toContain("ha-nova:service-call");
     expect(json.additional_context).toContain("ha-nova:onboarding");
   });

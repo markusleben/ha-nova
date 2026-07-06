@@ -54,7 +54,8 @@ func claudeMarketplaceVersionForSourceRoot(paths runtimePaths, sourceRoot string
 }
 
 func expectedClaudeMarketplaceSource(paths runtimePaths, state installState) (string, error) {
-	if normalizeInstallSource(detectInstallSource(paths, state)) == installSourceDev ||
+	if BuildChannel == "dev" ||
+		normalizeInstallSource(detectInstallSource(paths, state)) == installSourceDev ||
 		strings.EqualFold(strings.TrimSpace(os.Getenv("HA_NOVA_CLAUDE_MARKETPLACE_LOCAL")), "1") {
 		return claudeMarketplaceDevRoot(paths), nil
 	}

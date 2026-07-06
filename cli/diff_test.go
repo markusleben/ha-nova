@@ -59,6 +59,16 @@ func TestDiffEscapesMultilineStringValues(t *testing.T) {
 	}
 }
 
+func TestDiffKeepsNormalNotificationMessagesUntruncated(t *testing.T) {
+	before := `{"sequence":[{"action":"persistent_notification.create","data":{"message":"Das Script-Preview-Format wurde getestet."}}]}`
+	after := `{"sequence":[{"action":"persistent_notification.create","data":{"message":"Das geänderte Script-Preview-Format wurde wirklich final getestet."}}]}`
+
+	got := diffLines(t, before, after)
+	assertLines(t, got, []string{
+		"- Step 1 (data › message): Das Script-Preview-Format wurde getestet. → Das geänderte Script-Preview-Format wurde wirklich final getestet.",
+	})
+}
+
 func TestDiffNumberRepresentationIsNotADrift(t *testing.T) {
 	// HA can round-trip a config and change a number's form (5 -> 5.0, 1000 -> 1e3).
 	// Mathematically-equal numbers must render NOTHING, so snapshot verify does not
@@ -137,6 +147,26 @@ func TestDiffModeAndDelayInStableOrder(t *testing.T) {
 func TestDiffArrayLengthChange(t *testing.T) {
 	got := diffLines(t, `{"triggers":[{"a":1}]}`, `{"triggers":[{"a":1},{"b":2}]}`)
 	assertLines(t, got, []string{"- Triggers: 1 → 2 items"})
+}
+
+func TestDiffShowsNotificationCopyChangeEvenWhenActionsLengthChanges(t *testing.T) {
+	before := `{"actions":[{"action":"notify.mobile_app_phone","data":{"title":"Nachtladung","message":"Plan erstellt","data":{"tag":"nachtladung"}}}]}`
+	after := `{"actions":[{"action":"notify.mobile_app_phone","data":{"title":"Nachtladung","message":"Plan ist bereit","data":{"tag":"nachtladung"}}},{"action":"input_boolean.turn_on","target":{"entity_id":"input_boolean.nachtladung_plan_valid"}}]}`
+	got := diffLines(t, before, after)
+	assertLines(t, got, []string{
+		"- Actions: 1 → 2 items",
+		"- Action 1 (data › message): Plan erstellt → Plan ist bereit",
+	})
+}
+
+func TestDiffShowsMovedNotificationCopyChangeWhenActionsLengthChanges(t *testing.T) {
+	before := `{"actions":[{"action":"notify.mobile_app_phone","data":{"message":"Plan erstellt"}}]}`
+	after := `{"actions":[{"action":"input_boolean.turn_on","target":{"entity_id":"input_boolean.nachtladung_plan_valid"}},{"action":"notify.mobile_app_phone","data":{"message":"Plan ist bereit"}}]}`
+	got := diffLines(t, before, after)
+	assertLines(t, got, []string{
+		"- Actions: 1 → 2 items",
+		"- Action 2 (data › message): Plan erstellt → Plan ist bereit",
+	})
 }
 
 func TestDiffAddAndRemoveKey(t *testing.T) {

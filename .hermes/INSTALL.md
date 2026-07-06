@@ -86,4 +86,4 @@ After setup, HA NOVA skills are available inside Hermes with the HA NOVA namespa
 - Claude Code: `.claude/INSTALL.md`
 - Codex: `.codex/INSTALL.md`
 - OpenCode: `.opencode/INSTALL.md`
-- Gemini CLI: `.gemini/INSTALL.md`
+- Google Antigravity: `.antigravity/INSTALL.md`

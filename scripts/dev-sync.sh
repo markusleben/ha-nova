@@ -78,17 +78,18 @@ sync_file_client() {
   echo "[dev:sync] ${name}: not installed — skipped"
 }
 
-sync_gemini() {
-  local context_marker="${HOME}/.gemini/skills/ha-nova/SKILL.md"
-  local current_marker="${HOME}/.gemini/skills/ha-nova-read/SKILL.md"
-  local legacy_marker="${HOME}/.agents/skills/ha-nova-read/SKILL.md"
+sync_antigravity() {
+  local context_marker="${HOME}/.gemini/config/skills/ha-nova/SKILL.md"
+  local current_marker="${HOME}/.gemini/config/skills/ha-nova-read/SKILL.md"
+  local legacy_context_marker="${HOME}/.gemini/skills/ha-nova/SKILL.md"
+  local legacy_current_marker="${HOME}/.gemini/skills/ha-nova-read/SKILL.md"
 
-  if [[ -f "$context_marker" || -f "$current_marker" || -f "$legacy_marker" ]]; then
-    refresh_file_client "Gemini" "gemini"
+  if [[ -f "$context_marker" || -f "$current_marker" || -f "$legacy_context_marker" || -f "$legacy_current_marker" ]]; then
+    refresh_file_client "Google Antigravity" "antigravity"
     return
   fi
 
-  echo "[dev:sync] Gemini: not installed — skipped"
+  echo "[dev:sync] Google Antigravity: not installed — skipped"
 }
 
 sync_hermes() {
@@ -249,12 +250,48 @@ sync_shared_tools() {
 # Released builds never pass these, so they print only the bare version — the
 # published install stays untouched. The signal lives in the shared CLI, not in
 # skill files, so it works for every client (symlinked Codex/OpenCode or copied
-# Claude/Gemini) and can never pollute the committed skill source.
+# Claude/Antigravity) and can never pollute the committed skill source.
 dev_build_ldflags() {
-  local sha stamp
+  local sha stamp version
   sha="$(git -C "${REPO_ROOT}" rev-parse --short HEAD 2>/dev/null || echo local)"
   stamp="$(date '+%Y-%m-%dT%H:%M' 2>/dev/null || echo unknown)"
-  printf -- '-X main.BuildChannel=dev -X main.BuildStamp=%s-%s' "${stamp}" "${sha}"
+  version="$(repo_skill_version)"
+  printf -- '-X main.Version=%s -X main.BuildChannel=dev -X main.BuildStamp=%s-%s' "${version:-dev}" "${stamp}" "${sha}"
+}
+
+dev_bundle_os() {
+  case "$(uname -s 2>/dev/null || echo unknown)" in
+    Darwin) printf '%s\n' "macos" ;;
+    Linux) printf '%s\n' "linux" ;;
+    MINGW*|MSYS*|CYGWIN*) printf '%s\n' "windows" ;;
+    *) printf '%s\n' "unknown" ;;
+  esac
+}
+
+dev_bundle_arch() {
+  case "$(uname -m 2>/dev/null || echo unknown)" in
+    x86_64|amd64) printf '%s\n' "amd64" ;;
+    arm64|aarch64) printf '%s\n' "arm64" ;;
+    *) uname -m 2>/dev/null || printf '%s\n' "unknown" ;;
+  esac
+}
+
+write_dev_bundle_metadata() {
+  local target_root="$1" version="$2" os_name arch_name binary_name
+  os_name="$(dev_bundle_os)"
+  arch_name="$(dev_bundle_arch)"
+  binary_name="ha-nova"
+  [[ "${os_name}" == "windows" ]] && binary_name="ha-nova.exe"
+
+  cat > "${target_root}/bundle.json" <<EOF
+{
+  "bundle_format_version": 1,
+  "version": "${version}",
+  "os": "${os_name}",
+  "arch": "${arch_name}",
+  "binary_name": "${binary_name}"
+}
+EOF
 }
 
 # The directory Claude stages the ha-nova plugin FROM (its marketplace source).
@@ -356,7 +393,17 @@ sync_cli_runtime() {
   esac
 
   if (cd "${REPO_ROOT}/cli" && go build -ldflags "$(dev_build_ldflags)" -o "${target}" .); then
+    local target_root repo_version
+    target_root="$(dirname "${target}")"
+    repo_version="$(repo_skill_version)"
     chmod 755 "${target}" 2>/dev/null || true
+    cp "${REPO_ROOT}/version.json" "${target_root}/version.json" 2>/dev/null || true
+    write_dev_bundle_metadata "${target_root}" "${repo_version:-dev}"
+    rsync -a --delete "${REPO_ROOT}/skills/" "${target_root}/skills/"
+    mkdir -p "${target_root}/docs/reference"
+    rsync -a --delete "${REPO_ROOT}/docs/reference/" "${target_root}/docs/reference/"
+    mkdir -p "${target_root}/clients"
+    cp "${REPO_ROOT}/clients/registry.json" "${target_root}/clients/registry.json"
     echo "[dev:sync] CLI: built local Go source → ${target}"
     echo "[dev:sync] CLI: local dev build active — 'ha-nova version' now reports DEV; restore the release with 'ha-nova update --force'"
     synced+=("CLI")
@@ -364,6 +411,35 @@ sync_cli_runtime() {
     echo "[dev:sync] CLI: go build failed — fix the error above, then re-sync" >&2
     cli_build_failed=1
   fi
+}
+
+stamp_dev_sync_state() {
+  local state_file="${HOME}/.config/ha-nova/state.json"
+  local repo_version
+  repo_version="$(repo_skill_version)"
+
+  [[ -n "${repo_version}" ]] || return 0
+  [[ -f "${state_file}" ]] || return 0
+  command -v node >/dev/null 2>&1 || return 0
+  node -e 'process.exit(0)' >/dev/null 2>&1 || return 0
+
+  node - "${state_file}" "${repo_version}" <<'NODE'
+const fs = require("fs");
+
+const stateFile = process.argv[2];
+const version = process.argv[3];
+
+try {
+  const raw = fs.readFileSync(stateFile, "utf8");
+  const state = raw.trim() ? JSON.parse(raw) : {};
+  state.schema_version = state.schema_version || 1;
+  state.version = version;
+  state.clients_verified_version = version;
+  fs.writeFileSync(stateFile, `${JSON.stringify(state, null, 2)}\n`, { mode: 0o600 });
+} catch (err) {
+  process.stderr.write(`[dev:sync] Warning: state.json not stamped (${err.message})\n`);
+}
+NODE
 }
 
 verify_plugin_integrity() {
@@ -415,7 +491,7 @@ require_repo_invariants
 
 sync_file_client "Codex" "${HOME}/.agents/skills/ha-nova" "codex"
 sync_file_client "OpenCode" "${HOME}/.config/opencode/skills/ha-nova" "opencode"
-sync_gemini
+sync_antigravity
 sync_hermes
 sync_claude
 sync_cli_runtime
@@ -423,6 +499,9 @@ if [[ "${file_clients_synced}" -eq 0 ]]; then
   sync_shared_tools
 fi
 verify_plugin_integrity
+if [[ "${cli_build_failed}" -eq 0 ]]; then
+  stamp_dev_sync_state
+fi
 
 if [[ ${#synced[@]} -eq 0 ]]; then
   echo "[dev:sync] Nothing to sync — no clients detected."
@@ -434,6 +513,6 @@ fi
 # already call new ha-nova subcommands (diff/snapshot) — fail the sync loudly so it
 # is fixed now, not at the next live dev write.
 if [[ "${cli_build_failed}" -eq 1 ]]; then
-  echo "[dev:sync] CLI build failed — installed runtime is stale vs the refreshed 0.6 skills. Fix the build above, then re-run." >&2
+  echo "[dev:sync] CLI build failed — installed runtime is stale vs the refreshed skills. Fix the build above, then re-run." >&2
   exit 1
 fi

@@ -41,6 +41,20 @@ describe("trace contract", () => {
       expect(readSkill).toContain("trace/get");
     });
 
+    it("documents trace helpers and real run_id selection", () => {
+      expect(readSkill).toContain("ha-nova trace latest <entity> --json");
+      expect(readSkill).toContain("ha-nova trace list <entity> --json");
+      expect(readSkill).toContain("ha-nova trace get <entity> <run_id> --json");
+      expect(readSkill).toContain("normalize trace shapes");
+      expect(readSkill).toContain("Do not use a list index");
+      expect(readSkill).toContain("Home Assistant keeps only recent traces");
+      expect(readSkill).toContain("`.data` array or `.data.traces`");
+      expect(readSkill).toContain("trace config as historical");
+      expect(readSkill).toContain("compare current config separately");
+      expect(relayApi).toContain("`run_id` must come from a `trace/list` item");
+      expect(relayApi).toContain("YAML automations/scripts need an `id`");
+    });
+
     it("skill supports both automation and script traces", () => {
       expect(readSkill).toMatch(/automation.*trace|trace.*automation/i);
       expect(readSkill).toMatch(/script.*trace|trace.*script/i);

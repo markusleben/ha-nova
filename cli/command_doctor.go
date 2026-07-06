@@ -165,6 +165,22 @@ func runDoctor(paths runtimePaths, args []string) int {
 	if notice := checkForUpdate(paths, false); !notice.empty() && notice.kind != humanNoticeKindUpToDate {
 		printHumanNotice(notice)
 	}
+	installStatus, installStatusErr := buildInstallStatus(paths)
+	if installStatusErr != nil {
+		printHumanWarn("Install integrity status unavailable: %s", installStatusErr)
+	} else {
+		for _, client := range installStatus.Clients {
+			if !client.ActiveDrift {
+				continue
+			}
+			printHumanWarn("%s has active install drift: skill files still reference a temporary update backup", client.Label)
+			printHumanWarn("%s", doctorClientRepairHint(clientStatus{ID: client.ID, Label: client.Label, RuntimeDetected: client.RuntimeDetected}, installStatus.InstallSource))
+			status = 1
+		}
+		for _, artifact := range installStatus.InactiveArtifacts {
+			doctorInfo("Inactive legacy/dev artifact ignored: %s (%s)", artifact.Path, artifact.Kind)
+		}
+	}
 	if status == 0 {
 		doctorInfo("Doctor checks passed")
 	}

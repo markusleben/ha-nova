@@ -8,11 +8,11 @@
 
 <p align="center">
   Preview changes before they're written. Catch mistakes automatically.<br>
-  Your token never leaves the server.
+  Your Home Assistant token stays on the server.
 </p>
 
 <p align="center">
-  Works with <b>Claude Code</b> · <b>Claude Desktop</b> · <b>Codex CLI</b> · <b>OpenCode</b> · <b>Gemini CLI</b> · <b>Hermes Agent</b> (preview)
+  Works with <b>Claude Code</b> · <b>Claude Desktop</b> · <b>Codex CLI</b> · <b>OpenCode</b> · <b>Google Antigravity</b> · <b>Hermes Agent</b> (preview)
 </p>
 
 <p align="center">
@@ -59,14 +59,14 @@ We built this because we didn't trust AI with our own config either.
 3. **You approve it.** Deletes require a specific confirmation code — not just "yes."
 4. **Writes and verifies.** Reads the config back to confirm the change stuck.
 5. **Audits itself.** Checks for mistakes, conflicts, and reliability issues.
-6. **Lets you take it back.** Reply `revert` to undo the last update — or use Home Assistant Backups anytime.
+6. **Lets you take it back.** Reply `revert` to undo the latest verified update. New items are removed through the same preview-and-confirm delete flow.
 
 **The ground rules — always:**
 
-- 🔒 Your HA token stays on your server. The AI never sees it.
-- 🔑 Credentials live in your OS keychain, not config files.
+- 🔒 Your Home Assistant token stays on your server. The AI never sees it.
+- 🔑 The local Relay token uses OS secure storage by default, with documented service-mode exceptions.
 - 📖 Every rule the AI follows is a markdown file you can read.
-- 🏠 Nothing leaves your network. No cloud relay, no telemetry.
+- 🏠 HA NOVA has no cloud relay and no telemetry.
 
 ---
 
@@ -91,12 +91,12 @@ Once it finishes, try: *"Show me all my automations."*
 
 **Linux** — same installer, passes automated checks. Real-machine testing is ongoing.
 
-**Windows** — ships x64 builds (ARM64 works via x64 emulation).
+**Windows** — ships x64 builds (Windows ARM64 can use the x64 build through emulation; no native ARM64 bundle is shipped).
 - Claude Code is the most tested client on Windows today
-- Gemini CLI has basic validation
+- Google Antigravity has basic validation
 - Codex and OpenCode are still early
-- Native prerequisites: Claude Code needs Git for Windows / Git Bash; Gemini CLI needs Node.js
-- See [.claude/INSTALL.md](.claude/INSTALL.md) and [.gemini/INSTALL.md](.gemini/INSTALL.md)
+- Native prerequisites: Claude Code needs Git for Windows / Git Bash; Google Antigravity Desktop or CLI must be installed
+- See [.claude/INSTALL.md](.claude/INSTALL.md) and [.antigravity/INSTALL.md](.antigravity/INSTALL.md)
 
 > Do not download the `ha-nova-installer-bundle-*.tar.gz` / `.zip` assets manually. Those archives are used by the installer behind the scenes. Always use the one-liner or `ha-nova update`.
 
@@ -122,7 +122,7 @@ Once it finishes, try: *"Show me all my automations."*
 
 </details>
 
-> **Not a terminal person?** Claude Desktop gives you the same skills in a regular app window — no command line needed.
+> **Not a terminal person?** Initial install uses one terminal command; after setup, Claude Desktop and Google Antigravity Desktop give you the same skills in an app window.
 
 ---
 
@@ -136,9 +136,9 @@ Once it finishes, try: *"Show me all my automations."*
 
 **The Relay** lives on your Home Assistant server. It's the only part that talks to Home Assistant directly, and it keeps your access token there — never on your laptop, never in a prompt.
 
-When HA NOVA gets a new workflow, that's a text file update on your machine. The Relay doesn't change. No rebuild, no restart, no risk to a running system.
+Most new HA NOVA workflows are text-file skill updates on your machine. When a workflow needs a new transport capability, the Relay changes only at that transport boundary and still does not learn Home Assistant business logic.
 
-And because the Relay sits right next to Home Assistant, it can do things a remote client can't — like snapshotting an automation before it updates it, so you can revert that last change with a single word. Home Assistant Backups have your back for everything else.
+And because the Relay sits right next to Home Assistant, it can do things a remote client can't — like snapshotting an automation before it updates it, so you can revert the latest verified update with a single word. For deletes or point-in-time recovery, use a suitable Home Assistant Backup or recreate the item.
 
 ---
 
@@ -156,7 +156,7 @@ HA NOVA is early — and that's the point. Here's where it's going:
 
 ## 🧩 Skills
 
-11 skills, each a markdown file you can read and edit.
+13 task skills plus the HA NOVA context skill, each a markdown file you can read and edit.
 
 | Skill | What it does |
 |:------|:-------------|
@@ -166,6 +166,8 @@ HA NOVA is early — and that's the point. Here's where it's going:
 | 🧱 **dashboard** | Edit dashboards, cards, and Lovelace resources safely |
 | 🗂️ **organize** | Manage areas, floors, labels, and entity metadata |
 | 🕒 **history** | Query history, logbook timelines, and long-term stats |
+| 🏠 **health** | Summarize Home Assistant status, repairs, integrations, system health, and noisy entities |
+| 📅 **calendar** | Read calendars and bounded event windows |
 | 🎛️ **service-call** | Control lights, climate, covers, switches, and media players |
 | 🔎 **entity-discovery** | Find entities by name, room, area, or label |
 | 🧩 **helper** | Create and manage helpers: counters, timers, input booleans, more |
@@ -173,6 +175,8 @@ HA NOVA is early — and that's the point. Here's where it's going:
 | 🚀 **onboarding** | Diagnose setup issues and troubleshoot connections |
 
 Want to add a new capability? → [CONTRIBUTING.md](CONTRIBUTING.md)
+
+Current skills require NOVA Relay `0.2.3` or newer.
 
 ---
 
@@ -184,8 +188,10 @@ Want to add a new capability? → [CONTRIBUTING.md](CONTRIBUTING.md)
 | [Claude Desktop](https://claude.com/download) (Code tab) | Desktop app |
 | [Codex CLI](https://github.com/openai/codex) | Terminal |
 | [OpenCode](https://github.com/opencode-ai/opencode) | Terminal |
-| [Gemini CLI](https://github.com/google-gemini/gemini-cli) | Terminal |
+| [Google Antigravity](https://antigravity.google/) | Desktop app / Terminal |
 | Hermes Agent (preview) | Terminal |
+
+> Google Antigravity is the current Google client path. `ha-nova setup gemini` remains a legacy alias for existing Gemini-era installs.
 
 > **Hermes is in preview.** The Linux desktop route (GNOME Keyring) is maintainer-validated; macOS and Windows-via-WSL2 are experimental, and native Windows isn't supported. Details: [.hermes/INSTALL.md](.hermes/INSTALL.md).
 

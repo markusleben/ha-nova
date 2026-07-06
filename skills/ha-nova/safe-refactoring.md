@@ -143,6 +143,6 @@ For confirmed orphans, delete via the helper skill flow (tokenized confirmation 
 - Template references (`states('...')`, `is_state('...')`) are NOT auto-updated — must be fixed manually
 - Prefer disable over delete when impact is unclear
 - Orphan detection is advisory — some helpers are intentionally UI-only
-- All deletes require tokenized confirmation (`confirm:<token>`)
+- All deletes require tokenized confirmation (`confirm:<token>`), including cleanup, undo-create, orphan cleanup, failed-create cleanup, and deleting items created earlier in the same session.
 - A delete is not done until follow-up verification confirms the target is gone.
 - Do not present a destructive change as complete when consumer impact is still unresolved.

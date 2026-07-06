@@ -6,7 +6,8 @@ Load this catalog from `skills/review/SKILL.md` Step 1 before evaluating finding
 
 ## Output Guardrail (Critical)
 
-- Check codes (`R-17`, `S-01`, `H-02`, ...) are internal reasoning artifacts. NEVER show them in ANY user-facing message — review reports, chat replies, debugging help, brainstorming, casual Q&A.
+- Apply `skills/ha-nova/output-rules.md` whenever this catalog informs user-facing output.
+- Check codes (`R-17`, `S-01`, `H-02`, ...) are internal reasoning artifacts, not user-facing labels.
 - Instead, describe each finding in plain language: a short descriptive title plus why it matters and how to fix it.
 - This guardrail applies whenever check knowledge is used, not only during formal review runs.
 
@@ -43,11 +44,13 @@ Load this catalog from `skills/review/SKILL.md` Step 1 before evaluating finding
 - R-15 [MEDIUM]: Asymmetric error handling — same physical action (e.g., `cover.open_cover`, `climate.set_temperature`) appears in multiple branches but only some have retry/fallback logic; inconsistent reliability across code paths
 - R-16 [HIGH]: Templated event name — `event_type:` does not evaluate templates in event triggers; the automation attaches to the literal string and silently misses the intended event. Use a fixed `event_type` and move dynamic logic into conditions or event data handling.
 - R-17 [MEDIUM → HIGH]: Intra-config overwrite/rebound risk — the same entity/helper is written in 2+ distinct control-flow branches and the write basis is mixed. Typical risk shape: one branch advances live state incrementally, another branch later recomputes or resets from snapshot/start value/timer/fallback/baseline. Default to MEDIUM. Escalate to HIGH only when a later branch can plausibly overwrite/reset value already advanced by an earlier branch.
-- R-18 [HIGH]: Same-block sibling variable dependency with alphabetically later target — within one `variables:` mapping, variable A references sibling variable B from that same `variables:` mapping and B sorts alphabetically after A. HA storage/API writes may reorder mapping keys, so the saved variable order can evaluate A before B. Apply to top-level and local `variables:` blocks only when at least one concrete fragile pair exists. Report the block context plus at least one concrete pair (for example `check_flag -> reading`). For draft or pasted YAML, frame this as future write fragility. For HA read-back or post-write review, frame it as a persisted runtime risk.
+- R-18 [HIGH]: Same-block sibling variable dependency — within one `variables:` mapping, variable A references sibling variable B from that same `variables:` mapping. HA storage/API writes may reorder mapping keys, so the saved variable order can evaluate A before B. Apply to top-level and local `variables:` blocks only when at least one concrete fragile pair exists. Report the block context plus at least one concrete pair (for example `check_flag -> reading`). For draft or pasted YAML, frame this as future write fragility. For HA read-back or post-write review, frame it as a persisted runtime risk.
 - R-19 [MEDIUM]: Unreachable `trigger.id` in bare `else` branch — a Jinja2 `if` + `elif` chain uses entity-state-style guards, and the terminal bare `else` contains a direct `trigger.id` comparison. final else branch is only reached when the earlier entity-state branches are false. Move the `trigger.id` check into an explicit `elif`. Or refactor to `choose` + `condition: trigger`.
 - R-20 [MEDIUM]: `trigger_variables` using `states()`, `is_state()`, `state_attr()`, or other state-snapshot helpers — evaluated once at attach time; the captured value is stale for the lifetime of the automation and silently produces wrong values (not stylistic — real reliability hazard). Fix: use a top-level `variables:` block evaluated per run, or read state inside the action template instead. (Migrated from former M-04.)
 - R-21 [HIGH]: Reverse branch without re-entry guard on capture-state flag — a complementary forward/reverse branch pair (save/restore, activate/deactivate, arm/disarm) where the forward branch saves state and sets a flag (any helper type, for example an `input_boolean`), but the reverse branch fires on its trigger alone without a condition that the flag is set. The reverse branch then also runs after cycles where the forward branch never executed and silently overwrites user-set state with stale helper values — no error, no log. Fix: guard the reverse branch on the flag being set, and clear the flag after restoring. Applies to `choose:` branches, `if/else` actions, and trigger-id-split action chains; bidirectional. See R-21 Evidence Boundary.
 - R-22 [HIGH]: Restart-dependent restore from transient storage — a restore path is reachable from a Home Assistant startup trigger (`trigger: homeassistant` with `event: start`), but the state it restores was captured in a transient construct (`scene.create` runtime snapshot, automation/script `variables:`, `trigger_variables`, timer without `restore: true`). Transient constructs do not survive a restart, so the startup restore path silently does nothing or applies wrong values. Fix: persist the saved state in a helper (`input_number`, `input_text`, `input_select`, ...) or another persistent construct — see `skills/ha-nova/best-practices.md` → Persistence Model. See R-22 Evidence Boundary.
+- R-23 [MEDIUM]: Boolean-like template compared to a string literal — a template compares a boolean-like variable or expression to `'True'`, `"True"`, `'true'`, `"true"`, `'False'`, `"False"`, `'false'`, or `"false"`, including reversed comparisons such as `'True' == avg_valid`. Home Assistant traces can expose template variables as real booleans, so string comparison can make a valid plan evaluate false. Fix: use the boolean directly (`{{ avg_valid }}`), negate it directly (`{{ not avg_valid }}`), or use boolean tests when genuinely needed. Do not flag bare boolean comparisons such as `== true`, `is true`, or `is sameas true`.
+- R-24 [LOW]: Capacity-like variable reads `available_energy` — a variable named like `capacity`, `capacity_kwh`, `maximum_energy`, or similar reads an entity containing `available_energy`. Available charge may not be nominal or maximum battery capacity, so calculated targets can be wrong. Advisory only: verify whether a maximum, nominal, or capacity entity is the intended source. Do not hard-code integration-specific replacements or automatically rewrite entity IDs.
 
 ## R-02 Evidence Boundary
 
@@ -106,14 +109,38 @@ Self-trigger / feedback loop = the automation triggers on an entity that it also
   - root `variables:` on the automation or script
   - local `variables:` actions inside `choose`, `if` / `then` / `else`, `default`, `repeat`, and nested `sequence` blocks
 - First confirm the referenced name is a sibling variable declared in that same mapping.
-- Then confirm the referenced sibling sorts alphabetically after the variable that references it.
 - Skip HA builtins and runtime vars such as `trigger`, `this`, `wait`, `repeat`, `states()`, `is_state()`, and similar documented helpers.
 - Skip `{% set %}` locals inside one template. Those are internal to the template and do not depend on sibling key order in the outer `variables:` mapping.
 - Skip script `fields` references and values inherited from previous `variables` actions or outer scopes.
+- Skip self-references such as `count: "{{ count + 1 }}"`; those depend on outer scope or previous run context, not a sibling key.
 - Use conservative matching. Do not infer a dependency from broad substring overlap or from names that only appear inside string literals/comments.
 - Preferred fixes:
   - use a self-contained template with internal `{% set %}` statements
   - split the dependency across ordered `variables` actions when later actions need the derived value
+
+## R-23 Evidence Boundary
+
+- Apply only inside template expressions, not ordinary text, aliases, comments, or example prose.
+- Match equality and inequality comparisons in either direction:
+  - boolean-like expression compared to string literal
+  - string literal compared to boolean-like expression
+- Treat these as boolean-like:
+  - variable names ending in `_valid`, `_enabled`, `_fresh`, `_ready`, `_ok`, `_active`
+  - variable names starting with `is_`, `has_`, `should_`, `can_`
+  - expressions using `is_number(...)`, `has_value(...)`, comparisons, `and`, `or`, or `not`
+- Do not flag literal string-state checks such as `states('sensor.x') == 'on'`.
+- Do not flag real boolean comparisons or tests: `== true`, `== false`, `is true`, `is false`, `is sameas true`, `is sameas false`.
+- Suggested fix:
+  - use the boolean value directly (`{{ plan_inputs_valid }}`)
+  - use direct negation for false checks (`{{ not plan_inputs_valid }}`)
+
+## R-24 Evidence Boundary
+
+- Apply only when both conditions hold:
+  1. the variable name is capacity-like (`capacity`, `capacity_kwh`, `battery_capacity`, `maximum_energy`, `max_energy`, or close variants)
+  2. the source entity or source expression contains `available_energy`
+- Keep severity LOW and wording advisory. This is domain sanity checking, not a schema or syntax error.
+- Do not assume a specific integration, manufacturer, or replacement entity. Suggest verification of maximum/nominal/capacity source only.
 
 ## R-19 Evidence Boundary
 

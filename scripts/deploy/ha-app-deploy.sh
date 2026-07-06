@@ -344,6 +344,7 @@ restore_app_options() {
 set -euo pipefail
 [[ -z "${SUPERVISOR_TOKEN:-}" ]] && exit 1
 OPTIONS_JSON="$(echo "$OPTIONS_B64" | base64 -d)"
+OPTIONS_PAYLOAD="$(printf '%s' "$OPTIONS_JSON" | python3 -c 'import json,sys; print(json.dumps({"options": json.load(sys.stdin)}))')"
 if ! curl -fsS \
   -H "Authorization: Bearer ${SUPERVISOR_TOKEN}" \
   -H "Content-Type: application/json" \
@@ -356,7 +357,7 @@ curl -fsS \
   -H "Authorization: Bearer ${SUPERVISOR_TOKEN}" \
   -H "Content-Type: application/json" \
   "http://supervisor/addons/${SUPERVISOR_SLUG}/options" \
-  -d "{\"options\":${OPTIONS_JSON}}" >/dev/null
+  -d "$OPTIONS_PAYLOAD" >/dev/null
 REMOTE_RESTORE
 }
 
@@ -385,7 +386,7 @@ rebuild_or_update() {
   local output
   output="$(remote "ha apps rebuild ${SUPERVISOR_SLUG}" 2>&1 || true)"
 
-  if echo "$output" | grep -qi "use update instead rebuild"; then
+  if echo "$output" | grep -qiE "use[[:space:]]+update[[:space:]]+instead[[:space:]]+of[[:space:]]+rebuild|use[[:space:]]+update[[:space:]]+instead[[:space:]]+rebuild"; then
     log "Supervisor requested update instead of rebuild"
     remote "ha apps update ${SUPERVISOR_SLUG}"
     return 0
@@ -425,6 +426,34 @@ clear_image_cache() {
   "
 }
 
+print_safe_app_status() {
+  local info_json
+
+  info_json="$(remote "ha apps info ${SUPERVISOR_SLUG} --raw-json" 2>/dev/null || true)"
+  if [[ -z "$info_json" ]]; then
+    log "Warning: Could not read app status."
+    return 0
+  fi
+
+  INFO_JSON="$info_json" python3 - <<'PY'
+import json
+import os
+
+payload = json.loads(os.environ.get("INFO_JSON", "{}") or "{}")
+data = payload.get("data") or {}
+safe = {
+    "slug": data.get("slug"),
+    "state": data.get("state"),
+    "version": data.get("version"),
+    "version_latest": data.get("version_latest"),
+    "update_available": data.get("update_available"),
+    "repository": data.get("repository"),
+    "ip_address": data.get("ip_address"),
+}
+print(json.dumps(safe, sort_keys=True))
+PY
+}
+
 # ── Sync files ──
 
 REMOTE_ADDON_DIR="/addons/local/${APP_SLUG}"
@@ -434,7 +463,7 @@ log "Syncing app files to ${REMOTE_ADDON_DIR}/"
 # Addon metadata files (Supervisor reads these from addon root)
 # NOTE: Do NOT copy config.yaml into app/ — the Supervisor uses **/config.*
 # glob and a duplicate causes translations/metadata to be lost.
-ADDON_FILES=(config.yaml DOCS.md CHANGELOG.md icon.png "icon@2x.png" logo.png "logo@2x.png")
+ADDON_FILES=(Dockerfile package.json package-lock.json tsconfig.json run config.yaml DOCS.md CHANGELOG.md icon.png "icon@2x.png" logo.png "logo@2x.png")
 for f in "${ADDON_FILES[@]}"; do
   if [[ -f "${PROJECT_ROOT}/nova/${f}" ]]; then
     scp -i "$HA_SSH_KEY" \
@@ -455,6 +484,17 @@ if [[ -d "$TRANSLATIONS_DIR" ]]; then
     -P "$SSH_PORT" \
     "${TRANSLATIONS_DIR}"/*.yaml \
     "${SSH_USER}@${HA_HOST}:${REMOTE_ADDON_DIR}/translations/"
+fi
+
+SRC_DIR="${PROJECT_ROOT}/nova/src"
+if [[ -d "$SRC_DIR" ]]; then
+  remote "rm -rf ${REMOTE_ADDON_DIR}/src && mkdir -p ${REMOTE_ADDON_DIR}/src"
+  scp -i "$HA_SSH_KEY" \
+    -o StrictHostKeyChecking=accept-new \
+    -o BatchMode=yes \
+    -P "$SSH_PORT" \
+    -r "${SRC_DIR}/." \
+    "${SSH_USER}@${HA_HOST}:${REMOTE_ADDON_DIR}/src/"
 fi
 
 # ── Reload + reinstall if needed ──
@@ -486,7 +526,7 @@ remote "ha apps start ${SUPERVISOR_SLUG}"
 # ── Status ──
 
 log "Collecting quick status"
-remote "ha apps info ${SUPERVISOR_SLUG}" || true
+print_safe_app_status
 
 log "Recent app logs"
 remote "ha apps logs ${SUPERVISOR_SLUG} --lines 40" || true

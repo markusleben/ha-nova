@@ -33,7 +33,7 @@ func writeBundleTestFile(t *testing.T, path, content string, mode os.FileMode) {
 // writeMinimalBundleTree builds a self-contained, platform-matched bundle root
 // good enough for validateBundleRoot and the file-client adapters: bundle.json,
 // a fake runtime binary, version.json, a 3-client registry, a context skill that
-// references a shared doc (so the Hermes/Gemini adapters bake an absolute
+// references a shared doc (so the Hermes/Antigravity adapters bake an absolute
 // sourceRoot path we can assert on), and one sub-skill. includeWriteSafety adds
 // the canonical skills/ha-nova/write-safety.md — present in the NEW bundle and
 // absent in the stale backup, exactly mirroring the user's bug report.
@@ -49,7 +49,7 @@ func writeMinimalBundleTree(t *testing.T, root, version string, includeWriteSafe
 		`{"clients":[`+
 			`{"id":"hermes","label":"Hermes Agent","adapter_kind":"skill_tree","supported_os":["macos","linux"]},`+
 			`{"id":"codex","label":"Codex CLI","adapter_kind":"skill_tree","supported_os":["macos","linux","windows"]},`+
-			`{"id":"gemini","label":"Gemini CLI","adapter_kind":"skill_flat","supported_os":["macos","linux","windows"]}`+
+			`{"id":"antigravity","label":"Google Antigravity","adapter_kind":"skill_flat","supported_os":["macos","linux","windows"]}`+
 			`]}`, 0o644)
 	writeBundleTestFile(t, filepath.Join(root, "docs", "reference", "foo.md"), "# Foo\n", 0o644)
 	ctx := "---\nname: ha-nova\n---\n\nContext skill. See `docs/reference/foo.md` for details.\n"

@@ -8,6 +8,7 @@ const writeSkill = readFileSync("skills/write/SKILL.md", "utf8");
 const helperSkill = readFileSync("skills/helper/SKILL.md", "utf8");
 const reviewAgent = readFileSync("skills/ha-nova/agents/review-agent.md", "utf8");
 const contextSkill = readFileSync("skills/ha-nova/SKILL.md", "utf8");
+const outputRules = readFileSync("skills/ha-nova/output-rules.md", "utf8");
 const architectureDoc = readFileSync("docs/reference/skill-architecture.md", "utf8");
 const contributingDoc = readFileSync("CONTRIBUTING.md", "utf8");
 const templateGuidelines = readFileSync("skills/ha-nova/template-guidelines.md", "utf8");
@@ -18,6 +19,12 @@ const automationPatterns = readFileSync(
 );
 
 describe("review contract", () => {
+  it("binds Quick-Fix service calls to active-preview confirmation", () => {
+    expect(reviewSkill).toContain("Ask for natural confirmation bound to this exact service-call preview");
+    expect(reviewSkill).toContain("same tier as `ha-nova:service-call`");
+    expect(reviewSkill).not.toContain("service calls are reversible");
+  });
+
   it("keeps the review facade pointed at the externalized rule catalog", () => {
     expect(reviewSkill).toContain("Rule Catalog");
     expect(reviewSkill).toContain("skills/review/checks.md");
@@ -33,11 +40,12 @@ describe("review contract", () => {
 
   it("hoists the internal-code suppression rule into a top-level output guardrail", () => {
     expect(reviewChecks).toContain("## Output Guardrail (Critical)");
-    expect(reviewChecks).toContain("NEVER show them in ANY user-facing message");
+    expect(reviewChecks).toContain("skills/ha-nova/output-rules.md");
+    expect(reviewChecks).toContain("not user-facing labels");
     expect(reviewChecks).toContain("describe each finding in plain language");
     expect(reviewChecks).toContain("not only during formal review runs");
     expect(reviewSkill).toContain("describe findings in plain language");
-    expect(contextSkill).toContain("NEVER show them in ANY message to the user");
+    expect(outputRules).toContain("Never show internal check codes");
   });
 
   it("documents the new helper threshold checks in the catalog", () => {
@@ -114,9 +122,9 @@ describe("review contract", () => {
     expect(reviewChecks).toContain("R-16 [HIGH]");
     expect(reviewChecks).toContain("Templated event name");
     expect(reviewChecks).toContain("`event_type:` does not evaluate templates");
-    expect(reviewSkill).toContain("R-01..R-22");
-    expect(reviewAgent).toContain("R-01..R-22");
-    expect(architectureDoc).toContain("R-01..R-22");
+    expect(reviewSkill).toContain("R-01..R-24");
+    expect(reviewAgent).toContain("R-01..R-24");
+    expect(architectureDoc).toContain("R-01..R-24");
     expect(templateGuidelines).toContain("Event trigger names must be literal strings");
     expect(templateGuidelines).toContain("do not template `event_type:`");
   });
@@ -137,7 +145,7 @@ describe("review contract", () => {
     expect(reviewChecks).toContain("R-18 [HIGH]");
     expect(reviewChecks).toContain("Same-block sibling variable dependency");
     expect(reviewChecks).toContain("same `variables:` mapping");
-    expect(reviewChecks).toContain("sorts alphabetically after");
+    expect(reviewChecks).not.toContain("sorts alphabetically after");
     expect(reviewChecks).toContain("Traverse all `variables:` mappings");
     expect(reviewChecks).toContain("`{% set %}` locals");
     expect(reviewChecks).toContain("script `fields`");
@@ -154,6 +162,39 @@ describe("review contract", () => {
     expect(templateGuidelines).toContain("self-contained template with internal `{% set %}`");
     expect(templateGuidelines).toContain("ordered `variables` actions");
     expect(architectureDoc).toContain("`R-18` is same-mapping only");
+  });
+
+  it("documents boolean-string template comparisons as R-23", () => {
+    expect(reviewChecks).toContain("R-23 [MEDIUM]");
+    expect(reviewChecks).toContain("Boolean-like template compared to a string literal");
+    expect(reviewChecks).toContain("including reversed comparisons");
+    expect(reviewChecks).toContain("`'True' == avg_valid`");
+    expect(reviewChecks).toContain("Do not flag bare boolean comparisons");
+    expect(reviewChecks).toContain("`is sameas true`");
+    expect(reviewSkill).toContain("R-23 applies only to boolean-like templates");
+    expect(reviewAgent).toContain("R-23` applies only to boolean-like templates");
+    expect(writeSkill).toContain("If R-23 matches");
+    expect(architectureDoc).toContain("`R-23` catches boolean-like templates");
+  });
+
+  it("documents capacity-like available_energy advisories as R-24", () => {
+    expect(reviewChecks).toContain("R-24 [LOW]");
+    expect(reviewChecks).toContain("Capacity-like variable reads `available_energy`");
+    expect(reviewChecks).toContain("Available charge may not be nominal or maximum battery capacity");
+    expect(reviewChecks).toContain("Do not assume a specific integration");
+    expect(reviewSkill).toContain("R-24 is advisory only");
+    expect(reviewAgent).toContain("R-24` is advisory only");
+    expect(writeSkill).toContain("If R-24 matches");
+    expect(architectureDoc).toContain("`R-24` is a low-severity capacity-source advisory");
+  });
+
+  it("keeps raw trace internals optional and defensive during review", () => {
+    expect(reviewSkill).toContain("ha-nova trace latest/list/get --json");
+    expect(reviewSkill).toContain("they are enough for run selection, result status, timestamp, item binding, and most review findings");
+    expect(reviewSkill).toContain("Inspect raw trace internals only when step-level evidence is required");
+    expect(reviewSkill).toContain("Raw trace nodes can be arrays of event records");
+    expect(reviewSkill).toContain("type-check before reading `path`, `result`, `changed_variables`, or `error`");
+    expect(reviewSkill).toContain("avoid large jq projections as the standard path");
   });
 
   it("documents unreachable trigger fallbacks as R-19", () => {
@@ -201,7 +242,8 @@ describe("review contract", () => {
     expect(reviewSkill).toContain("Simplify existing");
     expect(reviewSkill).toContain("Extend existing");
     expect(reviewSkill).toContain("Add new");
-    expect(contextSkill).toContain("Review confidence split");
+    expect(outputRules).toContain("Questions to consider");
+    expect(outputRules).toContain("Suggestions");
     expect(architectureDoc).toContain("Questions to consider");
     expect(architectureDoc).toContain("intervention depth");
     expect(reviewSkill).toContain("Why: ...");
@@ -209,15 +251,15 @@ describe("review contract", () => {
   });
 
   it("documents compact post-write empty-state semantics without rule codes", () => {
-    expect(contextSkill).toContain("NEVER show them in ANY message to the user");
-    expect(contextSkill).toContain("findings, summaries, clean states, pre-write verdicts");
+    expect(outputRules).toContain("Never show internal check codes");
+    expect(outputRules).toContain("findings, summaries, clean states, pre-write verdicts");
     // Post-write review omits empty sections instead of printing "none" buckets.
     expect(architectureDoc).toContain('never print an empty "none" bucket');
     expect(architectureDoc).toContain("collapse to one localized confirmation line");
     expect(writeSkill).toContain('never print an empty "none" bucket');
     expect(writeSkill).toContain("collapse to one localized confirmation line");
     // Standalone review still states a clean result (it answers an explicit request).
-    expect(contextSkill).toContain('"no issues found" is worth stating');
+    expect(outputRules).toContain('"no issues found" result is useful');
   });
 
   it("documents the design-intent gate before remove or simplify suggestions", () => {

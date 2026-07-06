@@ -45,12 +45,16 @@ func dispatch(paths runtimePaths, argv0 string, args []string) int {
 		return runDoctor(paths, args[1:])
 	case "check-update":
 		return runCheckUpdate(paths, args[1:])
+	case "status":
+		return runStatus(paths, args[1:])
 	case "update":
 		return runUpdate(paths, args[1:])
 	case "uninstall":
 		return runUninstall(paths, args[1:])
 	case "relay":
 		return runRelayCommand(paths, args[1:])
+	case "trace":
+		return runTraceCommand(paths, args[1:])
 	case "snapshot":
 		return runSnapshotCommand(paths, args[1:])
 	case "diff":
@@ -82,10 +86,12 @@ func printUsage() {
 	fmt.Fprintln(os.Stdout, "  ha-nova setup --service [client]")
 	fmt.Fprintln(os.Stdout, "  ha-nova doctor")
 	fmt.Fprintln(os.Stdout, "  ha-nova check-update [--quiet] [--json]")
+	fmt.Fprintln(os.Stdout, "  ha-nova status --json")
 	fmt.Fprintln(os.Stdout, "  ha-nova update [--version <tag>]")
 	fmt.Fprintln(os.Stdout, "  ha-nova uninstall [--yes] [--purge]")
 	fmt.Fprintln(os.Stdout, "  ha-nova relay <health|ws|core|jq|version>")
+	fmt.Fprintln(os.Stdout, "  ha-nova trace <latest|list|get> <automation.entity_id|script.entity_id> [run_id] [--json]")
 	fmt.Fprintln(os.Stdout, "  ha-nova snapshot <save|show|verify>")
-	fmt.Fprintln(os.Stdout, "  ha-nova diff --before <file> --after <file>")
+	fmt.Fprintln(os.Stdout, "  ha-nova diff --before <file> --after <file> [--out <file>]")
 	fmt.Fprintln(os.Stdout, "  ha-nova version")
 }

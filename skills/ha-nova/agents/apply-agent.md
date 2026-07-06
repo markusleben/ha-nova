@@ -13,6 +13,10 @@ Purpose: autonomous apply + verify phase after user confirmation.
 
 You must write exactly the confirmed payload.
 
+Apply precondition:
+- Proceed only when the main thread states that the user confirmed after seeing the exact preview for this operation, target, and payload/manifest.
+- If confirmation is missing, pre-preview-only, stale, or tied to a different payload, target, or scope, perform no relay call and return `BLOCKED: confirmation missing or stale`.
+
 Forbidden:
 - payload mutation
 - implicit field inference
@@ -42,6 +46,11 @@ Use `ha-nova relay` for all HA communication. It handles auth, headers, and time
 - `ha-nova relay ws --data-file <payload-file>` - canonical WebSocket relay path
 - `ha-nova relay core --method <METHOD> --path <PATH> --body-file <payload-file>` - canonical Core API relay path
 - `ha-nova relay ... --out <result-file>` - canonical large-output path
+- Never use `--body` with WebSocket relay calls; WS request bodies use `--data-file` only.
+- Use client-private scratch storage outside the project workspace for payload/result files; do not allocate scratch directories or files from visible shell commands for relay JSON.
+- Do not create relay scratch files under the repo working tree.
+- If command text is visible to the user, set the tool working directory to the scratch directory outside the command text, then run relay commands with local filenames, not absolute scratch paths.
+- Scratch payload/filter/result files are internal execution artifacts; never describe them as user-facing edits.
 - Response envelope: `{"ok":true,"data":...}` or `{"ok":false,"error":{...}}`
 - /core response: `{"ok":true,"data":{"status":200,"body":{...}}}`
 
@@ -57,13 +66,13 @@ Use `ha-nova relay` for all HA communication. It handles auth, headers, and time
 4. For create/update, reload domain via `/core`:
    - automation: `POST /api/services/automation/reload` with empty body `{}`
    - script: `POST /api/services/script/reload` with empty body `{}`
-5. For create/update, resolve the actual `entity_id` from entity registry by matching `unique_id == {TARGET_ID}`.
+5. For create/update, resolve the actual `entity_id` from entity registry. Prefer `config/entity_registry/get` for the known automation/script entity_id; use registry list/search only when the entity_id is still unknown.
 6. For create/update, read `/api/states/{entity_id}` to confirm runtime presence.
 7. Normalize before compare:
    - `trigger` + `triggers`
    - `condition` + `conditions`
    - `action` + `actions`
-8. Compare expected payload vs observed payload for write operations.
+8. Compare expected payload vs observed payload structurally after normalization; do not compare raw JSON strings or depend on object key order.
 9. Self-review:
    - same target id in write and verify
    - no unexpected field changes introduced
@@ -79,11 +88,19 @@ Use `ha-nova relay` for all HA communication. It handles auth, headers, and time
   - `success=false`
   - include `write_status`
   - set verification details: `Config saved, but actual entity/runtime state could not be confirmed`
-- Timeout:
+- Reload timeout after successful write + read-back:
+  - retry the reload once; do not repeat the config write
+  - if reload still times out, return `success=false`, `reloaded=false`, `verification.passed=false`
+  - set verification details to `Config saved and read back; reload/runtime verification unknown`
+- Other timeout:
   - report timeout with phase (`write`, `read-back`, `reload`, or `runtime-verify`)
   - include retry guidance
 - Delete verification:
   - `passed=true` only when target is absent on read-back
+  - config read-back not-found after DELETE is expected absence evidence
+  - entity state not-found after DELETE is expected absence evidence when an entity_id is known
+  - `config/entity_registry/get` may return `UPSTREAM_WS_ERROR` after deletion; do not retry alternate deletes from that error
+  - if extra evidence is needed, use `config/entity_registry/list_for_display` and confirm no exact `entity_id` match
 
 ## Output Format (Structured Text)
 

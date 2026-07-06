@@ -32,6 +32,8 @@ describe("codex live skill e2e contract", () => {
     expect(content).toContain("E2E_REQUIRE_QUICK_GATE");
     expect(content).toContain("fromjson? | select(type == \"object\")");
     expect(content).toMatch(/Parallelize independent stages/i);
+    expect(content).toContain("simulates the user's next post-preview reply only for that exact preview");
+    expect(content).not.toContain("explicit confirmation is granted by this prompt");
     expect(content).toMatch(/E2E_SUBAGENT_POLICY.*(deny|require)/);
     expect(content).toMatch(/relay \/core/i);
     expect(content).toMatch(/verify-absent/i);
@@ -88,7 +90,9 @@ describe("codex live skill e2e contract", () => {
     expect(verify).toContain("npm run verify:security");
     expect(pkg.scripts?.test).toBe("npm run test:safe");
     expect(pkg.scripts?.["test:safe:core"]).toBe("node scripts/test/run-safe-core.mjs");
-    expect(pkg.scripts?.["verify:installers"]).toBe("npx vitest run tests/onboarding/installer-contract.test.ts");
+    expect(pkg.scripts?.["verify:installers"]).toBe(
+      "npx vitest run tests/onboarding/installer-contract.test.ts tests/onboarding/windows-installer-contract.test.ts",
+    );
     expect(pkg.scripts?.["e2e:skill:codex"]).toBeDefined();
   });
 });

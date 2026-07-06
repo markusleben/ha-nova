@@ -34,13 +34,13 @@ else
 fi
 
 # ── 2. Skill count ──
-# Active skill inventory expects 12 top-level skill directories
-echo "[2] Skill directory count (current inventory expects 12)"
+# Active skill inventory expects 14 top-level skill directories
+echo "[2] Skill directory count (current inventory expects 14)"
 SKILL_COUNT=$(find "$REPO_ROOT/skills" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')
-if (( SKILL_COUNT == 12 )); then
+if (( SKILL_COUNT == 14 )); then
   pass "skills/ has ${SKILL_COUNT} directories"
 else
-  fail "skills/ has ${SKILL_COUNT} directories — active docs/contracts expect 12. Update README and architecture docs."
+  fail "skills/ has ${SKILL_COUNT} directories — active docs/contracts expect 14. Update README and architecture docs."
 fi
 
 # ── 3. No MCP protocol in relay ──
@@ -93,7 +93,7 @@ fi
 
 # ── 8. Supported clients match install scripts ──
 echo "[8] Supported AI clients have install scripts"
-for client in claude codex opencode gemini hermes; do
+for client in claude codex opencode antigravity hermes; do
   SCRIPT_EXISTS=$(grep -c "install.*${client}" "$REPO_ROOT/package.json" 2>/dev/null || true)
   if (( SCRIPT_EXISTS > 0 )); then
     pass "Install script for ${client} found"

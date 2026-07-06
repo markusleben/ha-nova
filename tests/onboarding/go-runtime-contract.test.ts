@@ -16,7 +16,7 @@ describe("go runtime onboarding contract", () => {
 
   it("executes the current Go wizard coverage", { timeout: 120000 }, () => {
     expectGoTestsToPass(
-      "TestInteractiveSetupFreshInstallShowsWizardAndInstallsGeminiSkills|TestInteractiveSetupFreshInstallCanPasteExistingRelayToken|TestInteractiveSetupFreshInstallGuidesLLATSetup|TestInteractiveSetupWithHostAndRelayTokenFlagsSkipsLLATWalkthrough|TestInteractiveSetupPartialResumeSkipsTokenChoiceAndReentersLLATGuideWhenWSIsPending|TestInteractiveSetupBackFromVerifyDoesNotPersistConfig",
+      "TestInteractiveSetupFreshInstallShowsWizardAndInstallsAntigravitySkills|TestInteractiveSetupFreshInstallCanPasteExistingRelayToken|TestInteractiveSetupFreshInstallGuidesLLATSetup|TestInteractiveSetupWithHostAndRelayTokenFlagsSkipsLLATWalkthrough|TestInteractiveSetupPartialResumeSkipsTokenChoiceAndReentersLLATGuideWhenWSIsPending|TestInteractiveSetupBackFromVerifyDoesNotPersistConfig",
     );
   });
 

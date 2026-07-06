@@ -85,6 +85,10 @@ func runSnapshotSave(paths runtimePaths, args []string) int {
 			printErr("cannot read snapshot from stdin: %s", err)
 			return 1
 		}
+		if strings.TrimSpace(string(data)) == "" {
+			printErr("snapshot save requires --data-file <record-file> or JSON on stdin")
+			return 1
+		}
 	}
 	if err := saveUndoSnapshotBytes(paths, data); err != nil {
 		printErr("%s", err)

@@ -34,7 +34,7 @@ func setupStepIndex(output string, step int) int {
 	return strings.Index(output, fmt.Sprintf("[%d/5]", step))
 }
 
-func TestInteractiveSetupFreshInstallShowsWizardAndInstallsGeminiSkills(t *testing.T) {
+func TestInteractiveSetupFreshInstallShowsWizardAndInstallsAntigravitySkills(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("HA_NOVA_NO_BROWSER", "1")
@@ -83,7 +83,7 @@ func TestInteractiveSetupFreshInstallShowsWizardAndInstallsGeminiSkills(t *testi
 	for _, want := range []string{
 		"Which AI client do you use?",
 		"1) Claude Code",
-		"4) Gemini CLI",
+		"4) Google Antigravity",
 		"5) Hermes Agent",
 		"Discovering Home Assistant on your network...",
 		"I'll open your browser to add the HA NOVA repository.",
@@ -98,7 +98,7 @@ func TestInteractiveSetupFreshInstallShowsWizardAndInstallsGeminiSkills(t *testi
 		"Here it is again:",
 		"Press Enter to open your HA profile",
 		"Press Enter to open the relay settings",
-		"Setting up HA NOVA for Gemini CLI...",
+		"Setting up HA NOVA for Google Antigravity...",
 		"Setup complete!",
 	} {
 		if !strings.Contains(output, want) {
@@ -134,11 +134,11 @@ func TestInteractiveSetupFreshInstallShowsWizardAndInstallsGeminiSkills(t *testi
 		t.Fatalf("expected LLAT step to repeat relay token as reminder:\n%s", output)
 	}
 
-	if _, err := os.Stat(filepath.Join(home, ".gemini", "skills", "ha-nova", "SKILL.md")); err != nil {
-		t.Fatalf("expected gemini main skill to exist: %v", err)
+	if _, err := os.Stat(filepath.Join(home, ".gemini", "config", "skills", "ha-nova", "SKILL.md")); err != nil {
+		t.Fatalf("expected Antigravity main skill to exist: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(home, ".gemini", "skills", "ha-nova-review", "SKILL.md")); err != nil {
-		t.Fatalf("expected gemini review skill to exist: %v", err)
+	if _, err := os.Stat(filepath.Join(home, ".gemini", "config", "skills", "ha-nova-review", "SKILL.md")); err != nil {
+		t.Fatalf("expected Antigravity review skill to exist: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(home, ".config", "ha-nova", "config.json")); err != nil {
 		t.Fatalf("expected config.json to exist: %v", err)
@@ -891,7 +891,7 @@ func TestInteractiveSetupRelayTokenFlagCanBackToHostAfterVerifyFailure(t *testin
 
 	exitCode := 0
 	stdout, stderr := captureInteractiveSetupIO(t, input, func() int {
-		exitCode = interactiveSetup(paths, runtimeConfig{}, loadStateOrDefault(paths), "gemini", "", "", failingRelay.URL, "relay-token-flagged", false)
+		exitCode = interactiveSetup(paths, runtimeConfig{}, loadStateOrDefault(paths), "antigravity", "", "", failingRelay.URL, "relay-token-flagged", false)
 		return exitCode
 	})
 	if exitCode != 1 {
@@ -964,6 +964,12 @@ func TestInteractiveSetupExitAtTokenChoiceCancelsCleanly(t *testing.T) {
 }
 
 func TestInteractiveSetupInitialClientPageAllowsRepeatedBack(t *testing.T) {
+	originalDetect := detectDefaultHAHostChoiceForSetup
+	t.Cleanup(func() { detectDefaultHAHostChoiceForSetup = originalDetect })
+	detectDefaultHAHostChoiceForSetup = func(cfg runtimeConfig) (string, bool) {
+		return "", false
+	}
+
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("HA_NOVA_NO_BROWSER", "1")

@@ -9,16 +9,17 @@ describe("dev-sync contract", () => {
   it("delegates file clients back to install-local-skills.sh", () => {
     expect(content).toContain('bash "${REPO_ROOT}/scripts/onboarding/install-local-skills.sh" "$target"');
     expect(content).toContain('refresh_file_client "$name" "$target"');
-    expect(content).toContain('refresh_file_client "Gemini" "gemini"');
+    expect(content).toContain('refresh_file_client "Google Antigravity" "antigravity"');
     expect(content).toContain('CURRENT_PLATFORM_ID="$(detect_platform_id)"');
     expect(content).toContain("sync_hermes()");
     expect(content).toContain('sync_file_client "Hermes Agent" "${HOME}/.hermes/skills/ha-nova" "hermes"');
     expect(content).toContain("native Windows sync not supported");
   });
 
-  it("keeps legacy Gemini marker support during migration", () => {
+  it("keeps legacy Gemini marker support without stale Codex flat-copy markers", () => {
+    expect(content).toContain('.gemini/config/skills/ha-nova-read/SKILL.md');
     expect(content).toContain('.gemini/skills/ha-nova-read/SKILL.md');
-    expect(content).toContain('.agents/skills/ha-nova-read/SKILL.md');
+    expect(content).not.toContain('.agents/skills/ha-nova-read/SKILL.md');
   });
 
   it("requires symlink markers for Codex and OpenCode", () => {
@@ -54,6 +55,7 @@ describe("dev-sync contract", () => {
 
   it("rebuilds the local Go CLI onto the runtime ha-nova for lockstep dev testing", () => {
     expect(content).toContain("sync_cli_runtime()");
+    expect(content).toContain("stamp_dev_sync_state()");
     expect(content).toContain("dev_runtime_target()");
     expect(content).toContain('go build -ldflags "$(dev_build_ldflags)" -o "${target}"');
     // Guarded to a runtime under the current HOME so test sandboxes never build.
@@ -81,8 +83,20 @@ describe("dev-sync contract", () => {
     // files — so it survives in symlink clients (Codex) and never pollutes the
     // committed skill source. Released builds omit these flags -> bare version.
     expect(content).toContain("dev_build_ldflags()");
+    expect(content).toContain("write_dev_bundle_metadata()");
+    expect(content).toContain("-X main.Version=");
     expect(content).toContain("-X main.BuildChannel=dev");
     expect(content).toContain("-X main.BuildStamp=");
+    expect(content).toContain('target_root="$(dirname "${target}")"');
+    expect(content).toContain('cp "${REPO_ROOT}/version.json" "${target_root}/version.json"');
+    expect(content).toContain('write_dev_bundle_metadata "${target_root}" "${repo_version:-dev}"');
+    expect(content).toContain('rsync -a --delete "${REPO_ROOT}/skills/" "${target_root}/skills/"');
+    expect(content).toContain('rsync -a --delete "${REPO_ROOT}/docs/reference/" "${target_root}/docs/reference/"');
+    expect(content).toContain('mkdir -p "${target_root}/clients"');
+    expect(content).toContain('cp "${REPO_ROOT}/clients/registry.json" "${target_root}/clients/registry.json"');
+    expect(content).toContain('[[ -f "${state_file}" ]] || return 0');
+    expect(content).toContain("node -e 'process.exit(0)' >/dev/null 2>&1 || return 0");
+    expect(content).toContain("state.clients_verified_version = version");
     // The stamp has a SINGLE owner: sync_cli_runtime, which builds the runtime
     // binary `ha-nova` actually resolves to. The shared-tools relay build stays
     // plain (in repo-dev installs relay_dst is a wrapper this would clobber).

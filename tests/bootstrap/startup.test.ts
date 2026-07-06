@@ -9,7 +9,8 @@ describe("startup bootstrap", () => {
       version: "1.0.0",
       wsClient: {
         isConnected: () => true,
-        sendMessage: async () => ({ ok: true })
+        sendMessage: async () => ({ ok: true }),
+        collectMessageEvents: async () => []
       },
       coreClient: {
         request: async () => ({

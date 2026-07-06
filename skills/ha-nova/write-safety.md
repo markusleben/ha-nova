@@ -1,13 +1,17 @@
 # HA NOVA Write Safety
 
-Shared rules for two write-time safety features, owned here and referenced by
+Shared mechanics for two write-time safety features, owned here and referenced by
 `ha-nova:write` and `ha-nova:helper` (do not duplicate them):
 
 - **Pre-Write Diff** — show exactly what a change alters before it is applied.
 - **Update-Revert** — durably undo the most recent update.
 
 Skill source stays English. Localize headings and labels at runtime per
-`skills/ha-nova/SKILL.md` → Output Localization.
+`skills/ha-nova/output-rules.md`.
+
+Confirmation validity is owned by `skills/ha-nova/SKILL.md` → Safety Baseline →
+Active Preview Confirmation. This file only defines preview/diff/revert
+mechanics.
 
 ## Output hygiene (write previews & results)
 
@@ -34,59 +38,93 @@ run, every model, every client. Treat the `ha-nova diff` output like `git diff`:
 a stable artifact you print **verbatim**. Do not hand-format, reorder, relabel,
 translate, or summarize the change lines. The `-` change lines come ONLY from the
 command's stdout this turn — if you did not just run `ha-nova diff`, do not print
-a `## Changes` block at all. There is no hand-computed fallback.
+a Changes block at all. There is no hand-computed fallback. `## Changes` is the
+historical slot name, not a required literal Markdown heading; in terminal-like
+clients prefer a plain localized label for the changes slot.
 
 **update**:
 1. Write the current config (resolve `CURRENT_CONFIG`) and the proposed draft to
    two files.
-2. Run `ha-nova diff --before <current-file> --after <draft-file>`.
-3. Print a localized `## Changes` heading, then the command's lines verbatim. If
-   the command prints nothing, there is nothing to change — say so plainly
-   instead of showing an empty block.
+2. Prefer `ha-nova diff --before <current-file> --after <draft-file> --out <diff-file>`, then read `<diff-file>` with the native file-reading tool. If `--out` is unavailable, use stdout only when the client will not truncate the command output.
+3. Print a localized label for the changes slot, then the diff file/stdout lines verbatim. If the
+   diff is empty, there is nothing to change — say so plainly instead of showing
+   an empty block.
 
 **create**: no diff (there is no "before") — give a one-line plain-language
 summary of what the new item does.
 
 **delete**: no `## Changes` (the consumer-check result already covers it).
 
+### User-authored notification copy
+
+Notification text is user-authored copy, not disposable implementation detail.
+For unrelated automation/script edits, preserve these fields exactly unless the
+user explicitly asks to change notification wording or notification behavior:
+
+- notification `title` and `message`;
+- templates inside notification `title` or `message`;
+- notification metadata and actionable payloads such as tags, groups, channels,
+  sounds, URLs, actions, critical flags, and nested `data`.
+
+Do not silently restyle, relocalize, shorten, expand, or restructure existing
+notification text during a rename, refactor, timing change, trigger/condition
+change, helper change, or service-call change. If the copy looks improvable,
+offer it as a separate suggestion before preview; do not merge it into the draft
+unless the user accepts it.
+
+If notification copy does change, the Changes slot must show the old and new text or
+payload. A count-only array line such as `Actions: 7 → 8 items` is not enough
+when an existing notification title, message, or notification payload changed.
+
 ### Fixed update-preview shape
 
-Render an update preview in this exact order, nothing extra — users should learn
-one shape and always recognize it:
+Render a terminal-friendly preview in this exact order, nothing extra — users
+should learn one shape and always recognize it:
 
-1. `## Changes` (the `ha-nova diff` lines, verbatim)
-2. one line of pre-write impact (advisory; see `ha-nova:write` Phase 2 Step 3c)
-3. the confirm step, offering: apply · show full config · cancel
+1. Preview-summary slot: target name and one plain-language sentence.
+2. Changes slot: the `ha-nova diff` file/stdout lines, verbatim.
+3. Pre-write-check/impact slot: one or two short lines.
+4. Save-status slot: explicitly say that nothing has been saved yet.
+5. Options slot: explicit choices with literal `apply`, `show yaml`, and `cancel`.
 
 Do **not** re-describe the whole automation (entities, every trigger/action) —
 the diff already states what changes. Keep it scannable.
 
 ### Full config: always offered, never forced
 
-A non-technical user reads `## Changes`, not raw YAML. So:
+A non-technical user reads the Changes slot, not raw YAML. So:
 
-- **update**: lead with `## Changes`; always close with the same localized
-  affordance — a `show yaml` option for the complete config (same wording every
-  time, so the shape is predictable).
-- **create**: show a compact human summary of the new item plus the same
-  `show yaml` affordance.
+- **update**: lead with the Changes slot; always close with the same localized
+  Options block.
+- **create**: show a compact human summary of the new item, the pre-write check,
+  a not-saved-yet line, and the same Options block.
 
 Present the confirm/apply choice via the menu-or-numbered convention (see
 `skills/ha-nova/SKILL.md` → Interactive Choices).
 
-Shape (the `-` lines are exactly what `ha-nova diff` printed this turn — never
-invent, pre-fill, or copy these from an example):
+Shape (the `-` lines are exactly what `ha-nova diff` produced this turn — never
+invent, shorten, pre-fill, or copy these from an example). The labels below are
+semantic placeholders; localize them before showing the user:
 
 ```
-## Changes
-<paste the ha-nova diff stdout here, unchanged>
+<localized changes label>:
+<paste the ha-nova diff file/stdout here, unchanged>
+
+<localized options label>:
+1. apply — save exactly this preview.
+2. show yaml — show the full proposed config.
+3. cancel — do not save anything.
 ```
 
 ## Update-Revert (durable, identity-preserving)
 
-Scope: **update only**. A create is undone by deleting the new item; a delete is
-undone by restoring a Home Assistant Backup. Both are out of scope here — point
-the user to HA Backups (Settings > System > Backups) for those.
+Scope: **update only**. A create is undone by deleting the new item through the
+normal HA NOVA delete flow; that delete still requires a delete preview, exact
+`confirm:<token>`, and absence verification, even when the item was created earlier in the same session.
+Do not call this `revert`, and do not imply that manual deletion or a full Home Assistant Backup restore is the only cleanup path.
+A delete has no HA NOVA `revert`; rollback requires restoring a suitable existing
+Home Assistant Backup, or recreating the item. Point the user to HA Backups
+(Settings > System > Backups) for that case.
 
 ### 1. Capture the snapshot (after a verified update)
 
@@ -126,10 +164,10 @@ Record shape:
 
 ### 2. Offer the revert
 
-After reporting the update, offer a localized affordance that names the durable
-fallback in the same breath — never a bare "undo":
+After reporting the update, offer a localized affordance that names the point-in-time
+rollback option in the same breath — never a bare "undo":
 
-> reply `revert` to undo this change — or use Home Assistant Backups anytime.
+> reply `revert` to undo this update; for point-in-time rollback, restore a suitable existing Home Assistant Backup.
 
 ### 3. Execute `revert`
 

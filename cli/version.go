@@ -156,6 +156,10 @@ func isStableTargetFromRC(currentVersion, targetVersion string) bool {
 }
 
 func localVersion(paths runtimePaths) string {
+	if BuildChannel == "dev" && Version != "" && Version != "dev" {
+		return strings.TrimPrefix(Version, "v")
+	}
+
 	if meta, err := loadBundleMetadata(paths); err == nil && meta.Version != "" {
 		return strings.TrimPrefix(meta.Version, "v")
 	}

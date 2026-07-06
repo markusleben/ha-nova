@@ -127,10 +127,11 @@ Observed locally on a real HA instance on 2026-03-19: raw WS `config_entries/flo
 |---------|-----|
 | `config/automation/list` | Automations with metadata |
 | `repairs/list_issues` | Repairs/Deprecation Issues |
+| `config_entries/get` | Config-entry metadata; health uses not-loaded entries as integration status |
+| `system_health/info` | System health finite event response (Skill opts into Relay `collect_events` until `finish`) |
 | `homeassistant/expose_entity/list` | Voice-Assistant Exposure |
 | `subscribe_events` | Event subscription (real time) |
 | `subscribe_trigger` | Trigger subscription |
-| `system_health/info` | System health (subscription pattern) |
 | `blueprint/list` | List blueprints |
 | `blueprint/import` | Import blueprint |
 
@@ -142,7 +143,7 @@ Observed locally on a real HA instance on 2026-03-19: raw WS `config_entries/flo
 | REST sensor YAML | `/config/ha_mcp/sensors/rest/*.yaml` | No config flow available |
 | Command line sensor YAML | `/config/ha_mcp/sensors/command_line/*.yaml` | No config flow available |
 | Patch configuration.yaml | `/config/configuration.yaml` | For `!include_dir_merge_list` entries |
-| Backups | `/data/backups/` | Configuration backups before changes |
+| Backups | `/data/backups/` | Planned backup support; no active Relay endpoint today |
 
 **Sensor types with config flow (no YAML needed):** SQL, Scrape, Template (limited)
 **YAML-only sensor types:** REST, Command Line

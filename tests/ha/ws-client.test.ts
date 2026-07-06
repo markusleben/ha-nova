@@ -91,4 +91,48 @@ describe("ha ws client", () => {
     await expect(client.sendMessage({ type: "recover" })).resolves.toEqual({ echoed: "retry:recover" });
     expect(connectCalls).toBe(2);
   });
+
+  it("collects subscription events until finish and unsubscribes", async () => {
+    let unsubscribed = false;
+    const client = createHaWsClient({
+      createConnection: async () => ({
+        sendMessagePromise: async () => ({ ok: true }),
+        subscribeMessage: async (callback, message) => {
+          callback({ type: "initial", data: { source: message.type } });
+          callback({ type: "finish" });
+          return () => {
+            unsubscribed = true;
+          };
+        }
+      })
+    });
+
+    await expect(client.collectMessageEvents({ type: "system_health/info" })).resolves.toEqual([
+      { type: "initial", data: { source: "system_health/info" } },
+      { type: "finish" },
+    ]);
+    expect(unsubscribed).toBe(true);
+  });
+
+  it("unsubscribes when event collection times out before subscription ack", async () => {
+    let unsubscribed = false;
+    const client = createHaWsClient({
+      createConnection: async () => ({
+        sendMessagePromise: async () => ({ ok: true }),
+        subscribeMessage: async () => {
+          await new Promise((resolve) => setTimeout(resolve, 30));
+          return () => {
+            unsubscribed = true;
+          };
+        }
+      }),
+      requestTimeoutMs: 10
+    });
+
+    await expect(client.collectMessageEvents({ type: "system_health/info" })).rejects.toMatchObject({
+      code: "UPSTREAM_WS_TIMEOUT"
+    } satisfies Partial<HaWsClientError>);
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    expect(unsubscribed).toBe(true);
+  });
 });

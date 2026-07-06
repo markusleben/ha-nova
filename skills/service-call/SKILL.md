@@ -20,6 +20,10 @@ No config mutations (use `ha-nova:write` for automation/script changes).
 Verify relay CLI: `ha-nova relay health`
 If this fails: `ha-nova setup`
 
+## Output Rules
+
+Apply `skills/ha-nova/output-rules.md` to all user-facing output.
+
 ## Relay Contract
 
 Use file-based payloads for service writes:
@@ -36,7 +40,7 @@ Use file-based payloads for service writes:
 3. If the user names a room/area but the intended scope could be narrower, ask one clarifying question before using `area_id`.
    - Do not ask a second blocking ambiguity question in the same turn.
    - If entity resolution already consumed the one blocking question, default to the narrower confirmed target or stop and explain the ambiguity.
-4. Preview the service call:
+4. Preview the service call with stable localized slots:
    - Before preview: read current state via `ha-nova relay core --method GET --path /api/states/{entity_id}`.
    - If service changes an attribute present in the service call parameters (brightness, temperature, position, hvac_mode, etc.) OR inherently changes entity state (toggle, turn_on, turn_off, press, lock, unlock, open, close), show state delta before the call details:
      ```
@@ -52,7 +56,9 @@ Use file-based payloads for service writes:
    - Entity `unknown` → show delta as `unknown → {target}` with info: "State not yet known (HA may not have polled yet). Service call may still work."
    - State read failed → preview without delta, do not block.
    - Show: service (`domain.service`), target (`entity_id`), data fields.
-   - Ask for natural confirmation.
+   - Include an explicit not-executed-yet line before confirmation.
+   - Show an Options block with the execute/apply choice and `cancel`. Do not offer `show yaml` unless the user asks for raw payload details.
+   - Ask for natural confirmation bound to this exact preview (see context skill → Active Preview Confirmation). Earlier planning consent is draft-only.
 5. Execute:
    - `ha-nova relay core --method POST --path /api/services/{domain}/{service} --body-file <payload-file>`
 6. Verify result:
@@ -90,12 +96,23 @@ Example:
 
 For helper CRUD (create/update/delete helpers themselves), use `ha-nova:helper` instead.
 
+## Automation And Script Runtime Calls
+
+`automation.trigger`, direct script execution (`script.<script_id>`), and `script.turn_on` are live runtime actions. They may run arbitrary action sequences and can affect physical devices even when the user's intent is "just test it".
+
+Rules:
+- Never call them automatically from read, review, write, or post-write verification.
+- Use this service-call flow only after a concrete preview shows the exact service, target, payload, and whether `skip_condition` is set.
+- Treat `skip_condition: true` as higher risk because it bypasses automation conditions.
+- Ask for confirmation bound to that exact runtime-call preview before execution.
+- After execution, verify only the target automation/script state and any user-approved helper/state assertions; do not infer device safety from a successful service response alone.
+
 ## Safety
 
 - Preview every service call before execution.
 - Never guess entity IDs; resolve or ask.
-- No token confirmation needed (service calls are reversible actions).
-- For potentially disruptive services (e.g., `homeassistant.restart`), warn and ask for explicit confirmation.
+- No token confirmation needed for ordinary service calls; confirmation is still bound to the active preview.
+- For potentially disruptive services (e.g., `homeassistant.restart`), warn and ask for explicit post-preview confirmation.
 
 ## Error Handling
 
@@ -107,5 +124,6 @@ For helper CRUD (create/update/delete helpers themselves), use `ha-nova:helper` 
 ## Guardrails
 
 - One entity at a time unless user explicitly requests batch (array `entity_id` supported).
+- For batch service calls, show a grouped manifest first and bind confirmation to that exact manifest.
 - Verify state change after call.
 - If state didn't change as expected, report discrepancy.

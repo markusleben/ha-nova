@@ -2,7 +2,7 @@
 
 HA NOVA clients are registered in `clients/registry.json`.
 
-For a simple client, add the registry entry, add the client install overlay, and cover the behavior with setup/status/uninstall tests. Do not add a new Go `switch` unless the client needs a real adapter with behavior that the registry cannot express.
+The registry is metadata and capability truth. Install behavior still lives in explicit client adapter code; do not add a registry-only client and expect setup/install to work without adapter coverage.
 
 ## Minimal Client
 

@@ -33,7 +33,7 @@ describe("codex promoted skill live e2e contract", () => {
     expect(content).toContain("Do not open installed skill copies under `~/.local/share/ha-nova/skills`");
     expect(content).toContain("Do not browse the web and do not use external docs or research tools.");
     expect(content).toContain("Do not run project helper scripts.");
-    expect(content).toContain("Do not search the repo for implementation hints beyond those three allowed files.");
+    expect(content).toContain("Do not search the repo for implementation hints beyond those allowed files.");
     expect(content).toContain("Do not wrap relay commands in ad-hoc debug shells, loops, or extra shell variables.");
     expect(content).toContain("Do not emit progress updates, meta narration, or tool transcript fragments.");
     expect(content).toContain("storage-dashboard create + metadata-update + config-save proof");
@@ -47,7 +47,8 @@ describe("codex promoted skill live e2e contract", () => {
     expect(content).toContain("Read the dashboard config after that save to verify the new view exists.");
     expect(content).toContain("do not resend `url_path` or `mode`");
     expect(content).toContain("Do not probe any other dashboard's config to infer behavior for this target.");
-    expect(content).toContain("The delete preview was already shown in the previous turn");
+    expect(content).toContain("previous turn showed the concrete delete preview for this exact dashboard");
+    expect(content).toContain("previous turn showed the concrete delete preview for this exact category and scope");
     expect(content).toContain("The user's current reply is only `yes`.");
     expect(content).toContain("Use Relay WebSocket calls only for this dashboard flow.");
     expect(content).toContain("Create a category in scope");
