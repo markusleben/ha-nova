@@ -86,7 +86,7 @@ func TestInteractiveSetupFreshInstallShowsWizardAndInstallsAntigravitySkills(t *
 		"4) Google Antigravity",
 		"5) Hermes Agent",
 		"Discovering Home Assistant on your network...",
-		"I'll open your browser to add the HA NOVA repository.",
+		"Next, add the HA NOVA app repository to your Home Assistant.",
 		"Once the repository is added:",
 		`Search for "NOVA Relay"`,
 		"NOVA needs two passwords",
@@ -105,13 +105,14 @@ func TestInteractiveSetupFreshInstallShowsWizardAndInstallsAntigravitySkills(t *
 			t.Fatalf("wizard output missing %q:\n%s", want, output)
 		}
 	}
-	if !strings.Contains(output, "Found Home Assistant candidate:") &&
+	if !strings.Contains(output, "Found Home Assistant at ") &&
+		!strings.Contains(output, "Found Home Assistant via the network name ") &&
 		!strings.Contains(output, "No confirmed Home Assistant found automatically; enter the Home Assistant address manually") &&
 		!strings.Contains(output, "No confirmed Home Assistant found automatically; using your saved address as a starting point:") {
 		t.Fatalf("wizard output missing discovery result:\n%s", output)
 	}
 	discoveryIdx := strings.Index(output, "Discovering Home Assistant on your network...")
-	hostPromptIdx := strings.Index(output, "Home Assistant address (IP, hostname, or URL)")
+	hostPromptIdx := strings.Index(output, "Home Assistant address")
 	stepOneIdx := setupStepIndex(output, 1)
 	if discoveryIdx == -1 || hostPromptIdx == -1 || stepOneIdx == -1 {
 		t.Fatalf("missing discovery ordering markers:\n%s", output)
@@ -630,7 +631,7 @@ func TestInteractiveSetupRecoversSecureStorageBeforeHostStep(t *testing.T) {
 	if !strings.Contains(output, "Set up local secure storage now") {
 		t.Fatalf("expected recovery action prompt:\n%s", output)
 	}
-	if !strings.Contains(output, "Home Assistant address (IP, hostname, or URL)") {
+	if !strings.Contains(output, "Home Assistant address") {
 		t.Fatalf("expected setup to continue to host prompt after recovery:\n%s", output)
 	}
 	if recoveryCalls != 1 {
@@ -910,6 +911,100 @@ func TestInteractiveSetupRelayTokenFlagCanBackToHostAfterVerifyFailure(t *testin
 	}
 }
 
+func TestInteractiveSetupResumeCanChangeHostFromRepairMenuWithoutTokenRePrompt(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("HA_NOVA_NO_BROWSER", "1")
+	t.Setenv("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING", "1")
+	t.Setenv("HA_NOVA_TEST_KEYRING_FILE", filepath.Join(home, ".config", "ha-nova", ".test-relay-auth-token"))
+	t.Setenv("HA_NOVA_DEV_ROOT", repoRootForSetupTest(t))
+
+	deadHAServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	deadHAURL := deadHAServer.URL
+	deadHAServer.Close()
+
+	goodHAServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer goodHAServer.Close()
+
+	relayServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/health" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"status":"ok","data":{"ha_ws_connected":true}}`))
+	}))
+	defer relayServer.Close()
+
+	originalDetect := detectDefaultHAHostChoiceForSetup
+	t.Cleanup(func() { detectDefaultHAHostChoiceForSetup = originalDetect })
+	detectDefaultHAHostChoiceForSetup = func(cfg runtimeConfig) (string, string, bool) {
+		return "", "", false
+	}
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+
+	cfg := runtimeConfig{
+		HAHost:       normalizeHostInput(deadHAURL),
+		HAURL:        deadHAURL,
+		RelayBaseURL: relayServer.URL,
+	}
+	if err := saveConfig(paths, cfg); err != nil {
+		t.Fatalf("saveConfig() error: %v", err)
+	}
+	if err := writeRelayAuthToken("test-relay-token"); err != nil {
+		t.Fatalf("writeRelayAuthToken() error: %v", err)
+	}
+
+	input := joinSetupInputs(
+		[]string{"2", goodHAServer.URL},
+	)
+
+	exitCode := 0
+	stdout, stderr := captureInteractiveSetupIO(t, input, func() int {
+		exitCode = interactiveSetup(paths, cfg, loadStateOrDefault(paths), "antigravity", "", "", relayServer.URL, "", false)
+		return exitCode
+	})
+	if exitCode != 0 {
+		t.Fatalf("interactiveSetup() exit = %d, want 0\nstdout:\n%s\nstderr:\n%s", exitCode, stdout, stderr)
+	}
+
+	output := stdout + stderr
+	for _, want := range []string{
+		"Using saved Home Assistant address: " + deadHAURL,
+		"Change Home Assistant address",
+		"Setup complete!",
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output missing %q:\n%s", want, output)
+		}
+	}
+	for _, unwanted := range []string{
+		"Choose how to set up the Relay Auth Token",
+		"Create a Home Assistant Access Token in Home Assistant.",
+	} {
+		if strings.Contains(output, unwanted) {
+			t.Fatalf("host change must not re-run token steps; found %q:\n%s", unwanted, output)
+		}
+	}
+
+	saved, err := loadRuntimeConfig(paths)
+	if err != nil {
+		t.Fatalf("loadRuntimeConfig() error: %v", err)
+	}
+	if saved.HAURL != goodHAServer.URL {
+		t.Fatalf("saved.HAURL = %q, want %q", saved.HAURL, goodHAServer.URL)
+	}
+}
+
 func TestInteractiveSetupExitAtTokenChoiceCancelsCleanly(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -966,8 +1061,8 @@ func TestInteractiveSetupExitAtTokenChoiceCancelsCleanly(t *testing.T) {
 func TestInteractiveSetupInitialClientPageAllowsRepeatedBack(t *testing.T) {
 	originalDetect := detectDefaultHAHostChoiceForSetup
 	t.Cleanup(func() { detectDefaultHAHostChoiceForSetup = originalDetect })
-	detectDefaultHAHostChoiceForSetup = func(cfg runtimeConfig) (string, bool) {
-		return "", false
+	detectDefaultHAHostChoiceForSetup = func(cfg runtimeConfig) (string, string, bool) {
+		return "", "", false
 	}
 
 	home := t.TempDir()

@@ -24,6 +24,8 @@ func verifySetupConnection(reader *bufio.Reader, out io.Writer, cfg runtimeConfi
 				continue
 			case setupRepairActionBackToRelayToken:
 				return issue, false, errSetupRelayTokenStep
+			case setupRepairActionChangeHost:
+				return issue, false, errSetupHostStep
 			case setupRepairActionBack:
 				return issue, false, errSetupBack
 			default:

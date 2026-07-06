@@ -11,6 +11,7 @@ import (
 var errSetupBack = errors.New("setup back")
 var errSetupExit = errors.New("setup exit")
 var errSetupRelayTokenStep = errors.New("setup relay token step")
+var errSetupHostStep = errors.New("setup host step")
 
 func promptWizardLineFromReader(reader *bufio.Reader, out io.Writer, label, defaultValue string) (string, error) {
 	fmt.Fprintln(out)

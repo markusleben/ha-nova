@@ -19,13 +19,22 @@ var runMDNSLookupForDiscovery = runMDNSLookup
 var mdnsAvailableForDiscovery = defaultMDNSDiscoveryAvailable
 var setupDiscoveryPlatformOS = runtime.GOOS
 var setupDiscoveryOverallTimeout = 20 * time.Second
+var resolveHostToIPv4ForDiscovery = resolveHostToIPv4
+var setupDiscoveryIPResolveTimeout = 2 * time.Second
+var setupDiscoveryIPProbeTimeout = 3 * time.Second
 
 func detectDefaultHAHost(cfg runtimeConfig) string {
-	host, _ := detectDefaultHAHostChoice(cfg)
+	host, _, _ := detectDefaultHAHostChoice(cfg)
 	return host
 }
 
-func detectDefaultHAHostChoice(cfg runtimeConfig) (string, bool) {
+// detectDefaultHAHostChoice returns the best default Home Assistant host, the
+// mDNS name it was discovered through (empty unless the result was normalized
+// to an IP), and whether the host was confirmed reachable. mDNS names like
+// "homeassistant.local" are only used to FIND the instance — the offered and
+// later persisted default is the resolved IP whenever possible, because those
+// names can stop resolving mid-setup (notably on Windows).
+func detectDefaultHAHostChoice(cfg runtimeConfig) (string, string, bool) {
 	deadline := time.Now().Add(setupDiscoveryOverallTimeout)
 	for _, candidate := range collectCandidateHosts(cfg) {
 		if candidate == "" {
@@ -36,10 +45,42 @@ func detectDefaultHAHostChoice(cfg runtimeConfig) (string, bool) {
 			break
 		}
 		if _, err := resolveHAURLBaseWithinTimeoutForDiscovery(candidate, remaining); err == nil {
-			return candidate, true
+			if ip := confirmedIPv4ForMDNSHost(candidate); ip != "" {
+				return ip, candidate, true
+			}
+			return candidate, "", true
 		}
 	}
-	return preferredUnverifiedHAHost(cfg), false
+	return preferredUnverifiedHAHost(cfg), "", false
+}
+
+func confirmedIPv4ForMDNSHost(host string) string {
+	if !strings.HasSuffix(strings.ToLower(host), ".local") {
+		return ""
+	}
+	ip := resolveHostToIPv4ForDiscovery(host, setupDiscoveryIPResolveTimeout)
+	if ip == "" || ip == host {
+		return ""
+	}
+	if _, err := resolveHAURLBaseWithinTimeoutForDiscovery(ip, setupDiscoveryIPProbeTimeout); err != nil {
+		return ""
+	}
+	return ip
+}
+
+func resolveHostToIPv4(host string, timeout time.Duration) string {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	addrs, err := net.DefaultResolver.LookupIP(ctx, "ip4", host)
+	if err != nil {
+		return ""
+	}
+	for _, addr := range addrs {
+		if v4 := addr.To4(); v4 != nil {
+			return v4.String()
+		}
+	}
+	return ""
 }
 
 func collectCandidateHosts(cfg runtimeConfig) []string {

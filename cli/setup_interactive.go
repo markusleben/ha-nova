@@ -105,6 +105,9 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 
 	reader := bufio.NewReader(os.Stdin)
 	renderSetupHeader(os.Stdout)
+	if target == "" {
+		renderSetupIntro(os.Stdout)
+	}
 	choices, err := buildSetupClientChoices(paths, state)
 	if err != nil {
 		printHumanErr("%s", err)
@@ -283,6 +286,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 
 	token := existingToken
 	tokenChanged := false
+	hostChangeRetry := false
 
 	for {
 		renderSetupHeader(os.Stdout)
@@ -394,7 +398,10 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 			defaultHost, _ := detectDefaultHAHostWithFeedback(os.Stdout, cfg)
 			host, haURL, err := promptValidHAHostFromReader(reader, os.Stdout, defaultHost)
 			if err == errSetupBack {
-				if promptedClient {
+				if hostChangeRetry {
+					hostChangeRetry = false
+					stage = setupStageVerify
+				} else if promptedClient {
 					stage = setupStageClient
 				}
 				continue
@@ -408,19 +415,27 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 				return 1
 			}
 			cfg = applySelectedSetupHost(cfg, host, haURL, relayURLFlag)
-			if strings.TrimSpace(relayTokenFlag) != "" {
+			switch {
+			case hostChangeRetry && strings.TrimSpace(token) != "":
+				// The relay app and tokens are already in place; only the
+				// address was wrong, so return straight to verification.
+				hostChangeRetry = false
+				stage = setupStageVerify
+			case strings.TrimSpace(relayTokenFlag) != "":
 				stage = setupStageToken
-			} else {
+			default:
+				hostChangeRetry = false
 				stage = setupStageRelayInstall
 			}
 
 		case setupStageRelayInstall:
 			steps := buildSetupWizardSteps(true)
 			renderSetupStep(os.Stdout, steps.RelayInstall, steps.Total, "Install NOVA Relay in Home Assistant")
+			repositoryURL := haAddRepositoryURL(cfg.HAURL)
 			renderSetupParagraph(os.Stdout,
-				"I'll open your browser to add the HA NOVA repository.",
-				`Just click "Open link" when prompted.`,
+				"Next, add the HA NOVA app repository to your Home Assistant.",
 			)
+			renderSetupParagraphTight(os.Stdout, "This will open: "+repositoryURL)
 			_, err := promptWizardLineFromReader(reader, os.Stdout, "Press Enter to open your browser", "")
 			if err == errSetupBack {
 				stage = setupStageHost
@@ -434,11 +449,9 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 				printHumanErr("%s", err)
 				return 1
 			}
-			if err := openBrowserForSetup("https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Fmarkusleben%2Fha-nova"); err != nil {
-				printHumanWarn("Browser launch skipped; open this URL manually if needed: %s", "https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Fmarkusleben%2Fha-nova")
-			}
+			openBrowserShowingURL(os.Stdout, repositoryURL)
 			renderSetupIndentedBlock(os.Stdout, "Once the repository is added:", "    ",
-				"1. Go to Settings > Apps > App Store",
+				"1. Go to Settings > Apps > App Store (on older Home Assistant: Settings > Add-ons)",
 				`2. Search for "NOVA Relay"`,
 				"3. Click Install and wait for it to finish",
 				"(don't start the app yet — we'll set up the tokens first)",
@@ -546,9 +559,12 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 					if err := copyToClipboardForSetup(token); err == nil {
 						renderSetupSuccessLine(os.Stdout, "Copied to clipboard.")
 					}
-					if err := openBrowserForSetup(cfg.HAURL + "/hassio/addon/2368fcfa_ha_nova_relay/config"); err != nil {
-						printHumanWarn("Browser launch skipped; open this URL manually if needed: %s/hassio/addon/2368fcfa_ha_nova_relay/config", cfg.HAURL)
-					}
+					openBrowserShowingURL(os.Stdout, haRelayAppPageURL(cfg.HAURL))
+					renderSetupIndentedBlock(os.Stdout, "On the NOVA Relay page that just opened:", "    ",
+						`1. Open the "Configuration" tab`,
+						`2. Paste the token into the "Relay Auth Token" field ("relay_auth_token")`,
+						"3. Click Save",
+					)
 					_, err := promptWizardLineFromReader(reader, os.Stdout, "Press Enter after you saved the Relay Auth Token in NOVA Relay", "")
 					if err == errSetupBack {
 						continue
@@ -601,6 +617,9 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 
 			steps := buildSetupWizardSteps(!skipLLATWalkthrough && !verifyFirstReuseFlow)
 			renderSetupStep(os.Stdout, steps.Verify, steps.Total, "Verifying connection")
+			if verifyFirstReuseFlow {
+				renderSetupParagraphTight(os.Stdout, "Using saved Home Assistant address: "+cfg.HAURL)
+			}
 			issue, ok, err := verifySetupConnection(reader, os.Stdout, cfg, token, verifyFirstReuseFlow, relayTokenFlag == "")
 			if err == errSetupBack {
 				if !skipLLATWalkthrough && !verifyFirstReuseFlow {
@@ -614,6 +633,11 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 			}
 			if err == errSetupRelayTokenStep {
 				stage = setupStageToken
+				continue
+			}
+			if err == errSetupHostStep {
+				hostChangeRetry = true
+				stage = setupStageHost
 				continue
 			}
 			if err == errSetupExit {

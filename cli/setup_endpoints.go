@@ -91,7 +91,11 @@ func promptValidHAHost(in io.Reader, out io.Writer, defaultHost string) (string,
 func promptValidHAHostFromReader(reader *bufio.Reader, out io.Writer, defaultHost string) (string, string, error) {
 	currentDefault := defaultHost
 	for {
-		input, err := promptWizardLineFromReader(reader, out, "Home Assistant address (IP, hostname, or URL)", currentDefault)
+		label := "Home Assistant address (IP, hostname, or URL)"
+		if strings.TrimSpace(currentDefault) != "" {
+			label = "Home Assistant address (press Enter to use this, or type a different one)"
+		}
+		input, err := promptWizardLineFromReader(reader, out, label, currentDefault)
 		if err != nil {
 			return "", "", err
 		}
@@ -116,6 +120,10 @@ func promptValidHAHostFromReader(reader *bufio.Reader, out io.Writer, defaultHos
 
 		renderSetupErrorLine(out, "Could not reach Home Assistant at: %s", input)
 		fmt.Fprintln(out, "  Make sure Home Assistant is running and reachable from this computer.")
+		if strings.HasSuffix(strings.ToLower(normalizeHostInput(input)), ".local") {
+			fmt.Fprintln(out, `  Tip: names like "homeassistant.local" can be unreliable (especially on Windows).`)
+			fmt.Fprintln(out, "  Try the IP address instead — find it in your router, or in HA under Settings > System > Network.")
+		}
 		if resolveSetupUISession(out).animatesSpinner() {
 			armSetupNextPromptSkipsStaleBlankInput()
 		}

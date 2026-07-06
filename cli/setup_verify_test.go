@@ -127,6 +127,48 @@ func TestVerifySetupConnectionReuseTokenRelayAuthIssueCanRouteBackToTokenStep(t 
 	}
 }
 
+func TestVerifySetupConnectionReuseTokenConnectionIssueCanRouteToHostStep(t *testing.T) {
+	originalProbeHTTP := probeHTTPForSetup
+	originalFetchRelayHealth := fetchRelayHealthForSetup
+	originalProbeRelayWSPing := probeRelayWSPingForSetup
+	defer func() {
+		probeHTTPForSetup = originalProbeHTTP
+		fetchRelayHealthForSetup = originalFetchRelayHealth
+		probeRelayWSPingForSetup = originalProbeRelayWSPing
+	}()
+
+	probeHTTPForSetup = func(string) error { return errors.New("no such host") }
+	fetchRelayHealthForSetup = func(string, string) ([]byte, error) {
+		return nil, errors.New("unreachable")
+	}
+	probeRelayWSPingForSetup = func(string, string) (relayWSPingResponse, error) {
+		return relayWSPingResponse{}, nil
+	}
+
+	output := &bytes.Buffer{}
+	issue, ok, err := verifySetupConnection(bufio.NewReader(strings.NewReader("2\n")), output, runtimeConfig{
+		HAURL:        "http://homeassistant.local:8123",
+		RelayBaseURL: "http://homeassistant.local:8791",
+	}, "token", true, true)
+	if err != errSetupHostStep {
+		t.Fatalf("expected errSetupHostStep, got %v", err)
+	}
+	if ok {
+		t.Fatal("did not expect ready state")
+	}
+	if issue != setupIssueRelayUnreachable {
+		t.Fatalf("expected relay unreachable issue, got %q", issue)
+	}
+	for _, want := range []string{
+		"Change Home Assistant address",
+		`names like "homeassistant.local" can stop working`,
+	} {
+		if !strings.Contains(output.String(), want) {
+			t.Fatalf("expected %q in output:\n%s", want, output.String())
+		}
+	}
+}
+
 func TestVerifySetupConnectionReuseTokenRelayUnreachableKeepsRepairCopyTruthful(t *testing.T) {
 	originalProbeHTTP := probeHTTPForSetup
 	originalFetchRelayHealth := fetchRelayHealthForSetup

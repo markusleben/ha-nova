@@ -24,6 +24,7 @@ const (
 	setupRepairActionRetry             setupRepairAction = "retry"
 	setupRepairActionBack              setupRepairAction = "back"
 	setupRepairActionBackToRelayToken  setupRepairAction = "relay_token"
+	setupRepairActionChangeHost        setupRepairAction = "change_host"
 )
 
 type setupRepairChoice struct {
@@ -68,14 +69,10 @@ func runSetupRepairFlow(reader *bufio.Reader, out io.Writer, cfg runtimeConfig, 
 
 		switch action {
 		case setupRepairActionOpenSecurity:
-			if err := openBrowserForSetup(cfg.HAURL + "/profile/security"); err != nil {
-				printHumanWarn("Browser launch skipped; open this URL manually if needed: %s/profile/security", cfg.HAURL)
-			}
+			openBrowserShowingURL(out, haProfileSecurityURL(cfg.HAURL))
 		case setupRepairActionOpenRelaySettings:
-			if err := openBrowserForSetup(cfg.HAURL + "/hassio/addon/2368fcfa_ha_nova_relay/config"); err != nil {
-				printHumanWarn("Browser launch skipped; open this URL manually if needed: %s/hassio/addon/2368fcfa_ha_nova_relay/config", cfg.HAURL)
-			}
-		case setupRepairActionRetry, setupRepairActionBack, setupRepairActionBackToRelayToken:
+			openBrowserShowingURL(out, haRelayAppPageURL(cfg.HAURL))
+		case setupRepairActionRetry, setupRepairActionBack, setupRepairActionBackToRelayToken, setupRepairActionChangeHost:
 			return action, nil
 		}
 	}
@@ -88,6 +85,8 @@ func renderSetupRepairPage(out io.Writer, mode setupRepairMode) {
 		renderSetupParagraph(out,
 			"Home Assistant or NOVA Relay is still unreachable from this device.",
 			"Fix the local connection first, then retry this step.",
+			`Tip: names like "homeassistant.local" can stop working (especially on Windows).`,
+			"Try the IP address instead — find it in your router, or in HA under Settings > System > Network.",
 		)
 	case setupRepairModeLLAT:
 		renderSetupParagraph(out,
@@ -147,7 +146,8 @@ func setupRepairChoices(mode setupRepairMode, allowRelayTokenStep bool) ([]setup
 	case setupRepairModeConnection:
 		return []setupRepairChoice{
 			{Number: "1", Value: setupRepairActionRetry, Label: "Retry now"},
-			{Number: "2", Value: setupRepairActionBack, Label: "Back"},
+			{Number: "2", Value: setupRepairActionChangeHost, Label: "Change Home Assistant address"},
+			{Number: "3", Value: setupRepairActionBack, Label: "Back"},
 		}, "1"
 	case setupRepairModeLLAT:
 		return []setupRepairChoice{
