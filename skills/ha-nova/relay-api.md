@@ -380,6 +380,7 @@ These are top-level HTTP errors produced by the relay itself. The response has `
 - `500 / INTERNAL_ERROR`: unexpected relay server error
 - `502 / UPSTREAM_WS_ERROR`: relay could not reach HA websocket
 - `502 / UPSTREAM_WS_TIMEOUT`: WS request to HA timed out
+- `502 / UPSTREAM_WS_COMMAND_ERROR` (Relay App >= 0.2.4): HA answered the WS command with a structured error; the message contains HA's own error code and text (e.g. `HA rejected 'x': unknown_command: ...`). The connection stays healthy — treat this as a command problem, not a connectivity problem. Older relays report these as generic `UPSTREAM_WS_ERROR`.
 - `502 / UPSTREAM_HTTP_ERROR`: core HTTP request to HA failed
 - `502 / UPSTREAM_HTTP_TIMEOUT`: core HTTP request to HA timed out
 

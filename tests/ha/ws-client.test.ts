@@ -136,3 +136,168 @@ describe("ha ws client", () => {
     expect(unsubscribed).toBe(true);
   });
 });
+
+describe("ha ws client upstream error transparency", () => {
+  it("surfaces structured HA command errors with code and message, keeping the connection", async () => {
+    let connectCalls = 0;
+    let calls = 0;
+
+    const client = createHaWsClient({
+      createConnection: async () => {
+        connectCalls += 1;
+        return {
+          sendMessagePromise: async (message: { type: string }) => {
+            calls += 1;
+            if (calls === 1) {
+              // home-assistant-js-websocket rejects command failures with
+              // HA's raw error payload, not an Error instance.
+              // eslint-disable-next-line @typescript-eslint/no-throw-literal
+              throw { code: "unknown_command", message: "Unknown command." };
+            }
+            return { echoed: message.type };
+          }
+        };
+      }
+    });
+
+    await expect(client.sendMessage({ type: "config/entity_registry/list" })).rejects.toMatchObject({
+      code: "UPSTREAM_WS_COMMAND_ERROR",
+      message: "HA rejected 'config/entity_registry/list': unknown_command: Unknown command."
+    } satisfies Partial<HaWsClientError>);
+
+    // Command-level rejection must not tear down the healthy connection.
+    expect(client.isConnected()).toBe(true);
+    const second = await client.sendMessage<{ echoed: string }>({ type: "ping" });
+    expect(second).toEqual({ echoed: "ping" });
+    expect(connectCalls).toBe(1);
+  });
+
+  it("surfaces a structured command error that only carries a message", async () => {
+    const client = createHaWsClient({
+      createConnection: async () => ({
+        sendMessagePromise: async () => {
+          // eslint-disable-next-line @typescript-eslint/no-throw-literal
+          throw { message: "Invalid format." };
+        }
+      })
+    });
+
+    await expect(client.sendMessage({ type: "ping" })).rejects.toMatchObject({
+      code: "UPSTREAM_WS_COMMAND_ERROR",
+      message: "HA rejected 'ping': Invalid format."
+    } satisfies Partial<HaWsClientError>);
+  });
+
+  it("maps numeric transport rejections to readable UPSTREAM_WS_ERROR messages and resets", async () => {
+    let connectCalls = 0;
+
+    const client = createHaWsClient({
+      createConnection: async () => {
+        connectCalls += 1;
+        return {
+          sendMessagePromise: async () => {
+            // ERR_CONNECTION_LOST from home-assistant-js-websocket
+            // eslint-disable-next-line @typescript-eslint/no-throw-literal
+            throw 3;
+          }
+        };
+      }
+    });
+
+    await expect(client.sendMessage({ type: "ping" })).rejects.toMatchObject({
+      code: "UPSTREAM_WS_ERROR",
+      message: "Home Assistant WebSocket connection lost"
+    } satisfies Partial<HaWsClientError>);
+    expect(client.isConnected()).toBe(false);
+    expect(connectCalls).toBe(1);
+  });
+
+  it("surfaces structured command errors from event collection, keeping the connection", async () => {
+    const client = createHaWsClient({
+      createConnection: async () => ({
+        sendMessagePromise: async () => ({ ok: true }),
+        subscribeMessage: async () => {
+          // eslint-disable-next-line @typescript-eslint/no-throw-literal
+          throw { code: "unknown_command", message: "Unknown command." };
+        }
+      })
+    });
+
+    await expect(
+      client.collectMessageEvents({ type: "system_health/info" }, { timeoutMs: 100 })
+    ).rejects.toMatchObject({
+      code: "UPSTREAM_WS_COMMAND_ERROR",
+      message: "HA rejected 'system_health/info': unknown_command: Unknown command."
+    } satisfies Partial<HaWsClientError>);
+    expect(client.isConnected()).toBe(true);
+  });
+});
+
+describe("ha ws client wrapped connection-loss rejections", () => {
+  it("maps the wrapped in-flight connection-loss shape to a readable transport error and resets", async () => {
+    let connectCalls = 0;
+
+    const client = createHaWsClient({
+      createConnection: async () => {
+        connectCalls += 1;
+        return {
+          sendMessagePromise: async () => {
+            // _handleClose rejects in-flight commands with
+            // messages.error(ERR_CONNECTION_LOST, "Connection lost").
+            // eslint-disable-next-line @typescript-eslint/no-throw-literal
+            throw {
+              type: "result",
+              success: false,
+              error: { code: 3, message: "Connection lost" }
+            };
+          }
+        };
+      }
+    });
+
+    await expect(client.sendMessage({ type: "ping" })).rejects.toMatchObject({
+      code: "UPSTREAM_WS_ERROR",
+      message: "Home Assistant WebSocket connection lost"
+    } satisfies Partial<HaWsClientError>);
+    expect(client.isConnected()).toBe(false);
+    expect(connectCalls).toBe(1);
+  });
+
+  it("keeps wrapped string-code payloads classified as command errors", async () => {
+    const client = createHaWsClient({
+      createConnection: async () => ({
+        sendMessagePromise: async () => {
+          // eslint-disable-next-line @typescript-eslint/no-throw-literal
+          throw {
+            type: "result",
+            success: false,
+            error: { code: "not_allowed", message: "Not allowed." }
+          };
+        }
+      })
+    });
+
+    await expect(client.sendMessage({ type: "config/x" })).rejects.toMatchObject({
+      code: "UPSTREAM_WS_COMMAND_ERROR",
+      message: "HA rejected 'config/x': not_allowed: Not allowed."
+    } satisfies Partial<HaWsClientError>);
+    expect(client.isConnected()).toBe(true);
+  });
+
+  it("falls back to the wrapped message for unknown numeric transport codes", async () => {
+    const client = createHaWsClient({
+      createConnection: async () => ({
+        sendMessagePromise: async () => {
+          // eslint-disable-next-line @typescript-eslint/no-throw-literal
+          throw { error: { code: 42, message: "Something odd" } };
+        }
+      })
+    });
+
+    await expect(client.sendMessage({ type: "ping" })).rejects.toMatchObject({
+      code: "UPSTREAM_WS_ERROR",
+      message: "Something odd"
+    } satisfies Partial<HaWsClientError>);
+    expect(client.isConnected()).toBe(false);
+  });
+});
