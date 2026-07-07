@@ -107,7 +107,7 @@ describe("helper contract", () => {
 
     it("references the dedicated config-entry flow schema doc", () => {
       expect(skillDoc).toContain("helper-flow-schemas.md");
-      expect(flowSchemasDoc).toContain("full `#81` supported config-entry family");
+      expect(flowSchemasDoc).toContain("full supported config-entry family (9 domains)");
       expect(flowSchemasDoc).toContain("Canonical write identity: `entry_id`");
     });
 

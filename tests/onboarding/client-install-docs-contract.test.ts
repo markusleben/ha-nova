@@ -21,7 +21,7 @@ describe("client install docs contract", () => {
   const antigravityInstall = readFileSync(".antigravity/INSTALL.md", "utf8");
   const opencodeInstall = readFileSync(".opencode/INSTALL.md", "utf8");
   const hermesInstall = readFileSync(".hermes/INSTALL.md", "utf8");
-  const hermesReleaseGate = readFileSync("docs/work/2026-04-24-hermes-release-claim-gating.md", "utf8");
+  const hermesReleaseGate = readFileSync("docs/archive/work/2026-04-24-hermes-release-claim-gating.md", "utf8");
 
   it("keeps the README at product level, not client-migration level", () => {
     expect(readme).not.toContain("claude install");

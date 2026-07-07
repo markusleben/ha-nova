@@ -9,8 +9,8 @@ describe("release contract", () => {
   const releaseWorkflow = readFileSync(".github/workflows/release.yml", "utf8");
   const rcWorkflow = readFileSync(".github/workflows/release-candidate.yml", "utf8");
   const releasing = readFileSync("docs/releasing.md", "utf8");
-  const releaseBody = readFileSync("docs/work/2026-06-22-v0.7.0-release-body.md", "utf8");
-  const hotfixBody = readFileSync("docs/work/2026-07-06-v0.7.1-release-body.md", "utf8");
+  const releaseBody = readFileSync("docs/archive/work/2026-06-22-v0.7.0-release-body.md", "utf8");
+  const hotfixBody = readFileSync("docs/archive/work/2026-07-06-v0.7.1-release-body.md", "utf8");
   const linuxHeadlessHelper = readFileSync("scripts/smoke/linux-headless-setup-check.sh", "utf8");
   const pkg = JSON.parse(readFileSync("package.json", "utf8")) as {
     scripts?: Record<string, string>;

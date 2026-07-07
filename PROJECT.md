@@ -22,13 +22,13 @@ Deliverables:
 1. Relay MVP: `GET /health`, `POST /ws`, `POST /core`
 2. Context skill: `ha-nova` (auto-loaded via SessionStart hook; sub-skills discovered independently)
 3. Sub-skills (flat under `skills/`): write, read, review, dashboard, organize, history, helper, health, calendar, entity-discovery, service-call, fallback, onboarding
-4. Shared references under `skills/ha-nova/` (`relay-api.md`, `best-practices.md`, `payload-schemas.md`, `helper-schemas.md`, `template-guidelines.md`, `safe-refactoring.md`, `automation-patterns.md`, `update-guide.md`, `agents.md`)
+4. Shared references under `skills/ha-nova/` (`relay-api.md`, `best-practices.md`, `payload-schemas.md`, `helper-schemas.md`, `template-guidelines.md`, `safe-refactoring.md`, `automation-patterns.md`, `agents/`)
 
 ## Tech Stack
 
 - **App / Relay:** TypeScript, Node.js >= 20, no HTTP framework
 - **Local runtime:** Go 1.24+ CLI for install, setup, doctor, update, uninstall, relay
-- **Dependencies:** ws, yaml, axios, home-assistant-js-websocket
+- **Dependencies:** home-assistant-js-websocket
 - **Skills:** Markdown files
 - **Tests:** Vitest + Go test
 
