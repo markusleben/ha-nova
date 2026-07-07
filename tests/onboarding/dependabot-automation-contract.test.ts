@@ -167,20 +167,27 @@ describe("dependabot automation contract", () => {
     expect(manifestGate).toContain("dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98");
     expect(manifestGate).toContain('DEPENDENCY_NAMES: ${{ steps.metadata.outputs.dependency-names }}');
     expect(manifestGate).toContain('changed_files_json="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/files" --paginate)"');
-    expect(manifestGate).toContain("printf '%s' \"${changed_files_json}\" | jq -r '.[].filename'");
+    expect(manifestGate).toContain(
+      "printf '%s' \"${changed_files_json}\" | jq -r '.[] | .filename, (.previous_filename // empty)'",
+    );
     expect(manifestGate).toContain("No package manifest changes detected.");
     expect(manifestGate).toContain("Safe Dependabot manifest lane detected.");
     expect(manifestGate).toContain("issues/${PR_NUMBER}/timeline");
     expect(manifestGate).toContain('timeline_json="$(');
-    expect(manifestGate).toContain('approval_labeled_at="$(');
-    expect(manifestGate).toContain('latest_invalidating_at="$(');
-    expect(manifestGate).toContain('select(.event == "labeled" and .label.name == $label)');
+    // Label approval is validated by TIMELINE ORDER (server-side, trusted),
+    // not by timestamps: commit author/committer dates are user-controlled.
+    expect(manifestGate).toContain('label_state="$(');
+    expect(manifestGate).toContain('.event == "labeled" and (.label.name // "") == $approval_label');
     expect(manifestGate).toContain('.event == "committed" or');
     expect(manifestGate).toContain('.event == "head_ref_force_pushed" or');
     expect(manifestGate).toContain('.event == "reopened" or');
     expect(manifestGate).toContain('.event == "ready_for_review" or');
-    expect(manifestGate).toContain('(.event == "unlabeled" and .label.name == $label)');
-    expect(manifestGate).toContain('[[ -z "${latest_invalidating_at}" || "${approval_labeled_at}" > "${latest_invalidating_at}" ]]');
+    expect(manifestGate).toContain('(.event == "unlabeled" and (.label.name // "") == $approval_label)');
+    expect(manifestGate).toContain("rindex(true)) as $label_idx");
+    expect(manifestGate).toContain("rindex(true)) as $invalidating_idx");
+    expect(manifestGate).toContain('$invalidating_idx == null or $label_idx > $invalidating_idx');
+    expect(manifestGate).toContain('[[ "${approver_allowed}" == "true" ]] && [[ "${label_current}" == "true" ]]');
+    expect(manifestGate).not.toContain(".created_at // .committer.date");
     expect(manifestGate).not.toContain('gh pr edit "${PR_NUMBER}" --remove-label "${manifest_label}"');
     expect(manifestGate).not.toContain('.event == "synchronize" or');
     expect(manifestGate).toContain("Package manifest changes require maintainer review. Add the label");
@@ -215,6 +222,7 @@ describe("dependabot automation contract", () => {
       "ci-gate",
       "dependency-review",
       "manifest-review-gate",
+      "readme-release-gate",
     ]);
     expect(policy.main_branch_protection.required_approving_review_count).toBe(1);
     expect(policy.main_branch_protection.require_code_owner_reviews).toBe(true);

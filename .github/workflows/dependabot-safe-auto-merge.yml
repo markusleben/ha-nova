@@ -7,6 +7,7 @@ on:
       - CodeQL
       - Dependency Review
       - Manifest Review Gate
+      - README Release Gate
     types:
       - completed
 

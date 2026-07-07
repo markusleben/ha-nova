@@ -54,7 +54,8 @@ jobs:
           mapfile -t safe_manual_dependencies < <(jq -r '.dependabot_safe_lane.manual_review_dependencies[]' "${POLICY_FILE}")
 
           changed_files_json="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/files" --paginate)"
-          mapfile -t changed_files < <(printf '%s' "${changed_files_json}" | jq -r '.[].filename')
+          # Include previous_filename so renames of manifest files still count.
+          mapfile -t changed_files < <(printf '%s' "${changed_files_json}" | jq -r '.[] | .filename, (.previous_filename // empty)')
 
           manifest_changed=false
           non_manifest_changed=false
@@ -127,48 +128,41 @@ jobs:
             exit 0
           fi
 
+          # Compare TIMELINE ORDER, not timestamps: GitHub appends timeline
+          # events chronologically server-side, while commit author/committer
+          # dates are user-controlled (rebases and cherry-picks keep old
+          # dates). The label event must come after the last invalidating
+          # event in the timeline itself.
           timeline_json="$(
             gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/timeline" \
               --paginate \
               --slurp \
               -H "Accept: application/vnd.github+json"
           )"
-          approver="$(
-            printf '%s' "${timeline_json}" | jq -r --arg label "${manifest_label}" '
-                [
-                  .[][]
-                  | select(.event == "labeled" and .label.name == $label)
-                ]
-                | last
-                | .actor.login // ""
+          label_state="$(
+            printf '%s' "${timeline_json}" | jq -r --arg approval_label "${manifest_label}" '
+                [ .[][] ] as $events
+                | ($events
+                    | map(.event == "labeled" and (.label.name // "") == $approval_label)
+                    | rindex(true)) as $label_idx
+                | ($events
+                    | map(
+                        .event == "committed" or
+                        .event == "head_ref_force_pushed" or
+                        .event == "reopened" or
+                        .event == "ready_for_review" or
+                        (.event == "unlabeled" and (.label.name // "") == $approval_label)
+                      )
+                    | rindex(true)) as $invalidating_idx
+                | {
+                    approver: (if $label_idx != null then ($events[$label_idx].actor.login // "") else "" end),
+                    current: ($label_idx != null and ($invalidating_idx == null or $label_idx > $invalidating_idx))
+                  }
+                | "\(.approver)\t\(.current)"
               '
           )"
-          approval_labeled_at="$(
-            printf '%s' "${timeline_json}" | jq -r --arg label "${manifest_label}" '
-                [
-                  .[][]
-                  | select(.event == "labeled" and .label.name == $label)
-                ]
-                | last
-                | .created_at // ""
-              '
-          )"
-          latest_invalidating_at="$(
-            printf '%s' "${timeline_json}" | jq -r --arg label "${manifest_label}" '
-                [
-                  .[][]
-                  | select(
-                      .event == "committed" or
-                      .event == "head_ref_force_pushed" or
-                      .event == "reopened" or
-                      .event == "ready_for_review" or
-                      (.event == "unlabeled" and .label.name == $label)
-                    )
-                ]
-                | last
-                | .created_at // ""
-              '
-          )"
+          approver="${label_state%%$'\t'*}"
+          label_current="${label_state##*$'\t'}"
 
           if [[ -n "${approver}" ]]; then
             approver_allowed=false
@@ -182,9 +176,7 @@ jobs:
             approver_allowed=false
           fi
 
-          if [[ "${approver_allowed}" == "true" ]] && \
-             [[ -n "${approval_labeled_at}" ]] && \
-             [[ -z "${latest_invalidating_at}" || "${approval_labeled_at}" > "${latest_invalidating_at}" ]]; then
+          if [[ "${approver_allowed}" == "true" ]] && [[ "${label_current}" == "true" ]]; then
             echo "Maintainer manifest-review label present from ${approver}."
             exit 0
           fi

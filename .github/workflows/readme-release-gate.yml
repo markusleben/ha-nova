@@ -1,0 +1,128 @@
+name: README Release Gate
+
+# README.md is stable release truth: on GitHub it always renders from main,
+# while the installable product is the latest tag. Any claim merged ahead of
+# its release makes the README lie to stable users. This gate allows README
+# changes only when they are either part of a release-prep PR (a release-prep
+# file such as version.json changes in the same PR — the tag sequence follows
+# immediately per AGENTS.md) or explicitly approved as a stable-truth
+# correction via the maintainer label `readme-stable:approved` (typos, links,
+# clarifications about the CURRENT stable release). Label approval is
+# commit-specific: it must be (re-)applied by an approved maintainer AFTER the
+# latest commit/force-push, mirroring the manifest-review-gate rules. Feature
+# claims collect in the active docs/work/<version>-release-body.md draft
+# until the release-prep PR.
+
+on:
+  # pull_request_target runs the workflow definition from the default branch,
+  # so a PR cannot rewrite this gate to bypass it. The gate never checks out
+  # or executes PR code — it only inspects files/labels via the API.
+  pull_request_target:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+      - labeled
+      - unlabeled
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  readme-release-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enforce README stable-truth policy
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+
+          POLICY_FILE="$(mktemp)"
+          # Read the policy from the default branch so a PR cannot rewrite
+          # its own gate rules.
+          gh api "repos/${GITHUB_REPOSITORY}/contents/.github/policy/repo-policy.json" \
+            --jq '.content' \
+            | tr -d '\n' \
+            | base64 --decode > "${POLICY_FILE}"
+          readme_label="$(jq -r '.readme_release_gate.label' "${POLICY_FILE}")"
+          mapfile -t readme_approvers < <(jq -r '.readme_release_gate.approvers[]' "${POLICY_FILE}")
+          mapfile -t release_prep_files < <(jq -r '.readme_release_gate.release_prep_files[]' "${POLICY_FILE}")
+
+          # Include previous_filename so renames of README.md (including
+          # case-only renames) still count as touching the stable README.
+          files="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/files" --paginate --jq '.[] | .filename, (.previous_filename // empty)')"
+
+          if ! grep -Fxq "README.md" <<<"${files}"; then
+            echo "README.md untouched — gate passes."
+            exit 0
+          fi
+
+          for release_prep_file in "${release_prep_files[@]}"; do
+            if grep -Fxq "${release_prep_file}" <<<"${files}"; then
+              echo "README.md changed together with ${release_prep_file} (release-prep PR) — gate passes."
+              exit 0
+            fi
+          done
+
+          # Stable-truth approval path: the label must have been applied by an
+          # approved maintainer AFTER the latest invalidating event (commit,
+          # force-push, reopen, ready-for-review, or unlabel) — a new SHA never
+          # inherits a previous approval.
+          # Compare TIMELINE ORDER, not timestamps: GitHub appends timeline
+          # events chronologically server-side, while commit author/committer
+          # dates are user-controlled (rebases and cherry-picks keep old
+          # dates). The label event must come after the last invalidating
+          # event in the timeline itself.
+          timeline_json="$(
+            gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/timeline" \
+              --paginate \
+              --slurp \
+              -H "Accept: application/vnd.github+json"
+          )"
+          label_state="$(
+            printf '%s' "${timeline_json}" | jq -r --arg approval_label "${readme_label}" '
+                [ .[][] ] as $events
+                | ($events
+                    | map(.event == "labeled" and (.label.name // "") == $approval_label)
+                    | rindex(true)) as $label_idx
+                | ($events
+                    | map(
+                        .event == "committed" or
+                        .event == "head_ref_force_pushed" or
+                        .event == "reopened" or
+                        .event == "ready_for_review" or
+                        (.event == "unlabeled" and (.label.name // "") == $approval_label)
+                      )
+                    | rindex(true)) as $invalidating_idx
+                | {
+                    approver: (if $label_idx != null then ($events[$label_idx].actor.login // "") else "" end),
+                    current: ($label_idx != null and ($invalidating_idx == null or $label_idx > $invalidating_idx))
+                  }
+                | "\(.approver)\t\(.current)"
+              '
+          )"
+          approver="${label_state%%$'\t'*}"
+          label_current="${label_state##*$'\t'}"
+
+          approver_allowed=false
+          if [[ -n "${approver}" ]]; then
+            for allowed_approver in "${readme_approvers[@]}"; do
+              if [[ "${approver}" == "${allowed_approver}" ]]; then
+                approver_allowed=true
+                break
+              fi
+            done
+          fi
+
+          if [[ "${approver_allowed}" == "true" ]] && [[ "${label_current}" == "true" ]]; then
+            echo "README.md change approved as a stable-truth correction by ${approver} on the current PR state — gate passes."
+            exit 0
+          fi
+
+          echo "::error::README.md is stable release truth. Either make this a release-prep PR (change a release-prep file such as version.json in the same PR and tag immediately after merge), move the claim into the active docs/work/<version>-release-body.md draft, or have a maintainer (re-)apply the '${readme_label}' label on the CURRENT commit for corrections that describe the current stable release."
+          exit 1
