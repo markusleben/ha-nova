@@ -83,14 +83,18 @@ release:
     ```
 
     Windows uses a single supported install path: `install.ps1`. Return an RC install to stable later with `ha-nova update`.
-    {{ else }}## Bug Fixes
+    {{ else }}## New Features
 
-    - Windows installer downloads are more resilient on fresh Windows systems: the installer sets modern TLS defaults, sends GitHub-friendly headers, retries release assets with native fallback transports, and retries the ZIP download when a proxy or partial transfer produces content that fails SHA256 verification.
+    - Setup wizard rework: a friendly intro on first run, a connection repair menu when verification fails (retry, change the Home Assistant address, run the install steps for this address, or stop with progress saved), and Home Assistant links that work before and after the 2026.2 "Add-ons to Apps" rename.
+    - Network discovery now prefers a verified IP address over fragile `.local` names, so setup survives Windows mDNS hiccups.
+
+    ## Bug Fixes
+
+    - NOVA Relay 0.2.5: large Home Assistant instances no longer lose the relay connection on big responses (for example full entity registry lists), and Home Assistant's real error messages now reach the client instead of a generic "WS request failed".
 
     ## What To Watch
 
-    - If a network, proxy, or firewall blocks GitHub Release downloads entirely, install still cannot complete, but the installer now reports one HA NOVA download error with the attempted transports instead of leaking a raw `Invoke-WebRequest` stack trace.
-    - The already-published `v0.7.0` tag is immutable. Use `v0.7.1` or the latest release command below for this Windows installer fix.
+    - Update the NOVA Relay app in Home Assistant (Settings > Apps > NOVA Relay > Update) to 0.2.5 — the skills warn when the running relay is older than required.
 
     Stable install commands are release-pinned for this tag.
 

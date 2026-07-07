@@ -53,13 +53,15 @@ describe("release contract", () => {
     expect(releaseWorkflow).not.toContain("dist/winget");
   });
 
-  it("keeps v0.7.1 release-facing wording scoped to the Windows installer hotfix", () => {
+  it("keeps v0.8.0 release-facing wording user-centric", () => {
     // Shipped release-note bodies are archived (docs/archive/work/) and
     // non-normative per documentation governance; only the active GoReleaser
     // template is contract-checked here.
-    expect(goreleaser).toContain("Windows installer downloads are more resilient");
-    expect(goreleaser).toContain("raw `Invoke-WebRequest` stack trace");
-    expect(goreleaser).toContain("Use `v0.7.1` or the latest release command");
+    expect(goreleaser).toContain("Setup wizard rework");
+    expect(goreleaser).toContain("run the install steps for this address, or stop with progress saved");
+    expect(goreleaser).toContain("NOVA Relay 0.2.5");
+    expect(goreleaser).toContain("Settings > Apps > NOVA Relay > Update");
+    expect(goreleaser).not.toContain("Use `v0.7.1` or the latest release command");
   });
 
   it("pins the GoReleaser release tag to the triggering workflow ref", () => {
