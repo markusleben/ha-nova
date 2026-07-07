@@ -110,3 +110,29 @@ describe("ha authenticated socket", () => {
     }
   });
 });
+
+describe("ha authenticated socket post-auth error safety", () => {
+  it("keeps an error listener after auth so transport errors cannot crash the process", async () => {
+    const server = await startServer((socket) => {
+      socket.send(JSON.stringify({ type: "auth_required" }));
+      socket.on("message", () => {
+        socket.send(JSON.stringify({ type: "auth_ok", ha_version: "2026.6.4" }));
+      });
+    });
+
+    try {
+      const socket = await createAuthenticatedHaSocket({ haUrl: server.url, token: "t" });
+      // ws sockets are EventEmitters: with zero 'error' listeners this emit
+      // would throw synchronously (and crash the process outside tests).
+      expect(() => {
+        (socket as unknown as { emit: (event: string, error: Error) => boolean }).emit(
+          "error",
+          new Error("simulated post-auth transport error")
+        );
+      }).not.toThrow();
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    } finally {
+      server.close();
+    }
+  });
+});

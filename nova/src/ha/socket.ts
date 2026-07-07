@@ -79,6 +79,17 @@ export function createAuthenticatedHaSocket(
         case MSG_TYPE_AUTH_OK: {
           settled = true;
           removeHandshakeListeners();
+          // ws sockets are EventEmitters: a post-auth transport error with no
+          // 'error' listener would crash the Node process. Swallow it and
+          // close — the close event drives home-assistant-js-websocket's
+          // reconnect path (it only attaches message/close handlers itself).
+          socket.addEventListener("error", () => {
+            try {
+              socket.close();
+            } catch {
+              // Socket may already be closed.
+            }
+          });
           socket.haVersion = typeof message.ha_version === "string" ? message.ha_version : "unknown";
           resolve(socket);
           return;
