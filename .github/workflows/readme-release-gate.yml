@@ -53,7 +53,9 @@ jobs:
           mapfile -t readme_approvers < <(jq -r '.readme_release_gate.approvers[]' "${POLICY_FILE}")
           mapfile -t release_prep_files < <(jq -r '.readme_release_gate.release_prep_files[]' "${POLICY_FILE}")
 
-          files="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/files" --paginate --jq '.[].filename')"
+          # Include previous_filename so renames of README.md (including
+          # case-only renames) still count as touching the stable README.
+          files="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/files" --paginate --jq '.[] | .filename, (.previous_filename // empty)')"
 
           if ! grep -Fxq "README.md" <<<"${files}"; then
             echo "README.md untouched — gate passes."

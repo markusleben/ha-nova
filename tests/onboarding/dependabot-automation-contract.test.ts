@@ -167,7 +167,9 @@ describe("dependabot automation contract", () => {
     expect(manifestGate).toContain("dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98");
     expect(manifestGate).toContain('DEPENDENCY_NAMES: ${{ steps.metadata.outputs.dependency-names }}');
     expect(manifestGate).toContain('changed_files_json="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/files" --paginate)"');
-    expect(manifestGate).toContain("printf '%s' \"${changed_files_json}\" | jq -r '.[].filename'");
+    expect(manifestGate).toContain(
+      "printf '%s' \"${changed_files_json}\" | jq -r '.[] | .filename, (.previous_filename // empty)'",
+    );
     expect(manifestGate).toContain("No package manifest changes detected.");
     expect(manifestGate).toContain("Safe Dependabot manifest lane detected.");
     expect(manifestGate).toContain("issues/${PR_NUMBER}/timeline");

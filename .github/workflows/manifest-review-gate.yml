@@ -54,7 +54,8 @@ jobs:
           mapfile -t safe_manual_dependencies < <(jq -r '.dependabot_safe_lane.manual_review_dependencies[]' "${POLICY_FILE}")
 
           changed_files_json="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/files" --paginate)"
-          mapfile -t changed_files < <(printf '%s' "${changed_files_json}" | jq -r '.[].filename')
+          # Include previous_filename so renames of manifest files still count.
+          mapfile -t changed_files < <(printf '%s' "${changed_files_json}" | jq -r '.[] | .filename, (.previous_filename // empty)')
 
           manifest_changed=false
           non_manifest_changed=false
