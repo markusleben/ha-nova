@@ -18,7 +18,7 @@ Not in scope:
 - calendar dashboard edits
 - automation writes that use calendar triggers
 
-## Bootstrap
+## Bootstrap (once per session)
 
 Verify relay CLI: `ha-nova relay health`
 If this fails: `ha-nova setup`
@@ -33,7 +33,7 @@ Use REST through relay core only:
 `<calendar-events-path>` is:
 `/api/calendars/<calendar_entity_id>?start=<timestamp>&end=<timestamp>`
 
-Relay-core response body is under `.data.body`.
+Relay-core response body is under `.data.body` (envelope contract: `skills/ha-nova/relay-api.md` → Standard Envelope).
 
 ## Flow
 

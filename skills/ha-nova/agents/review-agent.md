@@ -101,20 +101,7 @@ Find other automations/scripts that control the same entities.
 
 ### Step 3: Conflict Analysis
 
-For each related automation/script, apply the 3-step conflict test:
-
-**Step 3a — Action Polarity:**
-- Same action on same entity → not a conflict (possibly redundant, note only)
-- Opposite actions (on/off, open/close, different values) → proceed to 3b
-
-**Step 3b — Trigger Temporal Relationship:**
-- Mutually exclusive triggers (sunrise/sunset, non-overlapping time windows) → **no conflict, skip**
-- Sequential triggers (event start → event end/timeout) → **complementary pair, skip**
-- Concurrent triggers (can fire in same time window) → proceed to 3c
-
-**Step 3c — Guard Conditions:**
-- Mutually exclusive conditions (e.g., `sleep_mode: on` vs `off`) → **no conflict, skip**
-- No mutual exclusion → **real conflict risk, report**
+For each related automation/script, apply the 3-step conflict test (3a Action Polarity → 3b Trigger Temporal Relationship → 3c Guard Conditions) exactly as defined in `skills/review/SKILL.md` → Step 3: Conflict Analysis. That file is the single source for the test; do not maintain a separate variant here.
 
 ### Step 4: Standalone Questions + Suggestions (`{MODE}` == `standalone` only)
 
@@ -132,17 +119,7 @@ For standalone remove/simplify ideas:
 - valid evidence stays local to the current review context: config structure, alias/description text, pasted comments, already loaded related configs, or explicit thread history already present
 - if purpose is unclear, move the item into Questions to consider instead of Suggestions
 
-After the design-intent gate, rank confident suggestions by intervention depth:
-1. Fix existing
-2. Simplify existing
-3. Extend existing
-4. Add new
-
-Rules:
-- dedupe overlapping ideas
-- cap confident suggestions at 4
-- when the same verified problem supports both a smaller direct fix and a larger optional monitoring/fallback addition, include both and keep the smaller fix first
-- do not place watchdog/new-component ideas above a smaller root-cause fix
+After the design-intent gate, rank and cap confident suggestions per `skills/review/SKILL.md` → Step 6: Suggestion Synthesis (intervention-depth ranking, dedupe, cap at 4, smaller root-cause fix before watchdog/new-component ideas).
 
 ### Known Safe/Problem Patterns
 

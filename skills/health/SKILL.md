@@ -21,7 +21,7 @@ Not in scope:
 - YAML/filesystem diagnostics
 - historical timelines (use `ha-nova:history`)
 
-## Bootstrap
+## Bootstrap (once per session)
 
 Verify relay CLI: `ha-nova relay health`
 If this fails: `ha-nova setup`
@@ -45,7 +45,7 @@ For WS payloads:
 
 ## Data Shapes
 
-Normalize each saved relay result separately before summarizing:
+Envelope parsing follows `skills/ha-nova/relay-api.md` → Standard Envelope. Normalize each saved relay result separately before summarizing:
 - REST `/api/config`, `/api/components`, `/api/states`: use `.data.body`
 - WS `repairs/list_issues`: use `.data.issues`
 - WS `config_entries/get`: use `.data` as an array

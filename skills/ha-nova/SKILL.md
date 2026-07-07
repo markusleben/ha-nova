@@ -75,24 +75,33 @@ Rules:
 - Correct invalid Home Assistant premises explicitly.
 - Do it briefly and technically.
 - Preview every write payload.
-- Active preview confirmation:
-  - A user instruction given before the preview exists is never valid write confirmation.
-  - Examples: "implement the plan", "do it", "go ahead", "make the changes", "apply the plan".
-  - Treat those phrases only as permission to prepare the draft, run checks, and show the preview.
-  - A live HA write requires confirmation after the concrete preview is shown: diff for updates, payload summary for creates/service calls/experimental writes, delete impact plus token, or grouped manifest for allowed multi-target writes.
-  - Confirmation is bound to the displayed operation, target set, endpoint/service, and exact payload/diff/manifest. If target, scope, endpoint, payload, draft, or manifest changes, confirmation expires; show the updated preview and ask again.
-  - Multi-target confirmation is valid only where the owning skill supports multi-target writes. Otherwise process targets sequentially with separate preview and confirmation.
-- Confirmation tiers:
-  - `create`/`update`: natural confirmation bound to active preview.
-  - `delete`/destructive: token confirmation `confirm:<token>`.
-    **Strict token enforcement:** User MUST reply with the exact token string (e.g., `confirm:del-main-lights`). Any other response — including "yes", "sure, delete it", "do it", or any natural-language confirmation — is NOT valid. Reject and re-prompt with the exact token required.
-    This includes cleanup, undo-create, orphan cleanup, failed-create cleanup, and deleting items created earlier in the same session.
 - Ask exactly one blocking question only if ambiguity remains.
-- **No raw relay writes without a skill**: If no dedicated subskill matches, you MUST invoke `ha-nova:fallback` before any raw `relay ws` or `relay core` write operation. Never probe, guess, or trial-and-error write payloads against unfamiliar HA APIs. Some WS endpoints (e.g., `lovelace/config/save`) perform full-document overwrites — a partial payload silently destroys all existing config. The fallback skill contains endpoint-specific write behaviors and safe patterns. Skipping it risks data loss.
 - Failure format must include:
   - what failed
   - why it failed
   - next concrete step
+
+### Active Preview Confirmation
+
+Skills reference this section as "context skill → Active Preview Confirmation".
+
+- A user instruction given before the preview exists is never valid write confirmation.
+- Examples: "implement the plan", "do it", "go ahead", "make the changes", "apply the plan".
+- Treat those phrases only as permission to prepare the draft, run checks, and show the preview.
+- A live HA write requires confirmation after the concrete preview is shown: diff for updates, payload summary for creates/service calls/experimental writes, delete impact plus token, or grouped manifest for allowed multi-target writes.
+- Confirmation is bound to the displayed operation, target set, endpoint/service, and exact payload/diff/manifest. If target, scope, endpoint, payload, draft, or manifest changes, confirmation expires; show the updated preview and ask again.
+- Multi-target confirmation is valid only where the owning skill supports multi-target writes. Otherwise process targets sequentially with separate preview and confirmation.
+
+### Confirmation Tiers
+
+- `create`/`update`: natural confirmation bound to active preview.
+- `delete`/destructive: token confirmation `confirm:<token>`.
+  **Strict token enforcement:** User MUST reply with the exact token string (e.g., `confirm:del-main-lights`). Any other response — including "yes", "sure, delete it", "do it", or any natural-language confirmation — is NOT valid. Reject and re-prompt with the exact token required.
+  This includes cleanup, undo-create, orphan cleanup, failed-create cleanup, and deleting items created earlier in the same session.
+
+### Write Routing Gate
+
+- **No raw relay writes without a skill**: If no dedicated subskill matches, you MUST invoke `ha-nova:fallback` before any raw `relay ws` or `relay core` write operation. Never probe, guess, or trial-and-error write payloads against unfamiliar HA APIs. Some WS endpoints (e.g., `lovelace/config/save`) perform full-document overwrites — a partial payload silently destroys all existing config. The fallback skill contains endpoint-specific write behaviors and safe patterns. Skipping it risks data loss.
 
 ## Interactive Choices
 

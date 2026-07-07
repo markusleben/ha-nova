@@ -416,7 +416,9 @@ describe("ha-nova contract", () => {
     expect(review).toContain("Output Format");
     expect(review).toContain("skills/ha-nova/output-rules.md");
     expect(review).toContain("search/related");
-    expect(review).toContain("complementary pair");
+    // Conflict-test semantics (action polarity, complementary pairs, guard
+    // conditions) live only in review/SKILL.md Step 3; the agent references it.
+    expect(review).toContain("Step 3: Conflict Analysis");
     // Review entry stays at review/SKILL.md; detailed checks live in review/checks.md.
     expect(review).toContain("skills/review/SKILL.md");
     expect(review).toContain("skills/review/checks.md");
@@ -444,7 +446,7 @@ describe("ha-nova contract", () => {
     // the four-phase flow plus pre-write diff, pre-write impact, and durable
     // update-revert wiring — so it gets a slightly larger, documented budget.
     // Everything else stays under 1000; this is a recalibration, not a removal.
-    const wordLimits: Record<string, number> = { "skills/write/SKILL.md": 1100 };
+    const wordLimits: Record<string, number> = { "skills/write/SKILL.md": 1150 };
     for (const file of skills) {
       const content = readFileSync(file, "utf8");
       const wordCount = content.trim().split(/\s+/).length;

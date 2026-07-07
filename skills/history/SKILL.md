@@ -44,7 +44,7 @@ Canonical paths:
 - `recorder/statistics_during_period`
 
 Prefer `minimal_response` and `no_attributes` on large history queries when the task only needs state transitions.
-Relay-core response shape here stays under `.data.body`.
+Envelope parsing follows `skills/ha-nova/relay-api.md` → Standard Envelope; relay-core response shape here stays under `.data.body`.
 - history series: `.data.body[0]`
 - logbook entries: `.data.body`
 - do not probe `.[0]` or `.[0][0]` against the relay envelope

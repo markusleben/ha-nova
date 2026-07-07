@@ -24,7 +24,7 @@ Read-only analysis. Exception: after explicit user confirmation, one Quick-Fix s
 - The Quick-Fix service call in Step 4 is the only write exception in this skill.
 - Bulk review is stricter: no Quick-Fix, no service calls, no write exception.
 
-## Bootstrap
+## Bootstrap (once per session)
 
 Relay CLI: `ha-nova relay`
 - Preflight: `ha-nova relay health` (once per session, skip if already verified)
@@ -118,7 +118,7 @@ If the target config is not already in the thread context, resolve it yourself:
    ha-nova relay ws --data-file <payload-file> --jq-file <helper-filter-file> --out <target-file>
    ```
    Preferred: copy `skills/ha-nova/config-body-filter.jq` to `<config-filter-file>` and use that copied file directly.
-   If you must recreate it, write `<config-filter-file>` with:
+   If the canonical file is unavailable (flat-copy installs), recreate it with exactly:
    ```jq
    if .ok then .data.body else error("relay error: \(.error.message // "unknown")") end
    ```
@@ -252,7 +252,7 @@ Traverse all `variables:` mappings in the config, not just the top-level block. 
 
 Find other automations/scripts that control the same entities.
 
-For updates, this same scan is also run pre-write as an advisory impact preview (see `ha-nova:write` Phase 2 Step 3c and the `ha-nova:helper` update flows). The post-write run here stays mandatory and authoritative against the persisted config.
+For updates, this same scan is also run pre-write as an advisory impact preview (see `ha-nova:write` Phase 2 Step 3c, Pre-Write Impact, and the `ha-nova:helper` update flows). The post-write run here stays mandatory and authoritative against the persisted config.
 
 Branch by target family:
 - automation/script/storage-based helper: use action-derived target entities as before

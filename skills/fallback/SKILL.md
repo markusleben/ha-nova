@@ -299,8 +299,8 @@ No HA WS endpoint has optimistic locking (no ETags, no version numbers). Last wr
 
 ## Error Handling
 
-Experimental calls may fail with unfamiliar errors. General rules:
+Experimental calls may fail with unfamiliar errors. Full relay/upstream error taxonomy: `skills/ha-nova/relay-api.md` → Error Handling. Fallback-specific rules:
 
 - `400/VALIDATION_ERROR`: payload schema wrong -- search web for current WS type schema
 - `404/NOT_FOUND`: endpoint may not exist in this HA version -- check HA release notes
-- `502/504`: relay connection issue -- retry once, then route to `ha-nova:onboarding`
+- `502/UPSTREAM_*` transport errors: verify state/config first (see `relay-api.md` → Timeout and Retry Guidance); retry once only when verification shows no change, then route to `ha-nova:onboarding`
