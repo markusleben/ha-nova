@@ -303,4 +303,4 @@ Experimental calls may fail with unfamiliar errors. Full relay/upstream error ta
 
 - `400/VALIDATION_ERROR`: payload schema wrong -- search web for current WS type schema
 - `404/NOT_FOUND`: endpoint may not exist in this HA version -- check HA release notes
-- `502/UPSTREAM_*` transport errors: retry once, then route to `ha-nova:onboarding`
+- `502/UPSTREAM_*` transport errors: verify state/config first (see `relay-api.md` → Timeout and Retry Guidance); retry once only when verification shows no change, then route to `ha-nova:onboarding`

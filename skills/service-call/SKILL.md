@@ -120,7 +120,7 @@ Full relay/upstream error taxonomy (codes, HTTP-status split, retry rules): `ski
 
 Service-call specifics:
 - `404/NOT_FOUND` or upstream `.data.status` 404: entity or service does not exist — re-resolve before retrying
-- `502/UPSTREAM_*` transport errors: retry once, then report failure
+- `502/UPSTREAM_*` transport errors: HA may already have accepted the action — verify entity state first (see `relay-api.md` → Timeout and Retry Guidance); retry once only when verification shows no state change, otherwise report the result
 - State verification failure (state didn't change): report discrepancy, do not retry automatically
 
 ## Guardrails
