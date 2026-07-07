@@ -17,6 +17,7 @@
   "tests/e2e/codex-skill-scenarios-contract.test.ts",
   "tests/e2e/codex-skill-write-review-live-contract.test.ts",
   "tests/ha/rest-client.test.ts",
+  "tests/ha/socket.test.ts",
   "tests/ha/ws-client.test.ts",
   "tests/hooks/session-start.test.ts",
   "tests/http/core-proxy.test.ts",

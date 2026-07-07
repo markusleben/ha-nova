@@ -9,6 +9,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic
 Recent changes are tracked in [GitHub releases](https://github.com/markusleben/ha-nova/releases)
 and merged PRs. This changelog will be updated with the next tagged relay version.
 
+## [Relay 0.2.5] - 2026-07-07
+
+### Fixed
+- **Large WS command results no longer drop the connection** — the Node global WebSocket (undici) negotiates permessage-deflate and enforces a max decompressed message size; big responses such as `config/entity_registry/list` on instances with thousands of entities exceeded it and the connection died with an opaque `connection lost`. The relay now connects with the `ws` client (compression disabled, explicit 256 MiB payload ceiling) via a custom authenticated socket.
+
 ## [Relay 0.2.4] - 2026-07-07
 
 ### Fixed
