@@ -1,4 +1,4 @@
-name: readme-release-gate
+name: README Release Gate
 
 # README.md is stable release truth: on GitHub it always renders from main,
 # while the installable product is the latest tag. Any claim merged ahead of
@@ -71,50 +71,41 @@ jobs:
           # approved maintainer AFTER the latest invalidating event (commit,
           # force-push, reopen, ready-for-review, or unlabel) — a new SHA never
           # inherits a previous approval.
+          # Compare TIMELINE ORDER, not timestamps: GitHub appends timeline
+          # events chronologically server-side, while commit author/committer
+          # dates are user-controlled (rebases and cherry-picks keep old
+          # dates). The label event must come after the last invalidating
+          # event in the timeline itself.
           timeline_json="$(
             gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/timeline" \
               --paginate \
               --slurp \
               -H "Accept: application/vnd.github+json"
           )"
-          approver="$(
-            printf '%s' "${timeline_json}" | jq -r --arg label "${readme_label}" '
-                [
-                  .[][]
-                  | select(.event == "labeled" and .label.name == $label)
-                ]
-                | last
-                | .actor.login // ""
+          label_state="$(
+            printf '%s' "${timeline_json}" | jq -r --arg approval_label "${readme_label}" '
+                [ .[][] ] as $events
+                | ($events
+                    | map(.event == "labeled" and (.label.name // "") == $approval_label)
+                    | rindex(true)) as $label_idx
+                | ($events
+                    | map(
+                        .event == "committed" or
+                        .event == "head_ref_force_pushed" or
+                        .event == "reopened" or
+                        .event == "ready_for_review" or
+                        (.event == "unlabeled" and (.label.name // "") == $approval_label)
+                      )
+                    | rindex(true)) as $invalidating_idx
+                | {
+                    approver: (if $label_idx != null then ($events[$label_idx].actor.login // "") else "" end),
+                    current: ($label_idx != null and ($invalidating_idx == null or $label_idx > $invalidating_idx))
+                  }
+                | "\(.approver)\t\(.current)"
               '
           )"
-          approval_labeled_at="$(
-            printf '%s' "${timeline_json}" | jq -r --arg label "${readme_label}" '
-                [
-                  .[][]
-                  | select(.event == "labeled" and .label.name == $label)
-                ]
-                | last
-                | .created_at // ""
-              '
-          )"
-          latest_invalidating_at="$(
-            printf '%s' "${timeline_json}" | jq -r --arg label "${readme_label}" '
-                [
-                  .[][]
-                  | select(
-                      .event == "committed" or
-                      .event == "head_ref_force_pushed" or
-                      .event == "reopened" or
-                      .event == "ready_for_review" or
-                      (.event == "unlabeled" and .label.name == $label)
-                    )
-                ]
-                | last
-                # `committed` timeline events carry no top-level created_at —
-                # fall back to the commit committer/author date.
-                | (.created_at // .committer.date // .author.date // "")
-              '
-          )"
+          approver="${label_state%%$'\t'*}"
+          label_current="${label_state##*$'\t'}"
 
           approver_allowed=false
           if [[ -n "${approver}" ]]; then
@@ -126,9 +117,7 @@ jobs:
             done
           fi
 
-          if [[ "${approver_allowed}" == "true" ]] && \
-             [[ -n "${approval_labeled_at}" ]] && \
-             [[ -z "${latest_invalidating_at}" || "${approval_labeled_at}" > "${latest_invalidating_at}" ]]; then
+          if [[ "${approver_allowed}" == "true" ]] && [[ "${label_current}" == "true" ]]; then
             echo "README.md change approved as a stable-truth correction by ${approver} on the current PR state — gate passes."
             exit 0
           fi
