@@ -2374,3 +2374,31 @@ func TestInteractiveSetupFreshHostChangeRoutesBackThroughInstallStepsNotStraight
 		t.Fatalf("saved.HAURL = %q, want %q", saved.HAURL, goodHAServer.URL)
 	}
 }
+
+func TestInteractiveSetupFlagDrivenRunSkipsIntroEvenWithoutClientTarget(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("HA_NOVA_NO_BROWSER", "1")
+	t.Setenv("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING", "1")
+	t.Setenv("HA_NOVA_TEST_KEYRING_FILE", filepath.Join(home, ".config", "ha-nova", ".test-relay-auth-token"))
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+
+	// `ha-nova setup --host ...` with no client target and no saved config:
+	// the run is flag-driven, so the first-run intro must not render even
+	// though the flag overrides are applied after the intro check.
+	stdout, stderr := captureInteractiveSetupIO(t, joinSetupInputs([]string{"exit"}), func() int {
+		return interactiveSetup(paths, runtimeConfig{}, loadStateOrDefault(paths), "", "192.168.1.5", "", "", "", false)
+	})
+
+	output := stdout + stderr
+	if strings.Contains(output, "connects your AI assistant") {
+		t.Fatalf("flag-driven run must skip the intro:\n%s", output)
+	}
+	if !strings.Contains(output, "Setup cancelled") {
+		t.Fatalf("expected clean exit path in output:\n%s", output)
+	}
+}

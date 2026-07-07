@@ -105,7 +105,11 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 
 	reader := bufio.NewReader(os.Stdin)
 	renderSetupHeader(os.Stdout)
-	if target == "" && strings.TrimSpace(cfg.HAHost) == "" && strings.TrimSpace(cfg.HAURL) == "" {
+	if target == "" && strings.TrimSpace(cfg.HAHost) == "" && strings.TrimSpace(cfg.HAURL) == "" &&
+		strings.TrimSpace(hostFlag) == "" && strings.TrimSpace(haURLFlag) == "" &&
+		strings.TrimSpace(relayURLFlag) == "" && strings.TrimSpace(relayTokenFlag) == "" {
+		// Flag-driven runs are not fully interactive first runs even before
+		// the overrides are applied to cfg below — skip the intro for them.
 		renderSetupIntro(os.Stdout)
 	}
 	choices, err := buildSetupClientChoices(paths, state)
