@@ -98,6 +98,7 @@ Critical behavior:
    - content update / card operation:
      - read the current dashboard config with `lovelace/config`
      - build a compact inventory of views, cards, badges, and header cards
+     - jq filters must null-guard absent structure keys: empty dashboards have no `views` — iterate `(.views // [])[]`, never bare `.views[]`; same for `.cards` and `.badges`
      - resolve the exact target by view, title/heading text, entity reference, card type, or explicit position
      - merge the requested change in memory
      - preview a concise diff/excerpt
