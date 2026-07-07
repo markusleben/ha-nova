@@ -45,13 +45,13 @@ SCENARIO_ORDER = (
     "history_statistics",
 )
 KNOWN_JSONL_NOISE = ("Reading additional input from stdin...",)
+# Codex CLI writes timestamped logger lines (ERROR/WARN, changing logger
+# names across releases — e.g. codex_core::tools::router appeared in 0.142)
+# to the merged stream. Raw non-JSON lines are never scenario output: agent
+# messages and commands only arrive inside JSONL events, so timestamped log
+# lines are always transport noise.
 KNOWN_JSONL_NOISE_RE = (
-    re.compile(
-        r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when UnexpectedContentType\(Some\(\"text/plain; body: upstream connect error or disconnect/reset before headers\..*\"\)\)$"
-    ),
-    re.compile(
-        r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z ERROR codex_api::endpoint::responses_websocket: failed to connect to websocket: .*$"
-    ),
+    re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z\s+(?:ERROR|WARN)\s+\S+: .*$"),
 )
 HELPER_SCRIPT_RE = re.compile(r"^(?:\./)?scripts/(?:smoke|e2e|dev)/\S+$")
 DOCTOR_RE = re.compile(r"(^|[^\w./-])(?:ha-nova|[.]/cli/cli|cli/cli|scripts/onboarding/bin/ha-nova)(?:\s+[A-Za-z0-9_./-]+){0,2}\s+(?:doctor|ready|quick)(?=$|[^\w-])")

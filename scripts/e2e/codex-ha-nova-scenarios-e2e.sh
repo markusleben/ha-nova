@@ -50,13 +50,11 @@ with open(sys.argv[1], encoding="utf-8") as handle:
             continue
         if line == "Reading additional input from stdin...":
             continue
+        # Codex CLI writes timestamped logger lines (ERROR/WARN, logger names
+        # change across releases) to the merged stream; raw non-JSON lines are
+        # never scenario output.
         if re.match(
-            r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when UnexpectedContentType\(Some\(\"text/plain; body: upstream connect error or disconnect/reset before headers\..*\"\)\)$",
-            line,
-        ):
-            continue
-        if re.match(
-            r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z ERROR codex_api::endpoint::responses_websocket: failed to connect to websocket: .*$",
+            r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z\s+(?:ERROR|WARN)\s+\S+: .*$",
             line,
         ):
             continue

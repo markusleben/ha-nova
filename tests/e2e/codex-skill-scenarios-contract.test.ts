@@ -100,8 +100,9 @@ describe("codex skill scenario e2e contract", () => {
     expect(content).toContain("rule_code_marker_present");
     expect(content).toContain("json_array_values");
     expect(content).toContain('Reading additional input from stdin...');
-    expect(content).toContain("ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed");
-    expect(content).toContain("ERROR codex_api::endpoint::responses_websocket: failed to connect to websocket:");
+    // Codex logger names change across releases; the harness filters any
+    // timestamped ERROR/WARN log line as transport noise.
+    expect(content).toContain("(?:ERROR|WARN)");
     expect(content).toContain("CLI_CMD_PATTERN='([[:alnum:]_./-]*ha-nova|[.]/cli/cli|cli/cli)'");
     expect(content).toContain('CLI_DOCTOR_PATTERN="${CLI_CMD_PATTERN}([[:space:]]+[[:alnum:]_./-]+){0,2}[[:space:]]+(doctor|ready|quick)"');
     expect(content).toContain("GO_RUN_PATTERN='go[[:space:]]+run([[:space:]]+[[:alnum:]_./-]+){1,4}'");
