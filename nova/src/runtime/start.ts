@@ -1,10 +1,11 @@
 import { type Server } from "node:http";
 
-import { createConnection, createLongLivedTokenAuth } from "home-assistant-js-websocket";
+import { createConnection, createLongLivedTokenAuth, type HaWebSocket } from "home-assistant-js-websocket";
 
 import { createApp, type App } from "../index.js";
 import { readAppOptions, type AppOptions } from "../config/app-options.js";
 import { loadEnv, type EnvConfig, type LogLevel } from "../config/env.js";
+import { createAuthenticatedHaSocket } from "../ha/socket.js";
 import { createHaRestClient, type HaRestClient } from "../ha/rest-client.js";
 import { createHaWsClient, type HaWsClient, type HaWsConnection, type HaWsRequest } from "../ha/ws-client.js";
 import type { CoreProxyRequest, CoreProxyResponse } from "../types/api.js";
@@ -116,14 +117,22 @@ export function createDefaultWsClient(input: RuntimeWsClientInput): HaWsClient {
 
   return createHaWsClient({
     createConnection: async () => {
-      if (typeof WebSocket === "undefined") {
-        throw new Error(
-          "Global WebSocket is unavailable in this Node runtime. Use Node runtime with WebSocket support."
-        );
-      }
-
       const auth = createLongLivedTokenAuth(input.env.haUrl, token);
-      const connection = await createConnection({ auth });
+      // Use the `ws` client instead of the Node global WebSocket (undici):
+      // undici's permessage-deflate path enforces a max decompressed message
+      // size and drops the connection on large command results such as
+      // `config/entity_registry/list` on big instances (see nova/src/ha/socket.ts).
+      const connection = await createConnection({
+        auth,
+        // The ws socket is API-compatible with the browser WebSocket surface
+        // home-assistant-js-websocket uses (addEventListener/send/close), but
+        // the TS types differ structurally — hence the unknown-cast.
+        createSocket: async () =>
+          (await createAuthenticatedHaSocket({
+            haUrl: input.env.haUrl,
+            token
+          })) as unknown as HaWebSocket
+      });
 
       const wrapped: HaWsConnection = {
         sendMessagePromise: (message: HaWsRequest) => connection.sendMessagePromise(message),
