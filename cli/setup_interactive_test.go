@@ -1969,7 +1969,7 @@ func TestInteractiveSetupContinueAnywayPersistsExplicitURL(t *testing.T) {
 		setupWizardRelayInstallPrompts(),
 		setupWizardGenerateRelayTokenPrompts(),
 		setupWizardLLATPrompts(),
-		[]string{"3"},
+		[]string{"4"},
 	)
 
 	exitCode := 0
@@ -2474,5 +2474,149 @@ func TestInteractiveSetupFlaggedFreshHostChangeReenablesInstallAndLLATSteps(t *t
 	}
 	if saved.HAURL != goodHAServer.URL {
 		t.Fatalf("saved.HAURL = %q, want %q", saved.HAURL, goodHAServer.URL)
+	}
+}
+
+func TestInteractiveSetupPastedTokenFreshHostChangeRoutesThroughInstallSteps(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("HA_NOVA_NO_BROWSER", "1")
+	t.Setenv("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING", "1")
+	t.Setenv("HA_NOVA_TEST_KEYRING_FILE", filepath.Join(home, ".config", "ha-nova", ".test-relay-auth-token"))
+	t.Setenv("HA_NOVA_DEV_ROOT", repoRootForSetupTest(t))
+
+	deadHAServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	deadHAURL := deadHAServer.URL
+	deadHAServer.Close()
+
+	goodHAServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer goodHAServer.Close()
+
+	relayServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/health" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"status":"ok","data":{"ha_ws_connected":true}}`))
+	}))
+	defer relayServer.Close()
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+
+	cfg := runtimeConfig{
+		HAHost:       normalizeHostInput(deadHAURL),
+		HAURL:        deadHAURL,
+		RelayBaseURL: relayServer.URL,
+	}
+
+	// Fresh run, NO saved state: the user pastes an existing token ("1"),
+	// verification fails against the dead address, and "Change Home Assistant
+	// address" (2) must route through the install steps for the corrected
+	// address — a pasted token is not resume state (Codex P2 round 4).
+	input := joinSetupInputs(
+		[]string{"1", "pasted-relay-token"},
+		[]string{"2", goodHAServer.URL},
+		[]string{"", ""},
+		[]string{"1", "pasted-relay-token"},
+		setupWizardLLATPrompts(),
+	)
+
+	exitCode := 0
+	stdout, stderr := captureInteractiveSetupIO(t, input, func() int {
+		exitCode = interactiveSetup(paths, cfg, loadStateOrDefault(paths), "antigravity", "", "", "", "", false)
+		return exitCode
+	})
+	if exitCode != 0 {
+		t.Fatalf("interactiveSetup() exit = %d, want 0\nstdout:\n%s\nstderr:\n%s", exitCode, stdout, stderr)
+	}
+
+	output := stdout + stderr
+	for _, want := range []string{
+		"Change Home Assistant address",
+		"Install NOVA Relay in Home Assistant",
+		"Setup complete!",
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output missing %q:\n%s", want, output)
+		}
+	}
+
+	saved, err := loadRuntimeConfig(paths)
+	if err != nil {
+		t.Fatalf("loadRuntimeConfig() error: %v", err)
+	}
+	if saved.HAURL != goodHAServer.URL {
+		t.Fatalf("saved.HAURL = %q, want %q", saved.HAURL, goodHAServer.URL)
+	}
+}
+
+func TestInteractiveSetupConnectionRepairMenuOffersFullInstallSteps(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("HA_NOVA_NO_BROWSER", "1")
+	t.Setenv("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING", "1")
+	t.Setenv("HA_NOVA_TEST_KEYRING_FILE", filepath.Join(home, ".config", "ha-nova", ".test-relay-auth-token"))
+	t.Setenv("HA_NOVA_DEV_ROOT", repoRootForSetupTest(t))
+
+	goodHAServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer goodHAServer.Close()
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+
+	// Resume state (saved token) whose relay never becomes reachable — e.g.
+	// the app was uninstalled from the instance. The connection repair menu
+	// must offer "Run the app install steps for this address" (3) as a
+	// structural escape into the full guidance instead of a retry dead end.
+	cfg := runtimeConfig{
+		HAHost:       normalizeHostInput(goodHAServer.URL),
+		HAURL:        goodHAServer.URL,
+		RelayBaseURL: "http://127.0.0.1:1",
+	}
+	if err := saveConfig(paths, cfg); err != nil {
+		t.Fatalf("saveConfig() error: %v", err)
+	}
+	if err := writeRelayAuthToken("saved-relay-token"); err != nil {
+		t.Fatalf("writeRelayAuthToken() error: %v", err)
+	}
+
+	input := joinSetupInputs(
+		[]string{"3"},
+		[]string{"", ""},
+		[]string{"1"},
+	)
+
+	exitCode := 0
+	stdout, stderr := captureInteractiveSetupIO(t, input, func() int {
+		exitCode = interactiveSetup(paths, cfg, loadStateOrDefault(paths), "antigravity", "", "", "", "", false)
+		return exitCode
+	})
+	if exitCode != 1 {
+		t.Fatalf("interactiveSetup() exit = %d, want 1\nstdout:\n%s\nstderr:\n%s", exitCode, stdout, stderr)
+	}
+
+	output := stdout + stderr
+	for _, want := range []string{
+		"Run the app install steps for this address",
+		"Install NOVA Relay in Home Assistant",
+		"Keep saved token",
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output missing %q:\n%s", want, output)
+		}
 	}
 }

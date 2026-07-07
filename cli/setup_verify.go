@@ -37,6 +37,8 @@ func verifySetupConnection(reader *bufio.Reader, out io.Writer, cfg runtimeConfi
 				return issue, false, errSetupRelayTokenStep
 			case setupRepairActionChangeHost:
 				return issue, false, errSetupHostStep
+			case setupRepairActionRunInstall:
+				return issue, false, errSetupInstallStep
 			case setupRepairActionStop:
 				return issue, false, nil
 			case setupRepairActionBack:

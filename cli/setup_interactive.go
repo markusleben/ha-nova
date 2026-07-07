@@ -438,12 +438,13 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 				renderSetupParagraphTight(os.Stdout, "Keeping your saved relay address: "+previousRelayURL)
 			}
 			switch {
-			case hostChangeRetry && verifyFirstReuseFlow && strings.TrimSpace(token) != "":
-				// Reuse/resume flow: the relay app and tokens are already in
-				// place; only the address was wrong, so return straight to
-				// verification. Fresh-flow host changes fall through instead —
-				// the new address may be a different instance that never got
-				// the repository/app/token steps. Save the corrected address
+			case hostChangeRetry && verifyFirstReuseFlow && hadSavedTokenBeforeSetup && strings.TrimSpace(token) != "":
+				// Resume with saved state: the relay app and tokens are known
+				// to be in place; only the address was wrong, so return
+				// straight to verification. Fresh-flow host changes — including
+				// pasted-token fresh runs — fall through instead: the new
+				// address may be a different instance that never got the
+				// repository/app/token steps. Save the corrected address
 				// now so it survives an exit before verification succeeds.
 				hostChangeRetry = false
 				if err := saveConfig(paths, cfg); err != nil {
@@ -455,11 +456,12 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 				stage = setupStageToken
 			default:
 				if hostChangeRetry {
-					// A fresh-flow host change abandons the flag-driven
-					// shortcut: the corrected address may be a different
-					// instance that still needs the repository/app install
-					// and the access-token walkthrough.
+					// A fresh-flow host change abandons the flag-driven or
+					// pasted-token shortcut: the corrected address may be a
+					// different instance that still needs the repository/app
+					// install and the access-token walkthrough.
 					skipLLATWalkthrough = false
+					verifyFirstReuseFlow = false
 				}
 				hostChangeRetry = false
 				stage = setupStageRelayInstall
@@ -689,6 +691,15 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 			if err == errSetupHostStep {
 				hostChangeRetry = true
 				stage = setupStageHost
+				continue
+			}
+			if err == errSetupInstallStep {
+				// The user asked for full guidance from the repair menu:
+				// repository/app install, token, and access-token walkthrough
+				// for the current address.
+				skipLLATWalkthrough = false
+				verifyFirstReuseFlow = false
+				stage = setupStageRelayInstall
 				continue
 			}
 			if err == errSetupExit {

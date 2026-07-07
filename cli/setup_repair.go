@@ -25,6 +25,7 @@ const (
 	setupRepairActionBack              setupRepairAction = "back"
 	setupRepairActionBackToRelayToken  setupRepairAction = "relay_token"
 	setupRepairActionChangeHost        setupRepairAction = "change_host"
+	setupRepairActionRunInstall        setupRepairAction = "run_install"
 	setupRepairActionStop              setupRepairAction = "stop"
 )
 
@@ -74,7 +75,7 @@ func runSetupRepairFlow(reader *bufio.Reader, out io.Writer, cfg runtimeConfig, 
 		case setupRepairActionOpenRelaySettings:
 			openBrowserShowingURL(out, haRelayAppPageURL(cfg.HAURL))
 			renderSetupParagraphTight(out, `The tokens live on the "Configuration" tab of that page.`)
-		case setupRepairActionRetry, setupRepairActionBack, setupRepairActionBackToRelayToken, setupRepairActionChangeHost, setupRepairActionStop:
+		case setupRepairActionRetry, setupRepairActionBack, setupRepairActionBackToRelayToken, setupRepairActionChangeHost, setupRepairActionRunInstall, setupRepairActionStop:
 			return action, nil
 		}
 	}
@@ -154,8 +155,9 @@ func setupRepairChoices(mode setupRepairMode, allowRelayTokenStep bool) ([]setup
 		return []setupRepairChoice{
 			{Number: "1", Value: setupRepairActionRetry, Label: "Retry now"},
 			{Number: "2", Value: setupRepairActionChangeHost, Label: "Change Home Assistant address"},
-			{Number: "3", Value: setupRepairActionStop, Label: "Stop for now (progress is saved)"},
-			{Number: "4", Value: setupRepairActionBack, Label: "Back"},
+			{Number: "3", Value: setupRepairActionRunInstall, Label: "Run the app install steps for this address"},
+			{Number: "4", Value: setupRepairActionStop, Label: "Stop for now (progress is saved)"},
+			{Number: "5", Value: setupRepairActionBack, Label: "Back"},
 		}, "1"
 	case setupRepairModeLLAT:
 		return []setupRepairChoice{
