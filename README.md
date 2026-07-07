@@ -176,7 +176,7 @@ HA NOVA is early — and that's the point. Here's where it's going:
 
 Want to add a new capability? → [CONTRIBUTING.md](CONTRIBUTING.md)
 
-Current skills require NOVA Relay `0.2.5` or newer.
+The skills declare the NOVA Relay version they need (see `version.json`) and warn at runtime when the installed relay app is older — update it in Home Assistant under **Settings > Apps > NOVA Relay**.
 
 ---
 
