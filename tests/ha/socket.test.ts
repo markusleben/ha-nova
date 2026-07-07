@@ -21,7 +21,9 @@ function startServer(handler: (socket: import("ws").WebSocket, request: import("
   });
 }
 
-describe("ha authenticated socket", () => {
+// Real localhost sockets: under full-suite parallel load the TCP/WS
+// handshake can transiently error — retry instead of failing the push gate.
+describe("ha authenticated socket", { retry: 2 }, () => {
   it("builds the HA websocket URL from the base URL", () => {
     expect(haWebSocketUrl("http://homeassistant:8123")).toBe("ws://homeassistant:8123/api/websocket");
     expect(haWebSocketUrl("https://ha.example/")).toBe("wss://ha.example/api/websocket");
@@ -111,7 +113,7 @@ describe("ha authenticated socket", () => {
   });
 });
 
-describe("ha authenticated socket post-auth error safety", () => {
+describe("ha authenticated socket post-auth error safety", { retry: 2 }, () => {
   it("keeps an error listener after auth so transport errors cannot crash the process", async () => {
     const server = await startServer((socket) => {
       socket.send(JSON.stringify({ type: "auth_required" }));
