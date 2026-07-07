@@ -3,6 +3,7 @@ import { TimeoutError, withTimeout } from "../shared/timeout.js";
 export type HaWsClientErrorCode =
   | "UPSTREAM_WS_CONNECT_ERROR"
   | "UPSTREAM_WS_TIMEOUT"
+  | "UPSTREAM_WS_COMMAND_ERROR"
   | "UPSTREAM_WS_ERROR";
 
 export interface HaWsRequest {
@@ -59,6 +60,18 @@ export function createHaWsClient(options: HaWsClientOptions): HaWsClient {
         const result = await withTimeout(upstream.sendMessagePromise(message), requestTimeoutMs);
         return result as T;
       } catch (error) {
+        const commandError = describeUpstreamCommandError(error);
+        if (commandError !== undefined) {
+          // HA answered the command with a structured error. The connection
+          // itself is healthy — keep it, and surface HA's code/message
+          // instead of a generic transport failure.
+          throw new HaWsClientError(
+            "UPSTREAM_WS_COMMAND_ERROR",
+            `HA rejected '${message.type}': ${commandError}`,
+            error
+          );
+        }
+
         resetConnection();
         if (error instanceof TimeoutError) {
           throw new HaWsClientError(
@@ -72,11 +85,7 @@ export function createHaWsClient(options: HaWsClientOptions): HaWsClient {
           throw error;
         }
 
-        const message =
-          error instanceof Error && error.message
-            ? error.message
-            : "WS request failed";
-        throw new HaWsClientError("UPSTREAM_WS_ERROR", message, error);
+        throw new HaWsClientError("UPSTREAM_WS_ERROR", describeTransportError(error), error);
       }
     },
     async collectMessageEvents<T>(
@@ -151,6 +160,17 @@ export function createHaWsClient(options: HaWsClientOptions): HaWsClient {
           timeoutMs
         );
       } catch (error) {
+        const commandError = describeUpstreamCommandError(error);
+        if (commandError !== undefined) {
+          // Structured command rejection (e.g. unknown command on older HA):
+          // the connection stays healthy, surface HA's error details.
+          throw new HaWsClientError(
+            "UPSTREAM_WS_COMMAND_ERROR",
+            `HA rejected '${message.type}': ${commandError}`,
+            error
+          );
+        }
+
         resetConnection();
         if (error instanceof TimeoutError) {
           throw new HaWsClientError(
@@ -164,11 +184,7 @@ export function createHaWsClient(options: HaWsClientOptions): HaWsClient {
           throw error;
         }
 
-        const errorMessage =
-          error instanceof Error && error.message
-            ? error.message
-            : "WS event collection failed";
-        throw new HaWsClientError("UPSTREAM_WS_ERROR", errorMessage, error);
+        throw new HaWsClientError("UPSTREAM_WS_ERROR", describeTransportError(error), error);
       } finally {
         if (unsubscribe) {
           await unsubscribe();
@@ -216,4 +232,45 @@ function isEventType(event: unknown, type: string): boolean {
     typeof event === "object" &&
     (event as { type?: unknown }).type === type
   );
+}
+
+// home-assistant-js-websocket rejects command failures with HA's raw error
+// payload ({code, message} — not an Error instance). Detect that shape so the
+// relay can pass HA's actual error through instead of a generic message.
+function describeUpstreamCommandError(error: unknown): string | undefined {
+  if (!error || typeof error !== "object" || error instanceof Error) {
+    return undefined;
+  }
+  const code = (error as { code?: unknown }).code;
+  const message = (error as { message?: unknown }).message;
+  const codeText = typeof code === "string" && code.trim() !== "" ? code : undefined;
+  const messageText = typeof message === "string" && message.trim() !== "" ? message : undefined;
+  if (codeText === undefined && messageText === undefined) {
+    return undefined;
+  }
+  if (codeText !== undefined && messageText !== undefined) {
+    return `${codeText}: ${messageText}`;
+  }
+  return codeText ?? messageText;
+}
+
+// Connection-level rejections arrive as bare numeric codes from
+// home-assistant-js-websocket; map them to readable transport messages.
+const HAWS_TRANSPORT_ERRORS: Record<number, string> = {
+  1: "cannot connect to Home Assistant WebSocket",
+  2: "invalid Home Assistant authentication",
+  3: "Home Assistant WebSocket connection lost",
+  4: "Home Assistant host required",
+  5: "invalid HTTPS-to-HTTP WebSocket upgrade",
+  6: "invalid authentication callback"
+};
+
+function describeTransportError(error: unknown): string {
+  if (typeof error === "number" && HAWS_TRANSPORT_ERRORS[error] !== undefined) {
+    return HAWS_TRANSPORT_ERRORS[error];
+  }
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+  return "WS request failed";
 }

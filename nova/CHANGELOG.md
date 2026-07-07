@@ -9,6 +9,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic
 Recent changes are tracked in [GitHub releases](https://github.com/markusleben/ha-nova/releases)
 and merged PRs. This changelog will be updated with the next tagged relay version.
 
+## [Relay 0.2.4] - 2026-07-07
+
+### Fixed
+- **Upstream WS error transparency** — structured Home Assistant command errors (rejected with HA's raw `{code, message}` payload) are no longer collapsed into a generic `WS request failed`. They surface as `UPSTREAM_WS_COMMAND_ERROR` with HA's own error code and text, and no longer tear down the healthy shared WebSocket connection. Numeric transport rejections from the WS library now map to readable messages.
+
 ## [Relay 0.2.3] - 2026-06-21
 
 ### Changed

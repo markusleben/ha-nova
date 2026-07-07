@@ -99,7 +99,7 @@ Use `ha-nova relay` for all HA communication. It handles auth, headers, and time
   - `passed=true` only when target is absent on read-back
   - config read-back not-found after DELETE is expected absence evidence
   - entity state not-found after DELETE is expected absence evidence when an entity_id is known
-  - `config/entity_registry/get` may return `UPSTREAM_WS_ERROR` after deletion; do not retry alternate deletes from that error
+  - `config/entity_registry/get` may return `UPSTREAM_WS_ERROR` (or `UPSTREAM_WS_COMMAND_ERROR` on Relay App >= 0.2.4) after deletion; do not retry alternate deletes from that error
   - if extra evidence is needed, use `config/entity_registry/list_for_display` and confirm no exact `entity_id` match
 
 ## Output Format (Structured Text)
