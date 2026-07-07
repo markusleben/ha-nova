@@ -183,12 +183,12 @@ func renderSetupDiscoveryResult(out io.Writer, host, via string, discovered bool
 	} else {
 		fmt.Fprintf(out, "  %s No confirmed Home Assistant found automatically; enter the Home Assistant address manually\n", session.style("warning", session.warningMarker()))
 	}
-	fmt.Fprintln(out)
 }
 
 func renderSetupCompleteBanner(out io.Writer, clients []string) {
 	session := resolveSetupUISession(out)
 	renderSetupHeader(out)
+	fmt.Fprintln(out)
 	fmt.Fprintf(out, "  %s Setup complete!\n", session.style("success", session.successMarker()))
 	fmt.Fprintln(out)
 	if labels := setupClientLabels(clients); labels != "" {
@@ -207,6 +207,7 @@ func renderSetupCompleteBanner(out io.Writer, clients []string) {
 func renderSetupAlreadyDoneBanner(out io.Writer) {
 	session := resolveSetupUISession(out)
 	renderSetupHeader(out)
+	fmt.Fprintln(out)
 	fmt.Fprintf(out, "  %s Everything is already set up!\n", session.style("success", session.successMarker()))
 	fmt.Fprintln(out)
 	fmt.Fprintln(out, "  Run 'ha-nova doctor' for full diagnostics.")

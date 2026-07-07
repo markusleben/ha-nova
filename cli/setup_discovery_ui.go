@@ -10,6 +10,7 @@ var detectDefaultHAHostChoiceForSetup = detectDefaultHAHostChoice
 
 func detectDefaultHAHostWithFeedback(out io.Writer, cfg runtimeConfig) (string, bool) {
 	if !resolveSetupUISession(out).animatesSpinner() {
+		fmt.Fprintln(out)
 		fmt.Fprintf(out, "  Discovering Home Assistant on your network... (up to %ds)\n", int((setupDiscoveryOverallTimeout+time.Second-1)/time.Second))
 		fmt.Fprintln(out)
 		host, via, discovered := detectDefaultHAHostChoiceForSetup(cfg)

@@ -80,13 +80,13 @@ func verifySetupConnectionOnce(out io.Writer, cfg runtimeConfig, token string) (
 		return readiness, setupIssueRelayUnreachable, false
 	}
 
-	printHumanInfo("Home Assistant reachable: %s", cfg.HAURL)
-	printHumanInfo("Relay health reachable: %s/health", cfg.RelayBaseURL)
+	renderSetupSuccessLine(out, "Home Assistant reachable: %s", cfg.HAURL)
+	renderSetupSuccessLine(out, "Relay health reachable: %s/health", cfg.RelayBaseURL)
 	if readiness.UsedWSPing && readiness.WSReady {
-		printHumanInfo("Relay /ws ping succeeded")
+		renderSetupSuccessLine(out, "Relay /ws ping succeeded")
 	}
 	if readiness.WSReady {
-		printHumanInfo("Connected to Home Assistant")
+		renderSetupSuccessLine(out, "Connected to Home Assistant")
 		return readiness, "", true
 	}
 
