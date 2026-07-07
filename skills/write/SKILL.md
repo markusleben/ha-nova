@@ -41,7 +41,7 @@ If this fails, run onboarding: `ha-nova setup`.
 2. BP gate (`skills/ha-nova/write-safety.md`): fresh/stale+simple->continue, stale+complex->block.
 3. Suggestions + Pre-Write Checks (skip for `delete`):
    - **3a) Suggestions**: Show `suggested_enhancements` (max 4, numbered/menu). User accepts numbers or "skip" → merge accepted into config BEFORE preview. Skip when `SUGGESTED_ENHANCEMENTS: none`.
-   - **3b) Static Checks**: Use `skills/review/SKILL.md` Step 1 plus `skills/review/checks.md`. Run S/R/P/M checks analytically on the draft YAML — no relay calls (scripts: F-01..F-08; helper refs: H-01..H-08. Defer H-09/H-10 to Phase 4).
+   - **3b) Static Checks**: Use `skills/review/SKILL.md` Step 1 (Config Quality Review) plus `skills/review/checks.md`. Run S/R/P/M checks analytically on the draft YAML — no relay calls (scripts: F-01..F-08; helper refs: H-01..H-08. Defer H-09/H-10 to Phase 4).
      One pre-write verdict line before apply:
      - clean draft → localized equivalent of "Pre-write check: no issues worth flagging before save."
      - any flagged draft → localized equivalent of "Pre-write check: this draft may not behave as intended."
@@ -52,7 +52,7 @@ If this fails, run onboarding: `ha-nova setup`.
      - If R-23 matches: boolean-like template values are compared to string `"True"`/`"False"`; use the boolean directly or direct negation.
      - If R-24 matches: `available_energy` may be current charge, not capacity; ask user to verify maximum/nominal source. Never auto-rewrite integration-specific entity IDs.
      Track findings by check type for dedup in Phase 4, except R-18.
-   - **3c) Pre-Write Impact (update only)**: run `review/` Step 2 `search/related`; show affected automations/scripts as advisory. Skip `create`/`delete`.
+   - **3c) Pre-Write Impact (update only)**: run `skills/review/SKILL.md` Step 2 (Collision Scan) `search/related`; show affected automations/scripts as advisory. Skip `create`/`delete`.
 4. Preview (see `skills/ha-nova/write-safety.md` for the fixed shape):
    - update: **run** `ha-nova diff` (prefer `--out <diff-file>`), print the diff output **verbatim** in the Changes slot — never write it yourself. create: summary. Create/update previews show `apply`, `show yaml`, and `cancel` options.
    - Delete preview MUST include the consumer-check result before confirmation: either the affected consumers or an explicit no-consumer result.
@@ -76,16 +76,16 @@ Do NOT invoke `ha-nova:review` separately.
 1. Re-read by `target_id` (do NOT re-resolve by slug):
    - automation: `ha-nova relay core --method GET --path /api/config/automation/config/<target_id> --jq-file <filter-file> --out <result-file>`
    - script: `/api/config/script/config/<target_id>`
-   - `<filter-file>`: prefer copying `skills/ha-nova/config-body-filter.jq`; if the canonical file is unavailable (flat-copy installs), recreate it with exactly:
+   - `<filter-file>`: copy `skills/ha-nova/config-body-filter.jq`; if unavailable (flat-copy installs), recreate exactly:
      ```jq
      if .ok then .data.body else error("relay error: \(.error.message // "unknown")") end
      ```
-   - for create/update: the domain was already reloaded in Phase 3 (apply-agent step 4) — do not reload again unless Phase 3 reported `reloaded: false` or ran inline without a reload. Resolve actual `entity_id` by matching `unique_id == <target_id>`, then read `/api/states/{entity_id}` to confirm runtime presence
+   - for create/update: reload again only if Phase 3 reported `reloaded: false` or ran inline without reload; resolve actual `entity_id` by matching `unique_id == <target_id>`, then read `/api/states/{entity_id}` to confirm runtime presence
    - if the actual `entity_id` differs, report it and point to `skills/ha-nova/safe-refactoring.md`; do not silently assume the requested slug won
 2. S/R/P/M/F checks (narrowed):
    - Compare read-back vs draft as normalized objects, not raw JSON strings; key order is irrelevant. Ignore metadata (`id`,`unique_id`,`created_at`,`modified_at`,`editor`,`enabled`).
    - HA may normalize keys during write (`trigger`→`triggers`, `action`→`actions`, `condition`→`conditions`). Account for plural aliasing when comparing — these are not real diffs.
-   - Core fields differ beyond aliasing → full checks from `review/SKILL.md` Step 1. If they match, skip covered checks but re-run storage-sensitive R-18 subset.
+   - Core fields differ beyond aliasing → full checks from `skills/review/SKILL.md` Step 1. If they match, skip covered checks but re-run storage-sensitive R-18 subset.
    - **Dedup**: findings from Phase 2 Step 3b that the user saw MUST NOT repeat. Track by check type.
     - Exception: if R-18 still matches on persisted read-back config, report it again as a persisted runtime risk.
     - `R-19` follows normal dedup; R-23/R-24 do too. If already shown pre-write, do not repeat unless it becomes a new category.

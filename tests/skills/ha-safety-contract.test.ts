@@ -20,7 +20,7 @@ describe("ha safety contract", () => {
     const architecture = readFileSync("docs/reference/skill-architecture.md", "utf8");
     const relayApi = readFileSync("skills/ha-nova/relay-api.md", "utf8");
 
-    expect(context).toContain("Active preview confirmation");
+    expect(context).toContain("### Active Preview Confirmation");
     expect(context).toContain("A user instruction given before the preview exists is never valid write confirmation.");
     for (const phrase of ["implement the plan", "do it", "go ahead", "make the changes", "apply the plan"]) {
       expect(context).toContain(`"${phrase}"`);

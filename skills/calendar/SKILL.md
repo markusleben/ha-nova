@@ -18,7 +18,7 @@ Not in scope:
 - calendar dashboard edits
 - automation writes that use calendar triggers
 
-## Bootstrap
+## Bootstrap (once per session)
 
 Verify relay CLI: `ha-nova relay health`
 If this fails: `ha-nova setup`

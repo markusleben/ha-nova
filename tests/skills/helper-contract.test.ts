@@ -127,7 +127,7 @@ describe("helper contract", () => {
         expect(flowSchemasDoc).toContain(domain);
       }
 
-      expect(skillDoc).toContain("CRUD support for:");
+      expect(skillDoc).toContain("CRUD support for 9 domains:");
       expect(skillDoc).toContain("verified for the `sensor` subtype");
       expect(skillDoc).not.toContain("does **not** support update yet");
     });

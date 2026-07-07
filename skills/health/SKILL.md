@@ -21,7 +21,7 @@ Not in scope:
 - YAML/filesystem diagnostics
 - historical timelines (use `ha-nova:history`)
 
-## Bootstrap
+## Bootstrap (once per session)
 
 Verify relay CLI: `ha-nova relay health`
 If this fails: `ha-nova setup`

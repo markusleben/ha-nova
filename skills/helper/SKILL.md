@@ -11,7 +11,7 @@ description: Use when creating, updating, deleting, or listing Home Assistant he
 
 - **Storage-based family** — full CRUD for:
   - `input_boolean`, `input_number`, `input_text`, `input_select`, `input_datetime`, `input_button`, `counter`, `timer`, `schedule`
-- **Config-entry family** — CRUD support for:
+- **Config-entry family** — CRUD support for 9 domains:
   - `utility_meter`, `derivative`, `integration`, `min_max`, `threshold`, `tod`, `statistics`, `history_stats`
   - `group` through the live menu-driven flow; end-to-end support is verified for the `sensor` subtype, and other subtypes must stay anchored to the live step schema instead of guessed fields
 
@@ -122,7 +122,7 @@ If 0 results: try synonyms or shorter stems. Never dump entire domains.
 
 1. Resolve target from `{type}/list` by `name` or internal `id`.
 2. Extract `id` from the list response (this is the `{type}_id` for the update command).
-3. Preview current vs proposed in the Changes slot with `ha-nova diff` (see `skills/ha-nova/write-safety.md` → Pre-Write Diff). Then run a pre-write impact check — `search/related` on this helper entity (see `skills/review/SKILL.md` Step 2) — and surface affected automations/scripts as an advisory. Advisory only; never block. Include an explicit not-saved-yet line and Options block (`apply`, `show yaml`, `cancel`).
+3. Preview current vs proposed in the Changes slot with `ha-nova diff` (see `skills/ha-nova/write-safety.md` → Pre-Write Diff). Then run a pre-write impact check — `search/related` on this helper entity (see `skills/review/SKILL.md` Step 2, Collision Scan) — and surface affected automations/scripts as an advisory. Advisory only; never block. Include an explicit not-saved-yet line and Options block (`apply`, `show yaml`, `cancel`).
 4. Ask for natural confirmation bound to this exact preview (see context skill → Active Preview Confirmation).
 5. Execute:
    ```text

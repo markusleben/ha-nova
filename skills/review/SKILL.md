@@ -24,7 +24,7 @@ Read-only analysis. Exception: after explicit user confirmation, one Quick-Fix s
 - The Quick-Fix service call in Step 4 is the only write exception in this skill.
 - Bulk review is stricter: no Quick-Fix, no service calls, no write exception.
 
-## Bootstrap
+## Bootstrap (once per session)
 
 Relay CLI: `ha-nova relay`
 - Preflight: `ha-nova relay health` (once per session, skip if already verified)
@@ -252,7 +252,7 @@ Traverse all `variables:` mappings in the config, not just the top-level block. 
 
 Find other automations/scripts that control the same entities.
 
-For updates, this same scan is also run pre-write as an advisory impact preview (see `ha-nova:write` Phase 2 Step 3c and the `ha-nova:helper` update flows). The post-write run here stays mandatory and authoritative against the persisted config.
+For updates, this same scan is also run pre-write as an advisory impact preview (see `ha-nova:write` Phase 2 Step 3c, Pre-Write Impact, and the `ha-nova:helper` update flows). The post-write run here stays mandatory and authoritative against the persisted config.
 
 Branch by target family:
 - automation/script/storage-based helper: use action-derived target entities as before
