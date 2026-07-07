@@ -434,11 +434,13 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 				renderSetupParagraphTight(os.Stdout, "Keeping your saved relay address: "+previousRelayURL)
 			}
 			switch {
-			case hostChangeRetry && strings.TrimSpace(token) != "":
-				// The relay app and tokens are already in place; only the
-				// address was wrong, so return straight to verification.
-				// Save the corrected address now so it survives an exit
-				// before verification succeeds.
+			case hostChangeRetry && verifyFirstReuseFlow && strings.TrimSpace(token) != "":
+				// Reuse/resume flow: the relay app and tokens are already in
+				// place; only the address was wrong, so return straight to
+				// verification. Fresh-flow host changes fall through instead —
+				// the new address may be a different instance that never got
+				// the repository/app/token steps. Save the corrected address
+				// now so it survives an exit before verification succeeds.
 				hostChangeRetry = false
 				if err := saveConfig(paths, cfg); err != nil {
 					printHumanErr("cannot save config: %s", err)

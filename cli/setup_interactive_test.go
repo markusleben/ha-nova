@@ -2290,3 +2290,87 @@ func repoRootForSetupTest(t *testing.T) string {
 	}
 	return wd
 }
+
+func TestInteractiveSetupFreshHostChangeRoutesBackThroughInstallStepsNotStraightToVerify(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("HA_NOVA_NO_BROWSER", "1")
+	t.Setenv("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING", "1")
+	t.Setenv("HA_NOVA_TEST_KEYRING_FILE", filepath.Join(home, ".config", "ha-nova", ".test-relay-auth-token"))
+	t.Setenv("HA_NOVA_DEV_ROOT", repoRootForSetupTest(t))
+
+	deadHAServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	deadHAURL := deadHAServer.URL
+	deadHAServer.Close()
+
+	goodHAServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer goodHAServer.Close()
+
+	relayServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/health" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"status":"ok","data":{"ha_ws_connected":true}}`))
+	}))
+	defer relayServer.Close()
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+
+	cfg := runtimeConfig{
+		HAHost:       normalizeHostInput(deadHAURL),
+		HAURL:        deadHAURL,
+		RelayBaseURL: relayServer.URL,
+	}
+
+	// Fresh run with a --relay-token flag: no saved state, no saved token.
+	// First verify fails against the dead HA address; picking "Change Home
+	// Assistant address" (2) must NOT jump straight back to verification —
+	// the new address may be a different instance, so the wizard re-runs the
+	// token/LLAT steps for it (Codex P2 on the fresh-flow shortcut).
+	input := joinSetupInputs(
+		setupWizardLLATPrompts(),
+		[]string{"2", goodHAServer.URL},
+		setupWizardLLATPrompts(),
+	)
+
+	exitCode := 0
+	stdout, stderr := captureInteractiveSetupIO(t, input, func() int {
+		exitCode = interactiveSetup(paths, cfg, loadStateOrDefault(paths), "antigravity", "", "", "", "fresh-flag-token", false)
+		return exitCode
+	})
+	if exitCode != 0 {
+		t.Fatalf("interactiveSetup() exit = %d, want 0\nstdout:\n%s\nstderr:\n%s", exitCode, stdout, stderr)
+	}
+
+	output := stdout + stderr
+	for _, want := range []string{
+		"Change Home Assistant address",
+		"could not be used. Enter a new one.",
+		"Setup complete!",
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output missing %q:\n%s", want, output)
+		}
+	}
+	if got := strings.Count(output, "Set up Relay Auth Token"); got < 2 {
+		t.Fatalf("fresh-flow host change must re-run the token step for the new address; token step shown %d time(s):\n%s", got, output)
+	}
+
+	saved, err := loadRuntimeConfig(paths)
+	if err != nil {
+		t.Fatalf("loadRuntimeConfig() error: %v", err)
+	}
+	if saved.HAURL != goodHAServer.URL {
+		t.Fatalf("saved.HAURL = %q, want %q", saved.HAURL, goodHAServer.URL)
+	}
+}
