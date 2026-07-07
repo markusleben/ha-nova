@@ -518,7 +518,6 @@ describe("ha-nova contract", () => {
       "skills/ha-nova/safe-refactoring.md",
       "skills/ha-nova/helper-schemas.md",
       "skills/ha-nova/helper-flow-schemas.md",
-      "skills/ha-nova/update-guide.md",
       "skills/ha-nova/agents/resolve-agent.md",
       "skills/ha-nova/agents/apply-agent.md",
       "skills/ha-nova/agents/review-agent.md",
@@ -640,7 +639,7 @@ describe("ha-nova contract", () => {
       );
     }
 
-    const updateGuide = readFileSync("skills/ha-nova/update-guide.md", "utf8");
+    const updateGuide = readFileSync("docs/reference/update-guide.md", "utf8");
     expect(updateGuide).toContain("ha-nova relay jq --file ~/.config/ha-nova/version.json .skill_version");
     expect(updateGuide).not.toContain("cat ~/.config/ha-nova/version.json");
     expect(updateGuide).toContain("Other clients use the same shared CLI updater path");

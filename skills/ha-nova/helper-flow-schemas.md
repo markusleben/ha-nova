@@ -1,7 +1,7 @@
 # HA NOVA Config-Entry Helper Flow Schemas
 
 Reference for the config-entry helper family handled by `ha-nova:helper`.
-This file covers the full `#81` supported config-entry family:
+This file covers the full supported config-entry family (9 domains):
 
 - `utility_meter`
 - `derivative`

@@ -24,7 +24,6 @@ skills/
   ha-nova/template-guidelines.md (reference doc — when to use templates vs native primitives)
   ha-nova/safe-refactoring.md   (reference doc — rename, delete, orphan cleanup workflows)
   ha-nova/automation-patterns.md (reference doc — native HA constructs vs templates)
-  ha-nova/update-guide.md       (reference doc — version checks and update flows)
   ha-nova/write-safety.md       (reference doc — pre-write diff + durable update-revert; SSOT for write/ + helper/)
   ha-nova/agents/               (agent templates: resolve, apply, review)
   read/SKILL.md                         (ha-nova:read — automation/script list/get/trace)

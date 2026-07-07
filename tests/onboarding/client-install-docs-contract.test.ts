@@ -21,7 +21,6 @@ describe("client install docs contract", () => {
   const antigravityInstall = readFileSync(".antigravity/INSTALL.md", "utf8");
   const opencodeInstall = readFileSync(".opencode/INSTALL.md", "utf8");
   const hermesInstall = readFileSync(".hermes/INSTALL.md", "utf8");
-  const hermesReleaseGate = readFileSync("docs/work/2026-04-24-hermes-release-claim-gating.md", "utf8");
 
   it("keeps the README at product level, not client-migration level", () => {
     expect(readme).not.toContain("claude install");
@@ -204,8 +203,7 @@ describe("client install docs contract", () => {
   it("lists Hermes as a preview client now that the release-claim gate is resolved", () => {
     // v0.6.0 resolved the gate: Hermes is in the public README as a PREVIEW client,
     // honestly scoped (Linux validated; macOS/WSL2 experimental; native Windows unsupported).
-    expect(hermesReleaseGate).toContain("Status: resolved (v0.6.0)");
-    expect(hermesReleaseGate).toContain("listed in the public `README.md` as a **preview** client");
+    // The gate document itself is archived (docs/archive/work/) and non-normative.
     expect(hermesInstall).toContain("client since v0.6.0");
     expect(readme).toContain("Hermes Agent");
     expect(readme).toContain("Hermes is in preview");
