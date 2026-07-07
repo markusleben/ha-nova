@@ -451,10 +451,16 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 					return 1
 				}
 				stage = setupStageVerify
-			case strings.TrimSpace(relayTokenFlag) != "":
-				hostChangeRetry = false
+			case strings.TrimSpace(relayTokenFlag) != "" && !hostChangeRetry:
 				stage = setupStageToken
 			default:
+				if hostChangeRetry {
+					// A fresh-flow host change abandons the flag-driven
+					// shortcut: the corrected address may be a different
+					// instance that still needs the repository/app install
+					// and the access-token walkthrough.
+					skipLLATWalkthrough = false
+				}
 				hostChangeRetry = false
 				stage = setupStageRelayInstall
 			}
