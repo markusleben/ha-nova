@@ -215,6 +215,7 @@ describe("dependabot automation contract", () => {
       "ci-gate",
       "dependency-review",
       "manifest-review-gate",
+      "readme-release-gate",
     ]);
     expect(policy.main_branch_protection.required_approving_review_count).toBe(1);
     expect(policy.main_branch_protection.require_code_owner_reviews).toBe(true);

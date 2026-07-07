@@ -3,16 +3,25 @@ name: readme-release-gate
 # README.md is stable release truth: on GitHub it always renders from main,
 # while the installable product is the latest tag. Any claim merged ahead of
 # its release makes the README lie to stable users. This gate allows README
-# changes only when they are either part of a release-prep PR (version.json
-# bumped in the same PR — the tag sequence follows immediately per AGENTS.md)
-# or explicitly approved as a stable-truth correction via the maintainer
-# label `readme-stable:approved` (typos, links, clarifications about the
-# CURRENT stable release). Feature claims collect in the active
-# docs/work/<version>-release-body.md draft until the release-prep PR.
+# changes only when they are either part of a release-prep PR (a release-prep
+# file such as version.json changes in the same PR — the tag sequence follows
+# immediately per AGENTS.md) or explicitly approved as a stable-truth
+# correction via the maintainer label `readme-stable:approved` (typos, links,
+# clarifications about the CURRENT stable release). Label approval is
+# commit-specific: it must be (re-)applied by an approved maintainer AFTER the
+# latest commit/force-push, mirroring the manifest-review-gate rules. Feature
+# claims collect in the active docs/work/<version>-release-body.md draft
+# until the release-prep PR.
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, labeled, unlabeled]
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+      - labeled
+      - unlabeled
     branches: [main]
 
 permissions:
@@ -25,29 +34,99 @@ jobs:
     steps:
       - name: Enforce README stable-truth policy
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
 
-          files="$(gh api "repos/${REPO}/pulls/${PR_NUMBER}/files" --paginate --jq '.[].filename')"
+          POLICY_FILE="$(mktemp)"
+          # Read the policy from the default branch so a PR cannot rewrite
+          # its own gate rules.
+          gh api "repos/${GITHUB_REPOSITORY}/contents/.github/policy/repo-policy.json" \
+            --jq '.content' \
+            | tr -d '\n' \
+            | base64 --decode > "${POLICY_FILE}"
+          readme_label="$(jq -r '.readme_release_gate.label' "${POLICY_FILE}")"
+          mapfile -t readme_approvers < <(jq -r '.readme_release_gate.approvers[]' "${POLICY_FILE}")
+          mapfile -t release_prep_files < <(jq -r '.readme_release_gate.release_prep_files[]' "${POLICY_FILE}")
+
+          files="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/files" --paginate --jq '.[].filename')"
 
           if ! grep -qx "README.md" <<<"${files}"; then
             echo "README.md untouched — gate passes."
             exit 0
           fi
 
-          if grep -qx "version.json" <<<"${files}"; then
-            echo "README.md changed together with version.json (release-prep PR) — gate passes."
+          for release_prep_file in "${release_prep_files[@]}"; do
+            if grep -qx "${release_prep_file}" <<<"${files}"; then
+              echo "README.md changed together with ${release_prep_file} (release-prep PR) — gate passes."
+              exit 0
+            fi
+          done
+
+          # Stable-truth approval path: the label must have been applied by an
+          # approved maintainer AFTER the latest invalidating event (commit,
+          # force-push, reopen, ready-for-review, or unlabel) — a new SHA never
+          # inherits a previous approval.
+          timeline_json="$(
+            gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/timeline" \
+              --paginate \
+              --slurp \
+              -H "Accept: application/vnd.github+json"
+          )"
+          approver="$(
+            printf '%s' "${timeline_json}" | jq -r --arg label "${readme_label}" '
+                [
+                  .[][]
+                  | select(.event == "labeled" and .label.name == $label)
+                ]
+                | last
+                | .actor.login // ""
+              '
+          )"
+          approval_labeled_at="$(
+            printf '%s' "${timeline_json}" | jq -r --arg label "${readme_label}" '
+                [
+                  .[][]
+                  | select(.event == "labeled" and .label.name == $label)
+                ]
+                | last
+                | .created_at // ""
+              '
+          )"
+          latest_invalidating_at="$(
+            printf '%s' "${timeline_json}" | jq -r --arg label "${readme_label}" '
+                [
+                  .[][]
+                  | select(
+                      .event == "committed" or
+                      .event == "head_ref_force_pushed" or
+                      .event == "reopened" or
+                      .event == "ready_for_review" or
+                      (.event == "unlabeled" and .label.name == $label)
+                    )
+                ]
+                | last
+                | .created_at // ""
+              '
+          )"
+
+          approver_allowed=false
+          if [[ -n "${approver}" ]]; then
+            for allowed_approver in "${readme_approvers[@]}"; do
+              if [[ "${approver}" == "${allowed_approver}" ]]; then
+                approver_allowed=true
+                break
+              fi
+            done
+          fi
+
+          if [[ "${approver_allowed}" == "true" ]] && \
+             [[ -n "${approval_labeled_at}" ]] && \
+             [[ -z "${latest_invalidating_at}" || "${approval_labeled_at}" > "${latest_invalidating_at}" ]]; then
+            echo "README.md change approved as a stable-truth correction by ${approver} on the current PR state — gate passes."
             exit 0
           fi
 
-          labels="$(gh api "repos/${REPO}/issues/${PR_NUMBER}/labels" --jq '.[].name')"
-          if grep -qx "readme-stable:approved" <<<"${labels}"; then
-            echo "README.md change approved as a stable-truth correction — gate passes."
-            exit 0
-          fi
-
-          echo "::error::README.md is stable release truth. Either make this a release-prep PR (bump version.json in the same PR and tag immediately after merge), move the claim into the active docs/work/<version>-release-body.md draft, or have a maintainer add the 'readme-stable:approved' label for corrections that describe the CURRENT stable release."
+          echo "::error::README.md is stable release truth. Either make this a release-prep PR (change a release-prep file such as version.json in the same PR and tag immediately after merge), move the claim into the active docs/work/<version>-release-body.md draft, or have a maintainer (re-)apply the '${readme_label}' label on the CURRENT commit for corrections that describe the current stable release."
           exit 1
