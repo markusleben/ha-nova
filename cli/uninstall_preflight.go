@@ -106,7 +106,7 @@ func preflightNoteLines(preflight uninstallPreflight) []string {
 	}
 	notes := []string{
 		"Note: The NOVA Relay app is still running in Home Assistant.",
-		"To remove it: Settings > Apps > NOVA Relay > Uninstall",
+		"To remove it: Settings > Apps > NOVA Relay > Uninstall (older Home Assistant: Settings > Add-ons)",
 	}
 	if preflight.tokenUnavailable != "" {
 		notes = append(notes, preflight.tokenUnavailable)

@@ -24,6 +24,9 @@ const (
 	setupRepairActionRetry             setupRepairAction = "retry"
 	setupRepairActionBack              setupRepairAction = "back"
 	setupRepairActionBackToRelayToken  setupRepairAction = "relay_token"
+	setupRepairActionChangeHost        setupRepairAction = "change_host"
+	setupRepairActionRunInstall        setupRepairAction = "run_install"
+	setupRepairActionStop              setupRepairAction = "stop"
 )
 
 type setupRepairChoice struct {
@@ -60,7 +63,7 @@ func relayHealthIssueLooksLikeRelayAuth(err error) bool {
 func runSetupRepairFlow(reader *bufio.Reader, out io.Writer, cfg runtimeConfig, readiness relayReadiness, issue string, allowRelayTokenStep bool) (setupRepairAction, error) {
 	mode := detectSetupRepairMode(readiness, issue)
 	for {
-		renderSetupRepairPage(out, mode)
+		renderSetupRepairPage(out, mode, cfg.HAHost)
 		action, err := promptSetupRepairActionInteractive(reader, out, mode, allowRelayTokenStep)
 		if err != nil {
 			return "", err
@@ -68,27 +71,31 @@ func runSetupRepairFlow(reader *bufio.Reader, out io.Writer, cfg runtimeConfig, 
 
 		switch action {
 		case setupRepairActionOpenSecurity:
-			if err := openBrowserForSetup(cfg.HAURL + "/profile/security"); err != nil {
-				printHumanWarn("Browser launch skipped; open this URL manually if needed: %s/profile/security", cfg.HAURL)
-			}
+			openBrowserShowingURL(out, haProfileSecurityURL(cfg.HAURL))
 		case setupRepairActionOpenRelaySettings:
-			if err := openBrowserForSetup(cfg.HAURL + "/hassio/addon/2368fcfa_ha_nova_relay/config"); err != nil {
-				printHumanWarn("Browser launch skipped; open this URL manually if needed: %s/hassio/addon/2368fcfa_ha_nova_relay/config", cfg.HAURL)
-			}
-		case setupRepairActionRetry, setupRepairActionBack, setupRepairActionBackToRelayToken:
+			openBrowserShowingURL(out, haRelayAppPageURL(cfg.HAURL))
+			renderSetupParagraphTight(out, `The tokens live on the "Configuration" tab of that page.`)
+		case setupRepairActionRetry, setupRepairActionBack, setupRepairActionBackToRelayToken, setupRepairActionChangeHost, setupRepairActionRunInstall, setupRepairActionStop:
 			return action, nil
 		}
 	}
 }
 
-func renderSetupRepairPage(out io.Writer, mode setupRepairMode) {
+func renderSetupRepairPage(out io.Writer, mode setupRepairMode, haHost string) {
 	renderSetupSectionTitle(out, "Repair this connection step")
 	switch mode {
 	case setupRepairModeConnection:
-		renderSetupParagraph(out,
+		lines := []string{
 			"Home Assistant or NOVA Relay is still unreachable from this device.",
 			"Fix the local connection first, then retry this step.",
-		)
+		}
+		if strings.HasSuffix(strings.ToLower(strings.TrimSpace(haHost)), ".local") {
+			lines = append(lines,
+				`Tip: names like "homeassistant.local" can stop working (especially on Windows).`,
+				"Try the IP address instead — find it in your router, or in Home Assistant under Settings > System > Network.",
+			)
+		}
+		renderSetupParagraph(out, lines...)
 	case setupRepairModeLLAT:
 		renderSetupParagraph(out,
 			"This device's Relay Auth Token worked.",
@@ -147,7 +154,10 @@ func setupRepairChoices(mode setupRepairMode, allowRelayTokenStep bool) ([]setup
 	case setupRepairModeConnection:
 		return []setupRepairChoice{
 			{Number: "1", Value: setupRepairActionRetry, Label: "Retry now"},
-			{Number: "2", Value: setupRepairActionBack, Label: "Back"},
+			{Number: "2", Value: setupRepairActionChangeHost, Label: "Change Home Assistant address"},
+			{Number: "3", Value: setupRepairActionRunInstall, Label: "Run the app install steps for this address"},
+			{Number: "4", Value: setupRepairActionStop, Label: "Stop for now (progress is saved)"},
+			{Number: "5", Value: setupRepairActionBack, Label: "Back"},
 		}, "1"
 	case setupRepairModeLLAT:
 		return []setupRepairChoice{

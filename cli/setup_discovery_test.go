@@ -84,10 +84,12 @@ func TestDetectDefaultHAHostTreatsReachableHomeassistantLocalAsConfirmed(t *test
 	originalResolve := resolveHAURLBaseWithinTimeoutForDiscovery
 	originalMDNS := discoverHAViaMDNSForDiscovery
 	originalARP := collectARPHostsForDiscovery
+	originalIPResolve := resolveHostToIPv4ForDiscovery
 	defer func() {
 		resolveHAURLBaseWithinTimeoutForDiscovery = originalResolve
 		discoverHAViaMDNSForDiscovery = originalMDNS
 		collectARPHostsForDiscovery = originalARP
+		resolveHostToIPv4ForDiscovery = originalIPResolve
 	}()
 
 	resolveHAURLBaseWithinTimeoutForDiscovery = func(input string, _ time.Duration) (string, error) {
@@ -98,10 +100,106 @@ func TestDetectDefaultHAHostTreatsReachableHomeassistantLocalAsConfirmed(t *test
 	}
 	discoverHAViaMDNSForDiscovery = func() string { return "" }
 	collectARPHostsForDiscovery = func() []string { return nil }
+	resolveHostToIPv4ForDiscovery = func(string, time.Duration) string { return "" }
 
-	host, discovered := detectDefaultHAHostChoice(runtimeConfig{})
-	if host != "homeassistant.local" || !discovered {
-		t.Fatalf("detectDefaultHAHostChoice() = (%q, %v), want (%q, true)", host, discovered, "homeassistant.local")
+	host, via, discovered := detectDefaultHAHostChoice(runtimeConfig{})
+	if host != "homeassistant.local" || via != "" || !discovered {
+		t.Fatalf("detectDefaultHAHostChoice() = (%q, %q, %v), want (%q, \"\", true)", host, via, discovered, "homeassistant.local")
+	}
+}
+
+func TestDetectDefaultHAHostChoicePrefersResolvedIPForMDNSName(t *testing.T) {
+	originalResolve := resolveHAURLBaseWithinTimeoutForDiscovery
+	originalMDNS := discoverHAViaMDNSForDiscovery
+	originalARP := collectARPHostsForDiscovery
+	originalIPResolve := resolveHostToIPv4ForDiscovery
+	defer func() {
+		resolveHAURLBaseWithinTimeoutForDiscovery = originalResolve
+		discoverHAViaMDNSForDiscovery = originalMDNS
+		collectARPHostsForDiscovery = originalARP
+		resolveHostToIPv4ForDiscovery = originalIPResolve
+	}()
+
+	resolveHAURLBaseWithinTimeoutForDiscovery = func(input string, _ time.Duration) (string, error) {
+		switch input {
+		case "homeassistant.local":
+			return "http://homeassistant.local:8123", nil
+		case "192.168.1.5":
+			return "http://192.168.1.5:8123", nil
+		}
+		return "", assertDiscoveryFailure{}
+	}
+	discoverHAViaMDNSForDiscovery = func() string { return "" }
+	collectARPHostsForDiscovery = func() []string { return nil }
+	resolveHostToIPv4ForDiscovery = func(host string, _ time.Duration) string {
+		if host == "homeassistant.local" {
+			return "192.168.1.5"
+		}
+		return ""
+	}
+
+	host, via, discovered := detectDefaultHAHostChoice(runtimeConfig{})
+	if host != "192.168.1.5" || via != "homeassistant.local" || !discovered {
+		t.Fatalf("detectDefaultHAHostChoice() = (%q, %q, %v), want (%q, %q, true)", host, via, discovered, "192.168.1.5", "homeassistant.local")
+	}
+}
+
+func TestDetectDefaultHAHostChoiceKeepsMDNSNameWhenResolvedIPDoesNotProbe(t *testing.T) {
+	originalResolve := resolveHAURLBaseWithinTimeoutForDiscovery
+	originalMDNS := discoverHAViaMDNSForDiscovery
+	originalARP := collectARPHostsForDiscovery
+	originalIPResolve := resolveHostToIPv4ForDiscovery
+	defer func() {
+		resolveHAURLBaseWithinTimeoutForDiscovery = originalResolve
+		discoverHAViaMDNSForDiscovery = originalMDNS
+		collectARPHostsForDiscovery = originalARP
+		resolveHostToIPv4ForDiscovery = originalIPResolve
+	}()
+
+	resolveHAURLBaseWithinTimeoutForDiscovery = func(input string, _ time.Duration) (string, error) {
+		if input == "homeassistant.local" {
+			return "http://homeassistant.local:8123", nil
+		}
+		return "", assertDiscoveryFailure{}
+	}
+	discoverHAViaMDNSForDiscovery = func() string { return "" }
+	collectARPHostsForDiscovery = func() []string { return nil }
+	resolveHostToIPv4ForDiscovery = func(string, time.Duration) string { return "192.168.1.66" }
+
+	host, via, discovered := detectDefaultHAHostChoice(runtimeConfig{})
+	if host != "homeassistant.local" || via != "" || !discovered {
+		t.Fatalf("detectDefaultHAHostChoice() = (%q, %q, %v), want (%q, \"\", true)", host, via, discovered, "homeassistant.local")
+	}
+}
+
+func TestDetectDefaultHAHostChoiceDoesNotResolveIPForNonMDNSHost(t *testing.T) {
+	originalResolve := resolveHAURLBaseWithinTimeoutForDiscovery
+	originalMDNS := discoverHAViaMDNSForDiscovery
+	originalARP := collectARPHostsForDiscovery
+	originalIPResolve := resolveHostToIPv4ForDiscovery
+	defer func() {
+		resolveHAURLBaseWithinTimeoutForDiscovery = originalResolve
+		discoverHAViaMDNSForDiscovery = originalMDNS
+		collectARPHostsForDiscovery = originalARP
+		resolveHostToIPv4ForDiscovery = originalIPResolve
+	}()
+
+	resolveHAURLBaseWithinTimeoutForDiscovery = func(input string, _ time.Duration) (string, error) {
+		if input == "ha.example.lan" {
+			return "http://ha.example.lan:8123", nil
+		}
+		return "", assertDiscoveryFailure{}
+	}
+	discoverHAViaMDNSForDiscovery = func() string { return "" }
+	collectARPHostsForDiscovery = func() []string { return nil }
+	resolveHostToIPv4ForDiscovery = func(string, time.Duration) string {
+		t.Fatal("resolveHostToIPv4ForDiscovery must not be called for non-.local hosts")
+		return ""
+	}
+
+	host, via, discovered := detectDefaultHAHostChoice(runtimeConfig{HAHost: "ha.example.lan"})
+	if host != "ha.example.lan" || via != "" || !discovered {
+		t.Fatalf("detectDefaultHAHostChoice() = (%q, %q, %v), want (%q, \"\", true)", host, via, discovered, "ha.example.lan")
 	}
 }
 
@@ -178,7 +276,7 @@ func TestDetectDefaultHAHostChoiceStopsAfterOverallTimeout(t *testing.T) {
 		return "", assertDiscoveryFailure{}
 	}
 
-	host, discovered := detectDefaultHAHostChoice(runtimeConfig{})
+	host, _, discovered := detectDefaultHAHostChoice(runtimeConfig{})
 	if host != "" || discovered {
 		t.Fatalf("detectDefaultHAHostChoice() = (%q, %v), want blank false result", host, discovered)
 	}
@@ -203,7 +301,7 @@ func TestDetectDefaultHAHostChoiceFallsBackToSavedAddressWhenNoHostWasConfirmed(
 	discoverHAViaMDNSForDiscovery = func() string { return "" }
 	collectARPHostsForDiscovery = func() []string { return nil }
 
-	host, discovered := detectDefaultHAHostChoice(runtimeConfig{HAURL: "http://saved-ha.local:8123"})
+	host, _, discovered := detectDefaultHAHostChoice(runtimeConfig{HAURL: "http://saved-ha.local:8123"})
 	if host != "saved-ha.local" || discovered {
 		t.Fatalf("detectDefaultHAHostChoice() = (%q, %v), want (%q, false)", host, discovered, "saved-ha.local")
 	}

@@ -445,7 +445,7 @@ func TestInteractiveSetupRecoversWhenSavedTokenReadNeedsRecovery(t *testing.T) {
 
 	output := stdout + stderr
 	recoveryIdx := strings.Index(output, "Local secure storage is locked")
-	hostIdx := strings.Index(output, "Home Assistant address (IP, hostname, or URL)")
+	hostIdx := strings.Index(output, "Home Assistant address")
 	if recoveryIdx == -1 || hostIdx == -1 || recoveryIdx > hostIdx {
 		t.Fatalf("expected saved-token recovery before host prompt:\n%s", output)
 	}
