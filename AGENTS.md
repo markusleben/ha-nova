@@ -67,6 +67,7 @@ Work style: Be radically precise. No fluff. Pure information only (drop grammar;
 - **README is stable release truth:** do not add future feature claims to `README.md`; keep planned or unreleased claims in active `docs/work/*` notes until release.
 - **No concrete version-number claims in README:** version requirements live in `version.json` (SSOT) and surface via the built-in runtime warning; the README references the mechanism, never a number that can drift ahead of the stable tag.
 - **Release-prep merge starts the tag sequence:** a merged release-prep PR (version bump + release notes + release-bound README edits) must be followed immediately by the RC/final tag flow on that commit; release-bound README changes go only into that PR to keep the main-ahead-of-stable window at minutes, not days.
+- **README gate (enforced):** `readme-release-gate` fails any PR that touches `README.md` without bumping `version.json` in the same PR, unless a maintainer adds `readme-stable:approved` (corrections describing the CURRENT stable only). Unreleased feature claims collect in the active `docs/work/<version>-release-body.md` draft until the release-prep PR.
 - **Local PR checkpoint:** before creating any PR, show the user `git status --short --branch`, `git diff --stat`, public-claim diffs such as `README.md`, targeted tests run, and remaining risks.
 - **KISS process rule:** prefer fewer rules and fewer files; add process docs/scripts only when they remove a recurring real problem.
 - **Review clearance is commit-specific:** any new relevant delta after the last bot-reviewed commit invalidates prior review clearance.
@@ -85,6 +86,7 @@ Work style: Be radically precise. No fluff. Pure information only (drop grammar;
   - [ ] 1. `gh pr create ...`
   - [ ] 2. If the PR changes `package.json`, `package-lock.json`, `nova/package.json`, or `nova/package-lock.json`, add the maintainer label immediately: `gh pr edit <nr> --add-label manifest-review:approved`
   - [ ] 2a. If any later relevant SHA lands on that PR, remove/re-add the label on the latest PR state before re-checking: `gh pr edit <nr> --remove-label manifest-review:approved || true && gh pr edit <nr> --add-label manifest-review:approved`
+  - [ ] 2b. If the PR changes `README.md` without bumping `version.json`, it fails `readme-release-gate` unless it is a stable-truth correction — then add: `gh pr edit <nr> --add-label readme-stable:approved` (feature/version claims belong in the release-body draft instead).
   - [ ] 3. For the initial PR SHA and for every later relevant SHA: run targeted local verification only, push immediately if needed, then immediately trigger Codex review/re-review: `gh pr comment <nr> --body "@codex"`.
   - [ ] 4. `gh pr checks <nr> --watch` — wait for ALL required checks; for release-bound/high-risk deltas also wait for `codex-review-gate`
   - [ ] 5. Check bot signal across all channels: `gh api repos/<o>/<r>/issues/<nr>/reactions` (👍 = clean), `gh api repos/<o>/<r>/pulls/<nr>/reviews` (PR-level review findings), `gh api repos/<o>/<r>/pulls/<nr>/comments` (inline findings), and issue/discussion comments on the PR.

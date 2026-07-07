@@ -1,0 +1,53 @@
+name: readme-release-gate
+
+# README.md is stable release truth: on GitHub it always renders from main,
+# while the installable product is the latest tag. Any claim merged ahead of
+# its release makes the README lie to stable users. This gate allows README
+# changes only when they are either part of a release-prep PR (version.json
+# bumped in the same PR — the tag sequence follows immediately per AGENTS.md)
+# or explicitly approved as a stable-truth correction via the maintainer
+# label `readme-stable:approved` (typos, links, clarifications about the
+# CURRENT stable release). Feature claims collect in the active
+# docs/work/<version>-release-body.md draft until the release-prep PR.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  readme-release-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enforce README stable-truth policy
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          files="$(gh api "repos/${REPO}/pulls/${PR_NUMBER}/files" --paginate --jq '.[].filename')"
+
+          if ! grep -qx "README.md" <<<"${files}"; then
+            echo "README.md untouched — gate passes."
+            exit 0
+          fi
+
+          if grep -qx "version.json" <<<"${files}"; then
+            echo "README.md changed together with version.json (release-prep PR) — gate passes."
+            exit 0
+          fi
+
+          labels="$(gh api "repos/${REPO}/issues/${PR_NUMBER}/labels" --jq '.[].name')"
+          if grep -qx "readme-stable:approved" <<<"${labels}"; then
+            echo "README.md change approved as a stable-truth correction — gate passes."
+            exit 0
+          fi
+
+          echo "::error::README.md is stable release truth. Either make this a release-prep PR (bump version.json in the same PR and tag immediately after merge), move the claim into the active docs/work/<version>-release-body.md draft, or have a maintainer add the 'readme-stable:approved' label for corrections that describe the CURRENT stable release."
+          exit 1
