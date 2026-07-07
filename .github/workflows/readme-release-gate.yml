@@ -14,7 +14,10 @@ name: readme-release-gate
 # until the release-prep PR.
 
 on:
-  pull_request:
+  # pull_request_target runs the workflow definition from the default branch,
+  # so a PR cannot rewrite this gate to bypass it. The gate never checks out
+  # or executes PR code — it only inspects files/labels via the API.
+  pull_request_target:
     types:
       - opened
       - synchronize
@@ -107,7 +110,9 @@ jobs:
                     )
                 ]
                 | last
-                | .created_at // ""
+                # `committed` timeline events carry no top-level created_at —
+                # fall back to the commit committer/author date.
+                | (.created_at // .committer.date // .author.date // "")
               '
           )"
 
