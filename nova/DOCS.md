@@ -84,7 +84,7 @@ A healthy response looks like:
   "data": {
     "status": "ok",
     "ha_ws_connected": true,
-    "version": "0.2.3",
+    "version": "0.2.5",
     "uptime_s": 3621
   }
 }

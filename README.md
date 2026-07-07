@@ -176,7 +176,7 @@ HA NOVA is early — and that's the point. Here's where it's going:
 
 Want to add a new capability? → [CONTRIBUTING.md](CONTRIBUTING.md)
 
-Current skills require NOVA Relay `0.2.3` or newer.
+Current skills require NOVA Relay `0.2.5` or newer.
 
 ---
 
