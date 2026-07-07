@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 )
@@ -14,9 +15,19 @@ func verifySetupConnection(reader *bufio.Reader, out io.Writer, cfg runtimeConfi
 			return "", true, nil
 		}
 		lastIssue = issue
-		if reuseToken {
+		// Connection-level failures get the repair menu on first runs too, so
+		// a wrong/stale Home Assistant address is recoverable right where it
+		// fails instead of only via multi-step back navigation.
+		if reuseToken || issue == setupIssueRelayUnreachable {
 			action, repairErr := runSetupRepairFlow(reader, out, cfg, readiness, issue, allowRelayTokenStep)
 			if repairErr != nil {
+				if errors.Is(repairErr, io.EOF) || errors.Is(repairErr, io.ErrUnexpectedEOF) {
+					// Input ended at the repair prompt (piped/aborted stdin).
+					// Behave like "Stop for now": the caller persists progress
+					// and shows the incomplete banner instead of a hard error
+					// that would skip saving tokens/config gathered so far.
+					return issue, false, nil
+				}
 				return "", false, repairErr
 			}
 			switch action {
@@ -24,6 +35,12 @@ func verifySetupConnection(reader *bufio.Reader, out io.Writer, cfg runtimeConfi
 				continue
 			case setupRepairActionBackToRelayToken:
 				return issue, false, errSetupRelayTokenStep
+			case setupRepairActionChangeHost:
+				return issue, false, errSetupHostStep
+			case setupRepairActionRunInstall:
+				return issue, false, errSetupInstallStep
+			case setupRepairActionStop:
+				return issue, false, nil
 			case setupRepairActionBack:
 				return issue, false, errSetupBack
 			default:

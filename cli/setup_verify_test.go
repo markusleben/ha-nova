@@ -127,6 +127,49 @@ func TestVerifySetupConnectionReuseTokenRelayAuthIssueCanRouteBackToTokenStep(t 
 	}
 }
 
+func TestVerifySetupConnectionReuseTokenConnectionIssueCanRouteToHostStep(t *testing.T) {
+	originalProbeHTTP := probeHTTPForSetup
+	originalFetchRelayHealth := fetchRelayHealthForSetup
+	originalProbeRelayWSPing := probeRelayWSPingForSetup
+	defer func() {
+		probeHTTPForSetup = originalProbeHTTP
+		fetchRelayHealthForSetup = originalFetchRelayHealth
+		probeRelayWSPingForSetup = originalProbeRelayWSPing
+	}()
+
+	probeHTTPForSetup = func(string) error { return errors.New("no such host") }
+	fetchRelayHealthForSetup = func(string, string) ([]byte, error) {
+		return nil, errors.New("unreachable")
+	}
+	probeRelayWSPingForSetup = func(string, string) (relayWSPingResponse, error) {
+		return relayWSPingResponse{}, nil
+	}
+
+	output := &bytes.Buffer{}
+	issue, ok, err := verifySetupConnection(bufio.NewReader(strings.NewReader("2\n")), output, runtimeConfig{
+		HAHost:       "homeassistant.local",
+		HAURL:        "http://homeassistant.local:8123",
+		RelayBaseURL: "http://homeassistant.local:8791",
+	}, "token", true, true)
+	if err != errSetupHostStep {
+		t.Fatalf("expected errSetupHostStep, got %v", err)
+	}
+	if ok {
+		t.Fatal("did not expect ready state")
+	}
+	if issue != setupIssueRelayUnreachable {
+		t.Fatalf("expected relay unreachable issue, got %q", issue)
+	}
+	for _, want := range []string{
+		"Change Home Assistant address",
+		`names like "homeassistant.local" can stop working`,
+	} {
+		if !strings.Contains(output.String(), want) {
+			t.Fatalf("expected %q in output:\n%s", want, output.String())
+		}
+	}
+}
+
 func TestVerifySetupConnectionReuseTokenRelayUnreachableKeepsRepairCopyTruthful(t *testing.T) {
 	originalProbeHTTP := probeHTTPForSetup
 	originalFetchRelayHealth := fetchRelayHealthForSetup
@@ -208,5 +251,46 @@ func TestVerifySetupConnectionReuseTokenAmbiguousIssueUsesFallbackRepairPage(t *
 		if !strings.Contains(output.String(), want) {
 			t.Fatalf("expected ambiguous repair guidance %q in output:\n%s", want, output.String())
 		}
+	}
+}
+
+func TestVerifySetupConnectionRepairPromptInputEndStopsWithProgressSaved(t *testing.T) {
+	originalProbeHTTP := probeHTTPForSetup
+	originalFetchRelayHealth := fetchRelayHealthForSetup
+	originalProbeRelayWSPing := probeRelayWSPingForSetup
+	defer func() {
+		probeHTTPForSetup = originalProbeHTTP
+		fetchRelayHealthForSetup = originalFetchRelayHealth
+		probeRelayWSPingForSetup = originalProbeRelayWSPing
+	}()
+
+	probeHTTPForSetup = func(string) error { return errors.New("no such host") }
+	fetchRelayHealthForSetup = func(string, string) ([]byte, error) {
+		return nil, errors.New("unreachable")
+	}
+	probeRelayWSPingForSetup = func(string, string) (relayWSPingResponse, error) {
+		return relayWSPingResponse{}, nil
+	}
+
+	output := &bytes.Buffer{}
+	// Fresh run (reuseToken=false): "n" is not a valid repair choice, the
+	// re-prompt then hits end of input. That must behave like "Stop for now"
+	// (issue reported, no error) so the caller persists tokens/config instead
+	// of exiting through the hard-error path without saving.
+	issue, ok, err := verifySetupConnection(bufio.NewReader(strings.NewReader("n\n")), output, runtimeConfig{
+		HAURL:        "http://ha",
+		RelayBaseURL: "http://relay",
+	}, "token", false, true)
+	if err != nil {
+		t.Fatalf("expected stop-for-now (nil error) on input end, got %v", err)
+	}
+	if ok {
+		t.Fatal("did not expect ready state")
+	}
+	if issue != setupIssueRelayUnreachable {
+		t.Fatalf("expected relay unreachable issue, got %q", issue)
+	}
+	if !strings.Contains(output.String(), "Invalid choice.") {
+		t.Fatalf("expected invalid-choice re-prompt before input end:\n%s", output.String())
 	}
 }

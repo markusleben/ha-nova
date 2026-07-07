@@ -167,10 +167,17 @@ func renderSetupStatusSummary(out io.Writer, state setupState) {
 	fmt.Fprintln(out)
 }
 
-func renderSetupDiscoveryResult(out io.Writer, host string, discovered bool) {
+func renderSetupDiscoveryResult(out io.Writer, host, via string, discovered bool) {
 	session := resolveSetupUISession(out)
-	if discovered {
-		fmt.Fprintf(out, "  %s Found Home Assistant candidate: %s\n", session.style("success", session.successMarker()), host)
+	if discovered && via != "" {
+		fmt.Fprintf(out, "  %s Found Home Assistant at %s (discovered via %s)\n", session.style("success", session.successMarker()), host, via)
+	} else if discovered && strings.HasSuffix(strings.ToLower(host), ".local") {
+		fmt.Fprintf(out, "  %s Found Home Assistant via the network name %s\n", session.style("warning", session.warningMarker()), host)
+		fmt.Fprintln(out, "    Heads-up: this name can stop working (especially on Windows).")
+		fmt.Fprintln(out, "    If you know the IP address, enter it below instead — you can find it in your")
+		fmt.Fprintln(out, "    router, or in Home Assistant under Settings > System > Network.")
+	} else if discovered {
+		fmt.Fprintf(out, "  %s Found Home Assistant at %s\n", session.style("success", session.successMarker()), host)
 	} else if strings.TrimSpace(host) != "" {
 		fmt.Fprintf(out, "  %s No confirmed Home Assistant found automatically; using your saved address as a starting point: %s\n", session.style("warning", session.warningMarker()), host)
 	} else {
@@ -214,15 +221,18 @@ func renderSetupIncompleteBanner(out io.Writer, issue string) {
 	switch issue {
 	case setupIssueWSDegraded:
 		fmt.Fprintln(out, "  NOVA Relay is reachable, but Home Assistant WebSocket is not connected yet.")
-		fmt.Fprintln(out, "  Open Home Assistant > Settings > Apps > NOVA Relay, verify the app settings, and restart the App.")
+		fmt.Fprintln(out, "  Open Home Assistant > Settings > Apps > NOVA Relay (older Home Assistant: Settings > Add-ons), verify the app settings, and restart the App.")
 	case setupIssueRelayUnreachable:
 		fmt.Fprintln(out, "  HA NOVA saved your local setup, but the relay could not be verified yet.")
-		fmt.Fprintln(out, "  Open Home Assistant > Settings > Apps > NOVA Relay, start the app, then try again.")
+		fmt.Fprintln(out, "  Open Home Assistant > Settings > Apps > NOVA Relay (older Home Assistant: Settings > Add-ons) and start the app.")
 	case setupIssueSkillsInstall:
 		fmt.Fprintln(out, "  The Home Assistant connection is configured, but local skill installation still needs another run.")
 		fmt.Fprintln(out, "  Re-run setup or install the HA NOVA skills again for your client.")
 	default:
 		fmt.Fprintln(out, "  HA NOVA saved your local setup, but the system is not fully ready yet.")
+	}
+	if issue != setupIssueSkillsInstall {
+		fmt.Fprintln(out, `  Then run "ha-nova setup" again — it continues where you left off.`)
 	}
 	fmt.Fprintln(out)
 }

@@ -37,7 +37,7 @@ On Windows, the HA NOVA core path is verified; individual client coverage still 
 
 ## Relay (Home Assistant App)
 
-HA Settings > Apps > NOVA Relay > Update (or reinstall from App Store).
+HA Settings > Apps > NOVA Relay > Update (or reinstall from App Store). On Home Assistant older than 2026.2, Apps are still called Add-ons (Settings > Add-ons).
 
 ## How Update Works
 

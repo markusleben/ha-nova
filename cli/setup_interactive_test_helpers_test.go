@@ -29,6 +29,7 @@ func setupWizardGenerateRelayTokenPrompts() []string {
 	return []string{
 		"",
 		"",
+		"",
 	}
 }
 

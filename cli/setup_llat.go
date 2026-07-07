@@ -29,25 +29,24 @@ func runSetupLLATWalkthrough(reader *bufio.Reader, out io.Writer, cfg runtimeCon
 		)
 	}
 
+	renderSetupParagraphTight(out, "This will open: "+haProfileSecurityURL(cfg.HAURL))
 	if _, err := promptWizardLineFromReader(reader, out, "Press Enter to open your HA profile", ""); err != nil {
 		return err
 	}
-	if err := openBrowserForSetup(cfg.HAURL + "/profile/security"); err != nil {
-		printHumanWarn("Browser launch skipped; open this URL manually if needed: %s/profile/security", cfg.HAURL)
-	}
+	openBrowserShowingURL(out, haProfileSecurityURL(cfg.HAURL))
 
 	renderSetupParagraph(out, "Got it? Now I'll open the NOVA Relay settings so you can paste it.")
+	renderSetupParagraphTight(out, "This will open: "+haRelayAppPageURL(cfg.HAURL))
 	if _, err := promptWizardLineFromReader(reader, out, "Press Enter to open the relay settings", ""); err != nil {
 		return err
 	}
-	if err := openBrowserForSetup(cfg.HAURL + "/hassio/addon/2368fcfa_ha_nova_relay/config"); err != nil {
-		printHumanWarn("Browser launch skipped; open this URL manually if needed: %s/hassio/addon/2368fcfa_ha_nova_relay/config", cfg.HAURL)
-	}
+	openBrowserShowingURL(out, haRelayAppPageURL(cfg.HAURL))
 
 	renderSetupIndentedBlock(out, "Finish the relay configuration:", "    ",
-		`5. Paste the token into the "Home Assistant Access Token" field ("ha_llat")`,
-		"6. Click Save",
-		"7. Click Start (or Restart if already running)",
+		`5. Open the "Configuration" tab`,
+		`6. Paste the token into the "Home Assistant Access Token" field ("ha_llat")`,
+		"7. Click Save",
+		"8. Click Start (or Restart if already running)",
 	)
 
 	_, err := promptWizardLineFromReader(reader, out, "Press Enter when the app is running", "")

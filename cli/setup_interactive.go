@@ -105,6 +105,13 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 
 	reader := bufio.NewReader(os.Stdin)
 	renderSetupHeader(os.Stdout)
+	if target == "" && strings.TrimSpace(cfg.HAHost) == "" && strings.TrimSpace(cfg.HAURL) == "" &&
+		strings.TrimSpace(hostFlag) == "" && strings.TrimSpace(haURLFlag) == "" &&
+		strings.TrimSpace(relayURLFlag) == "" && strings.TrimSpace(relayTokenFlag) == "" {
+		// Flag-driven runs are not fully interactive first runs even before
+		// the overrides are applied to cfg below — skip the intro for them.
+		renderSetupIntro(os.Stdout)
+	}
 	choices, err := buildSetupClientChoices(paths, state)
 	if err != nil {
 		printHumanErr("%s", err)
@@ -283,6 +290,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 
 	token := existingToken
 	tokenChanged := false
+	hostChangeRetry := false
 
 	for {
 		renderSetupHeader(os.Stdout)
@@ -391,10 +399,21 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 			continue
 
 		case setupStageHost:
-			defaultHost, _ := detectDefaultHAHostWithFeedback(os.Stdout, cfg)
+			defaultHost := ""
+			if hostChangeRetry {
+				// The user just rejected the saved address — don't spend the
+				// discovery window re-confirming it or offer it back as the
+				// press-Enter default.
+				renderSetupParagraph(os.Stdout, fmt.Sprintf("The saved address %s could not be used. Enter a new one.", cfg.HAURL))
+			} else {
+				defaultHost, _ = detectDefaultHAHostWithFeedback(os.Stdout, cfg)
+			}
 			host, haURL, err := promptValidHAHostFromReader(reader, os.Stdout, defaultHost)
 			if err == errSetupBack {
-				if promptedClient {
+				if hostChangeRetry {
+					hostChangeRetry = false
+					stage = setupStageVerify
+				} else if promptedClient {
 					stage = setupStageClient
 				}
 				continue
@@ -407,20 +426,55 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 				printHumanErr("%s", err)
 				return 1
 			}
+			previousRelayURL := strings.TrimSpace(cfg.RelayBaseURL)
+			previousDerivedRelayURL := deriveRelayURLFromHA(cfg.HAURL, cfg.HAHost)
 			cfg = applySelectedSetupHost(cfg, host, haURL, relayURLFlag)
-			if strings.TrimSpace(relayTokenFlag) != "" {
+			if strings.TrimSpace(relayURLFlag) == "" && previousRelayURL != "" &&
+				previousRelayURL != previousDerivedRelayURL && cfg.RelayBaseURL != previousRelayURL {
+				// A saved relay address that was NOT derived from the old host
+				// is a deliberate custom setting (proxy, other machine); a
+				// host change must not silently clobber it.
+				cfg.RelayBaseURL = previousRelayURL
+				renderSetupParagraphTight(os.Stdout, "Keeping your saved relay address: "+previousRelayURL)
+			}
+			switch {
+			case hostChangeRetry && verifyFirstReuseFlow && hadSavedTokenBeforeSetup && strings.TrimSpace(token) != "":
+				// Resume with saved state: the relay app and tokens are known
+				// to be in place; only the address was wrong, so return
+				// straight to verification. Fresh-flow host changes — including
+				// pasted-token fresh runs — fall through instead: the new
+				// address may be a different instance that never got the
+				// repository/app/token steps. Save the corrected address
+				// now so it survives an exit before verification succeeds.
+				hostChangeRetry = false
+				if err := saveConfig(paths, cfg); err != nil {
+					printHumanErr("cannot save config: %s", err)
+					return 1
+				}
+				stage = setupStageVerify
+			case strings.TrimSpace(relayTokenFlag) != "" && !hostChangeRetry:
 				stage = setupStageToken
-			} else {
+			default:
+				if hostChangeRetry {
+					// A fresh-flow host change abandons the flag-driven or
+					// pasted-token shortcut: the corrected address may be a
+					// different instance that still needs the repository/app
+					// install and the access-token walkthrough.
+					skipLLATWalkthrough = false
+					verifyFirstReuseFlow = false
+				}
+				hostChangeRetry = false
 				stage = setupStageRelayInstall
 			}
 
 		case setupStageRelayInstall:
 			steps := buildSetupWizardSteps(true)
 			renderSetupStep(os.Stdout, steps.RelayInstall, steps.Total, "Install NOVA Relay in Home Assistant")
+			repositoryURL := haAddRepositoryURL(cfg.HAURL)
 			renderSetupParagraph(os.Stdout,
-				"I'll open your browser to add the HA NOVA repository.",
-				`Just click "Open link" when prompted.`,
+				"Next, add the HA NOVA app repository to your Home Assistant.",
 			)
+			renderSetupParagraphTight(os.Stdout, "This will open: "+repositoryURL)
 			_, err := promptWizardLineFromReader(reader, os.Stdout, "Press Enter to open your browser", "")
 			if err == errSetupBack {
 				stage = setupStageHost
@@ -434,11 +488,10 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 				printHumanErr("%s", err)
 				return 1
 			}
-			if err := openBrowserForSetup("https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Fmarkusleben%2Fha-nova"); err != nil {
-				printHumanWarn("Browser launch skipped; open this URL manually if needed: %s", "https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Fmarkusleben%2Fha-nova")
-			}
+			openBrowserShowingURL(os.Stdout, repositoryURL)
+			renderSetupParagraphTight(os.Stdout, `In the browser: log in to Home Assistant if asked, then click "Add" to confirm the repository.`)
 			renderSetupIndentedBlock(os.Stdout, "Once the repository is added:", "    ",
-				"1. Go to Settings > Apps > App Store",
+				"1. Go to Settings > Apps > App Store (on older Home Assistant: Settings > Add-ons)",
 				`2. Search for "NOVA Relay"`,
 				"3. Click Install and wait for it to finish",
 				"(don't start the app yet — we'll set up the tokens first)",
@@ -546,10 +599,26 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 					if err := copyToClipboardForSetup(token); err == nil {
 						renderSetupSuccessLine(os.Stdout, "Copied to clipboard.")
 					}
-					if err := openBrowserForSetup(cfg.HAURL + "/hassio/addon/2368fcfa_ha_nova_relay/config"); err != nil {
-						printHumanWarn("Browser launch skipped; open this URL manually if needed: %s/hassio/addon/2368fcfa_ha_nova_relay/config", cfg.HAURL)
+					renderSetupIndentedBlock(os.Stdout, "Next, on the NOVA Relay page:", "    ",
+						`1. Open the "Configuration" tab`,
+						`2. Paste the token into the "Relay Auth Token" field ("relay_auth_token")`,
+						"3. Click Save",
+					)
+					renderSetupParagraphTight(os.Stdout, "This will open: "+haRelayAppPageURL(cfg.HAURL))
+					_, err := promptWizardLineFromReader(reader, os.Stdout, "Press Enter to open your browser", "")
+					if err == errSetupBack {
+						continue
 					}
-					_, err := promptWizardLineFromReader(reader, os.Stdout, "Press Enter after you saved the Relay Auth Token in NOVA Relay", "")
+					if err == errSetupExit {
+						printHumanInfo("Setup cancelled")
+						return 0
+					}
+					if err != nil {
+						printHumanErr("%s", err)
+						return 1
+					}
+					openBrowserShowingURL(os.Stdout, haRelayAppPageURL(cfg.HAURL))
+					_, err = promptWizardLineFromReader(reader, os.Stdout, "Press Enter after you saved the Relay Auth Token in NOVA Relay", "")
 					if err == errSetupBack {
 						continue
 					}
@@ -601,6 +670,9 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 
 			steps := buildSetupWizardSteps(!skipLLATWalkthrough && !verifyFirstReuseFlow)
 			renderSetupStep(os.Stdout, steps.Verify, steps.Total, "Verifying connection")
+			if verifyFirstReuseFlow {
+				renderSetupParagraphTight(os.Stdout, "Using Home Assistant address: "+cfg.HAURL)
+			}
 			issue, ok, err := verifySetupConnection(reader, os.Stdout, cfg, token, verifyFirstReuseFlow, relayTokenFlag == "")
 			if err == errSetupBack {
 				if !skipLLATWalkthrough && !verifyFirstReuseFlow {
@@ -614,6 +686,20 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 			}
 			if err == errSetupRelayTokenStep {
 				stage = setupStageToken
+				continue
+			}
+			if err == errSetupHostStep {
+				hostChangeRetry = true
+				stage = setupStageHost
+				continue
+			}
+			if err == errSetupInstallStep {
+				// The user asked for full guidance from the repair menu:
+				// repository/app install, token, and access-token walkthrough
+				// for the current address.
+				skipLLATWalkthrough = false
+				verifyFirstReuseFlow = false
+				stage = setupStageRelayInstall
 				continue
 			}
 			if err == errSetupExit {

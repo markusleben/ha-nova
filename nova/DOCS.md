@@ -20,6 +20,11 @@ in the relay.
 | **Relay Auth Token** | Shared secret between your AI client and this relay. Generated automatically during setup. The relay and your AI client must use the exact same value. |
 | **Home Assistant Access Token** | A Long-Lived Access Token from your HA profile. Create one at: **Profile > Security > Long-Lived Access Tokens**. |
 
+> **Where is this page?** Home Assistant 2026.2 renamed Add-ons to Apps: this
+> page moved from `/hassio/addon/<slug>/info` to `/config/app/<slug>/info`
+> (Settings > Apps > NOVA Relay). The setup wizard links through HA's own
+> `/_my_redirect/` endpoint, so its links work on both old and new versions.
+
 ### Network
 
 | Port | Description |
