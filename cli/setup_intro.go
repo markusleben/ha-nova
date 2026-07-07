@@ -18,7 +18,7 @@ func renderSetupIntro(out io.Writer) {
 		"- set up two access tokens (guided, step by step)",
 		`- verify the connection and teach your AI assistant the Home Assistant commands (the "skills")`,
 	)
-	renderSetupParagraphTight(out,
+	renderSetupParagraph(out,
 		"How it works: at several points you'll be asked to press Enter — that opens a",
 		"page in your web browser. Do the step there, then come back to this window.",
 	)

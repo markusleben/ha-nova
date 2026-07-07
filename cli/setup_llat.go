@@ -29,18 +29,18 @@ func runSetupLLATWalkthrough(reader *bufio.Reader, out io.Writer, cfg runtimeCon
 		)
 	}
 
-	renderSetupParagraphTight(out, "This will open: "+haProfileSecurityURL(cfg.HAURL))
+	renderSetupLink(out, "This will open:", haProfileSecurityURL(cfg.HAURL))
 	if _, err := promptWizardLineFromReader(reader, out, "Press Enter to open your HA profile", ""); err != nil {
 		return err
 	}
-	openBrowserShowingURL(out, haProfileSecurityURL(cfg.HAURL))
+	openAnnouncedBrowserURL(out, haProfileSecurityURL(cfg.HAURL))
 
 	renderSetupParagraph(out, "Got it? Now I'll open the NOVA Relay settings so you can paste it.")
-	renderSetupParagraphTight(out, "This will open: "+haRelayAppPageURL(cfg.HAURL))
+	renderSetupLink(out, "This will open:", haRelayAppPageURL(cfg.HAURL))
 	if _, err := promptWizardLineFromReader(reader, out, "Press Enter to open the relay settings", ""); err != nil {
 		return err
 	}
-	openBrowserShowingURL(out, haRelayAppPageURL(cfg.HAURL))
+	openAnnouncedBrowserURL(out, haRelayAppPageURL(cfg.HAURL))
 
 	renderSetupIndentedBlock(out, "Finish the relay configuration:", "    ",
 		`5. Open the "Configuration" tab`,

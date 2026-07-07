@@ -23,7 +23,6 @@ func renderSimpleHeader(out io.Writer, session uiSession, title string) {
 	if session.plain() {
 		fmt.Fprintf(out, "  %s\n", title)
 		fmt.Fprintf(out, "  %s\n", strings.Repeat("-", len(title)))
-		fmt.Fprintln(out)
 		return
 	}
 

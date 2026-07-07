@@ -52,12 +52,12 @@ func maybeHandleInteractiveSetupCurrentState(reader *bufio.Reader, out io.Writer
 		return true, 0
 	}
 	if summary := current.SkipSummary(); summary != "" {
-		fmt.Fprintf(out, "  Already done: %s\n\n", summary)
+		fmt.Fprintf(out, "  Already done: %s\n", summary)
 	}
 	if writerSupportsTTYForSetup(out) {
 		_, err := promptWizardLineFromReader(reader, out, "Press Enter to continue setup", "")
 		if err == errSetupExit {
-			printHumanInfo("Setup cancelled")
+			renderSetupCancelledNote(os.Stdout)
 			return true, 0
 		}
 		if err != nil && err != errSetupBack {
@@ -135,7 +135,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 				continue
 			}
 			if err == errSetupExit {
-				printHumanInfo("Setup cancelled")
+				renderSetupCancelledNote(os.Stdout)
 				return 0
 			}
 			if err != nil {
@@ -203,7 +203,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 		if hasServiceCredentials && shouldOfferServiceCredentials(tokenStoragePreflightErr) {
 			useServiceCredentials, err := promptSetupServiceCredentialsInteractive(reader, os.Stdout, serviceCredentials, serviceClientID)
 			if err == errSetupExit {
-				printHumanInfo("Setup cancelled")
+				renderSetupCancelledNote(os.Stdout)
 				return 0
 			}
 			if err != nil {
@@ -302,7 +302,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 				continue
 			}
 			if err == errSetupExit {
-				printHumanInfo("Setup cancelled")
+				renderSetupCancelledNote(os.Stdout)
 				return 0
 			}
 			if err != nil {
@@ -328,11 +328,11 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 					stage = setupStageClient
 					continue
 				}
-				printHumanInfo("Setup cancelled")
+				renderSetupCancelledNote(os.Stdout)
 				return 0
 			}
 			if err == errSetupExit {
-				printHumanInfo("Setup cancelled")
+				renderSetupCancelledNote(os.Stdout)
 				return 0
 			}
 			if err != nil {
@@ -419,7 +419,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 				continue
 			}
 			if err == errSetupExit {
-				printHumanInfo("Setup cancelled")
+				renderSetupCancelledNote(os.Stdout)
 				return 0
 			}
 			if err != nil {
@@ -474,27 +474,27 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 			renderSetupParagraph(os.Stdout,
 				"Next, add the HA NOVA app repository to your Home Assistant.",
 			)
-			renderSetupParagraphTight(os.Stdout, "This will open: "+repositoryURL)
+			renderSetupLink(os.Stdout, "This will open:", repositoryURL)
 			_, err := promptWizardLineFromReader(reader, os.Stdout, "Press Enter to open your browser", "")
 			if err == errSetupBack {
 				stage = setupStageHost
 				continue
 			}
 			if err == errSetupExit {
-				printHumanInfo("Setup cancelled")
+				renderSetupCancelledNote(os.Stdout)
 				return 0
 			}
 			if err != nil {
 				printHumanErr("%s", err)
 				return 1
 			}
-			openBrowserShowingURL(os.Stdout, repositoryURL)
+			openAnnouncedBrowserURL(os.Stdout, repositoryURL)
 			renderSetupParagraphTight(os.Stdout, `In the browser: log in to Home Assistant if asked, then click "Add" to confirm the repository.`)
 			renderSetupIndentedBlock(os.Stdout, "Once the repository is added:", "    ",
 				"1. Go to Settings > Apps > App Store (on older Home Assistant: Settings > Add-ons)",
 				`2. Search for "NOVA Relay"`,
 				"3. Click Install and wait for it to finish",
-				"(don't start the app yet — we'll set up the tokens first)",
+				"   (don't start the app yet — we'll set up the tokens first)",
 			)
 			_, err = promptWizardLineFromReader(reader, os.Stdout, "Press Enter when the installation is complete", "")
 			if err == errSetupBack {
@@ -502,7 +502,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 				continue
 			}
 			if err == errSetupExit {
-				printHumanInfo("Setup cancelled")
+				renderSetupCancelledNote(os.Stdout)
 				return 0
 			}
 			if err != nil {
@@ -532,7 +532,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 				"a) Relay token — keeps the connection between this computer and Home Assistant private",
 				"b) HA access token — allows the relay to control your devices and automations",
 			)
-			renderSetupParagraphTight(os.Stdout, "This step is only for the Relay Auth Token. The Home Assistant Access Token comes next as its own step.")
+			renderSetupParagraph(os.Stdout, "This step is only for the Relay Auth Token. The Home Assistant Access Token comes next as its own step.")
 			if relayTokenFlag != "" {
 				renderSetupParagraphTight(os.Stdout, "Using the Relay Auth Token you already provided.")
 			} else if resumeWSRecovery {
@@ -550,7 +550,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 					continue
 				}
 				if err == errSetupExit {
-					printHumanInfo("Setup cancelled")
+					renderSetupCancelledNote(os.Stdout)
 					return 0
 				}
 				if err != nil {
@@ -570,7 +570,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 						continue
 					}
 					if err == errSetupExit {
-						printHumanInfo("Setup cancelled")
+						renderSetupCancelledNote(os.Stdout)
 						return 0
 					}
 					if err != nil {
@@ -604,26 +604,26 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 						`2. Paste the token into the "Relay Auth Token" field ("relay_auth_token")`,
 						"3. Click Save",
 					)
-					renderSetupParagraphTight(os.Stdout, "This will open: "+haRelayAppPageURL(cfg.HAURL))
+					renderSetupLink(os.Stdout, "This will open:", haRelayAppPageURL(cfg.HAURL))
 					_, err := promptWizardLineFromReader(reader, os.Stdout, "Press Enter to open your browser", "")
 					if err == errSetupBack {
 						continue
 					}
 					if err == errSetupExit {
-						printHumanInfo("Setup cancelled")
+						renderSetupCancelledNote(os.Stdout)
 						return 0
 					}
 					if err != nil {
 						printHumanErr("%s", err)
 						return 1
 					}
-					openBrowserShowingURL(os.Stdout, haRelayAppPageURL(cfg.HAURL))
+					openAnnouncedBrowserURL(os.Stdout, haRelayAppPageURL(cfg.HAURL))
 					_, err = promptWizardLineFromReader(reader, os.Stdout, "Press Enter after you saved the Relay Auth Token in NOVA Relay", "")
 					if err == errSetupBack {
 						continue
 					}
 					if err == errSetupExit {
-						printHumanInfo("Setup cancelled")
+						renderSetupCancelledNote(os.Stdout)
 						return 0
 					}
 					if err != nil {
@@ -655,7 +655,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 					continue
 				}
 				if err == errSetupExit {
-					printHumanInfo("Setup cancelled")
+					renderSetupCancelledNote(os.Stdout)
 					return 0
 				}
 				printHumanErr("%s", err)
@@ -703,7 +703,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 				continue
 			}
 			if err == errSetupExit {
-				printHumanInfo("Setup cancelled")
+				renderSetupCancelledNote(os.Stdout)
 				return 0
 			}
 			if err != nil {

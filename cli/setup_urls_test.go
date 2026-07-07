@@ -38,7 +38,11 @@ func TestOpenBrowserShowingURLPrintsTargetBeforeOpening(t *testing.T) {
 	if opened != "http://ha.example:8123/profile/security" {
 		t.Fatalf("opened = %q", opened)
 	}
-	if !strings.Contains(output.String(), "Opening in your browser: http://ha.example:8123/profile/security") {
+	if !strings.Contains(output.String(), "Opening in your browser:") {
+		t.Fatalf("missing announcement line:\n%s", output.String())
+	}
+	// The URL gets its own indented line so long links wrap cleanly.
+	if !strings.Contains(output.String(), "\n      http://ha.example:8123/profile/security\n") {
 		t.Fatalf("missing URL line:\n%s", output.String())
 	}
 }

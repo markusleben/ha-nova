@@ -47,7 +47,18 @@ func renderSetupIndentedBlock(out io.Writer, title, indent string, lines ...stri
 		fmt.Fprintln(out)
 	}
 	renderSetupIndentedLines(out, indent, lines...)
+}
+
+// renderSetupLink prints a label with its URL on an own indented line, so a
+// long URL wraps at a clean boundary instead of mid-sentence.
+func renderSetupLink(out io.Writer, label, target string) {
 	fmt.Fprintln(out)
+	fmt.Fprintf(out, "  %s\n", label)
+	fmt.Fprintf(out, "      %s\n", target)
+}
+
+func renderSetupCancelledNote(out io.Writer) {
+	renderSetupParagraph(out, "Setup cancelled.")
 }
 
 func renderSetupStatusLine(out io.Writer, role, format string, args ...interface{}) {
@@ -75,7 +86,6 @@ func renderSetupMutedNoteBlock(out io.Writer, title string, lines ...string) {
 	for _, line := range lines {
 		fmt.Fprintf(out, "  %s\n", session.style("muted", "  "+line))
 	}
-	fmt.Fprintln(out)
 }
 
 func renderSetupSuccessLine(out io.Writer, format string, args ...interface{}) {
