@@ -52,13 +52,13 @@ jobs:
 
           files="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/files" --paginate --jq '.[].filename')"
 
-          if ! grep -qx "README.md" <<<"${files}"; then
+          if ! grep -Fxq "README.md" <<<"${files}"; then
             echo "README.md untouched — gate passes."
             exit 0
           fi
 
           for release_prep_file in "${release_prep_files[@]}"; do
-            if grep -qx "${release_prep_file}" <<<"${files}"; then
+            if grep -Fxq "${release_prep_file}" <<<"${files}"; then
               echo "README.md changed together with ${release_prep_file} (release-prep PR) — gate passes."
               exit 0
             fi
