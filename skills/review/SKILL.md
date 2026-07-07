@@ -118,7 +118,7 @@ If the target config is not already in the thread context, resolve it yourself:
    ha-nova relay ws --data-file <payload-file> --jq-file <helper-filter-file> --out <target-file>
    ```
    Preferred: copy `skills/ha-nova/config-body-filter.jq` to `<config-filter-file>` and use that copied file directly.
-   If you must recreate it, write `<config-filter-file>` with:
+   If the canonical file is unavailable (flat-copy installs), recreate it with exactly:
    ```jq
    if .ok then .data.body else error("relay error: \(.error.message // "unknown")") end
    ```

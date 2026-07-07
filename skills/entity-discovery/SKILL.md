@@ -96,7 +96,7 @@ ha-nova relay core --method GET --path /api/config/automation/config/{unique_id}
 # For scripts: use script.{slug} and /api/config/script/config/{unique_id}
 ```
 
-Write `<filter-file>` with:
+For `<filter-file>`, prefer copying `skills/ha-nova/config-body-filter.jq`; if the canonical file is unavailable (flat-copy installs), recreate it with exactly:
 
 ```jq
 if .ok then .data.body else error("relay error: \(.error.message // "unknown")") end

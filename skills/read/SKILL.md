@@ -103,7 +103,7 @@ Resolve the config key via entity registry first; UI-created items often use num
    - `ha-nova relay core --method GET --path /api/config/automation/config/{unique_id} --jq-file <filter-file> --out <result-file>`
    - for scripts: `/api/config/script/config/{unique_id}`
    - prefer copying `skills/ha-nova/config-body-filter.jq` to `<filter-file>`
-   - if you must recreate it, write `<filter-file>` with:
+   - if the canonical file is unavailable (flat-copy installs), recreate it with exactly:
      ```jq
      if .ok then .data.body else error("relay error: \(.error.message // "unknown")") end
      ```

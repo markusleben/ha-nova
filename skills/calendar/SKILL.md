@@ -33,7 +33,7 @@ Use REST through relay core only:
 `<calendar-events-path>` is:
 `/api/calendars/<calendar_entity_id>?start=<timestamp>&end=<timestamp>`
 
-Relay-core response body is under `.data.body`.
+Relay-core response body is under `.data.body` (envelope contract: `skills/ha-nova/relay-api.md` → Standard Envelope).
 
 ## Flow
 

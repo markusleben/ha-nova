@@ -76,11 +76,11 @@ Do NOT invoke `ha-nova:review` separately.
 1. Re-read by `target_id` (do NOT re-resolve by slug):
    - automation: `ha-nova relay core --method GET --path /api/config/automation/config/<target_id> --jq-file <filter-file> --out <result-file>`
    - script: `/api/config/script/config/<target_id>`
-   - `<filter-file>`:
+   - `<filter-file>`: prefer copying `skills/ha-nova/config-body-filter.jq`; if the canonical file is unavailable (flat-copy installs), recreate it with exactly:
      ```jq
      if .ok then .data.body else error("relay error: \(.error.message // "unknown")") end
      ```
-   - for create/update, reload domain, resolve actual `entity_id` by matching `unique_id == <target_id>`, then read `/api/states/{entity_id}` to confirm runtime presence
+   - for create/update: the domain was already reloaded in Phase 3 (apply-agent step 4) — do not reload again unless Phase 3 reported `reloaded: false` or ran inline without a reload. Resolve actual `entity_id` by matching `unique_id == <target_id>`, then read `/api/states/{entity_id}` to confirm runtime presence
    - if the actual `entity_id` differs, report it and point to `skills/ha-nova/safe-refactoring.md`; do not silently assume the requested slug won
 2. S/R/P/M/F checks (narrowed):
    - Compare read-back vs draft as normalized objects, not raw JSON strings; key order is irrelevant. Ignore metadata (`id`,`unique_id`,`created_at`,`modified_at`,`editor`,`enabled`).

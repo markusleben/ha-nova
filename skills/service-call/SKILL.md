@@ -116,9 +116,11 @@ Rules:
 
 ## Error Handling
 
-- `400/VALIDATION_ERROR`: invalid request shape — check path and body format
-- `404/NOT_FOUND`: entity or service does not exist — re-resolve
-- `502/UPSTREAM_WS_ERROR` or `504/TIMEOUT`: relay lost connection to HA — retry once, then report failure
+Full relay/upstream error taxonomy (codes, HTTP-status split, retry rules): `skills/ha-nova/relay-api.md` → Error Handling.
+
+Service-call specifics:
+- `404/NOT_FOUND` or upstream `.data.status` 404: entity or service does not exist — re-resolve before retrying
+- `502/UPSTREAM_*` transport errors: retry once, then report failure
 - State verification failure (state didn't change): report discrepancy, do not retry automatically
 
 ## Guardrails

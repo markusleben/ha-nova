@@ -45,7 +45,7 @@ For WS payloads:
 
 ## Data Shapes
 
-Normalize each saved relay result separately before summarizing:
+Envelope parsing follows `skills/ha-nova/relay-api.md` → Standard Envelope. Normalize each saved relay result separately before summarizing:
 - REST `/api/config`, `/api/components`, `/api/states`: use `.data.body`
 - WS `repairs/list_issues`: use `.data.issues`
 - WS `config_entries/get`: use `.data` as an array
