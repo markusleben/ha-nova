@@ -121,6 +121,9 @@ async function readBodyWithLimit(response: Response, maxBytes: number): Promise<
       }
       totalBytes += value.byteLength;
       if (totalBytes > maxBytes) {
+        // Cancel so undici tears down the upstream socket instead of keeping
+        // it open until HA finishes sending the oversized body.
+        await reader.cancel().catch(() => undefined);
         throw new HaRestClientError(
           "UPSTREAM_HTTP_ERROR",
           `HA response exceeded the ${maxBytes}-byte relay limit — narrow the request (filter, pagination, or a more specific path)`
