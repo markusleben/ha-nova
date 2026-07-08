@@ -45,6 +45,23 @@ describe("write delete safety contract", () => {
     expect(writeSafety).toContain("Home Assistant Backups");
   });
 
+  it("documents safety-mechanism availability per skill and backup pointers where revert is absent", () => {
+    const organizeSkill = readFileSync("skills/organize/SKILL.md", "utf8");
+    const dashboardSkill = readFileSync("skills/dashboard/SKILL.md", "utf8");
+    const fallbackSkill = readFileSync("skills/fallback/SKILL.md", "utf8");
+    // The diff/revert asymmetry is documented, not implicit.
+    expect(writeSafety).toContain("## Safety-Mechanism Availability by Skill");
+    expect(writeSafety).toContain("Never imply a mechanism a");
+    // Skills without revert point to HA Backups before destructive writes.
+    expect(organizeSkill).toContain("Registry deletes are irreversible");
+    expect(organizeSkill).toContain("Home Assistant Backups (Settings > System > Backups)");
+    expect(dashboardSkill).toContain("Dashboard writes have no `revert`");
+    expect(dashboardSkill).toContain("the recovery path is Home Assistant Backups");
+    // Fallback full-replace writes verify survival of unrelated content after write.
+    expect(fallbackSkill).toContain("verify both the intended change and the survival of unrelated content");
+    expect(fallbackSkill).toContain("verify the pre-existing list items survived");
+  });
+
   it("forbids surfacing internal bookkeeping in write previews/results", () => {
     expect(writeSafety).toContain("Output hygiene");
     // The live test leaked a raw config-id and "Best-Practice-Snapshot is older".

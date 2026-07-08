@@ -267,8 +267,8 @@ Rules for all experimental relay calls in this skill:
 
 - Always preview the full payload before execution
 - Read before write: fetch current state first for any destructive operation
-- **Full-document overwrites** (e.g., `lovelace/config/save`): MUST read full config, merge changes in memory, preview merged result, then write. There is no partial update endpoint — the entire config is replaced.
-- **Field-level list replacements** (e.g., `energy/save_prefs`): omitted top-level keys are preserved, but each provided key replaces its entire list. To add one item, read the existing list first, append, then save back the full list.
+- **Full-document overwrites** (e.g., `lovelace/config/save`): MUST read full config, merge changes in memory, preview merged result, then write. There is no partial update endpoint — the entire config is replaced. After the write, read the document back and verify both the intended change and the survival of unrelated content (views, cards, sources) before reporting success.
+- **Field-level list replacements** (e.g., `energy/save_prefs`): omitted top-level keys are preserved, but each provided key replaces its entire list. To add one item, read the existing list first, append, then save back the full list. After the write, read the prefs back and verify the pre-existing list items survived alongside the new one.
 - **Web search before write**: always search for current payload schema before constructing any write payload. HA APIs evolve across versions — the examples in this skill are starting points, not authoritative schemas.
 - Every experimental call must show: "EXPERIMENTAL: No dedicated subskill schema guardrails. Proceed with caution."
 - **No diff or auto-undo here**: these writes have no `## Changes` preview or `revert`. When a write may be hard to reverse, say so plainly and point to Home Assistant Backups (Settings > System > Backups) as the safety net before confirming.
@@ -282,8 +282,8 @@ Rules for all experimental relay calls in this skill:
 
 | Type | Behavior | Safe pattern | Examples |
 |------|----------|-------------|----------|
-| Full-document overwrite | Entire config replaced | Read → modify → save full document | `lovelace/config/save` |
-| Field-level list replace | Omitted keys preserved, provided keys fully replaced | Read existing list → append/modify → save full list | `energy/save_prefs` |
+| Full-document overwrite | Entire config replaced | Read → modify → save full document → read back and verify unrelated content survived | `lovelace/config/save` |
+| Field-level list replace | Omitted keys preserved, provided keys fully replaced | Read existing list → append/modify → save full list → read back and verify pre-existing items survived | `energy/save_prefs` |
 | Merge/patch | Only provided fields updated | Send only changed fields | `config/area_registry/update`, `config/entity_registry/update` |
 | Delete | Irreversible for areas/zones/labels; soft-delete (30 days) for entities | Always `search/related` first, tokenized confirmation | `config/area_registry/delete`, `config/entity_registry/remove` |
 

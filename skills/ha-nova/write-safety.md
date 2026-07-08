@@ -206,3 +206,18 @@ Use `ha-nova snapshot show` to read the stored record (including
 - `revert` restores the captured config through the normal write path; it does
   not replay HA's exact byte-for-byte formatting. For a guaranteed point-in-time
   restore, Home Assistant Backups is the source of truth.
+
+## Safety-Mechanism Availability by Skill
+
+Diff and revert coverage is deliberately uneven. Never imply a mechanism a
+skill does not have; when only Backups remain, say so before the write.
+
+| Skill / family | Pre-write diff | Update-revert | Fallback recovery path |
+|---|---|---|---|
+| `write` (automation/script) | yes (`ha-nova diff`) | yes (verified updates, N=1) | HA Backups |
+| `helper` storage family | yes | yes (verified updates, N=1) | HA Backups |
+| `helper` config-entry family | diff only | no (multi-step options flow) | HA Backups |
+| `dashboard` | preview + read-back verify | no | HA Backups |
+| `organize` | field preview | no (registry deletes irreversible) | HA Backups |
+| `service-call` | state-delta preview | no (runtime action, not config) | re-run corrective service call |
+| `fallback` (experimental writes) | payload preview + read-back verify | no | HA Backups |
