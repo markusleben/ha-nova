@@ -43,7 +43,7 @@ WS response body: `.data` (`skills/ha-nova/relay-api.md` → Standard Envelope).
    - discover the local agent via `{"type":"backup/agents/info"}`: Supervised installs register `hassio.local`, Core installs `backup.local` — never hardcode
    - add `"include_all_addons":true` ONLY for `hassio.local` (Core rejects add-on options)
    - if `backup/config/info` shows an encryption password configured, pass it as `password`; never invent one
-5. Both generate commands return when the job is INITIATED, not when it finishes. Poll `backup/info` every ~10 s until `state` returns to `idle` and a new backup appears in `backups`; then check the new backup's `failed_agent_ids` and `failed_addons`: if either is non-empty, report partial success — the backup exists but is missing from those locations or add-ons — never plain success. Otherwise report name, date, size, and locations. If still running after ~5 minutes, say the backup continues in the background and how to check later.
+5. Both generate commands return when the job is INITIATED, not when it finishes. Poll `backup/info` every ~10 s until `state` returns to `idle` and a new backup appears in `backups`; then check the new backup's `failed_agent_ids`, `failed_addons`, and `failed_folders`: if any is non-empty, report partial success — the backup exists but is missing those locations, add-ons, or folders — never plain success. Otherwise report name, date, size, and locations. If still running after ~5 minutes, say the backup continues in the background and how to check later.
 6. If Status afterwards shows the attempt failed (`last_action_event`/no new backup), report the failure — never claim success from initiation alone.
 
 ### Safety backup before risky changes

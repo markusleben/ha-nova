@@ -45,7 +45,7 @@ describe("backup contract", () => {
     expect(backupSkill).toContain("say plainly when automatic backups are NOT configured");
     // Partial success (failed agents/add-ons) is never reported as plain success,
     // and partial add-on backups never masquerade as the newest full backup.
-    expect(backupSkill).toContain("`failed_agent_ids` and `failed_addons`");
+    expect(backupSkill).toContain("`failed_agent_ids`, `failed_addons`, and `failed_folders`");
     expect(backupSkill).toContain("report partial success");
     expect(backupSkill).toContain("also report the newest FULL backup");
     expect(backupSkill).toContain("Require `state: idle` first");
