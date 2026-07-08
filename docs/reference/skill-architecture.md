@@ -25,7 +25,7 @@ skills/
   ha-nova/safe-refactoring.md   (reference doc — rename, delete, orphan cleanup workflows)
   ha-nova/automation-patterns.md (reference doc — native HA constructs vs templates)
   ha-nova/write-safety.md       (reference doc — pre-write diff + durable update-revert; SSOT for write/ + helper/)
-  ha-nova/agents/               (agent templates: resolve, apply, review)
+  ha-nova/agents/               (agent templates: resolve, apply)
   read/SKILL.md                         (ha-nova:read — automation/script list/get/trace)
   write/SKILL.md                        (ha-nova:write — automation/script create/update/delete)
   helper/SKILL.md                       (ha-nova:helper — helper CRUD: list/read/create/update/delete)
