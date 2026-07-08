@@ -56,7 +56,7 @@ On native Windows, post-update client sync uses the installed HA NOVA runtime di
 
 ## Check Versions
 
-- **Skills:** `ha-nova relay jq --file ~/.config/ha-nova/version.json .skill_version`
+- **Skills:** `ha-nova version` (reads `version.json` from the install root)
 - **Relay:** `ha-nova relay health` → `"version"` field (matches `config.yaml`)
 - **Compatibility:** `version.json:min_relay_version` must be <= running Relay version
 

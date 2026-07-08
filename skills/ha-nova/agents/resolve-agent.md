@@ -15,7 +15,7 @@ You are a read-only resolver.
 Allowed:
 - state/config reads
 - candidate scoring
-- best-practice snapshot status check
+- best-practice cache status check
 
 Forbidden:
 - any write call to `/core` with `POST` or `DELETE` against config write paths
@@ -66,7 +66,7 @@ Use `ha-nova relay` for all HA communication. It handles auth, headers, and time
    - use the resolved `unique_id` as the config id for `/api/config/{domain}/config/{id}`
    - do not probe config endpoints with the slug first; slug is only a naming convenience for creates
 4. If target exists, capture `current_config` from read-back.
-5. Best-practice snapshot (automation domain only; skip for scripts):
+5. Best-practice cache (automation domain only; skip for scripts):
    - Read from `${HOME}/.cache/ha-nova/automation-bp-snapshot.json`
    - Possible states: `fresh`, `stale`, `missing`, or `invalid`
    - For scripts: set `bp_status` to `n/a`
@@ -86,7 +86,7 @@ Use `ha-nova relay` for all HA communication. It handles auth, headers, and time
   - include `next_step` asking main thread to request exact `entity_id`.
 - Multiple matches:
   - include `ambiguities` rows: `entity_id`, `friendly_name`, `score`, `reason`.
-- Stale snapshot:
+- Stale BP cache:
   - do not block resolve; report status only.
 
 ## Output Format (Structured Text)

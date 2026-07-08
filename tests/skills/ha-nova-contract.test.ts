@@ -234,7 +234,6 @@ describe("ha-nova contract", () => {
       "skills/ha-nova/bulk-patterns.md",
       "skills/ha-nova/agents/resolve-agent.md",
       "skills/ha-nova/agents/apply-agent.md",
-      "skills/ha-nova/agents/review-agent.md",
       "skills/review/checks.md",
     ];
 
@@ -402,34 +401,6 @@ describe("ha-nova contract", () => {
     expect(apply).toContain("automation/reload");
     expect(apply).toContain("script/reload");
     expect(apply).toContain("`write`, `read-back`, `reload`, or `runtime-verify`");
-
-    const review = readFileSync("skills/ha-nova/agents/review-agent.md", "utf8");
-
-    expect(review).toContain("{DOMAIN}");
-    expect(review).toContain("{TARGET_ID}");
-    expect(review).toContain("{CONFIG}");
-    expect(review).toContain("{MODE}");
-    expect(review).toContain("ha-nova relay ws");
-    expect(review).toContain("ha-nova relay core");
-    expect(review).not.toContain("{RELAY_BASE_URL}");
-    expect(review).not.toContain("{RELAY_AUTH_TOKEN}");
-    expect(review).toContain("Output Format");
-    expect(review).toContain("skills/ha-nova/output-rules.md");
-    expect(review).toContain("search/related");
-    // Conflict-test semantics (action polarity, complementary pairs, guard
-    // conditions) live only in review/SKILL.md Step 3; the agent references it.
-    expect(review).toContain("Step 3: Conflict Analysis");
-    // Review entry stays at review/SKILL.md; detailed checks live in review/checks.md.
-    expect(review).toContain("skills/review/SKILL.md");
-    expect(review).toContain("skills/review/checks.md");
-    expect(review).toContain("post-write");
-    expect(review).toContain("standalone");
-    expect(review).toContain("Section 5 — Questions to consider");
-    expect(review).toContain("Section 6 — Suggestions");
-    expect(review).toContain("Section 7 — Summary");
-    expect(review).toContain("Section 8 — Instant help");
-    // Standalone keeps numbered sections; post-write now omits empty ones.
-    expect(review).toContain("**Advisory**: only when non-empty");
   });
 
   it("keeps all operational subskills concise", () => {
@@ -522,7 +493,6 @@ describe("ha-nova contract", () => {
       "skills/ha-nova/helper-flow-schemas.md",
       "skills/ha-nova/agents/resolve-agent.md",
       "skills/ha-nova/agents/apply-agent.md",
-      "skills/ha-nova/agents/review-agent.md",
     ];
 
     // German words/phrases that should never appear in skill files
@@ -590,7 +560,6 @@ describe("ha-nova contract", () => {
       "skills/ha-nova/relay-api.md",
       "skills/ha-nova/agents/resolve-agent.md",
       "skills/ha-nova/agents/apply-agent.md",
-      "skills/ha-nova/agents/review-agent.md",
       "skills/write/SKILL.md",
       "skills/review/checks.md",
     ];
@@ -642,7 +611,9 @@ describe("ha-nova contract", () => {
     }
 
     const updateGuide = readFileSync("docs/reference/update-guide.md", "utf8");
-    expect(updateGuide).toContain("ha-nova relay jq --file ~/.config/ha-nova/version.json .skill_version");
+    // version.json lives in the install root (cli/paths.go VersionFile), not in ~/.config/ha-nova.
+    expect(updateGuide).toContain("`ha-nova version` (reads `version.json` from the install root)");
+    expect(updateGuide).not.toContain("~/.config/ha-nova/version.json");
     expect(updateGuide).not.toContain("cat ~/.config/ha-nova/version.json");
     expect(updateGuide).toContain("Other clients use the same shared CLI updater path");
     expect(updateGuide).toContain("| Google Antigravity | Flat-copy | Rebuild namespaced flat markdown copies from the active HA NOVA install |");

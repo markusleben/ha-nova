@@ -28,10 +28,10 @@ Read-only analysis. Exception: after explicit user confirmation, one Quick-Fix s
 
 Relay CLI: `ha-nova relay`
 - Preflight: `ha-nova relay health` (once per session, skip if already verified)
-- `relay ws --data-file <payload-file>` — canonical WebSocket path
-- `relay core --method <METHOD> --path <PATH> --body-file <payload-file>` — canonical REST path
-- `relay ... --jq-file <filter-file>` — canonical complex filter path
-- `relay ... --out <result-file>` — canonical large-output path
+- `ha-nova relay ws --data-file <payload-file>` — canonical WebSocket path
+- `ha-nova relay core --method <METHOD> --path <PATH> --body-file <payload-file>` — canonical REST path
+- `ha-nova relay ... --jq-file <filter-file>` — canonical complex filter path
+- `ha-nova relay ... --out <result-file>` — canonical large-output path
 
 ### Target Resolution
 
@@ -267,7 +267,7 @@ Branch by target family:
    ha-nova relay ws --data-file <payload-file>
    ```
 3. Collect related automations/scripts (exclude current target).
-4. Read configs of related items (max 5 for a single target; keep a tighter shared budget across a bulk workset). Resolve `unique_id` first for automation/script targets (see Target Resolution step 5), then:
+4. Read configs of related items (max 5 for a single standalone target; keep a tighter shared budget across a bulk workset; post-write scans inside `write`/`helper` deliberately use a tighter budget of max 3 related configs). Resolve `unique_id` first for automation/script targets (see Target Resolution step 5), then:
    ```text
    # Automation:
    ha-nova relay core --method GET --path /api/config/automation/config/<unique_id> --jq-file <config-filter-file> --out <related-file>
@@ -489,7 +489,7 @@ For resolved targets `> 1`, return exactly these 6 sections:
 - Any multi-target review: no Quick-Fix, no service calls, no write exception
 - Only communicate with HA through `ha-nova relay`
 - Never guess entity IDs
-- Limit collision scan to top 3 target entities, max 5 related configs for a single target
+- Limit collision scan to top 3 target entities, max 5 related configs for a single standalone target (post-write scans in `write`/`helper` use max 3 by design)
 - For a bulk workset, trim before reads and keep a shared related-config budget
 - Never build a config snapshot for the full matched set during bulk review
 - Batch reviews: bulk workset max 5 targets. If more match, review the first 5 in deterministic order and offer to continue.

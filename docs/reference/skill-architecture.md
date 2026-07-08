@@ -25,7 +25,7 @@ skills/
   ha-nova/safe-refactoring.md   (reference doc — rename, delete, orphan cleanup workflows)
   ha-nova/automation-patterns.md (reference doc — native HA constructs vs templates)
   ha-nova/write-safety.md       (reference doc — pre-write diff + durable update-revert; SSOT for write/ + helper/)
-  ha-nova/agents/               (agent templates: resolve, apply, review)
+  ha-nova/agents/               (agent templates: resolve, apply)
   read/SKILL.md                         (ha-nova:read — automation/script list/get/trace)
   write/SKILL.md                        (ha-nova:write — automation/script create/update/delete)
   helper/SKILL.md                       (ha-nova:helper — helper CRUD: list/read/create/update/delete)
@@ -102,7 +102,7 @@ Current mapping:
 - fetch states
 - resolve entities and target id
 - check existence + current config
-- evaluate best-practice snapshot status
+- evaluate best-practice cache status
 
 2. Preview + Decide (Main Thread)
 - build final payload
@@ -411,7 +411,7 @@ When creating a new skill under `skills/{name}/SKILL.md`:
 
 `skills/review/SKILL.md` is the stable review entrypoint.
 `skills/review/checks.md` is the authoritative source for the detailed review catalog (S/R/P/M/F/H).
-Agent templates (`review-agent.md`) should enter through `skills/review/SKILL.md` and load `skills/review/checks.md` instead of duplicating checks.
+There is deliberately no review agent template: `write` and `helper` run their post-write review inline against `skills/review/SKILL.md` and `skills/review/checks.md` instead of duplicating checks in a separate template.
 When adding or modifying checks, update `skills/review/checks.md` first and keep `skills/review/SKILL.md` aligned as the facade/workflow file.
 
 ## Review Check Taxonomy

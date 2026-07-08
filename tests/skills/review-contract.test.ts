@@ -6,7 +6,6 @@ const reviewSkill = readFileSync("skills/review/SKILL.md", "utf8");
 const reviewChecks = readFileSync("skills/review/checks.md", "utf8");
 const writeSkill = readFileSync("skills/write/SKILL.md", "utf8");
 const helperSkill = readFileSync("skills/helper/SKILL.md", "utf8");
-const reviewAgent = readFileSync("skills/ha-nova/agents/review-agent.md", "utf8");
 const contextSkill = readFileSync("skills/ha-nova/SKILL.md", "utf8");
 const outputRules = readFileSync("skills/ha-nova/output-rules.md", "utf8");
 const architectureDoc = readFileSync("docs/reference/skill-architecture.md", "utf8");
@@ -70,7 +69,6 @@ describe("review contract", () => {
     expect(writeSkill).toContain("H-01..H-10");
     expect(helperSkill).toContain("H-01..H-10");
     expect(reviewSkill).toContain("Helper (storage-based family): H-01..H-10");
-    expect(reviewAgent).toContain("**Helper (storage-based family):** H-01..H-10.");
     expect(architectureDoc).toContain("H-01..H-10");
   });
 
@@ -84,8 +82,6 @@ describe("review contract", () => {
     expect(helperSkill).toContain("minimal config-entry post-write contract");
     expect(reviewSkill).toContain("Helper (config-entry family): minimal config-entry review");
     expect(reviewSkill).toContain("do not apply H-01..H-10");
-    expect(reviewAgent).toContain("minimal config-entry review");
-    expect(reviewAgent).toContain("Do not apply H-01..H-10");
   });
 
   it("documents config-entry helper target resolution before minimal review", () => {
@@ -102,10 +98,6 @@ describe("review contract", () => {
     expect(reviewSkill).toContain("in Step 2, derive collision candidates from `linked_entities[]`, not from config actions");
     expect(reviewSkill).toContain("config-entry helper metadata item: use `linked_entities[]` from the canonical metadata item; do not attempt action extraction");
     expect(reviewSkill).toContain("helper (config-entry family): use up to 3 `linked_entities[]` from the canonical metadata item");
-    expect(reviewAgent).toContain("helper (config-entry family): `entry_id`");
-    expect(reviewAgent).toContain("helper (config-entry family): canonical metadata item (`entry_id`, `domain`, `title`, `state`, `linked_entities[]`)");
-    expect(reviewAgent).toContain("In Step 2, derive collision candidates from `linked_entities[]`, not from action extraction.");
-    expect(reviewAgent).toContain("helper (config-entry family): use up to 3 `linked_entities[]` from `{CONFIG}`");
   });
 
   it("documents contributor-facing taxonomy entry points", () => {
@@ -123,7 +115,6 @@ describe("review contract", () => {
     expect(reviewChecks).toContain("Templated event name");
     expect(reviewChecks).toContain("`event_type:` does not evaluate templates");
     expect(reviewSkill).toContain("R-01..R-24");
-    expect(reviewAgent).toContain("R-01..R-24");
     expect(architectureDoc).toContain("R-01..R-24");
     expect(templateGuidelines).toContain("Event trigger names must be literal strings");
     expect(templateGuidelines).toContain("do not template `event_type:`");
@@ -137,7 +128,6 @@ describe("review contract", () => {
     expect(reviewChecks).toContain("`recompute/reset`");
     expect(reviewChecks).toContain("fixed preset branches");
     expect(reviewSkill).toContain("R-17 is an intra-config branch comparison only");
-    expect(reviewAgent).toContain("Do not derive it from collision-scan matches");
     expect(architectureDoc).toContain("R-17` is intra-config only");
   });
 
@@ -156,8 +146,6 @@ describe("review contract", () => {
     expect(reviewSkill).toContain("future write fragility");
     expect(reviewSkill).toContain("persisted runtime risk");
     expect(reviewSkill).toContain("concrete variable pair");
-    expect(reviewAgent).toContain("Traverse all `variables:` mappings");
-    expect(reviewAgent).toContain("persisted runtime risk");
     expect(templateGuidelines).toContain("Do not rely on sibling-variable order inside one `variables:` mapping");
     expect(templateGuidelines).toContain("self-contained template with internal `{% set %}`");
     expect(templateGuidelines).toContain("ordered `variables` actions");
@@ -172,7 +160,6 @@ describe("review contract", () => {
     expect(reviewChecks).toContain("Do not flag bare boolean comparisons");
     expect(reviewChecks).toContain("`is sameas true`");
     expect(reviewSkill).toContain("R-23 applies only to boolean-like templates");
-    expect(reviewAgent).toContain("R-23` applies only to boolean-like templates");
     expect(writeSkill).toContain("If R-23 matches");
     expect(architectureDoc).toContain("`R-23` catches boolean-like templates");
   });
@@ -183,7 +170,6 @@ describe("review contract", () => {
     expect(reviewChecks).toContain("Available charge may not be nominal or maximum battery capacity");
     expect(reviewChecks).toContain("Do not assume a specific integration");
     expect(reviewSkill).toContain("R-24 is advisory only");
-    expect(reviewAgent).toContain("R-24` is advisory only");
     expect(writeSkill).toContain("If R-24 matches");
     expect(architectureDoc).toContain("`R-24` is a low-severity capacity-source advisory");
   });
@@ -205,7 +191,6 @@ describe("review contract", () => {
     expect(reviewChecks).toContain("refactor to `choose` + `condition: trigger`");
     expect(reviewSkill).toContain("R-19 applies only to Jinja2 chains with `if` plus at least one `elif`");
     expect(reviewSkill).toContain("final else branch is only reached when the earlier entity-state branches are false");
-    expect(reviewAgent).toContain("terminal bare `else` that contains a direct `trigger.id` comparison");
     expect(architectureDoc).toContain("`R-19` is branch-structure reachability only");
     expect(templateGuidelines).toContain("Direct `trigger.id` check in a terminal bare `else`");
   });
@@ -266,16 +251,13 @@ describe("review contract", () => {
     expect(reviewSkill).toContain("Design-intent gate for remove/simplify ideas");
     expect(reviewSkill).toContain("treat existing logic as deliberate until proven otherwise");
     expect(reviewSkill).toContain("downgrade the idea into Questions to consider");
-    expect(reviewAgent).toContain("valid evidence stays local to the current review context");
-    expect(reviewAgent).toContain("if purpose is unclear, move the item into Questions to consider instead of Suggestions");
   });
   it("keeps standalone config-entry helper review aligned to the 9 helper-owned domains", () => {
     expect(reviewSkill).toContain("supported config-entry family: domain is one of `utility_meter`, `derivative`, `integration`, `min_max`, `threshold`, `tod`, `statistics`, `group`, `history_stats`");
     expect(reviewSkill).toContain("Helper (config-entry family): minimal config-entry review");
-    expect(reviewAgent).toContain("**Helper (config-entry family):** minimal config-entry review");
   });
 
-  it("keeps standalone bulk review separate from post-write review-agent output", () => {
+  it("keeps standalone bulk review separate from post-write output", () => {
     expect(reviewSkill).toContain("Bulk Mode Gate");
     expect(reviewSkill).toContain("For resolved targets `> 1`, return exactly these 6 sections");
     expect(reviewSkill).toContain("Section 2 — Summary");
@@ -303,15 +285,5 @@ describe("review contract", () => {
     expect(reviewSkill).toContain("Section 6 — Suggestions");
     expect(reviewSkill).toContain("Section 7 — Summary");
     expect(reviewSkill).toContain("Section 8 — Instant help");
-    expect(reviewAgent).toContain("This agent is for single-target review only.");
-    expect(reviewAgent).toContain("Ignore the separate bulk-review mode");
-    expect(reviewAgent).toContain("single-target standalone output format");
-    expect(reviewAgent).toContain("Section 5 — Questions to consider");
-    expect(reviewAgent).toContain("Section 7 — Summary");
-    expect(reviewAgent).toContain("Section 8 — Instant help");
-    // Post-write mode now omits empty sections instead of fixed numbered "none" headings.
-    expect(reviewAgent).toContain('never print an empty "none" bucket');
-    expect(reviewAgent).not.toContain('"No additional advisories."');
-    expect(reviewAgent).toContain("Do not emit Questions to consider or ranked standalone Suggestions in post-write mode.");
   });
 });

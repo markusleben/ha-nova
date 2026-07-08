@@ -39,7 +39,7 @@ Use file-based requests:
 1. Write final JSON with the client's native file-writing tool. Do not create placeholder templates and patch them later with `perl -0pi`, `sed -i`, or similar rewrites.
 2. Run `ha-nova relay ws --data-file <payload-file>`.
 3. Use `ha-nova relay core --method <METHOD> --path <PATH> --body-file <payload-file>`.
-4. Use `--jq-file <filter-file>` for complex filters and `--out <result-file>` for large responses. `relay jq` is single-input; compare files natively.
+4. Use `--jq-file <filter-file>` for complex filters and `--out <result-file>` for large responses. `ha-nova relay jq` is single-input; compare files natively.
 
 ## Flow
 

@@ -328,14 +328,6 @@ describe("best-practice patterns contract", () => {
       expect(reviewSkill).toContain("P-01..P-05");
     });
 
-    it("review-agent.md references P-01..P-05 range", () => {
-      const reviewAgent = readFileSync(
-        "skills/ha-nova/agents/review-agent.md",
-        "utf8",
-      );
-      expect(reviewAgent).toContain("P-01..P-05");
-    });
-
     it("skill-architecture.md references P-01..P-05 range", () => {
       const arch = readFileSync(
         "docs/reference/skill-architecture.md",
