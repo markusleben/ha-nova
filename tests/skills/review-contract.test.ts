@@ -114,8 +114,8 @@ describe("review contract", () => {
     expect(reviewChecks).toContain("R-16 [HIGH]");
     expect(reviewChecks).toContain("Templated event name");
     expect(reviewChecks).toContain("`event_type:` does not evaluate templates");
-    expect(reviewSkill).toContain("R-01..R-24");
-    expect(architectureDoc).toContain("R-01..R-24");
+    expect(reviewSkill).toContain("R-01..R-25");
+    expect(architectureDoc).toContain("R-01..R-25");
     expect(templateGuidelines).toContain("Event trigger names must be literal strings");
     expect(templateGuidelines).toContain("do not template `event_type:`");
   });
@@ -162,6 +162,29 @@ describe("review contract", () => {
     expect(reviewSkill).toContain("R-23 applies only to boolean-like templates");
     expect(writeSkill).toContain("If R-23 matches");
     expect(architectureDoc).toContain("`R-23` catches boolean-like templates");
+  });
+
+  it("documents the removed legacy template platform syntax as R-25", () => {
+    expect(reviewChecks).toContain("R-25 [HIGH]");
+    expect(reviewChecks).toContain("Legacy template platform syntax (removed in HA 2026.6)");
+    expect(reviewChecks).toContain("## R-25 Evidence Boundary");
+    // Pasted-YAML applicability guard: stored configs never carry this syntax.
+    expect(reviewChecks).toContain("Apply only when reviewing pasted or draft YAML");
+    expect(reviewChecks).toContain("do not fetch or scan `configuration.yaml`");
+    // Version fetch is on-demand only, never a routine per-review call.
+    expect(reviewChecks).toContain("only when this check actually fires");
+    expect(reviewChecks).toContain("`value_template` → `state`");
+    expect(reviewSkill).toContain("R-25 applies only to pasted or draft YAML");
+    expect(reviewSkill).toContain("phrase the finding version-sensitively");
+  });
+
+  it("documents the legacy automation key modernize advisory as M-05", () => {
+    expect(reviewChecks).toContain("M-05 [LOW]");
+    expect(reviewChecks).toContain("Legacy automation syntax keys");
+    expect(reviewChecks).toContain("renamed to `trigger:` in HA 2024.10");
+    // Advisory only — both forms still work; never an error, never a rewrite trigger.
+    expect(reviewChecks).toContain("never as an error, and never rewrite a config just to modernize");
+    expect(reviewSkill).toContain("M-05 is a modernize advisory");
   });
 
   it("documents capacity-like available_energy advisories as R-24", () => {

@@ -223,7 +223,7 @@ Traverse all `variables:` mappings in the config, not just the top-level block. 
 - Codes are internal only; NEVER show them in any user-facing message (reports, chat replies, follow-up questions) — describe findings in plain language instead
 
 **Apply these families by domain:**
-- Automation: S-01..S-03, R-01..R-24, P-01..P-05, M-01..M-03
+- Automation: S-01..S-03, R-01..R-25, P-01..P-05, M-01..M-05
 - Script: automation families plus F-01..F-08
 - Helper (storage-based family): H-01..H-10
 - Helper (config-entry family): minimal config-entry review
@@ -241,6 +241,8 @@ Traverse all `variables:` mappings in the config, not just the top-level block. 
 - For R-19 output, state: final else branch is only reached when the earlier entity-state branches are false. Move the `trigger.id` check into an explicit `elif`. Or refactor to `choose` + `condition: trigger`.
 - R-23 applies only to boolean-like templates compared to string boolean literals (`'True'`, `'true'`, `'False'`, `'false'`) in either comparison direction. Do not flag bare boolean checks such as `is true` or `== true`.
 - R-24 is advisory only and applies only when a capacity-like variable reads an `available_energy` source. Do not hard-code integration-specific replacement entities.
+- R-25 applies only to pasted or draft YAML containing domain-level `platform: template` blocks; configs read back from HA never carry this syntax. When it fires, fetch the HA version via `/api/config` on demand and phrase the finding version-sensitively (removed as of HA 2026.6; deprecated before that).
+- M-05 is a modernize advisory for legacy automation keys (`platform:` in triggers, singular `trigger:`/`condition:`/`action:` blocks). Mention once, never as an error, never rewrite just to modernize.
 
 **Live helper evidence for H-09/H-10:**
 - See `skills/review/checks.md` → Helper Threshold Evidence
