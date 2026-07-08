@@ -8,9 +8,9 @@ description: Use when listing, reading, creating, updating, or deleting Home Ass
 ## Scope
 
 Storage-scene lifecycle:
-- list scenes and show which ones are editable
-- read one scene config
-- create, update, delete storage scenes (what the HA scene editor stores in `scenes.yaml`)
+- list scenes with editability
+- read a scene config
+- create, update, delete storage scenes (what the HA editor stores in `scenes.yaml`)
 
 Not in scope:
 - activating scenes (`scene.turn_on`) — use `ha-nova:service-call`
@@ -29,11 +29,11 @@ Use file-based requests:
 - `ha-nova relay core --method <METHOD> --path <PATH> --body-file <payload-file>`
 - `--out <result-file>` for large responses, `--jq-file <filter-file>` for complex filters
 
-Relay-core response body is under `.data.body` (see `skills/ha-nova/relay-api.md` → Standard Envelope).
+Relay-core response body: `.data.body` (`skills/ha-nova/relay-api.md` → Standard Envelope).
 
 ## Editability Guard (critical)
 
-Only scenes with registry `platform: "homeassistant"` are editable through the scene config API. Integration-owned scenes (for example `platform: "hue"`) have no HA-side config — reads return 404 and writes must never be attempted. Resolve the platform BEFORE any config operation:
+Only registry `platform: "homeassistant"` scenes are editable through the scene config API. Integration-owned scenes (for example Hue) have no HA-side config — reads return 404 and writes must never be attempted. Resolve the platform BEFORE any config operation:
 
 Create `<payload-file>` with `{"type":"config/entity_registry/get","entity_id":"scene.<slug>"}`, then:
 ```text
@@ -45,7 +45,7 @@ ha-nova relay ws --data-file <payload-file> --out <registry-file>
 ## Flow
 
 ### List
-Create `<payload-file>` with `{"type":"config/entity_registry/list"}`, then:
+1. Registry: create `<payload-file>` with `{"type":"config/entity_registry/list"}`, then:
 ```text
 ha-nova relay ws --data-file <payload-file> --jq-file <filter-file> --out <result-file>
 ```
@@ -53,30 +53,31 @@ Write `<filter-file>` with:
 ```jq
 [.data[] | select(.entity_id | startswith("scene.")) | {entity_id, name: (.name // .original_name), platform, editable: (.platform == "homeassistant")}]
 ```
+2. Also read `/api/states` and append `scene.*` entities missing from the registry as `editable: false` — YAML scenes without an `id:` have no registry entry and are otherwise invisible to list, search, and the duplicate-name check.
 
 ### Read
 1. Resolve `unique_id` + platform (Editability Guard).
 2. `ha-nova relay core --method GET --path /api/config/scene/config/<unique_id> --out <result-file>`
-3. Present name, entities, and their captured target states. Flag captured entity_ids missing from the registry (renamed or deleted since capture — the scene applies partially with no error); offer removal, never preserve or drop silently.
+3. Present name, entities, and captured target states. Flag captured entity_ids missing from the registry (renamed or deleted since capture — the scene then applies partially, silently); offer removal, never preserve or drop silently.
 
 ### Create
-1. Resolve every entity the scene should capture (exact `entity_id`; on ambiguity ask one blocking question). Scenes take actionable domains only (light, switch, cover, climate, fan, media_player, lock, humidifier, `input_*`, ...); refuse read-only domains (sensor, binary_sensor, ...). If the registry already lists a scene with this name, ask before creating a duplicate. Read each entity's state; warn on `unknown`/`unavailable` and leave it out unless the user insists.
-2. Build the config body — `id` in the body MUST equal the id in the path; use the current epoch-milliseconds string as the new id (HA editor convention; POSIX example `date +%s000` — any unique numeric string works). The POST is an upsert: before creating, GET the id and require a 404 so an existing scene is never silently overwritten.
+1. Resolve every entity the scene should capture (exact `entity_id`; on ambiguity ask one blocking question). Scenes take actionable domains only (light, switch, cover, climate, fan, media_player, lock, humidifier, `input_*`, ...); refuse read-only domains (sensor, binary_sensor, ...). If the scene list (List flow, both sources) already has this name, ask before creating a duplicate. Read each entity's state; warn on `unknown`/`unavailable` and leave it out unless the user insists.
+2. Build the config body — `id` in the body MUST equal the id in the path; use the current epoch-milliseconds string as the new id (HA editor convention; POSIX example `date +%s000`). The POST is an upsert: before creating, GET the id and require a 404 so an existing scene is never silently overwritten.
    ```json
    {"id":"<epoch-ms>","name":"<name>","icon":"mdi:sofa","entities":{"<entity_id>":{"state":"on"}}}
    ```
-   `icon` is optional. Entity values are the target states (plus attributes) the scene applies when activated.
+   `icon` is optional. Entity values are the target states (plus attributes) applied on activation.
 3. **Capture attributes deliberately** (better than the HA editor, which grabs only state + brightness for lights):
    - light that is on: `state`, `brightness`, plus exactly ONE color attribute matching its `color_mode` (`color_temp_kelvin` OR `rgb_color`/`hs_color`) — never both, mixed color attributes reproduce wrong; an off light exposes no color attributes, capture `state: "off"` only
    - prefer individual lights over light-group entities — group snapshots are a known HA reproduce-state trouble spot
    - switch/lock/input_boolean: `state` only
-   - other domains: `state` plus clearly writable target attributes (for example cover position, climate temperature and `hvac_mode`); never copy measurement or diagnostic attributes
+   - other domains: `state` plus clearly writable target attributes (cover position, climate temperature, `hvac_mode`); never copy measurement or diagnostic attributes
 4. Preview name + full entities map; ask natural confirmation bound to this exact preview (see context skill → Active Preview Confirmation).
 5. `ha-nova relay core --method POST --path /api/config/scene/config/<id> --body-file <payload-file>`
 6. Read back via GET and verify the fields; the config API reloads scenes automatically. Resolve the new entity_id from the registry by matching `unique_id` to the config id (the entity_id derives from `name`, not the id; never guess the slug — the registry can lag the write by a moment, retry once), then confirm it via `/api/states/<entity_id>`.
 
 ### Create from current state ("save this room as a scene")
-Same as Create, but the entities map IS the live state: read each requested entity's state and copy it (attribute rules from Create step 3). Show which entities were captured with which values before confirming.
+Same as Create, but the entities map IS the live state: read each requested entity's state and copy it (attribute rules from Create step 3). Show captured entities and values before confirming.
 Persistence routing per `skills/ha-nova/best-practices.md` → Persistence Model: a stored scene is a static capture that never updates itself; `scene.create` snapshots and automation-driven save → modify → restore cycles hand off to `ha-nova:write` (helpers, not scenes).
 
 ### Update
@@ -88,7 +89,7 @@ Persistence routing per `skills/ha-nova/best-practices.md` → Persistence Model
 
 ### Delete
 1. Resolve id + platform (Editability Guard).
-2. Consumer check: `{"type":"search/related","item_type":"entity","item_id":"scene.<slug>"}` — show automations/scripts that reference the scene, or an explicit no-consumer result (an empty `data` object means no consumers).
+2. Consumer check: `{"type":"search/related","item_type":"entity","item_id":"scene.<slug>"}` — show referencing automations/scripts, or an explicit no-consumer result (an empty `data` object means no consumers).
 3. Require exact token confirmation `confirm:<token>` — generate a short token, display it in the Options slot, and proceed only when the user types it back exactly.
 4. `ha-nova relay core --method DELETE --path /api/config/scene/config/<id>`
 5. Verify absence: config GET returns status 404 and the entity is gone.
