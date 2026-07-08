@@ -123,9 +123,12 @@ func runUpdate(paths runtimePaths, args []string) int {
 		return 1
 	}
 	if err := commitInstall(); err != nil {
-		printHumanWarn("updated to v%s, but could not remove the previous install backup: %s", localVersion(paths), err)
+		printHumanWarn("updated to v%s, but could not remove the previous install backup: %s", targetVersion, err)
 	}
-	printHumanInfo("Updated to v%s", localVersion(paths))
+	// Report the staged target, not localVersion(): the still-running process
+	// may be the OLD (dev) binary whose compiled-in version predates the
+	// update (issue #245 showed "Updated to v0.7.1" while installing 0.8.0).
+	printHumanInfo("Updated to v%s", targetVersion)
 	return 0
 }
 

@@ -67,7 +67,11 @@ func installClaudePlugin(paths runtimePaths, sourceRoot string) error {
 			if strings.Contains(strings.ToLower(text), "not found") || strings.Contains(strings.ToLower(text), "not installed") {
 				installCmd := exec.Command("claude", "plugin", "install", "ha-nova@ha-nova")
 				if installOutput, installErr := installCmd.CombinedOutput(); installErr == nil {
-					return verifyClaudePluginInstalled(paths.Home, marketplaceRoot)
+					if verifyErr := verifyClaudePluginInstalled(paths.Home, marketplaceRoot); verifyErr != nil {
+						return verifyErr
+					}
+					cleanupClaudeMarketplaceDevResidue(paths, marketplaceRoot)
+					return nil
 				} else {
 					return restoreMarketplace(fmt.Errorf("claude plugin command failed: %s (%s)", strings.Join(installCmd.Args[1:], " "), strings.TrimSpace(string(installOutput))))
 				}
@@ -83,6 +87,9 @@ func installClaudePlugin(paths runtimePaths, sourceRoot string) error {
 			printHumanWarn("Claude marketplace backup cleanup skipped: %s", err)
 		}
 	}
+	// Only after the sync fully verified: earlier failure paths roll back to
+	// the previous (possibly dev) registration, which still needs its symlink.
+	cleanupClaudeMarketplaceDevResidue(paths, marketplaceRoot)
 	return nil
 }
 
