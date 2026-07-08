@@ -126,3 +126,4 @@ Default to a compact field summary, not raw registry JSON.
 - Metadata updates only; no destructive registry admin beyond area/floor/label/category delete.
 - Verify the changed field values, not just the WS success response.
 - If a delete impact preview is incomplete, say so explicitly before asking for confirmation.
+- Registry deletes are irreversible and have no `revert`. Before confirming a delete, say so plainly and point to Home Assistant Backups (Settings > System > Backups) as the recovery path.

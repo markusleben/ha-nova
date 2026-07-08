@@ -140,7 +140,7 @@ For create/update/delete:
 - `Verification`
 - `Next step`
 
-Use stable localized slot labels in this order for previews; omit empty slots, but do not invent ad-hoc headings.
+Use stable localized slot labels in this order; omit empty slots, do not invent ad-hoc headings.
 
 Do not dump the full dashboard JSON/YAML by default.
 
@@ -148,8 +148,8 @@ Do not dump the full dashboard JSON/YAML by default.
 
 - No guessed `url_path` or `dashboard_id` values.
 - Create/update uses natural confirmation after preview, bound to the exact displayed payload/diff (see context skill → Active Preview Confirmation).
-- Dashboard/resource/card delete uses exact token confirmation only, even for items created earlier in the same session.
-- If the requested change would require a broad re-layout instead of a targeted edit, say so before writing.
+- Dashboard/resource/card delete uses exact token confirmation only, even for items created earlier in the same session. Dashboard writes have no `revert`; the recovery path is Home Assistant Backups.
+- If the change needs a broad re-layout instead of a targeted edit, say so before writing.
 
 ## Guardrails
 
@@ -159,4 +159,4 @@ Do not dump the full dashboard JSON/YAML by default.
 - Never verify only by save success; always read back the dashboard.
 - Never probe a different dashboard's config just to infer behavior for the target dashboard.
 - Never invent a new custom-card schema just because a resource exists.
-- If the dashboard target is still ambiguous after one clarification, stop and explain the remaining ambiguity.
+- If the target stays ambiguous after one clarification, stop and explain.
