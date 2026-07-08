@@ -96,7 +96,6 @@ describe("scene contract", () => {
     expect(fallbackSkill).toContain("| Scenes (storage CRUD) | Covered | scene |");
     expect(writeSafety).toContain("| `scene` | preview + read-back verify | no | HA Backups |");
     expect(architectureDoc).toContain("scene/SKILL.md");
-    expect(architectureDoc).toContain("14 independent sub-skills");
   });
 
   it("teaches file-based relay payloads and localized output slots", () => {

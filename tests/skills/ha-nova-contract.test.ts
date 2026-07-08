@@ -407,6 +407,7 @@ describe("ha-nova contract", () => {
     const skills = [
       "skills/dashboard/SKILL.md",
       "skills/scene/SKILL.md",
+      "skills/todo/SKILL.md",
       "skills/organize/SKILL.md",
       "skills/history/SKILL.md",
       "skills/write/SKILL.md",
@@ -454,6 +455,7 @@ describe("ha-nova contract", () => {
       "skills/ha-nova/SKILL.md",
       "skills/dashboard/SKILL.md",
       "skills/scene/SKILL.md",
+      "skills/todo/SKILL.md",
       "skills/organize/SKILL.md",
       "skills/history/SKILL.md",
       "skills/write/SKILL.md",
@@ -480,6 +482,7 @@ describe("ha-nova contract", () => {
       "skills/ha-nova/SKILL.md",
       "skills/dashboard/SKILL.md",
       "skills/scene/SKILL.md",
+      "skills/todo/SKILL.md",
       "skills/organize/SKILL.md",
       "skills/history/SKILL.md",
       "skills/write/SKILL.md",
@@ -538,6 +541,7 @@ describe("ha-nova contract", () => {
     const skills = [
       "skills/dashboard/SKILL.md",
       "skills/scene/SKILL.md",
+      "skills/todo/SKILL.md",
       "skills/organize/SKILL.md",
       "skills/history/SKILL.md",
       "skills/write/SKILL.md",
@@ -559,6 +563,7 @@ describe("ha-nova contract", () => {
     const files = [
       "skills/dashboard/SKILL.md",
       "skills/scene/SKILL.md",
+      "skills/todo/SKILL.md",
       "skills/organize/SKILL.md",
       "skills/history/SKILL.md",
       "skills/read/SKILL.md",

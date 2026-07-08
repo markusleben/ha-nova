@@ -59,6 +59,7 @@ For every Relay-Ready call in this skill:
 | Statistics / Trend Queries | Covered | history |
 | System Health / Repairs | Covered | health |
 | Calendar Queries | Covered | calendar |
+| To-do Lists (items + Local To-do lifecycle) | Covered | todo |
 | Area / Floor CRUD | Covered | organize |
 | Label CRUD / Rich label metadata | Covered | organize |
 | Category CRUD / Entity category assignment | Covered | organize |

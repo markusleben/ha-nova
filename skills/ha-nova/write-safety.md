@@ -219,6 +219,7 @@ skill does not have; when only Backups remain, say so before the write.
 | `helper` config-entry family | diff only | no (multi-step options flow) | HA Backups |
 | `dashboard` | preview + read-back verify | no | HA Backups |
 | `scene` | preview + read-back verify | no | HA Backups |
+| `todo` | preview + read-back verify | no (list delete irreversible) | re-add items; HA Backups for lists |
 | `organize` | field preview | no (registry deletes irreversible) | HA Backups |
 | `service-call` | state-delta preview | no (runtime action, not config) | re-run corrective service call |
 | `fallback` (experimental writes) | payload preview + read-back verify | no | HA Backups |

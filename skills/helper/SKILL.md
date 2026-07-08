@@ -19,6 +19,7 @@ Not handled here:
 
 - other config-entry helper families:
   - `template`, `trend`, `random`, `filter`, `generic_thermostat`, `switch_as_x`, `generic_hygrostat`
+- `local_todo` list config entries (use `ha-nova:todo`)
 - automations/scripts config mutations (use `ha-nova:write`)
 
 ## Bootstrap (once per session)
