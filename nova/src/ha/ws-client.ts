@@ -18,6 +18,7 @@ export interface HaWsConnection {
     message: HaWsRequest,
     options?: { resubscribe?: boolean }
   ): Promise<() => void | Promise<void>>;
+  addEventListener?(event: "ready" | "disconnected", callback: () => void): void;
 }
 
 export interface HaWsClient {
@@ -52,6 +53,10 @@ export function createHaWsClient(options: HaWsClientOptions): HaWsClient {
   const requestTimeoutMs = options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
   let connection: HaWsConnection | undefined;
   let connectingPromise: Promise<HaWsConnection> | undefined;
+  // Tracked live state, not object existence: the underlying connection
+  // auto-reconnects and outlives HA outages, so `connection !== undefined`
+  // would report connected while HA is down.
+  let connected = false;
 
   return {
     async sendMessage<T>(message: HaWsRequest): Promise<T> {
@@ -194,7 +199,7 @@ export function createHaWsClient(options: HaWsClientOptions): HaWsClient {
       }
     },
     isConnected(): boolean {
-      return connection !== undefined;
+      return connected;
     }
   };
 
@@ -209,6 +214,15 @@ export function createHaWsClient(options: HaWsClientOptions): HaWsClient {
 
     try {
       connection = await connectingPromise;
+      connected = true;
+      // The connection reconnects on its own; only the tracked flag flips so
+      // /health stays truthful between requests without extra probes.
+      connection.addEventListener?.("disconnected", () => {
+        connected = false;
+      });
+      connection.addEventListener?.("ready", () => {
+        connected = true;
+      });
       return connection;
     } catch (error) {
       throw new HaWsClientError(
@@ -223,6 +237,7 @@ export function createHaWsClient(options: HaWsClientOptions): HaWsClient {
 
   function resetConnection(): void {
     connection = undefined;
+    connected = false;
   }
 }
 

@@ -1,15 +1,23 @@
 #!/usr/bin/env bash
-# Bump skill_version across all skill version-bearing files.
-# Does NOT touch config.yaml (Relay version) — managed independently.
+# Bump skill_version across all skill version-bearing files,
+# or the Relay version (nova/config.yaml) with --relay.
 # Usage: bash scripts/bump-version.sh 0.2.0
+#        bash scripts/bump-version.sh --relay 0.2.6
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+MODE="skill"
+if [[ "${1:-}" == "--relay" ]]; then
+  MODE="relay"
+  shift
+fi
 NEW_VERSION="${1:-}"
 
 if [[ -z "$NEW_VERSION" ]]; then
-  echo "Usage: $0 <new-version>"
-  echo "Example: $0 0.2.0"
+  echo "Usage: $0 [--relay] <new-version>"
+  echo "Example: $0 0.2.0          # skill version"
+  echo "Example: $0 --relay 0.2.6  # relay version (nova/config.yaml)"
   exit 1
 fi
 
@@ -21,6 +29,24 @@ fi
 if ! [[ "$NEW_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
   echo "Error: version must be semver (MAJOR.MINOR.PATCH), got: $NEW_VERSION"
   exit 1
+fi
+
+if [[ "$MODE" == "relay" ]]; then
+  CONFIG_YAML="$REPO_ROOT/nova/config.yaml"
+  if ! grep -qE '^version: "[0-9]+\.[0-9]+\.[0-9]+"$' "$CONFIG_YAML"; then
+    echo "Error: could not find a 'version: \"X.Y.Z\"' line in nova/config.yaml"
+    exit 1
+  fi
+  tmp=$(mktemp)
+  sed -E "s|^version: \"[0-9]+\.[0-9]+\.[0-9]+\"$|version: \"$NEW_VERSION\"|" "$CONFIG_YAML" > "$tmp" && mv "$tmp" "$CONFIG_YAML"
+  echo ""
+  echo "Bumped Relay version to $NEW_VERSION in nova/config.yaml"
+  echo ""
+  echo "Reminders:"
+  echo "  1. Add a '## [Relay $NEW_VERSION]' section to nova/CHANGELOG.md"
+  echo "  2. If skills depend on new relay behavior, raise min_relay_version in version.json"
+  echo "  3. npm test"
+  exit 0
 fi
 
 # 1. version.json (source of truth)

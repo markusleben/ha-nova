@@ -15,11 +15,23 @@ import (
 	"time"
 )
 
-var httpClient = &http.Client{
-	Timeout: 15 * time.Second,
-	Transport: &http.Transport{
-		DialContext: (&net.Dialer{Timeout: 5 * time.Second}).DialContext,
-	},
+const (
+	defaultRelayConnectTimeoutSeconds = 5
+	defaultRelayMaxTimeSeconds        = 15
+	// Mirrors the relay's own WS/REST response ceiling (256 MiB).
+	maxRelayResponseBytes = 256 << 20
+	relayVersionHeader    = "X-Ha-Nova-Relay-Version"
+)
+
+var httpClient = newRelayHTTPClient(defaultRelayConnectTimeoutSeconds, defaultRelayMaxTimeSeconds)
+
+func newRelayHTTPClient(connectTimeoutSeconds, maxTimeSeconds float64) *http.Client {
+	return &http.Client{
+		Timeout: time.Duration(maxTimeSeconds * float64(time.Second)),
+		Transport: &http.Transport{
+			DialContext: (&net.Dialer{Timeout: time.Duration(connectTimeoutSeconds * float64(time.Second))}).DialContext,
+		},
+	}
 }
 
 type relayRequestOptions struct {
@@ -41,7 +53,7 @@ func runRelayCommand(paths runtimePaths, args []string) int {
 
 	switch args[0] {
 	case "health":
-		return runHealth(paths)
+		return runHealth(paths, args[1:])
 	case "ws":
 		return runRelayProxy(paths, "ws", args[1:])
 	case "core":
@@ -185,12 +197,18 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 
 	resp, err := httpClient.Do(req)
 	if err != nil {
-		printErr("%s", err)
+		printErr("%s", relayConnectErrorMessage(cfg.RelayBaseURL, err))
 		return 1
 	}
 	defer resp.Body.Close()
 
-	bodyBytes, err := io.ReadAll(resp.Body)
+	if notice := checkRelayVersionValue(paths, resp.Header.Get(relayVersionHeader)); !notice.empty() {
+		if shouldWarnRelayOutdated(paths) {
+			printHumanNotice(notice)
+		}
+	}
+
+	bodyBytes, err := readAllLimited(resp.Body, maxRelayResponseBytes)
 	if err != nil {
 		printErr("%s", err)
 		return 1
@@ -258,7 +276,38 @@ func relayCoreUpstreamExitStatus(body []byte, strict bool) int {
 	return 0
 }
 
-func runHealth(paths runtimePaths) int {
+type healthOptions struct {
+	ConnectTimeoutSeconds float64
+	MaxTimeSeconds        float64
+}
+
+// parseHealthFlags accepts curl-compatible flag names so callers (session-start
+// hook) can bound the probe; previously these args were silently discarded and
+// the default 5s dial / 15s total timeouts blocked synchronous hooks on a dead
+// relay.
+func parseHealthFlags(args []string) (healthOptions, error) {
+	fs := flag.NewFlagSet("relay health", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	opts := healthOptions{}
+	fs.Float64Var(&opts.ConnectTimeoutSeconds, "connect-timeout", defaultRelayConnectTimeoutSeconds, "connection timeout in seconds")
+	fs.Float64Var(&opts.MaxTimeSeconds, "max-time", defaultRelayMaxTimeSeconds, "total request timeout in seconds")
+	if err := fs.Parse(args); err != nil {
+		return opts, err
+	}
+	if opts.ConnectTimeoutSeconds <= 0 || opts.MaxTimeSeconds <= 0 {
+		return opts, errors.New("--connect-timeout and --max-time must be positive seconds")
+	}
+	return opts, nil
+}
+
+func runHealth(paths runtimePaths, args []string) int {
+	healthOpts, err := parseHealthFlags(args)
+	if err != nil {
+		printErr("%s", err)
+		return 1
+	}
+	client := newRelayHTTPClient(healthOpts.ConnectTimeoutSeconds, healthOpts.MaxTimeSeconds)
+
 	cfg, err := loadConfig(paths)
 	if err != nil {
 		printErr("%s", err)
@@ -280,14 +329,14 @@ func runHealth(paths runtimePaths) int {
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := httpClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
-		printErr("%s", err)
+		printErr("%s", relayConnectErrorMessage(cfg.RelayBaseURL, err))
 		return 1
 	}
 	defer resp.Body.Close()
 
-	bodyBytes, err := io.ReadAll(resp.Body)
+	bodyBytes, err := readAllLimited(resp.Body, maxRelayResponseBytes)
 	if err != nil || len(bodyBytes) == 0 {
 		printErr("relay health check failed")
 		return 1
@@ -310,4 +359,42 @@ func runHealth(paths runtimePaths) int {
 		return 1
 	}
 	return 0
+}
+
+// readAllLimited mirrors the relay-side 256 MiB response ceiling so a
+// misbehaving upstream cannot make the CLI buffer unbounded output.
+func readAllLimited(r io.Reader, maxBytes int64) ([]byte, error) {
+	data, err := io.ReadAll(io.LimitReader(r, maxBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(data)) > maxBytes {
+		return nil, fmt.Errorf("relay response exceeded the %d-byte limit — narrow the request (filter, pagination, or a more specific path)", maxBytes)
+	}
+	return data, nil
+}
+
+func relayConnectErrorMessage(baseURL string, err error) string {
+	return fmt.Sprintf(
+		"cannot reach the NOVA Relay at %s: %s\nCheck that the NOVA Relay App is running in Home Assistant, then run: ha-nova doctor",
+		strings.TrimRight(baseURL, "/"), err,
+	)
+}
+
+// shouldWarnRelayOutdated throttles the ws/core outdated-relay warning to one
+// per hour across CLI invocations; skill flows issue many relay calls in a
+// row and must not see the warning on every one. `relay health` and doctor
+// stay unthrottled as the explicit diagnostic paths.
+func shouldWarnRelayOutdated(paths runtimePaths) bool {
+	marker := filepath.Join(paths.CacheDir, "relay-outdated-warned")
+	if info, err := os.Stat(marker); err == nil && time.Since(info.ModTime()) < time.Hour {
+		return false
+	}
+	if err := os.MkdirAll(paths.CacheDir, 0o755); err != nil {
+		return true
+	}
+	if err := os.WriteFile(marker, []byte(time.Now().UTC().Format(time.RFC3339)+"\n"), 0o644); err != nil {
+		return true
+	}
+	return true
 }

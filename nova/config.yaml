@@ -1,5 +1,5 @@
 name: NOVA Relay
-version: "0.2.5"
+version: "0.2.6"
 slug: ha_nova_relay
 description: Thin Home Assistant relay for WS proxy and skill workflows
 url: https://github.com/markusleben/ha-nova
@@ -14,6 +14,8 @@ ports:
   8791/tcp: 8791
 ports_description:
   8791/tcp: Relay HTTP API
+# TCP liveness only: /health requires bearer auth, an HTTP watchdog would 401-loop.
+watchdog: tcp://[HOST]:[PORT:8791]
 homeassistant_api: true
 hassio_api: true
 hassio_role: default

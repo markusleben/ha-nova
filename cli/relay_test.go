@@ -206,3 +206,112 @@ func setupRelayProxyTest(t *testing.T, upstreamStatus int) runtimePaths {
 	}
 	return paths
 }
+
+func TestParseHealthFlagsDefaultsAndOverrides(t *testing.T) {
+	opts, err := parseHealthFlags(nil)
+	if err != nil {
+		t.Fatalf("parseHealthFlags(nil) error: %v", err)
+	}
+	if opts.ConnectTimeoutSeconds != defaultRelayConnectTimeoutSeconds || opts.MaxTimeSeconds != defaultRelayMaxTimeSeconds {
+		t.Fatalf("defaults = %+v, want connect %d / max %d", opts, defaultRelayConnectTimeoutSeconds, defaultRelayMaxTimeSeconds)
+	}
+
+	// curl-compatible flags from the session-start hook must take effect.
+	opts, err = parseHealthFlags([]string{"--connect-timeout", "1", "--max-time", "2"})
+	if err != nil {
+		t.Fatalf("parseHealthFlags(overrides) error: %v", err)
+	}
+	if opts.ConnectTimeoutSeconds != 1 || opts.MaxTimeSeconds != 2 {
+		t.Fatalf("overrides = %+v, want connect 1 / max 2", opts)
+	}
+
+	if _, err := parseHealthFlags([]string{"--max-time", "0"}); err == nil {
+		t.Fatal("parseHealthFlags(--max-time 0) expected error, got nil")
+	}
+}
+
+func TestReadAllLimitedEnforcesCeiling(t *testing.T) {
+	under, err := readAllLimited(strings.NewReader("abc"), 3)
+	if err != nil || string(under) != "abc" {
+		t.Fatalf("readAllLimited(at limit) = %q, %v; want abc, nil", under, err)
+	}
+
+	if _, err := readAllLimited(strings.NewReader("abcd"), 3); err == nil {
+		t.Fatal("readAllLimited(over limit) expected error, got nil")
+	} else if !strings.Contains(err.Error(), "exceeded") {
+		t.Fatalf("readAllLimited(over limit) error = %v, want mention of exceeded limit", err)
+	}
+}
+
+func TestShouldWarnRelayOutdatedThrottlesRepeatWarnings(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+
+	if !shouldWarnRelayOutdated(paths) {
+		t.Fatal("first shouldWarnRelayOutdated() = false, want true")
+	}
+	if shouldWarnRelayOutdated(paths) {
+		t.Fatal("second shouldWarnRelayOutdated() = true, want throttled false")
+	}
+}
+
+func TestRelayProxyWarnsOnOutdatedRelayVersionHeader(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING", "1")
+	t.Setenv("HA_NOVA_TEST_KEYRING_FILE", filepath.Join(home, ".test-relay-token"))
+
+	relayServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set(relayVersionHeader, "0.1.0")
+		w.Header().Set("content-type", "application/json")
+		_, _ = fmt.Fprint(w, `{"ok":true,"data":{"status":200,"body":{}}}`)
+	}))
+	t.Cleanup(relayServer.Close)
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(paths.VersionFile), 0o755); err != nil {
+		t.Fatalf("mkdir version dir: %v", err)
+	}
+	if err := os.WriteFile(paths.VersionFile, []byte(`{"skill_version":"0.8.0","min_relay_version":"0.2.0"}`), 0o644); err != nil {
+		t.Fatalf("write version file: %v", err)
+	}
+	if err := saveConfig(paths, runtimeConfig{
+		HAHost:       "127.0.0.1",
+		HAURL:        "http://127.0.0.1:8123",
+		RelayBaseURL: relayServer.URL,
+	}); err != nil {
+		t.Fatalf("saveConfig() error: %v", err)
+	}
+	if err := writeRelayAuthToken("test-token"); err != nil {
+		t.Fatalf("writeRelayAuthToken() error: %v", err)
+	}
+
+	exitCode, output := captureCommandOutput(t, func() int {
+		return runRelayProxy(paths, "core", []string{"--method", "GET", "--path", "/api/states"})
+	})
+	if exitCode != 0 {
+		t.Fatalf("runRelayProxy() exit = %d, want 0", exitCode)
+	}
+	if !strings.Contains(output, "Relay outdated: v0.1.0 is below minimum v0.2.0") {
+		t.Fatalf("expected outdated-relay warning in output, got: %q", output)
+	}
+
+	// Second call within the throttle window stays quiet.
+	exitCode, output = captureCommandOutput(t, func() int {
+		return runRelayProxy(paths, "core", []string{"--method", "GET", "--path", "/api/states"})
+	})
+	if exitCode != 0 {
+		t.Fatalf("second runRelayProxy() exit = %d, want 0", exitCode)
+	}
+	if strings.Contains(output, "Relay outdated") {
+		t.Fatalf("expected throttled second call without warning, got: %q", output)
+	}
+}

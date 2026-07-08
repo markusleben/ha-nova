@@ -69,8 +69,8 @@ if [[ -f "$version_file" ]]; then
 
   # --- Relay version check ---
   if command -v ha-nova >/dev/null 2>&1; then
-    # Relay CLI sets --connect-timeout 5 --max-time 15 by default;
-    # curl uses last-occurrence, so these overrides take effect.
+    # `relay health` accepts curl-compatible --connect-timeout/--max-time
+    # (seconds); keep this probe tight so a dead relay never blocks session start.
     health_json="$(ha-nova relay health --connect-timeout 1 --max-time 2 2>/dev/null || true)"
     if [[ -z "$health_json" ]]; then
       version_warning="[ha-nova] WARNING: Relay unreachable. Check relay status or run: ha-nova doctor\\n"

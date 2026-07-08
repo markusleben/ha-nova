@@ -29,6 +29,30 @@ describe("ha ws client", () => {
     expect(client.isConnected()).toBe(true);
   });
 
+  it("tracks upstream disconnected/ready events for isConnected", async () => {
+    const listeners: Record<string, () => void> = {};
+
+    const client = createHaWsClient({
+      createConnection: async () => ({
+        sendMessagePromise: async () => ({ ok: true }),
+        addEventListener: (event: "ready" | "disconnected", callback: () => void) => {
+          listeners[event] = callback;
+        }
+      })
+    });
+
+    await client.sendMessage({ type: "ping" });
+    expect(client.isConnected()).toBe(true);
+
+    // The underlying connection auto-reconnects and keeps its object alive
+    // through an HA outage — only the events may flip the health signal.
+    listeners["disconnected"]?.();
+    expect(client.isConnected()).toBe(false);
+
+    listeners["ready"]?.();
+    expect(client.isConnected()).toBe(true);
+  });
+
   it("maps connection failures to UPSTREAM_WS_CONNECT_ERROR", async () => {
     const client = createHaWsClient({
       createConnection: async () => {

@@ -9,6 +9,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic
 Recent changes are tracked in [GitHub releases](https://github.com/markusleben/ha-nova/releases)
 and merged PRs. This changelog will be updated with the next tagged relay version.
 
+## [Relay 0.2.6] - 2026-07-08
+
+### Fixed
+- **`/health` reports the real Home Assistant connection state** — `ha_ws_connected` previously only reflected whether a connection object existed; because the WebSocket client auto-reconnects, it stayed `true` while HA was down or restarting. The relay now tracks the connection's `ready`/`disconnected` events, so `/health` is truthful between requests without active probing.
+- **Bounded REST responses** — the `/core` proxy buffered upstream HA responses without a limit. Responses are now capped at the same 256 MiB ceiling as the WebSocket path, with an actionable error instead of unbounded memory growth.
+
+### Added
+- **Relay version response header** — `/ws` and `/core` responses carry `x-ha-nova-relay-version`, so the CLI can warn about an outdated relay during normal skill traffic (throttled), not only on explicit `relay health` runs.
+- **Supervisor watchdog** — the add-on config enables `watchdog: tcp://` port liveness so Home Assistant restarts a crashed relay automatically.
+
+### Changed
+- **Actionable upstream error text** — network failures toward HA (`UPSTREAM_HTTP_ERROR`) now include a remediation hint instead of only the raw fetch error.
+
 ## [Relay 0.2.5] - 2026-07-07
 
 ### Fixed
