@@ -185,9 +185,10 @@ Self-trigger / feedback loop = the automation triggers on an entity that it also
 - Apply only when reviewing pasted or draft YAML that contains a domain-level list item with `platform: template`. Stored automations, scripts, and helpers read back from HA never carry this syntax — do not fetch or scan `configuration.yaml` to hunt for it.
 - Version-sensitive phrasing: fetch the HA version via `ha-nova relay core --method GET --path /api/config` only when this check actually fires (never as a routine per-review call), then phrase the finding accordingly:
   - HA >= 2026.6: removed — the entities are silently gone (keep HIGH).
-  - HA < 2026.6: deprecated, still functional — recommend migrating before upgrading (report as MEDIUM wording).
+  - HA < 2026.6: deprecated, still functional — downgrade the finding to MEDIUM and recommend migrating before upgrading.
   - Version unavailable: state both outcomes conditionally.
 - Do not confuse with the config-entry `template` helper domain (`ha-nova:fallback`) or with `trigger: template` triggers — this check is only about `platform: template` under a domain key.
+- When R-25 pulls a pasted template block into review scope, apply the template-level reliability checks (R-01, R-11, R-23) to its templates as well — those defects survive the migration to modern syntax.
 - Migration hint shape (do not rewrite automatically; show the target shape):
   ```yaml
   template:
@@ -210,7 +211,7 @@ Self-trigger / feedback loop = the automation triggers on an entity that it also
 - M-02: Deprecated `service:` key instead of `action:`
 - M-03: `entity_id:` under `data:` instead of `target: entity_id:`
 - M-04: *retired — moved to Reliability as R-20*
-- M-05 [LOW]: Legacy automation syntax keys — `platform:` inside a trigger item (renamed to `trigger:` in HA 2024.10), or singular top-level `trigger:`/`condition:`/`action:` blocks (renamed to `triggers:`/`conditions:`/`actions:`). Both forms still work and auto-migrate when edited in the HA UI; this is a modernize advisory only. Mention it once per review, never as an error, and never rewrite a config just to modernize the keys.
+- M-05 [LOW]: Legacy automation syntax keys — `platform:` inside a trigger item (renamed to `trigger:` in HA 2024.10), or singular top-level `trigger:`/`condition:`/`action:` blocks (renamed to `triggers:`/`conditions:`/`actions:`). Both forms still work and auto-migrate when edited in the HA UI; this is a modernize advisory only. Mention it once per reviewed target (in bulk mode fold repeats into the Repeated Patterns section), never as an error, and never rewrite a config just to modernize the keys.
 
 ## Script-Specific (apply ONLY when domain is `script`, skip for automations)
 
