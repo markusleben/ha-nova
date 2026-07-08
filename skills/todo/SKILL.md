@@ -7,15 +7,15 @@ description: Use when listing, reading, or managing Home Assistant to-do lists a
 
 ## Scope
 
-To-do lists and their items:
+To-do lists and items:
 - discover lists, read items
 - add, rename, complete, update, remove items; clear completed
-- create and delete Local To-do lists
+- create/delete Local To-do lists
 
 Not in scope:
-- calendar events (`ha-nova:calendar`)
+- calendar events: `ha-nova:calendar`
 - shopping-list legacy integration specifics beyond its `todo.*` entity
-- automations acting on lists (`ha-nova:write`)
+- automations acting on lists: `ha-nova:write`
 
 ## Bootstrap (once per session)
 
@@ -24,7 +24,7 @@ If this fails: `ha-nova setup`
 
 ## Relay Contract
 
-File-based requests:
+File-based:
 - `ha-nova relay core --method POST --path <service-path> --body-file <payload-file>`
 - `--out <result-file>` for large responses
 
@@ -39,7 +39,7 @@ Providers differ (Local To-do supports everything; cloud providers often do not)
 | 1 | create item |
 | 2 | delete item |
 | 4 | update item |
-| 8 | move/reorder item |
+| 8 | move item |
 | 16 | set due date |
 | 32 | set due datetime |
 | 64 | set description |
@@ -49,7 +49,7 @@ If the operation or field is not in the mask, name the provider limitation and o
 ## Flow
 
 ### Discover lists
-`ha-nova relay core --method GET --path /api/states --out <result-file>`, then filter `todo.*`: entity_id, friendly_name, `state` (count of open items), `supported_features`. If more than one list plausibly matches the user's name, ask one blocking question — never guess between similar names.
+`ha-nova relay core --method GET --path /api/states --out <result-file>`, then filter `todo.*`: entity_id, friendly_name, `state` (open-item count), `supported_features`. If more than one list plausibly matches the user's name, ask one blocking question — never guess between similar names.
 
 ### Read items
 `todo.get_items` is a response service — the query parameter is mandatory, without it HA returns 400:
@@ -71,10 +71,10 @@ POST `/api/services/todo/update_item` with `item` = the `uid` from Read items (a
 No service exists — send WS `{"type":"todo/item/move","entity_id":"todo.<list>","uid":"<uid>","previous_uid":"<uid>"}` via `ha-nova relay ws --data-file <payload-file>`; omit `previous_uid` for the top; read back to confirm.
 
 ### Remove items
-1. Read items first and resolve exact `uid`s — removing a non-existent item is a raw HA error (400 or 500 by HA version), not a clean message.
+1. Read items first and resolve exact `uid`s — removing a non-existent item is a raw HA error (400 or 500 by version), not a clean message.
 2. POST `/api/services/todo/remove_item` with `item` (one or many uids).
-3. "Clear completed": POST `/api/services/todo/remove_completed_items` (no per-item resolution). If the conversation paused between preview and confirmation, re-read and re-preview the completed set first.
-4. Read back and confirm the new item count.
+3. "Clear completed": POST `/api/services/todo/remove_completed_items` with `{"entity_id":"todo.<list>"}` — the service requires the target; without it, nothing happens silently. After a conversation pause, re-read and re-preview the completed set first.
+4. Read back and confirm — for clear-completed, zero `completed` items remain; otherwise the expected item count.
 
 ### Create a list (Local To-do)
 1. Start the flow: POST `/api/config/config_entries/flow` with `{"handler":"local_todo"}` — the single step asks for `todo_list_name`.
@@ -85,10 +85,10 @@ Other providers configure lists in their own integration — point there instead
 
 ### Delete a list
 1. Resolve `entry_id` via the entity registry `config_entry_id` (WS `config/entity_registry/get`, see `skills/ha-nova/relay-api.md` → Registry Queries), never guess.
-2. **Domain gate:** read the config entry and proceed only if its `domain` is `local_todo`. For any other domain (shopping_list, Google Tasks, CalDAV, Alexa) the entry is the WHOLE integration, not one list — deleting it destroys every list and the account link; refuse and point to that integration's own management.
+2. **Domain gate:** read the config entry and proceed only if its `domain` is `local_todo`. For any other domain (shopping_list, Google Tasks, CalDAV, Alexa) the entry is the WHOLE integration, not one list — deleting it destroys every list plus the account link; refuse and point to that integration's own management.
 3. Deleting the entry destroys the list AND all its items irreversibly (Local To-do also deletes its stored file) — say so plainly, with the list's open-item count in the preview; require exact token confirmation `confirm:<token>` — generate a short token, display it in the Options slot, and proceed only when the user types it back exactly.
 4. DELETE `/api/config/config_entries/entry/<entry_id>`.
-5. Verify the entity is gone (states GET returns 404).
+5. Verify the entity is gone (states GET 404).
 
 ## Error Handling
 
@@ -96,12 +96,12 @@ Other providers configure lists in their own integration — point there instead
 - Item-service 400/500: the item does not exist (stale uid/summary) — re-read items instead of retrying.
 - Read-back missing a just-added item on a cloud provider (Google Tasks, CalDAV): sync lag, not failure — retry `get_items` once before reporting; never re-add.
 - HA has no recurring items — for "every week/day" requests, offer a scheduled automation calling `todo.add_item` (`ha-nova:write`).
-- Due datetimes use the HA instance timezone unless an offset is given; keep user-facing times in their local phrasing.
+- Due datetimes use the HA instance timezone unless an offset is given; phrase times for the user locally.
 - Full relay error taxonomy: `skills/ha-nova/relay-api.md` → Error Handling.
 
 ## Output Format
 
-Apply `skills/ha-nova/output-rules.md` to all user-facing output.
+Apply `skills/ha-nova/output-rules.md` to all output.
 
 - `List`
 - `Items` / `Planned change`
@@ -110,11 +110,11 @@ Apply `skills/ha-nova/output-rules.md` to all user-facing output.
 - `Verification`
 - `Next step`
 
-Use stable localized slot labels in this order; omit empty slots. Present items compactly (status, summary, due) — never raw JSON.
+Use stable localized slot labels in this order; omit empty slots. Present items compactly — never raw JSON.
 
 ## Safety
 
 - Item writes use natural confirmation after a compact preview; list deletion uses exact token confirmation only. Item removes are re-addable data edits, deliberately below the destructive token tier.
-- Item operations have no `revert`; removed items are gone — for bulk removals list what will be removed in the preview.
+- Item operations have no `revert`; removed items are gone — bulk removals list what will be removed in the preview.
 - Never guess uids or entry_ids; resolve via Read items / entity registry first.
 - One list per mutation; verify by reading back, not by service success alone.
