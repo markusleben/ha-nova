@@ -9,30 +9,36 @@ import (
 
 var hermesRequiredSkillDirs = []string{
 	"ha-nova",
+	"ha-nova-calendar",
 	"ha-nova-dashboard",
 	"ha-nova-entity-discovery",
 	"ha-nova-fallback",
+	"ha-nova-health",
 	"ha-nova-helper",
 	"ha-nova-history",
 	"ha-nova-onboarding",
 	"ha-nova-organize",
 	"ha-nova-read",
 	"ha-nova-review",
+	"ha-nova-scene",
 	"ha-nova-service-call",
 	"ha-nova-write",
 }
 
 var hermesLegacyRequiredSkillDirs = []string{
 	"ha-nova",
+	"calendar",
 	"dashboard",
 	"entity-discovery",
 	"fallback",
+	"health",
 	"helper",
 	"history",
 	"onboarding",
 	"organize",
 	"read",
 	"review",
+	"scene",
 	"service-call",
 	"write",
 }
