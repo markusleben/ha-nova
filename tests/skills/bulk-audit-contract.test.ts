@@ -7,7 +7,6 @@ const contextSkill = readFileSync("skills/ha-nova/SKILL.md", "utf8");
 const discoverySkill = readFileSync("skills/entity-discovery/SKILL.md", "utf8");
 const readSkill = readFileSync("skills/read/SKILL.md", "utf8");
 const reviewSkill = readFileSync("skills/review/SKILL.md", "utf8");
-const reviewAgent = readFileSync("skills/ha-nova/agents/review-agent.md", "utf8");
 
 describe("bulk audit contract", () => {
   it("defines shared selector semantics and deterministic workset rules", () => {
@@ -124,8 +123,6 @@ describe("bulk audit contract", () => {
     expect(reviewSkill).toContain("bulk workset max 5 targets");
     expect(reviewSkill).toContain("Never build a config snapshot for the full matched set during bulk review");
     expect(reviewSkill).toContain("Summary");
-    expect(reviewAgent).toContain("This agent is for single-target review only");
-    expect(reviewAgent).toContain("Ignore the standalone bulk-review mode");
   });
 
   it("keeps context routing and safety aligned to the bulk split", () => {

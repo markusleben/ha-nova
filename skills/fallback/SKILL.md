@@ -294,7 +294,7 @@ No HA WS endpoint has optimistic locking (no ETags, no version numbers). Last wr
 - Sending `lovelace/config/save` with a guessed or partial payload — this overwrites the ENTIRE dashboard config, destroying all other views and cards
 - Sending `energy/save_prefs` with a single source — this replaces the entire `energy_sources` list, deleting all existing sources
 - Probing write endpoints to "see what happens" — read the Relay-Ready section first
-- Skipping this skill and going straight to `relay ws`/`relay core` for unfamiliar operations
+- Skipping this skill and going straight to `ha-nova relay ws`/`ha-nova relay core` for unfamiliar operations
 - Using trial-and-error to discover payload schemas — search web for the WS type schema instead
 
 ## Error Handling

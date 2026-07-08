@@ -2,10 +2,12 @@
 
 Tiered policy for automation writes.
 
-## Snapshot Policy
+## BP Cache Policy
 
-- Snapshot file: `${HOME}/.cache/ha-nova/automation-bp-snapshot.json`
-- Snapshot fields:
+Freshness cache for best-practice research. Unrelated to `ha-nova snapshot` (update-revert, see `skills/ha-nova/write-safety.md`).
+
+- BP cache file: `${HOME}/.cache/ha-nova/automation-bp-snapshot.json`
+- BP cache fields:
   - `automation_bp_refreshed`
   - `automation_bp_refreshed_at`
   - `automation_bp_sources`
@@ -16,11 +18,11 @@ Tiered policy for automation writes.
 
 - Simple automation:
   - Complexity under 3 triggers and under 3 actions.
-  - Stale/missing snapshot => warning only.
+  - Stale/missing BP cache => warning only.
   - Continue with advisory note in preview.
 - Complex automation:
   - 3+ triggers or 3+ actions.
-  - Stale/missing snapshot => hard gate.
+  - Stale/missing BP cache => hard gate.
   - Main thread refresh required before apply.
 
 ## Refresh Scope (minimum)
@@ -34,7 +36,7 @@ Refresh step checks:
 ### How to Refresh
 
 1. Research current HA automation best practices via web search (target: `home-assistant.io/docs/automation` + recent release notes).
-2. Update the snapshot file with findings:
+2. Update the BP cache file with findings:
    Write `${HOME}/.cache/ha-nova/automation-bp-snapshot.json` with your native file-writing tool:
    ```json
    {
@@ -45,7 +47,7 @@ Refresh step checks:
    }
    ```
 3. Replace `YYYY-MM-DD...` with current timestamp, `2026.X` with the HA version the sources cover.
-4. Snapshot is now `fresh` for 30 days.
+4. The BP cache is now `fresh` for 30 days.
 
 ## Automation Mode Selection
 
@@ -158,8 +160,8 @@ triggers:
 
 ## Failure Semantics
 
-- Snapshot refresh failure on simple automation: continue with warning.
-- Snapshot refresh failure on complex automation: block apply.
+- BP cache refresh failure on simple automation: continue with warning.
+- BP cache refresh failure on complex automation: block apply.
 - Return structured failure with:
   - what failed
   - why
