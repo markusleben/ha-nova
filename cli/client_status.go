@@ -38,7 +38,7 @@ func evaluateClientStatus(paths runtimePaths, state installState, client clientR
 	if client.ID == "claude" && (claudeSnapshot.MarketplaceFound || claudeSnapshot.PluginFound) {
 		status.Configured = true
 	}
-	if client.ID == "hermes" && hermesLegacyBundlePresent(paths.Home) {
+	if client.ID == "hermes" && (hermesNamespacedContextPresent(paths.Home) || hermesLegacyBundlePresent(paths.Home)) {
 		status.Configured = true
 	}
 	status.RuntimeDetected = clientRuntimeDetectedForStatus(client.ID)

@@ -55,6 +55,14 @@ func hermesInstalledSkillName(skillName string) string {
 	return "ha-nova-" + skillName
 }
 
+// hermesNamespacedContextPresent reports whether ANY namespaced Hermes bundle
+// exists — every namespaced generation ships the context skill dir. It is the
+// configured/detection fingerprint (so stale pre-<new-skill> bundles are still
+// detected and resynced); hermesBundlePresent stays the strict readiness gate.
+func hermesNamespacedContextPresent(home string) bool {
+	return fileExists(filepath.Join(home, ".hermes", "skills", "ha-nova", "ha-nova", "SKILL.md"))
+}
+
 func hermesBundlePresent(home string) bool {
 	bundleRoot := filepath.Join(home, ".hermes", "skills", "ha-nova")
 	for _, skillDir := range hermesRequiredSkillDirs {
