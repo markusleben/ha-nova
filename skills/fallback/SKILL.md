@@ -71,7 +71,7 @@ For every Relay-Ready call in this skill:
 | Entity remove / Device config-entry detach | Relay-Ready | this skill |
 | Event Subscriptions | Roadmap Phase 1c | -- |
 | Template / YAML Sensors | Roadmap Phase 3 | -- |
-| Configuration Backups | Roadmap Phase 2 | -- |
+| Backups (status, create, inspect, delete) | Covered | backup |
 | Apps / Supervisor | External | -- |
 | HACS | External | -- |
 | Zigbee / Z-Wave Config | External | -- |
@@ -227,15 +227,6 @@ Define custom sensors using Jinja2 templates, REST endpoints, or shell commands.
 
 **Status:** Coming in Phase 3. Blocked by: No filesystem access in Relay (sensors defined in YAML files).
 **Workaround:** Create via HA UI: Settings > Devices & Services > Helpers (for template helpers) or add YAML manually.
-
-### Configuration Backups -- ROADMAP (Phase 2)
-
-Create and restore full configuration backups.
-
-**Search:** `home assistant backup restore api supervisor 2026`
-
-**Status:** Coming in Phase 2. Blocked by: No backup endpoint in Relay.
-**Workaround:** Use HA UI: Settings > System > Backups. Or use Supervisor API if HA OS.
 
 ## External Features
 

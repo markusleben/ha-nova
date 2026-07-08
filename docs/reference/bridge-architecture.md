@@ -8,7 +8,8 @@
 
 The Relay is a lean App that runs on the HA host and provides three capabilities
 that a remote Skill cannot: WebSocket proxy (implemented), REST core proxy (implemented),
-filesystem access (planned), backups (planned).
+filesystem access (planned). Backup lifecycle (status/create/inspect/delete) needs no
+dedicated endpoint — `ha-nova:backup` rides the existing `/ws` proxy (`backup/*`).
 
 ## Endpoints
 
@@ -26,7 +27,10 @@ POST /core
 POST /ws/subscribe
 ```
 
-### Phase 2 (+ Backups) — PLANNED, NOT IMPLEMENTED
+### Phase 2 (backup-file transfer) — PLANNED, NOT IMPLEMENTED
+
+Backup lifecycle is covered today via `/ws` (`ha-nova:backup`); this endpoint
+remains planned only for raw backup-file download/upload:
 
 ```
 POST /backups

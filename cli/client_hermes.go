@@ -13,6 +13,7 @@ import (
 // Extend it whenever a skill ships.
 var hermesRequiredSkillDirs = []string{
 	"ha-nova",
+	"ha-nova-backup",
 	"ha-nova-calendar",
 	"ha-nova-dashboard",
 	"ha-nova-entity-discovery",

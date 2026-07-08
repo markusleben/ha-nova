@@ -143,7 +143,7 @@ Observed locally on a real HA instance on 2026-03-19: raw WS `config_entries/flo
 | REST sensor YAML | `/config/ha_mcp/sensors/rest/*.yaml` | No config flow available |
 | Command line sensor YAML | `/config/ha_mcp/sensors/command_line/*.yaml` | No config flow available |
 | Patch configuration.yaml | `/config/configuration.yaml` | For `!include_dir_merge_list` entries |
-| Backups | `/data/backups/` | Planned backup support; no active Relay endpoint today |
+| Backups (raw file download/upload) | `/data/backups/` | Planned; lifecycle (status/create/inspect/delete) is covered via `/ws` `backup/*` (`ha-nova:backup`) |
 
 **Sensor types with config flow (no YAML needed):** SQL, Scrape, Template (limited)
 **YAML-only sensor types:** REST, Command Line
