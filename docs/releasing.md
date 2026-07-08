@@ -22,6 +22,23 @@ Hard rule:
 - never reuse an already published stable version
 - never create an RC/final tag whose base version is less than or equal to the latest published stable release
 
+## README and Release Notes
+
+`README.md` is stable release truth and is guarded by the `readme-release-gate`
+required check: a PR touching `README.md` passes only when `version.json`
+changes in the same PR (this release-prep PR) or a maintainer applies the
+`readme-stable:approved` label for corrections that describe the CURRENT
+stable release. Concretely:
+
+- unreleased feature/version claims collect in the active
+  `docs/work/<version>-release-body.md` draft, never in `README.md`
+- the release-prep PR carries ALL release-bound `README.md` edits plus the
+  version bump and the `.goreleaser.yml` release-notes update
+- merging the release-prep PR starts the RC/final tag sequence immediately
+  (AGENTS.md: the main-ahead-of-stable window stays minutes, not days)
+- after the release ships, archive the release-body draft to
+  `docs/archive/work/`
+
 ## Verify
 
 ```bash
