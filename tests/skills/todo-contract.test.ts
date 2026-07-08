@@ -39,6 +39,11 @@ describe("todo contract", () => {
     expect(todoSkill).toContain("`due_date` and `due_datetime` are mutually exclusive");
     // Reorder has no service — WS todo/item/move is the only path.
     expect(todoSkill).toContain('"type":"todo/item/move"');
+    // Every item-write body carries the entity_id target explicitly —
+    // entity services without a target are silent no-ops.
+    expect(todoSkill).toContain('`/api/services/todo/update_item` with `{"entity_id":"todo.<list>","item":"<uid>", ...}`');
+    expect(todoSkill).toContain('`/api/services/todo/remove_item` with `{"entity_id":"todo.<list>","item":[...]}`');
+    expect(todoSkill).toContain('`/api/services/todo/remove_completed_items` with `{"entity_id":"todo.<list>"}`');
   });
 
   it("domain-gates list deletion so integration entries are never deleted as lists", () => {

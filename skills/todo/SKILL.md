@@ -32,7 +32,7 @@ Relay-core response body: `.data.body` (`skills/ha-nova/relay-api.md` → Standa
 
 ## Feature Gate (critical)
 
-Providers differ (Local To-do supports everything; cloud providers often do not). Before any item write, read the list's `supported_features` from `/api/states/<todo_entity_id>` and gate the operation:
+Providers differ (Local To-do supports everything; cloud providers often do not). Before any item write, read `supported_features` from `/api/states/<todo_entity_id>` and gate the operation:
 
 | Bit | Feature |
 |---|---|
@@ -49,7 +49,7 @@ If the operation or field is not in the mask, name the provider limitation and o
 ## Flow
 
 ### Discover lists
-`ha-nova relay core --method GET --path /api/states --out <result-file>`, then filter `todo.*`: entity_id, friendly_name, `state` (open-item count), `supported_features`. If more than one list plausibly matches the user's name, ask one blocking question — never guess between similar names.
+`ha-nova relay core --method GET --path /api/states --out <result-file>`, then filter `todo.*`: entity_id, friendly_name, `state` (open-item count), `supported_features`. If several lists plausibly match the user's name, ask one blocking question — never guess between similar names.
 
 ### Read items
 `todo.get_items` is a response service — the query parameter is mandatory, without it HA returns 400:
@@ -65,14 +65,14 @@ Body: `{"entity_id":"todo.<list>","item":"<summary>","due_date":"YYYY-MM-DD","de
 - Read items back to confirm (get the new `uid`).
 
 ### Update / complete / rename
-POST `/api/services/todo/update_item` with `item` = the `uid` from Read items (a summary works but is ambiguous when duplicated — always prefer `uid`), plus any of `status` (`completed`/`needs_action`), `rename`, `due_date`/`due_datetime`, `description`.
+POST `/api/services/todo/update_item` with `{"entity_id":"todo.<list>","item":"<uid>", ...}` — `item` = the `uid` from Read items (a summary works but is ambiguous when duplicated — always prefer `uid`), plus any of `status` (`completed`/`needs_action`), `rename`, `due_date`/`due_datetime`, `description`.
 
 ### Reorder items (feature bit 8)
 No service exists — send WS `{"type":"todo/item/move","entity_id":"todo.<list>","uid":"<uid>","previous_uid":"<uid>"}` via `ha-nova relay ws --data-file <payload-file>`; omit `previous_uid` for the top; read back to confirm.
 
 ### Remove items
 1. Read items first and resolve exact `uid`s — removing a non-existent item is a raw HA error (400 or 500 by version), not a clean message.
-2. POST `/api/services/todo/remove_item` with `item` (one or many uids).
+2. POST `/api/services/todo/remove_item` with `{"entity_id":"todo.<list>","item":[...]}` (one or many uids).
 3. "Clear completed": POST `/api/services/todo/remove_completed_items` with `{"entity_id":"todo.<list>"}` — the service requires the target; without it, nothing happens silently. After a conversation pause, re-read and re-preview the completed set first.
 4. Read back and confirm — for clear-completed, zero `completed` items remain; otherwise the expected item count.
 
@@ -116,5 +116,5 @@ Use stable localized slot labels in this order; omit empty slots. Present items 
 
 - Item writes use natural confirmation after a compact preview; list deletion uses exact token confirmation only. Item removes are re-addable data edits, deliberately below the destructive token tier.
 - Item operations have no `revert`; removed items are gone — bulk removals list what will be removed in the preview.
-- Never guess uids or entry_ids; resolve via Read items / entity registry first.
+- Never guess uids or entry_ids; resolve via Read items / registry first.
 - One list per mutation; verify by reading back, not by service success alone.
