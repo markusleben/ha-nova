@@ -2,7 +2,7 @@
 
 ## Overview
 
-HA NOVA uses a flat skill layout with one context skill and 14 independent sub-skills under `skills/`.
+HA NOVA uses a flat skill layout with one context skill and 15 independent sub-skills under `skills/`.
 
 The repo skill tree is the single source of truth. Client installers adapt that same tree to each client's packaging rules:
 - Claude: plugin marketplace payload
@@ -35,6 +35,7 @@ skills/
   history/SKILL.md                      (ha-nova:history — bounded history/logbook/statistics reads)
   health/SKILL.md                       (ha-nova:health — read-only home status, repairs, system health)
   calendar/SKILL.md                     (ha-nova:calendar — read-only calendar lists and bounded event windows)
+  todo/SKILL.md                         (ha-nova:todo — to-do list items + Local To-do lifecycle)
   review/SKILL.md                       (ha-nova:review — config quality review + collision scan)
   entity-discovery/SKILL.md             (ha-nova:entity-discovery — entity lookup)
   service-call/SKILL.md                 (ha-nova:service-call — service calls + runtime control)
@@ -87,6 +88,7 @@ Current mapping:
 | history | inline | read-only bounded timeline lookups |
 | health | inline | read-only status aggregation, best-effort diagnostics |
 | calendar | inline | REST-only bounded calendar event reads |
+| todo | inline | service-based item CRUD with feature gate, single-step list flow |
 | review | inline | analysis is client-side, relay calls are reads only |
 | entity-discovery | inline | 1-2 calls, search + return |
 | service-call | inline | 2-3 calls, preview + execute |

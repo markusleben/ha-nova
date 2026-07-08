@@ -177,6 +177,7 @@ Match user intent to exactly one skill:
 | show history, logbook timelines, or long-term statistics | `ha-nova:history` |
 | check home status, repairs, system health, integration issues, unavailable entities, or low batteries | `ha-nova:health` |
 | list calendars or show calendar events | `ha-nova:calendar` |
+| show, add, complete, update, remove to-do or shopping-list items; create/delete to-do lists | `ha-nova:todo` |
 | turn on/off, toggle, set, call a service | `ha-nova:service-call` |
 | enable/disable/trigger an automation | `ha-nova:service-call` |
 | find entities by name, room, area | `ha-nova:entity-discovery` |
@@ -206,6 +207,8 @@ Match user intent to exactly one skill:
 **"Show temperature trends for the last month"** → `ha-nova:history`
 **"Are there any repair issues?"** → `ha-nova:health`
 **"Why are devices unavailable?"** → `ha-nova:health`
+**"Add milk to my shopping list"** → `ha-nova:todo`
+**"What's on my to-do list?"** → `ha-nova:todo`
 **"Show my calendars"** → `ha-nova:calendar`
 **"What's on my calendar this week?"** → `ha-nova:calendar`
 **"Review all automations in area Area Alpha"** → `ha-nova:review` (area-first aggregate review when more than one target resolves)
