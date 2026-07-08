@@ -183,7 +183,11 @@ Self-trigger / feedback loop = the automation triggers on an entity that it also
 ## R-25 Evidence Boundary
 
 - Apply only when reviewing pasted or draft YAML that contains a domain-level list item with `platform: template`, or a bare top-level list whose items carry `platform: template` — pasted contents of an `!include` file (for example `sensors.yaml`) have no wrapping domain key but define the same removed entities. Stored automations, scripts, and helpers read back from HA never carry this syntax — do not fetch or scan `configuration.yaml` to hunt for it.
-- Bare-list items count only when they are entity-shaped: the item carries a per-entity map (`sensors:`, `binary_sensors:`, `switches:`, `covers:`, `fans:`, `lights:`, `locks:`, `vacuums:`) or the user names an entity include (such as `sensors.yaml`). A bare `- platform: template` item with only trigger fields (for example a direct `value_template:` and no per-entity map) is a legacy template trigger from a trigger include — that is M-05 territory, never R-25.
+- Bare-list items count only when they are entity-shaped, meaning any of:
+  - the item carries a per-entity map: `sensors:`, `binary_sensors:`, `switches:`, `covers:`, `fans:`, `lights:`, `locks:`, `vacuums:`, or `panels:` (legacy alarm_control_panel)
+  - the item carries legacy weather template fields directly (for example `condition_template:`, `temperature_template:`)
+  - the user names an entity include (such as `sensors.yaml` or `weather.yaml`)
+  A bare `- platform: template` item whose only template field is a direct `value_template:` (no per-entity map, no weather fields) is a legacy template trigger from a trigger include — that is M-05 territory, never R-25.
 - Version-sensitive phrasing: fetch the HA version via `ha-nova relay core --method GET --path /api/config` only when this check actually fires (never as a routine per-review call), then phrase the finding accordingly:
   - HA >= 2026.6: removed — the entities are silently gone (keep HIGH).
   - HA 2025.12 to 2026.5: deprecated, still functional — downgrade the finding to MEDIUM and recommend migrating before upgrading.
