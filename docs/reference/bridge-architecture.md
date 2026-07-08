@@ -27,10 +27,12 @@ POST /core
 POST /ws/subscribe
 ```
 
-### Phase 2 (backup-file transfer) — PLANNED, NOT IMPLEMENTED
+### Phase 2 (config-snapshot store) — PLANNED, NOT IMPLEMENTED
 
-Backup lifecycle is covered today via `/ws` (`ha-nova:backup`); this endpoint
-remains planned only for raw backup-file download/upload:
+HA SYSTEM backups (status/create/inspect/delete) are covered today via `/ws`
+(`ha-nova:backup`) and need no relay endpoint. This planned endpoint is a
+different thing: a relay-side store for CONFIG snapshots (see the
+`POST /backups` — Backup Management spec below):
 
 ```
 POST /backups
@@ -211,7 +213,11 @@ Security:
 - Symlink traversal check
 - Writes only in whitelisted directories (`/config/ha_mcp/`)
 
-### `POST /backups` — Backup Management
+### `POST /backups` — Backup Management (Phase 2, planned config-snapshot store)
+
+Relay-side storage for CONFIG snapshots (automation JSON, etc.) — distinct from
+HA system backups, which `ha-nova:backup` manages via `/ws` `backup/*` today.
+
 ```json
 // list
 { "action": "list", "category": "automations" }
