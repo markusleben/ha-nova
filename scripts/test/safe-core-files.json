@@ -26,6 +26,7 @@
   "tests/http/ws-proxy.test.ts",
   "tests/security/auth.test.ts",
   "tests/security/token-resolver.test.ts",
+  "tests/skills/backup-contract.test.ts",
   "tests/skills/best-practice-patterns-contract.test.ts",
   "tests/skills/bulk-audit-contract.test.ts",
   "tests/skills/ha-cross-skill-integration.test.ts",

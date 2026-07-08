@@ -178,6 +178,7 @@ Match user intent to exactly one skill:
 | check home status, repairs, system health, integration issues, unavailable entities, or low batteries | `ha-nova:health` |
 | list calendars or show calendar events | `ha-nova:calendar` |
 | show, add, complete, update, remove to-do or shopping-list items; create/delete to-do lists | `ha-nova:todo` |
+| check backup status, create a backup (also as a safety net before risky changes), inspect a backup's contents, delete backups | `ha-nova:backup` |
 | turn on/off, toggle, set, call a service | `ha-nova:service-call` |
 | enable/disable/trigger an automation | `ha-nova:service-call` |
 | find entities by name, room, area | `ha-nova:entity-discovery` |
@@ -208,6 +209,9 @@ Match user intent to exactly one skill:
 **"Are there any repair issues?"** → `ha-nova:health`
 **"Why are devices unavailable?"** → `ha-nova:health`
 **"Add milk to my shopping list"** → `ha-nova:todo`
+**"When was my last backup?"** → `ha-nova:backup`
+**"Make a backup before we change this"** → `ha-nova:backup` (then continue the original task)
+**"Restore a backup"** → `ha-nova:backup` explains why restore must run in the HA UI
 **"What's on my to-do list?"** → `ha-nova:todo`
 **"Show my calendars"** → `ha-nova:calendar`
 **"What's on my calendar this week?"** → `ha-nova:calendar`

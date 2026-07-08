@@ -210,7 +210,11 @@ Use `ha-nova snapshot show` to read the stored record (including
 ## Safety-Mechanism Availability by Skill
 
 Diff and revert coverage is deliberately uneven. Never imply a mechanism a
-skill does not have; when only Backups remain, say so before the write.
+skill does not have; when only Backups remain, say so before the write. For
+far-reaching changes (irreversible deletes, full-document overwrites, bulk
+operations) offer to create one first via `ha-nova:backup` — its safety-backup
+flow checks for a recent full backup before creating, because full backups are
+expensive. Never suggest a backup for routine small edits.
 
 | Skill / family | Pre-write diff | Update-revert | Fallback recovery path |
 |---|---|---|---|
