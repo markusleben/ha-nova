@@ -60,6 +60,18 @@ describe("scene contract", () => {
     expect(sceneSkill).toContain("never copy measurement or diagnostic attributes");
     expect(sceneSkill).toContain('### Create from current state ("save this room as a scene")');
     expect(sceneSkill).toContain("the entities map IS the live state");
+    // Persistence routing references the SSOT instead of restating it.
+    expect(sceneSkill).toContain("Persistence Model");
+    expect(sceneSkill).toContain("a stored scene is a static capture that never updates itself");
+    expect(sceneSkill).toContain("helpers, not scenes");
+    // Resilience: orphaned members, duplicate names, upsert protection.
+    expect(sceneSkill).toContain("renamed or deleted since capture");
+    expect(sceneSkill).toContain("offer removal, never preserve or drop silently");
+    expect(sceneSkill).toContain("ask before creating a duplicate");
+    expect(sceneSkill).toContain("require a 404 so an existing scene is never silently overwritten");
+    expect(sceneSkill).toContain("re-read and re-verify the merge basis before writing (last writer wins)");
+    // Scene entity state semantics: timestamp, unknown = never activated.
+    expect(sceneSkill).toContain("`unknown` means \"never activated\"");
     // Activation extras stay in service-call, but the skill teaches them.
     expect(sceneSkill).toContain("`scene.turn_on` supports `transition` (lights only)");
     expect(sceneSkill).toContain("`scene.apply`");

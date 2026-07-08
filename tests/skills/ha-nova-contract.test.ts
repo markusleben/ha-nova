@@ -417,8 +417,14 @@ describe("ha-nova contract", () => {
     // Default budget is 1000 words. write/ carries the most safety machinery —
     // the four-phase flow plus pre-write diff, pre-write impact, and durable
     // update-revert wiring — so it gets a slightly larger, documented budget.
-    // Everything else stays under 1000; this is a recalibration, not a removal.
-    const wordLimits: Record<string, number> = { "skills/write/SKILL.md": 1150 };
+    // scene/ carries the editability guard, upsert-overwrite protection,
+    // deliberate attribute-capture rules, and error/state semantics — that
+    // resilience content is the skill's value, so it gets a documented budget
+    // too. Everything else stays under 1000; recalibration, not removal.
+    const wordLimits: Record<string, number> = {
+      "skills/write/SKILL.md": 1150,
+      "skills/scene/SKILL.md": 1200,
+    };
     for (const file of skills) {
       const content = readFileSync(file, "utf8");
       const wordCount = content.trim().split(/\s+/).length;
