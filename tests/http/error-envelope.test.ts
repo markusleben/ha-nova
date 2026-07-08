@@ -92,16 +92,43 @@ describe("error envelope", () => {
       }
     });
   });
+
+  it("stamps the relay version header on success and error responses", async () => {
+    const { baseUrl } = await startServer(
+      servers,
+      (router) => {
+        router.register("GET", "/health", () => ({ status: "ok" }));
+        return router;
+      },
+      "0.2.6"
+    );
+
+    const success = await fetch(`${baseUrl}/health`, {
+      headers: {
+        authorization: `Bearer ${TEST_AUTH_TOKEN}`
+      }
+    });
+    expect(success.status).toBe(200);
+    expect(success.headers.get("x-ha-nova-relay-version")).toBe("0.2.6");
+
+    // Error paths (including auth failures) carry the header too, so the CLI
+    // can always evaluate relay freshness.
+    const unauthorized = await fetch(`${baseUrl}/health`);
+    expect(unauthorized.status).toBe(401);
+    expect(unauthorized.headers.get("x-ha-nova-relay-version")).toBe("0.2.6");
+  });
 });
 
 async function startServer(
   servers: Array<ReturnType<typeof createHttpServer>>,
-  configure: (router: ReturnType<typeof createRouter>) => ReturnType<typeof createRouter>
+  configure: (router: ReturnType<typeof createRouter>) => ReturnType<typeof createRouter>,
+  version?: string
 ): Promise<{ baseUrl: string }> {
   const router = configure(createRouter());
   const server = createHttpServer({
     authToken: TEST_AUTH_TOKEN,
-    router
+    router,
+    ...(version !== undefined ? { version } : {})
   });
 
   servers.push(server);

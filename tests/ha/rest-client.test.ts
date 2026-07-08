@@ -118,8 +118,77 @@ describe("ha rest client", () => {
       })
     ).rejects.toMatchObject({
       code: "UPSTREAM_HTTP_ERROR",
-      message: "network down"
+      // The raw error stays first; the appended hint tells the agent what to check.
+      message: "network down — check that Home Assistant is running and reachable from the NOVA Relay App"
     } satisfies Partial<HaRestClientError>);
+  });
+
+  it("rejects upstream responses above the configured size ceiling and cancels the body", async () => {
+    let upstreamCancelled = false;
+    const oversizedBody = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode("x".repeat(64)));
+        // Never closes on its own — a cooperative upstream that keeps sending.
+      },
+      cancel() {
+        upstreamCancelled = true;
+      }
+    });
+    const fetchMock = vi.fn(async () => {
+      return new Response(oversizedBody, {
+        status: 200,
+        headers: {
+          "content-type": "text/plain"
+        }
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = createHaRestClient({
+      baseUrl: "http://ha.local",
+      token: "upstream-token",
+      maxResponseBytes: 32
+    });
+
+    await expect(
+      client.request({
+        method: "GET",
+        path: "/api/states"
+      })
+    ).rejects.toMatchObject({
+      code: "UPSTREAM_HTTP_ERROR",
+      message: "HA response exceeded the 32-byte relay limit — narrow the request (filter, pagination, or a more specific path)"
+    } satisfies Partial<HaRestClientError>);
+    // The reader must cancel the stream so the upstream socket gets torn down.
+    expect(upstreamCancelled).toBe(true);
+  });
+
+  it("accepts upstream responses exactly at the size ceiling", async () => {
+    const fetchMock = vi.fn(async () => {
+      return new Response("x".repeat(32), {
+        status: 200,
+        headers: {
+          "content-type": "text/plain"
+        }
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = createHaRestClient({
+      baseUrl: "http://ha.local",
+      token: "upstream-token",
+      maxResponseBytes: 32
+    });
+
+    const response = await client.request({
+      method: "GET",
+      path: "/api/states"
+    });
+
+    expect(response).toEqual({
+      status: 200,
+      body: "x".repeat(32)
+    });
   });
 
   it("maps stalled upstream requests to HaRestClientError timeout", async () => {

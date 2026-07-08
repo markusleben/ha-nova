@@ -219,25 +219,35 @@ func checkRelayVersion(paths runtimePaths, healthBody []byte) humanNotice {
 	if json.Unmarshal(healthBody, &health) != nil || health.Version == "" {
 		return humanNotice{}
 	}
+	return checkRelayVersionValue(paths, health.Version)
+}
+
+// checkRelayVersionValue compares a bare relay version (from the /health body
+// or the relay's version response header on /ws and /core) against
+// min_relay_version.
+func checkRelayVersionValue(paths runtimePaths, relayVersion string) humanNotice {
+	if strings.TrimSpace(relayVersion) == "" {
+		return humanNotice{}
+	}
 
 	v, err := readVersionJSON(paths.VersionFile)
 	if err != nil || v.MinRelayVersion == "" {
 		return humanNotice{}
 	}
 
-	cmp, err := compareReleaseVersions(health.Version, v.MinRelayVersion)
+	cmp, err := compareReleaseVersions(relayVersion, v.MinRelayVersion)
 	if err != nil {
 		return humanNotice{
 			level:   humanNoticeWarning,
 			kind:    humanNoticeKindRelayOutdated,
-			message: fmt.Sprintf("Relay version check unavailable: unsupported relay version format (relay v%s, minimum v%s). Inform the user: update the NOVA Relay App in Home Assistant.", health.Version, v.MinRelayVersion),
+			message: fmt.Sprintf("Relay version check unavailable: unsupported relay version format (relay v%s, minimum v%s). Inform the user: update the NOVA Relay App in Home Assistant.", relayVersion, v.MinRelayVersion),
 		}
 	}
 	if cmp < 0 {
 		return humanNotice{
 			level:   humanNoticeWarning,
 			kind:    humanNoticeKindRelayOutdated,
-			message: fmt.Sprintf("Relay outdated: v%s is below minimum v%s. Inform the user: update the NOVA Relay App in Home Assistant.", health.Version, v.MinRelayVersion),
+			message: fmt.Sprintf("Relay outdated: v%s is below minimum v%s. Inform the user: update the NOVA Relay App in Home Assistant.", relayVersion, v.MinRelayVersion),
 		}
 	}
 	return humanNotice{}

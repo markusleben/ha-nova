@@ -70,7 +70,8 @@ export function createApp(options: AppOptions): App {
 
   const server = createHttpServer({
     authToken: options.authToken,
-    router
+    router,
+    version: options.version
   });
 
   return {

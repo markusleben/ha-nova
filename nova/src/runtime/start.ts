@@ -137,7 +137,8 @@ export function createDefaultWsClient(input: RuntimeWsClientInput): HaWsClient {
       const wrapped: HaWsConnection = {
         sendMessagePromise: (message: HaWsRequest) => connection.sendMessagePromise(message),
         subscribeMessage: (callback, message, options) =>
-          connection.subscribeMessage(callback, message, options)
+          connection.subscribeMessage(callback, message, options),
+        addEventListener: (event, callback) => connection.addEventListener(event, callback)
       };
 
       return wrapped;

@@ -29,6 +29,78 @@ describe("ha ws client", () => {
     expect(client.isConnected()).toBe(true);
   });
 
+  it("tracks upstream disconnected/ready events for isConnected", async () => {
+    const listeners: Record<string, () => void> = {};
+
+    const client = createHaWsClient({
+      createConnection: async () => ({
+        sendMessagePromise: async () => ({ ok: true }),
+        addEventListener: (event: "ready" | "disconnected", callback: () => void) => {
+          listeners[event] = callback;
+        }
+      })
+    });
+
+    await client.sendMessage({ type: "ping" });
+    expect(client.isConnected()).toBe(true);
+
+    // The underlying connection auto-reconnects and keeps its object alive
+    // through an HA outage — only the events may flip the health signal.
+    listeners["disconnected"]?.();
+    expect(client.isConnected()).toBe(false);
+
+    listeners["ready"]?.();
+    expect(client.isConnected()).toBe(true);
+  });
+
+  it("ignores events from a stale connection after reset", async () => {
+    const listenersByConnection: Array<Record<string, () => void>> = [];
+    let failNext = false;
+
+    const client = createHaWsClient({
+      createConnection: async () => {
+        const listeners: Record<string, () => void> = {};
+        listenersByConnection.push(listeners);
+        return {
+          sendMessagePromise: async () => {
+            if (failNext) {
+              failNext = false;
+              throw new Error("transport gone");
+            }
+            return { ok: true };
+          },
+          addEventListener: (event: "ready" | "disconnected", callback: () => void) => {
+            listeners[event] = callback;
+          }
+        };
+      }
+    });
+
+    await client.sendMessage({ type: "ping" });
+    failNext = true;
+    await expect(client.sendMessage({ type: "ping" })).rejects.toMatchObject({
+      code: "UPSTREAM_WS_ERROR"
+    } satisfies Partial<HaWsClientError>);
+    expect(client.isConnected()).toBe(false);
+
+    // Second connection becomes current.
+    await client.sendMessage({ type: "ping" });
+    expect(client.isConnected()).toBe(true);
+
+    // The abandoned first connection auto-reconnects in the background and
+    // keeps firing events — those must not flip the active signal.
+    listenersByConnection[0]?.["disconnected"]?.();
+    expect(client.isConnected()).toBe(true);
+    listenersByConnection[0]?.["ready"]?.();
+    expect(client.isConnected()).toBe(true);
+
+    // Events from the current connection still work.
+    listenersByConnection[1]?.["disconnected"]?.();
+    expect(client.isConnected()).toBe(false);
+    listenersByConnection[1]?.["ready"]?.();
+    expect(client.isConnected()).toBe(true);
+  });
+
   it("maps connection failures to UPSTREAM_WS_CONNECT_ERROR", async () => {
     const client = createHaWsClient({
       createConnection: async () => {

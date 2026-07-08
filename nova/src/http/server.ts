@@ -10,12 +10,20 @@ export interface HttpServerOptions {
   authToken: string;
   router: Router;
   maxJsonBodyBytes?: number;
+  version?: string;
 }
+
+// Lets CLI callers of /ws and /core detect an outdated relay without an
+// extra /health round-trip; /health remains the full health signal.
+export const RELAY_VERSION_HEADER = "x-ha-nova-relay-version";
 
 export function createHttpServer(options: HttpServerOptions): Server {
   const maxJsonBodyBytes = options.maxJsonBodyBytes ?? DEFAULT_MAX_JSON_BODY_BYTES;
 
   return createServer(async (request, response) => {
+    if (options.version) {
+      response.setHeader(RELAY_VERSION_HEADER, options.version);
+    }
     try {
       const authResult = authorizeRequest(request.headers.authorization, options.authToken);
       if (!authResult.ok) {

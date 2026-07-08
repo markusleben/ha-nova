@@ -18,6 +18,7 @@ export interface HaWsConnection {
     message: HaWsRequest,
     options?: { resubscribe?: boolean }
   ): Promise<() => void | Promise<void>>;
+  addEventListener?(event: "ready" | "disconnected", callback: () => void): void;
 }
 
 export interface HaWsClient {
@@ -52,6 +53,10 @@ export function createHaWsClient(options: HaWsClientOptions): HaWsClient {
   const requestTimeoutMs = options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
   let connection: HaWsConnection | undefined;
   let connectingPromise: Promise<HaWsConnection> | undefined;
+  // Tracked live state, not object existence: the underlying connection
+  // auto-reconnects and outlives HA outages, so `connection !== undefined`
+  // would report connected while HA is down.
+  let connected = false;
 
   return {
     async sendMessage<T>(message: HaWsRequest): Promise<T> {
@@ -194,7 +199,7 @@ export function createHaWsClient(options: HaWsClientOptions): HaWsClient {
       }
     },
     isConnected(): boolean {
-      return connection !== undefined;
+      return connected;
     }
   };
 
@@ -209,7 +214,23 @@ export function createHaWsClient(options: HaWsClientOptions): HaWsClient {
 
     try {
       connection = await connectingPromise;
-      return connection;
+      connected = true;
+      // The connection reconnects on its own; only the tracked flag flips so
+      // /health stays truthful between requests without extra probes.
+      // resetConnection() abandons rather than closes the old connection, so
+      // a stale one can keep firing events — guard on still being current.
+      const current = connection;
+      current.addEventListener?.("disconnected", () => {
+        if (connection === current) {
+          connected = false;
+        }
+      });
+      current.addEventListener?.("ready", () => {
+        if (connection === current) {
+          connected = true;
+        }
+      });
+      return current;
     } catch (error) {
       throw new HaWsClientError(
         "UPSTREAM_WS_CONNECT_ERROR",
@@ -223,6 +244,7 @@ export function createHaWsClient(options: HaWsClientOptions): HaWsClient {
 
   function resetConnection(): void {
     connection = undefined;
+    connected = false;
   }
 }
 
