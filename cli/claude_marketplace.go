@@ -167,6 +167,26 @@ func replaceClaudeMarketplaceRoot(targetRoot, stagedRoot string) error {
 	return nil
 }
 
+// cleanupClaudeMarketplaceDevResidue removes the dev-sync symlink at the
+// marketplace base root once a NON-dev (release snapshot) registration is
+// active. The symlink points at a developer checkout; the release
+// registration never uses it, and leaving it behind makes a restored
+// release install look dev-wired (issue #245). When the dev registration
+// itself is active (activeRoot == base root), the symlink IS the install
+// and stays untouched.
+func cleanupClaudeMarketplaceDevResidue(paths runtimePaths, activeRoot string) {
+	base := claudeMarketplaceBaseRoot(paths)
+	if filepath.Clean(activeRoot) == filepath.Clean(base) {
+		return
+	}
+	link := filepath.Join(base, "ha-nova")
+	info, err := os.Lstat(link)
+	if err != nil || info.Mode()&os.ModeSymlink == 0 {
+		return
+	}
+	_ = os.Remove(link)
+}
+
 func cleanupClaudeMarketplaceBackup(targetRoot string) error {
 	backupRoot := filepath.Clean(targetRoot) + ".backup"
 	if err := os.RemoveAll(backupRoot); err != nil && !os.IsNotExist(err) {

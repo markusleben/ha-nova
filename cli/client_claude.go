@@ -44,6 +44,7 @@ func installClaudePlugin(paths runtimePaths, sourceRoot string) error {
 	if err := ensureClaudeMarketplaceRegistration(paths.Home, marketplaceRoot); err != nil {
 		return restoreMarketplace(err)
 	}
+	cleanupClaudeMarketplaceDevResidue(paths, marketplaceRoot)
 
 	refreshArgs := []string{"plugin", "install", "ha-nova@ha-nova"}
 	alreadyInstalled := claudePluginInstalled(paths.Home)

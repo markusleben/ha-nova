@@ -628,3 +628,51 @@ func installClaudeMarketplaceMock(t *testing.T, logPath, failCommand string) str
 	}
 	return binDir
 }
+
+func TestCleanupClaudeMarketplaceDevResidue(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+
+	base := claudeMarketplaceBaseRoot(paths)
+	if err := os.MkdirAll(base, 0o755); err != nil {
+		t.Fatalf("MkdirAll(base) error: %v", err)
+	}
+	repo := t.TempDir()
+	link := filepath.Join(base, "ha-nova")
+	if err := os.Symlink(repo, link); err != nil {
+		t.Fatalf("Symlink() error: %v", err)
+	}
+	releaseRoot := filepath.Join(base, "releases", "v9.9.9")
+
+	// Release registration active: the dev symlink is residue and goes away.
+	cleanupClaudeMarketplaceDevResidue(paths, releaseRoot)
+	if _, err := os.Lstat(link); !os.IsNotExist(err) {
+		t.Fatalf("expected dev symlink removed after release registration, err=%v", err)
+	}
+
+	// Dev registration active (activeRoot == base): the symlink IS the
+	// install and must survive.
+	if err := os.Symlink(repo, link); err != nil {
+		t.Fatalf("Symlink() error: %v", err)
+	}
+	cleanupClaudeMarketplaceDevResidue(paths, base)
+	if _, err := os.Lstat(link); err != nil {
+		t.Fatalf("expected dev symlink kept for dev registration, err=%v", err)
+	}
+
+	// A real directory at the link path is never touched.
+	if err := os.Remove(link); err != nil {
+		t.Fatalf("Remove() error: %v", err)
+	}
+	if err := os.MkdirAll(link, 0o755); err != nil {
+		t.Fatalf("MkdirAll(dir) error: %v", err)
+	}
+	cleanupClaudeMarketplaceDevResidue(paths, releaseRoot)
+	if info, err := os.Stat(link); err != nil || !info.IsDir() {
+		t.Fatalf("expected real directory untouched, err=%v", err)
+	}
+}
