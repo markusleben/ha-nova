@@ -9,7 +9,7 @@ description: Use when listing, reading, creating, updating, or deleting Home Ass
 
 Storage-scene lifecycle:
 - list scenes with editability
-- read a scene config
+- read scene configs
 - create, update, delete storage scenes (what the HA editor stores in `scenes.yaml`)
 
 Not in scope:
@@ -67,9 +67,9 @@ Write `<filter-file>` with:
    {"id":"<epoch-ms>","name":"<name>","icon":"mdi:sofa","entities":{"<entity_id>":{"state":"on"}}}
    ```
    `icon` is optional. Entity values are the target states (plus attributes) applied on activation.
-3. **Capture attributes deliberately** (better than the HA editor, which grabs only state + brightness for lights):
-   - light that is on: `state`, `brightness`, plus exactly ONE color attribute matching its `color_mode` (`color_temp_kelvin` OR `rgb_color`/`hs_color`) — never both, mixed color attributes reproduce wrong; an off light exposes no color attributes, capture `state: "off"` only
-   - prefer individual lights over light-group entities — group snapshots are a known HA reproduce-state trouble spot
+3. **Capture attributes deliberately** (the HA editor grabs only state + brightness for lights):
+   - light that is on: `state`, `brightness`, plus exactly ONE color attribute matching its `color_mode` (`color_temp_kelvin`, `hs_color`, `rgb_color`, `xy_color`, `rgbw_color`, or `rgbww_color`) — never both, mixed color attributes reproduce wrong; an off light exposes no color attributes, capture `state: "off"` only
+   - prefer individual lights over light groups — group snapshots are a known HA reproduce-state trouble spot
    - switch/lock/input_boolean: `state` only
    - other domains: `state` plus clearly writable target attributes (cover position, climate temperature, `hvac_mode`); never copy measurement or diagnostic attributes
 4. Preview name + full entities map; natural confirmation bound to this exact preview (see context skill → Active Preview Confirmation).

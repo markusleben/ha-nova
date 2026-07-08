@@ -55,7 +55,9 @@ describe("scene contract", () => {
 
   it("captures attributes deliberately and supports save-current-state scenes", () => {
     expect(sceneSkill).toContain("**Capture attributes deliberately**");
-    expect(sceneSkill).toContain("`color_temp_kelvin` OR `rgb_color`/`hs_color`");
+    // All light color modes covered — xy/rgbw/rgbww lights would otherwise
+    // replay without their captured color/white-channel data.
+    expect(sceneSkill).toContain("`color_temp_kelvin`, `hs_color`, `rgb_color`, `xy_color`, `rgbw_color`, or `rgbww_color`");
     expect(sceneSkill).toContain('an off light exposes no color attributes, capture `state: "off"` only');
     expect(sceneSkill).toContain("never copy measurement or diagnostic attributes");
     expect(sceneSkill).toContain('### Create from current state ("save this room as a scene")');
