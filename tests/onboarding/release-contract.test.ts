@@ -53,13 +53,14 @@ describe("release contract", () => {
     expect(releaseWorkflow).not.toContain("dist/winget");
   });
 
-  it("keeps v0.8.0 release-facing wording user-centric", () => {
+  it("keeps v0.9.0 release-facing wording user-centric", () => {
     // Shipped release-note bodies are archived (docs/archive/work/) and
     // non-normative per documentation governance; only the active GoReleaser
     // template is contract-checked here.
-    expect(goreleaser).toContain("Setup wizard rework");
-    expect(goreleaser).toContain("run the install steps for this address, or stop with progress saved");
-    expect(goreleaser).toContain("NOVA Relay 0.2.5");
+    expect(goreleaser).toContain("Three new skills");
+    expect(goreleaser).toContain('"save this room as a scene"');
+    expect(goreleaser).toContain("restore deliberately stays in the Home Assistant UI");
+    expect(goreleaser).toContain("NOVA Relay 0.2.6");
     expect(goreleaser).toContain("Settings > Apps > NOVA Relay > Update");
     expect(goreleaser).not.toContain("Use `v0.7.1` or the latest release command");
   });

@@ -156,7 +156,7 @@ HA NOVA is early — and that's the point. Here's where it's going:
 
 ## 🧩 Skills
 
-13 task skills plus the HA NOVA context skill, each a markdown file you can read and edit.
+16 task skills plus the HA NOVA context skill, each a markdown file you can read and edit.
 
 | Skill | What it does |
 |:------|:-------------|
@@ -164,10 +164,13 @@ HA NOVA is early — and that's the point. Here's where it's going:
 | 📖 **read** | Inspect configs and debug why an automation didn't fire |
 | 🔍 **review** | Audit your setup for mistakes, conflicts, and reliability gaps |
 | 🧱 **dashboard** | Edit dashboards, cards, and Lovelace resources safely |
+| 🎬 **scene** | Create and manage scenes, including "save this room as a scene" |
 | 🗂️ **organize** | Manage areas, floors, labels, and entity metadata |
 | 🕒 **history** | Query history, logbook timelines, and long-term stats |
 | 🏠 **health** | Summarize Home Assistant status, repairs, integrations, system health, and noisy entities |
 | 📅 **calendar** | Read calendars and bounded event windows |
+| ✅ **todo** | Manage to-do and shopping-list items, create Local To-do lists |
+| 💾 **backup** | Check backup status, create backups — also as a safety net before risky changes |
 | 🎛️ **service-call** | Control lights, climate, covers, switches, and media players |
 | 🔎 **entity-discovery** | Find entities by name, room, area, or label |
 | 🧩 **helper** | Create and manage helpers: counters, timers, input booleans, more |
