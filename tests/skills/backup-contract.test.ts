@@ -51,11 +51,19 @@ describe("backup contract", () => {
     expect(backupSkill).toContain("Require `state: idle` first");
   });
 
-  it("wires the safety-backup flow into the write-safety recovery story", () => {
+  it("wires the safety-backup flow into the write-safety recovery story with proportionality", () => {
     expect(backupSkill).toContain("### Safety backup before risky changes");
-    expect(backupSkill).toContain("only proceed with the risky change after the backup completed");
+    expect(backupSkill).toContain("proceed with the risky change only after the backup completed");
     expect(writeSafety).toContain("offer to create one first via `ha-nova:backup`");
     expect(contextSkill).toContain('"Make a backup before we change this"** → `ha-nova:backup`');
+    // Full backups are expensive (GBs, tens of minutes) — never for small edits,
+    // and a recent existing full backup beats creating another.
+    expect(backupSkill).toContain("never suggest one for routine small edits");
+    expect(backupSkill).toContain("Check Status FIRST");
+    expect(backupSkill).toContain("say so instead of creating another");
+    expect(backupSkill).toContain("estimate size and duration from the newest full backup");
+    expect(writeSafety).toContain("Never suggest a backup for routine small edits");
+    expect(writeSafety).toContain("checks for a recent full backup before creating");
   });
 
   it("is wired into dispatch, capability map, and architecture doc — roadmap entry retired", () => {

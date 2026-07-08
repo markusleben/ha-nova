@@ -37,7 +37,7 @@ WS response body: `.data` (`skills/ha-nova/relay-api.md` → Standard Envelope).
 
 ### Create
 1. Read Status first; if `state` is not `idle`, a backup is already running — poll instead of starting another.
-2. Preview what will happen and ask natural confirmation (see context skill → Active Preview Confirmation).
+2. Preview what will happen — estimate size and duration from the newest full backup so the user decides informed — and ask natural confirmation (see context skill → Active Preview Confirmation).
 3. Primary path — the user's own settings (encryption, locations, scope): `{"type":"backup/generate_with_automatic_settings"}`.
 4. Fallback when that fails because automatic settings are not configured: `{"type":"backup/generate","name":"<name>","agent_ids":["<local-agent>"],"include_homeassistant":true,"include_database":true}`:
    - discover the local agent from Status `agents`: Supervised installs register `hassio.local`, Core installs `backup.local` — never hardcode
@@ -47,7 +47,10 @@ WS response body: `.data` (`skills/ha-nova/relay-api.md` → Standard Envelope).
 6. If Status afterwards shows the attempt failed (`last_action_event`/no new backup), report the failure — never claim success from initiation alone.
 
 ### Safety backup before risky changes
-Other skills name HA Backups as the recovery path (see `skills/ha-nova/write-safety.md` → Safety-Mechanism Availability). When the user is about to make a change with no `revert` and asks for a safety net — or accepts the offer — run Create first and only proceed with the risky change after the backup completed.
+Other skills name HA Backups as the recovery path (see `skills/ha-nova/write-safety.md` → Safety-Mechanism Availability). Proportionality rules:
+- Safety backups are for far-reaching changes only (irreversible deletes, full-document overwrites, bulk operations) — never suggest one for routine small edits. A full backup can be many GB and take a long time.
+- Check Status FIRST: when a recent completed full backup already covers the change (for example last night's automatic backup with no config changes since), say so instead of creating another.
+- Create a fresh one only when the user asks or accepts, or the last full backup is stale relative to what the change touches; then proceed with the risky change only after the backup completed.
 
 ### Inspect
 `{"type":"backup/details","backup_id":"<id>"}` → what is included (Home Assistant, database, add-ons, folders), which locations hold it, protected (encrypted) or not.
