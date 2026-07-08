@@ -406,6 +406,7 @@ describe("ha-nova contract", () => {
   it("keeps all operational subskills concise", () => {
     const skills = [
       "skills/dashboard/SKILL.md",
+      "skills/scene/SKILL.md",
       "skills/organize/SKILL.md",
       "skills/history/SKILL.md",
       "skills/write/SKILL.md",
@@ -446,6 +447,7 @@ describe("ha-nova contract", () => {
     const files = [
       "skills/ha-nova/SKILL.md",
       "skills/dashboard/SKILL.md",
+      "skills/scene/SKILL.md",
       "skills/organize/SKILL.md",
       "skills/history/SKILL.md",
       "skills/write/SKILL.md",
@@ -471,6 +473,7 @@ describe("ha-nova contract", () => {
     const allSkillFiles = [
       "skills/ha-nova/SKILL.md",
       "skills/dashboard/SKILL.md",
+      "skills/scene/SKILL.md",
       "skills/organize/SKILL.md",
       "skills/history/SKILL.md",
       "skills/write/SKILL.md",
@@ -528,6 +531,7 @@ describe("ha-nova contract", () => {
   it("enforces relay CLI bootstrap across all operational subskills", () => {
     const skills = [
       "skills/dashboard/SKILL.md",
+      "skills/scene/SKILL.md",
       "skills/organize/SKILL.md",
       "skills/history/SKILL.md",
       "skills/write/SKILL.md",
@@ -548,6 +552,7 @@ describe("ha-nova contract", () => {
   it("keeps active skills on a shell-agnostic relay contract", () => {
     const files = [
       "skills/dashboard/SKILL.md",
+      "skills/scene/SKILL.md",
       "skills/organize/SKILL.md",
       "skills/history/SKILL.md",
       "skills/read/SKILL.md",

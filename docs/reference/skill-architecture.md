@@ -2,7 +2,7 @@
 
 ## Overview
 
-HA NOVA uses a flat skill layout with one context skill and 13 independent sub-skills under `skills/`.
+HA NOVA uses a flat skill layout with one context skill and 14 independent sub-skills under `skills/`.
 
 The repo skill tree is the single source of truth. Client installers adapt that same tree to each client's packaging rules:
 - Claude: plugin marketplace payload
@@ -30,6 +30,7 @@ skills/
   write/SKILL.md                        (ha-nova:write — automation/script create/update/delete)
   helper/SKILL.md                       (ha-nova:helper — helper CRUD: list/read/create/update/delete)
   dashboard/SKILL.md                    (ha-nova:dashboard — storage dashboards, Lovelace resources, card operations)
+  scene/SKILL.md                        (ha-nova:scene — storage-scene list/read/create/update/delete)
   organize/SKILL.md                     (ha-nova:organize — areas/floors/labels/categories/entity+device metadata)
   history/SKILL.md                      (ha-nova:history — bounded history/logbook/statistics reads)
   health/SKILL.md                       (ha-nova:health — read-only home status, repairs, system health)
@@ -81,6 +82,7 @@ Current mapping:
 | write | **agents** | 5-7 calls, entity resolution fallback, singular/plural normalization, domain reload |
 | helper | inline | response-driven relay flows, direct preview/confirm loop, no agent-only normalization requirement |
 | dashboard | inline | read → merge → preview → full-save → readback verify, all user-facing |
+| scene | inline | 2-4 calls, flat entities payload, read → merge → preview → full-save → readback verify |
 | organize | inline | field-level registry mutations with direct preview/readback |
 | history | inline | read-only bounded timeline lookups |
 | health | inline | read-only status aggregation, best-effort diagnostics |
