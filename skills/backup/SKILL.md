@@ -40,7 +40,7 @@ WS response body: `.data` (`skills/ha-nova/relay-api.md` → Standard Envelope).
 2. Preview what will happen — estimate size and duration from the newest full backup so the user decides informed — and ask natural confirmation (see context skill → Active Preview Confirmation).
 3. Primary path — the user's own settings (encryption, locations, scope): `{"type":"backup/generate_with_automatic_settings"}`.
 4. Fallback when that fails because automatic settings are not configured: `{"type":"backup/generate","name":"<name>","agent_ids":["<local-agent>"],"include_homeassistant":true,"include_database":true}`:
-   - discover the local agent from Status `agents`: Supervised installs register `hassio.local`, Core installs `backup.local` — never hardcode
+   - discover the local agent via `{"type":"backup/agents/info"}`: Supervised installs register `hassio.local`, Core installs `backup.local` — never hardcode
    - add `"include_all_addons":true` ONLY for `hassio.local` (Core rejects add-on options)
    - if `backup/config/info` shows an encryption password configured, pass it as `password`; never invent one
 5. Both generate commands return when the job is INITIATED, not when it finishes. Poll `backup/info` every ~10 s until `state` returns to `idle` and a new backup appears in `backups`; then check the new backup's `failed_agent_ids` and `failed_addons`: if either is non-empty, report partial success — the backup exists but is missing from those locations or add-ons — never plain success. Otherwise report name, date, size, and locations. If still running after ~5 minutes, say the backup continues in the background and how to check later.
