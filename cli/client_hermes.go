@@ -7,21 +7,32 @@ import (
 	"strings"
 )
 
+// hermesRequiredSkillDirs is the CURRENT full skill set: it gates the
+// "attached/ready" signal, so a bundle predating a newly added skill reports
+// not-ready and gets re-synced instead of routing dispatch to a missing skill.
+// Extend it whenever a skill ships.
 var hermesRequiredSkillDirs = []string{
 	"ha-nova",
+	"ha-nova-calendar",
 	"ha-nova-dashboard",
 	"ha-nova-entity-discovery",
 	"ha-nova-fallback",
+	"ha-nova-health",
 	"ha-nova-helper",
 	"ha-nova-history",
 	"ha-nova-onboarding",
 	"ha-nova-organize",
 	"ha-nova-read",
 	"ha-nova-review",
+	"ha-nova-scene",
 	"ha-nova-service-call",
 	"ha-nova-write",
 }
 
+// hermesLegacyRequiredSkillDirs is a FROZEN fingerprint of the historical
+// unnamespaced bundle layout used to detect legacy installs for migration,
+// repair, and uninstall cleanup. Old installs can never contain later skills —
+// do NOT add new skills here or legacy detection stops firing entirely.
 var hermesLegacyRequiredSkillDirs = []string{
 	"ha-nova",
 	"dashboard",
@@ -42,6 +53,14 @@ func hermesInstalledSkillName(skillName string) string {
 		return "ha-nova"
 	}
 	return "ha-nova-" + skillName
+}
+
+// hermesNamespacedContextPresent reports whether ANY namespaced Hermes bundle
+// exists — every namespaced generation ships the context skill dir. It is the
+// configured/detection fingerprint (so stale pre-<new-skill> bundles are still
+// detected and resynced); hermesBundlePresent stays the strict readiness gate.
+func hermesNamespacedContextPresent(home string) bool {
+	return fileExists(filepath.Join(home, ".hermes", "skills", "ha-nova", "ha-nova", "SKILL.md"))
 }
 
 func hermesBundlePresent(home string) bool {

@@ -170,6 +170,8 @@ Match user intent to exactly one skill:
 | create, update, delete helpers | `ha-nova:helper` |
 | list, show, read dashboards, Lovelace resources, or dashboard structure | `ha-nova:dashboard` |
 | create, update, delete storage dashboards / Lovelace configs / Lovelace resources / dashboard cards | `ha-nova:dashboard` |
+| list, show, read, create, update, delete scenes | `ha-nova:scene` |
+| activate a scene | `ha-nova:service-call` |
 | organize areas, floors, labels, categories, devices, entities | `ha-nova:organize` |
 | assign or remove entity categories | `ha-nova:organize` |
 | show history, logbook timelines, or long-term statistics | `ha-nova:history` |
@@ -190,6 +192,8 @@ Match user intent to exactly one skill:
 **"Create an input_boolean"** → `ha-nova:helper` (NOT write)
 **"Show my helpers"** → `ha-nova:helper` (NOT read)
 **"Revert that"** / **"Undo the last change"** → re-invoke the skill that made it: `ha-nova:write` (automation/script) or `ha-nova:helper` (helper). `revert` is update-only and lives there (see `write-safety.md` → Update-Revert), never `ha-nova:fallback`; create cleanup uses delete flow, and delete rollback needs Backup/recreate.
+**"Create a scene called Movie Night"** → `ha-nova:scene`
+**"Activate the scene Movie Night"** → `ha-nova:service-call` (runtime action, not a config change)
 **"Show my main dashboard"** → `ha-nova:dashboard`
 **"Create a dashboard called Test Board"** → `ha-nova:dashboard`
 **"Delete the Test dashboard"** → `ha-nova:dashboard`

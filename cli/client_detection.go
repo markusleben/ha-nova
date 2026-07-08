@@ -16,7 +16,10 @@ func detectInstalledClients(paths runtimePaths) ([]string, error) {
 			continue
 		}
 		if entry.ID == "hermes" {
-			if status.RuntimeDetected && (status.Attached || hermesLegacyBundlePresent(paths.Home)) {
+			// Namespaced-context fingerprint keeps stale (pre-new-skill)
+			// bundles detectable when state.json is absent, so the no-state
+			// resync path can repair them.
+			if status.RuntimeDetected && (status.Attached || hermesNamespacedContextPresent(paths.Home) || hermesLegacyBundlePresent(paths.Home)) {
 				clients = append(clients, entry.ID)
 			}
 			continue

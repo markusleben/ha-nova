@@ -53,6 +53,7 @@ For every Relay-Ready call in this skill:
 | Service Calls | Covered | service-call |
 | Relay Setup | Covered | onboarding |
 | Dashboard / Lovelace (storage lifecycle, cards, resources) | Covered | dashboard |
+| Scenes (storage CRUD) | Covered | scene |
 | History Queries | Covered | history |
 | Logbook Queries | Covered | history |
 | Statistics / Trend Queries | Covered | history |

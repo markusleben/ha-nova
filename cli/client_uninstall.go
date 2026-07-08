@@ -14,7 +14,7 @@ func removeInstalledClients(paths runtimePaths, state installState) error {
 
 func removeInstalledClientsWithReport(paths runtimePaths, state installState, report *uninstallReport) error {
 	clients := append([]string{}, state.InstalledClients...)
-	if hermesBundlePresent(paths.Home) || hermesLegacyBundlePresent(paths.Home) {
+	if hermesNamespacedContextPresent(paths.Home) || hermesLegacyBundlePresent(paths.Home) {
 		clients = normalizeClients(append(clients, "hermes"))
 	}
 	if len(clients) == 0 {
