@@ -7,6 +7,10 @@ import (
 	"strings"
 )
 
+// hermesRequiredSkillDirs is the CURRENT full skill set: it gates the
+// "attached/ready" signal, so a bundle predating a newly added skill reports
+// not-ready and gets re-synced instead of routing dispatch to a missing skill.
+// Extend it whenever a skill ships.
 var hermesRequiredSkillDirs = []string{
 	"ha-nova",
 	"ha-nova-calendar",
@@ -25,20 +29,21 @@ var hermesRequiredSkillDirs = []string{
 	"ha-nova-write",
 }
 
+// hermesLegacyRequiredSkillDirs is a FROZEN fingerprint of the historical
+// unnamespaced bundle layout used to detect legacy installs for migration,
+// repair, and uninstall cleanup. Old installs can never contain later skills —
+// do NOT add new skills here or legacy detection stops firing entirely.
 var hermesLegacyRequiredSkillDirs = []string{
 	"ha-nova",
-	"calendar",
 	"dashboard",
 	"entity-discovery",
 	"fallback",
-	"health",
 	"helper",
 	"history",
 	"onboarding",
 	"organize",
 	"read",
 	"review",
-	"scene",
 	"service-call",
 	"write",
 }
