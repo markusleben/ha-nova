@@ -51,6 +51,7 @@ Load this catalog from `skills/review/SKILL.md` Step 1 before evaluating finding
 - R-22 [HIGH]: Restart-dependent restore from transient storage — a restore path is reachable from a Home Assistant startup trigger (`trigger: homeassistant` with `event: start`), but the state it restores was captured in a transient construct (`scene.create` runtime snapshot, automation/script `variables:`, `trigger_variables`, timer without `restore: true`). Transient constructs do not survive a restart, so the startup restore path silently does nothing or applies wrong values. Fix: persist the saved state in a helper (`input_number`, `input_text`, `input_select`, ...) or another persistent construct — see `skills/ha-nova/best-practices.md` → Persistence Model. See R-22 Evidence Boundary.
 - R-23 [MEDIUM]: Boolean-like template compared to a string literal — a template compares a boolean-like variable or expression to `'True'`, `"True"`, `'true'`, `"true"`, `'False'`, `"False"`, `'false'`, or `"false"`, including reversed comparisons such as `'True' == avg_valid`. Home Assistant traces can expose template variables as real booleans, so string comparison can make a valid plan evaluate false. Fix: use the boolean directly (`{{ avg_valid }}`), negate it directly (`{{ not avg_valid }}`), or use boolean tests when genuinely needed. Do not flag bare boolean comparisons such as `== true`, `is true`, or `is sameas true`.
 - R-24 [LOW]: Capacity-like variable reads `available_energy` — a variable named like `capacity`, `capacity_kwh`, `maximum_energy`, or similar reads an entity containing `available_energy`. Available charge may not be nominal or maximum battery capacity, so calculated targets can be wrong. Advisory only: verify whether a maximum, nominal, or capacity entity is the intended source. Do not hard-code integration-specific replacements or automatically rewrite entity IDs.
+- R-25 [HIGH]: Legacy template platform syntax (removed in HA 2026.6) — pasted/draft YAML defines template entities under a domain platform key (`sensor:`, `binary_sensor:`, `cover:`, `fan:`, `light:`, `lock:`, `switch:`, `vacuum:`, `weather:`, or `alarm_control_panel:` containing `- platform: template`), or as a bare top-level `- platform: template` list (pasted contents of an `!include` file such as `sensors.yaml`; entity-shaped items only, see the Evidence Boundary). Home Assistant 2026.6 removed this syntax entirely: the entities silently stop being created — no error banner, automations depending on them stop firing. It was deprecated in 2025.12 and still current before that — always phrase per the version split in the R-25 Evidence Boundary. Fix: migrate to the modern top-level `template:` syntax (`value_template` → `state`, `friendly_name` → `name`, per-entity maps → list items). Applies only when reviewing pasted or draft YAML (see R-25 Evidence Boundary).
 
 ## R-02 Evidence Boundary
 
@@ -179,6 +180,29 @@ Self-trigger / feedback loop = the automation triggers on an entity that it also
 - `scene.create` alone is not a finding; the finding is the combination with a restart-recovery expectation.
 - When the storage construct is ambiguous (for example a custom integration entity), ask instead of flagging.
 
+## R-25 Evidence Boundary
+
+- Apply only when reviewing pasted or draft YAML that contains a domain-level list item with `platform: template`, or a bare top-level list whose items carry `platform: template` — pasted contents of an `!include` file (for example `sensors.yaml`) have no wrapping domain key but define the same removed entities. Stored automations, scripts, and helpers read back from HA never carry this syntax — do not fetch or scan `configuration.yaml` to hunt for it.
+- Bare-list items count only when they are entity-shaped, meaning any of:
+  - the item carries a per-entity map: `sensors:`, `binary_sensors:`, `switches:`, `covers:`, `fans:`, `lights:`, `locks:`, `vacuums:`, or `panels:` (legacy alarm_control_panel)
+  - the item carries legacy weather template fields directly (for example `condition_template:`, `temperature_template:`)
+  - the user names an entity include (such as `sensors.yaml` or `weather.yaml`)
+  A bare `- platform: template` item whose only template field is a direct `value_template:` (no per-entity map, no weather fields) is a legacy template trigger from a trigger include — that is M-05 territory, never R-25.
+- Version-sensitive phrasing: fetch the HA version via `ha-nova relay core --method GET --path /api/config` only when this check actually fires (never as a routine per-review call), then phrase the finding accordingly:
+  - HA >= 2026.6: removed — the entities are silently gone (keep HIGH).
+  - HA 2025.12 to 2026.5: deprecated, still functional — downgrade the finding to MEDIUM and recommend migrating before upgrading.
+  - HA < 2025.12: the syntax is still current on that version (deprecation started in 2025.12) — keep MEDIUM, do not call it deprecated; say it will stop working once the instance upgrades to 2026.6+ and recommend migrating ahead of that upgrade.
+  - Version unavailable: state the outcomes conditionally.
+- Do not confuse with the config-entry `template` helper domain (`ha-nova:fallback`) or with `trigger: template` triggers — this check is only about `platform: template` entity definitions.
+- When R-25 pulls a pasted template block into review scope, apply the template-level reliability checks (R-01, R-11, R-23) to its templates as well — those defects survive the migration to modern syntax.
+- Migration hint shape (do not rewrite automatically; show the target shape):
+  ```yaml
+  template:
+    - sensor:
+        - name: "My Sensor"
+          state: "{{ ... }}"
+  ```
+
 ## Performance (Medium)
 
 - P-01: `trigger: template` trigger that could be a `trigger: state` trigger (see `skills/ha-nova/template-guidelines.md` → Decision Tree)
@@ -193,6 +217,7 @@ Self-trigger / feedback loop = the automation triggers on an entity that it also
 - M-02: Deprecated `service:` key instead of `action:`
 - M-03: `entity_id:` under `data:` instead of `target: entity_id:`
 - M-04: *retired — moved to Reliability as R-20*
+- M-05 [LOW]: Legacy automation syntax keys — `platform:` inside a trigger item (renamed to `trigger:` in HA 2024.10), or singular top-level `trigger:`/`condition:`/`action:` blocks (renamed to `triggers:`/`conditions:`/`actions:`). Both forms still work and auto-migrate when edited in the HA UI; this is a modernize advisory only. Mention it once per reviewed target (in bulk mode fold repeats into the Repeated Patterns section), never as an error, and never rewrite a config just to modernize the keys.
 
 ## Script-Specific (apply ONLY when domain is `script`, skip for automations)
 
