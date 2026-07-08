@@ -217,13 +217,20 @@ export function createHaWsClient(options: HaWsClientOptions): HaWsClient {
       connected = true;
       // The connection reconnects on its own; only the tracked flag flips so
       // /health stays truthful between requests without extra probes.
-      connection.addEventListener?.("disconnected", () => {
-        connected = false;
+      // resetConnection() abandons rather than closes the old connection, so
+      // a stale one can keep firing events — guard on still being current.
+      const current = connection;
+      current.addEventListener?.("disconnected", () => {
+        if (connection === current) {
+          connected = false;
+        }
       });
-      connection.addEventListener?.("ready", () => {
-        connected = true;
+      current.addEventListener?.("ready", () => {
+        if (connection === current) {
+          connected = true;
+        }
       });
-      return connection;
+      return current;
     } catch (error) {
       throw new HaWsClientError(
         "UPSTREAM_WS_CONNECT_ERROR",
