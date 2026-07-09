@@ -17,6 +17,7 @@ Read-only home status checks:
 
 Not in scope:
 - repair/fix/ignore actions
+- statistics repair, purge, registry cleanup (`ha-nova:maintenance`)
 - restart, reload, update, backup, or service calls
 - YAML/filesystem diagnostics
 - historical timelines (use `ha-nova:history`)

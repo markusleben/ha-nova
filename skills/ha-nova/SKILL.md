@@ -181,6 +181,7 @@ Match user intent to exactly one skill:
 | check backup status, create a backup (also as a safety net before risky changes), inspect a backup's contents, delete backups | `ha-nova:backup` |
 | check pending updates, read release notes, install updates, skip/unskip versions | `ha-nova:updates` |
 | analyze energy usage, solar/battery/grid KPIs, per-device consumption or costs; edit energy dashboard sources/devices | `ha-nova:energy` |
+| repair statistics (orphans, unit mismatches, sum spikes), purge recorder history, clean up dead registry entries | `ha-nova:maintenance` |
 | turn on/off, toggle, set, call a service | `ha-nova:service-call` |
 | enable/disable/trigger an automation | `ha-nova:service-call` |
 | find entities by name, room, area | `ha-nova:entity-discovery` |
@@ -223,12 +224,14 @@ Match user intent to exactly one skill:
 **"Create a timer"** → ambiguous! Ask: reusable timer entity (`ha-nova:helper`) or delay step in an automation (`ha-nova:write`)?
 **"How much energy did the dryer use last month?"** → `ha-nova:energy`
 **"Add this plug to the energy dashboard"** → `ha-nova:energy`
+**"Fix the spike in my energy graph"** → `ha-nova:maintenance`
+**"Clean up orphaned statistics"** → `ha-nova:maintenance`
 **"Import a blueprint"** → `ha-nova:fallback` (relay-ready, no skill)
 **"How do I manage Apps?"** → `ha-nova:fallback` (external, web search)
 **"Show history for sensor X"** → `ha-nova:history`
 **"Modify my dashboard"** → `ha-nova:dashboard`
 **"Save the Lovelace config"** → `ha-nova:dashboard` (must resolve storage mode, then read-merge-verify)
-**"Remove this entity from Home Assistant"** → `ha-nova:fallback`
+**"Remove this entity from Home Assistant"** → `ha-nova:maintenance` (dead registry entries only; live entities get disabled via `ha-nova:organize`)
 **"Detach this config entry from the device"** → `ha-nova:fallback`
 
 After any `read` or `review` task, re-evaluate intent once before continuing:
