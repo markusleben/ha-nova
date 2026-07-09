@@ -84,7 +84,7 @@ Pick the right `mode` based on the automation's behavior:
 <!-- Copyright (c) Sergey Kadentsev (@sergeykad), Julien Lapointe (@julienld) -->
 
 When a user needs a derived/computed sensor, prefer built-in integrations over template sensors.
-These are configured via the HA UI (Settings → Helpers or Integrations), not via relay CRUD.
+All of these — including `template` itself when no built-in fits — are relay-backed config-entry helpers owned by `ha-nova:helper`.
 
 | Need | Use instead of template | Key benefit |
 |------|------------------------|-------------|
@@ -99,7 +99,7 @@ These are configured via the HA UI (Settings → Helpers or Integrations), not v
 | Weekly on/off schedule | `schedule` | UI-editable, creates binary sensor |
 | Time-of-day binary (morning/night) | `tod` | Supports sunrise/sunset offsets |
 
-> **Relay-backed config-entry flows are now supported** for the helper-owned domains listed above through `ha-nova:helper`. Keep guidance narrow: unsupported helper families still fall back to the HA UI or `ha-nova:fallback`, and `group` must follow the live menu/form flow instead of guessed fields.
+> **Relay-backed config-entry flows are supported** for the helper-owned domains listed above plus `template` through `ha-nova:helper`. Keep guidance narrow: unsupported helper families (trend, random, filter, ...) still fall back to the HA UI or `ha-nova:fallback`, and `group`/`template` must follow the live menu/form flow instead of guessed fields.
 
 ## Zigbee Button Patterns
 

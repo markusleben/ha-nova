@@ -155,6 +155,7 @@ Owned by `ha-nova:helper` now:
 - `statistics`
 - `group`
 - `history_stats`
+- `template`
 
 Still handled here:
 
