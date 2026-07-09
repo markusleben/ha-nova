@@ -64,6 +64,13 @@ describe("updates contract", () => {
   it("groups the overview and never dumps device-firmware fleets", () => {
     expect(updatesSkill).toContain("Home Assistant stack: core, operating system, supervisor");
     expect(updatesSkill).toContain("never dump 200 firmware rows");
+    // platform: hassio covers stack AND add-ons — unique_id is the live-verified
+    // second discriminator (home_assistant_{core,os,supervisor}_version_latest).
+    expect(updatesSkill).toContain("`platform: hassio` splits by `unique_id`");
+    expect(updatesSkill).toContain("`home_assistant_{core,os,supervisor}_version_latest` = HA stack");
+    // backup:true is never unconditional for core/OS (would bypass the offer).
+    expect(updatesSkill).toContain('`"backup": true` for add-on updates');
+    expect(updatesSkill).toContain("ONLY when the confirmed preview explicitly included that built-in backup");
     // Skip is reversible (live-verified skip -> clear_skipped roundtrip).
     expect(updatesSkill).toContain("`/api/services/update/skip`");
     expect(updatesSkill).toContain("`/api/services/update/clear_skipped`");
