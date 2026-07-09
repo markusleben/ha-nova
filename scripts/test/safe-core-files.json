@@ -39,6 +39,7 @@
   "tests/skills/review-contract.test.ts",
   "tests/skills/scene-contract.test.ts",
   "tests/skills/todo-contract.test.ts",
+  "tests/skills/updates-contract.test.ts",
   "tests/skills/service-call-contract.test.ts",
   "tests/skills/trace-contract.test.ts",
   "tests/skills/write-delete-safety-contract.test.ts"
