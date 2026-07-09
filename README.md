@@ -156,7 +156,7 @@ HA NOVA is early — and that's the point. Here's where it's going:
 
 ## 🧩 Skills
 
-17 task skills plus the HA NOVA context skill, each a markdown file you can read and edit.
+19 task skills plus the HA NOVA context skill, each a markdown file you can read and edit.
 
 | Skill | What it does |
 |:------|:-------------|
@@ -172,10 +172,12 @@ HA NOVA is early — and that's the point. Here's where it's going:
 | ✅ **todo** | Manage to-do and shopping-list items, create Local To-do lists |
 | 💾 **backup** | Check backup status, create backups — also as a safety net before risky changes |
 | ⬆️ **updates** | See pending updates, read release notes, and install them with safety gates |
+| ⚡ **energy** | Analyze consumption, solar, battery, and per-device costs; manage Energy dashboard sources |
+| 🧹 **maintenance** | Repair statistics, purge recorder history, and clean up dead entities — with strict safety gates |
 | 🎛️ **service-call** | Control lights, climate, covers, switches, and media players |
 | 🔎 **entity-discovery** | Find entities by name, room, area, or label |
 | 🧩 **helper** | Create and manage helpers: counters, timers, template sensors, and more |
-| 🛡️ **fallback** | Safety net for blueprints, zones, energy, and advanced ops |
+| 🛡️ **fallback** | Safety net for blueprints, zones, and advanced ops |
 | 🚀 **onboarding** | Diagnose setup issues and troubleshoot connections |
 
 Want to add a new capability? → [CONTRIBUTING.md](CONTRIBUTING.md)
