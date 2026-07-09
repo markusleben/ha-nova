@@ -1,6 +1,6 @@
 ---
 name: fallback
-description: Mandatory fallback for any HA NOVA task without a dedicated subskill. Must be invoked before any raw relay write operation. Covers blueprints, zones/persons/tags, destructive registry admin, Apps, HACS, Zigbee/Z-Wave, and unsupported config-entry helper families.
+description: Mandatory fallback for any HA NOVA task without a dedicated subskill. Must be invoked before any raw relay write operation. Covers blueprints, zones/persons/tags, device config-entry detach, Apps, HACS, Zigbee/Z-Wave, and unsupported config-entry helper families.
 ---
 
 # HA NOVA Fallback
@@ -68,7 +68,8 @@ For every Relay-Ready call in this skill:
 | Zone / Person / Tag Mgmt | Relay-Ready | this skill |
 | Energy (analysis + source/device config) | Covered | energy |
 | Other Config-Entry Helpers | Relay-Ready | this skill |
-| Entity remove / Device config-entry detach | Relay-Ready | this skill |
+| Statistics repair / Purge / Entity registry remove | Covered | maintenance |
+| Device config-entry detach | Relay-Ready | this skill |
 | Event Subscriptions | Roadmap Phase 1c | -- |
 | YAML / REST / Command-Line Sensors | Roadmap Phase 3 | -- |
 | Backups (status, create, inspect, delete) | Covered | backup |
@@ -177,24 +178,18 @@ ha-nova relay core --method DELETE --path /api/config/config_entries/entry/{entr
 
 **Risks:** Multi-step flows are complex. Each step returns the next step's schema. Update support can be domain- and version-specific. Delete requires correct `entry_id` resolution first. Prefer HA UI for these.
 
-### Entity Removal / Device Detach -- RELAY-READY
+### Device Config-Entry Detach -- RELAY-READY
 
-Destructive registry admin that is still outside `ha-nova:organize` v1:
-- remove an entity from the entity registry
-- remove a config entry from a device
+Remove a config entry from a device (entity-registry removal is owned by `ha-nova:maintenance`).
 
-**Search:** `home assistant entity registry remove device remove config entry websocket api 2026`
+**Search:** `home assistant device registry remove config entry websocket api 2026`
 
 **Experimental relay calls (no skill guardrails):**
 ```text
-# Remove entity
-ha-nova relay ws --data-file <payload-file>
-
-# Remove config entry from device
 ha-nova relay ws --data-file <payload-file>
 ```
 
-**Risks:** Entity remove is not the same as a reversible rename/disable. Device detach depends on integration support and can sever the current device/config-entry relationship. Preview impact first.
+**Risks:** Device detach depends on integration support (`supports_remove_device`) and can sever the current device/config-entry relationship. Preview impact first.
 
 ## Roadmap Features
 
@@ -268,7 +263,7 @@ Rules for all experimental relay calls in this skill:
 | Full-document overwrite | Entire config replaced | Read → modify → save full document → read back and verify unrelated content survived | `lovelace/config/save` |
 | Field-level list replace | Omitted keys preserved, provided keys fully replaced | Read existing list → append/modify → save full list → read back and verify pre-existing items survived | `energy/save_prefs` |
 | Merge/patch | Only provided fields updated | Send only changed fields | `config/area_registry/update`, `config/entity_registry/update` |
-| Delete | Irreversible for areas/zones/labels; soft-delete (30 days) for entities | Always `search/related` first, tokenized confirmation | `config/area_registry/delete`, `config/entity_registry/remove` |
+| Delete | Irreversible for areas/zones/labels | Always `search/related` first, tokenized confirmation | `config/area_registry/delete`, `config/label_registry/delete` (entity removal → `ha-nova:maintenance`) |
 
 No HA WS endpoint has optimistic locking (no ETags, no version numbers). Last writer wins silently.
 

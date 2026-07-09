@@ -20,7 +20,7 @@ Config (gated writes):
 Not in scope:
 - dashboard cards/views (`ha-nova:dashboard`)
 - generic entity history/logbook (`ha-nova:history`)
-- statistics repair (sum spikes, orphaned statistics): HA Developer tools → Statistics
+- statistics repair (sum spikes, orphaned statistics): `ha-nova:maintenance`
 - creating sensors or integrations that produce new energy data (energy sensor from a power sensor → `ha-nova:helper`, type `integration`)
 
 ## Bootstrap (once per session)

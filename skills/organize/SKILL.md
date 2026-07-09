@@ -18,13 +18,13 @@ Organization and registry metadata only:
 - device metadata updates: rename, move to area, assign/clear/add/remove labels, disable
 
 Not in scope:
-- entity removal
+- entity removal (`ha-nova:maintenance` — dead registry entries only)
 - removing config entries from devices
 - device category assignment
 - zones, persons, tags
-- energy or calendar management
+- energy management (`ha-nova:energy`) or calendar management (`ha-nova:calendar`)
 
-For those surfaces, hand off to `ha-nova:fallback`.
+Hand off to the skill named per line; surfaces without one go to `ha-nova:fallback`.
 
 ## Bootstrap (once per session)
 
@@ -117,7 +117,7 @@ Default to a compact field summary, not raw registry JSON.
 - Never guess ids.
 - Create/update uses natural confirmation after preview, bound to the exact displayed payload (see context skill → Active Preview Confirmation).
 - Delete uses token confirmation only, even for cleanup of items created earlier in the same session.
-- If the user asks for entity removal, device category assignment, or config-entry detachment, stop and hand off to `ha-nova:fallback`.
+- If the user asks for entity removal, stop and hand off to `ha-nova:maintenance` (dead registry entries only — for live entities offer disable here instead). For device category assignment or config-entry detachment, hand off to `ha-nova:fallback`.
 
 ## Guardrails
 

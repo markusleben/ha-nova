@@ -50,7 +50,9 @@ describe("ha-nova contract", () => {
     expect(context).toContain('"Why are devices unavailable?"** → `ha-nova:health`');
     expect(context).toContain('"Show my calendars"** → `ha-nova:calendar`');
     expect(context).toContain('"What\'s on my calendar this week?"** → `ha-nova:calendar`');
-    expect(context).toContain('"Remove this entity from Home Assistant"** → `ha-nova:fallback`');
+    expect(context).toContain(
+      '"Remove this entity from Home Assistant"** → `ha-nova:maintenance` (dead registry entries only; live entities get disabled via `ha-nova:organize`)',
+    );
     expect(context).toContain('"Detach this config entry from the device"** → `ha-nova:fallback`');
     expect(context).not.toContain('"Show history for sensor X"** → `ha-nova:fallback`');
     expect(context).not.toContain('"Modify my dashboard"** → `ha-nova:fallback`');
@@ -411,6 +413,7 @@ describe("ha-nova contract", () => {
       "skills/backup/SKILL.md",
       "skills/updates/SKILL.md",
       "skills/energy/SKILL.md",
+      "skills/maintenance/SKILL.md",
       "skills/organize/SKILL.md",
       "skills/history/SKILL.md",
       "skills/write/SKILL.md",
@@ -473,6 +476,8 @@ describe("ha-nova contract", () => {
       "skills/review/checks.md",
       "skills/energy/SKILL.md",
       "skills/energy/energy-reference.md",
+      "skills/maintenance/SKILL.md",
+      "skills/maintenance/maintenance-reference.md",
       "skills/fallback/SKILL.md",
     ];
 
@@ -504,6 +509,8 @@ describe("ha-nova contract", () => {
       "skills/review/checks.md",
       "skills/energy/SKILL.md",
       "skills/energy/energy-reference.md",
+      "skills/maintenance/SKILL.md",
+      "skills/maintenance/maintenance-reference.md",
       "skills/fallback/SKILL.md",
       "skills/ha-nova/relay-api.md",
       "skills/ha-nova/best-practices.md",
@@ -556,6 +563,7 @@ describe("ha-nova contract", () => {
       "skills/backup/SKILL.md",
       "skills/updates/SKILL.md",
       "skills/energy/SKILL.md",
+      "skills/maintenance/SKILL.md",
       "skills/organize/SKILL.md",
       "skills/history/SKILL.md",
       "skills/write/SKILL.md",
@@ -582,6 +590,8 @@ describe("ha-nova contract", () => {
       "skills/updates/SKILL.md",
       "skills/energy/SKILL.md",
       "skills/energy/energy-reference.md",
+      "skills/maintenance/SKILL.md",
+      "skills/maintenance/maintenance-reference.md",
       "skills/organize/SKILL.md",
       "skills/history/SKILL.md",
       "skills/read/SKILL.md",
@@ -674,7 +684,8 @@ describe("ha-nova contract", () => {
     expect(fallback).toContain("| Area / Floor CRUD | Covered | organize |");
     expect(fallback).toContain("| Label CRUD / Rich label metadata | Covered | organize |");
     expect(fallback).toContain("| Category CRUD / Entity category assignment | Covered | organize |");
-    expect(fallback).toContain("| Entity remove / Device config-entry detach | Relay-Ready | this skill |");
+    expect(fallback).toContain("| Statistics repair / Purge / Entity registry remove | Covered | maintenance |");
+    expect(fallback).toContain("| Device config-entry detach | Relay-Ready | this skill |");
   });
 
   it("keeps migration and search-related guidance in the shared refactoring doc", () => {
