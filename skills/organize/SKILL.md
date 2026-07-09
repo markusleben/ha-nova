@@ -18,13 +18,13 @@ Organization and registry metadata only:
 - device metadata updates: rename, move to area, assign/clear/add/remove labels, disable
 
 Not in scope:
-- entity removal
+- entity removal (`ha-nova:maintenance` — dead registry entries only)
 - removing config entries from devices
 - device category assignment
 - zones, persons, tags
-- energy or calendar management
+- energy management (`ha-nova:energy`) or calendar management (`ha-nova:calendar`)
 
-For those surfaces, hand off to `ha-nova:fallback`.
+Hand off to the skill named per line; surfaces without one go to `ha-nova:fallback`.
 
 ## Bootstrap (once per session)
 
