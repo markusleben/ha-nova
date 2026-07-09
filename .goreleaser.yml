@@ -85,9 +85,8 @@ release:
     Windows uses a single supported install path: `install.ps1`. Return an RC install to stable later with `ha-nova update`.
     {{ else }}## New Features
 
-    - New **Updates** skill: see what is pending (Home Assistant Core/OS, Apps, integrations, device firmware), read the release notes, and install with the right safety gates — a full backup is offered before far-reaching Core/OS updates, and it knows updating the NOVA Relay App restarts the relay itself.
-    - **Template sensors** are now first-class: "make me a sensor that shows the average of these two" builds and edits a real template helper with the same preview-and-verify safety as every other write (referenced entities are checked before it saves).
-    - Assistants can now read data-returning services like the weather forecast, calendar events, and to-do items directly.
+    - New **Energy** skill: ask about consumption, solar, battery, and per-device costs over any period — "what did the dryer cost last month?" — with the same numbers your Energy dashboard shows, dynamic electricity prices included. It can also safely add or remove tracked devices and energy sources, with preview and verification.
+    - New **Maintenance** skill: repair broken long-term statistics (orphaned entries, unit mismatches, sum spikes), trim recorder history, and clean up dead entities — grouped previews and typed confirmation before anything destructive, and it never touches data that is merely offline.
 
     ## What To Watch
 
