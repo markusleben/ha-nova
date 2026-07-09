@@ -13,7 +13,8 @@ describe("updates contract", () => {
     expect(updatesSkill).toContain("## Feature Gate (critical)");
     expect(updatesSkill).toContain("| 8 | backup before update (add-on/core mechanism) |");
     expect(updatesSkill).toContain("| 16 | release notes |");
-    expect(updatesSkill).toContain("Never call a service the mask does not allow");
+    expect(updatesSkill).toContain("Never call a bitmask-backed service (install/version/backup/release-notes) the mask does not allow");
+    expect(updatesSkill).toContain("Skip/unskip have no bits; their only gate is `auto_update`");
     // Release notes fail with not_supported without bit 16 (live-verified).
     expect(updatesSkill).toContain("`not_supported`");
     expect(updatesSkill).toContain("`release_summary`/`release_url`");

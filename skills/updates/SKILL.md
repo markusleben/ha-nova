@@ -15,8 +15,8 @@ Update lifecycle:
 
 Not in scope:
 - auto-update settings: HA UI
-- HACS store operations beyond its `update.*` entities (`ha-nova:fallback`)
-- rollbacks — updates are generally not downgradable; recovery is a Home Assistant Backup
+- HACS store operations beyond `update.*` entities (`ha-nova:fallback`)
+- rollbacks: not downgradable; recovery is a Home Assistant Backup
 
 ## Bootstrap (once per session)
 
@@ -40,7 +40,7 @@ Read `supported_features` before acting:
 | 8 | backup before update (add-on/core mechanism) |
 | 16 | release notes |
 
-Never call a service the mask does not allow — say which capability is missing instead.
+Never call a bitmask-backed service (install/version/backup/release-notes) the mask does not allow — name the missing capability. Skip/unskip have no bits; their only gate is `auto_update` (see Skip).
 
 ## Flow
 
@@ -52,7 +52,7 @@ Group deterministically: `platform: hacs` = integrations; `platform: hassio` spl
 Per pending item: name, `installed_version` → `latest_version`, `auto_update`, `skipped_version`. Fleets: counts per group + pending list only — never dump 200 firmware rows.
 
 ### Release notes
-When bit 16 is set: WS `{"type":"update/release_notes","entity_id":"update.<id>"}` → markdown in `.data`; summarize, do not dump. Without bit 16, do not call it (it fails with `not_supported`) — use the entity's `release_summary`/`release_url` instead; when both are empty, say no notes are available.
+Bit 16 set: WS `{"type":"update/release_notes","entity_id":"update.<id>"}` → markdown in `.data`; summarize, never dump. Without bit 16, do not call it (it fails with `not_supported`) — use the entity's `release_summary`/`release_url` instead; when both are empty, say no notes are available.
 
 ### Install
 1. Feature Gate: bit 1 required. Preview exactly one update: name, `installed_version` → `latest_version`, release-notes summary or link.
@@ -72,8 +72,8 @@ When bit 16 is set: WS `{"type":"update/release_notes","entity_id":"update.<id>"
 
 ## Error Handling
 
-- `not_supported` on release notes: expected without bit 16 — fall back to `release_url`.
-- Install rejected: report HA's error; do not retry blind — a running update (`in_progress`) blocks a second install.
+- `not_supported` on release notes: expected without bit 16 — use `release_url`.
+- Install rejected: report HA's error, no blind retry — a running update (`in_progress`) blocks a second install.
 - Entity vanished mid-poll (relay/add-on restart): re-read once before reporting failure.
 - Full relay error taxonomy: `skills/ha-nova/relay-api.md` → Error Handling.
 
