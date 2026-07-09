@@ -11,7 +11,7 @@ const architectureDoc = readFileSync("docs/reference/skill-architecture.md", "ut
 describe("updates contract", () => {
   it("gates every service on the update feature bitmask", () => {
     expect(updatesSkill).toContain("## Feature Gate (critical)");
-    expect(updatesSkill).toContain("| 8 | backup before update (add-on/core mechanism) |");
+    expect(updatesSkill).toContain("| 8 | backup before update (App/core mechanism) |");
     expect(updatesSkill).toContain("| 16 | release notes |");
     expect(updatesSkill).toContain("Never call a bitmask-backed service (install/version/backup/release-notes) the mask does not allow");
     expect(updatesSkill).toContain("Skip/unskip have no bits; their only gate is `auto_update`");
@@ -26,7 +26,7 @@ describe("updates contract", () => {
     expect(updatesSkill).toContain("HA restarts during the update");
     expect(updatesSkill).toContain('include `"backup": true`');
     // Updating the NOVA Relay add-on kills the transport mid-flight.
-    expect(updatesSkill).toContain("Updating the NOVA Relay add-on restarts the relay itself");
+    expect(updatesSkill).toContain("Updating the NOVA Relay App restarts the relay itself");
     expect(updatesSkill).toContain("verify afterwards via `ha-nova relay health`");
     // Firmware caution.
     expect(updatesSkill).toContain("must not be interrupted");
@@ -50,7 +50,7 @@ describe("updates contract", () => {
     expect(updatesSkill).toContain("continues in the background");
     expect(updatesSkill).toContain("30+ minutes and a temporarily `unavailable` device are normal");
     // Batch ordering keeps the batch alive across restarts.
-    expect(updatesSkill).toContain("Order add-ons and firmware before core/OS");
+    expect(updatesSkill).toContain("Order Apps and firmware before core/OS");
     // Breaking changes first for core.
     expect(updatesSkill).toContain("Surface breaking-changes sections first");
   });
@@ -70,7 +70,7 @@ describe("updates contract", () => {
     expect(updatesSkill).toContain("`platform: hassio` splits by `unique_id`");
     expect(updatesSkill).toContain("`home_assistant_{core,os,supervisor}_version_latest` = HA stack");
     // backup:true is never unconditional for core/OS (would bypass the offer).
-    expect(updatesSkill).toContain('`"backup": true` for add-on updates');
+    expect(updatesSkill).toContain('`"backup": true` for App updates');
     expect(updatesSkill).toContain("ONLY when the confirmed preview explicitly included that built-in backup");
     // Skip is reversible (live-verified skip -> clear_skipped roundtrip).
     expect(updatesSkill).toContain("`/api/services/update/skip`");
