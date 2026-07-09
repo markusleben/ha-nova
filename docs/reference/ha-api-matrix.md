@@ -83,7 +83,7 @@ Observed locally on a real HA instance on 2026-03-19: raw WS `config_entries/flo
 
 **Helper-owned config-entry domains:** utility_meter, derivative, integration, min_max, threshold, tod, statistics, group, history_stats, template
 `group` is menu-driven; the live-proven end-to-end subtype is `sensor`, and other subtypes must stay anchored to the live step schema instead of guessed fields.
-**Fallback-owned flow helpers:** template, trend, random, filter, generic_thermostat, switch_as_x, generic_hygrostat
+**Fallback-owned flow helpers:** trend, random, filter, generic_thermostat, switch_as_x, generic_hygrostat
 
 ### Dashboard / Lovelace
 | WS Type | Purpose |

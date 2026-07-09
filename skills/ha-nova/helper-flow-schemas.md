@@ -62,8 +62,8 @@ If enum semantics, required/optional behavior, or cross-field rules are uncertai
 
 Observed locally on a real HA instance on 2026-03-19:
 
-- all 9 create flows succeeded through relay `/core`
-- all 9 create flows produced loaded entries with `supports_options: true`
+- the original 9 domains: all create flows succeeded through relay `/core` (2026-03-19)
+- the original 9 domains: all create flows produced loaded entries with `supports_options: true`; `template` was observed separately (see its section)
 - raw WS `config_entries/flow` did not succeed in this session
 - field-level update verification required reopening the options flow
 - several domains reject partial required-field submits; helper update must merge requested changes over the current options snapshot
@@ -324,6 +324,7 @@ Observed locally on a real HA instance on 2026-03-19:
      - `device_class` (optional, select)
      - `state_class` (optional, select)
      - `device_id` (optional, device)
+     - `advanced_options` (optional, expandable — present on the create form too)
 - Observed update fields (options flow, `step_id: sensor`):
   - `state`
   - `unit_of_measurement`

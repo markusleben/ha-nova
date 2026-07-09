@@ -135,6 +135,13 @@ describe("helper contract", () => {
       expect(skillDoc).toContain("skills/ha-nova/template-guidelines.md");
       expect(skillDoc).toContain("post-write verification must read the rendered state");
       expect(flowSchemasDoc).toContain("`name` is NOT editable via the options flow");
+      // Menu-flow safety machinery covers template like group (16 unverified subtypes).
+      expect(skillDoc).toContain("for unobserved `group` or `template` subtypes, this first confirmation authorizes only the non-persisting menu-step submit");
+      expect(skillDoc).toContain("for any other `group` or `template` subtype, plan only the menu choice");
+      // Pre-create resolution of entities inside the state template.
+      expect(skillDoc).toContain("an unknown reference is a blocking question, not a submit");
+      // Rendered-state verification is operationalized, not just promised.
+      expect(skillDoc).toContain("report it as a template defect while the config-entry write itself still counts as passed");
     });
 
     it("uses options-flow snapshots for config-entry readback", () => {
@@ -199,13 +206,13 @@ describe("helper contract", () => {
     });
 
     it("documents multi-step create flows and required-field carry-forward for updates", () => {
-      expect(skillDoc).toContain("for `group` with subtype `sensor`, include the required `next_step_id` menu choice and the observed final form");
-      expect(skillDoc).toContain("for any other `group` subtype, plan only the menu choice before the flow starts");
+      expect(skillDoc).toContain("for `group` or `template` with subtype `sensor`, include the required `next_step_id` menu choice and the observed final form");
+      expect(skillDoc).toContain("for any other `group` or `template` subtype, plan only the menu choice before the flow starts");
       expect(flowSchemasDoc).toContain("end-to-end CRUD was proven locally for the `sensor` subtype only");
       expect(skillDoc).toContain("for `statistics` and `history_stats`, prepare every later step body before preview");
-      expect(skillDoc).toContain("for unobserved `group` subtypes, say that the final subtype form will be previewed after the menu step returns live fields");
+      expect(skillDoc).toContain("for unobserved `group` or `template` subtypes, say that the final subtype form will be previewed after the menu step returns live fields");
       expect(skillDoc).toContain("this first confirmation authorizes only the non-persisting menu-step submit");
-      expect(skillDoc).toContain("if that menu step leads to an unobserved `group` subtype form, stop and preview the live subtype fields before the terminal submit");
+      expect(skillDoc).toContain("if that menu step leads to an unobserved `group` or `template` subtype form, stop and preview the live subtype fields before the terminal submit");
       expect(skillDoc).toContain("ask for a second natural confirmation before sending the terminal subtype-specific payload");
       expect(skillDoc).toContain("carry forward unchanged required fields");
       expect(skillDoc).toContain("fail loud as unsupported update for that field on this HA version");

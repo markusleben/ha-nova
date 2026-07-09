@@ -111,7 +111,7 @@ If 0 results: try synonyms or shorter stems. Never dump entire domains.
    - No useful defaults inferable → silently skip.
 3. Preview the payload with the shared write-preview shape: compact summary, pre-write check when applicable, explicit not-saved-yet line, and Options block (`apply`, `show yaml`, `cancel`).
 4. Ask for natural confirmation bound to this exact preview (see context skill → Active Preview Confirmation).
-   - for unobserved `group` subtypes, this first confirmation authorizes only the non-persisting menu-step submit, not the final subtype-specific payload
+   - for unobserved `group` or `template` subtypes, this first confirmation authorizes only the non-persisting menu-step submit, not the final subtype-specific payload
 5. Execute:
    ```text
    ha-nova relay ws --data-file <payload-file>
@@ -187,7 +187,7 @@ If the user gives only a linked `entity_id`, resolve it back to `config_entry_id
    ha-nova relay ws --data-file <payload-file> --out <registry-file>
    ```
    with `{"type":"config/entity_registry/list"}`.
-3. Filter config entries to the nine supported domains.
+3. Filter config entries to the ten supported domains.
 4. Join linked entities by matching `config_entry_id`.
 5. Present a compact table with:
    - title
@@ -250,15 +250,16 @@ If multiple matches remain, present max 5 candidates and ask one blocking questi
    - if required field semantics remain uncertain, fail loud and ask one blocking question
 2. Prepare the full create plan using `skills/ha-nova/helper-flow-schemas.md`:
    - for one-step domains, the plan is one submit body
-   - for `group` with subtype `sensor`, include the required `next_step_id` menu choice and the observed final form
-   - for any other `group` subtype, plan only the menu choice before the flow starts; inspect the live subtype form before promising the final field set
+   - for `group` or `template` with subtype `sensor`, include the required `next_step_id` menu choice and the observed final form
+   - for any other `group` or `template` subtype, plan only the menu choice before the flow starts; inspect the live subtype form before promising the final field set
    - for `statistics` and `history_stats`, prepare every later step body before preview
+   - for `template`, resolve every entity ID referenced inside the `state` template against the entity registry before preview — an unknown reference is a blocking question, not a submit
 3. Preview with the shared write-preview shape:
    - title/name
    - domain
    - known step plan
    - all fields already known at this point
-   - for unobserved `group` subtypes, say that the final subtype form will be previewed after the menu step returns live fields
+   - for unobserved `group` or `template` subtypes, say that the final subtype form will be previewed after the menu step returns live fields
    - include an explicit not-saved-yet line and Options block (`apply`, `show yaml`, `cancel`)
 4. Ask for natural confirmation bound to this exact preview (see context skill → Active Preview Confirmation).
 5. Capture a pre-create baseline:
@@ -276,7 +277,7 @@ If multiple matches remain, present max 5 candidates and ask one blocking questi
    - fail loud if the start response did not return `flow_id`
 8. Iterate the flow until terminal success:
    - if the current response is a menu step, submit only the selected `next_step_id`
-   - if that menu step leads to an unobserved `group` subtype form, stop and preview the live subtype fields before the terminal submit
+   - if that menu step leads to an unobserved `group` or `template` subtype form, stop and preview the live subtype fields before the terminal submit
    - after that live subtype preview, ask for a second natural confirmation before sending the terminal subtype-specific payload
    - if the current response is a form step, submit only the fields exposed for that step
    - the submit body for a form step must contain form fields only
@@ -400,6 +401,7 @@ Instead, run the minimal config-entry post-write contract:
 1. **Verification**
    - create: config entry now exists and the requested `entry_id`/diff verification passed
    - update: the same `entry_id` still exists and the reopened options-flow snapshot reflects the requested field changes
+   - for `template` creates and `state`-changing updates, additionally read the linked entity via `GET /api/states/<entity_id>` — an `unavailable`/`unknown` rendered state means the template is broken; report it as a template defect while the config-entry write itself still counts as passed
    - delete: config entry is absent
 2. **Current editable snapshot**
    - if an options flow is available, summarize only the editable fields exposed by the final current step readback
