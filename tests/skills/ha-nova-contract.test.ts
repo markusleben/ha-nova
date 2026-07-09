@@ -346,13 +346,13 @@ describe("ha-nova contract", () => {
     );
 
     expect(architecture).toContain("Still excluded from `ha-nova:helper`:");
-    expect(architecture).toContain("- `template`");
     expect(architecture).toContain("- `trend`");
     expect(architecture).toContain("- `random`");
     expect(architecture).toContain("- `filter`");
     expect(architecture).toContain("- `generic_thermostat`");
     expect(architecture).toContain("- `switch_as_x`");
     expect(architecture).toContain("- `generic_hygrostat`");
+    expect(architecture).not.toContain("Still excluded from `ha-nova:helper`:\n- `template`");
     expect(architecture).not.toContain("Still excluded from `ha-nova:helper`:\n- `group`");
     expect(architecture).not.toContain("Still excluded from `ha-nova:helper`:\n- `statistics`");
     expect(architecture).not.toContain("Still excluded from `ha-nova:helper`:\n- `history_stats`");

@@ -300,7 +300,6 @@ Rules:
   - `group` remains menu-driven; end-to-end support is proven for the `sensor` subtype, and other subtypes must stay anchored to the live step schema instead of guessed fields
 
 Still excluded from `ha-nova:helper`:
-- `template`
 - `trend`
 - `random`
 - `filter`

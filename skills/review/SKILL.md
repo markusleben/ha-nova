@@ -233,7 +233,7 @@ Traverse all `variables:` mappings in the config, not just the top-level block. 
   - in Step 2, derive collision candidates from `linked_entities[]`, not from config actions
   - run `search/related` on up to 3 linked entities
   - say explicitly that config-entry helper review does not use the storage-helper H rules
-  - for the `template` domain, also read the linked entity's rendered state (flag `unavailable`/`unknown`) and apply the template-level reliability checks to the `state` template when an options-flow readback exposes it
+  - for the `template` domain, also read the linked entity's rendered state (flag `unavailable`/`unknown`); to apply the template-level reliability checks, open the options flow for the entry first (non-persisting readback — the canonical metadata item does not carry the `state` template)
 - If an automation or script references helpers in actions or direct thresholds, also apply H-01..H-10 to those helpers
 - R-17 is an intra-config branch comparison only. Never emit it from collision scan or cross-automation conflict analysis.
 - R-18 applies only to sibling-variable references within one `variables:` mapping. Never emit it for cross-action or cross-scope references, script `fields`, HA builtins, or `{% set %}` locals inside the same template.
