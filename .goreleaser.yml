@@ -83,10 +83,9 @@ release:
     ```
 
     Windows uses a single supported install path: `install.ps1`. Return an RC install to stable later with `ha-nova update`.
-    {{ else }}## New Features
+    {{ else }}## Bug Fixes
 
-    - New **Energy** skill: ask about consumption, solar, battery, and per-device costs over any period — "what did the dryer cost last month?" — with the same numbers your Energy dashboard shows, dynamic electricity prices included. It can also safely add or remove tracked devices and energy sources, with preview and verification.
-    - New **Maintenance** skill: repair broken long-term statistics (orphaned entries, unit mismatches, sum spikes), trim recorder history, and clean up dead entities — grouped previews and typed confirmation before anything destructive, and it never touches data that is merely offline.
+    - `ha-nova update` and `ha-nova setup claude` no longer fail with "plugin not found after sync" when run from a shell that redirects Claude Code's config (`CLAUDE_CONFIG_DIR` — for example a terminal inside a Claude Code session). ha-nova now reads and writes the same Claude profile as the `claude` CLI it drives, and tells you when a sync targeted a non-default profile.
 
     ## What To Watch
 
