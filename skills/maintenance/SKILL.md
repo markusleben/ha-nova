@@ -37,7 +37,7 @@ Payloads, issue matrix, and gate checklists: `skills/maintenance/maintenance-ref
 ## Flow
 
 ### Statistics triage
-WS `{"type":"recorder/validate_statistics"}` → group results by issue type and report counts per group with a handful of examples — never dump hundreds of IDs. Map each type to its default remediation from the reference matrix (relabel vs. clear vs. report-only). Hundreds of `no_state` orphans are normal on older installs.
+WS `{"type":"recorder/validate_statistics"}` → group results by issue type and report counts per group with examples — never dump hundreds of IDs. Map each type to its default remediation from the reference matrix (relabel vs. clear vs. report-only). Hundreds of `no_state` orphans are normal on older installs.
 
 ### Statistics repair (gated)
 - `units_changed` → default is the non-destructive relabel (`recorder/update_statistics_metadata`, `unit_class` REQUIRED) — only after confirming the values are the same quantity merely mislabeled; if the sensor changed what it measures, relabel corrupts data — then clear or keep.
@@ -45,7 +45,7 @@ WS `{"type":"recorder/validate_statistics"}` → group results by issue type and
 - Sum spike → confirm the jump is spurious (glitch, meter swap) and not real usage — when unsure, ask. Locate the bad bucket via `statistics_during_period` (hourly; `5minute` only if <10 days old), derive the corrected `change` from neighboring buckets or user input, then `recorder/adjust_sum_statistics` with `adjustment = corrected − original` at the bucket's start. Reversible via the inverse call — offer that rollback. Check `energy/info` → `cost_sensors` for a linked cost statistic; verify each of the pair before offering the paired fix. Verify by re-reading the bucket.
 
 ### Recorder purge (gated)
-- `recorder.purge` (service): preview keep_days + what is deleted (states/events/short-term statistics). Long-term statistics are NEVER purged — say so. `repack: true` only with an explicit warning: rebuilds the database, blocks recording, needs free disk. The call is fire-and-forget — verify afterwards via `recorder/info` (`backlog` normal, `recording: true`). Typed token confirmation.
+- `recorder.purge` (service): preview keep_days + deletions (states/events/short-term statistics). Long-term statistics are NEVER purged — say so. `repack: true` only with an explicit warning: rebuilds the database, blocks recording, needs free disk. The call is fire-and-forget — verify `recorder/info` (`backlog` normal, `recording: true`) plus a pre-cutoff history read returning empty (allow minutes). Typed token confirmation.
 - `recorder.purge_entities`: default `keep_days: 0` = ALL state history for the match — preview the exact entity list and say explicitly that statistics are NOT touched (a separate clear is a conscious follow-up). Typed token confirmation. Verify by re-reading a bounded history window for one matched entity (allow minutes); `recorder/info` alone cannot prove deletion.
 
 ### Orphan cleanup (gated)
