@@ -156,7 +156,7 @@ HA NOVA is early — and that's the point. Here's where it's going:
 
 ## 🧩 Skills
 
-18 task skills plus the HA NOVA context skill, each a markdown file you can read and edit.
+17 task skills plus the HA NOVA context skill, each a markdown file you can read and edit.
 
 | Skill | What it does |
 |:------|:-------------|
