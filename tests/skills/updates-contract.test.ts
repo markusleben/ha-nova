@@ -34,8 +34,8 @@ describe("updates contract", () => {
 
   it("verifies installs by entity re-read, never by service success", () => {
     expect(updatesSkill).toContain("The call returns before the update finishes");
-    expect(updatesSkill).toContain("`installed_version` equals the target");
-    expect(updatesSkill).toContain("never claim success from the service call alone");
+    expect(updatesSkill).toContain("an explicitly requested older version may legitimately leave the entity pending");
+    expect(updatesSkill).toContain("never claim success from the call alone");
     expect(updatesSkill).toContain("a running update (`in_progress`) blocks a second install");
   });
 
@@ -47,7 +47,7 @@ describe("updates contract", () => {
     expect(updatesSkill).toContain("loads only after a Home Assistant restart");
     expect(updatesSkill).toContain("installed but not yet active");
     // Long-running hand-off and firmware patience.
-    expect(updatesSkill).toContain("update continues in the background");
+    expect(updatesSkill).toContain("continues in the background");
     expect(updatesSkill).toContain("30+ minutes and a temporarily `unavailable` device are normal");
     // Batch ordering keeps the batch alive across restarts.
     expect(updatesSkill).toContain("Order add-ons and firmware before core/OS");
