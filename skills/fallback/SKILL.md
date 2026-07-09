@@ -72,6 +72,7 @@ For every Relay-Ready call in this skill:
 | Event Subscriptions | Roadmap Phase 1c | -- |
 | Template / YAML Sensors | Roadmap Phase 3 | -- |
 | Backups (status, create, inspect, delete) | Covered | backup |
+| Updates (pending, release notes, install, skip) | Covered | updates |
 | Apps / Supervisor | External | -- |
 | HACS | External | -- |
 | Zigbee / Z-Wave Config | External | -- |

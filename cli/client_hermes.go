@@ -28,6 +28,7 @@ var hermesRequiredSkillDirs = []string{
 	"ha-nova-scene",
 	"ha-nova-service-call",
 	"ha-nova-todo",
+	"ha-nova-updates",
 	"ha-nova-write",
 }
 
