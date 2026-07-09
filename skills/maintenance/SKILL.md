@@ -45,7 +45,7 @@ WS `{"type":"recorder/validate_statistics"}` → group results by issue type and
 - Sum spike → confirm the jump is spurious (glitch, meter swap) and not real usage — when unsure, ask. Locate the bad bucket via `statistics_during_period` (hourly; `5minute` only if <10 days old), derive the corrected `change` from neighboring buckets or user input, then `recorder/adjust_sum_statistics` with `adjustment = corrected − original` at the bucket's start. Reversible via the inverse call — offer that rollback. Check `energy/info` → `cost_sensors` for a linked cost statistic; verify each of the pair before offering the paired fix. Verify by re-reading the bucket.
 
 ### Recorder purge (gated)
-- `recorder.purge` (service): preview keep_days + what is deleted (states/events/short-term statistics). Long-term statistics are NEVER purged — say so. `repack: true` only with an explicit warning: rebuilds the database, blocks recording for the duration, needs free disk. The call is fire-and-forget — verify afterwards via `recorder/info` (`backlog` back to normal, `recording: true`). Typed token confirmation.
+- `recorder.purge` (service): preview keep_days + what is deleted (states/events/short-term statistics). Long-term statistics are NEVER purged — say so. `repack: true` only with an explicit warning: rebuilds the database, blocks recording, needs free disk. The call is fire-and-forget — verify afterwards via `recorder/info` (`backlog` normal, `recording: true`). Typed token confirmation.
 - `recorder.purge_entities`: default `keep_days: 0` = ALL state history for the match — preview the exact entity list and say explicitly that statistics are NOT touched (a separate clear is a conscious follow-up). Typed token confirmation. Verify by re-reading a bounded history window for one matched entity (allow minutes); `recorder/info` alone cannot prove deletion.
 
 ### Orphan cleanup (gated)
@@ -76,6 +76,6 @@ Use stable localized slot labels in this order; omit empty slots. Grouped counts
 
 ## Safety
 
-- Every destructive write (clear, purge, registry remove): preview → typed token confirmation → per-item verification. Spike adjustment is the only reversible write; offer its rollback.
+- Every write: preview → confirmation → per-item verification. Clear/purge/registry remove take the typed token; the reversible spike adjustment and unit relabel take payload-bound natural confirmation — offer the spike rollback.
 - Backup gate: before clearing statistics in bulk, purging with low keep_days, repack, or bulk registry removal, check for a recent backup via `ha-nova:backup` (proportional — never for a single small fix).
-- Never remove an entity that is merely offline; when in doubt between dead and offline, report instead of removing.
+- Never remove an entity that is merely offline; when in doubt, report instead of removing.

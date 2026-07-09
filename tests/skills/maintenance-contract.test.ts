@@ -54,6 +54,8 @@ describe("maintenance contract", () => {
     expect(maintenanceSkill).toContain("`recorder/info` alone cannot prove deletion");
     // No restart/reload side channel to create a restart boundary.
     expect(maintenanceSkill).toContain("never restart or reload HA from this skill");
+    // Codex P2: every write is confirmation-gated, not only the destructive ones.
+    expect(maintenanceSkill).toContain("Every write: preview → confirmation → per-item verification");
   });
 
   it("teaches the reversible spike-repair protocol with the paired cost fix", () => {
