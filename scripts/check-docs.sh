@@ -34,14 +34,14 @@ else
 fi
 
 # ── 2. Skill count ──
-# Active skill inventory expects 18 top-level skill directories
-# (context skill + 17 sub-skills; scene+todo+backup+updates added 2026-07-08/09)
-echo "[2] Skill directory count (current inventory expects 18)"
+# Active skill inventory expects 19 top-level skill directories
+# (context skill + 18 sub-skills; energy added 2026-07-09)
+echo "[2] Skill directory count (current inventory expects 19)"
 SKILL_COUNT=$(find "$REPO_ROOT/skills" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')
-if (( SKILL_COUNT == 18 )); then
+if (( SKILL_COUNT == 19 )); then
   pass "skills/ has ${SKILL_COUNT} directories"
 else
-  fail "skills/ has ${SKILL_COUNT} directories — active docs/contracts expect 18. Update README and architecture docs."
+  fail "skills/ has ${SKILL_COUNT} directories — active docs/contracts expect 19. Update README and architecture docs."
 fi
 
 # ── 3. No MCP protocol in relay ──

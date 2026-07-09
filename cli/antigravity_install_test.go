@@ -29,6 +29,7 @@ func TestInstallAntigravityClientUsesNamespacedFlatSkillNames(t *testing.T) {
 		"todo",
 		"backup",
 		"updates",
+		"energy",
 		"fallback",
 	} {
 		dir := filepath.Join(skillsRoot, skill)
@@ -66,6 +67,7 @@ func TestInstallAntigravityClientUsesNamespacedFlatSkillNames(t *testing.T) {
 		"ha-nova-todo",
 		"ha-nova-backup",
 		"ha-nova-updates",
+		"ha-nova-energy",
 		"ha-nova-fallback",
 	} {
 		if _, err := os.Stat(filepath.Join(antigravitySkillsRoot(home), skill, "SKILL.md")); err != nil {

@@ -2,7 +2,7 @@
 
 ## Overview
 
-HA NOVA uses a flat skill layout with one context skill and 17 independent sub-skills under `skills/`.
+HA NOVA uses a flat skill layout with one context skill and 18 independent sub-skills under `skills/`.
 
 The repo skill tree is the single source of truth. Client installers adapt that same tree to each client's packaging rules:
 - Claude: plugin marketplace payload
@@ -38,6 +38,8 @@ skills/
   todo/SKILL.md                         (ha-nova:todo — to-do list items + Local To-do lifecycle)
   backup/SKILL.md                       (ha-nova:backup — backup status/create/inspect/delete; restore stays in HA UI)
   updates/SKILL.md                      (ha-nova:updates — pending updates, release notes, feature-gated installs)
+  energy/SKILL.md                       (ha-nova:energy — energy analysis + gated source/device config)
+  energy/energy-reference.md            (reference doc — prefs schemas, KPI formulas, analysis recipes)
   review/SKILL.md                       (ha-nova:review — config quality review + collision scan)
   entity-discovery/SKILL.md             (ha-nova:entity-discovery — entity lookup)
   service-call/SKILL.md                 (ha-nova:service-call — service calls + runtime control)
@@ -93,6 +95,7 @@ Current mapping:
 | todo | inline | service-based item CRUD with feature gate, single-step list flow |
 | backup | inline | WS status/generate/delete with initiation-vs-completion polling |
 | updates | inline | entity-based overview, feature-gated install with entity-poll verification |
+| energy | inline | statistics-based analysis, prefs read → merge → preview → full-save → validate verify |
 | review | inline | analysis is client-side, relay calls are reads only |
 | entity-discovery | inline | 1-2 calls, search + return |
 | service-call | inline | 2-3 calls, preview + execute |
@@ -310,7 +313,7 @@ Still excluded from `ha-nova:helper`:
 ## Fallback Architecture
 
 `ha-nova:fallback` is the mandatory safety fallback for HA features without a dedicated skill:
-- Covers: blueprints, zones/persons/tags, energy, destructive registry admin, unsupported config-entry helper families
+- Covers: blueprints, zones/persons/tags, destructive registry admin, unsupported config-entry helper families
 - Three-tier capability map: Covered (redirect to existing skill), Relay-Ready (experimental relay calls), External (web search)
 - All inline, no agents — research + web search + experimental relay calls
 - Safety: all experimental relay calls follow Write Safety by Endpoint Type guardrails (full-overwrite, field-level replace, merge, delete)
