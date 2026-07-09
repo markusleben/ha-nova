@@ -401,7 +401,7 @@ Instead, run the minimal config-entry post-write contract:
 1. **Verification**
    - create: config entry now exists and the requested `entry_id`/diff verification passed
    - update: the same `entry_id` still exists and the reopened options-flow snapshot reflects the requested field changes
-   - for `template` creates and `state`-changing updates, additionally read the linked entity via `GET /api/states/<entity_id>` — an `unavailable`/`unknown` rendered state means the template is broken; report it as a template defect while the config-entry write itself still counts as passed
+   - for `template` creates and `state`-changing updates, additionally read the linked entity via `GET /api/states/<entity_id>`. A clean numeric/string render confirms the template works. Treat `unavailable`/`unknown` as INCONCLUSIVE, not proof of breakage — a source entity can be legitimately `unknown`, or the template may intentionally return a sentinel; only call it a template defect when the options-flow template or an HA error proves a failure. Either way the config-entry write itself still counts as passed
    - delete: config entry is absent
 2. **Current editable snapshot**
    - if an options flow is available, summarize only the editable fields exposed by the final current step readback

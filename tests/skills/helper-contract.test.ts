@@ -141,7 +141,8 @@ describe("helper contract", () => {
       // Pre-create resolution of entities inside the state template.
       expect(skillDoc).toContain("an unknown reference is a blocking question, not a submit");
       // Rendered-state verification is operationalized, not just promised.
-      expect(skillDoc).toContain("report it as a template defect while the config-entry write itself still counts as passed");
+      expect(skillDoc).toContain("Treat `unavailable`/`unknown` as INCONCLUSIVE, not proof of breakage");
+      expect(skillDoc).toContain("only call it a template defect when the options-flow template or an HA error proves a failure");
     });
 
     it("uses options-flow snapshots for config-entry readback", () => {

@@ -84,7 +84,7 @@ Pick the right `mode` based on the automation's behavior:
 <!-- Copyright (c) Sergey Kadentsev (@sergeykad), Julien Lapointe (@julienld) -->
 
 When a user needs a derived/computed sensor, prefer built-in integrations over template sensors.
-All of these — including `template` itself when no built-in fits — are relay-backed config-entry helpers owned by `ha-nova:helper`.
+All the config-entry rows below — plus `template` itself when no built-in fits — are relay-backed config-entry helpers owned by `ha-nova:helper` (`schedule` is a storage-based helper, also `ha-nova:helper`, via the `schedule/create` WS flow, not the config-entry path).
 
 | Need | Use instead of template | Key benefit |
 |------|------------------------|-------------|
