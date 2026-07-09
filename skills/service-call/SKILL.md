@@ -33,7 +33,7 @@ Use file-based payloads for service writes:
 
 ## Response services
 
-Some services return data (`weather.get_forecasts`, `calendar.get_events`, `todo.get_items`, ...) and REQUIRE the `?return_response` query parameter — without it HA returns 400 "requires responses". Path shape: `/api/services/<domain>/<service>?return_response`; the data lives under `.data.body.service_response`. These calls are reads — no write confirmation needed; summarize the data compactly.
+Some services return data (`weather.get_forecasts`, `calendar.get_events`, `todo.get_items`, ...) and REQUIRE the `?return_response` query parameter — without it HA returns 400 "requires responses". Path shape: `/api/services/<domain>/<service>?return_response`; the data lives under `.data.body.service_response`. Pure data services (the examples above) are reads — no write confirmation. A response-capable ACTION service (for example direct `script.<script_id>`) still follows the full preview/confirmation flow below — the parameter only adds the response, it never downgrades an action to a read.
 
 ## Flow
 

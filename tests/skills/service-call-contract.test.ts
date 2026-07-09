@@ -120,7 +120,8 @@ describe("service call contract", () => {
       expect(skillDoc).toContain("## Response services");
       expect(skillDoc).toContain("REQUIRE the `?return_response` query parameter");
       expect(skillDoc).toContain("`.data.body.service_response`");
-      expect(skillDoc).toContain("These calls are reads — no write confirmation needed");
+      expect(skillDoc).toContain("Pure data services (the examples above) are reads — no write confirmation");
+      expect(skillDoc).toContain("it never downgrades an action to a read");
     });
   });
 
