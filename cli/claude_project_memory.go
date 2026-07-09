@@ -20,7 +20,7 @@ func removeClaudeProjectMemoryWithReport(home string, report *uninstallReport) e
 	if strings.TrimSpace(home) == "" {
 		return nil
 	}
-	projectsRoot := filepath.Join(home, ".claude", "projects")
+	projectsRoot := filepath.Join(claudeConfigRoot(home), "projects")
 	if _, err := os.Stat(projectsRoot); err != nil {
 		if isNotExist(err) {
 			return nil

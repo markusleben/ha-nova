@@ -367,7 +367,7 @@ func clearClaudeMarketplaceRegistration(home string) error {
 }
 
 func readClaudeMarketplaceSource(home string) (claudeMarketplaceSource, bool, error) {
-	path := filepath.Join(home, ".claude", "plugins", "known_marketplaces.json")
+	path := filepath.Join(claudeConfigRoot(home), "plugins", "known_marketplaces.json")
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
