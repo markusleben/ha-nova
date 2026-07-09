@@ -288,7 +288,7 @@ Rules:
   - No domain reload needed
 
 - **Config-entry family**
-  - Types: `utility_meter`, `derivative`, `integration`, `min_max`, `threshold`, `tod`, `statistics`, `group`, `history_stats`
+  - Types: `utility_meter`, `derivative`, `integration`, `min_max`, `threshold`, `tod`, `statistics`, `group`, `history_stats`, `template`
   - Read/list: WS `config_entries/get` + WS `config/entity_registry/list`
   - Readback: current editable options snapshot when `supports_options: true`; metadata-only fallback otherwise
   - Mutation transport: relay `/core`

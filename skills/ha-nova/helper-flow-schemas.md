@@ -1,7 +1,7 @@
 # HA NOVA Config-Entry Helper Flow Schemas
 
 Reference for the config-entry helper family handled by `ha-nova:helper`.
-This file covers the full supported config-entry family (9 domains):
+This file covers the full supported config-entry family (10 domains):
 
 - `utility_meter`
 - `derivative`
@@ -12,6 +12,7 @@ This file covers the full supported config-entry family (9 domains):
 - `statistics`
 - `group`
 - `history_stats`
+- `template`
 
 This file is an observed field inventory, not a complete validation schema.
 Use it to confirm supported domains, flow shape, update expectations, and verification notes.
@@ -308,5 +309,31 @@ Observed locally on a real HA instance on 2026-03-19:
   - a valid submit must use exactly two of those three keys
   - live success was proven with `start + end`
   - if the requested change switches to a different valid pair, drop the previous third key explicitly before submit
+- Linked entity resolution:
+  - resolve by matching `config_entry_id` in entity registry
+
+## template
+
+- Handler: `template`
+- Observed create flow shape (menu-driven, like `group`):
+  1. `step_id: user`, `type: menu` — `menu_options` is the entity-type list (observed: `alarm_control_panel`, `binary_sensor`, `button`, `cover`, `device_tracker`, `event`, `fan`, `image`, `light`, `lock`, `number`, `select`, `sensor`, `switch`, `update`, `vacuum`, `weather`); submit `{"next_step_id":"<type>"}`
+  2. `step_id: sensor` (verified subtype), `type: form`:
+     - `name` (required, text)
+     - `state` (required, template)
+     - `unit_of_measurement` (optional, select)
+     - `device_class` (optional, select)
+     - `state_class` (optional, select)
+     - `device_id` (optional, device)
+- Observed update fields (options flow, `step_id: sensor`):
+  - `state`
+  - `unit_of_measurement`
+  - `device_class`
+  - `state_class`
+  - `device_id`
+  - `advanced_options`
+  - `name` is NOT editable via the options flow — renames go through the entity registry (`ha-nova:organize`)
+- Subtype notes:
+  - end-to-end support verified for `sensor`; other subtypes must anchor to the live step schema instead of guessed fields
+  - the `state` value is a Jinja template string; a broken template creates the entry but the entity renders `unavailable` — post-write verification must read the rendered state
 - Linked entity resolution:
   - resolve by matching `config_entry_id` in entity registry

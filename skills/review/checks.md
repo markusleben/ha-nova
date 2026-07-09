@@ -193,7 +193,7 @@ Self-trigger / feedback loop = the automation triggers on an entity that it also
   - HA 2025.12 to 2026.5: deprecated, still functional — downgrade the finding to MEDIUM and recommend migrating before upgrading.
   - HA < 2025.12: the syntax is still current on that version (deprecation started in 2025.12) — keep MEDIUM, do not call it deprecated; say it will stop working once the instance upgrades to 2026.6+ and recommend migrating ahead of that upgrade.
   - Version unavailable: state the outcomes conditionally.
-- Do not confuse with the config-entry `template` helper domain (`ha-nova:fallback`) or with `trigger: template` triggers — this check is only about `platform: template` entity definitions.
+- Do not confuse with the config-entry `template` helper domain (`ha-nova:helper`) or with `trigger: template` triggers — this check is only about `platform: template` entity definitions.
 - When R-25 pulls a pasted template block into review scope, apply the template-level reliability checks (R-01, R-11, R-23) to its templates as well — those defects survive the migration to modern syntax.
 - Migration hint shape (do not rewrite automatically; show the target shape):
   ```yaml

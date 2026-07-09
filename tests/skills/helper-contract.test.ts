@@ -107,11 +107,11 @@ describe("helper contract", () => {
 
     it("references the dedicated config-entry flow schema doc", () => {
       expect(skillDoc).toContain("helper-flow-schemas.md");
-      expect(flowSchemasDoc).toContain("full supported config-entry family (9 domains)");
+      expect(flowSchemasDoc).toContain("full supported config-entry family (10 domains)");
       expect(flowSchemasDoc).toContain("Canonical write identity: `entry_id`");
     });
 
-    it("documents full config-entry helper ownership for the 9 supported domains", () => {
+    it("documents full config-entry helper ownership for the 10 supported domains", () => {
       for (const domain of [
         "utility_meter",
         "derivative",
@@ -122,14 +122,19 @@ describe("helper contract", () => {
         "statistics",
         "group",
         "history_stats",
+        "template",
       ]) {
         expect(skillDoc).toContain(domain);
         expect(flowSchemasDoc).toContain(domain);
       }
 
-      expect(skillDoc).toContain("CRUD support for 9 domains:");
+      expect(skillDoc).toContain("CRUD support for 10 domains:");
       expect(skillDoc).toContain("verified for the `sensor` subtype");
       expect(skillDoc).not.toContain("does **not** support update yet");
+      // Template authoring safety: broken templates render entities unavailable.
+      expect(skillDoc).toContain("skills/ha-nova/template-guidelines.md");
+      expect(skillDoc).toContain("post-write verification must read the rendered state");
+      expect(flowSchemasDoc).toContain("`name` is NOT editable via the options flow");
     });
 
     it("uses options-flow snapshots for config-entry readback", () => {
@@ -174,7 +179,7 @@ describe("helper contract", () => {
     it("enforces the config-entry helper allowlist before delete", () => {
       expect(skillDoc).toContain("Resolve target to the canonical config-entry helper item");
       expect(skillDoc).toContain("Enforce the helper-domain allowlist before any delete");
-      expect(skillDoc).toContain("allowed here: `utility_meter`, `derivative`, `integration`, `min_max`, `threshold`, `tod`, `statistics`, `group`, `history_stats`");
+      expect(skillDoc).toContain("allowed here: `utility_meter`, `derivative`, `integration`, `min_max`, `threshold`, `tod`, `statistics`, `group`, `history_stats`, `template`");
       expect(skillDoc).toContain("do not call `DELETE /api/config/config_entries/entry/{entry_id}` for out-of-scope domains");
       expect(skillDoc).toContain("hand off to `ha-nova:fallback` for any other config-entry domain");
       expect(skillDoc).toContain("`entry_id` only when needed to disambiguate duplicate titles/domains");
@@ -241,7 +246,6 @@ describe("helper contract", () => {
         .find((line) => line.includes("Supported types in this fallback section:"));
 
       expect(supportedTypesLine).toBeDefined();
-      expect(supportedTypesLine).toContain("`template`");
       expect(supportedTypesLine).toContain("`trend`");
       expect(supportedTypesLine).toContain("`random`");
       expect(supportedTypesLine).toContain("`filter`");
@@ -257,6 +261,7 @@ describe("helper contract", () => {
       expect(supportedTypesLine).not.toContain("`statistics`");
       expect(supportedTypesLine).not.toContain("`group`");
       expect(supportedTypesLine).not.toContain("`history_stats`");
+      expect(supportedTypesLine).not.toContain("`template`");
       expect(fallbackDoc).toContain("Delete unsupported config-entry helper by entry_id");
     });
   });

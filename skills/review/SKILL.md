@@ -39,7 +39,7 @@ If user provides an exact automation/script `entity_id` (e.g., `automation.main_
 
 For helpers, resolve the family first:
 - storage-based family: entity_id domain is one of `input_boolean`, `input_number`, `input_text`, `input_select`, `input_datetime`, `input_button`, `counter`, `timer`, `schedule`
-- supported config-entry family: domain is one of `utility_meter`, `derivative`, `integration`, `min_max`, `threshold`, `tod`, `statistics`, `group`, `history_stats`
+- supported config-entry family: domain is one of `utility_meter`, `derivative`, `integration`, `min_max`, `threshold`, `tod`, `statistics`, `group`, `history_stats`, `template`
 - config-entry helper review remains minimal, but target resolution must still normalize to a real `entry_id`
 
 If the target config is not already in the thread context, resolve it yourself:

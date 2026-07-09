@@ -158,7 +158,6 @@ Owned by `ha-nova:helper` now:
 
 Still handled here:
 
-- `template`
 - `trend`
 - `random`
 - `filter`
@@ -166,9 +165,9 @@ Still handled here:
 - `switch_as_x`
 - `generic_hygrostat`
 
-**Search:** `home assistant config entry flow helper template trend random filter generic_thermostat api 2026`
+**Search:** `home assistant config entry flow helper trend random filter generic_thermostat api 2026`
 
-**Supported types in this fallback section:** `template`, `trend`, `random`, `filter`, `generic_thermostat`, `switch_as_x`, `generic_hygrostat`
+**Supported types in this fallback section:** `trend`, `random`, `filter`, `generic_thermostat`, `switch_as_x`, `generic_hygrostat`
 
 **Experimental relay calls (no skill guardrails):**
 ```text

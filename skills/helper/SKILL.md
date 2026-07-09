@@ -11,14 +11,15 @@ description: Use when creating, updating, deleting, or listing Home Assistant he
 
 - **Storage-based family** — full CRUD for:
   - `input_boolean`, `input_number`, `input_text`, `input_select`, `input_datetime`, `input_button`, `counter`, `timer`, `schedule`
-- **Config-entry family** — CRUD support for 9 domains:
-  - `utility_meter`, `derivative`, `integration`, `min_max`, `threshold`, `tod`, `statistics`, `group`, `history_stats`
+- **Config-entry family** — CRUD support for 10 domains:
+  - `utility_meter`, `derivative`, `integration`, `min_max`, `threshold`, `tod`, `statistics`, `group`, `history_stats`, `template`
   - `group` note: handled through the live menu-driven flow; end-to-end support is verified for the `sensor` subtype, and other subtypes must stay anchored to the live step schema instead of guessed fields
+  - `template` note: same menu-driven flow (17 entity types); end-to-end support is verified for the `sensor` subtype. The `state` field is a Jinja template — author it per `skills/ha-nova/template-guidelines.md` and apply the template-level reliability checks (missing `float`/`int` defaults, boolean-string comparisons) BEFORE submitting; a broken template renders the entity `unavailable`, so post-write verification must read the rendered state, not just entry existence
 
 Not handled here:
 
 - other config-entry helper families:
-  - `template`, `trend`, `random`, `filter`, `generic_thermostat`, `switch_as_x`, `generic_hygrostat`
+  - `trend`, `random`, `filter`, `generic_thermostat`, `switch_as_x`, `generic_hygrostat`
 - `local_todo` list config entries (use `ha-nova:todo`)
 - automations/scripts config mutations (use `ha-nova:write`)
 
@@ -172,6 +173,7 @@ If the user gives only a linked `entity_id`, resolve it back to `config_entry_id
 - `statistics`
 - `group`
 - `history_stats`
+- `template`
 
 #### Listing helpers
 
@@ -354,7 +356,7 @@ If multiple matches remain, present max 5 candidates and ask one blocking questi
    - if multiple candidates remain after resolution, stop and ask one blocking question
    - never guess between duplicate titles or ambiguous linked-entity matches
 2. Enforce the helper-domain allowlist before any delete:
-   - allowed here: `utility_meter`, `derivative`, `integration`, `min_max`, `threshold`, `tod`, `statistics`, `group`, `history_stats`
+   - allowed here: `utility_meter`, `derivative`, `integration`, `min_max`, `threshold`, `tod`, `statistics`, `group`, `history_stats`, `template`
    - if the resolved `domain` is outside that allowlist, stop
    - do not call `DELETE /api/config/config_entries/entry/{entry_id}` for out-of-scope domains
    - hand off to `ha-nova:fallback` for any other config-entry domain

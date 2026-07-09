@@ -230,6 +230,7 @@ Supported helper domains:
 - `statistics`
 - `group`
 - `history_stats`
+- `template`
 
 `group` is menu-driven; the live-proven end-to-end subtype is `sensor`, and other subtypes must stay anchored to the live step schema instead of guessed fields.
 
