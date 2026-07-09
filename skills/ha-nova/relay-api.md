@@ -230,6 +230,7 @@ Supported helper domains:
 - `statistics`
 - `group`
 - `history_stats`
+- `template`
 
 `group` is menu-driven; the live-proven end-to-end subtype is `sensor`, and other subtypes must stay anchored to the live step schema instead of guessed fields.
 
@@ -297,7 +298,7 @@ Verification rules:
 
 Observed locally on a real HA instance on 2026-03-19:
 
-- all 9 supported domains completed real create/update/delete loops through relay `/core`
+- the original 9 domains completed real create/update/delete loops through relay `/core` (2026-03-19); `template` completed a live create/options-flow/delete loop on 2026-07-09
 - raw WS `config_entries/flow` did not succeed in this session
 - field-level update verification required reopening the options flow
 

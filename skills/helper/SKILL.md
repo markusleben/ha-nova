@@ -11,14 +11,15 @@ description: Use when creating, updating, deleting, or listing Home Assistant he
 
 - **Storage-based family** — full CRUD for:
   - `input_boolean`, `input_number`, `input_text`, `input_select`, `input_datetime`, `input_button`, `counter`, `timer`, `schedule`
-- **Config-entry family** — CRUD support for 9 domains:
-  - `utility_meter`, `derivative`, `integration`, `min_max`, `threshold`, `tod`, `statistics`, `group`, `history_stats`
+- **Config-entry family** — CRUD support for 10 domains:
+  - `utility_meter`, `derivative`, `integration`, `min_max`, `threshold`, `tod`, `statistics`, `group`, `history_stats`, `template`
   - `group` note: handled through the live menu-driven flow; end-to-end support is verified for the `sensor` subtype, and other subtypes must stay anchored to the live step schema instead of guessed fields
+  - `template` note: same menu-driven flow (17 entity types); end-to-end support is verified for the `sensor` subtype. The `state` field is a Jinja template — author it per `skills/ha-nova/template-guidelines.md` and apply the template-level reliability checks (missing `float`/`int` defaults, boolean-string comparisons) BEFORE submitting; a broken template renders the entity `unavailable`, so post-write verification must read the rendered state, not just entry existence
 
 Not handled here:
 
 - other config-entry helper families:
-  - `template`, `trend`, `random`, `filter`, `generic_thermostat`, `switch_as_x`, `generic_hygrostat`
+  - `trend`, `random`, `filter`, `generic_thermostat`, `switch_as_x`, `generic_hygrostat`
 - `local_todo` list config entries (use `ha-nova:todo`)
 - automations/scripts config mutations (use `ha-nova:write`)
 
@@ -110,7 +111,7 @@ If 0 results: try synonyms or shorter stems. Never dump entire domains.
    - No useful defaults inferable → silently skip.
 3. Preview the payload with the shared write-preview shape: compact summary, pre-write check when applicable, explicit not-saved-yet line, and Options block (`apply`, `show yaml`, `cancel`).
 4. Ask for natural confirmation bound to this exact preview (see context skill → Active Preview Confirmation).
-   - for unobserved `group` subtypes, this first confirmation authorizes only the non-persisting menu-step submit, not the final subtype-specific payload
+   - for unobserved `group` or `template` subtypes, this first confirmation authorizes only the non-persisting menu-step submit, not the final subtype-specific payload
 5. Execute:
    ```text
    ha-nova relay ws --data-file <payload-file>
@@ -172,6 +173,7 @@ If the user gives only a linked `entity_id`, resolve it back to `config_entry_id
 - `statistics`
 - `group`
 - `history_stats`
+- `template`
 
 #### Listing helpers
 
@@ -185,7 +187,7 @@ If the user gives only a linked `entity_id`, resolve it back to `config_entry_id
    ha-nova relay ws --data-file <payload-file> --out <registry-file>
    ```
    with `{"type":"config/entity_registry/list"}`.
-3. Filter config entries to the nine supported domains.
+3. Filter config entries to the ten supported domains.
 4. Join linked entities by matching `config_entry_id`.
 5. Present a compact table with:
    - title
@@ -248,15 +250,16 @@ If multiple matches remain, present max 5 candidates and ask one blocking questi
    - if required field semantics remain uncertain, fail loud and ask one blocking question
 2. Prepare the full create plan using `skills/ha-nova/helper-flow-schemas.md`:
    - for one-step domains, the plan is one submit body
-   - for `group` with subtype `sensor`, include the required `next_step_id` menu choice and the observed final form
-   - for any other `group` subtype, plan only the menu choice before the flow starts; inspect the live subtype form before promising the final field set
+   - for `group` or `template` with subtype `sensor`, include the required `next_step_id` menu choice and the observed final form
+   - for any other `group` or `template` subtype, plan only the menu choice before the flow starts; inspect the live subtype form before promising the final field set
    - for `statistics` and `history_stats`, prepare every later step body before preview
+   - for `template`, resolve every entity ID referenced inside the `state` template before preview — check the entity registry, then fall back to `/api/states/<entity_id>` (the registry only tracks entities with a `unique_id`; YAML/manual entities are valid references but absent from it). Only a reference missing from BOTH is a blocking question, not a submit
 3. Preview with the shared write-preview shape:
    - title/name
    - domain
    - known step plan
    - all fields already known at this point
-   - for unobserved `group` subtypes, say that the final subtype form will be previewed after the menu step returns live fields
+   - for unobserved `group` or `template` subtypes, say that the final subtype form will be previewed after the menu step returns live fields
    - include an explicit not-saved-yet line and Options block (`apply`, `show yaml`, `cancel`)
 4. Ask for natural confirmation bound to this exact preview (see context skill → Active Preview Confirmation).
 5. Capture a pre-create baseline:
@@ -274,7 +277,7 @@ If multiple matches remain, present max 5 candidates and ask one blocking questi
    - fail loud if the start response did not return `flow_id`
 8. Iterate the flow until terminal success:
    - if the current response is a menu step, submit only the selected `next_step_id`
-   - if that menu step leads to an unobserved `group` subtype form, stop and preview the live subtype fields before the terminal submit
+   - if that menu step leads to an unobserved `group` or `template` subtype form, stop and preview the live subtype fields before the terminal submit
    - after that live subtype preview, ask for a second natural confirmation before sending the terminal subtype-specific payload
    - if the current response is a form step, submit only the fields exposed for that step
    - the submit body for a form step must contain form fields only
@@ -328,6 +331,7 @@ If multiple matches remain, present max 5 candidates and ask one blocking questi
    - do not invent values for fields the current step does not expose
    - for `history_stats`, preserve HA's two-key window invariant across `start`, `end`, and `duration`
    - for `history_stats`, if the requested change switches to a different valid window pair, drop the old third key explicitly so the submit body still contains exactly two of `start`, `end`, and `duration`
+   - for `template`, when the change touches the `state` template, resolve every entity ID referenced in the NEW template before submitting (entity registry, then `/api/states/<entity_id>` fallback — YAML/manual entities are absent from the registry but valid) — a typo like `is_state('binary_sensor.typo','on')` renders a clean boolean, so the post-write rendered-state read cannot catch it; a reference missing from both is a blocking question, not a submit
 7. Preview current vs proposed in the Changes slot with `ha-nova diff` (see `skills/ha-nova/write-safety.md` → Pre-Write Diff). Include an explicit not-saved-yet line and Options block (`apply`, `show yaml`, `cancel`).
 8. Ask for natural confirmation bound to this exact preview (see context skill → Active Preview Confirmation).
 9. Submit the current step:
@@ -354,7 +358,7 @@ If multiple matches remain, present max 5 candidates and ask one blocking questi
    - if multiple candidates remain after resolution, stop and ask one blocking question
    - never guess between duplicate titles or ambiguous linked-entity matches
 2. Enforce the helper-domain allowlist before any delete:
-   - allowed here: `utility_meter`, `derivative`, `integration`, `min_max`, `threshold`, `tod`, `statistics`, `group`, `history_stats`
+   - allowed here: `utility_meter`, `derivative`, `integration`, `min_max`, `threshold`, `tod`, `statistics`, `group`, `history_stats`, `template`
    - if the resolved `domain` is outside that allowlist, stop
    - do not call `DELETE /api/config/config_entries/entry/{entry_id}` for out-of-scope domains
    - hand off to `ha-nova:fallback` for any other config-entry domain
@@ -398,6 +402,7 @@ Instead, run the minimal config-entry post-write contract:
 1. **Verification**
    - create: config entry now exists and the requested `entry_id`/diff verification passed
    - update: the same `entry_id` still exists and the reopened options-flow snapshot reflects the requested field changes
+   - for `template` creates and `state`-changing updates, additionally read the linked entity via `GET /api/states/<entity_id>`. A clean numeric/string render confirms the template works. Treat `unavailable`/`unknown` as INCONCLUSIVE, not proof of breakage — a source entity can be legitimately `unknown`, or the template may intentionally return a sentinel; only call it a template defect when the options-flow template or an HA error proves a failure. Either way the config-entry write itself still counts as passed
    - delete: config entry is absent
 2. **Current editable snapshot**
    - if an options flow is available, summarize only the editable fields exposed by the final current step readback

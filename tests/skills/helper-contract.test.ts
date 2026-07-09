@@ -107,11 +107,11 @@ describe("helper contract", () => {
 
     it("references the dedicated config-entry flow schema doc", () => {
       expect(skillDoc).toContain("helper-flow-schemas.md");
-      expect(flowSchemasDoc).toContain("full supported config-entry family (9 domains)");
+      expect(flowSchemasDoc).toContain("full supported config-entry family (10 domains)");
       expect(flowSchemasDoc).toContain("Canonical write identity: `entry_id`");
     });
 
-    it("documents full config-entry helper ownership for the 9 supported domains", () => {
+    it("documents full config-entry helper ownership for the 10 supported domains", () => {
       for (const domain of [
         "utility_meter",
         "derivative",
@@ -122,14 +122,30 @@ describe("helper contract", () => {
         "statistics",
         "group",
         "history_stats",
+        "template",
       ]) {
         expect(skillDoc).toContain(domain);
         expect(flowSchemasDoc).toContain(domain);
       }
 
-      expect(skillDoc).toContain("CRUD support for 9 domains:");
+      expect(skillDoc).toContain("CRUD support for 10 domains:");
       expect(skillDoc).toContain("verified for the `sensor` subtype");
       expect(skillDoc).not.toContain("does **not** support update yet");
+      // Template authoring safety: broken templates render entities unavailable.
+      expect(skillDoc).toContain("skills/ha-nova/template-guidelines.md");
+      expect(skillDoc).toContain("post-write verification must read the rendered state");
+      expect(flowSchemasDoc).toContain("`name` is NOT editable via the options flow");
+      // Menu-flow safety machinery covers template like group (16 unverified subtypes).
+      expect(skillDoc).toContain("for unobserved `group` or `template` subtypes, this first confirmation authorizes only the non-persisting menu-step submit");
+      expect(skillDoc).toContain("for any other `group` or `template` subtype, plan only the menu choice");
+      // Pre-create resolution of entities inside the state template.
+      expect(skillDoc).toContain("Only a reference missing from BOTH is a blocking question, not a submit");
+      // Reference resolution required on state updates too (typo renders clean).
+      expect(skillDoc).toContain("resolve every entity ID referenced in the NEW template before submitting");
+      expect(skillDoc).toContain("YAML/manual entities are absent from the registry but valid");
+      // Rendered-state verification is operationalized, not just promised.
+      expect(skillDoc).toContain("Treat `unavailable`/`unknown` as INCONCLUSIVE, not proof of breakage");
+      expect(skillDoc).toContain("only call it a template defect when the options-flow template or an HA error proves a failure");
     });
 
     it("uses options-flow snapshots for config-entry readback", () => {
@@ -174,7 +190,7 @@ describe("helper contract", () => {
     it("enforces the config-entry helper allowlist before delete", () => {
       expect(skillDoc).toContain("Resolve target to the canonical config-entry helper item");
       expect(skillDoc).toContain("Enforce the helper-domain allowlist before any delete");
-      expect(skillDoc).toContain("allowed here: `utility_meter`, `derivative`, `integration`, `min_max`, `threshold`, `tod`, `statistics`, `group`, `history_stats`");
+      expect(skillDoc).toContain("allowed here: `utility_meter`, `derivative`, `integration`, `min_max`, `threshold`, `tod`, `statistics`, `group`, `history_stats`, `template`");
       expect(skillDoc).toContain("do not call `DELETE /api/config/config_entries/entry/{entry_id}` for out-of-scope domains");
       expect(skillDoc).toContain("hand off to `ha-nova:fallback` for any other config-entry domain");
       expect(skillDoc).toContain("`entry_id` only when needed to disambiguate duplicate titles/domains");
@@ -194,13 +210,13 @@ describe("helper contract", () => {
     });
 
     it("documents multi-step create flows and required-field carry-forward for updates", () => {
-      expect(skillDoc).toContain("for `group` with subtype `sensor`, include the required `next_step_id` menu choice and the observed final form");
-      expect(skillDoc).toContain("for any other `group` subtype, plan only the menu choice before the flow starts");
+      expect(skillDoc).toContain("for `group` or `template` with subtype `sensor`, include the required `next_step_id` menu choice and the observed final form");
+      expect(skillDoc).toContain("for any other `group` or `template` subtype, plan only the menu choice before the flow starts");
       expect(flowSchemasDoc).toContain("end-to-end CRUD was proven locally for the `sensor` subtype only");
       expect(skillDoc).toContain("for `statistics` and `history_stats`, prepare every later step body before preview");
-      expect(skillDoc).toContain("for unobserved `group` subtypes, say that the final subtype form will be previewed after the menu step returns live fields");
+      expect(skillDoc).toContain("for unobserved `group` or `template` subtypes, say that the final subtype form will be previewed after the menu step returns live fields");
       expect(skillDoc).toContain("this first confirmation authorizes only the non-persisting menu-step submit");
-      expect(skillDoc).toContain("if that menu step leads to an unobserved `group` subtype form, stop and preview the live subtype fields before the terminal submit");
+      expect(skillDoc).toContain("if that menu step leads to an unobserved `group` or `template` subtype form, stop and preview the live subtype fields before the terminal submit");
       expect(skillDoc).toContain("ask for a second natural confirmation before sending the terminal subtype-specific payload");
       expect(skillDoc).toContain("carry forward unchanged required fields");
       expect(skillDoc).toContain("fail loud as unsupported update for that field on this HA version");
@@ -241,7 +257,6 @@ describe("helper contract", () => {
         .find((line) => line.includes("Supported types in this fallback section:"));
 
       expect(supportedTypesLine).toBeDefined();
-      expect(supportedTypesLine).toContain("`template`");
       expect(supportedTypesLine).toContain("`trend`");
       expect(supportedTypesLine).toContain("`random`");
       expect(supportedTypesLine).toContain("`filter`");
@@ -257,6 +272,7 @@ describe("helper contract", () => {
       expect(supportedTypesLine).not.toContain("`statistics`");
       expect(supportedTypesLine).not.toContain("`group`");
       expect(supportedTypesLine).not.toContain("`history_stats`");
+      expect(supportedTypesLine).not.toContain("`template`");
       expect(fallbackDoc).toContain("Delete unsupported config-entry helper by entry_id");
     });
   });

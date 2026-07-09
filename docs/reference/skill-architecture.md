@@ -288,7 +288,7 @@ Rules:
   - No domain reload needed
 
 - **Config-entry family**
-  - Types: `utility_meter`, `derivative`, `integration`, `min_max`, `threshold`, `tod`, `statistics`, `group`, `history_stats`
+  - Types: `utility_meter`, `derivative`, `integration`, `min_max`, `threshold`, `tod`, `statistics`, `group`, `history_stats`, `template`
   - Read/list: WS `config_entries/get` + WS `config/entity_registry/list`
   - Readback: current editable options snapshot when `supports_options: true`; metadata-only fallback otherwise
   - Mutation transport: relay `/core`
@@ -300,7 +300,6 @@ Rules:
   - `group` remains menu-driven; end-to-end support is proven for the `sensor` subtype, and other subtypes must stay anchored to the live step schema instead of guessed fields
 
 Still excluded from `ha-nova:helper`:
-- `template`
 - `trend`
 - `random`
 - `filter`

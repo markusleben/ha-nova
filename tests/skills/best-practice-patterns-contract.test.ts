@@ -255,8 +255,8 @@ describe("best-practice patterns contract", () => {
 
     it("documents the current relay-backed config-entry helper support boundary", () => {
       content ??= readFileSync(file, "utf8");
-      expect(content).toContain("Relay-backed config-entry flows are now supported");
-      expect(content).toContain("unsupported helper families still fall back");
+      expect(content).toContain("Relay-backed config-entry flows are supported");
+      expect(content).toContain("unsupported helper families (trend, random, filter, ...) still fall back");
       expect(content).toContain("group");
       expect(content).toContain("live menu/form flow");
       expect(content).not.toContain("Relay support planned");

@@ -39,7 +39,7 @@ If user provides an exact automation/script `entity_id` (e.g., `automation.main_
 
 For helpers, resolve the family first:
 - storage-based family: entity_id domain is one of `input_boolean`, `input_number`, `input_text`, `input_select`, `input_datetime`, `input_button`, `counter`, `timer`, `schedule`
-- supported config-entry family: domain is one of `utility_meter`, `derivative`, `integration`, `min_max`, `threshold`, `tod`, `statistics`, `group`, `history_stats`
+- supported config-entry family: domain is one of `utility_meter`, `derivative`, `integration`, `min_max`, `threshold`, `tod`, `statistics`, `group`, `history_stats`, `template`
 - config-entry helper review remains minimal, but target resolution must still normalize to a real `entry_id`
 
 If the target config is not already in the thread context, resolve it yourself:
@@ -233,6 +233,7 @@ Traverse all `variables:` mappings in the config, not just the top-level block. 
   - in Step 2, derive collision candidates from `linked_entities[]`, not from config actions
   - run `search/related` on up to 3 linked entities
   - say explicitly that config-entry helper review does not use the storage-helper H rules
+  - for the `template` domain, also read the linked entity's rendered state (`unavailable`/`unknown` is inconclusive, not proof of breakage — source state or an intentional sentinel); to apply the template-level reliability checks, open the options flow for the entry first (non-persisting readback — the canonical metadata item does not carry the `state` template)
 - If an automation or script references helpers in actions or direct thresholds, also apply H-01..H-10 to those helpers
 - R-17 is an intra-config branch comparison only. Never emit it from collision scan or cross-automation conflict analysis.
 - R-18 applies only to sibling-variable references within one `variables:` mapping. Never emit it for cross-action or cross-scope references, script `fields`, HA builtins, or `{% set %}` locals inside the same template.

@@ -276,7 +276,7 @@ describe("review contract", () => {
     expect(reviewSkill).toContain("downgrade the idea into Questions to consider");
   });
   it("keeps standalone config-entry helper review aligned to the 9 helper-owned domains", () => {
-    expect(reviewSkill).toContain("supported config-entry family: domain is one of `utility_meter`, `derivative`, `integration`, `min_max`, `threshold`, `tod`, `statistics`, `group`, `history_stats`");
+    expect(reviewSkill).toContain("supported config-entry family: domain is one of `utility_meter`, `derivative`, `integration`, `min_max`, `threshold`, `tod`, `statistics`, `group`, `history_stats`, `template`");
     expect(reviewSkill).toContain("Helper (config-entry family): minimal config-entry review");
   });
 
