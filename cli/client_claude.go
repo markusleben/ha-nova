@@ -71,6 +71,7 @@ func installClaudePlugin(paths runtimePaths, sourceRoot string) error {
 						return verifyErr
 					}
 					cleanupClaudeMarketplaceDevResidue(paths, marketplaceRoot)
+					warnClaudeProfileRedirect(paths.Home)
 					return nil
 				} else {
 					return restoreMarketplace(fmt.Errorf("claude plugin command failed: %s (%s)", strings.Join(installCmd.Args[1:], " "), strings.TrimSpace(string(installOutput))))
@@ -90,7 +91,18 @@ func installClaudePlugin(paths runtimePaths, sourceRoot string) error {
 	// Only after the sync fully verified: earlier failure paths roll back to
 	// the previous (possibly dev) registration, which still needs its symlink.
 	cleanupClaudeMarketplaceDevResidue(paths, marketplaceRoot)
+	warnClaudeProfileRedirect(paths.Home)
 	return nil
+}
+
+// warnClaudeProfileRedirect surfaces that the sync landed in a non-default
+// Claude profile so a redirected shell (e.g. inside a Claude Code session)
+// cannot silently leave the default install outdated.
+func warnClaudeProfileRedirect(home string) {
+	if !claudeConfigRootRedirected(home) {
+		return
+	}
+	printHumanWarn("Claude sync targeted the profile at %s (CLAUDE_CONFIG_DIR). A default Claude install at ~/.claude needs a separate `ha-nova setup claude` from a shell without CLAUDE_CONFIG_DIR.", claudeConfigRoot(home))
 }
 
 func verifyClaudePluginInstalled(home, desiredSource string) error {
@@ -176,7 +188,7 @@ func removeClaudeMarketplace(home string, report *uninstallReport) error {
 }
 
 func removeClaudeMarketplaceRecord(home string) (bool, error) {
-	path := filepath.Join(home, ".claude", "plugins", "known_marketplaces.json")
+	path := filepath.Join(claudeConfigRoot(home), "plugins", "known_marketplaces.json")
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if isNotExist(err) {
@@ -201,7 +213,7 @@ func removeClaudeMarketplaceRecord(home string) (bool, error) {
 }
 
 func removeClaudePluginRecord(home string) error {
-	path := filepath.Join(home, ".claude", "plugins", "installed_plugins.json")
+	path := filepath.Join(claudeConfigRoot(home), "plugins", "installed_plugins.json")
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if isNotExist(err) {
@@ -232,7 +244,7 @@ func unmarshalClaudeJSON(data []byte, target any) error {
 }
 
 func removeClaudePluginCache(home string) error {
-	cacheRoot := filepath.Join(home, ".claude", "plugins", "cache", "ha-nova")
+	cacheRoot := filepath.Join(claudeConfigRoot(home), "plugins", "cache", "ha-nova")
 	if err := os.RemoveAll(cacheRoot); err != nil {
 		return err
 	}
@@ -320,7 +332,7 @@ func readClaudePluginState(home string) (recordPresent bool, installed bool, kno
 	if strings.TrimSpace(home) == "" {
 		return false, false, true
 	}
-	data, err := os.ReadFile(filepath.Join(home, ".claude", "plugins", "installed_plugins.json"))
+	data, err := os.ReadFile(filepath.Join(claudeConfigRoot(home), "plugins", "installed_plugins.json"))
 	if err != nil {
 		if isNotExist(err) {
 			return false, false, true

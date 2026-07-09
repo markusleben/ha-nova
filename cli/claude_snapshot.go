@@ -109,7 +109,7 @@ func readClaudePluginInstallState(home string) (found, usable, stateUnreadable b
 	if strings.TrimSpace(home) == "" {
 		return false, false, false
 	}
-	data, err := os.ReadFile(filepath.Join(home, ".claude", "plugins", "installed_plugins.json"))
+	data, err := os.ReadFile(filepath.Join(claudeConfigRoot(home), "plugins", "installed_plugins.json"))
 	if err != nil {
 		if isNotExist(err) {
 			return false, false, false

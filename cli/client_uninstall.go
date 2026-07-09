@@ -24,7 +24,7 @@ func removeInstalledClientsWithReport(paths runtimePaths, state installState, re
 	for _, client := range clients {
 		switch client {
 		case "claude":
-			if err := removeSkillEntriesWithReport(filepath.Join(paths.Home, ".claude", "skills"), report); err != nil {
+			if err := removeSkillEntriesWithReport(filepath.Join(claudeConfigRoot(paths.Home), "skills"), report); err != nil {
 				return err
 			}
 			if !claudePluginInstalled(paths.Home) {
@@ -34,7 +34,7 @@ func removeInstalledClientsWithReport(paths runtimePaths, state installState, re
 				if err := removeClaudeMarketplace(paths.Home, report); err != nil {
 					return err
 				}
-				if err := removePathWithReport(filepath.Join(paths.Home, ".claude", "plugins", "cache", "ha-nova"), report); err != nil {
+				if err := removePathWithReport(filepath.Join(claudeConfigRoot(paths.Home), "plugins", "cache", "ha-nova"), report); err != nil {
 					return err
 				}
 				continue
@@ -46,7 +46,7 @@ func removeInstalledClientsWithReport(paths runtimePaths, state installState, re
 				if err := removeClaudeMarketplace(paths.Home, report); err != nil {
 					return err
 				}
-				if err := removePathWithReport(filepath.Join(paths.Home, ".claude", "plugins", "cache", "ha-nova"), report); err != nil {
+				if err := removePathWithReport(filepath.Join(claudeConfigRoot(paths.Home), "plugins", "cache", "ha-nova"), report); err != nil {
 					return err
 				}
 				continue
@@ -61,7 +61,7 @@ func removeInstalledClientsWithReport(paths runtimePaths, state installState, re
 					if err := removeClaudeMarketplace(paths.Home, report); err != nil {
 						return err
 					}
-					if err := removePathWithReport(filepath.Join(paths.Home, ".claude", "plugins", "cache", "ha-nova"), report); err != nil {
+					if err := removePathWithReport(filepath.Join(claudeConfigRoot(paths.Home), "plugins", "cache", "ha-nova"), report); err != nil {
 						return err
 					}
 					continue
@@ -75,7 +75,7 @@ func removeInstalledClientsWithReport(paths runtimePaths, state installState, re
 			if err := removeClaudeMarketplace(paths.Home, report); err != nil {
 				return err
 			}
-			if err := removePathWithReport(filepath.Join(paths.Home, ".claude", "plugins", "cache", "ha-nova"), report); err != nil {
+			if err := removePathWithReport(filepath.Join(claudeConfigRoot(paths.Home), "plugins", "cache", "ha-nova"), report); err != nil {
 				return err
 			}
 		case "codex":
