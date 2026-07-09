@@ -86,7 +86,9 @@ REST body for `--path /api/services/recorder/purge_entities` (also accepts `doma
 
 ```json
 {"entity_id": ["sensor.dead"], "keep_days": 0}
-``` `keep_days: 0` (default) deletes ALL state history for the match. Does NOT touch statistics — pair with `clear_statistics` consciously.
+```
+
+`keep_days: 0` (default) deletes ALL state history for the match. Does NOT touch statistics — pair with `clear_statistics` consciously.
 
 Both services are fire-and-forget: they return before the work finishes; verify via follow-up reads and `recorder/info` (`backlog` normal, `recording: true`, `migration_in_progress: false`).
 
