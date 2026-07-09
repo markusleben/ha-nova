@@ -105,7 +105,7 @@ Compute `used_total` per bucket, then sum every energy term over the whole windo
 - `used_total = grid_in + solar + battery_out − grid_out − battery_in`
 - self-sufficiency % = `(1 − min(1, grid_in / max(0, used_total))) × 100`
 - self-consumed solar % ≈ `(solar − grid_out) / solar × 100` — approximation; the HA UI additionally tracks whether battery charge came from solar or grid, so small deviations are expected. Label it.
-- battery round-trip % = `Σ battery_out / Σ battery_in` over ≥30 days (short windows are skewed by the state-of-charge delta)
+- battery round-trip % = `(Σ battery_out / Σ battery_in) × 100` over ≥30 days (short windows are skewed by the state-of-charge delta)
 - untracked = `used_total − Σ top-level device change` (exclude devices whose `included_in_stat` points at another tracked device). Frame as "unmetered devices + conversion losses" — battery homes always show a nonzero residual. Negative = devices over-reporting vs. the meter.
 
 ## Analysis Recipes
@@ -115,7 +115,7 @@ Compute `used_total` per bucket, then sum every energy term over the whole windo
 - **Device cost (dynamic price)**: `Σ over hours (change(device, h) × mean(price, h))`. State the two approximations: flat consumption within each hour, and sub-hourly tariff slots averaged into the hourly mean. Verify the price statistic exists first; convert price units from metadata.
 - **Device cost (fixed price)**: period `change` × `number_energy_price` from prefs.
 - **Period comparison**: two windows, aligned to local boundaries, like-for-like (month-to-date vs. the same day count of the previous period; never a partial vs. a full month). Same period last year works — hourly statistics are kept forever.
-- **Standby hunt**: per device `change` between 02:00–05:00 local / 3 h → average standby watts; rank; project cost per year via average price. Exclude duty-cycle appliances (fridge, freezer) from standby conclusions; skip DST-transition nights (the window is not 3 h).
+- **Standby hunt**: per device `change` (kWh) between 02:00–05:00 local / 3 h → average standby kW; × 1000 = watts; rank; project cost per year via average price. Exclude duty-cycle appliances (fridge, freezer) from standby conclusions; skip DST-transition nights (the window is not 3 h).
 - **Solar**: daily `change` trends, best/worst days. Forecast comparison: label deviation as "vs. revised forecast" — `forecast_solar`-style integrations update their forecast during the day, so this is not day-ahead accuracy.
 - **EV via manager (evcc or similar)**: the manager's integration exposes its own statistics entities (charged kWh, solar share, average price per 30 d/365 d/total) — read those states directly. Cross-domain value the manager cannot provide: EV share of household consumption/cost = wallbox device `change` / `used_total`.
 
