@@ -253,7 +253,7 @@ If multiple matches remain, present max 5 candidates and ask one blocking questi
    - for `group` or `template` with subtype `sensor`, include the required `next_step_id` menu choice and the observed final form
    - for any other `group` or `template` subtype, plan only the menu choice before the flow starts; inspect the live subtype form before promising the final field set
    - for `statistics` and `history_stats`, prepare every later step body before preview
-   - for `template`, resolve every entity ID referenced inside the `state` template against the entity registry before preview — an unknown reference is a blocking question, not a submit
+   - for `template`, resolve every entity ID referenced inside the `state` template before preview — check the entity registry, then fall back to `/api/states/<entity_id>` (the registry only tracks entities with a `unique_id`; YAML/manual entities are valid references but absent from it). Only a reference missing from BOTH is a blocking question, not a submit
 3. Preview with the shared write-preview shape:
    - title/name
    - domain
@@ -331,7 +331,7 @@ If multiple matches remain, present max 5 candidates and ask one blocking questi
    - do not invent values for fields the current step does not expose
    - for `history_stats`, preserve HA's two-key window invariant across `start`, `end`, and `duration`
    - for `history_stats`, if the requested change switches to a different valid window pair, drop the old third key explicitly so the submit body still contains exactly two of `start`, `end`, and `duration`
-   - for `template`, when the change touches the `state` template, resolve every entity ID referenced in the NEW template against the entity registry before submitting — a typo like `is_state('binary_sensor.typo','on')` renders a clean boolean, so the post-write rendered-state read cannot catch it; an unknown reference is a blocking question, not a submit
+   - for `template`, when the change touches the `state` template, resolve every entity ID referenced in the NEW template before submitting (entity registry, then `/api/states/<entity_id>` fallback — YAML/manual entities are absent from the registry but valid) — a typo like `is_state('binary_sensor.typo','on')` renders a clean boolean, so the post-write rendered-state read cannot catch it; a reference missing from both is a blocking question, not a submit
 7. Preview current vs proposed in the Changes slot with `ha-nova diff` (see `skills/ha-nova/write-safety.md` → Pre-Write Diff). Include an explicit not-saved-yet line and Options block (`apply`, `show yaml`, `cancel`).
 8. Ask for natural confirmation bound to this exact preview (see context skill → Active Preview Confirmation).
 9. Submit the current step:
