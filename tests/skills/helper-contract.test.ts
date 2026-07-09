@@ -140,6 +140,8 @@ describe("helper contract", () => {
       expect(skillDoc).toContain("for any other `group` or `template` subtype, plan only the menu choice");
       // Pre-create resolution of entities inside the state template.
       expect(skillDoc).toContain("an unknown reference is a blocking question, not a submit");
+      // Reference resolution required on state updates too (typo renders clean).
+      expect(skillDoc).toContain("resolve every entity ID referenced in the NEW template against the entity registry before submitting");
       // Rendered-state verification is operationalized, not just promised.
       expect(skillDoc).toContain("Treat `unavailable`/`unknown` as INCONCLUSIVE, not proof of breakage");
       expect(skillDoc).toContain("only call it a template defect when the options-flow template or an HA error proves a failure");

@@ -331,6 +331,7 @@ If multiple matches remain, present max 5 candidates and ask one blocking questi
    - do not invent values for fields the current step does not expose
    - for `history_stats`, preserve HA's two-key window invariant across `start`, `end`, and `duration`
    - for `history_stats`, if the requested change switches to a different valid window pair, drop the old third key explicitly so the submit body still contains exactly two of `start`, `end`, and `duration`
+   - for `template`, when the change touches the `state` template, resolve every entity ID referenced in the NEW template against the entity registry before submitting — a typo like `is_state('binary_sensor.typo','on')` renders a clean boolean, so the post-write rendered-state read cannot catch it; an unknown reference is a blocking question, not a submit
 7. Preview current vs proposed in the Changes slot with `ha-nova diff` (see `skills/ha-nova/write-safety.md` → Pre-Write Diff). Include an explicit not-saved-yet line and Options block (`apply`, `show yaml`, `cancel`).
 8. Ask for natural confirmation bound to this exact preview (see context skill → Active Preview Confirmation).
 9. Submit the current step:
