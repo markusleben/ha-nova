@@ -1,6 +1,6 @@
 ---
 name: fallback
-description: Mandatory fallback for any HA NOVA task without a dedicated subskill. Must be invoked before any raw relay write operation. Covers blueprints, energy, zones/persons/tags, destructive registry admin, Apps, HACS, Zigbee/Z-Wave, and unsupported config-entry helper families.
+description: Mandatory fallback for any HA NOVA task without a dedicated subskill. Must be invoked before any raw relay write operation. Covers blueprints, zones/persons/tags, destructive registry admin, Apps, HACS, Zigbee/Z-Wave, and unsupported config-entry helper families.
 ---
 
 # HA NOVA Fallback
@@ -66,7 +66,7 @@ For every Relay-Ready call in this skill:
 | Entity / Device metadata updates | Covered | organize |
 | Blueprints | Relay-Ready | this skill |
 | Zone / Person / Tag Mgmt | Relay-Ready | this skill |
-| Energy Configuration | Relay-Ready | this skill |
+| Energy (analysis + source/device config) | Covered | energy |
 | Other Config-Entry Helpers | Relay-Ready | this skill |
 | Entity remove / Device config-entry detach | Relay-Ready | this skill |
 | Event Subscriptions | Roadmap Phase 1c | -- |
@@ -126,19 +126,6 @@ ha-nova relay ws --data-file <payload-file>
 ```
 
 **Risks:** Zone changes affect presence detection automations. Person changes affect device trackers.
-
-### Energy Configuration -- RELAY-READY
-
-Configure energy dashboard sources (grid, solar, gas, water, individual devices).
-
-**Search:** `home assistant energy dashboard configuration api preferences 2026`
-
-**Experimental relay calls (no skill guardrails):**
-```text
-ha-nova relay ws --data-file <payload-file>
-```
-
-**Risks:** Field-level list replacement — omitted top-level keys (`energy_sources`, `device_consumption`, `device_consumption_water`) are preserved, but each provided key replaces its entire list. To add one source: read existing via `energy/get_prefs`, append to list, save back full list. Requires admin auth.
 
 ### Other Config-Entry Helpers -- RELAY-READY
 

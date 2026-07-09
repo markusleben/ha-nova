@@ -225,6 +225,7 @@ expensive. Never suggest a backup for routine small edits.
 | `scene` | preview + read-back verify | no | HA Backups |
 | `todo` | preview + read-back verify | no (list delete irreversible) | re-add items; HA Backups for lists |
 | `updates` | preview + entity re-read verify | no (updates not downgradable) | HA Backups (offered pre-install for core/OS) |
+| `energy` | change preview + read-back & validate verify | no (corrective save) | HA Backups |
 | `organize` | field preview | no (registry deletes irreversible) | HA Backups |
 | `service-call` | state-delta preview | no (runtime action, not config) | re-run corrective service call |
 | `fallback` (experimental writes) | payload preview + read-back verify | no | HA Backups |

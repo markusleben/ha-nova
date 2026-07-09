@@ -180,12 +180,13 @@ Match user intent to exactly one skill:
 | show, add, complete, update, remove to-do or shopping-list items; create/delete to-do lists | `ha-nova:todo` |
 | check backup status, create a backup (also as a safety net before risky changes), inspect a backup's contents, delete backups | `ha-nova:backup` |
 | check pending updates, read release notes, install updates, skip/unskip versions | `ha-nova:updates` |
+| analyze energy usage, solar/battery/grid KPIs, per-device consumption or costs; edit energy dashboard sources/devices | `ha-nova:energy` |
 | turn on/off, toggle, set, call a service | `ha-nova:service-call` |
 | enable/disable/trigger an automation | `ha-nova:service-call` |
 | find entities by name, room, area | `ha-nova:entity-discovery` |
 | fix relay/auth/connectivity errors | `ha-nova:onboarding` |
 | undo, revert, or restore the last automation/script/helper change | the skill that wrote it — `ha-nova:write` (automation/script) or `ha-nova:helper` (helper). `revert` applies only to supported verified updates. Creates clean up through the normal delete flow; deletes require Backup/recreate. Run `ha-nova snapshot show` to see the saved target if unsure |
-| **any HA task not matched above** — blueprints, energy, zones/persons/tags, unsupported admin writes, any unfamiliar raw relay/ws/core write | `ha-nova:fallback` **(mandatory fallback — never skip)** |
+| **any HA task not matched above** — blueprints, zones/persons/tags, unsupported admin writes, any unfamiliar raw relay/ws/core write | `ha-nova:fallback` **(mandatory fallback — never skip)** |
 
 **"Analyze my automation"** → `ha-nova:review` (NOT read + review)
 **"Review my utility meter helper"** → `ha-nova:review` (minimal config-entry helper review)
@@ -220,7 +221,8 @@ Match user intent to exactly one skill:
 **"What's on my calendar this week?"** → `ha-nova:calendar`
 **"Review all automations in area Area Alpha"** → `ha-nova:review` (area-first aggregate review when more than one target resolves)
 **"Create a timer"** → ambiguous! Ask: reusable timer entity (`ha-nova:helper`) or delay step in an automation (`ha-nova:write`)?
-**"Show my energy dashboard"** → `ha-nova:fallback` (no dedicated skill)
+**"How much energy did the dryer use last month?"** → `ha-nova:energy`
+**"Add this plug to the energy dashboard"** → `ha-nova:energy`
 **"Import a blueprint"** → `ha-nova:fallback` (relay-ready, no skill)
 **"How do I manage Apps?"** → `ha-nova:fallback` (external, web search)
 **"Show history for sensor X"** → `ha-nova:history`
