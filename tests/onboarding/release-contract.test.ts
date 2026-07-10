@@ -53,13 +53,16 @@ describe("release contract", () => {
     expect(releaseWorkflow).not.toContain("dist/winget");
   });
 
-  it("keeps v0.11.1 release-facing wording user-centric", () => {
+  it("keeps v0.12.0 release-facing wording user-centric", () => {
     // Shipped release-note bodies are archived (docs/archive/work/) and
     // non-normative per documentation governance; only the active GoReleaser
     // template is contract-checked here.
-    expect(goreleaser).toContain("no longer fail with \"plugin not found after sync\"");
-    expect(goreleaser).toContain("`CLAUDE_CONFIG_DIR`");
-    expect(goreleaser).toContain("reads and writes the same Claude profile as the `claude` CLI it drives");
+    expect(goreleaser).toContain("Previews you can actually judge");
+    expect(goreleaser).toContain("not just an item count");
+    expect(goreleaser).toContain('instead of a bare "verified"');
+    expect(goreleaser).toContain('a person at "work" is not `not_home`');
+    expect(goreleaser).toContain("robust against Claude Code state-format changes");
+    expect(goreleaser).toContain("use a local console or RDP session");
     expect(goreleaser).toContain("No NOVA Relay App update needed for this release — it stays on 0.2.6");
     expect(goreleaser).not.toContain("Use `v0.7.1` or the latest release command");
   });

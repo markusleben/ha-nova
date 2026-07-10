@@ -83,9 +83,16 @@ release:
     ```
 
     Windows uses a single supported install path: `install.ps1`. Return an RC install to stable later with `ha-nova update`.
-    {{ else }}## Bug Fixes
+    {{ else }}## New Features
 
-    - `ha-nova update` and `ha-nova setup claude` no longer fail with "plugin not found after sync" when run from a shell that redirects Claude Code's config (`CLAUDE_CONFIG_DIR` — for example a terminal inside a Claude Code session). ha-nova now reads and writes the same Claude profile as the `claude` CLI it drives, and tells you when a sync targeted a non-default profile.
+    - **Previews you can actually judge**: change previews now show WHICH triggers/actions were added, removed, or nested — not just an item count — plus a plain-language sentence about what the change does to behavior. Post-write results name exactly what was checked instead of a bare "verified", and offer an optional real test run.
+    - **Smarter reviews**: three new checks catch silent logic traps — presence conditions that miss named zones (a person at "work" is not `not_home`), fixed delays standing in for real completion, and startup automations reading sensors before they are ready.
+    - Changes that span several automations/scripts now start with a full plan and an honest note about what stays undoable.
+
+    ## Bug Fixes
+
+    - Claude Code attach checks now ask the `claude` CLI directly when state files disagree — robust against Claude Code state-format changes (and a disabled plugin no longer counts as attached).
+    - Windows: Credential Manager errors in SSH sessions now explain the fix (use a local console or RDP session) instead of printing a raw OS error.
 
     ## What To Watch
 
