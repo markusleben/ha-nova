@@ -9,7 +9,10 @@ import (
 
 // Tests across this package build Claude state under temp HOMEs; a
 // CLAUDE_CONFIG_DIR inherited from the invoking shell (e.g. a Claude Code
-// session) would redirect every reader away from those fixtures.
+// session) would redirect every reader away from those fixtures. Together
+// with the per-test HOME override this keeps every claude invocation —
+// mocked or a developer's real binary — inside temp state: the claude CLI
+// resolves its config from $HOME when CLAUDE_CONFIG_DIR is unset.
 func TestMain(m *testing.M) {
 	os.Unsetenv("CLAUDE_CONFIG_DIR")
 	os.Exit(m.Run())

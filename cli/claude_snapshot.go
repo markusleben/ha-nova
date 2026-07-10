@@ -1,8 +1,11 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 )
@@ -80,7 +83,7 @@ func inspectClaudeInstallSnapshot(paths runtimePaths, state installState) claude
 		snapshot.MarketplaceFound = true
 	}
 	var pluginStateUnreadable bool
-	snapshot.PluginFound, snapshot.UsableInstallPath, pluginStateUnreadable = readClaudePluginInstallState(paths.Home)
+	snapshot.PluginFound, snapshot.UsableInstallPath, pluginStateUnreadable = readClaudePluginPresence(paths.Home)
 	if pluginStateUnreadable {
 		snapshot.StateUnreadable = true
 	}
@@ -101,8 +104,27 @@ func inspectClaudeInstallSnapshot(paths runtimePaths, state installState) claude
 }
 
 func readClaudePluginInstallSnapshot(home string) (bool, bool) {
-	found, usable, _ := readClaudePluginInstallState(home)
+	found, usable, _ := readClaudePluginPresence(home)
 	return found, usable
+}
+
+// readClaudePluginPresence is the attach-check reader: the state file first
+// (cheap, exec-free — the healthy path never spawns a process), and only on
+// a READABLE negative verdict the claude CLI's own `plugin list --json`
+// answer. Claude Code has changed its state-file layout before (2.1.x
+// stopped recording some installs in the file) — the CLI answer is
+// schema-agnostic and prevents false "not attached" verdicts and sync
+// rollbacks on such changes. Unreadable state stays unreadable (torn-write
+// protection) and never triggers an exec.
+func readClaudePluginPresence(home string) (found, usable, stateUnreadable bool) {
+	found, usable, stateUnreadable = readClaudePluginInstallState(home)
+	if stateUnreadable || (found && usable) {
+		return found, usable, stateUnreadable
+	}
+	if cliFound, cliUsable, ok := readClaudePluginInstallFromCLI(); ok {
+		return cliFound, cliUsable, false
+	}
+	return found, usable, stateUnreadable
 }
 
 func readClaudePluginInstallState(home string) (found, usable, stateUnreadable bool) {
@@ -122,6 +144,35 @@ func readClaudePluginInstallState(home string) (found, usable, stateUnreadable b
 	}
 	found, usable = claudePluginInstallSnapshotFromValue(raw["plugins"])
 	return found, usable, false
+}
+
+// readClaudePluginInstallFromCLI asks `claude plugin list --json` for the
+// install state. ok=false means the answer is unavailable (claude missing,
+// no --json support, unparseable output) — callers then fall back to the
+// state file. ok=true with found=false is an authoritative "not installed".
+func readClaudePluginInstallFromCLI() (found, usable, ok bool) {
+	output, err := exec.Command("claude", "plugin", "list", "--json").Output()
+	if err != nil {
+		return false, false, false
+	}
+	trimmed := bytes.TrimSpace(output)
+	if len(trimmed) == 0 || trimmed[0] != '[' {
+		return false, false, false
+	}
+	var entries []struct {
+		ID          string `json:"id"`
+		InstallPath string `json:"installPath"`
+	}
+	if err := json.Unmarshal(trimmed, &entries); err != nil {
+		return false, false, false
+	}
+	for _, entry := range entries {
+		if entry.ID == "ha-nova@ha-nova" {
+			installPath := strings.TrimSpace(entry.InstallPath)
+			return true, installPath != "" && fileExists(installPath), true
+		}
+	}
+	return false, false, true
 }
 
 func claudePluginInstallSnapshotFromValue(value any) (bool, bool) {
