@@ -108,6 +108,28 @@ func TestClaudePluginPresenceHealthyFileShortCircuitsWithoutExec(t *testing.T) {
 	}
 }
 
+func TestClaudePluginPresenceExplicitDisableOutranksHealthyFileWithoutExec(t *testing.T) {
+	// `claude plugin disable` keeps installed_plugins.json intact; the
+	// explicit enabledPlugins=false in settings.json must flip the verdict —
+	// still without spawning claude.
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	writeInstalledPluginsFixture(t, home, true)
+	settings := `{"enabledPlugins":{"ha-nova@ha-nova":false}}`
+	if err := os.WriteFile(filepath.Join(home, ".claude", "settings.json"), []byte(settings), 0o644); err != nil {
+		t.Fatalf("write settings.json: %v", err)
+	}
+	logPath := installClaudeListJSONMock(t, `[]`)
+
+	found, _, stateUnreadable := readClaudePluginPresence(home)
+	if found || stateUnreadable {
+		t.Fatalf("readClaudePluginPresence() = (found=%v, unreadable=%v), want disabled → not attached", found, stateUnreadable)
+	}
+	if log := mockInvocations(t, logPath); log != "" {
+		t.Fatalf("expected no claude invocation for the explicit-disable verdict, got: %s", log)
+	}
+}
+
 func TestClaudePluginPresenceUnreadableFileNeverExecs(t *testing.T) {
 	// Torn writes must not trigger any exec — unreadable snapshots may not
 	// drive repair decisions at all.

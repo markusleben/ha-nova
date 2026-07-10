@@ -119,6 +119,12 @@ func readClaudePluginInstallSnapshot(home string) (bool, bool) {
 func readClaudePluginPresence(home string) (found, usable, stateUnreadable bool) {
 	found, usable, stateUnreadable = readClaudePluginInstallState(home)
 	if stateUnreadable || (found && usable) {
+		// `claude plugin disable` keeps the install record intact but loads
+		// no skills — an explicit enabledPlugins=false outranks a healthy
+		// install record (still exec-free: it is one more file read).
+		if !stateUnreadable && found && claudePluginExplicitlyDisabled(home) {
+			return false, false, false
+		}
 		return found, usable, stateUnreadable
 	}
 	if cliFound, cliUsable, ok := readClaudePluginInstallFromCLI(home); ok {
@@ -144,6 +150,28 @@ func readClaudePluginInstallState(home string) (found, usable, stateUnreadable b
 	}
 	found, usable = claudePluginInstallSnapshotFromValue(raw["plugins"])
 	return found, usable, false
+}
+
+// claudePluginExplicitlyDisabled reports whether settings.json carries an
+// explicit enabledPlugins["ha-nova@ha-nova"] = false. Absent file, absent
+// key, or unreadable settings all count as enabled (default-on).
+func claudePluginExplicitlyDisabled(home string) bool {
+	data, err := os.ReadFile(filepath.Join(claudeConfigRoot(home), "settings.json"))
+	if err != nil {
+		return false
+	}
+	var raw struct {
+		EnabledPlugins map[string]any `json:"enabledPlugins"`
+	}
+	if err := unmarshalClaudeJSON(data, &raw); err != nil {
+		return false
+	}
+	enabled, present := raw.EnabledPlugins["ha-nova@ha-nova"]
+	if !present {
+		return false
+	}
+	value, isBool := enabled.(bool)
+	return isBool && !value
 }
 
 // readClaudePluginInstallFromCLI asks `claude plugin list --json` for the
