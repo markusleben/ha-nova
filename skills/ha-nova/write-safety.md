@@ -243,11 +243,15 @@ rollback option in the same breath — never a bare "undo":
    snapshot show --list` lists what is still revertible (newest first).
 2. Re-read the current live config of `target_id` (same read-back path as
    Phase 4) into a file.
-3. Drift check (same `--target`/`--domain` selection as step 1):
+3. Drift check — MUST carry the same `--target`/`--domain` selection as
+   step 1 (a bare `verify` compares against the NEWEST snapshot and would
+   drift-check an earlier target against the wrong `expected_after`):
 
    ```text
-   ha-nova snapshot verify --against <live-file>
+   ha-nova snapshot verify --target <target_id> --against <live-file>
    ```
+
+   Only when reverting the newest update may the `--target` flag be omitted.
 
    - `match` (exit 0) → the config is still exactly as written; safe to restore.
    - `drift` (exit 2) → it changed since the write (e.g. an external UI edit).
