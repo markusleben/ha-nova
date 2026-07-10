@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -18,7 +19,7 @@ func installClaudeListJSONMock(t *testing.T, stdout string) string {
 	}
 	logPath := filepath.Join(binDir, "claude.log")
 	script := "#!/usr/bin/env bash\n" +
-		"echo \"$*\" >> " + logPath + "\n" +
+		"echo \"HOME=$HOME $*\" >> " + logPath + "\n" +
 		"if [ \"$1\" = plugin ] && [ \"$2\" = list ] && [ \"$3\" = --json ]; then\n" +
 		"cat <<'CLAUDE_MOCK_EOF'\n" + stdout + "\nCLAUDE_MOCK_EOF\n" +
 		"exit 0\n" +
@@ -75,11 +76,19 @@ func TestClaudePluginPresenceCLIAnswerCoversMissingFileEntry(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal entries: %v", err)
 	}
-	installClaudeListJSONMock(t, string(entries))
+	logPath := installClaudeListJSONMock(t, string(entries))
 
-	found, usable, stateUnreadable := readClaudePluginPresence(home)
+	// The reader must bind claude to the INSPECTED home, not the process
+	// $HOME — use a different inspected home to prove the binding.
+	inspectedHome := t.TempDir()
+
+	found, usable, stateUnreadable := readClaudePluginPresence(inspectedHome)
 	if !found || !usable || stateUnreadable {
 		t.Fatalf("readClaudePluginPresence() = (%v, %v, %v), want (true, true, false) from CLI answer", found, usable, stateUnreadable)
+	}
+	log := mockInvocations(t, logPath)
+	if !strings.Contains(log, "HOME="+inspectedHome+" ") {
+		t.Fatalf("expected claude subprocess bound to inspected home %q, got log: %s", inspectedHome, log)
 	}
 }
 

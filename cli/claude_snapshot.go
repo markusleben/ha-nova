@@ -121,7 +121,7 @@ func readClaudePluginPresence(home string) (found, usable, stateUnreadable bool)
 	if stateUnreadable || (found && usable) {
 		return found, usable, stateUnreadable
 	}
-	if cliFound, cliUsable, ok := readClaudePluginInstallFromCLI(); ok {
+	if cliFound, cliUsable, ok := readClaudePluginInstallFromCLI(home); ok {
 		return cliFound, cliUsable, false
 	}
 	return found, usable, stateUnreadable
@@ -147,11 +147,17 @@ func readClaudePluginInstallState(home string) (found, usable, stateUnreadable b
 }
 
 // readClaudePluginInstallFromCLI asks `claude plugin list --json` for the
-// install state. ok=false means the answer is unavailable (claude missing,
-// no --json support, unparseable output) — callers then fall back to the
-// state file. ok=true with found=false is an authoritative "not installed".
-func readClaudePluginInstallFromCLI() (found, usable, ok bool) {
-	output, err := exec.Command("claude", "plugin", "list", "--json").Output()
+// install state of the profile belonging to the inspected home. ok=false
+// means the answer is unavailable (claude missing, no --json support,
+// unparseable output) — callers then fall back to the state file. ok=true
+// with found=false is an authoritative "not installed".
+func readClaudePluginInstallFromCLI(home string) (found, usable, ok bool) {
+	cmd := exec.Command("claude", "plugin", "list", "--json")
+	// Bind the subprocess to the inspected home: without this, claude would
+	// answer for the process $HOME while the file reader inspects `home`.
+	// CLAUDE_CONFIG_DIR stays inherited — both sides honor it identically.
+	cmd.Env = append(os.Environ(), "HOME="+home)
+	output, err := cmd.Output()
 	if err != nil {
 		return false, false, false
 	}
