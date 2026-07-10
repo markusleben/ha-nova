@@ -53,6 +53,10 @@ Load this catalog from `skills/review/SKILL.md` Step 1 before evaluating finding
 - R-24 [LOW]: Capacity-like variable reads `available_energy` — a variable named like `capacity`, `capacity_kwh`, `maximum_energy`, or similar reads an entity containing `available_energy`. Available charge may not be nominal or maximum battery capacity, so calculated targets can be wrong. Advisory only: verify whether a maximum, nominal, or capacity entity is the intended source. Do not hard-code integration-specific replacements or automatically rewrite entity IDs.
 - R-25 [HIGH]: Legacy template platform syntax (removed in HA 2026.6) — pasted/draft YAML defines template entities under a domain platform key (`sensor:`, `binary_sensor:`, `cover:`, `fan:`, `light:`, `lock:`, `switch:`, `vacuum:`, `weather:`, or `alarm_control_panel:` containing `- platform: template`), or as a bare top-level `- platform: template` list (pasted contents of an `!include` file such as `sensors.yaml`; entity-shaped items only, see the Evidence Boundary). Home Assistant 2026.6 removed this syntax entirely: the entities silently stop being created — no error banner, automations depending on them stop firing. It was deprecated in 2025.12 and still current before that — always phrase per the version split in the R-25 Evidence Boundary. Fix: migrate to the modern top-level `template:` syntax (`value_template` → `state`, `friendly_name` → `name`, per-entity maps → list items). Applies only when reviewing pasted or draft YAML (see R-25 Evidence Boundary).
 
+- R-26 [MEDIUM → HIGH]: Exact-state equality narrower than the stated intent — a condition/trigger pins one literal state (classic: `== 'not_home'`) on a domain whose runtime states exceed a simple pair (person/device_tracker report named zones as states; media_player, vacuum, climate carry multi-state enums), while the user's stated intent is the broader category ("nobody home", "the TV is off" — which `standby`/`idle` also satisfy). The config is valid, saves, reloads, and read-back matches — it just never matches legitimate runtime states (a person at zone `work` has state `work`, not `not_home`). Fix: express the category (`!= 'home'` for away-semantics, `zone.home` person count for nobody-home, negations over enumerations). Default MEDIUM; escalate to HIGH when the narrow comparison gates the automation's core purpose. See R-26 Evidence Boundary.
+- R-27 [MEDIUM]: Fixed `delay:` standing in for asynchronous completion — an action starts an asynchronous operation (non-blocking `script.turn_on`, a device command that takes variable time) and a following fixed `delay:` is the only thing "guaranteeing" completion before dependent actions run. The delay documents a hope, not a fact. Fix: `wait_template`/`wait_for_trigger` on the actual completion signal, with `timeout:` (R-04) and a defined timeout path. Do not flag delays that are themselves the intent (light on for 5 minutes).
+- R-28 [MEDIUM]: Startup race — a `trigger: homeassistant` / `event: start` path immediately reads integration-backed entity states in conditions or actions. Right after startup those states can be `unknown`, `unavailable`, or stale-restored before their integration first updates. Fix: guard with an availability wait (`wait_template` on `has_value(...)` with timeout) or accept-and-document the race. Helpers restore their own state and rarely need the guard; template sensors inherit the race from their integration-backed dependencies.
+
 ## R-02 Evidence Boundary
 
 Without `to:`, a `trigger: state` fires on every attribute change of the entity. The footgun is real but its blast radius depends entirely on the automation's mode:
@@ -202,6 +206,23 @@ Self-trigger / feedback loop = the automation triggers on an entity that it also
         - name: "My Sensor"
           state: "{{ ... }}"
   ```
+
+## R-26 Evidence Boundary
+
+- Flag only when the stated or obvious intent is a CATEGORY and the comparison
+  pins one literal that under-covers it. `== 'work'` for "when Markus is at
+  work" is exactly right — never flag intent-matching literals.
+- The criterion is under-coverage of the intent, not open vs closed state
+  sets: two-state domains (binary_sensor on/off) and comparisons that cover
+  the intended category exactly are fine.
+- The classic instance: person/device_tracker away-semantics via
+  `== 'not_home'` — any named zone (work, school, gym) silently fails the
+  comparison although the person is away. Home-semantics via `== 'home'` is
+  normally correct — only a user-defined zone placed inside the home radius
+  can shadow it; do not flag it by default.
+- This is a static check: it cannot prove which zones exist. Phrase it as "this
+  comparison misses valid states like named zones" and show the category-safe
+  form; never claim the automation is currently broken.
 
 ## Performance (Medium)
 

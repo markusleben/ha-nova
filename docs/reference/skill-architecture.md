@@ -261,7 +261,7 @@ Rules:
 ## Review Architecture
 
 `ha-nova:review` is a self-contained read-only reviewer:
-- Config quality: safety (S-01..S-03), reliability (R-01..R-25), performance (P-01..P-05), style (M-01..M-05; M-04 retired, moved to R-20), script-specific (F-01..F-08), helper-specific (H-01..H-10)
+- Config quality: safety (S-01..S-03), reliability (R-01..R-28), performance (P-01..P-05), style (M-01..M-05; M-04 retired, moved to R-20), script-specific (F-01..F-08), helper-specific (H-01..H-10)
 - `R-25` is pasted-YAML only (legacy template platform syntax, removed in HA 2026.6); `M-05` is a modernize advisory for pre-2024.10 automation keys
 - Collision scan: `search/related` on top 3 target entities
 - Conflict analysis: 3-step test (polarity → temporal → guard conditions)
@@ -402,7 +402,7 @@ After any mutation (automation, script, or helper):
    - **Findings**: 🔴🟠🟡 findings with short descriptive titles plus `Why` / `Fix` — only when there are real issues.
    - **Collision check**: only when related items exist (list them + the conflict verdict).
    - **Advisory**: 🟠🟡 findings — only when non-empty.
-   - Omit any section with nothing to report — never print an empty "none" bucket. When all are empty, collapse to one localized confirmation line (e.g. "Verified — no issues or conflicts").
+   - Omit any section with nothing to report — never print an empty "none" bucket. When all are empty, collapse to one scope-honest confirmation line (write-safety → Verification Honesty; never a bare "verified").
    - Do not emit `Questions to consider`, `Suggestions`, or `Instant help` in post-write mode.
 
 ## Adding a New Skill — Checklist

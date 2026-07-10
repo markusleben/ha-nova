@@ -1,9 +1,13 @@
 # HA NOVA Write Safety
 
-Shared mechanics for two write-time safety features, owned here and referenced by
-`ha-nova:write` and `ha-nova:helper` (do not duplicate them):
+Shared mechanics for the write-time safety features, owned here and referenced
+by `ha-nova:write` and `ha-nova:helper` (do not duplicate them):
 
 - **Pre-Write Diff** — show exactly what a change alters before it is applied.
+- **Behavior narrative** — say what the change does, not only which fields move.
+- **Verification Honesty** — post-write wording names the proven scope.
+- **Multi-Target Changes** — plan-first flow for one logical change over
+  several items.
 - **Update-Revert** — durably undo the most recent update.
 
 Skill source stays English. Localize headings and labels at runtime per
@@ -55,6 +59,24 @@ summary of what the new item does.
 
 **delete**: no `## Changes` (the consumer-check result already covers it).
 
+### Behavior narrative (required with every update preview)
+
+The diff states WHAT fields change; the preview-summary sentence must state
+what the change DOES — the behavioral effect in plain language ("the three
+light actions now only run when someone is home", "the wait now has a 2-minute
+timeout"). This narrative is your interpretation, clearly outside the Changes
+slot — the diff lines stay verbatim CLI output, the two never mix. The diff is
+what will be saved: if your narrative and the diff disagree, fix the draft or
+the narrative before showing the preview — never show both and let the user
+guess.
+
+Confirmation quality depends on it: a user who cannot tell what the payload
+changes cannot meaningfully confirm it. If the diff still contains a
+count-only or `… and N more` line for something the user's request touched,
+the summary MUST name what was added, removed, or nested there. If you cannot
+explain the behavioral effect of your own draft, stop and re-derive it —
+never ask for confirmation of a change you cannot describe.
+
 ### User-authored notification copy
 
 Notification text is user-authored copy, not disposable implementation detail.
@@ -81,7 +103,8 @@ when an existing notification title, message, or notification payload changed.
 Render a terminal-friendly preview in this exact order, nothing extra — users
 should learn one shape and always recognize it:
 
-1. Preview-summary slot: target name and one plain-language sentence.
+1. Preview-summary slot: target name and one to three plain-language sentences
+   (the behavior narrative lives here).
 2. Changes slot: the `ha-nova diff` file/stdout lines, verbatim.
 3. Pre-write-check/impact slot: one or two short lines.
 4. Save-status slot: explicitly say that nothing has been saved yet.
@@ -115,6 +138,44 @@ semantic placeholders; localize them before showing the user:
 2. show yaml — show the full proposed config.
 3. cancel — do not save anything.
 ```
+
+## Verification Honesty (post-write wording)
+
+Post-write checks prove persistence, not behavior. What they establish: the
+write was accepted, the read-back matches, the domain reloaded, the runtime
+entity exists. What they do NOT establish: that conditions carry the intended
+meaning, that every branch is reachable, that timing assumptions hold, or that
+the physical action succeeds.
+
+Wording rules for the result and the collapsed no-findings line:
+
+- Never a bare "verified"/"works now". Name the proven scope instead — the
+  localized equivalent of: "Saved and checked: config persisted, reload OK,
+  entity live. Runtime behavior was not exercised."
+- Where a real run is meaningful, offer it as an explicit optional step: a
+  manual trigger via `ha-nova:service-call` (its own preview + confirmation —
+  it may actuate real devices; never run it unrequested). If the user
+  declines, the uncertainty stays in the final wording — do not let the
+  closing sentence sound more conclusive than the checks were.
+
+## Multi-Target Changes (one logical change, several items)
+
+When one logical change spans multiple automations/scripts/helpers, per-target
+previews alone hide the whole picture. Before the FIRST per-target preview:
+
+1. Present the change plan: every target, what changes in each, the intended
+   combined behavior, and the apply order (dependencies first).
+2. State revert coverage honestly BEFORE starting: update-revert keeps only
+   the most recent update (N=1) — after target two, target one is no longer
+   auto-revertible (only updates evict the snapshot; creates do not). For a broad or hard-to-reconstruct change, offer a safety
+   backup via `ha-nova:backup` first (proportionality rules apply).
+3. Get plan-level consent, then run the normal per-target flow (each target
+   still gets its own preview + confirmation — the plan does not replace them).
+4. Close with a combined summary: all targets applied, the one still-revertible
+   target named, and the verification-honesty wording for the whole change.
+
+If a mid-sequence target fails or is cancelled, stop and show which targets
+are already applied — never continue silently into a half-applied state.
 
 ## Update-Revert (durable, identity-preserving)
 
