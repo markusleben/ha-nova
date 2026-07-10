@@ -295,6 +295,7 @@ func selectUndoSnapshot(paths runtimePaths, target, domain string) (undoSnapshot
 		}
 		return stack.Snapshots[0], nil
 	}
+	var matches []undoSnapshot
 	for _, snap := range stack.Snapshots {
 		if snap.TargetID != target {
 			continue
@@ -302,9 +303,18 @@ func selectUndoSnapshot(paths runtimePaths, target, domain string) (undoSnapshot
 		if domain != "" && snap.Domain != domain {
 			continue
 		}
-		return snap, nil
+		matches = append(matches, snap)
 	}
-	return undoSnapshot{}, fmt.Errorf("no undo snapshot for target %s", target)
+	switch len(matches) {
+	case 0:
+		return undoSnapshot{}, fmt.Errorf("no undo snapshot for target %s", target)
+	case 1:
+		return matches[0], nil
+	default:
+		// Same target_id in more than one domain (save keys on domain+target,
+		// so this is legal): never guess which config to restore.
+		return undoSnapshot{}, fmt.Errorf("target %s is ambiguous across domains; pass --domain", target)
+	}
 }
 
 func validateUndoSnapshot(snap undoSnapshot) error {

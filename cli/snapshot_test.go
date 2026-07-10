@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -83,6 +84,17 @@ func TestSnapshotStackKeepsMultipleTargetsAndReplacesSameTarget(t *testing.T) {
 	}
 	if _, err := selectUndoSnapshot(paths, "missing", ""); err == nil {
 		t.Fatal("expected error for unknown target")
+	}
+	// Same target_id in a second domain: target-only selection must refuse
+	// to guess, and --domain must disambiguate.
+	if err := saveUndoSnapshotBytes(paths, []byte(`{"op":"update","domain":"script","target_id":"t1","before_config":{"a":1},"expected_after":{"a":2}}`)); err != nil {
+		t.Fatalf("save script t1: %v", err)
+	}
+	if _, err := selectUndoSnapshot(paths, "t1", ""); err == nil || !strings.Contains(err.Error(), "ambiguous") {
+		t.Fatalf("expected ambiguity error for cross-domain target, got %v", err)
+	}
+	if snap, err := selectUndoSnapshot(paths, "t1", "automation"); err != nil || snap.Domain != "automation" {
+		t.Fatalf("domain disambiguation failed: %+v, %v", snap, err)
 	}
 	if _, err := selectUndoSnapshot(paths, "", "automation"); err == nil {
 		t.Fatal("expected error for --domain without --target")
