@@ -92,6 +92,19 @@ func TestClaudePluginPresenceCLIAnswerCoversMissingFileEntry(t *testing.T) {
 	}
 }
 
+func TestClaudePluginPresenceCLIEntryWithoutInstallPathIsUsable(t *testing.T) {
+	// The plugin reference does not guarantee cache paths in list output —
+	// a matched enabled entry without installPath must not read as broken.
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	installClaudeListJSONMock(t, `[{"id":"ha-nova@ha-nova","enabled":true}]`)
+
+	found, usable, stateUnreadable := readClaudePluginPresence(home)
+	if !found || !usable || stateUnreadable {
+		t.Fatalf("readClaudePluginPresence() = (%v, %v, %v), want (true, true, false) without installPath", found, usable, stateUnreadable)
+	}
+}
+
 func TestClaudePluginPresenceHealthyFileShortCircuitsWithoutExec(t *testing.T) {
 	// The healthy path must stay exec-free (session hooks, doctor cadence).
 	home := t.TempDir()

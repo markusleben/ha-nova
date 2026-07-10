@@ -222,8 +222,12 @@ func readClaudePluginInstallFromCLI(home string) (found, usable, ok bool) {
 			if entry.Enabled != nil && !*entry.Enabled {
 				return false, false, true
 			}
+			// The CLI listing the plugin is authoritative: an absent
+			// installPath field stays usable (the reference does not
+			// guarantee cache paths in list output); only a reported path
+			// that no longer exists marks a broken install.
 			installPath := strings.TrimSpace(entry.InstallPath)
-			return true, installPath != "" && fileExists(installPath), true
+			return true, installPath == "" || fileExists(installPath), true
 		}
 	}
 	return false, false, true
