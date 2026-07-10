@@ -146,7 +146,53 @@ func TestDiffModeAndDelayInStableOrder(t *testing.T) {
 
 func TestDiffArrayLengthChange(t *testing.T) {
 	got := diffLines(t, `{"triggers":[{"a":1}]}`, `{"triggers":[{"a":1},{"b":2}]}`)
-	assertLines(t, got, []string{"- Triggers: 1 → 2 items"})
+	assertLines(t, got, []string{
+		"- Triggers: 1 → 2 items",
+		`- Trigger 2: added ({"b":2})`,
+	})
+}
+
+func TestDiffNestingActionsIntoIfBlockShowsWhatMoved(t *testing.T) {
+	// Issue #274 problem 1: wrapping actions into one if-block REDUCES the
+	// count — the diff must show what was removed and what block appeared,
+	// or the count line actively misrepresents the change.
+	before := `{"actions":[{"action":"script.a"},{"action":"script.b"},{"action":"script.c"},{"action":"script.d"},{"action":"script.e"}]}`
+	after := `{"actions":[{"action":"script.a"},{"if":[{"condition":"state"}],"then":[{"action":"script.b"},{"action":"script.c"},{"action":"script.d"}]},{"action":"script.e"}]}`
+	got := diffLines(t, before, after)
+	assertLines(t, got, []string{
+		"- Actions: 5 → 3 items",
+		"- Action 2: removed (was action script.b)",
+		"- Action 2: added (if/then block (3 actions))",
+		"- Action 3: removed (was action script.c)",
+		"- Action 4: removed (was action script.d)",
+	})
+}
+
+func TestDiffAlignedItemsCapIsHonest(t *testing.T) {
+	afterItems := make([]string, 0, 12)
+	for _, id := range []string{"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l"} {
+		afterItems = append(afterItems, `{"action":"script.`+id+`"}`)
+	}
+	got := diffLines(t, `{"actions":[]}`, `{"actions":[`+strings.Join(afterItems, ",")+`]}`)
+	if len(got) != 1+maxAlignedItemsPerSide+1 {
+		t.Fatalf("expected header + %d items + honesty line, got %d lines: %#v", maxAlignedItemsPerSide, len(got), got)
+	}
+	if got[len(got)-1] != "- Actions: … and 4 more added" {
+		t.Fatalf("expected honest remainder line, got %q", got[len(got)-1])
+	}
+}
+
+func TestDiffAlignedPairingKeepsFieldDiffForSameKind(t *testing.T) {
+	// An edited item followed by an insertion pairs positionally with its
+	// same-kind counterpart: field-level diff, not removed+added noise.
+	before := `{"actions":[{"action":"light.turn_on","data":{"brightness":100}}]}`
+	after := `{"actions":[{"action":"light.turn_on","data":{"brightness":50}},{"action":"script.extra"}]}`
+	got := diffLines(t, before, after)
+	assertLines(t, got, []string{
+		"- Actions: 1 → 2 items",
+		"- Action 1 (data › brightness): 100 → 50",
+		"- Action 2: added (action script.extra)",
+	})
 }
 
 func TestDiffShowsNotificationCopyChangeEvenWhenActionsLengthChanges(t *testing.T) {
@@ -156,6 +202,7 @@ func TestDiffShowsNotificationCopyChangeEvenWhenActionsLengthChanges(t *testing.
 	assertLines(t, got, []string{
 		"- Actions: 1 → 2 items",
 		"- Action 1 (data › message): Plan erstellt → Plan ist bereit",
+		"- Action 2: added (action input_boolean.turn_on)",
 	})
 }
 
@@ -165,6 +212,9 @@ func TestDiffShowsMovedNotificationCopyChangeWhenActionsLengthChanges(t *testing
 	got := diffLines(t, before, after)
 	assertLines(t, got, []string{
 		"- Actions: 1 → 2 items",
+		"- Action 1: removed (was action notify.mobile_app_phone)",
+		"- Action 1: added (action input_boolean.turn_on)",
+		"- Action 2: added (action notify.mobile_app_phone)",
 		"- Action 2 (data › message): Plan erstellt → Plan ist bereit",
 	})
 }

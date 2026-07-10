@@ -152,8 +152,16 @@ func renderConfigChanges(before, after map[string]interface{}) []string {
 		return changes[i].path < changes[j].path
 	})
 	lines := make([]string, 0, len(changes))
-	for _, c := range changes {
+	var prev configChange
+	for i, c := range changes {
+		// The aligned-item pairing and the notification-copy pass can surface
+		// the same field change twice; identical entries are adjacent after
+		// the stable sort.
+		if i > 0 && c.path == prev.path && c.text == prev.text {
+			continue
+		}
 		lines = append(lines, "- "+c.text)
+		prev = c
 	}
 	return lines
 }
@@ -227,18 +235,92 @@ func isEmptyValue(v interface{}) bool {
 
 func diffArrays(segs []segment, before, after []interface{}, changes *[]configChange) {
 	if len(before) != len(after) {
-		// Structural change: report the count, do not flood with per-element diffs.
+		// Structural change: the count line stays as the group header, followed
+		// by aligned per-item lines so the user can see WHAT was added/removed —
+		// a bare count can actively misrepresent a change (nesting actions into
+		// one if-block reduces the count without removing behavior).
 		*changes = append(*changes, configChange{
 			order: topOrder(segs),
 			path:  pathString(segs),
 			text:  fmt.Sprintf("%s: %d → %d items", humanizeLabel(segs), len(before), len(after)),
 		})
+		diffAlignedItems(segs, before, after, changes)
 		diffNotificationCopyInCommonItems(segs, before, after, changes)
 		return
 	}
 	for i := range before {
 		diffValues(appendSegment(segs, segment{index: i, isIndex: true}), before[i], after[i], changes)
 	}
+}
+
+// maxAlignedItemsPerSide bounds the per-item lines rendered for one array's
+// length change; the remainder is summarized honestly, never dropped silently.
+const maxAlignedItemsPerSide = 8
+
+// diffAlignedItems renders which items changed when an array's length differs:
+// items equal at the head and tail (common prefix/suffix) are skipped; the
+// middle windows are paired positionally as long as both sides hold the same
+// KIND of item (same service call, trigger platform, block type …) — those
+// pairs get a normal field-level diff. From the first dissimilar pair on, the
+// remainders are rendered as per-item removed/added summary lines. A pure move
+// shows as symmetric removed+added lines — deliberate: deterministic and
+// readable beats clever matching here.
+func diffAlignedItems(segs []segment, before, after []interface{}, changes *[]configChange) {
+	prefix := 0
+	for prefix < len(before) && prefix < len(after) && valuesEqual(before[prefix], after[prefix]) {
+		prefix++
+	}
+	suffix := 0
+	for suffix < len(before)-prefix && suffix < len(after)-prefix &&
+		valuesEqual(before[len(before)-1-suffix], after[len(after)-1-suffix]) {
+		suffix++
+	}
+	bMid := before[prefix : len(before)-suffix]
+	aMid := after[prefix : len(after)-suffix]
+	paired := 0
+	for paired < len(bMid) && paired < len(aMid) && alignedPairable(bMid[paired], aMid[paired]) {
+		diffValues(appendSegment(segs, segment{index: prefix + paired, isIndex: true}), bMid[paired], aMid[paired], changes)
+		paired++
+	}
+	renderAlignedSide(segs, bMid[paired:], prefix+paired, "removed (was %s)", changes)
+	renderAlignedSide(segs, aMid[paired:], prefix+paired, "added (%s)", changes)
+}
+
+// alignedPairable reports whether two items are the same kind of step, so a
+// positional field-level diff reads as an edit of one item rather than noise
+// between two unrelated items.
+func alignedPairable(before, after interface{}) bool {
+	kind := configItemKind(before)
+	return kind != "" && kind == configItemKind(after)
+}
+
+func renderAlignedSide(segs []segment, items []interface{}, offset int, verbFormat string, changes *[]configChange) {
+	rendered := len(items)
+	if rendered > maxAlignedItemsPerSide {
+		rendered = maxAlignedItemsPerSide
+	}
+	for i := 0; i < rendered; i++ {
+		itemSegs := appendSegment(segs, segment{index: offset + i, isIndex: true})
+		*changes = append(*changes, configChange{
+			order: topOrder(segs),
+			path:  pathString(itemSegs),
+			text:  fmt.Sprintf("%s: %s", humanizeLabel(itemSegs), fmt.Sprintf(verbFormat, summarizeConfigItem(items[i]))),
+		})
+	}
+	if len(items) > rendered {
+		*changes = append(*changes, configChange{
+			order: topOrder(segs),
+			path:  pathString(appendSegment(segs, segment{index: offset + rendered, isIndex: true})),
+			text:  fmt.Sprintf("%s: … and %d more %s", humanizeLabel(segs), len(items)-rendered, alignedVerbWord(verbFormat)),
+		})
+	}
+}
+
+func alignedVerbWord(verbFormat string) string {
+	if strings.HasPrefix(verbFormat, "removed") {
+		return "removed"
+	}
+	return "added"
 }
 
 func appendSegment(segs []segment, s segment) []segment {
@@ -290,7 +372,9 @@ func pathString(segs []segment) string {
 	var sb strings.Builder
 	for _, s := range segs {
 		if s.isIndex {
-			fmt.Fprintf(&sb, "[%d]", s.index)
+			// Zero-padded so lexicographic path sorting equals numeric index
+			// order ("[0002]" < "[0010]"); paths are sort keys, never shown.
+			fmt.Fprintf(&sb, "[%04d]", s.index)
 		} else {
 			if sb.Len() > 0 {
 				sb.WriteByte('.')

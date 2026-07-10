@@ -147,6 +147,116 @@ func formatDuration(m map[string]interface{}) string {
 	return strings.Join(parts, " ")
 }
 
+// summarizeConfigItem renders one trigger/condition/action/step as a short,
+// recognizable phrase for the aligned per-item diff lines. Preference order:
+// the user's own alias, then the semantic head of the item (service call,
+// trigger platform, condition type, delay/wait, block type with nested
+// counts), then the compact-JSON fallback.
+func summarizeConfigItem(v interface{}) string {
+	m, ok := v.(map[string]interface{})
+	if !ok {
+		return formatValue(v)
+	}
+	if alias, _ := m["alias"].(string); alias != "" {
+		return truncate(fmt.Sprintf("%q", escapeInline(alias)))
+	}
+	if action, _ := m["action"].(string); action != "" {
+		return truncate("action " + escapeInline(action))
+	}
+	if service, _ := m["service"].(string); service != "" {
+		return truncate("action " + escapeInline(service))
+	}
+	if platform, _ := m["platform"].(string); platform != "" {
+		return truncate("trigger " + escapeInline(platform))
+	}
+	if trigger, _ := m["trigger"].(string); trigger != "" {
+		return truncate("trigger " + escapeInline(trigger))
+	}
+	if condition, _ := m["condition"].(string); condition != "" {
+		return truncate("condition " + escapeInline(condition))
+	}
+	if delay, ok := m["delay"]; ok {
+		return truncate("delay " + formatValue(delay))
+	}
+	if _, ok := m["wait_template"]; ok {
+		return "wait_template"
+	}
+	if _, ok := m["wait_for_trigger"]; ok {
+		return "wait_for_trigger"
+	}
+	if blockSummary := summarizeBlockItem(m); blockSummary != "" {
+		return blockSummary
+	}
+	return truncate(compactJSON(m))
+}
+
+// configItemKind identifies what KIND of step an item is (which service call,
+// which trigger platform, which block type) for the aligned-pairing decision.
+// Empty string = unrecognized shape, never pairable.
+func configItemKind(v interface{}) string {
+	m, ok := v.(map[string]interface{})
+	if !ok {
+		return ""
+	}
+	if s, _ := m["action"].(string); s != "" {
+		return "action:" + s
+	}
+	if s, _ := m["service"].(string); s != "" {
+		return "action:" + s
+	}
+	if s, _ := m["platform"].(string); s != "" {
+		return "trigger:" + s
+	}
+	if s, _ := m["trigger"].(string); s != "" {
+		return "trigger:" + s
+	}
+	if s, _ := m["condition"].(string); s != "" {
+		return "condition:" + s
+	}
+	for _, key := range []string{"delay", "wait_template", "wait_for_trigger", "if", "choose", "repeat", "parallel", "stop"} {
+		if _, ok := m[key]; ok {
+			return key
+		}
+	}
+	return ""
+}
+
+// summarizeBlockItem names structural blocks with their nested sizes so
+// "3 actions wrapped into one if-block" is visible as exactly that.
+func summarizeBlockItem(m map[string]interface{}) string {
+	if _, ok := m["if"]; ok {
+		summary := fmt.Sprintf("if/then block (%s", countItems(m["then"], "action"))
+		if _, hasElse := m["else"]; hasElse {
+			summary += ", " + countItems(m["else"], "else action")
+		}
+		return summary + ")"
+	}
+	if _, ok := m["choose"]; ok {
+		return fmt.Sprintf("choose block (%s)", countItems(m["choose"], "option"))
+	}
+	if _, ok := m["repeat"]; ok {
+		return "repeat block"
+	}
+	if _, ok := m["parallel"]; ok {
+		return fmt.Sprintf("parallel block (%s)", countItems(m["parallel"], "branch"))
+	}
+	if _, ok := m["stop"]; ok {
+		return "stop"
+	}
+	return ""
+}
+
+func countItems(v interface{}, noun string) string {
+	items, ok := v.([]interface{})
+	if !ok {
+		return "1 " + noun
+	}
+	if len(items) == 1 {
+		return "1 " + noun
+	}
+	return fmt.Sprintf("%d %ss", len(items), noun)
+}
+
 func compactJSON(v interface{}) string {
 	out, err := json.Marshal(v)
 	if err != nil {
