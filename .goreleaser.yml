@@ -85,14 +85,7 @@ release:
     Windows uses a single supported install path: `install.ps1`. Return an RC install to stable later with `ha-nova update`.
     {{ else }}## New Features
 
-    - **Previews you can actually judge**: change previews now show WHICH triggers/actions were added, removed, or nested — not just an item count — plus a plain-language sentence about what the change does to behavior. Post-write results name exactly what was checked instead of a bare "verified", and offer an optional real test run.
-    - **Smarter reviews**: three new checks catch silent logic traps — presence conditions that miss named zones (a person at "work" is not `not_home`), fixed delays standing in for real completion, and startup automations reading sensors before they are ready.
-    - Changes that span several automations/scripts now start with a full plan and an honest note about what stays undoable.
-
-    ## Bug Fixes
-
-    - Claude Code attach checks now ask the `claude` CLI directly when state files disagree — robust against Claude Code state-format changes (and a disabled plugin no longer counts as attached).
-    - Windows: Credential Manager errors in SSH sessions now explain the fix (use a local console or RDP session) instead of printing a raw OS error.
+    - **Undo now covers multi-item changes**: the last 5 updated automations, scripts, or helpers each keep their own one-step revert (previously only the most recent update). When one change touches several items, every one of them stays individually undoable — and the assistant tells you upfront what is still revertible.
 
     ## What To Watch
 
