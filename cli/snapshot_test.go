@@ -43,12 +43,100 @@ func TestSnapshotSaveShowRoundTrip(t *testing.T) {
 	}
 
 	// File is written with owner-only permissions (contains config detail).
-	info, err := os.Stat(undoSnapshotPath(paths))
+	info, err := os.Stat(undoSnapshotStackPath(paths))
 	if err != nil {
 		t.Fatalf("stat failed: %v", err)
 	}
 	if perm := info.Mode().Perm(); perm != 0o600 {
 		t.Fatalf("expected 0600 permissions, got %o", perm)
+	}
+}
+
+func TestSnapshotStackKeepsMultipleTargetsAndReplacesSameTarget(t *testing.T) {
+	paths := testSnapshotPaths(t)
+	record := func(target, before string) string {
+		return `{"op":"update","domain":"automation","target_id":"` + target + `","before_config":{"alias":"` + before + `"},"expected_after":{"alias":"after"}}`
+	}
+	// Three targets, then a re-update of the second: 3 entries, second replaced + moved to top.
+	for _, r := range []string{record("t1", "b1"), record("t2", "b2"), record("t3", "b3"), record("t2", "b2-new")} {
+		if err := saveUndoSnapshotBytes(paths, []byte(r)); err != nil {
+			t.Fatalf("save failed: %v", err)
+		}
+	}
+	stack, err := loadUndoSnapshotStack(paths)
+	if err != nil {
+		t.Fatalf("load stack: %v", err)
+	}
+	if len(stack.Snapshots) != 3 {
+		t.Fatalf("expected 3 entries (same target replaced), got %d", len(stack.Snapshots))
+	}
+	if stack.Snapshots[0].TargetID != "t2" || stack.Snapshots[1].TargetID != "t3" || stack.Snapshots[2].TargetID != "t1" {
+		t.Fatalf("unexpected order: %s, %s, %s", stack.Snapshots[0].TargetID, stack.Snapshots[1].TargetID, stack.Snapshots[2].TargetID)
+	}
+	// Per-target selection returns the replaced record, newest-default returns t2.
+	snap, err := selectUndoSnapshot(paths, "t1", "")
+	if err != nil {
+		t.Fatalf("select t1: %v", err)
+	}
+	if string(snap.BeforeConfig) == "" || snap.TargetID != "t1" {
+		t.Fatalf("select t1 returned wrong record: %+v", snap)
+	}
+	if _, err := selectUndoSnapshot(paths, "missing", ""); err == nil {
+		t.Fatal("expected error for unknown target")
+	}
+	if _, err := selectUndoSnapshot(paths, "", "automation"); err == nil {
+		t.Fatal("expected error for --domain without --target")
+	}
+}
+
+func TestSnapshotStackEvictsOldestBeyondLimit(t *testing.T) {
+	paths := testSnapshotPaths(t)
+	for i := 0; i < undoSnapshotStackLimit+2; i++ {
+		r := `{"op":"update","domain":"automation","target_id":"t` + string(rune('a'+i)) + `","before_config":{"a":1},"expected_after":{"a":2}}`
+		if err := saveUndoSnapshotBytes(paths, []byte(r)); err != nil {
+			t.Fatalf("save %d failed: %v", i, err)
+		}
+	}
+	stack, err := loadUndoSnapshotStack(paths)
+	if err != nil {
+		t.Fatalf("load stack: %v", err)
+	}
+	if len(stack.Snapshots) != undoSnapshotStackLimit {
+		t.Fatalf("expected stack capped at %d, got %d", undoSnapshotStackLimit, len(stack.Snapshots))
+	}
+	if _, err := selectUndoSnapshot(paths, "ta", ""); err == nil {
+		t.Fatal("oldest entry should have been evicted")
+	}
+}
+
+func TestSnapshotLegacySingleFileMigratesIntoStack(t *testing.T) {
+	paths := testSnapshotPaths(t)
+	legacy := `{"schema_version":1,"op":"update","domain":"automation","target_id":"old","before_config":{"a":1},"expected_after":{"a":2}}`
+	if err := os.WriteFile(undoSnapshotPath(paths), []byte(legacy), 0o600); err != nil {
+		t.Fatalf("write legacy: %v", err)
+	}
+	// Read path: the legacy record is visible as the newest snapshot.
+	snap, err := loadUndoSnapshot(paths)
+	if err != nil {
+		t.Fatalf("load legacy: %v", err)
+	}
+	if snap.TargetID != "old" {
+		t.Fatalf("legacy record not surfaced: %+v", snap)
+	}
+	// Write path: a new save folds the legacy record in and removes the file.
+	next := `{"op":"update","domain":"automation","target_id":"new","before_config":{"b":1},"expected_after":{"b":2}}`
+	if err := saveUndoSnapshotBytes(paths, []byte(next)); err != nil {
+		t.Fatalf("save after legacy: %v", err)
+	}
+	stack, err := loadUndoSnapshotStack(paths)
+	if err != nil {
+		t.Fatalf("load stack: %v", err)
+	}
+	if len(stack.Snapshots) != 2 || stack.Snapshots[0].TargetID != "new" || stack.Snapshots[1].TargetID != "old" {
+		t.Fatalf("legacy migration produced wrong stack: %+v", stack.Snapshots)
+	}
+	if _, err := os.Stat(undoSnapshotPath(paths)); !os.IsNotExist(err) {
+		t.Fatal("legacy file should be removed after a stack save")
 	}
 }
 

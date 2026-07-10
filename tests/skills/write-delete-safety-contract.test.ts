@@ -44,7 +44,11 @@ describe("write delete safety contract", () => {
     expect(writeSafety).toContain("it may actuate real devices; never run it unrequested");
     // One logical change over several targets: plan first, honest revert scope.
     expect(writeSafety).toContain("## Multi-Target Changes (one logical change, several items)");
-    expect(writeSafety).toContain("after target two, target one is no longer");
+    expect(writeSafety).toContain("update-revert keeps the");
+    expect(writeSafety).toContain("last 5 updated targets");
+    expect(writeSafety).toContain("one step back per");
+    expect(writeSafety).toContain("snapshot show --target <target_id>");
+    expect(writeSafety).toContain("snapshot show --list");
     expect(writeSafety).toContain("never continue silently into a half-applied state");
     expect(writeSkill).toContain("Multi-target logical changes: present the plan first");
   });
