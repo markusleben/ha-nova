@@ -58,7 +58,8 @@ describe("release contract", () => {
     // non-normative per documentation governance; only the active GoReleaser
     // template is contract-checked here.
     expect(goreleaser).toContain("Undo now covers multi-item changes");
-    expect(goreleaser).toContain("last 5 updated automations, scripts, or helpers");
+    expect(goreleaser).toContain("last 5 updated automations, scripts, or standard helpers");
+    expect(goreleaser).toContain("a few multi-step helper types still recover via Backups");
     expect(goreleaser).toContain("previously only the most recent update");
     expect(goreleaser).toContain("No NOVA Relay App update needed for this release — it stays on 0.2.6");
     expect(goreleaser).not.toContain("Use `v0.7.1` or the latest release command");

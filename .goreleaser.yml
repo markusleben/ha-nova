@@ -85,7 +85,7 @@ release:
     Windows uses a single supported install path: `install.ps1`. Return an RC install to stable later with `ha-nova update`.
     {{ else }}## New Features
 
-    - **Undo now covers multi-item changes**: the last 5 updated automations, scripts, or helpers each keep their own one-step revert (previously only the most recent update) — and the assistant tells you upfront what is still revertible, including when a change is too broad for full coverage.
+    - **Undo now covers multi-item changes**: the last 5 updated automations, scripts, or standard helpers each keep their own one-step revert (previously only the most recent update; a few multi-step helper types still recover via Backups) — and the assistant tells you upfront what is still revertible, including when a change is too broad for full coverage.
 
     ## What To Watch
 
