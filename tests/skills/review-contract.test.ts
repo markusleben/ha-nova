@@ -114,8 +114,8 @@ describe("review contract", () => {
     expect(reviewChecks).toContain("R-16 [HIGH]");
     expect(reviewChecks).toContain("Templated event name");
     expect(reviewChecks).toContain("`event_type:` does not evaluate templates");
-    expect(reviewSkill).toContain("R-01..R-25");
-    expect(architectureDoc).toContain("R-01..R-25");
+    expect(reviewSkill).toContain("R-01..R-28");
+    expect(architectureDoc).toContain("R-01..R-28");
     expect(templateGuidelines).toContain("Event trigger names must be literal strings");
     expect(templateGuidelines).toContain("do not template `event_type:`");
   });
@@ -150,6 +150,22 @@ describe("review contract", () => {
     expect(templateGuidelines).toContain("self-contained template with internal `{% set %}`");
     expect(templateGuidelines).toContain("ordered `variables` actions");
     expect(architectureDoc).toContain("`R-18` is same-mapping only");
+  });
+
+  it("documents the issue-274 semantic and timing checks (R-26..R-28)", () => {
+    // Valid config, clean save, matching read-back — and still never matches
+    // legitimate runtime states: the silent regression class from issue #274.
+    expect(reviewChecks).toContain("R-26 [MEDIUM → HIGH]: Exact-state equality narrower than the stated intent");
+    expect(reviewChecks).toContain("a person at zone `work` has state `work`, not `not_home`");
+    expect(reviewChecks).toContain("## R-26 Evidence Boundary");
+    expect(reviewChecks).toContain("never flag intent-matching literals");
+    expect(reviewChecks).toContain("never claim the automation is currently broken");
+    // A fixed delay documents a hope, not completion.
+    expect(reviewChecks).toContain("R-27 [MEDIUM]: Fixed `delay:` standing in for asynchronous completion");
+    expect(reviewChecks).toContain("Do not flag delays that are themselves the intent");
+    // Startup paths read states before integrations report them.
+    expect(reviewChecks).toContain("R-28 [MEDIUM]: Startup race");
+    expect(reviewChecks).toContain("`unknown`, `unavailable`, or stale-restored");
   });
 
   it("documents boolean-string template comparisons as R-23", () => {
@@ -263,9 +279,9 @@ describe("review contract", () => {
     expect(outputRules).toContain("findings, summaries, clean states, pre-write verdicts");
     // Post-write review omits empty sections instead of printing "none" buckets.
     expect(architectureDoc).toContain('never print an empty "none" bucket');
-    expect(architectureDoc).toContain("collapse to one localized confirmation line");
+    expect(architectureDoc).toContain("collapse to one scope-honest confirmation line");
     expect(writeSkill).toContain('never print an empty "none" bucket');
-    expect(writeSkill).toContain("collapse to one localized confirmation line");
+    expect(writeSkill).toContain("collapse to one scope-honest confirmation line");
     // Standalone review still states a clean result (it answers an explicit request).
     expect(outputRules).toContain('"no issues found" result is useful');
   });

@@ -24,6 +24,8 @@ If this fails, run onboarding: `ha-nova setup`.
 
 ## Flow
 
+Multi-target logical changes: present the plan first per `skills/ha-nova/write-safety.md` → Multi-Target Changes.
+
 ### Phase 1: Resolve (Agent)
 
 1. Read `skills/ha-nova/agents/resolve-agent.md`.
@@ -54,7 +56,7 @@ If this fails, run onboarding: `ha-nova setup`.
      Track findings by check type for dedup in Phase 4, except R-18.
    - **3c) Pre-Write Impact (update only)**: run `skills/review/SKILL.md` Step 2 (Collision Scan) `search/related`; show affected automations/scripts as advisory. Skip `create`/`delete`.
 4. Preview (see `skills/ha-nova/write-safety.md` for the fixed shape):
-   - update: **run** `ha-nova diff` (prefer `--out <diff-file>`), print the diff output **verbatim** in the Changes slot — never write it yourself. create: summary. Create/update previews show `apply`, `show yaml`, and `cancel` options.
+   - update: **run** `ha-nova diff` (prefer `--out <diff-file>`), print the diff output **verbatim** in the Changes slot — never write it yourself; state the behavioral effect in the summary sentence (write-safety → Behavior narrative). create: summary. Create/update previews show `apply`, `show yaml`, and `cancel` options.
    - Delete preview MUST include the consumer-check result before confirmation: either the affected consumers or an explicit no-consumer result.
    - Delete previews do not show `apply`, `show yaml`, `cancel`, or any menu; ask only for the exact `confirm:<token>` or cancellation.
 5. Confirmation: create/update=natural, delete=tokenized `confirm:<token>`. Active Preview Confirmation is required; delete is the typed token, never a menu. Pre-preview consent is draft-only; payload/diff changes need preview.
@@ -94,7 +96,7 @@ Do NOT invoke `ha-nova:review` separately.
 3. Collision scan: `{"type":"search/related","item_type":"entity","item_id":"<entity_id>"}` via `ha-nova relay ws --data-file <payload-file>`; read max 3 related configs.
 4. Post-Write Review output (localized; see `skills/ha-nova/output-rules.md`) — report only what has substance; scans still run, only empty output is suppressed:
    - **Findings**: real issues only. **Collision check**: only when related items exist (list them + the verdict). **Advisory**: only when non-empty. Omit any section with nothing to report — never print an empty "none" bucket.
-   - If nothing is worth reporting, collapse to one localized confirmation line (e.g. "Verified — no issues or conflicts").
+   - If nothing is worth reporting, collapse to one scope-honest confirmation line (write-safety → Verification Honesty).
    - Never emit `Questions to consider`, `Suggestions`, or `Instant help` post-write; never repeat an item across **Findings** and **Advisory**.
 5. Update-Revert: updates only → **run `ha-nova snapshot save`** and offer `revert` (see `skills/ha-nova/write-safety.md`). Creates → cleanup via normal HA NOVA delete flow with preview, `confirm:<token>`, and absence verification. Deletes → Home Assistant Backups.
 

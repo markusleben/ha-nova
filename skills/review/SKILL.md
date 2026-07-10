@@ -223,7 +223,7 @@ Traverse all `variables:` mappings in the config, not just the top-level block. 
 - Codes are internal only; NEVER show them in any user-facing message (reports, chat replies, follow-up questions) — describe findings in plain language instead
 
 **Apply these families by domain:**
-- Automation: S-01..S-03, R-01..R-25, P-01..P-05, M-01..M-05
+- Automation: S-01..S-03, R-01..R-28, P-01..P-05, M-01..M-05
 - Script: automation families plus F-01..F-08
 - Helper (storage-based family): H-01..H-10
 - Helper (config-entry family): minimal config-entry review

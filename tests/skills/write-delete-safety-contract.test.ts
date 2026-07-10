@@ -30,6 +30,25 @@ describe("write delete safety contract", () => {
     expect(writeSkill).toContain("cancel");
   });
 
+  it("requires an understandable preview and honest verification wording (issue #274)", () => {
+    // The diff states WHAT changes; the summary must state what it DOES —
+    // confirmation of an incomprehensible preview is not informed consent.
+    expect(writeSafety).toContain("### Behavior narrative (required with every update preview)");
+    expect(writeSafety).toContain("never ask for confirmation of a change you cannot describe");
+    expect(writeSafety).toContain("the summary MUST name what was added, removed, or nested there");
+    expect(writeSkill).toContain("state the behavioral effect in the summary sentence");
+    // Post-write checks prove persistence, not behavior — wording must say so.
+    expect(writeSafety).toContain("## Verification Honesty (post-write wording)");
+    expect(writeSafety).toContain('Never a bare "verified"');
+    expect(writeSafety).toContain("Runtime behavior was not exercised");
+    expect(writeSafety).toContain("it may actuate real devices; never run it unrequested");
+    // One logical change over several targets: plan first, honest revert scope.
+    expect(writeSafety).toContain("## Multi-Target Changes (one logical change, several items)");
+    expect(writeSafety).toContain("after target two, target one is no longer");
+    expect(writeSafety).toContain("never continue silently into a half-applied state");
+    expect(writeSkill).toContain("Multi-target logical changes: present the plan first");
+  });
+
   it("defines diff + durable update-revert in the shared owner doc", () => {
     expect(writeSafety).toContain("## Changes");
     expect(writeSafety).toContain("Update-Revert");

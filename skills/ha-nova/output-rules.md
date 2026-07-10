@@ -45,5 +45,5 @@ Apply these rules to every user-facing HA NOVA response, including direct sub-sk
 
 - Standalone and bulk review keep their full shape because the user explicitly asked for review; a clear "no issues found" result is useful.
 - Post-write review is different: the user asked to write, not to review. Show only sections that carry substance.
-- Do not print empty "none" buckets in post-write review. If every post-write check is clean, collapse to one localized confirmation line.
+- Do not print empty "none" buckets in post-write review. If every post-write check is clean, collapse to one localized confirmation line — scope-honest per `skills/ha-nova/write-safety.md` → Verification Honesty, never a bare "verified".
 - In review output, put uncertainty in `Questions to consider`; put only confident recommendations in `Suggestions`.
