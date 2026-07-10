@@ -10,9 +10,9 @@ import (
 	"strings"
 )
 
-// undoSnapshot is the client-side, single-slot record of the most recent
-// revertible write. It stores the pre-write config (to restore) and the
-// post-write verified read-back (to detect external drift before restoring).
+// undoSnapshot is one client-side record of a revertible write. It stores the
+// pre-write config (to restore) and the post-write verified read-back (to
+// detect external drift before restoring).
 //
 // The store performs NO Home Assistant calls. The skill orchestrates the
 // actual restore through `ha-nova relay` and the apply-agent, so the single
@@ -29,12 +29,30 @@ type undoSnapshot struct {
 
 const undoSnapshotSchemaVersion = 1
 
+// undoSnapshotStack keeps the most recent revertible updates, newest first —
+// one entry per domain+target (a re-update of the same target replaces its
+// entry; reverting an update always restores that target's LAST before-state).
+// Bounded so a multi-target logical change stays fully revertible without the
+// store growing forever (issue #282; previously a single slot).
+type undoSnapshotStack struct {
+	SchemaVersion int            `json:"schema_version"`
+	Snapshots     []undoSnapshot `json:"snapshots"`
+}
+
+const undoSnapshotStackSchemaVersion = 2
+const undoSnapshotStackLimit = 5
+
 // Exit codes for `snapshot verify`: 0 = live matches the post-write state,
 // snapshotExitDrift = live drifted (external edit), 1 = operational error.
 const snapshotExitDrift = 2
 
+// undoSnapshotPath is the legacy single-slot store; still read for migration.
 func undoSnapshotPath(paths runtimePaths) string {
 	return filepath.Join(paths.ConfigDir, "undo-snapshot.json")
+}
+
+func undoSnapshotStackPath(paths runtimePaths) string {
+	return filepath.Join(paths.ConfigDir, "undo-snapshots.json")
 }
 
 func runSnapshotCommand(paths runtimePaths, args []string) int {
@@ -46,7 +64,7 @@ func runSnapshotCommand(paths runtimePaths, args []string) int {
 	case "save":
 		return runSnapshotSave(paths, args[1:])
 	case "show":
-		return runSnapshotShow(paths)
+		return runSnapshotShow(paths, args[1:])
 	case "verify":
 		return runSnapshotVerify(paths, args[1:])
 	default:
@@ -97,8 +115,42 @@ func runSnapshotSave(paths runtimePaths, args []string) int {
 	return 0
 }
 
-func runSnapshotShow(paths runtimePaths) int {
-	snap, err := loadUndoSnapshot(paths)
+func runSnapshotShow(paths runtimePaths, args []string) int {
+	fs := flag.NewFlagSet("snapshot show", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	var target, domain string
+	var list bool
+	fs.StringVar(&target, "target", "", "select the snapshot for this target_id (default: newest)")
+	fs.StringVar(&domain, "domain", "", "optional domain filter when selecting by target")
+	fs.BoolVar(&list, "list", false, "list the stored snapshots (op/domain/target_id, newest first)")
+	if err := fs.Parse(args); err != nil {
+		printErr("%s", err)
+		return 1
+	}
+	if list {
+		stack, err := loadUndoSnapshotStack(paths)
+		if err != nil {
+			printErr("%s", err)
+			return 1
+		}
+		type entry struct {
+			Op       string `json:"op"`
+			Domain   string `json:"domain"`
+			TargetID string `json:"target_id"`
+		}
+		entries := make([]entry, 0, len(stack.Snapshots))
+		for _, s := range stack.Snapshots {
+			entries = append(entries, entry{Op: s.Op, Domain: s.Domain, TargetID: s.TargetID})
+		}
+		out, err := json.MarshalIndent(entries, "", "  ")
+		if err != nil {
+			printErr("cannot render snapshot list: %s", err)
+			return 1
+		}
+		fmt.Fprintln(os.Stdout, string(out))
+		return 0
+	}
+	snap, err := selectUndoSnapshot(paths, target, domain)
 	if err != nil {
 		printErr("%s", err)
 		return 1
@@ -115,8 +167,10 @@ func runSnapshotShow(paths runtimePaths) int {
 func runSnapshotVerify(paths runtimePaths, args []string) int {
 	fs := flag.NewFlagSet("snapshot verify", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
-	var against string
+	var against, target, domain string
 	fs.StringVar(&against, "against", "", "path to the current live config JSON")
+	fs.StringVar(&target, "target", "", "select the snapshot for this target_id (default: newest)")
+	fs.StringVar(&domain, "domain", "", "optional domain filter when selecting by target")
 	if err := fs.Parse(args); err != nil {
 		printErr("%s", err)
 		return 1
@@ -125,7 +179,7 @@ func runSnapshotVerify(paths runtimePaths, args []string) int {
 		printErr("--against <live.json> is required")
 		return 1
 	}
-	snap, err := loadUndoSnapshot(paths)
+	snap, err := selectUndoSnapshot(paths, target, domain)
 	if err != nil {
 		printErr("%s", err)
 		return 1
@@ -148,12 +202,12 @@ func runSnapshotVerify(paths runtimePaths, args []string) int {
 	return snapshotExitDrift
 }
 
-// saveUndoSnapshotBytes parses, validates and atomically writes the snapshot.
-// N=1: it overwrites any prior snapshot — only the last write is revertible.
-// The store assumes single-flight writes: the skill's single write path
-// (apply-agent) serialises operations, so concurrent saves don't race on the one
-// slot. The write itself is atomic (temp file + rename), so a reader never sees a
-// torn file even if that assumption is violated.
+// saveUndoSnapshotBytes parses, validates and atomically writes the snapshot
+// onto the bounded stack: newest first, one entry per domain+target (same
+// target replaces its entry), oldest evicted beyond the limit. The store
+// assumes single-flight writes: the skill's single write path (apply-agent)
+// serialises operations. The write itself is atomic (temp file + rename), so a
+// reader never sees a torn file even if that assumption is violated.
 func saveUndoSnapshotBytes(paths runtimePaths, data []byte) error {
 	var snap undoSnapshot
 	if err := json.Unmarshal(data, &snap); err != nil {
@@ -163,10 +217,104 @@ func saveUndoSnapshotBytes(paths runtimePaths, data []byte) error {
 		return err
 	}
 	snap.SchemaVersion = undoSnapshotSchemaVersion
-	if err := writeJSONFile(undoSnapshotPath(paths), snap, 0o600); err != nil {
+	stack, err := loadUndoSnapshotStack(paths)
+	if err != nil {
+		return err
+	}
+	kept := make([]undoSnapshot, 0, len(stack.Snapshots)+1)
+	kept = append(kept, snap)
+	for _, existing := range stack.Snapshots {
+		if existing.Domain == snap.Domain && existing.TargetID == snap.TargetID {
+			continue
+		}
+		kept = append(kept, existing)
+	}
+	if len(kept) > undoSnapshotStackLimit {
+		kept = kept[:undoSnapshotStackLimit]
+	}
+	stack = undoSnapshotStack{SchemaVersion: undoSnapshotStackSchemaVersion, Snapshots: kept}
+	if err := writeJSONFile(undoSnapshotStackPath(paths), stack, 0o600); err != nil {
 		return fmt.Errorf("cannot write snapshot: %s", err)
 	}
+	// The legacy single-slot file is folded into the stack above; drop it so
+	// the two stores can never disagree. Best effort — a leftover legacy file
+	// only re-migrates as the oldest entry.
+	if err := os.Remove(undoSnapshotPath(paths)); err != nil && !isNotExist(err) {
+		printHumanWarn("legacy undo-snapshot cleanup skipped: %s", err)
+	}
 	return nil
+}
+
+// loadUndoSnapshotStack reads the stack store; a pre-stack single-slot file
+// migrates as a one-element stack so an update written by an older CLI stays
+// revertible after upgrading.
+func loadUndoSnapshotStack(paths runtimePaths) (undoSnapshotStack, error) {
+	data, err := os.ReadFile(undoSnapshotStackPath(paths))
+	if err == nil {
+		var stack undoSnapshotStack
+		if err := json.Unmarshal(data, &stack); err != nil {
+			return undoSnapshotStack{}, fmt.Errorf("undo snapshot store is corrupt: %s", err)
+		}
+		return stack, nil
+	}
+	if !isNotExist(err) {
+		return undoSnapshotStack{}, err
+	}
+	legacy, err := os.ReadFile(undoSnapshotPath(paths))
+	if err != nil {
+		if isNotExist(err) {
+			return undoSnapshotStack{SchemaVersion: undoSnapshotStackSchemaVersion}, nil
+		}
+		return undoSnapshotStack{}, err
+	}
+	var snap undoSnapshot
+	if err := json.Unmarshal(legacy, &snap); err != nil {
+		return undoSnapshotStack{}, fmt.Errorf("undo snapshot is corrupt: %s", err)
+	}
+	return undoSnapshotStack{
+		SchemaVersion: undoSnapshotStackSchemaVersion,
+		Snapshots:     []undoSnapshot{snap},
+	}, nil
+}
+
+// selectUndoSnapshot picks the newest snapshot, or the one for an explicit
+// target (optionally narrowed by domain).
+func selectUndoSnapshot(paths runtimePaths, target, domain string) (undoSnapshot, error) {
+	stack, err := loadUndoSnapshotStack(paths)
+	if err != nil {
+		return undoSnapshot{}, err
+	}
+	if len(stack.Snapshots) == 0 {
+		return undoSnapshot{}, fmt.Errorf("no undo snapshot available")
+	}
+	target = strings.TrimSpace(target)
+	domain = strings.TrimSpace(domain)
+	if target == "" {
+		if domain != "" {
+			return undoSnapshot{}, fmt.Errorf("--domain requires --target")
+		}
+		return stack.Snapshots[0], nil
+	}
+	var matches []undoSnapshot
+	for _, snap := range stack.Snapshots {
+		if snap.TargetID != target {
+			continue
+		}
+		if domain != "" && snap.Domain != domain {
+			continue
+		}
+		matches = append(matches, snap)
+	}
+	switch len(matches) {
+	case 0:
+		return undoSnapshot{}, fmt.Errorf("no undo snapshot for target %s", target)
+	case 1:
+		return matches[0], nil
+	default:
+		// Same target_id in more than one domain (save keys on domain+target,
+		// so this is legal): never guess which config to restore.
+		return undoSnapshot{}, fmt.Errorf("target %s is ambiguous across domains; pass --domain", target)
+	}
 }
 
 func validateUndoSnapshot(snap undoSnapshot) error {
@@ -202,19 +350,10 @@ func hasJSONContent(raw json.RawMessage) bool {
 	return trimmed != "" && trimmed != "null"
 }
 
+// loadUndoSnapshot returns the newest stored snapshot (legacy call sites and
+// tests; selection lives in selectUndoSnapshot).
 func loadUndoSnapshot(paths runtimePaths) (undoSnapshot, error) {
-	data, err := os.ReadFile(undoSnapshotPath(paths))
-	if err != nil {
-		if isNotExist(err) {
-			return undoSnapshot{}, fmt.Errorf("no undo snapshot available")
-		}
-		return undoSnapshot{}, err
-	}
-	var snap undoSnapshot
-	if err := json.Unmarshal(data, &snap); err != nil {
-		return undoSnapshot{}, fmt.Errorf("undo snapshot is corrupt: %s", err)
-	}
-	return snap, nil
+	return selectUndoSnapshot(paths, "", "")
 }
 
 // snapshotMatchesLive reports whether the live config still matches the stored

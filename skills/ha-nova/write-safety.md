@@ -165,14 +165,16 @@ previews alone hide the whole picture. Before the FIRST per-target preview:
 
 1. Present the change plan: every target, what changes in each, the intended
    combined behavior, and the apply order (dependencies first).
-2. State revert coverage honestly BEFORE starting: update-revert keeps only
-   the most recent update (N=1) — after target two, target one is no longer
-   auto-revertible (only updates evict the snapshot; creates do not). For a broad or hard-to-reconstruct change, offer a safety
-   backup via `ha-nova:backup` first (proportionality rules apply).
+2. State revert coverage honestly BEFORE starting: update-revert keeps the
+   last 5 updated targets (one snapshot per target) — a logical change with
+   more update targets than that loses auto-revert for the oldest ones; say
+   so. For a broad or hard-to-reconstruct change, offer a safety backup via
+   `ha-nova:backup` first (proportionality rules apply).
 3. Get plan-level consent, then run the normal per-target flow (each target
    still gets its own preview + confirmation — the plan does not replace them).
-4. Close with a combined summary: all targets applied, the one still-revertible
-   target named, and the verification-honesty wording for the whole change.
+4. Close with a combined summary: all targets applied, the still-revertible
+   targets named (`ha-nova snapshot show --list`), and the
+   verification-honesty wording for the whole change.
 
 If a mid-sequence target fails or is cancelled, stop and show which targets
 are already applied — never continue silently into a half-applied state.
@@ -189,8 +191,9 @@ Home Assistant Backup, or recreating the item. Point the user to HA Backups
 
 ### 1. Capture the snapshot (after a verified update)
 
-After Phase-4 verification of an update succeeds, store exactly one snapshot.
-N=1: only the most recent update is revertible.
+After Phase-4 verification of an update succeeds, store the snapshot. The
+store keeps the last 5 updates, one per domain+target — a re-update of the
+same target replaces its entry; beyond 5 targets the oldest entry is evicted.
 
 - `before_config` = the pre-write read-back captured during resolve
   (`CURRENT_CONFIG`). It is HA's own normalized form, so re-writing it
@@ -233,14 +236,22 @@ rollback option in the same breath — never a bare "undo":
 ### 3. Execute `revert`
 
 1. Run `ha-nova snapshot show` — the **only** source of `before_config`. Never
-   reconstruct the previous config from memory or context.
+   reconstruct the previous config from memory or context. The bare command
+   returns the newest update; for an earlier target in a multi-target change,
+   select it: `ha-nova snapshot show --target <target_id>` (add
+   `--domain <domain>` if the same id exists in both domains). `ha-nova
+   snapshot show --list` lists what is still revertible (newest first).
 2. Re-read the current live config of `target_id` (same read-back path as
    Phase 4) into a file.
-3. Drift check:
+3. Drift check — MUST carry the same `--target`/`--domain` selection as
+   step 1 (a bare `verify` compares against the NEWEST snapshot and would
+   drift-check an earlier target against the wrong `expected_after`):
 
    ```text
-   ha-nova snapshot verify --against <live-file>
+   ha-nova snapshot verify --target <target_id> --against <live-file>
    ```
+
+   Only when reverting the newest update may the `--target` flag be omitted.
 
    - `match` (exit 0) → the config is still exactly as written; safe to restore.
    - `drift` (exit 2) → it changed since the write (e.g. an external UI edit).
@@ -263,7 +274,9 @@ Use `ha-nova snapshot show` to read the stored record (including
 
 ### Honesty
 
-- The store holds only the last update; the next write overwrites it.
+- The store holds the last 5 updated targets; older entries are gone, and a
+  re-update of a target replaces that target's snapshot (one step back per
+  target, never two).
 - `revert` restores the captured config through the normal write path; it does
   not replay HA's exact byte-for-byte formatting. For a guaranteed point-in-time
   restore, Home Assistant Backups is the source of truth.
@@ -279,8 +292,8 @@ expensive. Never suggest a backup for routine small edits.
 
 | Skill / family | Pre-write diff | Update-revert | Fallback recovery path |
 |---|---|---|---|
-| `write` (automation/script) | yes (`ha-nova diff`) | yes (verified updates, N=1) | HA Backups |
-| `helper` storage family | yes | yes (verified updates, N=1) | HA Backups |
+| `write` (automation/script) | yes (`ha-nova diff`) | yes (verified updates, last 5 targets) | HA Backups |
+| `helper` storage family | yes | yes (verified updates, last 5 targets) | HA Backups |
 | `helper` config-entry family | diff only | no (multi-step options flow) | HA Backups |
 | `dashboard` | preview + read-back verify | no | HA Backups |
 | `scene` | preview + read-back verify | no | HA Backups |

@@ -37,6 +37,7 @@ func managedConfigArtifactPaths(paths runtimePaths, purge bool) []string {
 		filepath.Join(paths.ConfigDir, "doctor-cache.env"),
 		filepath.Join(paths.ConfigDir, "claude-marketplace"),
 		filepath.Join(paths.ConfigDir, "undo-snapshot.json"),
+		filepath.Join(paths.ConfigDir, "undo-snapshots.json"),
 	}
 	if purge {
 		pathsList = append(pathsList, paths.ConfigFile)
