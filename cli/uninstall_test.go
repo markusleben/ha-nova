@@ -32,6 +32,9 @@ func TestUninstallManagedArtifactsIncludeWriteSafetyState(t *testing.T) {
 	if got := managedConfigArtifactPaths(paths, true); !contains(got, filepath.Join("/cfg", "undo-snapshot.json")) {
 		t.Errorf("config artifacts missing undo-snapshot.json: %v", got)
 	}
+	if got := managedConfigArtifactPaths(paths, true); !contains(got, filepath.Join("/cfg", "undo-snapshots.json")) {
+		t.Errorf("config artifacts missing undo-snapshots.json (revert stack store): %v", got)
+	}
 	if got := managedCacheArtifactPaths(paths); !contains(got, filepath.Join("/cache", "automation-bp-snapshot.json")) {
 		t.Errorf("cache artifacts missing automation-bp-snapshot.json: %v", got)
 	}
