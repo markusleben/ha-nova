@@ -291,6 +291,9 @@ func relayAuthTokenProblemMessage(err error) string {
 	if isMissingRelayAuthTokenError(err) {
 		return "relay auth token missing; run: ha-nova setup"
 	}
+	if isWindowsNetworkLogonSessionError(err) {
+		return "secure storage unavailable in this Windows session (network logon, for example SSH); run HA NOVA from a local interactive session (console or RDP) on this machine, and then run: ha-nova setup"
+	}
 	if isDesktopKeyringSessionUnavailableError(err) {
 		return "secure storage unavailable in this Linux session; run HA NOVA from a terminal inside the Linux desktop session on this machine, and then run: ha-nova setup"
 	}
@@ -310,6 +313,19 @@ func relayAuthTokenProblemMessage(err error) string {
 		return fmt.Sprintf("service token file is not usable: %s", err)
 	}
 	return fmt.Sprintf("relay auth token unavailable: %s", err)
+}
+
+// isWindowsNetworkLogonSessionError matches the Credential Manager failure
+// in Windows network logon sessions (for example PowerShell over OpenSSH):
+// there is no interactive logon session to hold the credential store. Local
+// console, Windows Terminal, and RDP sessions are unaffected. String-matched
+// here (not build-tagged) so every platform classifies forwarded errors and
+// tests run everywhere.
+func isWindowsNetworkLogonSessionError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(strings.ToLower(err.Error()), "a specified logon session does not exist")
 }
 
 func isDesktopKeyringUnavailableError(err error) bool {
@@ -406,6 +422,9 @@ func relayAuthTokenSetupReadError(err error) error {
 }
 
 func relayAuthTokenSetupOperationError(action string, err error) error {
+	if isWindowsNetworkLogonSessionError(err) {
+		return fmt.Errorf("cannot %s: secure storage unavailable in this Windows session (network logon, for example SSH). Run HA NOVA from a local interactive session (console or RDP) on this machine, and rerun `ha-nova setup`", action)
+	}
 	if isDesktopKeyringSessionUnavailableError(err) {
 		return fmt.Errorf("cannot %s: secure storage unavailable in this Linux session. Run HA NOVA from a terminal inside the Linux desktop session on this machine, and rerun `ha-nova setup`", action)
 	}
