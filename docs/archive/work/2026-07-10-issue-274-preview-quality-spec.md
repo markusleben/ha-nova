@@ -1,6 +1,6 @@
 # Issue #274 — Write/Review Preview & Verification Quality
 
-Status: active
+Status: merged (#277 + #278)
 Issue: #274 (12 observed problems). Delivered as two PRs — different subsystems, one logical topic:
 
 ## PR A — `ha-nova diff`: aligned per-item rendering (problems 1–3 root cause)
