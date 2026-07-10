@@ -136,6 +136,26 @@ func TestClaudePluginPresenceFallsBackToFileVerdictOnNonJSONOutput(t *testing.T)
 	}
 }
 
+func TestClaudePluginPresenceCLIDisabledPluginIsNotAttached(t *testing.T) {
+	// A disabled plugin loads no skills; the CLI verdict must not count it.
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	installPath := filepath.Join(t.TempDir(), "plugin-payload")
+	if err := os.MkdirAll(installPath, 0o755); err != nil {
+		t.Fatalf("mkdir installPath: %v", err)
+	}
+	entries, err := json.Marshal([]map[string]any{{"id": "ha-nova@ha-nova", "installPath": installPath, "enabled": false}})
+	if err != nil {
+		t.Fatalf("marshal entries: %v", err)
+	}
+	installClaudeListJSONMock(t, string(entries))
+
+	found, _, _ := readClaudePluginPresence(home)
+	if found {
+		t.Fatalf("readClaudePluginPresence() counted a disabled plugin as attached")
+	}
+}
+
 func TestClaudePluginPresenceCLINegativeIsAuthoritative(t *testing.T) {
 	// found-but-unusable file entries (dangling installPath) get re-checked
 	// against the CLI; an authoritative empty list means "not installed".

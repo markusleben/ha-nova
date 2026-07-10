@@ -162,12 +162,18 @@ func readClaudePluginInstallFromCLI() (found, usable, ok bool) {
 	var entries []struct {
 		ID          string `json:"id"`
 		InstallPath string `json:"installPath"`
+		Enabled     *bool  `json:"enabled"`
 	}
 	if err := json.Unmarshal(trimmed, &entries); err != nil {
 		return false, false, false
 	}
 	for _, entry := range entries {
 		if entry.ID == "ha-nova@ha-nova" {
+			// A disabled plugin loads no skills — report it as not attached
+			// so repair re-installs (which re-enables). Absent field = enabled.
+			if entry.Enabled != nil && !*entry.Enabled {
+				return false, false, true
+			}
 			installPath := strings.TrimSpace(entry.InstallPath)
 			return true, installPath != "" && fileExists(installPath), true
 		}
