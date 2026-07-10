@@ -9,10 +9,27 @@ import (
 
 // Tests across this package build Claude state under temp HOMEs; a
 // CLAUDE_CONFIG_DIR inherited from the invoking shell (e.g. a Claude Code
-// session) would redirect every reader away from those fixtures.
+// session) would redirect every reader away from those fixtures. The PATH
+// stub additionally guarantees no test ever executes a developer's real
+// `claude` binary (a real invocation once left backup residue inside the
+// repo): it answers every call with a "not found" failure — the same
+// tolerance class as claude erroring on absent plugins/marketplaces — so
+// fallback paths behave like on claude-less CI. Tests that need claude
+// behavior prepend their own mock in front of it.
 func TestMain(m *testing.M) {
 	os.Unsetenv("CLAUDE_CONFIG_DIR")
-	os.Exit(m.Run())
+	stubDir, err := os.MkdirTemp("", "claude-stub")
+	if err == nil {
+		script := "#!/usr/bin/env bash\necho \"Error: not found\" >&2\nexit 1\n"
+		if writeErr := os.WriteFile(filepath.Join(stubDir, "claude"), []byte(script), 0o755); writeErr == nil {
+			os.Setenv("PATH", stubDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+		}
+	}
+	code := m.Run()
+	if stubDir != "" {
+		os.RemoveAll(stubDir)
+	}
+	os.Exit(code)
 }
 
 func TestClaudeConfigRootDefaultsToDotClaude(t *testing.T) {
