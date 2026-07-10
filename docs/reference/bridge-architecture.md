@@ -289,7 +289,7 @@ APP_OPTIONS_PATH: "/data/options.json"         # HA app options file path
 - No HTTP framework (Node.js `http.createServer`)
 - REST client uses native `fetch()` (no axios at runtime)
 - WS client uses `home-assistant-js-websocket` (the only directly imported production dependency)
-- `axios`, `ws`, `yaml` are listed in `package.json` but not directly imported by relay source code; they are transitive or reserved for future phases
+- `ws`, `yaml` are listed in `package.json` but not directly imported by relay source code; they are transitive or reserved for future phases (`axios` was removed as dead weight — REST stays on native `fetch()`)
 - Current scope: ~1,500 lines across ~20 `.ts` files (Phase 1a)
 
 ## Standard Envelope
