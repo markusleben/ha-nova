@@ -207,6 +207,7 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 			printHumanNotice(notice)
 		}
 	}
+	maybeNudgeSkillUpdate(paths, true)
 
 	bodyBytes, err := readAllLimited(resp.Body, maxRelayResponseBytes)
 	if err != nil {
@@ -342,9 +343,10 @@ func runHealth(paths runtimePaths, args []string) int {
 		return 1
 	}
 
-	if notice := checkForUpdate(paths, true); !notice.empty() {
-		printHumanNotice(notice)
-	}
+	// Cache-only nudge instead of the previous inline checkForUpdate: that one
+	// hit GitHub on a stale cache with the default 15s client, silently
+	// unbounding a probe whose whole contract is caller-bounded timeouts.
+	maybeNudgeSkillUpdate(paths, false)
 
 	_, _ = os.Stdout.Write(bodyBytes)
 	if len(bodyBytes) > 0 && bodyBytes[len(bodyBytes)-1] != '\n' {

@@ -18,6 +18,12 @@ import (
 // behavior prepend their own mock in front of it.
 func TestMain(m *testing.M) {
 	os.Unsetenv("CLAUDE_CONFIG_DIR")
+	// Same protection class for the update-nudge background refresh: under
+	// `go test`, os.Executable() is the generated test binary, so the real
+	// spawn would detach a recursive test-suite run whenever any test walks a
+	// relay command into a cache miss. Nudge tests that assert spawn behavior
+	// install their own recorder on top of this no-op.
+	spawnDetachedUpdateRefresh = func() {}
 	stubDir, err := os.MkdirTemp("", "claude-stub")
 	if err == nil {
 		script := "#!/usr/bin/env bash\necho \"Error: not found\" >&2\nexit 1\n"
