@@ -1,6 +1,6 @@
 import { constants } from "node:fs";
 import { access, lstat, mkdir, readdir, readFile, realpath, rename, stat, unlink, writeFile } from "node:fs/promises";
-import { dirname, isAbsolute, join, normalize, relative, resolve, sep } from "node:path";
+import { basename, dirname, isAbsolute, join, normalize, relative, resolve, sep } from "node:path";
 
 import type { FileAccessConfig } from "../../config/file-access.js";
 import { HttpError } from "../errors.js";
@@ -177,13 +177,28 @@ async function resolveTargetPath(configRoot: string, logicalPath: string, action
   const absolute = resolve(join(configRoot, normalized));
   assertInsideRoot(configRoot, absolute);
 
-  // A delete removes the LINK, never what it points at — so resolving the
-  // target here would be wrong: a dangling link, or one pointing outside the
-  // root or at a denied path, must still be removable, and unlinking it touches
-  // nothing else. The containment and deny checks on the requested path (above)
-  // are the correct guard for that operation.
+  // A delete removes the LINK itself, never what it points at — so the final
+  // component must NOT be resolved: a dangling link, or one pointing outside
+  // the root or at a denied path, must still be removable, and unlinking it
+  // touches nothing else.
+  //
+  // The DIRECTORIES on the way there are a different matter: they are followed
+  // by unlink, so /config/escape-dir -> /tmp/outside would otherwise let a
+  // delete reach /tmp/outside/loot.txt. The parent is therefore resolved and
+  // checked exactly like any other path; only the leaf is left alone.
   if (action === "delete_file") {
-    return absolute;
+    try {
+      const realRoot = await realpath(configRoot);
+      const realParent = await realpath(dirname(absolute));
+      assertInsideRoot(realRoot, realParent);
+      assertNotDenied(relative(realRoot, realParent));
+      return join(realParent, basename(absolute));
+    } catch (error) {
+      if (isNotFound(error)) {
+        throw new HttpError(404, "FILE_NOT_FOUND", `not found: ${logicalPath}`);
+      }
+      throw error;
+    }
   }
 
   // realpath resolves symlinks: a link inside the config dir must not be a way

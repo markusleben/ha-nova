@@ -398,6 +398,32 @@ describe("files handler — operations", () => {
     expect(readFileSync(join(root, "themes", "dark.yaml"), "utf8")).toContain("dark:");
   });
 
+  // Deleting a link is fine — but the DIRECTORIES on the way to it are followed
+  // by unlink, so a symlinked directory must not become a delete-anywhere
+  // primitive. This is the hole the "let deletes remove any link" fix opened,
+  // and the reason the parent is resolved while the leaf is not.
+  it("refuses to delete through a symlinked directory that escapes the root", async () => {
+    symlinkSync(outside, join(root, "escape-dir"));
+
+    await expectHttpError(
+      call("readwrite", { action: "delete_file", path: "/config/escape-dir/loot.txt" }),
+      400,
+      "FILE_PATH_INVALID"
+    );
+    expect(readFileSync(join(outside, "loot.txt"), "utf8")).toBe("secrets outside the root");
+  });
+
+  it("refuses to delete through a symlinked directory that points at a denied path", async () => {
+    symlinkSync(join(root, ".storage"), join(root, "store-link"));
+
+    await expectHttpError(
+      call("readwrite", { action: "delete_file", path: "/config/store-link/auth" }),
+      403,
+      "FILE_PATH_DENIED"
+    );
+    expect(readFileSync(join(root, ".storage", "auth"), "utf8")).toContain("very secret");
+  });
+
   it("refuses to serve a binary file as text", async () => {
     writeFileSync(join(root, "blob.bin"), Buffer.from([0x00, 0x01, 0x02]));
     await expectHttpError(
