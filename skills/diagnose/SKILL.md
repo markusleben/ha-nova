@@ -25,14 +25,14 @@ If this fails: `ha-nova setup`
 File-based relay requests only:
 - `ha-nova relay core --method GET --path <PATH>` for REST reads (`--out <result-file>` for large output)
 - `ha-nova relay ws --data-file <payload-file>` for WS commands
-- `ha-nova trace latest|list|get` for automation/script run traces
+- `ha-nova trace latest <entity_id> --json` / `ha-nova trace list <entity_id> --json` / `ha-nova trace get <entity_id> <run_id> --json` for run traces (positional entity, `automation.<id>` or `script.<id>`)
 - `--jq-file <filter-file>` for non-trivial filters
 
 ## Evidence Sources
 
 | Source | Call | Notes |
 |--------|------|-------|
-| Run traces | `ha-nova trace latest --entity <entity_id>` / `trace list` / `trace get` | First stop for automation/script failures: shows the exact step, condition results, and variables |
+| Run traces | `ha-nova trace latest <entity_id> --json` (also `trace list <entity_id>`, `trace get <entity_id> <run_id>`) | First stop for automation/script failures: shows the exact step, condition results, and variables |
 | Error log | `GET /api/error_log` | Plain text, NOT JSON — always use `--out <result-file>` and search it natively; never dump it whole |
 | System log | WS `{"type":"system_log/list"}` | Structured warnings/errors with counts and sources |
 | Logbook window | `GET /api/logbook/<ISO-start>?end_time=<ISO-end>&entity=<entity_id>` | Human-readable events around the incident time |
@@ -45,7 +45,7 @@ Recency honesty: `error_log` and `system_log/list` only cover the time since the
 ## Flow
 
 1. Pin the symptom: which entity/automation/script, what expected vs observed behavior, and WHEN (ask one question if the incident time is unknown — every later window depends on it).
-2. For automation/script symptoms, read the trace first (`ha-nova trace latest --entity <id>`; older runs via `trace list` + `trace get`). The trace usually answers it: triggered or not, which condition stopped it, which step errored.
+2. For automation/script symptoms, read the trace first (`ha-nova trace latest <entity_id> --json`; older runs via `trace list <entity_id>` + `trace get <entity_id> <run_id>`). The trace usually answers it: triggered or not, which condition stopped it, which step errored.
 3. Correlate logs: search the error log and `system_log/list` output for the involved entities, integrations, and the incident window. Quote only the relevant lines.
 4. Reconstruct context: bounded logbook + history windows (default ±30 minutes around the incident) for the involved entities; probe suspect conditions/templates with `POST /api/template` against live state.
 5. Debug escalation (optional, the only mutation): if evidence is insufficient and the user agrees, raise one integration's log level via service `logger.set_level` (payload like `{"homeassistant.components.<domain>":"debug"}`). Preview the exact payload, get confirmation, and ALWAYS pair it with the reset step: after reproducing, restore the default level the same way (`"warning"`) — a forgotten debug level floods the log. State plainly that the setting lasts until the next restart.

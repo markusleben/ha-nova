@@ -218,6 +218,19 @@ describe("skill template v2 contract", () => {
     expect(onboarding).not.toContain("main/install.sh");
   });
 
+  it("keeps skill files on the real relay/trace CLI syntax", () => {
+    // Regression: the diagnose skill shipped a non-existent `trace --entity`
+    // flag. The trace CLI takes the entity positionally
+    // (cli/trace.go: `trace <latest|list|get> <entity_id> [run_id] [--json]`).
+    for (const file of ALL_SKILL_MD_FILES) {
+      const content = readFileSync(file, "utf8");
+      expect(
+        /ha-nova trace[^\n]*--entity\b/.test(content),
+        `${file}: 'ha-nova trace' takes the entity positionally, there is no --entity flag`,
+      ).toBe(false);
+    }
+  });
+
   it("keeps the context skill on the A6 frontmatter standard too", () => {
     const fm = parseFrontmatter(readFileSync("skills/ha-nova/SKILL.md", "utf8"));
     expect(fm.license, "ha-nova: license must be MIT").toBe("MIT");

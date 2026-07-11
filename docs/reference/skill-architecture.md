@@ -318,7 +318,7 @@ Still excluded from `ha-nova:helper`:
 ## Diagnose Architecture
 
 `ha-nova:diagnose` is the failure-root-cause skill (read-only apart from one gated mutation):
-- traces first (`ha-nova trace latest|list|get`) for automation/script symptoms
+- traces first (`ha-nova trace latest <entity_id> --json`, plus `trace list` / `trace get`) for automation/script symptoms
 - `/api/error_log` (plain text — read from file, never dump) and WS `system_log/list`
 - bounded logbook/history windows around the incident (default ±30 min)
 - `POST /api/template` to probe suspect conditions against live state
