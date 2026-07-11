@@ -308,15 +308,20 @@ describe("files handler — operations", () => {
     writeFileSync(join(root, "ha_nova", "pkg.yaml"), "old: true\n");
     symlinkSync(join(root, "ha_nova", "pkg.yaml"), join(root, "packages.yaml"));
 
-    await call("readwrite", {
+    const result = (await call("readwrite", {
       action: "write_file",
       path: "/config/packages.yaml",
       content: "new: true\n"
-    });
+    })) as { backup: string | null };
 
     // The link survives, and the real file carries the new content.
     expect(lstatSync(join(root, "packages.yaml")).isSymbolicLink()).toBe(true);
     expect(readFileSync(join(root, "ha_nova", "pkg.yaml"), "utf8")).toContain("new: true");
+
+    // The reported backup path must be the one that EXISTS — beside the real
+    // target, not beside the link — or the rollback would read a missing file.
+    expect(result.backup).toBe("/config/ha_nova/pkg.yaml.bak");
+    expect(readFileSync(join(root, "ha_nova", "pkg.yaml.bak"), "utf8")).toContain("old: true");
   });
 
   // ...but deleting a link must remove the LINK, never its target.

@@ -70,7 +70,7 @@ export function createFilesHandler(options: FilesHandlerOptions): RouteHandler {
       case "read_file":
         return await readTextFile(target, request.path);
       case "write_file":
-        return await writeTextFile(target, request.path, request.content, request.backup);
+        return await writeTextFile(target, request.path, request.content, request.backup, configRoot);
       case "delete_file":
         return await deleteFile(target, request.path);
     }
@@ -310,7 +310,8 @@ async function writeTextFile(
   absolute: string,
   logicalPath: string,
   content: string,
-  backup: boolean
+  backup: boolean,
+  configRoot: string
 ): Promise<unknown> {
   const existing = await stat(absolute).catch(() => null);
   if (existing?.isDirectory()) {
@@ -351,7 +352,11 @@ async function writeTextFile(
     written: true,
     size: Buffer.byteLength(content, "utf8"),
     created: existing === null,
-    backup: backupPath ? `${logicalPath}.bak` : null
+    // The reported path must be the one that EXISTS. When the write went
+    // through a symlink, the backup sits beside the real target, not beside the
+    // link — reporting the link's path would send the rollback flow to a file
+    // that was never created, losing the safety net exactly when it is needed.
+    backup: backupPath ? await toLogicalPath(configRoot, backupPath) : null
   };
 }
 
@@ -365,6 +370,13 @@ async function removeIfPresent(path: string): Promise<void> {
       throw error;
     }
   }
+}
+
+// Maps a real path back to the logical /config/... path a skill speaks.
+async function toLogicalPath(configRoot: string, absolutePath: string): Promise<string> {
+  const realRoot = await realpath(configRoot);
+  const rel = relative(realRoot, absolutePath).split(sep).join("/");
+  return `${LOGICAL_PREFIX}/${rel}`;
 }
 
 async function deleteFile(absolute: string, logicalPath: string): Promise<unknown> {
