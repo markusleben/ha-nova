@@ -45,12 +45,13 @@ MQTT topics never emit a "finish" event, so a listen is a WINDOW, not a request.
 - The relay unsubscribes when the window closes; nothing keeps running.
 - `.data.events` holds what was seen; `.data.truncated: true` means the window ended at the cap, not that the stream stopped.
 - An EMPTY result is a real answer ("nothing published on that topic in 8 seconds"), not a failure — report it as such. That is often the actual diagnosis.
+- **Retained messages are NOT live traffic.** The broker replays every retained message to a new subscriber immediately, so a message can arrive in the first milliseconds of the window even though the device published it days ago and is now silent. Each event carries a `retain` flag: treat `retain: true` as broker state, not as evidence that the device is sending. For the question "is my device actually publishing?", only `retain: false` messages count — and if all you saw were retained ones, say exactly that (the device is silent; the broker is holding its last value).
 - Keep windows short (<= 10 s, the relay's ceiling) and topics as narrow as possible; `#` on the root is noise, not evidence.
 
 ## Flow
 
 1. Clarify the topic. Prefer the narrowest one that answers the question (`zigbee2mqtt/<device>` beats `zigbee2mqtt/#`).
-2. Listen in a bounded window (above). Summarize: which topics appeared, how many messages, what the payloads look like. Quote at most a few payloads.
+2. Listen in a bounded window (above). Summarize: which topics appeared, how many messages, and — separately — how many were live (`retain: false`) versus retained replays. Quote at most a few payloads.
 3. Device discovery/debug: WS `{"type":"mqtt/device/debug_info","device_id":"<device_id>"}` shows the subscribed topics and discovery payloads for one MQTT device (resolve `device_id` from the device registry, never guess it).
 4. Publishing (mutating): service `mqtt.publish` with `topic`, `payload`, `qos`, `retain`. There is no `payload_template` field in the current schema — render any template yourself and send the finished string as `payload`. (`evaluate_payload: true` only tells HA to evaluate a Python-literal payload for raw bytes; it is not a template switch.) Preview the exact topic + payload and confirm.
 
@@ -72,7 +73,7 @@ Full relay/upstream error taxonomy: `skills/ha-nova/relay-api.md` -> Error Handl
 
 Apply `skills/ha-nova/output-rules.md` to all user-facing output.
 
-For a listen: the topic, the window length, how many messages arrived, the distinct topics seen, and a few representative payloads — never the raw dump. Say explicitly when nothing arrived. For a publish: the topic, payload, and whether it was retained.
+For a listen: the topic, the window length, how many messages arrived (live versus retained — never merge those two), the distinct topics seen, and a few representative payloads — never the raw dump. Say explicitly when nothing arrived, and when everything that arrived was a retained replay. For a publish: the topic, payload, and whether it was retained.
 
 ## Safety
 
