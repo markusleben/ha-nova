@@ -25,15 +25,17 @@ echo ""
 
 # ── 1. LOC count ──
 # The relay must stay small enough that a person can read it. The ceiling moved
-# from 2000 to 2600 when relay 0.4.0 added the opt-in file transport (~400 lines
-# of security-critical path containment). The README's own number is updated in
-# the release-prep PR — README describes the STABLE release, not main.
+# from 2000 to 2800 across relay 0.4.0: the opt-in file transport is ~500 lines,
+# split into three modules (gate / path security / operations), and most of that
+# is containment, deny rules and the code-execution boundary. Growth here is
+# security surface, and it is reviewed as such. The README's own number is
+# updated in the release-prep PR — README describes the STABLE release, not main.
 echo "[1] Relay LOC (must stay readable in one sitting)"
 ACTUAL_LOC=$(find "$REPO_ROOT/nova/src" -name '*.ts' -exec cat {} + | wc -l | tr -d ' ')
-if (( ACTUAL_LOC >= 1000 && ACTUAL_LOC <= 2600 )); then
-  pass "src/ = ${ACTUAL_LOC} LOC (within 1000–2600 range)"
+if (( ACTUAL_LOC >= 1000 && ACTUAL_LOC <= 2800 )); then
+  pass "src/ = ${ACTUAL_LOC} LOC (within 1000–2800 range)"
 else
-  fail "src/ = ${ACTUAL_LOC} LOC — outside the 1000–2600 range. If this is real growth, justify it and update the README claim in the release-prep PR."
+  fail "src/ = ${ACTUAL_LOC} LOC — outside the 1000–2800 range. If this is real growth, justify it and update the README claim in the release-prep PR."
 fi
 
 # ── 2. Skill count ──

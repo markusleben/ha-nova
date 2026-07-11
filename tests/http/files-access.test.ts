@@ -96,7 +96,12 @@ describe("files handler — always-denied paths", () => {
     "/config/.env",
     "/config/.env.bak",
     "/config/.ssh/id_rsa",
-    "/config/ssl/fullchain.pem"
+    "/config/ssl/fullchain.pem",
+    // Home Assistant EXECUTES what lives in these: allowing writes here would
+    // turn "edit my YAML" into arbitrary code execution on the home server.
+    "/config/custom_components/evil/__init__.py",
+    "/config/python_scripts/evil.py",
+    "/config/www/evil.js"
   ];
 
   for (const path of denied) {
@@ -108,6 +113,25 @@ describe("files handler — always-denied paths", () => {
       );
     });
   }
+
+  it("refuses to write executable file types even outside the denied directories", async () => {
+    for (const path of ["/config/evil.py", "/config/evil.sh", "/config/ha_nova/hook.js"]) {
+      await expectHttpError(
+        call("readwrite", { action: "write_file", path, content: "print('pwned')\n" }),
+        403,
+        "FILE_TYPE_DENIED"
+      );
+    }
+  });
+
+  it("still writes ordinary configuration formats", async () => {
+    const result = (await call("readwrite", {
+      action: "write_file",
+      path: "/config/ha_nova/templates.yaml",
+      content: "- sensor: []\n"
+    })) as { written: boolean };
+    expect(result.written).toBe(true);
+  });
 
   it("never writes to a denied path either", async () => {
     await expectHttpError(

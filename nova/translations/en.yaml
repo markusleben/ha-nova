@@ -21,7 +21,9 @@ configuration:
       read = HA NOVA may read configuration files,
       readwrite = it may also change them (every write backs up the
       previous version first). Secrets, the database and Home
-      Assistant's internal storage are never accessible in any mode.
+      Assistant's internal storage are never accessible in any mode, and
+      HA NOVA can never write code (custom_components, python_scripts,
+      www) — only configuration files.
 
 network:
   8791/tcp: Relay HTTP API

@@ -14,7 +14,33 @@ export const LOGICAL_PREFIX = "/config";
  * an editor and dangerous to corrupt. The relay stays dumb — this is a
  * transport boundary, not domain logic.
  */
-const DENIED_SEGMENTS = [".storage", ".cloud", ".ssh", ".git", "deps", "ssl", "tts", "backups"];
+const DENIED_SEGMENTS = [
+  ".storage",
+  ".cloud",
+  ".ssh",
+  ".git",
+  "deps",
+  "ssl",
+  "tts",
+  "backups",
+  // Home Assistant EXECUTES what lives here. custom_components holds Python that
+  // runs in the HA process, python_scripts likewise, and www is served to every
+  // browser session. Allowing writes there would turn "edit my YAML" into
+  // arbitrary code execution on the user's home server — a different capability
+  // entirely, and not one this endpoint exists to grant.
+  "custom_components",
+  "python_scripts",
+  "www"
+];
+
+/**
+ * Writes are additionally restricted to configuration formats. Reads are already
+ * confined by the deny list, but a write is the dangerous direction: a file the
+ * relay would never serve back can still be planted by name (a .sh a shell
+ * command picks up, a .py dropped somewhere HA scans). The skill that uses this
+ * endpoint edits YAML — nothing else needs to be writable.
+ */
+const WRITABLE_EXTENSIONS = [".yaml", ".yml", ".conf", ".json", ".txt", ".md"];
 
 /**
  * Prefix matches, not exact names: an editor, a backup script — or this relay's
@@ -121,6 +147,19 @@ export async function resolveTargetPath(configRoot: string, logicalPath: string,
 
   return absolute;
 }
+export function assertWritableExtension(logicalPath: string): void {
+  const name = logicalPath.split("/").pop() ?? "";
+  const dot = name.lastIndexOf(".");
+  const extension = dot > 0 ? name.slice(dot).toLowerCase() : "";
+  if (!WRITABLE_EXTENSIONS.includes(extension)) {
+    throw new HttpError(
+      403,
+      "FILE_TYPE_DENIED",
+      `the relay only writes configuration files (${WRITABLE_EXTENSIONS.join(", ")}) — refusing to write '${name}'`
+    );
+  }
+}
+
 function assertNotDenied(relativePath: string): void {
   const segments = relativePath.split(sep).filter(Boolean);
   for (const segment of segments) {

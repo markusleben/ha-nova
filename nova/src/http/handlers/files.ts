@@ -2,7 +2,7 @@ import type { FileAccessConfig } from "../../config/file-access.js";
 import { HttpError } from "../errors.js";
 import type { RouteContext, RouteHandler } from "../router.js";
 import { deleteFile, listDir, MAX_WRITE_BYTES, readTextFile, writeTextFile } from "./files-ops.js";
-import { resolveTargetPath, type FileAction } from "./files-paths.js";
+import { assertWritableExtension, resolveTargetPath, type FileAction } from "./files-paths.js";
 
 export interface FilesHandlerOptions {
   fileAccess: FileAccessConfig;
@@ -34,6 +34,10 @@ export function createFilesHandler(options: FilesHandlerOptions): RouteHandler {
         "FILE_ACCESS_READONLY",
         `File access is set to 'read'. Set 'file_access' to 'readwrite' to allow ${request.action}.`
       );
+    }
+
+    if (request.action === "write_file") {
+      assertWritableExtension(request.path);
     }
 
     const target = await resolveTargetPath(configRoot, request.path, request.action);
