@@ -24,6 +24,7 @@ If this fails: `ha-nova setup`
 
 File-based relay requests only:
 - `ha-nova relay core --method GET --path <PATH>` for REST reads (`--out <result-file>` for large output)
+- `ha-nova relay core --method POST --path <PATH> --body-file <payload-file>` for REST calls with a body (template probes, service calls)
 - `ha-nova relay ws --data-file <payload-file>` for WS commands
 - `ha-nova trace latest <entity_id> --json` / `ha-nova trace list <entity_id> --json` / `ha-nova trace get <entity_id> <run_id> --json` for run traces (positional entity, `automation.<id>` or `script.<id>`)
 - `--jq-file <filter-file>` for non-trivial filters
@@ -37,7 +38,7 @@ File-based relay requests only:
 | System log | WS `{"type":"system_log/list"}` | Structured warnings/errors with counts and sources |
 | Logbook window | `GET /api/logbook/<ISO-start>?end_time=<ISO-end>&entity=<entity_id>` | Human-readable events around the incident time |
 | State history | `GET /api/history/period/<ISO-start>?end_time=<ISO-end>&filter_entity_id=<ids>` | What states the involved entities actually had |
-| Template probe | `POST /api/template` with `{"template":"..."}` | Evaluate the exact condition/template against live state |
+| Template probe | `ha-nova relay core --method POST --path /api/template --body-file <payload-file>` with `{"template":"{{ ... }}"}` | Evaluate the exact condition/template against live state; the rendered result is the string in `.data.body` |
 | Integration diagnostics | WS `{"type":"diagnostics/list"}`, then `GET /api/diagnostics/config_entry/<entry_id>` | Deep integration state when an integration itself is the suspect |
 
 Recency honesty: `error_log` and `system_log/list` only cover the time since the last Core restart. For older incidents use logbook/history windows, and say explicitly that live logs no longer reach back that far.
@@ -62,7 +63,7 @@ The relay returns the `/core` envelope, so the saved file is JSON with the whole
 1. Pin the symptom: which entity/automation/script, what expected vs observed behavior, and WHEN (ask one question if the incident time is unknown — every later window depends on it).
 2. For automation/script symptoms, read the trace first (`ha-nova trace latest <entity_id> --json`; older runs via `trace list <entity_id>` + `trace get <entity_id> <run_id>`). The trace usually answers it: triggered or not, which condition stopped it, which step errored.
 3. Correlate logs: search the error log and `system_log/list` output for the involved entities, integrations, and the incident window. Quote only the relevant lines.
-4. Reconstruct context: bounded logbook + history windows (default ±30 minutes around the incident) for the involved entities; probe suspect conditions/templates with `POST /api/template` against live state.
+4. Reconstruct context: bounded logbook + history windows (default ±30 minutes around the incident) for the involved entities; probe suspect conditions/templates against live state (`relay core --method POST --path /api/template --body-file <payload-file>`, body `{"template":"{{ ... }}"}`; the rendered value comes back in `.data.body`).
 5. Debug escalation (optional, the only mutation): if evidence is insufficient and the user agrees, raise one integration's log level.
    - FIRST read the current levels: WS `{"type":"logger/log_info"}` → `[{"domain":..., "level": <numeric>}]` (10 debug, 20 info, 30 warning, 40 error, 50 critical). Record the target logger's current level — that is the state you must restore. If it has no entry, the effective level is the configured default (HA's own default is `warning`, but `configuration.yaml` may set another).
    - Escalate: service `logger.set_level` with `{"homeassistant.components.<domain>":"debug"}`. Preview the exact payload and get confirmation.
