@@ -1,11 +1,23 @@
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 
-import { globSync } from "node:fs";
-
 import { describe, expect, it } from "vitest";
+
+// CI runs Node 20, where fs.globSync does not exist yet — walk the tree instead.
+function collectTestFiles(dir: string): string[] {
+  const found: string[] = [];
+  for (const entry of readdirSync(dir)) {
+    const path = join(dir, entry);
+    if (statSync(path).isDirectory()) {
+      found.push(...collectTestFiles(path));
+    } else if (entry.endsWith(".test.ts")) {
+      found.push(path.split("\\").join("/"));
+    }
+  }
+  return found;
+}
 
 function expectFragmentsInOrder(haystack: string, fragments: string[]) {
   let cursor = 0;
@@ -34,7 +46,7 @@ describe("safe test system contract", () => {
       (JSON.parse(readFileSync("package.json", "utf8")) as { scripts: Record<string, string> }).scripts
     ).join(" ");
 
-    const testFiles = globSync("tests/**/*.test.ts").map((file) => file.split("\\").join("/"));
+    const testFiles = collectTestFiles("tests");
     expect(testFiles.length).toBeGreaterThan(50);
 
     const orphans = testFiles.filter(

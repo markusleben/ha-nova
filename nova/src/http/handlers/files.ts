@@ -177,6 +177,15 @@ async function resolveTargetPath(configRoot: string, logicalPath: string, action
   const absolute = resolve(join(configRoot, normalized));
   assertInsideRoot(configRoot, absolute);
 
+  // A delete removes the LINK, never what it points at — so resolving the
+  // target here would be wrong: a dangling link, or one pointing outside the
+  // root or at a denied path, must still be removable, and unlinking it touches
+  // nothing else. The containment and deny checks on the requested path (above)
+  // are the correct guard for that operation.
+  if (action === "delete_file") {
+    return absolute;
+  }
+
   // realpath resolves symlinks: a link inside the config dir must not be a way
   // out of it. For write_file the target may not exist yet, so the deepest
   // existing ancestor is checked instead.
