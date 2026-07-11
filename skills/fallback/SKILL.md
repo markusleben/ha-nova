@@ -51,6 +51,9 @@ For every Relay-Ready call in this skill:
 | Statistics / Trend Queries | Covered | history |
 | System Health / Repairs | Covered | health |
 | Logs / diagnostics (why a specific automation/script/device/integration failed: traces, error/system logs, root cause) | Covered | diagnose |
+| Media players (transport, volume, source, grouping, browsing, TTS announce) | Covered | media |
+| Notifications (targets, mobile-app sends, persistent notifications) | Covered | notify |
+| Actionable-notification callbacks (waiting for a button press) | Roadmap (needs event subscriptions) | -- |
 | Calendar Queries | Covered | calendar |
 | To-do Lists (items + Local To-do lifecycle) | Covered | todo |
 | Area / Floor CRUD | Covered | organize |
