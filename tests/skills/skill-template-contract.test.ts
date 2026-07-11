@@ -106,6 +106,7 @@ const SAFETY_CORE_BLOCKS = ((): { mutation: string; readOnly: string } => {
 const WORD_BUDGETS: Record<string, number> = {
   write: 1400,
   diagnose: 1450,
+  mqtt: 1250,
   scene: 1350,
   "service-call": 1200,
   todo: 1200,
