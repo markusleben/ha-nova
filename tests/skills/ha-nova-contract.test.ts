@@ -444,6 +444,7 @@ describe("ha-nova contract", () => {
       "skills/maintenance/SKILL.md",
       "skills/maintenance/maintenance-reference.md",
       "skills/fallback/SKILL.md",
+      "skills/diagnose/SKILL.md",
     ];
 
     for (const file of files) {

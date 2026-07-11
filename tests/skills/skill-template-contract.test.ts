@@ -61,6 +61,7 @@ const FORBIDDEN_HEADINGS = [
 
 const MUTATION_SKILLS = new Set([
   "write",
+  "diagnose",
   "helper",
   "dashboard",
   "scene",
@@ -105,7 +106,7 @@ const WORD_BUDGETS: Record<string, number> = {
   todo: 1200,
   updates: 1200,
   maintenance: 1200,
-  fallback: 2050,
+  fallback: 2100,
   helper: 3600,
   review: 4300,
 };
