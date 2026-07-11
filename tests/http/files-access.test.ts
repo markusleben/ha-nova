@@ -124,6 +124,19 @@ describe("files handler — always-denied paths", () => {
     }
   });
 
+  // A caller that may not CREATE a .py has no business DELETING one: the
+  // file-type boundary covers every mutation, not just writes.
+  it("refuses to delete file types it would never write", async () => {
+    writeFileSync(join(root, "keep.py"), "print('important')\n");
+
+    await expectHttpError(
+      call("readwrite", { action: "delete_file", path: "/config/keep.py" }),
+      403,
+      "FILE_TYPE_DENIED"
+    );
+    expect(readFileSync(join(root, "keep.py"), "utf8")).toContain("important");
+  });
+
   it("still writes ordinary configuration formats", async () => {
     const result = (await call("readwrite", {
       action: "write_file",

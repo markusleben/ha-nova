@@ -3,7 +3,7 @@ import { dirname, join, relative, sep } from "node:path";
 import { realpath } from "node:fs/promises";
 
 import { HttpError } from "../errors.js";
-import { isNotFound, LOGICAL_PREFIX } from "./files-paths.js";
+import { assertWritableExtension, isNotFound, LOGICAL_PREFIX } from "./files-paths.js";
 
 const MAX_READ_BYTES = 1024 * 1024;
 export const MAX_WRITE_BYTES = 1024 * 1024;
@@ -185,6 +185,12 @@ export async function deleteFile(absolute: string, logicalPath: string): Promise
       "FILE_IS_DIRECTORY",
       "the relay does not delete directories — remove files individually"
     );
+  }
+  // A caller that may not CREATE a .py has no business DELETING one either. The
+  // boundary applies to real files; a symlink is just a link and may always be
+  // cleaned up, whatever it is called.
+  if (info.isFile()) {
+    assertWritableExtension(logicalPath);
   }
   await unlink(absolute);
   return { deleted: true };
