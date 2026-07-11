@@ -281,8 +281,10 @@ func TestRunUninstallShowsPreflightAndRelayStillRunningNote(t *testing.T) {
 		"Full purge also removes:",
 		"Home Assistant connection config",
 		uninstallTokenLineLabel(),
-		"Note: The NOVA Relay app is still running in Home Assistant.",
-		"To remove it: Settings > Apps > NOVA Relay > Uninstall",
+		"The NOVA Relay app is still running in Home Assistant. To fully remove HA NOVA:",
+		"1. Remove the NOVA Relay app: " + haRelayAppPageURL("http://192.168.1.5:8123"),
+		"2. Remove the repository: " + haAppStoreURL("http://192.168.1.5:8123"),
+		"3. Revoke the \"NOVA\" access token: http://192.168.1.5:8123/profile/security",
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("expected uninstall output %q:\n%s", want, output)
@@ -299,8 +301,8 @@ func TestUninstallWindowsBundleNoteMentionsWait(t *testing.T) {
 
 func TestPreflightNoteLinesIncludeSecureStoreWarningWhenTokenLookupFails(t *testing.T) {
 	notes := preflightNoteLines(uninstallPreflight{tokenUnavailable: "relay auth token unavailable: keychain locked"})
-	if len(notes) != 1 || notes[0] != "relay auth token unavailable: keychain locked" {
-		t.Fatalf("unexpected preflight notes: %#v", notes)
+	if len(notes) == 0 || notes[len(notes)-1] != "relay auth token unavailable: keychain locked" {
+		t.Fatalf("expected the secure-store warning as the last preflight note: %#v", notes)
 	}
 }
 

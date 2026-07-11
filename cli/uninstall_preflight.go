@@ -5,11 +5,15 @@ import (
 	"io"
 	"path/filepath"
 	"runtime"
+	"strings"
 )
 
 type uninstallPreflight struct {
 	relayStillRunning bool
 	tokenUnavailable  string
+	haURL             string
+	relayToken        string
+	config            runtimeConfig
 }
 
 func renderUninstallPreflight(out io.Writer, paths runtimePaths, source string) {
@@ -56,11 +60,19 @@ func uninstallWindowsBundleNote() string {
 	return "Windows bundle note: a short-lived helper finishes the uninstall after the running ha-nova.exe exits. Please wait a moment for the final removal to complete."
 }
 
+// collectUninstallPreflight reads the raw config (loadJSONConfig, not
+// loadConfig: partial setups must still yield the HA URL for the server-side
+// checklist) and probes whether the relay still answers.
 func collectUninstallPreflight(paths runtimePaths) uninstallPreflight {
 	preflight := uninstallPreflight{}
 
-	cfg, err := loadConfig(paths)
-	if err != nil || cfg.RelayBaseURL == "" {
+	cfg, err := loadJSONConfig(paths.ConfigFile)
+	if err != nil {
+		return preflight
+	}
+	preflight.config = cfg
+	preflight.haURL = strings.TrimSpace(cfg.HAURL)
+	if cfg.RelayBaseURL == "" {
 		return preflight
 	}
 
@@ -74,6 +86,7 @@ func collectUninstallPreflight(paths runtimePaths) uninstallPreflight {
 	if token == "" {
 		return preflight
 	}
+	preflight.relayToken = token
 
 	if _, err := fetchRelayHealth(cfg.RelayBaseURL, token); err == nil {
 		preflight.relayStillRunning = true
@@ -97,16 +110,29 @@ func printUninstallPreflightNotes(out io.Writer, preflight uninstallPreflight) {
 	}
 }
 
+// preflightNoteLines always returns the full server-side cleanup checklist.
+// The CLI cannot remove the app, the repository, or the LLAT itself, and a
+// currently unreachable relay is no evidence the server side is gone — the
+// old reachability-gated single note left users with a running app and a
+// valid token they were never told about.
 func preflightNoteLines(preflight uninstallPreflight) []string {
-	if !preflight.relayStillRunning {
-		if preflight.tokenUnavailable == "" {
-			return nil
-		}
-		return []string{preflight.tokenUnavailable}
+	lead := "Home Assistant side (if still installed, finish these to fully remove HA NOVA):"
+	if preflight.relayStillRunning {
+		lead = "The NOVA Relay app is still running in Home Assistant. To fully remove HA NOVA:"
 	}
-	notes := []string{
-		"Note: The NOVA Relay app is still running in Home Assistant.",
-		"To remove it: Settings > Apps > NOVA Relay > Uninstall (older Home Assistant: Settings > Add-ons)",
+	notes := []string{lead}
+	if preflight.haURL != "" {
+		notes = append(notes,
+			"1. Remove the NOVA Relay app: "+haRelayAppPageURL(preflight.haURL),
+			"2. Remove the repository: "+haAppStoreURL(preflight.haURL)+" > three-dot menu > Repositories > remove "+haNovaRepositoryURL,
+			"3. Revoke the \"NOVA\" access token: "+haProfileSecurityURL(preflight.haURL),
+		)
+	} else {
+		notes = append(notes,
+			"1. Remove the NOVA Relay app: Settings > Apps > NOVA Relay > Uninstall (older Home Assistant: Settings > Add-ons)",
+			"2. Remove the repository: Settings > Apps > App Store > three-dot menu > Repositories > remove "+haNovaRepositoryURL,
+			"3. Revoke the \"NOVA\" access token: Profile > Security > Long-lived access tokens",
+		)
 	}
 	if preflight.tokenUnavailable != "" {
 		notes = append(notes, preflight.tokenUnavailable)
