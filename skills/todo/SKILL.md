@@ -122,7 +122,7 @@ Use stable localized slot labels in this order; omit empty slots. Present items 
 - Home Assistant is reached exclusively through `ha-nova relay`.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
 
-- Item writes use natural confirmation after a compact preview; list deletion uses exact token confirmation only. Item removes are re-addable data edits, deliberately below the destructive token tier.
+- Declared exception to the core delete rule above: item removes (`todo.remove_item`, `todo.remove_completed_items`) are re-addable data edits, deliberately below the destructive token tier — they use natural confirmation bound to the compact preview. List deletion stays at the typed token.
 - Item operations have no `revert`; removed items are gone — bulk removals list what will be removed in the preview.
 - Never guess uids or entry_ids; resolve via Read items / registry first.
 - One list per mutation; verify by reading back, not by service success alone.
