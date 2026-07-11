@@ -460,6 +460,8 @@ describe("ha-nova contract", () => {
       "skills/diagnose/SKILL.md",
       "skills/media/SKILL.md",
       "skills/notify/SKILL.md",
+      "skills/camera/SKILL.md",
+      "skills/mqtt/SKILL.md",
     ];
 
     for (const file of files) {

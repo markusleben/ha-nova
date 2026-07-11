@@ -2,7 +2,7 @@
 
 ## Overview
 
-HA NOVA uses a flat skill layout with one context skill and 22 independent sub-skills under `skills/`.
+HA NOVA uses a flat skill layout with one context skill and 24 independent sub-skills under `skills/`.
 
 The repo skill tree is the single source of truth. Client installers adapt that same tree to each client's packaging rules:
 - Claude: plugin marketplace payload
@@ -50,6 +50,8 @@ skills/
   diagnose/SKILL.md                     (ha-nova:diagnose — failure root-cause: traces, logs, bounded windows)
   media/SKILL.md                        (ha-nova:media — media player control, browsing, grouping, TTS announce)
   notify/SKILL.md                       (ha-nova:notify — notify targets, mobile-app sends, persistent notifications)
+  camera/SKILL.md                       (ha-nova:camera — snapshots the agent can look at, stream URLs, record)
+  mqtt/SKILL.md                         (ha-nova:mqtt — bounded topic windows, discovery/debug info, guarded publish)
 ```
 
 ## Discovery Model
@@ -110,6 +112,8 @@ Current mapping:
 | diagnose | inline | evidence gathering + reasoning, one gated debug escalation |
 | media | inline | feature-gated service calls with state read-back |
 | notify | inline | target discovery + one previewed send |
+| camera | inline | one binary fetch, feature-gated services |
+| mqtt | inline | one bounded window or one guarded publish |
 
 **Rule of thumb:** If a `service-call` could do it, it's inline. If it needs what `write` needs (resolve + normalize + reload), use agents.
 
@@ -354,6 +358,22 @@ Rules: never invent a `media_content_id`; volume jumps and announcements are dis
 - persistent notifications via WS `persistent_notification/get` + `persistent_notification.create|dismiss`
 - honesty: a 200 means Home Assistant accepted the send, never that the phone displayed it
 - actionable callbacks are out of reach (they arrive as `mobile_app_notification_action` events, which need a subscription): hand off to `ha-nova:write` for the automation pattern
+
+## Camera Architecture
+
+`ha-nova:camera` owns camera access and is the first consumer of the relay's binary path (relay >= 0.3.0):
+- frames via `GET /api/camera_proxy/<entity_id>` with `--out-binary` ONLY (`--out`/`--jq` would write the JSON envelope instead of an image)
+- stream URL via WS `camera/stream` (needs the STREAM feature bit)
+- `camera.snapshot` / `camera.record` write on the HA host and need `allowlist_external_dirs` — previewed and confirmed
+- frames are private data: client-private scratch only, never the workspace, and no claim about image content beyond what the frame shows
+
+## MQTT Architecture
+
+`ha-nova:mqtt` owns MQTT work and is the first consumer of envelope window mode (relay >= 0.3.0):
+- listening is a bounded WINDOW (`mqtt/subscribe` inside `collect_events` with `on_limit: "return"`), never a stream; the relay unsubscribes when it closes
+- an empty window is a real answer ("nothing published"), reported as one — an `UPSTREAM_WS_TIMEOUT` (subscription never established) is a different finding
+- discovery/debug via WS `mqtt/device/debug_info` (device_id from the registry, never guessed)
+- publishing is guarded: retained messages and command/`set` topics take the typed token, because they persist on the broker or actuate hardware
 
 ## Fallback Architecture
 

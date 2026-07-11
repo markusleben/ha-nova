@@ -182,6 +182,8 @@ Match user intent to exactly one skill:
 | find out WHY a specific automation, script, device, or integration failed or misbehaved (traces, error/system logs, root cause) | `ha-nova:diagnose` |
 | play, pause, skip, set volume, change source, group speakers, browse media, or announce over a speaker | `ha-nova:media` |
 | send a notification to a phone or another notify target, or manage Home Assistant's persistent notifications | `ha-nova:notify` |
+| look at a camera (snapshot), get a stream URL, or record | `ha-nova:camera` |
+| listen to MQTT topics to see what a device actually publishes, inspect MQTT discovery, or publish a message | `ha-nova:mqtt` |
 | list calendars or show calendar events | `ha-nova:calendar` |
 | show, add, complete, update, remove to-do or shopping-list items; create/delete to-do lists | `ha-nova:todo` |
 | check backup status, create a backup (also as a safety net before risky changes), inspect a backup's contents, delete backups | `ha-nova:backup` |
@@ -224,6 +226,8 @@ Match user intent to exactly one skill:
 **"Announce that dinner is ready"** → `ha-nova:media` (TTS to a speaker)
 **"Send me a notification when..."** → `ha-nova:write` (that is an automation, not a one-off send)
 **"Send a notification to my phone"** → `ha-nova:notify` (one-off send now)
+**"Show me the front door camera"** → `ha-nova:camera`
+**"Is my sensor even sending anything?"** → `ha-nova:mqtt` (listen to its topic); "why did my automation not run" stays `ha-nova:diagnose`
 **"Is everything OK with my home?"** → `ha-nova:health` (current status, no concrete incident)
 **"Why are devices unavailable?"** → `ha-nova:health`
 **"Add milk to my shopping list"** → `ha-nova:todo`

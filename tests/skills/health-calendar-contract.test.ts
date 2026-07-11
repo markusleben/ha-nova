@@ -98,7 +98,7 @@ describe("health and calendar skill contracts", () => {
     const fallback = readFileSync("skills/fallback/SKILL.md", "utf8");
     const history = readFileSync("skills/history/SKILL.md", "utf8");
 
-    expect(architecture).toContain("22 independent sub-skills");
+    expect(architecture).toContain("24 independent sub-skills");
     expect(architecture).toContain("health/SKILL.md");
     expect(architecture).toContain("calendar/SKILL.md");
     expect(architecture).toContain("`ha-nova:health` is a read-only home-status skill");

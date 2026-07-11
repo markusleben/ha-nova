@@ -54,6 +54,8 @@ For every Relay-Ready call in this skill:
 | Media players (transport, volume, source, grouping, browsing, TTS announce) | Covered | media |
 | Notifications (targets, mobile-app sends, persistent notifications) | Covered | notify |
 | Actionable-notification callbacks (waiting for a button press) | Roadmap (needs event subscriptions) | -- |
+| Cameras (snapshot, stream URL, record) | Covered | camera |
+| MQTT (bounded topic listening, discovery/debug info, publish) | Covered | mqtt |
 | Calendar Queries | Covered | calendar |
 | To-do Lists (items + Local To-do lifecycle) | Covered | todo |
 | Area / Floor CRUD | Covered | organize |
@@ -72,7 +74,7 @@ For every Relay-Ready call in this skill:
 | Updates (pending, release notes, install, skip) | Covered | updates |
 | Apps / Supervisor | External | -- |
 | HACS | External | -- |
-| Zigbee / Z-Wave Config | External | -- |
+| Zigbee / Z-Wave Config | External | -- (MQTT-level inspection of a Zigbee2MQTT setup: `mqtt`) |
 
 ## Flow
 

@@ -45,7 +45,7 @@ describe("runtime bootstrap", () => {
         return {
           isConnected: () => true,
           sendMessage: async <T>() => ({ ok: true } as T),
-          collectMessageEvents: async <T>() => [] as T[]
+          collectMessageEvents: async <T>() => ({ events: [] as T[], truncated: false })
         };
       },
       createRestClient: (input) => {
@@ -97,7 +97,7 @@ describe("runtime bootstrap", () => {
       createWsClient: () => ({
         isConnected: () => true,
         sendMessage: async <T>() => ({ type: "pong" } as T),
-        collectMessageEvents: async <T>() => [] as T[]
+        collectMessageEvents: async <T>() => ({ events: [] as T[], truncated: false })
       })
     });
 
@@ -156,7 +156,7 @@ describe("runtime bootstrap", () => {
       createWsClient: () => ({
         isConnected: () => true,
         sendMessage: async <T>() => ({ type: "pong" } as T),
-        collectMessageEvents: async <T>() => [] as T[]
+        collectMessageEvents: async <T>() => ({ events: [] as T[], truncated: false })
       }),
       createRestClient: () => ({
         request: async (input) => {
@@ -228,7 +228,7 @@ describe("runtime bootstrap", () => {
       createWsClient: () => ({
         isConnected: () => true,
         sendMessage: async <T>() => ({ type: "pong" } as T),
-        collectMessageEvents: async <T>() => [] as T[]
+        collectMessageEvents: async <T>() => ({ events: [] as T[], truncated: false })
       }),
       logger: {
         info: (message, context) => {
