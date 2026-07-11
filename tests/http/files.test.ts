@@ -207,6 +207,52 @@ describe("files handler — derived paths cannot be hijacked", () => {
   });
 });
 
+describe("files handler — symlinks cannot launder a denied path", () => {
+  // The deny list is applied to the requested NAME. A symlink with an innocent
+  // name that points at a denied path INSIDE the root passes containment (the
+  // target really is in the root) — so the deny rules have to be applied again
+  // after resolution, or the symlink is a bypass straight to secrets.
+  it("refuses a symlink that points at secrets.yaml", async () => {
+    symlinkSync(join(root, "secrets.yaml"), join(root, "innocent.yaml"));
+    await expectHttpError(
+      call("read", { action: "read_file", path: "/config/innocent.yaml" }),
+      403,
+      "FILE_PATH_DENIED"
+    );
+  });
+
+  it("refuses a symlink that points into .storage", async () => {
+    symlinkSync(join(root, ".storage", "auth"), join(root, "harmless.json"));
+    await expectHttpError(
+      call("read", { action: "read_file", path: "/config/harmless.json" }),
+      403,
+      "FILE_PATH_DENIED"
+    );
+  });
+
+  it("refuses to write through a symlink that points at a denied path", async () => {
+    symlinkSync(join(root, "secrets.yaml"), join(root, "sneaky.yaml"));
+    await expectHttpError(
+      call("readwrite", { action: "write_file", path: "/config/sneaky.yaml", content: "pwned: true\n" }),
+      403,
+      "FILE_PATH_DENIED"
+    );
+    expect(readFileSync(join(root, "secrets.yaml"), "utf8")).toContain("super-secret");
+  });
+
+  it("refuses to back up a file that is too large to copy", async () => {
+    const big = join(root, "huge.yaml");
+    writeFileSync(big, "x".repeat(1024 * 1024 + 10));
+    await expectHttpError(
+      call("readwrite", { action: "write_file", path: "/config/huge.yaml", content: "small: true\n" }),
+      400,
+      "FILE_TOO_LARGE"
+    );
+    // The original is untouched: a refused backup must not have overwritten it.
+    expect(readFileSync(big, "utf8").length).toBeGreaterThan(1024 * 1024);
+  });
+});
+
 describe("files handler — operations", () => {
   it("lists a directory", async () => {
     const result = (await call("read", { action: "list_dir", path: "/config" })) as {

@@ -156,8 +156,15 @@ async function resolveTargetPath(configRoot: string, logicalPath: string, action
   // existing ancestor is checked instead.
   const probe = action === "write_file" ? await deepestExisting(absolute) : absolute;
   try {
+    const realRoot = await realpath(configRoot);
     const real = await realpath(probe);
-    assertInsideRoot(await realpath(configRoot), real);
+    assertInsideRoot(realRoot, real);
+    // Staying inside the root is NOT enough: a symlink with an innocent name
+    // (/config/exposed) can point at an always-denied path inside the root
+    // (/config/secrets.yaml, .storage/auth). The deny list was applied to the
+    // requested NAME; it must be applied again to what the path actually
+    // resolves to, or a symlink becomes a bypass.
+    assertNotDenied(relative(realRoot, real));
   } catch (error) {
     if (isNotFound(error)) {
       throw new HttpError(404, "FILE_NOT_FOUND", `not found: ${logicalPath}`);
@@ -277,6 +284,16 @@ async function writeTextFile(
 
   let backupPath: string | null = null;
   if (existing && backup) {
+    // The .bak copy goes through the same ceiling as a read: without this, a
+    // huge pre-existing file would be pulled into memory and duplicated on disk
+    // by an otherwise tiny write, quietly bypassing the advertised cap.
+    if (existing.size > MAX_READ_BYTES) {
+      throw new HttpError(
+        400,
+        "FILE_TOO_LARGE",
+        `${logicalPath} is ${existing.size} bytes and cannot be backed up under the ${MAX_READ_BYTES}-byte limit`
+      );
+    }
     backupPath = `${absolute}.bak`;
     // The .bak and .nova-tmp paths are DERIVED, so the containment check above
     // never saw them: if either already exists as a symlink, writing would
