@@ -55,6 +55,7 @@ Never skip a step.
 
 - Keep HA NOVA's own additions in `/config/ha_nova/` and include them from `configuration.yaml` — a small, reviewable footprint the user can delete in one go. Add the `!include` line only once, and show it before writing it.
 - Never touch `secrets.yaml`, `.storage/`, or the recorder database: the relay refuses them anyway, and needing them means the approach is wrong.
+- Code is not configuration: the relay refuses `custom_components/`, `python_scripts/`, and `www/` entirely and writes only `.yaml`/`.yml`/`.conf`/`.json`/`.txt`/`.md` — never offer to place scripts or web assets.
 - Prefer a helper over a YAML file whenever the helper can express it (`ha-nova:helper`).
 
 ## When file access is off (the default)
@@ -65,7 +66,8 @@ Do not treat this as a blocker to argue around. Produce the exact YAML block, na
 
 Full relay/upstream error taxonomy: `skills/ha-nova/relay-api.md` -> Error Handling. yaml-config specifics:
 - `FILE_ACCESS_DISABLED` / `FILE_ACCESS_READONLY`: a configuration choice, not an error — see Bootstrap.
-- `FILE_PATH_DENIED`: the path is permanently off-limits (secrets, `.storage`, database, logs). Do not look for a way around it.
+- `FILE_PATH_DENIED`: the path is permanently off-limits (secrets, `.storage`, database, logs, executable dirs). Do not look for a way around it.
+- `FILE_TYPE_DENIED`: not a writable configuration format (see Conventions).
 - `FILE_NOT_TEXT` / `FILE_TOO_LARGE`: wrong target, or a file this skill has no business editing.
 - `check_config` invalid: restore the `.bak` BEFORE reporting, then explain.
 
