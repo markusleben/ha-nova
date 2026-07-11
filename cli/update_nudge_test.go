@@ -174,6 +174,45 @@ func TestSkillUpdateNudgeNoticeUpToDateStaysSilent(t *testing.T) {
 	}
 }
 
+func TestSkillUpdateNudgeRefreshThrottleFollowsCacheTTLNotNoticeInterval(t *testing.T) {
+	paths, spawnCount := nudgeTestEnv(t, "0.2.0")
+	// Up to date but stale cache: silent, yet a refresh is spawned.
+	writeFreshReleaseCache(t, paths, "0.2.0")
+	stale := time.Now().Add(-2 * time.Hour)
+	if err := os.Chtimes(paths.UpdateCacheFile, stale, stale); err != nil {
+		t.Fatalf("age cache: %v", err)
+	}
+	if notice := skillUpdateNudgeNotice(paths, true); !notice.empty() {
+		t.Fatalf("up to date: expected empty notice, got %q", notice.message)
+	}
+	if *spawnCount != 1 {
+		t.Fatalf("spawnCount = %d, want 1", *spawnCount)
+	}
+
+	// Within the cache TTL: no second spawn.
+	if notice := skillUpdateNudgeNotice(paths, true); !notice.empty() {
+		t.Fatalf("repeat: expected empty notice, got %q", notice.message)
+	}
+	if *spawnCount != 1 {
+		t.Fatalf("repeat: spawnCount = %d, want 1", *spawnCount)
+	}
+
+	// Once the refresh marker is older than the cache TTL — but far under the
+	// 24h notice interval — a still-stale cache must refresh again, or a
+	// same-day release stays hidden from relay-only clients for up to a day.
+	marker := filepath.Join(paths.CacheDir, updateRefreshMarkerName)
+	agedMarker := time.Now().Add(-updateRefreshInterval - time.Minute)
+	if err := os.Chtimes(marker, agedMarker, agedMarker); err != nil {
+		t.Fatalf("age refresh marker: %v", err)
+	}
+	if notice := skillUpdateNudgeNotice(paths, true); !notice.empty() {
+		t.Fatalf("after marker expiry: expected empty notice, got %q", notice.message)
+	}
+	if *spawnCount != 2 {
+		t.Fatalf("after marker expiry: spawnCount = %d, want 2", *spawnCount)
+	}
+}
+
 func TestSkillUpdateNudgeMessageMatchesInstallSourceGuidance(t *testing.T) {
 	normal := skillUpdateNudgeMessage("HA NOVA update available", "0.1.0", "0.2.0", installSourceBundle)
 	if !strings.Contains(normal, "Run: ha-nova update") {

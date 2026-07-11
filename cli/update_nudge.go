@@ -14,6 +14,11 @@ const (
 	updateNudgeMarkerName   = "update-nudge-shown"
 	updateRefreshMarkerName = "update-refresh-spawned"
 	updateNudgeInterval     = 24 * time.Hour
+	// updateRefreshInterval matches the release-cache TTL: a stale cache may
+	// spawn a background refresh as soon as the cache can turn fresh again.
+	// Tying refreshes to the 24h notice interval instead would hide a same-day
+	// release from relay-only clients for up to a day.
+	updateRefreshInterval = time.Duration(updateCacheTTLSeconds) * time.Second
 )
 
 // spawnDetachedUpdateRefresh fires the same cache-refresh contract the Claude
@@ -59,7 +64,7 @@ func skillUpdateNudgeNotice(paths runtimePaths, throttled bool) humanNotice {
 	}
 
 	cached, cacheStatus := inspectCachedRelease(paths)
-	if cacheStatus != "fresh" && passesNudgeThrottle(paths, updateRefreshMarkerName) {
+	if cacheStatus != "fresh" && passesNudgeThrottle(paths, updateRefreshMarkerName, updateRefreshInterval) {
 		spawnDetachedUpdateRefresh()
 	}
 	if cacheStatus == "miss" {
@@ -74,7 +79,7 @@ func skillUpdateNudgeNotice(paths runtimePaths, throttled bool) humanNotice {
 	if cmp >= 0 && !returnToStable {
 		return humanNotice{}
 	}
-	if throttled && !passesNudgeThrottle(paths, updateNudgeMarkerName) {
+	if throttled && !passesNudgeThrottle(paths, updateNudgeMarkerName, updateNudgeInterval) {
 		return humanNotice{}
 	}
 
@@ -98,13 +103,13 @@ func skillUpdateNudgeMessage(lead, current, latest, installSource string) string
 	return fmt.Sprintf("%s: v%s -> v%s. Inform the user: %s (new session required after update).", lead, current, latest, updateGuidanceForInstallSource(installSource))
 }
 
-// passesNudgeThrottle reports whether the marker is older than the nudge
+// passesNudgeThrottle reports whether the marker is older than the given
 // interval and stamps it when it passes — the same marker-file pattern as
 // shouldWarnRelayOutdated. Failures degrade to "allow" so a broken cache dir
 // never suppresses notices.
-func passesNudgeThrottle(paths runtimePaths, markerName string) bool {
+func passesNudgeThrottle(paths runtimePaths, markerName string, interval time.Duration) bool {
 	marker := filepath.Join(paths.CacheDir, markerName)
-	if info, err := os.Stat(marker); err == nil && time.Since(info.ModTime()) < updateNudgeInterval {
+	if info, err := os.Stat(marker); err == nil && time.Since(info.ModTime()) < interval {
 		return false
 	}
 	if err := os.MkdirAll(paths.CacheDir, 0o755); err != nil {
