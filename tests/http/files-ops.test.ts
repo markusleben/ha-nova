@@ -1,3 +1,5 @@
+import { execFileSync } from "node:child_process";
+
 import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -256,6 +258,27 @@ describe("files handler — operations", () => {
     );
     expect(existsSync(join(root, "binary.yaml"))).toBe(false);
   });
+
+  // A FIFO reports size 0 and then blocks readFile forever, holding a libuv
+  // worker hostage. Only regular files may be read or written.
+  it.skipIf(process.platform === "win32")(
+    "refuses to read or write a FIFO instead of hanging on it",
+    async () => {
+      const fifo = join(root, "pipe.yaml");
+      execFileSync("mkfifo", [fifo]);
+
+      await expectHttpError(
+        call("read", { action: "read_file", path: "/config/pipe.yaml" }),
+        400,
+        "FILE_NOT_REGULAR"
+      );
+      await expectHttpError(
+        call("readwrite", { action: "write_file", path: "/config/pipe.yaml", content: "x: 1\n" }),
+        400,
+        "FILE_NOT_REGULAR"
+      );
+    }
+  );
 
   it("reports a missing file honestly", async () => {
     await expectHttpError(

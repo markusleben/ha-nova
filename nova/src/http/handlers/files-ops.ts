@@ -39,6 +39,16 @@ export async function readTextFile(absolute: string, logicalPath: string): Promi
   if (info.isDirectory()) {
     throw new HttpError(400, "FILE_IS_DIRECTORY", `${logicalPath} is a directory — use list_dir`);
   }
+  // Only REGULAR files. A FIFO reports size 0 and then blocks readFile forever,
+  // holding a libuv worker hostage; sockets and device nodes are equally not
+  // what a text-file endpoint is for.
+  if (!info.isFile()) {
+    throw new HttpError(
+      400,
+      "FILE_NOT_REGULAR",
+      `${logicalPath} is not a regular file — /files serves text files only`
+    );
+  }
   if (info.size > MAX_READ_BYTES) {
     throw new HttpError(
       400,
@@ -82,6 +92,15 @@ export async function writeTextFile(
   const existing = await stat(absolute).catch(() => null);
   if (existing?.isDirectory()) {
     throw new HttpError(400, "FILE_IS_DIRECTORY", `${logicalPath} is a directory`);
+  }
+  // Same reason as the read side: writing into a FIFO or a device node is not
+  // what this endpoint does, and it would hang instead of failing.
+  if (existing && !existing.isFile()) {
+    throw new HttpError(
+      400,
+      "FILE_NOT_REGULAR",
+      `${logicalPath} is not a regular file — refusing to write to it`
+    );
   }
 
   let backupPath: string | null = null;
