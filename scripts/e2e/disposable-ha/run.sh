@@ -27,7 +27,14 @@ FAILED=0
 cleanup() {
   echo "--- tearing down"
   ( cd "$HERE" && docker compose down -v --remove-orphans > /dev/null 2>&1 || true )
-  rm -rf "$HERE/config"
+  # Home Assistant writes the bind mount as root (.storage and friends), so a
+  # non-root CI runner cannot remove it directly — a failing cleanup would turn
+  # a green evidence run red. Delete it from inside a container, which can.
+  if [[ -d "$HERE/config" ]]; then
+    docker run --rm -v "$HERE/config:/target" alpine:3 \
+      sh -c 'rm -rf /target/* /target/.[!.]* /target/..?* 2>/dev/null || true' > /dev/null 2>&1 || true
+    rmdir "$HERE/config" 2>/dev/null || rm -rf "$HERE/config" 2>/dev/null || true
+  fi
 }
 trap cleanup EXIT
 
@@ -57,12 +64,27 @@ access_token="$(curl -sf -X POST "$HA_URL/auth/token" \
   | python3 -c 'import json,sys; print(json.load(sys.stdin)["access_token"])')"
 
 # Finish onboarding so the core config exists and integrations can load.
-for step in core_config analytics integration; do
-  curl -sf -X POST "$HA_URL/api/onboarding/$step" \
-    -H "Authorization: Bearer ${access_token}" \
-    -H 'Content-Type: application/json' \
-    -d '{"client_id":"http://127.0.0.1:8123/"}' > /dev/null 2>&1 || true
-done
+# The integration step needs a redirect_uri as well as a client_id.
+curl -sf -X POST "$HA_URL/api/onboarding/core_config" \
+  -H "Authorization: Bearer ${access_token}" -H 'Content-Type: application/json' \
+  -d '{"client_id":"http://127.0.0.1:8123/"}' > /dev/null
+curl -sf -X POST "$HA_URL/api/onboarding/analytics" \
+  -H "Authorization: Bearer ${access_token}" -H 'Content-Type: application/json' \
+  -d '{"client_id":"http://127.0.0.1:8123/"}' > /dev/null
+curl -sf -X POST "$HA_URL/api/onboarding/integration" \
+  -H "Authorization: Bearer ${access_token}" -H 'Content-Type: application/json' \
+  -d '{"client_id":"http://127.0.0.1:8123/","redirect_uri":"http://127.0.0.1:8123/"}' > /dev/null
+
+# Verify the RESULT rather than trusting the steps: /api/onboarding reports each
+# step's done flag. A half-onboarded Home Assistant would make every assertion
+# below meaningless, so this is a hard failure, not a warning.
+onboarding_state="$(curl -sf "$HA_URL/api/onboarding")"
+if echo "$onboarding_state" | python3 -c 'import json,sys; steps=json.load(sys.stdin); sys.exit(0 if all(s["done"] for s in steps) else 1)'; then
+  pass "onboarding completed (all steps report done)"
+else
+  echo "  FAIL: onboarding is incomplete: $onboarding_state" >&2
+  exit 1
+fi
 
 HA_LLAT="$(python3 "$HERE/mint-llat.py" "$HA_URL" "$access_token")"
 export HA_LLAT
