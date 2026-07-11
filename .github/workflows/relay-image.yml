@@ -24,8 +24,19 @@ permissions:
   contents: read
   packages: write
 
+# Finding: two publish runs with the same nova/config.yaml version could both
+# see the version tag as free and race to promote it. Serialize publishes so
+# the "tag is free" check and the promotion are effectively one transaction.
+concurrency:
+  group: relay-image-publish
+  cancel-in-progress: false
+
 jobs:
   publish:
+    # Only main publishes. workflow_dispatch can be run from any ref, and
+    # without this guard a feature branch could promote unreviewed relay code
+    # to :latest and to the semver tag.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5

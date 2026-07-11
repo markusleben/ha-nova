@@ -1,0 +1,43 @@
+# Disposable Home Assistant + NOVA Relay, for end-to-end verification.
+#
+# This is throwaway infrastructure: it boots a real Home Assistant, starts the
+# relay against it (as the standalone container, which validates that
+# distribution at the same time), and is destroyed afterwards. Nothing here is
+# meant to survive a run.
+
+services:
+  homeassistant:
+    image: homeassistant/home-assistant:stable
+    container_name: nova-e2e-ha
+    volumes:
+      - ./config:/config
+    environment:
+      TZ: UTC
+    ports:
+      - "8123:8123"
+    healthcheck:
+      # HA answers 200 on / once the frontend is up.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8123/ || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 20s
+
+  relay:
+    build:
+      context: ../../../nova
+      dockerfile: Dockerfile.standalone
+      args:
+        RELAY_VERSION: "${RELAY_VERSION:-e2e}"
+    container_name: nova-e2e-relay
+    depends_on:
+      homeassistant:
+        condition: service_healthy
+    environment:
+      # Both are validated by the relay itself at startup; compose must not
+      # gate on them, or the Home Assistant service could not start first.
+      RELAY_AUTH_TOKEN: "${RELAY_AUTH_TOKEN:-}"
+      HA_LLAT: "${HA_LLAT:-}"
+      HA_URL: "http://homeassistant:8123"
+    ports:
+      - "8791:8791"
