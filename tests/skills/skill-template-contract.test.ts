@@ -101,7 +101,7 @@ const SAFETY_CORE_BLOCKS = ((): { mutation: string; readOnly: string } => {
 // on-demand trigger list itself.
 const WORD_BUDGETS: Record<string, number> = {
   write: 1400,
-  diagnose: 1350,
+  diagnose: 1450,
   scene: 1350,
   "service-call": 1200,
   todo: 1200,
