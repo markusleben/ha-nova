@@ -3,6 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 
+import { globSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 
 function expectFragmentsInOrder(haystack: string, fragments: string[]) {
@@ -19,6 +21,31 @@ function expectNoFullVitestSweep(verifyScript: string) {
 }
 
 describe("safe test system contract", () => {
+  // Every test file must actually RUN in `npm run verify`. A test file that no
+  // script references is worse than no test: it looks like coverage and proves
+  // nothing. This guard exists because 50 /files security tests and the skill
+  // linter silently never ran in CI — they were simply missing from the
+  // manifest.
+  it("runs every test file through verify", () => {
+    const manifest = new Set(
+      JSON.parse(readFileSync("scripts/test/safe-core-files.json", "utf8")) as string[]
+    );
+    const scripts = Object.values(
+      (JSON.parse(readFileSync("package.json", "utf8")) as { scripts: Record<string, string> }).scripts
+    ).join(" ");
+
+    const testFiles = globSync("tests/**/*.test.ts").map((file) => file.split("\\").join("/"));
+    expect(testFiles.length).toBeGreaterThan(50);
+
+    const orphans = testFiles.filter(
+      (file) => !manifest.has(file) && !scripts.includes(file)
+    );
+    expect(
+      orphans,
+      `these test files are never executed by npm run verify — add them to scripts/test/safe-core-files.json or to an explicit verify step:\n  ${orphans.join("\n  ")}`
+    ).toEqual([]);
+  });
+
   const pkg = JSON.parse(readFileSync("package.json", "utf8")) as {
     scripts?: Record<string, string>;
   };
