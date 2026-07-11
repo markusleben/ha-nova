@@ -2,6 +2,15 @@
 
 Purpose: autonomous apply + verify phase after user confirmation.
 
+## Execution Mode
+
+This template runs in one of two modes:
+
+- **Dispatched**: you are a sub-agent. The sections under "Output Format (Structured Text)" are your literal return contract to the main thread.
+- **INLINE** (no sub-agent dispatch available): the caller executes the Execution Steps directly. `{PLACEHOLDER}` values are the values already confirmed in the conversation; "Output Format (Structured Text)" is an internal completeness checklist, never user-facing output. In INLINE mode "the main thread" is you: proceed only if you yourself showed the exact preview and received the user's confirmation for this operation, target, and payload.
+
+Hard Scope binds identically in both modes.
+
 ## Runtime Inputs
 
 - `{DOMAIN}`: `automation` or `script`
