@@ -76,7 +76,6 @@ For every Relay-Ready call in this skill:
 | Statistics repair / Purge / Entity registry remove | Covered | maintenance |
 | Device config-entry detach | Relay-Ready | this skill |
 | Event Subscriptions | Roadmap Phase 1c | -- |
-| YAML / REST / Command-Line Sensors | Roadmap Phase 3 | -- |
 | Backups (status, create, inspect, delete) | Covered | backup |
 | Updates (pending, release notes, install, skip) | Covered | updates |
 | Apps / Supervisor | External | -- |
@@ -206,17 +205,6 @@ Real-time event streams for state changes, automation triggers, and custom event
 
 **Status:** Coming in Phase 1c. Blocked by: No SSE streaming endpoint in Relay.
 **Workaround:** Poll entity state periodically via `GET /api/states/{entity_id}`.
-
-### YAML / REST / Command-Line Sensors -- ROADMAP (Phase 3)
-
-Config-entry template helpers are covered by `ha-nova:helper` — this roadmap item is only about YAML-file, REST, and command-line sensors.
-
-Define custom sensors using Jinja2 templates, REST endpoints, or shell commands.
-
-**Search:** `home assistant template sensor yaml configuration 2026`
-
-**Status:** Coming in Phase 3. Blocked by: No filesystem access in Relay (sensors defined in YAML files).
-**Workaround:** Add the YAML manually via the HA config files.
 
 ## External Features
 

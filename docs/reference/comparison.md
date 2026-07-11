@@ -40,18 +40,18 @@ This is where the projects differ most, and it is the reason HA NOVA exists.
 
 Every HA NOVA row is backed by a file and a test in **[safety.md](safety.md)** — read that page instead of trusting this one.
 
-## Where ha-mcp is ahead (as of 2026-07-11)
+## Where ha-mcp is ahead (as of 2026-07-12)
 
 Being honest about this is the point of the page:
 
-- **YAML and filesystem editing.** ha-mcp can edit `configuration.yaml` and read/write files (beta, with automatic backups). HA NOVA cannot yet — it is on the roadmap behind an opt-in relay capability, because file access is the largest thing you can hand an AI and we want the write flow (diff → confirm → `check_config` → reload → verify → rollback) built before the door opens.
+- **Breadth of file editing.** ha-mcp can read/write files broadly (beta, with automatic backups). HA NOVA's file access (`ha-nova:yaml-config`, relay ≥ 0.4.0) is deliberately narrower: opt-in and off by default, configuration formats only, executable paths refused outright — and the write flow it shipped with is diff → confirm → `check_config` → reload → verify → rollback.
 - **Add-on and HACS management.** ha-mcp can install and manage those. HA NOVA points you at the Home Assistant UI.
 - **Dashboard screenshots** and **ZHA device inspection**: ha-mcp has them, HA NOVA does not.
 - **Maturity of reach.** ha-mcp has more stars, more contributors, and more integrations wired up. HA NOVA is younger.
 
-## Where HA NOVA is ahead (as of 2026-07-11)
+## Where HA NOVA is ahead (as of 2026-07-12)
 
-- **Media, notifications, and MQTT** have dedicated skills with real domain rules — feature-bit gating before a media call, the iOS/Android payload split for notifications, retained-vs-live distinction when listening to MQTT. ha-mcp does not cover these.
+- **Media, notifications, MQTT, and voice** have dedicated skills with real domain rules — feature-bit gating before a media call, the iOS/Android payload split for notifications, retained-vs-live distinction when listening to MQTT, utterance testing that says plainly it executes what it understands. ha-mcp does not cover these.
 - **Root-cause diagnosis** as a workflow (traces → logs → bounded history → template probe), not just raw log access.
 - **The safety model above**, which is enforced structurally rather than per tool.
 - **Runs on every Home Assistant install** — App for HA OS/Supervised, container for Container/Core — from one codebase.
