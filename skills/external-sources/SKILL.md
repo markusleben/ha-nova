@@ -40,9 +40,9 @@ The query goes out with the client's own HTTP tool.
 ## Flow
 
 1. Detect the InfluxDB version once: `GET <url>/ping` (1.x answers with an `X-Influxdb-Version` header) or `GET <url>/health` (2.x/3.x).
-2. Resolve what the user means to a real Home Assistant `entity_id` first — InfluxDB stores measurements by `entity_id`, so a wrong name silently returns nothing.
+2. Resolve what the user means to a real Home Assistant entity first, then split it for the query: the writer tags rows with `domain` and with `entity_id` = the object id WITHOUT the domain prefix (`sensor.kitchen_temperature` → `"domain" = 'sensor'`, `"entity_id" = 'kitchen_temperature'`). Querying the full ID silently returns nothing.
 3. Query, bounded, and read-only:
-   - **1.x**: `GET <url>/query?db=<db>&q=<InfluxQL>` — e.g. `SELECT mean("value") FROM "°C" WHERE "entity_id" = 'kitchen_temperature' AND time > now() - 365d GROUP BY time(1d)`
+   - **1.x**: `GET <url>/query?db=<db>&q=<InfluxQL>` — e.g. `SELECT mean("value") FROM "°C" WHERE "domain" = 'sensor' AND "entity_id" = 'kitchen_temperature' AND time > now() - 365d GROUP BY time(1d)`
    - **2.x**: `POST <url>/api/v2/query?org=<org>` with `Authorization: Token <token>`, a Flux body, and `Accept: application/csv`
    - **3.x**: `POST <url>/api/v3/query_sql` with SQL
    Always bound the time range and aggregate in the query (`GROUP BY time(...)`) — never pull raw points for a year and summarize client-side.
@@ -56,7 +56,7 @@ If the user keeps asking for the same InfluxDB series, the better answer is a Ho
 
 - Missing credentials: a configuration gap, not an error. Say what to set, stop.
 - `401`/`403`: the token is wrong or lacks read permission on that bucket — the user fixes it in InfluxDB, not here.
-- Empty result: usually a wrong `entity_id` or measurement name (InfluxDB names measurements after the unit, e.g. `°C`, which surprises people). Show what you queried before concluding the data does not exist.
+- Empty result: usually the full entity ID in the `entity_id` tag (it holds only the object id) or a wrong measurement name (InfluxDB names measurements after the unit, e.g. `°C`). Show what you queried before concluding the data does not exist.
 
 ## Output Format
 
