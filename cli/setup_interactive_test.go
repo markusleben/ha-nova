@@ -919,12 +919,6 @@ func TestInteractiveSetupResumeCanChangeHostFromRepairMenuWithoutTokenRePrompt(t
 	t.Setenv("HA_NOVA_TEST_KEYRING_FILE", filepath.Join(home, ".config", "ha-nova", ".test-relay-auth-token"))
 	t.Setenv("HA_NOVA_DEV_ROOT", repoRootForSetupTest(t))
 
-	deadHAServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
-	deadHAURL := deadHAServer.URL
-	deadHAServer.Close()
-
 	goodHAServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
@@ -940,6 +934,10 @@ func TestInteractiveSetupResumeCanChangeHostFromRepairMenuWithoutTokenRePrompt(t
 		_, _ = w.Write([]byte(`{"status":"ok","data":{"ha_ws_connected":true}}`))
 	}))
 	defer relayServer.Close()
+
+	// Created after every live server: a later httptest bind in this test could
+	// be handed the freed port, silently resurrecting the "dead" address.
+	deadHAURL := newDeadServerURL()
 
 	originalDetect := detectDefaultHAHostChoiceForSetup
 	t.Cleanup(func() { detectDefaultHAHostChoiceForSetup = originalDetect })
@@ -1019,12 +1017,6 @@ func TestInteractiveSetupHostChangePersistsNewHostEvenWhenUserExitsBeforeVerifyS
 	t.Setenv("HA_NOVA_TEST_KEYRING_FILE", filepath.Join(home, ".config", "ha-nova", ".test-relay-auth-token"))
 	t.Setenv("HA_NOVA_DEV_ROOT", repoRootForSetupTest(t))
 
-	deadHAServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
-	deadHAURL := deadHAServer.URL
-	deadHAServer.Close()
-
 	goodHAServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
@@ -1035,6 +1027,8 @@ func TestInteractiveSetupHostChangePersistsNewHostEvenWhenUserExitsBeforeVerifyS
 		http.Error(w, "boom", http.StatusInternalServerError)
 	}))
 	defer failingRelayServer.Close()
+
+	deadHAURL := newDeadServerURL()
 
 	originalDetect := detectDefaultHAHostChoiceForSetup
 	t.Cleanup(func() { detectDefaultHAHostChoiceForSetup = originalDetect })
@@ -2291,6 +2285,19 @@ func repoRootForSetupTest(t *testing.T) string {
 	return wd
 }
 
+// newDeadServerURL returns an address that refuses connections. Call it only
+// after every live httptest server of the test is bound: closing frees the
+// port, and a later bind in the same process can be handed exactly that port —
+// silently turning the "dead" address into a live server (a real ci-gate
+// flake: the relay server came up on the freed port, the unreachable Home
+// Assistant address answered, and the repair menu never appeared).
+func newDeadServerURL() string {
+	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	url := server.URL
+	server.Close()
+	return url
+}
+
 func TestInteractiveSetupFreshHostChangeRoutesBackThroughInstallStepsNotStraightToVerify(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -2298,12 +2305,6 @@ func TestInteractiveSetupFreshHostChangeRoutesBackThroughInstallStepsNotStraight
 	t.Setenv("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING", "1")
 	t.Setenv("HA_NOVA_TEST_KEYRING_FILE", filepath.Join(home, ".config", "ha-nova", ".test-relay-auth-token"))
 	t.Setenv("HA_NOVA_DEV_ROOT", repoRootForSetupTest(t))
-
-	deadHAServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
-	deadHAURL := deadHAServer.URL
-	deadHAServer.Close()
 
 	goodHAServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -2320,6 +2321,8 @@ func TestInteractiveSetupFreshHostChangeRoutesBackThroughInstallStepsNotStraight
 		_, _ = w.Write([]byte(`{"status":"ok","data":{"ha_ws_connected":true}}`))
 	}))
 	defer relayServer.Close()
+
+	deadHAURL := newDeadServerURL()
 
 	paths, err := detectPaths()
 	if err != nil {
@@ -2485,12 +2488,6 @@ func TestInteractiveSetupPastedTokenFreshHostChangeRoutesThroughInstallSteps(t *
 	t.Setenv("HA_NOVA_TEST_KEYRING_FILE", filepath.Join(home, ".config", "ha-nova", ".test-relay-auth-token"))
 	t.Setenv("HA_NOVA_DEV_ROOT", repoRootForSetupTest(t))
 
-	deadHAServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
-	deadHAURL := deadHAServer.URL
-	deadHAServer.Close()
-
 	goodHAServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
@@ -2506,6 +2503,8 @@ func TestInteractiveSetupPastedTokenFreshHostChangeRoutesThroughInstallSteps(t *
 		_, _ = w.Write([]byte(`{"status":"ok","data":{"ha_ws_connected":true}}`))
 	}))
 	defer relayServer.Close()
+
+	deadHAURL := newDeadServerURL()
 
 	paths, err := detectPaths()
 	if err != nil {
