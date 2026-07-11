@@ -1,0 +1,147 @@
+name: Relay Image
+
+# Publishes the standalone NOVA Relay container for Home Assistant
+# Container/Core installs (no Supervisor, so no App). Same source as the App —
+# this workflow only packages it.
+#
+# The image version is taken from nova/config.yaml, which stays the single
+# source of truth for the relay's version line (independent of skill_version).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "nova/src/**"
+      - "nova/package.json"
+      - "nova/package-lock.json"
+      - "nova/tsconfig.json"
+      - "nova/config.yaml"
+      - "nova/Dockerfile.standalone"
+      - ".github/workflows/relay-image.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+# Finding: two publish runs with the same nova/config.yaml version could both
+# see the version tag as free and race to promote it. Serialize publishes so
+# the "tag is free" check and the promotion are effectively one transaction.
+concurrency:
+  group: relay-image-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    # Only main publishes. workflow_dispatch can be run from any ref, and
+    # without this guard a feature branch could promote unreviewed relay code
+    # to :latest and to the semver tag.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Read relay version
+        id: version
+        run: |
+          set -euo pipefail
+          version="$(grep -E '^version:' nova/config.yaml | head -1 | sed -E 's/^version:[[:space:]]*"?([^"]+)"?/\1/')"
+          if [[ -z "$version" ]]; then
+            echo "could not read version from nova/config.yaml" >&2
+            exit 1
+          fi
+          echo "relay_version=${version}" >> "$GITHUB_OUTPUT"
+          echo "Relay version: ${version}"
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # An immutable version tag is a promise: ghcr.io/...:0.3.0 must always be
+      # the same relay code. If relay source changed without a version bump in
+      # nova/config.yaml, publishing would silently give pinned users different
+      # code under the same version — and /health would still report the old
+      # one. Fail loudly instead; the fix is a version bump.
+      - name: Refuse to republish an existing version tag
+        run: |
+          set -euo pipefail
+          tag="ghcr.io/${{ github.repository_owner }}/ha-nova-relay:${{ steps.version.outputs.relay_version }}"
+          if docker manifest inspect "$tag" > /dev/null 2>&1; then
+            echo "::error::${tag} already exists. Relay source changed without bumping 'version:' in nova/config.yaml — a published version tag must stay immutable. Bump the relay version." >&2
+            exit 1
+          fi
+          echo "Version tag is free: ${tag}"
+
+      # Publish to a throwaway commit tag FIRST. The user-facing tags are only
+      # promoted after the smoke test passes, so a broken build can never be
+      # served as :latest while the workflow turns red.
+      - name: Build and push (candidate tag)
+        uses: docker/build-push-action@v6
+        with:
+          context: ./nova
+          file: ./nova/Dockerfile.standalone
+          platforms: linux/amd64,linux/arm64
+          push: true
+          build-args: |
+            RELAY_VERSION=${{ steps.version.outputs.relay_version }}
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/ha-nova-relay:sha-${{ github.sha }}
+          labels: |
+            org.opencontainers.image.title=NOVA Relay
+            org.opencontainers.image.description=Transport-only relay between an AI client and Home Assistant (standalone build of the HA NOVA Relay App)
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.version=${{ steps.version.outputs.relay_version }}
+            org.opencontainers.image.licenses=MIT
+          provenance: true
+
+      - name: Smoke test the candidate image
+        run: |
+          set -euo pipefail
+          image="ghcr.io/${{ github.repository_owner }}/ha-nova-relay:sha-${{ github.sha }}"
+          # No RELAY_VERSION here on purpose: the image must report its baked-in
+          # version, exactly like a user running it with the documented command.
+          docker run -d --name relay-smoke \
+            -e RELAY_AUTH_TOKEN=smoke-token \
+            -e HA_LLAT=smoke-llat \
+            -e HA_URL=http://127.0.0.1:8123 \
+            -p 8791:8791 "$image"
+
+          # The relay must serve /health and reject an unauthenticated request:
+          # a 401 proves both that it is up and that auth is enforced.
+          for i in $(seq 1 20); do
+            code="$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8791/health || true)"
+            if [[ "$code" == "401" ]]; then
+              echo "relay is up and enforcing auth"
+              break
+            fi
+            if [[ "$i" == "20" ]]; then
+              echo "relay did not come up (last code: ${code:-none})" >&2
+              docker logs relay-smoke >&2 || true
+              exit 1
+            fi
+            sleep 1
+          done
+
+          # With the token it must answer 200 and report the version we built.
+          body="$(curl -sf -H 'Authorization: Bearer smoke-token' http://127.0.0.1:8791/health)"
+          echo "$body"
+          echo "$body" | grep -q '"version":"${{ steps.version.outputs.relay_version }}"'
+
+          docker rm -f relay-smoke
+
+      # Retag the smoked digest — no rebuild, so the promoted tags point at the
+      # exact artifact that passed.
+      - name: Promote the smoked image to the user-facing tags
+        run: |
+          set -euo pipefail
+          repo="ghcr.io/${{ github.repository_owner }}/ha-nova-relay"
+          docker buildx imagetools create \
+            --tag "${repo}:${{ steps.version.outputs.relay_version }}" \
+            --tag "${repo}:latest" \
+            "${repo}:sha-${{ github.sha }}"

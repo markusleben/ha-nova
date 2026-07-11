@@ -1,0 +1,47 @@
+# Standalone NOVA Relay image — the SAME relay source as the Home Assistant App,
+# packaged for Home Assistant Container/Core installs that have no Supervisor
+# and therefore cannot install Apps. One codebase, two distributions: no second
+# implementation, no feature drift.
+#
+# Configuration is environment-only (nova/src/config/env.ts); the App's
+# /data/options.json is optional and simply absent here.
+
+FROM node:22-alpine AS build
+
+WORKDIR /app
+COPY package.json package-lock.json tsconfig.json ./
+COPY src ./src
+RUN npm ci \
+  && npm run build \
+  && npm prune --omit=dev \
+  && npm cache clean --force
+
+FROM node:22-alpine
+
+# Least privilege: the relay needs no root. It holds one scoped upstream token
+# and talks HTTP; a compromised process should not own the container.
+RUN addgroup -S nova && adduser -S nova -G nova
+
+WORKDIR /app
+COPY --from=build --chown=nova:nova /app/dist ./dist
+COPY --from=build --chown=nova:nova /app/node_modules ./node_modules
+COPY --from=build --chown=nova:nova /app/package.json ./package.json
+
+USER nova
+
+# The relay version must be BAKED IN: without it loadEnv falls back to "dev",
+# /health and the x-ha-nova-relay-version header would report "dev", and the
+# CLI's min_relay_version compatibility check would be unable to compare —
+# users of camera/mqtt would get a bogus "update your relay" loop.
+ARG RELAY_VERSION=dev
+ENV RELAY_VERSION=${RELAY_VERSION}
+ENV RELAY_PORT=8791
+EXPOSE 8791
+
+# The relay's own /health is bearer-authenticated (there is no unauthenticated
+# surface), so the container healthcheck asserts the port is serving HTTP —
+# a 401 proves the process is up and authenticating.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD node -e "require('node:http').get({host:'127.0.0.1',port:process.env.RELAY_PORT||8791,path:'/health'},r=>process.exit(r.statusCode?0:1)).on('error',()=>process.exit(1))"
+
+CMD ["node", "dist/src/runtime/main.js"]

@@ -44,6 +44,21 @@ else
   fail "skills/ has ${SKILL_COUNT} directories — active docs/contracts expect 25. Update README and architecture docs."
 fi
 
+# ── 2b. One relay codebase, two distributions ──
+# The standalone container must build from the SAME src/ as the App. A second
+# implementation (e.g. a Python custom component) is exactly the false-parity
+# bug class HA NOVA criticizes in MCP servers.
+echo "[2b] Relay container builds from the shared source"
+if [[ -f "$REPO_ROOT/nova/Dockerfile.standalone" ]]; then
+  if grep -q "COPY src ./src" "$REPO_ROOT/nova/Dockerfile.standalone"; then
+    pass "Standalone relay image builds from nova/src (one codebase)"
+  else
+    fail "nova/Dockerfile.standalone does not build from nova/src — a second relay implementation is not allowed"
+  fi
+else
+  fail "nova/Dockerfile.standalone is missing (the Container/Core distribution)"
+fi
+
 # ── 3. No MCP protocol in relay ──
 # README claims "not an MCP server", "No tool definitions"
 echo "[3] No MCP/tool-definition patterns in src/"
