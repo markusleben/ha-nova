@@ -161,9 +161,9 @@ Dispatch sharpness at 28 skills: `diagnose` = root-cause a concrete failure, `he
 
 **Then the release (the only thing left):**
 - Release-prep PR (README is stable-truth and may ONLY change here, together with a `version.json` bump — that is what `readme-release-gate` enforces):
-  - `version.json`: `skill_version` 0.13.0 → the release number (0.14.0 is the working assumption).
-  - `README.md`: "19 task skills" → 28; relay size "~1.5K lines" → ~2.6K; add the platform claim (App **or** standalone container → runs on every HA install type); link `docs/reference/safety.md` and `docs/reference/comparison.md`.
-  - Release notes: use `docs/work/0.14.0-release-body.md` (already written; keep it short and user-centric per the release-notes rule).
+  - Version bump via `npm run bump -- <version>` (0.14.0 is the working assumption). `scripts/bump-version.sh` updates every version-bearing file — `version.json`, `package.json`, `package-lock.json`, `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`; a `version.json`-only edit is not enough. The bump touches manifests → add `manifest-review:approved` per the PR checklist.
+  - `README.md`: "19 task skills" → 28; relay size "~1.5K lines" → ~2.7K; add the platform claim (App **or** standalone container → runs on every HA install type); link `docs/reference/safety.md` and `docs/reference/comparison.md`.
+  - Release notes: refresh `docs/work/0.14.0-release-body.md` against the shipped wave-6 state before use — the wave-6 PR moves the relay floor to 0.4.0 and adds the wave-6 skill bullets; verify the draft carries them rather than trusting "already written". Keep it short and user-centric per the release-notes rule.
 - Then the tag flow per `docs/releasing.md`: strict-mode `verify-release-pipeline.sh` → push `vX.Y.Z-rc1` on the reviewed commit → verify the public install → tag the final `vX.Y.Z` on that same commit.
 
 **Known open items (not release blockers):**
