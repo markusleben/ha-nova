@@ -1,4 +1,5 @@
-import { chmod, lstat, mkdir, readdir, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
+import { chmod, chown, lstat, mkdir, readdir, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
+import type { Stats } from "node:fs";
 import { dirname, join, relative, sep } from "node:path";
 import { realpath } from "node:fs/promises";
 
@@ -128,6 +129,9 @@ export async function writeTextFile(
     // touched it. chmod after the write, not a mode flag: the flag is masked by
     // the process umask, chmod is not.
     await chmod(backupPath, existing.mode & 0o777);
+    // The backup carries the same content, so it deserves the same ownership —
+    // best effort here: a .bak the relay owns is a nuisance, not a lockout.
+    await chown(backupPath, existing.uid, existing.gid).catch(() => undefined);
   }
 
   await mkdir(dirname(absolute), { recursive: true });
@@ -140,6 +144,7 @@ export async function writeTextFile(
     // Same reason as the backup: the rename would otherwise replace a 0600 file
     // with a default-mode one, silently widening access to its contents.
     await chmod(tempPath, existing.mode & 0o777);
+    await preserveOwnership(tempPath, existing, logicalPath);
   }
   await rename(tempPath, absolute);
 
@@ -157,6 +162,42 @@ export async function writeTextFile(
 
 // Removes a derived path (.bak / .nova-tmp) if anything is there — including a
 // symlink, in which case unlink removes the LINK, not whatever it points at.
+/**
+ * A rename replaces the file with a NEW inode owned by whoever wrote it. In the
+ * standalone image the relay runs as `nova`, so a Home Assistant config file
+ * owned by another user would come back owned by the relay — and Home Assistant
+ * could then no longer write its own file.
+ *
+ * chown fixes that when the process is allowed to (root, e.g. the App). When it
+ * is not, the write is ABORTED before the rename: the original file is left
+ * exactly as it was, and the caller is told why. Locking Home Assistant out of
+ * its own configuration is not a trade worth making for a successful-looking
+ * write.
+ */
+async function preserveOwnership(
+  tempPath: string,
+  existing: Stats,
+  logicalPath: string
+): Promise<void> {
+  const sameOwner =
+    existing.uid === (process.getuid?.() ?? existing.uid) &&
+    existing.gid === (process.getgid?.() ?? existing.gid);
+  if (sameOwner) {
+    return;
+  }
+
+  try {
+    await chown(tempPath, existing.uid, existing.gid);
+  } catch {
+    await removeIfPresent(tempPath);
+    throw new HttpError(
+      403,
+      "FILE_OWNER_MISMATCH",
+      `${logicalPath} is owned by another user and the relay cannot preserve that ownership — replacing it would leave Home Assistant unable to write its own file. Nothing was changed.`
+    );
+  }
+}
+
 async function removeIfPresent(path: string): Promise<void> {
   try {
     await unlink(path);
