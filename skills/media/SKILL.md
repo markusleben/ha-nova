@@ -38,7 +38,7 @@ A media player's `attributes.supported_features` bitmask decides what it can do 
 | 1 | pause |
 | 2 | seek |
 | 4 | volume set |
-| 8 | mute |
+| 8 | volume mute |
 | 16 | previous track |
 | 32 | next track |
 | 128 | turn on |
@@ -46,20 +46,27 @@ A media player's `attributes.supported_features` bitmask decides what it can do 
 | 512 | play media |
 | 1024 | volume step |
 | 2048 | select source |
+| 4096 | stop |
+| 8192 | clear playlist |
 | 16384 | play |
+| 32768 | shuffle set |
 | 65536 | select sound mode |
 | 131072 | browse media |
-| 262144 | grouping |
+| 262144 | repeat set |
+| 524288 | grouping |
+| 1048576 | announce |
+| 2097152 | enqueue |
+| 4194304 | search media |
 
 If a requested feature bit is absent, say so plainly instead of calling the service and reporting a silent no-op.
 
 ## Flow
 
 1. Resolve the player: `ha-nova:entity-discovery` for names/rooms, or an exact `media_player.<id>`. Read its state (`/api/states/<entity_id>`) for `state`, `supported_features`, `source_list`, `sound_mode_list`, `group_members`, and current media attributes.
-2. Transport / volume / source: preview the exact service + target, then call it. Common services: `media_player.media_play|media_pause|media_stop|media_next_track|media_previous_track|volume_set` (`volume_level` 0.0-1.0) `|volume_mute|select_source|select_sound_mode|turn_on|turn_off`.
+2. Transport / volume / source: check the bit for the exact action first (play 16384, pause 1, **stop 4096**, next 32, previous 16, seek 2, volume set 4, mute 8, source 2048, sound mode 65536, turn on 128 / off 256), preview the service + target, then call it: `media_player.media_play|media_pause|media_stop|media_next_track|media_previous_track|volume_set` (`volume_level` 0.0-1.0) `|volume_mute|select_source|select_sound_mode|turn_on|turn_off`.
 3. Browse: WS `{"type":"media_player/browse_media","entity_id":"media_player.<id>"}` for the player's own library; drill down by passing `media_content_type` AND `media_content_id` together (they are a pair — one without the other is rejected). For Home Assistant's media sources use WS `media_source/browse_media`, then WS `media_source/resolve_media` to turn a `media-source://...` id into a playable URL.
 4. Play a resolved item: `media_player.play_media` with `media_content_id` + `media_content_type` from the browse/resolve step. Never invent a content id.
-5. Grouping (bit 262144): `media_player.join` with `group_members: [<entity_ids>]` on the master; `media_player.unjoin` to remove a player. Read `group_members` back to verify.
+5. Grouping (bit 524288 — NOT 262144, which is repeat): `media_player.join` with `group_members: [<entity_ids>]` on the master; `media_player.unjoin` to remove a player. Read `group_members` back to verify.
 6. TTS announcement: `tts.speak` with `entity_id` of a TTS entity, `media_player_entity_id` of the target, and `message`. Discover engines with WS `{"type":"tts/engine/list"}`. For a legacy setup without TTS entities, fall back to the integration's own `tts.*_say` service and say which one you used.
 7. Verify by re-reading the player's state (`state`, `volume_level`, `source`, `media_title`) — never report success from the service response alone.
 

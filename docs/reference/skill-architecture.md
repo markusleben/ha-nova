@@ -338,7 +338,7 @@ Rules:
 ## Media Architecture
 
 `ha-nova:media` owns media player work:
-- `supported_features` bitmask gate BEFORE any action (browse 131072, grouping 262144, select source 2048, ...)
+- `supported_features` bitmask gate BEFORE any action (browse 131072, grouping 524288, stop 4096, select source 2048, ...) — the full MediaPlayerEntityFeature table lives in the skill
 - transport/volume/source via `media_player.*` services; verify by re-reading the entity state
 - browsing: WS `media_player/browse_media` (player library) and `media_source/browse_media` + `media_source/resolve_media` (HA media sources); `media_content_type` and `media_content_id` are a pair
 - grouping via `media_player.join|unjoin`, verified through `group_members`
