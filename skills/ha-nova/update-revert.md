@@ -1,6 +1,7 @@
 # HA NOVA Update-Revert Execution
 
-Load this file only when the user actually asks to `revert` an update.
+Load this file whenever the user asks to revert, undo, or restore a verified
+update — any of those intents, not only the literal word `revert`.
 Snapshot capture and the revert offer live in `skills/ha-nova/write-safety.md`
 → Update-Revert; this file owns the execution.
 

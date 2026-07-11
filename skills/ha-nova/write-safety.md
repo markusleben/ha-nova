@@ -238,7 +238,8 @@ rollback option in the same breath — never a bare "undo":
 Execution — `snapshot show` as the only `before_config` source, the
 `--target`/`--domain`-bound drift check, and the restore through the skill's
 own write path — lives in `skills/ha-nova/update-revert.md`. Load that file
-only when the user actually says `revert`; it also carries the honesty limits
+whenever the user asks to revert, undo, or restore a verified update (any of
+those intents — not only the literal word `revert`); it also carries the honesty limits
 (5-target stack, one step back per target, no byte-exact formatting).
 
 ## Safety-Mechanism Availability by Skill

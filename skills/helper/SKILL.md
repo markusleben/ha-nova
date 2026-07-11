@@ -492,4 +492,4 @@ Never show raw JSON to the user.
 - Storage helper schemas: `skills/ha-nova/helper-schemas.md`
 - Config-entry helper schemas: `skills/ha-nova/helper-flow-schemas.md`
 - Review Checks: `skills/review/checks.md` (self-contained catalog + Application)
-- On demand: `skills/ha-nova/update-revert.md` — only when the user actually says `revert`
+- On demand: `skills/ha-nova/update-revert.md` — when the user asks to revert, undo, or restore a verified update

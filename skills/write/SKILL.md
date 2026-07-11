@@ -140,4 +140,4 @@ On demand — read only when the trigger applies:
 - `skills/ha-nova/automation-patterns.md` — drafting new branching, timing, or flow-control logic
 - `skills/ha-nova/template-guidelines.md` — the draft contains Jinja templates
 - `skills/ha-nova/safe-refactoring.md` — rename, migrate, or orphan-cleanup tasks
-- `skills/ha-nova/update-revert.md` — the user actually says `revert`
+- `skills/ha-nova/update-revert.md` — the user asks to revert, undo, or restore a verified update (create cleanup and delete recovery stay out — see write-safety)
