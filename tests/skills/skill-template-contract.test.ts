@@ -106,7 +106,7 @@ const WORD_BUDGETS: Record<string, number> = {
   maintenance: 1200,
   fallback: 2050,
   helper: 3600,
-  review: 4800,
+  review: 4300,
 };
 const DEFAULT_WORD_BUDGET = 1150;
 

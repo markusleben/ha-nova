@@ -68,7 +68,7 @@ describe("review contract", () => {
   it("keeps shared references aligned to H-01..H-10", () => {
     expect(writeSkill).toContain("H-01..H-10");
     expect(helperSkill).toContain("H-01..H-10");
-    expect(reviewSkill).toContain("Helper (storage-based family): H-01..H-10");
+    expect(reviewChecks).toContain("Helper (storage-based family): H-01..H-10");
     expect(architectureDoc).toContain("H-01..H-10");
   });
 
@@ -80,8 +80,8 @@ describe("review contract", () => {
     expect(helperSkill).toContain("direct helper-backed threshold");
     expect(helperSkill).toContain("Do not pretend H-01..H-10 apply here");
     expect(helperSkill).toContain("minimal config-entry post-write contract");
-    expect(reviewSkill).toContain("Helper (config-entry family): minimal config-entry review");
-    expect(reviewSkill).toContain("do not apply H-01..H-10");
+    expect(reviewChecks).toContain("Helper (config-entry family): minimal config-entry review");
+    expect(reviewChecks).toContain("do not apply H-01..H-10");
   });
 
   it("documents config-entry helper target resolution before minimal review", () => {
@@ -95,7 +95,7 @@ describe("review contract", () => {
     expect(reviewSkill).toContain("For standalone config-entry helper review, skip this step entirely.");
     expect(reviewSkill).toContain("If the target already in context is a config-entry helper metadata item: skip Target Resolution entirely and go straight to the config-entry helper review lane in Step 1.");
     expect(reviewSkill).toContain("Do not attempt primary-controlled-entity state reads or Quick-Fix detection from that path.");
-    expect(reviewSkill).toContain("in Step 2, derive collision candidates from `linked_entities[]`, not from config actions");
+    expect(reviewChecks).toContain("in Step 2, derive collision candidates from `linked_entities[]`, not from config actions");
     expect(reviewSkill).toContain("config-entry helper metadata item: use `linked_entities[]` from the canonical metadata item; do not attempt action extraction");
     expect(reviewSkill).toContain("helper (config-entry family): use up to 3 `linked_entities[]` from the canonical metadata item");
   });
@@ -114,7 +114,7 @@ describe("review contract", () => {
     expect(reviewChecks).toContain("R-16 [HIGH]");
     expect(reviewChecks).toContain("Templated event name");
     expect(reviewChecks).toContain("`event_type:` does not evaluate templates");
-    expect(reviewSkill).toContain("R-01..R-28");
+    expect(reviewChecks).toContain("R-01..R-28");
     expect(architectureDoc).toContain("R-01..R-28");
     expect(templateGuidelines).toContain("Event trigger names must be literal strings");
     expect(templateGuidelines).toContain("do not template `event_type:`");
@@ -127,7 +127,7 @@ describe("review contract", () => {
     expect(reviewChecks).toContain("`live/incremental`");
     expect(reviewChecks).toContain("`recompute/reset`");
     expect(reviewChecks).toContain("fixed preset branches");
-    expect(reviewSkill).toContain("R-17 is an intra-config branch comparison only");
+    expect(reviewChecks).toContain("R-17 is an intra-config branch comparison only");
     expect(architectureDoc).toContain("R-17` is intra-config only");
   });
 
@@ -143,9 +143,9 @@ describe("review contract", () => {
     expect(reviewChecks).toContain("self-contained template");
     expect(reviewChecks).toContain("ordered `variables` actions");
     expect(reviewSkill).toContain("Traverse all `variables:` mappings");
-    expect(reviewSkill).toContain("future write fragility");
-    expect(reviewSkill).toContain("persisted runtime risk");
-    expect(reviewSkill).toContain("concrete variable pair");
+    expect(reviewChecks).toContain("future write fragility");
+    expect(reviewChecks).toContain("persisted runtime risk");
+    expect(reviewChecks).toContain("concrete variable pair");
     expect(templateGuidelines).toContain("Do not rely on sibling-variable order inside one `variables:` mapping");
     expect(templateGuidelines).toContain("self-contained template with internal `{% set %}`");
     expect(templateGuidelines).toContain("ordered `variables` actions");
@@ -175,7 +175,7 @@ describe("review contract", () => {
     expect(reviewChecks).toContain("`'True' == avg_valid`");
     expect(reviewChecks).toContain("Do not flag bare boolean comparisons");
     expect(reviewChecks).toContain("`is sameas true`");
-    expect(reviewSkill).toContain("R-23 applies only to boolean-like templates");
+    expect(reviewChecks).toContain("R-23 applies only to boolean-like templates");
     expect(writeSkill).toContain("If R-23 matches");
     expect(architectureDoc).toContain("`R-23` catches boolean-like templates");
   });
@@ -190,8 +190,8 @@ describe("review contract", () => {
     // Version fetch is on-demand only, never a routine per-review call.
     expect(reviewChecks).toContain("only when this check actually fires");
     expect(reviewChecks).toContain("`value_template` → `state`");
-    expect(reviewSkill).toContain("R-25 applies only to pasted or draft YAML");
-    expect(reviewSkill).toContain("phrase the finding version-sensitively");
+    expect(reviewChecks).toContain("R-25 applies only to pasted or draft YAML");
+    expect(reviewChecks).toContain("phrase the finding version-sensitively");
   });
 
   it("documents the legacy automation key modernize advisory as M-05", () => {
@@ -200,7 +200,7 @@ describe("review contract", () => {
     expect(reviewChecks).toContain("renamed to `trigger:` in HA 2024.10");
     // Advisory only — both forms still work; never an error, never a rewrite trigger.
     expect(reviewChecks).toContain("never as an error, and never rewrite a config just to modernize");
-    expect(reviewSkill).toContain("M-05 is a modernize advisory");
+    expect(reviewChecks).toContain("M-05 is a modernize advisory");
   });
 
   it("documents capacity-like available_energy advisories as R-24", () => {
@@ -208,7 +208,7 @@ describe("review contract", () => {
     expect(reviewChecks).toContain("Capacity-like variable reads `available_energy`");
     expect(reviewChecks).toContain("Available charge may not be nominal or maximum battery capacity");
     expect(reviewChecks).toContain("Do not assume a specific integration");
-    expect(reviewSkill).toContain("R-24 is advisory only");
+    expect(reviewChecks).toContain("R-24 is advisory only");
     expect(writeSkill).toContain("If R-24 matches");
     expect(architectureDoc).toContain("`R-24` is a low-severity capacity-source advisory");
   });
@@ -228,8 +228,8 @@ describe("review contract", () => {
     expect(reviewChecks).toContain("terminal bare `else`");
     expect(reviewChecks).toContain("move the `trigger.id` check into an explicit `elif`");
     expect(reviewChecks).toContain("refactor to `choose` + `condition: trigger`");
-    expect(reviewSkill).toContain("R-19 applies only to Jinja2 chains with `if` plus at least one `elif`");
-    expect(reviewSkill).toContain("final else branch is only reached when the earlier entity-state branches are false");
+    expect(reviewChecks).toContain("R-19 applies only to Jinja2 chains with `if` plus at least one `elif`");
+    expect(reviewChecks).toContain("final else branch is only reached when the earlier entity-state branches are false");
     expect(architectureDoc).toContain("`R-19` is branch-structure reachability only");
     expect(templateGuidelines).toContain("Direct `trigger.id` check in a terminal bare `else`");
   });
@@ -293,7 +293,7 @@ describe("review contract", () => {
   });
   it("keeps standalone config-entry helper review aligned to the 9 helper-owned domains", () => {
     expect(reviewSkill).toContain("supported config-entry family: domain is one of `utility_meter`, `derivative`, `integration`, `min_max`, `threshold`, `tod`, `statistics`, `group`, `history_stats`, `template`");
-    expect(reviewSkill).toContain("Helper (config-entry family): minimal config-entry review");
+    expect(reviewChecks).toContain("Helper (config-entry family): minimal config-entry review");
   });
 
   it("keeps standalone bulk review separate from post-write output", () => {

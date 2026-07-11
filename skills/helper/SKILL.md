@@ -124,7 +124,7 @@ If 0 results: try synonyms or shorter stems. Never dump entire domains.
 
 1. Resolve target from `{type}/list` by `name` or internal `id`.
 2. Extract `id` from the list response (this is the `{type}_id` for the update command).
-3. Preview current vs proposed in the Changes slot with `ha-nova diff` (see `skills/ha-nova/write-safety.md` → Pre-Write Diff). Then run a pre-write impact check — `search/related` on this helper entity (see `skills/review/SKILL.md` Step 2, Collision Scan) — and surface affected automations/scripts as an advisory. Advisory only; never block. Include an explicit not-saved-yet line and Options block (`apply`, `show yaml`, `cancel`).
+3. Preview current vs proposed in the Changes slot with `ha-nova diff` (see `skills/ha-nova/write-safety.md` → Pre-Write Diff). Then run a pre-write impact check — `search/related` on this helper entity (max 3 related configs) — and surface affected automations/scripts as an advisory. Advisory only; never block. Include an explicit not-saved-yet line and Options block (`apply`, `show yaml`, `cancel`).
 4. Ask for natural confirmation bound to this exact preview (see context skill → Active Preview Confirmation).
 5. Execute:
    ```text
@@ -389,7 +389,7 @@ Do NOT report results to user until complete.
 
 #### Storage-based family
 
-1. Enter via `skills/review/SKILL.md` Step 1.
+1. Apply `skills/review/checks.md` → Application (storage family: H-01..H-10).
 2. Apply H-01..H-08 directly to the written helper config.
 3. Only evaluate H-09/H-10 if the collision scan finds a referencing automation/script with a direct helper-backed threshold and you also read live helper state per `skills/review/checks.md`.
 4. Collision scan: `search/related` for the helper entity, max 3 related automations/scripts.
@@ -491,4 +491,5 @@ Never show raw JSON to the user.
 - Relay API: `skills/ha-nova/relay-api.md`
 - Storage helper schemas: `skills/ha-nova/helper-schemas.md`
 - Config-entry helper schemas: `skills/ha-nova/helper-flow-schemas.md`
-- Review Checks: `skills/review/SKILL.md` (entrypoint) + `skills/review/checks.md` (storage helper catalog)
+- Review Checks: `skills/review/checks.md` (self-contained catalog + Application)
+- On demand: `skills/ha-nova/update-revert.md` — only when the user actually says `revert`
