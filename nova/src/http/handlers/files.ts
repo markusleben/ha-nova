@@ -399,7 +399,11 @@ async function toLogicalPath(configRoot: string, absolutePath: string): Promise<
 }
 
 async function deleteFile(absolute: string, logicalPath: string): Promise<unknown> {
-  const info = await withNotFound(logicalPath, () => stat(absolute));
+  // lstat, not stat: delete removes the LINK, so the guard must look at the
+  // link, not at what it points at. With stat, a symlink to a directory would
+  // trip the directory guard and become undeletable — even though unlinking it
+  // touches nothing but the link itself.
+  const info = await withNotFound(logicalPath, () => lstat(absolute));
   if (info.isDirectory()) {
     throw new HttpError(
       400,

@@ -384,6 +384,20 @@ describe("files handler — operations", () => {
     expect(existsSync(join(root, "adir"))).toBe(true);
   });
 
+  // Deleting a link removes the LINK. A link that happens to point at a
+  // directory must therefore still be deletable — the directory guard applies
+  // to real directories, not to links.
+  it("deletes a symlink that points at a directory, leaving the directory intact", async () => {
+    mkdirSync(join(root, "themes"));
+    writeFileSync(join(root, "themes", "dark.yaml"), "dark: {}\n");
+    symlinkSync(join(root, "themes"), join(root, "themes-link"));
+
+    await call("readwrite", { action: "delete_file", path: "/config/themes-link" });
+
+    expect(existsSync(join(root, "themes-link"))).toBe(false);
+    expect(readFileSync(join(root, "themes", "dark.yaml"), "utf8")).toContain("dark:");
+  });
+
   it("refuses to serve a binary file as text", async () => {
     writeFileSync(join(root, "blob.bin"), Buffer.from([0x00, 0x01, 0x02]));
     await expectHttpError(
