@@ -26,8 +26,21 @@ const LOGICAL_PREFIX = "/config";
  * transport boundary, not domain logic.
  */
 const DENIED_SEGMENTS = [".storage", ".cloud", ".ssh", ".git", "deps", "ssl", "tts", "backups"];
-const DENIED_FILES = ["secrets.yaml"];
-const DENIED_PATTERNS = [/^home-assistant_v2\.db/, /\.log(\.\d+)?$/, /^\.env$/];
+
+/**
+ * Prefix matches, not exact names: an editor, a backup script — or this relay's
+ * own .bak convention — turns `secrets.yaml` into `secrets.yaml.bak`,
+ * `secrets.yaml~` or `secrets.yaml.old`, and every one of those holds the same
+ * credentials. An exact-name deny would serve them and quietly defeat the
+ * guarantee that secrets stay unreachable. The same applies to the recorder
+ * database's -wal/-shm siblings and to `.env` copies.
+ */
+const DENIED_PATTERNS = [
+  /^secrets\.ya?ml/i,
+  /^home-assistant_v2\.db/,
+  /^\.env/,
+  /\.log(\.\d+)?$/
+];
 
 export function createFilesHandler(options: FilesHandlerOptions): RouteHandler {
   return async ({ body }: RouteContext) => {
@@ -187,7 +200,7 @@ function assertNotDenied(relativePath: string): void {
     }
   }
   const name = segments[segments.length - 1] ?? "";
-  if (DENIED_FILES.includes(name) || DENIED_PATTERNS.some((pattern) => pattern.test(name))) {
+  if (DENIED_PATTERNS.some((pattern) => pattern.test(name))) {
     throw new HttpError(
       403,
       "FILE_PATH_DENIED",

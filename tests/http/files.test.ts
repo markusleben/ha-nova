@@ -133,8 +133,17 @@ describe("files handler — always-denied paths", () => {
   const denied = [
     "/config/.storage/auth",
     "/config/secrets.yaml",
+    // Backup/editor variants hold the SAME credentials — an exact-name deny
+    // would have served every one of these.
+    "/config/secrets.yaml.bak",
+    "/config/secrets.yaml~",
+    "/config/secrets.yaml.old",
+    "/config/secrets.yml",
     "/config/home-assistant_v2.db",
+    "/config/home-assistant_v2.db-wal",
     "/config/home-assistant.log",
+    "/config/.env",
+    "/config/.env.bak",
     "/config/.ssh/id_rsa",
     "/config/ssl/fullchain.pem"
   ];
