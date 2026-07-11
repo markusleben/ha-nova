@@ -30,7 +30,7 @@ describe("app wiring", () => {
       wsClient: {
         isConnected: () => true,
         sendMessage: async (message) => ({ echoed: message.type }),
-        collectMessageEvents: async () => []
+        collectMessageEvents: async () => ({ events: [], truncated: false })
       },
       coreClient: {
         request: async () => ({
