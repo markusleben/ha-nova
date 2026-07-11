@@ -16,6 +16,7 @@ var hermesRequiredSkillDirs = []string{
 	"ha-nova-backup",
 	"ha-nova-calendar",
 	"ha-nova-dashboard",
+	"ha-nova-diagnose",
 	"ha-nova-energy",
 	"ha-nova-entity-discovery",
 	"ha-nova-fallback",
