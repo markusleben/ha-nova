@@ -280,6 +280,23 @@ describe("files handler — operations", () => {
     }
   );
 
+  // The server rejects the whole JSON body above 1 MiB. A content limit of
+  // exactly 1 MiB would therefore surface as an opaque 413 instead of a
+  // FILE_TOO_LARGE that names the problem — the write ceiling leaves room for
+  // the envelope and the escaping.
+  it("refuses oversized content with a clear error, not an opaque body rejection", async () => {
+    await expectHttpError(
+      call("readwrite", {
+        action: "write_file",
+        path: "/config/big.yaml",
+        content: "x".repeat(768 * 1024 + 1)
+      }),
+      400,
+      "FILE_TOO_LARGE"
+    );
+    expect(existsSync(join(root, "big.yaml"))).toBe(false);
+  });
+
   it("reports a missing file honestly", async () => {
     await expectHttpError(
       call("read", { action: "read_file", path: "/config/nope.yaml" }),

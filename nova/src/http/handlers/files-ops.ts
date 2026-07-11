@@ -7,7 +7,17 @@ import { HttpError } from "../errors.js";
 import { assertWritableExtension, isNotFound, LOGICAL_PREFIX } from "./files-paths.js";
 
 const MAX_READ_BYTES = 1024 * 1024;
-export const MAX_WRITE_BYTES = 1024 * 1024;
+
+/**
+ * Writes get a smaller ceiling than reads on purpose. The HTTP server rejects
+ * the whole request body above DEFAULT_MAX_JSON_BODY_BYTES (1 MiB), and the
+ * body carries more than the content: the action, the path, JSON quoting, and
+ * escaping that can inflate the payload well beyond its byte length. A file at
+ * exactly 1 MiB would therefore die as an opaque 413 instead of a
+ * FILE_TOO_LARGE that says what is wrong. 768 KiB leaves room for all of it —
+ * and is still far beyond any real Home Assistant YAML file.
+ */
+export const MAX_WRITE_BYTES = 768 * 1024;
 const MAX_DIR_ENTRIES = 500;
 
 export async function listDir(absolute: string, logicalPath: string): Promise<unknown> {

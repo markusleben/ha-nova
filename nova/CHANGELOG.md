@@ -19,7 +19,7 @@ and merged PRs. This changelog will be updated with the next tagged relay versio
 - Path containment: logical `/config/...` prefix, iterative percent-decoding, control-character rejection, `..` rejection, and a `realpath` check so a symlink inside the config directory cannot point out of it (verified for writes through a symlinked directory too).
 - Always denied, in every mode: `custom_components`, `python_scripts` and `www` (Home Assistant EXECUTES what lives there — file access must not become code execution), `.storage`, `.cloud`, `.ssh`, `.git`, `deps`, `ssl`, `tts`, `backups`, plus prefix matches for `secrets.yaml*` (including `.bak`, `~` and `.old` copies, which hold the same credentials), the recorder database and its `-wal`/`-shm` siblings, `.env*`, and log files. The deny rules are re-applied AFTER symlink resolution, so a link with an innocent name cannot launder a denied target.
 - Writes are additionally restricted to configuration formats (`.yaml`, `.yml`, `.conf`, `.json`, `.txt`, `.md`): a `.py` or `.sh` can never be planted, even outside the denied directories.
-- Text only (binary is refused), 1 MiB read/write caps, 500 directory entries, no directory deletion.
+- Text only (binary is refused), 1 MiB read cap and 768 KiB write cap (the write must fit the JSON request body together with its envelope and escaping — an exact 1 MiB limit would surface as an opaque 413), 500 directory entries, no directory deletion.
 - Writes are atomic (temp file + rename — a crash cannot leave a half-written configuration) and back up the previous version to `<file>.bak` by default.
 
 ## [Relay 0.3.0] - 2026-07-11
