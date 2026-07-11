@@ -82,11 +82,20 @@ func skillUpdateNudgeNotice(paths runtimePaths, throttled bool) humanNotice {
 	if returnToStable {
 		lead = "HA NOVA return to stable"
 	}
+	source := detectInstallSource(paths, loadStateOrDefault(paths))
 	return humanNotice{
 		level:   humanNoticeWarning,
 		kind:    humanNoticeKindUpdateAvailable,
-		message: fmt.Sprintf("%s: v%s -> v%s. Inform the user: run 'ha-nova update', then start a new session.", lead, current, cached.Version),
+		message: skillUpdateNudgeMessage(lead, current, cached.Version, source),
 	}
+}
+
+// skillUpdateNudgeMessage keeps the surfaced action aligned with what the
+// detected install source actually supports: legacy Windows package installs
+// reject `ha-nova update`, so they get the same uninstall/reinstall guidance
+// the explicit check-update path uses.
+func skillUpdateNudgeMessage(lead, current, latest, installSource string) string {
+	return fmt.Sprintf("%s: v%s -> v%s. Inform the user: %s (new session required after update).", lead, current, latest, updateGuidanceForInstallSource(installSource))
 }
 
 // passesNudgeThrottle reports whether the marker is older than the nudge

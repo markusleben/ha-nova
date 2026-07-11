@@ -174,6 +174,22 @@ func TestSkillUpdateNudgeNoticeUpToDateStaysSilent(t *testing.T) {
 	}
 }
 
+func TestSkillUpdateNudgeMessageMatchesInstallSourceGuidance(t *testing.T) {
+	normal := skillUpdateNudgeMessage("HA NOVA update available", "0.1.0", "0.2.0", installSourceBundle)
+	if !strings.Contains(normal, "Run: ha-nova update") {
+		t.Fatalf("bundle install must advise ha-nova update: %q", normal)
+	}
+	// Legacy Windows package installs reject `ha-nova update` in runUpdate, so
+	// the passive nudge must never advertise a known-failing command.
+	legacy := skillUpdateNudgeMessage("HA NOVA update available", "0.1.0", "0.2.0", installSourceLegacyWindowsPackage)
+	if strings.Contains(legacy, "Run: ha-nova update") {
+		t.Fatalf("legacy Windows package installs must not be told to run ha-nova update: %q", legacy)
+	}
+	if !strings.Contains(legacy, "install.ps1") {
+		t.Fatalf("legacy guidance must point at the supported reinstall path: %q", legacy)
+	}
+}
+
 func TestSkillUpdateNudgeNoticeReturnToStableFromRC(t *testing.T) {
 	paths, _ := nudgeTestEnv(t, "0.2.0-rc1")
 	writeFreshReleaseCache(t, paths, "0.2.0")
