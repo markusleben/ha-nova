@@ -39,8 +39,12 @@ describe("app config contract", () => {
     });
 
     // The config directory is mapped so file access CAN work, but mapping it
-    // grants nothing on its own — the option above is the gate.
-    expect(parsed.map).toEqual(["homeassistant_config:rw"]);
+    // grants nothing on its own — the option above is the gate. The path is
+    // pinned explicitly: a type-derived default mount would leave the relay
+    // unable to find the directory, and file access would silently stay off.
+    expect(parsed.map).toEqual([
+      { type: "homeassistant_config", read_only: false, path: "/config" }
+    ]);
   });
 
   it("has relay version >= min_relay_version from version.json", () => {

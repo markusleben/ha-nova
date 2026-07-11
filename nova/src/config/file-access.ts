@@ -8,10 +8,11 @@ export interface FileAccessConfig {
 
 const ALLOWED_MODES = new Set<FileAccessMode>(["off", "read", "readwrite"]);
 
-// Home Assistant OS mounts the config directory at /homeassistant for newer
-// add-ons and at /config for older ones. The relay resolves whichever exists so
-// skills can always speak the logical "/config/..." prefix.
-const CANDIDATE_ROOTS = ["/homeassistant", "/config"];
+// The App pins its mount at /config (nova/config.yaml), but the relay also runs
+// as a standalone container where the user chooses the mount, and Supervisor
+// defaults have moved over time. So the relay probes the known roots rather
+// than assuming one — and CONFIG_ROOT overrides all of it.
+const CANDIDATE_ROOTS = ["/config", "/homeassistant", "/homeassistant_config"];
 
 export function parseFileAccessMode(raw: unknown): FileAccessMode {
   if (raw === undefined || raw === null || raw === "") {

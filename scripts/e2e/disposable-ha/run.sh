@@ -177,6 +177,17 @@ else
   fail "bounded window failed: $window"
 fi
 
+# File access must be OFF by default — the endpoint exists, but refuses. This is
+# the guarantee the whole opt-in design rests on, so it is verified live.
+files_off="$(curl -s -o /dev/null -w '%{http_code}' -X POST "$RELAY_URL/files" \
+  -H "Authorization: Bearer $RELAY_AUTH_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"action":"list_dir","path":"/config"}')"
+if [[ "$files_off" == "403" ]]; then
+  pass "file access is off by default (403)"
+else
+  fail "file access should be disabled by default, got HTTP $files_off"
+fi
+
 echo
 if [[ "$FAILED" == "1" ]]; then
   echo "E2E FAILED" >&2

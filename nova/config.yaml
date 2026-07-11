@@ -25,7 +25,13 @@ panel_icon: mdi:lan-connect
 # only USES it when the file_access option is set (default: off), so mapping it
 # here does not grant anything by itself.
 map:
-  - homeassistant_config:rw
+  # The mount path is pinned explicitly: the shorthand form mounts at a
+  # type-derived default that differs across Supervisor versions, and the relay
+  # would then find no config directory and silently fall back to file_access:
+  # off — the feature would look enabled and do nothing.
+  - type: homeassistant_config
+    read_only: false
+    path: /config
 
 options:
   relay_auth_token: null
