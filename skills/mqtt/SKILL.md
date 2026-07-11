@@ -52,7 +52,7 @@ MQTT topics never emit a "finish" event, so a listen is a WINDOW, not a request.
 1. Clarify the topic. Prefer the narrowest one that answers the question (`zigbee2mqtt/<device>` beats `zigbee2mqtt/#`).
 2. Listen in a bounded window (above). Summarize: which topics appeared, how many messages, what the payloads look like. Quote at most a few payloads.
 3. Device discovery/debug: WS `{"type":"mqtt/device/debug_info","device_id":"<device_id>"}` shows the subscribed topics and discovery payloads for one MQTT device (resolve `device_id` from the device registry, never guess it).
-4. Publishing (mutating): service `mqtt.publish` with `topic`, `payload` (or `payload_template`), `qos`, `retain`. Preview the exact topic + payload and confirm.
+4. Publishing (mutating): service `mqtt.publish` with `topic`, `payload`, `qos`, `retain`. There is no `payload_template` field in the current schema — render any template yourself and send the finished string as `payload`. (`evaluate_payload: true` only tells HA to evaluate a Python-literal payload for raw bytes; it is not a template switch.) Preview the exact topic + payload and confirm.
 
 ## Publishing Safety (read before any publish)
 
@@ -63,7 +63,8 @@ MQTT topics never emit a "finish" event, so a listen is a WINDOW, not a request.
 ## Error Handling
 
 Full relay/upstream error taxonomy: `skills/ha-nova/relay-api.md` -> Error Handling. MQTT specifics:
-- `UNSUPPORTED_WS_TYPE` on `mqtt/subscribe`: the relay is older than 0.3.0 — a bare subscription is rejected there. Update the NOVA Relay App.
+- `UNSUPPORTED_WS_TYPE` on `mqtt/subscribe`: check YOUR request first. A BARE `mqtt/subscribe` is rejected by every relay version, including 0.3.0+ — that is by design, and it means the subscription was not wrapped in a `collect_events` envelope. Fix the request. Only if the request WAS enveloped does this error mean the relay is older than 0.3.0; confirm with `ha-nova relay health` before telling the user to update the App.
+- `400 VALIDATION_ERROR` mentioning `on_limit`: never expected — an older relay ignores the field silently rather than rejecting it, so this points at a malformed envelope.
 - `UPSTREAM_WS_TIMEOUT` in window mode means the subscription never even established (broker down, integration not loaded) — that is different from an empty window, and worth saying plainly.
 - `mqtt/device/debug_info` needs a device_id from the device registry; an entity_id is rejected.
 
