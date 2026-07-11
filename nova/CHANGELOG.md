@@ -9,6 +9,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic
 Recent changes are tracked in [GitHub releases](https://github.com/markusleben/ha-nova/releases)
 and merged PRs. This changelog will be updated with the next tagged relay version.
 
+## [Relay 0.4.0] - 2026-07-11
+
+### Added
+- `POST /files`: generic, opt-in file transport for the Home Assistant configuration directory (`list_dir`, `read_file`, `write_file`, `delete_file`). It exists to unlock YAML-only configuration (template/REST/command-line sensors, packages, themes) that has no API.
+- App option `file_access: off | read | readwrite` (default **off**), and `FILE_ACCESS` for the standalone container. Nothing is accessible until it is set, and it stays off when no config directory is mounted rather than reporting a mode it cannot serve.
+
+### Security
+- Path containment: logical `/config/...` prefix, iterative percent-decoding, control-character rejection, `..` rejection, and a `realpath` check so a symlink inside the config directory cannot point out of it (verified for writes through a symlinked directory too).
+- Always denied, in every mode: `.storage`, `.cloud`, `.ssh`, `.git`, `deps`, `ssl`, `tts`, `backups`, `secrets.yaml`, the recorder database, logs, and `.env`.
+- Text only (binary is refused), 1 MiB read/write caps, 500 directory entries, no directory deletion.
+- Writes are atomic (temp file + rename — a crash cannot leave a half-written configuration) and back up the previous version to `<file>.bak` by default.
+
 ## [Relay 0.3.0] - 2026-07-11
 
 ### Added

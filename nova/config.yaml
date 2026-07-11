@@ -1,5 +1,5 @@
 name: NOVA Relay
-version: "0.3.0"
+version: "0.4.0"
 slug: ha_nova_relay
 description: Thin Home Assistant relay for WS proxy and skill workflows
 url: https://github.com/markusleben/ha-nova
@@ -21,10 +21,18 @@ hassio_api: true
 hassio_role: default
 panel_icon: mdi:lan-connect
 
+# Read-write access to the Home Assistant configuration directory. The relay
+# only USES it when the file_access option is set (default: off), so mapping it
+# here does not grant anything by itself.
+map:
+  - homeassistant_config:rw
+
 options:
   relay_auth_token: null
   ha_llat: ""
+  file_access: "off"
 
 schema:
   relay_auth_token: password
   ha_llat: password?
+  file_access: list(off|read|readwrite)?

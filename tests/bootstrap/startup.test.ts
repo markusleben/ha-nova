@@ -5,6 +5,7 @@ import { createApp } from "../../nova/src/index.js";
 describe("startup bootstrap", () => {
   it("exports createApp factory and returns server + router", () => {
     const app = createApp({
+      fileAccess: { mode: "off" as const, configRoot: "" },
       authToken: "secret",
       version: "1.0.0",
       wsClient: {

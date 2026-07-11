@@ -25,6 +25,7 @@ describe("app wiring", () => {
 
   it("wires /health and /ws handlers in application router", async () => {
     const app = createApp({
+      fileAccess: { mode: "off" as const, configRoot: "" },
       authToken: "secret",
       version: "1.0.0",
       wsClient: {

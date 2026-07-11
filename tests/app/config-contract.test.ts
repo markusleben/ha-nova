@@ -27,13 +27,20 @@ describe("app config contract", () => {
 
     expect(parsed.options).toEqual({
       relay_auth_token: null,
-      ha_llat: ""
+      ha_llat: "",
+      // File access is a capability, not a default: the App ships it OFF.
+      file_access: "off"
     });
 
     expect(parsed.schema).toEqual({
       relay_auth_token: "password",
-      ha_llat: "password?"
+      ha_llat: "password?",
+      file_access: "list(off|read|readwrite)?"
     });
+
+    // The config directory is mapped so file access CAN work, but mapping it
+    // grants nothing on its own — the option above is the gate.
+    expect(parsed.map).toEqual(["homeassistant_config:rw"]);
   });
 
   it("has relay version >= min_relay_version from version.json", () => {

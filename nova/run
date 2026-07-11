@@ -37,4 +37,12 @@ if [[ -z "${HA_LLAT:-}" ]]; then
   exit 1
 fi
 
+if [[ -z "${FILE_ACCESS:-}" ]]; then
+  export FILE_ACCESS="$(bashio::config 'file_access' 2>/dev/null || echo "off")"
+fi
+export FILE_ACCESS="$(normalize_token "${FILE_ACCESS:-}")"
+if [[ -z "${FILE_ACCESS:-}" ]]; then
+  export FILE_ACCESS="off"
+fi
+
 exec node /app/dist/src/runtime/main.js
