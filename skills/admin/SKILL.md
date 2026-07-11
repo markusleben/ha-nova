@@ -34,19 +34,20 @@ If this fails: `ha-nova setup`
    - update resends every mutable field (read first, or you drop their trackers), addressed by `person_id` — never put `id` in the body, Home Assistant rejects it. Zone and tag updates work the same way (`zone_id` / `tag_id`).
 2. **Zones**: WS `zone/list` -> `zone/create` / `zone/update` / `zone/delete`.
    - a zone is `name`, `latitude`, `longitude`, `radius` (metres), `icon`, `passive`
-   - **Zones are presence infrastructure.** Changing a radius or deleting a zone silently changes when every presence automation fires. Before any zone change, run `search/related` on the zone and name the automations that depend on it — as an advisory, in the preview.
+   - **Zones are presence infrastructure.** Changing a radius or deleting a zone silently changes when every presence automation fires. Before any zone change, run WS `search/related` with `{"item_type":"entity","item_id":"zone.<id>"}` (there is no `zone` item type) and name the automations that depend on it — as an advisory, in the preview.
    - the `home` zone is special: it comes from core config, not the zone registry. Changing home means changing the Home Assistant location (`homeassistant.reload_core_config` territory) — say so instead of trying to delete it.
 3. **Tags**: WS `tag/list` -> `tag/create` / `tag/update` / `tag/delete`. A tag's `tag_id` is what the NFC/QR tag physically carries; scanning fires an event automations listen for. Deleting a tag breaks those automations, not the sticker.
 4. **Users**: WS `config/auth/list` shows accounts (`id`, `name`, `username`, `is_owner`, `is_active`, `system_generated`, `group_ids`).
    - listing and reviewing access is the safe, common case
    - `config/auth/create` / `config/auth/delete` exist, and are the most dangerous writes in HA NOVA
+   - before any delete: WS `auth/current_user` returns the account this relay's token belongs to — that account is never deletable
 5. Verify every write by re-reading the list — never from the command response alone.
 
 ## User Safety (read before touching accounts)
 
 - **Never delete the owner** (`is_owner: true`). Home Assistant would be left without an administrator. Refuse and explain.
 - **Never delete a `system_generated` account** — those belong to integrations, not people.
-- **Never delete the account whose token this relay uses.** If you cannot tell which one that is, do not delete any account.
+- **Never delete the account whose token this relay uses.** Identify it first with WS `auth/current_user`; if that call fails, do not delete any account.
 - Deleting a user does not delete their person entry, their history, or their long-lived tokens' effects — say so.
 - Passwords and authentication providers are deliberately out of scope: send the user to the Home Assistant UI.
 
