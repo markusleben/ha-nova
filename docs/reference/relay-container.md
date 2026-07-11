@@ -60,10 +60,12 @@ The interactive wizard is built around the Supervisor App (it walks you through 
 3. **Start the container** with both (see the run/compose examples above).
 4. **Attach the CLI**, pointing it at your Home Assistant and the relay:
    ```bash
-   ha-nova setup --ha-url http://<home-assistant-host>:8123 \
+   ha-nova setup --non-interactive \
+                 --ha-url http://<home-assistant-host>:8123 \
                  --relay-url http://<docker-host>:8791 \
                  --relay-token '<the same relay token>'
    ```
+   `--non-interactive` is required: without it the CLI runs the interactive wizard, which walks you through the Supervisor App screens you do not have.
    The CLI stores the relay token in your OS keychain, verifies the connection, and installs the skills for your AI clients.
 5. **Check it**: `ha-nova doctor`.
 

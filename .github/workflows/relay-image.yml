@@ -52,6 +52,21 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # An immutable version tag is a promise: ghcr.io/...:0.3.0 must always be
+      # the same relay code. If relay source changed without a version bump in
+      # nova/config.yaml, publishing would silently give pinned users different
+      # code under the same version — and /health would still report the old
+      # one. Fail loudly instead; the fix is a version bump.
+      - name: Refuse to republish an existing version tag
+        run: |
+          set -euo pipefail
+          tag="ghcr.io/${{ github.repository_owner }}/ha-nova-relay:${{ steps.version.outputs.relay_version }}"
+          if docker manifest inspect "$tag" > /dev/null 2>&1; then
+            echo "::error::${tag} already exists. Relay source changed without bumping 'version:' in nova/config.yaml — a published version tag must stay immutable. Bump the relay version." >&2
+            exit 1
+          fi
+          echo "Version tag is free: ${tag}"
+
       # Publish to a throwaway commit tag FIRST. The user-facing tags are only
       # promoted after the smoke test passes, so a broken build can never be
       # served as :latest while the workflow turns red.
