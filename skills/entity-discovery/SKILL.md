@@ -1,6 +1,8 @@
 ---
 name: entity-discovery
 description: Use when searching or resolving Home Assistant entities by name, room, or domain through HA NOVA Relay.
+license: MIT
+compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay App in Home Assistant.
 ---
 
 # HA NOVA Entity Discovery

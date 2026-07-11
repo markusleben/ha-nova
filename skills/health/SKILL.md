@@ -1,6 +1,8 @@
 ---
 name: health
 description: Use when checking Home Assistant home status, repairs, system health, unavailable/unknown entities, low batteries, or component/config summaries through HA NOVA Relay.
+license: MIT
+compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay App in Home Assistant.
 ---
 
 # HA NOVA Home Status

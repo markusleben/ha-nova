@@ -1,6 +1,8 @@
 ---
 name: calendar
 description: Use when listing Home Assistant calendars or reading bounded calendar event windows through HA NOVA Relay.
+license: MIT
+compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay App in Home Assistant.
 ---
 
 # HA NOVA Calendar

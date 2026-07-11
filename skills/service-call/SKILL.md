@@ -1,6 +1,8 @@
 ---
 name: service-call
 description: Use when the user wants to call Home Assistant services (turn on lights, set temperature, toggle switches) through HA NOVA Relay.
+license: MIT
+compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay App in Home Assistant.
 ---
 
 # HA NOVA Service Call

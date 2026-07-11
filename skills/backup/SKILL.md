@@ -1,6 +1,8 @@
 ---
 name: backup
 description: Use when checking Home Assistant backup status, creating a backup (including a safety backup before risky changes), inspecting backups, or deleting old backups through HA NOVA Relay.
+license: MIT
+compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay App in Home Assistant.
 ---
 
 # HA NOVA Backup

@@ -1,6 +1,8 @@
 ---
 name: energy
 description: Use when analyzing Home Assistant energy data — consumption, solar production, battery, grid costs, per-device usage — or safely editing Energy dashboard sources and tracked devices through HA NOVA Relay.
+license: MIT
+compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay App in Home Assistant.
 ---
 
 # HA NOVA Energy
