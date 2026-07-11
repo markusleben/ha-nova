@@ -179,6 +179,7 @@ Match user intent to exactly one skill:
 | assign or remove entity categories | `ha-nova:organize` |
 | show history, logbook timelines, or long-term statistics | `ha-nova:history` |
 | check home status, repairs, system health, integration issues, unavailable entities, or low batteries | `ha-nova:health` |
+| find out WHY a specific automation, script, device, or integration failed or misbehaved (traces, error/system logs, root cause) | `ha-nova:diagnose` |
 | list calendars or show calendar events | `ha-nova:calendar` |
 | show, add, complete, update, remove to-do or shopping-list items; create/delete to-do lists | `ha-nova:todo` |
 | check backup status, create a backup (also as a safety net before risky changes), inspect a backup's contents, delete backups | `ha-nova:backup` |
@@ -213,6 +214,10 @@ Match user intent to exactly one skill:
 **"What happened to sensor X last night?"** → `ha-nova:history`
 **"Show temperature trends for the last month"** → `ha-nova:history`
 **"Are there any repair issues?"** → `ha-nova:health`
+**"Why didn't my morning automation run?"** → `ha-nova:diagnose` (concrete failure → traces + logs)
+**"Why is the light turning on at random times?"** → `ha-nova:diagnose`
+**"Show me the error log"** → `ha-nova:diagnose`
+**"Is everything OK with my home?"** → `ha-nova:health` (current status, no concrete incident)
 **"Why are devices unavailable?"** → `ha-nova:health`
 **"Add milk to my shopping list"** → `ha-nova:todo`
 **"What updates are pending?"** → `ha-nova:updates`
@@ -249,7 +254,9 @@ After any `read` or `review` task, re-evaluate intent once before continuing:
 - keep this sequential: one skill at a time, never parallel
 - for multi-target scope, keep the same safety and evidence rules; see `skills/ha-nova/bulk-patterns.md`
 
-**Problem-description intents** ("X doesn't work", "Y is wrong", "stopped working"): dispatch to `ha-nova:review`. Review will analyze the config AND check current entity state — if an acute fix is possible, it offers a Quick-Fix service call at the end. Bulk review is the exception: it stays read-only and does not offer Quick-Fix.
+**Problem-description intents** ("X doesn't work", "Y is wrong", "stopped working", "didn't fire last night"): dispatch to `ha-nova:diagnose` — a concrete failure is a root-cause task (traces, error/system logs, bounded windows), regardless of whether the user literally says "why". Diagnose hands the fix back to `write` / `helper` / `service-call`.
+
+Dispatch to `ha-nova:review` instead when there is no concrete incident: config-quality audits ("check my automations", "review this script", "is this a good automation?"). Review analyzes the config AND checks current entity state — if an acute fix is possible, it offers a Quick-Fix service call at the end. Bulk review is the exception: it stays read-only and does not offer Quick-Fix.
 
 ## Latency Policy
 

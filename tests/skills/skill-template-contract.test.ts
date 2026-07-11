@@ -61,6 +61,7 @@ const FORBIDDEN_HEADINGS = [
 
 const MUTATION_SKILLS = new Set([
   "write",
+  "diagnose",
   "helper",
   "dashboard",
   "scene",
@@ -100,12 +101,13 @@ const SAFETY_CORE_BLOCKS = ((): { mutation: string; readOnly: string } => {
 // on-demand trigger list itself.
 const WORD_BUDGETS: Record<string, number> = {
   write: 1400,
+  diagnose: 1450,
   scene: 1350,
   "service-call": 1200,
   todo: 1200,
   updates: 1200,
   maintenance: 1200,
-  fallback: 2050,
+  fallback: 2100,
   helper: 3600,
   review: 4300,
 };
@@ -215,6 +217,19 @@ describe("skill template v2 contract", () => {
     // moving main branch — the guidance points at the tagged release.
     expect(onboarding).toContain("releases/latest");
     expect(onboarding).not.toContain("main/install.sh");
+  });
+
+  it("keeps skill files on the real relay/trace CLI syntax", () => {
+    // Regression: the diagnose skill shipped a non-existent `trace --entity`
+    // flag. The trace CLI takes the entity positionally
+    // (cli/trace.go: `trace <latest|list|get> <entity_id> [run_id] [--json]`).
+    for (const file of ALL_SKILL_MD_FILES) {
+      const content = readFileSync(file, "utf8");
+      expect(
+        /ha-nova trace[^\n]*--entity\b/.test(content),
+        `${file}: 'ha-nova trace' takes the entity positionally, there is no --entity flag`,
+      ).toBe(false);
+    }
   });
 
   it("keeps the context skill on the A6 frontmatter standard too", () => {

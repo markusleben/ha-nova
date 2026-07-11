@@ -2,7 +2,7 @@
 
 ## Overview
 
-HA NOVA uses a flat skill layout with one context skill and 19 independent sub-skills under `skills/`.
+HA NOVA uses a flat skill layout with one context skill and 20 independent sub-skills under `skills/`.
 
 The repo skill tree is the single source of truth. Client installers adapt that same tree to each client's packaging rules:
 - Claude: plugin marketplace payload
@@ -47,6 +47,7 @@ skills/
   service-call/SKILL.md                 (ha-nova:service-call — service calls + runtime control)
   fallback/SKILL.md                     (ha-nova:fallback — mandatory fallback for relay-ready features)
   onboarding/SKILL.md                   (ha-nova:onboarding — onboarding + diagnostics)
+  diagnose/SKILL.md                     (ha-nova:diagnose — failure root-cause: traces, logs, bounded windows)
 ```
 
 ## Discovery Model
@@ -104,6 +105,7 @@ Current mapping:
 | service-call | inline | 2-3 calls, preview + execute |
 | fallback | inline | research + web search + experimental relay calls (write-guarded) |
 | onboarding | inline | diagnostics only |
+| diagnose | inline | evidence gathering + reasoning, one gated debug escalation |
 
 **Rule of thumb:** If a `service-call` could do it, it's inline. If it needs what `write` needs (resolve + normalize + reload), use agents.
 
@@ -312,6 +314,22 @@ Still excluded from `ha-nova:helper`:
 - `generic_thermostat`
 - `switch_as_x`
 - `generic_hygrostat`
+
+## Diagnose Architecture
+
+`ha-nova:diagnose` is the failure-root-cause skill (read-only apart from one gated mutation):
+- traces first (`ha-nova trace latest <entity_id> --json`, plus `trace list` / `trace get`) for automation/script symptoms
+- `/api/error_log` (plain text — read from file, never dump) and WS `system_log/list`
+- bounded logbook/history windows around the incident (default ±30 min)
+- `POST /api/template` to probe suspect conditions against live state
+- WS `diagnostics/list` + `/api/diagnostics/config_entry/<entry_id>` when an integration is the suspect
+
+Rules:
+- starts from a concrete symptom; current-status questions go to `ha-nova:health`, plain timelines to `ha-nova:history`
+- recency honesty: error/system logs only reach back to the last Core restart
+- the single mutation is a temporary `logger.set_level` debug escalation — preview, confirm, and always schedule the reset in the same interaction
+- conclusions bind to evidence (trace step, log line, state sequence); otherwise present ranked hypotheses plus the deciding probe
+- fixes hand off to `ha-nova:write` / `ha-nova:helper` / `ha-nova:service-call`
 
 ## Fallback Architecture
 

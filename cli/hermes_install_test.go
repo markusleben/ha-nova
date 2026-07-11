@@ -146,3 +146,42 @@ func TestRewriteHermesMarkdownAbsolutizesCrossSkillRefs(t *testing.T) {
 		t.Fatalf("expected no relative skills/ refs to remain, got:\n%s", got)
 	}
 }
+
+// The required-skill list gates Hermes readiness: a bundle predating a newly
+// shipped skill must report not-ready and get re-synced, or dispatch routes to
+// a skill that is not installed. The list was hand-maintained and silently
+// missed `diagnose`; this test derives the truth from the repo skill tree so a
+// new skill can never ship without its Hermes entry again.
+func TestHermesRequiredSkillDirsCoverRepoSkillTree(t *testing.T) {
+	repoRoot, err := filepath.Abs("..")
+	if err != nil {
+		t.Fatalf("resolve repo root: %v", err)
+	}
+	entries, err := os.ReadDir(filepath.Join(repoRoot, "skills"))
+	if err != nil {
+		t.Skipf("skills tree unavailable (not a repo checkout): %v", err)
+	}
+
+	required := make(map[string]bool, len(hermesRequiredSkillDirs))
+	for _, dir := range hermesRequiredSkillDirs {
+		required[dir] = true
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		want := "ha-nova-" + name
+		if name == "ha-nova" {
+			want = "ha-nova"
+		}
+		if !required[want] {
+			t.Errorf("hermesRequiredSkillDirs is missing %q for skills/%s — extend it whenever a skill ships", want, name)
+		}
+		delete(required, want)
+	}
+	for stale := range required {
+		t.Errorf("hermesRequiredSkillDirs lists %q but skills/ has no such skill", stale)
+	}
+}

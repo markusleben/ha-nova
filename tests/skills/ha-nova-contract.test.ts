@@ -421,6 +421,19 @@ describe("ha-nova contract", () => {
     expect(history).toContain("otherwise default to the last 30 days for statistics/trend questions");
   });
 
+  it("routes concrete failures to diagnose and config audits to review", () => {
+    const context = readFileSync("skills/ha-nova/SKILL.md", "utf8");
+    // Regression: the problem-description catch-all sent "stopped working" to
+    // review, so the trace/log root-cause workflow was unreachable unless the
+    // user literally said "why".
+    expect(context).toContain('**Problem-description intents**');
+    expect(context).toContain('"stopped working"');
+    const problemRule = context.slice(context.indexOf("**Problem-description intents**"));
+    const ruleBlock = problemRule.slice(0, problemRule.indexOf("## "));
+    expect(ruleBlock).toContain("`ha-nova:diagnose`");
+    expect(ruleBlock).toContain("no concrete incident");
+  });
+
   it("keeps all HA NOVA skills in source tree", () => {
     const files = [
       "skills/ha-nova/SKILL.md",
@@ -444,6 +457,7 @@ describe("ha-nova contract", () => {
       "skills/maintenance/SKILL.md",
       "skills/maintenance/maintenance-reference.md",
       "skills/fallback/SKILL.md",
+      "skills/diagnose/SKILL.md",
     ];
 
     for (const file of files) {
