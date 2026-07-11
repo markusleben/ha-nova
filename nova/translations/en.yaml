@@ -11,5 +11,17 @@ configuration:
       A Long-Lived Access Token from your HA user profile.
       Create one at: Profile > Security > Long-Lived Access Tokens.
       This lets the relay control Home Assistant on your behalf.
+  file_access:
+    name: File access (advanced)
+    description: >-
+      Lets HA NOVA read and edit configuration FILES that have no
+      Home Assistant API — template, REST and command-line sensors,
+      packages and themes. Leave this OFF unless you want that:
+      off = no file access at all (default),
+      read = HA NOVA may read configuration files,
+      readwrite = it may also change them (every write backs up the
+      previous version first). Secrets, the database and Home
+      Assistant's internal storage are never accessible in any mode.
+
 network:
   8791/tcp: Relay HTTP API

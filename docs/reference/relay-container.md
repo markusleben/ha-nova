@@ -7,7 +7,9 @@ The NOVA Relay ships two ways from **one** codebase:
 | **HA OS / Supervised** | The **NOVA Relay App** (Settings > Apps). `ha-nova setup` walks you through it. |
 | **HA Container / HA Core** | This **standalone container** — those installs have no Supervisor, so they cannot install Apps. |
 
-Same source, same three endpoints, same version line (`nova/config.yaml`). There is no second implementation to drift.
+Same source, same endpoints, same version line (`nova/config.yaml`). There is no second implementation to drift.
+
+One difference worth knowing: file access (`/files`, relay 0.4.0) needs the Home Assistant configuration directory mounted. The App does that for you; for the container, mount it yourself and set `FILE_ACCESS` — see Environment below. Without a mount it stays off, whatever the setting says.
 
 ## Run it
 
@@ -47,6 +49,8 @@ If Home Assistant runs in the same Compose project, `HA_URL` can use its service
 | `HA_URL` | no | `http://homeassistant:8123` | Where Home Assistant lives. |
 | `RELAY_PORT` | no | `8791` | Listen port. |
 | `RELAY_VERSION` | no | baked in | Version reported by `/health`. The published image bakes it in at build time — do not set it yourself. |
+| `FILE_ACCESS` | no | `off` | `off` / `read` / `readwrite`. Enables the `/files` endpoint for YAML-only configuration. Requires the Home Assistant config directory to be mounted (see below); without it, the relay stays `off` and says so in its log. |
+| `CONFIG_ROOT` | no | auto | Where the config directory is mounted inside the container. Only needed if you mount it somewhere other than `/config`. |
 
 ## Setup order
 
@@ -72,6 +76,19 @@ The interactive wizard is built around the Supervisor App (it walks you through 
 A guided "Docker" branch in the interactive wizard is planned; until then this is the supported path, and it is the one the documentation and tests cover.
 
 The security model is identical to the App: the LLAT lives only on the server side (in the container's environment), and the relay token is stored in your OS keychain — the AI client never sees your Home Assistant token.
+
+## File access (optional)
+
+To let HA NOVA edit YAML-only configuration, mount Home Assistant's config directory and turn the capability on:
+
+```yaml
+    volumes:
+      - /path/to/homeassistant/config:/config
+    environment:
+      FILE_ACCESS: "readwrite"   # or "read"
+```
+
+The relay refuses secrets, the recorder database and Home Assistant's internal storage in every mode, backs up every file it overwrites, and degrades honestly: a read-only mount reports `read`, no mount at all reports `off`.
 
 ## Notes
 
