@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"encoding/base64"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -313,5 +315,54 @@ func TestRelayProxyWarnsOnOutdatedRelayVersionHeader(t *testing.T) {
 	}
 	if strings.Contains(output, "Relay outdated") {
 		t.Fatalf("expected throttled second call without warning, got: %q", output)
+	}
+}
+
+// --out-binary decodes the base64 body the relay marks with
+// body_encoding: "base64" (camera frames). A missing marker must fail loudly:
+// silently writing the JSON envelope would hand the caller a "JPEG" full of
+// JSON.
+func TestWriteRelayBinaryBodyDecodesMarkedBase64(t *testing.T) {
+	jpeg := []byte{0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10}
+	envelope := []byte(`{"ok":true,"data":{"status":200,"body":"` +
+		base64.StdEncoding.EncodeToString(jpeg) +
+		`","body_encoding":"base64","content_type":"image/jpeg"}}`)
+
+	out := filepath.Join(t.TempDir(), "nested", "frame.jpg")
+	if err := writeRelayBinaryBody(envelope, out); err != nil {
+		t.Fatalf("writeRelayBinaryBody() error: %v", err)
+	}
+	got, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatalf("read decoded file: %v", err)
+	}
+	if !bytes.Equal(got, jpeg) {
+		t.Fatalf("decoded bytes = %x, want %x", got, jpeg)
+	}
+}
+
+func TestWriteRelayBinaryBodyRejectsUnmarkedBody(t *testing.T) {
+	envelope := []byte(`{"ok":true,"data":{"status":200,"body":{"state":"on"}}}`)
+	err := writeRelayBinaryBody(envelope, filepath.Join(t.TempDir(), "x.bin"))
+	if err == nil {
+		t.Fatal("expected an error for a non-binary body")
+	}
+	if !strings.Contains(err.Error(), "--out") {
+		t.Fatalf("error should point at --out, got: %v", err)
+	}
+}
+
+func TestParseRelayFlagsRejectsBinaryOutWithFilters(t *testing.T) {
+	if _, err := parseRelayFlags("core", []string{
+		"--method", "GET", "--path", "/api/camera_proxy/camera.front",
+		"--out-binary", "f.jpg", "--jq", ".data",
+	}); err == nil {
+		t.Fatal("expected --out-binary + --jq to be rejected")
+	}
+	if _, err := parseRelayFlags("core", []string{
+		"--method", "GET", "--path", "/api/camera_proxy/camera.front",
+		"--out-binary", "f.jpg", "--out", "f.json",
+	}); err == nil {
+		t.Fatal("expected --out-binary + --out to be rejected")
 	}
 }

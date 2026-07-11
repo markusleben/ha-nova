@@ -179,11 +179,88 @@ describe("ha ws client", () => {
       })
     });
 
-    await expect(client.collectMessageEvents({ type: "system_health/info" })).resolves.toEqual([
-      { type: "initial", data: { source: "system_health/info" } },
-      { type: "finish" },
-    ]);
+    await expect(client.collectMessageEvents({ type: "system_health/info" })).resolves.toEqual({
+      events: [
+        { type: "initial", data: { source: "system_health/info" } },
+        { type: "finish" },
+      ],
+      truncated: false,
+    });
     expect(unsubscribed).toBe(true);
+  });
+
+  // Envelope v2 window mode: a stream that never emits a finish event (mqtt
+  // topics, event buses) must end at max_events / timeout with the events seen
+  // so far, marked truncated — instead of the strict mode's hard error.
+  it("returns partial events at max_events in window mode", async () => {
+    let unsubscribed = false;
+    const client = createHaWsClient({
+      createConnection: async () => ({
+        sendMessagePromise: async () => ({ ok: true }),
+        subscribeMessage: async (callback) => {
+          callback({ type: "one" });
+          callback({ type: "two" });
+          callback({ type: "three" });
+          return () => {
+            unsubscribed = true;
+          };
+        }
+      })
+    });
+
+    await expect(
+      client.collectMessageEvents(
+        { type: "mqtt/subscribe", topic: "zigbee2mqtt/#" },
+        { maxEvents: 2, onLimit: "return" }
+      )
+    ).resolves.toEqual({
+      events: [{ type: "one" }, { type: "two" }],
+      truncated: true,
+    });
+    expect(unsubscribed).toBe(true);
+  });
+
+  it("returns what it saw when the window times out in window mode", async () => {
+    let unsubscribed = false;
+    const client = createHaWsClient({
+      createConnection: async () => ({
+        sendMessagePromise: async () => ({ ok: true }),
+        subscribeMessage: async (callback) => {
+          callback({ type: "only" });
+          return () => {
+            unsubscribed = true;
+          };
+        }
+      })
+    });
+
+    await expect(
+      client.collectMessageEvents(
+        { type: "mqtt/subscribe", topic: "zigbee2mqtt/#" },
+        { timeoutMs: 30, onLimit: "return" }
+      )
+    ).resolves.toEqual({
+      events: [{ type: "only" }],
+      truncated: true,
+    });
+    expect(unsubscribed).toBe(true);
+  });
+
+  it("still errors at max_events in the default strict mode", async () => {
+    const client = createHaWsClient({
+      createConnection: async () => ({
+        sendMessagePromise: async () => ({ ok: true }),
+        subscribeMessage: async (callback) => {
+          callback({ type: "one" });
+          callback({ type: "two" });
+          return () => undefined;
+        }
+      })
+    });
+
+    await expect(
+      client.collectMessageEvents({ type: "system_health/info" }, { maxEvents: 1 })
+    ).rejects.toThrow(/exceeded 1 events/);
   });
 
   it("unsubscribes when event collection times out before subscription ack", async () => {

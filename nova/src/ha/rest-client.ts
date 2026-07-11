@@ -27,6 +27,11 @@ const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
 // Mirrors the WS payload ceiling (nova/src/ha/socket.ts) so both proxy paths
 // share one bound instead of the REST path buffering unbounded HA responses.
 const DEFAULT_MAX_RESPONSE_BYTES = 256 * 1024 * 1024;
+// Binary bodies (camera snapshots, downloads) are returned base64-encoded,
+// which inflates them by ~33% and has to be held as a JS string. They get a
+// much smaller ceiling than the text/JSON path: a single frame is far below
+// this, and anything larger is a streaming use case the relay does not serve.
+const DEFAULT_MAX_BINARY_RESPONSE_BYTES = 8 * 1024 * 1024;
 
 export function createHaRestClient(options: HaRestClientOptions): HaRestClient {
   const baseUrl = options.baseUrl.endsWith("/") ? options.baseUrl.slice(0, -1) : options.baseUrl;
@@ -55,7 +60,7 @@ export function createHaRestClient(options: HaRestClientOptions): HaRestClient {
 
             return {
               status: response.status,
-              body: await parseResponseBody(response, maxResponseBytes)
+              ...(await parseResponseBody(response, maxResponseBytes))
             };
           })(),
           requestTimeoutMs,
@@ -90,24 +95,56 @@ function buildHeaders(token: string, method: CoreProxyRequest["method"]): Header
   return headers;
 }
 
-async function parseResponseBody(response: Response, maxBytes: number): Promise<unknown> {
-  const contentType = response.headers.get("content-type") ?? "";
-  const text = await readBodyWithLimit(response, maxBytes);
+type ParsedBody = Pick<CoreProxyResponse, "body" | "body_encoding" | "content_type">;
 
-  if (contentType.toLowerCase().includes("application/json")) {
+async function parseResponseBody(response: Response, maxBytes: number): Promise<ParsedBody> {
+  const contentType = response.headers.get("content-type") ?? "";
+  const normalizedType = contentType.toLowerCase();
+
+  if (isBinaryContentType(normalizedType)) {
+    // Dumb transport: a binary body is forwarded as honest bytes. Decoding it
+    // as UTF-8 (the old path) silently corrupted every camera frame.
+    const buffer = await readBodyBytesWithLimit(response, DEFAULT_MAX_BINARY_RESPONSE_BYTES);
+    if (buffer.byteLength === 0) {
+      return { body: null };
+    }
+    return {
+      body: buffer.toString("base64"),
+      body_encoding: "base64",
+      content_type: contentType
+    };
+  }
+
+  const text = (await readBodyBytesWithLimit(response, maxBytes)).toString("utf8");
+
+  if (normalizedType.includes("application/json")) {
     try {
-      return JSON.parse(text) as unknown;
+      return { body: JSON.parse(text) as unknown };
     } catch {
-      return null;
+      return { body: null };
     }
   }
 
-  return text.length > 0 ? text : null;
+  return { body: text.length > 0 ? text : null };
 }
 
-async function readBodyWithLimit(response: Response, maxBytes: number): Promise<string> {
+// JSON and text stay on the text path (that includes HA's plain-text
+// /api/error_log and every JSON API); everything else is treated as bytes.
+function isBinaryContentType(normalizedContentType: string): boolean {
+  if (normalizedContentType === "") {
+    return false;
+  }
+  return !(
+    normalizedContentType.includes("json") ||
+    normalizedContentType.startsWith("text/") ||
+    normalizedContentType.includes("xml") ||
+    normalizedContentType.includes("x-www-form-urlencoded")
+  );
+}
+
+async function readBodyBytesWithLimit(response: Response, maxBytes: number): Promise<Buffer> {
   if (!response.body) {
-    return "";
+    return Buffer.alloc(0);
   }
 
   const chunks: Uint8Array[] = [];
@@ -135,5 +172,5 @@ async function readBodyWithLimit(response: Response, maxBytes: number): Promise<
     reader.releaseLock();
   }
 
-  return Buffer.concat(chunks).toString("utf8");
+  return Buffer.concat(chunks);
 }

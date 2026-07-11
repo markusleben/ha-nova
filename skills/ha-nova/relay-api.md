@@ -8,6 +8,38 @@ Transport, auth headers, and the base URL are handled internally by the `ha-nova
 
 Underlying HTTP contract (reference only, not for direct use): `Authorization: Bearer <relay token>` and `Content-Type: application/json` against the relay base URL.
 
+## Bounded Event Collection (envelope)
+
+Window mode (`on_limit`) and binary responses require **Relay 0.3.0 or newer**. An older relay silently ignores `on_limit` and falls back to strict mode (a timeout then fails the call instead of returning partial events). Check the running version with `ha-nova relay health` before relying on either feature, and tell the user to update the NOVA Relay App if it is older.
+
+
+Some WS commands answer with events instead of a single response. Wrap them:
+
+```json
+{
+  "message": { "type": "system_health/info" },
+  "collect_events": { "until_type": "finish", "max_events": 100, "timeout_ms": 10000 }
+}
+```
+
+The events come back as `.data.events`.
+
+`on_limit` controls what happens when `max_events` or `timeout_ms` is hit first:
+- omit it (or `"error"`): the call fails — use this when a finish event is expected.
+- `"on_limit": "return"`: window mode — the relay returns what it saw and sets `.data.truncated: true`. Use this to sniff a stream that never finishes (for example `mqtt/subscribe`).
+
+Subscription commands are permitted **only inside this envelope** (the relay unsubscribes and bounds the window). A bare subscription without the envelope is rejected with `UNSUPPORTED_WS_TYPE`.
+
+## Binary Responses
+
+`/core` returns binary upstream bodies (camera frames, downloads) base64-encoded with a marker:
+
+```json
+{ "ok": true, "data": { "status": 200, "body": "<base64>", "body_encoding": "base64", "content_type": "image/jpeg" } }
+```
+
+Write the raw bytes with `ha-nova relay core --method GET --path <path> --out-binary <file>` — it decodes the marker for you and refuses a body that is not marked binary (use `--out` for those). Binary bodies have a smaller ceiling (8 MiB) than text/JSON responses. JSON and text (including `/api/error_log`) keep their existing shape.
+
 ## Endpoints
 
 - `GET /health`

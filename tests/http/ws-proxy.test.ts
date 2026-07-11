@@ -148,10 +148,13 @@ describe("ws proxy endpoint", () => {
           collectMessageEvents: async (message, options) => {
             sentType = message.type;
             collectOptions = options;
-            return [
-              { type: "initial", data: { homeassistant: { info: { version: "2026.6.4" } } } },
-              { type: "finish" },
-            ];
+            return {
+              events: [
+                { type: "initial", data: { homeassistant: { info: { version: "2026.6.4" } } } },
+                { type: "finish" },
+              ],
+              truncated: false,
+            };
           }
         }
       })
@@ -314,21 +317,25 @@ describe("ws proxy endpoint", () => {
     }
   });
 
-  it("rejects subscription ws types inside event collection envelope", async () => {
+  // Envelope v2: a subscription is safe INSIDE collect_events — the collection
+  // unsubscribes in its finally block and its lifetime is bounded by
+  // max_events/timeout_ms, so nothing can leak or accumulate upstream.
+  it("allows subscription ws types inside an event collection envelope", async () => {
     const router = createRouter();
-    let forwarded = false;
+    let collectedType = "";
+    let collectOptions: unknown;
     router.register(
       "POST",
       "/ws",
       createWsProxyHandler({
         wsClient: {
           sendMessage: async () => {
-            forwarded = true;
-            return { ok: true };
+            throw new Error("should collect events instead");
           },
-          collectMessageEvents: async () => {
-            forwarded = true;
-            return [];
+          collectMessageEvents: async (message, options) => {
+            collectedType = message.type;
+            collectOptions = options;
+            return { events: [{ topic: "zigbee2mqtt/bridge/state" }], truncated: true };
           },
         },
       })
@@ -342,15 +349,86 @@ describe("ws proxy endpoint", () => {
         "content-type": "application/json",
       },
       body: JSON.stringify({
-        message: { type: "subscribe_events" },
-        collect_events: { until_type: "finish" },
+        message: { type: "mqtt/subscribe", topic: "zigbee2mqtt/#" },
+        collect_events: { max_events: 5, timeout_ms: 2000, on_limit: "return" },
       }),
+    });
+
+    expect(response.status).toBe(200);
+    const json = (await response.json()) as {
+      ok: boolean;
+      data: { events: unknown[]; truncated?: boolean };
+    };
+    expect(json.ok).toBe(true);
+    expect(json.data.events).toEqual([{ topic: "zigbee2mqtt/bridge/state" }]);
+    expect(json.data.truncated).toBe(true);
+    expect(collectedType).toBe("mqtt/subscribe");
+    expect(collectOptions).toEqual({ maxEvents: 5, timeoutMs: 2000, onLimit: "return" });
+  });
+
+  // A BARE subscription (no envelope) stays rejected: the relay cannot deliver
+  // its events and the upstream subscription would accumulate.
+  it("still rejects bare subscription ws types", async () => {
+    const router = createRouter();
+    let forwarded = false;
+    router.register(
+      "POST",
+      "/ws",
+      createWsProxyHandler({
+        wsClient: {
+          sendMessage: async () => {
+            forwarded = true;
+            return { ok: true };
+          },
+        },
+      })
+    );
+
+    const { baseUrl } = await startServer(servers, router);
+    const response = await fetch(`${baseUrl}/ws`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${TEST_AUTH_TOKEN}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ type: "subscribe_events" }),
     });
 
     expect(response.status).toBe(400);
     const json = (await response.json()) as { error: { code: string } };
     expect(json.error.code).toBe("UNSUPPORTED_WS_TYPE");
     expect(forwarded).toBe(false);
+  });
+
+  it("rejects an invalid on_limit value", async () => {
+    const router = createRouter();
+    router.register(
+      "POST",
+      "/ws",
+      createWsProxyHandler({
+        wsClient: {
+          sendMessage: async () => ({ ok: true }),
+          collectMessageEvents: async () => ({ events: [], truncated: false }),
+        },
+      })
+    );
+
+    const { baseUrl } = await startServer(servers, router);
+    const response = await fetch(`${baseUrl}/ws`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${TEST_AUTH_TOKEN}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        message: { type: "mqtt/subscribe", topic: "x" },
+        collect_events: { on_limit: "sometimes" },
+      }),
+    });
+
+    expect(response.status).toBe(400);
+    const json = (await response.json()) as { error: { code: string } };
+    expect(json.error.code).toBe("VALIDATION_ERROR");
   });
 
   it("returns 400 for missing message type", async () => {
