@@ -24,7 +24,7 @@ If this fails: `ha-nova setup`
 
 This skill needs **Relay 0.4.0 or newer** AND file access enabled. Both are the user's decision, not yours:
 - Probe once: `ha-nova relay files --data-file <payload-file>` with `{"action":"list_dir","path":"/config"}`.
-- `FILE_ACCESS_DISABLED` -> file access is OFF (the default). Tell the user how to turn it on (Settings > Apps > NOVA Relay > Configuration > `file_access`: `readwrite`, then restart the App) and what it means, then STOP. Do not nag, and do not work around it.
+- `FILE_ACCESS_DISABLED` -> file access is OFF (the default). Tell the user how to turn it on (Settings > Apps > NOVA Relay > Configuration > `file_access`: `readwrite`, then restart the App) and what it means, then continue with the manual path below. Do not nag.
 - `FILE_ACCESS_READONLY` -> reads work, writes do not. Offer the manual path below instead of asking for more permission.
 - If the relay is older than 0.4.0, say so plainly — the endpoint does not exist there.
 

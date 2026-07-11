@@ -421,7 +421,7 @@ Rules: never invent a `media_content_id`; volume jumps and announcements are dis
 ## Fallback Architecture
 
 `ha-nova:fallback` is the mandatory safety fallback for HA features without a dedicated skill:
-- Covers: blueprints, zones/persons/tags, device config-entry detach, unsupported config-entry helper families
+- Covers: blueprints, device config-entry detach, unsupported config-entry helper families
 - Three-tier capability map: Covered (redirect to existing skill), Relay-Ready (experimental relay calls), External (web search)
 - All inline, no agents — research + web search + experimental relay calls
 - Safety: all experimental relay calls follow Write Safety by Endpoint Type guardrails (full-overwrite, field-level replace, merge, delete)

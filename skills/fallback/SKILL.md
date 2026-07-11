@@ -1,6 +1,6 @@
 ---
 name: fallback
-description: Mandatory fallback for any HA NOVA task without a dedicated subskill. Must be invoked before any raw relay write operation. Covers blueprints, zones/persons/tags, device config-entry detach, Apps, HACS, Zigbee/Z-Wave, and unsupported config-entry helper families.
+description: Mandatory fallback for any HA NOVA task without a dedicated subskill. Must be invoked before any raw relay write operation. Covers blueprints, device config-entry detach, Apps, HACS, Zigbee/Z-Wave, and unsupported config-entry helper families.
 license: MIT
 compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay App in Home Assistant.
 ---
@@ -70,7 +70,6 @@ For every Relay-Ready call in this skill:
 | Category CRUD / Entity category assignment | Covered | organize |
 | Entity / Device metadata updates | Covered | organize |
 | Blueprints | Relay-Ready | this skill |
-| Zone / Person / Tag Mgmt | Relay-Ready | this skill |
 | Energy (analysis + source/device config) | Covered | energy |
 | Other Config-Entry Helpers | Relay-Ready | this skill |
 | Statistics repair / Purge / Entity registry remove | Covered | maintenance |
@@ -118,19 +117,6 @@ ha-nova relay ws --data-file <payload-file>
 ```
 
 **Risks:** Imported blueprints execute when instantiated. Review blueprint source before import.
-
-### Zone / Person / Tag Management -- RELAY-READY
-
-Manage location zones, person entities, and NFC/QR tags.
-
-**Search:** `home assistant zone person tag management api websocket 2026`
-
-**Experimental relay calls (no skill guardrails):**
-```text
-ha-nova relay ws --data-file <payload-file>
-```
-
-**Risks:** Zone changes affect presence detection automations. Person changes affect device trackers.
 
 ### Other Config-Entry Helpers -- RELAY-READY
 
