@@ -141,6 +141,9 @@ Return the Step 4 shortlist shape; never dump raw `get_states` output.
 
 ## Safety
 
+- Read-only skill: never issue mutating relay or service calls.
+- For write intent, hand off to the owning skill; unfamiliar writes go through `ha-nova:fallback` first.
+
 - Read-only — this skill never modifies Home Assistant state or config.
 - No `POST`, `PUT`, `PATCH`, or `DELETE` relay writes.
 - All communication with Home Assistant goes through `ha-nova relay` exclusively.

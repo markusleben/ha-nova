@@ -114,8 +114,14 @@ Default to a compact field summary, not raw registry JSON.
 
 ## Safety
 
-- Never guess ids.
-- Create/update uses natural confirmation after preview, bound to the exact displayed payload (see context skill → Active Preview Confirmation).
+- Preview before write: nothing is saved until the user confirms the shown preview.
+- Confirmation binds to the displayed preview and expires on any change to target, payload, endpoint, or scope (context skill → Active Preview Confirmation).
+- Pre-preview phrases ("do it", "go ahead", "implement the plan") authorize drafting and preview only — never the write itself.
+- Delete and destructive operations require the typed token `confirm:<token>` verbatim; "yes" or any natural-language reply is invalid.
+- Never guess entity, service, or config IDs — resolve them or ask.
+- Home Assistant is reached exclusively through `ha-nova relay`.
+- For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
+
 - Delete uses token confirmation only, even for cleanup of items created earlier in the same session.
 - If the user asks for entity removal, stop and hand off to `ha-nova:maintenance` (dead registry entries only — for live entities offer disable here instead). For device category assignment or config-entry detachment, hand off to `ha-nova:fallback`.
 

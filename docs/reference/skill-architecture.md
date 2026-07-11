@@ -401,6 +401,31 @@ Scope → Bootstrap (once per session) → Relay Contract → [domain] → Flow 
 
 **The context skill (`ha-nova/SKILL.md`) is exempt** from the sub-skill template: it is a router, not an operation skill. Its required anchors stay pinned by `tests/skills/ha-nova-contract.test.ts`.
 
+### Safety Core (canonical text)
+
+Every mutation-capable sub-skill opens its `## Safety` section with this block, byte-identical (linter-enforced; the linter extracts this fenced block as the SSOT). It carries the bootstrap-independent guarantees — preview binding, delete tokenization, and the fallback write gate — so a bare agent that never auto-loads the context skill still gets them:
+
+```text
+- Preview before write: nothing is saved until the user confirms the shown preview.
+- Confirmation binds to the displayed preview and expires on any change to target, payload, endpoint, or scope (context skill → Active Preview Confirmation).
+- Pre-preview phrases ("do it", "go ahead", "implement the plan") authorize drafting and preview only — never the write itself.
+- Delete and destructive operations require the typed token `confirm:<token>` verbatim; "yes" or any natural-language reply is invalid.
+- Never guess entity, service, or config IDs — resolve them or ask.
+- Home Assistant is reached exclusively through `ha-nova relay`.
+- For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
+```
+
+Read-only sub-skills open `## Safety` with this block instead:
+
+```text
+- Read-only skill: never issue mutating relay or service calls.
+- For write intent, hand off to the owning skill; unfamiliar writes go through `ha-nova:fallback` first.
+```
+
+Skill-specific safety bullets follow the core block; bullets that merely restate a core line are removed, domain nuances (confirmation tiering, no-revert notes, session-cleanup rules) stay.
+
+A skill may declare an explicit, named exception to a single core bullet directly below the core block — it must reference the core rule it narrows ("Declared exception to the core ... rule above") so a bare agent never sees two contradicting instructions. Current declared exceptions: `todo` item removes (`todo.remove_item`, `todo.remove_completed_items`) stay at natural preview confirmation; list deletion keeps the typed token.
+
 ## Post-Write Review Standard
 
 Unified spec for post-write review. Both `write` and `helper` skills reference this.

@@ -118,6 +118,9 @@ Choose one safe `Next step`:
 
 ## Safety
 
+- Read-only skill: never issue mutating relay or service calls.
+- For write intent, hand off to the owning skill; unfamiliar writes go through `ha-nova:fallback` first.
+
 - Read-only skill. No writes.
 - Never call repair/fix/ignore/delete issue commands.
 - Never restart/reload Home Assistant from this skill.

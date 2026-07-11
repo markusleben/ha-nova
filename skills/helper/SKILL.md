@@ -465,12 +465,17 @@ Never show raw JSON to the user.
 
 ## Safety
 
-- Preview before every write
+- Preview before write: nothing is saved until the user confirms the shown preview.
+- Confirmation binds to the displayed preview and expires on any change to target, payload, endpoint, or scope (context skill → Active Preview Confirmation).
+- Pre-preview phrases ("do it", "go ahead", "implement the plan") authorize drafting and preview only — never the write itself.
+- Delete and destructive operations require the typed token `confirm:<token>` verbatim; "yes" or any natural-language reply is invalid.
+- Never guess entity, service, or config IDs — resolve them or ask.
+- Home Assistant is reached exclusively through `ha-nova relay`.
+- For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
+
 - No guessing entity IDs, linked entities, or config entry IDs; resolve or ask
 - `entry_id` is the canonical write identity for the config-entry family
-- Delete requires tokenized confirmation
 - Destructive cleanup still requires `confirm:<token>`, even for helpers created earlier in the same session.
-- All HA communication through `ha-nova relay` only
 - Every write MUST end with the Post-Write Review slot; use terminal-friendly labels where Markdown headings add noise.
 
 ## Guardrails

@@ -11,7 +11,9 @@ describe("ha safety contract", () => {
     expect(router).toContain("create`/`update`: natural confirmation");
     expect(router).toContain("token confirmation `confirm:<token>`");
     expect(writeSkill).toContain("Confirmation: create/update=natural, delete=tokenized `confirm:<token>`");
-    expect(writeSkill).toContain("No guessing entity_ids; resolve or ask");
+    // Safety Core wording (A3): the no-guessing rule now arrives via the
+    // byte-identical core block in every mutation-capable skill.
+    expect(writeSkill).toContain("Never guess entity, service, or config IDs — resolve them or ask.");
   });
 
   it("rejects pre-preview blanket approval for live writes", () => {
@@ -43,7 +45,13 @@ describe("ha safety contract", () => {
       "skills/write/SKILL.md",
       "skills/helper/SKILL.md",
       "skills/dashboard/SKILL.md",
+      "skills/scene/SKILL.md",
       "skills/organize/SKILL.md",
+      "skills/todo/SKILL.md",
+      "skills/backup/SKILL.md",
+      "skills/updates/SKILL.md",
+      "skills/energy/SKILL.md",
+      "skills/maintenance/SKILL.md",
       "skills/service-call/SKILL.md",
       "skills/review/SKILL.md",
       "skills/fallback/SKILL.md",

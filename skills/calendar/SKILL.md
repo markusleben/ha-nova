@@ -65,6 +65,9 @@ For multiple calendars, group by calendar and keep each group short.
 
 ## Safety
 
+- Read-only skill: never issue mutating relay or service calls.
+- For write intent, hand off to the owning skill; unfamiliar writes go through `ha-nova:fallback` first.
+
 - Read-only skill. No event writes.
 - Always use bounded windows.
 - Never guess a calendar id from a partial name when multiple matches exist.

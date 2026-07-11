@@ -245,6 +245,14 @@ Every experimental call result names the tier (Relay-Ready / Roadmap / External)
 
 ## Safety
 
+- Preview before write: nothing is saved until the user confirms the shown preview.
+- Confirmation binds to the displayed preview and expires on any change to target, payload, endpoint, or scope (context skill → Active Preview Confirmation).
+- Pre-preview phrases ("do it", "go ahead", "implement the plan") authorize drafting and preview only — never the write itself.
+- Delete and destructive operations require the typed token `confirm:<token>` verbatim; "yes" or any natural-language reply is invalid.
+- Never guess entity, service, or config IDs — resolve them or ask.
+- Home Assistant is reached exclusively through `ha-nova relay`.
+- For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
+
 Premise handling:
 - Correct invalid Home Assistant premises explicitly.
 - Do not silently compensate for a wrong premise.
@@ -252,7 +260,6 @@ Premise handling:
 
 Rules for all experimental relay calls in this skill:
 
-- Always preview the full payload before execution
 - Read before write: fetch current state first for any destructive operation
 - **Full-document overwrites** (e.g., `lovelace/config/save`): MUST read full config, merge changes in memory, preview merged result, then write. There is no partial update endpoint — the entire config is replaced. After the write, read the document back and verify both the intended change and the survival of unrelated content (views, cards, sources) before reporting success.
 - **Field-level list replacements** (e.g., `energy/save_prefs`): omitted top-level keys are preserved, but each provided key replaces its entire list. To add one item, read the existing list first, append, then save back the full list. After the write, read the prefs back and verify the pre-existing list items survived alongside the new one.
@@ -260,9 +267,6 @@ Rules for all experimental relay calls in this skill:
 - Every experimental call must show: "EXPERIMENTAL: No dedicated subskill schema guardrails. Proceed with caution."
 - **No diff or auto-undo here**: these writes have no `## Changes` preview or `revert`. When a write may be hard to reverse, say so plainly and point to Home Assistant Backups (Settings > System > Backups) as the safety net before confirming.
 - One resource at a time (no batch writes)
-- Delete requires tokenized confirmation (`confirm:<token>`)
-- Broad pre-preview approval is never write confirmation; changed payloads require a fresh preview and confirmation.
-- Never guess IDs: resolve via list/search first
 - Experimental results may be unexpected — verify data-target match before presenting conclusions (see `skills/ha-nova/SKILL.md` → Claim-Evidence Binding)
 
 ### Write Safety by Endpoint Type

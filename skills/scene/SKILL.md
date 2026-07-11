@@ -118,8 +118,15 @@ Use stable localized slot labels in this order; omit empty slots.
 
 ## Safety
 
+- Preview before write: nothing is saved until the user confirms the shown preview.
+- Confirmation binds to the displayed preview and expires on any change to target, payload, endpoint, or scope (context skill → Active Preview Confirmation).
+- Pre-preview phrases ("do it", "go ahead", "implement the plan") authorize drafting and preview only — never the write itself.
+- Delete and destructive operations require the typed token `confirm:<token>` verbatim; "yes" or any natural-language reply is invalid.
+- Never guess entity, service, or config IDs — resolve them or ask.
+- Home Assistant is reached exclusively through `ha-nova relay`.
+- For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
+
 - Create/update use natural confirmation after preview; delete uses exact token confirmation only, even for scenes created earlier in the same session.
 - Scene writes have no `revert`; the recovery path is Home Assistant Backups — say so before destructive operations.
-- Never guess ids or entity_ids; resolve via registry first.
 - One scene per mutation; verify read-back, not just the save response.
 - Activation hands off to `ha-nova:service-call` — `scene.turn_on` supports `transition` (lights only); `scene.apply` applies a one-off state set without storing a scene.

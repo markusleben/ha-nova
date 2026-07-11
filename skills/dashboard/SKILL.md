@@ -146,8 +146,15 @@ Do not dump the full dashboard JSON/YAML by default.
 
 ## Safety
 
+- Preview before write: nothing is saved until the user confirms the shown preview.
+- Confirmation binds to the displayed preview and expires on any change to target, payload, endpoint, or scope (context skill → Active Preview Confirmation).
+- Pre-preview phrases ("do it", "go ahead", "implement the plan") authorize drafting and preview only — never the write itself.
+- Delete and destructive operations require the typed token `confirm:<token>` verbatim; "yes" or any natural-language reply is invalid.
+- Never guess entity, service, or config IDs — resolve them or ask.
+- Home Assistant is reached exclusively through `ha-nova relay`.
+- For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
+
 - No guessed `url_path` or `dashboard_id` values.
-- Create/update uses natural confirmation after preview, bound to the exact displayed payload/diff (see context skill → Active Preview Confirmation).
 - Dashboard/resource/card delete uses exact token confirmation only, even for items created earlier in the same session. Dashboard writes have no `revert`; the recovery path is Home Assistant Backups.
 - If the change needs a broad re-layout instead of a targeted edit, say so before writing.
 

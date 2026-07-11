@@ -59,19 +59,56 @@ const FORBIDDEN_HEADINGS = [
   "Agent Flow",
 ];
 
-// Word budgets: default 1000. Documented ratchets for content-dense skills;
-// write and review drop again after the masterplan A5 token diet (References
-// split / checks.md self-containment).
+const MUTATION_SKILLS = new Set([
+  "write",
+  "helper",
+  "dashboard",
+  "scene",
+  "organize",
+  "todo",
+  "backup",
+  "updates",
+  "energy",
+  "maintenance",
+  "service-call",
+  "fallback",
+  "review",
+]);
+const READ_ONLY_SKILLS = new Set([
+  "read",
+  "entity-discovery",
+  "history",
+  "health",
+  "calendar",
+  "onboarding",
+]);
+
+// SSOT: the fenced blocks in skill-architecture.md → "Safety Core (canonical text)".
+const SAFETY_CORE_BLOCKS = ((): { mutation: string; readOnly: string } => {
+  const doc = readFileSync("docs/reference/skill-architecture.md", "utf8");
+  const section = doc.split("### Safety Core (canonical text)")[1] ?? "";
+  const fenced = [...section.matchAll(/```text\n([\s\S]*?)```/g)].map((m) =>
+    (m[1] ?? "").trimEnd(),
+  );
+  return { mutation: fenced[0] ?? "", readOnly: fenced[1] ?? "" };
+})();
+
+// Word budgets: default 1150 (every sub-skill carries the mandatory ~100-word
+// Safety Core plus the output-rules pointer). Documented ratchets for
+// content-dense skills; write and review drop again after the masterplan A5
+// token diet (References split / checks.md self-containment).
 const WORD_BUDGETS: Record<string, number> = {
-  write: 1200,
-  scene: 1250,
-  "service-call": 1100,
-  health: 1150,
+  write: 1350,
+  scene: 1350,
+  "service-call": 1200,
+  todo: 1200,
+  updates: 1200,
+  maintenance: 1200,
   fallback: 2050,
   helper: 3600,
   review: 4800,
 };
-const DEFAULT_WORD_BUDGET = 1000;
+const DEFAULT_WORD_BUDGET = 1150;
 
 // Internal review-check codes (S-01, R-18, H-09, ...) may flow only between
 // the reviewer/mutation files that implement the dedup logic; user-flow
@@ -224,6 +261,43 @@ describe("skill template v2 contract", () => {
         bootstrapVariants,
         `${name}: Bootstrap heading must be exactly '## ${expected}'`,
       ).toEqual([expected]);
+    }
+  });
+
+  it("covers every sub-skill by exactly one safety class", () => {
+    for (const name of SUBSKILLS) {
+      expect(
+        MUTATION_SKILLS.has(name) !== READ_ONLY_SKILLS.has(name),
+        `${name}: must be in exactly one of MUTATION_SKILLS / READ_ONLY_SKILLS`,
+      ).toBe(true);
+    }
+  });
+
+  it("opens every mutation-capable Safety section with the canonical Safety Core", () => {
+    expect(SAFETY_CORE_BLOCKS.mutation, "SSOT block missing in skill-architecture.md").toContain(
+      "Preview before write",
+    );
+    for (const name of SUBSKILLS) {
+      if (!MUTATION_SKILLS.has(name)) continue;
+      const body = sectionBody(readFileSync(subskillPath(name), "utf8"), "Safety");
+      expect(
+        body.trimStart().startsWith(SAFETY_CORE_BLOCKS.mutation),
+        `${name}: ## Safety must open with the byte-identical Safety Core (SSOT: skill-architecture.md)`,
+      ).toBe(true);
+    }
+  });
+
+  it("opens every read-only Safety section with the canonical read-only core", () => {
+    expect(SAFETY_CORE_BLOCKS.readOnly, "SSOT block missing in skill-architecture.md").toContain(
+      "Read-only skill",
+    );
+    for (const name of SUBSKILLS) {
+      if (!READ_ONLY_SKILLS.has(name)) continue;
+      const body = sectionBody(readFileSync(subskillPath(name), "utf8"), "Safety");
+      expect(
+        body.trimStart().startsWith(SAFETY_CORE_BLOCKS.readOnly),
+        `${name}: ## Safety must open with the byte-identical read-only core (SSOT: skill-architecture.md)`,
+      ).toBe(true);
     }
   });
 
