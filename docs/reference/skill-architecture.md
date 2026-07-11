@@ -395,7 +395,7 @@ Rules: never invent a `media_content_id`; volume jumps and announcements are dis
 ## Admin Architecture
 
 `ha-nova:admin` owns persons, zones, tags, and user accounts:
-- persons/zones/tags via WS `person/*`, `zone/*`, `tag/*` (updates send the full object)
+- persons/zones/tags via WS `person/*`, `zone/*`, `tag/*` (updates resend every mutable field, addressed by the `*_id` key)
 - zones are presence infrastructure: every zone change runs `search/related` first and names the automations that depend on it, in the preview
 - users via WS `config/auth/*` — the strictest writes in HA NOVA: owner, system-generated, and the relay's own account are refused outright; everything else needs the typed token
 - passwords and auth providers stay in the Home Assistant UI on purpose

@@ -31,7 +31,7 @@ If this fails: `ha-nova setup`
 
 1. **Persons**: WS `person/list` -> `person/create` / `person/update` / `person/delete`.
    - a person links `device_trackers` (which follow them) and optionally a `user_id` (their login)
-   - update sends the full person object — read it first, or you drop their trackers
+   - update resends every mutable field (read first, or you drop their trackers), addressed by `person_id` — never put `id` in the body, Home Assistant rejects it. Zone and tag updates work the same way (`zone_id` / `tag_id`).
 2. **Zones**: WS `zone/list` -> `zone/create` / `zone/update` / `zone/delete`.
    - a zone is `name`, `latitude`, `longitude`, `radius` (metres), `icon`, `passive`
    - **Zones are presence infrastructure.** Changing a radius or deleting a zone silently changes when every presence automation fires. Before any zone change, run `search/related` on the zone and name the automations that depend on it — as an advisory, in the preview.
@@ -79,5 +79,5 @@ For persons: name, device trackers, linked user. For zones: name, radius, and wh
 ## Guardrails
 
 - One person, zone, tag, or user per operation.
-- Updates send the full object — read before write, always.
+- Updates resend every mutable field, addressed by the `*_id` key — never `id` in the body; read before write, always.
 - Never guess a `person_id`, `zone_id`, `tag_id`, or user `id`.

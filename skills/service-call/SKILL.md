@@ -36,7 +36,7 @@ Some services return data (`weather.get_forecasts`, `calendar.get_events`, `todo
 ### Weather forecasts
 
 `weather.get_forecasts` is the response service for forecasts — there is no weather skill because this IS the whole API:
-`POST /api/services/weather/get_forecasts?return_response` with `{"entity_id":"weather.<id>","type":"daily"}` (`hourly` / `twice_daily` also exist). The forecast list arrives under `.data.body.service_response.<entity_id>.forecast`. Read-only: no confirmation needed.
+`POST /api/services/weather/get_forecasts?return_response` with `{"entity_id":"weather.<id>","type":"daily"}` (`hourly` / `twice_daily` also exist). The forecast list arrives under `.data.body.service_response["weather.<id>"].forecast` — bracket notation, the key contains a dot. Read-only: no confirmation needed.
 
 ## Flow
 
