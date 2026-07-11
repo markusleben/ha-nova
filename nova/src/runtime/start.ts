@@ -81,7 +81,10 @@ export function bootstrapRuntime(dependencies: RuntimeDependencies = {}): Runtim
   // off when no config directory is mounted — reporting a mode the relay cannot
   // serve would be a lie.
   const fileAccess = resolveFileAccess(
-    { ...process.env, FILE_ACCESS: fileAccessOption(appOptions, process.env) },
+    {
+      mode: fileAccessOption(appOptions, process.env),
+      configRootOverride: process.env.CONFIG_ROOT
+    },
     (path: string) => existsSync(path) && statSync(path).isDirectory()
   );
   const app = createApp({

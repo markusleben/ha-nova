@@ -19,7 +19,9 @@ export function parseFileAccessMode(raw: unknown): FileAccessMode {
   }
   const value = String(raw).trim().toLowerCase();
   if (!ALLOWED_MODES.has(value as FileAccessMode)) {
-    throw new Error(`file_access must be one of: off, read, readwrite (got '${value}')`);
+    // The rejected value is deliberately NOT echoed: this message travels into
+    // the startup log, and a config value must never be reflected there.
+    throw new Error("file_access must be one of: off, read, readwrite");
   }
   return value as FileAccessMode;
 }
@@ -31,12 +33,15 @@ export function parseFileAccessMode(raw: unknown): FileAccessMode {
  * capability the relay can hand an agent, so it is never on by accident.
  */
 export function resolveFileAccess(
-  source: NodeJS.ProcessEnv,
+  input: { mode?: unknown; configRootOverride?: string | undefined },
   directoryExists: (path: string) => boolean
 ): FileAccessConfig {
-  const mode = parseFileAccessMode(source.FILE_ACCESS);
+  // The two values are passed explicitly rather than handing this function the
+  // whole environment: a spread of process.env makes every variable a taint
+  // source, and CodeQL is right that config values must not flow into logs.
+  const mode = parseFileAccessMode(input.mode);
 
-  const explicitRoot = source.CONFIG_ROOT?.trim();
+  const explicitRoot = input.configRootOverride?.trim();
   if (explicitRoot) {
     return { mode, configRoot: explicitRoot };
   }

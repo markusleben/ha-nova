@@ -111,7 +111,12 @@ function parseFilesRequest(body: unknown): FilesRequest {
     }
   }
 
-  const backup = raw.backup === undefined ? true : raw.backup === true;
+  // A non-boolean 'backup' (e.g. the string "true", or 1) must NOT silently
+  // disable the rollback copy — backups are the safety net for every overwrite.
+  if (raw.backup !== undefined && typeof raw.backup !== "boolean") {
+    throw new HttpError(400, "VALIDATION_ERROR", "backup must be a boolean");
+  }
+  const backup = raw.backup ?? true;
 
   return { action, path, content, backup };
 }
@@ -273,14 +278,21 @@ async function writeTextFile(
   let backupPath: string | null = null;
   if (existing && backup) {
     backupPath = `${absolute}.bak`;
-    await writeFile(backupPath, await readFile(absolute));
+    // The .bak and .nova-tmp paths are DERIVED, so the containment check above
+    // never saw them: if either already exists as a symlink, writing would
+    // follow it straight out of the config directory. Remove any existing entry
+    // (the link itself, never its target) and create exclusively, so a symlink
+    // planted between the checks cannot be followed either.
+    await removeIfPresent(backupPath);
+    await writeFile(backupPath, await readFile(absolute), { flag: "wx" });
   }
 
   await mkdir(dirname(absolute), { recursive: true });
   // Write to a temp file and rename: a crash mid-write must never leave Home
   // Assistant with a half-written configuration file.
   const tempPath = `${absolute}.nova-tmp`;
-  await writeFile(tempPath, content, "utf8");
+  await removeIfPresent(tempPath);
+  await writeFile(tempPath, content, { encoding: "utf8", flag: "wx" });
   await rename(tempPath, absolute);
 
   return {
@@ -289,6 +301,18 @@ async function writeTextFile(
     created: existing === null,
     backup: backupPath ? `${logicalPath}.bak` : null
   };
+}
+
+// Removes a derived path (.bak / .nova-tmp) if anything is there — including a
+// symlink, in which case unlink removes the LINK, not whatever it points at.
+async function removeIfPresent(path: string): Promise<void> {
+  try {
+    await unlink(path);
+  } catch (error) {
+    if (!isNotFound(error)) {
+      throw error;
+    }
+  }
 }
 
 async function deleteFile(absolute: string, logicalPath: string): Promise<unknown> {
