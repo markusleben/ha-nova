@@ -35,6 +35,7 @@ Before the first HA task in a session:
 2. Otherwise run: `ha-nova check-update --quiet`
 3. If the output contains `UPDATE AVAILABLE`, inform the user and offer to update.
 4. If the output is empty, continue silently.
+5. If any `ha-nova relay` command later prints an `[ha-nova]` update notice on stderr, surface it to the user once and continue the current task.
 
 When an update is available:
 1. Run: `ha-nova update`

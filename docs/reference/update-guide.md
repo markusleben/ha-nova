@@ -62,13 +62,14 @@ On native Windows, post-update client sync uses the installed HA NOVA runtime di
 
 ## Automatic Checks
 
-Two checks run automatically:
+Three checks run automatically:
 
 1. **Skill update check** — `ha-nova check-update` compares the installed version against the latest GitHub release. The result is cached briefly, then revalidated against GitHub with a conditional request, so a newly published release is detected promptly instead of being hidden until a long cache expires. Claude Code SessionStart reads the same shared release cache and can trigger a background CLI refresh when the cache is stale. Other clients should run the quiet check once on the first HA NOVA skill use in a session.
 2. **Relay compat check** — `ha-nova relay health` compares Relay version against `min_relay_version`. Claude Code SessionStart context can surface the same warning independently.
+3. **Relay-traffic update nudge** — every `ha-nova relay ws|core` call surfaces a cached "update available" notice on stderr at most once per 24h; `ha-nova relay health` surfaces it unthrottled as the explicit diagnostic path. The compare is cache-only (never a network call in the hot path); a non-fresh cache is refreshed by a detached background `check-update --quiet --json`. Opt out with `HA_NOVA_NO_UPDATE_NUDGE=1`.
 
-The `doctor` command runs both checks synchronously and also refreshes the update cache.
-Other clients use the same shared CLI updater path (`ha-nova check-update`, `ha-nova doctor`, `ha-nova update`), but do not currently inject the same automatic SessionStart banner.
+The `doctor` command runs the first two checks synchronously and also refreshes the update cache.
+Other clients use the same shared CLI updater path (`ha-nova check-update`, `ha-nova doctor`, `ha-nova update`) and do not inject the same automatic SessionStart banner; the relay-traffic nudge reaches them during normal skill use instead.
 Installed Claude uses the tested HA NOVA release payload on disk; update discovery stays automatic where HA NOVA already provides it.
 
 ## Agent-Driven Updates
