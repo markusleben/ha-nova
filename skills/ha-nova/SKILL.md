@@ -180,6 +180,8 @@ Match user intent to exactly one skill:
 | show history, logbook timelines, or long-term statistics | `ha-nova:history` |
 | check home status, repairs, system health, integration issues, unavailable entities, or low batteries | `ha-nova:health` |
 | find out WHY a specific automation, script, device, or integration failed or misbehaved (traces, error/system logs, root cause) | `ha-nova:diagnose` |
+| play, pause, skip, set volume, change source, group speakers, browse media, or announce over a speaker | `ha-nova:media` |
+| send a notification to a phone or another notify target, or manage Home Assistant's persistent notifications | `ha-nova:notify` |
 | list calendars or show calendar events | `ha-nova:calendar` |
 | show, add, complete, update, remove to-do or shopping-list items; create/delete to-do lists | `ha-nova:todo` |
 | check backup status, create a backup (also as a safety net before risky changes), inspect a backup's contents, delete backups | `ha-nova:backup` |
@@ -217,6 +219,11 @@ Match user intent to exactly one skill:
 **"Why didn't my morning automation run?"** → `ha-nova:diagnose` (concrete failure → traces + logs)
 **"Why is the light turning on at random times?"** → `ha-nova:diagnose`
 **"Show me the error log"** → `ha-nova:diagnose`
+**"Turn up the volume in the kitchen"** → `ha-nova:media`
+**"What's playing in the living room?"** → `ha-nova:media`
+**"Announce that dinner is ready"** → `ha-nova:media` (TTS to a speaker)
+**"Send me a notification when..."** → `ha-nova:write` (that is an automation, not a one-off send)
+**"Send a notification to my phone"** → `ha-nova:notify` (one-off send now)
 **"Is everything OK with my home?"** → `ha-nova:health` (current status, no concrete incident)
 **"Why are devices unavailable?"** → `ha-nova:health`
 **"Add milk to my shopping list"** → `ha-nova:todo`

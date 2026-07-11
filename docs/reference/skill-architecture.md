@@ -2,7 +2,7 @@
 
 ## Overview
 
-HA NOVA uses a flat skill layout with one context skill and 20 independent sub-skills under `skills/`.
+HA NOVA uses a flat skill layout with one context skill and 22 independent sub-skills under `skills/`.
 
 The repo skill tree is the single source of truth. Client installers adapt that same tree to each client's packaging rules:
 - Claude: plugin marketplace payload
@@ -48,6 +48,8 @@ skills/
   fallback/SKILL.md                     (ha-nova:fallback — mandatory fallback for relay-ready features)
   onboarding/SKILL.md                   (ha-nova:onboarding — onboarding + diagnostics)
   diagnose/SKILL.md                     (ha-nova:diagnose — failure root-cause: traces, logs, bounded windows)
+  media/SKILL.md                        (ha-nova:media — media player control, browsing, grouping, TTS announce)
+  notify/SKILL.md                       (ha-nova:notify — notify targets, mobile-app sends, persistent notifications)
 ```
 
 ## Discovery Model
@@ -106,6 +108,8 @@ Current mapping:
 | fallback | inline | research + web search + experimental relay calls (write-guarded) |
 | onboarding | inline | diagnostics only |
 | diagnose | inline | evidence gathering + reasoning, one gated debug escalation |
+| media | inline | feature-gated service calls with state read-back |
+| notify | inline | target discovery + one previewed send |
 
 **Rule of thumb:** If a `service-call` could do it, it's inline. If it needs what `write` needs (resolve + normalize + reload), use agents.
 
@@ -330,6 +334,26 @@ Rules:
 - the single mutation is a temporary `logger.set_level` debug escalation — preview, confirm, and always schedule the reset in the same interaction
 - conclusions bind to evidence (trace step, log line, state sequence); otherwise present ranked hypotheses plus the deciding probe
 - fixes hand off to `ha-nova:write` / `ha-nova:helper` / `ha-nova:service-call`
+
+## Media Architecture
+
+`ha-nova:media` owns media player work:
+- `supported_features` bitmask gate BEFORE any action (browse 131072, grouping 524288, stop 4096, select source 2048, ...) — the full MediaPlayerEntityFeature table lives in the skill
+- transport/volume/source via `media_player.*` services; verify by re-reading the entity state
+- browsing: WS `media_player/browse_media` (player library) and `media_source/browse_media` + `media_source/resolve_media` (HA media sources); `media_content_type` and `media_content_id` are a pair
+- grouping via `media_player.join|unjoin`, verified through `group_members`
+- TTS announce via `tts.speak` (+ WS `tts/engine/list`), with the legacy `tts.*_say` fallback named explicitly
+
+Rules: never invent a `media_content_id`; volume jumps and announcements are disruptive side effects and need an explicit confirmation.
+
+## Notify Architecture
+
+`ha-nova:notify` owns notification delivery:
+- two surfaces, explicitly disambiguated: notify ENTITIES (`notify.send_message`) for plain messages and UI groups; legacy `notify.mobile_app_<device>` services for everything with a `data` payload (actionable buttons, tag replace/clear, sticky, channel/importance, url, image)
+- discovery from `/api/services` (notify domain) plus the entity registry — never guess a device name
+- persistent notifications via WS `persistent_notification/get` + `persistent_notification.create|dismiss`
+- honesty: a 200 means Home Assistant accepted the send, never that the phone displayed it
+- actionable callbacks are out of reach (they arrive as `mobile_app_notification_action` events, which need a subscription): hand off to `ha-nova:write` for the automation pattern
 
 ## Fallback Architecture
 
