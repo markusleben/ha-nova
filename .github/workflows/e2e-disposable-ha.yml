@@ -1,0 +1,31 @@
+name: E2E (disposable Home Assistant)
+
+# Boots a real Home Assistant, runs the standalone relay against it, and asserts
+# the guarantees only a live system can prove (see docs/reference/safety.md).
+# Non-blocking by design: it is evidence, not a merge gate — a Home Assistant
+# release or a Docker Hub hiccup must not block unrelated PRs.
+
+on:
+  schedule:
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  disposable-ha:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install the websocket client used to mint the token
+        run: pip install --quiet websockets
+
+      - name: Run the live end-to-end verification
+        run: bash scripts/e2e/disposable-ha/run.sh
