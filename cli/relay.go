@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -35,14 +36,15 @@ func newRelayHTTPClient(connectTimeoutSeconds, maxTimeSeconds float64) *http.Cli
 }
 
 type relayRequestOptions struct {
-	InlineJSON   string
-	JSONFile     string
-	JQFilter     string
-	JQFile       string
-	OutputFile   string
-	Method       string
-	Path         string
-	StrictStatus bool
+	InlineJSON    string
+	JSONFile      string
+	JQFilter      string
+	JQFile        string
+	OutputFile    string
+	BinaryOutFile string
+	Method        string
+	Path          string
+	StrictStatus  bool
 }
 
 func runRelayCommand(paths runtimePaths, args []string) int {
@@ -86,6 +88,7 @@ func parseRelayFlags(command string, args []string) (relayRequestOptions, error)
 		fs.StringVar(&opts.InlineJSON, "d", "", "inline JSON body")
 		fs.StringVar(&opts.JSONFile, "body-file", "", "path to JSON body file")
 		fs.BoolVar(&opts.StrictStatus, "strict-status", false, "exit nonzero for any upstream HTTP error status")
+		fs.StringVar(&opts.BinaryOutFile, "out-binary", "", "decode a base64 upstream body and write the raw bytes to this file")
 	default:
 		return opts, fmt.Errorf("unsupported relay command: %s", command)
 	}
@@ -99,6 +102,14 @@ func parseRelayFlags(command string, args []string) (relayRequestOptions, error)
 	if command == "core" {
 		if opts.Method == "" || opts.Path == "" {
 			return opts, errors.New("--method and --path are required for relay core")
+		}
+	}
+	if opts.BinaryOutFile != "" {
+		if opts.JQFilter != "" || opts.JQFile != "" {
+			return opts, errors.New("--out-binary cannot be combined with --jq/--jq-file: the binary body is decoded from the raw envelope")
+		}
+		if opts.OutputFile != "" {
+			return opts, errors.New("use either --out or --out-binary, not both")
 		}
 	}
 	return opts, nil
@@ -233,7 +244,12 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 		bodyBytes = []byte(res.output)
 	}
 
-	if opts.OutputFile != "" {
+	if opts.BinaryOutFile != "" {
+		if err := writeRelayBinaryBody(bodyBytes, opts.BinaryOutFile); err != nil {
+			printErr("%s", err)
+			return 1
+		}
+	} else if opts.OutputFile != "" {
 		if err := os.MkdirAll(filepath.Dir(opts.OutputFile), 0o755); err != nil {
 			printErr("%s", err)
 			return 1
@@ -256,6 +272,44 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 		return upstreamExitStatus
 	}
 	return 0
+}
+
+// writeRelayBinaryBody decodes a base64 upstream body (camera frames and other
+// binary responses, marked by the relay with body_encoding: "base64") and
+// writes the raw bytes. A missing marker is an error, not a silent text write:
+// that would hand the caller a file full of JSON instead of an image.
+func writeRelayBinaryBody(envelope []byte, path string) error {
+	// body is RawMessage on purpose: a text/JSON body is not a string, and
+	// decoding must fail with the actionable "use --out" message instead of an
+	// unmarshal error about the field type.
+	var parsed struct {
+		OK   bool `json:"ok"`
+		Data struct {
+			Body         json.RawMessage `json:"body"`
+			BodyEncoding string          `json:"body_encoding"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(envelope, &parsed); err != nil {
+		return fmt.Errorf("cannot read the relay response as JSON: %w", err)
+	}
+	if !parsed.OK {
+		return errors.New("relay returned an error envelope; run the request without --out-binary to see it")
+	}
+	if parsed.Data.BodyEncoding != "base64" {
+		return errors.New("upstream body is not binary (no base64 marker) — use --out instead of --out-binary")
+	}
+	var encoded string
+	if err := json.Unmarshal(parsed.Data.Body, &encoded); err != nil {
+		return fmt.Errorf("binary body is marked base64 but is not a string: %w", err)
+	}
+	raw, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		return fmt.Errorf("cannot decode the binary body: %w", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(path, raw, 0o644)
 }
 
 func relayCoreUpstreamExitStatus(body []byte, strict bool) int {

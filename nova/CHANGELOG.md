@@ -9,6 +9,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic
 Recent changes are tracked in [GitHub releases](https://github.com/markusleben/ha-nova/releases)
 and merged PRs. This changelog will be updated with the next tagged relay version.
 
+## [Relay 0.3.0] - 2026-07-11
+
+### Added
+- `collect_events.on_limit: "return"` (window mode): the relay resolves with the events collected so far and marks the response `truncated: true` instead of failing when `max_events`/`timeout_ms` is reached. Enables bounded sniffing of streams that never emit a finish event (MQTT topics, event buses).
+- Subscription WS commands are allowed inside a `collect_events` envelope. The collection unsubscribes in its `finally` block and its lifetime is bounded, so nothing leaks; bare subscriptions stay rejected.
+- Binary responses on `/core`: non-text/non-JSON upstream bodies (camera frames) are returned base64-encoded with `body_encoding: "base64"` and `content_type`, capped at 8 MiB. They were previously UTF-8 decoded, which silently corrupted every non-ASCII byte.
+
+### Compatibility
+- Default behavior is unchanged: without `on_limit` the strict semantics apply, and JSON/text bodies (including the plain-text `/api/error_log`) keep their exact shape.
+
 ## [Relay 0.2.6] - 2026-07-08
 
 ### Fixed

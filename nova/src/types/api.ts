@@ -24,4 +24,10 @@ export interface CoreProxyRequest {
 export interface CoreProxyResponse {
   status: number;
   body: unknown;
+  /**
+   * Set to "base64" when the upstream body is binary (e.g. a camera JPEG).
+   * Absent for JSON and text bodies, so every existing consumer is unaffected.
+   */
+  body_encoding?: "base64";
+  content_type?: string;
 }

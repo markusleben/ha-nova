@@ -23,14 +23,37 @@ export interface HaWsConnection {
 
 export interface HaWsClient {
   sendMessage<T>(message: HaWsRequest): Promise<T>;
-  collectMessageEvents<T>(message: HaWsRequest, options?: HaWsEventCollectionOptions): Promise<T[]>;
+  collectMessageEvents<T>(
+    message: HaWsRequest,
+    options?: HaWsEventCollectionOptions
+  ): Promise<HaWsEventCollection<T>>;
   isConnected(): boolean;
 }
+
+// Window mode budgets the ack separately from the collection window: the WS
+// connection is already open, so an ack lands in milliseconds. If it does not
+// land within this grace period the outer timeout fires and the call fails
+// honestly, instead of reporting an empty window for a subscription that never
+// existed.
+const SUBSCRIPTION_ACK_GRACE_MS = 2_000;
 
 export interface HaWsEventCollectionOptions {
   finishEventType?: string;
   maxEvents?: number;
   timeoutMs?: number;
+  /**
+   * What to do when max_events or the timeout is reached before the finish
+   * event arrives. "error" (default) preserves the original strict semantics;
+   * "return" resolves with the events collected so far and marks the result
+   * truncated — that is what turns a bounded collection into a sniff window
+   * for streams that never emit a finish event (e.g. mqtt/subscribe).
+   */
+  onLimit?: "error" | "return";
+}
+
+export interface HaWsEventCollection<T> {
+  events: T[];
+  truncated: boolean;
 }
 
 export interface HaWsClientOptions {
@@ -96,7 +119,7 @@ export function createHaWsClient(options: HaWsClientOptions): HaWsClient {
     async collectMessageEvents<T>(
       message: HaWsRequest,
       collectionOptions: HaWsEventCollectionOptions = {}
-    ): Promise<T[]> {
+    ): Promise<HaWsEventCollection<T>> {
       const upstream = await getOrCreateConnection();
       const subscribeMessage = upstream.subscribeMessage;
       if (!subscribeMessage) {
@@ -109,15 +132,17 @@ export function createHaWsClient(options: HaWsClientOptions): HaWsClient {
       const finishEventType = collectionOptions.finishEventType ?? "finish";
       const maxEvents = collectionOptions.maxEvents ?? 100;
       const timeoutMs = collectionOptions.timeoutMs ?? requestTimeoutMs;
+      const returnOnLimit = collectionOptions.onLimit === "return";
       const events: T[] = [];
       let unsubscribe: (() => void | Promise<void>) | undefined;
       let unsubscribeOnAck = false;
+      let windowTimer: ReturnType<typeof setTimeout> | undefined;
 
       try {
         return await withTimeout(
-          new Promise<T[]>((resolve, reject) => {
+          new Promise<HaWsEventCollection<T>>((resolve, reject) => {
             let settled = false;
-            const settleResolve = (value: T[]) => {
+            const settleResolve = (value: HaWsEventCollection<T>) => {
               if (!settled) {
                 settled = true;
                 resolve(value);
@@ -138,11 +163,15 @@ export function createHaWsClient(options: HaWsClientOptions): HaWsClient {
 
                 events.push(event as T);
                 if (isEventType(event, finishEventType)) {
-                  settleResolve([...events]);
+                  settleResolve({ events: [...events], truncated: false });
                   return;
                 }
 
                 if (events.length >= maxEvents) {
+                  if (returnOnLimit) {
+                    settleResolve({ events: [...events], truncated: true });
+                    return;
+                  }
                   settleReject(
                     new HaWsClientError(
                       "UPSTREAM_WS_ERROR",
@@ -158,11 +187,25 @@ export function createHaWsClient(options: HaWsClientOptions): HaWsClient {
                 unsubscribe = cancel;
                 if (unsubscribeOnAck) {
                   void Promise.resolve(cancel()).catch(() => undefined);
+                  return;
+                }
+                if (returnOnLimit && !settled) {
+                  // Window mode: the stream may never emit a finish event, so
+                  // the window timeout is a normal end condition. It starts
+                  // only AFTER the subscription is acknowledged — otherwise a
+                  // subscription that never establishes would resolve as an
+                  // empty-but-successful sniff window instead of failing.
+                  windowTimer = setTimeout(() => {
+                    settleResolve({ events: [...events], truncated: true });
+                  }, timeoutMs);
                 }
               })
               .catch(settleReject);
           }),
-          timeoutMs
+          // In window mode the post-ack timer is the real deadline; withTimeout
+          // backstops a subscription that never acks, which then surfaces as an
+          // honest UPSTREAM_WS_TIMEOUT instead of a fake empty window.
+          returnOnLimit ? timeoutMs + SUBSCRIPTION_ACK_GRACE_MS : timeoutMs
         );
       } catch (error) {
         const commandError = describeUpstreamCommandError(error);
@@ -191,6 +234,9 @@ export function createHaWsClient(options: HaWsClientOptions): HaWsClient {
 
         throw new HaWsClientError("UPSTREAM_WS_ERROR", describeTransportError(error), error);
       } finally {
+        if (windowTimer) {
+          clearTimeout(windowTimer);
+        }
         if (unsubscribe) {
           await unsubscribe();
         } else {

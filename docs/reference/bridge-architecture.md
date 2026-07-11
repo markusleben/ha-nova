@@ -98,13 +98,28 @@ collection with an explicit envelope:
   "collect_events": {
     "until_type": "finish",
     "max_events": 100,
-    "timeout_ms": 10000
+    "timeout_ms": 10000,
+    "on_limit": "error"
   }
 }
 ```
 
 The Relay forwards `message`, collects events until `until_type`, and returns
 them as `data.events`. It does not inspect command semantics or event payloads.
+
+`on_limit` (relay 0.3.0) decides what happens when `max_events` or `timeout_ms`
+is reached before the finish event:
+
+- `"error"` (default): fail with `502 UPSTREAM_WS_ERROR` / `UPSTREAM_WS_TIMEOUT` — the original strict semantics.
+- `"return"` (window mode): resolve with the events collected so far and set `data.truncated: true`. This is what makes bounded *sniffing* possible for streams that never emit a finish event (MQTT topics, event buses).
+
+**Subscription commands are allowed INSIDE a `collect_events` envelope** (relay
+0.3.0). The two reasons for the general ban do not apply there: the collection
+unsubscribes in its `finally` block, and its lifetime is bounded by
+`max_events`/`timeout_ms`, so no upstream subscription can leak or accumulate.
+A *bare* subscription (no envelope) is still rejected with
+`400 UNSUPPORTED_WS_TYPE`, because the relay could neither deliver its events
+nor bound its lifetime.
 
 Optional: Batch mode
 ```json

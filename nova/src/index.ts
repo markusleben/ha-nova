@@ -1,7 +1,11 @@
 import type { Server } from "node:http";
 
 import type { CoreProxyRequest, CoreProxyResponse } from "./types/api.js";
-import type { HaWsRequest } from "./ha/ws-client.js";
+import type {
+  HaWsEventCollection,
+  HaWsEventCollectionOptions,
+  HaWsRequest,
+} from "./ha/ws-client.js";
 import { createCoreProxyHandler } from "./http/handlers/core-proxy.js";
 import { createHealthHandler } from "./http/handlers/health.js";
 import { createWsProxyHandler } from "./http/handlers/ws-proxy.js";
@@ -14,7 +18,10 @@ export interface AppOptions {
   wsClient: {
     isConnected(): boolean;
     sendMessage(message: HaWsRequest): Promise<unknown>;
-    collectMessageEvents(message: HaWsRequest): Promise<unknown[]>;
+    collectMessageEvents(
+      message: HaWsRequest,
+      options?: HaWsEventCollectionOptions
+    ): Promise<HaWsEventCollection<unknown>>;
   };
   coreClient: {
     request(input: CoreProxyRequest): Promise<CoreProxyResponse>;

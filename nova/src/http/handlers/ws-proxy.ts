@@ -1,4 +1,9 @@
-import { HaWsClientError, type HaWsEventCollectionOptions, type HaWsRequest } from "../../ha/ws-client.js";
+import {
+  HaWsClientError,
+  type HaWsEventCollection,
+  type HaWsEventCollectionOptions,
+  type HaWsRequest,
+} from "../../ha/ws-client.js";
 import { HttpError } from "../errors.js";
 import type { RouteContext, RouteHandler } from "../router.js";
 
@@ -8,7 +13,7 @@ export interface WsProxyHandlerOptions {
     collectMessageEvents?(
       message: HaWsRequest,
       options?: HaWsEventCollectionOptions
-    ): Promise<unknown[]>;
+    ): Promise<HaWsEventCollection<unknown>>;
   };
 }
 
@@ -26,12 +31,16 @@ export function createWsProxyHandler(options: WsProxyHandlerOptions): RouteHandl
 
     try {
       if (request.collectEvents) {
-        const events = await collectFiniteEvents(
+        const collection = await collectFiniteEvents(
           options.wsClient,
           request.message,
           request.collectEvents
         );
-        return { events };
+        // `truncated` is emitted only when it is true: an unset flag keeps the
+        // response shape identical for every caller that does not use window mode.
+        return collection.truncated
+          ? { events: collection.events, truncated: true }
+          : { events: collection.events };
       }
 
       return await options.wsClient.sendMessage(request.message);
@@ -77,12 +86,19 @@ function isWsMessageLike(value: unknown): boolean {
 
 function parseEnvelopeRequest(body: Record<string, unknown>): ParsedWsProxyRequest {
   const message = parseHaWsMessage(body.message);
-  rejectUnsupportedWsType(message.type);
 
   if (!("collect_events" in body)) {
+    // No envelope options: this is a bare request/response call in envelope
+    // clothing, so the subscription ban still applies.
+    rejectUnsupportedWsType(message.type);
     return { message };
   }
 
+  // Subscription commands ARE allowed inside a collect_events envelope: the
+  // two reasons for the ban do not apply here. The collection unsubscribes in
+  // its finally block, and its lifetime is bounded by max_events/timeout_ms,
+  // so no upstream subscription can leak or accumulate. Bare subscriptions
+  // (above) stay rejected exactly as before.
   return {
     message,
     collectEvents: parseCollectEventsOptions(body.collect_events),
@@ -160,6 +176,18 @@ function parseCollectEventsOptions(value: unknown): HaWsEventCollectionOptions {
     options.maxEvents = maxEvents;
   }
 
+  if ("on_limit" in raw) {
+    const onLimit = raw.on_limit;
+    if (onLimit !== "error" && onLimit !== "return") {
+      throw new HttpError(
+        400,
+        "VALIDATION_ERROR",
+        "collect_events.on_limit must be 'error' or 'return'"
+      );
+    }
+    options.onLimit = onLimit;
+  }
+
   if ("timeout_ms" in raw) {
     const timeoutMs = raw.timeout_ms;
     if (
@@ -184,7 +212,7 @@ async function collectFiniteEvents(
   wsClient: WsProxyHandlerOptions["wsClient"],
   request: HaWsRequest,
   collectionOptions: HaWsEventCollectionOptions
-): Promise<unknown[]> {
+): Promise<HaWsEventCollection<unknown>> {
   if (!wsClient.collectMessageEvents) {
     throw new HttpError(
       502,

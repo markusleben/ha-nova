@@ -215,4 +215,47 @@ describe("ha rest client", () => {
 
     await expectation;
   });
+
+  // Binary bodies (camera frames) used to be UTF-8 decoded, which silently
+  // corrupted every byte outside ASCII. They now travel as base64 with an
+  // explicit marker — dumb, honest transport.
+  it("returns binary bodies as base64 with an encoding marker", async () => {
+    const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46]);
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(jpeg, {
+          status: 200,
+          headers: { "content-type": "image/jpeg" }
+        })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = createHaRestClient({ baseUrl: "http://ha.local", token: "upstream-token" });
+    const response = await client.request({
+      method: "GET",
+      path: "/api/camera_proxy/camera.front"
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body_encoding).toBe("base64");
+    expect(response.content_type).toBe("image/jpeg");
+    expect(Buffer.from(response.body as string, "base64").equals(jpeg)).toBe(true);
+  });
+
+  it("keeps plain-text bodies on the text path without markers", async () => {
+    const fetchMock = vi.fn(
+      async () =>
+        new Response("2026-07-11 ERROR (MainThread) boom", {
+          status: 200,
+          headers: { "content-type": "text/plain; charset=utf-8" }
+        })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = createHaRestClient({ baseUrl: "http://ha.local", token: "upstream-token" });
+    const response = await client.request({ method: "GET", path: "/api/error_log" });
+
+    expect(response.body).toBe("2026-07-11 ERROR (MainThread) boom");
+    expect(response.body_encoding).toBeUndefined();
+  });
 });
