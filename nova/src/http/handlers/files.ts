@@ -178,6 +178,16 @@ async function resolveTargetPath(configRoot: string, logicalPath: string, action
     // requested NAME; it must be applied again to what the path actually
     // resolves to, or a symlink becomes a bypass.
     assertNotDenied(relative(realRoot, real));
+
+    // A write to an EXISTING path goes through the link to its real target: a
+    // rename would otherwise replace the symlink with a regular file, silently
+    // breaking the user's structure while leaving the real file stale — and the
+    // read side already followed the link, so the flow would be incoherent.
+    // The target was just validated above. Deletes deliberately do NOT do this:
+    // removing a link must remove the link, not what it points at.
+    if (action === "write_file" && probe === absolute) {
+      return real;
+    }
   } catch (error) {
     if (isNotFound(error)) {
       throw new HttpError(404, "FILE_NOT_FOUND", `not found: ${logicalPath}`);

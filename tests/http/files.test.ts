@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync, readFileSync, existsSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -297,6 +297,38 @@ describe("files handler — operations", () => {
     expect(readFileSync(join(root, "configuration.yaml"), "utf8")).toContain("Changed");
     // The .bak must hold the ORIGINAL — that is the whole point of the rollback path.
     expect(readFileSync(join(root, "configuration.yaml.bak"), "utf8")).toContain("name: Home");
+  });
+
+  // A symlink to another ALLOWED file inside the root is a legitimate structure
+  // (packages, themes). The read side follows it, so the write must too —
+  // otherwise the rename replaces the link with a regular file and the real
+  // target silently keeps the old content.
+  it("writes through an in-root symlink instead of replacing it", async () => {
+    mkdirSync(join(root, "ha_nova"));
+    writeFileSync(join(root, "ha_nova", "pkg.yaml"), "old: true\n");
+    symlinkSync(join(root, "ha_nova", "pkg.yaml"), join(root, "packages.yaml"));
+
+    await call("readwrite", {
+      action: "write_file",
+      path: "/config/packages.yaml",
+      content: "new: true\n"
+    });
+
+    // The link survives, and the real file carries the new content.
+    expect(lstatSync(join(root, "packages.yaml")).isSymbolicLink()).toBe(true);
+    expect(readFileSync(join(root, "ha_nova", "pkg.yaml"), "utf8")).toContain("new: true");
+  });
+
+  // ...but deleting a link must remove the LINK, never its target.
+  it("deletes the symlink itself, not the file it points at", async () => {
+    mkdirSync(join(root, "ha_nova2"));
+    writeFileSync(join(root, "ha_nova2", "keep.yaml"), "keep: true\n");
+    symlinkSync(join(root, "ha_nova2", "keep.yaml"), join(root, "link.yaml"));
+
+    await call("readwrite", { action: "delete_file", path: "/config/link.yaml" });
+
+    expect(existsSync(join(root, "link.yaml"))).toBe(false);
+    expect(readFileSync(join(root, "ha_nova2", "keep.yaml"), "utf8")).toContain("keep: true");
   });
 
   it("leaves no temp file behind after a write", async () => {
