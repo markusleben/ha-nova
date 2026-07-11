@@ -1,5 +1,5 @@
 import { constants } from "node:fs";
-import { access, mkdir, readdir, readFile, realpath, rename, stat, unlink, writeFile } from "node:fs/promises";
+import { access, lstat, mkdir, readdir, readFile, realpath, rename, stat, unlink, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, normalize, relative, resolve, sep } from "node:path";
 
 import type { FileAccessConfig } from "../../config/file-access.js";
@@ -268,10 +268,16 @@ async function listDir(absolute: string, logicalPath: string): Promise<unknown> 
 
   const items = await Promise.all(
     shown.map(async (entry) => {
-      const info = await stat(join(absolute, entry.name)).catch(() => null);
+      // lstat, not stat: stat FOLLOWS a symlink, so listing a directory that
+      // contains a link to secrets.yaml (or to something outside the root)
+      // would leak the target's metadata — a path the endpoint refuses to serve
+      // directly. A link is reported as a link, with no size.
+      const info = entry.isSymbolicLink()
+        ? null
+        : await lstat(join(absolute, entry.name)).catch(() => null);
       return {
         name: entry.name,
-        type: entry.isDirectory() ? "dir" : "file",
+        type: entry.isSymbolicLink() ? "symlink" : entry.isDirectory() ? "dir" : "file",
         size: info?.size ?? null
       };
     })

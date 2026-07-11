@@ -276,6 +276,24 @@ describe("files handler — operations", () => {
     expect(result.entries.find((e) => e.name === ".storage")?.type).toBe("dir");
   });
 
+  // stat() follows symlinks; lstat() does not. Listing a directory that holds a
+  // link to a denied or outside file must not leak the target's metadata — a
+  // path this endpoint refuses to serve directly.
+  it("lists symlinks as links and leaks no metadata about their targets", async () => {
+    symlinkSync(join(root, "secrets.yaml"), join(root, "to-secrets.yaml"));
+    symlinkSync(join(outside, "loot.txt"), join(root, "to-outside.txt"));
+
+    const result = (await call("read", { action: "list_dir", path: "/config" })) as {
+      entries: Array<{ name: string; type: string; size: number | null }>;
+    };
+
+    for (const name of ["to-secrets.yaml", "to-outside.txt"]) {
+      const entry = result.entries.find((e) => e.name === name);
+      expect(entry?.type, name).toBe("symlink");
+      expect(entry?.size, name).toBeNull();
+    }
+  });
+
   it("writes a new file and reports that it was created", async () => {
     const result = (await call("readwrite", {
       action: "write_file",
