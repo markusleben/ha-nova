@@ -28,6 +28,7 @@ Instead, this skill queries InfluxDB's own HTTP API **directly from this machine
    - `HANOVA_INFLUXDB_URL` (e.g. `http://192.168.1.10:8086`)
    - `HANOVA_INFLUXDB_TOKEN` (2.x/3.x) or `HANOVA_INFLUXDB_USER` + `HANOVA_INFLUXDB_PASSWORD` (1.x)
    - `HANOVA_INFLUXDB_BUCKET` (2.x) or `HANOVA_INFLUXDB_DB` (1.x)
+   - `HANOVA_INFLUXDB_ORG` (2.x — the query API requires it on self-hosted OSS; optional on Cloud, where the token implies it)
    If they are unset, explain what to set and where (their shell profile) — then STOP. Never ask the user to paste a token into the conversation.
 
 ## Relay Contract
@@ -42,7 +43,7 @@ The query goes out with the client's own HTTP tool.
 2. Resolve what the user means to a real Home Assistant `entity_id` first — InfluxDB stores measurements by `entity_id`, so a wrong name silently returns nothing.
 3. Query, bounded, and read-only:
    - **1.x**: `GET <url>/query?db=<db>&q=<InfluxQL>` — e.g. `SELECT mean("value") FROM "°C" WHERE "entity_id" = 'kitchen_temperature' AND time > now() - 365d GROUP BY time(1d)`
-   - **2.x**: `POST <url>/api/v2/query` with `Authorization: Token <token>`, a Flux body, and `Accept: application/csv`
+   - **2.x**: `POST <url>/api/v2/query?org=<org>` with `Authorization: Token <token>`, a Flux body, and `Accept: application/csv`
    - **3.x**: `POST <url>/api/v3/query_sql` with SQL
    Always bound the time range and aggregate in the query (`GROUP BY time(...)`) — never pull raw points for a year and summarize client-side.
 4. Present the result as an answer, not a data dump: the trend, the numbers that matter, the time range, and the source (InfluxDB, not Home Assistant).

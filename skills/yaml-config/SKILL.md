@@ -41,8 +41,8 @@ Never skip a step.
 
 1. **Read before write.** `read_file` the target (or `list_dir` to find it). Never write a file you have not read: `write_file` replaces the whole file, so an unread file means an unknown loss.
 2. **Build the change in memory** and show a real diff of before/after in the `Changes` slot. Say plainly which file, and that the whole file is being replaced.
-3. **Confirm**, then `write_file` with `backup: true` (the default). The relay writes `<file>.bak` first — that is your rollback, and you should name it in the preview.
-4. **Validate**: `POST /api/config/core/check_config`. `{"result":"invalid"}` means Home Assistant would refuse this config: restore the `.bak` immediately (`read_file` it, `write_file` the original back), tell the user what was wrong, and do NOT reload.
+3. **Confirm**, then `write_file` with `backup: true` (the default). The relay writes `<file>.bak` first — that is your rollback; name it in the preview.
+4. **Validate**: `POST /api/config/core/check_config`. `{"result":"invalid"}` means Home Assistant would refuse this config: restore the `.bak` immediately (`read_file` it, `write_file` it back with `"backup": false`, or the `.bak` becomes the invalid file), tell the user what was wrong, and do NOT reload.
 5. **Reload the right domain** — a full restart is almost never necessary:
    - template sensors -> `template.reload`
    - REST sensors -> `rest.reload`
@@ -55,7 +55,7 @@ Never skip a step.
 
 - Keep HA NOVA's own additions in `/config/ha_nova/` and include them from `configuration.yaml` — a small, reviewable footprint the user can delete in one go. Add the `!include` line only once, and show it before writing it.
 - Never touch `secrets.yaml`, `.storage/`, or the recorder database: the relay refuses them anyway, and needing them means the approach is wrong.
-- Code is not configuration: the relay refuses `custom_components/`, `python_scripts/`, and `www/` entirely and writes only `.yaml`/`.yml`/`.conf`/`.json`/`.txt`/`.md` — never offer to place scripts or web assets.
+- Code is not configuration: the relay refuses `custom_components/`, `python_scripts/`, `www/` and writes only `.yaml`/`.yml`/`.conf`/`.json`/`.txt`/`.md` — never offer to place scripts there.
 - Prefer a helper over a YAML file whenever the helper can express it (`ha-nova:helper`).
 
 ## When file access is off (the default)
