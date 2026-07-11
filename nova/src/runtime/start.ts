@@ -1,11 +1,11 @@
-import { existsSync, statSync } from "node:fs";
+import { accessSync, constants, statSync } from "node:fs";
 import { type Server } from "node:http";
 
 import { createConnection, createLongLivedTokenAuth, type HaWebSocket } from "home-assistant-js-websocket";
 
 import { createApp, type App } from "../index.js";
 import { readAppOptions, type AppOptions } from "../config/app-options.js";
-import { resolveFileAccess, type FileAccessConfig } from "../config/file-access.js";
+import { resolveFileAccess, type FileAccessConfig, type RootProbe } from "../config/file-access.js";
 import { loadEnv, type EnvConfig, type LogLevel } from "../config/env.js";
 import { createAuthenticatedHaSocket } from "../ha/socket.js";
 import { createHaRestClient, type HaRestClient } from "../ha/rest-client.js";
@@ -85,7 +85,7 @@ export function bootstrapRuntime(dependencies: RuntimeDependencies = {}): Runtim
       mode: fileAccessOption(appOptions, process.env),
       configRootOverride: process.env.CONFIG_ROOT
     },
-    (path: string) => existsSync(path) && statSync(path).isDirectory()
+    (path: string) => probeConfigRoot(path)
   );
   const app = createApp({
     authToken: env.relayAuthToken,
@@ -214,6 +214,12 @@ function logStartup(logger: Logger, runtime: RuntimeBootstrapResult): void {
   for (const warning of runtime.upstreamAuth.warnings) {
     logger.warn(warning);
   }
+
+  // A degraded file-access mode must be visible in the App log: the user set an
+  // option and got something less, and they deserve to know why.
+  for (const warning of runtime.fileAccess.warnings) {
+    logger.warn(warning);
+  }
 }
 
 function logLine(level: LogLevel | "error", message: string, context?: Record<string, unknown>): void {
@@ -241,4 +247,32 @@ function fileAccessOption(appOptions: AppOptions, env: NodeJS.ProcessEnv): strin
     return fromApp;
   }
   return env.FILE_ACCESS;
+}
+
+// Probes what the relay can really do with a candidate config root. A mount can
+// exist and still be read-only or owned by another UID — the mode must reflect
+// reality, not the option.
+function probeConfigRoot(path: string): RootProbe {
+  try {
+    if (!statSync(path).isDirectory()) {
+      return { isDirectory: false, readable: false, writable: false };
+    }
+  } catch {
+    return { isDirectory: false, readable: false, writable: false };
+  }
+
+  const can = (mode: number): boolean => {
+    try {
+      accessSync(path, mode);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  return {
+    isDirectory: true,
+    readable: can(constants.R_OK),
+    writable: can(constants.W_OK)
+  };
 }

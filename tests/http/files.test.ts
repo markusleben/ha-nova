@@ -12,7 +12,7 @@ let root = "";
 let outside = "";
 
 function handler(mode: FileAccessConfig["mode"]) {
-  return createFilesHandler({ fileAccess: { mode, configRoot: root } });
+  return createFilesHandler({ fileAccess: { mode, configRoot: root, warnings: [] } });
 }
 
 async function call(mode: FileAccessConfig["mode"], body: unknown): Promise<unknown> {

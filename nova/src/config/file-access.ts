@@ -4,6 +4,14 @@ export interface FileAccessConfig {
   mode: FileAccessMode;
   /** Absolute path the container sees for Home Assistant's config directory. */
   configRoot: string;
+  /** Why the effective mode is lower than the one that was asked for. */
+  warnings: string[];
+}
+
+export interface RootProbe {
+  isDirectory: boolean;
+  readable: boolean;
+  writable: boolean;
 }
 
 const ALLOWED_MODES = new Set<FileAccessMode>(["off", "read", "readwrite"]);
@@ -35,25 +43,61 @@ export function parseFileAccessMode(raw: unknown): FileAccessMode {
  */
 export function resolveFileAccess(
   input: { mode?: unknown; configRootOverride?: string | undefined },
-  directoryExists: (path: string) => boolean
+  probeRoot: (path: string) => RootProbe
 ): FileAccessConfig {
   // The two values are passed explicitly rather than handing this function the
   // whole environment: a spread of process.env makes every variable a taint
   // source, and CodeQL is right that config values must not flow into logs.
-  const mode = parseFileAccessMode(input.mode);
+  const requested = parseFileAccessMode(input.mode);
+  const warnings: string[] = [];
 
   const explicitRoot = input.configRootOverride?.trim();
-  if (explicitRoot) {
-    return { mode, configRoot: explicitRoot };
-  }
+  const candidates = explicitRoot ? [explicitRoot] : CANDIDATE_ROOTS;
 
-  for (const candidate of CANDIDATE_ROOTS) {
-    if (directoryExists(candidate)) {
-      return { mode, configRoot: candidate };
+  for (const candidate of candidates) {
+    const probe = probeRoot(candidate);
+    if (!probe.isDirectory) {
+      continue;
     }
+    return {
+      mode: effectiveMode(requested, probe, candidate, warnings),
+      configRoot: candidate,
+      warnings
+    };
   }
 
   // No mount: the endpoint stays disabled regardless of the requested mode —
   // reporting "readwrite" while nothing is mounted would be a lie.
-  return { mode: "off", configRoot: "" };
+  if (requested !== "off") {
+    warnings.push(
+      "file_access is set, but no Home Assistant configuration directory is mounted — file access stays off."
+    );
+  }
+  return { mode: "off", configRoot: "", warnings };
+}
+
+/**
+ * Degrades the requested mode to what the process can ACTUALLY do. A bind mount
+ * can easily be read-only or owned by another user; reporting "readwrite" and
+ * then failing on the first write with EACCES would be a lie that surfaces at
+ * the worst possible moment.
+ */
+function effectiveMode(
+  requested: FileAccessMode,
+  probe: RootProbe,
+  root: string,
+  warnings: string[]
+): FileAccessMode {
+  if (requested === "off") {
+    return "off";
+  }
+  if (!probe.readable) {
+    warnings.push(`file_access is set, but ${root} is not readable by the relay — file access stays off.`);
+    return "off";
+  }
+  if (requested === "readwrite" && !probe.writable) {
+    warnings.push(`file_access is 'readwrite', but ${root} is not writable by the relay — falling back to read-only.`);
+    return "read";
+  }
+  return requested;
 }
