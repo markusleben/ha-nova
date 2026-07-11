@@ -22,6 +22,10 @@ ha-nova relay health
 
 If this fails, run onboarding: `ha-nova setup`.
 
+## Relay Contract
+
+File-based relay requests only: `ha-nova relay core --method <METHOD> --path <PATH> --body-file <payload-file>` for config writes, `ha-nova relay ws --data-file <payload-file>` for reads/reloads, `--jq-file` / `--out` for filters and large reads.
+
 ## Flow
 
 Multi-target logical changes: present the plan first per `skills/ha-nova/write-safety.md` → Multi-Target Changes.

@@ -14,17 +14,7 @@ Mandatory fallback for HA features without a dedicated skill. Three tiers:
 - **Roadmap**: Planned for future Relay phases -- explain timeline + workaround.
 - **External**: Outside HA NOVA scope -- web search + HA UI pointer.
 
-All relay calls in this skill are experimental -- always follow Safety Guardrails below.
-
-## Safety Baseline
-
-- Correct invalid Home Assistant premises explicitly.
-- Do not silently compensate for a wrong premise.
-- Keep corrections brief and technical, not preachy.
-
-## Output Rules
-
-Apply `skills/ha-nova/output-rules.md` to all user-facing output.
+All relay calls in this skill are experimental -- always follow the Safety section below.
 
 ## Bootstrap (only before Relay-Ready calls)
 
@@ -78,7 +68,7 @@ For every Relay-Ready call in this skill:
 | HACS | External | -- |
 | Zigbee / Z-Wave Config | External | -- |
 
-## Agent Flow
+## Flow
 
 ```
 1. Check Capability Map for user's request
@@ -239,7 +229,26 @@ Device pairing is hardware-specific, requires direct coordinator access (ZHA, Z2
 
 **Alternative:** HA UI: Settings > Devices & Services > [Zigbee/Z-Wave integration].
 
-## Safety Guardrails
+## Error Handling
+
+Experimental calls may fail with unfamiliar errors. Full relay/upstream error taxonomy: `skills/ha-nova/relay-api.md` → Error Handling. Fallback-specific rules:
+
+- `400/VALIDATION_ERROR`: payload schema wrong -- search web for current WS type schema
+- `404/NOT_FOUND`: endpoint may not exist in this HA version -- check HA release notes
+- `502/UPSTREAM_*` transport errors: verify state/config first (see `relay-api.md` → Timeout and Retry Guidance); retry once only when verification shows no change, then route to `ha-nova:onboarding`
+
+## Output Format
+
+Apply `skills/ha-nova/output-rules.md` to all user-facing output.
+
+Every experimental call result names the tier (Relay-Ready / Roadmap / External), carries the EXPERIMENTAL marker where required, and summarizes verified outcomes only.
+
+## Safety
+
+Premise handling:
+- Correct invalid Home Assistant premises explicitly.
+- Do not silently compensate for a wrong premise.
+- Keep corrections brief and technical, not preachy.
 
 Rules for all experimental relay calls in this skill:
 
@@ -274,11 +283,3 @@ No HA WS endpoint has optimistic locking (no ETags, no version numbers). Last wr
 - Probing write endpoints to "see what happens" — read the Relay-Ready section first
 - Skipping this skill and going straight to `ha-nova relay ws`/`ha-nova relay core` for unfamiliar operations
 - Using trial-and-error to discover payload schemas — search web for the WS type schema instead
-
-## Error Handling
-
-Experimental calls may fail with unfamiliar errors. Full relay/upstream error taxonomy: `skills/ha-nova/relay-api.md` → Error Handling. Fallback-specific rules:
-
-- `400/VALIDATION_ERROR`: payload schema wrong -- search web for current WS type schema
-- `404/NOT_FOUND`: endpoint may not exist in this HA version -- check HA release notes
-- `502/UPSTREAM_*` transport errors: verify state/config first (see `relay-api.md` → Timeout and Retry Guidance); retry once only when verification shows no change, then route to `ha-nova:onboarding`

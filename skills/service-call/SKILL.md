@@ -20,10 +20,6 @@ No config mutations (use `ha-nova:write` for automation/script changes).
 Verify relay CLI: `ha-nova relay health`
 If this fails: `ha-nova setup`
 
-## Output Rules
-
-Apply `skills/ha-nova/output-rules.md` to all user-facing output.
-
 ## Relay Contract
 
 Use file-based payloads for service writes:
@@ -111,13 +107,6 @@ Rules:
 - Ask for confirmation bound to that exact runtime-call preview before execution.
 - After execution, verify only the target automation/script state and any user-approved helper/state assertions; do not infer device safety from a successful service response alone.
 
-## Safety
-
-- Preview every service call before execution.
-- Never guess entity IDs; resolve or ask.
-- No token confirmation needed for ordinary service calls; confirmation is still bound to the active preview.
-- For potentially disruptive services (e.g., `homeassistant.restart`), warn and ask for explicit post-preview confirmation.
-
 ## Error Handling
 
 Full relay/upstream error taxonomy (codes, HTTP-status split, retry rules): `skills/ha-nova/relay-api.md` → Error Handling.
@@ -126,6 +115,19 @@ Service-call specifics:
 - `404/NOT_FOUND` or upstream `.data.status` 404: entity or service does not exist — re-resolve before retrying
 - `502/UPSTREAM_*` transport errors: HA may already have accepted the action — verify entity state first (see `relay-api.md` → Timeout and Retry Guidance); retry once only when verification shows no state change, otherwise report the result
 - State verification failure (state didn't change): report discrepancy, do not retry automatically
+
+## Output Format
+
+Apply `skills/ha-nova/output-rules.md` to all user-facing output.
+
+Report the executed service, its target, and the verified state change (or the discrepancy); summarize response-service data instead of dumping it.
+
+## Safety
+
+- Preview every service call before execution.
+- Never guess entity IDs; resolve or ask.
+- No token confirmation needed for ordinary service calls; confirmation is still bound to the active preview.
+- For potentially disruptive services (e.g., `homeassistant.restart`), warn and ask for explicit post-preview confirmation.
 
 ## Guardrails
 

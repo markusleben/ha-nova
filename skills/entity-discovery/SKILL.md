@@ -23,10 +23,6 @@ Read-only behavior.
 Verify relay CLI: `ha-nova relay health`
 If this fails: `ha-nova setup`
 
-## Output Rules
-
-Apply `skills/ha-nova/output-rules.md` to all user-facing output.
-
 ## Relay Contract
 
 Use file-based relay requests by default:
@@ -136,6 +132,12 @@ This is more reliable than keyword search or assuming `.ai` is populated for roo
 - keyword match on entity_id + name second
 
 If ambiguity remains: present top candidates (max 10), ask one selection question.
+
+## Output Format
+
+Apply `skills/ha-nova/output-rules.md` to all user-facing output.
+
+Return the Step 4 shortlist shape; never dump raw `get_states` output.
 
 ## Safety
 
