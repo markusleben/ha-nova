@@ -2,11 +2,11 @@
 
 Single source of truth for Relay calls used by HA NOVA skills.
 
-## Auth
+## Auth & Transport
 
-- Header: `Authorization: Bearer $RELAY_AUTH_TOKEN`
-- Header: `Content-Type: application/json`
-- Base URL: `RELAY_BASE_URL`
+Transport, auth headers, and the base URL are handled internally by the `ha-nova relay` CLI wrapper — the relay token lives in the OS credential store. Never set, request, export, or ask the user for `RELAY_AUTH_TOKEN` or `RELAY_BASE_URL`. If a relay call fails, run `ha-nova relay health`; if that fails, have the user run `ha-nova setup`.
+
+Underlying HTTP contract (reference only, not for direct use): `Authorization: Bearer <relay token>` and `Content-Type: application/json` against the relay base URL.
 
 ## Endpoints
 

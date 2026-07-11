@@ -320,12 +320,14 @@ describe("best-practice patterns contract", () => {
       expect(checks).toContain("Zigbee Button Patterns");
     });
 
-    it("review SKILL.md references P-01..P-05 range", () => {
-      const reviewSkill = readFileSync(
-        "skills/review/SKILL.md",
+    it("checks.md Application references P-01..P-05 range", () => {
+      // M1: the family matrix moved from review Step 1 into the
+      // self-contained checks.md -> Application section.
+      const checksCatalog = readFileSync(
+        "skills/review/checks.md",
         "utf8",
       );
-      expect(reviewSkill).toContain("P-01..P-05");
+      expect(checksCatalog).toContain("P-01..P-05");
     });
 
     it("skill-architecture.md references P-01..P-05 range", () => {

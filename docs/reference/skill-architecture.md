@@ -432,7 +432,7 @@ Unified spec for post-write review. Both `write` and `helper` skills reference t
 
 After any mutation (automation, script, or helper):
 1. Re-read written config via relay
-2. Enter via `skills/review/SKILL.md` Step 1 and load the detailed checks from `skills/review/checks.md`:
+2. Apply `skills/review/checks.md` → Application (family matrix + evidence boundaries):
    - **Automations:** S + R + P + M checks. If actions reference helpers, also H checks on those helpers.
    - **Scripts:** S + R + P + M + F checks. If actions reference helpers, also H checks.
    - **Helpers:**
@@ -469,9 +469,9 @@ When creating a new skill under `skills/{name}/SKILL.md`:
 
 ## Review Check Single Source of Truth
 
-`skills/review/SKILL.md` is the stable review entrypoint.
-`skills/review/checks.md` is the authoritative source for the detailed review catalog (S/R/P/M/F/H).
-There is deliberately no review agent template: `write` and `helper` run their post-write review inline against `skills/review/SKILL.md` and `skills/review/checks.md` instead of duplicating checks in a separate template.
+`skills/review/SKILL.md` is the stable review entrypoint for standalone reviews (workflow, output shape, collision/conflict analysis).
+`skills/review/checks.md` is the authoritative, self-contained source for the detailed review catalog (S/R/P/M/F/H) plus its `## Application` section (family matrix, evidence boundaries, live-helper evidence).
+There is deliberately no review agent template: `write` and `helper` run their post-write review inline against `skills/review/checks.md` only — they no longer load the standalone review workflow.
 When adding or modifying checks, update `skills/review/checks.md` first and keep `skills/review/SKILL.md` aligned as the facade/workflow file.
 
 ## Review Check Taxonomy

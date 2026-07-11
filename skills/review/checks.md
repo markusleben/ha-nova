@@ -2,7 +2,7 @@
 
 Canonical path: `skills/review/checks.md`
 
-Load this catalog from `skills/review/SKILL.md` Step 1 before evaluating findings.
+Self-contained catalog: load this file before evaluating findings — from `skills/review/SKILL.md` for standalone reviews, or directly from `skills/write/SKILL.md` / `skills/helper/SKILL.md` post-write phases.
 
 ## Output Guardrail (Critical)
 
@@ -18,6 +18,37 @@ Load this catalog from `skills/review/SKILL.md` Step 1 before evaluating finding
 - Number = running rule number within that family
 - Severity is separate from the code
 - Code visibility is governed by the Output Guardrail above
+
+## Application (family matrix + evidence boundaries)
+
+**Apply these families by domain:**
+- Automation: S-01..S-03, R-01..R-28, P-01..P-05, M-01..M-05
+- Script: automation families plus F-01..F-08
+- Helper (storage-based family): H-01..H-10
+- Helper (config-entry family): minimal config-entry review
+  - do not apply H-01..H-10
+  - confirm config-entry metadata is present
+  - inspect linked entities when available
+  - in Step 2, derive collision candidates from `linked_entities[]`, not from config actions
+  - run `search/related` on up to 3 linked entities
+  - say explicitly that config-entry helper review does not use the storage-helper H rules
+  - for the `template` domain, also read the linked entity's rendered state (`unavailable`/`unknown` is inconclusive, not proof of breakage — source state or an intentional sentinel); to apply the template-level reliability checks, open the options flow for the entry first (non-persisting readback — the canonical metadata item does not carry the `state` template)
+- If an automation or script references helpers in actions or direct thresholds, also apply H-01..H-10 to those helpers
+- R-17 is an intra-config branch comparison only. Never emit it from collision scan or cross-automation conflict analysis.
+- R-18 applies only to sibling-variable references within one `variables:` mapping. Never emit it for cross-action or cross-scope references, script `fields`, HA builtins, or `{% set %}` locals inside the same template.
+- For R-18 output, include the block context plus at least one concrete variable pair. For pasted YAML or draft configs, describe it as future write fragility. For HA read-back or post-write review, describe it as a persisted runtime risk.
+- R-19 applies only to Jinja2 chains with `if` plus at least one `elif`, entity-state-style branch guards, and a terminal bare `else` that contains a direct `trigger.id` comparison. Skip single `if` / `else`, `trigger.id` in `elif`, non-entity-state selector trees, `else` blocks with extra explicit guards, and `choose` + `condition: trigger`.
+- For R-19 output, state: final else branch is only reached when the earlier entity-state branches are false. Move the `trigger.id` check into an explicit `elif`. Or refactor to `choose` + `condition: trigger`.
+- R-23 applies only to boolean-like templates compared to string boolean literals (`'True'`, `'true'`, `'False'`, `'false'`) in either comparison direction. Do not flag bare boolean checks such as `is true` or `== true`.
+- R-24 is advisory only and applies only when a capacity-like variable reads an `available_energy` source. Do not hard-code integration-specific replacement entities.
+- R-25 applies only to pasted or draft YAML containing `platform: template` entity definitions (domain-level blocks or bare `!include`-file lists); configs read back from HA never carry this syntax. When it fires, fetch the HA version via `/api/config` on demand and phrase the finding version-sensitively (removed as of HA 2026.6; deprecated 2025.12–2026.5; still current earlier — see the R-25 Evidence Boundary in `skills/review/checks.md`).
+- M-05 is a modernize advisory for legacy automation keys (`platform:` in triggers, singular `trigger:`/`condition:`/`action:` blocks). Mention once, never as an error, never rewrite just to modernize.
+
+**Live helper evidence for H-09/H-10:**
+- See `skills/review/checks.md` → Helper Threshold Evidence
+- Read `/api/states/<helper_entity_id>` only when the threshold reference is direct
+- If `state`, `attributes.min`, `attributes.max`, or `attributes.step` are missing or non-numeric, skip H-09/H-10
+- Do not emit unrelated findings just because an H-09/H-10 signal matched
 
 ## Safety (Critical)
 

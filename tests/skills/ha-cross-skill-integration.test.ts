@@ -10,7 +10,10 @@ describe("ha cross-skill integration", () => {
     expect(writeSkill).toContain("Phase 2: Preview + Confirm (Main Thread)");
     expect(writeSkill).toContain("Phase 3: Apply + Verify (Agent)");
     expect(writeSkill).toContain("Phase 4: Post-Write Review");
-    expect(writeSkill).toContain("skills/review/SKILL.md");
+    // M1: write's post-write review loads only the self-contained checks
+    // catalog, no longer the standalone review workflow.
+    expect(writeSkill).toContain("skills/review/checks.md");
+    expect(writeSkill).not.toContain("skills/review/SKILL.md");
     expect(writeSkill).toContain("full-replacement merge (base=current, overlay=user changes)");
     expect(writeSkill).toContain("confirm:<token>");
     expect(writeSkill).toContain("Changes slot");
@@ -26,7 +29,7 @@ describe("ha cross-skill integration", () => {
     expect(writeSkill).toContain("skills/ha-nova/best-practices.md");
     expect(writeSkill).toContain("skills/ha-nova/agents/resolve-agent.md");
     expect(writeSkill).toContain("skills/ha-nova/agents/apply-agent.md");
-    expect(writeSkill).toContain("skills/review/SKILL.md");
+    expect(writeSkill).toContain("skills/review/checks.md");
     expect(writeSkill).toContain("config/entity_registry/get");
     expect(writeSkill).toContain("list_for_display` only for search/disambiguation");
   });

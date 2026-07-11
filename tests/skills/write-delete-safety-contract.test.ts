@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 const writeSkill = readFileSync("skills/write/SKILL.md", "utf8");
 const refactorGuide = readFileSync("skills/ha-nova/safe-refactoring.md", "utf8");
 const writeSafety = readFileSync("skills/ha-nova/write-safety.md", "utf8");
+  const updateRevert = readFileSync("skills/ha-nova/update-revert.md", "utf8");
 const applyAgent = readFileSync("skills/ha-nova/agents/apply-agent.md", "utf8");
 const resolveAgent = readFileSync("skills/ha-nova/agents/resolve-agent.md", "utf8");
 
@@ -47,7 +48,7 @@ describe("write delete safety contract", () => {
     expect(writeSafety).toContain("update-revert keeps the");
     expect(writeSafety).toContain("last 5 updated targets");
     expect(writeSafety).toContain("one step back per");
-    expect(writeSafety).toContain("snapshot show --target <target_id>");
+    expect(updateRevert).toContain("snapshot show --target <target_id>");
     expect(writeSafety).toContain("snapshot show --list");
     expect(writeSafety).toContain("never continue silently into a half-applied state");
     expect(writeSkill).toContain("Multi-target logical changes: present the plan first");
@@ -65,7 +66,7 @@ describe("write delete safety contract", () => {
     expect(writeSafety).toContain("**not** reduce it to core fields");
     expect(writeSafety).toContain("ha-nova snapshot verify");
     // Restore goes through the normal write path; create/delete fall back to backups.
-    expect(writeSafety).toContain("Home Assistant Backups");
+    expect(updateRevert).toContain("Home Assistant Backups");
   });
 
   it("documents safety-mechanism availability per skill and backup pointers where revert is absent", () => {
@@ -148,8 +149,8 @@ describe("write delete safety contract", () => {
     expect(writeSafety).toContain("paste the ha-nova diff file/stdout");
     // Snapshot save is an explicit command; revert reads before_config only from it.
     expect(writeSkill).toContain("**run `ha-nova snapshot save`**");
-    expect(writeSafety).toContain("only** source of `before_config`");
-    expect(writeSafety).toContain("reconstruct the previous config from memory");
+    expect(updateRevert).toContain("only** source of `before_config`");
+    expect(updateRevert).toContain("reconstruct the previous config from memory");
   });
 
   it("keeps delete a typed token even under menu pressure", () => {
