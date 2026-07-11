@@ -27,13 +27,47 @@ describe("app config contract", () => {
 
     expect(parsed.options).toEqual({
       relay_auth_token: null,
-      ha_llat: ""
+      ha_llat: "",
+      // File access is a capability, not a default: the App ships it OFF.
+      file_access: "off"
     });
 
     expect(parsed.schema).toEqual({
       relay_auth_token: "password",
-      ha_llat: "password?"
+      ha_llat: "password?",
+      file_access: "list(off|read|readwrite)?"
     });
+
+    // The config directory is mapped so file access CAN work, but mapping it
+    // grants nothing on its own — the option above is the gate. The path is
+    // pinned explicitly: a type-derived default mount would leave the relay
+    // unable to find the directory, and file access would silently stay off.
+    expect(parsed.map).toEqual([
+      { type: "homeassistant_config", read_only: false, path: "/config" }
+    ]);
+  });
+
+  // A security-sensitive option needs UI copy, or the user sees a bare dropdown
+  // and cannot tell what they are turning on.
+  it("explains every App option in the UI translations", () => {
+    const config = YAML.parse(readFileSync("nova/config.yaml", "utf8")) as {
+      options: Record<string, unknown>;
+    };
+    const translations = YAML.parse(readFileSync("nova/translations/en.yaml", "utf8")) as {
+      configuration: Record<string, { name?: string; description?: string }>;
+    };
+
+    for (const option of Object.keys(config.options)) {
+      const copy = translations.configuration[option];
+      expect(copy?.name, `${option}: missing a UI name`).toBeTruthy();
+      expect(copy?.description, `${option}: missing a UI description`).toBeTruthy();
+    }
+
+    // The file-access copy must state the default and the hard limits — that is
+    // what makes the opt-in gate meaningful to a human.
+    const fileAccess = translations.configuration.file_access?.description ?? "";
+    expect(fileAccess).toContain("off");
+    expect(fileAccess).toContain("Secrets");
   });
 
   it("has relay version >= min_relay_version from version.json", () => {

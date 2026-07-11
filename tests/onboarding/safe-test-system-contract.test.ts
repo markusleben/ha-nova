@@ -1,9 +1,23 @@
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 
 import { describe, expect, it } from "vitest";
+
+// CI runs Node 20, where fs.globSync does not exist yet — walk the tree instead.
+function collectTestFiles(dir: string): string[] {
+  const found: string[] = [];
+  for (const entry of readdirSync(dir)) {
+    const path = join(dir, entry);
+    if (statSync(path).isDirectory()) {
+      found.push(...collectTestFiles(path));
+    } else if (entry.endsWith(".test.ts")) {
+      found.push(path.split("\\").join("/"));
+    }
+  }
+  return found;
+}
 
 function expectFragmentsInOrder(haystack: string, fragments: string[]) {
   let cursor = 0;
@@ -19,6 +33,31 @@ function expectNoFullVitestSweep(verifyScript: string) {
 }
 
 describe("safe test system contract", () => {
+  // Every test file must actually RUN in `npm run verify`. A test file that no
+  // script references is worse than no test: it looks like coverage and proves
+  // nothing. This guard exists because 50 /files security tests and the skill
+  // linter silently never ran in CI — they were simply missing from the
+  // manifest.
+  it("runs every test file through verify", () => {
+    const manifest = new Set(
+      JSON.parse(readFileSync("scripts/test/safe-core-files.json", "utf8")) as string[]
+    );
+    const scripts = Object.values(
+      (JSON.parse(readFileSync("package.json", "utf8")) as { scripts: Record<string, string> }).scripts
+    ).join(" ");
+
+    const testFiles = collectTestFiles("tests");
+    expect(testFiles.length).toBeGreaterThan(50);
+
+    const orphans = testFiles.filter(
+      (file) => !manifest.has(file) && !scripts.includes(file)
+    );
+    expect(
+      orphans,
+      `these test files are never executed by npm run verify — add them to scripts/test/safe-core-files.json or to an explicit verify step:\n  ${orphans.join("\n  ")}`
+    ).toEqual([]);
+  });
+
   const pkg = JSON.parse(readFileSync("package.json", "utf8")) as {
     scripts?: Record<string, string>;
   };

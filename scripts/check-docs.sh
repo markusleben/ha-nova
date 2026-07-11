@@ -24,13 +24,18 @@ echo "=== Documentation Fact-Check ==="
 echo ""
 
 # ── 1. LOC count ──
-# README claims "~1.5K LOC" — actual must be 1000–2000
-echo "[1] Relay LOC (README claims ~1.5K)"
+# The relay must stay small enough that a person can read it. The ceiling moved
+# from 2000 to 2800 across relay 0.4.0: the opt-in file transport is ~500 lines,
+# split into three modules (gate / path security / operations), and most of that
+# is containment, deny rules and the code-execution boundary. Growth here is
+# security surface, and it is reviewed as such. The README's own number is
+# updated in the release-prep PR — README describes the STABLE release, not main.
+echo "[1] Relay LOC (must stay readable in one sitting)"
 ACTUAL_LOC=$(find "$REPO_ROOT/nova/src" -name '*.ts' -exec cat {} + | wc -l | tr -d ' ')
-if (( ACTUAL_LOC >= 1000 && ACTUAL_LOC <= 2000 )); then
-  pass "src/ = ${ACTUAL_LOC} LOC (within 1000–2000 range)"
+if (( ACTUAL_LOC >= 1000 && ACTUAL_LOC <= 2800 )); then
+  pass "src/ = ${ACTUAL_LOC} LOC (within 1000–2800 range)"
 else
-  fail "src/ = ${ACTUAL_LOC} LOC — README says ~1.5K but actual is outside 1000–2000. Update README."
+  fail "src/ = ${ACTUAL_LOC} LOC — outside the 1000–2800 range. If this is real growth, justify it and update the README claim in the release-prep PR."
 fi
 
 # ── 2. Skill count ──
@@ -80,13 +85,26 @@ else
 fi
 
 # ── 5. No unplanned feature creep ──
-# Relay must stay minimal — no backup, filesystem, or streaming endpoints
-echo "[5] No backup/filesystem/streaming endpoints"
-PLANNED_HITS=$(count_matches "backup\|/backup\|/files\|filesystem\|/stream\|EventSource\|SSE" "$REPO_ROOT/nova/src/http/handlers/")
-if (( PLANNED_HITS == 0 )); then
-  pass "No backup/filesystem/streaming endpoints found"
+# The relay must stay minimal: no backup endpoints, no streaming. File access
+# EXISTS (relay 0.4.0, for YAML-only configuration that has no API) but it is a
+# capability, not a default — so the check is stricter than "no filesystem":
+# it fails if the opt-in gate ever disappears.
+echo "[5] No backup/streaming endpoints; file access stays opt-in"
+CREEP_HITS=$(count_matches "backup_endpoint\|/backup\|/stream\|EventSource\|SSE" "$REPO_ROOT/nova/src/http/handlers/")
+if (( CREEP_HITS != 0 )); then
+  fail "Found ${CREEP_HITS} hits for backup/streaming endpoints in handlers/ — the relay must stay minimal."
 else
-  fail "Found ${PLANNED_HITS} hits for backup/filesystem/streaming in handlers/ — relay should stay minimal."
+  pass "No backup/streaming endpoints found"
+fi
+
+if [[ -f "$REPO_ROOT/nova/src/http/handlers/files.ts" ]]; then
+  if grep -q 'FILE_ACCESS_DISABLED' "$REPO_ROOT/nova/src/http/handlers/files.ts" \
+     && grep -q 'return "off"' "$REPO_ROOT/nova/src/config/file-access.ts" \
+     && grep -q 'file_access: "off"' "$REPO_ROOT/nova/config.yaml"; then
+    pass "File access is opt-in and defaults to off"
+  else
+    fail "File access must default to OFF and refuse with FILE_ACCESS_DISABLED — the gate is the guarantee."
+  fi
 fi
 
 # ── 6. Internal links ──
@@ -138,7 +156,9 @@ fi
 
 # ── 11. No telemetry/analytics ──
 echo "[11] No telemetry or analytics code"
-TELEMETRY_HITS=$(count_matches "telemetry\|analytics\|mixpanel\|segment\|posthog\|sentry" "$REPO_ROOT/nova/src")
+# "segment" alone is an English word (path segments!) — match the vendors, not
+# the vocabulary, or the check cries wolf and gets ignored.
+TELEMETRY_HITS=$(count_matches "telemetry\|analytics\|mixpanel\|segment\.io\|@segment/\|posthog\|sentry" "$REPO_ROOT/nova/src")
 if (( TELEMETRY_HITS == 0 )); then
   pass "No telemetry/analytics patterns in src/"
 else

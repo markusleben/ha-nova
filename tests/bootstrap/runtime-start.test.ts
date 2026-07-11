@@ -254,7 +254,9 @@ describe("runtime bootstrap", () => {
         relay_port: 8791,
         app_options_path: "/data/options.json",
         auth_source: "env_ha_llat",
-        auth_capability: "full"
+        auth_capability: "full",
+        file_access: "off",
+        config_root: null
       }
     });
     expect(warnLogs).toEqual([]);

@@ -1,6 +1,8 @@
 # NOVA Relay: Architecture Reference
 
-> **Implementation status:** Only Phase 1a is implemented. Phases 1c, 2, and 3 are planned.
+> **Implementation status:** Phase 1a is implemented (`/health`, `/ws`, `/core`), and
+> the Phase 3 filesystem endpoint (`/files`) shipped with relay 0.4.0 — opt-in and
+> off by default. Phases 1c (streaming subscriptions) and 2 (backups) remain planned.
 > Phase 1b was folded into 1a during development (the `/core` REST proxy was
 > originally scoped as a separate phase but shipped together with `/ws` and `/health`).
 
@@ -38,7 +40,7 @@ different thing: a relay-side store for CONFIG snapshots (see the
 POST /backups
 ```
 
-### Phase 3 (+ Filesystem) — PLANNED, NOT IMPLEMENTED
+### Phase 3 (+ Filesystem) — IMPLEMENTED in relay 0.4.0 (opt-in, default off)
 
 ```
 POST /files
