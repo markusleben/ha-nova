@@ -50,7 +50,11 @@ Discovery:
 1. Resolve the target with Target Discovery. If several devices match, present the candidates and ask once.
 2. Build the payload:
    - entity: `{"entity_id":"notify.<target>","message":"...","title":"..."}` for `notify.send_message`
-   - mobile app: `{"message":"...","title":"...","data":{...}}` for `notify.mobile_app_<device>`; common `data` keys: `tag` (replace/clear an earlier notification), `actions` (actionable buttons), `push` (iOS interruption level / Android channel + importance), `url`/`clickAction`, `image`, `sticky`, `persistent`, `ttl`/`priority` (Android delivery when dozing).
+   - mobile app: `{"message":"...","title":"...","data":{...}}` for `notify.mobile_app_<device>`. Common `data` keys, and the platform split that silently drops fields when confused:
+     - both platforms: `tag` (replace/clear an earlier notification), `actions` (actionable buttons), `image`/`video`/`audio`, `url` (iOS) / `clickAction` (Android).
+     - **Android — direct keys inside `data`**: `channel`, `importance`, `ttl`, `priority`, `sticky`, `persistent`, `notification_icon`, `color`. Nesting these under `push` does nothing on Android.
+     - **iOS — under `data.push`**: `interruption-level`, `sound`, `badge`. `push` is the iOS-only container; do not put Android channel/importance there.
+     Read the target's platform from the device name or ask, and place the keys accordingly.
    - A `message: "clear_notification"` with a matching `tag` removes a previously sent notification instead of sending a new one.
 3. Preview the exact payload (target + title + message + any `data`) and get confirmation — a notification is an irreversible, user-visible side effect.
 4. Send, then report what was sent where. There is no delivery receipt: a successful service call means Home Assistant accepted it, not that the phone displayed it — say so honestly.
@@ -70,6 +74,7 @@ Full relay/upstream error taxonomy: `skills/ha-nova/relay-api.md` -> Error Handl
 - `404/NOT_FOUND` on `notify.mobile_app_<device>`: the device name is wrong or the companion app is not registered — re-discover, never guess.
 - A service call returning 200 says nothing about delivery: the phone may be offline, or Android may hold the message while dozing (`priority: high` in `data` affects that).
 - `notify.send_message` rejects mobile-app `data` extras — that is the entity-platform limit, not a payload bug: switch to the legacy service.
+- An accepted send with silently ignored extras usually means the keys sat in the wrong place (Android keys under `push`, or iOS keys at top level) — re-check the platform split before blaming the device.
 
 ## Output Format
 
