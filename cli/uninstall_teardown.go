@@ -14,6 +14,10 @@ const (
 	teardownDeclined
 	teardownCancelled
 	teardownCompleted
+	// teardownCompletedUnverified: the user walked all steps, but the relay
+	// still answered the post-removal probes — the final report must keep the
+	// full HA checklist instead of claiming the server side is gone.
+	teardownCompletedUnverified
 )
 
 // teardownDeps isolates the guided teardown's side effects so tests can
@@ -57,6 +61,10 @@ func maybeOfferGuidedTeardown(reader *bufio.Reader, out io.Writer, preflight uni
 	}
 
 	stage := teardownStageOffer
+	// Trust-the-user default: only a probe that POSITIVELY shows the relay
+	// still answering downgrades the outcome — repo removal and LLAT
+	// revocation are unverifiable by design.
+	relayVerifiedGone := true
 	for {
 		switch stage {
 		case teardownStageOffer:
@@ -106,7 +114,7 @@ func maybeOfferGuidedTeardown(reader *bufio.Reader, out io.Writer, preflight uni
 			if err != nil {
 				return teardownNotOffered, err
 			}
-			verifyRelayGone(out, preflight, deps)
+			relayVerifiedGone = verifyRelayGone(out, preflight, deps)
 			stage = teardownStageRepo
 
 		case teardownStageRepo:
@@ -174,6 +182,9 @@ func maybeOfferGuidedTeardown(reader *bufio.Reader, out io.Writer, preflight uni
 			if err != nil {
 				return teardownNotOffered, err
 			}
+			if !relayVerifiedGone {
+				return teardownCompletedUnverified, nil
+			}
 			return teardownCompleted, nil
 		}
 	}
@@ -182,11 +193,14 @@ func maybeOfferGuidedTeardown(reader *bufio.Reader, out io.Writer, preflight uni
 // verifyRelayGone is the one verifiable teardown step: after the app is
 // removed, the relay must stop answering. A still-answering relay only warns
 // and never blocks — the user may legitimately run a second instance, and the
-// CLI cannot tell the difference. The token revocation step stays deliberately
-// unverifiable: the CLI never held the LLAT.
-func verifyRelayGone(out io.Writer, preflight uninstallPreflight, deps teardownDeps) {
+// CLI cannot tell the difference. It returns false only in that
+// still-answering case so the final report keeps the full checklist instead
+// of claiming the server side is gone; with nothing to probe (no base URL or
+// token) it stays trust-the-user, like the repo and LLAT steps. The token
+// revocation step stays deliberately unverifiable: the CLI never held the LLAT.
+func verifyRelayGone(out io.Writer, preflight uninstallPreflight, deps teardownDeps) bool {
 	if preflight.config.RelayBaseURL == "" || preflight.relayToken == "" {
-		return
+		return true
 	}
 	session := resolveStatusUISession(out)
 	for attempt := 0; attempt < 3; attempt++ {
@@ -195,10 +209,11 @@ func verifyRelayGone(out io.Writer, preflight uninstallPreflight, deps teardownD
 		}
 		if _, err := deps.relayHealth(preflight.config.RelayBaseURL, preflight.relayToken); err != nil {
 			fmt.Fprintf(out, "  %s Relay no longer answers — app removed.\n", session.style("success", session.successMarker()))
-			return
+			return true
 		}
 	}
 	fmt.Fprintf(out, "  %s The relay still answers at %s. If you run more than one instance this is expected; otherwise finish the app removal in Home Assistant.\n", session.style("warning", session.warningMarker()), preflight.config.RelayBaseURL)
+	return false
 }
 
 // teardownCompletedNoteLines replaces the server-side checklist after a

@@ -149,11 +149,14 @@ func TestGuidedTeardownNotOfferedWhenHAUnreachable(t *testing.T) {
 	}
 }
 
-func TestGuidedTeardownWarnsWhenRelayStillAnswers(t *testing.T) {
+func TestGuidedTeardownStillAnsweringRelayDowngradesToUnverified(t *testing.T) {
 	rec := &teardownRecorder{relayGone: false}
 	outcome, output := runTeardownWithInput(t, "y\n\n\n\n\n\n\n", teardownTestPreflight(), rec)
-	if outcome != teardownCompleted {
-		t.Fatalf("outcome = %v, want teardownCompleted\noutput:\n%s", outcome, output)
+	// A relay that positively still answers must not produce the verified
+	// outcome — runUninstall would otherwise replace the HA checklist with a
+	// "server side removed" claim.
+	if outcome != teardownCompletedUnverified {
+		t.Fatalf("outcome = %v, want teardownCompletedUnverified\noutput:\n%s", outcome, output)
 	}
 	if !strings.Contains(output, "still answers") {
 		t.Fatalf("expected still-answering warning:\n%s", output)
