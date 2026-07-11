@@ -214,5 +214,8 @@ Manual relay path:
 
 ## Safety
 
+- Read-only skill: never issue mutating relay or service calls.
+- For write intent, hand off to the owning skill; unfamiliar writes go through `ha-nova:fallback` first.
+
 - never guess ids
 - if multiple close matches, ask one selection question

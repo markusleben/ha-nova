@@ -87,6 +87,9 @@ Keep default output compact. Raw payload dumps are opt-in only.
 
 ## Safety
 
+- Read-only skill: never issue mutating relay or service calls.
+- For write intent, hand off to the owning skill; unfamiliar writes go through `ha-nova:fallback` first.
+
 - Read-only skill. No writes.
 - No guessed entity ids.
 - If more than one entity could match, ask one blocking question.

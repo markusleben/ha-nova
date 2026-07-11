@@ -490,9 +490,16 @@ For resolved targets `> 1`, return exactly these 6 sections:
 
 ## Safety
 
+- Preview before write: nothing is saved until the user confirms the shown preview.
+- Confirmation binds to the displayed preview and expires on any change to target, payload, endpoint, or scope (context skill → Active Preview Confirmation).
+- Pre-preview phrases ("do it", "go ahead", "implement the plan") authorize drafting and preview only — never the write itself.
+- Delete and destructive operations require the typed token `confirm:<token>` verbatim; "yes" or any natural-language reply is invalid.
+- Never guess entity, service, or config IDs — resolve them or ask.
+- Home Assistant is reached exclusively through `ha-nova relay`.
+- For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
+
 - Read-only analysis: no config writes through the relay (see Scope for the single Quick-Fix exception).
 - The Quick-Fix service call requires confirmation bound to its exact preview; bulk mode disables it entirely.
-- Never guess entity or config IDs; resolve or ask.
 
 ## Guardrails
 

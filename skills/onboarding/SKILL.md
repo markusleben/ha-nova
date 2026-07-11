@@ -49,6 +49,9 @@ On success, keep the response to the status line only. Do not dump raw relay out
 
 ## Safety
 
+- Read-only skill: never issue mutating relay or service calls.
+- For write intent, hand off to the owning skill; unfamiliar writes go through `ha-nova:fallback` first.
+
 - Diagnostics only — this skill never modifies Home Assistant state, config, or relay settings.
 - Never ask the user to paste tokens or secrets in chat.
 - All communication with Home Assistant goes through `ha-nova relay` exclusively.

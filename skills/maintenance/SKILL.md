@@ -76,6 +76,14 @@ Use stable localized slot labels in this order; omit empty slots. Grouped counts
 
 ## Safety
 
+- Preview before write: nothing is saved until the user confirms the shown preview.
+- Confirmation binds to the displayed preview and expires on any change to target, payload, endpoint, or scope (context skill → Active Preview Confirmation).
+- Pre-preview phrases ("do it", "go ahead", "implement the plan") authorize drafting and preview only — never the write itself.
+- Delete and destructive operations require the typed token `confirm:<token>` verbatim; "yes" or any natural-language reply is invalid.
+- Never guess entity, service, or config IDs — resolve them or ask.
+- Home Assistant is reached exclusively through `ha-nova relay`.
+- For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
+
 - Every write: preview → confirmation → per-item verification. Clear/purge/registry remove take the typed token; the reversible spike adjustment and unit relabel take payload-bound natural confirmation — offer the spike rollback.
 - Backup gate: before clearing statistics in bulk, purging with low keep_days, repack, or bulk registry removal, check for a recent backup via `ha-nova:backup` (proportional — never for a single small fix).
 - Never remove an entity that is merely offline; when in doubt, report instead of removing.
