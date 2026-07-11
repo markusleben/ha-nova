@@ -94,11 +94,12 @@ const SAFETY_CORE_BLOCKS = ((): { mutation: string; readOnly: string } => {
 })();
 
 // Word budgets: default 1150 (every sub-skill carries the mandatory ~100-word
-// Safety Core plus the output-rules pointer). Documented ratchets for
-// content-dense skills; write and review drop again after the masterplan A5
-// token diet (References split / checks.md self-containment).
+// Safety Core, the output-rules pointer, and the A6 frontmatter). Documented
+// ratchets for content-dense skills. Note: the A5 token diet cut the
+// TRANSITIVE load (lazy references), not these file sizes — write carries the
+// on-demand trigger list itself.
 const WORD_BUDGETS: Record<string, number> = {
-  write: 1350,
+  write: 1400,
   scene: 1350,
   "service-call": 1200,
   todo: 1200,
@@ -198,7 +199,30 @@ describe("skill template v2 contract", () => {
       for (const key of Object.keys(fm)) {
         expect(allowed.has(key), `${name}: frontmatter key '${key}' not allowed`).toBe(true);
       }
+      // Agent Skills open-standard alignment (masterplan A6): license and a
+      // compatibility hint are required; metadata/allowed-tools stay banned.
+      expect(fm.license, `${name}: license must be MIT`).toBe("MIT");
+      const compatibility = fm.compatibility ?? "";
+      expect(compatibility, `${name}: compatibility hint required`).toContain("ha-nova CLI");
+      expect(compatibility.length, `${name}: compatibility over spec limit`).toBeLessThanOrEqual(500);
     }
+  });
+
+  it("tells agents how to install the missing CLI in the onboarding skill", () => {
+    const onboarding = readFileSync(subskillPath("onboarding"), "utf8");
+    expect(onboarding).toContain("the CLI is not installed");
+    // Stable Install Contract: released skills must never bootstrap from the
+    // moving main branch — the guidance points at the tagged release.
+    expect(onboarding).toContain("releases/latest");
+    expect(onboarding).not.toContain("main/install.sh");
+  });
+
+  it("keeps the context skill on the A6 frontmatter standard too", () => {
+    const fm = parseFrontmatter(readFileSync("skills/ha-nova/SKILL.md", "utf8"));
+    expect(fm.license, "ha-nova: license must be MIT").toBe("MIT");
+    const compatibility = fm.compatibility ?? "";
+    expect(compatibility, "ha-nova: compatibility hint required").toContain("ha-nova CLI");
+    expect(compatibility.length, "ha-nova: compatibility over spec limit").toBeLessThanOrEqual(500);
   });
 
   it("pins the fallback discovery-time write gate in its description", () => {

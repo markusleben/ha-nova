@@ -1,6 +1,8 @@
 ---
 name: write
 description: Use when creating, updating, or deleting Home Assistant automations or scripts through HA NOVA Relay. Resolves entities and reviews internally.
+license: MIT
+compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay App in Home Assistant.
 ---
 
 # HA NOVA Write

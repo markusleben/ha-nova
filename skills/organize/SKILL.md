@@ -1,6 +1,8 @@
 ---
 name: organize
 description: Use when organizing Home Assistant areas, floors, labels, categories, and entity/device metadata through HA NOVA Relay.
+license: MIT
+compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay App in Home Assistant.
 ---
 
 # HA NOVA Organize

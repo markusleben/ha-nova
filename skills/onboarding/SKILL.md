@@ -1,6 +1,8 @@
 ---
 name: onboarding
 description: Use when HA NOVA Relay requests fail due to onboarding, connectivity, or auth issues.
+license: MIT
+compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay App in Home Assistant.
 ---
 
 # HA NOVA Onboarding
@@ -12,6 +14,8 @@ Use when HA NOVA requests fail due to onboarding, connectivity, or auth issues.
 Diagnostics only. Do not use this skill for config writes or routine HA operations after readiness is restored.
 
 ## Bootstrap
+
+If the `ha-nova` command itself is missing, the CLI is not installed — install it first from the latest GitHub release (https://github.com/markusleben/ha-nova/releases/latest carries the copy-paste install command per OS), then run `ha-nova setup`. Never bootstrap from the repo's `main` branch: released skills must install the reviewed, tagged release.
 
 Relay CLI command: `ha-nova relay`
 If missing: `ha-nova setup`

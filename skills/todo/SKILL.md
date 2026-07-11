@@ -1,6 +1,8 @@
 ---
 name: todo
 description: Use when listing, reading, or managing Home Assistant to-do lists and their items (add, update, complete, remove) through HA NOVA Relay, including creating or deleting local to-do lists.
+license: MIT
+compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay App in Home Assistant.
 ---
 
 # HA NOVA Todo

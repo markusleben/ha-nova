@@ -1,6 +1,8 @@
 ---
 name: scene
 description: Use when listing, reading, creating, updating, or deleting Home Assistant storage scenes through HA NOVA Relay. For activating a scene, use ha-nova:service-call.
+license: MIT
+compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay App in Home Assistant.
 ---
 
 # HA NOVA Scene

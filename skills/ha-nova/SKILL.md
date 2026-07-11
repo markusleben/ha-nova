@@ -1,6 +1,8 @@
 ---
 name: ha-nova
 description: Use when the user wants Home Assistant operations through HA NOVA (App + Relay) with local OS-backed auth.
+license: MIT
+compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay App in Home Assistant.
 ---
 
 # HA NOVA Context Skill
