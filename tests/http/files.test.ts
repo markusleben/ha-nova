@@ -334,6 +334,19 @@ describe("files handler — operations", () => {
     );
   });
 
+  // Invalid UTF-8 with no NUL bytes would pass a naive check and then be
+  // silently repaired into U+FFFD — and the read -> diff -> write flow would
+  // write that corruption back into the user's config. Refuse instead.
+  it("refuses a file with invalid UTF-8 instead of silently mangling it", async () => {
+    // 0x80 is a lone continuation byte: valid in latin-1, invalid in UTF-8.
+    writeFileSync(join(root, "latin1.yaml"), Buffer.from([0x6e, 0x61, 0x6d, 0x65, 0x3a, 0x20, 0x80, 0x0a]));
+    await expectHttpError(
+      call("read", { action: "read_file", path: "/config/latin1.yaml" }),
+      400,
+      "FILE_NOT_TEXT"
+    );
+  });
+
   it("reports a missing file honestly", async () => {
     await expectHttpError(
       call("read", { action: "read_file", path: "/config/nope.yaml" }),

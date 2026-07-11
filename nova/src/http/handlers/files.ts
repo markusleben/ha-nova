@@ -271,17 +271,29 @@ async function readTextFile(absolute: string, logicalPath: string): Promise<unkn
   }
 
   const buffer = await readFile(absolute);
-  // Text only: a binary file would come back as mojibake, and the caller almost
-  // certainly asked for the wrong path.
-  if (buffer.includes(0)) {
+  // Text only, and STRICTLY so. buffer.toString("utf8") would silently replace
+  // invalid sequences with U+FFFD — and in the read -> diff -> write flow this
+  // endpoint exists for, the agent would then write that corruption back into
+  // the user's configuration. A fatal decoder refuses instead.
+  let content: string;
+  try {
+    content = new TextDecoder("utf-8", { fatal: true }).decode(buffer);
+  } catch {
     throw new HttpError(
       400,
       "FILE_NOT_TEXT",
-      `${logicalPath} is not a UTF-8 text file — the relay only serves text through /files`
+      `${logicalPath} is not valid UTF-8 text — serving it would corrupt the file when it is written back`
+    );
+  }
+  if (content.includes("\u0000")) {
+    throw new HttpError(
+      400,
+      "FILE_NOT_TEXT",
+      `${logicalPath} contains NUL bytes — the relay only serves text through /files`
     );
   }
 
-  return { content: buffer.toString("utf8"), size: info.size };
+  return { content, size: info.size };
 }
 
 async function writeTextFile(
