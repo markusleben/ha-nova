@@ -36,7 +36,7 @@ If this fails: `ha-nova setup`
    - `"conversation_id"` continues a previous exchange; omit it for a fresh one.
 2. **Pipelines**: WS `assist_pipeline/pipeline/list` shows every pipeline plus `preferred_pipeline`. Each carries `stt_engine`, `conversation_engine`, `tts_engine`, and language settings.
    - change the preferred one: WS `assist_pipeline/pipeline/set_preferred` with `pipeline_id`
-   - update: WS `assist_pipeline/pipeline/update` — send the FULL pipeline object (read it first, change fields, send it back; a partial payload drops settings)
+   - update: WS `assist_pipeline/pipeline/update` — read the pipeline first, then send ALL its settings fields with your change, addressed by `pipeline_id` (the list's `id` value). Never send it as `id` — that slot is the WS request id. A partial payload drops settings.
    - delete: WS `assist_pipeline/pipeline/delete` — tokenized confirmation; a pipeline in use by a satellite breaks it
 3. **Exposed entities** (what voice can even see): WS `homeassistant/expose_entity/list`; expose or hide with WS `homeassistant/expose_entity` (`assistants: ["conversation"]`, `entity_ids`, `should_expose`). Aliases live in the entity registry (`ha-nova:organize` owns those).
    - Exposing an entity gives voice control over it — preview the list before changing it.
@@ -68,7 +68,7 @@ For an utterance test: the exact response text Assist gave, what it did (or did 
 
 - **A test utterance is a live command.** `conversation/process` executes what it understands. Anything that could change state gets a preview and confirmation, exactly like a service call.
 - Exposing entities to voice grants voice control over them — show the full list before changing exposure.
-- Pipeline updates send the whole object: read it first, or you silently drop settings.
+- Pipeline updates resend every settings field: read first, or you silently drop settings.
 
 ## Guardrails
 

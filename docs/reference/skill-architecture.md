@@ -387,7 +387,7 @@ Rules: never invent a `media_content_id`; volume jumps and announcements are dis
 
 `ha-nova:assist` owns Home Assistant's voice assistant:
 - utterance testing through `POST /api/conversation/process` — the flagship capability, and a LIVE command: it executes what it understands, so anything state-changing is previewed and confirmed like a service call
-- pipelines via WS `assist_pipeline/pipeline/*` (update sends the full object; delete is tokenized because a satellite may depend on it)
+- pipelines via WS `assist_pipeline/pipeline/*` (update resends every settings field addressed by `pipeline_id`; delete is tokenized because a satellite may depend on it)
 - voice exposure via WS `homeassistant/expose_entity[/list]`
 - engine inventories: `tts/engine/list`, `stt/engine/list`, `conversation/agent/list`, `wake_word/info`
 - `assist_pipeline/run` stays out of reach: it is an audio subscription, not request/response
