@@ -52,16 +52,20 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push
+      # Publish to a throwaway commit tag FIRST. The user-facing tags are only
+      # promoted after the smoke test passes, so a broken build can never be
+      # served as :latest while the workflow turns red.
+      - name: Build and push (candidate tag)
         uses: docker/build-push-action@v6
         with:
           context: ./nova
           file: ./nova/Dockerfile.standalone
           platforms: linux/amd64,linux/arm64
           push: true
+          build-args: |
+            RELAY_VERSION=${{ steps.version.outputs.relay_version }}
           tags: |
-            ghcr.io/${{ github.repository_owner }}/ha-nova-relay:${{ steps.version.outputs.relay_version }}
-            ghcr.io/${{ github.repository_owner }}/ha-nova-relay:latest
+            ghcr.io/${{ github.repository_owner }}/ha-nova-relay:sha-${{ github.sha }}
           labels: |
             org.opencontainers.image.title=NOVA Relay
             org.opencontainers.image.description=Transport-only relay between an AI client and Home Assistant (standalone build of the HA NOVA Relay App)
@@ -70,15 +74,16 @@ jobs:
             org.opencontainers.image.licenses=MIT
           provenance: true
 
-      - name: Smoke test the published image
+      - name: Smoke test the candidate image
         run: |
           set -euo pipefail
-          image="ghcr.io/${{ github.repository_owner }}/ha-nova-relay:${{ steps.version.outputs.relay_version }}"
+          image="ghcr.io/${{ github.repository_owner }}/ha-nova-relay:sha-${{ github.sha }}"
+          # No RELAY_VERSION here on purpose: the image must report its baked-in
+          # version, exactly like a user running it with the documented command.
           docker run -d --name relay-smoke \
             -e RELAY_AUTH_TOKEN=smoke-token \
             -e HA_LLAT=smoke-llat \
             -e HA_URL=http://127.0.0.1:8123 \
-            -e RELAY_VERSION="${{ steps.version.outputs.relay_version }}" \
             -p 8791:8791 "$image"
 
           # The relay must serve /health and reject an unauthenticated request:
@@ -103,3 +108,14 @@ jobs:
           echo "$body" | grep -q '"version":"${{ steps.version.outputs.relay_version }}"'
 
           docker rm -f relay-smoke
+
+      # Retag the smoked digest — no rebuild, so the promoted tags point at the
+      # exact artifact that passed.
+      - name: Promote the smoked image to the user-facing tags
+        run: |
+          set -euo pipefail
+          repo="ghcr.io/${{ github.repository_owner }}/ha-nova-relay"
+          docker buildx imagetools create \
+            --tag "${repo}:${{ steps.version.outputs.relay_version }}" \
+            --tag "${repo}:latest" \
+            "${repo}:sha-${{ github.sha }}"

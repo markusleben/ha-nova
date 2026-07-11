@@ -29,6 +29,12 @@ COPY --from=build --chown=nova:nova /app/package.json ./package.json
 
 USER nova
 
+# The relay version must be BAKED IN: without it loadEnv falls back to "dev",
+# /health and the x-ha-nova-relay-version header would report "dev", and the
+# CLI's min_relay_version compatibility check would be unable to compare —
+# users of camera/mqtt would get a bogus "update your relay" loop.
+ARG RELAY_VERSION=dev
+ENV RELAY_VERSION=${RELAY_VERSION}
 ENV RELAY_PORT=8791
 EXPOSE 8791
 
