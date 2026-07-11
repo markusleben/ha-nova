@@ -56,6 +56,13 @@ For every Relay-Ready call in this skill:
 | Actionable-notification callbacks (waiting for a button press) | Roadmap (needs event subscriptions) | -- |
 | Cameras (snapshot, stream URL, record) | Covered | camera |
 | MQTT (bounded topic listening, discovery/debug info, publish) | Covered | mqtt |
+| Voice / Assist (utterance testing, pipelines, entity exposure, engine inventory) | Covered | assist |
+| Persons / Zones / Tags | Covered | admin |
+| User accounts (list, create, delete — with owner/system guards) | Covered | admin |
+| YAML-only configuration (template/REST/command-line sensors, packages, themes) | Covered | yaml-config |
+| Frontend themes | Covered | yaml-config |
+| External data stores (InfluxDB long-term history, Prometheus, ...) | Covered | external-sources |
+| Weather forecasts (`weather.get_forecasts`) | Covered | service-call |
 | Calendar Queries | Covered | calendar |
 | To-do Lists (items + Local To-do lifecycle) | Covered | todo |
 | Area / Floor CRUD | Covered | organize |

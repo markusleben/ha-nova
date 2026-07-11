@@ -66,6 +66,9 @@ const MUTATION_SKILLS = new Set([
   "notify",
   "camera",
   "mqtt",
+  "yaml-config",
+  "assist",
+  "admin",
   "helper",
   "dashboard",
   "scene",
@@ -81,6 +84,7 @@ const MUTATION_SKILLS = new Set([
 ]);
 const READ_ONLY_SKILLS = new Set([
   "read",
+  "external-sources",
   "entity-discovery",
   "history",
   "health",
@@ -108,11 +112,11 @@ const WORD_BUDGETS: Record<string, number> = {
   diagnose: 1450,
   mqtt: 1250,
   scene: 1350,
-  "service-call": 1200,
+  "service-call": 1250,
   todo: 1200,
   updates: 1200,
   maintenance: 1200,
-  fallback: 2200,
+  fallback: 2300,
   helper: 3600,
   review: 4300,
 };

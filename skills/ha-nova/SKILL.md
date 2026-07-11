@@ -184,6 +184,10 @@ Match user intent to exactly one skill:
 | send a notification to a phone or another notify target, or manage Home Assistant's persistent notifications | `ha-nova:notify` |
 | look at a camera (snapshot), get a stream URL, or record | `ha-nova:camera` |
 | listen to MQTT topics to see what a device actually publishes, inspect MQTT discovery, or publish a message | `ha-nova:mqtt` |
+| test what the voice assistant understands, manage Assist pipelines, or control which entities voice can see | `ha-nova:assist` |
+| manage persons, zones, tags, or user accounts | `ha-nova:admin` |
+| create or edit configuration that only exists as YAML (template/REST/command-line sensors, packages, themes) | `ha-nova:yaml-config` |
+| query long-term history from InfluxDB or another external store Home Assistant writes to but cannot read back | `ha-nova:external-sources` |
 | list calendars or show calendar events | `ha-nova:calendar` |
 | show, add, complete, update, remove to-do or shopping-list items; create/delete to-do lists | `ha-nova:todo` |
 | check backup status, create a backup (also as a safety net before risky changes), inspect a backup's contents, delete backups | `ha-nova:backup` |
@@ -227,6 +231,10 @@ Match user intent to exactly one skill:
 **"Send me a notification when..."** → `ha-nova:write` (that is an automation, not a one-off send)
 **"Send a notification to my phone"** → `ha-nova:notify` (one-off send now)
 **"Show me the front door camera"** → `ha-nova:camera`
+**"Does Assist understand 'turn on the kitchen light'?"** → `ha-nova:assist` (note: testing it EXECUTES it)
+**"Add a zone for work"** → `ha-nova:admin`
+**"Create a template sensor that averages my three thermometers"** → `ha-nova:helper` first (a template helper can do it); only `ha-nova:yaml-config` when the helper cannot express it
+**"What was the average temperature last summer?"** → `ha-nova:history` if the recorder still has it; `ha-nova:external-sources` when it was purged and InfluxDB has it
 **"Is my sensor even sending anything?"** → `ha-nova:mqtt` (listen to its topic); "why did my automation not run" stays `ha-nova:diagnose`
 **"Is everything OK with my home?"** → `ha-nova:health` (current status, no concrete incident)
 **"Why are devices unavailable?"** → `ha-nova:health`

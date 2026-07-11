@@ -2,7 +2,7 @@
 
 ## Overview
 
-HA NOVA uses a flat skill layout with one context skill and 24 independent sub-skills under `skills/`.
+HA NOVA uses a flat skill layout with one context skill and 28 independent sub-skills under `skills/`.
 
 The repo skill tree is the single source of truth. Client installers adapt that same tree to each client's packaging rules:
 - Claude: plugin marketplace payload
@@ -52,6 +52,10 @@ skills/
   notify/SKILL.md                       (ha-nova:notify — notify targets, mobile-app sends, persistent notifications)
   camera/SKILL.md                       (ha-nova:camera — snapshots the agent can look at, stream URLs, record)
   mqtt/SKILL.md                         (ha-nova:mqtt — bounded topic windows, discovery/debug info, guarded publish)
+  assist/SKILL.md                       (ha-nova:assist — utterance testing, pipelines, voice exposure, engine inventory)
+  admin/SKILL.md                        (ha-nova:admin — persons, zones, tags, user accounts)
+  yaml-config/SKILL.md                  (ha-nova:yaml-config — YAML-only configuration through opt-in file access)
+  external-sources/SKILL.md             (ha-nova:external-sources — read-only queries against InfluxDB and friends)
 ```
 
 ## Discovery Model
@@ -114,6 +118,10 @@ Current mapping:
 | notify | inline | target discovery + one previewed send |
 | camera | inline | one binary fetch, feature-gated services |
 | mqtt | inline | one bounded window or one guarded publish |
+| assist | inline | read/test flows plus full-object pipeline writes |
+| admin | inline | registry-style writes with impact advisory and hard user guards |
+| yaml-config | inline | read -> diff -> write -> check_config -> reload -> verify |
+| external-sources | inline | read-only, and the query does not go through the relay |
 
 **Rule of thumb:** If a `service-call` could do it, it's inline. If it needs what `write` needs (resolve + normalize + reload), use agents.
 
@@ -374,6 +382,41 @@ Rules: never invent a `media_content_id`; volume jumps and announcements are dis
 - an empty window is a real answer ("nothing published"), reported as one — an `UPSTREAM_WS_TIMEOUT` (subscription never established) is a different finding
 - discovery/debug via WS `mqtt/device/debug_info` (device_id from the registry, never guessed)
 - publishing is guarded: retained messages and command/`set` topics take the typed token, because they persist on the broker or actuate hardware
+
+## Assist Architecture
+
+`ha-nova:assist` owns Home Assistant's voice assistant:
+- utterance testing through `POST /api/conversation/process` — the flagship capability, and a LIVE command: it executes what it understands, so anything state-changing is previewed and confirmed like a service call
+- pipelines via WS `assist_pipeline/pipeline/*` (update sends the full object; delete is tokenized because a satellite may depend on it)
+- voice exposure via WS `homeassistant/expose_entity[/list]`
+- engine inventories: `tts/engine/list`, `stt/engine/list`, `conversation/agent/list`, `wake_word/info`
+- `assist_pipeline/run` stays out of reach: it is an audio subscription, not request/response
+
+## Admin Architecture
+
+`ha-nova:admin` owns persons, zones, tags, and user accounts:
+- persons/zones/tags via WS `person/*`, `zone/*`, `tag/*` (updates send the full object)
+- zones are presence infrastructure: every zone change runs `search/related` first and names the automations that depend on it, in the preview
+- users via WS `config/auth/*` — the strictest writes in HA NOVA: owner, system-generated, and the relay's own account are refused outright; everything else needs the typed token
+- passwords and auth providers stay in the Home Assistant UI on purpose
+
+## YAML Config Architecture
+
+`ha-nova:yaml-config` owns configuration that has no API, through the relay's opt-in file access (relay >= 0.4.0):
+- read -> diff -> confirm -> `write_file` (automatic `.bak`) -> `POST /api/config/core/check_config` -> targeted reload -> verify the entity in `/api/states`
+- an invalid `check_config` restores the `.bak` BEFORE reporting, and never reloads
+- whole-file replacement: never write a file that was not read first
+- when `file_access` is off (the default), the skill degrades to producing the exact YAML block plus the two commands to apply it — a fully supported path, not a failure
+- HA NOVA's own additions live in `/config/ha_nova/`, included once from `configuration.yaml`
+
+## External Sources Architecture
+
+`ha-nova:external-sources` covers data Home Assistant writes out but cannot read back (InfluxDB is the case that matters):
+- the relay is NOT the transport: it cannot reach other hosts by design, so the query goes out with the client's own HTTP tooling
+- credentials come from the user's environment (`HANOVA_INFLUXDB_*`), never from chat
+- read-only by contract: no INSERT/DELETE/DDL is ever constructed
+- the premise is corrected first: the `influxdb` integration is write-only from Home Assistant's side
+- the durable fix for a recurring query is an `influxdb` sensor via `ha-nova:yaml-config`
 
 ## Fallback Architecture
 
