@@ -64,6 +64,8 @@ const MUTATION_SKILLS = new Set([
   "diagnose",
   "media",
   "notify",
+  "camera",
+  "mqtt",
   "helper",
   "dashboard",
   "scene",
