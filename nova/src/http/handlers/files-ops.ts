@@ -1,4 +1,4 @@
-import { lstat, mkdir, readdir, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdir, readdir, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
 import { dirname, join, relative, sep } from "node:path";
 import { realpath } from "node:fs/promises";
 
@@ -104,6 +104,11 @@ export async function writeTextFile(
     // planted between the checks cannot be followed either.
     await removeIfPresent(backupPath);
     await writeFile(backupPath, await readFile(absolute), { flag: "wx" });
+    // A config file deliberately kept at 0600 (because it holds tokens that are
+    // not in secrets.yaml) must not become world-readable just because HA NOVA
+    // touched it. chmod after the write, not a mode flag: the flag is masked by
+    // the process umask, chmod is not.
+    await chmod(backupPath, existing.mode & 0o777);
   }
 
   await mkdir(dirname(absolute), { recursive: true });
@@ -112,6 +117,11 @@ export async function writeTextFile(
   const tempPath = `${absolute}.nova-tmp`;
   await removeIfPresent(tempPath);
   await writeFile(tempPath, content, { encoding: "utf8", flag: "wx" });
+  if (existing) {
+    // Same reason as the backup: the rename would otherwise replace a 0600 file
+    // with a default-mode one, silently widening access to its contents.
+    await chmod(tempPath, existing.mode & 0o777);
+  }
   await rename(tempPath, absolute);
 
   return {

@@ -1,4 +1,4 @@
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -137,6 +137,23 @@ describe("files handler — operations", () => {
 
     expect(existsSync(join(root, "link.yaml"))).toBe(false);
     expect(readFileSync(join(root, "ha_nova2", "keep.yaml"), "utf8")).toContain("keep: true");
+  });
+
+  // A config file kept at 0600 because it holds tokens must not become
+  // world-readable just because HA NOVA edited it — and neither must its backup.
+  it("preserves restrictive file permissions on the file and its backup", async () => {
+    const secretish = join(root, "tokens.yaml");
+    writeFileSync(secretish, "api_key: old\n", { mode: 0o600 });
+    chmodSync(secretish, 0o600);
+
+    await call("readwrite", {
+      action: "write_file",
+      path: "/config/tokens.yaml",
+      content: "api_key: new\n"
+    });
+
+    expect(statSync(secretish).mode & 0o777).toBe(0o600);
+    expect(statSync(join(root, "tokens.yaml.bak")).mode & 0o777).toBe(0o600);
   });
 
   it("leaves no temp file behind after a write", async () => {
