@@ -27,7 +27,7 @@ Full audit of ha-nova (Relay + CLI + 20 skills) in July 2026, targeting the best
 
 ### A1 Canonical Skill Template v2 (replace `docs/reference/skill-architecture.md` § "Skill Section Template")
 - Canonical H2 order for all subskills: `Scope` → `Bootstrap (once per session)` → `Relay Contract` → [domain] → `Flow` → [domain] → `Error Handling` (optional, fixed position) → `Output Format` → `Safety` → `Guardrails` (optional) → `References` (optional).
-- `Relay Contract` becomes required in all 19 (missing only in write + review); `Guardrails` becomes officially optional (reality: 9/19); `## Output Rules` abolished — every `## Output Format` section starts exactly with ``Apply `skills/ha-nova/output-rules.md`.``
+- `Relay Contract` becomes required in 18 of 19 subskills (add it to write + review where it is missing today); `onboarding` stays a declared exception — the diagnostics skill whose body is remediation commands, consistent with its declared Bootstrap-heading deviation. `Guardrails` becomes officially optional (reality: 9/19); `## Output Rules` abolished — every `## Output Format` section starts exactly with ``Apply `skills/ha-nova/output-rules.md`.``
 - fallback gets normalized (Safety Baseline + Safety Guardrails → one `## Safety`; `Agent Flow` → `## Flow`), not allowlisted.
 - Bootstrap heading exact; only 2 declared deviations (onboarding, fallback).
 - Terminology: prose says "App(s)"; `add-on`/`addon` only as code literals (fix 3 prose spots in `skills/backup/SKILL.md`).
@@ -115,7 +115,7 @@ Dispatch sharpness at 28 skills: `diagnose` = root-cause a concrete failure, `he
 
 ### C2 Update nudge for all clients
 - NEW `cli/update_nudge.go` (~90 LOC) + test: `maybeNudgeSkillUpdate(paths)` in `runRelayProxy` (ws + core) after the relay-version check; replace `runHealth`'s inline `checkForUpdate` with the helper (fixes hidden 15 s stall).
-- Mechanics: opt-out `HA_NOVA_NO_UPDATE_NUDGE=1`; dev guard; **cache-only compare, never network in the hot path** (`inspectCachedRelease` + `compareReleaseVersions`); 24 h throttle marker in CacheDir (pattern of `shouldWarnRelayOutdated`); background refresh via detached `check-update --quiet --json`; output on **stderr** via `printHumanNotice` (stdout stays pure JSON → skill parsing safe).
+- Mechanics: opt-out `HA_NOVA_NO_UPDATE_NUDGE=1`; dev guard; **cache-only compare, never network in the hot path** (`inspectCachedRelease` + `compareReleaseVersions`); 24 h throttle marker in CacheDir (pattern of `shouldWarnRelayOutdated`); background refresh via detached `check-update --quiet --json` whose stdio must be detached from the parent's streams (Go: leave `exec.Cmd` Stdout/Stderr nil → /dev/null) so the child's JSON can never interleave with relay JSON that skills parse; the nudge itself prints on **stderr** via `printHumanNotice` (stdout stays pure JSON → skill parsing safe).
 - Wording agent-phrased: `"HA NOVA update available: vX -> vY. Inform the user: run 'ha-nova update', then start a new session."`
 - `skills/ha-nova/SKILL.md` Self-Update: +1 line (surface notice to user once); extend existing pins in `tests/skills/ha-nova-contract.test.ts` only.
 
