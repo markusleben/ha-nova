@@ -98,7 +98,7 @@
     "yaml": "^2.9.0"
   },
   "devDependencies": {
-    "@types/node": "^25.9.3",
+    "@types/node": "^25.9.5",
     "@types/ws": "^8.18.1",
     "husky": "^9.1.7",
     "tsx": "^4.23.0",
