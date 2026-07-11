@@ -210,8 +210,19 @@ describe("skill template v2 contract", () => {
 
   it("tells agents how to install the missing CLI in the onboarding skill", () => {
     const onboarding = readFileSync(subskillPath("onboarding"), "utf8");
-    expect(onboarding).toContain("install.sh | bash");
     expect(onboarding).toContain("the CLI is not installed");
+    // Stable Install Contract: released skills must never bootstrap from the
+    // moving main branch — the guidance points at the tagged release.
+    expect(onboarding).toContain("releases/latest");
+    expect(onboarding).not.toContain("main/install.sh");
+  });
+
+  it("keeps the context skill on the A6 frontmatter standard too", () => {
+    const fm = parseFrontmatter(readFileSync("skills/ha-nova/SKILL.md", "utf8"));
+    expect(fm.license, "ha-nova: license must be MIT").toBe("MIT");
+    const compatibility = fm.compatibility ?? "";
+    expect(compatibility, "ha-nova: compatibility hint required").toContain("ha-nova CLI");
+    expect(compatibility.length, "ha-nova: compatibility over spec limit").toBeLessThanOrEqual(500);
   });
 
   it("pins the fallback discovery-time write gate in its description", () => {
