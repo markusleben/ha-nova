@@ -43,7 +43,7 @@ MQTT topics never emit a "finish" event, so a listen is a WINDOW, not a request.
 ```
 
 - The relay unsubscribes when the window closes; nothing keeps running.
-- `.data.events` holds what was seen; `.data.truncated: true` means the window ended at the cap, not that the stream stopped.
+- `.data.events` holds what was seen. `.data.truncated: true` means the window ended at a LIMIT — either `max_events` or `timeout_ms`, the relay does not distinguish them — not that the stream stopped. Compare the event count with `max_events` to tell them apart: at the cap it hit the event limit (there may be more traffic); below it the window simply ran out of time, which is the normal ending for a quiet topic.
 - An EMPTY result is a real answer ("nothing published on that topic in 8 seconds"), not a failure — report it as such. That is often the actual diagnosis.
 - **Retained messages are NOT live traffic.** The broker replays every retained message to a new subscriber immediately, so a message can arrive in the first milliseconds of the window even though the device published it days ago and is now silent. Each event carries a `retain` flag: treat `retain: true` as broker state, not as evidence that the device is sending. For the question "is my device actually publishing?", only `retain: false` messages count — and if all you saw were retained ones, say exactly that (the device is silent; the broker is holding its last value).
 - Keep windows short (<= 10 s, the relay's ceiling) and topics as narrow as possible; `#` on the root is noise, not evidence.
