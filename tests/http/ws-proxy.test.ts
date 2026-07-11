@@ -206,7 +206,7 @@ describe("ws proxy endpoint", () => {
           sendMessage: async (message) => ({ ack: message.type, data: null }),
           collectMessageEvents: async () => {
             collected = true;
-            return [];
+            return { events: [], truncated: false };
           },
         },
       })
@@ -248,7 +248,7 @@ describe("ws proxy endpoint", () => {
           },
           collectMessageEvents: async () => {
             collected = true;
-            return [];
+            return { events: [], truncated: false };
           },
         },
       })
@@ -288,7 +288,7 @@ describe("ws proxy endpoint", () => {
       createWsProxyHandler({
         wsClient: {
           sendMessage: async () => ({ ok: true }),
-          collectMessageEvents: async () => [],
+          collectMessageEvents: async () => ({ events: [], truncated: false }),
         },
       })
     );
