@@ -1,9 +1,11 @@
+import { accessSync, constants, statSync } from "node:fs";
 import { type Server } from "node:http";
 
 import { createConnection, createLongLivedTokenAuth, type HaWebSocket } from "home-assistant-js-websocket";
 
 import { createApp, type App } from "../index.js";
 import { readAppOptions, type AppOptions } from "../config/app-options.js";
+import { resolveFileAccess, type FileAccessConfig, type RootProbe } from "../config/file-access.js";
 import { loadEnv, type EnvConfig, type LogLevel } from "../config/env.js";
 import { createAuthenticatedHaSocket } from "../ha/socket.js";
 import { createHaRestClient, type HaRestClient } from "../ha/rest-client.js";
@@ -19,6 +21,7 @@ export interface RuntimeBootstrapResult {
   app: App;
   env: EnvConfig;
   appOptions: AppOptions;
+  fileAccess: FileAccessConfig;
   upstreamAuth: UpstreamTokenResolution;
 }
 
@@ -73,10 +76,22 @@ export function bootstrapRuntime(dependencies: RuntimeDependencies = {}): Runtim
     upstreamAuth
   });
 
+  // File access is opt-in and defaults to off. The App option (or FILE_ACCESS
+  // for the standalone container) is the only way to enable it, and it stays
+  // off when no config directory is mounted — reporting a mode the relay cannot
+  // serve would be a lie.
+  const fileAccess = resolveFileAccess(
+    {
+      mode: fileAccessOption(appOptions, process.env),
+      configRootOverride: process.env.CONFIG_ROOT
+    },
+    (path: string) => probeConfigRoot(path)
+  );
   const app = createApp({
     authToken: env.relayAuthToken,
     version: env.relayVersion,
     wsClient,
+    fileAccess,
     coreClient: {
       request: async (input: CoreProxyRequest): Promise<CoreProxyResponse> => coreClient.request(input)
     }
@@ -86,6 +101,7 @@ export function bootstrapRuntime(dependencies: RuntimeDependencies = {}): Runtim
     app,
     env,
     appOptions,
+    fileAccess,
     upstreamAuth
   };
 }
@@ -188,10 +204,20 @@ function logStartup(logger: Logger, runtime: RuntimeBootstrapResult): void {
     relay_port: runtime.env.relayPort,
     app_options_path: runtime.env.appOptionsPath,
     auth_source: runtime.upstreamAuth.source,
-    auth_capability: runtime.upstreamAuth.capability
+    auth_capability: runtime.upstreamAuth.capability,
+    // Visible in the App log so an operator can always see whether file access
+    // is on, and at which level — it is the one capability worth stating.
+    file_access: runtime.fileAccess.mode,
+    config_root: runtime.fileAccess.configRoot || null
   });
 
   for (const warning of runtime.upstreamAuth.warnings) {
+    logger.warn(warning);
+  }
+
+  // A degraded file-access mode must be visible in the App log: the user set an
+  // option and got something less, and they deserve to know why.
+  for (const warning of runtime.fileAccess.warnings) {
     logger.warn(warning);
   }
 }
@@ -211,4 +237,42 @@ async function listenServer(server: Server, port: number): Promise<void> {
     server.listen(port, "0.0.0.0", () => resolve());
     server.on("error", reject);
   });
+}
+
+// The App writes its options to /data/options.json; the standalone container
+// uses FILE_ACCESS directly. The App option wins when present.
+function fileAccessOption(appOptions: AppOptions, env: NodeJS.ProcessEnv): string | undefined {
+  const fromApp = appOptions.file_access;
+  if (typeof fromApp === "string" && fromApp.trim() !== "") {
+    return fromApp;
+  }
+  return env.FILE_ACCESS;
+}
+
+// Probes what the relay can really do with a candidate config root. A mount can
+// exist and still be read-only or owned by another UID — the mode must reflect
+// reality, not the option.
+function probeConfigRoot(path: string): RootProbe {
+  try {
+    if (!statSync(path).isDirectory()) {
+      return { isDirectory: false, readable: false, writable: false };
+    }
+  } catch {
+    return { isDirectory: false, readable: false, writable: false };
+  }
+
+  const can = (mode: number): boolean => {
+    try {
+      accessSync(path, mode);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  return {
+    isDirectory: true,
+    readable: can(constants.R_OK),
+    writable: can(constants.W_OK)
+  };
 }

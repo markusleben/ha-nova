@@ -1,5 +1,6 @@
 import type { Server } from "node:http";
 
+import type { FileAccessConfig } from "./config/file-access.js";
 import type { CoreProxyRequest, CoreProxyResponse } from "./types/api.js";
 import type {
   HaWsEventCollection,
@@ -7,6 +8,7 @@ import type {
   HaWsRequest,
 } from "./ha/ws-client.js";
 import { createCoreProxyHandler } from "./http/handlers/core-proxy.js";
+import { createFilesHandler } from "./http/handlers/files.js";
 import { createHealthHandler } from "./http/handlers/health.js";
 import { createWsProxyHandler } from "./http/handlers/ws-proxy.js";
 import { createRouter, type Router } from "./http/router.js";
@@ -23,6 +25,7 @@ export interface AppOptions {
       options?: HaWsEventCollectionOptions
     ): Promise<HaWsEventCollection<unknown>>;
   };
+  fileAccess: FileAccessConfig;
   coreClient: {
     request(input: CoreProxyRequest): Promise<CoreProxyResponse>;
   };
@@ -72,6 +75,14 @@ export function createApp(options: AppOptions): App {
     "/core",
     createCoreProxyHandler({
       coreClient: options.coreClient
+    })
+  );
+
+  router.register(
+    "POST",
+    "/files",
+    createFilesHandler({
+      fileAccess: options.fileAccess
     })
   );
 
