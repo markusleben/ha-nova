@@ -136,6 +136,12 @@ export async function resolveTargetPath(configRoot: string, logicalPath: string,
     // The target was just validated above. Deletes deliberately do NOT do this:
     // removing a link must remove the link, not what it points at.
     if (action === "write_file" && probe === absolute) {
+      // The extension guard ran against the requested NAME. A link called
+      // safe.yaml can point at publish.sh, and writing through it would hand
+      // the caller the executable file the guard exists to protect — the same
+      // laundering the deny list is re-checked for, one line above. Re-check it
+      // against what the path really resolves to.
+      assertWritableExtension(real);
       return real;
     }
   } catch (error) {

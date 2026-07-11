@@ -149,6 +149,22 @@ describe("files handler — derived paths cannot be hijacked", () => {
 });
 
 describe("files handler — symlinks cannot launder a denied path", () => {
+  // The writable-extension guard runs on the requested name. A link with a
+  // .yaml name pointing at a shell script would otherwise let the write land on
+  // the executable file the guard exists to protect.
+  it("refuses to write through a .yaml symlink that points at a shell script", async () => {
+    mkdirSync(join(root, "scripts"));
+    writeFileSync(join(root, "scripts", "publish.sh"), "#!/bin/sh\necho original\n");
+    symlinkSync(join(root, "scripts", "publish.sh"), join(root, "safe.yaml"));
+
+    await expectHttpError(
+      call("readwrite", { action: "write_file", path: "/config/safe.yaml", content: "rm -rf /\n" }),
+      403,
+      "FILE_TYPE_DENIED"
+    );
+    expect(readFileSync(join(root, "scripts", "publish.sh"), "utf8")).toContain("echo original");
+  });
+
   // The deny list is applied to the requested NAME. A symlink with an innocent
   // name that points at a denied path INSIDE the root passes containment (the
   // target really is in the root) — so the deny rules have to be applied again
