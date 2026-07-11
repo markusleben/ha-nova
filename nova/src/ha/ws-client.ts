@@ -30,6 +30,13 @@ export interface HaWsClient {
   isConnected(): boolean;
 }
 
+// Window mode budgets the ack separately from the collection window: the WS
+// connection is already open, so an ack lands in milliseconds. If it does not
+// land within this grace period the outer timeout fires and the call fails
+// honestly, instead of reporting an empty window for a subscription that never
+// existed.
+const SUBSCRIPTION_ACK_GRACE_MS = 2_000;
+
 export interface HaWsEventCollectionOptions {
   finishEventType?: string;
   maxEvents?: number;
@@ -148,14 +155,6 @@ export function createHaWsClient(options: HaWsClientOptions): HaWsClient {
               }
             };
 
-            if (returnOnLimit) {
-              // Window mode: the stream may never emit a finish event, so the
-              // timeout is a normal end condition, not a failure.
-              windowTimer = setTimeout(() => {
-                settleResolve({ events: [...events], truncated: true });
-              }, timeoutMs);
-            }
-
             subscribeMessage(
               (event: unknown) => {
                 if (settled) {
@@ -188,13 +187,25 @@ export function createHaWsClient(options: HaWsClientOptions): HaWsClient {
                 unsubscribe = cancel;
                 if (unsubscribeOnAck) {
                   void Promise.resolve(cancel()).catch(() => undefined);
+                  return;
+                }
+                if (returnOnLimit && !settled) {
+                  // Window mode: the stream may never emit a finish event, so
+                  // the window timeout is a normal end condition. It starts
+                  // only AFTER the subscription is acknowledged — otherwise a
+                  // subscription that never establishes would resolve as an
+                  // empty-but-successful sniff window instead of failing.
+                  windowTimer = setTimeout(() => {
+                    settleResolve({ events: [...events], truncated: true });
+                  }, timeoutMs);
                 }
               })
               .catch(settleReject);
           }),
-          // In window mode the internal timer is the real deadline; withTimeout
-          // only backstops a subscription that never even acks.
-          returnOnLimit ? timeoutMs + 1_000 : timeoutMs
+          // In window mode the post-ack timer is the real deadline; withTimeout
+          // backstops a subscription that never acks, which then surfaces as an
+          // honest UPSTREAM_WS_TIMEOUT instead of a fake empty window.
+          returnOnLimit ? timeoutMs + SUBSCRIPTION_ACK_GRACE_MS : timeoutMs
         );
       } catch (error) {
         const commandError = describeUpstreamCommandError(error);

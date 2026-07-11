@@ -246,6 +246,25 @@ describe("ha ws client", () => {
     expect(unsubscribed).toBe(true);
   });
 
+  // A subscription that never acks must FAIL in window mode, not resolve as an
+  // empty-but-successful sniff window — otherwise "nothing seen" is
+  // indistinguishable from "never subscribed".
+  it("fails in window mode when the subscription is never acknowledged", async () => {
+    const client = createHaWsClient({
+      createConnection: async () => ({
+        sendMessagePromise: async () => ({ ok: true }),
+        subscribeMessage: () => new Promise(() => undefined)
+      })
+    });
+
+    await expect(
+      client.collectMessageEvents(
+        { type: "mqtt/subscribe", topic: "zigbee2mqtt/#" },
+        { timeoutMs: 50, onLimit: "return" }
+      )
+    ).rejects.toThrow(/timed out/i);
+  });
+
   it("still errors at max_events in the default strict mode", async () => {
     const client = createHaWsClient({
       createConnection: async () => ({
