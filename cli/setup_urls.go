@@ -26,6 +26,14 @@ func haProfileSecurityURL(haURL string) string {
 	return haURL + "/profile/security"
 }
 
+// haAppStoreURL links to the app store through the instance's own my-redirect
+// endpoint (same version-resolution rationale as haRelayAppPageURL).
+// Repository removal has no dedicated my-link; it lives in the store's
+// three-dot menu > Repositories dialog.
+func haAppStoreURL(haURL string) string {
+	return haURL + "/_my_redirect/supervisor_store"
+}
+
 func openBrowserShowingURL(out io.Writer, target string) {
 	renderSetupLink(out, "Opening in your browser:", target)
 	if err := openBrowserForSetup(target); err != nil {

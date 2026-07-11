@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
 	"io"
@@ -25,6 +26,7 @@ func runInternalUninstall(_ runtimePaths, args []string) int {
 	parentPID := fs.Int("parent-pid", 0, "parent pid")
 	selfPath := fs.String("self-path", "", "temp helper path")
 	purge := fs.Bool("purge", false, "remove config and token")
+	teardownDone := fs.Bool("teardown-done", false, "server-side teardown already completed by the parent")
 	if err := fs.Parse(args); err != nil {
 		printHumanErr("%s", err)
 		return 1
@@ -49,7 +51,13 @@ func runInternalUninstall(_ runtimePaths, args []string) int {
 		printHumanErr("%s", err)
 		return 1
 	}
-	applyUninstallPreflightNotes(report, preflight)
+	if *teardownDone {
+		for _, note := range teardownCompletedNoteLines(uninstallModeFromFlag(*purge)) {
+			report.addNote(note)
+		}
+	} else {
+		applyUninstallPreflightNotes(report, preflight)
+	}
 	if report.print() {
 		printHumanInfo("HA NOVA removed")
 	}
@@ -102,9 +110,29 @@ func runUninstall(paths runtimePaths, args []string) int {
 	}
 
 	preflight := collectUninstallPreflight(paths)
+	teardown := teardownNotOffered
+	if !*yes && !recoveryMode && isInteractiveTTY() {
+		outcome, err := maybeOfferGuidedTeardown(bufio.NewReader(os.Stdin), os.Stdout, preflight, defaultTeardownDeps())
+		if err != nil {
+			printHumanErr("%s", err)
+			return 1
+		}
+		if outcome == teardownCancelled {
+			printHumanInfo("Uninstall cancelled — nothing was removed.")
+			return 0
+		}
+		teardown = outcome
+		if teardown == teardownCompleted {
+			preflight.relayStillRunning = false
+		}
+	}
 	if runtime.GOOS == "windows" && source == installSourceBundle {
-		printUninstallPreflightNotes(os.Stdout, preflight)
-		if err := launchWindowsUninstall(paths, mode); err != nil {
+		if teardown == teardownCompleted {
+			printTeardownCompletedNotes(os.Stdout, mode)
+		} else {
+			printUninstallPreflightNotes(os.Stdout, preflight)
+		}
+		if err := launchWindowsUninstall(paths, mode, teardown == teardownCompleted); err != nil {
 			printHumanErr("cannot finish Windows uninstall: %s", err)
 			return 1
 		}
@@ -133,14 +161,20 @@ func runUninstall(paths runtimePaths, args []string) int {
 		}
 	}
 
-	applyUninstallPreflightNotes(report, preflight)
+	if teardown == teardownCompleted {
+		for _, note := range teardownCompletedNoteLines(mode) {
+			report.addNote(note)
+		}
+	} else {
+		applyUninstallPreflightNotes(report, preflight)
+	}
 	if report.print() {
 		printHumanInfo("HA NOVA removed")
 	}
 	return 0
 }
 
-func launchWindowsUninstall(paths runtimePaths, mode uninstallMode) error {
+func launchWindowsUninstall(paths runtimePaths, mode uninstallMode, teardownDone bool) error {
 	tempHelper := filepath.Join(os.TempDir(), "ha-nova-uninstall-"+strconv.Itoa(os.Getpid())+".exe")
 	if err := copyFile(filepath.Join(paths.InstallRoot, publicBinaryName()), tempHelper); err != nil {
 		return err
@@ -149,6 +183,9 @@ func launchWindowsUninstall(paths runtimePaths, mode uninstallMode) error {
 	args := []string{"internal-uninstall", "--parent-pid", strconv.Itoa(os.Getpid()), "--self-path", tempHelper}
 	if mode == uninstallModePurge {
 		args = append(args, "--purge")
+	}
+	if teardownDone {
+		args = append(args, "--teardown-done")
 	}
 	return launchWindowsDetachedHelperWithEnv(tempHelper, paths.UninstallStatusFile, statusTicks, helperInstallRootEnv(paths.InstallRoot), args...)
 }
