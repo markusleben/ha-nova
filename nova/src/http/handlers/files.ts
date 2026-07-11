@@ -39,7 +39,10 @@ const DENIED_PATTERNS = [
   /^secrets\.ya?ml/i,
   /^home-assistant_v2\.db/,
   /^\.env/,
-  /\.log(\.\d+)?$/
+  // Any .log variant: Home Assistant itself writes home-assistant.log.fault,
+  // rotation adds .log.1, and backups add .log.bak — an "ends with .log" rule
+  // would serve every one of them.
+  /\.log(\.|$)/i
 ];
 
 export function createFilesHandler(options: FilesHandlerOptions): RouteHandler {
@@ -115,6 +118,16 @@ function parseFilesRequest(body: unknown): FilesRequest {
       throw new HttpError(400, "VALIDATION_ERROR", "write_file requires a string 'content'");
     }
     content = raw.content;
+    // read_file refuses NUL bytes as non-text; write_file must not be able to
+    // create a file that this same endpoint would then refuse to read (and that
+    // Home Assistant would choke on). The text-only contract runs both ways.
+    if (content.includes("\u0000")) {
+      throw new HttpError(
+        400,
+        "VALIDATION_ERROR",
+        "content contains NUL bytes — /files is a text-only endpoint"
+      );
+    }
     if (Buffer.byteLength(content, "utf8") > MAX_WRITE_BYTES) {
       throw new HttpError(
         400,

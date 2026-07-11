@@ -142,6 +142,10 @@ describe("files handler — always-denied paths", () => {
     "/config/home-assistant_v2.db",
     "/config/home-assistant_v2.db-wal",
     "/config/home-assistant.log",
+    // Home Assistant itself writes .log.fault; rotation and backups add more.
+    "/config/home-assistant.log.fault",
+    "/config/home-assistant.log.1",
+    "/config/home-assistant.log.bak",
     "/config/.env",
     "/config/.env.bak",
     "/config/.ssh/id_rsa",
@@ -382,6 +386,19 @@ describe("files handler — operations", () => {
       400,
       "FILE_NOT_TEXT"
     );
+  });
+
+  it("refuses to WRITE content with NUL bytes, matching the read contract", async () => {
+    await expectHttpError(
+      call("readwrite", {
+        action: "write_file",
+        path: "/config/binary.yaml",
+        content: "name: \u0000evil\n"
+      }),
+      400,
+      "VALIDATION_ERROR"
+    );
+    expect(existsSync(join(root, "binary.yaml"))).toBe(false);
   });
 
   it("reports a missing file honestly", async () => {
