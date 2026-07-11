@@ -360,25 +360,46 @@ The end-user installer contract is:
 - `ha-nova setup` owns product setup, migration, and client attachment
 - bundled Claude installs attach to a versioned local release snapshot under `~/.config/ha-nova/claude-marketplace/releases/vX.Y.Z`; the flat `~/.config/ha-nova/claude-marketplace` root stays repo/dev-only
 
-## Skill Section Template
+## Skill Section Template (v2)
 
-Standard sections for all sub-skills. Follow this when creating or auditing skills.
+Canonical structure for all sub-skills, enforced by `tests/skills/skill-template-contract.test.ts`. Follow this when creating or auditing skills.
 
-**Required for ALL skills:**
+**Canonical H2 order** (domain-specific sections may appear in the `[domain]` slots; the canonical sections must appear in this relative order):
+
+```
+Scope → Bootstrap (once per session) → Relay Contract → [domain] → Flow → [domain]
+  → Error Handling (optional, always directly before Output Format)
+  → Output Format → Safety → Guardrails (optional) → References (optional)
+```
+
+**Required for ALL sub-skills:**
 - **Scope** — what this skill does + inverse scope (what it does NOT do, which skill to use instead)
-- **Bootstrap** — relay CLI verification + onboarding fallback
+- **Bootstrap (once per session)** — exact heading; relay CLI verification + onboarding fallback
+- **Relay Contract** — the file-based `ha-nova relay` command contract this skill uses
 - **Flow** — step-by-step operations with relay commands
-- **Output Format** — what the user receives (structure, content)
+- **Output Format** — first line starts with ``Apply `skills/ha-nova/output-rules.md` `` ; then what the user receives
 - **Safety** — risk mitigations, confirmation rules, relay-only constraint
-- **Guardrails** — limits, constraints, "never use raw `get_states`"
 
-**Required for MUTATION skills** (write, helper):
-- **Post-Write Review** — mandatory inline review after every create/update/delete
+**Required for config-persisting skills** (write, helper):
+- **Post-Write Review** — mandatory inline review phase after every create/update/delete (a Flow phase, not a separate H2)
 - **References** — links to schema docs, relay API, review checks
 
 **Optional:**
-- **Error Handling** — error classification + remediation (recommended for external calls)
+- **Error Handling** — error classification + remediation (recommended for external calls); when present it sits directly before Output Format
+- **Guardrails** — hard limits and constraints (e.g. "never use raw `get_states`")
 - **Latency Policy** — when to optimize for speed
+
+**Declared deviations** (the only allowed ones):
+- `onboarding` — heading `## Bootstrap` (it repairs the relay; "once per session" would be wrong) and no `Relay Contract` section (the diagnostics skill's whole body is remediation commands)
+- `fallback` — heading `## Bootstrap (only before Relay-Ready calls)`
+
+**Forbidden heading variants** (normalized in 2026-07, must not return): `## Output Rules`, `## Safety Baseline` (sub-skills; the context skill keeps its own), `## Safety Guardrails`, `## Agent Flow`.
+
+**Terminology rule:** prose says "App(s)"; `add-on` / `addon` may appear only inside inline code or fenced blocks as literal API identifiers (`include_all_addons`, `failed_addons`, `<addon_slug>`, ...) or as backticked search-query strings.
+
+**Portability rule:** if a referenced shared file is unavailable in an install, do not guess its content — ask the user to re-run `ha-nova setup`. Exception: the existing `config-body-filter.jq` "recreate exactly" blocks (a one-line filter, self-recreation is strictly better).
+
+**The context skill (`ha-nova/SKILL.md`) is exempt** from the sub-skill template: it is a router, not an operation skill. Its required anchors stay pinned by `tests/skills/ha-nova-contract.test.ts`.
 
 ## Post-Write Review Standard
 

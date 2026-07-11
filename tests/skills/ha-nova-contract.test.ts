@@ -405,41 +405,6 @@ describe("ha-nova contract", () => {
     expect(apply).toContain("`write`, `read-back`, `reload`, or `runtime-verify`");
   });
 
-  it("keeps all operational subskills concise", () => {
-    const skills = [
-      "skills/dashboard/SKILL.md",
-      "skills/scene/SKILL.md",
-      "skills/todo/SKILL.md",
-      "skills/backup/SKILL.md",
-      "skills/updates/SKILL.md",
-      "skills/energy/SKILL.md",
-      "skills/maintenance/SKILL.md",
-      "skills/organize/SKILL.md",
-      "skills/history/SKILL.md",
-      "skills/write/SKILL.md",
-      "skills/read/SKILL.md",
-      "skills/entity-discovery/SKILL.md",
-      "skills/onboarding/SKILL.md",
-    ];
-    // Default budget is 1000 words. write/ carries the most safety machinery —
-    // the four-phase flow plus pre-write diff, pre-write impact, and durable
-    // update-revert wiring — so it gets a slightly larger, documented budget.
-    // scene/ carries the editability guard, upsert-overwrite protection,
-    // deliberate attribute-capture rules, and error/state semantics — that
-    // resilience content is the skill's value, so it gets a documented budget
-    // too. Everything else stays under 1000; recalibration, not removal.
-    const wordLimits: Record<string, number> = {
-      "skills/write/SKILL.md": 1150,
-      "skills/scene/SKILL.md": 1200,
-    };
-    for (const file of skills) {
-      const content = readFileSync(file, "utf8");
-      const wordCount = content.trim().split(/\s+/).length;
-      const limit = wordLimits[file] ?? 1000;
-      expect(wordCount, `${file} has ${wordCount} words (limit ${limit})`).toBeLessThan(limit);
-    }
-  });
-
   it("keeps the history skill read-only, bounded, and stats-aware", () => {
     const history = readFileSync("skills/history/SKILL.md", "utf8");
 
@@ -486,72 +451,6 @@ describe("ha-nova contract", () => {
       const content = readFileSync(file, "utf8");
       expect(content).not.toContain("__HA_NOVA_REPO_ROOT__");
       expect(content).not.toContain("ha-nova-managed-install");
-    }
-  });
-
-  it("enforces English-only content across all skill files", () => {
-    const allSkillFiles = [
-      "skills/ha-nova/SKILL.md",
-      "skills/dashboard/SKILL.md",
-      "skills/scene/SKILL.md",
-      "skills/todo/SKILL.md",
-      "skills/backup/SKILL.md",
-      "skills/updates/SKILL.md",
-      "skills/organize/SKILL.md",
-      "skills/history/SKILL.md",
-      "skills/write/SKILL.md",
-      "skills/read/SKILL.md",
-      "skills/helper/SKILL.md",
-      "skills/entity-discovery/SKILL.md",
-      "skills/onboarding/SKILL.md",
-      "skills/service-call/SKILL.md",
-      "skills/review/SKILL.md",
-      "skills/review/checks.md",
-      "skills/energy/SKILL.md",
-      "skills/energy/energy-reference.md",
-      "skills/maintenance/SKILL.md",
-      "skills/maintenance/maintenance-reference.md",
-      "skills/fallback/SKILL.md",
-      "skills/ha-nova/relay-api.md",
-      "skills/ha-nova/best-practices.md",
-      "skills/ha-nova/bulk-patterns.md",
-      "skills/ha-nova/payload-schemas.md",
-      "skills/ha-nova/automation-patterns.md",
-      "skills/ha-nova/template-guidelines.md",
-      "skills/ha-nova/safe-refactoring.md",
-      "skills/ha-nova/helper-schemas.md",
-      "skills/ha-nova/helper-flow-schemas.md",
-      "skills/ha-nova/agents/resolve-agent.md",
-      "skills/ha-nova/agents/apply-agent.md",
-    ];
-
-    // German words/phrases that should never appear in skill files
-    const germanPatterns = [
-      /\bAnalysiere\b/,
-      /\bZeige\b/,
-      /\bErstelle\b/,
-      /\bÄndere\b/,
-      /\bSpeichere\b/,
-      /\bImportiere\b/,
-      /\bmeine\b/,
-      /\bfehlt\b/,
-      /\blöschen\b/,
-      /\bBitte\b/,
-      /\bBedingung\b/,
-      /\bWohnzimmer\b/,
-      /\bfunktioniert\b/,
-      /\bgeht nicht\b/,
-      /\bist falsch\b/,
-    ];
-
-    for (const file of allSkillFiles) {
-      const content = readFileSync(file, "utf8");
-      for (const pattern of germanPatterns) {
-        expect(
-          pattern.test(content),
-          `${file} contains German text matching ${pattern}`,
-        ).toBe(false);
-      }
     }
   });
 

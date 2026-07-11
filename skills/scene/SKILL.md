@@ -94,7 +94,7 @@ Persistence routing per `skills/ha-nova/best-practices.md` → Persistence Model
 4. `ha-nova relay core --method DELETE --path /api/config/scene/config/<id>`
 5. Verify absence: config GET returns status 404 and the entity is gone.
 
-## Error Handling & State Semantics
+## Error Handling
 
 - A scene entity's state is the timestamp of its last activation; `unknown` means "never activated" — not an error.
 - Config GET 404 on a `homeassistant`-platform scene: the scene was deleted outside this session — re-list instead of retrying.

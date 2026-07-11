@@ -137,16 +137,19 @@ Dispatch sharpness at 28 skills: `diagnose` = root-cause a concrete failure, `he
 
 ## Release sequencing
 
-| Release | Theme | Contents |
-|---------|-------|----------|
-| **0.14** | Lifecycle & parity | C1 guided teardown + C2 update nudge (multiplies reach of every later release) |
-| **0.15** | Coverage wave 1 | `diagnose` + `media` + `notify` + fallback catalog (B11); workstream A lands silently (linter = internal, no release claim) |
-| **0.16** | Runs everywhere | Docker relay + wizard branch + disposable-HA e2e (shared infra) + README platform update; skills.sh/forum/awesome-ha push |
-| **0.17** | Trust & compare | `docs/safety.md` + dated eval report + `docs/comparison.md` + Relay 0.3.0 (envelope v2 + binary) + `camera`/`mqtt` |
-| **0.18+** | Rest by demand | `assist`, `admin`, Relay 0.4.0 (`/files`) + `yaml-config`, `external-sources`, weather row |
-| **1.0 gate** | | (a) all 4 HA install types validated; (b) lifecycle symmetric + parity everywhere; (c) safety.md fully evidence-linked with green scheduled run; (d) top domains shipped (media/notify/camera/logs); (e) Windows gold test (open breadcrumb); (f) no known false-success write path; (g) comparison page live |
+**Maintainer decision (2026-07-11): all phases land on `main` first; ONE release ships at the very end.** The former 0.14–0.17 staging becomes internal waves — same content, same order, no intermediate tags. `main` may run ahead of the stable tag for the duration of the program; the README stays stable-truth the whole time (release-bound claims collect in the release-body draft per the README gate).
 
-Every release follows repo rules: one topic one branch, PR merge checklist, Codex review cycle, release rehearsal gate.
+| Wave | Theme | Contents | Status |
+|------|-------|----------|--------|
+| **1** | Lifecycle & parity | C1 guided teardown + C2 update nudge | shipped to main (#288, #289) |
+| **2** | Template & portability | Workstream A: template v2 + linter + normalization, Safety Core, Execution Mode, token diet, frontmatter alignment | in progress |
+| **3** | Coverage wave 1 | `diagnose` + `media` + `notify` + fallback catalog (B11) | open |
+| **4** | Runs everywhere | Docker relay + wizard branch + disposable-HA e2e + platform claims (release-body draft) | open |
+| **5** | Trust & compare | `docs/safety.md` + dated eval report + `docs/comparison.md` + Relay 0.3.0 (envelope v2 + binary) + `camera`/`mqtt` | open |
+| **6** | Coverage wave 2 | `assist`, `admin`, Relay 0.4.0 (`/files`) + `yaml-config`, `external-sources`, weather row | open |
+| **Final release gate** | | (a) all 4 HA install types validated; (b) lifecycle symmetric + parity everywhere; (c) safety.md fully evidence-linked with green scheduled run; (d) top domains shipped (media/notify/camera/logs); (e) Windows gold test (open breadcrumb); (f) no known false-success write path; (g) comparison page live; (h) release-prep PR (version bump + notes + README updates) followed immediately by the RC/final tag flow | open |
+
+Every wave follows repo rules: one topic one branch, PR merge checklist, Codex review cycle; the single release at the end follows the full release rehearsal gate.
 
 ## Opinionated defaults (documented instead of asked)
 - Teardown in standard mode: config kept with a hint note ("points at nothing; `--purge` or keep for reinstall") — no auto-purge.

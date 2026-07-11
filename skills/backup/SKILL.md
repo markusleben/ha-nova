@@ -31,7 +31,7 @@ WS response body: `.data` (`skills/ha-nova/relay-api.md` → Standard Envelope).
 
 ### Status
 `{"type":"backup/info"}` → report from `.data`:
-- `backups` (count, newest `date`, sizes via `agents`), `state` (`idle` or in progress). Distinguish full backups (`homeassistant_included`) from partial add-on backups and automatic (`with_automatic_settings`) from manual; when the newest backup is partial, also report the newest FULL backup
+- `backups` (count, newest `date`, sizes via `agents`), `state` (`idle` or in progress). Distinguish full backups (`homeassistant_included`) from partial App backups and automatic (`with_automatic_settings`) from manual; when the newest backup is partial, also report the newest FULL backup
 - `last_completed_automatic_backup`, `next_automatic_backup` — say plainly when automatic backups are NOT configured (`next` is null)
 - surface `agent_errors` when non-empty (a failing backup location is silent data-loss risk)
 
@@ -41,9 +41,9 @@ WS response body: `.data` (`skills/ha-nova/relay-api.md` → Standard Envelope).
 3. Primary path — the user's own settings (encryption, locations, scope): `{"type":"backup/generate_with_automatic_settings"}`.
 4. Fallback when that fails because automatic settings are not configured: `{"type":"backup/generate","name":"<name>","agent_ids":["<local-agent>"],"include_homeassistant":true,"include_database":true}`:
    - discover the local agent via `{"type":"backup/agents/info"}`: Supervised installs register `hassio.local`, Core installs `backup.local` — never hardcode
-   - add `"include_all_addons":true` ONLY for `hassio.local` (Core rejects add-on options)
+   - add `"include_all_addons":true` ONLY for `hassio.local` (Core rejects App options)
    - if `backup/config/info` shows an encryption password configured, pass it as `password`; never invent one
-5. Both generate commands return when the job is INITIATED, not when it finishes. Poll `backup/info` every ~10 s until `state` returns to `idle` and a new backup appears in `backups`; then check the new backup's `failed_agent_ids`, `failed_addons`, and `failed_folders`: if any is non-empty, report partial success — the backup exists but is missing those locations, add-ons, or folders — never plain success. Otherwise report name, date, size, and locations. If still running after ~5 minutes, say the backup continues in the background and how to check later.
+5. Both generate commands return when the job is INITIATED, not when it finishes. Poll `backup/info` every ~10 s until `state` returns to `idle` and a new backup appears in `backups`; then check the new backup's `failed_agent_ids`, `failed_addons`, and `failed_folders`: if any is non-empty, report partial success — the backup exists but is missing those locations, Apps, or folders — never plain success. Otherwise report name, date, size, and locations. If still running after ~5 minutes, say the backup continues in the background and how to check later.
 6. If Status afterwards shows the attempt failed (`last_action_event`/no new backup), report the failure — never claim success from initiation alone.
 
 ### Safety backup before risky changes
@@ -53,7 +53,7 @@ Other skills name HA Backups as the recovery path (see `skills/ha-nova/write-saf
 - Create a fresh one only when the user asks or accepts, or the last full backup is stale relative to what the change touches; then proceed with the risky change only after the backup completed.
 
 ### Inspect
-`{"type":"backup/details","backup_id":"<id>"}` → what is included (Home Assistant, database, add-ons, folders), which locations hold it, protected (encrypted) or not.
+`{"type":"backup/details","backup_id":"<id>"}` → what is included (Home Assistant, database, Apps, folders), which locations hold it, protected (encrypted) or not.
 
 ### Delete
 1. Require `state: idle` first (one backup operation at a time). Resolve the exact `backup_id` from Status; show name, date, and locations in the preview — deletion removes it from ALL listed locations, irreversibly.

@@ -26,14 +26,17 @@ Read-only analysis. Exception: after explicit user confirmation, one Quick-Fix s
 
 ## Bootstrap (once per session)
 
+Preflight: `ha-nova relay health` (once per session, skip if already verified). If this fails: `ha-nova setup`.
+
+## Relay Contract
+
 Relay CLI: `ha-nova relay`
-- Preflight: `ha-nova relay health` (once per session, skip if already verified)
 - `ha-nova relay ws --data-file <payload-file>` — canonical WebSocket path
 - `ha-nova relay core --method <METHOD> --path <PATH> --body-file <payload-file>` — canonical REST path
 - `ha-nova relay ... --jq-file <filter-file>` — canonical complex filter path
 - `ha-nova relay ... --out <result-file>` — canonical large-output path
 
-### Target Resolution
+## Target Resolution
 
 If user provides an exact automation/script `entity_id` (e.g., `automation.main_lights`), skip search and go directly to config read.
 
@@ -155,7 +158,7 @@ If config is already in the thread context (e.g., user pasted YAML):
 
 Do NOT invoke `ha-nova:entity-discovery` or `ha-nova:read` as separate skills — handle everything within this review flow.
 
-### Bulk Mode Gate
+## Bulk Mode Gate
 
 After target resolution:
 
@@ -484,6 +487,12 @@ For resolved targets `> 1`, return exactly these 6 sections:
 - group conflicts by shared controlled entity or linked helper
 - separate true conflicts from safe/redundant clusters
 - if clean: localized "no conflicts"
+
+## Safety
+
+- Read-only analysis: no config writes through the relay (see Scope for the single Quick-Fix exception).
+- The Quick-Fix service call requires confirmation bound to its exact preview; bulk mode disables it entirely.
+- Never guess entity or config IDs; resolve or ask.
 
 ## Guardrails
 
