@@ -131,6 +131,21 @@ func withEntityAnchor(base, entity string) string {
 	return base + " " + entity
 }
 
+// itemAnchorFor is the single gate for anchoring: items inside a service
+// call's payload (data/target/variables) are payload shapes — an actionable
+// notification button carries its own action/title keys and would mislabel as
+// a service call — so they never anchor. Every pass that builds an index
+// segment must go through this, or the dedup texts of the aligned and
+// notification passes drift apart and one change renders twice.
+func itemAnchorFor(segs []segment, item interface{}) string {
+	for _, s := range segs {
+		if !s.isIndex && (s.key == "data" || s.key == "target" || s.key == "variables") {
+			return ""
+		}
+	}
+	return configItemAnchor(item)
+}
+
 func titleFirst(s string) string {
 	if s == "" {
 		return s

@@ -436,6 +436,32 @@ func TestDiffAnchorPrefersAliasAndKeepsIndexFallback(t *testing.T) {
 	})
 }
 
+func TestDiffNestedNotificationCopyDedupsWithAnchoredLabel(t *testing.T) {
+	// The aligned pass and the notification-copy pass must build IDENTICAL
+	// anchored labels, or the dedup (path+text) silently stops working for
+	// nested sequences and one copy change renders twice.
+	before := `{"actions":[{"choose":[{"conditions":[{"condition":"state","entity_id":"x","state":"on"}],"sequence":[{"action":"notify.phone","data":{"message":"Plan erstellt"}}]}]}]}`
+	after := `{"actions":[{"choose":[{"conditions":[{"condition":"state","entity_id":"x","state":"on"}],"sequence":[{"action":"notify.phone","data":{"message":"Plan ist bereit"}},{"action":"script.extra"}]}]}]}`
+	got := diffLines(t, before, after)
+	assertLines(t, got, []string{
+		"| Action 1 (choose 1 › sequence) | 1 item | 2 items |",
+		"| Action 1 (action notify.phone › data › message) | Plan erstellt | Plan ist bereit |",
+		"| Action 1 (choose 1 › step 2) | — | action script.extra |",
+	})
+}
+
+func TestDiffPayloadArraysNeverAnchor(t *testing.T) {
+	// Actionable-notification buttons live in data.actions[] and carry their
+	// own action/title keys — anchoring them would mislabel a button as a
+	// service call. Payload subtrees keep the index fallback.
+	before := `{"actions":[{"action":"notify.phone","data":{"message":"Tür","actions":[{"action":"OPEN","title":"Öffnen"},{"action":"IGNORE","title":"Ignorieren"}]}}]}`
+	after := strings.Replace(before, `"title":"Ignorieren"`, `"title":"Später"`, 1)
+	got := diffLines(t, before, after)
+	assertLines(t, got, []string{
+		"| Action 1 (data › action 2 › title) | Ignorieren | Später |",
+	})
+}
+
 func TestDiffNestedConditionChange(t *testing.T) {
 	before := `{"conditions":[{"condition":"numeric_state","above":60}]}`
 	after := `{"conditions":[{"condition":"numeric_state","above":40}]}`
