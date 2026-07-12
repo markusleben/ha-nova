@@ -88,8 +88,11 @@ type installStatusArtifact struct {
 func runStatus(paths runtimePaths, args []string) int {
 	fs := flag.NewFlagSet("status", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
-	jsonOutput := fs.Bool("json", false, "json")
+	jsonOutput := fs.Bool("json", false, "machine-readable install status on stdout")
 	if err := fs.Parse(args); err != nil {
+		if helpRequested(err, fs, "ha-nova status [--json]") {
+			return 0
+		}
 		printHumanErr("%s", err)
 		return 1
 	}

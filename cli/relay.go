@@ -99,6 +99,9 @@ func parseRelayFlags(command string, args []string) (relayRequestOptions, error)
 	fs.StringVar(&opts.OutputFile, "out", "", "write command output to file")
 
 	if err := fs.Parse(args); err != nil {
+		if helpRequested(err, fs, "ha-nova relay "+command+" [flags]") {
+			return opts, errHelpShown
+		}
 		return opts, err
 	}
 	if command == "core" {
@@ -177,6 +180,9 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 
 	opts, err := parseRelayFlags(endpoint, args)
 	if err != nil {
+		if errors.Is(err, errHelpShown) {
+			return 0
+		}
 		printErr("%s", err)
 		return 1
 	}
@@ -349,6 +355,9 @@ func parseHealthFlags(args []string) (healthOptions, error) {
 	fs.Float64Var(&opts.ConnectTimeoutSeconds, "connect-timeout", defaultRelayConnectTimeoutSeconds, "connection timeout in seconds")
 	fs.Float64Var(&opts.MaxTimeSeconds, "max-time", defaultRelayMaxTimeSeconds, "total request timeout in seconds")
 	if err := fs.Parse(args); err != nil {
+		if helpRequested(err, fs, "ha-nova relay health [--connect-timeout <s>] [--max-time <s>]") {
+			return opts, errHelpShown
+		}
 		return opts, err
 	}
 	if opts.ConnectTimeoutSeconds <= 0 || opts.MaxTimeSeconds <= 0 {
@@ -360,6 +369,9 @@ func parseHealthFlags(args []string) (healthOptions, error) {
 func runHealth(paths runtimePaths, args []string) int {
 	healthOpts, err := parseHealthFlags(args)
 	if err != nil {
+		if errors.Is(err, errHelpShown) {
+			return 0
+		}
 		printErr("%s", err)
 		return 1
 	}

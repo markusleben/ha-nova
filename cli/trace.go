@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 )
@@ -77,6 +78,9 @@ func runTraceCommand(paths runtimePaths, args []string) int {
 func runTraceLatest(paths runtimePaths, args []string) int {
 	entityID, jsonOut, err := parseTraceLatestArgs(args)
 	if err != nil {
+		if errors.Is(err, errHelpShown) {
+			return 0
+		}
 		printErr("%s", err)
 		return 1
 	}
@@ -122,6 +126,9 @@ func runTraceLatest(paths runtimePaths, args []string) int {
 func runTraceList(paths runtimePaths, args []string) int {
 	entityID, jsonOut, err := parseTraceEntityArgs("trace list", args)
 	if err != nil {
+		if errors.Is(err, errHelpShown) {
+			return 0
+		}
 		printErr("%s", err)
 		return 1
 	}
@@ -174,6 +181,9 @@ func runTraceList(paths runtimePaths, args []string) int {
 func runTraceGet(paths runtimePaths, args []string) int {
 	entityID, runID, jsonOut, err := parseTraceGetArgs(args)
 	if err != nil {
+		if errors.Is(err, errHelpShown) {
+			return 0
+		}
 		printErr("%s", err)
 		return 1
 	}

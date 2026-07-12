@@ -23,6 +23,10 @@ func parseTraceGetArgs(args []string) (string, string, bool, error) {
 			}
 			continue
 		}
+		if arg == "--help" || arg == "-h" {
+			_ = helpRequested(flag.ErrHelp, fs, "ha-nova trace get <automation.entity_id|script.entity_id> <run_id> [--json]")
+			return "", "", false, errHelpShown
+		}
 		if strings.HasPrefix(arg, "-") {
 			return "", "", false, fmt.Errorf("unknown trace get flag: %s", arg)
 		}
@@ -45,6 +49,10 @@ func parseTraceEntityArgs(command string, args []string) (string, bool, error) {
 				return "", false, err
 			}
 			continue
+		}
+		if arg == "--help" || arg == "-h" {
+			_ = helpRequested(flag.ErrHelp, fs, fmt.Sprintf("ha-nova %s <automation.entity_id|script.entity_id> [--json]", command))
+			return "", false, errHelpShown
 		}
 		if strings.HasPrefix(arg, "-") {
 			return "", false, fmt.Errorf("unknown %s flag: %s", command, arg)
