@@ -60,6 +60,11 @@ func dispatch(paths runtimePaths, argv0 string, args []string) int {
 	case "diff":
 		return runDiffCommand(paths, args[1:])
 	case "version":
+		if len(args) > 1 && (args[1] == "--help" || args[1] == "-h") {
+			fmt.Fprintln(os.Stdout, "Usage: ha-nova version")
+			fmt.Fprintln(os.Stdout, "Prints the installed HA NOVA version. No flags.")
+			return 0
+		}
 		fmt.Fprintln(os.Stdout, versionDisplay(paths))
 		return 0
 	case "internal-replace":
