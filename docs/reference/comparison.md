@@ -44,7 +44,7 @@ Every HA NOVA row is backed by a file and a test in **[safety.md](safety.md)** �
 
 Being honest about this is the point of the page:
 
-- **Breadth of file editing.** ha-mcp can read/write files broadly (beta, with automatic backups). HA NOVA's file access (`ha-nova:yaml-config`, relay ≥ 0.4.0) is deliberately narrower: opt-in and off by default, configuration formats only, executable paths refused outright — and the write flow it shipped with is diff → confirm → `check_config` → reload → verify → rollback.
+- **Breadth of file editing.** ha-mcp can read/write files broadly (beta, with automatic backups). HA NOVA's file access (`ha-nova:yaml-config`, relay ≥ 0.4.0) is deliberately narrower: opt-in and off by default, configuration formats only, executable paths refused outright — and the write flow it shipped with is preview → confirm → `check_config` → reload → verify → rollback.
 - **Add-on and HACS management.** ha-mcp can install and manage those. HA NOVA points you at the Home Assistant UI.
 - **Dashboard screenshots** and **ZHA device inspection**: ha-mcp has them, HA NOVA does not.
 - **Maturity of reach.** ha-mcp has more stars, more contributors, and more integrations wired up. HA NOVA is younger.
