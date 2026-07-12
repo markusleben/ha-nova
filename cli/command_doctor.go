@@ -103,6 +103,12 @@ func runDoctor(paths runtimePaths, args []string) int {
 			}
 			if !fixed {
 				status = 1
+			} else {
+				// The relay just restarted: the readiness captured before the
+				// update is stale (its WS may still be reconnecting, or fail
+				// on the new version) — the checks below must judge the relay
+				// that is running NOW.
+				readiness = checkRelayReadiness(cfg.RelayBaseURL, token)
 			}
 		}
 		if haReachable {
