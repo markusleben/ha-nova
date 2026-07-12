@@ -13,6 +13,8 @@ import (
 // Extend it whenever a skill ships.
 var hermesRequiredSkillDirs = []string{
 	"ha-nova",
+	"ha-nova-admin",
+	"ha-nova-assist",
 	"ha-nova-backup",
 	"ha-nova-calendar",
 	"ha-nova-camera",
@@ -20,6 +22,7 @@ var hermesRequiredSkillDirs = []string{
 	"ha-nova-diagnose",
 	"ha-nova-energy",
 	"ha-nova-entity-discovery",
+	"ha-nova-external-sources",
 	"ha-nova-fallback",
 	"ha-nova-health",
 	"ha-nova-helper",
@@ -37,6 +40,7 @@ var hermesRequiredSkillDirs = []string{
 	"ha-nova-todo",
 	"ha-nova-updates",
 	"ha-nova-write",
+	"ha-nova-yaml-config",
 }
 
 // hermesLegacyRequiredSkillDirs is a FROZEN fingerprint of the historical

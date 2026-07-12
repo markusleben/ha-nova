@@ -33,6 +33,11 @@ Use file-based payloads for service writes:
 
 Some services return data (`weather.get_forecasts`, `calendar.get_events`, `todo.get_items`, ...) and REQUIRE the `?return_response` query parameter — without it HA returns 400 "requires responses". Path shape: `/api/services/<domain>/<service>?return_response`; the data lives under `.data.body.service_response`. Pure data services (the examples above) are reads — no write confirmation. A response-capable ACTION service (for example direct `script.<script_id>`) still follows the full preview/confirmation flow below — the parameter only adds the response, it never downgrades an action to a read.
 
+### Weather forecasts
+
+`weather.get_forecasts` is the response service for forecasts — there is no weather skill because this IS the whole API:
+`POST /api/services/weather/get_forecasts?return_response` with `{"entity_id":"weather.<id>","type":"daily"}` (`hourly` / `twice_daily` also exist). The forecast list arrives under `.data.body.service_response["weather.<id>"].forecast` — bracket notation, the key contains a dot. Read-only: no confirmation needed.
+
 ## Flow
 
 1. Resolve target entity (use entity discovery if name is ambiguous).

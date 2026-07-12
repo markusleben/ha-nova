@@ -39,14 +39,14 @@ else
 fi
 
 # ── 2. Skill count ──
-# Active skill inventory expects 25 top-level skill directories
-# (context skill + 24 sub-skills; camera+mqtt added 2026-07-11)
-echo "[2] Skill directory count (current inventory expects 25)"
+# Active skill inventory expects 29 top-level skill directories
+# (context skill + 28 sub-skills; yaml-config/assist/admin/external-sources added 2026-07-11)
+echo "[2] Skill directory count (current inventory expects 29)"
 SKILL_COUNT=$(find "$REPO_ROOT/skills" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')
-if (( SKILL_COUNT == 25 )); then
+if (( SKILL_COUNT == 29 )); then
   pass "skills/ has ${SKILL_COUNT} directories"
 else
-  fail "skills/ has ${SKILL_COUNT} directories — active docs/contracts expect 25. Update README and architecture docs."
+  fail "skills/ has ${SKILL_COUNT} directories — active docs/contracts expect 29. Update README and architecture docs."
 fi
 
 # ── 2b. One relay codebase, two distributions ──

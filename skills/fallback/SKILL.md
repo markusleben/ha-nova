@@ -1,6 +1,6 @@
 ---
 name: fallback
-description: Mandatory fallback for any HA NOVA task without a dedicated subskill. Must be invoked before any raw relay write operation. Covers blueprints, zones/persons/tags, device config-entry detach, Apps, HACS, Zigbee/Z-Wave, and unsupported config-entry helper families.
+description: Mandatory fallback for any HA NOVA task without a dedicated subskill. Must be invoked before any raw relay write operation. Covers blueprints, device config-entry detach, Apps, HACS, Zigbee/Z-Wave, and unsupported config-entry helper families.
 license: MIT
 compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay App in Home Assistant.
 ---
@@ -56,6 +56,13 @@ For every Relay-Ready call in this skill:
 | Actionable-notification callbacks (waiting for a button press) | Roadmap (needs event subscriptions) | -- |
 | Cameras (snapshot, stream URL, record) | Covered | camera |
 | MQTT (bounded topic listening, discovery/debug info, publish) | Covered | mqtt |
+| Voice / Assist (utterance testing, pipelines, entity exposure, engine inventory) | Covered | assist |
+| Persons / Zones / Tags | Covered | admin |
+| User accounts (list, create, delete — with owner/system guards) | Covered | admin |
+| YAML-only configuration (template/REST/command-line sensors, packages, themes) | Covered | yaml-config |
+| Frontend themes | Covered | yaml-config |
+| External data stores (InfluxDB long-term history, Prometheus, ...) | Covered | external-sources |
+| Weather forecasts (`weather.get_forecasts`) | Covered | service-call |
 | Calendar Queries | Covered | calendar |
 | To-do Lists (items + Local To-do lifecycle) | Covered | todo |
 | Area / Floor CRUD | Covered | organize |
@@ -63,13 +70,11 @@ For every Relay-Ready call in this skill:
 | Category CRUD / Entity category assignment | Covered | organize |
 | Entity / Device metadata updates | Covered | organize |
 | Blueprints | Relay-Ready | this skill |
-| Zone / Person / Tag Mgmt | Relay-Ready | this skill |
 | Energy (analysis + source/device config) | Covered | energy |
 | Other Config-Entry Helpers | Relay-Ready | this skill |
 | Statistics repair / Purge / Entity registry remove | Covered | maintenance |
 | Device config-entry detach | Relay-Ready | this skill |
 | Event Subscriptions | Roadmap Phase 1c | -- |
-| YAML / REST / Command-Line Sensors | Roadmap Phase 3 | -- |
 | Backups (status, create, inspect, delete) | Covered | backup |
 | Updates (pending, release notes, install, skip) | Covered | updates |
 | Apps / Supervisor | External | -- |
@@ -112,19 +117,6 @@ ha-nova relay ws --data-file <payload-file>
 ```
 
 **Risks:** Imported blueprints execute when instantiated. Review blueprint source before import.
-
-### Zone / Person / Tag Management -- RELAY-READY
-
-Manage location zones, person entities, and NFC/QR tags.
-
-**Search:** `home assistant zone person tag management api websocket 2026`
-
-**Experimental relay calls (no skill guardrails):**
-```text
-ha-nova relay ws --data-file <payload-file>
-```
-
-**Risks:** Zone changes affect presence detection automations. Person changes affect device trackers.
 
 ### Other Config-Entry Helpers -- RELAY-READY
 
@@ -199,17 +191,6 @@ Real-time event streams for state changes, automation triggers, and custom event
 
 **Status:** Coming in Phase 1c. Blocked by: No SSE streaming endpoint in Relay.
 **Workaround:** Poll entity state periodically via `GET /api/states/{entity_id}`.
-
-### YAML / REST / Command-Line Sensors -- ROADMAP (Phase 3)
-
-Config-entry template helpers are covered by `ha-nova:helper` — this roadmap item is only about YAML-file, REST, and command-line sensors.
-
-Define custom sensors using Jinja2 templates, REST endpoints, or shell commands.
-
-**Search:** `home assistant template sensor yaml configuration 2026`
-
-**Status:** Coming in Phase 3. Blocked by: No filesystem access in Relay (sensors defined in YAML files).
-**Workaround:** Add the YAML manually via the HA config files.
 
 ## External Features
 
