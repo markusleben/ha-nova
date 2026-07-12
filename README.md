@@ -74,7 +74,7 @@ We built this because we didn't trust AI with our own config either.
 
 One installer. One wizard. Done. It even finds your Home Assistant automatically.
 
-> **You need:** Home Assistant OS or Supervised.
+> **You need:** Home Assistant — any install type. HA OS and Supervised get the NOVA Relay App; Container and Core run the same relay as a [standalone container](docs/reference/relay-container.md).
 
 1. Open the [latest release](https://github.com/markusleben/ha-nova/releases/latest)
 2. Copy the one-liner for your OS
@@ -140,6 +140,8 @@ Most new HA NOVA workflows are text-file skill updates on your machine. When a w
 
 And because the Relay sits right next to Home Assistant, it can do things a remote client can't — like snapshotting an automation before it updates it, so you can revert the latest verified update with a single word. For deletes or point-in-time recovery, use a suitable Home Assistant Backup or recreate the item.
 
+Every safety guarantee above is backed by a file and a test — the **[safety page](docs/reference/safety.md)** maps each claim to what enforces and verifies it. And if you are weighing HA NOVA against the MCP-server approach, the **[comparison page](docs/reference/comparison.md)** is named, dated, and honest in both directions.
+
 ---
 
 ## 🔮 What's Next
@@ -156,7 +158,7 @@ HA NOVA is early — and that's the point. Here's where it's going:
 
 ## 🧩 Skills
 
-19 task skills plus the HA NOVA context skill, each a markdown file you can read and edit.
+28 task skills plus the HA NOVA context skill, each a markdown file you can read and edit.
 
 | Skill | What it does |
 |:------|:-------------|
@@ -177,7 +179,16 @@ HA NOVA is early — and that's the point. Here's where it's going:
 | 🎛️ **service-call** | Control lights, climate, covers, switches, and media players |
 | 🔎 **entity-discovery** | Find entities by name, room, area, or label |
 | 🧩 **helper** | Create and manage helpers: counters, timers, template sensors, and more |
-| 🛡️ **fallback** | Safety net for blueprints, zones, and advanced ops |
+| 🩺 **diagnose** | Root-cause a concrete failure: "why didn't my automation run?" |
+| 🎵 **media** | Control media players, browse libraries, group speakers, send TTS announcements |
+| 📣 **notify** | Send notifications to your phone, manage persistent notifications |
+| 📷 **camera** | Look at the current camera frame, get stream URLs, record |
+| 📡 **mqtt** | Listen to MQTT topics, inspect discovery, publish with guards |
+| 🗣️ **assist** | Test what your voice assistant understands, manage pipelines and voice exposure |
+| 👥 **admin** | Manage persons, zones, tags, and user accounts — with hard owner guards |
+| 📝 **yaml-config** | Edit YAML-only configuration (template/REST/command-line sensors, packages, themes) via opt-in file access |
+| 📊 **external-sources** | Query InfluxDB directly for history the recorder purged long ago |
+| 🛡️ **fallback** | Safety net for blueprints and advanced ops |
 | 🚀 **onboarding** | Diagnose setup issues and troubleshoot connections |
 
 Want to add a new capability? → [CONTRIBUTING.md](CONTRIBUTING.md)
