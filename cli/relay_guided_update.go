@@ -32,36 +32,38 @@ var (
 
 const relayUpdateManualPath = "Manual path: open Home Assistant > Settings > Add-ons > NOVA Relay and install the update there; a standalone container needs a manual image pull."
 
-// maybeOfferGuidedRelayUpdate follows a printed relay-outdated notice. It is
+// maybeOfferGuidedRelayUpdate follows a printed relay-outdated notice and
+// reports whether the relay ended up updated AND verified — doctor uses that
+// to not fail a run whose only problem the user just fixed. It is
 // deliberately best-effort: a non-TTY session, a "no", a missing update
 // entity (standalone container), or any transport problem falls back to the
 // manual path without touching the caller's exit code.
-func maybeOfferGuidedRelayUpdate(paths runtimePaths, notice humanNotice) {
+func maybeOfferGuidedRelayUpdate(paths runtimePaths, notice humanNotice) bool {
 	// Both ends must be a terminal: with stdout redirected the question would
 	// land in a file while the command silently blocks on stdin.
 	if notice.kind != humanNoticeKindRelayOutdated || !isInteractiveTTY() || !stdoutIsInteractiveTTY() {
-		return
+		return false
 	}
 	cfg, err := loadConfig(paths)
 	if err != nil || cfg.RelayBaseURL == "" {
-		return
+		return false
 	}
 	token, err := readRelayAuthTokenForDoctor()
 	if err != nil || token == "" {
-		return
+		return false
 	}
-	runGuidedRelayUpdate(paths, cfg, token, bufio.NewReader(os.Stdin), os.Stdout)
+	return runGuidedRelayUpdate(paths, cfg, token, bufio.NewReader(os.Stdin), os.Stdout)
 }
 
-func runGuidedRelayUpdate(paths runtimePaths, cfg config, token string, in *bufio.Reader, out io.Writer) {
+func runGuidedRelayUpdate(paths runtimePaths, cfg config, token string, in *bufio.Reader, out io.Writer) bool {
 	yes, err := promptWizardYesNoFromReader(in, out, "Install the relay update in Home Assistant now?", true)
 	if err != nil || !yes {
-		return
+		return false
 	}
 	entityID, reason := resolveRelayUpdateEntity(cfg, token)
 	if entityID == "" {
 		fmt.Fprintf(out, "Cannot start the App update from here: %s\n%s\n", reason, relayUpdateManualPath)
-		return
+		return false
 	}
 	fmt.Fprintf(out, "Installing the NOVA Relay App update (%s) with a partial backup — the relay restarts during the install.\n", entityID)
 	// The relay dies mid-call when the install lands, so a dropped response
@@ -79,15 +81,16 @@ func runGuidedRelayUpdate(paths runtimePaths, cfg config, token string, in *bufi
 		}
 		if json.Unmarshal(body, &envelope) == nil && (!envelope.OK || envelope.Data.Status >= 400) {
 			fmt.Fprintf(out, "Home Assistant rejected the install call.\n%s\n", relayUpdateManualPath)
-			return
+			return false
 		}
 	}
 	version, ok := waitForRelayFloor(paths, cfg, token)
 	if !ok {
 		fmt.Fprintf(out, "The relay did not report a new version within %s.\n%s\n", relayUpdatePollTimeout, relayUpdateManualPath)
-		return
+		return false
 	}
 	fmt.Fprintf(out, "Relay updated and verified: v%s is running.\n", version)
+	return true
 }
 
 // resolveRelayUpdateEntity finds the NOVA Relay App's update.* entity via

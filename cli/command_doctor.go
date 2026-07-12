@@ -93,11 +93,16 @@ func runDoctor(paths runtimePaths, args []string) int {
 		doctorInfo("Relay health reachable: %s/health", cfg.RelayBaseURL)
 		if notice := checkRelayVersion(paths, readiness.HealthBody); !notice.empty() {
 			printHumanNotice(notice)
-			status = 1
 			// --quiet is a machine/diagnostic contract: warning-only, never
 			// an interactive question that could block or trigger a restart.
+			// A guided update that ends verified clears THIS failure — doctor
+			// must not exit 1 over a problem the user just fixed.
+			fixed := false
 			if !*quiet {
-				maybeOfferGuidedRelayUpdate(paths, notice)
+				fixed = maybeOfferGuidedRelayUpdate(paths, notice)
+			}
+			if !fixed {
+				status = 1
 			}
 		}
 		if haReachable {

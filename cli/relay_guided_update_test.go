@@ -167,7 +167,10 @@ func TestGuidedRelayUpdateInstallsThroughTheRestartAndVerifies(t *testing.T) {
 	defer server.Close()
 
 	var out bytes.Buffer
-	runGuidedRelayUpdate(paths, config{RelayBaseURL: server.URL}, "token", bufio.NewReader(strings.NewReader("\n")), &out)
+	verified := runGuidedRelayUpdate(paths, config{RelayBaseURL: server.URL}, "token", bufio.NewReader(strings.NewReader("\n")), &out)
+	if !verified {
+		t.Fatalf("verified install must report success; output: %s", out.String())
+	}
 	if !installed.Load() {
 		t.Fatalf("update/install was never called; output: %s", out.String())
 	}
@@ -201,7 +204,9 @@ func TestGuidedRelayUpdatePollTimeoutStaysHonest(t *testing.T) {
 	defer server.Close()
 
 	var out bytes.Buffer
-	runGuidedRelayUpdate(paths, config{RelayBaseURL: server.URL}, "token", bufio.NewReader(strings.NewReader("y\n")), &out)
+	if runGuidedRelayUpdate(paths, config{RelayBaseURL: server.URL}, "token", bufio.NewReader(strings.NewReader("y\n")), &out) {
+		t.Fatalf("timeout must not report success")
+	}
 	if !strings.Contains(out.String(), "did not report a new version") {
 		t.Fatalf("missing honest timeout message: %s", out.String())
 	}
@@ -233,7 +238,9 @@ func TestGuidedRelayUpdateRejectedInstallSkipsTheWait(t *testing.T) {
 	defer server.Close()
 
 	var out bytes.Buffer
-	runGuidedRelayUpdate(paths, config{RelayBaseURL: server.URL}, "token", bufio.NewReader(strings.NewReader("y\n")), &out)
+	if runGuidedRelayUpdate(paths, config{RelayBaseURL: server.URL}, "token", bufio.NewReader(strings.NewReader("y\n")), &out) {
+		t.Fatalf("rejection must not report success")
+	}
 	if !strings.Contains(out.String(), "Home Assistant rejected the install call.") {
 		t.Fatalf("missing rejection message: %s", out.String())
 	}
@@ -250,7 +257,9 @@ func TestGuidedRelayUpdateDeclinedTouchesNothing(t *testing.T) {
 	defer server.Close()
 
 	var out bytes.Buffer
-	runGuidedRelayUpdate(paths, config{RelayBaseURL: server.URL}, "token", bufio.NewReader(strings.NewReader("n\n")), &out)
+	if runGuidedRelayUpdate(paths, config{RelayBaseURL: server.URL}, "token", bufio.NewReader(strings.NewReader("n\n")), &out) {
+		t.Fatalf("a declined prompt must not report success")
+	}
 }
 
 func TestGuidedRelayUpdateContainerFallsBackToManualPath(t *testing.T) {
@@ -261,7 +270,9 @@ func TestGuidedRelayUpdateContainerFallsBackToManualPath(t *testing.T) {
 	defer server.Close()
 
 	var out bytes.Buffer
-	runGuidedRelayUpdate(paths, config{RelayBaseURL: server.URL}, "token", bufio.NewReader(strings.NewReader("y\n")), &out)
+	if runGuidedRelayUpdate(paths, config{RelayBaseURL: server.URL}, "token", bufio.NewReader(strings.NewReader("y\n")), &out) {
+		t.Fatalf("container fallback must not report success")
+	}
 	if !strings.Contains(out.String(), "no NOVA Relay App update entity found") {
 		t.Fatalf("missing container reason: %s", out.String())
 	}
