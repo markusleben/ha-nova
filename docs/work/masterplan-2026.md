@@ -146,32 +146,20 @@ Dispatch sharpness at 28 skills: `diagnose` = root-cause a concrete failure, `he
 | **3** | Coverage wave 1 | `diagnose`, `media`, `notify`, `camera`, `mqtt` + fallback catalog; Relay 0.3.0 (envelope v2 window mode + binary responses) | **DONE** — #295, #296, #297, #298 |
 | **4** | Runs everywhere | Standalone container relay (HA Container/Core), GHCR publish with smoke-then-promote, one-codebase guard | **DONE** — #299 |
 | **5** | Trust & compare | `docs/reference/safety.md` (guarantee → enforced by → verified by), `docs/reference/comparison.md` (named, dated, honest both ways), live disposable-HA e2e (weekly, non-blocking) | **DONE** — #301 |
-| **6** | Coverage wave 2 | Relay 0.4.0 `/files` (opt-in, default off) **DONE** — #302. Skills `yaml-config`, `assist`, `admin`, `external-sources` + weather row: **branch `feat/wave6-skills` (ae3dcda), pushed, NOT yet a PR** | **IN PROGRESS** |
-| **Final release gate** | | See "Where to pick up" below | open |
+| **6** | Coverage wave 2 | Relay 0.4.0 `/files` (opt-in, default off) — #302. Skills `yaml-config`, `assist`, `admin`, `external-sources` + weather row — #309 | **DONE** |
+| **Final release gate** | | Release-prep #311 + release-path fix #312 → **v0.14.0 shipped 2026-07-12** | **DONE** |
 
-## Where to pick up (2026-07-12)
+## Shipped (2026-07-12)
 
-**Everything through wave 5 is on `main`.** 17 PRs merged; `main` is green (typecheck, 74 test files / 721 tests, Go suite, docs fact-check, live e2e against a real Home Assistant).
+**The program is complete.** All six waves are on `main`; **v0.14.0** is the single release that closes it: rc1 rehearsal surfaced a real release-path bug (`verify-next-release-version` died with `spawnSync ENOBUFS` once the release list outgrew Node's 1 MiB default buffer — fixed in #312, contract-pinned), rc2 rehearsal ran green end to end, the stable publish followed on the same commit (`daa263e`), and the public install, `check-update`, same-version `update`, and guided `uninstall` were verified against the published artifacts.
 
-**Immediate next step — finish wave 6:**
-1. `git checkout feat/wave6-skills && git merge main` (the branch predates the relay-0.4.0 merge; it carries `min_relay_version: 0.4.0`, which only becomes valid once #302 is in — it now is).
-2. `npm run typecheck && npm run test:safe && bash scripts/check-docs.sh` — the skill-directory count in `scripts/check-docs.sh` is already set to 29 on that branch; the linter classes, dispatch table, fallback map, Hermes readiness list and architecture doc are wired.
-3. Add the code-execution boundary to `skills/yaml-config/SKILL.md`: the relay now refuses `custom_components`, `python_scripts`, `www` and only writes `.yaml/.yml/.conf/.json/.txt/.md` — the skill must say so instead of discovering it as an error.
-4. PR → `@codex` → fix findings → merge (standard cycle).
-
-**Then the release (the only thing left):**
-- Release-prep PR (README is stable-truth and may ONLY change here, together with a `version.json` bump — that is what `readme-release-gate` enforces):
-  - Version bump via `npm run bump -- <version>` (0.14.0 is the working assumption). `scripts/bump-version.sh` updates every version-bearing file — `version.json`, `package.json`, `package-lock.json`, `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`; a `version.json`-only edit is not enough. The bump touches manifests → add `manifest-review:approved` per the PR checklist.
-  - `README.md`: "19 task skills" → 28; relay size "~1.5K lines" → ~2.7K; add the platform claim (App **or** standalone container → runs on every HA install type); link `docs/reference/safety.md` and `docs/reference/comparison.md`.
-  - Release notes: refresh `docs/work/0.14.0-release-body.md` against the shipped wave-6 state before use — the wave-6 PR moves the relay floor to 0.4.0 and adds the wave-6 skill bullets; verify the draft carries them rather than trusting "already written". Keep it short and user-centric per the release-notes rule.
-- Then the tag flow per `docs/releasing.md`: strict-mode `verify-release-pipeline.sh` → push `vX.Y.Z-rc1` on the reviewed commit → verify the public install → tag the final `vX.Y.Z` on that same commit.
-
-**Known open items (not release blockers):**
-- Windows gold test (carried over from before this program).
-- The setup wizard has no guided "Docker" branch yet; Container/Core users follow `docs/reference/relay-container.md` (non-interactive `ha-nova setup --non-interactive --ha-url ... --relay-url ... --relay-token ...`). Documented as planned.
+**Known open items (carried forward, deliberately not release blockers):**
+- Windows gold test (carried over from before this program; release.yml's windows-latest public-install smoke is green).
+- The setup wizard has no guided "Docker" branch yet; Container/Core users follow `docs/reference/relay-container.md` (README routes them there since #311). Documented as planned.
 - `skills/helper/SKILL.md` is 489 lines (over the ~400 guidance) — split candidate, deliberately deferred.
+- Open dependabot PRs classified "separate later" at release preflight: #303 (dev-dep fast lane), #305/#306 (typescript 7 major — toolchain-risk, manual), #307 (github-actions group — workflow lane, manual).
 
-Every wave follows repo rules: one topic one branch, PR merge checklist, Codex review cycle; the single release at the end follows the full release rehearsal gate.
+Every wave followed repo rules: one topic one branch, PR merge checklist, Codex review cycle; the single release went through the full release rehearsal gate.
 
 ## Opinionated defaults (documented instead of asked)
 - Teardown in standard mode: config kept with a hint note ("points at nothing; `--purge` or keep for reinstall") — no auto-purge.
