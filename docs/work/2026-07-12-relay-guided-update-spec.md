@@ -1,6 +1,6 @@
 # Spec: guided relay update from the CLI (stage 2)
 
-Status: `draft` — approved direction (maintainer, 2026-07-12); implementation queued for a later version.
+Status: `implemented` (2026-07-12) — `cli/relay_guided_update.go`; ships with the next user-facing release.
 
 ## Problem
 

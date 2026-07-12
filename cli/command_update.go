@@ -137,6 +137,7 @@ func runUpdate(paths runtimePaths, args []string) int {
 	// interrupted mid-session by the proxy warning later.
 	if notice := relayFloorNotice(paths); !notice.empty() {
 		printHumanNotice(notice)
+		maybeOfferGuidedRelayUpdate(paths, notice)
 	}
 	return 0
 }
@@ -214,6 +215,7 @@ func syncInstalledClientsForCurrentVersion(paths runtimePaths, currentVersion, t
 	// installed skills need — say so here, where the user is looking.
 	if notice := relayFloorNotice(paths); !notice.empty() {
 		printHumanNotice(notice)
+		maybeOfferGuidedRelayUpdate(paths, notice)
 	}
 	return 0
 }

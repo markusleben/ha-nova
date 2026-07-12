@@ -245,6 +245,7 @@ func runCheckUpdate(paths runtimePaths, args []string) int {
 	if !*quiet {
 		if relayNotice := relayFloorNotice(paths); !relayNotice.empty() {
 			printHumanNotice(relayNotice)
+			maybeOfferGuidedRelayUpdate(paths, relayNotice)
 		}
 	}
 	if notice.empty() {
