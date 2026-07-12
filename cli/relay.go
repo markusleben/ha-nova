@@ -70,6 +70,11 @@ func runRelayCommand(paths runtimePaths, args []string) int {
 	case "jq":
 		return runJQ(args[1:])
 	case "version":
+		if len(args) > 1 && (args[1] == "--help" || args[1] == "-h") {
+			fmt.Println("Usage: ha-nova relay version")
+			fmt.Println("Prints the installed skill/CLI version the relay contract is pinned to. No flags.")
+			return 0
+		}
 		fmt.Fprintln(os.Stdout, localVersion(paths))
 		return 0
 	default:
