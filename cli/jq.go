@@ -119,6 +119,10 @@ func runJQ(args []string) int {
 	remaining := args
 	for len(remaining) > 0 && strings.HasPrefix(remaining[0], "-") {
 		switch remaining[0] {
+		case "--help", "-h":
+			fmt.Println("Usage: ha-nova relay jq [-r] [-e] [-c] [--file <input-file>] [--jq-file <filter-file>] '<filter>'")
+			fmt.Println("\nFlags:\n  -r\traw string output\n  -e\texit 1 when the last output is false or null\n  -c\tcompact output (accepted as a no-op; output is already compact)\n  --file <input-file>\tread the JSON input from a file instead of stdin\n  --jq-file <filter-file>\tread the jq filter from a file")
+			return 0
 		case "-r":
 			raw = true
 		case "-e":
