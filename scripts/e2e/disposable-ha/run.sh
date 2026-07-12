@@ -188,10 +188,75 @@ else
   fail "file access should be disabled by default, got HTTP $files_off"
 fi
 
+# The opted-in side of the same guarantee: a second relay mounts the real HA
+# config directory with FILE_ACCESS=readwrite and must serve the full
+# write -> read-back -> deny -> delete roundtrip the yaml-config skill uses.
+echo "--- file access: readwrite roundtrip (second relay on :8792)"
+( cd "$HERE" && docker compose up -d --build relay-files > /dev/null 2>&1 )
+FILES_URL="http://127.0.0.1:8792"
+for i in $(seq 1 30); do
+  code="$(curl -s -o /dev/null -w '%{http_code}' "$FILES_URL/health" || true)"
+  if [[ "$code" == "401" ]]; then break; fi
+  if [[ "$i" == "30" ]]; then echo "relay-files did not start (last: ${code:-none})" >&2; ( cd "$HERE" && docker compose logs relay-files ); exit 1; fi
+  sleep 2
+done
+
+files_call() {
+  curl -s -X POST "$FILES_URL/files" \
+    -H "Authorization: Bearer $RELAY_AUTH_TOKEN" -H 'Content-Type: application/json' -d "$1"
+}
+files_code() {
+  curl -s -o /dev/null -w '%{http_code}' -X POST "$FILES_URL/files" \
+    -H "Authorization: Bearer $RELAY_AUTH_TOKEN" -H 'Content-Type: application/json' -d "$1"
+}
+
+listing="$(files_call '{"action":"list_dir","path":"/config"}')"
+if echo "$listing" | grep -q 'configuration.yaml'; then
+  pass "list_dir sees the real Home Assistant config"
+else
+  fail "list_dir did not show configuration.yaml: $listing"
+fi
+
+wrote="$(files_call '{"action":"write_file","path":"/config/ha_nova/e2e-roundtrip.yaml","content":"e2e_marker: disposable-ha\n"}')"
+if echo "$wrote" | grep -q '"ok":true'; then
+  pass "write_file creates a file under /config/ha_nova/"
+else
+  fail "write_file failed: $wrote"
+fi
+
+readback="$(files_call '{"action":"read_file","path":"/config/ha_nova/e2e-roundtrip.yaml"}')"
+if echo "$readback" | grep -q 'e2e_marker: disposable-ha'; then
+  pass "read_file returns the written content verbatim"
+else
+  fail "read-back did not match: $readback"
+fi
+
+secrets_deny="$(files_code '{"action":"write_file","path":"/config/secrets.yaml","content":"x: y\n"}')"
+if [[ "$secrets_deny" == "403" ]]; then
+  pass "secrets.yaml stays unreachable even with readwrite (403)"
+else
+  fail "secrets.yaml write should be denied, got HTTP $secrets_deny"
+fi
+
+exec_deny="$(files_code '{"action":"write_file","path":"/config/ha_nova/evil.sh","content":"#!/bin/sh\n"}')"
+if [[ "$exec_deny" == "403" ]]; then
+  pass "non-configuration file types are refused (403)"
+else
+  fail ".sh write should be denied, got HTTP $exec_deny"
+fi
+
+deleted="$(files_call '{"action":"delete_file","path":"/config/ha_nova/e2e-roundtrip.yaml"}')"
+gone="$(files_code '{"action":"read_file","path":"/config/ha_nova/e2e-roundtrip.yaml"}')"
+if echo "$deleted" | grep -q '"ok":true' && [[ "$gone" == "404" ]]; then
+  pass "delete_file removes the file (read-back 404)"
+else
+  fail "delete roundtrip failed: delete=$deleted read-back=HTTP $gone"
+fi
+
 echo
 if [[ "$FAILED" == "1" ]]; then
   echo "E2E FAILED" >&2
-  ( cd "$HERE" && docker compose logs relay | tail -30 )
+  ( cd "$HERE" && docker compose logs relay relay-files | tail -40 )
   exit 1
 fi
 echo "E2E PASSED — verified against a real Home Assistant $(date -u +%Y-%m-%d)"

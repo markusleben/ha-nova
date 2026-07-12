@@ -41,3 +41,28 @@ services:
       HA_URL: "http://homeassistant:8123"
     ports:
       - "8791:8791"
+
+  # Second relay with file access opted in — proves the /files readwrite path
+  # live, while the primary relay above keeps proving the off-by-default
+  # guarantee. Runs as root ONLY because Home Assistant writes the throwaway
+  # bind mount as root; this verifies /files semantics, not Unix permissions.
+  relay-files:
+    build:
+      context: ../../../nova
+      dockerfile: Dockerfile.standalone
+      args:
+        RELAY_VERSION: "${RELAY_VERSION:-e2e}"
+    container_name: nova-e2e-relay-files
+    user: "0:0"
+    depends_on:
+      homeassistant:
+        condition: service_healthy
+    volumes:
+      - ./config:/config
+    environment:
+      RELAY_AUTH_TOKEN: "${RELAY_AUTH_TOKEN:-}"
+      HA_LLAT: "${HA_LLAT:-}"
+      HA_URL: "http://homeassistant:8123"
+      FILE_ACCESS: "readwrite"
+    ports:
+      - "8792:8791"

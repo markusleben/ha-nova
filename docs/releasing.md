@@ -129,6 +129,17 @@ the final tag may safely point at the same commit.
    ```bash
    HA_NOVA_RELEASE_AUDIT_REQUIRE_BYPASS=1 bash scripts/release/verify-release-pipeline.sh
    ```
+   Then run the live disposable-HA e2e on that same commit and wait for green —
+   the weekly schedule alone is NOT release evidence (the v0.14.0 release
+   shipped before the workflow had ever fired):
+   ```bash
+   gh workflow run e2e-disposable-ha.yml --ref main && gh run watch --exit-status
+   # or locally, with Docker: bash scripts/e2e/disposable-ha/run.sh
+   ```
+   It boots a real Home Assistant plus the relay built from the commit and
+   asserts the live guarantees (auth, version report, health semantics, real
+   REST/WS data, bounded event windows, `/files` off by default AND the
+   readwrite roundtrip on a mounted config).
 2. Push the rehearsal tag on that exact commit (maintainer bypass):
    ```bash
    git tag vX.Y.Z-rcN <reviewed-merge-sha>
@@ -208,6 +219,7 @@ Minimum automated gate:
 - `npm run verify:next-release-version -- vX.Y.Z-rcN` before an RC tag
 - `npm run verify:next-release-version -- vX.Y.Z` before the final tag
 - `HA_NOVA_RELEASE_AUDIT_REQUIRE_BYPASS=1 bash scripts/release/verify-release-pipeline.sh` before any release tag/publish step
+- one green `e2e-disposable-ha.yml` run (dispatched, not the weekly cron) on the commit being tagged
 
 Minimum manual gate before calling an RC ready:
 
