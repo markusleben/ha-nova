@@ -42,6 +42,7 @@
   "tests/skills/health-calendar-contract.test.ts",
   "tests/skills/helper-contract.test.ts",
   "tests/skills/maintenance-contract.test.ts",
+  "tests/skills/output-design-contract.test.ts",
   "tests/skills/review-contract.test.ts",
   "tests/skills/scene-contract.test.ts",
   "tests/skills/service-call-contract.test.ts",
