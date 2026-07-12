@@ -62,7 +62,12 @@ The interactive wizard is built around the Supervisor App (it walks you through 
    ```
 2. **Create a long-lived access token** in Home Assistant: Profile > Security > "Create Token" (name it `NOVA`).
 3. **Start the container** with both (see the run/compose examples above).
-4. **Attach the CLI**, pointing it at your Home Assistant and the relay:
+4. **Install the CLI without the wizard** — the plain release one-liner auto-starts the interactive, App-oriented wizard, so add `HA_NOVA_NO_SETUP=1`:
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/<release-tag>/install.sh | HA_NOVA_NO_SETUP=1 bash
+   ```
+   (Windows: set `$env:HA_NOVA_NO_SETUP = '1'` before running the `install.ps1` one-liner.)
+5. **Attach the CLI**, pointing it at your Home Assistant and the relay:
    ```bash
    ha-nova setup --non-interactive \
                  --ha-url http://<home-assistant-host>:8123 \
@@ -71,7 +76,7 @@ The interactive wizard is built around the Supervisor App (it walks you through 
    ```
    `--non-interactive` is required: without it the CLI runs the interactive wizard, which walks you through the Supervisor App screens you do not have.
    The CLI stores the relay token in your OS keychain, verifies the connection, and installs the skills for your AI clients.
-5. **Check it**: `ha-nova doctor`.
+6. **Check it**: `ha-nova doctor`.
 
 A guided "Docker" branch in the interactive wizard is planned; until then this is the supported path, and it is the one the documentation and tests cover.
 
