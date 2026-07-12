@@ -37,7 +37,7 @@ Before the first HA task in a session:
 2. Otherwise run: `ha-nova check-update --quiet`
 3. If the output contains `UPDATE AVAILABLE`, inform the user and offer to update.
 4. If the output is empty, continue silently.
-5. If any `ha-nova relay` command later prints an `[ha-nova]` update notice on stderr, surface it to the user once and continue the current task.
+5. If any `ha-nova relay` command later prints an `[ha-nova]` update notice on stderr, surface it to the user once and continue the current task. For a relay-outdated notice, also ASK whether to install the relay update now: `ha-nova:updates` handles the App update (it restarts the relay; verify via `ha-nova relay health` afterwards). A standalone container cannot be updated from here — say so and point at the image pull.
 
 When an update is available:
 1. Run: `ha-nova update`
