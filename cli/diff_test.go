@@ -108,6 +108,22 @@ func TestDiffCellTruncationIsRuneSafe(t *testing.T) {
 	}
 }
 
+func TestDiffTypeSuffixSurvivesLongValues(t *testing.T) {
+	// A string that contains compact JSON vs the equivalent object renders
+	// identically; when that shared text is longer than a cell, the type
+	// suffix must survive the cap — it is the only visible change.
+	inner := `{"a":"` + strings.Repeat("x", 90) + `"}`
+	before := `{"payload":` + `"` + strings.ReplaceAll(inner, `"`, `\"`) + `"` + `}`
+	after := `{"payload":` + inner + `}`
+	got := diffLines(t, before, after)
+	if len(got) != 1 {
+		t.Fatalf("expected 1 change, got %#v", got)
+	}
+	if !strings.Contains(got[0], "… (string) |") || !strings.Contains(got[0], "… (object) |") {
+		t.Fatalf("type suffixes must survive truncation: %q", got[0])
+	}
+}
+
 func TestDiffLateDivergenceStaysVisible(t *testing.T) {
 	// Two long notification texts sharing their first >80 bytes must NOT render
 	// as two identical `<prefix>…` cells — the first difference has to be

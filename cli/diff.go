@@ -356,9 +356,10 @@ func makeChange(segs []segment, before, after interface{}) configChange {
 		if bf == af {
 			// Same rendered text but a real change → a type/representation
 			// difference (e.g. number 5 vs string "5"). Disambiguate by type so
-			// the user never sees a confusing "5 | 5" row.
-			bf = fmt.Sprintf("%s (%s)", bf, jsonTypeName(before))
-			af = fmt.Sprintf("%s (%s)", af, jsonTypeName(after))
+			// the user never sees a confusing "5 | 5" row; the suffix is added
+			// cap-aware so long values cannot swallow it.
+			bf = withTypeSuffix(bf, jsonTypeName(before))
+			af = withTypeSuffix(af, jsonTypeName(after))
 		} else {
 			bf, af = focusDivergence(bf, af)
 		}

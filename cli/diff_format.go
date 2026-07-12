@@ -316,6 +316,23 @@ func itemsCell(n int) string {
 // first difference when focusDivergence trims a long common prefix.
 const divergenceContextBytes = 20
 
+// withTypeSuffix appends the disambiguating type label so it survives the
+// cell cap: for identically-rendered values the type IS the only visible
+// change, so the value is pre-trimmed (rune-safe, `…`) to leave room for the
+// suffix inside maxCellBytes — escapeCell must never cut the label off.
+func withTypeSuffix(v, typeName string) string {
+	suffix := " (" + typeName + ")"
+	limit := maxCellBytes - len(suffix) - len("…")
+	if len(v)+len(suffix) > maxCellBytes {
+		cut := limit
+		for cut > 0 && !utf8.RuneStart(v[cut]) {
+			cut--
+		}
+		v = v[:cut] + "…"
+	}
+	return v + suffix
+}
+
 // focusDivergence keeps the FIRST difference of a changed value pair visible.
 // Without it, two long values sharing their first maxCellBytes bytes (a
 // notification message edited near the end) would truncate into two identical
