@@ -407,6 +407,193 @@ func TestDiffStableTopLevelOrdering(t *testing.T) {
 	})
 }
 
+func TestDiffAnchorsDeepNestingOnTheRecognizableItem(t *testing.T) {
+	// The real-world case that motivated anchors: a threshold buried in
+	// choose -> or -> and -> numeric_state. The label must name the entity,
+	// not the index walk "choose 1 › condition 2 › condition 2 › below".
+	before := `{"actions":[{"choose":[{"conditions":[{"condition":"trigger","id":"x"},{"condition":"or","conditions":[{"condition":"state","entity_id":"input_boolean.darkness","state":"on"},{"condition":"and","conditions":[{"condition":"state","entity_id":"light.diele","state":"off"},{"below":10,"condition":"numeric_state","entity_id":"sensor.diele_illumination"}]}]}],"sequence":[{"action":"light.turn_on"}]}]}]}`
+	after := strings.Replace(before, `"below":10`, `"below":20`, 1)
+	got := diffLines(t, before, after)
+	assertLines(t, got, []string{
+		"| Action 1 (choose 1 › condition sensor.diele_illumination › below) | 10 | 20 |",
+	})
+}
+
+func TestDiffAnchorPrefersAliasAndKeepsIndexFallback(t *testing.T) {
+	// A user-named step anchors on its alias.
+	before := `{"actions":[{"choose":[{"conditions":[{"condition":"state","entity_id":"x","state":"on"}],"sequence":[{"alias":"Lampe an","action":"light.turn_on","data":{"brightness":100}}]}]}]}`
+	after := strings.Replace(before, `"brightness":100`, `"brightness":50`, 1)
+	got := diffLines(t, before, after)
+	assertLines(t, got, []string{
+		`| Action 1 (choose 1 › "Lampe an" › data › brightness) | 100 | 50 |`,
+	})
+	// Unknown shapes keep today's deterministic index fallback.
+	before = `{"actions":[{"custom":[{"weird":1},{"weird":2}]}]}`
+	after = `{"actions":[{"custom":[{"weird":1},{"weird":3}]}]}`
+	got = diffLines(t, before, after)
+	assertLines(t, got, []string{
+		"| Action 1 (custom 2 › weird) | 2 | 3 |",
+	})
+}
+
+func TestDiffNestedNotificationCopyDedupsWithAnchoredLabel(t *testing.T) {
+	// The aligned pass and the notification-copy pass must build IDENTICAL
+	// anchored labels, or the dedup (path+text) silently stops working for
+	// nested sequences and one copy change renders twice.
+	before := `{"actions":[{"choose":[{"conditions":[{"condition":"state","entity_id":"x","state":"on"}],"sequence":[{"action":"notify.phone","data":{"message":"Plan erstellt"}}]}]}]}`
+	after := `{"actions":[{"choose":[{"conditions":[{"condition":"state","entity_id":"x","state":"on"}],"sequence":[{"action":"notify.phone","data":{"message":"Plan ist bereit"}},{"action":"script.extra"}]}]}]}`
+	got := diffLines(t, before, after)
+	assertLines(t, got, []string{
+		"| Action 1 (choose 1 › sequence) | 1 item | 2 items |",
+		"| Action 1 (choose 1 › action notify.phone › data › message) | Plan erstellt | Plan ist bereit |",
+		"| Action 1 (choose 1 › step 2) | — | action script.extra |",
+	})
+}
+
+func TestDiffFieldColumnHasItsOwnWiderCap(t *testing.T) {
+	// An anchored label (branch + entity + field) may exceed the 80-byte value
+	// cap; cutting the FIELD mid-name would lose what identifies the row, so
+	// the field column caps at 120 — and beyond that still cuts rune-safe.
+	entity := "sensor." + strings.Repeat("diele_praesenzmelder_", 2) + "illumination" // label ~100 bytes: over the 80 value cap, under the 120 field cap
+	before := `{"actions":[{"choose":[{"conditions":[{"below":10,"condition":"numeric_state","entity_id":"` + entity + `"}],"sequence":[{"action":"script.a"}]}]}]}`
+	after := strings.Replace(before, `"below":10`, `"below":20`, 1)
+	got := diffLines(t, before, after)
+	if len(got) != 1 {
+		t.Fatalf("expected 1 change, got %#v", got)
+	}
+	if !strings.Contains(got[0], "› below) | 10 | 20 |") {
+		t.Fatalf("field name must survive whole under the wider field cap: %q", got[0])
+	}
+}
+
+func TestDiffAnchorCollisionsKeepBranchContext(t *testing.T) {
+	// Two identical conditions in two choose branches must stay
+	// distinguishable — the branch token survives the anchor reset.
+	before := `{"actions":[{"choose":[{"conditions":[{"below":10,"condition":"numeric_state","entity_id":"sensor.x"}],"sequence":[{"action":"script.a"}]},{"conditions":[{"below":30,"condition":"numeric_state","entity_id":"sensor.x"}],"sequence":[{"action":"script.b"}]}]}]}`
+	after := strings.Replace(strings.Replace(before, `"below":10`, `"below":15`, 1), `"below":30`, `"below":35`, 1)
+	got := diffLines(t, before, after)
+	assertLines(t, got, []string{
+		"| Action 1 (choose 1 › condition sensor.x › below) | 10 | 15 |",
+		"| Action 1 (choose 2 › condition sensor.x › below) | 30 | 35 |",
+	})
+}
+
+func TestDiffIfBranchCollisionsKeepThenElseContext(t *testing.T) {
+	// The same service inside an if action's then AND else sequences must not
+	// collapse into two identical rows — then/else are branch tokens too.
+	before := `{"actions":[{"if":[{"condition":"state","entity_id":"binary_sensor.day","state":"on"}],"then":[{"action":"light.turn_on","data":{"brightness_pct":80}}],"else":[{"action":"light.turn_on","data":{"brightness_pct":20}}]}]}`
+	after := strings.Replace(strings.Replace(before, `"brightness_pct":80`, `"brightness_pct":100`, 1), `"brightness_pct":20`, `"brightness_pct":10`, 1)
+	got := diffLines(t, before, after)
+	assertLines(t, got, []string{
+		"| Action 1 (else 1 › data › brightness_pct) | 20 | 10 |",
+		"| Action 1 (then 1 › data › brightness_pct) | 80 | 100 |",
+	})
+}
+
+func TestDiffSameServiceSiblingsKeepPositionalContext(t *testing.T) {
+	// Two same-service steps in ONE sequence cannot be told apart by their
+	// anchor — the positional step token must survive, or both rows render
+	// identically.
+	before := `{"actions":[{"choose":[{"conditions":[{"condition":"state","entity_id":"binary_sensor.day","state":"on"}],"sequence":[{"action":"light.turn_on","data":{"brightness_pct":80,"entity_id":"light.desk"}},{"action":"light.turn_on","data":{"brightness_pct":20,"entity_id":"light.shelf"}}]}]}]}`
+	after := strings.Replace(strings.Replace(before, `"brightness_pct":80`, `"brightness_pct":100`, 1), `"brightness_pct":20`, `"brightness_pct":10`, 1)
+	got := diffLines(t, before, after)
+	assertLines(t, got, []string{
+		"| Action 1 (choose 1 › step 1 › data › brightness_pct) | 80 | 100 |",
+		"| Action 1 (choose 1 › step 2 › data › brightness_pct) | 20 | 10 |",
+	})
+}
+
+func TestDiffRepeatGuardAndBodyStayDistinguishable(t *testing.T) {
+	// A repeat block whose loop guard (while) and body step reference the
+	// same entity: the anchor must not wipe the collected repeat/while
+	// context, or guard and body render identically.
+	before := `{"actions":[{"repeat":{"while":[{"below":22,"condition":"numeric_state","entity_id":"sensor.temp"}],"sequence":[{"below":25,"condition":"numeric_state","entity_id":"sensor.temp"},{"action":"climate.set_temperature"}]}}]}`
+	after := strings.Replace(strings.Replace(before, `"below":22`, `"below":21`, 1), `"below":25`, `"below":24`, 1)
+	got := diffLines(t, before, after)
+	assertLines(t, got, []string{
+		"| Action 1 (repeat › condition sensor.temp › below) | 25 | 24 |",
+		"| Action 1 (repeat › while 1 › below) | 22 | 21 |",
+	})
+}
+
+func TestDiffAnchorCollisionsAcrossGroupsFallBackToFullPath(t *testing.T) {
+	// The same entity in two separate and-groups: per-array uniqueness cannot
+	// see the collision, so the global fallback restores the positional
+	// tokens for exactly those rows.
+	before := `{"actions":[{"choose":[{"conditions":[{"condition":"or","conditions":[{"condition":"and","conditions":[{"below":10,"condition":"numeric_state","entity_id":"sensor.x"}]},{"condition":"and","conditions":[{"below":30,"condition":"numeric_state","entity_id":"sensor.x"}]}]}],"sequence":[{"action":"script.a"}]}]}]}`
+	after := strings.Replace(strings.Replace(before, `"below":10`, `"below":15`, 1), `"below":30`, `"below":35`, 1)
+	got := diffLines(t, before, after)
+	assertLines(t, got, []string{
+		"| Action 1 (choose 1 › condition 1 › condition 1 › condition 1 › condition sensor.x › below) | 10 | 15 |",
+		"| Action 1 (choose 1 › condition 1 › condition 2 › condition 1 › condition sensor.x › below) | 30 | 35 |",
+	})
+}
+
+func TestDiffLabelCollisionsBeyondTheFieldCapAreCaught(t *testing.T) {
+	// Two anchored labels differing only beyond the 120-byte field cell
+	// truncate to identical visible text; the collision check compares the
+	// RENDERED labels, and the full-path fallback carries the index early
+	// enough in the string to survive the cap.
+	longPrefix := strings.Repeat("verylongarea_", 9)
+	before := `{"actions":[{"choose":[{"conditions":[` +
+		`{"below":10,"condition":"numeric_state","entity_id":"sensor.` + longPrefix + `temperature"},` +
+		`{"below":30,"condition":"numeric_state","entity_id":"sensor.` + longPrefix + `humidity"}` +
+		`],"sequence":[{"action":"script.a"}]}]}]}`
+	after := strings.Replace(strings.Replace(before, `"below":10`, `"below":15`, 1), `"below":30`, `"below":35`, 1)
+	got := diffLines(t, before, after)
+	if len(got) != 2 {
+		t.Fatalf("expected 2 changes, got %#v", got)
+	}
+	f0 := strings.SplitN(got[0], " | ", 2)[0]
+	f1 := strings.SplitN(got[1], " | ", 2)[0]
+	if f0 == f1 {
+		t.Fatalf("field cells must stay distinguishable after the cap: %q", f0)
+	}
+	if !strings.Contains(got[0], "condition 1 ›") || !strings.Contains(got[1], "condition 2 ›") {
+		t.Fatalf("full-path fallback must surface the positional tokens: %#v", got)
+	}
+}
+
+func TestDiffChooseDefaultBranchStaysVisible(t *testing.T) {
+	// A changed step in choose's fallback branch must say so — hiding
+	// "default" would let the user approve behavior for the wrong branch.
+	before := `{"actions":[{"choose":[{"conditions":[{"condition":"state","entity_id":"binary_sensor.day","state":"on"}],"sequence":[{"action":"light.turn_on","data":{"brightness_pct":80}}]}],"default":[{"action":"light.turn_on","data":{"brightness_pct":20}}]}]}`
+	after := strings.Replace(strings.Replace(before, `"brightness_pct":80`, `"brightness_pct":100`, 1), `"brightness_pct":20`, `"brightness_pct":10`, 1)
+	got := diffLines(t, before, after)
+	assertLines(t, got, []string{
+		"| Action 1 (choose 1 › action light.turn_on › data › brightness_pct) | 80 | 100 |",
+		"| Action 1 (default 1 › data › brightness_pct) | 20 | 10 |",
+	})
+}
+
+func TestDiffNotWrapperStaysVisible(t *testing.T) {
+	// `condition: not` inverts the inner condition — unlike or/and it is
+	// behavior, not structure, and must survive in the label. Both at the
+	// head position and nested below another wrapper.
+	before := `{"conditions":[{"condition":"not","conditions":[{"below":10,"condition":"numeric_state","entity_id":"sensor.x"}]}]}`
+	after := strings.Replace(before, `"below":10`, `"below":20`, 1)
+	assertLines(t, diffLines(t, before, after), []string{
+		"| Condition 1 (not › condition sensor.x › below) | 10 | 20 |",
+	})
+	before = `{"conditions":[{"condition":"or","conditions":[{"condition":"state","entity_id":"light.a","state":"on"},{"condition":"not","conditions":[{"below":10,"condition":"numeric_state","entity_id":"sensor.x"}]}]}]}`
+	after = strings.Replace(before, `"below":10`, `"below":20`, 1)
+	assertLines(t, diffLines(t, before, after), []string{
+		"| Condition 1 (not › condition sensor.x › below) | 10 | 20 |",
+	})
+}
+
+func TestDiffPayloadArraysNeverAnchor(t *testing.T) {
+	// Actionable-notification buttons live in data.actions[] and carry their
+	// own action/title keys — anchoring them would mislabel a button as a
+	// service call. Payload subtrees keep the index fallback.
+	before := `{"actions":[{"action":"notify.phone","data":{"message":"Tür","actions":[{"action":"OPEN","title":"Öffnen"},{"action":"IGNORE","title":"Ignorieren"}]}}]}`
+	after := strings.Replace(before, `"title":"Ignorieren"`, `"title":"Später"`, 1)
+	got := diffLines(t, before, after)
+	assertLines(t, got, []string{
+		"| Action 1 (data › action 2 › title) | Ignorieren | Später |",
+	})
+}
+
 func TestDiffNestedConditionChange(t *testing.T) {
 	before := `{"conditions":[{"condition":"numeric_state","above":60}]}`
 	after := `{"conditions":[{"condition":"numeric_state","above":40}]}`

@@ -32,60 +32,6 @@ func jsonTypeName(v interface{}) string {
 	return "value"
 }
 
-var arraySingular = map[string]string{
-	"triggers": "Trigger", "conditions": "Condition", "actions": "Action", "sequence": "Step",
-}
-
-// humanizeLabel turns a path into a stable, readable label, e.g.
-// [mode] -> "Mode", [actions,1,delay] -> "Action 2 (delay)".
-func humanizeLabel(segs []segment) string {
-	var head string
-	var leaf []string
-	for i := 0; i < len(segs); {
-		s := segs[i]
-		if s.isIndex {
-			leaf = append(leaf, fmt.Sprintf("#%d", s.index+1))
-			i++
-			continue
-		}
-		if i+1 < len(segs) && segs[i+1].isIndex {
-			name := arraySingular[s.key]
-			if name == "" {
-				name = titleFirst(s.key)
-			}
-			token := fmt.Sprintf("%s %d", name, segs[i+1].index+1)
-			if head == "" && len(leaf) == 0 {
-				head = token
-			} else {
-				leaf = append(leaf, strings.ToLower(name)+fmt.Sprintf(" %d", segs[i+1].index+1))
-			}
-			i += 2
-			continue
-		}
-		if head == "" && len(leaf) == 0 {
-			head = titleFirst(s.key)
-		} else {
-			leaf = append(leaf, s.key)
-		}
-		i++
-	}
-	switch {
-	case len(leaf) == 0:
-		return head
-	case head == "":
-		return strings.Join(leaf, " › ")
-	default:
-		return head + " (" + strings.Join(leaf, " › ") + ")"
-	}
-}
-
-func titleFirst(s string) string {
-	if s == "" {
-		return s
-	}
-	return strings.ToUpper(s[:1]) + s[1:]
-}
-
 func formatValue(v interface{}) string {
 	switch t := v.(type) {
 	case nil:
@@ -278,14 +224,20 @@ func compactJSON(v interface{}) string {
 // truncated value changed.
 const maxCellBytes = 80
 
+// maxFieldCellBytes gives the field column more room than the value columns:
+// anchored labels carry entity IDs plus a field name, and cutting the FIELD
+// mid-name ("… › be…") loses what identifies the row. Labels are constructed,
+// not user-authored, so 120 bounds the pathological case only.
+const maxFieldCellBytes = 120
+
 // tableRow renders one GFM table data row. Every cell passes through
-// escapeCell exactly once, here — callers hand over raw content and never
-// pre-escape.
+// escapeCellWithCap exactly once, here — callers hand over raw content and
+// never pre-escape.
 func tableRow(field, before, after string) string {
-	return "| " + escapeCell(field) + " | " + escapeCell(before) + " | " + escapeCell(after) + " |"
+	return "| " + escapeCellWithCap(field, maxFieldCellBytes) + " | " + escapeCell(before) + " | " + escapeCell(after) + " |"
 }
 
-// escapeCell makes one cell safe inside a table row the skill prints
+// escapeCell makes one value cell safe inside a table row the skill prints
 // verbatim: rune-safe truncation to maxCellBytes, control-character escaping
 // (a raw newline would break the whole table, not just one bullet), and pipe
 // escaping so a value — Jinja templates love `|` — can never add a column.
@@ -293,9 +245,13 @@ func tableRow(field, before, after string) string {
 // may push the final cell slightly past the cap, which bounds content, not
 // framing.
 func escapeCell(s string) string {
+	return escapeCellWithCap(s, maxCellBytes)
+}
+
+func escapeCellWithCap(s string, cap int) string {
 	truncated := false
-	if len(s) > maxCellBytes {
-		cut := maxCellBytes
+	if len(s) > cap {
+		cut := cap
 		for cut > 0 && !utf8.RuneStart(s[cut]) {
 			cut--
 		}
