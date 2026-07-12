@@ -36,6 +36,9 @@ func TestSubcommandHelpFlagPrintsUsageAndFlags(t *testing.T) {
 		{"trace get", func() int { return runTraceCommand(paths, []string{"get", "--help"}) }, "Usage: ha-nova trace get", "-json"},
 		{"trace latest", func() int { return runTraceCommand(paths, []string{"latest", "--help"}) }, "Usage: ha-nova trace latest", "-json"},
 		{"relay health", func() int { return runRelayCommand(paths, []string{"health", "--help"}) }, "Usage: ha-nova relay health", "-connect-timeout"},
+		{"relay (parent)", func() int { return runRelayCommand(paths, []string{"--help"}) }, "Usage: ha-nova relay <health|ws|core|files|jq|version>", "relay <subcommand> --help"},
+		{"trace (parent)", func() int { return runTraceCommand(paths, []string{"--help"}) }, "Usage: ha-nova trace <latest|list|get>", "trace <subcommand> --help"},
+		{"snapshot (parent)", func() int { return runSnapshotCommand(paths, []string{"--help"}) }, "Usage: ha-nova snapshot <save|show|verify>", "snapshot <subcommand> --help"},
 	}
 
 	for _, tc := range cases {

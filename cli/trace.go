@@ -62,6 +62,11 @@ func runTraceCommand(paths runtimePaths, args []string) int {
 		printErr("Usage: ha-nova trace <latest|list|get> <automation.entity_id|script.entity_id> [run_id] [--json]")
 		return 1
 	}
+	if args[0] == "--help" || args[0] == "-h" || args[0] == "help" {
+		fmt.Println("Usage: ha-nova trace <latest|list|get> <automation.entity_id|script.entity_id> [run_id] [--json]")
+		fmt.Println("Run 'ha-nova trace <subcommand> --help' to see that subcommand's flags.")
+		return 0
+	}
 	switch args[0] {
 	case "latest":
 		return runTraceLatest(paths, args[1:])

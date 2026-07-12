@@ -60,6 +60,11 @@ func runSnapshotCommand(paths runtimePaths, args []string) int {
 		printErr("Usage: ha-nova snapshot <save|show|verify> ...")
 		return 1
 	}
+	if args[0] == "--help" || args[0] == "-h" || args[0] == "help" {
+		fmt.Println("Usage: ha-nova snapshot <save|show|verify> ...")
+		fmt.Println("Run 'ha-nova snapshot <subcommand> --help' to see that subcommand's flags.")
+		return 0
+	}
 	switch args[0] {
 	case "save":
 		return runSnapshotSave(paths, args[1:])

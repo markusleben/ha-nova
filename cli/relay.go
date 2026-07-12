@@ -52,6 +52,11 @@ func runRelayCommand(paths runtimePaths, args []string) int {
 		printErr("Usage: ha-nova relay <health|ws|core|files|jq|version> ...")
 		return 1
 	}
+	if args[0] == "--help" || args[0] == "-h" || args[0] == "help" {
+		fmt.Println("Usage: ha-nova relay <health|ws|core|files|jq|version> ...")
+		fmt.Println("Run 'ha-nova relay <subcommand> --help' to see that subcommand's flags.")
+		return 0
+	}
 
 	switch args[0] {
 	case "health":
