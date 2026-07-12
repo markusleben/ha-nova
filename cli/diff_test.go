@@ -478,6 +478,18 @@ func TestDiffAnchorCollisionsKeepBranchContext(t *testing.T) {
 	})
 }
 
+func TestDiffIfBranchCollisionsKeepThenElseContext(t *testing.T) {
+	// The same service inside an if action's then AND else sequences must not
+	// collapse into two identical rows — then/else are branch tokens too.
+	before := `{"actions":[{"if":[{"condition":"state","entity_id":"binary_sensor.day","state":"on"}],"then":[{"action":"light.turn_on","data":{"brightness_pct":80}}],"else":[{"action":"light.turn_on","data":{"brightness_pct":20}}]}]}`
+	after := strings.Replace(strings.Replace(before, `"brightness_pct":80`, `"brightness_pct":100`, 1), `"brightness_pct":20`, `"brightness_pct":10`, 1)
+	got := diffLines(t, before, after)
+	assertLines(t, got, []string{
+		"| Action 1 (else 1 › data › brightness_pct) | 20 | 10 |",
+		"| Action 1 (then 1 › data › brightness_pct) | 80 | 100 |",
+	})
+}
+
 func TestDiffPayloadArraysNeverAnchor(t *testing.T) {
 	// Actionable-notification buttons live in data.actions[] and carry their
 	// own action/title keys — anchoring them would mislabel a button as a
