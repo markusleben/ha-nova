@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -469,6 +470,107 @@ func TestCheckRelayVersionWarnsOnUnsupportedRelayVersionFormat(t *testing.T) {
 	}
 	if !strings.Contains(notice.message, "unsupported relay version format") {
 		t.Fatalf("unexpected relay warning message: %q", notice.message)
+	}
+}
+
+func TestCheckRelayVersionReadsTheRealHealthEnvelope(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(paths.VersionFile), 0o755); err != nil {
+		t.Fatalf("mkdir version dir: %v", err)
+	}
+	if err := os.WriteFile(paths.VersionFile, []byte(`{"skill_version":"0.14.0","min_relay_version":"0.4.0"}`), 0o644); err != nil {
+		t.Fatalf("write version file: %v", err)
+	}
+
+	// Verbatim shape of a live GET /health response: the version sits inside
+	// the relay's {"ok":true,"data":{...}} envelope, not at the top level. A
+	// parser that only reads a top-level "version" silently skips the check —
+	// doctor then reports a healthy setup while the relay is below the floor.
+	body := []byte(`{"ok":true,"data":{"status":"ok","ha_ws_connected":true,"version":"0.2.6","uptime_s":322135}}`)
+	notice := checkRelayVersion(paths, body)
+	if notice.kind != humanNoticeKindRelayOutdated {
+		t.Fatalf("notice.kind = %q, want %q (envelope body must not be skipped)", notice.kind, humanNoticeKindRelayOutdated)
+	}
+	if !strings.Contains(notice.message, "Relay outdated: v0.2.6 is below minimum v0.4.0") {
+		t.Fatalf("unexpected relay warning message: %q", notice.message)
+	}
+}
+
+func TestRelayFloorNoticeWarnsWhenLiveRelayIsBelowFloor(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING", "1")
+	t.Setenv("HA_NOVA_TEST_KEYRING_FILE", filepath.Join(home, ".config", "ha-nova", ".test-relay-auth-token"))
+
+	relay := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/health" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"ok":true,"data":{"status":"ok","ha_ws_connected":true,"version":"0.2.6"}}`))
+	}))
+	defer relay.Close()
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(paths.VersionFile), 0o755); err != nil {
+		t.Fatalf("mkdir version dir: %v", err)
+	}
+	if err := os.WriteFile(paths.VersionFile, []byte(`{"skill_version":"0.14.0","min_relay_version":"0.4.0"}`), 0o644); err != nil {
+		t.Fatalf("write version file: %v", err)
+	}
+	if err := saveConfig(paths, runtimeConfig{HAHost: "127.0.0.1", HAURL: "http://127.0.0.1:8123", RelayBaseURL: relay.URL}); err != nil {
+		t.Fatalf("saveConfig() error: %v", err)
+	}
+	if err := writeRelayAuthToken("test-relay-token"); err != nil {
+		t.Fatalf("writeRelayAuthToken() error: %v", err)
+	}
+
+	notice := relayFloorNotice(paths)
+	if notice.kind != humanNoticeKindRelayOutdated {
+		t.Fatalf("notice.kind = %q, want %q", notice.kind, humanNoticeKindRelayOutdated)
+	}
+	if !strings.Contains(notice.message, "Relay outdated: v0.2.6 is below minimum v0.4.0") {
+		t.Fatalf("unexpected relay warning message: %q", notice.message)
+	}
+}
+
+func TestRelayFloorNoticeStaysSilentWhenRelayUnreachable(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING", "1")
+	t.Setenv("HA_NOVA_TEST_KEYRING_FILE", filepath.Join(home, ".config", "ha-nova", ".test-relay-auth-token"))
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(paths.VersionFile), 0o755); err != nil {
+		t.Fatalf("mkdir version dir: %v", err)
+	}
+	if err := os.WriteFile(paths.VersionFile, []byte(`{"skill_version":"0.14.0","min_relay_version":"0.4.0"}`), 0o644); err != nil {
+		t.Fatalf("write version file: %v", err)
+	}
+	// Port 1 refuses connections without ever having been bound by this
+	// process — no close-then-rebind recycling risk (see #310).
+	if err := saveConfig(paths, runtimeConfig{HAHost: "127.0.0.1", HAURL: "http://127.0.0.1:8123", RelayBaseURL: "http://127.0.0.1:1"}); err != nil {
+		t.Fatalf("saveConfig() error: %v", err)
+	}
+	if err := writeRelayAuthToken("test-relay-token"); err != nil {
+		t.Fatalf("writeRelayAuthToken() error: %v", err)
+	}
+
+	if notice := relayFloorNotice(paths); !notice.empty() {
+		t.Fatalf("expected silence for unreachable relay, got %q", notice.message)
 	}
 }
 

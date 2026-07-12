@@ -129,6 +129,12 @@ func runUpdate(paths runtimePaths, args []string) int {
 	// may be the OLD (dev) binary whose compiled-in version predates the
 	// update (issue #245 showed "Updated to v0.7.1" while installing 0.8.0).
 	printHumanInfo("Updated to v%s", targetVersion)
+	// The freshly installed version.json may raise min_relay_version — the
+	// update moment is where the user can still act on it, instead of being
+	// interrupted mid-session by the proxy warning later.
+	if notice := relayFloorNotice(paths); !notice.empty() {
+		printHumanNotice(notice)
+	}
 	return 0
 }
 
@@ -192,9 +198,14 @@ func syncInstalledClientsForCurrentVersion(paths runtimePaths, currentVersion, t
 	}
 	if cmp > 0 {
 		printHumanInfo("Already on newer version v%s than target v%s", currentVersion, targetVersion)
-		return 0
+	} else {
+		printHumanInfo("Already up to date: v%s", currentVersion)
 	}
-	printHumanInfo("Already up to date: v%s", currentVersion)
+	// "Up to date" is misleading while the relay sits below the floor the
+	// installed skills need — say so here, where the user is looking.
+	if notice := relayFloorNotice(paths); !notice.empty() {
+		printHumanNotice(notice)
+	}
 	return 0
 }
 

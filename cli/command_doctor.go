@@ -226,10 +226,20 @@ func runCheckUpdate(paths runtimePaths, args []string) int {
 	ensureClientsVerifiedForCurrentVersion(paths)
 
 	notice := humanNoticeFromUpdateCheckResult(result, *quiet)
+	if !notice.empty() {
+		printHumanNotice(notice)
+	}
+	// CLI/skills freshness is only half the answer: the relay in Home
+	// Assistant has its own version, and "up to date" would be misleading
+	// while it sits below min_relay_version. Stderr-only, exit code unchanged
+	// — the update check itself succeeded (the --json branch above stays
+	// machine-clean and untouched).
+	if relayNotice := relayFloorNotice(paths); !relayNotice.empty() {
+		printHumanNotice(relayNotice)
+	}
 	if notice.empty() {
 		return 0
 	}
-	printHumanNotice(notice)
 	return updateCheckExitCode(result)
 }
 
