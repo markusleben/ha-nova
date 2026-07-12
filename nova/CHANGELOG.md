@@ -9,6 +9,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic
 Recent changes are tracked in [GitHub releases](https://github.com/markusleben/ha-nova/releases)
 and merged PRs. This changelog will be updated with the next tagged relay version.
 
+## [Relay 0.4.1] - 2026-07-12
+
+- The App info page now explains what the NOVA Relay is, what it deliberately does not do, and where the security model lives — instead of a one-line stub. No functional changes.
+
 ## [Relay 0.4.0] - 2026-07-11
 
 ### Added
