@@ -85,21 +85,18 @@ release:
     Windows uses a single supported install path: `install.ps1`. Return an RC install to stable later with `ha-nova update`.
     {{ else }}## New Features
 
-    - **9 new skills — coverage across the whole home.** `diagnose` (root-cause "why didn't my automation run?"), `media` (players, volume, speaker groups, TTS announcements), `notify` (phone and persistent notifications), `camera` (the agent actually looks at the current frame), `mqtt` (listen to what a device really publishes), `assist` (test what your voice assistant understands — without speaking), `admin` (persons, zones, tags, user accounts — with hard owner guards), `yaml-config`, and `external-sources` (years of InfluxDB history the recorder purged long ago).
-    - **Runs on every Home Assistant install now.** The relay also ships as a standalone container (`ghcr.io/markusleben/ha-nova-relay`), so Home Assistant Container and Core users — who cannot install Apps — are no longer locked out. Same code, same security model: your Home Assistant token still never leaves the server.
-    - **YAML configuration you can finally edit.** Template, REST and command-line sensors, packages and themes have no Home Assistant API — they only exist as files. The new `ha-nova:yaml-config` skill edits them safely: read first, show a diff, back up, validate before reloading, verify afterwards. Only if you switch it on: the NOVA Relay's new `file_access` option defaults to `off`, and secrets, the recorder database, and anything executable stay off-limits in every mode.
-    - **Guided uninstall.** `ha-nova uninstall` now walks you through the Home Assistant side too: removing the NOVA Relay app, removing the repository, and revoking the "NOVA" access token. The cleanup checklist is always shown — even when Home Assistant is unreachable.
-    - **Update notices in every AI client.** Codex, OpenCode, Antigravity, and Hermes now surface HA NOVA updates during normal skill use; previously only Claude did.
+    - **Change previews you can actually read.** When the AI updates an automation, script, or helper, it now shows one clear before/after table instead of a wall of bullets — and nested changes name the thing you recognize ("condition sensor.kitchen_illumination" instead of "condition 2"). Every skill uses the same preview cards, in every AI client.
+    - **YAML file edits preview only the section that changes.** No developer diffs: you see the effect in plain words, the new section, and what it replaces — then you decide.
+    - **`--help` everywhere.** Every `ha-nova` command now answers `--help` with its usage and flags — so options like `update --force` are finally discoverable.
+    - **HA NOVA offers to update the relay for you.** When your NOVA Relay is outdated, the AI now asks whether it should install the App update right away instead of just pointing at a warning (container installs get honest manual pull guidance).
 
     ## What To Watch
 
-    - The NOVA Relay must be updated to 0.4.0 or newer (App: **Settings > Apps > NOVA Relay**; container: pull the new image). Camera and MQTT need 0.3.0's binary and bounded-listening support, YAML editing needs 0.4.0's opt-in file access — HA NOVA tells you if your relay is too old.
-    - Set `HA_NOVA_NO_UPDATE_NUDGE=1` to silence the new update notices.
+    - Home Assistant will show a NOVA Relay update (0.4.1). It only refreshes the App's info page — no functional changes, update whenever convenient. Skills still require relay 0.4.0 or newer.
 
     ## Bug Fixes
 
-    - `ha-nova doctor` now really checks the relay version: it read the wrong field of the health response and could report a healthy setup while your relay was too old for the installed skills. `ha-nova update` and `check-update` also tell you now when the relay in Home Assistant needs its own update — right when you are already updating.
-
+    - Reading Home Assistant logs works again on current HA versions: the skills now use the supported log source (`system_log/list`) instead of an endpoint recent Home Assistant releases removed.
     Stable install commands are release-pinned for this tag.
 
     **macOS / Linux:**

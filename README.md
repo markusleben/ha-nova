@@ -55,7 +55,7 @@ We built this because we didn't trust AI with our own config either.
 **What happens when AI wants to change something:**
 
 1. **Researches first.** Finds your devices, checks your setup, resolves entity names. No guessing.
-2. **Shows you the change.** Full diff, before anything is written.
+2. **Shows you the change.** A clear before/after table of exactly what will change, before anything is written.
 3. **You approve it.** Deletes require a specific confirmation code — not just "yes."
 4. **Writes and verifies.** Reads the config back to confirm the change stuck.
 5. **Audits itself.** Checks for mistakes, conflicts, and reliability issues.
