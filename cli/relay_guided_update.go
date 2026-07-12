@@ -37,7 +37,9 @@ const relayUpdateManualPath = "Manual path: open Home Assistant > Settings > Add
 // entity (standalone container), or any transport problem falls back to the
 // manual path without touching the caller's exit code.
 func maybeOfferGuidedRelayUpdate(paths runtimePaths, notice humanNotice) {
-	if notice.kind != humanNoticeKindRelayOutdated || !isInteractiveTTY() {
+	// Both ends must be a terminal: with stdout redirected the question would
+	// land in a file while the command silently blocks on stdin.
+	if notice.kind != humanNoticeKindRelayOutdated || !isInteractiveTTY() || !stdoutIsInteractiveTTY() {
 		return
 	}
 	cfg, err := loadConfig(paths)

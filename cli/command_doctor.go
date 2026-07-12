@@ -94,6 +94,7 @@ func runDoctor(paths runtimePaths, args []string) int {
 		if notice := checkRelayVersion(paths, readiness.HealthBody); !notice.empty() {
 			printHumanNotice(notice)
 			status = 1
+			maybeOfferGuidedRelayUpdate(paths, notice)
 		}
 		if haReachable {
 			switch {
@@ -245,7 +246,6 @@ func runCheckUpdate(paths runtimePaths, args []string) int {
 	if !*quiet {
 		if relayNotice := relayFloorNotice(paths); !relayNotice.empty() {
 			printHumanNotice(relayNotice)
-			maybeOfferGuidedRelayUpdate(paths, relayNotice)
 		}
 	}
 	if notice.empty() {
