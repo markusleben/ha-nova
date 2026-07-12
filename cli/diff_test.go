@@ -415,7 +415,7 @@ func TestDiffAnchorsDeepNestingOnTheRecognizableItem(t *testing.T) {
 	after := strings.Replace(before, `"below":10`, `"below":20`, 1)
 	got := diffLines(t, before, after)
 	assertLines(t, got, []string{
-		"| Action 1 (condition sensor.diele_illumination › below) | 10 | 20 |",
+		"| Action 1 (choose 1 › condition sensor.diele_illumination › below) | 10 | 20 |",
 	})
 }
 
@@ -425,7 +425,7 @@ func TestDiffAnchorPrefersAliasAndKeepsIndexFallback(t *testing.T) {
 	after := strings.Replace(before, `"brightness":100`, `"brightness":50`, 1)
 	got := diffLines(t, before, after)
 	assertLines(t, got, []string{
-		`| Action 1 ("Lampe an" › data › brightness) | 100 | 50 |`,
+		`| Action 1 (choose 1 › "Lampe an" › data › brightness) | 100 | 50 |`,
 	})
 	// Unknown shapes keep today's deterministic index fallback.
 	before = `{"actions":[{"custom":[{"weird":1},{"weird":2}]}]}`
@@ -445,8 +445,36 @@ func TestDiffNestedNotificationCopyDedupsWithAnchoredLabel(t *testing.T) {
 	got := diffLines(t, before, after)
 	assertLines(t, got, []string{
 		"| Action 1 (choose 1 › sequence) | 1 item | 2 items |",
-		"| Action 1 (action notify.phone › data › message) | Plan erstellt | Plan ist bereit |",
+		"| Action 1 (choose 1 › action notify.phone › data › message) | Plan erstellt | Plan ist bereit |",
 		"| Action 1 (choose 1 › step 2) | — | action script.extra |",
+	})
+}
+
+func TestDiffFieldColumnHasItsOwnWiderCap(t *testing.T) {
+	// An anchored label (branch + entity + field) may exceed the 80-byte value
+	// cap; cutting the FIELD mid-name would lose what identifies the row, so
+	// the field column caps at 120 — and beyond that still cuts rune-safe.
+	entity := "sensor." + strings.Repeat("diele_praesenzmelder_", 2) + "illumination" // label ~100 bytes: over the 80 value cap, under the 120 field cap
+	before := `{"actions":[{"choose":[{"conditions":[{"below":10,"condition":"numeric_state","entity_id":"` + entity + `"}],"sequence":[{"action":"script.a"}]}]}]}`
+	after := strings.Replace(before, `"below":10`, `"below":20`, 1)
+	got := diffLines(t, before, after)
+	if len(got) != 1 {
+		t.Fatalf("expected 1 change, got %#v", got)
+	}
+	if !strings.Contains(got[0], "› below) | 10 | 20 |") {
+		t.Fatalf("field name must survive whole under the wider field cap: %q", got[0])
+	}
+}
+
+func TestDiffAnchorCollisionsKeepBranchContext(t *testing.T) {
+	// Two identical conditions in two choose branches must stay
+	// distinguishable — the branch token survives the anchor reset.
+	before := `{"actions":[{"choose":[{"conditions":[{"below":10,"condition":"numeric_state","entity_id":"sensor.x"}],"sequence":[{"action":"script.a"}]},{"conditions":[{"below":30,"condition":"numeric_state","entity_id":"sensor.x"}],"sequence":[{"action":"script.b"}]}]}]}`
+	after := strings.Replace(strings.Replace(before, `"below":10`, `"below":15`, 1), `"below":30`, `"below":35`, 1)
+	got := diffLines(t, before, after)
+	assertLines(t, got, []string{
+		"| Action 1 (choose 1 › condition sensor.x › below) | 10 | 15 |",
+		"| Action 1 (choose 2 › condition sensor.x › below) | 30 | 35 |",
 	})
 }
 

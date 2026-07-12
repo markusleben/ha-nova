@@ -38,12 +38,15 @@ var arraySingular = map[string]string{
 
 // humanizeLabel turns a path into a stable, readable label, e.g.
 // [mode] -> "Mode", [actions,1,delay] -> "Action 2 (delay)". When an index
-// segment carries a semantic anchor, the anchor REPLACES the leaf chain
-// collected so far: "Action 1 (condition sensor.x › below)" instead of the
-// index walk "Action 1 (choose 1 › condition 2 › condition 2 › below)" —
-// structural wrappers mean nothing to a non-technical user, the entity does.
+// segment carries a semantic anchor, the anchor replaces the index chain
+// collected so far — structural or/and wrappers mean nothing to a
+// non-technical user, the entity does. Branch tokens (choose/parallel) are
+// the exception and survive the reset: two identical conditions in two
+// choose branches must not collapse into two indistinguishable rows in the
+// pre-write confirmation table.
 func humanizeLabel(segs []segment) string {
 	var head string
+	var branches []string
 	var leaf []string
 	for i := 0; i < len(segs); {
 		s := segs[i]
@@ -58,31 +61,35 @@ func humanizeLabel(segs []segment) string {
 				name = titleFirst(s.key)
 			}
 			token := fmt.Sprintf("%s %d", name, segs[i+1].index+1)
+			lower := strings.ToLower(name) + fmt.Sprintf(" %d", segs[i+1].index+1)
 			switch {
-			case head == "" && len(leaf) == 0:
+			case head == "" && len(leaf) == 0 && len(branches) == 0:
 				head = token
+			case s.key == "choose" || s.key == "parallel":
+				branches = append(branches, lower)
 			case segs[i+1].anchor != "":
 				leaf = []string{segs[i+1].anchor}
 			default:
-				leaf = append(leaf, strings.ToLower(name)+fmt.Sprintf(" %d", segs[i+1].index+1))
+				leaf = append(leaf, lower)
 			}
 			i += 2
 			continue
 		}
-		if head == "" && len(leaf) == 0 {
+		if head == "" && len(leaf) == 0 && len(branches) == 0 {
 			head = titleFirst(s.key)
 		} else {
 			leaf = append(leaf, s.key)
 		}
 		i++
 	}
+	full := append(append([]string{}, branches...), leaf...)
 	switch {
-	case len(leaf) == 0:
+	case len(full) == 0:
 		return head
 	case head == "":
-		return strings.Join(leaf, " › ")
+		return strings.Join(full, " › ")
 	default:
-		return head + " (" + strings.Join(leaf, " › ") + ")"
+		return head + " (" + strings.Join(full, " › ") + ")"
 	}
 }
 
@@ -345,14 +352,20 @@ func compactJSON(v interface{}) string {
 // truncated value changed.
 const maxCellBytes = 80
 
+// maxFieldCellBytes gives the field column more room than the value columns:
+// anchored labels carry entity IDs plus a field name, and cutting the FIELD
+// mid-name ("… › be…") loses what identifies the row. Labels are constructed,
+// not user-authored, so 120 bounds the pathological case only.
+const maxFieldCellBytes = 120
+
 // tableRow renders one GFM table data row. Every cell passes through
-// escapeCell exactly once, here — callers hand over raw content and never
-// pre-escape.
+// escapeCellWithCap exactly once, here — callers hand over raw content and
+// never pre-escape.
 func tableRow(field, before, after string) string {
-	return "| " + escapeCell(field) + " | " + escapeCell(before) + " | " + escapeCell(after) + " |"
+	return "| " + escapeCellWithCap(field, maxFieldCellBytes) + " | " + escapeCell(before) + " | " + escapeCell(after) + " |"
 }
 
-// escapeCell makes one cell safe inside a table row the skill prints
+// escapeCell makes one value cell safe inside a table row the skill prints
 // verbatim: rune-safe truncation to maxCellBytes, control-character escaping
 // (a raw newline would break the whole table, not just one bullet), and pipe
 // escaping so a value — Jinja templates love `|` — can never add a column.
@@ -360,9 +373,13 @@ func tableRow(field, before, after string) string {
 // may push the final cell slightly past the cap, which bounds content, not
 // framing.
 func escapeCell(s string) string {
+	return escapeCellWithCap(s, maxCellBytes)
+}
+
+func escapeCellWithCap(s string, cap int) string {
 	truncated := false
-	if len(s) > maxCellBytes {
-		cut := maxCellBytes
+	if len(s) > cap {
+		cut := cap
 		for cut > 0 && !utf8.RuneStart(s[cut]) {
 			cut--
 		}
