@@ -37,7 +37,11 @@ var arraySingular = map[string]string{
 }
 
 // humanizeLabel turns a path into a stable, readable label, e.g.
-// [mode] -> "Mode", [actions,1,delay] -> "Action 2 (delay)".
+// [mode] -> "Mode", [actions,1,delay] -> "Action 2 (delay)". When an index
+// segment carries a semantic anchor, the anchor REPLACES the leaf chain
+// collected so far: "Action 1 (condition sensor.x › below)" instead of the
+// index walk "Action 1 (choose 1 › condition 2 › condition 2 › below)" —
+// structural wrappers mean nothing to a non-technical user, the entity does.
 func humanizeLabel(segs []segment) string {
 	var head string
 	var leaf []string
@@ -54,9 +58,12 @@ func humanizeLabel(segs []segment) string {
 				name = titleFirst(s.key)
 			}
 			token := fmt.Sprintf("%s %d", name, segs[i+1].index+1)
-			if head == "" && len(leaf) == 0 {
+			switch {
+			case head == "" && len(leaf) == 0:
 				head = token
-			} else {
+			case segs[i+1].anchor != "":
+				leaf = []string{segs[i+1].anchor}
+			default:
 				leaf = append(leaf, strings.ToLower(name)+fmt.Sprintf(" %d", segs[i+1].index+1))
 			}
 			i += 2
@@ -77,6 +84,51 @@ func humanizeLabel(segs []segment) string {
 	default:
 		return head + " (" + strings.Join(leaf, " › ") + ")"
 	}
+}
+
+// configItemAnchor names one list item for the change label — the thing a
+// non-technical user recognizes. Alias beats everything, then the service,
+// then the entity of a trigger/condition. Pure structural wrappers (or/and/
+// not) return "" so the walk continues to something recognizable; unknown
+// shapes return "" and keep today's index fallback.
+func configItemAnchor(v interface{}) string {
+	m, ok := v.(map[string]interface{})
+	if !ok {
+		return ""
+	}
+	if alias, _ := m["alias"].(string); alias != "" {
+		return fmt.Sprintf("%q", alias)
+	}
+	if s, _ := m["action"].(string); s != "" {
+		return "action " + s
+	}
+	if s, _ := m["service"].(string); s != "" {
+		return "action " + s
+	}
+	entity, _ := m["entity_id"].(string)
+	if s, _ := m["platform"].(string); s != "" {
+		return withEntityAnchor("trigger "+s, entity)
+	}
+	if s, _ := m["trigger"].(string); s != "" {
+		return withEntityAnchor("trigger "+s, entity)
+	}
+	if s, _ := m["condition"].(string); s != "" {
+		if s == "or" || s == "and" || s == "not" {
+			return ""
+		}
+		if entity != "" {
+			return "condition " + entity
+		}
+		return "condition " + s
+	}
+	return ""
+}
+
+func withEntityAnchor(base, entity string) string {
+	if entity == "" {
+		return base
+	}
+	return base + " " + entity
 }
 
 func titleFirst(s string) string {

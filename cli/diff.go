@@ -174,6 +174,11 @@ type segment struct {
 	key     string
 	index   int
 	isIndex bool
+	// anchor is the recognizable summary of the list item this index points at
+	// ("condition sensor.x", `"My alias"`). humanizeLabel collapses everything
+	// before the innermost anchor: a layperson recognizes the entity, never the
+	// index chain through or/and/choose wrappers.
+	anchor string
 }
 
 func diffValues(segs []segment, before, after interface{}, changes *[]configChange) {
@@ -253,7 +258,7 @@ func diffArrays(segs []segment, before, after []interface{}, changes *[]configCh
 		return
 	}
 	for i := range before {
-		diffValues(appendSegment(segs, segment{index: i, isIndex: true}), before[i], after[i], changes)
+		diffValues(appendSegment(segs, segment{index: i, isIndex: true, anchor: configItemAnchor(before[i])}), before[i], after[i], changes)
 	}
 }
 
@@ -283,7 +288,7 @@ func diffAlignedItems(segs []segment, before, after []interface{}, changes *[]co
 	aMid := after[prefix : len(after)-suffix]
 	paired := 0
 	for paired < len(bMid) && paired < len(aMid) && alignedPairable(bMid[paired], aMid[paired]) {
-		diffValues(appendSegment(segs, segment{index: prefix + paired, isIndex: true}), bMid[paired], aMid[paired], changes)
+		diffValues(appendSegment(segs, segment{index: prefix + paired, isIndex: true, anchor: configItemAnchor(bMid[paired])}), bMid[paired], aMid[paired], changes)
 		paired++
 	}
 	renderAlignedSide(segs, bMid[paired:], prefix+paired, true, changes)

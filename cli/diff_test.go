@@ -407,6 +407,35 @@ func TestDiffStableTopLevelOrdering(t *testing.T) {
 	})
 }
 
+func TestDiffAnchorsDeepNestingOnTheRecognizableItem(t *testing.T) {
+	// The real-world case that motivated anchors: a threshold buried in
+	// choose -> or -> and -> numeric_state. The label must name the entity,
+	// not the index walk "choose 1 › condition 2 › condition 2 › below".
+	before := `{"actions":[{"choose":[{"conditions":[{"condition":"trigger","id":"x"},{"condition":"or","conditions":[{"condition":"state","entity_id":"input_boolean.darkness","state":"on"},{"condition":"and","conditions":[{"condition":"state","entity_id":"light.diele","state":"off"},{"below":10,"condition":"numeric_state","entity_id":"sensor.diele_illumination"}]}]}],"sequence":[{"action":"light.turn_on"}]}]}]}`
+	after := strings.Replace(before, `"below":10`, `"below":20`, 1)
+	got := diffLines(t, before, after)
+	assertLines(t, got, []string{
+		"| Action 1 (condition sensor.diele_illumination › below) | 10 | 20 |",
+	})
+}
+
+func TestDiffAnchorPrefersAliasAndKeepsIndexFallback(t *testing.T) {
+	// A user-named step anchors on its alias.
+	before := `{"actions":[{"choose":[{"conditions":[{"condition":"state","entity_id":"x","state":"on"}],"sequence":[{"alias":"Lampe an","action":"light.turn_on","data":{"brightness":100}}]}]}]}`
+	after := strings.Replace(before, `"brightness":100`, `"brightness":50`, 1)
+	got := diffLines(t, before, after)
+	assertLines(t, got, []string{
+		`| Action 1 ("Lampe an" › data › brightness) | 100 | 50 |`,
+	})
+	// Unknown shapes keep today's deterministic index fallback.
+	before = `{"actions":[{"custom":[{"weird":1},{"weird":2}]}]}`
+	after = `{"actions":[{"custom":[{"weird":1},{"weird":3}]}]}`
+	got = diffLines(t, before, after)
+	assertLines(t, got, []string{
+		"| Action 1 (custom 2 › weird) | 2 | 3 |",
+	})
+}
+
 func TestDiffNestedConditionChange(t *testing.T) {
 	before := `{"conditions":[{"condition":"numeric_state","above":60}]}`
 	after := `{"conditions":[{"condition":"numeric_state","above":40}]}`
