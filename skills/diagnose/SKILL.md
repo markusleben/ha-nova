@@ -45,7 +45,7 @@ Recency honesty: `error_log` and `system_log/list` only cover the time since the
 
 ### Reading the error log
 
-Only where the log file exists (Container/Core installs; on HA OS/Supervised the user can restore it with `ha core options --duplicate-log-file=true`, since 2026.1). The upstream body is plain text, but the relay wraps it in the `/core` envelope — the whole log is one escaped string in `.data.body`, so searching the saved file line-wise does not work.
+Only where the log file exists (Container/Core installs; on HA OS/Supervised the user can restore it with `ha core options --duplicate-log-file=true` followed by `ha core rebuild`, since 2026.1). The upstream body is plain text, but the relay wraps it in the `/core` envelope — the whole log is one escaped string in `.data.body`, so searching the saved file line-wise does not work.
 
 1. `ha-nova relay core --method GET --path /api/error_log --out <envelope-file>`
 2. Filter the lines you need with a raw jq read (never dump the whole log):

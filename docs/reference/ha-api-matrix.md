@@ -18,7 +18,7 @@ Which HA operations require REST, WS, or filesystem?
 | `/api/webhook/{webhook_id}` | POST | Invoke webhook |
 | `/api/history/period/{start_iso}` | GET | State history (with `?filter_entity_id=...&end_time=...`) |
 | `/api/logbook/{timestamp}` | GET | Logbook entries |
-| `/api/error_log` | GET | Error log of the current session — **404 on HA OS/Supervised since 2025.11** (log file moved to journald; official docs are stale). Re-enable: `ha core options --duplicate-log-file=true` (2026.1+). Prefer WS `system_log/list` |
+| `/api/error_log` | GET | Error log of the current session — **404 on HA OS/Supervised since 2025.11** (log file moved to journald; official docs are stale). Re-enable: `ha core options --duplicate-log-file=true` + `ha core rebuild` (2026.1+). Prefer WS `system_log/list` |
 | `/api/calendars` | GET | All calendars |
 | `/api/calendars/{entity_id}` | GET | Calendar events |
 | `/api/components` | GET | Loaded components |
