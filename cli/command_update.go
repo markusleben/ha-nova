@@ -14,9 +14,12 @@ import (
 func runUpdate(paths runtimePaths, args []string) int {
 	fs := flag.NewFlagSet("update", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
-	versionFlag := fs.String("version", "", "explicit version")
+	versionFlag := fs.String("version", "", "install exactly this release tag (e.g. v0.14.1); default is the latest stable")
 	forceFlag := fs.Bool("force", false, "proceed even from a local dev build (restores the release over the dev tree)")
 	if err := fs.Parse(args); err != nil {
+		if helpRequested(err, fs, "ha-nova update [--version <tag>] [--force]") {
+			return 0
+		}
 		printHumanErr("%s", err)
 		return 1
 	}

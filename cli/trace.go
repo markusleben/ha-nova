@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 )
@@ -61,6 +62,11 @@ func runTraceCommand(paths runtimePaths, args []string) int {
 		printErr("Usage: ha-nova trace <latest|list|get> <automation.entity_id|script.entity_id> [run_id] [--json]")
 		return 1
 	}
+	if args[0] == "--help" || args[0] == "-h" || args[0] == "help" {
+		fmt.Println("Usage: ha-nova trace <latest|list|get> <automation.entity_id|script.entity_id> [run_id] [--json]")
+		fmt.Println("Run 'ha-nova trace <subcommand> --help' to see that subcommand's flags.")
+		return 0
+	}
 	switch args[0] {
 	case "latest":
 		return runTraceLatest(paths, args[1:])
@@ -77,6 +83,9 @@ func runTraceCommand(paths runtimePaths, args []string) int {
 func runTraceLatest(paths runtimePaths, args []string) int {
 	entityID, jsonOut, err := parseTraceLatestArgs(args)
 	if err != nil {
+		if errors.Is(err, errHelpShown) {
+			return 0
+		}
 		printErr("%s", err)
 		return 1
 	}
@@ -122,6 +131,9 @@ func runTraceLatest(paths runtimePaths, args []string) int {
 func runTraceList(paths runtimePaths, args []string) int {
 	entityID, jsonOut, err := parseTraceEntityArgs("trace list", args)
 	if err != nil {
+		if errors.Is(err, errHelpShown) {
+			return 0
+		}
 		printErr("%s", err)
 		return 1
 	}
@@ -174,6 +186,9 @@ func runTraceList(paths runtimePaths, args []string) int {
 func runTraceGet(paths runtimePaths, args []string) int {
 	entityID, runID, jsonOut, err := parseTraceGetArgs(args)
 	if err != nil {
+		if errors.Is(err, errHelpShown) {
+			return 0
+		}
 		printErr("%s", err)
 		return 1
 	}

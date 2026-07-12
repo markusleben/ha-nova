@@ -60,6 +60,11 @@ func runSnapshotCommand(paths runtimePaths, args []string) int {
 		printErr("Usage: ha-nova snapshot <save|show|verify> ...")
 		return 1
 	}
+	if args[0] == "--help" || args[0] == "-h" || args[0] == "help" {
+		fmt.Println("Usage: ha-nova snapshot <save|show|verify> ...")
+		fmt.Println("Run 'ha-nova snapshot <subcommand> --help' to see that subcommand's flags.")
+		return 0
+	}
 	switch args[0] {
 	case "save":
 		return runSnapshotSave(paths, args[1:])
@@ -79,6 +84,9 @@ func runSnapshotSave(paths runtimePaths, args []string) int {
 	var dataFile string
 	fs.StringVar(&dataFile, "data-file", "", "path to the JSON record (defaults to stdin)")
 	if err := fs.Parse(args); err != nil {
+		if helpRequested(err, fs, "ha-nova snapshot save [--data-file <file>]") {
+			return 0
+		}
 		printErr("%s", err)
 		return 1
 	}
@@ -124,6 +132,9 @@ func runSnapshotShow(paths runtimePaths, args []string) int {
 	fs.StringVar(&domain, "domain", "", "optional domain filter when selecting by target")
 	fs.BoolVar(&list, "list", false, "list the stored snapshots (op/domain/target_id, newest first)")
 	if err := fs.Parse(args); err != nil {
+		if helpRequested(err, fs, "ha-nova snapshot show [--list] [--target <target_id>] [--domain <domain>]") {
+			return 0
+		}
 		printErr("%s", err)
 		return 1
 	}
@@ -172,6 +183,9 @@ func runSnapshotVerify(paths runtimePaths, args []string) int {
 	fs.StringVar(&target, "target", "", "select the snapshot for this target_id (default: newest)")
 	fs.StringVar(&domain, "domain", "", "optional domain filter when selecting by target")
 	if err := fs.Parse(args); err != nil {
+		if helpRequested(err, fs, "ha-nova snapshot verify --against <live.json> [--target <target_id>] [--domain <domain>]") {
+			return 0
+		}
 		printErr("%s", err)
 		return 1
 	}

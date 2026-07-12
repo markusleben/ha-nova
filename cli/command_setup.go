@@ -17,6 +17,9 @@ func runSetup(paths runtimePaths, args []string) int {
 	nonInteractive := fs.Bool("non-interactive", false, "Disable prompts")
 	serviceMode := fs.Bool("service", false, "Use a service-safe relay token file instead of desktop secure storage")
 	if err := fs.Parse(normalizeSetupArgs(args)); err != nil {
+		if helpRequested(err, fs, "ha-nova setup [client] [--service] [--non-interactive] [--host <host>] [--ha-url <url>] [--relay-url <url>] [--relay-token <token>]") {
+			return 0
+		}
 		printHumanErr("%s", err)
 		return 1
 	}

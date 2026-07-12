@@ -60,6 +60,11 @@ func dispatch(paths runtimePaths, argv0 string, args []string) int {
 	case "diff":
 		return runDiffCommand(paths, args[1:])
 	case "version":
+		if len(args) > 1 && (args[1] == "--help" || args[1] == "-h") {
+			fmt.Fprintln(os.Stdout, "Usage: ha-nova version")
+			fmt.Fprintln(os.Stdout, "Prints the installed HA NOVA version. No flags.")
+			return 0
+		}
 		fmt.Fprintln(os.Stdout, versionDisplay(paths))
 		return 0
 	case "internal-replace":
@@ -84,14 +89,16 @@ func printUsage() {
 	fmt.Fprintln(os.Stdout, "Usage:")
 	fmt.Fprintln(os.Stdout, "  ha-nova setup [client]")
 	fmt.Fprintln(os.Stdout, "  ha-nova setup --service [client]")
-	fmt.Fprintln(os.Stdout, "  ha-nova doctor")
+	fmt.Fprintln(os.Stdout, "  ha-nova doctor [--auto-repair] [--quiet]")
 	fmt.Fprintln(os.Stdout, "  ha-nova check-update [--quiet] [--json]")
 	fmt.Fprintln(os.Stdout, "  ha-nova status --json")
-	fmt.Fprintln(os.Stdout, "  ha-nova update [--version <tag>]")
+	fmt.Fprintln(os.Stdout, "  ha-nova update [--version <tag>] [--force]")
 	fmt.Fprintln(os.Stdout, "  ha-nova uninstall [--yes] [--purge]")
 	fmt.Fprintln(os.Stdout, "  ha-nova relay <health|ws|core|jq|version>")
 	fmt.Fprintln(os.Stdout, "  ha-nova trace <latest|list|get> <automation.entity_id|script.entity_id> [run_id] [--json]")
 	fmt.Fprintln(os.Stdout, "  ha-nova snapshot <save|show|verify>")
 	fmt.Fprintln(os.Stdout, "  ha-nova diff --before <file> --after <file> [--out <file>]")
 	fmt.Fprintln(os.Stdout, "  ha-nova version")
+	fmt.Fprintln(os.Stdout, "")
+	fmt.Fprintln(os.Stdout, "Run 'ha-nova <command> --help' to see every flag of a command.")
 }

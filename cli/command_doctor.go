@@ -18,6 +18,9 @@ func runDoctor(paths runtimePaths, args []string) int {
 	autoRepair := fs.Bool("auto-repair", false, "silently reattach drifted clients before reporting")
 	quiet := fs.Bool("quiet", false, "suppress info lines; only print warnings, errors, and repair actions")
 	if err := fs.Parse(args); err != nil {
+		if helpRequested(err, fs, "ha-nova doctor [--auto-repair] [--quiet]") {
+			return 0
+		}
 		printHumanErr("%s", err)
 		return 1
 	}
@@ -201,9 +204,12 @@ func doctorClientRepairHint(client clientStatus, installSource string) string {
 func runCheckUpdate(paths runtimePaths, args []string) int {
 	fs := flag.NewFlagSet("check-update", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
-	quiet := fs.Bool("quiet", false, "quiet")
-	jsonOutput := fs.Bool("json", false, "json")
+	quiet := fs.Bool("quiet", false, "print only when an update is available; stay silent when current")
+	jsonOutput := fs.Bool("json", false, "machine-readable result on stdout")
 	if err := fs.Parse(args); err != nil {
+		if helpRequested(err, fs, "ha-nova check-update [--quiet] [--json]") {
+			return 0
+		}
 		printHumanErr("%s", err)
 		return 1
 	}
