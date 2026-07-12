@@ -2,7 +2,7 @@
 name: read
 description: List/read Home Assistant automation and script configs through HA NOVA Relay. For analysis, use ha-nova:review.
 license: MIT
-compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay App in Home Assistant.
+compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay in Home Assistant (App, or standalone container on Container/Core).
 ---
 
 # HA NOVA Read

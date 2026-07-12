@@ -2,7 +2,7 @@
 name: yaml-config
 description: Use when creating or editing Home Assistant configuration that only exists as YAML files — template sensors beyond the helper UI, REST and command-line sensors, packages, and themes — through HA NOVA Relay's opt-in file access.
 license: MIT
-compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay App in Home Assistant.
+compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay in Home Assistant (App, or standalone container on Container/Core).
 ---
 
 # HA NOVA YAML Config
@@ -24,7 +24,7 @@ If this fails: `ha-nova setup`
 
 This skill needs **Relay 0.4.0 or newer** AND file access enabled. Both are the user's decision, not yours:
 - Probe once: `ha-nova relay files --data-file <payload-file>` with `{"action":"list_dir","path":"/config"}`.
-- `FILE_ACCESS_DISABLED` -> file access is OFF (the default). Tell the user how to turn it on (Settings > Apps > NOVA Relay > Configuration > `file_access`: `readwrite`, then restart the App) and what it means, then continue with the manual path below. Do not nag.
+- `FILE_ACCESS_DISABLED` -> file access is OFF (the default). Tell the user how to turn it on (App: Settings > Apps > NOVA Relay > Configuration > `file_access`: `readwrite`, restart; container: `FILE_ACCESS=readwrite` plus a config mount) and what it means, then continue with the manual path below. Do not nag.
 - `FILE_ACCESS_READONLY` -> reads work, writes do not. Offer the manual path below instead of asking for more permission.
 - If the relay is older than 0.4.0, say so plainly — the endpoint does not exist there.
 

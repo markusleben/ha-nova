@@ -2,7 +2,7 @@
 name: fallback
 description: Mandatory fallback for any HA NOVA task without a dedicated subskill. Must be invoked before any raw relay write operation. Covers blueprints, device config-entry detach, Apps, HACS, Zigbee/Z-Wave, and unsupported config-entry helper families.
 license: MIT
-compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay App in Home Assistant.
+compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay in Home Assistant (App, or standalone container on Container/Core).
 ---
 
 # HA NOVA Fallback

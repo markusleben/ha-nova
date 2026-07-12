@@ -2,7 +2,7 @@
 name: updates
 description: Use when checking pending Home Assistant updates (core, OS, Apps, integrations, device firmware), reading release notes, installing updates with safety gates, or skipping/unskipping update versions through HA NOVA Relay.
 license: MIT
-compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay App in Home Assistant.
+compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay in Home Assistant (App, or standalone container on Container/Core).
 ---
 
 # HA NOVA Updates

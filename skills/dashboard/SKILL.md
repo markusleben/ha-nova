@@ -2,7 +2,7 @@
 name: dashboard
 description: Use when listing, reading, creating, updating, or deleting storage-backed Home Assistant dashboards, Lovelace resources, and targeted card changes through HA NOVA Relay.
 license: MIT
-compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay App in Home Assistant.
+compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay in Home Assistant (App, or standalone container on Container/Core).
 ---
 
 # HA NOVA Dashboard

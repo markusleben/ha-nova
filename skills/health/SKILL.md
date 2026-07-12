@@ -2,7 +2,7 @@
 name: health
 description: Use when checking Home Assistant home status, repairs, system health, unavailable/unknown entities, low batteries, or component/config summaries through HA NOVA Relay.
 license: MIT
-compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay App in Home Assistant.
+compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay in Home Assistant (App, or standalone container on Container/Core).
 ---
 
 # HA NOVA Home Status
@@ -44,7 +44,7 @@ For WS payloads:
 - integration entries: `{"type":"config_entries/get"}`
 - system health: `{"message":{"type":"system_health/info"},"collect_events":{"until_type":"finish","max_events":100,"timeout_ms":10000}}`
 
-`system_health/info` is a finite event-response command. The Skill opts into generic Relay event collection through `collect_events`; the Relay only forwards the WS message and enforces `until_type`, `max_events`, and `timeout_ms`. A compatible relay returns `data.events` containing `initial`, zero or more `update`, and `finish` events. If the relay returns `data: null`, `UNSUPPORTED_WS_TYPE`, `VALIDATION_ERROR`, or another unsupported-event response, continue and say system-health details need Relay App 0.2.3 or newer.
+`system_health/info` is a finite event-response command. The Skill opts into generic Relay event collection through `collect_events`; the Relay only forwards the WS message and enforces `until_type`, `max_events`, and `timeout_ms`. A compatible relay returns `data.events` containing `initial`, zero or more `update`, and `finish` events. If the relay returns `data: null`, `UNSUPPORTED_WS_TYPE`, `VALIDATION_ERROR`, or another unsupported-event response, continue and say system-health details need Relay 0.2.3 or newer.
 
 ## Data Shapes
 
@@ -77,7 +77,7 @@ Low-battery detection must be structured:
 
 1. Read `/api/config`, `/api/components`, and `/api/states`.
 2. Read `repairs/list_issues` and `config_entries/get` through WS.
-3. If Relay App version is below `0.2.3`, do not call `system_health/info`; say system-health details need Relay App 0.2.3 or newer and include the current relay version.
+3. If the relay version is below `0.2.3`, do not call `system_health/info`; say system-health details need Relay 0.2.3 or newer and include the current relay version.
 4. Otherwise read `system_health/info` through WS and parse `data.events` when available.
 5. Summarize:
    - overall: `ok` only when all read sources are available and there are no active repairs, non-disabled not-loaded integrations, important unavailable/unknown examples, or low battery/SOC findings; `limited` when a source is unavailable; otherwise `attention`
@@ -115,7 +115,7 @@ Choose one safe `Next step`:
 - then integration `setup_error`/`setup_retry`
 - then low battery/SOC
 - then important unavailable/unknown examples
-- then source limitation such as outdated Relay App
+- then source limitation such as outdated relay
 - otherwise say no immediate action found
 
 ## Safety
