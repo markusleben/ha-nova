@@ -176,6 +176,12 @@ func runInternalReplace(paths runtimePaths, args []string) int {
 		printHumanWarn("updated to v%s, but could not remove the previous install backup: %s", localVersion(paths), err)
 	}
 	printHumanInfo("Updated to v%s", localVersion(paths))
+	// Windows finishes the update in this replacement process — the freshly
+	// installed version.json is live here, so the relay-floor warning belongs
+	// here too (the staging branch in runUpdate exits before it).
+	if notice := relayFloorNotice(paths); !notice.empty() {
+		printHumanNotice(notice)
+	}
 	return 0
 }
 
