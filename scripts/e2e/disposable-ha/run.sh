@@ -192,7 +192,7 @@ fi
 # config directory with FILE_ACCESS=readwrite and must serve the full
 # write -> read-back -> deny -> delete roundtrip the yaml-config skill uses.
 echo "--- file access: readwrite roundtrip (second relay on :8792)"
-( cd "$HERE" && docker compose up -d relay-files > /dev/null 2>&1 )
+( cd "$HERE" && docker compose up -d --build relay-files > /dev/null 2>&1 )
 FILES_URL="http://127.0.0.1:8792"
 for i in $(seq 1 30); do
   code="$(curl -s -o /dev/null -w '%{http_code}' "$FILES_URL/health" || true)"

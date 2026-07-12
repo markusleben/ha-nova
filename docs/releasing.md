@@ -133,7 +133,7 @@ the final tag may safely point at the same commit.
    the weekly schedule alone is NOT release evidence (the v0.14.0 release
    shipped before the workflow had ever fired):
    ```bash
-   gh workflow run e2e-disposable-ha.yml --ref main && gh run watch
+   gh workflow run e2e-disposable-ha.yml --ref main && gh run watch --exit-status
    # or locally, with Docker: bash scripts/e2e/disposable-ha/run.sh
    ```
    It boots a real Home Assistant plus the relay built from the commit and
