@@ -33,6 +33,48 @@ Apply these rules to every user-facing HA NOVA response, including direct sub-sk
 - Delete previews must say nothing has been deleted yet and must ask for the exact `confirm:<token>`; never render `apply`, `show yaml`, `cancel`, or a selectable menu for destructive confirmation.
 - Never hide the available next actions inside a paragraph.
 
+## Cards (Write-Flow Visual System)
+
+Write and action flows render one of three cards — the same shape every time, so users recognize them at a glance. Labels localize at runtime; emoji, literal keywords, entity IDs, state values, and CLI diff rows do not. Fixed emoji vocabulary: 📝 preview, 🗑️ delete preview, ✅ result, ⚠️ save status, plus the 🔴🟠🟡 severity markers — nothing else decorative, never color. Cards frame writes and runtime actions only; review and read output keep their own sections.
+
+**Preview Card** (create/update — values illustrative, labels localized at runtime):
+
+```
+📝 Preview: automation "Morning routine"
+The three light actions now only run when someone is home.
+
+| Field | Before | After |
+|---|---|---|
+| Condition 1 | — | condition state |
+| Mode | single | restart |
+
+Pre-write check: no concerns.
+⚠️ Nothing saved yet.
+Options: apply · show yaml · cancel
+```
+
+Title line: emoji + localized preview label + item type + name. Then one to three plain sentences on what the change DOES. The changes block: in diff-backed skills you author only the localized header row and the literal separator — the data rows are pasted verbatim from `ha-nova diff`, never invented and never re-aligned (mechanics: `skills/ha-nova/write-safety.md`); skills without a CLI diff author one short planned-change row or line per changed field; file-editing skills show the changed section as a snippet instead of a table. Existing per-skill slots map into the card: identity slots (name/mode/target) fold into the title line, `Planned change` is the changes block, `Save status` is the ⚠️ line, `Options` or the token prompt closes the card. Runtime actions use `apply · cancel` and an explicit not-executed-yet line.
+
+**Delete Card** (destructive — never a menu; the token prompt is always the last line):
+
+```
+🗑️ Delete: automation "Old morning routine"
+Turns all lights off at 23:00 — that stops when it is gone.
+Used by: nothing else found.
+⚠️ Nothing deleted yet.
+To delete, reply exactly: confirm:<token>
+```
+
+**Result Card** (after verification — name only the proven scope, per `skills/ha-nova/write-safety.md` → Verification Honesty; findings, if any, follow with 🔴🟠🟡):
+
+```
+✅ Saved: automation "Morning routine"
+Checked: config persisted, reload OK, entity live. Runtime behavior was not exercised.
+Reply revert to undo this update.
+```
+
+Read output: compact pipe tables (max 4 short columns — they degrade to plain pipe text in raw terminals) or grouped lists with counts; never raw JSON.
+
 ## Findings
 
 - Use only three visible severity markers: 🔴 high/critical, 🟠 medium, 🟡 low/info.

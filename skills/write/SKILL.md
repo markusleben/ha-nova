@@ -110,6 +110,8 @@ Do NOT invoke `ha-nova:review` separately.
 
 Apply `skills/ha-nova/output-rules.md`.
 
+Previews, delete prompts, and post-write results render as the Cards defined there; the diff mechanics stay in `skills/ha-nova/write-safety.md`.
+
 See `skills/ha-nova/SKILL.md` → Response Format.
 
 ## Safety

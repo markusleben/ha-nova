@@ -38,11 +38,13 @@ Best-practice freshness (`bp_status`) is an **internal gate input only**:
 ## Pre-Write Diff (`## Changes`)
 
 The diff is rendered by the CLI, not by you — so it is byte-identical on every
-run, every model, every client. Treat the `ha-nova diff` output like `git diff`:
-a stable artifact you print **verbatim**. Do not hand-format, reorder, relabel,
-translate, or summarize the change lines. The `-` change lines come ONLY from the
-command's stdout this turn — if you did not just run `ha-nova diff`, do not print
-a Changes block at all. There is no hand-computed fallback. `## Changes` is the
+run, every model, every client. It emits GFM table data rows
+(`| Field | before | after |`; an empty side shows `—`). Treat the `ha-nova diff`
+output like `git diff`: a stable artifact you print **verbatim**. Do not
+hand-format, reorder, relabel, translate, merge, or summarize the rows —
+do not re-align pipes or pad cells. The table rows come ONLY from the command's
+output this turn — if you did not just run `ha-nova diff`, do not print a
+Changes block at all. There is no hand-computed fallback. `## Changes` is the
 historical slot name, not a required literal Markdown heading; in terminal-like
 clients prefer a plain localized label for the changes slot.
 
@@ -50,9 +52,11 @@ clients prefer a plain localized label for the changes slot.
 1. Write the current config (resolve `CURRENT_CONFIG`) and the proposed draft to
    two files.
 2. Prefer `ha-nova diff --before <current-file> --after <draft-file> --out <diff-file>`, then read `<diff-file>` with the native file-reading tool. If `--out` is unavailable, use stdout only when the client will not truncate the command output.
-3. Print a localized label for the changes slot, then the diff file/stdout lines verbatim. If the
-   diff is empty, there is nothing to change — say so plainly instead of showing
-   an empty block.
+3. Print a localized label for the changes slot, then exactly two hand-written
+   lines — the localized table header row (field / before / after) and the
+   literal separator `|---|---|---|` (never localized, never re-aligned) — then
+   the diff file/stdout rows verbatim beneath. If the diff is empty, there is
+   nothing to change — say so plainly instead of showing an empty table.
 
 **create**: no diff (there is no "before") — give a one-line plain-language
 summary of what the new item does.
@@ -72,9 +76,10 @@ guess.
 
 Confirmation quality depends on it: a user who cannot tell what the payload
 changes cannot meaningfully confirm it. If the diff still contains a
-count-only or `… and N more` line for something the user's request touched,
-the summary MUST name what was added, removed, or nested there. If you cannot
-explain the behavioral effect of your own draft, stop and re-derive it —
+count-only or `… and N more` line — or a truncated (`…`) value — for something
+the user's request touched, the summary MUST name what was added, removed, or nested there,
+and spell out what a cut-off value says in full. If you cannot explain the
+behavioral effect of your own draft, stop and re-derive it —
 never ask for confirmation of a change you cannot describe.
 
 ### User-authored notification copy
@@ -95,7 +100,7 @@ offer it as a separate suggestion before preview; do not merge it into the draft
 unless the user accepts it.
 
 If notification copy does change, the Changes slot must show the old and new text or
-payload. A count-only array line such as `Actions: 7 → 8 items` is not enough
+payload. A count-only array line such as `| Actions | 7 items | 8 items |` is not enough
 when an existing notification title, message, or notification payload changed.
 
 ### Fixed update-preview shape
@@ -103,12 +108,17 @@ when an existing notification title, message, or notification payload changed.
 Render a terminal-friendly preview in this exact order, nothing extra — users
 should learn one shape and always recognize it:
 
-1. Preview-summary slot: target name and one to three plain-language sentences
-   (the behavior narrative lives here).
-2. Changes slot: the `ha-nova diff` file/stdout lines, verbatim.
+1. Preview-summary slot: 📝 title line (localized preview label + item type +
+   name), then one to three plain-language sentences (the behavior narrative
+   lives here).
+2. Changes slot: your localized header row + `|---|---|---|`, then the
+   `ha-nova diff` file/stdout rows, verbatim.
 3. Pre-write-check/impact slot: one or two short lines.
-4. Save-status slot: explicitly say that nothing has been saved yet.
+4. Save-status slot: explicitly say that nothing has been saved yet (the ⚠️ line).
 5. Options slot: explicit choices with literal `apply`, `show yaml`, and `cancel`.
+
+This is the Preview Card of `skills/ha-nova/output-rules.md` → Cards; the
+Result Card and Delete Card there frame the post-write and delete sides.
 
 Do **not** re-describe the whole automation (entities, every trigger/action) —
 the diff already states what changes. Keep it scannable.
@@ -125,18 +135,21 @@ A non-technical user reads the Changes slot, not raw YAML. So:
 Present the confirm/apply choice via the menu-or-numbered convention (see
 `skills/ha-nova/SKILL.md` → Interactive Choices).
 
-Shape (the `-` lines are exactly what `ha-nova diff` produced this turn — never
+Shape (the table rows are exactly what `ha-nova diff` produced this turn — never
 invent, shorten, pre-fill, or copy these from an example). The labels below are
 semantic placeholders; localize them before showing the user:
 
 ```
-<localized changes label>:
+📝 <localized preview label>: <type> "<name>"
+<behavior narrative, one to three sentences>
+
+| <localized field label> | <localized before label> | <localized after label> |
+|---|---|---|
 <paste the ha-nova diff file/stdout here, unchanged>
 
-<localized options label>:
-1. apply — save exactly this preview.
-2. show yaml — show the full proposed config.
-3. cancel — do not save anything.
+<pre-write check / impact line>
+⚠️ <localized: nothing saved yet>
+<localized options label>: apply · show yaml · cancel
 ```
 
 ## Verification Honesty (post-write wording)

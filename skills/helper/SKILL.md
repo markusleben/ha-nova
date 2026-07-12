@@ -421,7 +421,7 @@ Report only what has substance (same rule as the write flow — see `skills/writ
 
 ## Output Format
 
-Apply `skills/ha-nova/output-rules.md` to all user-facing output.
+Apply `skills/ha-nova/output-rules.md` to all user-facing output. Write previews, delete prompts, and results render as the Cards defined there.
 
 ### Storage-based family
 

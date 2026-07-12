@@ -164,7 +164,7 @@ func TestRunDiffCommandContract(t *testing.T) {
 			t.Fatalf("diff: exit = %d, want 0", code)
 		}
 	})
-	if !strings.Contains(out, "Mode: single → restart") {
+	if !strings.Contains(out, "| Mode | single | restart |") {
 		t.Fatalf("diff stdout = %q, want the deterministic change line", out)
 	}
 
@@ -181,7 +181,7 @@ func TestRunDiffCommandContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, want := string(data), "- Mode: single → restart\n"; got != want {
+	if got, want := string(data), "| Mode | single | restart |\n"; got != want {
 		t.Fatalf("diff file = %q, want %q", got, want)
 	}
 }
