@@ -54,13 +54,14 @@ Some services return data (`weather.get_forecasts`, `calendar.get_events`, `todo
      **State delta:**
      brightness: 100% → 40%
      ```
+   - Two or more changing values (or batch targets): the `Field | Before | After` mini table (`output-rules.md` -> Cards) under the same `State delta:` label; one value keeps the arrow one-liner.
    - Attribute display rules:
-     - **Brightness**: HA uses 0-255 internally. ALWAYS show delta in %: `brightness: 100% → 40%` (not raw 0-255). If light is off (brightness null or absent), treat as 0%: `brightness: 0% → 40%`.
-     - **Temperature**: Show with unit: `22.5°C → 19°C`. Note: `temperature` = setpoint (what we're changing), `current_temperature` = sensor reading (do NOT use for delta).
+     - **Brightness**: HA uses 0-255 internally; ALWAYS show delta in % (never raw). Light off (brightness null/absent) counts as 0%: `brightness: 0% → 40%`.
+     - **Temperature**: Show with unit: `22.5°C → 19°C`; `temperature` = setpoint (what we change), `current_temperature` = sensor reading (NOT for delta).
      - **Cover position**: `position: 100% (open) → 30%`.
-     - **State / mode**: For parameterless state-changing services (toggle, turn_on, turn_off, press, lock, unlock), always show state delta: `on → off`. For mode changes, show: `hvac_mode: heat → cool`.
-   - Entity `unavailable` → show delta as `unavailable → {target}` with warning: "Device is offline or unreachable."
-   - Entity `unknown` → show delta as `unknown → {target}` with info: "State not yet known (HA may not have polled yet). Service call may still work."
+     - **State / mode**: parameterless state-changing services (toggle, turn_on, turn_off, press, lock, unlock): `on → off`; mode changes: `hvac_mode: heat → cool`.
+   - Entity `unavailable` → delta `unavailable → {target}` + warning: "Device is offline or unreachable."
+   - Entity `unknown` → delta `unknown → {target}` + info: "State not yet known; the call may still work."
    - State read failed → preview without delta, do not block.
    - Show: service (`domain.service`), target (`entity_id`), data fields.
    - Include an explicit not-executed-yet line before confirmation.
@@ -127,7 +128,7 @@ Service-call specifics:
 
 Apply `skills/ha-nova/output-rules.md` to all user-facing output.
 
-Report the executed service, its target, and the verified state change (or the discrepancy); summarize response-service data instead of dumping it.
+Previews are the runtime-action Preview Card (`apply · cancel`); results are the Result Card. Report the executed service, its target, and the verified state change (or the discrepancy); summarize response-service data instead of dumping it.
 
 ## Safety
 

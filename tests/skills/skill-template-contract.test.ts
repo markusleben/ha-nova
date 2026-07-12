@@ -113,6 +113,9 @@ const WORD_BUDGETS: Record<string, number> = {
   mqtt: 1250,
   scene: 1350,
   "service-call": 1250,
+  // Carries the canonical File-Change Preview example — the only layout
+  // source for file edits; concrete examples are what make a card renderable.
+  "yaml-config": 1250,
   todo: 1200,
   updates: 1200,
   maintenance: 1200,
