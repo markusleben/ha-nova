@@ -19,7 +19,7 @@ func diffNotificationCopyInCommonItems(segs []segment, before, after []interface
 		if !bok || !aok || !isNotificationCall(bm) || !isNotificationCall(am) {
 			continue
 		}
-		itemPath := appendSegment(segs, segment{index: i, isIndex: true, anchor: itemAnchorFor(segs, before[i])})
+		itemPath := appendSegment(segs, segment{index: i, isIndex: true, anchor: itemAnchorFor(segs, before, before[i])})
 		diffNotificationDataField(itemPath, bm, am, "title", changes)
 		diffNotificationDataField(itemPath, bm, am, "message", changes)
 		diffNotificationDataField(itemPath, bm, am, "data", changes)
@@ -68,7 +68,7 @@ func diffSingleMovedNotificationCopy(segs []segment, before, after []interface{}
 	if !beforeOK || !afterOK || beforeIndex == afterIndex {
 		return
 	}
-	itemPath := appendSegment(segs, segment{index: afterIndex, isIndex: true, anchor: itemAnchorFor(segs, beforeItem)})
+	itemPath := appendSegment(segs, segment{index: afterIndex, isIndex: true, anchor: itemAnchorFor(segs, before, beforeItem)})
 	diffNotificationDataField(itemPath, beforeItem, afterItem, "title", changes)
 	diffNotificationDataField(itemPath, beforeItem, afterItem, "message", changes)
 	diffNotificationDataField(itemPath, beforeItem, afterItem, "data", changes)

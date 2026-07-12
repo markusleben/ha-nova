@@ -490,6 +490,19 @@ func TestDiffIfBranchCollisionsKeepThenElseContext(t *testing.T) {
 	})
 }
 
+func TestDiffSameServiceSiblingsKeepPositionalContext(t *testing.T) {
+	// Two same-service steps in ONE sequence cannot be told apart by their
+	// anchor — the positional step token must survive, or both rows render
+	// identically.
+	before := `{"actions":[{"choose":[{"conditions":[{"condition":"state","entity_id":"binary_sensor.day","state":"on"}],"sequence":[{"action":"light.turn_on","data":{"brightness_pct":80,"entity_id":"light.desk"}},{"action":"light.turn_on","data":{"brightness_pct":20,"entity_id":"light.shelf"}}]}]}]}`
+	after := strings.Replace(strings.Replace(before, `"brightness_pct":80`, `"brightness_pct":100`, 1), `"brightness_pct":20`, `"brightness_pct":10`, 1)
+	got := diffLines(t, before, after)
+	assertLines(t, got, []string{
+		"| Action 1 (choose 1 › step 1 › data › brightness_pct) | 80 | 100 |",
+		"| Action 1 (choose 1 › step 2 › data › brightness_pct) | 20 | 10 |",
+	})
+}
+
 func TestDiffPayloadArraysNeverAnchor(t *testing.T) {
 	// Actionable-notification buttons live in data.actions[] and carry their
 	// own action/title keys — anchoring them would mislabel a button as a

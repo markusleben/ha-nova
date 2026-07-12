@@ -127,14 +127,30 @@ func withEntityAnchor(base, entity string) string {
 // itemAnchorFor is the single gate for anchoring: items inside a service
 // call's payload (data/target/variables) are payload shapes — an actionable
 // notification button carries its own action/title keys and would mislabel as
-// a service call — so they never anchor. Every pass that builds an index
-// segment must go through this, or the dedup texts of the aligned and
-// notification passes drift apart and one change renders twice.
-func itemAnchorFor(segs []segment, item interface{}) string {
+// a service call — so they never anchor. An anchor another sibling in the
+// same array would also produce (two light.turn_on steps in one sequence)
+// is dropped too: it cannot tell the rows apart, the positional token can.
+// Every pass that builds an index segment must go through this, or the dedup
+// texts of the aligned and notification passes drift apart and one change
+// renders twice.
+func itemAnchorFor(segs []segment, siblings []interface{}, item interface{}) string {
 	for _, s := range segs {
 		if !s.isIndex && (s.key == "data" || s.key == "target" || s.key == "variables") {
 			return ""
 		}
 	}
-	return configItemAnchor(item)
+	anchor := configItemAnchor(item)
+	if anchor == "" {
+		return ""
+	}
+	seen := 0
+	for _, sibling := range siblings {
+		if configItemAnchor(sibling) == anchor {
+			seen++
+		}
+	}
+	if seen > 1 {
+		return ""
+	}
+	return anchor
 }
