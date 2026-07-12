@@ -62,11 +62,7 @@ The interactive wizard is built around the Supervisor App (it walks you through 
    ```
 2. **Create a long-lived access token** in Home Assistant: Profile > Security > "Create Token" (name it `NOVA`).
 3. **Start the container** with both (see the run/compose examples above).
-4. **Install the CLI without the wizard** — the plain release one-liner auto-starts the interactive, App-oriented wizard, so add `HA_NOVA_NO_SETUP=1`:
-   ```bash
-   curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/<release-tag>/install.sh | HA_NOVA_NO_SETUP=1 bash
-   ```
-   (Windows: set `$env:HA_NOVA_NO_SETUP = '1'` before running the `install.ps1` one-liner.)
+4. **Install the CLI without the wizard** — the plain release one-liner auto-starts the interactive, App-oriented wizard. Copy the install command for your OS from the [latest release](https://github.com/markusleben/ha-nova/releases/latest), then add `HA_NOVA_NO_SETUP=1`: on macOS/Linux change the ending to `| HA_NOVA_NO_SETUP=1 bash`; on Windows run `$env:HA_NOVA_NO_SETUP = '1'` before the `install.ps1` one-liner.
 5. **Attach the CLI**, pointing it at your Home Assistant and the relay:
    ```bash
    ha-nova setup --non-interactive \
