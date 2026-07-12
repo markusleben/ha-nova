@@ -53,7 +53,7 @@ describe("release contract", () => {
     expect(releaseWorkflow).not.toContain("dist/winget");
   });
 
-  it("keeps v0.14.0 release-facing wording user-centric", () => {
+  it("keeps v0.14.1 release-facing wording user-centric", () => {
     // Shipped release-note bodies are archived (docs/archive/work/) and
     // non-normative per documentation governance; only the active GoReleaser
     // template is contract-checked here.
@@ -63,6 +63,7 @@ describe("release contract", () => {
     expect(goreleaser).toContain("YAML configuration you can finally edit");
     expect(goreleaser).toContain("The NOVA Relay must be updated to 0.4.0 or newer");
     expect(goreleaser).toContain("HA_NOVA_NO_UPDATE_NUDGE=1");
+    expect(goreleaser).toContain("`ha-nova doctor` now really checks the relay version");
     expect(goreleaser).not.toContain("Use `v0.7.1` or the latest release command");
   });
 
