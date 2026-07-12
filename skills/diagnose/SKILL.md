@@ -34,8 +34,8 @@ File-based relay requests only:
 | Source | Call | Notes |
 |--------|------|-------|
 | Run traces | `ha-nova trace latest <entity_id> --json` (also `trace list <entity_id>`, `trace get <entity_id> <run_id>`) | First stop for automation/script failures: shows the exact step, condition results, and variables |
-| Error log | `GET /api/error_log` (upstream body is plain text, but the relay wraps it: the log lives in `.data.body` as one big string) | Save the envelope with `--out <envelope-file>`, then extract/filter LINES from it (see Reading the error log) — never search the raw envelope, whose newlines are escaped |
-| System log | WS `{"type":"system_log/list"}` | Structured warnings/errors with counts and sources |
+| System log | WS `{"type":"system_log/list"}` | PRIMARY log source: structured warnings/errors with counts and sources, works on every install type |
+| Error log | `GET /api/error_log` | **404 on HA OS/Supervised since 2025.11** (the log file moved to journald) — that is normal, not an error; stay with `system_log/list`. Where the file exists (Container/Core, or re-enabled), see Reading the error log |
 | Logbook window | `GET /api/logbook/<ISO-start>?end_time=<ISO-end>&entity=<entity_id>` | Human-readable events around the incident time |
 | State history | `GET /api/history/period/<ISO-start>?end_time=<ISO-end>&filter_entity_id=<ids>` | What states the involved entities actually had |
 | Template probe | `ha-nova relay core --method POST --path /api/template --body-file <payload-file>` with `{"template":"{{ ... }}"}` | Evaluate the exact condition/template against live state; the rendered result is the string in `.data.body` |
@@ -45,7 +45,7 @@ Recency honesty: `error_log` and `system_log/list` only cover the time since the
 
 ### Reading the error log
 
-The relay returns the `/core` envelope, so the saved file is JSON with the whole log escaped inside `.data.body` — searching that file directly does not work line-wise.
+Only where the log file exists (Container/Core installs; on HA OS/Supervised the user can restore it with `ha core options --duplicate-log-file=true` followed by `ha core rebuild` and `ha core restart`, since 2026.1). The upstream body is plain text, but the relay wraps it in the `/core` envelope — the whole log is one escaped string in `.data.body`, so searching the saved file line-wise does not work.
 
 1. `ha-nova relay core --method GET --path /api/error_log --out <envelope-file>`
 2. Filter the lines you need with a raw jq read (never dump the whole log):
@@ -62,7 +62,7 @@ The relay returns the `/core` envelope, so the saved file is JSON with the whole
 
 1. Pin the symptom: which entity/automation/script, what expected vs observed behavior, and WHEN (ask one question if the incident time is unknown — every later window depends on it).
 2. For automation/script symptoms, read the trace first (`ha-nova trace latest <entity_id> --json`; older runs via `trace list <entity_id>` + `trace get <entity_id> <run_id>`). The trace usually answers it: triggered or not, which condition stopped it, which step errored.
-3. Correlate logs: search the error log and `system_log/list` output for the involved entities, integrations, and the incident window. Quote only the relevant lines.
+3. Correlate logs: search `system_log/list` (and the error log where it exists) for the involved entities, integrations, and the incident window. Quote only the relevant lines.
 4. Reconstruct context: bounded logbook + history windows (default ±30 minutes around the incident) for the involved entities; probe suspect conditions/templates against live state (`relay core --method POST --path /api/template --body-file <payload-file>`, body `{"template":"{{ ... }}"}`; the rendered value comes back in `.data.body`).
 5. Debug escalation (optional, the only mutation): if evidence is insufficient and the user agrees, raise one integration's log level.
    - FIRST read the current levels: WS `{"type":"logger/log_info"}` → `[{"domain":..., "level": <numeric>}]`. `logger/log_info` reports NUMBERS but `logger.set_level` only accepts NAMES — map the recorded number back before building any payload: `10` → `debug`, `20` → `info`, `30` → `warning`, `40` → `error`, `50` → `critical`. A numeric level in a `set_level` payload is rejected by Home Assistant, which would leave debug logging raised until the next restart. Record the target logger's mapped level — that is the state you must restore. If it has no entry, the effective level is the configured default (HA's own default is `warning`, but `configuration.yaml` may set another).
@@ -74,7 +74,7 @@ The relay returns the `/core` envelope, so the saved file is JSON with the whole
 ## Error Handling
 
 Full relay/upstream error taxonomy: `skills/ha-nova/relay-api.md` -> Error Handling. Diagnose specifics:
-- `/api/error_log` upstream body is plain text, but the relay always wraps it in the `/core` envelope: the log is the string in `.data.body`. Extract lines from there (see Reading the error log); do not expect a raw log file on disk.
+- `/api/error_log` 404: normal on HA OS/Supervised since 2025.11 — continue with `system_log/list` and mention the `--duplicate-log-file` re-enable only if the user asks for the raw file.
 - Missing traces (empty `trace list`): traces are kept per entity with a small cap and reset on reload/restart — say so instead of guessing.
 - `system_log/list` empty after a restart is normal; fall back to logbook/history windows.
 

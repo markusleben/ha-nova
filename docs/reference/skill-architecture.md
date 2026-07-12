@@ -335,7 +335,7 @@ Still excluded from `ha-nova:helper`:
 
 `ha-nova:diagnose` is the failure-root-cause skill (read-only apart from one gated mutation):
 - traces first (`ha-nova trace latest <entity_id> --json`, plus `trace list` / `trace get`) for automation/script symptoms
-- `/api/error_log` (plain text — read from file, never dump) and WS `system_log/list`
+- WS `system_log/list` as the primary log source; `/api/error_log` only where the log file exists (404 on HA OS/Supervised since 2025.11)
 - bounded logbook/history windows around the incident (default ±30 min)
 - `POST /api/template` to probe suspect conditions against live state
 - WS `diagnostics/list` + `/api/diagnostics/config_entry/<entry_id>` when an integration is the suspect
