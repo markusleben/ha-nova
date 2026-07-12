@@ -503,6 +503,19 @@ func TestDiffSameServiceSiblingsKeepPositionalContext(t *testing.T) {
 	})
 }
 
+func TestDiffRepeatGuardAndBodyStayDistinguishable(t *testing.T) {
+	// A repeat block whose loop guard (while) and body step reference the
+	// same entity: the anchor must not wipe the collected repeat/while
+	// context, or guard and body render identically.
+	before := `{"actions":[{"repeat":{"while":[{"below":22,"condition":"numeric_state","entity_id":"sensor.temp"}],"sequence":[{"below":25,"condition":"numeric_state","entity_id":"sensor.temp"},{"action":"climate.set_temperature"}]}}]}`
+	after := strings.Replace(strings.Replace(before, `"below":22`, `"below":21`, 1), `"below":25`, `"below":24`, 1)
+	got := diffLines(t, before, after)
+	assertLines(t, got, []string{
+		"| Action 1 (repeat › condition sensor.temp › below) | 25 | 24 |",
+		"| Action 1 (repeat › while 1 › below) | 22 | 21 |",
+	})
+}
+
 func TestDiffPayloadArraysNeverAnchor(t *testing.T) {
 	// Actionable-notification buttons live in data.actions[] and carry their
 	// own action/title keys — anchoring them would mislabel a button as a

@@ -22,22 +22,35 @@ func titleFirst(s string) string {
 	return strings.ToUpper(s[:1]) + s[1:]
 }
 
+// labelToken is one path-ordered piece of a label. Positional tokens
+// ("condition 2", "#3") are structural index noise a semantic anchor may
+// replace; everything else — object keys ("repeat", "below") and branch
+// tokens — is real context and always survives.
+type labelToken struct {
+	text       string
+	positional bool
+}
+
+// branchTokenKeys are array keys whose position IS the meaning: the same
+// service in two choose branches, in then vs else, or in a loop guard vs
+// the loop body must never collapse into indistinguishable rows in the
+// pre-write confirmation table. Their tokens outrank any anchor.
+var branchTokenKeys = map[string]bool{
+	"choose": true, "parallel": true, "then": true, "else": true, "while": true, "until": true,
+}
+
 // humanizeLabel turns a path into a stable, readable label, e.g.
 // [mode] -> "Mode", [actions,1,delay] -> "Action 2 (delay)". When an index
-// segment carries a semantic anchor, the anchor replaces the index chain
-// collected so far — structural or/and wrappers mean nothing to a
-// non-technical user, the entity does. Branch tokens (choose/parallel) are
-// the exception and survive the reset: two identical conditions in two
-// choose branches (or the same service in then vs else) must not collapse
-// into indistinguishable rows in the pre-write confirmation table.
+// segment carries a semantic anchor, the anchor replaces the positional
+// tokens collected so far — structural or/and wrappers mean nothing to a
+// non-technical user, the entity does.
 func humanizeLabel(segs []segment) string {
 	var head string
-	var branches []string
-	var leaf []string
+	var tokens []labelToken
 	for i := 0; i < len(segs); {
 		s := segs[i]
 		if s.isIndex {
-			leaf = append(leaf, fmt.Sprintf("#%d", s.index+1))
+			tokens = append(tokens, labelToken{text: fmt.Sprintf("#%d", s.index+1), positional: true})
 			i++
 			continue
 		}
@@ -47,36 +60,48 @@ func humanizeLabel(segs []segment) string {
 				name = titleFirst(s.key)
 			}
 			token := fmt.Sprintf("%s %d", name, segs[i+1].index+1)
-			lower := strings.ToLower(name) + fmt.Sprintf(" %d", segs[i+1].index+1)
 			switch {
-			case head == "" && len(leaf) == 0 && len(branches) == 0:
+			case head == "" && len(tokens) == 0:
 				head = token
-			case s.key == "choose" || s.key == "parallel" || s.key == "then" || s.key == "else":
-				branches = append(branches, lower)
+			case branchTokenKeys[s.key]:
+				tokens = append(tokens, labelToken{text: strings.ToLower(token)})
 			case segs[i+1].anchor != "":
-				leaf = []string{segs[i+1].anchor}
+				tokens = append(withoutPositional(tokens), labelToken{text: segs[i+1].anchor})
 			default:
-				leaf = append(leaf, lower)
+				tokens = append(tokens, labelToken{text: strings.ToLower(token), positional: true})
 			}
 			i += 2
 			continue
 		}
-		if head == "" && len(leaf) == 0 && len(branches) == 0 {
+		if head == "" && len(tokens) == 0 {
 			head = titleFirst(s.key)
 		} else {
-			leaf = append(leaf, s.key)
+			tokens = append(tokens, labelToken{text: s.key})
 		}
 		i++
 	}
-	full := append(append([]string{}, branches...), leaf...)
+	parts := make([]string, len(tokens))
+	for i, t := range tokens {
+		parts[i] = t.text
+	}
 	switch {
-	case len(full) == 0:
+	case len(parts) == 0:
 		return head
 	case head == "":
-		return strings.Join(full, " › ")
+		return strings.Join(parts, " › ")
 	default:
-		return head + " (" + strings.Join(full, " › ") + ")"
+		return head + " (" + strings.Join(parts, " › ") + ")"
 	}
+}
+
+func withoutPositional(tokens []labelToken) []labelToken {
+	kept := tokens[:0]
+	for _, t := range tokens {
+		if !t.positional {
+			kept = append(kept, t)
+		}
+	}
+	return kept
 }
 
 // configItemAnchor names one list item for the change label — the thing a
