@@ -68,8 +68,10 @@ func runGuidedRelayUpdate(paths runtimePaths, cfg config, token string, in *bufi
 	fmt.Fprintf(out, "Installing the NOVA Relay App update (%s) with a partial backup — the relay restarts during the install.\n", entityID)
 	// The relay dies mid-call when the install lands, so a dropped response
 	// is the EXPECTED shape of success here; polling decides the outcome.
-	// Only an explicit upstream rejection (an answer that says no) skips the
-	// three-minute wait.
+	// An ok:false envelope is a relay-side transport problem (the relay's
+	// upstream client times out at 10s — a backup easily exceeds that) and
+	// polls too. Only Home Assistant itself answering >= 400 (ok:true) is an
+	// explicit rejection that skips the three-minute wait.
 	body, err := relayCoreRequest(cfg, token, "POST", "/api/services/update/install",
 		[]byte(fmt.Sprintf(`{"entity_id":%q,"backup":true}`, entityID)))
 	if err == nil {
@@ -79,7 +81,7 @@ func runGuidedRelayUpdate(paths runtimePaths, cfg config, token string, in *bufi
 				Status int `json:"status"`
 			} `json:"data"`
 		}
-		if json.Unmarshal(body, &envelope) == nil && (!envelope.OK || envelope.Data.Status >= 400) {
+		if json.Unmarshal(body, &envelope) == nil && envelope.OK && envelope.Data.Status >= 400 {
 			fmt.Fprintf(out, "Home Assistant rejected the install call.\n%s\n", relayUpdateManualPath)
 			return false
 		}

@@ -249,6 +249,46 @@ func TestGuidedRelayUpdateRejectedInstallSkipsTheWait(t *testing.T) {
 	}
 }
 
+func TestGuidedRelayUpdateRelayTimeoutEnvelopeStillPolls(t *testing.T) {
+	// The relay's upstream client times out at 10s and maps that to an
+	// ok:false envelope while the App update keeps installing — that is a
+	// restart candidate, not a rejection, and must continue into the poll.
+	paths := guidedUpdatePaths(t)
+	shrinkGuidedUpdatePolling(t, time.Second)
+	var installed atomic.Bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/health" {
+			version := "0.2.6"
+			if installed.Load() {
+				version = "0.4.0"
+			}
+			fmt.Fprintf(w, `{"ok":true,"data":{"version":%q}}`, version)
+			return
+		}
+		var req struct {
+			Path string `json:"path"`
+		}
+		json.NewDecoder(r.Body).Decode(&req)
+		if req.Path == "/api/states" {
+			w.Write(statesEnvelope(t, []map[string]interface{}{
+				relayUpdateEntity("update.nova_relay_update", "NOVA Relay"),
+			}))
+			return
+		}
+		installed.Store(true)
+		w.Write([]byte(`{"ok":false,"error":{"code":"UPSTREAM_TIMEOUT","message":"HA REST call timed out"}}`))
+	}))
+	defer server.Close()
+
+	var out bytes.Buffer
+	if !runGuidedRelayUpdate(paths, config{RelayBaseURL: server.URL}, "token", bufio.NewReader(strings.NewReader("y\n")), &out) {
+		t.Fatalf("relay-side timeout must poll and verify; output: %s", out.String())
+	}
+	if !strings.Contains(out.String(), "Relay updated and verified: v0.4.0 is running.") {
+		t.Fatalf("missing verified report: %s", out.String())
+	}
+}
+
 func TestGuidedRelayUpdateDeclinedTouchesNothing(t *testing.T) {
 	paths := guidedUpdatePaths(t)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
