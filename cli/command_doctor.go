@@ -94,7 +94,11 @@ func runDoctor(paths runtimePaths, args []string) int {
 		if notice := checkRelayVersion(paths, readiness.HealthBody); !notice.empty() {
 			printHumanNotice(notice)
 			status = 1
-			maybeOfferGuidedRelayUpdate(paths, notice)
+			// --quiet is a machine/diagnostic contract: warning-only, never
+			// an interactive question that could block or trigger a restart.
+			if !*quiet {
+				maybeOfferGuidedRelayUpdate(paths, notice)
+			}
 		}
 		if haReachable {
 			switch {
