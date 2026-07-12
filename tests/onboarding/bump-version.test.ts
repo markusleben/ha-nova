@@ -54,7 +54,11 @@ describe("S-11: version bump", () => {
     expect(content.startsWith("#!/")).toBe(true);
     expect(content).toContain("gh");
     expect(content).toContain("--paginate");
-    expect(content).toContain("--slurp");
+    // --slurp is deliberately absent: it is incompatible with --jq, and the
+    // per-page --jq projection is what keeps the payload under spawnSync
+    // buffers (the v0.14.0 ENOBUFS publish failure).
+    expect(content).not.toContain("--slurp");
+    expect(content).toContain("--jq");
     expect(content).toContain("latest published stable");
     expect(content).toContain("already exists on GitHub releases");
     expect(content).toContain("HA_NOVA_ALLOW_EXISTING_RELEASE_TAG");
