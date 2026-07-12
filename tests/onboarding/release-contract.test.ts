@@ -70,6 +70,15 @@ describe("release contract", () => {
     expect(releaseWorkflow).toContain("GORELEASER_CURRENT_TAG: ${{ github.ref_name }}");
   });
 
+  it("keeps the next-release-version check immune to release-payload growth", () => {
+    // The default spawnSync maxBuffer (1 MiB) failed the v0.14.0 publish with
+    // ENOBUFS once the release list outgrew it. The gh call must project the
+    // payload down to the fields it reads and carry an explicit buffer.
+    const versionCheck = readFileSync("scripts/release/verify-next-release-version.sh", "utf8");
+    expect(versionCheck).toContain('".[] | {tag_name, draft, prerelease}"');
+    expect(versionCheck).toContain("maxBuffer: 64 * 1024 * 1024");
+  });
+
   it("keeps the RC workflow free of winget artifacts and guidance", () => {
     expect(rcWorkflow).toContain("Build install bundles");
     expect(rcWorkflow).toContain("Upload RC artifacts");
