@@ -105,7 +105,7 @@ Previews use the File-Change Preview above; results use the Result Card. Report 
 - Home Assistant is reached exclusively through `ha-nova relay`.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
 
-- **Whole-file replacement**: `write_file` replaces the entire file. Always read first and preview the diff.
+- **Whole-file replacement**: `write_file` replaces the entire file. Always read first and show the File-Change Preview.
 - **The `.bak` is the rollback and it is not automatic beyond one step**: a second write overwrites the first backup. For a bigger change, offer a Home Assistant backup first (`ha-nova:backup`).
 - **check_config before reload, always.** Reloading an invalid configuration can drop entities that other automations depend on.
 - Never enable `file_access` on the user's behalf, and never ask twice.
