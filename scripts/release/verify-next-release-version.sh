@@ -78,14 +78,33 @@ if (!repo) {
 
 let releases;
 try {
-  const pages = JSON.parse(
-    execFileSync("gh", ["api", "--paginate", "--slurp", `repos/${repo}/releases?per_page=100`], {
+  // Project down to the three fields this check reads BEFORE the payload
+  // crosses the process boundary: full release objects carry the complete
+  // notes body per release, and the default spawnSync maxBuffer (1 MiB)
+  // killed the v0.14.0 publish with ENOBUFS once the RC's notes pushed the
+  // total over it. The raised maxBuffer is the backstop for very long tag
+  // histories.
+  const ndjson = execFileSync(
+    "gh",
+    [
+      "api",
+      "--paginate",
+      "--jq",
+      ".[] | {tag_name, draft, prerelease}",
+      `repos/${repo}/releases?per_page=100`,
+    ],
+    {
       cwd: rootDir,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
-    }),
+      maxBuffer: 64 * 1024 * 1024,
+    },
   );
-  releases = Array.isArray(pages) ? pages.flatMap((page) => (Array.isArray(page) ? page : [])) : [];
+  releases = ndjson
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => JSON.parse(line));
 } catch (error) {
   const detail = error.stderr || error.message || String(error);
   fail(`gh api failed for ${repo}: ${detail.trim()}`);
