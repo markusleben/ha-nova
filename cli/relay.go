@@ -171,6 +171,17 @@ func loadJQFilter(opts relayRequestOptions) (string, error) {
 }
 
 func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
+	// Parse (and answer --help) before the config/token preflight: help must
+	// work on a fresh install where neither exists yet.
+	opts, err := parseRelayFlags(endpoint, args)
+	if err != nil {
+		if errors.Is(err, errHelpShown) {
+			return 0
+		}
+		printErr("%s", err)
+		return 1
+	}
+
 	cfg, err := loadConfig(paths)
 	if err != nil {
 		printErr("%s", err)
@@ -180,15 +191,6 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 	token, err := readRelayAuthToken()
 	if err != nil {
 		printErr("%s", relayAuthTokenProblemMessage(err))
-		return 1
-	}
-
-	opts, err := parseRelayFlags(endpoint, args)
-	if err != nil {
-		if errors.Is(err, errHelpShown) {
-			return 0
-		}
-		printErr("%s", err)
 		return 1
 	}
 

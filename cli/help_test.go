@@ -38,6 +38,10 @@ func TestSubcommandHelpFlagPrintsUsageAndFlags(t *testing.T) {
 		{"relay health", func() int { return runRelayCommand(paths, []string{"health", "--help"}) }, "Usage: ha-nova relay health", "-connect-timeout"},
 		{"relay (parent)", func() int { return runRelayCommand(paths, []string{"--help"}) }, "Usage: ha-nova relay <health|ws|core|files|jq|version>", "relay <subcommand> --help"},
 		{"relay jq", func() int { return runRelayCommand(paths, []string{"jq", "--help"}) }, "Usage: ha-nova relay jq", "--jq-file"},
+		// Must answer even on a fresh install: help may not hide behind the
+		// config/token preflight of the proxy path.
+		{"relay core", func() int { return runRelayCommand(paths, []string{"core", "--help"}) }, "Usage: ha-nova relay core", "-body-file"},
+		{"relay ws", func() int { return runRelayCommand(paths, []string{"ws", "--help"}) }, "Usage: ha-nova relay ws", "-data-file"},
 		{"trace (parent)", func() int { return runTraceCommand(paths, []string{"--help"}) }, "Usage: ha-nova trace <latest|list|get>", "trace <subcommand> --help"},
 		{"snapshot (parent)", func() int { return runSnapshotCommand(paths, []string{"--help"}) }, "Usage: ha-nova snapshot <save|show|verify>", "snapshot <subcommand> --help"},
 	}
