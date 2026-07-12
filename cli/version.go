@@ -213,13 +213,47 @@ func readMinRelayVersion(dir string) string {
 }
 
 func checkRelayVersion(paths runtimePaths, healthBody []byte) humanNotice {
+	// A live GET /health answers with the relay envelope
+	// {"ok":true,"data":{"version":...}} — the version is NOT top-level. The
+	// top-level field stays as a fallback for bare health bodies.
 	var health struct {
 		Version string `json:"version"`
+		Data    struct {
+			Version string `json:"version"`
+		} `json:"data"`
 	}
-	if json.Unmarshal(healthBody, &health) != nil || health.Version == "" {
+	if json.Unmarshal(healthBody, &health) != nil {
 		return humanNotice{}
 	}
-	return checkRelayVersionValue(paths, health.Version)
+	version := health.Data.Version
+	if version == "" {
+		version = health.Version
+	}
+	if version == "" {
+		return humanNotice{}
+	}
+	return checkRelayVersionValue(paths, version)
+}
+
+// relayFloorNotice fetches the relay health once and returns the
+// outdated-relay warning when the running relay is below min_relay_version.
+// Best-effort by design: a missing config, missing token, or unreachable
+// relay yields an empty notice — update/check-update must not fail or get
+// noisy because Home Assistant is offline.
+func relayFloorNotice(paths runtimePaths) humanNotice {
+	cfg, err := loadConfig(paths)
+	if err != nil || cfg.RelayBaseURL == "" {
+		return humanNotice{}
+	}
+	token, err := readRelayAuthTokenForDoctor()
+	if err != nil || token == "" {
+		return humanNotice{}
+	}
+	body, err := fetchRelayHealth(cfg.RelayBaseURL, token)
+	if err != nil {
+		return humanNotice{}
+	}
+	return checkRelayVersion(paths, body)
 }
 
 // checkRelayVersionValue compares a bare relay version (from the /health body

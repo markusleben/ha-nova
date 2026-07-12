@@ -226,10 +226,24 @@ func runCheckUpdate(paths runtimePaths, args []string) int {
 	ensureClientsVerifiedForCurrentVersion(paths)
 
 	notice := humanNoticeFromUpdateCheckResult(result, *quiet)
+	if !notice.empty() {
+		printHumanNotice(notice)
+	}
+	// CLI/skills freshness is only half the answer: the relay in Home
+	// Assistant has its own version, and "up to date" would be misleading
+	// while it sits below min_relay_version. Human path only: --quiet is the
+	// skill self-update channel whose contract is "UPDATE AVAILABLE or
+	// silence" — skill sessions already get the relay warning through the
+	// proxy version header. Stderr-only, exit code unchanged, --json above
+	// stays machine-clean.
+	if !*quiet {
+		if relayNotice := relayFloorNotice(paths); !relayNotice.empty() {
+			printHumanNotice(relayNotice)
+		}
+	}
 	if notice.empty() {
 		return 0
 	}
-	printHumanNotice(notice)
 	return updateCheckExitCode(result)
 }
 
