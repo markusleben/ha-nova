@@ -89,6 +89,11 @@ func buildLabel(segs []segment, anchorsWipePositional bool) string {
 			case segs[i+1].anchor != "":
 				if anchorsWipePositional {
 					tokens = withoutPositional(tokens)
+				} else {
+					// The full-label fallback keeps the pair's own positional
+					// token too: two sibling anchors that differ only beyond
+					// the field-cell cap need the index to stay tellable apart.
+					tokens = append(tokens, labelToken{text: strings.ToLower(token), positional: true})
 				}
 				tokens = append(tokens, labelToken{text: segs[i+1].anchor})
 			default:

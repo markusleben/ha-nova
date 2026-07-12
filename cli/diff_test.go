@@ -524,9 +524,34 @@ func TestDiffAnchorCollisionsAcrossGroupsFallBackToFullPath(t *testing.T) {
 	after := strings.Replace(strings.Replace(before, `"below":10`, `"below":15`, 1), `"below":30`, `"below":35`, 1)
 	got := diffLines(t, before, after)
 	assertLines(t, got, []string{
-		"| Action 1 (choose 1 › condition 1 › condition 1 › condition sensor.x › below) | 10 | 15 |",
-		"| Action 1 (choose 1 › condition 1 › condition 2 › condition sensor.x › below) | 30 | 35 |",
+		"| Action 1 (choose 1 › condition 1 › condition 1 › condition 1 › condition sensor.x › below) | 10 | 15 |",
+		"| Action 1 (choose 1 › condition 1 › condition 2 › condition 1 › condition sensor.x › below) | 30 | 35 |",
 	})
+}
+
+func TestDiffLabelCollisionsBeyondTheFieldCapAreCaught(t *testing.T) {
+	// Two anchored labels differing only beyond the 120-byte field cell
+	// truncate to identical visible text; the collision check compares the
+	// RENDERED labels, and the full-path fallback carries the index early
+	// enough in the string to survive the cap.
+	longPrefix := strings.Repeat("verylongarea_", 9)
+	before := `{"actions":[{"choose":[{"conditions":[` +
+		`{"below":10,"condition":"numeric_state","entity_id":"sensor.` + longPrefix + `temperature"},` +
+		`{"below":30,"condition":"numeric_state","entity_id":"sensor.` + longPrefix + `humidity"}` +
+		`],"sequence":[{"action":"script.a"}]}]}]}`
+	after := strings.Replace(strings.Replace(before, `"below":10`, `"below":15`, 1), `"below":30`, `"below":35`, 1)
+	got := diffLines(t, before, after)
+	if len(got) != 2 {
+		t.Fatalf("expected 2 changes, got %#v", got)
+	}
+	f0 := strings.SplitN(got[0], " | ", 2)[0]
+	f1 := strings.SplitN(got[1], " | ", 2)[0]
+	if f0 == f1 {
+		t.Fatalf("field cells must stay distinguishable after the cap: %q", f0)
+	}
+	if !strings.Contains(got[0], "condition 1 ›") || !strings.Contains(got[1], "condition 2 ›") {
+		t.Fatalf("full-path fallback must surface the positional tokens: %#v", got)
+	}
 }
 
 func TestDiffChooseDefaultBranchStaysVisible(t *testing.T) {

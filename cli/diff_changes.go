@@ -51,11 +51,17 @@ func renderConfigChanges(before, after map[string]interface{}) []string {
 // rule can guarantee two DIFFERENT changes never condense to the same label
 // (the same entity in two separate or/and groups, for example). When distinct
 // paths share a label, those rows fall back to the full label that keeps
-// every positional token — verbose, but never ambiguous.
+// every positional token — verbose, but never ambiguous. Labels are compared
+// in their RENDERED form: two labels that differ only beyond the field-cell
+// cap truncate to the same visible text, which is exactly the collision the
+// user would face.
 func disambiguateLabels(changes []configChange) {
+	rendered := func(label string) string {
+		return escapeCellWithCap(label, maxFieldCellBytes)
+	}
 	byLabel := make(map[string][]int, len(changes))
 	for i, c := range changes {
-		byLabel[c.label] = append(byLabel[c.label], i)
+		byLabel[rendered(c.label)] = append(byLabel[rendered(c.label)], i)
 	}
 	for _, idxs := range byLabel {
 		distinct := false
