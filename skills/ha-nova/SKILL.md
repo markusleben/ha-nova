@@ -2,7 +2,7 @@
 name: ha-nova
 description: Use when the user wants Home Assistant operations through HA NOVA (App + Relay) with local OS-backed auth.
 license: MIT
-compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay App in Home Assistant.
+compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay in Home Assistant (App, or standalone container on Container/Core).
 ---
 
 # HA NOVA Context Skill
@@ -26,7 +26,7 @@ Before HA operations in this session:
 2. If this fails, ask user to run: `ha-nova setup`
 3. Do not run diagnostics proactively; diagnose only after real failure.
 4. Relay-only auth model: do not request or persist LLAT client-side.
-   - LLAT belongs in App option `ha_llat`
+   - LLAT belongs on the relay host: App option `ha_llat`, or the standalone container's environment (`docs/reference/relay-container.md`)
 
 Do not ask user to paste tokens in chat.
 

@@ -2,7 +2,7 @@
 name: external-sources
 description: Use when Home Assistant's own data is not enough — querying long-term history from InfluxDB (or another external store Home Assistant writes to but cannot read back) directly from this machine.
 license: MIT
-compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay App in Home Assistant.
+compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay in Home Assistant (App, or standalone container on Container/Core).
 ---
 
 # HA NOVA External Sources

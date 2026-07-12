@@ -2,7 +2,7 @@
 name: diagnose
 description: Use when diagnosing why a Home Assistant automation, script, device, or integration failed or misbehaved — root-cause analysis from error logs, system logs, traces, and bounded history through HA NOVA Relay. For current home status use ha-nova:health; for plain timelines use ha-nova:history.
 license: MIT
-compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay App in Home Assistant.
+compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay in Home Assistant (App, or standalone container on Container/Core).
 ---
 
 # HA NOVA Diagnose

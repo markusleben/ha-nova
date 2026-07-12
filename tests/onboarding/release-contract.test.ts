@@ -53,15 +53,16 @@ describe("release contract", () => {
     expect(releaseWorkflow).not.toContain("dist/winget");
   });
 
-  it("keeps v0.13.0 release-facing wording user-centric", () => {
+  it("keeps v0.14.0 release-facing wording user-centric", () => {
     // Shipped release-note bodies are archived (docs/archive/work/) and
     // non-normative per documentation governance; only the active GoReleaser
     // template is contract-checked here.
-    expect(goreleaser).toContain("Undo now covers multi-item changes");
-    expect(goreleaser).toContain("last 5 updated automations, scripts, or standard helpers");
-    expect(goreleaser).toContain("a few multi-step helper types still recover via Backups");
-    expect(goreleaser).toContain("previously only the most recent update");
-    expect(goreleaser).toContain("No NOVA Relay App update needed for this release — it stays on 0.2.6");
+    expect(goreleaser).toContain("9 new skills — coverage across the whole home");
+    expect(goreleaser).toContain("Runs on every Home Assistant install now");
+    expect(goreleaser).toContain("ghcr.io/markusleben/ha-nova-relay");
+    expect(goreleaser).toContain("YAML configuration you can finally edit");
+    expect(goreleaser).toContain("The NOVA Relay must be updated to 0.4.0 or newer");
+    expect(goreleaser).toContain("HA_NOVA_NO_UPDATE_NUDGE=1");
     expect(goreleaser).not.toContain("Use `v0.7.1` or the latest release command");
   });
 

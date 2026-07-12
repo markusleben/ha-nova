@@ -2,7 +2,7 @@
 name: admin
 description: Use when managing Home Assistant people, zones, tags, and user accounts — creating a person, drawing a zone, adding a tag, or reviewing who has access — through HA NOVA Relay.
 license: MIT
-compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay App in Home Assistant.
+compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay in Home Assistant (App, or standalone container on Container/Core).
 ---
 
 # HA NOVA Admin

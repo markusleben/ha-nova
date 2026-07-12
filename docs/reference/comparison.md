@@ -8,7 +8,7 @@ Everything below reflects the state on **2026-07-11**. The main alternative — 
 
 | | **Home Assistant's official MCP server** | **ha-mcp** (community MCP server) | **HA NOVA** |
 |---|---|---|---|
-| What the AI gets | The Assist API (exposed entities) | ~87 MCP tools | 24 markdown skills + 3 generic relay endpoints |
+| What the AI gets | The Assist API (exposed entities) | ~87 MCP tools | 28 task skills (+ 1 context skill) + 4 generic relay endpoints |
 | Can it edit automations, dashboards, the registry? | No | Yes | Yes |
 | Where the domain knowledge lives | In Home Assistant | In the server's Python code | In markdown you can read and edit |
 | Protocol dependency | MCP | MCP | none — skills are plain text |
@@ -21,7 +21,7 @@ Everything below reflects the state on **2026-07-11**. The main alternative — 
 
 **It does not depend on a protocol.** MCP is a good standard and it is not going away — but skills are just text. The same skills work in Claude Code, Codex, OpenCode, Antigravity, and Hermes today, and they will work in whatever comes next, because there is nothing to port. (Agent Skills is now an open standard under the Linux Foundation's Agentic AI Foundation, which makes this bet less lonely than it was.)
 
-**The server stays dumb on purpose.** HA NOVA's relay is ~1,800 lines that forward requests and nothing more — no domain handlers, no caching, no interpretation. A build-time check fails if that ever stops being true. The consequence: the relay cannot silently reinterpret your request, because it does not know what a light is.
+**The server stays dumb on purpose.** HA NOVA's relay is ~2,700 lines that forward requests and nothing more — no domain handlers, no caching, no interpretation. A build-time check fails if that ever stops being true. The consequence: the relay cannot silently reinterpret your request, because it does not know what a light is.
 
 ## Safety, side by side
 

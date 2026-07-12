@@ -85,11 +85,16 @@ release:
     Windows uses a single supported install path: `install.ps1`. Return an RC install to stable later with `ha-nova update`.
     {{ else }}## New Features
 
-    - **Undo now covers multi-item changes**: the last 5 updated automations, scripts, or standard helpers each keep their own one-step revert (previously only the most recent update; a few multi-step helper types still recover via Backups) — and the assistant tells you upfront what is still revertible, including when a change is too broad for full coverage.
+    - **9 new skills — coverage across the whole home.** `diagnose` (root-cause "why didn't my automation run?"), `media` (players, volume, speaker groups, TTS announcements), `notify` (phone and persistent notifications), `camera` (the agent actually looks at the current frame), `mqtt` (listen to what a device really publishes), `assist` (test what your voice assistant understands — without speaking), `admin` (persons, zones, tags, user accounts — with hard owner guards), `yaml-config`, and `external-sources` (years of InfluxDB history the recorder purged long ago).
+    - **Runs on every Home Assistant install now.** The relay also ships as a standalone container (`ghcr.io/markusleben/ha-nova-relay`), so Home Assistant Container and Core users — who cannot install Apps — are no longer locked out. Same code, same security model: your Home Assistant token still never leaves the server.
+    - **YAML configuration you can finally edit.** Template, REST and command-line sensors, packages and themes have no Home Assistant API — they only exist as files. The new `ha-nova:yaml-config` skill edits them safely: read first, show a diff, back up, validate before reloading, verify afterwards. Only if you switch it on: the NOVA Relay's new `file_access` option defaults to `off`, and secrets, the recorder database, and anything executable stay off-limits in every mode.
+    - **Guided uninstall.** `ha-nova uninstall` now walks you through the Home Assistant side too: removing the NOVA Relay app, removing the repository, and revoking the "NOVA" access token. The cleanup checklist is always shown — even when Home Assistant is unreachable.
+    - **Update notices in every AI client.** Codex, OpenCode, Antigravity, and Hermes now surface HA NOVA updates during normal skill use; previously only Claude did.
 
     ## What To Watch
 
-    - No NOVA Relay App update needed for this release — it stays on 0.2.6.
+    - The NOVA Relay must be updated to 0.4.0 or newer (App: **Settings > Apps > NOVA Relay**; container: pull the new image). Camera and MQTT need 0.3.0's binary and bounded-listening support, YAML editing needs 0.4.0's opt-in file access — HA NOVA tells you if your relay is too old.
+    - Set `HA_NOVA_NO_UPDATE_NUDGE=1` to silence the new update notices.
 
     Stable install commands are release-pinned for this tag.
 

@@ -21,7 +21,7 @@ For the stable installer, lifecycle commands, and general troubleshooting, use [
 
 - Connect or repair with `ha-nova setup opencode`.
 - Validate the install with `ha-nova doctor`.
-- OpenCode does not surface HA NOVA update notices automatically yet. Use `ha-nova check-update` or `ha-nova doctor` when you want to check manually.
+- OpenCode surfaces HA NOVA update notices during normal skill use (relay calls check a local cache; silence them with `HA_NOVA_NO_UPDATE_NUDGE=1`). `ha-nova check-update` still works for a manual check.
 
 ## What You Get
 

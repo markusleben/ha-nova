@@ -2,7 +2,7 @@
 name: camera
 description: Use when working with Home Assistant cameras — taking a snapshot for the agent to look at, getting a stream URL, or recording — through HA NOVA Relay.
 license: MIT
-compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay App in Home Assistant.
+compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay in Home Assistant (App, or standalone container on Container/Core).
 ---
 
 # HA NOVA Camera
@@ -21,7 +21,7 @@ Not in scope: creating automations around cameras (`ha-nova:write`), person/moti
 Verify relay CLI: `ha-nova relay health`
 If this fails: `ha-nova setup`
 
-Requires **Relay 0.3.0 or newer** (binary responses). Check `ha-nova relay health` -> `version`; if it is older, tell the user to update the NOVA Relay App — an older relay would corrupt the image bytes.
+Requires **Relay 0.3.0 or newer** (binary responses). Check `ha-nova relay health` -> `version`; if it is older, tell the user to update the NOVA Relay — an older relay would corrupt the image bytes.
 
 ## Relay Contract
 

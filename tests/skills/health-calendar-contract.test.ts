@@ -23,9 +23,9 @@ describe("health and calendar skill contracts", () => {
     expect(health).toContain('{"message":{"type":"system_health/info"},"collect_events":{"until_type":"finish","max_events":100,"timeout_ms":10000}}');
     expect(health).toContain("The Skill opts into generic Relay event collection through `collect_events`");
     expect(health).toContain("data.events");
-    expect(health).toContain("Relay App 0.2.3 or newer");
+    expect(health).toContain("Relay 0.2.3 or newer");
     expect(health).toContain("Read `data.version` from the health response.");
-    expect(health).toContain("If Relay App version is below `0.2.3`, do not call `system_health/info`");
+    expect(health).toContain("If the relay version is below `0.2.3`, do not call `system_health/info`");
     expect(health).toContain("include the current relay version");
     expect(health).toContain("## Data Shapes");
     expect(health).toContain("REST `/api/config`, `/api/components`, `/api/states`: use `.data.body`");

@@ -63,7 +63,7 @@ Current support/evidence truth lives in [docs/reference/hermes-platform-validati
 - On Windows with WSL2, run update and repair commands from the same WSL shell where Hermes is installed.
 - Validate the current route and proof status in [docs/reference/hermes-platform-validation.md](../docs/reference/hermes-platform-validation.md).
 - Validate the install with `ha-nova doctor`.
-- Hermes does not surface HA NOVA update notices automatically yet. Use `ha-nova check-update` or `ha-nova doctor` when you want to check manually.
+- Hermes surfaces HA NOVA update notices during normal skill use (relay calls check a local cache; silence them with `HA_NOVA_NO_UPDATE_NUDGE=1`). `ha-nova check-update` still works for a manual check.
 
 ## Hermes-Specific Skill Layout
 

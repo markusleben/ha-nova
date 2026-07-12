@@ -2,7 +2,7 @@
 name: media
 description: Use when controlling or browsing Home Assistant media players — play, pause, volume, source/sound mode, speaker grouping, browsing media libraries, and TTS announcements — through HA NOVA Relay.
 license: MIT
-compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay App in Home Assistant.
+compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay in Home Assistant (App, or standalone container on Container/Core).
 ---
 
 # HA NOVA Media

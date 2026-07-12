@@ -2,7 +2,7 @@
 name: mqtt
 description: Use when debugging or working with MQTT in Home Assistant — listening to topics to see what devices actually publish, inspecting MQTT device discovery, or publishing a message — through HA NOVA Relay.
 license: MIT
-compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay App in Home Assistant.
+compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay in Home Assistant (App, or standalone container on Container/Core).
 ---
 
 # HA NOVA MQTT
@@ -21,7 +21,7 @@ Not in scope: the MQTT broker's own configuration, Zigbee2MQTT's web UI, or crea
 Verify relay CLI: `ha-nova relay health`
 If this fails: `ha-nova setup`
 
-Requires **Relay 0.3.0 or newer** (bounded subscription windows). Check `ha-nova relay health` -> `version`. An older relay silently ignores `on_limit`, which turns a normal quiet window into a hard error — tell the user to update the NOVA Relay App instead of working around it.
+Requires **Relay 0.3.0 or newer** (bounded subscription windows). Check `ha-nova relay health` -> `version`. An older relay silently ignores `on_limit`, which turns a normal quiet window into a hard error — tell the user to update the NOVA Relay instead of working around it.
 
 Requires the `mqtt` integration: check `GET /api/components` for `mqtt`. If it is absent, say so — this skill cannot add it.
 
