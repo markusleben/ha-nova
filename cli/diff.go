@@ -12,12 +12,13 @@ import (
 	"strings"
 )
 
-// runDiffCommand renders a deterministic, human-readable change list between two
-// Home Assistant config bodies (the "before" and "after" of an update). The
-// output is a stable artifact — like `git diff` — that the skill prints verbatim
-// under a localized "## Changes" heading. Keeping the rendering here, not in the
-// LLM, makes the diff identical on every run and across clients/models. The
-// presentation helpers (labels, value formatting) live in diff_format.go.
+// runDiffCommand renders a deterministic, human-readable change table between
+// two Home Assistant config bodies (the "before" and "after" of an update).
+// Every output line is one GFM table data row `| Field | before | after |`;
+// the skill adds its localized header row above and prints the rows verbatim.
+// The output is a stable artifact — like `git diff` — and keeping the
+// rendering here, not in the LLM, makes it identical on every run and across
+// clients/models. Presentation helpers (labels, cells) live in diff_format.go.
 func runDiffCommand(_ runtimePaths, args []string) int {
 	fs := flag.NewFlagSet("diff", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
@@ -163,7 +164,7 @@ func renderConfigChanges(before, after map[string]interface{}) []string {
 		if i > 0 && c.path == prev.path && c.text == prev.text {
 			continue
 		}
-		lines = append(lines, "- "+c.text)
+		lines = append(lines, c.text)
 		prev = c
 	}
 	return lines
@@ -245,7 +246,7 @@ func diffArrays(segs []segment, before, after []interface{}, changes *[]configCh
 		*changes = append(*changes, configChange{
 			order: topOrder(segs),
 			path:  pathString(segs),
-			text:  fmt.Sprintf("%s: %d → %d items", humanizeLabel(segs), len(before), len(after)),
+			text:  tableRow(humanizeLabel(segs), itemsCell(len(before)), itemsCell(len(after))),
 		})
 		diffAlignedItems(segs, before, after, changes)
 		diffNotificationCopyInCommonItems(segs, before, after, changes)
@@ -285,8 +286,8 @@ func diffAlignedItems(segs []segment, before, after []interface{}, changes *[]co
 		diffValues(appendSegment(segs, segment{index: prefix + paired, isIndex: true}), bMid[paired], aMid[paired], changes)
 		paired++
 	}
-	renderAlignedSide(segs, bMid[paired:], prefix+paired, "removed (was %s)", changes)
-	renderAlignedSide(segs, aMid[paired:], prefix+paired, "added (%s)", changes)
+	renderAlignedSide(segs, bMid[paired:], prefix+paired, true, changes)
+	renderAlignedSide(segs, aMid[paired:], prefix+paired, false, changes)
 }
 
 // alignedPairable reports whether two items are the same kind of step, so a
@@ -297,33 +298,41 @@ func alignedPairable(before, after interface{}) bool {
 	return kind != "" && kind == configItemKind(after)
 }
 
-func renderAlignedSide(segs []segment, items []interface{}, offset int, verbFormat string, changes *[]configChange) {
+// renderAlignedSide emits one table row per added/removed item; the empty
+// side of the row carries the absence marker, so the Before/After columns
+// encode add vs remove positionally.
+func renderAlignedSide(segs []segment, items []interface{}, offset int, removed bool, changes *[]configChange) {
 	rendered := len(items)
 	if rendered > maxAlignedItemsPerSide {
 		rendered = maxAlignedItemsPerSide
+	}
+	side := func(label, summary string) string {
+		if removed {
+			return tableRow(label, summary, "—")
+		}
+		return tableRow(label, "—", summary)
 	}
 	for i := 0; i < rendered; i++ {
 		itemSegs := appendSegment(segs, segment{index: offset + i, isIndex: true})
 		*changes = append(*changes, configChange{
 			order: topOrder(segs),
 			path:  pathString(itemSegs),
-			text:  fmt.Sprintf("%s: %s", humanizeLabel(itemSegs), fmt.Sprintf(verbFormat, summarizeConfigItem(items[i]))),
+			text:  side(humanizeLabel(itemSegs), summarizeConfigItem(items[i])),
 		})
 	}
 	if len(items) > rendered {
+		verb := "added"
+		if removed {
+			verb = "removed"
+		}
+		// The honest cap stays a table row: a plain line mid-output would
+		// terminate the GFM table and split it in two.
 		*changes = append(*changes, configChange{
 			order: topOrder(segs),
 			path:  pathString(appendSegment(segs, segment{index: offset + rendered, isIndex: true})),
-			text:  fmt.Sprintf("%s: … and %d more %s", humanizeLabel(segs), len(items)-rendered, alignedVerbWord(verbFormat)),
+			text:  side(humanizeLabel(segs), fmt.Sprintf("… and %d more %s", len(items)-rendered, verb)),
 		})
 	}
-}
-
-func alignedVerbWord(verbFormat string) string {
-	if strings.HasPrefix(verbFormat, "removed") {
-		return "removed"
-	}
-	return "added"
 }
 
 func appendSegment(segs []segment, s segment) []segment {
@@ -338,19 +347,23 @@ func makeChange(segs []segment, before, after interface{}) configChange {
 	var text string
 	switch {
 	case before == nil:
-		text = fmt.Sprintf("%s: added (%s)", label, formatValue(after))
+		// The empty Before column IS the "added" statement; no verbal wrapper.
+		text = tableRow(label, "—", formatValue(after))
 	case after == nil:
-		text = fmt.Sprintf("%s: removed (was %s)", label, formatValue(before))
+		text = tableRow(label, formatValue(before), "—")
 	default:
 		bf, af := formatValue(before), formatValue(after)
 		if bf == af {
 			// Same rendered text but a real change → a type/representation
 			// difference (e.g. number 5 vs string "5"). Disambiguate by type so
-			// the user never sees a confusing "5 → 5".
-			bf = fmt.Sprintf("%s (%s)", bf, jsonTypeName(before))
-			af = fmt.Sprintf("%s (%s)", af, jsonTypeName(after))
+			// the user never sees a confusing "5 | 5" row; the suffix is added
+			// cap-aware so long values cannot swallow it.
+			bf = withTypeSuffix(bf, jsonTypeName(before))
+			af = withTypeSuffix(af, jsonTypeName(after))
+		} else {
+			bf, af = focusDivergence(bf, af)
 		}
-		text = fmt.Sprintf("%s: %s → %s", label, bf, af)
+		text = tableRow(label, bf, af)
 	}
 	return configChange{order: topOrder(segs), path: pathString(segs), text: text}
 }

@@ -131,6 +131,21 @@ describe("write delete safety contract", () => {
     expect(writeSkill).toContain("prefer `--out <diff-file>`");
   });
 
+  it("splits the change table: agent-authored localized header, verbatim CLI rows", () => {
+    // The CLI emits data rows only; the two header lines are the agent's — and
+    // the ONLY hand-written lines inside the table. This split keeps
+    // Before/After in the user's language while every fact stays byte-identical
+    // CLI output.
+    expect(writeSafety).toContain("| Field | before | after |");
+    expect(writeSafety).toContain("exactly two hand-written");
+    expect(writeSafety).toContain("the localized table header row");
+    expect(writeSafety).toContain("|---|---|---|");
+    expect(writeSafety).toContain("do not re-align pipes or pad cells");
+    // The truncation marker joins the count-only rule: a cut-off value the
+    // request touched must be named in the summary.
+    expect(writeSafety).toContain("or a truncated (`…`) value");
+  });
+
   it("protects notification copy from unrequested rewrites", () => {
     expect(writeSafety).toContain("User-authored notification copy");
     expect(writeSafety).toContain("Notification text is user-authored copy");
