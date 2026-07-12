@@ -54,12 +54,18 @@ describe("project docs contract", () => {
     expect(support).not.toContain("private GitHub issue");
   });
 
-  it("keeps nova/README.md as a pointer instead of a second relay truth surface", () => {
-    expect(novaReadme).toContain("Use:");
-    expect(novaReadme).toContain("`README.md` for the public product/install/support view");
-    expect(novaReadme).toContain("`nova/DOCS.md` for Home Assistant App / relay setup");
+  it("keeps nova/README.md a friendly pointer instead of a second relay truth surface", () => {
+    // Home Assistant renders this file as the App's info page, so it reads
+    // like a product page — but it stays a pointer: the governance comment
+    // (invisible in HA) anchors the rule, and the negative pins keep
+    // operational truth (endpoints, ports, connection details) out.
+    expect(novaReadme).toContain("server-side half of [HA NOVA]");
+    expect(novaReadme).toContain("access token stays here on the server");
+    expect(novaReadme).toContain("**Documentation** tab");
     expect(novaReadme).toContain("intentionally only a pointer");
+    expect(novaReadme).toContain("off by default");
     expect(novaReadme).not.toContain("Persistent WebSocket connection");
+    expect(novaReadme).not.toContain("8791");
   });
 
   it("keeps nova/DOCS.md aligned with the relay architecture reference", () => {
