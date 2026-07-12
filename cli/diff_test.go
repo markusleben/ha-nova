@@ -108,6 +108,15 @@ func TestDiffCellTruncationIsRuneSafe(t *testing.T) {
 	}
 }
 
+func TestDiffLiteralEmDashValueIsQuoted(t *testing.T) {
+	// A user value that IS the em dash must not render identical to the
+	// absence marker — `| Note | — | — |` would show no visible difference.
+	assertLines(t, diffLines(t, `{"alias":"X"}`, `{"alias":"X","note":"—"}`),
+		[]string{`| Note | — | "—" |`})
+	assertLines(t, diffLines(t, `{"note":"—"}`, `{"note":"real text"}`),
+		[]string{`| Note | "—" | real text |`})
+}
+
 func TestDiffTypeSuffixSurvivesLongValues(t *testing.T) {
 	// A string that contains compact JSON vs the equivalent object renders
 	// identically; when that shared text is longer than a cell, the type

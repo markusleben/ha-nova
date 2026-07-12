@@ -94,6 +94,12 @@ func formatValue(v interface{}) string {
 		if t == "" {
 			return `""`
 		}
+		if t == "—" {
+			// A literal em dash as the user's value would be indistinguishable
+			// from the absence marker (`| Field | — | — |` on add/remove) —
+			// quote it, same pattern as the empty string above.
+			return `"—"`
+		}
 		// Raw on purpose: truncation and escaping happen exactly once, in
 		// escapeCell, when the value becomes a table cell.
 		return t
