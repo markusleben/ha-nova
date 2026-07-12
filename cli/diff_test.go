@@ -516,6 +516,19 @@ func TestDiffRepeatGuardAndBodyStayDistinguishable(t *testing.T) {
 	})
 }
 
+func TestDiffAnchorCollisionsAcrossGroupsFallBackToFullPath(t *testing.T) {
+	// The same entity in two separate and-groups: per-array uniqueness cannot
+	// see the collision, so the global fallback restores the positional
+	// tokens for exactly those rows.
+	before := `{"actions":[{"choose":[{"conditions":[{"condition":"or","conditions":[{"condition":"and","conditions":[{"below":10,"condition":"numeric_state","entity_id":"sensor.x"}]},{"condition":"and","conditions":[{"below":30,"condition":"numeric_state","entity_id":"sensor.x"}]}]}],"sequence":[{"action":"script.a"}]}]}]}`
+	after := strings.Replace(strings.Replace(before, `"below":10`, `"below":15`, 1), `"below":30`, `"below":35`, 1)
+	got := diffLines(t, before, after)
+	assertLines(t, got, []string{
+		"| Action 1 (choose 1 › condition 1 › condition 1 › condition sensor.x › below) | 10 | 15 |",
+		"| Action 1 (choose 1 › condition 1 › condition 2 › condition sensor.x › below) | 30 | 35 |",
+	})
+}
+
 func TestDiffPayloadArraysNeverAnchor(t *testing.T) {
 	// Actionable-notification buttons live in data.actions[] and carry their
 	// own action/title keys — anchoring them would mislabel a button as a

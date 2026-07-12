@@ -45,6 +45,17 @@ var branchTokenKeys = map[string]bool{
 // tokens collected so far — structural or/and wrappers mean nothing to a
 // non-technical user, the entity does.
 func humanizeLabel(segs []segment) string {
+	return buildLabel(segs, true)
+}
+
+// humanizeLabelFull keeps every positional token next to the anchors. It is
+// the collision fallback used by disambiguateLabels when two different
+// changes would otherwise condense to the same label.
+func humanizeLabelFull(segs []segment) string {
+	return buildLabel(segs, false)
+}
+
+func buildLabel(segs []segment, anchorsWipePositional bool) string {
 	var head string
 	var tokens []labelToken
 	for i := 0; i < len(segs); {
@@ -66,7 +77,10 @@ func humanizeLabel(segs []segment) string {
 			case branchTokenKeys[s.key]:
 				tokens = append(tokens, labelToken{text: strings.ToLower(token)})
 			case segs[i+1].anchor != "":
-				tokens = append(withoutPositional(tokens), labelToken{text: segs[i+1].anchor})
+				if anchorsWipePositional {
+					tokens = withoutPositional(tokens)
+				}
+				tokens = append(tokens, labelToken{text: segs[i+1].anchor})
 			default:
 				tokens = append(tokens, labelToken{text: strings.ToLower(token), positional: true})
 			}
