@@ -65,6 +65,17 @@ func TestSubcommandHelpFlagPrintsUsageAndFlags(t *testing.T) {
 	}
 }
 
+// The help output renders the flag as "-json" (PrintDefaults), so the manual
+// trace parsers must accept that spelling as well as "--json".
+func TestTraceParsersAcceptBothJSONFlagForms(t *testing.T) {
+	if _, jsonOut, err := parseTraceLatestArgs([]string{"automation.x", "-json"}); err != nil || !jsonOut {
+		t.Fatalf("parseTraceLatestArgs(-json) = jsonOut %v, err %v; want true, nil", jsonOut, err)
+	}
+	if _, _, jsonOut, err := parseTraceGetArgs([]string{"automation.x", "run1", "-json"}); err != nil || !jsonOut {
+		t.Fatalf("parseTraceGetArgs(-json) = jsonOut %v, err %v; want true, nil", jsonOut, err)
+	}
+}
+
 func TestGlobalUsageMentionsPerCommandHelp(t *testing.T) {
 	out := captureStdout(t, printUsage)
 	for _, want := range []string{

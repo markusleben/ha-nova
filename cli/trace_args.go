@@ -17,7 +17,7 @@ func parseTraceGetArgs(args []string) (string, string, bool, error) {
 	jsonOut := fs.Bool("json", false, "print machine-readable JSON")
 	var positional []string
 	for _, arg := range args {
-		if arg == "--json" {
+		if arg == "--json" || arg == "-json" {
 			if err := fs.Set("json", "true"); err != nil {
 				return "", "", false, err
 			}
@@ -44,7 +44,7 @@ func parseTraceEntityArgs(command string, args []string) (string, bool, error) {
 	jsonOut := fs.Bool("json", false, "print machine-readable JSON")
 	var positional []string
 	for _, arg := range args {
-		if arg == "--json" {
+		if arg == "--json" || arg == "-json" {
 			if err := fs.Set("json", "true"); err != nil {
 				return "", false, err
 			}
