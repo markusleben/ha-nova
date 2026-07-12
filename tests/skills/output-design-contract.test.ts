@@ -55,4 +55,23 @@ describe("output design system (Cards)", () => {
     expect(outputRules).toContain("Runtime behavior was not exercised.");
     expect(outputRules).toContain("Verification Honesty");
   });
+
+  it("rolls the cards into the three special-format skills", () => {
+    const serviceCall = readFileSync("skills/service-call/SKILL.md", "utf8");
+    const yamlConfig = readFileSync("skills/yaml-config/SKILL.md", "utf8");
+    const review = readFileSync("skills/review/SKILL.md", "utf8");
+    // service-call: multi-value deltas become the mini table; single value
+    // keeps the arrow one-liner; no show yaml for runtime actions.
+    expect(serviceCall).toContain("`Field | Before | After` mini table");
+    expect(serviceCall).toContain("one value keeps the arrow one-liner");
+    expect(serviceCall).toContain("Preview Card (`apply · cancel`)");
+    // yaml-config: layperson file preview — changed section only, never a
+    // developer diff, whole file only on show yaml.
+    expect(yamlConfig).toContain("## File-Change Preview");
+    expect(yamlConfig).toContain("New section (the only part that changes):");
+    expect(yamlConfig).toContain("Never a `-`/`+` unified diff");
+    expect(yamlConfig).toContain("show yaml = the whole resulting file");
+    // review keeps its pinned sections; only the quick-fix crosses into cards.
+    expect(review).toContain("Review output is sectioned, not card-framed");
+  });
 });

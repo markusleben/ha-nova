@@ -120,7 +120,7 @@ Current mapping:
 | mqtt | inline | one bounded window or one guarded publish |
 | assist | inline | read/test flows plus full-object pipeline writes |
 | admin | inline | registry-style writes with impact advisory and hard user guards |
-| yaml-config | inline | read -> diff -> write -> check_config -> reload -> verify |
+| yaml-config | inline | read -> File-Change Preview -> write -> check_config -> reload -> verify |
 | external-sources | inline | read-only, and the query does not go through the relay |
 
 **Rule of thumb:** If a `service-call` could do it, it's inline. If it needs what `write` needs (resolve + normalize + reload), use agents.
@@ -403,7 +403,7 @@ Rules: never invent a `media_content_id`; volume jumps and announcements are dis
 ## YAML Config Architecture
 
 `ha-nova:yaml-config` owns configuration that has no API, through the relay's opt-in file access (relay >= 0.4.0):
-- read -> diff -> confirm -> `write_file` (automatic `.bak`) -> `POST /api/config/core/check_config` -> targeted reload -> verify the entity in `/api/states`
+- read -> File-Change Preview (effect sentences + the changed section only, never a unified diff) -> confirm -> `write_file` (automatic `.bak`) -> `POST /api/config/core/check_config` -> targeted reload -> verify the entity in `/api/states`
 - an invalid `check_config` restores the `.bak` BEFORE reporting, and never reloads
 - whole-file replacement: never write a file that was not read first
 - when `file_access` is off (the default), the skill degrades to producing the exact YAML block plus the two commands to apply it — a fully supported path, not a failure
