@@ -311,3 +311,32 @@ func itemsCell(n int) string {
 	}
 	return fmt.Sprintf("%d items", n)
 }
+
+// divergenceContextBytes is how much shared text stays visible before the
+// first difference when focusDivergence trims a long common prefix.
+const divergenceContextBytes = 20
+
+// focusDivergence keeps the FIRST difference of a changed value pair visible.
+// Without it, two long values sharing their first maxCellBytes bytes (a
+// notification message edited near the end) would truncate into two identical
+// `<prefix>…` cells — and write-safety requires changed copy to be visible in
+// the preview. When either side would truncate, the shared prefix is cut to
+// divergenceContextBytes of context (rune-safe, marked with a leading `…`);
+// escapeCell still caps the tail afterwards.
+func focusDivergence(before, after string) (string, string) {
+	if len(before) <= maxCellBytes && len(after) <= maxCellBytes {
+		return before, after
+	}
+	p := 0
+	for p < len(before) && p < len(after) && before[p] == after[p] {
+		p++
+	}
+	if p <= divergenceContextBytes {
+		return before, after
+	}
+	start := p - divergenceContextBytes
+	for start > 0 && !utf8.RuneStart(before[start]) {
+		start--
+	}
+	return "…" + before[start:], "…" + after[start:]
+}

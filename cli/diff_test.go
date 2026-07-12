@@ -108,6 +108,29 @@ func TestDiffCellTruncationIsRuneSafe(t *testing.T) {
 	}
 }
 
+func TestDiffLateDivergenceStaysVisible(t *testing.T) {
+	// Two long notification texts sharing their first >80 bytes must NOT render
+	// as two identical `<prefix>…` cells — the first difference has to be
+	// visible, or the user confirms copy they never saw (write-safety:
+	// changed notification text must show old and new).
+	shared := strings.Repeat("Der Plan wurde erstellt und geprüft. ", 3) // 111 bytes shared prefix
+	before := `{"actions":[{"action":"notify.phone","data":{"message":"` + shared + `Start um 06:30."}}]}`
+	after := `{"actions":[{"action":"notify.phone","data":{"message":"` + shared + `Start um 06:00."}}]}`
+	got := diffLines(t, before, after)
+	if len(got) != 1 {
+		t.Fatalf("expected 1 change, got %#v", got)
+	}
+	if !strings.Contains(got[0], "06:30") || !strings.Contains(got[0], "06:00") {
+		t.Fatalf("divergence must stay visible in both cells: %q", got[0])
+	}
+	if !strings.Contains(got[0], "| …") {
+		t.Fatalf("trimmed shared prefix must be marked with a leading …: %q", got[0])
+	}
+	// Short values keep their full text — no divergence trimming below the cap.
+	got = diffLines(t, `{"mode":"single"}`, `{"mode":"restart"}`)
+	assertLines(t, got, []string{"| Mode | single | restart |"})
+}
+
 func TestDiffEveryLineIsATableRow(t *testing.T) {
 	// The structural invariant that keeps the whole output one continuous GFM
 	// table: every emitted line — scalar, count, aligned item, honest cap,

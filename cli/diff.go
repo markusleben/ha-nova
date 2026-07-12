@@ -359,6 +359,8 @@ func makeChange(segs []segment, before, after interface{}) configChange {
 			// the user never sees a confusing "5 | 5" row.
 			bf = fmt.Sprintf("%s (%s)", bf, jsonTypeName(before))
 			af = fmt.Sprintf("%s (%s)", af, jsonTypeName(after))
+		} else {
+			bf, af = focusDivergence(bf, af)
 		}
 		text = tableRow(label, bf, af)
 	}
