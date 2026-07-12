@@ -529,6 +529,34 @@ func TestDiffAnchorCollisionsAcrossGroupsFallBackToFullPath(t *testing.T) {
 	})
 }
 
+func TestDiffChooseDefaultBranchStaysVisible(t *testing.T) {
+	// A changed step in choose's fallback branch must say so — hiding
+	// "default" would let the user approve behavior for the wrong branch.
+	before := `{"actions":[{"choose":[{"conditions":[{"condition":"state","entity_id":"binary_sensor.day","state":"on"}],"sequence":[{"action":"light.turn_on","data":{"brightness_pct":80}}]}],"default":[{"action":"light.turn_on","data":{"brightness_pct":20}}]}]}`
+	after := strings.Replace(strings.Replace(before, `"brightness_pct":80`, `"brightness_pct":100`, 1), `"brightness_pct":20`, `"brightness_pct":10`, 1)
+	got := diffLines(t, before, after)
+	assertLines(t, got, []string{
+		"| Action 1 (choose 1 › action light.turn_on › data › brightness_pct) | 80 | 100 |",
+		"| Action 1 (default 1 › data › brightness_pct) | 20 | 10 |",
+	})
+}
+
+func TestDiffNotWrapperStaysVisible(t *testing.T) {
+	// `condition: not` inverts the inner condition — unlike or/and it is
+	// behavior, not structure, and must survive in the label. Both at the
+	// head position and nested below another wrapper.
+	before := `{"conditions":[{"condition":"not","conditions":[{"below":10,"condition":"numeric_state","entity_id":"sensor.x"}]}]}`
+	after := strings.Replace(before, `"below":10`, `"below":20`, 1)
+	assertLines(t, diffLines(t, before, after), []string{
+		"| Condition 1 (not › condition sensor.x › below) | 10 | 20 |",
+	})
+	before = `{"conditions":[{"condition":"or","conditions":[{"condition":"state","entity_id":"light.a","state":"on"},{"condition":"not","conditions":[{"below":10,"condition":"numeric_state","entity_id":"sensor.x"}]}]}]}`
+	after = strings.Replace(before, `"below":10`, `"below":20`, 1)
+	assertLines(t, diffLines(t, before, after), []string{
+		"| Condition 1 (not › condition sensor.x › below) | 10 | 20 |",
+	})
+}
+
 func TestDiffPayloadArraysNeverAnchor(t *testing.T) {
 	// Actionable-notification buttons live in data.actions[] and carry their
 	// own action/title keys — anchoring them would mislabel a button as a

@@ -32,12 +32,19 @@ type labelToken struct {
 }
 
 // branchTokenKeys are array keys whose position IS the meaning: the same
-// service in two choose branches, in then vs else, or in a loop guard vs
-// the loop body must never collapse into indistinguishable rows in the
-// pre-write confirmation table. Their tokens outrank any anchor.
+// service in two choose branches, in then vs else, in a loop guard vs the
+// loop body, or in choose's fallback branch must never collapse into
+// indistinguishable rows in the pre-write confirmation table. Their tokens
+// outrank any anchor.
 var branchTokenKeys = map[string]bool{
-	"choose": true, "parallel": true, "then": true, "else": true, "while": true, "until": true,
+	"choose": true, "parallel": true, "then": true, "else": true,
+	"while": true, "until": true, "default": true,
 }
+
+// notAnchor marks a `condition: not` wrapper. Unlike or/and it is not pure
+// structure — negation inverts the inner condition — so it must stay visible
+// in the label even at the head position, where identity anchors are dropped.
+const notAnchor = "not"
 
 // humanizeLabel turns a path into a stable, readable label, e.g.
 // [mode] -> "Mode", [actions,1,delay] -> "Action 2 (delay)". When an index
@@ -74,6 +81,9 @@ func buildLabel(segs []segment, anchorsWipePositional bool) string {
 			switch {
 			case head == "" && len(tokens) == 0:
 				head = token
+				if segs[i+1].anchor == notAnchor {
+					tokens = append(tokens, labelToken{text: notAnchor})
+				}
 			case branchTokenKeys[s.key]:
 				tokens = append(tokens, labelToken{text: strings.ToLower(token)})
 			case segs[i+1].anchor != "":
@@ -120,8 +130,9 @@ func withoutPositional(tokens []labelToken) []labelToken {
 
 // configItemAnchor names one list item for the change label — the thing a
 // non-technical user recognizes. Alias beats everything, then the service,
-// then the entity of a trigger/condition. Pure structural wrappers (or/and/
-// not) return "" so the walk continues to something recognizable; unknown
+// then the entity of a trigger/condition. Pure structural wrappers (or/and)
+// return "" so the walk continues to something recognizable; a not-wrapper
+// anchors as "not" because negation is behavior, not structure; unknown
 // shapes return "" and keep today's index fallback.
 func configItemAnchor(v interface{}) string {
 	m, ok := v.(map[string]interface{})
@@ -145,8 +156,11 @@ func configItemAnchor(v interface{}) string {
 		return withEntityAnchor("trigger "+s, entity)
 	}
 	if s, _ := m["condition"].(string); s != "" {
-		if s == "or" || s == "and" || s == "not" {
+		if s == "or" || s == "and" {
 			return ""
+		}
+		if s == "not" {
+			return notAnchor
 		}
 		if entity != "" {
 			return "condition " + entity
