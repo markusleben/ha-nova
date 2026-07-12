@@ -147,6 +147,17 @@ describe("release contract", () => {
     expect(releasing).toContain("GORELEASER_CURRENT_TAG");
   });
 
+  it("requires a dispatched live e2e run as release evidence", () => {
+    // The weekly cron is monitoring, not release evidence: v0.14.0 shipped
+    // before the workflow had ever fired. The rehearsal must dispatch it on
+    // the exact commit being tagged and wait for green.
+    expect(releasing).toContain("gh workflow run e2e-disposable-ha.yml");
+    expect(releasing).toContain("one green `e2e-disposable-ha.yml` run (dispatched, not the weekly cron) on the commit being tagged");
+    const e2e = readFileSync("scripts/e2e/disposable-ha/run.sh", "utf8");
+    expect(e2e).toContain("readwrite roundtrip");
+    expect(e2e).toContain("secrets.yaml stays unreachable even with readwrite");
+  });
+
   it("keeps the Linux real-machine onboarding lane documented for Linux setup changes", () => {
     expect(releasing).toContain("Linux real-machine onboarding:");
     expect(releasing).toContain("scripts/smoke/linux-headless-setup-check.sh");
