@@ -192,6 +192,11 @@ previews alone hide the whole picture. Before the FIRST per-target preview:
 If a mid-sequence target fails or is cancelled, stop and show which targets
 are already applied — never continue silently into a half-applied state.
 
+This section covers multi-target updates. Deleting a reviewed multi-item
+workset routes through `skills/ha-nova/batch-safety.md`: one immutable
+manifest, one typed confirmation code, per-target impact checks and
+verification retained, one resource family per manifest.
+
 ## Update-Revert (durable, identity-preserving)
 
 Scope: **update only**. A create is undone by deleting the new item through the

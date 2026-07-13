@@ -374,7 +374,7 @@ If multiple matches remain, present max 5 candidates and ask one blocking questi
    - if linked entities are known, run `search/related` against up to 3 linked entities before confirmation
    - summarize any related automations/scripts in the preview
    - if linked entities are unknown, say that dependency check coverage is limited
-5. Token confirmation: `confirm:<token>` (strict exact-token rule). This still applies to cleanup and helpers created earlier in the same session.
+5. Token confirmation: `confirm:<token>` (strict exact-token rule). This still applies to cleanup and helpers created earlier in the same session. Multi-helper deletes within ONE family follow `skills/ha-nova/batch-safety.md`; storage and config-entry families never mix.
 6. Execute:
    ```text
    ha-nova relay core --method DELETE --path /api/config/config_entries/entry/{entry_id}

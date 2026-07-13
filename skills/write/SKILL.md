@@ -65,6 +65,7 @@ Multi-target logical changes: present the plan first per `skills/ha-nova/write-s
    - update: **run** `ha-nova diff` (prefer `--out <diff-file>`), print the diff output **verbatim** in the Changes slot — never write it yourself; state the behavioral effect in the summary sentence (write-safety → Behavior narrative). create: summary. Create/update previews show `apply`, `show yaml`, and `cancel` options.
    - Delete preview MUST include the consumer-check result before confirmation: either the affected consumers or an explicit no-consumer result.
    - Delete previews do not show `apply`, `show yaml`, `cancel`, or any menu; ask only for the exact `confirm:<token>` or cancellation.
+   - Batch delete of a reviewed same-family workset (automations OR scripts, never mixed) follows `skills/ha-nova/batch-safety.md`; per-item consumer checks and absence verification stay.
 5. Confirmation: create/update=natural, delete=tokenized `confirm:<token>`. Active Preview Confirmation is required; delete is the typed token, never a menu. Pre-preview consent is draft-only; payload/diff changes need preview.
 
 ### Phase 3: Apply + Verify (Agent)
