@@ -60,7 +60,11 @@ describe("post-write test-offer contract", () => {
     // Live-verified on a real instance: logical-only actions can still unlock
     // a door via a co-listening automation — the risk class must escalate.
     expect(testRun).toContain("Co-listeners escalate");
-    expect(testRun).toContain("inherits that risk level");
+    expect(testRun).toContain("inherits the risk level");
+    // Codex P2 (#334): actions-only runs change action targets too — the
+    // co-listener check covers every entity the test will change.
+    expect(testRun).toContain("Before recommending\nany run option");
+    expect(testRun).toContain("manipulated trigger sources and action targets alike");
     // An unavailable target makes any run unprovable — the card must say so.
     expect(testRun).toContain("cannot prove physical behavior right\nnow");
     // Codex P2 (#334): a garage door exposed as cover.* or a heating setpoint

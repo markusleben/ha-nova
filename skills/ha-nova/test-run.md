@@ -52,11 +52,13 @@ gate, or entry door exposed as `cover.*` and any heating/cooling setpoint
 change belong in the high-consequence row.
 
 Co-listeners escalate: the risk class covers everything the run can set in
-motion, not just the tested automation's own actions. If a named co-listener
-performs physical or high-consequence actions (the classic pattern: a helper
-toggle that another automation answers by unlocking a door), the real-path
-option inherits that risk level — even when the tested automation's actions
-are purely logical.
+motion, not just the tested automation's own actions. Before recommending
+any run option, check `search/related` on every entity the test will change
+— manipulated trigger sources and action targets alike. If a named
+co-listener performs physical or high-consequence actions (the classic
+pattern: a helper toggle that another automation answers by unlocking a
+door), that run option inherits the risk level — even when the tested
+automation's actions are purely logical.
 
 Unavailable targets: read the action-target states while building the card;
 if one is `unavailable`, say that a run cannot prove physical behavior right
