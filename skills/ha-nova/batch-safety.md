@@ -82,7 +82,8 @@ The preview always shows `count / cap`. Above the cap, refuse and split into
 separate manifests, each with its own preview and confirmation code:
 
 - config-item families (automations, scripts, helpers, scenes, dashboards,
-  resources, to-do lists, registry categories/labels/areas/floors): **20**
+  resources, cards within one dashboard, to-do lists, registry
+  categories/labels/areas/floors): **20**
 - evidence-derived cleanup families (retained discovery topics, orphaned
   statistics IDs, orphan registry entries per config entry): **100**
 
@@ -159,6 +160,7 @@ the offer of a remaining-targets manifest).
 | `todo` | yes | list deletion with per-list open-item counts; item removal stays the existing sub-token flow |
 | `organize` | yes | one registry family per manifest; only with complete related-item impact per target |
 | `yaml-config` | no | file edits are single-document operations with their own backup flow |
+| `energy` | no | preference saves are corrective single-document writes, not enumerable deletes |
 | `service-call` | no | actuating calls are excluded; its grouped manifest (see its Guardrails) is a separate non-destructive tier |
 | `backup` | no | backup deletion stays single-target |
 | `updates` | no | Core/OS/App updates stay single-target |

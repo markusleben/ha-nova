@@ -24,6 +24,7 @@ const OPTED_IN_SKILLS = [
 const MATRIX_SKILLS = [
   ...OPTED_IN_SKILLS,
   "yaml-config",
+  "energy",
   "service-call",
   "backup",
   "updates",
