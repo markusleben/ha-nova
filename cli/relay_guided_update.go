@@ -30,7 +30,7 @@ var (
 	relayUpdatePollTimeout  = 3 * time.Minute
 )
 
-const relayUpdateManualPath = "Manual path: open Home Assistant > Settings > Add-ons > NOVA Relay and install the update there; a standalone container needs a manual image pull."
+const relayUpdateManualPath = "Manual path: open Home Assistant > Settings > Apps > NOVA Relay (older HA calls it Add-ons) and install the update there; a standalone container needs a manual image pull."
 
 // maybeOfferGuidedRelayUpdate follows a printed relay-outdated notice and
 // reports whether the relay ended up updated AND verified — doctor uses that
