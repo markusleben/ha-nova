@@ -106,9 +106,28 @@ Required protection posture on `main`:
 
 ## Release Candidate Gate
 
-Every public release goes through a **tag-first dress rehearsal** first. It is
-mandatory: it runs the exact stable pipeline against a prerelease, so any
-pipeline breakage surfaces on the `-rcN` tag and never on the stable publish.
+The **tag-first dress rehearsal** runs the exact stable pipeline against a
+prerelease, so any pipeline breakage surfaces on the `-rcN` tag and never on
+the stable publish. It is a **conditional gate** (decision 2026-07-13): the
+rehearsal pays off exactly when the delivery machinery itself changed, and
+only clutters the releases page when it did not.
+
+**RC required** when the release contains any delta, since the last green
+`release.yml` run, to the delivery machinery:
+
+- `install.sh` / `install.ps1` / `scripts/release/` bundle or verify scripts
+- `.goreleaser.yml` beyond the release-notes body text
+- `release.yml`, `release-candidate.yml`, other release workflows, or the
+  `release-tags-protection` ruleset
+- Go code (CLI/relay — it ships in the release assets)
+- onboarding/update flow that the installed artifacts execute
+
+**RC skippable** for skills/docs-only releases (markdown + tests + notes
+text). Every release — with or without RC — still runs the full remaining
+gate: preflight PR audit, the strict pipeline audit and dispatched e2e below,
+the final tag's own `release.yml` verify + 3-runner public-install smoke, and
+a local public-install verification after publish. When in doubt, or if the
+machinery delta is ambiguous, run the RC.
 
 GitHub automation:
 - `ci.yml` = normal PR / main quality gate
@@ -122,7 +141,8 @@ bypass the ruleset — pushes the tag, and `release.yml` does the rest. GoReleas
 is pinned to the pushed tag via `GORELEASER_CURRENT_TAG`, so an `-rcN` tag and
 the final tag may safely point at the same commit.
 
-**Rehearsal steps:**
+**Rehearsal steps** (step 1 is mandatory for EVERY release; steps 2–4 are the
+RC itself and apply when the conditional gate above requires it):
 
 1. On the fully reviewed, merged `main` commit, verify the pipeline contract is
    intact. Run this as a maintainer (admin `gh auth`) so the no-App-bypass guard
@@ -153,7 +173,10 @@ the final tag may safely point at the same commit.
 4. Verify the published RC over the real public install path (see
    "Supported RC selection" below), including at least one real Windows 11 +
    PowerShell onboarding proof on a clean VM/snapshot.
-5. Only after the rehearsal is clean, cut the final tag (see "Final Publish").
+5. Only after the rehearsal is clean — or the RC was skipped per the
+   conditional gate above (skills/docs-only delta) — cut the final tag (see
+   "Final Publish"). A skipped RC never skips step 1 or the post-publish
+   public-install verification.
 
 The weekly `release-pipeline-audit.yml` workflow runs the same contract check
 between releases so a broken publish path is caught within a week, not at the
@@ -440,12 +463,16 @@ pkill -f 'npm run dev:validation:harness|start-local-validation-harness\\.sh|htt
 
 ## Final Publish
 
-For a final stable release (only after the tag-first rehearsal above is clean):
+For a final stable release — after the tag-first rehearsal above is clean, or
+after the RC was skipped per the conditional gate (skills/docs-only delta;
+step 1 of the rehearsal steps ran green either way):
 
 1. merge the reviewed PR state
-2. as a maintainer, tag the exact reviewed remote merge commit — the same commit
-   the `-rcN` rehearsal validated — and push it (`git push origin vX.Y.Z`); the
-   ruleset blocks the Actions token, so the tag is maintainer-pushed
+2. as a maintainer, tag the exact reviewed remote merge commit — the same
+   commit the `-rcN` rehearsal validated, or, on the no-RC path, the commit
+   the strict audit + dispatched e2e ran against — and push it
+   (`git push origin vX.Y.Z`); the ruleset blocks the Actions token, so the
+   tag is maintainer-pushed
 3. let `release.yml` publish the raw binaries and install bundles
 4. verify the published stable commands:
 
