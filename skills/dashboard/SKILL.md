@@ -114,6 +114,7 @@ Critical behavior:
      - preview the exact dashboard identity
      - require exact token confirmation `confirm:<token>`
      - call `lovelace/dashboards/delete` with `dashboard_id`
+     - multi-item deletes follow `skills/ha-nova/batch-safety.md`; dashboards, resources, and cards are separate families — one family per manifest
 4. Read the current dashboard when content changes are involved.
    - use `lovelace/config` with the chosen `url_path`
 5. Read back and verify:

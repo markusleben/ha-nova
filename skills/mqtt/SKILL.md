@@ -91,6 +91,6 @@ For a listen: the topic, the window length, how many messages arrived (live vers
 
 ## Guardrails
 
-- One topic per window; one publish per confirmation.
+- One topic per window; one publish per confirmation — except a manifest-bound retained-discovery cleanup batch per `skills/ha-nova/batch-safety.md`: one resolved device per manifest, topics taken only from `mqtt/device/debug_info`, never guessed or globbed; command/`set` topics always stay single-target.
 - Windows are bounded by the relay (max 100 events / 10 s) — never claim continuous monitoring.
 - Never guess a `device_id` or invent a payload schema; read what the device actually publishes first.

@@ -93,7 +93,7 @@ Skills reference this section as "context skill → Active Preview Confirmation"
 - Treat those phrases only as permission to prepare the draft, run checks, and show the preview.
 - A live HA write requires confirmation after the concrete preview is shown: diff for updates, payload summary for creates/service calls/experimental writes, delete impact plus token, or grouped manifest for allowed multi-target writes.
 - Confirmation is bound to the displayed operation, target set, endpoint/service, and exact payload/diff/manifest. If target, scope, endpoint, payload, draft, or manifest changes, confirmation expires; show the updated preview and ask again.
-- Multi-target confirmation is valid only where the owning skill supports multi-target writes. Otherwise process targets sequentially with separate preview and confirmation.
+- Multi-target confirmation is valid only where the owning skill supports multi-target writes (destructive batches: `skills/ha-nova/batch-safety.md`). Otherwise process targets sequentially with separate preview and confirmation.
 
 ### Confirmation Tiers
 
@@ -101,6 +101,7 @@ Skills reference this section as "context skill → Active Preview Confirmation"
 - `delete`/destructive: token confirmation `confirm:<token>`.
   **Strict token enforcement:** User MUST reply with the exact token string (e.g., `confirm:del-main-lights`). Any other response — including "yes", "sure, delete it", "do it", or any natural-language confirmation — is NOT valid. Reject and re-prompt with the exact code required. In user-facing output call it the "confirmation code" (localized), never a "token" (see `skills/ha-nova/output-rules.md` → Localization).
   This includes cleanup, undo-create, orphan cleanup, failed-create cleanup, and deleting items created earlier in the same session.
+- destructive multi-target batch: manifest-bound code `confirm:batch-<operation>-<family>-<count>-<digest>` per `skills/ha-nova/batch-safety.md` — only where the owning skill declares batch support, never inferred.
 
 ### Write Routing Gate
 

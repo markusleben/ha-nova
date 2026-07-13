@@ -66,6 +66,9 @@ Used by: nothing else found.
 To delete, reply exactly: confirm:<token>
 ```
 
+Destructive batch previews and results render the Batch Cards defined in
+`skills/ha-nova/batch-safety.md` — same emoji vocabulary and rules.
+
 **Result Card** (after verification — name only the proven scope, per `skills/ha-nova/write-safety.md` → Verification Honesty; findings, if any, follow with 🔴🟠🟡):
 
 ```

@@ -108,9 +108,10 @@ const SAFETY_CORE_BLOCKS = ((): { mutation: string; readOnly: string } => {
 // TRANSITIVE load (lazy references), not these file sizes — write carries the
 // on-demand trigger list itself.
 const WORD_BUDGETS: Record<string, number> = {
-  write: 1400,
+  // write/mqtt ratcheted for the batch-safety opt-in lines (#327).
+  write: 1450,
   diagnose: 1450,
-  mqtt: 1250,
+  mqtt: 1300,
   scene: 1350,
   "service-call": 1250,
   // Carries the canonical File-Change Preview example — the only layout

@@ -82,7 +82,8 @@ Use `search/related` when a delete needs a quick impact preview on linked items.
    - labels: show linked items when quickly resolvable
    - categories: show affected entity count and a small example set when resolvable
    - require token confirmation `confirm:<token>`
-5. Execute exactly one mutation.
+   - same-family batch deletes follow `skills/ha-nova/batch-safety.md`, only when related-item impact is complete for every target
+5. Execute exactly one mutation (or the confirmed batch manifest, sequentially).
 6. Read back and verify the requested fields:
    - area/floor/label/category: re-list and match by canonical id
    - entity/device: re-read the updated registry entry
