@@ -141,6 +141,7 @@ describe("batch safety contract (issue #327)", () => {
     expect(maintenance).toContain("one issue group or config entry per manifest");
     expect(maintenance).toContain("every safety gate below stays unchanged");
     expect(maintenance).toContain("Manifest-bound typed confirmation in the `confirm:batch-...` format");
+    expect(maintenance).toContain("format, one config entry per manifest");
     const organize = readFileSync("skills/organize/SKILL.md", "utf8");
     expect(organize).toContain("except a confirmed batch manifest per `skills/ha-nova/batch-safety.md`");
   });
