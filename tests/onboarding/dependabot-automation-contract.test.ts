@@ -20,6 +20,11 @@ describe("dependabot automation contract", () => {
       dependency_group: string;
       allowed_update_types: string[];
       manual_review_dependencies: string[];
+      github_actions: {
+        dependency_group: string;
+        allowed_update_types: string[];
+        workflow_file_prefix: string;
+      };
     };
     main_branch_protection: {
       required_status_checks: string[];
@@ -74,10 +79,22 @@ describe("dependabot automation contract", () => {
     expect(dependabot).not.toContain("npm-minor-patch:");
   });
 
+  it("keeps the safe actions lane on uses-only minor/patch bumps in a dedicated group", () => {
+    expect(policy.dependabot_safe_lane.github_actions.dependency_group).toBe("github-actions-minor-patch");
+    expect(policy.dependabot_safe_lane.github_actions.allowed_update_types).toEqual([
+      "version-update:semver-minor",
+      "version-update:semver-patch",
+    ]);
+    expect(policy.dependabot_safe_lane.github_actions.workflow_file_prefix).toBe(".github/workflows/");
+    expect(dependabot).toContain("github-actions-minor-patch:");
+    expect(dependabot).toContain("github-actions-major:");
+    expect(dependabot).not.toContain("github-actions-all:");
+    expect(dependabot).toContain("- major");
+  });
+
   it("groups security updates and actions bumps to prevent single-dep PR deadlocks", () => {
     expect(dependabot).toContain("npm-security:");
     expect(dependabot).toContain("applies-to: security-updates");
-    expect(dependabot).toContain("github-actions-all:");
     const securityGroups = dependabot.match(/npm-security:/g) ?? [];
     expect(securityGroups.length).toBe(2);
   });
@@ -99,6 +116,11 @@ describe("dependabot automation contract", () => {
     expect(codeowners).toContain("/docs/reference/ @markusleben");
     expect(codeowners).not.toContain("/package.json @markusleben");
     expect(codeowners).not.toContain("/package-lock.json @markusleben");
+    // Un-own entries (no owner, later match wins) keep the safe lanes automatic:
+    // /nova manifests for the npm lane, workflow files for the actions lane.
+    expect(codeowners).toMatch(/^\/nova\/package\.json$/m);
+    expect(codeowners).toMatch(/^\/nova\/package-lock\.json$/m);
+    expect(codeowners).toMatch(/^\/\.github\/workflows\/$/m);
   });
 
   it("only auto-approves and auto-merges the safe Dependabot manifest lane without checking out PR code", () => {
@@ -128,6 +150,16 @@ describe("dependabot automation contract", () => {
     expect(prepareWorkflow).toContain('issues/${PR_NUMBER}/comments" --paginate --slurp');
     expect(prepareWorkflow).toContain('GH_REPO: ${{ github.repository }}');
     expect(prepareWorkflow).toContain('dependency requires manual review due to toolchain risk');
+    // Actions lane: dedicated group, minor/patch only, and a diff guard that
+    // rejects any workflow change beyond uses: version bumps.
+    expect(prepareWorkflow).toContain('.dependabot_safe_lane.github_actions.dependency_group');
+    expect(prepareWorkflow).toContain('"${PACKAGE_ECOSYSTEM}" == "github_actions"');
+    expect(prepareWorkflow).toContain("dependency group is not the safe actions minor/patch lane");
+    expect(prepareWorkflow).toContain("changed file outside workflow lane");
+    expect(prepareWorkflow).toContain("workflow change beyond uses: version bumps");
+    expect(prepareWorkflow).toContain("no reviewable patch lines returned by GitHub API");
+    expect(prepareWorkflow).toContain("(.previous_filename // empty)");
+    expect(prepareWorkflow).toContain("uses:[[:space:]]+[^[:space:]]+([[:space:]]+#.*)?$");
     expect(prepareWorkflow).toContain("gh pr review --approve");
     expect(prepareWorkflow).toContain("--json autoMergeRequest,labels");
     expect(prepareWorkflow).toContain('jq -e \'.autoMergeRequest != null\'');
@@ -204,6 +236,8 @@ describe("dependabot automation contract", () => {
     expect(releasing).toContain("manifest-review:approved");
     expect(releasing).toContain("before `@codex`");
     expect(releasing).toContain("dev-only npm minor/patch updates that touch only `package.json` / `package-lock.json` (root or `nova/`)");
+    expect(releasing).toContain("github-actions minor/patch bumps that change only `uses:` lines under `.github/workflows/`");
+    expect(releasing).toContain("action majors and any workflow change beyond `uses:` version bumps stay manual");
     expect(releasing).toContain("safe lane excludes toolchain-risk dependencies such as `vitest`, `vite`, `typescript`, `tsx`, `rollup`, `rolldown`, and `esbuild`");
     expect(releasing).toContain("require `dependency-review` on `main`");
     expect(releasing).toContain("require `manifest-review-gate` on `main`");

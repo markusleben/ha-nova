@@ -92,10 +92,12 @@ Safe auto-merge is intentionally narrow.
 
 Allowed fast lane:
 - dev-only npm minor/patch updates that touch only `package.json` / `package-lock.json` (root or `nova/`)
+- github-actions minor/patch bumps that change only `uses:` lines under `.github/workflows/` (diff-guarded by `dependabot-safe-lane-prepare.yml`)
 
 Explicit exclusions:
 - safe lane excludes toolchain-risk dependencies such as `vitest`, `vite`, `typescript`, `tsx`, `rollup`, `rolldown`, and `esbuild`
-- workflow, installer, runtime, release, security, and non-manifest changes stay manual
+- action majors and any workflow change beyond `uses:` version bumps stay manual
+- installer, runtime, release, security, and non-manifest changes stay manual
 
 Required protection posture on `main`:
 - require `dependency-review` on `main`
