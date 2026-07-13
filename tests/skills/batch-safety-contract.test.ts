@@ -29,6 +29,7 @@ const MATRIX_SKILLS = [
   "backup",
   "updates",
   "admin",
+  "assist",
   "fallback",
 ];
 

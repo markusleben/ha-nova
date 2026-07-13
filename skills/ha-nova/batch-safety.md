@@ -167,6 +167,7 @@ the offer of a remaining-targets manifest).
 | `backup` | no | backup deletion stays single-target |
 | `updates` | no | Core/OS/App updates stay single-target |
 | `admin` | no | user/person/account deletion stays single-target |
+| `assist` | no | pipeline deletion stays single-target |
 | `fallback` | no | experimental writes never batch |
 
 ## Exclusions (v1)
