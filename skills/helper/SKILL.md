@@ -191,13 +191,11 @@ If the user gives only a linked `entity_id`, resolve it back to `config_entry_id
    with `{"type":"config/entity_registry/list"}`.
 3. Filter config entries to the ten supported domains.
 4. Join linked entities by matching `config_entry_id`.
-5. Present a compact table with:
-   - title
-   - domain
-   - `entry_id`
-   - state
-   - `supports_options`
-   - linked entities (compact comma-separated summary)
+5. Present the List Frame table (output-rules.md): title, domain, `entry_id`,
+   state. Options-flow support and linked entities stay in the per-helper
+   detail read; when several entries share a domain or similar titles, add a
+   short disambiguation line under the table with each candidate's linked
+   entities (compact comma-separated summary).
 
 #### Keyword search
 
