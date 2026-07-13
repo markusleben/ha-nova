@@ -11,7 +11,7 @@ Apply these rules to every user-facing HA NOVA response, including direct sub-sk
 - Keep Home Assistant state values, API names, commands, entity IDs, and service names literal when they are evidence.
 - Keep typed safety keywords literal in every language: `revert`, `show yaml`, `confirm:<token>`.
 - Localize the surrounding sentence around those keywords.
-- The user-facing name for the typed destructive keyword is the "confirmation code" (localized, e.g. German "Bestätigungscode"). Never call it a "token" in user-facing output — "token" is internal spec language, and it also collides with the unrelated access-token concept users know from onboarding.
+- The user-facing name for the typed destructive keyword is the "confirmation code" (localized to the user's language). Never call it a "token" in user-facing output — "token" is internal spec language, and it also collides with the unrelated access-token concept users know from onboarding.
 
 ## Technical Noise
 
