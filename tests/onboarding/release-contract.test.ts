@@ -53,14 +53,14 @@ describe("release contract", () => {
     expect(releaseWorkflow).not.toContain("dist/winget");
   });
 
-  it("keeps v0.16.0 release-facing wording user-centric", () => {
+  it("keeps v0.17.0 release-facing wording user-centric", () => {
     // Shipped release-note bodies are archived (docs/archive/work/) and
     // non-normative per documentation governance; only the active GoReleaser
     // template is contract-checked here.
-    expect(goreleaser).toContain("One confirmation for reviewed batch deletes");
-    expect(goreleaser).toContain("ONE typed confirmation code bound to the exact list");
-    expect(goreleaser).toContain("no longer swallow the following space");
-    expect(goreleaser).toContain('called a "confirmation code"');
+    expect(goreleaser).toContain("Test it right after saving");
+    expect(goreleaser).toContain("naming exactly which devices will switch");
+    expect(goreleaser).toContain("never presented as consequence-free");
+    expect(goreleaser).toContain("One consistent look everywhere");
     expect(goreleaser).not.toContain("Use `v0.7.1` or the latest release command");
   });
 
