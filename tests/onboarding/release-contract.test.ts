@@ -53,16 +53,14 @@ describe("release contract", () => {
     expect(releaseWorkflow).not.toContain("dist/winget");
   });
 
-  it("keeps v0.15.0 release-facing wording user-centric", () => {
+  it("keeps v0.16.0 release-facing wording user-centric", () => {
     // Shipped release-note bodies are archived (docs/archive/work/) and
     // non-normative per documentation governance; only the active GoReleaser
     // template is contract-checked here.
-    expect(goreleaser).toContain("Change previews you can actually read");
-    expect(goreleaser).toContain("YAML file edits preview only the section that changes");
-    expect(goreleaser).toContain("`--help` everywhere");
-    expect(goreleaser).toContain("HA NOVA offers to update the relay for you");
-    expect(goreleaser).toContain("Skills still require relay 0.4.0 or newer");
-    expect(goreleaser).toContain("system_log/list");
+    expect(goreleaser).toContain("One confirmation for reviewed batch deletes");
+    expect(goreleaser).toContain("ONE typed confirmation code bound to the exact list");
+    expect(goreleaser).toContain("no longer swallow the following space");
+    expect(goreleaser).toContain('called a "confirmation code"');
     expect(goreleaser).not.toContain("Use `v0.7.1` or the latest release command");
   });
 

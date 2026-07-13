@@ -56,7 +56,7 @@ We built this because we didn't trust AI with our own config either.
 
 1. **Researches first.** Finds your devices, checks your setup, resolves entity names. No guessing.
 2. **Shows you the change.** A clear before/after table of exactly what will change, before anything is written.
-3. **You approve it.** Deletes require a specific confirmation code — not just "yes."
+3. **You approve it.** Deletes require a specific confirmation code — not just "yes." A reviewed batch delete takes one code bound to the exact list of items.
 4. **Writes and verifies.** Reads the config back to confirm the change stuck.
 5. **Audits itself.** Checks for mistakes, conflicts, and reliability issues.
 6. **Lets you take it back.** Reply `revert` to undo the latest verified update. New items are removed through the same preview-and-confirm delete flow.

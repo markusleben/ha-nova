@@ -85,18 +85,12 @@ release:
     Windows uses a single supported install path: `install.ps1`. Return an RC install to stable later with `ha-nova update`.
     {{ else }}## New Features
 
-    - **Change previews you can actually read.** When the AI updates an automation, script, or helper, it now shows one clear before/after table instead of a wall of bullets — and nested changes name the thing you recognize ("condition sensor.kitchen_illumination" instead of "condition 2"). Every skill uses the same preview cards, in every AI client.
-    - **YAML file edits preview only the section that changes.** No developer diffs: you see the effect in plain words, the new section, and what it replaces — then you decide.
-    - **`--help` everywhere.** Every `ha-nova` command now answers `--help` with its usage and flags — so options like `update --force` are finally discoverable.
-    - **HA NOVA offers to update the relay for you.** When your NOVA Relay is outdated, the AI now asks whether it should install the App update right away instead of just pointing at a warning (container installs get honest manual pull guidance).
-
-    ## What To Watch
-
-    - Home Assistant will show a NOVA Relay update (0.4.1). It only refreshes the App's info page — no functional changes, update whenever convenient. Skills still require relay 0.4.0 or newer.
+    - **One confirmation for reviewed batch deletes.** Deleting a reviewed set of automations, helpers, scenes, dashboards, to-do lists, or stale MQTT discovery topics now takes ONE typed confirmation code bound to the exact list — instead of one confirmation per item. Per-item impact checks and verification stay, and anything outside the shown list still needs its own preview. Proven live: a zombie device with 25 retained MQTT topics, gone with a single code.
 
     ## Bug Fixes
 
-    - Reading Home Assistant logs works again on current HA versions: the skills now use the supported log source (`system_log/list`) instead of an endpoint recent Home Assistant releases removed.
+    - Terminal output: icons like 🗑️ and ⚠️ no longer swallow the following space in terminals that render them double-width.
+    - Confirmation prompts speak plain language now: the typed reply is called a "confirmation code" (localized to your language), never a technical "token".
     Stable install commands are release-pinned for this tag.
 
     **macOS / Linux:**
