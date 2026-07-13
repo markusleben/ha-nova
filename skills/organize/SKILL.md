@@ -130,7 +130,7 @@ Default to a compact field summary, not raw registry JSON.
 
 ## Guardrails
 
-- One resource at a time.
+- One resource at a time — except a confirmed batch manifest per `skills/ha-nova/batch-safety.md` (its `confirm:batch-...` code replaces the single-target token for that batch).
 - One category scope at a time.
 - Metadata updates only; no destructive registry admin beyond area/floor/label/category delete.
 - Verify the changed field values, not just the WS success response.

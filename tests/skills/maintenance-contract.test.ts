@@ -36,7 +36,7 @@ describe("maintenance contract", () => {
     // Red-team blocker: the token must bind to the fully enumerated set, not a capped sample.
     expect(maintenanceSkill).toContain("a capped sample never authorizes the uncapped set");
     expect(maintenanceSkill).toContain(
-      "the token binds to one issue group and its full enumerated ID set; never one token for multiple groups",
+      "it binds to one issue group and its full enumerated ID set; never one confirmation for multiple groups",
     );
     // Non-energy dashboards can also reference statistics.
     expect(maintenanceSkill).toContain("scan of storage dashboards for the IDs");
