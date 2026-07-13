@@ -463,12 +463,16 @@ pkill -f 'npm run dev:validation:harness|start-local-validation-harness\\.sh|htt
 
 ## Final Publish
 
-For a final stable release (only after the tag-first rehearsal above is clean):
+For a final stable release — after the tag-first rehearsal above is clean, or
+after the RC was skipped per the conditional gate (skills/docs-only delta;
+step 1 of the rehearsal steps ran green either way):
 
 1. merge the reviewed PR state
-2. as a maintainer, tag the exact reviewed remote merge commit — the same commit
-   the `-rcN` rehearsal validated — and push it (`git push origin vX.Y.Z`); the
-   ruleset blocks the Actions token, so the tag is maintainer-pushed
+2. as a maintainer, tag the exact reviewed remote merge commit — the same
+   commit the `-rcN` rehearsal validated, or, on the no-RC path, the commit
+   the strict audit + dispatched e2e ran against — and push it
+   (`git push origin vX.Y.Z`); the ruleset blocks the Actions token, so the
+   tag is maintainer-pushed
 3. let `release.yml` publish the raw binaries and install bundles
 4. verify the published stable commands:
 
