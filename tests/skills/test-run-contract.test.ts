@@ -108,8 +108,12 @@ describe("post-write test-offer contract", () => {
     expect(testRun).toContain("Anything the card did not name needs its\n   own previewed call");
     // Codex P2 (#334): an automation enabled only for the test must not stay
     // enabled in production afterwards.
-    expect(testRun).toContain("the post-run restore returns it to disabled");
+    expect(testRun).toContain("post-run restore returns it to disabled");
     expect(testRun).toContain("enabled only for the test (back to disabled)");
+    // Codex P2 (#334), live-verified: automation.trigger runs the actions of
+    // a disabled automation — actions-only tests must not enable it first.
+    expect(testRun).toContain("actions-only tests never enable it");
+    expect(testRun).toContain("Only a full\n  real-path test needs temporary enablement");
     // Write skill allows the consented follow-up without weakening the default.
     expect(writeSkill).toContain(
       "Do not auto-trigger or auto-read traces outside an accepted Phase 5 test plan",

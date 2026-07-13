@@ -71,8 +71,10 @@ Trigger type (drives which options exist):
   scheduled occurrence (name the expected time). Never change the system
   clock or temporarily edit the trigger to force a test.
 - Scripts have no trigger: parameterized runs replace the real-path option.
-- If the automation is disabled, enabling it is part of the plan, must be
-  named on the card, and the post-run restore returns it to disabled.
+- If the automation is disabled: `automation.trigger` runs the actions even
+  while it is off, so actions-only tests never enable it. Only a full
+  real-path test needs temporary enablement — name it on the card, and the
+  post-run restore returns it to disabled.
 - Multi-target changes (write-safety → Multi-Target Changes): build ONE
   consolidated offer for the whole logical change — recommend the riskiest
   or most representative target first, never one card per target.
