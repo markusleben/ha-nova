@@ -114,6 +114,12 @@ the card that other event listeners cannot be ruled out.
 - `state` / `numeric_state` on a controllable source (helpers, switches,
   lights): set or toggle the source entity via the service-call flow; plan
   the restore of the source in the same card.
+- Triggers with a `for:` duration or a numeric threshold fire only after
+  the state holds, or crosses from the non-matching side: start from a
+  non-matching state, cross the threshold, and wait out the full `for:`
+  window before reading the trace or restoring — an early restore resets
+  the pending trigger and produces a false "did not fire". When that wait
+  is impractical, fall back to actions-only or the logic check and say so.
 - `state` on a physical sensor (motion, door, presence): there is no honest
   service to fake it — ask the user to trigger the device physically, then
   read the trace; otherwise fall back to "run actions now".

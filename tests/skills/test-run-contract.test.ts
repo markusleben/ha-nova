@@ -68,6 +68,10 @@ describe("post-write test-offer contract", () => {
   it("keeps real-path recipes honest per trigger type", () => {
     expect(testRun).toContain("## Real-Path Recipes");
     expect(testRun).toContain("ask the user to trigger the device physically");
+    // Codex P2 (#334): `for:` durations and numeric thresholds need a hold
+    // from the non-matching side — an early restore resets the pending trigger.
+    expect(testRun).toContain("wait out the full `for:`");
+    expect(testRun).toContain("an early restore resets\n  the pending trigger");
     expect(testRun).toContain("POST /api/events/<event_type>");
     expect(testRun).toContain("`ha-nova:mqtt`");
     // Time-based triggers cannot be faked; never bend the clock or the config.
