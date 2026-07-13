@@ -180,7 +180,7 @@ describe("ha-nova contract", () => {
     expect(context).toContain("Triggers");
     expect(context).toContain("Actions");
     expect(context).toContain("full YAML config");
-    expect(context).toContain("Next Step");
+    expect(context).toContain("Next step");
   });
 
   it("documents the review confidence split in the shared output rules", () => {

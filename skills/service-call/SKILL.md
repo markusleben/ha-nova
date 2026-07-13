@@ -115,7 +115,7 @@ Rules:
 - Ask for confirmation bound to that exact runtime-call preview before execution.
 - After execution, verify only the target automation/script state and any user-approved helper/state assertions; do not infer device safety from a successful service response alone.
 - Post-write test runs: plan structure, real-path recipes, and the post-run follow-up live in `skills/ha-nova/test-run.md`.
-- When a Test Plan card already showed the concrete preview (service, target, payload, `skip_condition`), the user's option choice on that card IS the bound confirmation — do not ask again.
+- When a Test Plan Card already showed the concrete preview (service, target, payload, `skip_condition`), the user's option choice on that card IS the bound confirmation — do not ask again.
 
 ## Error Handling
 
@@ -130,7 +130,7 @@ Service-call specifics:
 
 Apply `skills/ha-nova/output-rules.md` to all user-facing output.
 
-Previews are the runtime-action Preview Card (`apply · cancel`); results are the Result Card. Report the executed service, its target, and the verified state change (or the discrepancy); summarize response-service data instead of dumping it.
+Previews are the runtime-action Preview Card (`apply · cancel`); results are the Result Card. Report the executed service, its target, and the verified state change (or the discrepancy); summarize response-service data as the Report shape (output-rules.md) instead of dumping it.
 
 ## Safety
 

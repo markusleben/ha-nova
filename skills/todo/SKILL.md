@@ -112,7 +112,7 @@ Apply `skills/ha-nova/output-rules.md` to all output.
 - `Verification`
 - `Next step`
 
-Use stable localized slot labels in this order; omit empty slots. Present items compactly — never raw JSON.
+Use stable localized slot labels in this order; omit empty slots. Item lists render the List Frame (output-rules.md) — never raw JSON.
 
 ## Safety
 

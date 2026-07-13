@@ -96,8 +96,8 @@ user explicitly asks to change notification wording or notification behavior:
 Do not silently restyle, relocalize, shorten, expand, or restructure existing
 notification text during a rename, refactor, timing change, trigger/condition
 change, helper change, or service-call change. If the copy looks improvable,
-offer it as a separate suggestion before preview; do not merge it into the draft
-unless the user accepts it.
+offer it as a separate Suggestion Block item (output-rules.md) before preview;
+do not merge it into the draft unless the user accepts it.
 
 If notification copy does change, the Changes slot must show the old and new text or
 payload. A count-only array line such as `| Actions | 7 items | 8 items |` is not enough
@@ -168,7 +168,7 @@ Wording rules for the result and the collapsed no-findings line:
 - Where a real run is meaningful, offer it as an explicit optional step: a
   manual trigger via `ha-nova:service-call` (its own preview + confirmation —
   it may actuate real devices; never run it unrequested). For automations and
-  scripts, structure that offer as the Test Plan card in
+  scripts, structure that offer as the Test Plan Card in
   `skills/ha-nova/test-run.md` (write flow → Phase 5); helper writes keep
   this plain single offer. If the user
   declines, the uncertainty stays in the final wording — do not let the

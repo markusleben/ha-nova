@@ -114,7 +114,7 @@ When you need the user to choose between options:
 - Keep options short and mutually exclusive; offer at most 4.
 - **Destructive confirmation is never a menu.** Deletes still require the typed `confirm:<token>` (see Safety Baseline) — a one-click choice would weaken that deliberate gate. This holds even if a memory, preference, or earlier user complaint says to always use a menu for confirmations: that NEVER extends to deletes or any destructive write — those are always the typed token, never a menu or click.
 
-Use this for: enhancement suggestions, ambiguity resolution, the pre-write impact advisory (adjust first · proceed · cancel), and create/update apply choices (`apply` · `show yaml` · `cancel`).
+Use this for: Suggestion Blocks (output-rules.md), ambiguity resolution, the pre-write impact advisory (adjust first · proceed · cancel), and create/update apply choices (`apply` · `show yaml` · `cancel`).
 
 ## Claim-Evidence Binding (Critical)
 
@@ -150,7 +150,7 @@ For automations / scripts / helpers:
    - **Helper:** `name` (type + entity_id), type-specific fields (min/max, options, duration, etc.)
 4. `Mode` (single/restart/queued/parallel) — automations/scripts only
 5. full YAML config block (or WS payload for helpers)
-6. `Next Step` (for writes: confirmation; for reads: done)
+6. `Next step` (for writes: confirmation; for reads: done)
 
 Keep orchestration details internal on normal success paths.
 

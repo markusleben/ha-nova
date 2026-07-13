@@ -36,7 +36,7 @@ Apply these rules to every user-facing HA NOVA response, including direct sub-sk
 
 ## Cards (Write-Flow Visual System)
 
-Write and action flows render one of three cards — the same shape every time, so users recognize them at a glance. Labels localize at runtime; emoji, literal keywords, entity IDs, state values, and CLI diff rows do not. Fixed emoji vocabulary: 📝 preview, 🗑️ delete preview, ✅ result, ⚠️ save status, plus the 🔴🟠🟡 severity markers — nothing else decorative, never color. Cards frame writes and runtime actions only; review and read output keep their own sections. Emoji that end in a variation selector (🗑️, ⚠️) take two spaces before the following text — many terminals render them double-width over the next column and visually swallow a single space; the other card emoji keep one space.
+Write and action flows render one of four cards — the same shape every time, so users recognize them at a glance. Labels localize at runtime; emoji, literal keywords, entity IDs, state values, and CLI diff rows do not. Fixed emoji vocabulary: 📝 preview (write previews and the test-plan offer), 🗑️ delete preview, ✅ result, ⚠️ save status, 💡 suggestion, plus the 🔴🟠🟡 severity markers — nothing else decorative, never color. Cards frame writes and runtime actions only; review and read output keep their own sections. Emoji that end in a variation selector (🗑️, ⚠️) take two spaces before the following text — many terminals render them double-width over the next column and visually swallow a single space; the other card emoji keep one space.
 
 **Preview Card** (create/update — values illustrative, labels localized at runtime):
 
@@ -77,7 +77,86 @@ Checked: config persisted, reload OK, entity live. Runtime behavior was not exer
 Reply revert to undo this update.
 ```
 
-Read output: compact pipe tables (max 4 short columns — they degrade to plain pipe text in raw terminals) or grouped lists with counts; never raw JSON.
+**Test Plan Card** (test offer after create/update — feasibility logic, option
+selection, and post-run follow-up live in `skills/ha-nova/test-run.md`; menu
+mechanics: context skill → Interactive Choices):
+
+```
+📝 Test: automation.morning_lights (saved — runtime not exercised yet)
+1 (recommended) — Real test: what runs, what it proves, what it switches
+2 — Actions only: …
+skip — test later
+```
+
+Recommended option first and marked; at most 3 options plus `skip`; the option
+choice is the single confirmation bound to that exact card.
+
+## Report Shape (Read & Analysis Results)
+
+Every read or analysis answer follows one shape: lead with the answer in one or
+two sentences, then a grouped body (List Frame tables or grouped lists),
+optional evidence per context skill → Claim-Evidence Binding, and a closing
+`Next step` slot — omit it when nothing is actionable. Canonical label:
+`Next step` (localized; never `Next Step`).
+
+```
+The dryer used 42 kWh last month — about 18 % of total consumption.
+
+| Week | kWh |
+|---|---|
+| Jun 1–7 | 11.2 |
+
+Next step: add the dryer plug to the Energy dashboard for per-cycle tracking.
+```
+
+Diagnosis specialization (diagnose, review trace analysis): the lead is the
+root cause (or ranked hypotheses); the body is the evidence chain — trace step,
+log lines, state sequence, each tied to its source and timestamp; `Next step`
+is the recommended fix plus the owning-skill handoff.
+
+Skills with their own ordered slot lists (health, history, calendar, energy,
+backup, updates, maintenance, todo, scene) keep those slots — they are Report
+Shape specializations: the status/summary slot is the answer-first lead, and
+`Next step` closes.
+
+## List Frame (Inventories & Discovery)
+
+Any list of items — entities, configs, helpers, backups, updates, to-do items,
+media browse results: a count line first ("12 found, showing first 10" —
+state the cap whenever rows are truncated), then compact pipe tables
+(max 4 short columns — they degrade to plain pipe text in raw terminals) or
+grouped lists with counts; never raw JSON. Canonical column order: ID, Name,
+one or two domain-specific columns (Type, State, Reason), Area. Domains keep
+their own columns — the frame (count line, column order, stated cap) is what
+is shared.
+
+```
+23 automations found, showing first 10.
+
+| Entity ID | Name | Area |
+|---|---|---|
+| automation.morning | Morning routine | Hallway |
+```
+
+## Suggestion Block
+
+One shape for every improvement offer: write-flow enhancement suggestions,
+helper suggested defaults, review Suggestions items, and separate
+notification-copy offers. 💡 header line (single space after 💡), numbered
+items, max 4. Item shape: short title + what it does + why it helps; value
+suggestions (helper defaults) may use the value assignment as the title and
+drop the benefit when it is obvious. Menu mechanics follow context skill →
+Interactive Choices; skip/decline is always valid; omit the block entirely
+when there is nothing to offer; never post-write. Review's Suggestions section
+keeps its plain sectioned header — review output is sectioned, not card-framed
+— but its items follow this item shape.
+
+```
+💡 Suggestions for "Morning routine":
+1. Presence condition — runs only when someone is home · avoids empty-house runs
+2. Restart mode — re-trigger restarts the timer · prevents overlapping runs
+Accept numbers (e.g. "1 and 2"), or "skip".
+```
 
 ## Findings
 

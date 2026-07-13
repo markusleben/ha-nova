@@ -126,7 +126,7 @@ Return exactly these sections:
 
 `SUGGESTED_ENHANCEMENTS:`
 - concrete optional improvements based on entity capabilities and common HA patterns
-- each item: short title, what it does, why it helps
+- each item: short title, what it does, why it helps (the main thread renders these as the Suggestion Block — output-rules.md)
 - or `none` if basic intent is fully covered
 - use both the examples below AND your general HA knowledge to suggest relevant improvements
 

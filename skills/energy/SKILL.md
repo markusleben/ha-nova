@@ -78,7 +78,7 @@ Apply `skills/ha-nova/output-rules.md`.
 - `Verification`
 - `Next step`
 
-Use stable localized slot labels in this order; omit empty slots. Rankings as compact tables — never raw JSON.
+Use stable localized slot labels in this order; omit empty slots. Analysis answers render the Report shape; rankings render the List Frame (output-rules.md) — never raw JSON.
 
 ## Safety
 

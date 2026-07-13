@@ -143,7 +143,7 @@ For create/update/delete:
 - `Verification`
 - `Next step`
 
-Use stable localized slot labels in this order; omit empty slots, do not invent ad-hoc headings.
+Use stable localized slot labels in this order; omit empty slots, do not invent ad-hoc headings. List/read renders the Report shape; dashboard and resource inventories render the List Frame (output-rules.md).
 
 Do not dump the full dashboard JSON/YAML by default.
 

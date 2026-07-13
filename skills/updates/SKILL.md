@@ -89,7 +89,7 @@ Apply `skills/ha-nova/output-rules.md`.
 - `Verification`
 - `Next step`
 
-Use stable localized slot labels in this order; omit empty slots. Group counts + pending list — never raw JSON.
+Use stable localized slot labels in this order; omit empty slots. The overview renders the Report shape; pending lists render the List Frame (group counts + capped pending list) — never raw JSON.
 
 ## Safety
 

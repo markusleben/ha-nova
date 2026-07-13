@@ -46,8 +46,8 @@ describe("post-write test-offer contract", () => {
     expect(testRun).toContain("`skip_condition: true` as higher risk");
   });
 
-  it("binds a single confirmation to the Test Plan card — no double gate", () => {
-    expect(testRun).toContain("Single confirmation: the Test Plan card doubles as the runtime-call");
+  it("binds a single confirmation to the Test Plan Card — no double gate", () => {
+    expect(testRun).toContain("Single confirmation: the Test Plan Card doubles as the runtime-call");
     expect(testRun).toContain("do not ask a second time");
     expect(testRun).toContain("Any change to the plan expires");
     expect(serviceCall).toContain("the user's option choice on that card IS the bound confirmation");

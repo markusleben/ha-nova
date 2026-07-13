@@ -99,9 +99,9 @@ If 0 results: try synonyms or shorter stems. Never dump entire domains.
 2. Use-case defaults (create only, skip on update/delete):
    - Infer use-case from helper name + type using general HA knowledge.
    - Consult `skills/ha-nova/helper-schemas.md` → Suggested Defaults for principles and field name reminders.
-   - If sensible defaults can be inferred: show max 4 as numbered list. Group related fields into one item.
+   - If sensible defaults can be inferred: render them as the Suggestion Block (output-rules.md), max 4 as numbered list. Group related fields into one item.
      ```
-     Suggested defaults for "{name}" ({type}):
+     💡 Suggested defaults for "{name}" ({type}):
      1. min: 16, max: 30, step: 0.5
      2. unit_of_measurement: "°C"
      3. mode: slider
@@ -191,13 +191,11 @@ If the user gives only a linked `entity_id`, resolve it back to `config_entry_id
    with `{"type":"config/entity_registry/list"}`.
 3. Filter config entries to the ten supported domains.
 4. Join linked entities by matching `config_entry_id`.
-5. Present a compact table with:
-   - title
-   - domain
-   - `entry_id`
-   - state
-   - `supports_options`
-   - linked entities (compact comma-separated summary)
+5. Present the List Frame table (output-rules.md): title, domain, `entry_id`,
+   state. Options-flow support and linked entities stay in the per-helper
+   detail read; when several entries share a domain or similar titles, add a
+   short disambiguation line under the table with each candidate's linked
+   entities (compact comma-separated summary).
 
 #### Keyword search
 
@@ -435,7 +433,7 @@ After reading a helper config, present:
 - {type-specific fields}
 ```
 
-For list operations, use:
+For list operations, render the List Frame (output-rules.md):
 
 ```text
 | Entity ID | Name | Type | Area |
@@ -456,11 +454,11 @@ After reading a helper config, present:
 - **Current editable fields:** {field summary from the current options step when available}
 ```
 
-For list operations, use:
+For list operations, render the List Frame (output-rules.md; options-flow support and linked entities stay in the per-helper detail read above):
 
 ```text
-| Title | Domain | Entry ID | State | Supports Options-Flow Editing | Linked Entities |
-|-------|--------|----------|-------|--------------------------------|-----------------|
+| Title | Domain | Entry ID | State |
+|-------|--------|----------|-------|
 ```
 
 Never show raw JSON to the user.

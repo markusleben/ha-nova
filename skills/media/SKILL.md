@@ -87,7 +87,7 @@ Full relay/upstream error taxonomy: `skills/ha-nova/relay-api.md` -> Error Handl
 
 Apply `skills/ha-nova/output-rules.md` to all user-facing output.
 
-Report what is playing where: player, state, current media, volume, source, and group members when relevant. For browse results, show a short navigable list (title + type), never the raw tree.
+Render the Report shape (output-rules.md): what is playing where — player, state, current media, volume, source, and group members when relevant. Browse results render the List Frame (title + type), never the raw tree.
 
 ## Safety
 
