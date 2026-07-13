@@ -83,6 +83,10 @@ describe("post-write test-offer contract", () => {
 
   it("runs the consented post-run follow-up: trace, state verify, restore", () => {
     expect(testRun).toContain("## Post-Run Verification (automatic after any consented run)");
+    // Codex P2 (#334): a logic check has no run and no trace — reading
+    // `trace latest` there would report a stale run as the test result.
+    expect(testRun).toContain("A logic check creates no run");
+    expect(testRun).toContain("report the rendered condition/template results instead");
     expect(testRun).toContain("ha-nova trace latest <entity_id> --json");
     expect(testRun).toContain("never infer device safety from");
     expect(testRun).toContain("Leave no test residue");

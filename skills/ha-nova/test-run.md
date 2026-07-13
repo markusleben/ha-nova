@@ -127,7 +127,10 @@ the card that other event listeners cannot be ruled out.
 
 ## Post-Run Verification (automatic after any consented run)
 
-A chosen test plan includes its follow-up — run it without asking again:
+Applies to actions-only and real-path runs. A logic check creates no run
+and no trace — report the rendered condition/template results instead of
+reading traces. For runs, the chosen plan includes this follow-up — execute
+it without asking again:
 
 1. Read the trace: `ha-nova trace latest <entity_id> --json` (entity is
    positional). Extract: which trigger fired, which condition passed or
