@@ -167,7 +167,10 @@ Wording rules for the result and the collapsed no-findings line:
   entity live. Runtime behavior was not exercised."
 - Where a real run is meaningful, offer it as an explicit optional step: a
   manual trigger via `ha-nova:service-call` (its own preview + confirmation —
-  it may actuate real devices; never run it unrequested). If the user
+  it may actuate real devices; never run it unrequested). For automations and
+  scripts, structure that offer as the Test Plan card in
+  `skills/ha-nova/test-run.md` (write flow → Phase 5); helper writes keep
+  this plain single offer. If the user
   declines, the uncertainty stays in the final wording — do not let the
   closing sentence sound more conclusive than the checks were.
 

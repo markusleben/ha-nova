@@ -114,6 +114,8 @@ Rules:
 - Treat `skip_condition: true` as higher risk because it bypasses automation conditions.
 - Ask for confirmation bound to that exact runtime-call preview before execution.
 - After execution, verify only the target automation/script state and any user-approved helper/state assertions; do not infer device safety from a successful service response alone.
+- Post-write test runs: plan structure, real-path recipes, and the post-run follow-up live in `skills/ha-nova/test-run.md`.
+- When a Test Plan card already showed the concrete preview (service, target, payload, `skip_condition`), the user's option choice on that card IS the bound confirmation — do not ask again.
 
 ## Error Handling
 

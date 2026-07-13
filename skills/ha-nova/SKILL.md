@@ -212,6 +212,7 @@ Match user intent to exactly one skill:
 **"Revert that"** / **"Undo the last change"** → re-invoke the skill that made it: `ha-nova:write` (automation/script) or `ha-nova:helper` (helper). `revert` is update-only and lives there (see `write-safety.md` → Update-Revert), never `ha-nova:fallback`; create cleanup uses delete flow, and delete rollback needs Backup/recreate.
 **"Create a scene called Movie Night"** → `ha-nova:scene`
 **"Activate the scene Movie Night"** → `ha-nova:service-call` (runtime action, not a config change)
+**"Test the automation I just created"** → `ha-nova:write` Phase 5 test offer (plan per `skills/ha-nova/test-run.md`); a plain manual trigger stays `ha-nova:service-call`
 **"Show my main dashboard"** → `ha-nova:dashboard`
 **"Create a dashboard called Test Board"** → `ha-nova:dashboard`
 **"Delete the Test dashboard"** → `ha-nova:dashboard`
