@@ -1,6 +1,6 @@
 # Spec: guided relay update from the CLI (stage 2)
 
-Status: `draft` — approved direction (maintainer, 2026-07-12); implementation queued for a later version.
+Status: `implemented` (2026-07-12) — `cli/relay_guided_update.go`; ships with the next user-facing release.
 
 ## Problem
 
@@ -19,7 +19,8 @@ Since v0.14.1 the CLI warns when the relay sits below `min_relay_version` (docto
    - `POST /api/services/update/install` via the existing `/core` proxy with `{"entity_id": ..., "backup": true}` (partial App backup, mirrors `skills/updates/SKILL.md`).
    - Expect the relay to restart mid-call: tolerate the dropped response, then poll `GET /health` (existing `fetchRelayHealth`) every ~5 s for up to ~3 min until the reported version satisfies `min_relay_version`.
    - Report the verified version, or a plain timeout message with the manual path.
-4. Non-TTY, `--yes`-style automation, or standalone container: keep today's warning only (a container cannot replace itself; ha-nova has no Docker-host access).
+4. Non-TTY, `--yes`-style automation, `doctor --quiet`, or standalone container: keep today's warning only (a container cannot replace itself; ha-nova has no Docker-host access).
+5. Windows self-update: the replacement finishes in the background helper (stdin unwired, console already returned to the shell — the documented background-complete contract), so it stays warning-only and prints a pointer to the interactive `ha-nova doctor` path, which offers the prompt.
 
 ## Boundaries
 

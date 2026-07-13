@@ -137,6 +137,7 @@ func runUpdate(paths runtimePaths, args []string) int {
 	// interrupted mid-session by the proxy warning later.
 	if notice := relayFloorNotice(paths); !notice.empty() {
 		printHumanNotice(notice)
+		maybeOfferGuidedRelayUpdate(paths, notice)
 	}
 	return 0
 }
@@ -181,9 +182,15 @@ func runInternalReplace(paths runtimePaths, args []string) int {
 	printHumanInfo("Updated to v%s", localVersion(paths))
 	// Windows finishes the update in this replacement process — the freshly
 	// installed version.json is live here, so the relay-floor warning belongs
-	// here too (the staging branch in runUpdate exits before it).
+	// here too (the staging branch in runUpdate exits before it). No guided
+	// prompt here on purpose: this helper runs in the background with stdin
+	// unwired (windowsHelperLaunchProfile attaches output only) and the
+	// console is already back at the shell — the documented Windows contract
+	// is background-complete, never same-console-interactive. Point at the
+	// interactive path instead.
 	if notice := relayFloorNotice(paths); !notice.empty() {
 		printHumanNotice(notice)
+		printHumanInfo("Run `ha-nova doctor` in a terminal to be offered the guided relay update.")
 	}
 	return 0
 }
@@ -214,6 +221,7 @@ func syncInstalledClientsForCurrentVersion(paths runtimePaths, currentVersion, t
 	// installed skills need — say so here, where the user is looking.
 	if notice := relayFloorNotice(paths); !notice.empty() {
 		printHumanNotice(notice)
+		maybeOfferGuidedRelayUpdate(paths, notice)
 	}
 	return 0
 }

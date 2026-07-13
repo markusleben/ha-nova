@@ -93,7 +93,23 @@ func runDoctor(paths runtimePaths, args []string) int {
 		doctorInfo("Relay health reachable: %s/health", cfg.RelayBaseURL)
 		if notice := checkRelayVersion(paths, readiness.HealthBody); !notice.empty() {
 			printHumanNotice(notice)
-			status = 1
+			// --quiet is a machine/diagnostic contract: warning-only, never
+			// an interactive question that could block or trigger a restart.
+			// A guided update that ends verified clears THIS failure — doctor
+			// must not exit 1 over a problem the user just fixed.
+			fixed := false
+			if !*quiet {
+				fixed = maybeOfferGuidedRelayUpdate(paths, notice)
+			}
+			if !fixed {
+				status = 1
+			} else {
+				// The relay just restarted: the readiness captured before the
+				// update is stale (its WS may still be reconnecting, or fail
+				// on the new version) — the checks below must judge the relay
+				// that is running NOW.
+				readiness = checkRelayReadiness(cfg.RelayBaseURL, token)
+			}
 		}
 		if haReachable {
 			switch {

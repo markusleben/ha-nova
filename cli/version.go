@@ -213,9 +213,18 @@ func readMinRelayVersion(dir string) string {
 }
 
 func checkRelayVersion(paths runtimePaths, healthBody []byte) humanNotice {
-	// A live GET /health answers with the relay envelope
-	// {"ok":true,"data":{"version":...}} — the version is NOT top-level. The
-	// top-level field stays as a fallback for bare health bodies.
+	version := parseRelayHealthVersion(healthBody)
+	if version == "" {
+		return humanNotice{}
+	}
+	return checkRelayVersionValue(paths, version)
+}
+
+// parseRelayHealthVersion extracts the relay version from a /health body. A
+// live GET /health answers with the relay envelope
+// {"ok":true,"data":{"version":...}} — the version is NOT top-level. The
+// top-level field stays as a fallback for bare health bodies.
+func parseRelayHealthVersion(healthBody []byte) string {
 	var health struct {
 		Version string `json:"version"`
 		Data    struct {
@@ -223,16 +232,12 @@ func checkRelayVersion(paths runtimePaths, healthBody []byte) humanNotice {
 		} `json:"data"`
 	}
 	if json.Unmarshal(healthBody, &health) != nil {
-		return humanNotice{}
+		return ""
 	}
-	version := health.Data.Version
-	if version == "" {
-		version = health.Version
+	if health.Data.Version != "" {
+		return health.Data.Version
 	}
-	if version == "" {
-		return humanNotice{}
-	}
-	return checkRelayVersionValue(paths, version)
+	return health.Version
 }
 
 // relayFloorNotice fetches the relay health once and returns the

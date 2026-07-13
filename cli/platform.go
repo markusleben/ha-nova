@@ -16,6 +16,16 @@ func isInteractiveTTY() bool {
 	return false
 }
 
+// stdoutIsInteractiveTTY reports whether stdout still reaches a terminal. A
+// prompt written to a redirected stdout (`ha-nova update > update.log`) would
+// block on invisible input — callers that ask questions must check BOTH ends.
+func stdoutIsInteractiveTTY() bool {
+	if fi, err := os.Stdout.Stat(); err == nil && (fi.Mode()&os.ModeCharDevice) != 0 {
+		return true
+	}
+	return false
+}
+
 func promptLine(label, defaultValue string) (string, error) {
 	fmt.Fprint(os.Stdout, label)
 	if defaultValue != "" {
