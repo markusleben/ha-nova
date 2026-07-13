@@ -98,7 +98,7 @@ Do NOT invoke `ha-nova:review` separately.
    - **Dedup**: findings from Phase 2 Step 3b that the user saw MUST NOT repeat. Track by check type.
     - Exception: if R-18 still matches on persisted read-back config, report it again as a persisted runtime risk.
     - `R-19` follows normal dedup; R-23/R-24 do too. If already shown pre-write, do not repeat unless it becomes a new category.
-    - If persisted R-18 remains, inspect traces after the next real run. Do not auto-trigger or auto-read traces.
+    - If persisted R-18 remains, inspect traces after the next real run. Do not auto-trigger or auto-read traces outside an accepted Phase 5 test plan.
     - If actions reference helpers: always run H-01..H-10.
 3. Collision scan: `{"type":"search/related","item_type":"entity","item_id":"<entity_id>"}` via `ha-nova relay ws --data-file <payload-file>`; read max 3 related configs.
 4. Post-Write Review output (localized; see `skills/ha-nova/output-rules.md`) — report only what has substance; scans still run, only empty output is suppressed:
@@ -106,6 +106,10 @@ Do NOT invoke `ha-nova:review` separately.
    - If nothing is worth reporting, collapse to one scope-honest confirmation line (write-safety → Verification Honesty).
    - Never emit `Questions to consider`, `Suggestions`, or `Instant help` post-write; never repeat an item across **Findings** and **Advisory**.
 5. Update-Revert: updates only → **run `ha-nova snapshot save`** and offer `revert` (see `skills/ha-nova/write-safety.md`). Creates → cleanup via normal HA NOVA delete flow with preview, `confirm:<token>`, and absence verification. Deletes → Home Assistant Backups.
+
+### Phase 5: Test Offer (create/update only)
+
+After the Post-Write Review output, build a Test Plan card per `skills/ha-nova/test-run.md`: classify trigger type and action risk, pick ONE recommended option (real run included where acceptable — with the devices it will switch named), show at most 3 options plus `skip`. Never execute anything unconsented; the user's option choice is the confirmation bound to that exact card (single confirmation — no second prompt). Runs follow the service-call runtime rules (`mqtt` triggers via `ha-nova:mqtt`; logic check via `POST /api/template`), then the automatic post-run follow-up in test-run.md (trace, state verify, restore). After one skip, de-escalate to a single line for later writes. Skip this phase for deletes.
 
 ## Output Format
 
@@ -146,3 +150,4 @@ On demand — read only when the trigger applies:
 - `skills/ha-nova/template-guidelines.md` — the draft contains Jinja templates
 - `skills/ha-nova/safe-refactoring.md` — rename, migrate, or orphan-cleanup tasks
 - `skills/ha-nova/update-revert.md` — the user asks to revert, undo, or restore a verified update (create cleanup and delete recovery stay out — see write-safety)
+- `skills/ha-nova/test-run.md` — Phase 5 test offer: feasibility, options, post-run follow-up

@@ -108,12 +108,14 @@ const SAFETY_CORE_BLOCKS = ((): { mutation: string; readOnly: string } => {
 // TRANSITIVE load (lazy references), not these file sizes — write carries the
 // on-demand trigger list itself.
 const WORD_BUDGETS: Record<string, number> = {
-  // write/mqtt ratcheted for the batch-safety opt-in lines (#327).
-  write: 1450,
+  // write/mqtt ratcheted for the batch-safety opt-in lines (#327);
+  // write again for the Phase 5 test offer (test-run.md).
+  write: 1600,
   diagnose: 1450,
   mqtt: 1300,
   scene: 1350,
-  "service-call": 1250,
+  // test-offer single-confirmation + reference bullets (test-run.md).
+  "service-call": 1350,
   // Carries the canonical File-Change Preview example — the only layout
   // source for file edits; concrete examples are what make a card renderable.
   "yaml-config": 1250,
