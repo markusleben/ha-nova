@@ -84,6 +84,7 @@ describe("batch safety contract (issue #327)", () => {
 
   it("requires sequential fail-fast execution with a per-target-verified ledger", () => {
     expect(batchSafety).toContain("Fail fast on the first unexpected result");
+    expect(batchSafety).toContain("the completion ledger derives from per-target verification");
     expect(batchSafety).toContain("Verify every completed target individually");
     expect(batchSafety).toContain("succeeded, failed, not attempted");
     expect(batchSafety).toContain("Never claim the batch is atomic");

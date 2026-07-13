@@ -90,7 +90,9 @@ separate manifests, each with its own preview and confirmation code:
 ## Execution
 
 - Sequential, in manifest order, unless the owning API provides a proven
-  atomic batch endpoint. Never claim the batch is atomic.
+  single-call batch endpoint (e.g. `recorder/clear_statistics` for one issue
+  group) — then the completion ledger derives from per-target verification
+  after that call. Never claim the batch is atomic.
 - Fail fast on the first unexpected result.
 - Verify every completed target individually using the owning skill's
   existing verification rules.
@@ -154,7 +156,7 @@ the offer of a remaining-targets manifest).
 | `write` | yes | automations OR scripts (never mixed); per-item consumer check; YAML export before delete when feasible |
 | `helper` | yes | one helper family per manifest; storage and config-entry families never mixed |
 | `mqtt` | yes | retained discovery cleanup for ONE resolved device (topics only from `mqtt/device/debug_info`); command/`set` topics excluded |
-| `maintenance` | yes (already grouped) | statistics clears per issue group; orphan registry removal per config entry; all existing gates unchanged |
+| `maintenance` | yes (already grouped) | statistics clears per issue group via the API's single-call group clear (ledger from per-ID re-validation); orphan registry removal per config entry, sequential; all existing gates unchanged |
 | `scene` | yes | storage scenes only (Editability Guard per target) |
 | `dashboard` | yes | dashboards, resources, and cards are three separate families |
 | `todo` | yes | list deletion with per-list open-item counts; item removal stays the existing sub-token flow |
