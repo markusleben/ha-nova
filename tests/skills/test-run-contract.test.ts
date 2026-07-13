@@ -88,8 +88,11 @@ describe("post-write test-offer contract", () => {
     expect(testRun).toContain("Leave no test residue");
     expect(testRun).toContain("one passing run proves this path once");
     // Restore covers only what the confirmed card named — no surprise writes.
-    expect(testRun).toContain("Anything the card");
-    expect(testRun).toContain("did not name needs its own previewed call");
+    expect(testRun).toContain("Anything the card did not name needs its\n   own previewed call");
+    // Codex P2 (#334): an automation enabled only for the test must not stay
+    // enabled in production afterwards.
+    expect(testRun).toContain("the post-run restore returns it to disabled");
+    expect(testRun).toContain("enabled only for the test (back to disabled)");
     // Write skill allows the consented follow-up without weakening the default.
     expect(writeSkill).toContain(
       "Do not auto-trigger or auto-read traces outside an accepted Phase 5 test plan",

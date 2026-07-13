@@ -66,8 +66,8 @@ Trigger type (drives which options exist):
   scheduled occurrence (name the expected time). Never change the system
   clock or temporarily edit the trigger to force a test.
 - Scripts have no trigger: parameterized runs replace the real-path option.
-- If the automation is disabled, enabling it is part of the plan and must be
-  named on the card.
+- If the automation is disabled, enabling it is part of the plan, must be
+  named on the card, and the post-run restore returns it to disabled.
 - Multi-target changes (write-safety → Multi-Target Changes): build ONE
   consolidated offer for the whole logical change — recommend the riskiest
   or most representative target first, never one card per target.
@@ -135,10 +135,11 @@ A chosen test plan includes its follow-up — run it without asking again:
    the last 5 traces by default.
 2. Read the states of the acted-on entities — never infer device safety from
    a successful service response alone.
-3. Restore what the confirmed card planned: manipulated trigger sources
-   and — when the card said so — actuated devices back to their pre-test
-   state (read before the run). Leave no test residue. Anything the card
-   did not name needs its own previewed call.
+3. Restore what the confirmed card planned: manipulated trigger sources, an
+   automation enabled only for the test (back to disabled), and — when the
+   card said so — actuated devices back to their pre-test state (read before
+   the run). Leave no test residue. Anything the card did not name needs its
+   own previewed call.
 4. Report compactly: path taken, deciding condition, end state of the
    devices, restore status.
 5. Honesty line: one passing run proves this path once — not every branch,
