@@ -70,7 +70,7 @@ New section (the only part that changes):
     - name: "Any window open"
 
 Replaces: nothing — this section is new. A backup (.bak) is written first.
-⚠️ Nothing saved yet.
+⚠️  Nothing saved yet.
 Options: apply · show yaml · cancel   (show yaml = the whole resulting file)
 ```
 

@@ -14,11 +14,34 @@ describe("output design system (Cards)", () => {
     expect(outputRules).toContain("**Delete Card**");
     expect(outputRules).toContain("**Result Card**");
     expect(outputRules).toContain("📝 Preview:");
-    expect(outputRules).toContain("🗑️ Delete:");
+    expect(outputRules).toContain("🗑️  Delete:");
     expect(outputRules).toContain("✅ Saved:");
-    expect(outputRules).toContain("⚠️ Nothing saved yet.");
-    expect(outputRules).toContain("⚠️ Nothing deleted yet.");
+    expect(outputRules).toContain("⚠️  Nothing saved yet.");
+    expect(outputRules).toContain("⚠️  Nothing deleted yet.");
     expect(outputRules).toContain("nothing else decorative, never color");
+  });
+
+  it("pads variation-selector emoji with two spaces in every template", () => {
+    // 🗑️ and ⚠️ end in U+FE0F; many terminals render them double-width over
+    // the next column and visually swallow a single following space.
+    expect(outputRules).toContain("take two spaces before the following text");
+    const templates = [
+      outputRules,
+      readFileSync("skills/ha-nova/write-safety.md", "utf8"),
+      readFileSync("skills/yaml-config/SKILL.md", "utf8"),
+    ];
+    for (const content of templates) {
+      // No template line (these start with the emoji) may follow a VS16 emoji
+      // with exactly one space; inline prose mentions are exempt.
+      expect(content).not.toMatch(/^[🗑⚠]️ [^ ]/mu);
+    }
+  });
+
+  it("names the typed keyword a confirmation code toward users, never a token", () => {
+    expect(outputRules).toContain('is the "confirmation code" (localized');
+    expect(outputRules).toContain('Never call it a "token" in user-facing output');
+    const contextSkill = readFileSync("skills/ha-nova/SKILL.md", "utf8");
+    expect(contextSkill).toContain('call it the "confirmation code" (localized), never a "token"');
   });
 
   it("shows the change table with the canonical header and verbatim-row rule", () => {

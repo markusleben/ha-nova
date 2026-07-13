@@ -99,7 +99,7 @@ Skills reference this section as "context skill → Active Preview Confirmation"
 
 - `create`/`update`: natural confirmation bound to active preview.
 - `delete`/destructive: token confirmation `confirm:<token>`.
-  **Strict token enforcement:** User MUST reply with the exact token string (e.g., `confirm:del-main-lights`). Any other response — including "yes", "sure, delete it", "do it", or any natural-language confirmation — is NOT valid. Reject and re-prompt with the exact token required.
+  **Strict token enforcement:** User MUST reply with the exact token string (e.g., `confirm:del-main-lights`). Any other response — including "yes", "sure, delete it", "do it", or any natural-language confirmation — is NOT valid. Reject and re-prompt with the exact code required. In user-facing output call it the "confirmation code" (localized), never a "token" (see `skills/ha-nova/output-rules.md` → Localization).
   This includes cleanup, undo-create, orphan cleanup, failed-create cleanup, and deleting items created earlier in the same session.
 
 ### Write Routing Gate

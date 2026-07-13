@@ -148,7 +148,7 @@ semantic placeholders; localize them before showing the user:
 <paste the ha-nova diff file/stdout here, unchanged>
 
 <pre-write check / impact line>
-⚠️ <localized: nothing saved yet>
+⚠️  <localized: nothing saved yet>
 <localized options label>: apply · show yaml · cancel
 ```
 
