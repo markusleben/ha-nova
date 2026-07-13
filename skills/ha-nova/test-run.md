@@ -43,8 +43,13 @@ Action risk (drives the recommendation):
 | Action block touches | Recommended test |
 |---|---|
 | notifications, logbook, `input_*` helpers, timers, variables only | real run — low consequence |
-| ordinary devices: lights, switches, covers, media, fans, comfort climate | real run — name every device plus the restore plan |
+| ordinary devices: lights, switches, media, fans, non-access covers, comfort climate | real run — name every device plus the restore plan |
 | high consequence: locks, garage doors, alarm panels, valves, water heaters, heating setpoints, `homeassistant.restart`, anything irreversible | logic check first; a real run stays available but carries an explicit warning line and is never presented as consequence-free |
+
+Domain alone is not enough for covers and climate: check `device_class` and
+what the entity controls before using the ordinary row — a garage door,
+gate, or entry door exposed as `cover.*` and any heating/cooling setpoint
+change belong in the high-consequence row.
 
 Co-listeners escalate: the risk class covers everything the run can set in
 motion, not just the tested automation's own actions. If a named co-listener
@@ -138,10 +143,13 @@ and no trace — report the rendered condition/template results instead of
 reading traces. For runs, the chosen plan includes this follow-up — execute
 it without asking again:
 
-1. Read the trace: `ha-nova trace latest <entity_id> --json` (entity is
-   positional). Extract: which trigger fired, which condition passed or
-   stopped the run, which action steps ran or errored. Automations keep only
-   the last 5 traces by default.
+1. Capture the latest run_id before the run (`ha-nova trace list`). After
+   the run, read `ha-nova trace latest <entity_id> --json` (entity is
+   positional) and accept it only if its run_id is new — otherwise treat it
+   as "no new trace", never report a stale run as the test result. Extract:
+   which trigger fired, which condition passed or stopped the run, which
+   action steps ran or errored. Automations keep only the last 5 traces by
+   default.
 2. Read the states of the acted-on entities — never infer device safety from
    a successful service response alone.
 3. Restore what the confirmed card planned: manipulated trigger sources, an

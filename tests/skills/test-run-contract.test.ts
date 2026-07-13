@@ -63,6 +63,10 @@ describe("post-write test-offer contract", () => {
     expect(testRun).toContain("inherits that risk level");
     // An unavailable target makes any run unprovable — the card must say so.
     expect(testRun).toContain("cannot prove physical behavior right\nnow");
+    // Codex P2 (#334): a garage door exposed as cover.* or a heating setpoint
+    // must not slip into the ordinary-device row on domain alone.
+    expect(testRun).toContain("check `device_class`");
+    expect(testRun).toContain("belong in the high-consequence row");
   });
 
   it("keeps real-path recipes honest per trigger type", () => {
@@ -91,6 +95,10 @@ describe("post-write test-offer contract", () => {
     // `trace latest` there would report a stale run as the test result.
     expect(testRun).toContain("A logic check creates no run");
     expect(testRun).toContain("report the rendered condition/template results instead");
+    // Codex P2 (#334): trace latest can serve a stale prior run — require a
+    // fresh run_id before treating the trace as the test result.
+    expect(testRun).toContain("Capture the latest run_id before the run");
+    expect(testRun).toContain("accept it only if its run_id is new");
     expect(testRun).toContain("ha-nova trace latest <entity_id> --json");
     expect(testRun).toContain("never infer device safety from");
     expect(testRun).toContain("Leave no test residue");
