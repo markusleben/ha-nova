@@ -11,6 +11,7 @@ Apply these rules to every user-facing HA NOVA response, including direct sub-sk
 - Keep Home Assistant state values, API names, commands, entity IDs, and service names literal when they are evidence.
 - Keep typed safety keywords literal in every language: `revert`, `show yaml`, `confirm:<token>`.
 - Localize the surrounding sentence around those keywords.
+- The user-facing name for the typed destructive keyword is the "confirmation code" (localized to the user's language). Never call it a "token" in user-facing output — "token" is internal spec language, and it also collides with the unrelated access-token concept users know from onboarding.
 
 ## Technical Noise
 
@@ -35,7 +36,7 @@ Apply these rules to every user-facing HA NOVA response, including direct sub-sk
 
 ## Cards (Write-Flow Visual System)
 
-Write and action flows render one of three cards — the same shape every time, so users recognize them at a glance. Labels localize at runtime; emoji, literal keywords, entity IDs, state values, and CLI diff rows do not. Fixed emoji vocabulary: 📝 preview, 🗑️ delete preview, ✅ result, ⚠️ save status, plus the 🔴🟠🟡 severity markers — nothing else decorative, never color. Cards frame writes and runtime actions only; review and read output keep their own sections.
+Write and action flows render one of three cards — the same shape every time, so users recognize them at a glance. Labels localize at runtime; emoji, literal keywords, entity IDs, state values, and CLI diff rows do not. Fixed emoji vocabulary: 📝 preview, 🗑️ delete preview, ✅ result, ⚠️ save status, plus the 🔴🟠🟡 severity markers — nothing else decorative, never color. Cards frame writes and runtime actions only; review and read output keep their own sections. Emoji that end in a variation selector (🗑️, ⚠️) take two spaces before the following text — many terminals render them double-width over the next column and visually swallow a single space; the other card emoji keep one space.
 
 **Preview Card** (create/update — values illustrative, labels localized at runtime):
 
@@ -49,7 +50,7 @@ The three light actions now only run when someone is home.
 | Mode | single | restart |
 
 Pre-write check: no concerns.
-⚠️ Nothing saved yet.
+⚠️  Nothing saved yet.
 Options: apply · show yaml · cancel
 ```
 
@@ -58,10 +59,10 @@ Title line: emoji + localized preview label + item type + name. Then one to thre
 **Delete Card** (destructive — never a menu; the token prompt is always the last line):
 
 ```
-🗑️ Delete: automation "Old morning routine"
+🗑️  Delete: automation "Old morning routine"
 Turns all lights off at 23:00 — that stops when it is gone.
 Used by: nothing else found.
-⚠️ Nothing deleted yet.
+⚠️  Nothing deleted yet.
 To delete, reply exactly: confirm:<token>
 ```
 
