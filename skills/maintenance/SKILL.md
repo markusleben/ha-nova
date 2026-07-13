@@ -75,7 +75,7 @@ Apply `skills/ha-nova/output-rules.md`.
 - `Verification`
 - `Next step`
 
-Use stable localized slot labels in this order; omit empty slots. Grouped counts + capped example lists — never raw JSON.
+Use stable localized slot labels in this order; omit empty slots. Triage renders the Report shape; grouped ID lists render the List Frame (capped example lists) — never raw JSON.
 
 ## Safety
 

@@ -85,7 +85,7 @@ Apply `skills/ha-nova/output-rules.md` to all user-facing output.
 - `Key events`, `Key transitions`, or `Key periods`
 - `Next step`
 
-Keep default output compact. Raw payload dumps are opt-in only.
+These slots render the Report shape (output-rules.md). Keep default output compact. Raw payload dumps are opt-in only.
 
 ## Safety
 

@@ -112,8 +112,10 @@ const WORD_BUDGETS: Record<string, number> = {
   // write again for the Phase 5 test offer (test-run.md).
   write: 1600,
   diagnose: 1450,
+  // Report-shape declaration line (shared output shapes).
+  health: 1200,
   mqtt: 1300,
-  scene: 1350,
+  scene: 1400,
   // test-offer single-confirmation + reference bullets (test-run.md).
   "service-call": 1350,
   // Carries the canonical File-Change Preview example — the only layout
@@ -127,7 +129,8 @@ const WORD_BUDGETS: Record<string, number> = {
   maintenance: 1300,
   fallback: 2300,
   helper: 3600,
-  review: 4300,
+  // Suggestion Block item-shape pointer (shared output shapes).
+  review: 4400,
 };
 const DEFAULT_WORD_BUDGET = 1150;
 

@@ -28,7 +28,7 @@ This file defines only how the test plan is chosen, presented, and verified.
   afterwards.
 - Transparency duty: every run option names the physical devices it will
   touch and the expected end state before the user chooses.
-- Single confirmation: the Test Plan card doubles as the runtime-call
+- Single confirmation: the Test Plan Card doubles as the runtime-call
   preview (exact service, target, payload, `skip_condition` value, device
   delta). The user's option choice is the natural confirmation bound to that
   exact preview — do not ask a second time. Any change to the plan expires
@@ -180,10 +180,11 @@ it without asking again:
 - A failed test never auto-triggers a config change; every fix goes through
   the regular write preview and confirmation.
 
-## Offer Format (Test Plan card)
+## Offer Format (Test Plan Card)
 
-Follows `skills/ha-nova/SKILL.md` → Interactive Choices and the card rules
-in `skills/ha-nova/output-rules.md` (labels localized at runtime):
+This is the Test Plan Card of `skills/ha-nova/output-rules.md` → Cards; menu
+mechanics follow `skills/ha-nova/SKILL.md` → Interactive Choices (labels
+localized at runtime):
 
 - Recommended option first and marked; at most 3 options plus `skip`.
 - One line per option: what runs, what it proves, what it switches.

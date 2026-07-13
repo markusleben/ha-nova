@@ -139,7 +139,7 @@ If ambiguity remains: present top candidates (max 10), ask one selection questio
 
 Apply `skills/ha-nova/output-rules.md` to all user-facing output.
 
-Return the Step 4 shortlist shape; never dump raw `get_states` output.
+Render the Step 4 shortlist as the List Frame (output-rules.md); never dump raw `get_states` output.
 
 ## Safety
 

@@ -50,7 +50,7 @@ Full relay/upstream error taxonomy: `skills/ha-nova/relay-api.md` -> Error Handl
 
 Apply `skills/ha-nova/output-rules.md` to all user-facing output.
 
-For a snapshot, describe what is visible in the frame and name the camera plus the time it was taken. For a stream, give the URL and say it is short-lived. Never claim to have seen something the frame does not show.
+Render the Report shape (output-rules.md). For a snapshot, describe what is visible in the frame and name the camera plus the time it was taken. For a stream, give the URL and say it is short-lived. Never claim to have seen something the frame does not show.
 
 ## Safety
 

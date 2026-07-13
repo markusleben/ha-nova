@@ -160,7 +160,7 @@ triggers: ...
 actions: ...
 ```
 
-For list operations, use a compact table:
+For list operations, render the List Frame (output-rules.md) with these columns:
 
 ```
 | Entity ID | Name | Area |

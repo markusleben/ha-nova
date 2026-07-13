@@ -48,7 +48,7 @@ Multi-target logical changes: present the plan first per `skills/ha-nova/write-s
    - Treat notification copy as user-authored content: preserve notification titles, messages, templates, metadata. Rename/timing changes must not restyle, relocalize, or restructure existing text; requested wording changes change only the requested copy.
 2. BP gate (`skills/ha-nova/write-safety.md`): fresh/stale+simple->continue, stale+complex->block.
 3. Suggestions + Pre-Write Checks (skip for `delete`):
-   - **3a) Suggestions**: Show `suggested_enhancements` (max 4, numbered/menu). User accepts numbers or "skip" → merge accepted into config BEFORE preview. Skip when `SUGGESTED_ENHANCEMENTS: none`.
+   - **3a) Suggestions**: Render `suggested_enhancements` as the Suggestion Block (output-rules.md; max 4, numbered/menu). User accepts numbers or "skip" → merge accepted into config BEFORE preview. Skip when `SUGGESTED_ENHANCEMENTS: none`.
    - **3b) Static Checks**: Use `skills/review/checks.md` → Application (family matrix + evidence boundaries). Run S/R/P/M checks analytically on the draft YAML — no relay calls (scripts: F-01..F-08; helper refs: H-01..H-08. Defer H-09/H-10 to Phase 4).
      One pre-write verdict line before apply:
      - clean draft → localized equivalent of "Pre-write check: no issues worth flagging before save."
@@ -109,13 +109,13 @@ Do NOT invoke `ha-nova:review` separately.
 
 ### Phase 5: Test Offer (create/update only)
 
-After the Post-Write Review output, build a Test Plan card per `skills/ha-nova/test-run.md`: classify trigger type and action risk, pick ONE recommended option (real run included where acceptable — with the devices it will switch named), show at most 3 options plus `skip`. Never execute anything unconsented; the user's option choice is the confirmation bound to that exact card (single confirmation — no second prompt). Runs follow the service-call runtime rules (`mqtt` triggers via `ha-nova:mqtt`; logic check via `POST /api/template`), then the automatic post-run follow-up in test-run.md (trace, state verify, restore). After one skip, de-escalate to a single line for later writes. Skip this phase for deletes.
+After the Post-Write Review output, build a Test Plan Card per `skills/ha-nova/test-run.md`: classify trigger type and action risk, pick ONE recommended option (real run included where acceptable — with the devices it will switch named), show at most 3 options plus `skip`. Never execute anything unconsented; the user's option choice is the confirmation bound to that exact card (single confirmation — no second prompt). Runs follow the service-call runtime rules (`mqtt` triggers via `ha-nova:mqtt`; logic check via `POST /api/template`), then the automatic post-run follow-up in test-run.md (trace, state verify, restore). After one skip, de-escalate to a single line for later writes. Skip this phase for deletes.
 
 ## Output Format
 
 Apply `skills/ha-nova/output-rules.md`.
 
-Previews, delete prompts, and post-write results render as the Cards defined there; the diff mechanics stay in `skills/ha-nova/write-safety.md`.
+Previews, delete prompts, post-write results, and the Phase 5 test offer render as the Cards defined there (Test Plan Card mechanics: `skills/ha-nova/test-run.md`); the diff mechanics stay in `skills/ha-nova/write-safety.md`.
 
 See `skills/ha-nova/SKILL.md` → Response Format.
 

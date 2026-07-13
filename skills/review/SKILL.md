@@ -415,7 +415,7 @@ For resolved targets `== 1`, keep this 8-section output in the same order every 
 
 **Section 6 — Suggestions:**
 - confident improvement ideas only
-- each: short title + what it does + why it helps
+- each item follows the Suggestion Block item shape (output-rules.md): short title + what it does + why it helps; the section header stays plain — review output is sectioned, not card-framed
 - rank by intervention depth: Fix existing → Simplify existing → Extend existing → Add new
 - do not place intent-uncertain removals/simplifications here
 - or localized equivalent of "No confident suggestions."

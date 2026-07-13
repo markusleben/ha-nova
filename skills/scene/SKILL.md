@@ -116,7 +116,7 @@ Apply `skills/ha-nova/output-rules.md` to all user-facing output.
 - `Verification`
 - `Next step`
 
-Use stable localized slot labels in this order; omit empty slots.
+Use stable localized slot labels in this order; omit empty slots. Reads render the Report shape; scene lists render the List Frame (output-rules.md).
 
 ## Safety
 

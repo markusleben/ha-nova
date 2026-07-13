@@ -108,7 +108,7 @@ These names are semantic output slots, not literal headings. Do not mix English 
 - `System`
 - `Next step`
 
-Keep it compact. Compute overall internally as `ok`, `attention`, or `limited`, but show the overall value as a localized human phrase, not the raw enum. Include localized labels for overall status, checked time, and source coverage in `Status`. Keep Home Assistant state values such as `unavailable`, `unknown`, `setup_error`, `setup_retry`, and `not_loaded` literal when they are evidence, with a short localized explanation when helpful. Do not dump raw JSON, full logs, full entity lists, full component lists, or full integration-entry lists.
+These slots are the Report shape (output-rules.md): `Status` is the answer-first lead, `Next step` closes. Keep it compact. Compute overall internally as `ok`, `attention`, or `limited`, but show the overall value as a localized human phrase, not the raw enum. Include localized labels for overall status, checked time, and source coverage in `Status`. Keep Home Assistant state values such as `unavailable`, `unknown`, `setup_error`, `setup_retry`, and `not_loaded` literal when they are evidence, with a short localized explanation when helpful. Do not dump raw JSON, full logs, full entity lists, full component lists, or full integration-entry lists.
 
 Choose one safe `Next step`:
 - repairs first

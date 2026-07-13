@@ -113,7 +113,7 @@ Apply `skills/ha-nova/output-rules.md` to all user-facing output.
 
 Use stable localized slot labels in this order for previews; omit empty slots, but do not invent ad-hoc headings.
 
-Default to a compact field summary, not raw registry JSON.
+Metadata reads render the Report shape; registry inventories render the List Frame (output-rules.md). Default to a compact field summary, not raw registry JSON.
 
 ## Safety
 

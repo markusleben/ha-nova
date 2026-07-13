@@ -73,7 +73,7 @@ Full relay/upstream error taxonomy: `skills/ha-nova/relay-api.md` -> Error Handl
 
 Apply `skills/ha-nova/output-rules.md` to all user-facing output.
 
-For a listen: the topic, the window length, how many messages arrived (live versus retained — never merge those two), the distinct topics seen, and a few representative payloads — never the raw dump. Say explicitly when nothing arrived, and when everything that arrived was a retained replay. For a publish: the topic, payload, and whether it was retained.
+Render the Report shape (output-rules.md). For a listen: the topic, the window length, how many messages arrived (live versus retained — never merge those two), the distinct topics seen, and a few representative payloads — never the raw dump. Say explicitly when nothing arrived, and when everything that arrived was a retained replay. For a publish: the topic, payload, and whether it was retained.
 
 ## Safety
 

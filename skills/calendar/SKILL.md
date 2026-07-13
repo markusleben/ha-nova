@@ -63,7 +63,7 @@ Apply `skills/ha-nova/output-rules.md` to all user-facing output.
 - `Events`
 - `Next step`
 
-For multiple calendars, group by calendar and keep each group short.
+These slots render the Report shape (output-rules.md); event groups follow the List Frame. For multiple calendars, group by calendar and keep each group short.
 
 ## Safety
 

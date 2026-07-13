@@ -152,7 +152,9 @@ describe("helper contract", () => {
       expect(skillDoc).toContain("start an options flow");
       expect(skillDoc).toContain("current editable options snapshot");
       expect(skillDoc).toContain("Supports options-flow editing:");
-      expect(skillDoc).toContain("Supports Options-Flow Editing");
+      // List Frame trim (max 4 short columns): options-flow support and linked
+      // entities live in the per-helper detail read, not the list table.
+      expect(skillDoc).toContain("| Title | Domain | Entry ID | State |");
       expect(skillDoc).toContain("Current flow step:");
       expect(skillDoc).toContain("Current editable fields:");
       expect(skillDoc).toContain("mark its value as unavailable instead of guessing");

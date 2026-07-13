@@ -81,7 +81,7 @@ Apply `skills/ha-nova/output-rules.md` to all output.
 - `Verification`
 - `Next step`
 
-Use stable localized slot labels in this order; omit empty slots. Dates are ISO timestamps with offsets — convert to the user's local time; sizes human-readable — never raw JSON.
+Use stable localized slot labels in this order; omit empty slots. Status renders the Report shape; backup lists render the List Frame (output-rules.md). Dates are ISO timestamps with offsets — convert to the user's local time; sizes human-readable — never raw JSON.
 
 ## Safety
 
