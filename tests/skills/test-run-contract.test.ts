@@ -98,6 +98,7 @@ describe("post-write test-offer contract", () => {
     // Codex P2 (#334): trace latest can serve a stale prior run — require a
     // fresh run_id before treating the trace as the test result.
     expect(testRun).toContain("Capture the latest run_id before the run");
+    expect(testRun).toContain("ha-nova trace list <entity_id> --json");
     expect(testRun).toContain("accept it only if its run_id is new");
     expect(testRun).toContain("ha-nova trace latest <entity_id> --json");
     expect(testRun).toContain("never infer device safety from");

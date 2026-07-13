@@ -143,7 +143,8 @@ and no trace — report the rendered condition/template results instead of
 reading traces. For runs, the chosen plan includes this follow-up — execute
 it without asking again:
 
-1. Capture the latest run_id before the run (`ha-nova trace list`). After
+1. Capture the latest run_id before the run
+   (`ha-nova trace list <entity_id> --json`). After
    the run, read `ha-nova trace latest <entity_id> --json` (entity is
    positional) and accept it only if its run_id is new — otherwise treat it
    as "no new trace", never report a stale run as the test result. Extract:
