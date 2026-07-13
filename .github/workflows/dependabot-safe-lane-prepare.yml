@@ -88,56 +88,83 @@ jobs:
           mapfile -t allowed_update_types < <(jq -r '.dependabot_safe_lane.allowed_update_types[]' "${POLICY_FILE}")
           mapfile -t safe_manual_dependencies < <(jq -r '.dependabot_safe_lane.manual_review_dependencies[]' "${POLICY_FILE}")
           mapfile -t manifest_sensitive_files < <(jq -r '.manifest_review.manifest_sensitive_files[]' "${POLICY_FILE}")
+          actions_dependency_group="$(jq -r '.dependabot_safe_lane.github_actions.dependency_group // ""' "${POLICY_FILE}")"
+          mapfile -t actions_allowed_update_types < <(jq -r '.dependabot_safe_lane.github_actions.allowed_update_types[]?' "${POLICY_FILE}")
+          actions_workflow_prefix="$(jq -r '.dependabot_safe_lane.github_actions.workflow_file_prefix // ""' "${POLICY_FILE}")"
           policy_sha="$(sha256sum "${POLICY_FILE}" | awk '{print $1}')"
 
           eligible=false
           reason=""
           manual_dependency=""
+          lane=""
 
-          package_ecosystem_allowed=false
           for allowed_package_ecosystem in "${allowed_package_ecosystems[@]}"; do
             if [[ "${PACKAGE_ECOSYSTEM}" == "${allowed_package_ecosystem}" ]]; then
-              package_ecosystem_allowed=true
+              lane="npm"
               break
             fi
           done
+          if [[ -z "${lane}" && "${PACKAGE_ECOSYSTEM}" == "github_actions" && -n "${actions_dependency_group}" ]]; then
+            lane="actions"
+          fi
 
-          update_type_allowed=false
-          for allowed_update_type in "${allowed_update_types[@]}"; do
-            if [[ "${UPDATE_TYPE}" == "${allowed_update_type}" ]]; then
-              update_type_allowed=true
-              break
-            fi
-          done
+          if [[ -z "${lane}" ]]; then
+            reason="package ecosystem is not in a safe lane"
+          fi
 
-          if [[ "${package_ecosystem_allowed}" != "true" ]]; then
-            reason="package ecosystem is not npm/npm_and_yarn"
-          elif [[ "${DEPENDENCY_GROUP}" != "${dependabot_dependency_group}" ]]; then
-            reason="dependency group is not the safe dev-only lane"
-          elif [[ "${update_type_allowed}" != "true" ]]; then
-            reason="update type is not minor or patch"
-          else
-            while IFS= read -r dependency_name; do
-              dependency_name="$(printf '%s' "${dependency_name}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
-              if [[ -z "${dependency_name}" ]]; then
-                continue
-              fi
-              if printf '%s\n' "${safe_manual_dependencies[@]}" | grep -Fxq "${dependency_name}"; then
-                manual_dependency="${dependency_name}"
+          if [[ -z "${reason}" && "${lane}" == "npm" ]]; then
+            update_type_allowed=false
+            for allowed_update_type in "${allowed_update_types[@]}"; do
+              if [[ "${UPDATE_TYPE}" == "${allowed_update_type}" ]]; then
+                update_type_allowed=true
                 break
               fi
-            done < <(printf '%s' "${DEPENDENCY_NAMES}" | tr ',' '\n')
+            done
 
-            if [[ -n "${manual_dependency}" ]]; then
-              reason="dependency requires manual review due to toolchain risk: ${manual_dependency}"
+            if [[ "${DEPENDENCY_GROUP}" != "${dependabot_dependency_group}" ]]; then
+              reason="dependency group is not the safe dev-only lane"
+            elif [[ "${update_type_allowed}" != "true" ]]; then
+              reason="update type is not minor or patch"
+            else
+              while IFS= read -r dependency_name; do
+                dependency_name="$(printf '%s' "${dependency_name}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+                if [[ -z "${dependency_name}" ]]; then
+                  continue
+                fi
+                if printf '%s\n' "${safe_manual_dependencies[@]}" | grep -Fxq "${dependency_name}"; then
+                  manual_dependency="${dependency_name}"
+                  break
+                fi
+              done < <(printf '%s' "${DEPENDENCY_NAMES}" | tr ',' '\n')
+
+              if [[ -n "${manual_dependency}" ]]; then
+                reason="dependency requires manual review due to toolchain risk: ${manual_dependency}"
+              fi
+            fi
+          fi
+
+          if [[ -z "${reason}" && "${lane}" == "actions" ]]; then
+            actions_update_type_allowed=false
+            for allowed_update_type in "${actions_allowed_update_types[@]}"; do
+              if [[ "${UPDATE_TYPE}" == "${allowed_update_type}" ]]; then
+                actions_update_type_allowed=true
+                break
+              fi
+            done
+
+            if [[ "${DEPENDENCY_GROUP}" != "${actions_dependency_group}" ]]; then
+              reason="dependency group is not the safe actions minor/patch lane"
+            elif [[ "${actions_update_type_allowed}" != "true" ]]; then
+              reason="update type is not minor or patch"
             fi
           fi
 
           if [[ -z "${reason}" ]]; then
-            mapfile -t changed_files < <(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/files" --paginate --jq '.[].filename')
+            changed_files_json="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/files" --paginate)"
+            mapfile -t changed_files < <(printf '%s' "${changed_files_json}" | jq -r '.[] | .filename, (.previous_filename // empty)')
             if [[ ${#changed_files[@]} -eq 0 ]]; then
               reason="no changed files returned by GitHub API"
-            else
+            elif [[ "${lane}" == "npm" ]]; then
               for changed_file in "${changed_files[@]}"; do
                 file_is_manifest=false
                 for manifest_sensitive_file in "${manifest_sensitive_files[@]}"; do
@@ -152,12 +179,40 @@ jobs:
                     break
                 fi
               done
+            else
+              for changed_file in "${changed_files[@]}"; do
+                case "${changed_file}" in
+                  "${actions_workflow_prefix}"*.yml | "${actions_workflow_prefix}"*.yaml) ;;
+                  *)
+                    reason="changed file outside workflow lane: ${changed_file}"
+                    break
+                    ;;
+                esac
+              done
+
+              if [[ -z "${reason}" ]]; then
+                mapfile -t changed_patch_lines < <(printf '%s' "${changed_files_json}" | jq -r '.[].patch // ""' | grep -E '^[+-]' || true)
+                if [[ ${#changed_patch_lines[@]} -eq 0 ]]; then
+                  reason="no reviewable patch lines returned by GitHub API"
+                else
+                  for changed_patch_line in "${changed_patch_lines[@]}"; do
+                    if ! printf '%s\n' "${changed_patch_line}" | grep -qE '^[+-][[:space:]]*(-[[:space:]]+)?uses:[[:space:]]+[^[:space:]]+([[:space:]]+#.*)?$'; then
+                      reason="workflow change beyond uses: version bumps"
+                      break
+                    fi
+                  done
+                fi
+              fi
             fi
           fi
 
           if [[ -z "${reason}" ]]; then
             eligible=true
-            reason="safe dev-only npm manifest update"
+            if [[ "${lane}" == "npm" ]]; then
+              reason="safe dev-only npm manifest update"
+            else
+              reason="safe github-actions uses-only minor/patch update"
+            fi
           fi
 
           echo "eligible=${eligible}" >> "${GITHUB_OUTPUT}"
@@ -177,11 +232,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           PR_URL: ${{ steps.pr.outputs.pr-url }}
+          GUARD_REASON: ${{ steps.guard.outputs.reason }}
         run: |
           set -euo pipefail
           review_decision="$(gh pr view "${PR_URL}" --json reviewDecision --jq '.reviewDecision')"
           if [[ "${review_decision}" != "APPROVED" ]]; then
-            gh pr review --approve "${PR_URL}" --body "Safe Dependabot lane: dev-only npm minor/patch manifest update."
+            gh pr review --approve "${PR_URL}" --body "Safe Dependabot lane: ${GUARD_REASON}."
           fi
 
       - name: Mark PR for safe auto-merge

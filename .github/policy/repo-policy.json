@@ -30,7 +30,15 @@
       "rollup",
       "rolldown",
       "esbuild"
-    ]
+    ],
+    "github_actions": {
+      "dependency_group": "github-actions-minor-patch",
+      "allowed_update_types": [
+        "version-update:semver-minor",
+        "version-update:semver-patch"
+      ],
+      "workflow_file_prefix": ".github/workflows/"
+    }
   },
   "main_branch_protection": {
     "required_status_checks": [

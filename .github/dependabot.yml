@@ -54,6 +54,14 @@ updates:
       interval: weekly
     open-pull-requests-limit: 5
     groups:
-      github-actions-all:
+      github-actions-minor-patch:
         patterns:
           - "*"
+        update-types:
+          - minor
+          - patch
+      github-actions-major:
+        patterns:
+          - "*"
+        update-types:
+          - major

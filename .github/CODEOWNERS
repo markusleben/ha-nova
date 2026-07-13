@@ -3,6 +3,11 @@
 # lane can auto-approve only dev-only npm minor/patch manifest updates after the
 # required checks pass.
 /.github/ @markusleben
+# Workflow files are un-owned (later match wins) so the Dependabot actions lane
+# can auto-merge uses:-only minor/patch bumps; the diff guard in
+# dependabot-safe-lane-prepare.yml rejects any workflow change beyond uses:
+# lines, and all required checks plus the 1-review rule still apply.
+/.github/workflows/
 /.claude-plugin/ @markusleben
 /.goreleaser.yml @markusleben
 /install.sh @markusleben
@@ -12,6 +17,11 @@
 /cli/ @markusleben
 /hooks/ @markusleben
 /nova/ @markusleben
+# Un-own the nova package manifests (later match wins) so the safe Dependabot
+# lane stays automatic for /nova dev-only minor/patch bumps, matching the root
+# manifests above.
+/nova/package.json
+/nova/package-lock.json
 
 # Core project areas
 /skills/ @markusleben
