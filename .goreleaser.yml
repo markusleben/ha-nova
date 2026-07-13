@@ -85,12 +85,8 @@ release:
     Windows uses a single supported install path: `install.ps1`. Return an RC install to stable later with `ha-nova update`.
     {{ else }}## New Features
 
-    - **One confirmation for reviewed batch deletes.** Deleting a reviewed set of automations, helpers, scenes, dashboards, to-do lists, or stale MQTT discovery topics now takes ONE typed confirmation code bound to the exact list — instead of one confirmation per item. Per-item impact checks and verification stay, and anything outside the shown list still needs its own preview. Proven live: a zombie device with 25 retained MQTT topics, gone with a single code.
-
-    ## Bug Fixes
-
-    - Terminal output: icons like 🗑️ and ⚠️ no longer swallow the following space in terminals that render them double-width.
-    - Confirmation prompts speak plain language now: the typed reply is called a "confirmation code" (localized to your language), never a technical "token".
+    - **Test it right after saving.** Every new or changed automation and script now ends with a test offer matched to its risk: a zero-impact logic check, an actions-only run, or a full real test that fires the actual trigger — always naming exactly which devices will switch, with one confirmation, an automatic trace check afterwards, and cleanup of any test state. High-consequence targets such as locks, garage doors, alarms, and heating are never presented as consequence-free.
+    - **One consistent look everywhere.** Suggestions, reports, lists, and status answers now follow the same recognizable shapes as the preview cards: improvement suggestions render as a compact 💡 block, read answers lead with the answer and close with a clear next step, and lists state their counts and caps honestly.
     Stable install commands are release-pinned for this tag.
 
     **macOS / Linux:**
