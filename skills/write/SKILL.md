@@ -70,10 +70,11 @@ Multi-target logical changes: present the plan first per `skills/ha-nova/write-s
 
 ### Phase 3: Apply + Verify (Agent)
 
-1. Read `skills/ha-nova/agents/apply-agent.md`.
-2. Fill with confirmed payload.
-3. Dispatch. Expect: success, write_status, verification.
-4. Report result. No raw curl/JSON in output.
+1. Updates: if the conversation paused since the preview or the target may have changed externally, run the drift check first (`write-safety.md` → Drift check before apply).
+2. Read `skills/ha-nova/agents/apply-agent.md`.
+3. Fill with confirmed payload.
+4. Dispatch. Expect: success, write_status, verification.
+5. Report result. No raw curl/JSON in output.
    - Do not report destructive success until verification proves the target is gone.
 
 Fallback: If agent dispatch unavailable, execute inline.

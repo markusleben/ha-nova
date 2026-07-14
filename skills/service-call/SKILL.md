@@ -64,6 +64,7 @@ Some services return data (`weather.get_forecasts`, `calendar.get_events`, `todo
    - If entity resolution already consumed the one blocking question, default to the narrower confirmed target or stop and explain the ambiguity.
 4. Preview the service call with stable localized slots:
    - Before preview: read current state via `ha-nova relay core --method GET --path /api/states/{entity_id}`.
+   - Capability gate: if the call depends on a device capability (position, color_temp, hvac modes, sound mode, ...), check the target's attributes/`supported_features` in that state read first; if the device cannot do it, say so instead of calling (pattern: `ha-nova:media`).
    - If service changes an attribute present in the service call parameters (brightness, temperature, position, hvac_mode, etc.) OR inherently changes entity state (toggle, turn_on, turn_off, press, lock, unlock, open, close), show state delta before the call details:
      ```
      **State delta:**
@@ -84,9 +85,12 @@ Some services return data (`weather.get_forecasts`, `calendar.get_events`, `todo
    - Ask for natural confirmation bound to this exact preview (see context skill → Active Preview Confirmation). Earlier planning consent is draft-only.
 5. Execute:
    - `ha-nova relay core --method POST --path /api/services/{domain}/{service} --body-file <payload-file>`
-6. Verify result:
-   - Check entity state after call: `ha-nova relay core --method GET --path /api/states/{entity_id}`
-   - Report: service called, new state, any errors.
+6. Verify result — match the check to what the call promises:
+   - Default: read the entity state back (`ha-nova relay core --method GET --path /api/states/{entity_id}`) and confirm the expected change.
+   - Transitions: covers report `opening`/`closing`, lights fade over `transition`, climate ramps — when the read-back shows a transitional or unchanged value on such a device, wait a few seconds (up to the transition length) and re-read once before calling it a discrepancy.
+   - Stateless targets: `button.press`/`input_button.press`, `scene.turn_on`/`scene.apply`, and direct `script.*` runs do not reflect the call in the target's own state. Verify the promise instead — scene/script via acted-on member entities or `last_triggered`, a button press via acceptance only — and say what was (not) verifiable rather than reporting a false discrepancy.
+   - Area/device targets: verify the expanded member list from the confirmed manifest, not a single entity.
+   - Report: service called, verified state (or the honest verification limit), any errors.
 
 ## Service Data Fields
 
@@ -165,5 +169,5 @@ Previews are the runtime-action Preview Card (`apply · cancel`); results are th
 
 - One entity at a time unless user explicitly requests batch (array `entity_id` supported).
 - For batch service calls, show a grouped manifest first and bind confirmation to that exact manifest.
-- Verify state change after call.
-- If state didn't change as expected, report discrepancy.
+- Verify per Flow step 6 — transition- and stateless-aware, never a naive immediate re-read.
+- If state didn't change as expected after those checks, report discrepancy.
