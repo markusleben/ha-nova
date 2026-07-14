@@ -329,13 +329,13 @@ Self-trigger / feedback loop = the automation triggers on an entity that it also
 - D-04 [LOW]: Empty view, or a view whose only card is broken
 - D-05 [MEDIUM]: Orphaned Lovelace resource — no `custom:` card across the storage dashboards references it (cleanup hint; say that YAML-mode dashboards are invisible to this scan and cannot be ruled out)
 - D-06 [LOW]: Card references a registry-disabled or hidden entity — renders but stays unavailable
-- D-07 [MEDIUM]: Built-in card missing a required field — judge ONLY the built-in allowlist from `skills/dashboard/SKILL.md`; never infer custom-card schemas
+- D-07 [MEDIUM]: Built-in card missing its required field — authoritative minimal schema: `entity`/`tile`/`gauge`/`sensor` require `entity`; `entities`/`history-graph` require a non-empty `entities` list; `markdown` requires `content`; `button` has no required field. Judge ONLY these allowlisted types; never infer custom-card schemas
 
 ## D Evidence Boundaries
 
 - D-01 requires absence from BOTH the registry AND `/api/states` (YAML/manual entities have states but no registry entry); D-06 reads the registry flags and applies only to entities that DO have a registry entry.
 - D-02/D-05 join `lovelace/config` across ALL storage dashboards with `lovelace/resources` — partial joins produce false orphans; skip D-05 when not all dashboards were read.
-- D-07 never applies to `custom:` cards.
+- D-07 checks exactly the minimal schema spelled out in the rule — no field beyond the one listed is ever required, and `custom:` cards are never judged.
 
 ## Cross-Item (aggregate/bulk reviews with registry context)
 
