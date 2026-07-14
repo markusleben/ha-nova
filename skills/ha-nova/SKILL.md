@@ -98,6 +98,7 @@ Skills reference this section as "context skill → Active Preview Confirmation"
 ### Confirmation Tiers
 
 - `create`/`update`: natural confirmation bound to active preview.
+- high-consequence runtime action (grants physical access or is physically irreversible): token confirmation `confirm:<token>`, same enforcement as destructive writes. Canonical set: unlocking locks, disarming alarm panels, opening garage/gate/entry-door covers — `device_class` and what the entity controls decide, never the domain alone. Owning-skill escalations (e.g. retained MQTT publishes) sit on this same rung.
 - `delete`/destructive: token confirmation `confirm:<token>`.
   **Strict token enforcement:** User MUST reply with the exact token string (e.g., `confirm:del-main-lights`). Any other response — including "yes", "sure, delete it", "do it", or any natural-language confirmation — is NOT valid. Reject and re-prompt with the exact code required. In user-facing output call it the "confirmation code" (localized), never a "token" (see `skills/ha-nova/output-rules.md` → Localization).
   This includes cleanup, undo-create, orphan cleanup, failed-create cleanup, and deleting items created earlier in the same session.
@@ -212,6 +213,9 @@ Match user intent to exactly one skill:
 **"Revert that"** / **"Undo the last change"** → re-invoke the skill that made it: `ha-nova:write` (automation/script) or `ha-nova:helper` (helper). `revert` is update-only and lives there (see `write-safety.md` → Update-Revert), never `ha-nova:fallback`; create cleanup uses delete flow, and delete rollback needs Backup/recreate.
 **"Create a scene called Movie Night"** → `ha-nova:scene`
 **"Activate the scene Movie Night"** → `ha-nova:service-call` (runtime action, not a config change)
+**"Unlock the front door"** → `ha-nova:service-call` (high-consequence: typed confirmation code)
+**"Install the firmware update for my kitchen light"** → `ha-nova:updates` (never raw `update.install` through service-call)
+**"Publish an MQTT message"** → `ha-nova:mqtt` (never raw `mqtt.publish` through service-call)
 **"Test the automation I just created"** → `ha-nova:write` Phase 5 test offer (plan per `skills/ha-nova/test-run.md`); a plain manual trigger stays `ha-nova:service-call`
 **"Show my main dashboard"** → `ha-nova:dashboard`
 **"Create a dashboard called Test Board"** → `ha-nova:dashboard`

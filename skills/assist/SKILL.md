@@ -69,6 +69,7 @@ Render the Report shape (output-rules.md). For an utterance test: the exact resp
 - **A test utterance is a live command.** `conversation/process` executes what it understands. Anything that could change state gets a preview and confirmation, exactly like a service call.
 - Exposing entities to voice grants voice control over them — show the full list before changing exposure.
 - Pipeline updates resend every settings field: read first, or you silently drop settings.
+- No change here has a `revert`: restore exposure by re-toggling, restore a pipeline by resending its prior fields. A deleted pipeline recreates with a new `pipeline_id` — satellites pointing at the old one must be re-pointed.
 
 ## Guardrails
 

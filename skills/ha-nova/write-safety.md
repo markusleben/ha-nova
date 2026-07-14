@@ -285,4 +285,9 @@ expensive. Never suggest a backup for routine small edits.
 | `maintenance` | grouped preview + re-validate verify | spike adjust only (inverse call); clears/purges/removals irreversible | HA Backups (offered pre-bulk) |
 | `organize` | field preview | no (registry deletes irreversible) | HA Backups |
 | `service-call` | state-delta preview | no (runtime action, not config) | re-run corrective service call |
+| `admin` (persons/zones/tags/users) | field preview | no (deletes irreversible; user credentials/tokens unrecoverable) | recreate from previewed fields (tags keep their physical `tag_id`; other recreates mint new ids); HA Backups |
+| `assist` (pipelines/exposure) | change preview | no | re-toggle exposure / resend prior pipeline fields; deleted pipelines recreate with a new id |
+| `yaml-config` | File-Change Preview + `check_config` | one-step `.bak` restore (writes only; a second write overwrites it) | `.bak` restore; HA Backups |
+| `mqtt` (publish) | payload preview | no (broker/device state) | clear a retained message by publishing an empty retained payload; corrective publish |
+| `backup` (delete) | delete preview | no | none — a deleted archive is gone |
 | `fallback` (experimental writes) | payload preview + read-back verify | no | HA Backups |

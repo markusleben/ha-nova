@@ -116,8 +116,10 @@ const WORD_BUDGETS: Record<string, number> = {
   health: 1200,
   mqtt: 1300,
   scene: 1400,
-  // test-offer single-confirmation + reference bullets (test-run.md).
-  "service-call": 1350,
+  // test-offer single-confirmation + reference bullets (test-run.md);
+  // ratcheted again for the owning-skill deferral table + high-consequence
+  // confirmation rule (masterplan-2026-h2 Wave 0).
+  "service-call": 1550,
   // Carries the canonical File-Change Preview example — the only layout
   // source for file edits; concrete examples are what make a card renderable.
   "yaml-config": 1250,

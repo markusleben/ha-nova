@@ -29,6 +29,21 @@ Use file-based payloads for service writes:
 - `ha-nova relay core --method GET --path /api/states/<entity_id>`
 - `--out <result-file>` when the response is large
 
+## Owning-Skill Deferrals (Critical)
+
+"Call any service" never overrides a stricter owning skill. When the request matches a row below, STOP and continue in that skill — it carries gates this flow lacks (feature checks, backup offers, typed codes, restore duties):
+
+| Service(s) | Owning skill |
+|---|---|
+| `mqtt.publish` | `ha-nova:mqtt` |
+| `update.install` / `update.skip` / `update.clear_skipped` | `ha-nova:updates` |
+| `camera.snapshot` / `camera.record` | `ha-nova:camera` |
+| `media_player.*` / `tts.*` | `ha-nova:media` |
+| `notify.*` / `persistent_notification.*` | `ha-nova:notify` |
+| `logger.set_level` | `ha-nova:diagnose` |
+
+Runtime calls that stay here: `scene.turn_on`, `automation.trigger`, direct `script.*` (see Automation And Script Runtime Calls), and plain `lock`/`alarm_control_panel`/`cover` control under the high-consequence rule (see Safety).
+
 ## Response services
 
 Some services return data (`weather.get_forecasts`, `calendar.get_events`, `todo.get_items`, ...) and REQUIRE the `?return_response` query parameter — without it HA returns 400 "requires responses". Path shape: `/api/services/<domain>/<service>?return_response`; the data lives under `.data.body.service_response`. Pure data services (the examples above) are reads — no write confirmation. A response-capable ACTION service (for example direct `script.<script_id>`) still follows the full preview/confirmation flow below — the parameter only adds the response, it never downgrades an action to a read.
@@ -143,7 +158,8 @@ Previews are the runtime-action Preview Card (`apply · cancel`); results are th
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
 
 - No token confirmation needed for ordinary service calls; confirmation is still bound to the active preview.
-- For potentially disruptive services (e.g., `homeassistant.restart`), warn and ask for explicit post-preview confirmation.
+- **High-consequence runtime actions take the typed `confirm:<token>`** like a destructive write: unlocking a lock, disarming an alarm panel, opening a garage door, gate, or entry-door cover. Check `device_class` and what the entity controls — a garage door exposed as `cover.*` belongs here, a living-room blind does not. These actions grant physical access; calling the opposite service afterwards does not undo the exposure window.
+- For potentially disruptive services (`homeassistant.restart`, `homeassistant.stop`), warn and ask for explicit post-preview confirmation.
 
 ## Guardrails
 
