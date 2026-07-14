@@ -78,7 +78,7 @@ Use `search/related` when a delete needs a quick impact preview on linked items.
      - clear labels
 4. For delete:
    - preview impact first
-   - areas/floors: show linked areas or assignments that will lose placement; run WS `search/related` on the area and name automations/scripts/scenes that target it — the delete leaves those targets dangling
+   - areas/floors: show linked areas or assignments that will lose placement; run WS `search/related` with the matching item type (`"area"` for an area, `"floor"` for a floor) and name automations/scripts/scenes that target it — the delete leaves those targets dangling
    - labels: run WS `search/related` (`item_type: "label"`) and name the automations/scripts that reference the label; show other linked items when quickly resolvable
    - categories: show affected entity count and a small example set when resolvable
    - require token confirmation `confirm:<token>`
