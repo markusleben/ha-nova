@@ -26,6 +26,7 @@ skills/
   ha-nova/automation-patterns.md (reference doc — native HA constructs vs templates)
   ha-nova/write-safety.md       (reference doc — pre-write diff + durable update-revert; SSOT for write/ + helper/)
   ha-nova/batch-safety.md       (reference doc — scoped batch manifest for destructive multi-target operations)
+  ha-nova/config-snapshots.md   (reference doc — targeted config-snapshot capture/restore on the relay blob store)
   ha-nova/agents/               (agent templates: resolve, apply)
   read/SKILL.md                         (ha-nova:read — automation/script list/get/trace)
   write/SKILL.md                        (ha-nova:write — automation/script create/update/delete)

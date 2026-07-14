@@ -201,6 +201,7 @@ Match user intent to exactly one skill:
 | find entities by name, room, area | `ha-nova:entity-discovery` |
 | fix relay/auth/connectivity errors | `ha-nova:onboarding` |
 | undo, revert, or restore the last automation/script/helper change | the skill that wrote it — `ha-nova:write` (automation/script) or `ha-nova:helper` (helper). `revert` applies only to supported verified updates. Creates clean up through the normal delete flow; deletes require Backup/recreate. Run `ha-nova snapshot show` to see the saved target if unsure |
+| list or restore config snapshots ("restore X from a snapshot", "what snapshots do I have?") | the skill that owns the item family — `ha-nova:write` (automations/scripts), `ha-nova:scene`, `ha-nova:dashboard`, `ha-nova:helper`; mechanics: `skills/ha-nova/config-snapshots.md` |
 | **any HA task not matched above** — blueprints, unsupported admin writes, any unfamiliar raw relay/ws/core write | `ha-nova:fallback` **(mandatory fallback — never skip)** |
 
 **"Analyze my automation"** → `ha-nova:review` (NOT read + review)

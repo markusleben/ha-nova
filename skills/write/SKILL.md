@@ -71,10 +71,11 @@ Multi-target logical changes: present the plan first per `skills/ha-nova/write-s
 ### Phase 3: Apply + Verify (Agent)
 
 1. Updates: if the conversation paused since the preview or the target may have changed externally, run the drift check first (`write-safety.md` → Drift check before apply).
-2. Read `skills/ha-nova/agents/apply-agent.md`.
-3. Fill with confirmed payload.
-4. Dispatch. Expect: success, write_status, verification.
-5. Report result. No raw curl/JSON in output.
+2. Deletes: capture the auto config snapshot of the current read-back first — `skills/ha-nova/config-snapshots.md` (best-effort: warn and continue on failure; a 404 from `/backups` means the relay predates the store — keep the safety-backup offer instead; mention restore in the result).
+3. Read `skills/ha-nova/agents/apply-agent.md`.
+4. Fill with confirmed payload.
+5. Dispatch. Expect: success, write_status, verification.
+6. Report result. No raw curl/JSON in output.
    - Do not report destructive success until verification proves the target is gone.
 
 Fallback: If agent dispatch unavailable, execute inline.
@@ -150,5 +151,6 @@ On demand — read only when the trigger applies:
 - `skills/ha-nova/automation-patterns.md` — drafting new branching, timing, or flow-control logic
 - `skills/ha-nova/template-guidelines.md` — the draft contains Jinja templates
 - `skills/ha-nova/safe-refactoring.md` — rename, migrate, or orphan-cleanup tasks
-- `skills/ha-nova/update-revert.md` — the user asks to revert, undo, or restore a verified update (create cleanup and delete recovery stay out — see write-safety)
+- `skills/ha-nova/update-revert.md` — the user asks to revert, undo, or restore a verified update (create cleanup stays out — see write-safety)
+- `skills/ha-nova/config-snapshots.md` — capturing the pre-delete snapshot, or the user asks to restore from a config snapshot
 - `skills/ha-nova/test-run.md` — Phase 5 test offer: feasibility, options, post-run follow-up

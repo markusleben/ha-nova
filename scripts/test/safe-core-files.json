@@ -35,6 +35,7 @@
   "tests/skills/batch-safety-contract.test.ts",
   "tests/skills/best-practice-patterns-contract.test.ts",
   "tests/skills/bulk-audit-contract.test.ts",
+  "tests/skills/config-snapshots-contract.test.ts",
   "tests/skills/energy-contract.test.ts",
   "tests/skills/ha-cross-skill-integration.test.ts",
   "tests/skills/ha-entities-contract.test.ts",

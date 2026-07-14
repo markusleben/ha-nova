@@ -93,8 +93,9 @@ Persistence routing per `skills/ha-nova/best-practices.md` → Persistence Model
 1. Resolve id + platform (Editability Guard).
 2. Consumer check: `{"type":"search/related","item_type":"entity","item_id":"scene.<slug>"}` — show referencing automations/scripts, or an explicit no-consumer result (an empty `data` object means no consumers).
 3. Require exact token confirmation `confirm:<token>` — generate a short token, display it in the Options slot, and proceed only when the user types it back exactly. Deleting several storage scenes at once follows `skills/ha-nova/batch-safety.md` (Editability Guard per target).
-4. `ha-nova relay core --method DELETE --path /api/config/scene/config/<id>`
-5. Verify absence: config GET returns status 404 and the entity is gone.
+4. Capture the auto config snapshot of the current config first (`skills/ha-nova/config-snapshots.md`; best-effort — warn and continue on failure; a 404 from `/backups` means the relay predates the store — keep the safety-backup offer instead).
+5. `ha-nova relay core --method DELETE --path /api/config/scene/config/<id>`
+6. Verify absence: config GET returns status 404 and the entity is gone. Mention the snapshot restore path in the result.
 
 ## Error Handling
 

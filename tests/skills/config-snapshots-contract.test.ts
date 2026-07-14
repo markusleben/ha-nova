@@ -1,0 +1,46 @@
+import { readFileSync } from "node:fs";
+
+import { describe, expect, it } from "vitest";
+
+const reference = readFileSync("skills/ha-nova/config-snapshots.md", "utf8");
+const writeSkill = readFileSync("skills/write/SKILL.md", "utf8");
+const sceneSkill = readFileSync("skills/scene/SKILL.md", "utf8");
+const dashboardSkill = readFileSync("skills/dashboard/SKILL.md", "utf8");
+const helperSkill = readFileSync("skills/helper/SKILL.md", "utf8");
+const writeSafety = readFileSync("skills/ha-nova/write-safety.md", "utf8");
+const contextSkill = readFileSync("skills/ha-nova/SKILL.md", "utf8");
+
+describe("config snapshots contract", () => {
+  it("keeps the shared reference honest about capture, restore, and limits", () => {
+    // Auto-snapshots are prunable; named ones survive — the naming rule IS the retention policy.
+    expect(reference).toContain("auto-snapshots MUST use the `auto-` prefix");
+    // Capture must never override the user's confirmed operation.
+    expect(reference).toContain("a snapshot failure never silently blocks or silently vanishes");
+    // Restore is a normal write, not a blind put.
+    expect(reference).toContain("never delete+recreate");
+    expect(reference).toContain("a restore is a normal write, never a blind put");
+    // Honesty labels: item vs graph, and the excluded families.
+    expect(reference).toContain("A snapshot restores the ITEM, never the reference graph");
+    expect(reference).toContain("recreate mints a NEW id");
+    expect(reference).toContain("config-entry\nhelpers, areas/floors/labels/categories, users, recorder data");
+    // Graceful degradation on relays without the store.
+    expect(reference).toContain("`404/NOT_FOUND`\nfrom `/backups` means the relay predates the snapshot store");
+    // revert stays the quick-undo layer; snapshots never masquerade as full backups.
+    expect(reference).toContain("Offer\n  `revert` first when it applies");
+    expect(reference).toContain('never call it a backup');
+  });
+
+  it("wires auto-capture before destructive ops in every FULL family", () => {
+    expect(writeSkill).toContain("capture the auto config snapshot of the current read-back first");
+    expect(sceneSkill).toContain("Capture the auto config snapshot of the current config first");
+    expect(dashboardSkill).toContain("capture the auto config snapshot of the full dashboard config first");
+    expect(dashboardSkill).toContain("capture the auto config snapshot of the pre-save document when the save removes views or cards");
+    expect(helperSkill).toContain("Capture the auto config snapshot of the current list item first");
+  });
+
+  it("updates the safety matrix and dispatch", () => {
+    expect(writeSafety).toContain("`skills/ha-nova/config-snapshots.md` is the SSOT");
+    expect(writeSafety).toContain("config snapshot (auto before delete, identity-preserving restore); HA Backups");
+    expect(contextSkill).toContain("list or restore config snapshots");
+  });
+});

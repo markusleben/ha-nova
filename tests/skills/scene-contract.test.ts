@@ -94,7 +94,7 @@ describe("scene contract", () => {
     expect(contextSkill).toContain('"Create a scene called Movie Night"** → `ha-nova:scene`');
     expect(contextSkill).toContain('"Activate the scene Movie Night"** → `ha-nova:service-call`');
     expect(fallbackSkill).toContain("| Scenes (storage CRUD) | Covered | scene |");
-    expect(writeSafety).toContain("| `scene` | preview + read-back verify | no | HA Backups |");
+    expect(writeSafety).toContain("| `scene` | preview + read-back verify | no | config snapshot (auto before delete, identity-preserving restore); HA Backups |");
     expect(architectureDoc).toContain("scene/SKILL.md");
   });
 

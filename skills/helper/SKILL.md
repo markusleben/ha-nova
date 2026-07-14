@@ -145,7 +145,8 @@ If 0 results: try synonyms or shorter stems. Never dump entire domains.
    - type
    - entity_id
 3. Token confirmation: `confirm:<token>` (strict: only exact token accepted; see context skill → Safety Baseline).
-4. Execute:
+4. Capture the auto config snapshot of the current list item first (`skills/ha-nova/config-snapshots.md`; best-effort — warn and continue on failure; a 404 from `/backups` keeps the safety-backup offer instead). Say in the result that a recreate from it mints a new entity_id.
+5. Execute:
    ```text
    ha-nova relay ws --data-file <payload-file>
    ```
@@ -494,3 +495,4 @@ Never show raw JSON to the user.
 - Config-entry helper schemas: `skills/ha-nova/helper-flow-schemas.md`
 - Review Checks: `skills/review/checks.md` (self-contained catalog + Application)
 - On demand: `skills/ha-nova/update-revert.md` — when the user asks to revert, undo, or restore a verified update
+- On demand: `skills/ha-nova/config-snapshots.md` — capturing the pre-delete snapshot, or restoring from a config snapshot
