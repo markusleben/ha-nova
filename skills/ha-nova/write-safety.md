@@ -302,13 +302,13 @@ operations and for relays whose `/backups` answers 404.
 | `scene` | preview + read-back verify | no | config snapshot (auto before delete, identity-preserving restore); HA Backups |
 | `todo` | preview + read-back verify | no (list delete irreversible) | re-add items; HA Backups for lists |
 | `updates` | preview + entity re-read verify | no (updates not downgradable) | HA Backups (offered pre-install for core/OS) |
-| `energy` | change preview + read-back & validate verify | no (corrective save) | HA Backups |
+| `energy` | change preview + read-back & validate verify | no (corrective save) | config snapshot (auto before entry-removing saves, whole-doc restore); HA Backups |
 | `maintenance` | grouped preview + re-validate verify | spike adjust only (inverse call); clears/purges/removals irreversible | HA Backups (offered pre-bulk) |
-| `organize` | field preview | no (registry deletes irreversible) | HA Backups |
+| `organize` | field preview | no (registry deletes irreversible) | config snapshot (auto before rename/disable, in-place field write-back); registry deletes: HA Backups |
 | `service-call` | state-delta preview | no (runtime action, not config) | re-run corrective service call |
 | `admin` (persons/zones/tags/users) | field preview | no (deletes irreversible; user credentials/tokens unrecoverable) | recreate from previewed fields (tags keep their physical `tag_id`; other recreates mint new ids); HA Backups |
 | `assist` (pipelines/exposure) | change preview | no | re-toggle exposure / resend prior pipeline fields; deleted pipelines recreate with a new id |
-| `yaml-config` | File-Change Preview + `check_config` | one-step `.bak` restore (writes only; a second write overwrites it) | `.bak` restore; HA Backups |
+| `yaml-config` | File-Change Preview + `check_config` | one-step `.bak` restore (writes only; a second write overwrites it) | config snapshot with stored path (auto before overwrites/deletes, multi-step history); `.bak`; HA Backups |
 | `mqtt` (publish) | payload preview | no (broker/device state) | clear a retained message by publishing an empty retained payload; corrective publish |
 | `backup` (delete) | delete preview | no | none — a deleted archive is gone |
 | `fallback` (experimental writes) | payload preview + read-back verify | no | HA Backups |

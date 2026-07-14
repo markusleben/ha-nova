@@ -124,7 +124,7 @@ describe("energy contract", () => {
     expect(fallbackSkill).toContain("| Energy (analysis + source/device config) | Covered | energy |");
     expect(fallbackSkill).not.toContain("Energy Configuration -- RELAY-READY");
     expect(writeSafety).toContain(
-      "| `energy` | change preview + read-back & validate verify | no (corrective save) | HA Backups |",
+      "| `energy` | change preview + read-back & validate verify | no (corrective save) | config snapshot (auto before entry-removing saves, whole-doc restore); HA Backups |",
     );
     expect(architectureDoc).toContain("energy/SKILL.md");
   });
