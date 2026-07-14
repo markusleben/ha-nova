@@ -101,6 +101,7 @@ Render the Report shape (output-rules.md): what is playing where — player, sta
 
 - Volume: preview the target level; treat a large jump (or anything above ~0.8) as disruptive and confirm explicitly — a loud announcement at night is a real-world side effect.
 - Announcements interrupt whatever is playing; say so before sending one.
+- An announcement or TTS to a grouped player plays on every member — name the full member list in the preview, not just the target.
 - Grouping changes affect every listed speaker — preview the full member list.
 
 ## Guardrails

@@ -75,6 +75,7 @@ Render the Report shape (output-rules.md); person/zone/user inventories render t
 
 - Zone and person deletes take the typed token, and the preview must first name the automations that depend on them (`search/related`).
 - User deletion is the strictest operation in HA NOVA: owner, system-generated, and the relay's own account are refused outright, and everything else needs the typed token plus a plain statement of what is lost.
+- No delete here has a `revert`. Zones, persons, and tags are recreatable from their previewed fields — a tag keeps its physical `tag_id`, but other recreates mint new internal ids, so inbound references stay broken. A deleted user's password, tokens, and history are unrecoverable; the delete preview must say so.
 - Never surface credentials, tokens, or password state in output.
 
 ## Guardrails
