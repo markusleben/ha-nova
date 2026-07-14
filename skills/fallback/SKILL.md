@@ -212,7 +212,7 @@ ha-nova relay core --method POST --path /api/events/<event_type> --body-file <pa
 ha-nova relay core --method POST --path /api/webhook/<webhook_id> --body-file <payload-file>
 ```
 
-**Risks:** Every automation listening to that event/webhook fires — enumerate listeners in the preview when resolvable (`search/related` on the automations). Webhook IDs are secrets; never print full IDs in output.
+**Risks:** Every automation listening to that event/webhook fires. `search/related` does NOT index event listeners — scan automation configs for the same `event_type`/webhook trigger before previewing, or state in the preview that other listeners cannot be ruled out (pattern: `skills/ha-nova/test-run.md`). Webhook IDs are secrets; never print full IDs in output.
 
 ## Roadmap Features
 
