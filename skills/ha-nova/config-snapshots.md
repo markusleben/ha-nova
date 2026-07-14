@@ -71,7 +71,7 @@ the user just decides informed.
 | dashboards (content) | full | `lovelace/config/save` by `url_path` while the dashboard exists |
 | dashboards (deleted) | partial | the snapshot carries `{shell, config}`: recreate via `lovelace/dashboards/create` from the shell metadata (`url_path`, title, icon, sidebar, admin flag), then `config/save` the content — content returns fully, the internal `dashboard_id` is new |
 | energy prefs | full | whole-document `save_prefs` |
-| yaml files | full | path-stable `write_file` |
+| yaml files | full | data carries `{path, content}`; restore is `write_file` to that exact stored path (the slug name alone is lossy) |
 | helpers (storage) | update: full / delete: partial | recreate mints a NEW id — inbound references stay broken; say so |
 | metadata (entity/device fields) | full in place | keyed by entity_id/device id; a deleted registry entry is NOT recreatable |
 

@@ -44,9 +44,9 @@ describe("config snapshots contract", () => {
     const yamlSkill = readFileSync("skills/yaml-config/SKILL.md", "utf8");
     const organizeSkill = readFileSync("skills/organize/SKILL.md", "utf8");
     expect(energySkill).toContain("capture the auto config snapshot of the fresh pre-save `get_prefs` read");
-    expect(yamlSkill).toContain("capture the auto config snapshot of the CURRENT file content");
+    expect(yamlSkill).toContain("data = `{path: <exact logical path>, content: <current file content>}`");
     expect(yamlSkill).toContain("A user-requested `delete_file` is tokenized like any delete AND captures the auto config snapshot");
-    expect(organizeSkill).toContain("capture the auto config snapshot of the entity's current registry fields");
+    expect(organizeSkill).toContain("the DEVICE registry record for a device-level `disabled_by`");
   });
 
   it("wires auto-capture before destructive ops in every FULL family", () => {
