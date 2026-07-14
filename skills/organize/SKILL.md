@@ -79,7 +79,7 @@ Use `search/related` when a delete needs a quick impact preview on linked items.
 4. For delete:
    - preview impact first
    - areas/floors: show linked areas or assignments that will lose placement; run WS `search/related` on the area and name automations/scripts/scenes that target it — the delete leaves those targets dangling
-   - labels: show linked items when quickly resolvable; label-targeted automations cannot be enumerated via `search/related` — scan automation configs for the `label_id` target, or say plainly that consumers cannot be ruled out
+   - labels: run WS `search/related` (`item_type: "label"`) and name the automations/scripts that reference the label; show other linked items when quickly resolvable
    - categories: show affected entity count and a small example set when resolvable
    - require token confirmation `confirm:<token>`
    - same-family batch deletes follow `skills/ha-nova/batch-safety.md`, only when related-item impact is complete for every target
