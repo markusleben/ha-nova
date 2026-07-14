@@ -32,6 +32,11 @@ describe("config snapshots contract", () => {
     expect(reference).toContain('never call it a backup');
   });
 
+  it("names the not-yet-wired categories honestly", () => {
+    expect(reference).toContain("Wired for auto-capture today");
+    expect(reference).toContain("Reserved for the next wiring step");
+  });
+
   it("wires auto-capture before destructive ops in every FULL family", () => {
     expect(writeSkill).toContain("capture the auto config snapshot of the current read-back first");
     expect(sceneSkill).toContain("Capture the auto config snapshot of the current config first");

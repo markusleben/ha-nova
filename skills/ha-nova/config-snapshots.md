@@ -23,8 +23,11 @@ warning when it appears.
 
 ## Categories (one per family)
 
-`automations`, `scripts`, `scenes`, `dashboards`, `helpers`, `energy`,
-`metadata` (entity/device registry fields), `yaml` (file contents).
+Wired for auto-capture today: `automations`, `scripts`, `scenes`,
+`dashboards`, `helpers`. Reserved for the next wiring step (their skills keep
+the safety-backup offer until then): `energy`, `metadata` (entity/device
+registry fields), `yaml` (file contents) — the fidelity table below already
+covers them so restores work the moment capture lands.
 
 ## Capture (before destructive ops)
 
