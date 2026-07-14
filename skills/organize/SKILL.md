@@ -98,7 +98,7 @@ Use only exposed metadata fields:
 
 Do not guess unsupported fields.
 
-`new_entity_id` and `disabled_by` are NOT low-risk metadata: a rename breaks every automation, scene, script, dashboard, and template that references the old id, and disabling removes the entity from the state machine with the same effect on consumers. Before either, run WS `search/related` on the entity and name the consumers in the preview — and say plainly that it covers automations, scripts, groups, persons, and scenes only: template references and dashboards (storage AND YAML mode) are NOT indexed and cannot be ruled out this way (a storage-dashboard scan via `ha-nova:dashboard` is the thorough follow-up). After a rename, offer to update the found consumers through their owning skills.
+`new_entity_id` and `disabled_by` are NOT low-risk metadata: a rename breaks every automation, scene, script, dashboard, and template that references the old id, and disabling removes the entity from the state machine with the same effect on consumers. Before either, run WS `search/related` on the entity — for a DEVICE-level `disabled_by`, on the device (`item_type: "device"`), since disabling it removes every entity the device exposes — and name the consumers in the preview — and say plainly that it covers automations, scripts, groups, persons, and scenes only: template references and dashboards (storage AND YAML mode) are NOT indexed and cannot be ruled out this way (a storage-dashboard scan via `ha-nova:dashboard` is the thorough follow-up). After a rename, offer to update the found consumers through their owning skills.
 
 ## Output Format
 
