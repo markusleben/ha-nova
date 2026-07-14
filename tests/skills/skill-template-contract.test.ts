@@ -122,9 +122,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // test-offer single-confirmation + reference bullets (test-run.md);
   // ratcheted for the owning-skill deferral table + high-consequence
   // confirmation rule (Wave 0), and again for the differentiated verify
-  // block (transitions, stateless targets, area expansion) + capability
-  // gate (2026-h2 Wave 1a).
-  "service-call": 1750,
+  // block (transitions, stateless targets, canonical area expansion,
+  // scene-timestamp verify) + capability gate (2026-h2 Wave 1a).
+  "service-call": 1800,
   // Carries the canonical File-Change Preview example — the only layout
   // source for file edits; concrete examples are what make a card renderable.
   "yaml-config": 1250,
