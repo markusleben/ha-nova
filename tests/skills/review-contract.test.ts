@@ -68,7 +68,7 @@ describe("review contract", () => {
   it("keeps shared references aligned to H-01..H-10", () => {
     expect(writeSkill).toContain("H-01..H-10");
     expect(helperSkill).toContain("H-01..H-10");
-    expect(reviewChecks).toContain("Helper (storage-based family): H-01..H-10");
+    expect(reviewChecks).toContain("Helper (storage-based family): H-01..H-11");
     expect(architectureDoc).toContain("H-01..H-10");
   });
 
@@ -81,7 +81,7 @@ describe("review contract", () => {
     expect(helperSkill).toContain("Do not pretend H-01..H-10 apply here");
     expect(helperSkill).toContain("minimal config-entry post-write contract");
     expect(reviewChecks).toContain("Helper (config-entry family): minimal config-entry review");
-    expect(reviewChecks).toContain("do not apply H-01..H-10");
+    expect(reviewChecks).toContain("do not apply H-01..H-11");
   });
 
   it("documents config-entry helper target resolution before minimal review", () => {

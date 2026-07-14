@@ -413,7 +413,7 @@ describe("skill template v2 contract", () => {
     for (const file of ALL_SKILL_MD_FILES) {
       if (CHECK_CODE_ALLOWLIST.has(file.split("\\").join("/"))) continue;
       const content = readFileSync(file, "utf8");
-      const match = content.match(/\b[SRPMFH]-\d{2}\b/);
+      const match = content.match(/\b(?:[SRPMFH]|SC|HX|TS|D)-\d{2}\b/);
       expect(
         match,
         `${file}: internal check code '${match?.[0]}' outside the reviewer allowlist`,

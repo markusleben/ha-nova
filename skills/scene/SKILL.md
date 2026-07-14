@@ -133,3 +133,4 @@ Use stable localized slot labels in this order; omit empty slots. Reads render t
 - Scene writes have no `revert`; recovery is the auto config snapshot (deletes and member-removing updates capture one). Offer a safety backup via `ha-nova:backup` before a delete only when the snapshot store is unavailable (never for routine edits).
 - One scene per mutation; verify read-back, not just the save response.
 - Activation hands off to `ha-nova:service-call` — `scene.turn_on` supports `transition` (lights only); `scene.apply` applies a one-off state set without storing a scene.
+- After a verified create/update, OFFER an apply-test: one Test-Plan-style card (mechanics: `skills/ha-nova/test-run.md` — name every member device and its target state, single bound confirmation, run via `scene.turn_on`, verify the timestamp advanced plus member states). Say honestly that activation changes real devices and prior states are not restored.

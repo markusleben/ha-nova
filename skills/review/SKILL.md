@@ -10,7 +10,7 @@ compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA N
 
 ## Scope
 
-Read-only quality review for automations, scripts, and helpers:
+Read-only quality review for automations, scripts, helpers, storage scenes, and storage dashboards:
 - Config quality checks (safety, reliability, performance, style)
 - Collision scan (other automations targeting same entities)
 - Conflict analysis (real conflicts vs safe patterns)
@@ -41,6 +41,8 @@ Relay CLI: `ha-nova relay`
 ## Target Resolution
 
 If user provides an exact automation/script `entity_id` (e.g., `automation.main_lights`), skip search and go directly to config read.
+
+Storage scenes resolve like automations (registry `unique_id` → `GET /api/config/scene/config/<id>`; the Editability Guard from `ha-nova:scene` applies — YAML scenes get read-only findings). Storage dashboards resolve by `url_path` (`lovelace/dashboards/list` → `lovelace/config`), and D-02/D-05 additionally read `lovelace/resources`. Apply the SC/D families from `skills/review/checks.md`; cross-item HX rules run only in aggregate/bulk mode per the checks.md Application matrix.
 
 For helpers, resolve the family first:
 - storage-based family: entity_id domain is one of `input_boolean`, `input_number`, `input_text`, `input_select`, `input_datetime`, `input_button`, `counter`, `timer`, `schedule`

@@ -68,6 +68,8 @@ Discovery:
 
 These live only in the HA UI; they never reach a phone.
 
+When composing a COMPLEX mobile-app payload (actionable buttons, images, critical alerts), offer a single test send to the chosen target first — the preview is the plan, the test proves rendering; acceptance-honesty applies (accepted, not delivered), and the real send follows only after the user judges the test.
+
 ## Error Handling
 
 Full relay/upstream error taxonomy: `skills/ha-nova/relay-api.md` -> Error Handling. Notify specifics:
