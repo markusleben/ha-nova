@@ -37,8 +37,8 @@ describe("backup contract", () => {
 
   it("guards deletion and surfaces silent agent failures", () => {
     expect(backupSkill).toContain("deletion removes it from ALL listed locations, irreversibly");
-    expect(backupSkill).toContain("Never delete the only backup — refuse outright");
-    expect(backupSkill).toContain("newest automatic backup requires the user to explicitly restate that intent");
+    expect(backupSkill).toContain("Never delete the only backup or the newest automatic backup — refuse outright");
+    expect(backupSkill).toContain("this skill does not carry a bypass");
     expect(backupSkill).toContain("`confirm:<token>`");
     expect(backupSkill).toContain("proceed only when the user types it back exactly");
     // A failing backup location is silent data-loss risk.
