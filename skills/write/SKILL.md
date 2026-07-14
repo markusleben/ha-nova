@@ -71,7 +71,7 @@ Multi-target logical changes: present the plan first per `skills/ha-nova/write-s
 ### Phase 3: Apply + Verify (Agent)
 
 1. Updates: if the conversation paused since the preview or the target may have changed externally, run the drift check first (`write-safety.md` → Drift check before apply).
-2. Deletes: capture the auto config snapshot of the current read-back first — `skills/ha-nova/config-snapshots.md` (best-effort: warn and continue on failure; a 404 from `/backups` means the relay predates the store — keep the safety-backup offer instead; mention restore in the result).
+2. Deletes: capture the auto config snapshot of the current read-back first — `skills/ha-nova/config-snapshots.md` (on capture failure follow its capture-failure stop; mention restore in the result).
 3. Read `skills/ha-nova/agents/apply-agent.md`.
 4. Fill with confirmed payload.
 5. Dispatch. Expect: success, write_status, verification.

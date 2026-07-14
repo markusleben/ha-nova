@@ -17,7 +17,8 @@ describe("config snapshots contract", () => {
     // HA ids carry underscores/dots — the store only accepts hyphen slugs.
     expect(reference).toContain("the item's id made relay-safe");
     // Capture must never override the user's confirmed operation.
-    expect(reference).toContain("a snapshot failure never silently blocks or silently vanishes");
+    expect(reference).toContain("STOP and tell the user there will be no snapshot");
+    expect(reference).toContain("The already-typed\nconfirmation stays valid");
     // The capture trigger is destructive ops, not routine edits.
     expect(reference).toContain("before a full-document save that REMOVES content");
     // Restore is a normal write, not a blind put.

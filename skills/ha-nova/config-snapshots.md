@@ -17,9 +17,9 @@ or restoring a snapshot. The relay stores opaque gzip'd JSON — everything smar
 
 Names: auto-snapshots MUST use the `auto-` prefix (prune eats them); snapshots
 the user asked for by name use a plain slug and survive prune. A `404/NOT_FOUND`
-from `/backups` means the relay predates the snapshot store — fall back to the
-safety-backup offer instead of failing the task, and surface the relay-outdated
-warning when it appears.
+from `/backups` means the relay predates the snapshot store — handle it via
+the capture-failure stop below (offer the safety backup), and surface the
+relay-outdated warning when it appears.
 
 ## Categories (one per family)
 
@@ -43,9 +43,13 @@ every other character with `-`, collapse repeats, trim leading/trailing `-`,
 and truncate so the full name stays within 64 characters. Say in the result
 that a snapshot was taken and how to restore ("restore from snapshot").
 
-Capture is best-effort: a failed save (store full, relay outdated) must WARN
-and continue the confirmed operation — the typed confirmation stays the
-authority; a snapshot failure never silently blocks or silently vanishes.
+Capture failure is never silent, and never silently skipped: the capture runs
+BEFORE the destructive call, so when it fails (404 = store missing, store
+full, any error), STOP and tell the user there will be no snapshot — offer
+the choices: proceed without one, take a full safety backup first
+(`ha-nova:backup`), or prune the store (when full). The already-typed
+confirmation stays valid for "proceed without one"; nothing is re-gated,
+the user just decides informed.
 
 ## Restore (always through the family's own write path)
 
