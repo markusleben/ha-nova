@@ -19,6 +19,7 @@ docker run -d --name ha-nova-relay --restart unless-stopped \
   -e RELAY_AUTH_TOKEN='<your relay token>' \
   -e HA_LLAT='<your Home Assistant long-lived access token>' \
   -e HA_URL='http://<home-assistant-host>:8123' \
+  -v ha-nova-snapshots:/data/ha_nova_snapshots \
   ghcr.io/markusleben/ha-nova-relay:latest
 ```
 
@@ -36,6 +37,11 @@ services:
       RELAY_AUTH_TOKEN: "<your relay token>"
       HA_LLAT: "<your Home Assistant long-lived access token>"
       HA_URL: "http://homeassistant:8123"
+    volumes:
+      - ha-nova-snapshots:/data/ha_nova_snapshots
+
+volumes:
+  ha-nova-snapshots:
 ```
 
 If Home Assistant runs in the same Compose project, `HA_URL` can use its service name; otherwise use the host's IP.
@@ -45,6 +51,7 @@ If Home Assistant runs in the same Compose project, `HA_URL` can use its service
 | Variable | Required | Default | Meaning |
 |----------|----------|---------|---------|
 | `RELAY_AUTH_TOKEN` | yes | — | Shared secret between the `ha-nova` CLI and the relay. Any long random secret (see Setup order). |
+| `SNAPSHOT_DIR` | no | `/data/ha_nova_snapshots` | Where config snapshots (`POST /backups`) are stored. Mount a volume there to persist them. |
 | `HA_LLAT` | yes | — | Home Assistant long-lived access token. **Stays on the server** — the AI client never sees it. |
 | `HA_URL` | no | `http://homeassistant:8123` | Where Home Assistant lives. |
 | `RELAY_PORT` | no | `8791` | Listen port. |
@@ -77,6 +84,10 @@ The interactive wizard is built around the Supervisor App (it walks you through 
 A guided "Docker" branch in the interactive wizard is planned; until then this is the supported path, and it is the one the documentation and tests cover.
 
 The security model is identical to the App: the LLAT lives only on the server side (in the container's environment), and the relay token is stored in your OS keychain — the AI client never sees your Home Assistant token.
+
+## Config snapshots
+
+The relay stores config snapshots (relay 0.5.0, `POST /backups`) under `/data/ha_nova_snapshots`. The image creates that directory writable, but it is EPHEMERAL unless you mount a volume there (the `-v ha-nova-snapshots:...` line above / the Compose volume). `SNAPSHOT_DIR` overrides the location. On App installs this needs no setup — the App data directory persists and full HA backups sweep it up.
 
 ## File access (optional)
 

@@ -49,11 +49,11 @@ type relayRequestOptions struct {
 
 func runRelayCommand(paths runtimePaths, args []string) int {
 	if len(args) == 0 {
-		printErr("Usage: ha-nova relay <health|ws|core|files|jq|version> ...")
+		printErr("Usage: ha-nova relay <health|ws|core|files|backups|jq|version> ...")
 		return 1
 	}
 	if args[0] == "--help" || args[0] == "-h" || args[0] == "help" {
-		fmt.Println("Usage: ha-nova relay <health|ws|core|files|jq|version> ...")
+		fmt.Println("Usage: ha-nova relay <health|ws|core|files|backups|jq|version> ...")
 		fmt.Println("Run 'ha-nova relay <subcommand> --help' to see that subcommand's flags.")
 		return 0
 	}
@@ -67,6 +67,8 @@ func runRelayCommand(paths runtimePaths, args []string) int {
 		return runRelayProxy(paths, "core", args[1:])
 	case "files":
 		return runRelayProxy(paths, "files", args[1:])
+	case "backups":
+		return runRelayProxy(paths, "backups", args[1:])
 	case "jq":
 		return runJQ(args[1:])
 	case "version":
@@ -89,7 +91,7 @@ func parseRelayFlags(command string, args []string) (relayRequestOptions, error)
 
 	opts := relayRequestOptions{}
 	switch command {
-	case "ws", "files":
+	case "ws", "files", "backups":
 		fs.StringVar(&opts.InlineJSON, "data", "", "inline JSON payload")
 		fs.StringVar(&opts.InlineJSON, "d", "", "inline JSON payload")
 		fs.StringVar(&opts.JSONFile, "data-file", "", "path to JSON payload file")

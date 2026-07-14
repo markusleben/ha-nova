@@ -51,7 +51,8 @@ describe("loadEnv", () => {
       relayVersion: "dev",
       appOptionsPath: "/data/options.json",
       relayPort: 9000,
-      logLevel: "debug"
+      logLevel: "debug",
+      snapshotDir: "/data/ha_nova_snapshots"
     });
   });
 
@@ -68,7 +69,8 @@ describe("loadEnv", () => {
       relayVersion: "dev",
       appOptionsPath: "/data/options.json",
       relayPort: 8791,
-      logLevel: "info"
+      logLevel: "info",
+      snapshotDir: "/data/ha_nova_snapshots"
     });
   });
 
@@ -85,7 +87,8 @@ describe("loadEnv", () => {
       relayVersion: "dev",
       appOptionsPath: "/data/options.json",
       relayPort: 8791,
-      logLevel: "info"
+      logLevel: "info",
+      snapshotDir: "/data/ha_nova_snapshots"
     });
   });
 

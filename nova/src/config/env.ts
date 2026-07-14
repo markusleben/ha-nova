@@ -8,6 +8,7 @@ export interface EnvConfig {
   appOptionsPath: string;
   relayPort: number;
   logLevel: LogLevel;
+  snapshotDir: string;
 }
 
 const DEFAULT_RELAY_PORT = 8791;
@@ -15,6 +16,9 @@ const DEFAULT_LOG_LEVEL: LogLevel = "info";
 const DEFAULT_HA_URL = "http://homeassistant:8123";
 const DEFAULT_RELAY_VERSION = "dev";
 const DEFAULT_APP_OPTIONS_PATH = "/data/options.json";
+// Lives inside the App data dir so Supervised full backups sweep it up; the
+// standalone container overrides via SNAPSHOT_DIR (mount a volume to persist).
+const DEFAULT_SNAPSHOT_DIR = "/data/ha_nova_snapshots";
 const ALLOWED_LOG_LEVELS = new Set<LogLevel>([
   "trace",
   "debug",
@@ -41,6 +45,8 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): EnvConfig {
     throw new Error("LOG_LEVEL must be one of trace|debug|info|warn|error");
   }
 
+  const snapshotDir = parseRequiredLike(source.SNAPSHOT_DIR, DEFAULT_SNAPSHOT_DIR);
+
   return {
     relayAuthToken,
     haLlat,
@@ -48,7 +54,8 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): EnvConfig {
     relayVersion,
     appOptionsPath,
     relayPort,
-    logLevel: logRaw as LogLevel
+    logLevel: logRaw as LogLevel,
+    snapshotDir
   };
 }
 

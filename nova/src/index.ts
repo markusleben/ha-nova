@@ -7,6 +7,7 @@ import type {
   HaWsEventCollectionOptions,
   HaWsRequest,
 } from "./ha/ws-client.js";
+import { createBackupsHandler } from "./http/handlers/backups.js";
 import { createCoreProxyHandler } from "./http/handlers/core-proxy.js";
 import { createFilesHandler } from "./http/handlers/files.js";
 import { createHealthHandler } from "./http/handlers/health.js";
@@ -26,6 +27,7 @@ export interface AppOptions {
     ): Promise<HaWsEventCollection<unknown>>;
   };
   fileAccess: FileAccessConfig;
+  snapshotRoot: string;
   coreClient: {
     request(input: CoreProxyRequest): Promise<CoreProxyResponse>;
   };
@@ -84,6 +86,16 @@ export function createApp(options: AppOptions): App {
     createFilesHandler({
       fileAccess: options.fileAccess
     })
+  );
+
+  router.register(
+    "POST",
+    "/backups",
+    createBackupsHandler(
+      options.now
+        ? { snapshotRoot: options.snapshotRoot, now: options.now }
+        : { snapshotRoot: options.snapshotRoot }
+    )
   );
 
   const server = createHttpServer({
