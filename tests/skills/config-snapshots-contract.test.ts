@@ -18,6 +18,8 @@ describe("config snapshots contract", () => {
     expect(reference).toContain("the item's id made relay-safe");
     // Capture must never override the user's confirmed operation.
     expect(reference).toContain("a snapshot failure never silently blocks or silently vanishes");
+    // The capture trigger is destructive ops, not routine edits.
+    expect(reference).toContain("before a full-document save that REMOVES content");
     // Restore is a normal write, not a blind put.
     expect(reference).toContain("never delete+recreate");
     expect(reference).toContain("a restore is a normal write, never a blind put");
@@ -40,6 +42,7 @@ describe("config snapshots contract", () => {
   it("wires auto-capture before destructive ops in every FULL family", () => {
     expect(writeSkill).toContain("capture the auto config snapshot of the current read-back first");
     expect(sceneSkill).toContain("Capture the auto config snapshot of the current config first");
+    expect(sceneSkill).toContain("When the confirmed update REMOVES scene members, capture the auto config snapshot first");
     expect(dashboardSkill).toContain("capture the auto config snapshot of the full dashboard config first");
     expect(dashboardSkill).toContain("capture the auto config snapshot of the pre-save document when the save removes views or cards");
     expect(helperSkill).toContain("Capture the auto config snapshot of the current list item first");

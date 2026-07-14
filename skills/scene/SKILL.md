@@ -86,7 +86,7 @@ Persistence routing per `skills/ha-nova/best-practices.md` → Persistence Model
 1. Read the current config (Read flow).
 2. Merge the requested change in memory — the POST replaces the ENTIRE scene config; never send a partial body and never drop entities the user did not mention.
 3. Preview a concise before/after excerpt; natural confirmation bound to this exact preview.
-4. If the conversation paused between read and confirmation, re-read and re-verify the merge basis before writing; if the live scene differs from the previewed basis, STOP — confirmation expired; show the updated merge and ask again (never silently overwrite an external edit). Apply the orphaned-member flag from Read step 3.
+4. If the conversation paused between read and confirmation, re-read and re-verify the merge basis before writing; if the live scene differs from the previewed basis, STOP — confirmation expired; show the updated merge and ask again (never silently overwrite an external edit). Apply the orphaned-member flag from Read step 3. When the confirmed update REMOVES scene members, capture the auto config snapshot first (`skills/ha-nova/config-snapshots.md`; best-effort).
 5. POST the full merged body, then read back and verify both the intended change and the survival of unrelated entities.
 
 ### Delete

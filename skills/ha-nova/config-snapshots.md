@@ -31,7 +31,9 @@ covers them so restores work the moment capture lands.
 
 ## Capture (before destructive ops)
 
-Before a delete or a full-document overwrite in a covered family, save the
+Before a delete, and before a full-document save that REMOVES content
+(dropped views, cards, or scene members — routine edits are covered by the
+revert stack and read-back verification instead), save the
 COMPLETE HA-normalized read-back of each affected item (the same read the
 preview was built from — never the draft). One item per snapshot; a batch
 saves one snapshot per item. Name: `auto-<item-slug>`, where `<item-slug>` is
