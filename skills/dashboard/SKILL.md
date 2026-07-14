@@ -161,7 +161,7 @@ Do not dump the full dashboard JSON/YAML by default.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
 
 - No guessed `url_path` or `dashboard_id` values.
-- Dashboard/resource/card delete uses exact token confirmation only, even for items created earlier in the same session. Dashboard writes have no `revert`; the recovery path is Home Assistant Backups.
+- Dashboard/resource/card delete uses exact token confirmation only, even for items created earlier in the same session. Dashboard writes have no `revert` — recovery for dashboard/card deletes is the auto config snapshot (next bullet); resources recover via Home Assistant Backups.
 - Content-removing saves capture an auto config snapshot — that is the recovery net. Dashboard deletes capture one too, but restore is PARTIAL: recreate the dashboard (reusing the `url_path`), then save the snapshot content — say that in the delete preview. LOVELACE RESOURCE deletes are NOT snapshot-covered — they keep the safety-backup offer. Otherwise offer a backup via `ha-nova:backup` only when the snapshot store is unavailable (never for routine small edits).
 - If the change needs a broad re-layout instead of a targeted edit, say so before writing.
 
