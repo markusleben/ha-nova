@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile, realpath, rm, stat, writeFile } from "node:fs/promises";
+import { lstat, mkdir, readdir, readFile, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { gunzip, gzip } from "node:zlib";
@@ -181,6 +181,21 @@ async function assertRealParent(root: string, absolute: string): Promise<void> {
   }
   if (realParent !== realRoot && !realParent.startsWith(`${realRoot}/`)) {
     throw new HttpError(400, "VALIDATION_ERROR", "file must stay inside the snapshot store");
+  }
+  // A pre-existing LEAF symlink would still route readFile/rm outside the
+  // store even with a clean parent — refuse it outright.
+  try {
+    const leaf = await lstat(absolute);
+    if (leaf.isSymbolicLink()) {
+      throw new HttpError(400, "VALIDATION_ERROR", "file must stay inside the snapshot store");
+    }
+  } catch (error) {
+    if (error instanceof HttpError) {
+      throw error;
+    }
+    if (!isEnoent(error)) {
+      throw error;
+    }
   }
 }
 

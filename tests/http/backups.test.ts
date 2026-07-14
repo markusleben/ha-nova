@@ -191,6 +191,22 @@ describe("backups handler", () => {
         "VALIDATION_ERROR"
       );
       expect(existsSync(join(outside, "escape-20260714T120000000Z.json.gz"))).toBe(true);
+
+      // Leaf symlink inside a REAL category dir must be refused too.
+      mkdirSync(join(root, "scenes"), { recursive: true });
+      writeFileSync(join(outside, "leaf.json.gz"), gzipSync("{}"));
+      symlinkSync(join(outside, "leaf.json.gz"), join(root, "scenes", "leak-20260714T120000000Z.json.gz"));
+      await expectHttpError(
+        call({ action: "load", file: "scenes/leak-20260714T120000000Z.json.gz" }),
+        400,
+        "VALIDATION_ERROR"
+      );
+      await expectHttpError(
+        call({ action: "delete", file: "scenes/leak-20260714T120000000Z.json.gz" }),
+        400,
+        "VALIDATION_ERROR"
+      );
+      expect(existsSync(join(outside, "leaf.json.gz"))).toBe(true);
     } finally {
       rmSync(outside, { recursive: true, force: true });
     }
