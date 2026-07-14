@@ -1,5 +1,5 @@
-import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { mkdir, readdir, readFile, realpath, rm, stat, writeFile } from "node:fs/promises";
+import { dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { gunzip, gzip } from "node:zlib";
 
@@ -162,6 +162,28 @@ function snapshotPath(root: string, file: string): string {
   return absolute;
 }
 
+// The lexical check above cannot see symlinks: a symlinked category dir on a
+// restored/mounted volume would pass it and route the fs call outside the
+// store. Resolve the file's parent with realpath and require it to sit under
+// the real root. A missing parent is fine — the later fs call yields ENOENT,
+// which the callers map to 404 (or mkdir it first, for save).
+async function assertRealParent(root: string, absolute: string): Promise<void> {
+  let realRoot: string;
+  let realParent: string;
+  try {
+    realRoot = await realpath(resolve(root));
+    realParent = await realpath(dirname(absolute));
+  } catch (error) {
+    if (isEnoent(error)) {
+      return;
+    }
+    throw error;
+  }
+  if (realParent !== realRoot && !realParent.startsWith(`${realRoot}/`)) {
+    throw new HttpError(400, "VALIDATION_ERROR", "file must stay inside the snapshot store");
+  }
+}
+
 function formatStamp(ms: number): string {
   // 20260714T123456789Z — sortable, path-safe, millisecond precision.
   const iso = new Date(ms).toISOString(); // 2026-07-14T12:34:56.789Z
@@ -247,6 +269,7 @@ async function saveSnapshot(
   const file = `${category}/${name}-${stamp}.json.gz`;
   const absolute = snapshotPath(root, file);
   await mkdir(join(root, category), { recursive: true });
+  await assertRealParent(root, absolute);
   try {
     await writeFile(absolute, compressed, { flag: "wx" });
   } catch (error) {
@@ -263,6 +286,7 @@ async function loadSnapshot(
   file: string
 ): Promise<{ data: unknown; bytes: number; created_at: string }> {
   const absolute = snapshotPath(root, file);
+  await assertRealParent(root, absolute);
   let compressed: Buffer;
   try {
     compressed = await readFile(absolute);
@@ -297,6 +321,7 @@ async function listSnapshots(root: string, category?: string): Promise<SnapshotE
 
 async function deleteSnapshot(root: string, file: string): Promise<{ deleted: true }> {
   const absolute = snapshotPath(root, file);
+  await assertRealParent(root, absolute);
   try {
     await rm(absolute);
   } catch (error) {

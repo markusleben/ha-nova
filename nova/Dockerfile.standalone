@@ -22,6 +22,11 @@ FROM node:22-alpine
 # and talks HTTP; a compromised process should not own the container.
 RUN addgroup -S nova && adduser -S nova -G nova
 
+# Config-snapshot store (POST /backups) — must be writable by the nova user or
+# every save fails EACCES. Ephemeral unless a volume is mounted here (see
+# docs/reference/relay-container.md); SNAPSHOT_DIR overrides the location.
+RUN mkdir -p /data/ha_nova_snapshots && chown -R nova:nova /data
+
 WORKDIR /app
 COPY --from=build --chown=nova:nova /app/dist ./dist
 COPY --from=build --chown=nova:nova /app/node_modules ./node_modules

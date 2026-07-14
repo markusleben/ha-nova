@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
@@ -168,6 +168,32 @@ describe("backups handler", () => {
     expect(result.deleted).toHaveLength(1);
     expect(existsSync(join(root, "automations"))).toBe(true);
     expect(await call({ action: "list" })).toEqual([]);
+  });
+
+  it("refuses to operate through a symlinked category directory", async () => {
+    const outside = mkdtempSync(join(tmpdir(), "nova-backups-outside-"));
+    try {
+      symlinkSync(outside, join(root, "automations"));
+      await expectHttpError(
+        call({ action: "save", category: "automations", name: "escape", data: 1 }),
+        400,
+        "VALIDATION_ERROR"
+      );
+      writeFileSync(join(outside, "escape-20260714T120000000Z.json.gz"), gzipSync("{}"));
+      await expectHttpError(
+        call({ action: "load", file: "automations/escape-20260714T120000000Z.json.gz" }),
+        400,
+        "VALIDATION_ERROR"
+      );
+      await expectHttpError(
+        call({ action: "delete", file: "automations/escape-20260714T120000000Z.json.gz" }),
+        400,
+        "VALIDATION_ERROR"
+      );
+      expect(existsSync(join(outside, "escape-20260714T120000000Z.json.gz"))).toBe(true);
+    } finally {
+      rmSync(outside, { recursive: true, force: true });
+    }
   });
 
   it("never parses or mutates the stored payload", async () => {
