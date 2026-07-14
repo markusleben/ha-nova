@@ -209,6 +209,10 @@ describe("backups handler", () => {
         "VALIDATION_ERROR"
       );
       expect(existsSync(join(outside, "leaf.json.gz"))).toBe(true);
+
+      // ... and the leaf symlink must not surface in list results either.
+      const listed = (await call({ action: "list", category: "scenes" })) as Array<{ file: string }>;
+      expect(listed.some((entry) => entry.file.includes("leak"))).toBe(false);
     } finally {
       rmSync(outside, { recursive: true, force: true });
     }

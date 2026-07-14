@@ -1,4 +1,4 @@
-import { lstat, mkdir, readdir, readFile, realpath, rm, stat, writeFile } from "node:fs/promises";
+import { lstat, mkdir, readdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { gunzip, gzip } from "node:zlib";
@@ -248,7 +248,12 @@ async function collectEntries(root: string, category?: string): Promise<Snapshot
       if (!match) {
         continue;
       }
-      const info = await stat(join(root, cat, fname));
+      // lstat, not stat: a leaf symlink must neither leak outside metadata
+      // into list results nor count its target's size toward the caps.
+      const info = await lstat(join(root, cat, fname));
+      if (!info.isFile()) {
+        continue;
+      }
       entries.push({
         file: ref,
         category: cat,
