@@ -281,15 +281,25 @@ skill does not have; when only Backups remain, say so before the write. For
 far-reaching changes (irreversible deletes, full-document overwrites, bulk
 operations) offer to create one first via `ha-nova:backup` — its safety-backup
 flow checks for a recent full backup before creating, because full backups are
-expensive. Never suggest a backup for routine small edits.
+expensive. EXCEPTION: when the operation auto-captures a config snapshot
+(`skills/ha-nova/config-snapshots.md`) and the store is available, the snapshot
+IS the recovery net — skip the full-backup offer for that config-level op.
+Never suggest a backup for routine small edits.
+
+Config-level recovery: relays with the snapshot store (`POST /backups`) let the
+covered families auto-capture a config snapshot before deletes/full-document
+overwrites and restore selectively through their own write path —
+`skills/ha-nova/config-snapshots.md` is the SSOT (capture rules, restore
+fidelity, honest limits). The full-backup offer stays for system-level
+operations and for relays whose `/backups` answers 404.
 
 | Skill / family | Pre-write diff | Update-revert | Fallback recovery path |
 |---|---|---|---|
-| `write` (automation/script) | yes (`ha-nova diff`) | yes (verified updates, last 5 targets) | HA Backups |
-| `helper` storage family | yes | yes (verified updates, last 5 targets) | HA Backups |
+| `write` (automation/script) | yes (`ha-nova diff`) | yes (verified updates, last 5 targets) | config snapshot (auto before delete, identity-preserving restore); HA Backups |
+| `helper` storage family | yes | yes (verified updates, last 5 targets) | config snapshot (auto before delete; recreate mints a new id); HA Backups |
 | `helper` config-entry family | diff only | no (multi-step options flow) | HA Backups |
-| `dashboard` | preview + read-back verify | no | HA Backups |
-| `scene` | preview + read-back verify | no | HA Backups |
+| `dashboard` | preview + read-back verify | no | config snapshot (auto before delete / content-dropping save); HA Backups |
+| `scene` | preview + read-back verify | no | config snapshot (auto before delete, identity-preserving restore); HA Backups |
 | `todo` | preview + read-back verify | no (list delete irreversible) | re-add items; HA Backups for lists |
 | `updates` | preview + entity re-read verify | no (updates not downgradable) | HA Backups (offered pre-install for core/OS) |
 | `energy` | change preview + read-back & validate verify | no (corrective save) | HA Backups |

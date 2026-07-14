@@ -200,7 +200,8 @@ Match user intent to exactly one skill:
 | enable/disable/trigger an automation | `ha-nova:service-call` |
 | find entities by name, room, area | `ha-nova:entity-discovery` |
 | fix relay/auth/connectivity errors | `ha-nova:onboarding` |
-| undo, revert, or restore the last automation/script/helper change | the skill that wrote it — `ha-nova:write` (automation/script) or `ha-nova:helper` (helper). `revert` applies only to supported verified updates. Creates clean up through the normal delete flow; deletes require Backup/recreate. Run `ha-nova snapshot show` to see the saved target if unsure |
+| undo, revert, or restore the last automation/script/helper change | the skill that wrote it — `ha-nova:write` (automation/script) or `ha-nova:helper` (helper). `revert` applies only to supported verified updates. Creates clean up through the normal delete flow; a DELETED automation/script/scene/dashboard/STORAGE helper restores from its auto config snapshot in the owning skill (`skills/ha-nova/config-snapshots.md`); config-entry helpers are not snapshot-covered — their recovery stays Backup/recreate. Run `ha-nova snapshot show` to see the saved update target if unsure |
+| list or restore config snapshots ("restore X from a snapshot", "what snapshots do I have?") | the skill that owns the item family — `ha-nova:write` (automations/scripts), `ha-nova:scene`, `ha-nova:dashboard`, `ha-nova:helper`; mechanics: `skills/ha-nova/config-snapshots.md` |
 | **any HA task not matched above** — blueprints, unsupported admin writes, any unfamiliar raw relay/ws/core write | `ha-nova:fallback` **(mandatory fallback — never skip)** |
 
 **"Analyze my automation"** → `ha-nova:review` (NOT read + review)
@@ -210,7 +211,7 @@ Match user intent to exactly one skill:
 **"Create an automation"** → `ha-nova:write` (NOT read + write)
 **"Create an input_boolean"** → `ha-nova:helper` (NOT write)
 **"Show my helpers"** → `ha-nova:helper` (NOT read)
-**"Revert that"** / **"Undo the last change"** → re-invoke the skill that made it: `ha-nova:write` (automation/script) or `ha-nova:helper` (helper). `revert` is update-only and lives there (see `write-safety.md` → Update-Revert), never `ha-nova:fallback`; create cleanup uses delete flow, and delete rollback needs Backup/recreate.
+**"Revert that"** / **"Undo the last change"** → re-invoke the skill that made it: `ha-nova:write` (automation/script) or `ha-nova:helper` (helper). `revert` is update-only and lives there (see `write-safety.md` → Update-Revert), never `ha-nova:fallback`; create cleanup uses delete flow, and a deleted item in a snapshot-covered family restores from its auto config snapshot in the owning skill (`config-snapshots.md`); config-entry helpers stay Backup/recreate.
 **"Create a scene called Movie Night"** → `ha-nova:scene`
 **"Activate the scene Movie Night"** → `ha-nova:service-call` (runtime action, not a config change)
 **"Unlock the front door"** → `ha-nova:service-call` (high-consequence: typed confirmation code)

@@ -80,7 +80,8 @@ describe("write delete safety contract", () => {
     expect(organizeSkill).toContain("Registry deletes are irreversible");
     expect(organizeSkill).toContain("Home Assistant Backups (Settings > System > Backups)");
     expect(dashboardSkill).toContain("Dashboard writes have no `revert`");
-    expect(dashboardSkill).toContain("the recovery path is Home Assistant Backups");
+    expect(dashboardSkill).toContain("recovery for dashboard/card deletes is the auto config snapshot");
+    expect(dashboardSkill).toContain("resources recover via Home Assistant Backups");
     // Fallback full-replace writes verify survival of unrelated content after write.
     expect(fallbackSkill).toContain("verify both the intended change and the survival of unrelated content");
     expect(fallbackSkill).toContain("verify the pre-existing list items survived");

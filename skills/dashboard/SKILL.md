@@ -106,6 +106,7 @@ Critical behavior:
      - preview a concise diff/excerpt
      - confirm this exact preview
      - drift check between confirmation and save: if the conversation paused since the preview, re-read the live config and compare the FULL document against the merge basis — including the very view/card being edited; on any foreign change, STOP — confirmation expired; re-merge onto the fresh read and re-preview (the full-document save would silently revert the external edit)
+     - capture the auto config snapshot of the pre-save document when the save removes views or cards (`skills/ha-nova/config-snapshots.md`; on capture failure follow its capture-failure stop)
      - save the full merged config with `lovelace/config/save`
      - new cards may be created only from this built-in allowlist:
        - `entity`, `entities`, `button`, `tile`, `gauge`, `sensor`, `markdown`, `history-graph`
@@ -114,6 +115,7 @@ Critical behavior:
    - delete:
      - preview the exact dashboard identity
      - require exact token confirmation `confirm:<token>`
+     - capture the auto config snapshot first — data = `{shell: <the dashboard's lovelace/dashboards/list entry>, config: <the full lovelace/config>}`, so a later-session restore can recreate the shell (url_path, title, icon, sidebar, admin flag) before saving the content (`skills/ha-nova/config-snapshots.md`; on capture failure follow its capture-failure stop)
      - call `lovelace/dashboards/delete` with `dashboard_id`
      - multi-item deletes follow `skills/ha-nova/batch-safety.md`; dashboards, resources, and cards are separate families — one family per manifest; a card batch within one dashboard executes as ONE merged `lovelace/config/save` (single-call path — sequential per-card saves would overwrite each other), verified by one read-back
 4. Read the current dashboard when content changes are involved.
@@ -159,8 +161,8 @@ Do not dump the full dashboard JSON/YAML by default.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
 
 - No guessed `url_path` or `dashboard_id` values.
-- Dashboard/resource/card delete uses exact token confirmation only, even for items created earlier in the same session. Dashboard writes have no `revert`; the recovery path is Home Assistant Backups.
-- Before a dashboard/resource delete or a save that removes views or cards, offer a safety backup via `ha-nova:backup` (its flow checks for a recent one first). Never offer it for routine small edits.
+- Dashboard/resource/card delete uses exact token confirmation only, even for items created earlier in the same session. Dashboard writes have no `revert` — recovery for dashboard/card deletes is the auto config snapshot (next bullet); resources recover via Home Assistant Backups.
+- Content-removing saves capture an auto config snapshot — that is the recovery net. Dashboard deletes capture one too, but restore is PARTIAL: recreate the dashboard (reusing the `url_path`), then save the snapshot content — say that in the delete preview. LOVELACE RESOURCE deletes are NOT snapshot-covered — they keep the safety-backup offer. Otherwise offer a backup via `ha-nova:backup` only when the snapshot store is unavailable (never for routine small edits).
 - If the change needs a broad re-layout instead of a targeted edit, say so before writing.
 
 ## Guardrails

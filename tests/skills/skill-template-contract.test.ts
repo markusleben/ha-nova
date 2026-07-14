@@ -110,14 +110,16 @@ const SAFETY_CORE_BLOCKS = ((): { mutation: string; readOnly: string } => {
 const WORD_BUDGETS: Record<string, number> = {
   // write/mqtt ratcheted for the batch-safety opt-in lines (#327);
   // write again for the Phase 5 test offer (test-run.md).
-  write: 1600,
+  // pre-delete snapshot capture + config-snapshots reference (Wave 2).
+  write: 1700,
   diagnose: 1450,
   // Report-shape declaration line (shared output shapes); repair dedup,
   // attention-threshold definition, cause↔symptom linking (2026-h2 Wave 1c).
   health: 1350,
   // post-publish device verification step (2026-h2 Wave 1a).
   mqtt: 1400,
-  scene: 1400,
+  // pre-delete snapshot capture (Wave 2).
+  scene: 1500,
   // buffering settle-window on verify (2026-h2 Wave 1a).
   media: 1200,
   // test-offer single-confirmation + reference bullets (test-run.md);
@@ -133,8 +135,8 @@ const WORD_BUDGETS: Record<string, number> = {
   todo: 1200,
   // batch-safety opt-in with the merged-save card rule (#327);
   // safety-backup offer (Wave 0) + drift check before the full-document
-  // save (2026-h2 Wave 1a).
-  dashboard: 1300,
+  // save (Wave 1a) + pre-delete/pre-save snapshot capture (Wave 2).
+  dashboard: 1400,
   updates: 1200,
   // batch-safety alignment: batch code format + cap-split rule (#327);
   // purge quantification, glob expansion, apply_filter semantics
@@ -144,8 +146,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // blueprint payload examples (masterplan-2026-h2 Wave 0).
   fallback: 2450,
   // semantic-slot note on the read templates (Wave 0); pre-write cross-field
-  // constraint checks + drift-check step (2026-h2 Wave 1).
-  helper: 3750,
+  // constraint checks + drift-check step (Wave 1); pre-delete snapshot
+  // capture (Wave 2).
+  helper: 3850,
   // Suggestion Block item-shape pointer (shared output shapes).
   review: 4400,
 };
