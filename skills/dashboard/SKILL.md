@@ -105,6 +105,7 @@ Critical behavior:
      - merge the requested change in memory
      - preview a concise diff/excerpt
      - confirm this exact preview
+     - drift check between confirmation and save: if the conversation paused since the preview, re-read the live config and compare the FULL document against the merge basis — including the very view/card being edited; on any foreign change, STOP — confirmation expired; re-merge onto the fresh read and re-preview (the full-document save would silently revert the external edit)
      - save the full merged config with `lovelace/config/save`
      - new cards may be created only from this built-in allowlist:
        - `entity`, `entities`, `button`, `tile`, `gauge`, `sensor`, `markdown`, `history-graph`
@@ -117,7 +118,6 @@ Critical behavior:
      - multi-item deletes follow `skills/ha-nova/batch-safety.md`; dashboards, resources, and cards are separate families — one family per manifest; a card batch within one dashboard executes as ONE merged `lovelace/config/save` (single-call path — sequential per-card saves would overwrite each other), verified by one read-back
 4. Read the current dashboard when content changes are involved.
    - use `lovelace/config` with the chosen `url_path`
-   - if the conversation paused between this read and the confirmed save, re-read the live config and compare the FULL document against the merge basis — including the very view/card being edited, not only untouched ones; on any foreign change, STOP — confirmation expired; re-merge onto the fresh read and re-preview (a full-document save would silently revert the external edit)
 5. Read back and verify:
    - create / metadata update / delete: verify through `lovelace/dashboards/list`
    - resource create/update/delete: verify through `lovelace/resources`

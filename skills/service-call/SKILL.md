@@ -62,6 +62,7 @@ Some services return data (`weather.get_forecasts`, `calendar.get_events`, `todo
 3. If the user names a room/area but the intended scope could be narrower, ask one clarifying question before using `area_id`.
    - Do not ask a second blocking ambiguity question in the same turn.
    - If entity resolution already consumed the one blocking question, default to the narrower confirmed target or stop and explain the ambiguity.
+   - When the call proceeds with an `area_id`/`device_id` target, expand it to the concrete member entities the service's domain applies to (entity registry) BEFORE the preview, and list them there — the preview and later verification bind to that exact list.
 4. Preview the service call with stable localized slots:
    - Before preview: read current state via `ha-nova relay core --method GET --path /api/states/{entity_id}`.
    - Capability gate: if the call depends on a device capability (position, color_temp, hvac modes, sound mode, ...), check the target's attributes/`supported_features` in that state read first; if the device cannot do it, say so instead of calling (pattern: `ha-nova:media`).
@@ -89,7 +90,7 @@ Some services return data (`weather.get_forecasts`, `calendar.get_events`, `todo
    - Default: read the entity state back (`ha-nova relay core --method GET --path /api/states/{entity_id}`) and confirm the expected change.
    - Transitions: covers report `opening`/`closing`, lights fade over `transition`, climate ramps — when the read-back shows a transitional or unchanged value on such a device, wait a few seconds (up to the transition length) and re-read once before calling it a discrepancy.
    - Stateless targets: `button.press`/`input_button.press`, `scene.turn_on`/`scene.apply`, and direct `script.*` runs do not reflect the call in the target's own state. Verify the promise instead — scene/script via acted-on member entities or `last_triggered`, a button press via acceptance only — and say what was (not) verifiable rather than reporting a false discrepancy.
-   - Area/device targets: verify the expanded member list from the confirmed manifest, not a single entity.
+   - Area/device targets: verify the member list expanded and previewed in step 3, not a single entity.
    - Report: service called, verified state (or the honest verification limit), any errors.
 
 ## Service Data Fields
