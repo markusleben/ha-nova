@@ -37,7 +37,7 @@ Self-contained catalog: load this file before evaluating findings — from `skil
   - run `search/related` on up to 3 linked entities
   - say explicitly that config-entry helper review does not use the storage-helper H rules
   - for the `template` domain, also read the linked entity's rendered state (`unavailable`/`unknown` is inconclusive, not proof of breakage — source state or an intentional sentinel); to apply the template-level reliability checks, open the options flow for the entry first (non-persisting readback — the canonical metadata item does not carry the `state` template)
-- If an automation or script references helpers in actions or direct thresholds, also apply H-01..H-10 to those helpers
+- If an automation or script references helpers in actions or direct thresholds, also apply H-01..H-11 to those helpers (H-11 is exactly the case where the consumer is in the workset)
 - R-17 is an intra-config branch comparison only. Never emit it from collision scan or cross-automation conflict analysis.
 - R-18 applies only to sibling-variable references within one `variables:` mapping. Never emit it for cross-action or cross-scope references, script `fields`, HA builtins, or `{% set %}` locals inside the same template.
 - For R-18 output, include the block context plus at least one concrete variable pair. For pasted YAML or draft configs, describe it as future write fragility. For HA read-back or post-write review, describe it as a persisted runtime risk.
