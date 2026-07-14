@@ -65,11 +65,11 @@ describe("review contract", () => {
     expect(reviewChecks).toContain("Do not emit R-10 just because H-09 matched");
   });
 
-  it("keeps shared references aligned to H-01..H-10", () => {
+  it("keeps shared references aligned to the helper check ranges", () => {
     expect(writeSkill).toContain("H-01..H-11");
-    expect(helperSkill).toContain("H-01..H-10");
+    expect(helperSkill).toContain("H-01..H-11");
     expect(reviewChecks).toContain("Helper (storage-based family): H-01..H-11");
-    expect(architectureDoc).toContain("H-01..H-10");
+    expect(architectureDoc).toContain("H-01..H-15");
   });
 
   it("keeps live-evidence helper checks staged in write/helper flows", () => {
@@ -78,7 +78,7 @@ describe("review contract", () => {
     expect(helperSkill).toContain("Apply H-01..H-08 directly");
     expect(helperSkill).toContain("Only evaluate H-09/H-10");
     expect(helperSkill).toContain("direct helper-backed threshold");
-    expect(helperSkill).toContain("Do not pretend H-01..H-10 apply here");
+    expect(helperSkill).toContain("Do not pretend H-01..H-11 apply here");
     expect(helperSkill).toContain("minimal config-entry post-write contract");
     expect(reviewChecks).toContain("Helper (config-entry family): minimal config-entry review");
     expect(reviewChecks).toContain("do not apply H-01..H-11");

@@ -281,7 +281,7 @@ Rules:
 ## Review Architecture
 
 `ha-nova:review` is a self-contained read-only reviewer:
-- Config quality: safety (S-01..S-03), reliability (R-01..R-28), performance (P-01..P-05), style (M-01..M-05; M-04 retired, moved to R-20), script-specific (F-01..F-08), helper-specific (H-01..H-10)
+- Config quality: safety (S-01..S-03), reliability (R-01..R-28), performance (P-01..P-05), style (M-01..M-05; M-04 retired, moved to R-20), script-specific (F-01..F-09), helper-specific (H-01..H-15), scene (SC-01..SC-07), dashboard (D-01..D-07), cross-item (HX-01..HX-05), YAML sensors (TS-01..TS-07)
 - `R-25` is pasted-YAML only (legacy template platform syntax, removed in HA 2026.6); `M-05` is a modernize advisory for pre-2024.10 automation keys
 - Collision scan: `search/related` on top 3 target entities
 - Conflict analysis: 3-step test (polarity → temporal → guard conditions)
@@ -310,7 +310,7 @@ Rules:
   - Transport: WS (`{type}/create`, `{type}/update`, `{type}/delete`)
   - Identity: `{type}_id` from `{type}/list`, not entity_id
   - Write verify: `{type}/list`
-  - Review: H-01..H-10 helper-specific checks + collision scan via `search/related`
+  - Review: H-01..H-11 helper-specific checks + collision scan via `search/related`
   - No domain reload needed
 
 - **Config-entry family**
@@ -322,7 +322,7 @@ Rules:
   - Update: options-flow loop with required-field carry-forward from the current editable options snapshot
   - Identity: `entry_id` is canonical; linked `entity_id` values are derived only
   - Write verify: config-entry layer first for identity/existence, reopened editable options snapshot for field-level update verification
-  - Review: minimal config-entry post-write contract, not H-01..H-10
+  - Review: minimal config-entry post-write contract (plus H-12/H-13/H-15 where readable), not H-01..H-11
   - `group` remains menu-driven; end-to-end support is proven for the `sensor` subtype, and other subtypes must stay anchored to the live step schema instead of guessed fields
 
 Still excluded from `ha-nova:helper`:
