@@ -52,5 +52,6 @@
   "tests/skills/todo-contract.test.ts",
   "tests/skills/trace-contract.test.ts",
   "tests/skills/updates-contract.test.ts",
+  "tests/skills/version-claim-drift.test.ts",
   "tests/skills/write-delete-safety-contract.test.ts"
 ]

@@ -23,9 +23,9 @@ describe("health and calendar skill contracts", () => {
     expect(health).toContain('{"message":{"type":"system_health/info"},"collect_events":{"until_type":"finish","max_events":100,"timeout_ms":10000}}');
     expect(health).toContain("The Skill opts into generic Relay event collection through `collect_events`");
     expect(health).toContain("data.events");
-    expect(health).toContain("Relay 0.2.3 or newer");
+    expect(health).toContain("need a relay at the enforced floor");
     expect(health).toContain("Read `data.version` from the health response.");
-    expect(health).toContain("If the relay version is below `0.2.3`, do not call `system_health/info`");
+    expect(health).toContain("If a relay-outdated warning appeared this session, skip `system_health/info`");
     expect(health).toContain("include the current relay version");
     expect(health).toContain("## Data Shapes");
     expect(health).toContain("REST `/api/config`, `/api/components`, `/api/states`: use `.data.body`");
@@ -104,7 +104,7 @@ describe("health and calendar skill contracts", () => {
     expect(architecture).toContain("`ha-nova:health` is a read-only home-status skill");
     expect(architecture).toContain("integration setup/load status through `config_entries/get`");
     expect(architecture).toContain("generic bounded WS event collection for `system_health/info`");
-    expect(architecture).toContain("skip `system_health/info` when Relay App version is below 0.2.3");
+    expect(architecture).toContain("skip `system_health/info` when the relay is below the enforced floor (`min_relay_version`)");
     expect(architecture).toContain("capped examples, sanitized integration reasons");
     expect(architecture).toContain("deprioritize noisy/stateless domains");
     expect(architecture).not.toContain("current-session error log");

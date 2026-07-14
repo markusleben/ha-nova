@@ -181,7 +181,7 @@ describe("write delete safety contract", () => {
   it("treats post-delete absence evidence as successful verification without alternate delete retries", () => {
     expect(applyAgent).toContain("config read-back not-found after DELETE is expected absence evidence");
     expect(applyAgent).toContain("entity state not-found after DELETE is expected absence evidence");
-    expect(applyAgent).toContain("`config/entity_registry/get` may return `UPSTREAM_WS_ERROR` (or `UPSTREAM_WS_COMMAND_ERROR` on Relay App >= 0.2.4) after deletion");
+    expect(applyAgent).toContain("`config/entity_registry/get` may return `UPSTREAM_WS_COMMAND_ERROR` (legacy relays below the enforced floor: `UPSTREAM_WS_ERROR`) after deletion");
     expect(applyAgent).toContain("do not retry alternate deletes");
     expect(applyAgent).toContain("config/entity_registry/list_for_display");
     expect(applyAgent).toContain("no exact `entity_id` match");

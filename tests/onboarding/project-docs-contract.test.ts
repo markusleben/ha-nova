@@ -23,8 +23,9 @@ describe("project docs contract", () => {
   });
 
   it("tracks the active architecture surfaces and current skill inventory", () => {
-    expect(project).toContain("fallback");
-    expect(project).toContain("automation-patterns.md");
+    expect(project).toContain("docs/work/masterplan-2026-h2.md");
+    expect(project).toContain("the dispatch table in `skills/ha-nova/SKILL.md` is the authoritative inventory");
+    expect(project).toContain("`POST /files` (opt-in, default off)");
     expect(project).toContain("documentation-governance.md");
     expect(project).not.toContain("## Active Documentation");
     expect(project).not.toContain("## Current Product Surfaces");

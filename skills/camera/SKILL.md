@@ -21,7 +21,7 @@ Not in scope: creating automations around cameras (`ha-nova:write`), person/moti
 Verify relay CLI: `ha-nova relay health`
 If this fails: `ha-nova setup`
 
-Requires **Relay 0.3.0 or newer** (binary responses). Check `ha-nova relay health` -> `version`; if it is older, tell the user to update the NOVA Relay — an older relay would corrupt the image bytes.
+Binary responses are guaranteed by the skills' enforced relay floor (`skills/ha-nova/relay-api.md` -> Bounded Event Collection). If any relay command printed a relay-outdated warning, have the user update the NOVA Relay before fetching frames — an older relay would corrupt the image bytes.
 
 ## Relay Contract
 

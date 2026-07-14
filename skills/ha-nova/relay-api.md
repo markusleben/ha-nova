@@ -10,7 +10,7 @@ Underlying HTTP contract (reference only, not for direct use): `Authorization: B
 
 ## Bounded Event Collection (envelope)
 
-Window mode (`on_limit`) and binary responses require **Relay 0.3.0 or newer**. An older relay silently ignores `on_limit` and falls back to strict mode (a timeout then fails the call instead of returning partial events). Check the running version with `ha-nova relay health` before relying on either feature, and tell the user to update the NOVA Relay App if it is older.
+Window mode (`on_limit`) and binary responses are supported by every relay at or above the skills' enforced floor — `min_relay_version` in `version.json`, currently **Relay 0.4.0**. The CLI checks that floor on every relay call and prints a relay-outdated warning when the installed relay is older; surface that warning and offer the update instead of version-gating manually. (Below the floor, `on_limit` is silently ignored and a timeout fails the call instead of returning partial events.)
 
 
 Some WS commands answer with events instead of a single response. Wrap them:
@@ -413,7 +413,7 @@ These are top-level HTTP errors produced by the relay itself. The response has `
 - `500 / INTERNAL_ERROR`: unexpected relay server error
 - `502 / UPSTREAM_WS_ERROR`: relay could not reach HA websocket
 - `502 / UPSTREAM_WS_TIMEOUT`: WS request to HA timed out
-- `502 / UPSTREAM_WS_COMMAND_ERROR` (Relay App >= 0.2.4): HA answered the WS command with a structured error; the message contains HA's own error code and text (e.g. `HA rejected 'x': unknown_command: ...`). The connection stays healthy — treat this as a command problem, not a connectivity problem. Older relays report these as generic `UPSTREAM_WS_ERROR`.
+- `502 / UPSTREAM_WS_COMMAND_ERROR`: HA answered the WS command with a structured error; the message contains HA's own error code and text (e.g. `HA rejected 'x': unknown_command: ...`). The connection stays healthy — treat this as a command problem, not a connectivity problem. Legacy relays below the enforced floor report these as generic `UPSTREAM_WS_ERROR`.
 - `502 / UPSTREAM_HTTP_ERROR`: core HTTP request to HA failed
 - `502 / UPSTREAM_HTTP_TIMEOUT`: core HTTP request to HA timed out
 

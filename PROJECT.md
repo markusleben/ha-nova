@@ -16,13 +16,13 @@ Active doc ownership lives in `docs/reference/documentation-governance.md`.
 
 ## Current Phase
 
-**Phase 1: Infrastructure + skill-system consolidation**
+**Post-masterplan-2026 program** — the active roadmap is `docs/work/masterplan-2026-h2.md`.
 
-Deliverables:
-1. Relay MVP: `GET /health`, `POST /ws`, `POST /core`
-2. Context skill: `ha-nova` (auto-loaded via SessionStart hook; sub-skills discovered independently)
-3. Sub-skills (flat under `skills/`): write, read, review, dashboard, organize, history, helper, health, calendar, entity-discovery, service-call, fallback, onboarding
-4. Shared references under `skills/ha-nova/` (`relay-api.md`, `best-practices.md`, `payload-schemas.md`, `helper-schemas.md`, `template-guidelines.md`, `safe-refactoring.md`, `automation-patterns.md`, `agents/`)
+Shipped and current:
+1. Relay: `GET /health`, `POST /ws`, `POST /core`, `POST /files` (opt-in, default off); App + standalone container from one codebase
+2. Go CLI: install, setup wizard, doctor, update (incl. guided relay update), uninstall (incl. guided server-side teardown), relay proxy
+3. Context skill `ha-nova` plus 28 task skills, flat under `skills/` — the dispatch table in `skills/ha-nova/SKILL.md` is the authoritative inventory
+4. Shared references under `skills/ha-nova/` (relay API contract, output rules, write safety, batch safety, schemas, agent templates)
 
 ## Tech Stack
 

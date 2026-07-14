@@ -259,7 +259,7 @@ Rules:
 Rules:
 - no repair/fix/ignore actions
 - no restart/reload/service calls
-- check `ha-nova relay health` and skip `system_health/info` when Relay App version is below 0.2.3
+- check `ha-nova relay health` and skip `system_health/info` when the relay is below the enforced floor (`min_relay_version`)
 - summarize by source and bind conclusions to evidence
 - keep Home Status compact: overall state, source coverage, capped examples, sanitized integration reasons
 - deprioritize noisy/stateless domains (`button`, `event`, `scene`, `stt`) in unavailable/unknown examples
@@ -370,7 +370,7 @@ Rules: never invent a `media_content_id`; volume jumps and announcements are dis
 
 ## Camera Architecture
 
-`ha-nova:camera` owns camera access and is the first consumer of the relay's binary path (relay >= 0.3.0):
+`ha-nova:camera` owns camera access and is the first consumer of the relay's binary path (guaranteed at the enforced relay floor, `version.json` → `min_relay_version`):
 - frames via `GET /api/camera_proxy/<entity_id>` with `--out-binary` ONLY (`--out`/`--jq` would write the JSON envelope instead of an image)
 - stream URL via WS `camera/stream` (needs the STREAM feature bit)
 - `camera.snapshot` / `camera.record` write on the HA host and need `allowlist_external_dirs` — previewed and confirmed
@@ -378,7 +378,7 @@ Rules: never invent a `media_content_id`; volume jumps and announcements are dis
 
 ## MQTT Architecture
 
-`ha-nova:mqtt` owns MQTT work and is the first consumer of envelope window mode (relay >= 0.3.0):
+`ha-nova:mqtt` owns MQTT work and is the first consumer of envelope window mode (guaranteed at the enforced relay floor):
 - listening is a bounded WINDOW (`mqtt/subscribe` inside `collect_events` with `on_limit: "return"`), never a stream; the relay unsubscribes when it closes
 - an empty window is a real answer ("nothing published"), reported as one — an `UPSTREAM_WS_TIMEOUT` (subscription never established) is a different finding
 - discovery/debug via WS `mqtt/device/debug_info` (device_id from the registry, never guessed)
