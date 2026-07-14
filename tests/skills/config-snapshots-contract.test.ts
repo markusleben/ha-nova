@@ -14,6 +14,8 @@ describe("config snapshots contract", () => {
   it("keeps the shared reference honest about capture, restore, and limits", () => {
     // Auto-snapshots are prunable; named ones survive — the naming rule IS the retention policy.
     expect(reference).toContain("auto-snapshots MUST use the `auto-` prefix");
+    // HA ids carry underscores/dots — the store only accepts hyphen slugs.
+    expect(reference).toContain("the item's id made relay-safe");
     // Capture must never override the user's confirmed operation.
     expect(reference).toContain("a snapshot failure never silently blocks or silently vanishes");
     // Restore is a normal write, not a blind put.

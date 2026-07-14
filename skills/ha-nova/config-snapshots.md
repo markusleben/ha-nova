@@ -31,8 +31,12 @@ warning when it appears.
 Before a delete or a full-document overwrite in a covered family, save the
 COMPLETE HA-normalized read-back of each affected item (the same read the
 preview was built from — never the draft). One item per snapshot; a batch
-saves one snapshot per item. Name: `auto-<item-slug>`. Say in the result that
-a snapshot was taken and how to restore ("restore from snapshot").
+saves one snapshot per item. Name: `auto-<item-slug>`, where `<item-slug>` is
+the item's id made relay-safe — the store accepts only `[a-z0-9-]`, and HA ids
+carry underscores and dots (`automation.kitchen_lights`): lowercase, replace
+every other character with `-`, collapse repeats, trim leading/trailing `-`,
+and truncate so the full name stays within 64 characters. Say in the result
+that a snapshot was taken and how to restore ("restore from snapshot").
 
 Capture is best-effort: a failed save (store full, relay outdated) must WARN
 and continue the confirmed operation — the typed confirmation stays the
