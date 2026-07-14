@@ -164,9 +164,9 @@ All waves land on `main` first; releases batch per the release-worthiness rule. 
 
 | Wave | Theme | Relay release | Status |
 |------|-------|---------------|--------|
-| 0 | Safety seams (3 PRs) | — | in progress |
-| 1 | Skill intelligence hardening (3 PRs) | — | planned |
-| 2 | Config Snapshots | 0.5.0 | planned (spec first) |
+| 0 | Safety seams (3 PRs) | — | **DONE** — #340, #341, #342 |
+| 1 | Skill intelligence hardening (3 PRs) | — | **DONE** — #344, #345, #346 |
+| 2 | Config Snapshots | 0.5.0 | spec: `2026-07-14-config-snapshots-spec.md` |
 | 3 | Review expansion (SC/D/TS/HX families, test-offer) | — | planned |
 | 4 | Coverage (integration-setup, calendar writes, events, alarm/lock) | — | planned |
 | 5 | Relay diagnosability | 0.5.0 (with Wave 2) | planned |
