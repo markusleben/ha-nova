@@ -155,8 +155,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // constraint checks + drift-check step (Wave 1); pre-delete snapshot
   // capture (Wave 2).
   helper: 3850,
-  // Suggestion Block item-shape pointer (shared output shapes).
-  review: 4400,
+  // Suggestion Block item-shape pointer (shared output shapes); scene/
+  // dashboard first-class targets with flow adaptation (2026-h2 Wave 3).
+  review: 4500,
 };
 const DEFAULT_WORD_BUDGET = 1150;
 
