@@ -71,7 +71,9 @@ This generic `test("KEYWORD";"i")` example is for free-text search, not explicit
 For an explicit prefix selector, match the suffix and display name with `startswith(...)`, not loose substring search.
 
 **If 0 results:** try synonyms, alternative terms, or shorter keyword stems. Use OR for multiple variants: `test("kw1|kw2|kw3";"i")`.
+**Diacritics:** `test(...;"i")` folds case, not accents — `Küche` does not match `kueche` or `kuche`. Whenever the keyword or likely entity names carry umlauts/accents, put the transliterated variants into the OR-pattern: `test("küche|kueche|kuche";"i")`.
 **If too many:** narrow with AND: `test("kw1";"i") and test("kw2";"i")`.
+**Cap honesty:** the `.[0:20]` cap can drop the target — when exactly 20 results return, say the list is capped and narrow further instead of treating it as complete.
 **Never** dump entire domains without a user-intent keyword.
 
 When the task is multi-target inventory:
@@ -131,9 +133,9 @@ This is more reliable than keyword search or assuming `.ai` is populated for roo
 
 - area-first bulk discovery by room/area uses `search/related` on the resolved area before keyword heuristics
 - exact `entity_id` match wins
-- keyword match on entity_id + name second
+- keyword match on entity_id + name second; rank whole-word and name matches above bare substring hits
 
-If ambiguity remains: present top candidates (max 10), ask one selection question.
+If ambiguity remains: present top candidates (max 10) and state the match basis for each (name, entity_id, alias, or area) — the user must see WHY a candidate matched; then ask one selection question.
 
 ## Output Format
 

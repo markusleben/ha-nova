@@ -109,4 +109,4 @@ Render the Report shape (output-rules.md): what is playing where — player, sta
 - Read `supported_features` before offering an action; never call a service the player cannot do.
 - One player (or one explicit group) per operation.
 - Never invent `media_content_id` values — they come from browse/resolve.
-- Do not dump full browse trees; page through them.
+- Browse responses return ALL children of a node — there is no paging parameter. Bound the OUTPUT, not the request: show at most ~20 children per level, say how many more exist, and ask the user to narrow (drill into a folder, name a title) instead of listing on.

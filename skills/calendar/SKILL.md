@@ -50,7 +50,9 @@ Relay-core response body is under `.data.body` (envelope contract: `skills/ha-no
 6. Summarize events:
    - title/summary
    - start and end
-   - all-day vs timed
+   - all-day vs timed; all-day events carry date-only values with an EXCLUSIVE end — a one-day event on the 14th returns end = the 15th; report it as "on the 14th", never as "ends the 15th"
+   - timed events: render times in the user's local timezone, and say which timezone applies when the returned offset differs from it
+   - recurring events arrive pre-expanded as individual instances within the window — count and report them as such, not as one series
    - location only when useful
    - omit private descriptions unless the user explicitly asks
 

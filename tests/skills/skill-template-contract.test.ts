@@ -112,8 +112,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // write again for the Phase 5 test offer (test-run.md).
   write: 1600,
   diagnose: 1450,
-  // Report-shape declaration line (shared output shapes).
-  health: 1200,
+  // Report-shape declaration line (shared output shapes); repair dedup,
+  // attention-threshold definition, cause↔symptom linking (2026-h2 Wave 1c).
+  health: 1350,
   // post-publish device verification step (2026-h2 Wave 1a).
   mqtt: 1400,
   scene: 1400,
