@@ -63,6 +63,17 @@ summary of what the new item does.
 
 **delete**: no `## Changes` (the consumer-check result already covers it).
 
+### Drift check before apply (update)
+
+Confirmation binds to the previewed diff BASIS, not only the payload. If the
+conversation paused between preview and confirmation, or the target may have
+been edited outside this session (HA UI open, another client), re-read the
+target immediately before the write and structurally compare it against the
+`CURRENT_CONFIG` the diff was computed from. On any foreign change: STOP —
+the confirmation has expired; recompute the diff against the live config and
+show the updated preview. Never silently overwrite an external edit — a
+full-document write would revert it without a trace.
+
 ### Behavior narrative (required with every update preview)
 
 The diff states WHAT fields change; the preview-summary sentence must state

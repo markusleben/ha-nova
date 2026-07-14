@@ -54,6 +54,7 @@ MQTT topics never emit a "finish" event, so a listen is a WINDOW, not a request.
 2. Listen in a bounded window (above). Summarize: which topics appeared, how many messages, and — separately — how many were live (`retain: false`) versus retained replays. Quote at most a few payloads.
 3. Device discovery/debug: WS `{"type":"mqtt/device/debug_info","device_id":"<device_id>"}` shows the subscribed topics and discovery payloads for one MQTT device (resolve `device_id` from the device registry, never guess it).
 4. Publishing (mutating): service `mqtt.publish` with `topic`, `payload`, `qos`, `retain`. There is no `payload_template` field in the current schema — render any template yourself and send the finished string as `payload`. (`evaluate_payload: true` only tells HA to evaluate a Python-literal payload for raw bytes; it is not a template switch.) Preview the exact topic + payload and confirm.
+5. Verify a command/`set` publish: when the topic belongs to an HA-known device, read the affected entity's state back after a moment — a broker accept is not device confirmation; if HA shows no corresponding change, say so. For topics HA does not mirror, state plainly that HA-side verification is not possible.
 
 ## Publishing Safety (read before any publish)
 

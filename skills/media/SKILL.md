@@ -73,7 +73,7 @@ If a requested feature bit is absent, say so plainly instead of calling the serv
 4. Play a resolved item: `media_player.play_media` with `media_content_id` + `media_content_type` from the browse/resolve step. Never invent a content id.
 5. Grouping (bit 524288 — NOT 262144, which is repeat): `media_player.join` with `group_members: [<entity_ids>]` on the master; `media_player.unjoin` to remove a player. Read `group_members` back to verify.
 6. TTS announcement: `tts.speak` with `entity_id` of a TTS entity, `media_player_entity_id` of the target, and `message`. Discover engines with WS `{"type":"tts/engine/list"}`. For a legacy setup without TTS entities, fall back to the integration's own `tts.*_say` service and say which one you used.
-7. Verify by re-reading the player's state (`state`, `volume_level`, `source`, `media_title`) — never report success from the service response alone.
+7. Verify by re-reading the player's state (`state`, `volume_level`, `source`, `media_title`) — never report success from the service response alone. Streaming players may show `buffering` or a briefly unchanged state; wait a few seconds and re-read once before reporting a discrepancy.
 
 ## Error Handling
 

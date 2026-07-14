@@ -71,7 +71,7 @@ describe("scene contract", () => {
     expect(sceneSkill).toContain("offer removal, never preserve or drop silently");
     expect(sceneSkill).toContain("ask before creating a duplicate");
     expect(sceneSkill).toContain("require a 404 so an existing scene is never silently overwritten");
-    expect(sceneSkill).toContain("re-read and re-verify the merge basis before writing (last writer wins)");
+    expect(sceneSkill).toContain("if the live scene differs from the previewed basis, STOP — confirmation expired");
     // Scene entity state semantics: timestamp, unknown = never activated.
     expect(sceneSkill).toContain("`unknown` means \"never activated\"");
     // Activation extras stay in service-call, but the skill teaches them.

@@ -105,6 +105,7 @@ Critical behavior:
      - merge the requested change in memory
      - preview a concise diff/excerpt
      - confirm this exact preview
+     - drift check between confirmation and save: if the conversation paused since the preview, re-read the live config and compare the FULL document against the merge basis — including the very view/card being edited; on any foreign change, STOP — confirmation expired; re-merge onto the fresh read and re-preview (the full-document save would silently revert the external edit)
      - save the full merged config with `lovelace/config/save`
      - new cards may be created only from this built-in allowlist:
        - `entity`, `entities`, `button`, `tile`, `gauge`, `sensor`, `markdown`, `history-graph`
