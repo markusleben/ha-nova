@@ -107,7 +107,7 @@ Do NOT invoke `ha-nova:review` separately.
    - **Findings**: real issues only. **Collision check**: only when related items exist (list them + the verdict). **Advisory**: only when non-empty. Omit any section with nothing to report — never print an empty "none" bucket.
    - If nothing is worth reporting, collapse to one scope-honest confirmation line (write-safety → Verification Honesty).
    - Never emit `Questions to consider`, `Suggestions`, or `Instant help` post-write; never repeat an item across **Findings** and **Advisory**.
-5. Update-Revert: updates only → **run `ha-nova snapshot save`** and offer `revert` (see `skills/ha-nova/write-safety.md`). Creates → cleanup via normal HA NOVA delete flow with preview, `confirm:<token>`, and absence verification. Deletes → Home Assistant Backups.
+5. Update-Revert: updates only → **run `ha-nova snapshot save`** and offer `revert` (see `skills/ha-nova/write-safety.md`). Creates → cleanup via normal HA NOVA delete flow with preview, `confirm:<token>`, and absence verification. Deletes → name the captured config snapshot as the restore path (`skills/ha-nova/config-snapshots.md`); when no snapshot was captured (store missing/full), Home Assistant Backups.
 
 ### Phase 5: Test Offer (create/update only)
 
