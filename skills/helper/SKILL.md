@@ -95,7 +95,7 @@ If 0 results: try synonyms or shorter stems. Never dump entire domains.
 
 #### Creating a helper
 
-1. Validate intent against `skills/ha-nova/helper-schemas.md` for required/optional fields.
+1. Validate intent against `skills/ha-nova/helper-schemas.md` for required/optional fields. Validate cross-field constraints pre-write too, instead of leaving them to the post-write review: `input_number` `min` < `max`; `counter` `minimum` < `maximum`; `input_select` `initial` must be in `options`; `input_datetime` needs `has_date` and/or `has_time`; `timer` `duration` in `HH:MM:SS`. Fix or ask before writing.
 2. Use-case defaults (create only, skip on update/delete):
    - Infer use-case from helper name + type using general HA knowledge.
    - Consult `skills/ha-nova/helper-schemas.md` → Suggested Defaults for principles and field name reminders.
@@ -126,7 +126,7 @@ If 0 results: try synonyms or shorter stems. Never dump entire domains.
 
 1. Resolve target from `{type}/list` by `name` or internal `id`.
 2. Extract `id` from the list response (this is the `{type}_id` for the update command).
-3. Preview current vs proposed in the Changes slot with `ha-nova diff` (see `skills/ha-nova/write-safety.md` → Pre-Write Diff). Then run a pre-write impact check — `search/related` on this helper entity (max 3 related configs) — and surface affected automations/scripts as an advisory. Advisory only; never block. Include an explicit not-saved-yet line and Options block (`apply`, `show yaml`, `cancel`).
+3. Validate the merged current+proposed fields against the same cross-field constraints as create (Creating step 1) — an update can break `min`/`max`, `minimum`/`maximum`, `initial` ∈ `options`, or datetime/timer constraints just as easily. Then preview current vs proposed in the Changes slot with `ha-nova diff` (see `skills/ha-nova/write-safety.md` → Pre-Write Diff). Then run a pre-write impact check — `search/related` on this helper entity (max 3 related configs) — and surface affected automations/scripts as an advisory. Advisory only; never block. Include an explicit not-saved-yet line and Options block (`apply`, `show yaml`, `cancel`).
 4. Ask for natural confirmation bound to this exact preview (see context skill → Active Preview Confirmation).
 5. If the conversation paused since the preview, re-read the list item; a changed basis expires the confirmation (`write-safety.md` → Drift check before apply).
 6. Execute:

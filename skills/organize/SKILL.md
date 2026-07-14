@@ -78,8 +78,8 @@ Use `search/related` when a delete needs a quick impact preview on linked items.
      - clear labels
 4. For delete:
    - preview impact first
-   - areas/floors: show linked areas or assignments that will lose placement
-   - labels: show linked items when quickly resolvable
+   - areas/floors: show linked areas or assignments that will lose placement; run WS `search/related` with the matching item type (`"area"` for an area, `"floor"` for a floor) and name automations/scripts/scenes that target it — the delete leaves those targets dangling
+   - labels: run WS `search/related` (`item_type: "label"`) and name the automations/scripts that reference the label; show other linked items when quickly resolvable
    - categories: show affected entity count and a small example set when resolvable
    - require token confirmation `confirm:<token>`
    - same-family batch deletes follow `skills/ha-nova/batch-safety.md`, only when related-item impact is complete for every target
@@ -97,6 +97,8 @@ Use only exposed metadata fields:
 - device: `name_by_user`, `area_id`, `labels`, `disabled_by`
 
 Do not guess unsupported fields.
+
+`new_entity_id` and `disabled_by` are NOT low-risk metadata: a rename breaks every automation, scene, script, dashboard, and template that references the old id, and disabling removes the entity from the state machine with the same effect on consumers. Before either, run WS `search/related` on the entity — for a DEVICE-level `disabled_by`, expand the device to its entities first (entity registry by `device_id`) and run `search/related` per entity, because the device relation itself does not collect the child entities' consumers — and name the union of consumers in the preview — and say plainly that it covers automations, scripts, groups, persons, and scenes only: template references and dashboards (storage AND YAML mode) are NOT indexed and cannot be ruled out this way (a storage-dashboard scan via `ha-nova:dashboard` is the thorough follow-up). After a rename, offer to update the found consumers through their owning skills.
 
 ## Output Format
 
