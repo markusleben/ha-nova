@@ -338,6 +338,16 @@ async function loadSnapshot(
   };
 }
 
+export async function summarizeSnapshotStore(
+  root: string
+): Promise<{ files: number; bytes: number }> {
+  const entries = await collectEntries(root);
+  return {
+    files: entries.length,
+    bytes: entries.reduce((sum, entry) => sum + entry.bytes, 0)
+  };
+}
+
 async function listSnapshots(root: string, category?: string): Promise<SnapshotEntry[]> {
   return await collectEntries(root, category);
 }

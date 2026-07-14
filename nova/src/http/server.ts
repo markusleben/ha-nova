@@ -11,7 +11,17 @@ export interface HttpServerOptions {
   router: Router;
   maxJsonBodyBytes?: number;
   version?: string;
+  logger?: {
+    warn(message: string, context?: Record<string, unknown>): void;
+    error(message: string, context?: Record<string, unknown>): void;
+  };
 }
+
+// A client must send headers and body within these windows; a stalled or
+// drip-feeding connection is dropped instead of holding a socket forever.
+// Upstream HA calls are bounded at 10 s, so 30 s leaves generous margin.
+export const SERVER_REQUEST_TIMEOUT_MS = 30_000;
+export const SERVER_HEADERS_TIMEOUT_MS = 31_000;
 
 // Lets CLI callers of /ws and /core detect an outdated relay without an
 // extra /health round-trip; /health remains the full health signal.
@@ -20,13 +30,20 @@ export const RELAY_VERSION_HEADER = "x-ha-nova-relay-version";
 export function createHttpServer(options: HttpServerOptions): Server {
   const maxJsonBodyBytes = options.maxJsonBodyBytes ?? DEFAULT_MAX_JSON_BODY_BYTES;
 
-  return createServer(async (request, response) => {
+  const server = createServer(async (request, response) => {
     if (options.version) {
       response.setHeader(RELAY_VERSION_HEADER, options.version);
     }
     try {
       const authResult = authorizeRequest(request.headers.authorization, options.authToken);
       if (!authResult.ok) {
+        // Visible in the App log: repeated 401s are the operator's only signal
+        // for a misconfigured client or someone probing the port.
+        options.logger?.warn("Rejected unauthorized request", {
+          method: request.method ?? "GET",
+          path: toPathname(request.url),
+          remote: request.socket.remoteAddress ?? "unknown"
+        });
         writeJson(response, authResult.status, {
           ok: false,
           error: {
@@ -52,9 +69,22 @@ export function createHttpServer(options: HttpServerOptions): Server {
       });
     } catch (error) {
       const mapped = toErrorResponse(error);
+      if (mapped.status === 500) {
+        // The envelope stays generic on purpose; the App log carries the cause
+        // so an unexpected crash path is diagnosable.
+        options.logger?.error("Unhandled relay error", {
+          method: request.method ?? "GET",
+          path: toPathname(request.url),
+          error: error instanceof Error ? `${error.name}: ${error.message}` : String(error)
+        });
+      }
       writeJson(response, mapped.status, mapped.body);
     }
   });
+
+  server.requestTimeout = SERVER_REQUEST_TIMEOUT_MS;
+  server.headersTimeout = SERVER_HEADERS_TIMEOUT_MS;
+  return server;
 }
 
 function toPathname(urlValue: string | undefined): string {

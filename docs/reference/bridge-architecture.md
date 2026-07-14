@@ -62,8 +62,11 @@ Response 200:
   "data": {
     "status": "ok",
     "ha_ws_connected": true,
-    "version": "0.2.5",
-    "uptime_s": 3600
+    "ha_ws_disconnect_reason": null,
+    "version": "0.5.0",
+    "uptime_s": 3600,
+    "file_access": "off",
+    "snapshots": { "files": 3, "bytes": 4096 }
   }
 }
 ```

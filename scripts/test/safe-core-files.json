@@ -22,6 +22,7 @@
   "tests/ha/ws-client.test.ts",
   "tests/hooks/session-start.test.ts",
   "tests/http/backups.test.ts",
+  "tests/http/server-limits.test.ts",
   "tests/http/core-proxy.test.ts",
   "tests/http/error-envelope.test.ts",
   "tests/http/files-access.test.ts",

@@ -3,6 +3,7 @@ import type { Server } from "node:http";
 import type { FileAccessConfig } from "./config/file-access.js";
 import type { CoreProxyRequest, CoreProxyResponse } from "./types/api.js";
 import type {
+  HaWsConnectionStatus,
   HaWsEventCollection,
   HaWsEventCollectionOptions,
   HaWsRequest,
@@ -20,11 +21,16 @@ export interface AppOptions {
   version: string;
   wsClient: {
     isConnected(): boolean;
+    getConnectionStatus?(): HaWsConnectionStatus;
     sendMessage(message: HaWsRequest): Promise<unknown>;
     collectMessageEvents(
       message: HaWsRequest,
       options?: HaWsEventCollectionOptions
     ): Promise<HaWsEventCollection<unknown>>;
+  };
+  logger?: {
+    warn(message: string, context?: Record<string, unknown>): void;
+    error(message: string, context?: Record<string, unknown>): void;
   };
   fileAccess: FileAccessConfig;
   snapshotRoot: string;
@@ -48,7 +54,9 @@ export function createApp(options: AppOptions): App {
   const healthOptions = {
     version: options.version,
     wsClient: options.wsClient,
-    startedAtMs
+    startedAtMs,
+    fileAccessMode: options.fileAccess.mode,
+    snapshotRoot: options.snapshotRoot
   } as const;
 
   router.register(
@@ -101,7 +109,8 @@ export function createApp(options: AppOptions): App {
   const server = createHttpServer({
     authToken: options.authToken,
     router,
-    version: options.version
+    version: options.version,
+    ...(options.logger ? { logger: options.logger } : {})
   });
 
   return {
