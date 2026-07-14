@@ -98,7 +98,7 @@ Use only exposed metadata fields:
 
 Do not guess unsupported fields.
 
-`new_entity_id` and `disabled_by` are NOT low-risk metadata: a rename breaks every automation, scene, script, dashboard, and template that references the old id, and disabling removes the entity from the state machine with the same effect on consumers. Before either, run WS `search/related` on the entity and name the consumers in the preview; after a rename, offer to update them through their owning skills.
+`new_entity_id` and `disabled_by` are NOT low-risk metadata: a rename breaks every automation, scene, script, dashboard, and template that references the old id, and disabling removes the entity from the state machine with the same effect on consumers. Before either, run WS `search/related` on the entity and name the consumers in the preview — and say plainly that template references and YAML-mode dashboards are NOT indexed by `search/related`, so those cannot be ruled out. After a rename, offer to update the found consumers through their owning skills.
 
 ## Output Format
 
