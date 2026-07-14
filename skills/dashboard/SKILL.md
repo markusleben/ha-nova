@@ -115,7 +115,7 @@ Critical behavior:
    - delete:
      - preview the exact dashboard identity
      - require exact token confirmation `confirm:<token>`
-     - capture the auto config snapshot of the full dashboard config first (`skills/ha-nova/config-snapshots.md`; on capture failure follow its capture-failure stop)
+     - capture the auto config snapshot first — data = `{shell: <the dashboard's lovelace/dashboards/list entry>, config: <the full lovelace/config>}`, so a later-session restore can recreate the shell (url_path, title, icon, sidebar, admin flag) before saving the content (`skills/ha-nova/config-snapshots.md`; on capture failure follow its capture-failure stop)
      - call `lovelace/dashboards/delete` with `dashboard_id`
      - multi-item deletes follow `skills/ha-nova/batch-safety.md`; dashboards, resources, and cards are separate families — one family per manifest; a card batch within one dashboard executes as ONE merged `lovelace/config/save` (single-call path — sequential per-card saves would overwrite each other), verified by one read-back
 4. Read the current dashboard when content changes are involved.

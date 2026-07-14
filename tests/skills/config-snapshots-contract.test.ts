@@ -44,7 +44,7 @@ describe("config snapshots contract", () => {
     expect(writeSkill).toContain("capture the auto config snapshot of the current read-back first");
     expect(sceneSkill).toContain("Capture the auto config snapshot of the current config first");
     expect(sceneSkill).toContain("When the confirmed update REMOVES scene members, capture the auto config snapshot first");
-    expect(dashboardSkill).toContain("capture the auto config snapshot of the full dashboard config first");
+    expect(dashboardSkill).toContain("capture the auto config snapshot first — data = `{shell:");
     expect(dashboardSkill).toContain("capture the auto config snapshot of the pre-save document when the save removes views or cards");
     expect(helperSkill).toContain("Capture the auto config snapshot of the current list item first");
   });

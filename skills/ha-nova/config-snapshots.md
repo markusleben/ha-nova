@@ -71,7 +71,7 @@ the user just decides informed.
 | automations / scripts | full | config-API upsert keyed by the original `unique_id` — entity_id survives |
 | scenes | full | upsert by original `id`; entity derives from `name` |
 | dashboards (content) | full | `lovelace/config/save` by `url_path` while the dashboard exists |
-| dashboards (deleted) | partial | recreate via `lovelace/dashboards/create` reusing the previewed `url_path`/title, then `config/save` the snapshot — content returns fully, the internal `dashboard_id` is new |
+| dashboards (deleted) | partial | the snapshot carries `{shell, config}`: recreate via `lovelace/dashboards/create` from the shell metadata (`url_path`, title, icon, sidebar, admin flag), then `config/save` the content — content returns fully, the internal `dashboard_id` is new |
 | energy prefs | full | whole-document `save_prefs` |
 | yaml files | full | path-stable `write_file` |
 | helpers (storage) | update: full / delete: partial | recreate mints a NEW id — inbound references stay broken; say so |
