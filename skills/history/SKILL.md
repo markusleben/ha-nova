@@ -52,6 +52,12 @@ Envelope parsing follows `skills/ha-nova/relay-api.md` → Standard Envelope; re
 - do not probe `.[0]` or `.[0][0]` against the relay envelope
 Recorder statistics response stays under WS `.data`.
 
+Statistics semantics (`recorder/statistics_during_period`) — check which keys the response actually carries before summarizing:
+- Measurement stats (temperature, humidity) carry `mean`/`min`/`max`. Metered `total_increasing` stats (energy, water, gas) are consumption: request `change` in the `types` list and SUM the per-bucket `change` values over the window (the pattern `skills/energy/energy-reference.md` uses) — never an average, and never `last sum − first sum`, which drops the first bucket's consumption and reads 0 for a single bucket.
+- Long-term statistics carry their own unit, which can differ from the entity's current unit after a unit change (the exact trap `ha-nova:maintenance` repairs) — report the unit from the statistics metadata, and flag a mismatch instead of mixing units.
+- `statistic_id` is not always an `entity_id`: external statistics use `domain:object_id` (colon) and have no entity — resolve via `recorder/list_statistic_ids` when unsure.
+- Daily/monthly buckets follow the HA server's local timezone including DST shifts — a "day" is not a fixed 24 h; name the bucket timezone when precision matters.
+
 ## Flow
 
 1. Resolve the exact entity target when needed.
