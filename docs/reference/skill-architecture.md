@@ -259,7 +259,7 @@ Rules:
 Rules:
 - no repair/fix/ignore actions
 - no restart/reload/service calls
-- check `ha-nova relay health` and skip `system_health/info` when Relay App version is below 0.2.3
+- check `ha-nova relay health` and skip `system_health/info` when the relay is below the enforced floor (`min_relay_version`)
 - summarize by source and bind conclusions to evidence
 - keep Home Status compact: overall state, source coverage, capped examples, sanitized integration reasons
 - deprioritize noisy/stateless domains (`button`, `event`, `scene`, `stt`) in unavailable/unknown examples
