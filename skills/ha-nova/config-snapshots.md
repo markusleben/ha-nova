@@ -8,12 +8,14 @@ or restoring a snapshot. The relay stores opaque gzip'd JSON — everything smar
 ## Relay contract
 
 `ha-nova relay backups --data-file <payload-file>` (file-based, like ws/files).
+Responses use the standard relay envelope (`relay-api.md` → Standard Envelope):
+the payload sits under `.data`, errors under `.error`.
 
-- Save: `{"action":"save","category":"<family>","name":"<slug>","data":<full read-back JSON>}` → `{file, bytes, created_at}`
-- Load: `{"action":"load","file":"<category>/<name>-<stamp>.json.gz"}` → `{data, created_at}`
-- List: `{"action":"list"}` (optional `"category"`) → newest first
+- Save: `{"action":"save","category":"<family>","name":"<slug>","data":<full read-back JSON>}` → `.data.file`, `.data.bytes`, `.data.created_at`
+- Load: `{"action":"load","file":"<category>/<name>-<stamp>.json.gz"}` → the snapshot under `.data.data`, plus `.data.created_at`
+- List: `{"action":"list"}` (optional `"category"`) → `.data[]` newest first (`file`, `category`, `bytes`, `created_at`)
 - Delete: `{"action":"delete","file":...}` — typed confirmation code like any destructive op
-- Prune: `{"action":"prune"}` (defaults: 30 days / 100 files, named snapshots exempt)
+- Prune: `{"action":"prune"}` (defaults: 30 days / 100 files, named snapshots exempt) → `.data.deleted[]`
 
 Names: auto-snapshots MUST use the `auto-` prefix (prune eats them); snapshots
 the user asked for by name use a plain slug and survive prune. A `404/NOT_FOUND`
