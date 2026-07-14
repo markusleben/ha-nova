@@ -45,6 +45,7 @@ describe("runtime bootstrap", () => {
         seenSource = input.upstreamAuth.source;
         return {
           isConnected: () => true,
+        getConnectionStatus: () => ({ connected: true, disconnect_reason: null }) as const,
           sendMessage: async <T>() => ({ ok: true } as T),
           collectMessageEvents: async <T>() => ({ events: [] as T[], truncated: false })
         };
@@ -99,6 +100,7 @@ describe("runtime bootstrap", () => {
       readAppOptions: () => ({}),
       createWsClient: () => ({
         isConnected: () => true,
+        getConnectionStatus: () => ({ connected: true, disconnect_reason: null }) as const,
         sendMessage: async <T>() => ({ type: "pong" } as T),
         collectMessageEvents: async <T>() => ({ events: [] as T[], truncated: false })
       })
@@ -117,8 +119,11 @@ describe("runtime bootstrap", () => {
       data: {
         status: "ok",
         ha_ws_connected: true,
+        ha_ws_disconnect_reason: null,
         version: "1.2.3",
-        uptime_s: expect.any(Number)
+        uptime_s: expect.any(Number),
+        file_access: "off",
+        snapshots: { files: 0, bytes: 0 }
       }
     });
 
@@ -159,6 +164,7 @@ describe("runtime bootstrap", () => {
       readAppOptions: () => ({}),
       createWsClient: () => ({
         isConnected: () => true,
+        getConnectionStatus: () => ({ connected: true, disconnect_reason: null }) as const,
         sendMessage: async <T>() => ({ type: "pong" } as T),
         collectMessageEvents: async <T>() => ({ events: [] as T[], truncated: false })
       }),
@@ -232,6 +238,7 @@ describe("runtime bootstrap", () => {
       readAppOptions: () => ({}),
       createWsClient: () => ({
         isConnected: () => true,
+        getConnectionStatus: () => ({ connected: true, disconnect_reason: null }) as const,
         sendMessage: async <T>() => ({ type: "pong" } as T),
         collectMessageEvents: async <T>() => ({ events: [] as T[], truncated: false })
       }),

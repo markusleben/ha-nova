@@ -27,16 +27,18 @@ echo ""
 # The relay must stay small enough that a person can read it. The ceiling moved
 # from 2000 to 2800 across relay 0.4.0 (opt-in file transport: containment,
 # deny rules, code-execution boundary) and to 3200 across relay 0.5.0 (the
-# generic config-snapshot store, ~330 lines of validation, caps and prune).
+# generic config-snapshot store, ~330 lines of validation, caps and prune;
+# and to 3300 for the diagnosability wave: disconnect reasons, request
+# logging, server timeouts).
 # Growth here is security surface, and it is reviewed as such. The README's own
 # number is updated in the release-prep PR — README describes the STABLE
 # release, not main.
 echo "[1] Relay LOC (must stay readable in one sitting)"
 ACTUAL_LOC=$(find "$REPO_ROOT/nova/src" -name '*.ts' -exec cat {} + | wc -l | tr -d ' ')
-if (( ACTUAL_LOC >= 1000 && ACTUAL_LOC <= 3200 )); then
-  pass "src/ = ${ACTUAL_LOC} LOC (within 1000–3200 range)"
+if (( ACTUAL_LOC >= 1000 && ACTUAL_LOC <= 3300 )); then
+  pass "src/ = ${ACTUAL_LOC} LOC (within 1000–3300 range)"
 else
-  fail "src/ = ${ACTUAL_LOC} LOC — outside the 1000–3200 range. If this is real growth, justify it and update the README claim in the release-prep PR."
+  fail "src/ = ${ACTUAL_LOC} LOC — outside the 1000–3300 range. If this is real growth, justify it and update the README claim in the release-prep PR."
 fi
 
 # ── 2. Skill count ──

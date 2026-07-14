@@ -87,12 +87,14 @@ export function bootstrapRuntime(dependencies: RuntimeDependencies = {}): Runtim
     },
     (path: string) => probeConfigRoot(path)
   );
+  const serverLogger = dependencies.logger ?? createConsoleLogger(env.logLevel);
   const app = createApp({
     authToken: env.relayAuthToken,
     version: env.relayVersion,
     wsClient,
     fileAccess,
     snapshotRoot: env.snapshotDir,
+    logger: serverLogger,
     coreClient: {
       request: async (input: CoreProxyRequest): Promise<CoreProxyResponse> => coreClient.request(input)
     }
@@ -108,8 +110,8 @@ export function bootstrapRuntime(dependencies: RuntimeDependencies = {}): Runtim
 }
 
 export async function startRelay(dependencies: RuntimeDependencies = {}): Promise<StartRelayResult> {
-  const logger = dependencies.logger ?? createConsoleLogger();
   const runtime = bootstrapRuntime(dependencies);
+  const logger = dependencies.logger ?? createConsoleLogger(runtime.env.logLevel);
 
   logStartup(logger, runtime);
 
@@ -185,16 +187,35 @@ function buildTokenResolutionInput(env: EnvConfig): ResolveUpstreamTokenInput {
   return input;
 }
 
-function createConsoleLogger(): Logger {
+const LOG_LEVEL_ORDER: Record<LogLevel, number> = {
+  trace: 0,
+  debug: 1,
+  info: 2,
+  warn: 3,
+  error: 4
+};
+
+export function levelAtLeast(level: LogLevel, minimum: LogLevel): boolean {
+  return LOG_LEVEL_ORDER[level] >= LOG_LEVEL_ORDER[minimum];
+}
+
+// LOG_LEVEL finally has a consumer: lines below the configured minimum are
+// dropped. Startup/bootstrap errors always surface (error >= every minimum).
+export function createConsoleLogger(minimumLevel: LogLevel = "info"): Logger {
+  const emit = (level: LogLevel, message: string, context?: Record<string, unknown>) => {
+    if (levelAtLeast(level, minimumLevel)) {
+      logLine(level, message, context);
+    }
+  };
   return {
     info(message, context) {
-      logLine("info", message, context);
+      emit("info", message, context);
     },
     warn(message, context) {
-      logLine("warn", message, context);
+      emit("warn", message, context);
     },
     error(message, context) {
-      logLine("error", message, context);
+      emit("error", message, context);
     }
   };
 }

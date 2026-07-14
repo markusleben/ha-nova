@@ -1,3 +1,4 @@
+import { HaSocketAuthError } from "./socket.js";
 import { TimeoutError, withTimeout } from "../shared/timeout.js";
 
 export type HaWsClientErrorCode =
@@ -28,6 +29,14 @@ export interface HaWsClient {
     options?: HaWsEventCollectionOptions
   ): Promise<HaWsEventCollection<T>>;
   isConnected(): boolean;
+  getConnectionStatus(): HaWsConnectionStatus;
+}
+
+export interface HaWsConnectionStatus {
+  connected: boolean;
+  // Why /health reports ha_ws_connected: false — the difference between "fix
+  // the token" and "HA is restarting" is the whole diagnosis.
+  disconnect_reason: "auth" | "network" | "never_connected" | null;
 }
 
 // Window mode budgets the ack separately from the collection window: the WS
@@ -80,6 +89,8 @@ export function createHaWsClient(options: HaWsClientOptions): HaWsClient {
   // auto-reconnects and outlives HA outages, so `connection !== undefined`
   // would report connected while HA is down.
   let connected = false;
+  let everConnected = false;
+  let lastConnectFailure: "auth" | "network" | null = null;
 
   return {
     async sendMessage<T>(message: HaWsRequest): Promise<T> {
@@ -246,6 +257,18 @@ export function createHaWsClient(options: HaWsClientOptions): HaWsClient {
     },
     isConnected(): boolean {
       return connected;
+    },
+    getConnectionStatus(): HaWsConnectionStatus {
+      if (connected) {
+        return { connected: true, disconnect_reason: null };
+      }
+      if (lastConnectFailure) {
+        return { connected: false, disconnect_reason: lastConnectFailure };
+      }
+      return {
+        connected: false,
+        disconnect_reason: everConnected ? "network" : "never_connected"
+      };
     }
   };
 
@@ -261,6 +284,8 @@ export function createHaWsClient(options: HaWsClientOptions): HaWsClient {
     try {
       connection = await connectingPromise;
       connected = true;
+      everConnected = true;
+      lastConnectFailure = null;
       // The connection reconnects on its own; only the tracked flag flips so
       // /health stays truthful between requests without extra probes.
       // resetConnection() abandons rather than closes the old connection, so
@@ -278,6 +303,7 @@ export function createHaWsClient(options: HaWsClientOptions): HaWsClient {
       });
       return current;
     } catch (error) {
+      lastConnectFailure = classifyConnectFailure(error);
       throw new HaWsClientError(
         "UPSTREAM_WS_CONNECT_ERROR",
         "Failed to connect to Home Assistant WebSocket",
@@ -343,6 +369,31 @@ function describeUpstreamCommandError(error: unknown): string | undefined {
 // Connection-level rejections arrive as bare numeric codes or wrapped
 // numeric error payloads from home-assistant-js-websocket; map them to
 // readable transport messages.
+// haws transport codes 2 (invalid auth) and 6 (invalid auth callback) are the
+// token problems — and so is HaSocketAuthError, which the real socket path
+// (createAuthenticatedHaSocket) throws on an auth_invalid handshake instead
+// of a numeric code. Walk the cause chain: haws wraps rejections.
+function classifyConnectFailure(error: unknown): "auth" | "network" {
+  let current: unknown = error;
+  for (let depth = 0; depth < 5 && current !== undefined && current !== null; depth += 1) {
+    if (current instanceof HaSocketAuthError) {
+      return "auth";
+    }
+    const direct = typeof current === "number" ? current : undefined;
+    const payload = unwrapRejectionPayload(current);
+    const code =
+      direct ?? (payload && typeof payload.code === "number" ? payload.code : undefined);
+    if (code === 2 || code === 6) {
+      return "auth";
+    }
+    current =
+      current && typeof current === "object" && "cause" in current
+        ? (current as { cause?: unknown }).cause
+        : undefined;
+  }
+  return "network";
+}
+
 const HAWS_TRANSPORT_ERRORS: Record<number, string> = {
   1: "cannot connect to Home Assistant WebSocket",
   2: "invalid Home Assistant authentication",
