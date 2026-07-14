@@ -92,6 +92,7 @@ export function bootstrapRuntime(dependencies: RuntimeDependencies = {}): Runtim
     version: env.relayVersion,
     wsClient,
     fileAccess,
+    snapshotRoot: env.snapshotDir,
     coreClient: {
       request: async (input: CoreProxyRequest): Promise<CoreProxyResponse> => coreClient.request(input)
     }
@@ -208,7 +209,8 @@ function logStartup(logger: Logger, runtime: RuntimeBootstrapResult): void {
     // Visible in the App log so an operator can always see whether file access
     // is on, and at which level — it is the one capability worth stating.
     file_access: runtime.fileAccess.mode,
-    config_root: runtime.fileAccess.configRoot || null
+    config_root: runtime.fileAccess.configRoot || null,
+    snapshot_dir: runtime.env.snapshotDir
   });
 
   for (const warning of runtime.upstreamAuth.warnings) {

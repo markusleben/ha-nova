@@ -25,17 +25,18 @@ echo ""
 
 # ── 1. LOC count ──
 # The relay must stay small enough that a person can read it. The ceiling moved
-# from 2000 to 2800 across relay 0.4.0: the opt-in file transport is ~500 lines,
-# split into three modules (gate / path security / operations), and most of that
-# is containment, deny rules and the code-execution boundary. Growth here is
-# security surface, and it is reviewed as such. The README's own number is
-# updated in the release-prep PR — README describes the STABLE release, not main.
+# from 2000 to 2800 across relay 0.4.0 (opt-in file transport: containment,
+# deny rules, code-execution boundary) and to 3200 across relay 0.5.0 (the
+# generic config-snapshot store, ~330 lines of validation, caps and prune).
+# Growth here is security surface, and it is reviewed as such. The README's own
+# number is updated in the release-prep PR — README describes the STABLE
+# release, not main.
 echo "[1] Relay LOC (must stay readable in one sitting)"
 ACTUAL_LOC=$(find "$REPO_ROOT/nova/src" -name '*.ts' -exec cat {} + | wc -l | tr -d ' ')
-if (( ACTUAL_LOC >= 1000 && ACTUAL_LOC <= 2800 )); then
-  pass "src/ = ${ACTUAL_LOC} LOC (within 1000–2800 range)"
+if (( ACTUAL_LOC >= 1000 && ACTUAL_LOC <= 3200 )); then
+  pass "src/ = ${ACTUAL_LOC} LOC (within 1000–3200 range)"
 else
-  fail "src/ = ${ACTUAL_LOC} LOC — outside the 1000–2800 range. If this is real growth, justify it and update the README claim in the release-prep PR."
+  fail "src/ = ${ACTUAL_LOC} LOC — outside the 1000–3200 range. If this is real growth, justify it and update the README claim in the release-prep PR."
 fi
 
 # ── 2. Skill count ──
@@ -85,16 +86,25 @@ else
 fi
 
 # ── 5. No unplanned feature creep ──
-# The relay must stay minimal: no backup endpoints, no streaming. File access
-# EXISTS (relay 0.4.0, for YAML-only configuration that has no API) but it is a
-# capability, not a default — so the check is stricter than "no filesystem":
-# it fails if the opt-in gate ever disappears.
-echo "[5] No backup/streaming endpoints; file access stays opt-in"
-CREEP_HITS=$(count_matches "backup_endpoint\|/backup\|/stream\|EventSource\|SSE" "$REPO_ROOT/nova/src/http/handlers/")
+# The relay must stay minimal: no streaming, and the config-snapshot store
+# (relay 0.5.0, POST /backups) must stay a GENERIC blob store — the moment it
+# imports the HA clients it has become a domain feature, which is the creep
+# this check exists to catch. File access EXISTS (relay 0.4.0) but it is a
+# capability, not a default — the check fails if the opt-in gate disappears.
+echo "[5] No streaming endpoints; snapshot store stays generic; file access stays opt-in"
+CREEP_HITS=$(count_matches "/stream\|EventSource\|SSE" "$REPO_ROOT/nova/src/http/handlers/")
 if (( CREEP_HITS != 0 )); then
-  fail "Found ${CREEP_HITS} hits for backup/streaming endpoints in handlers/ — the relay must stay minimal."
+  fail "Found ${CREEP_HITS} hits for streaming endpoints in handlers/ — the relay must stay minimal."
 else
-  pass "No backup/streaming endpoints found"
+  pass "No streaming endpoints found"
+fi
+if [[ -f "$REPO_ROOT/nova/src/http/handlers/backups.ts" ]]; then
+  DOMAIN_HITS=$(count_matches "ha/rest-client\|ha/ws-client\|coreClient\|wsClient" "$REPO_ROOT/nova/src/http/handlers/backups.ts")
+  if (( DOMAIN_HITS != 0 )); then
+    fail "backups.ts touches the HA clients — the snapshot store must stay a generic blob store."
+  else
+    pass "Snapshot store is a generic blob store (no HA client imports)"
+  fi
 fi
 
 if [[ -f "$REPO_ROOT/nova/src/http/handlers/files.ts" ]]; then

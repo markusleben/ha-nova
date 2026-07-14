@@ -35,7 +35,8 @@ describe("runtime bootstrap", () => {
         relayVersion: "1.2.3",
         appOptionsPath: "/data/options.json",
         relayPort: 8791,
-        logLevel: "info"
+        logLevel: "info",
+        snapshotDir: "/tmp/nova-snapshots-test"
       }),
       readAppOptions: () => ({
         ha_llat: "app-llat"
@@ -75,7 +76,8 @@ describe("runtime bootstrap", () => {
           relayVersion: "1.2.3",
           appOptionsPath: "/data/options.json",
           relayPort: 8791,
-          logLevel: "info"
+          logLevel: "info",
+        snapshotDir: "/tmp/nova-snapshots-test"
         }),
         readAppOptions: () => ({})
       })
@@ -91,7 +93,8 @@ describe("runtime bootstrap", () => {
         relayVersion: "1.2.3",
         appOptionsPath: "/data/options.json",
         relayPort: 8791,
-        logLevel: "info"
+        logLevel: "info",
+        snapshotDir: "/tmp/nova-snapshots-test"
       }),
       readAppOptions: () => ({}),
       createWsClient: () => ({
@@ -150,7 +153,8 @@ describe("runtime bootstrap", () => {
         relayVersion: "1.2.3",
         appOptionsPath: "/data/options.json",
         relayPort: 8791,
-        logLevel: "info"
+        logLevel: "info",
+        snapshotDir: "/tmp/nova-snapshots-test"
       }),
       readAppOptions: () => ({}),
       createWsClient: () => ({
@@ -222,7 +226,8 @@ describe("runtime bootstrap", () => {
         relayVersion: "1.2.3",
         appOptionsPath: "/data/options.json",
         relayPort: 8791,
-        logLevel: "info"
+        logLevel: "info",
+        snapshotDir: "/tmp/nova-snapshots-test"
       }),
       readAppOptions: () => ({}),
       createWsClient: () => ({
@@ -256,7 +261,8 @@ describe("runtime bootstrap", () => {
         auth_source: "env_ha_llat",
         auth_capability: "full",
         file_access: "off",
-        config_root: null
+        config_root: null,
+        snapshot_dir: "/tmp/nova-snapshots-test"
       }
     });
     expect(warnLogs).toEqual([]);

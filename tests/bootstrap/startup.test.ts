@@ -6,6 +6,7 @@ describe("startup bootstrap", () => {
   it("exports createApp factory and returns server + router", () => {
     const app = createApp({
       fileAccess: { mode: "off" as const, configRoot: "", warnings: [] },
+      snapshotRoot: "/tmp/nova-snapshots-test",
       authToken: "secret",
       version: "1.0.0",
       wsClient: {
