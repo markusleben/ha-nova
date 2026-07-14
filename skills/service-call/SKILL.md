@@ -89,7 +89,8 @@ Some services return data (`weather.get_forecasts`, `calendar.get_events`, `todo
 6. Verify result — match the check to what the call promises:
    - Default: read the entity state back (`ha-nova relay core --method GET --path /api/states/{entity_id}`) and confirm the expected change.
    - Transitions: covers report `opening`/`closing`, lights fade over `transition`, climate ramps — when the read-back shows a transitional or unchanged value on such a device, wait a few seconds (up to the transition length) and re-read once before calling it a discrepancy.
-   - Stateless targets: `button.press`/`input_button.press`, `scene.apply`, and direct `script.*` runs do not reflect the call in the target's own state. Verify the promise instead — a script via `last_triggered` or acted-on member entities, `scene.apply` via the applied member states, a button press via acceptance only — and say what was (not) verifiable rather than reporting a false discrepancy. `scene.turn_on` IS verifiable on the target: the scene entity's state is its last-activation timestamp — check that it advanced first, member entities only as secondary evidence.
+   - Timestamp targets: `scene.turn_on`, `button.press`, and `input_button.press` record the action as the target's state timestamp — verify that it advanced; scene member entities only as secondary evidence.
+   - Stateless targets: `scene.apply` and direct `script.*` runs do not reflect the call in the target's own state. Verify the promise instead — a script via `last_triggered` or acted-on member entities, `scene.apply` via the applied member states — and say what was (not) verifiable rather than reporting a false discrepancy.
    - Area/device targets: verify the member list expanded and previewed in step 3, not a single entity.
    - Report: service called, verified state (or the honest verification limit), any errors.
 
