@@ -66,7 +66,7 @@ describe("review contract", () => {
   });
 
   it("keeps shared references aligned to H-01..H-10", () => {
-    expect(writeSkill).toContain("H-01..H-10");
+    expect(writeSkill).toContain("H-01..H-11");
     expect(helperSkill).toContain("H-01..H-10");
     expect(reviewChecks).toContain("Helper (storage-based family): H-01..H-11");
     expect(architectureDoc).toContain("H-01..H-10");
