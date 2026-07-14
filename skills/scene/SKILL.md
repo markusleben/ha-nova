@@ -129,6 +129,6 @@ Use stable localized slot labels in this order; omit empty slots. Reads render t
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
 
 - Create/update use natural confirmation after preview; delete uses exact token confirmation only, even for scenes created earlier in the same session.
-- Scene writes have no `revert`; the recovery path is Home Assistant Backups — say so before destructive operations.
+- Scene writes have no `revert`; the recovery path is Home Assistant Backups — say so before destructive operations, and offer a safety backup via `ha-nova:backup` before a scene delete (never for routine edits).
 - One scene per mutation; verify read-back, not just the save response.
 - Activation hands off to `ha-nova:service-call` — `scene.turn_on` supports `transition` (lights only); `scene.apply` applies a one-off state set without storing a scene.

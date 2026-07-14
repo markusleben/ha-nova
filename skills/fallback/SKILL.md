@@ -74,12 +74,15 @@ For every Relay-Ready call in this skill:
 | Other Config-Entry Helpers | Relay-Ready | this skill |
 | Statistics repair / Purge / Entity registry remove | Covered | maintenance |
 | Device config-entry detach | Relay-Ready | this skill |
+| Integration onboarding (add / re-auth an integration via config flow) | Relay-Ready | this skill |
+| Firing custom events / triggering webhooks | Relay-Ready | this skill |
 | Event Subscriptions | Roadmap Phase 1c | -- |
 | Backups (status, create, inspect, delete) | Covered | backup |
 | Updates (pending, release notes, install, skip) | Covered | updates |
 | Apps / Supervisor | External | -- |
 | HACS | External | -- |
 | Zigbee / Z-Wave Config | External | -- (MQTT-level inspection of a Zigbee2MQTT setup: `mqtt`) |
+| Alarm / lock code management (lock user codes, alarm PINs) | External | -- (arming/disarming/locking itself: `service-call`, high-consequence confirmation) |
 
 ## Flow
 
@@ -114,9 +117,14 @@ List and import automation/script blueprints from the community or custom URLs.
 **Experimental relay calls (no skill guardrails):**
 ```text
 ha-nova relay ws --data-file <payload-file>
+
+# payload examples (verify current schema via web search first):
+# {"type":"blueprint/list","domain":"automation"}
+# {"type":"blueprint/import","url":"https://community.home-assistant.io/t/..."}   (fetches + previews, does not save)
+# {"type":"blueprint/save","domain":"automation","path":"<folder/name.yaml>","yaml":"<blueprint yaml>"}
 ```
 
-**Risks:** Imported blueprints execute when instantiated. Review blueprint source before import.
+**Risks:** Imported blueprints execute when instantiated. Review blueprint source before import. Instantiating a blueprint into an automation (`use_blueprint`) is a normal automation create — hand off to `ha-nova:write`.
 
 ### Other Config-Entry Helpers -- RELAY-READY
 
@@ -180,6 +188,31 @@ ha-nova relay ws --data-file <payload-file>
 ```
 
 **Risks:** Device detach depends on integration support (`supports_remove_device`) and can sever the current device/config-entry relationship. Preview impact first.
+
+### Integration Onboarding -- RELAY-READY
+
+Add a new integration or re-authenticate an existing one via the config-flow API — the same flow endpoints as the config-entry helper section above (`POST /api/config/config_entries/flow` to start, submit steps by `flow_id`; in-progress flows, including re-auth prompts, list via GET on the same path).
+
+**Search:** `home assistant config_entries flow add integration api 2026`
+
+**Risks:** Flows are multi-step and integration-specific (discovery confirmations, OAuth handoffs that must finish in the HA UI). Never guess step fields — each response carries the next step's schema. Abort unfinished flows (`DELETE .../flow/{flow_id}`) instead of leaving them dangling.
+
+### Events / Webhooks -- RELAY-READY
+
+Fire a custom event on the HA event bus or trigger an inbound webhook.
+
+**Search:** `home assistant fire event REST api webhook 2026`
+
+**Experimental relay calls (no skill guardrails):**
+```text
+# Fire event: POST /api/events/{event_type}, body = event data JSON
+ha-nova relay core --method POST --path /api/events/<event_type> --body-file <payload-file>
+
+# Trigger webhook: POST /api/webhook/{webhook_id} (body as the webhook expects)
+ha-nova relay core --method POST --path /api/webhook/<webhook_id> --body-file <payload-file>
+```
+
+**Risks:** Every automation listening to that event/webhook fires — enumerate listeners in the preview when resolvable (`search/related` on the automations). Webhook IDs are secrets; never print full IDs in output.
 
 ## Roadmap Features
 

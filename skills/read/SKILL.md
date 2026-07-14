@@ -140,7 +140,7 @@ If id is ambiguous, ask one clarifying question. Never use raw `get_states`.
 
 Apply `skills/ha-nova/output-rules.md` to all user-facing output.
 
-After reading a config, present:
+After reading a config, present (the bold labels below are semantic slots — localize them at runtime per output-rules.md, never print them as literal English headings):
 
 ```
 **{Automation|Script}: {alias}**
