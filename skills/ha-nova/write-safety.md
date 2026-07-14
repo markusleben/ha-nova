@@ -281,7 +281,10 @@ skill does not have; when only Backups remain, say so before the write. For
 far-reaching changes (irreversible deletes, full-document overwrites, bulk
 operations) offer to create one first via `ha-nova:backup` — its safety-backup
 flow checks for a recent full backup before creating, because full backups are
-expensive. Never suggest a backup for routine small edits.
+expensive. EXCEPTION: when the operation auto-captures a config snapshot
+(`skills/ha-nova/config-snapshots.md`) and the store is available, the snapshot
+IS the recovery net — skip the full-backup offer for that config-level op.
+Never suggest a backup for routine small edits.
 
 Config-level recovery: relays with the snapshot store (`POST /backups`) let the
 covered families auto-capture a config snapshot before deletes/full-document

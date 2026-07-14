@@ -162,7 +162,7 @@ Do not dump the full dashboard JSON/YAML by default.
 
 - No guessed `url_path` or `dashboard_id` values.
 - Dashboard/resource/card delete uses exact token confirmation only, even for items created earlier in the same session. Dashboard writes have no `revert`; the recovery path is Home Assistant Backups.
-- Before a dashboard/resource delete or a save that removes views or cards, offer a safety backup via `ha-nova:backup` (its flow checks for a recent one first). Never offer it for routine small edits.
+- Dashboard/config deletes and content-removing saves capture an auto config snapshot — that is the recovery net. Offer a safety backup via `ha-nova:backup` only when the snapshot store is unavailable (never for routine small edits).
 - If the change needs a broad re-layout instead of a targeted edit, say so before writing.
 
 ## Guardrails
