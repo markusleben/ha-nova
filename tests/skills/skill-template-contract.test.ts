@@ -135,8 +135,10 @@ const WORD_BUDGETS: Record<string, number> = {
   // save (2026-h2 Wave 1a).
   dashboard: 1300,
   updates: 1200,
-  // batch-safety alignment: batch code format + cap-split rule (#327).
-  maintenance: 1300,
+  // batch-safety alignment: batch code format + cap-split rule (#327);
+  // purge quantification, glob expansion, apply_filter semantics
+  // (2026-h2 Wave 1b).
+  maintenance: 1400,
   // integration-onboarding + events/webhooks Relay-Ready sections and the
   // blueprint payload examples (masterplan-2026-h2 Wave 0).
   fallback: 2450,
