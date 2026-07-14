@@ -95,7 +95,7 @@ If 0 results: try synonyms or shorter stems. Never dump entire domains.
 
 #### Creating a helper
 
-1. Validate intent against `skills/ha-nova/helper-schemas.md` for required/optional fields. Validate cross-field constraints pre-write too, instead of leaving them to the post-write review: `input_number`/`counter` min < max; `input_select` `initial` must be in `options`; `input_datetime` needs `has_date` and/or `has_time`; `timer` `duration` in `HH:MM:SS`. Fix or ask before writing.
+1. Validate intent against `skills/ha-nova/helper-schemas.md` for required/optional fields. Validate cross-field constraints pre-write too, instead of leaving them to the post-write review: `input_number` `min` < `max`; `counter` `minimum` < `maximum`; `input_select` `initial` must be in `options`; `input_datetime` needs `has_date` and/or `has_time`; `timer` `duration` in `HH:MM:SS`. Fix or ask before writing.
 2. Use-case defaults (create only, skip on update/delete):
    - Infer use-case from helper name + type using general HA knowledge.
    - Consult `skills/ha-nova/helper-schemas.md` → Suggested Defaults for principles and field name reminders.
