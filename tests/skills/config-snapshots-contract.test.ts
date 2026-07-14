@@ -20,7 +20,8 @@ describe("config snapshots contract", () => {
     expect(reference).toContain("STOP and tell the user there will be no snapshot");
     expect(reference).toContain("The already-typed\nconfirmation stays valid");
     // The capture trigger is destructive ops, not routine edits.
-    expect(reference).toContain("before a full-document save that REMOVES content");
+    expect(reference).toContain("Capture triggers, per family");
+    expect(reference).toContain("every YAML file overwrite or delete");
     // Restore is a normal write, not a blind put.
     expect(reference).toContain("never delete+recreate");
     expect(reference).toContain("a restore is a normal write, never a blind put");
