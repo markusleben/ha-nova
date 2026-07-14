@@ -14,6 +14,9 @@ export const MAX_TOTAL_BYTES = 50 * 1024 * 1024;
 export const AUTO_NAME_PREFIX = "auto-";
 const DEFAULT_PRUNE_MAX_AGE_DAYS = 30;
 const DEFAULT_PRUNE_MAX_FILES = 100;
+// Ten years: far above any sensible retention, far below the Date range a
+// huge value would blow past (turning a validation issue into a 500).
+const MAX_PRUNE_AGE_DAYS = 3650;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 const SLUG_PATTERN = /^[a-z0-9-]{1,64}$/;
@@ -97,8 +100,8 @@ function parseBackupsRequest(body: unknown): BackupsRequest {
         ...(raw.category !== undefined ? { category: parseSlug(raw.category, "category") } : {})
       };
     case "prune": {
-      const maxAgeDays = parsePositiveInt(raw.max_age_days, "max_age_days", DEFAULT_PRUNE_MAX_AGE_DAYS);
-      const maxFiles = parsePositiveInt(raw.max_files, "max_files", DEFAULT_PRUNE_MAX_FILES);
+      const maxAgeDays = parsePositiveInt(raw.max_age_days, "max_age_days", DEFAULT_PRUNE_MAX_AGE_DAYS, MAX_PRUNE_AGE_DAYS);
+      const maxFiles = parsePositiveInt(raw.max_files, "max_files", DEFAULT_PRUNE_MAX_FILES, MAX_SNAPSHOT_FILES);
       if (raw.keep_named !== undefined && typeof raw.keep_named !== "boolean") {
         throw new HttpError(400, "VALIDATION_ERROR", "keep_named must be a boolean");
       }
@@ -141,12 +144,12 @@ function parseFileRef(input: unknown): string {
   return input;
 }
 
-function parsePositiveInt(input: unknown, field: string, fallback: number): number {
+function parsePositiveInt(input: unknown, field: string, fallback: number, max: number): number {
   if (input === undefined) {
     return fallback;
   }
-  if (typeof input !== "number" || !Number.isInteger(input) || input < 1) {
-    throw new HttpError(400, "VALIDATION_ERROR", `${field} must be a positive integer`);
+  if (typeof input !== "number" || !Number.isInteger(input) || input < 1 || input > max) {
+    throw new HttpError(400, "VALIDATION_ERROR", `${field} must be an integer between 1 and ${max}`);
   }
   return input;
 }

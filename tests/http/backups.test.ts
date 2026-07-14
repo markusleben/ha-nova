@@ -100,6 +100,8 @@ describe("backups handler", () => {
     await expectHttpError(call({ action: "save", category: "ok", name: "über", data: 1 }), 400, "VALIDATION_ERROR");
     await expectHttpError(call({ action: "save", category: "ok", name: "x" }), 400, "VALIDATION_ERROR");
     await expectHttpError(call({ action: "restore" }), 400, "VALIDATION_ERROR");
+    await expectHttpError(call({ action: "prune", max_age_days: 10_000_000 }), 400, "VALIDATION_ERROR");
+    await expectHttpError(call({ action: "prune", max_files: 100_000 }), 400, "VALIDATION_ERROR");
     await expectHttpError(call(null), 400, "VALIDATION_ERROR");
   });
 
