@@ -136,8 +136,8 @@ const WORD_BUDGETS: Record<string, number> = {
   // Carries the canonical File-Change Preview example — the only layout
   // source for file edits; concrete examples are what make a card renderable.
   // Sibling-survival verification (Wave 1b) + yaml snapshot capture with
-  // stored path (Wave 2).
-  "yaml-config": 1400,
+  // stored path (Wave 2) + TS-check application at write time (Wave 3).
+  "yaml-config": 1450,
   todo: 1200,
   // batch-safety opt-in with the merged-save card rule (#327);
   // safety-backup offer (Wave 0) + drift check before the full-document
