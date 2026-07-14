@@ -15,7 +15,7 @@ the payload sits under `.data`, errors under `.error`.
 - Load: `{"action":"load","file":"<category>/<name>-<stamp>.json.gz"}` → the snapshot under `.data.data`, plus `.data.created_at`
 - List: `{"action":"list"}` (optional `"category"`) → `.data[]` newest first (`file`, `category`, `bytes`, `created_at`)
 - Delete: `{"action":"delete","file":...}` — typed confirmation code like any destructive op
-- Prune: `{"action":"prune"}` (defaults: 30 days / 100 files, named snapshots exempt) → `.data.deleted[]`
+- Prune: `{"action":"prune"}` (defaults: 30 days / 100 files, named snapshots exempt) → `.data.deleted[]`. Offer prune when a save fails `SNAPSHOT_STORE_FULL` or the user asks; preview count + age range of the affected auto-snapshots, natural confirmation (they are expendable copies), `keep_named` stays true unless the user explicitly says otherwise.
 
 Names: auto-snapshots MUST use the `auto-` prefix (prune eats them); snapshots
 the user asked for by name use a plain slug and survive prune. A `404/NOT_FOUND`
@@ -25,17 +25,18 @@ relay-outdated warning when it appears.
 
 ## Categories (one per family)
 
-Wired for auto-capture today: `automations`, `scripts`, `scenes`,
-`dashboards`, `helpers`. Reserved for the next wiring step (their skills keep
-the safety-backup offer until then): `energy`, `metadata` (entity/device
-registry fields), `yaml` (file contents) — the fidelity table below already
-covers them so restores work the moment capture lands.
+All wired for auto-capture: `automations`, `scripts`, `scenes`, `dashboards`,
+`helpers`, `energy` (destructive `save_prefs`), `metadata` (entity registry
+fields before rename/disable), `yaml` (file overwrites and deletes).
 
 ## Capture (before destructive ops)
 
-Before a delete, and before a full-document save that REMOVES content
-(dropped views, cards, or scene members — routine edits are covered by the
-revert stack and read-back verification instead), save the
+Capture triggers, per family: every DELETE; full-document saves that REMOVE
+content (dropped views, cards, scene members, energy entries); entity renames
+and entity/device disables (`metadata` — consumer-breaking even though nothing
+is deleted); every YAML file overwrite or delete (`yaml` — the `.bak` holds
+only one step). Routine field edits in the other families stay covered by the
+revert stack and read-back verification instead. Save the
 COMPLETE HA-normalized read-back of each affected item (the same read the
 preview was built from — never the draft). One item per snapshot; a batch
 saves one snapshot per item. Name: `auto-<item-slug>`, where `<item-slug>` is
@@ -73,7 +74,7 @@ the user just decides informed.
 | dashboards (content) | full | `lovelace/config/save` by `url_path` while the dashboard exists |
 | dashboards (deleted) | partial | the snapshot carries `{shell, config}`: recreate via `lovelace/dashboards/create` from the shell metadata (`url_path`, title, icon, sidebar, admin flag), then `config/save` the content — content returns fully, the internal `dashboard_id` is new |
 | energy prefs | full | whole-document `save_prefs` |
-| yaml files | full | path-stable `write_file` |
+| yaml files | full | data carries `{path, content}`; restore is `write_file` to that exact stored path (the slug name alone is lossy) |
 | helpers (storage) | update: full / delete: partial | recreate mints a NEW id — inbound references stay broken; say so |
 | metadata (entity/device fields) | full in place | keyed by entity_id/device id; a deleted registry entry is NOT recreatable |
 

@@ -20,7 +20,8 @@ describe("config snapshots contract", () => {
     expect(reference).toContain("STOP and tell the user there will be no snapshot");
     expect(reference).toContain("The already-typed\nconfirmation stays valid");
     // The capture trigger is destructive ops, not routine edits.
-    expect(reference).toContain("before a full-document save that REMOVES content");
+    expect(reference).toContain("Capture triggers, per family");
+    expect(reference).toContain("every YAML file overwrite or delete");
     // Restore is a normal write, not a blind put.
     expect(reference).toContain("never delete+recreate");
     expect(reference).toContain("a restore is a normal write, never a blind put");
@@ -35,9 +36,18 @@ describe("config snapshots contract", () => {
     expect(reference).toContain('never call it a backup');
   });
 
-  it("names the not-yet-wired categories honestly", () => {
-    expect(reference).toContain("Wired for auto-capture today");
-    expect(reference).toContain("Reserved for the next wiring step");
+  it("wires every advertised category", () => {
+    expect(reference).toContain("All wired for auto-capture");
+  });
+
+  it("wires the second-step families too", () => {
+    const energySkill = readFileSync("skills/energy/SKILL.md", "utf8");
+    const yamlSkill = readFileSync("skills/yaml-config/SKILL.md", "utf8");
+    const organizeSkill = readFileSync("skills/organize/SKILL.md", "utf8");
+    expect(energySkill).toContain("Before any save that REMOVES entries (a single source/device removal included)");
+    expect(yamlSkill).toContain("data = `{path: <exact logical path>, content: <current file content>}`");
+    expect(yamlSkill).toContain("A user-requested `delete_file` is tokenized like any delete AND captures the auto config snapshot");
+    expect(organizeSkill).toContain("the DEVICE registry record for a device-level `disabled_by`");
   });
 
   it("wires auto-capture before destructive ops in every FULL family", () => {
