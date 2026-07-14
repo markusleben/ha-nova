@@ -127,7 +127,8 @@ const WORD_BUDGETS: Record<string, number> = {
   "service-call": 1800,
   // Carries the canonical File-Change Preview example — the only layout
   // source for file edits; concrete examples are what make a card renderable.
-  "yaml-config": 1250,
+  // Sibling-survival verification on whole-file replace (2026-h2 Wave 1b).
+  "yaml-config": 1350,
   todo: 1200,
   // batch-safety opt-in with the merged-save card rule (#327);
   // safety-backup offer (Wave 0) + drift check before the full-document
@@ -139,8 +140,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // integration-onboarding + events/webhooks Relay-Ready sections and the
   // blueprint payload examples (masterplan-2026-h2 Wave 0).
   fallback: 2450,
-  // semantic-slot note on the read templates (2026-h2 Wave 0).
-  helper: 3650,
+  // semantic-slot note on the read templates (Wave 0); pre-write cross-field
+  // constraint checks + drift-check step (2026-h2 Wave 1).
+  helper: 3750,
   // Suggestion Block item-shape pointer (shared output shapes).
   review: 4400,
 };

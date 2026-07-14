@@ -59,7 +59,7 @@ Other skills name HA Backups as the recovery path (see `skills/ha-nova/write-saf
 
 ### Delete
 1. Require `state: idle` first (one backup operation at a time). Resolve the exact `backup_id` from Status; show name, date, and locations in the preview — deletion removes it from ALL listed locations, irreversibly.
-2. Never delete the only backup or the newest automatic backup without saying exactly that in the preview.
+2. Never delete the only backup — refuse outright and explain: it is the recovery net every other skill points to. Deleting the newest automatic backup requires the user to explicitly restate that intent after a warning (it is the freshest recovery point), before the token prompt.
 3. Require exact token confirmation `confirm:<token>` — generate a short token, display it in the Options slot, and proceed only when the user types it back exactly.
 4. `{"type":"backup/delete","backup_id":"<id>"}`; verify via Status that the backup is gone.
 

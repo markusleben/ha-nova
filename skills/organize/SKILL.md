@@ -78,8 +78,8 @@ Use `search/related` when a delete needs a quick impact preview on linked items.
      - clear labels
 4. For delete:
    - preview impact first
-   - areas/floors: show linked areas or assignments that will lose placement
-   - labels: show linked items when quickly resolvable
+   - areas/floors: show linked areas or assignments that will lose placement; run WS `search/related` on the area and name automations/scripts/scenes that target it — the delete leaves those targets dangling
+   - labels: show linked items when quickly resolvable; label-targeted automations cannot be enumerated via `search/related` — scan automation configs for the `label_id` target, or say plainly that consumers cannot be ruled out
    - categories: show affected entity count and a small example set when resolvable
    - require token confirmation `confirm:<token>`
    - same-family batch deletes follow `skills/ha-nova/batch-safety.md`, only when related-item impact is complete for every target
@@ -97,6 +97,8 @@ Use only exposed metadata fields:
 - device: `name_by_user`, `area_id`, `labels`, `disabled_by`
 
 Do not guess unsupported fields.
+
+`new_entity_id` and `disabled_by` are NOT low-risk metadata: a rename breaks every automation, scene, script, dashboard, and template that references the old id, and disabling removes the entity from the state machine with the same effect on consumers. Before either, run WS `search/related` on the entity and name the consumers in the preview; after a rename, offer to update them through their owning skills.
 
 ## Output Format
 

@@ -52,7 +52,7 @@ Concrete missing checks surfaced by the deep audits, bundled into 3 thematic PRs
 - `updates`: surface breaking changes for integrations/Apps too (today core/OS only); check version prerequisites before core updates.
 - `todo`: consumer check before list deletion. `backup`: refuse (not just warn) deleting the only/newest backup — it is the recovery net every other skill leans on.
 - `helper`: promote H-01-class checks to pre-write (today post-write only); add cross-field constraint validation (`initial` ∈ `options`, min < max, `has_date`/`has_time`).
-- `write`: give scripts a best-practice baseline (`bp_status` is automation-only today).
+- `write`: give scripts a best-practice baseline (`bp_status` is automation-only today) — DEFERRED out of Wave 1b: the snapshot cache (`automation-bp-snapshot.json`) is CLI-managed machinery that would need a script corpus; needs its own decision before implementation.
 
 ### 1c Read-skill result quality
 - `history`: sum-vs-mean trap for `total_increasing` statistics (energy!), statistics unit-mismatch awareness, `statistic_id` ≠ `entity_id`, DST/timezone note.

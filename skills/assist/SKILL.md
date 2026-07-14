@@ -40,8 +40,9 @@ If this fails: `ha-nova setup`
    - delete: WS `assist_pipeline/pipeline/delete` — tokenized confirmation; a pipeline in use by a satellite breaks it
 3. **Exposed entities** (what voice can even see): WS `homeassistant/expose_entity/list`; expose or hide with WS `homeassistant/expose_entity` (`assistants: ["conversation"]`, `entity_ids`, `should_expose`). Aliases live in the entity registry (`ha-nova:organize` owns those).
    - Exposing an entity gives voice control over it — preview the list before changing it.
+   - Risk-weight the preview: exposing a `lock`, `alarm_control_panel`, or a cover with a garage/gate/door `device_class` means anyone within earshot can actuate physical access by voice — flag these entities explicitly as high-consequence before confirming.
 4. **Engines**: WS `tts/engine/list`, `stt/engine/list`, `conversation/agent/list`, `wake_word/info`. Read-only inventories; use them to explain what a pipeline can be built from.
-5. Verify pipeline changes by re-reading the list — never report success from the command response alone.
+5. Verify pipeline changes by re-reading the pipeline list, and exposure changes by re-reading `expose_entity/list` — never report success from the command response alone.
 
 ## Error Handling
 
