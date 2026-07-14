@@ -108,6 +108,9 @@ const SAFETY_CORE_BLOCKS = ((): { mutation: string; readOnly: string } => {
 // TRANSITIVE load (lazy references), not these file sizes — write carries the
 // on-demand trigger list itself.
 const WORD_BUDGETS: Record<string, number> = {
+  // consumer checks before area delete/rename/disable (Wave 1b) + metadata
+  // snapshot capture (Wave 2).
+  organize: 1250,
   // write/mqtt ratcheted for the batch-safety opt-in lines (#327);
   // write again for the Phase 5 test offer (test-run.md).
   // pre-delete snapshot capture + config-snapshots reference (Wave 2).

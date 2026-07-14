@@ -35,9 +35,18 @@ describe("config snapshots contract", () => {
     expect(reference).toContain('never call it a backup');
   });
 
-  it("names the not-yet-wired categories honestly", () => {
-    expect(reference).toContain("Wired for auto-capture today");
-    expect(reference).toContain("Reserved for the next wiring step");
+  it("wires every advertised category", () => {
+    expect(reference).toContain("All wired for auto-capture");
+  });
+
+  it("wires the second-step families too", () => {
+    const energySkill = readFileSync("skills/energy/SKILL.md", "utf8");
+    const yamlSkill = readFileSync("skills/yaml-config/SKILL.md", "utf8");
+    const organizeSkill = readFileSync("skills/organize/SKILL.md", "utf8");
+    expect(energySkill).toContain("capture the auto config snapshot of the fresh pre-save `get_prefs` read");
+    expect(yamlSkill).toContain("capture the auto config snapshot of the CURRENT file content");
+    expect(yamlSkill).toContain("A user-requested `delete_file` is tokenized like any delete AND captures the auto config snapshot");
+    expect(organizeSkill).toContain("capture the auto config snapshot of the entity's current registry fields");
   });
 
   it("wires auto-capture before destructive ops in every FULL family", () => {

@@ -41,7 +41,7 @@ Never skip a step.
 
 1. **Read before write.** `read_file` the target (or `list_dir` to find it). Never write a file you have not read: `write_file` replaces the whole file, so an unread file means an unknown loss.
 2. **Build the change in memory** and preview it as the File-Change Preview (below). Never a `-`/`+` unified diff, never the whole file unless asked — but say plainly that the whole file is replaced on save.
-3. **Confirm**, then `write_file` with `backup: true` (the default). The relay writes `<file>.bak` first — that is your rollback; name it in the preview. A brand-new file gets no `.bak` — say so.
+3. **Confirm**, then capture the auto config snapshot of the CURRENT file content (category `yaml`, name from the file path made relay-safe; `skills/ha-nova/config-snapshots.md` — the `.bak` holds only ONE step, the snapshot store keeps history; on capture failure follow its capture-failure stop; skip for a brand-new file), then `write_file` with `backup: true` (the default). The relay writes `<file>.bak` first — that is your immediate rollback; name it in the preview. A brand-new file gets no `.bak` — say so.
 4. **Validate**: `POST /api/config/core/check_config`. `{"result":"invalid"}` means Home Assistant would refuse this config: roll back immediately — restore the `.bak` (`read_file` it, `write_file` it back with `"backup": false`, or the `.bak` becomes the invalid file); a NEW file has no `.bak`, `delete_file` it instead. Tell the user what was wrong, and do NOT reload.
 5. **Reload the right domain** — a full restart is almost never necessary:
    - template sensors -> `template.reload`
@@ -114,5 +114,6 @@ Previews use the File-Change Preview above; results use the Result Card. Report 
 
 - One file per operation.
 - Never write a file without a preceding read and a shown File-Change Preview.
+- A user-requested `delete_file` is tokenized like any delete AND captures the auto config snapshot of the file first (it has no `.bak`; `skills/ha-nova/config-snapshots.md`).
 - Never claim success from a reload alone — the entity must exist in `/api/states`.
 - Do not add `!include` lines that already exist, and never rewrite `configuration.yaml` wholesale to add one.

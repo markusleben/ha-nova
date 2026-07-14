@@ -78,6 +78,7 @@ For every Relay-Ready call in this skill:
 | Firing custom events / triggering webhooks | Relay-Ready | this skill |
 | Event Subscriptions | Roadmap Phase 1c | -- |
 | Backups (status, create, inspect, delete) | Covered | backup |
+| Config snapshots (targeted capture/restore of automations, scripts, scenes, dashboards, helpers, energy prefs, metadata, YAML files) | Covered | the owning family skill (see `skills/ha-nova/config-snapshots.md`) |
 | Updates (pending, release notes, install, skip) | Covered | updates |
 | Apps / Supervisor | External | -- |
 | HACS | External | -- |
