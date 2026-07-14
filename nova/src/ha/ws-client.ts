@@ -1,3 +1,4 @@
+import { HaSocketAuthError } from "./socket.js";
 import { TimeoutError, withTimeout } from "../shared/timeout.js";
 
 export type HaWsClientErrorCode =
@@ -369,12 +370,28 @@ function describeUpstreamCommandError(error: unknown): string | undefined {
 // numeric error payloads from home-assistant-js-websocket; map them to
 // readable transport messages.
 // haws transport codes 2 (invalid auth) and 6 (invalid auth callback) are the
-// token problems; everything else is reachability.
+// token problems — and so is HaSocketAuthError, which the real socket path
+// (createAuthenticatedHaSocket) throws on an auth_invalid handshake instead
+// of a numeric code. Walk the cause chain: haws wraps rejections.
 function classifyConnectFailure(error: unknown): "auth" | "network" {
-  const direct = typeof error === "number" ? error : undefined;
-  const payload = unwrapRejectionPayload(error);
-  const code = direct ?? (payload && typeof payload.code === "number" ? payload.code : undefined);
-  return code === 2 || code === 6 ? "auth" : "network";
+  let current: unknown = error;
+  for (let depth = 0; depth < 5 && current !== undefined && current !== null; depth += 1) {
+    if (current instanceof HaSocketAuthError) {
+      return "auth";
+    }
+    const direct = typeof current === "number" ? current : undefined;
+    const payload = unwrapRejectionPayload(current);
+    const code =
+      direct ?? (payload && typeof payload.code === "number" ? payload.code : undefined);
+    if (code === 2 || code === 6) {
+      return "auth";
+    }
+    current =
+      current && typeof current === "object" && "cause" in current
+        ? (current as { cause?: unknown }).cause
+        : undefined;
+  }
+  return "network";
 }
 
 const HAWS_TRANSPORT_ERRORS: Record<number, string> = {

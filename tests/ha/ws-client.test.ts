@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { HaWsClientError, createHaWsClient } from "../../nova/src/ha/ws-client.js";
+import { HaSocketAuthError } from "../../nova/src/ha/socket.js";
 
 describe("ha ws client", () => {
   it("connects once and reuses the same connection for multiple requests", async () => {
@@ -467,5 +468,50 @@ describe("ha ws client wrapped connection-loss rejections", () => {
       message: "Something odd"
     } satisfies Partial<HaWsClientError>);
     expect(client.isConnected()).toBe(false);
+  });
+});
+
+describe("connection status classification", () => {
+  it("reports never_connected before any attempt succeeds or fails", () => {
+    const client = createHaWsClient({
+      createConnection: async () => {
+        throw new Error("unused");
+      }
+    });
+    expect(client.getConnectionStatus()).toEqual({
+      connected: false,
+      disconnect_reason: "never_connected"
+    });
+  });
+
+  it("classifies HaSocketAuthError (the real socket path) as auth", async () => {
+    const client = createHaWsClient({
+      createConnection: async () => {
+        throw new HaSocketAuthError("HA rejected the long-lived access token");
+      }
+    });
+    await expect(client.sendMessage({ type: "ping" })).rejects.toBeInstanceOf(HaWsClientError);
+    expect(client.getConnectionStatus()).toEqual({ connected: false, disconnect_reason: "auth" });
+  });
+
+  it("classifies wrapped haws code 2 as auth and other failures as network", async () => {
+    const authClient = createHaWsClient({
+      createConnection: async () => {
+        throw Object.assign(new Error("wrapped"), { cause: 2 });
+      }
+    });
+    await expect(authClient.sendMessage({ type: "ping" })).rejects.toBeInstanceOf(HaWsClientError);
+    expect(authClient.getConnectionStatus().disconnect_reason).toBe("auth");
+
+    const networkClient = createHaWsClient({
+      createConnection: async () => {
+        throw new Error("ECONNREFUSED");
+      }
+    });
+    await expect(networkClient.sendMessage({ type: "ping" })).rejects.toBeInstanceOf(HaWsClientError);
+    expect(networkClient.getConnectionStatus()).toEqual({
+      connected: false,
+      disconnect_reason: "network"
+    });
   });
 });
