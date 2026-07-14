@@ -191,7 +191,7 @@ ha-nova relay ws --data-file <payload-file>
 
 ### Integration Onboarding -- RELAY-READY
 
-Add a new integration or re-authenticate an existing one via the config-flow API — the same flow endpoints as the config-entry helper section above (`POST /api/config/config_entries/flow` to start, submit steps by `flow_id`; in-progress flows, including re-auth prompts, list via GET on the same path).
+Add a new integration or re-authenticate an existing one via the config-flow API — the same flow endpoints as the config-entry helper section above (`POST /api/config/config_entries/flow` to start, then `GET`/`POST`/`DELETE .../flow/{flow_id}` for a specific flow). Discover pending flows, including re-auth prompts, via WS `config_entries/flow/progress` — the collection path itself is POST-only, a GET on it returns 405.
 
 **Search:** `home assistant config_entries flow add integration api 2026`
 
