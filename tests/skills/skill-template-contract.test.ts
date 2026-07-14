@@ -108,6 +108,8 @@ const SAFETY_CORE_BLOCKS = ((): { mutation: string; readOnly: string } => {
 // TRANSITIVE load (lazy references), not these file sizes — write carries the
 // on-demand trigger list itself.
 const WORD_BUDGETS: Record<string, number> = {
+  // pre-save snapshot capture + snapshot recovery guidance (Wave 2).
+  energy: 1250,
   // consumer checks before area delete/rename/disable (Wave 1b) + metadata
   // snapshot capture (Wave 2).
   organize: 1250,
