@@ -71,7 +71,7 @@ This generic `test("KEYWORD";"i")` example is for free-text search, not explicit
 For an explicit prefix selector, match the suffix and display name with `startswith(...)`, not loose substring search.
 
 **If 0 results:** try synonyms, alternative terms, or shorter keyword stems. Use OR for multiple variants: `test("kw1|kw2|kw3";"i")`.
-**Diacritics:** `test(...;"i")` folds case, not accents — `Küche` does not match `kueche` or `kuche`. Whenever the keyword or likely entity names carry umlauts/accents, put the transliterated variants into the OR-pattern: `test("küche|kueche|kuche";"i")`.
+**Diacritics:** `test(...;"i")` folds case, not accents — a name with `é`/`ü`/`ö` does not match its plain-ASCII spelling. Whenever the keyword or likely entity names carry accents or umlauts (common in non-English homes), put the transliterated variants into the OR-pattern: `test("café|cafe";"i")`, and for umlauts include both the `ue`/`oe`/`ae` and bare-vowel forms.
 **If too many:** narrow with AND: `test("kw1";"i") and test("kw2";"i")`.
 **Cap honesty:** the `.[0:20]` cap can drop the target — when exactly 20 results return, say the list is capped and narrow further instead of treating it as complete.
 **Never** dump entire domains without a user-intent keyword.

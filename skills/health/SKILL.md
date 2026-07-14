@@ -77,18 +77,19 @@ Low-battery detection must be structured:
 
 1. Read `/api/config`, `/api/components`, and `/api/states`.
 2. Read `repairs/list_issues` and `config_entries/get` through WS.
-3. If a relay-outdated warning appeared this session, skip `system_health/info`; say system-health details need the relay updated to the enforced floor and include the current relay version.
-4. Otherwise read `system_health/info` through WS and parse `data.events` when available.
-5. Summarize:
+3. Only when a non-disabled `setup_error`/`setup_retry`/`migration_error` entry exists AND unavailable entities cluster: read the full entity registry (WS `config/entity_registry/list`, `--out` to a file) and join entities to the failed entry by `config_entry_id` — the compact registry and `/api/states` do not carry that field.
+4. If a relay-outdated warning appeared this session, skip `system_health/info`; say system-health details need the relay updated to the enforced floor and include the current relay version.
+5. Otherwise read `system_health/info` through WS and parse `data.events` when available.
+6. Summarize:
    - overall: `ok` only when all read sources are available and there are no active repairs, non-disabled not-loaded integrations, important unavailable/unknown examples, or low battery/SOC findings; `limited` when a source is unavailable; otherwise `attention`
    - coverage: checked timestamp plus source status for config, components, states, repairs, integrations, and system health
    - repairs: deduplicate first — group by integration + `translation_key` and report one line per group with a count (HA emits near-identical issues per entity; three copies of one deprecation are one finding); then active issue count; top 3 by severity/created date with integration/domain, severity, issue title/translation key when available
-   - integrations: count entries whose `state` is not `loaded`; treat entries with `disabled_by` set as intentionally disabled context, not attention items; show up to 5 non-disabled `setup_error`, `setup_retry`, `migration_error`, then `not_loaded` entries with domain, title, state, and sanitized reason; attribute unavailable-entity clusters to their failed integration (registry `config_entry_id`) and report cause + symptoms as ONE finding, not two
+   - integrations: count entries whose `state` is not `loaded`; treat entries with `disabled_by` set as intentionally disabled context, not attention items; show up to 5 non-disabled `setup_error`, `setup_retry`, `migration_error`, then `not_loaded` entries with domain, title, state, and sanitized reason; attribute unavailable-entity clusters to their failed integration via the conditional registry join (Flow step 3) and report cause + symptoms as ONE finding, not two; without that join, report both findings and say they are likely related
    - config/components: HA version, location name, time zone, component count, notable missing core pieces if visible
    - unavailable/unknown: raw counts by domain plus up to 5 attention examples; deprioritize noisy/stateless domains `button`, `event`, `scene`, and `stt` for examples; "important" means the entity has consumers or sits in a primary control/sensing domain — a handful of unavailable low-traffic sensors is normal on a large install and must not flip the overall state on its own
    - low battery/SOC: numeric `device_class: battery` under 20%, plus `device_class: battery` state entities that are `low`; do not imply a battery replacement unless the entity is clearly a device battery
    - system health: summarize failed object-shaped `update` events first, then max 3 useful highlights from object-shaped `initial.data`; ignore scalar payloads and the `finish` event
-6. Bind each conclusion to the data source used.
+7. Bind each conclusion to the data source used.
 
 Sanitize integration reasons before showing them:
 - remove IP addresses, hostnames, URLs, tokens, and long raw exception text
