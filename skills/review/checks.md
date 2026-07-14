@@ -317,7 +317,7 @@ Self-trigger / feedback loop = the automation triggers on an entity that it also
 
 ## SC Evidence Boundaries
 
-- SC-01 fires only after a registry resolution — an `unavailable` entity is offline, not deleted.
+- SC-01 requires absence from BOTH the entity registry AND `/api/states` — YAML-defined entities live in states without a registry entry, and an `unavailable` entity is offline, not deleted.
 - SC-02/SC-06 need the live entity's `supported_color_modes`; never flag from the scene config alone.
 - SC-07: scene state `unknown` means "never activated", which strengthens the orphan hint but proves nothing broken.
 
@@ -333,7 +333,7 @@ Self-trigger / feedback loop = the automation triggers on an entity that it also
 
 ## D Evidence Boundaries
 
-- D-01/D-06 resolve against the entity registry, not `/api/states` alone.
+- D-01 requires absence from BOTH the registry AND `/api/states` (YAML/manual entities have states but no registry entry); D-06 reads the registry flags and applies only to entities that DO have a registry entry.
 - D-02/D-05 join `lovelace/config` across ALL storage dashboards with `lovelace/resources` — partial joins produce false orphans; skip D-05 when not all dashboards were read.
 - D-07 never applies to `custom:` cards.
 
@@ -347,7 +347,7 @@ Self-trigger / feedback loop = the automation triggers on an entity that it also
 
 ## HX Evidence Boundaries
 
-- HX fires only when the referenced item is confirmed ABSENT from its authoritative registry — a failed state read or `unavailable` is not deleted.
+- HX fires only when the referenced item is confirmed ABSENT from its authoritative registry AND (for entity-shaped references) from `/api/states` — YAML-defined items have states without registry entries; a failed state read or `unavailable` is not deleted.
 - Scope stays the review workset the user asked for; the registry lists may be read once to resolve references, but HX never expands the workset itself.
 
 ## Template/REST/Command-line Sensors (TS — YAML files)
