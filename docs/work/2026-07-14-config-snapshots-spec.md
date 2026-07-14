@@ -28,7 +28,7 @@ Bearer-authed like the other routes; body is `{"action": ...}`:
 Rules (mirror `files.ts` hardening):
 - Storage root: App data dir (`/data/ha_nova_snapshots/` in the App; `SNAPSHOT_DIR` env for the standalone container). Swept into full HA Backups automatically on Supervised installs.
 - Path containment via realpath; `category`/`name` validated `[a-z0-9-]+`; no traversal, no symlinks.
-- Caps: 1 MiB per snapshot (gzip'd), 500 files total, 50 MiB total — `save` fails loud at the cap with a prune hint.
+- Caps: the per-snapshot ceiling is the RAW request — the server JSON-parses and caps every POST body at 1 MiB before route dispatch (`nova/src/http/server.ts`), so a `save` whose envelope exceeds that fails with the standard 413 before the handler runs. Document that: a single config item over ~1 MiB raw is out of snapshot scope (HA Backups cover it); the handler itself enforces only the totals — 500 files, 50 MiB stored (gzip'd) — and fails loud at those with a prune hint.
 - Named-vs-auto distinction: auto-snapshots use the reserved name prefix `auto-`; `prune` treats everything else as named (`keep_named`).
 - The relay never parses `data` — opaque JSON in, opaque JSON out. No HA calls, no domain logic (charter test pins this).
 - Feature-gating: endpoint always on (no opt-in — it stores only what skills already read via the relay). `GET /health` gains `snapshots: {files, bytes}` counters (Wave-5 health extension lands together).
