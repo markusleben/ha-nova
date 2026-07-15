@@ -300,7 +300,7 @@ Self-trigger / feedback loop = the automation triggers on an entity that it also
 - H-09 [MEDIUM → HIGH]: Threshold effectively weakened — `input_number` is used as a direct threshold and its current value sits at or near the boundary that makes the guard trivially easy to satisfy. Operator-aware: `>`/`>=` is risky near `min`; `<`/`<=` is risky near `max`. "Near" means within `1 × step`, including the exact boundary. Escalate to HIGH only with concrete loop evidence (`repeat:`, or R-10/R-12 matched at HIGH also applies).
 - H-10 [LOW]: Threshold value off the configured step grid — current `input_number` value does not land on the configured `step` lattice relative to `min`; likely set programmatically rather than through the UI. Supplementary signal for H-09, not a severity escalator by itself.
 - H-11 [LOW]: Unit mismatch — a helper's `unit_of_measurement` disagrees with the unit the consuming template/automation treats it as; flag only when both units are actually visible in the workset
-- H-12 [MEDIUM]: Config-entry helper source entity absent — `source`/`entity_id` of a `utility_meter`/`derivative`/`integration`/`min_max`/`threshold`/`statistics`/`history_stats` entry no longer exists in the registry
+- H-12 [MEDIUM]: Config-entry helper source entity absent — `source`/`entity_id` of a `utility_meter`/`derivative`/`integration`/`min_max`/`threshold`/`statistics`/`history_stats` entry resolves in NEITHER the entity registry NOR `/api/states`
 - H-13 [MEDIUM]: `group` helper with a dead or duplicate member entity
 - H-14 [LOW]: `utility_meter` cycle/tariff disagrees with the energy-dashboard tariff configuration — only when the energy prefs are ALREADY loaded in this review; never fetch them just for this check
 - H-15 [MEDIUM]: `template` config-entry helper renders `unavailable`/`unknown` because a referenced entity id resolves to nothing — pair the rendered-state read with an entity-id resolution before flagging
@@ -312,7 +312,7 @@ without a registry record (same boundary as SC-01/D-01/HX).
 ## Scene-Specific (apply when reviewing storage scenes)
 
 - SC-01 [HIGH]: Dead entity reference — a key under `entities:` resolves in NEITHER the entity registry NOR `/api/states`; the scene applies partially and silently
-- SC-02 [MEDIUM]: Mixed color attributes on one light — more than one of `color_temp_kelvin`/`hs_color`/`rgb_color`/`xy_color` captured; reproduction depends on the active color mode and is unreliable
+- SC-02 [MEDIUM]: Mixed color attributes on one light — more than one of `color_temp_kelvin`/`hs_color`/`rgb_color`/`xy_color`/`rgbw_color`/`rgbww_color` captured; reproduction depends on the active color mode and is unreliable
 - SC-03 [MEDIUM]: Light group captured instead of member lights — group reproduce-state is a known trouble spot; suggest capturing the members
 - SC-04 [LOW]: Read-only domain captured (`sensor`, `binary_sensor`, ...) — a scene cannot reproduce it
 - SC-05 [LOW]: Measurement/diagnostic attribute captured (battery, rssi, ...) instead of writable target attributes

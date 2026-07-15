@@ -55,6 +55,15 @@ describe("review contract", () => {
     expect(reviewChecks).toContain("within `1 × step`");
   });
 
+  it("keeps scene color and helper-source rules aligned with their evidence", () => {
+    expect(reviewChecks).toContain(
+      "`color_temp_kelvin`/`hs_color`/`rgb_color`/`xy_color`/`rgbw_color`/`rgbww_color`",
+    );
+    expect(reviewChecks).toContain(
+      "entry resolves in NEITHER the entity registry NOR `/api/states`",
+    );
+  });
+
   it("documents live helper evidence for threshold checks in the catalog", () => {
     expect(reviewChecks).toContain("Helper Threshold Evidence");
     expect(reviewChecks).toContain('/api/states/<helper_entity_id>');
