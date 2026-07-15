@@ -15,6 +15,12 @@ normalize_token() {
 
 export APP_OPTIONS_PATH="/data/options.json"
 export RELAY_AUTH_TOKEN_FILE="/data/relay_auth_token"
+export PRODUCT_VERSION="$(node -p 'JSON.parse(require("node:fs").readFileSync("/app/version.json", "utf8")).skill_version')"
+export MIN_RELAY_VERSION="$(node -p 'JSON.parse(require("node:fs").readFileSync("/app/version.json", "utf8")).min_relay_version')"
+if [[ -z "$PRODUCT_VERSION" || -z "$MIN_RELAY_VERSION" ]]; then
+  echo "[ha-nova] Version metadata is missing." >&2
+  exit 1
+fi
 if [[ -z "${HA_URL:-}" ]]; then
   export HA_URL="http://homeassistant:8123"
 fi

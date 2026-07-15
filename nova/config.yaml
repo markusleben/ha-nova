@@ -9,7 +9,9 @@ arch:
 startup: services
 boot: auto
 init: false
-ingress: false
+ingress: true
+ingress_port: 8791
+ingress_entry: /home
 ports:
   8791/tcp: 8791
 ports_description:
@@ -20,6 +22,8 @@ homeassistant_api: true
 hassio_api: true
 hassio_role: default
 panel_icon: mdi:lan-connect
+panel_title: NOVA Home Base
+panel_admin: true
 
 # Read-write access to the Home Assistant configuration directory. The relay
 # only USES it when the file_access option is set (default: off), so mapping it

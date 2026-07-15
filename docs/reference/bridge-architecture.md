@@ -1,7 +1,7 @@
 # NOVA Relay: Architecture Reference
 
-> **Implementation status:** Six bounded endpoints are implemented: `/health`,
-> `/pair`, `/ws`, `/core`, `/files`, and `/backups`. Filesystem access is opt-in
+> **Implementation status:** Seven bounded endpoints are implemented: `/health`,
+> `/home`, `/pair`, `/ws`, `/core`, `/files`, and `/backups`. Filesystem access is opt-in
 > and off by default. Persistent streaming subscriptions remain unimplemented.
 
 ## Overview
@@ -17,6 +17,7 @@ lifecycle operations still ride the existing `/ws` proxy (`backup/*`).
 
 ```
 GET  /health
+GET  /home
 POST /pair
 POST /ws
 POST /core
@@ -72,6 +73,19 @@ codes share `401 PAIRING_FAILED`. Five failures per socket peer per minute or
 headers, compares fixed digests in constant time, and sets
 `Cache-Control: no-store` on every `/pair` response. Pairing contains no Home
 Assistant call or domain logic.
+
+### `GET /home` — Home Base
+
+Home Base is a read-only HTML rendering of the same snapshot as `/health`, plus
+the current pairing code, expiry, compatibility floor, and release-pinned
+installer commands. It is bearer-exempt because Home Assistant Supervisor
+ingress supplies the authenticated browser session instead.
+
+The handler still requires the exact Supervisor ingress socket peer
+(`172.30.32.2`, including IPv4-mapped IPv6 forms) plus `X-Ingress-Path` and
+`X-Remote-User-Id`. Direct port access returns `403 INGRESS_REQUIRED` even when
+the headers are spoofed. The response is non-cacheable, script-free, and ships
+a restrictive CSP plus `nosniff`; the App sidebar panel is admin-only.
 
 ### `POST /ws` — Generic WS Proxy
 ```json
@@ -302,6 +316,8 @@ resolves values from HA app options and sets them before starting Node.
 RELAY_AUTH_TOKEN: "<operator-chosen-secret>"   # Inbound client auth override
 RELAY_AUTH_TOKEN_FILE: "/data/relay_auth_token" # App-owned persistent token
 HA_LLAT: "<ha-long-lived-access-token>"        # Upstream HA auth
+PRODUCT_VERSION: "0.17.0"                      # Generated release tag for Home Base installers
+MIN_RELAY_VERSION: "0.4.0"                    # Required Relay floor shown in Home Base
 
 # Optional (with defaults)
 HA_URL: "http://homeassistant:8123"            # Default: http://homeassistant:8123
@@ -311,6 +327,11 @@ RELAY_VERSION: "dev"                           # Injected by run script from bas
 APP_OPTIONS_PATH: "/data/options.json"         # HA app options file path
 ```
 
+`PRODUCT_VERSION` and `MIN_RELAY_VERSION` are loaded from `nova/version.json`,
+a generated mirror of the root `version.json` SSOT. The bump script and its
+contract keep the mirror in sync; Relay and product versions must not be
+substituted for each other.
+
 ## Tech Stack
 
 - TypeScript / Node.js >=20
@@ -318,7 +339,7 @@ APP_OPTIONS_PATH: "/data/options.json"         # HA app options file path
 - REST client uses native `fetch()` (no axios at runtime)
 - WS orchestration uses `home-assistant-js-websocket`
 - `ws` supplies the authenticated Node WebSocket transport; REST stays on native `fetch()`
-- Current scope is contract-capped at 3,700 TypeScript source lines
+- Current scope is contract-capped at 3,900 TypeScript source lines
 
 ## Standard Envelope
 

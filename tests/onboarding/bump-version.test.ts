@@ -17,6 +17,7 @@ describe("S-11: version bump", () => {
   it("bump script updates version.json", () => {
     const content = readFileSync("scripts/bump-version.sh", "utf8");
     expect(content).toContain("version.json");
+    expect(content).toContain("nova/version.json");
     expect(content).toContain(".metadata.version = $v");
     expect(content).toContain('.packages[""].version = $v');
   });
@@ -33,6 +34,12 @@ describe("S-11: version bump", () => {
     const pkg = JSON.parse(readFileSync("package.json", "utf8"));
     const versionJson = JSON.parse(readFileSync("version.json", "utf8"));
     expect(pkg.version).toBe(versionJson.skill_version);
+  });
+
+  it("App runtime version metadata mirrors version.json", () => {
+    const appVersion = JSON.parse(readFileSync("nova/version.json", "utf8"));
+    const versionJson = JSON.parse(readFileSync("version.json", "utf8"));
+    expect(appVersion).toEqual(versionJson);
   });
 
   it("package-lock.json version matches version.json skill_version", () => {
