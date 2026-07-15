@@ -123,8 +123,9 @@ const WORD_BUDGETS: Record<string, number> = {
   health: 1350,
   // post-publish device verification step (2026-h2 Wave 1a).
   mqtt: 1400,
-  // pre-delete snapshot capture (Wave 2).
-  scene: 1500,
+  // pre-delete snapshot capture (Wave 2); apply-test offer with the
+  // high-consequence carve-out (Wave 3).
+  scene: 1600,
   // buffering settle-window on verify (2026-h2 Wave 1a).
   media: 1200,
   // test-offer single-confirmation + reference bullets (test-run.md);

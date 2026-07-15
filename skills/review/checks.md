@@ -29,7 +29,7 @@ Self-contained catalog: load this file before evaluating findings — from `skil
 - Cross-item: HX-01..HX-05 — only during aggregate/bulk reviews or when the registry context is already loaded; never a license for a full-instance sweep the user did not ask for
 - Template/REST/command-line sensor YAML: TS-01..TS-07 — applied by `ha-nova:yaml-config` at write time, and by review only when such YAML is in the workset
 - Helper (storage-based family): H-01..H-11
-- Helper (config-entry family): minimal config-entry review plus H-12/H-13/H-15 where the fields are readable, and H-14 when the energy prefs are already loaded
+- Helper (config-entry family): minimal config-entry review plus H-12/H-13/H-15 where the fields are readable — reading `source`/member/template fields requires the non-persisting options-flow readback (the `skills/helper/SKILL.md` pattern) or the rendered-state read; when that readback is unavailable, say the fields were not readable instead of skipping silently — and H-14 when the energy prefs are already loaded
   - do not apply H-01..H-11
   - confirm config-entry metadata is present
   - inspect linked entities when available
@@ -285,7 +285,7 @@ Self-trigger / feedback loop = the automation triggers on an entity that it also
 - F-06 [MEDIUM]: `action: script.turn_on` (non-blocking) when next step depends on result — use blocking `action: script.{id}` instead
 - F-07 [LOW]: Script contains `wait_for_trigger:` at top of sequence with no preceding logic — likely should be an automation
 - F-08 [LOW]: Hardcoded values that vary per call-site should be `fields:` parameters (human-judgment check — flag only obvious cases like repeated entity_ids or magic numbers)
-- F-09 [LOW]: Orphaned script — not invoked by any automation, script, scene, or dashboard (`search/related`; cleanup hint like H-07, never a runtime hazard)
+- F-09 [LOW]: Orphaned script — not invoked by any automation, script, or scene (`search/related`; cleanup hint like H-07, never a runtime hazard). `search/related` does NOT index dashboards: either scan the storage dashboards for `script.*` card actions, or say dashboard usage cannot be ruled out
 
 ## Helper-Specific (apply when reviewing helpers or automations referencing helpers)
 
@@ -304,6 +304,10 @@ Self-trigger / feedback loop = the automation triggers on an entity that it also
 - H-13 [MEDIUM]: `group` helper with a dead or duplicate member entity
 - H-14 [LOW]: `utility_meter` cycle/tariff disagrees with the energy-dashboard tariff configuration — only when the energy prefs are ALREADY loaded in this review; never fetch them just for this check
 - H-15 [MEDIUM]: `template` config-entry helper renders `unavailable`/`unknown` because a referenced entity id resolves to nothing — pair the rendered-state read with an entity-id resolution before flagging
+
+H-12/H-13/H-15 dead-source/member findings require absence from BOTH the
+entity registry AND `/api/states` — YAML/manual entities live in states
+without a registry record (same boundary as SC-01/D-01/HX).
 
 ## Scene-Specific (apply when reviewing storage scenes)
 
