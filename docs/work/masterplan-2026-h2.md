@@ -127,6 +127,8 @@ Status: **DONE** — #353, #354, #355
 
 ## Wave 6 — Onboarding flagship: Pairing Code + Home Base (Relay 0.6.0, committed)
 
+Status: **IN PROGRESS** — implementation spec: `docs/work/2026-07-15-wave-6-onboarding-spec.md`
+
 - **`/pair` endpoint**: a 6-digit short-lived pairing code (visible in the App log/panel) exchanges for the relay token over LAN. The wizard asks for exactly one thing: the code. The two-token model disappears from the user's world (the relay token becomes invisible; the LLAT stays in the App's own config UI where it belongs). Charter-clean: pure auth handshake, rate-limited, zero HA semantics. Natural future home for token rotation.
 - **Home Base**: a minimal ingress status page in the HA sidebar (one HTML file rendering `/health` data): connection status, version floor, pairing code, install one-liner. When something breaks, non-terminal users look *here* — inside the UI they know — instead of running `ha-nova doctor`. A charter test pins that no HA business logic creeps in.
 - Flanking CLI work: multi-instance discovery pick list (`cli/setup_discovery.go` already collects candidates, shows one), token-revoked recovery deep link (`haProfileSecurityURL`), non-TTY install guidance, Windows prerequisite preflight.
@@ -174,7 +176,7 @@ All waves land on `main` first; releases batch per the release-worthiness rule. 
 | 3 | Review expansion (SC/D/TS/HX families, test-offer) | — | **DONE** — #352 |
 | 4 | Coverage (integration-setup, calendar writes, events, alarm/lock) | — | **DONE** — #353, #354, #355 |
 | 5 | Relay diagnosability | 0.5.0 (with Wave 2) | **DONE** — #351 |
-| 6 | Pairing Code + Home Base | 0.6.0 | planned (spec first) |
+| 6 | Pairing Code + Home Base | 0.6.0 | **IN PROGRESS** — spec written |
 | 7 | Update UX parity | — | planned |
 
 ## Opinionated defaults (documented instead of asked)
