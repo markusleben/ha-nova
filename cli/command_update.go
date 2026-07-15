@@ -141,7 +141,7 @@ func runUpdate(paths runtimePaths, args []string) int {
 		printHumanNotice(notice)
 		maybeOfferGuidedRelayUpdate(paths, notice)
 	}
-	printPostUpdateSessionInstruction()
+	printPostUpdateSessionInstructionIfClientsVerified(paths)
 	return 0
 }
 
@@ -195,7 +195,7 @@ func runInternalReplace(paths runtimePaths, args []string) int {
 		printHumanNotice(notice)
 		printHumanInfo("Run `ha-nova doctor` in a terminal to be offered the guided relay update.")
 	}
-	printPostUpdateSessionInstruction()
+	printPostUpdateSessionInstructionIfClientsVerified(paths)
 	return 0
 }
 
@@ -227,11 +227,15 @@ func syncInstalledClientsForCurrentVersion(paths runtimePaths, currentVersion, t
 		printHumanNotice(notice)
 		maybeOfferGuidedRelayUpdate(paths, notice)
 	}
-	printPostUpdateSessionInstruction()
+	printPostUpdateSessionInstructionIfClientsVerified(paths)
 	return 0
 }
 
-func printPostUpdateSessionInstruction() {
+func printPostUpdateSessionInstructionIfClientsVerified(paths runtimePaths) {
+	state, err := loadState(paths)
+	if err != nil || state.ClientsVerifiedVersion != localVersion(paths) {
+		return
+	}
 	printHumanInfo("%s", postUpdateSessionInstruction)
 }
 

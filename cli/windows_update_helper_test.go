@@ -92,7 +92,11 @@ func TestRunInternalReplacePrintsFinalSuccess(t *testing.T) {
 	applyStagedBundleWithRollbackForReplace = func(paths runtimePaths, stageRoot string) (func() error, func() error, error) {
 		return func() error { return nil }, func() error { return nil }, nil
 	}
-	postUpdateSyncForReplace = func(paths runtimePaths) error { return nil }
+	postUpdateSyncForReplace = func(paths runtimePaths) error {
+		state := loadStateOrDefault(paths)
+		state.ClientsVerifiedVersion = localVersion(paths)
+		return saveState(paths, state)
+	}
 
 	exitCode, output := captureCommandOutput(t, func() int {
 		return runInternalReplace(paths, []string{"--parent-pid", "0", "--stage-root", t.TempDir()})
