@@ -127,7 +127,7 @@ Status: **DONE** — #353, #354, #355
 
 ## Wave 6 — Onboarding flagship: Pairing Code + Home Base (Relay 0.6.0, committed)
 
-Status: **IN PROGRESS** — implementation spec: `docs/work/2026-07-15-wave-6-onboarding-spec.md`
+Status: **DONE** — #357, #358, #359, #360; implementation spec: `docs/work/2026-07-15-wave-6-onboarding-spec.md`. Unreleased until the separate release-prep gate.
 
 - **`/pair` endpoint**: a 6-digit short-lived pairing code (visible in the App log/panel) exchanges for the relay token over LAN. The wizard asks for exactly one thing: the code. The two-token model disappears from the user's world (the relay token becomes invisible; the LLAT stays in the App's own config UI where it belongs). Charter-clean: pure auth handshake, rate-limited, zero HA semantics. Natural future home for token rotation.
 - **Home Base**: a minimal ingress status page in the HA sidebar (one HTML file rendering `/health` data): connection status, version floor, pairing code, install one-liner. When something breaks, non-terminal users look *here* — inside the UI they know — instead of running `ha-nova doctor`. A charter test pins that no HA business logic creeps in.
@@ -176,7 +176,7 @@ All waves land on `main` first; releases batch per the release-worthiness rule. 
 | 3 | Review expansion (SC/D/TS/HX families, test-offer) | — | **DONE** — #352 |
 | 4 | Coverage (integration-setup, calendar writes, events, alarm/lock) | — | **DONE** — #353, #354, #355 |
 | 5 | Relay diagnosability | 0.5.0 (with Wave 2) | **DONE** — #351 |
-| 6 | Pairing Code + Home Base | 0.6.0 | **IN PROGRESS** — spec written |
+| 6 | Pairing Code + Home Base | 0.6.0 | **DONE** — #357, #358, #359, #360; unreleased |
 | 7 | Update UX parity | — | planned |
 
 ## Opinionated defaults (documented instead of asked)
@@ -188,5 +188,5 @@ All waves land on `main` first; releases batch per the release-worthiness rule. 
 ## Known risks
 - Wave 1's settle-window and drift-check changes touch the hottest skill paths — each needs targeted live verification (`npm run dev:sync` + fresh session) before PR.
 - The snapshot matrix's PARTIAL families need per-family honesty wording; overpromising restore fidelity would damage exactly the trust the feature is meant to build.
-- `/pair` changes the auth surface — needs the same adversarial review depth as the original dual-token design and a rate-limit test.
+- `/pair` changes the auth surface. Adversarial and rate-limit coverage landed in #357; the eventual release still requires the delivery-machinery RC path.
 - 29+ skills after Wave 4: dispatch sharpness pressure keeps rising; the linter and context-skill examples remain the backstop.
