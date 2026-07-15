@@ -270,15 +270,21 @@ Rules:
 
 ## Calendar Architecture
 
-`ha-nova:calendar` is a REST-only read skill:
+`ha-nova:calendar` owns bounded calendar reads and single-event writes:
 - list calendars through `/api/calendars`
 - read events through `/api/calendars/{entity_id}?start=<timestamp>&end=<timestamp>`
+- create through `calendar.create_event`; update/delete through WS `calendar/event/update|delete`
+- capability gates use `supported_features` bits 1/2/4 before create/delete/update
+- update/delete identity is `(uid, recurrence_id)`; recurring scope is one occurrence (`""`) or this-and-future (`THISANDFUTURE`)
+- update sends a full merged event object, never a partial patch
 
 Rules:
 - default to the next 7 days
 - always use a bounded event window
 - resolve ambiguous calendar names before querying events
-- no event create/update/delete actions
+- create/update use natural bound confirmation; delete uses the typed token
+- drift-check immediately before the write; verify through bounded REST read-back and never auto-retry a write
+- recurring creation stays in the Home Assistant UI because `calendar.create_event` has no recurrence field
 
 ## Integration Setup Architecture
 

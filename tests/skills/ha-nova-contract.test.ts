@@ -35,7 +35,7 @@ describe("ha-nova contract", () => {
     expect(context).toContain('| assign or remove entity categories | `ha-nova:organize` |');
     expect(context).toContain('| show history, logbook timelines, or long-term statistics | `ha-nova:history` |');
     expect(context).toContain('| check home status, repairs, system health, integration issues, unavailable entities, or low batteries | `ha-nova:health` |');
-    expect(context).toContain('| list calendars or show calendar events | `ha-nova:calendar` |');
+    expect(context).toContain('| list calendars; read, create, update, or delete calendar events | `ha-nova:calendar` |');
     expect(context).toContain('"Show my main dashboard"** → `ha-nova:dashboard`');
     expect(context).toContain('"Create a dashboard called Test Board"** → `ha-nova:dashboard`');
     expect(context).toContain('"Delete the Test dashboard"** → `ha-nova:dashboard`');
@@ -335,7 +335,7 @@ describe("ha-nova contract", () => {
     expect(architecture).toContain("every `config/category_registry/*` call includes the exact `scope`");
     expect(architecture).toContain("`ha-nova:history` is a bounded read-only timeline skill");
     expect(architecture).toContain("`ha-nova:health` is a read-only home-status skill");
-    expect(architecture).toContain("`ha-nova:calendar` is a REST-only read skill");
+    expect(architecture).toContain("`ha-nova:calendar` owns bounded calendar reads and single-event writes");
     expect(architecture).toContain("long-term trends via `recorder/statistics_during_period`");
     expect(architecture).toContain("room/area bulk resolution is area-first");
     expect(architecture).toContain("materialize and trim the current workset before any per-item reads");
@@ -597,7 +597,7 @@ describe("ha-nova contract", () => {
 
     const fallback = readFileSync("skills/fallback/SKILL.md", "utf8");
     expect(fallback).toContain("| System Health / Repairs | Covered | health |");
-    expect(fallback).toContain("| Calendar Queries | Covered | calendar |");
+    expect(fallback).toContain("| Calendar Events (read / create / update / delete) | Covered | calendar |");
     expect(fallback).not.toContain("### System Health / Repairs -- RELAY-READY");
     expect(fallback).not.toContain("### Calendar Queries -- RELAY-READY");
     expect(fallback).not.toContain("<calendar-events-path>");

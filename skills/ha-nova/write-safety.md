@@ -299,6 +299,7 @@ operations and for relays whose `/backups` answers 404.
 | `helper` storage family | yes | yes (verified updates, last 5 targets) | config snapshot (auto before delete; recreate mints a new id); HA Backups |
 | `helper` config-entry family | diff only | no (multi-step options flow) | HA Backups |
 | `integration-setup` | flow-step preview + config-entry read-back | no (multi-step add/reauth flow) | cancel only an unfinished add flow started in this session; after entry creation, manage or remove it in Home Assistant UI |
+| `calendar` | event-field preview + bounded event read-back | no (provider event mutation) | provider recycle bin when available; otherwise recreate from the approved preview |
 | `dashboard` | preview + read-back verify | no | config snapshot (auto before delete / content-dropping save); HA Backups |
 | `scene` | preview + read-back verify | no | config snapshot (auto before delete, identity-preserving restore); HA Backups |
 | `todo` | preview + read-back verify | no (list delete irreversible) | re-add items; HA Backups for lists |

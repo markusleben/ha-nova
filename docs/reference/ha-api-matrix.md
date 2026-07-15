@@ -21,6 +21,7 @@ Which HA operations require REST, WS, or filesystem?
 | `/api/error_log` | GET | Error log of the current session — **404 on HA OS/Supervised since 2025.11** (log file moved to journald; official docs are stale). Re-enable: `ha core options --duplicate-log-file=true` + `ha core rebuild` + `ha core restart` (2026.1+). Prefer WS `system_log/list` |
 | `/api/calendars` | GET | All calendars |
 | `/api/calendars/{entity_id}` | GET | Calendar events |
+| `/api/services/calendar/create_event` | POST | Create a calendar event (feature bit 1; no recurrence field) |
 | `/api/components` | GET | Loaded components |
 | `/api/config/automation/config/{id}` | GET | Read automation config |
 | `/api/config/automation/config/{id}` | POST | Create/update automation |
@@ -125,6 +126,14 @@ Observed locally on a real HA instance on 2026-03-19: raw WS `config_entries/flo
 | `energy/validate` | Validate energy config |
 | `energy/solar_forecast` | Solar forecast data |
 | `energy/fossil_energy_consumption` | Fossil consumption calculation |
+
+### Calendar event writes
+| WS Type | Purpose |
+|---------|---------|
+| `calendar/event/update` | Full-object event update by `entity_id` + `uid` (feature bit 4) |
+| `calendar/event/delete` | Event delete by `entity_id` + `uid` (feature bit 2) |
+
+Recurring instances add `recurrence_id`; `recurrence_range` is `""` for only that occurrence or `THISANDFUTURE` for that occurrence and later ones.
 
 ### Traces
 | WS Type | Purpose |
