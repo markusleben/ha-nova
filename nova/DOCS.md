@@ -17,8 +17,9 @@ in the relay.
 
 | Option | Description |
 |--------|-------------|
-| **Relay Auth Token** | Shared secret between your AI client and this relay. Generated automatically during setup. The relay and your AI client must use the exact same value. |
+| **Relay Auth Token (legacy/advanced)** | Existing installs may keep their shared token. New installs leave this empty; the App creates and persists a private token automatically. |
 | **Home Assistant Access Token** | A Long-Lived Access Token from your HA profile. Create one at: **Profile > Security > Long-Lived Access Tokens**. |
+| **File access (advanced)** | Optional access to supported Home Assistant configuration files. Defaults to off. |
 
 > **Where is this page?** Home Assistant 2026.2 renamed Add-ons to Apps: this
 > page moved from `/hassio/addon/<slug>/info` to `/config/app/<slug>/info`
@@ -33,13 +34,16 @@ in the relay.
 
 ## Endpoints
 
-The relay exposes three endpoints. All relay requests, including `GET /health`, require the Relay Auth Token via `Authorization: Bearer <token>`.
+The relay exposes six endpoints. Normal requests, including `GET /health`, require the Relay Auth Token via `Authorization: Bearer <token>`. Exact `POST /pair` instead uses its short-lived pairing code as the credential.
 
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/health` | Relay health check (version, uptime, WS status) |
+| POST | `/pair` | One-time pairing-code exchange for the relay token |
 | POST | `/ws` | WebSocket proxy — forwards commands to HA's WS API |
 | POST | `/core` | REST API proxy — forwards requests to HA's Core REST API (`/api/...`) |
+| POST | `/files` | Opt-in, contained configuration-file operations |
+| POST | `/backups` | Generic config-snapshot storage |
 
 ## Setup
 
@@ -55,7 +59,7 @@ Or if you already have the repo:
 ha-nova setup
 ```
 
-The setup wizard handles token generation, relay configuration, and skill installation.
+The setup wizard handles relay configuration and skill installation. Until the pairing-capable CLI lands later in Wave 6, existing clients continue using the legacy relay-token option. Pairing-capable clients exchange the six-digit code without displaying the private relay token.
 
 ## Checking Status
 
@@ -100,8 +104,8 @@ A healthy response looks like:
 
 **Authentication failed**
 
-- The relay auth token must match exactly on both sides
-- Re-run `ha-nova setup` to regenerate and sync tokens
+- Existing installs should verify that the relay auth token matches on both sides
+- Re-run `ha-nova setup` to repair the current client configuration
 - Check that the HA Access Token is still valid (not revoked)
 
 **WebSocket not connected**
@@ -116,6 +120,7 @@ App logs are available in the **Log** tab above. Look for:
 
 - `Relay listening` — relay started successfully
 - `Relay bootstrap` — shows auth source and capability
+- `Pairing code ready` — the initial short-lived fallback code; later rotations are intentionally not logged
 - Any `error` or `warn` messages indicate issues
 
 ## Support

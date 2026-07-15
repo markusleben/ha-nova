@@ -1,49 +1,33 @@
 # NOVA Relay: Architecture Reference
 
-> **Implementation status:** Phase 1a is implemented (`/health`, `/ws`, `/core`), and
-> the Phase 3 filesystem endpoint (`/files`) shipped with relay 0.4.0 — opt-in and
-> off by default. Phases 1c (streaming subscriptions) and 2 (backups) remain planned.
-> Phase 1b was folded into 1a during development (the `/core` REST proxy was
-> originally scoped as a separate phase but shipped together with `/ws` and `/health`).
+> **Implementation status:** Six bounded endpoints are implemented: `/health`,
+> `/pair`, `/ws`, `/core`, `/files`, and `/backups`. Filesystem access is opt-in
+> and off by default. Persistent streaming subscriptions remain unimplemented.
 
 ## Overview
 
-The Relay is a lean App that runs on the HA host and provides three capabilities
-that a remote Skill cannot: WebSocket proxy (implemented), REST core proxy (implemented),
-filesystem access (planned). Backup lifecycle (status/create/inspect/delete) needs no
-dedicated endpoint — `ha-nova:backup` rides the existing `/ws` proxy (`backup/*`).
+The Relay is a lean transport App on the HA host. It proxies WebSocket and REST
+requests, exposes opt-in contained file access, stores generic config snapshots,
+and performs one generic pairing credential exchange. Home Assistant backup
+lifecycle operations still ride the existing `/ws` proxy (`backup/*`).
 
 ## Endpoints
 
-### Phase 1a (MVP) — IMPLEMENTED
+### Implemented
 
 ```
 GET  /health
+POST /pair
 POST /ws
 POST /core
+POST /files
+POST /backups
 ```
 
 ### Phase 1c (+ Subscriptions) — PLANNED, NOT IMPLEMENTED
 
 ```
 POST /ws/subscribe
-```
-
-### Phase 2 (config-snapshot store) — PLANNED, NOT IMPLEMENTED
-
-HA SYSTEM backups (status/create/inspect/delete) are covered today via `/ws`
-(`ha-nova:backup`) and need no relay endpoint. This planned endpoint is a
-different thing: a relay-side store for CONFIG snapshots (see the
-`POST /backups` — Backup Management spec below):
-
-```
-POST /backups
-```
-
-### Phase 3 (+ Filesystem) — IMPLEMENTED in relay 0.4.0 (opt-in, default off)
-
-```
-POST /files
 ```
 
 ---
@@ -70,6 +54,24 @@ Response 200:
   }
 }
 ```
+
+### `POST /pair` — Pairing Credential Exchange
+
+This is the only route that does not accept the relay bearer token. Its
+six-digit, ten-minute, single-use pairing code is the credential.
+
+```json
+Request:  { "code": "123456" }
+Response: { "ok": true, "data": { "relay_token": "<opaque token>" } }
+```
+
+Malformed shapes return `400 VALIDATION_ERROR`. Wrong, expired, and replayed
+codes share `401 PAIRING_FAILED`. Five failures per socket peer per minute or
+30 globally per five minutes block further attempts with
+`429 PAIRING_RATE_LIMITED` and `Retry-After`. The Relay ignores forwarded IP
+headers, compares fixed digests in constant time, and sets
+`Cache-Control: no-store` on every `/pair` response. Pairing contains no Home
+Assistant call or domain logic.
 
 ### `POST /ws` — Generic WS Proxy
 ```json
@@ -191,10 +193,10 @@ Security:
 
 ---
 
-## Endpoint Specifications — Planned (NOT IMPLEMENTED)
+## Additional Endpoint Specifications
 
-> The following endpoints are designed but have no implementation yet.
-> Specifications may change before implementation.
+Only the streaming endpoint below remains planned. `/files` and `/backups` are
+implemented and covered by their handler tests.
 
 ### `POST /ws/subscribe` — Event Subscription
 ```json
@@ -212,7 +214,7 @@ data: {"event_type":"state_changed","data":{...}}
 
 Limits: max 300s duration, max 5 concurrent subscriptions.
 
-### `POST /files` — Filesystem Operations
+### `POST /files` — Filesystem Operations (implemented)
 ```json
 // list_dir
 { "action": "list_dir", "path": "/config/ha_mcp", "limit": 200 }
@@ -233,7 +235,7 @@ Security:
 - Symlink traversal check
 - Writes only in whitelisted directories (`/config/ha_mcp/`)
 
-### `POST /backups` — Backup Management (Phase 2, planned config-snapshot store)
+### `POST /backups` — Config-snapshot store (implemented)
 
 Relay-side storage for CONFIG snapshots (automation JSON, etc.) — distinct from
 HA system backups, which `ha-nova:backup` manages via `/ws` `backup/*` today.
@@ -270,15 +272,19 @@ The Relay uses two separate tokens for inbound and upstream authentication:
 ```
 Authorization: Bearer {RELAY_AUTH_TOKEN}
 ```
-Validated via timing-safe comparison (`node:crypto.timingSafeEqual`). On failure: `401 UNAUTHORIZED`.
+Validated via a constant-time fixed-digest comparison. On failure:
+`401 UNAUTHORIZED`. Exact `POST /pair` uses the one-time pairing code instead
+and returns the same relay token after a successful exchange.
 
 **Upstream (Relay -> HA):**
 The Relay uses `HA_LLAT` to authenticate with Home Assistant. For WebSocket it creates a
 long-lived token auth via `home-assistant-js-websocket`. For REST calls (`/core` proxy)
 it adds `Authorization: Bearer {HA_LLAT}` to upstream `fetch()` requests.
 
-The two tokens are independent. `RELAY_AUTH_TOKEN` is chosen by the operator;
-`HA_LLAT` is generated inside Home Assistant.
+The two tokens are independent. New App installs create and persist a random
+32-byte relay token under `/data` with owner-only permissions. Existing App
+option values remain authoritative. Standalone Container/Core installs must
+still provide `RELAY_AUTH_TOKEN`. `HA_LLAT` is generated inside Home Assistant.
 
 ## WS Forwarding Policy
 
@@ -291,8 +297,10 @@ All configuration is via environment variables. The `run` entrypoint script
 resolves values from HA app options and sets them before starting Node.
 
 ```yaml
-# Required (both must be non-empty)
-RELAY_AUTH_TOKEN: "<operator-chosen-secret>"   # Inbound client auth
+# App: set RELAY_AUTH_TOKEN_FILE; RELAY_AUTH_TOKEN remains a legacy override.
+# Standalone: RELAY_AUTH_TOKEN is required.
+RELAY_AUTH_TOKEN: "<operator-chosen-secret>"   # Inbound client auth override
+RELAY_AUTH_TOKEN_FILE: "/data/relay_auth_token" # App-owned persistent token
 HA_LLAT: "<ha-long-lived-access-token>"        # Upstream HA auth
 
 # Optional (with defaults)
@@ -308,9 +316,9 @@ APP_OPTIONS_PATH: "/data/options.json"         # HA app options file path
 - TypeScript / Node.js >=20
 - No HTTP framework (Node.js `http.createServer`)
 - REST client uses native `fetch()` (no axios at runtime)
-- WS client uses `home-assistant-js-websocket` (the only directly imported production dependency)
-- `ws`, `yaml` are listed in `package.json` but not directly imported by relay source code; they are transitive or reserved for future phases (`axios` was removed as dead weight — REST stays on native `fetch()`)
-- Current scope: ~1,500 lines across ~20 `.ts` files (Phase 1a)
+- WS orchestration uses `home-assistant-js-websocket`
+- `ws` supplies the authenticated Node WebSocket transport; REST stays on native `fetch()`
+- Current scope is contract-capped at 3,700 TypeScript source lines
 
 ## Standard Envelope
 
@@ -324,14 +332,15 @@ All responses follow the same JSON envelope (defined in `types/api.ts`):
 { ok: false, error: { code: string, message: string } }
 ```
 
-HTTP status is 200 for success. Error status codes: 400 (validation), 401 (auth),
-404 (route not found), 502 (upstream failure), 500 (internal).
+HTTP status is 200 for success. Error status codes include 400 (validation),
+401 (auth), 404 (route not found), 413 (body cap), 429 (pairing rate limit),
+502 (upstream failure), and 500 (internal).
 
 ## What the Relay does NOT do
 
 - No business logic
 - No validation rules (beyond request format and path safety)
-- No state caching
+- No Home Assistant domain-state caching
 - No consent gating
 - No session management
 - No metrics (structured JSON logging only)

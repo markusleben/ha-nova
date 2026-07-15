@@ -1,10 +1,10 @@
 configuration:
   relay_auth_token:
-    name: Relay Auth Token
+    name: Relay Auth Token (legacy/advanced)
     description: >-
-      Shared secret between your AI client and this relay.
-      The setup wizard generates this automatically — paste the
-      token it shows you. Both sides must use the exact same value.
+      Existing installs may keep their shared relay token here.
+      New installs should leave this empty: the App creates and
+      persists a private token for pairing automatically.
   ha_llat:
     name: Home Assistant Access Token
     description: >-

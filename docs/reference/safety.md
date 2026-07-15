@@ -23,7 +23,7 @@ Last verified: 2026-07-11 — `npm run verify` (70 test files / 650 tests), `go 
 | Guarantee | Enforced by | Verified by |
 |---|---|---|
 | Your Home Assistant token stays on the server. The AI client never receives it | The relay resolves it from its own environment (`nova/src/security/token-resolver.ts`); no code path sends it downstream | `nova` relay tests (`tests/security/token-resolver.test.ts`); `scripts/check-docs.sh` |
-| The relay token is stored in your OS credential store (Keychain / Credential Manager / Secret Service), not in a config file | `cli/keyring_*.go` (service `ha-nova.relay-auth-token`); the plaintext file path exists only for headless `--service` installs | `cli/keyring_*_test.go`; `scripts/check-docs.sh` ("macOS Keychain integration") |
+| The relay token is stored in your OS credential store on the client and in an owner-only App data file on a new App install; it is never stored in normal client config | `cli/keyring_*.go`; `nova/src/config/relay-token.ts`; the client plaintext file path exists only for headless `--service` installs | `cli/keyring_*_test.go`; `tests/security/relay-token.test.ts`; `scripts/check-docs.sh` |
 | No telemetry, no analytics, no phone-home | There is none to disable | `scripts/check-docs.sh` check [11] fails the build if telemetry patterns appear in `nova/src` |
 | No cloud relay: your data goes from your machine to your Home Assistant, and nowhere else | The relay only talks to `HA_URL` (`nova/src/ha/*`); it cannot proxy other hosts | Relay tests; `docs/reference/bridge-architecture.md` |
 | Camera frames stay in client-private scratch storage and are never sent onward | `skills/camera/SKILL.md` → Safety | `tests/skills/skill-template-contract.test.ts` |
@@ -32,8 +32,9 @@ Last verified: 2026-07-11 — `npm run verify` (70 test files / 650 tests), `go 
 
 | Guarantee | Enforced by | Verified by |
 |---|---|---|
-| Every endpoint requires authentication — there is no unauthenticated surface, not even `/health` | `nova/src/http/server.ts` (auth runs before routing) | `tests/security/auth.test.ts`; `tests/http/*`; the container smoke test asserts a 401 |
-| Token comparison is constant-time | `nova/src/security/auth.ts` (`timingSafeEqual`) | `tests/security/auth.test.ts` |
+| Every endpoint requires authentication: normal routes use the relay bearer token; exact `POST /pair` uses a short-lived, single-use code. `/health` remains bearer-only | `nova/src/http/server.ts`; `nova/src/http/handlers/pair.ts` | `tests/security/auth.test.ts`; `tests/http/pair.test.ts`; the container smoke test asserts a 401 on `/health` |
+| Relay tokens and pairing codes are compared as fixed digests in constant time | `nova/src/security/secret-compare.ts` | `tests/security/auth.test.ts`; `tests/security/pairing.test.ts` |
+| Pairing attempts are bounded per socket peer and globally; forwarded address headers are ignored | `nova/src/security/pairing.ts`; `nova/src/http/handlers/pair.ts` | `tests/security/pairing.test.ts`; `tests/http/pair.test.ts`; `scripts/check-docs.sh` check [9b] |
 | Path traversal into non-`/api/` paths is rejected, including multi-round percent-encoding | `nova/src/http/handlers/core-proxy.ts` → `normalizeCorePath` | `tests/http/core-proxy.test.ts` (traversal vector suite) |
 | Requests and responses are bounded (1 MiB in, 256 MiB out, 8 MiB for binary) | `nova/src/http/server.ts`; `nova/src/ha/rest-client.ts` | `tests/http/*`; `tests/ha/rest-client.test.ts` |
 | The relay holds no long-lived subscriptions: event collection is bounded and always unsubscribes | `nova/src/ha/ws-client.ts` (`finally` unsubscribe, `max_events`/`timeout_ms`); bare subscriptions are rejected | `tests/ha/ws-client.test.ts`; `tests/http/ws-proxy.test.ts` |

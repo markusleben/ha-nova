@@ -272,6 +272,10 @@ describe("runtime bootstrap", () => {
         snapshot_dir: "/tmp/nova-snapshots-test"
       }
     });
+    const pairingLog = infoLogs.find(({ message }) => message === "Pairing code ready");
+    expect(pairingLog?.context?.pairing_code).toMatch(/^\d{6}$/);
+    expect(pairingLog?.context?.expires_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(JSON.stringify(infoLogs)).not.toContain("relay-token");
     expect(warnLogs).toEqual([]);
   });
 });

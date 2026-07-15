@@ -234,6 +234,12 @@ function logStartup(logger: Logger, runtime: RuntimeBootstrapResult): void {
     snapshot_dir: runtime.env.snapshotDir
   });
 
+  const pairing = runtime.app.pairing.getStatus();
+  logger.info("Pairing code ready", {
+    pairing_code: pairing.code,
+    expires_at: new Date(pairing.expiresAtMs).toISOString()
+  });
+
   for (const warning of runtime.upstreamAuth.warnings) {
     logger.warn(warning);
   }

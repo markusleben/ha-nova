@@ -1,7 +1,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 
 import { authorizeRequest } from "../security/auth.js";
-import { invalidJson, payloadTooLarge, toErrorResponse } from "./errors.js";
+import { invalidJson, invalidRequestUrl, payloadTooLarge, toErrorResponse } from "./errors.js";
 import type { Router } from "./router.js";
 
 export const DEFAULT_MAX_JSON_BODY_BYTES = 1_048_576;
@@ -11,6 +11,8 @@ export interface HttpServerOptions {
   router: Router;
   maxJsonBodyBytes?: number;
   version?: string;
+  bearerExemptRoutes?: ReadonlySet<string>;
+  noStorePaths?: ReadonlySet<string>;
   logger?: {
     warn(message: string, context?: Record<string, unknown>): void;
     error(message: string, context?: Record<string, unknown>): void;
@@ -31,17 +33,26 @@ export function createHttpServer(options: HttpServerOptions): Server {
   const maxJsonBodyBytes = options.maxJsonBodyBytes ?? DEFAULT_MAX_JSON_BODY_BYTES;
 
   const server = createServer(async (request, response) => {
+    const method = request.method?.toUpperCase() ?? "GET";
+    let path = "<invalid>";
     if (options.version) {
       response.setHeader(RELAY_VERSION_HEADER, options.version);
     }
     try {
-      const authResult = authorizeRequest(request.headers.authorization, options.authToken);
+      path = toPathname(request.url);
+      if (options.noStorePaths?.has(path)) {
+        response.setHeader("cache-control", "no-store");
+      }
+      const routeKey = `${method} ${path}`;
+      const authResult = options.bearerExemptRoutes?.has(routeKey)
+        ? { ok: true as const }
+        : authorizeRequest(request.headers.authorization, options.authToken);
       if (!authResult.ok) {
         // Visible in the App log: repeated 401s are the operator's only signal
         // for a misconfigured client or someone probing the port.
         options.logger?.warn("Rejected unauthorized request", {
-          method: request.method ?? "GET",
-          path: toPathname(request.url),
+          method,
+          path,
           remote: request.socket.remoteAddress ?? "unknown"
         });
         writeJson(response, authResult.status, {
@@ -54,11 +65,10 @@ export function createHttpServer(options: HttpServerOptions): Server {
         return;
       }
 
-      const method = request.method?.toUpperCase() ?? "GET";
-      const path = toPathname(request.url);
       const body = await parseJsonBody(request, maxJsonBodyBytes);
       const data = await options.router.dispatch(method, path, {
         request,
+        response,
         path,
         body
       });
@@ -73,8 +83,8 @@ export function createHttpServer(options: HttpServerOptions): Server {
         // The envelope stays generic on purpose; the App log carries the cause
         // so an unexpected crash path is diagnosable.
         options.logger?.error("Unhandled relay error", {
-          method: request.method ?? "GET",
-          path: toPathname(request.url),
+          method,
+          path,
           error: error instanceof Error ? `${error.name}: ${error.message}` : String(error)
         });
       }
@@ -92,7 +102,11 @@ function toPathname(urlValue: string | undefined): string {
     return "/";
   }
 
-  return new URL(urlValue, "http://localhost").pathname;
+  try {
+    return new URL(urlValue, "http://localhost").pathname;
+  } catch {
+    throw invalidRequestUrl();
+  }
 }
 
 async function parseJsonBody(request: IncomingMessage, maxBytes: number): Promise<unknown> {

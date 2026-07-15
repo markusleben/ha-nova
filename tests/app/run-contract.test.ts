@@ -21,7 +21,9 @@ describe("app run contract", () => {
     expect(content).toContain('"$value" == "null"');
     expect(content).toContain('HA_URL="http://homeassistant:8123"');
     expect(content).toContain("RELAY_AUTH_TOKEN");
+    expect(content).toContain('RELAY_AUTH_TOKEN_FILE="/data/relay_auth_token"');
     expect(content).toContain("HA_LLAT");
+    expect(content).not.toContain("RELAY_AUTH_TOKEN is required");
 
     expect(content).not.toContain("resolveUpstreamToken");
     expect(content).not.toContain("SUPERVISOR_TOKEN");

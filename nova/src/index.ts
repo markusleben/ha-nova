@@ -12,9 +12,14 @@ import { createBackupsHandler } from "./http/handlers/backups.js";
 import { createCoreProxyHandler } from "./http/handlers/core-proxy.js";
 import { createFilesHandler } from "./http/handlers/files.js";
 import { createHealthHandler } from "./http/handlers/health.js";
+import { createPairHandler } from "./http/handlers/pair.js";
 import { createWsProxyHandler } from "./http/handlers/ws-proxy.js";
 import { createRouter, type Router } from "./http/router.js";
 import { createHttpServer } from "./http/server.js";
+import { createPairingManager, type PairingManager } from "./security/pairing.js";
+
+const PAIR_PATH = "/pair";
+const PAIR_ROUTE = `POST ${PAIR_PATH}`;
 
 export interface AppOptions {
   authToken: string;
@@ -39,17 +44,25 @@ export interface AppOptions {
   };
   startedAtMs?: number;
   now?: () => number;
+  pairingManager?: PairingManager;
 }
 
 export interface App {
   version: string;
   router: Router;
   server: Server;
+  pairing: PairingManager;
 }
 
 export function createApp(options: AppOptions): App {
   const router = createRouter();
   const startedAtMs = options.startedAtMs ?? Date.now();
+  const pairing =
+    options.pairingManager
+    ?? createPairingManager({
+      relayToken: options.authToken,
+      ...(options.now ? { now: options.now } : {})
+    });
 
   const healthOptions = {
     version: options.version,
@@ -71,6 +84,8 @@ export function createApp(options: AppOptions): App {
         : healthOptions
     )
   );
+
+  router.register("POST", PAIR_PATH, createPairHandler(pairing));
 
   router.register(
     "POST",
@@ -110,12 +125,15 @@ export function createApp(options: AppOptions): App {
     authToken: options.authToken,
     router,
     version: options.version,
+    bearerExemptRoutes: new Set([PAIR_ROUTE]),
+    noStorePaths: new Set([PAIR_PATH]),
     ...(options.logger ? { logger: options.logger } : {})
   });
 
   return {
     version: options.version,
     router,
-    server
+    server,
+    pairing
   };
 }

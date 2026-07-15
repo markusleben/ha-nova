@@ -1,3 +1,5 @@
+import { resolveRelayAuthToken } from "./relay-token.js";
+
 export type LogLevel = "trace" | "debug" | "info" | "warn" | "error";
 
 export interface EnvConfig {
@@ -28,7 +30,7 @@ const ALLOWED_LOG_LEVELS = new Set<LogLevel>([
 ]);
 
 export function loadEnv(source: NodeJS.ProcessEnv = process.env): EnvConfig {
-  const relayAuthToken = parseRequiredToken(source.RELAY_AUTH_TOKEN, "RELAY_AUTH_TOKEN is required");
+  const relayAuthToken = resolveRelayAuthToken(source);
   const haLlat = parseRequiredToken(source.HA_LLAT, "HA_LLAT is required");
   const haUrl = parseRequiredLike(source.HA_URL, DEFAULT_HA_URL);
   const relayVersion = parseRequiredLike(source.RELAY_VERSION, DEFAULT_RELAY_VERSION);

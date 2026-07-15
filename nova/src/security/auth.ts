@@ -1,4 +1,4 @@
-import { createHash, timingSafeEqual } from "node:crypto";
+import { constantTimeEqualSecret } from "./secret-compare.js";
 
 export interface AuthSuccess {
   ok: true;
@@ -26,7 +26,7 @@ export function authorizeRequest(
     return unauthorized("Invalid bearer token");
   }
 
-  if (!constantTimeEqual(token, expectedToken)) {
+  if (!constantTimeEqualSecret(token, expectedToken)) {
     return unauthorized("Invalid bearer token");
   }
 
@@ -40,12 +40,4 @@ function unauthorized(message: string): AuthFailure {
     code: "UNAUTHORIZED",
     message
   };
-}
-
-function constantTimeEqual(left: string, right: string): boolean {
-  // Hashing both sides first makes the comparison length-independent — the
-  // old early return on length mismatch leaked the token length via timing.
-  const leftDigest = createHash("sha256").update(left).digest();
-  const rightDigest = createHash("sha256").update(right).digest();
-  return timingSafeEqual(leftDigest, rightDigest);
 }
