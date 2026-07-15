@@ -2,7 +2,7 @@
 
 ## Overview
 
-HA NOVA uses a flat skill layout with one context skill and 28 independent sub-skills under `skills/`.
+HA NOVA uses a flat skill layout with one context skill and 29 independent sub-skills under `skills/`.
 
 The repo skill tree is the single source of truth. Client installers adapt that same tree to each client's packaging rules:
 - Claude: plugin marketplace payload
@@ -31,6 +31,7 @@ skills/
   read/SKILL.md                         (ha-nova:read — automation/script list/get/trace)
   write/SKILL.md                        (ha-nova:write — automation/script create/update/delete)
   helper/SKILL.md                       (ha-nova:helper — helper CRUD: list/read/create/update/delete)
+  integration-setup/SKILL.md            (ha-nova:integration-setup — add integrations and continue pending reauth flows)
   dashboard/SKILL.md                    (ha-nova:dashboard — storage dashboards, Lovelace resources, card operations)
   scene/SKILL.md                        (ha-nova:scene — storage-scene list/read/create/update/delete)
   organize/SKILL.md                     (ha-nova:organize — areas/floors/labels/categories/entity+device metadata)
@@ -99,6 +100,7 @@ Current mapping:
 | read | inline | 1-2 calls, direct output |
 | write | **agents** | 5-7 calls, entity resolution fallback, singular/plural normalization, domain reload |
 | helper | inline | response-driven relay flows, direct preview/confirm loop, no agent-only normalization requirement |
+| integration-setup | inline | response-driven config flows with direct preview/confirm and HA UI handoff for secrets/external steps |
 | dashboard | inline | read → merge → preview → full-save → readback verify, all user-facing |
 | scene | inline | 2-4 calls, flat entities payload, read → merge → preview → full-save → readback verify |
 | organize | inline | field-level registry mutations with direct preview/readback |
@@ -277,6 +279,17 @@ Rules:
 - always use a bounded event window
 - resolve ambiguous calendar names before querying events
 - no event create/update/delete actions
+
+## Integration Setup Architecture
+
+`ha-nova:integration-setup` owns UI-configurable integration add and pending reauthentication flows:
+- add starts through REST `POST /api/config/config_entries/flow` after resolving an exact handler from `/api/config/config_entries/flow_handlers`
+- reauthentication continues an existing `context.source == "reauth"` flow discovered through WS `config_entries/flow/progress`; it never synthesizes a reauth flow
+- menu/form steps use only the live response schema and require a preview-bound confirmation before each submit
+- credential-bearing, external/OAuth, or progress add steps started through the Relay are canceled and restarted in the Home Assistant UI; user-started flows are omitted from `config_entries/flow/progress`, and the Relay cannot supply the frontend-origin header
+- credential-bearing, external/OAuth, or progress steps on pre-existing reauth flows hand off to the matching Home Assistant UI card; secrets never enter chat and the reauth flow stays preserved
+- config-entry existence/state is primary verification evidence; linked devices/entities are secondary
+- agent-created canceled add flows are deleted; Home Assistant-created reauth flows are preserved
 
 ## Review Architecture
 
@@ -487,9 +500,11 @@ Scope → Bootstrap (once per session) → Relay Contract → [domain] → Flow 
 - **Output Format** — first line starts with ``Apply `skills/ha-nova/output-rules.md` `` ; then what the user receives
 - **Safety** — risk mitigations, confirmation rules, relay-only constraint
 
-**Required for config-persisting skills** (write, helper):
+**Required for behavior-config-persisting skills** (write, helper):
 - **Post-Write Review** — mandatory inline review phase after every create/update/delete (a Flow phase, not a separate H2)
 - **References** — links to schema docs, relay API, review checks
+
+`integration-setup` persists config entries through Home Assistant-owned flows. It verifies the resulting config entry instead of applying automation/helper quality checks.
 
 **Optional:**
 - **Error Handling** — error classification + remediation (recommended for external calls); when present it sits directly before Output Format
@@ -531,7 +546,7 @@ Read-only sub-skills open `## Safety` with this block instead:
 
 Skill-specific safety bullets follow the core block; bullets that merely restate a core line are removed, domain nuances (confirmation tiering, no-revert notes, session-cleanup rules) stay.
 
-A skill may declare an explicit, named exception to a single core bullet directly below the core block — it must reference the core rule it narrows ("Declared exception to the core ... rule above") so a bare agent never sees two contradicting instructions. Current declared exceptions: `todo` item removes (`todo.remove_item`, `todo.remove_completed_items`) stay at natural preview confirmation; list deletion keeps the typed token.
+A skill may declare an explicit, named exception to a single core bullet directly below the core block — it must reference the core rule it narrows ("Declared exception to the core ... rule above") so a bare agent never sees two contradicting instructions. Current declared exceptions: `todo` item removes (`todo.remove_item`, `todo.remove_completed_items`) stay at natural preview confirmation while list deletion keeps the typed token; `integration-setup` may delete only an unfinished add flow that it started when a credential, external/OAuth, or progress step requires a UI restart.
 
 ## Post-Write Review Standard
 
@@ -572,8 +587,8 @@ When creating a new skill under `skills/{name}/SKILL.md`:
 6. `docs/reference/skill-architecture.md` — add to skill tree + add Architecture section
 7. `docs/reference/skill-architecture.md` — add to Agent vs Inline table
 8. `scripts/onboarding/install-local-skills.sh` — verify dynamic discovery picks up new skill
-9. `README.md` / `PROJECT.md` — add skill to overview table/list
-10. `version.json` — bump patch version
+9. `PROJECT.md` — update the active inventory; defer `README.md` feature claims to the release-prep PR
+10. `version.json` — bump only in the release-prep PR that publishes the skill
 11. For file-based clients, re-run `npm run dev:install:<client>-skill` and start a new session. Use `npm run dev:sync` only when you need the Claude cache sync helper or already have a repo-local install to refresh.
 
 ## Review Check Single Source of Truth

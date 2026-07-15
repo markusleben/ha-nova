@@ -336,6 +336,33 @@ Observed locally on a real HA instance on 2026-03-19:
 
 See `skills/ha-nova/helper-flow-schemas.md` for the observed field sets and domain-specific notes.
 
+## Integration Config Flows
+
+`ha-nova:integration-setup` uses the generic config-flow surface:
+
+```json
+{"method":"GET","path":"/api/config/config_entries/flow_handlers"}
+{"type":"manifest/list"}
+{"type":"config_entries/flow/progress"}
+{"type":"config_entries/get"}
+{"method":"POST","path":"/api/config/config_entries/flow","body":{"handler":"hue"}}
+{"method":"GET","path":"/api/config/config_entries/flow/{flow_id}"}
+{"method":"POST","path":"/api/config/config_entries/flow/{flow_id}","body":{"step_field":"value"}}
+{"method":"DELETE","path":"/api/config/config_entries/flow/{flow_id}"}
+```
+
+Rules:
+
+- available handler domains come from `flow_handlers`; join them to `manifest/list` by `domain` for display-name resolution and never guess between matches
+- pending reauthentication comes from `config_entries/flow/progress` with `context.source == "reauth"` and a matching `context.entry_id`; never create a replacement reauth flow
+- each response's `type`, `data_schema`, `menu_options`, `flow_id`, and `step_id` define the next action
+- form submit bodies contain only fields exposed by the current live step
+- `config_entries/flow/progress` omits flows whose `context.source` is `user`; a relay-started add flow cannot rely on appearing as an in-progress UI card
+- a credential-bearing, external/OAuth, or progress step from a relay-started add flow is canceled and restarted in the HA UI; the Relay also does not provide the frontend-origin header used to construct OAuth redirects
+- pre-existing reauth flows are preserved and continue through their matching Home Assistant UI card when one of those UI-only steps is reached
+- add verification uses terminal `result.entry_id`, or a constrained before/after `config_entries/get` diff when it is absent
+- successful reauth uses terminal abort reason `reauth_successful`, the same surviving `entry_id`, and absence of the completed pending flow
+
 ## Domain Payload Rules
 
 Automation fields: `alias`, `triggers`, `conditions`, `actions`, `mode`

@@ -447,6 +447,7 @@ describe("ha-nova contract", () => {
       "skills/write/SKILL.md",
       "skills/read/SKILL.md",
       "skills/helper/SKILL.md",
+      "skills/integration-setup/SKILL.md",
       "skills/entity-discovery/SKILL.md",
       "skills/onboarding/SKILL.md",
       "skills/service-call/SKILL.md",
@@ -489,6 +490,7 @@ describe("ha-nova contract", () => {
       "skills/history/SKILL.md",
       "skills/write/SKILL.md",
       "skills/read/SKILL.md",
+      "skills/integration-setup/SKILL.md",
       "skills/entity-discovery/SKILL.md",
       "skills/onboarding/SKILL.md",
     ];
@@ -518,6 +520,7 @@ describe("ha-nova contract", () => {
       "skills/read/SKILL.md",
       "skills/review/SKILL.md",
       "skills/helper/SKILL.md",
+      "skills/integration-setup/SKILL.md",
       "skills/entity-discovery/SKILL.md",
       "skills/fallback/SKILL.md",
       "skills/service-call/SKILL.md",

@@ -79,6 +79,7 @@ const MUTATION_SKILLS = new Set([
   "energy",
   "maintenance",
   "service-call",
+  "integration-setup",
   "fallback",
   "review",
 ]);
@@ -149,8 +150,8 @@ const WORD_BUDGETS: Record<string, number> = {
   // purge quantification, glob expansion, apply_filter semantics
   // (2026-h2 Wave 1b).
   maintenance: 1400,
-  // integration-onboarding + events/webhooks Relay-Ready sections and the
-  // blueprint payload examples (masterplan-2026-h2 Wave 0).
+  // events/webhooks Relay-Ready section and the blueprint payload examples
+  // (integration onboarding moved to its own skill in Wave 4).
   fallback: 2450,
   // semantic-slot note on the read templates (Wave 0); pre-write cross-field
   // constraint checks + drift-check step (Wave 1); pre-delete snapshot
