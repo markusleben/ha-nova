@@ -7,6 +7,8 @@ export interface EnvConfig {
   haLlat: string;
   haUrl: string;
   relayVersion: string;
+  productVersion?: string;
+  minRelayVersion?: string;
   appOptionsPath: string;
   relayPort: number;
   logLevel: LogLevel;
@@ -34,6 +36,8 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): EnvConfig {
   const haLlat = parseRequiredToken(source.HA_LLAT, "HA_LLAT is required");
   const haUrl = parseRequiredLike(source.HA_URL, DEFAULT_HA_URL);
   const relayVersion = parseRequiredLike(source.RELAY_VERSION, DEFAULT_RELAY_VERSION);
+  const productVersion = parseRequiredLike(source.PRODUCT_VERSION, relayVersion);
+  const minRelayVersion = parseRequiredLike(source.MIN_RELAY_VERSION, relayVersion);
   const appOptionsPath = parseRequiredLike(source.APP_OPTIONS_PATH, DEFAULT_APP_OPTIONS_PATH);
 
   const portRaw = source.RELAY_PORT?.trim();
@@ -54,6 +58,8 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): EnvConfig {
     haLlat,
     haUrl,
     relayVersion,
+    productVersion,
+    minRelayVersion,
     appOptionsPath,
     relayPort,
     logLevel: logRaw as LogLevel,

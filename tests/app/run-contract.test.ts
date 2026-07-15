@@ -22,6 +22,10 @@ describe("app run contract", () => {
     expect(content).toContain('HA_URL="http://homeassistant:8123"');
     expect(content).toContain("RELAY_AUTH_TOKEN");
     expect(content).toContain('RELAY_AUTH_TOKEN_FILE="/data/relay_auth_token"');
+    expect(content).toContain("PRODUCT_VERSION");
+    expect(content).toContain("MIN_RELAY_VERSION");
+    expect(content).toContain("/app/version.json");
+    expect(content).toContain("Version metadata is missing");
     expect(content).toContain("HA_LLAT");
     expect(content).not.toContain("RELAY_AUTH_TOKEN is required");
 
@@ -34,6 +38,7 @@ describe("app run contract", () => {
     const dockerfile = readFileSync("nova/Dockerfile", "utf8");
 
     expect(dockerfile).toContain("COPY run /run.sh");
+    expect(dockerfile).toContain("COPY version.json ./version.json");
     expect(dockerfile).toContain('CMD ["/run.sh"]');
   });
 });

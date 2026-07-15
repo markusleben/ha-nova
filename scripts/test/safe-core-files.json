@@ -29,6 +29,7 @@
   "tests/http/files-ops.test.ts",
   "tests/http/files-paths.test.ts",
   "tests/http/health.test.ts",
+  "tests/http/home.test.ts",
   "tests/http/pair.test.ts",
   "tests/http/ws-proxy.test.ts",
   "tests/security/auth.test.ts",

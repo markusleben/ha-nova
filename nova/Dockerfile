@@ -6,6 +6,7 @@ WORKDIR /app
 RUN apk add --no-cache nodejs npm
 
 COPY package.json package-lock.json tsconfig.json ./
+COPY version.json ./version.json
 COPY src ./src
 RUN npm ci \
   && npm run build \

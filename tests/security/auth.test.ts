@@ -41,7 +41,9 @@ describe("loadEnv", () => {
       RELAY_AUTH_TOKEN: "llt-token",
       HA_LLAT: "ha-llat-token",
       RELAY_PORT: "9000",
-      LOG_LEVEL: "debug"
+      LOG_LEVEL: "debug",
+      PRODUCT_VERSION: "0.17.0",
+      MIN_RELAY_VERSION: "0.4.0"
     });
 
     expect(env).toEqual({
@@ -49,6 +51,8 @@ describe("loadEnv", () => {
       haLlat: "ha-llat-token",
       haUrl: "http://homeassistant:8123",
       relayVersion: "dev",
+      productVersion: "0.17.0",
+      minRelayVersion: "0.4.0",
       appOptionsPath: "/data/options.json",
       relayPort: 9000,
       logLevel: "debug",
@@ -67,6 +71,8 @@ describe("loadEnv", () => {
       haLlat: "user-llat",
       haUrl: "http://homeassistant:8123",
       relayVersion: "dev",
+      productVersion: "dev",
+      minRelayVersion: "dev",
       appOptionsPath: "/data/options.json",
       relayPort: 8791,
       logLevel: "info",
@@ -85,6 +91,8 @@ describe("loadEnv", () => {
       haLlat: "ha-llat",
       haUrl: "http://homeassistant:8123",
       relayVersion: "dev",
+      productVersion: "dev",
+      minRelayVersion: "dev",
       appOptionsPath: "/data/options.json",
       relayPort: 8791,
       logLevel: "info",

@@ -91,6 +91,8 @@ export function bootstrapRuntime(dependencies: RuntimeDependencies = {}): Runtim
   const app = createApp({
     authToken: env.relayAuthToken,
     version: env.relayVersion,
+    installerVersion: env.productVersion ?? env.relayVersion,
+    requiredRelayVersion: env.minRelayVersion ?? env.relayVersion,
     wsClient,
     fileAccess,
     snapshotRoot: env.snapshotDir,

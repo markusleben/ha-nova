@@ -63,6 +63,10 @@ The setup wizard handles relay configuration and skill installation. Until the p
 
 ## Checking Status
 
+Open **NOVA Home Base** in the Home Assistant sidebar for Relay status and the
+current pairing code. The panel is admin-only and available through Home
+Assistant ingress; direct port access cannot render it.
+
 Run the built-in health check:
 
 ```bash
@@ -120,7 +124,7 @@ App logs are available in the **Log** tab above. Look for:
 
 - `Relay listening` — relay started successfully
 - `Relay bootstrap` — shows auth source and capability
-- `Pairing code ready` — the initial short-lived fallback code; later rotations are intentionally not logged
+- `Pairing code ready` — the initial short-lived fallback code; later rotations appear in Home Base and are intentionally not logged
 - Any `error` or `warn` messages indicate issues
 
 ## Support

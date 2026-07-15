@@ -17,7 +17,11 @@ describe("app config contract", () => {
     expect(parsed.homeassistant_api).toBe(true);
     expect(parsed.hassio_api).toBe(true);
     expect(parsed.hassio_role).toBe("default");
-    expect(parsed.ingress).toBe(false);
+    expect(parsed.ingress).toBe(true);
+    expect(parsed.ingress_port).toBe(8791);
+    expect(parsed.ingress_entry).toBe("/home");
+    expect(parsed.panel_admin).toBe(true);
+    expect(parsed.panel_title).toBe("NOVA Home Base");
     expect(parsed.ports).toMatchObject({
       "8791/tcp": 8791
     });

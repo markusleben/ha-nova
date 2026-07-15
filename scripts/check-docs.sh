@@ -30,16 +30,17 @@ echo ""
 # generic config-snapshot store, ~330 lines of validation, caps and prune;
 # and to 3300 for the diagnosability wave: disconnect reasons, request
 # logging, server timeouts; and to 3700 for Wave 6's bounded pairing manager,
-# persisted App credential, and code-authenticated transport endpoint).
+# persisted App credential, and code-authenticated transport endpoint; and to
+# 3900 for Home Base's static status renderer and Supervisor ingress gate).
 # Growth here is security surface, and it is reviewed as such. The README's own
 # number is updated in the release-prep PR — README describes the STABLE
 # release, not main.
 echo "[1] Relay LOC (must stay readable in one sitting)"
 ACTUAL_LOC=$(find "$REPO_ROOT/nova/src" -name '*.ts' -exec cat {} + | wc -l | tr -d ' ')
-if (( ACTUAL_LOC >= 1000 && ACTUAL_LOC <= 3700 )); then
-  pass "src/ = ${ACTUAL_LOC} LOC (within 1000–3700 range)"
+if (( ACTUAL_LOC >= 1000 && ACTUAL_LOC <= 3900 )); then
+  pass "src/ = ${ACTUAL_LOC} LOC (within 1000–3900 range)"
 else
-  fail "src/ = ${ACTUAL_LOC} LOC — outside the 1000–3700 range. If this is real growth, justify it and update the README claim in the release-prep PR."
+  fail "src/ = ${ACTUAL_LOC} LOC — outside the 1000–3900 range. If this is real growth, justify it and update the README claim in the release-prep PR."
 fi
 
 # ── 2. Skill count ──
@@ -152,10 +153,27 @@ done
 # ── 9. Route count — verify relay stays minimal ──
 echo "[9] Relay route count"
 ROUTE_COUNT=$(grep -c "router.register" "$REPO_ROOT/nova/src/index.ts" 2>/dev/null || true)
-if (( ROUTE_COUNT <= 6 )); then
-  pass "Relay has ${ROUTE_COUNT} routes (≤6 — still minimal)"
+if (( ROUTE_COUNT <= 7 )); then
+  pass "Relay has ${ROUTE_COUNT} routes (≤7 — still minimal)"
 else
   fail "Relay has ${ROUTE_COUNT} routes — growing beyond 'minimal'. Review architecture claims."
+fi
+
+echo "[9c] Home Base stays read-only and Supervisor-ingress-only"
+HOME_HITS=$(count_matches "ha/rest-client\|ha/ws-client\|coreClient\|sendMessage\|entity_id\|service_data" \
+  "$REPO_ROOT/nova/src/http/handlers/home.ts")
+if (( HOME_HITS == 0 )); then
+  pass "Home Base has no HA client or mutation imports"
+else
+  fail "Home Base contains ${HOME_HITS} HA client/mutation hits — it must remain read-only status."
+fi
+if grep -q 'panel_admin: true' "$REPO_ROOT/nova/config.yaml" \
+  && grep -q 'ingress_entry: /home' "$REPO_ROOT/nova/config.yaml" \
+  && grep -q 'SUPERVISOR_INGRESS_PEERS' "$REPO_ROOT/nova/src/http/handlers/home.ts" \
+  && grep -q 'HOME_CONTENT_SECURITY_POLICY' "$REPO_ROOT/nova/src/http/handlers/home.ts"; then
+  pass "Home Base is admin-panel ingress with a peer gate and CSP"
+else
+  fail "Home Base must keep admin-only ingress, the Supervisor peer gate, and CSP."
 fi
 
 # Pairing is a generic credential exchange, never a second HA API surface.
@@ -168,10 +186,10 @@ else
   fail "Pairing contains ${PAIR_HITS} HA client/domain hits — it must remain a generic credential exchange."
 fi
 if grep -q 'const PAIR_PATH = "/pair"' "$REPO_ROOT/nova/src/index.ts" \
-  && grep -q 'bearerExemptRoutes: new Set(\[PAIR_ROUTE\])' "$REPO_ROOT/nova/src/index.ts"; then
-  pass "Only the exact POST /pair route is configured for code authentication"
+  && grep -q 'bearerExemptRoutes: new Set(\[PAIR_ROUTE, HOME_ROUTE\])' "$REPO_ROOT/nova/src/index.ts"; then
+  pass "Only POST /pair and ingress-gated GET /home bypass relay bearer auth"
 else
-  fail "Pairing bearer exemption is missing or no longer pinned to the exact POST /pair route."
+  fail "Bearer exemptions must stay pinned to POST /pair and ingress-gated GET /home."
 fi
 
 # ── 10. Keychain usage exists ──

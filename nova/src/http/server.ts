@@ -73,6 +73,10 @@ export function createHttpServer(options: HttpServerOptions): Server {
         body
       });
 
+      if (response.writableEnded) {
+        return;
+      }
+
       writeJson(response, 200, {
         ok: true,
         data: data ?? null

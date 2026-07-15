@@ -2,7 +2,7 @@ import { createConnection } from "node:net";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { createRouter } from "../../nova/src/http/router.js";
+import { createRouter, type RouteHandler } from "../../nova/src/http/router.js";
 import {
   createHttpServer,
   SERVER_HEADERS_TIMEOUT_MS,
@@ -32,7 +32,7 @@ describe("http server limits and logging", () => {
   async function start(options: {
     maxJsonBodyBytes?: number;
     logged?: LoggedLine[];
-    handler?: () => unknown;
+    handler?: RouteHandler;
   }): Promise<string> {
     const router = createRouter();
     router.register("POST", "/echo", options.handler ?? (({ body }) => body));
@@ -143,6 +143,24 @@ describe("http server limits and logging", () => {
       body: "{}"
     });
     expect(healthy.status).toBe(200);
+  });
+
+  it("does not append a JSON envelope after a handler ends a raw response", async () => {
+    const baseUrl = await start({
+      handler: ({ response }) => {
+        response.statusCode = 200;
+        response.setHeader("content-type", "text/plain");
+        response.end("raw response");
+      }
+    });
+
+    const response = await fetch(`${baseUrl}/echo`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${TEST_AUTH_TOKEN}` }
+    });
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("text/plain");
+    await expect(response.text()).resolves.toBe("raw response");
   });
 
   it("sets explicit request and headers timeouts", async () => {
