@@ -1,6 +1,6 @@
 # Wave 4 Coverage Spec
 
-Status: active
+Status: complete
 Date: 2026-07-15
 Sequencing SSOT: `docs/work/masterplan-2026-h2.md` → Wave 4
 
@@ -38,7 +38,8 @@ Each PR completes the repository PR merge checklist independently. No release/ve
 - Home Assistant config flows are response-driven data-entry flows with form, menu, external, progress, create-entry, and abort results.
 - The current frontend starts/fetches/submits/deletes config flows through `/api/config/config_entries/flow`, lists handlers through `/flow_handlers`, and discovers pending flows through WS `config_entries/flow/progress`.
 - Current Home Assistant Core registers calendar create as a service and calendar update/delete as feature-gated WebSocket commands.
-- Webhook IDs are authentication secrets; a webhook is owned by one automation and should remain local-only unless remote access is required.
+- Webhook IDs are authentication secrets. One registered handler can dispatch multiple automation triggers sharing the same ID; automation webhooks default to local-only.
+- Home Assistant deliberately returns HTTP 200 for unknown webhook IDs, blocked non-local calls, and handler failures, so only fresh listener evidence can verify an effect.
 
 ## Acceptance
 

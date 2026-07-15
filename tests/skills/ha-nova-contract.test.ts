@@ -598,8 +598,11 @@ describe("ha-nova contract", () => {
     const fallback = readFileSync("skills/fallback/SKILL.md", "utf8");
     expect(fallback).toContain("| System Health / Repairs | Covered | health |");
     expect(fallback).toContain("| Calendar Events (read / create / update / delete) | Covered | calendar |");
+    expect(fallback).toContain("| Custom events / known JSON webhooks | Covered | service-call |");
+    expect(fallback).toContain("| Alarm / lock runtime control | Covered | service-call |");
     expect(fallback).not.toContain("### System Health / Repairs -- RELAY-READY");
     expect(fallback).not.toContain("### Calendar Queries -- RELAY-READY");
+    expect(fallback).not.toContain("### Events / Webhooks -- RELAY-READY");
     expect(fallback).not.toContain("<calendar-events-path>");
     expect(fallback).not.toContain("--path '/api/calendars/");
     expect(fallback).toContain("| Dashboard / Lovelace (storage lifecycle, cards, resources) | Covered | dashboard |");

@@ -93,6 +93,8 @@ Already specced as "Phase 2" in `docs/reference/bridge-architecture.md` (`POST /
 
 ## Wave 3 — Review expansion: deliver "deeper audits rolling out" (skill-only)
 
+Status: **DONE** — #352
+
 The README already promises it; `skills/review/checks.md` covers only automations/scripts/storage-helpers. New rule families (candidates from the audit, IDs in checks.md style):
 
 - **SC-01…07 scenes**: dead entity refs, mixed color attributes, group capture, read-only domains captured, orphaned scenes.
@@ -106,10 +108,12 @@ The README already promises it; `skills/review/checks.md` covers only automation
 
 ## Wave 4 — Coverage gaps (skill-only)
 
-- **NEW `integration-setup` skill**: add/re-auth integrations via `config_entries/flow` (reuse the proven flow-loop machinery from `helper` Family 2). The largest remaining domain gap — exactly the moment non-technical users need help.
-- **Calendar writes**: `calendar.create_event`/update/delete with preview/confirm (calendar is read-only today).
-- **Events/webhooks**: decide ownership (`service-call` vs `fallback`) + payload examples for `POST /api/events/{type}` and `/api/webhook/{id}`.
-- **Alarm/lock guidance** in `service-call`: arm modes, code handling (codes never in chat) — builds on the Wave-0 high-consequence tier.
+Status: **DONE** — #353, #354, #355
+
+- **`integration-setup` skill**: add/re-auth integrations via `config_entries/flow`, reusing the proven response-driven flow loop from `helper` Family 2.
+- **Calendar writes**: create through `calendar.create_event`; update/delete through feature-gated calendar WS commands, all with preview/confirm and read-back verification.
+- **Events/webhooks**: owned by `service-call`, with listener-impact scans and payload contracts for `POST /api/events/{type}` and `/api/webhook/{id}`.
+- **Alarm/lock guidance** in `service-call`: feature-gated arm/open modes and code handling (codes never in chat), building on the Wave-0 high-consequence tier.
 
 ---
 
@@ -167,8 +171,8 @@ All waves land on `main` first; releases batch per the release-worthiness rule. 
 | 0 | Safety seams (3 PRs) | — | **DONE** — #340, #341, #342 |
 | 1 | Skill intelligence hardening (3 PRs) | — | **DONE** — #344, #345, #346 |
 | 2 | Config Snapshots | 0.5.0 | **DONE** — #347, #348, #349, #350 |
-| 3 | Review expansion (SC/D/TS/HX families, test-offer) | — | in progress |
-| 4 | Coverage (integration-setup, calendar writes, events, alarm/lock) | — | planned |
+| 3 | Review expansion (SC/D/TS/HX families, test-offer) | — | **DONE** — #352 |
+| 4 | Coverage (integration-setup, calendar writes, events, alarm/lock) | — | **DONE** — #353, #354, #355 |
 | 5 | Relay diagnosability | 0.5.0 (with Wave 2) | **DONE** — #351 |
 | 6 | Pairing Code + Home Base | 0.6.0 | planned (spec first) |
 | 7 | Update UX parity | — | planned |

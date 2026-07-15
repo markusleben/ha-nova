@@ -64,6 +64,8 @@ For every Relay-Ready call in this skill:
 | External data stores (InfluxDB long-term history, Prometheus, ...) | Covered | external-sources |
 | Weather forecasts (`weather.get_forecasts`) | Covered | service-call |
 | Calendar Events (read / create / update / delete) | Covered | calendar |
+| Custom events / known JSON webhooks | Covered | service-call |
+| Alarm / lock runtime control | Covered | service-call |
 | To-do Lists (items + Local To-do lifecycle) | Covered | todo |
 | Area / Floor CRUD | Covered | organize |
 | Label CRUD / Rich label metadata | Covered | organize |
@@ -83,7 +85,7 @@ For every Relay-Ready call in this skill:
 | Apps / Supervisor | External | -- |
 | HACS | External | -- |
 | Zigbee / Z-Wave Config | External | -- (MQTT-level inspection of a Zigbee2MQTT setup: `mqtt`) |
-| Alarm / lock code management (lock user codes, alarm PINs) | External | -- (arming/disarming/locking itself: `service-call`, high-consequence confirmation) |
+| Alarm / lock code management (lock user codes, alarm PINs) | External | -- (Home Assistant UI; codes never enter chat) |
 
 ## Flow
 
@@ -189,23 +191,6 @@ ha-nova relay ws --data-file <payload-file>
 ```
 
 **Risks:** Device detach depends on integration support (`supports_remove_device`) and can sever the current device/config-entry relationship. Preview impact first.
-
-### Events / Webhooks -- RELAY-READY
-
-Fire a custom event on the HA event bus or trigger an inbound webhook.
-
-**Search:** `home assistant fire event REST api webhook 2026`
-
-**Experimental relay calls (no skill guardrails):**
-```text
-# Fire event: POST /api/events/{event_type}, body = event data JSON
-ha-nova relay core --method POST --path /api/events/<event_type> --body-file <payload-file>
-
-# Trigger webhook: POST /api/webhook/{webhook_id} (body as the webhook expects)
-ha-nova relay core --method POST --path /api/webhook/<webhook_id> --body-file <payload-file>
-```
-
-**Risks:** Every automation listening to that event/webhook fires. `search/related` does NOT index event listeners — scan automation configs for the same `event_type`/webhook trigger before previewing, or state in the preview that other listeners cannot be ruled out (pattern: `skills/ha-nova/test-run.md`). Webhook IDs are secrets; never print full IDs in output.
 
 ## Roadmap Features
 

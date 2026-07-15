@@ -98,7 +98,7 @@ Skills reference this section as "context skill → Active Preview Confirmation"
 ### Confirmation Tiers
 
 - `create`/`update`: natural confirmation bound to active preview.
-- high-consequence runtime action (grants physical access or is physically irreversible): token confirmation `confirm:<token>`, same enforcement as destructive writes. Canonical set: unlocking locks, disarming alarm panels, opening garage/gate/entry-door covers — `device_class` and what the entity controls decide, never the domain alone. Owning-skill escalations (e.g. retained MQTT publishes) sit on this same rung.
+- high-consequence runtime action (grants physical access or is physically irreversible): token confirmation `confirm:<token>`, same enforcement as destructive writes. Canonical set: unlocking or opening locks, disarming alarm panels, opening garage/gate/entry-door covers — `device_class` and what the entity controls decide, never the domain alone. Owning-skill escalations (e.g. retained MQTT publishes) sit on this same rung.
 - `delete`/destructive: token confirmation `confirm:<token>`.
   **Strict token enforcement:** User MUST reply with the exact token string (e.g., `confirm:del-main-lights`). Any other response — including "yes", "sure, delete it", "do it", or any natural-language confirmation — is NOT valid. Reject and re-prompt with the exact code required. In user-facing output call it the "confirmation code" (localized), never a "token" (see `skills/ha-nova/output-rules.md` → Localization).
   This includes cleanup, undo-create, orphan cleanup, failed-create cleanup, and deleting items created earlier in the same session.
@@ -199,6 +199,8 @@ Match user intent to exactly one skill:
 | repair statistics (orphans, unit mismatches, sum spikes), purge recorder history, clean up dead registry entries | `ha-nova:maintenance` |
 | turn on/off, toggle, set, call a service | `ha-nova:service-call` |
 | enable/disable/trigger an automation | `ha-nova:service-call` |
+| fire a custom event or trigger a known JSON webhook | `ha-nova:service-call` |
+| arm/disarm/trigger an alarm panel; lock/unlock/open a lock | `ha-nova:service-call` |
 | find entities by name, room, area | `ha-nova:entity-discovery` |
 | fix relay/auth/connectivity errors | `ha-nova:onboarding` |
 | undo, revert, or restore the last automation/script/helper change | the skill that wrote it — `ha-nova:write` (automation/script) or `ha-nova:helper` (helper). `revert` applies only to supported verified updates. Creates clean up through the normal delete flow; a DELETED automation/script/scene/dashboard/STORAGE helper restores from its auto config snapshot in the owning skill (`skills/ha-nova/config-snapshots.md`); config-entry helpers are not snapshot-covered — their recovery stays Backup/recreate. Run `ha-nova snapshot show` to see the saved update target if unsure |
@@ -216,6 +218,9 @@ Match user intent to exactly one skill:
 **"Create a scene called Movie Night"** → `ha-nova:scene`
 **"Activate the scene Movie Night"** → `ha-nova:service-call` (runtime action, not a config change)
 **"Unlock the front door"** → `ha-nova:service-call` (high-consequence: typed confirmation code)
+**"Arm the alarm in night mode"** → `ha-nova:service-call` (feature/code gate before preview)
+**"Fire the movie_night event"** → `ha-nova:service-call` (listener-impact scan before preview)
+**"Trigger the delivery webhook"** → `ha-nova:service-call` (webhook ID stays secret)
 **"Install the firmware update for my kitchen light"** → `ha-nova:updates` (never raw `update.install` through service-call)
 **"Publish an MQTT message"** → `ha-nova:mqtt` (never raw `mqtt.publish` through service-call)
 **"Test the automation I just created"** → `ha-nova:write` Phase 5 test offer (plan per `skills/ha-nova/test-run.md`); a plain manual trigger stays `ha-nova:service-call`

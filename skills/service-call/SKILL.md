@@ -1,6 +1,6 @@
 ---
 name: service-call
-description: Use when the user wants to call Home Assistant services (turn on lights, set temperature, toggle switches) through HA NOVA Relay.
+description: Use when the user wants to call Home Assistant services, fire custom events, trigger known webhooks, or control alarm panels and locks through HA NOVA Relay.
 license: MIT
 compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay in Home Assistant (App, or standalone container on Container/Core).
 ---
@@ -14,6 +14,8 @@ Direct device/service control:
 - call any HA service (`light.turn_on`, `climate.set_temperature`, etc.)
 - list available services
 - target by entity_id, area_id, or device_id
+- fire a named custom event or trigger a known JSON webhook
+- control alarm panels and locks with capability and secret-code gates
 
 No config mutations (use `ha-nova:write` for automation/script changes).
 
@@ -26,6 +28,10 @@ If this fails: `ha-nova setup`
 
 Use file-based payloads for service writes:
 - `ha-nova relay core --method POST --path /api/services/... --body-file <payload-file>`
+- `ha-nova relay core --method GET --path /api/events`
+- `ha-nova relay core --method POST --path /api/events/<event_type> --body-file <payload-file>`
+- `ha-nova relay ws --data-file <payload-file> --out <result-file>` for internal `webhook/list` metadata; both files stay in client-private scratch storage and the response never goes to stdout
+- `ha-nova relay core --method POST --path /api/webhook/<webhook_id> --body-file <payload-file>`
 - `ha-nova relay core --method GET --path /api/states/<entity_id>`
 - `--out <result-file>` when the response is large
 
@@ -42,7 +48,7 @@ Use file-based payloads for service writes:
 | `notify.*` / `persistent_notification.*` | `ha-nova:notify` |
 | `logger.set_level` | `ha-nova:diagnose` |
 
-Runtime calls that stay here: `scene.turn_on`, `automation.trigger`, direct `script.*` (see Automation And Script Runtime Calls), and plain `lock`/`alarm_control_panel`/`cover` control under the high-consequence rule (see Safety).
+Runtime calls that stay here: `scene.turn_on`, `automation.trigger`, direct `script.*` (see Automation And Script Runtime Calls), custom events, known JSON webhooks, and `lock`/`alarm_control_panel`/`cover` control under the gates below.
 
 ## Response services
 
@@ -138,6 +144,49 @@ Rules:
 - Post-write test runs: plan structure, real-path recipes, and the post-run follow-up live in `skills/ha-nova/test-run.md`.
 - When a Test Plan Card already showed the concrete preview (service, target, payload, `skip_condition`), the user's option choice on that card IS the bound confirmation — do not ask again.
 
+## Custom Events And Webhooks
+
+Both paths are runtime actions that can start every matching automation. Never use either endpoint to probe or discover whether a listener exists.
+
+### Custom events
+
+1. Require the exact user-defined `event_type` and a JSON-object payload. Never normalize or invent the name, and never fire core lifecycle/state events through this flow.
+2. Read `GET /api/events` for the total listener count. Scan readable automation configs for current event triggers (`trigger: event`) and legacy triggers (`platform: event`) with the same static `event_type`; apply any literal `event_data` filters to classify known matches. Templated event types and non-automation listeners are not safely enumerable — disclose that limit.
+3. Inspect known matching automations for high-consequence actions. Preview the exact event type, payload fields, known matching automations, total listener count, unclassified-listener warning, and risk tier. Use natural bound confirmation unless the known impact reaches the high-consequence tier; then require `confirm:<token>`.
+4. Execute `POST /api/events/<event_type>` with the JSON object. A success response proves only that Home Assistant accepted the bus fire.
+5. For known matching automations, compare `last_triggered` or a new trace with the pre-call baseline using up to three reads over ten seconds. Never claim that every listener completed, and never repeat an event automatically after any timeout or transport error.
+
+### Webhooks
+
+1. Resolve the target automation by exact identity, then extract its static `webhook_id` internally from the stored trigger config. Scan all readable automation configs for that exact ID because multiple triggers can share one webhook. A templated ID is not safe to resolve here.
+2. Call WS `webhook/list` internally with `--out <result-file>` in client-private scratch storage; never allow its secret-bearing response on stdout. Read the saved result internally, confirm that the ID is registered and `POST` is allowed, and retain only redacted metadata such as `local_only` for preview. The current Relay sends JSON; if the automation expects form/query data or another method, stop and use an explicitly authorized local caller outside this JSON-only flow.
+3. Treat the webhook ID as an authentication secret: never ask the user to paste it, echo it, put it in a preview/result, or persist it outside client-private scratch storage. Only the internal request path may contain it.
+4. Preview the JSON payload fields, every known matching automation, local-only status, and risk tier — never the ID. Shared IDs mean every match runs. Use the same bound/high-consequence confirmation rule as custom events.
+5. Execute one `POST /api/webhook/<webhook_id>`. Home Assistant intentionally returns HTTP 200 for unknown IDs, blocked remote calls, and handler errors, so status alone is not verification.
+6. Compare every known match's `last_triggered` or trace baseline with up to three reads over ten seconds. If no fresh run appears, report the outcome as unverified; never retry automatically and never weaken `local_only` to make the call work.
+
+## Alarm Panels And Locks
+
+Read the exact entity state immediately before preview. Never include a `code` field in a Relay payload and never ask for, accept, repeat, or store a PIN/code in chat.
+
+Alarm panel services and feature bits:
+
+| Service | Required `supported_features` bit | Expected terminal state |
+|---|---:|---|
+| `alarm_arm_home` | 1 | `armed_home` |
+| `alarm_arm_away` | 2 | `armed_away` |
+| `alarm_arm_night` | 4 | `armed_night` |
+| `alarm_trigger` | 8 | `triggered` |
+| `alarm_arm_custom_bypass` | 16 | `armed_custom_bypass` |
+| `alarm_arm_vacation` | 32 | `armed_vacation` |
+| `alarm_disarm` | none | `disarmed` |
+
+For an arm action, hand off to the Home Assistant UI whenever `code_arm_required` is true, even when `code_format` is absent. For disarm/trigger, hand off when `code_format` indicates a code. `alarm_disarm` takes the typed high-consequence confirmation; `alarm_trigger` is disruptive, so warn explicitly and require bound confirmation even when no code is needed.
+
+`lock.lock` and `lock.unlock` have no feature bit. `lock.open` requires `supported_features & 1`. If `code_format` is present, finish the action in the Home Assistant UI. `lock.unlock` and `lock.open` take the typed high-consequence confirmation; `lock.lock` uses normal bound confirmation.
+
+Verify terminal states transition-aware: alarm panels can pass through `arming`, `pending`, or `disarming`; locks can pass through `locking`, `unlocking`, or `opening`. A service response is not proof of the physical result. Report `jammed`, `unavailable`, timeouts, or an unchanged terminal state as a discrepancy; never auto-retry a security action.
+
 ## Error Handling
 
 Full relay/upstream error taxonomy (codes, HTTP-status split, retry rules): `skills/ha-nova/relay-api.md` → Error Handling.
@@ -164,7 +213,7 @@ Previews are the runtime-action Preview Card (`apply · cancel`); results are th
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
 
 - No token confirmation needed for ordinary service calls; confirmation is still bound to the active preview.
-- **High-consequence runtime actions take the typed `confirm:<token>`** like a destructive write: unlocking a lock, disarming an alarm panel, opening a garage door, gate, or entry-door cover. Check `device_class` and what the entity controls — a garage door exposed as `cover.*` belongs here, a living-room blind does not. These actions grant physical access; calling the opposite service afterwards does not undo the exposure window.
+- **High-consequence runtime actions take the typed `confirm:<token>`** like a destructive write: unlocking or opening a lock, disarming an alarm panel, opening a garage door, gate, or entry-door cover. Check `device_class` and what the entity controls — a garage door exposed as `cover.*` belongs here, a living-room blind does not. These actions grant physical access; calling the opposite service afterwards does not undo the exposure window.
 - For potentially disruptive services (`homeassistant.restart`, `homeassistant.stop`), warn and ask for explicit post-preview confirmation.
 
 ## Guardrails
