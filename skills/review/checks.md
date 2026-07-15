@@ -332,12 +332,12 @@ without a registry record (same boundary as SC-01/D-01/HX).
 - D-03 [MEDIUM]: Duplicate view `path` within one dashboard — routing collision
 - D-04 [LOW]: Empty view, or a view whose only card is broken
 - D-05 [MEDIUM]: Orphaned Lovelace resource — no `custom:` card, custom dashboard/view strategy, or custom view type across the storage dashboards references it (cleanup hint; say that YAML-mode dashboards are invisible to this scan and cannot be ruled out)
-- D-06 [LOW]: Card references a registry-disabled or hidden entity — renders but stays unavailable
+- D-06 [LOW]: Card references a registry-disabled entity (`disabled_by` is non-null) — it does not produce a state, so the card stays unavailable
 - D-07 [MEDIUM]: Built-in card missing its required field — authoritative minimal schema: `entity`/`tile`/`gauge`/`sensor` require `entity`; `entities`/`history-graph` require a non-empty `entities` list; `markdown` requires `content`; `button` has no required field. Judge ONLY these allowlisted types; never infer custom-card schemas
 
 ## D Evidence Boundaries
 
-- D-01 requires absence from BOTH the registry AND `/api/states` (YAML/manual entities have states but no registry entry); D-06 reads the registry flags and applies only to entities that DO have a registry entry.
+- D-01 requires absence from BOTH the registry AND `/api/states` (YAML/manual entities have states but no registry entry); D-06 requires non-null `disabled_by` on an entity that DOES have a registry entry — never flag `hidden_by` alone.
 - D-02/D-05 join `lovelace/config` across ALL storage dashboards with `lovelace/resources` — scan card `type`, view `type`, and dashboard/view `strategy.type`; partial joins produce false orphans, so skip D-05 when not all dashboards were read.
 - D-07 checks exactly the minimal schema spelled out in the rule — no field beyond the one listed is ever required, and `custom:` cards are never judged.
 

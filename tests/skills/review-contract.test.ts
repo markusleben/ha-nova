@@ -74,6 +74,16 @@ describe("review contract", () => {
     expect(reviewChecks).toContain(
       "card `type`, view `type`, and dashboard/view `strategy.type`",
     );
+    expect(reviewSkill).toContain(
+      "cross-item HX rules run in aggregate/bulk mode OR whenever their required registry/state context is already loaded",
+    );
+    expect(reviewSkill).toContain(
+      "apply HX-05 to visible card actions without expanding the workset",
+    );
+    expect(reviewChecks).toContain(
+      "D-06 [LOW]: Card references a registry-disabled entity (`disabled_by` is non-null)",
+    );
+    expect(reviewChecks).toContain("never flag `hidden_by` alone");
   });
 
   it("documents live helper evidence for threshold checks in the catalog", () => {
