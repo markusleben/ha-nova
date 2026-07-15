@@ -172,12 +172,15 @@ describe("service call contract", () => {
 
     it("keeps webhook IDs secret and rejects opaque HTTP 200 as proof", () => {
       expect(skillDoc).toContain("WS `webhook/list`");
+      expect(skillDoc).toContain("never allow its secret-bearing response on stdout");
+      expect(skillDoc).toContain("`--out <result-file>` in client-private scratch storage");
       expect(skillDoc).toContain("multiple triggers can share one webhook");
       expect(skillDoc).toContain("never ask the user to paste it");
       expect(skillDoc).toContain("persist it outside client-private scratch storage");
       expect(skillDoc).toContain("unknown IDs, blocked remote calls, and handler errors");
       expect(skillDoc).toContain("never weaken `local_only`");
       expect(relayApi).toContain('{"type":"webhook/list"}');
+      expect(relayApi).toContain("Never print the full response to stdout");
       expect(relayApi).toContain("multiple automation triggers can share one webhook ID");
       expect(apiMatrix).toContain("opaque HTTP 200; effect verification required");
       expect(waveSpec).toContain("only fresh listener evidence can verify an effect");

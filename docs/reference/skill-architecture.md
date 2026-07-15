@@ -308,7 +308,7 @@ Rules:
 Event/webhook rules:
 - resolve an exact event type or an exact automation with a static webhook ID; never probe either endpoint
 - scan readable automation configs for every matching current/legacy trigger and classify literal event-data filters; compare with `GET /api/events` for unclassified event listeners
-- use WS `webhook/list` internally to check registration, POST support, and `local_only`; the ID never appears in user output or persistent storage
+- use WS `webhook/list` with `--out` into client-private scratch storage to check registration, POST support, and `local_only`; the full response never reaches stdout, user output, or persistent storage
 - preview payload fields, known listeners, unknown-listener limits, and inherited action risk before bound confirmation
 - event success proves bus acceptance only; webhook HTTP 200 is deliberately opaque and does not prove registration, locality, or handler success
 - verify known automation runs against pre-call `last_triggered`/trace baselines; never auto-retry either runtime action

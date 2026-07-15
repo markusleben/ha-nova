@@ -30,7 +30,7 @@ Use file-based payloads for service writes:
 - `ha-nova relay core --method POST --path /api/services/... --body-file <payload-file>`
 - `ha-nova relay core --method GET --path /api/events`
 - `ha-nova relay core --method POST --path /api/events/<event_type> --body-file <payload-file>`
-- `ha-nova relay ws --data-file <payload-file>` for internal `webhook/list` metadata
+- `ha-nova relay ws --data-file <payload-file> --out <result-file>` for internal `webhook/list` metadata; both files stay in client-private scratch storage and the response never goes to stdout
 - `ha-nova relay core --method POST --path /api/webhook/<webhook_id> --body-file <payload-file>`
 - `ha-nova relay core --method GET --path /api/states/<entity_id>`
 - `--out <result-file>` when the response is large
@@ -159,7 +159,7 @@ Both paths are runtime actions that can start every matching automation. Never u
 ### Webhooks
 
 1. Resolve the target automation by exact identity, then extract its static `webhook_id` internally from the stored trigger config. Scan all readable automation configs for that exact ID because multiple triggers can share one webhook. A templated ID is not safe to resolve here.
-2. Call WS `webhook/list` internally and confirm that the ID is registered and `POST` is allowed; retain the reported `local_only` setting. The current Relay sends JSON; if the automation expects form/query data or another method, stop and use an explicitly authorized local caller outside this JSON-only flow.
+2. Call WS `webhook/list` internally with `--out <result-file>` in client-private scratch storage; never allow its secret-bearing response on stdout. Read the saved result internally, confirm that the ID is registered and `POST` is allowed, and retain only redacted metadata such as `local_only` for preview. The current Relay sends JSON; if the automation expects form/query data or another method, stop and use an explicitly authorized local caller outside this JSON-only flow.
 3. Treat the webhook ID as an authentication secret: never ask the user to paste it, echo it, put it in a preview/result, or persist it outside client-private scratch storage. Only the internal request path may contain it.
 4. Preview the JSON payload fields, every known matching automation, local-only status, and risk tier — never the ID. Shared IDs mean every match runs. Use the same bound/high-consequence confirmation rule as custom events.
 5. Execute one `POST /api/webhook/<webhook_id>`. Home Assistant intentionally returns HTTP 200 for unknown IDs, blocked remote calls, and handler errors, so status alone is not verification.

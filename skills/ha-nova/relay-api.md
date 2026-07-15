@@ -403,6 +403,8 @@ Inspect registered webhook metadata through WS without exposing the returned IDs
 {"type":"webhook/list"}
 ```
 
+Run that payload only with `ha-nova relay ws --data-file <payload-file> --out <result-file>`, with both files in client-private scratch storage. Never print the full response to stdout; inspect the saved result internally and expose only redacted metadata.
+
 Trigger a known JSON webhook only after the owning skill resolves the exact ID internally:
 
 ```json
@@ -414,7 +416,7 @@ Rules:
 - `/api/events/{event_type}` requires an exact custom event name and an object body; a successful response proves bus acceptance, not listener completion
 - automation webhook triggers default to POST/PUT and `local_only: true`; inspect the registered `allowed_methods` and locality before calling
 - multiple automation triggers can share one webhook ID and all will run
-- webhook IDs are authentication secrets; keep them in client-private scratch storage and out of previews, results, and logs
+- webhook IDs are authentication secrets; keep them in client-private scratch storage and out of previews, stdout, user-facing results, and logs
 - Home Assistant intentionally answers unknown IDs, blocked non-local requests, and handler failures with HTTP 200; verify matched automation runs instead
 - events and webhooks may already have fired when transport evidence is ambiguous; never retry automatically
 

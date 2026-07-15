@@ -152,7 +152,7 @@ Recurring instances add `recurrence_id`; `recurrence_range` is `""` for only tha
 | WS Type | Purpose |
 |---------|-----|
 | `config/automation/list` | Automations with metadata |
-| `webhook/list` | Registered webhook IDs plus domain/name, locality, and allowed methods (secret-bearing; internal use only) |
+| `webhook/list` | Registered webhook IDs plus domain/name, locality, and allowed methods (secret-bearing; private `--out` file only, never stdout) |
 | `repairs/list_issues` | Repairs/Deprecation Issues |
 | `config_entries/get` | Config-entry metadata; health uses not-loaded entries as integration status |
 | `system_health/info` | System health finite event response (Skill opts into Relay `collect_events` until `finish`) |
