@@ -11,6 +11,7 @@ import (
 var errSetupBack = errors.New("setup back")
 var errSetupExit = errors.New("setup exit")
 var errSetupRelayTokenStep = errors.New("setup relay token step")
+var errSetupPairingStep = errors.New("setup pairing step")
 var errSetupHostStep = errors.New("setup host step")
 var errSetupInstallStep = errors.New("setup relay install step")
 

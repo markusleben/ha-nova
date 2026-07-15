@@ -30,12 +30,32 @@ func setupWizardGenerateRelayTokenPrompts() []string {
 		"",
 		"",
 		"",
+		"",
+		"manual",
+		"",
+		"",
+		"",
 	}
 }
 
 func setupWizardPasteRelayTokenPrompts(token string) []string {
 	return []string{
+		"",
+		"",
+		"",
+		"",
+		"manual",
 		"1",
 		token,
+	}
+}
+
+func setupWizardPairingPrompts(code string) []string {
+	return []string{
+		"",
+		"",
+		"",
+		"",
+		code,
 	}
 }

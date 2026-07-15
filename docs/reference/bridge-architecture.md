@@ -300,6 +300,14 @@ The two tokens are independent. New App installs create and persist a random
 option values remain authoritative. Standalone Container/Core installs must
 still provide `RELAY_AUTH_TOKEN`. `HA_LLAT` is generated inside Home Assistant.
 
+The interactive CLI's normal App path never asks the user to copy the relay
+token. It asks for the current Home Base code, sends it only in the JSON body of
+`POST /pair`, stores the returned token in the existing OS credential backend,
+and verifies both `/health` and `/ws`. Pairing requests do not follow redirects;
+the code is not accepted through argv and is not persisted in normal config.
+Saved credentials, `--relay-token`, service token files, and standalone
+Container/Core setups retain their explicit-token paths.
+
 ## WS Forwarding Policy
 
 The Relay forwards authenticated WS messages as passthrough requests.

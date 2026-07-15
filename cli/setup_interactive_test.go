@@ -90,12 +90,9 @@ func TestInteractiveSetupFreshInstallShowsWizardAndInstallsAntigravitySkills(t *
 		"Once the repository is added:",
 		`Search for "NOVA Relay"`,
 		"NOVA needs two passwords",
-		"This step is only for the Relay Auth Token. The Home Assistant Access Token comes next as its own step.",
+		"This advanced path uses an explicit Relay Auth Token.",
 		"Create a Home Assistant Access Token in Home Assistant.",
 		"Then paste it into NOVA Relay.",
-		"[ Only if needed ]",
-		"Still missing the Relay Auth Token in NOVA Relay?",
-		"Here it is again:",
 		"Press Enter to open your HA profile",
 		"Press Enter to open the relay settings",
 		"Setting up HA NOVA for Google Antigravity...",
@@ -129,10 +126,8 @@ func TestInteractiveSetupFreshInstallShowsWizardAndInstallsAntigravitySkills(t *
 	if len(generatedTokenMatch) != 2 {
 		t.Fatalf("expected generated relay token in wizard output:\n%s", output)
 	}
-	if !strings.Contains(output, "Still missing the Relay Auth Token in NOVA Relay?") ||
-		!strings.Contains(output, "Here it is again:") ||
-		!strings.Contains(output, generatedTokenMatch[1]) {
-		t.Fatalf("expected LLAT step to repeat relay token as reminder:\n%s", output)
+	if strings.Count(output, generatedTokenMatch[1]) != 1 {
+		t.Fatalf("expected generated relay token to be displayed exactly once:\n%s", output)
 	}
 
 	if _, err := os.Stat(filepath.Join(home, ".gemini", "config", "skills", "ha-nova", "SKILL.md")); err != nil {
@@ -381,7 +376,7 @@ func TestInteractiveSetupFreshInstallCanPasteExistingRelayToken(t *testing.T) {
 	}
 }
 
-func TestInteractiveSetupFreshInstallPastedTokenSkipsLLATWalkthroughWhenVerifySucceeds(t *testing.T) {
+func TestInteractiveSetupFreshInstallManualTokenFallbackRunsAppSetupBeforeVerify(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("HA_NOVA_NO_BROWSER", "1")
@@ -431,20 +426,20 @@ func TestInteractiveSetupFreshInstallPastedTokenSkipsLLATWalkthroughWhenVerifySu
 		"Connected to Home Assistant",
 	} {
 		if !strings.Contains(output, want) {
-			t.Fatalf("expected reuse-token verify-first text %q in output:\n%s", want, output)
+			t.Fatalf("expected explicit-token fallback text %q in output:\n%s", want, output)
 		}
 	}
-	for _, unwanted := range []string{
+	for _, want := range []string{
 		"Create a Home Assistant Access Token in Home Assistant.",
 		"Press Enter to open your HA profile",
 		"Press Enter to open the relay settings",
 	} {
-		if strings.Contains(output, unwanted) {
-			t.Fatalf("did not expect LLAT walkthrough text %q in output:\n%s", unwanted, output)
+		if !strings.Contains(output, want) {
+			t.Fatalf("expected App setup text %q before explicit-token fallback:\n%s", want, output)
 		}
 	}
 	if !hasSetupStep(output, 3) {
-		t.Fatalf("expected reuse-token verify-first step marker in output:\n%s", output)
+		t.Fatalf("expected explicit-token verification step marker in output:\n%s", output)
 	}
 	if strings.Contains(output, "automations\n\n\n  Existing relay token found:") {
 		t.Fatalf("expected single-gap spacing before reuse-token note:\n%s", output)
@@ -2522,11 +2517,10 @@ func TestInteractiveSetupPastedTokenFreshHostChangeRoutesThroughInstallSteps(t *
 	// address" (2) must route through the install steps for the corrected
 	// address — a pasted token is not resume state (Codex P2 round 4).
 	input := joinSetupInputs(
-		[]string{"1", "pasted-relay-token"},
+		setupWizardPasteRelayTokenPrompts("pasted-relay-token"),
 		[]string{"2", goodHAServer.URL},
-		[]string{"", ""},
-		[]string{"1", "pasted-relay-token"},
-		setupWizardLLATPrompts(),
+		setupWizardRelayInstallPrompts(),
+		setupWizardPasteRelayTokenPrompts("pasted-relay-token"),
 	)
 
 	exitCode := 0
