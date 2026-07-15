@@ -63,7 +63,7 @@ For every Relay-Ready call in this skill:
 | Frontend themes | Covered | yaml-config |
 | External data stores (InfluxDB long-term history, Prometheus, ...) | Covered | external-sources |
 | Weather forecasts (`weather.get_forecasts`) | Covered | service-call |
-| Calendar Queries | Covered | calendar |
+| Calendar Events (read / create / update / delete) | Covered | calendar |
 | To-do Lists (items + Local To-do lifecycle) | Covered | todo |
 | Area / Floor CRUD | Covered | organize |
 | Label CRUD / Rich label metadata | Covered | organize |

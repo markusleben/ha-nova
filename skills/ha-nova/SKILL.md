@@ -191,7 +191,7 @@ Match user intent to exactly one skill:
 | manage persons, zones, tags, or user accounts | `ha-nova:admin` |
 | create or edit configuration that only exists as YAML (template/REST/command-line sensors, packages, themes) | `ha-nova:yaml-config` |
 | query long-term history from InfluxDB or another external store Home Assistant writes to but cannot read back | `ha-nova:external-sources` |
-| list calendars or show calendar events | `ha-nova:calendar` |
+| list calendars; read, create, update, or delete calendar events | `ha-nova:calendar` |
 | show, add, complete, update, remove to-do or shopping-list items; create/delete to-do lists | `ha-nova:todo` |
 | check backup status, create a backup (also as a safety net before risky changes), inspect a backup's contents, delete backups | `ha-nova:backup` |
 | check pending updates, read release notes, install updates, skip/unskip versions | `ha-nova:updates` |
@@ -257,6 +257,9 @@ Match user intent to exactly one skill:
 **"What's on my to-do list?"** → `ha-nova:todo`
 **"Show my calendars"** → `ha-nova:calendar`
 **"What's on my calendar this week?"** → `ha-nova:calendar`
+**"Add a dentist appointment tomorrow"** → `ha-nova:calendar`
+**"Move this calendar event to Friday"** → `ha-nova:calendar`
+**"Delete this calendar event"** → `ha-nova:calendar` (typed confirmation token)
 **"Review all automations in area Area Alpha"** → `ha-nova:review` (area-first aggregate review when more than one target resolves)
 **"Create a timer"** → ambiguous! Ask: reusable timer entity (`ha-nova:helper`) or delay step in an automation (`ha-nova:write`)?
 **"How much energy did the dryer use last month?"** → `ha-nova:energy`

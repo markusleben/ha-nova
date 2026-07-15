@@ -80,6 +80,7 @@ const MUTATION_SKILLS = new Set([
   "maintenance",
   "service-call",
   "integration-setup",
+  "calendar",
   "fallback",
   "review",
 ]);
@@ -89,7 +90,6 @@ const READ_ONLY_SKILLS = new Set([
   "entity-discovery",
   "history",
   "health",
-  "calendar",
   "onboarding",
 ]);
 

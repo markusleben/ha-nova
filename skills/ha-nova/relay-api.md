@@ -389,6 +389,24 @@ Call with response data:
 
 Supported target fields: `entity_id` (string or array), `area_id`, `device_id`.
 
+## Calendar Event Writes
+
+`ha-nova:calendar` creates events through the service API and updates/deletes them through WS:
+
+```json
+{"method":"POST","path":"/api/services/calendar/create_event","body":{"entity_id":"calendar.example","summary":"Event","start_date_time":"2026-07-15T14:00:00+02:00","end_date_time":"2026-07-15T15:00:00+02:00"}}
+{"type":"calendar/event/update","entity_id":"calendar.example","uid":"<uid>","event":{"summary":"Event","dtstart":"2026-07-15T14:00:00+02:00","dtend":"2026-07-15T15:00:00+02:00"}}
+{"type":"calendar/event/delete","entity_id":"calendar.example","uid":"<uid>"}
+```
+
+Rules:
+
+- read the calendar entity state first; feature bits are create `1`, delete `2`, update `4`
+- REST event reads return `uid` and optional `recurrence_id`; update/delete require exact identity
+- update's `event` is a full replacement object with `summary`, `dtstart`, `dtend`, and any retained optional `description`, `location`, or `rrule`
+- recurring instances add `recurrence_id` and `recurrence_range`: `""` for one occurrence, `THISANDFUTURE` for that occurrence and later ones
+- the create service has no recurrence field; use the Home Assistant UI for recurring creation
+
 ## Registry Queries (via /ws)
 
 List areas:

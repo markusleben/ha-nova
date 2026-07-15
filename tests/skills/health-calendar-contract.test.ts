@@ -74,23 +74,44 @@ describe("health and calendar skill contracts", () => {
     expect(health).toContain("--jq-file");
   });
 
-  it("defines a REST-only calendar skill with bounded event windows", () => {
+  it("defines bounded calendar reads and feature-gated event writes", () => {
     const calendar = readFileSync("skills/calendar/SKILL.md", "utf8");
+    const apiMatrix = readFileSync("docs/reference/ha-api-matrix.md", "utf8");
+    const relayApi = readFileSync("skills/ha-nova/relay-api.md", "utf8");
+    const writeSafety = readFileSync("skills/ha-nova/write-safety.md", "utf8");
 
     expect(calendar).toContain("name: calendar");
-    expect(calendar).toContain("description: Use when listing Home Assistant calendars");
+    expect(calendar).toContain("description: Use when listing, reading, creating, updating, or deleting Home Assistant calendar events");
     expect(calendar).toContain("/api/calendars");
     expect(calendar).toContain("/api/calendars/<entity_id>?start=<start>&end=<end>");
     expect(calendar).toContain("default to now through the next 7 days");
     expect(calendar).toContain("Always use bounded windows.");
-    expect(calendar).toContain("No event writes.");
     expect(calendar).toContain("Never guess a calendar id from a partial name");
-    expect(calendar).toContain("REST through relay core only");
     expect(calendar).toContain("--out <result-file>");
     expect(calendar).toContain("--jq-file");
-    expect(calendar).not.toContain("relay ws");
-    expect(calendar).not.toContain("POST");
-    expect(calendar).not.toContain("DELETE");
+    expect(calendar).toContain("/api/services/calendar/create_event");
+    expect(calendar).toContain('`calendar/event/update`');
+    expect(calendar).toContain('`calendar/event/delete`');
+    expect(calendar).toContain("`supported_features & 1`");
+    expect(calendar).toContain("`& 2`");
+    expect(calendar).toContain("`& 4`");
+    expect(calendar).toContain("(uid, recurrence_id)");
+    expect(calendar).toContain('`recurrence_range:""`');
+    expect(calendar).toContain('`"THISANDFUTURE"`');
+    expect(calendar).toContain("update is a full event replacement");
+    expect(calendar).toContain("omit `rrule` to clear recurrence");
+    expect(calendar).toContain("Immediately before execution, re-read");
+    expect(calendar).toContain("this event set is the create baseline");
+    expect(calendar).toContain("up to three reads over ten seconds");
+    expect(calendar).toContain("never repeat a write automatically");
+    expect(calendar).toContain("delete uses the typed `confirm:<token>`");
+    expect(calendar).toContain("no HA NOVA revert");
+    expect(apiMatrix).toContain("### Calendar event writes");
+    expect(apiMatrix).toContain("`calendar/event/update`");
+    expect(apiMatrix).toContain("`calendar/event/delete`");
+    expect(relayApi).toContain("## Calendar Event Writes");
+    expect(relayApi).toContain("feature bits are create `1`, delete `2`, update `4`");
+    expect(writeSafety).toContain("| `calendar` | event-field preview + bounded event read-back |");
   });
 
   it("updates architecture and fallback ownership for the new dedicated skills", () => {
@@ -108,11 +129,11 @@ describe("health and calendar skill contracts", () => {
     expect(architecture).toContain("capped examples, sanitized integration reasons");
     expect(architecture).toContain("deprioritize noisy/stateless domains");
     expect(architecture).not.toContain("current-session error log");
-    expect(architecture).toContain("`ha-nova:calendar` is a REST-only read skill");
+    expect(architecture).toContain("`ha-nova:calendar` owns bounded calendar reads and single-event writes");
     expect(architecture).not.toContain("energy, calendars, system health");
 
     expect(fallback).toContain("| System Health / Repairs | Covered | health |");
-    expect(fallback).toContain("| Calendar Queries | Covered | calendar |");
+    expect(fallback).toContain("| Calendar Events (read / create / update / delete) | Covered | calendar |");
     expect(fallback).not.toContain("### System Health / Repairs -- RELAY-READY");
     expect(fallback).not.toContain("### Calendar Queries -- RELAY-READY");
 
