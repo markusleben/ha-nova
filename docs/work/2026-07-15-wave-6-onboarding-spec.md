@@ -1,9 +1,10 @@
 # Wave 6 Onboarding Spec
 
-Status: active
+Status: complete
 Date: 2026-07-15
 Sequencing SSOT: `docs/work/masterplan-2026-h2.md` -> Wave 6
 Release train: Relay 0.6.0; version/tag changes stay in release prep
+Implementation PRs: #357, #358, #359, #360
 
 ## Goal
 
@@ -85,7 +86,7 @@ Official Supervisor behavior used by this design: ingress authenticates the Home
 
 - Return all reachable candidates in stable priority order instead of stopping at the first success.
 - Deduplicate candidates by normalized resolved host.
-- One candidate selects automatically. Multiple candidates show a pick list with address and discovery source. No candidate keeps the existing manual-address path.
+- One candidate selects automatically unless its only confirmed address is an unresolved `.local` name; that case remains an editable default so the user can enter an IP. Multiple candidates show a pick list with address and discovery source. No candidate keeps the existing manual-address path.
 - Bound the total discovery time and candidate count; no unbounded subnet scan.
 
 ### Non-TTY and Windows
@@ -114,6 +115,15 @@ Each PR completes the repository merge checklist independently. No README featur
 - Token-revoked and LLAT-revoked failures route to different, correct recovery surfaces.
 - Targeted Relay/CLI suites and full `npm run verify` pass.
 - Every PR receives a real clean Codex result on its final SHA, all threads are resolved, and merge uses squash/delete-branch only after the mandatory checklist is complete.
+
+## Completion record
+
+- #357 added the persistent App token, pairing-code manager, `/pair`, rate limits, security contracts, and compatibility coverage.
+- #358 added the Supervisor-ingress Home Base, authenticated peer/header gate, read-only status rendering, and charter contracts.
+- #359 moved the normal CLI flow to Home Base pairing while retaining saved-token, explicit-token, service, legacy-relay, and LLAT-repair paths.
+- #360 completed bounded multi-instance discovery, non-TTY guidance, Windows preflight, and the `.local` correction path.
+- All four behavior PRs passed the full repository checklist with a real clean Codex result on the final SHA and all review threads resolved.
+- No release, README claim, version bump, tag, or publish action is part of this closeout. Those remain release-prep work.
 
 ## Research basis
 
