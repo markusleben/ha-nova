@@ -137,6 +137,8 @@ Status: **DONE** — #357, #358, #359, #360; implementation spec: `docs/work/202
 
 ## Wave 7 — Update UX parity
 
+Status: **IN PROGRESS** — implementation spec: `docs/work/2026-07-15-wave-7-update-ux-spec.md`
+
 - "Start a new session" nudge after updates (today an easily-missed printed instruction); update-notice parity for non-Claude clients; embed the install one-liner directly in the README (release-prep PR — README gate).
 
 ---
@@ -177,7 +179,7 @@ All waves land on `main` first; releases batch per the release-worthiness rule. 
 | 4 | Coverage (integration-setup, calendar writes, events, alarm/lock) | — | **DONE** — #353, #354, #355 |
 | 5 | Relay diagnosability | 0.5.0 (with Wave 2) | **DONE** — #351 |
 | 6 | Pairing Code + Home Base | 0.6.0 | **DONE** — #357, #358, #359, #360; unreleased |
-| 7 | Update UX parity | — | planned |
+| 7 | Update UX parity | — | **IN PROGRESS** — spec written |
 
 ## Opinionated defaults (documented instead of asked)
 - Waves 2 and 6 get short specs in `docs/work/` before implementation; the masterplan stays the sequencing SSOT.
