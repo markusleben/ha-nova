@@ -387,7 +387,7 @@ func TestCurrentVersionSyncOmitsSessionInstructionWhenClientRuntimeIsMissing(t *
 	if err != nil {
 		t.Fatalf("loadState() error: %v", err)
 	}
-	if restored.ClientsVerifiedVersion != "" {
-		t.Fatalf("expected skipped sync to clear stale verification marker, got %q", restored.ClientsVerifiedVersion)
+	if restored.ClientsVerifiedVersion != "0.2.2" {
+		t.Fatalf("expected skipped current-version sync to preserve quiet-check marker, got %q", restored.ClientsVerifiedVersion)
 	}
 }

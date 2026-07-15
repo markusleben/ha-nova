@@ -101,10 +101,8 @@ func TestRunInternalReplacePrintsFinalSuccess(t *testing.T) {
 	applyStagedBundleWithRollbackForReplace = func(paths runtimePaths, stageRoot string) (func() error, func() error, error) {
 		return func() error { return nil }, func() error { return nil }, nil
 	}
-	postUpdateSyncForReplace = func(paths runtimePaths) error {
-		state := loadStateOrDefault(paths)
-		state.ClientsVerifiedVersion = localVersion(paths)
-		return saveState(paths, state)
+	postUpdateSyncForReplace = func(paths runtimePaths) postUpdateSyncResult {
+		return postUpdateSyncResult{FullySynced: true}
 	}
 
 	exitCode, output := captureCommandOutput(t, func() int {
@@ -143,12 +141,12 @@ func TestRunInternalReplaceOmitsSessionInstructionWhenClientSyncFails(t *testing
 		return func() error { return nil }, func() error { return nil }, nil
 	}
 	syncCalls := 0
-	postUpdateSyncForReplace = func(paths runtimePaths) error {
+	postUpdateSyncForReplace = func(paths runtimePaths) postUpdateSyncResult {
 		syncCalls++
 		if syncCalls == 1 {
-			return errors.New("sync failed")
+			return postUpdateSyncResult{Err: errors.New("sync failed")}
 		}
-		return nil
+		return postUpdateSyncResult{FullySynced: true}
 	}
 
 	exitCode, output := captureCommandOutput(t, func() int {
