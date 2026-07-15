@@ -29,6 +29,15 @@ func TestWindowsHelperLaunchProfileKeepsConsoleOutput(t *testing.T) {
 	}
 }
 
+func TestWindowsStagingInstructionKeepsFirstUpgradeGuidanceConditional(t *testing.T) {
+	if !strings.Contains(windowsUpdateStagedInstruction, "After it reports success") {
+		t.Fatalf("expected staging instruction to make new-session guidance conditional: %q", windowsUpdateStagedInstruction)
+	}
+	if !strings.Contains(windowsUpdateStagedInstruction, "start a new AI client session") {
+		t.Fatalf("expected staging instruction to preserve guidance for an older replacement helper: %q", windowsUpdateStagedInstruction)
+	}
+}
+
 func TestWindowsBackgroundCleanupLaunchProfileDetachesFromConsole(t *testing.T) {
 	profile := windowsBackgroundCleanupLaunchProfile()
 	if profile.attachOutput {

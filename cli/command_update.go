@@ -12,6 +12,7 @@ import (
 )
 
 const postUpdateSessionInstruction = "Next step: start a new AI client session to load the updated HA NOVA skills."
+const windowsUpdateStagedInstruction = "Update staged. Wait for the updater to finish. After it reports success, start a new AI client session to load the updated HA NOVA skills."
 
 func runUpdate(paths runtimePaths, args []string) int {
 	fs := flag.NewFlagSet("update", flag.ContinueOnError)
@@ -103,7 +104,7 @@ func runUpdate(paths runtimePaths, args []string) int {
 			printHumanErr("cannot start Windows updater: %s", err)
 			return 1
 		}
-		printHumanInfo("Update staged. Wait for the updater to finish; it will print the next step.")
+		printHumanInfo("%s", windowsUpdateStagedInstruction)
 		return 0
 	}
 	defer cleanupStagedBundle(stageRoot)
