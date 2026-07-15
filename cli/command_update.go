@@ -11,6 +11,8 @@ import (
 	"strings"
 )
 
+const postUpdateSessionInstruction = "Next step: start a new AI client session to load the updated HA NOVA skills."
+
 func runUpdate(paths runtimePaths, args []string) int {
 	fs := flag.NewFlagSet("update", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
@@ -101,7 +103,7 @@ func runUpdate(paths runtimePaths, args []string) int {
 			printHumanErr("cannot start Windows updater: %s", err)
 			return 1
 		}
-		printHumanInfo("Update staged. Restart your shell/client after the updater finishes.")
+		printHumanInfo("Update staged. Wait for the updater to finish; it will print the next step.")
 		return 0
 	}
 	defer cleanupStagedBundle(stageRoot)
@@ -139,6 +141,7 @@ func runUpdate(paths runtimePaths, args []string) int {
 		printHumanNotice(notice)
 		maybeOfferGuidedRelayUpdate(paths, notice)
 	}
+	printPostUpdateSessionInstruction()
 	return 0
 }
 
@@ -192,6 +195,7 @@ func runInternalReplace(paths runtimePaths, args []string) int {
 		printHumanNotice(notice)
 		printHumanInfo("Run `ha-nova doctor` in a terminal to be offered the guided relay update.")
 	}
+	printPostUpdateSessionInstruction()
 	return 0
 }
 
@@ -223,7 +227,12 @@ func syncInstalledClientsForCurrentVersion(paths runtimePaths, currentVersion, t
 		printHumanNotice(notice)
 		maybeOfferGuidedRelayUpdate(paths, notice)
 	}
+	printPostUpdateSessionInstruction()
 	return 0
+}
+
+func printPostUpdateSessionInstruction() {
+	printHumanInfo("%s", postUpdateSessionInstruction)
 }
 
 // postUpdateSync re-syncs every configured client from the canonical install root

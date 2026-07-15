@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"os"
 	"strings"
 	"testing"
@@ -101,6 +102,50 @@ func TestRunInternalReplacePrintsFinalSuccess(t *testing.T) {
 	}
 	if !strings.Contains(output, "Updated to v") {
 		t.Fatalf("expected final update success output:\n%s", output)
+	}
+	if !strings.HasSuffix(strings.TrimSpace(output), postUpdateSessionInstruction) {
+		t.Fatalf("expected final new-session instruction:\n%s", output)
+	}
+}
+
+func TestRunInternalReplaceOmitsSessionInstructionWhenClientSyncFails(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+
+	originalWait := waitForParentReleaseForReplace
+	originalApply := applyStagedBundleWithRollbackForReplace
+	originalSync := postUpdateSyncForReplace
+	defer func() {
+		waitForParentReleaseForReplace = originalWait
+		applyStagedBundleWithRollbackForReplace = originalApply
+		postUpdateSyncForReplace = originalSync
+	}()
+	waitForParentReleaseForReplace = func(parentPID int) {}
+	applyStagedBundleWithRollbackForReplace = func(paths runtimePaths, stageRoot string) (func() error, func() error, error) {
+		return func() error { return nil }, func() error { return nil }, nil
+	}
+	syncCalls := 0
+	postUpdateSyncForReplace = func(paths runtimePaths) error {
+		syncCalls++
+		if syncCalls == 1 {
+			return errors.New("sync failed")
+		}
+		return nil
+	}
+
+	exitCode, output := captureCommandOutput(t, func() int {
+		return runInternalReplace(paths, []string{"--parent-pid", "0", "--stage-root", t.TempDir()})
+	})
+	if exitCode == 0 {
+		t.Fatalf("runInternalReplace() exit = 0, want failure\n%s", output)
+	}
+	if strings.Contains(output, postUpdateSessionInstruction) {
+		t.Fatalf("did not expect new-session instruction after rollback:\n%s", output)
 	}
 }
 

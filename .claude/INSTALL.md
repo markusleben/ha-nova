@@ -49,7 +49,8 @@ npm.cmd uninstall -g @anthropic-ai/claude-code
 
 - Connect or repair with `ha-nova setup claude`.
 - Shipped installs use a local HA NOVA release snapshot under `~/.config/ha-nova/claude-marketplace/releases/vX.Y.Z`.
-- HA NOVA itself shows Claude update notices. When you see one, run `ha-nova update` and then restart Claude.
+- HA NOVA surfaces update notices during normal use. When you see one, run `ha-nova update`.
+- After `ha-nova update` succeeds, start a new AI client session to load the updated HA NOVA skills.
 - If the Claude path looks broken, run `ha-nova setup claude` and then `ha-nova doctor`.
 
 ## Local Repo Checkout (macOS / Linux only)

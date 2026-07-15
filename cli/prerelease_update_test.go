@@ -119,6 +119,9 @@ func TestRunUpdateReturnsSelfManagedRCToStable(t *testing.T) {
 	if !strings.Contains(stdout, "Updated to v0.3.1") {
 		t.Fatalf("expected stable rollback message, got %q", stdout)
 	}
+	if !strings.HasSuffix(strings.TrimSpace(stdout), postUpdateSessionInstruction) {
+		t.Fatalf("expected final new-session instruction, got %q", stdout)
+	}
 	if got := localVersion(paths); got != "0.3.1" {
 		t.Fatalf("localVersion() = %q, want 0.3.1", got)
 	}
@@ -253,6 +256,9 @@ func TestRunUpdateTreatsSameRCTargetAsUpToDate(t *testing.T) {
 
 	if !strings.Contains(stdout, "Already up to date: v0.3.2-rc1") {
 		t.Fatalf("expected same-RC no-op message, got %q", stdout)
+	}
+	if !strings.HasSuffix(strings.TrimSpace(stdout), postUpdateSessionInstruction) {
+		t.Fatalf("expected final new-session instruction after client resync, got %q", stdout)
 	}
 }
 

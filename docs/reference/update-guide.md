@@ -8,7 +8,7 @@ Update the active HA NOVA install and any supported client integrations on this 
 ha-nova update
 ```
 
-The CLI auto-detects which client integrations are installed and refreshes each using the appropriate method.
+The CLI auto-detects which client integrations are installed and refreshes each using the appropriate method. After `ha-nova update` succeeds, start a new AI client session to load the updated HA NOVA skills.
 
 Update routing is simple:
 - bundle and dev installs use the HA NOVA updater directly
@@ -80,4 +80,4 @@ When the agent detects `UPDATE AVAILABLE` in its session context, it can run the
 ha-nova update
 ```
 
-After a successful update, the user must start a new client session for the updated payload to take effect.
+After `ha-nova update` succeeds, start a new AI client session to load the updated HA NOVA skills.
