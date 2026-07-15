@@ -203,6 +203,67 @@ func TestInteractiveSetupPairsStoresTokenAndVerifiesHealthAndWS(t *testing.T) {
 	}
 }
 
+func TestInteractiveSetupManualPairingFallbackKeepsTokenRepair(t *testing.T) {
+	withClientRuntimeAvailability(t, map[string]bool{"codex": true})
+
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("HA_NOVA_NO_BROWSER", "1")
+	t.Setenv("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING", "1")
+	t.Setenv("HA_NOVA_TEST_KEYRING_FILE", filepath.Join(home, ".config", "ha-nova", ".test-relay-auth-token"))
+	t.Setenv("HA_NOVA_DEV_ROOT", repoRootForSetupTest(t))
+
+	haServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer haServer.Close()
+	relayServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/health" {
+			http.NotFound(w, request)
+			return
+		}
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer relayServer.Close()
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error = %v", err)
+	}
+	input := joinSetupInputs(
+		setupWizardPasteRelayTokenPrompts("mistyped-token"),
+		[]string{"1", "exit"},
+	)
+	exitCode := 0
+	stdout, stderr := captureInteractiveSetupIO(t, input, func() int {
+		exitCode = interactiveSetup(
+			paths,
+			runtimeConfig{},
+			loadStateOrDefault(paths),
+			"codex",
+			normalizeHostInput(haServer.URL),
+			haServer.URL,
+			relayServer.URL,
+			"",
+			false,
+		)
+		return exitCode
+	})
+	if exitCode != 0 {
+		t.Fatalf("interactiveSetup() exit = %d, want cancelled 0\nstdout:\n%s\nstderr:\n%s", exitCode, stdout, stderr)
+	}
+	output := stdout + stderr
+	if !strings.Contains(output, "Back to Relay token step") {
+		t.Fatalf("manual credential failure did not offer token repair:\n%s", output)
+	}
+	if strings.Contains(output, "Open Home Base and pair this device again") {
+		t.Fatalf("manual credential failure incorrectly forced pairing repair:\n%s", output)
+	}
+	if strings.Count(output, "Set up Relay Auth Token") < 2 {
+		t.Fatalf("manual credential failure did not return to the token step:\n%s", output)
+	}
+}
+
 func assertPairedBearer(t *testing.T, request *http.Request, token string) {
 	t.Helper()
 	if got := request.Header.Get("Authorization"); got != "Bearer "+token {

@@ -269,6 +269,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 
 	pairingFlow := false
 	pairingCredentialReceived := false
+	manualCredentialFlow := false
 	pairingBackStage := setupStageLLAT
 	usePairingByDefault := func() bool {
 		return !serviceMode && strings.TrimSpace(relayTokenFlag) == "" && strings.TrimSpace(existingToken) == ""
@@ -578,7 +579,11 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 
 				choice, err := promptSetupTokenChoiceInteractive(reader, os.Stdout, existingToken != "")
 				if err == errSetupBack {
-					stage = setupStageRelayInstall
+					if pairingFlow {
+						stage = setupStagePairing
+					} else {
+						stage = setupStageRelayInstall
+					}
 					continue
 				}
 				if err == errSetupExit {
@@ -715,6 +720,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 				continue
 			}
 			if err == errSetupRelayTokenStep {
+				manualCredentialFlow = true
 				skipLLATWalkthrough = true
 				stage = setupStageToken
 				continue
@@ -729,6 +735,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 			}
 			token = pairedToken
 			pairingCredentialReceived = true
+			manualCredentialFlow = false
 			verifyFirstReuseFlow = false
 			stage = setupStageVerify
 
@@ -748,7 +755,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 			credentialRepair := setupCredentialRepairNone
 			if strings.TrimSpace(relayTokenFlag) == "" {
 				credentialRepair = setupCredentialRepairToken
-				if !serviceMode {
+				if !serviceMode && !manualCredentialFlow {
 					credentialRepair = setupCredentialRepairPairing
 				}
 			}
