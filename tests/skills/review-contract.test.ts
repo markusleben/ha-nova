@@ -55,6 +55,51 @@ describe("review contract", () => {
     expect(reviewChecks).toContain("within `1 × step`");
   });
 
+  it("keeps scene color and helper-source rules aligned with their evidence", () => {
+    expect(reviewChecks).toContain(
+      "`color_temp_kelvin`/`hs_color`/`rgb_color`/`xy_color`/`rgbw_color`/`rgbww_color`",
+    );
+    expect(reviewChecks).toContain(
+      "entry resolves in NEITHER the entity registry NOR `/api/states`",
+    );
+  });
+
+  it("guards orphan hints against dashboard-only consumers", () => {
+    expect(reviewChecks).toContain(
+      "Scan card actions across ALL storage dashboards before emitting the hint",
+    );
+    expect(reviewChecks).toContain(
+      "custom dashboard/view strategy, or custom view type",
+    );
+    expect(reviewChecks).toContain(
+      "card `type`, view `type`, and dashboard/view `strategy.type`",
+    );
+    expect(reviewSkill).toContain(
+      "cross-item HX rules run in aggregate/bulk mode OR whenever their required registry/state context is already loaded",
+    );
+    expect(reviewSkill).toContain(
+      "apply HX-05 to visible card actions without expanding the workset",
+    );
+    expect(reviewChecks).toContain(
+      "D-06 [LOW]: Card references a registry-disabled entity (`disabled_by` is non-null)",
+    );
+    expect(reviewChecks).toContain("never flag `hidden_by` alone");
+    expect(reviewSkill).toContain(
+      "A scene without registry `unique_id` is YAML-backed",
+    );
+    expect(reviewSkill).toContain(
+      "run SC checks only when that scene's exact YAML is already in context",
+    );
+    expect(reviewSkill).toContain("never emit an empty or inferred review");
+    expect(reviewChecks).toContain(
+      "All dashboard D/HX scans traverse the full dashboard object recursively",
+    );
+    expect(reviewChecks).toContain(
+      "`cards[]`, singular `card`, `elements[]`, `badges[]`, `sections[]`, and header-card structures",
+    );
+    expect(reviewChecks).toContain("A top-level-only scan is invalid");
+  });
+
   it("documents live helper evidence for threshold checks in the catalog", () => {
     expect(reviewChecks).toContain("Helper Threshold Evidence");
     expect(reviewChecks).toContain('/api/states/<helper_entity_id>');
@@ -65,11 +110,11 @@ describe("review contract", () => {
     expect(reviewChecks).toContain("Do not emit R-10 just because H-09 matched");
   });
 
-  it("keeps shared references aligned to H-01..H-10", () => {
-    expect(writeSkill).toContain("H-01..H-10");
-    expect(helperSkill).toContain("H-01..H-10");
-    expect(reviewChecks).toContain("Helper (storage-based family): H-01..H-10");
-    expect(architectureDoc).toContain("H-01..H-10");
+  it("keeps shared references aligned to the helper check ranges", () => {
+    expect(writeSkill).toContain("H-01..H-11");
+    expect(helperSkill).toContain("H-01..H-11");
+    expect(reviewChecks).toContain("Helper (storage-based family): H-01..H-11");
+    expect(architectureDoc).toContain("H-01..H-15");
   });
 
   it("keeps live-evidence helper checks staged in write/helper flows", () => {
@@ -78,10 +123,10 @@ describe("review contract", () => {
     expect(helperSkill).toContain("Apply H-01..H-08 directly");
     expect(helperSkill).toContain("Only evaluate H-09/H-10");
     expect(helperSkill).toContain("direct helper-backed threshold");
-    expect(helperSkill).toContain("Do not pretend H-01..H-10 apply here");
+    expect(helperSkill).toContain("Do not pretend H-01..H-11 apply here");
     expect(helperSkill).toContain("minimal config-entry post-write contract");
     expect(reviewChecks).toContain("Helper (config-entry family): minimal config-entry review");
-    expect(reviewChecks).toContain("do not apply H-01..H-10");
+    expect(reviewChecks).toContain("do not apply H-01..H-11");
   });
 
   it("documents config-entry helper target resolution before minimal review", () => {
@@ -102,7 +147,12 @@ describe("review contract", () => {
 
   it("documents contributor-facing taxonomy entry points", () => {
     expect(architectureDoc).toContain("## Review Check Taxonomy");
+    expect(architectureDoc).toContain("(S/R/P/M/F/H/SC/D/HX/TS)");
     expect(architectureDoc).toContain("`H` = Helper-specific");
+    expect(architectureDoc).toContain("`SC` = Scene-specific");
+    expect(architectureDoc).toContain("`D` = Dashboard-specific");
+    expect(architectureDoc).toContain("`HX` = Cross-item");
+    expect(architectureDoc).toContain("`TS` = YAML-sensor-specific");
     expect(architectureDoc).toContain("`R` = Reliability");
     expect(contributingDoc).toContain("Review Check Taxonomy");
     expect(contributingDoc).toContain("docs/reference/skill-architecture.md");

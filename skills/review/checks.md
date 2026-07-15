@@ -14,7 +14,7 @@ Self-contained catalog: load this file before evaluating findings — from `skil
 ## Check Taxonomy (internal only)
 
 - Format: `{CATEGORY}-{NN}` (example: `H-09`)
-- Category letter = family: `S` safety, `R` reliability, `P` performance, `M` style, `F` script-specific, `H` helper-specific
+- Category letter = family: `S` safety, `R` reliability, `P` performance, `M` style, `F` script-specific, `H` helper-specific, `SC` scene, `D` dashboard, `HX` cross-item, `TS` template/REST/command-line sensors (YAML)
 - Number = running rule number within that family
 - Severity is separate from the code
 - Code visibility is governed by the Output Guardrail above
@@ -23,17 +23,21 @@ Self-contained catalog: load this file before evaluating findings — from `skil
 
 **Apply these families by domain:**
 - Automation: S-01..S-03, R-01..R-28, P-01..P-05, M-01..M-05
-- Script: automation families plus F-01..F-08
-- Helper (storage-based family): H-01..H-10
-- Helper (config-entry family): minimal config-entry review
-  - do not apply H-01..H-10
+- Script: automation families plus F-01..F-09
+- Storage scene: SC-01..SC-07
+- Storage dashboard: D-01..D-07
+- Cross-item: HX-01..HX-05 — only during aggregate/bulk reviews or when the registry context is already loaded; never a license for a full-instance sweep the user did not ask for
+- Template/REST/command-line sensor YAML: TS-01..TS-07 — applied by `ha-nova:yaml-config` at write time, and by review only when such YAML is in the workset
+- Helper (storage-based family): H-01..H-11
+- Helper (config-entry family): minimal config-entry review plus H-12/H-13/H-15 where the fields are readable — reading `source`/member/template fields requires the non-persisting options-flow readback (the `skills/helper/SKILL.md` pattern) or the rendered-state read; when that readback is unavailable, say the fields were not readable instead of skipping silently — and H-14 when the energy prefs are already loaded
+  - do not apply H-01..H-11
   - confirm config-entry metadata is present
   - inspect linked entities when available
   - in Step 2, derive collision candidates from `linked_entities[]`, not from config actions
   - run `search/related` on up to 3 linked entities
   - say explicitly that config-entry helper review does not use the storage-helper H rules
   - for the `template` domain, also read the linked entity's rendered state (`unavailable`/`unknown` is inconclusive, not proof of breakage — source state or an intentional sentinel); to apply the template-level reliability checks, open the options flow for the entry first (non-persisting readback — the canonical metadata item does not carry the `state` template)
-- If an automation or script references helpers in actions or direct thresholds, also apply H-01..H-10 to those helpers
+- If an automation or script references helpers in actions or direct thresholds, also apply H-01..H-11 to those helpers (H-11 is exactly the case where the consumer is in the workset)
 - R-17 is an intra-config branch comparison only. Never emit it from collision scan or cross-automation conflict analysis.
 - R-18 applies only to sibling-variable references within one `variables:` mapping. Never emit it for cross-action or cross-scope references, script `fields`, HA builtins, or `{% set %}` locals inside the same template.
 - For R-18 output, include the block context plus at least one concrete variable pair. For pasted YAML or draft configs, describe it as future write fragility. For HA read-back or post-write review, describe it as a persisted runtime risk.
@@ -281,6 +285,7 @@ Self-trigger / feedback loop = the automation triggers on an entity that it also
 - F-06 [MEDIUM]: `action: script.turn_on` (non-blocking) when next step depends on result — use blocking `action: script.{id}` instead
 - F-07 [LOW]: Script contains `wait_for_trigger:` at top of sequence with no preceding logic — likely should be an automation
 - F-08 [LOW]: Hardcoded values that vary per call-site should be `fields:` parameters (human-judgment check — flag only obvious cases like repeated entity_ids or magic numbers)
+- F-09 [LOW]: Orphaned script — not invoked by any automation, script, or scene (`search/related`; cleanup hint like H-07, never a runtime hazard). `search/related` does NOT index dashboards: either scan the storage dashboards for `script.*` card actions, or say dashboard usage cannot be ruled out
 
 ## Helper-Specific (apply when reviewing helpers or automations referencing helpers)
 
@@ -294,6 +299,73 @@ Self-trigger / feedback loop = the automation triggers on an entity that it also
 - H-08 [LOW]: Naming inconsistency — mixed patterns across helpers (e.g., `sleep_mode` vs `Sleep Mode` vs `sleepMode`)
 - H-09 [MEDIUM → HIGH]: Threshold effectively weakened — `input_number` is used as a direct threshold and its current value sits at or near the boundary that makes the guard trivially easy to satisfy. Operator-aware: `>`/`>=` is risky near `min`; `<`/`<=` is risky near `max`. "Near" means within `1 × step`, including the exact boundary. Escalate to HIGH only with concrete loop evidence (`repeat:`, or R-10/R-12 matched at HIGH also applies).
 - H-10 [LOW]: Threshold value off the configured step grid — current `input_number` value does not land on the configured `step` lattice relative to `min`; likely set programmatically rather than through the UI. Supplementary signal for H-09, not a severity escalator by itself.
+- H-11 [LOW]: Unit mismatch — a helper's `unit_of_measurement` disagrees with the unit the consuming template/automation treats it as; flag only when both units are actually visible in the workset
+- H-12 [MEDIUM]: Config-entry helper source entity absent — `source`/`entity_id` of a `utility_meter`/`derivative`/`integration`/`min_max`/`threshold`/`statistics`/`history_stats` entry resolves in NEITHER the entity registry NOR `/api/states`
+- H-13 [MEDIUM]: `group` helper with a dead or duplicate member entity
+- H-14 [LOW]: `utility_meter` cycle/tariff disagrees with the energy-dashboard tariff configuration — only when the energy prefs are ALREADY loaded in this review; never fetch them just for this check
+- H-15 [MEDIUM]: `template` config-entry helper renders `unavailable`/`unknown` because a referenced entity id resolves to nothing — pair the rendered-state read with an entity-id resolution before flagging
+
+H-12/H-13/H-15 dead-source/member findings require absence from BOTH the
+entity registry AND `/api/states` — YAML/manual entities live in states
+without a registry record (same boundary as SC-01/D-01/HX).
+
+## Scene-Specific (apply when reviewing storage scenes)
+
+- SC-01 [HIGH]: Dead entity reference — a key under `entities:` resolves in NEITHER the entity registry NOR `/api/states`; the scene applies partially and silently
+- SC-02 [MEDIUM]: Mixed color attributes on one light — more than one of `color_temp_kelvin`/`hs_color`/`rgb_color`/`xy_color`/`rgbw_color`/`rgbww_color` captured; reproduction depends on the active color mode and is unreliable
+- SC-03 [MEDIUM]: Light group captured instead of member lights — group reproduce-state is a known trouble spot; suggest capturing the members
+- SC-04 [LOW]: Read-only domain captured (`sensor`, `binary_sensor`, ...) — a scene cannot reproduce it
+- SC-05 [LOW]: Measurement/diagnostic attribute captured (battery, rssi, ...) instead of writable target attributes
+- SC-06 [MEDIUM]: Captured color attribute outside the entity's `supported_color_modes` — the device cannot reproduce it
+- SC-07 [LOW]: Orphaned scene — no automation/script references it (`search/related`), no storage-dashboard card action calls it, and its state timestamp shows no recent activation; cleanup hint, never a defect
+
+## SC Evidence Boundaries
+
+- SC-01 requires absence from BOTH the entity registry AND `/api/states` — YAML-defined entities live in states without a registry entry, and an `unavailable` entity is offline, not deleted.
+- SC-02/SC-06 need the live entity's `supported_color_modes`; never flag from the scene config alone.
+- SC-07: `search/related` does not index dashboards. Scan card actions across ALL storage dashboards before emitting the hint; if the scan is incomplete or YAML-mode dashboards are present, say dashboard usage cannot be ruled out and skip the cleanup hint. Scene state `unknown` means "never activated", which strengthens the evidence but proves nothing broken.
+
+## Dashboard-Specific (apply when reviewing storage dashboards)
+
+- D-01 [HIGH]: Broken card entity reference — an `entity`/`entities[]` id absent from BOTH the registry AND `/api/states`; the card renders permanently unavailable
+- D-02 [HIGH]: `custom:` card with no matching entry in `lovelace/resources` — the card cannot render at all
+- D-03 [MEDIUM]: Duplicate view `path` within one dashboard — routing collision
+- D-04 [LOW]: Empty view, or a view whose only card is broken
+- D-05 [MEDIUM]: Orphaned Lovelace resource — no `custom:` card, custom dashboard/view strategy, or custom view type across the storage dashboards references it (cleanup hint; say that YAML-mode dashboards are invisible to this scan and cannot be ruled out)
+- D-06 [LOW]: Card references a registry-disabled entity (`disabled_by` is non-null) — it does not produce a state, so the card stays unavailable
+- D-07 [MEDIUM]: Built-in card missing its required field — authoritative minimal schema: `entity`/`tile`/`gauge`/`sensor` require `entity`; `entities`/`history-graph` require a non-empty `entities` list; `markdown` requires `content`; `button` has no required field. Judge ONLY these allowlisted types; never infer custom-card schemas
+
+## D Evidence Boundaries
+
+- D-01 requires absence from BOTH the registry AND `/api/states` (YAML/manual entities have states but no registry entry); D-06 requires non-null `disabled_by` on an entity that DOES have a registry entry — never flag `hidden_by` alone.
+- All dashboard D/HX scans traverse the full dashboard object recursively. Follow nested `cards[]`, singular `card`, `elements[]`, `badges[]`, `sections[]`, and header-card structures; inspect every nested card `type`, entity reference, and `tap_action`/`hold_action`/`double_tap_action` service target before applying D-01, D-02, D-05, or HX-05. A top-level-only scan is invalid.
+- D-02/D-05 join `lovelace/config` across ALL storage dashboards with `lovelace/resources` — scan card `type`, view `type`, and dashboard/view `strategy.type`; partial joins produce false orphans, so skip D-05 when not all dashboards were read.
+- D-07 checks exactly the minimal schema spelled out in the rule — no field beyond the one listed is ever required, and `custom:` cards are never judged.
+
+## Cross-Item (aggregate/bulk reviews with registry context)
+
+- HX-01 [HIGH]: Automation/script action targets a `scene.*`/`script.*` entity that no longer exists
+- HX-02 [HIGH]: Automation/script references an `input_*`/`counter`/`timer`/`schedule` helper absent from the registry
+- HX-03 [MEDIUM]: `target.area_id`/`floor_id`/`label_id`/`device_id` no longer present in its registry
+- HX-04 [MEDIUM]: Trigger/condition references a `zone.*`/`person.*` entity that was deleted
+- HX-05 [LOW]: Dashboard card action calls a scene/script that no longer exists
+
+## HX Evidence Boundaries
+
+- HX fires only when the referenced item is confirmed ABSENT from its authoritative registry AND (for entity-shaped references) from `/api/states` — YAML-defined items have states without registry entries; a failed state read or `unavailable` is not deleted.
+- Scope stays the review workset the user asked for; the registry lists may be read once to resolve references, but HX never expands the workset itself.
+
+## Template/REST/Command-line Sensors (TS — YAML files)
+
+Applied by `ha-nova:yaml-config` before writing sensor YAML; review applies them only when such YAML sits in the workset (pasted, or read through opt-in file access).
+
+- TS-01 [HIGH]: Template references an entity id absent from both registry and states — the sensor goes silently `unavailable`
+- TS-02 [HIGH]: `float`/`int` filter without `default` in a state/value template (the R-01 hazard; YAML sensor files never reach the automation reviewer)
+- TS-03 [MEDIUM]: `rest`/`command_line` sensor without an `availability` template — a down source propagates `unknown` into consumers
+- TS-04 [MEDIUM]: Aggressive `scan_interval` (sub-10 s) against a remote or expensive source
+- TS-05 [HIGH]: `command_line` command interpolates a secret or an unvalidated template input (the S-01 hazard on a shell boundary)
+- TS-06 [LOW]: `unit_of_measurement`/`device_class`/`state_class` combination inconsistent — breaks long-term statistics and energy
+- TS-07 [MEDIUM]: Duplicate `unique_id` or duplicate sensor name across the template blocks of the file
 
 ## P-04 Evidence Boundary
 

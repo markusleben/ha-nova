@@ -101,7 +101,7 @@ Do NOT invoke `ha-nova:review` separately.
     - Exception: if R-18 still matches on persisted read-back config, report it again as a persisted runtime risk.
     - `R-19` follows normal dedup; R-23/R-24 do too. If already shown pre-write, do not repeat unless it becomes a new category.
     - If persisted R-18 remains, inspect traces after the next real run. Do not auto-trigger or auto-read traces outside an accepted Phase 5 test plan.
-    - If actions reference helpers: always run H-01..H-10.
+    - If actions reference helpers: always run H-01..H-11.
 3. Collision scan: `{"type":"search/related","item_type":"entity","item_id":"<entity_id>"}` via `ha-nova relay ws --data-file <payload-file>`; read max 3 related configs.
 4. Post-Write Review output (localized; see `skills/ha-nova/output-rules.md`) — report only what has substance; scans still run, only empty output is suppressed:
    - **Findings**: real issues only. **Collision check**: only when related items exist (list them + the verdict). **Advisory**: only when non-empty. Omit any section with nothing to report — never print an empty "none" bucket.

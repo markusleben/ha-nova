@@ -281,7 +281,7 @@ Rules:
 ## Review Architecture
 
 `ha-nova:review` is a self-contained read-only reviewer:
-- Config quality: safety (S-01..S-03), reliability (R-01..R-28), performance (P-01..P-05), style (M-01..M-05; M-04 retired, moved to R-20), script-specific (F-01..F-08), helper-specific (H-01..H-10)
+- Config quality: safety (S-01..S-03), reliability (R-01..R-28), performance (P-01..P-05), style (M-01..M-05; M-04 retired, moved to R-20), script-specific (F-01..F-09), helper-specific (H-01..H-15), scene (SC-01..SC-07), dashboard (D-01..D-07), cross-item (HX-01..HX-05), YAML sensors (TS-01..TS-07)
 - `R-25` is pasted-YAML only (legacy template platform syntax, removed in HA 2026.6); `M-05` is a modernize advisory for pre-2024.10 automation keys
 - Collision scan: `search/related` on top 3 target entities
 - Conflict analysis: 3-step test (polarity → temporal → guard conditions)
@@ -310,7 +310,7 @@ Rules:
   - Transport: WS (`{type}/create`, `{type}/update`, `{type}/delete`)
   - Identity: `{type}_id` from `{type}/list`, not entity_id
   - Write verify: `{type}/list`
-  - Review: H-01..H-10 helper-specific checks + collision scan via `search/related`
+  - Review: H-01..H-11 helper-specific checks + collision scan via `search/related`
   - No domain reload needed
 
 - **Config-entry family**
@@ -322,7 +322,7 @@ Rules:
   - Update: options-flow loop with required-field carry-forward from the current editable options snapshot
   - Identity: `entry_id` is canonical; linked `entity_id` values are derived only
   - Write verify: config-entry layer first for identity/existence, reopened editable options snapshot for field-level update verification
-  - Review: minimal config-entry post-write contract, not H-01..H-10
+  - Review: minimal config-entry post-write contract (plus H-12/H-13/H-15 where readable), not H-01..H-11
   - `group` remains menu-driven; end-to-end support is proven for the `sensor` subtype, and other subtypes must stay anchored to the live step schema instead of guessed fields
 
 Still excluded from `ha-nova:helper`:
@@ -579,7 +579,7 @@ When creating a new skill under `skills/{name}/SKILL.md`:
 ## Review Check Single Source of Truth
 
 `skills/review/SKILL.md` is the stable review entrypoint for standalone reviews (workflow, output shape, collision/conflict analysis).
-`skills/review/checks.md` is the authoritative, self-contained source for the detailed review catalog (S/R/P/M/F/H) plus its `## Application` section (family matrix, evidence boundaries, live-helper evidence).
+`skills/review/checks.md` is the authoritative, self-contained source for the detailed review catalog (S/R/P/M/F/H/SC/D/HX/TS) plus its `## Application` section (family matrix, evidence boundaries, live-helper evidence).
 There is deliberately no review agent template: `write` and `helper` run their post-write review inline against `skills/review/checks.md` only — they no longer load the standalone review workflow.
 When adding or modifying checks, update `skills/review/checks.md` first and keep `skills/review/SKILL.md` aligned as the facade/workflow file.
 
@@ -592,6 +592,10 @@ Review checks use the format `{CATEGORY}-{NN}`:
 - `M` = Style
 - `F` = Script-specific
 - `H` = Helper-specific
+- `SC` = Scene-specific
+- `D` = Dashboard-specific
+- `HX` = Cross-item
+- `TS` = YAML-sensor-specific
 
 `NN` is the running rule number inside that family. Severity is separate from the code.
 

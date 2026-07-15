@@ -391,14 +391,14 @@ Do NOT report results to user until complete.
 
 #### Storage-based family
 
-1. Apply `skills/review/checks.md` → Application (storage family: H-01..H-10).
+1. Apply `skills/review/checks.md` → Application (storage family: H-01..H-11; H-11 only when a consuming automation/template is in the thread context).
 2. Apply H-01..H-08 directly to the written helper config.
 3. Only evaluate H-09/H-10 if the collision scan finds a referencing automation/script with a direct helper-backed threshold and you also read live helper state per `skills/review/checks.md`.
 4. Collision scan: `search/related` for the helper entity, max 3 related automations/scripts.
 
 #### Config-entry family
 
-Do not pretend H-01..H-10 apply here.
+Do not pretend H-01..H-11 apply here; H-12/H-13/H-15 apply where the entry's fields are readable, and H-14 when the energy prefs are already loaded in the thread (see checks.md).
 Instead, run the minimal config-entry post-write contract:
 
 1. **Verification**
@@ -414,7 +414,7 @@ Instead, run the minimal config-entry post-write contract:
 4. **Collision check**
    - if linked entities were found, run `search/related` against up to 3 linked entities
 5. **Advisory**
-   - say that storage-helper H-01..H-10 checks do not apply to this family
+   - say that storage-helper H-01..H-11 checks do not apply to this family
    - config-entry updates are not auto-revertible (options-flow writes are multi-step); for undo, point the user to Home Assistant Backups
 
 Report only what has substance (same rule as the write flow — see `skills/write/SKILL.md` Phase 4): keep **Verification** (and the editable snapshot when present), but omit an empty **Collision check** or **Advisory** — never an empty "none" bucket. When the write is clean, the verification plus a single scope-honest confirmation line suffices (`skills/ha-nova/write-safety.md` → Verification Honesty). Multi-target logical changes: plan first per write-safety → Multi-Target Changes.

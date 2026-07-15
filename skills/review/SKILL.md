@@ -1,6 +1,6 @@
 ---
 name: review
-description: Use when analyzing, reviewing, auditing, or checking Home Assistant automations, scripts, or helpers for errors, best-practice violations, and conflicts. Do not invoke `ha-nova:read` separately — this skill handles discovery and reading internally.
+description: Use when analyzing, reviewing, auditing, or checking Home Assistant automations, scripts, helpers, scenes, or dashboards for errors, best-practice violations, and conflicts. Do not invoke `ha-nova:read` separately — this skill handles discovery and reading internally.
 license: MIT
 compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA NOVA Relay in Home Assistant (App, or standalone container on Container/Core).
 ---
@@ -10,7 +10,7 @@ compatibility: Requires the ha-nova CLI (run 'ha-nova setup' first) and the HA N
 
 ## Scope
 
-Read-only quality review for automations, scripts, and helpers:
+Read-only quality review for automations, scripts, helpers, storage scenes, and storage dashboards:
 - Config quality checks (safety, reliability, performance, style)
 - Collision scan (other automations targeting same entities)
 - Conflict analysis (real conflicts vs safe patterns)
@@ -41,6 +41,8 @@ Relay CLI: `ha-nova relay`
 ## Target Resolution
 
 If user provides an exact automation/script `entity_id` (e.g., `automation.main_lights`), skip search and go directly to config read.
+
+Storage scenes resolve like automations (registry `unique_id` → `GET /api/config/scene/config/<id>`; name-based requests search the `scene.` domain in the compact registry exactly like the automation keyword search). The Editability Guard from `ha-nova:scene` applies. A scene without registry `unique_id` is YAML-backed: run SC checks only when that scene's exact YAML is already in context; otherwise STOP and ask for the pasted scene YAML — never emit an empty or inferred review. Storage dashboards resolve by `url_path` (`lovelace/dashboards/list` → `lovelace/config`), and D-02/D-05 additionally read `lovelace/resources`. Apply the SC/D families from `skills/review/checks.md`; cross-item HX rules run in aggregate/bulk mode OR whenever their required registry/state context is already loaded. A dashboard D-01/D-06 pass normally loads that context, so apply HX-05 to visible card actions without expanding the workset. Flow adaptation for these targets: a SCENE replaces the Step-2 collision scan with a consumer scan (`search/related` on the scene entity — who activates it) and skips conflict analysis; a DASHBOARD skips Steps 2–4 entirely (no collision surface, no Quick-Fix) — its review is the D config-quality pass plus suggestion synthesis. Output for both: keep the Report shape but include ONLY the sections that ran (findings, consumers for scenes, suggestions, next step) — never render empty collision/conflict/Quick-Fix sections for checks that were intentionally skipped.
 
 For helpers, resolve the family first:
 - storage-based family: entity_id domain is one of `input_boolean`, `input_number`, `input_text`, `input_select`, `input_datetime`, `input_button`, `counter`, `timer`, `schedule`
