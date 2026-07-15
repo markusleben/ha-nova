@@ -102,7 +102,12 @@ describe("review contract", () => {
 
   it("documents contributor-facing taxonomy entry points", () => {
     expect(architectureDoc).toContain("## Review Check Taxonomy");
+    expect(architectureDoc).toContain("(S/R/P/M/F/H/SC/D/HX/TS)");
     expect(architectureDoc).toContain("`H` = Helper-specific");
+    expect(architectureDoc).toContain("`SC` = Scene-specific");
+    expect(architectureDoc).toContain("`D` = Dashboard-specific");
+    expect(architectureDoc).toContain("`HX` = Cross-item");
+    expect(architectureDoc).toContain("`TS` = YAML-sensor-specific");
     expect(architectureDoc).toContain("`R` = Reliability");
     expect(contributingDoc).toContain("Review Check Taxonomy");
     expect(contributingDoc).toContain("docs/reference/skill-architecture.md");

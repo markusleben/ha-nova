@@ -579,7 +579,7 @@ When creating a new skill under `skills/{name}/SKILL.md`:
 ## Review Check Single Source of Truth
 
 `skills/review/SKILL.md` is the stable review entrypoint for standalone reviews (workflow, output shape, collision/conflict analysis).
-`skills/review/checks.md` is the authoritative, self-contained source for the detailed review catalog (S/R/P/M/F/H) plus its `## Application` section (family matrix, evidence boundaries, live-helper evidence).
+`skills/review/checks.md` is the authoritative, self-contained source for the detailed review catalog (S/R/P/M/F/H/SC/D/HX/TS) plus its `## Application` section (family matrix, evidence boundaries, live-helper evidence).
 There is deliberately no review agent template: `write` and `helper` run their post-write review inline against `skills/review/checks.md` only — they no longer load the standalone review workflow.
 When adding or modifying checks, update `skills/review/checks.md` first and keep `skills/review/SKILL.md` aligned as the facade/workflow file.
 
@@ -592,6 +592,10 @@ Review checks use the format `{CATEGORY}-{NN}`:
 - `M` = Style
 - `F` = Script-specific
 - `H` = Helper-specific
+- `SC` = Scene-specific
+- `D` = Dashboard-specific
+- `HX` = Cross-item
+- `TS` = YAML-sensor-specific
 
 `NN` is the running rule number inside that family. Severity is separate from the code.
 
