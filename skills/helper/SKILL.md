@@ -398,7 +398,7 @@ Do NOT report results to user until complete.
 
 #### Config-entry family
 
-Do not pretend H-01..H-11 apply here; H-12/H-13/H-15 apply where the entry's fields are readable (see checks.md).
+Do not pretend H-01..H-11 apply here; H-12/H-13/H-15 apply where the entry's fields are readable, and H-14 when the energy prefs are already loaded in the thread (see checks.md).
 Instead, run the minimal config-entry post-write contract:
 
 1. **Verification**
