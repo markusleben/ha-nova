@@ -37,7 +37,7 @@ skills/
   organize/SKILL.md                     (ha-nova:organize — areas/floors/labels/categories/entity+device metadata)
   history/SKILL.md                      (ha-nova:history — bounded history/logbook/statistics reads)
   health/SKILL.md                       (ha-nova:health — read-only home status, repairs, system health)
-  calendar/SKILL.md                     (ha-nova:calendar — read-only calendar lists and bounded event windows)
+  calendar/SKILL.md                     (ha-nova:calendar — bounded calendar reads and single-event writes)
   todo/SKILL.md                         (ha-nova:todo — to-do list items + Local To-do lifecycle)
   backup/SKILL.md                       (ha-nova:backup — backup status/create/inspect/delete; restore stays in HA UI)
   updates/SKILL.md                      (ha-nova:updates — pending updates, release notes, feature-gated installs)
@@ -47,7 +47,7 @@ skills/
   maintenance/maintenance-reference.md  (reference doc — issue matrix, repair payloads, orphan gates)
   review/SKILL.md                       (ha-nova:review — config quality review + collision scan)
   entity-discovery/SKILL.md             (ha-nova:entity-discovery — entity lookup)
-  service-call/SKILL.md                 (ha-nova:service-call — service calls + runtime control)
+  service-call/SKILL.md                 (ha-nova:service-call — services, events/webhooks, alarm/lock runtime control)
   fallback/SKILL.md                     (ha-nova:fallback — mandatory fallback for relay-ready features)
   onboarding/SKILL.md                   (ha-nova:onboarding — onboarding + diagnostics)
   diagnose/SKILL.md                     (ha-nova:diagnose — failure root-cause: traces, logs, bounded windows)
@@ -106,7 +106,7 @@ Current mapping:
 | organize | inline | field-level registry mutations with direct preview/readback |
 | history | inline | read-only bounded timeline lookups |
 | health | inline | read-only status aggregation, best-effort diagnostics |
-| calendar | inline | REST-only bounded calendar event reads |
+| calendar | inline | bounded REST reads plus feature-gated service/WS event writes |
 | todo | inline | service-based item CRUD with feature gate, single-step list flow |
 | backup | inline | WS status/generate/delete with initiation-vs-completion polling |
 | updates | inline | entity-based overview, feature-gated install with entity-poll verification |
@@ -114,7 +114,7 @@ Current mapping:
 | maintenance | inline | grouped issue triage, token-gated destructive repairs with per-item verification |
 | review | inline | analysis is client-side, relay calls are reads only |
 | entity-discovery | inline | 1-2 calls, search + return |
-| service-call | inline | 2-3 calls, preview + execute |
+| service-call | inline | direct preview/confirm; any listener scan stays read-only and user-facing |
 | fallback | inline | research + web search + experimental relay calls (write-guarded) |
 | onboarding | inline | diagnostics only |
 | diagnose | inline | evidence gathering + reasoning, one gated debug escalation |
@@ -296,6 +296,28 @@ Rules:
 - credential-bearing, external/OAuth, or progress steps on pre-existing reauth flows hand off to the matching Home Assistant UI card; secrets never enter chat and the reauth flow stays preserved
 - config-entry existence/state is primary verification evidence; linked devices/entities are secondary
 - agent-created canceled add flows are deleted; Home Assistant-created reauth flows are preserved
+
+## Service Call Architecture
+
+`ha-nova:service-call` owns ordinary HA service calls plus four guarded runtime families:
+- custom event firing through `POST /api/events/{event_type}`
+- known JSON-webhook triggering through `POST /api/webhook/{webhook_id}`
+- alarm-panel runtime services with feature bits 1/2/4/8/16/32
+- lock runtime services, with `lock.open` gated by feature bit 1
+
+Event/webhook rules:
+- resolve an exact event type or an exact automation with a static webhook ID; never probe either endpoint
+- scan readable automation configs for every matching current/legacy trigger and classify literal event-data filters; compare with `GET /api/events` for unclassified event listeners
+- use WS `webhook/list` internally to check registration, POST support, and `local_only`; the ID never appears in user output or persistent storage
+- preview payload fields, known listeners, unknown-listener limits, and inherited action risk before bound confirmation
+- event success proves bus acceptance only; webhook HTTP 200 is deliberately opaque and does not prove registration, locality, or handler success
+- verify known automation runs against pre-call `last_triggered`/trace baselines; never auto-retry either runtime action
+
+Alarm/lock rules:
+- inspect the exact state and `supported_features` immediately before preview
+- codes/PINs never enter chat or Relay payloads; alarm arming hands off when both `code_arm_required` and `code_format` are set, while other code-bearing actions use `code_format`
+- unlocking/opening a lock and disarming an alarm use the typed high-consequence confirmation
+- security-state verification is transition-aware and never auto-retries
 
 ## Review Architecture
 

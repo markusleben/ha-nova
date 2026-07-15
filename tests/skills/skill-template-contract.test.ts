@@ -133,8 +133,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // ratcheted for the owning-skill deferral table + high-consequence
   // confirmation rule (Wave 0), and again for the differentiated verify
   // block (transitions, stateless targets, canonical area expansion,
-  // scene-timestamp verify) + capability gate (2026-h2 Wave 1a).
-  "service-call": 1800,
+  // scene-timestamp verify) + capability gate (2026-h2 Wave 1a); runtime
+  // event/webhook and alarm/lock contracts (2026-h2 Wave 4).
+  "service-call": 2600,
   // Carries the canonical File-Change Preview example — the only layout
   // source for file edits; concrete examples are what make a card renderable.
   // Sibling-survival verification (Wave 1b) + yaml snapshot capture with
@@ -150,9 +151,9 @@ const WORD_BUDGETS: Record<string, number> = {
   // purge quantification, glob expansion, apply_filter semantics
   // (2026-h2 Wave 1b).
   maintenance: 1400,
-  // events/webhooks Relay-Ready section and the blueprint payload examples
-  // (integration onboarding moved to its own skill in Wave 4).
-  fallback: 2450,
+  // blueprint payload examples; integration onboarding and runtime
+  // events/webhooks moved to owning skills in Wave 4.
+  fallback: 2300,
   // semantic-slot note on the read templates (Wave 0); pre-write cross-field
   // constraint checks + drift-check step (Wave 1); pre-delete snapshot
   // capture (Wave 2).

@@ -389,6 +389,35 @@ Call with response data:
 
 Supported target fields: `entity_id` (string or array), `area_id`, `device_id`.
 
+## Runtime Events And Webhooks
+
+Fire a custom event with an event-data JSON object:
+
+```json
+{"method":"POST","path":"/api/events/example_event","body":{"source":"ha_nova"}}
+```
+
+Inspect registered webhook metadata through WS without exposing the returned IDs:
+
+```json
+{"type":"webhook/list"}
+```
+
+Trigger a known JSON webhook only after the owning skill resolves the exact ID internally:
+
+```json
+{"method":"POST","path":"/api/webhook/<webhook_id>","body":{"example":"value"}}
+```
+
+Rules:
+
+- `/api/events/{event_type}` requires an exact custom event name and an object body; a successful response proves bus acceptance, not listener completion
+- automation webhook triggers default to POST/PUT and `local_only: true`; inspect the registered `allowed_methods` and locality before calling
+- multiple automation triggers can share one webhook ID and all will run
+- webhook IDs are authentication secrets; keep them in client-private scratch storage and out of previews, results, and logs
+- Home Assistant intentionally answers unknown IDs, blocked non-local requests, and handler failures with HTTP 200; verify matched automation runs instead
+- events and webhooks may already have fired when transport evidence is ambiguous; never retry automatically
+
 ## Calendar Event Writes
 
 `ha-nova:calendar` creates events through the service API and updates/deletes them through WS:

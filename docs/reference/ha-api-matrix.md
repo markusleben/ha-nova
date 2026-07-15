@@ -14,8 +14,8 @@ Which HA operations require REST, WS, or filesystem?
 | `/api/config` | GET | HA Core configuration |
 | `/api/config/core/check_config` | POST | Validate YAML configuration |
 | `/api/template` | POST | Render Jinja2 template (body: `{"template": "..."}`) |
-| `/api/events/{event_type}` | POST | Fire custom event |
-| `/api/webhook/{webhook_id}` | POST | Invoke webhook |
+| `/api/events/{event_type}` | POST | Fire a custom event (admin; JSON object; asynchronous listener execution) |
+| `/api/webhook/{webhook_id}` | POST | Invoke a known JSON webhook (opaque HTTP 200; effect verification required) |
 | `/api/history/period/{start_iso}` | GET | State history (with `?filter_entity_id=...&end_time=...`) |
 | `/api/logbook/{timestamp}` | GET | Logbook entries |
 | `/api/error_log` | GET | Error log of the current session — **404 on HA OS/Supervised since 2025.11** (log file moved to journald; official docs are stale). Re-enable: `ha core options --duplicate-log-file=true` + `ha core rebuild` + `ha core restart` (2026.1+). Prefer WS `system_log/list` |
@@ -34,7 +34,14 @@ Which HA operations require REST, WS, or filesystem?
 | `/api/config/config_entries/flow` | POST | Start an integration/helper config flow |
 | `/api/config/config_entries/flow/{flow_id}` | GET / POST / DELETE | Read, submit, or cancel one config flow |
 
-**Auth header:** `Authorization: Bearer {LONG_LIVED_TOKEN}`
+**Auth header:** `Authorization: Bearer {LONG_LIVED_TOKEN}`. The webhook endpoint itself is unauthenticated and treats its ID as the bearer secret; calls through HA NOVA still require Relay authentication.
+
+### Runtime event and security notes
+
+- Custom events use an exact user-defined event type. `GET /api/events` supplies total listener counts; automation-config scans identify only readable automation listeners.
+- Automation webhooks default to POST/PUT and `local_only: true`. IDs are secrets, multiple triggers may share one ID, and HTTP 200 does not prove registration, locality, or handler success.
+- Alarm-panel feature bits are home `1`, away `2`, night `4`, trigger `8`, custom bypass `16`, vacation `32`; disarm has no feature bit.
+- `lock.open` requires feature bit `1`; `lock.lock` and `lock.unlock` have no feature bit. Code-bearing alarm/lock actions stay in the Home Assistant UI.
 
 ## WebSocket API (requires Relay as proxy)
 
@@ -145,6 +152,7 @@ Recurring instances add `recurrence_id`; `recurrence_range` is `""` for only tha
 | WS Type | Purpose |
 |---------|-----|
 | `config/automation/list` | Automations with metadata |
+| `webhook/list` | Registered webhook IDs plus domain/name, locality, and allowed methods (secret-bearing; internal use only) |
 | `repairs/list_issues` | Repairs/Deprecation Issues |
 | `config_entries/get` | Config-entry metadata; health uses not-loaded entries as integration status |
 | `system_health/info` | System health finite event response (Skill opts into Relay `collect_events` until `finish`) |
