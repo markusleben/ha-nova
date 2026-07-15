@@ -84,6 +84,20 @@ describe("review contract", () => {
       "D-06 [LOW]: Card references a registry-disabled entity (`disabled_by` is non-null)",
     );
     expect(reviewChecks).toContain("never flag `hidden_by` alone");
+    expect(reviewSkill).toContain(
+      "A scene without registry `unique_id` is YAML-backed",
+    );
+    expect(reviewSkill).toContain(
+      "run SC checks only when that scene's exact YAML is already in context",
+    );
+    expect(reviewSkill).toContain("never emit an empty or inferred review");
+    expect(reviewChecks).toContain(
+      "All dashboard D/HX scans traverse the full dashboard object recursively",
+    );
+    expect(reviewChecks).toContain(
+      "`cards[]`, singular `card`, `elements[]`, `badges[]`, `sections[]`, and header-card structures",
+    );
+    expect(reviewChecks).toContain("A top-level-only scan is invalid");
   });
 
   it("documents live helper evidence for threshold checks in the catalog", () => {

@@ -338,6 +338,7 @@ without a registry record (same boundary as SC-01/D-01/HX).
 ## D Evidence Boundaries
 
 - D-01 requires absence from BOTH the registry AND `/api/states` (YAML/manual entities have states but no registry entry); D-06 requires non-null `disabled_by` on an entity that DOES have a registry entry — never flag `hidden_by` alone.
+- All dashboard D/HX scans traverse the full dashboard object recursively. Follow nested `cards[]`, singular `card`, `elements[]`, `badges[]`, `sections[]`, and header-card structures; inspect every nested card `type`, entity reference, and `tap_action`/`hold_action`/`double_tap_action` service target before applying D-01, D-02, D-05, or HX-05. A top-level-only scan is invalid.
 - D-02/D-05 join `lovelace/config` across ALL storage dashboards with `lovelace/resources` — scan card `type`, view `type`, and dashboard/view `strategy.type`; partial joins produce false orphans, so skip D-05 when not all dashboards were read.
 - D-07 checks exactly the minimal schema spelled out in the rule — no field beyond the one listed is ever required, and `custom:` cards are never judged.
 
