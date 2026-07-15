@@ -47,10 +47,10 @@ Rules:
 - Allow at most five failed attempts per socket peer per 60-second fixed window and 30 failed attempts globally per five-minute fixed window. Track at most 256 peers and evict the oldest inactive entry at the cap. Return `429` with `Retry-After` capped to the remaining window when blocked.
 - Do not trust forwarded client-address headers. The socket peer is the rate-limit identity.
 - Set `Cache-Control: no-store` on every `/pair` response. Never log request bodies, codes submitted by clients, or the returned relay token.
-- Keep state in memory. Restarting the Relay rotates the code and clears rate-limit buckets. A timer rotates and logs the next code at expiry, so the App log never strands a user with only an expired code.
+- Keep state in memory. Restarting the Relay rotates the code, clears rate-limit buckets, and emits the one startup-code fallback allowed below. Expiry rotation is silent; Home Base is the source for the current code after startup.
 - The endpoint performs no Home Assistant call and contains no entity, service, config, or domain logic.
 
-The current code and its expiry may appear only in the App startup log and authenticated Home Base. The relay token may appear in neither.
+The current code and its expiry appear in authenticated Home Base. The App log may announce the initial startup code once; submitted codes and later rotations never appear there. The relay token may appear in neither.
 
 ## Relay token ownership
 
@@ -108,7 +108,7 @@ Each PR completes the repository merge checklist independently. No README featur
 
 - New App flow succeeds without the user seeing or configuring the relay token.
 - Legacy App option, saved CLI token, `--relay-token`, service-token-file, and Container/Core paths retain regression coverage.
-- Wrong, expired, replayed, malformed, and rate-limited pairing attempts are covered; codes and tokens are absent from logs and cacheable responses.
+- Wrong, expired, replayed, malformed, and rate-limited pairing attempts are covered; submitted codes, post-start rotations, and relay tokens are absent from logs and cacheable responses. Only the explicit initial startup-code announcement is allowed.
 - Direct `/home` access is rejected while a correctly identified Supervisor ingress request renders a truthful status page.
 - Multi-instance discovery does not silently choose one of several reachable homes.
 - Token-revoked and LLAT-revoked failures route to different, correct recovery surfaces.
