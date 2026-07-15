@@ -64,6 +64,18 @@ describe("review contract", () => {
     );
   });
 
+  it("guards orphan hints against dashboard-only consumers", () => {
+    expect(reviewChecks).toContain(
+      "Scan card actions across ALL storage dashboards before emitting the hint",
+    );
+    expect(reviewChecks).toContain(
+      "custom dashboard/view strategy, or custom view type",
+    );
+    expect(reviewChecks).toContain(
+      "card `type`, view `type`, and dashboard/view `strategy.type`",
+    );
+  });
+
   it("documents live helper evidence for threshold checks in the catalog", () => {
     expect(reviewChecks).toContain("Helper Threshold Evidence");
     expect(reviewChecks).toContain('/api/states/<helper_entity_id>');

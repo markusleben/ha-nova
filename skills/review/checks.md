@@ -317,13 +317,13 @@ without a registry record (same boundary as SC-01/D-01/HX).
 - SC-04 [LOW]: Read-only domain captured (`sensor`, `binary_sensor`, ...) — a scene cannot reproduce it
 - SC-05 [LOW]: Measurement/diagnostic attribute captured (battery, rssi, ...) instead of writable target attributes
 - SC-06 [MEDIUM]: Captured color attribute outside the entity's `supported_color_modes` — the device cannot reproduce it
-- SC-07 [LOW]: Orphaned scene — no automation/script references it (`search/related`) and its state timestamp shows no recent activation; cleanup hint, never a defect
+- SC-07 [LOW]: Orphaned scene — no automation/script references it (`search/related`), no storage-dashboard card action calls it, and its state timestamp shows no recent activation; cleanup hint, never a defect
 
 ## SC Evidence Boundaries
 
 - SC-01 requires absence from BOTH the entity registry AND `/api/states` — YAML-defined entities live in states without a registry entry, and an `unavailable` entity is offline, not deleted.
 - SC-02/SC-06 need the live entity's `supported_color_modes`; never flag from the scene config alone.
-- SC-07: scene state `unknown` means "never activated", which strengthens the orphan hint but proves nothing broken.
+- SC-07: `search/related` does not index dashboards. Scan card actions across ALL storage dashboards before emitting the hint; if the scan is incomplete or YAML-mode dashboards are present, say dashboard usage cannot be ruled out and skip the cleanup hint. Scene state `unknown` means "never activated", which strengthens the evidence but proves nothing broken.
 
 ## Dashboard-Specific (apply when reviewing storage dashboards)
 
@@ -331,14 +331,14 @@ without a registry record (same boundary as SC-01/D-01/HX).
 - D-02 [HIGH]: `custom:` card with no matching entry in `lovelace/resources` — the card cannot render at all
 - D-03 [MEDIUM]: Duplicate view `path` within one dashboard — routing collision
 - D-04 [LOW]: Empty view, or a view whose only card is broken
-- D-05 [MEDIUM]: Orphaned Lovelace resource — no `custom:` card across the storage dashboards references it (cleanup hint; say that YAML-mode dashboards are invisible to this scan and cannot be ruled out)
+- D-05 [MEDIUM]: Orphaned Lovelace resource — no `custom:` card, custom dashboard/view strategy, or custom view type across the storage dashboards references it (cleanup hint; say that YAML-mode dashboards are invisible to this scan and cannot be ruled out)
 - D-06 [LOW]: Card references a registry-disabled or hidden entity — renders but stays unavailable
 - D-07 [MEDIUM]: Built-in card missing its required field — authoritative minimal schema: `entity`/`tile`/`gauge`/`sensor` require `entity`; `entities`/`history-graph` require a non-empty `entities` list; `markdown` requires `content`; `button` has no required field. Judge ONLY these allowlisted types; never infer custom-card schemas
 
 ## D Evidence Boundaries
 
 - D-01 requires absence from BOTH the registry AND `/api/states` (YAML/manual entities have states but no registry entry); D-06 reads the registry flags and applies only to entities that DO have a registry entry.
-- D-02/D-05 join `lovelace/config` across ALL storage dashboards with `lovelace/resources` — partial joins produce false orphans; skip D-05 when not all dashboards were read.
+- D-02/D-05 join `lovelace/config` across ALL storage dashboards with `lovelace/resources` — scan card `type`, view `type`, and dashboard/view `strategy.type`; partial joins produce false orphans, so skip D-05 when not all dashboards were read.
 - D-07 checks exactly the minimal schema spelled out in the rule — no field beyond the one listed is ever required, and `custom:` cards are never judged.
 
 ## Cross-Item (aggregate/bulk reviews with registry context)
