@@ -311,7 +311,7 @@ without a registry record (same boundary as SC-01/D-01/HX).
 
 ## Scene-Specific (apply when reviewing storage scenes)
 
-- SC-01 [HIGH]: Dead entity reference — a key under `entities:` no longer resolves in the entity registry; the scene applies partially and silently
+- SC-01 [HIGH]: Dead entity reference — a key under `entities:` resolves in NEITHER the entity registry NOR `/api/states`; the scene applies partially and silently
 - SC-02 [MEDIUM]: Mixed color attributes on one light — more than one of `color_temp_kelvin`/`hs_color`/`rgb_color`/`xy_color` captured; reproduction depends on the active color mode and is unreliable
 - SC-03 [MEDIUM]: Light group captured instead of member lights — group reproduce-state is a known trouble spot; suggest capturing the members
 - SC-04 [LOW]: Read-only domain captured (`sensor`, `binary_sensor`, ...) — a scene cannot reproduce it
@@ -327,7 +327,7 @@ without a registry record (same boundary as SC-01/D-01/HX).
 
 ## Dashboard-Specific (apply when reviewing storage dashboards)
 
-- D-01 [HIGH]: Broken card entity reference — an `entity`/`entities[]` id absent from the registry; the card renders permanently unavailable
+- D-01 [HIGH]: Broken card entity reference — an `entity`/`entities[]` id absent from BOTH the registry AND `/api/states`; the card renders permanently unavailable
 - D-02 [HIGH]: `custom:` card with no matching entry in `lovelace/resources` — the card cannot render at all
 - D-03 [MEDIUM]: Duplicate view `path` within one dashboard — routing collision
 - D-04 [LOW]: Empty view, or a view whose only card is broken
