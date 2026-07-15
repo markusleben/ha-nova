@@ -8,6 +8,7 @@ $ErrorActionPreference = "Stop"
 $RepoOwner = "markusleben"
 $RepoName = "ha-nova"
 $LatestReleaseUrl = "https://api.github.com/repos/markusleben/ha-nova/releases/latest"
+$GitHubPreflightUrl = "https://github.com"
 $ReleaseBaseUrl = "https://github.com/$RepoOwner/$RepoName/releases/download"
 $LocalAppDataDir = if ($env:LOCALAPPDATA) { $env:LOCALAPPDATA } else { Join-Path $HOME "AppData\Local" }
 $AppDataDir = if ($env:APPDATA) { $env:APPDATA } else { Join-Path $HOME "AppData\Roaming" }
@@ -194,6 +195,89 @@ function Invoke-GitHubJson {
   Fail "Could not read the latest HA NOVA release from GitHub: $Uri`nAttempts:`n- $($errors -join "`n- ")`nSet HA_NOVA_VERSION to an exact version or check that this Windows session can reach api.github.com."
 }
 
+function Get-InstallerWindowsVersion {
+  return [Environment]::OSVersion.Version
+}
+
+function Get-InstallerPowerShellVersion {
+  return $PSVersionTable.PSVersion
+}
+
+function Assert-InstallRootWritable {
+  $installParent = Split-Path -Parent $InstallDir
+  $probePath = Join-Path $installParent (".ha-nova-write-test-" + [guid]::NewGuid().ToString("N"))
+  try {
+    New-Item -ItemType Directory -Force -Path $installParent | Out-Null
+    [System.IO.File]::WriteAllText($probePath, "preflight")
+  }
+  catch {
+    Fail "Cannot write to the per-user HA NOVA install location '$installParent'. Fix LOCALAPPDATA permissions for this user, then rerun the installer."
+  }
+  finally {
+    Remove-PathQuiet -Path $probePath
+  }
+}
+
+function Assert-GitHubTlsAccess {
+  $handler = $null
+  $client = $null
+  $response = $null
+  try {
+    Add-Type -AssemblyName System.Net.Http
+    $handler = [System.Net.Http.HttpClientHandler]::new()
+    $handler.AllowAutoRedirect = $true
+    $handler.UseProxy = $true
+    $defaultProxy = [System.Net.WebRequest]::DefaultWebProxy
+    if ($defaultProxy) {
+      $defaultProxy.Credentials = [System.Net.CredentialCache]::DefaultCredentials
+      $handler.Proxy = $defaultProxy
+    }
+    try {
+      $handler.DefaultProxyCredentials = [System.Net.CredentialCache]::DefaultCredentials
+    }
+    catch {
+    }
+    $client = [System.Net.Http.HttpClient]::new($handler)
+    $client.Timeout = [TimeSpan]::FromSeconds(15)
+    $client.DefaultRequestHeaders.UserAgent.ParseAdd("ha-nova-installer")
+    $response = $client.GetAsync(
+      $GitHubPreflightUrl,
+      [System.Net.Http.HttpCompletionOption]::ResponseHeadersRead
+    ).GetAwaiter().GetResult()
+  }
+  catch {
+    Fail "Could not establish a TLS connection to GitHub. Check the Windows date/time, proxy or firewall, and pending Windows updates, then rerun the installer."
+  }
+  finally {
+    if ($null -ne $response) {
+      $response.Dispose()
+    }
+    if ($null -ne $client) {
+      $client.Dispose()
+    }
+    if ($null -ne $handler) {
+      $handler.Dispose()
+    }
+  }
+}
+
+function Invoke-WindowsInstallerPreflight {
+  $windowsVersion = Get-InstallerWindowsVersion
+  if ($windowsVersion.Major -lt 10) {
+    Fail "Windows 10 or Windows Server 2016 or later is required. Update Windows before installing HA NOVA."
+  }
+
+  $powerShellVersion = Get-InstallerPowerShellVersion
+  if ($powerShellVersion -lt [version]"5.1") {
+    Fail "PowerShell 5.1 or later is required. Install Windows PowerShell 5.1 or PowerShell 7, then rerun the installer."
+  }
+
+  $null = Get-PlatformArch
+  Assert-InstallRootWritable
+  Assert-GitHubTlsAccess
+  Write-Info "Windows prerequisites passed"
+}
+
 function Test-InteractiveSession {
   try {
     return -not [Console]::IsInputRedirected
@@ -213,7 +297,11 @@ function Get-PlatformArch {
     Fail "HA NOVA currently ships a Windows amd64 bundle only. On Windows ARM64, use x64 emulation."
   }
 
-  Fail "Unsupported Windows architecture '$arch'. HA NOVA currently ships a Windows amd64 bundle only."
+  if ($arch -eq "x86") {
+    Fail "HA NOVA requires a 64-bit PowerShell process. Open 64-bit PowerShell or Windows Terminal, then rerun the installer."
+  }
+
+  Fail "Unsupported Windows architecture '$arch'. Use 64-bit PowerShell on Windows amd64, or x64 emulation on Windows ARM64."
 }
 
 function Get-ExpectedInstallVersion {
@@ -857,6 +945,7 @@ function Start-Setup {
   if ($env:HA_NOVA_NO_SETUP -eq "1") {
     Write-Info "Installed HA NOVA without setup."
     Write-Note "Next step: ha-nova setup"
+    Write-Note "Setup will ask for the six-digit pairing code shown in NOVA Home Base."
     Write-Note "Need help later? Run: ha-nova doctor"
     return
   }
@@ -864,6 +953,7 @@ function Start-Setup {
   if (-not (Test-InteractiveSession)) {
     Write-Warn "No interactive terminal detected; setup was not started automatically."
     Write-Note "Next step: ha-nova setup"
+    Write-Note "Setup will ask for the six-digit pairing code shown in NOVA Home Base."
     Write-Note "Need help later? Run: ha-nova doctor"
     return
   }
@@ -879,8 +969,6 @@ $UsePlainUi = Test-PlainUi
 Write-Banner
 Initialize-WebSecurity
 
-$expectedVersion = Get-ExpectedInstallVersion
-$version = Get-DownloadInstallVersion
 if (-not (Test-CurrentInstall) -and (Test-LegacyInstall)) {
   Stop-ForLegacyInstall
 }
@@ -888,6 +976,9 @@ $uninstallRecovery = Get-UninstallRecoveryState
 if ($null -ne $uninstallRecovery) {
   Stop-ForUninstallRecovery -Recovery $uninstallRecovery
 }
+Invoke-WindowsInstallerPreflight
+$expectedVersion = Get-ExpectedInstallVersion
+$version = Get-DownloadInstallVersion
 $bundleResult = Install-Bundle -Version $version
 Ensure-InstallDirOnPath | Out-Null
 if ($expectedVersion -and $bundleResult.Version -ne $expectedVersion) {

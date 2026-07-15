@@ -253,7 +253,7 @@ func TestDetectDefaultHAHostIncludesARPFallbackCandidates(t *testing.T) {
 	}
 }
 
-func TestDetectDefaultHAHostChoiceStopsAfterOverallTimeout(t *testing.T) {
+func TestDetectDefaultHAHostChoiceSharesOverallTimeoutAcrossCandidates(t *testing.T) {
 	originalResolve := resolveHAURLBaseWithinTimeoutForDiscovery
 	originalMDNS := discoverHAViaMDNSForDiscovery
 	originalARP := collectARPHostsForDiscovery
@@ -280,8 +280,8 @@ func TestDetectDefaultHAHostChoiceStopsAfterOverallTimeout(t *testing.T) {
 	if host != "" || discovered {
 		t.Fatalf("detectDefaultHAHostChoice() = (%q, %v), want blank false result", host, discovered)
 	}
-	if calls != 1 {
-		t.Fatalf("calls = %d, want 1", calls)
+	if calls < 2 {
+		t.Fatalf("calls = %d, want fair probing beyond the first candidate", calls)
 	}
 }
 

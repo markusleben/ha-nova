@@ -91,7 +91,7 @@ describe("codex live skill e2e contract", () => {
     expect(pkg.scripts?.test).toBe("npm run test:safe");
     expect(pkg.scripts?.["test:safe:core"]).toBe("node scripts/test/run-safe-core.mjs");
     expect(pkg.scripts?.["verify:installers"]).toBe(
-      "npx vitest run tests/onboarding/installer-contract.test.ts tests/onboarding/windows-installer-contract.test.ts",
+      "npx vitest run tests/onboarding/installer-contract.test.ts tests/onboarding/windows-installer-contract.test.ts tests/onboarding/windows-installer-preflight.test.ts",
     );
     expect(pkg.scripts?.["e2e:skill:codex"]).toBeDefined();
   });

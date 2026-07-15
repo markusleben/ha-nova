@@ -934,12 +934,6 @@ func TestInteractiveSetupResumeCanChangeHostFromRepairMenuWithoutTokenRePrompt(t
 	// be handed the freed port, silently resurrecting the "dead" address.
 	deadHAURL := newDeadServerURL()
 
-	originalDetect := detectDefaultHAHostChoiceForSetup
-	t.Cleanup(func() { detectDefaultHAHostChoiceForSetup = originalDetect })
-	detectDefaultHAHostChoiceForSetup = func(cfg runtimeConfig) (string, string, bool) {
-		return "", "", false
-	}
-
 	paths, err := detectPaths()
 	if err != nil {
 		t.Fatalf("detectPaths() error: %v", err)
@@ -1024,12 +1018,6 @@ func TestInteractiveSetupHostChangePersistsNewHostEvenWhenUserExitsBeforeVerifyS
 	defer failingRelayServer.Close()
 
 	deadHAURL := newDeadServerURL()
-
-	originalDetect := detectDefaultHAHostChoiceForSetup
-	t.Cleanup(func() { detectDefaultHAHostChoiceForSetup = originalDetect })
-	detectDefaultHAHostChoiceForSetup = func(cfg runtimeConfig) (string, string, bool) {
-		return "", "", false
-	}
 
 	paths, err := detectPaths()
 	if err != nil {
@@ -1127,10 +1115,10 @@ func TestInteractiveSetupExitAtTokenChoiceCancelsCleanly(t *testing.T) {
 }
 
 func TestInteractiveSetupInitialClientPageAllowsRepeatedBack(t *testing.T) {
-	originalDetect := detectDefaultHAHostChoiceForSetup
-	t.Cleanup(func() { detectDefaultHAHostChoiceForSetup = originalDetect })
-	detectDefaultHAHostChoiceForSetup = func(cfg runtimeConfig) (string, string, bool) {
-		return "", "", false
+	originalDiscover := discoverReachableHAHostsForSetup
+	t.Cleanup(func() { discoverReachableHAHostsForSetup = originalDiscover })
+	discoverReachableHAHostsForSetup = func(runtimeConfig) ([]setupDiscoveryCandidate, string) {
+		return nil, ""
 	}
 
 	home := t.TempDir()
@@ -2209,6 +2197,11 @@ func TestInteractiveSetupCompletedResumePersistsHostOnlyOverride(t *testing.T) {
 func captureInteractiveSetupIO(t *testing.T, input string, fn func() int) (string, string) {
 	t.Helper()
 	withAllClientRuntimesAvailable(t)
+	originalDiscovery := discoverReachableHAHostsForSetup
+	discoverReachableHAHostsForSetup = func(cfg runtimeConfig) ([]setupDiscoveryCandidate, string) {
+		return nil, preferredUnverifiedHAHost(cfg)
+	}
+	defer func() { discoverReachableHAHostsForSetup = originalDiscovery }()
 
 	home, err := os.UserHomeDir()
 	if err == nil {

@@ -28,11 +28,12 @@ async function listen(server: Server): Promise<number> {
   return address.port;
 }
 
-async function runInstallerFunctions(script: string): Promise<void> {
-  await execFileAsync("bash", [
+async function runInstallerFunctions(script: string): Promise<string> {
+  const result = await execFileAsync("bash", [
     "-c",
     `set -euo pipefail; export HA_NOVA_INSTALLER_TEST_EXPORT=1 HA_NOVA_PLAIN_UI=1; source install.sh; ${script}`,
   ]);
+  return `${result.stdout}${result.stderr}`;
 }
 
 describe("install.sh contract", () => {
@@ -134,7 +135,24 @@ describe("install.sh contract", () => {
     expect(content).toContain("HA_NOVA_NO_SETUP");
     expect(content).toContain('run_setup "${BIN_LINK}"');
     expect(content).toContain("Next step: ha-nova setup");
+    expect(content).toContain(
+      "Setup will ask for the six-digit pairing code shown in NOVA Home Base.",
+    );
     expect(content).toContain("Need help later? Run: ha-nova doctor");
+  });
+
+  it("prints the exact pairing-aware continuation without reading hidden input", async () => {
+    if (!hasBash()) return;
+    const output = await runInstallerFunctions(
+      'has_interactive_tty() { return 1; }; run_setup "/bin/false"',
+    );
+    expect(output).toContain(
+      "No interactive terminal detected; setup was not started automatically.",
+    );
+    expect(output).toContain("Next step: ha-nova setup");
+    expect(output).toContain(
+      "Setup will ask for the six-digit pairing code shown in NOVA Home Base.",
+    );
   });
 
   it("uses resilient curl downloads with checksum-first verification", () => {

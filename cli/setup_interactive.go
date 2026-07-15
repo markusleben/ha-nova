@@ -13,7 +13,6 @@ import (
 var resolveHAURLBaseForSetup = resolveHomeAssistantURLBase
 var probeHTTPForSetup = probeHTTP
 var fetchRelayHealthForSetup = fetchRelayHealth
-var detectDefaultHAHostForSetup = detectDefaultHAHost
 var probeRelayWSPingForSetup = probeRelayWSPing
 var readRelayAuthTokenForSetup = readRelayAuthToken
 
@@ -417,16 +416,27 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 			continue
 
 		case setupStageHost:
-			defaultHost := ""
+			var host string
+			var haURL string
+			var err error
 			if hostChangeRetry {
 				// The user just rejected the saved address — don't spend the
 				// discovery window re-confirming it or offer it back as the
 				// press-Enter default.
 				renderSetupParagraph(os.Stdout, fmt.Sprintf("The saved address %s could not be used. Enter a new one.", cfg.HAURL))
+				host, haURL, err = promptValidHAHostFromReader(reader, os.Stdout, "")
 			} else {
-				defaultHost, _ = detectDefaultHAHostWithFeedback(os.Stdout, cfg)
+				candidate, selected, discoveryErr := selectDefaultHAHostWithFeedback(reader, os.Stdout, cfg)
+				switch {
+				case discoveryErr != nil:
+					err = discoveryErr
+				case selected:
+					host = candidate.Host
+					haURL = candidate.HAURL
+				default:
+					host, haURL, err = promptValidHAHostFromReader(reader, os.Stdout, candidate.Host)
+				}
 			}
-			host, haURL, err := promptValidHAHostFromReader(reader, os.Stdout, defaultHost)
 			if err == errSetupBack {
 				if hostChangeRetry {
 					hostChangeRetry = false

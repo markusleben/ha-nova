@@ -1,98 +1,117 @@
 package main
 
 import (
+	"bufio"
 	"io"
 	"strings"
 	"testing"
 	"time"
 )
 
-func TestDetectDefaultHAHostWithFeedbackReportsResultWithoutTTYSpinner(t *testing.T) {
-	originalDetect := detectDefaultHAHostChoiceForSetup
-	defer func() {
-		detectDefaultHAHostChoiceForSetup = originalDetect
-	}()
-
-	detectDefaultHAHostChoiceForSetup = func(cfg runtimeConfig) (string, string, bool) {
-		return "ha-box.local", "", true
+func TestSelectDefaultHAHostWithFeedbackAutoSelectsSingleResultWithoutTTYSpinner(t *testing.T) {
+	originalDiscover := discoverReachableHAHostsForSetup
+	t.Cleanup(func() { discoverReachableHAHostsForSetup = originalDiscover })
+	discoverReachableHAHostsForSetup = func(runtimeConfig) ([]setupDiscoveryCandidate, string) {
+		return []setupDiscoveryCandidate{{
+			Host:   "ha-box.local",
+			HAURL:  "http://ha-box.local:8123",
+			Source: "mDNS",
+		}}, ""
 	}
 
 	output := &strings.Builder{}
-	host, discovered := detectDefaultHAHostWithFeedback(output, runtimeConfig{})
-
-	if host != "ha-box.local" {
-		t.Fatalf("host = %q, want %q", host, "ha-box.local")
+	candidate, selected, err := selectDefaultHAHostWithFeedback(bufio.NewReader(strings.NewReader("")), output, runtimeConfig{})
+	if err != nil {
+		t.Fatalf("selectDefaultHAHostWithFeedback() error = %v", err)
 	}
-	if !discovered {
-		t.Fatal("expected discovered=true")
+	if !selected || candidate.Host != "ha-box.local" || candidate.HAURL != "http://ha-box.local:8123" {
+		t.Fatalf("selection = (%+v, %v), want single discovered host", candidate, selected)
 	}
-	rendered := output.String()
 	for _, want := range []string{
 		"Discovering Home Assistant on your network...",
 		"Found Home Assistant via the network name ha-box.local",
 		"this name can stop working",
 	} {
-		if !strings.Contains(rendered, want) {
-			t.Fatalf("discovery output missing %q:\n%s", want, rendered)
+		if !strings.Contains(output.String(), want) {
+			t.Fatalf("discovery output missing %q:\n%s", want, output.String())
 		}
 	}
 }
 
-func TestDetectDefaultHAHostWithFeedbackAsksForManualAddressWhenNothingWasConfirmed(t *testing.T) {
-	originalDetect := detectDefaultHAHostChoiceForSetup
-	defer func() {
-		detectDefaultHAHostChoiceForSetup = originalDetect
-	}()
-
-	detectDefaultHAHostChoiceForSetup = func(cfg runtimeConfig) (string, string, bool) {
-		return "", "", false
+func TestSelectDefaultHAHostWithFeedbackKeepsManualPathWhenNothingWasConfirmed(t *testing.T) {
+	originalDiscover := discoverReachableHAHostsForSetup
+	t.Cleanup(func() { discoverReachableHAHostsForSetup = originalDiscover })
+	discoverReachableHAHostsForSetup = func(runtimeConfig) ([]setupDiscoveryCandidate, string) {
+		return nil, "saved-ha.local"
 	}
 
 	output := &strings.Builder{}
-	host, discovered := detectDefaultHAHostWithFeedback(output, runtimeConfig{})
-
-	if host != "" {
-		t.Fatalf("host = %q, want blank", host)
+	candidate, selected, err := selectDefaultHAHostWithFeedback(bufio.NewReader(strings.NewReader("")), output, runtimeConfig{})
+	if err != nil {
+		t.Fatalf("selectDefaultHAHostWithFeedback() error = %v", err)
 	}
-	if discovered {
-		t.Fatal("expected discovered=false")
+	if selected || candidate.Host != "saved-ha.local" {
+		t.Fatalf("selection = (%+v, %v), want saved manual default", candidate, selected)
 	}
-	if !strings.Contains(output.String(), "enter the Home Assistant address manually") {
+	if !strings.Contains(output.String(), "using your saved address as a starting point: saved-ha.local") {
 		t.Fatalf("missing manual entry guidance:\n%s", output.String())
 	}
 }
 
-func TestDetectDefaultHAHostWithFeedbackDoesNotDelayFastTTYDiscovery(t *testing.T) {
-	originalDetect := detectDefaultHAHostChoiceForSetup
+func TestSelectDefaultHAHostWithFeedbackListsEveryReachableInstanceAndSource(t *testing.T) {
+	originalDiscover := discoverReachableHAHostsForSetup
+	t.Cleanup(func() { discoverReachableHAHostsForSetup = originalDiscover })
+	discoverReachableHAHostsForSetup = func(runtimeConfig) ([]setupDiscoveryCandidate, string) {
+		return []setupDiscoveryCandidate{
+			{Host: "192.168.1.20", HAURL: "http://192.168.1.20:8123", Via: "homeassistant.local", Source: "mDNS"},
+			{Host: "192.168.1.30", HAURL: "https://192.168.1.30", Source: "local network cache"},
+		}, ""
+	}
+
+	output := &strings.Builder{}
+	candidate, selected, err := selectDefaultHAHostWithFeedback(bufio.NewReader(strings.NewReader("2\n")), output, runtimeConfig{})
+	if err != nil {
+		t.Fatalf("selectDefaultHAHostWithFeedback() error = %v", err)
+	}
+	if !selected || candidate.Host != "192.168.1.30" || candidate.HAURL != "https://192.168.1.30" {
+		t.Fatalf("selection = (%+v, %v), want second discovered host", candidate, selected)
+	}
+	for _, want := range []string{
+		"Found 2 reachable Home Assistant instances",
+		"192.168.1.20 (mDNS via homeassistant.local)",
+		"192.168.1.30 (local network cache)",
+		"Enter a different address",
+	} {
+		if !strings.Contains(output.String(), want) {
+			t.Fatalf("pick list missing %q:\n%s", want, output.String())
+		}
+	}
+}
+
+func TestSelectDefaultHAHostWithFeedbackDoesNotDelayFastTTYDiscovery(t *testing.T) {
+	originalDiscover := discoverReachableHAHostsForSetup
 	originalTTY := writerSupportsTTYForSetup
 	originalInput := uiInputSupportsTTY
 	originalMin := setupDiscoveryMinimumVisibleDuration
-	defer func() {
-		detectDefaultHAHostChoiceForSetup = originalDetect
+	t.Cleanup(func() {
+		discoverReachableHAHostsForSetup = originalDiscover
 		writerSupportsTTYForSetup = originalTTY
 		uiInputSupportsTTY = originalInput
 		setupDiscoveryMinimumVisibleDuration = originalMin
-	}()
-
-	detectDefaultHAHostChoiceForSetup = func(cfg runtimeConfig) (string, string, bool) {
-		return "192.168.1.123", "homeassistant.local", true
+	})
+	discoverReachableHAHostsForSetup = func(runtimeConfig) ([]setupDiscoveryCandidate, string) {
+		return []setupDiscoveryCandidate{{Host: "192.168.1.123", HAURL: "http://192.168.1.123:8123", Via: "homeassistant.local", Source: "mDNS"}}, ""
 	}
-	writerSupportsTTYForSetup = func(out io.Writer) bool {
-		return true
-	}
+	writerSupportsTTYForSetup = func(io.Writer) bool { return true }
 	uiInputSupportsTTY = func() bool { return true }
 	setupDiscoveryMinimumVisibleDuration = 40 * time.Millisecond
 
 	output := &strings.Builder{}
 	start := time.Now()
-	host, discovered := detectDefaultHAHostWithFeedback(output, runtimeConfig{})
+	candidate, selected, err := selectDefaultHAHostWithFeedback(bufio.NewReader(strings.NewReader("")), output, runtimeConfig{})
 	elapsed := time.Since(start)
-
-	if host != "192.168.1.123" {
-		t.Fatalf("host = %q, want %q", host, "192.168.1.123")
-	}
-	if !discovered {
-		t.Fatal("expected discovered=true")
+	if err != nil || !selected || candidate.Host != "192.168.1.123" {
+		t.Fatalf("selection = (%+v, %v), err = %v", candidate, selected, err)
 	}
 	if elapsed >= 40*time.Millisecond {
 		t.Fatalf("elapsed = %s, want less than %s for a fast task", elapsed, 40*time.Millisecond)
@@ -102,31 +121,28 @@ func TestDetectDefaultHAHostWithFeedbackDoesNotDelayFastTTYDiscovery(t *testing.
 	}
 }
 
-func TestDetectDefaultHAHostWithFeedbackShowsSpinnerAfterDebounceForSlowTTYDiscovery(t *testing.T) {
-	originalDetect := detectDefaultHAHostChoiceForSetup
+func TestSelectDefaultHAHostWithFeedbackShowsSpinnerAfterDebounceForSlowTTYDiscovery(t *testing.T) {
+	originalDiscover := discoverReachableHAHostsForSetup
 	originalTTY := writerSupportsTTYForSetup
 	originalInput := uiInputSupportsTTY
 	originalANSI := uiOutputSupportsANSI
 	originalEnv := uiEnvLookup
 	originalMin := setupDiscoveryMinimumVisibleDuration
 	originalTimeout := setupDiscoveryOverallTimeout
-	defer func() {
-		detectDefaultHAHostChoiceForSetup = originalDetect
+	t.Cleanup(func() {
+		discoverReachableHAHostsForSetup = originalDiscover
 		writerSupportsTTYForSetup = originalTTY
 		uiInputSupportsTTY = originalInput
 		uiOutputSupportsANSI = originalANSI
 		uiEnvLookup = originalEnv
 		setupDiscoveryMinimumVisibleDuration = originalMin
 		setupDiscoveryOverallTimeout = originalTimeout
-	}()
-
-	detectDefaultHAHostChoiceForSetup = func(cfg runtimeConfig) (string, string, bool) {
+	})
+	discoverReachableHAHostsForSetup = func(runtimeConfig) ([]setupDiscoveryCandidate, string) {
 		time.Sleep(1200 * time.Millisecond)
-		return "192.168.1.124", "", true
+		return []setupDiscoveryCandidate{{Host: "192.168.1.124", HAURL: "http://192.168.1.124:8123", Source: "local network cache"}}, ""
 	}
-	writerSupportsTTYForSetup = func(out io.Writer) bool {
-		return true
-	}
+	writerSupportsTTYForSetup = func(io.Writer) bool { return true }
 	uiInputSupportsTTY = func() bool { return true }
 	uiOutputSupportsANSI = func(io.Writer) bool { return true }
 	uiEnvLookup = func(string) string { return "" }
@@ -134,13 +150,9 @@ func TestDetectDefaultHAHostWithFeedbackShowsSpinnerAfterDebounceForSlowTTYDisco
 	setupDiscoveryOverallTimeout = 2 * time.Second
 
 	output := &strings.Builder{}
-	host, discovered := detectDefaultHAHostWithFeedback(output, runtimeConfig{})
-
-	if host != "192.168.1.124" {
-		t.Fatalf("host = %q, want %q", host, "192.168.1.124")
-	}
-	if !discovered {
-		t.Fatal("expected discovered=true")
+	candidate, selected, err := selectDefaultHAHostWithFeedback(bufio.NewReader(strings.NewReader("")), output, runtimeConfig{})
+	if err != nil || !selected || candidate.Host != "192.168.1.124" {
+		t.Fatalf("selection = (%+v, %v), err = %v", candidate, selected, err)
 	}
 	rendered := output.String()
 	if !strings.Contains(rendered, "Discovering Home Assistant on your network...") {

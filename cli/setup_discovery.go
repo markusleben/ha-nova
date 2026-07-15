@@ -23,53 +23,115 @@ var resolveHostToIPv4ForDiscovery = resolveHostToIPv4
 var setupDiscoveryIPResolveTimeout = 2 * time.Second
 var setupDiscoveryIPProbeTimeout = 3 * time.Second
 
+const setupDiscoveryMaxCandidateCount = 12
+
+var setupDiscoveryMaxProbeTimeout = 3 * time.Second
+
+type setupDiscoveryCandidate struct {
+	Host   string
+	HAURL  string
+	Via    string
+	Source string
+}
+
+type setupDiscoveryProbe struct {
+	Host   string
+	Source string
+}
+
 func detectDefaultHAHost(cfg runtimeConfig) string {
 	host, _, _ := detectDefaultHAHostChoice(cfg)
 	return host
 }
 
-// detectDefaultHAHostChoice returns the best default Home Assistant host, the
-// mDNS name it was discovered through (empty unless the result was normalized
-// to an IP), and whether the host was confirmed reachable. mDNS names like
-// "homeassistant.local" are only used to FIND the instance — the offered and
-// later persisted default is the resolved IP whenever possible, because those
-// names can stop resolving mid-setup (notably on Windows).
+// detectDefaultHAHostChoice preserves the single-result helper used by focused
+// discovery tests while sharing the production all-candidate implementation.
 func detectDefaultHAHostChoice(cfg runtimeConfig) (string, string, bool) {
+	found, fallback := discoverReachableHAHosts(cfg)
+	if len(found) == 0 {
+		return fallback, "", false
+	}
+	return found[0].Host, found[0].Via, true
+}
+
+// discoverReachableHAHosts probes every bounded candidate instead of silently
+// stopping at the first reachable Home Assistant. Results retain candidate
+// priority and are deduplicated after .local names are resolved to a confirmed
+// IP address.
+func discoverReachableHAHosts(cfg runtimeConfig) ([]setupDiscoveryCandidate, string) {
 	deadline := time.Now().Add(setupDiscoveryOverallTimeout)
-	for _, candidate := range collectCandidateHosts(cfg) {
-		if candidate == "" {
-			continue
-		}
+	probes := collectDiscoveryProbes(cfg)
+	found := make([]setupDiscoveryCandidate, 0, len(probes))
+	seen := map[string]struct{}{}
+
+	for idx, probe := range probes {
 		remaining := time.Until(deadline)
 		if remaining <= 0 {
 			break
 		}
-		if _, err := resolveHAURLBaseWithinTimeoutForDiscovery(candidate, remaining); err == nil {
-			if ip := confirmedIPv4ForMDNSHost(candidate, time.Until(deadline)); ip != "" {
-				return ip, candidate, true
-			}
-			return candidate, "", true
+		probesLeft := len(probes) - idx
+		probeTimeout := remaining / time.Duration(probesLeft)
+		if probeTimeout > setupDiscoveryMaxProbeTimeout {
+			probeTimeout = setupDiscoveryMaxProbeTimeout
 		}
+		if probeTimeout <= 0 {
+			break
+		}
+		probeDeadline := time.Now().Add(probeTimeout)
+
+		resolved, err := resolveHAURLBaseWithinTimeoutForDiscovery(probe.Host, probeTimeout)
+		if err != nil {
+			continue
+		}
+		candidate := setupDiscoveryCandidate{
+			Host:   normalizeHostInput(resolved),
+			HAURL:  strings.TrimRight(resolved, "/"),
+			Source: probe.Source,
+		}
+		if probeDeadline.After(deadline) {
+			probeDeadline = deadline
+		}
+		if host, haURL := confirmedDiscoveryIPv4(probe.Host, probeDeadline); host != "" {
+			candidate.Host = host
+			candidate.HAURL = haURL
+			candidate.Via = probe.Host
+		}
+		key := strings.ToLower(normalizeHostInput(candidate.Host))
+		if key == "" {
+			continue
+		}
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		found = append(found, candidate)
 	}
-	return preferredUnverifiedHAHost(cfg), "", false
+
+	return found, preferredUnverifiedHAHost(cfg)
 }
 
-func confirmedIPv4ForMDNSHost(host string, remaining time.Duration) string {
+func confirmedDiscoveryIPv4(host string, deadline time.Time) (string, string) {
+	remaining := time.Until(deadline)
 	if remaining <= 0 {
-		return ""
+		return "", ""
 	}
 	trimmed := strings.TrimSuffix(strings.ToLower(host), ".")
 	if !strings.HasSuffix(trimmed, ".local") {
-		return ""
+		return "", ""
 	}
 	ip := resolveHostToIPv4ForDiscovery(host, min(setupDiscoveryIPResolveTimeout, remaining))
 	if ip == "" || ip == host {
-		return ""
+		return "", ""
 	}
-	if _, err := resolveHAURLBaseWithinTimeoutForDiscovery(ip, min(setupDiscoveryIPProbeTimeout, remaining)); err != nil {
-		return ""
+	remaining = time.Until(deadline)
+	if remaining <= 0 {
+		return "", ""
 	}
-	return ip
+	resolved, err := resolveHAURLBaseWithinTimeoutForDiscovery(ip, min(setupDiscoveryIPProbeTimeout, remaining))
+	if err != nil {
+		return "", ""
+	}
+	return ip, strings.TrimRight(resolved, "/")
 }
 
 func resolveHostToIPv4(host string, timeout time.Duration) string {
@@ -87,30 +149,30 @@ func resolveHostToIPv4(host string, timeout time.Duration) string {
 	return ""
 }
 
-func collectCandidateHosts(cfg runtimeConfig) []string {
-	candidates := []string{}
-	appendUnique := func(value string) {
+func collectDiscoveryProbes(cfg runtimeConfig) []setupDiscoveryProbe {
+	candidates := []setupDiscoveryProbe{}
+	appendUnique := func(value, source string) {
 		host := normalizeHostInput(value)
-		if host == "" {
+		if host == "" || len(candidates) >= setupDiscoveryMaxCandidateCount {
 			return
 		}
 		for _, existing := range candidates {
-			if existing == host {
+			if strings.EqualFold(existing.Host, host) {
 				return
 			}
 		}
-		candidates = append(candidates, host)
+		candidates = append(candidates, setupDiscoveryProbe{Host: host, Source: source})
 	}
 
-	appendUnique(cfg.HAHost)
-	appendUnique(cfg.HAURL)
-	appendUnique(cfg.RelayBaseURL)
-	appendUnique(discoverHAViaMDNSForDiscovery())
-	appendUnique("homeassistant.local")
-	appendUnique("home-assistant.local")
-	appendUnique("hass.local")
+	appendUnique(cfg.HAHost, "saved Home Assistant address")
+	appendUnique(cfg.HAURL, "saved Home Assistant address")
+	appendUnique(cfg.RelayBaseURL, "saved Relay address")
+	appendUnique(discoverHAViaMDNSForDiscovery(), "mDNS")
+	appendUnique("homeassistant.local", "common network name")
+	appendUnique("home-assistant.local", "common network name")
+	appendUnique("hass.local", "common network name")
 	for _, candidate := range collectARPHostsForDiscovery() {
-		appendUnique(candidate)
+		appendUnique(candidate, "local network cache")
 	}
 
 	return candidates

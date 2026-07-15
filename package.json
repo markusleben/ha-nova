@@ -78,7 +78,7 @@
     "preverify:docs": "node scripts/test/assert-vitest-files-exist.mjs verify:docs",
     "verify:docs": "bash scripts/check-docs.sh && npx vitest run tests/onboarding/project-docs-contract.test.ts tests/onboarding/client-install-docs-contract.test.ts",
     "preverify:installers": "node scripts/test/assert-vitest-files-exist.mjs verify:installers",
-    "verify:installers": "npx vitest run tests/onboarding/installer-contract.test.ts tests/onboarding/windows-installer-contract.test.ts",
+    "verify:installers": "npx vitest run tests/onboarding/installer-contract.test.ts tests/onboarding/windows-installer-contract.test.ts tests/onboarding/windows-installer-preflight.test.ts",
     "preverify:onboarding": "node scripts/test/assert-vitest-files-exist.mjs verify:onboarding",
     "verify:onboarding": "npm run verify:installers && npx vitest run tests/onboarding/install-skills-per-client.test.ts tests/onboarding/dev-sync-contract.test.ts tests/onboarding/dev-sync-behavior.test.ts tests/onboarding/claude-plugin-state-helper.test.ts tests/onboarding/installer-contract.test.ts tests/onboarding/relay-cli-contract.test.ts tests/onboarding/self-update-contract.test.ts tests/onboarding/platform-dispatch.test.ts tests/onboarding/linux-keyring-contract.test.ts tests/onboarding/macos-keyring-contract.test.ts tests/onboarding/windows-keyring-interop-contract.test.ts tests/onboarding/legacy-cleanup-contract.test.ts tests/onboarding/onboarding-skill-contract.test.ts tests/onboarding/go-runtime-contract.test.ts tests/onboarding/safe-test-system-contract.test.ts tests/onboarding/bump-version.test.ts",
     "preverify:release-contracts": "node scripts/test/assert-vitest-files-exist.mjs verify:release-contracts",
