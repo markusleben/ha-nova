@@ -1,3 +1,5 @@
+import { createConnection } from "node:net";
+
 import { afterEach, describe, expect, it } from "vitest";
 
 import { createRouter } from "../../nova/src/http/router.js";
@@ -121,6 +123,28 @@ describe("http server limits and logging", () => {
     expect(logged[0]?.context?.error).toContain("boom from the handler");
   });
 
+  it("rejects a malformed absolute request target without escaping the error boundary", async () => {
+    const baseUrl = await start({});
+    const port = Number.parseInt(new URL(baseUrl).port, 10);
+
+    const rawResponse = await sendRawRequest(
+      port,
+      "GET http://[ HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n"
+    );
+    expect(rawResponse).toContain("HTTP/1.1 400 Bad Request");
+    expect(rawResponse).toContain("INVALID_REQUEST_URL");
+
+    const healthy = await fetch(`${baseUrl}/echo`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${TEST_AUTH_TOKEN}`,
+        "content-type": "application/json"
+      },
+      body: "{}"
+    });
+    expect(healthy.status).toBe(200);
+  });
+
   it("sets explicit request and headers timeouts", async () => {
     const router = createRouter();
     const server = createHttpServer({ authToken: TEST_AUTH_TOKEN, router });
@@ -137,3 +161,13 @@ describe("http server limits and logging", () => {
     expect(levelAtLeast("warn", "trace")).toBe(true);
   });
 });
+
+async function sendRawRequest(port: number, request: string): Promise<string> {
+  return await new Promise<string>((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    const socket = createConnection({ host: "127.0.0.1", port }, () => socket.end(request));
+    socket.on("data", (chunk: Buffer) => chunks.push(chunk));
+    socket.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
+    socket.on("error", reject);
+  });
+}

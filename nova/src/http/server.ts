@@ -1,7 +1,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 
 import { authorizeRequest } from "../security/auth.js";
-import { invalidJson, payloadTooLarge, toErrorResponse } from "./errors.js";
+import { invalidJson, invalidRequestUrl, payloadTooLarge, toErrorResponse } from "./errors.js";
 import type { Router } from "./router.js";
 
 export const DEFAULT_MAX_JSON_BODY_BYTES = 1_048_576;
@@ -34,14 +34,15 @@ export function createHttpServer(options: HttpServerOptions): Server {
 
   const server = createServer(async (request, response) => {
     const method = request.method?.toUpperCase() ?? "GET";
-    const path = toPathname(request.url);
-    if (options.noStorePaths?.has(path)) {
-      response.setHeader("cache-control", "no-store");
-    }
+    let path = "<invalid>";
     if (options.version) {
       response.setHeader(RELAY_VERSION_HEADER, options.version);
     }
     try {
+      path = toPathname(request.url);
+      if (options.noStorePaths?.has(path)) {
+        response.setHeader("cache-control", "no-store");
+      }
       const routeKey = `${method} ${path}`;
       const authResult = options.bearerExemptRoutes?.has(routeKey)
         ? { ok: true as const }
@@ -101,7 +102,11 @@ function toPathname(urlValue: string | undefined): string {
     return "/";
   }
 
-  return new URL(urlValue, "http://localhost").pathname;
+  try {
+    return new URL(urlValue, "http://localhost").pathname;
+  } catch {
+    throw invalidRequestUrl();
+  }
 }
 
 async function parseJsonBody(request: IncomingMessage, maxBytes: number): Promise<unknown> {
