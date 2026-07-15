@@ -1,9 +1,10 @@
-import type { IncomingMessage } from "node:http";
+import type { IncomingMessage, ServerResponse } from "node:http";
 
 import { notFound } from "./errors.js";
 
 export interface RouteContext {
   request: IncomingMessage;
+  response: ServerResponse;
   path: string;
   body: unknown;
 }

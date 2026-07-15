@@ -39,6 +39,6 @@ options:
   file_access: "off"
 
 schema:
-  relay_auth_token: password
+  relay_auth_token: password?
   ha_llat: password?
   file_access: list(off|read|readwrite)?

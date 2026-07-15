@@ -33,7 +33,7 @@ describe("app config contract", () => {
     });
 
     expect(parsed.schema).toEqual({
-      relay_auth_token: "password",
+      relay_auth_token: "password?",
       ha_llat: "password?",
       file_access: "list(off|read|readwrite)?"
     });
@@ -68,6 +68,10 @@ describe("app config contract", () => {
     const fileAccess = translations.configuration.file_access?.description ?? "";
     expect(fileAccess).toContain("off");
     expect(fileAccess).toContain("Secrets");
+
+    const relayToken = translations.configuration.relay_auth_token?.description ?? "";
+    expect(relayToken).toContain("leave this empty");
+    expect(relayToken).toContain("persists");
   });
 
   it("has relay version >= min_relay_version from version.json", () => {

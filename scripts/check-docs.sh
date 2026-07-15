@@ -29,16 +29,17 @@ echo ""
 # deny rules, code-execution boundary) and to 3200 across relay 0.5.0 (the
 # generic config-snapshot store, ~330 lines of validation, caps and prune;
 # and to 3300 for the diagnosability wave: disconnect reasons, request
-# logging, server timeouts).
+# logging, server timeouts; and to 3700 for Wave 6's bounded pairing manager,
+# persisted App credential, and code-authenticated transport endpoint).
 # Growth here is security surface, and it is reviewed as such. The README's own
 # number is updated in the release-prep PR — README describes the STABLE
 # release, not main.
 echo "[1] Relay LOC (must stay readable in one sitting)"
 ACTUAL_LOC=$(find "$REPO_ROOT/nova/src" -name '*.ts' -exec cat {} + | wc -l | tr -d ' ')
-if (( ACTUAL_LOC >= 1000 && ACTUAL_LOC <= 3300 )); then
-  pass "src/ = ${ACTUAL_LOC} LOC (within 1000–3300 range)"
+if (( ACTUAL_LOC >= 1000 && ACTUAL_LOC <= 3700 )); then
+  pass "src/ = ${ACTUAL_LOC} LOC (within 1000–3700 range)"
 else
-  fail "src/ = ${ACTUAL_LOC} LOC — outside the 1000–3300 range. If this is real growth, justify it and update the README claim in the release-prep PR."
+  fail "src/ = ${ACTUAL_LOC} LOC — outside the 1000–3700 range. If this is real growth, justify it and update the README claim in the release-prep PR."
 fi
 
 # ── 2. Skill count ──
@@ -151,10 +152,26 @@ done
 # ── 9. Route count — verify relay stays minimal ──
 echo "[9] Relay route count"
 ROUTE_COUNT=$(grep -c "router.register" "$REPO_ROOT/nova/src/index.ts" 2>/dev/null || true)
-if (( ROUTE_COUNT <= 5 )); then
-  pass "Relay has ${ROUTE_COUNT} routes (≤5 — still minimal)"
+if (( ROUTE_COUNT <= 6 )); then
+  pass "Relay has ${ROUTE_COUNT} routes (≤6 — still minimal)"
 else
   fail "Relay has ${ROUTE_COUNT} routes — growing beyond 'minimal'. Review architecture claims."
+fi
+
+# Pairing is a generic credential exchange, never a second HA API surface.
+echo "[9b] Pairing stays transport-only and narrowly bearer-exempt"
+PAIR_HITS=$(count_matches "ha/rest-client\|ha/ws-client\|coreClient\|wsClient\|entity_id\|service_data" \
+  "$REPO_ROOT/nova/src/http/handlers/pair.ts" "$REPO_ROOT/nova/src/security/pairing.ts")
+if (( PAIR_HITS == 0 )); then
+  pass "Pairing has no HA client or domain imports"
+else
+  fail "Pairing contains ${PAIR_HITS} HA client/domain hits — it must remain a generic credential exchange."
+fi
+if grep -q 'const PAIR_PATH = "/pair"' "$REPO_ROOT/nova/src/index.ts" \
+  && grep -q 'bearerExemptRoutes: new Set(\[PAIR_ROUTE\])' "$REPO_ROOT/nova/src/index.ts"; then
+  pass "Only the exact POST /pair route is configured for code authentication"
+else
+  fail "Pairing bearer exemption is missing or no longer pinned to the exact POST /pair route."
 fi
 
 # ── 10. Keychain usage exists ──
