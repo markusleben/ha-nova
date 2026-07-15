@@ -296,10 +296,10 @@ func postUpdateSync(paths runtimePaths) error {
 	residue := transientBackupResidue(paths, configured)
 	if len(failed) == 0 && !skipped && len(residue) == 0 {
 		state.ClientsVerifiedVersion = version
-	} else if len(residue) > 0 {
-		// Residue is definitive evidence the tree is stale, so a previously-matching
-		// marker is now wrong — clear it (do not merely skip re-stamping) so the
-		// self-heal, which short-circuits on a matching marker, actually re-runs.
+	} else {
+		// Any incomplete sync invalidates a previously matching marker. Clear it so
+		// the completion nudge stays honest and self-heal retries once the missing
+		// runtime or failed client becomes available again.
 		state.ClientsVerifiedVersion = ""
 	}
 	if err := saveState(paths, state); err != nil {

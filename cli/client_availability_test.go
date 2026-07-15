@@ -366,6 +366,7 @@ func TestCurrentVersionSyncOmitsSessionInstructionWhenClientRuntimeIsMissing(t *
 
 	state := loadStateOrDefault(paths)
 	state.InstalledClients = []string{"codex"}
+	state.ClientsVerifiedVersion = "0.2.2"
 	if err := saveState(paths, state); err != nil {
 		t.Fatalf("saveState() error: %v", err)
 	}
@@ -381,5 +382,12 @@ func TestCurrentVersionSyncOmitsSessionInstructionWhenClientRuntimeIsMissing(t *
 	}
 	if strings.Contains(output, postUpdateSessionInstruction) {
 		t.Fatalf("did not expect new-session instruction after skipped client sync:\n%s", output)
+	}
+	restored, err := loadState(paths)
+	if err != nil {
+		t.Fatalf("loadState() error: %v", err)
+	}
+	if restored.ClientsVerifiedVersion != "" {
+		t.Fatalf("expected skipped sync to clear stale verification marker, got %q", restored.ClientsVerifiedVersion)
 	}
 }
