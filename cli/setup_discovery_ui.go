@@ -84,6 +84,7 @@ func promptSetupDiscoveryCandidateInteractive(reader *bufio.Reader, out io.Write
 }
 
 func promptSetupDiscoveryCandidateFromReader(reader *bufio.Reader, out io.Writer, candidates []setupDiscoveryCandidate) (string, error) {
+	staleBlankDeadline := beginSetupStaleBlankInputWindow()
 	for {
 		fmt.Fprintln(out)
 		fmt.Fprintln(out, "  Choose your Home Assistant:")
@@ -101,6 +102,11 @@ func promptSetupDiscoveryCandidateFromReader(reader *bufio.Reader, out io.Writer
 			return "", err
 		}
 		line = strings.ToLower(strings.TrimSpace(line))
+		if setupInputIsStaleBlank(staleBlankDeadline, line == "") {
+			rerenderSetupPromptAfterStaleBlank(out)
+			continue
+		}
+		staleBlankDeadline = time.Time{}
 		switch line {
 		case "":
 			return "0", nil

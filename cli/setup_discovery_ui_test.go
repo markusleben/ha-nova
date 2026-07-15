@@ -88,6 +88,32 @@ func TestSelectDefaultHAHostWithFeedbackListsEveryReachableInstanceAndSource(t *
 	}
 }
 
+func TestPromptSetupDiscoveryCandidateSkipsStaleEnterBeforeDefault(t *testing.T) {
+	clearSetupNextPromptSkipsStaleBlankInput()
+	t.Cleanup(clearSetupNextPromptSkipsStaleBlankInput)
+	armSetupNextPromptSkipsStaleBlankInput()
+
+	candidates := []setupDiscoveryCandidate{
+		{Host: "192.168.1.20", Source: "mDNS"},
+		{Host: "192.168.1.30", Source: "local network cache"},
+	}
+	output := &strings.Builder{}
+	answer, err := promptSetupDiscoveryCandidateFromReader(
+		bufio.NewReader(strings.NewReader("\n2\n")),
+		output,
+		candidates,
+	)
+	if err != nil {
+		t.Fatalf("promptSetupDiscoveryCandidateFromReader() error = %v", err)
+	}
+	if answer != "1" {
+		t.Fatalf("answer = %q, want second candidate", answer)
+	}
+	if strings.Count(output.String(), "Choose your Home Assistant:") != 2 {
+		t.Fatalf("expected picker to be re-rendered after stale Enter:\n%s", output.String())
+	}
+}
+
 func TestSelectDefaultHAHostWithFeedbackDoesNotDelayFastTTYDiscovery(t *testing.T) {
 	originalDiscover := discoverReachableHAHostsForSetup
 	originalTTY := writerSupportsTTYForSetup
