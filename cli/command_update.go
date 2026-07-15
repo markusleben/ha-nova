@@ -11,6 +11,10 @@ import (
 	"strings"
 )
 
+const postUpdateSessionInstruction = "Next step: start a new AI client session to load the updated HA NOVA skills."
+const postUpdatePartialSessionInstruction = "Next step for refreshed clients: start a new AI client session in each one to load the updated HA NOVA skills."
+const windowsUpdateStagedInstruction = "Update staged. Wait for the updater to finish. After it reports success, start a new AI client session to load the updated HA NOVA skills."
+
 func runUpdate(paths runtimePaths, args []string) int {
 	fs := flag.NewFlagSet("update", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
@@ -101,7 +105,7 @@ func runUpdate(paths runtimePaths, args []string) int {
 			printHumanErr("cannot start Windows updater: %s", err)
 			return 1
 		}
-		printHumanInfo("Update staged. Restart your shell/client after the updater finishes.")
+		printHumanInfo("%s", windowsUpdateStagedInstruction)
 		return 0
 	}
 	defer cleanupStagedBundle(stageRoot)
@@ -111,18 +115,20 @@ func runUpdate(paths runtimePaths, args []string) int {
 		printHumanErr("cannot apply update: %s", err)
 		return 1
 	}
-	if err := postUpdateSync(paths); err != nil {
+	syncResult := postUpdateSyncWithResult(paths)
+	if syncResult.Err != nil {
+		syncErr := syncResult.Err
 		if rollbackErr := rollbackInstall(); rollbackErr != nil {
-			printPostUpdateSyncFailure(err)
+			printPostUpdateSyncFailure(syncErr)
 			printHumanWarn("rollback failed: %s", rollbackErr)
 			return 1
 		}
 		if restoreErr := postUpdateSync(paths); restoreErr != nil {
-			printHumanErr("update aborted: %s", err)
+			printHumanErr("update aborted: %s", syncErr)
 			printHumanWarn("runtime rollback succeeded, but restoring client integrations failed: %s", restoreErr)
 			return 1
 		}
-		printHumanErr("update aborted: %s", err)
+		printHumanErr("update aborted: %s", syncErr)
 		return 1
 	}
 	if err := commitInstall(); err != nil {
@@ -139,6 +145,7 @@ func runUpdate(paths runtimePaths, args []string) int {
 		printHumanNotice(notice)
 		maybeOfferGuidedRelayUpdate(paths, notice)
 	}
+	printPostUpdateSessionInstruction(syncResult)
 	return 0
 }
 
@@ -162,18 +169,20 @@ func runInternalReplace(paths runtimePaths, args []string) int {
 		printHumanErr("%s", err)
 		return 1
 	}
-	if err := postUpdateSyncForReplace(paths); err != nil {
+	syncResult := postUpdateSyncForReplace(paths)
+	if syncResult.Err != nil {
+		syncErr := syncResult.Err
 		if rollbackErr := rollbackInstall(); rollbackErr != nil {
-			printPostUpdateSyncFailure(err)
+			printPostUpdateSyncFailure(syncErr)
 			printHumanWarn("rollback failed: %s", rollbackErr)
 			return 1
 		}
-		if restoreErr := postUpdateSyncForReplace(paths); restoreErr != nil {
-			printHumanErr("update aborted: %s", err)
-			printHumanWarn("runtime rollback succeeded, but restoring client integrations failed: %s", restoreErr)
+		if restoreResult := postUpdateSyncForReplace(paths); restoreResult.Err != nil {
+			printHumanErr("update aborted: %s", syncErr)
+			printHumanWarn("runtime rollback succeeded, but restoring client integrations failed: %s", restoreResult.Err)
 			return 1
 		}
-		printHumanErr("update aborted: %s", err)
+		printHumanErr("update aborted: %s", syncErr)
 		return 1
 	}
 	if err := commitInstall(); err != nil {
@@ -192,6 +201,7 @@ func runInternalReplace(paths runtimePaths, args []string) int {
 		printHumanNotice(notice)
 		printHumanInfo("Run `ha-nova doctor` in a terminal to be offered the guided relay update.")
 	}
+	printPostUpdateSessionInstruction(syncResult)
 	return 0
 }
 
@@ -204,11 +214,12 @@ func runInternalSyncClients(paths runtimePaths, _ []string) int {
 }
 
 func syncInstalledClientsForCurrentVersion(paths runtimePaths, currentVersion, targetVersion string, cmp int) int {
-	if err := postUpdateSync(paths); err != nil {
+	syncResult := postUpdateSyncWithResult(paths)
+	if syncResult.Err != nil {
 		if cmp > 0 {
-			printHumanErr("Already on newer version v%s than target v%s, but client sync failed: %s", currentVersion, targetVersion, err)
+			printHumanErr("Already on newer version v%s than target v%s, but client sync failed: %s", currentVersion, targetVersion, syncResult.Err)
 		} else {
-			printHumanErr("Already up to date: v%s, but client sync failed: %s", currentVersion, err)
+			printHumanErr("Already up to date: v%s, but client sync failed: %s", currentVersion, syncResult.Err)
 		}
 		return 1
 	}
@@ -223,7 +234,22 @@ func syncInstalledClientsForCurrentVersion(paths runtimePaths, currentVersion, t
 		printHumanNotice(notice)
 		maybeOfferGuidedRelayUpdate(paths, notice)
 	}
+	printPostUpdateSessionInstruction(syncResult)
 	return 0
+}
+
+func printPostUpdateSessionInstruction(result postUpdateSyncResult) {
+	if result.FullySynced {
+		printHumanInfo("%s", postUpdateSessionInstruction)
+	} else if result.RefreshedClients {
+		printHumanInfo("%s", postUpdatePartialSessionInstruction)
+	}
+}
+
+type postUpdateSyncResult struct {
+	FullySynced      bool
+	RefreshedClients bool
+	Err              error
 }
 
 // postUpdateSync re-syncs every configured client from the canonical install root
@@ -245,18 +271,23 @@ func syncInstalledClientsForCurrentVersion(paths runtimePaths, currentVersion, t
 // ever resolves from a stale backup, the user gets a loud warning + recovery hint
 // instead of a silent success. For a fixed (>=0.6.2) binary it never fires.
 func postUpdateSync(paths runtimePaths) error {
+	return postUpdateSyncWithResult(paths).Err
+}
+
+func postUpdateSyncWithResult(paths runtimePaths) postUpdateSyncResult {
 	detectedClients, err := detectInstalledClients(paths)
 	if err != nil {
-		return err
+		return postUpdateSyncResult{Err: err}
 	}
 	state := loadStateOrDefault(paths)
 	configured := normalizeClients(append(append([]string{}, state.InstalledClients...), detectedClients...))
 	failed := []string{}
 	skipped := false
+	syncedClients := 0
 	for _, client := range configured {
 		entry, ok, err := findRegistryClient(paths, client)
 		if err != nil {
-			return err
+			return postUpdateSyncResult{Err: err}
 		}
 		if !ok {
 			continue
@@ -273,6 +304,7 @@ func postUpdateSync(paths runtimePaths) error {
 			continue
 		}
 		printHumanInfo("Client synced: %s", client)
+		syncedClients++
 	}
 	state.InstalledClients = configured
 	version := localVersion(paths)
@@ -281,25 +313,28 @@ func postUpdateSync(paths runtimePaths) error {
 	// verified: a residue scan catches a sync that resolved from a transient backup
 	// (the pre-0.6.1 bug class), so "Updated" never silently means "updated-ish".
 	residue := transientBackupResidue(paths, configured)
-	if len(failed) == 0 && !skipped && len(residue) == 0 {
+	fullySynced := len(failed) == 0 && !skipped && len(residue) == 0
+	if fullySynced {
 		state.ClientsVerifiedVersion = version
 	} else if len(residue) > 0 {
-		// Residue is definitive evidence the tree is stale, so a previously-matching
-		// marker is now wrong — clear it (do not merely skip re-stamping) so the
-		// self-heal, which short-circuits on a matching marker, actually re-runs.
+		// Residue proves the installed client tree is stale. Clear a matching marker
+		// so the next check-update or doctor run retries the repair.
 		state.ClientsVerifiedVersion = ""
 	}
 	if err := saveState(paths, state); err != nil {
-		return err
+		return postUpdateSyncResult{Err: err}
 	}
 	if len(residue) > 0 {
 		printHumanWarn("These clients still reference a temporary update backup and are not fully up to date: %s", strings.Join(normalizeClients(residue), ", "))
 		printHumanWarn("Run `ha-nova doctor` to refresh them.")
 	}
 	if len(failed) > 0 {
-		return fmt.Errorf("failed clients: %s", strings.Join(normalizeClients(failed), ", "))
+		return postUpdateSyncResult{Err: fmt.Errorf("failed clients: %s", strings.Join(normalizeClients(failed), ", "))}
 	}
-	return nil
+	return postUpdateSyncResult{
+		FullySynced:      fullySynced,
+		RefreshedClients: syncedClients > 0 && len(residue) == 0,
+	}
 }
 
 func launchWindowsReplace(paths runtimePaths, stageRoot string) error {

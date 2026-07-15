@@ -46,6 +46,7 @@ agy --version
 - Connect or repair with `ha-nova setup antigravity`.
 - Validate the install with `ha-nova doctor`.
 - Antigravity surfaces HA NOVA update notices during normal skill use (relay calls check a local cache; silence them with `HA_NOVA_NO_UPDATE_NUDGE=1`). `ha-nova check-update` still works for a manual check.
+- After `ha-nova update` succeeds, start a new AI client session to load the updated HA NOVA skills.
 - `ha-nova setup gemini` is kept as a legacy alias and resolves to Antigravity.
 
 ## Antigravity-Specific Skill Layout

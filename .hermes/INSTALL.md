@@ -64,6 +64,7 @@ Current support/evidence truth lives in [docs/reference/hermes-platform-validati
 - Validate the current route and proof status in [docs/reference/hermes-platform-validation.md](../docs/reference/hermes-platform-validation.md).
 - Validate the install with `ha-nova doctor`.
 - Hermes surfaces HA NOVA update notices during normal skill use (relay calls check a local cache; silence them with `HA_NOVA_NO_UPDATE_NUDGE=1`). `ha-nova check-update` still works for a manual check.
+- After `ha-nova update` succeeds, start a new AI client session to load the updated HA NOVA skills.
 
 ## Hermes-Specific Skill Layout
 

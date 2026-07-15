@@ -346,3 +346,51 @@ func TestPostUpdateSyncSkipsConfiguredClientWhenRuntimeMissing(t *testing.T) {
 		t.Fatalf("expected configured client to stay in state after skip, got %+v", restored.InstalledClients)
 	}
 }
+
+func TestCurrentVersionSyncOmitsSessionInstructionWhenClientRuntimeIsMissing(t *testing.T) {
+	withClientRuntimeAvailability(t, map[string]bool{"codex": false})
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("PATH", t.TempDir())
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(paths.VersionFile), 0o755); err != nil {
+		t.Fatalf("mkdir version dir: %v", err)
+	}
+	if err := os.WriteFile(paths.VersionFile, []byte(`{"skill_version":"0.2.2","min_relay_version":"0.1.0"}`), 0o644); err != nil {
+		t.Fatalf("write version file: %v", err)
+	}
+
+	state := loadStateOrDefault(paths)
+	state.InstalledClients = []string{"codex"}
+	state.ClientsVerifiedVersion = "0.2.2"
+	if err := saveState(paths, state); err != nil {
+		t.Fatalf("saveState() error: %v", err)
+	}
+
+	exitCode, output := captureCommandOutput(t, func() int {
+		return syncInstalledClientsForCurrentVersion(paths, "0.2.2", "0.2.2", 0)
+	})
+	if exitCode != 0 {
+		t.Fatalf("expected skipped client sync to remain retryable, got %d:\n%s", exitCode, output)
+	}
+	if !strings.Contains(output, "Skipping Codex CLI until the client runtime is installed in this environment") {
+		t.Fatalf("expected skip warning:\n%s", output)
+	}
+	if strings.Contains(output, postUpdateSessionInstruction) {
+		t.Fatalf("did not expect new-session instruction after skipped client sync:\n%s", output)
+	}
+	if strings.Contains(output, postUpdatePartialSessionInstruction) {
+		t.Fatalf("did not expect partial new-session instruction when every client was skipped:\n%s", output)
+	}
+	restored, err := loadState(paths)
+	if err != nil {
+		t.Fatalf("loadState() error: %v", err)
+	}
+	if restored.ClientsVerifiedVersion != "0.2.2" {
+		t.Fatalf("expected skipped current-version sync to preserve quiet-check marker, got %q", restored.ClientsVerifiedVersion)
+	}
+}

@@ -16,6 +16,7 @@ function expectOverlayToPointBackToReadme(doc: string): void {
 describe("client install docs contract", () => {
   const readme = readFileSync("README.md", "utf8");
   const governance = readFileSync("docs/reference/documentation-governance.md", "utf8");
+  const contextSkill = readFileSync("skills/ha-nova/SKILL.md", "utf8");
   const claudeInstall = readFileSync(".claude/INSTALL.md", "utf8");
   const codexInstall = readFileSync(".codex/INSTALL.md", "utf8");
   const antigravityInstall = readFileSync(".antigravity/INSTALL.md", "utf8");
@@ -46,6 +47,14 @@ describe("client install docs contract", () => {
     expectOverlayToPointBackToReadme(antigravityInstall);
     expectOverlayToPointBackToReadme(opencodeInstall);
     expectOverlayToPointBackToReadme(hermesInstall);
+  });
+
+  it("keeps update completion guidance consistent across every client", () => {
+    const instruction = "After `ha-nova update` succeeds, start a new AI client session to load the updated HA NOVA skills.";
+    for (const overlay of [claudeInstall, codexInstall, antigravityInstall, opencodeInstall, hermesInstall]) {
+      expect(overlay).toContain(instruction);
+    }
+    expect(contextSkill).toContain("After success: tell the user to **start a new session**");
   });
 
   it("keeps reciprocal client overlay links on the current Antigravity overlay", () => {
