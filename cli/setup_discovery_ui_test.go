@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-func TestSelectDefaultHAHostWithFeedbackAutoSelectsSingleResultWithoutTTYSpinner(t *testing.T) {
+func TestSelectDefaultHAHostWithFeedbackKeepsOverridePromptForSingleLocalResult(t *testing.T) {
 	originalDiscover := discoverReachableHAHostsForSetup
 	t.Cleanup(func() { discoverReachableHAHostsForSetup = originalDiscover })
 	discoverReachableHAHostsForSetup = func(runtimeConfig) ([]setupDiscoveryCandidate, string) {
@@ -24,8 +24,8 @@ func TestSelectDefaultHAHostWithFeedbackAutoSelectsSingleResultWithoutTTYSpinner
 	if err != nil {
 		t.Fatalf("selectDefaultHAHostWithFeedback() error = %v", err)
 	}
-	if !selected || candidate.Host != "ha-box.local" || candidate.HAURL != "http://ha-box.local:8123" {
-		t.Fatalf("selection = (%+v, %v), want single discovered host", candidate, selected)
+	if selected || candidate.Host != "ha-box.local" || candidate.HAURL != "http://ha-box.local:8123" {
+		t.Fatalf("selection = (%+v, %v), want unconfirmed .local default", candidate, selected)
 	}
 	for _, want := range []string{
 		"Discovering Home Assistant on your network...",

@@ -25,7 +25,8 @@ func selectDefaultHAHostWithFeedback(reader *bufio.Reader, out io.Writer, cfg ru
 	case 1:
 		candidate := result.candidates[0]
 		renderSetupDiscoveryResult(out, candidate.Host, candidate.Via, true)
-		return candidate, true, nil
+		needsAddressConfirmation := isLocalDiscoveryHost(candidate.Host)
+		return candidate, !needsAddressConfirmation, nil
 	default:
 		fmt.Fprintf(out, "  Found %d reachable Home Assistant instances. Choose the one to set up.\n", len(result.candidates))
 		return promptSetupDiscoveryCandidateInteractive(reader, out, result.candidates)
@@ -128,6 +129,11 @@ func promptSetupDiscoveryCandidateFromReader(reader *bufio.Reader, out io.Writer
 			return strconv.Itoa(choice - 1), nil
 		}
 	}
+}
+
+func isLocalDiscoveryHost(host string) bool {
+	normalized := strings.TrimSuffix(strings.ToLower(normalizeHostInput(host)), ".")
+	return strings.HasSuffix(normalized, ".local")
 }
 
 func setupDiscoveryCandidateLabel(candidate setupDiscoveryCandidate) string {

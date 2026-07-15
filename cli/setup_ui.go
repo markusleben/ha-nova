@@ -171,7 +171,7 @@ func renderSetupDiscoveryResult(out io.Writer, host, via string, discovered bool
 	session := resolveSetupUISession(out)
 	if discovered && via != "" {
 		fmt.Fprintf(out, "  %s Found Home Assistant at %s (discovered via %s)\n", session.style("success", session.successMarker()), host, via)
-	} else if discovered && strings.HasSuffix(strings.ToLower(host), ".local") {
+	} else if discovered && isLocalDiscoveryHost(host) {
 		fmt.Fprintf(out, "  %s Found Home Assistant via the network name %s\n", session.style("warning", session.warningMarker()), host)
 		fmt.Fprintln(out, "    Heads-up: this name can stop working (especially on Windows).")
 		fmt.Fprintln(out, "    If you know the IP address, enter it below instead — you can find it in your")
