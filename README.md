@@ -77,9 +77,19 @@ One installer. One wizard. Done. It even finds your Home Assistant automatically
 
 > **You need:** Home Assistant — any install type. HA OS and Supervised get the NOVA Relay App, and the wizard below walks you through it. Container and Core run the same relay as a [standalone container](docs/reference/relay-container.md) — skip the steps below and follow that guide end to end instead (it installs the CLI without the wizard and attaches it non-interactively).
 
-1. Open the [latest release](https://github.com/markusleben/ha-nova/releases/latest)
-2. Copy the one-liner for your OS
-3. Run it — the wizard discovers your HA, sets up the connection, and configures your AI client
+**macOS / Linux:**
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/main/install.sh | bash
+```
+
+**Windows (PowerShell):**
+
+```powershell
+irm https://raw.githubusercontent.com/markusleben/ha-nova/main/install.ps1 | iex
+```
+
+The installer selects the latest stable release. Run the command for your OS; the wizard discovers your HA, sets up the connection, and configures your AI client.
 
 Once it finishes, try: *"Show me all my automations."*
 

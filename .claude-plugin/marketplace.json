@@ -2,7 +2,7 @@
   "name": "ha-nova",
   "metadata": {
     "description": "HA NOVA plugins for safe Home Assistant control through a local relay",
-    "version": "0.17.0"
+    "version": "0.18.0"
   },
   "owner": {
     "name": "Markus Leben"
@@ -11,7 +11,7 @@
     {
       "name": "ha-nova",
       "source": "./",
-      "version": "0.17.0",
+      "version": "0.18.0",
       "description": "AI-powered Home Assistant control through LLM skills and a local relay"
     }
   ]

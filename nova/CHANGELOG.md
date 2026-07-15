@@ -9,6 +9,29 @@ The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic
 Recent changes are tracked in [GitHub releases](https://github.com/markusleben/ha-nova/releases)
 and merged PRs. This changelog will be updated with the next tagged relay version.
 
+## [Relay 0.6.0] - 2026-07-15
+
+### Added
+- Home Base: an admin-only Home Assistant sidebar page with Relay status, the current pairing code, and install guidance.
+- `POST /pair`: exchange a short-lived, single-use six-digit code for the Relay token during local setup.
+- App-managed persistent Relay tokens when the advanced `relay_auth_token` option is left empty. Existing configured tokens remain compatible.
+
+### Changed
+- `/health` now reports the Home Assistant WebSocket disconnect reason (`auth`, `network`, or `never_connected`) and snapshot-store status.
+- `LOG_LEVEL` is applied at runtime; rejected auth requests and unexpected request failures now produce useful logs without exposing secrets.
+- HTTP request, header, keep-alive, and upstream response limits are explicit and configurable where appropriate.
+
+### Security
+- Pairing is peer- and globally rate-limited, returns generic failures, rotates codes after success or expiry, and marks every response `no-store`.
+- Home Base requires the real Supervisor ingress peer plus authenticated user headers; direct-port header spoofing is rejected.
+- Secret comparisons no longer reveal length through an early return.
+
+## [Relay 0.5.0] - 2026-07-14
+
+### Added
+- `POST /backups`: a bearer-authenticated, generic gzip JSON store for named and automatic config snapshots, with bounded save/load/list/delete/prune actions and no Home Assistant business logic.
+- Snapshot storage persists in the App data directory and can use a mounted `SNAPSHOT_DIR` in the standalone container.
+
 ## [Relay 0.4.1] - 2026-07-12
 
 - The App info page now explains what the NOVA Relay is, what it deliberately does not do, and where the security model lives — instead of a one-line stub. No functional changes.
