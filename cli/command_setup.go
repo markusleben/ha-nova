@@ -213,7 +213,7 @@ func runSetup(paths runtimePaths, args []string) int {
 
 	printHumanInfo("Saved HA NOVA configuration")
 
-	_, issue, ok := verifySetupConnectionOnce(os.Stdout, cfg, token)
+	_, issue, ok := verifySetupConnectionOnce(os.Stdout, cfg, token, false)
 	if !ok {
 		rollbackSetupPersistence(
 			paths,

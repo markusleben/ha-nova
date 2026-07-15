@@ -59,7 +59,7 @@ Or if you already have the repo:
 ha-nova setup
 ```
 
-The setup wizard handles relay configuration and skill installation. Until the pairing-capable CLI lands later in Wave 6, existing clients continue using the legacy relay-token option. Pairing-capable clients exchange the six-digit code without displaying the private relay token.
+The setup wizard handles relay configuration and skill installation. Its normal App flow asks for the six-digit Home Base code, stores the returned relay token in the client's OS credential store, and verifies both Relay health and WebSocket access without displaying the private relay token. Existing saved tokens, `--relay-token`, service token files, and standalone Container/Core setups keep their explicit-token paths.
 
 ## Checking Status
 

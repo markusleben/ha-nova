@@ -8,12 +8,17 @@ import (
 )
 
 type setupRepairMode string
+type setupCredentialRepairMode string
 
 const (
 	setupRepairModeConnection setupRepairMode = "connection"
 	setupRepairModeLLAT       setupRepairMode = "llat"
 	setupRepairModeRelayAuth  setupRepairMode = "relay_auth"
 	setupRepairModeAmbiguous  setupRepairMode = "ambiguous"
+
+	setupCredentialRepairNone    setupCredentialRepairMode = "none"
+	setupCredentialRepairToken   setupCredentialRepairMode = "token"
+	setupCredentialRepairPairing setupCredentialRepairMode = "pairing"
 )
 
 type setupRepairAction string
@@ -24,6 +29,7 @@ const (
 	setupRepairActionRetry             setupRepairAction = "retry"
 	setupRepairActionBack              setupRepairAction = "back"
 	setupRepairActionBackToRelayToken  setupRepairAction = "relay_token"
+	setupRepairActionBackToPairing     setupRepairAction = "pairing"
 	setupRepairActionChangeHost        setupRepairAction = "change_host"
 	setupRepairActionRunInstall        setupRepairAction = "run_install"
 	setupRepairActionStop              setupRepairAction = "stop"
@@ -60,11 +66,11 @@ func relayHealthIssueLooksLikeRelayAuth(err error) bool {
 		strings.Contains(text, "unauthorized") || strings.Contains(text, "forbidden")
 }
 
-func runSetupRepairFlow(reader *bufio.Reader, out io.Writer, cfg runtimeConfig, readiness relayReadiness, issue string, allowRelayTokenStep bool) (setupRepairAction, error) {
+func runSetupRepairFlow(reader *bufio.Reader, out io.Writer, cfg runtimeConfig, readiness relayReadiness, issue string, credentialRepair setupCredentialRepairMode) (setupRepairAction, error) {
 	mode := detectSetupRepairMode(readiness, issue)
 	for {
 		renderSetupRepairPage(out, mode, cfg.HAHost)
-		action, err := promptSetupRepairActionInteractive(reader, out, mode, allowRelayTokenStep)
+		action, err := promptSetupRepairActionInteractive(reader, out, mode, credentialRepair)
 		if err != nil {
 			return "", err
 		}
@@ -75,6 +81,10 @@ func runSetupRepairFlow(reader *bufio.Reader, out io.Writer, cfg runtimeConfig, 
 		case setupRepairActionOpenRelaySettings:
 			openBrowserShowingURL(out, haRelayAppPageURL(cfg.HAURL))
 			renderSetupParagraphTight(out, `The tokens live on the "Configuration" tab of that page.`)
+		case setupRepairActionBackToPairing:
+			openBrowserShowingURL(out, haRelayAppPageURL(cfg.HAURL))
+			renderSetupParagraphTight(out, `Open Home Base from the sidebar or choose "Open Web UI" on the NOVA Relay app page.`)
+			return action, nil
 		case setupRepairActionRetry, setupRepairActionBack, setupRepairActionBackToRelayToken, setupRepairActionChangeHost, setupRepairActionRunInstall, setupRepairActionStop:
 			return action, nil
 		}
@@ -114,8 +124,8 @@ func renderSetupRepairPage(out io.Writer, mode setupRepairMode, haHost string) {
 	}
 }
 
-func promptSetupRepairActionFromReader(reader *bufio.Reader, out io.Writer, mode setupRepairMode, allowRelayTokenStep bool) (setupRepairAction, error) {
-	choices, defaultChoice := setupRepairChoices(mode, allowRelayTokenStep)
+func promptSetupRepairActionFromReader(reader *bufio.Reader, out io.Writer, mode setupRepairMode, credentialRepair setupCredentialRepairMode) (setupRepairAction, error) {
+	choices, defaultChoice := setupRepairChoices(mode, credentialRepair)
 
 	fmt.Fprintln(out)
 	fmt.Fprintln(out, "  Next step:")
@@ -146,10 +156,10 @@ func promptSetupRepairActionFromReader(reader *bufio.Reader, out io.Writer, mode
 		}
 	}
 	renderSetupErrorLine(out, "Invalid choice. Please enter one of the listed options.")
-	return promptSetupRepairActionFromReader(reader, out, mode, allowRelayTokenStep)
+	return promptSetupRepairActionFromReader(reader, out, mode, credentialRepair)
 }
 
-func setupRepairChoices(mode setupRepairMode, allowRelayTokenStep bool) ([]setupRepairChoice, string) {
+func setupRepairChoices(mode setupRepairMode, credentialRepair setupCredentialRepairMode) ([]setupRepairChoice, string) {
 	switch mode {
 	case setupRepairModeConnection:
 		return []setupRepairChoice{
@@ -165,9 +175,16 @@ func setupRepairChoices(mode setupRepairMode, allowRelayTokenStep bool) ([]setup
 			{Number: "2", Value: setupRepairActionOpenRelaySettings, Label: "Open NOVA Relay settings"},
 			{Number: "3", Value: setupRepairActionRetry, Label: "Retry now"},
 			{Number: "4", Value: setupRepairActionBack, Label: "Back"},
-		}, "3"
+		}, "1"
 	case setupRepairModeRelayAuth:
-		if !allowRelayTokenStep {
+		if credentialRepair == setupCredentialRepairPairing {
+			return []setupRepairChoice{
+				{Number: "1", Value: setupRepairActionBackToPairing, Label: "Open Home Base and pair this device again"},
+				{Number: "2", Value: setupRepairActionOpenRelaySettings, Label: "Open NOVA Relay app page"},
+				{Number: "3", Value: setupRepairActionRetry, Label: "Retry now"},
+			}, "1"
+		}
+		if credentialRepair != setupCredentialRepairToken {
 			return []setupRepairChoice{
 				{Number: "1", Value: setupRepairActionOpenRelaySettings, Label: "Open NOVA Relay settings"},
 				{Number: "2", Value: setupRepairActionRetry, Label: "Retry now"},

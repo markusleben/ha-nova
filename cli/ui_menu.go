@@ -79,8 +79,8 @@ func promptSetupTokenChoiceInteractive(reader *bufio.Reader, out io.Writer, hasE
 	})
 }
 
-func promptSetupRepairActionInteractive(reader *bufio.Reader, out io.Writer, mode setupRepairMode, allowRelayTokenStep bool) (setupRepairAction, error) {
-	choices, defaultChoice := setupRepairChoices(mode, allowRelayTokenStep)
+func promptSetupRepairActionInteractive(reader *bufio.Reader, out io.Writer, mode setupRepairMode, credentialRepair setupCredentialRepairMode) (setupRepairAction, error) {
+	choices, defaultChoice := setupRepairChoices(mode, credentialRepair)
 	spec := setupMenuSpec{
 		Title:        "Next step:",
 		Prompt:       "Use ↑/↓ or j/k, Enter to select, Esc to go back, Ctrl+C to exit",
@@ -94,7 +94,7 @@ func promptSetupRepairActionInteractive(reader *bufio.Reader, out io.Writer, mod
 		})
 	}
 	answer, err := promptSetupMenu(reader, out, spec, func() (string, error) {
-		action, err := promptSetupRepairActionFromReader(reader, out, mode, allowRelayTokenStep)
+		action, err := promptSetupRepairActionFromReader(reader, out, mode, credentialRepair)
 		return string(action), err
 	})
 	if err != nil {

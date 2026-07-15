@@ -99,6 +99,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 		setupStageRelayInstall
 		setupStageToken
 		setupStageLLAT
+		setupStagePairing
 		setupStageVerify
 		setupStageSkills
 	)
@@ -266,6 +267,13 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 		}
 	}
 
+	pairingFlow := false
+	pairingCredentialReceived := false
+	manualCredentialFlow := false
+	pairingBackStage := setupStageLLAT
+	usePairingByDefault := func() bool {
+		return !serviceMode && strings.TrimSpace(relayTokenFlag) == "" && strings.TrimSpace(existingToken) == ""
+	}
 	stage := setupStageHost
 	if tokenStoragePreflightErr != nil {
 		stage = setupStageSecureStorageRecovery
@@ -284,7 +292,12 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 				verifyFirstReuseFlow = true
 			}
 		default:
-			stage = setupStageToken
+			if usePairingByDefault() {
+				pairingFlow = true
+				stage = setupStageLLAT
+			} else {
+				stage = setupStageToken
+			}
 		}
 	}
 
@@ -393,7 +406,12 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 						verifyFirstReuseFlow = true
 					}
 				default:
-					stage = setupStageToken
+					if usePairingByDefault() {
+						pairingFlow = true
+						stage = setupStageLLAT
+					} else {
+						stage = setupStageToken
+					}
 				}
 			}
 			continue
@@ -494,7 +512,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 				"1. Go to Settings > Apps > App Store (on older Home Assistant: Settings > Add-ons)",
 				`2. Search for "NOVA Relay"`,
 				"3. Click Install and wait for it to finish",
-				"   (don't start the app yet — we'll set up the tokens first)",
+				"   (don't start the app yet — setup continues here first)",
 			)
 			_, err = promptWizardLineFromReader(reader, os.Stdout, "Press Enter when the installation is complete", "")
 			if err == errSetupBack {
@@ -509,7 +527,12 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 				printHumanErr("%s", err)
 				return 1
 			}
-			stage = setupStageToken
+			if usePairingByDefault() {
+				pairingFlow = true
+				stage = setupStageLLAT
+			} else {
+				stage = setupStageToken
+			}
 
 		case setupStageToken:
 			current = detectSetupStateWithToken(paths, cfg, state, target, savedTokenBeforeSetup, hadSavedTokenBeforeSetup)
@@ -523,16 +546,26 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 			resumeWSRecovery := relayTokenFlag == "" && strings.TrimSpace(existingToken) != "" && current.RelayOK && !current.WSOK
 			verifyFirstReuseFlow = false
 			steps := buildSetupWizardSteps(!skipLLATWalkthrough)
+			credentialStep := steps.RelayToken
+			if pairingFlow {
+				steps = buildSetupPairingWizardSteps()
+				credentialStep = steps.Pairing
+			}
 			if resumeWSRecovery {
 				steps = buildSetupWizardSteps(false)
+				credentialStep = steps.RelayToken
 			}
 
-			renderSetupStep(os.Stdout, steps.RelayToken, steps.Total, "Set up Relay Auth Token")
+			renderSetupStep(os.Stdout, credentialStep, steps.Total, "Set up Relay Auth Token")
 			renderSetupIndentedBlock(os.Stdout, `NOVA needs two passwords ("tokens") to work securely:`, "    ",
 				"a) Relay token — keeps the connection between this computer and Home Assistant private",
 				"b) HA access token — allows the relay to control your devices and automations",
 			)
-			renderSetupParagraph(os.Stdout, "This step is only for the Relay Auth Token. The Home Assistant Access Token comes next as its own step.")
+			if skipLLATWalkthrough {
+				renderSetupParagraph(os.Stdout, "This advanced path uses an explicit Relay Auth Token. The Home Assistant Access Token must already be configured in the App.")
+			} else {
+				renderSetupParagraph(os.Stdout, "This step is only for the Relay Auth Token. The Home Assistant Access Token comes next as its own step.")
+			}
 			if relayTokenFlag != "" {
 				renderSetupParagraphTight(os.Stdout, "Using the Relay Auth Token you already provided.")
 			} else if resumeWSRecovery {
@@ -546,7 +579,11 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 
 				choice, err := promptSetupTokenChoiceInteractive(reader, os.Stdout, existingToken != "")
 				if err == errSetupBack {
-					stage = setupStageRelayInstall
+					if pairingFlow {
+						stage = setupStagePairing
+					} else {
+						stage = setupStageRelayInstall
+					}
 					continue
 				}
 				if err == errSetupExit {
@@ -645,9 +682,14 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 
 		case setupStageLLAT:
 			steps := buildSetupWizardSteps(true)
+			if pairingFlow {
+				steps = buildSetupPairingWizardSteps()
+			}
 			if err := runSetupLLATWalkthrough(reader, os.Stdout, cfg, token, steps); err != nil {
 				if err == errSetupBack {
-					if relayTokenFlag != "" {
+					if pairingFlow {
+						stage = setupStageRelayInstall
+					} else if relayTokenFlag != "" {
 						stage = setupStageHost
 					} else {
 						stage = setupStageToken
@@ -661,6 +703,40 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 				printHumanErr("%s", err)
 				return 1
 			}
+			if pairingFlow {
+				skipLLATWalkthrough = true
+				pairingBackStage = setupStageLLAT
+				stage = setupStagePairing
+			} else {
+				stage = setupStageVerify
+			}
+
+		case setupStagePairing:
+			steps := buildSetupPairingWizardSteps()
+			renderSetupStep(os.Stdout, steps.Pairing, steps.Total, "Pair this device")
+			pairedToken, err := runSetupPairingFlow(reader, os.Stdout, cfg)
+			if err == errSetupBack {
+				stage = pairingBackStage
+				continue
+			}
+			if err == errSetupRelayTokenStep {
+				manualCredentialFlow = true
+				skipLLATWalkthrough = true
+				stage = setupStageToken
+				continue
+			}
+			if err == errSetupExit {
+				renderSetupCancelledNote(os.Stdout)
+				return 0
+			}
+			if err != nil {
+				printHumanErr("%s", err)
+				return 1
+			}
+			token = pairedToken
+			pairingCredentialReceived = true
+			manualCredentialFlow = false
+			verifyFirstReuseFlow = false
 			stage = setupStageVerify
 
 		case setupStageVerify:
@@ -669,13 +745,26 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 			}
 
 			steps := buildSetupWizardSteps(!skipLLATWalkthrough && !verifyFirstReuseFlow)
+			if pairingFlow {
+				steps = buildSetupPairingWizardSteps()
+			}
 			renderSetupStep(os.Stdout, steps.Verify, steps.Total, "Verifying connection")
 			if verifyFirstReuseFlow {
 				renderSetupParagraphTight(os.Stdout, "Using Home Assistant address: "+cfg.HAURL)
 			}
-			issue, ok, err := verifySetupConnection(reader, os.Stdout, cfg, token, verifyFirstReuseFlow, relayTokenFlag == "")
+			credentialRepair := setupCredentialRepairNone
+			if strings.TrimSpace(relayTokenFlag) == "" {
+				credentialRepair = setupCredentialRepairToken
+				if !serviceMode && !manualCredentialFlow {
+					credentialRepair = setupCredentialRepairPairing
+				}
+			}
+			issue, ok, err := verifySetupConnection(reader, os.Stdout, cfg, token, verifyFirstReuseFlow, credentialRepair, pairingCredentialReceived)
 			if err == errSetupBack {
-				if !skipLLATWalkthrough && !verifyFirstReuseFlow {
+				if pairingFlow {
+					pairingBackStage = setupStageVerify
+					stage = setupStagePairing
+				} else if !skipLLATWalkthrough && !verifyFirstReuseFlow {
 					stage = setupStageLLAT
 				} else if relayTokenFlag != "" {
 					stage = setupStageHost
@@ -685,7 +774,14 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 				continue
 			}
 			if err == errSetupRelayTokenStep {
+				pairingFlow = false
 				stage = setupStageToken
+				continue
+			}
+			if err == errSetupPairingStep {
+				pairingFlow = true
+				pairingBackStage = setupStageVerify
+				stage = setupStagePairing
 				continue
 			}
 			if err == errSetupHostStep {
@@ -726,6 +822,9 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 
 		case setupStageSkills:
 			steps := buildSetupWizardSteps(!skipLLATWalkthrough && !verifyFirstReuseFlow)
+			if pairingFlow {
+				steps = buildSetupPairingWizardSteps()
+			}
 			renderSetupStep(os.Stdout, steps.Skills, steps.Total, "Installing HA NOVA skills")
 			if target == "all" && len(selectedClients) > 0 {
 				fmt.Fprintf(os.Stdout, "  Will install: %s\n", strings.Join(selectedClients, ", "))

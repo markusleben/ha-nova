@@ -5,8 +5,20 @@ type setupWizardSteps struct {
 	RelayInstall int
 	RelayToken   int
 	LLAT         int
+	Pairing      int
 	Verify       int
 	Skills       int
+}
+
+func buildSetupPairingWizardSteps() setupWizardSteps {
+	return setupWizardSteps{
+		Total:        5,
+		RelayInstall: 1,
+		LLAT:         2,
+		Pairing:      3,
+		Verify:       4,
+		Skills:       5,
+	}
 }
 
 func buildSetupWizardSteps(includeLLAT bool) setupWizardSteps {
