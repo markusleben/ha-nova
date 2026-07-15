@@ -87,7 +87,17 @@ func exchangeRelayPairingCode(client *http.Client, relayBaseURL, code string) (s
 
 	switch response.StatusCode {
 	case http.StatusUnauthorized:
-		return "", errRelayPairingRejected
+		switch relayPairingErrorCode(body) {
+		case "PAIRING_FAILED":
+			return "", errRelayPairingRejected
+		case "UNAUTHORIZED":
+			// Relay versions from before pairing protect /pair with the normal
+			// bearer middleware. Route those users to update/manual-token help
+			// instead of asking them to retry a valid Home Base code forever.
+			return "", errRelayPairingUnsupported
+		default:
+			return "", errors.New("relay returned an invalid pairing error response")
+		}
 	case http.StatusTooManyRequests:
 		return "", &relayPairingRateLimitError{
 			retryAfterSeconds: pairingRetryAfterSeconds(response.Header.Get("Retry-After")),
@@ -112,6 +122,19 @@ func exchangeRelayPairingCode(client *http.Client, relayBaseURL, code string) (s
 	default:
 		return "", fmt.Errorf("relay pairing failed with HTTP %d", response.StatusCode)
 	}
+}
+
+func relayPairingErrorCode(body []byte) string {
+	var envelope struct {
+		OK    bool `json:"ok"`
+		Error struct {
+			Code string `json:"code"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(body, &envelope); err != nil || envelope.OK {
+		return ""
+	}
+	return envelope.Error.Code
 }
 
 func pairingRetryAfterSeconds(header string) int {

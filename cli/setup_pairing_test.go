@@ -46,13 +46,32 @@ func TestExchangeRelayPairingCodeUsesBodyWithoutBearer(t *testing.T) {
 
 func TestExchangeRelayPairingCodeKeepsFailuresSecretAndBounded(t *testing.T) {
 	tests := []struct {
-		name       string
-		status     int
-		retryAfter string
-		wantError  error
-		wantRetry  int
+		name        string
+		status      int
+		retryAfter  string
+		body        string
+		wantError   error
+		wantMessage string
+		wantRetry   int
 	}{
-		{name: "rejected", status: http.StatusUnauthorized, wantError: errRelayPairingRejected},
+		{
+			name:      "rejected",
+			status:    http.StatusUnauthorized,
+			body:      `{"ok":false,"error":{"code":"PAIRING_FAILED","message":"must-not-leak"}}`,
+			wantError: errRelayPairingRejected,
+		},
+		{
+			name:      "legacy relay auth middleware",
+			status:    http.StatusUnauthorized,
+			body:      `{"ok":false,"error":{"code":"UNAUTHORIZED","message":"must-not-leak"}}`,
+			wantError: errRelayPairingUnsupported,
+		},
+		{
+			name:        "unknown unauthorized response",
+			status:      http.StatusUnauthorized,
+			body:        `{"error":{"message":"must-not-leak"}}`,
+			wantMessage: "relay returned an invalid pairing error response",
+		},
 		{name: "unsupported", status: http.StatusNotFound, wantError: errRelayPairingUnsupported},
 		{name: "rate limited", status: http.StatusTooManyRequests, retryAfter: "999", wantRetry: 300},
 	}
@@ -63,13 +82,20 @@ func TestExchangeRelayPairingCodeKeepsFailuresSecretAndBounded(t *testing.T) {
 					w.Header().Set("Retry-After", test.retryAfter)
 				}
 				w.WriteHeader(test.status)
-				_, _ = w.Write([]byte(`{"error":{"message":"must-not-leak"}}`))
+				body := test.body
+				if body == "" {
+					body = `{"error":{"message":"must-not-leak"}}`
+				}
+				_, _ = w.Write([]byte(body))
 			}))
 			defer server.Close()
 
 			_, err := exchangeRelayPairingCode(server.Client(), server.URL, "654321")
 			if test.wantError != nil && !errors.Is(err, test.wantError) {
 				t.Fatalf("error = %v, want %v", err, test.wantError)
+			}
+			if test.wantMessage != "" && (err == nil || err.Error() != test.wantMessage) {
+				t.Fatalf("error = %v, want message %q", err, test.wantMessage)
 			}
 			if strings.Contains(err.Error(), "654321") || strings.Contains(err.Error(), "must-not-leak") {
 				t.Fatalf("pairing error leaked secret material: %v", err)
