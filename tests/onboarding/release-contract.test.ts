@@ -9,6 +9,7 @@ describe("release contract", () => {
   const releaseWorkflow = readFileSync(".github/workflows/release.yml", "utf8");
   const rcWorkflow = readFileSync(".github/workflows/release-candidate.yml", "utf8");
   const releasing = readFileSync("docs/releasing.md", "utf8");
+  const readme = readFileSync("README.md", "utf8");
   const linuxHeadlessHelper = readFileSync("scripts/smoke/linux-headless-setup-check.sh", "utf8");
   const pkg = JSON.parse(readFileSync("package.json", "utf8")) as {
     scripts?: Record<string, string>;
@@ -53,15 +54,28 @@ describe("release contract", () => {
     expect(releaseWorkflow).not.toContain("dist/winget");
   });
 
-  it("keeps v0.17.0 release-facing wording user-centric", () => {
+  it("keeps v0.18.0 release-facing wording user-centric", () => {
     // Shipped release-note bodies are archived (docs/archive/work/) and
     // non-normative per documentation governance; only the active GoReleaser
     // template is contract-checked here.
-    expect(goreleaser).toContain("Test it right after saving");
-    expect(goreleaser).toContain("naming exactly which devices will switch");
-    expect(goreleaser).toContain("never presented as consequence-free");
-    expect(goreleaser).toContain("One consistent look everywhere");
+    expect(goreleaser).toContain("Pair with one short code");
+    expect(goreleaser).toContain("Recover configuration changes");
+    expect(goreleaser).toContain("More first-class Home Assistant work");
+    expect(goreleaser).toContain("Clearer updates and diagnostics");
+    expect(goreleaser).toContain("Update the NOVA Relay App to **0.6.0**");
     expect(goreleaser).not.toContain("Use `v0.7.1` or the latest release command");
+  });
+
+  it("keeps README install commands visible and versionless", () => {
+    expect(readme).toContain(
+      "curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/main/install.sh | bash"
+    );
+    expect(readme).toContain(
+      "irm https://raw.githubusercontent.com/markusleben/ha-nova/main/install.ps1 | iex"
+    );
+    expect(readme).toContain("The installer selects the latest stable release.");
+    expect(readme).not.toMatch(/HA_NOVA_VERSION=v\d/);
+    expect(readme).not.toMatch(/\$env:HA_NOVA_VERSION\s*=\s*['\"]v\d/);
   });
 
   it("pins the GoReleaser release tag to the triggering workflow ref", () => {

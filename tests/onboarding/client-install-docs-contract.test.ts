@@ -28,8 +28,13 @@ describe("client install docs contract", () => {
     expect(readme).not.toContain("npm.cmd");
     expect(readme).not.toContain("5 tested clients");
     expect(readme).toContain("ha-nova uninstall --purge");
-    expect(readme).toContain("Copy the one-liner for your OS");
-    expect(readme).toContain("https://github.com/markusleben/ha-nova/releases/latest");
+    expect(readme).toContain(
+      "curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/main/install.sh | bash"
+    );
+    expect(readme).toContain(
+      "irm https://raw.githubusercontent.com/markusleben/ha-nova/main/install.ps1 | iex"
+    );
+    expect(readme).toContain("The installer selects the latest stable release.");
     expect(readme).toContain("Git for Windows / Git Bash");
     expect(readme).toContain("Google Antigravity Desktop or CLI must be installed");
     expect(readme).toContain("Google Antigravity is the current Google client path");
@@ -37,8 +42,6 @@ describe("client install docs contract", () => {
     expect(readme).not.toContain("%LOCALAPPDATA%\\Programs\\antigravity\\Antigravity.exe");
     // Hermes is now a listed (preview) client like the others; the gate is resolved.
     expect(readme).not.toContain("docs/reference/hermes-platform-validation.md");
-    expect(readme).not.toContain("raw.githubusercontent.com/markusleben/ha-nova/main/install.sh");
-    expect(readme).not.toContain("raw.githubusercontent.com/markusleben/ha-nova/main/install.ps1");
   });
 
   it("keeps client overlays scoped to client-specific deltas", () => {

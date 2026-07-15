@@ -117,7 +117,7 @@ Status: **DONE** — #353, #354, #355
 
 ---
 
-## Wave 5 — Relay diagnosability & robustness (bundled with Wave 2 into Relay 0.5.0)
+## Wave 5 — Relay diagnosability & robustness (ships with Relay 0.6.0)
 
 - `/health`: WS-disconnect reason (auth vs network), `file_access` mode, HA version — so the onboarding skill can classify failures instead of prematurely sending users into `ha-nova setup`.
 - Wire up `LOG_LEVEL` (validated but never consumed today); log the cause on the 500 path (`nova/src/http/errors.ts` swallows it); log 401s; fix the `constantTimeEqual` length leak (`nova/src/security/auth.ts`); server request/headers timeouts; make the 256 MiB response ceiling configurable for constrained hosts.
@@ -168,7 +168,7 @@ From the ideation pass; each needs its own decision before entering a wave:
 
 ## Release sequencing
 
-All waves land on `main` first; releases batch per the release-worthiness rule. Relay changes bundle into exactly two releases: **0.5.0** (`/backups` + diagnosability) and **0.6.0** (`/pair` + Home Base). Skill-only waves (0, 1, 3, 4) batch freely between them.
+All waves land on `main` first; releases batch per the release-worthiness rule. Relay 0.5.0 published the `/backups` foundation. Its immutable image tag existed before Wave 5 merged, so diagnosability ships with Pairing Code + Home Base in Relay **0.6.0**. Skill-only waves (0, 1, 3, 4) batch freely between them.
 
 | Wave | Theme | Relay release | Status |
 |------|-------|---------------|--------|
@@ -177,7 +177,7 @@ All waves land on `main` first; releases batch per the release-worthiness rule. 
 | 2 | Config Snapshots | 0.5.0 | **DONE** — #347, #348, #349, #350 |
 | 3 | Review expansion (SC/D/TS/HX families, test-offer) | — | **DONE** — #352 |
 | 4 | Coverage (integration-setup, calendar writes, events, alarm/lock) | — | **DONE** — #353, #354, #355 |
-| 5 | Relay diagnosability | 0.5.0 (with Wave 2) | **DONE** — #351 |
+| 5 | Relay diagnosability | 0.6.0 (with Wave 6) | **DONE** — #351 |
 | 6 | Pairing Code + Home Base | 0.6.0 | **DONE** — #357, #358, #359, #360; unreleased |
 | 7 | Update UX parity | — | **IN PROGRESS** — spec written |
 

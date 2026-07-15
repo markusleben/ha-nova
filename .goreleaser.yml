@@ -85,8 +85,14 @@ release:
     Windows uses a single supported install path: `install.ps1`. Return an RC install to stable later with `ha-nova update`.
     {{ else }}## New Features
 
-    - **Test it right after saving.** Every new or changed automation and script now ends with a test offer matched to its risk: a zero-impact logic check, an actions-only run, or a full real test that fires the actual trigger — always naming exactly which devices will switch, with one confirmation; every real run gets an automatic trace check afterwards and cleanup of any test state. High-consequence targets such as locks, garage doors, alarms, and heating are never presented as consequence-free.
-    - **One consistent look everywhere.** Suggestions, reports, lists, and status answers now follow the same recognizable shapes as the preview cards: improvement suggestions render as a compact 💡 block, read answers lead with the answer and close with a clear next step, and lists state their counts and caps honestly.
+    - **Pair with one short code.** HA OS and Supervised installs now get NOVA Home Base inside Home Assistant. It shows Relay status and a six-digit, short-lived pairing code, so new setup no longer asks you to copy the Relay token.
+    - **Recover configuration changes.** HA NOVA can capture compact config snapshots before destructive changes and restore supported items through the normal preview, confirmation, and verification flow. Existing update-revert remains the quick undo path.
+    - **More first-class Home Assistant work.** Set up integrations through Home Assistant's own secure UI, create and edit calendar events, fire events and webhooks, and get deeper reviews for scenes, dashboards, YAML sensors, and cross-item conflicts. Alarm and lock actions now use explicit security guidance.
+    - **Clearer updates and diagnostics.** Successful updates tell every supported client when to start a fresh AI session, while Relay health reports why the Home Assistant connection is unavailable and logs request failures more usefully.
+
+    ## What To Watch
+
+    - Update the NOVA Relay App to **0.6.0** to use Home Base and pairing. Relay 0.5.0 already supports config snapshots; older compatible Relay versions keep the legacy token setup and safety-backup fallback.
     Stable install commands are release-pinned for this tag.
 
     **macOS / Linux:**
@@ -107,7 +113,7 @@ release:
     ## Upgrade Notes
 
     - Already installed? Run `ha-nova check-update` or `ha-nova update`.
-    - Claude shipped installs use the local staged HA NOVA release payload on disk. When HA NOVA shows an update notice, run `ha-nova update` and then restart Claude.
+    - Shipped installs use the local staged HA NOVA release payload on disk. When HA NOVA shows an update notice, run `ha-nova update`, then start a new AI client session.
     - Default `ha-nova uninstall` is standard remove. Use `ha-nova uninstall --purge` for a full local wipe.
     - Windows now uses `%APPDATA%\ha-nova` and `%LOCALAPPDATA%\ha-nova\cache` as the canonical config and cache paths.
     - Home Assistant Relay setup and token steps remain guided in the browser after local install completes.
