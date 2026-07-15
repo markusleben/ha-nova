@@ -29,6 +29,9 @@ Which HA operations require REST, WS, or filesystem?
 | `/api/config/script/config/{id}` | POST | Create/update script |
 | `/api/config/script/config/{id}` | DELETE | Delete script |
 | `/api/config/config_entries/entry/{id}/reload` | POST | Reload config entry |
+| `/api/config/config_entries/flow_handlers` | GET | List config-flow handler domains |
+| `/api/config/config_entries/flow` | POST | Start an integration/helper config flow |
+| `/api/config/config_entries/flow/{flow_id}` | GET / POST / DELETE | Read, submit, or cancel one config flow |
 
 **Auth header:** `Authorization: Bearer {LONG_LIVED_TOKEN}`
 
@@ -73,13 +76,20 @@ Which HA operations require REST, WS, or filesystem?
 | Transport | Command / Path | Purpose |
 |-----------|----------------|---------|
 | WS | `config_entries/get` | Retrieve config-entry metadata |
+| WS | `manifest/list` | Map integration domains to manifest names and config-flow capability |
+| WS | `config_entries/flow/progress` | Retrieve in-progress flows, including `reauth` |
+| `/core` | `GET /api/config/config_entries/flow_handlers` | List available config-flow handlers |
 | `/core` | `POST /api/config/config_entries/flow` | Start flow |
+| `/core` | `GET /api/config/config_entries/flow/{flow_id}` | Read current flow step |
 | `/core` | `POST /api/config/config_entries/flow/{flow_id}` | Submit flow step |
+| `/core` | `DELETE /api/config/config_entries/flow/{flow_id}` | Cancel an unfinished flow |
 | `/core` | `POST /api/config/config_entries/options/flow` | Start options flow for an existing entry |
 | `/core` | `POST /api/config/config_entries/options/flow/{flow_id}` | Submit options-flow step |
 | `/core` | `DELETE /api/config/config_entries/entry/{entry_id}` | Delete config entry |
 
 Observed locally on a real HA instance on 2026-03-19: raw WS `config_entries/flow` did not succeed in this session; relay `/core` returned the expected config-flow responses.
+
+**Integration flow ownership:** `ha-nova:integration-setup` owns integration add and pending `reauth` continuation; it uses the live response schema and hands secrets/external steps to the HA UI.
 
 **Helper-owned config-entry domains:** utility_meter, derivative, integration, min_max, threshold, tod, statistics, group, history_stats, template
 `group` is menu-driven; the live-proven end-to-end subtype is `sensor`, and other subtypes must stay anchored to the live step schema instead of guessed fields.

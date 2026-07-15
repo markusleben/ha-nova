@@ -182,6 +182,7 @@ Match user intent to exactly one skill:
 | show history, logbook timelines, or long-term statistics | `ha-nova:history` |
 | check home status, repairs, system health, integration issues, unavailable entities, or low batteries | `ha-nova:health` |
 | find out WHY a specific automation, script, device, or integration failed or misbehaved (traces, error/system logs, root cause) | `ha-nova:diagnose` |
+| add an integration or continue a pending integration reauthentication flow | `ha-nova:integration-setup` |
 | play, pause, skip, set volume, change source, group speakers, browse media, or announce over a speaker | `ha-nova:media` |
 | send a notification to a phone or another notify target, or manage Home Assistant's persistent notifications | `ha-nova:notify` |
 | look at a camera (snapshot), get a stream URL, or record | `ha-nova:camera` |
@@ -232,6 +233,8 @@ Match user intent to exactly one skill:
 **"Why didn't my morning automation run?"** → `ha-nova:diagnose` (concrete failure → traces + logs)
 **"Why is the light turning on at random times?"** → `ha-nova:diagnose`
 **"Show me the error log"** → `ha-nova:diagnose`
+**"Add the Hue integration"** → `ha-nova:integration-setup`
+**"Reconnect my expired integration login"** → `ha-nova:integration-setup` (continues an existing Home Assistant `reauth` flow; credentials stay in the HA UI)
 **"Turn up the volume in the kitchen"** → `ha-nova:media`
 **"What's playing in the living room?"** → `ha-nova:media`
 **"Announce that dinner is ready"** → `ha-nova:media` (TTS to a speaker)
