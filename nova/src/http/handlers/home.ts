@@ -158,7 +158,7 @@ function installCommands(version: string): { unix: string; windows: string } {
   const tag = `v${version}`;
   return {
     unix: `curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/${tag}/install.sh | HA_NOVA_VERSION=${tag} bash`,
-    windows: `irm https://raw.githubusercontent.com/markusleben/ha-nova/${tag}/install.ps1 | iex`
+    windows: `$env:HA_NOVA_VERSION='${tag}'; irm https://raw.githubusercontent.com/markusleben/ha-nova/${tag}/install.ps1 | iex`
   };
 }
 

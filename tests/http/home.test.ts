@@ -65,6 +65,7 @@ describe("Home Base", () => {
     expect(recorder.body).toContain("<dd>read</dd>");
     expect(recorder.body).toContain("v0.17.0/install.sh");
     expect(recorder.body).toContain("v0.17.0/install.ps1");
+    expect(recorder.body).toContain("HA_NOVA_VERSION=&#39;v0.17.0&#39;");
     expect(recorder.body).not.toContain("v0.5.0/install.sh");
     expect(recorder.body).not.toContain("never-render-this-token");
     expect(recorder.body).not.toContain("<script");
