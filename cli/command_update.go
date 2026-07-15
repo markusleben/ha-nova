@@ -12,6 +12,7 @@ import (
 )
 
 const postUpdateSessionInstruction = "Next step: start a new AI client session to load the updated HA NOVA skills."
+const postUpdatePartialSessionInstruction = "Next step for refreshed clients: start a new AI client session in each one to load the updated HA NOVA skills."
 const windowsUpdateStagedInstruction = "Update staged. Wait for the updater to finish. After it reports success, start a new AI client session to load the updated HA NOVA skills."
 
 func runUpdate(paths runtimePaths, args []string) int {
@@ -144,7 +145,7 @@ func runUpdate(paths runtimePaths, args []string) int {
 		printHumanNotice(notice)
 		maybeOfferGuidedRelayUpdate(paths, notice)
 	}
-	printPostUpdateSessionInstructionIfFullySynced(syncResult.FullySynced)
+	printPostUpdateSessionInstruction(syncResult)
 	return 0
 }
 
@@ -200,7 +201,7 @@ func runInternalReplace(paths runtimePaths, args []string) int {
 		printHumanNotice(notice)
 		printHumanInfo("Run `ha-nova doctor` in a terminal to be offered the guided relay update.")
 	}
-	printPostUpdateSessionInstructionIfFullySynced(syncResult.FullySynced)
+	printPostUpdateSessionInstruction(syncResult)
 	return 0
 }
 
@@ -233,20 +234,22 @@ func syncInstalledClientsForCurrentVersion(paths runtimePaths, currentVersion, t
 		printHumanNotice(notice)
 		maybeOfferGuidedRelayUpdate(paths, notice)
 	}
-	printPostUpdateSessionInstructionIfFullySynced(syncResult.FullySynced)
+	printPostUpdateSessionInstruction(syncResult)
 	return 0
 }
 
-func printPostUpdateSessionInstructionIfFullySynced(fullySynced bool) {
-	if !fullySynced {
-		return
+func printPostUpdateSessionInstruction(result postUpdateSyncResult) {
+	if result.FullySynced {
+		printHumanInfo("%s", postUpdateSessionInstruction)
+	} else if result.RefreshedClients {
+		printHumanInfo("%s", postUpdatePartialSessionInstruction)
 	}
-	printHumanInfo("%s", postUpdateSessionInstruction)
 }
 
 type postUpdateSyncResult struct {
-	FullySynced bool
-	Err         error
+	FullySynced      bool
+	RefreshedClients bool
+	Err              error
 }
 
 // postUpdateSync re-syncs every configured client from the canonical install root
@@ -280,6 +283,7 @@ func postUpdateSyncWithResult(paths runtimePaths) postUpdateSyncResult {
 	configured := normalizeClients(append(append([]string{}, state.InstalledClients...), detectedClients...))
 	failed := []string{}
 	skipped := false
+	syncedClients := 0
 	for _, client := range configured {
 		entry, ok, err := findRegistryClient(paths, client)
 		if err != nil {
@@ -300,6 +304,7 @@ func postUpdateSyncWithResult(paths runtimePaths) postUpdateSyncResult {
 			continue
 		}
 		printHumanInfo("Client synced: %s", client)
+		syncedClients++
 	}
 	state.InstalledClients = configured
 	version := localVersion(paths)
@@ -326,7 +331,10 @@ func postUpdateSyncWithResult(paths runtimePaths) postUpdateSyncResult {
 	if len(failed) > 0 {
 		return postUpdateSyncResult{Err: fmt.Errorf("failed clients: %s", strings.Join(normalizeClients(failed), ", "))}
 	}
-	return postUpdateSyncResult{FullySynced: fullySynced}
+	return postUpdateSyncResult{
+		FullySynced:      fullySynced,
+		RefreshedClients: syncedClients > 0 && len(residue) == 0,
+	}
 }
 
 func launchWindowsReplace(paths runtimePaths, stageRoot string) error {
