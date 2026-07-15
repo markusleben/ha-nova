@@ -307,10 +307,12 @@ Windows uninstall contract:
 
 Rules:
 - Windows uses a single supported install path: `install.ps1`
+- before downloading, the Windows installer requires Windows 10 / Server 2016 or later, PowerShell 5.1 or later, an amd64 process (including x64 emulation on ARM64), a writable per-user install root, and working TLS access to GitHub
 - supported public Windows onboarding means one `irm .../install.ps1 | iex` command in a local PowerShell console or Windows Terminal session
 - if at least one supported client is already runnable, the supported public Windows path must not end with `Next step: ha-nova setup`
 - if at least one supported client is already runnable, the supported public Windows path must positively prove that setup started automatically in the same session
 - if no supported client is ready yet, the same public installer path is still valid when it installs HA NOVA locally, explains the missing client prerequisite, and exits cleanly
+- when an installer cannot start the interactive wizard, it must print `ha-nova setup` as the exact next command and explain that setup asks for the six-digit NOVA Home Base pairing code
 - `scripts/dev/windows-desktop-setup.ps1` proves same-version update smoke plus standard/purge uninstall semantics; the cross-version background replace path is still covered by the manual RC/stable matrix above
 - do not present any package-manager alternative as an equal public path
 - keep the matrix small but explicit; do not replace the commands above with vague "relevant tests" wording

@@ -80,7 +80,7 @@ describe("safe test system contract", () => {
     expect(pkg.scripts?.["verify:docs"]).toContain("scripts/check-docs.sh");
     expect(pkg.scripts?.["preverify:installers"]).toBe("node scripts/test/assert-vitest-files-exist.mjs verify:installers");
     expect(pkg.scripts?.["verify:installers"]).toBe(
-      "npx vitest run tests/onboarding/installer-contract.test.ts tests/onboarding/windows-installer-contract.test.ts",
+      "npx vitest run tests/onboarding/installer-contract.test.ts tests/onboarding/windows-installer-contract.test.ts tests/onboarding/windows-installer-preflight.test.ts",
     );
     expect(pkg.scripts?.["preverify:onboarding"]).toBe("node scripts/test/assert-vitest-files-exist.mjs verify:onboarding");
     expect(pkg.scripts?.["verify:onboarding"]).toContain("tests/onboarding/install-skills-per-client.test.ts");

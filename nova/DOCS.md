@@ -59,7 +59,7 @@ Or if you already have the repo:
 ha-nova setup
 ```
 
-The setup wizard handles relay configuration and skill installation. Its normal App flow asks for the six-digit Home Base code, stores the returned relay token in the client's OS credential store, and verifies both Relay health and WebSocket access without displaying the private relay token. Existing saved tokens, `--relay-token`, service token files, and standalone Container/Core setups keep their explicit-token paths.
+The setup wizard handles relay configuration and skill installation. It automatically uses one reachable Home Assistant instance, shows a source-labeled pick list when it finds several, and keeps manual address entry when discovery finds none. Its normal App flow asks for the six-digit Home Base code, stores the returned relay token in the client's OS credential store, and verifies both Relay health and WebSocket access without displaying the private relay token. Existing saved tokens, `--relay-token`, service token files, and standalone Container/Core setups keep their explicit-token paths.
 
 ## Checking Status
 

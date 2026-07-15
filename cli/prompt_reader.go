@@ -25,6 +25,17 @@ func clearSetupNextPromptSkipsStaleBlankInput() {
 	setupNextPromptSkipsStaleBlankInput = false
 }
 
+func beginSetupStaleBlankInputWindow() time.Time {
+	if consumeSetupNextPromptSkipsStaleBlankInput() {
+		return time.Now().Add(setupStaleBlankInputWindow)
+	}
+	return time.Time{}
+}
+
+func setupInputIsStaleBlank(deadline time.Time, blank bool) bool {
+	return !deadline.IsZero() && blank && !time.Now().After(deadline)
+}
+
 func rerenderSetupPromptAfterStaleBlank(out io.Writer) {
 	if resolveSetupUISession(out).enhanced() {
 		fmt.Fprint(out, "\r\033[2K")
@@ -34,10 +45,7 @@ func rerenderSetupPromptAfterStaleBlank(out io.Writer) {
 }
 
 func promptLineWithOptions(reader *bufio.Reader, out io.Writer, label, defaultValue string, allowWizardNav bool) (string, error) {
-	var staleBlankDeadline time.Time
-	if consumeSetupNextPromptSkipsStaleBlankInput() {
-		staleBlankDeadline = time.Now().Add(setupStaleBlankInputWindow)
-	}
+	staleBlankDeadline := beginSetupStaleBlankInputWindow()
 
 	for {
 		fmt.Fprint(out, "  ")
@@ -52,7 +60,7 @@ func promptLineWithOptions(reader *bufio.Reader, out io.Writer, label, defaultVa
 			return "", err
 		}
 		line = strings.TrimSpace(line)
-		if !staleBlankDeadline.IsZero() && line == "" && !time.Now().After(staleBlankDeadline) {
+		if setupInputIsStaleBlank(staleBlankDeadline, line == "") {
 			rerenderSetupPromptAfterStaleBlank(out)
 			continue
 		}

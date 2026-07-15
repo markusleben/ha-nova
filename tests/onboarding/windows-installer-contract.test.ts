@@ -91,8 +91,27 @@ describe("install.ps1 contract", () => {
     expect(content).toContain("Could not read the latest HA NOVA release from GitHub");
     expect(content).toContain("github.com release downloads");
     expect(content).toContain("$release = Invoke-GitHubJson -Uri $LatestReleaseUrl");
-    expect(content).toContain("Initialize-WebSecurity\n\n$expectedVersion");
+    expect(content).toContain("Initialize-WebSecurity\n\nif (-not (Test-CurrentInstall)");
+    expect(content).toContain("Invoke-WindowsInstallerPreflight\n$expectedVersion");
     expect(content).toContain("HA_NOVA_INSTALLER_TEST_EXPORT");
+  });
+
+  it("checks Windows prerequisites before resolving or downloading a release", () => {
+    expect(content).toContain("function Invoke-WindowsInstallerPreflight");
+    expect(content).toContain("Windows 10 or Windows Server 2016 or later is required");
+    expect(content).toContain("PowerShell 5.1 or later is required");
+    expect(content).toContain("Get-PlatformArch");
+    expect(content).toContain("function Assert-InstallRootWritable");
+    expect(content).toContain("function Assert-GitHubTlsAccess");
+    expect(content).toContain('$GitHubPreflightUrl = "https://github.com"');
+    expect(content).toContain("HttpCompletionOption]::ResponseHeadersRead");
+
+    const preflight = content.indexOf("Invoke-WindowsInstallerPreflight\n$expectedVersion");
+    const versionResolution = content.indexOf("$version = Get-DownloadInstallVersion", preflight);
+    const bundleInstall = content.indexOf("$bundleResult = Install-Bundle", preflight);
+    expect(preflight).toBeGreaterThan(-1);
+    expect(preflight).toBeLessThan(versionResolution);
+    expect(versionResolution).toBeLessThan(bundleInstall);
   });
 
   it("retries a hash-mismatched primary download with the next transport", async () => {
@@ -267,6 +286,10 @@ if (($script:methods -join ",") -ne "Invoke-WebRequest,HttpClient") {
     expect(content).toContain("HA_NOVA_NO_SETUP");
     expect(content).toContain("Start-Setup");
     expect(content).toContain("& $BinaryPath setup");
+    expect(content).toContain("Next step: ha-nova setup");
+    expect(content).toContain(
+      "Setup will ask for the six-digit pairing code shown in NOVA Home Base.",
+    );
     expect(content).not.toContain("ha-nova.cmd");
   });
 
