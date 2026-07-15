@@ -181,7 +181,7 @@ Alarm panel services and feature bits:
 | `alarm_arm_vacation` | 32 | `armed_vacation` |
 | `alarm_disarm` | none | `disarmed` |
 
-For an arm action, hand off to the Home Assistant UI when `code_arm_required` is true and `code_format` is present. For disarm/trigger, hand off when `code_format` indicates a code. `alarm_disarm` takes the typed high-consequence confirmation; `alarm_trigger` is disruptive, so warn explicitly and require bound confirmation even when no code is needed.
+For an arm action, hand off to the Home Assistant UI whenever `code_arm_required` is true, even when `code_format` is absent. For disarm/trigger, hand off when `code_format` indicates a code. `alarm_disarm` takes the typed high-consequence confirmation; `alarm_trigger` is disruptive, so warn explicitly and require bound confirmation even when no code is needed.
 
 `lock.lock` and `lock.unlock` have no feature bit. `lock.open` requires `supported_features & 1`. If `code_format` is present, finish the action in the Home Assistant UI. `lock.unlock` and `lock.open` take the typed high-consequence confirmation; `lock.lock` uses normal bound confirmation.
 

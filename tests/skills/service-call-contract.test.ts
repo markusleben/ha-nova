@@ -205,7 +205,8 @@ describe("service call contract", () => {
       ]) {
         expect(skillDoc).toContain(`| \`${service}\` | ${bit} | \`${state}\` |`);
       }
-      expect(skillDoc).toContain("`code_arm_required` is true and `code_format` is present");
+      expect(skillDoc).toContain("whenever `code_arm_required` is true");
+      expect(skillDoc).toContain("even when `code_format` is absent");
       expect(skillDoc).toContain("`code_format` indicates a code");
       expect(skillDoc).toContain("Never include a `code` field in a Relay payload");
       expect(skillDoc).toContain("finish the action in the Home Assistant UI");

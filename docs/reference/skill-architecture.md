@@ -315,7 +315,7 @@ Event/webhook rules:
 
 Alarm/lock rules:
 - inspect the exact state and `supported_features` immediately before preview
-- codes/PINs never enter chat or Relay payloads; alarm arming hands off when both `code_arm_required` and `code_format` are set, while other code-bearing actions use `code_format`
+- codes/PINs never enter chat or Relay payloads; alarm arming hands off whenever `code_arm_required` is true, while other code-bearing actions use `code_format`
 - unlocking/opening a lock and disarming an alarm use the typed high-consequence confirmation
 - security-state verification is transition-aware and never auto-retries
 
