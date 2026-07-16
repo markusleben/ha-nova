@@ -54,15 +54,14 @@ describe("release contract", () => {
     expect(releaseWorkflow).not.toContain("dist/winget");
   });
 
-  it("keeps v0.18.0 release-facing wording user-centric", () => {
+  it("keeps v0.18.1 release-facing wording user-centric", () => {
     // Shipped release-note bodies are archived (docs/archive/work/) and
     // non-normative per documentation governance; only the active GoReleaser
     // template is contract-checked here.
-    expect(goreleaser).toContain("Pair with one short code");
-    expect(goreleaser).toContain("Recover configuration changes");
-    expect(goreleaser).toContain("More first-class Home Assistant work");
-    expect(goreleaser).toContain("Clearer updates and diagnostics");
-    expect(goreleaser).toContain("Update the NOVA Relay App to **0.6.0**");
+    expect(goreleaser).toContain("Clean up config snapshots in one safe batch");
+    expect(goreleaser).toContain("up to 20 exact snapshot files");
+    expect(goreleaser).toContain("Relay App updates no longer stay hidden above the compatibility floor");
+    expect(goreleaser).toContain("without marking an otherwise healthy compatible Relay as broken");
     expect(goreleaser).not.toContain("Use `v0.7.1` or the latest release command");
   });
 
