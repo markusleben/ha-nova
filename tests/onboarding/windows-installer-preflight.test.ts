@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -32,6 +32,19 @@ ${body}
     status: result.status,
     output: `${result.stdout ?? ""}${result.stderr ?? ""}`,
   };
+}
+
+function createNativeExitProbe(exitCode: number): string {
+  const tempDir = mkdtempSync(join(tmpdir(), "ha-nova-native-exit-"));
+  if (process.platform === "win32") {
+    const probe = join(tempDir, "probe.cmd");
+    writeFileSync(probe, `@exit /b ${exitCode}\r\n`, "utf8");
+    return probe;
+  }
+  const probe = join(tempDir, "probe.sh");
+  writeFileSync(probe, `#!/bin/sh\nexit ${exitCode}\n`, "utf8");
+  chmodSync(probe, 0o755);
+  return probe;
 }
 
 const supportedRuntime = `
@@ -82,6 +95,27 @@ Write-Output ("LASTEXITCODE:" + $LASTEXITCODE)
     );
     expect(result.output).toContain("CALLS:internal-setup-readiness");
     expect(result.output).not.toContain("CALLS:internal-setup-readiness,setup");
+    expect(result.output).toContain("LASTEXITCODE:0");
+  });
+
+  it("handles the no-client native exit when PowerShell promotes native errors", () => {
+    if (!hasPowerShell()) return;
+    const fakeBinary = createNativeExitProbe(2).replaceAll("'", "''");
+    const result = runPreflightProbe(`
+function Test-InteractiveSession { return $true }
+$PSNativeCommandUseErrorActionPreference = $true
+Start-Setup -BinaryPath '${fakeBinary}'
+Write-Output ("NATIVE_ERROR_PREFERENCE:" + $PSNativeCommandUseErrorActionPreference)
+Write-Output ("LASTEXITCODE:" + $LASTEXITCODE)
+`);
+    expect(result.status).toBe(0);
+    expect(result.output).toContain(
+      "No supported AI client is ready on this machine yet.",
+    );
+    expect(result.output).toContain(
+      "Install one supported client first, then rerun: ha-nova setup",
+    );
+    expect(result.output).toContain("NATIVE_ERROR_PREFERENCE:True");
     expect(result.output).toContain("LASTEXITCODE:0");
   });
 

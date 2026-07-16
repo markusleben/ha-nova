@@ -958,8 +958,20 @@ function Start-Setup {
     return
   }
 
-  & $BinaryPath internal-setup-readiness
-  $readinessExitCode = $LASTEXITCODE
+  $nativeErrorPreference = Get-Variable -Name PSNativeCommandUseErrorActionPreference -ErrorAction SilentlyContinue
+  $previousNativeErrorPreference = if ($null -ne $nativeErrorPreference) { [bool]$nativeErrorPreference.Value } else { $false }
+  try {
+    if ($null -ne $nativeErrorPreference) {
+      $PSNativeCommandUseErrorActionPreference = $false
+    }
+    & $BinaryPath internal-setup-readiness
+    $readinessExitCode = $LASTEXITCODE
+  }
+  finally {
+    if ($null -ne $nativeErrorPreference) {
+      $PSNativeCommandUseErrorActionPreference = $previousNativeErrorPreference
+    }
+  }
   if ($readinessExitCode -eq 2) {
     Write-Warn "No supported AI client is ready on this machine yet."
     Write-Note "Install one supported client first, then rerun: ha-nova setup"
