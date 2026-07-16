@@ -1,6 +1,6 @@
 # Wave 7 Update UX Spec
 
-Status: active
+Status: complete — #362, #363; released in v0.18.0 on 2026-07-16
 Date: 2026-07-15
 Sequencing SSOT: `docs/work/masterplan-2026-h2.md` -> Wave 7
 Release train: HA NOVA 0.18.0 with Relay App 0.6.0
