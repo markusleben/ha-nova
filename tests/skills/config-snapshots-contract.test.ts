@@ -62,6 +62,22 @@ describe("config snapshots contract", () => {
   it("updates the safety matrix and dispatch", () => {
     expect(writeSafety).toContain("`skills/ha-nova/config-snapshots.md` is the SSOT");
     expect(writeSafety).toContain("config snapshot (auto before delete, identity-preserving restore); HA Backups");
-    expect(contextSkill).toContain("list or restore config snapshots");
+    expect(contextSkill).toContain("list or delete config snapshots");
+    expect(contextSkill).toContain("restore a config snapshot");
+  });
+
+  it("supports exact manifest-bound batch deletion without widening prune", () => {
+    expect(reference).toContain("## Batch delete (explicit opt-in)");
+    expect(reference).toContain("`config-snapshots` resource family");
+    expect(reference).toContain("Snapshot categories may share one manifest");
+    expect(reference).toContain("Cap the manifest at **20** files");
+    expect(reference).toContain("confirm:batch-delete-config-snapshots-<count>-<digest>");
+    expect(reference).toContain("Run an unfiltered `list` immediately before building the manifest");
+    expect(reference).toContain("never expand a category, age, prefix, wildcard, or other\n  selector after the preview");
+    expect(reference).toContain('Execute one `{"action":"delete","file":"<literal-file>"}` request at a\n  time');
+    expect(reference).toContain("After each response, `list` again and verify that\n  exact file is absent before continuing");
+    expect(reference).toContain("succeeded, failed, and not attempted");
+    expect(reference).toContain("the deleted copy itself has no rollback");
+    expect(reference).toContain("Never use batch delete to emulate prune or to widen `keep_named`");
   });
 });

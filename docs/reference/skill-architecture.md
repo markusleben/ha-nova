@@ -165,6 +165,16 @@ Current mapping:
 Fallback:
 - if agent dispatch unavailable, execute same phases inline serially.
 
+## Config Snapshot Architecture
+
+The `ha-nova` context skill owns generic config snapshot listing and deletion
+through `skills/ha-nova/config-snapshots.md`; restore delegates to the skill
+that owns the captured Home Assistant item because restore fidelity and write
+verification are family-specific. Exact multi-file deletion is the sole
+context-owned destructive batch family: `config-snapshots`, capped at 20,
+sequential, fail-fast, and verified per blob. The Relay remains an opaque blob
+store and gains no Home Assistant business logic.
+
 ## Read Architecture
 
 `ha-nova:read` is intentionally direct/low-overhead:

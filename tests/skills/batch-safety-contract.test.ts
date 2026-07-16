@@ -9,6 +9,7 @@ const outputRules = readFileSync("skills/ha-nova/output-rules.md", "utf8");
 
 // Every skill that declares batch support must point at the shared contract.
 const OPTED_IN_SKILLS = [
+  "ha-nova",
   "write",
   "helper",
   "mqtt",
@@ -130,6 +131,8 @@ describe("batch safety contract (issue #327)", () => {
   });
 
   it("keeps the domain guards of the opted-in skills", () => {
+    expect(contextSkill).toContain("exact config snapshot blobs in the `config-snapshots` family");
+    expect(batchSafety).toContain("exact config snapshot blobs only (`config-snapshots` family)");
     const mqtt = readFileSync("skills/mqtt/SKILL.md", "utf8");
     expect(mqtt).toContain("topics taken only from `mqtt/device/debug_info`");
     expect(mqtt).toContain("command/`set` topics always stay single-target");

@@ -83,7 +83,7 @@ separate manifests, each with its own preview and confirmation code:
 
 - config-item families (automations, scripts, helpers, scenes, dashboards,
   resources, cards within one dashboard, to-do lists, registry
-  categories/labels/areas/floors): **20**
+  categories/labels/areas/floors, config snapshot blobs): **20**
 - evidence-derived cleanup families (retained discovery topics, orphaned
   statistics IDs, orphan registry entries per config entry): **100**
 
@@ -153,6 +153,7 @@ the offer of a remaining-targets manifest).
 
 | Skill | Batch support | Families / rationale |
 |---|---|---|
+| `ha-nova` | yes | exact config snapshot blobs only (`config-snapshots` family); categories may mix because they remain one generic blob resource family |
 | `write` | yes | automations OR scripts (never mixed); per-item consumer check; YAML export before delete when feasible |
 | `helper` | yes | one helper family per manifest; storage and config-entry families never mixed |
 | `mqtt` | yes | retained discovery cleanup for ONE resolved device (topics only from `mqtt/device/debug_info`); command/`set` topics excluded |
