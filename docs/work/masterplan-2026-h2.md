@@ -1,6 +1,6 @@
 # HA NOVA Masterplan 2026-H2
 
-Status: `complete` — shipped in v0.18.0 on 2026-07-16
+Status: `active roadmap` — committed Waves 0–7 shipped in v0.18.0 on 2026-07-16; the ranked backlog remains uncommitted
 Scope: program-level plan following the completed [masterplan-2026.md](masterplan-2026.md) (shipped as v0.14.0, since grown to v0.18.0). Each wave breaks down into its own short spec + PRs before implementation; this doc is the SSOT for sequencing and decisions until superseded.
 
 ## Context
@@ -168,7 +168,7 @@ From the ideation pass; each needs its own decision before entering a wave:
 
 ## Release sequencing
 
-All waves landed on `main` before release, following the release-worthiness rule. Relay 0.5.0 published the `/backups` foundation; Relay 0.6.0 then shipped Wave 5 diagnosability with Pairing Code + Home Base in v0.18.0. The H2 masterplan is complete.
+All committed waves landed on `main` before release, following the release-worthiness rule. Relay 0.5.0 published the `/backups` foundation; Relay 0.6.0 then shipped Wave 5 diagnosability with Pairing Code + Home Base in v0.18.0. The committed waves are complete; this plan remains the active roadmap and decision SSOT for the ranked backlog until a successor replaces it.
 
 | Wave | Theme | Relay release | Status |
 |------|-------|---------------|--------|
