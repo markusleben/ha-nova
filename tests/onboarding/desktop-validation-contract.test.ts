@@ -337,7 +337,6 @@ describe("desktop validation helpers contract", () => {
     expect(windowsPublic).toContain("Install one supported client first, then rerun: ha-nova setup");
     expect(windowsPublic).toContain("Invoke-Expression (Get-Content -LiteralPath $InstallScript -Raw)");
     expect(windowsPublic).toContain("Start-Transcript");
-    expect(windowsPublic).toContain("HA_NOVA_PLAIN_UI");
     expect(windowsPublic).toContain("InstallerOutput");
     expect(windowsPublic).not.toContain("Tee-Object");
     expect(windowsPublic).not.toContain("cmd.exe /d /s /c");

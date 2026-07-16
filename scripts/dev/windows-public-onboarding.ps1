@@ -112,12 +112,6 @@ function Set-InstallEnv {
   Remove-Item Env:HA_NOVA_BUNDLE_SHA256_URL -ErrorAction SilentlyContinue
   Remove-Item Env:HA_NOVA_NO_SETUP -ErrorAction SilentlyContinue
   Remove-Item Env:HA_NOVA_NO_BROWSER -ErrorAction SilentlyContinue
-  Remove-Item Env:HA_NOVA_PLAIN_UI -ErrorAction SilentlyContinue
-
-  # Windows 10 PowerShell 5.1 transcripts can omit Write-Host output emitted by
-  # a nested Invoke-Expression. Plain UI keeps installer messages on the success
-  # stream so the validator can capture them without redirecting the console.
-  $env:HA_NOVA_PLAIN_UI = "1"
 
   if ($Source -eq "rc") {
     if (-not $BundleUrl -or -not $BundleSha256Url) {
@@ -175,16 +169,75 @@ function Invoke-PublicInstaller {
   $exitCode = 0
   $caught = $null
   $transcriptStarted = $false
-  $installerOutput = New-Object System.Collections.Generic.List[string]
+  $installerOutput = New-Object System.Text.StringBuilder
+
+  function Add-InstallerOutput {
+    param(
+      [AllowEmptyString()][string]$Text,
+      [switch]$NoNewline
+    )
+
+    $installerOutput.Append($Text) | Out-Null
+    if (-not $NoNewline) {
+      $installerOutput.AppendLine() | Out-Null
+    }
+  }
+
+  # Windows 10 PowerShell 5.1 transcripts can omit nested host output. Mirror
+  # explicit installer UI writes into memory while the installer and its native
+  # interactive child stay attached directly to the console.
+  function Write-Host {
+    [CmdletBinding()]
+    param(
+      [Parameter(Position = 0, ValueFromPipeline = $true, ValueFromRemainingArguments = $true)]
+      [object[]]$Object,
+      [string]$Separator = " ",
+      [switch]$NoNewline,
+      [ConsoleColor]$ForegroundColor,
+      [ConsoleColor]$BackgroundColor
+    )
+
+    process {
+      $parts = New-Object System.Collections.Generic.List[string]
+      foreach ($item in $Object) {
+        $parts.Add([string]$item)
+      }
+      $line = [string]::Join($Separator, $parts)
+      Add-InstallerOutput -Text $line -NoNewline:$NoNewline
+
+      $hostParameters = @{
+        Object = $Object
+        Separator = $Separator
+        NoNewline = $NoNewline
+      }
+      if ($PSBoundParameters.ContainsKey("ForegroundColor")) {
+        $hostParameters.ForegroundColor = $ForegroundColor
+      }
+      if ($PSBoundParameters.ContainsKey("BackgroundColor")) {
+        $hostParameters.BackgroundColor = $BackgroundColor
+      }
+      Microsoft.PowerShell.Utility\Write-Host @hostParameters
+    }
+  }
+
+  function Write-Output {
+    [CmdletBinding()]
+    param(
+      [Parameter(Position = 0, ValueFromPipeline = $true, ValueFromRemainingArguments = $true)]
+      [AllowNull()][object]$InputObject,
+      [switch]$NoEnumerate
+    )
+
+    process {
+      Add-InstallerOutput -Text ([string]$InputObject)
+      Microsoft.PowerShell.Utility\Write-Output -InputObject $InputObject -NoEnumerate:$NoEnumerate
+    }
+  }
 
   try {
     Start-Transcript -Path $TranscriptPath -Force | Out-Null
     $transcriptStarted = $true
-    Invoke-Expression (Get-Content -LiteralPath $InstallScript -Raw) | ForEach-Object {
-      $line = [string]$_
-      $installerOutput.Add($line)
-      Write-Host $line
-    }
+    Invoke-Expression (Get-Content -LiteralPath $InstallScript -Raw)
     if ($LASTEXITCODE) {
       $exitCode = $LASTEXITCODE
     }
@@ -204,10 +257,10 @@ function Invoke-PublicInstaller {
     }
   }
 
-  return @{
+  $script:PublicInstallerResult = @{
     ExitCode = $exitCode
     Error = $caught
-    InstallerOutput = [string]::Join([Environment]::NewLine, $installerOutput)
+    InstallerOutput = $installerOutput.ToString()
   }
 }
 
@@ -217,7 +270,12 @@ $readyClients = @(Get-ReadyClients)
 $agyAvailable = Test-CommandAvailable "agy"
 $antigravityDesktopAvailable = Test-AntigravityDesktopAvailable
 
-$result = Invoke-PublicInstaller
+$script:PublicInstallerResult = $null
+Invoke-PublicInstaller
+$result = $script:PublicInstallerResult
+if ($null -eq $result) {
+  throw "public Windows installer did not return a validation result"
+}
 $transcript = if (Test-Path -LiteralPath $TranscriptPath) {
   Get-Content -LiteralPath $TranscriptPath -Raw
 }

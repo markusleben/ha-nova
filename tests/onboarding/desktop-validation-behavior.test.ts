@@ -31,13 +31,19 @@ describe("desktop validation helper behavior", () => {
     expect(windowsPublic).not.toContain('second_terminal_command_needed -eq $true');
   });
 
-  it("captures installer guidance when legacy PowerShell transcripts omit nested host output", () => {
-    expect(windowsPublic).toContain('$env:HA_NOVA_PLAIN_UI = "1"');
-    expect(windowsPublic).toContain("$installerOutput = New-Object System.Collections.Generic.List[string]");
-    expect(windowsPublic).toContain("$installerOutput.Add($line)");
-    expect(windowsPublic).toContain("InstallerOutput = [string]::Join([Environment]::NewLine, $installerOutput)");
+  it("captures legacy host output without piping the interactive installer", () => {
+    expect(windowsPublic).toContain("$installerOutput = New-Object System.Text.StringBuilder");
+    expect(windowsPublic).toContain("function Write-Host {");
+    expect(windowsPublic).toContain("function Write-Output {");
+    expect(windowsPublic).toContain("Add-InstallerOutput -Text $line");
+    expect(windowsPublic).toContain("Microsoft.PowerShell.Utility\\Write-Host @hostParameters");
+    expect(windowsPublic).toContain("Microsoft.PowerShell.Utility\\Write-Output -InputObject $InputObject");
+    expect(windowsPublic).toContain("$script:PublicInstallerResult = @{");
+    expect(windowsPublic).toContain("Invoke-PublicInstaller\n$result = $script:PublicInstallerResult");
+    expect(windowsPublic).not.toContain("$result = Invoke-PublicInstaller");
     expect(windowsPublic).toContain("$installerLog = @($transcript, $result.InstallerOutput) -join [Environment]::NewLine");
     expect(windowsPublic).toMatch(/\$missingClientGuidanceDisplayed = \([\s\S]+\$installerLog -match/);
+    expect(windowsPublic).not.toMatch(/Invoke-Expression \([^\n]+\)\s*\|\s*ForEach-Object/);
   });
 
   it("keeps Antigravity Desktop-only proof from passing through agy or missing-client fallback", () => {
