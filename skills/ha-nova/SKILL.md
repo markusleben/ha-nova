@@ -103,6 +103,7 @@ Skills reference this section as "context skill → Active Preview Confirmation"
   **Strict token enforcement:** User MUST reply with the exact token string (e.g., `confirm:del-main-lights`). Any other response — including "yes", "sure, delete it", "do it", or any natural-language confirmation — is NOT valid. Reject and re-prompt with the exact code required. In user-facing output call it the "confirmation code" (localized), never a "token" (see `skills/ha-nova/output-rules.md` → Localization).
   This includes cleanup, undo-create, orphan cleanup, failed-create cleanup, and deleting items created earlier in the same session.
 - destructive multi-target batch: manifest-bound code `confirm:batch-<operation>-<family>-<count>-<digest>` per `skills/ha-nova/batch-safety.md` — only where the owning skill declares batch support, never inferred.
+- This context skill explicitly owns batch deletion only for exact config snapshot blobs in the `config-snapshots` family (`skills/ha-nova/config-snapshots.md`).
 
 ### Write Routing Gate
 
@@ -204,7 +205,8 @@ Match user intent to exactly one skill:
 | find entities by name, room, area | `ha-nova:entity-discovery` |
 | fix relay/auth/connectivity errors | `ha-nova:onboarding` |
 | undo, revert, or restore the last automation/script/helper change | the skill that wrote it — `ha-nova:write` (automation/script) or `ha-nova:helper` (helper). `revert` applies only to supported verified updates. Creates clean up through the normal delete flow; a DELETED automation/script/scene/dashboard/STORAGE helper restores from its auto config snapshot in the owning skill (`skills/ha-nova/config-snapshots.md`); config-entry helpers are not snapshot-covered — their recovery stays Backup/recreate. Run `ha-nova snapshot show` to see the saved update target if unsure |
-| list or restore config snapshots ("restore X from a snapshot", "what snapshots do I have?") | the skill that owns the item family — `ha-nova:write` (automations/scripts), `ha-nova:scene`, `ha-nova:dashboard`, `ha-nova:helper`, `ha-nova:energy` (prefs), `ha-nova:yaml-config` (files), `ha-nova:organize` (metadata); mechanics: `skills/ha-nova/config-snapshots.md` |
+| list or delete config snapshots ("what snapshots do I have?", "delete these obsolete snapshots") | `ha-nova` (this context skill); mechanics: `skills/ha-nova/config-snapshots.md` |
+| restore a config snapshot ("restore X from a snapshot") | the skill that owns the item family — `ha-nova:write` (automations/scripts), `ha-nova:scene`, `ha-nova:dashboard`, `ha-nova:helper`, `ha-nova:energy` (prefs), `ha-nova:yaml-config` (files), `ha-nova:organize` (metadata); mechanics: `skills/ha-nova/config-snapshots.md` |
 | **any HA task not matched above** — blueprints, unsupported admin writes, any unfamiliar raw relay/ws/core write | `ha-nova:fallback` **(mandatory fallback — never skip)** |
 
 **"Analyze my automation"** → `ha-nova:review` (NOT read + review)
@@ -215,6 +217,7 @@ Match user intent to exactly one skill:
 **"Create an input_boolean"** → `ha-nova:helper` (NOT write)
 **"Show my helpers"** → `ha-nova:helper` (NOT read)
 **"Revert that"** / **"Undo the last change"** → re-invoke the skill that made it: `ha-nova:write` (automation/script) or `ha-nova:helper` (helper). `revert` is update-only and lives there (see `write-safety.md` → Update-Revert), never `ha-nova:fallback`; create cleanup uses delete flow, and a deleted item in a snapshot-covered family restores from its auto config snapshot in the owning skill (`config-snapshots.md`); config-entry helpers stay Backup/recreate.
+**"Delete these obsolete config snapshots"** → `ha-nova` context skill using `config-snapshots.md`; exact multi-file cleanup may use its declared `config-snapshots` batch family.
 **"Create a scene called Movie Night"** → `ha-nova:scene`
 **"Activate the scene Movie Night"** → `ha-nova:service-call` (runtime action, not a config change)
 **"Unlock the front door"** → `ha-nova:service-call` (high-consequence: typed confirmation code)

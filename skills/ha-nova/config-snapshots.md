@@ -1,9 +1,9 @@
 # Config Snapshots (shared reference)
 
 SSOT for the targeted, lightweight snapshot layer on top of the relay's generic
-blob store (`POST /backups`). Load this file only when capturing
-or restoring a snapshot. The relay stores opaque gzip'd JSON — everything smart
-(what to capture, how to restore, what to promise) lives here.
+blob store (`POST /backups`). Load this file only when capturing, listing,
+deleting, or restoring a snapshot. The relay stores opaque gzip'd JSON —
+everything smart (what to capture, how to restore, what to promise) lives here.
 
 ## Relay contract
 
@@ -16,6 +16,40 @@ the payload sits under `.data`, errors under `.error`.
 - List: `{"action":"list"}` (optional `"category"`) → `.data[]` newest first (`file`, `category`, `bytes`, `created_at`)
 - Delete: `{"action":"delete","file":...}` — typed confirmation code like any destructive op
 - Prune: `{"action":"prune"}` (defaults: 30 days / 100 files, named snapshots exempt) → `.data.deleted[]`. Offer prune when a save fails `SNAPSHOT_STORE_FULL` or the user asks; preview count + age range of the affected auto-snapshots, natural confirmation (they are expendable copies), `keep_named` stays true unless the user explicitly says otherwise.
+
+## Batch delete (explicit opt-in)
+
+The `ha-nova` context skill explicitly supports destructive batch deletion for
+the `config-snapshots` resource family through
+`skills/ha-nova/batch-safety.md`. Single-file delete stays the default.
+
+- Run an unfiltered `list` immediately before building the manifest. Every
+  target must be a literal `.data[].file` value with its category, bytes, and
+  created time; never expand a category, age, prefix, wildcard, or other
+  selector after the preview.
+- Snapshot categories may share one manifest: they are metadata on the same
+  generic blob resource, with the same endpoint, delete semantics, and
+  recovery limits. Never mix another resource type or a prune action into the
+  manifest.
+- Cap the manifest at **20** files. Use deterministic bytewise file-path order
+  and the confirmation code
+  `confirm:batch-delete-config-snapshots-<count>-<digest>`.
+- Record the dependency result per target as not applicable: deleting a
+  snapshot copy cannot change the underlying Home Assistant config. State
+  plainly that the deleted copy itself has no rollback.
+- Immediately before execution, run another unfiltered `list` and require
+  every selected file and its listed metadata to still match the manifest.
+  Missing or changed target evidence expires the confirmation; a new
+  unselected file does not.
+- Execute one `{"action":"delete","file":"<literal-file>"}` request at a
+  time in manifest order. After each response, `list` again and verify that
+  exact file is absent before continuing. On timeout, verify first and never
+  retry blindly. Fail fast and report succeeded, failed, and not attempted.
+- When an unselected snapshot exists, pin one in the manifest and verify it is
+  still present at the end as the unrelated-resource invariant.
+
+Prune remains a separate retention flow with its own preview and confirmation.
+Never use batch delete to emulate prune or to widen `keep_named`.
 
 Names: auto-snapshots MUST use the `auto-` prefix (prune eats them); snapshots
 the user asked for by name use a plain slug and survive prune. A `404/NOT_FOUND`
