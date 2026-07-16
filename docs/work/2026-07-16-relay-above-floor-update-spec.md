@@ -14,7 +14,7 @@ Date: 2026-07-16
 - Report an available update only when the entity is on and its valid `latest_version` is newer than its valid `installed_version`.
 - Interactive `doctor` and `update` offer the existing guided App install. Non-interactive commands report the update without blocking. Quiet and JSON contracts remain unchanged.
 - Missing, duplicate, malformed, or unreachable update-entity evidence stays silent; standalone Container/Core remains manual.
-- After install, verify the Relay health version reached the offered target version. Satisfying only the lower compatibility floor is not sufficient.
+- After install, verify the Relay health version reached the offered target version and still satisfies the compatibility floor. Neither condition alone is sufficient.
 
 ## Acceptance
 
@@ -23,4 +23,5 @@ Date: 2026-07-16
 - Duplicate/malformed/missing update entity: no guess and no notice.
 - Below-floor Relay: existing outdated warning and failure semantics remain.
 - Guided install waits for the offered target version and does not claim success while the old above-floor version still runs.
+- Guided install does not accept a stale offered target that remains below the compatibility floor.
 - Existing TTY, quiet, JSON, Windows-background, and standalone behavior remains covered.

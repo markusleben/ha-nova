@@ -173,10 +173,13 @@ func waitForRelayVersion(paths runtimePaths, cfg config, token, targetVersion st
 		if err == nil {
 			version := parseRelayHealthVersion(body)
 			if version != "" {
-				if targetVersion == "" && checkRelayVersionValue(paths, version).empty() {
-					return version, true
-				}
-				if targetVersion != "" {
+				// Every successful update must still satisfy the installed skill
+				// floor. The App update entity can lag behind version.json and
+				// advertise a target that remains incompatible.
+				if checkRelayVersionValue(paths, version).empty() {
+					if targetVersion == "" {
+						return version, true
+					}
 					cmp, compareErr := compareReleaseVersions(version, targetVersion)
 					if compareErr == nil && cmp >= 0 {
 						return version, true

@@ -137,6 +137,32 @@ func TestGuidedRelayUpdateWaitsForOfferedAboveFloorVersion(t *testing.T) {
 	}
 }
 
+func TestWaitForRelayVersionKeepsFloorForStaleTarget(t *testing.T) {
+	paths := guidedUpdatePaths(t)
+	shrinkGuidedUpdatePolling(t, time.Second)
+	var healthPolls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/health" {
+			http.NotFound(w, r)
+			return
+		}
+		version := "0.3.0" // Offered target, but still below the 0.4.0 floor.
+		if healthPolls.Add(1) >= 3 {
+			version = "0.4.0"
+		}
+		fmt.Fprintf(w, `{"ok":true,"data":{"version":%q}}`, version)
+	}))
+	defer server.Close()
+
+	version, ok := waitForRelayVersion(paths, config{RelayBaseURL: server.URL}, "token", "0.3.0")
+	if !ok || version != "0.4.0" {
+		t.Fatalf("verification = (%q, %v), want floor-compatible v0.4.0", version, ok)
+	}
+	if healthPolls.Load() < 3 {
+		t.Fatalf("verification accepted the stale below-floor target after %d poll(s)", healthPolls.Load())
+	}
+}
+
 func TestRunDoctorReportsAboveFloorRelayUpdateWithoutFailing(t *testing.T) {
 	paths, cfg := doctorTestSetup(t)
 	relay := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
