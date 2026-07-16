@@ -285,7 +285,14 @@ if (($script:methods -join ",") -ne "Invoke-WebRequest,HttpClient") {
     expect(content).toContain("Ensure-InstallDirOnPath");
     expect(content).toContain("HA_NOVA_NO_SETUP");
     expect(content).toContain("Start-Setup");
+    expect(content).toContain("internal-setup-readiness");
     expect(content).toContain("& $BinaryPath setup");
+    expect(content).toContain(
+      "No supported AI client is ready on this machine yet.",
+    );
+    expect(content).toContain(
+      "Install one supported client first, then rerun: ha-nova setup",
+    );
     expect(content).toContain("Next step: ha-nova setup");
     expect(content).toContain(
       "Setup will ask for the six-digit pairing code shown in NOVA Home Base.",

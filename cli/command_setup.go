@@ -7,6 +7,24 @@ import (
 	"strings"
 )
 
+const setupReadinessNoClientExitCode = 2
+
+func runInternalSetupReadiness(paths runtimePaths, args []string) int {
+	if len(args) != 0 {
+		printHumanErr("internal-setup-readiness does not accept arguments")
+		return 1
+	}
+	choices, err := buildSetupClientChoices(paths, loadStateOrDefault(paths))
+	if err != nil {
+		printHumanErr("%s", err)
+		return 1
+	}
+	if !hasAvailableSetupClientChoice(choices) {
+		return setupReadinessNoClientExitCode
+	}
+	return 0
+}
+
 func runSetup(paths runtimePaths, args []string) int {
 	fs := flag.NewFlagSet("setup", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)

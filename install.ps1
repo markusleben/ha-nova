@@ -958,6 +958,19 @@ function Start-Setup {
     return
   }
 
+  & $BinaryPath internal-setup-readiness
+  $readinessExitCode = $LASTEXITCODE
+  if ($readinessExitCode -eq 2) {
+    Write-Warn "No supported AI client is ready on this machine yet."
+    Write-Note "Install one supported client first, then rerun: ha-nova setup"
+    Write-Note "Need help later? Run: ha-nova doctor"
+    $global:LASTEXITCODE = 0
+    return
+  }
+  if ($readinessExitCode -ne 0) {
+    Fail "Could not check whether a supported AI client is ready."
+  }
+
   & $BinaryPath setup
 }
 

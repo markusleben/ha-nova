@@ -33,7 +33,9 @@ func promptSetupClientFromReader(reader *bufio.Reader, out io.Writer, choices []
 			}
 		}
 		fmt.Fprintln(out)
-		return "", fmt.Errorf("no supported AI clients detected on this machine yet")
+		fmt.Fprintln(out, "  No supported AI client is ready on this machine yet.")
+		fmt.Fprintln(out, "  Install one supported client first, then rerun: ha-nova setup")
+		return "", errSetupClientPrerequisite
 	}
 	defaultChoice := firstAvailableSetupClientChoice(choices)
 	for _, choice := range choices {

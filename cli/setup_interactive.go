@@ -131,6 +131,9 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 	if target == "" {
 		for {
 			answer, err := promptSetupClientInteractive(reader, os.Stdout, choices, "claude")
+			if err == errSetupClientPrerequisite {
+				return 0
+			}
 			if err == errSetupBack {
 				continue
 			}

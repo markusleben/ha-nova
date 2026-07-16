@@ -57,6 +57,54 @@ Start-Setup -BinaryPath "never-run.exe"
     );
   });
 
+  it("prints missing-client guidance without launching setup", () => {
+    if (!hasPowerShell()) return;
+    const result = runPreflightProbe(`
+function Test-InteractiveSession { return $true }
+$script:calls = @()
+function Invoke-FakeBinary {
+  param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments)
+  $script:calls += ($Arguments -join " ")
+  if ($Arguments[0] -eq "internal-setup-readiness") {
+    $global:LASTEXITCODE = 2
+  }
+}
+Start-Setup -BinaryPath "Invoke-FakeBinary"
+Write-Output ("CALLS:" + ($script:calls -join ","))
+Write-Output ("LASTEXITCODE:" + $LASTEXITCODE)
+`);
+    expect(result.status).toBe(0);
+    expect(result.output).toContain(
+      "No supported AI client is ready on this machine yet.",
+    );
+    expect(result.output).toContain(
+      "Install one supported client first, then rerun: ha-nova setup",
+    );
+    expect(result.output).toContain("CALLS:internal-setup-readiness");
+    expect(result.output).not.toContain("CALLS:internal-setup-readiness,setup");
+    expect(result.output).toContain("LASTEXITCODE:0");
+  });
+
+  it("launches setup after a successful client-readiness check", () => {
+    if (!hasPowerShell()) return;
+    const result = runPreflightProbe(`
+function Test-InteractiveSession { return $true }
+$script:calls = @()
+function Invoke-FakeBinary {
+  param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments)
+  $script:calls += ($Arguments -join " ")
+  $global:LASTEXITCODE = 0
+}
+Start-Setup -BinaryPath "Invoke-FakeBinary"
+Write-Output ("CALLS:" + ($script:calls -join ","))
+`);
+    expect(result.status).toBe(0);
+    expect(result.output).toContain("CALLS:internal-setup-readiness,setup");
+    expect(result.output).not.toContain(
+      "No supported AI client is ready on this machine yet.",
+    );
+  });
+
   it("passes supported prerequisites in write-then-TLS order", () => {
     if (!hasPowerShell()) return;
     const result = runPreflightProbe(`${supportedRuntime}
