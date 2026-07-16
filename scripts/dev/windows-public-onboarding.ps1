@@ -169,6 +169,70 @@ function Invoke-PublicInstaller {
   $exitCode = 0
   $caught = $null
   $transcriptStarted = $false
+  $installerOutput = New-Object System.Text.StringBuilder
+
+  function Add-InstallerOutput {
+    param(
+      [AllowEmptyString()][string]$Text,
+      [switch]$NoNewline
+    )
+
+    $installerOutput.Append($Text) | Out-Null
+    if (-not $NoNewline) {
+      $installerOutput.AppendLine() | Out-Null
+    }
+  }
+
+  # Windows 10 PowerShell 5.1 transcripts can omit nested host output. Mirror
+  # explicit installer UI writes into memory while the installer and its native
+  # interactive child stay attached directly to the console.
+  function Write-Host {
+    [CmdletBinding()]
+    param(
+      [Parameter(Position = 0, ValueFromPipeline = $true, ValueFromRemainingArguments = $true)]
+      [object[]]$Object,
+      [string]$Separator = " ",
+      [switch]$NoNewline,
+      [ConsoleColor]$ForegroundColor,
+      [ConsoleColor]$BackgroundColor
+    )
+
+    process {
+      $parts = New-Object System.Collections.Generic.List[string]
+      foreach ($item in $Object) {
+        $parts.Add([string]$item)
+      }
+      $line = [string]::Join($Separator, $parts)
+      Add-InstallerOutput -Text $line -NoNewline:$NoNewline
+
+      $hostParameters = @{
+        Object = $Object
+        Separator = $Separator
+        NoNewline = $NoNewline
+      }
+      if ($PSBoundParameters.ContainsKey("ForegroundColor")) {
+        $hostParameters.ForegroundColor = $ForegroundColor
+      }
+      if ($PSBoundParameters.ContainsKey("BackgroundColor")) {
+        $hostParameters.BackgroundColor = $BackgroundColor
+      }
+      Microsoft.PowerShell.Utility\Write-Host @hostParameters
+    }
+  }
+
+  function Write-Output {
+    [CmdletBinding()]
+    param(
+      [Parameter(Position = 0, ValueFromPipeline = $true, ValueFromRemainingArguments = $true)]
+      [AllowNull()][object]$InputObject,
+      [switch]$NoEnumerate
+    )
+
+    process {
+      Add-InstallerOutput -Text ([string]$InputObject)
+      Microsoft.PowerShell.Utility\Write-Output -InputObject $InputObject -NoEnumerate:$NoEnumerate
+    }
+  }
 
   try {
     Start-Transcript -Path $TranscriptPath -Force | Out-Null
@@ -193,9 +257,10 @@ function Invoke-PublicInstaller {
     }
   }
 
-  return @{
+  $script:PublicInstallerResult = @{
     ExitCode = $exitCode
     Error = $caught
+    InstallerOutput = $installerOutput.ToString()
   }
 }
 
@@ -205,28 +270,34 @@ $readyClients = @(Get-ReadyClients)
 $agyAvailable = Test-CommandAvailable "agy"
 $antigravityDesktopAvailable = Test-AntigravityDesktopAvailable
 
-$result = Invoke-PublicInstaller
+$script:PublicInstallerResult = $null
+Invoke-PublicInstaller
+$result = $script:PublicInstallerResult
+if ($null -eq $result) {
+  throw "public Windows installer did not return a validation result"
+}
 $transcript = if (Test-Path -LiteralPath $TranscriptPath) {
   Get-Content -LiteralPath $TranscriptPath -Raw
 }
 else {
   ""
 }
+$installerLog = @($transcript, $result.InstallerOutput) -join [Environment]::NewLine
 
 $setupAutoStarted = (
-  $transcript -match "Press Enter to continue setup" -or
-  $transcript -match "Install NOVA Relay in Home Assistant" -or
-  $transcript -match "Set up Relay Auth Token" -or
-  $transcript -match "Setup complete!" -or
-  $transcript -match "Setup cancelled"
+  $installerLog -match "Press Enter to continue setup" -or
+  $installerLog -match "Install NOVA Relay in Home Assistant" -or
+  $installerLog -match "Set up Relay Auth Token" -or
+  $installerLog -match "Setup complete!" -or
+  $installerLog -match "Setup cancelled"
 )
 $manualFallbackDisplayed = (
-  $transcript -match [regex]::Escape("Next step: ha-nova setup") -or
-  $transcript -match [regex]::Escape("Finish setup later from a local PowerShell or Windows Terminal session:")
+  $installerLog -match [regex]::Escape("Next step: ha-nova setup") -or
+  $installerLog -match [regex]::Escape("Finish setup later from a local PowerShell or Windows Terminal session:")
 )
 $missingClientGuidanceDisplayed = (
-  $transcript -match [regex]::Escape("No supported AI client is ready on this machine yet.") -and
-  $transcript -match [regex]::Escape("Install one supported client first, then rerun: ha-nova setup")
+  $installerLog -match [regex]::Escape("No supported AI client is ready on this machine yet.") -and
+  $installerLog -match [regex]::Escape("Install one supported client first, then rerun: ha-nova setup")
 )
 $localInstallCompleted = Test-Path -LiteralPath $InstallDir
 $expectedPublicResult = if ($RequireAntigravityDesktopOnly) {

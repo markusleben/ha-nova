@@ -31,6 +31,21 @@ describe("desktop validation helper behavior", () => {
     expect(windowsPublic).not.toContain('second_terminal_command_needed -eq $true');
   });
 
+  it("captures legacy host output without piping the interactive installer", () => {
+    expect(windowsPublic).toContain("$installerOutput = New-Object System.Text.StringBuilder");
+    expect(windowsPublic).toContain("function Write-Host {");
+    expect(windowsPublic).toContain("function Write-Output {");
+    expect(windowsPublic).toContain("Add-InstallerOutput -Text $line");
+    expect(windowsPublic).toContain("Microsoft.PowerShell.Utility\\Write-Host @hostParameters");
+    expect(windowsPublic).toContain("Microsoft.PowerShell.Utility\\Write-Output -InputObject $InputObject");
+    expect(windowsPublic).toContain("$script:PublicInstallerResult = @{");
+    expect(windowsPublic).toContain("Invoke-PublicInstaller\n$result = $script:PublicInstallerResult");
+    expect(windowsPublic).not.toContain("$result = Invoke-PublicInstaller");
+    expect(windowsPublic).toContain("$installerLog = @($transcript, $result.InstallerOutput) -join [Environment]::NewLine");
+    expect(windowsPublic).toMatch(/\$missingClientGuidanceDisplayed = \([\s\S]+\$installerLog -match/);
+    expect(windowsPublic).not.toMatch(/Invoke-Expression \([^\n]+\)\s*\|\s*ForEach-Object/);
+  });
+
   it("keeps Antigravity Desktop-only proof from passing through agy or missing-client fallback", () => {
     expect(windowsPublic).toContain("$desktopOnlyProofPassed = (");
     expect(windowsPublic).toContain("$RequireAntigravityDesktopOnly -and");
