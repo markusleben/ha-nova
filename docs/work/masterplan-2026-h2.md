@@ -1,7 +1,7 @@
 # HA NOVA Masterplan 2026-H2
 
-Status: `active`
-Scope: program-level plan following the completed [masterplan-2026.md](masterplan-2026.md) (shipped as v0.14.0, since grown to 0.17.0). Each wave breaks down into its own short spec + PRs before implementation; this doc is the SSOT for sequencing and decisions until superseded.
+Status: `complete` — shipped in v0.18.0 on 2026-07-16
+Scope: program-level plan following the completed [masterplan-2026.md](masterplan-2026.md) (shipped as v0.14.0, since grown to v0.18.0). Each wave breaks down into its own short spec + PRs before implementation; this doc is the SSOT for sequencing and decisions until superseded.
 
 ## Context
 
@@ -127,7 +127,7 @@ Status: **DONE** — #353, #354, #355
 
 ## Wave 6 — Onboarding flagship: Pairing Code + Home Base (Relay 0.6.0, committed)
 
-Status: **DONE** — #357, #358, #359, #360; implementation spec: `docs/work/2026-07-15-wave-6-onboarding-spec.md`. Unreleased until the separate release-prep gate.
+Status: **DONE** — #357, #358, #359, #360; implementation spec: `docs/work/2026-07-15-wave-6-onboarding-spec.md`. Released in v0.18.0 with Relay 0.6.0.
 
 - **`/pair` endpoint**: a 6-digit short-lived pairing code (visible in the App log/panel) exchanges for the relay token over LAN. The wizard asks for exactly one thing: the code. The two-token model disappears from the user's world (the relay token becomes invisible; the LLAT stays in the App's own config UI where it belongs). Charter-clean: pure auth handshake, rate-limited, zero HA semantics. Natural future home for token rotation.
 - **Home Base**: a minimal ingress status page in the HA sidebar (one HTML file rendering `/health` data): connection status, version floor, pairing code, install one-liner. When something breaks, non-terminal users look *here* — inside the UI they know — instead of running `ha-nova doctor`. A charter test pins that no HA business logic creeps in.
@@ -137,9 +137,9 @@ Status: **DONE** — #357, #358, #359, #360; implementation spec: `docs/work/202
 
 ## Wave 7 — Update UX parity
 
-Status: **IN PROGRESS** — implementation spec: `docs/work/2026-07-15-wave-7-update-ux-spec.md`
+Status: **DONE** — #362, #363; implementation spec: `docs/work/2026-07-15-wave-7-update-ux-spec.md`. Released in v0.18.0.
 
-- "Start a new session" nudge after updates (today an easily-missed printed instruction); update-notice parity for non-Claude clients; embed the install one-liner directly in the README (release-prep PR — README gate).
+- Successful updates and client re-syncs now end with a client-neutral new-session instruction; all five client overlays retain the shared update-notice path; the release-prep PR added the versionless macOS/Linux and Windows installer one-liners to the README.
 
 ---
 
@@ -168,7 +168,7 @@ From the ideation pass; each needs its own decision before entering a wave:
 
 ## Release sequencing
 
-All waves land on `main` first; releases batch per the release-worthiness rule. Relay 0.5.0 published the `/backups` foundation. Its immutable image tag existed before Wave 5 merged, so diagnosability ships with Pairing Code + Home Base in Relay **0.6.0**. Skill-only waves (0, 1, 3, 4) batch freely between them.
+All waves landed on `main` before release, following the release-worthiness rule. Relay 0.5.0 published the `/backups` foundation; Relay 0.6.0 then shipped Wave 5 diagnosability with Pairing Code + Home Base in v0.18.0. The H2 masterplan is complete.
 
 | Wave | Theme | Relay release | Status |
 |------|-------|---------------|--------|
@@ -178,8 +178,8 @@ All waves land on `main` first; releases batch per the release-worthiness rule. 
 | 3 | Review expansion (SC/D/TS/HX families, test-offer) | — | **DONE** — #352 |
 | 4 | Coverage (integration-setup, calendar writes, events, alarm/lock) | — | **DONE** — #353, #354, #355 |
 | 5 | Relay diagnosability | 0.6.0 (with Wave 6) | **DONE** — #351 |
-| 6 | Pairing Code + Home Base | 0.6.0 | **DONE** — #357, #358, #359, #360; unreleased |
-| 7 | Update UX parity | — | **IN PROGRESS** — spec written |
+| 6 | Pairing Code + Home Base | 0.6.0 | **DONE** — #357, #358, #359, #360; released in v0.18.0 |
+| 7 | Update UX parity | — | **DONE** — #362, #363; released in v0.18.0 |
 
 ## Opinionated defaults (documented instead of asked)
 - Waves 2 and 6 get short specs in `docs/work/` before implementation; the masterplan stays the sequencing SSOT.
