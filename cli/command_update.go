@@ -138,10 +138,10 @@ func runUpdate(paths runtimePaths, args []string) int {
 	// may be the OLD (dev) binary whose compiled-in version predates the
 	// update (issue #245 showed "Updated to v0.7.1" while installing 0.8.0).
 	printHumanInfo("Updated to v%s", targetVersion)
-	// The freshly installed version.json may raise min_relay_version — the
-	// update moment is where the user can still act on it, instead of being
-	// interrupted mid-session by the proxy warning later.
-	if notice := relayFloorNotice(paths); !notice.empty() {
+	// The freshly installed version.json may raise min_relay_version, and Home
+	// Assistant may expose a newer compatible App update. The update moment is
+	// where the user can still act instead of being interrupted later.
+	if notice := relayUpdateNotice(paths); !notice.empty() {
 		printHumanNotice(notice)
 		maybeOfferGuidedRelayUpdate(paths, notice)
 	}
@@ -190,14 +190,14 @@ func runInternalReplace(paths runtimePaths, args []string) int {
 	}
 	printHumanInfo("Updated to v%s", localVersion(paths))
 	// Windows finishes the update in this replacement process — the freshly
-	// installed version.json is live here, so the relay-floor warning belongs
-	// here too (the staging branch in runUpdate exits before it). No guided
-	// prompt here on purpose: this helper runs in the background with stdin
+	// installed version.json and Relay App-update state are live here, so the
+	// notice belongs here too (the staging branch in runUpdate exits before it).
+	// No guided prompt here: this helper runs in the background with stdin
 	// unwired (windowsHelperLaunchProfile attaches output only) and the
 	// console is already back at the shell — the documented Windows contract
 	// is background-complete, never same-console-interactive. Point at the
 	// interactive path instead.
-	if notice := relayFloorNotice(paths); !notice.empty() {
+	if notice := relayUpdateNotice(paths); !notice.empty() {
 		printHumanNotice(notice)
 		printHumanInfo("Run `ha-nova doctor` in a terminal to be offered the guided relay update.")
 	}
@@ -228,9 +228,10 @@ func syncInstalledClientsForCurrentVersion(paths runtimePaths, currentVersion, t
 	} else {
 		printHumanInfo("Already up to date: v%s", currentVersion)
 	}
-	// "Up to date" is misleading while the relay sits below the floor the
-	// installed skills need — say so here, where the user is looking.
-	if notice := relayFloorNotice(paths); !notice.empty() {
+	// "Up to date" is misleading while the relay is below the required floor
+	// or Home Assistant exposes a newer App update — say so where the user is
+	// looking.
+	if notice := relayUpdateNotice(paths); !notice.empty() {
 		printHumanNotice(notice)
 		maybeOfferGuidedRelayUpdate(paths, notice)
 	}

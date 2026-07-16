@@ -30,11 +30,12 @@ const (
 type humanNoticeKind string
 
 const (
-	humanNoticeKindNone              humanNoticeKind = ""
-	humanNoticeKindUpToDate          humanNoticeKind = "up_to_date"
-	humanNoticeKindUpdateAvailable   humanNoticeKind = "update_available"
-	humanNoticeKindUpdateCheckFailed humanNoticeKind = "update_check_failed"
-	humanNoticeKindRelayOutdated     humanNoticeKind = "relay_outdated"
+	humanNoticeKindNone                 humanNoticeKind = ""
+	humanNoticeKindUpToDate             humanNoticeKind = "up_to_date"
+	humanNoticeKindUpdateAvailable      humanNoticeKind = "update_available"
+	humanNoticeKindUpdateCheckFailed    humanNoticeKind = "update_check_failed"
+	humanNoticeKindRelayOutdated        humanNoticeKind = "relay_outdated"
+	humanNoticeKindRelayUpdateAvailable humanNoticeKind = "relay_update_available"
 )
 
 type humanNotice struct {

@@ -32,16 +32,17 @@ var (
 
 const relayUpdateManualPath = "Manual path: open Home Assistant > Settings > Apps > NOVA Relay (older HA calls it Add-ons) and install the update there; a standalone container needs a manual image pull."
 
-// maybeOfferGuidedRelayUpdate follows a printed relay-outdated notice and
+// maybeOfferGuidedRelayUpdate follows a printed relay update notice and
 // reports whether the relay ended up updated AND verified — doctor uses that
-// to not fail a run whose only problem the user just fixed. It is
+// to not fail a run whose below-floor problem the user just fixed. It is
 // deliberately best-effort: a non-TTY session, a "no", a missing update
 // entity (standalone container), or any transport problem falls back to the
 // manual path without touching the caller's exit code.
 func maybeOfferGuidedRelayUpdate(paths runtimePaths, notice humanNotice) bool {
 	// Both ends must be a terminal: with stdout redirected the question would
 	// land in a file while the command silently blocks on stdin.
-	if notice.kind != humanNoticeKindRelayOutdated || !isInteractiveTTY() || !stdoutIsInteractiveTTY() {
+	if (notice.kind != humanNoticeKindRelayOutdated && notice.kind != humanNoticeKindRelayUpdateAvailable) ||
+		!isInteractiveTTY() || !stdoutIsInteractiveTTY() {
 		return false
 	}
 	cfg, err := loadConfig(paths)
@@ -60,12 +61,12 @@ func runGuidedRelayUpdate(paths runtimePaths, cfg config, token string, in *bufi
 	if err != nil || !yes {
 		return false
 	}
-	entityID, reason := resolveRelayUpdateEntity(cfg, token)
-	if entityID == "" {
+	candidate, reason := resolveRelayUpdateCandidate(cfg, token)
+	if candidate.EntityID == "" {
 		fmt.Fprintf(out, "Cannot start the App update from here: %s\n%s\n", reason, relayUpdateManualPath)
 		return false
 	}
-	fmt.Fprintf(out, "Installing the NOVA Relay App update (%s) with a partial backup — the relay restarts during the install.\n", entityID)
+	fmt.Fprintf(out, "Installing the NOVA Relay App update (%s) with a partial backup — the relay restarts during the install.\n", candidate.EntityID)
 	// The relay dies mid-call when the install lands, so a dropped response
 	// is the EXPECTED shape of success here; polling decides the outcome.
 	// An ok:false envelope is a relay-side transport problem (the relay's
@@ -73,7 +74,7 @@ func runGuidedRelayUpdate(paths runtimePaths, cfg config, token string, in *bufi
 	// polls too. Only Home Assistant itself answering >= 400 (ok:true) is an
 	// explicit rejection that skips the three-minute wait.
 	body, err := relayCoreRequest(cfg, token, "POST", "/api/services/update/install",
-		[]byte(fmt.Sprintf(`{"entity_id":%q,"backup":true}`, entityID)))
+		[]byte(fmt.Sprintf(`{"entity_id":%q,"backup":true}`, candidate.EntityID)))
 	if err == nil {
 		var envelope struct {
 			OK   bool `json:"ok"`
@@ -86,7 +87,7 @@ func runGuidedRelayUpdate(paths runtimePaths, cfg config, token string, in *bufi
 			return false
 		}
 	}
-	version, ok := waitForRelayFloor(paths, cfg, token)
+	version, ok := waitForRelayVersion(paths, cfg, token, candidate.LatestVersion)
 	if !ok {
 		fmt.Fprintf(out, "The relay did not report a new version within %s.\n%s\n", relayUpdatePollTimeout, relayUpdateManualPath)
 		return false
@@ -95,13 +96,28 @@ func runGuidedRelayUpdate(paths runtimePaths, cfg config, token string, in *bufi
 	return true
 }
 
-// resolveRelayUpdateEntity finds the NOVA Relay App's update.* entity via
-// GET /api/states. It returns the entity id, or "" plus the human reason
-// (no entity → container/manual install; several → ambiguous, never guess).
-func resolveRelayUpdateEntity(cfg config, token string) (string, string) {
+type relayUpdateCandidate struct {
+	EntityID         string
+	State            string
+	InstalledVersion string
+	LatestVersion    string
+}
+
+func (candidate relayUpdateCandidate) updateAvailable() bool {
+	if candidate.State != "on" || candidate.InstalledVersion == "" || candidate.LatestVersion == "" {
+		return false
+	}
+	cmp, err := compareReleaseVersions(candidate.InstalledVersion, candidate.LatestVersion)
+	return err == nil && cmp < 0
+}
+
+// resolveRelayUpdateCandidate finds the NOVA Relay App's update.* entity via
+// GET /api/states. It returns the candidate, or an empty candidate plus the
+// human reason (no entity → container/manual install; several → never guess).
+func resolveRelayUpdateCandidate(cfg config, token string) (relayUpdateCandidate, string) {
 	body, err := relayCoreRequest(cfg, token, "GET", "/api/states", nil)
 	if err != nil {
-		return "", fmt.Sprintf("could not read Home Assistant states (%s)", err)
+		return relayUpdateCandidate{}, fmt.Sprintf("could not read Home Assistant states (%s)", err)
 	}
 	var envelope struct {
 		OK   bool `json:"ok"`
@@ -111,44 +127,64 @@ func resolveRelayUpdateEntity(cfg config, token string) (string, string) {
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(body, &envelope); err != nil || !envelope.OK || envelope.Data.Status != http.StatusOK {
-		return "", "could not read Home Assistant states"
+		return relayUpdateCandidate{}, "could not read Home Assistant states"
 	}
 	var states []struct {
 		EntityID   string `json:"entity_id"`
+		State      string `json:"state"`
 		Attributes struct {
-			Title string `json:"title"`
+			Title            string `json:"title"`
+			InstalledVersion string `json:"installed_version"`
+			LatestVersion    string `json:"latest_version"`
 		} `json:"attributes"`
 	}
 	if err := json.Unmarshal(envelope.Data.Body, &states); err != nil {
-		return "", "could not read Home Assistant states"
+		return relayUpdateCandidate{}, "could not read Home Assistant states"
 	}
-	var matches []string
+	var matches []relayUpdateCandidate
 	for _, s := range states {
 		if strings.HasPrefix(s.EntityID, "update.") && s.Attributes.Title == relayUpdateEntityTitle {
-			matches = append(matches, s.EntityID)
+			matches = append(matches, relayUpdateCandidate{
+				EntityID:         s.EntityID,
+				State:            s.State,
+				InstalledVersion: s.Attributes.InstalledVersion,
+				LatestVersion:    s.Attributes.LatestVersion,
+			})
 		}
 	}
 	switch len(matches) {
 	case 1:
 		return matches[0], ""
 	case 0:
-		return "", "no NOVA Relay App update entity found (standalone container, or the App is not installed)"
+		return relayUpdateCandidate{}, "no NOVA Relay App update entity found (standalone container, or the App is not installed)"
 	default:
-		return "", fmt.Sprintf("several update entities carry the title %q — not guessing", relayUpdateEntityTitle)
+		return relayUpdateCandidate{}, fmt.Sprintf("several update entities carry the title %q — not guessing", relayUpdateEntityTitle)
 	}
 }
 
-// waitForRelayFloor polls GET /health until the reported version satisfies
-// min_relay_version, then returns it. Connection errors are the normal
-// restart window and just keep the loop going.
-func waitForRelayFloor(paths runtimePaths, cfg config, token string) (string, bool) {
+// waitForRelayVersion polls GET /health until the reported version reaches the
+// update entity's offered target. Older update entities without version
+// metadata retain the floor-based verification used before above-floor update
+// offers existed. Connection errors are the normal restart window.
+func waitForRelayVersion(paths runtimePaths, cfg config, token, targetVersion string) (string, bool) {
 	deadline := time.Now().Add(relayUpdatePollTimeout)
 	for {
 		body, err := fetchRelayHealth(cfg.RelayBaseURL, token)
 		if err == nil {
 			version := parseRelayHealthVersion(body)
-			if version != "" && checkRelayVersionValue(paths, version).empty() {
-				return version, true
+			if version != "" {
+				// Every successful update must still satisfy the installed skill
+				// floor. The App update entity can lag behind version.json and
+				// advertise a target that remains incompatible.
+				if checkRelayVersionValue(paths, version).empty() {
+					if targetVersion == "" {
+						return version, true
+					}
+					cmp, compareErr := compareReleaseVersions(version, targetVersion)
+					if compareErr == nil && cmp >= 0 {
+						return version, true
+					}
+				}
 			}
 		}
 		if time.Now().After(deadline) {

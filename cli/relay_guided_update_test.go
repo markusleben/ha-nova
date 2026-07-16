@@ -93,7 +93,8 @@ func TestResolveRelayUpdateEntity(t *testing.T) {
 				w.Write(statesEnvelope(t, tc.states))
 			}))
 			defer server.Close()
-			entity, reason := resolveRelayUpdateEntity(config{RelayBaseURL: server.URL}, "token")
+			candidate, reason := resolveRelayUpdateCandidate(config{RelayBaseURL: server.URL}, "token")
+			entity := candidate.EntityID
 			if entity != tc.wantEntity {
 				t.Fatalf("entity = %q, want %q (reason %q)", entity, tc.wantEntity, reason)
 			}
@@ -324,7 +325,8 @@ func TestGuidedRelayUpdateContainerFallsBackToManualPath(t *testing.T) {
 func TestMaybeOfferGuidedRelayUpdateIgnoresOtherNoticeKinds(t *testing.T) {
 	paths := guidedUpdatePaths(t)
 	// Wrong kind returns before any prompt or network use; under `go test`
-	// stdin is a pipe, so the TTY gate also holds the relay-outdated kind.
+	// stdin is a pipe, so the TTY gate also holds both Relay notice kinds.
 	maybeOfferGuidedRelayUpdate(paths, humanNotice{kind: humanNoticeKindUpdateAvailable, level: humanNoticeWarning})
 	maybeOfferGuidedRelayUpdate(paths, humanNotice{kind: humanNoticeKindRelayOutdated, level: humanNoticeWarning})
+	maybeOfferGuidedRelayUpdate(paths, humanNotice{kind: humanNoticeKindRelayUpdateAvailable, level: humanNoticeWarning})
 }
