@@ -158,6 +158,41 @@ func TestInteractiveSetupFreshInstallShowsWizardAndInstallsAntigravitySkills(t *
 	}
 }
 
+func TestInteractiveSetupWithoutAvailableClientReturnsGuidance(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("HA_NOVA_DEV_ROOT", repoRootForSetupTest(t))
+	withClientRuntimeAvailability(t, map[string]bool{})
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+
+	exitCode := 1
+	stdout, stderr := captureInteractiveSetupIO(t, "", func() int {
+		clientRuntimeDetectedForStatus = func(string) bool { return false }
+		exitCode = interactiveSetup(paths, runtimeConfig{}, loadStateOrDefault(paths), "", "", "", "", "", false)
+		return exitCode
+	})
+	if exitCode != 0 {
+		t.Fatalf("interactiveSetup() exit = %d, want 0\nstdout:\n%s\nstderr:\n%s", exitCode, stdout, stderr)
+	}
+
+	output := stdout + stderr
+	for _, want := range []string{
+		"No supported AI client is ready on this machine yet.",
+		"Install one supported client first, then rerun: ha-nova setup",
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("missing-client guidance missing %q:\n%s", want, output)
+		}
+	}
+	if strings.Contains(output, "[ha-nova] ERROR") {
+		t.Fatalf("missing-client guidance must not render as an error:\n%s", output)
+	}
+}
+
 func TestInteractiveSetupFreshInstallCanTargetHermes(t *testing.T) {
 	withClientRuntimeAvailability(t, map[string]bool{"hermes": true})
 

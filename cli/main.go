@@ -73,6 +73,8 @@ func dispatch(paths runtimePaths, argv0 string, args []string) int {
 		return runInternalUninstall(paths, args[1:])
 	case "internal-sync-clients":
 		return runInternalSyncClients(paths, args[1:])
+	case "internal-setup-readiness":
+		return runInternalSetupReadiness(paths, args[1:])
 	case "-h", "--help", "help":
 		printUsage()
 		return 0

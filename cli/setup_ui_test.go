@@ -62,6 +62,56 @@ func TestPromptSetupClientAcceptsNumberSelection(t *testing.T) {
 	}
 }
 
+func TestPromptSetupClientGuidesMissingClientPrerequisite(t *testing.T) {
+	choices := testSetupClientChoices()
+	for index := range choices {
+		choices[index].Disabled = true
+		choices[index].DisabledReason = "install this client first"
+	}
+	output := &bytes.Buffer{}
+
+	_, err := promptSetupClient(strings.NewReader(""), output, choices, "claude")
+	if err != errSetupClientPrerequisite {
+		t.Fatalf("promptSetupClient() error = %v, want %v", err, errSetupClientPrerequisite)
+	}
+
+	rendered := output.String()
+	for _, want := range []string{
+		"No supported AI client is ready on this machine yet.",
+		"Install one supported client first, then rerun: ha-nova setup",
+	} {
+		if !strings.Contains(rendered, want) {
+			t.Fatalf("prompt output missing %q:\n%s", want, rendered)
+		}
+	}
+	if strings.Contains(rendered, "[ha-nova] ERROR") {
+		t.Fatalf("missing-client guidance must not render as an error:\n%s", rendered)
+	}
+}
+
+func TestInternalSetupReadinessDistinguishesMissingAndReadyClients(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("HA_NOVA_DEV_ROOT", repoRootForSetupTest(t))
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+
+	withClientRuntimeAvailability(t, map[string]bool{})
+	if exitCode := runInternalSetupReadiness(paths, nil); exitCode != setupReadinessNoClientExitCode {
+		t.Fatalf("missing-client readiness exit = %d, want %d", exitCode, setupReadinessNoClientExitCode)
+	}
+
+	clientRuntimeDetectedForStatus = func(client string) bool { return client == "antigravity" }
+	if exitCode := runInternalSetupReadiness(paths, nil); exitCode != 0 {
+		t.Fatalf("ready-client readiness exit = %d, want 0", exitCode)
+	}
+	if exitCode := runInternalSetupReadiness(paths, []string{"unexpected"}); exitCode != 1 {
+		t.Fatalf("readiness argument error exit = %d, want 1", exitCode)
+	}
+}
+
 func TestPromptSetupClientAcceptsClientName(t *testing.T) {
 	input := strings.NewReader("opencode\n")
 	output := &bytes.Buffer{}

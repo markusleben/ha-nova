@@ -90,6 +90,10 @@ release:
     - **More first-class Home Assistant work.** Set up integrations through Home Assistant's own secure UI, create and edit calendar events, fire events and webhooks, and get deeper reviews for scenes, dashboards, YAML sensors, and cross-item conflicts. Alarm and lock actions now use explicit security guidance.
     - **Clearer updates and diagnostics.** Successful updates tell every supported client when to start a fresh AI session, while Relay health reports why the Home Assistant connection is unavailable and logs request failures more usefully.
 
+    ## Bug Fixes
+
+    - Clean Windows installations without an AI client now finish with clear next-step guidance instead of a setup error.
+
     ## What To Watch
 
     - Update the NOVA Relay App to **0.6.0** to use Home Base and pairing. Relay 0.5.0 already supports config snapshots; older compatible Relay versions keep the legacy token setup and safety-backup fallback.
