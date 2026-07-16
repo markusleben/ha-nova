@@ -261,6 +261,41 @@ func relayFloorNotice(paths runtimePaths) humanNotice {
 	return checkRelayVersion(paths, body)
 }
 
+// relayUpdateNotice preserves the compatibility-floor warning and, when the
+// floor is satisfied, also surfaces an exact pending NOVA Relay App update
+// reported by Home Assistant. Missing or ambiguous update-entity evidence is
+// best-effort silence so standalone Container/Core installs stay unchanged.
+func relayUpdateNotice(paths runtimePaths) humanNotice {
+	if notice := relayFloorNotice(paths); !notice.empty() {
+		return notice
+	}
+	cfg, err := loadConfig(paths)
+	if err != nil || cfg.RelayBaseURL == "" {
+		return humanNotice{}
+	}
+	token, err := readRelayAuthTokenForDoctor()
+	if err != nil || token == "" {
+		return humanNotice{}
+	}
+	return relayAvailableUpdateNotice(cfg, token)
+}
+
+func relayAvailableUpdateNotice(cfg config, token string) humanNotice {
+	candidate, _ := resolveRelayUpdateCandidate(cfg, token)
+	if !candidate.updateAvailable() {
+		return humanNotice{}
+	}
+	return humanNotice{
+		level: humanNoticeWarning,
+		kind:  humanNoticeKindRelayUpdateAvailable,
+		message: fmt.Sprintf(
+			"Relay update available: v%s → v%s. Inform the user, then ask whether to install the relay update now — the updates skill (ha-nova:updates) handles the App update.",
+			candidate.InstalledVersion,
+			candidate.LatestVersion,
+		),
+	}
+}
+
 // checkRelayVersionValue compares a bare relay version (from the /health body
 // or the relay's version response header on /ws and /core) against
 // min_relay_version.

@@ -110,6 +110,16 @@ func runDoctor(paths runtimePaths, args []string) int {
 				// that is running NOW.
 				readiness = checkRelayReadiness(cfg.RelayBaseURL, token)
 			}
+		} else if !*quiet {
+			// A newer App may be available even while the running Relay remains
+			// compatible with min_relay_version. That is an optional update, not
+			// a failed doctor check; decline/non-TTY keeps status unchanged.
+			if notice := relayAvailableUpdateNotice(cfg, token); !notice.empty() {
+				printHumanNotice(notice)
+				if maybeOfferGuidedRelayUpdate(paths, notice) {
+					readiness = checkRelayReadiness(cfg.RelayBaseURL, token)
+				}
+			}
 		}
 		if haReachable {
 			switch {
@@ -253,13 +263,13 @@ func runCheckUpdate(paths runtimePaths, args []string) int {
 	}
 	// CLI/skills freshness is only half the answer: the relay in Home
 	// Assistant has its own version, and "up to date" would be misleading
-	// while it sits below min_relay_version. Human path only: --quiet is the
-	// skill self-update channel whose contract is "UPDATE AVAILABLE or
+	// below min_relay_version or while an App update is pending. Human path
+	// only: --quiet is the skill self-update channel whose contract is "UPDATE AVAILABLE or
 	// silence" — skill sessions already get the relay warning through the
 	// proxy version header. Stderr-only, exit code unchanged, --json above
 	// stays machine-clean.
 	if !*quiet {
-		if relayNotice := relayFloorNotice(paths); !relayNotice.empty() {
+		if relayNotice := relayUpdateNotice(paths); !relayNotice.empty() {
 			printHumanNotice(relayNotice)
 		}
 	}
