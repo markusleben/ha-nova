@@ -112,6 +112,12 @@ function Set-InstallEnv {
   Remove-Item Env:HA_NOVA_BUNDLE_SHA256_URL -ErrorAction SilentlyContinue
   Remove-Item Env:HA_NOVA_NO_SETUP -ErrorAction SilentlyContinue
   Remove-Item Env:HA_NOVA_NO_BROWSER -ErrorAction SilentlyContinue
+  Remove-Item Env:HA_NOVA_PLAIN_UI -ErrorAction SilentlyContinue
+
+  # Windows 10 PowerShell 5.1 transcripts can omit Write-Host output emitted by
+  # a nested Invoke-Expression. Plain UI keeps installer messages on the success
+  # stream so the validator can capture them without redirecting the console.
+  $env:HA_NOVA_PLAIN_UI = "1"
 
   if ($Source -eq "rc") {
     if (-not $BundleUrl -or -not $BundleSha256Url) {
@@ -169,11 +175,16 @@ function Invoke-PublicInstaller {
   $exitCode = 0
   $caught = $null
   $transcriptStarted = $false
+  $installerOutput = New-Object System.Collections.Generic.List[string]
 
   try {
     Start-Transcript -Path $TranscriptPath -Force | Out-Null
     $transcriptStarted = $true
-    Invoke-Expression (Get-Content -LiteralPath $InstallScript -Raw)
+    Invoke-Expression (Get-Content -LiteralPath $InstallScript -Raw) | ForEach-Object {
+      $line = [string]$_
+      $installerOutput.Add($line)
+      Write-Host $line
+    }
     if ($LASTEXITCODE) {
       $exitCode = $LASTEXITCODE
     }
@@ -196,6 +207,7 @@ function Invoke-PublicInstaller {
   return @{
     ExitCode = $exitCode
     Error = $caught
+    InstallerOutput = [string]::Join([Environment]::NewLine, $installerOutput)
   }
 }
 
@@ -212,21 +224,22 @@ $transcript = if (Test-Path -LiteralPath $TranscriptPath) {
 else {
   ""
 }
+$installerLog = @($transcript, $result.InstallerOutput) -join [Environment]::NewLine
 
 $setupAutoStarted = (
-  $transcript -match "Press Enter to continue setup" -or
-  $transcript -match "Install NOVA Relay in Home Assistant" -or
-  $transcript -match "Set up Relay Auth Token" -or
-  $transcript -match "Setup complete!" -or
-  $transcript -match "Setup cancelled"
+  $installerLog -match "Press Enter to continue setup" -or
+  $installerLog -match "Install NOVA Relay in Home Assistant" -or
+  $installerLog -match "Set up Relay Auth Token" -or
+  $installerLog -match "Setup complete!" -or
+  $installerLog -match "Setup cancelled"
 )
 $manualFallbackDisplayed = (
-  $transcript -match [regex]::Escape("Next step: ha-nova setup") -or
-  $transcript -match [regex]::Escape("Finish setup later from a local PowerShell or Windows Terminal session:")
+  $installerLog -match [regex]::Escape("Next step: ha-nova setup") -or
+  $installerLog -match [regex]::Escape("Finish setup later from a local PowerShell or Windows Terminal session:")
 )
 $missingClientGuidanceDisplayed = (
-  $transcript -match [regex]::Escape("No supported AI client is ready on this machine yet.") -and
-  $transcript -match [regex]::Escape("Install one supported client first, then rerun: ha-nova setup")
+  $installerLog -match [regex]::Escape("No supported AI client is ready on this machine yet.") -and
+  $installerLog -match [regex]::Escape("Install one supported client first, then rerun: ha-nova setup")
 )
 $localInstallCompleted = Test-Path -LiteralPath $InstallDir
 $expectedPublicResult = if ($RequireAntigravityDesktopOnly) {

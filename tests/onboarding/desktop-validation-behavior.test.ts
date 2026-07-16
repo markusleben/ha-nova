@@ -31,6 +31,15 @@ describe("desktop validation helper behavior", () => {
     expect(windowsPublic).not.toContain('second_terminal_command_needed -eq $true');
   });
 
+  it("captures installer guidance when legacy PowerShell transcripts omit nested host output", () => {
+    expect(windowsPublic).toContain('$env:HA_NOVA_PLAIN_UI = "1"');
+    expect(windowsPublic).toContain("$installerOutput = New-Object System.Collections.Generic.List[string]");
+    expect(windowsPublic).toContain("$installerOutput.Add($line)");
+    expect(windowsPublic).toContain("InstallerOutput = [string]::Join([Environment]::NewLine, $installerOutput)");
+    expect(windowsPublic).toContain("$installerLog = @($transcript, $result.InstallerOutput) -join [Environment]::NewLine");
+    expect(windowsPublic).toMatch(/\$missingClientGuidanceDisplayed = \([\s\S]+\$installerLog -match/);
+  });
+
   it("keeps Antigravity Desktop-only proof from passing through agy or missing-client fallback", () => {
     expect(windowsPublic).toContain("$desktopOnlyProofPassed = (");
     expect(windowsPublic).toContain("$RequireAntigravityDesktopOnly -and");
