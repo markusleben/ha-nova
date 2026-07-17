@@ -1,11 +1,23 @@
 name: Relay Image
 
-# Publishes the standalone NOVA Relay container for Home Assistant
+# Builds the standalone NOVA Relay container for Home Assistant
 # Container/Core installs (no Supervisor, so no App). Same source as the App —
 # this workflow only packages it.
 #
 # The image version is taken from nova/config.yaml, which stays the single
 # source of truth for the relay's version line (independent of skill_version).
+#
+# Publish contract:
+# - pull_request and workflow_dispatch runs are always verify-only: build both
+#   platforms and smoke test, never touch registry credentials or tags.
+# - A push to main publishes only when nova/config.yaml carries a version with
+#   no published tag yet (the first run after a version bump). Source-only
+#   merges without a bump stay green as verify-only runs, so a multi-PR train
+#   can land on main without turning this workflow red against an immutable
+#   version tag.
+# - Recovering a failed publish = re-run that version-bump push run: the
+#   decide step re-checks the registry at run time and publishes while the
+#   version tag is still absent. There is no other publish path.
 
 on:
   push:
@@ -17,6 +29,17 @@ on:
       - "nova/tsconfig.json"
       - "nova/config.yaml"
       - "nova/Dockerfile.standalone"
+      - "scripts/ci/relay-smoke.sh"
+      - ".github/workflows/relay-image.yml"
+  pull_request:
+    paths:
+      - "nova/src/**"
+      - "nova/package.json"
+      - "nova/package-lock.json"
+      - "nova/tsconfig.json"
+      - "nova/config.yaml"
+      - "nova/Dockerfile.standalone"
+      - "scripts/ci/relay-smoke.sh"
       - ".github/workflows/relay-image.yml"
   workflow_dispatch:
 
@@ -24,20 +47,19 @@ permissions:
   contents: read
   packages: write
 
-# Finding: two publish runs with the same nova/config.yaml version could both
-# see the version tag as free and race to promote it. Serialize publishes so
-# the "tag is free" check and the promotion are effectively one transaction.
+# Two publish runs with the same nova/config.yaml version could both see the
+# version tag as free and race to promote it. Serialize publishes so the
+# "tag is free" check and the promotion stay effectively one transaction.
+# Verify-only runs (pull_request/workflow_dispatch) get per-ref groups so they
+# never queue behind a publish; superseded verify runs are cancelled.
 concurrency:
-  group: relay-image-publish
-  cancel-in-progress: false
+  group: ${{ github.event_name == 'push' && 'relay-image-publish' || format('relay-image-verify-{0}', github.ref) }}
+  cancel-in-progress: ${{ github.event_name != 'push' }}
 
 jobs:
-  publish:
-    # Only main publishes. workflow_dispatch can be run from any ref, and
-    # without this guard a feature branch could promote unreviewed relay code
-    # to :latest and to the semver tag.
-    if: github.ref == 'refs/heads/main'
+  build:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
 
@@ -53,35 +75,83 @@ jobs:
           echo "relay_version=${version}" >> "$GITHUB_OUTPUT"
           echo "Relay version: ${version}"
 
-      - uses: docker/setup-qemu-action@v4
-      - uses: docker/setup-buildx-action@v4
-
+      # Login happens before the publish decision so the registry probe below
+      # runs authenticated (an auth hiccup must not be mistaken for "tag is
+      # free"). Only push runs ever talk to the registry; on pull_request the
+      # token may be read-only (forks) and is never used.
       - name: Log in to GHCR
+        if: github.event_name == 'push'
         uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # An immutable version tag is a promise: ghcr.io/...:0.3.0 must always be
-      # the same relay code. If relay source changed without a version bump in
-      # nova/config.yaml, publishing would silently give pinned users different
-      # code under the same version — and /health would still report the old
-      # one. Fail loudly instead; the fix is a version bump.
-      - name: Refuse to republish an existing version tag
+      # An immutable version tag is a promise: ghcr.io/...:0.6.0 must always be
+      # the same relay code. Publishing is therefore gated on the version tag
+      # being absent; every other run is verify-only.
+      - name: Decide publish or verify-only
+        id: mode
         run: |
           set -euo pipefail
+          publish="false"
           tag="ghcr.io/${{ github.repository_owner }}/ha-nova-relay:${{ steps.version.outputs.relay_version }}"
-          if docker manifest inspect "$tag" > /dev/null 2>&1; then
-            echo "::error::${tag} already exists. Relay source changed without bumping 'version:' in nova/config.yaml — a published version tag must stay immutable. Bump the relay version." >&2
-            exit 1
+          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/main" ]]; then
+            if probe="$(docker manifest inspect "$tag" 2>&1)"; then
+              echo "verify-only: ${tag} already exists and stays immutable. Bump 'version:' in nova/config.yaml to publish a new relay." | tee -a "$GITHUB_STEP_SUMMARY"
+            elif echo "$probe" | grep -qiE 'manifest unknown|no such manifest|not found|name unknown'; then
+              publish="true"
+              echo "publish: ${tag} is free" | tee -a "$GITHUB_STEP_SUMMARY"
+            else
+              # A registry hiccup must not be mistaken for "tag is free" — a
+              # publish over an existing version tag would break immutability.
+              echo "::error::registry probe for ${tag} failed ambiguously; refusing to guess. Probe output: ${probe}" >&2
+              exit 1
+            fi
+          else
+            echo "verify-only: ${{ github.event_name }} runs never publish." | tee -a "$GITHUB_STEP_SUMMARY"
           fi
-          echo "Version tag is free: ${tag}"
+          echo "publish=${publish}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-qemu-action@v4
+      - uses: docker/setup-buildx-action@v4
+
+      # ----- verify-only path: build both platforms, smoke locally, push nothing -----
+
+      - name: Build both platforms (verify-only)
+        if: steps.mode.outputs.publish != 'true'
+        uses: docker/build-push-action@v7
+        with:
+          context: ./nova
+          file: ./nova/Dockerfile.standalone
+          platforms: linux/amd64,linux/arm64
+          push: false
+          build-args: |
+            RELAY_VERSION=${{ steps.version.outputs.relay_version }}
+
+      - name: Load amd64 image for the smoke test (verify-only)
+        if: steps.mode.outputs.publish != 'true'
+        uses: docker/build-push-action@v7
+        with:
+          context: ./nova
+          file: ./nova/Dockerfile.standalone
+          platforms: linux/amd64
+          load: true
+          tags: relay-smoke-candidate:local
+          build-args: |
+            RELAY_VERSION=${{ steps.version.outputs.relay_version }}
+
+      - name: Smoke test (verify-only)
+        if: steps.mode.outputs.publish != 'true'
+        run: bash scripts/ci/relay-smoke.sh relay-smoke-candidate:local "${{ steps.version.outputs.relay_version }}"
+
+      # ----- publish path -----
 
       # Publish to a throwaway commit tag FIRST. The user-facing tags are only
       # promoted after the smoke test passes, so a broken build can never be
       # served as :latest while the workflow turns red.
       - name: Build and push (candidate tag)
+        if: steps.mode.outputs.publish == 'true'
         uses: docker/build-push-action@v7
         with:
           context: ./nova
@@ -100,48 +170,27 @@ jobs:
             org.opencontainers.image.licenses=MIT
           provenance: true
 
-      - name: Smoke test the candidate image
-        run: |
-          set -euo pipefail
-          image="ghcr.io/${{ github.repository_owner }}/ha-nova-relay:sha-${{ github.sha }}"
-          # No RELAY_VERSION here on purpose: the image must report its baked-in
-          # version, exactly like a user running it with the documented command.
-          docker run -d --name relay-smoke \
-            -e RELAY_AUTH_TOKEN=smoke-token \
-            -e HA_LLAT=smoke-llat \
-            -e HA_URL=http://127.0.0.1:8123 \
-            -p 8791:8791 "$image"
-
-          # The relay must serve /health and reject an unauthenticated request:
-          # a 401 proves both that it is up and that auth is enforced.
-          for i in $(seq 1 20); do
-            code="$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8791/health || true)"
-            if [[ "$code" == "401" ]]; then
-              echo "relay is up and enforcing auth"
-              break
-            fi
-            if [[ "$i" == "20" ]]; then
-              echo "relay did not come up (last code: ${code:-none})" >&2
-              docker logs relay-smoke >&2 || true
-              exit 1
-            fi
-            sleep 1
-          done
-
-          # With the token it must answer 200 and report the version we built.
-          body="$(curl -sf -H 'Authorization: Bearer smoke-token' http://127.0.0.1:8791/health)"
-          echo "$body"
-          echo "$body" | grep -q '"version":"${{ steps.version.outputs.relay_version }}"'
-
-          docker rm -f relay-smoke
+      - name: Smoke test the pushed candidate
+        if: steps.mode.outputs.publish == 'true'
+        run: bash scripts/ci/relay-smoke.sh "ghcr.io/${{ github.repository_owner }}/ha-nova-relay:sha-${{ github.sha }}" "${{ steps.version.outputs.relay_version }}"
 
       # Retag the smoked digest — no rebuild, so the promoted tags point at the
-      # exact artifact that passed.
-      - name: Promote the smoked image to the user-facing tags
+      # exact artifact that passed. :latest is promoted first and the version
+      # tag second on purpose: if the run dies between the two calls, the
+      # version tag is still absent, so a re-run (or the next publish-path run)
+      # repeats the whole publish and converges. The reverse order could strand
+      # :latest on the old digest with no automatic repair.
+      - name: Promote the smoked image to :latest
+        if: steps.mode.outputs.publish == 'true'
         run: |
           set -euo pipefail
           repo="ghcr.io/${{ github.repository_owner }}/ha-nova-relay"
-          docker buildx imagetools create \
-            --tag "${repo}:${{ steps.version.outputs.relay_version }}" \
-            --tag "${repo}:latest" \
-            "${repo}:sha-${{ github.sha }}"
+          docker buildx imagetools create --tag "${repo}:latest" "${repo}:sha-${{ github.sha }}"
+
+      - name: Promote the smoked image to the version tag
+        if: steps.mode.outputs.publish == 'true'
+        run: |
+          set -euo pipefail
+          repo="ghcr.io/${{ github.repository_owner }}/ha-nova-relay"
+          docker buildx imagetools create --tag "${repo}:${{ steps.version.outputs.relay_version }}" "${repo}:sha-${{ github.sha }}"
+          echo "published ${repo}:${{ steps.version.outputs.relay_version }} (+ :latest)" | tee -a "$GITHUB_STEP_SUMMARY"
