@@ -26,7 +26,11 @@ export class HaSocketAuthError extends Error {}
 export class HaSocketConnectError extends Error {}
 
 export function haWebSocketUrl(haUrl: string): string {
-  return haUrl.replace(/^http/, "ws").replace(/\/$/, "") + "/api/websocket";
+  const normalized = haUrl.replace(/^http/, "ws").replace(/\/$/, "");
+  if (normalized.endsWith("/core")) {
+    return normalized + "/websocket";
+  }
+  return normalized + "/api/websocket";
 }
 
 // Performs the HA auth handshake and resolves with an authenticated socket
@@ -74,7 +78,7 @@ export function createAuthenticatedHaSocket(
           socket.send(JSON.stringify({ type: "auth", access_token: options.token }));
           return;
         case MSG_TYPE_AUTH_INVALID:
-          settleReject(new HaSocketAuthError("HA rejected the long-lived access token"));
+          settleReject(new HaSocketAuthError("HA rejected the upstream access token"));
           return;
         case MSG_TYPE_AUTH_OK: {
           settled = true;

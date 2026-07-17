@@ -125,7 +125,7 @@ func preflightNoteLines(preflight uninstallPreflight) []string {
 		notes = append(notes,
 			"1. Remove the NOVA Relay app: "+haRelayAppPageURL(preflight.haURL),
 			"2. Remove the repository: "+haAppStoreURL(preflight.haURL)+" > three-dot menu > Repositories > remove "+haNovaRepositoryURL,
-			"3. Revoke the \"NOVA\" access token: "+haProfileSecurityURL(preflight.haURL),
+			"3. If this was a legacy/standalone install, revoke its \"NOVA\" access token: "+haProfileSecurityURL(preflight.haURL),
 		)
 	} else {
 		notes = append(notes,

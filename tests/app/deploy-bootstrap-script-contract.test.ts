@@ -24,17 +24,23 @@ describe("app bootstrap dev script contract", () => {
     expect(content).toContain("/options/validate");
     expect(content).toContain("/options");
     expect(content).toContain("SUPERVISOR_TOKEN");
-    expect(content).toContain('"ha_llat": resolved_ha_llat');
+    expect(content).toContain('"file_access": current_options.get("file_access", "off")');
     expect(content).toContain('if section != "options":');
     expect(content).toContain('line.startswith("  relay_auth_token:")');
     expect(content).toContain("curl -fsS");
   });
 
-  it("reuses existing ha_llat when HA_LLAT env is not provided", () => {
+  it("does not require an LLAT but preserves a stored legacy option", () => {
     const content = readFileSync("scripts/dev/ha-app-bootstrap.sh", "utf8");
 
+    // No HA_LLAT requirement and no env-var plumbing for it: the App gets its
+    // upstream access from Supervisor.
     expect(content).not.toContain("HA_LLAT is required");
-    expect(content).toContain('"ha_llat": resolved_ha_llat');
+    expect(content).not.toContain("HA_LLAT|");
+    expect(content).not.toContain('os.environ.get("HA_LLAT"');
+    // But a stored legacy option survives the options rewrite (read-only
+    // passthrough) so an existing install keeps its one-time migration source.
+    expect(content).toContain('current_options.get("ha_llat", "")');
     expect(content).toContain("/options");
   });
 

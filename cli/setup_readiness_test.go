@@ -31,12 +31,12 @@ func TestCheckRelayReadinessAcceptsWSPingSuccess(t *testing.T) {
 	if !readiness.WSReady {
 		t.Fatal("expected ws ping success to mark readiness as ready")
 	}
-	if readiness.LLATIssue || readiness.RelayAuthIssue {
+	if readiness.UpstreamAuthIssue || readiness.RelayAuthIssue {
 		t.Fatalf("unexpected issue flags: %+v", readiness)
 	}
 }
 
-func TestCheckRelayReadinessMarksLLATIssue(t *testing.T) {
+func TestCheckRelayReadinessMarksUpstreamAuthIssue(t *testing.T) {
 	originalHealth := fetchRelayHealthForReadiness
 	originalWSPing := probeRelayWSPingForReadiness
 	defer func() {
@@ -55,8 +55,8 @@ func TestCheckRelayReadinessMarksLLATIssue(t *testing.T) {
 	if readiness.WSReady {
 		t.Fatal("did not expect ready state")
 	}
-	if !readiness.LLATIssue {
-		t.Fatalf("expected LLAT issue flag: %+v", readiness)
+	if !readiness.UpstreamAuthIssue {
+		t.Fatalf("expected upstream auth issue flag: %+v", readiness)
 	}
 }
 
@@ -79,7 +79,7 @@ func TestCheckRelayReadinessKeepsGenericWSFailureGeneric(t *testing.T) {
 	if readiness.WSReady {
 		t.Fatal("did not expect ready state")
 	}
-	if readiness.LLATIssue || readiness.RelayAuthIssue {
+	if readiness.UpstreamAuthIssue || readiness.RelayAuthIssue {
 		t.Fatalf("expected generic failure only: %+v", readiness)
 	}
 	if readiness.WSPingErr == nil {

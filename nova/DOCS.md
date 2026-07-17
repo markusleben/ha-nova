@@ -18,8 +18,12 @@ in the relay.
 | Option | Description |
 |--------|-------------|
 | **Relay Auth Token (legacy/advanced)** | Existing installs may keep their shared token. New installs leave this empty; the App creates and persists a private token automatically. |
-| **Home Assistant Access Token** | A Long-Lived Access Token from your HA profile. Create one at: **Profile > Security > Long-Lived Access Tokens**. |
 | **File access (advanced)** | Optional access to supported Home Assistant configuration files. Defaults to off. |
+
+The App receives Home Assistant API access automatically from Supervisor. Do
+not create or paste a Home Assistant Long-Lived Access Token for a normal App
+install. Standalone Container/Core deployments keep their explicit `HA_LLAT`
+server-side as documented in `docs/reference/relay-container.md`.
 
 > **Where is this page?** Home Assistant 2026.2 renamed Add-ons to Apps: this
 > page moved from `/hassio/addon/<slug>/info` to `/config/app/<slug>/info`
@@ -59,7 +63,7 @@ Or if you already have the repo:
 ha-nova setup
 ```
 
-The setup wizard handles relay configuration and skill installation. It automatically uses one reachable Home Assistant instance, shows a source-labeled pick list when it finds several, and keeps manual address entry when discovery finds none. Its normal App flow asks for the six-digit Home Base code, stores the returned relay token in the client's OS credential store, and verifies both Relay health and WebSocket access without displaying the private relay token. Existing saved tokens, `--relay-token`, service token files, and standalone Container/Core setups keep their explicit-token paths.
+The setup wizard handles relay configuration and skill installation. It automatically uses one reachable Home Assistant instance, shows a source-labeled pick list when it finds several, and keeps manual address entry when discovery finds none. Its normal App flow starts the App and asks only for the six-digit Home Base code, stores the returned relay token in the client's OS credential store, and verifies both Relay health and WebSocket access without displaying the private relay token. Existing saved tokens, `--relay-token`, service token files, and standalone Container/Core setups keep their explicit-token paths.
 
 ## Checking Status
 
@@ -110,7 +114,8 @@ A healthy response looks like:
 
 - Existing installs should verify that the relay auth token matches on both sides
 - Re-run `ha-nova setup` to repair the current client configuration
-- Check that the HA Access Token is still valid (not revoked)
+- App install: update or restart NOVA Relay so Supervisor access is refreshed
+- Standalone Container/Core: verify that server-side `HA_LLAT` is still valid
 
 **WebSocket not connected**
 

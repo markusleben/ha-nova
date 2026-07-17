@@ -45,7 +45,7 @@ func TestVerifySetupConnectionOnceKeepsTransportFailureGeneric(t *testing.T) {
 	}
 }
 
-func TestVerifySetupConnectionReuseTokenLLATIssueOffersRepairActions(t *testing.T) {
+func TestVerifySetupConnectionReuseTokenUpstreamAuthIssueOffersRepairActions(t *testing.T) {
 	originalProbeHTTP := probeHTTPForSetup
 	originalFetchRelayHealth := fetchRelayHealthForSetup
 	originalProbeRelayWSPing := probeRelayWSPingForSetup
@@ -79,8 +79,8 @@ func TestVerifySetupConnectionReuseTokenLLATIssueOffersRepairActions(t *testing.
 	}
 	for _, want := range []string{
 		"This device's Relay Auth Token worked.",
-		"Only the Home Assistant access token still needs attention.",
-		"Open Home Assistant Security page",
+		"Only the Relay's upstream Home Assistant authentication still needs attention.",
+		"Open Security page (standalone LLAT only)",
 		"Open NOVA Relay settings",
 		"Retry now",
 	} {
@@ -90,7 +90,7 @@ func TestVerifySetupConnectionReuseTokenLLATIssueOffersRepairActions(t *testing.
 	}
 }
 
-func TestVerifySetupConnectionFreshLLATIssueRoutesToSecurityPage(t *testing.T) {
+func TestVerifySetupConnectionPairedUpstreamAuthIssueRoutesToAppPage(t *testing.T) {
 	t.Setenv("HA_NOVA_NO_BROWSER", "1")
 	originalProbeHTTP := probeHTTPForSetup
 	originalFetchRelayHealth := fetchRelayHealthForSetup
@@ -120,11 +120,16 @@ func TestVerifySetupConnectionFreshLLATIssueRoutesToSecurityPage(t *testing.T) {
 	if ok || issue != setupIssueWSDegraded {
 		t.Fatalf("ok/issue = %v/%q, want false/%q", ok, issue, setupIssueWSDegraded)
 	}
-	if !strings.Contains(output.String(), haProfileSecurityURL("http://ha")) {
-		t.Fatalf("upstream-token recovery did not open the Security page:\n%s", output.String())
+	// Paired installs have no LLAT: upstream auth trouble is the App's problem,
+	// so recovery opens the App page — never the Security page, never pairing.
+	if !strings.Contains(output.String(), haRelayAppPageURL("http://ha")) {
+		t.Fatalf("upstream-auth recovery did not open the App page:\n%s", output.String())
+	}
+	if strings.Contains(output.String(), haProfileSecurityURL("http://ha")) {
+		t.Fatalf("paired install must not route to the Security page:\n%s", output.String())
 	}
 	if strings.Contains(output.String(), "pair this device again") {
-		t.Fatalf("upstream-token failure must not route to pairing:\n%s", output.String())
+		t.Fatalf("upstream-auth failure must not route to pairing:\n%s", output.String())
 	}
 }
 
@@ -165,7 +170,7 @@ func TestVerifySetupConnectionReuseTokenRelayAuthIssueCanRouteBackToTokenStep(t 
 	}
 }
 
-func TestVerifySetupConnectionRevokedTokenRoutesToHomeBasePairing(t *testing.T) {
+func TestVerifySetupConnectionRevokedTokenRoutesToNovaPairing(t *testing.T) {
 	t.Setenv("HA_NOVA_NO_BROWSER", "1")
 	originalProbeHTTP := probeHTTPForSetup
 	originalFetchRelayHealth := fetchRelayHealthForSetup
@@ -196,7 +201,7 @@ func TestVerifySetupConnectionRevokedTokenRoutesToHomeBasePairing(t *testing.T) 
 		t.Fatalf("ok/issue = %v/%q, want false/%q", ok, issue, setupIssueRelayUnreachable)
 	}
 	for _, want := range []string{
-		"Open Home Base and pair this device again",
+		"Open NOVA and pair this device again",
 		haRelayAppPageURL("http://ha"),
 		`choose "Open Web UI"`,
 	} {

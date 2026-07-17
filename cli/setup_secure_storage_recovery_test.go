@@ -333,7 +333,6 @@ func TestInteractiveSetupRecoveryBackDoesNotBypassGate(t *testing.T) {
 		[]string{"4", "back", "4", "", haServer.URL},
 		setupWizardRelayInstallPrompts(),
 		setupWizardGenerateRelayTokenPrompts(),
-		setupWizardLLATPrompts(),
 	)
 
 	exitCode := 0
@@ -431,7 +430,6 @@ func TestInteractiveSetupRecoversWhenSavedTokenReadNeedsRecovery(t *testing.T) {
 		[]string{"4", "", haServer.URL},
 		setupWizardRelayInstallPrompts(),
 		setupWizardGenerateRelayTokenPrompts(),
-		setupWizardLLATPrompts(),
 	)
 
 	exitCode := 0
@@ -527,7 +525,8 @@ func TestInteractiveSetupReusesSavedTokenAfterReadRecovery(t *testing.T) {
 	input := joinSetupInputs(
 		[]string{"4", "", haServer.URL},
 		setupWizardRelayInstallPrompts(),
-		setupWizardLLATPrompts(),
+		// Token step: accept the default "Keep saved token".
+		[]string{""},
 	)
 
 	exitCode := 0
@@ -678,7 +677,6 @@ func TestInteractiveSetupRetriesSaveTimeRecoveryInline(t *testing.T) {
 		[]string{"4", haServer.URL},
 		setupWizardRelayInstallPrompts(),
 		setupWizardGenerateRelayTokenPrompts(),
-		setupWizardLLATPrompts(),
 		[]string{""},
 	)
 
@@ -782,7 +780,6 @@ func TestInteractiveSetupRetriesSaveTimeInitializationRecoveryInline(t *testing.
 		[]string{"4", haServer.URL},
 		setupWizardRelayInstallPrompts(),
 		setupWizardGenerateRelayTokenPrompts(),
-		setupWizardLLATPrompts(),
 		[]string{""},
 	)
 

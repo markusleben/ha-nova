@@ -62,7 +62,7 @@ export function bootstrapRuntime(dependencies: RuntimeDependencies = {}): Runtim
 
   const upstreamAuth = resolveUpstreamToken(buildTokenResolutionInput(env));
   if (upstreamAuth.capability !== "full" || !upstreamAuth.token) {
-    throw new Error("HA_LLAT is required for runtime startup.");
+    throw new Error("SUPERVISOR_TOKEN or HA_LLAT is required for runtime startup.");
   }
 
   const wsClient = (dependencies.createWsClient ?? createDefaultWsClient)({
@@ -133,7 +133,7 @@ export async function startRelay(dependencies: RuntimeDependencies = {}): Promis
 export function createDefaultWsClient(input: RuntimeWsClientInput): HaWsClient {
   const token = input.upstreamAuth.token;
   if (!token || input.upstreamAuth.capability !== "full") {
-    throw new Error("HA_LLAT is required for runtime startup.");
+    throw new Error("Upstream Home Assistant authentication is required for runtime startup.");
   }
 
   return createHaWsClient({
@@ -170,7 +170,7 @@ export function createDefaultWsClient(input: RuntimeWsClientInput): HaWsClient {
 export function createDefaultRestClient(input: RuntimeRestClientInput): HaRestClient {
   const token = input.upstreamAuth.token;
   if (!token || input.upstreamAuth.capability !== "full") {
-    throw new Error("HA_LLAT is required for runtime startup.");
+    throw new Error("Upstream Home Assistant authentication is required for runtime startup.");
   }
 
   return createHaRestClient({
@@ -182,6 +182,9 @@ export function createDefaultRestClient(input: RuntimeRestClientInput): HaRestCl
 function buildTokenResolutionInput(env: EnvConfig): ResolveUpstreamTokenInput {
   const input: ResolveUpstreamTokenInput = {};
 
+  if (env.supervisorToken) {
+    input.supervisorToken = env.supervisorToken;
+  }
   if (env.haLlat) {
     input.envHaLlat = env.haLlat;
   }

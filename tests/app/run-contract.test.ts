@@ -9,8 +9,7 @@ describe("app run contract", () => {
 
     expect((stats.mode & constants.S_IXUSR) !== 0).toBe(true);
     expect(content.startsWith("#!/usr/bin/with-contenv bashio")).toBe(true);
-    expect(content).toContain("HA_LLAT is required");
-    expect(content).toContain("exit 1");
+    expect(content).not.toContain("HA_LLAT is required");
     expect(content).toContain("exec node /app/dist/src/runtime/main.js");
   });
 
@@ -19,6 +18,7 @@ describe("app run contract", () => {
 
     expect(content).toContain("normalize_token()");
     expect(content).toContain('"$value" == "null"');
+    expect(content).toContain('HA_URL="http://supervisor/core"');
     expect(content).toContain('HA_URL="http://homeassistant:8123"');
     expect(content).toContain("RELAY_AUTH_TOKEN");
     expect(content).toContain('RELAY_AUTH_TOKEN_FILE="/data/relay_auth_token"');
@@ -30,7 +30,7 @@ describe("app run contract", () => {
     expect(content).not.toContain("RELAY_AUTH_TOKEN is required");
 
     expect(content).not.toContain("resolveUpstreamToken");
-    expect(content).not.toContain("SUPERVISOR_TOKEN");
+    expect(content).toContain("SUPERVISOR_TOKEN");
     expect(content).not.toContain("WS_ALLOWLIST_APPEND");
   });
 

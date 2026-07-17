@@ -205,7 +205,7 @@ func TestInteractiveSetupPairsStoresTokenAndVerifiesHealthAndWS(t *testing.T) {
 		t.Fatalf("interactiveSetup() exit = %d, want 0\nstdout:\n%s\nstderr:\n%s", exitCode, stdout, stderr)
 	}
 	output := stdout + stderr
-	for _, want := range []string{"Set up Home Assistant Access Token", "Pair this device", "This device is paired", "Relay /ws ping succeeded", "Setup complete!"} {
+	for _, want := range []string{"Pair this device", "This device is paired", "Relay /ws ping succeeded", "Setup complete!"} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("wizard output missing %q:\n%s", want, output)
 		}

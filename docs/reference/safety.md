@@ -22,7 +22,7 @@ Last verified: 2026-07-11 — `npm run verify` (70 test files / 650 tests), `go 
 
 | Guarantee | Enforced by | Verified by |
 |---|---|---|
-| Your Home Assistant token stays on the server. The AI client never receives it | The relay resolves it from its own environment (`nova/src/security/token-resolver.ts`); no code path sends it downstream | `nova` relay tests (`tests/security/token-resolver.test.ts`); `scripts/check-docs.sh` |
+| Upstream Home Assistant credentials stay inside the relay process. The AI client never receives them | The App uses process-local `SUPERVISOR_TOKEN`; standalone uses server-side `HA_LLAT`; the resolver never sends either downstream (`nova/src/security/token-resolver.ts`) | `nova` relay tests (`tests/security/token-resolver.test.ts`); `scripts/check-docs.sh` |
 | The relay token is stored in your OS credential store on the client and in an owner-only App data file on a new App install; the Home Base code and returned token never enter normal client config | `cli/setup_pairing.go`; `cli/keyring_*.go`; `nova/src/config/relay-token.ts`; the client plaintext file path exists only for headless `--service` installs | `cli/setup_pairing_test.go`; `cli/keyring_*_test.go`; `tests/security/relay-token.test.ts`; `scripts/check-docs.sh` |
 | No telemetry, no analytics, no phone-home | There is none to disable | `scripts/check-docs.sh` check [11] fails the build if telemetry patterns appear in `nova/src` |
 | No cloud relay: your data goes from your machine to your Home Assistant, and nowhere else | The relay only talks to `HA_URL` (`nova/src/ha/*`); it cannot proxy other hosts | Relay tests; `docs/reference/bridge-architecture.md` |

@@ -4,7 +4,8 @@ export type LogLevel = "trace" | "debug" | "info" | "warn" | "error";
 
 export interface EnvConfig {
   relayAuthToken: string;
-  haLlat: string;
+  supervisorToken?: string;
+  haLlat?: string;
   haUrl: string;
   relayVersion: string;
   productVersion?: string;
@@ -18,6 +19,7 @@ export interface EnvConfig {
 const DEFAULT_RELAY_PORT = 8791;
 const DEFAULT_LOG_LEVEL: LogLevel = "info";
 const DEFAULT_HA_URL = "http://homeassistant:8123";
+const DEFAULT_SUPERVISOR_HA_URL = "http://supervisor/core";
 const DEFAULT_RELAY_VERSION = "dev";
 const DEFAULT_APP_OPTIONS_PATH = "/data/options.json";
 // Lives inside the App data dir so Supervised full backups sweep it up; the
@@ -33,8 +35,15 @@ const ALLOWED_LOG_LEVELS = new Set<LogLevel>([
 
 export function loadEnv(source: NodeJS.ProcessEnv = process.env): EnvConfig {
   const relayAuthToken = resolveRelayAuthToken(source);
-  const haLlat = parseRequiredToken(source.HA_LLAT, "HA_LLAT is required");
-  const haUrl = parseRequiredLike(source.HA_URL, DEFAULT_HA_URL);
+  const supervisorToken = parseOptionalToken(source.SUPERVISOR_TOKEN);
+  const haLlat = parseOptionalToken(source.HA_LLAT);
+  if (!supervisorToken && !haLlat) {
+    throw new Error("SUPERVISOR_TOKEN or HA_LLAT is required");
+  }
+  const haUrl = parseRequiredLike(
+    source.HA_URL,
+    supervisorToken ? DEFAULT_SUPERVISOR_HA_URL : DEFAULT_HA_URL
+  );
   const relayVersion = parseRequiredLike(source.RELAY_VERSION, DEFAULT_RELAY_VERSION);
   const productVersion = parseRequiredLike(source.PRODUCT_VERSION, relayVersion);
   const minRelayVersion = parseRequiredLike(source.MIN_RELAY_VERSION, relayVersion);
@@ -55,7 +64,8 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): EnvConfig {
 
   return {
     relayAuthToken,
-    haLlat,
+    ...(supervisorToken ? { supervisorToken } : {}),
+    ...(haLlat ? { haLlat } : {}),
     haUrl,
     relayVersion,
     productVersion,
@@ -71,15 +81,6 @@ function parseOptionalToken(input: string | undefined): string | undefined {
   const value = input?.trim();
   if (!value || value === "null") {
     return undefined;
-  }
-
-  return value;
-}
-
-function parseRequiredToken(input: string | undefined, errorMessage: string): string {
-  const value = parseOptionalToken(input);
-  if (!value) {
-    throw new Error(errorMessage);
   }
 
   return value;

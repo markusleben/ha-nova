@@ -27,8 +27,8 @@ If missing: `ha-nova setup`
    - `401/403`: relay auth token mismatch
    - `404`: endpoint/path mismatch
    - connect error / status `000`: relay unreachable
-   - `ha_ws_connected=false`: read `ha_ws_disconnect_reason` from the same health payload — `auth` means the HA token (`ha_llat`) is invalid/revoked (recreate it in the HA profile, update the App option, restart the App); `network` means HA is unreachable or restarting (wait/verify HA is up — NOT a token problem); `never_connected` means the relay started but never reached HA (check `HA_URL` and the network path). Older relays omit the field — then confirm with `/ws` or `ha-nova doctor` before blaming LLAT
-   - `/ws` proves `LLAT is required`: Home Assistant access token (`ha_llat`) is missing or wrong
+   - `ha_ws_connected=false`: read `ha_ws_disconnect_reason` from the same health payload — `auth` means upstream authentication was rejected (App: update/restart NOVA Relay to refresh Supervisor access; standalone Container/Core: replace `HA_LLAT`); `network` means HA is unreachable or restarting (wait/verify HA is up — NOT a token problem); `never_connected` means the relay started but never reached HA (check `HA_URL` and the network path). Older relays omit the field — then confirm with `/ws` or `ha-nova doctor` before assigning a cause
+   - `/ws` on an older Relay proves `LLAT is required`: update the App; only standalone Container/Core should repair `HA_LLAT`
 3. Return one concrete remediation step.
 
 ## Standard Remediation Commands

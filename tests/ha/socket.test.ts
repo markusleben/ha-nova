@@ -27,6 +27,7 @@ describe("ha authenticated socket", { retry: 2 }, () => {
   it("builds the HA websocket URL from the base URL", () => {
     expect(haWebSocketUrl("http://homeassistant:8123")).toBe("ws://homeassistant:8123/api/websocket");
     expect(haWebSocketUrl("https://ha.example/")).toBe("wss://ha.example/api/websocket");
+    expect(haWebSocketUrl("http://supervisor/core")).toBe("ws://supervisor/core/websocket");
   });
 
   it("completes the auth handshake without negotiating compression", async () => {
