@@ -61,7 +61,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
+      # Full history: the publish decision compares nova/config.yaml against
+      # the push base (github.event.before) to prove THIS push bumped the
+      # version.
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - name: Read relay version
         id: version
@@ -88,8 +93,13 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       # An immutable version tag is a promise: ghcr.io/...:0.6.0 must always be
-      # the same relay code. Publishing is therefore gated on the version tag
-      # being absent; every other run is verify-only.
+      # the same relay code. Publishing therefore requires BOTH:
+      #   1. THIS push changed the relay version (the version-bump commit) —
+      #      otherwise a later relay-source merge landing after a FAILED bump
+      #      publish would ship unrelated code under the earlier version; the
+      #      recovery path for a failed publish is rerunning the bump push run.
+      #   2. The version tag is still absent in the registry (idempotent
+      #      reruns after a successful publish become verify-only).
       - name: Decide publish or verify-only
         id: mode
         run: |
@@ -97,11 +107,18 @@ jobs:
           publish="false"
           tag="ghcr.io/${{ github.repository_owner }}/ha-nova-relay:${{ steps.version.outputs.relay_version }}"
           if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/main" ]]; then
-            if probe="$(docker manifest inspect "$tag" 2>&1)"; then
+            before="${{ github.event.before }}"
+            previous_version=""
+            if [[ -n "$before" && "$before" != "0000000000000000000000000000000000000000" ]] && git cat-file -e "${before}^{commit}" 2>/dev/null; then
+              previous_version="$(git show "${before}:nova/config.yaml" 2>/dev/null | grep -E '^version:' | head -1 | sed -E 's/^version:[[:space:]]*"?([^"]+)"?/\1/' || true)"
+            fi
+            if [[ "$previous_version" == "${{ steps.version.outputs.relay_version }}" ]]; then
+              echo "verify-only: this push did not change the relay version (${previous_version}). Publishing happens only on the version-bump push; rerun that run to recover a failed publish." | tee -a "$GITHUB_STEP_SUMMARY"
+            elif probe="$(docker manifest inspect "$tag" 2>&1)"; then
               echo "verify-only: ${tag} already exists and stays immutable. Bump 'version:' in nova/config.yaml to publish a new relay." | tee -a "$GITHUB_STEP_SUMMARY"
             elif echo "$probe" | grep -qiE 'manifest unknown|no such manifest|not found|name unknown'; then
               publish="true"
-              echo "publish: ${tag} is free" | tee -a "$GITHUB_STEP_SUMMARY"
+              echo "publish: version changed (${previous_version:-<none>} -> ${{ steps.version.outputs.relay_version }}) and ${tag} is free" | tee -a "$GITHUB_STEP_SUMMARY"
             else
               # A registry hiccup must not be mistaken for "tag is free" — a
               # publish over an existing version tag would break immutability.
