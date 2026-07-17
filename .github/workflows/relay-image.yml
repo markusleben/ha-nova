@@ -8,13 +8,15 @@ name: Relay Image
 # source of truth for the relay's version line (independent of skill_version).
 #
 # Publish contract:
-# - pull_request and workflow_dispatch runs are always verify-only: build both
-#   platforms and smoke test, never touch registry credentials or tags.
-# - A push to main publishes only when nova/config.yaml carries a version with
-#   no published tag yet (the first run after a version bump). Source-only
-#   merges without a bump stay green as verify-only runs, so a multi-PR train
-#   can land on main without turning this workflow red against an immutable
-#   version tag.
+# - The verify job runs on every trigger (pull_request, workflow_dispatch,
+#   push): build both platforms and smoke test, with read-only permissions and
+#   no persisted credentials — PR code never runs next to a package-write
+#   token.
+# - The publish job exists only for pushes to main, and publishes only when
+#   that push itself bumped nova/config.yaml's version AND the version tag is
+#   still absent. Source-only merges without a bump stay green as verify-only
+#   runs, so a multi-PR train can land on main without turning this workflow
+#   red against an immutable version tag.
 # - Recovering a failed publish = re-run that version-bump push run: the
 #   decide step re-checks the registry at run time and publishes while the
 #   version tag is still absent. There is no other publish path.
@@ -45,7 +47,6 @@ on:
 
 permissions:
   contents: read
-  packages: write
 
 # Two publish runs with the same nova/config.yaml version could both see the
 # version tag as free and race to promote it. Serialize publishes so the
@@ -57,16 +58,77 @@ concurrency:
   cancel-in-progress: ${{ github.event_name != 'push' }}
 
 jobs:
-  build:
+  # Runs the exact code under test (including scripts/ci/relay-smoke.sh from
+  # the PR) — therefore this job holds NO write permissions and persists no
+  # credentials.
+  verify:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Read relay version
+        id: version
+        run: |
+          set -euo pipefail
+          version="$(grep -E '^version:' nova/config.yaml | head -1 | sed -E 's/^version:[[:space:]]*"?([^"]+)"?/\1/')"
+          if [[ -z "$version" ]]; then
+            echo "could not read version from nova/config.yaml" >&2
+            exit 1
+          fi
+          echo "relay_version=${version}" >> "$GITHUB_OUTPUT"
+          echo "Relay version: ${version}"
+
+      - uses: docker/setup-qemu-action@v4
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Build both platforms (no push)
+        uses: docker/build-push-action@v7
+        with:
+          context: ./nova
+          file: ./nova/Dockerfile.standalone
+          platforms: linux/amd64,linux/arm64
+          push: false
+          build-args: |
+            RELAY_VERSION=${{ steps.version.outputs.relay_version }}
+
+      - name: Load amd64 image for the smoke test
+        uses: docker/build-push-action@v7
+        with:
+          context: ./nova
+          file: ./nova/Dockerfile.standalone
+          platforms: linux/amd64
+          load: true
+          tags: relay-smoke-candidate:local
+          build-args: |
+            RELAY_VERSION=${{ steps.version.outputs.relay_version }}
+
+      - name: Smoke test
+        run: bash scripts/ci/relay-smoke.sh relay-smoke-candidate:local "${{ steps.version.outputs.relay_version }}"
+
+  # Publishes only from pushes to main, and only after the read-only verify
+  # job passed. This is the only job holding packages:write.
+  publish:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
     steps:
       # Full history: the publish decision compares nova/config.yaml against
       # the push base (github.event.before) to prove THIS push bumped the
-      # version.
+      # version. Credentials are not persisted — the registry auth below is
+      # docker-level, and git is only read locally.
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Read relay version
         id: version
@@ -82,10 +144,8 @@ jobs:
 
       # Login happens before the publish decision so the registry probe below
       # runs authenticated (an auth hiccup must not be mistaken for "tag is
-      # free"). Only push runs ever talk to the registry; on pull_request the
-      # token may be read-only (forks) and is never used.
+      # free").
       - name: Log in to GHCR
-        if: github.event_name == 'push'
         uses: docker/login-action@v4
         with:
           registry: ghcr.io
@@ -106,63 +166,30 @@ jobs:
           set -euo pipefail
           publish="false"
           tag="ghcr.io/${{ github.repository_owner }}/ha-nova-relay:${{ steps.version.outputs.relay_version }}"
-          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/main" ]]; then
-            before="${{ github.event.before }}"
-            previous_version=""
-            if [[ -n "$before" && "$before" != "0000000000000000000000000000000000000000" ]] && git cat-file -e "${before}^{commit}" 2>/dev/null; then
-              previous_version="$(git show "${before}:nova/config.yaml" 2>/dev/null | grep -E '^version:' | head -1 | sed -E 's/^version:[[:space:]]*"?([^"]+)"?/\1/' || true)"
-            fi
-            if [[ "$previous_version" == "${{ steps.version.outputs.relay_version }}" ]]; then
-              echo "verify-only: this push did not change the relay version (${previous_version}). Publishing happens only on the version-bump push; rerun that run to recover a failed publish." | tee -a "$GITHUB_STEP_SUMMARY"
-            elif probe="$(docker manifest inspect "$tag" 2>&1)"; then
-              echo "verify-only: ${tag} already exists and stays immutable. Bump 'version:' in nova/config.yaml to publish a new relay." | tee -a "$GITHUB_STEP_SUMMARY"
-            elif echo "$probe" | grep -qiE 'manifest unknown|no such manifest|not found|name unknown'; then
-              publish="true"
-              echo "publish: version changed (${previous_version:-<none>} -> ${{ steps.version.outputs.relay_version }}) and ${tag} is free" | tee -a "$GITHUB_STEP_SUMMARY"
-            else
-              # A registry hiccup must not be mistaken for "tag is free" — a
-              # publish over an existing version tag would break immutability.
-              echo "::error::registry probe for ${tag} failed ambiguously; refusing to guess. Probe output: ${probe}" >&2
-              exit 1
-            fi
+          before="${{ github.event.before }}"
+          previous_version=""
+          if [[ -n "$before" && "$before" != "0000000000000000000000000000000000000000" ]] && git cat-file -e "${before}^{commit}" 2>/dev/null; then
+            previous_version="$(git show "${before}:nova/config.yaml" 2>/dev/null | grep -E '^version:' | head -1 | sed -E 's/^version:[[:space:]]*"?([^"]+)"?/\1/' || true)"
+          fi
+          if [[ "$previous_version" == "${{ steps.version.outputs.relay_version }}" ]]; then
+            echo "verify-only: this push did not change the relay version (${previous_version}). Publishing happens only on the version-bump push; rerun that run to recover a failed publish." | tee -a "$GITHUB_STEP_SUMMARY"
+          elif probe="$(docker manifest inspect "$tag" 2>&1)"; then
+            echo "verify-only: ${tag} already exists and stays immutable. Bump 'version:' in nova/config.yaml to publish a new relay." | tee -a "$GITHUB_STEP_SUMMARY"
+          elif echo "$probe" | grep -qiE 'manifest unknown|no such manifest|not found|name unknown'; then
+            publish="true"
+            echo "publish: version changed (${previous_version:-<none>} -> ${{ steps.version.outputs.relay_version }}) and ${tag} is free" | tee -a "$GITHUB_STEP_SUMMARY"
           else
-            echo "verify-only: ${{ github.event_name }} runs never publish." | tee -a "$GITHUB_STEP_SUMMARY"
+            # A registry hiccup must not be mistaken for "tag is free" — a
+            # publish over an existing version tag would break immutability.
+            echo "::error::registry probe for ${tag} failed ambiguously; refusing to guess. Probe output: ${probe}" >&2
+            exit 1
           fi
           echo "publish=${publish}" >> "$GITHUB_OUTPUT"
 
       - uses: docker/setup-qemu-action@v4
+        if: steps.mode.outputs.publish == 'true'
       - uses: docker/setup-buildx-action@v4
-
-      # ----- verify-only path: build both platforms, smoke locally, push nothing -----
-
-      - name: Build both platforms (verify-only)
-        if: steps.mode.outputs.publish != 'true'
-        uses: docker/build-push-action@v7
-        with:
-          context: ./nova
-          file: ./nova/Dockerfile.standalone
-          platforms: linux/amd64,linux/arm64
-          push: false
-          build-args: |
-            RELAY_VERSION=${{ steps.version.outputs.relay_version }}
-
-      - name: Load amd64 image for the smoke test (verify-only)
-        if: steps.mode.outputs.publish != 'true'
-        uses: docker/build-push-action@v7
-        with:
-          context: ./nova
-          file: ./nova/Dockerfile.standalone
-          platforms: linux/amd64
-          load: true
-          tags: relay-smoke-candidate:local
-          build-args: |
-            RELAY_VERSION=${{ steps.version.outputs.relay_version }}
-
-      - name: Smoke test (verify-only)
-        if: steps.mode.outputs.publish != 'true'
-        run: bash scripts/ci/relay-smoke.sh relay-smoke-candidate:local "${{ steps.version.outputs.relay_version }}"
-
-      # ----- publish path -----
+        if: steps.mode.outputs.publish == 'true'
 
       # Publish to a throwaway commit tag FIRST. The user-facing tags are only
       # promoted after the smoke test passes, so a broken build can never be
