@@ -19,7 +19,7 @@ load_env_file_if_present() {
     key="${key%"${key##*[![:space:]]}"}"
 
     case "$key" in
-      HA_HOST|HA_SSH_KEY|SSH_USER|SSH_PORT|APP_SLUG|SUPERVISOR_SLUG|RELAY_AUTH_TOKEN|HA_LLAT)
+      HA_HOST|HA_SSH_KEY|SSH_USER|SSH_PORT|APP_SLUG|SUPERVISOR_SLUG|RELAY_AUTH_TOKEN)
         ;;
       *)
         continue
@@ -54,7 +54,6 @@ Required environment:
   RELAY_AUTH_TOKEN
 
 Optional environment:
-  HA_LLAT           optional; if unset, reuse current app option `ha_llat`
   SSH_USER          default: root
   SSH_PORT          default: 22
   APP_SLUG          default: ha_nova_relay
@@ -88,7 +87,6 @@ fi
 HA_HOST="${HA_HOST:-}"
 HA_SSH_KEY="${HA_SSH_KEY:-}"
 RELAY_AUTH_TOKEN="${RELAY_AUTH_TOKEN:-}"
-HA_LLAT="${HA_LLAT:-}"
 SSH_USER="${SSH_USER:-root}"
 SSH_PORT="${SSH_PORT:-22}"
 APP_SLUG="${APP_SLUG:-ha_nova_relay}"
@@ -127,7 +125,7 @@ rsync -az --delete \
   "${SSH_USER}@${HA_HOST}:${REMOTE_APP_DIR}/"
 
 log "Preparing Supervisor build context + config defaults"
-remote "APP_DIR='${REMOTE_APP_DIR}' RELAY_AUTH_TOKEN='${RELAY_AUTH_TOKEN}' HA_LLAT='${HA_LLAT}' bash -s" <<'REMOTE_PREP'
+remote "APP_DIR='${REMOTE_APP_DIR}' RELAY_AUTH_TOKEN='${RELAY_AUTH_TOKEN}' bash -s" <<'REMOTE_PREP'
 set -euo pipefail
 
 cd "$APP_DIR"
@@ -140,7 +138,6 @@ import os
 import pathlib
 
 relay_auth_token = os.environ["RELAY_AUTH_TOKEN"]
-ha_llat = os.environ.get("HA_LLAT", "")
 
 for rel in ("config.yaml",):
     path = pathlib.Path(rel)
@@ -161,8 +158,6 @@ for rel in ("config.yaml",):
 
         if line.startswith("  relay_auth_token:"):
             lines[idx] = f'  relay_auth_token: "{relay_auth_token}"'
-        elif line.startswith("  ha_llat:") and ha_llat.strip():
-            lines[idx] = f'  ha_llat: "{ha_llat}"'
 
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 PY
@@ -180,7 +175,7 @@ log "Rebuilding app image to pick up synced sources"
 remote "ha apps rebuild '${SUPERVISOR_SLUG}' || ha apps update '${SUPERVISOR_SLUG}'"
 
 log "Validating + writing app options via Supervisor API"
-remote "SUPERVISOR_SLUG='${SUPERVISOR_SLUG}' RELAY_AUTH_TOKEN='${RELAY_AUTH_TOKEN}' HA_LLAT='${HA_LLAT}' bash -s" <<'REMOTE_OPTIONS'
+remote "SUPERVISOR_SLUG='${SUPERVISOR_SLUG}' RELAY_AUTH_TOKEN='${RELAY_AUTH_TOKEN}' bash -s" <<'REMOTE_OPTIONS'
 set -euo pipefail
 
 if [[ -z "${SUPERVISOR_TOKEN:-}" ]]; then
@@ -199,7 +194,6 @@ options_json="$(
 python3 - <<'PY'
 import json
 import os
-import sys
 
 current_info = json.loads(os.environ["CURRENT_INFO_JSON"])
 current_options = current_info.get("data", {}).get("options", {})
@@ -207,20 +201,16 @@ current_options = current_info.get("data", {}).get("options", {})
 if not isinstance(current_options, dict):
     current_options = {}
 
-env_ha_llat = (os.environ.get("HA_LLAT") or "").strip()
-resolved_ha_llat = env_ha_llat or str(current_options.get("ha_llat", "") or "").strip()
-
-if not resolved_ha_llat:
-    print(
-        "[ha-app-bootstrap] HA_LLAT missing. Set HA_LLAT env or configure existing app option 'ha_llat'.",
-        file=sys.stderr
-    )
-    raise SystemExit(1)
-
 options = {
     "relay_auth_token": os.environ["RELAY_AUTH_TOKEN"],
-    "ha_llat": resolved_ha_llat
+    "file_access": current_options.get("file_access", "off")
 }
+
+# Preserve a stored legacy LLAT: the App no longer needs one, but wiping it here
+# would break an existing install's one-time legacy migration.
+existing_ha_llat = str(current_options.get("ha_llat", "") or "").strip()
+if existing_ha_llat:
+    options["ha_llat"] = existing_ha_llat
 
 print(json.dumps(options))
 PY

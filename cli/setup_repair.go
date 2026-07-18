@@ -11,10 +11,10 @@ type setupRepairMode string
 type setupCredentialRepairMode string
 
 const (
-	setupRepairModeConnection setupRepairMode = "connection"
-	setupRepairModeLLAT       setupRepairMode = "llat"
-	setupRepairModeRelayAuth  setupRepairMode = "relay_auth"
-	setupRepairModeAmbiguous  setupRepairMode = "ambiguous"
+	setupRepairModeConnection   setupRepairMode = "connection"
+	setupRepairModeUpstreamAuth setupRepairMode = "upstream_auth"
+	setupRepairModeRelayAuth    setupRepairMode = "relay_auth"
+	setupRepairModeAmbiguous    setupRepairMode = "ambiguous"
 
 	setupCredentialRepairNone    setupCredentialRepairMode = "none"
 	setupCredentialRepairToken   setupCredentialRepairMode = "token"
@@ -48,8 +48,8 @@ func detectSetupRepairMode(readiness relayReadiness, issue string) setupRepairMo
 		}
 		return setupRepairModeConnection
 	}
-	if readiness.LLATIssue {
-		return setupRepairModeLLAT
+	if readiness.UpstreamAuthIssue {
+		return setupRepairModeUpstreamAuth
 	}
 	if readiness.RelayAuthIssue || relayHealthIssueLooksLikeRelayAuth(readiness.HealthErr) {
 		return setupRepairModeRelayAuth
@@ -80,10 +80,10 @@ func runSetupRepairFlow(reader *bufio.Reader, out io.Writer, cfg runtimeConfig, 
 			openBrowserShowingURL(out, haProfileSecurityURL(cfg.HAURL))
 		case setupRepairActionOpenRelaySettings:
 			openBrowserShowingURL(out, haRelayAppPageURL(cfg.HAURL))
-			renderSetupParagraphTight(out, `The tokens live on the "Configuration" tab of that page.`)
+			renderSetupParagraphTight(out, `Update or restart the App there. Explicit legacy Relay tokens live on its "Configuration" tab.`)
 		case setupRepairActionBackToPairing:
 			openBrowserShowingURL(out, haRelayAppPageURL(cfg.HAURL))
-			renderSetupParagraphTight(out, `Open Home Base from the sidebar or choose "Open Web UI" on the NOVA Relay app page.`)
+			renderSetupParagraphTight(out, `Open NOVA from the sidebar or choose "Open Web UI" on the NOVA Relay app page.`)
 			return action, nil
 		case setupRepairActionRetry, setupRepairActionBack, setupRepairActionBackToRelayToken, setupRepairActionChangeHost, setupRepairActionRunInstall, setupRepairActionStop:
 			return action, nil
@@ -106,10 +106,10 @@ func renderSetupRepairPage(out io.Writer, mode setupRepairMode, haHost string) {
 			)
 		}
 		renderSetupParagraph(out, lines...)
-	case setupRepairModeLLAT:
+	case setupRepairModeUpstreamAuth:
 		renderSetupParagraph(out,
 			"This device's Relay Auth Token worked.",
-			"Only the Home Assistant access token still needs attention.",
+			"Only the Relay's upstream Home Assistant authentication still needs attention.",
 		)
 	case setupRepairModeRelayAuth:
 		renderSetupParagraph(out,
@@ -169,17 +169,24 @@ func setupRepairChoices(mode setupRepairMode, credentialRepair setupCredentialRe
 			{Number: "4", Value: setupRepairActionStop, Label: "Stop for now (progress is saved)"},
 			{Number: "5", Value: setupRepairActionBack, Label: "Back"},
 		}, "1"
-	case setupRepairModeLLAT:
+	case setupRepairModeUpstreamAuth:
+		if credentialRepair == setupCredentialRepairPairing {
+			return []setupRepairChoice{
+				{Number: "1", Value: setupRepairActionOpenRelaySettings, Label: "Open NOVA Relay app page to update or restart"},
+				{Number: "2", Value: setupRepairActionRetry, Label: "Retry now"},
+				{Number: "3", Value: setupRepairActionBack, Label: "Back"},
+			}, "1"
+		}
 		return []setupRepairChoice{
-			{Number: "1", Value: setupRepairActionOpenSecurity, Label: "Open Home Assistant Security page"},
-			{Number: "2", Value: setupRepairActionOpenRelaySettings, Label: "Open NOVA Relay settings"},
+			{Number: "1", Value: setupRepairActionOpenRelaySettings, Label: "Open NOVA Relay settings"},
+			{Number: "2", Value: setupRepairActionOpenSecurity, Label: "Open Security page (standalone LLAT only)"},
 			{Number: "3", Value: setupRepairActionRetry, Label: "Retry now"},
 			{Number: "4", Value: setupRepairActionBack, Label: "Back"},
 		}, "1"
 	case setupRepairModeRelayAuth:
 		if credentialRepair == setupCredentialRepairPairing {
 			return []setupRepairChoice{
-				{Number: "1", Value: setupRepairActionBackToPairing, Label: "Open Home Base and pair this device again"},
+				{Number: "1", Value: setupRepairActionBackToPairing, Label: "Open NOVA and pair this device again"},
 				{Number: "2", Value: setupRepairActionOpenRelaySettings, Label: "Open NOVA Relay app page"},
 				{Number: "3", Value: setupRepairActionRetry, Label: "Retry now"},
 			}, "1"

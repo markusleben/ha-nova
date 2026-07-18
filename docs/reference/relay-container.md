@@ -85,7 +85,7 @@ The interactive wizard is built around the Supervisor App (it walks you through 
 
 A guided "Docker" branch in the interactive wizard is planned; until then this is the supported path, and it is the one the documentation and tests cover.
 
-The security model is identical to the App: the LLAT lives only on the server side (in the container's environment), and the relay token is stored in your OS keychain — the AI client never sees your Home Assistant token.
+The credential boundary matches the App even though the upstream credential differs: the container keeps its LLAT only in the server environment, the App keeps its Supervisor token only in its process, and the relay token is stored in your OS keychain. The AI client never sees an upstream Home Assistant credential.
 
 ## Config snapshots
 

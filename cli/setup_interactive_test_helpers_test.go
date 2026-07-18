@@ -17,14 +17,6 @@ func setupWizardRelayInstallPrompts() []string {
 	}
 }
 
-func setupWizardLLATPrompts() []string {
-	return []string{
-		"",
-		"",
-		"",
-	}
-}
-
 func setupWizardGenerateRelayTokenPrompts() []string {
 	return []string{
 		"",

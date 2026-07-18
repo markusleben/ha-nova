@@ -109,7 +109,9 @@ describe("S-6: session-start hook", () => {
 
     const output = result.stdout;
     expect(output).not.toContain("RELAY_AUTH_TOKEN");
-    expect(output).not.toContain("HA_LLAT");
+    // The skill text may NAME the standalone env var (documentation); the
+    // guard is against value assignments leaking into hook output.
+    expect(output).not.toMatch(/HA_LLAT\s*[=:]/);
     expect(output).not.toContain("Bearer");
   });
 });

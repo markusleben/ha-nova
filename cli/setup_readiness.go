@@ -1,15 +1,15 @@
 package main
 
 type relayReadiness struct {
-	HealthBody     []byte
-	RelayReachable bool
-	WSReady        bool
-	UsedWSPing     bool
-	LLATIssue      bool
-	RelayAuthIssue bool
-	HealthErr      error
-	WSPingErr      error
-	WSPingResponse relayWSPingResponse
+	HealthBody        []byte
+	RelayReachable    bool
+	WSReady           bool
+	UsedWSPing        bool
+	UpstreamAuthIssue bool
+	RelayAuthIssue    bool
+	HealthErr         error
+	WSPingErr         error
+	WSPingResponse    relayWSPingResponse
 }
 
 var fetchRelayHealthForReadiness = fetchRelayHealth
@@ -48,7 +48,7 @@ func checkRelayReadinessWithProbes(
 		return readiness
 	}
 	if err == nil {
-		readiness.LLATIssue = relayWSPingIssueIsLLAT(resp)
+		readiness.UpstreamAuthIssue = relayWSPingIssueIsUpstreamAuth(resp)
 		readiness.RelayAuthIssue = relayWSPingIssueIsRelayAuth(resp)
 	}
 	return readiness

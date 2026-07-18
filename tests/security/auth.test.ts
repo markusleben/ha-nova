@@ -80,6 +80,27 @@ describe("loadEnv", () => {
     });
   });
 
+  it("uses Supervisor authentication and its Core proxy by default", () => {
+    const env = loadEnv({
+      RELAY_AUTH_TOKEN: "relay-token",
+      SUPERVISOR_TOKEN: "  supervisor-token  "
+    });
+
+    expect(env.supervisorToken).toBe("supervisor-token");
+    expect(env.haLlat).toBeUndefined();
+    expect(env.haUrl).toBe("http://supervisor/core");
+  });
+
+  it("keeps an explicit HA_URL authoritative with Supervisor authentication", () => {
+    const env = loadEnv({
+      RELAY_AUTH_TOKEN: "relay-token",
+      SUPERVISOR_TOKEN: "supervisor-token",
+      HA_URL: "http://custom-supervisor/core"
+    });
+
+    expect(env.haUrl).toBe("http://custom-supervisor/core");
+  });
+
   it("uses RELAY_AUTH_TOKEN and HA_LLAT as required tokens", () => {
     const env = loadEnv({
       RELAY_AUTH_TOKEN: "relay-auth",
@@ -100,12 +121,12 @@ describe("loadEnv", () => {
     });
   });
 
-  it("throws when HA_LLAT is missing", () => {
+  it("throws when both supported upstream credentials are missing", () => {
     expect(() =>
       loadEnv({
         RELAY_AUTH_TOKEN: "relay-auth"
       })
-    ).toThrowError("HA_LLAT is required");
+    ).toThrowError("SUPERVISOR_TOKEN or HA_LLAT is required");
   });
 
   it("treats literal null tokens as missing", () => {
@@ -121,6 +142,6 @@ describe("loadEnv", () => {
         RELAY_AUTH_TOKEN: "relay-auth",
         HA_LLAT: "null"
       })
-    ).toThrowError("HA_LLAT is required");
+    ).toThrowError("SUPERVISOR_TOKEN or HA_LLAT is required");
   });
 });

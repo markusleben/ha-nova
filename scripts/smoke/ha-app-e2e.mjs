@@ -11,7 +11,6 @@ Environment:
   APP_SLUG           Optional. Default: ha_nova_relay
   RELAY_BASE_URL     Required. Base URL for nova relay (example: http://homeassistant.local:8791)
   RELAY_AUTH_TOKEN   Required. Relay auth bearer token.
-  HA_LLAT            Required. LLAT to validate/apply in app options.
   WS_TYPE            Optional. Default: ping
   Also loaded (if present): .env.local, .env
 
@@ -33,7 +32,6 @@ if (args.includes("-h") || args.includes("--help")) {
 const supervisorToken = readOptional("SUPERVISOR_TOKEN");
 const relayBaseUrl = stripTrailingSlash(readRequired("RELAY_BASE_URL"));
 const relayAuthToken = readRequired("RELAY_AUTH_TOKEN");
-const requestedLlat = readRequired("HA_LLAT");
 
 const supervisorUrl = stripTrailingSlash(readOptional("SUPERVISOR_URL") ?? "http://supervisor");
 const appSlug = readOptional("APP_SLUG") ?? "ha_nova_relay";
@@ -43,7 +41,6 @@ if (apply && !supervisorToken) {
   fail("--apply requires SUPERVISOR_TOKEN");
 }
 
-let runtimeHasLlat = null;
 let supervisorPreflight = false;
 
 if (supervisorToken) {
@@ -59,10 +56,13 @@ if (supervisorToken) {
   });
 
   const currentOptions = toObject(appInfo.data?.options);
+  // Spread first so a stored legacy `ha_llat` (or any future option) survives
+  // the options rewrite — the App no longer needs an LLAT, but wiping a stored
+  // one would break the one-time legacy migration.
   const nextOptions = {
     ...currentOptions,
     relay_auth_token: relayAuthToken,
-    ha_llat: requestedLlat
+    file_access: readOptionalFromUnknown(currentOptions.file_access) ?? "off"
   };
 
   await requestJson(`${supervisorUrl}/addons/${appSlug}/options/validate`, {
@@ -84,9 +84,6 @@ if (supervisorToken) {
     });
   }
 
-  runtimeHasLlat = apply
-    ? Boolean(readOptionalFromUnknown(nextOptions.ha_llat))
-    : Boolean(readOptionalFromUnknown(currentOptions.ha_llat));
 }
 
 const health = await waitForHealth({
@@ -102,7 +99,7 @@ const ws = await callWs({
   wsType
 });
 
-assertWsExpectation({ ws, expectFullScope: runtimeHasLlat });
+assertWsExpectation({ ws });
 
 console.log(
   JSON.stringify(
@@ -111,7 +108,7 @@ console.log(
       app_slug: appSlug,
       apply,
       supervisor_preflight: supervisorPreflight,
-      runtime_has_llat: runtimeHasLlat,
+      upstream_auth: "supervisor_token",
       health_status: health.status,
       ws_status: ws.status
     },
@@ -174,14 +171,9 @@ async function callWs(input) {
 }
 
 function assertWsExpectation(input) {
-  const { ws, expectFullScope } = input;
-
-  if (expectFullScope === false) {
-    fail("Supervisor preflight reports missing LLAT in app options. Apply HA_LLAT and restart the app.");
-  }
-
+  const { ws } = input;
   if (ws.status !== 200) {
-    fail(`Expected /ws status 200 with mandatory LLAT, got ${ws.status}: ${JSON.stringify(ws.body)}`);
+    fail(`Expected /ws status 200 with Supervisor authentication, got ${ws.status}: ${JSON.stringify(ws.body)}`);
   }
 }
 

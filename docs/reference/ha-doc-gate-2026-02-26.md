@@ -37,12 +37,13 @@ No plan starts before this gate is checked.
 
 ## Hard Findings For ha-nova
 
-1. App options persist in `/data/options.json`; this is the right place for persistent LLAT storage in app config.
+1. App options persist in `/data/options.json`; secrets placed there remain server-side, but normal App upstream auth does not need an LLAT option.
 2. Supervisor proxy supports `http://supervisor/core/api` and `ws://supervisor/core/websocket` via `SUPERVISOR_TOKEN`.
 3. Supervisor endpoint supports `/addons/<addon>/options` and `/addons/<addon>/options/validate`; `self` slug is supported for app-scoped calls.
 4. LLAT remains valid for long-lived integration scenarios and is created in user profile.
 5. Official local app testing baseline is devcontainer-based with Supervisor + Home Assistant.
 6. Security guidance favors least-privilege roles, no host-network unless required, and ingress/auth best practices.
+7. Revalidated 2026-07-17: `homeassistant_api: true` plus process-local `SUPERVISOR_TOKEN` is the official passwordless App path for both Core REST and WebSocket proxies. NOVA uses LLAT only for standalone Container/Core fallback.
 
 ## Planning Checklist (Must Pass)
 

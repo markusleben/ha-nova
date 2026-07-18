@@ -46,7 +46,7 @@ func TestRunDoctorTreatsWSPingSuccessAsReady(t *testing.T) {
 	_ = cfg
 }
 
-func TestRunDoctorMentionsLLATCause(t *testing.T) {
+func TestRunDoctorMentionsUpstreamAuthCause(t *testing.T) {
 	paths, _ := doctorTestSetup(t)
 
 	originalHealth := fetchRelayHealthForReadiness
@@ -66,10 +66,10 @@ func TestRunDoctorMentionsLLATCause(t *testing.T) {
 		return runDoctor(paths, nil)
 	})
 	if exitCode == 0 {
-		t.Fatalf("expected doctor to fail when ws ping proves LLAT issue:\n%s", output)
+		t.Fatalf("expected doctor to fail when ws ping proves an upstream auth issue:\n%s", output)
 	}
-	if !strings.Contains(output, `The Home Assistant Access Token field ("ha_llat") in NOVA Relay is missing or invalid`) {
-		t.Fatalf("expected LLAT guidance in doctor output:\n%s", output)
+	if !strings.Contains(output, "Relay upstream authentication was rejected; update/restart the App, or replace HA_LLAT for standalone Container/Core") {
+		t.Fatalf("expected upstream auth guidance in doctor output:\n%s", output)
 	}
 }
 

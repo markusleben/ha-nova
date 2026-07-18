@@ -284,7 +284,7 @@ func TestRunUninstallShowsPreflightAndRelayStillRunningNote(t *testing.T) {
 		"The NOVA Relay app is still running in Home Assistant. To fully remove HA NOVA:",
 		"1. Remove the NOVA Relay app: " + haRelayAppPageURL("http://192.168.1.5:8123"),
 		"2. Remove the repository: " + haAppStoreURL("http://192.168.1.5:8123"),
-		"3. Revoke the \"NOVA\" access token: http://192.168.1.5:8123/profile/security",
+		"3. If this was a legacy/standalone install, revoke its \"NOVA\" access token: http://192.168.1.5:8123/profile/security",
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("expected uninstall output %q:\n%s", want, output)

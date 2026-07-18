@@ -16,10 +16,10 @@ func verifySetupConnection(reader *bufio.Reader, out io.Writer, cfg runtimeConfi
 		}
 		lastIssue = issue
 		// Connection and classified credential failures get the repair menu on
-		// first runs too. A wrong address, revoked relay token, or revoked LLAT
+		// first runs too. A wrong address or rejected inbound/upstream token
 		// must route to its own recovery surface instead of generic retries.
 		repairMode := detectSetupRepairMode(readiness, issue)
-		classifiedCredentialFailure := repairMode == setupRepairModeRelayAuth || repairMode == setupRepairModeLLAT
+		classifiedCredentialFailure := repairMode == setupRepairModeRelayAuth || repairMode == setupRepairModeUpstreamAuth
 		if reuseToken || issue == setupIssueRelayUnreachable || classifiedCredentialFailure {
 			action, repairErr := runSetupRepairFlow(reader, out, cfg, readiness, issue, credentialRepair)
 			if repairErr != nil {
@@ -97,9 +97,9 @@ func verifySetupConnectionOnce(out io.Writer, cfg runtimeConfig, token string, f
 	renderSetupErrorLine(out, "Home Assistant WebSocket is not connected yet.")
 	if readiness.WSPingErr == nil {
 		switch {
-		case readiness.LLATIssue:
-			fmt.Fprintln(out, `  The Home Assistant Access Token in NOVA Relay still needs to be checked.`)
-			fmt.Fprintln(out, `  Set the "Home Assistant Access Token" field ("ha_llat") to a valid Long-Lived Access Token, save, and restart the App.`)
+		case readiness.UpstreamAuthIssue:
+			fmt.Fprintln(out, `  NOVA Relay's upstream Home Assistant access was rejected.`)
+			fmt.Fprintln(out, `  App install: update or restart NOVA Relay. Standalone Container/Core: replace HA_LLAT in the server environment.`)
 		case readiness.RelayAuthIssue:
 			fmt.Fprintln(out, `  The Relay Auth Token in NOVA Relay still needs to be checked.`)
 			fmt.Fprintln(out, `  Verify the "Relay Auth Token" field ("relay_auth_token"), save, and restart the App.`)

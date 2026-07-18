@@ -93,7 +93,7 @@ func exchangeRelayPairingCode(client *http.Client, relayBaseURL, code string) (s
 		case "UNAUTHORIZED":
 			// Relay versions from before pairing protect /pair with the normal
 			// bearer middleware. Route those users to update/manual-token help
-			// instead of asking them to retry a valid Home Base code forever.
+			// instead of asking them to retry a valid NOVA code forever.
 			return "", errRelayPairingUnsupported
 		default:
 			return "", errors.New("relay returned an invalid pairing error response")

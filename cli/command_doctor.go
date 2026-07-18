@@ -128,9 +128,9 @@ func runDoctor(paths runtimePaths, args []string) int {
 					doctorInfo("Relay /ws ping succeeded")
 				}
 				doctorInfo("Connected to Home Assistant")
-			case readiness.LLATIssue:
+			case readiness.UpstreamAuthIssue:
 				printHumanErr("Relay reports degraded upstream WS capability")
-				printHumanErr(`The Home Assistant Access Token field ("ha_llat") in NOVA Relay is missing or invalid`)
+				printHumanErr("Relay upstream authentication was rejected; update/restart the App, or replace HA_LLAT for standalone Container/Core")
 				status = 1
 			case readiness.RelayAuthIssue:
 				printHumanErr("Relay reports degraded upstream WS capability")

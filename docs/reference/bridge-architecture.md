@@ -273,14 +273,16 @@ HA system backups, which `ha-nova:backup` manages via `/ws` `backup/*` today.
 
 ---
 
-## Auth — Dual-Token Model
+## Auth — Separate Inbound and Upstream Credentials
 
-The Relay uses two separate tokens for inbound and upstream authentication:
+The Relay keeps inbound client authentication separate from upstream Home
+Assistant authentication:
 
-| Token | Env Var | Purpose |
-|-------|---------|---------|
-| Relay auth token | `RELAY_AUTH_TOKEN` | Authenticates inbound client requests to the Relay |
-| HA Long-Lived Access Token | `HA_LLAT` | Authenticates Relay requests upstream to Home Assistant (WS + REST) |
+| Distribution | Credential | Purpose |
+|--------------|------------|---------|
+| All | `RELAY_AUTH_TOKEN` | Authenticates inbound client requests to the Relay |
+| Home Assistant App | `SUPERVISOR_TOKEN` | Authenticates upstream REST and WebSocket requests through the Supervisor Core proxies |
+| Standalone Container/Core | `HA_LLAT` | Authenticates upstream requests directly with Home Assistant |
 
 **Inbound (client -> Relay):**
 ```
@@ -291,14 +293,19 @@ Validated via a constant-time fixed-digest comparison. On failure:
 and returns the same relay token after a successful exchange.
 
 **Upstream (Relay -> HA):**
-The Relay uses `HA_LLAT` to authenticate with Home Assistant. For WebSocket it creates a
-long-lived token auth via `home-assistant-js-websocket`. For REST calls (`/core` proxy)
-it adds `Authorization: Bearer {HA_LLAT}` to upstream `fetch()` requests.
+The Home Assistant App prefers its process-local `SUPERVISOR_TOKEN` and sends it
+only to the official `http://supervisor/core/api` and
+`ws://supervisor/core/websocket` proxies. Standalone Container/Core uses
+`HA_LLAT` against its configured Home Assistant URL. When both variables exist,
+Supervisor auth wins so an obsolete legacy App LLAT cannot break the App.
 
-The two tokens are independent. New App installs create and persist a random
-32-byte relay token under `/data` with owner-only permissions. Existing App
-option values remain authoritative. Standalone Container/Core installs must
-still provide `RELAY_AUTH_TOKEN`. `HA_LLAT` is generated inside Home Assistant.
+Inbound and upstream credentials are independent. New App installs create and
+persist a random 32-byte relay token under `/data` with owner-only permissions.
+Existing App relay-token option values remain authoritative. The App
+configuration still ships an `ha_llat` field, but only as a one-time
+legacy-migration source: a normal App install leaves it empty and authenticates
+upstream with its Supervisor token. Standalone Container/Core installs must
+provide both `RELAY_AUTH_TOKEN` and `HA_LLAT` server-side.
 
 The interactive CLI's normal App path never asks the user to copy the relay
 token. It asks for the current Home Base code, sends it only in the JSON body of
@@ -323,12 +330,13 @@ resolves values from HA app options and sets them before starting Node.
 # Standalone: RELAY_AUTH_TOKEN is required.
 RELAY_AUTH_TOKEN: "<operator-chosen-secret>"   # Inbound client auth override
 RELAY_AUTH_TOKEN_FILE: "/data/relay_auth_token" # App-owned persistent token
-HA_LLAT: "<ha-long-lived-access-token>"        # Upstream HA auth
+SUPERVISOR_TOKEN: "<injected-by-supervisor>"   # App upstream auth; never configured by the user
+HA_LLAT: "<ha-long-lived-access-token>"        # Standalone upstream auth fallback
 PRODUCT_VERSION: "0.17.0"                      # Generated release tag for Home Base installers
 MIN_RELAY_VERSION: "0.4.0"                    # Required Relay floor shown in Home Base
 
 # Optional (with defaults)
-HA_URL: "http://homeassistant:8123"            # Default: http://homeassistant:8123
+HA_URL: "http://supervisor/core"               # App default; standalone default: http://homeassistant:8123
 RELAY_PORT: 8791                               # Default: 8791
 LOG_LEVEL: "info"                              # trace|debug|info|warn|error, default: info
 RELAY_VERSION: "dev"                           # Injected by run script from bashio

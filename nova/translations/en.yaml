@@ -6,11 +6,14 @@ configuration:
       New installs should leave this empty: the App creates and
       persists a private token for pairing automatically.
   ha_llat:
-    name: Home Assistant Access Token
+    name: Home Assistant Access Token (legacy migration only)
     description: >-
-      A Long-Lived Access Token from your HA user profile.
-      Create one at: Profile > Security > Long-Lived Access Tokens.
-      This lets the relay control Home Assistant on your behalf.
+      Leave this EMPTY for a normal App install: the App authenticates to
+      Home Assistant automatically via its Supervisor token. This field only
+      exists so an older install that already stored a Long-Lived Access Token
+      keeps it for a one-time migration; do not create a new token here.
+      Standalone Container/Core deployments set HA_LLAT in the server
+      environment instead.
   file_access:
     name: File access (advanced)
     description: >-

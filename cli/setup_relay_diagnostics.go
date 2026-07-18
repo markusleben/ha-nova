@@ -41,8 +41,14 @@ func relayWSPingOK(resp relayWSPingResponse) bool {
 	return resp.StatusCode == http.StatusOK
 }
 
-func relayWSPingIssueIsLLAT(resp relayWSPingResponse) bool {
-	return resp.StatusCode == http.StatusBadGateway && strings.Contains(string(resp.Body), "LLAT is required")
+func relayWSPingIssueIsUpstreamAuth(resp relayWSPingResponse) bool {
+	if resp.StatusCode != http.StatusBadGateway {
+		return false
+	}
+	body := strings.ToLower(string(resp.Body))
+	return strings.Contains(body, "llat is required") ||
+		strings.Contains(body, "upstream access token") ||
+		strings.Contains(body, "long-lived access token")
 }
 
 func relayWSPingIssueIsRelayAuth(resp relayWSPingResponse) bool {

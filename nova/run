@@ -22,7 +22,11 @@ if [[ -z "$PRODUCT_VERSION" || -z "$MIN_RELAY_VERSION" ]]; then
   exit 1
 fi
 if [[ -z "${HA_URL:-}" ]]; then
-  export HA_URL="http://homeassistant:8123"
+  if [[ -n "${SUPERVISOR_TOKEN:-}" ]]; then
+    export HA_URL="http://supervisor/core"
+  else
+    export HA_URL="http://homeassistant:8123"
+  fi
 fi
 export RELAY_VERSION="$(bashio::addon.version 2>/dev/null || echo "dev-local")"
 
@@ -31,14 +35,10 @@ if [[ -z "${RELAY_AUTH_TOKEN:-}" ]]; then
 fi
 export RELAY_AUTH_TOKEN="$(normalize_token "${RELAY_AUTH_TOKEN:-}")"
 
-if [[ -z "${HA_LLAT:-}" ]]; then
+if [[ -z "${SUPERVISOR_TOKEN:-}" && -z "${HA_LLAT:-}" ]]; then
   export HA_LLAT="$(bashio::config 'ha_llat' 2>/dev/null || echo "")"
 fi
 export HA_LLAT="$(normalize_token "${HA_LLAT:-}")"
-if [[ -z "${HA_LLAT:-}" ]]; then
-  echo "[ha-nova] HA_LLAT is required. Configure app option 'ha_llat' before start." >&2
-  exit 1
-fi
 
 if [[ -z "${FILE_ACCESS:-}" ]]; then
   export FILE_ACCESS="$(bashio::config 'file_access' 2>/dev/null || echo "off")"

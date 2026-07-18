@@ -37,7 +37,7 @@ Some clients can run from a service, gateway, SSH, or headless session where the
 
 This enables `ha-nova setup --service <client>` and lets interactive setup offer a service token file when the selected client declares the capability. The setup flow must stay generic: do not hardcode a Hermes-only branch for this prompt.
 
-The service token file stores only the Relay Auth Token. It does not store the Home Assistant Long-Lived Access Token.
+The service token file stores only the Relay Auth Token. It never stores upstream Home Assistant credentials: the App keeps `SUPERVISOR_TOKEN` process-local and standalone relays keep `HA_LLAT` server-side.
 
 ## OS Overrides
 

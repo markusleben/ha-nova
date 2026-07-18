@@ -3,6 +3,20 @@ import { describe, expect, it } from "vitest";
 import { resolveUpstreamToken } from "../../nova/src/security/token-resolver.js";
 
 describe("resolveUpstreamToken", () => {
+  it("prefers the App Supervisor token over a legacy LLAT", () => {
+    const result = resolveUpstreamToken({
+      supervisorToken: "supervisor-token",
+      envHaLlat: "legacy-llat"
+    });
+
+    expect(result).toEqual({
+      token: "supervisor-token",
+      source: "supervisor_token",
+      capability: "full",
+      warnings: []
+    });
+  });
+
   it("uses HA_LLAT env when available", () => {
     const result = resolveUpstreamToken({
       envHaLlat: "env-token"
@@ -23,7 +37,9 @@ describe("resolveUpstreamToken", () => {
       token: null,
       source: "none",
       capability: "none",
-      warnings: ["No upstream token available. Configure HA_LLAT."]
+      warnings: [
+        "No upstream token available. Configure SUPERVISOR_TOKEN for the App or HA_LLAT for standalone use."
+      ]
     });
   });
 

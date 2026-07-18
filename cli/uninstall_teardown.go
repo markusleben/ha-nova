@@ -152,9 +152,10 @@ func maybeOfferGuidedTeardown(reader *bufio.Reader, out io.Writer, preflight uni
 			stage = teardownStageLLAT
 
 		case teardownStageLLAT:
-			renderSetupStep(out, 3, 3, "Revoke the Home Assistant access token")
+			renderSetupStep(out, 3, 3, "Remove a legacy Home Assistant access token")
 			renderSetupLink(out, "This will open:", haProfileSecurityURL(preflight.haURL))
-			_, err := promptWizardLineFromReader(reader, out, "Press Enter to open your browser", "")
+			renderSetupParagraphTight(out, "Current App installs use Supervisor access and create no LLAT. Continue only to remove a NOVA token from an older or standalone setup.")
+			_, err := promptWizardLineFromReader(reader, out, "Press Enter to review legacy tokens", "")
 			if err == errSetupBack {
 				stage = teardownStageRepo
 				continue
@@ -166,12 +167,12 @@ func maybeOfferGuidedTeardown(reader *bufio.Reader, out io.Writer, preflight uni
 				return teardownNotOffered, err
 			}
 			deps.openURL(out, haProfileSecurityURL(preflight.haURL))
-			renderSetupIndentedBlock(out, "On your profile's Security tab:", "    ",
+			renderSetupIndentedBlock(out, "If a NOVA token exists on your profile's Security tab:", "    ",
 				"1. Scroll to \"Long-lived access tokens\"",
 				"2. Find the token named \"NOVA\"",
 				"3. Delete it",
 			)
-			_, err = promptWizardLineFromReader(reader, out, "Press Enter when the token is revoked", "")
+			_, err = promptWizardLineFromReader(reader, out, "Press Enter when the legacy-token check is complete", "")
 			if err == errSetupBack {
 				stage = teardownStageRepo
 				continue
@@ -220,7 +221,7 @@ func verifyRelayGone(out io.Writer, preflight uninstallPreflight, deps teardownD
 // completed guided teardown. Standard mode keeps the connection config on
 // purpose, so it gets the pointing-at-nothing hint.
 func teardownCompletedNoteLines(mode uninstallMode) []string {
-	notes := []string{"Server side removed in Home Assistant (app, repository, access token)."}
+	notes := []string{"Server side removed in Home Assistant (app, repository, and any legacy access token)."}
 	if mode != uninstallModePurge {
 		notes = append(notes, "The kept connection config now points at nothing. Run 'ha-nova uninstall --purge' to clear it, or keep it for a reinstall.")
 	}
