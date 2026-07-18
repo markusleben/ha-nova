@@ -46,7 +46,11 @@ map:
     path: /config
 
 options:
-  relay_auth_token: null
+  # A null default marks an option as REQUIRED in Supervisor (the App refuses to
+  # start until the user fills it) — the opposite of passwordless onboarding. An
+  # empty string keeps the field optional and matches what the legacy-migration
+  # clear writes back after importing a token.
+  relay_auth_token: ""
   ha_llat: ""
   file_access: "off"
 
