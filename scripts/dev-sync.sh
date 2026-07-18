@@ -232,8 +232,16 @@ sync_shared_tools() {
     # runtime binary by sync_cli_runtime — the single owner of the stamp. This
     # shared-tools build stays plain (and, in a repo-dev install, relay_dst is a
     # wrapper script this rarely-taken branch would otherwise clobber).
-    (cd "${REPO_ROOT}/cli" && go build -o "${relay_dst}" .)
-    chmod 755 "${relay_dst}"
+    # Go 1.26 refuses `-o` onto an existing non-object file, and a failed build
+    # (missing toolchain, dependency/cache error) must not destroy the previously
+    # working relay, so build to a temp path and move it over the target only on
+    # success. With set -e a build failure aborts before the move, leaving the old
+    # relay intact.
+    local relay_build="${relay_dst}.new"
+    rm -f "${relay_build}"
+    (cd "${REPO_ROOT}/cli" && go build -o "${relay_build}" .)
+    chmod 755 "${relay_build}"
+    mv -f "${relay_build}" "${relay_dst}"
     echo "[dev:sync] Built and deployed relay CLI from local Go source"
   else
     echo "[dev:sync] Warning: Go not installed or cli/ missing — relay CLI not updated"
@@ -392,7 +400,12 @@ sync_cli_runtime() {
       ;;
   esac
 
-  if (cd "${REPO_ROOT}/cli" && go build -ldflags "$(dev_build_ldflags)" -o "${target}" .); then
+  # Build to a fresh temp path, then move over the target: Go 1.26 refuses `-o`
+  # onto an existing non-object file, and this keeps the existing runtime intact
+  # if the build fails.
+  local build_out="${target}.new"
+  rm -f "${build_out}"
+  if (cd "${REPO_ROOT}/cli" && go build -ldflags "$(dev_build_ldflags)" -o "${build_out}" .) && mv -f "${build_out}" "${target}"; then
     local target_root repo_version
     target_root="$(dirname "${target}")"
     repo_version="$(repo_skill_version)"

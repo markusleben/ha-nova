@@ -64,7 +64,7 @@ func TestSetupStateSkipSummaryListsCompletedPhases(t *testing.T) {
 	summary := state.SkipSummary()
 	for _, want := range []string{
 		"app installation",
-		"relay token",
+		"authentication",
 		"connection check",
 		"skill installation",
 	} {
@@ -72,8 +72,8 @@ func TestSetupStateSkipSummaryListsCompletedPhases(t *testing.T) {
 			t.Fatalf("skip summary missing %q: %s", want, summary)
 		}
 	}
-	if strings.Contains(summary, "access token") {
-		t.Fatalf("skip summary should not include access token when WS is not ready: %s", summary)
+	if strings.Contains(summary, "Home Assistant connection") {
+		t.Fatalf("skip summary should not include the Home Assistant connection when WS is not ready: %s", summary)
 	}
 }
 

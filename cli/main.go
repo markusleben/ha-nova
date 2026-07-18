@@ -51,6 +51,8 @@ func dispatch(paths runtimePaths, argv0 string, args []string) int {
 		return runUpdate(paths, args[1:])
 	case "uninstall":
 		return runUninstall(paths, args[1:])
+	case "pair":
+		return runPairCommand(paths, args[1:])
 	case "relay":
 		return runRelayCommand(paths, args[1:])
 	case "trace":
@@ -91,6 +93,7 @@ func printUsage() {
 	fmt.Fprintln(os.Stdout, "Usage:")
 	fmt.Fprintln(os.Stdout, "  ha-nova setup [client]")
 	fmt.Fprintln(os.Stdout, "  ha-nova setup --service [client]")
+	fmt.Fprintln(os.Stdout, "  ha-nova pair [--relay-url http://<ha-host>:8791] [--code NNNNNN]")
 	fmt.Fprintln(os.Stdout, "  ha-nova doctor [--auto-repair] [--quiet]")
 	fmt.Fprintln(os.Stdout, "  ha-nova check-update [--quiet] [--json]")
 	fmt.Fprintln(os.Stdout, "  ha-nova status --json")

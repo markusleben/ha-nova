@@ -23,13 +23,13 @@ func (s setupState) SkipSummary() string {
 		parts = append(parts, "app installation")
 	}
 	if s.TokenOK {
-		parts = append(parts, "relay token")
+		parts = append(parts, "authentication")
 	}
 	if s.RelayOK {
 		parts = append(parts, "connection check")
 	}
 	if s.WSOK {
-		parts = append(parts, "access token")
+		parts = append(parts, "Home Assistant connection")
 	}
 	if s.SkillsOK {
 		parts = append(parts, "skill installation")
@@ -37,9 +37,44 @@ func (s setupState) SkipSummary() string {
 	return strings.Join(parts, ", ")
 }
 
+// deviceSetupState reports the install state over the paired-device transport.
+// The second return is false for legacy installs (no device credential) — the
+// legacy token path would wrongly report "no auth" for a paired device.
+func deviceSetupState(paths runtimePaths, cfg runtimeConfig, state installState, target string) (setupState, bool) {
+	base, client, credential, device, err := relayFunctionalTransportForDoctor(cfg)
+	if err != nil || !device {
+		return setupState{}, false
+	}
+	current := setupState{
+		ConfigOK: cfg.HAHost != "" && cfg.HAURL != "" && cfg.RelayBaseURL != "",
+		SkillsOK: clientsAppearInstalled(paths, target, state),
+		TokenOK:  true,
+	}
+	readiness := checkRelayReadinessOverTransport(base, client, credential)
+	if readiness.HealthErr == nil {
+		current.RelayOK = true
+		current.WSOK = readiness.WSReady
+	}
+	return current, true
+}
+
 func detectSetupState(paths runtimePaths, cfg runtimeConfig, state installState, target string) setupState {
+	if current, ok := deviceSetupState(paths, cfg, state, target); ok {
+		return current
+	}
 	token, err := readRelayAuthToken()
 	return detectSetupStateWithToken(paths, cfg, state, target, token, err == nil && strings.TrimSpace(token) != "")
+}
+
+// detectSetupStateForAssessment is the wizard's status view: device transport
+// when paired, otherwise the already-read saved token. The token STAGE keeps
+// calling detectSetupStateWithToken directly — its decisions are about the
+// legacy token by definition.
+func detectSetupStateForAssessment(paths runtimePaths, cfg runtimeConfig, state installState, target, savedToken string, hadSavedToken bool) setupState {
+	if current, ok := deviceSetupState(paths, cfg, state, target); ok {
+		return current
+	}
+	return detectSetupStateWithToken(paths, cfg, state, target, savedToken, hadSavedToken)
 }
 
 func detectSetupStateWithToken(paths runtimePaths, cfg runtimeConfig, state installState, target, token string, tokenOK bool) setupState {

@@ -81,6 +81,7 @@ func TestGlobalUsageMentionsPerCommandHelp(t *testing.T) {
 	for _, want := range []string{
 		"ha-nova update [--version <tag>] [--force]",
 		"ha-nova doctor [--auto-repair] [--quiet]",
+		"ha-nova pair", // the passwordless pair command must be discoverable
 		"Run 'ha-nova <command> --help' to see every flag of a command.",
 	} {
 		if !strings.Contains(out, want) {

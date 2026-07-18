@@ -35,6 +35,17 @@ func newRelayHTTPClient(connectTimeoutSeconds, maxTimeSeconds float64) *http.Cli
 	}
 }
 
+// applyHealthTimeouts rewrites a client's dial + overall timeout in place, so the
+// paired (SPKI-pinned) transport honors the health command's explicit timeout
+// flags instead of the fixed pairing timeout baked into spkiPinnedClient. The
+// TLS pin configuration on the existing transport is preserved.
+func applyHealthTimeouts(client *http.Client, connectTimeoutSeconds, maxTimeSeconds float64) {
+	client.Timeout = time.Duration(maxTimeSeconds * float64(time.Second))
+	if transport, ok := client.Transport.(*http.Transport); ok {
+		transport.DialContext = (&net.Dialer{Timeout: time.Duration(connectTimeoutSeconds * float64(time.Second))}).DialContext
+	}
+}
+
 type relayRequestOptions struct {
 	InlineJSON    string
 	JSONFile      string
@@ -195,7 +206,7 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 		return 1
 	}
 
-	token, err := readRelayAuthToken()
+	baseURL, client, token, _, err := relayFunctionalTransport(cfg)
 	if err != nil {
 		printErr("%s", relayAuthTokenProblemMessage(err))
 		return 1
@@ -219,7 +230,7 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 		requestBody = payloadBytes
 	}
 
-	url := strings.TrimRight(cfg.RelayBaseURL, "/") + "/" + endpoint
+	url := strings.TrimRight(baseURL, "/") + "/" + endpoint
 	req, err := http.NewRequest("POST", url, bytes.NewReader(requestBody))
 	if err != nil {
 		printErr("%s", err)
@@ -228,9 +239,9 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := httpClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
-		printErr("%s", relayConnectErrorMessage(cfg.RelayBaseURL, err))
+		printErr("%s", relayConnectErrorMessage(baseURL, err))
 		return 1
 	}
 	defer resp.Body.Close()
@@ -397,13 +408,21 @@ func runHealth(paths runtimePaths, args []string) int {
 		return 1
 	}
 
-	token, err := readRelayAuthToken()
+	baseURL, transportClient, token, deviceMode, err := relayFunctionalTransport(cfg)
 	if err != nil {
 		printErr("%s", relayAuthTokenProblemMessage(err))
 		return 1
 	}
+	// Legacy mode uses the health command's explicit connect/max timeouts; device
+	// mode keeps the SPKI-pinned TLS transport but applies those same timeouts to
+	// it, so a hung paired relay does not block on the fixed pairing timeout.
+	if !deviceMode {
+		transportClient = client
+	} else {
+		applyHealthTimeouts(transportClient, healthOpts.ConnectTimeoutSeconds, healthOpts.MaxTimeSeconds)
+	}
 
-	url := strings.TrimRight(cfg.RelayBaseURL, "/") + "/health"
+	url := strings.TrimRight(baseURL, "/") + "/health"
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		printErr("%s", err)
@@ -412,9 +431,9 @@ func runHealth(paths runtimePaths, args []string) int {
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := client.Do(req)
+	resp, err := transportClient.Do(req)
 	if err != nil {
-		printErr("%s", relayConnectErrorMessage(cfg.RelayBaseURL, err))
+		printErr("%s", relayConnectErrorMessage(baseURL, err))
 		return 1
 	}
 	defer resp.Body.Close()

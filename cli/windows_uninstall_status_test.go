@@ -428,7 +428,7 @@ func TestFinalizeWindowsUninstallLeavesRuntimeWhenRecoveryFails(t *testing.T) {
 	if err != nil {
 		t.Fatalf("beginWindowsUninstallStatus() error: %v", err)
 	}
-	err = finalizeWindowsUninstall(paths, &uninstallReport{}, uninstallModePurge, status)
+	err = finalizeWindowsUninstall(paths, &uninstallReport{}, uninstallModePurge, status, false)
 	if err == nil {
 		t.Fatalf("expected finalizeWindowsUninstall() to fail")
 	}

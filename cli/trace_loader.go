@@ -144,7 +144,11 @@ func relayWSJSON(paths runtimePaths, payload any) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	token, err := readRelayAuthToken()
+	// Route through the paired device transport when this install is paired,
+	// falling back to the legacy token — the same resolution the other functional
+	// commands use — so `trace` works on passwordless installs and fails closed
+	// when a paired credential is missing instead of using the wrong transport.
+	base, client, token, _, err := relayFunctionalTransport(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("%s", relayAuthTokenProblemMessage(err))
 	}
@@ -152,14 +156,14 @@ func relayWSJSON(paths runtimePaths, payload any) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	url := strings.TrimRight(cfg.RelayBaseURL, "/") + "/ws"
+	url := strings.TrimRight(base, "/") + "/ws"
 	req, err := http.NewRequest("POST", url, bytes.NewReader(payloadBytes))
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := httpClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}

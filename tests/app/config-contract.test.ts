@@ -18,15 +18,20 @@ describe("app config contract", () => {
     expect(parsed.hassio_api).toBe(true);
     expect(parsed.hassio_role).toBe("default");
     expect(parsed.ingress).toBe(true);
-    expect(parsed.ingress_port).toBe(8791);
+    // Ingress moves to an internal, unmapped port so the owner console is never
+    // LAN-reachable; the public transport ports are 8791 (bootstrap) + 8792 (TLS).
+    expect(parsed.ingress_port).toBe(8793);
     expect(parsed.ingress_entry).toBe("/home");
     expect(parsed.panel_admin).toBe(true);
-    expect(parsed.panel_title).toBe("NOVA Home Base");
+    expect(parsed.panel_title).toBe("NOVA");
+    expect(parsed.panel_icon).toBe("mdi:star-four-points");
     expect(parsed.ports).toMatchObject({
-      "8791/tcp": 8791
+      "8791/tcp": 8791,
+      "8792/tcp": 8792
     });
     expect(parsed.ports_description).toMatchObject({
-      "8791/tcp": "Relay HTTP API"
+      "8791/tcp": "Relay pairing + legacy HTTP",
+      "8792/tcp": "Relay secure device API (TLS)"
     });
 
     expect(parsed.options).toEqual({

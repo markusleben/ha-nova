@@ -83,7 +83,7 @@ func TestFinalizeWindowsUninstallRemovesInstallAndState(t *testing.T) {
 		t.Fatalf("write cache: %v", err)
 	}
 
-	if err := finalizeWindowsUninstall(paths, &uninstallReport{}, uninstallModeStandard, nil); err != nil {
+	if err := finalizeWindowsUninstall(paths, &uninstallReport{}, uninstallModeStandard, nil, false); err != nil {
 		t.Fatalf("finalize windows uninstall: %v", err)
 	}
 	if _, err := os.Stat(paths.InstallRoot); !isNotExist(err) {
@@ -133,7 +133,7 @@ func TestFinalizeWindowsUninstallWarnsAboutClaudeProjectMemoryArtifacts(t *testi
 	}
 
 	report := &uninstallReport{}
-	if err := finalizeWindowsUninstall(paths, report, uninstallModeStandard, nil); err != nil {
+	if err := finalizeWindowsUninstall(paths, report, uninstallModeStandard, nil, false); err != nil {
 		t.Fatalf("finalize windows uninstall: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(projectMemoryDir, "ha-nova-skills.md")); err != nil {
@@ -180,7 +180,7 @@ func TestFinalizeWindowsUninstallContinuesWhenLegacyCleanupFails(t *testing.T) {
 	}
 
 	report := &uninstallReport{}
-	if err := finalizeWindowsUninstall(paths, report, uninstallModeStandard, nil); err != nil {
+	if err := finalizeWindowsUninstall(paths, report, uninstallModeStandard, nil, false); err != nil {
 		t.Fatalf("finalizeWindowsUninstall() error: %v", err)
 	}
 	if _, err := os.Stat(paths.InstallRoot); !isNotExist(err) {

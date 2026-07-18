@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -250,15 +251,37 @@ func relayFloorNotice(paths runtimePaths) humanNotice {
 	if err != nil || cfg.RelayBaseURL == "" {
 		return humanNotice{}
 	}
-	token, err := readRelayAuthTokenForDoctor()
-	if err != nil || token == "" {
+	base, client, credential, ok := relayNoticeTransport(cfg)
+	if !ok {
 		return humanNotice{}
 	}
-	body, err := fetchRelayHealth(cfg.RelayBaseURL, token)
+	body, err := fetchRelayHealthWith(client, base, credential)
 	if err != nil {
 		return humanNotice{}
 	}
 	return checkRelayVersion(paths, body)
+}
+
+// relayNoticeTransport picks the credential path for the best-effort update
+// notices: the device transport for paired installs (which store no legacy
+// token at all), the legacy token otherwise. false means "no usable auth" —
+// the notices stay silent, matching their best-effort contract.
+func relayNoticeTransport(cfg config) (string, *http.Client, string, bool) {
+	if base, client, credential, device, err := relayFunctionalTransportForDoctor(cfg); err == nil && device {
+		return base, client, credential, true
+	}
+	// A paired config must not downgrade to the legacy plain, unpinned port when
+	// its device credential is missing/unreadable — respect the same fail-closed
+	// contract as relayFunctionalTransport and stay silent (the notice is
+	// best-effort).
+	if cfg.RelaySecureBaseURL != "" && cfg.RelaySpkiPin != "" {
+		return "", nil, "", false
+	}
+	token, err := readRelayAuthTokenForDoctor()
+	if err != nil || token == "" {
+		return "", nil, "", false
+	}
+	return cfg.RelayBaseURL, httpClient, token, true
 }
 
 // relayUpdateNotice preserves the compatibility-floor warning and, when the
@@ -273,11 +296,13 @@ func relayUpdateNotice(paths runtimePaths) humanNotice {
 	if err != nil || cfg.RelayBaseURL == "" {
 		return humanNotice{}
 	}
-	token, err := readRelayAuthTokenForDoctor()
-	if err != nil || token == "" {
+	_, _, credential, ok := relayNoticeTransport(cfg)
+	if !ok {
 		return humanNotice{}
 	}
-	return relayAvailableUpdateNotice(cfg, token)
+	// relayCoreRequest resolves the actual transport itself; the credential
+	// only matters for the legacy path.
+	return relayAvailableUpdateNotice(cfg, credential)
 }
 
 func relayAvailableUpdateNotice(cfg config, token string) humanNotice {

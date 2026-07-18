@@ -71,8 +71,30 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version: "1.24"
+          go-version: "1.26"
           cache-dependency-path: cli/go.sum
+
+      # The dev-sync tests shell out to `go build` under a restricted PATH
+      # (binDir:/usr/bin:/bin) that excludes the setup-go toolchain dir, so they
+      # would otherwise resolve the runner's older system Go and fail go.mod's
+      # 1.26 requirement (GOTOOLCHAIN=local). Point /usr/bin/go at the 1.26
+      # toolchain so the restricted PATH resolves the right version.
+      # The dev-sync tests run `go build` in parallel, each under a temp HOME and
+      # a restricted PATH. Pin GOMODCACHE/GOCACHE to shared locations (exported
+      # via GITHUB_ENV so the tests' spawned env inherits them instead of
+      # deriving cold caches from the temp HOME) and put Go 1.26 on /usr/bin so
+      # the restricted PATH resolves the right version. Then warm the cache once
+      # so each test build is an incremental cache hit instead of a cold full
+      # compile of the heavy pairing crypto deps that would race and exhaust the
+      # runner.
+      - name: Prepare Go for the parallel dev-sync builds
+        run: |
+          echo "GOMODCACHE=$(go env GOMODCACHE)" >> "$GITHUB_ENV"
+          echo "GOCACHE=$(go env GOCACHE)" >> "$GITHUB_ENV"
+          sudo ln -sf "$(command -v go)" /usr/bin/go
+
+      - name: Warm the Go cache
+        run: cd cli && go build ./...
 
       - name: Install
         run: npm ci
@@ -90,7 +112,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
-          go-version: "1.24"
+          go-version: "1.26"
           cache-dependency-path: cli/go.sum
 
       - name: Build (cross-target)

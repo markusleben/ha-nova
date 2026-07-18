@@ -10,6 +10,16 @@ export function resolveRelayAuthToken(source: NodeJS.ProcessEnv): string {
     return configuredToken;
   }
 
+  // App mode (SUPERVISOR_TOKEN present) authenticates per device via pairing and
+  // never needs an auto-generated shared token. Creating one here would be
+  // imported as a spurious legacy credential and re-churn a plaintext file on
+  // every restart after it is revoked. A genuine pre-pairing token is still
+  // honored: it arrives as RELAY_AUTH_TOKEN above, and the one-time legacy
+  // migration reads any existing /data file itself.
+  if (parseOptionalToken(source.SUPERVISOR_TOKEN)) {
+    return "";
+  }
+
   const tokenFile = source.RELAY_AUTH_TOKEN_FILE?.trim();
   if (!tokenFile) {
     throw new Error("RELAY_AUTH_TOKEN is required");

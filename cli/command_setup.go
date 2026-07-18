@@ -134,6 +134,10 @@ func runSetup(paths runtimePaths, args []string) int {
 
 	tokenStoragePreflightErr := relayAuthTokenSetupPreflightForSetup()
 	token := strings.TrimSpace(*relayToken)
+	// Only an EXPLICIT --relay-token expresses the intent to run this install
+	// on the token path; a silently reused stored token must never retire a
+	// working device pairing below.
+	explicitTokenIntent := token != ""
 	if token == "" {
 		if tokenStoragePreflightErr != nil {
 			printHumanErr("%s", relayAuthTokenProblemMessage(tokenStoragePreflightErr))
@@ -154,6 +158,14 @@ func runSetup(paths runtimePaths, args []string) int {
 				printHumanWarn("%s", hint)
 			}
 			return 1
+		}
+	}
+	// A passwordless-paired install has no legacy token; its device credential in
+	// the separate slot is the usable credential. Honor the pairing instead of
+	// requiring or prompting for a token.
+	if token == "" && !explicitTokenIntent && cfg.RelaySecureBaseURL != "" && cfg.RelaySpkiPin != "" {
+		if _, ok, credErr := readDeviceCredential(); credErr == nil && ok {
+			return completeNonInteractivePairedSetup(paths, cfg, state, selectedClients)
 		}
 	}
 	if token == "" && !*nonInteractive {
@@ -247,6 +259,22 @@ func runSetup(paths runtimePaths, args []string) int {
 		return 1
 	}
 
+	// An EXPLICIT --relay-token now serves this install — retire any leftover
+	// device pairing, or the trailing doctor run (and every skill call) would
+	// resolve the dead pairing first and fail. Mirrors the interactive token
+	// path, which is equally intent-gated. A stored token reused implicitly
+	// (routine client re-sync on a paired install) keeps the pairing: the
+	// legacy relay path accepting the token says nothing about the pairing
+	// being dead, and revoking it server-side is irreversible.
+	if explicitTokenIntent && (cfg.RelaySecureBaseURL != "" || cfg.RelaySpkiPin != "") {
+		printHumanInfo("Switching this install to the provided relay token; retiring its device pairing.")
+		retireDeviceCredential(&cfg)
+		if err := saveConfigForSetup(paths, cfg); err != nil {
+			printHumanErr("cannot save config: %s", err)
+			return 1
+		}
+	}
+
 	if err := installClients(paths, &state, selectedClients); err != nil {
 		printHumanErr("client installation failed: %s", err)
 		return 1
@@ -264,6 +292,34 @@ func runSetup(paths runtimePaths, args []string) int {
 	}
 
 	finalizeServiceTokenFileMigration(formerServiceTokenFile, token)
+	return runDoctor(paths, nil)
+}
+
+// completeNonInteractivePairedSetup finishes setup for a passwordless-paired
+// install, which has no legacy token: it verifies the device transport and
+// persists config/state via the device path (stamping the version), then installs
+// clients — instead of failing with "missing relay auth token".
+func completeNonInteractivePairedSetup(paths runtimePaths, cfg runtimeConfig, state installState, selectedClients []string) int {
+	if !verifyDeviceHealth(cfg) {
+		printHumanErr("This device is paired, but the secure connection could not be verified. Run 'ha-nova doctor', or re-pair with 'ha-nova setup' interactively.")
+		return 1
+	}
+	if err := persistDeviceSetupState(paths, cfg, &state); err != nil {
+		printHumanErr("%s", err)
+		return 1
+	}
+	printHumanInfo("Saved HA NOVA configuration (secure device pairing)")
+	if err := installClients(paths, &state, selectedClients); err != nil {
+		printHumanErr("client installation failed: %s", err)
+		return 1
+	}
+	if allTrackedClientsSynced(state.InstalledClients, selectedClients) {
+		state.ClientsVerifiedVersion = localVersion(paths)
+	}
+	if err := saveStateForSetup(paths, state); err != nil {
+		printHumanErr("cannot save state: %s", err)
+		return 1
+	}
 	return runDoctor(paths, nil)
 }
 

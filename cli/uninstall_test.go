@@ -780,7 +780,7 @@ func TestPurgeFindsServiceTokenFileWhenConfigIsIncomplete(t *testing.T) {
 	deleteRelayAuthTokenForUninstall = func() error { return nil }
 
 	report := &uninstallReport{}
-	if err := finalizeLocalUninstall(paths, installState{}, report, uninstallModePurge); err != nil {
+	if err := finalizeLocalUninstall(paths, installState{}, report, uninstallModePurge, false); err != nil {
 		t.Fatalf("finalizeLocalUninstall() error: %v", err)
 	}
 	if _, err := os.Stat(tokenPath); !isNotExist(err) {
@@ -831,7 +831,7 @@ func TestPurgeKeepsExternalTokenFileAndCleansKeyringOnly(t *testing.T) {
 	}
 
 	report := &uninstallReport{}
-	if err := finalizeLocalUninstall(paths, installState{}, report, uninstallModePurge); err != nil {
+	if err := finalizeLocalUninstall(paths, installState{}, report, uninstallModePurge, false); err != nil {
 		t.Fatalf("finalizeLocalUninstall() error: %v", err)
 	}
 	if _, err := os.Stat(externalToken); err != nil {

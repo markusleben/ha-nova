@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 
+import type { Principal } from "../security/principal.js";
 import { notFound } from "./errors.js";
 
 export interface RouteContext {
@@ -7,6 +8,9 @@ export interface RouteContext {
   response: ServerResponse;
   path: string;
   body: unknown;
+  // Present only on listeners that resolve a principal (device/legacy functional
+  // routes); absent on bearer-exempt and ingress routes.
+  principal?: Principal;
 }
 
 export type RouteHandler = (context: RouteContext) => unknown | Promise<unknown>;

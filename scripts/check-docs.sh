@@ -31,16 +31,22 @@ echo ""
 # and to 3300 for the diagnosability wave: disconnect reasons, request
 # logging, server timeouts; and to 3700 for Wave 6's bounded pairing manager,
 # persisted App credential, and code-authenticated transport endpoint; and to
-# 3900 for Home Base's static status renderer and Supervisor ingress gate).
+# 3900 for Home Base's static status renderer and Supervisor ingress gate; and
+# to 7000 for the secure device-pairing wave (relay 0.7): the OPAQUE (RFC 9807)
+# server, a persistent self-signed TLS identity with SPKI pinning, durable
+# atomic-file storage, the versioned fail-closed device registry, the pairing
+# state machine, per-device auth, three listeners, legacy migration, and the
+# NOVA owner console with CSRF-protected form actions including legacy-access
+# revocation and corrupt-registry owner recovery.
 # Growth here is security surface, and it is reviewed as such. The README's own
 # number is updated in the release-prep PR — README describes the STABLE
 # release, not main.
 echo "[1] Relay LOC (must stay readable in one sitting)"
 ACTUAL_LOC=$(find "$REPO_ROOT/nova/src" -name '*.ts' -exec cat {} + | wc -l | tr -d ' ')
-if (( ACTUAL_LOC >= 1000 && ACTUAL_LOC <= 3900 )); then
-  pass "src/ = ${ACTUAL_LOC} LOC (within 1000–3900 range)"
+if (( ACTUAL_LOC >= 1000 && ACTUAL_LOC <= 7000 )); then
+  pass "src/ = ${ACTUAL_LOC} LOC (within 1000–7000 range)"
 else
-  fail "src/ = ${ACTUAL_LOC} LOC — outside the 1000–3900 range. If this is real growth, justify it and update the README claim in the release-prep PR."
+  fail "src/ = ${ACTUAL_LOC} LOC — outside the 1000–7000 range. If this is real growth, justify it and update the README claim in the release-prep PR."
 fi
 
 # ── 2. Skill count ──

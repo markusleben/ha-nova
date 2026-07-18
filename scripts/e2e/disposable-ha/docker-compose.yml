@@ -42,6 +42,32 @@ services:
     ports:
       - "8791:8791"
 
+  # Third relay in APP MODE (SUPERVISOR_TOKEN present) — proves the passwordless
+  # onboarding upstream path: the relay authenticates to Home Assistant with the
+  # supervisor token (here a real LLAT, exactly what the Supervisor proxy holds)
+  # instead of HA_LLAT. Runs as root only to seed the legacy credential file the
+  # app-mode registry migrates, so a plain-token client can exercise the proxy.
+  # No Supervisor is present: the self-info port probe just warns (pairing code
+  # activation is disabled), which does not affect the upstream assertions.
+  relay-appmode:
+    build:
+      context: ../../../nova
+      dockerfile: Dockerfile.standalone
+      args:
+        RELAY_VERSION: "${RELAY_VERSION:-e2e}"
+    container_name: nova-e2e-relay-appmode
+    user: "0:0"
+    depends_on:
+      homeassistant:
+        condition: service_healthy
+    environment:
+      SUPERVISOR_TOKEN: "${HA_LLAT:-}"
+      RELAY_AUTH_TOKEN: "${RELAY_AUTH_TOKEN:-}"
+      HA_URL: "http://homeassistant:8123"
+    command: ["sh", "-c", "mkdir -p /data && printf '%s' \"$RELAY_AUTH_TOKEN\" > /data/relay_auth_token && exec node dist/src/runtime/main.js"]
+    ports:
+      - "8793:8791"
+
   # Second relay with file access opted in — proves the /files readwrite path
   # live, while the primary relay above keeps proving the off-by-default
   # guarantee. Runs as root ONLY because Home Assistant writes the throwaway

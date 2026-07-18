@@ -14,6 +14,13 @@ var keyringSetWithService = keyring.Set
 var keyringDeleteWithService = keyring.Delete
 var inspectLinuxSecureStorageStateForKeyring = inspectLinuxSecureStorageState
 
+// Device-credential slots share the relay token's Secret Service preflight, so a
+// locked/uninitialized backend fails fast with a classified error instead of
+// hanging go-keyring in an unlock prompt.
+func init() {
+	deviceCredentialPreflight = relayAuthTokenLinuxReadPreflight
+}
+
 func readRelayAuthToken() (string, error) {
 	if token, overridden, err := readRelayAuthTokenOverride(); overridden {
 		if err != nil {
