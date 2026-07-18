@@ -86,6 +86,9 @@ export function createNovaPageHandler(deps: NovaPageDeps): RouteHandler {
       update,
       relayVersion: deps.relayVersion,
       ingressPath: singleHeader(request, "x-ingress-path") ?? "/home",
+      // The action handler redirects here with ?err=1 when an owner action threw
+      // (e.g. generate_code with no mapped secure port), so the owner sees why.
+      actionError: new URLSearchParams((request.url ?? "").split("?")[1] ?? "").get("err") === "1",
     });
     setHeaders(response);
     response.statusCode = 200;
@@ -120,19 +123,23 @@ export function createNovaActionHandler(deps: NovaPageDeps): RouteHandler {
       return;
     }
 
+    let failed = false;
     try {
       applyAction(deps, action as NovaAction, form);
     } catch {
-      // Fail closed but do not leak internals; the page reflects the new state.
+      // Do not leak internals, but tell the owner it failed via ?err=1 below so a
+      // failed "Connect a device" is not a silent reload with no code.
+      failed = true;
     }
 
     // Post/Redirect/Get back to the page. The redirect target MUST keep the
     // ingress base path's trailing slash: Home Assistant serves the console at
     // "<ingress-path>/" (forwarding GET /) but 404s the slash-less base path.
     const ingressPath = singleHeader(request, "x-ingress-path") ?? "";
+    const base = `${ingressPath.replace(/\/$/, "")}/`;
     setHeaders(response);
     response.statusCode = 303;
-    response.setHeader("location", `${ingressPath.replace(/\/$/, "")}/`);
+    response.setHeader("location", failed ? `${base}?err=1` : base);
     response.end();
   };
 }
@@ -186,6 +193,7 @@ interface PageModel {
   update: UpdateStatus;
   relayVersion: string;
   ingressPath: string;
+  actionError: boolean;
 }
 
 function renderPage(m: PageModel): string {
@@ -209,6 +217,12 @@ function renderPage(m: PageModel): string {
   // the owner staring at an empty page or editing /data by hand.
   const recoverySection = m.registryCorrupt
     ? `<section><h2>Recovery needed</h2><p class="muted">The device registry is damaged, so device pairing and existing device access are disabled. Reset it to start fresh — the damaged file is kept aside, and every computer will need to pair again.</p>${formOpen}${csrfField("reset_registry")}<button class="danger" type="submit">Reset device registry</button></form></section>`
+    : "";
+
+  // Shown after an owner action threw (redirected here with ?err=1) so a failure
+  // is visible instead of a silent reload.
+  const errorSection = m.actionError
+    ? `<section class="error"><h2>That did not work</h2><p>The action could not be completed. If you were connecting a device, the relay's secure port may be unavailable — check the App is running, then try again.</p></section>`
     : "";
 
   const pairingSection = m.registryCorrupt
@@ -287,6 +301,8 @@ function renderPage(m: PageModel): string {
   p { margin: .35rem 0; }
   .muted { color: var(--muted); }
   .ok { color: var(--primary); }
+  .error { border-color: var(--danger); }
+  .error h2, .error p { color: var(--danger); }
   .waiting { font-style: italic; animation: pulse 1.6s ease-in-out infinite; }
   @keyframes pulse { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
   /* One click selects the whole code for copying — the page runs no
@@ -309,7 +325,7 @@ function renderPage(m: PageModel): string {
 <main>
 <h1>${star}NOVA</h1>
 <p class="intro">Let your AI assistant work with Home Assistant — safely. Connect each computer once with a one-time code; there are no tokens to copy or paste.</p>
-<section><h2>Home Assistant</h2><p>${m.connection.haConnected ? "Connected." : `<span class="muted">Not connected — check the App logs.</span>`}</p></section>
+${errorSection}<section><h2>Home Assistant</h2><p>${m.connection.haConnected ? "Connected." : `<span class="muted">Not connected — check the App logs.</span>`}</p></section>
 ${recoverySection}<section><h2>Update</h2><p>${updateLine}</p></section>
 <section><h2>Pairing</h2>${pairingSection}</section>
 <section><h2>Devices</h2>${deviceRows}</section>

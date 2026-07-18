@@ -29,8 +29,9 @@ let csrf: ReturnType<typeof createCsrfStore>;
 let deps: NovaPageDeps;
 const now = () => 1000;
 
-function req(over: { userId?: string; body?: Record<string, string>; secFetch?: string; owner?: HaAuthUser[] } = {}): IncomingMessage {
+function req(over: { userId?: string; body?: Record<string, string>; secFetch?: string; owner?: HaAuthUser[]; url?: string } = {}): IncomingMessage {
   return {
+    url: over.url ?? "/",
     socket: { remoteAddress: "172.30.32.2" },
     headers: {
       // HA sends the ingress BASE path (no page suffix); the console lives at "/".
@@ -119,6 +120,22 @@ describe("nova-page", () => {
     // The PRG target must keep the ingress base path's trailing slash, or HA 404s it.
     expect(r.headers["location"]).toBe("/api/hassio_ingress/tok/");
     expect(pairing.getStatus().phase).toBe("active");
+  });
+
+  it("surfaces a failed owner action via ?err=1 instead of a silent reload", async () => {
+    // No mapped secure port -> generateCode throws (the manager rejects it).
+    const noEndpoint = createPairingV1Manager({ registry, secureEndpoint: () => null, now });
+    const token = csrf.issue("owner-1", "generate_code", now());
+    const r = await call(createNovaActionHandler({ ...deps, pairing: noEndpoint }), req(), { action: "generate_code", csrf: token });
+    expect(r.statusCode).toBe(303);
+    expect(String(r.headers["location"])).toBe("/api/hassio_ingress/tok/?err=1");
+    expect(noEndpoint.getStatus().phase).toBe("inactive");
+  });
+
+  it("renders an error notice when redirected back with ?err=1", async () => {
+    const r = await call(createNovaPageHandler(deps), req({ url: "/home/?err=1" }));
+    expect(r.statusCode).toBe(200);
+    expect(r.body).toContain("That did not work");
   });
 
   it("refuses a cross-site POST", async () => {

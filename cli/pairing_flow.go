@@ -42,13 +42,17 @@ func defaultPairingClientInfo() pairingClientInfo {
 // runSecurePairing pairs against the relay's bootstrap URL using the one-time
 // code, then activates and promotes. It persists the secure endpoint + pin via
 // saveCfg. Returns the device id on success.
+// Test seams so the pairing orchestration can be exercised without a live relay.
+var pairDeviceV1ForPairing = pairDeviceV1
+var activateDeviceV1ForPairing = activateDeviceV1
+
 func runSecurePairing(bootstrapURL, code string, cfg *runtimeConfig, saveCfg func(*runtimeConfig) error, info pairingClientInfo) (string, error) {
 	installID, err := getOrCreateClientInstallID(cfg, saveCfg)
 	if err != nil {
 		return "", fmt.Errorf("could not establish an install id: %w", err)
 	}
 
-	prov, err := pairDeviceV1(nil, bootstrapURL, code, deviceMetadata{
+	prov, err := pairDeviceV1ForPairing(nil, bootstrapURL, code, deviceMetadata{
 		Name:            info.name,
 		Platform:        info.platform,
 		Client:          info.client,
@@ -69,23 +73,30 @@ func runSecurePairing(bootstrapURL, code string, cfg *runtimeConfig, saveCfg fun
 		return "", err
 	}
 
-	// Persist the secure endpoint BEFORE activation. With the pending credential
-	// already stored, a crash between activation and promotion can then be
-	// resumed: resumePendingActivation needs the endpoint from cfg, and without
-	// this save it would find a pending credential but no endpoint and give up.
-	cfg.RelaySecureBaseURL = secureBase
-	cfg.RelaySpkiPin = prov.SpkiPin
+	// Persist the new endpoint as PENDING before activation — the live endpoint is
+	// untouched, so a failed re-pair keeps the working install. With the pending
+	// credential already stored, a crash between activation and promotion resumes:
+	// resumePendingActivation reads this pending endpoint.
+	cfg.PendingSecureBaseURL = secureBase
+	cfg.PendingSpkiPin = prov.SpkiPin
 	if err := saveCfg(cfg); err != nil {
-		return "", fmt.Errorf("could not save the secure endpoint: %w", err)
+		return "", fmt.Errorf("could not save the pending secure endpoint: %w", err)
 	}
 
-	if err := activateDeviceV1(secureBase, prov.SpkiPin, prov.Credential); err != nil {
+	if err := activateDeviceV1ForPairing(secureBase, prov.SpkiPin, prov.Credential); err != nil {
 		return "", fmt.Errorf("could not activate the new device: %w", err)
 	}
-
-	// Activation succeeded: promote pending -> current.
 	if err := promotePendingDeviceCredential(); err != nil {
 		return "", fmt.Errorf("activated but could not finalize the credential: %w", err)
+	}
+
+	// Activation succeeded: promote the endpoint to live and clear the pending copy.
+	cfg.RelaySecureBaseURL = secureBase
+	cfg.RelaySpkiPin = prov.SpkiPin
+	cfg.PendingSecureBaseURL = ""
+	cfg.PendingSpkiPin = ""
+	if err := saveCfg(cfg); err != nil {
+		return "", fmt.Errorf("paired but could not save the secure endpoint: %w", err)
 	}
 	return prov.DeviceID, nil
 }
@@ -98,17 +109,23 @@ func resumePendingActivation(cfg *runtimeConfig, saveCfg func(*runtimeConfig) er
 	if err != nil || !ok {
 		return false, err
 	}
-	if cfg.RelaySecureBaseURL == "" || cfg.RelaySpkiPin == "" {
-		// No known secure endpoint to activate against; leave the pending slot
-		// for a full re-pair rather than guessing.
+	base, pin := cfg.PendingSecureBaseURL, cfg.PendingSpkiPin
+	if base == "" || pin == "" {
+		// No pending endpoint to activate against; leave the pending slot for a
+		// full re-pair rather than guessing.
 		return false, nil
 	}
-	if err := activateDeviceV1(cfg.RelaySecureBaseURL, cfg.RelaySpkiPin, pending); err != nil {
+	if err := activateDeviceV1(base, pin, pending); err != nil {
 		return false, err
 	}
 	if err := promotePendingDeviceCredential(); err != nil {
 		return false, err
 	}
+	// Promote the endpoint to live only now, and clear the pending copy.
+	cfg.RelaySecureBaseURL = base
+	cfg.RelaySpkiPin = pin
+	cfg.PendingSecureBaseURL = ""
+	cfg.PendingSpkiPin = ""
 	return true, saveCfg(cfg)
 }
 

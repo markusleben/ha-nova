@@ -21,6 +21,12 @@ type runtimeConfig struct {
 	// re-pairing.
 	RelaySecureBaseURL string `json:"relay_secure_base_url,omitempty"`
 	RelaySpkiPin       string `json:"relay_spki_pin,omitempty"`
+	// A secure endpoint learned during an in-progress pairing, promoted to the live
+	// fields above only after activation succeeds. Kept separate so a failed re-pair
+	// never overwrites the working endpoint, while resumePendingActivation can still
+	// find the endpoint after a crash between activation and promotion.
+	PendingSecureBaseURL string `json:"pending_secure_base_url,omitempty"`
+	PendingSpkiPin       string `json:"pending_spki_pin,omitempty"`
 }
 
 type config = runtimeConfig
