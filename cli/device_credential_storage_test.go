@@ -226,6 +226,36 @@ func TestStalePendingFileWithoutMarkerDoesNotMaskKeyringCurrent(t *testing.T) {
 	}
 }
 
+func TestRepairOnFileInstallDoesNotDeleteCredentialWhenMarkerIsReadOnly(t *testing.T) {
+	withDeviceStorageTestHome(t)
+	deviceCredentialFileModeForced = true // headless install: writes go to the file backend
+	// Established file install: marker + current credential present. The marker
+	// has become read-only (0400). A re-pair overwrites the current credential;
+	// it must NOT try to rewrite the marker (which would fail and roll the
+	// freshly promoted, already-activated credential back to nothing).
+	first := generateTestDeviceCredential(t)
+	if err := writeDeviceCredential(first); err != nil { // first commit writes marker + file
+		t.Fatalf("seed file install: %v", err)
+	}
+	if !deviceFileBackendMarkerExists() {
+		t.Fatal("seed did not commit file mode (marker missing)")
+	}
+	markerPath, _ := deviceFileBackendMarkerPath()
+	if err := os.Chmod(markerPath, 0o400); err != nil {
+		t.Fatalf("chmod marker 0400: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(markerPath, 0o600) })
+
+	repaired := "hanova-dev-v1.GGGGGGGGGGGGGGGGGGGGGG.HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH"
+	if err := writeDeviceCredential(repaired); err != nil {
+		t.Fatalf("re-pair overwrite must succeed without touching the marker: %v", err)
+	}
+	got, ok, err := readDeviceCredential()
+	if err != nil || !ok || got != repaired {
+		t.Fatalf("re-paired credential lost: got=%q ok=%v err=%v", got, ok, err)
+	}
+}
+
 func TestFileCanaryRejectsAnUnwritableExistingCredentialFile(t *testing.T) {
 	withDeviceStorageTestHome(t)
 	// Established file install (marker present) whose current credential file has

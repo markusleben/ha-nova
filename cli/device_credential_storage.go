@@ -132,14 +132,21 @@ func deviceSecretFileSet(service, value string) error {
 		return err
 	}
 	// Persisting the CURRENT (active) credential to a file is the moment this
-	// install commits to the file backend, so the marker is written with it — and
-	// ONLY here (pending writes are provisional and never commit the mode). The
-	// invariant "a current credential file exists IFF its marker exists" must
-	// hold, or a marker-less credential file would be masked by keyring reads and
-	// a credential-less marker would mask a keyring credential. Write the file,
-	// then the marker; if the marker fails, roll the file back.
+	// install commits to the file backend, so the marker is written with it — but
+	// ONLY on the FIRST commit (pending writes are provisional and never commit
+	// the mode). On an already-committed file install the marker exists, so a
+	// re-pair/resume just overwrites the credential: never rewrite the marker
+	// there (a marker gone 0400 would otherwise fail and trigger a rollback that
+	// deletes the freshly promoted, already-activated credential).
 	if service == deviceCredentialService {
 		path := testSecretPath(dir, service)
+		if deviceFileBackendMarkerExists() {
+			return os.WriteFile(path, []byte(value), 0o600)
+		}
+		// First commit: keep the invariant "current credential file exists IFF
+		// marker exists" by writing the file, then the marker, and rolling the
+		// file back if the marker cannot be created. Nothing valuable is lost —
+		// there is no prior committed file credential on a first commit.
 		if err := os.WriteFile(path, []byte(value), 0o600); err != nil {
 			return err
 		}
