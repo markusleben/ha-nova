@@ -159,6 +159,23 @@ func pairingRetryAfterSeconds(header string) int {
 	return seconds
 }
 
+// setupRelaySupportsSecurePairing reports whether the relay at the flag/config
+// URL answers /pair/v1/info — i.e. secure device pairing (file-backed credential,
+// no keyring) is usable. Used to decide that a missing relay-token keyring must
+// not abort setup: only true when the legacy /pair token fallback (which needs
+// the keyring) will NOT be reached. An unknown/unset URL returns false (fail
+// safe: keep the missing-keyring error fatal rather than risk consuming a code).
+func setupRelaySupportsSecurePairing(relayURLFlag string, cfg runtimeConfig) bool {
+	url := strings.TrimSpace(relayURLFlag)
+	if url == "" {
+		url = strings.TrimSpace(cfg.RelayBaseURL)
+	}
+	if url == "" {
+		return false
+	}
+	return probePairingV1(url)
+}
+
 // probePairingV1 reports whether the relay supports secure device pairing
 // (GET /pair/v1/info). Any error or non-v1 answer returns false so the wizard
 // falls back to the legacy code exchange.

@@ -75,6 +75,55 @@ func TestInteractiveSetupReachesPairingWhenLegacyKeyringUnavailable(t *testing.T
 	}
 }
 
+func TestInteractiveSetupStaysFatalOnHeadlessPreV1Relay(t *testing.T) {
+	// A pre-v1 relay has no /pair/v1/info, so pairing would fall back to the
+	// legacy /pair exchange whose shared token needs the (unavailable) keyring.
+	// The wizard must NOT clear the token-storage error here — failing before the
+	// one-time code is consumed is the safe outcome.
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("HA_NOVA_NO_BROWSER", "1")
+	t.Setenv("HA_NOVA_DEV_ROOT", repoRootForSetupTest(t))
+
+	originalPreflight := relayAuthTokenSetupPreflightForSetup
+	t.Cleanup(func() { relayAuthTokenSetupPreflightForSetup = originalPreflight })
+	relayAuthTokenSetupPreflightForSetup = func() error {
+		return desktopKeyringSessionUnavailableError("no session bus in this shell")
+	}
+
+	haServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer haServer.Close()
+
+	// Pre-v1 relay: /health only, /pair/v1/info 404.
+	relayServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/health" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"status":"ok","data":{"ha_ws_connected":true}}`))
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer relayServer.Close()
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+
+	exitCode := 0
+	stdout, stderr := captureInteractiveSetupIO(t, "exit\n", func() int {
+		exitCode = interactiveSetup(paths, runtimeConfig{}, loadStateOrDefault(paths), "codex",
+			normalizeHostInput(haServer.URL), haServer.URL, relayServer.URL, "", false)
+		return exitCode
+	})
+	if exitCode != 1 {
+		t.Fatalf("wizard exit = %d, want 1 (pre-v1 relay + no keyring must fail safe)\n%s", exitCode, stdout+stderr)
+	}
+}
+
 func TestExchangeRelayPairingCodeUsesBodyWithoutBearer(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodPost || request.URL.Path != "/pair" {
