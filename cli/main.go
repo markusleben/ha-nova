@@ -51,6 +51,8 @@ func dispatch(paths runtimePaths, argv0 string, args []string) int {
 		return runUpdate(paths, args[1:])
 	case "uninstall":
 		return runUninstall(paths, args[1:])
+	case "pair":
+		return runPairCommand(paths, args[1:])
 	case "relay":
 		return runRelayCommand(paths, args[1:])
 	case "trace":

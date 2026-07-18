@@ -11,6 +11,7 @@ import (
 )
 
 var readRelayAuthTokenForDoctor = readRelayAuthToken
+var probePairingV1ForDoctor = probePairingV1
 
 func runDoctor(paths runtimePaths, args []string) int {
 	fs := flag.NewFlagSet("doctor", flag.ContinueOnError)
@@ -49,7 +50,6 @@ func runDoctor(paths runtimePaths, args []string) int {
 	ensureClientsVerifiedForCurrentVersion(paths)
 
 	cfg, cfgErr := loadConfig(paths)
-	token, tokenErr := readRelayAuthTokenForDoctor()
 	state, stateErr := loadStateOrDefaultChecked(paths)
 	if stateErr != nil {
 		printHumanErr("%s", stateErr)
@@ -64,33 +64,93 @@ func runDoctor(paths runtimePaths, args []string) int {
 		return 1
 	}
 
-	if tokenErr == nil && token != "" {
-		doctorInfo("Relay auth token present in %s", relayAuthTokenStorageLabel())
-	} else {
-		printHumanErr("%s", relayAuthTokenProblemMessage(tokenErr))
-		if hint := doctorServiceCredentialRecoveryHint(paths, state, tokenErr); hint != "" {
-			printHumanWarn("%s", hint)
-		}
-		if hint := setupSecureStorageRecoveryHint(tokenErr); hint != "" {
-			printHumanWarn("%s", hint)
-		}
-		return 1
+	// Finish a pairing interrupted between activation and promotion (crash or
+	// lost response); best-effort — failures leave the pending slot alone.
+	if resumed, resumeErr := resumePendingActivation(&cfg, func(c *runtimeConfig) error { return saveConfig(paths, *c) }); resumeErr == nil && resumed {
+		doctorInfo("Resumed the interrupted pairing — this device is connected.")
 	}
 
-	if err := probeHTTP(cfg.HAURL); err != nil {
+	// Paired devices authenticate with their own credential over pinned TLS;
+	// legacy installs keep the shared relay token. Doctor checks whichever
+	// transport this install actually uses.
+	transportBase, transportClient, transportCred, deviceMode, _ := relayFunctionalTransportForDoctor(cfg)
+	var token string
+	if deviceMode {
+		token = transportCred
+		doctorInfo("Device credential present (paired securely)")
+	} else {
+		legacyToken, tokenErr := readRelayAuthTokenForDoctor()
+		token = legacyToken
+		if tokenErr == nil && token != "" {
+			doctorInfo("Relay auth token present in %s", relayAuthTokenStorageLabel())
+		} else {
+			if cfg.RelaySecureBaseURL != "" && cfg.RelaySpkiPin != "" {
+				// Unreadable storage and an absent credential need different
+				// help: re-pairing cannot store anything in broken storage.
+				// The direct slot read distinguishes them on every platform.
+				if _, _, credErr := readDeviceCredential(); credErr != nil {
+					printHumanErr("This device is paired, but its device credential could not be read from secure storage: %s", credErr)
+					if hint := setupSecureStorageRecoveryHint(credErr); hint != "" {
+						printHumanWarn("%s", hint)
+					} else {
+						printHumanWarn("Unlock or repair secure storage on this machine, then run 'ha-nova doctor' again.")
+					}
+					return 1
+				}
+				printHumanErr("This device was paired, but its device credential is missing from secure storage.")
+				printHumanErr("Pair again: run 'ha-nova setup' and enter a fresh code from the NOVA page.")
+				return 1
+			}
+			printHumanErr("%s", relayAuthTokenProblemMessage(tokenErr))
+			if hint := doctorServiceCredentialRecoveryHint(paths, state, tokenErr); hint != "" {
+				printHumanWarn("%s", hint)
+			}
+			if hint := setupSecureStorageRecoveryHint(tokenErr); hint != "" {
+				printHumanWarn("%s", hint)
+			}
+			return 1
+		}
+	}
+
+	haReachable := false
+	haURLKnown := strings.TrimSpace(cfg.HAURL) != ""
+	if !haURLKnown {
+		// A pair-only setup (`ha-nova pair --relay-url ...`) has no saved HA
+		// address yet. The relay's WS state still proves the connection; the
+		// direct HA probe is just skipped instead of failing on an empty URL.
+		printHumanWarn("No Home Assistant address saved yet; skipping the direct HA check. Run 'ha-nova setup' to complete this device's setup.")
+	} else if err := probeHTTP(cfg.HAURL); err != nil {
 		printHumanErr("Home Assistant unreachable: %s", err)
 		status = 1
 	} else {
 		doctorInfo("Home Assistant reachable: %s", cfg.HAURL)
+		haReachable = true
 	}
-	haReachable := status == 0
+	// WS state is judged when HA answered directly, or when no address is
+	// saved (then the relay's own upstream state is the only — and sufficient —
+	// signal). Only a KNOWN-down HA suppresses it: blaming tokens while HA
+	// itself is offline would mislead.
+	judgeWS := haReachable || !haURLKnown
 
-	readiness := checkRelayReadiness(cfg.RelayBaseURL, token)
+	healthBase := cfg.RelayBaseURL
+	runReadiness := func() relayReadiness {
+		if deviceMode {
+			return checkRelayReadinessOverTransport(transportBase, transportClient, token)
+		}
+		return checkRelayReadiness(cfg.RelayBaseURL, token)
+	}
+	if deviceMode {
+		healthBase = transportBase
+	}
+	readiness := runReadiness()
 	if readiness.HealthErr != nil {
 		printHumanErr("Relay health failed: %s", readiness.HealthErr)
+		if deviceMode && relayHealthIssueLooksLikeRelayAuth(readiness.HealthErr) {
+			printHumanErr("This device's pairing was not accepted (revoked or unknown). Pair again: run 'ha-nova setup'.")
+		}
 		status = 1
 	} else {
-		doctorInfo("Relay health reachable: %s/health", cfg.RelayBaseURL)
+		doctorInfo("Relay health reachable: %s/health", healthBase)
 		if notice := checkRelayVersion(paths, readiness.HealthBody); !notice.empty() {
 			printHumanNotice(notice)
 			// --quiet is a machine/diagnostic contract: warning-only, never
@@ -108,7 +168,7 @@ func runDoctor(paths runtimePaths, args []string) int {
 				// update is stale (its WS may still be reconnecting, or fail
 				// on the new version) — the checks below must judge the relay
 				// that is running NOW.
-				readiness = checkRelayReadiness(cfg.RelayBaseURL, token)
+				readiness = runReadiness()
 			}
 		} else if !*quiet {
 			// A newer App may be available even while the running Relay remains
@@ -117,24 +177,34 @@ func runDoctor(paths runtimePaths, args []string) int {
 			if notice := relayAvailableUpdateNotice(cfg, token); !notice.empty() {
 				printHumanNotice(notice)
 				if maybeOfferGuidedRelayUpdate(paths, notice) {
-					readiness = checkRelayReadiness(cfg.RelayBaseURL, token)
+					readiness = runReadiness()
 				}
 			}
 		}
-		if haReachable {
+		if judgeWS {
 			switch {
 			case readiness.WSReady:
 				if readiness.UsedWSPing {
 					doctorInfo("Relay /ws ping succeeded")
 				}
 				doctorInfo("Connected to Home Assistant")
+				// Working legacy install against a pairing-capable relay: point
+				// at the passwordless upgrade once, as information — never a
+				// failure, and skipped in --quiet's machine contract.
+				if !deviceMode && !*quiet && probePairingV1ForDoctor(cfg.RelayBaseURL) {
+					printHumanInfo("This relay supports passwordless device pairing. Run 'ha-nova setup' to switch this device to its own secure credential.")
+				}
 			case readiness.UpstreamAuthIssue:
 				printHumanErr("Relay reports degraded upstream WS capability")
 				printHumanErr("Relay upstream authentication was rejected; update/restart the App, or replace HA_LLAT for standalone Container/Core")
 				status = 1
 			case readiness.RelayAuthIssue:
 				printHumanErr("Relay reports degraded upstream WS capability")
-				printHumanErr(`The Relay Auth Token field ("relay_auth_token") in NOVA Relay is missing or invalid`)
+				if deviceMode {
+					printHumanErr("This device's pairing was not accepted (revoked or unknown). Pair again: run 'ha-nova setup'.")
+				} else {
+					printHumanErr(`The Relay Auth Token field ("relay_auth_token") in NOVA Relay is missing or invalid`)
+				}
 				status = 1
 			default:
 				printHumanErr("Relay reports degraded upstream WS capability")
@@ -280,6 +350,10 @@ func runCheckUpdate(paths runtimePaths, args []string) int {
 }
 
 func fetchRelayHealth(relayBaseURL, token string) ([]byte, error) {
+	return fetchRelayHealthWith(httpClient, relayBaseURL, token)
+}
+
+func fetchRelayHealthWith(client *http.Client, relayBaseURL, token string) ([]byte, error) {
 	url := strings.TrimRight(relayBaseURL, "/") + "/health"
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -287,7 +361,7 @@ func fetchRelayHealth(relayBaseURL, token string) ([]byte, error) {
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := httpClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}

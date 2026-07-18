@@ -46,7 +46,7 @@ func runInternalUninstall(_ runtimePaths, args []string) int {
 	waitForParentReleaseForUninstall(*parentPID)
 	preflight := collectUninstallPreflight(paths)
 	report := &uninstallReport{}
-	if err := finalizeWindowsUninstall(paths, report, uninstallModeFromFlag(*purge), status); err != nil {
+	if err := finalizeWindowsUninstall(paths, report, uninstallModeFromFlag(*purge), status, *teardownDone); err != nil {
 		report.printDetails()
 		printHumanErr("%s", err)
 		return 1
@@ -153,7 +153,7 @@ func runUninstall(paths runtimePaths, args []string) int {
 	}
 
 	report := &uninstallReport{}
-	if err := finalizeLocalUninstall(paths, state, report, mode); err != nil {
+	if err := finalizeLocalUninstall(paths, state, report, mode, teardown == teardownCompleted); err != nil {
 		printHumanErr("%s", err)
 		return 1
 	}
@@ -234,11 +234,11 @@ func discardInstallRoot(installRoot string) error {
 	return nil
 }
 
-func finalizeWindowsUninstall(paths runtimePaths, report *uninstallReport, mode uninstallMode, status *windowsUninstallStatus) error {
+func finalizeWindowsUninstall(paths runtimePaths, report *uninstallReport, mode uninstallMode, status *windowsUninstallStatus, relayAlreadyRemoved bool) error {
 	state := loadStateOrDefault(paths)
 	if err := finalizeLocalUninstallWithProgress(paths, state, report, mode, func(step string) error {
 		return updateWindowsUninstallStatusProgress(paths, status)
-	}); err != nil {
+	}, relayAlreadyRemoved); err != nil {
 		return failWindowsUninstallStatus(paths, status, normalizeUninstallFailureStep(err), err)
 	}
 	if err := removeLegacyWindowsPackageResidueForUninstall(paths, report); err != nil {
@@ -285,18 +285,23 @@ func promptUninstallMode(defaultMode uninstallMode) (uninstallMode, bool, error)
 	}
 }
 
-func finalizeLocalUninstall(paths runtimePaths, state installState, report *uninstallReport, mode uninstallMode) error {
-	return finalizeLocalUninstallWithProgress(paths, state, report, mode, nil)
+func finalizeLocalUninstall(paths runtimePaths, state installState, report *uninstallReport, mode uninstallMode, relayAlreadyRemoved bool) error {
+	return finalizeLocalUninstallWithProgress(paths, state, report, mode, nil, relayAlreadyRemoved)
 }
 
-func finalizeLocalUninstallWithProgress(paths runtimePaths, state installState, report *uninstallReport, mode uninstallMode, beforeStep func(string) error) error {
+func finalizeLocalUninstallWithProgress(paths runtimePaths, state installState, report *uninstallReport, mode uninstallMode, beforeStep func(string) error, relayAlreadyRemoved bool) error {
 	relayTokenFile := ""
+	deviceSecureBase, deviceSpkiPin := "", ""
 	if mode == uninstallModePurge {
 		// Read the raw config: token-file cleanup must not depend on setup
 		// completeness (loadConfig fails when relay_base_url is missing,
 		// which would silently skip service token file removal on purge).
+		// The secure-endpoint fields are captured here too — config_cleanup
+		// removes config.json before token_cleanup runs the device revoke.
 		if cfg, err := loadJSONConfig(paths.ConfigFile); err == nil {
 			relayTokenFile = strings.TrimSpace(cfg.RelayTokenFile)
+			deviceSecureBase = strings.TrimSpace(cfg.RelaySecureBaseURL)
+			deviceSpkiPin = strings.TrimSpace(cfg.RelaySpkiPin)
 		}
 	}
 	if beforeStep != nil {
@@ -344,6 +349,7 @@ func finalizeLocalUninstallWithProgress(paths runtimePaths, state installState, 
 				return fmt.Errorf("failed before token_cleanup: %w", err)
 			}
 		}
+		purgeDeviceCredentialWithReport(deviceSecureBase, deviceSpkiPin, report, relayAlreadyRemoved)
 		tokenFileHandled := false
 		if relayTokenFile != "" {
 			var err error
@@ -376,6 +382,8 @@ func finalizeLocalUninstallWithProgress(paths runtimePaths, state installState, 
 		if err := removeDirIfEmptyWithReport(paths.ConfigDir, report); err != nil {
 			return fmt.Errorf("failed to remove managed config directory: %w", err)
 		}
+	} else if deviceCredentialExistsForUninstall() {
+		report.addNote("Kept Home Assistant connection config and this device's pairing. Use 'ha-nova uninstall --purge' to remove and revoke them too.")
 	} else if fileExists(paths.ConfigFile) || relayAuthTokenExistsForUninstall() {
 		report.addNote("Kept Home Assistant connection config and stored relay token. Use 'ha-nova uninstall --purge' to remove them too.")
 	}

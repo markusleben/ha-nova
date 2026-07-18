@@ -250,6 +250,16 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 		existingToken = formerServiceToken
 	}
 
+	// A pairing interrupted between activation and promotion left a pending
+	// credential behind; finish it now so the assessment below sees the device
+	// as paired instead of forcing a fresh code. Best-effort: any failure just
+	// leaves the pending slot for the normal pairing flow. Runs BEFORE the flag
+	// overrides so a resume never persists unconfirmed --host/--relay-url
+	// values as a side effect.
+	if resumed, resumeErr := resumePendingActivation(&cfg, func(c *runtimeConfig) error { return saveConfig(paths, *c) }); resumeErr == nil && resumed {
+		printHumanInfo("Resumed the interrupted pairing — this device is connected.")
+	}
+
 	overrideApplied := strings.TrimSpace(hostFlag) != "" || strings.TrimSpace(haURLFlag) != "" || strings.TrimSpace(relayURLFlag) != ""
 	if overrideApplied {
 		var err error
@@ -260,7 +270,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 		}
 	}
 
-	current := detectSetupStateWithToken(paths, cfg, state, target, savedTokenBeforeSetup, hadSavedTokenBeforeSetup)
+	current := detectSetupStateForAssessment(paths, cfg, state, target, savedTokenBeforeSetup, hadSavedTokenBeforeSetup)
 	if tokenStoragePreflightErr == nil {
 		if handled, code := maybeHandleInteractiveSetupCurrentState(reader, os.Stdout, paths, cfg, current, overrideApplied); handled {
 			return code
@@ -269,6 +279,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 
 	pairingFlow := false
 	pairingCredentialReceived := false
+	devicePaired := false
 	manualCredentialFlow := false
 	pairingBackStage := setupStageRelayInstall
 	usePairingByDefault := func() bool {
@@ -278,9 +289,16 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 	if tokenStoragePreflightErr != nil {
 		stage = setupStageSecureStorageRecovery
 	}
+	// A device credential from an earlier pairing makes this a paired install:
+	// re-runs (adding a client, finishing an interrupted setup) verify the
+	// existing pairing instead of demanding a fresh code every time.
+	_, _, _, deviceAlreadyPaired, _ := relayFunctionalTransportForDoctor(cfg)
 	verifyFirstReuseFlow := false
 	if stage != setupStageSecureStorageRecovery && cfg.HAHost != "" && cfg.HAURL != "" {
 		switch {
+		case deviceAlreadyPaired:
+			devicePaired = true
+			stage = setupStageVerify
 		case existingToken != "" && current.RelayOK && !current.WSOK:
 			stage = setupStageVerify
 			verifyFirstReuseFlow = true
@@ -380,7 +398,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 			if strings.TrimSpace(relayTokenFlag) == "" {
 				existingToken = savedTokenBeforeSetup
 			}
-			current = detectSetupStateWithToken(paths, cfg, state, target, savedTokenBeforeSetup, hadSavedTokenBeforeSetup)
+			current = detectSetupStateForAssessment(paths, cfg, state, target, savedTokenBeforeSetup, hadSavedTokenBeforeSetup)
 			if current.IsComplete() {
 				if overrideApplied {
 					if err := saveConfig(paths, cfg); err != nil {
@@ -393,8 +411,15 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 			}
 			stage = setupStageHost
 			verifyFirstReuseFlow = false
+			// Secure storage just became readable: the pre-recovery transport
+			// resolution is stale. A paired device found NOW routes to verify —
+			// demanding a fresh code here would undo the point of recovery.
+			_, _, _, deviceAlreadyPaired, _ = relayFunctionalTransportForDoctor(cfg)
 			if cfg.HAHost != "" && cfg.HAURL != "" {
 				switch {
+				case deviceAlreadyPaired:
+					devicePaired = true
+					stage = setupStageVerify
 				case existingToken != "" && current.RelayOK && !current.WSOK:
 					stage = setupStageVerify
 					verifyFirstReuseFlow = true
@@ -542,6 +567,14 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 				return 1
 			}
 			if pairAfterInstall {
+				if deviceAlreadyPaired {
+					// An earlier pairing already gave this device its own
+					// credential: verify it against the (re)installed relay
+					// first — a failed verify still routes back to pairing.
+					devicePaired = true
+					stage = setupStageVerify
+					continue
+				}
 				pairingFlow = true
 				pairingBackStage = setupStageRelayInstall
 				stage = setupStagePairing
@@ -550,6 +583,9 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 			}
 
 		case setupStageToken:
+			// Any route into the token stage is the legacy path by definition:
+			// verify must judge the token, never a leftover device pairing.
+			devicePaired = false
 			current = detectSetupStateWithToken(paths, cfg, state, target, savedTokenBeforeSetup, hadSavedTokenBeforeSetup)
 			existingToken = ""
 			if relayTokenFlag == "" && hadSavedTokenBeforeSetup {
@@ -691,12 +727,15 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 		case setupStagePairing:
 			steps := buildSetupPairingWizardSteps()
 			renderSetupStep(os.Stdout, steps.Pairing, steps.Total, "Pair this device")
-			pairedToken, err := runSetupPairingFlow(reader, os.Stdout, cfg)
+			pairedToken, err := runSetupPairingFlow(reader, os.Stdout, paths, &cfg)
 			if err == errSetupBack {
 				stage = pairingBackStage
 				continue
 			}
 			if err == errSetupRelayTokenStep {
+				// The user explicitly left the device path: verify must judge
+				// the token they are about to provide, not the old pairing.
+				devicePaired = false
 				manualCredentialFlow = true
 				stage = setupStageToken
 				continue
@@ -705,12 +744,25 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 				renderSetupCancelledNote(os.Stdout)
 				return 0
 			}
+			if err == errSetupDevicePaired {
+				// Secure v1 pairing already stored the device credential and the
+				// secure endpoint in the config; there is no relay token to keep,
+				// and activation already proved the connection.
+				devicePaired = true
+				token = ""
+				pairingCredentialReceived = false
+				manualCredentialFlow = false
+				verifyFirstReuseFlow = false
+				stage = setupStageVerify
+				continue
+			}
 			if err != nil {
 				printHumanErr("%s", err)
 				return 1
 			}
 			token = pairedToken
 			pairingCredentialReceived = true
+			devicePaired = false
 			manualCredentialFlow = false
 			verifyFirstReuseFlow = false
 			stage = setupStageVerify
@@ -725,6 +777,40 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 				steps = buildSetupPairingWizardSteps()
 			}
 			renderSetupStep(os.Stdout, steps.Verify, steps.Total, "Verifying connection")
+
+			if devicePaired {
+				renderDeviceVerifyIntro(os.Stdout)
+				if !verifyDeviceHealth(cfg) {
+					renderSetupErrorLine(os.Stdout, "Paired, but the secure device endpoint did not answer yet. The App may still be starting.")
+					if _, retryErr := promptWizardLineFromReader(reader, os.Stdout, "Press Enter to retry, or type 'back' to pair again", ""); retryErr != nil {
+						if retryErr == errSetupBack {
+							// Do exactly what the prompt advertises.
+							pairingBackStage = setupStageVerify
+							stage = setupStagePairing
+							continue
+						}
+						if retryErr == errSetupExit {
+							renderSetupCancelledNote(os.Stdout)
+							return 0
+						}
+						printHumanErr("%s", retryErr)
+						return 1
+					}
+					if !verifyDeviceHealth(cfg) {
+						pairingBackStage = setupStageVerify
+						stage = setupStagePairing
+						continue
+					}
+				}
+				renderSetupSuccessLine(os.Stdout, "Secure connection verified")
+				if err := persistDeviceSetupState(paths, cfg, &state); err != nil {
+					printHumanErr("%s", err)
+					return 1
+				}
+				stage = setupStageSkills
+				continue
+			}
+
 			if verifyFirstReuseFlow {
 				renderSetupParagraphTight(os.Stdout, "Using Home Assistant address: "+cfg.HAURL)
 			}
@@ -787,6 +873,11 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 				renderSetupIncompleteBanner(os.Stdout, issue)
 				return 1
 			}
+			// The token path just verified successfully. A leftover device
+			// pairing (this branch is legacy-only; the device branch continues
+			// to Skills above) would win transport resolution on the next run
+			// and wedge the install on a dead pairing — retire it for good.
+			retireDeviceCredential(&cfg)
 			if err := persistInteractiveSetupStateWithRecovery(reader, os.Stdout, paths, cfg, &state, savedTokenBeforeSetup, hadSavedTokenBeforeSetup, token, &secureStorageRecovery); err != nil {
 				printHumanErr("%s", err)
 				return 1

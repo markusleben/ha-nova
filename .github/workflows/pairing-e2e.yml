@@ -1,0 +1,63 @@
+name: Pairing E2E
+
+# Proves the secure device-pairing surface end to end with the REAL shipped code
+# on both sides: the Go CLI pairing client drives the real relay pairing
+# listeners over real OPAQUE (RFC 9807) and real SPKI-pinned TLS 1.3.
+#   pair -> device credential refused over plain HTTP (403) -> activate over
+#   pinned TLS -> functional call (200) -> revoke-self -> functional (401).
+# Hermetic and fast (no Docker, no network), so it runs as a normal PR check —
+# unlike the disposable-HA e2e, which is scheduled evidence.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "nova/src/**"
+      - "nova/package.json"
+      - "nova/package-lock.json"
+      - "nova/tsconfig.json"
+      - "cli/**"
+      - "scripts/e2e/pairing-harness.mjs"
+      - ".github/workflows/pairing-e2e.yml"
+  pull_request:
+    paths:
+      - "nova/src/**"
+      - "nova/package.json"
+      - "nova/package-lock.json"
+      - "nova/tsconfig.json"
+      - "cli/**"
+      - "scripts/e2e/pairing-harness.mjs"
+      - ".github/workflows/pairing-e2e.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pairing-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: cli/go.mod
+
+      - name: Install and build the relay (for the pairing harness)
+        run: |
+          npm ci
+          npm run build
+
+      - name: Run the pairing e2e (real CLI client vs real relay handlers)
+        env:
+          HA_NOVA_PAIR_E2E_HARNESS: ${{ github.workspace }}/scripts/e2e/pairing-harness.mjs
+        run: |
+          cd cli
+          go test -count=1 -run 'TestPairingClientV1EndToEnd|TestRunSecurePairingEndToEnd' -v ./...

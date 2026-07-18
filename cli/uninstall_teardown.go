@@ -200,7 +200,22 @@ func maybeOfferGuidedTeardown(reader *bufio.Reader, out io.Writer, preflight uni
 // token) it stays trust-the-user, like the repo and LLAT steps. The token
 // revocation step stays deliberately unverifiable: the CLI never held the LLAT.
 func verifyRelayGone(out io.Writer, preflight uninstallPreflight, deps teardownDeps) bool {
-	if preflight.config.RelayBaseURL == "" || preflight.relayToken == "" {
+	probe := func() bool { return false }
+	stillAt := preflight.config.RelayBaseURL
+	switch {
+	case preflight.config.RelaySecureBaseURL != "" && preflight.config.RelaySpkiPin != "" && deviceCredentialExistsForUninstall():
+		// Device wins, matching transport resolution everywhere else: a
+		// leftover legacy token may have been rotated server-side long ago,
+		// while the device credential is what this install actually uses.
+		probe = func() bool { return verifyDeviceHealth(preflight.config) }
+		stillAt = preflight.config.RelaySecureBaseURL
+	case preflight.config.RelayBaseURL != "" && preflight.relayToken != "":
+		probe = func() bool {
+			_, err := deps.relayHealth(preflight.config.RelayBaseURL, preflight.relayToken)
+			return err == nil
+		}
+	default:
+		// Nothing to probe with — trust the user, like the repo and LLAT steps.
 		return true
 	}
 	session := resolveStatusUISession(out)
@@ -208,12 +223,12 @@ func verifyRelayGone(out io.Writer, preflight uninstallPreflight, deps teardownD
 		if attempt > 0 {
 			deps.sleep(2 * time.Second)
 		}
-		if _, err := deps.relayHealth(preflight.config.RelayBaseURL, preflight.relayToken); err != nil {
+		if !probe() {
 			fmt.Fprintf(out, "  %s Relay no longer answers — app removed.\n", session.style("success", session.successMarker()))
 			return true
 		}
 	}
-	fmt.Fprintf(out, "  %s The relay still answers at %s. If you run more than one instance this is expected; otherwise finish the app removal in Home Assistant.\n", session.style("warning", session.warningMarker()), preflight.config.RelayBaseURL)
+	fmt.Fprintf(out, "  %s The relay still answers at %s. If you run more than one instance this is expected; otherwise finish the app removal in Home Assistant.\n", session.style("warning", session.warningMarker()), stillAt)
 	return false
 }
 

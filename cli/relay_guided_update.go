@@ -49,11 +49,19 @@ func maybeOfferGuidedRelayUpdate(paths runtimePaths, notice humanNotice) bool {
 	if err != nil || cfg.RelayBaseURL == "" {
 		return false
 	}
-	token, err := readRelayAuthTokenForDoctor()
-	if err != nil || token == "" {
-		return false
+	// Paired devices use their device credential; legacy installs their token.
+	_, _, credential, deviceMode, err := relayFunctionalTransportForDoctor(cfg)
+	if err != nil || credential == "" {
+		if deviceMode {
+			return false
+		}
+		token, tokenErr := readRelayAuthTokenForDoctor()
+		if tokenErr != nil || token == "" {
+			return false
+		}
+		credential = token
 	}
-	return runGuidedRelayUpdate(paths, cfg, token, bufio.NewReader(os.Stdin), os.Stdout)
+	return runGuidedRelayUpdate(paths, cfg, credential, bufio.NewReader(os.Stdin), os.Stdout)
 }
 
 func runGuidedRelayUpdate(paths runtimePaths, cfg config, token string, in *bufio.Reader, out io.Writer) bool {
@@ -168,8 +176,12 @@ func resolveRelayUpdateCandidate(cfg config, token string) (relayUpdateCandidate
 // offers existed. Connection errors are the normal restart window.
 func waitForRelayVersion(paths runtimePaths, cfg config, token, targetVersion string) (string, bool) {
 	deadline := time.Now().Add(relayUpdatePollTimeout)
+	base, client, credential, endpointErr := functionalEndpoint(cfg, token)
+	if endpointErr != nil {
+		return "", false
+	}
 	for {
-		body, err := fetchRelayHealth(cfg.RelayBaseURL, token)
+		body, err := fetchRelayHealthWith(client, base, credential)
 		if err == nil {
 			version := parseRelayHealthVersion(body)
 			if version != "" {
@@ -197,19 +209,23 @@ func waitForRelayVersion(paths runtimePaths, cfg config, token, targetVersion st
 // relayCoreRequest posts one request through the relay's /core proxy and
 // returns the raw envelope body.
 func relayCoreRequest(cfg config, token, method, path string, requestBody []byte) ([]byte, error) {
+	base, client, credential, endpointErr := functionalEndpoint(cfg, token)
+	if endpointErr != nil {
+		return nil, endpointErr
+	}
 	payload := []byte(fmt.Sprintf(`{"method":%q,"path":%q`, method, path))
 	if len(requestBody) > 0 {
 		payload = append(payload, []byte(`,"body":`)...)
 		payload = append(payload, requestBody...)
 	}
 	payload = append(payload, '}')
-	req, err := http.NewRequest("POST", strings.TrimRight(cfg.RelayBaseURL, "/")+"/core", bytes.NewReader(payload))
+	req, err := http.NewRequest("POST", strings.TrimRight(base, "/")+"/core", bytes.NewReader(payload))
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Authorization", "Bearer "+credential)
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := httpClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}

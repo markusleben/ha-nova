@@ -218,3 +218,45 @@ func TestPreflightNoteLinesAlwaysListServerSideCleanup(t *testing.T) {
 		}
 	}
 }
+
+// F4/S2 coverage: paired installs (device credential, no or stale legacy token)
+// verify "relay gone" over the pinned device transport — device wins even when
+// a leftover legacy token exists.
+func TestVerifyRelayGoneUsesDeviceProbeForPairedInstalls(t *testing.T) {
+	t.Setenv("HA_NOVA_TEST_SECRET_DIR", t.TempDir())
+	const credential = "hanova-dev-v1.AAAAAAAAAAAAAAAAAAAAAA.BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
+	if err := writeDeviceCredential(credential); err != nil {
+		t.Fatalf("writeDeviceCredential() error: %v", err)
+	}
+
+	preflight := teardownTestPreflight()
+	preflight.config.RelaySecureBaseURL = "https://192.168.1.5:18792"
+	preflight.config.RelaySpkiPin = "pin"
+
+	deviceAnswers := true
+	originalVerify := verifyDeviceHealth
+	verifyDeviceHealth = func(runtimeConfig) bool { return deviceAnswers }
+	defer func() { verifyDeviceHealth = originalVerify }()
+
+	rec := &teardownRecorder{relayGone: true}
+	out := &bytes.Buffer{}
+
+	// Still answering over the device transport -> not gone, warn; the legacy
+	// probe must not have been consulted (device wins).
+	if verifyRelayGone(out, preflight, rec.deps()) {
+		t.Fatalf("expected still-answering over the device transport:\n%s", out.String())
+	}
+	if rec.healthProbes != 0 {
+		t.Fatalf("legacy probe ran %d time(s); device must win", rec.healthProbes)
+	}
+	if !strings.Contains(out.String(), preflight.config.RelaySecureBaseURL) {
+		t.Fatalf("warning should name the secure endpoint:\n%s", out.String())
+	}
+
+	// Device endpoint dead -> relay verified gone.
+	deviceAnswers = false
+	out.Reset()
+	if !verifyRelayGone(out, preflight, rec.deps()) {
+		t.Fatalf("expected relay-gone over the device transport:\n%s", out.String())
+	}
+}

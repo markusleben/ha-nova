@@ -13,6 +13,10 @@ type relayWSPingResponse struct {
 }
 
 func probeRelayWSPing(relayBaseURL, token string) (relayWSPingResponse, error) {
+	return probeRelayWSPingWith(httpClient, relayBaseURL, token)
+}
+
+func probeRelayWSPingWith(client *http.Client, relayBaseURL, token string) (relayWSPingResponse, error) {
 	url := strings.TrimRight(relayBaseURL, "/") + "/ws"
 	req, err := http.NewRequest("POST", url, bytes.NewReader([]byte(`{"type":"ping"}`)))
 	if err != nil {
@@ -21,7 +25,7 @@ func probeRelayWSPing(relayBaseURL, token string) (relayWSPingResponse, error) {
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := httpClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return relayWSPingResponse{}, err
 	}

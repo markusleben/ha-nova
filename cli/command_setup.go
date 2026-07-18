@@ -134,6 +134,10 @@ func runSetup(paths runtimePaths, args []string) int {
 
 	tokenStoragePreflightErr := relayAuthTokenSetupPreflightForSetup()
 	token := strings.TrimSpace(*relayToken)
+	// Only an EXPLICIT --relay-token expresses the intent to run this install
+	// on the token path; a silently reused stored token must never retire a
+	// working device pairing below.
+	explicitTokenIntent := token != ""
 	if token == "" {
 		if tokenStoragePreflightErr != nil {
 			printHumanErr("%s", relayAuthTokenProblemMessage(tokenStoragePreflightErr))
@@ -245,6 +249,22 @@ func runSetup(paths runtimePaths, args []string) int {
 		)
 		renderSetupIncompleteBanner(os.Stdout, issue)
 		return 1
+	}
+
+	// An EXPLICIT --relay-token now serves this install — retire any leftover
+	// device pairing, or the trailing doctor run (and every skill call) would
+	// resolve the dead pairing first and fail. Mirrors the interactive token
+	// path, which is equally intent-gated. A stored token reused implicitly
+	// (routine client re-sync on a paired install) keeps the pairing: the
+	// legacy relay path accepting the token says nothing about the pairing
+	// being dead, and revoking it server-side is irreversible.
+	if explicitTokenIntent && (cfg.RelaySecureBaseURL != "" || cfg.RelaySpkiPin != "") {
+		printHumanInfo("Switching this install to the provided relay token; retiring its device pairing.")
+		retireDeviceCredential(&cfg)
+		if err := saveConfigForSetup(paths, cfg); err != nil {
+			printHumanErr("cannot save config: %s", err)
+			return 1
+		}
 	}
 
 	if err := installClients(paths, &state, selectedClients); err != nil {
