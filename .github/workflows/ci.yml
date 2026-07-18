@@ -74,11 +74,18 @@ jobs:
           go-version: "1.26"
           cache-dependency-path: cli/go.sum
 
-      # Warm the Go module + build cache once, serially. The dev-sync tests
-      # shell out to `go build` in parallel; with the heavier pairing crypto
-      # deps a cold cache makes those concurrent full compiles race and
-      # exhaust the runner. After this, each test build is an incremental
-      # cache hit.
+      # The dev-sync tests shell out to `go build` under a restricted PATH
+      # (binDir:/usr/bin:/bin) that excludes the setup-go toolchain dir, so they
+      # would otherwise resolve the runner's older system Go and fail go.mod's
+      # 1.26 requirement (GOTOOLCHAIN=local). Point /usr/bin/go at the 1.26
+      # toolchain so the restricted PATH resolves the right version.
+      - name: Make Go 1.26 resolvable on the restricted test PATH
+        run: sudo ln -sf "$(command -v go)" /usr/bin/go
+
+      # Warm the Go module + build cache once, serially. The dev-sync tests then
+      # build in parallel; with the heavier pairing crypto deps a cold cache
+      # would make those concurrent compiles race and exhaust the runner. After
+      # this, each test build is an incremental cache hit.
       - name: Warm the Go cache
         run: cd cli && go build ./...
 
