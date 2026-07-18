@@ -65,6 +65,9 @@ export interface DeviceRegistry {
   activatePending(deviceId: string, secretDigest: string, now: number): DeviceRecord | null;
   revoke(deviceId: string): boolean;
   importLegacy(secretDigest: string, now: number): void;
+  // Stamp the legacy-migration tombstone without importing a record — used by the
+  // corrupt-registry reset to cut pre-pairing shared access permanently.
+  markLegacyMigrated(): void;
   revokeLegacy(): void;
 }
 
@@ -173,6 +176,15 @@ export function openDeviceRegistry(dataDir: string): DeviceRegistry {
         legacy: { secretDigest, createdAtMs: now },
         legacyImportCompleted: true,
       });
+    },
+    markLegacyMigrated() {
+      // Stamp the tombstone WITHOUT importing a record, so an owner reset of a
+      // corrupt registry cuts pre-pairing shared access instead of re-importing
+      // the lingering plaintext token on the next boot.
+      if (data.legacyImportCompleted) {
+        return;
+      }
+      persist({ ...data, legacyImportCompleted: true });
     },
     revokeLegacy() {
       persist({ ...data, legacy: null });

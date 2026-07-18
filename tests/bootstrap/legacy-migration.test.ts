@@ -33,6 +33,7 @@ function fakeRegistry(state: { imported?: boolean; hasLegacy?: boolean }) {
     activatePending: () => null,
     revoke: () => false,
     importLegacy,
+    markLegacyMigrated: () => {},
     revokeLegacy: () => {},
   };
   return { registry, importLegacy };

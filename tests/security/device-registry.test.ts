@@ -166,6 +166,16 @@ describe("device-registry", () => {
     expect(reg.legacyImportCompleted()).toBe(true);
   });
 
+  it("markLegacyMigrated tombstones without importing a record (a reset cuts legacy)", () => {
+    const reg = openDeviceRegistry(dir);
+    reg.markLegacyMigrated();
+    expect(reg.legacyImportCompleted()).toBe(true); // future migration skips
+    expect(reg.hasLegacy()).toBe(false); // no legacy record → legacy access is cut
+    expect(reg.resolveLegacySecret(digestSecret("old-shared"))).toBeNull();
+    // The tombstone persists, so the lingering plaintext is not re-imported later.
+    expect(openDeviceRegistry(dir).legacyImportCompleted()).toBe(true);
+  });
+
   it("fail-closed on a corrupt registry (never silently recreates)", () => {
     writeFileSync(join(dir, "device-registry.json"), "{ this is not json");
     expect(() => openDeviceRegistry(dir)).toThrow(RegistryCorruptError);

@@ -92,6 +92,12 @@ export async function buildAppMode(input: AppModeInput): Promise<AppModeRuntime>
     }
     archiveCorruptRegistry(dataDir, input.now());
     active = openDeviceRegistry(dataDir); // a fresh, empty registry
+    // A reset is a full fresh start ("every computer will need to pair again"),
+    // so cut pre-pairing legacy access too: tombstone the migration so a lingering
+    // plaintext relay_auth_token is NOT re-imported into the fresh registry on the
+    // next boot. The next boot's importLegacyToken + clearLegacyOptions then remove
+    // the plaintext file and option.
+    active.markLegacyMigrated();
     registryCorrupt = false;
     input.logger.info?.("Device registry reset by the owner; device pairing re-enabled");
   };
@@ -275,6 +281,7 @@ function openInertRegistry(): DeviceRegistry {
     activatePending: () => null,
     revoke: () => false,
     importLegacy: nope,
+    markLegacyMigrated: nope,
     revokeLegacy: nope,
   };
 }
@@ -294,6 +301,7 @@ function swappableRegistry(get: () => DeviceRegistry): DeviceRegistry {
     activatePending: (deviceId, secretDigest, now) => get().activatePending(deviceId, secretDigest, now),
     revoke: (deviceId) => get().revoke(deviceId),
     importLegacy: (secretDigest, now) => get().importLegacy(secretDigest, now),
+    markLegacyMigrated: () => get().markLegacyMigrated(),
     revokeLegacy: () => get().revokeLegacy(),
   };
 }
