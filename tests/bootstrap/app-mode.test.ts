@@ -17,10 +17,15 @@ interface MockSupervisor {
   optionWrites: Array<Record<string, unknown>>;
 }
 
-async function startMockSupervisor(mappedSecurePort: number | null): Promise<MockSupervisor> {
+async function startMockSupervisor(mappedSecurePort: number | null, failInfo = false): Promise<MockSupervisor> {
   const optionWrites: Array<Record<string, unknown>> = [];
   const server = createServer((req, res) => {
     if (req.method === "GET" && req.url === "/addons/self/info") {
+      if (failInfo) {
+        res.writeHead(500);
+        res.end();
+        return;
+      }
       const network: Record<string, number> = {};
       if (mappedSecurePort !== null) {
         network["8792/tcp"] = mappedSecurePort;
@@ -153,5 +158,20 @@ describe("app mode assembly", () => {
     expect(cleared).toBeDefined();
     expect(cleared?.ha_llat).toBe("");
     expect(cleared?.file_access).toBe("off");
+  });
+
+  it("tolerates a transient Supervisor failure at startup instead of bricking pairing", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "ha-nova-appmode-info-"));
+    cleanup.push(() => rmSync(dir, { recursive: true, force: true }));
+    writeFileSync(join(dir, "options.json"), JSON.stringify({ file_access: "off" }));
+    const mock = await startMockSupervisor(18_792, true); // /addons/self/info fails
+    cleanup.push(() => new Promise<void>((resolve) => mock.server.close(() => resolve())));
+
+    const runtime = await build(dir, mock);
+
+    // Startup must complete despite the failed secure-port lookup (it is retried
+    // lazily when the owner pairs), not crash before the console can start.
+    expect(runtime.registryCorrupt).toBe(false);
+    expect(runtime.servers.ingress).toBeDefined();
   });
 });

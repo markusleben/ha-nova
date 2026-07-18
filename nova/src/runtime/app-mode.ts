@@ -119,26 +119,42 @@ export async function buildAppMode(input: AppModeInput): Promise<AppModeRuntime>
   // owner's first "Connect a device" never races the WASM load.
   await opaqueReady();
 
+  // The secure host port comes from Supervisor self-info. A transient failure at
+  // startup must not disable pairing for the whole process lifetime, so it is
+  // re-queried lazily (deduped) whenever it is still unknown and the owner pairs.
+  let secureHostPort: number | null = null;
+  let refreshingSecurePort = false;
+  const ensureSecurePort = async (): Promise<void> => {
+    if (secureHostPort !== null || refreshingSecurePort) {
+      return;
+    }
+    refreshingSecurePort = true;
+    try {
+      secureHostPort = await supervisor.getMappedHostPort(SECURE_CONTAINER_PORT);
+    } catch (error) {
+      input.logger.warn("Could not read the secure port mapping from Supervisor", { error: String((error as Error).message) });
+    } finally {
+      refreshingSecurePort = false;
+    }
+  };
+
   const pairing = createPairingV1Manager({
     registry,
     now: input.now,
     secureEndpoint: () => {
-      const port = secureHostPort;
-      return port === null ? null : { spkiPin: tls.spkiPin, securePort: port };
+      if (secureHostPort === null) {
+        void ensureSecurePort(); // transient startup failure: refresh for the next attempt
+        return null;
+      }
+      return { spkiPin: tls.spkiPin, securePort: secureHostPort };
     },
     // Durable so a finish response lost to an App restart can be retried and
     // returns the exact same sealed credential instead of a dead code.
     responseStore: createFileResponseStore(dataDir, input.now, input.logger),
   });
 
-  // The effective secure host port is read once at startup from self-info; a
-  // null (unmapped) value means pairing codes cannot be activated.
-  let secureHostPort: number | null = null;
-  try {
-    secureHostPort = await supervisor.getMappedHostPort(SECURE_CONTAINER_PORT);
-  } catch (error) {
-    input.logger.warn("Could not read the secure port mapping from Supervisor", { error: String((error as Error).message) });
-  }
+  // Prime the port at startup; a failure here recovers via the lazy retry above.
+  await ensureSecurePort();
 
   const functional = buildFunctionalHandlers(input);
   const listenerDeps = { registry, pairingManager: pairing, functional, relayVersion: input.relayVersion, now: input.now, logger: input.logger };
