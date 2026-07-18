@@ -160,10 +160,16 @@ export function openDeviceRegistry(dataDir: string): DeviceRegistry {
       return doActivate(deviceId, now);
     },
     revoke(deviceId) {
-      const next = data.devices.filter((d) => d.deviceId !== deviceId);
-      if (next.length === data.devices.length) {
+      const target = data.devices.find((d) => d.deviceId === deviceId);
+      if (!target) {
         return false;
       }
+      // Drop the device AND any pending re-pair from the SAME install: otherwise
+      // that pending credential could be activated a moment later and restore the
+      // access the owner just revoked.
+      const next = data.devices.filter(
+        (d) => d.deviceId !== deviceId && !(d.state === "pending" && d.clientInstallId === target.clientInstallId),
+      );
       persist({ ...data, devices: next });
       return true;
     },

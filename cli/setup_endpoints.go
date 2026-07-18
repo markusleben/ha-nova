@@ -159,6 +159,24 @@ func deriveRelayURLFromHA(haURL, host string) string {
 	return "http://" + host + ":8791"
 }
 
+// setRelayBaseURL updates the relay URL and, when it actually changes, clears the
+// pinned secure endpoint (tied to the OLD relay's TLS identity). Otherwise a
+// rerun that points setup at a different relay would keep functional calls on the
+// stale pinned host; clearing it fails closed until a re-pair re-learns the
+// endpoint.
+func setRelayBaseURL(cfg runtimeConfig, newURL string) runtimeConfig {
+	newURL = strings.TrimSpace(newURL)
+	if newURL == cfg.RelayBaseURL {
+		return cfg
+	}
+	cfg.RelayBaseURL = newURL
+	cfg.RelaySecureBaseURL = ""
+	cfg.RelaySpkiPin = ""
+	cfg.PendingSecureBaseURL = ""
+	cfg.PendingSpkiPin = ""
+	return cfg
+}
+
 func applySelectedSetupHost(cfg runtimeConfig, host, haURL, relayURLOverride string) runtimeConfig {
 	if strings.TrimSpace(host) != "" {
 		cfg.HAHost = normalizeHostInput(host)
@@ -169,14 +187,13 @@ func applySelectedSetupHost(cfg runtimeConfig, host, haURL, relayURLOverride str
 		cfg.HAURL = strings.TrimRight(strings.TrimSpace(haURL), "/")
 	}
 	if strings.TrimSpace(relayURLOverride) != "" {
-		cfg.RelayBaseURL = strings.TrimSpace(relayURLOverride)
-		return cfg
+		return setRelayBaseURL(cfg, relayURLOverride)
 	}
 	if cfg.HAHost == "" && cfg.HAURL != "" {
 		cfg.HAHost = normalizeHostInput(cfg.HAURL)
 	}
 	if cfg.HAHost != "" || cfg.HAURL != "" {
-		cfg.RelayBaseURL = deriveRelayURLFromHA(cfg.HAURL, cfg.HAHost)
+		cfg = setRelayBaseURL(cfg, deriveRelayURLFromHA(cfg.HAURL, cfg.HAHost))
 	}
 	return cfg
 }
@@ -196,8 +213,7 @@ func applySetupFlagOverrides(cfg runtimeConfig, hostFlag, haURLFlag, relayURLFla
 	case strings.TrimSpace(haURLFlag) != "":
 		return applySelectedSetupHost(cfg, haURLFlag, haURLFlag, relayURLFlag), nil
 	case strings.TrimSpace(relayURLFlag) != "":
-		cfg.RelayBaseURL = strings.TrimSpace(relayURLFlag)
-		return cfg, nil
+		return setRelayBaseURL(cfg, relayURLFlag), nil
 	default:
 		return cfg, nil
 	}

@@ -55,6 +55,12 @@ func maybeOfferGuidedRelayUpdate(paths runtimePaths, notice humanNotice) bool {
 		if deviceMode {
 			return false
 		}
+		// A paired config must not downgrade to the legacy token over the plain,
+		// unpinned port when the device credential is missing — respect the
+		// fail-closed contract and skip the guided update.
+		if cfg.RelaySecureBaseURL != "" && cfg.RelaySpkiPin != "" {
+			return false
+		}
 		token, tokenErr := readRelayAuthTokenForDoctor()
 		if tokenErr != nil || token == "" {
 			return false

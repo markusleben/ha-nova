@@ -176,6 +176,24 @@ describe("device-registry", () => {
     expect(openDeviceRegistry(dir).legacyImportCompleted()).toBe(true);
   });
 
+  it("revoking a device also removes an in-flight re-pair from the same install", () => {
+    const reg = openDeviceRegistry(dir);
+    const rec = (deviceId: string, installId: string) => ({
+      deviceId, secretDigest: "d-" + deviceId, clientInstallId: installId,
+      name: "n", platform: "p", client: "c", createdAtMs: 1,
+    });
+    reg.createPending(rec("active-dev", "install-1"), 1000);
+    reg.activate("active-dev", 1000);
+    reg.createPending(rec("pending-dev", "install-1"), 1000); // same install, in-flight re-pair
+    reg.createPending(rec("other-pending", "install-2"), 1000); // a different install
+
+    expect(reg.revoke("active-dev")).toBe(true);
+    const ids = reg.list().map((d) => d.deviceId);
+    expect(ids).not.toContain("active-dev");
+    expect(ids).not.toContain("pending-dev"); // same-install pending cannot restore access
+    expect(ids).toContain("other-pending"); // a different install is untouched
+  });
+
   it("fail-closed on a corrupt registry (never silently recreates)", () => {
     writeFileSync(join(dir, "device-registry.json"), "{ this is not json");
     expect(() => openDeviceRegistry(dir)).toThrow(RegistryCorruptError);
