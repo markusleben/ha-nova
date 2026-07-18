@@ -3,13 +3,21 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { IncomingMessage, ServerResponse } from "node:http";
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { createNovaActionHandler, createNovaPageHandler, type NovaPageDeps } from "../../nova/src/http/handlers/nova-page.js";
 import { createCsrfStore } from "../../nova/src/security/csrf.js";
 import { generateCredential } from "../../nova/src/security/device-credential.js";
 import { openDeviceRegistry, type DeviceRegistry } from "../../nova/src/security/device-registry.js";
+import { opaqueReady } from "../../nova/src/security/opaque-server.js";
 import { createPairingV1Manager, type PairingV1Manager } from "../../nova/src/security/pairing-v1.js";
+
+// generateCode() registers an OPAQUE record, which needs the WASM initialized;
+// without a prior OPAQUE test in the same worker (as happens under CI test
+// sharding) generateCode would fail with a raw wbindgen error.
+beforeAll(async () => {
+  await opaqueReady();
+});
 import type { HaAuthUser } from "../../nova/src/security/owner-check.js";
 
 const OWNER: HaAuthUser = { id: "owner-1", name: "Owner", is_owner: true, is_active: true, system_generated: false };
