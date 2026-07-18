@@ -69,18 +69,23 @@ func runSecurePairing(bootstrapURL, code string, cfg *runtimeConfig, saveCfg fun
 		return "", err
 	}
 
+	// Persist the secure endpoint BEFORE activation. With the pending credential
+	// already stored, a crash between activation and promotion can then be
+	// resumed: resumePendingActivation needs the endpoint from cfg, and without
+	// this save it would find a pending credential but no endpoint and give up.
+	cfg.RelaySecureBaseURL = secureBase
+	cfg.RelaySpkiPin = prov.SpkiPin
+	if err := saveCfg(cfg); err != nil {
+		return "", fmt.Errorf("could not save the secure endpoint: %w", err)
+	}
+
 	if err := activateDeviceV1(secureBase, prov.SpkiPin, prov.Credential); err != nil {
 		return "", fmt.Errorf("could not activate the new device: %w", err)
 	}
 
-	// Activation succeeded: promote pending -> current and remember the endpoint.
+	// Activation succeeded: promote pending -> current.
 	if err := promotePendingDeviceCredential(); err != nil {
 		return "", fmt.Errorf("activated but could not finalize the credential: %w", err)
-	}
-	cfg.RelaySecureBaseURL = secureBase
-	cfg.RelaySpkiPin = prov.SpkiPin
-	if err := saveCfg(cfg); err != nil {
-		return "", fmt.Errorf("paired but could not save the secure endpoint: %w", err)
 	}
 	return prov.DeviceID, nil
 }

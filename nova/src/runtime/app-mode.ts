@@ -22,7 +22,7 @@ import type { HaAuthUser } from "../security/owner-check.js";
 import { createFileResponseStore } from "../security/pairing-response-store.js";
 import { createPairingV1Manager, type PairingV1Manager } from "../security/pairing-v1.js";
 import { loadOrCreateTlsIdentity } from "../security/tls-identity.js";
-import { clearLegacyUpstreamOption, importLegacyToken } from "./legacy-migration.js";
+import { clearLegacyOptions, importLegacyToken } from "./legacy-migration.js";
 import { createBootstrapListener, createDeviceListener, type FunctionalHandlers } from "./listeners.js";
 
 // App-mode assembly: three listeners over one shared pipeline. Constructed only
@@ -103,9 +103,10 @@ export async function buildAppMode(input: AppModeInput): Promise<AppModeRuntime>
   if (!registryCorrupt) {
     await importLegacyToken({ registry, supervisor, dataDir, appOptionsPath: input.appOptionsPath, now: input.now, logger: input.logger });
   }
-  // Independent of the registry: an unused legacy HA token must not linger in
-  // options.json, even when there is no shared token to migrate.
-  await clearLegacyUpstreamOption({ supervisor, appOptionsPath: input.appOptionsPath, logger: input.logger });
+  // Clear the plaintext options in ONE write (relay token only when the registry
+  // is healthy enough to have migrated it; ha_llat always). A corrupt registry
+  // keeps the shared token recoverable until the owner resets.
+  await clearLegacyOptions({ supervisor, appOptionsPath: input.appOptionsPath, logger: input.logger }, !registryCorrupt);
 
   // OPAQUE runs on WASM that must finish initializing before the first pairing
   // operation. Await it once here, before any listener accepts traffic, so the

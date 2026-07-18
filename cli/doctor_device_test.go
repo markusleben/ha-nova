@@ -151,6 +151,46 @@ func TestRunDoctorPairedButMissingCredentialGuidesRepair(t *testing.T) {
 	}
 }
 
+func TestRunDoctorPairedMissingCredentialNotMaskedByLegacyToken(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING", "1")
+	t.Setenv("HA_NOVA_TEST_KEYRING_FILE", filepath.Join(home, ".config", "ha-nova", ".test-relay-auth-token"))
+	t.Setenv("HA_NOVA_TEST_SECRET_DIR", t.TempDir()) // no device credential stored
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+	// A leftover legacy token must NOT mask a paired config's broken device
+	// transport: doctor reports the device problem, not "token present".
+	if err := writeRelayAuthToken("leftover-legacy-token"); err != nil {
+		t.Fatalf("writeRelayAuthToken() error: %v", err)
+	}
+	if err := saveConfig(paths, runtimeConfig{
+		HAHost:             "192.168.1.5",
+		HAURL:              "http://192.168.1.5:8123",
+		RelayBaseURL:       "http://192.168.1.5:8791",
+		RelaySecureBaseURL: "https://192.168.1.5:8792",
+		RelaySpkiPin:       "pin",
+	}); err != nil {
+		t.Fatalf("saveConfig() error: %v", err)
+	}
+
+	exitCode, output := captureCommandOutput(t, func() int {
+		return runDoctor(paths, []string{"--quiet"})
+	})
+	if exitCode == 0 {
+		t.Fatalf("expected doctor to fail on a missing device credential:\n%s", output)
+	}
+	if !strings.Contains(output, "This device was paired, but its device credential is missing from secure storage.") {
+		t.Fatalf("expected paired-but-missing guidance, not a legacy fallback:\n%s", output)
+	}
+	if strings.Contains(output, "Relay auth token present") {
+		t.Fatalf("a leftover legacy token must not mask the paired device problem:\n%s", output)
+	}
+}
+
 func TestRunDoctorLegacyHintsAtPairingCapableRelay(t *testing.T) {
 	paths, _ := doctorTestSetup(t)
 

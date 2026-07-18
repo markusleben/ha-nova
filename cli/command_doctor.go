@@ -74,33 +74,34 @@ func runDoctor(paths runtimePaths, args []string) int {
 	// legacy installs keep the shared relay token. Doctor checks whichever
 	// transport this install actually uses.
 	transportBase, transportClient, transportCred, deviceMode, _ := relayFunctionalTransportForDoctor(cfg)
+	pairedConfig := cfg.RelaySecureBaseURL != "" && cfg.RelaySpkiPin != ""
 	var token string
 	if deviceMode {
 		token = transportCred
 		doctorInfo("Device credential present (paired securely)")
+	} else if pairedConfig {
+		// A paired config whose device transport failed must NOT be masked by a
+		// leftover legacy token: report the device problem so the user re-pairs.
+		// The direct slot read distinguishes unreadable storage from an absent
+		// credential (re-pairing cannot store anything in broken storage).
+		if _, _, credErr := readDeviceCredential(); credErr != nil {
+			printHumanErr("This device is paired, but its device credential could not be read from secure storage: %s", credErr)
+			if hint := setupSecureStorageRecoveryHint(credErr); hint != "" {
+				printHumanWarn("%s", hint)
+			} else {
+				printHumanWarn("Unlock or repair secure storage on this machine, then run 'ha-nova doctor' again.")
+			}
+			return 1
+		}
+		printHumanErr("This device was paired, but its device credential is missing from secure storage.")
+		printHumanErr("Pair again: run 'ha-nova setup' and enter a fresh code from the NOVA page.")
+		return 1
 	} else {
 		legacyToken, tokenErr := readRelayAuthTokenForDoctor()
 		token = legacyToken
 		if tokenErr == nil && token != "" {
 			doctorInfo("Relay auth token present in %s", relayAuthTokenStorageLabel())
 		} else {
-			if cfg.RelaySecureBaseURL != "" && cfg.RelaySpkiPin != "" {
-				// Unreadable storage and an absent credential need different
-				// help: re-pairing cannot store anything in broken storage.
-				// The direct slot read distinguishes them on every platform.
-				if _, _, credErr := readDeviceCredential(); credErr != nil {
-					printHumanErr("This device is paired, but its device credential could not be read from secure storage: %s", credErr)
-					if hint := setupSecureStorageRecoveryHint(credErr); hint != "" {
-						printHumanWarn("%s", hint)
-					} else {
-						printHumanWarn("Unlock or repair secure storage on this machine, then run 'ha-nova doctor' again.")
-					}
-					return 1
-				}
-				printHumanErr("This device was paired, but its device credential is missing from secure storage.")
-				printHumanErr("Pair again: run 'ha-nova setup' and enter a fresh code from the NOVA page.")
-				return 1
-			}
 			printHumanErr("%s", relayAuthTokenProblemMessage(tokenErr))
 			if hint := doctorServiceCredentialRecoveryHint(paths, state, tokenErr); hint != "" {
 				printHumanWarn("%s", hint)
