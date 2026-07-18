@@ -119,8 +119,17 @@ func TestInteractiveSetupStaysFatalOnHeadlessPreV1Relay(t *testing.T) {
 			normalizeHostInput(haServer.URL), haServer.URL, relayServer.URL, "", false)
 		return exitCode
 	})
+	output := stdout + stderr
 	if exitCode != 1 {
-		t.Fatalf("wizard exit = %d, want 1 (pre-v1 relay + no keyring must fail safe)\n%s", exitCode, stdout+stderr)
+		t.Fatalf("wizard exit = %d, want 1 (pre-v1 relay + no keyring must fail safe)\n%s", exitCode, output)
+	}
+	// It must fail with clear guidance BEFORE prompting for a code (the "exit"
+	// input is never consumed), so no one-time code is ever spent.
+	if !strings.Contains(output, "too old for secure device pairing") {
+		t.Fatalf("expected the pre-v1/no-keyring guidance before the code prompt:\n%s", output)
+	}
+	if strings.Contains(output, "Six-digit code") {
+		t.Fatalf("wizard prompted for a code despite unusable storage (code could be consumed):\n%s", output)
 	}
 }
 

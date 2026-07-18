@@ -242,14 +242,14 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 		tokenPathRequired := serviceMode || strings.TrimSpace(relayTokenFlag) != ""
 		noKeyringBackend := isDesktopKeyringSessionUnavailableError(tokenStoragePreflightErr) ||
 			isDesktopKeyringUnavailableError(tokenStoragePreflightErr)
-		// Only downgrade the missing-keyring error to a warning when secure v1
-		// pairing is CONFIRMED usable: the v1 device credential lives in a file, so
-		// no keyring is needed. If the relay is still pre-v1, runSetupPairingFlow
-		// falls back to the legacy /pair exchange, which returns a shared token
-		// that must be written to the (unavailable) keyring — after the one-time
-		// code was already consumed. Keeping it fatal there fails safe.
-		if !tokenPathRequired && noKeyringBackend && deviceCredentialStorageViable() &&
-			setupRelaySupportsSecurePairing(relayURLFlag, cfg) {
+		// The default onboarding path is secure device pairing, which brings its
+		// own file-backed credential storage — no keyring needed. So a missing
+		// keyring must not abort here; let the wizard reach the pairing stage,
+		// where the relay URL is known. The legacy /pair fallback (which DOES need
+		// a keyring token store) is guarded there, failing before it consumes a
+		// one-time code — see runSetupPairingFlow. Deciding it here is impossible
+		// for the plain interactive flow, which discovers the relay URL later.
+		if !tokenPathRequired && noKeyringBackend && deviceCredentialStorageViable() {
 			printRelayTokenStorageSetupWarning(tokenStoragePreflightErr)
 			printHumanInfo("No OS keyring is reachable here — this device will pair with secure file-backed storage instead of a shared token.")
 			tokenStoragePreflightErr = nil

@@ -159,23 +159,6 @@ func pairingRetryAfterSeconds(header string) int {
 	return seconds
 }
 
-// setupRelaySupportsSecurePairing reports whether the relay at the flag/config
-// URL answers /pair/v1/info — i.e. secure device pairing (file-backed credential,
-// no keyring) is usable. Used to decide that a missing relay-token keyring must
-// not abort setup: only true when the legacy /pair token fallback (which needs
-// the keyring) will NOT be reached. An unknown/unset URL returns false (fail
-// safe: keep the missing-keyring error fatal rather than risk consuming a code).
-func setupRelaySupportsSecurePairing(relayURLFlag string, cfg runtimeConfig) bool {
-	url := strings.TrimSpace(relayURLFlag)
-	if url == "" {
-		url = strings.TrimSpace(cfg.RelayBaseURL)
-	}
-	if url == "" {
-		return false
-	}
-	return probePairingV1(url)
-}
-
 // probePairingV1 reports whether the relay supports secure device pairing
 // (GET /pair/v1/info). Any error or non-v1 answer returns false so the wizard
 // falls back to the legacy code exchange.
@@ -213,6 +196,20 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 		renderSetupParagraph(out, probe.note)
 	}
 
+	// Determine the pairing mode up front (the relay URL is known here). Secure v1
+	// pairing stores a file-backed device credential and needs no keyring. The
+	// legacy /pair fallback instead returns a SHARED token that must go into the
+	// OS keyring — so on a keyless box (container/SSH) with a pre-v1 relay, fail
+	// NOW, before the pairing UI prompts for and consumes a one-time code.
+	secure := probePairingV1ForSetup(cfg.RelayBaseURL)
+	if !secure {
+		if err := relayAuthTokenSetupPreflightForSetup(); err != nil &&
+			(isDesktopKeyringSessionUnavailableError(err) || isDesktopKeyringUnavailableError(err)) {
+			renderSetupErrorLine(out, "This NOVA Relay is too old for secure device pairing, and this system has no key store for the legacy shared token. Update the NOVA Relay App to enable secure pairing.")
+			return "", fmt.Errorf("relay predates secure pairing and no keyring is available for the legacy token: %w", err)
+		}
+	}
+
 	renderSetupParagraph(out,
 		"Open NOVA in the Home Assistant sidebar and click \"Connect a device\" to get a six-digit code.",
 		`If NOVA is not in the sidebar, open the NOVA Relay app page and choose "Open Web UI".`,
@@ -222,8 +219,6 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 		return "", err
 	}
 	openAnnouncedBrowserURL(out, haRelayAppPageURL(cfg.HAURL))
-
-	secure := probePairingV1ForSetup(cfg.RelayBaseURL)
 
 	for {
 		entered, err := promptWizardLineFromReader(reader, out, "Six-digit code from NOVA (or type 'manual')", "")
