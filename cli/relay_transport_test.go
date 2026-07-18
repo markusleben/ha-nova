@@ -60,6 +60,29 @@ func TestRelayFunctionalTransportPairedConfigFailsClosedWithoutCredential(t *tes
 	}
 }
 
+// F-notice regression: the update/floor notice must not downgrade a paired
+// config to the legacy plain, unpinned port when the device credential is
+// missing — it stays silent (best-effort), respecting fail-closed.
+func TestRelayNoticeTransportDoesNotDowngradePairedToLegacy(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("HA_NOVA_TEST_SECRET_DIR", t.TempDir()) // no device credential stored
+	t.Setenv("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING", "1")
+	t.Setenv("HA_NOVA_TEST_KEYRING_FILE", filepath.Join(home, ".config", "ha-nova", ".test-relay-auth-token"))
+
+	if err := writeRelayAuthToken("leftover-legacy"); err != nil { // a leftover legacy token
+		t.Fatalf("writeRelayAuthToken: %v", err)
+	}
+	cfg := runtimeConfig{
+		RelayBaseURL:       "http://192.168.1.5:8791",
+		RelaySecureBaseURL: "https://192.168.1.5:8792",
+		RelaySpkiPin:       "pin",
+	}
+	if _, _, _, ok := relayNoticeTransport(cfg); ok {
+		t.Fatal("paired config with no device credential must not downgrade to the legacy plain port")
+	}
+}
+
 func TestFunctionalEndpointLegacyConfigKeepsCallerToken(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

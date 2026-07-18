@@ -74,6 +74,29 @@ func TestRunSecurePairingKeepsPendingCredentialWhenEndpointSaveFails(t *testing.
 	}
 }
 
+// Regression: retiring the device credential (user switched to the manual/legacy
+// path) must clear the PENDING slot too, even when the live endpoint was never
+// set — otherwise a half-finished pairing lingers and resume could complete it.
+func TestRetireDeviceCredentialClearsPendingWhenLiveEmpty(t *testing.T) {
+	t.Setenv("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING", "1")
+	t.Setenv("HA_NOVA_TEST_SECRET_DIR", t.TempDir())
+
+	const validCred = "hanova-dev-v1.AAAAAAAAAAAAAAAAAAAAAA.BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
+	if err := writePendingDeviceCredential(validCred); err != nil {
+		t.Fatalf("writePendingDeviceCredential: %v", err)
+	}
+	cfg := runtimeConfig{PendingSecureBaseURL: "https://relay:8792", PendingSpkiPin: "PIN"} // live empty
+
+	retireDeviceCredential(&cfg)
+
+	if _, ok, _ := readPendingDeviceCredential(); ok {
+		t.Fatal("pending credential was not cleared; resume could pick up a stale pairing")
+	}
+	if cfg.PendingSecureBaseURL != "" || cfg.PendingSpkiPin != "" {
+		t.Fatalf("pending endpoint not cleared: %q / %q", cfg.PendingSecureBaseURL, cfg.PendingSpkiPin)
+	}
+}
+
 // Regression: an IPv6 relay host must stay bracketed when building the secure
 // endpoint URL, or activation and later functional calls get an invalid host.
 func TestSecureBaseFromBootstrapBracketsIPv6(t *testing.T) {

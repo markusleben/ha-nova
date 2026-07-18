@@ -169,14 +169,18 @@ var revokeSelfDeviceV1ForRetire = revokeSelfDeviceV1
 // is best-effort — the relay may still know the device even when the local
 // pairing stopped working.
 func retireDeviceCredential(cfg *runtimeConfig) {
-	if cfg.RelaySecureBaseURL == "" && cfg.RelaySpkiPin == "" {
-		return
-	}
+	// Revoke the active device credential over the pinned transport when a live
+	// endpoint + credential exist.
 	if cred, ok, err := readDeviceCredential(); err == nil && ok && cfg.RelaySecureBaseURL != "" && cfg.RelaySpkiPin != "" {
 		_ = revokeSelfDeviceV1ForRetire(cfg.RelaySecureBaseURL, cfg.RelaySpkiPin, cred)
 	}
+	// Always clear BOTH the current and pending device credentials + endpoints
+	// (idempotent), so a half-finished pairing — the pending slot saved before the
+	// live endpoint — cannot be resumed after the user chose the legacy/manual path.
 	_ = deleteDeviceCredential()
 	_ = deletePendingDeviceCredential()
 	cfg.RelaySecureBaseURL = ""
 	cfg.RelaySpkiPin = ""
+	cfg.PendingSecureBaseURL = ""
+	cfg.PendingSpkiPin = ""
 }

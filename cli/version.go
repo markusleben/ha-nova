@@ -270,6 +270,13 @@ func relayNoticeTransport(cfg config) (string, *http.Client, string, bool) {
 	if base, client, credential, device, err := relayFunctionalTransportForDoctor(cfg); err == nil && device {
 		return base, client, credential, true
 	}
+	// A paired config must not downgrade to the legacy plain, unpinned port when
+	// its device credential is missing/unreadable — respect the same fail-closed
+	// contract as relayFunctionalTransport and stay silent (the notice is
+	// best-effort).
+	if cfg.RelaySecureBaseURL != "" && cfg.RelaySpkiPin != "" {
+		return "", nil, "", false
+	}
 	token, err := readRelayAuthTokenForDoctor()
 	if err != nil || token == "" {
 		return "", nil, "", false
