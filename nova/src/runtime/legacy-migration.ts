@@ -62,6 +62,30 @@ export async function importLegacyToken(deps: LegacyMigrationDeps): Promise<void
   deps.logger.info?.("Migrated the legacy shared token into the device registry as one legacy record");
 }
 
+// App mode's upstream is the Supervisor token, so a `ha_llat` left in
+// options.json by a pre-pairing install is an unused full Home Assistant access
+// token sitting at rest. Clear it. This is independent of the shared-token
+// migration above (which is gated by a one-shot tombstone), so a value that
+// lingers when there is no shared token to migrate — or after a transient
+// setOptions failure — is still cleaned up on a later boot. Idempotent: once the
+// option is empty this is a no-op. Only reached with a Supervisor token present,
+// where `ha_llat` is never consulted, so clearing it can never drop the upstream.
+export async function clearLegacyUpstreamOption(
+  deps: Pick<LegacyMigrationDeps, "supervisor" | "appOptionsPath" | "logger">,
+): Promise<void> {
+  const options = readOptions(deps.appOptionsPath);
+  const llat = options.ha_llat;
+  if (typeof llat !== "string" || llat.length === 0) {
+    return;
+  }
+  try {
+    await deps.supervisor.setOptions({ ...options, ha_llat: "" });
+    deps.logger.info?.("Cleared the unused legacy Home Assistant token from App options (upstream is the Supervisor token)");
+  } catch (error) {
+    deps.logger.warn("Could not clear the legacy Home Assistant token from App options", { error: String((error as Error).message) });
+  }
+}
+
 interface LegacySource {
   token: string;
   filePath: string | null; // set when the source was the /data file

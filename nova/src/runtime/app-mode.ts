@@ -17,10 +17,12 @@ import type { HaWsClient } from "../ha/ws-client.js";
 import { createSupervisorClient } from "../ha/supervisor-client.js";
 import { createCsrfStore } from "../security/csrf.js";
 import { archiveCorruptRegistry, openDeviceRegistry, RegistryCorruptError, type DeviceRegistry } from "../security/device-registry.js";
+import { opaqueReady } from "../security/opaque-server.js";
 import type { HaAuthUser } from "../security/owner-check.js";
+import { createFileResponseStore } from "../security/pairing-response-store.js";
 import { createPairingV1Manager, type PairingV1Manager } from "../security/pairing-v1.js";
 import { loadOrCreateTlsIdentity } from "../security/tls-identity.js";
-import { importLegacyToken } from "./legacy-migration.js";
+import { clearLegacyUpstreamOption, importLegacyToken } from "./legacy-migration.js";
 import { createBootstrapListener, createDeviceListener, type FunctionalHandlers } from "./listeners.js";
 
 // App-mode assembly: three listeners over one shared pipeline. Constructed only
@@ -101,6 +103,14 @@ export async function buildAppMode(input: AppModeInput): Promise<AppModeRuntime>
   if (!registryCorrupt) {
     await importLegacyToken({ registry, supervisor, dataDir, appOptionsPath: input.appOptionsPath, now: input.now, logger: input.logger });
   }
+  // Independent of the registry: an unused legacy HA token must not linger in
+  // options.json, even when there is no shared token to migrate.
+  await clearLegacyUpstreamOption({ supervisor, appOptionsPath: input.appOptionsPath, logger: input.logger });
+
+  // OPAQUE runs on WASM that must finish initializing before the first pairing
+  // operation. Await it once here, before any listener accepts traffic, so the
+  // owner's first "Connect a device" never races the WASM load.
+  await opaqueReady();
 
   const pairing = createPairingV1Manager({
     registry,
@@ -109,6 +119,9 @@ export async function buildAppMode(input: AppModeInput): Promise<AppModeRuntime>
       const port = secureHostPort;
       return port === null ? null : { spkiPin: tls.spkiPin, securePort: port };
     },
+    // Durable so a finish response lost to an App restart can be retried and
+    // returns the exact same sealed credential instead of a dead code.
+    responseStore: createFileResponseStore(dataDir, input.now),
   });
 
   // The effective secure host port is read once at startup from self-info; a
