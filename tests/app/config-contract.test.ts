@@ -35,7 +35,11 @@ describe("app config contract", () => {
     });
 
     expect(parsed.options).toEqual({
-      relay_auth_token: null,
+      // MUST stay "" and never null: a null default marks the option as
+      // REQUIRED in Supervisor, so a fresh install refuses to start until the
+      // user fills a token — breaking passwordless onboarding (proven live:
+      // "Missing required option 'relay_auth_token'").
+      relay_auth_token: "",
       ha_llat: "",
       // File access is a capability, not a default: the App ships it OFF.
       file_access: "off"
