@@ -80,7 +80,17 @@ jobs:
       # 1.26 requirement (GOTOOLCHAIN=local). Point /usr/bin/go at the 1.26
       # toolchain so the restricted PATH resolves the right version.
       - name: Make Go 1.26 resolvable on the restricted test PATH
-        run: sudo ln -sf "$(command -v go)" /usr/bin/go
+        run: |
+          set -x
+          real_go="$(command -v go)"
+          sudo ln -sf "$real_go" /usr/bin/go
+          ls -la /usr/bin/go
+          # Reproduce exactly what the restricted-PATH dev-sync test does.
+          env -i HOME="$HOME" GOROOT="${GOROOT:-}" GOCACHE="${GOCACHE:-}" GOMODCACHE="${GOMODCACHE:-}" GOPATH="${GOPATH:-}" GOTOOLCHAIN="${GOTOOLCHAIN:-}" PATH="/usr/bin:/bin" bash -c '
+            echo "which go: $(command -v go || echo none)";
+            go version || echo "go version failed";
+            cd cli && go build -o /tmp/relay-diag . && echo "DIAG BUILD OK" || echo "DIAG BUILD FAILED"
+          '
 
       # Warm the Go module + build cache once, serially. The dev-sync tests then
       # build in parallel; with the heavier pairing crypto deps a cold cache
