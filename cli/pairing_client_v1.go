@@ -192,7 +192,14 @@ func activateDeviceV1(secureBaseURL, spkiPin, credential string) error {
 		if status == http.StatusUnauthorized {
 			return errDeviceUnauthorized
 		}
-		lastErr = err
+		// A non-200/non-401 response (e.g. 500 at the active-device cap, 404 on a
+		// bad proxy path) has no transport error, so record the status instead of
+		// leaving lastErr nil and reporting "%!w(<nil>)".
+		if err != nil {
+			lastErr = err
+		} else {
+			lastErr = fmt.Errorf("relay returned status %d", status)
+		}
 	}
 	return fmt.Errorf("activation failed: %w", lastErr)
 }

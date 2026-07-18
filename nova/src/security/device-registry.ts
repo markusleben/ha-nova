@@ -1,7 +1,7 @@
 import { renameSync } from "node:fs";
 import { join } from "node:path";
 
-import { readPrivateFileSync, writeFileAtomicSync } from "../storage/atomic-file.js";
+import { InsecureFileError, readPrivateFileSync, writeFileAtomicSync } from "../storage/atomic-file.js";
 import { digestsEqual } from "./device-credential.js";
 
 // Private, versioned device registry under /data. Holds only SHA-256 digests of
@@ -226,7 +226,18 @@ function pendingExpired(d: DeviceRecord, now: number): boolean {
 }
 
 function loadOrInit(path: string): RegistryData {
-  const raw = readPrivateFileSync(path, MAX_REGISTRY_BYTES);
+  let raw: Buffer | null;
+  try {
+    raw = readPrivateFileSync(path, MAX_REGISTRY_BYTES);
+  } catch (error) {
+    if (error instanceof InsecureFileError) {
+      // A symlink, non-regular file, or oversized file is unusable and may be a
+      // tamper attempt. Treat it as recoverable corruption so the owner can reset
+      // (the file is archived aside) instead of the App failing to start.
+      throw new RegistryCorruptError(`device registry file is not a safe regular file: ${error.message}`);
+    }
+    throw error;
+  }
   if (raw === null) {
     return { version: SCHEMA_VERSION, devices: [], legacy: null, legacyImportCompleted: false };
   }

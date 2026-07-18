@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -168,6 +168,14 @@ describe("device-registry", () => {
 
   it("fail-closed on a corrupt registry (never silently recreates)", () => {
     writeFileSync(join(dir, "device-registry.json"), "{ this is not json");
+    expect(() => openDeviceRegistry(dir)).toThrow(RegistryCorruptError);
+  });
+
+  it("treats an insecure (symlinked) registry file as recoverable corruption, not a crash", () => {
+    // A symlink where the registry should be is a tamper vector; it must surface
+    // as RegistryCorruptError so the App can offer a reset instead of failing to
+    // start on the raw InsecureFileError.
+    symlinkSync(join(dir, "elsewhere"), join(dir, "device-registry.json"));
     expect(() => openDeviceRegistry(dir)).toThrow(RegistryCorruptError);
   });
 

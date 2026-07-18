@@ -90,6 +90,29 @@ func TestPairAEADRoundtripAndDirectionBinding(t *testing.T) {
 	}
 }
 
+// Regression: a non-200/non-401 activation response (e.g. 500 at the device cap)
+// has no transport error, so the failure must still report the HTTP status
+// instead of "activation failed: %!w(<nil>)".
+func TestActivateDeviceV1PreservesHTTPStatus(t *testing.T) {
+	certPEM, keyPEM, pin := selfSignedECDSA(t)
+	cert, err := tls.X509KeyPair(certPEM, keyPEM)
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(500) }))
+	srv.TLS = &tls.Config{Certificates: []tls.Certificate{cert}, MinVersion: tls.VersionTLS13}
+	srv.StartTLS()
+	defer srv.Close()
+
+	err = activateDeviceV1(srv.URL, pin, "hanova-dev-v1.AAAAAAAAAAAAAAAAAAAAAA.BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB")
+	if err == nil {
+		t.Fatal("expected an activation error for a 500 response")
+	}
+	if !strings.Contains(err.Error(), "500") || strings.Contains(err.Error(), "%!w") {
+		t.Fatalf("activation error lost the HTTP status: %v", err)
+	}
+}
+
 func TestSpkiPinnedClient(t *testing.T) {
 	certPEM, keyPEM, pin := selfSignedECDSA(t)
 	cert, err := tls.X509KeyPair(certPEM, keyPEM)
