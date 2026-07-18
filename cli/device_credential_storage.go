@@ -188,6 +188,15 @@ func removeDeviceFileStorageResidue() {
 var deviceStorageKeyringCanary = keyringStorageCanary
 var deviceStorageFileCanary = fileStorageCanary
 
+// deviceCredentialStorageViable reports whether a device credential can be
+// stored here (OS keyring, or the headless file fallback). Used by the setup
+// wizard to decide that a missing relay-token keyring must not abort the
+// pairing path, which does not need the legacy token store.
+func deviceCredentialStorageViable() bool {
+	_, err := probeDeviceCredentialStorage()
+	return err == nil
+}
+
 // probeDeviceCredentialStorage verifies that a device credential CAN be stored
 // before any pairing starts, so a broken backend never burns the owner's
 // one-time code. On a headless system (no Secret Service at all) it switches

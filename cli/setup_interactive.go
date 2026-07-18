@@ -234,9 +234,23 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 			printRelayTokenStorageSetupWarning(err)
 		}
 	} else if !setupSecureStorageRecoveryAvailableNow(tokenStoragePreflightErr) {
-		printRelayTokenStorageSetupWarning(tokenStoragePreflightErr)
-		printHumanErr("%s", relayAuthTokenSetupSaveError(tokenStoragePreflightErr))
-		return 1
+		// A missing OS keyring is only fatal when a relay TOKEN must actually be
+		// stored. The default onboarding path is secure device pairing, which
+		// brings its own file-backed credential storage (device_credential_storage.go),
+		// so a headless box (container/SSH with no Secret Service) must still reach
+		// the pairing stage instead of exiting here on the legacy-token preflight.
+		tokenPathRequired := serviceMode || strings.TrimSpace(relayTokenFlag) != ""
+		noKeyringBackend := isDesktopKeyringSessionUnavailableError(tokenStoragePreflightErr) ||
+			isDesktopKeyringUnavailableError(tokenStoragePreflightErr)
+		if !tokenPathRequired && noKeyringBackend && deviceCredentialStorageViable() {
+			printRelayTokenStorageSetupWarning(tokenStoragePreflightErr)
+			printHumanInfo("No OS keyring is reachable here — this device will pair with secure file-backed storage instead of a shared token.")
+			tokenStoragePreflightErr = nil
+		} else {
+			printRelayTokenStorageSetupWarning(tokenStoragePreflightErr)
+			printHumanErr("%s", relayAuthTokenSetupSaveError(tokenStoragePreflightErr))
+			return 1
+		}
 	}
 	if existingToken == "" {
 		existingToken = savedTokenBeforeSetup
