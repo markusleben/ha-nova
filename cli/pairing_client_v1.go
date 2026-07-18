@@ -268,7 +268,7 @@ func pairPostJSON(client *http.Client, url string, body map[string]any, out any)
 	defer resp.Body.Close()
 	raw, _ := io.ReadAll(io.LimitReader(resp.Body, maxPairingBodyBytes))
 	if resp.StatusCode != http.StatusOK {
-		return pairingStatusError(resp.StatusCode, raw)
+		return pairingStatusError(resp.StatusCode, raw, resp.Header.Get("Retry-After"))
 	}
 	var env struct {
 		OK   bool            `json:"ok"`

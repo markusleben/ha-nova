@@ -46,11 +46,13 @@ func deviceIDOf(credential string) string {
 }
 
 // pairingStatusError maps the relay's error envelope to a typed client error.
-func pairingStatusError(status int, body []byte) error {
+func pairingStatusError(status int, body []byte, retryAfter string) error {
 	code := relayPairingErrorCode(body) // reuse the existing envelope code reader
 	switch {
 	case status == 429:
-		return &relayPairingRateLimitError{retryAfterSeconds: 60}
+		// Honor the relay's actual Retry-After (the global limiter can keep
+		// returning 429 for up to five minutes); do not hardcode 60s.
+		return &relayPairingRateLimitError{retryAfterSeconds: pairingRetryAfterSeconds(retryAfter)}
 	case status == 409 || code == "PAIRING_INACTIVE" || code == "VALIDATION_ERROR":
 		// v1 returns 400/VALIDATION_ERROR when no code is active (deliberately
 		// indistinguishable from a malformed request so the LAN cannot detect the

@@ -40,9 +40,22 @@ func TestPairDeviceV1NormalizesTrailingSlash(t *testing.T) {
 // (indistinguishable from a malformed request); the CLI must still surface the
 // "click Connect a device" guidance rather than a raw status message.
 func TestPairingStatusErrorMapsValidationErrorToInactive(t *testing.T) {
-	err := pairingStatusError(http.StatusBadRequest, []byte(`{"ok":false,"error":{"code":"VALIDATION_ERROR"}}`))
+	err := pairingStatusError(http.StatusBadRequest, []byte(`{"ok":false,"error":{"code":"VALIDATION_ERROR"}}`), "")
 	if !errors.Is(err, errPairingInactive) {
 		t.Fatalf("v1 400/VALIDATION_ERROR should map to errPairingInactive, got %v", err)
+	}
+}
+
+// Regression: a 429 must report the relay's actual Retry-After (the global
+// limiter can keep returning 429 for minutes) rather than a hardcoded 60s.
+func TestPairingStatusErrorHonorsRetryAfter(t *testing.T) {
+	err := pairingStatusError(http.StatusTooManyRequests, nil, "180")
+	var rl *relayPairingRateLimitError
+	if !errors.As(err, &rl) {
+		t.Fatalf("want a rate-limit error, got %v", err)
+	}
+	if rl.retryAfterSeconds != 180 {
+		t.Fatalf("want 180s from Retry-After, got %d", rl.retryAfterSeconds)
 	}
 }
 
