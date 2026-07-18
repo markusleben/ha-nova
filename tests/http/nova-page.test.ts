@@ -170,6 +170,29 @@ describe("nova-page", () => {
     expect(r.body).not.toContain("Revoke legacy access");
   });
 
+  it("surfaces a corrupt registry with a reset action, and disables pairing until reset", async () => {
+    let corrupt = true;
+    let resets = 0;
+    deps.registryCorrupt = () => corrupt;
+    deps.resetRegistry = () => { resets += 1; corrupt = false; };
+
+    let r = await call(createNovaPageHandler(deps), req());
+    expect(r.body).toContain("Reset device registry");
+    expect(r.body).toContain("Recovery needed");
+    // Pairing is disabled while corrupt — no generate button.
+    expect(r.body).not.toContain("Connect a device");
+
+    const token = csrf.issue("owner-1", "reset_registry", now());
+    const ar = await call(createNovaActionHandler(deps), req(), { action: "reset_registry", csrf: token });
+    expect(ar.statusCode).toBe(303);
+    expect(resets).toBe(1);
+
+    // After reset the recovery section is gone and pairing is back.
+    r = await call(createNovaPageHandler(deps), req());
+    expect(r.body).not.toContain("Reset device registry");
+    expect(r.body).toContain("Connect a device");
+  });
+
   it("issues one CSRF token per action, not per device, so many devices don't evict earlier forms", async () => {
     // More active devices than CSRF_MAX_PENDING (8): a per-device token would
     // evict the earliest forms' tokens mid-render and break their buttons.

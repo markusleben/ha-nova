@@ -22,8 +22,8 @@ const CSP = [
   "frame-ancestors 'self'",
 ].join("; ");
 
-export type NovaAction = "generate_code" | "cancel_code" | "revoke_device" | "revoke_legacy";
-const ACTIONS = new Set<NovaAction>(["generate_code", "cancel_code", "revoke_device", "revoke_legacy"]);
+export type NovaAction = "generate_code" | "cancel_code" | "revoke_device" | "revoke_legacy" | "reset_registry";
+const ACTIONS = new Set<NovaAction>(["generate_code", "cancel_code", "revoke_device", "revoke_legacy", "reset_registry"]);
 
 export interface ConnectionStatus {
   haConnected: boolean;
@@ -40,6 +40,10 @@ export interface NovaPageDeps {
   csrf: CsrfStore;
   pairing: PairingV1Manager;
   registry: DeviceRegistry;
+  // Corrupt-registry recovery. Defaulted for standalone/tests where a corrupt
+  // registry cannot occur (single-listener path has no registry).
+  registryCorrupt?: () => boolean;
+  resetRegistry?: () => void;
   connection: () => ConnectionStatus;
   update: () => Promise<UpdateStatus>;
   relayVersion: string;
@@ -77,6 +81,7 @@ export function createNovaPageHandler(deps: NovaPageDeps): RouteHandler {
       pairing: deps.pairing.getStatus(),
       devices: deps.registry.list(),
       hasLegacy: deps.registry.hasLegacy(),
+      registryCorrupt: deps.registryCorrupt?.() ?? false,
       connection: deps.connection(),
       update,
       relayVersion: deps.relayVersion,
@@ -152,6 +157,11 @@ function applyAction(deps: NovaPageDeps, action: NovaAction, form: Record<string
       // outlive the devices; paired devices keep working.
       deps.registry.revokeLegacy();
       return;
+    case "reset_registry":
+      // Recover from a corrupt registry: archive the damaged file and start a
+      // fresh, empty one so pairing works again.
+      deps.resetRegistry?.();
+      return;
   }
 }
 
@@ -171,6 +181,7 @@ interface PageModel {
   pairing: { phase: string; code?: string; expiresAtMs?: number };
   devices: DeviceRecord[];
   hasLegacy: boolean;
+  registryCorrupt: boolean;
   connection: ConnectionStatus;
   update: UpdateStatus;
   relayVersion: string;
@@ -193,8 +204,16 @@ function renderPage(m: PageModel): string {
     return `<input type="hidden" name="csrf" value="${escapeAttr(token)}"><input type="hidden" name="action" value="${action}">`;
   };
 
-  const pairingSection =
-    m.pairing.phase === "active" && m.pairing.code
+  // A corrupt registry disables device auth and pairing (a code would fail at
+  // finish). Surface it plainly with a one-click recovery instead of leaving
+  // the owner staring at an empty page or editing /data by hand.
+  const recoverySection = m.registryCorrupt
+    ? `<section><h2>Recovery needed</h2><p class="muted">The device registry is damaged, so device pairing and existing device access are disabled. Reset it to start fresh — the damaged file is kept aside, and every computer will need to pair again.</p>${formOpen}${csrfField("reset_registry")}<button class="danger" type="submit">Reset device registry</button></form></section>`
+    : "";
+
+  const pairingSection = m.registryCorrupt
+    ? `<p class="muted">Unavailable until the device registry is reset (see Recovery above).</p>`
+    : m.pairing.phase === "active" && m.pairing.code
       ? `<p class="muted">On your computer, run <code>ha-nova setup</code> and enter this code when asked. It works once and expires in 10 minutes. Click the code to select it for copying.</p>
          <p class="code">${escapeHtml(formatCode(m.pairing.code))}</p>
          <p class="muted waiting">Waiting for the device… this page updates on its own once it connects.</p>
@@ -205,8 +224,9 @@ function renderPage(m: PageModel): string {
         }`;
 
   const activeDevices = m.devices.filter((d) => d.state === "active");
-  const deviceRows =
-    activeDevices.length === 0
+  const deviceRows = m.registryCorrupt
+    ? `<p class="muted">Device access is disabled until the registry is reset.</p>`
+    : activeDevices.length === 0
       ? `<p class="muted">No devices are connected yet. Use “Connect a device” above to add your first one.</p>`
       : `<p class="muted">Computers allowed to control Home Assistant through NOVA. Revoke one to cut its access immediately.</p><ul>${activeDevices
           .map(
@@ -290,7 +310,7 @@ function renderPage(m: PageModel): string {
 <h1>${star}NOVA</h1>
 <p class="intro">Let your AI assistant work with Home Assistant — safely. Connect each computer once with a one-time code; there are no tokens to copy or paste.</p>
 <section><h2>Home Assistant</h2><p>${m.connection.haConnected ? "Connected." : `<span class="muted">Not connected — check the App logs.</span>`}</p></section>
-<section><h2>Update</h2><p>${updateLine}</p></section>
+${recoverySection}<section><h2>Update</h2><p>${updateLine}</p></section>
 <section><h2>Pairing</h2>${pairingSection}</section>
 <section><h2>Devices</h2>${deviceRows}</section>
 ${legacySection}<footer>Signed in as ${escapeHtml(m.ownerName)} · Relay ${escapeHtml(m.relayVersion)}</footer>

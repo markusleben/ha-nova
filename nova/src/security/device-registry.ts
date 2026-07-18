@@ -1,3 +1,4 @@
+import { renameSync } from "node:fs";
 import { join } from "node:path";
 
 import { readPrivateFileSync, writeFileAtomicSync } from "../storage/atomic-file.js";
@@ -65,6 +66,19 @@ export interface DeviceRegistry {
   revoke(deviceId: string): boolean;
   importLegacy(secretDigest: string, now: number): void;
   revokeLegacy(): void;
+}
+
+// Moves a corrupt registry file aside so a fresh one can be created. Used by the
+// owner-triggered reset: the damaged file is preserved (for forensics) under a
+// timestamped name rather than deleted. Best-effort — a subsequent
+// openDeviceRegistry surfaces any remaining problem.
+export function archiveCorruptRegistry(dataDir: string, now: number): void {
+  const path = join(dataDir, REGISTRY_FILE);
+  try {
+    renameSync(path, `${path}.corrupt-${now}`);
+  } catch {
+    // Already gone or unmovable; the fresh open decides the outcome.
+  }
 }
 
 // Loads the registry (fail-closed on corruption) or starts an empty one when the

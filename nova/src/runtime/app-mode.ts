@@ -16,7 +16,7 @@ import type { CoreProxyRequest, CoreProxyResponse } from "../types/api.js";
 import type { HaWsClient } from "../ha/ws-client.js";
 import { createSupervisorClient } from "../ha/supervisor-client.js";
 import { createCsrfStore } from "../security/csrf.js";
-import { openDeviceRegistry, RegistryCorruptError, type DeviceRegistry } from "../security/device-registry.js";
+import { archiveCorruptRegistry, openDeviceRegistry, RegistryCorruptError, type DeviceRegistry } from "../security/device-registry.js";
 import type { HaAuthUser } from "../security/owner-check.js";
 import { createPairingV1Manager, type PairingV1Manager } from "../security/pairing-v1.js";
 import { loadOrCreateTlsIdentity } from "../security/tls-identity.js";
@@ -66,21 +66,33 @@ export async function buildAppMode(input: AppModeInput): Promise<AppModeRuntime>
     : createSupervisorClient(input.supervisorToken);
 
   // Registry: a corrupt file is fail-closed for device auth, but must NOT crash
-  // the relay — the owner still needs the (empty-but-functional) NOVA page to
-  // reset it. We surface the corrupt state and disable pairing/device auth.
-  let registry: DeviceRegistry;
+  // the relay — the owner still needs the NOVA page to reset it. We surface the
+  // corrupt state and disable pairing/device auth until the owner triggers a
+  // reset. `registry` is a stable proxy so the listeners and pairing manager
+  // keep working across a reset that swaps the underlying store.
+  let active: DeviceRegistry;
   let registryCorrupt = false;
   try {
-    registry = openDeviceRegistry(dataDir);
+    active = openDeviceRegistry(dataDir);
   } catch (error) {
     if (error instanceof RegistryCorruptError) {
       registryCorrupt = true;
       input.logger.error("Device registry is corrupt; device access disabled until reset", { error: error.message });
-      registry = openInertRegistry();
+      active = openInertRegistry();
     } else {
       throw error;
     }
   }
+  const registry = swappableRegistry(() => active);
+  const resetRegistry = (): void => {
+    if (!registryCorrupt) {
+      return;
+    }
+    archiveCorruptRegistry(dataDir, input.now());
+    active = openDeviceRegistry(dataDir); // a fresh, empty registry
+    registryCorrupt = false;
+    input.logger.info?.("Device registry reset by the owner; device pairing re-enabled");
+  };
 
   const tls = await loadOrCreateTlsIdentity(dataDir);
 
@@ -113,7 +125,7 @@ export async function buildAppMode(input: AppModeInput): Promise<AppModeRuntime>
 
   const bootstrap = createHttpServer_(createBootstrapListener(listenerDeps));
   const device = createHttpsServer({ key: tls.keyPem, cert: tls.certPem, minVersion: "TLSv1.3" }, createDeviceListener(listenerDeps));
-  const ingress = createHttpServer_(buildIngressListener(input, pairing, registry, supervisor));
+  const ingress = createHttpServer_(buildIngressListener(input, pairing, registry, supervisor, () => registryCorrupt, resetRegistry));
 
   return {
     servers: { bootstrap, device, ingress },
@@ -156,7 +168,9 @@ function buildIngressListener(
   input: AppModeInput,
   pairing: PairingV1Manager,
   registry: DeviceRegistry,
-  supervisor: ReturnType<typeof createSupervisorClient>
+  supervisor: ReturnType<typeof createSupervisorClient>,
+  registryCorrupt: () => boolean,
+  resetRegistry: () => void
 ): RequestListener {
   const csrf = createCsrfStore();
   const iconBytes = loadIcon(input.iconPath);
@@ -168,6 +182,8 @@ function buildIngressListener(
     csrf,
     pairing,
     registry,
+    registryCorrupt,
+    resetRegistry,
     connection: () => ({ haConnected: input.wsClient.isConnected() }),
     update: async () => {
       const info = await supervisor.getSelfInfo();
@@ -241,6 +257,25 @@ function openInertRegistry(): DeviceRegistry {
     revoke: () => false,
     importLegacy: nope,
     revokeLegacy: nope,
+  };
+}
+
+// A stable DeviceRegistry facade that always delegates to the current store, so
+// a corrupt-registry reset can swap the underlying registry without rebuilding
+// the listeners and pairing manager that captured this reference.
+function swappableRegistry(get: () => DeviceRegistry): DeviceRegistry {
+  return {
+    list: () => get().list(),
+    hasLegacy: () => get().hasLegacy(),
+    legacyImportCompleted: () => get().legacyImportCompleted(),
+    resolveDeviceSecret: (deviceId, secretDigest, now) => get().resolveDeviceSecret(deviceId, secretDigest, now),
+    resolveLegacySecret: (secretDigest) => get().resolveLegacySecret(secretDigest),
+    createPending: (record, now) => get().createPending(record, now),
+    activate: (deviceId, now) => get().activate(deviceId, now),
+    activatePending: (deviceId, secretDigest, now) => get().activatePending(deviceId, secretDigest, now),
+    revoke: (deviceId) => get().revoke(deviceId),
+    importLegacy: (secretDigest, now) => get().importLegacy(secretDigest, now),
+    revokeLegacy: () => get().revokeLegacy(),
   };
 }
 
