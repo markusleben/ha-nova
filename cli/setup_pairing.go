@@ -184,6 +184,18 @@ func probePairingV1(relayBaseURL string) bool {
 }
 
 func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths, cfg *runtimeConfig) (string, error) {
+	// Storage first: never send the user to fetch a one-time code that a broken
+	// credential backend would burn. Headless systems switch to the private-file
+	// fallback here, with a visible note.
+	probe, probeErr := probeDeviceCredentialStorage()
+	if probeErr != nil {
+		renderSetupErrorLine(out, "This system cannot store the device credential yet: %s", probeErr)
+		return "", fmt.Errorf("device credential storage unavailable: %w", probeErr)
+	}
+	if probe.note != "" {
+		renderSetupParagraph(out, probe.note)
+	}
+
 	renderSetupParagraph(out,
 		"Open NOVA in the Home Assistant sidebar and click \"Connect a device\" to get a six-digit code.",
 		`If NOVA is not in the sidebar, open the NOVA Relay app page and choose "Open Web UI".`,

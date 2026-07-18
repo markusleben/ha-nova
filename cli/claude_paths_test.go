@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/zalando/go-keyring"
 )
 
 // Tests across this package build Claude state under temp HOMEs; a
@@ -17,6 +19,13 @@ import (
 // fallback paths behave like on claude-less CI. Tests that need claude
 // behavior prepend their own mock in front of it.
 func TestMain(m *testing.M) {
+	// Route ALL go-keyring access to an in-memory mock for the whole package, so
+	// no test ever touches the developer's real OS keyring (on macOS a raw
+	// keyring.Set/Get pops the native "Schlüsselbund" unlock dialog and can hang
+	// CI/headless runs). Tests that need a keyring FAILURE install their own
+	// override on top (e.g. keyring_linux_test.go stubs keyringGetWithService, or
+	// device-storage tests stub deviceStorageKeyringCanary).
+	keyring.MockInit()
 	os.Unsetenv("CLAUDE_CONFIG_DIR")
 	// Same protection class for the update-nudge background refresh: under
 	// `go test`, os.Executable() is the generated test binary, so the real

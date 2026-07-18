@@ -52,6 +52,14 @@ func runSecurePairing(bootstrapURL, code string, cfg *runtimeConfig, saveCfg fun
 		return "", fmt.Errorf("could not establish an install id: %w", err)
 	}
 
+	// Prove credential storage works BEFORE talking to the relay: /pair/v1/finish
+	// consumes the owner's one-time code, so a broken keyring discovered after the
+	// fact would burn the code with nothing stored. Callers probe earlier for the
+	// user-facing message; this guard keeps the invariant for every caller.
+	if _, err := probeDeviceCredentialStorage(); err != nil {
+		return "", fmt.Errorf("cannot store a device credential on this system (the code was not used): %w", err)
+	}
+
 	prov, err := pairDeviceV1ForPairing(nil, bootstrapURL, code, deviceMetadata{
 		Name:            info.name,
 		Platform:        info.platform,
