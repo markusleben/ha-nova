@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdtempSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { connect } from "node:tls";
@@ -60,18 +60,23 @@ describe("tls-identity", () => {
     expect(pin).toBe(id.spkiPin);
   });
 
-  it("fail-closed when only the certificate is present (no silent pin rotation)", async () => {
-    const id = await loadOrCreateTlsIdentity(dir);
-    unlinkSync(join(dir, "tls-key.pem")); // partial /data restore
-    await expect(loadOrCreateTlsIdentity(dir)).rejects.toBeInstanceOf(TlsIdentityCorruptError);
-    // The still-present cert (and thus the original pin) is untouched.
-    void id;
+  it("regenerates when only the certificate is present (a keyless cert cannot serve TLS)", async () => {
+    const first = await loadOrCreateTlsIdentity(dir);
+    unlinkSync(join(dir, "tls-key.pem")); // first-run write killed, or a partial /data restore
+    // A cert without its key is unusable, so regenerate rather than brick the App
+    // before the owner console can start; the pin rotates, forcing a re-pair.
+    const regenerated = await loadOrCreateTlsIdentity(dir);
+    expect(existsSync(join(dir, "tls-key.pem"))).toBe(true);
+    expect(existsSync(join(dir, "tls-cert.pem"))).toBe(true);
+    expect(regenerated.spkiPin).not.toBe(first.spkiPin);
   });
 
-  it("fail-closed when only the key is present", async () => {
-    await loadOrCreateTlsIdentity(dir);
+  it("regenerates when only the key is present", async () => {
+    const first = await loadOrCreateTlsIdentity(dir);
     unlinkSync(join(dir, "tls-cert.pem"));
-    await expect(loadOrCreateTlsIdentity(dir)).rejects.toBeInstanceOf(TlsIdentityCorruptError);
+    const regenerated = await loadOrCreateTlsIdentity(dir);
+    expect(existsSync(join(dir, "tls-cert.pem"))).toBe(true);
+    expect(regenerated.spkiPin).not.toBe(first.spkiPin);
   });
 
   it("fail-closed on an unparseable certificate", async () => {

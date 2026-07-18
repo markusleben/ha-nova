@@ -18,6 +18,12 @@ import (
 
 var errSecretNotFound = errors.New("secret not found")
 
+// deviceCredentialPreflight guards the OS keyring backend before a device-slot
+// read/write. It is a no-op by default; Linux overrides it (keyring_linux.go) to
+// classify a locked/uninitialized Secret Service and fail fast, matching the
+// relay-token path instead of hanging in an unlock prompt.
+var deviceCredentialPreflight = func() error { return nil }
+
 func secretUser() string {
 	if u, err := user.Current(); err == nil && u.Username != "" {
 		return u.Username
@@ -47,6 +53,9 @@ func secretGet(service string) (string, error) {
 		}
 		return strings.TrimSpace(string(data)), nil
 	}
+	if err := deviceCredentialPreflight(); err != nil {
+		return "", err
+	}
 	value, err := keyring.Get(service, secretUser())
 	if err != nil {
 		if errors.Is(err, keyring.ErrNotFound) {
@@ -64,6 +73,9 @@ func secretSet(service, value string) error {
 		}
 		return os.WriteFile(testSecretPath(dir, service), []byte(value), 0o600)
 	}
+	if err := deviceCredentialPreflight(); err != nil {
+		return err
+	}
 	return keyring.Set(service, secretUser(), value)
 }
 
@@ -74,6 +86,9 @@ func secretDelete(service string) error {
 			return err
 		}
 		return nil
+	}
+	if err := deviceCredentialPreflight(); err != nil {
+		return err
 	}
 	err := keyring.Delete(service, secretUser())
 	if err != nil && !errors.Is(err, keyring.ErrNotFound) {

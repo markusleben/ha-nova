@@ -60,14 +60,13 @@ export async function loadOrCreateTlsIdentity(dataDir: string): Promise<TlsIdent
   if (existingKey && existingCert) {
     return await loadExisting(existingKey.toString("utf8"), existingCert.toString("utf8"));
   }
-  if (existingKey || existingCert) {
-    // Exactly one file present: a partial /data (restore, fsck, tampering).
-    // Regenerating here would overwrite a still-valid key and rotate the pin.
-    throw new TlsIdentityCorruptError(
-      "TLS identity is incomplete (only one of key/cert present); refusing to silently regenerate and break paired clients"
-    );
-  }
 
+  // Otherwise generate a fresh identity. This includes the partial case where only
+  // one of key/cert is present (a first-run write killed between the two atomic
+  // writes below, or a partial /data restore): a key without its cert — or a cert
+  // without its key — cannot serve TLS, so there is nothing usable to preserve.
+  // Regenerating recovers instead of bricking the App before the owner console can
+  // even start; the pin rotation just forces re-pairing, the documented recovery.
   const identity = await generateIdentity();
   // Write the key first (0600) so the cert never exists without its key.
   writeFileAtomicSync(keyPath, identity.keyPem);
