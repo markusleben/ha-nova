@@ -253,9 +253,17 @@ func pairOpen(key, handshakeID []byte, dir string, blob []byte) ([]byte, bool) {
 
 func pairPostJSON(client *http.Client, url string, body map[string]any, out any) error {
 	b, _ := json.Marshal(body)
-	resp, err := client.Post(url, "application/json", bytes.NewReader(b))
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(b))
 	if err != nil {
-		return fmt.Errorf("post %s: %w", url, err)
+		return fmt.Errorf("build pairing request: %w", err)
+	}
+	// Never forward copied URL userinfo (http://user:pass@host) as a Basic auth
+	// header, and keep it out of the error text.
+	req.URL.User = nil
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("post %s: %w", req.URL.String(), err)
 	}
 	defer resp.Body.Close()
 	raw, _ := io.ReadAll(io.LimitReader(resp.Body, maxPairingBodyBytes))

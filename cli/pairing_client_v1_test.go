@@ -13,6 +13,7 @@ import (
 	"math/big"
 	"net/http"
 	"net/http/httptest"
+	neturl "net/url"
 	"strings"
 	"testing"
 	"time"
@@ -110,6 +111,35 @@ func TestActivateDeviceV1PreservesHTTPStatus(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "500") || strings.Contains(err.Error(), "%!w") {
 		t.Fatalf("activation error lost the HTTP status: %v", err)
+	}
+}
+
+// Regression: a relay URL with userinfo (a copied http://user:pass@host) must
+// not be forwarded as a Basic auth header, nor leaked in the error text.
+func TestPairPostJSONStripsURLCredentials(t *testing.T) {
+	var sawAuth string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sawAuth = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"ok":true,"data":{}}`))
+	}))
+	defer srv.Close()
+
+	u, _ := neturl.Parse(srv.URL)
+	u.User = neturl.UserPassword("user", "s3cr3t")
+	var out map[string]any
+	_ = pairPostJSON(srv.Client(), u.String()+"/start", nil, &out)
+	if sawAuth != "" {
+		t.Fatalf("URL userinfo leaked as an Authorization header: %q", sawAuth)
+	}
+
+	// The error path must not print the credentials either.
+	err := pairPostJSON(srv.Client(), "http://user:s3cr3t@127.0.0.1:1/dead", nil, &out)
+	if err == nil {
+		t.Fatal("expected a connection error")
+	}
+	if strings.Contains(err.Error(), "s3cr3t") {
+		t.Fatalf("error leaked URL credentials: %v", err)
 	}
 }
 

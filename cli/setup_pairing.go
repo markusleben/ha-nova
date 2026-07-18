@@ -163,8 +163,12 @@ func pairingRetryAfterSeconds(header string) int {
 // (GET /pair/v1/info). Any error or non-v1 answer returns false so the wizard
 // falls back to the legacy code exchange.
 func probePairingV1(relayBaseURL string) bool {
-	url := strings.TrimRight(relayBaseURL, "/") + "/pair/v1/info"
-	resp, err := httpClient.Get(url)
+	req, err := http.NewRequest(http.MethodGet, strings.TrimRight(relayBaseURL, "/")+"/pair/v1/info", nil)
+	if err != nil {
+		return false
+	}
+	req.URL.User = nil // do not forward copied URL userinfo as a Basic auth header
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return false
 	}

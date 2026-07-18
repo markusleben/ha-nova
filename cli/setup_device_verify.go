@@ -35,6 +35,11 @@ func persistDeviceSetupState(paths runtimePaths, cfg runtimeConfig, state *insta
 	if err := saveConfig(paths, cfg); err != nil {
 		return err
 	}
+	// Stamp the setup version/source like the interactive path, or state.Version
+	// stays empty and later ensureClientsVerifiedForCurrentVersion treats this
+	// paired install as pre-setup.
+	state.Version = localVersion(paths)
+	state.InstallSource = detectInstallSource(paths, *state)
 	return saveState(paths, *state)
 }
 
