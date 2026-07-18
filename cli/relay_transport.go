@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 )
@@ -22,6 +23,10 @@ func relayFunctionalTransport(cfg runtimeConfig) (baseURL string, client *http.C
 		if ok {
 			return cfg.RelaySecureBaseURL, spkiPinnedClient(cfg.RelaySpkiPin), cred, true, nil
 		}
+		// Paired config but the device credential is gone: fail closed. In a paired
+		// flow the device credential IS the auth, so never silently downgrade to the
+		// shared token over the unpinned plain port. Re-pair to recover.
+		return "", nil, "", false, errors.New("device credential unavailable for a paired relay; run 'ha-nova setup' to re-pair")
 	}
 	relayToken, tokenErr := readRelayAuthToken()
 	if tokenErr != nil {

@@ -36,6 +36,30 @@ func TestFunctionalEndpointPairedConfigNeverDowngradesToPlainHTTP(t *testing.T) 
 	}
 }
 
+// F3 regression: relayFunctionalTransport itself — not only functionalEndpoint —
+// must fail closed for a paired config whose device credential is missing. Direct
+// callers (health, relay, setup verify) must never downgrade to the plain port.
+func TestRelayFunctionalTransportPairedConfigFailsClosedWithoutCredential(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("HA_NOVA_TEST_SECRET_DIR", t.TempDir()) // no device credential stored
+	t.Setenv("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING", "1")
+	t.Setenv("HA_NOVA_TEST_KEYRING_FILE", filepath.Join(home, ".config", "ha-nova", ".test-relay-auth-token"))
+
+	cfg := runtimeConfig{
+		RelayBaseURL:       "http://192.168.1.5:8791",
+		RelaySecureBaseURL: "https://192.168.1.5:8792",
+		RelaySpkiPin:       "pin",
+	}
+	base, client, token, deviceMode, err := relayFunctionalTransport(cfg)
+	if err == nil {
+		t.Fatalf("expected an error for a paired config with no credential, got base=%q", base)
+	}
+	if deviceMode || base != "" || client != nil || token != "" {
+		t.Fatalf("failure must not leak transport values: base=%q tokenSet=%v deviceMode=%v", base, token != "", deviceMode)
+	}
+}
+
 func TestFunctionalEndpointLegacyConfigKeepsCallerToken(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

@@ -35,6 +35,17 @@ func newRelayHTTPClient(connectTimeoutSeconds, maxTimeSeconds float64) *http.Cli
 	}
 }
 
+// applyHealthTimeouts rewrites a client's dial + overall timeout in place, so the
+// paired (SPKI-pinned) transport honors the health command's explicit timeout
+// flags instead of the fixed pairing timeout baked into spkiPinnedClient. The
+// TLS pin configuration on the existing transport is preserved.
+func applyHealthTimeouts(client *http.Client, connectTimeoutSeconds, maxTimeSeconds float64) {
+	client.Timeout = time.Duration(maxTimeSeconds * float64(time.Second))
+	if transport, ok := client.Transport.(*http.Transport); ok {
+		transport.DialContext = (&net.Dialer{Timeout: time.Duration(connectTimeoutSeconds * float64(time.Second))}).DialContext
+	}
+}
+
 type relayRequestOptions struct {
 	InlineJSON    string
 	JSONFile      string
@@ -402,10 +413,13 @@ func runHealth(paths runtimePaths, args []string) int {
 		printErr("%s", relayAuthTokenProblemMessage(err))
 		return 1
 	}
-	// Legacy mode keeps the health command's explicit connect/max timeouts; device
-	// mode uses the pinned TLS client.
+	// Legacy mode uses the health command's explicit connect/max timeouts; device
+	// mode keeps the SPKI-pinned TLS transport but applies those same timeouts to
+	// it, so a hung paired relay does not block on the fixed pairing timeout.
 	if !deviceMode {
 		transportClient = client
+	} else {
+		applyHealthTimeouts(transportClient, healthOpts.ConnectTimeoutSeconds, healthOpts.MaxTimeSeconds)
 	}
 
 	url := strings.TrimRight(baseURL, "/") + "/health"

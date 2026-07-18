@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/base64"
 	"fmt"
 	"net/http"
@@ -10,7 +11,27 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
+
+// F2 regression: on paired installs the health command must honor its own
+// connect/max timeouts, applied to the SPKI-pinned transport, instead of the
+// fixed pairing timeout — while preserving the pin configuration.
+func TestApplyHealthTimeoutsRewritesPinnedClient(t *testing.T) {
+	client := spkiPinnedClient("test-pin")
+	applyHealthTimeouts(client, 3, 9)
+
+	if client.Timeout != 9*time.Second {
+		t.Fatalf("want 9s overall timeout, got %v", client.Timeout)
+	}
+	transport, ok := client.Transport.(*http.Transport)
+	if !ok || transport.DialContext == nil {
+		t.Fatal("want a dial timeout applied to the pinned transport")
+	}
+	if transport.TLSClientConfig == nil || transport.TLSClientConfig.MinVersion != tls.VersionTLS13 {
+		t.Fatal("applyHealthTimeouts must preserve the SPKI pin TLS configuration")
+	}
+}
 
 func TestLoadRelayPayloadAcceptsSingleQuotedInlineJSON(t *testing.T) {
 	payload, err := loadRelayPayload(relayRequestOptions{

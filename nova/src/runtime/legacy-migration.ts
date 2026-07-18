@@ -25,41 +25,47 @@ export interface LegacyMigrationDeps {
 }
 
 export async function importLegacyToken(deps: LegacyMigrationDeps): Promise<void> {
-  // Registry record or tombstone wins: never re-import.
-  if (deps.registry.legacyImportCompleted() || deps.registry.hasLegacy()) {
-    return;
-  }
-
   const options = readOptions(deps.appOptionsPath);
-  const source = findEffectiveLegacyToken(options, deps.dataDir);
-  if (source === null) {
-    return; // nothing to migrate (a fresh install)
+
+  // Import the digest exactly once (a registry record or tombstone wins), but
+  // ALWAYS retry the plaintext cleanup below: a prior boot may have persisted the
+  // digest yet failed to remove the file or clear the option, and that residue
+  // must not linger just because the one-shot import guard now short-circuits.
+  if (!deps.registry.legacyImportCompleted() && !deps.registry.hasLegacy()) {
+    const token = findEffectiveLegacyToken(options, deps.dataDir);
+    if (token === null) {
+      return; // nothing to migrate (a fresh install)
+    }
+    // Import the digest + stamp the tombstone atomically, THEN clean up plaintext.
+    deps.registry.importLegacy(digestSecret(token), deps.now());
+    deps.logger.info?.("Migrated the legacy shared token into the device registry as one legacy record");
   }
 
-  // Import the digest + stamp the tombstone atomically.
-  deps.registry.importLegacy(digestSecret(source.token), deps.now());
+  await removeResidualLegacyPlaintext(deps, options);
+}
 
-  // Only after the digest is persisted do we remove the plaintext file.
-  if (source.filePath !== null) {
-    try {
-      unlinkSync(source.filePath);
-    } catch (error) {
-      deps.logger.warn("Migrated legacy token but could not remove the plaintext file", { error: String((error as Error).message) });
+// Removes any leftover plaintext shared token — the /data file and the App option
+// — once the digest is safely in the registry. Idempotent and retried on every
+// boot, so a migration that stamped the tombstone but failed to finish cleanup on
+// an earlier boot still self-heals (the runtime ignores the option regardless).
+async function removeResidualLegacyPlaintext(
+  deps: LegacyMigrationDeps,
+  options: Record<string, unknown>,
+): Promise<void> {
+  try {
+    unlinkSync(join(deps.dataDir, LEGACY_TOKEN_FILE));
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+      deps.logger.warn("Could not remove the legacy plaintext token file", { error: String((error as Error).message) });
     }
   }
-
-  // Clear the option so the plaintext no longer sits in options.json. A failure
-  // here is non-fatal: the tombstone already prevents re-import and the runtime
-  // ignores the option, so we only warn.
   if (typeof options.relay_auth_token === "string" && options.relay_auth_token.length > 0) {
     try {
       await deps.supervisor.setOptions({ ...options, relay_auth_token: "" });
     } catch (error) {
-      deps.logger.warn("Migrated legacy token but could not clear the App option", { error: String((error as Error).message) });
+      deps.logger.warn("Could not clear the legacy shared token from App options", { error: String((error as Error).message) });
     }
   }
-
-  deps.logger.info?.("Migrated the legacy shared token into the device registry as one legacy record");
 }
 
 // App mode's upstream is the Supervisor token, so a `ha_llat` left in
@@ -86,23 +92,18 @@ export async function clearLegacyUpstreamOption(
   }
 }
 
-interface LegacySource {
-  token: string;
-  filePath: string | null; // set when the source was the /data file
-}
-
 // Precedence: a non-empty configured option wins; otherwise the /data file. The
-// "effective" value is imported (the option path does not always write a file).
-function findEffectiveLegacyToken(options: Record<string, unknown>, dataDir: string): LegacySource | null {
+// residual plaintext (file + option) is always cleaned up afterwards regardless
+// of which source supplied the effective value.
+function findEffectiveLegacyToken(options: Record<string, unknown>, dataDir: string): string | null {
   const optionToken = options.relay_auth_token;
   if (typeof optionToken === "string" && optionToken.trim().length > 0) {
-    return { token: optionToken.trim(), filePath: null };
+    return optionToken.trim();
   }
-  const filePath = join(dataDir, LEGACY_TOKEN_FILE);
   try {
-    const fileToken = readFileSync(filePath, "utf8").trim();
+    const fileToken = readFileSync(join(dataDir, LEGACY_TOKEN_FILE), "utf8").trim();
     if (fileToken.length > 0) {
-      return { token: fileToken, filePath };
+      return fileToken;
     }
   } catch {
     // no file
