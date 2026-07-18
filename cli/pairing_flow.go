@@ -127,18 +127,31 @@ func resumePendingActivation(cfg *runtimeConfig, saveCfg func(*runtimeConfig) er
 		// access): leave any pending slot for a full re-pair rather than guessing.
 		return false, nil
 	}
-	// Re-establish the storage backend for this process before reading the
-	// pending credential: a headless install keeps the pending slot in a file and
-	// the marker is only written at promotion, so without re-probing here a
-	// resume in a fresh process could not find its own pending credential.
-	if _, err := probeDeviceCredentialStorage(); err != nil {
-		return false, err
+	// Resume in the SAME backend that holds the pending credential, chosen without
+	// a storage probe: a headless-interrupted pairing left the pending slot in a
+	// file with no marker yet (the marker is written at promotion), and a probe
+	// here would reroute reads to a now-usable keyring — or clean the file — and
+	// lose the already-activated credential. A desktop-interrupted pairing left it
+	// in the keyring, read via the normal (marker/keyring) path.
+	fileMode := deviceSecretFileExists(deviceCredentialPendingService)
+	var pending string
+	if fileMode {
+		raw, err := deviceSecretFileGet(deviceCredentialPendingService)
+		if err != nil {
+			return false, err
+		}
+		if parseDeviceCredential(raw) == nil {
+			return false, nil // malformed residue: leave it for a full re-pair
+		}
+		pending = raw
+	} else {
+		p, ok, err := readPendingDeviceCredential()
+		if err != nil || !ok {
+			return false, err
+		}
+		pending = p
 	}
-	pending, ok, err := readPendingDeviceCredential()
-	if err != nil || !ok {
-		return false, err
-	}
-	if err := activateDeviceV1(base, pin, pending); err != nil {
+	if err := activateDeviceV1ForPairing(base, pin, pending); err != nil {
 		return false, err
 	}
 	// Same ordering as runSecurePairing: save the live endpoint before promoting
@@ -149,7 +162,11 @@ func resumePendingActivation(cfg *runtimeConfig, saveCfg func(*runtimeConfig) er
 	if err := saveCfg(cfg); err != nil {
 		return false, err
 	}
-	if err := promotePendingDeviceCredential(); err != nil {
+	if fileMode {
+		if err := promotePendingFileCredential(pending); err != nil {
+			return false, err
+		}
+	} else if err := promotePendingDeviceCredential(); err != nil {
 		return false, err
 	}
 	cfg.PendingSecureBaseURL = ""

@@ -67,6 +67,22 @@ func promotePendingDeviceCredential() error {
 	return deletePendingDeviceCredential()
 }
 
+// promotePendingFileCredential finalizes a FILE-backed pending credential
+// explicitly (used by resume): it writes the current credential file — which
+// also lays down the file-backend marker on first commit — and drops the pending
+// file. This finishes a headless-interrupted pairing in file mode without a
+// storage probe or the process-forced flag, so a now-usable keyring can neither
+// reroute nor delete the credential.
+func promotePendingFileCredential(pending string) error {
+	if parseDeviceCredential(pending) == nil {
+		return fmt.Errorf("refusing to store a malformed device credential")
+	}
+	if err := deviceSecretFileSet(deviceCredentialService, pending); err != nil {
+		return err
+	}
+	return deviceSecretFileDelete(deviceCredentialPendingService)
+}
+
 func readCredentialSlot(service string) (string, bool, error) {
 	value, err := secretGet(service)
 	if err != nil {

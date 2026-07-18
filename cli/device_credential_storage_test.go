@@ -189,10 +189,9 @@ func TestOrphanCredentialFileWithoutMarkerStaysOnKeyring(t *testing.T) {
 	if err != nil || probe.mode != "keyring" {
 		t.Fatalf("expected keyring mode (no downgrade), got mode=%q err=%v", probe.mode, err)
 	}
-	// The orphan file is cleaned, and the current slot resolves to the keyring.
-	if deviceSecretFileExists(deviceCredentialService) {
-		t.Fatal("expected the probe to clear the orphan credential file on the keyring path")
-	}
+	// The orphan file is harmless (never read without a marker) and must NOT be
+	// deleted — a pending file could be an interrupted headless pairing awaiting
+	// resume. The current slot still resolves to the keyring credential.
 	got, ok, err := readDeviceCredential()
 	if err != nil || !ok || got != keyringCred {
 		t.Fatalf("keyring credential masked by orphan file: got=%q ok=%v err=%v", got, ok, err)
@@ -317,6 +316,49 @@ func TestSecurePairingAbortsBeforeConsumingTheCodeWhenStorageIsBroken(t *testing
 	}
 	if pairCalled {
 		t.Fatal("pairing reached the relay although storage was broken — the one-time code would have been consumed")
+	}
+}
+
+func TestResumeFinishesAFileModePendingEvenWhenKeyringNowWorks(t *testing.T) {
+	withDeviceStorageTestHome(t)
+	// A headless pairing was interrupted after writing the pending FILE (no
+	// marker yet) and saving the pending endpoint, but before promotion. Even if
+	// the keyring is now usable, resume must finish it IN FILE MODE — reading its
+	// own pending file, not rerouting to (or being cleaned by) the keyring.
+	pendingCred := generateTestDeviceCredential(t)
+	if err := deviceSecretFileSet(deviceCredentialPendingService, pendingCred); err != nil {
+		t.Fatalf("seed pending file: %v", err)
+	}
+	if deviceFileBackendMarkerExists() {
+		t.Fatal("test setup error: a pending write must not create a marker")
+	}
+
+	origActivate := activateDeviceV1ForPairing
+	activated := ""
+	activateDeviceV1ForPairing = func(_, _, cred string) error { activated = cred; return nil }
+	t.Cleanup(func() { activateDeviceV1ForPairing = origActivate })
+
+	cfg := runtimeConfig{PendingSecureBaseURL: "https://relay:8792", PendingSpkiPin: "PIN"}
+	resumed, err := resumePendingActivation(&cfg, func(*runtimeConfig) error { return nil })
+	if err != nil || !resumed {
+		t.Fatalf("resume failed: resumed=%v err=%v", resumed, err)
+	}
+	if activated != pendingCred {
+		t.Fatalf("resume activated the wrong credential: %q", activated)
+	}
+	// Promotion completed in file mode: current file + marker exist, pending gone.
+	if !deviceFileBackendMarkerExists() {
+		t.Fatal("expected the file-backend marker after file-mode promotion")
+	}
+	if deviceSecretFileExists(deviceCredentialPendingService) {
+		t.Fatal("pending file not cleared after promotion")
+	}
+	got, ok, err := readDeviceCredential()
+	if err != nil || !ok || got != pendingCred {
+		t.Fatalf("current credential not readable from file after resume: got=%q ok=%v err=%v", got, ok, err)
+	}
+	if cfg.RelaySecureBaseURL != "https://relay:8792" || cfg.PendingSecureBaseURL != "" {
+		t.Fatalf("endpoints not finalized: live=%q pending=%q", cfg.RelaySecureBaseURL, cfg.PendingSecureBaseURL)
 	}
 }
 

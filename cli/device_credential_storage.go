@@ -219,10 +219,10 @@ func probeDeviceCredentialStorage() (deviceStorageProbe, error) {
 
 	keyringErr := deviceStorageKeyringCanary()
 	if keyringErr == nil {
-		// Committed to the keyring: drop any orphan credential files from an
-		// aborted earlier file attempt so they can never be mistaken for state.
-		_ = deviceSecretFileDelete(deviceCredentialService)
-		_ = deviceSecretFileDelete(deviceCredentialPendingService)
+		// Committed to the keyring. Any leftover credential files are harmless
+		// orphans — reads never consult them without the marker (deviceSecretFileBacked)
+		// — and must NOT be deleted here: a pending file may be an interrupted
+		// headless pairing that resumePendingActivation still needs to finish.
 		return deviceStorageProbe{mode: "keyring"}, nil
 	}
 	if errors.Is(keyringErr, errDesktopKeyringSessionUnavailable) || errors.Is(keyringErr, errDesktopKeyringUnavailable) {

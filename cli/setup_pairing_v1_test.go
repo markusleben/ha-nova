@@ -29,7 +29,7 @@ func TestSetupPairingPrefersSecureV1(t *testing.T) {
 
 	reader := bufio.NewReader(strings.NewReader("\n473921\n"))
 	cfg := &runtimeConfig{RelayBaseURL: "http://relay:8791"}
-	token, err := runSetupPairingFlow(reader, io.Discard, runtimePaths{}, cfg)
+	token, err := runSetupPairingFlow(reader, io.Discard, runtimePaths{}, cfg, false)
 	if !errors.Is(err, errSetupDevicePaired) {
 		t.Fatalf("expected errSetupDevicePaired, got token=%q err=%v", token, err)
 	}
@@ -50,7 +50,7 @@ func TestSetupPairingFallsBackToLegacyExchange(t *testing.T) {
 
 	reader := bufio.NewReader(strings.NewReader("\n473921\n"))
 	cfg := &runtimeConfig{RelayBaseURL: "http://relay:8791"}
-	token, err := runSetupPairingFlow(reader, io.Discard, runtimePaths{}, cfg)
+	token, err := runSetupPairingFlow(reader, io.Discard, runtimePaths{}, cfg, false)
 	if err != nil {
 		t.Fatalf("legacy exchange should succeed: %v", err)
 	}

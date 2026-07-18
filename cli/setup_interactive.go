@@ -223,6 +223,9 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 			}
 		}
 	}
+	// Set when the missing-keyring error is downgraded below: the legacy /pair
+	// token store is unavailable, so the pairing stage must not fall back to it.
+	legacyTokenStoreUnavailable := false
 	if tokenStoragePreflightErr == nil {
 		if savedToken, err := readRelayAuthTokenForSetup(); err == nil && strings.TrimSpace(savedToken) != "" {
 			savedTokenBeforeSetup = strings.TrimSpace(savedToken)
@@ -253,6 +256,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 			printRelayTokenStorageSetupWarning(tokenStoragePreflightErr)
 			printHumanInfo("No OS keyring is reachable here — this device will pair with secure file-backed storage instead of a shared token.")
 			tokenStoragePreflightErr = nil
+			legacyTokenStoreUnavailable = true
 		} else {
 			printRelayTokenStorageSetupWarning(tokenStoragePreflightErr)
 			printHumanErr("%s", relayAuthTokenSetupSaveError(tokenStoragePreflightErr))
@@ -748,7 +752,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 		case setupStagePairing:
 			steps := buildSetupPairingWizardSteps()
 			renderSetupStep(os.Stdout, steps.Pairing, steps.Total, "Pair this device")
-			pairedToken, err := runSetupPairingFlow(reader, os.Stdout, paths, &cfg)
+			pairedToken, err := runSetupPairingFlow(reader, os.Stdout, paths, &cfg, legacyTokenStoreUnavailable)
 			if err == errSetupBack {
 				stage = pairingBackStage
 				continue

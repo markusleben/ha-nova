@@ -183,7 +183,10 @@ func probePairingV1(relayBaseURL string) bool {
 	return decodePairInfo(body)
 }
 
-func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths, cfg *runtimeConfig) (string, error) {
+// legacyTokenStoreUnavailable is set by the caller when the OS keyring is
+// missing AND no service-token file is configured, so the legacy /pair token
+// (which needs one of those) cannot be stored on this box.
+func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths, cfg *runtimeConfig, legacyTokenStoreUnavailable bool) (string, error) {
 	// Storage first: never send the user to fetch a one-time code that a broken
 	// credential backend would burn. Headless systems switch to the private-file
 	// fallback here, with a visible note.
@@ -199,15 +202,13 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 	// Determine the pairing mode up front (the relay URL is known here). Secure v1
 	// pairing stores a file-backed device credential and needs no keyring. The
 	// legacy /pair fallback instead returns a SHARED token that must go into the
-	// OS keyring — so on a keyless box (container/SSH) with a pre-v1 relay, fail
-	// NOW, before the pairing UI prompts for and consumes a one-time code.
+	// OS keyring or a service-token file — so on a keyless box with neither AND a
+	// pre-v1 relay, fail NOW, before the pairing UI prompts for and consumes a
+	// one-time code, rather than after the exchange fails to store the token.
 	secure := probePairingV1ForSetup(cfg.RelayBaseURL)
-	if !secure {
-		if err := relayAuthTokenSetupPreflightForSetup(); err != nil &&
-			(isDesktopKeyringSessionUnavailableError(err) || isDesktopKeyringUnavailableError(err)) {
-			renderSetupErrorLine(out, "This NOVA Relay is too old for secure device pairing, and this system has no key store for the legacy shared token. Update the NOVA Relay App to enable secure pairing.")
-			return "", fmt.Errorf("relay predates secure pairing and no keyring is available for the legacy token: %w", err)
-		}
+	if !secure && legacyTokenStoreUnavailable {
+		renderSetupErrorLine(out, "This NOVA Relay is too old for secure device pairing, and this system has no key store for the legacy shared token. Update the NOVA Relay App to enable secure pairing.")
+		return "", fmt.Errorf("relay predates secure pairing and no store is available for the legacy token")
 	}
 
 	renderSetupParagraph(out,
