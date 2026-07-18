@@ -301,9 +301,11 @@ Supervisor auth wins so an obsolete legacy App LLAT cannot break the App.
 
 Inbound and upstream credentials are independent. New App installs create and
 persist a random 32-byte relay token under `/data` with owner-only permissions.
-Existing App relay-token option values remain authoritative. The App configuration
-contains no LLAT field. Standalone Container/Core installs must provide both
-`RELAY_AUTH_TOKEN` and `HA_LLAT` server-side.
+Existing App relay-token option values remain authoritative. The App
+configuration still ships an `ha_llat` field, but only as a one-time
+legacy-migration source: a normal App install leaves it empty and authenticates
+upstream with its Supervisor token. Standalone Container/Core installs must
+provide both `RELAY_AUTH_TOKEN` and `HA_LLAT` server-side.
 
 The interactive CLI's normal App path never asks the user to copy the relay
 token. It asks for the current Home Base code, sends it only in the JSON body of

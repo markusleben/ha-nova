@@ -185,7 +185,7 @@ func TestPromptReadersCanBeReusedAcrossSequentialSetupQuestions(t *testing.T) {
 		t.Fatalf("host = %q, want 127.0.0.1:38123", host)
 	}
 
-	enter, err := promptLineFromReader(reader, output, "Press Enter after you saved the Relay Auth Token in NOVA Relay", "")
+	enter, err := promptLineFromReader(reader, output, "Press Enter after you saved the Relay Auth Token and restarted NOVA Relay", "")
 	if err != nil {
 		t.Fatalf("promptLineFromReader(enter) error: %v", err)
 	}

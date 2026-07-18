@@ -3,6 +3,7 @@ import { TimeoutError, withTimeout } from "../shared/timeout.js";
 
 export type HaWsClientErrorCode =
   | "UPSTREAM_WS_CONNECT_ERROR"
+  | "UPSTREAM_WS_AUTH_REJECTED"
   | "UPSTREAM_WS_TIMEOUT"
   | "UPSTREAM_WS_COMMAND_ERROR"
   | "UPSTREAM_WS_ERROR";
@@ -304,6 +305,17 @@ export function createHaWsClient(options: HaWsClientOptions): HaWsClient {
       return current;
     } catch (error) {
       lastConnectFailure = classifyConnectFailure(error);
+      if (lastConnectFailure === "auth") {
+        // A rejected upstream token must be distinguishable from a network
+        // failure downstream: the message carries "upstream access token" so
+        // the CLI's diagnostics route to upstream-auth recovery, not the
+        // ambiguous connection-repair path.
+        throw new HaWsClientError(
+          "UPSTREAM_WS_AUTH_REJECTED",
+          "Home Assistant rejected the upstream access token",
+          error
+        );
+      }
       throw new HaWsClientError(
         "UPSTREAM_WS_CONNECT_ERROR",
         "Failed to connect to Home Assistant WebSocket",

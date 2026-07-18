@@ -115,6 +115,23 @@ describe("ha ws client", () => {
     expect(client.isConnected()).toBe(false);
   });
 
+  it("distinguishes a rejected upstream token from a network failure", async () => {
+    // A rejected token must not read as a generic connection failure: the CLI
+    // diagnostics key off "upstream access token" to route to upstream-auth
+    // recovery instead of the ambiguous connection-repair path.
+    const client = createHaWsClient({
+      createConnection: async () => {
+        throw new HaSocketAuthError("HA rejected the upstream access token");
+      }
+    });
+
+    await expect(client.sendMessage({ type: "ping" })).rejects.toMatchObject({
+      code: "UPSTREAM_WS_AUTH_REJECTED"
+    } satisfies Partial<HaWsClientError>);
+    await expect(client.sendMessage({ type: "ping" })).rejects.toThrow(/upstream access token/i);
+    expect(client.getConnectionStatus().disconnect_reason).toBe("auth");
+  });
+
   it("maps request timeout to UPSTREAM_WS_TIMEOUT", async () => {
     const client = createHaWsClient({
       createConnection: async () => ({

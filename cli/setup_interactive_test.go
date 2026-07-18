@@ -91,7 +91,7 @@ func TestInteractiveSetupFreshInstallShowsWizardAndInstallsAntigravitySkills(t *
 		"NOVA keeps client and Home Assistant access separate",
 		"Standalone Container/Core relays keep HA_LLAT in the server environment; the CLI never asks for it.",
 		`Paste the token into the "Relay Auth Token" field`,
-		"Press Enter after you saved the Relay Auth Token in NOVA Relay",
+		"Press Enter after you saved the Relay Auth Token and restarted NOVA Relay",
 		"Setting up HA NOVA for Google Antigravity...",
 		"Setup complete!",
 	} {

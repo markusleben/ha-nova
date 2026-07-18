@@ -651,6 +651,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 						`1. Open the "Configuration" tab`,
 						`2. Paste the token into the "Relay Auth Token" field ("relay_auth_token")`,
 						"3. Click Save",
+						"4. Restart the App so it picks up the new token",
 					)
 					renderSetupLink(os.Stdout, "This will open:", haRelayAppPageURL(cfg.HAURL))
 					_, err := promptWizardLineFromReader(reader, os.Stdout, "Press Enter to open your browser", "")
@@ -666,7 +667,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 						return 1
 					}
 					openAnnouncedBrowserURL(os.Stdout, haRelayAppPageURL(cfg.HAURL))
-					_, err = promptWizardLineFromReader(reader, os.Stdout, "Press Enter after you saved the Relay Auth Token in NOVA Relay", "")
+					_, err = promptWizardLineFromReader(reader, os.Stdout, "Press Enter after you saved the Relay Auth Token and restarted NOVA Relay", "")
 					if err == errSetupBack {
 						continue
 					}
