@@ -2,9 +2,11 @@ package main
 
 import (
 	"fmt"
+	"net"
 	"net/url"
 	"os"
 	"runtime"
+	"strconv"
 	"strings"
 )
 
@@ -116,7 +118,9 @@ func secureBaseFromBootstrap(bootstrapURL string, securePort int) (string, error
 	if securePort <= 0 || securePort > 65535 {
 		return "", fmt.Errorf("relay returned an invalid secure port %d", securePort)
 	}
-	return fmt.Sprintf("https://%s:%d", u.Hostname(), securePort), nil
+	// net.JoinHostPort brackets IPv6 literals (u.Hostname() returns them
+	// unbracketed), so an IPv6 relay yields a valid https://[addr]:port URL.
+	return "https://" + net.JoinHostPort(u.Hostname(), strconv.Itoa(securePort)), nil
 }
 
 // Hook for tests (the revoke would otherwise dial a real endpoint).

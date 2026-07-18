@@ -31,11 +31,16 @@ export function createPairV1StartHandler(deps: PairV1Deps): RouteHandler {
       case "rate_limited":
         response.setHeader("retry-after", result.retryAfterSeconds);
         throw new HttpError(429, "PAIRING_RATE_LIMITED", "Too many pairing attempts");
-      case "inactive":
-        throw new HttpError(409, "PAIRING_INACTIVE", "No active pairing code");
       case "busy":
+        // Only reachable once handshakes exist, which needs an active code and a
+        // valid KE1 — so it is not a cheap oracle for the pairing window, and a
+        // real "server busy" signal helps a legitimate client retry.
         throw new HttpError(503, "PAIRING_BUSY", "Too many concurrent handshakes");
       default:
+        // "inactive" collapses into this generic response on purpose: the
+        // bootstrap port is unauthenticated on the LAN, so a distinct "no active
+        // code" reply would let any client detect when the owner's pairing window
+        // is open. The CLI shows a "get a fresh code" hint for this 400.
         throw new HttpError(400, "VALIDATION_ERROR", "Invalid pairing request");
     }
   };

@@ -129,6 +129,12 @@ describe("app mode assembly", () => {
     expect(runtime.servers.bootstrap).toBeDefined();
     expect(runtime.servers.device).toBeDefined();
     expect(runtime.servers.ingress).toBeDefined();
+    // Every listener must carry the stalled-client timeout guards, not Node's
+    // long defaults (these servers bypass createHttpServer).
+    for (const server of Object.values(runtime.servers)) {
+      expect(server.requestTimeout).toBeGreaterThan(0);
+      expect(server.headersTimeout).toBeGreaterThan(0);
+    }
     // buildAppMode awaited opaqueReady(); a synchronous OPAQUE registration now
     // works with no separate init (in a fresh worker this throws without it).
     expect(() => registerCode("123456", "owner-user")).not.toThrow();

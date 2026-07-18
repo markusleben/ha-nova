@@ -11,7 +11,7 @@ import { createHealthHandler } from "../http/handlers/health.js";
 import { createNovaActionHandler, createNovaPageHandler, type NovaPageDeps } from "../http/handlers/nova-page.js";
 import { createWsProxyHandler } from "../http/handlers/ws-proxy.js";
 import { createRouter, type RouteHandler } from "../http/router.js";
-import { createRequestListener, DEFAULT_MAX_FORM_BODY_BYTES, type RelayLogger } from "../http/server.js";
+import { applyServerTimeouts, createRequestListener, DEFAULT_MAX_FORM_BODY_BYTES, type RelayLogger } from "../http/server.js";
 import type { CoreProxyRequest, CoreProxyResponse } from "../types/api.js";
 import type { HaWsClient } from "../ha/ws-client.js";
 import { createSupervisorClient } from "../ha/supervisor-client.js";
@@ -139,6 +139,11 @@ export async function buildAppMode(input: AppModeInput): Promise<AppModeRuntime>
   const bootstrap = createHttpServer_(createBootstrapListener(listenerDeps));
   const device = createHttpsServer({ key: tls.keyPem, cert: tls.certPem, minVersion: "TLSv1.3" }, createDeviceListener(listenerDeps));
   const ingress = createHttpServer_(buildIngressListener(input, pairing, registry, supervisor, () => registryCorrupt, resetRegistry));
+  // These servers bypass createHttpServer, so apply the same stalled-client
+  // request/header timeout guards the single-listener path gets.
+  for (const server of [bootstrap, device, ingress]) {
+    applyServerTimeouts(server);
+  }
 
   return {
     servers: { bootstrap, device, ingress },

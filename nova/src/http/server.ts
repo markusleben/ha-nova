@@ -135,9 +135,16 @@ export function createHttpServer(options: HttpServerOptions): Server {
   });
 
   const server = createServer(listener);
+  applyServerTimeouts(server);
+  return server;
+}
+
+// Bounds how long a stalled client can hold a socket. Exported so the App-mode
+// listeners — which build their own http/https servers instead of going through
+// createHttpServer — get the same request/header timeout guards.
+export function applyServerTimeouts(server: Server): void {
   server.requestTimeout = SERVER_REQUEST_TIMEOUT_MS;
   server.headersTimeout = SERVER_HEADERS_TIMEOUT_MS;
-  return server;
 }
 
 function toPathname(urlValue: string | undefined): string {

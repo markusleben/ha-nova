@@ -121,6 +121,14 @@ describe("pairing listeners wiring", () => {
     expect((await res.json()).data.protocol_version).toBe("v1");
   });
 
+  it("hides the pairing window: start while inactive returns a generic 400, not a distinct code", async () => {
+    // No code generated in this test, so the manager is inactive. On the
+    // unauthenticated bootstrap port the response must be indistinguishable from
+    // a malformed request (400), never a distinct 409 that reveals the window.
+    const res = await postBoot("/pair/v1/start", { ke1: "AAAA" });
+    expect(res.status).toBe(400);
+  });
+
   it("routes the full flow: pair on bootstrap, then activate + functional over the device listener", async () => {
     const { credential } = await completePairing();
 
