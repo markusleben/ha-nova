@@ -232,11 +232,16 @@ sync_shared_tools() {
     # runtime binary by sync_cli_runtime — the single owner of the stamp. This
     # shared-tools build stays plain (and, in a repo-dev install, relay_dst is a
     # wrapper script this rarely-taken branch would otherwise clobber).
-    # Go 1.26 refuses `-o` onto an existing non-object file; remove the target
-    # first (this branch intends to clobber a wrapper anyway).
-    rm -f "${relay_dst}"
-    (cd "${REPO_ROOT}/cli" && go build -o "${relay_dst}" .)
-    chmod 755 "${relay_dst}"
+    # Go 1.26 refuses `-o` onto an existing non-object file, and a failed build
+    # (missing toolchain, dependency/cache error) must not destroy the previously
+    # working relay, so build to a temp path and move it over the target only on
+    # success. With set -e a build failure aborts before the move, leaving the old
+    # relay intact.
+    local relay_build="${relay_dst}.new"
+    rm -f "${relay_build}"
+    (cd "${REPO_ROOT}/cli" && go build -o "${relay_build}" .)
+    chmod 755 "${relay_build}"
+    mv -f "${relay_build}" "${relay_dst}"
     echo "[dev:sync] Built and deployed relay CLI from local Go source"
   else
     echo "[dev:sync] Warning: Go not installed or cli/ missing — relay CLI not updated"

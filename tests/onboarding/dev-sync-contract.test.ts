@@ -107,7 +107,11 @@ describe("dev-sync contract", () => {
     // plain (in repo-dev installs relay_dst is a wrapper this would clobber).
     expect(content).toContain('go build -ldflags "$(dev_build_ldflags)" -o "${build_out}"');
     expect(content).not.toContain('go build -ldflags "$(dev_build_ldflags)" -o "${relay_dst}"');
-    expect(content).toContain('go build -o "${relay_dst}"');
+    // The shared-tools relay build is plain, and also failure-safe: it builds to
+    // a temp path and moves it over the target, so a failed build keeps the old
+    // relay instead of leaving the user with none.
+    expect(content).toContain('go build -o "${relay_build}"');
+    expect(content).toContain('mv -f "${relay_build}" "${relay_dst}"');
     // The fragile in-file skill stamp is retired (it was invisible in symlink
     // clients and risked writing back into the repo).
     expect(content).not.toContain("stamp_dev_build_marker");
