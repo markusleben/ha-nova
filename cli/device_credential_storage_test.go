@@ -21,11 +21,21 @@ func withDeviceStorageTestHome(t *testing.T) string {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	// The generic slots honor HA_NOVA_TEST_SECRET_DIR first — clear it so these
-	// tests exercise the REAL keyring/file selection logic.
+	// tests exercise the REAL keyring/file selection logic (go-keyring is mocked
+	// package-wide by TestMain, so "keyring" here means the in-memory mock).
 	t.Setenv("HA_NOVA_TEST_SECRET_DIR", "")
 	prevForced := deviceCredentialFileModeForced
 	deviceCredentialFileModeForced = false
-	t.Cleanup(func() { deviceCredentialFileModeForced = prevForced })
+	// Keyring reads run deviceCredentialPreflight first; on Linux that inspects
+	// the REAL DBus Secret Service, which is absent on headless CI. Stub it to a
+	// no-op so keyring-mode reads reach the mock on every platform. Tests that
+	// need a preflight/keyring failure override this again.
+	prevPreflight := deviceCredentialPreflight
+	deviceCredentialPreflight = func() error { return nil }
+	t.Cleanup(func() {
+		deviceCredentialFileModeForced = prevForced
+		deviceCredentialPreflight = prevPreflight
+	})
 	return home
 }
 
@@ -53,6 +63,9 @@ func TestProbeFallsBackToFilesWhenNoDesktopSession(t *testing.T) {
 	}
 	if !deviceCredentialFileModeForced {
 		t.Fatal("expected the probe to force file mode for subsequent writes")
+	}
+	if !deviceFileBackendMarkerExists() {
+		t.Fatal("expected the probe to persist a file-backend marker for future processes")
 	}
 
 	// Writes now land in a 0600 file under the config dir, and reads find them.
@@ -94,16 +107,19 @@ func TestProbeDoesNotDowngradeALockedDesktopKeyring(t *testing.T) {
 	}
 }
 
-func TestProbeShortCircuitsWhenAFileCredentialExists(t *testing.T) {
+func TestProbeShortCircuitsWhenFileBackendMarkerExists(t *testing.T) {
 	withDeviceStorageTestHome(t)
-	// A previous headless pairing left a credential file: the install is in file
-	// mode without any probe/canary — reads must self-select the file.
+	// An established headless install: the file-backend marker records the mode,
+	// so the probe must NOT consult the keyring and reads self-select the file.
 	cred := generateTestDeviceCredential(t)
+	if err := writeDeviceFileBackendMarker(); err != nil {
+		t.Fatalf("seed marker: %v", err)
+	}
 	if err := deviceSecretFileSet(deviceCredentialService, cred); err != nil {
 		t.Fatalf("seed file credential: %v", err)
 	}
 	stubStorageCanaries(t, fmt.Errorf("canary must not run"))
-	deviceStorageKeyringCanary = func() error { t.Fatal("keyring canary ran despite existing file credential"); return nil }
+	deviceStorageKeyringCanary = func() error { t.Fatal("keyring canary ran despite the file-backend marker"); return nil }
 
 	probe, err := probeDeviceCredentialStorage()
 	if err != nil || probe.mode != "file" {
@@ -115,48 +131,86 @@ func TestProbeShortCircuitsWhenAFileCredentialExists(t *testing.T) {
 	}
 }
 
-func TestStalePendingFileDoesNotMaskKeyringCurrentCredential(t *testing.T) {
+func TestOrphanCredentialFileWithoutMarkerStaysOnKeyring(t *testing.T) {
 	withDeviceStorageTestHome(t)
-	// Desktop-paired install: the CURRENT credential lives in the (mocked) OS
-	// keyring. An interrupted headless re-pair then left only a PENDING file.
+	// A credential file WITHOUT a marker is orphan residue (e.g. an aborted early
+	// file attempt). It must not flip the install to file mode: the current slot
+	// stays on the keyring, and the probe (keyring healthy) cleans the orphan.
 	keyringCred := generateTestDeviceCredential(t)
 	if err := keyring.Set(deviceCredentialService, secretUser(), keyringCred); err != nil {
 		t.Fatalf("seed keyring current credential: %v", err)
 	}
-	pendingCred := "hanova-dev-v1.CCCCCCCCCCCCCCCCCCCCCC.DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD"
-	if err := deviceSecretFileSet(deviceCredentialPendingService, pendingCred); err != nil {
+	orphan := "hanova-dev-v1.EEEEEEEEEEEEEEEEEEEEEE.FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+	if err := deviceSecretFileSet(deviceCredentialService, orphan); err != nil {
+		t.Fatalf("seed orphan current file: %v", err)
+	}
+	stubStorageCanaries(t, nil) // keyring healthy
+
+	probe, err := probeDeviceCredentialStorage()
+	if err != nil || probe.mode != "keyring" {
+		t.Fatalf("expected keyring mode (no downgrade), got mode=%q err=%v", probe.mode, err)
+	}
+	// The orphan file is cleaned, and the current slot resolves to the keyring.
+	if deviceSecretFileExists(deviceCredentialService) {
+		t.Fatal("expected the probe to clear the orphan credential file on the keyring path")
+	}
+	got, ok, err := readDeviceCredential()
+	if err != nil || !ok || got != keyringCred {
+		t.Fatalf("keyring credential masked by orphan file: got=%q ok=%v err=%v", got, ok, err)
+	}
+}
+
+func TestStalePendingFileWithoutMarkerDoesNotMaskKeyringCurrent(t *testing.T) {
+	withDeviceStorageTestHome(t)
+	// Desktop-paired install: the CURRENT credential lives in the (mocked) OS
+	// keyring, with no file-backend marker. An interrupted attempt left a stale
+	// PENDING file. Neither slot may switch to the file backend.
+	keyringCred := generateTestDeviceCredential(t)
+	if err := keyring.Set(deviceCredentialService, secretUser(), keyringCred); err != nil {
+		t.Fatalf("seed keyring current credential: %v", err)
+	}
+	if err := deviceSecretFileSet(deviceCredentialPendingService,
+		"hanova-dev-v1.CCCCCCCCCCCCCCCCCCCCCC.DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD"); err != nil {
 		t.Fatalf("seed stale pending file: %v", err)
 	}
 
-	// The current slot must STILL resolve to the keyring credential — the stale
-	// pending file is a different slot and must not switch the current read.
+	// Current resolves to the keyring credential — not masked.
 	got, ok, err := readDeviceCredential()
 	if err != nil || !ok || got != keyringCred {
 		t.Fatalf("current credential masked by stale pending file: got=%q ok=%v err=%v", got, ok, err)
 	}
-	// The pending slot resolves to the file (its own backend), independently.
-	gotP, okP, errP := readPendingDeviceCredential()
-	if errP != nil || !okP || gotP != pendingCred {
-		t.Fatalf("pending slot not readable from file: got=%q ok=%v err=%v", gotP, okP, errP)
+	// Pending resolves to the keyring too (empty) — the stale file is orphan
+	// residue on a keyring install and is ignored, never read.
+	_, okP, errP := readPendingDeviceCredential()
+	if errP != nil || okP {
+		t.Fatalf("stale pending file was read despite keyring backend: ok=%v err=%v", okP, errP)
 	}
 }
 
-func TestProbeRejectsAnExistingFileInstallWithAnUnwritableStore(t *testing.T) {
+func TestFileCanaryRejectsAnUnwritableExistingCredentialFile(t *testing.T) {
 	withDeviceStorageTestHome(t)
-	cred := generateTestDeviceCredential(t)
-	if err := deviceSecretFileSet(deviceCredentialService, cred); err != nil {
-		t.Fatalf("seed file credential: %v", err)
+	// Established file install (marker present) whose current credential file has
+	// become non-writable (root-owned / 0400). The canary must catch the failed
+	// OVERWRITE path, not just a fresh probe file — BEFORE any code is consumed.
+	if err := writeDeviceFileBackendMarker(); err != nil {
+		t.Fatalf("seed marker: %v", err)
 	}
-	// The file store has gone read-only between runs; the canary must catch it
-	// BEFORE a pairing spends the one-time code.
-	prevCanary := deviceStorageFileCanary
-	deviceStorageFileCanary = func() error { return fmt.Errorf("read-only file system") }
-	t.Cleanup(func() { deviceStorageFileCanary = prevCanary })
-	deviceStorageKeyringCanary = func() error { t.Fatal("keyring canary must not run for a file install"); return nil }
+	if err := deviceSecretFileSet(deviceCredentialService, generateTestDeviceCredential(t)); err != nil {
+		t.Fatalf("seed credential file: %v", err)
+	}
+	path, _ := deviceSecretFilePath(deviceCredentialService)
+	if err := os.Chmod(path, 0o400); err != nil {
+		t.Fatalf("chmod 0400: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(path, 0o600) })
 
+	// Real file canary (not stubbed); keyring canary must not run for a file install.
+	prevK := deviceStorageKeyringCanary
+	deviceStorageKeyringCanary = func() error { t.Fatal("keyring canary must not run for a marked file install"); return nil }
+	t.Cleanup(func() { deviceStorageKeyringCanary = prevK })
 	_, err := probeDeviceCredentialStorage()
 	if err == nil || !strings.Contains(err.Error(), "not writable") {
-		t.Fatalf("expected an unwritable-file-store error, got %v", err)
+		t.Fatalf("expected an unwritable-file-store error from the overwrite check, got %v", err)
 	}
 }
 

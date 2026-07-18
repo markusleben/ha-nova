@@ -58,18 +58,9 @@ func promotePendingDeviceCredential() error {
 	if !ok {
 		return fmt.Errorf("no pending credential to promote")
 	}
-	// The current slot inherits the pending slot's backend: a headless pairing
-	// resumed in a fresh process (probe never ran, so nothing is forced) must
-	// promote file -> file instead of suddenly requiring an OS keyring.
-	if _, testMode := testSecretDir(); !testMode && deviceSecretFileExists(deviceCredentialPendingService) {
-		if parseDeviceCredential(pending) == nil {
-			return fmt.Errorf("refusing to store a malformed device credential")
-		}
-		if err := deviceSecretFileSet(deviceCredentialService, pending); err != nil {
-			return err
-		}
-		return deviceSecretFileDelete(deviceCredentialPendingService)
-	}
+	// Backend is install-wide (see device_credential_storage.go), so current and
+	// pending always resolve to the same store — a plain write+delete promotes
+	// correctly whether this install uses the keyring or the file backend.
 	if err := writeDeviceCredential(pending); err != nil {
 		return err
 	}

@@ -54,11 +54,11 @@ func secretGet(service string) (string, error) {
 		return strings.TrimSpace(string(data)), nil
 	}
 	// Headless installs keep device credentials in private files (see
-	// device_credential_storage.go). The decision is per slot — THIS slot's file
-	// existing (or probe-forced file mode) routes to the file backend, so a stale
-	// pending file can never mask a valid keyring credential in the current slot,
-	// and no dbus probing happens on the hot read path.
-	if deviceSecretFileBacked(service) {
+	// device_credential_storage.go). This is one install-wide backend decision
+	// (an explicit marker or the process-forced flag), so a leftover credential
+	// file can never redirect a slot on a keyring install, and no dbus probing
+	// happens on the hot read path.
+	if deviceSecretFileBacked() {
 		value, err := deviceSecretFileGet(service)
 		if err != nil {
 			return "", err
@@ -85,7 +85,7 @@ func secretSet(service, value string) error {
 		}
 		return os.WriteFile(testSecretPath(dir, service), []byte(value), 0o600)
 	}
-	if deviceSecretFileBacked(service) {
+	if deviceSecretFileBacked() {
 		return deviceSecretFileSet(service, value)
 	}
 	if err := deviceCredentialPreflight(); err != nil {
@@ -102,7 +102,7 @@ func secretDelete(service string) error {
 		}
 		return nil
 	}
-	if deviceSecretFileBacked(service) {
+	if deviceSecretFileBacked() {
 		return deviceSecretFileDelete(service)
 	}
 	if err := deviceCredentialPreflight(); err != nil {
