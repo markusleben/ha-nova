@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/bytemare/ksf"
@@ -76,6 +77,9 @@ func pairDeviceV1(client *http.Client, bootstrapURL, code string, meta deviceMet
 	if client == nil {
 		client = &http.Client{Timeout: pairingHTTPTimeout}
 	}
+	// A trailing slash would make bootstrapURL+"/pair/v1/..." a double-slash path
+	// the relay serves as 404; normalize once so every v1 request is well-formed.
+	bootstrapURL = strings.TrimRight(bootstrapURL, "/")
 	conf := opaqueClientConfig()
 	oc, err := conf.Client()
 	if err != nil {

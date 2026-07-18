@@ -51,7 +51,10 @@ func pairingStatusError(status int, body []byte) error {
 	switch {
 	case status == 429:
 		return &relayPairingRateLimitError{retryAfterSeconds: 60}
-	case status == 409 || code == "PAIRING_INACTIVE":
+	case status == 409 || code == "PAIRING_INACTIVE" || code == "VALIDATION_ERROR":
+		// v1 returns 400/VALIDATION_ERROR when no code is active (deliberately
+		// indistinguishable from a malformed request so the LAN cannot detect the
+		// window); surface the same "click Connect a device" guidance.
 		return errPairingInactive
 	case status == 401 || code == "PAIRING_FAILED":
 		return errPairingCodeRejected

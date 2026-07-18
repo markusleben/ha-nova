@@ -9,6 +9,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"errors"
 	"math/big"
 	"net/http"
 	"net/http/httptest"
@@ -16,6 +17,33 @@ import (
 	"testing"
 	"time"
 )
+
+// Regression: a trailing slash on the relay URL must not produce //pair/v1/start
+// (which the relay serves as 404), so the v1 request path stays well-formed.
+func TestPairDeviceV1NormalizesTrailingSlash(t *testing.T) {
+	var gotPath string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		w.WriteHeader(http.StatusInternalServerError) // fail fast; only the path matters
+	}))
+	defer srv.Close()
+
+	_, _ = pairDeviceV1(srv.Client(), srv.URL+"/", "123456",
+		deviceMetadata{Name: "t", Platform: "p", Client: "c", ClientInstallID: "i"})
+	if gotPath != "/pair/v1/start" {
+		t.Fatalf("want /pair/v1/start, got %q", gotPath)
+	}
+}
+
+// Regression: the v1 relay returns 400/VALIDATION_ERROR when no code is active
+// (indistinguishable from a malformed request); the CLI must still surface the
+// "click Connect a device" guidance rather than a raw status message.
+func TestPairingStatusErrorMapsValidationErrorToInactive(t *testing.T) {
+	err := pairingStatusError(http.StatusBadRequest, []byte(`{"ok":false,"error":{"code":"VALIDATION_ERROR"}}`))
+	if !errors.Is(err, errPairingInactive) {
+		t.Fatalf("v1 400/VALIDATION_ERROR should map to errPairingInactive, got %v", err)
+	}
+}
 
 func TestParseDeviceCredential(t *testing.T) {
 	good := "hanova-dev-v1." + strings.Repeat("A", 22) + "." + strings.Repeat("B", 43)

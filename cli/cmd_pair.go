@@ -8,6 +8,9 @@ import (
 	"strings"
 )
 
+// Hook so the pair command's config seeding can be tested without a live relay.
+var runSecurePairingForPairCmd = runSecurePairing
+
 // runPairCommand pairs this install with a NOVA Relay using a one-time code from
 // the NOVA owner page. The passwordless secure flow: OPAQUE over the bootstrap
 // port, then a device credential over SPKI-pinned TLS. Stores the credential and
@@ -54,6 +57,10 @@ func runPairCommand(paths runtimePaths, args []string) int {
 	}
 	if cfgErr != nil {
 		cfg = runtimeConfig{RelayBaseURL: bootstrapURL}
+	} else if strings.TrimSpace(relayURL) != "" {
+		// An explicit --relay-url must persist for later functional calls, not
+		// just drive this one pairing — the successful pairing saves cfg.
+		cfg.RelayBaseURL = bootstrapURL
 	}
 
 	if code == "" {
@@ -70,7 +77,7 @@ func runPairCommand(paths runtimePaths, args []string) int {
 	}
 
 	save := func(c *runtimeConfig) error { return saveConfig(paths, *c) }
-	deviceID, err := runSecurePairing(bootstrapURL, normalized, &cfg, save, defaultPairingClientInfo())
+	deviceID, err := runSecurePairingForPairCmd(bootstrapURL, normalized, &cfg, save, defaultPairingClientInfo())
 	if err != nil {
 		switch {
 		case errors.Is(err, errPairingCodeRejected):
