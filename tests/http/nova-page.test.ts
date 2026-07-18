@@ -149,4 +149,43 @@ describe("nova-page", () => {
     expect(r.statusCode).toBe(303);
     expect(registry.list()).toHaveLength(0);
   });
+
+  it("shows a legacy-access section only while a legacy credential exists, and revokes it", async () => {
+    // No legacy credential -> no section, no way to revoke something that
+    // does not exist.
+    let r = await call(createNovaPageHandler(deps), req());
+    expect(r.body).not.toContain("Revoke legacy access");
+
+    registry.importLegacy("legacy-digest-abc", now());
+    r = await call(createNovaPageHandler(deps), req());
+    expect(r.body).toContain("Revoke legacy access");
+
+    const token = csrf.issue("owner-1", "revoke_legacy", now());
+    const ar = await call(createNovaActionHandler(deps), req(), { action: "revoke_legacy", csrf: token });
+    expect(ar.statusCode).toBe(303);
+    expect(registry.hasLegacy()).toBe(false);
+
+    // Gone again once revoked.
+    r = await call(createNovaPageHandler(deps), req());
+    expect(r.body).not.toContain("Revoke legacy access");
+  });
+
+  it("issues one CSRF token per action, not per device, so many devices don't evict earlier forms", async () => {
+    // More active devices than CSRF_MAX_PENDING (8): a per-device token would
+    // evict the earliest forms' tokens mid-render and break their buttons.
+    for (let i = 0; i < 12; i++) {
+      const c = generateCredential();
+      registry.createPending({ deviceId: c.deviceId, secretDigest: c.secretDigest, clientInstallId: `i${i}`, name: `d${i}`, platform: "darwin", client: "claude", createdAtMs: 1 }, now());
+      registry.activate(c.deviceId, now());
+    }
+    const r = await call(createNovaPageHandler(deps), req());
+    const tokens = [...r.body.matchAll(/name="csrf" value="([^"]+)"/g)].map((m) => m[1]);
+    // 12 revoke forms + the pairing form, but only distinct-per-action tokens.
+    expect(tokens.length).toBeGreaterThan(12);
+    expect(new Set(tokens).size).toBeLessThanOrEqual(3);
+    // The shared revoke_device token (device forms render after the pairing
+    // form) still verifies — it was never evicted.
+    const revokeToken = tokens[tokens.length - 1]!;
+    expect(csrf.consume("owner-1", "revoke_device", revokeToken, now())).toBe(true);
+  });
 });

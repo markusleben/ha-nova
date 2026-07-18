@@ -22,8 +22,8 @@ const CSP = [
   "frame-ancestors 'self'",
 ].join("; ");
 
-export type NovaAction = "generate_code" | "cancel_code" | "revoke_device";
-const ACTIONS = new Set<NovaAction>(["generate_code", "cancel_code", "revoke_device"]);
+export type NovaAction = "generate_code" | "cancel_code" | "revoke_device" | "revoke_legacy";
+const ACTIONS = new Set<NovaAction>(["generate_code", "cancel_code", "revoke_device", "revoke_legacy"]);
 
 export interface ConnectionStatus {
   haConnected: boolean;
@@ -76,6 +76,7 @@ export function createNovaPageHandler(deps: NovaPageDeps): RouteHandler {
       now: deps.now(),
       pairing: deps.pairing.getStatus(),
       devices: deps.registry.list(),
+      hasLegacy: deps.registry.hasLegacy(),
       connection: deps.connection(),
       update,
       relayVersion: deps.relayVersion,
@@ -146,6 +147,11 @@ function applyAction(deps: NovaPageDeps, action: NovaAction, form: Record<string
       }
       return;
     }
+    case "revoke_legacy":
+      // Cut off the migrated shared token so a pre-pairing credential cannot
+      // outlive the devices; paired devices keep working.
+      deps.registry.revokeLegacy();
+      return;
   }
 }
 
@@ -164,6 +170,7 @@ interface PageModel {
   now: number;
   pairing: { phase: string; code?: string; expiresAtMs?: number };
   devices: DeviceRecord[];
+  hasLegacy: boolean;
   connection: ConnectionStatus;
   update: UpdateStatus;
   relayVersion: string;
@@ -172,8 +179,19 @@ interface PageModel {
 
 function renderPage(m: PageModel): string {
   const formOpen = `<form method="post" action="${escapeAttr(joinIngress(m.ingressPath, "action"))}">`;
-  const csrfField = (action: NovaAction): string =>
-    `<input type="hidden" name="csrf" value="${escapeAttr(m.csrf.issue(m.userId, action, m.now))}"><input type="hidden" name="action" value="${action}">`;
+  // One token per action per render, not per form: the page can show up to
+  // MAX_ACTIVE revoke forms, but a single-use token per device would evict the
+  // earliest ones (CSRF cap) and break those buttons. Forms of one action
+  // submit one at a time (PRG re-renders with a fresh token), so they share it.
+  const csrfTokens = new Map<NovaAction, string>();
+  const csrfField = (action: NovaAction): string => {
+    let token = csrfTokens.get(action);
+    if (token === undefined) {
+      token = m.csrf.issue(m.userId, action, m.now);
+      csrfTokens.set(action, token);
+    }
+    return `<input type="hidden" name="csrf" value="${escapeAttr(token)}"><input type="hidden" name="action" value="${action}">`;
+  };
 
   const pairingSection =
     m.pairing.phase === "active" && m.pairing.code
@@ -196,6 +214,12 @@ function renderPage(m: PageModel): string {
               `<li><span class="device"><strong>${escapeHtml(d.name)}</strong><span class="muted">${escapeHtml(d.platform)} · ${escapeHtml(d.client)}</span></span>${formOpen}${csrfField("revoke_device")}<input type="hidden" name="device_id" value="${escapeAttr(d.deviceId)}"><button class="secondary danger" type="submit">Revoke</button></form></li>`
           )
           .join("")}</ul>`;
+
+  // Shown only while a migrated shared token still exists, so the owner can
+  // cut off pre-pairing access that would otherwise outlive every device.
+  const legacySection = m.hasLegacy
+    ? `<section><h2>Legacy access</h2><p class="muted">A shared token from before device pairing can still control Home Assistant. Once every computer is paired, revoke it so only paired devices keep access.</p>${formOpen}${csrfField("revoke_legacy")}<button class="secondary danger" type="submit">Revoke legacy access</button></form></section>`
+    : "";
 
   const updateLine = m.update.error
     ? `<span class="muted">Update status unavailable.</span>`
@@ -269,7 +293,7 @@ function renderPage(m: PageModel): string {
 <section><h2>Update</h2><p>${updateLine}</p></section>
 <section><h2>Pairing</h2>${pairingSection}</section>
 <section><h2>Devices</h2>${deviceRows}</section>
-<footer>Signed in as ${escapeHtml(m.ownerName)} · Relay ${escapeHtml(m.relayVersion)}</footer>
+${legacySection}<footer>Signed in as ${escapeHtml(m.ownerName)} · Relay ${escapeHtml(m.relayVersion)}</footer>
 </main>
 </body></html>`;
 }
