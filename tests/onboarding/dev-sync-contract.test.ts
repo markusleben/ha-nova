@@ -57,7 +57,12 @@ describe("dev-sync contract", () => {
     expect(content).toContain("sync_cli_runtime()");
     expect(content).toContain("stamp_dev_sync_state()");
     expect(content).toContain("dev_runtime_target()");
-    expect(content).toContain('go build -ldflags "$(dev_build_ldflags)" -o "${target}"');
+    // Go 1.26 refuses `go build -o <path>` when <path> already exists and is not
+    // a Go object file, so the build goes to a temp path and is moved over the
+    // runtime target only on success — which also keeps the old runtime intact
+    // when the build fails.
+    expect(content).toContain('go build -ldflags "$(dev_build_ldflags)" -o "${build_out}"');
+    expect(content).toContain('mv -f "${build_out}" "${target}"');
     // Guarded to a runtime under the current HOME so test sandboxes never build.
     expect(content).toContain('"${HOME}"/*) ;;');
     // Never rebuild onto a tracked in-repo helper shim that happens to be on PATH:
@@ -100,7 +105,7 @@ describe("dev-sync contract", () => {
     // The stamp has a SINGLE owner: sync_cli_runtime, which builds the runtime
     // binary `ha-nova` actually resolves to. The shared-tools relay build stays
     // plain (in repo-dev installs relay_dst is a wrapper this would clobber).
-    expect(content).toContain('go build -ldflags "$(dev_build_ldflags)" -o "${target}"');
+    expect(content).toContain('go build -ldflags "$(dev_build_ldflags)" -o "${build_out}"');
     expect(content).not.toContain('go build -ldflags "$(dev_build_ldflags)" -o "${relay_dst}"');
     expect(content).toContain('go build -o "${relay_dst}"');
     // The fragile in-file skill stamp is retired (it was invisible in symlink
