@@ -156,7 +156,7 @@ describe("dev-sync behavior", () => {
       env: mockEnv(home, binDir, { PATH: `${binDir}:/usr/bin:/bin` }),
     });
 
-    expect(result.status, `DEVSYNC-DIAG status=${result.status}\n--stdout--\n${result.stdout}\n--stderr--\n${result.stderr}`).toBe(0);
+    expect(result.status).toBe(0);
     expect(result.stdout).toContain("Shared tools refreshed");
     expect(existsSync(join(configDir, "version-check"))).toBe(true);
     expect(existsSync(join(configDir, "version.json"))).toBe(true);
