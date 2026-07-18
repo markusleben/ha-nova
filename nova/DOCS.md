@@ -10,8 +10,27 @@ AI Client → NOVA Relay (this App) → Home Assistant APIs
 ```
 
 Your AI client (Claude Code, Claude Desktop, Codex, OpenCode, Google Antigravity, Hermes Agent) connects
-to the relay using an auth token. Intelligence lives in the AI client's skills, not
-in the relay.
+to the relay with its own secure device credential — created by pairing, never
+copied or pasted by hand. Intelligence lives in the AI client's skills, not in
+the relay.
+
+## The NOVA page
+
+Open **NOVA** in the Home Assistant sidebar to manage everything in one place.
+(The **Open Web UI** button on this App's page opens the exact same screen —
+it is the same owner console either way.)
+
+From there you can:
+
+- see whether the relay is connected to Home Assistant,
+- check for App updates,
+- **connect a device**: click *Connect a device* to show a one-time six-digit
+  code, then enter it on your computer when `ha-nova setup` asks. The code works
+  once and expires in 10 minutes,
+- see connected devices and **revoke** any one of them instantly.
+
+The page is owner-only and only reachable through Home Assistant's ingress — a
+direct network request cannot open it.
 
 ## Configuration
 
@@ -34,16 +53,22 @@ server-side as documented in `docs/reference/relay-container.md`.
 
 | Port | Description |
 |------|-------------|
-| 8791/tcp | Relay HTTP API |
+| 8791/tcp | Pairing + legacy HTTP access |
+| 8792/tcp | Secure device API (pinned TLS) — all paired-device traffic |
 
 ## Endpoints
 
-The relay exposes six endpoints. Normal requests, including `GET /health`, require the Relay Auth Token via `Authorization: Bearer <token>`. Exact `POST /pair` instead uses its short-lived pairing code as the credential.
+Paired devices authenticate with their own credential over the secure TLS port
+(8792), sent as `Authorization: Bearer <token>`. Requests on the plain port
+(8791), including `GET /health` and legacy access, use the same header. The
+pairing endpoints use the one-time code as their credential instead. You
+normally never call these directly — the CLI and the NOVA page do it for you.
 
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/health` | Relay health check (version, uptime, WS status) |
-| POST | `/pair` | One-time pairing-code exchange for the relay token |
+| GET/POST | `/pair/v1/*` | Secure device pairing (OPAQUE) — code as credential |
+| POST | `/auth/device/*` | Device credential activate / revoke (TLS only) |
 | POST | `/ws` | WebSocket proxy — forwards commands to HA's WS API |
 | POST | `/core` | REST API proxy — forwards requests to HA's Core REST API (`/api/...`) |
 | POST | `/files` | Opt-in, contained configuration-file operations |
@@ -63,13 +88,12 @@ Or if you already have the repo:
 ha-nova setup
 ```
 
-The setup wizard handles relay configuration and skill installation. It automatically uses one reachable Home Assistant instance, shows a source-labeled pick list when it finds several, and keeps manual address entry when discovery finds none. Its normal App flow starts the App and asks only for the six-digit Home Base code, stores the returned relay token in the client's OS credential store, and verifies both Relay health and WebSocket access without displaying the private relay token. Existing saved tokens, `--relay-token`, service token files, and standalone Container/Core setups keep their explicit-token paths.
+The setup wizard handles relay configuration and skill installation. It automatically uses one reachable Home Assistant instance, shows a source-labeled pick list when it finds several, and keeps manual address entry when discovery finds none. Its normal App flow asks only for the six-digit code from the NOVA page, then pairs securely: the device receives its own credential (kept in the client's OS credential store) and talks to the relay over pinned TLS. Nothing to copy or paste. Existing saved tokens, `--relay-token`, service token files, and standalone Container/Core setups keep their explicit-token paths.
 
 ## Checking Status
 
-Open **NOVA Home Base** in the Home Assistant sidebar for Relay status and the
-current pairing code. The panel is admin-only and available through Home
-Assistant ingress; direct port access cannot render it.
+Open **NOVA** in the Home Assistant sidebar (see [The NOVA page](#the-nova-page))
+for connection status, updates, and device management.
 
 Run the built-in health check:
 
@@ -127,9 +151,9 @@ A healthy response looks like:
 
 App logs are available in the **Log** tab above. Look for:
 
-- `Relay listening` — relay started successfully
-- `Relay bootstrap` — shows auth source and capability
-- `Pairing code ready` — the initial short-lived fallback code; later rotations appear in Home Base and are intentionally not logged
+- `Relay listening (app mode)` — relay started successfully
+- `Relay bootstrap (app mode)` — shows the upstream auth source
+- Pairing codes are **never** logged — generate and read them on the NOVA page
 - Any `error` or `warn` messages indicate issues
 
 ## Support

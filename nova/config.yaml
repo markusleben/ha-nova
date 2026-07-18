@@ -10,19 +10,27 @@ startup: services
 boot: auto
 init: false
 ingress: true
-ingress_port: 8791
+# Ingress serves the owner-only NOVA console on an internal, unmapped port so it
+# is never reachable from the LAN; 8791/8792 are the public transport ports.
+ingress_port: 8793
 ingress_entry: /home
 ports:
+  # OPAQUE pairing bootstrap + legacy HTTP access. Device credentials are never
+  # accepted here — only over the TLS port below.
   8791/tcp: 8791
+  # Pinned TLS 1.3 for all device-credential traffic. Its mapped host port is
+  # read back from Supervisor self-info and pinned into each pairing response.
+  8792/tcp: 8792
 ports_description:
-  8791/tcp: Relay HTTP API
+  8791/tcp: Relay pairing + legacy HTTP
+  8792/tcp: Relay secure device API (TLS)
 # TCP liveness only: /health requires bearer auth, an HTTP watchdog would 401-loop.
 watchdog: tcp://[HOST]:[PORT:8791]
 homeassistant_api: true
 hassio_api: true
 hassio_role: default
-panel_icon: mdi:lan-connect
-panel_title: NOVA Home Base
+panel_icon: mdi:star-four-points
+panel_title: NOVA
 panel_admin: true
 
 # Read-write access to the Home Assistant configuration directory. The relay

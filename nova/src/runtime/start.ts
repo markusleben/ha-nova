@@ -4,6 +4,7 @@ import { type Server } from "node:http";
 import { createConnection, createLongLivedTokenAuth, type HaWebSocket } from "home-assistant-js-websocket";
 
 import { createApp, type App } from "../index.js";
+import { buildAppMode } from "./app-mode.js";
 import { readAppOptions, type AppOptions } from "../config/app-options.js";
 import { resolveFileAccess, type FileAccessConfig, type RootProbe } from "../config/file-access.js";
 import { loadEnv, type EnvConfig, type LogLevel } from "../config/env.js";
@@ -112,6 +113,16 @@ export function bootstrapRuntime(dependencies: RuntimeDependencies = {}): Runtim
 }
 
 export async function startRelay(dependencies: RuntimeDependencies = {}): Promise<StartRelayResult> {
+  const env = (dependencies.loadEnv ?? loadEnv)();
+
+  // App mode (a real HA App, SUPERVISOR_TOKEN present) runs the three-listener
+  // secure-pairing stack. Standalone Container/Core keeps the single-listener
+  // path below. The startup pairing-code log is gone in app mode: no code is
+  // generated at startup anymore, and codes are never logged.
+  if (env.supervisorToken) {
+    return await startAppModeRelay(env, dependencies);
+  }
+
   const runtime = bootstrapRuntime(dependencies);
   const logger = dependencies.logger ?? createConsoleLogger(runtime.env.logLevel);
 
@@ -127,6 +138,69 @@ export async function startRelay(dependencies: RuntimeDependencies = {}): Promis
   return {
     ...runtime,
     port: runtime.env.relayPort
+  };
+}
+
+async function startAppModeRelay(env: EnvConfig, dependencies: RuntimeDependencies): Promise<StartRelayResult> {
+  const logger = dependencies.logger ?? createConsoleLogger(env.logLevel);
+  const appOptions = (dependencies.readAppOptions ?? readAppOptions)(env.appOptionsPath);
+  const upstreamAuth = resolveUpstreamToken(buildTokenResolutionInput(env));
+  if (upstreamAuth.capability !== "full" || !upstreamAuth.token) {
+    throw new Error("SUPERVISOR_TOKEN or HA_LLAT is required for runtime startup.");
+  }
+
+  const wsClient = (dependencies.createWsClient ?? createDefaultWsClient)({ env, appOptions, upstreamAuth });
+  const coreClient = (dependencies.createRestClient ?? createDefaultRestClient)({ env, appOptions, upstreamAuth });
+  const fileAccess = resolveFileAccess(
+    { mode: fileAccessOption(appOptions, process.env), configRootOverride: process.env.CONFIG_ROOT },
+    (path: string) => probeConfigRoot(path)
+  );
+
+  logger.info("Relay bootstrap (app mode)", {
+    ha_url: env.haUrl,
+    auth_source: upstreamAuth.source,
+    file_access: fileAccess.mode,
+    snapshot_dir: env.snapshotDir,
+  });
+  for (const warning of fileAccess.warnings) {
+    logger.warn(warning);
+  }
+
+  const appMode = await buildAppMode({
+    supervisorToken: env.supervisorToken!,
+    relayVersion: env.relayVersion,
+    wsClient: wsClient as never,
+    coreClient: { request: (input) => coreClient.request(input) },
+    fileAccess,
+    snapshotRoot: env.snapshotDir,
+    appOptionsPath: env.appOptionsPath,
+    startedAtMs: Date.now(),
+    now: () => Date.now(),
+    logger,
+    ...(process.env.NOVA_ICON_PATH ? { iconPath: process.env.NOVA_ICON_PATH } : {}),
+  });
+  await appMode.listen();
+
+  // The bootstrap port is the liveness/watchdog signal, reported as the port.
+  const runtime = bootstrapRuntimeForResult(env, appOptions, fileAccess, upstreamAuth, appMode.servers.bootstrap);
+  return { ...runtime, port: env.relayPort };
+}
+
+// A minimal RuntimeBootstrapResult for the app-mode return value; the three
+// servers live in the app-mode runtime, and callers only read env/options.
+function bootstrapRuntimeForResult(
+  env: EnvConfig,
+  appOptions: AppOptions,
+  fileAccess: FileAccessConfig,
+  upstreamAuth: UpstreamTokenResolution,
+  bootstrapServer: Server
+): RuntimeBootstrapResult {
+  return {
+    app: { version: env.relayVersion, server: bootstrapServer } as unknown as App,
+    env,
+    appOptions,
+    fileAccess,
+    upstreamAuth,
   };
 }
 
