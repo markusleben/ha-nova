@@ -62,16 +62,29 @@ func TestProbeFallsBackToFilesWhenNoDesktopSession(t *testing.T) {
 		t.Fatalf("expected a user-facing note about the file fallback, got %q", probe.note)
 	}
 	if !deviceCredentialFileModeForced {
-		t.Fatal("expected the probe to force file mode for subsequent writes")
+		t.Fatal("expected the probe to force file mode for this process")
 	}
-	if !deviceFileBackendMarkerExists() {
-		t.Fatal("expected the probe to persist a file-backend marker for future processes")
+	// The marker is NOT written at probe time — only when a current credential is
+	// actually promoted to a file. A canceled pairing must leave nothing behind.
+	if deviceFileBackendMarkerExists() {
+		t.Fatal("probe must not persist the file-backend marker before a credential is stored")
 	}
 
-	// Writes now land in a 0600 file under the config dir, and reads find them.
+	// A pending write is provisional and still does not commit the mode.
 	cred := generateTestDeviceCredential(t)
+	if err := writePendingDeviceCredential(cred); err != nil {
+		t.Fatalf("writePendingDeviceCredential in file mode: %v", err)
+	}
+	if deviceFileBackendMarkerExists() {
+		t.Fatal("a pending write must not persist the file-backend marker")
+	}
+
+	// Promotion writes the CURRENT credential to a file — THAT commits the mode.
 	if err := writeDeviceCredential(cred); err != nil {
 		t.Fatalf("writeDeviceCredential in file mode: %v", err)
+	}
+	if !deviceFileBackendMarkerExists() {
+		t.Fatal("expected the file-backend marker after a current credential is stored")
 	}
 	got, ok, err := readDeviceCredential()
 	if err != nil || !ok || got != cred {
@@ -85,11 +98,33 @@ func TestProbeFallsBackToFilesWhenNoDesktopSession(t *testing.T) {
 	if info.Mode().Perm() != 0o600 {
 		t.Fatalf("expected 0600 file, got %v", info.Mode().Perm())
 	}
-	if err := deleteDeviceCredential(); err != nil {
-		t.Fatalf("deleteDeviceCredential in file mode: %v", err)
+}
+
+func TestCanceledFilePairDoesNotDowngradeAKeyringInstall(t *testing.T) {
+	withDeviceStorageTestHome(t)
+	// A desktop-paired install (credential in the keyring) is run from an SSH
+	// shell with no session bus: the probe forces file mode for this process but
+	// must NOT persist the marker. If the pairing is canceled before a current
+	// credential is written, the keyring credential must remain the source of
+	// truth in the next (desktop) process.
+	keyringCred := generateTestDeviceCredential(t)
+	if err := keyring.Set(deviceCredentialService, secretUser(), keyringCred); err != nil {
+		t.Fatalf("seed keyring current credential: %v", err)
 	}
-	if _, ok, _ := readDeviceCredential(); ok {
-		t.Fatal("credential still readable after delete")
+	stubStorageCanaries(t, fmt.Errorf("%w: dbus-launch not found", errDesktopKeyringSessionUnavailable))
+	probe, err := probeDeviceCredentialStorage()
+	if err != nil || probe.mode != "file" {
+		t.Fatalf("expected file mode for this process, got mode=%q err=%v", probe.mode, err)
+	}
+	// Pairing canceled here — no current credential written, so no marker.
+	if deviceFileBackendMarkerExists() {
+		t.Fatal("a canceled file pairing left a marker → a keyring install would be downgraded")
+	}
+	// A fresh process (forced flag reset) still reads the keyring credential.
+	deviceCredentialFileModeForced = false
+	got, ok, err := readDeviceCredential()
+	if err != nil || !ok || got != keyringCred {
+		t.Fatalf("keyring credential lost after a canceled SSH pairing: got=%q ok=%v err=%v", got, ok, err)
 	}
 }
 
@@ -140,9 +175,13 @@ func TestOrphanCredentialFileWithoutMarkerStaysOnKeyring(t *testing.T) {
 	if err := keyring.Set(deviceCredentialService, secretUser(), keyringCred); err != nil {
 		t.Fatalf("seed keyring current credential: %v", err)
 	}
-	orphan := "hanova-dev-v1.EEEEEEEEEEEEEEEEEEEEEE.FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
-	if err := deviceSecretFileSet(deviceCredentialService, orphan); err != nil {
-		t.Fatalf("seed orphan current file: %v", err)
+	// Seed a raw orphan credential file WITHOUT a marker (an aborted early file
+	// attempt); deviceSecretFileSet would itself write a marker, which is exactly
+	// what must NOT be present here.
+	seedRawSecretFile(t, deviceCredentialService,
+		"hanova-dev-v1.EEEEEEEEEEEEEEEEEEEEEE.FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF")
+	if deviceFileBackendMarkerExists() {
+		t.Fatal("test setup error: orphan seed must not create a marker")
 	}
 	stubStorageCanaries(t, nil) // keyring healthy
 
@@ -258,4 +297,20 @@ func generateTestDeviceCredential(t *testing.T) string {
 		t.Fatalf("test credential malformed: %q", cred)
 	}
 	return cred
+}
+
+// seedRawSecretFile writes a credential file directly, bypassing the marker
+// side effect of deviceSecretFileSet — used to stage orphan/no-marker residue.
+func seedRawSecretFile(t *testing.T, service, value string) {
+	t.Helper()
+	dir, err := deviceSecretFileDir()
+	if err != nil {
+		t.Fatalf("secret dir: %v", err)
+	}
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatalf("mkdir secrets: %v", err)
+	}
+	if err := os.WriteFile(testSecretPath(dir, service), []byte(value), 0o600); err != nil {
+		t.Fatalf("seed raw secret file: %v", err)
+	}
 }

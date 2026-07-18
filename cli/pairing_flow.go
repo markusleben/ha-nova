@@ -121,15 +121,22 @@ func runSecurePairing(bootstrapURL, code string, cfg *runtimeConfig, saveCfg fun
 // already stored pending (e.g. a crash between activate and promote). Safe to
 // call at setup/doctor start; a no-op when there is no pending credential.
 func resumePendingActivation(cfg *runtimeConfig, saveCfg func(*runtimeConfig) error) (bool, error) {
+	base, pin := cfg.PendingSecureBaseURL, cfg.PendingSpkiPin
+	if base == "" || pin == "" {
+		// No interrupted pairing to resume (cheap check first, before any keyring
+		// access): leave any pending slot for a full re-pair rather than guessing.
+		return false, nil
+	}
+	// Re-establish the storage backend for this process before reading the
+	// pending credential: a headless install keeps the pending slot in a file and
+	// the marker is only written at promotion, so without re-probing here a
+	// resume in a fresh process could not find its own pending credential.
+	if _, err := probeDeviceCredentialStorage(); err != nil {
+		return false, err
+	}
 	pending, ok, err := readPendingDeviceCredential()
 	if err != nil || !ok {
 		return false, err
-	}
-	base, pin := cfg.PendingSecureBaseURL, cfg.PendingSpkiPin
-	if base == "" || pin == "" {
-		// No pending endpoint to activate against; leave the pending slot for a
-		// full re-pair rather than guessing.
-		return false, nil
 	}
 	if err := activateDeviceV1(base, pin, pending); err != nil {
 		return false, err

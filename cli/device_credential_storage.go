@@ -131,6 +131,24 @@ func deviceSecretFileSet(service, value string) error {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err
 	}
+	// Persisting the CURRENT (active) credential to a file is the moment this
+	// install commits to the file backend, so the marker is written with it — and
+	// ONLY here (pending writes are provisional and never commit the mode). The
+	// invariant "a current credential file exists IFF its marker exists" must
+	// hold, or a marker-less credential file would be masked by keyring reads and
+	// a credential-less marker would mask a keyring credential. Write the file,
+	// then the marker; if the marker fails, roll the file back.
+	if service == deviceCredentialService {
+		path := testSecretPath(dir, service)
+		if err := os.WriteFile(path, []byte(value), 0o600); err != nil {
+			return err
+		}
+		if err := writeDeviceFileBackendMarker(); err != nil {
+			_ = os.Remove(path)
+			return err
+		}
+		return nil
+	}
 	return os.WriteFile(testSecretPath(dir, service), []byte(value), 0o600)
 }
 
@@ -192,22 +210,21 @@ func probeDeviceCredentialStorage() (deviceStorageProbe, error) {
 		return deviceStorageProbe{mode: "keyring"}, nil
 	}
 	if errors.Is(keyringErr, errDesktopKeyringSessionUnavailable) || errors.Is(keyringErr, errDesktopKeyringUnavailable) {
-		// No usable keyring EXISTS on this system (no session bus, or no Secret
-		// Service provider installed — typical for containers/servers/LXCs).
-		// There is nothing a keyring could protect here, so fall back to a
-		// private file and say so. A keyring that exists but needs the user
-		// (locked / uninitialized) is handled below and never downgrades.
+		// No keyring is reachable here (no session bus, or no Secret Service
+		// provider — typical for containers/servers/LXCs, but ALSO for SSH into a
+		// desktop whose keyring still holds a credential). So force file mode for
+		// THIS process only and do NOT persist the marker yet: the install-wide
+		// switch happens only when a current credential is actually promoted to a
+		// file (deviceSecretFileSet). A canceled pair/setup then leaves nothing
+		// behind and can never mask or downgrade an existing keyring credential.
 		if fileErr := deviceStorageFileCanary(); fileErr != nil {
 			return deviceStorageProbe{}, fmt.Errorf("no desktop keyring (%v) and the file fallback failed: %w", keyringErr, fileErr)
-		}
-		if markerErr := writeDeviceFileBackendMarker(); markerErr != nil {
-			return deviceStorageProbe{}, fmt.Errorf("no desktop keyring and could not record file-backend mode: %w", markerErr)
 		}
 		deviceCredentialFileModeForced = true
 		dir, _ := deviceSecretFileDir()
 		return deviceStorageProbe{
 			mode: "file",
-			note: fmt.Sprintf("No desktop keyring on this system — the device credential will be stored in a private file (0600) under %s.", dir),
+			note: fmt.Sprintf("No desktop keyring reachable — the device credential will be stored in a private file (0600) under %s.", dir),
 		}, nil
 	}
 	// Locked or uninitialized desktop keyring, permission problems, …: guide the
