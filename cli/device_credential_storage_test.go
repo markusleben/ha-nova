@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/zalando/go-keyring"
 )
 
 // The headless fallback + code-burn guard: a broken keyring must fail BEFORE the
@@ -110,6 +112,63 @@ func TestProbeShortCircuitsWhenAFileCredentialExists(t *testing.T) {
 	got, ok, err := readDeviceCredential()
 	if err != nil || !ok || got != cred {
 		t.Fatalf("file credential not readable: got=%q ok=%v err=%v", got, ok, err)
+	}
+}
+
+func TestStalePendingFileDoesNotMaskKeyringCurrentCredential(t *testing.T) {
+	withDeviceStorageTestHome(t)
+	// Desktop-paired install: the CURRENT credential lives in the (mocked) OS
+	// keyring. An interrupted headless re-pair then left only a PENDING file.
+	keyringCred := generateTestDeviceCredential(t)
+	if err := keyring.Set(deviceCredentialService, secretUser(), keyringCred); err != nil {
+		t.Fatalf("seed keyring current credential: %v", err)
+	}
+	pendingCred := "hanova-dev-v1.CCCCCCCCCCCCCCCCCCCCCC.DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD"
+	if err := deviceSecretFileSet(deviceCredentialPendingService, pendingCred); err != nil {
+		t.Fatalf("seed stale pending file: %v", err)
+	}
+
+	// The current slot must STILL resolve to the keyring credential — the stale
+	// pending file is a different slot and must not switch the current read.
+	got, ok, err := readDeviceCredential()
+	if err != nil || !ok || got != keyringCred {
+		t.Fatalf("current credential masked by stale pending file: got=%q ok=%v err=%v", got, ok, err)
+	}
+	// The pending slot resolves to the file (its own backend), independently.
+	gotP, okP, errP := readPendingDeviceCredential()
+	if errP != nil || !okP || gotP != pendingCred {
+		t.Fatalf("pending slot not readable from file: got=%q ok=%v err=%v", gotP, okP, errP)
+	}
+}
+
+func TestProbeRejectsAnExistingFileInstallWithAnUnwritableStore(t *testing.T) {
+	withDeviceStorageTestHome(t)
+	cred := generateTestDeviceCredential(t)
+	if err := deviceSecretFileSet(deviceCredentialService, cred); err != nil {
+		t.Fatalf("seed file credential: %v", err)
+	}
+	// The file store has gone read-only between runs; the canary must catch it
+	// BEFORE a pairing spends the one-time code.
+	prevCanary := deviceStorageFileCanary
+	deviceStorageFileCanary = func() error { return fmt.Errorf("read-only file system") }
+	t.Cleanup(func() { deviceStorageFileCanary = prevCanary })
+	deviceStorageKeyringCanary = func() error { t.Fatal("keyring canary must not run for a file install"); return nil }
+
+	_, err := probeDeviceCredentialStorage()
+	if err == nil || !strings.Contains(err.Error(), "not writable") {
+		t.Fatalf("expected an unwritable-file-store error, got %v", err)
+	}
+}
+
+func TestProbeFallsBackWhenNoSecretServiceProviderExists(t *testing.T) {
+	withDeviceStorageTestHome(t)
+	// "No Secret Service provider installed" (errDesktopKeyringUnavailable) is
+	// the container/LXC signature, distinct from "no session" — both mean no
+	// keyring EXISTS, so both fall back to files rather than erroring.
+	stubStorageCanaries(t, fmt.Errorf("%w: org.freedesktop.secrets not provided", errDesktopKeyringUnavailable))
+	probe, err := probeDeviceCredentialStorage()
+	if err != nil || probe.mode != "file" {
+		t.Fatalf("expected file fallback for a missing Secret Service provider, got mode=%q err=%v", probe.mode, err)
 	}
 }
 

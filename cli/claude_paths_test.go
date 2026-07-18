@@ -26,6 +26,19 @@ func TestMain(m *testing.M) {
 	// override on top (e.g. keyring_linux_test.go stubs keyringGetWithService, or
 	// device-storage tests stub deviceStorageKeyringCanary).
 	keyring.MockInit()
+	// Same protection for the device-credential storage probe: on Linux its
+	// keyring canary preflights the REAL DBus Secret Service before go-keyring is
+	// even consulted, so MockInit alone does not isolate it. A package-wide test
+	// secret dir short-circuits the probe and every device-slot read/write into
+	// per-file storage. Tests that exercise the real selection logic clear this
+	// env and stub the canaries instead (device_credential_storage_test.go).
+	testSecretDirRoot := ""
+	if os.Getenv("HA_NOVA_TEST_SECRET_DIR") == "" {
+		if secretDir, err := os.MkdirTemp("", "ha-nova-test-secrets"); err == nil {
+			os.Setenv("HA_NOVA_TEST_SECRET_DIR", secretDir)
+			testSecretDirRoot = secretDir
+		}
+	}
 	os.Unsetenv("CLAUDE_CONFIG_DIR")
 	// Same protection class for the update-nudge background refresh: under
 	// `go test`, os.Executable() is the generated test binary, so the real
@@ -43,6 +56,9 @@ func TestMain(m *testing.M) {
 	code := m.Run()
 	if stubDir != "" {
 		os.RemoveAll(stubDir)
+	}
+	if testSecretDirRoot != "" {
+		os.RemoveAll(testSecretDirRoot)
 	}
 	os.Exit(code)
 }

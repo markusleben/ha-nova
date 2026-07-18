@@ -62,14 +62,18 @@ func deviceSecretFileExists(service string) bool {
 	return err == nil && info.Mode().IsRegular()
 }
 
-// deviceSecretFileModeActive reports whether this install stores device
-// credentials in files: either the probe forced it in this process, or a
-// previous headless pairing left a credential file behind (self-describing
-// state — the probe service never counts).
-func deviceSecretFileModeActive() bool {
-	if deviceCredentialFileModeForced {
-		return true
-	}
+// deviceSecretFileBacked reports whether THIS slot lives in the file backend:
+// its own file exists, or the probe forced file mode for this process. The
+// decision is strictly per slot — a stale pending file left by an interrupted
+// headless re-pair (e.g. pairing over SSH into a desktop machine) must never
+// redirect reads of the CURRENT slot away from a valid keyring credential.
+func deviceSecretFileBacked(service string) bool {
+	return deviceCredentialFileModeForced || deviceSecretFileExists(service)
+}
+
+// anyDeviceSecretFileExists reports whether any real credential slot already
+// lives in the file backend (the probe service never counts).
+func anyDeviceSecretFileExists() bool {
 	return deviceSecretFileExists(deviceCredentialService) || deviceSecretFileExists(deviceCredentialPendingService)
 }
 
@@ -123,7 +127,13 @@ func probeDeviceCredentialStorage() (deviceStorageProbe, error) {
 	if _, ok := testSecretDir(); ok {
 		return deviceStorageProbe{mode: "file"}, nil
 	}
-	if deviceSecretFileModeActive() {
+	if deviceCredentialFileModeForced || anyDeviceSecretFileExists() {
+		// Existing file-mode install: still prove the files are writable NOW —
+		// a read-only volume or chmod-ed directory discovered after the fact
+		// would consume the one-time code with nothing storable.
+		if fileErr := deviceStorageFileCanary(); fileErr != nil {
+			return deviceStorageProbe{}, fmt.Errorf("this install keeps its device credential in a file, but the file store is not writable: %w", fileErr)
+		}
 		return deviceStorageProbe{mode: "file"}, nil
 	}
 
@@ -131,8 +141,12 @@ func probeDeviceCredentialStorage() (deviceStorageProbe, error) {
 	if keyringErr == nil {
 		return deviceStorageProbe{mode: "keyring"}, nil
 	}
-	if errors.Is(keyringErr, errDesktopKeyringSessionUnavailable) {
-		// No desktop session at all — there is no keyring this could protect.
+	if errors.Is(keyringErr, errDesktopKeyringSessionUnavailable) || errors.Is(keyringErr, errDesktopKeyringUnavailable) {
+		// No usable keyring EXISTS on this system (no session bus, or no Secret
+		// Service provider installed — typical for containers/servers/LXCs).
+		// There is nothing a keyring could protect here, so fall back to a
+		// private file and say so. A keyring that exists but needs the user
+		// (locked / uninitialized) is handled below and never downgrades.
 		if fileErr := deviceStorageFileCanary(); fileErr != nil {
 			return deviceStorageProbe{}, fmt.Errorf("no desktop keyring (%v) and the file fallback failed: %w", keyringErr, fileErr)
 		}
