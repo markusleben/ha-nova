@@ -121,10 +121,19 @@ describe("device-registry", () => {
     expect(reg.resolveDeviceSecret(firstCred.deviceId, firstCred.secretDigest, 2000)).toBeNull();
     expect(reg.resolveDeviceSecret(fresh.deviceId, fresh.secretDigest, 2000)).not.toBeNull();
 
-    // But a genuinely NEW install past the cap is rejected.
+    // But a genuinely NEW install past the cap is rejected up front — at
+    // createPending, BEFORE /pair/v1/finish would consume the owner's one-time
+    // code — rather than being deferred to activation (which would leave the code
+    // spent and the CLI unable to finish).
     const overflow = generateCredential();
-    reg.createPending(base({ deviceId: overflow.deviceId, secretDigest: overflow.secretDigest, clientInstallId: "install-new" }), 2000);
-    expect(() => reg.activate(overflow.deviceId, 2000)).toThrow(/active device limit/);
+    expect(() =>
+      reg.createPending(
+        base({ deviceId: overflow.deviceId, secretDigest: overflow.secretDigest, clientInstallId: "install-new" }),
+        2000,
+      ),
+    ).toThrow(/active device limit/);
+    // Nothing was recorded for the rejected install.
+    expect(reg.list().some((d) => d.deviceId === overflow.deviceId)).toBe(false);
   });
 
   it("enforces the pending cap", () => {
@@ -192,6 +201,31 @@ describe("device-registry", () => {
     expect(ids).not.toContain("active-dev");
     expect(ids).not.toContain("pending-dev"); // same-install pending cannot restore access
     expect(ids).toContain("other-pending"); // a different install is untouched
+  });
+
+  it("activating a re-pair retires an older pending re-pair from the same install", () => {
+    const reg = openDeviceRegistry(dir);
+    const rec = (deviceId: string, installId: string) => ({
+      deviceId, secretDigest: "d-" + deviceId, clientInstallId: installId,
+      name: "n", platform: "p", client: "c", createdAtMs: 1,
+    });
+    // install-1 pairs, then starts two more re-pairs before activating the newest.
+    reg.createPending(rec("v1", "install-1"), 1000);
+    reg.activate("v1", 1000);
+    reg.createPending(rec("v2", "install-1"), 1000); // older in-flight re-pair
+    reg.createPending(rec("v3", "install-1"), 1000); // newest re-pair
+    reg.createPending(rec("other", "install-2"), 1000); // a different install's pending
+
+    reg.activate("v3", 2000); // promote the newest
+    const ids = reg.list().map((d) => d.deviceId);
+    expect(ids).toContain("v3"); // newest is active
+    expect(ids).not.toContain("v1"); // old active retired
+    expect(ids).not.toContain("v2"); // stale same-install pending retired — cannot silently replace v3
+    expect(ids).toContain("other"); // a different install is untouched
+
+    // The retired stale pending can no longer be activated to hijack the slot.
+    expect(() => reg.activate("v2", 3000)).toThrow(/no such pending credential/);
+    expect(reg.list().filter((d) => d.state === "active" && d.clientInstallId === "install-1")).toHaveLength(1);
   });
 
   it("fail-closed on a corrupt registry (never silently recreates)", () => {

@@ -5,8 +5,8 @@ import { join } from "node:path";
 import * as opaque from "@serenity-kit/opaque";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import { parseCredential, digestSecret } from "../../nova/src/security/device-credential.js";
-import { openDeviceRegistry, type DeviceRegistry } from "../../nova/src/security/device-registry.js";
+import { parseCredential, digestSecret, generateCredential } from "../../nova/src/security/device-credential.js";
+import { MAX_ACTIVE_DEVICES, openDeviceRegistry, type DeviceRegistry } from "../../nova/src/security/device-registry.js";
 import { OPAQUE_CLIENT_ID, OPAQUE_KSF, OPAQUE_SERVER_ID, opaqueReady } from "../../nova/src/security/opaque-server.js";
 import { deriveDirectionKeys, open, seal } from "../../nova/src/security/pairing-crypto.js";
 import {
@@ -133,6 +133,31 @@ describe("pairing-v1 state machine", () => {
     expect(r.finished === undefined || r.finished.ok === false).toBe(true);
     expect(mgr.getStatus().phase).toBe("active");
     expect(registry.list()).toHaveLength(0);
+  });
+
+  it("rejects a new install at the active cap without consuming the code", () => {
+    // Fill the active roster to the cap, each a distinct install.
+    for (let i = 0; i < MAX_ACTIVE_DEVICES; i++) {
+      const c = generateCredential();
+      registry.createPending(
+        { deviceId: c.deviceId, secretDigest: c.secretDigest, clientInstallId: `install-${i}`, name: "n", platform: "p", client: "c", createdAtMs: clock },
+        clock,
+      );
+      registry.activate(c.deviceId, clock);
+    }
+    expect(registry.list().filter((d) => d.state === "active")).toHaveLength(MAX_ACTIVE_DEVICES);
+
+    const mgr = makeManager();
+    const { code } = mgr.generateCode();
+    // META.client_install_id ("install-xyz") is a brand-new install: finish must
+    // fail closed WITHOUT consuming the one-time code, so the owner can free a
+    // slot and reuse the same code rather than have it silently spent on a
+    // pairing that could never activate.
+    const r = pairAsClient(mgr, code, "peer-cap");
+    expect(r.finished?.ok).toBe(false);
+    expect(mgr.getStatus().phase).toBe("active"); // code still usable
+    expect(registry.list().filter((d) => d.state === "pending")).toHaveLength(0);
+    expect(registry.list()).toHaveLength(MAX_ACTIVE_DEVICES);
   });
 
   it("binds a handshake to its peer (a different peer cannot finish it)", () => {

@@ -137,6 +137,17 @@ export function openDeviceRegistry(dataDir: string): DeviceRegistry {
       if (pendingCountIn(devices, now) >= MAX_PENDING_DEVICES) {
         throw new Error("pending device limit reached");
       }
+      // A brand-new install cannot be promoted once the active roster is full, so
+      // reject it HERE — before /pair/v1/finish consumes the owner's one-time code
+      // — rather than letting activation fail later with the code already spent.
+      // A re-pair of an install that already holds an active slot is a replacement
+      // (net count unchanged on activation) and stays allowed at the cap.
+      const isReplacement = devices.some(
+        (d) => d.state === "active" && d.clientInstallId === record.clientInstallId,
+      );
+      if (!isReplacement && activeCountIn(devices) >= MAX_ACTIVE_DEVICES) {
+        throw new Error("active device limit reached");
+      }
       // Re-pairing an existing install keeps the old active record untouched; the
       // new pending record for the same install is what gets promoted later.
       const pending: DeviceRecord = {
@@ -213,8 +224,8 @@ export function openDeviceRegistry(dataDir: string): DeviceRegistry {
     if (target.state === "active") {
       return { ...target }; // idempotent re-activation
     }
-    // Activation promotes this install's pending record and retires any older
-    // active record for the SAME install (re-pairing replaces on activation).
+    // Activation promotes this install's pending record and retires every other
+    // record for the SAME install (re-pairing replaces on activation).
     const promoted: DeviceRecord = {
       deviceId: target.deviceId,
       secretDigest: target.secretDigest,
@@ -225,8 +236,13 @@ export function openDeviceRegistry(dataDir: string): DeviceRegistry {
       client: target.client,
       createdAtMs: target.createdAtMs,
     };
+    // Drop the old active credential AND any older pending re-pair from the same
+    // install. Leaving a stale same-install pending behind would let someone still
+    // holding that older provisional credential activate it moments later and
+    // silently replace this freshly promoted one without another owner code —
+    // mirroring the same-install cleanup revoke() already performs.
     const kept = devices.filter(
-      (d) => d.deviceId !== deviceId && !(d.state === "active" && d.clientInstallId === target.clientInstallId)
+      (d) => d.deviceId !== deviceId && d.clientInstallId !== target.clientInstallId
     );
     // Count AFTER retiring the same-install active record: re-pairing at the cap
     // is a replacement (net count unchanged) and must be allowed; only a
