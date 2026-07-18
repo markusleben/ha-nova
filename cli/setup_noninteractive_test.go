@@ -777,3 +777,50 @@ func TestRunSetupNonInteractiveStoredTokenKeepsLivePairing(t *testing.T) {
 		t.Fatal("stored-token re-sync must keep the secure endpoint fields")
 	}
 }
+
+// Regression: a passwordless-paired install has no legacy token; noninteractive
+// setup must honor the device credential and route to the device path instead of
+// failing with "missing relay auth token". verifyDeviceHealth is stubbed false to
+// isolate the routing without a live relay.
+func TestRunSetupNonInteractivePairedInstallHonorsDeviceCredential(t *testing.T) {
+	withClientRuntimeAvailability(t, map[string]bool{"antigravity": true})
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("HA_NOVA_NO_BROWSER", "1")
+	t.Setenv("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING", "1")
+	t.Setenv("HA_NOVA_TEST_KEYRING_FILE", filepath.Join(home, ".config", "ha-nova", ".test-relay-auth-token"))
+	t.Setenv("HA_NOVA_TEST_SECRET_DIR", t.TempDir())
+	t.Setenv("HA_NOVA_DEV_ROOT", repoRootForSetupTest(t))
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+	const validCred = "hanova-dev-v1.AAAAAAAAAAAAAAAAAAAAAA.BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
+	if err := writeDeviceCredential(validCred); err != nil {
+		t.Fatalf("writeDeviceCredential() error: %v", err)
+	}
+	if err := saveConfig(paths, runtimeConfig{
+		HAHost:             "192.168.1.5",
+		HAURL:              "http://192.168.1.5:8123",
+		RelayBaseURL:       "http://192.168.1.5:8791",
+		RelaySecureBaseURL: "https://192.168.1.5:8792",
+		RelaySpkiPin:       "pin",
+	}); err != nil {
+		t.Fatalf("saveConfig() error: %v", err)
+	}
+
+	origVerify := verifyDeviceHealth
+	verifyDeviceHealth = func(runtimeConfig) bool { return false }
+	defer func() { verifyDeviceHealth = origVerify }()
+
+	_, output := captureCommandOutput(t, func() int {
+		return runSetup(paths, []string{"antigravity", "--non-interactive"})
+	})
+	if strings.Contains(output, "missing relay auth token") {
+		t.Fatalf("paired install wrongly required a legacy token:\n%s", output)
+	}
+	if !strings.Contains(output, "could not be verified") {
+		t.Fatalf("expected the device-path verify message:\n%s", output)
+	}
+}
