@@ -82,7 +82,7 @@ describe("runtime bootstrap", () => {
         }),
         readAppOptions: () => ({})
       })
-    ).toThrowError("HA_LLAT is required for runtime startup.");
+    ).toThrowError("SUPERVISOR_TOKEN or HA_LLAT is required for runtime startup.");
   });
 
   it("starts and serves when LLAT is available", async () => {
