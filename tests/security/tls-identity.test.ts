@@ -39,7 +39,10 @@ describe("tls-identity", () => {
 
     const pin = await new Promise<string>((resolve, reject) => {
       const socket = connect(
-        { host: "127.0.0.1", port, rejectUnauthorized: false, minVersion: "TLSv1.3" },
+        // Trust the self-signed leaf as its own CA and skip only the hostname
+        // check — the relay's TLS is pin-based, not CA/hostname-based, but
+        // disabling verification outright trips security scanners.
+        { host: "127.0.0.1", port, ca: id.certPem, checkServerIdentity: () => undefined, minVersion: "TLSv1.3" },
         () => {
           const cert = socket.getPeerX509Certificate();
           const proto = socket.getProtocol();

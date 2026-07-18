@@ -48,11 +48,12 @@ async function postBoot(path: string, body: unknown, auth?: string) {
 }
 
 // https to the self-signed device listener (pin already proven elsewhere; here
-// we only assert routing/auth, so skip verification).
+// we only assert routing/auth). Trust the self-signed leaf as its own CA and
+// skip only the hostname check, rather than disabling verification outright.
 function deviceReq(path: string, auth: string): Promise<{ status: number; json: any }> {
   return new Promise((resolve, reject) => {
     const req = httpsRequest(
-      { host: "127.0.0.1", port: devicePort, path, method: "POST", rejectUnauthorized: false, headers: { authorization: `Bearer ${auth}` } },
+      { host: "127.0.0.1", port: devicePort, path, method: "POST", ca: tls.certPem, checkServerIdentity: () => undefined, headers: { authorization: `Bearer ${auth}` } },
       (res) => {
         let b = "";
         res.on("data", (c) => (b += c));
