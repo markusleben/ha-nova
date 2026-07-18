@@ -138,8 +138,23 @@ func runSetup(paths runtimePaths, args []string) int {
 	// on the token path; a silently reused stored token must never retire a
 	// working device pairing below.
 	explicitTokenIntent := token != ""
+	// A passwordless-paired install has no legacy token; its device credential in
+	// the separate slot is the usable credential.
+	pairedDeviceAvailable := func() bool {
+		if explicitTokenIntent || cfg.RelaySecureBaseURL == "" || cfg.RelaySpkiPin == "" {
+			return false
+		}
+		_, ok, credErr := readDeviceCredential()
+		return credErr == nil && ok
+	}
 	if token == "" {
 		if tokenStoragePreflightErr != nil {
+			// Headless (no Secret Service): honor an existing device pairing —
+			// whose credential is file-backed, no keyring — BEFORE failing on the
+			// legacy-token store, so a paired box still installs/syncs clients.
+			if pairedDeviceAvailable() {
+				return completeNonInteractivePairedSetup(paths, cfg, state, selectedClients)
+			}
 			printHumanErr("%s", relayAuthTokenProblemMessage(tokenStoragePreflightErr))
 			if hint := setupSecureStorageRecoveryHint(tokenStoragePreflightErr); hint != "" {
 				printHumanWarn("%s", hint)
@@ -160,13 +175,10 @@ func runSetup(paths runtimePaths, args []string) int {
 			return 1
 		}
 	}
-	// A passwordless-paired install has no legacy token; its device credential in
-	// the separate slot is the usable credential. Honor the pairing instead of
-	// requiring or prompting for a token.
-	if token == "" && !explicitTokenIntent && cfg.RelaySecureBaseURL != "" && cfg.RelaySpkiPin != "" {
-		if _, ok, credErr := readDeviceCredential(); credErr == nil && ok {
-			return completeNonInteractivePairedSetup(paths, cfg, state, selectedClients)
-		}
+	// No legacy token (stored or flag) but a device pairing exists: honor it
+	// instead of prompting/requiring a token.
+	if token == "" && pairedDeviceAvailable() {
+		return completeNonInteractivePairedSetup(paths, cfg, state, selectedClients)
 	}
 	if token == "" && !*nonInteractive {
 		answer, err := promptLine("Relay auth token", "")

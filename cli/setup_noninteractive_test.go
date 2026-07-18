@@ -824,3 +824,55 @@ func TestRunSetupNonInteractivePairedInstallHonorsDeviceCredential(t *testing.T)
 		t.Fatalf("expected the device-path verify message:\n%s", output)
 	}
 }
+
+func TestRunSetupNonInteractivePairedInstallHonorsDeviceCredentialWithoutKeyring(t *testing.T) {
+	// Headless parity: a paired install on a box with no Secret Service must still
+	// sync clients over the device transport, not fail on the legacy-token keyring
+	// preflight (the paired-device check runs BEFORE that failure).
+	withClientRuntimeAvailability(t, map[string]bool{"antigravity": true})
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("HA_NOVA_NO_BROWSER", "1")
+	t.Setenv("HA_NOVA_TEST_SECRET_DIR", t.TempDir())
+	t.Setenv("HA_NOVA_DEV_ROOT", repoRootForSetupTest(t))
+
+	origPreflight := relayAuthTokenSetupPreflightForSetup
+	relayAuthTokenSetupPreflightForSetup = func() error {
+		return desktopKeyringSessionUnavailableError("no session bus in this shell")
+	}
+	origVerify := verifyDeviceHealth
+	verifyDeviceHealth = func(runtimeConfig) bool { return false }
+	t.Cleanup(func() {
+		relayAuthTokenSetupPreflightForSetup = origPreflight
+		verifyDeviceHealth = origVerify
+	})
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+	const validCred = "hanova-dev-v1.AAAAAAAAAAAAAAAAAAAAAA.BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
+	if err := writeDeviceCredential(validCred); err != nil {
+		t.Fatalf("writeDeviceCredential() error: %v", err)
+	}
+	if err := saveConfig(paths, runtimeConfig{
+		HAHost:             "192.168.1.5",
+		HAURL:              "http://192.168.1.5:8123",
+		RelayBaseURL:       "http://192.168.1.5:8791",
+		RelaySecureBaseURL: "https://192.168.1.5:8792",
+		RelaySpkiPin:       "pin",
+	}); err != nil {
+		t.Fatalf("saveConfig() error: %v", err)
+	}
+
+	_, output := captureCommandOutput(t, func() int {
+		return runSetup(paths, []string{"antigravity", "--non-interactive"})
+	})
+	if strings.Contains(output, "missing relay auth token") ||
+		strings.Contains(output, "secure storage unavailable") && strings.Contains(output, "save relay token") {
+		t.Fatalf("headless paired install wrongly hit the legacy-token keyring gate:\n%s", output)
+	}
+	if !strings.Contains(output, "could not be verified") {
+		t.Fatalf("expected the device-path verify message (paired check must precede the token preflight):\n%s", output)
+	}
+}
