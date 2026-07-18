@@ -79,23 +79,20 @@ jobs:
       # would otherwise resolve the runner's older system Go and fail go.mod's
       # 1.26 requirement (GOTOOLCHAIN=local). Point /usr/bin/go at the 1.26
       # toolchain so the restricted PATH resolves the right version.
-      - name: Make Go 1.26 resolvable on the restricted test PATH
+      # The dev-sync tests run `go build` in parallel, each under a temp HOME and
+      # a restricted PATH. Pin GOMODCACHE/GOCACHE to shared locations (exported
+      # via GITHUB_ENV so the tests' spawned env inherits them instead of
+      # deriving cold caches from the temp HOME) and put Go 1.26 on /usr/bin so
+      # the restricted PATH resolves the right version. Then warm the cache once
+      # so each test build is an incremental cache hit instead of a cold full
+      # compile of the heavy pairing crypto deps that would race and exhaust the
+      # runner.
+      - name: Prepare Go for the parallel dev-sync builds
         run: |
-          set -x
-          real_go="$(command -v go)"
-          sudo ln -sf "$real_go" /usr/bin/go
-          ls -la /usr/bin/go
-          # Reproduce exactly what the restricted-PATH dev-sync test does.
-          env -i HOME="$HOME" GOROOT="${GOROOT:-}" GOCACHE="${GOCACHE:-}" GOMODCACHE="${GOMODCACHE:-}" GOPATH="${GOPATH:-}" GOTOOLCHAIN="${GOTOOLCHAIN:-}" PATH="/usr/bin:/bin" bash -c '
-            echo "which go: $(command -v go || echo none)";
-            go version || echo "go version failed";
-            cd cli && go build -o /tmp/relay-diag . && echo "DIAG BUILD OK" || echo "DIAG BUILD FAILED"
-          '
+          echo "GOMODCACHE=$(go env GOMODCACHE)" >> "$GITHUB_ENV"
+          echo "GOCACHE=$(go env GOCACHE)" >> "$GITHUB_ENV"
+          sudo ln -sf "$(command -v go)" /usr/bin/go
 
-      # Warm the Go module + build cache once, serially. The dev-sync tests then
-      # build in parallel; with the heavier pairing crypto deps a cold cache
-      # would make those concurrent compiles race and exhaust the runner. After
-      # this, each test build is an incremental cache hit.
       - name: Warm the Go cache
         run: cd cli && go build ./...
 
