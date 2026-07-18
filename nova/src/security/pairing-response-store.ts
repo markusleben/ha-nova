@@ -24,12 +24,28 @@ interface StoredEntry {
   expiresAtMs: number;
 }
 
-export function createFileResponseStore(dataDir: string, now: () => number): ConsumedResponseStore {
+interface ResponseStoreLogger {
+  warn(message: string, context?: Record<string, unknown>): void;
+}
+
+export function createFileResponseStore(
+  dataDir: string,
+  now: () => number,
+  logger?: ResponseStoreLogger,
+): ConsumedResponseStore {
   const path = join(dataDir, RESPONSE_STORE_FILE);
   let entries = load(path);
 
   const persist = (): void => {
-    writeFileAtomicSync(path, JSON.stringify({ version: 1, entries }));
+    // Best-effort durability: the entry is already held in memory for this
+    // process, so a persist failure only costs a lost retry after a restart —
+    // never worse than the in-memory store. It must NOT throw out of finish(),
+    // which would leave the pairing code half-consumed.
+    try {
+      writeFileAtomicSync(path, JSON.stringify({ version: 1, entries }));
+    } catch (error) {
+      logger?.warn("Could not persist the pairing finish response", { error: String((error as Error).message) });
+    }
   };
 
   return {

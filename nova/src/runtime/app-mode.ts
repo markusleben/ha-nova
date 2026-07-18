@@ -121,7 +121,7 @@ export async function buildAppMode(input: AppModeInput): Promise<AppModeRuntime>
     },
     // Durable so a finish response lost to an App restart can be retried and
     // returns the exact same sealed credential instead of a dead code.
-    responseStore: createFileResponseStore(dataDir, input.now),
+    responseStore: createFileResponseStore(dataDir, input.now, input.logger),
   });
 
   // The effective secure host port is read once at startup from self-info; a

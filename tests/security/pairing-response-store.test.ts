@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -75,5 +75,23 @@ describe("pairing response store (durable)", () => {
     const t = 1_000;
     createFileResponseStore(dir, () => t).put("hs1", "digestA", "cipherA", t);
     expect(statSync(join(dir, STORE_FILE)).mode & 0o777).toBe(0o600);
+  });
+
+  it("degrades to memory without throwing when the store cannot be persisted", () => {
+    const t = 1_000;
+    const warnings: string[] = [];
+    const store = createFileResponseStore(dir, () => t, { warn: (message) => warnings.push(message) });
+    store.put("hs1", "digestA", "cipherA", t); // persists fine
+
+    chmodSync(dir, 0o500); // make the data dir unwritable so the next atomic write fails
+    try {
+      // A finish response must never throw out of put() — that would leave the
+      // pairing code half-consumed. It falls back to in-memory for this session.
+      expect(() => store.put("hs2", "digestB", "cipherB", t)).not.toThrow();
+      expect(store.get("hs2")).toEqual({ ke3Digest: "digestB", ciphertextB64: "cipherB" });
+      expect(warnings.length).toBeGreaterThan(0);
+    } finally {
+      chmodSync(dir, 0o700); // restore so afterEach cleanup succeeds
+    }
   });
 });
