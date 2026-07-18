@@ -86,18 +86,26 @@ func runSecurePairing(bootstrapURL, code string, cfg *runtimeConfig, saveCfg fun
 	if err := activateDeviceV1ForPairing(secureBase, prov.SpkiPin, prov.Credential); err != nil {
 		return "", fmt.Errorf("could not activate the new device: %w", err)
 	}
+
+	// Save the live endpoint BEFORE promoting the credential (which deletes the
+	// pending slot), and keep the pending endpoint until after promotion. A crash
+	// before promotion then stays resumable: resumePendingActivation still finds a
+	// pending credential + endpoint and completes idempotently. If this save fails,
+	// nothing was promoted, so a re-run resumes cleanly.
+	cfg.RelaySecureBaseURL = secureBase
+	cfg.RelaySpkiPin = prov.SpkiPin
+	if err := saveCfg(cfg); err != nil {
+		return "", fmt.Errorf("could not save the secure endpoint: %w", err)
+	}
 	if err := promotePendingDeviceCredential(); err != nil {
 		return "", fmt.Errorf("activated but could not finalize the credential: %w", err)
 	}
-
-	// Activation succeeded: promote the endpoint to live and clear the pending copy.
-	cfg.RelaySecureBaseURL = secureBase
-	cfg.RelaySpkiPin = prov.SpkiPin
+	// Credential + live endpoint are now durable and working; clearing the stale
+	// pending endpoint is best-effort (resume ignores it — the pending credential
+	// is gone — so a failed clear leaves only an inert value).
 	cfg.PendingSecureBaseURL = ""
 	cfg.PendingSpkiPin = ""
-	if err := saveCfg(cfg); err != nil {
-		return "", fmt.Errorf("paired but could not save the secure endpoint: %w", err)
-	}
+	_ = saveCfg(cfg)
 	return prov.DeviceID, nil
 }
 
@@ -118,15 +126,21 @@ func resumePendingActivation(cfg *runtimeConfig, saveCfg func(*runtimeConfig) er
 	if err := activateDeviceV1(base, pin, pending); err != nil {
 		return false, err
 	}
+	// Same ordering as runSecurePairing: save the live endpoint before promoting
+	// the credential, keep the pending endpoint until afterwards, so a crash
+	// mid-way stays resumable.
+	cfg.RelaySecureBaseURL = base
+	cfg.RelaySpkiPin = pin
+	if err := saveCfg(cfg); err != nil {
+		return false, err
+	}
 	if err := promotePendingDeviceCredential(); err != nil {
 		return false, err
 	}
-	// Promote the endpoint to live only now, and clear the pending copy.
-	cfg.RelaySecureBaseURL = base
-	cfg.RelaySpkiPin = pin
 	cfg.PendingSecureBaseURL = ""
 	cfg.PendingSpkiPin = ""
-	return true, saveCfg(cfg)
+	_ = saveCfg(cfg)
+	return true, nil
 }
 
 func secureBaseFromBootstrap(bootstrapURL string, securePort int) (string, error) {

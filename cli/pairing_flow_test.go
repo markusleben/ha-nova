@@ -38,6 +38,42 @@ func TestRunSecurePairingFailedRePairPreservesLiveEndpoint(t *testing.T) {
 	}
 }
 
+// Regression: if the live-endpoint save fails after activation, the credential
+// must NOT have been promoted — the pending slot has to survive so resume can
+// finish, instead of a lost pending credential and an un-updated config.
+func TestRunSecurePairingKeepsPendingCredentialWhenEndpointSaveFails(t *testing.T) {
+	t.Setenv("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING", "1")
+	t.Setenv("HA_NOVA_TEST_SECRET_DIR", t.TempDir())
+
+	const validCred = "hanova-dev-v1.AAAAAAAAAAAAAAAAAAAAAA.BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
+	origPair, origActivate := pairDeviceV1ForPairing, activateDeviceV1ForPairing
+	pairDeviceV1ForPairing = func(_ *http.Client, _, _ string, _ deviceMetadata) (*provisionedCredential, error) {
+		return &provisionedCredential{DeviceID: "dev-new", Credential: validCred, SpkiPin: "PIN", SecurePort: 8792}, nil
+	}
+	activateDeviceV1ForPairing = func(_, _, _ string) error { return nil } // activation succeeds
+	t.Cleanup(func() {
+		pairDeviceV1ForPairing = origPair
+		activateDeviceV1ForPairing = origActivate
+	})
+
+	// Fail the live-endpoint save (the 2nd saveCfg, after the pre-activation one).
+	saves := 0
+	saveCfg := func(*runtimeConfig) error {
+		saves++
+		if saves == 2 {
+			return errors.New("disk full")
+		}
+		return nil
+	}
+	cfg := runtimeConfig{ClientInstallID: "inst-x"}
+	if _, err := runSecurePairing("http://relay:8791", "123456", &cfg, saveCfg, defaultPairingClientInfo()); err == nil {
+		t.Fatal("expected an error when the endpoint save fails")
+	}
+	if _, ok, err := readPendingDeviceCredential(); err != nil || !ok {
+		t.Fatalf("pending credential was lost before the endpoint save succeeded (ok=%v err=%v)", ok, err)
+	}
+}
+
 // Regression: an IPv6 relay host must stay bracketed when building the secure
 // endpoint URL, or activation and later functional calls get an invalid host.
 func TestSecureBaseFromBootstrapBracketsIPv6(t *testing.T) {
