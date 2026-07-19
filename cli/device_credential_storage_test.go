@@ -433,6 +433,46 @@ func TestResumeRefusesFileFallbackWhenKeyringIsLocked(t *testing.T) {
 	}
 }
 
+func TestResumeFileBackedInstallSkipsKeyringEvenWhenLocked(t *testing.T) {
+	withDeviceStorageTestHome(t)
+	// An established file-backed install (marker present) crashed with a pending
+	// file, then runs where Secret Service exists but is LOCKED. Resume must read
+	// the file pending and promote it — the keyring must not be probed at all.
+	if err := writeDeviceFileBackendMarker(); err != nil {
+		t.Fatalf("seed marker: %v", err)
+	}
+	pendingCred := generateTestDeviceCredential(t)
+	if err := deviceSecretFileSet(deviceCredentialPendingService, pendingCred); err != nil {
+		t.Fatalf("seed pending file: %v", err)
+	}
+	// If resume wrongly probed the keyring, this locked preflight would abort it.
+	origPreflight := deviceCredentialPreflight
+	deviceCredentialPreflight = func() error { return desktopKeyringLockedError("locked; must not be consulted") }
+	origActivate := activateDeviceV1ForPairing
+	activated := ""
+	activateDeviceV1ForPairing = func(_, _, cred string) error { activated = cred; return nil }
+	t.Cleanup(func() {
+		deviceCredentialPreflight = origPreflight
+		activateDeviceV1ForPairing = origActivate
+	})
+
+	cfg := runtimeConfig{PendingSecureBaseURL: "https://relay:8792", PendingSpkiPin: "PIN"}
+	resumed, err := resumePendingActivation(&cfg, func(*runtimeConfig) error { return nil })
+	if err != nil || !resumed {
+		t.Fatalf("file-backed resume must ignore a locked keyring: resumed=%v err=%v", resumed, err)
+	}
+	if activated != pendingCred {
+		t.Fatalf("resume activated the wrong credential: %q", activated)
+	}
+	if deviceSecretFileExists(deviceCredentialPendingService) {
+		t.Fatal("pending file not cleared after promotion")
+	}
+	got, ok, err := readDeviceCredential()
+	if err != nil || !ok || got != pendingCred {
+		t.Fatalf("current credential not the promoted file pending: got=%q ok=%v err=%v", got, ok, err)
+	}
+}
+
 func TestResumeSurfacesMalformedKeyringPending(t *testing.T) {
 	withDeviceStorageTestHome(t)
 	// The keyring pending slot exists but is corrupted/partial. Resume must

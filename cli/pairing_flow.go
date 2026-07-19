@@ -137,24 +137,14 @@ func resumePendingActivation(cfg *runtimeConfig, saveCfg func(*runtimeConfig) er
 	// promotion.
 	var pending string
 	fileMode := false
-	kp, kok, kerr := readKeyringDeviceSecret(deviceCredentialPendingService)
-	switch {
-	case kok && parseDeviceCredential(kp) != nil:
-		// A real keyring pending wins over any orphan .pending file.
-		pending = kp
-	case kok:
-		// The keyring pending slot exists but is malformed (corrupted/partial):
-		// surface it rather than silently resuming an orphan file behind it.
-		return false, fmt.Errorf("keyring pending credential is malformed")
-	case kerr != nil && !isDesktopKeyringSessionUnavailableError(kerr) && !isDesktopKeyringUnavailableError(kerr):
-		// The keyring EXISTS but is unreadable (locked/uninitialized/other): a real
-		// keyring pending may be hidden behind it, so refuse to resume a file and
-		// silently downgrade. Only a genuinely absent keyring (headless) or an
-		// empty-but-readable one (below) may fall back to the file.
-		return false, kerr
-	case deviceSecretFileExists(deviceCredentialPendingService):
-		// Keyring empty (not-found) or genuinely unreachable (headless): the file
-		// holds the interrupted headless pairing.
+	if deviceSecretFileBacked() {
+		// Established file-backed install (marker present, or forced this process):
+		// the pending slot is a file. Do NOT probe the keyring — a locked/present
+		// Secret Service on this box is irrelevant and must not block resuming a
+		// valid file pending.
+		if !deviceSecretFileExists(deviceCredentialPendingService) {
+			return false, nil
+		}
 		raw, err := deviceSecretFileGet(deviceCredentialPendingService)
 		if err != nil {
 			return false, err
@@ -164,8 +154,38 @@ func resumePendingActivation(cfg *runtimeConfig, saveCfg func(*runtimeConfig) er
 		}
 		pending = raw
 		fileMode = true
-	default:
-		return false, kerr
+	} else {
+		// No marker: the install may be keyring-backed (desktop, possibly with an
+		// orphan file) or a headless-interrupted pairing whose marker is not
+		// written until promotion. Prefer a real keyring pending over an orphan
+		// file; only an absent/empty keyring falls back to the file.
+		kp, kok, kerr := readKeyringDeviceSecret(deviceCredentialPendingService)
+		switch {
+		case kok && parseDeviceCredential(kp) != nil:
+			pending = kp
+		case kok:
+			// Keyring pending present but malformed: surface it rather than
+			// silently resuming an orphan file behind it.
+			return false, fmt.Errorf("keyring pending credential is malformed")
+		case kerr != nil && !isDesktopKeyringSessionUnavailableError(kerr) && !isDesktopKeyringUnavailableError(kerr):
+			// Keyring EXISTS but is unreadable (locked/uninitialized): a real
+			// keyring pending may hide behind it — refuse to downgrade to a file.
+			return false, kerr
+		case deviceSecretFileExists(deviceCredentialPendingService):
+			// Keyring empty (not-found) or genuinely unreachable (headless): the
+			// file holds the interrupted headless pairing.
+			raw, err := deviceSecretFileGet(deviceCredentialPendingService)
+			if err != nil {
+				return false, err
+			}
+			if parseDeviceCredential(raw) == nil {
+				return false, nil
+			}
+			pending = raw
+			fileMode = true
+		default:
+			return false, kerr
+		}
 	}
 	if err := activateDeviceV1ForPairing(base, pin, pending); err != nil {
 		return false, err
