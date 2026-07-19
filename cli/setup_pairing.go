@@ -30,6 +30,7 @@ var errSetupDevicePaired = errors.New("device paired securely")
 // /pair/v1 (or a test with no v1 endpoint) transparently uses the old path.
 var probePairingV1ForSetup = probePairingV1
 var securePairForSetup = runSecurePairing
+var relayReachableForSetup = relayReachable
 
 type relayPairingRateLimitError struct {
 	retryAfterSeconds int
@@ -159,6 +160,24 @@ func pairingRetryAfterSeconds(header string) int {
 	return seconds
 }
 
+// relayReachable reports whether the relay bootstrap endpoint answers at all —
+// ANY HTTP response (even 404 from a pre-v1 relay) counts as reachable; only a
+// connection-level failure (refused/timeout/DNS) is unreachable. Used to tell a
+// genuinely pre-v1 relay apart from one that is merely still starting.
+func relayReachable(relayBaseURL string) bool {
+	req, err := http.NewRequest(http.MethodGet, strings.TrimRight(relayBaseURL, "/")+"/pair/v1/info", nil)
+	if err != nil {
+		return false
+	}
+	req.URL.User = nil
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return false
+	}
+	_ = resp.Body.Close()
+	return true
+}
+
 // probePairingV1 reports whether the relay supports secure device pairing
 // (GET /pair/v1/info). Any error or non-v1 answer returns false so the wizard
 // falls back to the legacy code exchange.
@@ -207,8 +226,17 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 	// one-time code, rather than after the exchange fails to store the token.
 	secure := probePairingV1ForSetup(cfg.RelayBaseURL)
 	if !secure && legacyTokenStoreUnavailable {
-		renderSetupErrorLine(out, "This NOVA Relay is too old for secure device pairing, and this system has no key store for the legacy shared token. Update the NOVA Relay App to enable secure pairing.")
-		return "", fmt.Errorf("relay predates secure pairing and no store is available for the legacy token")
+		// probePairingV1 returns false for ANY failure — a genuine pre-v1 relay,
+		// but also a transient one (still starting / momentarily unreachable). Only
+		// a REACHABLE relay that definitively lacks v1 is "too old"; a transient
+		// failure must not strand a headless setup, so surface a retry hint instead
+		// and spend no code either way.
+		if relayReachableForSetup(cfg.RelayBaseURL) {
+			renderSetupErrorLine(out, "This NOVA Relay is too old for secure device pairing, and this system has no key store for the legacy shared token. Update the NOVA Relay App to enable secure pairing.")
+			return "", fmt.Errorf("relay predates secure pairing and no store is available for the legacy token")
+		}
+		renderSetupErrorLine(out, "Could not reach NOVA Relay to check secure pairing support. Make sure the NOVA Relay app is running, then run setup again.")
+		return "", fmt.Errorf("relay not reachable to determine secure pairing support")
 	}
 
 	renderSetupParagraph(out,

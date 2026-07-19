@@ -87,3 +87,33 @@ func TestSetupPairingMidFlowRelayNotV1FailsSafeWithoutTokenStore(t *testing.T) {
 		t.Fatal("legacy /pair exchange was reached — a one-time code could be consumed with no store to persist the token")
 	}
 }
+
+// A transient v1 probe failure (relay still starting / momentarily unreachable)
+// must NOT be reported as a too-old relay, and must not spend a code — the user
+// should be told to retry once the relay is up.
+func TestSetupPairingTransientV1ProbeFailureDoesNotDeclareOldRelay(t *testing.T) {
+	origProbe, origReach, origExchange := probePairingV1ForSetup, relayReachableForSetup, exchangeRelayPairingCodeForSetup
+	defer func() {
+		probePairingV1ForSetup, relayReachableForSetup, exchangeRelayPairingCodeForSetup = origProbe, origReach, origExchange
+	}()
+	probePairingV1ForSetup = func(string) bool { return false } // probe returns false...
+	relayReachableForSetup = func(string) bool { return false }  // ...because the relay is unreachable
+	exchangeCalled := false
+	exchangeRelayPairingCodeForSetup = func(_ *http.Client, _, _ string) (string, error) {
+		exchangeCalled = true
+		return "legacy-token", nil
+	}
+
+	reader := bufio.NewReader(strings.NewReader("\n473921\n"))
+	cfg := &runtimeConfig{RelayBaseURL: "http://relay:8791"}
+	_, err := runSetupPairingFlow(reader, io.Discard, runtimePaths{}, cfg, true)
+	if err == nil {
+		t.Fatal("expected an error when the relay is unreachable")
+	}
+	if strings.Contains(err.Error(), "predates secure pairing") {
+		t.Fatalf("a transient probe failure must not be reported as a too-old relay: %v", err)
+	}
+	if exchangeCalled {
+		t.Fatal("legacy /pair exchange reached despite an unreachable relay (a code could be consumed)")
+	}
+}
