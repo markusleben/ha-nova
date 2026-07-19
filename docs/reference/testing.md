@@ -33,34 +33,34 @@ For maintainers with an HA instance, when you need to exercise the interactive s
 
 ### Deploy an isolated test add-on
 
-`scripts/dev/ha-app-bootstrap.sh` syncs `nova/` to your HA over SSH and installs it as a local add-on. Give it a **distinct slug and ports** so it can never collide with your production NOVA Relay:
+`scripts/dev/ha-app-bootstrap.sh` syncs `nova/` to your HA over SSH and installs it as a local add-on (env: `HA_HOST`, `HA_SSH_KEY`, `RELAY_AUTH_TOKEN` required; `SSH_USER`/`SSH_PORT`/`APP_SLUG`/`SUPERVISOR_SLUG` optional, also read from `.env` / `.env.local`).
 
-```bash
-HA_HOST=<ip> HA_SSH_KEY=~/.ssh/<key> RELAY_AUTH_TOKEN=<token> \
-APP_SLUG=ha_nova_relay_test \
-  bash scripts/dev/ha-app-bootstrap.sh
-```
+**Isolation is not automatic.** The script syncs `nova/` verbatim, so the deployed `config.yaml` keeps the production `slug`, `name`, and host ports `8791`/`8792`. `APP_SLUG` only changes the target directory — it does **not** edit `config.yaml`, so on its own it collides with your production NOVA Relay on the same ports. To deploy a genuinely separate instance, work from a **copy** of `nova/` whose `config.yaml` you have edited:
 
-`HA_HOST`, `HA_SSH_KEY`, `RELAY_AUTH_TOKEN` are required; `SSH_USER`/`SSH_PORT`/`APP_SLUG`/`SUPERVISOR_SLUG` are optional (also read from `.env` / `.env.local`). Point the test overlay's `config.yaml` at unused host ports (e.g. `18791`/`18792`) so the two instances never overlap. `scripts/smoke/ha-app-e2e.mjs` runs a Node smoke pass against the deployed app.
+- `slug:` and `name:` → distinct (e.g. `ha_nova_relay_test`, `NOVA Relay TEST`)
+- `ports:` → unused host ports (e.g. `18791`/`18792`)
 
-Deploy note: when the source `config.yaml` version drifts from the installed version, `ha apps rebuild` becomes a silent no-op — use `ha store reload` + `ha apps update <slug>`. Never `docker restart` an ingress add-on from outside (its IP changes and HA's ingress route breaks); only `ha apps …` commands.
+Then `rsync` that overlay to `/addons/local/<slug>/`, `ha store reload`, `ha apps install local_<slug>`. When the overlay's `config.yaml` version drifts from the installed one, `ha apps rebuild` becomes a silent no-op — use `ha store reload` + `ha apps update local_<slug>`. Never `docker restart` an ingress add-on from outside (its IP changes and HA's ingress route breaks); only `ha apps …` commands. `scripts/smoke/ha-app-e2e.mjs` runs a Node smoke pass against the deployed app.
 
 ### Run an isolated CLI
 
-Point the CLI at a throwaway `HOME` **and** an isolated relay-token store, so it can never read or overwrite your real setup:
+**`export` the isolation vars once** so every CLI command in the session — not just `setup`, but `pair`, `relay`, and especially `uninstall --purge` — inherits them. Without this on the follow-up commands, they read/write your **real** config and keyring, and the documented purge would delete your production token and device credential:
 
 ```bash
-HOME=/tmp/nova-test-home \
-HA_NOVA_DEV_ROOT="$PWD" \
-HA_NOVA_TEST_SECRET_DIR=/tmp/nova-test-secrets \
-HA_NOVA_ALLOW_INSECURE_TEST_KEYRING=1 HA_NOVA_TEST_KEYRING_FILE=/tmp/nova-test-token \
-HA_NOVA_NO_BROWSER=1 \
-  ./ha-nova setup claude --relay-url http://<ip>:18791
+export HOME=/tmp/nova-test-home
+export HA_NOVA_DEV_ROOT="$PWD"           # run the local build, not a released bundle
+export HA_NOVA_TEST_SECRET_DIR=/tmp/nova-test-secrets            # device credential → files
+export HA_NOVA_ALLOW_INSECURE_TEST_KEYRING=1                     # relay token → file, not the
+export HA_NOVA_TEST_KEYRING_FILE=/tmp/nova-test-token            #   real ha-nova.relay-auth-token slot
+export HA_NOVA_NO_BROWSER=1
+
+./ha-nova setup claude --relay-url http://<ip>:18791
+./ha-nova pair --relay-url http://<ip>:18791 --code NNNNNN
+./ha-nova relay health          # exercise skills over the device transport (also core|ws|trace)
+./ha-nova uninstall --purge --yes   # verifies the server-side revoke + local cleanup
 ```
 
-The relay-token vars are **not optional** even for pure device pairing: `HOME` and `HA_NOVA_TEST_SECRET_DIR` isolate config + the device credential, but the legacy relay token still uses the real `ha-nova.relay-auth-token` keyring service unless you redirect it — so without them, `ha-nova uninstall --purge` would delete your production token entry. Use `HA_NOVA_KEYRING_SERVICE=<name>` instead if you want to keep it in the keyring under a throwaway name.
-
-Then pair (`ha-nova pair --relay-url … --code NNNNNN`), exercise skills over the device transport (`ha-nova relay health|core|ws|trace …`), and finish with `ha-nova uninstall --purge --yes` to verify the server-side revoke and local cleanup.
+The relay-token vars are **mandatory even for pure device pairing**: `HOME` + `HA_NOVA_TEST_SECRET_DIR` isolate config + the device credential, but the legacy relay token still uses the real `ha-nova.relay-auth-token` keyring service unless you redirect it. (`HA_NOVA_KEYRING_SERVICE=<name>` is the alternative if you want a throwaway keyring entry instead of a file.)
 
 ### Isolation env vars
 
