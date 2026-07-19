@@ -255,6 +255,11 @@ func retireDeviceCredential(cfg *runtimeConfig) {
 	// live endpoint — cannot be resumed after the user chose the legacy/manual path.
 	_ = deleteDeviceCredential()
 	_ = deletePendingDeviceCredential()
+	// Clear the file-backend marker + empty secrets dir too: otherwise a
+	// credential-less install stays classified as file-backed, and a later desktop
+	// re-pair with a healthy keyring would skip the keyring probe and keep storing
+	// device credentials in files.
+	removeDeviceFileStorageResidue()
 	cfg.RelaySecureBaseURL = ""
 	cfg.RelaySpkiPin = ""
 	cfg.PendingSecureBaseURL = ""

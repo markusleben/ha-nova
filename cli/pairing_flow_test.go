@@ -97,6 +97,35 @@ func TestRetireDeviceCredentialClearsPendingWhenLiveEmpty(t *testing.T) {
 	}
 }
 
+// Regression: retiring the device credential on a file-backed install (switch
+// back to the legacy token path) must also drop the .file-backend marker, or the
+// credential-less install stays classified as file-backed and a later desktop
+// re-pair with a healthy keyring would keep storing credentials in files.
+func TestRetireDeviceCredentialClearsFileBackendMarker(t *testing.T) {
+	withDeviceStorageTestHome(t)
+	deviceCredentialFileModeForced = true // headless: writes go to the file backend
+	cred := generateTestDeviceCredential(t)
+	if err := writeDeviceCredential(cred); err != nil {
+		t.Fatalf("seed file-backed install: %v", err)
+	}
+	if !deviceFileBackendMarkerExists() {
+		t.Fatal("setup: expected a file-backend marker after storing a credential")
+	}
+
+	cfg := runtimeConfig{} // no live endpoint → no revoke attempt
+	retireDeviceCredential(&cfg)
+
+	if deviceFileBackendMarkerExists() {
+		t.Fatal("retire left the file-backend marker behind")
+	}
+	if deviceSecretFileExists(deviceCredentialService) {
+		t.Fatal("retire left the current credential file behind")
+	}
+	if deviceSecretFileBacked() {
+		t.Fatal("install still classified as file-backed after retiring the credential")
+	}
+}
+
 // Regression: an IPv6 relay host must stay bracketed when building the secure
 // endpoint URL, or activation and later functional calls get an invalid host.
 func TestSecureBaseFromBootstrapBracketsIPv6(t *testing.T) {
