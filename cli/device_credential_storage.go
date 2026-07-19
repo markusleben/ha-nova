@@ -325,5 +325,17 @@ func fileStorageCanary() error {
 		}
 		_ = f.Close()
 	}
+	// The marker is written at first promotion. Prove its path is writable NOW so
+	// a non-regular residue there (e.g. a leftover directory named .file-backend)
+	// fails the probe BEFORE a one-time code is spent, not at promotion. Only test
+	// when no regular marker exists yet; create-then-remove leaves none behind.
+	if !deviceFileBackendMarkerExists() {
+		if err := writeDeviceFileBackendMarker(); err != nil {
+			return fmt.Errorf("file-backend marker path is not writable: %w", err)
+		}
+		if markerPath, perr := deviceFileBackendMarkerPath(); perr == nil {
+			_ = os.Remove(markerPath)
+		}
+	}
 	return nil
 }

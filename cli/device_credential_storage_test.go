@@ -255,6 +255,27 @@ func TestRepairOnFileInstallDoesNotDeleteCredentialWhenMarkerIsReadOnly(t *testi
 	}
 }
 
+func TestFileCanaryRejectsNonRegularMarkerPath(t *testing.T) {
+	withDeviceStorageTestHome(t)
+	// A leftover DIRECTORY occupies the .file-backend marker path. A first-time
+	// file fallback must fail the storage probe (before any code is spent), not
+	// only later when promotion tries to write the marker.
+	dir, err := deviceSecretFileDir()
+	if err != nil {
+		t.Fatalf("secret dir: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, deviceCredentialFileBackendMarker), 0o700); err != nil {
+		t.Fatalf("seed marker directory: %v", err)
+	}
+	// No desktop keyring → first-time file fallback path in the probe.
+	stubStorageCanaries(t, fmt.Errorf("%w: no session", errDesktopKeyringSessionUnavailable))
+
+	_, perr := probeDeviceCredentialStorage()
+	if perr == nil || !strings.Contains(perr.Error(), "marker path is not writable") {
+		t.Fatalf("expected the probe to reject a non-regular marker path before pairing, got %v", perr)
+	}
+}
+
 func TestFileCanaryRejectsAnUnwritableExistingCredentialFile(t *testing.T) {
 	withDeviceStorageTestHome(t)
 	// Established file install (marker present) whose current credential file has
