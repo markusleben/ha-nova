@@ -58,10 +58,29 @@ func promotePendingDeviceCredential() error {
 	if !ok {
 		return fmt.Errorf("no pending credential to promote")
 	}
+	// Backend is install-wide (see device_credential_storage.go), so current and
+	// pending always resolve to the same store — a plain write+delete promotes
+	// correctly whether this install uses the keyring or the file backend.
 	if err := writeDeviceCredential(pending); err != nil {
 		return err
 	}
 	return deletePendingDeviceCredential()
+}
+
+// promotePendingFileCredential finalizes a FILE-backed pending credential
+// explicitly (used by resume): it writes the current credential file — which
+// also lays down the file-backend marker on first commit — and drops the pending
+// file. This finishes a headless-interrupted pairing in file mode without a
+// storage probe or the process-forced flag, so a now-usable keyring can neither
+// reroute nor delete the credential.
+func promotePendingFileCredential(pending string) error {
+	if parseDeviceCredential(pending) == nil {
+		return fmt.Errorf("refusing to store a malformed device credential")
+	}
+	if err := deviceSecretFileSet(deviceCredentialService, pending); err != nil {
+		return err
+	}
+	return deviceSecretFileDelete(deviceCredentialPendingService)
 }
 
 func readCredentialSlot(service string) (string, bool, error) {

@@ -52,6 +52,14 @@ func runSecurePairing(bootstrapURL, code string, cfg *runtimeConfig, saveCfg fun
 		return "", fmt.Errorf("could not establish an install id: %w", err)
 	}
 
+	// Prove credential storage works BEFORE talking to the relay: /pair/v1/finish
+	// consumes the owner's one-time code, so a broken keyring discovered after the
+	// fact would burn the code with nothing stored. Callers probe earlier for the
+	// user-facing message; this guard keeps the invariant for every caller.
+	if _, err := probeDeviceCredentialStorage(); err != nil {
+		return "", fmt.Errorf("cannot store a device credential on this system (the code was not used): %w", err)
+	}
+
 	prov, err := pairDeviceV1ForPairing(nil, bootstrapURL, code, deviceMetadata{
 		Name:            info.name,
 		Platform:        info.platform,
@@ -113,17 +121,73 @@ func runSecurePairing(bootstrapURL, code string, cfg *runtimeConfig, saveCfg fun
 // already stored pending (e.g. a crash between activate and promote). Safe to
 // call at setup/doctor start; a no-op when there is no pending credential.
 func resumePendingActivation(cfg *runtimeConfig, saveCfg func(*runtimeConfig) error) (bool, error) {
-	pending, ok, err := readPendingDeviceCredential()
-	if err != nil || !ok {
-		return false, err
-	}
 	base, pin := cfg.PendingSecureBaseURL, cfg.PendingSpkiPin
 	if base == "" || pin == "" {
-		// No pending endpoint to activate against; leave the pending slot for a
-		// full re-pair rather than guessing.
+		// No interrupted pairing to resume (cheap check first, before any keyring
+		// access): leave any pending slot for a full re-pair rather than guessing.
 		return false, nil
 	}
-	if err := activateDeviceV1(base, pin, pending); err != nil {
+	// Choose the backend that actually holds the interrupted pairing, without a
+	// storage probe (a probe could reroute reads to a now-usable keyring and lose
+	// a headless file pending). Prefer a real KEYRING pending: a desktop re-pair
+	// stores its pending there, and it must win over any orphan .pending FILE from
+	// an aborted earlier headless attempt. Only when the keyring holds no pending
+	// (or is unreachable, i.e. headless) do we resume from the file — that is the
+	// genuine headless-interrupted pairing whose marker is not written until
+	// promotion.
+	var pending string
+	fileMode := false
+	if deviceSecretFileBacked() {
+		// Established file-backed install (marker present, or forced this process):
+		// the pending slot is a file. Do NOT probe the keyring — a locked/present
+		// Secret Service on this box is irrelevant and must not block resuming a
+		// valid file pending.
+		if !deviceSecretFileExists(deviceCredentialPendingService) {
+			return false, nil
+		}
+		raw, err := deviceSecretFileGet(deviceCredentialPendingService)
+		if err != nil {
+			return false, err
+		}
+		if parseDeviceCredential(raw) == nil {
+			return false, nil // malformed residue: leave it for a full re-pair
+		}
+		pending = raw
+		fileMode = true
+	} else {
+		// No marker: the install may be keyring-backed (desktop, possibly with an
+		// orphan file) or a headless-interrupted pairing whose marker is not
+		// written until promotion. Prefer a real keyring pending over an orphan
+		// file; only an absent/empty keyring falls back to the file.
+		kp, kok, kerr := readKeyringDeviceSecret(deviceCredentialPendingService)
+		switch {
+		case kok && parseDeviceCredential(kp) != nil:
+			pending = kp
+		case kok:
+			// Keyring pending present but malformed: surface it rather than
+			// silently resuming an orphan file behind it.
+			return false, fmt.Errorf("keyring pending credential is malformed")
+		case kerr != nil && !isDesktopKeyringSessionUnavailableError(kerr) && !isDesktopKeyringUnavailableError(kerr):
+			// Keyring EXISTS but is unreadable (locked/uninitialized): a real
+			// keyring pending may hide behind it — refuse to downgrade to a file.
+			return false, kerr
+		case deviceSecretFileExists(deviceCredentialPendingService):
+			// Keyring empty (not-found) or genuinely unreachable (headless): the
+			// file holds the interrupted headless pairing.
+			raw, err := deviceSecretFileGet(deviceCredentialPendingService)
+			if err != nil {
+				return false, err
+			}
+			if parseDeviceCredential(raw) == nil {
+				return false, nil
+			}
+			pending = raw
+			fileMode = true
+		default:
+			return false, kerr
+		}
+	}
+	if err := activateDeviceV1ForPairing(base, pin, pending); err != nil {
 		return false, err
 	}
 	// Same ordering as runSecurePairing: save the live endpoint before promoting
@@ -134,8 +198,20 @@ func resumePendingActivation(cfg *runtimeConfig, saveCfg func(*runtimeConfig) er
 	if err := saveCfg(cfg); err != nil {
 		return false, err
 	}
-	if err := promotePendingDeviceCredential(); err != nil {
-		return false, err
+	if fileMode {
+		if err := promotePendingFileCredential(pending); err != nil {
+			return false, err
+		}
+	} else {
+		// Keyring-backed: promote the pending we already read and drop the keyring
+		// pending slot. An orphan .pending FILE (if any) is left untouched — it is
+		// harmless residue that marker-based reads never consult.
+		if err := writeDeviceCredential(pending); err != nil {
+			return false, err
+		}
+		if err := deletePendingDeviceCredential(); err != nil {
+			return false, err
+		}
 	}
 	cfg.PendingSecureBaseURL = ""
 	cfg.PendingSpkiPin = ""
@@ -179,6 +255,11 @@ func retireDeviceCredential(cfg *runtimeConfig) {
 	// live endpoint — cannot be resumed after the user chose the legacy/manual path.
 	_ = deleteDeviceCredential()
 	_ = deletePendingDeviceCredential()
+	// Clear the file-backend marker + empty secrets dir too: otherwise a
+	// credential-less install stays classified as file-backed, and a later desktop
+	// re-pair with a healthy keyring would skip the keyring probe and keep storing
+	// device credentials in files.
+	removeDeviceFileStorageResidue()
 	cfg.RelaySecureBaseURL = ""
 	cfg.RelaySpkiPin = ""
 	cfg.PendingSecureBaseURL = ""

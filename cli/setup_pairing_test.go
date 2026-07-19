@@ -12,6 +12,127 @@ import (
 	"testing"
 )
 
+func TestInteractiveSetupReachesPairingWhenLegacyKeyringUnavailable(t *testing.T) {
+	// Regression: on a headless box (container/SSH, no Secret Service) the legacy
+	// relay-token keyring preflight fails, but secure device pairing brings its
+	// own file-backed storage. The wizard must reach the pairing stage instead of
+	// exiting at the token-storage gate.
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("HA_NOVA_NO_BROWSER", "1")
+	t.Setenv("HA_NOVA_DEV_ROOT", repoRootForSetupTest(t))
+
+	originalPreflight := relayAuthTokenSetupPreflightForSetup
+	t.Cleanup(func() { relayAuthTokenSetupPreflightForSetup = originalPreflight })
+	relayAuthTokenSetupPreflightForSetup = func() error {
+		return desktopKeyringSessionUnavailableError("no session bus in this shell")
+	}
+
+	haServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer haServer.Close()
+
+	relayServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/pair/v1/info":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"ok":true,"data":{"relay_version":"0.7.0","protocol_version":"v1","available":true}}`))
+		case "/health":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"status":"ok","data":{"ha_ws_connected":true}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer relayServer.Close()
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+
+	// Reach the six-digit code prompt, then cancel (avoids driving full OPAQUE).
+	input := joinSetupInputs([]string{"", "", "", "", "exit"})
+	exitCode := 0
+	stdout, stderr := captureInteractiveSetupIO(t, input, func() int {
+		exitCode = interactiveSetup(paths, runtimeConfig{}, loadStateOrDefault(paths), "codex",
+			normalizeHostInput(haServer.URL), haServer.URL, relayServer.URL, "", false)
+		return exitCode
+	})
+	output := stdout + stderr
+	if exitCode == 1 {
+		t.Fatalf("wizard exited at the token-storage gate on a headless box (want it to reach pairing):\n%s", output)
+	}
+	if strings.Contains(output, "save relay token") {
+		t.Fatalf("wizard surfaced the fatal legacy-token save error instead of pairing:\n%s", output)
+	}
+	for _, want := range []string{"file-backed storage", "Pair this device"} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("wizard output missing %q (did not reach the pairing path):\n%s", want, output)
+		}
+	}
+}
+
+func TestInteractiveSetupStaysFatalOnHeadlessPreV1Relay(t *testing.T) {
+	// A pre-v1 relay has no /pair/v1/info, so pairing would fall back to the
+	// legacy /pair exchange whose shared token needs the (unavailable) keyring.
+	// The wizard must NOT clear the token-storage error here — failing before the
+	// one-time code is consumed is the safe outcome.
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("HA_NOVA_NO_BROWSER", "1")
+	t.Setenv("HA_NOVA_DEV_ROOT", repoRootForSetupTest(t))
+
+	originalPreflight := relayAuthTokenSetupPreflightForSetup
+	t.Cleanup(func() { relayAuthTokenSetupPreflightForSetup = originalPreflight })
+	relayAuthTokenSetupPreflightForSetup = func() error {
+		return desktopKeyringSessionUnavailableError("no session bus in this shell")
+	}
+
+	haServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer haServer.Close()
+
+	// Pre-v1 relay: /health only, /pair/v1/info 404.
+	relayServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/health" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"status":"ok","data":{"ha_ws_connected":true}}`))
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer relayServer.Close()
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+
+	exitCode := 0
+	stdout, stderr := captureInteractiveSetupIO(t, "exit\n", func() int {
+		exitCode = interactiveSetup(paths, runtimeConfig{}, loadStateOrDefault(paths), "codex",
+			normalizeHostInput(haServer.URL), haServer.URL, relayServer.URL, "", false)
+		return exitCode
+	})
+	output := stdout + stderr
+	if exitCode != 1 {
+		t.Fatalf("wizard exit = %d, want 1 (pre-v1 relay + no keyring must fail safe)\n%s", exitCode, output)
+	}
+	// It must fail with clear guidance BEFORE prompting for a code (the "exit"
+	// input is never consumed), so no one-time code is ever spent.
+	if !strings.Contains(output, "too old for secure device pairing") {
+		t.Fatalf("expected the pre-v1/no-keyring guidance before the code prompt:\n%s", output)
+	}
+	if strings.Contains(output, "Six-digit code") {
+		t.Fatalf("wizard prompted for a code despite unusable storage (code could be consumed):\n%s", output)
+	}
+}
+
 func TestExchangeRelayPairingCodeUsesBodyWithoutBearer(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodPost || request.URL.Path != "/pair" {

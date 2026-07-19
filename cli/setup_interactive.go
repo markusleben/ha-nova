@@ -223,6 +223,9 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 			}
 		}
 	}
+	// Set when the missing-keyring error is downgraded below: the legacy /pair
+	// token store is unavailable, so the pairing stage must not fall back to it.
+	legacyTokenStoreUnavailable := false
 	if tokenStoragePreflightErr == nil {
 		if savedToken, err := readRelayAuthTokenForSetup(); err == nil && strings.TrimSpace(savedToken) != "" {
 			savedTokenBeforeSetup = strings.TrimSpace(savedToken)
@@ -234,9 +237,31 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 			printRelayTokenStorageSetupWarning(err)
 		}
 	} else if !setupSecureStorageRecoveryAvailableNow(tokenStoragePreflightErr) {
-		printRelayTokenStorageSetupWarning(tokenStoragePreflightErr)
-		printHumanErr("%s", relayAuthTokenSetupSaveError(tokenStoragePreflightErr))
-		return 1
+		// A missing OS keyring is only fatal when a relay TOKEN must actually be
+		// stored. The default onboarding path is secure device pairing, which
+		// brings its own file-backed credential storage (device_credential_storage.go),
+		// so a headless box (container/SSH with no Secret Service) must still reach
+		// the pairing stage instead of exiting here on the legacy-token preflight.
+		tokenPathRequired := serviceMode || strings.TrimSpace(relayTokenFlag) != ""
+		noKeyringBackend := isDesktopKeyringSessionUnavailableError(tokenStoragePreflightErr) ||
+			isDesktopKeyringUnavailableError(tokenStoragePreflightErr)
+		// The default onboarding path is secure device pairing, which brings its
+		// own file-backed credential storage — no keyring needed. So a missing
+		// keyring must not abort here; let the wizard reach the pairing stage,
+		// where the relay URL is known. The legacy /pair fallback (which DOES need
+		// a keyring token store) is guarded there, failing before it consumes a
+		// one-time code — see runSetupPairingFlow. Deciding it here is impossible
+		// for the plain interactive flow, which discovers the relay URL later.
+		if !tokenPathRequired && noKeyringBackend && deviceCredentialStorageViable() {
+			printRelayTokenStorageSetupWarning(tokenStoragePreflightErr)
+			printHumanInfo("No OS keyring is reachable here — this device will pair with secure file-backed storage instead of a shared token.")
+			tokenStoragePreflightErr = nil
+			legacyTokenStoreUnavailable = true
+		} else {
+			printRelayTokenStorageSetupWarning(tokenStoragePreflightErr)
+			printHumanErr("%s", relayAuthTokenSetupSaveError(tokenStoragePreflightErr))
+			return 1
+		}
 	}
 	if existingToken == "" {
 		existingToken = savedTokenBeforeSetup
@@ -727,7 +752,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 		case setupStagePairing:
 			steps := buildSetupPairingWizardSteps()
 			renderSetupStep(os.Stdout, steps.Pairing, steps.Total, "Pair this device")
-			pairedToken, err := runSetupPairingFlow(reader, os.Stdout, paths, &cfg)
+			pairedToken, err := runSetupPairingFlow(reader, os.Stdout, paths, &cfg, legacyTokenStoreUnavailable)
 			if err == errSetupBack {
 				stage = pairingBackStage
 				continue

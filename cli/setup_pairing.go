@@ -30,6 +30,7 @@ var errSetupDevicePaired = errors.New("device paired securely")
 // /pair/v1 (or a test with no v1 endpoint) transparently uses the old path.
 var probePairingV1ForSetup = probePairingV1
 var securePairForSetup = runSecurePairing
+var probePairingV1DetailedForSetup = probePairingV1Detailed
 
 type relayPairingRateLimitError struct {
 	retryAfterSeconds int
@@ -159,6 +160,32 @@ func pairingRetryAfterSeconds(header string) int {
 	return seconds
 }
 
+// probePairingV1Detailed probes GET /pair/v1/info and reports both whether the
+// relay supports secure device pairing (supported) and whether it answered at
+// all (reachable). This tells three cases apart that probePairingV1's bool
+// collapses: v1 supported, reachable-but-pre-v1 (e.g. 404), and unreachable
+// (connection failure). Any HTTP response — even 404 — counts as reachable.
+func probePairingV1Detailed(relayBaseURL string) (supported bool, reachable bool) {
+	req, err := http.NewRequest(http.MethodGet, strings.TrimRight(relayBaseURL, "/")+"/pair/v1/info", nil)
+	if err != nil {
+		return false, false
+	}
+	req.URL.User = nil
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return false, false
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return false, true
+	}
+	body, err := readAllLimited(resp.Body, maxRelayPairingResponseBytes)
+	if err != nil {
+		return false, true
+	}
+	return decodePairInfo(body), true
+}
+
 // probePairingV1 reports whether the relay supports secure device pairing
 // (GET /pair/v1/info). Any error or non-v1 answer returns false so the wizard
 // falls back to the legacy code exchange.
@@ -183,7 +210,48 @@ func probePairingV1(relayBaseURL string) bool {
 	return decodePairInfo(body)
 }
 
-func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths, cfg *runtimeConfig) (string, error) {
+// legacyTokenStoreUnavailable is set by the caller when the OS keyring is
+// missing AND no service-token file is configured, so the legacy /pair token
+// (which needs one of those) cannot be stored on this box.
+func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths, cfg *runtimeConfig, legacyTokenStoreUnavailable bool) (string, error) {
+	// Storage first: never send the user to fetch a one-time code that a broken
+	// credential backend would burn. Headless systems switch to the private-file
+	// fallback here, with a visible note.
+	probe, probeErr := probeDeviceCredentialStorage()
+	if probeErr != nil {
+		renderSetupErrorLine(out, "This system cannot store the device credential yet: %s", probeErr)
+		return "", fmt.Errorf("device credential storage unavailable: %w", probeErr)
+	}
+	if probe.note != "" {
+		renderSetupParagraph(out, probe.note)
+	}
+
+	// Determine the pairing mode up front (the relay URL is known here). Secure v1
+	// pairing stores a file-backed device credential and needs no keyring. The
+	// legacy /pair fallback instead returns a SHARED token that must go into the
+	// OS keyring or a service-token file — so on a keyless box with neither AND a
+	// pre-v1 relay, fail NOW, before the pairing UI prompts for and consumes a
+	// one-time code, rather than after the exchange fails to store the token.
+	secure := probePairingV1ForSetup(cfg.RelayBaseURL)
+	if !secure && legacyTokenStoreUnavailable {
+		// probePairingV1 returns false for ANY failure — a genuine pre-v1 relay, a
+		// transient one (still starting), OR an unreachable one. Re-probe with a
+		// detailed result so the three cases are distinguished: recovered v1 →
+		// proceed securely; reachable-but-pre-v1 → "too old" (no legacy store);
+		// unreachable → retry hint. No one-time code is spent in any case.
+		supported, reachable := probePairingV1DetailedForSetup(cfg.RelayBaseURL)
+		switch {
+		case supported:
+			secure = true // a transient first probe recovered — v1 is available now
+		case reachable:
+			renderSetupErrorLine(out, "This NOVA Relay is too old for secure device pairing, and this system has no key store for the legacy shared token. Update the NOVA Relay App to enable secure pairing.")
+			return "", fmt.Errorf("relay predates secure pairing and no store is available for the legacy token")
+		default:
+			renderSetupErrorLine(out, "Could not reach NOVA Relay to check secure pairing support. Make sure the NOVA Relay app is running, then run setup again.")
+			return "", fmt.Errorf("relay not reachable to determine secure pairing support")
+		}
+	}
+
 	renderSetupParagraph(out,
 		"Open NOVA in the Home Assistant sidebar and click \"Connect a device\" to get a six-digit code.",
 		`If NOVA is not in the sidebar, open the NOVA Relay app page and choose "Open Web UI".`,
@@ -193,8 +261,6 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 		return "", err
 	}
 	openAnnouncedBrowserURL(out, haRelayAppPageURL(cfg.HAURL))
-
-	secure := probePairingV1ForSetup(cfg.RelayBaseURL)
 
 	for {
 		entered, err := promptWizardLineFromReader(reader, out, "Six-digit code from NOVA (or type 'manual')", "")
@@ -227,6 +293,14 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 				renderSetupErrorLine(out, "The relay's secure identity did not match. Try again; if it repeats, someone may be intercepting the connection.")
 				continue
 			case errors.Is(perr, errRelayNotV1):
+				// The relay turned out not to support v1 mid-flow. Falling through to
+				// the legacy /pair exchange needs a keyring for its shared token; on a
+				// box without one, fail now (same guard as up front) rather than
+				// consuming another code that could never be persisted.
+				if legacyTokenStoreUnavailable {
+					renderSetupErrorLine(out, "This NOVA Relay is too old for secure device pairing, and this system has no key store for the legacy shared token. Update the NOVA Relay App to enable secure pairing.")
+					return "", fmt.Errorf("relay predates secure pairing mid-flow and no store is available for the legacy token")
+				}
 				secure = false // relay changed under us; fall through to legacy
 			default:
 				var rateLimit *relayPairingRateLimitError

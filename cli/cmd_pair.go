@@ -63,6 +63,19 @@ func runPairCommand(paths runtimePaths, args []string) int {
 		cfg.RelayBaseURL = bootstrapURL
 	}
 
+	// Verify credential storage BEFORE asking for (or spending) a code: a broken
+	// backend must not burn the owner's one-time code. On headless systems this
+	// engages the private-file fallback and says so.
+	probe, probeErr := probeDeviceCredentialStorage()
+	if probeErr != nil {
+		printErr("This system cannot store the device credential yet: %s", probeErr)
+		printErr("Nothing was paired — no code was used.")
+		return 1
+	}
+	if probe.note != "" {
+		fmt.Println(probe.note)
+	}
+
 	if code == "" {
 		entered, promptErr := promptWizardLineFromReader(bufio.NewReader(os.Stdin), os.Stdout, "Six-digit code from the NOVA page", "")
 		if promptErr != nil {

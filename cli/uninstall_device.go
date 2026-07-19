@@ -22,6 +22,10 @@ var revokeSelfDeviceV1ForUninstall = revokeSelfDeviceV1
 func purgeDeviceCredentialWithReport(secureBaseURL, spkiPin string, report *uninstallReport, relayExpectedGone bool) {
 	// The pending slot is purely local (never activated): just drop it.
 	_ = deletePendingDeviceCredential()
+	// File-backed installs also leave the storage-mode marker; drop it (and the
+	// now-empty secrets dir) so a later reinstall re-probes cleanly rather than
+	// inheriting a stale file-mode decision.
+	defer removeDeviceFileStorageResidue()
 
 	credential, ok, err := readDeviceCredential()
 	if err != nil {
