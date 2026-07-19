@@ -171,13 +171,13 @@ func deviceSecretFileSet(service, value string) error {
 	if service == deviceCredentialService {
 		path := testSecretPath(dir, service)
 		if deviceFileBackendMarkerExists() {
-			return os.WriteFile(path, []byte(value), 0o600)
+			return writeSecretFile0600(path, value)
 		}
 		// First commit: keep the invariant "current credential file exists IFF
 		// marker exists" by writing the file, then the marker, and rolling the
 		// file back if the marker cannot be created. Nothing valuable is lost —
 		// there is no prior committed file credential on a first commit.
-		if err := os.WriteFile(path, []byte(value), 0o600); err != nil {
+		if err := writeSecretFile0600(path, value); err != nil {
 			return err
 		}
 		if err := writeDeviceFileBackendMarker(); err != nil {
@@ -186,7 +186,18 @@ func deviceSecretFileSet(service, value string) error {
 		}
 		return nil
 	}
-	return os.WriteFile(testSecretPath(dir, service), []byte(value), 0o600)
+	return writeSecretFile0600(testSecretPath(dir, service), value)
+}
+
+// writeSecretFile0600 writes a device secret and ENFORCES 0600, even when the
+// file already existed with looser permissions: os.WriteFile's mode applies only
+// on create, so a re-pair overwriting a manually-repaired credential file could
+// otherwise leave it readable by other local users.
+func writeSecretFile0600(path, value string) error {
+	if err := os.WriteFile(path, []byte(value), 0o600); err != nil {
+		return err
+	}
+	return os.Chmod(path, 0o600)
 }
 
 func deviceSecretFileDelete(service string) error {
@@ -205,11 +216,17 @@ func deviceSecretFileDelete(service string) error {
 // marker would otherwise make a fresh reinstall inherit file mode without
 // re-probing. Also drops the in-process forced flag so the same run re-decides.
 func removeDeviceFileStorageResidue() {
+	// Delete the file-backed credential slots DIRECTLY (by path), not through the
+	// marker-routed deleters: a headless pairing interrupted before promotion
+	// leaves a pending FILE with no marker, so routed deletes would go to the
+	// keyring and leave the orphan file (and a non-empty secrets dir) behind.
+	_ = deviceSecretFileDelete(deviceCredentialService)
+	_ = deviceSecretFileDelete(deviceCredentialPendingService)
 	if path, err := deviceFileBackendMarkerPath(); err == nil {
 		_ = os.Remove(path)
 	}
 	if dir, err := deviceSecretFileDir(); err == nil {
-		_ = os.Remove(dir) // removes only when empty
+		_ = os.Remove(dir) // removes only when now empty
 	}
 	deviceCredentialFileModeForced = false
 }

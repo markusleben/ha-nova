@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"net/http"
+	"os"
 	"testing"
 )
 
@@ -123,6 +124,31 @@ func TestRetireDeviceCredentialClearsFileBackendMarker(t *testing.T) {
 	}
 	if deviceSecretFileBacked() {
 		t.Fatal("install still classified as file-backed after retiring the credential")
+	}
+}
+
+// Regression: a headless pairing interrupted before promotion leaves a pending
+// FILE with no marker. Retire/purge must remove that orphan file directly (its
+// routed delete would go to the keyring), not leave it — and the empty secrets
+// dir must go too.
+func TestRetireRemovesOrphanPendingFileWithoutMarker(t *testing.T) {
+	withDeviceStorageTestHome(t)
+	if err := deviceSecretFileSet(deviceCredentialPendingService, generateTestDeviceCredential(t)); err != nil {
+		t.Fatalf("seed orphan pending file: %v", err)
+	}
+	if deviceFileBackendMarkerExists() {
+		t.Fatal("a pending write must not create a marker (test premise)")
+	}
+
+	cfg := runtimeConfig{} // no live endpoint → no revoke attempt
+	retireDeviceCredential(&cfg)
+
+	if deviceSecretFileExists(deviceCredentialPendingService) {
+		t.Fatal("orphan pending credential file left on disk after retire")
+	}
+	dir, _ := deviceSecretFileDir()
+	if _, err := os.Stat(dir); err == nil {
+		t.Fatal("secrets dir left behind after retire (orphan residue not fully cleared)")
 	}
 }
 

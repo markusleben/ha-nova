@@ -255,6 +255,33 @@ func TestRepairOnFileInstallDoesNotDeleteCredentialWhenMarkerIsReadOnly(t *testi
 	}
 }
 
+func TestFileCredentialWriteEnforces0600OnOverwrite(t *testing.T) {
+	withDeviceStorageTestHome(t)
+	deviceCredentialFileModeForced = true // headless: writes go to the file backend
+	if err := writeDeviceCredential(generateTestDeviceCredential(t)); err != nil {
+		t.Fatalf("seed file credential: %v", err)
+	}
+	path, err := deviceSecretFilePath(deviceCredentialService)
+	if err != nil {
+		t.Fatalf("slot path: %v", err)
+	}
+	// Simulate a manually-repaired credential file left world-readable.
+	if err := os.Chmod(path, 0o644); err != nil {
+		t.Fatalf("chmod 0644: %v", err)
+	}
+	// A re-pair overwrites the credential; it must be re-tightened to 0600.
+	if err := writeDeviceCredential(generateTestDeviceCredential(t)); err != nil {
+		t.Fatalf("re-pair overwrite: %v", err)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat: %v", err)
+	}
+	if info.Mode().Perm() != 0o600 {
+		t.Fatalf("credential file left permissive after overwrite: %v", info.Mode().Perm())
+	}
+}
+
 func TestFileCanaryRejectsNonRegularCredentialSlot(t *testing.T) {
 	withDeviceStorageTestHome(t)
 	// A leftover DIRECTORY occupies the pending credential slot. deviceSecretFileExists
