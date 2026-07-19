@@ -25,6 +25,8 @@ npm run verify
 
 ## Verification Matrix
 
+`npm run verify` and its slices below are the host-safe unit/contract layer. For live, headless, and cross-platform testing against a real (or disposable) Home Assistant — including the isolation env vars and safety rules — see [docs/reference/testing.md](docs/reference/testing.md).
+
 Use the smallest verify slice that matches your change. If the change crosses boundaries, fall back to `npm run verify`.
 
 | Change type | Minimum verification |
