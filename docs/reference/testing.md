@@ -5,7 +5,7 @@ Three layers, cheapest first. Use the smallest one that covers your change.
 | Layer | Proves | Needs | Command |
 | --- | --- | --- | --- |
 | 1. Host-safe checks | Types, contracts, unit + Go behaviour | Nothing (never touches real secure stores or a browser) | `npm run verify` |
-| 2. Disposable-HA E2E | The relay against a **real** Home Assistant | Docker only — **no HA of your own** | `bash scripts/e2e/disposable-ha/run.sh` |
+| 2. Disposable-HA E2E | The relay against a **real** Home Assistant | Docker + Python 3 (`pip install websockets`) — **no HA of your own** | `bash scripts/e2e/disposable-ha/run.sh` |
 | 3. Live against your own HA | The full onboarding wizard + device pairing on real hardware | An HA instance you control | See [Live against your own HA](#3-live-against-your-own-ha) |
 
 Layer 1 is documented in [CONTRIBUTING.md → Verification Matrix](../../CONTRIBUTING.md#verification-matrix); this page covers layers 2 and 3, plus the isolation env vars and the safety rules that keep them from touching anything you care about.
@@ -19,6 +19,7 @@ Layer 1 is documented in [CONTRIBUTING.md → Verification Matrix](../../CONTRIB
 This is the path for contributors **without** a Home Assistant instance.
 
 ```bash
+pip install websockets   # one-time; used by the token-minting step
 bash scripts/e2e/disposable-ha/run.sh
 ```
 
@@ -46,15 +47,18 @@ Deploy note: when the source `config.yaml` version drifts from the installed ver
 
 ### Run an isolated CLI
 
-Point the CLI at a throwaway `HOME` and secret store so it can never read or overwrite your real setup:
+Point the CLI at a throwaway `HOME` **and** an isolated relay-token store, so it can never read or overwrite your real setup:
 
 ```bash
 HOME=/tmp/nova-test-home \
 HA_NOVA_DEV_ROOT="$PWD" \
 HA_NOVA_TEST_SECRET_DIR=/tmp/nova-test-secrets \
+HA_NOVA_ALLOW_INSECURE_TEST_KEYRING=1 HA_NOVA_TEST_KEYRING_FILE=/tmp/nova-test-token \
 HA_NOVA_NO_BROWSER=1 \
   ./ha-nova setup claude --relay-url http://<ip>:18791
 ```
+
+The relay-token vars are **not optional** even for pure device pairing: `HOME` and `HA_NOVA_TEST_SECRET_DIR` isolate config + the device credential, but the legacy relay token still uses the real `ha-nova.relay-auth-token` keyring service unless you redirect it — so without them, `ha-nova uninstall --purge` would delete your production token entry. Use `HA_NOVA_KEYRING_SERVICE=<name>` instead if you want to keep it in the keyring under a throwaway name.
 
 Then pair (`ha-nova pair --relay-url … --code NNNNNN`), exercise skills over the device transport (`ha-nova relay health|core|ws|trace …`), and finish with `ha-nova uninstall --purge --yes` to verify the server-side revoke and local cleanup.
 
