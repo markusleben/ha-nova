@@ -433,6 +433,33 @@ func TestResumeRefusesFileFallbackWhenKeyringIsLocked(t *testing.T) {
 	}
 }
 
+func TestResumeSurfacesMalformedKeyringPending(t *testing.T) {
+	withDeviceStorageTestHome(t)
+	// The keyring pending slot exists but is corrupted/partial. Resume must
+	// surface that, not silently activate/promote an orphan .pending file behind it.
+	if err := keyring.Set(deviceCredentialPendingService, secretUser(), "not-a-valid-credential"); err != nil {
+		t.Fatalf("seed malformed keyring pending: %v", err)
+	}
+	seedRawSecretFile(t, deviceCredentialPendingService,
+		"hanova-dev-v1.MMMMMMMMMMMMMMMMMMMMMM.NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN")
+
+	origActivate := activateDeviceV1ForPairing
+	activateDeviceV1ForPairing = func(_, _, _ string) error {
+		t.Fatal("must not activate anything when the keyring pending is malformed")
+		return nil
+	}
+	t.Cleanup(func() { activateDeviceV1ForPairing = origActivate })
+
+	cfg := runtimeConfig{PendingSecureBaseURL: "https://relay:8792", PendingSpkiPin: "PIN"}
+	resumed, err := resumePendingActivation(&cfg, func(*runtimeConfig) error { return nil })
+	if resumed || err == nil {
+		t.Fatalf("expected resume to surface the malformed keyring pending, got resumed=%v err=%v", resumed, err)
+	}
+	if !strings.Contains(err.Error(), "malformed") {
+		t.Fatalf("expected a malformed-credential error, got: %v", err)
+	}
+}
+
 func generateTestDeviceCredential(t *testing.T) string {
 	t.Helper()
 	const cred = "hanova-dev-v1.AAAAAAAAAAAAAAAAAAAAAA.BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"

@@ -142,6 +142,10 @@ func resumePendingActivation(cfg *runtimeConfig, saveCfg func(*runtimeConfig) er
 	case kok && parseDeviceCredential(kp) != nil:
 		// A real keyring pending wins over any orphan .pending file.
 		pending = kp
+	case kok:
+		// The keyring pending slot exists but is malformed (corrupted/partial):
+		// surface it rather than silently resuming an orphan file behind it.
+		return false, fmt.Errorf("keyring pending credential is malformed")
 	case kerr != nil && !isDesktopKeyringSessionUnavailableError(kerr) && !isDesktopKeyringUnavailableError(kerr):
 		// The keyring EXISTS but is unreadable (locked/uninitialized/other): a real
 		// keyring pending may be hidden behind it, so refuse to resume a file and

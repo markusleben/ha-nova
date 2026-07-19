@@ -58,3 +58,32 @@ func TestSetupPairingFallsBackToLegacyExchange(t *testing.T) {
 		t.Fatalf("unexpected legacy token %q", token)
 	}
 }
+
+// A relay that advertises v1 but then rejects it mid-flow must not fall through to
+// the legacy /pair exchange on a box with no legacy token store — that would spend
+// the one-time code and only fail later at token persistence.
+func TestSetupPairingMidFlowRelayNotV1FailsSafeWithoutTokenStore(t *testing.T) {
+	origProbe, origSecure, origExchange := probePairingV1ForSetup, securePairForSetup, exchangeRelayPairingCodeForSetup
+	defer func() {
+		probePairingV1ForSetup, securePairForSetup, exchangeRelayPairingCodeForSetup = origProbe, origSecure, origExchange
+	}()
+	probePairingV1ForSetup = func(string) bool { return true } // v1 at first
+	securePairForSetup = func(_, _ string, _ *runtimeConfig, _ func(*runtimeConfig) error, _ pairingClientInfo) (string, error) {
+		return "", errRelayNotV1 // relay turns out pre-v1 mid-flow
+	}
+	exchangeCalled := false
+	exchangeRelayPairingCodeForSetup = func(_ *http.Client, _, _ string) (string, error) {
+		exchangeCalled = true
+		return "legacy-token", nil
+	}
+
+	reader := bufio.NewReader(strings.NewReader("\n473921\n"))
+	cfg := &runtimeConfig{RelayBaseURL: "http://relay:8791"}
+	_, err := runSetupPairingFlow(reader, io.Discard, runtimePaths{}, cfg, true) // legacyTokenStoreUnavailable
+	if err == nil {
+		t.Fatal("expected a fail-safe error on mid-flow errRelayNotV1 with no legacy token store")
+	}
+	if exchangeCalled {
+		t.Fatal("legacy /pair exchange was reached — a one-time code could be consumed with no store to persist the token")
+	}
+}

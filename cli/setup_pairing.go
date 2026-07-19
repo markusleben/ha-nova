@@ -252,6 +252,14 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 				renderSetupErrorLine(out, "The relay's secure identity did not match. Try again; if it repeats, someone may be intercepting the connection.")
 				continue
 			case errors.Is(perr, errRelayNotV1):
+				// The relay turned out not to support v1 mid-flow. Falling through to
+				// the legacy /pair exchange needs a keyring for its shared token; on a
+				// box without one, fail now (same guard as up front) rather than
+				// consuming another code that could never be persisted.
+				if legacyTokenStoreUnavailable {
+					renderSetupErrorLine(out, "This NOVA Relay is too old for secure device pairing, and this system has no key store for the legacy shared token. Update the NOVA Relay App to enable secure pairing.")
+					return "", fmt.Errorf("relay predates secure pairing mid-flow and no store is available for the legacy token")
+				}
 				secure = false // relay changed under us; fall through to legacy
 			default:
 				var rateLimit *relayPairingRateLimitError
