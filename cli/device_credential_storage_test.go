@@ -255,6 +255,27 @@ func TestRepairOnFileInstallDoesNotDeleteCredentialWhenMarkerIsReadOnly(t *testi
 	}
 }
 
+func TestFileCanaryRejectsNonRegularCredentialSlot(t *testing.T) {
+	withDeviceStorageTestHome(t)
+	// A leftover DIRECTORY occupies the pending credential slot. deviceSecretFileExists
+	// reports false (not regular), but a later os.WriteFile would fail after the
+	// code was spent — so the probe must reject it up front.
+	dir, err := deviceSecretFileDir()
+	if err != nil {
+		t.Fatalf("secret dir: %v", err)
+	}
+	slot := testSecretPath(dir, deviceCredentialPendingService)
+	if err := os.MkdirAll(slot, 0o700); err != nil {
+		t.Fatalf("seed slot directory: %v", err)
+	}
+	stubStorageCanaries(t, fmt.Errorf("%w: no session", errDesktopKeyringSessionUnavailable))
+
+	_, perr := probeDeviceCredentialStorage()
+	if perr == nil || !strings.Contains(perr.Error(), "not a regular file") {
+		t.Fatalf("expected the probe to reject a non-regular credential slot, got %v", perr)
+	}
+}
+
 func TestFileCanaryRejectsNonRegularMarkerPath(t *testing.T) {
 	withDeviceStorageTestHome(t)
 	// A leftover DIRECTORY occupies the .file-backend marker path. A first-time
@@ -271,7 +292,7 @@ func TestFileCanaryRejectsNonRegularMarkerPath(t *testing.T) {
 	stubStorageCanaries(t, fmt.Errorf("%w: no session", errDesktopKeyringSessionUnavailable))
 
 	_, perr := probeDeviceCredentialStorage()
-	if perr == nil || !strings.Contains(perr.Error(), "marker path is not writable") {
+	if perr == nil || !strings.Contains(perr.Error(), "not a regular file") {
 		t.Fatalf("expected the probe to reject a non-regular marker path before pairing, got %v", perr)
 	}
 }

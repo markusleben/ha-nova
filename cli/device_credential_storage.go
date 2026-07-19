@@ -314,8 +314,12 @@ func fileStorageCanary() error {
 		if err != nil {
 			return err
 		}
-		if !deviceSecretFileExists(service) {
-			continue
+		regular, err := canaryPathRegularOrAbsent(path)
+		if err != nil {
+			return err
+		}
+		if !regular {
+			continue // absent: will be created at write time
 		}
 		// O_WRONLY (no O_TRUNC) proves write permission without corrupting the
 		// stored credential; close immediately.
@@ -326,16 +330,40 @@ func fileStorageCanary() error {
 		_ = f.Close()
 	}
 	// The marker is written at first promotion. Prove its path is writable NOW so
-	// a non-regular residue there (e.g. a leftover directory named .file-backend)
-	// fails the probe BEFORE a one-time code is spent, not at promotion. Only test
-	// when no regular marker exists yet; create-then-remove leaves none behind.
-	if !deviceFileBackendMarkerExists() {
+	// non-regular residue there (a leftover directory/FIFO/symlink) fails the probe
+	// BEFORE a one-time code is spent, not at promotion. Only test when no regular
+	// marker exists yet; create-then-remove leaves none behind.
+	markerPath, err := deviceFileBackendMarkerPath()
+	if err != nil {
+		return err
+	}
+	regular, err := canaryPathRegularOrAbsent(markerPath)
+	if err != nil {
+		return err
+	}
+	if !regular {
 		if err := writeDeviceFileBackendMarker(); err != nil {
 			return fmt.Errorf("file-backend marker path is not writable: %w", err)
 		}
-		if markerPath, perr := deviceFileBackendMarkerPath(); perr == nil {
-			_ = os.Remove(markerPath)
-		}
+		_ = os.Remove(markerPath)
 	}
 	return nil
+}
+
+// canaryPathRegularOrAbsent reports whether path is a regular file (true) or
+// absent (false), and errors when it exists as a NON-regular file (directory,
+// FIFO, socket, symlink) — such residue would make a later os.WriteFile fail
+// after a one-time code was already spent.
+func canaryPathRegularOrAbsent(path string) (bool, error) {
+	info, err := os.Lstat(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	if !info.Mode().IsRegular() {
+		return false, fmt.Errorf("%s is not a regular file", filepath.Base(path))
+	}
+	return true, nil
 }

@@ -30,7 +30,7 @@ var errSetupDevicePaired = errors.New("device paired securely")
 // /pair/v1 (or a test with no v1 endpoint) transparently uses the old path.
 var probePairingV1ForSetup = probePairingV1
 var securePairForSetup = runSecurePairing
-var relayReachableForSetup = relayReachable
+var probePairingV1DetailedForSetup = probePairingV1Detailed
 
 type relayPairingRateLimitError struct {
 	retryAfterSeconds int
@@ -160,22 +160,30 @@ func pairingRetryAfterSeconds(header string) int {
 	return seconds
 }
 
-// relayReachable reports whether the relay bootstrap endpoint answers at all —
-// ANY HTTP response (even 404 from a pre-v1 relay) counts as reachable; only a
-// connection-level failure (refused/timeout/DNS) is unreachable. Used to tell a
-// genuinely pre-v1 relay apart from one that is merely still starting.
-func relayReachable(relayBaseURL string) bool {
+// probePairingV1Detailed probes GET /pair/v1/info and reports both whether the
+// relay supports secure device pairing (supported) and whether it answered at
+// all (reachable). This tells three cases apart that probePairingV1's bool
+// collapses: v1 supported, reachable-but-pre-v1 (e.g. 404), and unreachable
+// (connection failure). Any HTTP response — even 404 — counts as reachable.
+func probePairingV1Detailed(relayBaseURL string) (supported bool, reachable bool) {
 	req, err := http.NewRequest(http.MethodGet, strings.TrimRight(relayBaseURL, "/")+"/pair/v1/info", nil)
 	if err != nil {
-		return false
+		return false, false
 	}
 	req.URL.User = nil
 	resp, err := httpClient.Do(req)
 	if err != nil {
-		return false
+		return false, false
 	}
-	_ = resp.Body.Close()
-	return true
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return false, true
+	}
+	body, err := readAllLimited(resp.Body, maxRelayPairingResponseBytes)
+	if err != nil {
+		return false, true
+	}
+	return decodePairInfo(body), true
 }
 
 // probePairingV1 reports whether the relay supports secure device pairing
@@ -226,17 +234,22 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 	// one-time code, rather than after the exchange fails to store the token.
 	secure := probePairingV1ForSetup(cfg.RelayBaseURL)
 	if !secure && legacyTokenStoreUnavailable {
-		// probePairingV1 returns false for ANY failure — a genuine pre-v1 relay,
-		// but also a transient one (still starting / momentarily unreachable). Only
-		// a REACHABLE relay that definitively lacks v1 is "too old"; a transient
-		// failure must not strand a headless setup, so surface a retry hint instead
-		// and spend no code either way.
-		if relayReachableForSetup(cfg.RelayBaseURL) {
+		// probePairingV1 returns false for ANY failure — a genuine pre-v1 relay, a
+		// transient one (still starting), OR an unreachable one. Re-probe with a
+		// detailed result so the three cases are distinguished: recovered v1 →
+		// proceed securely; reachable-but-pre-v1 → "too old" (no legacy store);
+		// unreachable → retry hint. No one-time code is spent in any case.
+		supported, reachable := probePairingV1DetailedForSetup(cfg.RelayBaseURL)
+		switch {
+		case supported:
+			secure = true // a transient first probe recovered — v1 is available now
+		case reachable:
 			renderSetupErrorLine(out, "This NOVA Relay is too old for secure device pairing, and this system has no key store for the legacy shared token. Update the NOVA Relay App to enable secure pairing.")
 			return "", fmt.Errorf("relay predates secure pairing and no store is available for the legacy token")
+		default:
+			renderSetupErrorLine(out, "Could not reach NOVA Relay to check secure pairing support. Make sure the NOVA Relay app is running, then run setup again.")
+			return "", fmt.Errorf("relay not reachable to determine secure pairing support")
 		}
-		renderSetupErrorLine(out, "Could not reach NOVA Relay to check secure pairing support. Make sure the NOVA Relay app is running, then run setup again.")
-		return "", fmt.Errorf("relay not reachable to determine secure pairing support")
 	}
 
 	renderSetupParagraph(out,

@@ -92,12 +92,12 @@ func TestSetupPairingMidFlowRelayNotV1FailsSafeWithoutTokenStore(t *testing.T) {
 // must NOT be reported as a too-old relay, and must not spend a code — the user
 // should be told to retry once the relay is up.
 func TestSetupPairingTransientV1ProbeFailureDoesNotDeclareOldRelay(t *testing.T) {
-	origProbe, origReach, origExchange := probePairingV1ForSetup, relayReachableForSetup, exchangeRelayPairingCodeForSetup
+	origProbe, origDetailed, origExchange := probePairingV1ForSetup, probePairingV1DetailedForSetup, exchangeRelayPairingCodeForSetup
 	defer func() {
-		probePairingV1ForSetup, relayReachableForSetup, exchangeRelayPairingCodeForSetup = origProbe, origReach, origExchange
+		probePairingV1ForSetup, probePairingV1DetailedForSetup, exchangeRelayPairingCodeForSetup = origProbe, origDetailed, origExchange
 	}()
-	probePairingV1ForSetup = func(string) bool { return false } // probe returns false...
-	relayReachableForSetup = func(string) bool { return false }  // ...because the relay is unreachable
+	probePairingV1ForSetup = func(string) bool { return false }                          // probe returns false...
+	probePairingV1DetailedForSetup = func(string) (bool, bool) { return false, false } // ...and the relay is unreachable
 	exchangeCalled := false
 	exchangeRelayPairingCodeForSetup = func(_ *http.Client, _, _ string) (string, error) {
 		exchangeCalled = true
@@ -115,5 +115,37 @@ func TestSetupPairingTransientV1ProbeFailureDoesNotDeclareOldRelay(t *testing.T)
 	}
 	if exchangeCalled {
 		t.Fatal("legacy /pair exchange reached despite an unreachable relay (a code could be consumed)")
+	}
+}
+
+// If the first v1 probe fails transiently but the second (detailed) probe finds
+// v1 support (relay finished starting), setup proceeds with secure pairing rather
+// than declaring the relay too old.
+func TestSetupPairingRecoversWhenSecondV1ProbeSucceeds(t *testing.T) {
+	origProbe, origDetailed, origSecure, origExchange := probePairingV1ForSetup, probePairingV1DetailedForSetup, securePairForSetup, exchangeRelayPairingCodeForSetup
+	defer func() {
+		probePairingV1ForSetup, probePairingV1DetailedForSetup, securePairForSetup, exchangeRelayPairingCodeForSetup = origProbe, origDetailed, origSecure, origExchange
+	}()
+	probePairingV1ForSetup = func(string) bool { return false }                        // transient miss...
+	probePairingV1DetailedForSetup = func(string) (bool, bool) { return true, true } // ...v1 is up on the retry
+	securePaired := false
+	securePairForSetup = func(_, _ string, cfg *runtimeConfig, _ func(*runtimeConfig) error, _ pairingClientInfo) (string, error) {
+		securePaired = true
+		return "device-id", nil
+	}
+	exchangeCalled := false
+	exchangeRelayPairingCodeForSetup = func(_ *http.Client, _, _ string) (string, error) {
+		exchangeCalled = true
+		return "legacy-token", nil
+	}
+
+	reader := bufio.NewReader(strings.NewReader("\n473921\n"))
+	cfg := &runtimeConfig{RelayBaseURL: "http://relay:8791"}
+	_, err := runSetupPairingFlow(reader, io.Discard, runtimePaths{}, cfg, true)
+	if !errors.Is(err, errSetupDevicePaired) {
+		t.Fatalf("expected secure pairing to proceed after the v1 probe recovered, got %v", err)
+	}
+	if !securePaired || exchangeCalled {
+		t.Fatalf("expected secure pairing, not the legacy exchange; securePaired=%v exchangeCalled=%v", securePaired, exchangeCalled)
 	}
 }
