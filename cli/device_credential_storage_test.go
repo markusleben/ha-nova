@@ -362,6 +362,42 @@ func TestResumeFinishesAFileModePendingEvenWhenKeyringNowWorks(t *testing.T) {
 	}
 }
 
+func TestResumePrefersKeyringPendingOverOrphanFile(t *testing.T) {
+	withDeviceStorageTestHome(t)
+	// A desktop re-pair was interrupted: its pending lives in the keyring. An
+	// orphan .pending FILE from an aborted earlier headless attempt also exists
+	// (the probe no longer deletes it). Resume must activate the REAL keyring
+	// pending, not the stale file — otherwise it would spend another pairing code.
+	keyringPending := generateTestDeviceCredential(t)
+	if err := keyring.Set(deviceCredentialPendingService, secretUser(), keyringPending); err != nil {
+		t.Fatalf("seed keyring pending: %v", err)
+	}
+	orphanFile := "hanova-dev-v1.IIIIIIIIIIIIIIIIIIIIII.JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ"
+	seedRawSecretFile(t, deviceCredentialPendingService, orphanFile)
+
+	origActivate := activateDeviceV1ForPairing
+	activated := ""
+	activateDeviceV1ForPairing = func(_, _, cred string) error { activated = cred; return nil }
+	t.Cleanup(func() { activateDeviceV1ForPairing = origActivate })
+
+	cfg := runtimeConfig{PendingSecureBaseURL: "https://relay:8792", PendingSpkiPin: "PIN"}
+	resumed, err := resumePendingActivation(&cfg, func(*runtimeConfig) error { return nil })
+	if err != nil || !resumed {
+		t.Fatalf("resume failed: resumed=%v err=%v", resumed, err)
+	}
+	if activated != keyringPending {
+		t.Fatalf("resume activated the stale orphan file instead of the keyring pending: %q", activated)
+	}
+	// Keyring-mode promotion: no file marker; current credential is in the keyring.
+	if deviceFileBackendMarkerExists() {
+		t.Fatal("keyring-mode resume must not write a file-backend marker")
+	}
+	got, ok, err := readDeviceCredential()
+	if err != nil || !ok || got != keyringPending {
+		t.Fatalf("current credential not the promoted keyring pending: got=%q ok=%v err=%v", got, ok, err)
+	}
+}
+
 func generateTestDeviceCredential(t *testing.T) string {
 	t.Helper()
 	const cred = "hanova-dev-v1.AAAAAAAAAAAAAAAAAAAAAA.BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"

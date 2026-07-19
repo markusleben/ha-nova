@@ -127,15 +127,19 @@ func resumePendingActivation(cfg *runtimeConfig, saveCfg func(*runtimeConfig) er
 		// access): leave any pending slot for a full re-pair rather than guessing.
 		return false, nil
 	}
-	// Resume in the SAME backend that holds the pending credential, chosen without
-	// a storage probe: a headless-interrupted pairing left the pending slot in a
-	// file with no marker yet (the marker is written at promotion), and a probe
-	// here would reroute reads to a now-usable keyring — or clean the file — and
-	// lose the already-activated credential. A desktop-interrupted pairing left it
-	// in the keyring, read via the normal (marker/keyring) path.
-	fileMode := deviceSecretFileExists(deviceCredentialPendingService)
+	// Choose the backend that actually holds the interrupted pairing, without a
+	// storage probe (a probe could reroute reads to a now-usable keyring and lose
+	// a headless file pending). Prefer a real KEYRING pending: a desktop re-pair
+	// stores its pending there, and it must win over any orphan .pending FILE from
+	// an aborted earlier headless attempt. Only when the keyring holds no pending
+	// (or is unreachable, i.e. headless) do we resume from the file — that is the
+	// genuine headless-interrupted pairing whose marker is not written until
+	// promotion.
 	var pending string
-	if fileMode {
+	fileMode := false
+	if kp, ok, _ := readKeyringDeviceSecret(deviceCredentialPendingService); ok && parseDeviceCredential(kp) != nil {
+		pending = kp
+	} else if deviceSecretFileExists(deviceCredentialPendingService) {
 		raw, err := deviceSecretFileGet(deviceCredentialPendingService)
 		if err != nil {
 			return false, err
@@ -144,12 +148,9 @@ func resumePendingActivation(cfg *runtimeConfig, saveCfg func(*runtimeConfig) er
 			return false, nil // malformed residue: leave it for a full re-pair
 		}
 		pending = raw
+		fileMode = true
 	} else {
-		p, ok, err := readPendingDeviceCredential()
-		if err != nil || !ok {
-			return false, err
-		}
-		pending = p
+		return false, nil
 	}
 	if err := activateDeviceV1ForPairing(base, pin, pending); err != nil {
 		return false, err
@@ -166,8 +167,16 @@ func resumePendingActivation(cfg *runtimeConfig, saveCfg func(*runtimeConfig) er
 		if err := promotePendingFileCredential(pending); err != nil {
 			return false, err
 		}
-	} else if err := promotePendingDeviceCredential(); err != nil {
-		return false, err
+	} else {
+		// Keyring-backed: promote the pending we already read and drop the keyring
+		// pending slot. An orphan .pending FILE (if any) is left untouched — it is
+		// harmless residue that marker-based reads never consult.
+		if err := writeDeviceCredential(pending); err != nil {
+			return false, err
+		}
+		if err := deletePendingDeviceCredential(); err != nil {
+			return false, err
+		}
 	}
 	cfg.PendingSecureBaseURL = ""
 	cfg.PendingSpkiPin = ""

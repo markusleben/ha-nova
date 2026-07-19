@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 
 	"github.com/zalando/go-keyring"
 )
@@ -106,6 +107,35 @@ func deviceSecretFileExists(service string) bool {
 	}
 	info, err := os.Lstat(path)
 	return err == nil && info.Mode().IsRegular()
+}
+
+// readKeyringDeviceSecret reads a device slot from the OS keyring directly,
+// bypassing the marker/file routing. Returns (value, true, nil) on a hit,
+// ("", false, nil) when the keyring has no such entry, and an error when the
+// keyring is unreachable (headless). Resume uses it to prefer a real keyring
+// pending over an orphan .pending FILE from an aborted earlier headless attempt.
+func readKeyringDeviceSecret(service string) (string, bool, error) {
+	if dir, ok := testSecretDir(); ok {
+		data, err := os.ReadFile(testSecretPath(dir, service))
+		if err != nil {
+			if os.IsNotExist(err) {
+				return "", false, nil
+			}
+			return "", false, err
+		}
+		return strings.TrimSpace(string(data)), true, nil
+	}
+	if err := deviceCredentialPreflight(); err != nil {
+		return "", false, err
+	}
+	value, err := keyring.Get(service, secretUser())
+	if err != nil {
+		if errors.Is(err, keyring.ErrNotFound) {
+			return "", false, nil
+		}
+		return "", false, err
+	}
+	return strings.TrimSpace(value), true, nil
 }
 
 func deviceSecretFileGet(service string) (string, error) {
