@@ -398,6 +398,41 @@ func TestResumePrefersKeyringPendingOverOrphanFile(t *testing.T) {
 	}
 }
 
+func TestResumeRefusesFileFallbackWhenKeyringIsLocked(t *testing.T) {
+	withDeviceStorageTestHome(t)
+	// A desktop whose Secret Service is LOCKED: the real keyring pending/current
+	// cannot be checked. An orphan .pending file exists. Resume must NOT activate
+	// and promote that stale file (a silent downgrade) — it surfaces the error.
+	orphanFile := "hanova-dev-v1.KKKKKKKKKKKKKKKKKKKKKK.LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL"
+	seedRawSecretFile(t, deviceCredentialPendingService, orphanFile)
+
+	// Force the keyring read to report a LOCKED backend (present but unreadable),
+	// distinct from the headless "session/provider unavailable" classes.
+	origPreflight := deviceCredentialPreflight
+	deviceCredentialPreflight = func() error { return desktopKeyringLockedError("default collection is locked") }
+	origActivate := activateDeviceV1ForPairing
+	activateDeviceV1ForPairing = func(_, _, _ string) error {
+		t.Fatal("resume must not activate a credential when the keyring is locked")
+		return nil
+	}
+	t.Cleanup(func() {
+		deviceCredentialPreflight = origPreflight
+		activateDeviceV1ForPairing = origActivate
+	})
+
+	cfg := runtimeConfig{PendingSecureBaseURL: "https://relay:8792", PendingSpkiPin: "PIN"}
+	resumed, err := resumePendingActivation(&cfg, func(*runtimeConfig) error { return nil })
+	if resumed || err == nil {
+		t.Fatalf("expected resume to fail-safe on a locked keyring, got resumed=%v err=%v", resumed, err)
+	}
+	if deviceFileBackendMarkerExists() {
+		t.Fatal("a locked-keyring resume must not commit file mode (downgrade)")
+	}
+	if !deviceSecretFileExists(deviceCredentialPendingService) {
+		t.Fatal("the orphan pending file must be left intact, not promoted/removed")
+	}
+}
+
 func generateTestDeviceCredential(t *testing.T) string {
 	t.Helper()
 	const cred = "hanova-dev-v1.AAAAAAAAAAAAAAAAAAAAAA.BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"

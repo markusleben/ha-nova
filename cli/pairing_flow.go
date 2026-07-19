@@ -137,9 +137,20 @@ func resumePendingActivation(cfg *runtimeConfig, saveCfg func(*runtimeConfig) er
 	// promotion.
 	var pending string
 	fileMode := false
-	if kp, ok, _ := readKeyringDeviceSecret(deviceCredentialPendingService); ok && parseDeviceCredential(kp) != nil {
+	kp, kok, kerr := readKeyringDeviceSecret(deviceCredentialPendingService)
+	switch {
+	case kok && parseDeviceCredential(kp) != nil:
+		// A real keyring pending wins over any orphan .pending file.
 		pending = kp
-	} else if deviceSecretFileExists(deviceCredentialPendingService) {
+	case kerr != nil && !isDesktopKeyringSessionUnavailableError(kerr) && !isDesktopKeyringUnavailableError(kerr):
+		// The keyring EXISTS but is unreadable (locked/uninitialized/other): a real
+		// keyring pending may be hidden behind it, so refuse to resume a file and
+		// silently downgrade. Only a genuinely absent keyring (headless) or an
+		// empty-but-readable one (below) may fall back to the file.
+		return false, kerr
+	case deviceSecretFileExists(deviceCredentialPendingService):
+		// Keyring empty (not-found) or genuinely unreachable (headless): the file
+		// holds the interrupted headless pairing.
 		raw, err := deviceSecretFileGet(deviceCredentialPendingService)
 		if err != nil {
 			return false, err
@@ -149,8 +160,8 @@ func resumePendingActivation(cfg *runtimeConfig, saveCfg func(*runtimeConfig) er
 		}
 		pending = raw
 		fileMode = true
-	} else {
-		return false, nil
+	default:
+		return false, kerr
 	}
 	if err := activateDeviceV1ForPairing(base, pin, pending); err != nil {
 		return false, err
