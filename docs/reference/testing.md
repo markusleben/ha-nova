@@ -54,10 +54,10 @@ export HA_NOVA_ALLOW_INSECURE_TEST_KEYRING=1                     # relay token �
 export HA_NOVA_TEST_KEYRING_FILE=/tmp/nova-test-token            #   real ha-nova.relay-auth-token slot
 export HA_NOVA_NO_BROWSER=1
 
-./ha-nova setup claude --relay-url http://<ip>:18791
-./ha-nova pair --relay-url http://<ip>:18791 --code NNNNNN
-./ha-nova relay health          # exercise skills over the device transport (also core|ws|trace)
-./ha-nova uninstall --purge --yes   # verifies the server-side revoke + local cleanup
+scripts/onboarding/bin/ha-nova setup claude --relay-url http://<ip>:18791
+scripts/onboarding/bin/ha-nova pair --relay-url http://<ip>:18791 --code NNNNNN
+scripts/onboarding/bin/ha-nova relay health          # exercise skills over the device transport (also core|ws|trace)
+scripts/onboarding/bin/ha-nova uninstall --purge --yes   # verifies the server-side revoke + local cleanup
 ```
 
 The relay-token vars are **mandatory even for pure device pairing**: `HOME` + `HA_NOVA_TEST_SECRET_DIR` isolate config + the device credential, but the legacy relay token still uses the real `ha-nova.relay-auth-token` keyring service unless you redirect it. (`HA_NOVA_KEYRING_SERVICE=<name>` is the alternative if you want a throwaway keyring entry instead of a file.)
@@ -93,7 +93,7 @@ Cross-compile for every target with the same `CGO_ENABLED=0 GOOS=<os> GOARCH=<ar
 
 These are non-negotiable when testing on real machines:
 
-- **Never touch the production add-on, keyring, or credentials.** Use a distinct slug/ports (add-on) and a throwaway `HOME` + `HA_NOVA_TEST_SECRET_DIR` (CLI).
+- **Never touch the production add-on, keyring, or credentials.** For the add-on, use a distinct slug/ports. For the CLI, use a throwaway `HOME` **and** `HA_NOVA_TEST_SECRET_DIR` **and** relay-token redirection (`HA_NOVA_ALLOW_INSECURE_TEST_KEYRING=1` + `HA_NOVA_TEST_KEYRING_FILE`, or `HA_NOVA_KEYRING_SERVICE`) — without the last one, `uninstall --purge` still deletes your real `ha-nova.relay-auth-token` keyring entry.
 - **Only create your own test objects** on a live HA (helpers, automations you made); leave existing objects read-only.
 - **Clean up afterwards** — `ha apps uninstall <test-slug>`, remove the container, and run a leftover scan (0 test objects). Never leave a test add-on running on someone's HA.
 - **A green CI/host-safe run is not a release proof.** Releasing still needs the live checks above on the exact commit being tagged (see [docs/releasing.md](../releasing.md)).
