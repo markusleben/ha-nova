@@ -23,6 +23,7 @@ import { createFileResponseStore } from "../security/pairing-response-store.js";
 import { createPairingV1Manager, type PairingV1Manager } from "../security/pairing-v1.js";
 import { loadOrCreateTlsIdentity } from "../security/tls-identity.js";
 import { clearLegacyOptions, importLegacyToken } from "./legacy-migration.js";
+import { ensureSidebarPanel } from "./sidebar-panel.js";
 import { createBootstrapListener, createDeviceListener, type FunctionalHandlers } from "./listeners.js";
 
 // App-mode assembly: three listeners over one shared pipeline. Constructed only
@@ -113,6 +114,10 @@ export async function buildAppMode(input: AppModeInput): Promise<AppModeRuntime>
   // is healthy enough to have migrated it; ha_llat always). A corrupt registry
   // keeps the shared token recoverable until the owner resets.
   await clearLegacyOptions({ supervisor, appOptionsPath: input.appOptionsPath, logger: input.logger }, !registryCorrupt);
+  // First-boot default: make the NOVA sidebar entry appear without a manual
+  // "Add to sidebar" toggle. Once-ever via marker; never overrides an owner
+  // who hides the panel later.
+  await ensureSidebarPanel({ supervisor, dataDir, logger: input.logger });
 
   // OPAQUE runs on WASM that must finish initializing before the first pairing
   // operation. Await it once here, before any listener accepts traffic, so the

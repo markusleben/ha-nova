@@ -35,6 +35,29 @@ describe("supervisor-client", () => {
     expect(info.updateAvailable).toBe(true);
   });
 
+  it("parses ingress_panel from self/info and defaults it to false when absent", async () => {
+    const withPanel = infoBody({ "8791/tcp": 8791 });
+    (withPanel.data as Record<string, unknown>).ingress_panel = true;
+    mockFetch(() => ({ body: withPanel }));
+    expect((await createSupervisorClient("tok").getSelfInfo()).ingressPanel).toBe(true);
+    // The captured live shape has no ingress_panel field — that must read as false.
+    mockFetch(() => ({ body: infoBody({ "8791/tcp": 8791 }) }));
+    expect((await createSupervisorClient("tok").getSelfInfo()).ingressPanel).toBe(false);
+  });
+
+  it("posts ingress_panel as a sibling field, not inside options", async () => {
+    const calls: Array<{ url: string; body: string }> = [];
+    mockFetch((url, init) => {
+      calls.push({ url, body: String(init?.body ?? "") });
+      return { body: null };
+    });
+    await createSupervisorClient("tok").setIngressPanel(true);
+    expect(calls).toHaveLength(1);
+    const call = calls[0]!;
+    expect(call.url).toContain("/addons/self/options");
+    expect(JSON.parse(call.body)).toEqual({ ingress_panel: true });
+  });
+
   it("returns the mapped host port for the secure container port", async () => {
     mockFetch(() => ({ body: infoBody({ "8791/tcp": 8791, "8792/tcp": 18792 }) }));
     expect(await createSupervisorClient("tok").getMappedHostPort("8792/tcp")).toBe(18792);

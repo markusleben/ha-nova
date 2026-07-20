@@ -15,6 +15,8 @@ export interface SelfInfo {
   version: string;
   versionLatest: string | null;
   updateAvailable: boolean;
+  // Whether the App's ingress sidebar entry is currently enabled.
+  ingressPanel: boolean;
   // Container port ("8792/tcp") -> mapped host port, or null when unmapped.
   network: Record<string, number | null>;
 }
@@ -28,6 +30,10 @@ export interface SupervisorClient {
   // Replace the App options (used to clear a migrated legacy token). The caller
   // passes the full desired options object.
   setOptions(options: Record<string, unknown>): Promise<void>;
+  // Toggle the App's sidebar entry. `ingress_panel` is a sibling field of
+  // `options` on the same Supervisor endpoint, so this must not be merged into
+  // setOptions payloads.
+  setIngressPanel(enabled: boolean): Promise<void>;
 }
 
 export function createSupervisorClient(token: string, base: string = SUPERVISOR_BASE): SupervisorClient {
@@ -57,6 +63,7 @@ export function createSupervisorClient(token: string, base: string = SUPERVISOR_
       version: asString(data.version, ""),
       versionLatest: typeof data.version_latest === "string" ? data.version_latest : null,
       updateAvailable: data.update_available === true,
+      ingressPanel: data.ingress_panel === true,
       network: parseNetwork(data.network),
     };
   }
@@ -73,6 +80,13 @@ export function createSupervisorClient(token: string, base: string = SUPERVISOR_
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ options }),
+      });
+    },
+    async setIngressPanel(enabled) {
+      await request("/addons/self/options", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ingress_panel: enabled }),
       });
     },
   };
