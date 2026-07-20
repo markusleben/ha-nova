@@ -963,7 +963,7 @@ result["preview_has_canonical_keys"] = (
 # plain-language behavior narrative. Conservative structural check: flag only
 # when a count-only line exists AND no prose narrative line exists at all.
 count_only_lines = re.findall(
-    r"^.*(?:\|\s*\d+\s+items?\s*\|\s*\d+\s+items?\s*\||…\s*and\s+\d+\s+more|\band \d+ more\b).*$",
+    r"^.*(?:\|\s*\d+\s+items?\s*\|\s*\d+\s+items?\s*\||\d+\s+items?\s*(?:→|->)\s*\d+\s+items?|…\s*and\s+\d+\s+more|\band \d+ more\b).*$",
     result["prewrite_text"],
     re.MULTILINE,
 )
