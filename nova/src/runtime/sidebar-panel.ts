@@ -9,6 +9,14 @@ import type { RelayLogger } from "../http/server.js";
 // The marker makes this once-ever — an owner who later hides the panel is never
 // overridden. On Supervisor failure no marker is written, so the default is
 // retried on the next start.
+//
+// Deliberate (maintainer decision 2026-07-20): the one-time enable also applies
+// to UPGRADES from pre-marker versions. `ingress_panel: false` cannot
+// distinguish "never enabled" from "deliberately hidden", and the 0.19
+// migration sends every upgrader to the NOVA page (re-pair, revoke legacy) —
+// without the sidebar entry they hit exactly the wall this removes. The cost is
+// capped: an owner who had hidden the panel sees it restored at most once,
+// ever; hiding it again is permanent. Announced in the 0.19.0 release notes.
 
 const MARKER_FILE = "sidebar_default_applied";
 
