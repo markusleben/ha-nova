@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -347,8 +349,9 @@ func TestMigrateServiceDeviceCredentialToFile(t *testing.T) {
 			t.Fatal("precondition: install must start on the keyring backend")
 		}
 
-		if !migrateKeyringDeviceCredentialToFile() {
-			t.Fatal("expected the migration to run")
+		migrated, err := migrateKeyringDeviceCredentialToFile()
+		if err != nil || !migrated {
+			t.Fatalf("expected the migration to run: migrated=%v err=%v", migrated, err)
 		}
 		if !deviceFileBackendMarkerExists() {
 			t.Fatal("migration must commit the file-backend marker")
@@ -371,8 +374,8 @@ func TestMigrateServiceDeviceCredentialToFile(t *testing.T) {
 
 	t.Run("no-op without a readable keyring credential", func(t *testing.T) {
 		withDeviceStorageTestHome(t)
-		if migrateKeyringDeviceCredentialToFile() {
-			t.Fatal("nothing to migrate — must be a no-op")
+		if migrated, err := migrateKeyringDeviceCredentialToFile(); err != nil || migrated {
+			t.Fatalf("nothing to migrate — must be a no-op: migrated=%v err=%v", migrated, err)
 		}
 		if deviceFileBackendMarkerExists() {
 			t.Fatal("a no-op migration must not commit the marker")
@@ -386,8 +389,8 @@ func TestMigrateServiceDeviceCredentialToFile(t *testing.T) {
 			return desktopKeyringLockedError("default Secret Service collection is locked")
 		}
 		t.Cleanup(func() { deviceCredentialPreflight = prev })
-		if migrateKeyringDeviceCredentialToFile() {
-			t.Fatal("locked keyring — must be a no-op")
+		if migrated, err := migrateKeyringDeviceCredentialToFile(); err != nil || migrated {
+			t.Fatalf("locked keyring — must be a no-op: migrated=%v err=%v", migrated, err)
 		}
 		if deviceFileBackendMarkerExists() {
 			t.Fatal("a locked-keyring no-op must not commit the marker")
@@ -399,8 +402,43 @@ func TestMigrateServiceDeviceCredentialToFile(t *testing.T) {
 		if err := writeDeviceFileBackendMarker(); err != nil {
 			t.Fatal(err)
 		}
-		if migrateKeyringDeviceCredentialToFile() {
-			t.Fatal("file-backed install — must be a no-op")
+		if migrated, err := migrateKeyringDeviceCredentialToFile(); err != nil || migrated {
+			t.Fatalf("file-backed install — must be a no-op: migrated=%v err=%v", migrated, err)
+		}
+	})
+
+	t.Run("fails loudly when the file store is unwritable", func(t *testing.T) {
+		// Codex P2 on #388 (round 4): a failed file WRITE must not look like
+		// "nothing to migrate" — the service opt-in would silently leave the
+		// credential in the desktop keyring.
+		if runtime.GOOS == "windows" {
+			t.Skip("unix permission semantics")
+		}
+		home := withDeviceStorageTestHome(t)
+		resetKeyringDeviceSlots(t)
+		cred := generateTestDeviceCredential(t)
+		if err := writeDeviceCredential(cred); err != nil {
+			t.Fatal(err)
+		}
+		blocked := filepath.Join(home, ".config", "ha-nova")
+		if err := os.MkdirAll(blocked, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chmod(blocked, 0o500); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = os.Chmod(blocked, 0o700) })
+
+		migrated, err := migrateKeyringDeviceCredentialToFile()
+		if err == nil || migrated {
+			t.Fatalf("unwritable file store must fail loudly: migrated=%v err=%v", migrated, err)
+		}
+		if deviceFileBackendMarkerExists() {
+			t.Fatal("failed migration must not leave a marker")
+		}
+		got, ok, readErr := readDeviceCredential()
+		if readErr != nil || !ok || got != cred {
+			t.Fatalf("keyring credential must remain readable after failed migration: ok=%v err=%v", ok, readErr)
 		}
 	})
 }
