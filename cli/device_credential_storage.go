@@ -44,6 +44,59 @@ func forceDeviceCredentialFileMode() {
 	deviceCredentialFileModeForced = true
 }
 
+// migrateServiceDeviceCredentialToFile fulfills the service contract for
+// installs that already paired into the desktop keyring: a `setup --service`
+// re-run with a healthy pairing never reaches the pairing stage
+// (deviceAlreadyPaired short-circuits to verify), so the keyring-held
+// credential is moved to the private-file backend here, before any assessment
+// reads. Needs the keyring to be readable NOW (unlocked desktop session);
+// otherwise it is a silent no-op and the normal pairing path takes over.
+// Reports whether a credential was migrated.
+func migrateServiceDeviceCredentialToFile() bool {
+	if deviceSecretFileBacked() {
+		return false // already on the file backend
+	}
+	credential, ok, err := readDeviceCredential()
+	if err != nil || !ok {
+		return false // no readable keyring credential (locked, absent, or never paired)
+	}
+	// Mirrors promotePendingFileCredential: the explicit current-file write lays
+	// down the file-backend marker on first commit, flipping the install.
+	if err := deviceSecretFileSet(deviceCredentialService, credential); err != nil {
+		return false
+	}
+	// A pending credential from an interrupted re-pair must move with the
+	// install — after the marker, pending reads resolve to files too, and a
+	// keyring-stranded pending slot would be invisible to resume.
+	if pending, pendingOK, pendingErr := readPendingKeyringSlotDirect(); pendingErr == nil && pendingOK {
+		_ = deviceSecretFileSet(deviceCredentialPendingService, pending)
+	}
+	// The migrated copies are authoritative now. The keyring originals are the
+	// SAME live credentials, not inert leftovers — best-effort removal keeps a
+	// single storage location. (File reads win via the marker either way.)
+	user := secretUser()
+	_ = keyring.Delete(deviceCredentialService, user)
+	_ = keyring.Delete(deviceCredentialPendingService, user)
+	return true
+}
+
+// readPendingKeyringSlotDirect reads the pending slot from the OS keyring
+// bypassing the backend router — used only by the service migration, which
+// runs after the marker write has already flipped routed reads to files.
+func readPendingKeyringSlotDirect() (string, bool, error) {
+	value, err := keyring.Get(deviceCredentialPendingService, secretUser())
+	if err != nil {
+		if errors.Is(err, keyring.ErrNotFound) {
+			return "", false, nil
+		}
+		return "", false, err
+	}
+	if parseDeviceCredential(value) == nil {
+		return "", false, fmt.Errorf("pending keyring credential is malformed")
+	}
+	return value, true, nil
+}
+
 type deviceStorageProbe struct {
 	// mode is "keyring" or "file" — informational for callers/tests.
 	mode string

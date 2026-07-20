@@ -1,11 +1,14 @@
 package main
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/zalando/go-keyring"
 )
 
 // Regression pack (live 2026-07-20, headless agent VM): a present-but-locked
@@ -154,6 +157,84 @@ func TestInteractiveServiceSetupReachesPairingWithLockedKeyring(t *testing.T) {
 	if !strings.Contains(output, "Pair this device") {
 		t.Fatalf("service setup did not reach the pairing stage:\n%s", output)
 	}
+}
+
+func TestMigrateServiceDeviceCredentialToFile(t *testing.T) {
+	// Codex P2 on #388: a `setup --service` re-run with a healthy keyring
+	// pairing short-circuits to verify and never reaches the pairing-stage
+	// force — the credential must therefore migrate to the file backend BEFORE
+	// the assessment reads, or a later locked-keyring session still cannot use
+	// this install.
+	t.Run("moves current and pending keyring credentials and commits the marker", func(t *testing.T) {
+		withDeviceStorageTestHome(t)
+		current := generateTestDeviceCredential(t)
+		pending := generateTestDeviceCredential(t)
+		if err := writeDeviceCredential(current); err != nil {
+			t.Fatalf("seed keyring credential: %v", err)
+		}
+		if err := writePendingDeviceCredential(pending); err != nil {
+			t.Fatalf("seed pending keyring credential: %v", err)
+		}
+		if deviceFileBackendMarkerExists() {
+			t.Fatal("precondition: install must start on the keyring backend")
+		}
+
+		if !migrateServiceDeviceCredentialToFile() {
+			t.Fatal("expected the migration to run")
+		}
+		if !deviceFileBackendMarkerExists() {
+			t.Fatal("migration must commit the file-backend marker")
+		}
+		got, ok, err := readDeviceCredential()
+		if err != nil || !ok || got != current {
+			t.Fatalf("current credential after migration: got %q ok=%v err=%v", got, ok, err)
+		}
+		gotPending, ok, err := readPendingDeviceCredential()
+		if err != nil || !ok || gotPending != pending {
+			t.Fatalf("pending credential after migration: got %q ok=%v err=%v", gotPending, ok, err)
+		}
+		if _, ok, _ := readPendingKeyringSlotDirect(); ok {
+			t.Fatal("keyring copy of the pending credential must be removed after migration")
+		}
+		if _, err := keyring.Get(deviceCredentialService, secretUser()); !errors.Is(err, keyring.ErrNotFound) {
+			t.Fatalf("keyring copy of the current credential must be removed, got err=%v", err)
+		}
+	})
+
+	t.Run("no-op without a readable keyring credential", func(t *testing.T) {
+		withDeviceStorageTestHome(t)
+		if migrateServiceDeviceCredentialToFile() {
+			t.Fatal("nothing to migrate — must be a no-op")
+		}
+		if deviceFileBackendMarkerExists() {
+			t.Fatal("a no-op migration must not commit the marker")
+		}
+	})
+
+	t.Run("no-op when the keyring is locked", func(t *testing.T) {
+		withDeviceStorageTestHome(t)
+		prev := deviceCredentialPreflight
+		deviceCredentialPreflight = func() error {
+			return desktopKeyringLockedError("default Secret Service collection is locked")
+		}
+		t.Cleanup(func() { deviceCredentialPreflight = prev })
+		if migrateServiceDeviceCredentialToFile() {
+			t.Fatal("locked keyring — must be a no-op")
+		}
+		if deviceFileBackendMarkerExists() {
+			t.Fatal("a locked-keyring no-op must not commit the marker")
+		}
+	})
+
+	t.Run("no-op on an established file-backend install", func(t *testing.T) {
+		withDeviceStorageTestHome(t)
+		if err := writeDeviceFileBackendMarker(); err != nil {
+			t.Fatal(err)
+		}
+		if migrateServiceDeviceCredentialToFile() {
+			t.Fatal("file-backed install — must be a no-op")
+		}
+	})
 }
 
 func TestMinRelayVersionParityAcrossVersionFiles(t *testing.T) {
