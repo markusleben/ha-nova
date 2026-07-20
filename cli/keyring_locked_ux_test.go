@@ -18,6 +18,21 @@ import (
 // even though `.hermes/INSTALL.md` documents `setup --service` as exactly that
 // way out. These tests pin the explicit file-backend opt-ins.
 
+// resetKeyringDeviceSlots empties the mock-keyring device slots NOW and again
+// at cleanup — the package-wide keyring mock is shared state, so a credential
+// leaked by any earlier test would make these migration-aware tests see a
+// pairing that never existed for them (and vice versa).
+func resetKeyringDeviceSlots(t *testing.T) {
+	t.Helper()
+	clear := func() {
+		user := secretUser()
+		_ = keyring.Delete(deviceCredentialService, user)
+		_ = keyring.Delete(deviceCredentialPendingService, user)
+	}
+	clear()
+	t.Cleanup(clear)
+}
+
 func TestProbeLockedKeyringErrorNamesTheExplicitFileOptIns(t *testing.T) {
 	cases := []struct {
 		name string
@@ -52,6 +67,7 @@ func TestProbeLockedKeyringErrorNamesTheExplicitFileOptIns(t *testing.T) {
 
 func TestRunPairCommandCredentialStoreFileBypassesLockedKeyring(t *testing.T) {
 	withDeviceStorageTestHome(t)
+	resetKeyringDeviceSlots(t)
 	stubStorageCanaries(t, desktopKeyringLockedError("default Secret Service collection is locked"))
 	dir := t.TempDir()
 	configFile := filepath.Join(dir, "config.json")
@@ -111,6 +127,7 @@ func TestInteractiveServiceSetupReachesPairingWithLockedKeyring(t *testing.T) {
 	// file. With the keyring present but locked, the wizard must therefore reach
 	// the pairing stage in file mode instead of dying at the storage probe.
 	withDeviceStorageTestHome(t)
+	resetKeyringDeviceSlots(t)
 	stubStorageCanaries(t, desktopKeyringLockedError("default Secret Service collection is locked"))
 	t.Setenv("HA_NOVA_NO_BROWSER", "1")
 	t.Setenv("HA_NOVA_DEV_ROOT", repoRootForSetupTest(t))
@@ -199,6 +216,82 @@ func TestExplicitFileOptInSurvivesInterruptedActivation(t *testing.T) {
 	}
 }
 
+func TestExplicitFileOptInDoesNotFlipBackendWhenEndpointSaveFails(t *testing.T) {
+	// Codex P2 on #388 (round 3): the marker must not land before the pending
+	// endpoint is durable — a crash in that window would flip the install to
+	// files with nothing resumable and mask a still-valid keyring credential.
+	withDeviceStorageTestHome(t)
+	resetKeyringDeviceSlots(t)
+	keyringCred := generateTestDeviceCredential(t)
+	if err := writeDeviceCredential(keyringCred); err != nil {
+		t.Fatalf("seed keyring credential: %v", err)
+	}
+
+	newCred := generateTestDeviceCredential(t)
+	origPair, origActivate := pairDeviceV1ForPairing, activateDeviceV1ForPairing
+	pairDeviceV1ForPairing = func(_ *http.Client, _, _ string, _ deviceMetadata) (*provisionedCredential, error) {
+		return &provisionedCredential{DeviceID: "dev-new", Credential: newCred, SpkiPin: "PIN", SecurePort: 8792}, nil
+	}
+	activateDeviceV1ForPairing = func(_, _, _ string) error { return nil }
+	t.Cleanup(func() {
+		pairDeviceV1ForPairing = origPair
+		activateDeviceV1ForPairing = origActivate
+	})
+
+	cfg := runtimeConfig{RelayBaseURL: "http://ha:8791", ClientInstallID: "inst-test"}
+	saveCfg := func(_ *runtimeConfig) error { return errors.New("disk full") }
+
+	forceDeviceCredentialFileMode()
+	if _, err := runSecurePairing("http://ha:8791", "123456", &cfg, saveCfg, defaultPairingClientInfo()); err == nil {
+		t.Fatal("endpoint save was stubbed to fail")
+	}
+	if deviceFileBackendMarkerExists() {
+		t.Fatal("marker must not persist before the pending endpoint is durable")
+	}
+	// A fresh process (flags reset) still reads the untouched keyring credential.
+	deviceCredentialFileModeForced = false
+	deviceCredentialFileModeExplicit = false
+	got, ok, err := readDeviceCredential()
+	if err != nil || !ok || got != keyringCred {
+		t.Fatalf("keyring credential masked after failed endpoint save: got ok=%v err=%v", ok, err)
+	}
+}
+
+func TestRunPairCommandCredentialStoreFileMigratesKeyringCredential(t *testing.T) {
+	// `pair --credential-store=file` on a desktop install with a readable
+	// keyring pairing takes the credential along before the flip — the install
+	// stays continuously paired even if the new pairing is interrupted.
+	withDeviceStorageTestHome(t)
+	resetKeyringDeviceSlots(t)
+	keyringCred := generateTestDeviceCredential(t)
+	if err := writeDeviceCredential(keyringCred); err != nil {
+		t.Fatalf("seed keyring credential: %v", err)
+	}
+	configFile := filepath.Join(t.TempDir(), "config.json")
+	if err := saveConfig(runtimePaths{ConfigFile: configFile}, runtimeConfig{RelayBaseURL: "http://ha:8791"}); err != nil {
+		t.Fatal(err)
+	}
+	orig := runSecurePairingForPairCmd
+	runSecurePairingForPairCmd = func(_, _ string, _ *runtimeConfig, _ func(*runtimeConfig) error, _ pairingClientInfo) (string, error) {
+		return "dev-1", nil
+	}
+	defer func() { runSecurePairingForPairCmd = orig }()
+
+	if rc := runPairCommand(runtimePaths{ConfigFile: configFile}, []string{"--code", "123456", "--credential-store=file"}); rc != 0 {
+		t.Fatalf("rc=%d, want 0", rc)
+	}
+	if !deviceFileBackendMarkerExists() {
+		t.Fatal("migration must commit the file-backend marker")
+	}
+	got, ok, err := readDeviceCredential()
+	if err != nil || !ok || got != keyringCred {
+		t.Fatalf("migrated credential unreadable: ok=%v err=%v", ok, err)
+	}
+	if _, err := keyring.Get(deviceCredentialService, secretUser()); !errors.Is(err, keyring.ErrNotFound) {
+		t.Fatalf("keyring copy must be removed after migration, got err=%v", err)
+	}
+}
+
 func TestHeadlessAutoFallbackStaysUnmarkedOnInterruptedActivation(t *testing.T) {
 	// Counterpart: the AUTO-detected headless fallback keeps its stricter
 	// contract — nothing persists before promotion. It self-heals on the next
@@ -241,6 +334,7 @@ func TestMigrateServiceDeviceCredentialToFile(t *testing.T) {
 	// this install.
 	t.Run("moves current and pending keyring credentials and commits the marker", func(t *testing.T) {
 		withDeviceStorageTestHome(t)
+		resetKeyringDeviceSlots(t)
 		current := generateTestDeviceCredential(t)
 		pending := generateTestDeviceCredential(t)
 		if err := writeDeviceCredential(current); err != nil {
@@ -253,7 +347,7 @@ func TestMigrateServiceDeviceCredentialToFile(t *testing.T) {
 			t.Fatal("precondition: install must start on the keyring backend")
 		}
 
-		if !migrateServiceDeviceCredentialToFile() {
+		if !migrateKeyringDeviceCredentialToFile() {
 			t.Fatal("expected the migration to run")
 		}
 		if !deviceFileBackendMarkerExists() {
@@ -277,7 +371,7 @@ func TestMigrateServiceDeviceCredentialToFile(t *testing.T) {
 
 	t.Run("no-op without a readable keyring credential", func(t *testing.T) {
 		withDeviceStorageTestHome(t)
-		if migrateServiceDeviceCredentialToFile() {
+		if migrateKeyringDeviceCredentialToFile() {
 			t.Fatal("nothing to migrate — must be a no-op")
 		}
 		if deviceFileBackendMarkerExists() {
@@ -292,7 +386,7 @@ func TestMigrateServiceDeviceCredentialToFile(t *testing.T) {
 			return desktopKeyringLockedError("default Secret Service collection is locked")
 		}
 		t.Cleanup(func() { deviceCredentialPreflight = prev })
-		if migrateServiceDeviceCredentialToFile() {
+		if migrateKeyringDeviceCredentialToFile() {
 			t.Fatal("locked keyring — must be a no-op")
 		}
 		if deviceFileBackendMarkerExists() {
@@ -305,7 +399,7 @@ func TestMigrateServiceDeviceCredentialToFile(t *testing.T) {
 		if err := writeDeviceFileBackendMarker(); err != nil {
 			t.Fatal(err)
 		}
-		if migrateServiceDeviceCredentialToFile() {
+		if migrateKeyringDeviceCredentialToFile() {
 			t.Fatal("file-backed install — must be a no-op")
 		}
 	})

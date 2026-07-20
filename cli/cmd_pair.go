@@ -60,6 +60,12 @@ func runPairCommand(paths runtimePaths, args []string) int {
 		return 1
 	}
 	if credentialStore == "file" {
+		// A readable keyring credential moves along BEFORE the backend flips:
+		// the flip must never mask a live desktop pairing. Locked or absent
+		// keyrings make this a silent no-op and pairing continues file-backed.
+		if migrateKeyringDeviceCredentialToFile() {
+			fmt.Println("Moved this install's device credential into private file storage.")
+		}
 		forceDeviceCredentialFileMode()
 	}
 

@@ -37,32 +37,32 @@ var deviceCredentialFileModeForced = false
 // deviceCredentialFileModeExplicit records that file mode came from an explicit
 // owner opt-in (`setup --service`, `pair --credential-store=file`) rather than
 // headless auto-detection. Only the explicit form persists the backend marker
-// at pending-write time (see runSecurePairing): the owner already decided, so
-// an interrupted activation must stay resumable on a machine whose keyring
-// never unlocks. The auto-detected path keeps its stricter "nothing persists
-// before promotion" contract.
+// mid-pairing — once the pending credential AND endpoint are durable (see
+// runSecurePairing) — so an interrupted activation stays resumable on a
+// machine whose keyring never unlocks. The auto-detected path keeps its
+// stricter "nothing persists before promotion" contract.
 var deviceCredentialFileModeExplicit = false
 
 // forceDeviceCredentialFileMode routes THIS process to the file backend before
 // the storage probe runs — the explicit owner opt-in behind `setup --service`
 // and `pair --credential-store=file`, for machines whose desktop keyring is
-// present but never unlocked. Like the headless auto-switch, it does not
-// persist the marker; that still happens only when a credential is promoted
-// (deviceSecretFileSet), so a canceled run leaves nothing behind.
+// present but never unlocked. A canceled run before pairing persists nothing;
+// the marker lands either at credential promotion (deviceSecretFileSet) or,
+// for this explicit mode, once the pending pairing state is durable.
 func forceDeviceCredentialFileMode() {
 	deviceCredentialFileModeForced = true
 	deviceCredentialFileModeExplicit = true
 }
 
-// migrateServiceDeviceCredentialToFile fulfills the service contract for
-// installs that already paired into the desktop keyring: a `setup --service`
-// re-run with a healthy pairing never reaches the pairing stage
-// (deviceAlreadyPaired short-circuits to verify), so the keyring-held
-// credential is moved to the private-file backend here, before any assessment
-// reads. Needs the keyring to be readable NOW (unlocked desktop session);
-// otherwise it is a silent no-op and the normal pairing path takes over.
-// Reports whether a credential was migrated.
-func migrateServiceDeviceCredentialToFile() bool {
+// migrateKeyringDeviceCredentialToFile moves a READABLE keyring-held device
+// credential into the private-file backend. Both explicit opt-ins run it
+// before flipping the backend: `setup --service` re-runs with a healthy
+// pairing never reach the pairing stage (deviceAlreadyPaired short-circuits
+// to verify), and `pair --credential-store=file` on a desktop install must
+// never mask the live credential mid-flip. Needs the keyring to be readable
+// NOW (unlocked desktop session); otherwise it is a silent no-op and the
+// normal pairing path takes over. Reports whether a credential was migrated.
+func migrateKeyringDeviceCredentialToFile() bool {
 	if deviceSecretFileBacked() {
 		return false // already on the file backend
 	}

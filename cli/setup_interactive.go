@@ -186,7 +186,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 		// with a healthy keyring pairing short-circuits to verify and never
 		// reaches the pairing stage, so a readable keyring device credential
 		// migrates to the private-file backend now (the service contract).
-		if migrateServiceDeviceCredentialToFile() {
+		if migrateKeyringDeviceCredentialToFile() {
 			printHumanInfo("Moved this install's device credential into protected service file storage.")
 		}
 		// Read any already-stored token BEFORE the file override redirects

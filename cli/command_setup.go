@@ -99,7 +99,7 @@ func runSetup(paths runtimePaths, args []string) int {
 		// Re-setups with a healthy pairing never reach a pairing stage, so a
 		// readable keyring credential migrates to the private-file backend now
 		// — a rejected invocation above must not mutate credential storage.
-		if migrateServiceDeviceCredentialToFile() {
+		if migrateKeyringDeviceCredentialToFile() {
 			printHumanInfo("Moved this install's device credential into protected service file storage.")
 		}
 	}

@@ -75,16 +75,6 @@ func runSecurePairing(bootstrapURL, code string, cfg *runtimeConfig, saveCfg fun
 	if err := writePendingDeviceCredential(prov.Credential); err != nil {
 		return "", fmt.Errorf("could not store the new credential securely: %w", err)
 	}
-	// An EXPLICIT file-backend opt-in survives interruption: real pending file
-	// state exists now, so persist the marker — without it, a crash between
-	// activation and promotion leaves the next run keyring-routed, and a locked
-	// keyring would strand the activated pairing (code burned). The headless
-	// AUTO-detected path deliberately stays unmarked until promotion.
-	if deviceCredentialFileModeExplicit {
-		if err := writeDeviceFileBackendMarker(); err != nil {
-			return "", fmt.Errorf("could not persist the file-backend decision: %w", err)
-		}
-	}
 
 	secureBase, err := secureBaseFromBootstrap(bootstrapURL, prov.SecurePort)
 	if err != nil {
@@ -99,6 +89,20 @@ func runSecurePairing(bootstrapURL, code string, cfg *runtimeConfig, saveCfg fun
 	cfg.PendingSpkiPin = prov.SpkiPin
 	if err := saveCfg(cfg); err != nil {
 		return "", fmt.Errorf("could not save the pending secure endpoint: %w", err)
+	}
+
+	// An EXPLICIT file-backend opt-in survives interruption: pending credential
+	// AND endpoint are durable now, so persist the marker — without it, a crash
+	// between activation and promotion leaves the next run keyring-routed, and a
+	// locked keyring would strand the activated pairing (code burned). Ordered
+	// after the endpoint save so an earlier crash never flips the install while
+	// there is nothing resumable (any keyring credential a desktop install still
+	// holds was already migrated to a current file before pairing began). The
+	// headless AUTO-detected path deliberately stays unmarked until promotion.
+	if deviceCredentialFileModeExplicit {
+		if err := writeDeviceFileBackendMarker(); err != nil {
+			return "", fmt.Errorf("could not persist the file-backend decision: %w", err)
+		}
 	}
 
 	if err := activateDeviceV1ForPairing(secureBase, prov.SpkiPin, prov.Credential); err != nil {
