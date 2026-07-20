@@ -81,7 +81,7 @@ Bit 16 set: WS `{"type":"update/release_notes","entity_id":"update.<id>"}` → m
 
 ## Output Format
 
-Apply `skills/ha-nova/output-rules.md`.
+Apply `skills/ha-nova/output-rules.md`. Write previews, delete confirmations, and results render as the Cards defined there.
 
 - `Updates` / `Status`
 - `Planned change`

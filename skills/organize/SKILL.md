@@ -102,7 +102,7 @@ Do not guess unsupported fields.
 
 ## Output Format
 
-Apply `skills/ha-nova/output-rules.md` to all user-facing output.
+Apply `skills/ha-nova/output-rules.md` to all user-facing output. Write previews, delete confirmations, and results render as the Cards defined there.
 
 - `Target`
 - `Current metadata`

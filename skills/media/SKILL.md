@@ -85,7 +85,7 @@ Full relay/upstream error taxonomy: `skills/ha-nova/relay-api.md` -> Error Handl
 
 ## Output Format
 
-Apply `skills/ha-nova/output-rules.md` to all user-facing output.
+Apply `skills/ha-nova/output-rules.md` to all user-facing output. Write previews, delete confirmations, and results render as the Cards defined there.
 
 Render the Report shape (output-rules.md): what is playing where — player, state, current media, volume, source, and group members when relevant. Browse results render the List Frame (title + type), never the raw tree.
 

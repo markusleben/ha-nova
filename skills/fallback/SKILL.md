@@ -239,7 +239,7 @@ Experimental calls may fail with unfamiliar errors. Full relay/upstream error ta
 
 ## Output Format
 
-Apply `skills/ha-nova/output-rules.md` to all user-facing output.
+Apply `skills/ha-nova/output-rules.md` to all user-facing output. Write previews, delete confirmations, and results render as the Cards defined there.
 
 Every experimental call result names the tier (Relay-Ready / Roadmap / External), carries the EXPERIMENTAL marker where required, and summarizes verified outcomes only.
 

@@ -118,7 +118,8 @@ const WORD_BUDGETS: Record<string, number> = {
   // write again for the Phase 5 test offer (test-run.md).
   // pre-delete snapshot capture + config-snapshots reference (Wave 2).
   write: 1700,
-  diagnose: 1450,
+  // Cards adoption pointer (#389).
+  diagnose: 1500,
   // Report-shape declaration line (shared output shapes); repair dedup,
   // attention-threshold definition, cause↔symptom linking (2026-h2 Wave 1c).
   health: 1350,
@@ -128,7 +129,8 @@ const WORD_BUDGETS: Record<string, number> = {
   // high-consequence carve-out (Wave 3).
   scene: 1600,
   // buffering settle-window on verify (2026-h2 Wave 1a).
-  media: 1200,
+  // Cards adoption pointer (#389).
+  media: 1250,
   // test-offer single-confirmation + reference bullets (test-run.md);
   // ratcheted for the owning-skill deferral table + high-consequence
   // confirmation rule (Wave 0), and again for the differentiated verify
@@ -146,8 +148,10 @@ const WORD_BUDGETS: Record<string, number> = {
   // batch-safety opt-in with the merged-save card rule (#327);
   // safety-backup offer (Wave 0) + drift check before the full-document
   // save (Wave 1a) + pre-delete/pre-save snapshot capture (Wave 2).
-  dashboard: 1400,
-  updates: 1200,
+  // Cards adoption pointer (#389).
+  dashboard: 1450,
+  // Cards adoption pointer (#389).
+  updates: 1250,
   // batch-safety alignment: batch code format + cap-split rule (#327);
   // purge quantification, glob expansion, apply_filter semantics
   // (2026-h2 Wave 1b).

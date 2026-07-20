@@ -91,6 +91,18 @@ skip — test later
 Recommended option first and marked; at most 3 options plus `skip`; the option
 choice is the single confirmation bound to that exact card.
 
+Card coverage — every mutation and restore flow maps onto these cards; no
+write flow renders outside this system:
+
+| Flow | Cards |
+|---|---|
+| Create / update (any supported family) | Preview Card → Result Card |
+| Delete / destructive operation | Delete Card → Result Card |
+| Batch mutation (manifest-gated) | Batch Cards (`skills/ha-nova/batch-safety.md`) |
+| Snapshot restore (`skills/ha-nova/config-snapshots.md`) | Preview Card → Result Card |
+| Post-write test offer | Test Plan Card |
+| Runtime action (service call, experimental write) | Preview Card (`apply · cancel`) → Result Card |
+
 ## Report Shape (Read & Analysis Results)
 
 Every read or analysis answer follows one shape: lead with the answer in one or

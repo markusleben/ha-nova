@@ -94,6 +94,8 @@ the user just decides informed.
 2. `load` → treat `data` as the restore draft.
 3. Diff against the LIVE state (`ha-nova diff` where the family supports it),
    preview, and confirm — a restore is a normal write, never a blind put.
+   The restore preview and result render as the Preview and Result Cards
+   (`skills/ha-nova/output-rules.md` → Cards), like any write of that family.
 4. Write IN PLACE via the family's own API — never delete+recreate.
    A deleted item restores as a create that reuses the original identity key
    where the API allows it (see the fidelity table).
