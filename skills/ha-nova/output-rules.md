@@ -97,7 +97,8 @@ write flow renders outside this system:
 | Flow | Cards |
 |---|---|
 | Create / update (any supported family) | Preview Card → Result Card |
-| Delete / destructive operation | Delete Card → Result Card |
+| Delete / destructive operation (typed confirmation code) | Delete Card → Result Card |
+| Natural-confirmation removals (e.g. snapshot prune, todo item removes) | Preview Card → Result Card |
 | Batch mutation (manifest-gated) | Batch Cards (`skills/ha-nova/batch-safety.md`) |
 | Snapshot restore (`skills/ha-nova/config-snapshots.md`) | Preview Card → Result Card |
 | Post-write test offer | Test Plan Card |

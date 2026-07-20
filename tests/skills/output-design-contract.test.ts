@@ -177,7 +177,14 @@ describe("output design system (Cards)", () => {
     expect(outputRules).toContain(
       "| Create / update (any supported family) | Preview Card → Result Card |",
     );
-    expect(outputRules).toContain("| Delete / destructive operation | Delete Card → Result Card |");
+    expect(outputRules).toContain(
+      "| Delete / destructive operation (typed confirmation code) | Delete Card → Result Card |",
+    );
+    // Natural-confirmation removals (snapshot prune, todo item removes) never
+    // pull the Delete Card's typed gate.
+    expect(outputRules).toContain(
+      "| Natural-confirmation removals (e.g. snapshot prune, todo item removes) | Preview Card → Result Card |",
+    );
     expect(outputRules).toContain(
       "| Batch mutation (manifest-gated) | Batch Cards (`skills/ha-nova/batch-safety.md`) |",
     );
