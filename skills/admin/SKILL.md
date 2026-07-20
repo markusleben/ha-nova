@@ -59,7 +59,7 @@ Full relay/upstream error taxonomy: `skills/ha-nova/relay-api.md` -> Error Handl
 
 ## Output Format
 
-Apply `skills/ha-nova/output-rules.md` to all user-facing output.
+Apply `skills/ha-nova/output-rules.md` to all user-facing output. Write previews, delete confirmations, and results render as the Cards defined there.
 
 Render the Report shape (output-rules.md); person/zone/user inventories render the List Frame. For persons: name, device trackers, linked user. For zones: name, radius, and which automations depend on them. For users: name, whether they are owner/active/system-generated — never their tokens or credentials. State what was verified after the write.
 

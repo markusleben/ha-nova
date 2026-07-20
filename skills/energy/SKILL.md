@@ -70,7 +70,7 @@ Write guards (schema details in the reference):
 
 ## Output Format
 
-Apply `skills/ha-nova/output-rules.md`.
+Apply `skills/ha-nova/output-rules.md`. Write previews, delete confirmations, and results render as the Cards defined there.
 
 - `Energy` / `Status`
 - `Planned change`

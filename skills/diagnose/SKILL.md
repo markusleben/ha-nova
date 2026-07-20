@@ -80,7 +80,7 @@ Full relay/upstream error taxonomy: `skills/ha-nova/relay-api.md` -> Error Handl
 
 ## Output Format
 
-Apply `skills/ha-nova/output-rules.md` to all user-facing output.
+Apply `skills/ha-nova/output-rules.md` to all user-facing output. Write previews, delete confirmations, and results render as the Cards defined there.
 
 Render the Report shape, Diagnosis specialization (output-rules.md → Report Shape): root cause first, then the evidence chain, then the recommended fix with the owning skill. Quote log lines sparingly — never dump raw logs.
 

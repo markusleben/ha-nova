@@ -378,7 +378,7 @@ Rules:
 
 Apply `skills/ha-nova/output-rules.md` to all user-facing output.
 
-Review output is sectioned, not card-framed; only a Section 8 quick-fix proposal renders as the service-call action preview when it proposes a call.
+Review output is sectioned, not card-framed; only a Section 8 quick-fix proposal renders as the service-call Preview Card (`apply · cancel`, output-rules.md → Cards) when it proposes a call.
 
 Exception: if a maintainer-provided release-validation or machine-check prompt explicitly pins exact section titles or machine markers, follow that override exactly so automated validation can compare the fixed headings. This exception does not allow internal check codes in normal user-facing prose.
 

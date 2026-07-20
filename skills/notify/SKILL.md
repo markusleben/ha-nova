@@ -80,7 +80,7 @@ Full relay/upstream error taxonomy: `skills/ha-nova/relay-api.md` -> Error Handl
 
 ## Output Format
 
-Apply `skills/ha-nova/output-rules.md` to all user-facing output.
+Apply `skills/ha-nova/output-rules.md` to all user-facing output. Write previews, delete confirmations, and results render as the Cards defined there.
 
 Render the Report shape (output-rules.md): the resolved target, the sent title/message, and any extras used. Report acceptance honestly (accepted by Home Assistant, not confirmed on the device). Discovery renders the List Frame, grouped by surface (entities vs mobile-app services).
 

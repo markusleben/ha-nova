@@ -72,7 +72,7 @@ Other skills name HA Backups as the recovery path (see `skills/ha-nova/write-saf
 
 ## Output Format
 
-Apply `skills/ha-nova/output-rules.md` to all output.
+Apply `skills/ha-nova/output-rules.md` to all output. Write previews, delete confirmations, and results render as the Cards defined there.
 
 - `Backups` / `Status`
 - `Planned change`

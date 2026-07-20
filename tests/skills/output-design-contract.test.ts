@@ -1,4 +1,5 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -150,6 +151,105 @@ describe("output design system (Cards)", () => {
   it("keeps the canonical Next step label free of drift", () => {
     const contextSkill = readFileSync("skills/ha-nova/SKILL.md", "utf8");
     expect(contextSkill).not.toContain("Next Step");
+  });
+
+  it("makes every skill with a typed-confirmation flow reference the Cards contract (issue #389)", () => {
+    // Self-maintaining adoption lint: any sub-skill carrying a confirm: flow
+    // must name the Cards contract. skills/ha-nova defines the contract itself.
+    // Negative prose ("not card-framed") does not count as a reference.
+    const CARD_REF = /(Preview Card|Delete Card|Result Card|Test Plan Card|Cards defined there)/;
+    const skillDirs = readdirSync("skills").filter(
+      (d) => d !== "ha-nova" && statSync(join("skills", d)).isDirectory(),
+    );
+    for (const name of skillDirs) {
+      const content = readFileSync(`skills/${name}/SKILL.md`, "utf8");
+      if (!content.includes("confirm:")) continue;
+      expect(
+        CARD_REF.test(content),
+        `skills/${name}/SKILL.md contains a confirm: flow but never references the Cards contract (output-rules.md → Cards)`,
+      ).toBe(true);
+    }
+  });
+
+  it("maps every mutation and restore flow onto a card (coverage matrix, issue #389)", () => {
+    expect(outputRules).toContain("Card coverage");
+    expect(outputRules).toContain("no\nwrite flow renders outside this system");
+    expect(outputRules).toContain(
+      "| Create / update (any supported family) | Preview Card → Result Card |",
+    );
+    expect(outputRules).toContain(
+      "| Delete / destructive operation (typed confirmation code) | Delete Card → Result Card |",
+    );
+    // Natural-confirmation removals (snapshot prune, todo item removes) never
+    // pull the Delete Card's typed gate.
+    expect(outputRules).toContain(
+      "| Natural-confirmation removals (e.g. snapshot prune, todo item removes) | Preview Card → Result Card |",
+    );
+    expect(outputRules).toContain(
+      "| Batch mutation (manifest-gated) | Batch Cards (`skills/ha-nova/batch-safety.md`) |",
+    );
+    expect(outputRules).toContain(
+      "| Snapshot restore (`skills/ha-nova/config-snapshots.md`) | Preview Card → Result Card |",
+    );
+    expect(outputRules).toContain("| Post-write test offer | Test Plan Card |");
+    // Runtime actions never downgrade the high-consequence typed gate.
+    expect(outputRules).toContain(
+      "high-consequence actions escalate to the typed confirmation code",
+    );
+    // Restore flows are covered explicitly, not by convention.
+    const configSnapshots = readFileSync("skills/ha-nova/config-snapshots.md", "utf8");
+    expect(configSnapshots).toContain("render as the Preview and Result Cards");
+  });
+
+  it("keeps each canonical card template structurally sound (issue #389)", () => {
+    // Parse the fenced template after each card marker; fail when a required
+    // section or icon is missing, duplicated, or reordered.
+    const cardTemplate = (name: string): string[] => {
+      const idx = outputRules.indexOf(`**${name}**`);
+      expect(idx, `${name} marker missing`).toBeGreaterThan(-1);
+      const fenceStart = outputRules.indexOf("```", idx);
+      expect(fenceStart, `${name} template fence missing`).toBeGreaterThan(-1);
+      const fenceEnd = outputRules.indexOf("```", fenceStart + 3);
+      expect(fenceEnd, `${name} template fence unterminated`).toBeGreaterThan(fenceStart);
+      return outputRules
+        .slice(fenceStart + 3, fenceEnd)
+        .trim()
+        .split("\n");
+    };
+
+    const preview = cardTemplate("Preview Card");
+    expect(preview[0]).toMatch(/^📝 Preview:/);
+    expect(preview.filter((l) => l.startsWith("⚠️")), "exactly one status line").toHaveLength(1);
+    const previewOptions = preview.filter((l) => l.startsWith("Options:"));
+    expect(previewOptions, "exactly one action block").toHaveLength(1);
+    expect(preview[preview.length - 1], "action block closes the card").toBe(previewOptions[0]);
+    expect(
+      preview.findIndex((l) => l.startsWith("⚠️")),
+      "status line precedes the action block",
+    ).toBe(preview.length - 2);
+
+    const del = cardTemplate("Delete Card");
+    expect(del[0]).toMatch(/^🗑️ {2}Delete:/);
+    expect(del.filter((l) => l.startsWith("⚠️")), "exactly one status line").toHaveLength(1);
+    expect(del[del.length - 1], "confirmation prompt closes the card").toBe(
+      "To delete, reply exactly: confirm:<token>",
+    );
+    expect(del.findIndex((l) => l.startsWith("⚠️")), "status precedes the prompt").toBe(
+      del.length - 2,
+    );
+
+    const result = cardTemplate("Result Card");
+    expect(result[0]).toMatch(/^✅ Saved:/);
+    expect(result.filter((l) => l.startsWith("✅")), "exactly one result title").toHaveLength(1);
+
+    const testPlan = cardTemplate("Test Plan Card");
+    expect(testPlan[0]).toMatch(/^📝 Test:/);
+    const recommended = testPlan.findIndex((l) => l.startsWith("1 (recommended)"));
+    const second = testPlan.findIndex((l) => l.startsWith("2 —"));
+    const skip = testPlan.findIndex((l) => l.startsWith("skip"));
+    expect(recommended, "recommended option present").toBeGreaterThan(0);
+    expect(second, "options stay ordered").toBeGreaterThan(recommended);
+    expect(skip, "skip closes the menu").toBeGreaterThan(second);
   });
 
   it("rolls the cards into the three special-format skills", () => {

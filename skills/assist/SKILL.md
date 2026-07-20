@@ -53,7 +53,7 @@ Full relay/upstream error taxonomy: `skills/ha-nova/relay-api.md` -> Error Handl
 
 ## Output Format
 
-Apply `skills/ha-nova/output-rules.md` to all user-facing output.
+Apply `skills/ha-nova/output-rules.md` to all user-facing output. Write previews, delete confirmations, and results render as the Cards defined there.
 
 Render the Report shape (output-rules.md). For an utterance test: the exact response text Assist gave, what it did (or did not) match, and which entities it touched. For pipelines: name, engines, language, and which one is preferred. Never paraphrase Assist's answer into something friendlier than it was.
 

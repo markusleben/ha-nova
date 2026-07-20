@@ -67,7 +67,7 @@ Per entity, label the timestamp source: LTS last-data bucket (reliable, years ba
 
 ## Output Format
 
-Apply `skills/ha-nova/output-rules.md`.
+Apply `skills/ha-nova/output-rules.md`. Write previews, delete confirmations, and results render as the Cards defined there.
 
 - `Maintenance` / `Status`
 - `Planned change`
