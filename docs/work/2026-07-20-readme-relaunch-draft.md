@@ -150,7 +150,7 @@ curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/main/install.sh
 irm https://raw.githubusercontent.com/markusleben/ha-nova/main/install.ps1 | iex
 ```
 
-The installer picks the latest stable release and hands over to the wizard: it discovers your Home Assistant, walks you through installing the NOVA Relay App, and configures your AI clients. At the pairing step it opens your new NOVA page — click **"Connect a device"**, type the six-digit code, done.
+The installer selects the latest stable release. Run the command for your OS; the wizard discovers your Home Assistant, walks you through installing the NOVA Relay App, and configures your AI clients. At the pairing step it opens your new NOVA page — click **"Connect a device"**, type the six-digit code, done.
 
 Once it finishes, try: *"Show me all my automations."*
 
