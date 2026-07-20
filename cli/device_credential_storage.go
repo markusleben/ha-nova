@@ -69,7 +69,30 @@ func migrateKeyringDeviceCredentialToFile() (bool, error) {
 	}
 	credential, ok, err := readDeviceCredential()
 	if err != nil || !ok {
-		return false, nil // no readable keyring credential (locked, absent, or never paired)
+		if err != nil {
+			return false, nil // keyring unreadable (locked/absent): the pairing path takes over
+		}
+		// CURRENT is cleanly absent, but an interrupted FIRST pairing may have
+		// left a pending keyring credential (with the pending endpoint in the
+		// config). Resume would promote it back into the desktop keyring before
+		// service mode forces files — so move the pending itself and commit the
+		// backend, the same durable state an explicit file-mode pairing leaves
+		// behind; resume then finishes file-backed.
+		pending, pendingOK, pendingErr := readPendingKeyringSlotDirect()
+		if pendingErr != nil {
+			return false, fmt.Errorf("cannot read the pending device credential from the keyring: %w", pendingErr)
+		}
+		if !pendingOK {
+			return false, nil // never paired: nothing to migrate
+		}
+		if err := deviceSecretFileSet(deviceCredentialPendingService, pending); err != nil {
+			return false, fmt.Errorf("cannot write the pending device credential file: %w", err)
+		}
+		if err := writeDeviceFileBackendMarker(); err != nil {
+			return false, fmt.Errorf("cannot persist the file-backend decision: %w", err)
+		}
+		_ = keyring.Delete(deviceCredentialPendingService, secretUser())
+		return true, nil
 	}
 	// A pending credential from an interrupted re-pair must move with the
 	// install — once the marker exists, pending reads resolve to files, and a
