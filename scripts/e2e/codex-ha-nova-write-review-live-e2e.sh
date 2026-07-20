@@ -959,13 +959,13 @@ result["preview_has_canonical_keys"] = (
     and all(key in preview_sections[0] for key in ("triggers", "conditions", "actions"))
 )
 # Issue #390: a preview whose only explanation for a touched collection is a
-# count transition ("5 items | 3 items", "... and N more") must also carry a
-# plain-language behavior narrative. Conservative structural check: flag only
-# when a count-only line exists AND no prose narrative line exists at all.
-count_only_lines = re.findall(
-    r"^.*(?:\|\s*\d+\s+items?\s*\|\s*\d+\s+items?\s*\||\d+\s+items?\s*(?:→|->)\s*\d+\s+items?|…\s*and\s+\d+\s+more|\band \d+ more\b).*$",
-    result["prewrite_text"],
-    re.MULTILINE,
+# count transition ("5 items | 3 items", "5 items → 3 items", "... and N
+# more") must also carry a plain-language behavior narrative. Structural
+# check: the narrative must sit in the same or an adjacent paragraph as the
+# count line (the card shape puts it directly above the changes block), so
+# unrelated boilerplate prose elsewhere cannot satisfy the gate.
+COUNT_ONLY_RE = re.compile(
+    r"\|\s*\d+\s+items?\s*\|\s*\d+\s+items?\s*\||\d+\s+items?\s*(?:→|->)\s*\d+\s+items?|…\s*and\s+\d+\s+more|\band \d+ more\b",
 )
 
 
@@ -987,10 +987,18 @@ def is_narrative_line(line: str) -> bool:
     return True
 
 
-narrative_present = any(
-    is_narrative_line(line) for line in result["prewrite_text"].splitlines()
-)
-result["count_only_preview_without_narrative"] = bool(count_only_lines) and not narrative_present
+paragraphs = [p for p in re.split(r"\n\s*\n", result["prewrite_text"])]
+uncovered_count_paragraph = False
+for i, paragraph in enumerate(paragraphs):
+    if not COUNT_ONLY_RE.search(paragraph):
+        continue
+    nearby = paragraphs[max(0, i - 1) : i + 2]
+    if not any(
+        is_narrative_line(line) for block in nearby for line in block.splitlines()
+    ):
+        uncovered_count_paragraph = True
+        break
+result["count_only_preview_without_narrative"] = uncovered_count_paragraph
 # The post-write contract no longer mandates fixed Findings/Collision check/Advisory
 # headings: report only sections with substance, omit empties, and never print a
 # "none" bucket. Structure is valid as soon as a Post-Write Review section exists.
