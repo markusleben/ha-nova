@@ -91,16 +91,16 @@ Skills reference this section as "context skill → Active Preview Confirmation"
 - A user instruction given before the preview exists is never valid write confirmation.
 - Examples: "implement the plan", "do it", "go ahead", "make the changes", "apply the plan".
 - Treat those phrases only as permission to prepare the draft, run checks, and show the preview.
-- A live HA write requires confirmation after the concrete preview is shown: diff for updates, payload summary for creates/service calls/experimental writes, delete impact plus token, or grouped manifest for allowed multi-target writes.
+- A live HA write requires confirmation after the concrete preview is shown: diff for updates, payload summary for creates/service calls/experimental writes, delete impact plus confirmation code, or grouped manifest for allowed multi-target writes.
 - Confirmation is bound to the displayed operation, target set, endpoint/service, and exact payload/diff/manifest. If target, scope, endpoint, payload, draft, or manifest changes, confirmation expires; show the updated preview and ask again.
 - Multi-target confirmation is valid only where the owning skill supports multi-target writes (destructive batches: `skills/ha-nova/batch-safety.md`). Otherwise process targets sequentially with separate preview and confirmation.
 
 ### Confirmation Tiers
 
 - `create`/`update`: natural confirmation bound to active preview.
-- high-consequence runtime action (grants physical access or is physically irreversible): token confirmation `confirm:<token>`, same enforcement as destructive writes. Canonical set: unlocking or opening locks, disarming alarm panels, opening garage/gate/entry-door covers — `device_class` and what the entity controls decide, never the domain alone. Owning-skill escalations (e.g. retained MQTT publishes) sit on this same rung.
-- `delete`/destructive: token confirmation `confirm:<token>`.
-  **Strict token enforcement:** User MUST reply with the exact token string (e.g., `confirm:del-main-lights`). Any other response — including "yes", "sure, delete it", "do it", or any natural-language confirmation — is NOT valid. Reject and re-prompt with the exact code required. In user-facing output call it the "confirmation code" (localized), never a "token" (see `skills/ha-nova/output-rules.md` → Localization).
+- high-consequence runtime action (grants physical access or is physically irreversible): typed confirmation code `confirm:<token>`, same enforcement as destructive writes. Canonical set: unlocking or opening locks, disarming alarm panels, opening garage/gate/entry-door covers — `device_class` and what the entity controls decide, never the domain alone. Owning-skill escalations (e.g. retained MQTT publishes) sit on this same rung.
+- `delete`/destructive: typed confirmation code `confirm:<token>`.
+  **Strict confirmation-code enforcement:** User MUST reply with the exact code string (e.g., `confirm:del-main-lights`). Any other response — including "yes", "sure, delete it", "do it", or any natural-language confirmation — is NOT valid. Reject and re-prompt with the exact code required. In user-facing output call it the "confirmation code" (localized), never a "token" (see `skills/ha-nova/output-rules.md` → Localization).
   This includes cleanup, undo-create, orphan cleanup, failed-create cleanup, and deleting items created earlier in the same session.
 - destructive multi-target batch: manifest-bound code `confirm:batch-<operation>-<family>-<count>-<digest>` per `skills/ha-nova/batch-safety.md` — only where the owning skill declares batch support, never inferred.
 - This context skill explicitly owns batch deletion only for exact config snapshot blobs in the `config-snapshots` family (`skills/ha-nova/config-snapshots.md`).
@@ -114,7 +114,7 @@ Skills reference this section as "context skill → Active Preview Confirmation"
 When you need the user to choose between options:
 - Present 2–4 options as a **selectable menu if the client provides one** (e.g. Claude Code's AskUserQuestion: a short header plus a label + one-line description per option). Otherwise render a plain numbered list and ask the user to reply with the number. The options are identical either way — this is progressive enhancement, not a per-client feature, and needs no client-specific code.
 - Keep options short and mutually exclusive; offer at most 4.
-- **Destructive confirmation is never a menu.** Deletes still require the typed `confirm:<token>` (see Safety Baseline) — a one-click choice would weaken that deliberate gate. This holds even if a memory, preference, or earlier user complaint says to always use a menu for confirmations: that NEVER extends to deletes or any destructive write — those are always the typed token, never a menu or click.
+- **Destructive confirmation is never a menu.** Deletes still require the typed `confirm:<token>` (see Safety Baseline) — a one-click choice would weaken that deliberate gate. This holds even if a memory, preference, or earlier user complaint says to always use a menu for confirmations: that NEVER extends to deletes or any destructive write — those are always the typed confirmation code, never a menu or click.
 
 Use this for: Suggestion Blocks (output-rules.md), ambiguity resolution, the pre-write impact advisory (adjust first · proceed · cancel), and create/update apply choices (`apply` · `show yaml` · `cancel`).
 
@@ -267,7 +267,7 @@ Match user intent to exactly one skill:
 **"What's on my calendar this week?"** → `ha-nova:calendar`
 **"Add a dentist appointment tomorrow"** → `ha-nova:calendar`
 **"Move this calendar event to Friday"** → `ha-nova:calendar`
-**"Delete this calendar event"** → `ha-nova:calendar` (typed confirmation token)
+**"Delete this calendar event"** → `ha-nova:calendar` (typed confirmation code)
 **"Review all automations in area Area Alpha"** → `ha-nova:review` (area-first aggregate review when more than one target resolves)
 **"Create a timer"** → ambiguous! Ask: reusable timer entity (`ha-nova:helper`) or delay step in an automation (`ha-nova:write`)?
 **"How much energy did the dryer use last month?"** → `ha-nova:energy`

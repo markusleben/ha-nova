@@ -60,7 +60,7 @@ Other skills name HA Backups as the recovery path (see `skills/ha-nova/write-saf
 ### Delete
 1. Require `state: idle` first (one backup operation at a time). Resolve the exact `backup_id` from Status; show name, date, and locations in the preview — deletion removes it from ALL listed locations, irreversibly.
 2. Never delete the only backup or the newest completed backup — manual or automatic — refuse outright and explain: it is the recovery net every other skill points to (a manual safety backup can be the freshest recovery point). If the user insists (for example the newest backup is corrupted or partial), point to the HA UI (Settings > System > Backups) for that deliberate exception; this skill does not carry a bypass.
-3. Require exact token confirmation `confirm:<token>` — generate a short token, display it in the Options slot, and proceed only when the user types it back exactly.
+3. Require exact confirmation code `confirm:<token>` — generate a short code, display it in the Options slot, and proceed only when the user types it back exactly.
 4. `{"type":"backup/delete","backup_id":"<id>"}`; verify via Status that the backup is gone.
 
 ## Error Handling
@@ -77,7 +77,7 @@ Apply `skills/ha-nova/output-rules.md` to all output.
 - `Backups` / `Status`
 - `Planned change`
 - `Save status` / `Delete status` before confirmation
-- `Options` / confirmation token
+- `Options` / confirmation-code prompt
 - `Verification`
 - `Next step`
 
@@ -88,12 +88,12 @@ Use stable localized slot labels in this order; omit empty slots. Status renders
 - Preview before write: nothing is saved until the user confirms the shown preview.
 - Confirmation binds to the displayed preview and expires on any change to target, payload, endpoint, or scope (context skill → Active Preview Confirmation).
 - Pre-preview phrases ("do it", "go ahead", "implement the plan") authorize drafting and preview only — never the write itself.
-- Delete and destructive operations require the typed token `confirm:<token>` verbatim; "yes" or any natural-language reply is invalid.
+- Delete and destructive operations require the typed confirmation code `confirm:<token>` verbatim; "yes" or any natural-language reply is invalid.
 - Never guess entity, service, or config IDs — resolve them or ask.
 - Home Assistant is reached exclusively through `ha-nova relay`.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
 
-- Create uses natural confirmation; delete uses exact token confirmation only.
+- Create uses natural confirmation; delete uses exact confirmation code only.
 - Restore is never executed here — it reboots the system; always route to the HA UI.
 - A backup is only real once it appears completed in Status — initiation is not success.
 - One backup operation at a time; verify by re-reading Status, not by command success alone.

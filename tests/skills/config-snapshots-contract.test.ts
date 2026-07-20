@@ -46,7 +46,7 @@ describe("config snapshots contract", () => {
     const organizeSkill = readFileSync("skills/organize/SKILL.md", "utf8");
     expect(energySkill).toContain("Before any save that REMOVES entries (a single source/device removal included)");
     expect(yamlSkill).toContain("data = `{path: <exact logical path>, content: <current file content>}`");
-    expect(yamlSkill).toContain("A user-requested `delete_file` is tokenized like any delete AND captures the auto config snapshot");
+    expect(yamlSkill).toContain("A user-requested `delete_file` is code-gated like any delete AND captures the auto config snapshot");
     expect(organizeSkill).toContain("the DEVICE registry record for a device-level `disabled_by`");
   });
 

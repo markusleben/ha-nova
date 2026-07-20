@@ -141,7 +141,8 @@ const WORD_BUDGETS: Record<string, number> = {
   // Sibling-survival verification (Wave 1b) + yaml snapshot capture with
   // stored path (Wave 2) + TS-check application at write time (Wave 3).
   "yaml-config": 1450,
-  todo: 1200,
+  // Confirmation-code terminology replacing "token" wording (#392).
+  todo: 1250,
   // batch-safety opt-in with the merged-save card rule (#327);
   // safety-backup offer (Wave 0) + drift check before the full-document
   // save (Wave 1a) + pre-delete/pre-save snapshot capture (Wave 2).

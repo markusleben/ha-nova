@@ -92,7 +92,7 @@ Persistence routing per `skills/ha-nova/best-practices.md` → Persistence Model
 ### Delete
 1. Resolve id + platform (Editability Guard).
 2. Consumer check: `{"type":"search/related","item_type":"entity","item_id":"scene.<slug>"}` — show referencing automations/scripts, or an explicit no-consumer result (an empty `data` object means no consumers).
-3. Require exact token confirmation `confirm:<token>` — generate a short token, display it in the Options slot, and proceed only when the user types it back exactly. Deleting several storage scenes at once follows `skills/ha-nova/batch-safety.md` (Editability Guard per target).
+3. Require exact confirmation code `confirm:<token>` — generate a short code, display it in the Options slot, and proceed only when the user types it back exactly. Deleting several storage scenes at once follows `skills/ha-nova/batch-safety.md` (Editability Guard per target).
 4. Capture the auto config snapshot of the current config first (`skills/ha-nova/config-snapshots.md`; on capture failure follow its capture-failure stop).
 5. `ha-nova relay core --method DELETE --path /api/config/scene/config/<id>`
 6. Verify absence: config GET returns status 404 and the entity is gone. Mention the snapshot restore path in the result.
@@ -113,7 +113,7 @@ Apply `skills/ha-nova/output-rules.md` to all user-facing output.
 - `Mode`
 - `Planned change`
 - `Save status` / `Delete status` before confirmation
-- `Options` / confirmation token
+- `Options` / confirmation-code prompt
 - `Verification`
 - `Next step`
 
@@ -124,12 +124,12 @@ Use stable localized slot labels in this order; omit empty slots. Reads render t
 - Preview before write: nothing is saved until the user confirms the shown preview.
 - Confirmation binds to the displayed preview and expires on any change to target, payload, endpoint, or scope (context skill → Active Preview Confirmation).
 - Pre-preview phrases ("do it", "go ahead", "implement the plan") authorize drafting and preview only — never the write itself.
-- Delete and destructive operations require the typed token `confirm:<token>` verbatim; "yes" or any natural-language reply is invalid.
+- Delete and destructive operations require the typed confirmation code `confirm:<token>` verbatim; "yes" or any natural-language reply is invalid.
 - Never guess entity, service, or config IDs — resolve them or ask.
 - Home Assistant is reached exclusively through `ha-nova relay`.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
 
-- Create/update use natural confirmation after preview; delete uses exact token confirmation only, even for scenes created earlier in the same session.
+- Create/update use natural confirmation after preview; delete uses exact confirmation code only, even for scenes created earlier in the same session.
 - Scene writes have no `revert`; recovery is the auto config snapshot (deletes and member-removing updates capture one). Offer a safety backup via `ha-nova:backup` before a delete only when the snapshot store is unavailable (never for routine edits).
 - One scene per mutation; verify read-back, not just the save response.
 - Activation hands off to `ha-nova:service-call` — `scene.turn_on` supports `transition` (lights only); `scene.apply` applies a one-off state set without storing a scene.

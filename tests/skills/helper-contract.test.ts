@@ -87,7 +87,7 @@ describe("helper contract", () => {
       expect(skillDoc).toContain("Changes slot");
       expect(skillDoc).toContain("explicit not-saved-yet line");
       expect(skillDoc).toContain("Options block (`apply`, `show yaml`, `cancel`)");
-      expect(skillDoc).toContain("explicit not-deleted-yet line before the confirmation token");
+      expect(skillDoc).toContain("explicit not-deleted-yet line before the confirmation code");
       expect(skillDoc).not.toContain("as a `## Changes` diff");
     });
 

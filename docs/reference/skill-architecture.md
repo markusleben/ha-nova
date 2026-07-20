@@ -111,7 +111,7 @@ Current mapping:
 | backup | inline | WS status/generate/delete with initiation-vs-completion polling |
 | updates | inline | entity-based overview, feature-gated install with entity-poll verification |
 | energy | inline | statistics-based analysis, prefs read → merge → preview → full-save → validate verify |
-| maintenance | inline | grouped issue triage, token-gated destructive repairs with per-item verification |
+| maintenance | inline | grouped issue triage, code-gated destructive repairs with per-item verification |
 | review | inline | analysis is client-side, relay calls are reads only |
 | entity-discovery | inline | 1-2 calls, search + return |
 | service-call | inline | direct preview/confirm; any listener scan stays read-only and user-facing |
@@ -148,7 +148,7 @@ Current mapping:
 - ask one decision question only if ambiguous
 - confirmation tier:
   - create/update: natural confirmation bound to active preview
-  - delete: tokenized `confirm:<token>`
+  - delete: typed confirmation code `confirm:<token>`
   - pre-preview wording such as "implement the plan", "do it", or "go ahead" authorizes draft/check/preview work only; if the previewed payload, target, or manifest changes, confirmation expires
 
 3. Apply + Verify (Agent)
@@ -238,7 +238,7 @@ Mutation rules:
   - categories: `icon`
 - entity/device label updates may replace, add, remove, or clear labels
 - field-level preview before write
-- destructive area/floor/label/category delete requires impact preview + token confirmation
+- destructive area/floor/label/category delete requires impact preview + typed confirmation code
 - read back the changed registry fields after every mutation
 
 Still excluded:
@@ -292,7 +292,7 @@ Rules:
 - default to the next 7 days
 - always use a bounded event window
 - resolve ambiguous calendar names before querying events
-- create/update use natural bound confirmation; delete uses the typed token
+- create/update use natural bound confirmation; delete uses the typed confirmation code
 - drift-check immediately before the write; verify through bounded REST read-back and never auto-retry a write
 - recurring creation stays in the Home Assistant UI because `calendar.create_event` has no recurrence field
 
@@ -434,13 +434,13 @@ Rules: never invent a `media_content_id`; volume jumps and announcements are dis
 - listening is a bounded WINDOW (`mqtt/subscribe` inside `collect_events` with `on_limit: "return"`), never a stream; the relay unsubscribes when it closes
 - an empty window is a real answer ("nothing published"), reported as one — an `UPSTREAM_WS_TIMEOUT` (subscription never established) is a different finding
 - discovery/debug via WS `mqtt/device/debug_info` (device_id from the registry, never guessed)
-- publishing is guarded: retained messages and command/`set` topics take the typed token, because they persist on the broker or actuate hardware
+- publishing is guarded: retained messages and command/`set` topics take the typed confirmation code, because they persist on the broker or actuate hardware
 
 ## Assist Architecture
 
 `ha-nova:assist` owns Home Assistant's voice assistant:
 - utterance testing through `POST /api/conversation/process` — the flagship capability, and a LIVE command: it executes what it understands, so anything state-changing is previewed and confirmed like a service call
-- pipelines via WS `assist_pipeline/pipeline/*` (update resends every settings field addressed by `pipeline_id`; delete is tokenized because a satellite may depend on it)
+- pipelines via WS `assist_pipeline/pipeline/*` (update resends every settings field addressed by `pipeline_id`; delete is code-gated because a satellite may depend on it)
 - voice exposure via WS `homeassistant/expose_entity[/list]`
 - engine inventories: `tts/engine/list`, `stt/engine/list`, `conversation/agent/list`, `wake_word/info`
 - `assist_pipeline/run` stays out of reach: it is an audio subscription, not request/response
@@ -450,7 +450,7 @@ Rules: never invent a `media_content_id`; volume jumps and announcements are dis
 `ha-nova:admin` owns persons, zones, tags, and user accounts:
 - persons/zones/tags via WS `person/*`, `zone/*`, `tag/*` (updates resend every mutable field, addressed by the `*_id` key)
 - zones are presence infrastructure: every zone change runs `search/related` first and names the automations that depend on it, in the preview
-- users via WS `config/auth/*` — the strictest writes in HA NOVA: owner, system-generated, and the relay's own account are refused outright; everything else needs the typed token
+- users via WS `config/auth/*` — the strictest writes in HA NOVA: owner, system-generated, and the relay's own account are refused outright; everything else needs the typed confirmation code
 - passwords and auth providers stay in the Home Assistant UI on purpose
 
 ## YAML Config Architecture
@@ -563,13 +563,13 @@ Scope → Bootstrap (once per session) → Relay Contract → [domain] → Flow 
 
 ### Safety Core (canonical text)
 
-Every mutation-capable sub-skill opens its `## Safety` section with this block, byte-identical (linter-enforced; the linter extracts this fenced block as the SSOT). It carries the bootstrap-independent guarantees — preview binding, delete tokenization, and the fallback write gate — so a bare agent that never auto-loads the context skill still gets them:
+Every mutation-capable sub-skill opens its `## Safety` section with this block, byte-identical (linter-enforced; the linter extracts this fenced block as the SSOT). It carries the bootstrap-independent guarantees — preview binding, delete confirmation-code gating, and the fallback write gate — so a bare agent that never auto-loads the context skill still gets them:
 
 ```text
 - Preview before write: nothing is saved until the user confirms the shown preview.
 - Confirmation binds to the displayed preview and expires on any change to target, payload, endpoint, or scope (context skill → Active Preview Confirmation).
 - Pre-preview phrases ("do it", "go ahead", "implement the plan") authorize drafting and preview only — never the write itself.
-- Delete and destructive operations require the typed token `confirm:<token>` verbatim; "yes" or any natural-language reply is invalid.
+- Delete and destructive operations require the typed confirmation code `confirm:<token>` verbatim; "yes" or any natural-language reply is invalid.
 - Never guess entity, service, or config IDs — resolve them or ask.
 - Home Assistant is reached exclusively through `ha-nova relay`.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
@@ -584,7 +584,7 @@ Read-only sub-skills open `## Safety` with this block instead:
 
 Skill-specific safety bullets follow the core block; bullets that merely restate a core line are removed, domain nuances (confirmation tiering, no-revert notes, session-cleanup rules) stay.
 
-A skill may declare an explicit, named exception to a single core bullet directly below the core block — it must reference the core rule it narrows ("Declared exception to the core ... rule above") so a bare agent never sees two contradicting instructions. Current declared exceptions: `todo` item removes (`todo.remove_item`, `todo.remove_completed_items`) stay at natural preview confirmation while list deletion keeps the typed token; `integration-setup` may delete only an unfinished add flow that it started when a credential, external/OAuth, or progress step requires a UI restart.
+A skill may declare an explicit, named exception to a single core bullet directly below the core block — it must reference the core rule it narrows ("Declared exception to the core ... rule above") so a bare agent never sees two contradicting instructions. Current declared exceptions: `todo` item removes (`todo.remove_item`, `todo.remove_completed_items`) stay at natural preview confirmation while list deletion keeps the typed confirmation code; `integration-setup` may delete only an unfinished add flow that it started when a credential, external/OAuth, or progress step requires a UI restart.
 
 ## Post-Write Review Standard
 
@@ -663,7 +663,7 @@ These codes are contributor-facing/internal only. User-facing output must use lo
 Global safety expectations:
 - no guessed ids
 - preview before any write
-- delete requires tokenized confirmation
+- delete requires typed confirmation code
 - pre-preview approval is never write confirmation; live writes require confirmation after the concrete preview/diff/payload/manifest is shown
 - multi-target writes require a grouped manifest only where the owning skill already supports multi-target writes; otherwise process targets sequentially
 - structured failure output: what failed / why / next step
