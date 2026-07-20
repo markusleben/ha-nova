@@ -9,6 +9,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic
 Recent changes are tracked in [GitHub releases](https://github.com/markusleben/ha-nova/releases)
 and merged PRs. This changelog will be updated with the next tagged relay version.
 
+## [Relay 0.7.0] - 2026-07-20
+
+### Added
+- Secure device pairing: OPAQUE (RFC 9807) handshake over an SPKI-pinned TLS 1.3 device listener; every device gets its own credential and can be revoked individually. (#374)
+- NOVA console via Supervisor ingress: generate one-time six-digit pairing codes ("Connect a device"), list paired devices, revoke any one, and manage migrated legacy access. (#374)
+- Supervisor-token upstream in App mode — no `HA_LLAT` in the App anymore; standalone Container/Core keeps its server-side token. (#374)
+- Automatic legacy migration: the pre-pairing shared relay token is imported as a digest on first start and the stored plaintext is cleared; legacy access keeps working until revoked. (#374)
+- The App enables its NOVA sidebar entry once on first start (also right after this update); hiding it afterwards is always respected. (#384)
+
+### Fixed
+- Fresh App installs could fail to start because a required option had no default. (#376)
+
 ## [Relay 0.6.0] - 2026-07-15
 
 ### Added

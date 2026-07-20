@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 400" width="1600" height="400">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0A0E1A"/>
+      <stop offset="50%" stop-color="#0D1525"/>
+      <stop offset="100%" stop-color="#0A1628"/>
+    </linearGradient>
+    <linearGradient id="star-grad-v3" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#18BCF2"/>
+      <stop offset="45%" stop-color="#8FD9E8"/>
+      <stop offset="70%" stop-color="#FFD9A0"/>
+      <stop offset="100%" stop-color="#FFB347"/>
+    </linearGradient>
+    <radialGradient id="core-grad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#FFE4B5"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1600" height="400" fill="url(#bg)"/>
+
+  <g opacity="0.3" fill="#FFFFFF">
+    <circle cx="120" cy="60" r="1.2"/><circle cx="300" cy="330" r="1"/>
+    <circle cx="520" cy="70" r="1.1"/><circle cx="640" cy="300" r="0.9"/>
+    <circle cx="240" cy="180" r="0.8"/><circle cx="700" cy="140" r="1"/>
+    <circle cx="860" cy="60" r="1.1"/><circle cx="1040" cy="330" r="1"/>
+    <circle cx="1180" cy="80" r="1.2"/><circle cx="1320" cy="300" r="0.9"/>
+    <circle cx="1460" cy="120" r="1"/><circle cx="1540" cy="340" r="1.1"/>
+    <circle cx="960" cy="360" r="0.8"/><circle cx="80" cy="300" r="1"/>
+    <circle cx="420" cy="360" r="0.9"/><circle cx="1250" cy="200" r="0.8"/>
+  </g>
+
+  <g transform="translate(400, 200) scale(3.3)">
+    <path d="M0,-45 C5,-12 12,-5 45,0 C12,5 5,12 0,45 C-5,12 -12,5 -45,0 C-12,-5 -5,-12 0,-45 Z" fill="url(#star-grad-v3)"/>
+    <circle cx="0" cy="0" r="10" fill="url(#core-grad)"/>
+  </g>
+
+  <text x="760" y="200" font-family="-apple-system, 'Helvetica Neue', 'Segoe UI', sans-serif"
+        font-size="118" font-weight="700" fill="#E8EDF2" letter-spacing="14">HA NOVA</text>
+  <text x="764" y="272" font-family="-apple-system, 'Helvetica Neue', 'Segoe UI', sans-serif"
+        font-size="37" font-weight="400" fill="#B8CCE0" letter-spacing="1">One code to connect. Every change checked.</text>
+</svg>

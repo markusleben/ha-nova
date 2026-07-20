@@ -47,7 +47,7 @@ Current support/evidence truth lives in [docs/reference/hermes-platform-validati
 ## Linux Notes
 
 - On Linux desktop sessions, HA NOVA uses the OS Secret Service / keyring for secure local token storage.
-- For Hermes sessions that run without an unlocked desktop keyring, use `ha-nova setup --service hermes`. This stores only the Relay Auth Token in `~/.config/ha-nova/relay-token` with strict local file permissions.
+- For Hermes sessions that run without an unlocked desktop keyring, use `ha-nova setup --service hermes`. This stores only HA NOVA's local credential — the paired device credential (or, on standalone/legacy setups, the Relay Auth Token) — in a protected file under `~/.config/ha-nova/` with strict local file permissions.
 - If HA NOVA asks for a local Linux keyring password, it stays on this machine. HA NOVA only uses it to unlock or create local secure storage. It is not your Relay token, not your Home Assistant token, and it is not sent to the Relay, Home Assistant, Hermes, or any AI provider.
 - If no Secret Service provider is running, setup fails early with an explicit prerequisite message instead of raw `org.freedesktop.secrets` D-Bus errors.
 - If Linux is using GNOME Keyring and the default collection is locked or uninitialized, `ha-nova setup hermes` can guide recovery inline.
