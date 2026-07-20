@@ -1201,8 +1201,10 @@ def validate_dashboard_resource_flow(events: list[dict[str, Any]], invalid_lines
 
 def token_wording_errors(final_message: str, fixture: dict[str, Any]) -> list[str]:
     # Issue #392: destructive-card copy calls the value a "confirmation code",
-    # never a "token". The literal code value itself is exempt.
+    # never a "token". The literal code value and the harness status line
+    # (whose scenario id may contain "token") are exempt.
     text = final_message.replace(fixture["token"], "")
+    text = re.sub(r"^.*NOVA_PROMOTED_SKILL_RESULT.*$", "", text, flags=re.MULTILINE)
     if re.search(r"\btokens?\b", text, re.IGNORECASE):
         return ["token_wording_in_destructive_card"]
     return []
