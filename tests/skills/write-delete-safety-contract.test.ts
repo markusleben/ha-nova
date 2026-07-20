@@ -36,8 +36,42 @@ describe("write delete safety contract", () => {
     // confirmation of an incomprehensible preview is not informed consent.
     expect(writeSafety).toContain("### Behavior narrative (required with every update preview)");
     expect(writeSafety).toContain("never ask for confirmation of a change you cannot describe");
-    expect(writeSafety).toContain("the summary MUST name what was added, removed, or nested there");
+    expect(writeSafety).toContain(
+      "the summary MUST name what\nwas added, removed, replaced, modified, or nested there",
+    );
     expect(writeSkill).toContain("state the behavioral effect in the summary sentence");
+  });
+
+  it("blocks confirmation of count-only or type-only previews (issue #390)", () => {
+    // The narrative is diff-scoped, per-entry, and nested-aware; a count or
+    // type-name transition alone never reaches confirmation.
+    expect(writeSafety).toContain("The narrative covers every collection\nthe diff touches");
+    expect(writeSafety).not.toContain("for something\nthe user's request touched");
+    expect(writeSafety).toContain("Each added, removed, replaced, or modified entry");
+    expect(writeSafety).toContain("entries with one shared effect may\nshare a line");
+    expect(writeSafety).toContain("at the depth needed to understand its effect");
+    expect(writeSafety).toContain("container counts alone never\nqualify");
+    expect(writeSafety).toContain("not a description");
+    expect(writeSafety).toContain("is not a valid confirmation basis");
+    expect(writeSafety).toContain("it may run longer when per-entry coverage requires it");
+    // The gate lives with the confirmation owner in the context skill.
+    const contextSkill = readFileSync("skills/ha-nova/SKILL.md", "utf8");
+    expect(contextSkill).toContain(
+      "A preview is a valid confirmation basis only if it explains the behavioral effect of every collection it touches.",
+    );
+    expect(contextSkill).toContain("cannot proceed to confirmation");
+    // Flows with terse local preview wording carry the narrative pointer.
+    const helper = readFileSync("skills/helper/SKILL.md", "utf8");
+    const scene = readFileSync("skills/scene/SKILL.md", "utf8");
+    const dashboard = readFileSync("skills/dashboard/SKILL.md", "utf8");
+    const fallback = readFileSync("skills/fallback/SKILL.md", "utf8");
+    expect(helper).toContain("a count-only diff row never stands alone");
+    expect(helper).toContain(
+      "plus the behavior narrative (write-safety → Behavior narrative). Include an explicit not-saved-yet line",
+    );
+    expect(scene).toContain("never entity counts alone");
+    expect(dashboard).toContain("plus a plain-language behavior line");
+    expect(fallback).toContain("with a plain-language behavior line");
     // Post-write checks prove persistence, not behavior — wording must say so.
     expect(writeSafety).toContain("## Verification Honesty (post-write wording)");
     expect(writeSafety).toContain('Never a bare "verified"');
@@ -144,7 +178,7 @@ describe("write delete safety contract", () => {
     expect(writeSafety).toContain("do not re-align pipes or pad cells");
     // The truncation marker joins the count-only rule: a cut-off value the
     // request touched must be named in the summary.
-    expect(writeSafety).toContain("or a truncated (`…`) value");
+    expect(writeSafety).toContain("a truncated (`…`) value");
   });
 
   it("protects notification copy from unrequested rewrites", () => {

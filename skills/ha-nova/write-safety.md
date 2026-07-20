@@ -86,12 +86,22 @@ the narrative before showing the preview — never show both and let the user
 guess.
 
 Confirmation quality depends on it: a user who cannot tell what the payload
-changes cannot meaningfully confirm it. If the diff still contains a
-count-only or `… and N more` line — or a truncated (`…`) value — for something
-the user's request touched, the summary MUST name what was added, removed, or nested there,
-and spell out what a cut-off value says in full. If you cannot explain the
-behavioral effect of your own draft, stop and re-derive it —
-never ask for confirmation of a change you cannot describe.
+changes cannot meaningfully confirm it. The narrative covers every collection
+the diff touches — including ones the merge changed that the user never
+mentioned. If the diff still contains a count-only or `… and N more` line — or
+a truncated (`…`) value — for a touched collection, the summary MUST name what
+was added, removed, replaced, modified, or nested there, and spell out what a
+cut-off value says in full. Each added, removed, replaced, or modified entry
+gets a plain-language line on what it does; entries with one shared effect may
+share a line ("all three notify actions now go to Anna's phone"). Describe a
+nested change at the depth needed to understand its effect ("the new choose
+branch skips heating when a window is open") — container counts alone never
+qualify, and echoing diff type names ("condition state", "platform: time") is
+not a description. A preview that explains a touched collection only as a
+count or type change is not a valid confirmation basis (context skill →
+Active Preview Confirmation) — fix the draft or the narrative before asking.
+If you cannot explain the behavioral effect of your own draft, stop and
+re-derive it — never ask for confirmation of a change you cannot describe.
 
 ### User-authored notification copy
 
@@ -120,8 +130,8 @@ Render a terminal-friendly preview in this exact order, nothing extra — users
 should learn one shape and always recognize it:
 
 1. Preview-summary slot: 📝 title line (localized preview label + item type +
-   name), then one to three plain-language sentences (the behavior narrative
-   lives here).
+   name), then the plain-language behavior narrative (one to three sentences;
+   it may run longer when per-entry coverage requires it).
 2. Changes slot: your localized header row + `|---|---|---|`, then the
    `ha-nova diff` file/stdout rows, verbatim.
 3. Pre-write-check/impact slot: one or two short lines.

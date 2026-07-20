@@ -125,10 +125,13 @@ separate manifests, each with its own preview and confirmation code:
 Same rules as `skills/ha-nova/output-rules.md` → Cards (fixed emoji
 vocabulary, two spaces after 🗑️/⚠️, labels localized at runtime).
 
-**Batch Delete Card** (the code prompt is always the last line):
+**Batch Delete Card** (the code prompt is always the last line). The line
+after the 🗑️ title states in plain language what the workset does today and
+that this stops on delete — a bare count plus manifest path is not a preview:
 
 ```
 🗑️  Delete: 8 automations (reviewed cleanup workset)
+All eight are light schedules that stop running when deleted.
 Manifest: <path the user can open> — 8 / 20 (cap)
 Impact: no consumers found for 7; "Morning routine" is referenced by script.wakeup (will break).
 Recovery: YAML export written; no automatic rollback after delete.

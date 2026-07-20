@@ -958,6 +958,32 @@ result["preview_has_canonical_keys"] = (
     len(preview_sections) == 1
     and all(key in preview_sections[0] for key in ("triggers", "conditions", "actions"))
 )
+# Issue #390: a preview whose only explanation for a touched collection is a
+# count transition ("5 items | 3 items", "... and N more") must also carry a
+# plain-language behavior narrative. Conservative structural check: flag only
+# when a count-only line exists AND no prose narrative line exists at all.
+count_only_lines = re.findall(
+    r"^.*(?:\|\s*\d+\s+items?\s*\|\s*\d+\s+items?\s*\||…\s*and\s+\d+\s+more|\band \d+ more\b).*$",
+    result["prewrite_text"],
+    re.MULTILINE,
+)
+
+
+def is_narrative_line(line: str) -> bool:
+    stripped = line.strip()
+    if not stripped or len(stripped.split()) < 4:
+        return False
+    if stripped.startswith(("|", "#", "-", "`", "📝", "⚠", "✅", "🗑")):
+        return False
+    if "Preview Payload" in stripped or stripped.startswith("Pre-write check:"):
+        return False
+    return True
+
+
+narrative_present = any(
+    is_narrative_line(line) for line in result["prewrite_text"].splitlines()
+)
+result["count_only_preview_without_narrative"] = bool(count_only_lines) and not narrative_present
 # The post-write contract no longer mandates fixed Findings/Collision check/Advisory
 # headings: report only sections with substance, omit empties, and never print a
 # "none" bucket. Structure is valid as soon as a Post-Write Review section exists.
@@ -1051,6 +1077,7 @@ run_scenario() {
   local unexpected_events_after_final_message
   local preview_section_count
   local preview_has_canonical_keys
+  local count_only_preview_without_narrative
   local helper_script_count
   local onboarding_count
   local external_research_hits
@@ -1152,6 +1179,7 @@ run_scenario() {
     unexpected_events_after_final_message="$(jq -r '.unexpected_events_after_final_message' "$analysis_json")"
     preview_section_count="$(jq -r '.preview_section_count' "$analysis_json")"
     preview_has_canonical_keys="$(jq -r '.preview_has_canonical_keys' "$analysis_json")"
+    count_only_preview_without_narrative="$(jq -r '.count_only_preview_without_narrative' "$analysis_json")"
 
     [[ "$write_hits" -ge 1 ]] || {
       status="fail"
@@ -1241,6 +1269,11 @@ run_scenario() {
       status="fail"
       validation_error="missing_prewrite_preview_section"
     }
+  fi
+
+  if [[ "$status" == "pass" && "$count_only_preview_without_narrative" == "true" ]]; then
+    status="fail"
+    validation_error="count_only_preview_without_narrative"
   fi
 
   if [[ "$status" == "pass" && "$postwrite_repeats_prewrite_verdict" == "true" ]]; then

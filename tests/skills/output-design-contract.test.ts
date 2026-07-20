@@ -49,6 +49,14 @@ describe("output design system (Cards)", () => {
     expect(contextSkill).toContain('call it the "confirmation code" (localized), never a "token"');
   });
 
+  it("requires the preview narrative to cover every touched collection (issue #390)", () => {
+    expect(outputRules).toContain(
+      "each added, removed, replaced, or modified entry described by its effect",
+    );
+    expect(outputRules).toContain("never only by count or type name");
+    expect(outputRules).toContain("coverage beats the three-sentence guideline");
+  });
+
   it("shows the change table with the canonical header and verbatim-row rule", () => {
     expect(outputRules).toContain("| Field | Before | After |");
     expect(outputRules).toContain("|---|---|---|");
