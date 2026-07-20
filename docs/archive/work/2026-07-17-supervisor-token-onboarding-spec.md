@@ -1,6 +1,6 @@
 # Supervisor-Token Onboarding Spec
 
-Status: active
+Status: archived (shipped in v0.19.0)
 Date: 2026-07-17
 Trigger: live macOS first-install acceptance exposed that the Wave 6 wizard still requires a manually created Home Assistant Long-Lived Access Token (LLAT)
 
