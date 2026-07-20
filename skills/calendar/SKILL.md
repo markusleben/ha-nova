@@ -105,12 +105,12 @@ These slots render the Report shape (output-rules.md); event groups follow the L
 - Preview before write: nothing is saved until the user confirms the shown preview.
 - Confirmation binds to the displayed preview and expires on any change to target, payload, endpoint, or scope (context skill → Active Preview Confirmation).
 - Pre-preview phrases ("do it", "go ahead", "implement the plan") authorize drafting and preview only — never the write itself.
-- Delete and destructive operations require the typed token `confirm:<token>` verbatim; "yes" or any natural-language reply is invalid.
+- Delete and destructive operations require the typed confirmation code `confirm:<token>` verbatim; "yes" or any natural-language reply is invalid.
 - Never guess entity, service, or config IDs — resolve them or ask.
 - Home Assistant is reached exclusively through `ha-nova relay`.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
 
-- Create and update require natural confirmation; delete retains the core typed-token gate.
+- Create and update require natural confirmation; delete retains the core typed confirmation-code gate.
 - Calendar event writes have no HA NOVA revert. A provider recycle bin may exist but is not guaranteed; recreate only from a user-approved preview.
 - Always use bounded windows.
 - Never guess a calendar id from a partial name when multiple matches exist.

@@ -68,13 +68,13 @@ Render the Report shape (output-rules.md); person/zone/user inventories render t
 - Preview before write: nothing is saved until the user confirms the shown preview.
 - Confirmation binds to the displayed preview and expires on any change to target, payload, endpoint, or scope (context skill → Active Preview Confirmation).
 - Pre-preview phrases ("do it", "go ahead", "implement the plan") authorize drafting and preview only — never the write itself.
-- Delete and destructive operations require the typed token `confirm:<token>` verbatim; "yes" or any natural-language reply is invalid.
+- Delete and destructive operations require the typed confirmation code `confirm:<token>` verbatim; "yes" or any natural-language reply is invalid.
 - Never guess entity, service, or config IDs — resolve them or ask.
 - Home Assistant is reached exclusively through `ha-nova relay`.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
 
-- Zone and person deletes take the typed token, and the preview must first name the automations that depend on them (`search/related`).
-- User deletion is the strictest operation in HA NOVA: owner, system-generated, and the relay's own account are refused outright, and everything else needs the typed token plus a plain statement of what is lost.
+- Zone and person deletes take the typed confirmation code, and the preview must first name the automations that depend on them (`search/related`).
+- User deletion is the strictest operation in HA NOVA: owner, system-generated, and the relay's own account are refused outright, and everything else needs the typed confirmation code plus a plain statement of what is lost.
 - No delete here has a `revert`. Zones, persons, and tags are recreatable from their previewed fields — a tag keeps its physical `tag_id`, but other recreates mint new internal ids, so inbound references stay broken. A deleted user's password, tokens, and history are unrecoverable; the delete preview must say so.
 - Offer a safety backup via `ha-nova:backup` before zone, person, and user deletes (not for tag deletes or routine updates).
 - Never surface credentials, tokens, or password state in output.

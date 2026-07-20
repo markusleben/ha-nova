@@ -100,7 +100,7 @@ Previews use the File-Change Preview above; results use the Result Card. Report 
 - Preview before write: nothing is saved until the user confirms the shown preview.
 - Confirmation binds to the displayed preview and expires on any change to target, payload, endpoint, or scope (context skill → Active Preview Confirmation).
 - Pre-preview phrases ("do it", "go ahead", "implement the plan") authorize drafting and preview only — never the write itself.
-- Delete and destructive operations require the typed token `confirm:<token>` verbatim; "yes" or any natural-language reply is invalid.
+- Delete and destructive operations require the typed confirmation code `confirm:<token>` verbatim; "yes" or any natural-language reply is invalid.
 - Never guess entity, service, or config IDs — resolve them or ask.
 - Home Assistant is reached exclusively through `ha-nova relay`.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
@@ -114,6 +114,6 @@ Previews use the File-Change Preview above; results use the Result Card. Report 
 
 - One file per operation.
 - Never write a file without a preceding read and a shown File-Change Preview.
-- A user-requested `delete_file` is tokenized like any delete AND captures the auto config snapshot of the file first (it has no `.bak`; `skills/ha-nova/config-snapshots.md`).
+- A user-requested `delete_file` is code-gated like any delete AND captures the auto config snapshot of the file first (it has no `.bak`; `skills/ha-nova/config-snapshots.md`).
 - Never claim success from a reload alone — the entity must exist in `/api/states`.
 - Do not add `!include` lines that already exist, and never rewrite `configuration.yaml` wholesale to add one.

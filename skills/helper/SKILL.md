@@ -144,7 +144,7 @@ If 0 results: try synonyms or shorter stems. Never dump entire domains.
    - name
    - type
    - entity_id
-3. Token confirmation: `confirm:<token>` (strict: only exact token accepted; see context skill → Safety Baseline).
+3. Confirmation code: `confirm:<token>` (strict: only the exact code accepted; see context skill → Safety Baseline).
 4. Capture the auto config snapshot of the current list item first (`skills/ha-nova/config-snapshots.md`; on capture failure follow its capture-failure stop). Say in the result that a recreate from it mints a new entity_id.
 5. Execute:
    ```text
@@ -369,12 +369,12 @@ If multiple matches remain, present max 5 candidates and ask one blocking questi
    - domain
    - linked entities if known
    - `entry_id` only when needed to disambiguate duplicate titles/domains
-   - explicit not-deleted-yet line before the confirmation token
+   - explicit not-deleted-yet line before the confirmation code
 4. Run a pre-delete dependency check:
    - if linked entities are known, run `search/related` against up to 3 linked entities before confirmation
    - summarize any related automations/scripts in the preview
    - if linked entities are unknown, say that dependency check coverage is limited
-5. Token confirmation: `confirm:<token>` (strict exact-token rule). This still applies to cleanup and helpers created earlier in the same session. Multi-helper deletes within ONE family follow `skills/ha-nova/batch-safety.md`; storage and config-entry families never mix.
+5. Confirmation code: `confirm:<token>` (strict exact-code rule). This still applies to cleanup and helpers created earlier in the same session. Multi-helper deletes within ONE family follow `skills/ha-nova/batch-safety.md`; storage and config-entry families never mix.
 6. Execute:
    ```text
    ha-nova relay core --method DELETE --path /api/config/config_entries/entry/{entry_id}
@@ -470,7 +470,7 @@ Never show raw JSON to the user.
 - Preview before write: nothing is saved until the user confirms the shown preview.
 - Confirmation binds to the displayed preview and expires on any change to target, payload, endpoint, or scope (context skill → Active Preview Confirmation).
 - Pre-preview phrases ("do it", "go ahead", "implement the plan") authorize drafting and preview only — never the write itself.
-- Delete and destructive operations require the typed token `confirm:<token>` verbatim; "yes" or any natural-language reply is invalid.
+- Delete and destructive operations require the typed confirmation code `confirm:<token>` verbatim; "yes" or any natural-language reply is invalid.
 - Never guess entity, service, or config IDs — resolve them or ask.
 - Home Assistant is reached exclusively through `ha-nova relay`.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.

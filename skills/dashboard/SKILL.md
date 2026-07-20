@@ -95,7 +95,7 @@ Critical behavior:
      - call `lovelace/resources/create|update`
    - resource delete:
      - preview the exact resource identity
-     - require exact token confirmation `confirm:<token>`
+     - require exact confirmation code `confirm:<token>`
      - call `lovelace/resources/delete` with `resource_id`
    - content update / card operation:
      - read the current dashboard config with `lovelace/config`
@@ -111,10 +111,10 @@ Critical behavior:
      - new cards may be created only from this built-in allowlist:
        - `entity`, `entities`, `button`, `tile`, `gauge`, `sensor`, `markdown`, `history-graph`
      - existing custom cards may only be moved, deleted, or shallow-updated when the exact field already exists
-     - persisted card removal is destructive and requires exact token confirmation `confirm:<token>`; only discarding an unpersisted draft card is non-destructive
+     - persisted card removal is destructive and requires exact confirmation code `confirm:<token>`; only discarding an unpersisted draft card is non-destructive
    - delete:
      - preview the exact dashboard identity
-     - require exact token confirmation `confirm:<token>`
+     - require exact confirmation code `confirm:<token>`
      - capture the auto config snapshot first — data = `{shell: <the dashboard's lovelace/dashboards/list entry>, config: <the full lovelace/config>}`, so a later-session restore can recreate the shell (url_path, title, icon, sidebar, admin flag) before saving the content (`skills/ha-nova/config-snapshots.md`; on capture failure follow its capture-failure stop)
      - call `lovelace/dashboards/delete` with `dashboard_id`
      - multi-item deletes follow `skills/ha-nova/batch-safety.md`; dashboards, resources, and cards are separate families — one family per manifest; a card batch within one dashboard executes as ONE merged `lovelace/config/save` (single-call path — sequential per-card saves would overwrite each other), verified by one read-back
@@ -142,7 +142,7 @@ For create/update/delete:
 - `Mode`
 - `Planned change`
 - `Save status` / `Delete status` before confirmation
-- `Options` / confirmation token
+- `Options` / confirmation-code prompt
 - `Verification`
 - `Next step`
 
@@ -155,13 +155,13 @@ Do not dump the full dashboard JSON/YAML by default.
 - Preview before write: nothing is saved until the user confirms the shown preview.
 - Confirmation binds to the displayed preview and expires on any change to target, payload, endpoint, or scope (context skill → Active Preview Confirmation).
 - Pre-preview phrases ("do it", "go ahead", "implement the plan") authorize drafting and preview only — never the write itself.
-- Delete and destructive operations require the typed token `confirm:<token>` verbatim; "yes" or any natural-language reply is invalid.
+- Delete and destructive operations require the typed confirmation code `confirm:<token>` verbatim; "yes" or any natural-language reply is invalid.
 - Never guess entity, service, or config IDs — resolve them or ask.
 - Home Assistant is reached exclusively through `ha-nova relay`.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
 
 - No guessed `url_path` or `dashboard_id` values.
-- Dashboard/resource/card delete uses exact token confirmation only, even for items created earlier in the same session. Dashboard writes have no `revert` — recovery for dashboard/card deletes is the auto config snapshot (next bullet); resources recover via Home Assistant Backups.
+- Dashboard/resource/card delete uses exact confirmation code only, even for items created earlier in the same session. Dashboard writes have no `revert` — recovery for dashboard/card deletes is the auto config snapshot (next bullet); resources recover via Home Assistant Backups.
 - Content-removing saves capture an auto config snapshot — that is the recovery net. Dashboard deletes capture one too, but restore is PARTIAL: recreate the dashboard (reusing the `url_path`), then save the snapshot content — say that in the delete preview. LOVELACE RESOURCE deletes are NOT snapshot-covered — they keep the safety-backup offer. Otherwise offer a backup via `ha-nova:backup` only when the snapshot store is unavailable (never for routine small edits).
 - If the change needs a broad re-layout instead of a targeted edit, say so before writing.
 

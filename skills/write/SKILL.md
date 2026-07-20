@@ -66,7 +66,7 @@ Multi-target logical changes: present the plan first per `skills/ha-nova/write-s
    - Delete preview MUST include the consumer-check result before confirmation: either the affected consumers or an explicit no-consumer result.
    - Delete previews do not show `apply`, `show yaml`, `cancel`, or any menu; ask only for the exact `confirm:<token>` or cancellation.
    - Batch delete of a reviewed same-family workset (automations OR scripts, never mixed) follows `skills/ha-nova/batch-safety.md`; per-item consumer checks and absence verification stay.
-5. Confirmation: create/update=natural, delete=tokenized `confirm:<token>`. Active Preview Confirmation is required; delete is the typed token, never a menu. Pre-preview consent is draft-only; payload/diff changes need preview.
+5. Confirmation: create/update=natural, delete=typed confirmation code `confirm:<token>`. Active Preview Confirmation is required; delete is the typed confirmation code, never a menu. Pre-preview consent is draft-only; payload/diff changes need preview.
 
 ### Phase 3: Apply + Verify (Agent)
 
@@ -126,7 +126,7 @@ See `skills/ha-nova/SKILL.md` → Response Format.
 - Preview before write: nothing is saved until the user confirms the shown preview.
 - Confirmation binds to the displayed preview and expires on any change to target, payload, endpoint, or scope (context skill → Active Preview Confirmation).
 - Pre-preview phrases ("do it", "go ahead", "implement the plan") authorize drafting and preview only — never the write itself.
-- Delete and destructive operations require the typed token `confirm:<token>` verbatim; "yes" or any natural-language reply is invalid.
+- Delete and destructive operations require the typed confirmation code `confirm:<token>` verbatim; "yes" or any natural-language reply is invalid.
 - Never guess entity, service, or config IDs — resolve them or ask.
 - Home Assistant is reached exclusively through `ha-nova relay`.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.

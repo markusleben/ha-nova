@@ -160,7 +160,7 @@ the offer of a remaining-targets manifest).
 | `maintenance` | yes (already grouped) | statistics clears per issue group via the API's single-call group clear (ledger from per-ID re-validation); orphan registry removal per config entry, sequential; all existing gates unchanged |
 | `scene` | yes | storage scenes only (Editability Guard per target) |
 | `dashboard` | yes | dashboards, resources, and cards are three separate families; a card batch is one merged save (single-call path) |
-| `todo` | yes | list deletion with per-list open-item counts; item removal stays the existing sub-token flow |
+| `todo` | yes | list deletion with per-list open-item counts; item removal keeps its existing natural-confirmation flow |
 | `organize` | yes | one registry family per manifest; only with complete related-item impact per target |
 | `yaml-config` | no | file edits are single-document operations with their own backup flow |
 | `energy` | no | preference saves are corrective single-document writes, not enumerable deletes |

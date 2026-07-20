@@ -950,7 +950,7 @@ def build_dashboard_delete_token_prompt(fixture: dict[str, Any]) -> tuple[str, s
     token = fixture["token"]
     status_line = f'NOVA_PROMOTED_SKILL_RESULT id=dashboard_delete_token ok url_path={fixture["url_path"]} deleted=true'
     task = f"""You are handling the delete step for the existing storage dashboard at url path `{fixture["url_path"]}`.
-In this test fixture, the previous turn showed the concrete delete preview for this exact dashboard and the exact confirmation token was `{token}`.
+In this test fixture, the previous turn showed the concrete delete preview for this exact dashboard and the exact confirmation code was `{token}`.
 The user's current reply is exactly `{token}`.
 Resolve the dashboard, execute only the delete path, verify the dashboard is gone from the dashboard list, and finish.
 Use Relay WebSocket calls only for this dashboard flow.
@@ -962,9 +962,9 @@ def build_dashboard_delete_reject_prompt(fixture: dict[str, Any]) -> tuple[str, 
     token = fixture["token"]
     status_line = f'NOVA_PROMOTED_SKILL_RESULT id=dashboard_delete_reject_natural ok url_path={fixture["url_path"]} refused=true'
     task = f"""You are handling the delete step for the existing storage dashboard at url path `{fixture["url_path"]}`.
-In this test fixture, the previous turn showed the concrete delete preview for this exact dashboard and the exact confirmation token was `{token}`.
+In this test fixture, the previous turn showed the concrete delete preview for this exact dashboard and the exact confirmation code was `{token}`.
 The user's current reply is only `yes`.
-Do not delete anything. Explain briefly that the exact token is still required, include the token literally, and stop.
+Do not delete anything. Explain briefly that the exact confirmation code is still required, include the code literally, and stop.
 Use Relay WebSocket calls only for this dashboard flow.
 """
     return base_prompt(ROOT / "skills" / "dashboard" / "SKILL.md", "dashboard", task, status_line), status_line
@@ -1076,7 +1076,7 @@ def build_organize_category_delete_prompt(fixture: dict[str, Any]) -> tuple[str,
         f'category_id={fixture["category_id"]} deleted=true'
     )
     task = f"""You are handling the delete step for category `{fixture["category_id"]}` in scope `{fixture["scope"]}`.
-In this test fixture, the previous turn showed the concrete delete preview for this exact category and scope, and the exact confirmation token was `{token}`.
+In this test fixture, the previous turn showed the concrete delete preview for this exact category and scope, and the exact confirmation code was `{token}`.
 The user's current reply is exactly `{token}`.
 Delete the category, verify it is absent from the category registry for that scope, and verify entity `{fixture["entity_id"]}` no longer keeps that category in the same scope.
 Every category registry call in this scenario must include the provided scope."""
@@ -1199,8 +1199,18 @@ def validate_dashboard_resource_flow(events: list[dict[str, Any]], invalid_lines
     return errors
 
 
+def token_wording_errors(final_message: str, fixture: dict[str, Any]) -> list[str]:
+    # Issue #392: destructive-card copy calls the value a "confirmation code",
+    # never a "token". The literal code value itself is exempt.
+    text = final_message.replace(fixture["token"], "")
+    if re.search(r"\btokens?\b", text, re.IGNORECASE):
+        return ["token_wording_in_destructive_card"]
+    return []
+
+
 def validate_dashboard_delete_token(events: list[dict[str, Any]], invalid_lines: list[str], fixture: dict[str, Any], status_line: str) -> list[str]:
-    errors, commands, _messages, _final_message = common_errors(events, invalid_lines, status_line)
+    errors, commands, _messages, final_message = common_errors(events, invalid_lines, status_line)
+    errors.extend(token_wording_errors(final_message, fixture))
     text = "\n".join(item.get("command", "") for item in commands)
     if "lovelace/dashboards/delete" not in text:
         errors.append("dashboard_delete_missing")
@@ -1224,6 +1234,7 @@ def validate_dashboard_delete_reject(events: list[dict[str, Any]], invalid_lines
         errors.append("dashboard_missing_after_refusal")
     if fixture["token"] not in final_message:
         errors.append("delete_token_not_repeated_in_refusal")
+    errors.extend(token_wording_errors(final_message, fixture))
     return errors
 
 
@@ -1335,7 +1346,8 @@ def validate_organize_label_entity_flow(events: list[dict[str, Any]], invalid_li
 
 
 def validate_organize_category_delete(events: list[dict[str, Any]], invalid_lines: list[str], fixture: dict[str, Any], status_line: str) -> list[str]:
-    errors, commands, _messages, _final_message = common_errors(events, invalid_lines, status_line)
+    errors, commands, _messages, final_message = common_errors(events, invalid_lines, status_line)
+    errors.extend(token_wording_errors(final_message, fixture))
     text = "\n".join(item.get("command", "") for item in commands)
     if "config/category_registry/delete" not in text:
         errors.append("category_delete_missing")

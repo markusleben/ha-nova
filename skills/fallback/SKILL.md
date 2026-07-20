@@ -248,7 +248,7 @@ Every experimental call result names the tier (Relay-Ready / Roadmap / External)
 - Preview before write: nothing is saved until the user confirms the shown preview.
 - Confirmation binds to the displayed preview and expires on any change to target, payload, endpoint, or scope (context skill → Active Preview Confirmation).
 - Pre-preview phrases ("do it", "go ahead", "implement the plan") authorize drafting and preview only — never the write itself.
-- Delete and destructive operations require the typed token `confirm:<token>` verbatim; "yes" or any natural-language reply is invalid.
+- Delete and destructive operations require the typed confirmation code `confirm:<token>` verbatim; "yes" or any natural-language reply is invalid.
 - Never guess entity, service, or config IDs — resolve them or ask.
 - Home Assistant is reached exclusively through `ha-nova relay`.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
@@ -276,7 +276,7 @@ Rules for all experimental relay calls in this skill:
 | Full-document overwrite | Entire config replaced | Read → modify → save full document → read back and verify unrelated content survived | `lovelace/config/save` |
 | Field-level list replace | Omitted keys preserved, provided keys fully replaced | Read existing list → append/modify → save full list → read back and verify pre-existing items survived | `energy/save_prefs` |
 | Merge/patch | Only provided fields updated | Send only changed fields | `config/area_registry/update`, `config/entity_registry/update` |
-| Delete | Irreversible for areas/zones/labels | Always `search/related` first, tokenized confirmation | `config/area_registry/delete`, `config/label_registry/delete` (entity removal → `ha-nova:maintenance`) |
+| Delete | Irreversible for areas/zones/labels | Always `search/related` first, typed confirmation code | `config/area_registry/delete`, `config/label_registry/delete` (entity removal → `ha-nova:maintenance`) |
 
 No HA WS endpoint has optimistic locking (no ETags, no version numbers). Last writer wins silently.
 

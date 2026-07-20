@@ -38,7 +38,7 @@ describe("energy contract", () => {
     expect(energySkill).toContain("With no existing grid source to detect from, pick by HA version");
     // Emptying/replacing a whole list is destructive, not a natural-confirmation edit.
     expect(energySkill).toContain(
-      "a save that empties or wholesale-replaces a list on a configured instance is destructive — typed token confirmation",
+      "a save that empties or wholesale-replaces a list on a configured instance is destructive — typed confirmation code",
     );
     // The plausible wrong payload guess is echoing get_prefs back.
     expect(energyReference).toContain("Never echo the whole `get_prefs` object back as the save body");

@@ -207,12 +207,12 @@ Previews are the runtime-action Preview Card (`apply · cancel`); results are th
 - Preview before write: nothing is saved until the user confirms the shown preview.
 - Confirmation binds to the displayed preview and expires on any change to target, payload, endpoint, or scope (context skill → Active Preview Confirmation).
 - Pre-preview phrases ("do it", "go ahead", "implement the plan") authorize drafting and preview only — never the write itself.
-- Delete and destructive operations require the typed token `confirm:<token>` verbatim; "yes" or any natural-language reply is invalid.
+- Delete and destructive operations require the typed confirmation code `confirm:<token>` verbatim; "yes" or any natural-language reply is invalid.
 - Never guess entity, service, or config IDs — resolve them or ask.
 - Home Assistant is reached exclusively through `ha-nova relay`.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
 
-- No token confirmation needed for ordinary service calls; confirmation is still bound to the active preview.
+- No typed confirmation code needed for ordinary service calls; confirmation is still bound to the active preview.
 - **High-consequence runtime actions take the typed `confirm:<token>`** like a destructive write: unlocking or opening a lock, disarming an alarm panel, opening a garage door, gate, or entry-door cover. Check `device_class` and what the entity controls — a garage door exposed as `cover.*` belongs here, a living-room blind does not. These actions grant physical access; calling the opposite service afterwards does not undo the exposure window.
 - For potentially disruptive services (`homeassistant.restart`, `homeassistant.stop`), warn and ask for explicit post-preview confirmation.
 

@@ -55,10 +55,10 @@ describe("output design system (Cards)", () => {
     expect(outputRules).toContain("never invented and never re-aligned");
   });
 
-  it("keeps the options line and token prompt literal", () => {
+  it("keeps the options line and confirmation-code prompt literal", () => {
     expect(outputRules).toContain("Options: apply · show yaml · cancel");
     expect(outputRules).toContain("To delete, reply exactly: confirm:<token>");
-    expect(outputRules).toContain("the token prompt is always the last line");
+    expect(outputRules).toContain("the confirmation-code prompt is always the last line");
   });
 
   it("maps existing per-skill slots into the cards centrally", () => {

@@ -37,7 +37,7 @@ If this fails: `ha-nova setup`
 2. **Pipelines**: WS `assist_pipeline/pipeline/list` shows every pipeline plus `preferred_pipeline`. Each carries `stt_engine`, `conversation_engine`, `tts_engine`, and language settings.
    - change the preferred one: WS `assist_pipeline/pipeline/set_preferred` with `pipeline_id`
    - update: WS `assist_pipeline/pipeline/update` — read the pipeline first, then send ALL its settings fields with your change, addressed by `pipeline_id` (the list's `id` value). Never send it as `id` — that slot is the WS request id. A partial payload drops settings.
-   - delete: WS `assist_pipeline/pipeline/delete` — tokenized confirmation; a pipeline in use by a satellite breaks it
+   - delete: WS `assist_pipeline/pipeline/delete` — typed confirmation code; a pipeline in use by a satellite breaks it
 3. **Exposed entities** (what voice can even see): WS `homeassistant/expose_entity/list`; expose or hide with WS `homeassistant/expose_entity` (`assistants: ["conversation"]`, `entity_ids`, `should_expose`). Aliases live in the entity registry (`ha-nova:organize` owns those).
    - Exposing an entity gives voice control over it — preview the list before changing it.
    - Risk-weight the preview: exposing a `lock`, `alarm_control_panel`, or a cover with a garage/gate/door `device_class` means anyone within earshot can actuate physical access by voice — flag these entities explicitly as high-consequence before confirming.
@@ -62,7 +62,7 @@ Render the Report shape (output-rules.md). For an utterance test: the exact resp
 - Preview before write: nothing is saved until the user confirms the shown preview.
 - Confirmation binds to the displayed preview and expires on any change to target, payload, endpoint, or scope (context skill → Active Preview Confirmation).
 - Pre-preview phrases ("do it", "go ahead", "implement the plan") authorize drafting and preview only — never the write itself.
-- Delete and destructive operations require the typed token `confirm:<token>` verbatim; "yes" or any natural-language reply is invalid.
+- Delete and destructive operations require the typed confirmation code `confirm:<token>` verbatim; "yes" or any natural-language reply is invalid.
 - Never guess entity, service, or config IDs — resolve them or ask.
 - Home Assistant is reached exclusively through `ha-nova relay`.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.

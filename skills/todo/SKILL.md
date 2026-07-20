@@ -88,7 +88,7 @@ Other providers configure lists in their own integration — point there instead
 ### Delete a list
 1. Resolve `entry_id` via the entity registry `config_entry_id` (WS `config/entity_registry/get`, see `skills/ha-nova/relay-api.md` → Registry Queries), never guess.
 2. **Domain gate:** read the config entry and proceed only if its `domain` is `local_todo`. For any other domain (shopping_list, Google Tasks, CalDAV, Alexa) the entry is the WHOLE integration, not one list — deleting it destroys every list plus the account link; refuse and point to that integration's own management.
-3. Run WS `search/related` on the `todo.<entity>` first and name automations/scripts that reference this list in the preview — they break when it disappears. Deleting the entry destroys the list AND all its items irreversibly (Local To-do also deletes its stored file) — say so plainly, with the list's open-item count in the preview; require exact token confirmation `confirm:<token>` — generate a short token, display it in the Options slot, and proceed only when the user types it back exactly. Deleting several lists at once follows `skills/ha-nova/batch-safety.md` (per-list open-item counts in the manifest); item removal keeps the existing flow.
+3. Run WS `search/related` on the `todo.<entity>` first and name automations/scripts that reference this list in the preview — they break when it disappears. Deleting the entry destroys the list AND all its items irreversibly (Local To-do also deletes its stored file) — say so plainly, with the list's open-item count in the preview; require exact confirmation code `confirm:<token>` — generate a short code, display it in the Options slot, and proceed only when the user types it back exactly. Deleting several lists at once follows `skills/ha-nova/batch-safety.md` (per-list open-item counts in the manifest); item removal keeps the existing flow.
 4. DELETE `/api/config/config_entries/entry/<entry_id>`.
 5. Verify the entity is gone (states GET 404).
 
@@ -108,7 +108,7 @@ Apply `skills/ha-nova/output-rules.md` to all output.
 - `List`
 - `Items` / `Planned change`
 - `Save status` / `Delete status` before confirmation
-- `Options` / confirmation token
+- `Options` / confirmation-code prompt
 - `Verification`
 - `Next step`
 
@@ -119,12 +119,12 @@ Use stable localized slot labels in this order; omit empty slots. Item lists ren
 - Preview before write: nothing is saved until the user confirms the shown preview.
 - Confirmation binds to the displayed preview and expires on any change to target, payload, endpoint, or scope (context skill → Active Preview Confirmation).
 - Pre-preview phrases ("do it", "go ahead", "implement the plan") authorize drafting and preview only — never the write itself.
-- Delete and destructive operations require the typed token `confirm:<token>` verbatim; "yes" or any natural-language reply is invalid.
+- Delete and destructive operations require the typed confirmation code `confirm:<token>` verbatim; "yes" or any natural-language reply is invalid.
 - Never guess entity, service, or config IDs — resolve them or ask.
 - Home Assistant is reached exclusively through `ha-nova relay`.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
 
-- Declared exception to the core delete rule above: item removes (`todo.remove_item`, `todo.remove_completed_items`) are re-addable data edits, deliberately below the destructive token tier — they use natural confirmation bound to the compact preview. List deletion stays at the typed token.
+- Declared exception to the core delete rule above: item removes (`todo.remove_item`, `todo.remove_completed_items`) are re-addable data edits, deliberately below the destructive confirmation-code tier — they use natural confirmation bound to the compact preview. List deletion stays at the typed confirmation code.
 - Item operations have no `revert`; removed items are gone — bulk removals list what will be removed in the preview.
 - Never guess uids or entry_ids; resolve via Read items / registry first.
 - One list per mutation; verify by reading back, not by service success alone.

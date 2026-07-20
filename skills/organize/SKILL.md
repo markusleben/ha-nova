@@ -81,7 +81,7 @@ Use `search/related` when a delete needs a quick impact preview on linked items.
    - areas/floors: show linked areas or assignments that will lose placement; run WS `search/related` with the matching item type (`"area"` for an area, `"floor"` for a floor) and name automations/scripts/scenes that target it — the delete leaves those targets dangling
    - labels: run WS `search/related` (`item_type: "label"`) and name the automations/scripts that reference the label; show other linked items when quickly resolvable
    - categories: show affected entity count and a small example set when resolvable
-   - require token confirmation `confirm:<token>`
+   - require typed confirmation code `confirm:<token>`
    - same-family batch deletes follow `skills/ha-nova/batch-safety.md`, only when related-item impact is complete for every target
 5. Execute exactly one mutation (or the confirmed batch manifest, sequentially).
 6. Read back and verify the requested fields:
@@ -109,7 +109,7 @@ Apply `skills/ha-nova/output-rules.md` to all user-facing output.
 - `Requested change`
 - `Impact` for deletes
 - `Save status` / `Delete status` before confirmation
-- `Options` / confirmation token
+- `Options` / confirmation-code prompt
 - `Verification`
 - `Next step`
 
@@ -122,18 +122,18 @@ Metadata reads render the Report shape; registry inventories render the List Fra
 - Preview before write: nothing is saved until the user confirms the shown preview.
 - Confirmation binds to the displayed preview and expires on any change to target, payload, endpoint, or scope (context skill → Active Preview Confirmation).
 - Pre-preview phrases ("do it", "go ahead", "implement the plan") authorize drafting and preview only — never the write itself.
-- Delete and destructive operations require the typed token `confirm:<token>` verbatim; "yes" or any natural-language reply is invalid.
+- Delete and destructive operations require the typed confirmation code `confirm:<token>` verbatim; "yes" or any natural-language reply is invalid.
 - Never guess entity, service, or config IDs — resolve them or ask.
 - Home Assistant is reached exclusively through `ha-nova relay`.
 - For any HA write this skill does not cover, STOP and invoke `ha-nova:fallback` first — never probe unfamiliar write endpoints.
 
-- Delete uses token confirmation only, even for cleanup of items created earlier in the same session.
+- Delete uses the typed confirmation code only, even for cleanup of items created earlier in the same session.
 - Registry deletes (areas, floors, labels, categories) are irreversible and a recreate mints a new id — inbound references stay broken. Offer a safety backup via `ha-nova:backup` before them (never for metadata edits).
 - If the user asks for entity removal, stop and hand off to `ha-nova:maintenance` (dead registry entries only — for live entities offer disable here instead). For device category assignment or config-entry detachment, hand off to `ha-nova:fallback`.
 
 ## Guardrails
 
-- One resource at a time — except a confirmed batch manifest per `skills/ha-nova/batch-safety.md` (its `confirm:batch-...` code replaces the single-target token for that batch).
+- One resource at a time — except a confirmed batch manifest per `skills/ha-nova/batch-safety.md` (its `confirm:batch-...` code replaces the single-target confirmation code for that batch).
 - One category scope at a time.
 - Metadata updates only; no destructive registry admin beyond area/floor/label/category delete.
 - Verify the changed field values, not just the WS success response.

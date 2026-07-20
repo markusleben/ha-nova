@@ -27,7 +27,7 @@ Apply these rules to every user-facing HA NOVA response, including direct sub-sk
 - Prefer plain short labels over decorative Markdown headings in terminal-like clients.
 - Treat names such as `Changes`, `Preview`, `Post-write review`, and `Options` as semantic slots; do not rely on literal Markdown heading markers to make the output understandable.
 - Keep create/update previews structured in this order: preview summary, changes or summary, pre-write check/impact, save status, options.
-- Keep delete previews structured in this order: preview summary, consumer-check impact, save status, exact token prompt.
+- Keep delete previews structured in this order: preview summary, consumer-check impact, save status, exact confirmation-code prompt.
 - Use stable localized labels for those slots across a conversation. If a slot has content, show it under the same label and in the same order; if it has no content, omit that slot instead of printing an empty placeholder.
 - Every write preview must explicitly say that nothing has been saved yet before showing the options.
 - Always render write-preview options as an explicit choice block that includes literal `apply`, `show yaml`, and `cancel` for create/update.
@@ -54,9 +54,9 @@ Pre-write check: no concerns.
 Options: apply · show yaml · cancel
 ```
 
-Title line: emoji + localized preview label + item type + name. Then one to three plain sentences on what the change DOES. The changes block: in diff-backed skills you author only the localized header row and the literal separator — the data rows are pasted verbatim from `ha-nova diff`, never invented and never re-aligned (mechanics: `skills/ha-nova/write-safety.md`); skills without a CLI diff author one short planned-change row or line per changed field; file-editing skills show the changed section as a snippet instead of a table. Existing per-skill slots map into the card: identity slots (name/mode/target) fold into the title line, `Planned change` is the changes block, `Save status` is the ⚠️ line, `Options` or the token prompt closes the card. Runtime actions use `apply · cancel` and an explicit not-executed-yet line.
+Title line: emoji + localized preview label + item type + name. Then one to three plain sentences on what the change DOES. The changes block: in diff-backed skills you author only the localized header row and the literal separator — the data rows are pasted verbatim from `ha-nova diff`, never invented and never re-aligned (mechanics: `skills/ha-nova/write-safety.md`); skills without a CLI diff author one short planned-change row or line per changed field; file-editing skills show the changed section as a snippet instead of a table. Existing per-skill slots map into the card: identity slots (name/mode/target) fold into the title line, `Planned change` is the changes block, `Save status` is the ⚠️ line, `Options` or the confirmation-code prompt closes the card. Runtime actions use `apply · cancel` and an explicit not-executed-yet line.
 
-**Delete Card** (destructive — never a menu; the token prompt is always the last line):
+**Delete Card** (destructive — never a menu; the confirmation-code prompt is always the last line):
 
 ```
 🗑️  Delete: automation "Old morning routine"

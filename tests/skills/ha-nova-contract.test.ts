@@ -84,8 +84,8 @@ describe("ha-nova contract", () => {
     expect(dashboard).toContain("new cards may be created only from this built-in allowlist");
     expect(dashboard).toContain("existing custom cards may only be moved, deleted, or shallow-updated when the exact field already exists");
     expect(dashboard).toContain("Never probe a different dashboard's config just to infer behavior for the target dashboard.");
-    expect(dashboard).toContain("Dashboard/resource/card delete uses exact token confirmation only");
-    expect(dashboard).toContain("persisted card removal is destructive and requires exact token confirmation `confirm:<token>`");
+    expect(dashboard).toContain("Dashboard/resource/card delete uses exact confirmation code only");
+    expect(dashboard).toContain("persisted card removal is destructive and requires exact confirmation code `confirm:<token>`");
     expect(dashboard).toContain("Active Preview Confirmation");
     expect(dashboard).toContain("Never use `lovelace/config/delete` as the dashboard delete path.");
     expect(dashboard).not.toContain("For create/delete or unrelated dashboard-adjacent admin work, hand off to `ha-nova:fallback`.");
@@ -110,7 +110,7 @@ describe("ha-nova contract", () => {
     expect(organize).toContain("`config/category_registry/list|create|update|delete`");
     expect(organize).toContain("category assignment/removal is entity-only in this skill");
     expect(organize).toContain("device category assignment");
-    expect(organize).toContain("Delete uses token confirmation only, even for cleanup of items created earlier in the same session.");
+    expect(organize).toContain("Delete uses the typed confirmation code only, even for cleanup of items created earlier in the same session.");
     expect(organize).toContain("Active Preview Confirmation");
     expect(organize).toContain("One category scope at a time.");
   });

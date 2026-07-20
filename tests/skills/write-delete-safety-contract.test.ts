@@ -169,11 +169,11 @@ describe("write delete safety contract", () => {
     expect(updateRevert).toContain("reconstruct the previous config from memory");
   });
 
-  it("keeps delete a typed token even under menu pressure", () => {
-    expect(writeSkill).toContain("delete is the typed token, never a menu");
+  it("keeps delete a typed confirmation code even under menu pressure", () => {
+    expect(writeSkill).toContain("delete is the typed confirmation code, never a menu");
   });
 
-  it("requires tokenized delete confirmation for same-session cleanup", () => {
+  it("requires the typed confirmation code for same-session cleanup", () => {
     expect(writeSkill).toContain("Destructive cleanup still requires `confirm:<token>`");
     expect(writeSafety).toContain("even when the item was created earlier in the same session");
     expect(refactorGuide).toContain("cleanup, undo-create, orphan cleanup, failed-create cleanup");

@@ -76,7 +76,7 @@ describe("service call contract", () => {
       expect(skillDoc).toContain("Active Preview Confirmation");
       expect(skillDoc).toContain("Earlier planning consent is draft-only");
       expect(skillDoc).toContain("For batch service calls, show a grouped manifest first");
-      expect(skillDoc).toContain("No token confirmation needed for ordinary service calls");
+      expect(skillDoc).toContain("No typed confirmation code needed for ordinary service calls");
       expect(skillDoc).not.toContain("service calls are reversible actions");
     });
 
