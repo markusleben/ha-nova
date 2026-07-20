@@ -304,7 +304,7 @@ func relayAuthTokenProblemMessage(err error) string {
 		return "secure storage is present but not initialized on this Linux machine; initialize the default keyring and then run: ha-nova setup"
 	}
 	if isDesktopKeyringLockedError(err) {
-		return "secure storage is present but locked on this Linux machine; unlock the default keyring and then run: ha-nova setup"
+		return "secure storage is present but locked on this Linux machine; unlock the default keyring and then run: ha-nova setup — or, if no one ever unlocks a desktop session on this machine, run: ha-nova setup --service <client>"
 	}
 	if isDesktopKeyringSetupRequiredError(err) {
 		return "secure storage is present but not ready on this Linux machine; rerun `ha-nova setup` interactively to finish local secure storage setup"

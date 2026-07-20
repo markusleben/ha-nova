@@ -29,6 +29,7 @@ If missing: `ha-nova setup`
    - connect error / status `000`: relay unreachable
    - `ha_ws_connected=false`: read `ha_ws_disconnect_reason` from the same health payload — `auth` means upstream authentication was rejected (App: update/restart NOVA Relay to refresh Supervisor access; standalone Container/Core: replace `HA_LLAT`); `network` means HA is unreachable or restarting (wait/verify HA is up — NOT a token problem); `never_connected` means the relay started but never reached HA (check `HA_URL` and the network path). Older relays omit the field — then confirm with `/ws` or `ha-nova doctor` before assigning a cause
    - `/ws` on an older Relay proves `LLAT is required`: update the App; only standalone Container/Core should repair `HA_LLAT`
+   - `desktop keyring locked` / `secure storage is present but locked` during setup or pairing: the machine has a Secret Service that never gets unlocked (headless VM, autologin box, systemd user service). Do not ask the user to unlock it on every boot — use the explicit file backend instead: `ha-nova setup --service <client>`, or `ha-nova pair --credential-store=file`
 3. Return one concrete remediation step.
 
 ## Standard Remediation Commands
@@ -39,6 +40,8 @@ If missing: `ha-nova setup`
   - `ha-nova relay health`
 - doctor detail:
   - `ha-nova doctor`
+- pairing on a machine whose desktop keyring is never unlocked (headless VM, agent box):
+  - `ha-nova setup --service <client>` — or standalone: `ha-nova pair --credential-store=file`
 
 ## Output Format
 

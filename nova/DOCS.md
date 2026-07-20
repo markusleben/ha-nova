@@ -88,7 +88,7 @@ Or if you already have the repo:
 ha-nova setup
 ```
 
-The setup wizard handles relay configuration and skill installation. It automatically uses one reachable Home Assistant instance, shows a source-labeled pick list when it finds several, and keeps manual address entry when discovery finds none. Its normal App flow asks only for the six-digit code from the NOVA page, then pairs securely: the device receives its own credential (kept in the client's OS credential store) and talks to the relay over pinned TLS. Nothing to copy or paste. Existing saved tokens, `--relay-token`, service token files, and standalone Container/Core setups keep their explicit-token paths.
+The setup wizard handles relay configuration and skill installation. It automatically uses one reachable Home Assistant instance, shows a source-labeled pick list when it finds several, and keeps manual address entry when discovery finds none. Its normal App flow asks only for the six-digit code from the NOVA page, then pairs securely: the device receives its own credential (kept in the client's OS credential store — or in a private file for `--service` installs, explicit `ha-nova pair --credential-store=file` opt-ins, and headless systems without a keyring) and talks to the relay over pinned TLS. Nothing to copy or paste. Existing saved tokens, `--relay-token`, service token files, and standalone Container/Core setups keep their explicit-token paths.
 
 ## Checking Status
 

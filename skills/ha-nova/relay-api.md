@@ -10,7 +10,7 @@ Underlying HTTP contract (reference only, not for direct use): `Authorization: B
 
 ## Bounded Event Collection (envelope)
 
-Window mode (`on_limit`) and binary responses are supported by every relay at or above the skills' enforced floor — `min_relay_version` in `version.json`, currently **Relay 0.4.0**. The CLI checks that floor on every relay call and prints a relay-outdated warning when the installed relay is older; surface that warning and offer the update instead of version-gating manually. (Below the floor, `on_limit` is silently ignored and a timeout fails the call instead of returning partial events.)
+Window mode (`on_limit`) and binary responses are supported by every relay at or above the skills' enforced floor — `min_relay_version` in `version.json`, currently **Relay 0.7.0**. The CLI checks that floor on every relay call and prints a relay-outdated warning when the installed relay is older; surface that warning and offer the update instead of version-gating manually. (Below the floor, `on_limit` is silently ignored and a timeout fails the call instead of returning partial events.)
 
 
 Some WS commands answer with events instead of a single response. Wrap them:

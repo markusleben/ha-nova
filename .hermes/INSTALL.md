@@ -9,7 +9,7 @@ For the stable installer, lifecycle commands, and general troubleshooting, use [
 ## Setup Choice
 
 - Desktop terminal path: run `ha-nova setup hermes`.
-- Service, headless, SSH, systemd user service, or gateway path: run `ha-nova setup --service hermes`.
+- Service, headless, SSH, systemd user service, or gateway path: run `ha-nova setup --service hermes`. It pairs exactly like the desktop path and keeps the device credential in a protected file — no unlocked desktop keyring needed.
 - If you run `ha-nova setup hermes` and HA NOVA detects that the desktop keyring is locked or unavailable, setup asks whether to switch to the service/gateway token file.
 - Install Hermes separately; HA NOVA handles the skills and onboarding, not the Hermes app itself.
 
@@ -51,6 +51,7 @@ Current support/evidence truth lives in [docs/reference/hermes-platform-validati
 - If HA NOVA asks for a local Linux keyring password, it stays on this machine. HA NOVA only uses it to unlock or create local secure storage. It is not your Relay token, not your Home Assistant token, and it is not sent to the Relay, Home Assistant, Hermes, or any AI provider.
 - If no Secret Service provider is running, setup fails early with an explicit prerequisite message instead of raw `org.freedesktop.secrets` D-Bus errors.
 - If Linux is using GNOME Keyring and the default collection is locked or uninitialized, `ha-nova setup hermes` can guide recovery inline.
+- If the keyring exists but is never unlocked on this machine (headless VM, autologin box, systemd user service — nobody ever types a login password), do not chase per-boot unlocking: run `ha-nova setup --service hermes`, or `ha-nova pair --credential-store=file`.
 - If Linux uses another Secret Service backend, keep the backend working first; HA NOVA does not pretend inline GNOME-only recovery exists there.
 - If you run setup or repair over SSH and want desktop keyring storage, use the same logged-in desktop user session that owns the user D-Bus / Secret Service session. If that is not available, use the service path instead.
 

@@ -9,7 +9,7 @@ The NOVA Relay ships two ways from **one** codebase:
 
 Same source, same endpoints, same version line (`nova/config.yaml`). There is no second implementation to drift. The pairing endpoint therefore exists in this image too, but Container/Core setup remains explicit-token-first: without Supervisor ingress there is no NOVA console page, and `RELAY_AUTH_TOKEN` stays required.
 
-One difference worth knowing: file access (`/files`, relay 0.4.0) needs the Home Assistant configuration directory mounted. The App does that for you; for the container, mount it yourself and set `FILE_ACCESS` — see Environment below. Without a mount it stays off, whatever the setting says.
+One difference worth knowing: file access (`/files`) needs the Home Assistant configuration directory mounted. The App does that for you; for the container, mount it yourself and set `FILE_ACCESS` — see Environment below. Without a mount it stays off, whatever the setting says.
 
 ## Run it
 

@@ -333,7 +333,7 @@ RELAY_AUTH_TOKEN_FILE: "/data/relay_auth_token" # App-owned persistent token
 SUPERVISOR_TOKEN: "<injected-by-supervisor>"   # App upstream auth; never configured by the user
 HA_LLAT: "<ha-long-lived-access-token>"        # Standalone upstream auth fallback
 PRODUCT_VERSION: "0.17.0"                      # Generated release tag for Home Base installers
-MIN_RELAY_VERSION: "0.4.0"                    # Required Relay floor shown in Home Base
+MIN_RELAY_VERSION: "0.7.0"                    # Required Relay floor shown in Home Base
 
 # Optional (with defaults)
 HA_URL: "http://supervisor/core"               # App default; standalone default: http://homeassistant:8123

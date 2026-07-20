@@ -25,7 +25,9 @@ func withDeviceStorageTestHome(t *testing.T) string {
 	// package-wide by TestMain, so "keyring" here means the in-memory mock).
 	t.Setenv("HA_NOVA_TEST_SECRET_DIR", "")
 	prevForced := deviceCredentialFileModeForced
+	prevExplicit := deviceCredentialFileModeExplicit
 	deviceCredentialFileModeForced = false
+	deviceCredentialFileModeExplicit = false
 	// Keyring reads run deviceCredentialPreflight first; on Linux that inspects
 	// the REAL DBus Secret Service, which is absent on headless CI. Stub it to a
 	// no-op so keyring-mode reads reach the mock on every platform. Tests that
@@ -34,6 +36,7 @@ func withDeviceStorageTestHome(t *testing.T) string {
 	deviceCredentialPreflight = func() error { return nil }
 	t.Cleanup(func() {
 		deviceCredentialFileModeForced = prevForced
+		deviceCredentialFileModeExplicit = prevExplicit
 		deviceCredentialPreflight = prevPreflight
 	})
 	return home

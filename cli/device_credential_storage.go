@@ -229,6 +229,7 @@ func removeDeviceFileStorageResidue() {
 		_ = os.Remove(dir) // removes only when now empty
 	}
 	deviceCredentialFileModeForced = false
+	deviceCredentialFileModeExplicit = false
 }
 
 // Test seams: the canaries hit the real OS keyring / filesystem by default.
@@ -291,7 +292,13 @@ func probeDeviceCredentialStorage() (deviceStorageProbe, error) {
 		}, nil
 	}
 	// Locked or uninitialized desktop keyring, permission problems, …: guide the
-	// user instead of silently weakening storage on a desktop system.
+	// user instead of silently weakening storage on a desktop system. For the
+	// locked/uninitialized cases the guidance must name the explicit opt-in:
+	// on machines that never see an unlocked desktop session (agent VMs,
+	// autologin boxes), "unlock the keyring" alone is a dead end.
+	if errors.Is(keyringErr, errDesktopKeyringLocked) || errors.Is(keyringErr, errDesktopKeyringInitializationRequired) {
+		return deviceStorageProbe{}, fmt.Errorf("%w\nIf no one ever unlocks a desktop session on this machine (VM, server, autologin): rerun setup with --service, or run: ha-nova pair --credential-store=file", keyringErr)
+	}
 	return deviceStorageProbe{}, keyringErr
 }
 

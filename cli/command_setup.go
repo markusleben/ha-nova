@@ -94,6 +94,19 @@ func runSetup(paths runtimePaths, args []string) int {
 			printHumanErr("%s", err)
 			return 1
 		}
+		// Only after the service target and client checks passed: fulfill the
+		// service contract for installs that paired into the desktop keyring.
+		// Re-setups with a healthy pairing never reach a pairing stage, so a
+		// readable keyring credential migrates to the private-file backend now
+		// — a rejected invocation above must not mutate credential storage.
+		migrated, migrateErr := migrateKeyringDeviceCredentialToFile()
+		if migrateErr != nil {
+			printHumanErr("cannot move the device credential into service file storage: %s", migrateErr)
+			return 1
+		}
+		if migrated {
+			printHumanInfo("Moved this install's device credential into protected service file storage.")
+		}
 	}
 	cfg, err = applySetupFlagOverrides(cfg, *host, *haURL, *relayURL)
 	if err != nil {
