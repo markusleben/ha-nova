@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -156,6 +157,79 @@ func TestInteractiveServiceSetupReachesPairingWithLockedKeyring(t *testing.T) {
 	}
 	if !strings.Contains(output, "Pair this device") {
 		t.Fatalf("service setup did not reach the pairing stage:\n%s", output)
+	}
+}
+
+func TestExplicitFileOptInSurvivesInterruptedActivation(t *testing.T) {
+	// Codex P2 on #388: the explicit opt-in force is process-local. A crash
+	// between activation and promotion must leave the install file-routed —
+	// otherwise the next run probes the locked keyring again and strands the
+	// activated pairing (one-time code burned).
+	withDeviceStorageTestHome(t)
+	stubStorageCanaries(t, desktopKeyringLockedError("default Secret Service collection is locked"))
+
+	validCred := generateTestDeviceCredential(t)
+	origPair, origActivate := pairDeviceV1ForPairing, activateDeviceV1ForPairing
+	pairDeviceV1ForPairing = func(_ *http.Client, _, _ string, _ deviceMetadata) (*provisionedCredential, error) {
+		return &provisionedCredential{DeviceID: "dev-new", Credential: validCred, SpkiPin: "PIN", SecurePort: 8792}, nil
+	}
+	activateDeviceV1ForPairing = func(_, _, _ string) error {
+		return errors.New("interrupted before promotion")
+	}
+	t.Cleanup(func() {
+		pairDeviceV1ForPairing = origPair
+		activateDeviceV1ForPairing = origActivate
+	})
+
+	cfgFile := filepath.Join(t.TempDir(), "config.json")
+	cfg := runtimeConfig{RelayBaseURL: "http://ha:8791"}
+	saveCfg := func(c *runtimeConfig) error {
+		return saveConfig(runtimePaths{ConfigFile: cfgFile}, *c)
+	}
+
+	forceDeviceCredentialFileMode() // the explicit opt-in
+	if _, err := runSecurePairing("http://ha:8791", "123456", &cfg, saveCfg, defaultPairingClientInfo()); err == nil {
+		t.Fatal("activation was stubbed to fail")
+	}
+	if !deviceFileBackendMarkerExists() {
+		t.Fatal("explicit opt-in must persist the marker at pending-write time so the interrupted pairing stays resumable")
+	}
+	if got, ok, err := readPendingDeviceCredential(); err != nil || !ok || got != validCred {
+		t.Fatalf("pending credential must stay file-readable after the interruption: ok=%v err=%v", ok, err)
+	}
+}
+
+func TestHeadlessAutoFallbackStaysUnmarkedOnInterruptedActivation(t *testing.T) {
+	// Counterpart: the AUTO-detected headless fallback keeps its stricter
+	// contract — nothing persists before promotion. It self-heals on the next
+	// run because the probe detects the missing keyring again.
+	withDeviceStorageTestHome(t)
+	stubStorageCanaries(t, fmt.Errorf("%w: no session bus", errDesktopKeyringSessionUnavailable))
+
+	validCred := generateTestDeviceCredential(t)
+	origPair, origActivate := pairDeviceV1ForPairing, activateDeviceV1ForPairing
+	pairDeviceV1ForPairing = func(_ *http.Client, _, _ string, _ deviceMetadata) (*provisionedCredential, error) {
+		return &provisionedCredential{DeviceID: "dev-new", Credential: validCred, SpkiPin: "PIN", SecurePort: 8792}, nil
+	}
+	activateDeviceV1ForPairing = func(_, _, _ string) error {
+		return errors.New("interrupted before promotion")
+	}
+	t.Cleanup(func() {
+		pairDeviceV1ForPairing = origPair
+		activateDeviceV1ForPairing = origActivate
+	})
+
+	cfgFile := filepath.Join(t.TempDir(), "config.json")
+	cfg := runtimeConfig{RelayBaseURL: "http://ha:8791"}
+	saveCfg := func(c *runtimeConfig) error {
+		return saveConfig(runtimePaths{ConfigFile: cfgFile}, *c)
+	}
+
+	if _, err := runSecurePairing("http://ha:8791", "123456", &cfg, saveCfg, defaultPairingClientInfo()); err == nil {
+		t.Fatal("activation was stubbed to fail")
+	}
+	if deviceFileBackendMarkerExists() {
+		t.Fatal("auto-detected headless fallback must not persist the marker before promotion")
 	}
 }
 

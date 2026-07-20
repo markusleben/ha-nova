@@ -62,17 +62,6 @@ func runSetup(paths runtimePaths, args []string) int {
 		return 1
 	}
 
-	if *serviceMode {
-		// Service contract: the device credential must stay readable without an
-		// unlocked desktop keyring. Re-setups with a healthy keyring pairing
-		// never reach the pairing stage (deviceAlreadyPaired short-circuits to
-		// verify), so migrate a readable keyring credential to the private-file
-		// backend up front — silently a no-op when there is nothing to move.
-		if migrateServiceDeviceCredentialToFile() {
-			printHumanInfo("Moved this install's device credential into protected service file storage.")
-		}
-	}
-
 	if !*nonInteractive {
 		return interactiveSetup(paths, cfg, state, target, *host, *haURL, *relayURL, *relayToken, *serviceMode)
 	}
@@ -104,6 +93,14 @@ func runSetup(paths runtimePaths, args []string) int {
 		if err := requireSelectedClientServiceCredentials(paths, selectedClients); err != nil {
 			printHumanErr("%s", err)
 			return 1
+		}
+		// Only after the service target and client checks passed: fulfill the
+		// service contract for installs that paired into the desktop keyring.
+		// Re-setups with a healthy pairing never reach a pairing stage, so a
+		// readable keyring credential migrates to the private-file backend now
+		// — a rejected invocation above must not mutate credential storage.
+		if migrateServiceDeviceCredentialToFile() {
+			printHumanInfo("Moved this install's device credential into protected service file storage.")
 		}
 	}
 	cfg, err = applySetupFlagOverrides(cfg, *host, *haURL, *relayURL)

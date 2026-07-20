@@ -34,6 +34,15 @@ const deviceCredentialFileBackendMarker = ".file-backend"
 // on a headless system, before the marker write).
 var deviceCredentialFileModeForced = false
 
+// deviceCredentialFileModeExplicit records that file mode came from an explicit
+// owner opt-in (`setup --service`, `pair --credential-store=file`) rather than
+// headless auto-detection. Only the explicit form persists the backend marker
+// at pending-write time (see runSecurePairing): the owner already decided, so
+// an interrupted activation must stay resumable on a machine whose keyring
+// never unlocks. The auto-detected path keeps its stricter "nothing persists
+// before promotion" contract.
+var deviceCredentialFileModeExplicit = false
+
 // forceDeviceCredentialFileMode routes THIS process to the file backend before
 // the storage probe runs — the explicit owner opt-in behind `setup --service`
 // and `pair --credential-store=file`, for machines whose desktop keyring is
@@ -42,6 +51,7 @@ var deviceCredentialFileModeForced = false
 // (deviceSecretFileSet), so a canceled run leaves nothing behind.
 func forceDeviceCredentialFileMode() {
 	deviceCredentialFileModeForced = true
+	deviceCredentialFileModeExplicit = true
 }
 
 // migrateServiceDeviceCredentialToFile fulfills the service contract for
@@ -292,6 +302,7 @@ func removeDeviceFileStorageResidue() {
 		_ = os.Remove(dir) // removes only when now empty
 	}
 	deviceCredentialFileModeForced = false
+	deviceCredentialFileModeExplicit = false
 }
 
 // Test seams: the canaries hit the real OS keyring / filesystem by default.

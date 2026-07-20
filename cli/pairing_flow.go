@@ -75,6 +75,16 @@ func runSecurePairing(bootstrapURL, code string, cfg *runtimeConfig, saveCfg fun
 	if err := writePendingDeviceCredential(prov.Credential); err != nil {
 		return "", fmt.Errorf("could not store the new credential securely: %w", err)
 	}
+	// An EXPLICIT file-backend opt-in survives interruption: real pending file
+	// state exists now, so persist the marker — without it, a crash between
+	// activation and promotion leaves the next run keyring-routed, and a locked
+	// keyring would strand the activated pairing (code burned). The headless
+	// AUTO-detected path deliberately stays unmarked until promotion.
+	if deviceCredentialFileModeExplicit {
+		if err := writeDeviceFileBackendMarker(); err != nil {
+			return "", fmt.Errorf("could not persist the file-backend decision: %w", err)
+		}
+	}
 
 	secureBase, err := secureBaseFromBootstrap(bootstrapURL, prov.SecurePort)
 	if err != nil {
