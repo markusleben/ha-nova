@@ -71,18 +71,27 @@ func migrateKeyringDeviceCredentialToFile() (bool, error) {
 	if err != nil || !ok {
 		return false, nil // no readable keyring credential (locked, absent, or never paired)
 	}
+	// A pending credential from an interrupted re-pair must move with the
+	// install — once the marker exists, pending reads resolve to files, and a
+	// keyring-stranded (or unreadable) pending slot would be invisible to
+	// resume even though activation may already have replaced the current
+	// credential server-side. So read AND copy it BEFORE the backend commits:
+	// every failure here aborts while nothing is flipped yet. (A pending FILE
+	// without a marker is a documented harmless orphan — reads never consult
+	// it.)
+	pending, pendingOK, pendingErr := readPendingKeyringSlotDirect()
+	if pendingErr != nil {
+		return false, fmt.Errorf("cannot read the pending device credential from the keyring: %w", pendingErr)
+	}
+	if pendingOK {
+		if err := deviceSecretFileSet(deviceCredentialPendingService, pending); err != nil {
+			return false, fmt.Errorf("cannot write the pending device credential file: %w", err)
+		}
+	}
 	// Mirrors promotePendingFileCredential: the explicit current-file write lays
 	// down the file-backend marker on first commit, flipping the install.
 	if err := deviceSecretFileSet(deviceCredentialService, credential); err != nil {
 		return false, fmt.Errorf("cannot write the device credential file: %w", err)
-	}
-	// A pending credential from an interrupted re-pair must move with the
-	// install — after the marker, pending reads resolve to files too, and a
-	// keyring-stranded pending slot would be invisible to resume.
-	if pending, pendingOK, pendingErr := readPendingKeyringSlotDirect(); pendingErr == nil && pendingOK {
-		if err := deviceSecretFileSet(deviceCredentialPendingService, pending); err != nil {
-			return false, fmt.Errorf("cannot write the pending device credential file: %w", err)
-		}
 	}
 	// The migrated copies are authoritative now. The keyring originals are the
 	// SAME live credentials, not inert leftovers — best-effort removal keeps a
@@ -94,8 +103,8 @@ func migrateKeyringDeviceCredentialToFile() (bool, error) {
 }
 
 // readPendingKeyringSlotDirect reads the pending slot from the OS keyring
-// bypassing the backend router — used only by the service migration, which
-// runs after the marker write has already flipped routed reads to files.
+// bypassing the backend router — used only by the keyring→file migration,
+// whose reads must stay pinned to the keyring regardless of routing state.
 func readPendingKeyringSlotDirect() (string, bool, error) {
 	value, err := keyring.Get(deviceCredentialPendingService, secretUser())
 	if err != nil {

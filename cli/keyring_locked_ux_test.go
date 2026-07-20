@@ -407,6 +407,33 @@ func TestMigrateServiceDeviceCredentialToFile(t *testing.T) {
 		}
 	})
 
+	t.Run("aborts before the flip when the pending keyring slot is unreadable", func(t *testing.T) {
+		// Codex P2 on #388 (round 5): an unreadable/malformed pending slot must
+		// abort BEFORE the marker commits — flipping anyway would hide a pending
+		// credential that activation may already have made the live one.
+		withDeviceStorageTestHome(t)
+		resetKeyringDeviceSlots(t)
+		cred := generateTestDeviceCredential(t)
+		if err := writeDeviceCredential(cred); err != nil {
+			t.Fatal(err)
+		}
+		if err := keyring.Set(deviceCredentialPendingService, secretUser(), "garbage-not-a-credential"); err != nil {
+			t.Fatal(err)
+		}
+
+		migrated, err := migrateKeyringDeviceCredentialToFile()
+		if err == nil || migrated {
+			t.Fatalf("unreadable pending slot must abort the migration: migrated=%v err=%v", migrated, err)
+		}
+		if deviceFileBackendMarkerExists() {
+			t.Fatal("aborted migration must not leave a marker")
+		}
+		got, ok, readErr := readDeviceCredential()
+		if readErr != nil || !ok || got != cred {
+			t.Fatalf("keyring credential must remain readable after aborted migration: ok=%v err=%v", ok, readErr)
+		}
+	})
+
 	t.Run("fails loudly when the file store is unwritable", func(t *testing.T) {
 		// Codex P2 on #388 (round 4): a failed file WRITE must not look like
 		// "nothing to migrate" — the service opt-in would silently leave the
