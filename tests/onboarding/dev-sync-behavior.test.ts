@@ -152,7 +152,7 @@ describe("dev-sync behavior", () => {
     // that satisfies the build-to-temp-and-move contract deterministically.
     writeFileSync(
       join(binDir, "go"),
-      '#!/usr/bin/env bash\nif [ "$1" = "build" ]; then shift; out=""; while [ "$#" -gt 0 ]; do if [ "$1" = "-o" ]; then out="$2"; shift 2; else shift; fi; done; [ -n "$out" ] && : > "$out"; fi\nexit 0\n',
+      '#!/usr/bin/env bash\nif [ "$1" = "build" ]; then shift; out=""; while [ "$#" -gt 0 ]; do if [ "$1" = "-o" ]; then out="$2"; shift 2; else shift; fi; done; [ -n "$out" ] && printf "#!/usr/bin/env bash\\n# mock-go-artifact\\nexit 0\\n" > "$out"; fi\nexit 0\n',
       { mode: 0o755 },
     );
 
@@ -170,6 +170,9 @@ describe("dev-sync behavior", () => {
     expect(result.stdout).toContain("Shared tools refreshed");
     expect(existsSync(join(configDir, "version-check"))).toBe(true);
     expect(existsSync(join(configDir, "version.json"))).toBe(true);
+    // The refreshed relay must be the runnable artifact the mock build
+    // produced — not a clobbered or zero-byte leftover.
+    expect(readFileSync(join(configDir, "relay"), "utf8")).toContain("mock-go-artifact");
   });
 
   it("copies the current client registry next to the dev-synced CLI runtime", { timeout: 90000 }, () => {
