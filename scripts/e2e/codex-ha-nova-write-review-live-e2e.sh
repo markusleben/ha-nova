@@ -975,7 +975,14 @@ def is_narrative_line(line: str) -> bool:
         return False
     if stripped.startswith(("|", "#", "-", "`", "📝", "⚠", "✅", "🗑")):
         return False
-    if "Preview Payload" in stripped or stripped.startswith("Pre-write check:"):
+    # Card slot/scaffolding lines are not narrative prose.
+    if stripped.startswith(
+        ("Options:", "Option:", "Pre-write check:", "Save status", "Status:",
+         "Manifest:", "Recovery:", "Impact:", "Used by:", "Checked:",
+         "To delete", "Reply ", "NOVA_WRITE_REVIEW_RESULT")
+    ):
+        return False
+    if "Preview Payload" in stripped or " · " in stripped:
         return False
     return True
 
