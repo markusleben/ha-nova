@@ -40,7 +40,7 @@
 > behavior and rewrite); `docs/reference/safety.md` rows at lines 26/36/38
 > (Home Base naming, old `home.ts`/`pairing.ts` references, shared relay-token
 > model) on top of the general v0.19 update already listed;
-> `.hermes/INSTALL.md` line 51 ("Relay token" → device credential wording).
+> `.hermes/INSTALL.md` service-credential wording — DONE in this PR (device credential file; the keyring-password sentence keeps its test-pinned phrasing).
 
 <!-- PUBLISHED FILE STARTS BELOW THIS LINE — everything above stays in docs/work -->
 

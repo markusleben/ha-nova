@@ -171,7 +171,7 @@ premium, clean; no clutter, no watermark, no UI elements.
   `docs/work/2026-07-20-social-preview-composite.svg` + `rsvg-convert`.
   Replaces the old "AI that reads before it writes" tagline with
   "One code to connect. Every change checked."
-- Saved as `assets/social-preview-v2.png` — the live `social-preview.png`
-  stays untouched until release; swap file + upload to GitHub repo settings
-  **only at release time** (instantly public). Status: pending maintainer
-  review.
+- The release-prep PR replaces `assets/social-preview.png` content directly
+  (the `-v2` filename was only the pre-PR working copy). The GitHub repo
+  settings upload of this file still happens **only at release time**
+  (instantly public). Status: approved 2026-07-20.
