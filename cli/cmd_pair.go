@@ -17,27 +17,50 @@ var runSecurePairingForPairCmd = runSecurePairing
 // the secure endpoint; a re-pair replaces the old credential only after the new
 // one activates.
 func runPairCommand(paths runtimePaths, args []string) int {
-	relayURL, code := "", ""
+	relayURL, code, credentialStore := "", "", ""
+	credentialStoreSet := false
 	for i := 0; i < len(args); i++ {
-		switch args[i] {
+		// Accept both `--flag value` and `--flag=value` for the string flags.
+		name, inlineValue, hasInline := args[i], "", false
+		if strings.HasPrefix(name, "--") {
+			if eq := strings.IndexByte(name, '='); eq >= 0 {
+				name, inlineValue, hasInline = name[:eq], name[eq+1:], true
+			}
+		}
+		takeValue := func() string {
+			if hasInline {
+				return inlineValue
+			}
+			if i+1 < len(args) {
+				i++
+				return args[i]
+			}
+			return ""
+		}
+		switch name {
 		case "--relay-url":
-			if i+1 < len(args) {
-				relayURL = args[i+1]
-				i++
-			}
+			relayURL = takeValue()
 		case "--code":
-			if i+1 < len(args) {
-				code = args[i+1]
-				i++
-			}
+			code = takeValue()
+		case "--credential-store":
+			credentialStore = takeValue()
+			credentialStoreSet = true
 		case "-h", "--help":
-			fmt.Println("Usage: ha-nova pair [--relay-url http://<ha-host>:8791] [--code NNNNNN]")
+			fmt.Println("Usage: ha-nova pair [--relay-url http://<ha-host>:8791] [--code NNNNNN] [--credential-store=file]")
 			fmt.Println("Open NOVA in the Home Assistant sidebar, click \"Connect a device\", then run this.")
+			fmt.Println("--credential-store=file keeps the device credential in a private file — for headless systems and VMs whose desktop keyring is never unlocked.")
 			return 0
 		default:
 			printErr("unknown flag: %s", args[i])
 			return 1
 		}
+	}
+	if credentialStoreSet && credentialStore != "file" {
+		printErr("--credential-store supports only the value \"file\" (got %q)", credentialStore)
+		return 1
+	}
+	if credentialStore == "file" {
+		forceDeviceCredentialFileMode()
 	}
 
 	// Pairing can run before a full setup as long as a relay URL is known: an

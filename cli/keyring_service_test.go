@@ -65,7 +65,7 @@ func TestRelayAuthTokenProblemMessageDifferentiatesMissingAndUnavailable(t *test
 	if got := relayAuthTokenProblemMessage(errors.New("org.freedesktop.DBus.Error.ServiceUnknown: The name org.freedesktop.secrets was not provided by any .service files")); got != "secure storage unavailable on this Linux machine; start a Secret Service provider (for example GNOME Keyring or KWallet Secrets) and then run: ha-nova setup" {
 		t.Fatalf("secret-service-serviceunknown message = %q", got)
 	}
-	lockedWant := "secure storage is present but locked on this Linux machine; unlock the default keyring and then run: ha-nova setup"
+	lockedWant := "secure storage is present but locked on this Linux machine; unlock the default keyring and then run: ha-nova setup — or, if no one ever unlocks a desktop session on this machine, run: ha-nova setup --service <client>"
 	if got := relayAuthTokenProblemMessage(desktopKeyringLockedError("default Secret Service collection is locked")); got != lockedWant {
 		t.Fatalf("secret-service-locked message = %q", got)
 	}

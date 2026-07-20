@@ -242,7 +242,10 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 		// brings its own file-backed credential storage (device_credential_storage.go),
 		// so a headless box (container/SSH with no Secret Service) must still reach
 		// the pairing stage instead of exiting here on the legacy-token preflight.
-		tokenPathRequired := serviceMode || strings.TrimSpace(relayTokenFlag) != ""
+		// Only an explicit --relay-token makes the token path mandatory here:
+		// service installs default to secure pairing as well (file-backed device
+		// credential), so a missing keyring must not abort their onboarding.
+		tokenPathRequired := strings.TrimSpace(relayTokenFlag) != ""
 		noKeyringBackend := isDesktopKeyringSessionUnavailableError(tokenStoragePreflightErr) ||
 			isDesktopKeyringUnavailableError(tokenStoragePreflightErr)
 		// The default onboarding path is secure device pairing, which brings its
@@ -307,8 +310,12 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 	devicePaired := false
 	manualCredentialFlow := false
 	pairingBackStage := setupStageRelayInstall
+	// Service installs pair by default too: secure pairing no longer depends on
+	// a desktop keyring (the service path forces the file backend at the pairing
+	// stage), and the legacy token flow costs manual HA UI steps. Only an
+	// explicit --relay-token or an already-stored token keeps the token path.
 	usePairingByDefault := func() bool {
-		return !serviceMode && strings.TrimSpace(relayTokenFlag) == "" && strings.TrimSpace(existingToken) == ""
+		return strings.TrimSpace(relayTokenFlag) == "" && strings.TrimSpace(existingToken) == ""
 	}
 	stage := setupStageHost
 	if tokenStoragePreflightErr != nil {
@@ -752,6 +759,14 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 		case setupStagePairing:
 			steps := buildSetupPairingWizardSteps()
 			renderSetupStep(os.Stdout, steps.Pairing, steps.Total, "Pair this device")
+			if serviceMode {
+				// `setup --service` documents that the device credential lands in a
+				// protected file — service installs must not depend on a desktop
+				// keyring nobody unlocks. Forced here at the pairing stage, not at
+				// setup entry, so earlier reads of an existing keyring credential
+				// stay untouched.
+				forceDeviceCredentialFileMode()
+			}
 			pairedToken, err := runSetupPairingFlow(reader, os.Stdout, paths, &cfg, legacyTokenStoreUnavailable)
 			if err == errSetupBack {
 				stage = pairingBackStage

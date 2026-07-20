@@ -22,11 +22,11 @@ Not in scope: anything with an API — config-entry template helpers (`ha-nova:h
 Verify relay CLI: `ha-nova relay health`
 If this fails: `ha-nova setup`
 
-This skill needs **Relay 0.4.0 or newer** AND file access enabled. Both are the user's decision, not yours:
+This skill needs **Relay 0.7.0 or newer** AND file access enabled. Both are the user's decision, not yours:
 - Probe once: `ha-nova relay files --data-file <payload-file>` with `{"action":"list_dir","path":"/config"}`.
 - `FILE_ACCESS_DISABLED` -> file access is OFF (the default). Tell the user how to turn it on (App: Settings > Apps > NOVA Relay > Configuration > `file_access`: `readwrite`, restart; container: `FILE_ACCESS=readwrite` plus a config mount) and what it means, then continue with the manual path below. Do not nag.
 - `FILE_ACCESS_READONLY` -> reads work, writes do not. Offer the manual path below instead of asking for more permission.
-- If the relay is older than 0.4.0, say so plainly — the endpoint does not exist there.
+- If the relay is older than 0.7.0, say so plainly — the endpoint does not exist there.
 
 ## Relay Contract
 

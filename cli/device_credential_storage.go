@@ -34,6 +34,16 @@ const deviceCredentialFileBackendMarker = ".file-backend"
 // on a headless system, before the marker write).
 var deviceCredentialFileModeForced = false
 
+// forceDeviceCredentialFileMode routes THIS process to the file backend before
+// the storage probe runs — the explicit owner opt-in behind `setup --service`
+// and `pair --credential-store=file`, for machines whose desktop keyring is
+// present but never unlocked. Like the headless auto-switch, it does not
+// persist the marker; that still happens only when a credential is promoted
+// (deviceSecretFileSet), so a canceled run leaves nothing behind.
+func forceDeviceCredentialFileMode() {
+	deviceCredentialFileModeForced = true
+}
+
 type deviceStorageProbe struct {
 	// mode is "keyring" or "file" — informational for callers/tests.
 	mode string
@@ -291,7 +301,13 @@ func probeDeviceCredentialStorage() (deviceStorageProbe, error) {
 		}, nil
 	}
 	// Locked or uninitialized desktop keyring, permission problems, …: guide the
-	// user instead of silently weakening storage on a desktop system.
+	// user instead of silently weakening storage on a desktop system. For the
+	// locked/uninitialized cases the guidance must name the explicit opt-in:
+	// on machines that never see an unlocked desktop session (agent VMs,
+	// autologin boxes), "unlock the keyring" alone is a dead end.
+	if errors.Is(keyringErr, errDesktopKeyringLocked) || errors.Is(keyringErr, errDesktopKeyringInitializationRequired) {
+		return deviceStorageProbe{}, fmt.Errorf("%w\nIf no one ever unlocks a desktop session on this machine (VM, server, autologin): rerun setup with --service, or run: ha-nova pair --credential-store=file", keyringErr)
+	}
 	return deviceStorageProbe{}, keyringErr
 }
 
