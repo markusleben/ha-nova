@@ -960,12 +960,17 @@ result["preview_has_canonical_keys"] = (
 )
 # Issue #390: a preview whose only explanation for a touched collection is a
 # count transition ("5 items | 3 items", "5 items → 3 items", "... and N
-# more") must also carry a plain-language behavior narrative. Structural
-# check: the narrative must sit in the same or an adjacent paragraph as the
-# count line (the card shape puts it directly above the changes block), so
-# unrelated boilerplate prose elsewhere cannot satisfy the gate.
+# more") or a type-only row ("5 (number) | 5 (string)") must also carry a
+# plain-language behavior narrative. Structural check: the narrative must sit
+# in the same or an adjacent paragraph as the count/type line (the card shape
+# puts it directly above the changes block), so unrelated boilerplate prose
+# elsewhere cannot satisfy the gate.
 COUNT_ONLY_RE = re.compile(
-    r"\|\s*\d+\s+items?\s*\|\s*\d+\s+items?\s*\||\d+\s+items?\s*(?:→|->)\s*\d+\s+items?|…\s*and\s+\d+\s+more|\band \d+ more\b",
+    r"\|\s*\d+\s+items?\s*\|\s*\d+\s+items?\s*\|"
+    r"|\d+\s+items?\s*(?:→|->)\s*\d+\s+items?"
+    r"|…\s*and\s+\d+\s+more|\band \d+ more\b"
+    r"|\|\s*([^|()\n]+?)\s*\(\w+\)\s*\|\s*\1\s*\(\w+\)\s*\|"
+    r"|([^|()\n]+?)\s*\(\w+\)\s*(?:→|->)\s*\2\s*\(\w+\)",
 )
 
 
