@@ -1,3 +1,51 @@
+# README relaunch draft — v0.19.0
+
+> **DRAFT — ships only inside the v0.19.0 release-prep PR**, together with the
+> `version.json` bump (`readme-release-gate`). Facts are checked against
+> `origin/main` (the release-bound state), not against the stable 0.18.1 README.
+> Do not copy into `README.md` outside that PR.
+>
+> Status 2026-07-20: **Fully approved by the maintainer** — all sections, the
+> release-notes draft, the launch spine, and all four images (see
+> `docs/work/2026-07-20-asset-specs.md`). Image files stay unreferenced by the
+> published README until the release-prep PR.
+
+> **Release-prep PR checklist (collected during drafting):**
+> `version.json` bump (readme-release-gate) · `nova/config.yaml` 0.6.0 → 0.7.0
+> (release notes already say 0.7.0) · replace `assets/how-it-works.png` with
+> `how-it-works-v2.png` content (and retire the stale `how-it-works.svg` and
+> `banner.svg` — superseded by the vector sources in `docs/work/`; keep
+> `logo.svg` [the star geometry source], `icon.svg`, `logo-dark-text.svg`) ·
+> update `docs/reference/safety.md` (still describes pre-v1 pairing/Home Base
+> in places) · swap `assets/social-preview.png` for `social-preview-v2.png`
+> content and upload it in GitHub repo settings **at release** · re-check
+> README nav anchors after any heading change · `assets/demo.webp`:
+> **REMOVE in the release-prep PR** (maintainer decision 2026-07-20 — it shows
+> a very old build and the draft no longer references it; `git rm` on the PR
+> branch, not in older worktrees) ·
+> **rewrite `docs/reference/comparison.md` against ha-mcp's CURRENT README**
+> (verified 2026-07-20): its context-cost claim is outdated — ha-mcp documents
+> that deferred-loading Claude clients pull tools in only when needed — and
+> its token-storage row misses that ha-mcp's recommended install is in-process
+> ("no access token to manage") with webhook-URL/`ha_auth`/OAuth options.
+> Update our side too (per-device pairing, no LLAT in App mode) and the
+> "as of" dates.
+>
+> **Linked-docs audit (2026-07-20, all README links checked):**
+> `CONTRIBUTING.md`, `.claude/INSTALL.md`, `.antigravity/INSTALL.md` — clean.
+> Still carrying pre-v0.19 language, update in the release-prep PR:
+> `docs/reference/relay-container.md` line 10 ("there is no Home Base" → NOVA
+> page) and line 62 (the "relay emits one pairing code at startup" paragraph
+> describes pre-v1 pairing — re-verify the standalone image's actual v0.19
+> behavior and rewrite); `docs/reference/safety.md` rows at lines 26/36/38
+> (Home Base naming, old `home.ts`/`pairing.ts` references, shared relay-token
+> model) on top of the general v0.19 update already listed;
+> `.hermes/INSTALL.md` line 51 ("Relay token" → device credential wording).
+
+<!-- PUBLISHED FILE STARTS BELOW THIS LINE — everything above stays in docs/work -->
+
+---
+
 <p align="center">
   <img src="assets/hero-banner.png" alt="HA NOVA — a four-point star, and the line: one code to connect, every change checked" width="100%">
 </p>
