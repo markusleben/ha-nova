@@ -35,7 +35,7 @@ This is where the projects differ most, and it is the reason HA NOVA exists.
 | Confirmation binding | Client-side approval prompts | Bound to the exact preview shown; expires if the payload, target, or scope changes |
 | Deletes | A separated delete tool so clients can apply stricter policies | A typed token (`confirm:del-…`); "yes" is rejected, and a click-menu is never offered instead — plus an automatic config snapshot as the restore path |
 | Verification after a write | Per-tool | The config is read back and compared; "it saved" is never reported as "it works" |
-| Undo | Automatic edit backups; full-system backups | Per-config revert of the last verified update, config-snapshot restore for deletes — plus an honest statement wherever revert does *not* exist |
+| Undo | Automatic edit backups; full-system backups | Per-config revert of the last verified update, config-snapshot restore for supported deletes — plus an honest statement wherever revert does *not* exist |
 | Unknown APIs | The tool set is the boundary | An AI may not trial-and-error an unfamiliar Home Assistant API: it must go through the fallback skill first |
 | Where it runs | The recommended install runs in-process inside Home Assistant ("no access token to manage") | A separate process (App or container): a relay crash cannot take Home Assistant down, and the relay holds one scoped upstream credential |
 | Connecting a device | Implicit in-process; remote clients use a secret webhook URL, `ha_auth`, or OAuth where configured | A one-time six-digit code per device (OPAQUE, RFC 9807 over SPKI-pinned TLS 1.3); each device individually revocable from the NOVA console. Standalone Container/Core stays explicit-token-first |

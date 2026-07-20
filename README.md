@@ -165,7 +165,7 @@ Once it finishes, try: *"Show me all my automations."*
 
 Most new HA NOVA workflows are text-file skill updates on your machine. The Relay only changes when a workflow needs something genuinely new from Home Assistant — and even then it stays the dumb pipe: all the know-how stays in the skills.
 
-And because the Relay sits right next to Home Assistant, it can do things a remote client can't — like snapshotting an automation before it updates it, so you can revert the latest verified update with a single word. Deletes capture a config snapshot first, so a deleted item can be restored through the same preview-and-confirm flow; for point-in-time recovery beyond that, use a suitable Home Assistant Backup.
+And because the Relay sits right next to Home Assistant, it can do things a remote client can't — like snapshotting an automation before it updates it, so you can revert the latest verified update with a single word. Deletes of supported config items — automations, scripts, scenes, dashboards, helpers, and more — capture a config snapshot first, so they can be restored through the same preview-and-confirm flow; where no snapshot path exists, HA NOVA says so before you confirm, and for point-in-time recovery a suitable Home Assistant Backup remains the net.
 
 Every safety guarantee above is backed by a file and a test — the **[safety page](docs/reference/safety.md)** maps each claim to what enforces and verifies it.
 
