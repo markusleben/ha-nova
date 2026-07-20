@@ -156,8 +156,8 @@ describe("output design system (Cards)", () => {
   it("makes every skill with a typed-confirmation flow reference the Cards contract (issue #389)", () => {
     // Self-maintaining adoption lint: any sub-skill carrying a confirm: flow
     // must name the Cards contract. skills/ha-nova defines the contract itself.
-    const CARD_REF =
-      /(Preview Card|Delete Card|Result Card|Test Plan Card|Cards defined there|card-framed)/;
+    // Negative prose ("not card-framed") does not count as a reference.
+    const CARD_REF = /(Preview Card|Delete Card|Result Card|Test Plan Card|Cards defined there)/;
     const skillDirs = readdirSync("skills").filter(
       (d) => d !== "ha-nova" && statSync(join("skills", d)).isDirectory(),
     );
@@ -185,6 +185,10 @@ describe("output design system (Cards)", () => {
       "| Snapshot restore (`skills/ha-nova/config-snapshots.md`) | Preview Card → Result Card |",
     );
     expect(outputRules).toContain("| Post-write test offer | Test Plan Card |");
+    // Runtime actions never downgrade the high-consequence typed gate.
+    expect(outputRules).toContain(
+      "high-consequence actions escalate to the typed confirmation code",
+    );
     // Restore flows are covered explicitly, not by convention.
     const configSnapshots = readFileSync("skills/ha-nova/config-snapshots.md", "utf8");
     expect(configSnapshots).toContain("render as the Preview and Result Cards");

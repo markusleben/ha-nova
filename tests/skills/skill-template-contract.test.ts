@@ -165,7 +165,8 @@ const WORD_BUDGETS: Record<string, number> = {
   helper: 3850,
   // Suggestion Block item-shape pointer (shared output shapes); scene/
   // dashboard first-class targets with flow adaptation (2026-h2 Wave 3).
-  review: 4500,
+  // Quick-fix Preview Card reference (#389).
+  review: 4550,
 };
 const DEFAULT_WORD_BUDGET = 1150;
 

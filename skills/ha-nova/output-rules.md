@@ -101,7 +101,7 @@ write flow renders outside this system:
 | Batch mutation (manifest-gated) | Batch Cards (`skills/ha-nova/batch-safety.md`) |
 | Snapshot restore (`skills/ha-nova/config-snapshots.md`) | Preview Card → Result Card |
 | Post-write test offer | Test Plan Card |
-| Runtime action (service call, experimental write) | Preview Card (`apply · cancel`) → Result Card |
+| Runtime action (service call, experimental write) | Preview Card (`apply · cancel`; high-consequence actions escalate to the typed confirmation code — context skill → Confirmation Tiers) → Result Card |
 
 ## Report Shape (Read & Analysis Results)
 
