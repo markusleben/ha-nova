@@ -146,6 +146,16 @@ describe("dev-sync behavior", () => {
     const binDir = createMockBinaries();
     const configDir = join(home, ".config", "ha-nova");
 
+    // Hermetic go: the harness may leak a real toolchain (PATH go + foreign
+    // GOROOT from release-workflow setup), which made this test fail only in
+    // release.yml. Go availability is incidental here — pin it to a fast mock
+    // that satisfies the build-to-temp-and-move contract deterministically.
+    writeFileSync(
+      join(binDir, "go"),
+      '#!/usr/bin/env bash\nif [ "$1" = "build" ]; then shift; out=""; while [ "$#" -gt 0 ]; do if [ "$1" = "-o" ]; then out="$2"; shift 2; else shift; fi; done; [ -n "$out" ] && : > "$out"; fi\nexit 0\n',
+      { mode: 0o755 },
+    );
+
     mkdirSync(configDir, { recursive: true });
     writeFileSync(join(configDir, "relay"), "#!/usr/bin/env bash\n", { mode: 0o755 });
 
