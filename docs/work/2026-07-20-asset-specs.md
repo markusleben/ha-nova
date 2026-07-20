@@ -10,6 +10,11 @@
 > Files land in `assets/` but stay unreferenced by the published README until
 > the v0.19.0 release-prep PR. The GitHub social-preview upload (repo settings)
 > happens only at release time.
+>
+> The AI-generated background rasters referenced by the composite SVGs
+> (`howitworks-bg-nostar.png`, `pairing-bg-noglow.png`,
+> `skillsvstools-bg-v2.png`) are committed alongside them in this directory, so
+> `rsvg-convert` reproduces every committed asset from a fresh checkout.
 
 ## Shared visual system (all four images)
 
