@@ -69,6 +69,11 @@ hold-remap is blocked: "This button does not advertise a hold action (advertised
 single, double). I can remap single or double, observe the device live to check
 for hold, or cancel." Never create the hold automation on spec.
 
+## Companion
+
+Repurposing or cleaning up an input also needs the consumer side: what currently
+listens to these events is `skills/ha-nova/consumer-discovery-preflight.md`.
+
 ## Output
 
 Report evidence quality without dumping unrelated device data (output-rules →

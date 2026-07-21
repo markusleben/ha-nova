@@ -107,6 +107,8 @@ For every Relay-Ready call in this skill:
    c. Point to HA UI path
 ```
 
+External storage becomes scannable only through a documented adapter (`skills/ha-nova/consumer-discovery-preflight.md` → Extension Adapter Contract) — never by ad-hoc parsing.
+
 **Web search is mandatory for Relay-Ready writes.** The relay call examples below cover common read patterns, but write payloads change across HA versions. Always verify the current schema via web search before constructing a write payload.
 
 ## Relay-Ready Features
@@ -125,6 +127,7 @@ ha-nova relay ws --data-file <payload-file>
 # {"type":"blueprint/list","domain":"automation"}
 # {"type":"blueprint/import","url":"https://community.home-assistant.io/t/..."}   (fetches + previews, does not save)
 # {"type":"blueprint/save","domain":"automation","path":"<folder/name.yaml>","yaml":"<blueprint yaml>"}
+# {"type":"blueprint/substitute","domain":"automation","path":"<folder/name.yaml>","input":{...}}   (read-only: expands the blueprint with the given inputs)
 ```
 
 **Risks:** Imported blueprints execute when instantiated. Review blueprint source before import. Instantiating a blueprint into an automation (`use_blueprint`) is a normal automation create — hand off to `ha-nova:write`.

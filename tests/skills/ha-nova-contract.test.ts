@@ -433,6 +433,75 @@ describe("ha-nova contract", () => {
     expect(bp).toContain("skills/ha-nova/input-capability-preflight.md");
   });
 
+  it("discovers consumers before an input is repurposed", () => {
+    const discovery = readFileSync(
+      "skills/ha-nova/consumer-discovery-preflight.md",
+      "utf8",
+    );
+    const capability = readFileSync(
+      "skills/ha-nova/input-capability-preflight.md",
+      "utf8",
+    );
+    const write = readFileSync("skills/write/SKILL.md", "utf8");
+    const serviceCall = readFileSync("skills/service-call/SKILL.md", "utf8");
+    const fallback = readFileSync("skills/fallback/SKILL.md", "utf8");
+
+    // Write flow routes repurpose/cleanup through the discovery preflight.
+    expect(write).toContain(
+      "additionally runs `skills/ha-nova/consumer-discovery-preflight.md`",
+    );
+    expect(write).toContain(
+      'incomplete coverage is disclosed, never claimed as "unused"',
+    );
+
+    // Result schema fields.
+    expect(discovery).toContain("**source family**");
+    expect(discovery).toContain("**reference**");
+    expect(discovery).toContain("**matched action**");
+    expect(discovery).toContain("**confidence**");
+
+    // Standard families: automations/scripts, event consumers, blueprints.
+    expect(discovery).toContain("**Automations & scripts**");
+    expect(discovery).toContain("**Event-type consumers**");
+    expect(discovery).toContain("**Blueprint-backed automations**");
+    expect(discovery).toContain(
+      "`blueprint/list` returns only metadata, no triggers",
+    );
+    expect(discovery).toContain('"type":"blueprint/substitute"');
+    expect(discovery).toContain("never as cleared");
+
+    // Adapter contract: documented shape, zero registered, honest reporting.
+    expect(discovery).toContain("## Extension Adapter Contract");
+    expect(discovery).toContain("No adapters are registered yet");
+    expect(discovery).toContain("**not checkable**");
+    expect(discovery).toContain(
+      "never parsed heuristically and never mutated",
+    );
+
+    // Coverage honesty: both lists, no "unused" claim under partial coverage.
+    expect(discovery).toContain("families checked");
+    expect(discovery).toContain("families not checkable");
+    expect(discovery).toContain("never claim the input is unused");
+    expect(discovery).toContain("no consumers found in the checked");
+
+    // The relay stays a generic transport; discovery is read-only.
+    expect(discovery).toContain(
+      "contains no extension-specific consumer logic",
+    );
+    expect(discovery).toContain("Discovery is read-only");
+
+    // Cross-links: companion pair + shared event-scan + External anchor.
+    expect(capability).toContain(
+      "skills/ha-nova/consumer-discovery-preflight.md",
+    );
+    expect(serviceCall).toContain(
+      "the shared event-consumer pattern of `skills/ha-nova/consumer-discovery-preflight.md`",
+    );
+    expect(fallback).toContain(
+      "only through a documented adapter (`skills/ha-nova/consumer-discovery-preflight.md`",
+    );
+  });
+
   it("keeps agent templates parameterized and structured", () => {
     const resolve = readFileSync("skills/ha-nova/agents/resolve-agent.md", "utf8");
     const apply = readFileSync("skills/ha-nova/agents/apply-agent.md", "utf8");

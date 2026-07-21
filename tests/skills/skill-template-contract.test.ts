@@ -117,7 +117,8 @@ const WORD_BUDGETS: Record<string, number> = {
   // write/mqtt ratcheted for the batch-safety opt-in lines (#327);
   // write again for the Phase 5 test offer (test-run.md).
   // pre-delete snapshot capture + config-snapshots reference (Wave 2).
-  write: 1700,
+  // input-capability gate (#396) + consumer-discovery routing (#397).
+  write: 1750,
   // Cards adoption pointer (#389).
   diagnose: 1500,
   // Report-shape declaration line (shared output shapes); repair dedup,
