@@ -455,6 +455,20 @@ List entity registry (includes area/device assignment):
 {"type":"config/entity_registry/list"}
 ```
 
+## Device Trigger Queries (via /ws)
+
+List the triggers a device advertises (type/subtype rows; the advertised action set for input devices):
+```json
+{"type":"device_automation/trigger/list","device_id":"{device_id}"}
+```
+
+Extra fields a trigger supports:
+```json
+{"type":"device_automation/trigger/capabilities","trigger":{"platform":"device","domain":"mqtt","device_id":"{device_id}","type":"action","subtype":"single"}}
+```
+
+For event-entity devices, the advertised set is the `event.*` entity's `event_types` attribute — read `/api/states/{entity_id}`. An empty trigger list is a valid answer (the integration advertises nothing), not an error. Advertised metadata is not proof an action fires — see `skills/ha-nova/input-capability-preflight.md`.
+
 ## Trace Queries (via /ws)
 
 **`item_id` must be the `unique_id` (config key), NOT the entity_id slug.** See [ID Types & Resolution](#id-types--resolution).
