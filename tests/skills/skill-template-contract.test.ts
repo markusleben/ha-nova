@@ -113,7 +113,8 @@ const WORD_BUDGETS: Record<string, number> = {
   energy: 1250,
   // consumer checks before area delete/rename/disable (Wave 1b) + metadata
   // snapshot capture (Wave 2).
-  organize: 1250,
+  // Grouped-change-set opt-in + flow wiring (#391).
+  organize: 1300,
   // write/mqtt ratcheted for the batch-safety opt-in lines (#327);
   // write again for the Phase 5 test offer (test-run.md).
   // pre-delete snapshot capture + config-snapshots reference (Wave 2).

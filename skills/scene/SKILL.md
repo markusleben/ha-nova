@@ -74,7 +74,7 @@ Write `<filter-file>` with:
    - prefer individual lights over light groups — group snapshots are a known HA reproduce-state trouble spot
    - switch/lock/input_boolean: `state` only
    - other domains: `state` plus clearly writable target attributes (cover position, climate temperature, `hvac_mode`); never copy measurement or diagnostic attributes
-4. Preview name + full entities map; natural confirmation bound to this exact preview (see context skill → Active Preview Confirmation).
+4. Preview name + full entities map; natural confirmation bound to this exact preview (see context skill → Active Preview Confirmation). Creates may join a grouped change set (max 10) per `skills/ha-nova/grouped-change-set.md` — previews stay, one final confirmation.
 5. `ha-nova relay core --method POST --path /api/config/scene/config/<id> --body-file <payload-file>`
 6. Read back via GET and verify the fields; the config API reloads scenes automatically. Resolve the new entity_id from the registry by matching `unique_id` to the config id (the entity_id derives from `name`, not the id; never guess the slug — the registry can lag the write by a moment, retry once), then confirm it via `/api/states/<entity_id>`.
 
