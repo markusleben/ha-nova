@@ -64,7 +64,9 @@ ledger.
   - create: verify the previewed ID/slug is still absent (no collision
     appeared since the preview);
   - service call / runtime action: re-check that the target entity still
-    exists and is not `unavailable`/`unknown` before firing.
+    exists; a target gone from the registry stops the group, while
+    `unavailable`/`unknown` follows the owning skill's preview rules
+    (warning/info, not a block — the call may still work).
 - Verify each applied operation with the owning skill's existing rules before
   moving on.
 - Never claim the group is atomic, transactional, or automatically revertible.

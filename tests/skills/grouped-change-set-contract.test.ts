@@ -95,7 +95,8 @@ describe("grouped change set contract (issue #391)", () => {
     // Per operation class: drift re-read, create-collision absence, liveness.
     expect(grouped).toContain("write-safety → Drift check");
     expect(grouped).toContain("still absent");
-    expect(grouped).toContain("not `unavailable`/`unknown` before firing");
+    expect(grouped).toContain("gone from the registry stops the group");
+    expect(grouped).toContain("warning/info, not a block");
   });
 
   it("keeps a per-operation ledger and reports partial completion honestly", () => {
