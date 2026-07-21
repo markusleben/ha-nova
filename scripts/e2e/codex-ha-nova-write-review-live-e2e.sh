@@ -993,6 +993,10 @@ def is_narrative_line(line: str) -> bool:
         return False
     if "Preview Payload" in stripped or " · " in stripped:
         return False
+    # Save-status scaffolding without the emoji/label ("Nothing has been
+    # saved yet.") is a card slot, not narrative.
+    if re.search(r"(?i)^(?:nothing|not)\b.*\b(?:saved|deleted|executed|applied|written|run)\b.*\byet\b", stripped):
+        return False
     return True
 
 
