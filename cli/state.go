@@ -113,6 +113,17 @@ func loadBundleMetadata(paths runtimePaths) (bundleMetadata, error) {
 }
 
 func writeJSONFile(path string, value interface{}, mode os.FileMode) error {
+	return writeJSONFileOpts(path, value, mode, true)
+}
+
+// writeJSONFileNoHTMLEscape keeps <, >, & readable instead of \u003c-style
+// escapes — for files parsed textually outside Go (the session-start hook
+// greps the update cache's highlight text).
+func writeJSONFileNoHTMLEscape(path string, value interface{}, mode os.FileMode) error {
+	return writeJSONFileOpts(path, value, mode, false)
+}
+
+func writeJSONFileOpts(path string, value interface{}, mode os.FileMode, escapeHTML bool) error {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
@@ -127,6 +138,7 @@ func writeJSONFile(path string, value interface{}, mode os.FileMode) error {
 
 	enc := json.NewEncoder(tmp)
 	enc.SetIndent("", "  ")
+	enc.SetEscapeHTML(escapeHTML)
 	if err := enc.Encode(value); err != nil {
 		tmp.Close()
 		return err

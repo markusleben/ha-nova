@@ -391,5 +391,5 @@ func cacheReleaseInfo(paths runtimePaths, info releaseInfo) {
 	if err := os.MkdirAll(filepath.Dir(paths.UpdateCacheFile), 0o755); err != nil {
 		return
 	}
-	_ = writeJSONFile(paths.UpdateCacheFile, info, 0o644)
+	_ = writeJSONFileNoHTMLEscape(paths.UpdateCacheFile, info, 0o644)
 }

@@ -37,6 +37,33 @@ func readCachedRelease(t *testing.T, paths runtimePaths) releaseInfo {
 	return info
 }
 
+func TestCacheReleaseInfoKeepsHighlightTextGrepReadable(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+	cacheReleaseInfo(paths, releaseInfo{
+		Version:     "0.4.2",
+		PublishedAt: "2026-07-01T10:00:00Z",
+		ReleaseHighlights: []releaseHighlight{
+			{Kind: releaseHighlightKindAction, Text: "Open HA Settings > Apps & update"},
+		},
+	})
+	data, err := os.ReadFile(paths.UpdateCacheFile)
+	if err != nil {
+		t.Fatalf("read cache: %v", err)
+	}
+	// The session hook greps the raw JSON text: <, >, & must stay literal,
+	// never \u003c-style HTML escapes.
+	if !strings.Contains(string(data), "Open HA Settings > Apps & update") {
+		t.Fatalf("cache bytes escape highlight text:\n%s", data)
+	}
+	if strings.Contains(string(data), `\u003e`) || strings.Contains(string(data), `\u0026`) {
+		t.Fatalf("cache bytes contain HTML escapes:\n%s", data)
+	}
+}
+
 func TestFetchLatestReleaseRevalidatesWithETagAnd304(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	paths, err := detectPaths()
