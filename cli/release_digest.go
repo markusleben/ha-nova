@@ -80,7 +80,10 @@ func deriveReleaseHighlights(body string) []releaseHighlight {
 		// <details> blocks are collapsed presentation detail — skip them.
 		lower := strings.ToLower(trimmed)
 		if strings.HasPrefix(lower, "<details") {
-			inDetails = true
+			// A one-line <details>...</details> opens and closes here.
+			if !strings.Contains(lower, "</details>") {
+				inDetails = true
+			}
 			continue
 		}
 		if strings.Contains(lower, "</details>") {

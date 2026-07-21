@@ -144,6 +144,23 @@ func TestDeriveReleaseHighlightsEmptyMalformedUnrecognized(t *testing.T) {
 	}
 }
 
+func TestDeriveReleaseHighlightsSingleLineDetailsDoesNotSwallowRest(t *testing.T) {
+	body := "<details>checksums</details>\n\n## New Features\n\n- Real highlight after a one-line details block\n"
+	got := deriveReleaseHighlights(body)
+	if len(got) != 1 || got[0].Kind != releaseHighlightKindFeature {
+		t.Fatalf("highlights = %+v, want one feature item", got)
+	}
+	if got[0].Text != "Real highlight after a one-line details block" {
+		t.Fatalf("text = %q", got[0].Text)
+	}
+	// Multi-line blocks still swallow their content.
+	multi := "<details>\n<summary>checksums</summary>\n- inside details\n</details>\n\n## New Features\n\n- Outside again\n"
+	got = deriveReleaseHighlights(multi)
+	if len(got) != 1 || got[0].Text != "Outside again" {
+		t.Fatalf("multi-line details: highlights = %+v, want only the outside item", got)
+	}
+}
+
 func TestDeriveReleaseHighlightsDeterministic(t *testing.T) {
 	first := deriveReleaseHighlights(digestFixtureBody)
 	for i := 0; i < 5; i++ {
