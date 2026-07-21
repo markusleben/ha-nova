@@ -293,13 +293,15 @@ func runServerRemove(paths runtimePaths, args []string) int {
 		unknownServerProfileError(doc, name)
 		return 1
 	}
+	if len(doc.profileNames()) == 1 {
+		// Holds for the literal default AND for a multi-server-first install
+		// whose only profile is a named one (pair --server first).
+		printHumanErr("%q is the only server profile — to remove HA NOVA from this machine, run: ha-nova uninstall", name)
+		return 1
+	}
 	if name == defaultServerProfileName {
-		if len(doc.profileNames()) > 1 {
-			printHumanErr("the %q profile cannot be removed while other server profiles exist: it owns the legacy relay token and the downgrade mirror. Remove the other profiles first, or remove everything with: ha-nova uninstall",
-				defaultServerProfileName)
-		} else {
-			printHumanErr("%q is the only server profile — to remove HA NOVA from this machine, run: ha-nova uninstall", defaultServerProfileName)
-		}
+		printHumanErr("the %q profile cannot be removed while other server profiles exist: it owns the legacy relay token and the downgrade mirror. Remove the other profiles first, or remove everything with: ha-nova uninstall",
+			defaultServerProfileName)
 		return 1
 	}
 	newDefault := doc.defaultServerName()

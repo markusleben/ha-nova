@@ -369,6 +369,17 @@ func TestServerRemoveRefusalRules(t *testing.T) {
 			t.Fatalf("exit = %d, output:\n%s", exit, out)
 		}
 	})
+	t.Run("only named profile points at uninstall", func(t *testing.T) {
+		// Multi-server-first install: pair --server cabin before any literal
+		// default exists. The last profile routes to uninstall regardless of
+		// its name — it must never be unremovable.
+		paths := setupServerCommandTest(t, `{"schema_version":2,"default_server":"cabin","servers":{"cabin":{"relay_base_url":"http://cabin:8791"}}}`)
+		stubServerCommandStdin(t, "cabin\n")
+		exit, out := captureCommandOutput(t, func() int { return runServerCommand(paths, []string{"remove", "cabin"}) })
+		if exit != 1 || !strings.Contains(out, "ha-nova uninstall") {
+			t.Fatalf("exit = %d, output:\n%s", exit, out)
+		}
+	})
 	t.Run("default_server without literal default fallback", func(t *testing.T) {
 		paths := setupServerCommandTest(t, `{"schema_version":2,"default_server":"cabin","servers":{"cabin":{"relay_base_url":"http://cabin:8791"},"lake":{"relay_base_url":"http://lake:8791"}}}`)
 		stubServerCommandStdin(t, "cabin\n")
