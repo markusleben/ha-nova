@@ -1,6 +1,8 @@
 package main
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -91,4 +93,102 @@ func removeDeviceFileStorageMarkerAndDir() {
 	}
 	deviceCredentialFileModeForced = false
 	deviceCredentialFileModeExplicit = false
+}
+
+// stageServerCredentialSlotMove moves a profile's credential slots (current +
+// pending) to a new profile name for `ha-nova server rename`. Two layers:
+// the routed slots (keyring, or files behind the marker) AND the raw file
+// slots — an interrupted explicit file pairing leaves a pending FILE before
+// the machine-wide marker exists, which the routed read would miss. Raw files
+// move via os.Rename, never through deviceSecretFileSet (its first current
+// commit would write the marker as a side effect). Any failure rolls both
+// layers back; commit deletes the old routed slots.
+func stageServerCredentialSlotMove(oldName, newName string) (rollback func(), commit func(), err error) {
+	slots := [][2]string{
+		{deviceCredentialServiceForProfile(oldName), deviceCredentialServiceForProfile(newName)},
+		{deviceCredentialPendingServiceForProfile(oldName), deviceCredentialPendingServiceForProfile(newName)},
+	}
+	var written, obsolete []string
+	var movedFiles [][2]string
+	rollback = func() {
+		for _, service := range written {
+			_ = secretDelete(service)
+		}
+		for _, pair := range movedFiles {
+			_ = os.Rename(pair[1], pair[0])
+		}
+	}
+	// Raw files FIRST: they need no keyring, so a markerless pending file is
+	// preserved even on a headless machine where the routed read errors.
+	if !deviceFileBackendMarkerExists() {
+		for _, pair := range slots {
+			oldPath, pathErr := deviceSecretFilePath(pair[0])
+			if pathErr != nil {
+				continue
+			}
+			newPath, pathErr := deviceSecretFilePath(pair[1])
+			if pathErr != nil {
+				continue
+			}
+			if info, statErr := os.Lstat(oldPath); statErr != nil || !info.Mode().IsRegular() {
+				continue
+			}
+			if renameErr := os.Rename(oldPath, newPath); renameErr != nil {
+				rollback()
+				return nil, nil, fmt.Errorf("cannot move the pending credential file for %q: %w", oldName, renameErr)
+			}
+			movedFiles = append(movedFiles, [2]string{oldPath, newPath})
+		}
+	}
+	for _, pair := range slots {
+		value, ok, readErr := readCredentialSlot(pair[0])
+		if readErr != nil {
+			// Keyring REACHABILITY errors on a headless machine are tolerated as
+			// soon as any markerless raw file moved (the interrupted file-pairing
+			// case this exists for): the routed layer cannot be moved from here
+			// for ANY slot, and a keyring credential from an earlier DESKTOP
+			// pairing needs the desktop session — the warning says so. Every
+			// other error (e.g. a malformed stored credential) stays fatal.
+			unreachable := errors.Is(readErr, errDesktopKeyringSessionUnavailable) || errors.Is(readErr, errDesktopKeyringUnavailable)
+			if unreachable && len(movedFiles) > 0 {
+				printHumanWarn("secure storage is not reachable here (%v); any keyring credential stored under the old name %q by an earlier desktop pairing was not moved — re-run the rename from the desktop session if one exists.", readErr, pair[0])
+				continue
+			}
+			rollback()
+			return nil, nil, fmt.Errorf("cannot read the stored device credential (%s): %w — make secure storage available, then retry", pair[0], readErr)
+		}
+		if !ok {
+			continue
+		}
+		if writeErr := secretSet(pair[1], value); writeErr != nil {
+			rollback()
+			return nil, nil, fmt.Errorf("cannot store the device credential under the new name (%s): %w", pair[1], writeErr)
+		}
+		written = append(written, pair[1])
+		obsolete = append(obsolete, pair[0])
+	}
+	commit = func() {
+		for _, service := range obsolete {
+			if deleteErr := secretDelete(service); deleteErr != nil {
+				printHumanWarn("could not remove the old credential slot %s: %v — remove it manually from secure storage.", service, deleteErr)
+			}
+		}
+	}
+	return rollback, commit, nil
+}
+
+// profileHasRawSlotFile reports whether any of the given slot services has a
+// raw markerless credential file on disk — the artifact of an interrupted
+// explicit file pairing that raw-file cleanup and moves handle directly.
+func profileHasRawSlotFile(services []string) bool {
+	for _, service := range services {
+		path, err := deviceSecretFilePath(service)
+		if err != nil {
+			continue
+		}
+		if info, statErr := os.Lstat(path); statErr == nil && info.Mode().IsRegular() {
+			return true
+		}
+	}
+	return false
 }
