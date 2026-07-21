@@ -31,10 +31,19 @@ end_recording "$CAST"
 kill_session
 
 # Preserve the snapshot fetched during THIS take (newest image since STAMP).
-snapshot=$(find "/private/tmp/claude-$(id -u)" /tmp -type f \
-  \( -name '*.jpg' -o -name '*.jpeg' -o -name '*.png' \) \
-  -newer "$STAMP" 2>/dev/null | xargs -I{} stat -f '%m {}' {} 2>/dev/null \
-  | sort -rn | head -1 | cut -d' ' -f2-)
+# Only search roots that exist — a missing root makes find exit non-zero,
+# which would kill the script under set -e before the warning below.
+roots=()
+for d in "/private/tmp/claude-$(id -u)" /tmp; do
+  [[ -d "$d" ]] && roots+=("$d")
+done
+snapshot=""
+if ((${#roots[@]})); then
+  snapshot=$(find "${roots[@]}" -type f \
+    \( -name '*.jpg' -o -name '*.jpeg' -o -name '*.png' \) \
+    -newer "$STAMP" 2>/dev/null | xargs -I{} stat -f '%m {}' {} 2>/dev/null \
+    | sort -rn | head -1 | cut -d' ' -f2- || true)
+fi
 rm -f "$STAMP"
 
 if [[ -n "$snapshot" ]]; then

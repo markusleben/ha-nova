@@ -160,6 +160,8 @@ print(";".join(chain))
 PY
 )
 if [[ -n "$CURSOR_FILTER" ]]; then
+  python3 -c "import PIL" 2>/dev/null \
+    || { echo "ERROR: the cursor overlay needs Pillow: python3 -m pip install Pillow" >&2; exit 1; }
   python3 - "$WORK/cursor.png" <<'PY'
 import sys
 from PIL import Image, ImageDraw

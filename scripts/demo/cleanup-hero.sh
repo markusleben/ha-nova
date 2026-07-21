@@ -25,13 +25,19 @@ done
 
 list_matches() {
   # Case-insensitive: the model may title-case the alias ("Pool Deck Lights…").
-  local prefix_lc
+  # A failed relay lookup must never read as "nothing to clean" — the demo
+  # automation would silently survive in the live instance.
+  local prefix_lc raw
   prefix_lc=$(tr '[:upper:]' '[:lower:]' <<<"$PREFIX")
-  ha-nova relay ws -d '{"type":"config/entity_registry/list_for_display"}' \
+  if ! raw=$(ha-nova relay ws -d '{"type":"config/entity_registry/list_for_display"}' \
     -jq "[.data.entities[]
           | select((.ei | startswith(\"automation.\"))
                    and ((.en // \"\") | ascii_downcase | startswith(\"$prefix_lc\")))
-          | \"\(.ei)\t\(.en // \"?\")\"]" 2>/dev/null | ha-nova relay jq -r '.[]' || true
+          | \"\(.ei)\t\(.en // \"?\")\"]"); then
+    echo "ERROR: relay lookup failed — cannot tell whether demo automations remain." >&2
+    exit 1
+  fi
+  ha-nova relay jq -r '.[]' <<<"$raw"
 }
 
 list_entity_ids() {

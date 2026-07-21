@@ -24,7 +24,7 @@ Assistant — only waiting time is compressed.
 | tmux, asciinema, ffmpeg, jq | `brew install tmux asciinema ffmpeg jq` | drive + record + post-process |
 | vhs (pulls ttyd) | `brew install vhs` | replay renderer (Chromium: correct color emoji) |
 | gif2webp | `brew install webp` | GIF -> animated WebP (Homebrew ffmpeg ships without libwebp) |
-| pyte | `python3 -m pip install pyte` | terminal emulation in `compress-cast.py` (new-text detection for time compression) |
+| pyte, Pillow | `python3 -m pip install pyte Pillow` | terminal emulation in `compress-cast.py`; cursor-overlay drawing in `render.sh` |
 | JetBrains Mono | `cp` the two TTFs from [JetBrainsMono releases](https://github.com/JetBrains/JetBrainsMono) to `~/Library/Fonts/` (Regular + Bold) | deterministic glyph metrics in vhs |
 
 Plus: the `ha-nova` CLI onboarded against a live Home Assistant, and the
