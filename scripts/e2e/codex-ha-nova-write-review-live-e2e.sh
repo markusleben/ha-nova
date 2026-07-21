@@ -978,6 +978,10 @@ def is_narrative_line(line: str) -> bool:
     stripped = line.strip()
     if not stripped or len(stripped.split()) < 4:
         return False
+    # A count/type transition line is the thing needing explanation, never
+    # the explanation itself.
+    if COUNT_ONLY_RE.search(stripped):
+        return False
     if stripped.startswith(("|", "#", "-", "`", "📝", "⚠", "✅", "🗑")):
         return False
     # Card slot/scaffolding lines are not narrative prose.
