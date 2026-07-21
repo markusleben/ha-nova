@@ -97,6 +97,8 @@ describe("grouped change set contract (issue #391)", () => {
     expect(grouped).toContain("still absent");
     expect(grouped).toContain("gone from the registry stops the group");
     expect(grouped).toContain("warning/info, not a block");
+    expect(grouped).toContain("re-expand to their member list before applying");
+    expect(grouped).toContain("membership drift against the previewed expansion");
   });
 
   it("keeps a per-operation ledger and reports partial completion honestly", () => {

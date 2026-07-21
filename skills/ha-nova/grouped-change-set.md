@@ -66,7 +66,10 @@ ledger.
   - service call / runtime action: re-check that the target entity still
     exists; a target gone from the registry stops the group, while
     `unavailable`/`unknown` follows the owning skill's preview rules
-    (warning/info, not a block — the call may still work).
+    (warning/info, not a block — the call may still work). Broad targets
+    (`area_id`/`device_id`) re-expand to their member list before applying;
+    membership drift against the previewed expansion stops the group — the
+    confirmed set is literal.
 - Verify each applied operation with the owning skill's existing rules before
   moving on.
 - Never claim the group is atomic, transactional, or automatically revertible.
