@@ -163,7 +163,10 @@ def new_text_per_event(events, cols, rows):
     across two consecutive events (i.e. finished streaming) — otherwise every
     growing prefix of a streamed line would count again. Digits are masked so
     spinner ticks and counters do not count as new text."""
-    import pyte
+    try:
+        import pyte
+    except ImportError:
+        sys.exit("compress-cast.py needs the 'pyte' package: python3 -m pip install pyte")
     screen = pyte.Screen(cols, rows)
     stream = pyte.Stream(screen)
     # Word-level dedup: the TUI repaints the same content in many wrap and

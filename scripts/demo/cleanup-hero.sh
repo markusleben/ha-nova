@@ -7,12 +7,23 @@
 # entity registry (WS) -> unique_id -> REST DELETE on the config id. There is
 # no REST list route for automation configs.
 #
-# Usage: cleanup-hero.sh ["Alias Prefix"]
+# Usage: cleanup-hero.sh ["Alias Prefix"] [--yes]
+#
+# Prefix matching can catch a user's own automation on a live instance
+# ("Pool deck lights evening"), so every delete lists the matched names and
+# requires interactive confirmation unless --yes is passed.
 set -euo pipefail
 
-PREFIX="${1:-Pool deck lights}"
+PREFIX="Pool deck lights"
+ASSUME_YES=0
+for arg in "$@"; do
+  case "$arg" in
+    --yes) ASSUME_YES=1 ;;
+    *) PREFIX="$arg" ;;
+  esac
+done
 
-list_entity_ids() {
+list_matches() {
   # Case-insensitive: the model may title-case the alias ("Pool Deck Lights…").
   local prefix_lc
   prefix_lc=$(tr '[:upper:]' '[:lower:]' <<<"$PREFIX")
@@ -20,14 +31,26 @@ list_entity_ids() {
     -jq "[.data.entities[]
           | select((.ei | startswith(\"automation.\"))
                    and ((.en // \"\") | ascii_downcase | startswith(\"$prefix_lc\")))
-          | .ei]" 2>/dev/null | ha-nova relay jq -r '.[]' || true
+          | \"\(.ei)\t\(.en // \"?\")\"]" 2>/dev/null | ha-nova relay jq -r '.[]' || true
 }
 
-mapfile -t ids < <(list_entity_ids)
+list_entity_ids() {
+  list_matches | cut -f1
+}
+
+mapfile -t matches < <(list_matches)
+mapfile -t ids < <(printf '%s\n' "${matches[@]:-}" | cut -f1 | sed '/^$/d')
 
 if ((${#ids[@]} == 0)); then
   echo "No demo automation matching alias prefix \"$PREFIX\" — nothing to clean."
   exit 0
+fi
+
+echo "Matched ${#ids[@]} automation(s) by alias prefix \"$PREFIX\":"
+printf '  %s\n' "${matches[@]}"
+if ((!ASSUME_YES)); then
+  read -r -p "Delete ALL of the above? Only demo automations should be listed. [y/N] " answer
+  [[ "$answer" == "y" || "$answer" == "Y" ]] || { echo "Aborted — nothing deleted."; exit 1; }
 fi
 
 echo "Deleting ${#ids[@]} demo automation(s): ${ids[*]}"

@@ -38,7 +38,16 @@ require_tools() {
 # --- workspace ---------------------------------------------------------------
 
 setup_workspace() {
+  # Never clobber a user's own Claude workspace: only a directory this
+  # pipeline created (marker file) or an empty/new one is acceptable.
+  if [[ -d "$WORKSPACE" && ! -e "$WORKSPACE/.ha-nova-demo-workspace" ]] \
+     && [[ -n "$(ls -A "$WORKSPACE" 2>/dev/null)" ]]; then
+    echo "ERROR: $WORKSPACE exists and is not a demo workspace." >&2
+    echo "Point DEMO_WORKSPACE at a dedicated directory instead." >&2
+    exit 1
+  fi
   mkdir -p "$WORKSPACE"
+  touch "$WORKSPACE/.ha-nova-demo-workspace"
   cp "$DEMO_DIR/workspace-template/CLAUDE.md" "$WORKSPACE/CLAUDE.md"
   # The literal name .claude/settings.local.json is gitignored in this repo,
   # so the template ships under a neutral name and is materialized here.
