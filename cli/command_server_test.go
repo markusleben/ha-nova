@@ -295,3 +295,40 @@ func TestServerRenameMovesRawPendingFileWithoutMarker(t *testing.T) {
 		t.Fatalf("raw pending file not moved: err=%v data=%q", err, data)
 	}
 }
+
+func TestServerRenameHeadlessKeepsMarkerlessPendingFile(t *testing.T) {
+	// The REAL headless path (no test secret dir): keyring preflight errors,
+	// only a markerless raw pending file exists. Rename must succeed, move the
+	// file, and warn about the unreachable routed layer.
+	paths := setupServerCommandTest(t, testV2TwoProfileConfig)
+	t.Setenv("HA_NOVA_TEST_SECRET_DIR", "")
+	prevPreflight := deviceCredentialPreflight
+	deviceCredentialPreflight = func() error { return errDesktopKeyringSessionUnavailable }
+	t.Cleanup(func() { deviceCredentialPreflight = prevPreflight })
+
+	oldPath, err := deviceSecretFilePath(deviceCredentialPendingServiceForProfile("cabin"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(oldPath), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(oldPath, []byte(testProfileCredentialB), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	exit, out := captureCommandOutput(t, func() int { return runServerCommand(paths, []string{"rename", "cabin", "seaside"}) })
+	if exit != 0 {
+		t.Fatalf("headless rename exit = %d, want 0\n%s", exit, out)
+	}
+	if !strings.Contains(out, "not reachable") {
+		t.Fatalf("headless rename must warn about the unreachable routed layer:\n%s", out)
+	}
+	newPath, err := deviceSecretFilePath(deviceCredentialPendingServiceForProfile("seaside"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Lstat(newPath); err != nil {
+		t.Fatalf("raw pending file not moved: %v", err)
+	}
+}

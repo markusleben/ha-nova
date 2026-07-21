@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -119,7 +120,6 @@ func stageServerCredentialSlotMove(oldName, newName string) (rollback func(), co
 	}
 	// Raw files FIRST: they need no keyring, so a markerless pending file is
 	// preserved even on a headless machine where the routed read errors.
-	movedRaw := map[string]bool{}
 	if !deviceFileBackendMarkerExists() {
 		for _, pair := range slots {
 			oldPath, pathErr := deviceSecretFilePath(pair[0])
@@ -138,20 +138,20 @@ func stageServerCredentialSlotMove(oldName, newName string) (rollback func(), co
 				return nil, nil, fmt.Errorf("cannot move the pending credential file for %q: %w", oldName, renameErr)
 			}
 			movedFiles = append(movedFiles, [2]string{oldPath, newPath})
-			movedRaw[pair[0]] = true
 		}
 	}
 	for _, pair := range slots {
 		value, ok, readErr := readCredentialSlot(pair[0])
 		if readErr != nil {
-			// Headless machine + markerless raw file already moved: the routed
-			// keyring is unreachable here, and for the interrupted file-pairing
-			// case there is nothing in it to move. Warn instead of failing the
-			// exact case the raw move exists for; any keyring credential from an
-			// earlier DESKTOP pairing under the old name is not moved — that
-			// rename needs the desktop session.
-			if movedRaw[pair[0]] {
-				printHumanWarn("secure storage is not reachable here (%v); a keyring credential stored under the old name %q by an earlier desktop pairing was not moved — re-run the rename from the desktop session if one exists.", readErr, pair[0])
+			// Keyring REACHABILITY errors on a headless machine are tolerated as
+			// soon as any markerless raw file moved (the interrupted file-pairing
+			// case this exists for): the routed layer cannot be moved from here
+			// for ANY slot, and a keyring credential from an earlier DESKTOP
+			// pairing needs the desktop session — the warning says so. Every
+			// other error (e.g. a malformed stored credential) stays fatal.
+			unreachable := errors.Is(readErr, errDesktopKeyringSessionUnavailable) || errors.Is(readErr, errDesktopKeyringUnavailable)
+			if unreachable && len(movedFiles) > 0 {
+				printHumanWarn("secure storage is not reachable here (%v); any keyring credential stored under the old name %q by an earlier desktop pairing was not moved — re-run the rename from the desktop session if one exists.", readErr, pair[0])
 				continue
 			}
 			rollback()

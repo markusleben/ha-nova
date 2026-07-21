@@ -201,3 +201,22 @@ func TestServerRemovePreflightsSecureStorageBeforeConfirmation(t *testing.T) {
 		t.Fatal("the preflight abort must not touch config.json")
 	}
 }
+
+func TestServerRemoveDeletesMalformedCredentialSlot(t *testing.T) {
+	// A corrupted stored value must not block removal: the preflight checks
+	// reachability only, and the purge deletes the slot without parsing.
+	paths := setupServerCommandTest(t, testV2TwoProfileConfig)
+	if err := secretSet(deviceCredentialServiceForProfile("cabin"), "garbage-not-a-credential"); err != nil {
+		t.Fatal(err)
+	}
+	stubServerRevoke(t)
+	stubServerCommandStdin(t, "cabin\n")
+
+	exit, out := captureCommandOutput(t, func() int { return runServerCommand(paths, []string{"remove", "cabin"}) })
+	if exit != 0 {
+		t.Fatalf("remove exit = %d, want 0\n%s", exit, out)
+	}
+	if _, err := secretGet(deviceCredentialServiceForProfile("cabin")); err != errSecretNotFound {
+		t.Fatalf("malformed slot must be deleted, got err=%v", err)
+	}
+}

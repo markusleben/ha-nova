@@ -286,9 +286,10 @@ func runServerRemove(paths runtimePaths, args []string) int {
 	// Secure-storage preflight BEFORE the confirmation: if the slots are not
 	// reachable here (locked keyring, headless SSH), removing the config entry
 	// would strand credentials under a name that no longer exists. Abort with
-	// nothing touched instead.
+	// nothing touched instead. Reachability only — a MALFORMED stored value is
+	// no reason to refuse: the purge deletes it without parsing.
 	for _, service := range []string{deviceCredentialServiceForProfile(name), deviceCredentialPendingServiceForProfile(name)} {
-		if _, _, readErr := readCredentialSlot(service); readErr != nil {
+		if _, readErr := secretGet(service); readErr != nil && readErr != errSecretNotFound {
 			printHumanErr("secure storage is not reachable here (%v) — removing %q now would leave its stored credential behind. Make secure storage available (e.g. run from the desktop session), then retry; nothing was removed.", readErr, name)
 			return 1
 		}
