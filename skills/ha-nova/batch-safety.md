@@ -167,7 +167,7 @@ the offer of a remaining-targets manifest).
 | `organize` | yes | one registry family per manifest; only with complete related-item impact per target |
 | `yaml-config` | no | file edits are single-document operations with their own backup flow |
 | `energy` | no | preference saves are corrective single-document writes, not enumerable deletes |
-| `service-call` | no | actuating calls are excluded; its grouped manifest (see its Guardrails) is a separate non-destructive tier |
+| `service-call` | no | actuating calls are excluded; its grouped manifest is a separate non-destructive tier (`skills/ha-nova/grouped-change-set.md`) |
 | `backup` | no | backup deletion stays single-target |
 | `updates` | no | Core/OS/App updates stay single-target |
 | `admin` | no | user/person/account deletion stays single-target |
@@ -183,7 +183,8 @@ Keep these single-target regardless of manifest quality:
 - Home Assistant Core/OS updates
 - backup deletion
 - arbitrary service calls that actuate devices (see `ha-nova:service-call` —
-  its grouped manifest is non-destructive and separate from this contract)
+  its grouped manifest is non-destructive and separate from this contract:
+  `skills/ha-nova/grouped-change-set.md`)
 - MQTT command/`set` topics
 - mixed resource families
 - selectors evaluated only at execution time

@@ -26,6 +26,7 @@ skills/
   ha-nova/automation-patterns.md (reference doc — native HA constructs vs templates)
   ha-nova/write-safety.md       (reference doc — pre-write diff + durable update-revert; SSOT for write/ + helper/)
   ha-nova/batch-safety.md       (reference doc — scoped batch manifest for destructive multi-target operations)
+  ha-nova/grouped-change-set.md (reference doc — one confirmation for a fully previewed non-destructive change set)
   ha-nova/config-snapshots.md   (reference doc — targeted config-snapshot capture/restore on the relay blob store)
   ha-nova/input-capability-preflight.md (reference doc — verify input-device gestures before planning a remap)
   ha-nova/consumer-discovery-preflight.md (reference doc — find an input's consumers before repurposing it)

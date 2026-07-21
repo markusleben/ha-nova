@@ -220,6 +220,6 @@ Previews are the runtime-action Preview Card (`apply · cancel`); results are th
 ## Guardrails
 
 - One entity at a time unless user explicitly requests batch (array `entity_id` supported).
-- For batch service calls, show a grouped manifest first and bind confirmation to that exact manifest.
+- For batch service calls, show a grouped manifest first and bind confirmation to that exact manifest — the non-destructive grouped change set contract (`skills/ha-nova/grouped-change-set.md`); actuating high-consequence calls stay excluded.
 - Verify per Flow step 6 — transition- and stateless-aware, never a naive immediate re-read.
 - If state didn't change as expected after those checks, report discrepancy.
