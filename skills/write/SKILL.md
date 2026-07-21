@@ -32,7 +32,7 @@ File-based relay requests only: `ha-nova relay core --method <METHOD> --path <PA
 
 Multi-target logical changes: present the plan first per `skills/ha-nova/write-safety.md` → Multi-Target Changes.
 
-Input-device remaps (buttons, remotes, switches): run the capability preflight per `skills/ha-nova/input-capability-preflight.md` before drafting; the write stays blocked while the chosen gesture is only assumed or its evidence conflicts.
+Input-device remaps (buttons, remotes, switches): run the capability preflight per `skills/ha-nova/input-capability-preflight.md` before drafting; the write stays blocked while the chosen gesture is only assumed or its evidence conflicts. Repurposing or cleaning up an input additionally runs `skills/ha-nova/consumer-discovery-preflight.md`; incomplete coverage is disclosed, never claimed as "unused".
 
 ### Phase 1: Resolve (Agent)
 
@@ -157,3 +157,4 @@ On demand — read only when the trigger applies:
 - `skills/ha-nova/config-snapshots.md` — capturing the pre-delete snapshot, or the user asks to restore from a config snapshot
 - `skills/ha-nova/test-run.md` — Phase 5 test offer: feasibility, options, post-run follow-up
 - `skills/ha-nova/input-capability-preflight.md` — remapping an input device (button, remote, switch)
+- `skills/ha-nova/consumer-discovery-preflight.md` — repurposing or cleaning up an input's existing consumers

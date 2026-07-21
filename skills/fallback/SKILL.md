@@ -107,6 +107,8 @@ For every Relay-Ready call in this skill:
    c. Point to HA UI path
 ```
 
+External storage becomes scannable only through a documented adapter (`skills/ha-nova/consumer-discovery-preflight.md` → Extension Adapter Contract) — never by ad-hoc parsing.
+
 **Web search is mandatory for Relay-Ready writes.** The relay call examples below cover common read patterns, but write payloads change across HA versions. Always verify the current schema via web search before constructing a write payload.
 
 ## Relay-Ready Features
