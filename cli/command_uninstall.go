@@ -300,7 +300,9 @@ func finalizeLocalUninstallWithProgress(paths runtimePaths, state installState, 
 		// removes config.json before token_cleanup runs the device revokes, and
 		// each profile's device entry lives on ITS relay.
 		if doc, err := loadConfigDocument(paths.ConfigFile); err == nil {
-			if cfg, ok := doc.flatProfile(doc.defaultServerName()); ok {
+			// Literal default profile: the legacy service token is
+			// default-profile-only, regardless of where default_server points.
+			if cfg, ok := doc.flatProfile(defaultServerProfileName); ok {
 				relayTokenFile = strings.TrimSpace(cfg.RelayTokenFile)
 			}
 			for _, name := range doc.profileNames() {

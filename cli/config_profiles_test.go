@@ -323,6 +323,23 @@ func TestRawDefaultProfileLoaderIgnoresDefaultServerRedirect(t *testing.T) {
 	}
 }
 
+func TestFreshSetupRejectsNonDefaultServerSelection(t *testing.T) {
+	// Fresh install + HA_NOVA_SERVER naming a new profile: loadConfig fails
+	// before profile resolution, so setup would pair credentials into the
+	// default slots while saving config into the named profile. Named profiles
+	// are created via pair, never via setup.
+	resetServerProfileSelection(t)
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv(serverSelectionEnvVar, "cabin")
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if code := runSetup(paths, nil); code == 0 {
+		t.Fatal("fresh setup with a non-default server selection must fail loud")
+	}
+}
+
 func TestLegacyMirrorFollowsLiteralDefaultNotDefaultServer(t *testing.T) {
 	// The flat mirror pairs with the machine-wide legacy token in old binaries,
 	// so it must always carry the LITERAL default profile — never the profile

@@ -56,6 +56,14 @@ func runSetup(paths runtimePaths, args []string) int {
 			printHumanErr("%s", cfgErr)
 			return 1
 		}
+		// Fresh/incomplete install with a non-default selection: loadConfig
+		// failed before profile resolution, so the credential slots would stay
+		// on the default profile while saves route to the selected name.
+		// Named profiles are created via pair, never via setup (layer 1).
+		if name, source := requestedServerSelection(); name != "" && name != defaultServerProfileName {
+			printHumanErr("setup always onboards the default server profile; %q (from %s) is created with: ha-nova pair --server %s --relay-url http://<ha-host>:8791", name, source, name)
+			return 1
+		}
 		// Preserve credential routing from an incomplete config: the token
 		// file setting decides where token reads/writes go, so the repair
 		// path must see it even when relay_base_url is missing. The raw
