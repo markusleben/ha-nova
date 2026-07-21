@@ -99,7 +99,12 @@ func runDoctor(paths runtimePaths, args []string) int {
 			return 1
 		}
 		printHumanErr("This device was paired, but its device credential is missing from secure storage.")
-		printHumanErr("Pair again: run 'ha-nova setup' and enter a fresh code from the NOVA page.")
+		if profile := activeServerProfile(); profile != defaultServerProfileName {
+			// Setup refuses named profiles — their repair path is pair --server.
+			printHumanErr("Pair again: run 'ha-nova pair --server %s --relay-url %s' and enter a fresh code from the NOVA page.", profile, cfg.RelayBaseURL)
+		} else {
+			printHumanErr("Pair again: run 'ha-nova setup' and enter a fresh code from the NOVA page.")
+		}
 		return 1
 	} else if activeServerProfile() != defaultServerProfileName {
 		// Non-default profiles are device-credential-only: never check them with

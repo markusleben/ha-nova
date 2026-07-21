@@ -26,7 +26,12 @@ func relayFunctionalTransport(cfg runtimeConfig) (baseURL string, client *http.C
 		}
 		// Paired config but the device credential is gone: fail closed. In a paired
 		// flow the device credential IS the auth, so never silently downgrade to the
-		// shared token over the unpinned plain port. Re-pair to recover.
+		// shared token over the unpinned plain port. Re-pair to recover — via setup
+		// for the default profile, via pair --server for named profiles (setup
+		// refuses those).
+		if profile := activeServerProfile(); profile != defaultServerProfileName {
+			return "", nil, "", false, fmt.Errorf("device credential unavailable for a paired relay; re-pair with: ha-nova pair --server %s --relay-url %s", profile, cfg.RelayBaseURL)
+		}
 		return "", nil, "", false, errors.New("device credential unavailable for a paired relay; run 'ha-nova setup' to re-pair")
 	}
 	if profile := activeServerProfile(); profile != defaultServerProfileName {

@@ -73,21 +73,6 @@ func runPairCommand(paths runtimePaths, args []string) int {
 		setServerSelectionOverride(serverName)
 		setActiveServerProfile(serverName)
 	}
-	if credentialStore == "file" {
-		// A readable keyring credential moves along BEFORE the backend flips:
-		// the flip must never mask a live desktop pairing. Locked or absent
-		// keyrings make this a silent no-op and pairing continues file-backed.
-		migrated, migrateErr := migrateKeyringDeviceCredentialToFile()
-		if migrateErr != nil {
-			printErr("cannot move the device credential into private file storage: %s", migrateErr)
-			printErr("Nothing was paired — no code was used.")
-			return 1
-		}
-		if migrated {
-			fmt.Println("Moved this install's device credential into private file storage.")
-		}
-		forceDeviceCredentialFileMode()
-	}
 
 	// Pairing can run before a full setup as long as a relay URL is known: an
 	// explicit --relay-url starts from a fresh config, otherwise the saved one.
@@ -127,6 +112,24 @@ func runPairCommand(paths runtimePaths, args []string) int {
 	if bootstrapURL == "" {
 		printErr("no relay URL known; pass --relay-url http://<ha-host>:8791 or run 'ha-nova setup' first")
 		return 1
+	}
+	// Storage mutation only AFTER every selection/bootstrap guard above: a pair
+	// that exits before pairing must never have flipped the backend or moved
+	// credentials.
+	if credentialStore == "file" {
+		// A readable keyring credential moves along BEFORE the backend flips:
+		// the flip must never mask a live desktop pairing. Locked or absent
+		// keyrings make this a silent no-op and pairing continues file-backed.
+		migrated, migrateErr := migrateKeyringDeviceCredentialToFile()
+		if migrateErr != nil {
+			printErr("cannot move the device credential into private file storage: %s", migrateErr)
+			printErr("Nothing was paired — no code was used.")
+			return 1
+		}
+		if migrated {
+			fmt.Println("Moved this install's device credential into private file storage.")
+		}
+		forceDeviceCredentialFileMode()
 	}
 	if cfgErr != nil {
 		cfg = runtimeConfig{RelayBaseURL: bootstrapURL}
