@@ -33,6 +33,8 @@ scripts/demo/denylist.local
 scripts/demo/*.cast
 scripts/demo/*.txt
 scripts/demo/*.markers.json
+scripts/demo/casts/*.txt
+scripts/demo/casts/*.markers.json
 
 # Python cache artifacts from local validation harnesses
 __pycache__/
