@@ -106,6 +106,8 @@ The installer selects the latest stable release. Run the command for your OS; th
 
 Once it finishes, try: *"Show me all my automations."*
 
+> **More than one Home Assistant?** Add each further instance with `ha-nova pair --server <name> --relay-url http://<ha-host>:8791` — every server gets its own profile and its own isolated credential. Select one with the `--server <name>` flag on relay calls or the `HA_NOVA_SERVER` environment variable, and manage profiles with `ha-nova server list|default|rename|remove`.
+
 > **Upgrading from an earlier HA NOVA?** Everything keeps working through the update. To move to per-device pairing, re-pair each computer once (one code each), then revoke the old shared access from the NOVA page whenever you're ready.
 
 <details>
@@ -271,6 +273,7 @@ HA NOVA is young — and that's the point. Here's where it's going:
 - **Deeper reviews everywhere** — the full 40+ rule audit, expanding beyond automations
 - **Community skills** — write a new workflow as a markdown file, share it with everyone
 - **A guided Docker path in the wizard** — Container and Core setup without the manual steps
+- **Multi-server in the wizard** — adding a second Home Assistant guided from `ha-nova setup`, not just the CLI
 
 > If you've ever wanted to shape how AI works with Home Assistant, this is the stage where your input actually changes the product.
 

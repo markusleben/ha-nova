@@ -21,7 +21,6 @@ describe("release contract", () => {
     expect(goreleaser).toContain("HA_NOVA_VERSION={{ .Tag }}");
     expect(goreleaser).toContain("https://raw.githubusercontent.com/markusleben/ha-nova/{{ .Tag }}/install.ps1");
     expect(goreleaser).toContain("Windows uses a single supported install path: `install.ps1`.");
-    expect(goreleaser).toContain("Home Assistant Relay setup stays guided in the browser");
     expect(goreleaser).not.toContain("raw.githubusercontent.com/markusleben/ha-nova/main/install.sh");
     expect(goreleaser).not.toContain("raw.githubusercontent.com/markusleben/ha-nova/main/install.ps1");
     expect(goreleaser).not.toContain("$ProgressPreference = 'SilentlyContinue'");
@@ -54,15 +53,15 @@ describe("release contract", () => {
     expect(releaseWorkflow).not.toContain("dist/winget");
   });
 
-  it("keeps v0.19.0 release-facing wording user-centric", () => {
+  it("keeps v0.20.0 release-facing wording user-centric", () => {
     // Shipped release-note bodies are archived (docs/archive/work/) and
     // non-normative per documentation governance; only the active GoReleaser
     // template is contract-checked here.
-    expect(goreleaser).toContain("Passwordless onboarding");
-    expect(goreleaser).toContain("Pair each device with one code");
-    expect(goreleaser).toContain("no Long-Lived Access Token to create, copy, or paste");
-    expect(goreleaser).toContain("revoke the legacy shared access from the NOVA page");
-    expect(goreleaser).toContain("update the NOVA Relay App to 0.7.0");
+    expect(goreleaser).toContain("Connect more than one Home Assistant");
+    expect(goreleaser).toContain("Update notices tell you why");
+    expect(goreleaser).toContain("One confirmation for one logical change");
+    expect(goreleaser).toContain("Existing setups migrate automatically — nothing re-pairs");
+    expect(goreleaser).toContain("no App update needed if you are already on 0.7.0");
     expect(goreleaser).not.toContain("Use `v0.7.1` or the latest release command");
   });
 
