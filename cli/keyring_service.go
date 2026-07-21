@@ -92,12 +92,13 @@ func relayAuthTokenFilePathFromConfig() (string, bool, error) {
 	if err != nil {
 		return "", false, err
 	}
-	// Read the raw config instead of loadConfig: token storage must not
-	// depend on relay_base_url being set, and an unreadable config must
-	// fail loud instead of silently falling back to the OS keyring — on
-	// headless Linux that fallback can hang in Secret Service unlock
-	// prompts even though a token file is configured (issue #200).
-	cfg, err := loadJSONConfig(paths.ConfigFile)
+	// Read the raw default profile instead of loadConfig: token storage must
+	// not depend on relay_base_url being set or on a valid profile selection
+	// (the legacy relay token is default-profile-only), and an unreadable
+	// config must fail loud instead of silently falling back to the OS
+	// keyring — on headless Linux that fallback can hang in Secret Service
+	// unlock prompts even though a token file is configured (issue #200).
+	cfg, err := loadRawDefaultProfileConfig(paths.ConfigFile)
 	if err != nil {
 		if isNotExist(err) {
 			return "", false, nil

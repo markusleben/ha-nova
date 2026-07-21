@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"io"
 	"os"
@@ -49,11 +50,20 @@ func runSetup(paths runtimePaths, args []string) int {
 
 	cfg, cfgErr := loadConfig(paths)
 	if cfgErr != nil {
+		// A mistyped --server/HA_NOVA_SERVER selection must fail loud instead
+		// of silently running setup against a fresh config for the wrong house.
+		if errors.Is(cfgErr, errUnknownServerProfile) {
+			printHumanErr("%s", cfgErr)
+			return 1
+		}
 		// Preserve credential routing from an incomplete config: the token
 		// file setting decides where token reads/writes go, so the repair
-		// path must see it even when relay_base_url is missing.
-		if raw, rawErr := loadJSONConfig(paths.ConfigFile); rawErr == nil {
+		// path must see it even when relay_base_url is missing. The raw
+		// default-profile read also keeps the install-wide id, so a repaired
+		// setup never mints a second client_install_id.
+		if raw, rawErr := loadRawDefaultProfileConfig(paths.ConfigFile); rawErr == nil {
 			cfg.RelayTokenFile = raw.RelayTokenFile
+			cfg.ClientInstallID = raw.ClientInstallID
 		}
 	}
 	state, err := loadStateOrDefaultChecked(paths)

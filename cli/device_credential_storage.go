@@ -168,7 +168,7 @@ func deviceSecretFileSet(service, value string) error {
 	// re-pair/resume just overwrites the credential: never rewrite the marker
 	// there (a marker gone 0400 would otherwise fail and trigger a rollback that
 	// deletes the freshly promoted, already-activated credential).
-	if service == deviceCredentialService {
+	if isCurrentDeviceCredentialSlotService(service) {
 		path := testSecretPath(dir, service)
 		if deviceFileBackendMarkerExists() {
 			return writeSecretFile0600(path, value)
@@ -209,27 +209,6 @@ func deviceSecretFileDelete(service string) error {
 		return err
 	}
 	return nil
-}
-
-// removeDeviceFileStorageResidue clears the file-backend marker and removes the
-// secrets directory if it is now empty. Best-effort, purge-only: a leftover
-// marker would otherwise make a fresh reinstall inherit file mode without
-// re-probing. Also drops the in-process forced flag so the same run re-decides.
-func removeDeviceFileStorageResidue() {
-	// Delete the file-backed credential slots DIRECTLY (by path), not through the
-	// marker-routed deleters: a headless pairing interrupted before promotion
-	// leaves a pending FILE with no marker, so routed deletes would go to the
-	// keyring and leave the orphan file (and a non-empty secrets dir) behind.
-	_ = deviceSecretFileDelete(deviceCredentialService)
-	_ = deviceSecretFileDelete(deviceCredentialPendingService)
-	if path, err := deviceFileBackendMarkerPath(); err == nil {
-		_ = os.Remove(path)
-	}
-	if dir, err := deviceSecretFileDir(); err == nil {
-		_ = os.Remove(dir) // removes only when now empty
-	}
-	deviceCredentialFileModeForced = false
-	deviceCredentialFileModeExplicit = false
 }
 
 // Test seams: the canaries hit the real OS keyring / filesystem by default.
@@ -320,9 +299,9 @@ func keyringStorageCanary() error {
 }
 
 // fileStorageCanary proves the file backend can actually store credentials: the
-// secrets directory accepts a new file, AND every existing credential slot is
-// overwritable (a root-owned or 0400 credential file would otherwise only fail
-// at promotion, after the one-time code was already spent).
+// secrets directory accepts a new file, AND the TARGET profile's existing slots
+// are overwritable (a root-owned or 0400 credential file would otherwise only
+// fail at promotion, after the one-time code was already spent).
 func fileStorageCanary() error {
 	if err := deviceSecretFileSet(deviceCredentialProbeService, "probe"); err != nil {
 		return err
@@ -333,7 +312,7 @@ func fileStorageCanary() error {
 	if err := deviceSecretFileDelete(deviceCredentialProbeService); err != nil {
 		return err
 	}
-	for _, service := range []string{deviceCredentialService, deviceCredentialPendingService} {
+	for _, service := range []string{activeDeviceCredentialService(), activeDeviceCredentialPendingService()} {
 		path, err := deviceSecretFilePath(service)
 		if err != nil {
 			return err

@@ -1,9 +1,7 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
-	"os"
 )
 
 type runtimeConfig struct {
@@ -14,7 +12,8 @@ type runtimeConfig struct {
 	RelayTokenFile string `json:"relay_token_file,omitempty"`
 	// Stable, non-secret identifier for this OS-user installation. All AI clients
 	// on the same machine share one device credential keyed by this id; the relay
-	// records it so re-pairing replaces the same install's credential.
+	// records it so re-pairing replaces the same install's credential. Install-
+	// wide: server profiles share it (see config_profiles.go).
 	ClientInstallID string `json:"client_install_id,omitempty"`
 	// Secure device endpoint learned from pairing: the pinned TLS base URL and the
 	// exact SHA-256 SPKI pin. Functional device calls go here; a pin change forces
@@ -31,17 +30,30 @@ type runtimeConfig struct {
 
 type config = runtimeConfig
 
+// loadRuntimeConfig returns the flat runtimeConfig of the SELECTED server
+// profile (--server flag > HA_NOVA_SERVER env > default_server), so the many
+// direct config readers stay profile-agnostic. An unknown selection fails loud
+// with the list of known profiles.
 func loadRuntimeConfig(pathArgs ...runtimePaths) (runtimeConfig, error) {
 	paths, err := resolveRuntimePaths(pathArgs...)
 	if err != nil {
 		return runtimeConfig{}, err
 	}
 
-	cfg, err := loadJSONConfig(paths.ConfigFile)
+	doc, err := loadConfigDocument(paths.ConfigFile)
 	if err != nil {
 		return runtimeConfig{}, fmt.Errorf("HA NOVA is not set up yet. Run: ha-nova setup")
 	}
-	if cfg.RelayBaseURL == "" {
+	name, err := resolveSelectedServerProfile(doc)
+	if err != nil {
+		return runtimeConfig{}, err
+	}
+	setActiveServerProfile(name)
+	cfg, ok := doc.flatProfile(name)
+	if !ok || cfg.RelayBaseURL == "" {
+		if name != defaultServerProfileName {
+			return runtimeConfig{}, fmt.Errorf("server profile %q is not set up yet. Run: ha-nova pair --server %s --relay-url http://<ha-host>:8791", name, name)
+		}
 		return runtimeConfig{}, fmt.Errorf("HA NOVA is not set up yet. Run: ha-nova setup")
 	}
 	return cfg, nil
@@ -51,19 +63,6 @@ func loadConfig(pathArgs ...runtimePaths) (config, error) {
 	return loadRuntimeConfig(pathArgs...)
 }
 
-func loadJSONConfig(path string) (runtimeConfig, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return runtimeConfig{}, err
-	}
-
-	var cfg runtimeConfig
-	if err := json.Unmarshal(data, &cfg); err != nil {
-		return runtimeConfig{}, err
-	}
-	return cfg, nil
-}
-
 func resolveRuntimePaths(pathArgs ...runtimePaths) (runtimePaths, error) {
 	if len(pathArgs) > 0 {
 		return pathArgs[0], nil
@@ -71,7 +70,10 @@ func resolveRuntimePaths(pathArgs ...runtimePaths) (runtimePaths, error) {
 	return detectPaths()
 }
 
+// saveConfig writes cfg into the SELECTED server profile of the on-disk
+// document, preserving sibling profiles and unknown top-level fields, and
+// mirrors the default profile into the legacy flat fields (downgrade floor).
 func saveConfig(paths runtimePaths, cfg runtimeConfig) error {
 	cfg.SchemaVersion = configSchemaVersion
-	return writeJSONFile(paths.ConfigFile, cfg, 0o600)
+	return saveProfileConfig(paths, cfg)
 }
