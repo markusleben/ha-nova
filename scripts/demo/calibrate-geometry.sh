@@ -9,10 +9,18 @@
 set -euo pipefail
 
 DEMO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TARGET_COLS="${1:-100}"
-TARGET_ROWS="${2:-30}"
-FONT_SIZE="${3:-16}"
-PADDING=12
+
+# Default to the committed calibration so a bare re-run REFRESHES the
+# existing grid instead of silently switching layout and asset dimensions.
+DEMO_COLS=100 DEMO_ROWS=30 VHS_FONT_SIZE=16 VHS_PADDING=12
+if [[ -f "$DEMO_DIR/geometry.env" ]]; then
+  # shellcheck source=geometry.env
+  source "$DEMO_DIR/geometry.env"
+fi
+TARGET_COLS="${1:-$DEMO_COLS}"
+TARGET_ROWS="${2:-$DEMO_ROWS}"
+FONT_SIZE="${3:-$VHS_FONT_SIZE}"
+PADDING="$VHS_PADDING"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 

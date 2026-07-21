@@ -31,10 +31,13 @@ end_recording "$CAST"
 kill_session
 
 # Preserve the snapshot fetched during THIS take (newest image since STAMP).
+# Search ONLY Claude's own scratch root: a broad /tmp scan could pick up an
+# unrelated process's image, violating the PiP honesty rule and potentially
+# copying another app's sensitive temp file.
 # Only search roots that exist — a missing root makes find exit non-zero,
 # which would kill the script under set -e before the warning below.
 roots=()
-for d in "/private/tmp/claude-$(id -u)" /tmp; do
+for d in "/private/tmp/claude-$(id -u)"; do
   [[ -d "$d" ]] && roots+=("$d")
 done
 snapshot=""
