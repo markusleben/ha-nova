@@ -102,6 +102,16 @@ func runPairCommand(paths runtimePaths, args []string) int {
 		printErr("%s", cfgErr)
 		return 1
 	}
+	if serverName == "" && cfgErr != nil {
+		// loadConfig failed before profile resolution (missing/incomplete
+		// config), so an env-only selection never reached the credential seam —
+		// saves would target the env profile while credentials land in the
+		// default slots. Creation always requires the explicit flag.
+		if name, source := requestedServerSelection(); name != "" && name != defaultServerProfileName {
+			printErr("profile %q (from %s) is not set up; create it explicitly: ha-nova pair --server %s --relay-url http://<ha-host>:8791", name, source, name)
+			return 1
+		}
+	}
 	bootstrapURL := strings.TrimSpace(relayURL)
 	if bootstrapURL == "" {
 		if newProfile {

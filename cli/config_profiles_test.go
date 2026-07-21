@@ -346,6 +346,35 @@ func TestSetupRejectsAnyNonDefaultServerSelection(t *testing.T) {
 	}
 }
 
+func TestEnvOnlyFreshPairRequiresExplicitServerFlag(t *testing.T) {
+	// HA_NOVA_SERVER=cabin ha-nova pair --relay-url ... with no config yet:
+	// saves would target the env profile while credentials land in the default
+	// slots. Creation always requires the explicit --server flag.
+	resetServerProfileSelection(t)
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("HA_NOVA_TEST_SECRET_DIR", t.TempDir())
+	t.Setenv(serverSelectionEnvVar, "cabin")
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if code := runPairCommand(paths, []string{"--relay-url", "http://cabin:8791", "--code", "123456"}); code == 0 {
+		t.Fatal("env-only fresh pair must fail loud and require --server")
+	}
+}
+
+func TestSetupRejectsConfiguredNonDefaultDefaultServer(t *testing.T) {
+	// default_server can activate a named profile with no explicit selection
+	// (e.g. after the first profile came from pair --server). Setup's
+	// legacy-token machinery is default-profile-only.
+	resetServerProfileSelection(t)
+	t.Setenv("HOME", t.TempDir())
+	paths := writeTestConfigFile(t, `{"schema_version":2,"default_server":"cabin","servers":{"cabin":{"relay_base_url":"http://cabin:8791"}}}`)
+	if code := runSetup(paths, []string{"--relay-token", "tok", "--non-interactive"}); code == 0 {
+		t.Fatal("setup must reject a config whose default_server selects a named profile")
+	}
+}
+
 func TestLegacyMirrorFollowsLiteralDefaultNotDefaultServer(t *testing.T) {
 	// The flat mirror pairs with the machine-wide legacy token in old binaries,
 	// so it must always carry the LITERAL default profile — never the profile
