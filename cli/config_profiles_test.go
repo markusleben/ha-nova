@@ -323,11 +323,11 @@ func TestRawDefaultProfileLoaderIgnoresDefaultServerRedirect(t *testing.T) {
 	}
 }
 
-func TestFreshSetupRejectsNonDefaultServerSelection(t *testing.T) {
-	// Fresh install + HA_NOVA_SERVER naming a new profile: loadConfig fails
-	// before profile resolution, so setup would pair credentials into the
-	// default slots while saving config into the named profile. Named profiles
-	// are created via pair, never via setup.
+func TestSetupRejectsAnyNonDefaultServerSelection(t *testing.T) {
+	// Setup administers only the default profile: under a named selection the
+	// legacy-token flow would retire that profile's device credential while
+	// pairing nothing in its place. This holds for fresh installs AND existing
+	// named profiles — named profiles are managed via pair --server.
 	resetServerProfileSelection(t)
 	t.Setenv("HOME", t.TempDir())
 	t.Setenv(serverSelectionEnvVar, "cabin")
@@ -335,8 +335,14 @@ func TestFreshSetupRejectsNonDefaultServerSelection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Fresh install.
 	if code := runSetup(paths, nil); code == 0 {
 		t.Fatal("fresh setup with a non-default server selection must fail loud")
+	}
+	// Existing named profile: still rejected before the token flow.
+	pathsExisting := writeTestConfigFile(t, testV2TwoProfileConfig)
+	if code := runSetup(pathsExisting, []string{"--relay-token", "tok", "--non-interactive"}); code == 0 {
+		t.Fatal("setup on an existing named profile must fail loud")
 	}
 }
 
