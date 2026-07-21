@@ -14,9 +14,9 @@ set -euo pipefail
 
 CAST="${1:?usage: scrub-check.sh <compressed-cast>}"
 TXT="${CAST%.cast}.txt"
+DEMO_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 
 DENYLIST=(
-  "czerwonka"          # account identity (must be redacted by compress-cast)
   "gmail"
   "Bearer "
   "eyJ"                # JWT prefix
@@ -24,6 +24,18 @@ DENYLIST=(
   "SUPERVISOR_TOKEN"
   "password"
 )
+
+# Identity terms (account names, family names, street …) must never live in
+# the repo — the denylist would otherwise publish what it protects. Keep one
+# fixed-string pattern per line in the untracked scripts/demo/denylist.local.
+if [[ -f "$DEMO_DIR/denylist.local" ]]; then
+  while IFS= read -r pat; do
+    [[ -n "$pat" && "$pat" != \#* ]] && DENYLIST+=("$pat")
+  done < "$DEMO_DIR/denylist.local"
+else
+  echo "WARNING: $DEMO_DIR/denylist.local missing — identity terms are NOT checked." >&2
+  echo "Create it with your account/family/location strings before a real take." >&2
+fi
 
 asciinema convert -f txt --overwrite "$CAST" "$TXT"
 
@@ -36,7 +48,9 @@ for pat in "${DENYLIST[@]}"; do
   fi
 done
 
-if hits=$(grep -inE "[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}" "$TXT" | grep -v "demo@example.com"); then
+# Token-level, not line-level: a line holding both the allowed redacted
+# address and a second leaked address must still fail.
+if hits=$(grep -oinE "[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}" "$TXT" | grep -ivF "demo@example.com"); then
   echo "E-MAIL LEAK (redaction failed):" >&2
   echo "$hits" | head -5 >&2
   fail=1

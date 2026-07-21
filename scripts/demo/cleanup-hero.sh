@@ -44,8 +44,17 @@ list_entity_ids() {
   list_matches | cut -f1
 }
 
-mapfile -t matches < <(list_matches)
-mapfile -t ids < <(printf '%s\n' "${matches[@]:-}" | cut -f1 | sed '/^$/d')
+# Plain assignment, not process substitution: an exit inside <(...) never
+# reaches the parent, which would turn a failed lookup into "nothing to clean".
+matches_raw=$(list_matches)
+matches=()
+while IFS= read -r line; do
+  [[ -n "$line" ]] && matches+=("$line")
+done <<<"$matches_raw"
+ids=()
+for m in "${matches[@]:-}"; do
+  [[ -n "$m" ]] && ids+=("${m%%$'\t'*}")
+done
 
 if ((${#ids[@]} == 0)); then
   echo "No demo automation matching alias prefix \"$PREFIX\" — nothing to clean."
@@ -72,9 +81,9 @@ for ei in "${ids[@]}"; do
 done
 
 sleep 1
-mapfile -t left < <(list_entity_ids)
-if ((${#left[@]} > 0)); then
-  echo "ERROR: still present after delete: ${left[*]}" >&2
+left_raw=$(list_entity_ids)
+if [[ -n "$left_raw" ]]; then
+  echo "ERROR: still present after delete: $(tr '\n' ' ' <<<"$left_raw")" >&2
   exit 1
 fi
 echo "Verified: no demo automation left."

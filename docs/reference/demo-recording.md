@@ -30,6 +30,13 @@ Assistant — only waiting time is compressed.
 Plus: the `ha-nova` CLI onboarded against a live Home Assistant, and the
 `claude` CLI with the ha-nova plugin installed.
 
+Before the first real take, create the untracked identity denylist
+`scripts/demo/denylist.local` (one fixed string per line: account names,
+family names, street/city — anything that must never appear in a cast).
+`scrub-check.sh` warns when it is missing; the committed denylist carries
+only generic credential patterns, because a committed identity list would
+publish exactly what it protects.
+
 ## Pipeline
 
 ```

@@ -25,6 +25,9 @@ docs/internal/
 # Local validation artifacts
 .artifacts/
 
+# Demo-recording identity denylist (personal strings, never committed)
+scripts/demo/denylist.local
+
 # Python cache artifacts from local validation harnesses
 __pycache__/
 *.py[cod]
