@@ -32,7 +32,7 @@ File-based relay requests only: `ha-nova relay core --method <METHOD> --path <PA
 
 Multi-target logical changes: present the plan first per `skills/ha-nova/write-safety.md` → Multi-Target Changes.
 
-Input-device remaps (buttons, remotes, switches): run the capability preflight per `skills/ha-nova/input-capability-preflight.md` before drafting; the write stays blocked while the chosen gesture is only assumed.
+Input-device remaps (buttons, remotes, switches): run the capability preflight per `skills/ha-nova/input-capability-preflight.md` before drafting; the write stays blocked while the chosen gesture is only assumed or its evidence conflicts.
 
 ### Phase 1: Resolve (Agent)
 

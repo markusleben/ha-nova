@@ -384,7 +384,7 @@ describe("ha-nova contract", () => {
       "run the capability preflight per `skills/ha-nova/input-capability-preflight.md` before drafting",
     );
     expect(write).toContain(
-      "the write stays blocked while the chosen gesture is only assumed",
+      "the write stays blocked while the chosen gesture is only assumed or its evidence conflicts",
     );
 
     // Evidence classes and the never-supported rule.
