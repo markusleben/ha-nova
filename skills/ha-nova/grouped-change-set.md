@@ -57,9 +57,14 @@ ledger.
 ## Execution
 
 - Sequential, in previewed order; fail fast on the first unexpected result.
-- Immediately before EACH operation, run the owning skill's drift check
-  (write-safety → Drift check before apply): re-read the target and compare
-  against the previewed base; on foreign change, STOP the group.
+- Immediately before EACH operation, run the operation-specific pre-apply
+  check; on foreign change, STOP the group:
+  - update: the owning skill's drift check (write-safety → Drift check before
+    apply) — re-read the target and compare against the previewed base;
+  - create: verify the previewed ID/slug is still absent (no collision
+    appeared since the preview);
+  - service call / runtime action: re-check that the target entity still
+    exists and is not `unavailable`/`unknown` before firing.
 - Verify each applied operation with the owning skill's existing rules before
   moving on.
 - Never claim the group is atomic, transactional, or automatically revertible.

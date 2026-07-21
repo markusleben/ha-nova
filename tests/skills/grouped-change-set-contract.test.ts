@@ -88,11 +88,14 @@ describe("grouped change set contract (issue #391)", () => {
     expect(grouped).toContain("expires the confirmation");
   });
 
-  it("executes sequentially with a fresh drift check before each operation", () => {
+  it("executes sequentially with an operation-specific pre-apply check", () => {
     expect(grouped).toContain("Sequential, in previewed order; fail fast");
     expect(grouped).toContain("Immediately before EACH operation");
-    expect(grouped).toContain("Drift check before apply");
     expect(grouped).toContain("on foreign change, STOP the group");
+    // Per operation class: drift re-read, create-collision absence, liveness.
+    expect(grouped).toContain("write-safety → Drift check");
+    expect(grouped).toContain("still absent");
+    expect(grouped).toContain("not `unavailable`/`unknown` before firing");
   });
 
   it("keeps a per-operation ledger and reports partial completion honestly", () => {
