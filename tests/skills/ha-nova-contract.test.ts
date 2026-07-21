@@ -812,6 +812,16 @@ describe("ha-nova contract", () => {
     expect(content).toContain("Before the first HA task in a session");
   });
 
+  it("surfaces the update as a once-per-session callout after the requested result", () => {
+    const content = readFileSync("skills/ha-nova/SKILL.md", "utf8");
+    expect(content).toContain("### Update Callout");
+    expect(content).toContain("ONCE per session");
+    expect(content).toContain("AFTER the result of the user's requested task");
+    expect(content).toContain("up to 3 highlight lines");
+    expect(content).toContain("the release URL when the notice includes one");
+    expect(content).toContain("never install an update without the user's consent");
+  });
+
   it("provides SessionStart hook for context skill auto-loading", () => {
     const hooksJson = JSON.parse(readFileSync("hooks/hooks.json", "utf8"));
     expect(hooksJson.hooks.SessionStart).toBeDefined();

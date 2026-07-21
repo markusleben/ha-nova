@@ -214,18 +214,75 @@ func TestSkillUpdateNudgeRefreshThrottleFollowsCacheTTLNotNoticeInterval(t *test
 }
 
 func TestSkillUpdateNudgeMessageMatchesInstallSourceGuidance(t *testing.T) {
-	normal := skillUpdateNudgeMessage("HA NOVA update available", "0.1.0", "0.2.0", installSourceBundle)
+	normal := skillUpdateNudgeMessage("HA NOVA update available", "0.1.0", "0.2.0", installSourceBundle, nil, "")
 	if !strings.Contains(normal, "Run: ha-nova update") {
 		t.Fatalf("bundle install must advise ha-nova update: %q", normal)
 	}
 	// Legacy Windows package installs reject `ha-nova update` in runUpdate, so
 	// the passive nudge must never advertise a known-failing command.
-	legacy := skillUpdateNudgeMessage("HA NOVA update available", "0.1.0", "0.2.0", installSourceLegacyWindowsPackage)
+	legacy := skillUpdateNudgeMessage("HA NOVA update available", "0.1.0", "0.2.0", installSourceLegacyWindowsPackage, nil, "")
 	if strings.Contains(legacy, "Run: ha-nova update") {
 		t.Fatalf("legacy Windows package installs must not be told to run ha-nova update: %q", legacy)
 	}
 	if !strings.Contains(legacy, "install.ps1") {
 		t.Fatalf("legacy guidance must point at the supported reinstall path: %q", legacy)
+	}
+}
+
+func TestSkillUpdateNudgeMessageComposesHighlightsAroundPinnedGuidance(t *testing.T) {
+	highlights := []releaseHighlight{
+		{Kind: releaseHighlightKindAction, Text: "Re-run ha-nova setup after updating"},
+		{Kind: releaseHighlightKindFeature, Text: "New energy skill"},
+	}
+	message := skillUpdateNudgeMessage("HA NOVA update available", "0.1.0", "0.2.0", installSourceBundle, highlights, "https://example.test/v0.2.0")
+	if !strings.Contains(message, "Inform the user: Run: ha-nova update (new session required after update).") {
+		t.Fatalf("pinned guidance must stay intact: %q", message)
+	}
+	for _, want := range []string{
+		"Highlights:\n- Re-run ha-nova setup after updating\n- New energy skill",
+		"Release notes: https://example.test/v0.2.0",
+	} {
+		if !strings.Contains(message, want) {
+			t.Fatalf("expected %q in nudge message %q", want, message)
+		}
+	}
+	// Legacy Windows guidance composes with the digest too, never replaced by it.
+	legacy := skillUpdateNudgeMessage("HA NOVA update available", "0.1.0", "0.2.0", installSourceLegacyWindowsPackage, highlights, "https://example.test/v0.2.0")
+	if !strings.Contains(legacy, "install.ps1") || !strings.Contains(legacy, "Highlights:") {
+		t.Fatalf("legacy guidance and highlights must both be present: %q", legacy)
+	}
+}
+
+func TestSkillUpdateNudgeNoticeCarriesHighlightsFromCacheOnly(t *testing.T) {
+	paths, spawnCount := nudgeTestEnv(t, "0.1.0")
+	if err := writeJSONFile(paths.UpdateCacheFile, releaseInfo{
+		Version:     "0.2.0",
+		HTMLURL:     "https://example.test/releases/v0.2.0",
+		PublishedAt: "2026-07-21T10:00:00Z",
+		ReleaseHighlights: []releaseHighlight{
+			{Kind: releaseHighlightKindFeature, Text: "New energy skill"},
+			{Kind: releaseHighlightKindFix, Text: "Fix relay reconnect loop"},
+		},
+	}, 0o644); err != nil {
+		t.Fatalf("write cache: %v", err)
+	}
+
+	notice := skillUpdateNudgeNotice(paths, false)
+	if notice.empty() {
+		t.Fatal("expected an update notice")
+	}
+	for _, want := range []string{
+		"v0.1.0 -> v0.2.0",
+		"Highlights:\n- New energy skill\n- Fix relay reconnect loop",
+		"Release notes: https://example.test/releases/v0.2.0",
+	} {
+		if !strings.Contains(notice.message, want) {
+			t.Fatalf("expected %q in notice %q", want, notice.message)
+		}
+	}
+	// Cache-only contract: a fresh cache must not trigger any network refresh.
+	if *spawnCount != 0 {
+		t.Fatalf("spawnCount = %d, want 0 (nudge must stay cache-only)", *spawnCount)
 	}
 }
 

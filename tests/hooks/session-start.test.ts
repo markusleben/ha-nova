@@ -2,8 +2,9 @@
  * S-6: SessionStart hook (4 variants)
  * Tests the hooks/session-start script output in various configurations.
  */
-import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
+import { readFileSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -80,6 +81,66 @@ describe("S-6: session-start hook", () => {
     expect(hookContent).toContain("ha-nova update");
     expect(hookContent).toContain("ha-nova check-update --quiet --json");
     expect(hookContent).not.toContain("api.github.com/repos/markusleben/ha-nova/releases/latest");
+    // Compact release highlights come from the shared cache via grep-based
+    // extraction of the "text" fields — never a jq dependency.
+    expect(hookContent).toContain("release_highlights");
+    expect(hookContent).toContain('"text"');
+    expect(hookContent).toContain("Release notes:");
+  });
+
+  it("surfaces cached release highlights and release URL in the update notice", () => {
+    const home = mkdtempSync(join(tmpdir(), "ha-nova-hook-home-"));
+    const cacheDir = join(home, ".cache", "ha-nova");
+    mkdirSync(cacheDir, { recursive: true });
+    writeFileSync(
+      join(cacheDir, "latest-release.json"),
+      JSON.stringify(
+        {
+          version: "99.0.0",
+          html_url: "https://example.test/releases/v99.0.0",
+          published_at: "2026-07-21T10:00:00Z",
+          release_highlights: [
+            { kind: "action", text: "Re-run ha-nova setup after updating" },
+            { kind: "feature", text: "New energy skill" },
+            { kind: "fix", text: "Fix relay reconnect loop" },
+          ],
+        },
+        null,
+        2,
+      ),
+    );
+
+    // Deterministic ha-nova mock: a released (non-dev) version so the update
+    // notice branch runs; every other subcommand no-ops. Keep the normal test
+    // PATH otherwise — the other hook tests rely on the same bash resolution.
+    const binDir = mkdtempSync(join(tmpdir(), "ha-nova-hook-bin-"));
+    writeFileSync(
+      join(binDir, "ha-nova"),
+      `#!/usr/bin/env bash
+case "$1" in
+  version) echo "0.19.0" ;;
+  relay) exit 1 ;;
+  *) exit 0 ;;
+esac
+`,
+      { mode: 0o755 },
+    );
+
+    const result = spawnSync("bash", ["hooks/session-start"], {
+      cwd: REPO_ROOT,
+      encoding: "utf8",
+      timeout: 15000,
+      env: { ...process.env, HOME: home, PATH: `${binDir}:${process.env.PATH ?? ""}` },
+    });
+
+    expect(result.status).toBe(0);
+    const json = JSON.parse(result.stdout.trim());
+    expect(json.additional_context).toContain("UPDATE AVAILABLE");
+    expect(json.additional_context).toContain("v99.0.0");
+    expect(json.additional_context).toContain("- Re-run ha-nova setup after updating");
+    expect(json.additional_context).toContain("- New energy skill");
+    expect(json.additional_context).toContain("- Fix relay reconnect loop");
+    expect(json.additional_context).toContain("Release notes: https://example.test/releases/v99.0.0");
   });
 
   it("keeps the SessionStart refresh throttle within the CLI freshness floor", () => {

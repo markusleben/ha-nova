@@ -407,6 +407,13 @@ Rules:
 - keep notes short and concrete
 - prefer user-visible outcomes over implementation detail
 - do not list every small fix
+- bullet order expresses importance: the compact update notice (check-update,
+  relay nudges, session start) surfaces only the FIRST bullets — one
+  action-needed item plus two feature/fix items — so lead every section with
+  what users must see
+- only recognized sections feed the compact update notice: `Breaking Changes`,
+  `What To Watch`, `Upgrade Notes` (action needed), `New Features`, and
+  `Bug Fixes`; bullets under any other heading never surface there
 - call out Windows installer/update/uninstall changes when they affect real users
 - stable release notes must publish tag-pinned install commands, never `main` bootstrap URLs
 - keep the supported Windows command plain and release-pinned:

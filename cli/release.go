@@ -13,7 +13,11 @@ const latestReleaseURL = "https://api.github.com/repos/markusleben/ha-nova/relea
 type githubRelease struct {
 	TagName string `json:"tag_name"`
 	HTMLURL string `json:"html_url"`
-	Assets  []struct {
+	// Body feeds the compact highlight digest (cli/release_digest.go); only
+	// the normalized highlights are cached, never the full body.
+	Body        string `json:"body"`
+	PublishedAt string `json:"published_at"`
+	Assets      []struct {
 		Name               string `json:"name"`
 		BrowserDownloadURL string `json:"browser_download_url"`
 	} `json:"assets"`
@@ -42,8 +46,11 @@ func fetchLatestRelease(paths runtimePaths, quiet bool, allowCache bool) (releas
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("User-Agent", "ha-nova/"+localVersion(paths))
 	// Revalidate cheaply: an unchanged release answers 304 (off the rate limit);
-	// a new release answers 200 and is picked up immediately.
-	if allowCache && hasCache && cached.ETag != "" {
+	// a new release answers 200 and is picked up immediately. A cache entry
+	// without digest metadata (written by a pre-digest CLI) skips the
+	// conditional header once: a 304 has no body, so it could never refill the
+	// digest — one full 200 does.
+	if allowCache && hasCache && cached.ETag != "" && cached.PublishedAt != "" {
 		req.Header.Set("If-None-Match", cached.ETag)
 	}
 
@@ -86,10 +93,12 @@ func fetchLatestRelease(paths runtimePaths, quiet bool, allowCache bool) (releas
 		return releaseInfo{}, fmt.Errorf("latest release tag invalid: %w", err)
 	}
 	info := releaseInfo{
-		Version:   version,
-		HTMLURL:   release.HTMLURL,
-		AssetName: bundleAssetName(),
-		ETag:      strings.TrimSpace(resp.Header.Get("ETag")),
+		Version:           version,
+		HTMLURL:           release.HTMLURL,
+		AssetName:         bundleAssetName(),
+		ETag:              strings.TrimSpace(resp.Header.Get("ETag")),
+		PublishedAt:       strings.TrimSpace(release.PublishedAt),
+		ReleaseHighlights: deriveReleaseHighlights(release.Body),
 	}
 	cacheReleaseInfo(paths, info)
 	if !quiet {
@@ -148,6 +157,8 @@ func buildUpdateCheckResult(paths runtimePaths) updateCheckResult {
 	result.CacheStatus = "fresh"
 	result.LatestVersion = release.Version
 	result.HTMLURL = release.HTMLURL
+	result.PublishedAt = release.PublishedAt
+	result.ReleaseHighlights = release.ReleaseHighlights
 	cmp, err := compareReleaseVersions(current, release.Version)
 	if err != nil {
 		result.Status = "check_failed"
@@ -208,10 +219,12 @@ func humanNoticeFromUpdateCheckResult(result updateCheckResult, quiet bool) huma
 			message: result.Message,
 		}
 	case "update_available":
+		// The digest composes AROUND the pinned guidance message (which stays
+		// byte-identical); without a valid digest only the release URL is added.
 		return humanNotice{
 			level:   humanNoticeWarning,
 			kind:    humanNoticeKindUpdateAvailable,
-			message: result.Message,
+			message: result.Message + releaseHighlightNoticeSuffix(result.ReleaseHighlights, result.HTMLURL),
 		}
 	default:
 		return humanNotice{}
