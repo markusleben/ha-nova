@@ -130,9 +130,9 @@ the card that other event listeners cannot be ruled out.
   the pending trigger and produces a false "did not fire". When that wait
   is impractical, fall back to actions-only or the logic check and say so.
 - `state` on a physical sensor (motion, door, presence): there is no honest
-  service to fake it — ask the user to trigger the device physically, then
-  read the trace (sequence: User-Assisted Readiness below); otherwise fall
-  back to "run actions now".
+  service to fake it — arm the baseline first (sequence: User-Assisted
+  Readiness below), only then ask the user to trigger the device physically,
+  then read the trace; otherwise fall back to "run actions now".
 - `template`: run the logic check first; then manipulate the underlying
   entities as above.
 - `event`: `POST /api/events/<event_type>` with the payload the trigger
@@ -155,11 +155,12 @@ to miss:
 4. Instruct exactly one action: the device, the movement, and when — "walk
    past the hall motion sensor now, then tell me when done." Name any `for:`
    hold the trigger needs.
-5. After the user reports done, read the trace and accept it only if the
-   run_id is new AND its fired trigger matches the requested source — the
-   same automation can fire from an unrelated trigger while you wait, and
-   that trace is not this test's result (say so and offer a retry). Then
-   verify device states, restore per the card, and report.
+5. After the user reports done, list the traces and inspect every run newer
+   than the captured baseline — not only the latest, since an unrelated
+   trigger can fire after the user acted and hide the matching run. Accept
+   the newest run whose fired trigger matches the requested source; if none
+   matches, the new traces are not this test's result — say so and offer a
+   retry. Then verify device states, restore per the card, and report.
 
 Never tell the user to act before step 2 is complete. A test whose trigger
 listens on MQTT verifies via `ha-nova:mqtt` bounded-window readiness instead

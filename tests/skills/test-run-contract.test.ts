@@ -151,10 +151,14 @@ describe("post-write test-offer contract", () => {
     expect(testRun).toContain("then tell me when done");
     expect(testRun).toContain("Never tell the user to act before step 2 is complete.");
     // A new run_id alone is not proof: the fired trigger must match the
-    // requested source, or an unrelated trigger's trace masquerades as the test.
-    expect(testRun).toContain("its fired trigger matches the requested source");
-    expect(testRun).toContain("that trace is not this test's result");
-    expect(testRun).toContain("sequence: User-Assisted Readiness below");
+    // requested source, and the latest trace alone can hide the matching run.
+    expect(testRun).toContain("inspect every run newer\n   than the captured baseline");
+    expect(testRun).toContain("fired trigger matches the requested source");
+    expect(testRun).toContain("not this test's result");
+    // Arming precedes the physical instruction even in the trigger-type recipe.
+    expect(testRun).toContain("arm the baseline first");
+    expect(testRun).toContain("only then ask the user to trigger the device physically");
+    expect(testRun).toContain("(sequence: User-Assisted");
     expect(testRun).toContain("opens with its effect class");
     expect(testRun).toContain("restate the chosen effect in the next response");
     expect(testRun).toContain("never start what a bare number selected without naming it");
