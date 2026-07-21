@@ -201,7 +201,8 @@ When one logical change spans multiple automations/scripts/helpers, per-target
 previews alone hide the whole picture. Before the FIRST per-target preview:
 
 1. Present the change plan: every target, what changes in each, the intended
-   combined behavior, and the apply order (dependencies first).
+   combined behavior, and the apply order (dependencies first). The plan must
+   satisfy the active user decisions (context skill → Decision Memory).
 2. State revert coverage honestly BEFORE starting: update-revert keeps the
    last 5 updated targets (one snapshot per target) — a logical change with
    more update targets than that loses auto-revert for the oldest ones; say

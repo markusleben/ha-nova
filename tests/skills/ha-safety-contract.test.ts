@@ -63,6 +63,58 @@ describe("ha safety contract", () => {
     }
   });
 
+  it("preserves explicit user constraints across multi-step changes", () => {
+    const context = readFileSync("skills/ha-nova/SKILL.md", "utf8");
+    const writeSafety = readFileSync("skills/ha-nova/write-safety.md", "utf8");
+    const grouped = readFileSync("skills/ha-nova/grouped-change-set.md", "utf8");
+
+    // Four distinct kinds, never merged.
+    expect(context).toContain("## Decision Memory (multi-step tasks)");
+    expect(context).toContain("**hard requirements**");
+    expect(context).toContain("**accepted choices**");
+    expect(context).toContain("**rejected alternatives**");
+    expect(context).toContain("**unresolved assumptions**");
+    expect(context).toContain("four kinds, never merged");
+
+    // Supersession semantics: replaced is not a conflict.
+    expect(context).toContain("**Last explicit choice wins:**");
+    expect(context).toContain(
+      "replaces exactly the older choice it contradicts",
+    );
+    expect(context).toContain("unrelated earlier constraints stay active");
+    expect(context).toContain(
+      "A replaced decision is not a conflict — two still-active contradicting requirements are.",
+    );
+
+    // The gate: block and explain, never silently resolve.
+    expect(context).toContain(
+      "Validate every plan, preview, and mutation draft against the active user decisions",
+    );
+    expect(context).toContain("block that output and explain in plain language");
+    expect(context).toContain("never silently pick a side");
+    expect(context).toContain("never quietly drop the older constraint");
+
+    // Unresolved assumptions surface with the Uncertain tone.
+    expect(context).toContain(
+      "surface in the preview with the Uncertain tone",
+    );
+
+    // No persistence, no internal identifiers in output.
+    expect(context).toContain("no persistent store");
+    expect(context).toContain(
+      "no internal requirement labels or identifiers in user-facing output",
+    );
+
+    // Multi-turn worked example: superseded, retained, conflict, unresolved.
+    expect(context).toContain("Worked example:");
+    expect(context).toContain("replaces the old requirement");
+    expect(context).toContain("the hallway decision stays untouched");
+
+    // Carried through multi-target and grouped flows.
+    expect(writeSafety).toContain("context skill → Decision Memory");
+    expect(grouped).toContain("context skill → Decision Memory");
+  });
+
   it("requires structured failure output", () => {
     const router = readFileSync("skills/ha-nova/SKILL.md", "utf8");
     const writeSkill = readFileSync("skills/write/SKILL.md", "utf8");
