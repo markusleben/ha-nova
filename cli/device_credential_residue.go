@@ -117,22 +117,9 @@ func stageServerCredentialSlotMove(oldName, newName string) (rollback func(), co
 			_ = os.Rename(pair[1], pair[0])
 		}
 	}
-	for _, pair := range slots {
-		value, ok, readErr := readCredentialSlot(pair[0])
-		if readErr != nil {
-			rollback()
-			return nil, nil, fmt.Errorf("cannot read the stored device credential (%s): %w — make secure storage available, then retry", pair[0], readErr)
-		}
-		if !ok {
-			continue
-		}
-		if writeErr := secretSet(pair[1], value); writeErr != nil {
-			rollback()
-			return nil, nil, fmt.Errorf("cannot store the device credential under the new name (%s): %w", pair[1], writeErr)
-		}
-		written = append(written, pair[1])
-		obsolete = append(obsolete, pair[0])
-	}
+	// Raw files FIRST: they need no keyring, so a markerless pending file is
+	// preserved even on a headless machine where the routed read errors.
+	movedRaw := map[string]bool{}
 	if !deviceFileBackendMarkerExists() {
 		for _, pair := range slots {
 			oldPath, pathErr := deviceSecretFilePath(pair[0])
@@ -151,7 +138,34 @@ func stageServerCredentialSlotMove(oldName, newName string) (rollback func(), co
 				return nil, nil, fmt.Errorf("cannot move the pending credential file for %q: %w", oldName, renameErr)
 			}
 			movedFiles = append(movedFiles, [2]string{oldPath, newPath})
+			movedRaw[pair[0]] = true
 		}
+	}
+	for _, pair := range slots {
+		value, ok, readErr := readCredentialSlot(pair[0])
+		if readErr != nil {
+			// Headless machine + markerless raw file already moved: the routed
+			// keyring is unreachable here, and for the interrupted file-pairing
+			// case there is nothing in it to move. Warn instead of failing the
+			// exact case the raw move exists for; any keyring credential from an
+			// earlier DESKTOP pairing under the old name is not moved — that
+			// rename needs the desktop session.
+			if movedRaw[pair[0]] {
+				printHumanWarn("secure storage is not reachable here (%v); a keyring credential stored under the old name %q by an earlier desktop pairing was not moved — re-run the rename from the desktop session if one exists.", readErr, pair[0])
+				continue
+			}
+			rollback()
+			return nil, nil, fmt.Errorf("cannot read the stored device credential (%s): %w — make secure storage available, then retry", pair[0], readErr)
+		}
+		if !ok {
+			continue
+		}
+		if writeErr := secretSet(pair[1], value); writeErr != nil {
+			rollback()
+			return nil, nil, fmt.Errorf("cannot store the device credential under the new name (%s): %w", pair[1], writeErr)
+		}
+		written = append(written, pair[1])
+		obsolete = append(obsolete, pair[0])
 	}
 	commit = func() {
 		for _, service := range obsolete {
