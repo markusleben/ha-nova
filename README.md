@@ -106,6 +106,8 @@ The installer selects the latest stable release. Run the command for your OS; th
 
 Once it finishes, try: *"Show me all my automations."*
 
+> **More than one Home Assistant?** Add each further instance with `ha-nova pair --server <name> --relay-url http://<ha-host>:8791` — every server gets its own profile and its own isolated credential. Select one with the `--server <name>` flag on relay calls or the `HA_NOVA_SERVER` environment variable, and manage profiles with `ha-nova server list|default|rename|remove`.
+
 > **Upgrading from an earlier HA NOVA?** Everything keeps working through the update. To move to per-device pairing, re-pair each computer once (one code each), then revoke the old shared access from the NOVA page whenever you're ready.
 
 <details>
