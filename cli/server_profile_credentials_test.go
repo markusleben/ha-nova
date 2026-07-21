@@ -121,6 +121,26 @@ func TestNonDefaultProfileFailsClosedWithoutDevicePairing(t *testing.T) {
 	}
 }
 
+func TestNonDefaultProfileNoticeAndEndpointPathsStayFailClosed(t *testing.T) {
+	resetServerProfileSelection(t)
+	t.Setenv("HA_NOVA_TEST_SECRET_DIR", t.TempDir())
+	setActiveServerProfile("cabin")
+
+	// The best-effort notice transport must stay silent, never fall back to
+	// the default profile's machine-wide token against cabin's URL.
+	cfg := runtimeConfig{RelayBaseURL: "http://cabin:8791"}
+	if base, _, token, ok := relayNoticeTransport(cfg); ok || base != "" || token != "" {
+		t.Fatalf("notice transport must stay silent for an unpaired non-default profile, got base=%q ok=%v", base, ok)
+	}
+
+	// The guided-update endpoint resolver must propagate the fail-closed error.
+	if _, _, _, err := functionalEndpoint(cfg, "legacy-token"); err == nil {
+		t.Fatal("functionalEndpoint must fail closed for an unpaired non-default profile")
+	} else if !strings.Contains(err.Error(), `server profile "cabin"`) {
+		t.Fatalf("fail-closed message must name the profile, got: %v", err)
+	}
+}
+
 func TestPurgeAllProfilesRevokesEachAgainstItsOwnEndpoint(t *testing.T) {
 	resetServerProfileSelection(t)
 	t.Setenv("HA_NOVA_TEST_SECRET_DIR", t.TempDir())

@@ -62,6 +62,12 @@ func functionalEndpoint(cfg runtimeConfig, legacyToken string) (string, *http.Cl
 		}
 		return "", nil, "", fmt.Errorf("secure relay endpoint unavailable: %w", err)
 	}
+	// Non-default profiles are device-credential-only — same fail-closed
+	// contract as relayFunctionalTransport: the caller's legacy token belongs
+	// to the default profile and must never travel to another server's URL.
+	if profile := activeServerProfile(); profile != defaultServerProfileName {
+		return "", nil, "", fmt.Errorf("server profile %q has no completed device pairing; run: ha-nova pair --server %s --relay-url %s", profile, profile, cfg.RelayBaseURL)
+	}
 	return cfg.RelayBaseURL, httpClient, legacyToken, nil
 }
 
