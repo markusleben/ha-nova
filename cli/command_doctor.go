@@ -63,6 +63,11 @@ func runDoctor(paths runtimePaths, args []string) int {
 		printHumanErr("%s", cfgErr)
 		return 1
 	}
+	// Multi-server installs: name the checked profile so per-server doctor runs
+	// (HA_NOVA_SERVER=<name> ha-nova doctor) are unambiguous.
+	if profileName, profileCount := selectedServerProfileStatus(paths); profileCount > 1 || profileName != defaultServerProfileName {
+		doctorInfo("Server profile: %s", profileName)
+	}
 
 	// Finish a pairing interrupted between activation and promotion (crash or
 	// lost response); best-effort — failures leave the pending slot alone.
@@ -73,7 +78,7 @@ func runDoctor(paths runtimePaths, args []string) int {
 	// Paired devices authenticate with their own credential over pinned TLS;
 	// legacy installs keep the shared relay token. Doctor checks whichever
 	// transport this install actually uses.
-	transportBase, transportClient, transportCred, deviceMode, _ := relayFunctionalTransportForDoctor(cfg)
+	transportBase, transportClient, transportCred, deviceMode, transportErr := relayFunctionalTransportForDoctor(cfg)
 	pairedConfig := cfg.RelaySecureBaseURL != "" && cfg.RelaySpkiPin != ""
 	var token string
 	if deviceMode {
@@ -94,7 +99,20 @@ func runDoctor(paths runtimePaths, args []string) int {
 			return 1
 		}
 		printHumanErr("This device was paired, but its device credential is missing from secure storage.")
-		printHumanErr("Pair again: run 'ha-nova setup' and enter a fresh code from the NOVA page.")
+		if profile := activeServerProfile(); profile != defaultServerProfileName {
+			// Setup refuses named profiles — their repair path is pair --server.
+			printHumanErr("Pair again: run 'ha-nova pair --server %s --relay-url %s' and enter a fresh code from the NOVA page.", profile, cfg.RelayBaseURL)
+		} else {
+			printHumanErr("Pair again: run 'ha-nova setup' and enter a fresh code from the NOVA page.")
+		}
+		return 1
+	} else if activeServerProfile() != defaultServerProfileName {
+		// Non-default profiles are device-credential-only: never check them with
+		// the machine-wide legacy token (it belongs to the default profile).
+		if transportErr == nil {
+			transportErr = fmt.Errorf("server profile %q has no completed device pairing; run: ha-nova pair --server %s --relay-url %s", activeServerProfile(), activeServerProfile(), cfg.RelayBaseURL)
+		}
+		printHumanErr("%s", transportErr)
 		return 1
 	} else {
 		legacyToken, tokenErr := readRelayAuthTokenForDoctor()

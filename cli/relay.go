@@ -56,6 +56,7 @@ type relayRequestOptions struct {
 	Method        string
 	Path          string
 	StrictStatus  bool
+	Server        string
 }
 
 func runRelayCommand(paths runtimePaths, args []string) int {
@@ -120,6 +121,7 @@ func parseRelayFlags(command string, args []string) (relayRequestOptions, error)
 	fs.StringVar(&opts.JQFilter, "jq", "", "jq filter")
 	fs.StringVar(&opts.JQFile, "jq-file", "", "path to jq filter file")
 	fs.StringVar(&opts.OutputFile, "out", "", "write command output to file")
+	fs.StringVar(&opts.Server, "server", "", "server profile name (multi-server installs)")
 
 	if err := fs.Parse(args); err != nil {
 		if helpRequested(err, fs, "ha-nova relay "+command+" [flags]") {
@@ -198,6 +200,11 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 		}
 		printErr("%s", err)
 		return 1
+	}
+	if opts.Server != "" {
+		// Selection order: --server > HA_NOVA_SERVER > default_server. An
+		// unknown name fails loud in loadConfig with the list of profiles.
+		setServerSelectionOverride(opts.Server)
 	}
 
 	cfg, err := loadConfig(paths)
@@ -367,6 +374,7 @@ func relayCoreUpstreamExitStatus(body []byte, strict bool) int {
 type healthOptions struct {
 	ConnectTimeoutSeconds float64
 	MaxTimeSeconds        float64
+	Server                string
 }
 
 // parseHealthFlags accepts curl-compatible flag names so callers (session-start
@@ -379,6 +387,7 @@ func parseHealthFlags(args []string) (healthOptions, error) {
 	opts := healthOptions{}
 	fs.Float64Var(&opts.ConnectTimeoutSeconds, "connect-timeout", defaultRelayConnectTimeoutSeconds, "connection timeout in seconds")
 	fs.Float64Var(&opts.MaxTimeSeconds, "max-time", defaultRelayMaxTimeSeconds, "total request timeout in seconds")
+	fs.StringVar(&opts.Server, "server", "", "server profile name (multi-server installs)")
 	if err := fs.Parse(args); err != nil {
 		if helpRequested(err, fs, "ha-nova relay health [--connect-timeout <s>] [--max-time <s>]") {
 			return opts, errHelpShown
@@ -401,6 +410,9 @@ func runHealth(paths runtimePaths, args []string) int {
 		return 1
 	}
 	client := newRelayHTTPClient(healthOpts.ConnectTimeoutSeconds, healthOpts.MaxTimeSeconds)
+	if healthOpts.Server != "" {
+		setServerSelectionOverride(healthOpts.Server)
+	}
 
 	cfg, err := loadConfig(paths)
 	if err != nil {

@@ -291,17 +291,35 @@ func finalizeLocalUninstall(paths runtimePaths, state installState, report *unin
 
 func finalizeLocalUninstallWithProgress(paths runtimePaths, state installState, report *uninstallReport, mode uninstallMode, beforeStep func(string) error, relayAlreadyRemoved bool) error {
 	relayTokenFile := ""
-	deviceSecureBase, deviceSpkiPin := "", ""
+	var purgeTargets []profilePurgeTarget
 	if mode == uninstallModePurge {
-		// Read the raw config: token-file cleanup must not depend on setup
-		// completeness (loadConfig fails when relay_base_url is missing,
+		// Read the raw config document: token-file cleanup must not depend on
+		// setup completeness (loadConfig fails when relay_base_url is missing,
 		// which would silently skip service token file removal on purge).
-		// The secure-endpoint fields are captured here too — config_cleanup
-		// removes config.json before token_cleanup runs the device revoke.
-		if cfg, err := loadJSONConfig(paths.ConfigFile); err == nil {
-			relayTokenFile = strings.TrimSpace(cfg.RelayTokenFile)
-			deviceSecureBase = strings.TrimSpace(cfg.RelaySecureBaseURL)
-			deviceSpkiPin = strings.TrimSpace(cfg.RelaySpkiPin)
+		// EVERY profile's secure endpoint is captured here too — config_cleanup
+		// removes config.json before token_cleanup runs the device revokes, and
+		// each profile's device entry lives on ITS relay.
+		if doc, err := loadConfigDocument(paths.ConfigFile); err == nil {
+			// Literal default profile: the legacy service token is
+			// default-profile-only, regardless of where default_server points.
+			if cfg, ok := doc.flatProfile(defaultServerProfileName); ok {
+				relayTokenFile = strings.TrimSpace(cfg.RelayTokenFile)
+			}
+			for _, name := range doc.profileNames() {
+				cfg, ok := doc.flatProfile(name)
+				if !ok {
+					continue
+				}
+				purgeTargets = append(purgeTargets, profilePurgeTarget{
+					name:          name,
+					secureBaseURL: strings.TrimSpace(cfg.RelaySecureBaseURL),
+					spkiPin:       strings.TrimSpace(cfg.RelaySpkiPin),
+				})
+			}
+		}
+		if len(purgeTargets) == 0 {
+			// Config gone or unreadable: still clear the active profile's slots.
+			purgeTargets = append(purgeTargets, profilePurgeTarget{name: activeServerProfile()})
 		}
 	}
 	if beforeStep != nil {
@@ -349,7 +367,7 @@ func finalizeLocalUninstallWithProgress(paths runtimePaths, state installState, 
 				return fmt.Errorf("failed before token_cleanup: %w", err)
 			}
 		}
-		purgeDeviceCredentialWithReport(deviceSecureBase, deviceSpkiPin, report, relayAlreadyRemoved)
+		purgeAllDeviceCredentialsWithReport(purgeTargets, report, relayAlreadyRemoved)
 		tokenFileHandled := false
 		if relayTokenFile != "" {
 			var err error

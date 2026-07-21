@@ -151,15 +151,16 @@ func resumePendingActivation(cfg *runtimeConfig, saveCfg func(*runtimeConfig) er
 	// promotion.
 	var pending string
 	fileMode := false
+	pendingService := activeDeviceCredentialPendingService()
 	if deviceSecretFileBacked() {
 		// Established file-backed install (marker present, or forced this process):
 		// the pending slot is a file. Do NOT probe the keyring — a locked/present
 		// Secret Service on this box is irrelevant and must not block resuming a
 		// valid file pending.
-		if !deviceSecretFileExists(deviceCredentialPendingService) {
+		if !deviceSecretFileExists(pendingService) {
 			return false, nil
 		}
-		raw, err := deviceSecretFileGet(deviceCredentialPendingService)
+		raw, err := deviceSecretFileGet(pendingService)
 		if err != nil {
 			return false, err
 		}
@@ -173,7 +174,7 @@ func resumePendingActivation(cfg *runtimeConfig, saveCfg func(*runtimeConfig) er
 		// orphan file) or a headless-interrupted pairing whose marker is not
 		// written until promotion. Prefer a real keyring pending over an orphan
 		// file; only an absent/empty keyring falls back to the file.
-		kp, kok, kerr := readKeyringDeviceSecret(deviceCredentialPendingService)
+		kp, kok, kerr := readKeyringDeviceSecret(pendingService)
 		switch {
 		case kok && parseDeviceCredential(kp) != nil:
 			pending = kp
@@ -185,10 +186,10 @@ func resumePendingActivation(cfg *runtimeConfig, saveCfg func(*runtimeConfig) er
 			// Keyring EXISTS but is unreadable (locked/uninitialized): a real
 			// keyring pending may hide behind it — refuse to downgrade to a file.
 			return false, kerr
-		case deviceSecretFileExists(deviceCredentialPendingService):
+		case deviceSecretFileExists(pendingService):
 			// Keyring empty (not-found) or genuinely unreachable (headless): the
 			// file holds the interrupted headless pairing.
-			raw, err := deviceSecretFileGet(deviceCredentialPendingService)
+			raw, err := deviceSecretFileGet(pendingService)
 			if err != nil {
 				return false, err
 			}
@@ -269,11 +270,12 @@ func retireDeviceCredential(cfg *runtimeConfig) {
 	// live endpoint — cannot be resumed after the user chose the legacy/manual path.
 	_ = deleteDeviceCredential()
 	_ = deletePendingDeviceCredential()
-	// Clear the file-backend marker + empty secrets dir too: otherwise a
-	// credential-less install stays classified as file-backed, and a later desktop
-	// re-pair with a healthy keyring would skip the keyring probe and keep storing
-	// device credentials in files.
-	removeDeviceFileStorageResidue()
+	// Clear this profile's slot files too — and, once NO profile's slots remain,
+	// the file-backend marker + empty secrets dir: otherwise a credential-less
+	// install stays classified as file-backed, and a later desktop re-pair with a
+	// healthy keyring would skip the keyring probe and keep storing device
+	// credentials in files. Sibling profiles' file slots stay untouched.
+	removeDeviceFileStorageResidueForProfile(activeServerProfile())
 	cfg.RelaySecureBaseURL = ""
 	cfg.RelaySpkiPin = ""
 	cfg.PendingSecureBaseURL = ""

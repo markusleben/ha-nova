@@ -11,6 +11,7 @@ import (
 //   - device mode: a paired device credential over the SPKI-pinned TLS secure
 //     endpoint learned from pairing;
 //   - legacy mode: the shared relay auth token over the plain bootstrap URL.
+//
 // Device mode wins whenever a device credential and a pinned secure endpoint are
 // both present; this is the passwordless default after pairing. Legacy keeps
 // existing installs and non-interactive/service setups working unchanged.
@@ -25,8 +26,19 @@ func relayFunctionalTransport(cfg runtimeConfig) (baseURL string, client *http.C
 		}
 		// Paired config but the device credential is gone: fail closed. In a paired
 		// flow the device credential IS the auth, so never silently downgrade to the
-		// shared token over the unpinned plain port. Re-pair to recover.
+		// shared token over the unpinned plain port. Re-pair to recover — via setup
+		// for the default profile, via pair --server for named profiles (setup
+		// refuses those).
+		if profile := activeServerProfile(); profile != defaultServerProfileName {
+			return "", nil, "", false, fmt.Errorf("device credential unavailable for a paired relay; re-pair with: ha-nova pair --server %s --relay-url %s", profile, cfg.RelayBaseURL)
+		}
 		return "", nil, "", false, errors.New("device credential unavailable for a paired relay; run 'ha-nova setup' to re-pair")
+	}
+	if profile := activeServerProfile(); profile != defaultServerProfileName {
+		// Non-default server profiles are device-credential-only: the machine-wide
+		// legacy relay token belongs to the default profile, and a half-paired
+		// profile must never send that token to another server's URL. Fail closed.
+		return "", nil, "", false, fmt.Errorf("server profile %q has no completed device pairing; run: ha-nova pair --server %s --relay-url %s", profile, profile, cfg.RelayBaseURL)
 	}
 	relayToken, tokenErr := readRelayAuthToken()
 	if tokenErr != nil {
@@ -54,6 +66,12 @@ func functionalEndpoint(cfg runtimeConfig, legacyToken string) (string, *http.Cl
 			err = fmt.Errorf("device credential unavailable")
 		}
 		return "", nil, "", fmt.Errorf("secure relay endpoint unavailable: %w", err)
+	}
+	// Non-default profiles are device-credential-only — same fail-closed
+	// contract as relayFunctionalTransport: the caller's legacy token belongs
+	// to the default profile and must never travel to another server's URL.
+	if profile := activeServerProfile(); profile != defaultServerProfileName {
+		return "", nil, "", fmt.Errorf("server profile %q has no completed device pairing; run: ha-nova pair --server %s --relay-url %s", profile, profile, cfg.RelayBaseURL)
 	}
 	return cfg.RelayBaseURL, httpClient, legacyToken, nil
 }

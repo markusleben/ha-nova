@@ -287,6 +287,12 @@ func relayNoticeTransport(cfg config) (string, *http.Client, string, bool) {
 	if cfg.RelaySecureBaseURL != "" && cfg.RelaySpkiPin != "" {
 		return "", nil, "", false
 	}
+	// Non-default profiles are device-credential-only: a best-effort notice
+	// must never send the default profile's machine-wide token to another
+	// server's URL. Stay silent instead.
+	if activeServerProfile() != defaultServerProfileName {
+		return "", nil, "", false
+	}
 	token, err := readRelayAuthTokenForDoctor()
 	if err != nil || token == "" {
 		return "", nil, "", false

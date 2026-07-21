@@ -27,6 +27,7 @@ Before HA operations in this session:
 3. Do not run diagnostics proactively; diagnose only after real failure.
 4. Relay-only auth model: do not request or persist LLAT client-side.
    - The Home Assistant App uses its process-local Supervisor credential automatically. Standalone Container/Core keeps `HA_LLAT` in the relay host environment (`docs/reference/relay-container.md`).
+5. Multi-server installs: to target a non-default server profile, prefix every `ha-nova` command with `HA_NOVA_SERVER=<name>` (for example `HA_NOVA_SERVER=cabin ha-nova relay health`). When a non-default server is selected, name that server once per response.
 
 Do not ask user to paste tokens in chat.
 

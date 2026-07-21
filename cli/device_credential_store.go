@@ -6,45 +6,72 @@ import (
 	"fmt"
 )
 
-// Device-credential storage for the secure-pairing flow. Two OS-keyring slots:
+// Device-credential storage for the secure-pairing flow. Two OS-keyring slots
+// per server profile:
 //   - current: the active credential every AI client on this install uses;
 //   - pending: a freshly paired credential held locally BEFORE activation, so a
 //     re-pair never destroys the working credential until the new one is proven.
 // The relay stores only a digest; the plaintext lives here, owner-only.
+// The default profile keeps the historic slot names (no re-pairing on upgrade);
+// other profiles suffix the profile name. The zero-arg API below routes through
+// the process-global selected profile (config_selection.go), so call sites stay
+// profile-agnostic.
 
 const (
 	deviceCredentialService        = "ha-nova.device-credential"
 	deviceCredentialPendingService = "ha-nova.device-credential.pending"
 )
 
+func deviceCredentialServiceForProfile(profile string) string {
+	if profile == "" || profile == defaultServerProfileName {
+		return deviceCredentialService
+	}
+	return deviceCredentialService + "." + profile
+}
+
+func deviceCredentialPendingServiceForProfile(profile string) string {
+	if profile == "" || profile == defaultServerProfileName {
+		return deviceCredentialPendingService
+	}
+	return deviceCredentialPendingService + "." + profile
+}
+
+func activeDeviceCredentialService() string {
+	return deviceCredentialServiceForProfile(activeServerProfile())
+}
+
+func activeDeviceCredentialPendingService() string {
+	return deviceCredentialPendingServiceForProfile(activeServerProfile())
+}
+
 func readDeviceCredential() (string, bool, error) {
-	return readCredentialSlot(deviceCredentialService)
+	return readCredentialSlot(activeDeviceCredentialService())
 }
 
 func writeDeviceCredential(credential string) error {
 	if parseDeviceCredential(credential) == nil {
 		return fmt.Errorf("refusing to store a malformed device credential")
 	}
-	return secretSet(deviceCredentialService, credential)
+	return secretSet(activeDeviceCredentialService(), credential)
 }
 
 func deleteDeviceCredential() error {
-	return secretDelete(deviceCredentialService)
+	return secretDelete(activeDeviceCredentialService())
 }
 
 func readPendingDeviceCredential() (string, bool, error) {
-	return readCredentialSlot(deviceCredentialPendingService)
+	return readCredentialSlot(activeDeviceCredentialPendingService())
 }
 
 func writePendingDeviceCredential(credential string) error {
 	if parseDeviceCredential(credential) == nil {
 		return fmt.Errorf("refusing to store a malformed pending credential")
 	}
-	return secretSet(deviceCredentialPendingService, credential)
+	return secretSet(activeDeviceCredentialPendingService(), credential)
 }
 
 func deletePendingDeviceCredential() error {
-	return secretDelete(deviceCredentialPendingService)
+	return secretDelete(activeDeviceCredentialPendingService())
 }
 
 // promotePendingDeviceCredential makes the pending credential current and clears
@@ -77,10 +104,10 @@ func promotePendingFileCredential(pending string) error {
 	if parseDeviceCredential(pending) == nil {
 		return fmt.Errorf("refusing to store a malformed device credential")
 	}
-	if err := deviceSecretFileSet(deviceCredentialService, pending); err != nil {
+	if err := deviceSecretFileSet(activeDeviceCredentialService(), pending); err != nil {
 		return err
 	}
-	return deviceSecretFileDelete(deviceCredentialPendingService)
+	return deviceSecretFileDelete(activeDeviceCredentialPendingService())
 }
 
 func readCredentialSlot(service string) (string, bool, error) {

@@ -17,7 +17,7 @@ var runSecurePairingForPairCmd = runSecurePairing
 // the secure endpoint; a re-pair replaces the old credential only after the new
 // one activates.
 func runPairCommand(paths runtimePaths, args []string) int {
-	relayURL, code, credentialStore := "", "", ""
+	relayURL, code, credentialStore, serverName := "", "", "", ""
 	credentialStoreSet := false
 	for i := 0; i < len(args); i++ {
 		// Accept both `--flag value` and `--flag=value` for the string flags.
@@ -45,10 +45,13 @@ func runPairCommand(paths runtimePaths, args []string) int {
 		case "--credential-store":
 			credentialStore = takeValue()
 			credentialStoreSet = true
+		case "--server":
+			serverName = takeValue()
 		case "-h", "--help":
-			fmt.Println("Usage: ha-nova pair [--relay-url http://<ha-host>:8791] [--code NNNNNN] [--credential-store=file]")
+			fmt.Println("Usage: ha-nova pair [--relay-url http://<ha-host>:8791] [--code NNNNNN] [--credential-store=file] [--server <name>]")
 			fmt.Println("Open NOVA in the Home Assistant sidebar, click \"Connect a device\", then run this.")
 			fmt.Println("--credential-store=file keeps the device credential in a private file — for headless systems and VMs whose desktop keyring is never unlocked.")
+			fmt.Println("--server <name> pairs into the named server profile (multi-server installs); a NEW profile also needs --relay-url.")
 			return 0
 		default:
 			printErr("unknown flag: %s", args[i])
@@ -59,6 +62,60 @@ func runPairCommand(paths runtimePaths, args []string) int {
 		printErr("--credential-store supports only the value \"file\" (got %q)", credentialStore)
 		return 1
 	}
+	if serverName != "" {
+		if err := validateServerProfileName(serverName); err != nil {
+			printErr("%s", err)
+			return 1
+		}
+		// Route this run — config saves AND credential slots — to the named
+		// profile before anything touches storage. The seam is set here too so
+		// the storage probe/migration below already use the profile's slots.
+		setServerSelectionOverride(serverName)
+		setActiveServerProfile(serverName)
+	}
+
+	// Pairing can run before a full setup as long as a relay URL is known: an
+	// explicit --relay-url starts from a fresh config, otherwise the saved one.
+	// A NEW profile name has no saved relay URL by definition — falling back to
+	// another profile's URL would bootstrap against the wrong server, so it is a
+	// hard error without --relay-url.
+	cfg, cfgErr := loadConfig(paths)
+	newProfile := serverName != "" && errors.Is(cfgErr, errUnknownServerProfile)
+	if cfgErr != nil && errors.Is(cfgErr, errUnknownServerProfile) && !newProfile {
+		// Selection came from HA_NOVA_SERVER: a typo must fail loud, never
+		// silently pair a fresh profile.
+		printErr("%s", cfgErr)
+		return 1
+	}
+	if serverName == "" && cfgErr != nil {
+		// loadConfig failed before profile resolution (missing/incomplete
+		// config), so an env-only selection never reached the credential seam —
+		// saves would target the env profile while credentials land in the
+		// default slots. Creation always requires the explicit flag.
+		if name, source := requestedServerSelection(); name != "" && name != defaultServerProfileName {
+			printErr("profile %q (from %s) is not set up; create it explicitly: ha-nova pair --server %s --relay-url http://<ha-host>:8791", name, source, name)
+			return 1
+		}
+	}
+	bootstrapURL := strings.TrimSpace(relayURL)
+	if bootstrapURL == "" {
+		if newProfile {
+			printErr("server profile %q does not exist yet; pass --relay-url http://<ha-host>:8791 to create it", serverName)
+			return 1
+		}
+		if cfgErr != nil {
+			printErr("no relay URL known; pass --relay-url http://<ha-host>:8791 or run 'ha-nova setup' first")
+			return 1
+		}
+		bootstrapURL = cfg.RelayBaseURL
+	}
+	if bootstrapURL == "" {
+		printErr("no relay URL known; pass --relay-url http://<ha-host>:8791 or run 'ha-nova setup' first")
+		return 1
+	}
+	// Storage mutation only AFTER every selection/bootstrap guard above: a pair
+	// that exits before pairing must never have flipped the backend or moved
+	// credentials.
 	if credentialStore == "file" {
 		// A readable keyring credential moves along BEFORE the backend flips:
 		// the flip must never mask a live desktop pairing. Locked or absent
@@ -74,24 +131,13 @@ func runPairCommand(paths runtimePaths, args []string) int {
 		}
 		forceDeviceCredentialFileMode()
 	}
-
-	// Pairing can run before a full setup as long as a relay URL is known: an
-	// explicit --relay-url starts from a fresh config, otherwise the saved one.
-	cfg, cfgErr := loadConfig(paths)
-	bootstrapURL := strings.TrimSpace(relayURL)
-	if bootstrapURL == "" {
-		if cfgErr != nil {
-			printErr("no relay URL known; pass --relay-url http://<ha-host>:8791 or run 'ha-nova setup' first")
-			return 1
-		}
-		bootstrapURL = cfg.RelayBaseURL
-	}
-	if bootstrapURL == "" {
-		printErr("no relay URL known; pass --relay-url http://<ha-host>:8791 or run 'ha-nova setup' first")
-		return 1
-	}
 	if cfgErr != nil {
 		cfg = runtimeConfig{RelayBaseURL: bootstrapURL}
+		// Profiles share one install-wide client_install_id; inherit it so a new
+		// profile never mints a second install identity.
+		if raw, rawErr := loadRawDefaultProfileConfig(paths.ConfigFile); rawErr == nil {
+			cfg.ClientInstallID = raw.ClientInstallID
+		}
 	} else if strings.TrimSpace(relayURL) != "" {
 		// An explicit --relay-url must persist for later functional calls, not
 		// just drive this one pairing — the successful pairing saves cfg.

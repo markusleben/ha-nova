@@ -60,13 +60,14 @@ func uninstallWindowsBundleNote() string {
 	return "Windows bundle note: a short-lived helper finishes the uninstall after the running ha-nova.exe exits. Please wait a moment for the final removal to complete."
 }
 
-// collectUninstallPreflight reads the raw config (loadJSONConfig, not
-// loadConfig: partial setups must still yield the HA URL for the server-side
-// checklist) and probes whether the relay still answers.
+// collectUninstallPreflight reads the raw default profile (not loadConfig:
+// partial setups must still yield the HA URL for the server-side checklist,
+// and uninstall is install-wide, so no runtime selection applies) and probes
+// whether the relay still answers.
 func collectUninstallPreflight(paths runtimePaths) uninstallPreflight {
 	preflight := uninstallPreflight{}
 
-	cfg, err := loadJSONConfig(paths.ConfigFile)
+	cfg, err := loadRawDefaultProfileConfig(paths.ConfigFile)
 	if err != nil {
 		return preflight
 	}

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"io"
 	"os"
@@ -42,6 +43,16 @@ func runSetup(paths runtimePaths, args []string) int {
 		return 1
 	}
 
+	// Setup administers only the default server profile (layer 1): the legacy
+	// token flow, service mode, and client sync are default-profile machinery,
+	// and running them under a named selection would retire that profile's
+	// device credential while pairing nothing in its place. Named profiles are
+	// created and re-paired via pair --server.
+	if name, source := requestedServerSelection(); name != "" && name != defaultServerProfileName {
+		printHumanErr("setup always onboards the default server profile; use plain 'ha-nova setup' (profile %q from %s is managed with: ha-nova pair --server %s --relay-url http://<ha-host>:8791)", name, source, name)
+		return 1
+	}
+
 	target := ""
 	if remaining := fs.Args(); len(remaining) > 0 {
 		target = remaining[0]
@@ -49,12 +60,34 @@ func runSetup(paths runtimePaths, args []string) int {
 
 	cfg, cfgErr := loadConfig(paths)
 	if cfgErr != nil {
+		// A mistyped --server/HA_NOVA_SERVER selection must fail loud instead
+		// of silently running setup against a fresh config for the wrong house.
+		// Exception: an EXPLICIT default selection on a config whose default
+		// profile does not exist yet (multi-server-first install) is exactly
+		// what setup onboards — continue on the fresh-config path.
+		if errors.Is(cfgErr, errUnknownServerProfile) {
+			if name, _ := requestedServerSelection(); name != defaultServerProfileName {
+				printHumanErr("%s", cfgErr)
+				return 1
+			}
+		}
 		// Preserve credential routing from an incomplete config: the token
 		// file setting decides where token reads/writes go, so the repair
-		// path must see it even when relay_base_url is missing.
-		if raw, rawErr := loadJSONConfig(paths.ConfigFile); rawErr == nil {
+		// path must see it even when relay_base_url is missing. The raw
+		// default-profile read also keeps the install-wide id, so a repaired
+		// setup never mints a second client_install_id.
+		if raw, rawErr := loadRawDefaultProfileConfig(paths.ConfigFile); rawErr == nil {
 			cfg.RelayTokenFile = raw.RelayTokenFile
+			cfg.ClientInstallID = raw.ClientInstallID
 		}
+	}
+	// The config's own default_server can activate a named profile without any
+	// explicit selection (e.g. after the first profile was created via pair
+	// --server). Setup's legacy-token machinery is default-profile-only, so it
+	// must never write or retire state for a named profile.
+	if activeServerProfile() != defaultServerProfileName {
+		printHumanErr("setup always onboards the default server profile, but this config selects %q (default_server); run: HA_NOVA_SERVER=default ha-nova setup", activeServerProfile())
+		return 1
 	}
 	state, err := loadStateOrDefaultChecked(paths)
 	if err != nil {
