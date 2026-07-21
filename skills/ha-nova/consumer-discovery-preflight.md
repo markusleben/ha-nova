@@ -27,11 +27,14 @@ Report every hit as one row:
    applying literal `event_data` filters (`device_ieee`, `command`). Templated event
    types and non-automation listeners are not safely enumerable — disclose that limit.
 3. **Blueprint-backed automations** — instances are normal automations with
-   `use_blueprint`; their triggers live in the blueprint, not the instance. Read the
-   blueprint's trigger surface (`blueprint/list`, source via the fallback skill's
-   Relay-Ready blueprint section) and match the instance's `input` bindings against
-   the device/entities. If the blueprint source is unreadable, report the instance as
-   an indirect match, never as cleared.
+   `use_blueprint`; their triggers live in the blueprint, not the instance
+   (`blueprint/list` returns only metadata, no triggers). Read the instance's
+   `use_blueprint.path` and `use_blueprint.input` from its automation config, then
+   expand the real trigger surface with
+   `{"type":"blueprint/substitute","domain":"automation","path":"<path>","input":{...}}`
+   and match the expanded triggers against the device/entities. If substitution
+   fails (missing blueprint, rejected inputs), report the instance as an indirect
+   match, never as cleared.
 
 ## Extension Adapter Contract
 

@@ -464,8 +464,11 @@ describe("ha-nova contract", () => {
     expect(discovery).toContain("**Automations & scripts**");
     expect(discovery).toContain("**Event-type consumers**");
     expect(discovery).toContain("**Blueprint-backed automations**");
-    expect(discovery).toContain("match the instance's `input` bindings");
-    expect(discovery).toContain("an indirect match, never as cleared");
+    expect(discovery).toContain(
+      "`blueprint/list` returns only metadata, no triggers",
+    );
+    expect(discovery).toContain('"type":"blueprint/substitute"');
+    expect(discovery).toContain("never as cleared");
 
     // Adapter contract: documented shape, zero registered, honest reporting.
     expect(discovery).toContain("## Extension Adapter Contract");
