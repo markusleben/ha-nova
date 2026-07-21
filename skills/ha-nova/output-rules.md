@@ -30,7 +30,7 @@ Apply these rules to every user-facing HA NOVA response, including direct sub-sk
 - Keep delete previews structured in this order: preview summary, consumer-check impact, save status, exact confirmation-code prompt.
 - Use stable localized labels for those slots across a conversation. If a slot has content, show it under the same label and in the same order; if it has no content, omit that slot instead of printing an empty placeholder.
 - Every write preview must explicitly say that nothing has been saved yet before showing the options.
-- Always render write-preview options as an explicit choice block that includes literal `apply`, `show yaml`, and `cancel` for create/update.
+- Always render write-preview options as an explicit choice block that includes literal `apply`, `show yaml`, and `cancel` for create/update. Sole exception: intermediate previews inside a grouped change set (`skills/ha-nova/grouped-change-set.md`) carry no options block — exactly one final action block closes the group with the same literal keywords.
 - Delete previews must say nothing has been deleted yet and must ask for the exact `confirm:<token>`; never render `apply`, `show yaml`, `cancel`, or a selectable menu for destructive confirmation.
 - Never hide the available next actions inside a paragraph.
 
@@ -100,6 +100,7 @@ write flow renders outside this system:
 | Delete / destructive operation (typed confirmation code) | Delete Card → Result Card |
 | Natural-confirmation removals (e.g. snapshot prune, todo item removes) | Preview Card → Result Card |
 | Batch mutation (manifest-gated) | Batch Cards (`skills/ha-nova/batch-safety.md`) |
+| Grouped change set (non-destructive, one logical task) | Preview Cards without options → one final action block → Result Card (`skills/ha-nova/grouped-change-set.md`) |
 | Snapshot restore (`skills/ha-nova/config-snapshots.md`) | Preview Card → Result Card |
 | Post-write test offer | Test Plan Card |
 | Runtime action (service call, experimental write) | Preview Card (`apply · cancel`; high-consequence actions escalate to the typed confirmation code — context skill → Confirmation Tiers) → Result Card |

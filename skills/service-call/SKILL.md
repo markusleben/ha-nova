@@ -88,7 +88,7 @@ Some services return data (`weather.get_forecasts`, `calendar.get_events`, `todo
    - State read failed → preview without delta, do not block.
    - Show: service (`domain.service`), target (`entity_id`), data fields.
    - Include an explicit not-executed-yet line before confirmation.
-   - Show an Options block with the execute/apply choice and `cancel`. Do not offer `show yaml` unless the user asks for raw payload details.
+   - Show an Options block with the execute/apply choice and `cancel`. Do not offer `show yaml` unless the user asks for raw payload details. Exception: in a grouped change set the single final action block uses the grouped keywords `apply · show yaml · cancel` (`skills/ha-nova/grouped-change-set.md`), replacing this per-call menu.
    - Ask for natural confirmation bound to this exact preview (see context skill → Active Preview Confirmation). Earlier planning consent is draft-only.
 5. Execute:
    - `ha-nova relay core --method POST --path /api/services/{domain}/{service} --body-file <payload-file>`
@@ -220,6 +220,6 @@ Previews are the runtime-action Preview Card (`apply · cancel`); results are th
 ## Guardrails
 
 - One entity at a time unless user explicitly requests batch (array `entity_id` supported).
-- For batch service calls, show a grouped manifest first and bind confirmation to that exact manifest.
+- For batch service calls, show a grouped manifest first and bind confirmation to that exact manifest — the non-destructive grouped change set contract (`skills/ha-nova/grouped-change-set.md`); actuating high-consequence calls stay excluded.
 - Verify per Flow step 6 — transition- and stateless-aware, never a naive immediate re-read.
 - If state didn't change as expected after those checks, report discrepancy.

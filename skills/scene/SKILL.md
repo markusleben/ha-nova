@@ -74,7 +74,7 @@ Write `<filter-file>` with:
    - prefer individual lights over light groups — group snapshots are a known HA reproduce-state trouble spot
    - switch/lock/input_boolean: `state` only
    - other domains: `state` plus clearly writable target attributes (cover position, climate temperature, `hvac_mode`); never copy measurement or diagnostic attributes
-4. Preview name + full entities map; natural confirmation bound to this exact preview (see context skill → Active Preview Confirmation).
+4. Preview name + full entities map; natural confirmation bound to this exact preview (see context skill → Active Preview Confirmation). Creates may join a grouped change set (max 10) per `skills/ha-nova/grouped-change-set.md` — previews stay, one final confirmation.
 5. `ha-nova relay core --method POST --path /api/config/scene/config/<id> --body-file <payload-file>`
 6. Read back via GET and verify the fields; the config API reloads scenes automatically. Resolve the new entity_id from the registry by matching `unique_id` to the config id (the entity_id derives from `name`, not the id; never guess the slug — the registry can lag the write by a moment, retry once), then confirm it via `/api/states/<entity_id>`.
 
@@ -85,7 +85,7 @@ Persistence routing per `skills/ha-nova/best-practices.md` → Persistence Model
 ### Update
 1. Read the current config (Read flow).
 2. Merge the requested change in memory — the POST replaces the ENTIRE scene config; never send a partial body and never drop entities the user did not mention.
-3. Preview a concise before/after excerpt plus a plain-language line on what changes behaviorally (write-safety → Behavior narrative) — never entity counts alone; natural confirmation bound to this exact preview.
+3. Preview a concise before/after excerpt plus a plain-language line on what changes behaviorally (write-safety → Behavior narrative) — never entity counts alone; natural confirmation bound to this exact preview. Non-destructive storage-scene worksets (max 10) may confirm as one grouped change set per `skills/ha-nova/grouped-change-set.md`.
 4. If the conversation paused between read and confirmation, re-read and re-verify the merge basis before writing; if the live scene differs from the previewed basis, STOP — confirmation expired; show the updated merge and ask again (never silently overwrite an external edit). Apply the orphaned-member flag from Read step 3. When the confirmed update REMOVES scene members, capture the auto config snapshot first (`skills/ha-nova/config-snapshots.md`; on capture failure follow its capture-failure stop).
 5. POST the full merged body, then read back and verify both the intended change and the survival of unrelated entities.
 

@@ -113,7 +113,8 @@ const WORD_BUDGETS: Record<string, number> = {
   energy: 1250,
   // consumer checks before area delete/rename/disable (Wave 1b) + metadata
   // snapshot capture (Wave 2).
-  organize: 1250,
+  // Grouped-change-set opt-in + flow wiring (#391).
+  organize: 1300,
   // write/mqtt ratcheted for the batch-safety opt-in lines (#327);
   // write again for the Phase 5 test offer (test-run.md).
   // pre-delete snapshot capture + config-snapshots reference (Wave 2).
@@ -140,7 +141,8 @@ const WORD_BUDGETS: Record<string, number> = {
   // scene-timestamp verify) + capability gate (2026-h2 Wave 1a); runtime
   // event/webhook and alarm/lock contracts (2026-h2 Wave 4).
   // User-assisted proof bullet (#394).
-  "service-call": 2700,
+  // Grouped-change-set opt-in + grouped-menu exception (#391).
+  "service-call": 2750,
   // Carries the canonical File-Change Preview example — the only layout
   // source for file edits; concrete examples are what make a card renderable.
   // Sibling-survival verification (Wave 1b) + yaml snapshot capture with
@@ -165,7 +167,8 @@ const WORD_BUDGETS: Record<string, number> = {
   // semantic-slot note on the read templates (Wave 0); pre-write cross-field
   // constraint checks + drift-check step (Wave 1); pre-delete snapshot
   // capture (Wave 2).
-  helper: 3850,
+  // Grouped-change-set opt-in + final-block clarifier (#391).
+  helper: 3900,
   // Suggestion Block item-shape pointer (shared output shapes); scene/
   // dashboard first-class targets with flow adaptation (2026-h2 Wave 3).
   // Quick-fix Preview Card reference (#389).

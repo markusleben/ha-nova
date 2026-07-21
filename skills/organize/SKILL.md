@@ -83,7 +83,7 @@ Use `search/related` when a delete needs a quick impact preview on linked items.
    - categories: show affected entity count and a small example set when resolvable
    - require typed confirmation code `confirm:<token>`
    - same-family batch deletes follow `skills/ha-nova/batch-safety.md`, only when related-item impact is complete for every target
-5. Execute exactly one mutation (or the confirmed batch manifest, sequentially).
+5. Execute exactly one mutation (or the confirmed batch manifest, sequentially; or a confirmed grouped change set per `skills/ha-nova/grouped-change-set.md`, sequentially).
 6. Read back and verify the requested fields:
    - area/floor/label/category: re-list and match by canonical id
    - entity/device: re-read the updated registry entry
@@ -133,7 +133,7 @@ Metadata reads render the Report shape; registry inventories render the List Fra
 
 ## Guardrails
 
-- One resource at a time — except a confirmed batch manifest per `skills/ha-nova/batch-safety.md` (its `confirm:batch-...` code replaces the single-target confirmation code for that batch).
+- One resource at a time — except a confirmed batch manifest per `skills/ha-nova/batch-safety.md` (its `confirm:batch-...` code replaces the single-target confirmation code for that batch), or a non-destructive grouped change set (max 10 registry updates) per `skills/ha-nova/grouped-change-set.md`.
 - One category scope at a time.
 - Metadata updates only; no destructive registry admin beyond area/floor/label/category delete.
 - Verify the changed field values, not just the WS success response.
