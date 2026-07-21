@@ -93,7 +93,7 @@
     "prepare": "husky"
   },
   "dependencies": {
-    "@peculiar/x509": "^1.12.3",
+    "@peculiar/x509": "^2.0.0",
     "@serenity-kit/opaque": "^1.1.0",
     "home-assistant-js-websocket": "^9.6.0",
     "ws": "^8.21.0",
