@@ -982,7 +982,7 @@ def is_narrative_line(line: str) -> bool:
     # the explanation itself.
     if COUNT_ONLY_RE.search(stripped):
         return False
-    if stripped.startswith(("|", "#", "-", "`", "📝", "⚠", "✅", "🗑")):
+    if stripped.startswith(("|", "#", "-", "`", "📝", "⚠", "✅", "🗑", '"', "{", "}", "[", "]")):
         return False
     # Card slot/scaffolding lines are not narrative prose.
     if stripped.startswith(
@@ -996,7 +996,9 @@ def is_narrative_line(line: str) -> bool:
     return True
 
 
-paragraphs = [p for p in re.split(r"\n\s*\n", result["prewrite_text"])]
+# Fenced payload blocks are machine data — neither narrative nor diff rows.
+prewrite_prose = re.sub(r"```.*?(?:```|\Z)", "", result["prewrite_text"], flags=re.DOTALL)
+paragraphs = [p for p in re.split(r"\n\s*\n", prewrite_prose)]
 uncovered_count_paragraph = False
 for i, paragraph in enumerate(paragraphs):
     if not COUNT_ONLY_RE.search(paragraph):
