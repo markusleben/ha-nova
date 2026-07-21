@@ -417,7 +417,7 @@ Instead, run the minimal config-entry post-write contract:
    - say that storage-helper H-01..H-11 checks do not apply to this family
    - config-entry updates are not auto-revertible (options-flow writes are multi-step); for undo, point the user to Home Assistant Backups
 
-Report only what has substance (same rule as the write flow — see `skills/write/SKILL.md` Phase 4): keep **Verification** (and the editable snapshot when present), but omit an empty **Collision check** or **Advisory** — never an empty "none" bucket. When the write is clean, the verification plus a single scope-honest confirmation line suffices (`skills/ha-nova/write-safety.md` → Verification Honesty). Multi-target logical changes: plan first per write-safety → Multi-Target Changes. Non-destructive helper worksets (max 10) may confirm as one grouped change set per `skills/ha-nova/grouped-change-set.md`.
+Report only what has substance (same rule as the write flow — see `skills/write/SKILL.md` Phase 4): keep **Verification** (and the editable snapshot when present), but omit an empty **Collision check** or **Advisory** — never an empty "none" bucket. When the write is clean, the verification plus a single scope-honest confirmation line suffices (`skills/ha-nova/write-safety.md` → Verification Honesty). Multi-target logical changes: plan first per write-safety → Multi-Target Changes. Non-destructive helper worksets (max 10) may confirm as one grouped change set per `skills/ha-nova/grouped-change-set.md` — the per-step Options block and confirmation then collapse into the group's single final action block.
 
 ## Output Format
 

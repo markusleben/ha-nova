@@ -30,7 +30,7 @@ File-based relay requests only: `ha-nova relay core --method <METHOD> --path <PA
 
 ## Flow
 
-Multi-target logical changes: present the plan first per `skills/ha-nova/write-safety.md` → Multi-Target Changes. Non-destructive worksets (max 10 operations) may confirm as one grouped change set per `skills/ha-nova/grouped-change-set.md`.
+Multi-target logical changes: present the plan first per `skills/ha-nova/write-safety.md` → Multi-Target Changes. Non-destructive worksets (max 10 operations) may confirm as one grouped change set per `skills/ha-nova/grouped-change-set.md` — Phase 2 previews stay, their per-preview options and confirmation collapse into the group's single final action block.
 
 Input-device remaps (buttons, remotes, switches): run the capability preflight per `skills/ha-nova/input-capability-preflight.md` before drafting; the write stays blocked while the chosen gesture is only assumed or its evidence conflicts. Repurposing or cleaning up an input additionally runs `skills/ha-nova/consumer-discovery-preflight.md`; incomplete coverage is disclosed, never claimed as "unused".
 
