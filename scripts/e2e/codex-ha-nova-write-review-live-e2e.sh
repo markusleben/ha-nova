@@ -968,7 +968,7 @@ result["preview_has_canonical_keys"] = (
 COUNT_ONLY_RE = re.compile(
     r"\|\s*\d+\s+items?\s*\|\s*\d+\s+items?\s*\|"
     r"|\d+\s+items?\s*(?:→|->)\s*\d+\s+items?"
-    r"|…\s*and\s+\d+\s+more|\band \d+ more\b"
+    r"|…\s*and\s+\d+\s+more"
     r"|\|\s*([^|()\n]+?)\s*\(\w+\)\s*\|\s*\1\s*\(\w+\)\s*\|"
     r"|([^|()\n]+?)\s*\(\w+\)\s*(?:→|->)\s*\2\s*\(\w+\)",
 )
