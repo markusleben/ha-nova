@@ -331,8 +331,24 @@ func runServerRemove(paths runtimePaths, args []string) int {
 		return 1
 	}
 
-	// Revoke against THIS profile's pinned endpoint, then drop both slots.
+	// Config first: a failed save aborts cleanly with the pairing untouched.
+	// The endpoint for the revoke is captured from the in-memory document, so
+	// removing the entry first loses nothing. If the revoke afterwards fails,
+	// the report says so and the device can still be revoked from the NOVA
+	// console — the softer failure than a configured-but-unpaired profile.
 	cfg, _ := doc.flatProfile(name)
+	servers, err := documentServersCopy(doc)
+	if err != nil {
+		printHumanErr("cannot update the server configuration: %v — nothing was removed.", err)
+		return 1
+	}
+	delete(servers, name)
+	if err := writeServersDocument(paths, doc, servers, newDefault); err != nil {
+		printHumanErr("cannot save the server configuration: %v — nothing was removed; fix the error and run the remove again.", err)
+		return 1
+	}
+
+	// Now revoke against THIS profile's pinned endpoint and drop both slots.
 	report := &uninstallReport{}
 	purgeProfileDeviceCredentialWithReport(profilePurgeTarget{
 		name:          name,
@@ -340,17 +356,6 @@ func runServerRemove(paths runtimePaths, args []string) int {
 		spkiPin:       strings.TrimSpace(cfg.RelaySpkiPin),
 	}, report, false)
 	report.printDetails()
-
-	servers, err := documentServersCopy(doc)
-	if err != nil {
-		printHumanErr("cannot update the server configuration: %v", err)
-		return 1
-	}
-	delete(servers, name)
-	if err := writeServersDocument(paths, doc, servers, newDefault); err != nil {
-		printHumanErr("cannot save the server configuration: %v — the profile entry is still in config.json; fix the error and run the remove again.", err)
-		return 1
-	}
 	printHumanInfo("Removed server profile %q.", name)
 	if newDefault != doc.defaultServerName() {
 		printHumanInfo("default_server was reset to %q.", newDefault)
