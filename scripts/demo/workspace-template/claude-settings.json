@@ -1,0 +1,18 @@
+{
+  "model": "sonnet",
+  "effortLevel": "high",
+  "language": "English",
+  "permissions": {
+    "defaultMode": "acceptEdits",
+    "allow": [
+      "Bash(ha-nova relay *)",
+      "Read(~/.config/ha-nova/**)",
+      "Read(~/.claude/plugins/**)",
+      "Read(~/.agents/**)",
+      "Read(//tmp/**)",
+      "Write(//tmp/**)",
+      "Read(//private/tmp/**)",
+      "Write(//private/tmp/**)"
+    ]
+  }
+}

@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+#
+# cleanup-hero.sh — delete the demo automation created by a hero take and
+# verify it is gone. Run after EVERY take, successful or not.
+#
+# Resolution path (see skills/ha-nova/relay-api.md, "ID Types & Resolution"):
+# entity registry (WS) -> unique_id -> REST DELETE on the config id. There is
+# no REST list route for automation configs.
+#
+# Usage: cleanup-hero.sh ["Alias Prefix"]
+set -euo pipefail
+
+PREFIX="${1:-Pool deck lights}"
+
+list_entity_ids() {
+  # Case-insensitive: the model may title-case the alias ("Pool Deck Lights…").
+  local prefix_lc
+  prefix_lc=$(tr '[:upper:]' '[:lower:]' <<<"$PREFIX")
+  ha-nova relay ws -d '{"type":"config/entity_registry/list_for_display"}' \
+    -jq "[.data.entities[]
+          | select((.ei | startswith(\"automation.\"))
+                   and ((.en // \"\") | ascii_downcase | startswith(\"$prefix_lc\")))
+          | .ei]" 2>/dev/null | ha-nova relay jq -r '.[]' || true
+}
+
+mapfile -t ids < <(list_entity_ids)
+
+if ((${#ids[@]} == 0)); then
+  echo "No demo automation matching alias prefix \"$PREFIX\" — nothing to clean."
+  exit 0
+fi
+
+echo "Deleting ${#ids[@]} demo automation(s): ${ids[*]}"
+for ei in "${ids[@]}"; do
+  uid=$(ha-nova relay ws -d "{\"type\":\"config/entity_registry/get\",\"entity_id\":\"$ei\"}" \
+    -jq '.data.unique_id' | ha-nova relay jq -r '.')
+  if [[ -z "$uid" || "$uid" == "null" ]]; then
+    echo "ERROR: no unique_id for $ei — delete manually." >&2
+    exit 1
+  fi
+  ha-nova relay core -method DELETE -path "/api/config/automation/config/$uid" >/dev/null
+  echo "  deleted $ei (config id $uid)"
+done
+
+sleep 1
+mapfile -t left < <(list_entity_ids)
+if ((${#left[@]} > 0)); then
+  echo "ERROR: still present after delete: ${left[*]}" >&2
+  exit 1
+fi
+echo "Verified: no demo automation left."
