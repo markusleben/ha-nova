@@ -133,6 +133,7 @@ func TestDeriveReleaseHighlightsEmptyMalformedUnrecognized(t *testing.T) {
 		"paragraphs only":     "## New Features\n\nJust prose, no bullets.\n",
 		"unterminated fence":  "## New Features\n\n```\n- swallowed by fence\n",
 		"install command":     "## New Features\n\n- Run: curl -fsSL https://example.test/install.sh | bash\n",
+		"powershell install":  "## New Features\n\n- Install: irm https://example.test/install.ps1 | iex\n",
 		"only nested bullets": "## New Features\n\n  - nested one\n    - nested two\n",
 		// Regression: a bare "- " bullet must not panic or produce an item.
 		"empty bullets": "## New Features\n\n- \n- \n",
@@ -141,6 +142,17 @@ func TestDeriveReleaseHighlightsEmptyMalformedUnrecognized(t *testing.T) {
 		if got := deriveReleaseHighlights(body); len(got) != 0 {
 			t.Fatalf("%s: highlights = %+v, want empty", name, got)
 		}
+	}
+}
+
+func TestDeriveReleaseHighlightsKeepsDescriptiveInstallerFixes(t *testing.T) {
+	body := "## Bug Fixes\n\n- Fix install.ps1 on PowerShell 5 so fresh Windows installs work again\n"
+	got := deriveReleaseHighlights(body)
+	if len(got) != 1 || got[0].Kind != releaseHighlightKindFix {
+		t.Fatalf("highlights = %+v, want the descriptive installer fix", got)
+	}
+	if !strings.Contains(got[0].Text, "install.ps1") {
+		t.Fatalf("text = %q, want the filename preserved", got[0].Text)
 	}
 }
 

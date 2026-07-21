@@ -188,10 +188,13 @@ func normalizeReleaseHighlightText(raw string) string {
 
 // looksLikeInstallCommand filters bullets that are really shell install
 // instructions — those live in the release page and the pinned update
-// guidance, not in the compact digest.
+// guidance, not in the compact digest. Only command-shaped bullets match
+// (pipe-to-shell and fetch invocations); descriptive prose that merely
+// mentions installer filenames ("Fix install.ps1 on PowerShell 5") is a
+// legitimate highlight and stays.
 func looksLikeInstallCommand(text string) bool {
 	lower := strings.ToLower(text)
-	for _, marker := range []string{"| iex", "irm https://", "install.ps1", "install.sh", "curl -fssl"} {
+	for _, marker := range []string{"| iex", "| bash", "| sh", "irm https://", "curl -fssl", "wget https://"} {
 		if strings.Contains(lower, marker) {
 			return true
 		}
