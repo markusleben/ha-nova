@@ -958,6 +958,62 @@ result["preview_has_canonical_keys"] = (
     len(preview_sections) == 1
     and all(key in preview_sections[0] for key in ("triggers", "conditions", "actions"))
 )
+# Issue #390: a preview whose only explanation for a touched collection is a
+# count transition ("5 items | 3 items", "5 items → 3 items", "... and N
+# more") or a type-only row ("5 (number) | 5 (string)") must also carry a
+# plain-language behavior narrative. Structural check: the narrative must sit
+# in the same or an adjacent paragraph as the count/type line (the card shape
+# puts it directly above the changes block), so unrelated boilerplate prose
+# elsewhere cannot satisfy the gate.
+COUNT_ONLY_RE = re.compile(
+    r"\|\s*\d+\s+items?\s*\|\s*\d+\s+items?\s*\|"
+    r"|\d+\s+items?\s*(?:→|->)\s*\d+\s+items?"
+    r"|…\s*and\s+\d+\s+more"
+    r"|\|\s*([^|()\n]+?)\s*\(\w+\)\s*\|\s*\1\s*\(\w+\)\s*\|"
+    r"|([^|()\n]+?)\s*\(\w+\)\s*(?:→|->)\s*\2\s*\(\w+\)",
+)
+
+
+def is_narrative_line(line: str) -> bool:
+    stripped = line.strip()
+    if not stripped or len(stripped.split()) < 4:
+        return False
+    # A count/type transition line is the thing needing explanation, never
+    # the explanation itself.
+    if COUNT_ONLY_RE.search(stripped):
+        return False
+    if stripped.startswith(("|", "#", "-", "`", "📝", "⚠", "✅", "🗑", '"', "{", "}", "[", "]")):
+        return False
+    # Card slot/scaffolding lines are not narrative prose.
+    if stripped.startswith(
+        ("Options:", "Option:", "Pre-write check:", "Save status", "Status:",
+         "Manifest:", "Recovery:", "Impact:", "Used by:", "Checked:",
+         "To delete", "Reply ", "NOVA_WRITE_REVIEW_RESULT")
+    ):
+        return False
+    if "Preview Payload" in stripped or " · " in stripped:
+        return False
+    # Save-status scaffolding without the emoji/label ("Nothing has been
+    # saved yet.") is a card slot, not narrative.
+    if re.search(r"(?i)^(?:nothing|not)\b.*\b(?:saved|deleted|executed|applied|written|run)\b.*\byet\b", stripped):
+        return False
+    return True
+
+
+# Fenced payload blocks are machine data — neither narrative nor diff rows.
+prewrite_prose = re.sub(r"```.*?(?:```|\Z)", "", result["prewrite_text"], flags=re.DOTALL)
+paragraphs = [p for p in re.split(r"\n\s*\n", prewrite_prose)]
+uncovered_count_paragraph = False
+for i, paragraph in enumerate(paragraphs):
+    if not COUNT_ONLY_RE.search(paragraph):
+        continue
+    nearby = paragraphs[max(0, i - 1) : i + 2]
+    if not any(
+        is_narrative_line(line) for block in nearby for line in block.splitlines()
+    ):
+        uncovered_count_paragraph = True
+        break
+result["count_only_preview_without_narrative"] = uncovered_count_paragraph
 # The post-write contract no longer mandates fixed Findings/Collision check/Advisory
 # headings: report only sections with substance, omit empties, and never print a
 # "none" bucket. Structure is valid as soon as a Post-Write Review section exists.
@@ -1051,6 +1107,7 @@ run_scenario() {
   local unexpected_events_after_final_message
   local preview_section_count
   local preview_has_canonical_keys
+  local count_only_preview_without_narrative
   local helper_script_count
   local onboarding_count
   local external_research_hits
@@ -1152,6 +1209,7 @@ run_scenario() {
     unexpected_events_after_final_message="$(jq -r '.unexpected_events_after_final_message' "$analysis_json")"
     preview_section_count="$(jq -r '.preview_section_count' "$analysis_json")"
     preview_has_canonical_keys="$(jq -r '.preview_has_canonical_keys' "$analysis_json")"
+    count_only_preview_without_narrative="$(jq -r '.count_only_preview_without_narrative' "$analysis_json")"
 
     [[ "$write_hits" -ge 1 ]] || {
       status="fail"
@@ -1241,6 +1299,11 @@ run_scenario() {
       status="fail"
       validation_error="missing_prewrite_preview_section"
     }
+  fi
+
+  if [[ "$status" == "pass" && "$count_only_preview_without_narrative" == "true" ]]; then
+    status="fail"
+    validation_error="count_only_preview_without_narrative"
   fi
 
   if [[ "$status" == "pass" && "$postwrite_repeats_prewrite_verdict" == "true" ]]; then

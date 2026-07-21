@@ -113,6 +113,10 @@ describe("batch safety contract (issue #327)", () => {
     expect(batchSafety).toContain("🗑️  Delete: 8 automations");
     expect(batchSafety).toContain("⚠️  Nothing deleted yet.");
     expect(outputRules).toContain("Destructive batch previews and results render the Batch Cards");
+    // Issue #390: the batch preview states what the workset does, never a
+    // bare count plus manifest path.
+    expect(batchSafety).toContain("a bare count plus manifest path is not a preview");
+    expect(batchSafety).toContain("All eight are light schedules that stop running when deleted.");
   });
 
   it("keeps the v1 exclusions single-target", () => {

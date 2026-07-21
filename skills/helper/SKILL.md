@@ -126,7 +126,7 @@ If 0 results: try synonyms or shorter stems. Never dump entire domains.
 
 1. Resolve target from `{type}/list` by `name` or internal `id`.
 2. Extract `id` from the list response (this is the `{type}_id` for the update command).
-3. Validate the merged current+proposed fields against the same cross-field constraints as create (Creating step 1) — an update can break `min`/`max`, `minimum`/`maximum`, `initial` ∈ `options`, or datetime/timer constraints just as easily. Then preview current vs proposed in the Changes slot with `ha-nova diff` (see `skills/ha-nova/write-safety.md` → Pre-Write Diff). Then run a pre-write impact check — `search/related` on this helper entity (max 3 related configs) — and surface affected automations/scripts as an advisory. Advisory only; never block. Include an explicit not-saved-yet line and Options block (`apply`, `show yaml`, `cancel`).
+3. Validate the merged current+proposed fields against the same cross-field constraints as create (Creating step 1) — an update can break `min`/`max`, `minimum`/`maximum`, `initial` ∈ `options`, or datetime/timer constraints just as easily. Then preview current vs proposed in the Changes slot with `ha-nova diff` (see `skills/ha-nova/write-safety.md` → Pre-Write Diff) plus the behavior narrative (write-safety → Behavior narrative) — a count-only diff row never stands alone. Then run a pre-write impact check — `search/related` on this helper entity (max 3 related configs) — and surface affected automations/scripts as an advisory. Advisory only; never block. Include an explicit not-saved-yet line and Options block (`apply`, `show yaml`, `cancel`).
 4. Ask for natural confirmation bound to this exact preview (see context skill → Active Preview Confirmation).
 5. If the conversation paused since the preview, re-read the list item; a changed basis expires the confirmation (`write-safety.md` → Drift check before apply).
 6. Execute:
@@ -334,7 +334,7 @@ If multiple matches remain, present max 5 candidates and ask one blocking questi
    - for `history_stats`, preserve HA's two-key window invariant across `start`, `end`, and `duration`
    - for `history_stats`, if the requested change switches to a different valid window pair, drop the old third key explicitly so the submit body still contains exactly two of `start`, `end`, and `duration`
    - for `template`, when the change touches the `state` template, resolve every entity ID referenced in the NEW template before submitting (entity registry, then `/api/states/<entity_id>` fallback — YAML/manual entities are absent from the registry but valid) — a typo like `is_state('binary_sensor.typo','on')` renders a clean boolean, so the post-write rendered-state read cannot catch it; a reference missing from both is a blocking question, not a submit
-7. Preview current vs proposed in the Changes slot with `ha-nova diff` (see `skills/ha-nova/write-safety.md` → Pre-Write Diff). Include an explicit not-saved-yet line and Options block (`apply`, `show yaml`, `cancel`).
+7. Preview current vs proposed in the Changes slot with `ha-nova diff` (see `skills/ha-nova/write-safety.md` → Pre-Write Diff) plus the behavior narrative (write-safety → Behavior narrative). Include an explicit not-saved-yet line and Options block (`apply`, `show yaml`, `cancel`).
 8. Ask for natural confirmation bound to this exact preview (see context skill → Active Preview Confirmation).
 9. Submit the current step:
    ```text

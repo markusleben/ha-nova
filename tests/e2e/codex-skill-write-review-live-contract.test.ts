@@ -66,6 +66,8 @@ describe("codex write-review live e2e contract", () => {
     expect(content).toContain("must_not_contain_postwrite_text");
     expect(content).toContain("required_prewrite_text_missing");
     expect(content).toContain("forbidden_prewrite_text_present");
+    // Issue #390: a count-only preview without a behavior narrative fails.
+    expect(content).toContain("count_only_preview_without_narrative");
     expect(content).toContain("required_postwrite_text_missing");
     expect(content).toContain("forbidden_postwrite_text_present");
     expect(content).toContain("prewrite_verdict_repeated_postwrite");

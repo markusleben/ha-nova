@@ -103,7 +103,7 @@ Critical behavior:
      - jq filters must null-guard absent structure keys: empty dashboards have no `views` — iterate `(.views // [])[]`, never bare `.views[]`; same for `.cards` and `.badges`
      - resolve the exact target by view, title/heading text, entity reference, card type, or explicit position
      - merge the requested change in memory
-     - preview a concise diff/excerpt
+     - preview a concise diff/excerpt plus a plain-language behavior line (write-safety → Behavior narrative)
      - confirm this exact preview
      - drift check between confirmation and save: if the conversation paused since the preview, re-read the live config and compare the FULL document against the merge basis — including the very view/card being edited; on any foreign change, STOP — confirmation expired; re-merge onto the fresh read and re-preview (the full-document save would silently revert the external edit)
      - capture the auto config snapshot of the pre-save document when the save removes views or cards (`skills/ha-nova/config-snapshots.md`; on capture failure follow its capture-failure stop)
