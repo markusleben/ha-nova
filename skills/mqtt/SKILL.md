@@ -48,6 +48,16 @@ MQTT topics never emit a "finish" event, so a listen is a WINDOW, not a request.
 - **Retained messages are NOT live traffic.** The broker replays every retained message to a new subscriber immediately, so a message can arrive in the first milliseconds of the window even though the device published it days ago and is now silent. Each event carries a `retain` flag: treat `retain: true` as broker state, not as evidence that the device is sending. For the question "is my device actually publishing?", only `retain: false` messages count — and if all you saw were retained ones, say exactly that (the device is silent; the broker is holding its last value).
 - Keep windows short (<= 10 s, the relay's ceiling) and topics as narrow as possible; `#` on the root is noise, not evidence.
 
+## User-Assisted Capture
+
+When the traffic needs the user to act (press the remote, trip the sensor), the window cannot wait for them — it starts with the call and the relay caps it at ~10 s (context skill → User-Assisted Readiness):
+
+1. Name the exact action and topic first, and ask if the user is ready.
+2. On "ready": announce "listening for the next ~10 s — act now" and open the window in the same turn.
+3. A missed capture after the action — an empty window OR one holding only retained replays (`retain: true`) — means re-arm and retry once before reporting "nothing arrived"; never call the device silent on one missed window.
+
+Never instruct the physical action before the ready-check, and never claim monitoring is active without an open window.
+
 ## Flow
 
 1. Clarify the topic. Prefer the narrowest one that answers the question (`zigbee2mqtt/<device>` beats `zigbee2mqtt/#`).

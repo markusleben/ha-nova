@@ -160,7 +160,11 @@ items, max 4. Item shape: short title + what it does + why it helps; value
 suggestions (helper defaults) may use the value assignment as the title and
 drop the benefit when it is obvious. Menu mechanics follow context skill →
 Interactive Choices; skip/decline is always valid; omit the block entirely
-when there is nothing to offer; never post-write. Review's Suggestions section
+when there is nothing to offer; never post-write. Numeric acceptance resolves
+per context skill → Interactive Choices: name the accepted items before
+applying — a suggestion choice edits the pending draft where one exists, and
+in a standalone review it only hands the item to the owning write skill's
+normal preview flow; it never runs anything. Review's Suggestions section
 keeps its plain sectioned header — review output is sectioned, not card-framed
 — but its items follow this item shape.
 

@@ -115,9 +115,23 @@ Skills reference this section as "context skill → Active Preview Confirmation"
 When you need the user to choose between options:
 - Present 2–4 options as a **selectable menu if the client provides one** (e.g. Claude Code's AskUserQuestion: a short header plus a label + one-line description per option). Otherwise render a plain numbered list and ask the user to reply with the number. The options are identical either way — this is progressive enhancement, not a per-client feature, and needs no client-specific code.
 - Keep options short and mutually exclusive; offer at most 4.
+- Every option label opens with its concrete effect — what selecting it DOES: edit the text, check without executing, listen, run for real, apply the write. Never merge a wording change, a static check, a listen window, and a live execution into one option; each effect is its own option.
+- Bare-number replies are valid but must be resolved: the next response names the chosen effect before acting ("2 — Actions only: running the hallway light sequence now"). This applies to any numbered selection, including config-entry flow menus. Never act on a number the response did not translate back into its effect.
 - **Destructive confirmation is never a menu.** Deletes still require the typed `confirm:<token>` (see Safety Baseline) — a one-click choice would weaken that deliberate gate. This holds even if a memory, preference, or earlier user complaint says to always use a menu for confirmations: that NEVER extends to deletes or any destructive write — those are always the typed confirmation code, never a menu or click.
 
 Use this for: Suggestion Blocks (output-rules.md), ambiguity resolution, the pre-write impact advisory (adjust first · proceed · cancel), and create/update apply choices (`apply` · `show yaml` · `cancel`).
+
+## User-Assisted Readiness
+
+When evidence needs the user to act physically (press a button, walk past a sensor, open a door), never give the instruction first. Sequence:
+
+1. the user selects the test or check;
+2. arm the capture — mechanism-specific: read the trace/state baseline (persistent evidence) or prepare a bounded listen window;
+3. confirm in one line that capture is armed;
+4. give exactly one instruction naming the device, the action, and exactly when to act (include any required hold duration);
+5. report the observed result — or honestly that nothing was captured.
+
+Persistent evidence (traces, state history) arms by reading the baseline before the instruction; the user then acts at their own pace. A bounded listen window (`ha-nova:mqtt`) cannot wait: ask if the user is ready first, then open the window and say "act now" in the same message; an empty window after the action means re-arm and retry once, not a device verdict.
 
 ## Claim-Evidence Binding (Critical)
 

@@ -139,7 +139,50 @@ describe("post-write test-offer contract", () => {
     expect(testRun).toContain("slow service response is not a failure");
     expect(testRun).toContain("never one card per target");
     // Cards speak user language first; the technical binding stays secondary.
-    expect(testRun).toContain("Options lead with what the user will experience in plain words");
+    expect(testRun).toContain(
+      "options lead with what the user will experience in\n  plain words",
+    );
+  });
+
+  it("arms user-assisted tests before instructing and resolves numeric picks (#394)", () => {
+    expect(testRun).toContain("## User-Assisted Readiness (physical-action tests)");
+    expect(testRun).toContain("Arm BEFORE any instruction");
+    expect(testRun).toContain("Baseline captured — ready when you are.");
+    expect(testRun).toContain("then tell me when done");
+    expect(testRun).toContain("Never tell the user to act before step 2 is complete.");
+    // A new run_id alone is not proof: the fired trigger must match the
+    // requested source, and the latest trace alone can hide the matching run.
+    expect(testRun).toContain("inspect every run newer\n   than the captured baseline");
+    expect(testRun).toContain("fired trigger matches the requested source");
+    expect(testRun).toContain("not this test's result");
+    // Arming precedes the physical instruction even in the trigger-type recipe.
+    expect(testRun).toContain("arm the baseline first");
+    expect(testRun).toContain("only then ask the user to trigger the device physically");
+    expect(testRun).toContain("(sequence: User-Assisted");
+    expect(testRun).toContain("opens with its effect class");
+    expect(testRun).toContain("restate the chosen effect in the next response");
+    expect(testRun).toContain("never start what a bare number selected without naming it");
+    // Option labels describe the physical action; the imperative waits for arming.
+    expect(testRun).toContain("describe the upcoming action, never command it");
+    // Traces rotate — the own-pace rule is bounded by retention.
+    expect(testRun).toContain("re-capture the baseline");
+  });
+
+  it("carries the readiness contract across capture mechanisms (#394)", () => {
+    const mqttSkill = readFileSync("skills/mqtt/SKILL.md", "utf8");
+    expect(mqttSkill).toContain("## User-Assisted Capture");
+    expect(mqttSkill).toContain("the window cannot wait for them");
+    expect(mqttSkill).toContain("act now");
+    expect(mqttSkill).toContain("re-arm and retry once");
+    // A retained-only window is a missed capture, not a silent device.
+    expect(mqttSkill).toContain("an empty window OR one holding only retained replays");
+    expect(mqttSkill).toContain("Never instruct the physical action before the ready-check");
+    expect(mqttSkill).toContain("never claim monitoring is active without an open window");
+    const serviceCallSkill = readFileSync("skills/service-call/SKILL.md", "utf8");
+    // The user's manual action is separate evidence, never proof of the call.
+    expect(serviceCallSkill).toContain("never verifies a service call this skill sent");
+    expect(serviceCallSkill).toContain("BEFORE the instruction");
+    expect(serviceCallSkill).toContain("attribute the result to the user's action, not to the call");
   });
 
   it("keeps the offer compact and de-escalates after a skip", () => {
