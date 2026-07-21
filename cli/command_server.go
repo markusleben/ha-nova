@@ -283,6 +283,17 @@ func runServerRemove(paths runtimePaths, args []string) int {
 		newDefault = defaultServerProfileName
 	}
 
+	// Secure-storage preflight BEFORE the confirmation: if the slots are not
+	// reachable here (locked keyring, headless SSH), removing the config entry
+	// would strand credentials under a name that no longer exists. Abort with
+	// nothing touched instead.
+	for _, service := range []string{deviceCredentialServiceForProfile(name), deviceCredentialPendingServiceForProfile(name)} {
+		if _, _, readErr := readCredentialSlot(service); readErr != nil {
+			printHumanErr("secure storage is not reachable here (%v) — removing %q now would leave its stored credential behind. Make secure storage available (e.g. run from the desktop session), then retry; nothing was removed.", readErr, name)
+			return 1
+		}
+	}
+
 	printHumanInfo("Removing server profile %q: its device pairing will be revoked on that relay and its stored credentials deleted. The Relay App on that Home Assistant instance stays installed.", name)
 	typed, err := readServerRemoveConfirmation(name)
 	if err != nil {

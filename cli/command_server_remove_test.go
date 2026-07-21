@@ -179,3 +179,25 @@ func TestServerCommandUsageAndHelp(t *testing.T) {
 		t.Fatal("global usage must list the server command")
 	}
 }
+
+func TestServerRemovePreflightsSecureStorageBeforeConfirmation(t *testing.T) {
+	// Locked/unreachable secure storage must abort BEFORE the confirmation and
+	// before any config change — otherwise the profile entry disappears while
+	// its credentials stay stranded under an unselectable name.
+	paths := setupServerCommandTest(t, testV2TwoProfileConfig)
+	t.Setenv("HA_NOVA_TEST_SECRET_DIR", "")
+	prevPreflight := deviceCredentialPreflight
+	deviceCredentialPreflight = func() error { return errDesktopKeyringSessionUnavailable }
+	t.Cleanup(func() { deviceCredentialPreflight = prevPreflight })
+	stubServerCommandStdin(t, "cabin\n")
+	before, _ := os.ReadFile(paths.ConfigFile)
+
+	exit, out := captureCommandOutput(t, func() int { return runServerCommand(paths, []string{"remove", "cabin"}) })
+	if exit != 1 || !strings.Contains(out, "secure storage is not reachable") {
+		t.Fatalf("exit = %d, output:\n%s", exit, out)
+	}
+	after, _ := os.ReadFile(paths.ConfigFile)
+	if string(before) != string(after) {
+		t.Fatal("the preflight abort must not touch config.json")
+	}
+}
