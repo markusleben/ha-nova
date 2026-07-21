@@ -141,6 +141,35 @@ func TestNonDefaultProfileNoticeAndEndpointPathsStayFailClosed(t *testing.T) {
 	}
 }
 
+func TestAutoFileFallbackRefusesNamedProfileWithoutMarker(t *testing.T) {
+	// SSH-into-desktop case: keyring unreachable, no file-backend marker yet.
+	// Auto-committing the machine-wide marker while pairing a NAMED profile
+	// would hide the default profile's keyring credential — the switch needs
+	// the explicit --credential-store=file opt-in.
+	resetServerProfileSelection(t)
+	t.Setenv("HOME", t.TempDir())
+	// The suite-wide test secret dir short-circuits the probe; this test needs
+	// the real probe path with a mocked keyring canary.
+	t.Setenv("HA_NOVA_TEST_SECRET_DIR", "")
+	prevCanary := deviceStorageKeyringCanary
+	deviceStorageKeyringCanary = func() error { return errDesktopKeyringSessionUnavailable }
+	t.Cleanup(func() { deviceStorageKeyringCanary = prevCanary })
+
+	setActiveServerProfile("cabin")
+	if _, err := probeDeviceCredentialStorage(); err == nil {
+		t.Fatal("auto file fallback for a named profile without a marker must fail loud")
+	} else if !strings.Contains(err.Error(), "--credential-store=file") {
+		t.Fatalf("error must name the explicit opt-in, got: %v", err)
+	}
+
+	// The default profile keeps today's auto-fallback behavior.
+	setActiveServerProfile(defaultServerProfileName)
+	probe, err := probeDeviceCredentialStorage()
+	if err != nil || probe.mode != "file" {
+		t.Fatalf("default-profile auto fallback changed: mode=%q err=%v", probe.mode, err)
+	}
+}
+
 func TestPurgeAllProfilesRevokesEachAgainstItsOwnEndpoint(t *testing.T) {
 	resetServerProfileSelection(t)
 	t.Setenv("HA_NOVA_TEST_SECRET_DIR", t.TempDir())

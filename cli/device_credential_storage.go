@@ -260,6 +260,13 @@ func probeDeviceCredentialStorage() (deviceStorageProbe, error) {
 		// switch happens only when a current credential is actually promoted to a
 		// file (deviceSecretFileSet). A canceled pair/setup then leaves nothing
 		// behind and can never mask or downgrade an existing keyring credential.
+		if profile := activeServerProfile(); profile != defaultServerProfileName && !deviceFileBackendMarkerExists() {
+			// The eventual marker commit is machine-wide: auto-falling back while
+			// pairing a NAMED profile would hide the default profile's keyring
+			// credential (SSH-into-desktop case). That switch needs the explicit
+			// opt-in, which also migrates reachable keyring credentials first.
+			return deviceStorageProbe{}, fmt.Errorf("no desktop keyring reachable here (%v), and this install has not switched to file storage; pairing profile %q would hide the default profile's keyring credential. Re-run with --credential-store=file to switch this install explicitly, or pair from the desktop session", keyringErr, profile)
+		}
 		if fileErr := deviceStorageFileCanary(); fileErr != nil {
 			return deviceStorageProbe{}, fmt.Errorf("no desktop keyring (%v) and the file fallback failed: %w", keyringErr, fileErr)
 		}
