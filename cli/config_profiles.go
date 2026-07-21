@@ -124,9 +124,9 @@ func (d *configDocument) flatProfile(name string) (runtimeConfig, bool) {
 				return runtimeConfig{}, false
 			}
 			fields = parsed
-		case name == d.defaultServerName():
-			// Hand-edited v2 without a default entry: the legacy mirror still
-			// carries the default profile's data.
+		case name == defaultServerProfileName:
+			// Hand-edited v2 without a default entry: the legacy mirror (when
+			// present) carries the LITERAL default profile's data.
 		default:
 			return runtimeConfig{}, false
 		}
@@ -169,7 +169,10 @@ func loadRawDefaultProfileConfig(path string) (runtimeConfig, error) {
 	if err != nil {
 		return runtimeConfig{}, err
 	}
-	if cfg, ok := doc.flatProfile(doc.defaultServerName()); ok {
+	// Always the LITERAL default profile — never default_server: the legacy
+	// token (and its relay_token_file) belongs to the migrated v1 install even
+	// when the user later points default_server at another profile.
+	if cfg, ok := doc.flatProfile(defaultServerProfileName); ok {
 		return cfg, nil
 	}
 	// No usable default entry: fall back to the flat/mirror fields.
@@ -251,30 +254,38 @@ func (d *configDocument) withProfile(name string, cfg runtimeConfig) (map[string
 		defaultName = name
 	}
 
-	// Legacy mirror: the default profile's fields, rewritten on every save.
+	// Legacy mirror: the LITERAL default profile's fields, rewritten on every
+	// save — never default_server's. An old binary pairs the flat fields with
+	// the machine-wide legacy token, which belongs to the migrated v1 install;
+	// mirroring a named profile would send that token to another server. With
+	// no literal default profile there is no mirror: the old binary honestly
+	// reports "not set up yet".
 	var mirror serverProfileConfig
-	if name == defaultName {
+	hasMirror := true
+	if name == defaultServerProfileName {
 		mirror = serverProfileFromRuntime(cfg)
-	} else if raw, ok := servers[defaultName]; ok {
+	} else if raw, ok := servers[defaultServerProfileName]; ok {
 		if err := json.Unmarshal(raw, &mirror); err != nil {
 			return nil, err
 		}
 	} else {
-		mirror = d.flat
+		hasMirror = false
 	}
 	for _, key := range serverProfileFieldKeys {
 		delete(top, key)
 	}
-	mirrorRaw, err := json.Marshal(mirror)
-	if err != nil {
-		return nil, err
-	}
-	var mirrorMap map[string]json.RawMessage
-	if err := json.Unmarshal(mirrorRaw, &mirrorMap); err != nil {
-		return nil, err
-	}
-	for key, value := range mirrorMap {
-		top[key] = value
+	if hasMirror {
+		mirrorRaw, err := json.Marshal(mirror)
+		if err != nil {
+			return nil, err
+		}
+		var mirrorMap map[string]json.RawMessage
+		if err := json.Unmarshal(mirrorRaw, &mirrorMap); err != nil {
+			return nil, err
+		}
+		for key, value := range mirrorMap {
+			top[key] = value
+		}
 	}
 
 	serversRaw, err := json.Marshal(servers)

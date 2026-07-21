@@ -305,3 +305,55 @@ func TestRawDefaultProfileLoaderResolvesTokenFileFromV2Config(t *testing.T) {
 		t.Fatalf("v1 raw read = %q err=%v", cfgV1.RelayTokenFile, err)
 	}
 }
+
+func TestRawDefaultProfileLoaderIgnoresDefaultServerRedirect(t *testing.T) {
+	// The legacy token belongs to the LITERAL default profile (the migrated v1
+	// install). Pointing default_server at another profile must not make the
+	// raw loader read that profile's relay_token_file — the legacy token would
+	// travel to the wrong server.
+	resetServerProfileSelection(t)
+	paths := writeTestConfigFile(t, `{"schema_version":2,"default_server":"cabin","servers":{"default":{"relay_token_file":"default-token"},"cabin":{"relay_token_file":"cabin-token","relay_base_url":"http://cabin:8791"}}}`)
+
+	cfg, err := loadRawDefaultProfileConfig(paths.ConfigFile)
+	if err != nil {
+		t.Fatalf("loadRawDefaultProfileConfig: %v", err)
+	}
+	if cfg.RelayTokenFile != "default-token" {
+		t.Fatalf("relay_token_file = %q, want the literal default profile's default-token", cfg.RelayTokenFile)
+	}
+}
+
+func TestLegacyMirrorFollowsLiteralDefaultNotDefaultServer(t *testing.T) {
+	// The flat mirror pairs with the machine-wide legacy token in old binaries,
+	// so it must always carry the LITERAL default profile — never the profile
+	// default_server points at.
+	resetServerProfileSelection(t)
+	doc, err := parseConfigDocument([]byte(`{"schema_version":2,"default_server":"cabin","servers":{"default":{"relay_base_url":"http://home:8791"},"cabin":{"relay_base_url":"http://cabin:8791"}}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	top, err := doc.withProfile("cabin", runtimeConfig{RelayBaseURL: "http://cabin:8791", HAHost: "cabin.local"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var mirror serverProfileConfig
+	raw, _ := json.Marshal(top)
+	if err := json.Unmarshal(raw, &mirror); err != nil {
+		t.Fatal(err)
+	}
+	if mirror.RelayBaseURL != "http://home:8791" {
+		t.Fatalf("mirror relay_base_url = %q, want the literal default profile's http://home:8791", mirror.RelayBaseURL)
+	}
+
+	// Without a literal default profile there is no mirror at all: an old
+	// binary honestly reports "not set up yet" instead of pairing the legacy
+	// token with a named profile's server.
+	fresh := &configDocument{top: map[string]json.RawMessage{}}
+	top, err = fresh.withProfile("cabin", runtimeConfig{RelayBaseURL: "http://cabin:8791"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := top["relay_base_url"]; ok {
+		t.Fatal("no literal default profile: the flat mirror must be absent")
+	}
+}
