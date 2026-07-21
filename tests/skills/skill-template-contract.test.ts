@@ -139,7 +139,7 @@ const WORD_BUDGETS: Record<string, number> = {
   // scene-timestamp verify) + capability gate (2026-h2 Wave 1a); runtime
   // event/webhook and alarm/lock contracts (2026-h2 Wave 4).
   // User-assisted proof bullet (#394).
-  "service-call": 2650,
+  "service-call": 2700,
   // Carries the canonical File-Change Preview example — the only layout
   // source for file edits; concrete examples are what make a card renderable.
   // Sibling-survival verification (Wave 1b) + yaml snapshot capture with

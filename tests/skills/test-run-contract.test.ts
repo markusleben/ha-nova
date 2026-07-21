@@ -166,11 +166,15 @@ describe("post-write test-offer contract", () => {
     expect(mqttSkill).toContain("the window cannot wait for them");
     expect(mqttSkill).toContain("act now");
     expect(mqttSkill).toContain("re-arm and retry once");
+    // A retained-only window is a missed capture, not a silent device.
+    expect(mqttSkill).toContain("an empty window OR one holding only retained replays");
     expect(mqttSkill).toContain("Never instruct the physical action before the ready-check");
     expect(mqttSkill).toContain("never claim monitoring is active without an open window");
     const serviceCallSkill = readFileSync("skills/service-call/SKILL.md", "utf8");
-    expect(serviceCallSkill).toContain("User-assisted proof");
+    // The user's manual action is separate evidence, never proof of the call.
+    expect(serviceCallSkill).toContain("never verifies a service call this skill sent");
     expect(serviceCallSkill).toContain("BEFORE the instruction");
+    expect(serviceCallSkill).toContain("attribute the result to the user's action, not to the call");
   });
 
   it("keeps the offer compact and de-escalates after a skip", () => {

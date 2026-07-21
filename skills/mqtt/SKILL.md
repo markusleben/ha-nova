@@ -54,7 +54,7 @@ When the traffic needs the user to act (press the remote, trip the sensor), the 
 
 1. Name the exact action and topic first, and ask if the user is ready.
 2. On "ready": announce "listening for the next ~10 s — act now" and open the window in the same turn.
-3. Empty window after the action: re-arm and retry once before reporting "nothing arrived" — never call the device silent on one missed window.
+3. A missed capture after the action — an empty window OR one holding only retained replays (`retain: true`) — means re-arm and retry once before reporting "nothing arrived"; never call the device silent on one missed window.
 
 Never instruct the physical action before the ready-check, and never claim monitoring is active without an open window.
 
