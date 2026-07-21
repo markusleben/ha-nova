@@ -131,7 +131,8 @@ the card that other event listeners cannot be ruled out.
   is impractical, fall back to actions-only or the logic check and say so.
 - `state` on a physical sensor (motion, door, presence): there is no honest
   service to fake it — ask the user to trigger the device physically, then
-  read the trace; otherwise fall back to "run actions now".
+  read the trace (sequence: User-Assisted Readiness below); otherwise fall
+  back to "run actions now".
 - `template`: run the logic check first; then manipulate the underlying
   entities as above.
 - `event`: `POST /api/events/<event_type>` with the payload the trigger
@@ -139,6 +140,27 @@ the card that other event listeners cannot be ruled out.
 - `mqtt`: publish the expected topic and payload via `ha-nova:mqtt`.
 - Branches keyed on `trigger.id`: one real-path run per branch, each via its
   own trigger source.
+
+## User-Assisted Readiness (physical-action tests)
+
+When the plan needs the user to act physically (motion, door, presence, a
+device's own button), follow context skill → User-Assisted Readiness. Trace
+evidence is persistent, so arming is baseline capture — there is no window
+to miss:
+
+1. The card choice selects the test.
+2. Arm BEFORE any instruction: capture the current run_id baseline
+   (Post-Run Verification step 1) and read the trigger source's state.
+3. Confirm readiness in one line: "Baseline captured — ready when you are."
+4. Instruct exactly one action: the device, the movement, and when — "walk
+   past the hall motion sensor now, then tell me when done." Name any `for:`
+   hold the trigger needs.
+5. After the user reports done, read the trace, accept only a new run_id,
+   verify device states, restore per the card, and report.
+
+Never tell the user to act before step 2 is complete. A test whose trigger
+listens on MQTT verifies via `ha-nova:mqtt` bounded-window readiness instead
+(the window cannot wait — ready-check first, "act now" as it opens).
 
 ## Post-Run Verification (automatic after any consented run)
 
@@ -187,13 +209,18 @@ mechanics follow `skills/ha-nova/SKILL.md` → Interactive Choices (labels
 localized at runtime):
 
 - Recommended option first and marked; at most 3 options plus `skip`.
-- One line per option: what runs, what it proves, what it switches.
+- Each option opens with its effect class — Logic check / Actions only / Real
+  test (scripts: Run script) — so a bare number always maps to a named
+  effect; then one line: what runs, what it proves, what it switches.
 - Real-run options carry a consequence line: the devices that will act, the
   end state, and the restore plan (including whether actuated devices are
   returned to their pre-test state).
-- Options lead with what the user will experience in plain words; the
-  technical binding (service, payload, `skip_condition`) stays on the card
-  but never opens the line.
+- After the effect class, options lead with what the user will experience in
+  plain words; the technical binding (service, payload, `skip_condition`)
+  stays on the card but never opens the line.
+- On a bare-number reply, restate the chosen effect in the next response
+  before executing ("Actions only — running the hallway light sequence
+  now"); never start what a bare number selected without naming it.
 - High-consequence actions add an explicit warning line (for example: "this
   unlocks the front door for real").
 - `skip` is always valid. On skip, the Verification Honesty wording

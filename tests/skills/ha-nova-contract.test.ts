@@ -706,4 +706,33 @@ describe("ha-nova contract", () => {
     // Firewall against a self-written "always use a menu" memory overriding deletes.
     expect(context).toContain("NEVER extends to deletes");
   });
+
+  it("resolves bare numbers to named effects and separates effect classes (#394)", () => {
+    const context = readFileSync("skills/ha-nova/SKILL.md", "utf8");
+    expect(context).toContain("Every option label opens with its concrete effect");
+    expect(context).toContain(
+      "Never merge a wording change, a static check, a listen window, and a live execution into one option",
+    );
+    expect(context).toContain("the next response names the chosen effect before acting");
+    expect(context).toContain(
+      "This applies to any numbered selection, including config-entry flow menus.",
+    );
+    expect(context).toContain(
+      "Never act on a number the response did not translate back into its effect.",
+    );
+    // Flow menus resolve numeric picks before submitting the step.
+    const integrationSetup = readFileSync("skills/integration-setup/SKILL.md", "utf8");
+    expect(integrationSetup).toContain("name the selected option before submitting it");
+  });
+
+  it("arms capture before instructing physical user actions (#394)", () => {
+    const context = readFileSync("skills/ha-nova/SKILL.md", "utf8");
+    expect(context).toContain("## User-Assisted Readiness");
+    expect(context).toContain("never give the instruction first");
+    expect(context).toContain("confirm in one line that capture is armed");
+    expect(context).toContain("report the observed result — or honestly that nothing was captured");
+    expect(context).toContain("the user then acts at their own pace");
+    expect(context).toContain('say "act now" in the same message');
+    expect(context).toContain("re-arm and retry once, not a device verdict");
+  });
 });

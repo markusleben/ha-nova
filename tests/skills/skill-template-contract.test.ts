@@ -124,7 +124,8 @@ const WORD_BUDGETS: Record<string, number> = {
   // attention-threshold definition, cause↔symptom linking (2026-h2 Wave 1c).
   health: 1350,
   // post-publish device verification step (2026-h2 Wave 1a).
-  mqtt: 1400,
+  // User-assisted capture readiness sequence (#394).
+  mqtt: 1500,
   // pre-delete snapshot capture (Wave 2); apply-test offer with the
   // high-consequence carve-out (Wave 3).
   scene: 1600,
@@ -137,7 +138,8 @@ const WORD_BUDGETS: Record<string, number> = {
   // block (transitions, stateless targets, canonical area expansion,
   // scene-timestamp verify) + capability gate (2026-h2 Wave 1a); runtime
   // event/webhook and alarm/lock contracts (2026-h2 Wave 4).
-  "service-call": 2600,
+  // User-assisted proof bullet (#394).
+  "service-call": 2650,
   // Carries the canonical File-Change Preview example — the only layout
   // source for file edits; concrete examples are what make a card renderable.
   // Sibling-survival verification (Wave 1b) + yaml snapshot capture with

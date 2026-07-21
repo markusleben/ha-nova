@@ -139,7 +139,34 @@ describe("post-write test-offer contract", () => {
     expect(testRun).toContain("slow service response is not a failure");
     expect(testRun).toContain("never one card per target");
     // Cards speak user language first; the technical binding stays secondary.
-    expect(testRun).toContain("Options lead with what the user will experience in plain words");
+    expect(testRun).toContain(
+      "options lead with what the user will experience in\n  plain words",
+    );
+  });
+
+  it("arms user-assisted tests before instructing and resolves numeric picks (#394)", () => {
+    expect(testRun).toContain("## User-Assisted Readiness (physical-action tests)");
+    expect(testRun).toContain("Arm BEFORE any instruction");
+    expect(testRun).toContain("Baseline captured — ready when you are.");
+    expect(testRun).toContain("then tell me when done");
+    expect(testRun).toContain("Never tell the user to act before step 2 is complete.");
+    expect(testRun).toContain("sequence: User-Assisted Readiness below");
+    expect(testRun).toContain("opens with its effect class");
+    expect(testRun).toContain("restate the chosen effect in the next response");
+    expect(testRun).toContain("never start what a bare number selected without naming it");
+  });
+
+  it("carries the readiness contract across capture mechanisms (#394)", () => {
+    const mqttSkill = readFileSync("skills/mqtt/SKILL.md", "utf8");
+    expect(mqttSkill).toContain("## User-Assisted Capture");
+    expect(mqttSkill).toContain("the window cannot wait for them");
+    expect(mqttSkill).toContain("act now");
+    expect(mqttSkill).toContain("re-arm and retry once");
+    expect(mqttSkill).toContain("Never instruct the physical action before the ready-check");
+    expect(mqttSkill).toContain("never claim monitoring is active without an open window");
+    const serviceCallSkill = readFileSync("skills/service-call/SKILL.md", "utf8");
+    expect(serviceCallSkill).toContain("User-assisted proof");
+    expect(serviceCallSkill).toContain("BEFORE the instruction");
   });
 
   it("keeps the offer compact and de-escalates after a skip", () => {

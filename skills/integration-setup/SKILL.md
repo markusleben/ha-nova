@@ -64,7 +64,7 @@ For reauthentication, GET the matched `/api/config/config_entries/flow/<flow_id>
 
 Treat every response as authoritative:
 
-- `menu`: show only returned options and state that choosing one submits that exact menu step. The user's selection is the bound confirmation for `{"next_step_id":"<choice>"}`.
+- `menu`: show only returned options and state that choosing one submits that exact menu step. The user's selection is the bound confirmation for `{"next_step_id":"<choice>"}`. A bare-number reply is resolved first: name the selected option before submitting it (context skill → Interactive Choices).
 - `form`: first inspect the returned `data_schema`. If it requests a secret, use the UI-only rule below without building or previewing a body. Otherwise, use only fields returned by the live `data_schema`, build the full step body, preview it, then ask for confirmation bound to that body before POSTing it.
 - validation errors: show the returned field errors and stop; never guess a replacement.
 - `external` or `progress`: for an add flow started here, DELETE the unfinished flow and ask the user to restart the integration at **Settings > Devices & services**. User-started flows are omitted from `config_entries/flow/progress`, and the Relay cannot supply the frontend-origin header OAuth redirects depend on. For a pre-existing reauth flow, preserve it and direct the user to its matching in-progress card. Never claim completion.
