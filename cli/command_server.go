@@ -236,43 +236,6 @@ func runServerRename(paths runtimePaths, args []string) int {
 // pending) of oldName to newName's services and returns a rollback (drop the
 // copies) and a commit (delete the old slots, best-effort). Read/write errors
 // fail the whole rename — the credentials must travel with the name.
-func stageServerCredentialSlotMove(oldName, newName string) (rollback func(), commit func(), err error) {
-	slots := [][2]string{
-		{deviceCredentialServiceForProfile(oldName), deviceCredentialServiceForProfile(newName)},
-		{deviceCredentialPendingServiceForProfile(oldName), deviceCredentialPendingServiceForProfile(newName)},
-	}
-	var written, obsolete []string
-	rollback = func() {
-		for _, service := range written {
-			_ = secretDelete(service)
-		}
-	}
-	for _, pair := range slots {
-		value, ok, readErr := readCredentialSlot(pair[0])
-		if readErr != nil {
-			rollback()
-			return nil, nil, fmt.Errorf("cannot read the stored device credential (%s): %w — make secure storage available, then retry", pair[0], readErr)
-		}
-		if !ok {
-			continue
-		}
-		if writeErr := secretSet(pair[1], value); writeErr != nil {
-			rollback()
-			return nil, nil, fmt.Errorf("cannot store the device credential under the new name (%s): %w", pair[1], writeErr)
-		}
-		written = append(written, pair[1])
-		obsolete = append(obsolete, pair[0])
-	}
-	commit = func() {
-		for _, service := range obsolete {
-			if deleteErr := secretDelete(service); deleteErr != nil {
-				printHumanWarn("could not remove the old credential slot %s: %v — remove it manually from secure storage.", service, deleteErr)
-			}
-		}
-	}
-	return rollback, commit, nil
-}
-
 func runServerRemove(paths runtimePaths, args []string) int {
 	if serverSubcommandHelp(args, "ha-nova server remove <name>",
 		"Revokes the profile's device pairing on ITS relay (best-effort), deletes",
