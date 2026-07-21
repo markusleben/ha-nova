@@ -25,6 +25,17 @@ docs/internal/
 # Local validation artifacts
 .artifacts/
 
+# Demo-recording identity denylist (personal strings, never committed)
+scripts/demo/denylist.local
+
+# Demo-recording working outputs (compressed casts, scrub exports, markers)
+# — private session content; curated casts go to scripts/demo/casts/ only.
+scripts/demo/*.cast
+scripts/demo/*.txt
+scripts/demo/*.markers.json
+scripts/demo/casts/*.txt
+scripts/demo/casts/*.markers.json
+
 # Python cache artifacts from local validation harnesses
 __pycache__/
 *.py[cod]
