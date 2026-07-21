@@ -31,11 +31,16 @@ ledger.
   with its own previews and final confirmation.
 - **No destructive operations.** Anything that requires a confirmation code
   (deletes, destructive batches, high-consequence runtime actions) is rejected
-  from the group and keeps its own flow. A task mixing both runs the grouped
-  set first, then each excluded operation separately.
+  from the group and keeps its own flow. A task mixing both keeps the task's
+  dependency order: each code-gated operation runs in its own flow at its
+  position (e.g. a delete that frees an ID before a grouped create), and the
+  grouped set covers the non-destructive remainder — split into two groups
+  when a code-gated step sits between grouped operations.
 - Every operation must be individually previewable with the owning skill's
-  canonical card; an operation whose preview cannot be produced disqualifies
-  itself, not the group.
+  canonical card. An operation whose preview cannot be produced leaves the
+  group — and takes every operation that depends on it along (never apply a
+  set whose semantic basis is missing); if the task cannot stand without it,
+  stop and say so instead of grouping a fragment.
 
 ## Preview Protocol
 
