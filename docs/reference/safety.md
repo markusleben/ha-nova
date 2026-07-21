@@ -55,6 +55,7 @@ These are guarantees about what HA NOVA *says*, which matter as much as what it 
 | A notification that Home Assistant accepted is not claimed as delivered to your phone | `skills/notify/SKILL.md` | `tests/skills/skill-template-contract.test.ts` |
 | An empty MQTT window means "nothing was published", and retained broker replays are never counted as live device traffic | `skills/mqtt/SKILL.md` | `tests/skills/skill-template-contract.test.ts` |
 | Internal review codes (R-18, H-09, …) never reach you — findings are described in plain language | `skills/ha-nova/output-rules.md`; `skills/review/checks.md` → Output Guardrail | `tests/skills/skill-template-contract.test.ts` (check-code leak allowlist) |
+| A button remap is never planned against a gesture the device was not shown to support | `skills/ha-nova/input-capability-preflight.md`; `skills/write/SKILL.md` → Flow | `tests/skills/ha-nova-contract.test.ts` ("gates input-device remaps on the capability preflight") |
 
 ## Reproduce it
 

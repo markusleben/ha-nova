@@ -109,6 +109,8 @@ All the config-entry rows below — plus `template` itself when no built-in fits
 
 Zigbee buttons/remotes are stateless devices — they fire events, not state changes. The trigger pattern depends on the integration.
 
+Before remapping a button, verify the gesture exists on the active integration path: `skills/ha-nova/input-capability-preflight.md`. The Developer-Tools discovery below stays as the manual fallback.
+
 ### ZHA (Zigbee Home Automation)
 
 Use `event` trigger with `device_ieee` (persistent across re-adds):

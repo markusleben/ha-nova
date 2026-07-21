@@ -370,6 +370,69 @@ describe("ha-nova contract", () => {
     expect(bp).toContain("Enforcement Checklist");
   });
 
+  it("gates input-device remaps on the capability preflight", () => {
+    const preflight = readFileSync(
+      "skills/ha-nova/input-capability-preflight.md",
+      "utf8",
+    );
+    const write = readFileSync("skills/write/SKILL.md", "utf8");
+    const bp = readFileSync("skills/ha-nova/best-practices.md", "utf8");
+    const relayApi = readFileSync("skills/ha-nova/relay-api.md", "utf8");
+
+    // Write flow blocks remap drafts until the gesture is more than assumed.
+    expect(write).toContain(
+      "run the capability preflight per `skills/ha-nova/input-capability-preflight.md` before drafting",
+    );
+    expect(write).toContain(
+      "the write stays blocked while the chosen gesture is only assumed",
+    );
+
+    // Evidence classes and the never-supported rule.
+    expect(preflight).toContain("**advertised**");
+    expect(preflight).toContain("**observed**");
+    expect(preflight).toContain("**assumed**");
+    expect(preflight).toContain(
+      "An assumed gesture is never presented as a working option",
+    );
+
+    // Evidence matrix: all four mixed-evidence rows with their consequences.
+    expect(preflight).toContain("| advertised + observed agree | Verified |");
+    expect(preflight).toContain(
+      "| metadata-only (advertised, never observed) | Likely |",
+    );
+    expect(preflight).toContain(
+      "| observation-only (observed, not in metadata) | Likely |",
+    );
+    expect(preflight).toContain(
+      "| conflicting (one source contradicts the other) | Uncertain |",
+    );
+    expect(preflight).toContain("| assumed | Uncertain |");
+
+    // Normalization: same-path comparison only, never cross-integration.
+    expect(preflight).toContain("case-insensitively with separators stripped");
+    expect(preflight).toContain("a Z2M `action: single` is not evidence");
+    expect(preflight).toContain(
+      "the active integration path may expose fewer actions",
+    );
+
+    // Live observation routes through the readiness sequence.
+    expect(preflight).toContain("User-Assisted Readiness");
+
+    // Worked example: single/double advertised, hold missing → blocked.
+    expect(preflight).toContain("advertises `single` and `double` but no `hold`");
+    expect(preflight).toContain("Never create the hold automation on spec");
+
+    // Discovery endpoints are documented, with the metadata-is-not-proof caveat.
+    expect(relayApi).toContain('"type":"device_automation/trigger/list"');
+    expect(relayApi).toContain('"type":"device_automation/trigger/capabilities"');
+    expect(relayApi).toContain(
+      "Advertised metadata is not proof an action fires",
+    );
+
+    // Zigbee button authoring points at the preflight first.
+    expect(bp).toContain("skills/ha-nova/input-capability-preflight.md");
+  });
+
   it("keeps agent templates parameterized and structured", () => {
     const resolve = readFileSync("skills/ha-nova/agents/resolve-agent.md", "utf8");
     const apply = readFileSync("skills/ha-nova/agents/apply-agent.md", "utf8");
