@@ -150,6 +150,10 @@ describe("post-write test-offer contract", () => {
     expect(testRun).toContain("Baseline captured — ready when you are.");
     expect(testRun).toContain("then tell me when done");
     expect(testRun).toContain("Never tell the user to act before step 2 is complete.");
+    // A new run_id alone is not proof: the fired trigger must match the
+    // requested source, or an unrelated trigger's trace masquerades as the test.
+    expect(testRun).toContain("its fired trigger matches the requested source");
+    expect(testRun).toContain("that trace is not this test's result");
     expect(testRun).toContain("sequence: User-Assisted Readiness below");
     expect(testRun).toContain("opens with its effect class");
     expect(testRun).toContain("restate the chosen effect in the next response");

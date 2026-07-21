@@ -155,7 +155,10 @@ to miss:
 4. Instruct exactly one action: the device, the movement, and when — "walk
    past the hall motion sensor now, then tell me when done." Name any `for:`
    hold the trigger needs.
-5. After the user reports done, read the trace, accept only a new run_id,
+5. After the user reports done, read the trace and accept it only if the
+   run_id is new AND its fired trigger matches the requested source — the
+   same automation can fire from an unrelated trigger while you wait, and
+   that trace is not this test's result (say so and offer a retry). Then
    verify device states, restore per the card, and report.
 
 Never tell the user to act before step 2 is complete. A test whose trigger
