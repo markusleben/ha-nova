@@ -162,6 +162,10 @@ describe("post-write test-offer contract", () => {
     expect(testRun).toContain("opens with its effect class");
     expect(testRun).toContain("restate the chosen effect in the next response");
     expect(testRun).toContain("never start what a bare number selected without naming it");
+    // Option labels describe the physical action; the imperative waits for arming.
+    expect(testRun).toContain("describe the upcoming action, never command it");
+    // Traces rotate — the own-pace rule is bounded by retention.
+    expect(testRun).toContain("re-capture the baseline");
   });
 
   it("carries the readiness contract across capture mechanisms (#394)", () => {

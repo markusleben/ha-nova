@@ -119,7 +119,9 @@ describe("output design system (Cards)", () => {
     expect(outputRules).toContain("omit the block entirely");
     // #394: a numeric acceptance is named before applying and never runs anything.
     expect(outputRules).toContain("name the accepted items before\napplying");
-    expect(outputRules).toContain("a suggestion choice edits the draft, it never runs anything");
+    expect(outputRules).toContain("a suggestion choice edits the pending draft where one exists");
+    expect(outputRules).toContain("hands the item to the owning write skill");
+    expect(outputRules).toContain("it never runs anything");
     // The producing agent knows how its items will render.
     const resolveAgent = readFileSync("skills/ha-nova/agents/resolve-agent.md", "utf8");
     expect(resolveAgent).toContain("renders these as the Suggestion Block");

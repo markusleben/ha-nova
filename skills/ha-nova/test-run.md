@@ -145,8 +145,10 @@ the card that other event listeners cannot be ruled out.
 
 When the plan needs the user to act physically (motion, door, presence, a
 device's own button), follow context skill → User-Assisted Readiness. Trace
-evidence is persistent, so arming is baseline capture — there is no window
-to miss:
+evidence is persistent, so arming is baseline capture — there is no listen
+window to miss, but traces rotate (automations keep only ~5 by default): on
+a busy automation ask the user to act promptly, and re-capture the baseline
+before instructing again if runs pile up in between:
 
 1. The card choice selects the test.
 2. Arm BEFORE any instruction: capture the current run_id baseline
@@ -225,6 +227,9 @@ localized at runtime):
 - On a bare-number reply, restate the chosen effect in the next response
   before executing ("Actions only — running the hallway light sequence
   now"); never start what a bare number selected without naming it.
+- Physical-action options describe the upcoming action, never command it
+  ("you trigger the hall sensor when I say go") — the imperative "act now"
+  instruction is reserved for User-Assisted Readiness step 4, after arming.
 - High-consequence actions add an explicit warning line (for example: "this
   unlocks the front door for real").
 - `skip` is always valid. On skip, the Verification Honesty wording
