@@ -91,16 +91,18 @@ func skillUpdateNudgeNotice(paths runtimePaths, throttled bool) humanNotice {
 	return humanNotice{
 		level:   humanNoticeWarning,
 		kind:    humanNoticeKindUpdateAvailable,
-		message: skillUpdateNudgeMessage(lead, current, cached.Version, source),
+		message: skillUpdateNudgeMessage(lead, current, cached.Version, source, cached.ReleaseHighlights, cached.HTMLURL),
 	}
 }
 
 // skillUpdateNudgeMessage keeps the surfaced action aligned with what the
 // detected install source actually supports: legacy Windows package installs
 // reject `ha-nova update`, so they get the same uninstall/reinstall guidance
-// the explicit check-update path uses.
-func skillUpdateNudgeMessage(lead, current, latest, installSource string) string {
-	return fmt.Sprintf("%s: v%s -> v%s. Inform the user: %s (new session required after update).", lead, current, latest, updateGuidanceForInstallSource(installSource))
+// the explicit check-update path uses. Highlights and release URL come from
+// the cache only (hot path stays network-free) and compose AROUND the pinned
+// guidance via the shared formatter.
+func skillUpdateNudgeMessage(lead, current, latest, installSource string, highlights []releaseHighlight, htmlURL string) string {
+	return fmt.Sprintf("%s: v%s -> v%s. Inform the user: %s (new session required after update).%s", lead, current, latest, updateGuidanceForInstallSource(installSource), releaseHighlightNoticeSuffix(highlights, htmlURL))
 }
 
 // passesNudgeThrottle reports whether the marker is older than the given

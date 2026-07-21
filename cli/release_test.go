@@ -273,6 +273,186 @@ func TestRunCheckUpdateJSON(t *testing.T) {
 	}
 }
 
+func TestRunCheckUpdateJSONExposesReleaseHighlights(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(paths.VersionFile), 0o755); err != nil {
+		t.Fatalf("mkdir version dir: %v", err)
+	}
+	if err := os.WriteFile(paths.VersionFile, []byte(`{"skill_version":"0.1.0","min_relay_version":"0.1.0"}`), 0o644); err != nil {
+		t.Fatalf("write version file: %v", err)
+	}
+	if err := writeJSONFile(paths.UpdateCacheFile, releaseInfo{
+		Version:     "0.2.0",
+		HTMLURL:     "https://example.invalid/releases/v0.2.0",
+		PublishedAt: "2026-07-21T10:00:00Z",
+		ReleaseHighlights: []releaseHighlight{
+			{Kind: releaseHighlightKindAction, Text: "Re-run ha-nova setup after updating"},
+			{Kind: releaseHighlightKindFeature, Text: "New energy skill"},
+		},
+	}, 0o644); err != nil {
+		t.Fatalf("write cache: %v", err)
+	}
+
+	output := captureStdout(t, func() {
+		if exitCode := runCheckUpdate(paths, []string{"--json"}); exitCode != 0 {
+			t.Fatalf("runCheckUpdate() exit = %d, want 0", exitCode)
+		}
+	})
+
+	var result updateCheckResult
+	if err := json.Unmarshal([]byte(output), &result); err != nil {
+		t.Fatalf("json.Unmarshal output error: %v\noutput=%s", err, output)
+	}
+	// Existing fields stay pinned; the digest fields are purely additive.
+	if result.Status != "update_available" {
+		t.Fatalf("result.Status = %q, want update_available", result.Status)
+	}
+	if result.Message != "Update available: v0.1.0 -> v0.2.0 | Run: ha-nova update" {
+		t.Fatalf("pinned message changed: %q", result.Message)
+	}
+	if result.PublishedAt != "2026-07-21T10:00:00Z" {
+		t.Fatalf("result.PublishedAt = %q, want 2026-07-21T10:00:00Z", result.PublishedAt)
+	}
+	if len(result.ReleaseHighlights) != 2 ||
+		result.ReleaseHighlights[0] != (releaseHighlight{Kind: releaseHighlightKindAction, Text: "Re-run ha-nova setup after updating"}) ||
+		result.ReleaseHighlights[1] != (releaseHighlight{Kind: releaseHighlightKindFeature, Text: "New energy skill"}) {
+		t.Fatalf("result.ReleaseHighlights = %+v", result.ReleaseHighlights)
+	}
+}
+
+func TestRunCheckUpdateJSONOmitsAbsentDigestFields(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(paths.VersionFile), 0o755); err != nil {
+		t.Fatalf("mkdir version dir: %v", err)
+	}
+	if err := os.WriteFile(paths.VersionFile, []byte(`{"skill_version":"0.1.0","min_relay_version":"0.1.0"}`), 0o644); err != nil {
+		t.Fatalf("write version file: %v", err)
+	}
+	if err := writeJSONFile(paths.UpdateCacheFile, releaseInfo{Version: "0.2.0", HTMLURL: "https://example.invalid/releases/v0.2.0"}, 0o644); err != nil {
+		t.Fatalf("write cache: %v", err)
+	}
+
+	output := captureStdout(t, func() {
+		if exitCode := runCheckUpdate(paths, []string{"--json"}); exitCode != 0 {
+			t.Fatalf("runCheckUpdate() exit = %d, want 0", exitCode)
+		}
+	})
+
+	for _, absent := range []string{"release_highlights", "published_at"} {
+		if strings.Contains(output, absent) {
+			t.Fatalf("old cache without digest: %q must be omitted, got %s", absent, output)
+		}
+	}
+	if !strings.Contains(output, `"status": "update_available"`) {
+		t.Fatalf("expected update_available, got %s", output)
+	}
+}
+
+func TestHumanNoticeComposesDigestAroundPinnedGuidance(t *testing.T) {
+	result := updateCheckResult{
+		Status:  "update_available",
+		Message: "Update available: v0.1.0 -> v0.2.0 | Run: ha-nova update",
+		HTMLURL: "https://example.invalid/releases/v0.2.0",
+		ReleaseHighlights: []releaseHighlight{
+			{Kind: releaseHighlightKindFix, Text: "Fix relay reconnect loop"},
+		},
+	}
+	notice := humanNoticeFromUpdateCheckResult(result, false)
+	if !strings.HasPrefix(notice.message, result.Message) {
+		t.Fatalf("digest must compose AFTER the pinned guidance, got %q", notice.message)
+	}
+	if !strings.Contains(notice.message, "Highlights:\n- Fix relay reconnect loop") {
+		t.Fatalf("expected highlight lines in %q", notice.message)
+	}
+	if !strings.Contains(notice.message, "Release notes: https://example.invalid/releases/v0.2.0") {
+		t.Fatalf("expected release URL in %q", notice.message)
+	}
+}
+
+func TestHumanNoticeWithoutDigestKeepsGenericMessagePlusURL(t *testing.T) {
+	result := updateCheckResult{
+		Status:  "update_available",
+		Message: "Update available: v0.1.0 -> v0.2.0 | Run: ha-nova update",
+		HTMLURL: "https://example.invalid/releases/v0.2.0",
+	}
+	notice := humanNoticeFromUpdateCheckResult(result, false)
+	if notice.message != result.Message+"\nRelease notes: https://example.invalid/releases/v0.2.0" {
+		t.Fatalf("fallback notice = %q", notice.message)
+	}
+
+	// No digest and no URL: today's generic notice, byte-identical.
+	bare := updateCheckResult{Status: "update_available", Message: result.Message}
+	if got := humanNoticeFromUpdateCheckResult(bare, false); got.message != result.Message {
+		t.Fatalf("generic notice changed: %q", got.message)
+	}
+}
+
+func TestBuildUpdateCheckResultLegacyWindowsGuidanceSurvivesDigest(t *testing.T) {
+	originalPlatform := channelChecksUseWindowsPlatform
+	originalExecutable := executablePathForInstallSource
+	defer func() {
+		channelChecksUseWindowsPlatform = originalPlatform
+		executablePathForInstallSource = originalExecutable
+	}()
+
+	channelChecksUseWindowsPlatform = func() bool { return true }
+	executablePathForInstallSource = func() (string, error) {
+		return filepath.Join(t.TempDir(), publicBinaryName()), nil
+	}
+
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(paths.VersionFile), 0o755); err != nil {
+		t.Fatalf("mkdir version dir: %v", err)
+	}
+	if err := os.WriteFile(paths.VersionFile, []byte(`{"skill_version":"0.1.0","min_relay_version":"0.1.0"}`), 0o644); err != nil {
+		t.Fatalf("write version file: %v", err)
+	}
+	if err := writeJSONFile(paths.UpdateCacheFile, releaseInfo{
+		Version:           "0.2.0",
+		HTMLURL:           "https://example.invalid/releases/v0.2.0",
+		PublishedAt:       "2026-07-21T10:00:00Z",
+		ReleaseHighlights: []releaseHighlight{{Kind: releaseHighlightKindFeature, Text: "New energy skill"}},
+	}, 0o644); err != nil {
+		t.Fatalf("write cache: %v", err)
+	}
+	if err := saveState(paths, installState{InstallSource: "winget"}); err != nil {
+		t.Fatalf("saveState() error: %v", err)
+	}
+
+	result := buildUpdateCheckResult(paths)
+	notice := humanNoticeFromUpdateCheckResult(result, false)
+	for _, want := range []string{
+		"Installed Apps / App Installer",
+		"install.ps1 | iex",
+		"Highlights:\n- New energy skill",
+	} {
+		if !strings.Contains(notice.message, want) {
+			t.Fatalf("expected %q in legacy-Windows notice %q", want, notice.message)
+		}
+	}
+	if strings.Contains(notice.message, "Run: ha-nova update") {
+		t.Fatalf("legacy Windows package must keep reinstall guidance, got %q", notice.message)
+	}
+}
+
 func TestRunCheckUpdateJSONOffersStableReturnFromRC(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

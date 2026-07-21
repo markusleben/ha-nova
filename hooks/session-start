@@ -108,6 +108,24 @@ if [[ -f "$version_file" ]]; then
       else
         update_notice="[ha-nova] UPDATE AVAILABLE: v${SKILL_VERSION} -> v${latest_skill_version}. Repo-dev fallback only: update the local checkout manually, then re-run setup. (new session required after update)\\n"
       fi
+
+      # Compact release highlights: the CLI derives them into the shared cache
+      # as release_highlights[].text (same semantic lines as check-update and
+      # the relay nudge). grep-based extraction — no jq dependency; the CLI
+      # guarantees highlight text contains no double quotes or backslashes.
+      if [[ -n "$update_notice" ]]; then
+        release_highlight_texts=$(printf '%s\n' "$cached_json" | grep -o '"text"[[:space:]]*:[[:space:]]*"[^"]*"' | head -3 | sed -e 's/^"text"[[:space:]]*:[[:space:]]*"//' -e 's/"$//') || true
+        if [[ -n "$release_highlight_texts" ]]; then
+          while IFS= read -r highlight_text; do
+            [[ -z "$highlight_text" ]] && continue
+            update_notice="${update_notice}- ${highlight_text}\\n"
+          done <<< "$release_highlight_texts"
+        fi
+        latest_release_url=$(extract_json_string "html_url" "$cached_json")
+        if [[ -n "$latest_release_url" ]]; then
+          update_notice="${update_notice}Release notes: ${latest_release_url}\\n"
+        fi
+      fi
     fi
 
     # Check if cache is still fresh

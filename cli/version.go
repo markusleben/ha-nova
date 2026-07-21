@@ -25,6 +25,13 @@ type releaseInfo struct {
 	// so an unchanged release returns a cheap 304 (off the rate limit) while a
 	// new release returns 200 and is detected immediately.
 	ETag string `json:"etag,omitempty"`
+	// PublishedAt doubles as the digest-metadata marker: an entry without it
+	// was written by a pre-digest CLI, so revalidation skips If-None-Match
+	// once to refill the digest from a full 200 (a 304 has no body).
+	PublishedAt string `json:"published_at,omitempty"`
+	// ReleaseHighlights is the compact normalized digest derived from the
+	// release body (cli/release_digest.go). The full body is never cached.
+	ReleaseHighlights []releaseHighlight `json:"release_highlights,omitempty"`
 }
 
 type updateCheckResult struct {
@@ -37,6 +44,9 @@ type updateCheckResult struct {
 	HTMLURL         string `json:"html_url,omitempty"`
 	CacheStatus     string `json:"cache_status"`
 	Message         string `json:"message"`
+	// Additive digest fields (#403); existing fields and exit codes are pinned.
+	PublishedAt       string             `json:"published_at,omitempty"`
+	ReleaseHighlights []releaseHighlight `json:"release_highlights,omitempty"`
 }
 
 type parsedReleaseVersion struct {
@@ -381,5 +391,5 @@ func cacheReleaseInfo(paths runtimePaths, info releaseInfo) {
 	if err := os.MkdirAll(filepath.Dir(paths.UpdateCacheFile), 0o755); err != nil {
 		return
 	}
-	_ = writeJSONFile(paths.UpdateCacheFile, info, 0o644)
+	_ = writeJSONFileNoHTMLEscape(paths.UpdateCacheFile, info, 0o644)
 }
