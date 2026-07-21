@@ -273,7 +273,6 @@ HA NOVA is young — and that's the point. Here's where it's going:
 - **Deeper reviews everywhere** — the full 40+ rule audit, expanding beyond automations
 - **Community skills** — write a new workflow as a markdown file, share it with everyone
 - **A guided Docker path in the wizard** — Container and Core setup without the manual steps
-- **Multi-server in the wizard** — adding a second Home Assistant guided from `ha-nova setup`, not just the CLI
 
 > If you've ever wanted to shape how AI works with Home Assistant, this is the stage where your input actually changes the product.
 
