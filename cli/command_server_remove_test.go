@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -218,5 +219,39 @@ func TestServerRemoveDeletesMalformedCredentialSlot(t *testing.T) {
 	}
 	if _, err := secretGet(deviceCredentialServiceForProfile("cabin")); err != errSecretNotFound {
 		t.Fatalf("malformed slot must be deleted, got err=%v", err)
+	}
+}
+
+func TestServerRemoveHeadlessDeletesMarkerlessPendingFile(t *testing.T) {
+	// Interrupted headless file pairing (pending raw file, no marker), retried
+	// removal on the same headless host: the purge deletes raw files directly,
+	// so the preflight must warn and proceed instead of aborting.
+	paths := setupServerCommandTest(t, testV2TwoProfileConfig)
+	t.Setenv("HA_NOVA_TEST_SECRET_DIR", "")
+	prevPreflight := deviceCredentialPreflight
+	deviceCredentialPreflight = func() error { return errDesktopKeyringSessionUnavailable }
+	t.Cleanup(func() { deviceCredentialPreflight = prevPreflight })
+	pendingPath, err := deviceSecretFilePath(deviceCredentialPendingServiceForProfile("cabin"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(pendingPath), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(pendingPath, []byte(testProfileCredentialB), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	stubServerRevoke(t)
+	stubServerCommandStdin(t, "cabin\n")
+
+	exit, out := captureCommandOutput(t, func() int { return runServerCommand(paths, []string{"remove", "cabin"}) })
+	if exit != 0 {
+		t.Fatalf("headless remove exit = %d, want 0\n%s", exit, out)
+	}
+	if !strings.Contains(out, "not reachable") {
+		t.Fatalf("headless remove must warn about the unreachable keyring layer:\n%s", out)
+	}
+	if _, err := os.Lstat(pendingPath); !os.IsNotExist(err) {
+		t.Fatalf("raw pending file must be deleted, stat err = %v", err)
 	}
 }

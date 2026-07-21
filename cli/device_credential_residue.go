@@ -176,3 +176,19 @@ func stageServerCredentialSlotMove(oldName, newName string) (rollback func(), co
 	}
 	return rollback, commit, nil
 }
+
+// profileHasRawSlotFile reports whether any of the given slot services has a
+// raw markerless credential file on disk — the artifact of an interrupted
+// explicit file pairing that raw-file cleanup and moves handle directly.
+func profileHasRawSlotFile(services []string) bool {
+	for _, service := range services {
+		path, err := deviceSecretFilePath(service)
+		if err != nil {
+			continue
+		}
+		if info, statErr := os.Lstat(path); statErr == nil && info.Mode().IsRegular() {
+			return true
+		}
+	}
+	return false
+}

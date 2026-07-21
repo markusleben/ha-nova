@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -288,11 +289,23 @@ func runServerRemove(paths runtimePaths, args []string) int {
 	// would strand credentials under a name that no longer exists. Abort with
 	// nothing touched instead. Reachability only — a MALFORMED stored value is
 	// no reason to refuse: the purge deletes it without parsing.
-	for _, service := range []string{deviceCredentialServiceForProfile(name), deviceCredentialPendingServiceForProfile(name)} {
-		if _, readErr := secretGet(service); readErr != nil && readErr != errSecretNotFound {
-			printHumanErr("secure storage is not reachable here (%v) — removing %q now would leave its stored credential behind. Make secure storage available (e.g. run from the desktop session), then retry; nothing was removed.", readErr, name)
-			return 1
+	services := []string{deviceCredentialServiceForProfile(name), deviceCredentialPendingServiceForProfile(name)}
+	for _, service := range services {
+		_, readErr := secretGet(service)
+		if readErr == nil || readErr == errSecretNotFound {
+			continue
 		}
+		// Reachability sentinel + a markerless raw slot file: the purge below
+		// deletes raw files directly, and the keyring layer cannot be cleaned
+		// from this session either way — warn and proceed (mirrors the rename
+		// rule). Without a raw file there is nothing deletable here: abort.
+		unreachable := errors.Is(readErr, errDesktopKeyringSessionUnavailable) || errors.Is(readErr, errDesktopKeyringUnavailable)
+		if unreachable && !deviceFileBackendMarkerExists() && profileHasRawSlotFile(services) {
+			printHumanWarn("secure storage is not reachable here (%v); any keyring credential stored for %q by an earlier desktop pairing is not deleted — clean it from the desktop session if one exists.", readErr, name)
+			break
+		}
+		printHumanErr("secure storage is not reachable here (%v) — removing %q now would leave its stored credential behind. Make secure storage available (e.g. run from the desktop session), then retry; nothing was removed.", readErr, name)
+		return 1
 	}
 
 	printHumanInfo("Removing server profile %q: its device pairing will be revoked on that relay and its stored credentials deleted. The Relay App on that Home Assistant instance stays installed.", name)
