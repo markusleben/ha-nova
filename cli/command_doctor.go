@@ -211,7 +211,7 @@ func runDoctor(paths runtimePaths, args []string) int {
 				// at the passwordless upgrade once, as information — never a
 				// failure, and skipped in --quiet's machine contract.
 				if !deviceMode && !*quiet && probePairingV1ForDoctor(cfg.RelayBaseURL) {
-					printHumanInfo("This relay supports passwordless device pairing. Run 'ha-nova setup' to switch this device to its own secure credential.")
+					printHumanInfo("This relay supports passwordless device pairing. Run 'ha-nova pair' and enter a fresh code from the NOVA page to switch this device to its own secure credential.")
 				}
 			case readiness.UpstreamAuthIssue:
 				printHumanErr("Relay reports degraded upstream WS capability")

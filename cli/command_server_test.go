@@ -332,3 +332,73 @@ func TestServerRenameHeadlessKeepsMarkerlessPendingFile(t *testing.T) {
 		t.Fatalf("raw pending file not moved: %v", err)
 	}
 }
+
+func TestServerListLabelsLegacyTokenInstalls(t *testing.T) {
+	// gsgxnet's scenario (issue #419): a working pre-pairing install shows
+	// "PAIRED no", which reads as broken. The actual state — connected via the
+	// shared legacy token, no device credential yet — must be labeled.
+	paths := setupServerCommandTest(t, `{"schema_version":1,"ha_host":"ha","ha_url":"http://ha:8123","relay_base_url":"http://ha:8791"}`)
+	exit, out := captureCommandOutput(t, func() int { return runServerCommand(paths, []string{"list"}) })
+	if exit != 0 {
+		t.Fatalf("list exit = %d\n%s", exit, out)
+	}
+	if !strings.Contains(out, "no (legacy token)") {
+		t.Fatalf("legacy-token install must be labeled, got:\n%s", out)
+	}
+}
+
+func TestSetupAlreadyDoneBannerOffersPairingSwitchForLegacyInstalls(t *testing.T) {
+	// The already-done screen must not dead-end the pairing upgrade: doctor
+	// sends legacy users to setup, so setup must name the switch (issue #419).
+	var out strings.Builder
+	renderSetupAlreadyDoneBanner(&out, true)
+	for _, want := range []string{"shared legacy token", "ha-nova pair", "Connect a device"} {
+		if !strings.Contains(out.String(), want) {
+			t.Fatalf("legacy banner must contain %q, got:\n%s", want, out.String())
+		}
+	}
+	out.Reset()
+	renderSetupAlreadyDoneBanner(&out, false)
+	if strings.Contains(out.String(), "legacy token") {
+		t.Fatalf("paired installs must not see the legacy hint:\n%s", out.String())
+	}
+}
+
+func TestServerListLegacyLabelOnlyOnDefaultProfile(t *testing.T) {
+	// Named profiles are device-credential-only: a half-paired named profile
+	// (relay URL saved, no credential yet) must show a bare "no", never the
+	// legacy-token label that only the default profile can earn.
+	paths := setupServerCommandTest(t, `{"schema_version":2,"default_server":"default","servers":{"default":{"relay_base_url":"http://ha:8791"},"cabin":{"relay_base_url":"http://cabin:8791"}}}`)
+	exit, out := captureCommandOutput(t, func() int { return runServerCommand(paths, []string{"list"}) })
+	if exit != 0 {
+		t.Fatalf("list exit = %d\n%s", exit, out)
+	}
+	row := serverListRow(t, out, "cabin")
+	joined := strings.Join(row, " ")
+	if strings.Contains(joined, "legacy") {
+		t.Fatalf("named profile must not carry the legacy-token label: %v", row)
+	}
+	if !strings.Contains(strings.Join(serverListRow(t, out, "default"), " "), "legacy") {
+		t.Fatalf("default profile must carry the legacy-token label:\n%s", out)
+	}
+}
+
+func TestServerListLegacyLabelSurvivesUnreachableKeyring(t *testing.T) {
+	// Headless legacy install (issue #419 follow-up): the device-credential
+	// slot read may fail, but a legacy config has no meaningful device
+	// credential anyway — the label must come from the config, not from
+	// secure-storage reachability.
+	paths := setupServerCommandTest(t, `{"schema_version":1,"ha_host":"ha","ha_url":"http://ha:8123","relay_base_url":"http://ha:8791"}`)
+	t.Setenv("HA_NOVA_TEST_SECRET_DIR", "")
+	prevPreflight := deviceCredentialPreflight
+	deviceCredentialPreflight = func() error { return errDesktopKeyringSessionUnavailable }
+	t.Cleanup(func() { deviceCredentialPreflight = prevPreflight })
+
+	exit, out := captureCommandOutput(t, func() int { return runServerCommand(paths, []string{"list"}) })
+	if exit != 0 {
+		t.Fatalf("list exit = %d\n%s", exit, out)
+	}
+	if !strings.Contains(out, "no (legacy token)") {
+		t.Fatalf("legacy label must not degrade to unknown on headless installs:\n%s", out)
+	}
+}

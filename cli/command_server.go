@@ -111,9 +111,17 @@ func runServerList(paths runtimePaths, args []string) int {
 				relay = cfg.RelayBaseURL
 			}
 		}
-		// Slot presence only — a local read, never a relay round-trip.
+		// A working pre-pairing install (default profile, relay URL saved, no
+		// pinned secure endpoint) is connected via the shared legacy token and
+		// by definition has no meaningful device credential — label the actual
+		// state without touching secure storage (headless keyrings would turn
+		// this into a misleading "unknown"; issue #419). Named profiles are
+		// device-credential-only, so a bare "no" there is accurate.
 		paired := "no"
-		if _, ok, err := readCredentialSlot(deviceCredentialServiceForProfile(name)); err != nil {
+		if cfg, okCfg := doc.flatProfile(name); okCfg && name == defaultServerProfileName && cfg.RelaySecureBaseURL == "" && cfg.RelayBaseURL != "" {
+			paired = "no (legacy token)"
+		} else if _, ok, err := readCredentialSlot(deviceCredentialServiceForProfile(name)); err != nil {
+			// Slot presence only — a local read, never a relay round-trip.
 			paired = "unknown"
 		} else if ok {
 			paired = "yes"
