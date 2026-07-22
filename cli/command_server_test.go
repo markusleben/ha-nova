@@ -332,3 +332,34 @@ func TestServerRenameHeadlessKeepsMarkerlessPendingFile(t *testing.T) {
 		t.Fatalf("raw pending file not moved: %v", err)
 	}
 }
+
+func TestServerListLabelsLegacyTokenInstalls(t *testing.T) {
+	// gsgxnet's scenario (issue #419): a working pre-pairing install shows
+	// "PAIRED no", which reads as broken. The actual state — connected via the
+	// shared legacy token, no device credential yet — must be labeled.
+	paths := setupServerCommandTest(t, `{"schema_version":1,"ha_host":"ha","ha_url":"http://ha:8123","relay_base_url":"http://ha:8791"}`)
+	exit, out := captureCommandOutput(t, func() int { return runServerCommand(paths, []string{"list"}) })
+	if exit != 0 {
+		t.Fatalf("list exit = %d\n%s", exit, out)
+	}
+	if !strings.Contains(out, "no (legacy token)") {
+		t.Fatalf("legacy-token install must be labeled, got:\n%s", out)
+	}
+}
+
+func TestSetupAlreadyDoneBannerOffersPairingSwitchForLegacyInstalls(t *testing.T) {
+	// The already-done screen must not dead-end the pairing upgrade: doctor
+	// sends legacy users to setup, so setup must name the switch (issue #419).
+	var out strings.Builder
+	renderSetupAlreadyDoneBanner(&out, true)
+	for _, want := range []string{"shared legacy token", "ha-nova pair", "Connect a device"} {
+		if !strings.Contains(out.String(), want) {
+			t.Fatalf("legacy banner must contain %q, got:\n%s", want, out.String())
+		}
+	}
+	out.Reset()
+	renderSetupAlreadyDoneBanner(&out, false)
+	if strings.Contains(out.String(), "legacy token") {
+		t.Fatalf("paired installs must not see the legacy hint:\n%s", out.String())
+	}
+}

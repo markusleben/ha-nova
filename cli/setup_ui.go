@@ -206,12 +206,21 @@ func renderSetupCompleteBanner(out io.Writer, clients []string) {
 	fmt.Fprintln(out)
 }
 
-func renderSetupAlreadyDoneBanner(out io.Writer) {
+func renderSetupAlreadyDoneBanner(out io.Writer, legacyToken bool) {
 	session := resolveSetupUISession(out)
 	renderSetupHeader(out)
 	fmt.Fprintln(out)
 	fmt.Fprintf(out, "  %s Everything is already set up!\n", session.style("success", session.successMarker()))
 	fmt.Fprintln(out)
+	if legacyToken {
+		// The upgrade path must not dead-end here (issue #419): a working
+		// legacy-token install passes every completeness check, so this screen
+		// is exactly where the pairing switch has to be offered.
+		fmt.Fprintln(out, "  This device still connects with the shared legacy token.")
+		fmt.Fprintln(out, "  Switch to its own revocable credential: run 'ha-nova pair' and")
+		fmt.Fprintln(out, "  enter a fresh code from the NOVA page (\"Connect a device\").")
+		fmt.Fprintln(out)
+	}
 	fmt.Fprintln(out, "  Run 'ha-nova doctor' for full diagnostics.")
 	fmt.Fprintln(out)
 }

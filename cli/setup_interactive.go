@@ -47,7 +47,7 @@ func maybeHandleInteractiveSetupCurrentState(reader *bufio.Reader, out io.Writer
 				return true, 1
 			}
 		}
-		renderSetupAlreadyDoneBanner(out)
+		renderSetupAlreadyDoneBanner(out, cfg.RelaySecureBaseURL == "" && cfg.RelayBaseURL != "")
 		return true, 0
 	}
 	if summary := current.SkipSummary(); summary != "" {
@@ -450,7 +450,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 						return 1
 					}
 				}
-				renderSetupAlreadyDoneBanner(os.Stdout)
+				renderSetupAlreadyDoneBanner(os.Stdout, cfg.RelaySecureBaseURL == "" && cfg.RelayBaseURL != "")
 				return 0
 			}
 			stage = setupStageHost

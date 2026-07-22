@@ -117,6 +117,11 @@ func runServerList(paths runtimePaths, args []string) int {
 			paired = "unknown"
 		} else if ok {
 			paired = "yes"
+		} else if cfg, okCfg := doc.flatProfile(name); okCfg && cfg.RelaySecureBaseURL == "" && cfg.RelayBaseURL != "" {
+			// A working pre-pairing install: connected via the shared legacy
+			// token, no per-device credential yet. Plain "no" reads as broken
+			// (issue #419) — label the actual state.
+			paired = "no (legacy token)"
 		}
 		var markers []string
 		if name == defaultName {
