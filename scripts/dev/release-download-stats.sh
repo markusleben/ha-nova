@@ -45,7 +45,20 @@ gh api "repos/${REPO}/releases?per_page=${RELEASES}" --jq '
      | map({os_arch: .[0].os_arch, downloads: ([.[].count] | add)})
      | sort_by(-.downloads)
     ) as $per_os
-  | {per_release: $per_release, per_os_arch_bundles: ($per_os | map(select(.os_arch != "other (raw binaries, checksums, ...)")))}
+  | ($rels
+     | map({tag: .tag_name, prerelease, bundles: (
+         [ .assets[]
+           | select((.name | test("^ha-nova-installer-bundle-")) and ((.name | test("\\.sha256$")) | not))
+           | {os: (.name
+               | if   test("macos-arm64")   then "macA"
+                 elif test("macos-amd64")   then "macI"
+                 elif test("linux-arm64")   then "linA"
+                 elif test("linux-amd64")   then "linI"
+                 else "win" end),
+              count: .download_count} ]
+         | group_by(.os) | map({key: .[0].os, value: ([.[].count] | add)}) | from_entries)})
+    ) as $matrix
+  | {per_release: $per_release, per_os_arch_bundles: ($per_os | map(select(.os_arch != "other (raw binaries, checksums, ...)"))), matrix: $matrix}
 ' | python3 -c "
 import json, sys
 d = json.load(sys.stdin)
@@ -58,5 +71,17 @@ print(f\"{'OS/ARCH (bundles only)':<24} {'DOWNLOADS':>9}\")
 for o in d['per_os_arch_bundles']:
     print(f\"{o['os_arch']:<24} {o['downloads']:>9}\")
 print()
+print(f\"{'RELEASE':<16} {'macOS':>6} {'Linux':>6} {'Win':>6}   (bundle downloads per release: active updaters + fresh installs + CI)\")
+for r in d['matrix']:
+    b = r['bundles']
+    mac = b.get('macA', 0) + b.get('macI', 0)
+    lin = b.get('linA', 0) + b.get('linI', 0)
+    win = b.get('win', 0)
+    mark = ' (rc)' if r['prerelease'] else ''
+    print(f\"{r['tag']:<16} {mac:>6} {lin:>6} {win:>6}{mark}\")
+print()
 print('Note: downloads != users (CI, retries, updates all count).')
+print('Retention lens: abandoned installs never download again — steady')
+print('per-release bundle counts (minus the CI smoke baseline) are the')
+print('active base; the cumulative OS table is acquisition history.')
 "
