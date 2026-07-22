@@ -14,6 +14,8 @@ rendered by the terminal prompt):
   One-time question
 
   May HA NOVA count your install? HA NOVA has no telemetry — that stays.
+  The flip side: we don't know how many people use it or on which OS,
+  and that makes it hard to decide what to build and test first.
   A yes sends one anonymous ping, at most once a week:
       HA NOVA version  ·  relay version  ·  operating system
   No ID, no IP stored, nothing about your home — and the resulting
