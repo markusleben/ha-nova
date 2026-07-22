@@ -15,11 +15,13 @@ voluntary count of installs. This page is the complete description of it.
 Nothing is ever sent unless you explicitly said yes (`ha-nova census on`, or
 answering yes to the one-time question). Opting in sends the first ping
 immediately; after that, HA NOVA sends this exact JSON payload at most once
-per ISO week, during a normal update check. Update checks run automatically
+per ISO week, alongside a normal update check. Update checks run automatically
 as part of normal use — AI clients trigger one at session start and a
-background refresh keeps the release cache warm — so no extra network
-activity is created for the census, and an opted-in install is counted weekly
-without further action:
+background refresh keeps the release cache warm — so an opted-in install is
+counted weekly without further action. To be precise: the census ping IS one
+additional small HTTPS request to the census endpoint (that is all it is); it
+never adds update-check traffic, relay calls, or retries beyond that single
+weekly POST:
 
 ```json
 {"schema":1,"version":"0.21.0","relay":"0.7.0","os":"macos"}
