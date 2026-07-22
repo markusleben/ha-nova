@@ -46,15 +46,16 @@ if [[ "$ESTIMATE" == "1" ]]; then
   # estimate). The head_branch query param is IGNORED for tag-triggered runs,
   # so fetch everything once and group locally.
   gh api --paginate "repos/${REPO}/actions/workflows/release.yml/runs?per_page=100" \
-    --jq '[.workflow_runs[] | {tag: .head_branch, attempts: .run_attempt}]' \
+    --jq '[.workflow_runs[] | {tag: .head_branch, attempts: .run_attempt, ok: (.conclusion == "success")}]' \
     | python3 -c "
 import json, sys
 from collections import Counter
-counts = Counter()
+hi, lo = Counter(), Counter()
 for chunk in sys.stdin.read().strip().splitlines():
     for run in json.loads(chunk):
-        counts[run['tag']] += run['attempts']
-print(json.dumps(dict(counts)))
+        hi[run['tag']] += run['attempts']          # upper bound: every attempt smoked
+        lo[run['tag']] += 1 if run['ok'] else 0    # lower bound: only successful runs
+print(json.dumps({'hi': dict(hi), 'lo': dict(lo)}))
 " > "$TMP/attempts.json"
 fi
 
@@ -86,7 +87,7 @@ def bundles_by_os(release):
                 break
     return out
 
-attempts = {}
+attempts = {"hi": {}, "lo": {}}
 if estimate:
     attempts = json.load(open(f"{tmp}/attempts.json"))
 
@@ -106,29 +107,56 @@ for r in rels:
     print(f"{r['tag_name']:<16} {b['macos']:>6} {b['linux']:>6} {b['windows']:>6}{mark}")
 
 if estimate:
-    print()
-    print(f"{'RELEASE':<16} {'macOS':>6} {'Linux':>6} {'Win':>6}   (NET estimate = bundles - CI attempts - own ledger)")
-    nets = []
-    for r in rels:
+    from datetime import datetime, timezone
+    FRESH_DAYS = 7
+    now = datetime.now(timezone.utc)
+
+    def net_range(r):
+        # Third-party estimate as a RANGE: the CI subtraction is bounded by
+        # "every attempt smoked" (hi subtraction -> low estimate) and "only
+        # successful runs smoked" (lo subtraction -> high estimate).
         tag = r["tag_name"]
         b = bundles_by_os(r)
-        ci = attempts.get(tag, 0)
         own = ledger.get(tag, {})
-        net = {k: max(0, b[k] - ci - int(own.get(k, 0))) for k in b}
-        mark = " (rc)" if r["prerelease"] else ""
-        print(f"{tag:<16} {net['macos']:>6} {net['linux']:>6} {net['windows']:>6}{mark}"
-              + (f"   [ci={ci}" + (f", own={own}" if own else "") + "]"))
+        ci_hi = attempts["hi"].get(tag, 0)
+        ci_lo = attempts["lo"].get(tag, 0)
+        lo = {k: max(0, b[k] - ci_hi - int(own.get(k, 0))) for k in b}
+        hi = {k: max(0, b[k] - ci_lo - int(own.get(k, 0))) for k in b}
+        return lo, hi, ci_lo, ci_hi, own
+
+    def fmt(lo, hi):
+        return f"{lo}" if lo == hi else f"{lo}-{hi}"
+
+    print()
+    print(f"{'RELEASE':<16} {'macOS':>6} {'Linux':>6} {'Win':>6}   (NET third-party estimate: bundles - CI - own ledger)")
+    stable_ranges = []
+    for r in rels:
+        lo, hi, ci_lo, ci_hi, own = net_range(r)
+        published = datetime.fromisoformat(r["published_at"].replace("Z", "+00:00"))
+        fresh = (now - published).days < FRESH_DAYS
+        mark = " (rc)" if r["prerelease"] else (" (fresh)" if fresh else "")
+        ci_s = f"{ci_lo}" if ci_lo == ci_hi else f"{ci_lo}-{ci_hi}"
+        print(f"{r['tag_name']:<16} {fmt(lo['macos'], hi['macos']):>6} {fmt(lo['linux'], hi['linux']):>6} {fmt(lo['windows'], hi['windows']):>6}{mark}"
+              + f"   [ci={ci_s}" + (f", own={own}" if own else "") + "]")
         if not r["prerelease"]:
-            nets.append(net)
-    if nets:
-        recent = nets[:3]
-        base = {k: round(sorted(n[k] for n in recent)[len(recent) // 2]) for k in ("macos", "linux", "windows")}
-        cum = {k: sum(n[k] for n in nets) for k in ("macos", "linux", "windows")}
+            stable_ranges.append({"lo": lo, "hi": hi, "fresh": fresh})
+
+    settled = [x for x in stable_ranges if not x["fresh"]]
+    if settled:
+        recent = settled[:3]
+        def median(vals):
+            return sorted(vals)[len(vals) // 2]
+        base_lo = {k: median([x["lo"][k] for x in recent]) for k in ("macos", "linux", "windows")}
+        base_hi = {k: median([x["hi"][k] for x in recent]) for k in ("macos", "linux", "windows")}
         print()
-        print(f"Active third-party base (median net of last {len(recent)} stables): "
-              f"macOS ~{base['macos']}, Linux ~{base['linux']}, Windows ~{base['windows']}")
-        print(f"Cumulative third-party acquisitions ({len(nets)} stables): "
-              f"macOS {cum['macos']}, Linux {cum['linux']}, Windows {cum['windows']}")
+        print(f"Active third-party base (median of last {len(recent)} settled stables; fresh releases excluded):")
+        print(f"  macOS ~{fmt(base_lo['macos'], base_hi['macos'])}, Linux ~{fmt(base_lo['linux'], base_hi['linux'])}, Windows ~{fmt(base_lo['windows'], base_hi['windows'])}")
+    cum_lo = {k: sum(x["lo"][k] for x in stable_ranges) for k in ("macos", "linux", "windows")}
+    cum_hi = {k: sum(x["hi"][k] for x in stable_ranges) for k in ("macos", "linux", "windows")}
+    print(f"Cumulative third-party acquisitions ({len(stable_ranges)} stables): "
+          f"macOS {fmt(cum_lo['macos'], cum_hi['macos'])}, Linux {fmt(cum_lo['linux'], cum_hi['linux'])}, Windows {fmt(cum_lo['windows'], cum_hi['windows'])}")
+    print("Installed-but-not-updating users appear in the cumulative line only —")
+    print("they never re-download, so the active line cannot see them.")
     if not ledger_path:
         print("(no own-activity ledger found — own proof installs are still included)")
 
