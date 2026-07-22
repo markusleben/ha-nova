@@ -59,8 +59,9 @@ the network for the update check (`ha-nova check-update` and the background
 refresh it spawns). Update checks run automatically as part of normal use —
 AI clients trigger one at session start, and a background refresh keeps the
 release cache warm — so an opted-in install is counted weekly without you
-doing anything. Never on relay hot paths, never blocking (3-second dedicated
-timeout, fire-and-forget, no retries), and never changing a single byte of
+doing anything. Never on relay hot paths, output-safe by construction: the
+send runs after all command output, bounded by a dedicated 1.5-second
+timeout, fire-and-forget, no retries — and never changing a single byte of
 command output. The week is stamped locally before the send — a failed send
 loses that week's count rather than ever double-counting.
 
