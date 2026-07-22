@@ -10,6 +10,7 @@ import {
   CounterRow,
   CounterStore,
   MAX_BODY_BYTES,
+  clampWeeklyCardinality,
   handleCensusRequest,
 } from "./census";
 
@@ -38,15 +39,25 @@ export class CensusCounter {
     const path = new URL(request.url).pathname;
     if (request.method === "POST" && path === "/increment") {
       const key = (await request.json()) as CounterKey;
+      // Clamp + upsert with NO await in between: the DO is single-threaded,
+      // and the synchronous SQLite API keeps this read-modify-write atomic —
+      // interleaved requests cannot both slip past the cardinality cap.
+      const weekRows = this.sql
+        .exec(
+          `SELECT iso_week, version, os, relay, count FROM counters WHERE iso_week = ?`,
+          key.iso_week,
+        )
+        .toArray() as unknown as CounterRow[];
+      const clamped = clampWeeklyCardinality(weekRows, key);
       this.sql.exec(
         `INSERT INTO counters (iso_week, version, os, relay, count)
          VALUES (?, ?, ?, ?, 1)
          ON CONFLICT (iso_week, version, os, relay)
          DO UPDATE SET count = count + 1`,
-        key.iso_week,
-        key.version,
-        key.os,
-        key.relay,
+        clamped.iso_week,
+        clamped.version,
+        clamped.os,
+        clamped.relay,
       );
       return new Response(null, { status: 204 });
     }

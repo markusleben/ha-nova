@@ -66,6 +66,11 @@ func runCensusOn(paths runtimePaths) int {
 		return 1
 	}
 	state := loadCensusState(paths)
+	if !censusEndpointConfigured() {
+		printHumanInfo("Census is on.")
+		printHumanWarn("census endpoint not configured in this build — nothing is sent")
+		return 0
+	}
 	printHumanInfo("Census is on — this install counts toward the public numbers at %s", censusStatsURL())
 	if censusOptedOutByEnv() {
 		printHumanWarn("%s is set — no ping is sent while it stays set.", censusOptOutEnv)
@@ -158,8 +163,12 @@ func runCensusStatus(paths runtimePaths) int {
 	}
 	// The literal wire bytes — not a description of them.
 	printHumanInfo("Exact wire payload that would be sent: %s", censusWireBytes(buildCensusPayload(paths, state, now)))
-	printHumanInfo("Endpoint: %s", censusPingURL())
-	printHumanInfo("Public numbers: %s", censusStatsURL())
+	if censusEndpointConfigured() {
+		printHumanInfo("Endpoint: %s", censusPingURL())
+		printHumanInfo("Public numbers: %s", censusStatsURL())
+	} else {
+		printHumanInfo("census endpoint not configured in this build — nothing is sent")
+	}
 	printHumanInfo("Turn off: ha-nova census off  (or set %s=1)", censusOptOutEnv)
 	if censusOptedOutByEnv() {
 		printHumanWarn("%s is set — asks and pings are suppressed.", censusOptOutEnv)

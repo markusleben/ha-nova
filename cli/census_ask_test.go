@@ -185,6 +185,34 @@ func TestCensusSkillNoticeCapThreeEmissionsThenPermanentSilence(t *testing.T) {
 	}
 }
 
+func TestCensusSkillNoticeMarkerSerializesConcurrentEmitters(t *testing.T) {
+	paths := setupCensusTest(t)
+	stubCensusVersion(t, "0.9.0")
+
+	out := captureStdout(t, func() { maybeEmitCensusSkillNotice(paths) })
+	if !strings.Contains(out, "CENSUS ASK PENDING") {
+		t.Fatalf("first emitter must print:\n%s", out)
+	}
+	if state := loadCensusState(paths); state.SkillNotices != 1 {
+		t.Fatalf("first emitter must increment to 1, got %d", state.SkillNotices)
+	}
+
+	// Simulate the concurrent loser: a process that loaded the pre-increment
+	// state (skill_notices=0) also computes slot 1 — but the exclusive
+	// census-notice-1 marker is already claimed, so it neither increments nor
+	// prints. Two concurrent attempts => one emission, one increment.
+	if err := saveCensusState(paths, censusState{}); err != nil {
+		t.Fatalf("saveCensusState() error: %v", err)
+	}
+	out = captureStdout(t, func() { maybeEmitCensusSkillNotice(paths) })
+	if out != "" {
+		t.Fatalf("the marker loser must not emit, got %q", out)
+	}
+	if state := loadCensusState(paths); state.SkillNotices != 0 {
+		t.Fatalf("the marker loser must not increment, got %d", state.SkillNotices)
+	}
+}
+
 func TestCensusSkillNoticeSilentOnceAskedOrOptedOut(t *testing.T) {
 	paths := setupCensusTest(t)
 	stubCensusVersion(t, "0.9.0")

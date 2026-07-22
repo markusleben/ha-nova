@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -25,8 +26,18 @@ func setupCensusTest(t *testing.T) runtimePaths {
 	return paths
 }
 
+// stubCensusEndpoint points the endpoint at a configured (non-placeholder)
+// test host; the default build value stays PLACEHOLDER and is inert.
+func stubCensusEndpoint(t *testing.T) {
+	t.Helper()
+	original := censusEndpointURL
+	censusEndpointURL = "https://ha-nova-census.test-suite.workers.dev"
+	t.Cleanup(func() { censusEndpointURL = original })
+}
+
 func stubCensusTransport(t *testing.T, status int, sendErr error) *[]string {
 	t.Helper()
+	stubCensusEndpoint(t)
 	var payloads []string
 	original := censusHTTPClient
 	censusHTTPClient = &http.Client{
@@ -186,6 +197,55 @@ func TestCensusEnvVarSuppressesPing(t *testing.T) {
 	}
 	if state := loadCensusState(paths); state.LastPingWeek != "" {
 		t.Fatalf("suppressed ping must not stamp a week, got %q", state.LastPingWeek)
+	}
+}
+
+// A build still carrying the PLACEHOLDER endpoint must be inert by
+// construction: no send, no week stamp, no burned week marker — so a later
+// properly configured build can still count the week.
+func TestPlaceholderEndpointBuildIsInert(t *testing.T) {
+	paths := setupCensusTest(t)
+	stubCensusVersion(t, "0.21.0")
+	// Transport mock WITHOUT endpoint stubbing: restore the placeholder value.
+	payloads := stubCensusTransport(t, http.StatusNoContent, nil)
+	censusEndpointURL = "https://ha-nova-census.PLACEHOLDER.workers.dev"
+	if censusEndpointConfigured() {
+		t.Fatal("placeholder endpoint must report unconfigured")
+	}
+	if err := saveCensusState(paths, censusState{Enabled: true, Answer: "yes"}); err != nil {
+		t.Fatalf("saveCensusState() error: %v", err)
+	}
+
+	maybeCensusPing(paths)
+	captureStdout(t, func() { runCensusCommand(paths, []string{"on"}) })
+	stubCensusTTY(t, true, true)
+	// Fresh unasked state for the ask path: reset, then answer yes.
+	if err := saveCensusState(paths, censusState{}); err != nil {
+		t.Fatalf("saveCensusState() error: %v", err)
+	}
+	askCensusWithInput(t, paths, "y\n")
+
+	if len(*payloads) != 0 {
+		t.Fatalf("placeholder build must never send, got %d attempts", len(*payloads))
+	}
+	if state := loadCensusState(paths); state.LastPingWeek != "" {
+		t.Fatalf("placeholder build must not burn the week, got %q", state.LastPingWeek)
+	}
+	entries, err := os.ReadDir(paths.CacheDir)
+	if err == nil {
+		for _, entry := range entries {
+			if strings.HasPrefix(entry.Name(), "census-ping-") {
+				t.Fatalf("placeholder build must not claim the week marker, found %s", entry.Name())
+			}
+		}
+	}
+
+	out := captureStdout(t, func() { runCensusCommand(paths, []string{"status"}) })
+	if !strings.Contains(out, "census endpoint not configured in this build — nothing is sent") {
+		t.Fatalf("status must say the endpoint is unconfigured:\n%s", out)
+	}
+	if strings.Contains(out, "workers.dev") {
+		t.Fatalf("status must not print the placeholder URL:\n%s", out)
 	}
 }
 

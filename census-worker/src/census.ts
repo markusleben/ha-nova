@@ -224,6 +224,14 @@ export function buildStats(rows: CounterRow[], now: Date): CensusStats {
 
 // CounterStore is the only thing the request handler needs from storage; the
 // Durable Object implements it with SQLite, tests with a Map.
+//
+// ATOMICITY CONTRACT for increment: the implementation must apply
+// clampWeeklyCardinality and write the resulting row in one atomic step —
+// i.e. with NO await point between reading the week's rows and writing.
+// Clamping at the handler level would race: two interleaved pings with
+// distinct fabricated versions could both read pre-cap rows and both insert,
+// defeating the cap. The Durable Object uses the synchronous SQLite API for
+// exactly this reason (index.ts); the test store applies it synchronously.
 export interface CounterStore {
   increment(key: CounterKey): Promise<void>;
   rows(): Promise<CounterRow[]>;
@@ -232,14 +240,12 @@ export interface CounterStore {
 // clampWeeklyCardinality enforces the per-week row caps (see
 // MAX_VERSIONS_PER_WEEK): a key whose version/relay would create a distinct
 // value beyond the cap is folded into OVERFLOW_BUCKET so the counter table
-// cannot be grown without bound by fabricated version strings.
-export async function clampWeeklyCardinality(
-  store: CounterStore,
-  key: CounterKey,
-): Promise<CounterKey> {
-  const weekRows = (await store.rows()).filter((row) => row.iso_week === key.iso_week);
-  const versions = new Set(weekRows.map((row) => row.version));
-  const relays = new Set(weekRows.map((row) => row.relay));
+// cannot be grown without bound by fabricated version strings. Pure and
+// synchronous by design — callers embed it into their atomic write step.
+export function clampWeeklyCardinality(weekRows: CounterRow[], key: CounterKey): CounterKey {
+  const sameWeek = weekRows.filter((row) => row.iso_week === key.iso_week);
+  const versions = new Set(sameWeek.map((row) => row.version));
+  const relays = new Set(sameWeek.map((row) => row.relay));
   const clamped: CounterKey = { ...key };
   if (!versions.has(key.version) && versions.size >= MAX_VERSIONS_PER_WEEK) {
     clamped.version = OVERFLOW_BUCKET;
@@ -293,8 +299,8 @@ export async function handleCensusRequest(
         headers: { "Content-Type": "application/json" },
       };
     }
-    const key = await clampWeeklyCardinality(store, counterKeyFor(validation.ping, now));
-    await store.increment(key);
+    // The store clamps and writes atomically (see the CounterStore contract).
+    await store.increment(counterKeyFor(validation.ping, now));
     return { status: 204 };
   }
   if (request.path === "/stats" && request.method === "GET") {

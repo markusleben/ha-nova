@@ -13,6 +13,7 @@ import {
   OVERFLOW_BUCKET,
   WEEKLY_HORIZON_WEEKS,
   buildStats,
+  clampWeeklyCardinality,
   handleCensusRequest,
   isoWeekUTC,
   validatePing,
@@ -20,15 +21,24 @@ import {
 
 function memoryStore(): CounterStore & { all: () => CounterRow[] } {
   const counters = new Map<string, CounterRow>();
+  // Mirrors the Durable Object's atomicity contract: clamp + write happen in
+  // one synchronous block with no await point inside.
+  const applySync = (key: CounterKey): void => {
+    const clamped = clampWeeklyCardinality([...counters.values()], key);
+    const id = `${clamped.iso_week}|${clamped.version}|${clamped.os}|${clamped.relay}`;
+    const existing = counters.get(id);
+    if (existing) {
+      existing.count += 1;
+    } else {
+      counters.set(id, { ...clamped, count: 1 });
+    }
+  };
   return {
     async increment(key: CounterKey): Promise<void> {
-      const id = `${key.iso_week}|${key.version}|${key.os}|${key.relay}`;
-      const existing = counters.get(id);
-      if (existing) {
-        existing.count += 1;
-      } else {
-        counters.set(id, { ...key, count: 1 });
-      }
+      // Interleaving may happen up to here (like the DO's request parsing),
+      // but never inside the clamp+write step below.
+      await Promise.resolve();
+      applySync(key);
     },
     async rows(): Promise<CounterRow[]> {
       return [...counters.values()];
@@ -200,6 +210,26 @@ describe("census worker aggregation", () => {
     // An already-known version still lands in its own row.
     await handleCensusRequest(ping({ schema: 1, version: "1.0.0", os: "macos" }), store, NOW);
     expect(store.all().find((row) => row.version === "1.0.0")?.count).toBe(2);
+  });
+
+  it("holds the cardinality cap under interleaved pings at the boundary", async () => {
+    const store = memoryStore();
+    for (let i = 0; i < MAX_VERSIONS_PER_WEEK - 1; i++) {
+      expect(
+        (await handleCensusRequest(ping({ schema: 1, version: `${i}.0.0`, os: "macos" }), store, NOW)).status,
+      ).toBe(204);
+    }
+    // Two concurrent pings with distinct fabricated versions race for the last
+    // free slot: the store's atomic clamp+write must admit exactly one and
+    // fold the other into the overflow bucket — never two new rows.
+    await Promise.all([
+      handleCensusRequest(ping({ schema: 1, version: "700.0.0", os: "macos" }), store, NOW),
+      handleCensusRequest(ping({ schema: 1, version: "701.0.0", os: "macos" }), store, NOW),
+    ]);
+    const versions = store.all().map((row) => row.version);
+    expect(versions.filter((v) => v === "700.0.0" || v === "701.0.0")).toHaveLength(1);
+    expect(versions).toContain(OVERFLOW_BUCKET);
+    expect(new Set(versions).size).toBe(MAX_VERSIONS_PER_WEEK + 1); // cap + the overflow bucket
   });
 
   it("trims the public weekly series to the fixed horizon", () => {

@@ -118,6 +118,7 @@ func TestCensusOffDisablesAndStampsAnswer(t *testing.T) {
 func TestCensusStatusPrintsLiteralWirePayloadAndURLs(t *testing.T) {
 	paths := setupCensusTest(t)
 	stubCensusVersion(t, "0.21.0")
+	stubCensusEndpoint(t)
 
 	exit := 0
 	out := captureStdout(t, func() { exit = runCensusCommand(paths, []string{"status"}) })

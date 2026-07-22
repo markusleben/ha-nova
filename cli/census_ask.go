@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"time"
 )
 
@@ -93,6 +94,11 @@ func askCensusIfEligible(paths runtimePaths, via string, in *bufio.Reader, out i
 // is consumed either way, so this week sees at most one attempt — the count
 // resumes on a later update check).
 func censusFirstPingAfterYes(paths runtimePaths) {
+	// A placeholder-endpoint build is inert: skip before the week gate and
+	// marker so nothing is burned that a configured build could count.
+	if !censusEndpointConfigured() {
+		return
+	}
 	if localVersion(paths) == "dev" || censusOS() == "" {
 		return
 	}
@@ -129,16 +135,23 @@ func maybeEmitCensusSkillNotice(paths runtimePaths) {
 	if state.AskedAt != "" || state.SkillNotices >= censusSkillNoticeCap {
 		return
 	}
-	// The gate re-checks on the freshly reloaded state inside the mutation so
-	// concurrent emitters cannot mint extra emissions or clobber other fields.
+	// Serialize the cap across concurrent processes (session-start hooks can
+	// fan out several `check-update --quiet` at once): emission n is guarded
+	// by the exclusive marker census-notice-<n> — only the claim winner may
+	// increment and print. The mutation then accepts exactly the claimed slot,
+	// so a stale reader that re-claims a pruned older slot still does nothing.
+	claimed := state.SkillNotices + 1
+	if !claimCensusNoticeMarker(paths, claimed) {
+		return
+	}
 	emitted := false
 	if err := mutateCensusState(paths, func(s *censusState) {
-		if s.AskedAt != "" || s.SkillNotices >= censusSkillNoticeCap {
+		if s.AskedAt != "" || s.SkillNotices != claimed-1 {
 			return
 		}
-		s.SkillNotices++
+		s.SkillNotices = claimed
 		emitted = true
-		if s.SkillNotices >= censusSkillNoticeCap {
+		if claimed >= censusSkillNoticeCap {
 			// Third and final emission: close the question permanently.
 			s.AskedAt = censusNow().UTC().Format(time.RFC3339)
 			s.AskedVia = "skill"
@@ -148,4 +161,10 @@ func maybeEmitCensusSkillNotice(paths runtimePaths) {
 		return
 	}
 	fmt.Fprintln(os.Stdout, censusSkillNoticeBlock)
+}
+
+// claimCensusNoticeMarker claims the n-th skill-notice emission slot with the
+// same O_EXCL pattern (and pruning) as the weekly ping marker.
+func claimCensusNoticeMarker(paths runtimePaths, n int) bool {
+	return claimCensusMarker(paths, "census-notice-", strconv.Itoa(n))
 }

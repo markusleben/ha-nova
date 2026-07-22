@@ -20,9 +20,19 @@ import (
 // censusEndpointURL appear outside cli/census*.go, or if the opt-in guard
 // below disappears.
 
-// censusEndpointURL is the single deploy-time constant for the census worker.
+// censusEndpointURL is the single deploy-time constant for the census worker
+// (a var only so tests can point it at a mock host).
 // TODO(deploy): substitute real subdomain before release.
-const censusEndpointURL = "https://ha-nova-census.PLACEHOLDER.workers.dev"
+var censusEndpointURL = "https://ha-nova-census.PLACEHOLDER.workers.dev"
+
+// censusEndpointConfigured reports whether this build carries a real census
+// endpoint. A build still on the PLACEHOLDER is inert by construction: every
+// send path skips silently BEFORE stamping the week or claiming the week
+// marker, so an unconfigured build can neither phone a dead host nor burn a
+// week that a properly configured build could have counted.
+func censusEndpointConfigured() bool {
+	return !strings.Contains(censusEndpointURL, "PLACEHOLDER")
+}
 
 const censusOptOutEnv = "HA_NOVA_NO_CENSUS"
 
@@ -90,7 +100,7 @@ func censusWireBytes(payload censusPayload) []byte {
 // Callers invoke it AFTER their own output is complete, so a hanging endpoint
 // can never delay what the user (or a hook) is waiting for.
 func maybeCensusPing(paths runtimePaths) {
-	if censusOptedOutByEnv() {
+	if censusOptedOutByEnv() || !censusEndpointConfigured() {
 		return
 	}
 	state := loadCensusState(paths)
@@ -136,11 +146,19 @@ func maybeCensusPing(paths runtimePaths) {
 }
 
 // claimCensusWeekMarker atomically claims this ISO week's single send across
-// concurrent processes via O_CREATE|O_EXCL in the cache dir. Preparation
-// failures degrade to "allow": the state-file week gate has already passed,
-// and a rare duplicate attempt beats silently never sending. Stale markers
-// from previous weeks are pruned so at most one marker file ever exists.
+// concurrent processes; see claimCensusMarker.
 func claimCensusWeekMarker(paths runtimePaths, week string) bool {
+	return claimCensusMarker(paths, "census-ping-", week)
+}
+
+// claimCensusMarker is the O_CREATE|O_EXCL claim shared by the weekly ping
+// and the skill-notice cap: exactly one concurrent process wins the marker
+// `<prefix><id>` in the cache dir. Preparation failures degrade to "allow":
+// the state-file gate has already passed, and a rare duplicate beats silently
+// never acting. Stale markers with the same prefix are pruned so at most one
+// marker per prefix ever exists (a re-created older slot stays harmless — the
+// state mutation re-checks its slot before acting).
+func claimCensusMarker(paths runtimePaths, prefix, id string) bool {
 	if paths.CacheDir == "" {
 		return true
 	}
@@ -150,12 +168,12 @@ func claimCensusWeekMarker(paths runtimePaths, week string) bool {
 	if entries, err := os.ReadDir(paths.CacheDir); err == nil {
 		for _, entry := range entries {
 			name := entry.Name()
-			if strings.HasPrefix(name, "census-ping-") && name != "census-ping-"+week {
+			if strings.HasPrefix(name, prefix) && name != prefix+id {
 				_ = os.Remove(filepath.Join(paths.CacheDir, name))
 			}
 		}
 	}
-	marker := filepath.Join(paths.CacheDir, "census-ping-"+week)
+	marker := filepath.Join(paths.CacheDir, prefix+id)
 	file, err := os.OpenFile(marker, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
 	if err != nil {
 		return !errors.Is(err, os.ErrExist)
