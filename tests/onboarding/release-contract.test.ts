@@ -127,6 +127,13 @@ describe("release contract", () => {
     expect(releaseAssetVerifier).toContain('.size | type == "number" and . > 0');
     expect(releaseAssetVerifier).toContain('test("^sha256:[0-9a-f]{64}$")');
     expect(releaseWorkflow).toContain('gh release edit "$GITHUB_REF_NAME" --draft=false');
+    expect(releaseWorkflow).toMatch(
+      /if \[\[ "\$expected_prerelease" == "true" \]\]; then[\s\S]*?else\s+# Re-assert Latest[\s\S]*?gh release edit "\$GITHUB_REF_NAME" --draft=false --latest --verify-tag\s+fi/,
+    );
+    expect(releaseWorkflow).toContain(
+      "gh api 'repos/markusleben/ha-nova/releases/latest' --jq '.tag_name'",
+    );
+    expect(releaseWorkflow).toContain('[[ "$latest_tag" != "$GITHUB_REF_NAME" ]]');
     expect(releaseWorkflow).toContain("needs: publish-release");
     expect(releaseWorkflow.indexOf("Upload install bundles")).toBeLessThan(
       releaseWorkflow.indexOf("publish-release:"),

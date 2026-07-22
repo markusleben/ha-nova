@@ -100,6 +100,10 @@ grep -Fq 'verify-release-assets.sh "$GITHUB_REF_NAME"' "${release_workflow}" \
   || fail "release.yml must verify the exact complete asset set before publishing or skipping a published retry."
 grep -Fq 'gh release edit "$GITHUB_REF_NAME" --draft=false' "${release_workflow}" \
   || fail "release.yml must make the draft public only in the publish job."
+grep -Fq 'gh release edit "$GITHUB_REF_NAME" --draft=false --latest --verify-tag' "${release_workflow}" \
+  || fail "release.yml must re-assert Latest for both new and already-published stable releases."
+grep -Fq "repos/markusleben/ha-nova/releases/latest" "${release_workflow}" \
+  || fail "release.yml must verify that the final stable tag resolves through /releases/latest."
 grep -Fq 'needs: publish-release' "${release_workflow}" \
   || fail "public installer smoke must wait for the complete release publish job."
 

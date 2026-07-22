@@ -124,14 +124,16 @@ jobs:
 
           bash scripts/release/verify-release-assets.sh "$GITHUB_REF_NAME"
 
-          if [[ "$(jq -r '.isDraft' <<<"$release_json")" == "true" ]]; then
-            if [[ "$expected_prerelease" == "true" ]]; then
+          if [[ "$expected_prerelease" == "true" ]]; then
+            if [[ "$(jq -r '.isDraft' <<<"$release_json")" == "true" ]]; then
               gh release edit "$GITHUB_REF_NAME" --draft=false --verify-tag
             else
-              gh release edit "$GITHUB_REF_NAME" --draft=false --latest --verify-tag
+              echo "Prerelease is already published; verifying idempotent final state."
             fi
           else
-            echo "Release is already published; verifying idempotent final state."
+            # Re-assert Latest even for a published retry. A prior interrupted or
+            # manual recovery must not leave /releases/latest on the old stable.
+            gh release edit "$GITHUB_REF_NAME" --draft=false --latest --verify-tag
           fi
 
           published_json="$(gh release view "$GITHUB_REF_NAME" --json tagName,isDraft,isPrerelease)"
@@ -140,6 +142,14 @@ jobs:
             --argjson expected "$expected_prerelease" \
             '.tagName == $tag and .isDraft == false and .isPrerelease == $expected' \
             <<<"$published_json" >/dev/null
+
+          if [[ "$expected_prerelease" == "false" ]]; then
+            latest_tag="$(gh api 'repos/markusleben/ha-nova/releases/latest' --jq '.tag_name')"
+            if [[ "$latest_tag" != "$GITHUB_REF_NAME" ]]; then
+              echo "::error::Latest stable is $latest_tag, expected $GITHUB_REF_NAME."
+              exit 1
+            fi
+          fi
 
   smoke-installers:
     name: Post-publish smoke installers (${{ matrix.os }})
