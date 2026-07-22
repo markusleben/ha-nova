@@ -26,6 +26,7 @@ func removeManagedCacheArtifacts(paths runtimePaths, report *uninstallReport) er
 func managedConfigArtifactPaths(paths runtimePaths, purge bool) []string {
 	pathsList := []string{
 		paths.StateFile,
+		paths.CensusFile,
 		filepath.Join(paths.ConfigDir, "relay"),
 		filepath.Join(paths.ConfigDir, "relay.exe"),
 		filepath.Join(paths.ConfigDir, "update"),

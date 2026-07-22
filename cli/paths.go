@@ -37,6 +37,7 @@ type runtimePaths struct {
 	PublicBinary        string
 	ConfigFile          string
 	StateFile           string
+	CensusFile          string
 	VersionFile         string
 	BundleFile          string
 	UpdateCacheFile     string
@@ -84,6 +85,7 @@ func detectPaths() (runtimePaths, error) {
 		PublicBinary:        publicBinary,
 		ConfigFile:          filepath.Join(configDir, "config.json"),
 		StateFile:           filepath.Join(configDir, "state.json"),
+		CensusFile:          filepath.Join(configDir, "census.json"),
 		VersionFile:         filepath.Join(installRoot, "version.json"),
 		BundleFile:          filepath.Join(installRoot, "bundle.json"),
 		UpdateCacheFile:     filepath.Join(cacheDir, "latest-release.json"),

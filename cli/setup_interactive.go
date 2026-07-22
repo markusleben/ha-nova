@@ -967,6 +967,14 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 			}
 			finalizeServiceTokenFileMigration(formerServiceTokenFile, token)
 			renderSetupCompleteBanner(os.Stdout, selectedClients)
+			// One-time census ask AFTER the complete banner — clearly outside
+			// the numbered wizard steps, never readable as a setup hurdle.
+			// A queued Enter from the wizard's last step must not silently
+			// answer "No": arm the stale-blank-input skip for the next prompt
+			// and clear it afterwards (the ask may not prompt at all).
+			armSetupNextPromptSkipsStaleBlankInput()
+			askCensusIfEligible(paths, "setup", reader, os.Stdout)
+			clearSetupNextPromptSkipsStaleBlankInput()
 			return 0
 		}
 	}

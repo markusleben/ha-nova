@@ -146,6 +146,10 @@ func runUpdate(paths runtimePaths, args []string) int {
 		maybeOfferGuidedRelayUpdate(paths, notice)
 	}
 	printPostUpdateSessionInstruction(syncResult)
+	// One-time census ask on the interactive update tail (existing users meet
+	// the question here). Never on the Windows internal-replace path — that
+	// helper runs detached without stdin.
+	maybeAskCensus(paths, "update")
 	return 0
 }
 
@@ -236,6 +240,9 @@ func syncInstalledClientsForCurrentVersion(paths runtimePaths, currentVersion, t
 		maybeOfferGuidedRelayUpdate(paths, notice)
 	}
 	printPostUpdateSessionInstruction(syncResult)
+	// Same census-ask tail as a real update: "already up to date" is the far
+	// more common interactive `ha-nova update` outcome.
+	maybeAskCensus(paths, "update")
 	return 0
 }
 

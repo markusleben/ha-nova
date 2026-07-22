@@ -45,19 +45,25 @@ honest, voluntary counting with a clear explanation of why.
 
 ## Mechanics
 
-- **Client:** new `ha-nova census on|off|status` command; state (uuid,
-  enabled, asked) in a small local file next to config.json (per-install,
-  not per-server-profile). Ping on opt-in, then piggybacked at most once per
-  7 days on commands that already touch the network (check-update/update
-  paths) — never on relay hot paths, never blocking (fire-and-forget with a
-  short timeout), never in `--json` outputs.
+- **Client:** new `ha-nova census on|off|status` command; state (asked,
+  answer, enabled, last_ping_week — NO uuid) in a small local file next to
+  config.json (per-install, not per-server-profile). Ping on opt-in, then
+  piggybacked at most once per ISO week (UTC label gate, stamped before the
+  send) on ALL `check-update` paths including `--quiet --json` — never on
+  relay hot paths, never blocking (fire-and-forget, 3s dedicated timeout),
+  never changing a single output byte (`--json` stays byte-clean, testpinned).
 - **The ask:** first interactive occasion after the feature ships — end of
   `ha-nova setup`, end of `ha-nova update`, or `doctor` — TTY only, once
-  (asked-flag), skippable with Enter (default No).
-- **Server:** smallest possible receiver — decision pending (see below).
-  Stores uuid → {version, os, arch, last_seen}; 30-day TTL. Public read
-  endpoint returns aggregates only (counts per OS/version, active = seen in
-  30d). Endpoint code in the repo.
+  (asked-flag stamped before the prompt), skippable with Enter (default No).
+  Skill-only sessions get a `CENSUS ASK PENDING` callout on the check-update
+  human output, hard-capped at three emissions ever (the third closes the
+  question with answer=none).
+- **Server:** smallest possible receiver — a Cloudflare Worker with one
+  SQLite Durable Object of aggregate counter rows
+  (iso_week, version, os, relay) → count. No uuid, no IPs, no TTL semantics
+  needed (nothing per-install exists). Public `GET /stats` returns aggregates
+  only (weekly series, by_os/by_version/by_relay with an `unknown` relay
+  bucket, monthly lower bound). Endpoint code in the repo.
 - **Claims/CI updates (same PR):** README "no telemetry" section gains the
   census sentence (off by default, payload documented, numbers public);
   `docs/reference/safety.md` gets a guarantee row (payload contract-tested);
@@ -71,7 +77,9 @@ honest, voluntary counting with a clear explanation of why.
 ## Decisions (2026-07-22)
 
 1. **Hosting:** Cloudflare Worker (free tier; code in repo under
-   `census-worker/`; KV with 30-day TTL).
+   `census-worker/`; one SQLite Durable Object of aggregate counters — KV
+   rejected as non-atomic, Analytics Engine rejected for retention/token
+   reasons).
 2. **Naming:** `census` — `ha-nova census on|off|status`.
 3. **Public numbers:** Worker `GET /stats` (aggregate JSON, public) linked
    from the README census sentence.

@@ -301,6 +301,11 @@ func runDoctor(paths runtimePaths, args []string) int {
 	}
 	if status == 0 {
 		doctorInfo("Doctor checks passed")
+		// One-time census ask on the healthy interactive tail only — never in
+		// --quiet's machine contract, never after a failed run.
+		if !*quiet {
+			maybeAskCensus(paths, "doctor")
+		}
 	}
 	return status
 }
@@ -337,6 +342,11 @@ func runCheckUpdate(paths runtimePaths, args []string) int {
 			printHumanErr("%s", err)
 			return 1
 		}
+		// AFTER the machine output is complete: the opt-in census ping rides
+		// every check-update path — including --quiet --json and thus the
+		// detached refresh child — but a hanging endpoint may never delay or
+		// alter a byte of it (cli/census.go).
+		maybeCensusPing(paths)
 		return updateCheckExitCode(result)
 	}
 
@@ -353,15 +363,27 @@ func runCheckUpdate(paths runtimePaths, args []string) int {
 	// CLI/skills freshness is only half the answer: the relay in Home
 	// Assistant has its own version, and "up to date" would be misleading
 	// below min_relay_version or while an App update is pending. Human path
-	// only: --quiet is the skill self-update channel whose contract is "UPDATE AVAILABLE or
-	// silence" — skill sessions already get the relay warning through the
-	// proxy version header. Stderr-only, exit code unchanged, --json above
-	// stays machine-clean.
+	// only: --quiet is the skill self-update channel that carries at most the
+	// UPDATE AVAILABLE notice and the capped census callout — skill sessions
+	// already get the relay warning through the proxy version header.
+	// Stderr-only, exit code unchanged, --json above stays machine-clean.
 	if !*quiet {
 		if relayNotice := relayUpdateNotice(paths); !relayNotice.empty() {
 			printHumanNotice(relayNotice)
 		}
 	}
+	// Census delivery is split by channel: --quiet is what skill sessions
+	// read, so the pending ask rides there as the capped machine-directed
+	// block; the plain human path is a person at a terminal, who gets the
+	// direct TTY question instead (no-op when stdin/stdout are not TTYs).
+	if *quiet {
+		maybeEmitCensusSkillNotice(paths)
+	} else {
+		maybeAskCensus(paths, "check-update")
+	}
+	// The weekly ping goes out last — all human output above is already
+	// printed, so a slow census endpoint never delays it.
+	maybeCensusPing(paths)
 	if notice.empty() {
 		return 0
 	}
