@@ -319,3 +319,17 @@ func TestUninstallCacheCleanupIncludesCensusMarkers(t *testing.T) {
 		}
 	}
 }
+
+func TestStampCensusRelayVersionHonorsEnvKillSwitch(t *testing.T) {
+	// HA_NOVA_NO_CENSUS suppresses ALL census activity — including passive
+	// relay-version accrual for an otherwise opted-in install.
+	paths := setupCensusTest(t)
+	if err := saveCensusState(paths, censusState{Enabled: true, Answer: "yes"}); err != nil {
+		t.Fatalf("saveCensusState() error: %v", err)
+	}
+	t.Setenv(censusOptOutEnv, "1")
+	stampCensusRelayVersion(paths, "0.7.0")
+	if state := loadCensusState(paths); state.RelayVersion != "" {
+		t.Fatalf("relay stamp must be suppressed under the kill switch, got %q", state.RelayVersion)
+	}
+}

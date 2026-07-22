@@ -184,6 +184,11 @@ func stampCensusRelayVersion(paths runtimePaths, version string) {
 	if version == "" {
 		return
 	}
+	// The env kill switch suppresses ALL census activity, including passive
+	// state accrual for an otherwise opted-in install.
+	if censusOptedOutByEnv() {
+		return
+	}
 	state := loadCensusState(paths)
 	if !state.Enabled {
 		return
