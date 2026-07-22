@@ -23,7 +23,7 @@ import (
 
 // censusEndpointURL is the single deploy-time constant for the census worker
 // (a var only so tests can point it at a mock host).
-// TODO(deploy): substitute real subdomain before release.
+// Deployed 2026-07-22 and live-verified (see census-worker/README.md for redeploys).
 var censusEndpointURL = "https://ha-nova-census.markusleben.workers.dev"
 
 // censusEndpointConfigured reports whether this build carries a real census
@@ -163,23 +163,13 @@ func maybeCensusPing(paths runtimePaths) {
 
 // censusWeekSendable is the ONE week gate shared by every send path (weekly
 // carrier, `census on`, ask-yes): a send may proceed only when the current
-// week is not yet stamped. A stamp in the FUTURE (clock rollback) is
-// self-healed identically everywhere — clamp to the current week and do NOT
-// send, so a corrected clock can never make any path count the same real
-// week twice.
+// week is not yet stamped. A stamp in the FUTURE (clock rollback) suppresses
+// the send WITHOUT downgrading the recorded week: rewriting it would re-open
+// an already-counted week once the clock recovers. The stamp was written
+// from this machine's own clock, so normal gating resumes when the clock
+// reaches that week again.
 func censusWeekSendable(paths runtimePaths, state censusState, currentWeek string) bool {
-	if state.LastPingWeek == currentWeek {
-		return false
-	}
-	if state.LastPingWeek > currentWeek {
-		_ = mutateCensusState(paths, func(s *censusState) {
-			if s.LastPingWeek > currentWeek {
-				s.LastPingWeek = currentWeek
-			}
-		})
-		return false
-	}
-	return true
+	return state.LastPingWeek < currentWeek || state.LastPingWeek == ""
 }
 
 // claimCensusWeekMarker atomically claims this ISO week's single send across

@@ -74,14 +74,13 @@ func TestCensusOnSkipsSendOnDevBuild(t *testing.T) {
 	}
 }
 
-// The manual send path must heal a clock-rollback future stamp exactly like
-// the weekly carrier: clamp, no send — never a second count for the same
-// real week. All send paths share censusWeekSendable.
-func TestCensusOnClampsFutureWeekStampLikeTheCarrier(t *testing.T) {
+// The manual send path must treat a clock-rollback future stamp exactly like
+// the weekly carrier: suppress the send, keep the recorded week — never a
+// second count for the same real week. All send paths share censusWeekSendable.
+func TestCensusOnSuppressesFutureWeekStampLikeTheCarrier(t *testing.T) {
 	paths := setupCensusTest(t)
 	stubCensusVersion(t, "0.21.0")
 	payloads := stubCensusTransport(t, http.StatusNoContent, nil)
-	currentWeek := censusISOWeek(time.Now().UTC())
 	futureWeek := censusISOWeek(time.Now().UTC().Add(21 * 24 * time.Hour))
 	if err := saveCensusState(paths, censusState{Enabled: true, Answer: "yes", AskedAt: "2026-07-01T00:00:00Z", LastPingWeek: futureWeek}); err != nil {
 		t.Fatalf("saveCensusState() error: %v", err)
@@ -95,8 +94,8 @@ func TestCensusOnClampsFutureWeekStampLikeTheCarrier(t *testing.T) {
 	if len(*payloads) != 0 {
 		t.Fatalf("a future stamp must not let the manual path send, got %d attempts", len(*payloads))
 	}
-	if state := loadCensusState(paths); state.LastPingWeek != currentWeek {
-		t.Fatalf("manual path must clamp like the carrier: got %q, want %q", state.LastPingWeek, currentWeek)
+	if state := loadCensusState(paths); state.LastPingWeek != futureWeek {
+		t.Fatalf("manual path must keep the recorded week like the carrier: got %q, want %q", state.LastPingWeek, futureWeek)
 	}
 
 	// Same for the ask-yes immediate ping.
@@ -108,8 +107,8 @@ func TestCensusOnClampsFutureWeekStampLikeTheCarrier(t *testing.T) {
 	if len(*payloads) != 0 {
 		t.Fatalf("a future stamp must not let the ask-yes path send, got %d attempts", len(*payloads))
 	}
-	if state := loadCensusState(paths); state.LastPingWeek != currentWeek {
-		t.Fatalf("ask-yes path must clamp like the carrier: got %q, want %q", state.LastPingWeek, currentWeek)
+	if state := loadCensusState(paths); state.LastPingWeek != futureWeek {
+		t.Fatalf("ask-yes path must keep the recorded week like the carrier: got %q, want %q", state.LastPingWeek, futureWeek)
 	}
 }
 

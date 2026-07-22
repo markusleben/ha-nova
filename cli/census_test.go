@@ -217,7 +217,10 @@ func TestCensusPingStampsWeekBeforeSendAtMostOncePerWeek(t *testing.T) {
 	}
 }
 
-func TestCensusWeekGateClockRollbackSelfHeals(t *testing.T) {
+// A future stamp (clock rollback) suppresses the send but keeps the recorded
+// week intact — downgrading it would allow a double count after the clock
+// recovers into the already-counted week.
+func TestCensusWeekGateClockRollbackSuppressesWithoutDowngrade(t *testing.T) {
 	paths := setupCensusTest(t)
 	stubCensusVersion(t, "0.9.0")
 	payloads := stubCensusTransport(t, http.StatusNoContent, nil)
@@ -231,8 +234,8 @@ func TestCensusWeekGateClockRollbackSelfHeals(t *testing.T) {
 		t.Fatalf("a future-stamped week must not send (no double count), got %d attempts", len(*payloads))
 	}
 	state := loadCensusState(paths)
-	if want := censusISOWeek(time.Now().UTC()); state.LastPingWeek != want {
-		t.Fatalf("rollback self-heal must clamp the stamp to the current week: got %q, want %q", state.LastPingWeek, want)
+	if state.LastPingWeek != futureWeek {
+		t.Fatalf("a recorded week must never be downgraded (it would re-open an already-counted week once the clock recovers): got %q, want %q", state.LastPingWeek, futureWeek)
 	}
 }
 
