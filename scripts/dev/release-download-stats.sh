@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # Maintainer-side adoption snapshot from GitHub release-asset download counts.
 # Zero telemetry: GitHub already counts asset downloads; this only aggregates
-# what is publicly visible on every release page.
+# what is publicly visible on every release page. Updates count automatically:
+# `ha-nova update` downloads the target release's OS bundle from the same
+# public asset URL (cli/bundle_apply.go), so per-release curves show fresh
+# installs plus update adoption per OS.
 #
 # Usage: bash scripts/dev/release-download-stats.sh [--releases N]
 # Output: per-release totals plus a per-OS/arch breakdown across releases.
