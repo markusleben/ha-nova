@@ -382,3 +382,23 @@ func TestServerListLegacyLabelOnlyOnDefaultProfile(t *testing.T) {
 		t.Fatalf("default profile must carry the legacy-token label:\n%s", out)
 	}
 }
+
+func TestServerListLegacyLabelSurvivesUnreachableKeyring(t *testing.T) {
+	// Headless legacy install (issue #419 follow-up): the device-credential
+	// slot read may fail, but a legacy config has no meaningful device
+	// credential anyway — the label must come from the config, not from
+	// secure-storage reachability.
+	paths := setupServerCommandTest(t, `{"schema_version":1,"ha_host":"ha","ha_url":"http://ha:8123","relay_base_url":"http://ha:8791"}`)
+	t.Setenv("HA_NOVA_TEST_SECRET_DIR", "")
+	prevPreflight := deviceCredentialPreflight
+	deviceCredentialPreflight = func() error { return errDesktopKeyringSessionUnavailable }
+	t.Cleanup(func() { deviceCredentialPreflight = prevPreflight })
+
+	exit, out := captureCommandOutput(t, func() int { return runServerCommand(paths, []string{"list"}) })
+	if exit != 0 {
+		t.Fatalf("list exit = %d\n%s", exit, out)
+	}
+	if !strings.Contains(out, "no (legacy token)") {
+		t.Fatalf("legacy label must not degrade to unknown on headless installs:\n%s", out)
+	}
+}
