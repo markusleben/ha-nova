@@ -80,10 +80,11 @@ The receiving end is a small Cloudflare Worker in this repository
 counter rows `(iso_week, version, os, relay) -> count`. Request and
 invocation logging are disabled; IPs are not stored.
 
-`GET /stats` is public and shows everyone the same aggregates: the weekly
-series, breakdowns by OS/version/relay over the last 4 weeks, and
-`monthly_lower_bound` (the busiest of the last 4 weeks — a floor, since
-weekly counts cannot be de-duplicated without identifiers).
+`GET /stats` (public: <https://ha-nova-census.markusleben.workers.dev/stats>)
+shows everyone the same aggregates: the weekly series, breakdowns by
+OS/version/relay over the last 4 weeks, and `monthly_lower_bound` (the busiest
+of the last 4 weeks — a floor, since weekly counts cannot be de-duplicated
+without identifiers).
 
 ## Controls
 

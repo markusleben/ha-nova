@@ -62,7 +62,7 @@ Stored data: aggregate counters only.
 ## Public numbers
 
 Everyone sees the same aggregates the maintainer sees:
-`https://ha-nova-census.PLACEHOLDER.workers.dev/stats`
+`https://ha-nova-census.markusleben.workers.dev/stats`
 (the concrete URL is finalized with the worker deployment and also shown by
 `ha-nova census status`).
 

@@ -34,6 +34,6 @@ npx wrangler deploy
 ```
 
 After the first deploy, substitute the real `workers.dev` subdomain for the
-`PLACEHOLDER` in `cli/census.go` (`censusEndpointURL`) and in the documented
+the deployed URL in `cli/census.go` (`censusEndpointURL`) and in the documented
 stats URLs (`PRIVACY.md`, `docs/reference/census.md`, `README.md`) before the
 release that ships the client feature.

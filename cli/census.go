@@ -23,7 +23,7 @@ import (
 // censusEndpointURL is the single deploy-time constant for the census worker
 // (a var only so tests can point it at a mock host).
 // TODO(deploy): substitute real subdomain before release.
-var censusEndpointURL = "https://ha-nova-census.PLACEHOLDER.workers.dev"
+var censusEndpointURL = "https://ha-nova-census.markusleben.workers.dev"
 
 // censusEndpointConfigured reports whether this build carries a real census
 // endpoint. A build still on the PLACEHOLDER is inert by construction: every
