@@ -39,3 +39,4 @@ scripts/demo/casts/*.markers.json
 # Python cache artifacts from local validation harnesses
 __pycache__/
 *.py[cod]
+scripts/dev/own-activity.local.json

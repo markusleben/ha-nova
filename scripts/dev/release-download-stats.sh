@@ -1,87 +1,139 @@
 #!/usr/bin/env bash
 # Maintainer-side adoption snapshot from GitHub release-asset download counts.
-# Zero telemetry: GitHub already counts asset downloads; this only aggregates
-# what is publicly visible on every release page. Updates count automatically:
-# `ha-nova update` downloads the target release's OS bundle from the same
-# public asset URL (cli/bundle_apply.go), so per-release curves show fresh
-# installs plus update adoption per OS.
+# Zero telemetry: GitHub already counts asset downloads publicly; this only
+# aggregates them. Updates count automatically: `ha-nova update` downloads the
+# target release's OS bundle from the public asset URL (cli/bundle_apply.go),
+# so per-release curves show fresh installs plus update adoption per OS.
 #
-# Usage: bash scripts/dev/release-download-stats.sh [--releases N]
-# Output: per-release totals plus a per-OS/arch breakdown across releases.
+# Usage: bash scripts/dev/release-download-stats.sh [--releases N] [--estimate]
 #
-# Caveats (read before quoting numbers): downloads are not active users —
-# CI runs, retries, and mirrors count too, and every `ha-nova update`
-# downloads the new bundle (which makes per-release counts a rough
-# update-adoption signal).
+# --estimate subtracts the exactly-known noise from the bundle counts:
+#   1. CI smoke baseline — every release.yml run ATTEMPT for a tag downloads
+#      exactly 1 bundle per OS (install.sh downloads; the same-version update
+#      does not; release-candidate.yml smokes from build artifacts and never
+#      touches public assets). Attempts come from the Actions API per tag.
+#   2. Own documented activity — optional local ledger
+#      scripts/dev/own-activity.local.json (gitignored), shape:
+#        {"v0.20.0": {"macos": 1, "linux": 0, "windows": 0}, ...}
+#      Maintain it from the breadcrumbs proof notes.
+# What remains is the best zero-telemetry estimate of real third-party
+# acquisitions per release/OS. Reading: abandoned installs never download
+# again, so the steady net value across recent stable releases IS the active
+# third-party base; cumulative totals are acquisition history. Uninstalls are
+# invisible by design (no telemetry) — this cannot go closer than that.
 set -euo pipefail
 
 RELEASES=10
-if [[ "${1:-}" == "--releases" ]]; then
-  RELEASES="${2:?usage: --releases N}"
-fi
+ESTIMATE=0
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --releases) RELEASES="${2:?usage: --releases N}"; shift 2 ;;
+    --estimate) ESTIMATE=1; shift ;;
+    *) echo "unknown flag: $1" >&2; exit 1 ;;
+  esac
+done
 
 REPO="markusleben/ha-nova"
+TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP"' EXIT
 
-gh api "repos/${REPO}/releases?per_page=${RELEASES}" --jq '
-  [ .[] | select(.draft | not) ] as $rels
-  | ($rels
-     | map({tag: .tag_name, prerelease, total: ([.assets[].download_count] | add // 0)})
-    ) as $per_release
-  | ($rels
-     | [ .[].assets[] ]
-     | map({name, count: .download_count})
-     | map(. + {os_arch: (
-         .name
-         | if (test("^ha-nova-installer-bundle-") | not) or test("\\.sha256$")
-           then "other (raw binaries, checksums, ...)"
-           elif test("macos-arm64")   then "macOS arm64"
-           elif test("macos-amd64")   then "macOS amd64"
-           elif test("linux-arm64")   then "Linux arm64"
-           elif test("linux-amd64")   then "Linux amd64"
-           elif test("windows-amd64") then "Windows amd64"
-           else "other (raw binaries, checksums, ...)"
-           end)})
-     | group_by(.os_arch)
-     | map({os_arch: .[0].os_arch, downloads: ([.[].count] | add)})
-     | sort_by(-.downloads)
-    ) as $per_os
-  | ($rels
-     | map({tag: .tag_name, prerelease, bundles: (
-         [ .assets[]
-           | select((.name | test("^ha-nova-installer-bundle-")) and ((.name | test("\\.sha256$")) | not))
-           | {os: (.name
-               | if   test("macos-arm64")   then "macA"
-                 elif test("macos-amd64")   then "macI"
-                 elif test("linux-arm64")   then "linA"
-                 elif test("linux-amd64")   then "linI"
-                 else "win" end),
-              count: .download_count} ]
-         | group_by(.os) | map({key: .[0].os, value: ([.[].count] | add)}) | from_entries)})
-    ) as $matrix
-  | {per_release: $per_release, per_os_arch_bundles: ($per_os | map(select(.os_arch != "other (raw binaries, checksums, ...)"))), matrix: $matrix}
-' | python3 -c "
+gh api "repos/${REPO}/releases?per_page=${RELEASES}" > "$TMP/releases.json"
+
+if [[ "$ESTIMATE" == "1" ]]; then
+  # Sum release.yml run attempts per tag (each attempt smokes <=1 bundle/OS;
+  # attempts that failed before the smoke downloaded fewer — the subtraction
+  # is therefore an upper bound, i.e. conservative for the third-party
+  # estimate). The head_branch query param is IGNORED for tag-triggered runs,
+  # so fetch everything once and group locally.
+  gh api --paginate "repos/${REPO}/actions/workflows/release.yml/runs?per_page=100" \
+    --jq '[.workflow_runs[] | {tag: .head_branch, attempts: .run_attempt}]' \
+    | python3 -c "
 import json, sys
-d = json.load(sys.stdin)
-print(f\"{'RELEASE':<16} {'DOWNLOADS':>9}  (all assets; prerelease marked)\")
-for r in d['per_release']:
-    mark = ' (rc)' if r['prerelease'] else ''
-    print(f\"{r['tag']:<16} {r['total']:>9}{mark}\")
+from collections import Counter
+counts = Counter()
+for chunk in sys.stdin.read().strip().splitlines():
+    for run in json.loads(chunk):
+        counts[run['tag']] += run['attempts']
+print(json.dumps(dict(counts)))
+" > "$TMP/attempts.json"
+fi
+
+LEDGER="scripts/dev/own-activity.local.json"
+[[ -f "$LEDGER" ]] || LEDGER=""
+
+TMPDIR_ARG="$TMP" ESTIMATE_ARG="$ESTIMATE" LEDGER_ARG="$LEDGER" python3 - <<'PYEOF'
+import json, os
+
+tmp = os.environ["TMPDIR_ARG"]
+estimate = os.environ["ESTIMATE_ARG"] == "1"
+ledger_path = os.environ["LEDGER_ARG"]
+
+rels = [r for r in json.load(open(f"{tmp}/releases.json")) if not r["draft"]]
+
+OS_KEYS = [("macos-arm64", "macos"), ("macos-amd64", "macos"),
+           ("linux-arm64", "linux"), ("linux-amd64", "linux"),
+           ("windows-amd64", "windows")]
+
+def bundles_by_os(release):
+    out = {"macos": 0, "linux": 0, "windows": 0}
+    for a in release["assets"]:
+        name = a["name"]
+        if not name.startswith("ha-nova-installer-bundle-") or name.endswith(".sha256"):
+            continue
+        for pattern, key in OS_KEYS:
+            if pattern in name:
+                out[key] += a["download_count"]
+                break
+    return out
+
+attempts = {}
+if estimate:
+    attempts = json.load(open(f"{tmp}/attempts.json"))
+
+ledger = json.load(open(ledger_path)) if ledger_path else {}
+
+print(f"{'RELEASE':<16} {'DOWNLOADS':>9}  (all assets; prerelease marked)")
+for r in rels:
+    total = sum(a["download_count"] for a in r["assets"])
+    mark = " (rc)" if r["prerelease"] else ""
+    print(f"{r['tag_name']:<16} {total:>9}{mark}")
+
 print()
-print(f\"{'OS/ARCH (bundles only)':<24} {'DOWNLOADS':>9}\")
-for o in d['per_os_arch_bundles']:
-    print(f\"{o['os_arch']:<24} {o['downloads']:>9}\")
+print(f"{'RELEASE':<16} {'macOS':>6} {'Linux':>6} {'Win':>6}   (bundle downloads: updaters + fresh installs + CI)")
+for r in rels:
+    b = bundles_by_os(r)
+    mark = " (rc)" if r["prerelease"] else ""
+    print(f"{r['tag_name']:<16} {b['macos']:>6} {b['linux']:>6} {b['windows']:>6}{mark}")
+
+if estimate:
+    print()
+    print(f"{'RELEASE':<16} {'macOS':>6} {'Linux':>6} {'Win':>6}   (NET estimate = bundles - CI attempts - own ledger)")
+    nets = []
+    for r in rels:
+        tag = r["tag_name"]
+        b = bundles_by_os(r)
+        ci = attempts.get(tag, 0)
+        own = ledger.get(tag, {})
+        net = {k: max(0, b[k] - ci - int(own.get(k, 0))) for k in b}
+        mark = " (rc)" if r["prerelease"] else ""
+        print(f"{tag:<16} {net['macos']:>6} {net['linux']:>6} {net['windows']:>6}{mark}"
+              + (f"   [ci={ci}" + (f", own={own}" if own else "") + "]"))
+        if not r["prerelease"]:
+            nets.append(net)
+    if nets:
+        recent = nets[:3]
+        base = {k: round(sorted(n[k] for n in recent)[len(recent) // 2]) for k in ("macos", "linux", "windows")}
+        cum = {k: sum(n[k] for n in nets) for k in ("macos", "linux", "windows")}
+        print()
+        print(f"Active third-party base (median net of last {len(recent)} stables): "
+              f"macOS ~{base['macos']}, Linux ~{base['linux']}, Windows ~{base['windows']}")
+        print(f"Cumulative third-party acquisitions ({len(nets)} stables): "
+              f"macOS {cum['macos']}, Linux {cum['linux']}, Windows {cum['windows']}")
+    if not ledger_path:
+        print("(no own-activity ledger found — own proof installs are still included)")
+
 print()
-print(f\"{'RELEASE':<16} {'macOS':>6} {'Linux':>6} {'Win':>6}   (bundle downloads per release: active updaters + fresh installs + CI)\")
-for r in d['matrix']:
-    b = r['bundles']
-    mac = b.get('macA', 0) + b.get('macI', 0)
-    lin = b.get('linA', 0) + b.get('linI', 0)
-    win = b.get('win', 0)
-    mark = ' (rc)' if r['prerelease'] else ''
-    print(f\"{r['tag']:<16} {mac:>6} {lin:>6} {win:>6}{mark}\")
-print()
-print('Note: downloads != users (CI, retries, updates all count).')
-print('Retention lens: abandoned installs never download again — steady')
-print('per-release bundle counts (minus the CI smoke baseline) are the')
-print('active base; the cumulative OS table is acquisition history.')
-"
+print("Note: downloads != users (CI, retries, updates all count); uninstalls are")
+print("invisible by design. Steady per-release NET values are the active base;")
+print("cumulative values are acquisition history.")
+PYEOF
