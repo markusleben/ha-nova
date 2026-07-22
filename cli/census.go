@@ -214,6 +214,16 @@ func claimCensusMarker(paths runtimePaths, prefix, id string) bool {
 	return true
 }
 
+// releaseCensusWeekMarker frees a claimed week after a FAILED send, so the
+// promised later-update-check retry can claim it again. Never called after a
+// successful send — there the marker plus the week stamp keep at-most-once.
+func releaseCensusWeekMarker(paths runtimePaths, week string) {
+	if paths.CacheDir == "" {
+		return
+	}
+	_ = os.Remove(filepath.Join(paths.CacheDir, "census-ping-"+week))
+}
+
 // sendCensusPing performs the single fire-and-forget POST. Callers decide
 // whether the result matters (`census on` reports it; the weekly carrier
 // ignores it). Defense in depth for consent: the state is re-loaded here —

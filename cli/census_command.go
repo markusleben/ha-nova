@@ -107,6 +107,10 @@ func runCensusOn(paths runtimePaths) int {
 	// the week stamp empty, and the install is counted on a later update check.
 	payload := censusWireBytes(buildCensusPayload(paths, state, now))
 	if err := sendCensusPing(paths, payload); err != nil {
+		// Free the claimed week: without this, the later update check would
+		// pass the week gate, lose the marker claim, and silently skip — the
+		// promised retry must be able to claim the week again.
+		releaseCensusWeekMarker(paths, currentWeek)
 		printHumanWarn("First ping did not go through (%s). This install will be counted on a later update check.", err)
 		return 0
 	}

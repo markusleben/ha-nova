@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -207,5 +208,29 @@ func TestUninstallBaseListIncludesCensusFile(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("uninstall base list must remove census.json, got %v", managedConfigArtifactPaths(paths, false))
+	}
+}
+
+func TestCensusOnFailedFirstPingFreesTheWeekForRetry(t *testing.T) {
+	// A failed immediate ping must release the claimed week marker: without
+	// that, the next update check would pass the week gate, lose the marker
+	// claim, and silently skip — breaking the promised retry.
+	paths := setupCensusTest(t)
+	stubCensusVersion(t, "0.21.0")
+	stubCensusTransport(t, 0, fmt.Errorf("endpoint down"))
+	captureStdout(t, func() { runCensusCommand(paths, []string{"on"}) })
+
+	week := censusISOWeek(censusNow().UTC())
+	if _, err := os.Stat(filepath.Join(paths.CacheDir, "census-ping-"+week)); !os.IsNotExist(err) {
+		t.Fatalf("failed first ping must release the week marker (stat err=%v)", err)
+	}
+	// The later carrier retry succeeds and stamps the week.
+	payloads := stubCensusTransport(t, 204, nil)
+	maybeCensusPing(paths)
+	if got := len(*payloads); got != 1 {
+		t.Fatalf("carrier retry attempts = %d, want 1", got)
+	}
+	if state := loadCensusState(paths); state.LastPingWeek != week {
+		t.Fatalf("retry must stamp the week, got %q", state.LastPingWeek)
 	}
 }

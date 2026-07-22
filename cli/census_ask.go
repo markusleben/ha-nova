@@ -101,9 +101,9 @@ func askCensusIfEligible(paths runtimePaths, via string, in *bufio.Reader, out i
 }
 
 // censusFirstPingAfterYes performs the immediate opt-in ping: success stamps
-// the week; a failed attempt leaves the week empty (the exclusive week marker
-// is consumed either way, so this week sees at most one attempt — the count
-// resumes on a later update check).
+// the week; a failed attempt leaves the week empty AND releases the claimed
+// week marker, so the promised retry on a later update check can claim it
+// again.
 func censusFirstPingAfterYes(paths runtimePaths) {
 	// A placeholder-endpoint build is inert: skip before the week gate and
 	// marker so nothing is burned that a configured build could count.
@@ -126,6 +126,10 @@ func censusFirstPingAfterYes(paths runtimePaths) {
 	}
 	if sendErr := sendCensusPing(paths, censusWireBytes(buildCensusPayload(paths, state, now))); sendErr == nil {
 		_ = mutateCensusState(paths, func(s *censusState) { s.LastPingWeek = currentWeek })
+	} else {
+		// Same retry contract as `census on`: a failed first ping frees the
+		// week so a later update check can attempt it.
+		releaseCensusWeekMarker(paths, currentWeek)
 	}
 }
 

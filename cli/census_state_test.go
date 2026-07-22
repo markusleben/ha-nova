@@ -333,3 +333,12 @@ func TestStampCensusRelayVersionHonorsEnvKillSwitch(t *testing.T) {
 		t.Fatalf("relay stamp must be suppressed under the kill switch, got %q", state.RelayVersion)
 	}
 }
+
+func TestCensusEnvKillSwitchHonorsWhitespaceValue(t *testing.T) {
+	// The documented contract is "any non-empty value" — a visibly configured
+	// HA_NOVA_NO_CENSUS=' ' must suppress too (raw check, no trimming).
+	t.Setenv(censusOptOutEnv, " ")
+	if !censusOptedOutByEnv() {
+		t.Fatal("whitespace-only value must count as set")
+	}
+}

@@ -164,7 +164,9 @@ func censusISOWeek(t time.Time) string {
 }
 
 func censusOptedOutByEnv() bool {
-	return strings.TrimSpace(os.Getenv(censusOptOutEnv)) != ""
+	// Raw, untrimmed: the documented contract is "any non-empty value", and a
+	// visibly configured HA_NOVA_NO_CENSUS=' ' must suppress too.
+	return os.Getenv(censusOptOutEnv) != ""
 }
 
 const censusRelayStampInterval = 24 * time.Hour
