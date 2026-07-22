@@ -85,13 +85,22 @@ function storeFor(env: Env): CounterStore {
   const stub = env.CENSUS.get(env.CENSUS.idFromName("global"));
   return {
     async increment(key: CounterKey): Promise<void> {
-      await stub.fetch("https://census-do/increment", {
+      const response = await stub.fetch("https://census-do/increment", {
         method: "POST",
         body: JSON.stringify(key),
       });
+      // A failed storage write must never be masked as a 204: stub.fetch
+      // resolves on non-2xx too (bad migration/route, storage failure) —
+      // throw so the ping answers 5xx and the loss is visible.
+      if (!response.ok) {
+        throw new Error(`counter write failed: HTTP ${response.status}`);
+      }
     },
     async rows(): Promise<CounterRow[]> {
       const response = await stub.fetch("https://census-do/rows");
+      if (!response.ok) {
+        throw new Error(`counter read failed: HTTP ${response.status}`);
+      }
       return (await response.json()) as CounterRow[];
     },
   };

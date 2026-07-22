@@ -138,17 +138,7 @@ func maybeCensusPing(paths runtimePaths) {
 	}
 	now := censusNow().UTC()
 	currentWeek := censusISOWeek(now)
-	if state.LastPingWeek == currentWeek {
-		return
-	}
-	if state.LastPingWeek > currentWeek {
-		// Clock rollback: the stamped week is in the future. Never double-count;
-		// self-heal by clamping to the current week and staying silent.
-		_ = mutateCensusState(paths, func(s *censusState) {
-			if s.LastPingWeek > currentWeek {
-				s.LastPingWeek = currentWeek
-			}
-		})
+	if !censusWeekSendable(paths, state, currentWeek) {
 		return
 	}
 	// Stamp atomically BEFORE the send: at-most-once per week. A failed send
@@ -164,6 +154,27 @@ func maybeCensusPing(paths runtimePaths) {
 		return
 	}
 	_ = sendCensusPing(paths, censusWireBytes(buildCensusPayload(paths, loadCensusState(paths), now)))
+}
+
+// censusWeekSendable is the ONE week gate shared by every send path (weekly
+// carrier, `census on`, ask-yes): a send may proceed only when the current
+// week is not yet stamped. A stamp in the FUTURE (clock rollback) is
+// self-healed identically everywhere — clamp to the current week and do NOT
+// send, so a corrected clock can never make any path count the same real
+// week twice.
+func censusWeekSendable(paths runtimePaths, state censusState, currentWeek string) bool {
+	if state.LastPingWeek == currentWeek {
+		return false
+	}
+	if state.LastPingWeek > currentWeek {
+		_ = mutateCensusState(paths, func(s *censusState) {
+			if s.LastPingWeek > currentWeek {
+				s.LastPingWeek = currentWeek
+			}
+		})
+		return false
+	}
+	return true
 }
 
 // claimCensusWeekMarker atomically claims this ISO week's single send across

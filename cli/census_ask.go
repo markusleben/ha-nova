@@ -105,7 +105,9 @@ func censusFirstPingAfterYes(paths runtimePaths) {
 	now := censusNow().UTC()
 	currentWeek := censusISOWeek(now)
 	state := loadCensusState(paths)
-	if state.LastPingWeek == currentWeek {
+	// Shared week gate incl. the clock-rollback clamp — identical semantics
+	// with the carrier and `census on`.
+	if !censusWeekSendable(paths, state, currentWeek) {
 		return
 	}
 	if !claimCensusWeekMarker(paths, currentWeek) {

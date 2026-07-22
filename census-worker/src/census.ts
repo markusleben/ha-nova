@@ -348,7 +348,17 @@ export async function handleCensusRequest(
       };
     }
     // The store clamps and writes atomically (see the CounterStore contract).
-    await store.increment(counterKeyFor(validation.ping, now));
+    // A storage failure is answered as 5xx, never masked as a 204 — the
+    // client stays fire-and-forget, so visibility costs users nothing.
+    try {
+      await store.increment(counterKeyFor(validation.ping, now));
+    } catch {
+      return {
+        status: 500,
+        body: JSON.stringify({ error: "counter write failed" }),
+        headers: { "Content-Type": "application/json" },
+      };
+    }
     return { status: 204 };
   }
   if (request.path === "/stats" && request.method === "GET") {

@@ -87,7 +87,9 @@ func runCensusOn(paths runtimePaths) int {
 		return 0
 	}
 	currentWeek := censusISOWeek(now)
-	if state.LastPingWeek == currentWeek {
+	// Same shared week gate as the carrier — including the clock-rollback
+	// clamp, so a future stamp never lets the manual path double-count.
+	if !censusWeekSendable(paths, state, currentWeek) {
 		printHumanInfo("This week (%s) is already counted — the next ping goes out next ISO week.", currentWeek)
 		return 0
 	}

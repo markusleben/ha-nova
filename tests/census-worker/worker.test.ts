@@ -229,6 +229,29 @@ describe("census worker aggregation", () => {
     expect(result.status).toBe(413);
   });
 
+  it("answers 5xx when the counter write fails instead of masking it as 204", async () => {
+    // A store whose write fails (the DO answering non-2xx maps to a throw in
+    // index.ts's storeFor) must surface as a server error, never a 204.
+    const failingStore: CounterStore = {
+      async increment(): Promise<void> {
+        throw new Error("counter write failed: HTTP 404");
+      },
+      async rows(): Promise<CounterRow[]> {
+        return [];
+      },
+    };
+    const result = await handleCensusRequest(
+      ping({ schema: 1, version: "0.21.0", os: "macos" }),
+      failingStore,
+      NOW,
+    );
+    expect(result.status).toBe(500);
+    // And the worker wiring actually checks the DO response status.
+    const indexSource = readFileSync(join(process.cwd(), "census-worker", "src", "index.ts"), "utf8");
+    expect(indexSource).toContain("if (!response.ok)");
+    expect(indexSource).toContain("counter write failed");
+  });
+
   it("folds distinct versions beyond the weekly cap into the other bucket", async () => {
     const store = memoryStore();
     for (let i = 0; i < MAX_VERSIONS_PER_WEEK; i++) {

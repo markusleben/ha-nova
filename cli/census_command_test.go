@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestCensusOnEnablesAndPingsSuccessStampsWeek(t *testing.T) {
@@ -69,6 +70,45 @@ func TestCensusOnSkipsSendOnDevBuild(t *testing.T) {
 	}
 	if state := loadCensusState(paths); !state.Enabled {
 		t.Fatal("census on must still record the opt-in on a dev build")
+	}
+}
+
+// The manual send path must heal a clock-rollback future stamp exactly like
+// the weekly carrier: clamp, no send — never a second count for the same
+// real week. All send paths share censusWeekSendable.
+func TestCensusOnClampsFutureWeekStampLikeTheCarrier(t *testing.T) {
+	paths := setupCensusTest(t)
+	stubCensusVersion(t, "0.21.0")
+	payloads := stubCensusTransport(t, http.StatusNoContent, nil)
+	currentWeek := censusISOWeek(time.Now().UTC())
+	futureWeek := censusISOWeek(time.Now().UTC().Add(21 * 24 * time.Hour))
+	if err := saveCensusState(paths, censusState{Enabled: true, Answer: "yes", AskedAt: "2026-07-01T00:00:00Z", LastPingWeek: futureWeek}); err != nil {
+		t.Fatalf("saveCensusState() error: %v", err)
+	}
+
+	exit := 0
+	out := captureStdout(t, func() { exit = runCensusCommand(paths, []string{"on"}) })
+	if exit != 0 {
+		t.Fatalf("census on exit = %d, want 0\n%s", exit, out)
+	}
+	if len(*payloads) != 0 {
+		t.Fatalf("a future stamp must not let the manual path send, got %d attempts", len(*payloads))
+	}
+	if state := loadCensusState(paths); state.LastPingWeek != currentWeek {
+		t.Fatalf("manual path must clamp like the carrier: got %q, want %q", state.LastPingWeek, currentWeek)
+	}
+
+	// Same for the ask-yes immediate ping.
+	if err := saveCensusState(paths, censusState{LastPingWeek: futureWeek}); err != nil {
+		t.Fatalf("saveCensusState() error: %v", err)
+	}
+	stubCensusTTY(t, true, true)
+	askCensusWithInput(t, paths, "y\n")
+	if len(*payloads) != 0 {
+		t.Fatalf("a future stamp must not let the ask-yes path send, got %d attempts", len(*payloads))
+	}
+	if state := loadCensusState(paths); state.LastPingWeek != currentWeek {
+		t.Fatalf("ask-yes path must clamp like the carrier: got %q, want %q", state.LastPingWeek, currentWeek)
 	}
 }
 
