@@ -218,6 +218,39 @@ func TestStampCensusRelayVersionOnlyWhenEnabled(t *testing.T) {
 	}
 }
 
+func TestStampCensusRelayVersionRechecksConsentInsideTheLock(t *testing.T) {
+	// An opt-out that wins the lock between the stamp's unlocked pre-check and
+	// its locked write must not be followed by relay-field accrual: the locked
+	// mutation re-checks Enabled, so nothing census-related is recorded for an
+	// install that just revoked consent.
+	paths := setupCensusTest(t)
+	if err := saveCensusState(paths, censusState{Enabled: true, Answer: "yes"}); err != nil {
+		t.Fatalf("saveCensusState() error: %v", err)
+	}
+	prev := censusPreMutateHook
+	censusPreMutateHook = func() {
+		// Simulates `census off` winning the lock first: the mutation below
+		// reloads and sees the revoked state.
+		censusPreMutateHook = prev
+		if err := mutateCensusState(paths, func(s *censusState) {
+			s.Enabled = false
+			s.Answer = "no"
+		}); err != nil {
+			t.Fatalf("concurrent opt-out: %v", err)
+		}
+	}
+	t.Cleanup(func() { censusPreMutateHook = prev })
+
+	stampCensusRelayVersion(paths, "0.7.0")
+	state := loadCensusState(paths)
+	if state.Enabled {
+		t.Fatal("opt-out must win")
+	}
+	if state.RelayVersion != "" || state.RelayVersionObservedAt != "" {
+		t.Fatalf("relay fields must not accrue after consent was revoked, got %q/%q", state.RelayVersion, state.RelayVersionObservedAt)
+	}
+}
+
 func TestStampCensusRelayVersionThrottlesWrites(t *testing.T) {
 	paths := setupCensusTest(t)
 	base := time.Date(2026, 7, 22, 10, 0, 0, 0, time.UTC)

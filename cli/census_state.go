@@ -169,6 +169,11 @@ func censusOptedOutByEnv() bool {
 
 const censusRelayStampInterval = 24 * time.Hour
 
+// censusPreMutateHook is a test seam: it runs between an unlocked consent
+// pre-check and the locked mutation, letting tests interleave a concurrent
+// opt-out at exactly that point.
+var censusPreMutateHook = func() {}
+
 // stampCensusRelayVersion opportunistically records the relay version at the
 // checkRelayVersionValue funnel (every /health body and relay response header
 // passes through there). Hot-path protection: it writes only when the value
@@ -193,8 +198,15 @@ func stampCensusRelayVersion(paths runtimePaths, version string) {
 		}
 	}
 	// Write via the reload-mutate path and touch ONLY the relay fields — a
-	// week stamp written between our load and this save must survive.
+	// week stamp written between our load and this save must survive. Re-check
+	// consent INSIDE the locked mutation: an opt-out that won the lock between
+	// our unlocked pre-check and this write must not be followed by any census
+	// state accrual ("only for opted-in installs" holds under races too).
+	censusPreMutateHook()
 	_ = mutateCensusState(paths, func(s *censusState) {
+		if !s.Enabled {
+			return
+		}
 		s.RelayVersion = version
 		s.RelayVersionObservedAt = now.Format(time.RFC3339)
 	})
