@@ -32,18 +32,20 @@ gh api "repos/${REPO}/releases?per_page=${RELEASES}" --jq '
      | map({name, count: .download_count})
      | map(. + {os_arch: (
          .name
-         | if   test("darwin-arm64")  then "macOS arm64"
-           elif test("darwin-amd64")  then "macOS amd64"
+         | if (test("^ha-nova-installer-bundle-") | not) or test("\\.sha256$")
+           then "other (raw binaries, checksums, ...)"
+           elif test("macos-arm64")   then "macOS arm64"
+           elif test("macos-amd64")   then "macOS amd64"
            elif test("linux-arm64")   then "Linux arm64"
            elif test("linux-amd64")   then "Linux amd64"
            elif test("windows-amd64") then "Windows amd64"
-           else "other (checksums, sboms, ...)"
+           else "other (raw binaries, checksums, ...)"
            end)})
      | group_by(.os_arch)
      | map({os_arch: .[0].os_arch, downloads: ([.[].count] | add)})
      | sort_by(-.downloads)
     ) as $per_os
-  | {per_release: $per_release, per_os_arch_bundles: ($per_os | map(select(.os_arch != "other (checksums, sboms, ...)")))}
+  | {per_release: $per_release, per_os_arch_bundles: ($per_os | map(select(.os_arch != "other (raw binaries, checksums, ...)")))}
 ' | python3 -c "
 import json, sys
 d = json.load(sys.stdin)
