@@ -363,3 +363,22 @@ func TestSetupAlreadyDoneBannerOffersPairingSwitchForLegacyInstalls(t *testing.T
 		t.Fatalf("paired installs must not see the legacy hint:\n%s", out.String())
 	}
 }
+
+func TestServerListLegacyLabelOnlyOnDefaultProfile(t *testing.T) {
+	// Named profiles are device-credential-only: a half-paired named profile
+	// (relay URL saved, no credential yet) must show a bare "no", never the
+	// legacy-token label that only the default profile can earn.
+	paths := setupServerCommandTest(t, `{"schema_version":2,"default_server":"default","servers":{"default":{"relay_base_url":"http://ha:8791"},"cabin":{"relay_base_url":"http://cabin:8791"}}}`)
+	exit, out := captureCommandOutput(t, func() int { return runServerCommand(paths, []string{"list"}) })
+	if exit != 0 {
+		t.Fatalf("list exit = %d\n%s", exit, out)
+	}
+	row := serverListRow(t, out, "cabin")
+	joined := strings.Join(row, " ")
+	if strings.Contains(joined, "legacy") {
+		t.Fatalf("named profile must not carry the legacy-token label: %v", row)
+	}
+	if !strings.Contains(strings.Join(serverListRow(t, out, "default"), " "), "legacy") {
+		t.Fatalf("default profile must carry the legacy-token label:\n%s", out)
+	}
+}

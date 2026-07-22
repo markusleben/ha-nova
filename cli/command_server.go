@@ -117,10 +117,12 @@ func runServerList(paths runtimePaths, args []string) int {
 			paired = "unknown"
 		} else if ok {
 			paired = "yes"
-		} else if cfg, okCfg := doc.flatProfile(name); okCfg && cfg.RelaySecureBaseURL == "" && cfg.RelayBaseURL != "" {
+		} else if cfg, okCfg := doc.flatProfile(name); okCfg && name == defaultServerProfileName && cfg.RelaySecureBaseURL == "" && cfg.RelayBaseURL != "" {
 			// A working pre-pairing install: connected via the shared legacy
 			// token, no per-device credential yet. Plain "no" reads as broken
-			// (issue #419) — label the actual state.
+			// (issue #419) — label the actual state. Default profile ONLY:
+			// named profiles are device-credential-only, so a bare "no" there
+			// (e.g. an interrupted pair) is the accurate label.
 			paired = "no (legacy token)"
 		}
 		var markers []string
