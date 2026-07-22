@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -37,8 +38,14 @@ func censusEndpointConfigured() bool {
 const censusOptOutEnv = "HA_NOVA_NO_CENSUS"
 
 // censusHTTPClient is dedicated and short-fused: the ping may never make an
-// update check feel slow, and it never retries. Overridable for tests.
-var censusHTTPClient = &http.Client{Timeout: 3 * time.Second}
+// update check feel slow, and it never retries. 1.5s total: the send already
+// runs AFTER all command output, so the only cost of a dead endpoint is a
+// short delay of process exit — kept deliberately small. A detached
+// fire-and-forget goroutine would be worse, not better: the process exits
+// right after this call, silently dropping the send and breaking the
+// at-most-once accounting (the week is already stamped). Overridable for
+// tests.
+var censusHTTPClient = &http.Client{Timeout: 1500 * time.Millisecond}
 
 // censusPayload is the exact wire shape. Field order is wire order. The
 // json tags below are contract-tested against the worker's accepted field
@@ -52,6 +59,19 @@ type censusPayload struct {
 }
 
 const censusRelayFreshness = 7 * 24 * time.Hour
+
+// censusVersionPattern mirrors the worker's accepted version format
+// (census-worker/src/census.ts VERSION_PATTERN) — contract-tested so the two
+// sides cannot drift. An observed relay version that the worker would reject
+// is OMITTED from the payload instead of getting the whole ping 400-rejected
+// after the week was already stamped.
+var censusVersionPattern = regexp.MustCompile(`^\d+\.\d+\.\d+(-rc\d+)?$`)
+
+const censusMaxVersionLength = 32
+
+func censusValidVersion(v string) bool {
+	return len(v) <= censusMaxVersionLength && censusVersionPattern.MatchString(v)
+}
 
 // censusPlatformOS is the raw platform source, overridable for tests.
 var censusPlatformOS = bundlePlatformOS
@@ -75,8 +95,9 @@ func buildCensusPayload(paths runtimePaths, state censusState, now time.Time) ce
 		OS:      censusOS(),
 	}
 	// Relay version rides along only when observed recently (opportunistic
-	// stamp from normal relay traffic — never a relay call for the census).
-	if state.RelayVersion != "" && state.RelayVersionObservedAt != "" {
+	// stamp from normal relay traffic — never a relay call for the census)
+	// AND shaped like a version the worker accepts.
+	if state.RelayVersion != "" && state.RelayVersionObservedAt != "" && censusValidVersion(state.RelayVersion) {
 		if observed, err := time.Parse(time.RFC3339, state.RelayVersionObservedAt); err == nil && now.Sub(observed) <= censusRelayFreshness {
 			payload.Relay = state.RelayVersion
 		}
@@ -142,7 +163,7 @@ func maybeCensusPing(paths runtimePaths) {
 	if !claimCensusWeekMarker(paths, currentWeek) {
 		return
 	}
-	_ = sendCensusPing(censusWireBytes(buildCensusPayload(paths, loadCensusState(paths), now)))
+	_ = sendCensusPing(paths, censusWireBytes(buildCensusPayload(paths, loadCensusState(paths), now)))
 }
 
 // claimCensusWeekMarker atomically claims this ISO week's single send across
@@ -184,10 +205,19 @@ func claimCensusMarker(paths runtimePaths, prefix, id string) bool {
 
 // sendCensusPing performs the single fire-and-forget POST. Callers decide
 // whether the result matters (`census on` reports it; the weekly carrier
-// ignores it).
-func sendCensusPing(payload []byte) error {
+// ignores it). Defense in depth for consent: the state is re-loaded here —
+// after the week marker was claimed, immediately before the POST — so an
+// opt-out (or the env kill switch) that landed between the caller's gate and
+// this call still prevents the send.
+func sendCensusPing(paths runtimePaths, payload []byte) error {
 	if len(payload) == 0 {
 		return fmt.Errorf("empty census payload")
+	}
+	if censusOptedOutByEnv() {
+		return fmt.Errorf("suppressed by %s", censusOptOutEnv)
+	}
+	if state := loadCensusState(paths); !state.Enabled {
+		return fmt.Errorf("census is disabled")
 	}
 	req, err := http.NewRequest(http.MethodPost, censusEndpointURL+"/ping", bytes.NewReader(payload))
 	if err != nil {

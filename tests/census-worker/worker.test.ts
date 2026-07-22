@@ -9,15 +9,32 @@ import {
   CounterKey,
   CounterRow,
   CounterStore,
+  MAX_BODY_BYTES,
+  MAX_VERSION_LENGTH,
   MAX_VERSIONS_PER_WEEK,
   OVERFLOW_BUCKET,
+  VERSION_PATTERN,
   WEEKLY_HORIZON_WEEKS,
   buildStats,
   clampWeeklyCardinality,
   handleCensusRequest,
   isoWeekUTC,
+  oldestPublishedWeek,
+  readBodyCapped,
   validatePing,
 } from "../../census-worker/src/census.js";
+
+function streamOf(...chunks: string[]): ReadableStream<Uint8Array> {
+  const encoder = new TextEncoder();
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (const chunk of chunks) {
+        controller.enqueue(encoder.encode(chunk));
+      }
+      controller.close();
+    },
+  });
+}
 
 function memoryStore(): CounterStore & { all: () => CounterRow[] } {
   const counters = new Map<string, CounterRow>();
@@ -192,6 +209,26 @@ describe("census worker aggregation", () => {
     expect(stats.footnotes.identifiers).toContain("no identifier");
   });
 
+  it("caps streamed bodies without a Content-Length instead of buffering them", async () => {
+    // Chunked/H2 upload: no declared length — the capped reader must stop the
+    // moment the cap is crossed and report overflow (which maps to 413).
+    const big = await readBodyCapped(streamOf("x".repeat(400), "y".repeat(400)), MAX_BODY_BYTES);
+    expect(big.overflow).toBe(true);
+    expect(big.text).toBe("");
+    const small = await readBodyCapped(streamOf('{"schema":1,', '"version":"0.21.0","os":"macos"}'), MAX_BODY_BYTES);
+    expect(small.overflow).toBe(false);
+    expect(JSON.parse(small.text).os).toBe("macos");
+    const empty = await readBodyCapped(null, MAX_BODY_BYTES);
+    expect(empty).toEqual({ text: "", overflow: false });
+    // The overflow signal maps to the same 413 as a declared oversize.
+    const result = await handleCensusRequest(
+      { ...ping(""), bodyText: "", contentLength: MAX_BODY_BYTES + 1 },
+      memoryStore(),
+      NOW,
+    );
+    expect(result.status).toBe(413);
+  });
+
   it("folds distinct versions beyond the weekly cap into the other bucket", async () => {
     const store = memoryStore();
     for (let i = 0; i < MAX_VERSIONS_PER_WEEK; i++) {
@@ -243,6 +280,31 @@ describe("census worker aggregation", () => {
     expect(stats.weekly.map((entry) => entry.iso_week)).toEqual([week(0)]);
   });
 
+  it("bounds the rows the stats path needs to the published horizon", () => {
+    // The DO loads only rows >= oldestPublishedWeek (string order is
+    // chronological for the padded labels); buildStats over the bounded set
+    // must equal buildStats over the full table — the bound loses nothing.
+    expect(oldestPublishedWeek(NOW)).toBe(
+      isoWeekUTC(new Date(NOW.getTime() - (WEEKLY_HORIZON_WEEKS - 1) * 7 * 86400000)),
+    );
+    const week = (offsetWeeks: number) =>
+      isoWeekUTC(new Date(NOW.getTime() - offsetWeeks * 7 * 86400000));
+    const allRows: CounterRow[] = [
+      { iso_week: week(0), version: "0.21.0", os: "macos", relay: "unknown", count: 2 },
+      { iso_week: week(WEEKLY_HORIZON_WEEKS - 1), version: "0.20.0", os: "linux", relay: "unknown", count: 3 },
+      // Ancient rows that the bounded query would not even load:
+      { iso_week: week(WEEKLY_HORIZON_WEEKS + 10), version: "0.1.0", os: "macos", relay: "unknown", count: 9 },
+      { iso_week: week(200), version: "0.0.1", os: "windows", relay: "0.1.0", count: 4 },
+    ];
+    const bounded = allRows.filter((row) => row.iso_week >= oldestPublishedWeek(NOW));
+    expect(bounded).toHaveLength(2);
+    expect(JSON.stringify(buildStats(bounded, NOW))).toBe(JSON.stringify(buildStats(allRows, NOW)));
+    // And the Durable Object actually queries with that bound.
+    const indexSource = readFileSync(join(process.cwd(), "census-worker", "src", "index.ts"), "utf8");
+    expect(indexSource).toContain("WHERE iso_week >= ?");
+    expect(indexSource).toContain("oldestPublishedWeek(new Date())");
+  });
+
   it("serves /stats with public cache and CORS headers", async () => {
     const store = memoryStore();
     await handleCensusRequest(ping({ schema: 1, version: "0.21.0", os: "macos" }), store, NOW);
@@ -285,5 +347,9 @@ describe("census cross-contract (client payload == worker allowlist)", () => {
     // And the os vocabulary stays pinned on both sides.
     expect([...ALLOWED_OS].sort()).toEqual(["linux", "macos", "windows"]);
     expect(censusSources).toContain('case "macos", "windows", "linux":');
+    // The client-side relay-version filter must accept exactly what the
+    // worker accepts: same regex source, same length cap.
+    expect(censusSources).toContain("regexp.MustCompile(`" + VERSION_PATTERN.source + "`)");
+    expect(censusSources).toContain(`censusMaxVersionLength = ${MAX_VERSION_LENGTH}`);
   });
 });

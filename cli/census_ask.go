@@ -111,7 +111,7 @@ func censusFirstPingAfterYes(paths runtimePaths) {
 	if !claimCensusWeekMarker(paths, currentWeek) {
 		return
 	}
-	if sendErr := sendCensusPing(censusWireBytes(buildCensusPayload(paths, state, now))); sendErr == nil {
+	if sendErr := sendCensusPing(paths, censusWireBytes(buildCensusPayload(paths, state, now))); sendErr == nil {
 		_ = mutateCensusState(paths, func(s *censusState) { s.LastPingWeek = currentWeek })
 	}
 }

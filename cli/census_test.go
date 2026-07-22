@@ -120,6 +120,62 @@ func TestCensusPayloadOmitsStaleOrMissingRelay(t *testing.T) {
 	}
 }
 
+func TestCensusPayloadOmitsInvalidRelayVersion(t *testing.T) {
+	paths := setupCensusTest(t)
+	stubCensusVersion(t, "0.21.0")
+	now := time.Now().UTC()
+	fresh := now.Add(-time.Hour).Format(time.RFC3339)
+	for _, invalid := range []string{"dev", "1.2", "0.7.0-beta1", "0.7", "v0.7.0", "0.7.0-rc", "1.0.0.0", "99999999999999999999999999999.0.0"} {
+		state := censusState{Enabled: true, RelayVersion: invalid, RelayVersionObservedAt: fresh}
+		got := string(censusWireBytes(buildCensusPayload(paths, state, now)))
+		if strings.Contains(got, "relay") {
+			t.Fatalf("relay %q would be 400-rejected by the worker and must be omitted, got %s", invalid, got)
+		}
+	}
+	// The worker-accepted rc shape stays included.
+	state := censusState{Enabled: true, RelayVersion: "0.7.0-rc2", RelayVersionObservedAt: fresh}
+	if got := string(censusWireBytes(buildCensusPayload(paths, state, now))); !strings.Contains(got, `"relay":"0.7.0-rc2"`) {
+		t.Fatalf("valid rc relay version must be included, got %s", got)
+	}
+}
+
+// Defense in depth: consent is re-checked inside sendCensusPing — after the
+// week marker was claimed, immediately before the POST — so a `census off`
+// (or the env kill switch) landing in that window still prevents the send.
+func TestSendCensusPingRefusesAfterConsentRevoked(t *testing.T) {
+	paths := setupCensusTest(t)
+	stubCensusVersion(t, "0.21.0")
+	payloads := stubCensusTransport(t, http.StatusNoContent, nil)
+	if err := saveCensusState(paths, censusState{Enabled: true, Answer: "yes"}); err != nil {
+		t.Fatalf("saveCensusState() error: %v", err)
+	}
+	payload := censusWireBytes(buildCensusPayload(paths, loadCensusState(paths), time.Now().UTC()))
+
+	// The window between marker claim and POST: the user opts out.
+	if !claimCensusWeekMarker(paths, censusISOWeek(time.Now().UTC())) {
+		t.Fatal("marker claim failed in a fresh cache dir")
+	}
+	captureStdout(t, func() { runCensusCommand(paths, []string{"off"}) })
+	if err := sendCensusPing(paths, payload); err == nil {
+		t.Fatal("sendCensusPing must refuse after the opt-out")
+	}
+	if len(*payloads) != 0 {
+		t.Fatalf("no bytes may leave after an opt-out, got %d attempts", len(*payloads))
+	}
+
+	// Same for the env kill switch on a still-enabled install.
+	if err := saveCensusState(paths, censusState{Enabled: true, Answer: "yes"}); err != nil {
+		t.Fatalf("saveCensusState() error: %v", err)
+	}
+	t.Setenv(censusOptOutEnv, "1")
+	if err := sendCensusPing(paths, payload); err == nil {
+		t.Fatal("sendCensusPing must refuse under the env kill switch")
+	}
+	if len(*payloads) != 0 {
+		t.Fatalf("no bytes may leave under the kill switch, got %d attempts", len(*payloads))
+	}
+}
+
 func TestCensusNeverSendsWithoutEnabled(t *testing.T) {
 	paths := setupCensusTest(t)
 	stubCensusVersion(t, "0.9.0")

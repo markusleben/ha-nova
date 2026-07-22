@@ -22,8 +22,10 @@ export const MAX_VERSIONS_PER_WEEK = 64;
 export const MAX_RELAYS_PER_WEEK = 64;
 export const OVERFLOW_BUCKET = "other";
 
-const VERSION_PATTERN = /^\d+\.\d+\.\d+(-rc\d+)?$/;
-const MAX_VERSION_LENGTH = 32;
+// Exported so the cross-contract test can compare them against the client's
+// mirror (cli/census.go censusVersionPattern / censusMaxVersionLength).
+export const VERSION_PATTERN = /^\d+\.\d+\.\d+(-rc\d+)?$/;
+export const MAX_VERSION_LENGTH = 32;
 
 export interface CensusPing {
   schema: number;
@@ -145,6 +147,52 @@ export function isoWeekUTC(date: Date): string {
   const yearStart = Date.UTC(isoYear, 0, 1);
   const week = Math.ceil(((probe.getTime() - yearStart) / 86400000 + 1) / 7);
   return `${String(isoYear).padStart(4, "0")}-W${String(week).padStart(2, "0")}`;
+}
+
+// readBodyCapped consumes a request body stream with a hard byte cap: the
+// moment more than maxBytes arrive, reading stops (the stream is cancelled)
+// and overflow is reported — a chunked/H2 request without Content-Length can
+// never make the worker buffer an unbounded body.
+export async function readBodyCapped(
+  body: ReadableStream<Uint8Array> | null,
+  maxBytes: number,
+): Promise<{ text: string; overflow: boolean }> {
+  if (body === null) {
+    return { text: "", overflow: false };
+  }
+  const reader = body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+    if (value !== undefined) {
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel();
+        return { text: "", overflow: true };
+      }
+      chunks.push(value);
+    }
+  }
+  const merged = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    merged.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return { text: new TextDecoder().decode(merged), overflow: false };
+}
+
+// oldestPublishedWeek is the earliest ISO-week label inside the public stats
+// horizon. The Durable Object uses it to BOUND the rows it loads for /stats
+// (labels are zero-padded and year-major, so string comparison is
+// chronological); buildStats applies the same horizon, so nothing published
+// is lost by the bound.
+export function oldestPublishedWeek(now: Date): string {
+  return isoWeekUTC(new Date(now.getTime() - (WEEKLY_HORIZON_WEEKS - 1) * 7 * 86400000));
 }
 
 function lastWeeks(now: Date, count: number): string[] {

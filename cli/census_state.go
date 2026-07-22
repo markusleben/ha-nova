@@ -2,8 +2,10 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -66,7 +68,10 @@ func loadCensusState(paths runtimePaths) censusState {
 // a persisted, stamped, disabled default: a corrupted file must never cause a
 // re-ask nag (asked_at is set) or a silent re-enable (enabled stays false).
 // Overwriting a future schema is deliberate — when an older CLI meets a newer
-// file, disabling is the safe direction.
+// file, disabling is the safe direction. It saves WITHOUT the census lock (it
+// may already run under it via mutateCensusState, and the lock is not
+// reentrant); that is acceptable because the written value is a constant safe
+// default — concurrent recoveries are idempotent.
 func recoverCensusState(paths runtimePaths) censusState {
 	state := defaultCensusState()
 	state.AskedAt = censusNow().UTC().Format(time.RFC3339)
@@ -76,11 +81,68 @@ func recoverCensusState(paths runtimePaths) censusState {
 	return state
 }
 
-// mutateCensusState is the read-modify-write path for every census writer:
-// it reloads the file immediately before saving and lets the caller mutate
-// only its own fields, so concurrent writers (week stamp, relay observation,
-// skill-notice counter) cannot clobber each other's freshly written values.
+// Census state lock: reload-before-save alone cannot make an explicit opt-out
+// WIN against a concurrent full read-modify-write cycle (a writer that loaded
+// enabled=true before `census off` saved could restore it). The lock makes
+// each load+mutate+save cycle mutually exclusive across processes. Vars so
+// tests can shrink the timings.
+var (
+	censusLockRetryInterval = 50 * time.Millisecond
+	censusLockTimeout       = 2 * time.Second
+	// A crashed process must never wedge the census forever: a lock older
+	// than this is treated as abandoned and taken over.
+	censusLockStaleAfter = 10 * time.Second
+)
+
+// acquireCensusLock claims ConfigDir/census.lock via O_CREATE|O_EXCL with a
+// bounded retry loop. It returns a release func and whether the lock was won.
+// Environmental failures (no ConfigDir, cannot create files at all) degrade
+// to "proceed unlocked" — a broken filesystem must not brick census commands,
+// and the per-field mutations stay safe under the reload-before-save rule.
+// NOT reentrant: never call while already holding the lock.
+func acquireCensusLock(paths runtimePaths) (func(), bool) {
+	unlocked := func() {}
+	if paths.ConfigDir == "" {
+		return unlocked, true
+	}
+	if err := os.MkdirAll(paths.ConfigDir, 0o755); err != nil {
+		return unlocked, true
+	}
+	lockPath := filepath.Join(paths.ConfigDir, "census.lock")
+	deadline := time.Now().Add(censusLockTimeout)
+	for {
+		file, err := os.OpenFile(lockPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+		if err == nil {
+			_ = file.Close()
+			return func() { _ = os.Remove(lockPath) }, true
+		}
+		if !errors.Is(err, os.ErrExist) {
+			return unlocked, true
+		}
+		if info, statErr := os.Stat(lockPath); statErr == nil && time.Since(info.ModTime()) > censusLockStaleAfter {
+			_ = os.Remove(lockPath)
+			continue
+		}
+		if time.Now().After(deadline) {
+			return unlocked, false
+		}
+		time.Sleep(censusLockRetryInterval)
+	}
+}
+
+// mutateCensusState is the ONLY read-modify-write path for census writers: it
+// holds the census lock around load+mutate+save, and callers mutate only
+// their own fields. Together this serializes whole cycles across processes
+// (so `census off` always wins) AND keeps concurrent writers from clobbering
+// each other's fields. Lock ordering: the O_EXCL action markers
+// (census-ping-*/census-notice-*) are always claimed OUTSIDE this lock, and
+// the lock is never held across network I/O — no nesting, no deadlock.
 func mutateCensusState(paths runtimePaths, mutate func(*censusState)) error {
+	release, ok := acquireCensusLock(paths)
+	if !ok {
+		return fmt.Errorf("census state is locked by another process")
+	}
+	defer release()
 	state := loadCensusState(paths)
 	mutate(&state)
 	return saveCensusState(paths, state)

@@ -104,7 +104,7 @@ func runCensusOn(paths runtimePaths) int {
 	// Immediate first ping: success stamps the week; a failed attempt leaves
 	// the week stamp empty, and the install is counted on a later update check.
 	payload := censusWireBytes(buildCensusPayload(paths, state, now))
-	if err := sendCensusPing(payload); err != nil {
+	if err := sendCensusPing(paths, payload); err != nil {
 		printHumanWarn("First ping did not go through (%s). This install will be counted on a later update check.", err)
 		return 0
 	}

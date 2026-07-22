@@ -12,6 +12,8 @@ import {
   MAX_BODY_BYTES,
   clampWeeklyCardinality,
   handleCensusRequest,
+  oldestPublishedWeek,
+  readBodyCapped,
 } from "./census";
 
 export interface Env {
@@ -62,8 +64,16 @@ export class CensusCounter {
       return new Response(null, { status: 204 });
     }
     if (request.method === "GET" && path === "/rows") {
+      // Bound the scan to the published stats horizon: counters are retained
+      // forever, but /stats only publishes WEEKLY_HORIZON_WEEKS — loading the
+      // whole table would grow without bound. Within the horizon the row
+      // count is already bounded by construction: per week at most
+      // (MAX_VERSIONS_PER_WEEK+1) x (MAX_RELAYS_PER_WEEK+1) x 3 os buckets.
       const rows = this.sql
-        .exec(`SELECT iso_week, version, os, relay, count FROM counters`)
+        .exec(
+          `SELECT iso_week, version, os, relay, count FROM counters WHERE iso_week >= ?`,
+          oldestPublishedWeek(new Date()),
+        )
         .toArray() as unknown as CounterRow[];
       return Response.json(rows);
     }
@@ -89,18 +99,35 @@ function storeFor(env: Env): CounterStore {
 
 const worker: ExportedHandler<Env> = {
   async fetch(request: Request, env: Env): Promise<Response> {
+    const path = new URL(request.url).pathname;
+    const contentType = request.headers.get("content-type") ?? "";
     // Reject oversized requests via the declared Content-Length BEFORE
-    // buffering the body; the core re-checks the actual bytes.
+    // touching the body; bodies without a declared length (chunked/H2) are
+    // read through a hard byte cap so they can never be fully buffered. The
+    // body is only consumed at all for a plausible ping (POST /ping with a
+    // JSON content type) — every other request is routed on headers alone.
     const declared = Number(request.headers.get("content-length") ?? "");
     const contentLength = Number.isFinite(declared) ? declared : undefined;
-    const oversized = contentLength !== undefined && contentLength > MAX_BODY_BYTES;
+    let overflow = contentLength !== undefined && contentLength > MAX_BODY_BYTES;
+    let bodyText = "";
+    const wantsBody =
+      request.method === "POST" &&
+      path === "/ping" &&
+      contentType.toLowerCase().startsWith("application/json");
+    if (wantsBody && !overflow) {
+      const read = await readBodyCapped(request.body, MAX_BODY_BYTES);
+      bodyText = read.text;
+      overflow = read.overflow;
+    }
     const requestLike: CensusRequestLike = {
       method: request.method,
-      path: new URL(request.url).pathname,
-      contentType: request.headers.get("content-type") ?? "",
-      bodyText: request.method === "POST" && !oversized ? await request.text() : "",
+      path,
+      contentType,
+      bodyText,
     };
-    if (contentLength !== undefined) {
+    if (overflow) {
+      requestLike.contentLength = MAX_BODY_BYTES + 1;
+    } else if (contentLength !== undefined) {
       requestLike.contentLength = contentLength;
     }
     const result = await handleCensusRequest(requestLike, storeFor(env), new Date());

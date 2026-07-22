@@ -1,8 +1,10 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 )
@@ -118,6 +120,84 @@ func TestStampCensusRelayVersionPreservesFreshWeekStamp(t *testing.T) {
 	}
 	if got.RelayVersion != "0.9.0" {
 		t.Fatalf("relay stamp missing: %+v", got)
+	}
+}
+
+// The P1 contract: an explicit opt-out must ALWAYS win, no matter which
+// automatic mutators (week stamps, relay observations, notice counters) run
+// concurrently — the census lock serializes every load+mutate+save cycle.
+func TestCensusOffAlwaysWinsAgainstConcurrentMutators(t *testing.T) {
+	paths := setupCensusTest(t)
+	stubCensusVersion(t, "0.21.0")
+	stubCensusTransport(t, 0, fmt.Errorf("endpoint down"))
+	if err := saveCensusState(paths, censusState{Enabled: true, Answer: "yes", AskedAt: "2026-07-01T00:00:00Z"}); err != nil {
+		t.Fatalf("saveCensusState() error: %v", err)
+	}
+
+	var wg sync.WaitGroup
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func(n int) {
+			defer wg.Done()
+			for j := 0; j < 5; j++ {
+				_ = mutateCensusState(paths, func(s *censusState) {
+					s.LastPingWeek = fmt.Sprintf("2026-W%02d", (n*5+j)%50+1)
+				})
+				_ = mutateCensusState(paths, func(s *censusState) {
+					s.RelayVersion = fmt.Sprintf("0.%d.%d", n, j)
+					s.RelayVersionObservedAt = "2026-07-01T00:00:00Z"
+				})
+			}
+		}(i)
+	}
+	exit := 0
+	captureStdout(t, func() { exit = runCensusCommand(paths, []string{"off"}) })
+	wg.Wait()
+
+	if exit != 0 {
+		t.Fatalf("census off exit = %d, want 0", exit)
+	}
+	state := loadCensusState(paths)
+	if state.Enabled || state.Answer != "no" {
+		t.Fatalf("census off must survive every concurrent mutator: %+v", state)
+	}
+}
+
+func TestCensusLockStaleTakeoverAndContentionTimeout(t *testing.T) {
+	paths := setupCensusTest(t)
+	originalRetry, originalTimeout, originalStale := censusLockRetryInterval, censusLockTimeout, censusLockStaleAfter
+	censusLockRetryInterval = time.Millisecond
+	censusLockTimeout = 30 * time.Millisecond
+	censusLockStaleAfter = 50 * time.Millisecond
+	t.Cleanup(func() {
+		censusLockRetryInterval, censusLockTimeout, censusLockStaleAfter = originalRetry, originalTimeout, originalStale
+	})
+
+	lockPath := filepath.Join(paths.ConfigDir, "census.lock")
+	if err := os.MkdirAll(paths.ConfigDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	// A fresh foreign lock: mutation attempts time out with an error instead
+	// of clobbering the holder's cycle.
+	if err := os.WriteFile(lockPath, nil, 0o600); err != nil {
+		t.Fatalf("write lock: %v", err)
+	}
+	if err := mutateCensusState(paths, func(s *censusState) { s.LastPingWeek = "2026-W30" }); err == nil {
+		t.Fatal("a held lock must make the mutation fail, not proceed")
+	}
+	// A stale lock (crashed process) is taken over instead of wedging forever.
+	past := time.Now().Add(-time.Second)
+	if err := os.Chtimes(lockPath, past, past); err != nil {
+		t.Fatalf("chtimes: %v", err)
+	}
+	if err := mutateCensusState(paths, func(s *censusState) { s.LastPingWeek = "2026-W30" }); err != nil {
+		t.Fatalf("stale lock must be taken over, got %v", err)
+	}
+	if state := loadCensusState(paths); state.LastPingWeek != "2026-W30" {
+		t.Fatalf("mutation after takeover missing: %+v", state)
+	}
+	if _, err := os.Stat(lockPath); !os.IsNotExist(err) {
+		t.Fatalf("lock must be released after the mutation (err=%v)", err)
 	}
 }
 
