@@ -3,6 +3,7 @@ import { dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { gunzip, gzip } from "node:zlib";
 
+import { decodeUtf8Strict } from "../../shared/utf8.js";
 import { HttpError } from "../errors.js";
 import type { RouteContext, RouteHandler } from "../router.js";
 
@@ -322,7 +323,7 @@ async function loadSnapshot(
   let data: unknown;
   try {
     const raw = await gunzipAsync(compressed);
-    data = JSON.parse(raw.toString("utf8"));
+    data = JSON.parse(decodeUtf8Strict(raw));
   } catch {
     throw new HttpError(
       500,

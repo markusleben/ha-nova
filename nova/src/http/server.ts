@@ -2,7 +2,8 @@ import { createServer, type IncomingMessage, type RequestListener, type Server, 
 
 import { authorizeRequest } from "../security/auth.js";
 import type { Principal } from "../security/principal.js";
-import { invalidJson, invalidRequestUrl, payloadTooLarge, toErrorResponse } from "./errors.js";
+import { decodeUtf8Strict } from "../shared/utf8.js";
+import { invalidJson, invalidRequestUrl, invalidUtf8, payloadTooLarge, toErrorResponse } from "./errors.js";
 import type { Router } from "./router.js";
 
 export const DEFAULT_MAX_JSON_BODY_BYTES = 1_048_576;
@@ -164,7 +165,7 @@ async function parseBody(request: IncomingMessage, policy: BodyPolicy): Promise<
     return null;
   }
   const rawBody = await readBody(request, policy.maxBytes);
-  if (!rawBody) {
+  if (rawBody === null) {
     return null;
   }
   if (policy.type === "form") {
@@ -190,7 +191,7 @@ function parseForm(request: IncomingMessage, rawBody: string): Record<string, st
   return out;
 }
 
-async function readBody(request: IncomingMessage, maxBytes: number): Promise<string> {
+async function readBody(request: IncomingMessage, maxBytes: number): Promise<string | null> {
   const chunks: Buffer[] = [];
   let totalBytes = 0;
   for await (const chunk of request) {
@@ -201,7 +202,14 @@ async function readBody(request: IncomingMessage, maxBytes: number): Promise<str
     }
     chunks.push(buffer);
   }
-  return Buffer.concat(chunks).toString("utf8");
+  if (totalBytes === 0) {
+    return null;
+  }
+  try {
+    return decodeUtf8Strict(Buffer.concat(chunks));
+  } catch {
+    throw invalidUtf8();
+  }
 }
 
 function writeJson(response: ServerResponse, status: number, payload: unknown): void {

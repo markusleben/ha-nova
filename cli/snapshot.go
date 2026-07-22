@@ -82,6 +82,7 @@ func runSnapshotSave(paths runtimePaths, args []string) int {
 	fs := flag.NewFlagSet("snapshot save", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	var dataFile string
+	var dataFileSet bool
 	fs.StringVar(&dataFile, "data-file", "", "path to the JSON record (defaults to stdin)")
 	if err := fs.Parse(args); err != nil {
 		if helpRequested(err, fs, "ha-nova snapshot save [--data-file <file>]") {
@@ -90,17 +91,26 @@ func runSnapshotSave(paths runtimePaths, args []string) int {
 		printErr("%s", err)
 		return 1
 	}
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == "data-file" {
+			dataFileSet = true
+		}
+	})
 	if fs.NArg() != 0 {
 		printErr("snapshot save takes no positional arguments; use --data-file <file> or pipe the record on stdin")
 		return 1
 	}
 	var data []byte
 	var err error
-	if strings.TrimSpace(dataFile) != "" {
+	if dataFileSet {
+		if strings.TrimSpace(dataFile) == "" {
+			printErr("--data-file requires a non-empty path; no snapshot was written")
+			return 1
+		}
 		// File-based input is shell-agnostic — the canonical relay contract and
 		// `ha-nova diff --before/--after` are file-based too, so the skill never
 		// has to build a stdin redirect/pipe (fragile on Windows PowerShell).
-		data, err = os.ReadFile(dataFile)
+		data, err = os.ReadFile(filepath.Clean(dataFile))
 		if err != nil {
 			printErr("cannot read snapshot record: %s", err)
 			return 1
@@ -136,6 +146,35 @@ func runSnapshotShow(paths runtimePaths, args []string) int {
 			return 0
 		}
 		printErr("%s", err)
+		return 1
+	}
+	var targetSet, domainSet bool
+	fs.Visit(func(f *flag.Flag) {
+		switch f.Name {
+		case "target":
+			targetSet = true
+		case "domain":
+			domainSet = true
+		}
+	})
+	if fs.NArg() != 0 {
+		printErr("snapshot show does not accept positional arguments")
+		return 1
+	}
+	if targetSet && strings.TrimSpace(target) == "" {
+		printErr("--target requires a non-empty target_id")
+		return 1
+	}
+	if domainSet && strings.TrimSpace(domain) == "" {
+		printErr("--domain requires a non-empty domain")
+		return 1
+	}
+	if domainSet && !targetSet {
+		printErr("--domain requires --target")
+		return 1
+	}
+	if list && (targetSet || domainSet) {
+		printErr("--list cannot be combined with --target or --domain")
 		return 1
 	}
 	if list {
@@ -189,6 +228,31 @@ func runSnapshotVerify(paths runtimePaths, args []string) int {
 		printErr("%s", err)
 		return 1
 	}
+	var targetSet, domainSet bool
+	fs.Visit(func(f *flag.Flag) {
+		switch f.Name {
+		case "target":
+			targetSet = true
+		case "domain":
+			domainSet = true
+		}
+	})
+	if fs.NArg() != 0 {
+		printErr("snapshot verify does not accept positional arguments")
+		return 1
+	}
+	if targetSet && strings.TrimSpace(target) == "" {
+		printErr("--target requires a non-empty target_id")
+		return 1
+	}
+	if domainSet && strings.TrimSpace(domain) == "" {
+		printErr("--domain requires a non-empty domain")
+		return 1
+	}
+	if domainSet && !targetSet {
+		printErr("--domain requires --target")
+		return 1
+	}
 	if strings.TrimSpace(against) == "" {
 		printErr("--against <live.json> is required")
 		return 1
@@ -224,8 +288,8 @@ func runSnapshotVerify(paths runtimePaths, args []string) int {
 // reader never sees a torn file even if that assumption is violated.
 func saveUndoSnapshotBytes(paths runtimePaths, data []byte) error {
 	var snap undoSnapshot
-	if err := json.Unmarshal(data, &snap); err != nil {
-		return fmt.Errorf("snapshot payload is not valid JSON: %s", err)
+	if err := unmarshalStrictJSON(data, "snapshot payload", &snap); err != nil {
+		return err
 	}
 	if err := validateUndoSnapshot(snap); err != nil {
 		return err
@@ -266,7 +330,7 @@ func loadUndoSnapshotStack(paths runtimePaths) (undoSnapshotStack, error) {
 	data, err := os.ReadFile(undoSnapshotStackPath(paths))
 	if err == nil {
 		var stack undoSnapshotStack
-		if err := json.Unmarshal(data, &stack); err != nil {
+		if err := unmarshalStrictJSON(data, "undo snapshot store", &stack); err != nil {
 			return undoSnapshotStack{}, fmt.Errorf("undo snapshot store is corrupt: %s", err)
 		}
 		return stack, nil
@@ -282,7 +346,7 @@ func loadUndoSnapshotStack(paths runtimePaths) (undoSnapshotStack, error) {
 		return undoSnapshotStack{}, err
 	}
 	var snap undoSnapshot
-	if err := json.Unmarshal(legacy, &snap); err != nil {
+	if err := unmarshalStrictJSON(legacy, "legacy undo snapshot", &snap); err != nil {
 		return undoSnapshotStack{}, fmt.Errorf("undo snapshot is corrupt: %s", err)
 	}
 	return undoSnapshotStack{

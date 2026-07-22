@@ -52,6 +52,7 @@ For agent-dispatched flows, use the CLI wrapper instead of raw curl:
 
 1. Write request JSON with the client's native file-writing tool.
    - POSIX heredocs are examples only; on Windows/PowerShell use the native file-writing equivalent while preserving the same JSON and jq file contents.
+   - Write JSON and jq files as UTF-8. One leading UTF-8 BOM is accepted. In Windows PowerShell 5.1, use `Set-Content -Encoding UTF8`: bare `Set-Content` uses the system's active ANSI code page and, on affected non-UTF-8 locales, can emit non-UTF-8 bytes, which are rejected before any Relay request is sent. `Out-File`/`>` emit UTF-16LE and are also rejected.
    - Write the final request body directly. Do not create placeholder payload templates such as `REPLACE_ENTITY_ID` and patch them later with `perl -0pi`, `sed -i`, or similar in-place rewrite commands.
 2. Use file-based relay flags as the default contract:
    - `ha-nova relay ws --data-file <payload-file>`
@@ -491,10 +492,13 @@ Trace response includes: `trace.trigger`, `trace.condition`, `trace.action` node
 
 Relay errors and upstream HA errors arrive differently. Agents must distinguish them.
 
+If the CLI says a request was already sent or its outcome is unknown, verify the target state and do not retry automatically.
+
 ### Relay Errors (HTTP-level)
 
 These are top-level HTTP errors produced by the relay itself. The response has `ok: false` and an HTTP status >= 400.
 
+- `400 / INVALID_UTF8`: request body bytes are not valid UTF-8
 - `400 / INVALID_JSON`: request body is not valid JSON
 - `400 / VALIDATION_ERROR`: missing required fields (e.g. ws `type`, core `method`/`path`)
 - `400 / CORE_PATH_INVALID`: core API path failed validation

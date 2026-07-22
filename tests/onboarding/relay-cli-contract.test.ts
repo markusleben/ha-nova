@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 
 import { describe, expect, it } from "vitest";
@@ -13,6 +13,13 @@ describe("relay cli contract", () => {
     expect(existsSync("cli/config.go")).toBe(true);
     expect(existsSync("cli/jq.go")).toBe(true);
     expect(existsSync("cli/version.go")).toBe(true);
+  });
+
+  it("documents strict UTF-8 input and its Relay error code", () => {
+    const contract = readFileSync("skills/ha-nova/relay-api.md", "utf8");
+    expect(contract).toContain("One leading UTF-8 BOM is accepted");
+    expect(contract).toContain("400 / INVALID_UTF8");
+    expect(contract).toContain("do not retry automatically");
   });
 
   it("guides the user to setup when JSON config is missing", () => {

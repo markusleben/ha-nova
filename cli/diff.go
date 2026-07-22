@@ -23,6 +23,7 @@ func runDiffCommand(_ runtimePaths, args []string) int {
 	fs := flag.NewFlagSet("diff", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	var beforePath, afterPath, outPath string
+	var outPathSet bool
 	fs.StringVar(&beforePath, "before", "", "path to the current/before config JSON")
 	fs.StringVar(&afterPath, "after", "", "path to the proposed/after config JSON")
 	fs.StringVar(&outPath, "out", "", "optional path to write the rendered diff")
@@ -31,6 +32,19 @@ func runDiffCommand(_ runtimePaths, args []string) int {
 			return 0
 		}
 		printErr("%s", err)
+		return 1
+	}
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == "out" {
+			outPathSet = true
+		}
+	})
+	if fs.NArg() != 0 {
+		printErr("diff does not accept positional arguments; no diff was rendered")
+		return 1
+	}
+	if outPathSet && strings.TrimSpace(outPath) == "" {
+		printErr("--out requires a non-empty path; no diff was rendered")
 		return 1
 	}
 	if strings.TrimSpace(beforePath) == "" || strings.TrimSpace(afterPath) == "" {
@@ -48,7 +62,7 @@ func runDiffCommand(_ runtimePaths, args []string) int {
 		return 1
 	}
 	lines := renderConfigChanges(before, after)
-	if strings.TrimSpace(outPath) != "" {
+	if outPathSet {
 		rendered := ""
 		if len(lines) > 0 {
 			rendered = strings.Join(lines, "\n") + "\n"
@@ -89,6 +103,10 @@ func configObjectFromBytes(data []byte) (map[string]interface{}, error) {
 }
 
 func decodeJSONNumber(data []byte) (interface{}, error) {
+	data, err := strictJSONBytes(data, "config JSON")
+	if err != nil {
+		return nil, err
+	}
 	dec := json.NewDecoder(bytes.NewReader(data))
 	dec.UseNumber()
 	var v interface{}

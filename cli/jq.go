@@ -17,6 +17,10 @@ type jqResult struct {
 	lastValue interface{}
 }
 
+type jqProgram struct {
+	code *gojq.Code
+}
+
 func trimWrappedJQFilter(filter string) string {
 	trimmed := strings.TrimSpace(filter)
 	if len(trimmed) >= 2 {
@@ -62,18 +66,28 @@ func parseJQFilter(filter string) (*gojq.Query, error) {
 	return nil, lastErr
 }
 
-// applyJQFilter runs a jq filter on input bytes.
-func applyJQFilter(filter string, input []byte, raw bool) (jqResult, error) {
-	query, err := parseJQFilter(filter)
+func compileJQFilter(filter string) (*jqProgram, error) {
+	filterBytes, err := normalizeUTF8Bytes([]byte(filter), "jq filter")
 	if err != nil {
-		return jqResult{}, fmt.Errorf("jq parse error: %w", err)
+		return nil, err
+	}
+	query, err := parseJQFilter(string(filterBytes))
+	if err != nil {
+		return nil, fmt.Errorf("jq parse error: %w", err)
 	}
 
 	code, err := gojq.Compile(query)
 	if err != nil {
-		return jqResult{}, fmt.Errorf("jq compile error: %w", err)
+		return nil, fmt.Errorf("jq compile error: %w", err)
 	}
+	return &jqProgram{code: code}, nil
+}
 
+func applyCompiledJQFilter(program *jqProgram, input []byte, raw bool) (jqResult, error) {
+	input, err := strictJSONBytes(input, "jq input")
+	if err != nil {
+		return jqResult{}, err
+	}
 	var inputVal interface{}
 	if err := json.Unmarshal(input, &inputVal); err != nil {
 		return jqResult{}, fmt.Errorf("invalid JSON input: %w", err)
@@ -81,7 +95,7 @@ func applyJQFilter(filter string, input []byte, raw bool) (jqResult, error) {
 
 	var out strings.Builder
 	var lastVal interface{}
-	iter := code.Run(inputVal)
+	iter := program.code.Run(inputVal)
 	for {
 		v, ok := iter.Next()
 		if !ok {
@@ -106,6 +120,15 @@ func applyJQFilter(filter string, input []byte, raw bool) (jqResult, error) {
 	return jqResult{output: out.String(), lastValue: lastVal}, nil
 }
 
+// applyJQFilter runs a jq filter on input bytes.
+func applyJQFilter(filter string, input []byte, raw bool) (jqResult, error) {
+	program, err := compileJQFilter(filter)
+	if err != nil {
+		return jqResult{}, err
+	}
+	return applyCompiledJQFilter(program, input, raw)
+}
+
 func runJQ(args []string) int {
 	if len(args) == 0 {
 		fmt.Fprintln(os.Stderr, "Usage: relay jq [-r] [-e] [-c] [--jq-file <filter-file>] '<filter>'")
@@ -116,6 +139,8 @@ func runJQ(args []string) int {
 	exitStatus := false // -e: exit 1 if last output is false or null
 	inputFile := ""
 	filterFile := ""
+	inputFileSet := false
+	filterFileSet := false
 	remaining := args
 	for len(remaining) > 0 && strings.HasPrefix(remaining[0], "-") {
 		switch remaining[0] {
@@ -135,6 +160,7 @@ func runJQ(args []string) int {
 				return 1
 			}
 			inputFile = remaining[1]
+			inputFileSet = true
 			remaining = remaining[1:]
 		case "--jq-file":
 			if len(remaining) < 2 {
@@ -142,6 +168,7 @@ func runJQ(args []string) int {
 				return 1
 			}
 			filterFile = remaining[1]
+			filterFileSet = true
 			remaining = remaining[1:]
 		default:
 			fmt.Fprintf(os.Stderr, "unknown flag: %s\n", remaining[0])
@@ -149,31 +176,50 @@ func runJQ(args []string) int {
 		}
 		remaining = remaining[1:]
 	}
-	if filterFile != "" && len(remaining) > 0 {
+	if filterFileSet && len(remaining) > 0 {
 		fmt.Fprintln(os.Stderr, "use either an inline jq filter or --jq-file, not both")
 		return 1
 	}
-	if filterFile == "" && len(remaining) == 0 {
+	if !filterFileSet && len(remaining) != 1 {
 		fmt.Fprintln(os.Stderr, "Usage: relay jq [-r] [-e] [-c] [--jq-file <filter-file>] '<filter>'")
 		return 1
 	}
 	filter := ""
-	if filterFile != "" {
+	if filterFileSet {
+		if strings.TrimSpace(filterFile) == "" {
+			fmt.Fprintln(os.Stderr, "--jq-file requires a non-empty path")
+			return 1
+		}
 		filterBytes, err := os.ReadFile(filepath.Clean(filterFile))
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error reading jq filter: %s\n", err)
 			return 1
 		}
+		filterBytes, err = normalizeUTF8Bytes(filterBytes, fmt.Sprintf("jq filter file %q", filterFile))
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return 1
+		}
 		filter = strings.TrimSpace(string(filterBytes))
+		if filter == "" {
+			fmt.Fprintf(os.Stderr, "jq filter file %q is empty\n", filterFile)
+			return 1
+		}
 	} else {
 		filter = remaining[0]
 	}
+	program, err := compileJQFilter(filter)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
 
-	var (
-		input []byte
-		err   error
-	)
-	if inputFile != "" {
+	var input []byte
+	if inputFileSet {
+		if strings.TrimSpace(inputFile) == "" {
+			fmt.Fprintln(os.Stderr, "--file requires a non-empty path")
+			return 1
+		}
 		input, err = os.ReadFile(filepath.Clean(inputFile))
 	} else {
 		input, err = io.ReadAll(os.Stdin)
@@ -182,8 +228,17 @@ func runJQ(args []string) int {
 		fmt.Fprintf(os.Stderr, "error reading jq input: %s\n", err)
 		return 1
 	}
+	inputSource := "jq stdin"
+	if inputFileSet {
+		inputSource = fmt.Sprintf("jq input file %q", inputFile)
+	}
+	input, err = strictJSONBytes(input, inputSource)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
 
-	res, err := applyJQFilter(filter, input, raw)
+	res, err := applyCompiledJQFilter(program, input, raw)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s\n", err)
 		return 1

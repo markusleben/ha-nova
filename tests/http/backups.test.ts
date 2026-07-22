@@ -52,6 +52,19 @@ describe("backups handler", () => {
     expect(loaded.data).toEqual(data);
   });
 
+  it("rejects a stored snapshot with invalid UTF-8 instead of replacing bytes", async () => {
+    mkdirSync(join(root, "automations"), { recursive: true });
+    const file = "automations/broken-20260714T120000000Z.json.gz";
+    const invalid = Buffer.concat([
+      Buffer.from('{"title":"', "utf8"),
+      Buffer.from([0xdc]),
+      Buffer.from('bersicht"}', "utf8")
+    ]);
+    writeFileSync(join(root, file), gzipSync(invalid));
+
+    await expectHttpError(call({ action: "load", file }), 500, "SNAPSHOT_CORRUPT");
+  });
+
   it("lists snapshots newest first, optionally by category", async () => {
     await call({ action: "save", category: "automations", name: "auto-one", data: 1 });
     clockMs += 1000;
