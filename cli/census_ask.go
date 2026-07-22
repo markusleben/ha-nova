@@ -57,11 +57,22 @@ func askCensusIfEligible(paths runtimePaths, via string, in *bufio.Reader, out i
 	}
 	// Stamp BEFORE the prompt: Ctrl-C, EOF, or a crash mid-question must never
 	// lead to a second ask. If the stamp cannot be written, do not ask at all.
+	// Re-check asked-state INSIDE the locked mutation: two interactive entry
+	// points racing past the unlocked pre-check must resolve to exactly one
+	// prompt — only the process that actually wins the stamp asks.
+	wonStamp := false
 	if err := mutateCensusState(paths, func(s *censusState) {
+		if s.AskedAt != "" {
+			return
+		}
 		s.AskedAt = censusNow().UTC().Format(time.RFC3339)
 		s.AskedVia = via
 		s.Answer = "none"
+		wonStamp = true
 	}); err != nil {
+		return
+	}
+	if !wonStamp {
 		return
 	}
 	fmt.Fprint(out, censusAskIntro)

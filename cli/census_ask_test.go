@@ -286,3 +286,33 @@ func TestCheckUpdateHumanPathsEmitCensusNoticeJSONStaysClean(t *testing.T) {
 		}
 	})
 }
+
+func TestCensusAskOnlyTheStampWinnerPrompts(t *testing.T) {
+	// Two interactive entry points racing past the unlocked pre-check must
+	// resolve to exactly one prompt: the loser sees the stamp inside the
+	// locked mutation and stays silent.
+	paths := setupCensusTest(t)
+	stubCensusTTY(t, true, true)
+
+	// Simulate the racing winner: stamp lands after this process's pre-check
+	// but before its locked mutation runs.
+	if err := mutateCensusState(paths, func(s *censusState) {
+		s.AskedAt = "2026-07-22T10:00:00Z"
+		s.AskedVia = "update"
+		s.Answer = "none"
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// The pre-check is bypassed by handing maybeAskCensus a fresh-looking view:
+	// easiest honest simulation is to call the mutation-race directly — the
+	// asked file exists, so the in-lock re-check must refuse the prompt.
+	var out strings.Builder
+	askCensusIfEligible(paths, "doctor", bufio.NewReader(strings.NewReader("y\n")), &out)
+	if strings.Contains(out.String(), "Count this install?") {
+		t.Fatalf("loser must not prompt, got output:\n%s", out.String())
+	}
+	state := loadCensusState(paths)
+	if state.AskedVia != "update" || state.Enabled {
+		t.Fatalf("loser must not overwrite the winner's stamp or enable: %+v", state)
+	}
+}
