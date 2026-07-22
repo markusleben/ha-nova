@@ -1,3 +1,5 @@
+import "reflect-metadata";
+
 import { createHash, createPrivateKey, createPublicKey, webcrypto } from "node:crypto";
 import { join } from "node:path";
 
@@ -24,10 +26,11 @@ export interface TlsIdentity {
   spkiPin: string;
 }
 
-// A present-but-inconsistent identity (only one file, an unparseable cert, or a
-// key/cert from different generations) is fail-closed like the device registry:
-// we never silently overwrite a still-valid key or rotate the pinned identity,
-// because that would break every paired client with no server-side explanation.
+// A complete but inconsistent identity (an unparseable cert/key, or key/cert
+// from different generations) is fail-closed like the device registry: we never
+// silently overwrite a complete identity and rotate every paired client's pin.
+// A partial identity is different: it cannot serve TLS, so startup regenerates
+// both files and deliberately requires re-pairing instead of bricking the App.
 export class TlsIdentityCorruptError extends Error {}
 
 const crypto = webcrypto as unknown as Crypto;
@@ -44,11 +47,10 @@ function spkiPinFromDer(spkiDer: ArrayBuffer | Uint8Array): string {
   return createHash("sha256").update(buf).digest("base64url");
 }
 
-// Loads the persisted identity, or creates and persists a fresh one. A fresh
-// identity is only ever generated when BOTH files are absent (a genuine first
-// run); any other state is corruption and throws rather than silently rotating
-// the pinned key. Concurrent creation is avoided by the caller's startup
-// ordering (single relay process).
+// Loads the persisted identity, or creates and persists a fresh one when both
+// files are absent or the stored state is partial. A complete but invalid pair
+// throws rather than silently rotating the pinned key. Concurrent creation is
+// avoided by the caller's startup ordering (single relay process).
 export async function loadOrCreateTlsIdentity(dataDir: string): Promise<TlsIdentity> {
   ensureProvider();
   const keyPath = join(dataDir, KEY_FILE);
@@ -56,8 +58,10 @@ export async function loadOrCreateTlsIdentity(dataDir: string): Promise<TlsIdent
 
   const existingKey = readPrivateFileSync(keyPath, MAX_PEM_BYTES);
   const existingCert = readPrivateFileSync(certPath, MAX_PEM_BYTES);
+  const hasKey = existingKey !== null;
+  const hasCert = existingCert !== null;
 
-  if (existingKey && existingCert) {
+  if (hasKey && hasCert) {
     return await loadExisting(existingKey.toString("utf8"), existingCert.toString("utf8"));
   }
 
@@ -68,9 +72,18 @@ export async function loadOrCreateTlsIdentity(dataDir: string): Promise<TlsIdent
   // Regenerating recovers instead of bricking the App before the owner console can
   // even start; the pin rotation just forces re-pairing, the documented recovery.
   const identity = await generateIdentity();
-  // Write the key first (0600) so the cert never exists without its key.
-  writeFileAtomicSync(keyPath, identity.keyPem);
-  writeFileAtomicSync(certPath, identity.certPem);
+  // Keep an interrupted recovery retryable. Starting from cert-only, replace
+  // the cert before creating its matching key; starting from key-only (or an
+  // empty directory), replace/create the key before its matching cert. A crash
+  // between writes therefore always leaves a partial state, never a complete
+  // mismatched pair that would correctly fail closed on the next startup.
+  if (!hasKey && hasCert) {
+    writeFileAtomicSync(certPath, identity.certPem);
+    writeFileAtomicSync(keyPath, identity.keyPem);
+  } else {
+    writeFileAtomicSync(keyPath, identity.keyPem);
+    writeFileAtomicSync(certPath, identity.certPem);
+  }
   return identity;
 }
 
@@ -78,24 +91,26 @@ export async function loadOrCreateTlsIdentity(dataDir: string): Promise<TlsIdent
 // must match the key's public SPKI) so a mixed restore is caught here rather
 // than deep inside the TLS stack at handshake time.
 async function loadExisting(keyPem: string, certPem: string): Promise<TlsIdentity> {
-  let cert: x509.X509Certificate;
+  let certSpki: Buffer;
   try {
-    cert = new x509.X509Certificate(certPem);
+    const cert = new x509.X509Certificate(certPem);
+    // x509 v2 resolves PublicKey lazily, so a malformed SPKI can throw here
+    // even when the outer certificate parsed successfully.
+    certSpki = Buffer.from(cert.publicKey.rawData);
   } catch (error) {
     throw new TlsIdentityCorruptError(`stored TLS certificate is unparseable: ${errText(error)}`);
   }
 
-  let keyObject;
+  let keySpki: Buffer;
   try {
-    keyObject = createPrivateKey(keyPem);
+    const keyObject = createPrivateKey(keyPem);
+    keySpki = createPublicKey(keyObject).export({ type: "spki", format: "der" });
   } catch (error) {
     throw new TlsIdentityCorruptError(`stored TLS private key is unparseable: ${errText(error)}`);
   }
 
   // @peculiar's PublicKey.rawData is the DER SubjectPublicKeyInfo — the exact
   // bytes the pin hashes. Compare it to the key's own public SPKI.
-  const certSpki = Buffer.from(cert.publicKey.rawData);
-  const keySpki = createPublicKey(keyObject).export({ type: "spki", format: "der" });
   if (!certSpki.equals(keySpki)) {
     throw new TlsIdentityCorruptError("stored TLS key and certificate do not match (mixed restore?)");
   }

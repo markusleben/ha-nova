@@ -51,13 +51,13 @@ jobs:
           go-version-file: cli/go.mod
 
       - name: Install and build the relay (for the pairing harness)
+        working-directory: nova
         run: |
           npm ci
           npm run build
 
       - name: Run the pairing e2e (real CLI client vs real relay handlers)
+        working-directory: cli
         env:
           HA_NOVA_PAIR_E2E_HARNESS: ${{ github.workspace }}/scripts/e2e/pairing-harness.mjs
-        run: |
-          cd cli
-          go test -count=1 -run 'TestPairingClientV1EndToEnd|TestRunSecurePairingEndToEnd' -v ./...
+        run: go test -count=1 -run 'TestPairingClientV1EndToEnd|TestRunSecurePairingEndToEnd' -v ./...
