@@ -40,7 +40,7 @@ var (
 // kind. Only these recognized sections feed the compact update notice
 // (docs/releasing.md → Release Notes Style); everything else is ignored.
 func releaseHighlightKindForSection(heading string) string {
-	normalized := strings.ToLower(strings.TrimSpace(strings.Trim(strings.TrimSpace(heading), ":")))
+	normalized := normalizeReleaseSectionHeading(heading)
 	switch normalized {
 	case "breaking changes", "what to watch", "upgrade notes":
 		return releaseHighlightKindAction
@@ -50,6 +50,10 @@ func releaseHighlightKindForSection(heading string) string {
 		return releaseHighlightKindFix
 	}
 	return ""
+}
+
+func normalizeReleaseSectionHeading(heading string) string {
+	return strings.ToLower(strings.TrimSpace(strings.Trim(strings.TrimSpace(heading), ":")))
 }
 
 // deriveReleaseHighlights extracts the compact highlight digest from a raw
@@ -63,6 +67,7 @@ func deriveReleaseHighlights(body string) []releaseHighlight {
 
 	var action, features, fixes []string
 	currentKind := ""
+	seenSections := map[string]bool{}
 	inCodeFence := false
 	inDetails := false
 	for _, rawLine := range strings.Split(strings.ReplaceAll(body, "\r\n", "\n"), "\n") {
@@ -95,7 +100,21 @@ func deriveReleaseHighlights(body string) []releaseHighlight {
 		}
 
 		if strings.HasPrefix(trimmed, "#") {
-			currentKind = releaseHighlightKindForSection(strings.TrimLeft(trimmed, "#"))
+			heading := normalizeReleaseSectionHeading(strings.TrimLeft(trimmed, "#"))
+			kind := releaseHighlightKindForSection(heading)
+			// The curated section is authoritative. Ignore later repetitions of
+			// the same heading so generated/appended changelogs cannot duplicate
+			// a feature or consume the feature/fix digest budget. Distinct action
+			// headings remain eligible: an empty What To Watch must not suppress a
+			// later Upgrade Notes section.
+			if kind != "" && seenSections[heading] {
+				currentKind = ""
+			} else {
+				currentKind = kind
+				if kind != "" {
+					seenSections[heading] = true
+				}
+			}
 			continue
 		}
 		if currentKind == "" {

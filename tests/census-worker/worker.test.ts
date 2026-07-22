@@ -10,8 +10,8 @@ import {
   CounterRow,
   CounterStore,
   MAX_BODY_BYTES,
+  MAX_ROWS_PER_WEEK,
   MAX_VERSION_LENGTH,
-  MAX_VERSIONS_PER_WEEK,
   OVERFLOW_BUCKET,
   VERSION_PATTERN,
   WEEKLY_HORIZON_WEEKS,
@@ -101,12 +101,26 @@ describe("census worker validation matrix", () => {
   });
 
   it("rejects wrong content types with 415", async () => {
+    for (const contentType of ["text/plain", "application/jsonp", "application/json-patch+json"]) {
+      const result = await handleCensusRequest(
+        ping({ schema: 1, version: "0.21.0", os: "macos" }, { contentType }),
+        memoryStore(),
+        NOW,
+      );
+      expect(result.status, contentType).toBe(415);
+    }
+  });
+
+  it("accepts application/json media-type parameters", async () => {
     const result = await handleCensusRequest(
-      ping({ schema: 1, version: "0.21.0", os: "macos" }, { contentType: "text/plain" }),
+      ping(
+        { schema: 1, version: "0.21.0", os: "macos" },
+        { contentType: "Application/JSON; charset=utf-8" },
+      ),
       memoryStore(),
       NOW,
     );
-    expect(result.status).toBe(415);
+    expect(result.status).toBe(204);
   });
 
   it("rejects bodies over 512 bytes with 413", async () => {
@@ -186,7 +200,7 @@ describe("census worker aggregation", () => {
     expect(isoWeekUTC(new Date("2026-02-03T00:00:00Z"))).toBe("2026-W06");
   });
 
-  it("serves stats with weekly series, breakdowns, unknown bucket, and the monthly lower bound", async () => {
+  it("serves stats with weekly series, breakdowns, unknown bucket, and an honest peak", async () => {
     const week = (offsetWeeks: number) =>
       isoWeekUTC(new Date(NOW.getTime() - offsetWeeks * 7 * 86400000));
     const rows: CounterRow[] = [
@@ -203,10 +217,31 @@ describe("census worker aggregation", () => {
     expect(stats.by_os).toEqual({ macos: 3, linux: 5, windows: 2 });
     expect(stats.by_version).toEqual({ "0.21.0": 8, "0.20.0": 2 });
     expect(stats.by_relay).toEqual({ "0.7.0": 3, unknown: 5, "0.6.0": 2 });
-    expect(stats.monthly_lower_bound).toBe(5); // max of the last 4 weeks, not a sum
+    expect(stats.peak_weekly_pings).toBe(5); // max of the last 4 weeks, not a sum
+    expect(stats).not.toHaveProperty("monthly_lower_bound");
     expect(stats.window_weeks).toBe(4);
-    expect(stats.footnotes.counting).toContain("lower bound");
+    expect(stats.footnotes.counting).toContain("not verified unique installs");
+    expect(stats.footnotes.counting).toContain("fabricated pings");
+    expect(stats.footnotes.counting).toContain("other overflow bucket");
     expect(stats.footnotes.identifiers).toContain("no identifier");
+  });
+
+  it("starts the stable public census on a clean counter namespace", () => {
+    const indexSource = readFileSync(join(process.cwd(), "census-worker", "src", "index.ts"), "utf8");
+    expect(indexSource).toContain('const CENSUS_OBJECT_NAME = "public-v0.21"');
+    expect(indexSource).toContain("idFromName(CENSUS_OBJECT_NAME)");
+    expect(indexSource).not.toContain('idFromName("global")');
+  });
+
+  it("exposes exact Cloudflare deployment metadata on public stats", () => {
+    const indexSource = readFileSync(join(process.cwd(), "census-worker", "src", "index.ts"), "utf8");
+    const wrangler = readFileSync(join(process.cwd(), "census-worker", "wrangler.toml"), "utf8");
+    expect(wrangler).toContain('account_id = "58e387e1204bdfe78781caca64f2cd15"');
+    expect(wrangler).toMatch(/\[version_metadata\]\s+binding = "CF_VERSION_METADATA"/);
+    expect(indexSource).toContain("env.CF_VERSION_METADATA.tag");
+    expect(indexSource).toContain("env.CF_VERSION_METADATA.id");
+    expect(indexSource).toContain('headers.set("X-HA-NOVA-Deployment-SHA"');
+    expect(indexSource).toContain('headers.set("X-HA-NOVA-Version-ID"');
   });
 
   it("caps streamed bodies without a Content-Length instead of buffering them", async () => {
@@ -252,9 +287,9 @@ describe("census worker aggregation", () => {
     expect(indexSource).toContain("counter write failed");
   });
 
-  it("folds distinct versions beyond the weekly cap into the other bucket", async () => {
+  it("folds new combinations into one overflow row at the total weekly cap", async () => {
     const store = memoryStore();
-    for (let i = 0; i < MAX_VERSIONS_PER_WEEK; i++) {
+    for (let i = 0; i < MAX_ROWS_PER_WEEK - 1; i++) {
       const result = await handleCensusRequest(
         ping({ schema: 1, version: `${i}.0.0`, os: "macos" }),
         store,
@@ -267,6 +302,7 @@ describe("census worker aggregation", () => {
     const versions = store.all().map((row) => row.version);
     expect(versions).not.toContain("999.0.0");
     expect(versions).toContain(OVERFLOW_BUCKET);
+    expect(store.all()).toHaveLength(MAX_ROWS_PER_WEEK);
     // An already-known version still lands in its own row.
     await handleCensusRequest(ping({ schema: 1, version: "1.0.0", os: "macos" }), store, NOW);
     expect(store.all().find((row) => row.version === "1.0.0")?.count).toBe(2);
@@ -274,7 +310,7 @@ describe("census worker aggregation", () => {
 
   it("holds the cardinality cap under interleaved pings at the boundary", async () => {
     const store = memoryStore();
-    for (let i = 0; i < MAX_VERSIONS_PER_WEEK - 1; i++) {
+    for (let i = 0; i < MAX_ROWS_PER_WEEK - 2; i++) {
       expect(
         (await handleCensusRequest(ping({ schema: 1, version: `${i}.0.0`, os: "macos" }), store, NOW)).status,
       ).toBe(204);
@@ -289,7 +325,31 @@ describe("census worker aggregation", () => {
     const versions = store.all().map((row) => row.version);
     expect(versions.filter((v) => v === "700.0.0" || v === "701.0.0")).toHaveLength(1);
     expect(versions).toContain(OVERFLOW_BUCKET);
-    expect(new Set(versions).size).toBe(MAX_VERSIONS_PER_WEEK + 1); // cap + the overflow bucket
+    expect(store.all()).toHaveLength(MAX_ROWS_PER_WEEK);
+  });
+
+  it("caps an adversarial version-relay-os Cartesian product", async () => {
+    const store = memoryStore();
+    for (let version = 0; version < 20; version++) {
+      for (let relay = 0; relay < 20; relay++) {
+        for (const os of ALLOWED_OS) {
+          const result = await handleCensusRequest(
+            ping({ schema: 1, version: `${version}.0.0`, relay: `${relay}.0.0`, os }),
+            store,
+            NOW,
+          );
+          expect(result.status).toBe(204);
+        }
+      }
+    }
+    expect(store.all().length).toBeLessThanOrEqual(MAX_ROWS_PER_WEEK);
+    expect(store.all()).toContainEqual(
+      expect.objectContaining({
+        version: OVERFLOW_BUCKET,
+        relay: OVERFLOW_BUCKET,
+        os: OVERFLOW_BUCKET,
+      }),
+    );
   });
 
   it("trims the public weekly series to the fixed horizon", () => {
@@ -341,6 +401,7 @@ describe("census worker aggregation", () => {
     expect(result.headers?.["Access-Control-Allow-Origin"]).toBe("*");
     const stats = JSON.parse(result.body ?? "{}");
     expect(stats.weekly).toEqual([{ iso_week: isoWeekUTC(NOW), count: 1 }]);
+    expect(stats.peak_weekly_pings).toBe(1);
   });
 });
 

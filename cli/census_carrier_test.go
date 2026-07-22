@@ -5,17 +5,16 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"strings"
 	"testing"
 )
 
-// Placeholder-inertness, marker serialization, platform/dev gating, and the
+// Placeholder-inertness, platform/dev gating, and the
 // byte-clean --json carrier — split from census_test.go per the <~400 LOC
 // file guideline.
 
 // A build still carrying the PLACEHOLDER endpoint must be inert by
-// construction: no send, no week stamp, no burned week marker — so a later
+// construction: no send and no week stamp — so a later
 // properly configured build can still count the week.
 func TestPlaceholderEndpointBuildIsInert(t *testing.T) {
 	paths := setupCensusTest(t)
@@ -45,44 +44,12 @@ func TestPlaceholderEndpointBuildIsInert(t *testing.T) {
 	if state := loadCensusState(paths); state.LastPingWeek != "" {
 		t.Fatalf("placeholder build must not burn the week, got %q", state.LastPingWeek)
 	}
-	entries, err := os.ReadDir(paths.CacheDir)
-	if err == nil {
-		for _, entry := range entries {
-			if strings.HasPrefix(entry.Name(), "census-ping-") {
-				t.Fatalf("placeholder build must not claim the week marker, found %s", entry.Name())
-			}
-		}
-	}
-
 	out := captureStdout(t, func() { runCensusCommand(paths, []string{"status"}) })
 	if !strings.Contains(out, "census endpoint not configured in this build — nothing is sent") {
 		t.Fatalf("status must say the endpoint is unconfigured:\n%s", out)
 	}
 	if strings.Contains(out, "workers.dev") {
 		t.Fatalf("status must not print the placeholder URL:\n%s", out)
-	}
-}
-
-func TestCensusWeekMarkerPreventsConcurrentDoubleSend(t *testing.T) {
-	paths := setupCensusTest(t)
-	stubCensusVersion(t, "0.9.0")
-	payloads := stubCensusTransport(t, http.StatusNoContent, nil)
-	if err := saveCensusState(paths, censusState{Enabled: true, Answer: "yes"}); err != nil {
-		t.Fatalf("saveCensusState() error: %v", err)
-	}
-
-	maybeCensusPing(paths)
-	if len(*payloads) != 1 {
-		t.Fatalf("first carrier must send, got %d attempts", len(*payloads))
-	}
-	// Simulate a racing process that loaded the pre-stamp state: it passes the
-	// state week gate, but the exclusive week marker was already claimed.
-	if err := saveCensusState(paths, censusState{Enabled: true, Answer: "yes"}); err != nil {
-		t.Fatalf("saveCensusState() error: %v", err)
-	}
-	maybeCensusPing(paths)
-	if len(*payloads) != 1 {
-		t.Fatalf("the week marker must block a concurrent second send, got %d attempts", len(*payloads))
 	}
 }
 
@@ -151,6 +118,9 @@ func TestCheckUpdateJSONOutputByteIdenticalWithCensus(t *testing.T) {
 		paths, err := detectPaths()
 		if err != nil {
 			t.Fatalf("detectPaths() error: %v", err)
+		}
+		if err := saveState(paths, defaultInstallState()); err != nil {
+			t.Fatalf("save install lifecycle sentinel: %v", err)
 		}
 		attempts := stubCensusTransport(t, 0, fmt.Errorf("census endpoint down"))
 		if withCensus {

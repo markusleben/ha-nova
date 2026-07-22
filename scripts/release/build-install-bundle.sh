@@ -72,6 +72,7 @@ copy_common_bundle_files() {
   cp -R "${ROOT_DIR}/docs/reference" "${bundle_root}/docs/reference"
   cp -R "${ROOT_DIR}/.claude-plugin" "${bundle_root}/.claude-plugin"
   cp "${ROOT_DIR}/version.json" "${bundle_root}/version.json"
+  cp "${ROOT_DIR}/PRIVACY.md" "${bundle_root}/PRIVACY.md"
   [[ -f "${ROOT_DIR}/README.md" ]] && cp "${ROOT_DIR}/README.md" "${bundle_root}/README.md"
   [[ -f "${ROOT_DIR}/PROJECT.md" ]] && cp "${ROOT_DIR}/PROJECT.md" "${bundle_root}/PROJECT.md"
 }

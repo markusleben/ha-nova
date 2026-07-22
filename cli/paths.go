@@ -56,12 +56,16 @@ func detectPaths() (runtimePaths, error) {
 	installRoot := filepath.Join(home, ".local", "share", "ha-nova")
 	binDir := filepath.Join(home, ".local", "bin")
 	publicBinary := filepath.Join(binDir, publicCommandName())
+	censusDir := configDir
 	if runtime.GOOS == "windows" {
 		appData := windowsAppDataDir(home)
 		localAppData := windowsLocalAppDataDir(home)
 		configDir = filepath.Join(appData, "ha-nova")
 		localDataDir = filepath.Join(localAppData, "ha-nova")
 		cacheDir = filepath.Join(localDataDir, "cache")
+		// Consent is device-local. APPDATA may roam between Windows hosts;
+		// LOCALAPPDATA must not carry one machine's answer to another.
+		censusDir = localDataDir
 		installRoot = filepath.Join(localAppData, "Programs", "ha-nova")
 		if override := strings.TrimSpace(os.Getenv(windowsInstallRootEnv)); override != "" && allowWindowsInstallRootOverride() {
 			installRoot = filepath.Clean(override)
@@ -85,7 +89,7 @@ func detectPaths() (runtimePaths, error) {
 		PublicBinary:        publicBinary,
 		ConfigFile:          filepath.Join(configDir, "config.json"),
 		StateFile:           filepath.Join(configDir, "state.json"),
-		CensusFile:          filepath.Join(configDir, "census.json"),
+		CensusFile:          filepath.Join(censusDir, "census.json"),
 		VersionFile:         filepath.Join(installRoot, "version.json"),
 		BundleFile:          filepath.Join(installRoot, "bundle.json"),
 		UpdateCacheFile:     filepath.Join(cacheDir, "latest-release.json"),

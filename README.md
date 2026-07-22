@@ -11,8 +11,8 @@
 <h2 align="center">One code to connect. Every change checked.</h2>
 
 <p align="center">
-  Pair your AI with a one-time six-digit code — no tokens to create, no secrets to keep.<br>
-  Every change is previewed, approved, and verified before it touches your Home Assistant.
+  On HA OS or Supervised, pair your AI with one six-digit code — no token to create or copy.<br>
+  Every change is previewed and approved first, then verified by reading it back.
 </p>
 
 <p align="center">
@@ -31,7 +31,7 @@
   <img src="assets/pairing-flow.png" alt="Pairing flow: run the installer, click Connect a device on the NOVA page, type the six-digit code">
 </p>
 
-*No tokens to create, no secrets to keep — the code is one-time and expires in minutes. Each device gets its own connection you can revoke anytime from NOVA. Simpler and more secure at the same time.*
+*On HA OS or Supervised, there is no token to create or copy — the code is one-time and expires in minutes. Each device gets its own connection you can revoke anytime from NOVA.*
 
 <p align="center">
   <b><a href="#-what-you-can-do">What it does</a></b> · <b><a href="#%EF%B8%8F-safe-by-design">Is it safe?</a></b> · <b><a href="#-get-started">Get started</a></b> · <b><a href="#%EF%B8%8F-how-it-works">How it works</a></b>
@@ -72,15 +72,16 @@ We built this because we didn't trust AI with our own config either.
 4. **Writes and verifies.** Reads the config back to confirm the change stuck.
 5. **Audits itself.** Checks for mistakes, conflicts, and reliability issues.
 6. **Offers a safe test.** After saving a new or changed automation or script, you get a test plan matched to the risk — from a zero-impact logic check to a real run that names exactly which devices will switch before you say go.
-7. **Lets you take it back.** Reply `revert` to undo the latest verified update. New items are removed through the same preview-and-confirm delete flow.
+7. **Offers a way back when supported.** Reply `revert` to undo the latest verified update. For operations without automatic revert — including deletes, dashboards, scenes, and registry changes — HA NOVA says so before writing.
 
 **The ground rules — always:**
 
 - 🔒 **Your Home Assistant credentials never leave the server.** The App connects through Home Assistant's own built-in access — there is no token for you to create, and the AI never sees any Home Assistant credential. (Standalone Container/Core keeps its token server-side the same way.)
 - 🔑 **Every device is paired on its own.** The six-digit code is one-time and short-lived; what it creates is a per-device credential over an encrypted, pinned connection (OPAQUE, RFC 9807 + SPKI-pinned TLS 1.3 under the hood). (On App installs; the standalone container uses one shared token instead.)
-- 🗑️ **Revoke with one click.** Lost a laptop? Retired a machine? Cut off any paired device from the NOVA page — everything else keeps working.
+- 🗑️ **Revoke with one click on App installs.** Lost a laptop? Retired a machine? Cut off that paired device from the NOVA page — everything else keeps working.
 - 📖 **Every rule the AI follows is a markdown file you can read.**
-- 🏠 **No cloud relay, no telemetry.** Your data stays between your machine and your Home Assistant.
+- 🏠 **No cloud relay or usage analytics.** Your Home Assistant data stays between your machine and your Home Assistant.
+- 📊 **Census off by default.** Only after your explicit opt-in, an [ID-free census](docs/reference/census.md) records a weekly attempt before sending the HA NOVA version, operating system, and a recently observed Relay version when available. With its local state intact, it does not attempt again that ISO week. Its [public aggregate ping counts](https://ha-nova-census.markusleben.workers.dev/stats) are directional, not verified unique installs. Turn it off anytime with `ha-nova census off`; see [the privacy details](PRIVACY.md).
 
 ---
 
@@ -143,7 +144,7 @@ Once it finishes, try: *"Show me all my automations."*
 | `ha-nova pair` | Pair this computer again with a fresh six-digit code |
 | `ha-nova doctor` | Diagnose connection and config problems |
 | `ha-nova uninstall` | Remove HA NOVA (keeps settings for easy reinstall) |
-| `ha-nova uninstall --purge` | Full cleanup including saved settings |
+| `ha-nova uninstall --purge` | Remove runtime, settings, and credentials; retain one opaque local marker that blocks stale processes from restarting census activity |
 
 **Coming from a pre-Go install?**
 - macOS / Linux: `curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/main/scripts/legacy-uninstall.sh | bash`
@@ -188,7 +189,7 @@ Fair question — we built one first. 88,000 lines of it, never shipped. What it
 | 🏠 **Where it runs** | The leading project's recommended setup runs inside Home Assistant's own process | A deliberately dumb relay in its own process — a crash can't touch Home Assistant, and it holds no HA business logic |
 | 🔑 **Connecting a device** | A shared secret (URL or token) — or OAuth where configured | A one-time six-digit code per device, each individually revocable from the NOVA page *(App installs; the standalone container keeps a server-side token)* |
 
-> **The honest bit:** the MCP side is ahead on breadth today — more tools (add-on and HACS management, dashboard screenshots, ZHA inspection), more contributors, more stars. It's the older project. But the asymmetry matters: **our gaps close one markdown file at a time — turning a tool server's Python into plain text you can read would be a rewrite.**
+> **The honest bit:** the MCP side is ahead on breadth today — more tools (App and HACS management, dashboard screenshots, ZHA inspection), more contributors, more stars. It's the older project. But the asymmetry matters: **our gaps close one markdown file at a time — turning a tool server's Python into plain text you can read would be a rewrite.**
 
 Full detail, named, dated, honest in both directions: **[comparison page](docs/reference/comparison.md)**.
 

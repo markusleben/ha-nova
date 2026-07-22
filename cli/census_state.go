@@ -1,11 +1,14 @@
 package main
 
 import (
+	"bytes"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 )
@@ -16,8 +19,8 @@ const censusStateSchemaVersion = 1
 // relay-freshness and throttle tests).
 var censusNow = time.Now
 
-// censusState is census.json next to config.json — per-install, profile
-// independent, removed by uninstall. It records the one-time ask (never-nag),
+// censusState is per-device and profile-independent (under LOCALAPPDATA on
+// Windows; next to config.json elsewhere), and removed by uninstall. It records the one-time ask (never-nag),
 // the explicit opt-in, the ISO-week send gate, and the opportunistically
 // observed relay version.
 type censusState struct {
@@ -38,113 +41,141 @@ func defaultCensusState() censusState {
 	return censusState{Schema: censusStateSchemaVersion}
 }
 
-// loadCensusState is best-effort: a missing or unreadable file means the
-// default state (disabled, never asked). The census must never turn a broken
-// file into a failed command. A file that EXISTS but cannot be parsed (or
-// carries a future schema) is replaced with a stamped safe default instead —
-// see recoverCensusState.
+// loadCensusState is best-effort and strictly read-only: a missing or
+// unreadable file means the default state (disabled, never asked). A file that
+// exists but cannot be parsed (or carries a future schema) yields a stamped,
+// disabled recovery value in memory. Only locked writer paths may persist it.
 func loadCensusState(paths runtimePaths) censusState {
+	state, _ := readCensusState(paths)
+	return state
+}
+
+// readCensusState also reports whether an old client may safely write the
+// loaded schema. Corrupt, unreadable, future-schema, and lifecycle-stopped
+// state is safe to inspect as disabled but must never be overwritten.
+func readCensusState(paths runtimePaths) (censusState, bool) {
+	if censusLifecycleStopped(paths) {
+		return recoverCensusState(), false
+	}
 	if paths.CensusFile == "" {
-		return defaultCensusState()
+		return defaultCensusState(), false
 	}
 	data, err := os.ReadFile(paths.CensusFile)
 	if err != nil {
-		return defaultCensusState()
+		if errors.Is(err, os.ErrNotExist) {
+			return defaultCensusState(), true
+		}
+		return recoverCensusState(), false
 	}
 	var state censusState
 	if err := json.Unmarshal(data, &state); err != nil {
-		return recoverCensusState(paths)
+		return recoverCensusState(), false
 	}
 	if state.Schema > censusStateSchemaVersion {
-		return recoverCensusState(paths)
+		return recoverCensusState(), false
 	}
 	if state.Schema == 0 {
 		state.Schema = censusStateSchemaVersion
 	}
-	return state
+	return state, true
 }
 
-// recoverCensusState replaces an unparsable or future-schema census.json with
-// a persisted, stamped, disabled default: a corrupted file must never cause a
-// re-ask nag (asked_at is set) or a silent re-enable (enabled stays false).
-// Overwriting a future schema is deliberate — when an older CLI meets a newer
-// file, disabling is the safe direction. It saves WITHOUT the census lock (it
-// may already run under it via mutateCensusState, and the lock is not
-// reentrant); that is acceptable because the written value is a constant safe
-// default — concurrent recoveries are idempotent.
-func recoverCensusState(paths runtimePaths) censusState {
+// recoverCensusState returns a stamped, disabled default without writing. That
+// prevents an unlocked status/ask read from overwriting a concurrent consent
+// or week-stamp mutation. The non-empty ask stamp also prevents a corrupt or
+// future-schema file from causing repeated prompts.
+func recoverCensusState() censusState {
 	state := defaultCensusState()
 	state.AskedAt = censusNow().UTC().Format(time.RFC3339)
 	state.AskedVia = "recovered"
 	state.Answer = "none"
-	_ = saveCensusState(paths, state)
 	return state
 }
 
 // Census state lock: reload-before-save alone cannot make an explicit opt-out
 // WIN against a concurrent full read-modify-write cycle (a writer that loaded
-// enabled=true before `census off` saved could restore it). The lock makes
-// each load+mutate+save cycle mutually exclusive across processes. Vars so
-// tests can shrink the timings.
+// enabled=true before `census off` saved could restore it). The OS advisory
+// lock makes each cycle mutually exclusive across processes and is also held
+// across the one bounded census POST, so a successful `census off` cannot
+// return before an already-started send finishes. Vars so tests can shrink
+// the timings.
 var (
 	censusLockRetryInterval = 50 * time.Millisecond
-	censusLockTimeout       = 2 * time.Second
-	// A crashed process must never wedge the census forever: a lock older
-	// than this is treated as abandoned and taken over.
-	censusLockStaleAfter = 10 * time.Second
+	// Longer than the hard 1.5-second request deadline plus filesystem and
+	// scheduler margin. A crashed process releases an OS lock automatically.
+	censusLockTimeout = 3 * time.Second
+	// flock semantics on macOS are process-scoped, so separate descriptors in
+	// one CLI process do not serialize goroutines. Take this bounded local lock
+	// before the cross-process platform lock. One global coordinator is enough:
+	// census work is rare and bounded to a single 1.5-second request.
+	censusProcessLock = make(chan struct{}, 1)
 )
 
-// acquireCensusLock claims ConfigDir/census.lock via O_CREATE|O_EXCL with a
-// bounded retry loop. It returns a release func and whether the lock was won.
-// Environmental failures (no ConfigDir, cannot create files at all) degrade
-// to "proceed unlocked" — a broken filesystem must not brick census commands,
-// and the per-field mutations stay safe under the reload-before-save rule.
-// NOT reentrant: never call while already holding the lock.
+// acquireCensusLock takes a bounded in-process lock followed by a platform
+// cross-process lock. Unix locks the stable user home directory; Windows uses
+// a config-path-named mutex. Neither platform lock is an artifact inside
+// ConfigDir, so purge can remove that directory without an unlink/share-mode
+// race. Process exit releases the platform lock automatically. Every
+// preparation/lock error fails closed. NOT reentrant.
 func acquireCensusLock(paths runtimePaths) (func(), bool) {
 	unlocked := func() {}
 	if paths.ConfigDir == "" {
-		return unlocked, true
+		return unlocked, false
 	}
-	if err := os.MkdirAll(paths.ConfigDir, 0o755); err != nil {
-		return unlocked, true
+	started := time.Now()
+	timer := time.NewTimer(censusLockTimeout)
+	defer func() {
+		if !timer.Stop() {
+			select {
+			case <-timer.C:
+			default:
+			}
+		}
+	}()
+	select {
+	case censusProcessLock <- struct{}{}:
+	case <-timer.C:
+		return unlocked, false
 	}
-	lockPath := filepath.Join(paths.ConfigDir, "census.lock")
-	deadline := time.Now().Add(censusLockTimeout)
-	for {
-		file, err := os.OpenFile(lockPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
-		if err == nil {
-			_ = file.Close()
-			return func() { _ = os.Remove(lockPath) }, true
-		}
-		if !errors.Is(err, os.ErrExist) {
-			return unlocked, true
-		}
-		if info, statErr := os.Stat(lockPath); statErr == nil && time.Since(info.ModTime()) > censusLockStaleAfter {
-			_ = os.Remove(lockPath)
-			continue
-		}
-		if time.Now().After(deadline) {
-			return unlocked, false
-		}
-		time.Sleep(censusLockRetryInterval)
+	releaseProcess := func() { <-censusProcessLock }
+	remaining := censusLockTimeout - time.Since(started)
+	if remaining <= 0 {
+		releaseProcess()
+		return unlocked, false
 	}
+	releasePlatform, ok := acquireCensusPlatformLock(paths.ConfigDir, remaining, censusLockRetryInterval)
+	if !ok {
+		releaseProcess()
+		return unlocked, false
+	}
+	return func() {
+		releasePlatform()
+		releaseProcess()
+	}, true
 }
 
 // mutateCensusState is the ONLY read-modify-write path for census writers: it
 // holds the census lock around load+mutate+save, and callers mutate only
 // their own fields. Together this serializes whole cycles across processes
 // (so `census off` always wins) AND keeps concurrent writers from clobbering
-// each other's fields. Lock ordering: the O_EXCL action markers
-// (census-ping-*/census-notice-*) are always claimed OUTSIDE this lock, and
-// the lock is never held across network I/O — no nesting, no deadlock.
+// each other's fields. Notice markers are always claimed OUTSIDE this lock.
+// The centralized ping path takes this lock directly and does not call this
+// helper while holding it.
 func mutateCensusState(paths runtimePaths, mutate func(*censusState)) error {
 	release, ok := acquireCensusLock(paths)
 	if !ok {
 		return fmt.Errorf("census state is locked by another process")
 	}
 	defer release()
-	state := loadCensusState(paths)
+	state, writable := readCensusState(paths)
+	if !writable {
+		return fmt.Errorf("census state is not writable by this client version")
+	}
+	before := state
 	mutate(&state)
+	if state == before {
+		return nil
+	}
 	return saveCensusState(paths, state)
 }
 
@@ -152,8 +183,109 @@ func saveCensusState(paths runtimePaths, state censusState) error {
 	if paths.CensusFile == "" {
 		return fmt.Errorf("census state path unknown")
 	}
+	if !censusInstallActive(paths) {
+		return fmt.Errorf("HA NOVA install is no longer active")
+	}
 	state.Schema = censusStateSchemaVersion
 	return writeJSONFile(paths.CensusFile, state, 0o600)
+}
+
+// state.json is the install-lifecycle sentinel. Setup creates it before any
+// census entry point; uninstall removes it first while holding the census
+// lock. Every census writer checks it under that same lock before saving, so a
+// queued old process cannot recreate census.json after uninstall.
+func censusInstallActive(paths runtimePaths) bool {
+	if paths.StateFile == "" {
+		return false
+	}
+	info, err := os.Stat(paths.StateFile)
+	return err == nil && !info.IsDir() && !censusLifecycleStopped(paths)
+}
+
+// The uninstall marker lives beside (not inside) a persistent device/user-local
+// root, so managed-directory and cache cleanup cannot remove it. It contains only an opaque
+// random nonce: no user, consent, timestamp, process, or census data. A setup
+// that started after that exact marker was written may
+// remove it on successful completion; stale update/setup processes cannot.
+func censusLifecycleMarkerPath(paths runtimePaths) string {
+	// Cache roots are disposable and cannot uphold an uninstall barrier. Keep
+	// the marker beside the managed config root on Unix, and beside the
+	// device-local data root on Windows (never roaming APPDATA).
+	base := paths.ConfigDir
+	if runtime.GOOS == "windows" {
+		base = paths.LocalDataDir
+	}
+	if base == "" {
+		if paths.Home == "" {
+			return ""
+		}
+		if runtime.GOOS == "windows" {
+			base = filepath.Join(paths.Home, "AppData", "Local", "ha-nova")
+		} else {
+			base = filepath.Join(paths.Home, ".config", "ha-nova")
+		}
+	}
+	return filepath.Join(filepath.Dir(base), ".ha-nova-census-uninstalled")
+}
+
+func censusLifecycleStopped(paths runtimePaths) bool {
+	marker := censusLifecycleMarkerPath(paths)
+	if marker == "" {
+		return true
+	}
+	_, err := os.Stat(marker)
+	return err == nil || !errors.Is(err, os.ErrNotExist)
+}
+
+func captureCensusLifecycleMarker(paths runtimePaths) []byte {
+	marker := censusLifecycleMarkerPath(paths)
+	if marker == "" {
+		return nil
+	}
+	data, err := os.ReadFile(marker)
+	if err != nil || len(data) == 0 {
+		return nil
+	}
+	return data
+}
+
+func markCensusLifecycleStopped(paths runtimePaths) error {
+	marker := censusLifecycleMarkerPath(paths)
+	if marker == "" {
+		return fmt.Errorf("census lifecycle marker path unknown")
+	}
+	var nonce [32]byte
+	if _, err := rand.Read(nonce[:]); err != nil {
+		return fmt.Errorf("generate census lifecycle nonce: %w", err)
+	}
+	value := fmt.Sprintf("%x", nonce[:])
+	return writeJSONFile(marker, value, 0o600)
+}
+
+func reactivateCensusAfterSetup(paths runtimePaths, captured []byte) (bool, error) {
+	if len(captured) == 0 {
+		return false, nil
+	}
+	release, ok := acquireCensusLock(paths)
+	if !ok {
+		return false, fmt.Errorf("cannot acquire census lifecycle lock")
+	}
+	defer release()
+	marker := censusLifecycleMarkerPath(paths)
+	current, err := os.ReadFile(marker)
+	if errors.Is(err, os.ErrNotExist) {
+		return true, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if !bytes.Equal(current, captured) {
+		return false, nil
+	}
+	if err := os.Remove(marker); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return false, err
+	}
+	return true, nil
 }
 
 // censusISOWeek renders the UTC ISO-8601 week label, zero-padded so that

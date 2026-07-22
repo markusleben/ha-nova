@@ -9,6 +9,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic
 Recent changes are tracked in [GitHub releases](https://github.com/markusleben/ha-nova/releases)
 and merged PRs. This changelog will be updated with the next tagged relay version.
 
+## [Relay 0.7.1] - 2026-07-23
+
+### Changed
+- Migrated the certificate runtime to `@peculiar/x509` 2.0 while preserving existing TLS identities and SPKI pins byte-for-byte. Partial identity recovery now remains retryable after an interrupted write. (#421)
+- Updated `ws` to 8.21.1 for corrected fragment accounting and lower defensive fragment/chunk ceilings. (#424)
+
+### Fixed
+- Invalid UTF-8, UTF-16, and ambiguous byte-order marks are rejected before Relay route dispatch instead of being decoded with replacement characters. Valid Unicode, including umlauts, remains unchanged. (#423)
+
 ## [Relay 0.7.0] - 2026-07-20
 
 ### Added

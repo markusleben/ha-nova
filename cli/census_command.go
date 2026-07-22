@@ -45,8 +45,8 @@ func runCensusCommand(paths runtimePaths, args []string) int {
 func printCensusUsage() {
 	fmt.Fprintln(os.Stdout, "Usage: ha-nova census <on|off|status>")
 	fmt.Fprintln(os.Stdout, "")
-	fmt.Fprintln(os.Stdout, "  on      Opt in: count this install (one anonymous ping, at most once a week, no ID).")
-	fmt.Fprintln(os.Stdout, "  off     Opt out: nothing is ever sent.")
+	fmt.Fprintln(os.Stdout, "  on      Opt in: allow one anonymous census attempt per ISO week while local state remains intact (no ID).")
+	fmt.Fprintln(os.Stdout, "  off     Opt out: after success, no new ping can start.")
 	fmt.Fprintln(os.Stdout, "  status  Show on/off, the exact bytes that would be sent, and the public stats URL.")
 	fmt.Fprintln(os.Stdout, "")
 	fmt.Fprintln(os.Stdout, "No flags. Opt-out env var: HA_NOVA_NO_CENSUS=1. Details: docs/reference/census.md")
@@ -65,13 +65,13 @@ func runCensusOn(paths runtimePaths) int {
 		printHumanErr("cannot save census state: %s", err)
 		return 1
 	}
-	state := loadCensusState(paths)
 	if !censusEndpointConfigured() {
 		printHumanInfo("Census is on.")
 		printHumanWarn("census endpoint not configured in this build — nothing is sent")
 		return 0
 	}
-	printHumanInfo("Census is on — this install counts toward the public numbers at %s", censusStatsURL())
+	printHumanInfo("Census is on — eligible pings contribute to the public aggregates at %s", censusStatsURL())
+	printHumanInfo("Public totals are directional accepted-ping counts, not verified unique installs.")
 	if censusOptedOutByEnv() {
 		printHumanWarn("%s is set — no ping is sent while it stays set.", censusOptOutEnv)
 		return 0
@@ -86,39 +86,27 @@ func runCensusOn(paths runtimePaths) int {
 		printHumanWarn("This platform is outside the census os buckets (macos/linux/windows) — no ping is sent.")
 		return 0
 	}
-	currentWeek := censusISOWeek(now)
-	// Same shared week gate as the carrier — including the clock-rollback
-	// clamp, so a future stamp never lets the manual path double-count.
-	if !censusWeekSendable(paths, state, currentWeek) {
-		printHumanInfo("This week (%s) is already counted — the next ping goes out next ISO week.", currentWeek)
+	// The shared coordinator re-checks consent and week under the same lock as
+	// `census off`, stamps before the request, and never retries ambiguity.
+	result := sendCensusPingOnce(paths)
+	switch {
+	case result.Skipped == censusPingSkipWeek:
+		printHumanInfo("This week (%s) already has a recorded ping attempt — the next can run next ISO week.", result.Week)
+		return 0
+	case result.Skipped == censusPingSkipDisabled:
+		printHumanInfo("Census was turned off before the first ping — nothing was sent.")
+		return 0
+	case !result.Attempted && result.Err != nil:
+		printHumanWarn("Cannot reserve this week's census ping: %s", result.Err)
+		return 0
+	case !result.Attempted:
+		printHumanInfo("No census ping was eligible to send.")
+		return 0
+	case result.Err != nil:
+		printHumanWarn("Ping result was not confirmed (%s). It will not retry this week, avoiding a possible duplicate.", result.Err)
 		return 0
 	}
-	if !claimCensusWeekMarker(paths, currentWeek) {
-		// Another process already attempted this week's single send.
-		printHumanInfo("A ping for week %s was already attempted — the next one goes out next ISO week.", currentWeek)
-		_ = mutateCensusState(paths, func(s *censusState) {
-			if s.LastPingWeek < currentWeek {
-				s.LastPingWeek = currentWeek
-			}
-		})
-		return 0
-	}
-	// Immediate first ping: success stamps the week; a failed attempt leaves
-	// the week stamp empty, and the install is counted on a later update check.
-	payload := censusWireBytes(buildCensusPayload(paths, state, now))
-	if err := sendCensusPing(paths, payload); err != nil {
-		// Free the claimed week: without this, the later update check would
-		// pass the week gate, lose the marker claim, and silently skip — the
-		// promised retry must be able to claim the week again.
-		releaseCensusWeekMarker(paths, currentWeek)
-		printHumanWarn("First ping did not go through (%s). This install will be counted on a later update check.", err)
-		return 0
-	}
-	if err := mutateCensusState(paths, func(s *censusState) { s.LastPingWeek = currentWeek }); err != nil {
-		printHumanWarn("ping sent, but the week stamp could not be saved: %s", err)
-		return 0
-	}
-	printHumanInfo("First ping sent: %s", payload)
+	printHumanInfo("First ping sent: %s", result.Payload)
 	return 0
 }
 
@@ -152,18 +140,20 @@ func runCensusStatus(paths runtimePaths) int {
 	} else {
 		printHumanInfo("Asked: never")
 	}
-	printHumanInfo("Cadence: at most one ping per ISO week (UTC), sent during normal update checks")
+	printHumanInfo("Cadence: one recorded attempt per ISO week (UTC) while local census state remains intact")
 	if state.LastPingWeek != "" {
-		printHumanInfo("Last ping week: %s", state.LastPingWeek)
+		printHumanInfo("Last attempted week: %s", state.LastPingWeek)
 	} else {
-		printHumanInfo("Last ping week: never")
+		printHumanInfo("Last attempted week: never")
 	}
 	currentWeek := censusISOWeek(now)
 	switch {
 	case !state.Enabled:
 		printHumanInfo("Next possible ping: none (census is off)")
 	case state.LastPingWeek == currentWeek:
-		printHumanInfo("Next possible ping: next ISO week (current week %s is already counted)", currentWeek)
+		printHumanInfo("Next possible ping: next ISO week (current week %s already has a recorded attempt)", currentWeek)
+	case state.LastPingWeek > currentWeek:
+		printHumanInfo("Next possible ping: after recorded week %s (local clock is currently in %s)", state.LastPingWeek, currentWeek)
 	default:
 		printHumanInfo("Next possible ping: now (on the next update check, week %s)", currentWeek)
 	}
@@ -172,6 +162,7 @@ func runCensusStatus(paths runtimePaths) int {
 	if censusEndpointConfigured() {
 		printHumanInfo("Endpoint: %s", censusPingURL())
 		printHumanInfo("Public numbers: %s", censusStatsURL())
+		printHumanInfo("Public totals are directional accepted-ping counts, not verified unique installs.")
 	} else {
 		printHumanInfo("census endpoint not configured in this build — nothing is sent")
 	}

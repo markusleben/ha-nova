@@ -14,6 +14,10 @@ var readRelayAuthTokenForDoctor = readRelayAuthToken
 var probePairingV1ForDoctor = probePairingV1
 
 func runDoctor(paths runtimePaths, args []string) int {
+	return runDoctorWithCensusAsk(paths, args, true)
+}
+
+func runDoctorWithCensusAsk(paths runtimePaths, args []string, allowCensusAsk bool) int {
 	fs := flag.NewFlagSet("doctor", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	autoRepair := fs.Bool("auto-repair", false, "silently reattach drifted clients before reporting")
@@ -303,7 +307,7 @@ func runDoctor(paths runtimePaths, args []string) int {
 		doctorInfo("Doctor checks passed")
 		// One-time census ask on the healthy interactive tail only — never in
 		// --quiet's machine contract, never after a failed run.
-		if !*quiet {
+		if !*quiet && allowCensusAsk {
 			maybeAskCensus(paths, "doctor")
 		}
 	}

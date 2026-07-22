@@ -12,13 +12,25 @@ import {
   MAX_BODY_BYTES,
   clampWeeklyCardinality,
   handleCensusRequest,
+  isJSONMediaType,
   oldestPublishedWeek,
   readBodyCapped,
 } from "./census";
 
 export interface Env {
   CENSUS: DurableObjectNamespace;
+  CF_VERSION_METADATA?: {
+    id: string;
+    tag: string;
+    timestamp: string;
+  };
 }
+
+// One-time clean namespace for the first stable census launch. The earlier
+// "global" object contains deployment-smoke pings from before the client
+// feature shipped. Do not change this name after v0.21 without an explicit
+// data-migration decision.
+const CENSUS_OBJECT_NAME = "public-v0.21";
 
 export class CensusCounter {
   private readonly sql: SqlStorage;
@@ -67,8 +79,7 @@ export class CensusCounter {
       // Bound the scan to the published stats horizon: counters are retained
       // forever, but /stats only publishes WEEKLY_HORIZON_WEEKS — loading the
       // whole table would grow without bound. Within the horizon the row
-      // count is already bounded by construction: per week at most
-      // (MAX_VERSIONS_PER_WEEK+1) x (MAX_RELAYS_PER_WEEK+1) x 3 os buckets.
+      // count is bounded by construction to MAX_ROWS_PER_WEEK per week.
       const rows = this.sql
         .exec(
           `SELECT iso_week, version, os, relay, count FROM counters WHERE iso_week >= ?`,
@@ -82,7 +93,7 @@ export class CensusCounter {
 }
 
 function storeFor(env: Env): CounterStore {
-  const stub = env.CENSUS.get(env.CENSUS.idFromName("global"));
+  const stub = env.CENSUS.get(env.CENSUS.idFromName(CENSUS_OBJECT_NAME));
   return {
     async increment(key: CounterKey): Promise<void> {
       const response = await stub.fetch("https://census-do/increment", {
@@ -122,7 +133,7 @@ const worker: ExportedHandler<Env> = {
     const wantsBody =
       request.method === "POST" &&
       path === "/ping" &&
-      contentType.toLowerCase().startsWith("application/json");
+      isJSONMediaType(contentType);
     if (wantsBody && !overflow) {
       const read = await readBodyCapped(request.body, MAX_BODY_BYTES);
       bodyText = read.text;
@@ -140,9 +151,17 @@ const worker: ExportedHandler<Env> = {
       requestLike.contentLength = contentLength;
     }
     const result = await handleCensusRequest(requestLike, storeFor(env), new Date());
+    const headers = new Headers(result.headers ?? {});
+    if (path === "/stats" && result.status === 200 && env.CF_VERSION_METADATA) {
+      // The release deploy wrapper stamps its reviewed SHA as the Cloudflare
+      // version tag. Returning both version fields lets the external gate
+      // prove it reached that exact deployment instead of stale production.
+      headers.set("X-HA-NOVA-Deployment-SHA", env.CF_VERSION_METADATA.tag);
+      headers.set("X-HA-NOVA-Version-ID", env.CF_VERSION_METADATA.id);
+    }
     return new Response(result.body ?? null, {
       status: result.status,
-      headers: result.headers ?? {},
+      headers,
     });
   },
 };

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strconv"
 	"time"
 )
 
@@ -23,17 +22,17 @@ var (
 )
 
 // censusAskIntro is the approved ask copy. The closing question line
-// ("Count this install? [y/N]:") is rendered by the prompt helper.
+// ("Include this install? [y/N]:") is rendered by the prompt helper.
 const censusAskIntro = `
   One-time question
 
-  May HA NOVA count your install? HA NOVA has no telemetry — that stays.
-  The flip side: we don't know how many people use it or on which OS,
-  and that makes it hard to decide what to build and test first.
-  A yes sends one anonymous ping, at most once a week:
+  May HA NOVA include this install in its public census?
+  HA NOVA sends no behavioral or feature-use analytics. The census exists because we otherwise
+  cannot tell which operating systems and versions need attention first.
+  A yes permits one anonymous ping attempt per week while local census state remains intact:
       HA NOVA version  ·  relay version  ·  operating system
-  No ID, no IP stored, nothing about your home — and the resulting
-  numbers are public for everyone.
+  No ID, no IP in HA NOVA storage, nothing about your home. Public totals are
+  directional accepted-ping counts, not verified unique installs.
 
   Details: docs/reference/census.md   Change anytime: ha-nova census on|off
 `
@@ -63,11 +62,13 @@ func askCensusIfEligible(paths runtimePaths, via string, in *bufio.Reader, out i
 	// points racing past the unlocked pre-check must resolve to exactly one
 	// prompt — only the process that actually wins the stamp asks.
 	wonStamp := false
+	askStamp := ""
 	if err := mutateCensusState(paths, func(s *censusState) {
 		if s.AskedAt != "" {
 			return
 		}
-		s.AskedAt = censusNow().UTC().Format(time.RFC3339)
+		askStamp = censusNow().UTC().Format(time.RFC3339Nano)
+		s.AskedAt = askStamp
 		s.AskedVia = via
 		s.Answer = "none"
 		wonStamp = true
@@ -78,61 +79,45 @@ func askCensusIfEligible(paths runtimePaths, via string, in *bufio.Reader, out i
 		return
 	}
 	fmt.Fprint(out, censusAskIntro)
-	yes, err := promptYesNoWithOptions(in, out, "Count this install?", false, false)
+	yes, err := promptYesNoWithOptions(in, out, "Include this install?", false, false)
 	if err != nil {
 		// Aborted prompt: asked stays stamped, answer stays "none".
 		return
 	}
+	answerApplied := false
 	if !yes {
-		_ = mutateCensusState(paths, func(s *censusState) {
+		if err := mutateCensusState(paths, func(s *censusState) {
+			if s.AskedAt != askStamp || s.AskedVia != via || s.Answer != "none" {
+				return
+			}
 			s.Answer = "no"
 			s.Enabled = false
-		})
-		fmt.Fprintln(out, "  Not counting this install. Change anytime: ha-nova census on")
+			answerApplied = true
+		}); err != nil || !answerApplied {
+			return
+		}
+		fmt.Fprintln(out, "  This install will not send census pings. Change anytime: ha-nova census on")
 		return
 	}
 	if err := mutateCensusState(paths, func(s *censusState) {
+		if s.AskedAt != askStamp || s.AskedVia != via || s.Answer != "none" {
+			return
+		}
 		s.Answer = "yes"
 		s.Enabled = true
-	}); err != nil {
+		answerApplied = true
+	}); err != nil || !answerApplied {
 		return
 	}
-	fmt.Fprintln(out, "  Thank you — this install now counts.")
+	fmt.Fprintln(out, "  Thank you — this install can now contribute an anonymous census ping.")
 	fmt.Fprintf(out, "  Public numbers: %s\n", censusStatsURL())
 	censusFirstPingAfterYes(paths)
 }
 
-// censusFirstPingAfterYes performs the immediate opt-in ping: success stamps
-// the week; a failed attempt leaves the week empty AND releases the claimed
-// week marker, so the promised retry on a later update check can claim it
-// again.
+// censusFirstPingAfterYes performs the immediate opt-in ping through the same
+// locked, stamp-before-send path as the carrier and manual command.
 func censusFirstPingAfterYes(paths runtimePaths) {
-	// A placeholder-endpoint build is inert: skip before the week gate and
-	// marker so nothing is burned that a configured build could count.
-	if !censusEndpointConfigured() {
-		return
-	}
-	if localVersion(paths) == "dev" || censusOS() == "" {
-		return
-	}
-	now := censusNow().UTC()
-	currentWeek := censusISOWeek(now)
-	state := loadCensusState(paths)
-	// Shared week gate incl. the clock-rollback clamp — identical semantics
-	// with the carrier and `census on`.
-	if !censusWeekSendable(paths, state, currentWeek) {
-		return
-	}
-	if !claimCensusWeekMarker(paths, currentWeek) {
-		return
-	}
-	if sendErr := sendCensusPing(paths, censusWireBytes(buildCensusPayload(paths, state, now))); sendErr == nil {
-		_ = mutateCensusState(paths, func(s *censusState) { s.LastPingWeek = currentWeek })
-	} else {
-		// Same retry contract as `census on`: a failed first ping frees the
-		// week so a later update check can attempt it.
-		releaseCensusWeekMarker(paths, currentWeek)
-	}
+	_ = sendCensusPingOnce(paths)
 }
 
 // Skill-mediated ask: most installs never see a TTY tail, so check-update's
@@ -141,7 +126,7 @@ func censusFirstPingAfterYes(paths runtimePaths) {
 // question for good (answer=none).
 const censusSkillNoticeCap = 3
 
-const censusSkillNoticeBlock = `CENSUS ASK PENDING: One-time question for the user — may HA NOVA count this install? HA NOVA has no telemetry — that stays; but without any numbers it is hard to decide what to build and test first. An explicit yes sends one anonymous ping, at most once a week: HA NOVA version, relay version, operating system. No ID, no IP stored, nothing about the home — and the resulting numbers are public for everyone. Details: docs/reference/census.md. If the user explicitly says yes, run: ha-nova census on. If the user explicitly says no, run: ha-nova census off. If the user does not answer, run nothing.`
+const censusSkillNoticeBlock = `CENSUS ASK PENDING: One-time question for the user — may HA NOVA include this install in its public census? HA NOVA sends no behavioral or feature-use analytics; the census helps decide which operating systems and versions need attention first. An explicit yes permits one anonymous ping attempt per ISO week while local census state remains intact: HA NOVA version, relay version when recently observed, and operating system. No ID, no IP field, nothing about the home. Public totals are directional accepted-ping counts, not verified unique installs. Details: docs/reference/census.md. If the user explicitly says yes, run: ha-nova census on. If the user explicitly says no, run: ha-nova census off. If the user does not answer, run nothing.`
 
 // maybeEmitCensusSkillNotice prints the pending-ask block on the check-update
 // human paths (never --json). The counter is persisted BEFORE printing so a
@@ -155,14 +140,11 @@ func maybeEmitCensusSkillNotice(paths runtimePaths) {
 		return
 	}
 	// Serialize the cap across concurrent processes (session-start hooks can
-	// fan out several `check-update --quiet` at once): emission n is guarded
-	// by the exclusive marker census-notice-<n> — only the claim winner may
-	// increment and print. The mutation then accepts exactly the claimed slot,
-	// so a stale reader that re-claims a pruned older slot still does nothing.
+	// fan out several `check-update --quiet` at once). Each contender proposes
+	// the next logical slot; the locked mutation accepts it only if the slot is
+	// still current. The install-state sentinel prevents a queued writer from
+	// recreating state after uninstall.
 	claimed := state.SkillNotices + 1
-	if !claimCensusNoticeMarker(paths, claimed) {
-		return
-	}
 	emitted := false
 	if err := mutateCensusState(paths, func(s *censusState) {
 		if s.AskedAt != "" || s.SkillNotices != claimed-1 {
@@ -180,10 +162,4 @@ func maybeEmitCensusSkillNotice(paths runtimePaths) {
 		return
 	}
 	fmt.Fprintln(os.Stdout, censusSkillNoticeBlock)
-}
-
-// claimCensusNoticeMarker claims the n-th skill-notice emission slot with the
-// same O_EXCL pattern (and pruning) as the weekly ping marker.
-func claimCensusNoticeMarker(paths runtimePaths, n int) bool {
-	return claimCensusMarker(paths, "census-notice-", strconv.Itoa(n))
 }

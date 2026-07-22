@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -21,11 +22,14 @@ func setupCensusTest(t *testing.T) runtimePaths {
 	if err != nil {
 		t.Fatalf("detectPaths() error: %v", err)
 	}
+	if err := saveState(paths, defaultInstallState()); err != nil {
+		t.Fatalf("save install lifecycle sentinel: %v", err)
+	}
 	return paths
 }
 
-// stubCensusEndpoint points the endpoint at a configured (non-placeholder)
-// test host; the default build value stays PLACEHOLDER and is inert.
+// stubCensusEndpoint points the endpoint at an isolated configured test host;
+// separate tests still prove that any PLACEHOLDER build stays inert.
 func stubCensusEndpoint(t *testing.T) {
 	t.Helper()
 	original := censusEndpointURL
@@ -137,43 +141,6 @@ func TestCensusPayloadOmitsInvalidRelayVersion(t *testing.T) {
 	}
 }
 
-// Defense in depth: consent is re-checked inside sendCensusPing — after the
-// week marker was claimed, immediately before the POST — so a `census off`
-// (or the env kill switch) landing in that window still prevents the send.
-func TestSendCensusPingRefusesAfterConsentRevoked(t *testing.T) {
-	paths := setupCensusTest(t)
-	stubCensusVersion(t, "0.21.0")
-	payloads := stubCensusTransport(t, http.StatusNoContent, nil)
-	if err := saveCensusState(paths, censusState{Enabled: true, Answer: "yes"}); err != nil {
-		t.Fatalf("saveCensusState() error: %v", err)
-	}
-	payload := censusWireBytes(buildCensusPayload(paths, loadCensusState(paths), time.Now().UTC()))
-
-	// The window between marker claim and POST: the user opts out.
-	if !claimCensusWeekMarker(paths, censusISOWeek(time.Now().UTC())) {
-		t.Fatal("marker claim failed in a fresh cache dir")
-	}
-	captureStdout(t, func() { runCensusCommand(paths, []string{"off"}) })
-	if err := sendCensusPing(paths, payload); err == nil {
-		t.Fatal("sendCensusPing must refuse after the opt-out")
-	}
-	if len(*payloads) != 0 {
-		t.Fatalf("no bytes may leave after an opt-out, got %d attempts", len(*payloads))
-	}
-
-	// Same for the env kill switch on a still-enabled install.
-	if err := saveCensusState(paths, censusState{Enabled: true, Answer: "yes"}); err != nil {
-		t.Fatalf("saveCensusState() error: %v", err)
-	}
-	t.Setenv(censusOptOutEnv, "1")
-	if err := sendCensusPing(paths, payload); err == nil {
-		t.Fatal("sendCensusPing must refuse under the env kill switch")
-	}
-	if len(*payloads) != 0 {
-		t.Fatalf("no bytes may leave under the kill switch, got %d attempts", len(*payloads))
-	}
-}
-
 func TestCensusNeverSendsWithoutEnabled(t *testing.T) {
 	paths := setupCensusTest(t)
 	stubCensusVersion(t, "0.9.0")
@@ -189,6 +156,28 @@ func TestCensusNeverSendsWithoutEnabled(t *testing.T) {
 
 	if len(*payloads) != 0 {
 		t.Fatalf("expected zero sends without enabled=true, got %d: %v", len(*payloads), *payloads)
+	}
+}
+
+func TestCensusStateWritersFailClosedWithoutInstallSentinel(t *testing.T) {
+	paths := setupCensusTest(t)
+	if err := os.Remove(paths.StateFile); err != nil {
+		t.Fatalf("remove install sentinel: %v", err)
+	}
+	if err := os.Remove(paths.ConfigDir); err != nil {
+		t.Fatalf("remove empty config directory: %v", err)
+	}
+
+	if err := saveCensusState(paths, censusState{Enabled: true, Answer: "yes"}); err == nil {
+		t.Fatal("saveCensusState succeeded without state.json")
+	}
+	if err := mutateCensusState(paths, func(state *censusState) { state.Enabled = true }); err == nil {
+		t.Fatal("mutateCensusState succeeded without state.json")
+	}
+	for _, path := range []string{paths.CensusFile, paths.ConfigDir} {
+		if _, err := os.Stat(path); !os.IsNotExist(err) {
+			t.Fatalf("missing-sentinel writer recreated %s (err=%v)", path, err)
+		}
 	}
 }
 

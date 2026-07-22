@@ -74,7 +74,7 @@ func runUninstall(paths runtimePaths, args []string) int {
 	fs := flag.NewFlagSet("uninstall", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	yes := fs.Bool("yes", false, "skip confirmation prompts (prints the Home Assistant cleanup checklist instead)")
-	purge := fs.Bool("purge", false, "also remove config, state, and the relay auth token (full local wipe)")
+	purge := fs.Bool("purge", false, "also remove config, state, and the relay auth token (retains one opaque census stop marker)")
 	if err := fs.Parse(args); err != nil {
 		if helpRequested(err, fs, "ha-nova uninstall [--yes] [--purge]") {
 			return 0

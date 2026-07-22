@@ -90,7 +90,7 @@ func maskSecretHint(value string) string {
 	return "***" + value[len(value)-4:]
 }
 
-func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState, target string, hostFlag, haURLFlag, relayURLFlag, relayTokenFlag string, serviceMode bool) int {
+func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState, target string, hostFlag, haURLFlag, relayURLFlag, relayTokenFlag string, serviceMode bool, lifecycleMarker ...[]byte) int {
 	const (
 		setupStageClient = iota
 		setupStageSecureStorageRecovery
@@ -313,6 +313,14 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 	current := detectSetupStateForAssessment(paths, cfg, state, target, savedTokenBeforeSetup, hadSavedTokenBeforeSetup)
 	if tokenStoragePreflightErr == nil {
 		if handled, code := maybeHandleInteractiveSetupCurrentState(reader, os.Stdout, paths, cfg, current, overrideApplied); handled {
+			if code == 0 && current.IsComplete() && len(lifecycleMarker) > 0 {
+				if _, err := reactivateCensusAfterSetup(paths, lifecycleMarker[0]); err != nil {
+					printHumanWarn("Setup succeeded, but the census remains disabled: %s", err)
+				}
+			}
+			if code == 0 && current.IsComplete() {
+				askCensusIfEligible(paths, "setup", reader, os.Stdout)
+			}
 			return code
 		}
 	}
@@ -967,6 +975,11 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 			}
 			finalizeServiceTokenFileMigration(formerServiceTokenFile, token)
 			renderSetupCompleteBanner(os.Stdout, selectedClients)
+			if len(lifecycleMarker) > 0 {
+				if _, err := reactivateCensusAfterSetup(paths, lifecycleMarker[0]); err != nil {
+					printHumanWarn("Setup succeeded, but the census remains disabled: %s", err)
+				}
+			}
 			// One-time census ask AFTER the complete banner — clearly outside
 			// the numbered wizard steps, never readable as a setup hurdle.
 			// A queued Enter from the wizard's last step must not silently

@@ -49,8 +49,8 @@ func TestCensusOnTwiceInOneWeekSendsExactlyOnce(t *testing.T) {
 	if len(*payloads) != 1 {
 		t.Fatalf("census on twice in one week must send exactly once, got %d", len(*payloads))
 	}
-	if !strings.Contains(out, "already counted") {
-		t.Fatalf("second census on should say the week is already counted:\n%s", out)
+	if !strings.Contains(out, "recorded ping attempt") {
+		t.Fatalf("second census on should say the week already has a recorded attempt:\n%s", out)
 	}
 }
 
@@ -112,7 +112,7 @@ func TestCensusOnSuppressesFutureWeekStampLikeTheCarrier(t *testing.T) {
 	}
 }
 
-func TestCensusOnPingFailureLeavesWeekEmpty(t *testing.T) {
+func TestCensusOnPingFailureStampsWeekNoRetry(t *testing.T) {
 	paths := setupCensusTest(t)
 	stubCensusVersion(t, "0.21.0")
 	stubCensusTransport(t, 0, fmt.Errorf("endpoint down"))
@@ -126,8 +126,9 @@ func TestCensusOnPingFailureLeavesWeekEmpty(t *testing.T) {
 	if !state.Enabled {
 		t.Fatal("census on must enable despite a failed ping")
 	}
-	if state.LastPingWeek != "" {
-		t.Fatalf("failed ping must leave the week empty for a retry, got %q", state.LastPingWeek)
+	currentWeek := censusISOWeek(censusNow().UTC())
+	if state.LastPingWeek != currentWeek {
+		t.Fatalf("failed ping must stay stamped to prevent an ambiguous retry: got %q, want %q", state.LastPingWeek, currentWeek)
 	}
 }
 
@@ -169,10 +170,12 @@ func TestCensusStatusPrintsLiteralWirePayloadAndURLs(t *testing.T) {
 	for _, want := range []string{
 		"Census: off",
 		wire, // the LITERAL bytes, not a description
-		"at most one ping per ISO week (UTC)",
+		"one recorded attempt per ISO week (UTC) while local census state remains intact",
+		"Last attempted week: never",
 		censusStatsURL(),
 		"ha-nova census off",
 		"HA_NOVA_NO_CENSUS",
+		"not verified unique installs",
 	} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("census status missing %q:\n%s", want, out)
@@ -210,26 +213,126 @@ func TestUninstallBaseListIncludesCensusFile(t *testing.T) {
 	}
 }
 
-func TestCensusOnFailedFirstPingFreesTheWeekForRetry(t *testing.T) {
-	// A failed immediate ping must release the claimed week marker: without
-	// that, the next update check would pass the week gate, lose the marker
-	// claim, and silently skip — breaking the promised retry.
+func TestCensusOnFailedFirstPingKeepsTheWeekClaimed(t *testing.T) {
+	// A failed immediate ping is ambiguous: the Worker may have counted the
+	// request before the response was lost. Keep the locked state stamp so a
+	// later update check cannot create a duplicate.
 	paths := setupCensusTest(t)
 	stubCensusVersion(t, "0.21.0")
 	stubCensusTransport(t, 0, fmt.Errorf("endpoint down"))
 	captureStdout(t, func() { runCensusCommand(paths, []string{"on"}) })
 
 	week := censusISOWeek(censusNow().UTC())
-	if _, err := os.Stat(filepath.Join(paths.CacheDir, "census-ping-"+week)); !os.IsNotExist(err) {
-		t.Fatalf("failed first ping must release the week marker (stat err=%v)", err)
+	if state := loadCensusState(paths); state.LastPingWeek != week {
+		t.Fatalf("failed first ping must keep the week stamp, got %q", state.LastPingWeek)
 	}
-	// The later carrier retry succeeds and stamps the week.
+	// A later carrier does not retry in the same week.
 	payloads := stubCensusTransport(t, 204, nil)
 	maybeCensusPing(paths)
-	if got := len(*payloads); got != 1 {
-		t.Fatalf("carrier retry attempts = %d, want 1", got)
+	if got := len(*payloads); got != 0 {
+		t.Fatalf("carrier retry attempts = %d, want 0", got)
 	}
-	if state := loadCensusState(paths); state.LastPingWeek != week {
-		t.Fatalf("retry must stamp the week, got %q", state.LastPingWeek)
+}
+
+func TestCensusStatusReportsFutureWeekClockClamp(t *testing.T) {
+	paths := setupCensusTest(t)
+	current := censusISOWeek(censusNow().UTC())
+	future := censusISOWeek(censusNow().UTC().Add(21 * 24 * time.Hour))
+	if err := saveCensusState(paths, censusState{Enabled: true, Answer: "yes", LastPingWeek: future}); err != nil {
+		t.Fatal(err)
 	}
+	out := captureStdout(t, func() { runCensusStatus(paths) })
+	want := fmt.Sprintf("Next possible ping: after recorded week %s (local clock is currently in %s)", future, current)
+	if !strings.Contains(out, want) {
+		t.Fatalf("future-week status missing %q:\n%s", want, out)
+	}
+}
+
+func TestCensusPendingNoCannotOverrideExplicitOn(t *testing.T) {
+	paths := setupCensusTest(t)
+	stubCensusVersion(t, "0.21.0")
+	stubCensusTTY(t, true, true)
+	payloads := stubCensusTransport(t, http.StatusNoContent, nil)
+
+	answer, done := startBlockedCensusAsk(t, paths)
+	exit := 0
+	captureStdout(t, func() { exit = runCensusOn(paths) })
+	if exit != 0 {
+		t.Fatalf("census on exit = %d, want 0", exit)
+	}
+	out := finishBlockedCensusAsk(t, answer, done, "\n")
+	state := loadCensusState(paths)
+	if !state.Enabled || state.Answer != "yes" {
+		t.Fatalf("stale prompt no overrode explicit opt-in: %+v", state)
+	}
+	if len(*payloads) != 1 {
+		t.Fatalf("explicit opt-in sent %d requests, want 1", len(*payloads))
+	}
+	if strings.Contains(out, "This install will not send census pings") {
+		t.Fatalf("stale prompt must not claim that opt-out was applied:\n%s", out)
+	}
+}
+
+func TestCensusUninstallSentinelBlocksEveryWriterAndNotice(t *testing.T) {
+	paths := setupCensusTest(t)
+	stubCensusVersion(t, "0.21.0")
+	stubCensusTTY(t, true, true)
+	payloads := stubCensusTransport(t, http.StatusNoContent, nil)
+	if err := saveCensusState(paths, censusState{Enabled: true, Answer: "yes"}); err != nil {
+		t.Fatal(err)
+	}
+
+	previousHook := censusPreMutateHook
+	var cleanupErr error
+	censusPreMutateHook = func() {
+		censusPreMutateHook = previousHook
+		cleanupErr = removeManagedConfigArtifacts(paths, &uninstallReport{}, true)
+		if cleanupErr == nil {
+			cleanupErr = removeManagedCacheArtifacts(paths, &uninstallReport{})
+		}
+	}
+	t.Cleanup(func() { censusPreMutateHook = previousHook })
+	// Exercise a relay writer that passed its unlocked enabled pre-check before
+	// uninstall removed the install sentinel.
+	stampCensusRelayVersion(paths, "0.7.1")
+	if cleanupErr != nil {
+		t.Fatalf("uninstall cleanup: %v", cleanupErr)
+	}
+
+	if err := saveCensusState(paths, censusState{Enabled: true, Answer: "yes"}); err == nil {
+		t.Fatal("direct census save succeeded after uninstall")
+	}
+	if err := mutateCensusState(paths, func(state *censusState) { state.Enabled = true }); err == nil {
+		t.Fatal("locked census mutation succeeded after uninstall")
+	}
+	if out := askCensusWithInput(t, paths, "y\n"); out != "" {
+		t.Fatalf("interactive ask surfaced after uninstall: %q", out)
+	}
+	if out := captureStdout(t, func() { maybeEmitCensusSkillNotice(paths) }); out != "" {
+		t.Fatalf("skill notice surfaced after uninstall: %q", out)
+	}
+	if exit := captureCensusCommandExit(t, func() int { return runCensusOn(paths) }); exit == 0 {
+		t.Fatal("census on succeeded after uninstall")
+	}
+	if exit := captureCensusCommandExit(t, func() int { return runCensusOff(paths) }); exit == 0 {
+		t.Fatal("census off recreated state after uninstall")
+	}
+	if result := sendCensusPingOnce(paths); result.Attempted {
+		t.Fatalf("carrier attempted after uninstall: %+v", result)
+	}
+	if len(*payloads) != 0 {
+		t.Fatalf("post-uninstall writer sweep sent %d requests", len(*payloads))
+	}
+	for _, path := range []string{paths.StateFile, paths.CensusFile, paths.ConfigDir, paths.CacheDir} {
+		if _, err := os.Stat(path); !os.IsNotExist(err) {
+			t.Fatalf("post-uninstall writer sweep recreated %s (err=%v)", path, err)
+		}
+	}
+}
+
+func captureCensusCommandExit(t *testing.T, command func() int) int {
+	t.Helper()
+	exit := 0
+	captureStdout(t, func() { exit = command() })
+	return exit
 }

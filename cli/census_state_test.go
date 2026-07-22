@@ -1,9 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -54,17 +58,24 @@ func TestCensusStateRoundTripAndCorruptFileDefaults(t *testing.T) {
 		t.Fatalf("round trip mismatch: %+v", loaded)
 	}
 
-	if err := os.WriteFile(paths.CensusFile, []byte("{not json"), 0o600); err != nil {
+	corrupt := []byte("{not json")
+	if err := os.WriteFile(paths.CensusFile, corrupt, 0o600); err != nil {
 		t.Fatalf("write corrupt file: %v", err)
 	}
 	got := loadCensusState(paths)
 	if got.Enabled || got.AskedAt == "" || got.Answer != "none" || got.AskedVia != "recovered" {
 		t.Fatalf("corrupt census.json must recover to a stamped disabled default (no re-ask nag, no re-enable), got %+v", got)
 	}
-	// The recovery is persisted: the next load sees a valid, already-asked file.
+	if raw, err := os.ReadFile(paths.CensusFile); err != nil || !bytes.Equal(raw, corrupt) {
+		t.Fatalf("read-only recovery changed corrupt census.json: bytes=%q err=%v", raw, err)
+	}
+	// Repeated reads stay safe without turning an unlocked read into a writer.
 	reloaded := loadCensusState(paths)
-	if reloaded.AskedAt != got.AskedAt || reloaded.Enabled {
-		t.Fatalf("recovered state must be persisted, got %+v", reloaded)
+	if reloaded.AskedAt == "" || reloaded.Enabled || reloaded.Answer != "none" {
+		t.Fatalf("repeated corrupt-state recovery must stay safely disabled, got %+v", reloaded)
+	}
+	if raw, err := os.ReadFile(paths.CensusFile); err != nil || !bytes.Equal(raw, corrupt) {
+		t.Fatalf("repeated recovery changed corrupt census.json: bytes=%q err=%v", raw, err)
 	}
 }
 
@@ -73,7 +84,8 @@ func TestCensusStateFutureSchemaRecoversToStampedDisabledDefault(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(paths.CensusFile), 0o755); err != nil {
 		t.Fatalf("mkdir config dir: %v", err)
 	}
-	if err := os.WriteFile(paths.CensusFile, []byte(`{"schema":99,"enabled":true,"answer":"yes"}`), 0o600); err != nil {
+	future := []byte(`{"schema":99,"enabled":true,"answer":"yes"}`)
+	if err := os.WriteFile(paths.CensusFile, future, 0o600); err != nil {
 		t.Fatalf("write future-schema file: %v", err)
 	}
 	got := loadCensusState(paths)
@@ -82,6 +94,71 @@ func TestCensusStateFutureSchemaRecoversToStampedDisabledDefault(t *testing.T) {
 	}
 	if got.Schema != censusStateSchemaVersion {
 		t.Fatalf("recovered schema = %d, want %d", got.Schema, censusStateSchemaVersion)
+	}
+	if raw, err := os.ReadFile(paths.CensusFile); err != nil || !bytes.Equal(raw, future) {
+		t.Fatalf("older read must preserve future-schema census.json byte-for-byte: bytes=%q err=%v", raw, err)
+	}
+}
+
+func TestCensusMutationPreservesFutureAndCorruptBytes(t *testing.T) {
+	paths := setupCensusTest(t)
+	for name, original := range map[string][]byte{
+		"future":  []byte(`{"schema":99,"enabled":true,"answer":"yes"}`),
+		"corrupt": []byte(`{not-json`),
+	} {
+		t.Run(name, func(t *testing.T) {
+			if err := os.WriteFile(paths.CensusFile, original, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if err := mutateCensusState(paths, func(*censusState) {}); err == nil {
+				t.Fatal("mutation unexpectedly accepted non-writable census state")
+			}
+			got, err := os.ReadFile(paths.CensusFile)
+			if err != nil || !bytes.Equal(got, original) {
+				t.Fatalf("mutation changed protected bytes: got=%q err=%v", got, err)
+			}
+		})
+	}
+}
+
+func TestCensusLifecycleMarkerUsesSetupStartCAS(t *testing.T) {
+	paths := setupCensusTest(t)
+	if err := markCensusLifecycleStopped(paths); err != nil {
+		t.Fatal(err)
+	}
+	captured := captureCensusLifecycleMarker(paths)
+	if len(captured) == 0 {
+		t.Fatal("expected lifecycle marker snapshot")
+	}
+	if err := markCensusLifecycleStopped(paths); err != nil {
+		t.Fatal(err)
+	}
+	if reactivated, err := reactivateCensusAfterSetup(paths, captured); err != nil || reactivated {
+		t.Fatalf("stale setup reactivation = %v, err=%v", reactivated, err)
+	}
+	current := captureCensusLifecycleMarker(paths)
+	if len(current) == 0 || bytes.Equal(current, captured) {
+		t.Fatal("newer uninstall marker was not preserved")
+	}
+	if reactivated, err := reactivateCensusAfterSetup(paths, current); err != nil || !reactivated {
+		t.Fatalf("fresh setup reactivation = %v, err=%v", reactivated, err)
+	}
+	if censusLifecycleStopped(paths) {
+		t.Fatal("matching successful setup did not clear lifecycle stop")
+	}
+}
+
+func TestCensusLifecycleMarkerIsOutsideDisposableCache(t *testing.T) {
+	paths := setupCensusTest(t)
+	marker := censusLifecycleMarkerPath(paths)
+	if marker == "" {
+		t.Fatal("missing lifecycle marker path")
+	}
+	if strings.HasPrefix(marker, paths.CacheDir+string(os.PathSeparator)) || marker == paths.CacheDir {
+		t.Fatalf("lifecycle marker must not live in disposable cache: %s", marker)
+	}
+	if runtime.GOOS != "windows" && filepath.Dir(marker) != filepath.Dir(paths.ConfigDir) {
+		t.Fatalf("Unix marker parent = %s, want persistent config parent %s", filepath.Dir(marker), filepath.Dir(paths.ConfigDir))
 	}
 }
 
@@ -163,42 +240,98 @@ func TestCensusOffAlwaysWinsAgainstConcurrentMutators(t *testing.T) {
 	}
 }
 
-func TestCensusLockStaleTakeoverAndContentionTimeout(t *testing.T) {
+func TestCensusCoordinatorSerializesAndReleases(t *testing.T) {
 	paths := setupCensusTest(t)
-	originalRetry, originalTimeout, originalStale := censusLockRetryInterval, censusLockTimeout, censusLockStaleAfter
+	originalRetry, originalTimeout := censusLockRetryInterval, censusLockTimeout
 	censusLockRetryInterval = time.Millisecond
 	censusLockTimeout = 30 * time.Millisecond
-	censusLockStaleAfter = 50 * time.Millisecond
 	t.Cleanup(func() {
-		censusLockRetryInterval, censusLockTimeout, censusLockStaleAfter = originalRetry, originalTimeout, originalStale
+		censusLockRetryInterval, censusLockTimeout = originalRetry, originalTimeout
 	})
 
-	lockPath := filepath.Join(paths.ConfigDir, "census.lock")
-	if err := os.MkdirAll(paths.ConfigDir, 0o755); err != nil {
-		t.Fatalf("mkdir: %v", err)
+	release, ok := acquireCensusLock(paths)
+	if !ok {
+		t.Fatal("first caller must acquire a fresh census lock")
 	}
-	// A fresh foreign lock: mutation attempts time out with an error instead
-	// of clobbering the holder's cycle.
-	if err := os.WriteFile(lockPath, nil, 0o600); err != nil {
-		t.Fatalf("write lock: %v", err)
-	}
+	// A second caller in this process must hit the bounded process-local layer;
+	// the platform layer provides the same exclusion across processes.
 	if err := mutateCensusState(paths, func(s *censusState) { s.LastPingWeek = "2026-W30" }); err == nil {
 		t.Fatal("a held lock must make the mutation fail, not proceed")
 	}
-	// A stale lock (crashed process) is taken over instead of wedging forever.
-	past := time.Now().Add(-time.Second)
-	if err := os.Chtimes(lockPath, past, past); err != nil {
-		t.Fatalf("chtimes: %v", err)
-	}
+	release()
 	if err := mutateCensusState(paths, func(s *censusState) { s.LastPingWeek = "2026-W30" }); err != nil {
-		t.Fatalf("stale lock must be taken over, got %v", err)
+		t.Fatalf("released census lock must be acquirable again, got %v", err)
 	}
 	if state := loadCensusState(paths); state.LastPingWeek != "2026-W30" {
-		t.Fatalf("mutation after takeover missing: %+v", state)
+		t.Fatalf("mutation after release missing: %+v", state)
 	}
-	if _, err := os.Stat(lockPath); !os.IsNotExist(err) {
-		t.Fatalf("lock must be released after the mutation (err=%v)", err)
+}
+
+func TestCensusCoordinatorSerializesAcrossProcesses(t *testing.T) {
+	const helperEnv = "HA_NOVA_TEST_CENSUS_LOCK_HELPER"
+	if os.Getenv(helperEnv) == "1" {
+		paths := runtimePaths{ConfigDir: os.Getenv("HA_NOVA_TEST_CENSUS_CONFIG_DIR")}
+		release, ok := acquireCensusLock(paths)
+		if !ok {
+			t.Fatal("helper could not acquire census lock")
+		}
+		defer release()
+		if err := os.WriteFile(os.Getenv("HA_NOVA_TEST_CENSUS_LOCK_SIGNAL"), []byte("locked"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(300 * time.Millisecond)
+		return
 	}
+
+	paths := setupCensusTest(t)
+	signal := filepath.Join(t.TempDir(), "locked")
+	command := exec.Command(os.Args[0], "-test.run=^TestCensusCoordinatorSerializesAcrossProcesses$")
+	command.Env = append(os.Environ(),
+		helperEnv+"=1",
+		"HA_NOVA_TEST_CENSUS_CONFIG_DIR="+paths.ConfigDir,
+		"HA_NOVA_TEST_CENSUS_LOCK_SIGNAL="+signal,
+	)
+	if err := command.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if command.ProcessState == nil {
+			_ = command.Process.Kill()
+			_ = command.Wait()
+		}
+	})
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		if _, err := os.Stat(signal); err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			_ = command.Process.Kill()
+			_ = command.Wait()
+			t.Fatal("helper did not signal census-lock ownership")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	originalRetry, originalTimeout := censusLockRetryInterval, censusLockTimeout
+	censusLockRetryInterval = time.Millisecond
+	censusLockTimeout = 50 * time.Millisecond
+	t.Cleanup(func() {
+		censusLockRetryInterval, censusLockTimeout = originalRetry, originalTimeout
+	})
+	if release, ok := acquireCensusLock(paths); ok {
+		release()
+		t.Fatal("parent acquired the cross-process census lock while helper held it")
+	}
+	censusLockRetryInterval, censusLockTimeout = originalRetry, originalTimeout
+	if err := command.Wait(); err != nil {
+		t.Fatalf("census-lock helper failed: %v", err)
+	}
+	release, ok := acquireCensusLock(paths)
+	if !ok {
+		t.Fatal("cross-process census lock was not released after helper exit")
+	}
+	release()
 }
 
 func TestStampCensusRelayVersionOnlyWhenEnabled(t *testing.T) {
@@ -292,8 +425,8 @@ func TestStampCensusRelayVersionThrottlesWrites(t *testing.T) {
 }
 
 func TestUninstallCacheCleanupIncludesCensusMarkers(t *testing.T) {
-	// Leftover census-ping-<week>/census-notice-<n> markers must not survive
-	// uninstall: a same-HOME reinstall would inherit ask/ping suppression.
+	// Legacy census-ping and census-notice markers must not survive uninstall
+	// into a same-HOME reinstall. Current serialization creates no markers.
 	cacheDir := t.TempDir()
 	for _, name := range []string{"census-ping-2026-W30", "census-notice-1", "unrelated.txt"} {
 		if err := os.WriteFile(filepath.Join(cacheDir, name), []byte("x"), 0o600); err != nil {

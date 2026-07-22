@@ -119,6 +119,7 @@ only clutters the releases page when it did not.
 - `.goreleaser.yml` beyond the release-notes body text
 - `release.yml`, `release-candidate.yml`, other release workflows, or the
   `release-tags-protection` ruleset
+- `census-worker/` request, storage, or deployment behavior
 - Go code (CLI/relay — it ships in the release assets)
 - onboarding/update flow that the installed artifacts execute
 
@@ -141,42 +142,80 @@ bypass the ruleset — pushes the tag, and `release.yml` does the rest. GoReleas
 is pinned to the pushed tag via `GORELEASER_CURRENT_TAG`, so an `-rcN` tag and
 the final tag may safely point at the same commit.
 
-**Rehearsal steps** (step 1 is mandatory for EVERY release; steps 2–4 are the
-RC itself and apply when the conditional gate above requires it):
+**Rehearsal steps.** Keep one immutable `release_sha`: the reviewed merge SHA
+from `main`. No local-only delta may enter any deploy or tag. Steps 1–2 precede
+the RC; steps 3–4 are the RC itself when required; step 5 applies when the
+release changes the census Worker.
 
-1. On the fully reviewed, merged `main` commit, verify the pipeline contract is
+1. Merge the reviewed PR state and record its exact remote merge commit as
+   `<reviewed-merge-sha>`. If the release bumps the Relay version, first wait
+   for the `relay-image.yml` **push** run on that exact SHA, then prove that the
+   `latest`, immutable version, and commit tags resolve to the same published
+   manifest:
+   ```bash
+   bash scripts/release/verify-relay-image.sh <reviewed-merge-sha> <relay-version>
+   ```
+   This gate must pass before an RC tag. A green workflow on another commit, or
+   the existence of only some of the three GHCR tags, is not release evidence.
+2. On that same fully reviewed merge commit, verify the pipeline contract is
    intact. Run this as a maintainer (admin `gh auth`) so the no-App-bypass guard
    is verified — strict mode fails closed if the token cannot read the ruleset's
    bypass actors:
    ```bash
    HA_NOVA_RELEASE_AUDIT_REQUIRE_BYPASS=1 bash scripts/release/verify-release-pipeline.sh
    ```
-   Then run the live disposable-HA e2e on that same commit and wait for green —
-   the weekly schedule alone is NOT release evidence (the v0.14.0 release
-   shipped before the workflow had ever fired):
+   Then dispatch the live disposable-HA e2e from `main`, select a dispatched run
+   whose `headSha` equals `<reviewed-merge-sha>`, and wait for that run to turn
+   green. Re-dispatch if `main` moved before GitHub accepted the run. The weekly
+   schedule alone is NOT release evidence (the v0.14.0 release shipped before
+   the workflow had ever fired):
    ```bash
-   gh workflow run e2e-disposable-ha.yml --ref main && gh run watch --exit-status
-   # or locally, with Docker: bash scripts/e2e/disposable-ha/run.sh
+   gh workflow run e2e-disposable-ha.yml --ref main
+   gh run list --workflow e2e-disposable-ha.yml --event workflow_dispatch --commit <reviewed-merge-sha>
+   gh run watch <exact-e2e-run-id> --exit-status
+   gh run view <exact-e2e-run-id> --json headSha,conclusion
    ```
+   A local `bash scripts/e2e/disposable-ha/run.sh` pass is useful additional
+   evidence, but does not replace the dispatched run.
    It boots a real Home Assistant plus the relay built from the commit and
    asserts the live guarantees (auth, version report, health semantics, real
    REST/WS data, bounded event windows, `/files` off by default AND the
    readwrite roundtrip on a mounted config).
-2. Push the rehearsal tag on that exact commit (maintainer bypass):
+3. While the production census Worker is still the old reviewed deployment,
+   push the rehearsal tag on that exact commit (maintainer bypass). Do not
+   deploy a release-bound census Worker before the RC has exercised the old
+   endpoint:
    ```bash
    git tag vX.Y.Z-rcN <reviewed-merge-sha>
    git push origin vX.Y.Z-rcN
    ```
-3. Wait for `release.yml` to finish green: it runs verify + GoReleaser
+4. Wait for `release.yml` to finish green: it runs verify + GoReleaser
    (auto-marked prerelease via `prerelease: auto`) + install bundles + the
-   three-runner public-install smoke.
-4. Verify the published RC over the real public install path (see
-   "Supported RC selection" below), including at least one real Windows 11 +
-   PowerShell onboarding proof on a clean VM/snapshot.
-5. Only after the rehearsal is clean — or the RC was skipped per the
-   conditional gate above (skills/docs-only delta) — cut the final tag (see
-   "Final Publish"). A skipped RC never skips step 1 or the post-publish
-   public-install verification.
+   three-runner public-install smoke. Verify the published RC over the real
+   public install path (see "Supported RC selection" below), including at least
+   one real Windows 11 + PowerShell onboarding proof on a clean VM/snapshot.
+5. Only after the RC is clean, deploy a release-bound census Worker from a
+   clean checkout of the exact reviewed merge SHA. For the first public census
+   launch, the new Durable Object namespace must still be empty; verify it with
+   the read-only production stats gate immediately after deployment. The
+   fail-closed wrapper requires Node.js 22 or newer, a clean exact-SHA checkout,
+   and `gh` authenticated to `github.com`; it proves the SHA is in the
+   hard-pinned `markusleben/ha-nova` main history, exercises the real
+   Worker/SQLite write path locally, pins Wrangler 4.113.0
+   plus the production account/config/name, and attests the deployed Cloudflare
+   version before checking the empty namespace:
+   ```bash
+   bash scripts/release/deploy-census-worker.sh <reviewed-merge-sha> --require-empty
+   ```
+   The production verifier performs only cache-busted `GET /stats` requests;
+   its required SHA/version headers make stale or wrong-target production fail.
+   Later Worker deployments use the same wrapper without `--require-empty`
+   once real counts exist.
+6. Only after the rehearsal and every applicable external gate are clean — or
+   the RC was skipped per the conditional gate above (skills/docs-only delta) —
+   cut the final tag (see "Final Publish"). A skipped RC never skips the
+   reviewed merge-SHA lock in step 1, step 2, or the post-publish public-install
+   verification.
 
 The weekly `release-pipeline-audit.yml` workflow runs the same contract check
 between releases so a broken publish path is caught within a week, not at the
@@ -260,7 +299,7 @@ macOS self-managed lifecycle:
 9. `ha-nova uninstall --yes`
 10. confirm standard uninstall removed runtime/state/cache and kept the Home Assistant config/token
 11. reinstall the runtime, then run `ha-nova uninstall --yes --purge`
-12. confirm purge removed runtime/config/state/cache and deleted the relay auth token
+12. confirm purge removed runtime/config/state/cache, deleted the relay auth token, and reported only the opaque census uninstall-safety marker retained outside managed directories
 
 Linux real-machine onboarding:
 Helper:
@@ -297,7 +336,7 @@ Windows self-managed:
 10. `ha-nova uninstall --yes`
 11. confirm standard uninstall removed runtime/state/cache, cleared `%LOCALAPPDATA%\ha-nova\uninstall-status.json`, and kept the Home Assistant config/token
 12. reinstall the runtime, then run `ha-nova uninstall --yes --purge`
-13. confirm purge removed runtime/config/state/cache, deleted the relay auth token, and cleared `%LOCALAPPDATA%\ha-nova\uninstall-status.json`
+13. confirm purge removed runtime/config/state/cache, deleted the relay auth token, cleared `%LOCALAPPDATA%\ha-nova\uninstall-status.json`, and reported only the opaque census uninstall-safety marker retained outside managed directories
 
 Windows uninstall contract:
 - bundle uninstall completes through a short background handoff once the helper and recovery marker are ready
@@ -474,10 +513,12 @@ pkill -f 'npm run dev:validation:harness|start-local-validation-harness\\.sh|htt
 
 For a final stable release — after the tag-first rehearsal above is clean, or
 after the RC was skipped per the conditional gate (skills/docs-only delta;
-step 1 of the rehearsal steps ran green either way):
+steps 1–2 of the rehearsal completed, including every applicable external
+gate):
 
-1. merge the reviewed PR state
-2. as a maintainer, tag the exact reviewed remote merge commit — the same
+1. confirm the exact reviewed remote merge commit is still `release_sha` and
+   every applicable Relay/census external gate above passed
+2. as a maintainer, tag that exact reviewed remote merge commit — the same
    commit the `-rcN` rehearsal validated, or, on the no-RC path, the commit
    the strict audit + dispatched e2e ran against — and push it
    (`git push origin vX.Y.Z`); the ruleset blocks the Actions token, so the
