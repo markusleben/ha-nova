@@ -28,6 +28,8 @@ const censusAskIntro = `
   One-time question
 
   May HA NOVA count your install? HA NOVA has no telemetry — that stays.
+  The flip side: we don't know how many people use it or on which OS,
+  and that makes it hard to decide what to build and test first.
   A yes sends one anonymous ping, at most once a week:
       HA NOVA version  ·  relay version  ·  operating system
   No ID, no IP stored, nothing about your home — and the resulting
@@ -139,7 +141,7 @@ func censusFirstPingAfterYes(paths runtimePaths) {
 // question for good (answer=none).
 const censusSkillNoticeCap = 3
 
-const censusSkillNoticeBlock = `CENSUS ASK PENDING: One-time question for the user — may HA NOVA count this install? HA NOVA has no telemetry — that stays. An explicit yes sends one anonymous ping, at most once a week: HA NOVA version, relay version, operating system. No ID, no IP stored, nothing about the home — and the resulting numbers are public for everyone. Details: docs/reference/census.md. If the user explicitly says yes, run: ha-nova census on. If the user explicitly says no, run: ha-nova census off. If the user does not answer, run nothing.`
+const censusSkillNoticeBlock = `CENSUS ASK PENDING: One-time question for the user — may HA NOVA count this install? HA NOVA has no telemetry — that stays; but without any numbers it is hard to decide what to build and test first. An explicit yes sends one anonymous ping, at most once a week: HA NOVA version, relay version, operating system. No ID, no IP stored, nothing about the home — and the resulting numbers are public for everyone. Details: docs/reference/census.md. If the user explicitly says yes, run: ha-nova census on. If the user explicitly says no, run: ha-nova census off. If the user does not answer, run nothing.`
 
 // maybeEmitCensusSkillNotice prints the pending-ask block on the check-update
 // human paths (never --json). The counter is persisted BEFORE printing so a
