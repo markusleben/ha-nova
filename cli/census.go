@@ -98,8 +98,13 @@ func buildCensusPayload(paths runtimePaths, state censusState, now time.Time) ce
 	// stamp from normal relay traffic — never a relay call for the census)
 	// AND shaped like a version the worker accepts.
 	if state.RelayVersion != "" && state.RelayVersionObservedAt != "" && censusValidVersion(state.RelayVersion) {
-		if observed, err := time.Parse(time.RFC3339, state.RelayVersionObservedAt); err == nil && now.Sub(observed) <= censusRelayFreshness {
-			payload.Relay = state.RelayVersion
+		if observed, err := time.Parse(time.RFC3339, state.RelayVersionObservedAt); err == nil {
+			// Age must be non-negative: a future-dated observation (clock was
+			// ahead when stamped, then corrected) is not "observed within the
+			// last 7 days" — omit until a fresh observation lands.
+			if age := now.Sub(observed); age >= 0 && age <= censusRelayFreshness {
+				payload.Relay = state.RelayVersion
+			}
 		}
 	}
 	return payload

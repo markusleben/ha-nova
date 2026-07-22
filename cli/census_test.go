@@ -253,3 +253,20 @@ func TestCensusEnvVarSuppressesPing(t *testing.T) {
 		t.Fatalf("suppressed ping must not stamp a week, got %q", state.LastPingWeek)
 	}
 }
+
+func TestCensusPayloadOmitsFutureDatedRelayObservation(t *testing.T) {
+	// A future-dated observation (clock was ahead when stamped, then
+	// corrected) is not "observed within the last 7 days" — omit until a
+	// fresh observation lands.
+	paths := setupCensusTest(t)
+	stubCensusVersion(t, "0.21.0")
+	state := censusState{
+		Enabled:                true,
+		RelayVersion:           "0.7.0",
+		RelayVersionObservedAt: censusNow().UTC().Add(48 * time.Hour).Format(time.RFC3339),
+	}
+	payload := buildCensusPayload(paths, state, censusNow().UTC())
+	if payload.Relay != "" {
+		t.Fatalf("future-dated relay observation must be omitted, got %q", payload.Relay)
+	}
+}
