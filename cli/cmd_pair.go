@@ -4,7 +4,9 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -18,7 +20,7 @@ var runSecurePairingForPairCmd = runSecurePairing
 // one activates.
 func runPairCommand(paths runtimePaths, args []string) int {
 	relayURL, code, credentialStore, serverName := "", "", "", ""
-	credentialStoreSet := false
+	relayURLSet, codeSet, credentialStoreSet, serverNameSet := false, false, false, false
 	for i := 0; i < len(args); i++ {
 		// Accept both `--flag value` and `--flag=value` for the string flags.
 		name, inlineValue, hasInline := args[i], "", false
@@ -40,13 +42,16 @@ func runPairCommand(paths runtimePaths, args []string) int {
 		switch name {
 		case "--relay-url":
 			relayURL = takeValue()
+			relayURLSet = true
 		case "--code":
 			code = takeValue()
+			codeSet = true
 		case "--credential-store":
 			credentialStore = takeValue()
 			credentialStoreSet = true
 		case "--server":
 			serverName = takeValue()
+			serverNameSet = true
 		case "-h", "--help":
 			fmt.Println("Usage: ha-nova pair [--relay-url http://<ha-host>:8791] [--code NNNNNN] [--credential-store=file] [--server <name>]")
 			fmt.Println("Open NOVA in the Home Assistant sidebar, click \"Connect a device\", then run this.")
@@ -58,15 +63,53 @@ func runPairCommand(paths runtimePaths, args []string) int {
 			return 1
 		}
 	}
+	if relayURLSet && strings.TrimSpace(relayURL) == "" {
+		printErr("--relay-url requires a non-empty URL; nothing was paired")
+		return 1
+	}
+	if codeSet && strings.TrimSpace(code) == "" {
+		printErr("--code requires a non-empty pairing code; nothing was paired")
+		return 1
+	}
+	if serverNameSet && strings.TrimSpace(serverName) == "" {
+		printErr("--server requires a non-empty profile name; nothing was paired")
+		return 1
+	}
 	if credentialStoreSet && credentialStore != "file" {
 		printErr("--credential-store supports only the value \"file\" (got %q)", credentialStore)
 		return 1
 	}
-	if serverName != "" {
+	if serverNameSet {
+		if err := validateUTF8String(serverName, "server profile name"); err != nil {
+			printErr("%s; nothing was paired", err)
+			return 1
+		}
 		if err := validateServerProfileName(serverName); err != nil {
 			printErr("%s", err)
 			return 1
 		}
+	}
+	bootstrapURL := strings.TrimSpace(relayURL)
+	if relayURLSet {
+		if err := validatePairRelayURL(bootstrapURL); err != nil {
+			printErr("%s; nothing was paired", err)
+			return 1
+		}
+	}
+	normalizedCode := ""
+	if codeSet {
+		if err := validateUTF8String(code, "pairing code"); err != nil {
+			printErr("%s; nothing was paired", err)
+			return 1
+		}
+		var err error
+		normalizedCode, err = normalizeRelayPairingCode(code)
+		if err != nil {
+			printErr("%s; nothing was paired", err)
+			return 1
+		}
+	}
+	if serverNameSet {
 		// Route this run — config saves AND credential slots — to the named
 		// profile before anything touches storage. The seam is set here too so
 		// the storage probe/migration below already use the profile's slots.
@@ -80,14 +123,14 @@ func runPairCommand(paths runtimePaths, args []string) int {
 	// another profile's URL would bootstrap against the wrong server, so it is a
 	// hard error without --relay-url.
 	cfg, cfgErr := loadConfig(paths)
-	newProfile := serverName != "" && errors.Is(cfgErr, errUnknownServerProfile)
+	newProfile := serverNameSet && errors.Is(cfgErr, errUnknownServerProfile)
 	if cfgErr != nil && errors.Is(cfgErr, errUnknownServerProfile) && !newProfile {
 		// Selection came from HA_NOVA_SERVER: a typo must fail loud, never
 		// silently pair a fresh profile.
 		printErr("%s", cfgErr)
 		return 1
 	}
-	if serverName == "" && cfgErr != nil {
+	if !serverNameSet && cfgErr != nil {
 		// loadConfig failed before profile resolution (missing/incomplete
 		// config), so an env-only selection never reached the credential seam —
 		// saves would target the env profile while credentials land in the
@@ -97,8 +140,7 @@ func runPairCommand(paths runtimePaths, args []string) int {
 			return 1
 		}
 	}
-	bootstrapURL := strings.TrimSpace(relayURL)
-	if bootstrapURL == "" {
+	if !relayURLSet {
 		if newProfile {
 			printErr("server profile %q does not exist yet; pass --relay-url http://<ha-host>:8791 to create it", serverName)
 			return 1
@@ -111,6 +153,10 @@ func runPairCommand(paths runtimePaths, args []string) int {
 	}
 	if bootstrapURL == "" {
 		printErr("no relay URL known; pass --relay-url http://<ha-host>:8791 or run 'ha-nova setup' first")
+		return 1
+	}
+	if err := validatePairRelayURL(bootstrapURL); err != nil {
+		printErr("saved %s; nothing was paired", err)
 		return 1
 	}
 	// Storage mutation only AFTER every selection/bootstrap guard above: a pair
@@ -138,7 +184,7 @@ func runPairCommand(paths runtimePaths, args []string) int {
 		if raw, rawErr := loadRawDefaultProfileConfig(paths.ConfigFile); rawErr == nil {
 			cfg.ClientInstallID = raw.ClientInstallID
 		}
-	} else if strings.TrimSpace(relayURL) != "" {
+	} else if relayURLSet {
 		// An explicit --relay-url must persist for later functional calls, not
 		// just drive this one pairing — the successful pairing saves cfg.
 		cfg.RelayBaseURL = bootstrapURL
@@ -157,21 +203,22 @@ func runPairCommand(paths runtimePaths, args []string) int {
 		fmt.Println(probe.note)
 	}
 
-	if code == "" {
+	if !codeSet {
 		entered, promptErr := promptWizardLineFromReader(bufio.NewReader(os.Stdin), os.Stdout, "Six-digit code from the NOVA page", "")
 		if promptErr != nil {
 			return 1
 		}
 		code = entered
-	}
-	normalized, err := normalizeRelayPairingCode(code)
-	if err != nil {
-		printErr("%s", err)
-		return 1
+		normalized, normalizeErr := normalizeRelayPairingCode(code)
+		if normalizeErr != nil {
+			printErr("%s", normalizeErr)
+			return 1
+		}
+		normalizedCode = normalized
 	}
 
 	save := func(c *runtimeConfig) error { return saveConfig(paths, *c) }
-	deviceID, err := runSecurePairingForPairCmd(bootstrapURL, normalized, &cfg, save, defaultPairingClientInfo())
+	deviceID, err := runSecurePairingForPairCmd(bootstrapURL, normalizedCode, &cfg, save, defaultPairingClientInfo())
 	if err != nil {
 		switch {
 		case errors.Is(err, errPairingCodeRejected):
@@ -189,4 +236,34 @@ func runPairCommand(paths runtimePaths, args []string) int {
 	}
 	fmt.Printf("Paired securely. This device is connected (id %s).\n", deviceID)
 	return 0
+}
+
+func validatePairRelayURL(value string) error {
+	if err := validateUTF8String(value, "relay URL"); err != nil {
+		return err
+	}
+	parsed, err := url.ParseRequestURI(value)
+	if err != nil {
+		return fmt.Errorf("relay URL is invalid: %w", err)
+	}
+	hostname := parsed.Hostname()
+	if (!strings.EqualFold(parsed.Scheme, "http") && !strings.EqualFold(parsed.Scheme, "https")) || hostname == "" {
+		return errors.New("relay URL must be an absolute HTTP(S) URL with a host")
+	}
+	if err := validateUTF8String(hostname, "relay URL host"); err != nil {
+		return err
+	}
+	if strings.HasSuffix(parsed.Host, ":") {
+		return errors.New("relay URL port must not be empty")
+	}
+	if port := parsed.Port(); port != "" {
+		portNumber, err := strconv.Atoi(port)
+		if err != nil || portNumber < 1 || portNumber > 65535 {
+			return errors.New("relay URL port must be between 1 and 65535")
+		}
+	}
+	if (parsed.Path != "" && parsed.Path != "/") || parsed.ForceQuery || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return errors.New("relay URL must be a base URL without a path, query, or fragment")
+	}
+	return nil
 }

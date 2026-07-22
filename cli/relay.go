@@ -49,14 +49,21 @@ func applyHealthTimeouts(client *http.Client, connectTimeoutSeconds, maxTimeSeco
 type relayRequestOptions struct {
 	InlineJSON    string
 	JSONFile      string
+	InlineJSONSet bool
+	JSONFileSet   bool
 	JQFilter      string
 	JQFile        string
+	JQFilterSet   bool
+	JQFileSet     bool
 	OutputFile    string
 	BinaryOutFile string
+	OutputFileSet bool
+	BinaryOutSet  bool
 	Method        string
 	Path          string
 	StrictStatus  bool
 	Server        string
+	ServerSet     bool
 }
 
 func runRelayCommand(paths runtimePaths, args []string) int {
@@ -129,37 +136,118 @@ func parseRelayFlags(command string, args []string) (relayRequestOptions, error)
 		}
 		return opts, err
 	}
+	fs.Visit(func(f *flag.Flag) {
+		switch f.Name {
+		case "data", "body", "d":
+			opts.InlineJSONSet = true
+		case "data-file", "body-file":
+			opts.JSONFileSet = true
+		case "jq":
+			opts.JQFilterSet = true
+		case "jq-file":
+			opts.JQFileSet = true
+		case "out":
+			opts.OutputFileSet = true
+		case "out-binary":
+			opts.BinaryOutSet = true
+		case "server":
+			opts.ServerSet = true
+		}
+	})
+	if fs.NArg() != 0 {
+		return opts, fmt.Errorf("relay %s does not accept positional arguments; nothing was sent", command)
+	}
 	if command == "core" {
 		if opts.Method == "" || opts.Path == "" {
 			return opts, errors.New("--method and --path are required for relay core")
 		}
 	}
-	if opts.BinaryOutFile != "" {
-		if opts.JQFilter != "" || opts.JQFile != "" {
+	if opts.OutputFileSet && strings.TrimSpace(opts.OutputFile) == "" {
+		return opts, errors.New("--out requires a non-empty path; nothing was sent")
+	}
+	if opts.BinaryOutSet && strings.TrimSpace(opts.BinaryOutFile) == "" {
+		return opts, errors.New("--out-binary requires a non-empty path; nothing was sent")
+	}
+	if opts.BinaryOutSet {
+		if opts.JQFilterSet || opts.JQFileSet {
 			return opts, errors.New("--out-binary cannot be combined with --jq/--jq-file: the binary body is decoded from the raw envelope")
 		}
-		if opts.OutputFile != "" {
+		if opts.OutputFileSet {
 			return opts, errors.New("use either --out or --out-binary, not both")
 		}
+	}
+	if opts.ServerSet && strings.TrimSpace(opts.Server) == "" {
+		return opts, errors.New("--server requires a non-empty profile name; nothing was sent")
 	}
 	return opts, nil
 }
 
 func loadRelayPayload(opts relayRequestOptions) ([]byte, error) {
+	inlineSelected := opts.InlineJSONSet || opts.InlineJSON != ""
+	fileSelected := opts.JSONFileSet || opts.JSONFile != ""
 	switch {
-	case opts.InlineJSON != "" && opts.JSONFile != "":
+	case inlineSelected && fileSelected:
 		return nil, errors.New("use either inline JSON or a file, not both")
-	case opts.JSONFile != "":
-		return os.ReadFile(opts.JSONFile)
-	case opts.InlineJSON != "":
-		payload := normalizeInlineJSON(opts.InlineJSON)
-		if !json.Valid([]byte(payload)) {
-			return nil, errors.New("inline JSON payload is not valid JSON; on PowerShell prefer --data-file if quoting rewrites the payload")
+	case fileSelected:
+		if strings.TrimSpace(opts.JSONFile) == "" {
+			return nil, errors.New("JSON payload file flag requires a non-empty path; nothing was sent")
 		}
-		return []byte(payload), nil
+		path := filepath.Clean(opts.JSONFile)
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return nil, fmt.Errorf("cannot read JSON payload file %q; nothing was sent: %w", opts.JSONFile, err)
+		}
+		source := fmt.Sprintf("JSON payload file %q", opts.JSONFile)
+		data, err = normalizeUTF8Bytes(data, source)
+		if err != nil {
+			return nil, fmt.Errorf("%w; nothing was sent. Windows PowerShell 5.1: recreate the file with Set-Content -Encoding UTF8 (a leading UTF-8 BOM is accepted; Out-File and > default to UTF-16LE)", err)
+		}
+		if !json.Valid(data) {
+			return nil, fmt.Errorf("%s is not valid JSON; nothing was sent", source)
+		}
+		return data, nil
+	case inlineSelected:
+		payload := normalizeInlineJSON(opts.InlineJSON)
+		payloadBytes, err := normalizeUTF8Bytes([]byte(payload), "inline JSON payload")
+		if err != nil {
+			return nil, fmt.Errorf("%w; nothing was sent", err)
+		}
+		if !json.Valid(payloadBytes) {
+			return nil, errors.New("inline JSON payload is not valid JSON; nothing was sent. On PowerShell prefer --data-file if quoting rewrites the payload")
+		}
+		return payloadBytes, nil
 	default:
 		return nil, nil
 	}
+}
+
+func buildRelayRequestBody(endpoint string, opts relayRequestOptions, payload []byte) ([]byte, error) {
+	if endpoint != "core" {
+		return payload, nil
+	}
+	if err := validateUTF8String(opts.Method, "core method"); err != nil {
+		return nil, fmt.Errorf("%w; nothing was sent", err)
+	}
+	if err := validateUTF8String(opts.Path, "core path"); err != nil {
+		return nil, fmt.Errorf("%w; nothing was sent", err)
+	}
+	prefix, err := json.Marshal(struct {
+		Method string `json:"method"`
+		Path   string `json:"path"`
+	}{Method: strings.ToUpper(opts.Method), Path: opts.Path})
+	if err != nil {
+		return nil, fmt.Errorf("cannot build Relay core request; nothing was sent: %w", err)
+	}
+	requestBody := append([]byte{}, prefix[:len(prefix)-1]...)
+	if len(payload) > 0 {
+		requestBody = append(requestBody, []byte(`,"body":`)...)
+		requestBody = append(requestBody, payload...)
+	}
+	requestBody = append(requestBody, '}')
+	if _, err := strictJSONBytes(requestBody, "Relay core request"); err != nil {
+		return nil, fmt.Errorf("%w; nothing was sent", err)
+	}
+	return requestBody, nil
 }
 
 func normalizeInlineJSON(value string) string {
@@ -176,17 +264,35 @@ func normalizeInlineJSON(value string) string {
 }
 
 func loadJQFilter(opts relayRequestOptions) (string, error) {
+	filterSelected := opts.JQFilterSet || opts.JQFilter != ""
+	fileSelected := opts.JQFileSet || opts.JQFile != ""
 	switch {
-	case opts.JQFilter != "" && opts.JQFile != "":
+	case filterSelected && fileSelected:
 		return "", errors.New("use either --jq or --jq-file, not both")
-	case opts.JQFile != "":
-		data, err := os.ReadFile(opts.JQFile)
-		if err != nil {
-			return "", err
+	case fileSelected:
+		if strings.TrimSpace(opts.JQFile) == "" {
+			return "", errors.New("--jq-file requires a non-empty path; nothing was sent")
 		}
-		return strings.TrimSpace(string(data)), nil
-	default:
+		data, err := os.ReadFile(filepath.Clean(opts.JQFile))
+		if err != nil {
+			return "", fmt.Errorf("cannot read jq filter file %q; nothing was sent: %w", opts.JQFile, err)
+		}
+		data, err = normalizeUTF8Bytes(data, fmt.Sprintf("jq filter file %q", opts.JQFile))
+		if err != nil {
+			return "", fmt.Errorf("%w; nothing was sent", err)
+		}
+		filter := strings.TrimSpace(string(data))
+		if filter == "" {
+			return "", fmt.Errorf("jq filter file %q is empty; nothing was sent", opts.JQFile)
+		}
+		return filter, nil
+	case filterSelected:
+		if strings.TrimSpace(opts.JQFilter) == "" {
+			return "", errors.New("--jq requires a non-empty filter; nothing was sent")
+		}
 		return opts.JQFilter, nil
+	default:
+		return "", nil
 	}
 }
 
@@ -201,7 +307,30 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 		printErr("%s", err)
 		return 1
 	}
-	if opts.Server != "" {
+	payloadBytes, err := loadRelayPayload(opts)
+	if err != nil {
+		printErr("%s", err)
+		return 1
+	}
+	jqFilter, err := loadJQFilter(opts)
+	if err != nil {
+		printErr("%s", err)
+		return 1
+	}
+	var compiledJQ *jqProgram
+	if jqFilter != "" {
+		compiledJQ, err = compileJQFilter(jqFilter)
+		if err != nil {
+			printErr("%s; nothing was sent", err)
+			return 1
+		}
+	}
+	requestBody, err := buildRelayRequestBody(endpoint, opts, payloadBytes)
+	if err != nil {
+		printErr("%s", err)
+		return 1
+	}
+	if opts.ServerSet {
 		// Selection order: --server > HA_NOVA_SERVER > default_server. An
 		// unknown name fails loud in loadConfig with the list of profiles.
 		setServerSelectionOverride(opts.Server)
@@ -219,24 +348,6 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 		return 1
 	}
 
-	payloadBytes, err := loadRelayPayload(opts)
-	if err != nil {
-		printErr("%s", err)
-		return 1
-	}
-
-	var requestBody []byte
-	if endpoint == "core" {
-		requestBody = []byte(fmt.Sprintf(`{"method":%q,"path":%q`, strings.ToUpper(opts.Method), opts.Path))
-		if len(payloadBytes) > 0 {
-			requestBody = append(requestBody, []byte(`,"body":`)...)
-			requestBody = append(requestBody, payloadBytes...)
-		}
-		requestBody = append(requestBody, '}')
-	} else {
-		requestBody = payloadBytes
-	}
-
 	url := strings.TrimRight(baseURL, "/") + "/" + endpoint
 	req, err := http.NewRequest("POST", url, bytes.NewReader(requestBody))
 	if err != nil {
@@ -248,7 +359,10 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 
 	resp, err := client.Do(req)
 	if err != nil {
-		printErr("%s", relayConnectErrorMessage(baseURL, err))
+		if resp != nil {
+			_ = resp.Body.Close()
+		}
+		printErr("%s", relayRequestOutcomeUnknownMessage(baseURL, err))
 		return 1
 	}
 	defer resp.Body.Close()
@@ -262,7 +376,7 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 
 	bodyBytes, err := readAllLimited(resp.Body, maxRelayResponseBytes)
 	if err != nil {
-		printErr("%s", err)
+		printRelayPostRequestError("reading the Relay response", err)
 		return 1
 	}
 	upstreamExitStatus := 0
@@ -270,15 +384,10 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 		upstreamExitStatus = relayCoreUpstreamExitStatus(bodyBytes, opts.StrictStatus)
 	}
 
-	jqFilter, err := loadJQFilter(opts)
-	if err != nil {
-		printErr("%s", err)
-		return 1
-	}
-	if jqFilter != "" {
-		res, err := applyJQFilter(jqFilter, bodyBytes, false)
+	if compiledJQ != nil {
+		res, err := applyCompiledJQFilter(compiledJQ, bodyBytes, false)
 		if err != nil {
-			printErr("%s", err)
+			printRelayPostRequestError("jq filtering", err)
 			return 1
 		}
 		bodyBytes = []byte(res.output)
@@ -286,22 +395,32 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 
 	if opts.BinaryOutFile != "" {
 		if err := writeRelayBinaryBody(bodyBytes, opts.BinaryOutFile); err != nil {
-			printErr("%s", err)
+			printRelayPostRequestError("processing --out-binary", err)
 			return 1
 		}
 	} else if opts.OutputFile != "" {
 		if err := os.MkdirAll(filepath.Dir(opts.OutputFile), 0o755); err != nil {
-			printErr("%s", err)
+			printRelayPostRequestError("creating the --out directory", err)
 			return 1
 		}
 		if err := os.WriteFile(opts.OutputFile, bodyBytes, 0o644); err != nil {
-			printErr("%s", err)
+			printRelayPostRequestError("writing --out", err)
 			return 1
 		}
 	} else {
-		_, _ = os.Stdout.Write(bodyBytes)
+		written, err := os.Stdout.Write(bodyBytes)
+		if err == nil && written != len(bodyBytes) {
+			err = io.ErrShortWrite
+		}
+		if err != nil {
+			printRelayPostRequestError("writing stdout", err)
+			return 1
+		}
 		if len(bodyBytes) > 0 && bodyBytes[len(bodyBytes)-1] != '\n' {
-			fmt.Fprintln(os.Stdout)
+			if _, err := fmt.Fprintln(os.Stdout); err != nil {
+				printRelayPostRequestError("writing stdout", err)
+				return 1
+			}
 		}
 	}
 
@@ -375,6 +494,7 @@ type healthOptions struct {
 	ConnectTimeoutSeconds float64
 	MaxTimeSeconds        float64
 	Server                string
+	ServerSet             bool
 }
 
 // parseHealthFlags accepts curl-compatible flag names so callers (session-start
@@ -394,6 +514,17 @@ func parseHealthFlags(args []string) (healthOptions, error) {
 		}
 		return opts, err
 	}
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == "server" {
+			opts.ServerSet = true
+		}
+	})
+	if fs.NArg() != 0 {
+		return opts, errors.New("relay health does not accept positional arguments")
+	}
+	if opts.ServerSet && strings.TrimSpace(opts.Server) == "" {
+		return opts, errors.New("--server requires a non-empty profile name")
+	}
 	if opts.ConnectTimeoutSeconds <= 0 || opts.MaxTimeSeconds <= 0 {
 		return opts, errors.New("--connect-timeout and --max-time must be positive seconds")
 	}
@@ -410,7 +541,7 @@ func runHealth(paths runtimePaths, args []string) int {
 		return 1
 	}
 	client := newRelayHTTPClient(healthOpts.ConnectTimeoutSeconds, healthOpts.MaxTimeSeconds)
-	if healthOpts.Server != "" {
+	if healthOpts.ServerSet {
 		setServerSelectionOverride(healthOpts.Server)
 	}
 
@@ -493,6 +624,21 @@ func relayConnectErrorMessage(baseURL string, err error) string {
 	return fmt.Sprintf(
 		"cannot reach the NOVA Relay at %s: %s\nCheck that the NOVA Relay App is running in Home Assistant, then run: ha-nova doctor",
 		strings.TrimRight(baseURL, "/"), err,
+	)
+}
+
+func relayRequestOutcomeUnknownMessage(baseURL string, err error) string {
+	return fmt.Sprintf(
+		"%s\nThe request outcome is unknown: it may have reached the Relay. Verify the target state; do not retry automatically.",
+		relayConnectErrorMessage(baseURL, err),
+	)
+}
+
+func printRelayPostRequestError(stage string, err error) {
+	printErr(
+		"Relay request was already sent and may have succeeded, but %s failed: %s\nVerify the target state; do not retry automatically.",
+		stage,
+		err,
 	)
 }
 

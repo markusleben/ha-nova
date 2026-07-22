@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -9,8 +8,6 @@ import (
 	"path/filepath"
 	"strings"
 )
-
-var utf8BOM = []byte{0xEF, 0xBB, 0xBF}
 
 func installClaudePlugin(paths runtimePaths, sourceRoot string) error {
 	if _, err := exec.LookPath("claude"); err != nil {
@@ -240,7 +237,7 @@ func removeClaudePluginRecord(home string) error {
 }
 
 func unmarshalClaudeJSON(data []byte, target any) error {
-	return json.Unmarshal(bytes.TrimPrefix(data, utf8BOM), target)
+	return unmarshalStrictJSON(data, "Claude JSON", target)
 }
 
 func removeClaudePluginCache(home string) error {

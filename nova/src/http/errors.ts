@@ -17,6 +17,10 @@ export function invalidJson(): HttpError {
   return new HttpError(400, "INVALID_JSON", "Request body is not valid JSON");
 }
 
+export function invalidUtf8(): HttpError {
+  return new HttpError(400, "INVALID_UTF8", "Request body is not valid UTF-8");
+}
+
 export function invalidRequestUrl(): HttpError {
   return new HttpError(400, "INVALID_REQUEST_URL", "Request URL is not valid");
 }

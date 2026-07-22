@@ -83,6 +83,89 @@ describe("http server limits and logging", () => {
     expect(payload.error.code).toBe("PAYLOAD_TOO_LARGE");
   });
 
+  it("rejects invalid UTF-8 before JSON parsing or route dispatch", async () => {
+    let dispatches = 0;
+    const baseUrl = await start({
+      handler: ({ body }) => {
+        dispatches += 1;
+        return body;
+      }
+    });
+    const body = Buffer.concat([
+      Buffer.from('{"title":"', "utf8"),
+      Buffer.from([0xdc]),
+      Buffer.from('bersicht"}', "utf8")
+    ]);
+
+    const response = await fetch(`${baseUrl}/echo`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${TEST_AUTH_TOKEN}`,
+        "content-type": "application/json"
+      },
+      body
+    });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: false,
+      error: { code: "INVALID_UTF8" }
+    });
+    expect(dispatches).toBe(0);
+  });
+
+  it("accepts one UTF-8 BOM and preserves legitimate replacement characters", async () => {
+    const baseUrl = await start({});
+    const title = "Übersicht ☕ \uFFFD \uFEFF";
+    const body = Buffer.concat([
+      Buffer.from([0xef, 0xbb, 0xbf]),
+      Buffer.from(JSON.stringify({ title }), "utf8")
+    ]);
+
+    const response = await fetch(`${baseUrl}/echo`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${TEST_AUTH_TOKEN}`,
+        "content-type": "application/json"
+      },
+      body
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true, data: { title } });
+  });
+
+  it("distinguishes a genuinely empty body from a BOM-only JSON body", async () => {
+    let dispatches = 0;
+    const baseUrl = await start({
+      handler: ({ body }) => {
+        dispatches += 1;
+        return body;
+      }
+    });
+    const headers = {
+      authorization: `Bearer ${TEST_AUTH_TOKEN}`,
+      "content-type": "application/json"
+    };
+
+    const empty = await fetch(`${baseUrl}/echo`, { method: "POST", headers });
+    expect(empty.status).toBe(200);
+    await expect(empty.json()).resolves.toEqual({ ok: true, data: null });
+    expect(dispatches).toBe(1);
+
+    const bomOnly = await fetch(`${baseUrl}/echo`, {
+      method: "POST",
+      headers,
+      body: Buffer.from([0xef, 0xbb, 0xbf])
+    });
+    expect(bomOnly.status).toBe(400);
+    await expect(bomOnly.json()).resolves.toMatchObject({
+      ok: false,
+      error: { code: "INVALID_JSON" }
+    });
+    expect(dispatches).toBe(1);
+  });
+
   it("logs rejected 401s with method, path, and remote", async () => {
     const logged: LoggedLine[] = [];
     const baseUrl = await start({ logged });

@@ -3,6 +3,7 @@ import type { Stats } from "node:fs";
 import { dirname, join, relative, sep } from "node:path";
 import { realpath } from "node:fs/promises";
 
+import { decodeUtf8Strict } from "../../shared/utf8.js";
 import { HttpError } from "../errors.js";
 import { assertWritableExtension, isNotFound, LOGICAL_PREFIX } from "./files-paths.js";
 
@@ -75,7 +76,7 @@ export async function readTextFile(absolute: string, logicalPath: string): Promi
   // the user's configuration. A fatal decoder refuses instead.
   let content: string;
   try {
-    content = new TextDecoder("utf-8", { fatal: true }).decode(buffer);
+    content = decodeUtf8Strict(buffer);
   } catch {
     throw new HttpError(
       400,
