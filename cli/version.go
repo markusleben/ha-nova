@@ -344,6 +344,10 @@ func checkRelayVersionValue(paths runtimePaths, relayVersion string) humanNotice
 	if strings.TrimSpace(relayVersion) == "" {
 		return humanNotice{}
 	}
+	// Opportunistic census stamp: every relay-version observation funnels
+	// through here, so the census never needs its own relay call. No-op unless
+	// the user opted in; write-throttled (cli/census_state.go).
+	stampCensusRelayVersion(paths, relayVersion)
 
 	v, err := readVersionJSON(paths.VersionFile)
 	if err != nil || v.MinRelayVersion == "" {

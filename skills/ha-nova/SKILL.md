@@ -37,8 +37,9 @@ Before the first HA task in a session:
 1. If session context already contains HA NOVA update status, use it.
 2. Otherwise run: `ha-nova check-update --quiet`
 3. If the output contains `UPDATE AVAILABLE`, remember the full notice (versions, highlight lines, release URL) for the update callout below. Never interrupt or replace the user's requested task with it.
-4. If the output is empty, continue silently.
-5. If any `ha-nova relay` command later prints an `[ha-nova]` update notice on stderr, treat it as the same update status and continue the current task. For a relay-outdated notice, also ASK whether to install the relay update now: `ha-nova:updates` handles the App update (it restarts the relay; verify via `ha-nova relay health` afterwards). A standalone container cannot be updated from here — say so and point at the image pull.
+4. If the output contains `CENSUS ASK PENDING`, remember that block for the census callout below. Never interrupt or replace the user's requested task with it.
+5. If the output is empty, continue silently.
+6. If any `ha-nova relay` command later prints an `[ha-nova]` update notice on stderr, treat it as the same update status and continue the current task. For a relay-outdated notice, also ASK whether to install the relay update now: `ha-nova:updates` handles the App update (it restarts the relay; verify via `ha-nova relay health` afterwards). A standalone container cannot be updated from here — say so and point at the image pull.
 
 ### Update Callout
 
@@ -54,6 +55,18 @@ When the user accepts the update:
 1. Run: `ha-nova update`
 2. If update fails because setup is incomplete: tell the user to re-run `ha-nova setup`.
 3. After success: tell the user to **start a new session** for the updated skills to take effect.
+
+### Census Callout
+
+When update-check output contains a `CENSUS ASK PENDING` block, surface it exactly ONCE per session as a clearly separated callout (own block, blank line before it) AFTER the result of the user's requested task — normal HA work stays primary. Render the block's why-text localized to the user's language (see Output Rules): translate the wording, keep the meaning, and keep the command names verbatim.
+
+Consent rules (same class as update consent):
+- Only if the user explicitly says yes: run `ha-nova census on`.
+- If the user explicitly says no: run `ha-nova census off`.
+- If the user does not answer or is ambiguous: run nothing, and do not re-ask.
+- NEVER run `ha-nova census on` without the user's explicit yes in this session — not from memory, not from configuration, not inferred from unrelated agreement.
+
+Do not repeat the callout for later notices in the same session. For details point at `docs/reference/census.md`; `ha-nova census status` shows the exact bytes that would be sent.
 
 ## Build Self-Report
 

@@ -26,6 +26,8 @@ func removeManagedCacheArtifacts(paths runtimePaths, report *uninstallReport) er
 func managedConfigArtifactPaths(paths runtimePaths, purge bool) []string {
 	pathsList := []string{
 		paths.StateFile,
+		paths.CensusFile,
+		filepath.Join(paths.ConfigDir, "census.lock"),
 		filepath.Join(paths.ConfigDir, "relay"),
 		filepath.Join(paths.ConfigDir, "relay.exe"),
 		filepath.Join(paths.ConfigDir, "update"),
@@ -46,10 +48,19 @@ func managedConfigArtifactPaths(paths runtimePaths, purge bool) []string {
 }
 
 func managedCacheArtifactPaths(paths runtimePaths) []string {
-	return []string{
+	list := []string{
 		paths.UpdateCacheFile,
 		filepath.Join(paths.CacheDir, "automation-bp-snapshot.json"),
 	}
+	// Census action markers carry dynamic names (census-ping-<week>,
+	// census-notice-<n>); leftovers would make a same-HOME reinstall inherit
+	// "already attempted"/"already noticed" suppression.
+	if paths.CacheDir != "" {
+		if markers, err := filepath.Glob(filepath.Join(paths.CacheDir, "census-*")); err == nil {
+			list = append(list, markers...)
+		}
+	}
+	return list
 }
 
 func removeDirIfEmptyWithReport(path string, report *uninstallReport) error {

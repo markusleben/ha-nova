@@ -211,11 +211,31 @@ fi
 echo "[11] No telemetry or analytics code"
 # "segment" alone is an English word (path segments!) — match the vendors, not
 # the vocabulary, or the check cries wolf and gets ignored.
-TELEMETRY_HITS=$(count_matches "telemetry\|analytics\|mixpanel\|segment\.io\|@segment/\|posthog\|sentry" "$REPO_ROOT/nova/src")
+# Scope: relay, CLI, and census worker. The ONLY sanctioned network beacon is
+# the opt-in census, confined to cli/census*.go and policed by check [12] —
+# hence the single exclude. -I skips locally built binaries.
+TELEMETRY_HITS=$(count_matches -I "telemetry\|analytics\|mixpanel\|segment\.io\|@segment/\|posthog\|sentry" --exclude='census*.go' "$REPO_ROOT/nova/src" "$REPO_ROOT/cli" "$REPO_ROOT/census-worker/src")
 if (( TELEMETRY_HITS == 0 )); then
-  pass "No telemetry/analytics patterns in src/"
+  pass "No telemetry/analytics patterns in nova/src, cli, or census-worker/src"
 else
-  fail "Found ${TELEMETRY_HITS} telemetry-related patterns in src/ — README claims 'No telemetry'."
+  fail "Found ${TELEMETRY_HITS} telemetry-related patterns outside the census module — README claims 'No telemetry' (opt-in census excepted)."
+fi
+
+# ── 12. Census send path stays confined and opt-in gated ──
+# The opt-in census (docs/reference/census.md) may send exactly one thing from
+# exactly one place: cli/census*.go. If the endpoint constant or the send
+# function leaks into any other file, the "no phone-home" claim is at risk.
+echo "[12] Census send path confined to cli/census*.go with the opt-in guard"
+CENSUS_SEND_LEAKS=$(count_matches -I "sendCensusPing\|censusEndpointURL\|censusPingURL\|censusStatsURL\|censusHTTPClient\|workers\.dev" --include='*.go' --exclude='census*.go' "$REPO_ROOT/cli")
+if (( CENSUS_SEND_LEAKS == 0 )); then
+  pass "census send surface (send func, endpoint constant/URLs, HTTP client) appears only in cli/census*.go"
+else
+  fail "Found ${CENSUS_SEND_LEAKS} census send-path references outside cli/census*.go — the ping must stay confined to the census module."
+fi
+if grep -q 'if !state.Enabled' "$REPO_ROOT/cli/census.go"; then
+  pass "Census carrier keeps the opt-in guard (if !state.Enabled)"
+else
+  fail "cli/census.go lost the opt-in guard 'if !state.Enabled' — nothing may ever send without an explicit yes."
 fi
 
 # ── Results ──

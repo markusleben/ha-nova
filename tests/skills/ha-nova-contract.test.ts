@@ -822,6 +822,22 @@ describe("ha-nova contract", () => {
     expect(content).toContain("never install an update without the user's consent");
   });
 
+  it("surfaces the census ask as a consent-gated once-per-session callout", () => {
+    const content = readFileSync("skills/ha-nova/SKILL.md", "utf8");
+    expect(content).toContain("### Census Callout");
+    expect(content).toContain("CENSUS ASK PENDING");
+    // Clone of the Update Callout mechanics: once, after the task, localized.
+    expect(content).toContain("exactly ONCE per session");
+    expect(content).toContain("AFTER the result of the user's requested task");
+    expect(content).toContain("localized to the user's language");
+    // Explicit consent contract: yes -> on, no -> off, silence -> nothing.
+    expect(content).toContain("Only if the user explicitly says yes: run `ha-nova census on`.");
+    expect(content).toContain("If the user explicitly says no: run `ha-nova census off`.");
+    expect(content).toContain("If the user does not answer or is ambiguous: run nothing");
+    expect(content).toContain("NEVER run `ha-nova census on` without the user's explicit yes");
+    expect(content).toContain("Do not repeat the callout for later notices in the same session.");
+  });
+
   it("provides SessionStart hook for context skill auto-loading", () => {
     const hooksJson = JSON.parse(readFileSync("hooks/hooks.json", "utf8"));
     expect(hooksJson.hooks.SessionStart).toBeDefined();

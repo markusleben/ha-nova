@@ -61,6 +61,8 @@ func dispatch(paths runtimePaths, argv0 string, args []string) int {
 		return runTraceCommand(paths, args[1:])
 	case "snapshot":
 		return runSnapshotCommand(paths, args[1:])
+	case "census":
+		return runCensusCommand(paths, args[1:])
 	case "diff":
 		return runDiffCommand(paths, args[1:])
 	case "version":
@@ -105,6 +107,7 @@ func printUsage() {
 	fmt.Fprintln(os.Stdout, "  ha-nova relay <health|ws|core|jq|version>")
 	fmt.Fprintln(os.Stdout, "  ha-nova trace <latest|list|get> <automation.entity_id|script.entity_id> [run_id] [--json]")
 	fmt.Fprintln(os.Stdout, "  ha-nova snapshot <save|show|verify>")
+	fmt.Fprintln(os.Stdout, "  ha-nova census <on|off|status>")
 	fmt.Fprintln(os.Stdout, "  ha-nova diff --before <file> --after <file> [--out <file>]")
 	fmt.Fprintln(os.Stdout, "  ha-nova version")
 	fmt.Fprintln(os.Stdout, "")

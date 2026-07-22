@@ -46,6 +46,8 @@ func TestSubcommandHelpFlagPrintsUsageAndFlags(t *testing.T) {
 		{"version (root)", func() int { return dispatch(paths, "ha-nova", []string{"version", "--help"}) }, "Usage: ha-nova version", "No flags"},
 		{"trace (parent)", func() int { return runTraceCommand(paths, []string{"--help"}) }, "Usage: ha-nova trace <latest|list|get>", "trace <subcommand> --help"},
 		{"snapshot (parent)", func() int { return runSnapshotCommand(paths, []string{"--help"}) }, "Usage: ha-nova snapshot <save|show|verify>", "snapshot <subcommand> --help"},
+		{"census", func() int { return runCensusCommand(paths, []string{"--help"}) }, "Usage: ha-nova census <on|off|status>", "No flags"},
+		{"census status", func() int { return runCensusCommand(paths, []string{"status", "--help"}) }, "Usage: ha-nova census <on|off|status>", "No flags"},
 	}
 
 	for _, tc := range cases {
