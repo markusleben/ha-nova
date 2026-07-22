@@ -290,3 +290,32 @@ func TestStampCensusRelayVersionThrottlesWrites(t *testing.T) {
 		t.Fatal("a stamp older than 24h must be refreshed")
 	}
 }
+
+func TestUninstallCacheCleanupIncludesCensusMarkers(t *testing.T) {
+	// Leftover census-ping-<week>/census-notice-<n> markers must not survive
+	// uninstall: a same-HOME reinstall would inherit ask/ping suppression.
+	cacheDir := t.TempDir()
+	for _, name := range []string{"census-ping-2026-W30", "census-notice-1", "unrelated.txt"} {
+		if err := os.WriteFile(filepath.Join(cacheDir, name), []byte("x"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	paths := runtimePaths{CacheDir: cacheDir, UpdateCacheFile: filepath.Join(cacheDir, "latest-release.json")}
+	list := managedCacheArtifactPaths(paths)
+	for _, want := range []string{"census-ping-2026-W30", "census-notice-1"} {
+		found := false
+		for _, p := range list {
+			if p == filepath.Join(cacheDir, want) {
+				found = true
+			}
+		}
+		if !found {
+			t.Fatalf("cache cleanup list must include %s, got %v", want, list)
+		}
+	}
+	for _, p := range list {
+		if p == filepath.Join(cacheDir, "unrelated.txt") {
+			t.Fatal("cache cleanup must not sweep unrelated files")
+		}
+	}
+}
