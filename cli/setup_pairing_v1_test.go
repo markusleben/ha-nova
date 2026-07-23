@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -29,7 +30,7 @@ func TestSetupPairingPrefersSecureV1(t *testing.T) {
 
 	reader := bufio.NewReader(strings.NewReader("\n473921\n"))
 	cfg := &runtimeConfig{RelayBaseURL: "http://relay:8791"}
-	token, err := runSetupPairingFlow(reader, io.Discard, runtimePaths{}, cfg, false)
+	token, err := runSetupPairingFlow(reader, io.Discard, runtimePaths{ConfigDir: t.TempDir()}, cfg, false)
 	if !errors.Is(err, errSetupDevicePaired) {
 		t.Fatalf("expected errSetupDevicePaired, got token=%q err=%v", token, err)
 	}
@@ -50,12 +51,48 @@ func TestSetupPairingFallsBackToLegacyExchange(t *testing.T) {
 
 	reader := bufio.NewReader(strings.NewReader("\n473921\n"))
 	cfg := &runtimeConfig{RelayBaseURL: "http://relay:8791"}
-	token, err := runSetupPairingFlow(reader, io.Discard, runtimePaths{}, cfg, false)
+	token, err := runSetupPairingFlow(reader, io.Discard, runtimePaths{ConfigDir: t.TempDir()}, cfg, false)
 	if err != nil {
 		t.Fatalf("legacy exchange should succeed: %v", err)
 	}
 	if token != "legacy-token-for-473921" {
 		t.Fatalf("unexpected legacy token %q", token)
+	}
+}
+
+func TestSetupPairingLegacyExchangeRejectsStaleLifecycle(t *testing.T) {
+	origProbe, origExchange := probePairingV1ForSetup, exchangeRelayPairingCodeForSetup
+	defer func() { probePairingV1ForSetup, exchangeRelayPairingCodeForSetup = origProbe, origExchange }()
+
+	paths := runtimePaths{ConfigDir: filepath.Join(t.TempDir(), "ha-nova")}
+	if err := rotateInstallLifecycleGeneration(paths); err != nil {
+		t.Fatalf("seed install lifecycle: %v", err)
+	}
+	lifecycleMarker := [][]byte{captureInstallLifecycleGeneration(paths)}
+	probePairingV1ForSetup = func(string) bool {
+		if err := rotateInstallLifecycleGeneration(paths); err != nil {
+			t.Fatalf("supersede setup lifecycle: %v", err)
+		}
+		return false
+	}
+	exchangeCalled := false
+	exchangeRelayPairingCodeForSetup = func(_ *http.Client, _, _ string) (string, error) {
+		exchangeCalled = true
+		return "legacy-token", nil
+	}
+
+	reader := bufio.NewReader(strings.NewReader("\n473921\nexit\n"))
+	cfg := &runtimeConfig{RelayBaseURL: "http://relay:8791"}
+	var out strings.Builder
+	_, err := runSetupPairingFlow(reader, &out, paths, cfg, false, lifecycleMarker...)
+	if !errors.Is(err, errSetupExit) {
+		t.Fatalf("expected setup to stop after the stale exchange was rejected, got %v", err)
+	}
+	if exchangeCalled {
+		t.Fatal("legacy /pair exchange consumed a code after the setup lifecycle changed")
+	}
+	if !strings.Contains(out.String(), "setup was superseded by an uninstall") {
+		t.Fatalf("missing stale-lifecycle error:\n%s", out.String())
 	}
 }
 
@@ -79,9 +116,14 @@ func TestSetupPairingMidFlowRelayNotV1FailsSafeWithoutTokenStore(t *testing.T) {
 
 	reader := bufio.NewReader(strings.NewReader("\n473921\n"))
 	cfg := &runtimeConfig{RelayBaseURL: "http://relay:8791"}
-	_, err := runSetupPairingFlow(reader, io.Discard, runtimePaths{}, cfg, true) // legacyTokenStoreUnavailable
+	var out strings.Builder
+	_, err := runSetupPairingFlow(reader, &out, runtimePaths{ConfigDir: t.TempDir()}, cfg, true) // legacyTokenStoreUnavailable
 	if err == nil {
 		t.Fatal("expected a fail-safe error on mid-flow errRelayNotV1 with no legacy token store")
+	}
+	if !strings.Contains(err.Error(), "relay predates secure pairing") ||
+		!strings.Contains(out.String(), "too old for secure device pairing") {
+		t.Fatalf("wrong fail-safe error: %v\n%s", err, out.String())
 	}
 	if exchangeCalled {
 		t.Fatal("legacy /pair exchange was reached — a one-time code could be consumed with no store to persist the token")
@@ -96,7 +138,7 @@ func TestSetupPairingTransientV1ProbeFailureDoesNotDeclareOldRelay(t *testing.T)
 	defer func() {
 		probePairingV1ForSetup, probePairingV1DetailedForSetup, exchangeRelayPairingCodeForSetup = origProbe, origDetailed, origExchange
 	}()
-	probePairingV1ForSetup = func(string) bool { return false }                          // probe returns false...
+	probePairingV1ForSetup = func(string) bool { return false }                        // probe returns false...
 	probePairingV1DetailedForSetup = func(string) (bool, bool) { return false, false } // ...and the relay is unreachable
 	exchangeCalled := false
 	exchangeRelayPairingCodeForSetup = func(_ *http.Client, _, _ string) (string, error) {
@@ -106,7 +148,7 @@ func TestSetupPairingTransientV1ProbeFailureDoesNotDeclareOldRelay(t *testing.T)
 
 	reader := bufio.NewReader(strings.NewReader("\n473921\n"))
 	cfg := &runtimeConfig{RelayBaseURL: "http://relay:8791"}
-	_, err := runSetupPairingFlow(reader, io.Discard, runtimePaths{}, cfg, true)
+	_, err := runSetupPairingFlow(reader, io.Discard, runtimePaths{ConfigDir: t.TempDir()}, cfg, true)
 	if err == nil {
 		t.Fatal("expected an error when the relay is unreachable")
 	}
@@ -126,7 +168,7 @@ func TestSetupPairingRecoversWhenSecondV1ProbeSucceeds(t *testing.T) {
 	defer func() {
 		probePairingV1ForSetup, probePairingV1DetailedForSetup, securePairForSetup, exchangeRelayPairingCodeForSetup = origProbe, origDetailed, origSecure, origExchange
 	}()
-	probePairingV1ForSetup = func(string) bool { return false }                        // transient miss...
+	probePairingV1ForSetup = func(string) bool { return false }                      // transient miss...
 	probePairingV1DetailedForSetup = func(string) (bool, bool) { return true, true } // ...v1 is up on the retry
 	securePaired := false
 	securePairForSetup = func(_, _ string, cfg *runtimeConfig, _ func(*runtimeConfig) error, _ pairingClientInfo) (string, error) {
@@ -141,7 +183,7 @@ func TestSetupPairingRecoversWhenSecondV1ProbeSucceeds(t *testing.T) {
 
 	reader := bufio.NewReader(strings.NewReader("\n473921\n"))
 	cfg := &runtimeConfig{RelayBaseURL: "http://relay:8791"}
-	_, err := runSetupPairingFlow(reader, io.Discard, runtimePaths{}, cfg, true)
+	_, err := runSetupPairingFlow(reader, io.Discard, runtimePaths{ConfigDir: t.TempDir()}, cfg, true)
 	if !errors.Is(err, errSetupDevicePaired) {
 		t.Fatalf("expected secure pairing to proceed after the v1 probe recovered, got %v", err)
 	}

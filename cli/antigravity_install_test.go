@@ -187,9 +187,17 @@ func TestRewriteFlatMarkdownAbsolutizesCrossSkillRefs(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(sourceDir, "patterns.md"), []byte("companion"), 0o644); err != nil {
 		t.Fatalf("write companion: %v", err)
 	}
+	bootstrapPath := filepath.Join(sourceRoot, "skills", "ha-nova", "session-bootstrap.md")
+	if err := os.MkdirAll(filepath.Dir(bootstrapPath), 0o755); err != nil {
+		t.Fatalf("mkdir shared skill dir: %v", err)
+	}
+	if err := os.WriteFile(bootstrapPath, []byte("# Session Bootstrap\n"), 0o644); err != nil {
+		t.Fatalf("write session bootstrap: %v", err)
+	}
 
 	content := "Same-skill: `skills/write/patterns.md`. Cross-skill: `skills/review/SKILL.md`.\n" +
 		"Agent template: `skills/ha-nova/agents/apply-agent.md`. Filter: `skills/ha-nova/config-body-filter.jq`.\n" +
+		"Session: `../ha-nova/session-bootstrap.md`.\n" +
 		"Docs: `docs/reference/ha-template-reference.md`.\n"
 
 	got := rewriteFlatMarkdown("write", content, sourceDir, sourceRoot, []string{"write", "review"})
@@ -199,6 +207,7 @@ func TestRewriteFlatMarkdownAbsolutizesCrossSkillRefs(t *testing.T) {
 		"`" + filepath.Join(sourceRoot, "skills", "review", "SKILL.md") + "`",
 		"`" + filepath.Join(sourceRoot, "skills", "ha-nova", "agents", "apply-agent.md") + "`",
 		"`" + filepath.Join(sourceRoot, "skills", "ha-nova", "config-body-filter.jq") + "`",
+		"`../ha-nova/session-bootstrap.md`",
 		"`" + filepath.Join(sourceRoot, "docs", "reference", "ha-template-reference.md") + "`",
 	} {
 		if !strings.Contains(got, want) {

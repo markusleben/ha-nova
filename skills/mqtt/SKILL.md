@@ -18,6 +18,7 @@ Not in scope: the MQTT broker's own configuration, Zigbee2MQTT's web UI, or crea
 
 ## Bootstrap (once per session)
 
+Read and follow `../ha-nova/session-bootstrap.md`.
 Verify relay CLI: `ha-nova relay health`
 If this fails: `ha-nova setup`
 

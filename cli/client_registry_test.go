@@ -284,6 +284,9 @@ func TestInstallClientAcceptsLegacyGeminiAlias(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte("name: ha-nova\n"), 0o644); err != nil {
 		t.Fatalf("write source skill: %v", err)
 	}
+	if err := os.WriteFile(filepath.Join(skillDir, "session-bootstrap.md"), []byte("# Session Bootstrap\n"), 0o644); err != nil {
+		t.Fatalf("write session bootstrap: %v", err)
+	}
 
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -306,5 +309,38 @@ func TestInstallClientAcceptsLegacyGeminiAlias(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(antigravitySkillsRoot(home), "ha-nova", "SKILL.md")); err != nil {
 		t.Fatalf("expected Antigravity skill installed through gemini alias: %v", err)
+	}
+}
+
+func TestInstallClientRejectsMissingSessionBootstrap(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake PATH executable setup is Unix-style")
+	}
+	root := t.TempDir()
+	t.Setenv("HA_NOVA_DEV_ROOT", root)
+	writeTestRegistry(t, root, `{"clients":[{"id":"antigravity","label":"Google Antigravity","adapter_kind":"skill_flat","supported_os":["macos","linux","windows"]}]}`)
+
+	skillDir := filepath.Join(root, "skills", "ha-nova")
+	if err := os.MkdirAll(skillDir, 0o755); err != nil {
+		t.Fatalf("mkdir source skill: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte("name: ha-nova\n"), 0o644); err != nil {
+		t.Fatalf("write source skill: %v", err)
+	}
+
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	binDir := t.TempDir()
+	t.Setenv("PATH", binDir)
+	if err := os.WriteFile(filepath.Join(binDir, "agy"), []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatalf("write fake agy: %v", err)
+	}
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatalf("detectPaths() error: %v", err)
+	}
+
+	if _, err := installClient(paths, root, "antigravity"); err == nil || !strings.Contains(err.Error(), "missing session bootstrap") {
+		t.Fatalf("expected missing session bootstrap error, got %v", err)
 	}
 }

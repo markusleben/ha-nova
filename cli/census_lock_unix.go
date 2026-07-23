@@ -32,9 +32,13 @@ func acquireCensusPlatformLock(_ string, timeout, retry time.Duration) (func(), 
 			_ = directory.Close()
 			return func() {}, false
 		}
-		if time.Now().After(deadline) {
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
 			_ = directory.Close()
 			return func() {}, false
+		}
+		if retry > remaining {
+			retry = remaining
 		}
 		time.Sleep(retry)
 	}

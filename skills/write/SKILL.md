@@ -16,6 +16,7 @@ Mutations only:
 
 ## Bootstrap (once per session)
 
+Read and follow `../ha-nova/session-bootstrap.md`.
 Verify Relay:
 
 ```text

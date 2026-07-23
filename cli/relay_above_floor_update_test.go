@@ -20,9 +20,11 @@ func pendingRelayUpdateEntity(id, installed, latest string) map[string]interface
 		"entity_id": id,
 		"state":     "on",
 		"attributes": map[string]interface{}{
-			"title":             relayUpdateEntityTitle,
-			"installed_version": installed,
-			"latest_version":    latest,
+			"title":              "NOVA Relay",
+			"installed_version":  installed,
+			"latest_version":     latest,
+			"supported_features": updateFeatureInstall | updateFeatureBackup,
+			"in_progress":        false,
 		},
 	}
 }
@@ -44,7 +46,7 @@ func TestRelayAvailableUpdateNoticeRequiresExactPendingEvidence(t *testing.T) {
 				"entity_id": "update.nova_relay_update",
 				"state":     "off",
 				"attributes": map[string]interface{}{
-					"title":             relayUpdateEntityTitle,
+					"title":             "NOVA Relay",
 					"installed_version": "0.6.0",
 					"latest_version":    "0.6.0",
 				},
@@ -66,8 +68,21 @@ func TestRelayAvailableUpdateNoticeRequiresExactPendingEvidence(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-				w.Write(statesEnvelope(t, tc.states))
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/core":
+					w.Write(statesEnvelope(t, tc.states))
+				case "/ws":
+					registry := []map[string]interface{}{}
+					for _, state := range tc.states {
+						if entityID, ok := state["entity_id"].(string); ok {
+							registry = append(registry, novaRegistryEntry(entityID))
+						}
+					}
+					w.Write(registryEnvelope(t, registry))
+				default:
+					http.NotFound(w, r)
+				}
 			}))
 			defer server.Close()
 
@@ -81,6 +96,89 @@ func TestRelayAvailableUpdateNoticeRequiresExactPendingEvidence(t *testing.T) {
 				}
 			} else if !notice.empty() {
 				t.Fatalf("unexpected notice: %q", notice.message)
+			}
+		})
+	}
+}
+
+func TestRelayUpdateNoticeClassifiesBelowFloorAppBeforeOfferingGuidedUpdate(t *testing.T) {
+	currentApp := pendingRelayUpdateEntity("update.nova_relay_update", "0.3.0", "0.3.0")
+	currentApp["state"] = "off"
+	cases := []struct {
+		name       string
+		states     []map[string]interface{}
+		wantKind   humanNoticeKind
+		wantText   string
+		rejectText string
+	}{
+		{
+			name: "exact pending App update",
+			states: []map[string]interface{}{
+				pendingRelayUpdateEntity("update.nova_relay_update", "0.3.0", "0.7.1"),
+			},
+			wantKind:   humanNoticeKindRelayUpdateAvailable,
+			wantText:   "offer to prepare the guided App update through ha-nova:updates",
+			rejectText: "standalone Relay container",
+		},
+		{
+			name:       "no App update entity",
+			states:     []map[string]interface{}{},
+			wantKind:   humanNoticeKindRelayOutdated,
+			wantText:   "pull and recreate a standalone Relay container",
+			rejectText: "ha-nova:updates",
+		},
+		{
+			name:       "registry proves current App even without pending update",
+			states:     []map[string]interface{}{currentApp},
+			wantKind:   humanNoticeKindRelayOutdated,
+			wantText:   "confirms the NOVA Relay App is installed",
+			rejectText: "standalone Relay container",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			paths, cfg := doctorTestSetup(t)
+			relay := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/health":
+					fmt.Fprint(w, `{"ok":true,"data":{"status":"ok","version":"0.3.0"}}`)
+				case "/core":
+					w.Write(statesEnvelope(t, tc.states))
+				case "/ws":
+					registry := []map[string]interface{}{}
+					for _, state := range tc.states {
+						if entityID, ok := state["entity_id"].(string); ok {
+							registry = append(registry, novaRegistryEntry(entityID))
+						}
+					}
+					w.Write(registryEnvelope(t, registry))
+				default:
+					http.NotFound(w, r)
+				}
+			}))
+			defer relay.Close()
+
+			cfg.RelayBaseURL = relay.URL
+			if err := saveConfig(paths, cfg); err != nil {
+				t.Fatalf("saveConfig() error: %v", err)
+			}
+			if err := os.MkdirAll(filepath.Dir(paths.VersionFile), 0o755); err != nil {
+				t.Fatalf("mkdir version dir: %v", err)
+			}
+			if err := os.WriteFile(paths.VersionFile, []byte(`{"skill_version":"0.21.0","min_relay_version":"0.4.0"}`), 0o644); err != nil {
+				t.Fatalf("write version file: %v", err)
+			}
+
+			notice := relayUpdateNotice(paths)
+			if notice.kind != tc.wantKind {
+				t.Fatalf("notice kind = %q, want %q; message: %s", notice.kind, tc.wantKind, notice.message)
+			}
+			if !strings.Contains(notice.message, tc.wantText) {
+				t.Fatalf("notice missing %q: %s", tc.wantText, notice.message)
+			}
+			if strings.Contains(notice.message, tc.rejectText) {
+				t.Fatalf("notice must not contain %q: %s", tc.rejectText, notice.message)
 			}
 		})
 	}
@@ -119,6 +217,8 @@ func TestGuidedRelayUpdateWaitsForOfferedAboveFloorVersion(t *testing.T) {
 			}
 			installed.Store(true)
 			fmt.Fprint(w, `{"ok":true,"data":{"status":200}}`)
+		case "/ws":
+			w.Write(registryEnvelope(t, []map[string]interface{}{novaRegistryEntry("update.nova_relay_update")}))
 		default:
 			t.Errorf("unexpected path %q", r.URL.Path)
 		}
@@ -166,13 +266,16 @@ func TestWaitForRelayVersionKeepsFloorForStaleTarget(t *testing.T) {
 func TestRunDoctorReportsAboveFloorRelayUpdateWithoutFailing(t *testing.T) {
 	paths, cfg := doctorTestSetup(t)
 	relay := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/core" {
+		switch r.URL.Path {
+		case "/core":
+			w.Write(statesEnvelope(t, []map[string]interface{}{
+				pendingRelayUpdateEntity("update.nova_relay_update", "0.4.1", "0.6.0"),
+			}))
+		case "/ws":
+			w.Write(registryEnvelope(t, []map[string]interface{}{novaRegistryEntry("update.nova_relay_update")}))
+		default:
 			http.NotFound(w, r)
-			return
 		}
-		w.Write(statesEnvelope(t, []map[string]interface{}{
-			pendingRelayUpdateEntity("update.nova_relay_update", "0.4.1", "0.6.0"),
-		}))
 	}))
 	defer relay.Close()
 	cfg.RelayBaseURL = relay.URL
@@ -210,5 +313,56 @@ func TestRunDoctorReportsAboveFloorRelayUpdateWithoutFailing(t *testing.T) {
 	}
 	if !strings.Contains(output, "Doctor checks passed") {
 		t.Fatalf("doctor did not preserve compatible-health success:\n%s", output)
+	}
+}
+
+func TestRunCheckUpdateQuietReportsHANOVAAndAboveFloorRelayUpdates(t *testing.T) {
+	paths, cfg := doctorTestSetup(t)
+	relay := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/health":
+			fmt.Fprint(w, `{"ok":true,"data":{"status":"ok","version":"0.4.1"}}`)
+		case "/core":
+			w.Write(statesEnvelope(t, []map[string]interface{}{
+				pendingRelayUpdateEntity("update.nova_relay_update", "0.4.1", "0.6.0"),
+			}))
+		case "/ws":
+			w.Write(registryEnvelope(t, []map[string]interface{}{novaRegistryEntry("update.nova_relay_update")}))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer relay.Close()
+
+	cfg.RelayBaseURL = relay.URL
+	if err := saveConfig(paths, cfg); err != nil {
+		t.Fatalf("saveConfig() error: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(paths.VersionFile), 0o755); err != nil {
+		t.Fatalf("mkdir version dir: %v", err)
+	}
+	if err := os.WriteFile(paths.VersionFile, []byte(`{"skill_version":"0.20.0","min_relay_version":"0.4.0"}`), 0o644); err != nil {
+		t.Fatalf("write version file: %v", err)
+	}
+	if err := writeJSONFile(paths.UpdateCacheFile, releaseInfo{
+		Version: "0.21.0",
+		HTMLURL: "https://example.invalid/releases/v0.21.0",
+	}, 0o644); err != nil {
+		t.Fatalf("write update cache: %v", err)
+	}
+
+	exitCode, output := captureCommandOutput(t, func() int {
+		return runCheckUpdate(paths, []string{"--quiet"})
+	})
+	if exitCode != 0 {
+		t.Fatalf("compatible pending Relay update must not fail check-update: exit %d\n%s", exitCode, output)
+	}
+	skillNotice := "Update available: v0.20.0 -> v0.21.0"
+	relayNotice := "Relay update available: v0.4.1 → v0.6.0"
+	if !strings.Contains(output, skillNotice) || !strings.Contains(output, relayNotice) {
+		t.Fatalf("quiet check-update did not surface both updates:\n%s", output)
+	}
+	if strings.Index(output, skillNotice) > strings.Index(output, relayNotice) {
+		t.Fatalf("HA NOVA update must precede the Relay update:\n%s", output)
 	}
 }

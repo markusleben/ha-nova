@@ -22,6 +22,7 @@ Credential-bearing, external/OAuth, and progress steps finish in the Home Assist
 
 ## Bootstrap (once per session)
 
+Read and follow `../ha-nova/session-bootstrap.md`.
 Verify relay CLI: `ha-nova relay health`
 If this fails: `ha-nova setup`
 

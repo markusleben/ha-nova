@@ -888,6 +888,9 @@ func writeClaudeMarketplaceFixture(t *testing.T, sourceRoot string) {
 	if err := os.WriteFile(filepath.Join(sourceRoot, "skills", "ha-nova", "SKILL.md"), []byte("name: ha-nova"), 0o644); err != nil {
 		t.Fatalf("write skill fixture: %v", err)
 	}
+	if err := os.WriteFile(filepath.Join(sourceRoot, "skills", "ha-nova", "session-bootstrap.md"), []byte("# Session Bootstrap\n"), 0o644); err != nil {
+		t.Fatalf("write session bootstrap fixture: %v", err)
+	}
 	if err := os.WriteFile(filepath.Join(sourceRoot, ".claude-plugin", "plugin.json"), []byte(`{
   "name":"ha-nova",
   "version":"0.1.12"

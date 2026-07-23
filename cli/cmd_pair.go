@@ -116,6 +116,20 @@ func runPairCommand(paths runtimePaths, args []string) int {
 		setServerSelectionOverride(serverName)
 		setActiveServerProfile(serverName)
 	}
+	configSnapshot, hadConfigSnapshot, snapshotErr := readOptionalFile(paths.ConfigFile)
+	if snapshotErr != nil {
+		printErr("cannot inspect server configuration: %s", snapshotErr)
+		return 1
+	}
+	pairLifecycleGeneration, lifecycleErr := readInstallLifecycleGeneration(paths)
+	if lifecycleErr != nil {
+		printErr("cannot inspect install lifecycle: %s", lifecycleErr)
+		return 1
+	}
+	if censusLifecycleStopped(paths) {
+		printErr("HA NOVA was uninstalled; run `ha-nova setup` before pairing.")
+		return 1
+	}
 
 	// Pairing can run before a full setup as long as a relay URL is known: an
 	// explicit --relay-url starts from a fresh config, otherwise the saved one.
@@ -166,7 +180,18 @@ func runPairCommand(paths runtimePaths, args []string) int {
 		// A readable keyring credential moves along BEFORE the backend flips:
 		// the flip must never mask a live desktop pairing. Locked or absent
 		// keyrings make this a silent no-op and pairing continues file-backed.
-		migrated, migrateErr := migrateKeyringDeviceCredentialToFile()
+		migrated := false
+		migrateErr := withClientMutationLock(paths, func() error {
+			if err := ensureUpdateLifecycleCurrent(paths, pairLifecycleGeneration); err != nil {
+				return err
+			}
+			if err := ensureOptionalFileSnapshotCurrent(paths.ConfigFile, configSnapshot, hadConfigSnapshot); err != nil {
+				return err
+			}
+			var err error
+			migrated, err = migrateKeyringDeviceCredentialToFile()
+			return err
+		})
 		if migrateErr != nil {
 			printErr("cannot move the device credential into private file storage: %s", migrateErr)
 			printErr("Nothing was paired — no code was used.")
@@ -193,7 +218,18 @@ func runPairCommand(paths runtimePaths, args []string) int {
 	// Verify credential storage BEFORE asking for (or spending) a code: a broken
 	// backend must not burn the owner's one-time code. On headless systems this
 	// engages the private-file fallback and says so.
-	probe, probeErr := probeDeviceCredentialStorage()
+	var probe deviceStorageProbe
+	probeErr := withClientMutationLock(paths, func() error {
+		if err := ensureUpdateLifecycleCurrent(paths, pairLifecycleGeneration); err != nil {
+			return err
+		}
+		if err := ensureOptionalFileSnapshotCurrent(paths.ConfigFile, configSnapshot, hadConfigSnapshot); err != nil {
+			return err
+		}
+		var err error
+		probe, err = probeDeviceCredentialStorage()
+		return err
+	})
 	if probeErr != nil {
 		printErr("This system cannot store the device credential yet: %s", probeErr)
 		printErr("Nothing was paired — no code was used.")
@@ -217,8 +253,19 @@ func runPairCommand(paths runtimePaths, args []string) int {
 		normalizedCode = normalized
 	}
 
-	save := func(c *runtimeConfig) error { return saveConfig(paths, *c) }
-	deviceID, err := runSecurePairingForPairCmd(bootstrapURL, normalizedCode, &cfg, save, defaultPairingClientInfo())
+	deviceID := ""
+	err := withClientMutationLock(paths, func() error {
+		if err := ensureUpdateLifecycleCurrent(paths, pairLifecycleGeneration); err != nil {
+			return err
+		}
+		if err := ensureOptionalFileSnapshotCurrent(paths.ConfigFile, configSnapshot, hadConfigSnapshot); err != nil {
+			return err
+		}
+		save := func(c *runtimeConfig) error { return saveConfig(paths, *c) }
+		var pairErr error
+		deviceID, pairErr = runSecurePairingForPairCmd(bootstrapURL, normalizedCode, &cfg, save, defaultPairingClientInfo())
+		return pairErr
+	})
 	if err != nil {
 		switch {
 		case errors.Is(err, errPairingCodeRejected):

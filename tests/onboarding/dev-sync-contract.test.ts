@@ -128,8 +128,11 @@ describe("dev-sync contract", () => {
     expect(content).toContain('missing repo skills directory');
     expect(content).toContain('missing repo version file');
     expect(content).toContain('missing repo helper runtime shim');
-    expect(readFileSync("scripts/onboarding/install-local-skills.sh", "utf8")).toContain('Missing repo skills directory');
-    expect(readFileSync("scripts/onboarding/install-local-skills.sh", "utf8")).toContain('Missing repo version file');
-    expect(readFileSync("scripts/onboarding/install-local-skills.sh", "utf8")).toContain('Missing repo helper runtime shim');
+    expect(content).toContain('missing session bootstrap');
+    const installer = readFileSync("scripts/onboarding/install-local-skills.sh", "utf8");
+    expect(installer).toContain('Missing repo skills directory');
+    expect(installer).toContain('Missing repo version file');
+    expect(installer).toContain('Missing repo helper runtime shim');
+    expect(installer).toContain('Missing mandatory session bootstrap');
   });
 });

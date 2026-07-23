@@ -100,27 +100,24 @@ func hermesLegacyBundlePresent(home string) bool {
 
 func installHermesClient(home, sourceRoot string) error {
 	bundleRoot := filepath.Join(home, ".hermes", "skills", "ha-nova")
-	if err := os.RemoveAll(bundleRoot); err != nil {
-		return err
-	}
-	if err := os.MkdirAll(bundleRoot, 0o755); err != nil {
-		return err
-	}
-
 	subSkills, err := sourceSubSkills(sourceRoot)
 	if err != nil {
 		return err
 	}
-
-	if err := writeHermesSkill(filepath.Join(sourceRoot, "skills"), "ha-nova", filepath.Join(bundleRoot, "ha-nova"), sourceRoot, subSkills); err != nil {
-		return err
-	}
-	for _, skill := range subSkills {
-		if err := writeHermesSkill(filepath.Join(sourceRoot, "skills"), skill, filepath.Join(bundleRoot, hermesInstalledSkillName(skill)), sourceRoot, subSkills); err != nil {
+	return replacePathAtomic(bundleRoot, func(stage string) error {
+		if err := os.MkdirAll(stage, 0o755); err != nil {
 			return err
 		}
-	}
-	return nil
+		if err := writeHermesSkill(filepath.Join(sourceRoot, "skills"), "ha-nova", filepath.Join(stage, "ha-nova"), sourceRoot, subSkills); err != nil {
+			return err
+		}
+		for _, skill := range subSkills {
+			if err := writeHermesSkill(filepath.Join(sourceRoot, "skills"), skill, filepath.Join(stage, hermesInstalledSkillName(skill)), sourceRoot, subSkills); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 func writeHermesSkill(skillsRoot, skillName, destDir, sourceRoot string, subSkills []string) error {

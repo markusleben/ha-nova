@@ -143,6 +143,23 @@ func TestSkillUpdateNudgeNoticeCacheMissSpawnsRefreshOnce(t *testing.T) {
 	}
 }
 
+func TestSkillUpdateNudgeDoesNotSpawnAfterUninstallStop(t *testing.T) {
+	paths, spawnCount := nudgeTestEnv(t, "0.1.0")
+	if err := markCensusLifecycleStopped(paths); err != nil {
+		t.Fatalf("mark lifecycle stopped: %v", err)
+	}
+
+	if notice := skillUpdateNudgeNotice(paths, true); !notice.empty() {
+		t.Fatalf("stopped install produced notice: %q", notice.message)
+	}
+	if *spawnCount != 0 {
+		t.Fatalf("stopped install spawned %d update refreshes", *spawnCount)
+	}
+	if _, err := os.Stat(paths.CacheDir); !os.IsNotExist(err) {
+		t.Fatalf("stopped nudge recreated cache directory: %v", err)
+	}
+}
+
 func TestSkillUpdateNudgeNoticeStaleCacheStillNudgesAndRefreshes(t *testing.T) {
 	paths, spawnCount := nudgeTestEnv(t, "0.1.0")
 	writeFreshReleaseCache(t, paths, "0.2.0")

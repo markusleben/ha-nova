@@ -33,7 +33,7 @@ func printRelayTokenStorageSetupWarning(err error) {
 	}
 }
 
-func maybeHandleInteractiveSetupCurrentState(reader *bufio.Reader, out io.Writer, paths runtimePaths, cfg runtimeConfig, current setupState, overrideApplied bool) (bool, int) {
+func maybeHandleInteractiveSetupCurrentState(reader *bufio.Reader, out io.Writer, paths runtimePaths, cfg runtimeConfig, current setupState, overrideApplied bool, lifecycleMarker ...[]byte) (bool, int) {
 	if !(current.ConfigOK || current.TokenOK || current.RelayOK || current.WSOK || current.SkillsOK) {
 		return false, 0
 	}
@@ -42,7 +42,7 @@ func maybeHandleInteractiveSetupCurrentState(reader *bufio.Reader, out io.Writer
 	renderSetupStatusSummary(out, current)
 	if current.IsComplete() {
 		if overrideApplied {
-			if err := saveConfig(paths, cfg); err != nil {
+			if err := saveSetupConfigWithLifecycle(paths, cfg, lifecycleMarker...); err != nil {
 				printHumanErr("cannot save config: %s", err)
 				return true, 1
 			}
@@ -65,6 +65,12 @@ func maybeHandleInteractiveSetupCurrentState(reader *bufio.Reader, out io.Writer
 		}
 	}
 	return false, 0
+}
+
+func saveSetupConfigWithLifecycle(paths runtimePaths, cfg runtimeConfig, lifecycleMarker ...[]byte) error {
+	return withSetupLifecycleLock(paths, lifecycleMarker, func() error {
+		return saveConfig(paths, cfg)
+	})
 }
 
 func promptYesNoFromReader(reader *bufio.Reader, out io.Writer, label string, defaultYes bool) (bool, error) {
@@ -166,6 +172,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 	defer func() {
 		restoreTokenFileOverride()
 	}()
+	setupChanged := false
 	formerServiceTokenFile := ""
 	formerServiceToken := ""
 	if !serviceMode {
@@ -186,12 +193,18 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 		// with a healthy keyring pairing short-circuits to verify and never
 		// reaches the pairing stage, so a readable keyring device credential
 		// migrates to the private-file backend now (the service contract).
-		migrated, migrateErr := migrateKeyringDeviceCredentialToFile()
+		migrated := false
+		migrateErr := withSetupLifecycleLock(paths, lifecycleMarker, func() error {
+			var err error
+			migrated, err = migrateKeyringDeviceCredentialToFile()
+			return err
+		})
 		if migrateErr != nil {
 			printHumanErr("cannot move the device credential into service file storage: %s", migrateErr)
 			return 1
 		}
 		if migrated {
+			setupChanged = true
 			printHumanInfo("Moved this install's device credential into protected service file storage.")
 		}
 		// Read any already-stored token BEFORE the file override redirects
@@ -267,7 +280,14 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 		// a keyring token store) is guarded there, failing before it consumes a
 		// one-time code — see runSetupPairingFlow. Deciding it here is impossible
 		// for the plain interactive flow, which discovers the relay URL later.
-		if !tokenPathRequired && noKeyringBackend && deviceCredentialStorageViable() {
+		deviceStorageViable := false
+		if !tokenPathRequired && noKeyringBackend {
+			_ = withSetupLifecycleLock(paths, lifecycleMarker, func() error {
+				deviceStorageViable = deviceCredentialStorageViable()
+				return nil
+			})
+		}
+		if !tokenPathRequired && noKeyringBackend && deviceStorageViable {
 			printRelayTokenStorageSetupWarning(tokenStoragePreflightErr)
 			printHumanInfo("No OS keyring is reachable here — this device will pair with secure file-backed storage instead of a shared token.")
 			tokenStoragePreflightErr = nil
@@ -296,7 +316,18 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 	// leaves the pending slot for the normal pairing flow. Runs BEFORE the flag
 	// overrides so a resume never persists unconfirmed --host/--relay-url
 	// values as a side effect.
-	if resumed, resumeErr := resumePendingActivation(&cfg, func(c *runtimeConfig) error { return saveConfig(paths, *c) }); resumeErr == nil && resumed {
+	resumed := false
+	resumeErr := withSetupLifecycleLock(paths, lifecycleMarker, func() error {
+		var err error
+		resumed, err = resumePendingActivation(&cfg, func(c *runtimeConfig) error { return saveConfig(paths, *c) })
+		return err
+	})
+	if err := ensureSetupLifecycleCurrent(paths, lifecycleMarker...); err != nil {
+		printHumanErr("%s", err)
+		return 1
+	}
+	if resumeErr == nil && resumed {
+		setupChanged = true
 		printHumanInfo("Resumed the interrupted pairing — this device is connected.")
 	}
 
@@ -312,10 +343,13 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 
 	current := detectSetupStateForAssessment(paths, cfg, state, target, savedTokenBeforeSetup, hadSavedTokenBeforeSetup)
 	if tokenStoragePreflightErr == nil {
-		if handled, code := maybeHandleInteractiveSetupCurrentState(reader, os.Stdout, paths, cfg, current, overrideApplied); handled {
-			if code == 0 && current.IsComplete() && len(lifecycleMarker) > 0 {
-				if _, err := reactivateCensusAfterSetup(paths, lifecycleMarker[0]); err != nil {
-					printHumanWarn("Setup succeeded, but the census remains disabled: %s", err)
+		if handled, code := maybeHandleInteractiveSetupCurrentState(reader, os.Stdout, paths, cfg, current, overrideApplied, lifecycleMarker...); handled {
+			needsLifecycleFinalization := setupChanged || overrideApplied ||
+				(len(lifecycleMarker) > 1 && len(lifecycleMarker[1]) > 0)
+			if code == 0 && current.IsComplete() && needsLifecycleFinalization {
+				if err := completeSetupLifecycle(paths, lifecycleMarker...); err != nil {
+					printHumanErr("cannot finalize setup lifecycle: %s", err)
+					return 1
 				}
 			}
 			if code == 0 && current.IsComplete() {
@@ -453,7 +487,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 			current = detectSetupStateForAssessment(paths, cfg, state, target, savedTokenBeforeSetup, hadSavedTokenBeforeSetup)
 			if current.IsComplete() {
 				if overrideApplied {
-					if err := saveConfig(paths, cfg); err != nil {
+					if err := saveSetupConfigWithLifecycle(paths, cfg, lifecycleMarker...); err != nil {
 						printHumanErr("cannot save config: %s", err)
 						return 1
 					}
@@ -553,7 +587,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 				// repository/app/token steps. Save the corrected address
 				// now so it survives an exit before verification succeeds.
 				hostChangeRetry = false
-				if err := saveConfig(paths, cfg); err != nil {
+				if err := saveSetupConfigWithLifecycle(paths, cfg, lifecycleMarker...); err != nil {
 					printHumanErr("cannot save config: %s", err)
 					return 1
 				}
@@ -787,7 +821,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 				// stay untouched.
 				forceDeviceCredentialFileMode()
 			}
-			pairedToken, err := runSetupPairingFlow(reader, os.Stdout, paths, &cfg, legacyTokenStoreUnavailable)
+			pairedToken, err := runSetupPairingFlow(reader, os.Stdout, paths, &cfg, legacyTokenStoreUnavailable, lifecycleMarker...)
 			if err == errSetupBack {
 				stage = pairingBackStage
 				continue
@@ -863,7 +897,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 					}
 				}
 				renderSetupSuccessLine(os.Stdout, "Secure connection verified")
-				if err := persistDeviceSetupState(paths, cfg, &state); err != nil {
+				if err := persistDeviceSetupState(paths, cfg, &state, lifecycleMarker...); err != nil {
 					printHumanErr("%s", err)
 					return 1
 				}
@@ -926,7 +960,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 				return 1
 			}
 			if !ok {
-				if err := persistInteractiveSetupStateWithRecovery(reader, os.Stdout, paths, cfg, &state, savedTokenBeforeSetup, hadSavedTokenBeforeSetup, token, &secureStorageRecovery); err != nil {
+				if err := persistInteractiveSetupStateWithRecovery(reader, os.Stdout, paths, cfg, &state, savedTokenBeforeSetup, hadSavedTokenBeforeSetup, token, &secureStorageRecovery, lifecycleMarker...); err != nil {
 					printHumanErr("%s", err)
 					return 1
 				}
@@ -937,8 +971,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 			// pairing (this branch is legacy-only; the device branch continues
 			// to Skills above) would win transport resolution on the next run
 			// and wedge the install on a dead pairing — retire it for good.
-			retireDeviceCredential(&cfg)
-			if err := persistInteractiveSetupStateWithRecovery(reader, os.Stdout, paths, cfg, &state, savedTokenBeforeSetup, hadSavedTokenBeforeSetup, token, &secureStorageRecovery); err != nil {
+			if err := persistInteractiveSetupStateWithRecoveryMode(reader, os.Stdout, paths, cfg, &state, savedTokenBeforeSetup, hadSavedTokenBeforeSetup, token, &secureStorageRecovery, true, lifecycleMarker...); err != nil {
 				printHumanErr("%s", err)
 				return 1
 			}
@@ -957,29 +990,19 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 				}
 			}
 			if err := runSetupStepWithFeedback(os.Stdout, fmt.Sprintf("Setting up HA NOVA for %s...", setupClientLabel(target)), func() error {
-				return installClients(paths, &state, selectedClients)
+				return withClientMutationLock(paths, func() error {
+					if err := installClientsAndSaveStateUnlocked(paths, &state, selectedClients, saveState, lifecycleMarker...); err != nil {
+						return err
+					}
+					finalizeServiceTokenFileMigration(formerServiceTokenFile, token)
+					return completeSetupLifecycleUnlocked(paths, lifecycleMarker...)
+				})
 			}); err != nil {
 				printHumanErr("client installation failed: %s", err)
 				renderSetupIncompleteBanner(os.Stdout, setupIssueSkillsInstall)
 				return 1
 			}
-			// Mark this version verified only if every tracked client was just
-			// synced (see allTrackedClientsSynced); a subset sync must leave the
-			// marker so the self-heal still repairs the untouched clients.
-			if allTrackedClientsSynced(state.InstalledClients, selectedClients) {
-				state.ClientsVerifiedVersion = localVersion(paths)
-			}
-			if err := saveState(paths, state); err != nil {
-				printHumanErr("cannot save state: %s", err)
-				return 1
-			}
-			finalizeServiceTokenFileMigration(formerServiceTokenFile, token)
 			renderSetupCompleteBanner(os.Stdout, selectedClients)
-			if len(lifecycleMarker) > 0 {
-				if _, err := reactivateCensusAfterSetup(paths, lifecycleMarker[0]); err != nil {
-					printHumanWarn("Setup succeeded, but the census remains disabled: %s", err)
-				}
-			}
 			// One-time census ask AFTER the complete banner — clearly outside
 			// the numbered wizard steps, never readable as a setup hurdle.
 			// A queued Enter from the wizard's last step must not silently
@@ -993,8 +1016,12 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 	}
 }
 
-func persistInteractiveSetupStateWithRecovery(reader *bufio.Reader, out io.Writer, paths runtimePaths, cfg runtimeConfig, state *installState, previousToken string, hadPreviousToken bool, token string, recovery *setupSecureStorageRecoveryState) error {
-	err := persistInteractiveSetupState(paths, cfg, state, previousToken, hadPreviousToken, token)
+func persistInteractiveSetupStateWithRecovery(reader *bufio.Reader, out io.Writer, paths runtimePaths, cfg runtimeConfig, state *installState, previousToken string, hadPreviousToken bool, token string, recovery *setupSecureStorageRecoveryState, lifecycleMarker ...[]byte) error {
+	return persistInteractiveSetupStateWithRecoveryMode(reader, out, paths, cfg, state, previousToken, hadPreviousToken, token, recovery, false, lifecycleMarker...)
+}
+
+func persistInteractiveSetupStateWithRecoveryMode(reader *bufio.Reader, out io.Writer, paths runtimePaths, cfg runtimeConfig, state *installState, previousToken string, hadPreviousToken bool, token string, recovery *setupSecureStorageRecoveryState, retireDevice bool, lifecycleMarker ...[]byte) error {
+	err := persistInteractiveSetupStateWithMode(paths, cfg, state, previousToken, hadPreviousToken, token, retireDevice, lifecycleMarker...)
 	if err == nil {
 		return nil
 	}
@@ -1013,5 +1040,5 @@ func persistInteractiveSetupStateWithRecovery(reader *bufio.Reader, out io.Write
 		return relayAuthTokenSetupSaveError(err)
 	}
 
-	return persistInteractiveSetupState(paths, cfg, state, previousToken, hadPreviousToken, token)
+	return persistInteractiveSetupStateWithMode(paths, cfg, state, previousToken, hadPreviousToken, token, retireDevice, lifecycleMarker...)
 }

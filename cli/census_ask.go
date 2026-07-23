@@ -132,12 +132,16 @@ const censusSkillNoticeBlock = `CENSUS ASK PENDING: One-time question for the us
 // human paths (never --json). The counter is persisted BEFORE printing so a
 // crash cannot mint extra emissions.
 func maybeEmitCensusSkillNotice(paths runtimePaths) {
+	maybeEmitCensusSkillNoticeTo(paths, os.Stdout)
+}
+
+func maybeEmitCensusSkillNoticeTo(paths runtimePaths, out io.Writer) bool {
 	if BuildChannel == "dev" || censusOptedOutByEnv() {
-		return
+		return true
 	}
 	state := loadCensusState(paths)
 	if state.AskedAt != "" || state.SkillNotices >= censusSkillNoticeCap {
-		return
+		return true
 	}
 	// Serialize the cap across concurrent processes (session-start hooks can
 	// fan out several `check-update --quiet` at once). Each contender proposes
@@ -159,7 +163,8 @@ func maybeEmitCensusSkillNotice(paths runtimePaths) {
 			s.Answer = "none"
 		}
 	}); err != nil || !emitted {
-		return
+		return false
 	}
-	fmt.Fprintln(os.Stdout, censusSkillNoticeBlock)
+	fmt.Fprintln(out, censusSkillNoticeBlock)
+	return true
 }

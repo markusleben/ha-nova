@@ -1,14 +1,10 @@
 package main
 
 import (
-	"bytes"
-	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
-	"runtime"
 	"strings"
 	"time"
 )
@@ -108,7 +104,8 @@ var (
 	// one CLI process do not serialize goroutines. Take this bounded local lock
 	// before the cross-process platform lock. One global coordinator is enough:
 	// census work is rare and bounded to a single 1.5-second request.
-	censusProcessLock = make(chan struct{}, 1)
+	censusProcessLock        = make(chan struct{}, 1)
+	censusPassiveLockTimeout = time.Millisecond
 )
 
 // acquireCensusLock takes a bounded in-process lock followed by a platform
@@ -118,12 +115,16 @@ var (
 // race. Process exit releases the platform lock automatically. Every
 // preparation/lock error fails closed. NOT reentrant.
 func acquireCensusLock(paths runtimePaths) (func(), bool) {
+	return acquireCensusLockWithin(paths, censusLockTimeout)
+}
+
+func acquireCensusLockWithin(paths runtimePaths, timeout time.Duration) (func(), bool) {
 	unlocked := func() {}
 	if paths.ConfigDir == "" {
 		return unlocked, false
 	}
 	started := time.Now()
-	timer := time.NewTimer(censusLockTimeout)
+	timer := time.NewTimer(timeout)
 	defer func() {
 		if !timer.Stop() {
 			select {
@@ -138,7 +139,7 @@ func acquireCensusLock(paths runtimePaths) (func(), bool) {
 		return unlocked, false
 	}
 	releaseProcess := func() { <-censusProcessLock }
-	remaining := censusLockTimeout - time.Since(started)
+	remaining := timeout - time.Since(started)
 	if remaining <= 0 {
 		releaseProcess()
 		return unlocked, false
@@ -162,7 +163,11 @@ func acquireCensusLock(paths runtimePaths) (func(), bool) {
 // The centralized ping path takes this lock directly and does not call this
 // helper while holding it.
 func mutateCensusState(paths runtimePaths, mutate func(*censusState)) error {
-	release, ok := acquireCensusLock(paths)
+	return mutateCensusStateWithin(paths, censusLockTimeout, mutate)
+}
+
+func mutateCensusStateWithin(paths runtimePaths, timeout time.Duration, mutate func(*censusState)) error {
+	release, ok := acquireCensusLockWithin(paths, timeout)
 	if !ok {
 		return fmt.Errorf("census state is locked by another process")
 	}
@@ -200,92 +205,6 @@ func censusInstallActive(paths runtimePaths) bool {
 	}
 	info, err := os.Stat(paths.StateFile)
 	return err == nil && !info.IsDir() && !censusLifecycleStopped(paths)
-}
-
-// The uninstall marker lives beside (not inside) a persistent device/user-local
-// root, so managed-directory and cache cleanup cannot remove it. It contains only an opaque
-// random nonce: no user, consent, timestamp, process, or census data. A setup
-// that started after that exact marker was written may
-// remove it on successful completion; stale update/setup processes cannot.
-func censusLifecycleMarkerPath(paths runtimePaths) string {
-	// Cache roots are disposable and cannot uphold an uninstall barrier. Keep
-	// the marker beside the managed config root on Unix, and beside the
-	// device-local data root on Windows (never roaming APPDATA).
-	base := paths.ConfigDir
-	if runtime.GOOS == "windows" {
-		base = paths.LocalDataDir
-	}
-	if base == "" {
-		if paths.Home == "" {
-			return ""
-		}
-		if runtime.GOOS == "windows" {
-			base = filepath.Join(paths.Home, "AppData", "Local", "ha-nova")
-		} else {
-			base = filepath.Join(paths.Home, ".config", "ha-nova")
-		}
-	}
-	return filepath.Join(filepath.Dir(base), ".ha-nova-census-uninstalled")
-}
-
-func censusLifecycleStopped(paths runtimePaths) bool {
-	marker := censusLifecycleMarkerPath(paths)
-	if marker == "" {
-		return true
-	}
-	_, err := os.Stat(marker)
-	return err == nil || !errors.Is(err, os.ErrNotExist)
-}
-
-func captureCensusLifecycleMarker(paths runtimePaths) []byte {
-	marker := censusLifecycleMarkerPath(paths)
-	if marker == "" {
-		return nil
-	}
-	data, err := os.ReadFile(marker)
-	if err != nil || len(data) == 0 {
-		return nil
-	}
-	return data
-}
-
-func markCensusLifecycleStopped(paths runtimePaths) error {
-	marker := censusLifecycleMarkerPath(paths)
-	if marker == "" {
-		return fmt.Errorf("census lifecycle marker path unknown")
-	}
-	var nonce [32]byte
-	if _, err := rand.Read(nonce[:]); err != nil {
-		return fmt.Errorf("generate census lifecycle nonce: %w", err)
-	}
-	value := fmt.Sprintf("%x", nonce[:])
-	return writeJSONFile(marker, value, 0o600)
-}
-
-func reactivateCensusAfterSetup(paths runtimePaths, captured []byte) (bool, error) {
-	if len(captured) == 0 {
-		return false, nil
-	}
-	release, ok := acquireCensusLock(paths)
-	if !ok {
-		return false, fmt.Errorf("cannot acquire census lifecycle lock")
-	}
-	defer release()
-	marker := censusLifecycleMarkerPath(paths)
-	current, err := os.ReadFile(marker)
-	if errors.Is(err, os.ErrNotExist) {
-		return true, nil
-	}
-	if err != nil {
-		return false, err
-	}
-	if !bytes.Equal(current, captured) {
-		return false, nil
-	}
-	if err := os.Remove(marker); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return false, err
-	}
-	return true, nil
 }
 
 // censusISOWeek renders the UTC ISO-8601 week label, zero-padded so that
@@ -342,7 +261,7 @@ func stampCensusRelayVersion(paths runtimePaths, version string) {
 	// our unlocked pre-check and this write must not be followed by any census
 	// state accrual ("only for opted-in installs" holds under races too).
 	censusPreMutateHook()
-	_ = mutateCensusState(paths, func(s *censusState) {
+	_ = mutateCensusStateWithin(paths, censusPassiveLockTimeout, func(s *censusState) {
 		if !s.Enabled {
 			return
 		}

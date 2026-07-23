@@ -31,7 +31,13 @@ var verifyDeviceHealth = func(cfg runtimeConfig) bool {
 // written during pairing) and the install state. It deliberately does NOT touch
 // the relay auth token: device mode has no shared token, and the device
 // credential already lives in its own keyring slot.
-func persistDeviceSetupState(paths runtimePaths, cfg runtimeConfig, state *installState) error {
+func persistDeviceSetupState(paths runtimePaths, cfg runtimeConfig, state *installState, lifecycleMarker ...[]byte) error {
+	return withSetupLifecycleLock(paths, lifecycleMarker, func() error {
+		return persistDeviceSetupStateUnlocked(paths, cfg, state)
+	})
+}
+
+func persistDeviceSetupStateUnlocked(paths runtimePaths, cfg runtimeConfig, state *installState) error {
 	if err := saveConfig(paths, cfg); err != nil {
 		return err
 	}
@@ -40,6 +46,9 @@ func persistDeviceSetupState(paths runtimePaths, cfg runtimeConfig, state *insta
 	// paired install as pre-setup.
 	state.Version = localVersion(paths)
 	state.InstallSource = detectInstallSource(paths, *state)
+	if err := mergeLatestSetupState(paths, state); err != nil {
+		return err
+	}
 	return saveState(paths, *state)
 }
 

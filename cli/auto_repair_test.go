@@ -167,11 +167,13 @@ func TestAttemptClientAutoRepair_SkipsClaudeWhenSnapshotHealthyAtRepairTime(t *t
 
 func TestRunClientAutoRepair_SkipsWhenLockHeld(t *testing.T) {
 	configDir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(configDir, "auto-repair.lock"), nil, 0o600); err != nil {
-		t.Fatalf("write lock: %v", err)
+	paths := runtimePaths{ConfigDir: configDir}
+	release, acquired := acquireAutoRepairLock(paths)
+	if !acquired {
+		t.Fatal("expected first lock acquisition")
 	}
 
-	got := runClientAutoRepair(runtimePaths{ConfigDir: configDir}, []clientStatus{
+	got := runClientAutoRepair(paths, []clientStatus{
 		{ID: "claude", Label: "Claude Code", Ready: true, RuntimeDetected: true, Attached: true},
 	})
 	if len(got) != 1 {
@@ -181,29 +183,71 @@ func TestRunClientAutoRepair_SkipsWhenLockHeld(t *testing.T) {
 		t.Fatalf("expected lock skip outcome, got %+v", got[0])
 	}
 	if _, err := os.Stat(filepath.Join(configDir, "auto-repair.lock")); err != nil {
-		t.Fatalf("expected foreign lock to stay in place, got %v", err)
+		t.Fatalf("expected held compatibility lock to stay in place, got %v", err)
+	}
+	release()
+	got = runClientAutoRepair(paths, []clientStatus{
+		{ID: "claude", Label: "Claude Code", Ready: true, RuntimeDetected: true, Attached: true},
+	})
+	if len(got) != 1 || !got[0].Skipped || !strings.Contains(got[0].SkipReason, "ready") {
+		t.Fatalf("expected repair to proceed after release, got %+v", got)
 	}
 }
 
-func TestRunClientAutoRepair_StealsStaleLockAndReleases(t *testing.T) {
+func TestRunClientAutoRepair_FailsClosedForFreshLegacyLock(t *testing.T) {
 	configDir := t.TempDir()
 	lockPath := filepath.Join(configDir, "auto-repair.lock")
 	if err := os.WriteFile(lockPath, nil, 0o600); err != nil {
 		t.Fatalf("write lock: %v", err)
 	}
-	stale := time.Now().Add(-autoRepairLockStaleAfter - time.Minute)
-	if err := os.Chtimes(lockPath, stale, stale); err != nil {
-		t.Fatalf("age lock: %v", err)
-	}
 
 	got := runClientAutoRepair(runtimePaths{ConfigDir: configDir}, []clientStatus{
 		{ID: "claude", Label: "Claude Code", Ready: true, RuntimeDetected: true, Attached: true},
 	})
+	if len(got) != 1 || !got[0].Skipped || !strings.Contains(got[0].SkipReason, "in progress") {
+		t.Fatalf("expected unknown legacy lock to block mutation, got %+v", got)
+	}
+	if _, err := os.Stat(lockPath); err != nil {
+		t.Fatalf("expected unknown legacy lock to remain, got %v", err)
+	}
+}
+
+func TestRunClientAutoRepair_RecoversStaleLegacyLock(t *testing.T) {
+	configDir := t.TempDir()
+	lockPath := filepath.Join(configDir, "auto-repair.lock")
+	if err := os.WriteFile(lockPath, nil, 0o600); err != nil {
+		t.Fatalf("write legacy lock: %v", err)
+	}
+	stale := time.Now().Add(-legacyAutoRepairLockStaleAfter - time.Minute)
+	if err := os.Chtimes(lockPath, stale, stale); err != nil {
+		t.Fatalf("age legacy lock: %v", err)
+	}
+	got := runClientAutoRepair(runtimePaths{ConfigDir: configDir}, []clientStatus{
+		{ID: "claude", Label: "Claude Code", Ready: true, RuntimeDetected: true, Attached: true},
+	})
 	if len(got) != 1 || !got[0].Skipped || !strings.Contains(got[0].SkipReason, "ready") {
-		t.Fatalf("expected stale lock to be stolen and run to proceed, got %+v", got)
+		t.Fatalf("expected stale legacy lock recovery, got %+v", got)
 	}
 	if _, err := os.Stat(lockPath); !os.IsNotExist(err) {
-		t.Fatalf("expected lock to be released after run, got %v", err)
+		t.Fatalf("expected compatibility guard released, got %v", err)
+	}
+}
+
+func TestAutoRepairLockPreservesForeignDirectory(t *testing.T) {
+	configDir := t.TempDir()
+	foreign := filepath.Join(configDir, "auto-repair.lock", "private.txt")
+	if err := os.MkdirAll(filepath.Dir(foreign), 0o755); err != nil {
+		t.Fatalf("mkdir foreign lock dir: %v", err)
+	}
+	if err := os.WriteFile(foreign, []byte("keep\n"), 0o600); err != nil {
+		t.Fatalf("write foreign lock content: %v", err)
+	}
+	if release, acquired := acquireAutoRepairLock(runtimePaths{ConfigDir: configDir}); acquired {
+		release()
+		t.Fatal("foreign lock directory must fail closed")
+	}
+	if content, err := os.ReadFile(foreign); err != nil || string(content) != "keep\n" {
+		t.Fatalf("foreign lock directory changed: content=%q err=%v", content, err)
 	}
 }
 

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -301,36 +302,106 @@ func relayNoticeTransport(cfg config) (string, *http.Client, string, bool) {
 }
 
 // relayUpdateNotice preserves the compatibility-floor warning and, when the
-// floor is satisfied, also surfaces an exact pending NOVA Relay App update
+// floor is satisfied, also surfaces a registry-proven pending Relay App update
 // reported by Home Assistant. Missing or ambiguous update-entity evidence is
 // best-effort silence so standalone Container/Core installs stay unchanged.
 func relayUpdateNotice(paths runtimePaths) humanNotice {
-	if notice := relayFloorNotice(paths); !notice.empty() {
-		return notice
-	}
+	return relayUpdateNoticeWithContext(context.Background(), paths)
+}
+
+func relayUpdateNoticeWithTimeout(paths runtimePaths, timeout time.Duration) humanNotice {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	return relayUpdateNoticeWithContext(ctx, paths)
+}
+
+func relayUpdateNoticeWithContext(ctx context.Context, paths runtimePaths) humanNotice {
 	cfg, err := loadConfig(paths)
 	if err != nil || cfg.RelayBaseURL == "" {
 		return humanNotice{}
 	}
-	_, _, credential, ok := relayNoticeTransport(cfg)
+	base, client, credential, ok := relayNoticeTransport(cfg)
 	if !ok {
 		return humanNotice{}
 	}
+	floorNotice := humanNotice{}
+	if body, healthErr := fetchRelayHealthWithContext(ctx, client, base, credential); healthErr == nil {
+		floorNotice = checkRelayVersion(paths, body)
+	}
+	// Resolve the exact HA update entity even when the Relay is below the
+	// compatibility floor. Only that evidence distinguishes an App that can
+	// use the guided update flow from a standalone container/manual path.
 	// relayCoreRequest resolves the actual transport itself; the credential
 	// only matters for the legacy path.
-	return relayAvailableUpdateNotice(cfg, credential)
+	candidate, _ := resolveRelayUpdateCandidateWithTransport(ctx, base, client, credential)
+	if !floorNotice.empty() {
+		if candidate.updateAvailable() {
+			if !candidate.guidedInstallReady() {
+				return humanNotice{
+					level: humanNoticeWarning,
+					kind:  humanNoticeKindRelayUpdateAvailable,
+					message: fmt.Sprintf(
+						"%s Home Assistant reports a NOVA Relay App update: v%s → v%s, but its entity does not support the required install-plus-backup flow. Inform the user to update it manually in Home Assistant > Settings > Apps > NOVA Relay.",
+						floorNotice.message,
+						candidate.InstalledVersion,
+						candidate.LatestVersion,
+					),
+				}
+			}
+			return humanNotice{
+				level: humanNoticeWarning,
+				kind:  humanNoticeKindRelayUpdateAvailable,
+				message: fmt.Sprintf(
+					"%s Home Assistant reports a NOVA Relay App update: v%s → v%s. Inform the user, then offer to prepare the guided App update through ha-nova:updates; that skill must show its preview and obtain confirmation before installing.",
+					floorNotice.message,
+					candidate.InstalledVersion,
+					candidate.LatestVersion,
+				),
+			}
+		}
+		if candidate.EntityID != "" {
+			return humanNotice{
+				level: floorNotice.level,
+				kind:  floorNotice.kind,
+				message: floorNotice.message +
+					" Home Assistant confirms the NOVA Relay App is installed, but it currently exposes no pending App update. Refresh the App store and update or reinstall NOVA Relay there; do not use a container image pull.",
+			}
+		}
+		return humanNotice{
+			level: floorNotice.level,
+			kind:  floorNotice.kind,
+			message: floorNotice.message +
+				" No registry-proven pending NOVA Relay App update was found; open Home Assistant > Settings > Apps > NOVA Relay, or pull and recreate a standalone Relay container.",
+		}
+	}
+	return relayAvailableUpdateNoticeFromCandidate(candidate)
 }
 
 func relayAvailableUpdateNotice(cfg config, token string) humanNotice {
 	candidate, _ := resolveRelayUpdateCandidate(cfg, token)
+	return relayAvailableUpdateNoticeFromCandidate(candidate)
+}
+
+func relayAvailableUpdateNoticeFromCandidate(candidate relayUpdateCandidate) humanNotice {
 	if !candidate.updateAvailable() {
 		return humanNotice{}
+	}
+	if !candidate.guidedInstallReady() {
+		return humanNotice{
+			level: humanNoticeWarning,
+			kind:  humanNoticeKindRelayUpdateAvailable,
+			message: fmt.Sprintf(
+				"Relay update available: v%s → v%s, but the App entity does not support the required install-plus-backup flow. Inform the user to update it manually in Home Assistant > Settings > Apps > NOVA Relay.",
+				candidate.InstalledVersion,
+				candidate.LatestVersion,
+			),
+		}
 	}
 	return humanNotice{
 		level: humanNoticeWarning,
 		kind:  humanNoticeKindRelayUpdateAvailable,
 		message: fmt.Sprintf(
-			"Relay update available: v%s → v%s. Inform the user, then ask whether to install the relay update now — the updates skill (ha-nova:updates) handles the App update.",
+			"Relay update available: v%s → v%s. Inform the user, then offer to prepare the guided App update through ha-nova:updates; that skill must show its preview and obtain confirmation before installing.",
 			candidate.InstalledVersion,
 			candidate.LatestVersion,
 		),
@@ -366,7 +437,7 @@ func checkRelayVersionValue(paths runtimePaths, relayVersion string) humanNotice
 		return humanNotice{
 			level:   humanNoticeWarning,
 			kind:    humanNoticeKindRelayOutdated,
-			message: fmt.Sprintf("Relay outdated: v%s is below minimum v%s. Inform the user, then ask whether to install the relay update now — the updates skill (ha-nova:updates) handles the App update; a standalone container needs a manual image pull.", relayVersion, v.MinRelayVersion),
+			message: fmt.Sprintf("Relay outdated: v%s is below minimum v%s. Inform the user that the Relay must be updated before compatible operation.", relayVersion, v.MinRelayVersion),
 		}
 	}
 	return humanNotice{}
@@ -398,8 +469,10 @@ func cacheReleaseInfo(paths runtimePaths, info releaseInfo) {
 	if info.Version == "" {
 		return
 	}
-	if err := os.MkdirAll(filepath.Dir(paths.UpdateCacheFile), 0o755); err != nil {
-		return
-	}
-	_ = writeJSONFileNoHTMLEscape(paths.UpdateCacheFile, info, 0o644)
+	mutateActiveInstallCache(paths, func() {
+		if err := os.MkdirAll(filepath.Dir(paths.UpdateCacheFile), 0o755); err != nil {
+			return
+		}
+		_ = writeJSONFileNoHTMLEscape(paths.UpdateCacheFile, info, 0o644)
+	})
 }

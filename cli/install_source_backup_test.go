@@ -32,7 +32,7 @@ func writeBundleTestFile(t *testing.T, path, content string, mode os.FileMode) {
 
 // writeMinimalBundleTree builds a self-contained, platform-matched bundle root
 // good enough for validateBundleRoot and the file-client adapters: bundle.json,
-// a fake runtime binary, version.json, a 3-client registry, a context skill that
+// a fake runtime binary, version.json, a 4-client registry, a context skill that
 // references a shared doc (so the Hermes/Antigravity adapters bake an absolute
 // sourceRoot path we can assert on), and one sub-skill. includeWriteSafety adds
 // the canonical skills/ha-nova/write-safety.md — present in the NEW bundle and
@@ -49,15 +49,17 @@ func writeMinimalBundleTree(t *testing.T, root, version string, includeWriteSafe
 		`{"clients":[`+
 			`{"id":"hermes","label":"Hermes Agent","adapter_kind":"skill_tree","supported_os":["macos","linux"]},`+
 			`{"id":"codex","label":"Codex CLI","adapter_kind":"skill_tree","supported_os":["macos","linux","windows"]},`+
+			`{"id":"opencode","label":"OpenCode","adapter_kind":"skill_tree","supported_os":["macos","linux","windows"]},`+
 			`{"id":"antigravity","label":"Google Antigravity","adapter_kind":"skill_flat","supported_os":["macos","linux","windows"]}`+
 			`]}`, 0o644)
 	writeBundleTestFile(t, filepath.Join(root, "docs", "reference", "foo.md"), "# Foo\n", 0o644)
-	ctx := "---\nname: ha-nova\n---\n\nContext skill. See `docs/reference/foo.md` for details.\n"
+	ctx := "---\nname: ha-nova\n---\n\nContext skill. Read `../ha-nova/session-bootstrap.md`. See `docs/reference/foo.md` for details.\n"
 	writeBundleTestFile(t, filepath.Join(root, "skills", "ha-nova", "SKILL.md"), ctx, 0o644)
+	writeBundleTestFile(t, filepath.Join(root, "skills", "ha-nova", "session-bootstrap.md"), "# Session Bootstrap\n", 0o644)
 	if includeWriteSafety {
 		writeBundleTestFile(t, filepath.Join(root, "skills", "ha-nova", "write-safety.md"), "# Write Safety\n", 0o644)
 	}
-	writeBundleTestFile(t, filepath.Join(root, "skills", "read", "SKILL.md"), "---\nname: read\n---\n\nRead skill.\n", 0o644)
+	writeBundleTestFile(t, filepath.Join(root, "skills", "read", "SKILL.md"), "---\nname: read\n---\n\nRead and follow `../ha-nova/session-bootstrap.md`.\n", 0o644)
 }
 
 func TestResolveSourceRootSkipsTransientBackup(t *testing.T) {

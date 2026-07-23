@@ -69,7 +69,8 @@ func TestRunPairCommandCredentialStoreFileBypassesLockedKeyring(t *testing.T) {
 	stubStorageCanaries(t, desktopKeyringLockedError("default Secret Service collection is locked"))
 	dir := t.TempDir()
 	configFile := filepath.Join(dir, "config.json")
-	if err := saveConfig(runtimePaths{ConfigFile: configFile}, runtimeConfig{RelayBaseURL: "http://ha:8791"}); err != nil {
+	paths := runtimePaths{ConfigDir: dir, ConfigFile: configFile}
+	if err := saveConfig(paths, runtimeConfig{RelayBaseURL: "http://ha:8791"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -82,7 +83,7 @@ func TestRunPairCommandCredentialStoreFileBypassesLockedKeyring(t *testing.T) {
 	defer func() { runSecurePairingForPairCmd = orig }()
 
 	// Without the opt-in the locked keyring stays a hard, code-preserving error.
-	if rc := runPairCommand(runtimePaths{ConfigFile: configFile}, []string{"--code", "123456"}); rc == 0 {
+	if rc := runPairCommand(paths, []string{"--code", "123456"}); rc == 0 {
 		t.Fatal("locked keyring without the opt-in must fail")
 	}
 	if paired {
@@ -90,7 +91,7 @@ func TestRunPairCommandCredentialStoreFileBypassesLockedKeyring(t *testing.T) {
 	}
 
 	// The explicit opt-in routes the same machine to the file backend and pairs.
-	if rc := runPairCommand(runtimePaths{ConfigFile: configFile}, []string{"--code", "123456", "--credential-store=file"}); rc != 0 {
+	if rc := runPairCommand(paths, []string{"--code", "123456", "--credential-store=file"}); rc != 0 {
 		t.Fatalf("rc=%d, want 0 with --credential-store=file", rc)
 	}
 	if !paired {

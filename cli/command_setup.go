@@ -42,7 +42,22 @@ func runSetup(paths runtimePaths, args []string) int {
 		printHumanErr("%s", err)
 		return 1
 	}
-	censusLifecycleMarker := captureCensusLifecycleMarker(paths)
+	setupGeneration, err := readInstallLifecycleGeneration(paths)
+	if err != nil {
+		printHumanErr("cannot inspect install lifecycle: %s", err)
+		return 1
+	}
+	setupCensusMarker, err := readCensusLifecycleMarker(paths)
+	if err != nil {
+		printHumanErr("cannot inspect uninstall lifecycle: %s", err)
+		return 1
+	}
+	setupConfigSnapshot, err := readSetupConfigSnapshot(paths)
+	if err != nil {
+		printHumanErr("cannot inspect server configuration: %s", err)
+		return 1
+	}
+	setupLifecycle := [][]byte{setupGeneration, setupCensusMarker, setupConfigSnapshot}
 
 	// Setup administers only the default server profile (layer 1): the legacy
 	// token flow, service mode, and client sync are default-profile machinery,
@@ -97,7 +112,7 @@ func runSetup(paths runtimePaths, args []string) int {
 	}
 
 	if !*nonInteractive {
-		return interactiveSetup(paths, cfg, state, target, *host, *haURL, *relayURL, *relayToken, *serviceMode, censusLifecycleMarker)
+		return interactiveSetup(paths, cfg, state, target, *host, *haURL, *relayURL, *relayToken, *serviceMode, setupLifecycle...)
 	}
 
 	if target == "" {
@@ -133,7 +148,12 @@ func runSetup(paths runtimePaths, args []string) int {
 		// Re-setups with a healthy pairing never reach a pairing stage, so a
 		// readable keyring credential migrates to the private-file backend now
 		// — a rejected invocation above must not mutate credential storage.
-		migrated, migrateErr := migrateKeyringDeviceCredentialToFile()
+		migrated := false
+		migrateErr := withSetupLifecycleLock(paths, setupLifecycle, func() error {
+			var err error
+			migrated, err = migrateKeyringDeviceCredentialToFile()
+			return err
+		})
 		if migrateErr != nil {
 			printHumanErr("cannot move the device credential into service file storage: %s", migrateErr)
 			return 1
@@ -200,7 +220,7 @@ func runSetup(paths runtimePaths, args []string) int {
 			// whose credential is file-backed, no keyring — BEFORE failing on the
 			// legacy-token store, so a paired box still installs/syncs clients.
 			if pairedDeviceAvailable() {
-				return completeNonInteractivePairedSetup(paths, cfg, state, selectedClients, censusLifecycleMarker)
+				return completeNonInteractivePairedSetup(paths, cfg, state, selectedClients, setupLifecycle...)
 			}
 			printHumanErr("%s", relayAuthTokenProblemMessage(tokenStoragePreflightErr))
 			if hint := setupSecureStorageRecoveryHint(tokenStoragePreflightErr); hint != "" {
@@ -225,7 +245,7 @@ func runSetup(paths runtimePaths, args []string) int {
 	// No legacy token (stored or flag) but a device pairing exists: honor it
 	// instead of prompting/requiring a token.
 	if token == "" && pairedDeviceAvailable() {
-		return completeNonInteractivePairedSetup(paths, cfg, state, selectedClients, censusLifecycleMarker)
+		return completeNonInteractivePairedSetup(paths, cfg, state, selectedClients, setupLifecycle...)
 	}
 	if token == "" && !*nonInteractive {
 		answer, err := promptLine("Relay auth token", "")
@@ -247,29 +267,44 @@ func runSetup(paths runtimePaths, args []string) int {
 		}
 		return 1
 	}
+	releaseMutation, acquired := acquireAutoRepairLock(paths)
+	if !acquired {
+		printHumanErr("another HA NOVA client update is already in progress")
+		return 1
+	}
+	if err := ensureSetupLifecycleCurrent(paths, setupLifecycle...); err != nil {
+		releaseMutation()
+		printHumanErr("%s", err)
+		return 1
+	}
 	previousToken, tokenErr := readRelayAuthToken()
 	hadPreviousToken := tokenErr == nil && strings.TrimSpace(previousToken) != ""
 	tokenChanged := !hadPreviousToken || previousToken != token
-
+	if tokenChanged {
+		if err := relayAuthTokenSetupPreflightForSetup(); err != nil {
+			releaseMutation()
+			printHumanErr("%s", relayAuthTokenSetupSaveError(err))
+			if hint := setupSecureStorageRecoveryHint(err); hint != "" {
+				printHumanWarn("%s", hint)
+			}
+			return 1
+		}
+	}
 	configSnapshot, hadConfigSnapshot, err := readOptionalFile(paths.ConfigFile)
 	if err != nil {
+		releaseMutation()
 		printHumanErr("cannot snapshot config: %s", err)
 		return 1
 	}
 	stateSnapshot, hadStateSnapshot, err := readOptionalFile(paths.StateFile)
 	if err != nil {
+		releaseMutation()
 		printHumanErr("cannot snapshot state: %s", err)
 		return 1
 	}
 	if tokenChanged {
-		if err := relayAuthTokenSetupPreflightForSetup(); err != nil {
-			printHumanErr("%s", relayAuthTokenSetupSaveError(err))
-			if hint := setupSecureStorageRecoveryHint(err); hint != "" {
-				printHumanWarn("%s", hint)
-			}
-			return 1
-		}
 		if err := writeRelayAuthTokenForSetup(token); err != nil {
+			releaseMutation()
 			printHumanErr("%s", relayAuthTokenSetupSaveError(err))
 			if hint := setupSecureStorageRecoveryHint(err); hint != "" {
 				printHumanWarn("%s", hint)
@@ -277,47 +312,63 @@ func runSetup(paths runtimePaths, args []string) int {
 			return 1
 		}
 	}
-
 	if err := saveConfigForSetup(paths, cfg); err != nil {
-		restoreRelayAuthToken(previousToken, hadPreviousToken, tokenChanged)
+		rollbackErr := errors.Join(
+			restoreRelayAuthToken(previousToken, hadPreviousToken, tokenChanged),
+			restoreOptionalFile(paths.ConfigFile, configSnapshot, hadConfigSnapshot),
+		)
+		releaseMutation()
 		printHumanErr("cannot save config: %s", err)
+		printSetupRollbackFailure(rollbackErr)
+		return 1
+	}
+	if err := refreshSetupConfigSnapshot(paths, setupLifecycle); err != nil {
+		rollbackErr := errors.Join(
+			restoreRelayAuthToken(previousToken, hadPreviousToken, tokenChanged),
+			restoreOptionalFile(paths.ConfigFile, configSnapshot, hadConfigSnapshot),
+		)
+		releaseMutation()
+		printHumanErr("cannot verify saved config: %s", err)
+		printSetupRollbackFailure(rollbackErr)
 		return 1
 	}
 	state.Version = localVersion(paths)
 	state.InstallSource = detectInstallSource(paths, state)
-	if err := saveStateForSetup(paths, state); err != nil {
-		rollbackSetupPersistence(
-			paths,
-			previousToken,
-			hadPreviousToken,
-			tokenChanged,
-			configSnapshot,
-			hadConfigSnapshot,
-			stateSnapshot,
-			hadStateSnapshot,
+	if err := mergeLatestSetupState(paths, &state); err != nil {
+		rollbackErr := errors.Join(
+			restoreRelayAuthToken(previousToken, hadPreviousToken, tokenChanged),
+			restoreOptionalFile(paths.ConfigFile, configSnapshot, hadConfigSnapshot),
 		)
-		printHumanErr("cannot save state: %s", err)
+		releaseMutation()
+		printHumanErr("cannot merge state: %s", err)
+		printSetupRollbackFailure(rollbackErr)
 		return 1
 	}
-
+	if err := saveStateForSetup(paths, state); err != nil {
+		rollbackErr := errors.Join(
+			restoreRelayAuthToken(previousToken, hadPreviousToken, tokenChanged),
+			restoreOptionalFile(paths.ConfigFile, configSnapshot, hadConfigSnapshot),
+			restoreOptionalFile(paths.StateFile, stateSnapshot, hadStateSnapshot),
+		)
+		releaseMutation()
+		printHumanErr("cannot save state: %s", err)
+		printSetupRollbackFailure(rollbackErr)
+		return 1
+	}
 	printHumanInfo("Saved HA NOVA configuration")
 
 	_, issue, ok := verifySetupConnectionOnce(os.Stdout, cfg, token, false)
 	if !ok {
-		rollbackSetupPersistence(
-			paths,
-			previousToken,
-			hadPreviousToken,
-			tokenChanged,
-			configSnapshot,
-			hadConfigSnapshot,
-			stateSnapshot,
-			hadStateSnapshot,
+		rollbackErr := errors.Join(
+			restoreRelayAuthToken(previousToken, hadPreviousToken, tokenChanged),
+			restoreOptionalFile(paths.ConfigFile, configSnapshot, hadConfigSnapshot),
+			restoreOptionalFile(paths.StateFile, stateSnapshot, hadStateSnapshot),
 		)
+		releaseMutation()
 		renderSetupIncompleteBanner(os.Stdout, issue)
+		printSetupRollbackFailure(rollbackErr)
 		return 1
 	}
-
 	// An EXPLICIT --relay-token now serves this install — retire any leftover
 	// device pairing, or the trailing doctor run (and every skill call) would
 	// resolve the dead pairing first and fail. Mirrors the interactive token
@@ -327,33 +378,38 @@ func runSetup(paths runtimePaths, args []string) int {
 	// being dead, and revoking it server-side is irreversible.
 	if explicitTokenIntent && (cfg.RelaySecureBaseURL != "" || cfg.RelaySpkiPin != "") {
 		printHumanInfo("Switching this install to the provided relay token; retiring its device pairing.")
-		retireDeviceCredential(&cfg)
-		if err := saveConfigForSetup(paths, cfg); err != nil {
-			printHumanErr("cannot save config: %s", err)
+		var retireErr error
+		cfg, retireErr = saveConfigBeforeDeviceRetirement(paths, cfg, saveConfigForSetup)
+		if retireErr != nil {
+			rollbackErr := errors.Join(
+				restoreRelayAuthToken(previousToken, hadPreviousToken, tokenChanged),
+				restoreOptionalFile(paths.ConfigFile, configSnapshot, hadConfigSnapshot),
+				restoreOptionalFile(paths.StateFile, stateSnapshot, hadStateSnapshot),
+			)
+			releaseMutation()
+			printHumanErr("cannot save config: %s", retireErr)
+			printSetupRollbackFailure(rollbackErr)
+			return 1
+		}
+		if err := refreshSetupConfigSnapshot(paths, setupLifecycle); err != nil {
+			releaseMutation()
+			printHumanErr("device pairing was retired safely, but the saved configuration could not be re-read: %s; rerun setup", err)
 			return 1
 		}
 	}
-
-	if err := installClients(paths, &state, selectedClients); err != nil {
-		printHumanErr("client installation failed: %s", err)
+	if err := installClientsAndSaveStateUnlocked(paths, &state, selectedClients, saveStateForSetup, setupLifecycle...); err != nil {
+		releaseMutation()
+		printHumanErr("client installation or state save failed: %s", err)
 		return 1
 	}
-	// Mark this version verified only if every tracked client was just synced from
-	// the canonical install root; a subset sync (e.g. single-client setup over a
-	// multi-client install) must leave the marker so the self-heal still repairs
-	// the untouched clients.
-	if allTrackedClientsSynced(state.InstalledClients, selectedClients) {
-		state.ClientsVerifiedVersion = localVersion(paths)
-	}
-	if err := saveStateForSetup(paths, state); err != nil {
-		printHumanErr("cannot save state: %s", err)
-		return 1
-	}
-
 	finalizeServiceTokenFileMigration(formerServiceTokenFile, token)
-	if _, err := reactivateCensusAfterSetup(paths, censusLifecycleMarker); err != nil {
-		printHumanWarn("Setup succeeded, but the census remains disabled: %s", err)
+	if err := completeSetupLifecycleUnlocked(paths, setupLifecycle...); err != nil {
+		releaseMutation()
+		printHumanWarn("Setup succeeded, but finalizing its lifecycle failed: %s", err)
+		return 1
 	}
+	releaseMutation()
+
 	return runDoctorWithCensusAsk(paths, nil, false)
 }
 
@@ -366,54 +422,36 @@ func completeNonInteractivePairedSetup(paths runtimePaths, cfg runtimeConfig, st
 		printHumanErr("This device is paired, but the secure connection could not be verified. Run 'ha-nova doctor', or re-pair with 'ha-nova setup' interactively.")
 		return 1
 	}
-	if err := persistDeviceSetupState(paths, cfg, &state); err != nil {
+	if err := persistDeviceSetupState(paths, cfg, &state, lifecycleMarker...); err != nil {
 		printHumanErr("%s", err)
 		return 1
 	}
 	printHumanInfo("Saved HA NOVA configuration (secure device pairing)")
-	if err := installClients(paths, &state, selectedClients); err != nil {
-		printHumanErr("client installation failed: %s", err)
-		return 1
-	}
-	if allTrackedClientsSynced(state.InstalledClients, selectedClients) {
-		state.ClientsVerifiedVersion = localVersion(paths)
-	}
-	if err := saveStateForSetup(paths, state); err != nil {
-		printHumanErr("cannot save state: %s", err)
-		return 1
-	}
-	if len(lifecycleMarker) > 0 {
-		if _, err := reactivateCensusAfterSetup(paths, lifecycleMarker[0]); err != nil {
-			printHumanWarn("Setup succeeded, but the census remains disabled: %s", err)
+	if err := withSetupLifecycleLock(paths, lifecycleMarker, func() error {
+		if err := installClientsAndSaveStateUnlocked(paths, &state, selectedClients, saveStateForSetup, lifecycleMarker...); err != nil {
+			return err
 		}
+		return completeSetupLifecycleUnlocked(paths, lifecycleMarker...)
+	}); err != nil {
+		printHumanErr("client installation or state save failed: %s", err)
+		return 1
 	}
 	return runDoctorWithCensusAsk(paths, nil, false)
 }
 
-func rollbackSetupPersistence(
-	paths runtimePaths,
-	previousToken string,
-	hadPreviousToken, tokenChanged bool,
-	configSnapshot []byte,
-	hadConfigSnapshot bool,
-	stateSnapshot []byte,
-	hadStateSnapshot bool,
-) {
-	if tokenChanged {
-		restoreRelayAuthToken(previousToken, hadPreviousToken, tokenChanged)
-	}
-	restoreOptionalFile(paths.ConfigFile, configSnapshot, hadConfigSnapshot)
-	restoreOptionalFile(paths.StateFile, stateSnapshot, hadStateSnapshot)
-}
-
-func restoreRelayAuthToken(previousToken string, hadPreviousToken, tokenChanged bool) {
+func restoreRelayAuthToken(previousToken string, hadPreviousToken, tokenChanged bool) error {
 	if !tokenChanged {
-		return
+		return nil
 	}
 	if hadPreviousToken {
-		_ = writeRelayAuthToken(previousToken)
-	} else {
-		_ = deleteRelayAuthToken()
+		return writeRelayAuthToken(previousToken)
+	}
+	return deleteRelayAuthToken()
+}
+
+func printSetupRollbackFailure(err error) {
+	if err != nil {
+		printHumanErr("setup rollback incomplete: %s", err)
 	}
 }
 

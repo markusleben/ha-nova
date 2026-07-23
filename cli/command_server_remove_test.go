@@ -255,3 +255,89 @@ func TestServerRemoveHeadlessDeletesMarkerlessPendingFile(t *testing.T) {
 		t.Fatalf("raw pending file must be deleted, stat err = %v", err)
 	}
 }
+
+func TestServerRemoveRejectsRawCredentialReplacementDuringConfirmation(t *testing.T) {
+	paths := setupServerCommandTest(t, testV2TwoProfileConfig)
+	t.Setenv("HA_NOVA_TEST_SECRET_DIR", "")
+	previousPreflight := deviceCredentialPreflight
+	deviceCredentialPreflight = func() error { return errDesktopKeyringSessionUnavailable }
+	t.Cleanup(func() { deviceCredentialPreflight = previousPreflight })
+
+	pendingPath, err := deviceSecretFilePath(deviceCredentialPendingServiceForProfile("cabin"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(pendingPath), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(pendingPath, []byte("old-credential"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	beforeConfig, err := os.ReadFile(paths.ConfigFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	revokedAt := stubServerRevoke(t)
+	previousConfirm := readServerRemoveConfirmationForCommand
+	readServerRemoveConfirmationForCommand = func(string) (string, error) {
+		if err := os.WriteFile(pendingPath, []byte("replacement-credential"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return "cabin", nil
+	}
+	t.Cleanup(func() { readServerRemoveConfirmationForCommand = previousConfirm })
+
+	exit, output := captureCommandOutput(t, func() int {
+		return runServerCommand(paths, []string{"remove", "cabin"})
+	})
+	if exit != 1 || !strings.Contains(output, "stored credentials changed while awaiting confirmation") {
+		t.Fatalf("remove did not reject credential replacement: exit=%d\n%s", exit, output)
+	}
+	if len(*revokedAt) != 0 {
+		t.Fatalf("replacement credential was revoked: %v", *revokedAt)
+	}
+	afterConfig, err := os.ReadFile(paths.ConfigFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(afterConfig) != string(beforeConfig) {
+		t.Fatal("config changed after credential identity drift")
+	}
+	raw, err := os.ReadFile(pendingPath)
+	if err != nil || string(raw) != "replacement-credential" {
+		t.Fatalf("replacement credential was changed: %q err=%v", raw, err)
+	}
+}
+
+func TestServerRemoveRejectsCredentialBackendChangeDuringConfirmation(t *testing.T) {
+	paths := setupServerCommandTest(t, testV2TwoProfileConfig)
+	revokedAt := stubServerRevoke(t)
+	markerPath, err := deviceFileBackendMarkerPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	previousConfirm := readServerRemoveConfirmationForCommand
+	readServerRemoveConfirmationForCommand = func(string) (string, error) {
+		if err := os.MkdirAll(filepath.Dir(markerPath), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(markerPath, []byte("file\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return "cabin", nil
+	}
+	t.Cleanup(func() { readServerRemoveConfirmationForCommand = previousConfirm })
+
+	exit, output := captureCommandOutput(t, func() int {
+		return runServerCommand(paths, []string{"remove", "cabin"})
+	})
+	if exit != 1 || !strings.Contains(output, "stored credentials changed while awaiting confirmation") {
+		t.Fatalf("remove did not reject backend change: exit=%d\n%s", exit, output)
+	}
+	if len(*revokedAt) != 0 {
+		t.Fatalf("credential was revoked after backend change: %v", *revokedAt)
+	}
+	if !fileExists(markerPath) {
+		t.Fatal("replacement backend marker was removed")
+	}
+}

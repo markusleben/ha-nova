@@ -213,11 +213,16 @@ func probePairingV1(relayBaseURL string) bool {
 // legacyTokenStoreUnavailable is set by the caller when the OS keyring is
 // missing AND no service-token file is configured, so the legacy /pair token
 // (which needs one of those) cannot be stored on this box.
-func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths, cfg *runtimeConfig, legacyTokenStoreUnavailable bool) (string, error) {
+func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths, cfg *runtimeConfig, legacyTokenStoreUnavailable bool, lifecycleMarker ...[]byte) (string, error) {
 	// Storage first: never send the user to fetch a one-time code that a broken
 	// credential backend would burn. Headless systems switch to the private-file
 	// fallback here, with a visible note.
-	probe, probeErr := probeDeviceCredentialStorage()
+	var probe deviceStorageProbe
+	probeErr := withSetupLifecycleLock(paths, lifecycleMarker, func() error {
+		var err error
+		probe, err = probeDeviceCredentialStorage()
+		return err
+	})
 	if probeErr != nil {
 		renderSetupErrorLine(out, "This system cannot store the device credential yet: %s", probeErr)
 		return "", fmt.Errorf("device credential storage unavailable: %w", probeErr)
@@ -277,8 +282,15 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 		}
 
 		if secure {
-			save := func(c *runtimeConfig) error { return saveConfig(paths, *c) }
-			_, perr := securePairForSetup(cfg.RelayBaseURL, code, cfg, save, defaultPairingClientInfo())
+			var perr error
+			lockErr := withSetupLifecycleLock(paths, lifecycleMarker, func() error {
+				save := func(c *runtimeConfig) error { return saveConfig(paths, *c) }
+				_, perr = securePairForSetup(cfg.RelayBaseURL, code, cfg, save, defaultPairingClientInfo())
+				return perr
+			})
+			if lockErr != nil {
+				perr = lockErr
+			}
 			switch {
 			case perr == nil:
 				renderSetupSuccessLine(out, "This device is paired securely with NOVA Relay")
@@ -313,7 +325,12 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 			}
 		}
 
-		token, err := exchangeRelayPairingCodeForSetup(httpClient, cfg.RelayBaseURL, code)
+		var token string
+		err = withSetupLifecycleLock(paths, lifecycleMarker, func() error {
+			var exchangeErr error
+			token, exchangeErr = exchangeRelayPairingCodeForSetup(httpClient, cfg.RelayBaseURL, code)
+			return exchangeErr
+		})
 		switch {
 		case err == nil:
 			renderSetupSuccessLine(out, "This device is paired with NOVA Relay")

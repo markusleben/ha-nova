@@ -106,7 +106,7 @@ func TestRunInternalReplacePrintsFinalSuccess(t *testing.T) {
 	}
 
 	exitCode, output := captureCommandOutput(t, func() int {
-		return runInternalReplace(paths, []string{"--parent-pid", "0", "--stage-root", t.TempDir()})
+		return runInternalReplace(paths, []string{"--parent-pid", "0", "--stage-root", t.TempDir(), "--lifecycle-marker", "none"})
 	})
 	if exitCode != 0 {
 		t.Fatalf("runInternalReplace() exit = %d\n%s", exitCode, output)
@@ -150,7 +150,7 @@ func TestRunInternalReplaceOmitsSessionInstructionWhenClientSyncFails(t *testing
 	}
 
 	exitCode, output := captureCommandOutput(t, func() int {
-		return runInternalReplace(paths, []string{"--parent-pid", "0", "--stage-root", t.TempDir()})
+		return runInternalReplace(paths, []string{"--parent-pid", "0", "--stage-root", t.TempDir(), "--lifecycle-marker", "none"})
 	})
 	if exitCode == 0 {
 		t.Fatalf("runInternalReplace() exit = 0, want failure\n%s", output)

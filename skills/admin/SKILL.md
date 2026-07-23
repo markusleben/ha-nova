@@ -19,6 +19,7 @@ Not in scope: areas, floors, labels, categories (`ha-nova:organize`), automation
 
 ## Bootstrap (once per session)
 
+Read and follow `../ha-nova/session-bootstrap.md`.
 Verify relay CLI: `ha-nova relay health`
 If this fails: `ha-nova setup`
 

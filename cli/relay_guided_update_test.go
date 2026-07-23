@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -44,10 +45,38 @@ func statesEnvelope(t *testing.T, states []map[string]interface{}) []byte {
 	return body
 }
 
+func registryEnvelope(t *testing.T, entries []map[string]interface{}) []byte {
+	t.Helper()
+	body, err := json.Marshal(map[string]interface{}{"ok": true, "data": entries})
+	if err != nil {
+		t.Fatalf("marshal registry envelope: %v", err)
+	}
+	return body
+}
+
+func relayRegistryEntry(entityID, platform, uniqueID string) map[string]interface{} {
+	return map[string]interface{}{
+		"entity_id": entityID,
+		"platform":  platform,
+		"unique_id": uniqueID,
+	}
+}
+
+func novaRegistryEntry(entityID string) map[string]interface{} {
+	return relayRegistryEntry(entityID, "hassio", relayUpdateUniqueID)
+}
+
 func relayUpdateEntity(id, title string) map[string]interface{} {
 	return map[string]interface{}{
-		"entity_id":  id,
-		"attributes": map[string]interface{}{"title": title},
+		"entity_id": id,
+		"state":     "on",
+		"attributes": map[string]interface{}{
+			"title":              title,
+			"installed_version":  "0.2.6",
+			"latest_version":     "0.4.0",
+			"supported_features": updateFeatureInstall | updateFeatureBackup,
+			"in_progress":        false,
+		},
 	}
 }
 
@@ -55,6 +84,7 @@ func TestResolveRelayUpdateEntity(t *testing.T) {
 	cases := []struct {
 		name       string
 		states     []map[string]interface{}
+		registry   []map[string]interface{}
 		wantEntity string
 		wantReason string
 	}{
@@ -66,14 +96,32 @@ func TestResolveRelayUpdateEntity(t *testing.T) {
 				// A non-update domain carrying the title must not match.
 				relayUpdateEntity("sensor.nova_relay_update", "NOVA Relay"),
 			},
+			registry: []map[string]interface{}{
+				relayRegistryEntry("update.home_assistant_core_update", "hassio", "core"),
+				novaRegistryEntry("update.nova_relay_update"),
+				relayRegistryEntry("sensor.nova_relay_update", "hassio", relayUpdateUniqueID),
+			},
 			wantEntity: "update.nova_relay_update",
 		},
 		{
-			name: "no match means container or missing App",
+			name: "matching title without registry provenance is rejected",
 			states: []map[string]interface{}{
-				relayUpdateEntity("update.home_assistant_core_update", "Home Assistant Core"),
+				relayUpdateEntity("update.nova_relay_update", "NOVA Relay"),
 			},
-			wantReason: "no NOVA Relay App update entity found",
+			registry: []map[string]interface{}{
+				relayRegistryEntry("update.nova_relay_update", "mqtt", relayUpdateUniqueID),
+			},
+			wantReason: "no registry-proven NOVA Relay App update entity found",
+		},
+		{
+			name: "different hassio App slug is rejected",
+			states: []map[string]interface{}{
+				relayUpdateEntity("update.nova_relay_update", "NOVA Relay"),
+			},
+			registry: []map[string]interface{}{
+				relayRegistryEntry("update.nova_relay_update", "hassio", "different_slug_ha_nova_relay_version_latest"),
+			},
+			wantReason: "no registry-proven NOVA Relay App update entity found",
 		},
 		{
 			name: "ambiguity is never guessed",
@@ -81,16 +129,24 @@ func TestResolveRelayUpdateEntity(t *testing.T) {
 				relayUpdateEntity("update.nova_relay_update", "NOVA Relay"),
 				relayUpdateEntity("update.nova_relay_update_2", "NOVA Relay"),
 			},
-			wantReason: "several update entities",
+			registry: []map[string]interface{}{
+				novaRegistryEntry("update.nova_relay_update"),
+				novaRegistryEntry("update.nova_relay_update_2"),
+			},
+			wantReason: "several registry-proven NOVA Relay App update entities",
 		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if r.URL.Path != "/core" {
+				switch r.URL.Path {
+				case "/core":
+					w.Write(statesEnvelope(t, tc.states))
+				case "/ws":
+					w.Write(registryEnvelope(t, tc.registry))
+				default:
 					t.Errorf("unexpected path %q", r.URL.Path)
 				}
-				w.Write(statesEnvelope(t, tc.states))
 			}))
 			defer server.Close()
 			candidate, reason := resolveRelayUpdateCandidate(config{RelayBaseURL: server.URL}, "token")
@@ -116,6 +172,26 @@ func shrinkGuidedUpdatePolling(t *testing.T, timeout time.Duration) {
 	})
 }
 
+func forceGuidedUpdateTTY(t *testing.T, input string) {
+	t.Helper()
+	oldInputTTY := relayUpdateInputIsTTY
+	oldOutputTTY := relayUpdateOutputIsTTY
+	oldInput := relayUpdateInput
+	oldOutput := relayUpdateOutput
+	relayUpdateInputIsTTY = func() bool { return true }
+	relayUpdateOutputIsTTY = func() bool { return true }
+	relayUpdateInput = func() *bufio.Reader {
+		return bufio.NewReader(strings.NewReader(input))
+	}
+	relayUpdateOutput = func() io.Writer { return os.Stdout }
+	t.Cleanup(func() {
+		relayUpdateInputIsTTY = oldInputTTY
+		relayUpdateOutputIsTTY = oldOutputTTY
+		relayUpdateInput = oldInput
+		relayUpdateOutput = oldOutput
+	})
+}
+
 func TestGuidedRelayUpdateInstallsThroughTheRestartAndVerifies(t *testing.T) {
 	paths := guidedUpdatePaths(t)
 	shrinkGuidedUpdatePolling(t, time.Second)
@@ -134,6 +210,7 @@ func TestGuidedRelayUpdateInstallsThroughTheRestartAndVerifies(t *testing.T) {
 				Body struct {
 					EntityID string `json:"entity_id"`
 					Backup   bool   `json:"backup"`
+					Version  string `json:"version"`
 				} `json:"body"`
 			}
 			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -149,8 +226,8 @@ func TestGuidedRelayUpdateInstallsThroughTheRestartAndVerifies(t *testing.T) {
 				t.Errorf("unexpected core path %q", req.Path)
 				return
 			}
-			if req.Body.EntityID != "update.nova_relay_update" || !req.Body.Backup {
-				t.Errorf("install payload = %+v, want resolved entity with backup:true", req.Body)
+			if req.Body.EntityID != "update.nova_relay_update" || !req.Body.Backup || req.Body.Version != "" {
+				t.Errorf("install payload = %+v, want resolved entity, backup:true, and no unsupported version binding", req.Body)
 			}
 			installed.Store(true)
 			// The install restarts the relay mid-call: drop the connection
@@ -161,6 +238,8 @@ func TestGuidedRelayUpdateInstallsThroughTheRestartAndVerifies(t *testing.T) {
 				return
 			}
 			conn.Close()
+		case "/ws":
+			w.Write(registryEnvelope(t, []map[string]interface{}{novaRegistryEntry("update.nova_relay_update")}))
 		default:
 			t.Errorf("unexpected path %q", r.URL.Path)
 		}
@@ -177,6 +256,11 @@ func TestGuidedRelayUpdateInstallsThroughTheRestartAndVerifies(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "Relay updated and verified: v0.4.0 is running.") {
 		t.Fatalf("missing verified-version report in output: %s", out.String())
+	}
+	previewIndex := strings.Index(out.String(), "NOVA Relay App update preview: v0.2.6 → v0.4.0")
+	confirmationIndex := strings.Index(out.String(), "Install the latest available NOVA Relay update now?")
+	if previewIndex < 0 || confirmationIndex < 0 || previewIndex > confirmationIndex {
+		t.Fatalf("exact preview must precede confirmation: %s", out.String())
 	}
 }
 
@@ -200,6 +284,8 @@ func TestGuidedRelayUpdatePollTimeoutStaysHonest(t *testing.T) {
 				return
 			}
 			w.Write([]byte(`{"ok":true,"data":{"status":200}}`))
+		case "/ws":
+			w.Write(registryEnvelope(t, []map[string]interface{}{novaRegistryEntry("update.nova_relay_update")}))
 		}
 	}))
 	defer server.Close()
@@ -222,6 +308,10 @@ func TestGuidedRelayUpdateRejectedInstallSkipsTheWait(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/health" {
 			t.Errorf("an explicit rejection must not start the health poll")
+			return
+		}
+		if r.URL.Path == "/ws" {
+			w.Write(registryEnvelope(t, []map[string]interface{}{novaRegistryEntry("update.nova_relay_update")}))
 			return
 		}
 		var req struct {
@@ -266,6 +356,10 @@ func TestGuidedRelayUpdateRelayTimeoutEnvelopeStillPolls(t *testing.T) {
 			fmt.Fprintf(w, `{"ok":true,"data":{"version":%q}}`, version)
 			return
 		}
+		if r.URL.Path == "/ws" {
+			w.Write(registryEnvelope(t, []map[string]interface{}{novaRegistryEntry("update.nova_relay_update")}))
+			return
+		}
 		var req struct {
 			Path string `json:"path"`
 		}
@@ -288,45 +382,4 @@ func TestGuidedRelayUpdateRelayTimeoutEnvelopeStillPolls(t *testing.T) {
 	if !strings.Contains(out.String(), "Relay updated and verified: v0.4.0 is running.") {
 		t.Fatalf("missing verified report: %s", out.String())
 	}
-}
-
-func TestGuidedRelayUpdateDeclinedTouchesNothing(t *testing.T) {
-	paths := guidedUpdatePaths(t)
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		t.Errorf("declined prompt must not call the relay, got %s %s", r.Method, r.URL.Path)
-	}))
-	defer server.Close()
-
-	var out bytes.Buffer
-	if runGuidedRelayUpdate(paths, config{RelayBaseURL: server.URL}, "token", bufio.NewReader(strings.NewReader("n\n")), &out) {
-		t.Fatalf("a declined prompt must not report success")
-	}
-}
-
-func TestGuidedRelayUpdateContainerFallsBackToManualPath(t *testing.T) {
-	paths := guidedUpdatePaths(t)
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write(statesEnvelope(t, nil))
-	}))
-	defer server.Close()
-
-	var out bytes.Buffer
-	if runGuidedRelayUpdate(paths, config{RelayBaseURL: server.URL}, "token", bufio.NewReader(strings.NewReader("y\n")), &out) {
-		t.Fatalf("container fallback must not report success")
-	}
-	if !strings.Contains(out.String(), "no NOVA Relay App update entity found") {
-		t.Fatalf("missing container reason: %s", out.String())
-	}
-	if !strings.Contains(out.String(), "Manual path:") {
-		t.Fatalf("container path must stay manual: %s", out.String())
-	}
-}
-
-func TestMaybeOfferGuidedRelayUpdateIgnoresOtherNoticeKinds(t *testing.T) {
-	paths := guidedUpdatePaths(t)
-	// Wrong kind returns before any prompt or network use; under `go test`
-	// stdin is a pipe, so the TTY gate also holds both Relay notice kinds.
-	maybeOfferGuidedRelayUpdate(paths, humanNotice{kind: humanNoticeKindUpdateAvailable, level: humanNoticeWarning})
-	maybeOfferGuidedRelayUpdate(paths, humanNotice{kind: humanNoticeKindRelayOutdated, level: humanNoticeWarning})
-	maybeOfferGuidedRelayUpdate(paths, humanNotice{kind: humanNoticeKindRelayUpdateAvailable, level: humanNoticeWarning})
 }

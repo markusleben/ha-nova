@@ -76,7 +76,6 @@ func runRelayCommand(paths runtimePaths, args []string) int {
 		fmt.Println("Run 'ha-nova relay <subcommand> --help' to see that subcommand's flags.")
 		return 0
 	}
-
 	switch args[0] {
 	case "health":
 		return runHealth(paths, args[1:])
@@ -335,6 +334,10 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 		// unknown name fails loud in loadConfig with the list of profiles.
 		setServerSelectionOverride(opts.Server)
 	}
+	relayDeadline := time.Now().Add(time.Duration(defaultRelayMaxTimeSeconds * float64(time.Second)))
+	// Local old-copy migration runs only after all command input validates, but
+	// does not depend on Relay config or keyring availability.
+	migratedFirstUse, migrationContended := repairMissingSessionBootstrapWithContention(paths)
 
 	cfg, err := loadConfig(paths)
 	if err != nil {
@@ -347,7 +350,6 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 		printErr("%s", relayAuthTokenProblemMessage(err))
 		return 1
 	}
-
 	url := strings.TrimRight(baseURL, "/") + "/" + endpoint
 	req, err := http.NewRequest("POST", url, bytes.NewReader(requestBody))
 	if err != nil {
@@ -379,9 +381,11 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 		printRelayPostRequestError("reading the Relay response", err)
 		return 1
 	}
+	taskSucceeded := relayEnvelopeOK(bodyBytes)
 	upstreamExitStatus := 0
 	if endpoint == "core" {
 		upstreamExitStatus = relayCoreUpstreamExitStatus(bodyBytes, opts.StrictStatus)
+		taskSucceeded = taskSucceeded && relayCoreUpstreamTaskSucceeded(bodyBytes)
 	}
 
 	if compiledJQ != nil {
@@ -424,13 +428,23 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 		}
 	}
 
+	exitStatus := 0
 	if resp.StatusCode >= 400 {
-		return 1
+		exitStatus = 1
+	} else if upstreamExitStatus != 0 {
+		exitStatus = upstreamExitStatus
 	}
-	if upstreamExitStatus != 0 {
-		return upstreamExitStatus
+	if exitStatus == 0 && taskSucceeded {
+		finishMigratedFirstUse(paths, migratedFirstUse, migrationContended, relayDeadline)
 	}
-	return 0
+	return exitStatus
+}
+
+func relayEnvelopeOK(body []byte) bool {
+	var envelope struct {
+		OK bool `json:"ok"`
+	}
+	return json.Unmarshal(body, &envelope) == nil && envelope.OK
 }
 
 // writeRelayBinaryBody decodes a base64 upstream body (camera frames and other
@@ -469,6 +483,20 @@ func writeRelayBinaryBody(envelope []byte, path string) error {
 		return err
 	}
 	return os.WriteFile(path, raw, 0o644)
+}
+
+func relayCoreUpstreamTaskSucceeded(body []byte) bool {
+	var envelope struct {
+		OK   bool `json:"ok"`
+		Data struct {
+			Status *int `json:"status"`
+		} `json:"data"`
+	}
+	return json.Unmarshal(body, &envelope) == nil &&
+		envelope.OK &&
+		envelope.Data.Status != nil &&
+		*envelope.Data.Status >= 200 &&
+		*envelope.Data.Status < 400
 }
 
 func relayCoreUpstreamExitStatus(body []byte, strict bool) int {
@@ -540,10 +568,13 @@ func runHealth(paths runtimePaths, args []string) int {
 		printErr("%s", err)
 		return 1
 	}
-	client := newRelayHTTPClient(healthOpts.ConnectTimeoutSeconds, healthOpts.MaxTimeSeconds)
+	healthDeadline := time.Now().Add(time.Duration(healthOpts.MaxTimeSeconds * float64(time.Second)))
 	if healthOpts.ServerSet {
 		setServerSelectionOverride(healthOpts.Server)
 	}
+	// Local old-copy migration runs only after all command input validates, but
+	// does not depend on Relay config or keyring availability.
+	repairMissingSessionBootstrap(paths)
 
 	cfg, err := loadConfig(paths)
 	if err != nil {
@@ -556,13 +587,23 @@ func runHealth(paths runtimePaths, args []string) int {
 		printErr("%s", relayAuthTokenProblemMessage(err))
 		return 1
 	}
+	remaining := time.Until(healthDeadline)
+	if remaining <= 0 {
+		printErr("relay health check exceeded its %.3gs total time budget before the Relay request", healthOpts.MaxTimeSeconds)
+		return 1
+	}
+	connectTimeout := time.Duration(healthOpts.ConnectTimeoutSeconds * float64(time.Second))
+	if connectTimeout > remaining {
+		connectTimeout = remaining
+	}
+	client := newRelayHTTPClient(connectTimeout.Seconds(), remaining.Seconds())
 	// Legacy mode uses the health command's explicit connect/max timeouts; device
 	// mode keeps the SPKI-pinned TLS transport but applies those same timeouts to
 	// it, so a hung paired relay does not block on the fixed pairing timeout.
 	if !deviceMode {
 		transportClient = client
 	} else {
-		applyHealthTimeouts(transportClient, healthOpts.ConnectTimeoutSeconds, healthOpts.MaxTimeSeconds)
+		applyHealthTimeouts(transportClient, connectTimeout.Seconds(), remaining.Seconds())
 	}
 
 	url := strings.TrimRight(baseURL, "/") + "/health"
@@ -647,15 +688,17 @@ func printRelayPostRequestError(stage string, err error) {
 // row and must not see the warning on every one. `relay health` and doctor
 // stay unthrottled as the explicit diagnostic paths.
 func shouldWarnRelayOutdated(paths runtimePaths) bool {
-	marker := filepath.Join(paths.CacheDir, "relay-outdated-warned")
-	if info, err := os.Stat(marker); err == nil && time.Since(info.ModTime()) < time.Hour {
-		return false
-	}
-	if err := os.MkdirAll(paths.CacheDir, 0o755); err != nil {
-		return true
-	}
-	if err := os.WriteFile(marker, []byte(time.Now().UTC().Format(time.RFC3339)+"\n"), 0o644); err != nil {
-		return true
-	}
-	return true
+	allowed := true
+	mutateActiveInstallCache(paths, func() {
+		marker := filepath.Join(paths.CacheDir, "relay-outdated-warned")
+		if info, err := os.Stat(marker); err == nil && time.Since(info.ModTime()) < time.Hour {
+			allowed = false
+			return
+		}
+		if err := os.MkdirAll(paths.CacheDir, 0o755); err != nil {
+			return
+		}
+		_ = os.WriteFile(marker, []byte(time.Now().UTC().Format(time.RFC3339)+"\n"), 0o644)
+	})
+	return allowed
 }

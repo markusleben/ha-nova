@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"io"
 	"net/http"
@@ -1151,6 +1152,7 @@ func TestInteractiveSetupInitialClientPageAllowsRepeatedBack(t *testing.T) {
 	t.Setenv("HA_NOVA_NO_BROWSER", "1")
 	t.Setenv("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING", "1")
 	t.Setenv("HA_NOVA_TEST_KEYRING_FILE", filepath.Join(home, ".config", "ha-nova", ".test-relay-auth-token"))
+	t.Setenv("HA_NOVA_DEV_ROOT", repoRootForSetupTest(t))
 
 	haServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -1239,10 +1241,13 @@ func TestInteractiveSetupAlreadyDoneUsesResumeBanner(t *testing.T) {
 	if err := markCensusLifecycleStopped(paths); err != nil {
 		t.Fatalf("mark census lifecycle stopped: %v", err)
 	}
-	lifecycleMarker := captureCensusLifecycleMarker(paths)
+	lifecycleMarker := [][]byte{
+		captureInstallLifecycleGeneration(paths),
+		captureCensusLifecycleMarker(paths),
+	}
 
 	stdout, stderr := captureInteractiveSetupIO(t, "\n", func() int {
-		return interactiveSetup(paths, cfg, state, "claude", "", "", "", "", false, lifecycleMarker)
+		return interactiveSetup(paths, cfg, state, "claude", "", "", "", "", false, lifecycleMarker...)
 	})
 
 	output := stdout + stderr
@@ -1261,6 +1266,23 @@ func TestInteractiveSetupAlreadyDoneUsesResumeBanner(t *testing.T) {
 	census := loadCensusState(paths)
 	if census.Answer != "no" || census.Enabled {
 		t.Fatalf("default-No census answer was not applied exactly once: %+v", census)
+	}
+
+	generationAfterReactivation := captureInstallLifecycleGeneration(paths)
+	secondLifecycle := [][]byte{
+		generationAfterReactivation,
+		captureCensusLifecycleMarker(paths),
+	}
+	secondExitCode := 0
+	captureInteractiveSetupIO(t, "\n", func() int {
+		secondExitCode = interactiveSetup(paths, cfg, state, "claude", "", "", "", "", false, secondLifecycle...)
+		return secondExitCode
+	})
+	if secondExitCode != 0 {
+		t.Fatalf("unchanged already-complete setup exit = %d, want 0", secondExitCode)
+	}
+	if got := captureInstallLifecycleGeneration(paths); !bytes.Equal(got, generationAfterReactivation) {
+		t.Fatal("unchanged already-complete setup rotated the install lifecycle generation")
 	}
 }
 

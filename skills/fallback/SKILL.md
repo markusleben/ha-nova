@@ -18,10 +18,13 @@ Mandatory fallback for HA features without a dedicated skill. Three tiers:
 
 All relay calls in this skill are experimental -- always follow the Safety section below.
 
-## Bootstrap (only before Relay-Ready calls)
+## Bootstrap (before Home Assistant tasks)
 
-Only needed when executing experimental relay calls (not for Roadmap/External guidance).
+Read and follow `../ha-nova/session-bootstrap.md` before the first
+Home Assistant or Relay-Ready task in this session.
 
+Relay health is needed only when executing experimental relay calls, not for
+Roadmap/External guidance.
 Verify relay CLI: `ha-nova relay health`
 If this fails: `ha-nova setup`
 

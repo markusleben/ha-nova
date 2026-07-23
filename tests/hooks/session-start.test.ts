@@ -28,6 +28,8 @@ describe("S-6: session-start hook", () => {
     expect(json).toHaveProperty("hookSpecificOutput");
     expect(json.additional_context).toContain("HA NOVA Skills");
     expect(json.additional_context).toContain("name: ha-nova");
+    expect(json.additional_context).toContain("# Session Bootstrap");
+    expect(json.additional_context).toContain("ha-nova check-update --quiet");
   });
 
   it("includes sub-skill discovery list", () => {

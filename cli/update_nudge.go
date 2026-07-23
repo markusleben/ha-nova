@@ -107,18 +107,37 @@ func skillUpdateNudgeMessage(lead, current, latest, installSource string, highli
 
 // passesNudgeThrottle reports whether the marker is older than the given
 // interval and stamps it when it passes — the same marker-file pattern as
-// shouldWarnRelayOutdated. Failures degrade to "allow" so a broken cache dir
-// never suppresses notices.
+// shouldWarnRelayOutdated. Lifecycle or lock refusal fails closed so uninstall
+// and another active mutation never spawn background work.
 func passesNudgeThrottle(paths runtimePaths, markerName string, interval time.Duration) bool {
-	marker := filepath.Join(paths.CacheDir, markerName)
-	if info, err := os.Stat(marker); err == nil && time.Since(info.ModTime()) < interval {
+	allowed := true
+	mutated := mutateActiveInstallCache(paths, func() {
+		marker := filepath.Join(paths.CacheDir, markerName)
+		if info, err := os.Stat(marker); err == nil && time.Since(info.ModTime()) < interval {
+			allowed = false
+			return
+		}
+		if err := os.MkdirAll(paths.CacheDir, 0o755); err != nil {
+			return
+		}
+		_ = os.WriteFile(marker, []byte(time.Now().UTC().Format(time.RFC3339)+"\n"), 0o644)
+	})
+	return mutated && allowed
+}
+
+func mutateActiveInstallCache(paths runtimePaths, mutate func()) bool {
+	lifecycleGeneration, err := readInstallLifecycleGeneration(paths)
+	if err != nil || censusLifecycleStopped(paths) {
 		return false
 	}
-	if err := os.MkdirAll(paths.CacheDir, 0o755); err != nil {
-		return true
+	release, acquired := acquireAutoRepairLock(paths)
+	if !acquired {
+		return false
 	}
-	if err := os.WriteFile(marker, []byte(time.Now().UTC().Format(time.RFC3339)+"\n"), 0o644); err != nil {
-		return true
+	defer release()
+	if ensureUpdateLifecycleCurrent(paths, lifecycleGeneration) != nil {
+		return false
 	}
+	mutate()
 	return true
 }

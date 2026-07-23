@@ -68,6 +68,12 @@ func attemptClientAutoRepair(paths runtimePaths, client clientStatus) autoRepair
 	}
 
 	sourceRoot := resolveSourceRoot(paths)
+	if client.ID == "codex" || client.ID == "opencode" || client.ID == "hermes" || client.ID == "antigravity" {
+		if err := repairPlanTargetsSafe(paths, sourceRoot, []string{client.ID}); err != nil {
+			outcome.Err = fmt.Errorf("auto-repair %s refused: %w", client.ID, err)
+			return outcome
+		}
+	}
 
 	if client.ID == "claude" {
 		if _, err := exec.LookPath("claude"); err != nil {
@@ -88,8 +94,14 @@ func attemptClientAutoRepair(paths runtimePaths, client clientStatus) autoRepair
 		}
 	}
 
-	if _, err := installClient(paths, sourceRoot, client.ID); err != nil {
-		outcome.Err = fmt.Errorf("auto-repair %s: %w", client.ID, err)
+	var installErr error
+	if client.ID == "antigravity" {
+		installErr = installAntigravityClientWithPolicy(paths.Home, sourceRoot, false)
+	} else {
+		_, installErr = installClient(paths, sourceRoot, client.ID)
+	}
+	if installErr != nil {
+		outcome.Err = fmt.Errorf("auto-repair %s: %w", client.ID, installErr)
 		return outcome
 	}
 
@@ -107,24 +119,60 @@ func attemptClientAutoRepair(paths runtimePaths, client clientStatus) autoRepair
 // Callers (typically `ha-nova doctor --auto-repair`) decide how to render
 // the outcomes. The function itself prints nothing.
 func runClientAutoRepair(paths runtimePaths, statuses []clientStatus) []autoRepairOutcome {
+	lifecycleGeneration, generationErr := readInstallLifecycleGeneration(paths)
+	if generationErr != nil || censusLifecycleStopped(paths) {
+		return skippedAutoRepairOutcomes(statuses, "HA NOVA install lifecycle changed; rerun doctor")
+	}
 	release, acquired := acquireAutoRepairLock(paths)
 	if !acquired {
-		outcomes := make([]autoRepairOutcome, 0, len(statuses))
-		for _, status := range statuses {
+		return skippedAutoRepairOutcomes(statuses, "another auto-repair run is in progress")
+	}
+	defer release()
+	if err := ensureUpdateLifecycleCurrent(paths, lifecycleGeneration); err != nil {
+		return skippedAutoRepairOutcomes(statuses, "HA NOVA install lifecycle changed; rerun doctor")
+	}
+	configured := map[string]bool{}
+	currentState, stateErr := loadStateOrDefaultChecked(paths)
+	if stateErr != nil {
+		return skippedAutoRepairOutcomes(statuses, "current install state is unreadable")
+	}
+	currentStatuses, statusErr := configuredClientStatuses(paths, currentState)
+	if statusErr != nil {
+		return skippedAutoRepairOutcomes(statuses, "current client state is unreadable")
+	}
+	for _, status := range currentStatuses {
+		configured[canonicalClientID(status.ID)] = true
+	}
+
+	outcomes := make([]autoRepairOutcome, 0, len(statuses))
+	for _, status := range statuses {
+		if status.Ready || !status.RuntimeDetected || status.Attached {
+			outcomes = append(outcomes, attemptClientAutoRepair(paths, status))
+			continue
+		}
+		if !configured[canonicalClientID(status.ID)] {
 			outcomes = append(outcomes, autoRepairOutcome{
 				ClientID:    status.ID,
 				ClientLabel: status.Label,
 				Skipped:     true,
-				SkipReason:  "another auto-repair run is in progress",
+				SkipReason:  "client is no longer configured",
 			})
+			continue
 		}
-		return outcomes
+		outcomes = append(outcomes, attemptClientAutoRepair(paths, status))
 	}
-	defer release()
+	return outcomes
+}
 
+func skippedAutoRepairOutcomes(statuses []clientStatus, reason string) []autoRepairOutcome {
 	outcomes := make([]autoRepairOutcome, 0, len(statuses))
 	for _, status := range statuses {
-		outcomes = append(outcomes, attemptClientAutoRepair(paths, status))
+		outcomes = append(outcomes, autoRepairOutcome{
+			ClientID:    status.ID,
+			ClientLabel: status.Label,
+			Skipped:     true,
+			SkipReason:  reason,
+		})
 	}
 	return outcomes
 }

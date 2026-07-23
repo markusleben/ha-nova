@@ -2,7 +2,7 @@ package main
 
 import (
 	"bufio"
-	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -15,19 +15,26 @@ import (
 // Stage 2 of the guided relay update
 // (docs/work/2026-07-12-relay-guided-update-spec.md): after the
 // relay-outdated warning on an interactive terminal, `ha-nova update` and
-// `ha-nova doctor` offer to install the App update right there — ask first,
-// never automatic. Everything here is client-side and generic HA transport
-// through the existing /core proxy; the relay stays dumb.
+// `ha-nova doctor` can show the currently observed App-update preview and ask
+// for confirmation to install the latest available version — never automatic.
+// Supervisor App updates cannot bind a target version. Everything here is
+// client-side and generic HA transport through the existing /core proxy; the
+// relay stays dumb.
 
-// relayUpdateEntityTitle is the App name the update entity carries
-// (nova/config.yaml `name:`). Resolution matches on it exactly — on zero or
-// several matches the flow prints the manual path instead of guessing.
-const relayUpdateEntityTitle = "NOVA Relay"
+const (
+	relayUpdateUniqueID        = haNovaRelayAppSlug + "_version_latest"
+	updateFeatureInstall int64 = 1
+	updateFeatureBackup  int64 = 8
+)
 
 // Poll pacing is a variable so tests can shrink the restart wait.
 var (
 	relayUpdatePollInterval = 5 * time.Second
 	relayUpdatePollTimeout  = 3 * time.Minute
+	relayUpdateInputIsTTY   = isInteractiveTTY
+	relayUpdateOutputIsTTY  = stdoutIsInteractiveTTY
+	relayUpdateInput        = func() *bufio.Reader { return bufio.NewReader(os.Stdin) }
+	relayUpdateOutput       = func() io.Writer { return os.Stdout }
 )
 
 const relayUpdateManualPath = "Manual path: open Home Assistant > Settings > Apps > NOVA Relay (older HA calls it Add-ons) and install the update there; a standalone container needs a manual image pull."
@@ -42,7 +49,7 @@ func maybeOfferGuidedRelayUpdate(paths runtimePaths, notice humanNotice) bool {
 	// Both ends must be a terminal: with stdout redirected the question would
 	// land in a file while the command silently blocks on stdin.
 	if (notice.kind != humanNoticeKindRelayOutdated && notice.kind != humanNoticeKindRelayUpdateAvailable) ||
-		!isInteractiveTTY() || !stdoutIsInteractiveTTY() {
+		!relayUpdateInputIsTTY() || !relayUpdateOutputIsTTY() {
 		return false
 	}
 	cfg, err := loadConfig(paths)
@@ -67,19 +74,45 @@ func maybeOfferGuidedRelayUpdate(paths runtimePaths, notice humanNotice) bool {
 		}
 		credential = token
 	}
-	return runGuidedRelayUpdate(paths, cfg, credential, bufio.NewReader(os.Stdin), os.Stdout)
+	return runGuidedRelayUpdate(paths, cfg, credential, relayUpdateInput(), relayUpdateOutput())
 }
 
 func runGuidedRelayUpdate(paths runtimePaths, cfg config, token string, in *bufio.Reader, out io.Writer) bool {
-	yes, err := promptWizardYesNoFromReader(in, out, "Install the relay update in Home Assistant now?", true)
-	if err != nil || !yes {
-		return false
-	}
 	candidate, reason := resolveRelayUpdateCandidate(cfg, token)
 	if candidate.EntityID == "" {
 		fmt.Fprintf(out, "Cannot start the App update from here: %s\n%s\n", reason, relayUpdateManualPath)
 		return false
 	}
+	if !candidate.updateAvailable() {
+		fmt.Fprintf(out, "Cannot start the App update from here: the exact NOVA Relay update entity has no newer pending version.\n%s\n", relayUpdateManualPath)
+		return false
+	}
+	if !candidate.guidedInstallReady() {
+		fmt.Fprintf(out, "Cannot start the guided App update: the exact entity does not support both install and partial backup. Nothing was installed.\n%s\n", relayUpdateManualPath)
+		return false
+	}
+	fmt.Fprintf(
+		out,
+		"NOVA Relay App update preview: v%s → v%s (%s).\nPlanned change: install the latest version available at execution time with a partial App backup; the relay restarts during the install. Home Assistant does not support binding App installs to a specific version.\n",
+		candidate.InstalledVersion,
+		candidate.LatestVersion,
+		candidate.EntityID,
+	)
+	yes, err := promptWizardYesNoFromReader(in, out, "Install the latest available NOVA Relay update now?", true)
+	if err != nil || !yes {
+		return false
+	}
+	current, reason := resolveRelayUpdateCandidate(cfg, token)
+	if !current.updateAvailable() ||
+		!current.guidedInstallReady() ||
+		!current.samePreview(candidate) {
+		if reason == "" {
+			reason = "the pending update changed after the preview"
+		}
+		fmt.Fprintf(out, "The observed NOVA Relay App update changed after the preview: %s. Nothing was installed; run the check again.\n", reason)
+		return false
+	}
+	candidate = current
 	fmt.Fprintf(out, "Installing the NOVA Relay App update (%s) with a partial backup — the relay restarts during the install.\n", candidate.EntityID)
 	// The relay dies mid-call when the install lands, so a dropped response
 	// is the EXPECTED shape of success here; polling decides the outcome.
@@ -87,8 +120,16 @@ func runGuidedRelayUpdate(paths runtimePaths, cfg config, token string, in *bufi
 	// upstream client times out at 10s — a backup easily exceeds that) and
 	// polls too. Only Home Assistant itself answering >= 400 (ok:true) is an
 	// explicit rejection that skips the three-minute wait.
-	body, err := relayCoreRequest(cfg, token, "POST", "/api/services/update/install",
-		[]byte(fmt.Sprintf(`{"entity_id":%q,"backup":true}`, candidate.EntityID)))
+	installPayload := map[string]interface{}{
+		"entity_id": candidate.EntityID,
+		"backup":    true,
+	}
+	installBody, marshalErr := json.Marshal(installPayload)
+	if marshalErr != nil {
+		fmt.Fprintln(out, "Could not build the confirmed install request. Nothing was installed.")
+		return false
+	}
+	body, err := relayCoreRequest(cfg, token, "POST", "/api/services/update/install", installBody)
 	if err == nil {
 		var envelope struct {
 			OK   bool `json:"ok"`
@@ -111,25 +152,62 @@ func runGuidedRelayUpdate(paths runtimePaths, cfg config, token string, in *bufi
 }
 
 type relayUpdateCandidate struct {
-	EntityID         string
-	State            string
-	InstalledVersion string
-	LatestVersion    string
+	EntityID          string
+	Platform          string
+	UniqueID          string
+	State             string
+	InstalledVersion  string
+	LatestVersion     string
+	SupportedFeatures int64
+	InProgress        bool
 }
 
 func (candidate relayUpdateCandidate) updateAvailable() bool {
-	if candidate.State != "on" || candidate.InstalledVersion == "" || candidate.LatestVersion == "" {
+	if candidate.State != "on" || candidate.InProgress || candidate.InstalledVersion == "" || candidate.LatestVersion == "" {
 		return false
 	}
 	cmp, err := compareReleaseVersions(candidate.InstalledVersion, candidate.LatestVersion)
 	return err == nil && cmp < 0
 }
 
-// resolveRelayUpdateCandidate finds the NOVA Relay App's update.* entity via
-// GET /api/states. It returns the candidate, or an empty candidate plus the
-// human reason (no entity → container/manual install; several → never guess).
+func (candidate relayUpdateCandidate) guidedInstallReady() bool {
+	required := updateFeatureInstall | updateFeatureBackup
+	return candidate.SupportedFeatures&required == required
+}
+
+func (candidate relayUpdateCandidate) samePreview(other relayUpdateCandidate) bool {
+	return candidate.EntityID == other.EntityID &&
+		candidate.Platform == other.Platform &&
+		candidate.UniqueID == other.UniqueID &&
+		candidate.State == other.State &&
+		candidate.InstalledVersion == other.InstalledVersion &&
+		candidate.LatestVersion == other.LatestVersion &&
+		candidate.SupportedFeatures == other.SupportedFeatures &&
+		candidate.InProgress == other.InProgress
+}
+
+func relayRegistryEntryMatchesNOVA(uniqueID string) bool {
+	return uniqueID == relayUpdateUniqueID
+}
+
+// resolveRelayUpdateCandidate joins state with immutable entity-registry
+// provenance. States alone cannot distinguish the Supervisor App entity from a
+// custom/MQTT update entity carrying the same title.
 func resolveRelayUpdateCandidate(cfg config, token string) (relayUpdateCandidate, string) {
-	body, err := relayCoreRequest(cfg, token, "GET", "/api/states", nil)
+	base, client, credential, endpointErr := functionalEndpoint(cfg, token)
+	if endpointErr != nil {
+		return relayUpdateCandidate{}, fmt.Sprintf("could not resolve Relay transport (%s)", endpointErr)
+	}
+	return resolveRelayUpdateCandidateWithTransport(context.Background(), base, client, credential)
+}
+
+func resolveRelayUpdateCandidateWithTransport(
+	ctx context.Context,
+	base string,
+	client *http.Client,
+	credential string,
+) (relayUpdateCandidate, string) {
+	body, err := relayCoreRequestWithTransport(ctx, base, client, credential, "GET", "/api/states", nil)
 	if err != nil {
 		return relayUpdateCandidate{}, fmt.Sprintf("could not read Home Assistant states (%s)", err)
 	}
@@ -147,32 +225,73 @@ func resolveRelayUpdateCandidate(cfg config, token string) (relayUpdateCandidate
 		EntityID   string `json:"entity_id"`
 		State      string `json:"state"`
 		Attributes struct {
-			Title            string `json:"title"`
-			InstalledVersion string `json:"installed_version"`
-			LatestVersion    string `json:"latest_version"`
+			InstalledVersion  string `json:"installed_version"`
+			LatestVersion     string `json:"latest_version"`
+			SupportedFeatures int64  `json:"supported_features"`
+			InProgress        bool   `json:"in_progress"`
 		} `json:"attributes"`
 	}
 	if err := json.Unmarshal(envelope.Data.Body, &states); err != nil {
 		return relayUpdateCandidate{}, "could not read Home Assistant states"
 	}
-	var matches []relayUpdateCandidate
+	stateByEntityID := make(map[string]relayUpdateCandidate, len(states))
 	for _, s := range states {
-		if strings.HasPrefix(s.EntityID, "update.") && s.Attributes.Title == relayUpdateEntityTitle {
-			matches = append(matches, relayUpdateCandidate{
-				EntityID:         s.EntityID,
-				State:            s.State,
-				InstalledVersion: s.Attributes.InstalledVersion,
-				LatestVersion:    s.Attributes.LatestVersion,
-			})
+		if strings.HasPrefix(s.EntityID, "update.") {
+			stateByEntityID[s.EntityID] = relayUpdateCandidate{
+				EntityID:          s.EntityID,
+				State:             s.State,
+				InstalledVersion:  s.Attributes.InstalledVersion,
+				LatestVersion:     s.Attributes.LatestVersion,
+				SupportedFeatures: s.Attributes.SupportedFeatures,
+				InProgress:        s.Attributes.InProgress,
+			}
+		}
+	}
+
+	registryBody, err := relayWSRequestWithTransport(
+		ctx,
+		base,
+		client,
+		credential,
+		[]byte(`{"type":"config/entity_registry/list"}`),
+	)
+	if err != nil {
+		return relayUpdateCandidate{}, fmt.Sprintf("could not read Home Assistant entity registry (%s)", err)
+	}
+	var registryEnvelope struct {
+		OK   bool            `json:"ok"`
+		Data json.RawMessage `json:"data"`
+	}
+	if err := json.Unmarshal(registryBody, &registryEnvelope); err != nil || !registryEnvelope.OK {
+		return relayUpdateCandidate{}, "could not read Home Assistant entity registry"
+	}
+	var registryEntries []struct {
+		EntityID string `json:"entity_id"`
+		Platform string `json:"platform"`
+		UniqueID string `json:"unique_id"`
+	}
+	if err := json.Unmarshal(registryEnvelope.Data, &registryEntries); err != nil {
+		return relayUpdateCandidate{}, "could not read Home Assistant entity registry"
+	}
+	var matches []relayUpdateCandidate
+	for _, entry := range registryEntries {
+		if entry.Platform != "hassio" || !strings.HasPrefix(entry.EntityID, "update.") ||
+			!relayRegistryEntryMatchesNOVA(entry.UniqueID) {
+			continue
+		}
+		if candidate, ok := stateByEntityID[entry.EntityID]; ok {
+			candidate.Platform = entry.Platform
+			candidate.UniqueID = entry.UniqueID
+			matches = append(matches, candidate)
 		}
 	}
 	switch len(matches) {
 	case 1:
 		return matches[0], ""
 	case 0:
-		return relayUpdateCandidate{}, "no NOVA Relay App update entity found (standalone container, or the App is not installed)"
+		return relayUpdateCandidate{}, "no registry-proven NOVA Relay App update entity found (standalone container, or the App is not installed)"
 	default:
-		return relayUpdateCandidate{}, fmt.Sprintf("several update entities carry the title %q — not guessing", relayUpdateEntityTitle)
+		return relayUpdateCandidate{}, "several registry-proven NOVA Relay App update entities were found — not guessing"
 	}
 }
 
@@ -210,31 +329,4 @@ func waitForRelayVersion(paths runtimePaths, cfg config, token, targetVersion st
 		}
 		time.Sleep(relayUpdatePollInterval)
 	}
-}
-
-// relayCoreRequest posts one request through the relay's /core proxy and
-// returns the raw envelope body.
-func relayCoreRequest(cfg config, token, method, path string, requestBody []byte) ([]byte, error) {
-	base, client, credential, endpointErr := functionalEndpoint(cfg, token)
-	if endpointErr != nil {
-		return nil, endpointErr
-	}
-	payload := []byte(fmt.Sprintf(`{"method":%q,"path":%q`, method, path))
-	if len(requestBody) > 0 {
-		payload = append(payload, []byte(`,"body":`)...)
-		payload = append(payload, requestBody...)
-	}
-	payload = append(payload, '}')
-	req, err := http.NewRequest("POST", strings.TrimRight(base, "/")+"/core", bytes.NewReader(payload))
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Authorization", "Bearer "+credential)
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	return readAllLimited(resp.Body, maxRelayResponseBytes)
 }

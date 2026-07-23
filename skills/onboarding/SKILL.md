@@ -17,6 +17,8 @@ Diagnostics only. Do not use this skill for config writes or routine HA operatio
 
 If the `ha-nova` command itself is missing, the CLI is not installed — install it first from the latest GitHub release (https://github.com/markusleben/ha-nova/releases/latest carries the copy-paste install command per OS), then run `ha-nova setup`. Never bootstrap from the repo's `main` branch: released skills must install the reviewed, tagged release.
 
+When the CLI exists, read and follow
+`../ha-nova/session-bootstrap.md` before the first HA task.
 Relay CLI command: `ha-nova relay`
 If missing: `ha-nova setup`
 

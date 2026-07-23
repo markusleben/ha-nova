@@ -234,6 +234,8 @@ require_repo_invariants() {
   [[ -d "${SOURCE_SKILLS_DIR}" ]] || die "Missing repo skills directory: ${SOURCE_SKILLS_DIR}"
   [[ -f "${REPO_ROOT}/version.json" ]] || die "Missing repo version file: ${REPO_ROOT}/version.json"
   [[ -x "${REPO_ROOT}/scripts/onboarding/bin/ha-nova" ]] || die "Missing repo helper runtime shim: ${REPO_ROOT}/scripts/onboarding/bin/ha-nova"
+  [[ -f "${SOURCE_SKILLS_DIR}/ha-nova/session-bootstrap.md" ]] ||
+    die "Missing mandatory session bootstrap: ${SOURCE_SKILLS_DIR}/ha-nova/session-bootstrap.md"
 }
 
 require_target_prereqs() {

@@ -110,7 +110,8 @@ func TestRunPairCommandCredentialStoreFileMigratesKeyringCredential(t *testing.T
 		t.Fatalf("seed keyring credential: %v", err)
 	}
 	configFile := filepath.Join(t.TempDir(), "config.json")
-	if err := saveConfig(runtimePaths{ConfigFile: configFile}, runtimeConfig{RelayBaseURL: "http://ha:8791"}); err != nil {
+	paths := runtimePaths{ConfigDir: filepath.Dir(configFile), ConfigFile: configFile}
+	if err := saveConfig(paths, runtimeConfig{RelayBaseURL: "http://ha:8791"}); err != nil {
 		t.Fatal(err)
 	}
 	orig := runSecurePairingForPairCmd
@@ -119,7 +120,7 @@ func TestRunPairCommandCredentialStoreFileMigratesKeyringCredential(t *testing.T
 	}
 	defer func() { runSecurePairingForPairCmd = orig }()
 
-	if rc := runPairCommand(runtimePaths{ConfigFile: configFile}, []string{"--code", "123456", "--credential-store=file"}); rc != 0 {
+	if rc := runPairCommand(paths, []string{"--code", "123456", "--credential-store=file"}); rc != 0 {
 		t.Fatalf("rc=%d, want 0", rc)
 	}
 	if !deviceFileBackendMarkerExists() {

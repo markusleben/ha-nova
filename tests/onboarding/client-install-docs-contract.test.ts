@@ -17,6 +17,7 @@ describe("client install docs contract", () => {
   const readme = readFileSync("README.md", "utf8");
   const governance = readFileSync("docs/reference/documentation-governance.md", "utf8");
   const contextSkill = readFileSync("skills/ha-nova/SKILL.md", "utf8");
+  const sessionBootstrap = readFileSync("skills/ha-nova/session-bootstrap.md", "utf8");
   const claudeInstall = readFileSync(".claude/INSTALL.md", "utf8");
   const codexInstall = readFileSync(".codex/INSTALL.md", "utf8");
   const antigravityInstall = readFileSync(".antigravity/INSTALL.md", "utf8");
@@ -57,7 +58,13 @@ describe("client install docs contract", () => {
     for (const overlay of [claudeInstall, codexInstall, antigravityInstall, opencodeInstall, hermesInstall]) {
       expect(overlay).toContain(instruction);
     }
-    expect(contextSkill).toContain("After success: tell the user to **start a new session**");
+    expect(contextSkill).toContain("../ha-nova/session-bootstrap.md");
+    expect(sessionBootstrap).toContain(
+      "After a successful `ha-nova update`, tell the"
+    );
+    expect(sessionBootstrap).toMatch(
+      /user to start a new\s+AI-client session/
+    );
   });
 
   it("keeps reciprocal client overlay links on the current Antigravity overlay", () => {
