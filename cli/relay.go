@@ -574,7 +574,7 @@ func runHealth(paths runtimePaths, args []string) int {
 	}
 	// Local old-copy migration runs only after all command input validates, but
 	// does not depend on Relay config or keyring availability.
-	migratedFirstUse, migrationContended := repairMissingSessionBootstrapWithContention(paths)
+	repairMissingSessionBootstrap(paths)
 
 	cfg, err := loadConfig(paths)
 	if err != nil {
@@ -645,7 +645,6 @@ func runHealth(paths runtimePaths, args []string) int {
 	if resp.StatusCode >= 400 {
 		return 1
 	}
-	finishMigratedFirstUse(paths, migratedFirstUse, migrationContended, healthDeadline)
 	return 0
 }
 

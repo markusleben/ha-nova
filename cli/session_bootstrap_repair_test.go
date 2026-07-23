@@ -178,7 +178,11 @@ func TestRelayCommandsRepairOldCopiedSkillsDespiteCurrentMarkerAndMissingRuntime
 				}
 			}
 			marker := filepath.Join(paths.CacheDir, sessionBootstrapVerifiedMarker)
-			if !markerHasVersion(marker, "0.6.1") {
+			if tc.name == "health with misleading current marker" {
+				if !markerHasCarrierPending(marker, "0.6.1") {
+					t.Fatal("health probe must repair locally without consuming the carrier")
+				}
+			} else if !markerHasVersion(marker, "0.6.1") {
 				t.Fatal("successful proxy task must finalize the carried transition")
 			}
 		})

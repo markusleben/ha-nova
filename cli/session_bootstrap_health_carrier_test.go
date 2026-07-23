@@ -56,14 +56,14 @@ func healthCarrierFixture(t *testing.T) runtimePaths {
 	return paths
 }
 
-func TestSuccessfulHealthFinishesMigratedFirstUseCarrier(t *testing.T) {
+func TestSuccessfulHealthLeavesMigratedFirstUseCarrierPending(t *testing.T) {
 	paths := healthCarrierFixture(t)
 	if exit := runRelayCommand(paths, []string{"health"}); exit != 0 {
 		t.Fatalf("health exit = %d", exit)
 	}
 	marker := filepath.Join(paths.CacheDir, sessionBootstrapVerifiedMarker)
-	if !markerHasVersion(marker, "0.6.1") {
-		t.Fatal("successful health did not finalize migrated first-use carrier")
+	if !markerHasCarrierPending(marker, "0.6.1") {
+		t.Fatal("successful health consumed the migrated first-use carrier")
 	}
 }
 
