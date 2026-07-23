@@ -118,17 +118,31 @@ func completeSetupLifecycleUnlocked(paths runtimePaths, lifecycleMarker ...[]byt
 	if err := ensureSetupLifecycleCurrent(paths, lifecycleMarker...); err != nil {
 		return err
 	}
-	if err := rotateInstallLifecycleGeneration(paths); err != nil {
+	release, acquired := acquireCensusLock(paths)
+	if !acquired {
+		return fmt.Errorf("cannot acquire census lifecycle lock")
+	}
+	defer release()
+	// Uninstall owns the same census lock while rotating both lifecycle
+	// markers. Recheck after acquiring it so setup cannot finalize across an
+	// uninstall that won the lock after the optimistic check above.
+	if err := ensureSetupLifecycleCurrent(paths, lifecycleMarker...); err != nil {
 		return err
 	}
 	var censusMarker []byte
 	if len(lifecycleMarker) > 1 {
 		censusMarker = lifecycleMarker[1]
 	}
-	if _, err := reactivateCensusAfterSetup(paths, censusMarker); err != nil {
+	reactivated, err := reactivateCensusAfterSetupLocked(paths, censusMarker)
+	if err != nil {
 		return err
 	}
-	return nil
+	if len(censusMarker) > 0 && !reactivated {
+		return fmt.Errorf("setup was superseded by an uninstall; rerun setup")
+	}
+	// Rotate only after the stopped marker was cleared successfully. A lock or
+	// marker failure must leave the uninstall generation intact.
+	return rotateInstallLifecycleGeneration(paths)
 }
 
 func mergeLatestSetupState(paths runtimePaths, state *installState) error {

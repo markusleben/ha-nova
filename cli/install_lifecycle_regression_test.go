@@ -1,12 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestInstallGenerationPreventsNilNonceNilABA(t *testing.T) {
@@ -34,6 +36,40 @@ func TestInstallGenerationPreventsNilNonceNilABA(t *testing.T) {
 	}
 	if err := ensureSetupLifecycleCurrent(paths, oldGeneration, nil); err == nil {
 		t.Fatal("pre-uninstall setup became valid again after replacement setup")
+	}
+}
+
+func TestSetupLifecycleLockFailurePreservesUninstallGeneration(t *testing.T) {
+	paths := setupHealableInstall(t)
+	if err := markCensusLifecycleStopped(paths); err != nil {
+		t.Fatalf("mark lifecycle stopped: %v", err)
+	}
+	generation := captureInstallLifecycleGeneration(paths)
+	censusMarker := captureCensusLifecycleMarker(paths)
+
+	originalRetry, originalTimeout := censusLockRetryInterval, censusLockTimeout
+	censusLockRetryInterval = time.Millisecond
+	censusLockTimeout = 30 * time.Millisecond
+	t.Cleanup(func() {
+		censusLockRetryInterval, censusLockTimeout = originalRetry, originalTimeout
+	})
+	release, acquired := acquireCensusLock(paths)
+	if !acquired {
+		t.Fatal("hold census lifecycle lock")
+	}
+	defer release()
+
+	err := completeSetupLifecycle(paths, generation, censusMarker)
+	if err == nil || !strings.Contains(err.Error(), "cannot acquire census lifecycle lock") {
+		t.Fatalf("setup lifecycle lock failure = %v", err)
+	}
+	currentGeneration := captureInstallLifecycleGeneration(paths)
+	if !bytes.Equal(currentGeneration, generation) {
+		t.Fatal("failed setup finalization rotated the uninstall generation")
+	}
+	currentMarker := captureCensusLifecycleMarker(paths)
+	if !bytes.Equal(currentMarker, censusMarker) || !censusLifecycleStopped(paths) {
+		t.Fatal("failed setup finalization cleared the uninstall marker")
 	}
 }
 

@@ -337,6 +337,13 @@ func reactivateCensusAfterSetup(paths runtimePaths, captured []byte) (bool, erro
 		return false, fmt.Errorf("cannot acquire census lifecycle lock")
 	}
 	defer release()
+	return reactivateCensusAfterSetupLocked(paths, captured)
+}
+
+func reactivateCensusAfterSetupLocked(paths runtimePaths, captured []byte) (bool, error) {
+	if len(captured) == 0 {
+		return false, nil
+	}
 	marker := censusLifecycleMarkerPath(paths)
 	current, err := os.ReadFile(marker)
 	if errors.Is(err, os.ErrNotExist) {
