@@ -151,12 +151,15 @@ func sessionBootstrapRepairClients(paths runtimePaths, sourceRoot string) ([]str
 			return nil, fmt.Errorf("inspect %s fingerprint: %w", candidate.client, fingerprintErr)
 		}
 		if !managed {
+			if candidate.client != "hermes" {
+				continue
+			}
 			legacyHermesContext := filepath.Join(hermesRoot, "SKILL.md")
 			legacyManaged, legacyErr := skillDeclaresHANova(legacyHermesContext)
 			if legacyErr != nil {
 				return nil, fmt.Errorf("inspect Hermes legacy context: %w", legacyErr)
 			}
-			if candidate.client != "hermes" || !hermesLegacyBundlePresent(paths.Home) || !legacyManaged {
+			if !hermesLegacyBundlePresent(paths.Home) || !legacyManaged {
 				continue
 			}
 		}

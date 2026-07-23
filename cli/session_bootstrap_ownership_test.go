@@ -214,6 +214,35 @@ func TestSessionBootstrapRepairPreservesLegacyAntigravityRoots(t *testing.T) {
 	}
 }
 
+func TestUnreadableHermesLegacyContextDoesNotBlockOpenCodeRepair(t *testing.T) {
+	paths := setupHealableInstall(t)
+	openCodeRoot := filepath.Join(paths.Home, ".config", "opencode", "skills", "ha-nova")
+	if _, err := installTreeClient(filepath.Dir(openCodeRoot), filepath.Join(paths.InstallRoot, "skills"), false); err != nil {
+		t.Fatalf("seed OpenCode tree: %v", err)
+	}
+	if err := os.Remove(filepath.Join(openCodeRoot, "ha-nova", "session-bootstrap.md")); err != nil {
+		t.Fatalf("remove OpenCode bootstrap: %v", err)
+	}
+	if err := installHermesClient(paths.Home, paths.InstallRoot); err != nil {
+		t.Fatalf("seed namespaced Hermes tree: %v", err)
+	}
+	legacyContext := filepath.Join(paths.Home, ".hermes", "skills", "ha-nova", "SKILL.md")
+	if err := os.Mkdir(legacyContext, 0o700); err != nil {
+		t.Fatalf("seed unreadable Hermes legacy context: %v", err)
+	}
+
+	if !repairMissingSessionBootstrap(paths) {
+		t.Fatal("unrelated Hermes legacy context blocked OpenCode repair")
+	}
+	if !fileExists(filepath.Join(openCodeRoot, "ha-nova", "session-bootstrap.md")) {
+		t.Fatal("OpenCode session bootstrap was not restored")
+	}
+	info, err := os.Stat(legacyContext)
+	if err != nil || !info.IsDir() {
+		t.Fatalf("Hermes legacy context changed: info=%v err=%v", info, err)
+	}
+}
+
 func TestAutoRepairRefusesForeignFileClientTarget(t *testing.T) {
 	paths := setupHealableInstall(t)
 	foreignRoot := filepath.Join(paths.Home, ".agents", "skills", "ha-nova")
