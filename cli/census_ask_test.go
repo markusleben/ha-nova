@@ -307,7 +307,7 @@ func TestCensusSkillNoticeCapCountsPresentationsNotDeferredEmissions(t *testing.
 			}
 		}
 	}
-	if state := loadCensusState(paths); state.SkillNotices != 0 || state.AskedAt != "" {
+	if state := loadCensusState(paths); state.SkillPresentations != 0 || state.AskedAt != "" {
 		t.Fatalf("deferred machine notices must not consume presentations: %+v", state)
 	}
 
@@ -323,11 +323,64 @@ func TestCensusSkillNoticeCapCountsPresentationsNotDeferredEmissions(t *testing.
 		}
 	}
 	state := loadCensusState(paths)
-	if state.SkillNotices != 3 || state.AskedAt == "" || state.Answer != "none" || state.AskedVia != "skill" {
+	if state.SkillPresentations != 3 || state.AskedAt == "" || state.Answer != "none" || state.AskedVia != "skill" {
 		t.Fatalf("third actual presentation must close the question: %+v", state)
 	}
 	if out := captureStdout(t, func() { maybeEmitCensusSkillNotice(paths) }); out != "" {
 		t.Fatalf("notice after the third presentation must be silent, got %q", out)
+	}
+}
+
+func TestCensusLegacySkillNoticesDoNotConsumePresentationSlots(t *testing.T) {
+	cases := []struct {
+		name string
+		raw  string
+	}{
+		{"one legacy emission", `{"schema":1,"enabled":false,"skill_notices":1}`},
+		{"two legacy emissions", `{"schema":1,"enabled":false,"skill_notices":2}`},
+		{"legacy auto-close", `{"schema":1,"asked_at":"2026-07-23T20:00:00Z","asked_via":"skill","answer":"none","enabled":false,"skill_notices":3}`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			paths := setupCensusTest(t)
+			stubCensusVersion(t, "0.9.0")
+			if err := os.WriteFile(paths.CensusFile, []byte(tc.raw), 0o600); err != nil {
+				t.Fatal(err)
+			}
+
+			if out := captureStdout(t, func() { maybeEmitCensusSkillNotice(paths) }); !strings.Contains(out, "CENSUS ASK PENDING") {
+				t.Fatalf("legacy machine emissions suppressed the pending choice: %q", out)
+			}
+			out := captureStdout(t, func() {
+				if exit := runCensusCommand(paths, []string{"notice-presented"}); exit != 0 {
+					t.Fatalf("notice-presented exit = %d", exit)
+				}
+			})
+			if !strings.Contains(out, "CENSUS NOTICE PRESENT 1/3") {
+				t.Fatalf("first visible choice did not start a fresh presentation cap: %q", out)
+			}
+			state := loadCensusState(paths)
+			if state.Schema != censusStateSchemaVersion || state.SkillNotices != 0 || state.SkillPresentations != 1 || state.AskedAt != "" {
+				t.Fatalf("legacy notice migration mismatch: %+v", state)
+			}
+		})
+	}
+}
+
+func TestCensusLegacyExplicitAnswerRemainsFinal(t *testing.T) {
+	paths := setupCensusTest(t)
+	stubCensusVersion(t, "0.9.0")
+	raw := `{"schema":1,"asked_at":"2026-07-23T20:00:00Z","asked_via":"skill","answer":"yes","enabled":true,"skill_notices":3}`
+	if err := os.WriteFile(paths.CensusFile, []byte(raw), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if out := captureStdout(t, func() { maybeEmitCensusSkillNotice(paths) }); out != "" {
+		t.Fatalf("legacy explicit consent must remain final, got notice: %q", out)
+	}
+	state := loadCensusState(paths)
+	if !state.Enabled || state.Answer != "yes" || state.AskedAt == "" {
+		t.Fatalf("legacy explicit consent changed during migration: %+v", state)
 	}
 }
 
@@ -350,7 +403,7 @@ func TestCensusSkillNoticeConcurrentDeliveryDoesNotConsumePresentations(t *testi
 		wait.Wait()
 	})
 	state := loadCensusState(paths)
-	if state.SkillNotices != 0 || state.AskedAt != "" {
+	if state.SkillPresentations != 0 || state.AskedAt != "" {
 		t.Fatalf("delivery without a visible choice must leave presentation state untouched: %+v", state)
 	}
 	if emitted := strings.Count(out, "CENSUS ASK PENDING"); emitted != 24 {
@@ -380,7 +433,7 @@ func TestCensusSkillNoticeDoesNotRequireCacheStorage(t *testing.T) {
 	if out := captureStdout(t, func() { maybeEmitCensusSkillNotice(paths) }); !strings.Contains(out, "CENSUS ASK PENDING") {
 		t.Fatalf("notice delivery must not require cache storage, got %q", out)
 	}
-	if state := loadCensusState(paths); state.SkillNotices != 0 {
+	if state := loadCensusState(paths); state.SkillPresentations != 0 {
 		t.Fatalf("delivery alone must not persist a presentation slot: %+v", state)
 	}
 }

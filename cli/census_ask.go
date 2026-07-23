@@ -212,7 +212,7 @@ func maybeEmitCensusSkillNoticeTo(paths runtimePaths, out io.Writer) bool {
 		return true
 	}
 	state := loadCensusState(paths)
-	if state.AskedAt != "" || state.SkillNotices >= censusSkillNoticeCap {
+	if state.AskedAt != "" || state.SkillPresentations >= censusSkillNoticeCap {
 		return true
 	}
 	// Emission is only delivery to the AI client, not proof that the user saw

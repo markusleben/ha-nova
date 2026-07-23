@@ -365,7 +365,7 @@ func TestMigratedCarrierCannotTouchReplacementInstallCensus(t *testing.T) {
 	t.Cleanup(func() { runMigratedFirstUseCheckForCarrier = previousRun })
 
 	finishMigratedFirstUse(paths, true, false, time.Now().Add(10*time.Second))
-	if state := loadCensusState(paths); state.SkillNotices != 0 || state.AskedAt != "" {
+	if state := loadCensusState(paths); state.SkillPresentations != 0 || state.AskedAt != "" {
 		t.Fatalf("stale carrier changed replacement census state: %+v", state)
 	}
 }

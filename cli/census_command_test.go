@@ -204,11 +204,11 @@ func TestCensusStatusNeverCreatesOrChangesConsentState(t *testing.T) {
 		paths := setupCensusTest(t)
 		stubCensusVersion(t, "0.21.0")
 		state := censusState{
-			Schema:       censusStateSchemaVersion,
-			AskedAt:      "2026-07-23T20:00:00Z",
-			AskedVia:     "skill",
-			Answer:       "none",
-			SkillNotices: censusSkillNoticeCap,
+			Schema:             censusStateSchemaVersion,
+			AskedAt:            "2026-07-23T20:00:00Z",
+			AskedVia:           "skill",
+			Answer:             "none",
+			SkillPresentations: censusSkillNoticeCap,
 		}
 		if err := saveCensusState(paths, state); err != nil {
 			t.Fatal(err)
@@ -234,7 +234,7 @@ func TestCensusStatusNeverCreatesOrChangesConsentState(t *testing.T) {
 func TestCensusCommandFailureAfterFinalNoticePreservesUnansweredState(t *testing.T) {
 	paths := setupCensusTest(t)
 	stubCensusVersion(t, "0.21.0")
-	raw := []byte(`{"schema":2,"asked_at":"2026-07-23T20:00:00Z","asked_via":"skill","answer":"none","enabled":false,"skill_notices":3}`)
+	raw := []byte(`{"schema":3,"asked_at":"2026-07-23T20:00:00Z","asked_via":"skill","answer":"none","enabled":false,"skill_presentations":3}`)
 	if err := os.WriteFile(paths.CensusFile, raw, 0o600); err != nil {
 		t.Fatal(err)
 	}

@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-const censusStateSchemaVersion = 1
+const censusStateSchemaVersion = 2
 
 // censusNow is the census clock, overridable for tests (ISO-week gate,
 // relay-freshness and throttle tests).
@@ -20,13 +20,14 @@ var censusNow = time.Now
 // the explicit opt-in, the ISO-week send gate, and the opportunistically
 // observed relay version.
 type censusState struct {
-	Schema       int    `json:"schema"`
-	AskedAt      string `json:"asked_at,omitempty"`
-	AskedVia     string `json:"asked_via,omitempty"`
-	Answer       string `json:"answer,omitempty"` // yes | no | none
-	Enabled      bool   `json:"enabled"`
-	LastPingWeek string `json:"last_ping_week,omitempty"`
-	SkillNotices int    `json:"skill_notices,omitempty"`
+	Schema             int    `json:"schema"`
+	AskedAt            string `json:"asked_at,omitempty"`
+	AskedVia           string `json:"asked_via,omitempty"`
+	Answer             string `json:"answer,omitempty"` // yes | no | none
+	Enabled            bool   `json:"enabled"`
+	LastPingWeek       string `json:"last_ping_week,omitempty"`
+	SkillNotices       int    `json:"skill_notices,omitempty"`       // Legacy schema-1 machine emissions; never counts as a visible choice.
+	SkillPresentations int    `json:"skill_presentations,omitempty"` // Confirmed visible choices under the schema-2 contract.
 	// Relay version stamped from normal relay traffic (checkRelayVersionValue
 	// funnel) — the census NEVER makes its own relay call.
 	RelayVersion           string `json:"relay_version,omitempty"`
@@ -70,8 +71,20 @@ func readCensusState(paths runtimePaths) (censusState, bool) {
 	if state.Schema > censusStateSchemaVersion {
 		return recoverCensusState(), false
 	}
+	legacyPresentationState := state.Schema < 2
 	if state.Schema == 0 {
 		state.Schema = censusStateSchemaVersion
+	}
+	// Schema 1 closed the skill question after its third machine emission,
+	// before there was proof that the user saw a choice. Reopen only that
+	// recognizable unanswered auto-close; explicit yes/no answers stay final.
+	if legacyPresentationState &&
+		state.AskedVia == "skill" &&
+		state.Answer == "none" &&
+		state.SkillNotices >= censusSkillNoticeCap {
+		state.AskedAt = ""
+		state.AskedVia = ""
+		state.Answer = ""
 	}
 	return state, true
 }

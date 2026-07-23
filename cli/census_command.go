@@ -210,11 +210,15 @@ func runCensusNoticePresented(paths runtimePaths) int {
 	}
 	presented := 0
 	if err := mutateCensusState(paths, func(state *censusState) {
-		if state.AskedAt != "" || state.SkillNotices >= censusSkillNoticeCap {
+		if state.AskedAt != "" || state.SkillPresentations >= censusSkillNoticeCap {
 			return
 		}
-		state.SkillNotices++
-		presented = state.SkillNotices
+		// Schema-1 skill_notices counted machine emissions, which may have
+		// been deferred before the user saw them. Never carry those slots into
+		// the schema-2 visible-presentation cap.
+		state.SkillNotices = 0
+		state.SkillPresentations++
+		presented = state.SkillPresentations
 		if presented == censusSkillNoticeCap {
 			state.AskedAt = censusNow().UTC().Format(time.RFC3339)
 			state.AskedVia = "skill"
