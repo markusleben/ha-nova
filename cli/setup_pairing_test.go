@@ -334,8 +334,8 @@ func TestInteractiveSetupPairsStoresTokenAndVerifiesHealthAndWS(t *testing.T) {
 	if strings.Contains(output, "123456") || strings.Contains(output, pairedToken) {
 		t.Fatalf("wizard output leaked pairing credentials:\n%s", output)
 	}
-	if pairCalls.Load() != 1 || healthCalls.Load() != 1 || wsCalls.Load() != 1 {
-		t.Fatalf("calls pair/health/ws = %d/%d/%d, want 1/1/1", pairCalls.Load(), healthCalls.Load(), wsCalls.Load())
+	if pairCalls.Load() != 1 || healthCalls.Load() != 2 || wsCalls.Load() != 1 {
+		t.Fatalf("calls pair/health/ws = %d/%d/%d, want 1/2/1", pairCalls.Load(), healthCalls.Load(), wsCalls.Load())
 	}
 	storedToken, err := readRelayAuthToken()
 	if err != nil || storedToken != pairedToken {

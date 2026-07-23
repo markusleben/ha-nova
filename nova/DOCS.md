@@ -143,9 +143,9 @@ A healthy response looks like:
 
 **WebSocket not connected**
 
-- The relay connects to HA's WebSocket API on startup
-- Check the App logs for connection errors
-- Restart the App to force a reconnect
+- Health and REST calls do not open the lazy HA WebSocket connection
+- Run `ha-nova doctor` to send a WS ping and verify the following health state
+- Check the App logs only when that active readiness check fails
 
 ## Logs
 

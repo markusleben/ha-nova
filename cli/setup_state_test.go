@@ -132,11 +132,13 @@ func TestDetectSetupStateUsesWSPingFallbackForResume(t *testing.T) {
 		fetchRelayHealthForReadiness = originalHealth
 		probeRelayWSPingForReadiness = originalWSPing
 	}()
+	healthCalls := 0
 	fetchRelayHealthForReadiness = func(relayBaseURL, token string) ([]byte, error) {
-		return []byte(`{"status":"ok","data":{"ha_ws_connected":false}}`), nil
+		healthCalls++
+		return []byte(fmt.Sprintf(`{"status":"ok","data":{"ha_ws_connected":%t}}`, healthCalls > 1)), nil
 	}
 	probeRelayWSPingForReadiness = func(relayBaseURL, token string) (relayWSPingResponse, error) {
-		return relayWSPingResponse{StatusCode: 200, Body: []byte(`{"type":"pong"}`)}, nil
+		return relayWSPingResponse{StatusCode: 200, Body: []byte(`{"ok":true,"data":{"type":"pong"}}`)}, nil
 	}
 
 	state := loadStateOrDefault(paths)

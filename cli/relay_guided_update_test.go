@@ -80,6 +80,39 @@ func relayUpdateEntity(id, title string) map[string]interface{} {
 	}
 }
 
+func completedRelayUpdateEntity(id, version string) map[string]interface{} {
+	return map[string]interface{}{
+		"entity_id": id,
+		"state":     "off",
+		"attributes": map[string]interface{}{
+			"installed_version":  version,
+			"latest_version":     version,
+			"supported_features": updateFeatureInstall | updateFeatureBackup,
+			"in_progress":        false,
+		},
+	}
+}
+
+func writeRegistryOrPingResponse(t *testing.T, w http.ResponseWriter, r *http.Request, entityID string) {
+	t.Helper()
+	var req struct {
+		Type string `json:"type"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		t.Errorf("decode ws payload: %v", err)
+		return
+	}
+	if req.Type == "ping" {
+		_, _ = w.Write([]byte(`{"ok":true,"data":{"type":"pong"}}`))
+		return
+	}
+	if req.Type != "config/entity_registry/list" {
+		t.Errorf("unexpected ws type %q", req.Type)
+		return
+	}
+	_, _ = w.Write(registryEnvelope(t, []map[string]interface{}{novaRegistryEntry(entityID)}))
+}
+
 func TestResolveRelayUpdateEntity(t *testing.T) {
 	cases := []struct {
 		name       string
@@ -203,7 +236,7 @@ func TestGuidedRelayUpdateInstallsThroughTheRestartAndVerifies(t *testing.T) {
 			if installed.Load() {
 				version = "0.4.0"
 			}
-			fmt.Fprintf(w, `{"ok":true,"data":{"version":%q}}`, version)
+			fmt.Fprintf(w, `{"ok":true,"data":{"version":%q,"ha_ws_connected":%t}}`, version, installed.Load())
 		case "/core":
 			var req struct {
 				Path string `json:"path"`
@@ -217,6 +250,12 @@ func TestGuidedRelayUpdateInstallsThroughTheRestartAndVerifies(t *testing.T) {
 				t.Errorf("decode core payload: %v", err)
 			}
 			if req.Path == "/api/states" {
+				if installed.Load() {
+					w.Write(statesEnvelope(t, []map[string]interface{}{
+						completedRelayUpdateEntity("update.nova_relay_update", "0.4.0"),
+					}))
+					return
+				}
 				w.Write(statesEnvelope(t, []map[string]interface{}{
 					relayUpdateEntity("update.nova_relay_update", "NOVA Relay"),
 				}))
@@ -239,7 +278,7 @@ func TestGuidedRelayUpdateInstallsThroughTheRestartAndVerifies(t *testing.T) {
 			}
 			conn.Close()
 		case "/ws":
-			w.Write(registryEnvelope(t, []map[string]interface{}{novaRegistryEntry("update.nova_relay_update")}))
+			writeRegistryOrPingResponse(t, w, r, "update.nova_relay_update")
 		default:
 			t.Errorf("unexpected path %q", r.URL.Path)
 		}
@@ -353,11 +392,11 @@ func TestGuidedRelayUpdateRelayTimeoutEnvelopeStillPolls(t *testing.T) {
 			if installed.Load() {
 				version = "0.4.0"
 			}
-			fmt.Fprintf(w, `{"ok":true,"data":{"version":%q}}`, version)
+			fmt.Fprintf(w, `{"ok":true,"data":{"version":%q,"ha_ws_connected":%t}}`, version, installed.Load())
 			return
 		}
 		if r.URL.Path == "/ws" {
-			w.Write(registryEnvelope(t, []map[string]interface{}{novaRegistryEntry("update.nova_relay_update")}))
+			writeRegistryOrPingResponse(t, w, r, "update.nova_relay_update")
 			return
 		}
 		var req struct {
@@ -365,6 +404,12 @@ func TestGuidedRelayUpdateRelayTimeoutEnvelopeStillPolls(t *testing.T) {
 		}
 		json.NewDecoder(r.Body).Decode(&req)
 		if req.Path == "/api/states" {
+			if installed.Load() {
+				w.Write(statesEnvelope(t, []map[string]interface{}{
+					completedRelayUpdateEntity("update.nova_relay_update", "0.4.0"),
+				}))
+				return
+			}
 			w.Write(statesEnvelope(t, []map[string]interface{}{
 				relayUpdateEntity("update.nova_relay_update", "NOVA Relay"),
 			}))
@@ -381,5 +426,113 @@ func TestGuidedRelayUpdateRelayTimeoutEnvelopeStillPolls(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "Relay updated and verified: v0.4.0 is running.") {
 		t.Fatalf("missing verified report: %s", out.String())
+	}
+}
+
+func TestGuidedRelayUpdateRejectsTargetVersionWhileEntityRemainsPending(t *testing.T) {
+	paths := guidedUpdatePaths(t)
+	shrinkGuidedUpdatePolling(t, 20*time.Millisecond)
+	var installed atomic.Bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/health":
+			version := "0.2.6"
+			if installed.Load() {
+				version = "0.4.0"
+			}
+			fmt.Fprintf(w, `{"ok":true,"data":{"version":%q,"ha_ws_connected":true}}`, version)
+		case "/core":
+			var req struct {
+				Path string `json:"path"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				t.Errorf("decode core payload: %v", err)
+			}
+			if req.Path == "/api/states" {
+				w.Write(statesEnvelope(t, []map[string]interface{}{
+					relayUpdateEntity("update.nova_relay_update", "NOVA Relay"),
+				}))
+				return
+			}
+			installed.Store(true)
+			_, _ = w.Write([]byte(`{"ok":true,"data":{"status":200}}`))
+		case "/ws":
+			writeRegistryOrPingResponse(t, w, r, "update.nova_relay_update")
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	var out bytes.Buffer
+	if runGuidedRelayUpdate(paths, config{RelayBaseURL: server.URL}, "token", bufio.NewReader(strings.NewReader("y\n")), &out) {
+		t.Fatalf("pending update entity must not verify; output: %s", out.String())
+	}
+	if !strings.Contains(out.String(), "did not confirm the App update as complete") {
+		t.Fatalf("missing terminal-state failure: %s", out.String())
+	}
+	if strings.Contains(out.String(), "Relay updated and verified") {
+		t.Fatalf("pending update entity produced a false success: %s", out.String())
+	}
+}
+
+func TestGuidedRelayUpdateRejectsSuccessfulInstallWithoutWSReadiness(t *testing.T) {
+	paths := guidedUpdatePaths(t)
+	shrinkGuidedUpdatePolling(t, time.Second)
+	var installed atomic.Bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/health":
+			version := "0.2.6"
+			if installed.Load() {
+				version = "0.4.0"
+			}
+			fmt.Fprintf(w, `{"ok":true,"data":{"version":%q,"ha_ws_connected":false}}`, version)
+		case "/core":
+			var req struct {
+				Path string `json:"path"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				t.Errorf("decode core payload: %v", err)
+			}
+			if req.Path == "/api/states" {
+				entity := relayUpdateEntity("update.nova_relay_update", "NOVA Relay")
+				if installed.Load() {
+					entity = completedRelayUpdateEntity("update.nova_relay_update", "0.4.0")
+				}
+				w.Write(statesEnvelope(t, []map[string]interface{}{entity}))
+				return
+			}
+			installed.Store(true)
+			_, _ = w.Write([]byte(`{"ok":true,"data":{"status":200}}`))
+		case "/ws":
+			var req struct {
+				Type string `json:"type"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				t.Errorf("decode ws payload: %v", err)
+				return
+			}
+			if req.Type == "ping" {
+				w.WriteHeader(http.StatusBadGateway)
+				_, _ = w.Write([]byte(`{"ok":false,"error":{"code":"UPSTREAM_WS_CONNECT_ERROR"}}`))
+				return
+			}
+			_, _ = w.Write(registryEnvelope(t, []map[string]interface{}{novaRegistryEntry("update.nova_relay_update")}))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	var out bytes.Buffer
+	if runGuidedRelayUpdate(paths, config{RelayBaseURL: server.URL}, "token", bufio.NewReader(strings.NewReader("y\n")), &out) {
+		t.Fatalf("unready WebSocket must not verify; output: %s", out.String())
+	}
+	if !strings.Contains(out.String(), "WebSocket readiness could not be verified") {
+		t.Fatalf("missing WebSocket-readiness failure: %s", out.String())
+	}
+	if strings.Contains(out.String(), "Relay updated and verified") {
+		t.Fatalf("unready WebSocket produced a false success: %s", out.String())
 	}
 }

@@ -147,6 +147,16 @@ func runGuidedRelayUpdate(paths runtimePaths, cfg config, token string, in *bufi
 		fmt.Fprintf(out, "The relay did not report a new version within %s.\n%s\n", relayUpdatePollTimeout, relayUpdateManualPath)
 		return false
 	}
+	if !waitForRelayUpdateCompletion(cfg, token, candidate) {
+		fmt.Fprintf(out, "The Relay reached v%s, but Home Assistant did not confirm the App update as complete within %s.\n%s\n", version, relayUpdatePollTimeout, relayUpdateManualPath)
+		return false
+	}
+	readiness, readinessVersion := verifyUpdatedRelayReadiness(paths, cfg, token, candidate.LatestVersion)
+	if !readiness {
+		fmt.Fprintf(out, "The Relay reached v%s, but its Home Assistant WebSocket readiness could not be verified.\n%s\n", version, relayUpdateManualPath)
+		return false
+	}
+	version = readinessVersion
 	fmt.Fprintf(out, "Relay updated and verified: v%s is running.\n", version)
 	return true
 }
@@ -184,6 +194,18 @@ func (candidate relayUpdateCandidate) samePreview(other relayUpdateCandidate) bo
 		candidate.LatestVersion == other.LatestVersion &&
 		candidate.SupportedFeatures == other.SupportedFeatures &&
 		candidate.InProgress == other.InProgress
+}
+
+func (candidate relayUpdateCandidate) completedFrom(before relayUpdateCandidate) bool {
+	if candidate.EntityID != before.EntityID ||
+		candidate.Platform != before.Platform ||
+		candidate.UniqueID != before.UniqueID ||
+		candidate.State != "off" ||
+		candidate.InProgress {
+		return false
+	}
+	cmp, err := compareReleaseVersions(candidate.InstalledVersion, before.LatestVersion)
+	return err == nil && cmp >= 0
 }
 
 func relayRegistryEntryMatchesNOVA(uniqueID string) bool {
@@ -309,19 +331,8 @@ func waitForRelayVersion(paths runtimePaths, cfg config, token, targetVersion st
 		body, err := fetchRelayHealthWith(client, base, credential)
 		if err == nil {
 			version := parseRelayHealthVersion(body)
-			if version != "" {
-				// Every successful update must still satisfy the installed skill
-				// floor. The App update entity can lag behind version.json and
-				// advertise a target that remains incompatible.
-				if checkRelayVersionValue(paths, version).empty() {
-					if targetVersion == "" {
-						return version, true
-					}
-					cmp, compareErr := compareReleaseVersions(version, targetVersion)
-					if compareErr == nil && cmp >= 0 {
-						return version, true
-					}
-				}
+			if relayVersionMeetsUpdateGate(paths, version, targetVersion) {
+				return version, true
 			}
 		}
 		if time.Now().After(deadline) {
@@ -329,4 +340,45 @@ func waitForRelayVersion(paths runtimePaths, cfg config, token, targetVersion st
 		}
 		time.Sleep(relayUpdatePollInterval)
 	}
+}
+
+func relayVersionMeetsUpdateGate(paths runtimePaths, version, targetVersion string) bool {
+	if version == "" || !checkRelayVersionValue(paths, version).empty() {
+		return false
+	}
+	if targetVersion == "" {
+		return true
+	}
+	cmp, err := compareReleaseVersions(version, targetVersion)
+	return err == nil && cmp >= 0
+}
+
+func waitForRelayUpdateCompletion(cfg config, token string, before relayUpdateCandidate) bool {
+	deadline := time.Now().Add(relayUpdatePollTimeout)
+	for {
+		current, _ := resolveRelayUpdateCandidate(cfg, token)
+		if current.completedFrom(before) {
+			return true
+		}
+		if time.Now().After(deadline) {
+			return false
+		}
+		time.Sleep(relayUpdatePollInterval)
+	}
+}
+
+func verifyUpdatedRelayReadiness(paths runtimePaths, cfg config, token, targetVersion string) (bool, string) {
+	base, client, credential, err := functionalEndpoint(cfg, token)
+	if err != nil {
+		return false, ""
+	}
+	readiness := checkRelayReadinessWithProbes(
+		base,
+		credential,
+		func(u, t string) ([]byte, error) { return fetchRelayHealthWith(client, u, t) },
+		func(u, t string) (relayWSPingResponse, error) { return probeRelayWSPingWith(client, u, t) },
+		true,
+	)
+	version := parseRelayHealthVersion(readiness.HealthBody)
+	return readiness.WSReady && relayVersionMeetsUpdateGate(paths, version, targetVersion), version
 }

@@ -56,6 +56,15 @@ Response 200:
 }
 ```
 
+Connection status is observed state, not a probe. `GET /health` and `/core`
+requests do not open the upstream Home Assistant WebSocket. A fresh Relay
+therefore reports `ha_ws_connected: false` with
+`ha_ws_disconnect_reason: "never_connected"` until the first real `/ws`
+request; that pre-request state is not a connection failure. To prove
+WebSocket readiness, issue `POST /ws` with `{"type":"ping"}` and then re-read
+health. Require both a successful Relay envelope and
+`ha_ws_connected: true`.
+
 ### `POST /pair` — Pairing Credential Exchange
 
 This is the only route that does not accept the relay bearer token. Its

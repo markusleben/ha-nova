@@ -153,7 +153,7 @@ func TestRunDoctorReportsActiveDriftButDoesNotFailInactiveArtifacts(t *testing.T
 		return []byte(`{"status":"ok","data":{"ha_ws_connected":true},"version":"0.6.2"}`), nil
 	}
 	probeRelayWSPingForReadiness = func(relayBaseURL, token string) (relayWSPingResponse, error) {
-		return relayWSPingResponse{StatusCode: 200, Body: []byte(`{"type":"pong"}`)}, nil
+		return relayWSPingResponse{StatusCode: 200, Body: []byte(`{"ok":true,"data":{"type":"pong"}}`)}, nil
 	}
 
 	backupRef := filepath.Join(paths.Home, ".local", "share", installBackupPrefixOld+"doctor", "docs")

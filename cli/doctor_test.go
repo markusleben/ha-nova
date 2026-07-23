@@ -20,11 +20,16 @@ func TestRunDoctorTreatsWSPingSuccessAsReady(t *testing.T) {
 		fetchRelayHealthForReadiness = originalHealth
 		probeRelayWSPingForReadiness = originalWSPing
 	}()
+	healthCalls := 0
 	fetchRelayHealthForReadiness = func(relayBaseURL, token string) ([]byte, error) {
-		return []byte(`{"status":"ok","data":{"ha_ws_connected":false},"version":"0.1.12"}`), nil
+		healthCalls++
+		if healthCalls == 1 {
+			return []byte(`{"status":"ok","data":{"ha_ws_connected":false},"version":"0.1.12"}`), nil
+		}
+		return []byte(`{"status":"ok","data":{"ha_ws_connected":true},"version":"0.1.12"}`), nil
 	}
 	probeRelayWSPingForReadiness = func(relayBaseURL, token string) (relayWSPingResponse, error) {
-		return relayWSPingResponse{StatusCode: http.StatusOK, Body: []byte(`{"type":"pong"}`)}, nil
+		return relayWSPingResponse{StatusCode: http.StatusOK, Body: []byte(`{"ok":true,"data":{"type":"pong"}}`)}, nil
 	}
 
 	exitCode, output := captureCommandOutput(t, func() int {
@@ -86,7 +91,7 @@ func TestRunDoctorDoesNotClaimConnectedWhenHAProbeFails(t *testing.T) {
 		return []byte(`{"status":"ok","data":{"ha_ws_connected":false},"version":"0.1.12"}`), nil
 	}
 	probeRelayWSPingForReadiness = func(relayBaseURL, token string) (relayWSPingResponse, error) {
-		return relayWSPingResponse{StatusCode: http.StatusOK, Body: []byte(`{"type":"pong"}`)}, nil
+		return relayWSPingResponse{StatusCode: http.StatusOK, Body: []byte(`{"ok":true,"data":{"type":"pong"}}`)}, nil
 	}
 
 	if err := saveConfig(paths, runtimeConfig{
@@ -166,7 +171,7 @@ func TestRunDoctorShowsRepairHintForDetachedConfiguredClaude(t *testing.T) {
 		return []byte(`{"status":"ok","data":{"ha_ws_connected":true},"version":"0.1.12"}`), nil
 	}
 	probeRelayWSPingForReadiness = func(relayBaseURL, token string) (relayWSPingResponse, error) {
-		return relayWSPingResponse{StatusCode: http.StatusOK, Body: []byte(`{"type":"pong"}`)}, nil
+		return relayWSPingResponse{StatusCode: http.StatusOK, Body: []byte(`{"ok":true,"data":{"type":"pong"}}`)}, nil
 	}
 
 	state := loadStateOrDefault(paths)
@@ -204,7 +209,7 @@ func TestRunDoctorShowsDevSyncHintForDetachedConfiguredClaudeOnDevInstall(t *tes
 		return []byte(`{"status":"ok","data":{"ha_ws_connected":true},"version":"0.1.12"}`), nil
 	}
 	probeRelayWSPingForReadiness = func(relayBaseURL, token string) (relayWSPingResponse, error) {
-		return relayWSPingResponse{StatusCode: http.StatusOK, Body: []byte(`{"type":"pong"}`)}, nil
+		return relayWSPingResponse{StatusCode: http.StatusOK, Body: []byte(`{"ok":true,"data":{"type":"pong"}}`)}, nil
 	}
 
 	t.Setenv("HA_NOVA_DEV_ROOT", repoRootForSetupTest(t))
@@ -240,7 +245,7 @@ func TestRunDoctorShowsRepairHintWhenClaudeMarketplaceMissing(t *testing.T) {
 		return []byte(`{"status":"ok","data":{"ha_ws_connected":true},"version":"0.1.12"}`), nil
 	}
 	probeRelayWSPingForReadiness = func(relayBaseURL, token string) (relayWSPingResponse, error) {
-		return relayWSPingResponse{StatusCode: http.StatusOK, Body: []byte(`{"type":"pong"}`)}, nil
+		return relayWSPingResponse{StatusCode: http.StatusOK, Body: []byte(`{"ok":true,"data":{"type":"pong"}}`)}, nil
 	}
 
 	state := loadStateOrDefault(paths)
@@ -438,7 +443,7 @@ func TestRunDoctorReportsConfiguredServiceTokenFile(t *testing.T) {
 		return []byte(`{"status":"ok","data":{"ha_ws_connected":true},"version":"0.1.12"}`), nil
 	}
 	probeRelayWSPingForReadiness = func(relayBaseURL, token string) (relayWSPingResponse, error) {
-		return relayWSPingResponse{StatusCode: http.StatusOK, Body: []byte(`{"type":"pong"}`)}, nil
+		return relayWSPingResponse{StatusCode: http.StatusOK, Body: []byte(`{"ok":true,"data":{"type":"pong"}}`)}, nil
 	}
 
 	exitCode, output := captureCommandOutput(t, func() int {
@@ -466,7 +471,7 @@ func TestRunDoctorShowsRepairHintForDetachedConfiguredHermes(t *testing.T) {
 		return []byte(`{"status":"ok","data":{"ha_ws_connected":true},"version":"0.1.12"}`), nil
 	}
 	probeRelayWSPingForReadiness = func(relayBaseURL, token string) (relayWSPingResponse, error) {
-		return relayWSPingResponse{StatusCode: http.StatusOK, Body: []byte(`{"type":"pong"}`)}, nil
+		return relayWSPingResponse{StatusCode: http.StatusOK, Body: []byte(`{"ok":true,"data":{"type":"pong"}}`)}, nil
 	}
 
 	state := loadStateOrDefault(paths)
@@ -503,7 +508,7 @@ func TestRunDoctorShowsRepairHintForLegacyHermesBundleWithoutState(t *testing.T)
 		return []byte(`{"status":"ok","data":{"ha_ws_connected":true},"version":"0.1.12"}`), nil
 	}
 	probeRelayWSPingForReadiness = func(relayBaseURL, token string) (relayWSPingResponse, error) {
-		return relayWSPingResponse{StatusCode: http.StatusOK, Body: []byte(`{"type":"pong"}`)}, nil
+		return relayWSPingResponse{StatusCode: http.StatusOK, Body: []byte(`{"ok":true,"data":{"type":"pong"}}`)}, nil
 	}
 
 	hermesRoot := filepath.Join(paths.Home, ".hermes", "skills", "ha-nova")

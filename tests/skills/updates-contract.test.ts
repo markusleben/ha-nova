@@ -25,18 +25,18 @@ describe("updates contract", () => {
     expect(updatesSkill).toContain("offer a full safety backup first via `ha-nova:backup`");
     expect(updatesSkill).toContain("HA restarts during the update");
     expect(updatesSkill).toContain('include `"backup": true`');
-    // Updating the NOVA Relay add-on kills the transport mid-flight.
-    expect(updatesSkill).toContain("Updating the NOVA Relay App restarts the relay itself");
-    expect(updatesSkill).toContain("a dropped install response is expected");
-    expect(updatesSkill).toContain("poll `ha-nova relay health` about every 5 seconds for up to 3 minutes");
-    expect(updatesSkill).toContain("never route to setup");
-    expect(updatesSkill).toContain("reaching the offered target");
-    expect(updatesSkill).toContain("minimum Relay version");
+    // Updating the NOVA Relay App kills the transport mid-flight.
+    expect(updatesSkill).toContain("NOVA Relay restarts mid-call");
+    expect(updatesSkill).toContain(
+      "poll health every ~5 s for 3 minutes",
+    );
+    expect(updatesSkill).toContain("never route to `ha-nova setup` mid-update");
+    expect(updatesSkill).toContain("observed version reaches the offered target and skills' minimum");
     expect(updatesSkill).toContain("Immediately before POST, re-read state and registry");
     expect(updatesSkill).toContain("with `in_progress` false");
     expect(updatesSkill).toContain("Any drift invalidates confirmation");
     expect(updatesSkill).toContain('the confirmed `"version": "<v>"` only with bit 2');
-    expect(updatesSkill).toContain("verify afterwards via `ha-nova relay health`");
+    expect(updatesSkill).not.toContain("verify afterwards via `ha-nova relay health`");
     // Firmware caution.
     expect(updatesSkill).toContain("must not be interrupted");
   });
@@ -46,6 +46,28 @@ describe("updates contract", () => {
     expect(updatesSkill).toContain("an explicitly requested older version may legitimately leave the entity pending");
     expect(updatesSkill).toContain("never claim success from the call alone");
     expect(updatesSkill).toContain("a running update (`in_progress`) blocks a second install");
+  });
+
+  it("orders target, entity, ping, and post-health readiness verification", () => {
+    const target = updatesSkill.indexOf("observed version reaches the offered target and skills' minimum");
+    const complete = updatesSkill.indexOf("Then require the update entity complete");
+    const ping = updatesSkill.indexOf('send WS `{"type":"ping"}`');
+    const postHealth = updatesSkill.indexOf("re-read health");
+    const success = updatesSkill.indexOf(
+      "Success requires ping `ok: true` and post-ping `ha_ws_connected: true`",
+    );
+
+    expect(target).toBeGreaterThan(-1);
+    expect(complete).toBeGreaterThan(target);
+    expect(ping).toBeGreaterThan(complete);
+    expect(postHealth).toBeGreaterThan(ping);
+    expect(success).toBeGreaterThan(postHealth);
+    expect(updatesSkill).toContain(
+      "Timeout means not verified: do not probe or claim readiness.",
+    );
+    expect(updatesSkill).toContain(
+      "Pre-ping `false`/`never_connected`/`network` is passive or stale",
+    );
   });
 
   it("survives the restart window it warns about (red-team blockers)", () => {

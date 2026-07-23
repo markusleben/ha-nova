@@ -197,7 +197,7 @@ func TestGuidedRelayUpdateWaitsForOfferedAboveFloorVersion(t *testing.T) {
 			if installed.Load() && poll >= 3 {
 				version = "0.6.0"
 			}
-			fmt.Fprintf(w, `{"ok":true,"data":{"version":%q}}`, version)
+			fmt.Fprintf(w, `{"ok":true,"data":{"version":%q,"ha_ws_connected":%t}}`, version, version == "0.6.0")
 		case "/core":
 			var req struct {
 				Path string `json:"path"`
@@ -206,6 +206,12 @@ func TestGuidedRelayUpdateWaitsForOfferedAboveFloorVersion(t *testing.T) {
 				t.Errorf("decode core payload: %v", err)
 			}
 			if req.Path == "/api/states" {
+				if installed.Load() {
+					w.Write(statesEnvelope(t, []map[string]interface{}{
+						completedRelayUpdateEntity("update.nova_relay_update", "0.6.0"),
+					}))
+					return
+				}
 				w.Write(statesEnvelope(t, []map[string]interface{}{
 					pendingRelayUpdateEntity("update.nova_relay_update", "0.4.1", "0.6.0"),
 				}))
@@ -218,7 +224,7 @@ func TestGuidedRelayUpdateWaitsForOfferedAboveFloorVersion(t *testing.T) {
 			installed.Store(true)
 			fmt.Fprint(w, `{"ok":true,"data":{"status":200}}`)
 		case "/ws":
-			w.Write(registryEnvelope(t, []map[string]interface{}{novaRegistryEntry("update.nova_relay_update")}))
+			writeRegistryOrPingResponse(t, w, r, "update.nova_relay_update")
 		default:
 			t.Errorf("unexpected path %q", r.URL.Path)
 		}
@@ -299,7 +305,7 @@ func TestRunDoctorReportsAboveFloorRelayUpdateWithoutFailing(t *testing.T) {
 		return []byte(`{"ok":true,"data":{"status":"ok","ha_ws_connected":true,"version":"0.4.1"}}`), nil
 	}
 	probeRelayWSPingForReadiness = func(relayBaseURL, token string) (relayWSPingResponse, error) {
-		return relayWSPingResponse{StatusCode: http.StatusOK, Body: []byte(`{"type":"pong"}`)}, nil
+		return relayWSPingResponse{StatusCode: http.StatusOK, Body: []byte(`{"ok":true,"data":{"type":"pong"}}`)}, nil
 	}
 
 	exitCode, output := captureCommandOutput(t, func() int {
