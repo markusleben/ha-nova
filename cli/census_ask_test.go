@@ -469,7 +469,7 @@ func TestCensusAskOnlyTheStampWinnerPrompts(t *testing.T) {
 	// asked file exists, so the in-lock re-check must refuse the prompt.
 	var out strings.Builder
 	askCensusIfEligible(paths, "doctor", bufio.NewReader(strings.NewReader("1\n")), &out)
-	if strings.Contains(out.String(), "Contribute this installation?") {
+	if out.String() != "" {
 		t.Fatalf("loser must not prompt, got output:\n%s", out.String())
 	}
 	state := loadCensusState(paths)
