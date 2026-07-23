@@ -152,7 +152,14 @@ Do not create a new account solely for this launch.
 
 Policy: https://news.ycombinator.com/showlim
 
-Submit the repository URL with this title:
+HN also prohibits generated or AI-edited comments. The maintainer must write
+the submission title and first comment in their own words. Use the material
+below only as a fact-checked source; do not submit it verbatim or
+automatically.
+
+Generated-content policy: https://news.ycombinator.com/newsguidelines.html#generated
+
+Submit the repository URL. Title candidate for the maintainer's rewrite:
 
 **Title**
 
@@ -162,9 +169,9 @@ Show HN: HA NOVA – AI for Home Assistant that checks its work
 
 https://github.com/markusleben/ha-nova
 
-Post this immediately as the first comment:
+Fact-checked source for the maintainer's first comment:
 
-**First comment**
+**First-comment facts**
 
 I built HA NOVA to let AI clients operate Home Assistant through plain markdown skills. The architecture rule is “the Relay stays dumb, the skills stay smart”: the server-side component is a thin proxy with no Home Assistant domain logic, while the workflows and safety rules remain readable on the client.
 
@@ -182,7 +189,7 @@ I build and maintain the project. It is free, MIT-licensed, and installable now 
 2. Post it first, with `assets/pairing-flow.png`.
 3. Reply to the existing Home Assistant Community topic within one day of the Reddit post.
 4. Fold concrete feedback into the r/ClaudeCode and r/selfhosted variants, then post them.
-5. Submit Show HN last, only from an eligible established account and when there is time to answer questions.
+5. Submit Show HN last, using a maintainer-written title and first comment, only from an eligible established account and when there is time to answer questions.
 
 The `/releases/latest` links are intentional and remain correct across patch
 releases.
