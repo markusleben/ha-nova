@@ -325,7 +325,12 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 			}
 		}
 
-		token, err := exchangeRelayPairingCodeForSetup(httpClient, cfg.RelayBaseURL, code)
+		var token string
+		err = withSetupLifecycleLock(paths, lifecycleMarker, func() error {
+			var exchangeErr error
+			token, exchangeErr = exchangeRelayPairingCodeForSetup(httpClient, cfg.RelayBaseURL, code)
+			return exchangeErr
+		})
 		switch {
 		case err == nil:
 			renderSetupSuccessLine(out, "This device is paired with NOVA Relay")

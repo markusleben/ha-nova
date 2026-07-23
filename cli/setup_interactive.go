@@ -172,6 +172,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 	defer func() {
 		restoreTokenFileOverride()
 	}()
+	setupChanged := false
 	formerServiceTokenFile := ""
 	formerServiceToken := ""
 	if !serviceMode {
@@ -203,6 +204,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 			return 1
 		}
 		if migrated {
+			setupChanged = true
 			printHumanInfo("Moved this install's device credential into protected service file storage.")
 		}
 		// Read any already-stored token BEFORE the file override redirects
@@ -325,6 +327,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 		return 1
 	}
 	if resumeErr == nil && resumed {
+		setupChanged = true
 		printHumanInfo("Resumed the interrupted pairing — this device is connected.")
 	}
 
@@ -341,7 +344,9 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 	current := detectSetupStateForAssessment(paths, cfg, state, target, savedTokenBeforeSetup, hadSavedTokenBeforeSetup)
 	if tokenStoragePreflightErr == nil {
 		if handled, code := maybeHandleInteractiveSetupCurrentState(reader, os.Stdout, paths, cfg, current, overrideApplied, lifecycleMarker...); handled {
-			if code == 0 && current.IsComplete() {
+			needsLifecycleFinalization := setupChanged || overrideApplied ||
+				(len(lifecycleMarker) > 1 && len(lifecycleMarker[1]) > 0)
+			if code == 0 && current.IsComplete() && needsLifecycleFinalization {
 				if err := completeSetupLifecycle(paths, lifecycleMarker...); err != nil {
 					printHumanErr("cannot finalize setup lifecycle: %s", err)
 					return 1

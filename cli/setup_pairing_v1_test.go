@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -56,6 +57,42 @@ func TestSetupPairingFallsBackToLegacyExchange(t *testing.T) {
 	}
 	if token != "legacy-token-for-473921" {
 		t.Fatalf("unexpected legacy token %q", token)
+	}
+}
+
+func TestSetupPairingLegacyExchangeRejectsStaleLifecycle(t *testing.T) {
+	origProbe, origExchange := probePairingV1ForSetup, exchangeRelayPairingCodeForSetup
+	defer func() { probePairingV1ForSetup, exchangeRelayPairingCodeForSetup = origProbe, origExchange }()
+
+	paths := runtimePaths{ConfigDir: filepath.Join(t.TempDir(), "ha-nova")}
+	if err := rotateInstallLifecycleGeneration(paths); err != nil {
+		t.Fatalf("seed install lifecycle: %v", err)
+	}
+	lifecycleMarker := [][]byte{captureInstallLifecycleGeneration(paths)}
+	probePairingV1ForSetup = func(string) bool {
+		if err := rotateInstallLifecycleGeneration(paths); err != nil {
+			t.Fatalf("supersede setup lifecycle: %v", err)
+		}
+		return false
+	}
+	exchangeCalled := false
+	exchangeRelayPairingCodeForSetup = func(_ *http.Client, _, _ string) (string, error) {
+		exchangeCalled = true
+		return "legacy-token", nil
+	}
+
+	reader := bufio.NewReader(strings.NewReader("\n473921\nexit\n"))
+	cfg := &runtimeConfig{RelayBaseURL: "http://relay:8791"}
+	var out strings.Builder
+	_, err := runSetupPairingFlow(reader, &out, paths, cfg, false, lifecycleMarker...)
+	if !errors.Is(err, errSetupExit) {
+		t.Fatalf("expected setup to stop after the stale exchange was rejected, got %v", err)
+	}
+	if exchangeCalled {
+		t.Fatal("legacy /pair exchange consumed a code after the setup lifecycle changed")
+	}
+	if !strings.Contains(out.String(), "setup was superseded by an uninstall") {
+		t.Fatalf("missing stale-lifecycle error:\n%s", out.String())
 	}
 }
 

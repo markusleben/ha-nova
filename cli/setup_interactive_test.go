@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"io"
 	"net/http"
@@ -1265,6 +1266,23 @@ func TestInteractiveSetupAlreadyDoneUsesResumeBanner(t *testing.T) {
 	census := loadCensusState(paths)
 	if census.Answer != "no" || census.Enabled {
 		t.Fatalf("default-No census answer was not applied exactly once: %+v", census)
+	}
+
+	generationAfterReactivation := captureInstallLifecycleGeneration(paths)
+	secondLifecycle := [][]byte{
+		generationAfterReactivation,
+		captureCensusLifecycleMarker(paths),
+	}
+	secondExitCode := 0
+	captureInteractiveSetupIO(t, "\n", func() int {
+		secondExitCode = interactiveSetup(paths, cfg, state, "claude", "", "", "", "", false, secondLifecycle...)
+		return secondExitCode
+	})
+	if secondExitCode != 0 {
+		t.Fatalf("unchanged already-complete setup exit = %d, want 0", secondExitCode)
+	}
+	if got := captureInstallLifecycleGeneration(paths); !bytes.Equal(got, generationAfterReactivation) {
+		t.Fatal("unchanged already-complete setup rotated the install lifecycle generation")
 	}
 }
 
