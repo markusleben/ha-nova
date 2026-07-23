@@ -28,6 +28,7 @@ Read-only analysis. Exception: after explicit user confirmation, one Quick-Fix s
 
 ## Bootstrap (once per session)
 
+Read and follow `../ha-nova/session-bootstrap.md`.
 Preflight: `ha-nova relay health` (once per session, skip if already verified). If this fails: `ha-nova setup`.
 
 ## Relay Contract

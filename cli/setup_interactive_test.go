@@ -1151,6 +1151,7 @@ func TestInteractiveSetupInitialClientPageAllowsRepeatedBack(t *testing.T) {
 	t.Setenv("HA_NOVA_NO_BROWSER", "1")
 	t.Setenv("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING", "1")
 	t.Setenv("HA_NOVA_TEST_KEYRING_FILE", filepath.Join(home, ".config", "ha-nova", ".test-relay-auth-token"))
+	t.Setenv("HA_NOVA_DEV_ROOT", repoRootForSetupTest(t))
 
 	haServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -1239,10 +1240,13 @@ func TestInteractiveSetupAlreadyDoneUsesResumeBanner(t *testing.T) {
 	if err := markCensusLifecycleStopped(paths); err != nil {
 		t.Fatalf("mark census lifecycle stopped: %v", err)
 	}
-	lifecycleMarker := captureCensusLifecycleMarker(paths)
+	lifecycleMarker := [][]byte{
+		captureInstallLifecycleGeneration(paths),
+		captureCensusLifecycleMarker(paths),
+	}
 
 	stdout, stderr := captureInteractiveSetupIO(t, "\n", func() int {
-		return interactiveSetup(paths, cfg, state, "claude", "", "", "", "", false, lifecycleMarker)
+		return interactiveSetup(paths, cfg, state, "claude", "", "", "", "", false, lifecycleMarker...)
 	})
 
 	output := stdout + stderr

@@ -22,7 +22,7 @@ func removeManagedConfigArtifacts(paths runtimePaths, report *uninstallReport, p
 		if err := markCensusLifecycleStopped(paths); err != nil {
 			return fmt.Errorf("cannot stop census lifecycle: %w", err)
 		}
-		report.addNote("Retained one opaque random local uninstall-safety marker so stale processes cannot restart the census; it is never sent and a later successful setup removes it.")
+		report.addNote("Retained two opaque random local safety markers so stale processes cannot restore the install or restart the census; neither is sent, and successful setup removes the census stop marker while rotating the install generation.")
 	}
 	for _, path := range managedConfigArtifactPaths(paths, purge) {
 		if err := removePathWithReport(path, report); err != nil && !isNotExist(err) {
@@ -38,7 +38,6 @@ func censusLifecycleEvidence(paths runtimePaths) bool {
 		paths.StateFile,
 		paths.CensusFile,
 		paths.ConfigFile,
-		paths.ConfigDir,
 		paths.VersionFile,
 		paths.BundleFile,
 		paths.PublicBinary,
@@ -98,7 +97,12 @@ func managedConfigArtifactPaths(paths runtimePaths, purge bool) []string {
 func managedCacheArtifactPaths(paths runtimePaths) []string {
 	list := []string{
 		paths.UpdateCacheFile,
+		filepath.Join(paths.CacheDir, updateNudgeMarkerName),
+		filepath.Join(paths.CacheDir, updateRefreshMarkerName),
+		filepath.Join(paths.CacheDir, "relay-outdated-warned"),
 		filepath.Join(paths.CacheDir, "automation-bp-snapshot.json"),
+		filepath.Join(paths.CacheDir, sessionBootstrapVerifiedMarker),
+		filepath.Join(paths.CacheDir, sessionBootstrapRepairPendingFile),
 	}
 	// Clean pre-v0.21 census action markers. Current census serialization does
 	// not create cache markers.

@@ -108,7 +108,8 @@ var (
 	// one CLI process do not serialize goroutines. Take this bounded local lock
 	// before the cross-process platform lock. One global coordinator is enough:
 	// census work is rare and bounded to a single 1.5-second request.
-	censusProcessLock = make(chan struct{}, 1)
+	censusProcessLock        = make(chan struct{}, 1)
+	censusPassiveLockTimeout = time.Millisecond
 )
 
 // acquireCensusLock takes a bounded in-process lock followed by a platform
@@ -118,12 +119,16 @@ var (
 // race. Process exit releases the platform lock automatically. Every
 // preparation/lock error fails closed. NOT reentrant.
 func acquireCensusLock(paths runtimePaths) (func(), bool) {
+	return acquireCensusLockWithin(paths, censusLockTimeout)
+}
+
+func acquireCensusLockWithin(paths runtimePaths, timeout time.Duration) (func(), bool) {
 	unlocked := func() {}
 	if paths.ConfigDir == "" {
 		return unlocked, false
 	}
 	started := time.Now()
-	timer := time.NewTimer(censusLockTimeout)
+	timer := time.NewTimer(timeout)
 	defer func() {
 		if !timer.Stop() {
 			select {
@@ -138,7 +143,7 @@ func acquireCensusLock(paths runtimePaths) (func(), bool) {
 		return unlocked, false
 	}
 	releaseProcess := func() { <-censusProcessLock }
-	remaining := censusLockTimeout - time.Since(started)
+	remaining := timeout - time.Since(started)
 	if remaining <= 0 {
 		releaseProcess()
 		return unlocked, false
@@ -162,7 +167,11 @@ func acquireCensusLock(paths runtimePaths) (func(), bool) {
 // The centralized ping path takes this lock directly and does not call this
 // helper while holding it.
 func mutateCensusState(paths runtimePaths, mutate func(*censusState)) error {
-	release, ok := acquireCensusLock(paths)
+	return mutateCensusStateWithin(paths, censusLockTimeout, mutate)
+}
+
+func mutateCensusStateWithin(paths runtimePaths, timeout time.Duration, mutate func(*censusState)) error {
+	release, ok := acquireCensusLockWithin(paths, timeout)
 	if !ok {
 		return fmt.Errorf("census state is locked by another process")
 	}
@@ -238,21 +247,78 @@ func censusLifecycleStopped(paths runtimePaths) bool {
 }
 
 func captureCensusLifecycleMarker(paths runtimePaths) []byte {
+	data, _ := readCensusLifecycleMarker(paths)
+	return data
+}
+
+func readCensusLifecycleMarker(paths runtimePaths) ([]byte, error) {
 	marker := censusLifecycleMarkerPath(paths)
 	if marker == "" {
-		return nil
+		return nil, fmt.Errorf("census lifecycle marker path unknown")
 	}
 	data, err := os.ReadFile(marker)
-	if err != nil || len(data) == 0 {
-		return nil
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
 	}
+	if err != nil {
+		return nil, err
+	}
+	if len(data) == 0 {
+		return nil, fmt.Errorf("census lifecycle marker is empty")
+	}
+	return data, nil
+}
+
+func installLifecycleGenerationPath(paths runtimePaths) string {
+	marker := censusLifecycleMarkerPath(paths)
+	if marker == "" {
+		return ""
+	}
+	return filepath.Join(filepath.Dir(marker), ".ha-nova-install-generation")
+}
+
+func captureInstallLifecycleGeneration(paths runtimePaths) []byte {
+	data, _ := readInstallLifecycleGeneration(paths)
 	return data
+}
+
+func readInstallLifecycleGeneration(paths runtimePaths) ([]byte, error) {
+	path := installLifecycleGenerationPath(paths)
+	if path == "" {
+		return nil, fmt.Errorf("install lifecycle generation path unknown")
+	}
+	data, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if len(data) == 0 {
+		return nil, fmt.Errorf("install lifecycle generation is empty")
+	}
+	return data, nil
+}
+
+func rotateInstallLifecycleGeneration(paths runtimePaths) error {
+	path := installLifecycleGenerationPath(paths)
+	if path == "" {
+		return fmt.Errorf("install lifecycle generation path unknown")
+	}
+	var nonce [32]byte
+	if _, err := rand.Read(nonce[:]); err != nil {
+		return fmt.Errorf("generate install lifecycle nonce: %w", err)
+	}
+	return writeJSONFile(path, fmt.Sprintf("%x", nonce[:]), 0o600)
 }
 
 func markCensusLifecycleStopped(paths runtimePaths) error {
 	marker := censusLifecycleMarkerPath(paths)
 	if marker == "" {
 		return fmt.Errorf("census lifecycle marker path unknown")
+	}
+	if err := rotateInstallLifecycleGeneration(paths); err != nil {
+		return err
 	}
 	var nonce [32]byte
 	if _, err := rand.Read(nonce[:]); err != nil {
@@ -342,7 +408,7 @@ func stampCensusRelayVersion(paths runtimePaths, version string) {
 	// our unlocked pre-check and this write must not be followed by any census
 	// state accrual ("only for opted-in installs" holds under races too).
 	censusPreMutateHook()
-	_ = mutateCensusState(paths, func(s *censusState) {
+	_ = mutateCensusStateWithin(paths, censusPassiveLockTimeout, func(s *censusState) {
 		if !s.Enabled {
 			return
 		}

@@ -32,6 +32,10 @@ func bundleAssetName() string {
 }
 
 func fetchLatestRelease(paths runtimePaths, quiet bool, allowCache bool) (releaseInfo, error) {
+	return fetchLatestReleaseWithClient(paths, quiet, allowCache, httpClient)
+}
+
+func fetchLatestReleaseWithClient(paths runtimePaths, quiet bool, allowCache bool, client *http.Client) (releaseInfo, error) {
 	cached, cacheStatus := inspectCachedRelease(paths)
 	hasCache := cacheStatus != "miss" && cached.Version != ""
 	// Within the short TTL floor, reuse the cache without touching the network.
@@ -54,7 +58,7 @@ func fetchLatestRelease(paths runtimePaths, quiet bool, allowCache bool) (releas
 		req.Header.Set("If-None-Match", cached.ETag)
 	}
 
-	resp, err := httpClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		// Offline or transient failure: a known release beats a hard error.
 		if allowCache && hasCache {
@@ -108,6 +112,10 @@ func fetchLatestRelease(paths runtimePaths, quiet bool, allowCache bool) (releas
 }
 
 func buildUpdateCheckResult(paths runtimePaths) updateCheckResult {
+	return buildUpdateCheckResultWithClient(paths, httpClient)
+}
+
+func buildUpdateCheckResultWithClient(paths runtimePaths, client *http.Client) updateCheckResult {
 	current := localVersion(paths)
 	_, cacheStatus := inspectCachedRelease(paths)
 	state, err := loadStateOrDefaultChecked(paths)
@@ -146,7 +154,7 @@ func buildUpdateCheckResult(paths runtimePaths) updateCheckResult {
 		return result
 	}
 
-	release, err := fetchLatestRelease(paths, true, true)
+	release, err := fetchLatestReleaseWithClient(paths, true, true, client)
 	if err != nil {
 		result.CacheStatus = cacheStatus
 		result.Status = "check_failed"

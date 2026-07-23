@@ -18,6 +18,7 @@ Not in scope: creating automations around cameras (`ha-nova:write`), person/moti
 
 ## Bootstrap (once per session)
 
+Read and follow `../ha-nova/session-bootstrap.md`.
 Verify relay CLI: `ha-nova relay health`
 If this fails: `ha-nova setup`
 

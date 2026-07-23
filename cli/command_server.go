@@ -9,6 +9,11 @@ import (
 	"text/tabwriter"
 )
 
+var (
+	readServerRemoveConfirmationForCommand = readServerRemoveConfirmation
+	secretGetForServerRemove               = secretGet
+)
+
 // `ha-nova server` — server-profile administration for multi-server support
 // (issue #343). The wizard onboards new servers and `pair --server` creates
 // profiles; THIS command family administers them: list, switch the configured
@@ -150,6 +155,11 @@ func runServerDefault(paths runtimePaths, args []string) int {
 		return 1
 	}
 	name := args[0]
+	releaseMutation, ok := acquireServerMutation(paths)
+	if !ok {
+		return 1
+	}
+	defer releaseMutation()
 	doc, ok := loadServerConfigDocument(paths)
 	if !ok {
 		return 1
@@ -182,6 +192,11 @@ func runServerRename(paths runtimePaths, args []string) int {
 		return 1
 	}
 	oldName, newName := args[0], args[1]
+	releaseMutation, ok := acquireServerMutation(paths)
+	if !ok {
+		return 1
+	}
+	defer releaseMutation()
 	doc, ok := loadServerConfigDocument(paths)
 	if !ok {
 		return 1
@@ -207,7 +222,6 @@ func runServerRename(paths runtimePaths, args []string) int {
 		printHumanErr("server profile %q already exists; pick another name or remove it first: ha-nova server remove %s", newName, newName)
 		return 1
 	}
-
 	// Copy the credential slots to the new services BEFORE touching the config:
 	// a failure here leaves everything under the old name.
 	rollbackSlots, deleteOldSlots, err := stageServerCredentialSlotMove(oldName, newName)
@@ -257,6 +271,16 @@ func runServerRemove(paths runtimePaths, args []string) int {
 		return 1
 	}
 	name := args[0]
+	removeLifecycleGeneration, lifecycleErr := readInstallLifecycleGeneration(paths)
+	if lifecycleErr != nil || censusLifecycleStopped(paths) {
+		printHumanErr("HA NOVA install lifecycle is unavailable; run `ha-nova setup` before removing server profiles")
+		return 1
+	}
+	configSnapshot, hadConfigSnapshot, snapshotErr := readOptionalFile(paths.ConfigFile)
+	if snapshotErr != nil {
+		printHumanErr("cannot inspect the server configuration: %v", snapshotErr)
+		return 1
+	}
 	doc, ok := loadServerConfigDocument(paths)
 	if !ok {
 		return 1
@@ -298,9 +322,51 @@ func runServerRemove(paths runtimePaths, args []string) int {
 	// nothing touched instead. Reachability only — a MALFORMED stored value is
 	// no reason to refuse: the purge deletes it without parsing.
 	services := []string{deviceCredentialServiceForProfile(name), deviceCredentialPendingServiceForProfile(name)}
+	type rawSlotSnapshot struct {
+		path    string
+		data    []byte
+		existed bool
+	}
+	rawSlotSnapshots := make([]rawSlotSnapshot, 0, len(services))
+	backendMarkerPath, markerPathErr := deviceFileBackendMarkerPath()
+	if markerPathErr != nil {
+		printHumanErr("cannot inspect credential storage mode (%v); nothing was removed", markerPathErr)
+		return 1
+	}
+	backendMarkerData, backendMarkerExists, markerReadErr := readOptionalFile(backendMarkerPath)
+	if markerReadErr != nil {
+		printHumanErr("cannot inspect credential storage mode (%v); nothing was removed", markerReadErr)
+		return 1
+	}
+	rawSlotSnapshots = append(rawSlotSnapshots, rawSlotSnapshot{
+		path:    backendMarkerPath,
+		data:    backendMarkerData,
+		existed: backendMarkerExists,
+	})
 	for _, service := range services {
-		_, readErr := secretGet(service)
-		if readErr == nil || readErr == errSecretNotFound {
+		path, pathErr := deviceSecretFilePath(service)
+		if pathErr != nil {
+			printHumanErr("cannot inspect stored credentials (%v); nothing was removed", pathErr)
+			return 1
+		}
+		data, existed, readErr := readOptionalFile(path)
+		if readErr != nil {
+			printHumanErr("cannot inspect stored credentials (%v); nothing was removed", readErr)
+			return 1
+		}
+		rawSlotSnapshots = append(rawSlotSnapshots, rawSlotSnapshot{path: path, data: data, existed: existed})
+	}
+	credentialValues := make(map[string]string, len(services))
+	credentialPresent := make(map[string]bool, len(services))
+	credentialSnapshotReliable := true
+	for _, service := range services {
+		value, readErr := secretGetForServerRemove(service)
+		if readErr == nil {
+			credentialValues[service] = value
+			credentialPresent[service] = true
+			continue
+		}
+		if readErr == errSecretNotFound {
 			continue
 		}
 		// Reachability sentinel + a markerless raw slot file: the purge below
@@ -309,6 +375,7 @@ func runServerRemove(paths runtimePaths, args []string) int {
 		// rule). Without a raw file there is nothing deletable here: abort.
 		unreachable := errors.Is(readErr, errDesktopKeyringSessionUnavailable) || errors.Is(readErr, errDesktopKeyringUnavailable)
 		if unreachable && !deviceFileBackendMarkerExists() && profileHasRawSlotFile(services) {
+			credentialSnapshotReliable = false
 			printHumanWarn("secure storage is not reachable here (%v); any keyring credential stored for %q by an earlier desktop pairing is not deleted — clean it from the desktop session if one exists.", readErr, name)
 			break
 		}
@@ -317,7 +384,7 @@ func runServerRemove(paths runtimePaths, args []string) int {
 	}
 
 	printHumanInfo("Removing server profile %q: its device pairing will be revoked on that relay and its stored credentials deleted. The Relay App on that Home Assistant instance stays installed.", name)
-	typed, err := readServerRemoveConfirmation(name)
+	typed, err := readServerRemoveConfirmationForCommand(name)
 	if err != nil {
 		printHumanErr("cannot read the confirmation from stdin (%v). Run this command interactively and type the profile name %q to confirm.", err, name)
 		return 1
@@ -326,7 +393,65 @@ func runServerRemove(paths runtimePaths, args []string) int {
 		printHumanErr("confirmation %q does not match the profile name %q — nothing was removed.", typed, name)
 		return 1
 	}
-
+	releaseMutation, mutationOK := acquireServerMutation(paths)
+	if !mutationOK {
+		return 1
+	}
+	defer releaseMutation()
+	if err := ensureUpdateLifecycleCurrent(paths, removeLifecycleGeneration); err != nil {
+		printHumanErr("HA NOVA install lifecycle changed while awaiting confirmation; nothing was removed")
+		return 1
+	}
+	currentDoc, currentOK := loadServerConfigDocument(paths)
+	if !currentOK {
+		return 1
+	}
+	if err := ensureOptionalFileSnapshotCurrent(paths.ConfigFile, configSnapshot, hadConfigSnapshot); err != nil {
+		printHumanErr("server configuration changed while awaiting confirmation; nothing was removed")
+		return 1
+	}
+	for _, snapshot := range rawSlotSnapshots {
+		if err := ensureOptionalFileSnapshotCurrent(snapshot.path, snapshot.data, snapshot.existed); err != nil {
+			printHumanErr("stored credentials changed while awaiting confirmation; nothing was removed")
+			return 1
+		}
+	}
+	currentDefault := currentDoc.defaultServerName()
+	switch {
+	case !currentDoc.hasProfile(name):
+		printHumanErr("server configuration changed while awaiting confirmation; %q no longer exists", name)
+		return 1
+	case len(currentDoc.profileNames()) == 1:
+		printHumanErr("server configuration changed while awaiting confirmation; %q is now the only profile", name)
+		return 1
+	case currentDefault == name && !currentDoc.hasProfile(defaultServerProfileName):
+		printHumanErr("server configuration changed while awaiting confirmation; set a new default and retry")
+		return 1
+	}
+	doc = currentDoc
+	newDefault = currentDefault
+	if newDefault == name {
+		newDefault = defaultServerProfileName
+	}
+	for _, service := range services {
+		value, readErr := secretGetForServerRemove(service)
+		if credentialSnapshotReliable {
+			present := readErr == nil
+			if (readErr != nil && readErr != errSecretNotFound) ||
+				present != credentialPresent[service] ||
+				(present && value != credentialValues[service]) {
+				printHumanErr("stored credentials changed while awaiting confirmation; nothing was removed")
+				return 1
+			}
+			continue
+		}
+		unreachable := errors.Is(readErr, errDesktopKeyringSessionUnavailable) || errors.Is(readErr, errDesktopKeyringUnavailable)
+		if unreachable && !deviceFileBackendMarkerExists() && profileHasRawSlotFile(services) {
+			break
+		}
+		printHumanErr("secure storage changed while awaiting confirmation; nothing was removed")
+		return 1
+	}
 	// Config first: a failed save aborts cleanly with the pairing untouched.
 	// The endpoint for the revoke is captured from the in-memory document, so
 	// removing the entry first loses nothing. If the revoke afterwards fails,
@@ -357,6 +482,25 @@ func runServerRemove(paths runtimePaths, args []string) int {
 		printHumanInfo("default_server was reset to %q.", newDefault)
 	}
 	return 0
+}
+
+func acquireServerMutation(paths runtimePaths) (func(), bool) {
+	lifecycleGeneration, err := readInstallLifecycleGeneration(paths)
+	if err != nil || censusLifecycleStopped(paths) {
+		printHumanErr("HA NOVA install lifecycle is unavailable; run `ha-nova setup` before changing server profiles")
+		return func() {}, false
+	}
+	release, acquired := acquireAutoRepairLock(paths)
+	if !acquired {
+		printHumanErr("another HA NOVA client update is already in progress")
+		return func() {}, false
+	}
+	if err := ensureUpdateLifecycleCurrent(paths, lifecycleGeneration); err != nil {
+		release()
+		printHumanErr("%s", err)
+		return func() {}, false
+	}
+	return release, true
 }
 
 // readServerRemoveConfirmation prompts on stdout and reads one line from

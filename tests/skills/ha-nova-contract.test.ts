@@ -715,7 +715,9 @@ describe("ha-nova contract", () => {
     expect(updateGuide).toContain("`ha-nova version` (reads `version.json` from the install root)");
     expect(updateGuide).not.toContain("~/.config/ha-nova/version.json");
     expect(updateGuide).not.toContain("cat ~/.config/ha-nova/version.json");
-    expect(updateGuide).toContain("Other clients use the same shared CLI updater path");
+    expect(updateGuide).toContain(
+      "Other clients use the same shared first-use skill contract and CLI updater path",
+    );
     expect(updateGuide).toContain("| Google Antigravity | Flat-copy | Rebuild namespaced flat markdown copies from the active HA NOVA install |");
     expect(updateGuide).not.toContain("| Gemini | Flat-copy |");
 
@@ -807,35 +809,54 @@ describe("ha-nova contract", () => {
   });
 
   it("tells non-Claude clients to run a quiet update check on first skill use", () => {
-    const content = readFileSync("skills/ha-nova/SKILL.md", "utf8");
+    const context = readFileSync("skills/ha-nova/SKILL.md", "utf8");
+    const content = readFileSync("skills/ha-nova/session-bootstrap.md", "utf8");
+    expect(context).toContain("../ha-nova/session-bootstrap.md");
+    expect(context.indexOf("## Session Bootstrap")).toBeLessThan(
+      context.indexOf("## Runtime Prerequisite"),
+    );
     expect(content).toContain("ha-nova check-update --quiet");
-    expect(content).toContain("Before the first HA task in a session");
+    expect(content).toContain("before the first Home Assistant task in a session");
+    expect(content).toContain("first Home Assistant or HA NOVA task");
+    expect(content).toContain("before any relay command");
+    expect(content).toContain("one check for every server profile");
+    expect(content).toContain("HA_NOVA_NO_CENSUS=1");
+    expect(content).toMatch(
+      /switching\s+servers cannot consume more census-callout attempts/,
+    );
   });
 
   it("surfaces the update as a once-per-session callout after the requested result", () => {
-    const content = readFileSync("skills/ha-nova/SKILL.md", "utf8");
-    expect(content).toContain("### Update Callout");
-    expect(content).toContain("ONCE per session");
-    expect(content).toContain("AFTER the result of the user's requested task");
-    expect(content).toContain("up to 3 highlight lines");
-    expect(content).toContain("the release URL when the notice includes one");
-    expect(content).toContain("never install an update without the user's consent");
+    const content = readFileSync("skills/ha-nova/session-bootstrap.md", "utf8");
+    expect(content).toContain("## HA NOVA Update Callout");
+    expect(content).toContain("exactly once");
+    expect(content).toContain("After the requested result");
+    expect(content).toContain("up to three supplied highlight lines");
+    expect(content).toContain("supplied release URL");
+    expect(content).toMatch(/Never update without\s+consent/);
   });
 
   it("surfaces the census ask as a consent-gated once-per-session callout", () => {
-    const content = readFileSync("skills/ha-nova/SKILL.md", "utf8");
-    expect(content).toContain("### Census Callout");
+    const content = readFileSync("skills/ha-nova/session-bootstrap.md", "utf8");
+    expect(content).toContain("## Census Callout");
     expect(content).toContain("CENSUS ASK PENDING");
-    // Clone of the Update Callout mechanics: once, after the task, localized.
-    expect(content).toContain("exactly ONCE per session");
-    expect(content).toContain("AFTER the result of the user's requested task");
-    expect(content).toContain("localized to the user's language");
-    // Explicit consent contract: yes -> on, no -> off, silence -> nothing.
-    expect(content).toContain("Only if the user explicitly says yes: run `ha-nova census on`.");
-    expect(content).toContain("If the user explicitly says no: run `ha-nova census off`.");
-    expect(content).toContain("If the user does not answer or is ambiguous: run nothing");
-    expect(content).toContain("NEVER run `ha-nova census on` without the user's explicit yes");
-    expect(content).toContain("Do not repeat the callout for later notices in the same session.");
+    expect(content).toContain("exactly once per");
+    expect(content).toContain("After the requested result");
+    expect(content).toContain("localized callout");
+    expect(content).toContain("Explicit yes: run `ha-nova census on`.");
+    expect(content).toContain("Explicit no: run `ha-nova census off`.");
+    expect(content).toContain("Missing or ambiguous answer: run nothing");
+    expect(content).toContain("Never infer opt-in");
+  });
+
+  it("routes Relay App updates through a previewed guided install", () => {
+    const content = readFileSync("skills/ha-nova/session-bootstrap.md", "utf8");
+    expect(content).toContain("## Relay Update Callout");
+    expect(content).toContain("ha-nova:updates");
+    expect(content).toContain("show its App-update preview");
+    expect(content).toContain("confirmation before installing with a partial backup");
+    expect(content).toContain("standalone Container/Core Relay");
+    expect(content).toContain("manual image pull and container recreation");
   });
 
   it("provides SessionStart hook for context skill auto-loading", () => {

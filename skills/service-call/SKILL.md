@@ -21,6 +21,7 @@ No config mutations (use `ha-nova:write` for automation/script changes).
 
 ## Bootstrap (once per session)
 
+Read and follow `../ha-nova/session-bootstrap.md`.
 Verify relay CLI: `ha-nova relay health`
 If this fails: `ha-nova setup`
 

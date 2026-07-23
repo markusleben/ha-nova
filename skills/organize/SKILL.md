@@ -30,6 +30,7 @@ Hand off to the skill named per line; surfaces without one go to `ha-nova:fallba
 
 ## Bootstrap (once per session)
 
+Read and follow `../ha-nova/session-bootstrap.md`.
 Verify relay CLI: `ha-nova relay health`
 If this fails: `ha-nova setup`
 

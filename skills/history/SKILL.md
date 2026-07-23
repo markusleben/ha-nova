@@ -27,6 +27,7 @@ Use `ha-nova:read` for traces, `ha-nova:calendar` for calendars, and `ha-nova:fa
 
 ## Bootstrap (once per session)
 
+Read and follow `../ha-nova/session-bootstrap.md`.
 Verify relay CLI: `ha-nova relay health`
 If this fails: `ha-nova setup`
 

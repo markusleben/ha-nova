@@ -27,6 +27,15 @@ describe("updates contract", () => {
     expect(updatesSkill).toContain('include `"backup": true`');
     // Updating the NOVA Relay add-on kills the transport mid-flight.
     expect(updatesSkill).toContain("Updating the NOVA Relay App restarts the relay itself");
+    expect(updatesSkill).toContain("a dropped install response is expected");
+    expect(updatesSkill).toContain("poll `ha-nova relay health` about every 5 seconds for up to 3 minutes");
+    expect(updatesSkill).toContain("never route to setup");
+    expect(updatesSkill).toContain("reaching the offered target");
+    expect(updatesSkill).toContain("minimum Relay version");
+    expect(updatesSkill).toContain("Immediately before POST, re-read state and registry");
+    expect(updatesSkill).toContain("with `in_progress` false");
+    expect(updatesSkill).toContain("Any drift invalidates confirmation");
+    expect(updatesSkill).toContain('the confirmed `"version": "<v>"` only with bit 2');
     expect(updatesSkill).toContain("verify afterwards via `ha-nova relay health`");
     // Firmware caution.
     expect(updatesSkill).toContain("must not be interrupted");
@@ -68,6 +77,12 @@ describe("updates contract", () => {
     // platform: hassio covers stack AND add-ons — unique_id is the live-verified
     // second discriminator (home_assistant_{core,os,supervisor}_version_latest).
     expect(updatesSkill).toContain("`platform: hassio` splits by `unique_id`");
+    expect(updatesSkill).toContain(
+      "NOVA Relay requires exactly `platform: hassio` plus `unique_id: 2368fcfa_ha_nova_relay_version_latest`",
+    );
+    expect(updatesSkill).toContain(
+      "For NOVA Relay, re-require that exact pair.",
+    );
     expect(updatesSkill).toContain("`home_assistant_{core,os,supervisor}_version_latest` = HA stack");
     // backup:true is never unconditional for core/OS (would bypass the offer).
     expect(updatesSkill).toContain('`"backup": true` for App updates');

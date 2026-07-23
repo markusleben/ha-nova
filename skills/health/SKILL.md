@@ -26,6 +26,7 @@ Not in scope:
 
 ## Bootstrap (once per session)
 
+Read and follow `../ha-nova/session-bootstrap.md`.
 Verify relay CLI: `ha-nova relay health`
 If this fails: `ha-nova setup`
 Read `data.version` from the health response.

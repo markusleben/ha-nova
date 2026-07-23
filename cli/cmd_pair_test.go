@@ -11,7 +11,8 @@ import (
 func TestRunPairCommandPersistsRelayURLFlagOnExistingConfig(t *testing.T) {
 	dir := t.TempDir()
 	configFile := filepath.Join(dir, "config.json")
-	if err := saveConfig(runtimePaths{ConfigFile: configFile}, runtimeConfig{RelayBaseURL: "http://old:8791"}); err != nil {
+	paths := runtimePaths{ConfigDir: dir, ConfigFile: configFile}
+	if err := saveConfig(paths, runtimeConfig{RelayBaseURL: "http://old:8791"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -24,14 +25,14 @@ func TestRunPairCommandPersistsRelayURLFlagOnExistingConfig(t *testing.T) {
 	}
 	defer func() { runSecurePairingForPairCmd = orig }()
 
-	if rc := runPairCommand(runtimePaths{ConfigFile: configFile}, []string{"--relay-url", "http://new:8791", "--code", "123456"}); rc != 0 {
+	if rc := runPairCommand(paths, []string{"--relay-url", "http://new:8791", "--code", "123456"}); rc != 0 {
 		t.Fatalf("runPairCommand rc=%d, want 0", rc)
 	}
 	if seededURL != "http://new:8791" {
 		t.Fatalf("explicit --relay-url not seeded into cfg: got %q", seededURL)
 	}
 
-	saved, err := loadConfig(runtimePaths{ConfigFile: configFile})
+	saved, err := loadConfig(paths)
 	if err != nil {
 		t.Fatalf("loadConfig: %v", err)
 	}

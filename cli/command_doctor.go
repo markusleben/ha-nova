@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -8,10 +9,14 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 )
 
-var readRelayAuthTokenForDoctor = readRelayAuthToken
-var probePairingV1ForDoctor = probePairingV1
+var (
+	readRelayAuthTokenForDoctor = readRelayAuthToken
+	probePairingV1ForDoctor     = probePairingV1
+	firstUseRelayNoticeTimeout  = 4 * time.Second
+)
 
 func runDoctor(paths runtimePaths, args []string) int {
 	return runDoctorWithCensusAsk(paths, args, true)
@@ -27,6 +32,16 @@ func runDoctorWithCensusAsk(paths runtimePaths, args []string, allowCensusAsk bo
 			return 0
 		}
 		printHumanErr("%s", err)
+		return 1
+	}
+	doctorLifecycleGeneration, lifecycleErr := readInstallLifecycleGeneration(paths)
+	if lifecycleErr != nil {
+		printHumanErr("cannot inspect install lifecycle: %s", lifecycleErr)
+		return 1
+	}
+	doctorConfigSnapshot, doctorHadConfigSnapshot, snapshotErr := readOptionalFile(paths.ConfigFile)
+	if snapshotErr != nil {
+		printHumanErr("cannot inspect server configuration: %s", snapshotErr)
 		return 1
 	}
 	doctorInfo := func(format string, parts ...any) {
@@ -75,7 +90,22 @@ func runDoctorWithCensusAsk(paths runtimePaths, args []string, allowCensusAsk bo
 
 	// Finish a pairing interrupted between activation and promotion (crash or
 	// lost response); best-effort — failures leave the pending slot alone.
-	if resumed, resumeErr := resumePendingActivation(&cfg, func(c *runtimeConfig) error { return saveConfig(paths, *c) }); resumeErr == nil && resumed {
+	resumed := false
+	var resumeErr error
+	if cfg.PendingSecureBaseURL != "" && cfg.PendingSpkiPin != "" {
+		resumeErr = withClientMutationLock(paths, func() error {
+			if err := ensureUpdateLifecycleCurrent(paths, doctorLifecycleGeneration); err != nil {
+				return err
+			}
+			if err := ensureOptionalFileSnapshotCurrent(paths.ConfigFile, doctorConfigSnapshot, doctorHadConfigSnapshot); err != nil {
+				return err
+			}
+			var err error
+			resumed, err = resumePendingActivation(&cfg, func(c *runtimeConfig) error { return saveConfig(paths, *c) })
+			return err
+		})
+	}
+	if resumeErr == nil && resumed {
 		doctorInfo("Resumed the interrupted pairing — this device is connected.")
 	}
 
@@ -358,7 +388,12 @@ func runCheckUpdate(paths runtimePaths, args []string) int {
 	// client runs `check-update` on first skill use per session, so this is the
 	// universal point to self-heal client integrations once after a version change.
 	// Best-effort; never blocks the update check.
+	migrationContended := false
+	if *quiet {
+		_, migrationContended = repairMissingSessionBootstrapWithContention(paths)
+	}
 	ensureClientsVerifiedForCurrentVersion(paths)
+	defer markSessionBootstrapLayoutVerified(paths)
 
 	notice := humanNoticeFromUpdateCheckResult(result, *quiet)
 	if !notice.empty() {
@@ -366,22 +401,33 @@ func runCheckUpdate(paths runtimePaths, args []string) int {
 	}
 	// CLI/skills freshness is only half the answer: the relay in Home
 	// Assistant has its own version, and "up to date" would be misleading
-	// below min_relay_version or while an App update is pending. Human path
-	// only: --quiet is the skill self-update channel that carries at most the
-	// UPDATE AVAILABLE notice and the capped census callout — skill sessions
-	// already get the relay warning through the proxy version header.
-	// Stderr-only, exit code unchanged, --json above stays machine-clean.
-	if !*quiet {
-		if relayNotice := relayUpdateNotice(paths); !relayNotice.empty() {
-			printHumanNotice(relayNotice)
-		}
+	// below min_relay_version or while an App update is pending. The quiet
+	// first-skill-use path must include this exact check too: relay response
+	// headers prove only the compatibility floor and cannot expose a compatible
+	// above-floor App update. Stderr-only, exit code unchanged; --json returned
+	// above and stays machine-clean.
+	var relayNotice humanNotice
+	if *quiet {
+		relayNotice = relayUpdateNoticeWithTimeout(paths, firstUseRelayNoticeTimeout)
+	} else {
+		relayNotice = relayUpdateNotice(paths)
+	}
+	if !relayNotice.empty() {
+		printHumanNotice(relayNotice)
 	}
 	// Census delivery is split by channel: --quiet is what skill sessions
 	// read, so the pending ask rides there as the capped machine-directed
 	// block; the plain human path is a person at a terminal, who gets the
 	// direct TTY question instead (no-op when stdin/stdout are not TTYs).
 	if *quiet {
-		maybeEmitCensusSkillNotice(paths)
+		censusHandled := maybeEmitCensusSkillNoticeTo(paths, os.Stdout)
+		if censusHandled {
+			deadline := time.Now()
+			if migrationContended {
+				deadline = deadline.Add(sessionBootstrapCarrierContentionWait)
+			}
+			finalizePendingSessionBootstrapCarrierUntil(paths, deadline)
+		}
 	} else {
 		maybeAskCensus(paths, "check-update")
 	}
@@ -399,8 +445,12 @@ func fetchRelayHealth(relayBaseURL, token string) ([]byte, error) {
 }
 
 func fetchRelayHealthWith(client *http.Client, relayBaseURL, token string) ([]byte, error) {
+	return fetchRelayHealthWithContext(context.Background(), client, relayBaseURL, token)
+}
+
+func fetchRelayHealthWithContext(ctx context.Context, client *http.Client, relayBaseURL, token string) ([]byte, error) {
 	url := strings.TrimRight(relayBaseURL, "/") + "/health"
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, err
 	}

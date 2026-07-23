@@ -14,6 +14,7 @@ Installed skill tree:
 ```
 skills/
   ha-nova/SKILL.md              (context skill — stable top-level entrypoint)
+  ha-nova/session-bootstrap.md  (shared first-use update/census contract)
   ha-nova/relay-api.md          (reference doc)
   ha-nova/best-practices.md     (reference doc)
   ha-nova/payload-schemas.md    (reference doc)
@@ -535,7 +536,11 @@ Scope → Bootstrap (once per session) → Relay Contract → [domain] → Flow 
 
 **Required for ALL sub-skills:**
 - **Scope** — what this skill does + inverse scope (what it does NOT do, which skill to use instead)
-- **Bootstrap (once per session)** — exact heading; relay CLI verification + onboarding fallback
+- **Bootstrap (once per session)** — exact heading; shared
+  `../ha-nova/session-bootstrap.md` pointer, relay CLI verification, and
+  onboarding fallback. The shared contract synchronously checks HA NOVA and
+  the selected server's Relay update state before the first HA task, then
+  keeps any callouts post-task and once-per-session.
 - **Relay Contract** — the file-based `ha-nova relay` command contract this skill uses
 - **Flow** — step-by-step operations with relay commands
 - **Output Format** — first line starts with ``Apply `skills/ha-nova/output-rules.md` `` ; then what the user receives
@@ -553,8 +558,8 @@ Scope → Bootstrap (once per session) → Relay Contract → [domain] → Flow 
 - **Latency Policy** — when to optimize for speed
 
 **Declared deviations** (the only allowed ones):
-- `onboarding` — heading `## Bootstrap` (it repairs the relay; "once per session" would be wrong) and no `Relay Contract` section (the diagnostics skill's whole body is remediation commands)
-- `fallback` — heading `## Bootstrap (only before Relay-Ready calls)`
+- `onboarding` — heading `## Bootstrap` (it repairs the relay; "once per session" would be wrong), applies the shared session bootstrap only when the CLI exists, and has no `Relay Contract` section (the diagnostics skill's whole body is remediation commands)
+- `fallback` — heading `## Bootstrap (before Home Assistant tasks)`; the shared session bootstrap applies before Home Assistant work, while Roadmap/External guidance needs no Relay probe
 
 **Forbidden heading variants** (normalized in 2026-07, must not return): `## Output Rules`, `## Safety Baseline` (sub-skills; the context skill keeps its own), `## Safety Guardrails`, `## Agent Flow`.
 

@@ -59,9 +59,13 @@ func acquireCensusPlatformLock(configDir string, timeout, retry time.Duration) (
 				runtime.UnlockOSThread()
 			}, true
 		case uint32(windows.WAIT_TIMEOUT):
-			if time.Now().After(deadline) {
+			remaining := time.Until(deadline)
+			if remaining <= 0 {
 				_ = windows.CloseHandle(handle)
 				return fail()
+			}
+			if retry > remaining {
+				retry = remaining
 			}
 			time.Sleep(retry)
 		default:

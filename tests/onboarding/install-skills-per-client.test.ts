@@ -5,7 +5,7 @@
 import { existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, readlinkSync, statSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { createMockBinaries, mockEnv, REPO_ROOT } from "./_helpers.js";
@@ -20,11 +20,18 @@ const SOURCE_SUB_SKILLS = readdirSync(join(REPO_ROOT, "skills"), { withFileTypes
 const ANTIGRAVITY_SUB_SKILLS = SOURCE_SUB_SKILLS.map((s) => `ha-nova-${s}`);
 
 const REWRITTEN_REPO_REF = /`(?:\/|[A-Za-z]:[\\/])[^`\n]*(?:\/skills\/|\/docs\/reference\/)[^`\n]*`/;
+const SESSION_BOOTSTRAP_REF = "../ha-nova/session-bootstrap.md";
 
 function expectRepoRefsRewritten(content: string): void {
   if (content.includes("/skills/") || content.includes("/docs/reference/")) {
     expect(content).toMatch(REWRITTEN_REPO_REF);
   }
+}
+
+function expectSessionBootstrapResolves(skillPath: string): void {
+  const content = readFileSync(skillPath, "utf8");
+  expect(content).toContain(`\`${SESSION_BOOTSTRAP_REF}\``);
+  expect(existsSync(resolve(dirname(skillPath), SESSION_BOOTSTRAP_REF))).toBe(true);
 }
 
 function installSkills(
@@ -88,8 +95,10 @@ describe("S-4: client-specific skill installation", () => {
 
     // All sub-skills readable through symlink
     for (const sub of SOURCE_SUB_SKILLS) {
-      const content = readFileSync(join(codexLink, sub, "SKILL.md"), "utf8");
+      const skillPath = join(codexLink, sub, "SKILL.md");
+      const content = readFileSync(skillPath, "utf8");
       expect(content).toContain(`name: ${sub}`);
+      expectSessionBootstrapResolves(skillPath);
     }
   });
 
@@ -101,9 +110,13 @@ describe("S-4: client-specific skill installation", () => {
     const linkTarget = readlinkSync(link);
     expect(linkTarget).toBe(join(REPO_ROOT, "skills"));
 
-    // Context skill accessible
-    const ctx = readFileSync(join(link, "ha-nova", "SKILL.md"), "utf8");
+    const contextPath = join(link, "ha-nova", "SKILL.md");
+    const ctx = readFileSync(contextPath, "utf8");
     expect(ctx).toContain("name: ha-nova");
+    expectSessionBootstrapResolves(contextPath);
+    for (const sub of SOURCE_SUB_SKILLS) {
+      expectSessionBootstrapResolves(join(link, sub, "SKILL.md"));
+    }
   });
 
   it("installs antigravity skills as flat copies", { timeout: 120000 }, () => {
@@ -111,9 +124,11 @@ describe("S-4: client-specific skill installation", () => {
     expect(result.status).toBe(0);
 
     // Context skill
-    const ctx = readFileSync(join(home, ".gemini/config/skills/ha-nova/SKILL.md"), "utf8");
+    const contextPath = join(home, ".gemini/config/skills/ha-nova/SKILL.md");
+    const ctx = readFileSync(contextPath, "utf8");
     expect(ctx).toContain("name: ha-nova");
     expect(ctx).toContain("ha-nova:ha-nova-entity-discovery");
+    expectSessionBootstrapResolves(contextPath);
 
     const contextCompanionFiles = readdirSync(join(REPO_ROOT, "skills", "ha-nova"))
       .filter((file) => file.endsWith(".md") && file !== "SKILL.md");
@@ -129,13 +144,12 @@ describe("S-4: client-specific skill installation", () => {
     // Sub-skills as separate flat directories (ha-nova- prefix for Antigravity)
     for (const src of SOURCE_SUB_SKILLS) {
       const antigravityDir = `ha-nova-${src}`;
-      const content = readFileSync(
-        join(home, ".gemini/config/skills", antigravityDir, "SKILL.md"),
-        "utf8",
-      );
+      const skillPath = join(home, ".gemini/config/skills", antigravityDir, "SKILL.md");
+      const content = readFileSync(skillPath, "utf8");
       expect(content).toContain(`name: ha-nova-${src}`);
       // Cross-skill/docs references should no longer be relative after flat copy.
       expectRepoRefsRewritten(content);
+      expectSessionBootstrapResolves(skillPath);
 
       const companionFiles = readdirSync(join(REPO_ROOT, "skills", src))
         .filter((file) => file.endsWith(".md") && file !== "SKILL.md");
@@ -231,9 +245,11 @@ describe("S-4: client-specific skill installation", () => {
     expect(result.status).toBe(0);
 
     const hermesRoot = join(home, ".hermes/skills/ha-nova");
-    const context = readFileSync(join(hermesRoot, "ha-nova", "SKILL.md"), "utf8");
+    const contextPath = join(hermesRoot, "ha-nova", "SKILL.md");
+    const context = readFileSync(contextPath, "utf8");
     expect(context).toContain("name: ha-nova");
     expect(context).toContain("ha-nova-entity-discovery");
+    expectSessionBootstrapResolves(contextPath);
 
     const contextCompanionFiles = readdirSync(join(REPO_ROOT, "skills", "ha-nova"))
       .filter((file) => file.endsWith(".md") && file !== "SKILL.md");
@@ -248,9 +264,11 @@ describe("S-4: client-specific skill installation", () => {
 
     for (const src of SOURCE_SUB_SKILLS) {
       const installedName = `ha-nova-${src}`;
-      const content = readFileSync(join(hermesRoot, installedName, "SKILL.md"), "utf8");
+      const skillPath = join(hermesRoot, installedName, "SKILL.md");
+      const content = readFileSync(skillPath, "utf8");
       expect(content).toContain(`name: ha-nova-${src}`);
       expectRepoRefsRewritten(content);
+      expectSessionBootstrapResolves(skillPath);
 
       const companionFiles = readdirSync(join(REPO_ROOT, "skills", src))
         .filter((file) => file.endsWith(".md") && file !== "SKILL.md");
@@ -310,7 +328,12 @@ describe("S-4: client-specific skill installation", () => {
     );
     expect(marketplace.plugins[0].source).toBe("./ha-nova");
     expect(JSON.stringify(marketplace)).not.toContain("github.com/markusleben/ha-nova.git");
-    expect(existsSync(join(marketplaceRoot, "ha-nova"))).toBe(true);
+    const stagedPlugin = join(marketplaceRoot, "ha-nova");
+    expect(existsSync(stagedPlugin)).toBe(true);
+    expectSessionBootstrapResolves(join(stagedPlugin, "skills", "ha-nova", "SKILL.md"));
+    for (const sub of SOURCE_SUB_SKILLS) {
+      expectSessionBootstrapResolves(join(stagedPlugin, "skills", sub, "SKILL.md"));
+    }
 
     const claudeLog = readFileSync(join(home, "claude.log"), "utf8");
     expect(claudeLog).toContain("plugin marketplace remove ha-nova");

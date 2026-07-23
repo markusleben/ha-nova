@@ -49,7 +49,7 @@ npm.cmd uninstall -g @anthropic-ai/claude-code
 
 - Connect or repair with `ha-nova setup claude`.
 - Shipped installs use a local HA NOVA release snapshot under `~/.config/ha-nova/claude-marketplace/releases/vX.Y.Z`.
-- HA NOVA surfaces update notices during normal use. When you see one, run `ha-nova update`.
+- Before the first Home Assistant task, the first HA NOVA skill used runs one quiet update check for both HA NOVA and the NOVA Relay App; SessionStart may warm the same cache first. When you see an HA NOVA notice, run `ha-nova update`.
 - After `ha-nova update` succeeds, start a new AI client session to load the updated HA NOVA skills.
 - If the Claude path looks broken, run `ha-nova setup claude` and then `ha-nova doctor`.
 

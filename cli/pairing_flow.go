@@ -260,10 +260,24 @@ var revokeSelfDeviceV1ForRetire = revokeSelfDeviceV1
 // is best-effort — the relay may still know the device even when the local
 // pairing stopped working.
 func retireDeviceCredential(cfg *runtimeConfig) {
+	previous := prepareDeviceCredentialRetirement(cfg)
+	finalizeDeviceCredentialRetirement(previous)
+}
+
+func prepareDeviceCredentialRetirement(cfg *runtimeConfig) runtimeConfig {
+	previous := *cfg
+	cfg.RelaySecureBaseURL = ""
+	cfg.RelaySpkiPin = ""
+	cfg.PendingSecureBaseURL = ""
+	cfg.PendingSpkiPin = ""
+	return previous
+}
+
+func finalizeDeviceCredentialRetirement(previous runtimeConfig) {
 	// Revoke the active device credential over the pinned transport when a live
 	// endpoint + credential exist.
-	if cred, ok, err := readDeviceCredential(); err == nil && ok && cfg.RelaySecureBaseURL != "" && cfg.RelaySpkiPin != "" {
-		_ = revokeSelfDeviceV1ForRetire(cfg.RelaySecureBaseURL, cfg.RelaySpkiPin, cred)
+	if cred, ok, err := readDeviceCredential(); err == nil && ok && previous.RelaySecureBaseURL != "" && previous.RelaySpkiPin != "" {
+		_ = revokeSelfDeviceV1ForRetire(previous.RelaySecureBaseURL, previous.RelaySpkiPin, cred)
 	}
 	// Always clear BOTH the current and pending device credentials + endpoints
 	// (idempotent), so a half-finished pairing — the pending slot saved before the
@@ -276,8 +290,4 @@ func retireDeviceCredential(cfg *runtimeConfig) {
 	// healthy keyring would skip the keyring probe and keep storing device
 	// credentials in files. Sibling profiles' file slots stay untouched.
 	removeDeviceFileStorageResidueForProfile(activeServerProfile())
-	cfg.RelaySecureBaseURL = ""
-	cfg.RelaySpkiPin = ""
-	cfg.PendingSecureBaseURL = ""
-	cfg.PendingSpkiPin = ""
 }

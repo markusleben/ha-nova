@@ -19,6 +19,7 @@ Not in scope: creating automations that use media players (`ha-nova:write`), cam
 
 ## Bootstrap (once per session)
 
+Read and follow `../ha-nova/session-bootstrap.md`.
 Verify relay CLI: `ha-nova relay health`
 If this fails: `ha-nova setup`
 

@@ -23,6 +23,7 @@ Instead, this skill queries InfluxDB's own HTTP API **directly from this machine
 
 ## Bootstrap (once per session)
 
+Read and follow `../ha-nova/session-bootstrap.md`.
 1. Confirm the integration exists: `ha-nova relay core --method GET --path /api/components` and look for `influxdb`. If it is absent, Home Assistant is not writing to InfluxDB and there is nothing to query.
 2. Credentials come from the user's environment, never from chat and never from a file in the repo:
    - `HANOVA_INFLUXDB_URL` (e.g. `http://192.168.1.10:8086`)

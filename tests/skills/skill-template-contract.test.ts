@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -42,9 +42,10 @@ const CANON = [
 
 const BOOTSTRAP_HEADINGS: Record<string, string> = {
   onboarding: "Bootstrap",
-  fallback: "Bootstrap (only before Relay-Ready calls)",
+  fallback: "Bootstrap (before Home Assistant tasks)",
 };
 const DEFAULT_BOOTSTRAP = "Bootstrap (once per session)";
+const SESSION_BOOTSTRAP_REF = "../ha-nova/session-bootstrap.md";
 
 // The diagnostics skill's whole body is remediation commands — declared
 // exception, see skill-architecture.md → Declared deviations.
@@ -155,8 +156,8 @@ const WORD_BUDGETS: Record<string, number> = {
   // save (Wave 1a) + pre-delete/pre-save snapshot capture (Wave 2).
   // Cards adoption pointer (#389).
   dashboard: 1450,
-  // Cards adoption pointer (#389).
-  updates: 1250,
+  // Cards adoption pointer (#389); pre-write update-state drift gate.
+  updates: 1300,
   // batch-safety alignment: batch code format + cap-split rule (#327);
   // purge quantification, glob expansion, apply_filter semantics
   // (2026-h2 Wave 1b).
@@ -363,6 +364,30 @@ describe("skill template v2 contract", () => {
         bootstrapVariants,
         `${name}: Bootstrap heading must be exactly '## ${expected}'`,
       ).toEqual([expected]);
+    }
+  });
+
+  it("routes every independently loadable sub-skill through the shared session bootstrap", () => {
+    for (const name of SUBSKILLS) {
+      const content = readFileSync(subskillPath(name), "utf8");
+      const bootstrapHeading = BOOTSTRAP_HEADINGS[name] ?? DEFAULT_BOOTSTRAP;
+      const bootstrap = sectionBody(content, bootstrapHeading);
+      expect(
+        bootstrap,
+        `${name}: direct loading must retain HA NOVA + Relay update discovery`,
+      ).toContain(SESSION_BOOTSTRAP_REF);
+      expect(
+        statSync(resolve(dirname(subskillPath(name)), SESSION_BOOTSTRAP_REF)).isFile(),
+        `${name}: shared session bootstrap reference must resolve from the skill directory`,
+      ).toBe(true);
+      const sharedContract = bootstrap.indexOf(SESSION_BOOTSTRAP_REF);
+      const firstRelayCommand = bootstrap.indexOf("ha-nova relay");
+      if (firstRelayCommand >= 0) {
+        expect(
+          sharedContract,
+          `${name}: shared session bootstrap must run before the first relay command`,
+        ).toBeLessThan(firstRelayCommand);
+      }
     }
   });
 

@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -11,7 +13,7 @@ var scheduleWindowsSelfDeleteForUninstall = scheduleWindowsSelfDelete
 var waitForParentReleaseForUninstall = waitForParentRelease
 var waitForParentReleaseForReplace = waitForParentRelease
 var applyStagedBundleWithRollbackForReplace = applyStagedBundleWithRollback
-var postUpdateSyncForReplace = postUpdateSyncWithResult
+var postUpdateSyncForReplace = postUpdateSyncWithResultUnlocked
 var scheduleWindowsSelfDeleteForUpdate = scheduleWindowsSelfDelete
 var execLookPathForLifecycle = exec.LookPath
 var copyToClipboardForSetup = copyToClipboard
@@ -46,14 +48,30 @@ func readOptionalFile(path string) ([]byte, bool, error) {
 	return data, true, nil
 }
 
-func restoreOptionalFile(path string, data []byte, existed bool) {
+func ensureOptionalFileSnapshotCurrent(path string, snapshot []byte, existed bool) error {
+	current, currentExists, err := readOptionalFile(path)
+	if err != nil {
+		return fmt.Errorf("read current configuration: %w", err)
+	}
+	if currentExists != existed || !bytes.Equal(current, snapshot) {
+		return errors.New("server configuration changed during the operation; rerun the command")
+	}
+	return nil
+}
+
+func restoreOptionalFile(path string, data []byte, existed bool) error {
 	if path == "" {
-		return
+		return nil
 	}
 	if !existed {
-		_ = os.Remove(path)
-		return
+		err := os.Remove(path)
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return err
 	}
-	_ = os.MkdirAll(filepath.Dir(path), 0o755)
-	_ = os.WriteFile(path, data, 0o644)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	return writeFileAtomic(path, data, 0o600)
 }

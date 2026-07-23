@@ -74,7 +74,7 @@ func runUninstall(paths runtimePaths, args []string) int {
 	fs := flag.NewFlagSet("uninstall", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	yes := fs.Bool("yes", false, "skip confirmation prompts (prints the Home Assistant cleanup checklist instead)")
-	purge := fs.Bool("purge", false, "also remove config, state, and the relay auth token (retains one opaque census stop marker)")
+	purge := fs.Bool("purge", false, "also remove config, state, and the relay auth token (retains two opaque safety markers)")
 	if err := fs.Parse(args); err != nil {
 		if helpRequested(err, fs, "ha-nova uninstall [--yes] [--purge]") {
 			return 0
@@ -153,15 +153,44 @@ func runUninstall(paths runtimePaths, args []string) int {
 	}
 
 	report := &uninstallReport{}
-	if err := finalizeLocalUninstall(paths, state, report, mode, teardown == teardownCompleted); err != nil {
+	configDirExisted := fileExists(paths.ConfigDir)
+	cleanupConfigDir := false
+	var configCleanupErr error
+	releaseMutation, acquired := acquireAutoRepairLockWithFinalizer(paths, func() {
+		if !cleanupConfigDir {
+			return
+		}
+		if !configDirExisted {
+			configCleanupErr = os.Remove(paths.ConfigDir)
+			if isNotExist(configCleanupErr) {
+				configCleanupErr = nil
+			}
+			return
+		}
+		configCleanupErr = removeDirIfEmptyWithReport(paths.ConfigDir, report)
+	})
+	if !acquired {
+		printHumanErr("another HA NOVA client update is already in progress")
+		return 1
+	}
+	state = loadStateOrDefault(paths)
+	if err := finalizeLocalUninstallWithProgressUnlocked(paths, state, report, mode, nil, teardown == teardownCompleted); err != nil {
+		releaseMutation()
 		printHumanErr("%s", err)
 		return 1
 	}
 	if source == installSourceBundle {
 		if err := removeBundleRuntime(paths, report); err != nil {
+			releaseMutation()
 			printHumanErr("%s", err)
 			return 1
 		}
+	}
+	cleanupConfigDir = true
+	releaseMutation()
+	if configCleanupErr != nil {
+		printHumanErr("failed to remove managed config directory: %s", configCleanupErr)
+		return 1
 	}
 
 	if teardown == teardownCompleted {
@@ -236,7 +265,35 @@ func discardInstallRoot(installRoot string) error {
 
 func finalizeWindowsUninstall(paths runtimePaths, report *uninstallReport, mode uninstallMode, status *windowsUninstallStatus, relayAlreadyRemoved bool) error {
 	state := loadStateOrDefault(paths)
-	if err := finalizeLocalUninstallWithProgress(paths, state, report, mode, func(step string) error {
+	configDirExisted := fileExists(paths.ConfigDir)
+	cleanupConfigDir := false
+	var configCleanupErr error
+	releaseMutation, acquired := acquireAutoRepairLockWithFinalizer(paths, func() {
+		if !cleanupConfigDir {
+			return
+		}
+		if !configDirExisted {
+			configCleanupErr = os.Remove(paths.ConfigDir)
+			if isNotExist(configCleanupErr) {
+				configCleanupErr = nil
+			}
+			return
+		}
+		configCleanupErr = removeDirIfEmptyWithReport(paths.ConfigDir, report)
+	})
+	if !acquired {
+		return failWindowsUninstallStatus(paths, status, "client_integrations", fmt.Errorf("another HA NOVA client update is already in progress"))
+	}
+	mutationReleased := false
+	releaseMutationOnce := func() {
+		if !mutationReleased {
+			releaseMutation()
+			mutationReleased = true
+		}
+	}
+	defer releaseMutationOnce()
+	state = loadStateOrDefault(paths)
+	if err := finalizeLocalUninstallWithProgressUnlocked(paths, state, report, mode, func(step string) error {
 		return updateWindowsUninstallStatusProgress(paths, status)
 	}, relayAlreadyRemoved); err != nil {
 		return failWindowsUninstallStatus(paths, status, normalizeUninstallFailureStep(err), err)
@@ -255,6 +312,11 @@ func finalizeWindowsUninstall(paths runtimePaths, report *uninstallReport, mode 
 	}
 	if err := removePathWithReport(paths.PublicBinary, report); err != nil && !isNotExist(err) {
 		return failWindowsUninstallStatus(paths, status, "bundle_runtime_cleanup", err)
+	}
+	cleanupConfigDir = true
+	releaseMutationOnce()
+	if configCleanupErr != nil {
+		return failWindowsUninstallStatus(paths, status, "config_cleanup", configCleanupErr)
 	}
 	return nil
 }
@@ -290,6 +352,36 @@ func finalizeLocalUninstall(paths runtimePaths, state installState, report *unin
 }
 
 func finalizeLocalUninstallWithProgress(paths runtimePaths, state installState, report *uninstallReport, mode uninstallMode, beforeStep func(string) error, relayAlreadyRemoved bool) error {
+	configDirExisted := fileExists(paths.ConfigDir)
+	cleanupConfigDir := false
+	var configCleanupErr error
+	releaseMutation, acquired := acquireAutoRepairLockWithFinalizer(paths, func() {
+		if !cleanupConfigDir {
+			return
+		}
+		if !configDirExisted {
+			configCleanupErr = os.Remove(paths.ConfigDir)
+			if isNotExist(configCleanupErr) {
+				configCleanupErr = nil
+			}
+			return
+		}
+		configCleanupErr = removeDirIfEmptyWithReport(paths.ConfigDir, report)
+	})
+	if !acquired {
+		return fmt.Errorf("another HA NOVA client update is already in progress")
+	}
+	state = loadStateOrDefault(paths)
+	err := finalizeLocalUninstallWithProgressUnlocked(paths, state, report, mode, beforeStep, relayAlreadyRemoved)
+	cleanupConfigDir = err == nil
+	releaseMutation()
+	if err == nil {
+		err = configCleanupErr
+	}
+	return err
+}
+
+func finalizeLocalUninstallWithProgressUnlocked(paths runtimePaths, state installState, report *uninstallReport, mode uninstallMode, beforeStep func(string) error, relayAlreadyRemoved bool) error {
 	relayTokenFile := ""
 	var purgeTargets []profilePurgeTarget
 	if mode == uninstallModePurge {

@@ -19,6 +19,7 @@ Not in scope: anything with an API — config-entry template helpers (`ha-nova:h
 
 ## Bootstrap (once per session)
 
+Read and follow `../ha-nova/session-bootstrap.md`.
 Verify relay CLI: `ha-nova relay health`
 If this fails: `ha-nova setup`
 

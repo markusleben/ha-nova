@@ -63,9 +63,10 @@ The client records at most one attempt per ISO week (UTC) in its local state
 before sending, piggybacked on commands that already touch
 the network for the update check (`ha-nova check-update` and the background
 refresh it spawns). Update checks run automatically as part of normal use —
-AI clients trigger one at session start or before the first Home Assistant
-task, depending on the client, and a background refresh keeps the release
-cache warm — so an opted-in install normally attempts one ping each
+whichever independently loadable skill is used first triggers one human-output
+check per selected profile before its first Home Assistant task, even when
+background context already refreshed the cache. A background refresh keeps
+the release cache warm, so an opted-in install normally attempts one ping each
 week without you doing anything. Never on relay hot paths, output-safe by
 construction: the synchronous send runs after all command output, bounded by
 a dedicated 1.5-second timeout, with redirects rejected and no automatic retry
@@ -117,10 +118,12 @@ client OS.
 | Environment kill switch (suppresses ask and ping; ANY non-empty value counts as set) | `HA_NOVA_NO_CENSUS=1` |
 
 `ha-nova uninstall` removes the local census state (`census.json`). It retains
-one opaque random lifecycle marker outside the managed directories so stale
-processes cannot restart census activity after uninstall. The marker carries
-no consent, timestamp, process data, or stable device ID, is never sent, and a
-later successful setup removes it. There is nothing to delete server-side
+two opaque random safety markers outside the managed directories: one stops
+census activity until a successful setup, while the other is a persistent,
+rotating install generation that prevents stale setup/update processes from
+restoring removed files. They carry no consent, timestamps, process data, or
+stable device ID and are never sent. A later successful setup removes the
+census stop marker and rotates the install generation. There is nothing to delete server-side
 because no per-install record exists — only counters.
 
 The local state records the one-time question/answer, enabled flag, last

@@ -89,6 +89,10 @@ func antigravityDesktopFileMarkers(home string) []string {
 }
 
 func installAntigravityClient(home, sourceRoot string) error {
+	return installAntigravityClientWithPolicy(home, sourceRoot, true)
+}
+
+func installAntigravityClientWithPolicy(home, sourceRoot string, cleanupLegacy bool) error {
 	skillsRoot := antigravitySkillsRoot(home)
 	if err := os.MkdirAll(skillsRoot, 0o755); err != nil {
 		return err
@@ -99,11 +103,13 @@ func installAntigravityClient(home, sourceRoot string) error {
 		return err
 	}
 
-	if err := cleanupLegacyGeminiSkills(home, subSkills); err != nil {
-		return err
-	}
-	if err := cleanupLegacyCodexGeminiFlatSkills(home, subSkills); err != nil {
-		return err
+	if cleanupLegacy {
+		if err := cleanupLegacyGeminiSkills(home, subSkills); err != nil {
+			return err
+		}
+		if err := cleanupLegacyCodexGeminiFlatSkills(home, subSkills); err != nil {
+			return err
+		}
 	}
 	if err := cleanupRetiredAntigravitySkills(skillsRoot); err != nil {
 		return err
@@ -185,7 +191,25 @@ func cleanupLegacyCodexGeminiFlatSkills(home string, subSkills []string) error {
 
 func cleanupRetiredAntigravitySkills(skillsRoot string) error {
 	for _, skill := range retiredAntigravitySkillNames {
-		if err := os.RemoveAll(filepath.Join(skillsRoot, skill)); err != nil {
+		path := filepath.Join(skillsRoot, skill)
+		info, err := os.Lstat(path)
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			continue
+		}
+		managed, err := skillDeclaresName(filepath.Join(path, "SKILL.md"), skill)
+		if err != nil {
+			return err
+		}
+		if !managed {
+			continue
+		}
+		if err := removePathAtomic(path); err != nil {
 			return err
 		}
 	}
@@ -197,31 +221,29 @@ func writeFlatSkill(skillsRoot, skillName, destDir, sourceRoot string, subSkills
 	if _, err := os.Stat(filepath.Join(sourceDir, "SKILL.md")); err != nil {
 		return nil
 	}
-	if err := os.RemoveAll(destDir); err != nil {
-		return err
-	}
-	if err := os.MkdirAll(destDir, 0o755); err != nil {
-		return err
-	}
-
-	entries, err := os.ReadDir(sourceDir)
-	if err != nil {
-		return err
-	}
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
-			continue
+	return replacePathAtomic(destDir, func(stage string) error {
+		if err := os.MkdirAll(stage, 0o755); err != nil {
+			return err
 		}
-		data, err := os.ReadFile(filepath.Join(sourceDir, entry.Name()))
+		entries, err := os.ReadDir(sourceDir)
 		if err != nil {
 			return err
 		}
-		rewritten := rewriteFlatMarkdown(skillName, string(data), sourceDir, sourceRoot, subSkills)
-		if err := os.WriteFile(filepath.Join(destDir, entry.Name()), []byte(rewritten), 0o644); err != nil {
-			return err
+		for _, entry := range entries {
+			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
+				continue
+			}
+			data, err := os.ReadFile(filepath.Join(sourceDir, entry.Name()))
+			if err != nil {
+				return err
+			}
+			rewritten := rewriteFlatMarkdown(skillName, string(data), sourceDir, sourceRoot, subSkills)
+			if err := os.WriteFile(filepath.Join(stage, entry.Name()), []byte(rewritten), 0o644); err != nil {
+				return err
+			}
 		}
-	}
-	return nil
+		return nil
+	})
 }
 
 func rewriteFlatMarkdown(skillName, content, sourceDir, sourceRoot string, subSkills []string) string {

@@ -40,6 +40,7 @@ If the user asks for a broad redesign instead of a concrete safe change, narrow 
 
 ## Bootstrap (once per session)
 
+Read and follow `../ha-nova/session-bootstrap.md`.
 Verify relay CLI: `ha-nova relay health`
 If this fails: `ha-nova setup`
 

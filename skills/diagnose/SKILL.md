@@ -17,6 +17,7 @@ Root-cause a concrete failure: "why did X not run", "why did X misbehave", "what
 
 ## Bootstrap (once per session)
 
+Read and follow `../ha-nova/session-bootstrap.md`.
 Verify relay CLI: `ha-nova relay health`
 If this fails: `ha-nova setup`
 

@@ -372,7 +372,7 @@ func TestCurrentVersionSyncOmitsSessionInstructionWhenClientRuntimeIsMissing(t *
 	}
 
 	exitCode, output := captureCommandOutput(t, func() int {
-		return syncInstalledClientsForCurrentVersion(paths, "0.2.2", "0.2.2", 0)
+		return syncInstalledClientsForCurrentVersion(paths, "0.2.2", "0.2.2", 0, captureInstallLifecycleGeneration(paths))
 	})
 	if exitCode != 0 {
 		t.Fatalf("expected skipped client sync to remain retryable, got %d:\n%s", exitCode, output)

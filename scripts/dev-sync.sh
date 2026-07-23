@@ -32,6 +32,10 @@ require_repo_invariants() {
     echo "[dev:sync] ERROR: missing repo version file: ${REPO_ROOT}/version.json" >&2
     exit 1
   }
+  [[ -f "${REPO_ROOT}/skills/ha-nova/session-bootstrap.md" ]] || {
+    echo "[dev:sync] ERROR: missing session bootstrap: ${REPO_ROOT}/skills/ha-nova/session-bootstrap.md" >&2
+    exit 1
+  }
   [[ -x "${REPO_ROOT}/scripts/onboarding/bin/ha-nova" ]] || {
     echo "[dev:sync] ERROR: missing repo helper runtime shim: ${REPO_ROOT}/scripts/onboarding/bin/ha-nova" >&2
     exit 1
