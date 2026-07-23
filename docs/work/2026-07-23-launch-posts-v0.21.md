@@ -16,20 +16,11 @@
 
 **Publication gate**
 
-Current rule 4 prohibits spam or ads without a documented project exception.
-Ask the moderators by modmail before posting. Current rule 2 also prohibits
-AI-generated responses; the maintainer must personally rewrite or materially
-edit the final text before submission. Do not submit this draft automatically.
-No required project/self-promotion flair is documented; use only the flair the
-moderators specify.
-
-**Modmail facts to cover in the maintainer's own words**
-
-- Free, MIT-licensed Home Assistant project; no paid tier or referral links.
-- Maintainer relationship disclosed.
-- Released, documented, and installable on macOS, Linux, and Windows.
-- The post asks for product feedback and links to the repository and latest release.
-- Ask explicitly whether a project-update post with the pairing-flow image is allowed under rules 2 and 4.
+Current rule 4 explicitly allows Home Assistant-related personal projects, so
+no moderator exception is required. Current rule 1 prohibits AI-generated
+content. The maintainer must therefore write the final post in their own words;
+use this section only as a fact-checked source and do not submit it verbatim or
+automatically. No required project/self-promotion flair is documented.
 
 **Title**
 
@@ -187,8 +178,8 @@ I build and maintain the project. It is free, MIT-licensed, and installable now 
 
 ## Posting order and completion record
 
-1. Send the r/homeassistant modmail request first.
-2. After moderator approval and the maintainer's own rewrite, post to r/homeassistant with `assets/pairing-flow.png`.
+1. The maintainer writes the r/homeassistant post in their own words from the verified facts above.
+2. Post it first, with `assets/pairing-flow.png`.
 3. Reply to the existing Home Assistant Community topic within one day of the Reddit post.
 4. Fold concrete feedback into the r/ClaudeCode and r/selfhosted variants, then post them.
 5. Submit Show HN last, only from an eligible established account and when there is time to answer questions.
