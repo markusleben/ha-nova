@@ -9,6 +9,7 @@ import (
 )
 
 var autoRepairProcessLock = make(chan struct{}, 1)
+var acquireAutoRepairPlatformLockForMutation = acquireAutoRepairPlatformLock
 
 const legacyAutoRepairLockStaleAfter = 10 * time.Minute
 
@@ -37,9 +38,6 @@ func acquireAutoRepairLockWithFinalizer(paths runtimePaths, finalizer func()) (f
 	}
 	releaseProcess := func() { <-autoRepairProcessLock }
 	createdConfigDir := false
-	if _, err := os.Stat(dir); errors.Is(err, os.ErrNotExist) {
-		createdConfigDir = true
-	}
 	cleanupCreatedConfigDir := func() {
 		if createdConfigDir {
 			_ = os.Remove(dir)
@@ -49,15 +47,15 @@ func acquireAutoRepairLockWithFinalizer(paths runtimePaths, finalizer func()) (f
 		releaseProcess()
 		return func() {}, false
 	}
-	releasePlatform, acquired := acquireAutoRepairPlatformLock(dir)
+	releasePlatform, acquired := acquireAutoRepairPlatformLockForMutation(dir)
 	if !acquired {
-		cleanupCreatedConfigDir()
 		releaseProcess()
 		return func() {}, false
 	}
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.Mkdir(dir, 0o755); err == nil {
+		createdConfigDir = true
+	} else if !errors.Is(err, os.ErrExist) {
 		releasePlatform()
-		cleanupCreatedConfigDir()
 		releaseProcess()
 		return func() {}, false
 	}
