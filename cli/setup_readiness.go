@@ -44,7 +44,11 @@ func checkRelayReadinessWithProbes(
 	readiness.WSPingResponse = resp
 	readiness.WSPingErr = err
 	if err == nil && relayWSPingOK(resp) {
-		readiness.WSReady = true
+		postBody, postErr := fetchHealth(relayBaseURL, token)
+		readiness.HealthBody = postBody
+		readiness.HealthErr = postErr
+		readiness.RelayReachable = postErr == nil
+		readiness.WSReady = postErr == nil && relayHealthWSConnected(postBody)
 		return readiness
 	}
 	if err == nil {

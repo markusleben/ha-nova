@@ -288,7 +288,7 @@ func TestRunDoctorWarnsWhenConfiguredClientRuntimeMissing(t *testing.T) {
 		return []byte(`{"status":"ok","data":{"ha_ws_connected":true}}`), nil
 	}
 	probeRelayWSPingForReadiness = func(relayBaseURL, token string) (relayWSPingResponse, error) {
-		return relayWSPingResponse{StatusCode: 200, Body: []byte(`{"type":"pong"}`)}, nil
+		return relayWSPingResponse{StatusCode: 200, Body: []byte(`{"ok":true,"data":{"type":"pong"}}`)}, nil
 	}
 
 	state := loadStateOrDefault(paths)

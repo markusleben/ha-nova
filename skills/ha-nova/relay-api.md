@@ -505,6 +505,8 @@ These are top-level HTTP errors produced by the relay itself. The response has `
 - `401 / UNAUTHORIZED`: relay auth token missing or invalid
 - `404 / NOT_FOUND`: unknown relay route
 - `500 / INTERNAL_ERROR`: unexpected relay server error
+- `502 / UPSTREAM_WS_CONNECT_ERROR`: the Relay could not establish the HA WebSocket connection; inspect the post-call health reason
+- `502 / UPSTREAM_WS_AUTH_REJECTED`: HA rejected the upstream WebSocket credential; App installs should refresh Supervisor access, standalone installs should repair `HA_LLAT`
 - `502 / UPSTREAM_WS_ERROR`: relay could not reach HA websocket
 - `502 / UPSTREAM_WS_TIMEOUT`: WS request to HA timed out
 - `502 / UPSTREAM_WS_COMMAND_ERROR`: HA answered the WS command with a structured error; the message contains HA's own error code and text (e.g. `HA rejected 'x': unknown_command: ...`). The connection stays healthy — treat this as a command problem, not a connectivity problem. Legacy relays below the enforced floor report these as generic `UPSTREAM_WS_ERROR`.

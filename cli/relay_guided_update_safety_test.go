@@ -308,7 +308,7 @@ func TestRunDoctorClassifiesBelowFloorRelayBeforeAnyInstallPrompt(t *testing.T) 
 				return []byte(`{"status":"ok","data":{"ha_ws_connected":true},"version":"0.3.0"}`), nil
 			}
 			probeRelayWSPingForReadiness = func(string, string) (relayWSPingResponse, error) {
-				return relayWSPingResponse{StatusCode: http.StatusOK, Body: []byte(`{"type":"pong"}`)}, nil
+				return relayWSPingResponse{StatusCode: http.StatusOK, Body: []byte(`{"ok":true,"data":{"type":"pong"}}`)}, nil
 			}
 			t.Cleanup(func() {
 				fetchRelayHealthForReadiness = oldHealth

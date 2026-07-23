@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"net/http"
 	"strings"
@@ -42,7 +43,13 @@ func probeRelayWSPingWith(client *http.Client, relayBaseURL, token string) (rela
 }
 
 func relayWSPingOK(resp relayWSPingResponse) bool {
-	return resp.StatusCode == http.StatusOK
+	if resp.StatusCode != http.StatusOK {
+		return false
+	}
+	var envelope struct {
+		OK bool `json:"ok"`
+	}
+	return json.Unmarshal(resp.Body, &envelope) == nil && envelope.OK
 }
 
 func relayWSPingIssueIsUpstreamAuth(resp relayWSPingResponse) bool {

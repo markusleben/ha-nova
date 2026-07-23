@@ -896,7 +896,7 @@ func TestInteractiveSetupRelayTokenFlagCanBackToHostAfterVerifyFailure(t *testin
 		if baseURL == failingRelay.URL {
 			return relayWSPingResponse{StatusCode: http.StatusBadGateway, Body: []byte("upstream unavailable")}, nil
 		}
-		return relayWSPingResponse{StatusCode: http.StatusOK, Body: []byte(`{"type":"pong"}`)}, nil
+		return relayWSPingResponse{StatusCode: http.StatusOK, Body: []byte(`{"ok":true,"data":{"type":"pong"}}`)}, nil
 	}
 
 	paths, err := detectPaths()
@@ -1483,7 +1483,7 @@ func TestInteractiveSetupCompletedResumeRejectsBrokenHostOverride(t *testing.T) 
 		return []byte(`{"status":"ok","data":{"ha_ws_connected":true}}`), nil
 	}
 	probeRelayWSPingForReadiness = func(relayBaseURL, token string) (relayWSPingResponse, error) {
-		return relayWSPingResponse{StatusCode: 200, Body: []byte(`{"type":"pong"}`)}, nil
+		return relayWSPingResponse{StatusCode: 200, Body: []byte(`{"ok":true,"data":{"type":"pong"}}`)}, nil
 	}
 
 	paths, err := detectPaths()
@@ -1706,17 +1706,19 @@ func TestInteractiveSetupWSDegradedUsesWSPingSuccessAsReady(t *testing.T) {
 	probeRelayWSPingForSetup = func(relayBaseURL, token string) (relayWSPingResponse, error) {
 		return relayWSPingResponse{
 			StatusCode: http.StatusOK,
-			Body:       []byte(`{"type":"pong"}`),
+			Body:       []byte(`{"ok":true,"data":{"type":"pong"}}`),
 		}, nil
 	}
 
+	healthCalls := 0
 	relayServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/health" {
 			http.NotFound(w, r)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"status":"ok","data":{"ha_ws_connected":false}}`))
+		healthCalls++
+		fmt.Fprintf(w, `{"status":"ok","data":{"ha_ws_connected":%t}}`, healthCalls > 1)
 	}))
 	defer relayServer.Close()
 
@@ -2199,7 +2201,7 @@ func TestInteractiveSetupCompletedResumePersistsHostOnlyOverride(t *testing.T) {
 	}
 	fetchRelayHealthForReadiness = fetchRelayHealthForSetup
 	probeRelayWSPingForReadiness = func(relayBaseURL, token string) (relayWSPingResponse, error) {
-		return relayWSPingResponse{StatusCode: 200, Body: []byte(`{"type":"pong"}`)}, nil
+		return relayWSPingResponse{StatusCode: 200, Body: []byte(`{"ok":true,"data":{"type":"pong"}}`)}, nil
 	}
 
 	paths, err := detectPaths()
