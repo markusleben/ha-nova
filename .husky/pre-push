@@ -1,4 +1,13 @@
 #!/bin/sh
+git_env_vars=$(git rev-parse --local-env-vars) || {
+  echo "[pre-push] FAILED: cannot isolate Git hook environment" >&2
+  exit 1
+}
+for git_env_var in $git_env_vars; do
+  unset "$git_env_var"
+done
+unset git_env_var git_env_vars
+
 echo "[pre-push] Running local checks before push..."
 echo ""
 

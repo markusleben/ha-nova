@@ -1,0 +1,47 @@
+version = 1
+name = "HA NOVA"
+
+[setup]
+script = '''
+#!/usr/bin/env bash
+set -euo pipefail
+
+source_tree="${CODEX_SOURCE_TREE_PATH:?CODEX_SOURCE_TREE_PATH is required}"
+worktree="${CODEX_WORKTREE_PATH:?CODEX_WORKTREE_PATH is required}"
+[ -d "$source_tree" ] && [ ! -L "$source_tree" ] || {
+    echo "Codex source tree is not a real directory: $source_tree" >&2
+    exit 1
+}
+[ -d "$worktree" ] && [ ! -L "$worktree" ] || {
+    echo "Codex worktree is not a real directory: $worktree" >&2
+    exit 1
+}
+
+source_root=$(cd "$source_tree" && pwd -P)
+worktree_root=$(cd "$worktree" && pwd -P)
+[ "$source_root" != "$worktree_root" ] || {
+    echo "Codex source tree and worktree must be different" >&2
+    exit 1
+}
+
+for manifest in package.json package-lock.json nova/package.json nova/package-lock.json; do
+    [ -f "$worktree_root/$manifest" ] || {
+        echo "Codex worktree is missing $manifest" >&2
+        exit 1
+    }
+done
+
+cd "$worktree_root"
+npm ci
+npm --prefix nova ci
+'''
+
+[[actions]]
+name = "Verify"
+icon = "check"
+command = "npm run verify"
+
+[[actions]]
+name = "Build"
+icon = "build"
+command = "npm run build"
