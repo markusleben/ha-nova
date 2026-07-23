@@ -40,7 +40,7 @@ The safety flow is preview → approval → write → read back and verify. Dele
 
 It also supports named profiles for multiple Home Assistant servers on one machine, with isolated credentials per server. Update notices show the important release changes and any required action instead of only two version numbers.
 
-v0.21 adds an optional public census because, without behavioral analytics, I otherwise cannot tell which operating systems and versions need attention first. It is off until you explicitly opt in, sends no ID or Home Assistant data, and publishes only directional aggregate ping counts. You can inspect the exact payload and change the choice anytime with `ha-nova census status|on|off`.
+v0.21 adds an optional public census because, without behavioral analytics, I otherwise cannot tell which operating systems and versions need attention first. It is off until you explicitly opt in. Its application JSON body contains only the payload schema, HA NOVA version, operating system, and a recently observed Relay version when available — no installation/device/user ID and no Home Assistant data. Cloudflare is the hosting provider for the census endpoint and processes source-IP and connection metadata for HTTPS; HA NOVA Worker code does not read the IP, and HA NOVA application storage/public statistics do not store it. The published totals are directional aggregate ping counts. You can inspect the exact payload and change the choice anytime with `ha-nova census status|on|off`.
 
 The honest bits: this is still a young project, so back up your config before letting any AI change it. Container/Core installs use the same Relay code in a standalone container. Its Home Assistant token stays server-side, but clients share one Relay authentication token instead of using App pairing. The repo also includes a named, dated comparison with MCP-server approaches, including where the MCP side is ahead.
 
@@ -72,7 +72,7 @@ HA NOVA now works end-to-end on macOS, Linux, and Windows and includes 29 readab
 
 Recent additions include named profiles for multiple Home Assistant servers, one confirmation for a fully previewed non-destructive multi-step task, and conversation-scoped decision memory that blocks later plans which contradict requirements you already stated.
 
-v0.21 also starts an optional public census. It is off until explicit opt-in and exists because, without behavioral analytics, I cannot tell which operating systems and versions need attention first. It sends the HA NOVA version, operating system, and a recently observed Relay version when available — no ID and nothing about your home. The public totals are directional accepted-ping counts, not verified unique installs.
+v0.21 also starts an optional public census. It is off until explicit opt-in and exists because, without behavioral analytics, I cannot tell which operating systems and versions need attention first. Its application JSON body contains only the payload schema, HA NOVA version, operating system, and a recently observed Relay version when available — no installation/device/user ID and nothing about your home. Cloudflare is the hosting provider for the census endpoint and processes source-IP and connection metadata for HTTPS; HA NOVA Worker code does not read the IP, and HA NOVA application storage/public statistics do not store it. The public totals are directional accepted-ping counts, not verified unique installs.
 
 If you already use the current Go-based HA NOVA: run `ha-nova update`, update **NOVA Relay** under **Settings → Apps**, then start a new AI session. Container/Core users need to pull and recreate the Relay container instead. Pre-Go installs must use the legacy cleanup path in the README before running the current installer.
 
@@ -108,7 +108,7 @@ On HA OS/Supervised, setup is one installer command followed by a six-digit code
 
 It also supports several Home Assistant instances on one machine through named profiles and `HA_NOVA_SERVER=<name>`.
 
-v0.21 adds a strictly opt-in, ID-free public census so platform and version priorities can be based on a directional signal instead of guesswork. It is off by default and sends no Home Assistant data.
+v0.21 adds a strictly opt-in public census with an identifier-free application JSON body so platform and version priorities can be based on a directional signal instead of guesswork. It is off by default and includes no Home Assistant data. Cloudflare is the hosting provider for the census endpoint and processes source-IP and connection metadata for HTTPS; HA NOVA Worker code does not read the IP, and HA NOVA application storage/public statistics do not store it.
 
 Disclosure: I am the creator and maintainer. HA NOVA has no paid tier or referral links; the AI client you use may have its own subscription costs.
 
@@ -136,7 +136,7 @@ For HA OS/Supervised App installs, pairing uses OPAQUE (RFC 9807): the six-digit
 
 The client contains 29 readable markdown task skills. Configuration writes are previewed, explicitly approved, and verified by reading them back. Deletes require a typed confirmation code. The Relay contains transport and host capabilities, not Home Assistant business logic.
 
-v0.21 adds an optional public census to reveal which operating systems and versions need attention. It is off until explicit opt-in. The exact payload is limited to the HA NOVA version, operating system, and a recently observed Relay version when available — no ID, no IP field, and nothing about the home. The receiver stores aggregate counters, and the public totals are directional rather than verified unique installs.
+v0.21 adds an optional public census to reveal which operating systems and versions need attention. It is off until explicit opt-in. The application JSON body is limited to the payload schema, HA NOVA version, operating system, and a recently observed Relay version when available — no installation/device/user ID and nothing about the home. Cloudflare is the hosting provider for the census endpoint and processes source-IP and connection metadata for HTTPS; HA NOVA Worker code does not read the IP, and HA NOVA application storage/public statistics do not store it. The receiver stores aggregate counters, and the public totals are directional rather than verified unique installs.
 
 Repo and install docs: https://github.com/markusleben/ha-nova
 

@@ -224,7 +224,8 @@ export interface CensusStats {
 // breakdowns cover the last STATS_WINDOW_WEEKS ISO weeks (including the
 // current one); peak_weekly_pings is the busiest week in that window. It is a
 // directional activity signal, never a distinct-install estimate: the public,
-// ID-free receiver cannot authenticate, de-duplicate, or verify clients.
+// identifier-free application rows cannot authenticate, de-duplicate, or
+// verify clients.
 export function buildStats(rows: CounterRow[], now: Date): CensusStats {
   const weeklyTotals: Record<string, number> = {};
   const window = new Set(lastWeeks(now, STATS_WINDOW_WEEKS));
@@ -261,9 +262,9 @@ export function buildStats(rows: CounterRow[], now: Date): CensusStats {
     peak_weekly_pings: peakWeeklyPings,
     footnotes: {
       counting:
-        "Counts are accepted, schema-valid census pings. The endpoint has no client identifier or authentication, so counts are directional and may include duplicates or fabricated pings. New dimension combinations beyond the weekly row cap appear in the other overflow bucket — these are not verified unique installs.",
+        "Counts are accepted, schema-valid census pings. Application rows contain no installation, device, or user identifier, and the endpoint has no client authentication, so counts are directional and may include duplicates or fabricated pings. New dimension combinations beyond the weekly row cap appear in the other overflow bucket — these are not verified unique installs.",
       identifiers:
-        "Pings carry no identifier, so unique installs, retention, and de-duplication cannot be computed — by design.",
+        "The application JSON contains no installation, device, or user identifier. Cloudflare is the hosting provider and processes transport metadata; HA NOVA Worker code does not read the source IP, and application rows do not store it.",
     },
   };
 }

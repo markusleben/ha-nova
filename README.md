@@ -81,7 +81,7 @@ We built this because we didn't trust AI with our own config either.
 - 🗑️ **Revoke with one click on App installs.** Lost a laptop? Retired a machine? Cut off that paired device from the NOVA page — everything else keeps working.
 - 📖 **Every rule the AI follows is a markdown file you can read.**
 - 🏠 **No cloud relay or usage analytics.** Your Home Assistant data stays between your machine and your Home Assistant.
-- 📊 **Census off by default.** Only after your explicit opt-in, an [ID-free census](docs/reference/census.md) records a weekly attempt before sending the HA NOVA version, operating system, and a recently observed Relay version when available. With its local state intact, it does not attempt again that ISO week. Its [public aggregate ping counts](https://ha-nova-census.markusleben.workers.dev/stats) are directional, not verified unique installs. Turn it off anytime with `ha-nova census off`; see [the privacy details](PRIVACY.md).
+- 📊 **Census off by default.** Only after your explicit opt-in, a [census with an identifier-free JSON body](docs/reference/census.md) sends the payload schema, HA NOVA version, operating system, and a recently observed Relay version when available. After the first opt-in, HA NOVA tries to send it immediately; afterward it tries at most once per week. Cloudflare is the hosting provider for the census endpoint and processes source-IP and connection metadata for HTTPS; HA NOVA Worker code does not read the IP, and HA NOVA application storage/public statistics do not store it. Its [public aggregate ping counts](https://ha-nova-census.markusleben.workers.dev/stats) are directional, not verified unique installs. Turn it off anytime with `ha-nova census off`; see [the privacy details](PRIVACY.md).
 
 ---
 

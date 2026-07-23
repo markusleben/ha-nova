@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
@@ -223,7 +224,15 @@ describe("census worker aggregation", () => {
     expect(stats.footnotes.counting).toContain("not verified unique installs");
     expect(stats.footnotes.counting).toContain("fabricated pings");
     expect(stats.footnotes.counting).toContain("other overflow bucket");
-    expect(stats.footnotes.identifiers).toContain("no identifier");
+    expect(stats.footnotes.identifiers).toContain(
+      "application JSON contains no installation, device, or user identifier",
+    );
+    expect(stats.footnotes.identifiers).toContain(
+      "Cloudflare is the hosting provider",
+    );
+    expect(stats.footnotes.identifiers).toContain(
+      "Worker code does not read the source IP",
+    );
   });
 
   it("starts the stable public census on a clean counter namespace", () => {
@@ -233,11 +242,23 @@ describe("census worker aggregation", () => {
     expect(indexSource).not.toContain('idFromName("global")');
   });
 
+  it("positively allowlists every incoming Worker Request access", () => {
+    expect(() =>
+      execFileSync(process.execPath, ["scripts/test/check-census-worker-request-access.mjs"], {
+        cwd: process.cwd(),
+        stdio: "pipe",
+      }),
+    ).not.toThrow();
+  });
+
   it("exposes exact Cloudflare deployment metadata on public stats", () => {
     const indexSource = readFileSync(join(process.cwd(), "census-worker", "src", "index.ts"), "utf8");
     const wrangler = readFileSync(join(process.cwd(), "census-worker", "wrangler.toml"), "utf8");
     expect(wrangler).toContain('account_id = "58e387e1204bdfe78781caca64f2cd15"');
     expect(wrangler).toMatch(/\[version_metadata\]\s+binding = "CF_VERSION_METADATA"/);
+    expect(wrangler).toMatch(
+      /\[observability\]\s+enabled = false\s+\[observability\.logs\]\s+enabled = false\s+invocation_logs = false/,
+    );
     expect(indexSource).toContain("env.CF_VERSION_METADATA.tag");
     expect(indexSource).toContain("env.CF_VERSION_METADATA.id");
     expect(indexSource).toContain('headers.set("X-HA-NOVA-Deployment-SHA"');

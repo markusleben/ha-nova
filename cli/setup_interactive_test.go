@@ -1246,7 +1246,7 @@ func TestInteractiveSetupAlreadyDoneUsesResumeBanner(t *testing.T) {
 		captureCensusLifecycleMarker(paths),
 	}
 
-	stdout, stderr := captureInteractiveSetupIO(t, "\n", func() int {
+	stdout, stderr := captureInteractiveSetupIO(t, "2\n", func() int {
 		return interactiveSetup(paths, cfg, state, "claude", "", "", "", "", false, lifecycleMarker...)
 	})
 
@@ -1260,12 +1260,12 @@ func TestInteractiveSetupAlreadyDoneUsesResumeBanner(t *testing.T) {
 	if censusLifecycleStopped(paths) {
 		t.Fatal("successful already-complete setup did not clear its matching lifecycle marker")
 	}
-	if !strings.Contains(output, "May HA NOVA include this install in its public census?") {
+	if !strings.Contains(output, "May this installation contribute to HA NOVA's public version statistics?") {
 		t.Fatalf("successful already-complete setup omitted the one-time census question:\n%s", output)
 	}
 	census := loadCensusState(paths)
 	if census.Answer != "no" || census.Enabled {
-		t.Fatalf("default-No census answer was not applied exactly once: %+v", census)
+		t.Fatalf("explicit No census answer was not applied exactly once: %+v", census)
 	}
 
 	generationAfterReactivation := captureInstallLifecycleGeneration(paths)

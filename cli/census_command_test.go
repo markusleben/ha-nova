@@ -103,7 +103,7 @@ func TestCensusOnSuppressesFutureWeekStampLikeTheCarrier(t *testing.T) {
 		t.Fatalf("saveCensusState() error: %v", err)
 	}
 	stubCensusTTY(t, true, true)
-	askCensusWithInput(t, paths, "y\n")
+	askCensusWithInput(t, paths, "1\n")
 	if len(*payloads) != 0 {
 		t.Fatalf("a future stamp must not let the ask-yes path send, got %d attempts", len(*payloads))
 	}
@@ -156,7 +156,7 @@ func TestCensusOffDisablesAndStampsAnswer(t *testing.T) {
 	}
 }
 
-func TestCensusStatusPrintsLiteralWirePayloadAndURLs(t *testing.T) {
+func TestCensusStatusPrintsLiteralApplicationJSONAndURLs(t *testing.T) {
 	paths := setupCensusTest(t)
 	stubCensusVersion(t, "0.21.0")
 	stubCensusEndpoint(t)
@@ -166,20 +166,89 @@ func TestCensusStatusPrintsLiteralWirePayloadAndURLs(t *testing.T) {
 	if exit != 0 {
 		t.Fatalf("census status exit = %d, want 0\n%s", exit, out)
 	}
-	wire := fmt.Sprintf(`{"schema":1,"version":"0.21.0","os":%q}`, censusOS())
+	body := fmt.Sprintf(`{"schema":1,"version":"0.21.0","os":%q}`, censusOS())
 	for _, want := range []string{
 		"Census: off",
-		wire, // the LITERAL bytes, not a description
+		"Exact application JSON body:",
+		body, // the LITERAL application-body bytes, not a description
 		"one recorded attempt per ISO week (UTC) while local census state remains intact",
 		"Last attempted week: never",
 		censusStatsURL(),
 		"ha-nova census off",
 		"HA_NOVA_NO_CENSUS",
 		"not verified unique installs",
+		"Cloudflare hosts the census endpoint and processes the source IP and connection metadata",
+		"HA NOVA Worker code does not read the source IP",
+		"application storage and public statistics do not store it",
 	} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("census status missing %q:\n%s", want, out)
 		}
+	}
+}
+
+func TestCensusStatusNeverCreatesOrChangesConsentState(t *testing.T) {
+	t.Run("pristine install", func(t *testing.T) {
+		paths := setupCensusTest(t)
+		stubCensusVersion(t, "0.21.0")
+
+		if exit := captureCensusCommandExit(t, func() int { return runCensusStatus(paths) }); exit != 0 {
+			t.Fatalf("census status exit = %d, want 0", exit)
+		}
+		if _, err := os.Stat(paths.CensusFile); !os.IsNotExist(err) {
+			t.Fatalf("read-only status created census state: %v", err)
+		}
+	})
+
+	t.Run("existing unanswered state", func(t *testing.T) {
+		paths := setupCensusTest(t)
+		stubCensusVersion(t, "0.21.0")
+		state := censusState{
+			Schema:       censusStateSchemaVersion,
+			AskedAt:      "2026-07-23T20:00:00Z",
+			AskedVia:     "skill",
+			Answer:       "none",
+			SkillNotices: censusSkillNoticeCap,
+		}
+		if err := saveCensusState(paths, state); err != nil {
+			t.Fatal(err)
+		}
+		before, err := os.ReadFile(paths.CensusFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if exit := captureCensusCommandExit(t, func() int { return runCensusStatus(paths) }); exit != 0 {
+			t.Fatalf("census status exit = %d, want 0", exit)
+		}
+		after, err := os.ReadFile(paths.CensusFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(after) != string(before) {
+			t.Fatalf("read-only status changed census state:\nbefore: %s\nafter:  %s", before, after)
+		}
+	})
+}
+
+func TestCensusCommandFailureAfterFinalNoticePreservesUnansweredState(t *testing.T) {
+	paths := setupCensusTest(t)
+	stubCensusVersion(t, "0.21.0")
+	raw := []byte(`{"schema":2,"asked_at":"2026-07-23T20:00:00Z","asked_via":"skill","answer":"none","enabled":false,"skill_notices":3}`)
+	if err := os.WriteFile(paths.CensusFile, raw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	exit := captureCensusCommandExit(t, func() int { return runCensusOn(paths) })
+	if exit == 0 {
+		t.Fatal("census on unexpectedly overwrote newer unanswered state")
+	}
+	after, err := os.ReadFile(paths.CensusFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(after) != string(raw) {
+		t.Fatalf("failed consent command changed final-notice state:\nbefore: %s\nafter:  %s", raw, after)
 	}
 }
 
@@ -260,7 +329,7 @@ func TestCensusPendingNoCannotOverrideExplicitOn(t *testing.T) {
 	if exit != 0 {
 		t.Fatalf("census on exit = %d, want 0", exit)
 	}
-	out := finishBlockedCensusAsk(t, answer, done, "\n")
+	out := finishBlockedCensusAsk(t, answer, done, "2\n")
 	state := loadCensusState(paths)
 	if !state.Enabled || state.Answer != "yes" {
 		t.Fatalf("stale prompt no overrode explicit opt-in: %+v", state)
@@ -305,7 +374,7 @@ func TestCensusUninstallSentinelBlocksEveryWriterAndNotice(t *testing.T) {
 	if err := mutateCensusState(paths, func(state *censusState) { state.Enabled = true }); err == nil {
 		t.Fatal("locked census mutation succeeded after uninstall")
 	}
-	if out := askCensusWithInput(t, paths, "y\n"); out != "" {
+	if out := askCensusWithInput(t, paths, "1\n"); out != "" {
 		t.Fatalf("interactive ask surfaced after uninstall: %q", out)
 	}
 	if out := captureStdout(t, func() { maybeEmitCensusSkillNotice(paths) }); out != "" {
