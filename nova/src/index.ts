@@ -49,7 +49,6 @@ export interface AppOptions {
   now?: () => number;
   pairingManager?: PairingManager;
   requiredRelayVersion?: string;
-  installerVersion?: string;
 }
 
 export interface App {
@@ -99,7 +98,6 @@ export function createApp(options: AppOptions): App {
       health: options.now ? { ...healthOptions, now: options.now } : healthOptions,
       pairing,
       requiredRelayVersion: options.requiredRelayVersion ?? options.version,
-      installerVersion: options.installerVersion ?? options.version,
       ...(options.now ? { now: options.now } : {})
     })
   );

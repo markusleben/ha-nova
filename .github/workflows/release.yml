@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   release:
-    name: Build and publish release assets
+    name: Build release assets
     runs-on: ubuntu-latest
     environment:
       name: production
@@ -55,10 +55,29 @@ jobs:
           HA_NOVA_ALLOW_EXISTING_RELEASE_TAG: "1"
         run: bash scripts/release/verify-next-release-version.sh "${GITHUB_REF_NAME}"
 
+      - name: Detect an already-published retry
+        id: release-state
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          published=false
+          release_pages="$(gh api --paginate --slurp 'repos/markusleben/ha-nova/releases?per_page=100')"
+          matching="$(jq -c --arg tag "$GITHUB_REF_NAME" '[.[][] | select(.tag_name == $tag)]' <<<"$release_pages")"
+          jq -e 'length <= 1' <<<"$matching" >/dev/null
+          if [[ "$(jq 'length' <<<"$matching")" == "1" ]]; then
+            if [[ "$(jq -r '.[0].draft' <<<"$matching")" == "false" ]]; then
+              bash scripts/release/verify-release-assets.sh "$GITHUB_REF_NAME"
+              published=true
+            fi
+          fi
+          echo "published=$published" >> "$GITHUB_OUTPUT"
+
       - name: GoReleaser
+        if: steps.release-state.outputs.published != 'true'
         uses: goreleaser/goreleaser-action@v7
         with:
-          version: "~> v2"
+          version: "v2.17.0"
           args: release --clean --skip=sign
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -67,16 +86,74 @@ jobs:
           GORELEASER_CURRENT_TAG: ${{ github.ref_name }}
 
       - name: Build install bundles
+        if: steps.release-state.outputs.published != 'true'
         run: bash scripts/release/build-install-bundle.sh "${GITHUB_REF_NAME#v}"
 
       - name: Upload install bundles
+        if: steps.release-state.outputs.published != 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh release upload "$GITHUB_REF_NAME" dist/install-bundles/* --clobber
 
+  publish-release:
+    name: Publish complete release
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    environment:
+      name: production
+      url: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref_name }}
+    steps:
+      - name: Checkout release gate
+        uses: actions/checkout@v7
+
+      - name: Verify complete draft and publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          release_json="$(gh release view "$GITHUB_REF_NAME" --json tagName,isDraft,isPrerelease)"
+          jq -e --arg tag "$GITHUB_REF_NAME" '.tagName == $tag' <<<"$release_json" >/dev/null
+
+          expected_prerelease=false
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then
+            expected_prerelease=true
+          fi
+          jq -e --argjson expected "$expected_prerelease" '.isPrerelease == $expected' <<<"$release_json" >/dev/null
+
+          bash scripts/release/verify-release-assets.sh "$GITHUB_REF_NAME"
+
+          if [[ "$expected_prerelease" == "true" ]]; then
+            if [[ "$(jq -r '.isDraft' <<<"$release_json")" == "true" ]]; then
+              gh release edit "$GITHUB_REF_NAME" --draft=false --verify-tag
+            else
+              echo "Prerelease is already published; verifying idempotent final state."
+            fi
+          else
+            # Re-assert Latest even for a published retry. A prior interrupted or
+            # manual recovery must not leave /releases/latest on the old stable.
+            gh release edit "$GITHUB_REF_NAME" --draft=false --latest --verify-tag
+          fi
+
+          published_json="$(gh release view "$GITHUB_REF_NAME" --json tagName,isDraft,isPrerelease)"
+          jq -e \
+            --arg tag "$GITHUB_REF_NAME" \
+            --argjson expected "$expected_prerelease" \
+            '.tagName == $tag and .isDraft == false and .isPrerelease == $expected' \
+            <<<"$published_json" >/dev/null
+
+          if [[ "$expected_prerelease" == "false" ]]; then
+            latest_tag="$(gh api 'repos/markusleben/ha-nova/releases/latest' --jq '.tag_name')"
+            if [[ "$latest_tag" != "$GITHUB_REF_NAME" ]]; then
+              echo "::error::Latest stable is $latest_tag, expected $GITHUB_REF_NAME."
+              exit 1
+            fi
+          fi
+
   smoke-installers:
     name: Post-publish smoke installers (${{ matrix.os }})
-    needs: release
+    needs: publish-release
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false

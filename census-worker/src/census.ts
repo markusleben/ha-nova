@@ -14,12 +14,10 @@ export const STATS_WINDOW_WEEKS = 4;
 // The /stats weekly series stays bounded: older weeks age out of the public
 // response (the counters themselves are kept).
 export const WEEKLY_HORIZON_WEEKS = 26;
-// A hostile client could mint unbounded distinct counter rows by fabricating
-// version strings (storage growth + stats noise). 64 distinct HA NOVA or
-// relay versions within ONE ISO week is far beyond any legitimate release
-// cadence; overflow folds into the "other" bucket instead of new rows.
-export const MAX_VERSIONS_PER_WEEK = 64;
-export const MAX_RELAYS_PER_WEEK = 64;
+// A hostile client could otherwise mint a Cartesian product of fabricated
+// version/relay values. Reserve the final row for one all-dimensions overflow
+// bucket; the whole weekly table is therefore capped, not just each dimension.
+export const MAX_ROWS_PER_WEEK = 256;
 export const OVERFLOW_BUCKET = "other";
 
 // Exported so the cross-contract test can compare them against the client's
@@ -215,18 +213,18 @@ export interface CensusStats {
   by_os: Record<string, number>;
   by_version: Record<string, number>;
   by_relay: Record<string, number>;
-  monthly_lower_bound: number;
+  peak_weekly_pings: number;
   footnotes: {
     counting: string;
     identifiers: string;
   };
 }
 
-// buildStats aggregates counter rows into the public numbers. by_* breakdowns
-// cover the last STATS_WINDOW_WEEKS ISO weeks (including the current one);
-// monthly_lower_bound is the busiest of those weeks — a floor, never an
-// estimate, because without identifiers weekly counts cannot be de-duplicated
-// across weeks.
+// buildStats aggregates accepted pings into the public numbers. by_*
+// breakdowns cover the last STATS_WINDOW_WEEKS ISO weeks (including the
+// current one); peak_weekly_pings is the busiest week in that window. It is a
+// directional activity signal, never a distinct-install estimate: the public,
+// ID-free receiver cannot authenticate, de-duplicate, or verify clients.
 export function buildStats(rows: CounterRow[], now: Date): CensusStats {
   const weeklyTotals: Record<string, number> = {};
   const window = new Set(lastWeeks(now, STATS_WINDOW_WEEKS));
@@ -248,9 +246,9 @@ export function buildStats(rows: CounterRow[], now: Date): CensusStats {
     .filter((label) => horizon.has(label))
     .sort()
     .map((iso_week) => ({ iso_week, count: weeklyTotals[iso_week] ?? 0 }));
-  let monthlyLowerBound = 0;
+  let peakWeeklyPings = 0;
   for (const label of window) {
-    monthlyLowerBound = Math.max(monthlyLowerBound, weeklyTotals[label] ?? 0);
+    peakWeeklyPings = Math.max(peakWeeklyPings, weeklyTotals[label] ?? 0);
   }
   return {
     schema: 1,
@@ -260,12 +258,12 @@ export function buildStats(rows: CounterRow[], now: Date): CensusStats {
     by_os: byOS,
     by_version: byVersion,
     by_relay: byRelay,
-    monthly_lower_bound: monthlyLowerBound,
+    peak_weekly_pings: peakWeeklyPings,
     footnotes: {
       counting:
-        "Each count is one opted-in install that checked for updates in that ISO week (UTC). Opt-in only — these numbers are a lower bound, never a total.",
+        "Counts are accepted, schema-valid census pings. The endpoint has no client identifier or authentication, so counts are directional and may include duplicates or fabricated pings. New dimension combinations beyond the weekly row cap appear in the other overflow bucket — these are not verified unique installs.",
       identifiers:
-        "Pings carry no identifier, so distinct installs across weeks and retention cannot be computed — by design.",
+        "Pings carry no identifier, so unique installs, retention, and de-duplication cannot be computed — by design.",
     },
   };
 }
@@ -285,23 +283,39 @@ export interface CounterStore {
   rows(): Promise<CounterRow[]>;
 }
 
-// clampWeeklyCardinality enforces the per-week row caps (see
-// MAX_VERSIONS_PER_WEEK): a key whose version/relay would create a distinct
-// value beyond the cap is folded into OVERFLOW_BUCKET so the counter table
-// cannot be grown without bound by fabricated version strings. Pure and
-// synchronous by design — callers embed it into their atomic write step.
+// clampWeeklyCardinality enforces one total per-week row cap. Existing exact
+// rows keep their labels. Once only the reserved overflow slot remains, every
+// new combination folds into one (other, other, other) row, preventing a
+// fabricated version x relay x os Cartesian product. Pure and synchronous by
+// design — callers embed it into their atomic write step.
 export function clampWeeklyCardinality(weekRows: CounterRow[], key: CounterKey): CounterKey {
   const sameWeek = weekRows.filter((row) => row.iso_week === key.iso_week);
-  const versions = new Set(sameWeek.map((row) => row.version));
-  const relays = new Set(sameWeek.map((row) => row.relay));
-  const clamped: CounterKey = { ...key };
-  if (!versions.has(key.version) && versions.size >= MAX_VERSIONS_PER_WEEK) {
-    clamped.version = OVERFLOW_BUCKET;
+  const exactExists = sameWeek.some(
+    (row) => row.version === key.version && row.os === key.os && row.relay === key.relay,
+  );
+  if (exactExists) {
+    return key;
   }
-  if (!relays.has(key.relay) && relays.size >= MAX_RELAYS_PER_WEEK) {
-    clamped.relay = OVERFLOW_BUCKET;
+  const overflow: CounterKey = {
+    iso_week: key.iso_week,
+    version: OVERFLOW_BUCKET,
+    os: OVERFLOW_BUCKET,
+    relay: OVERFLOW_BUCKET,
+  };
+  const overflowExists = sameWeek.some(
+    (row) =>
+      row.version === OVERFLOW_BUCKET &&
+      row.os === OVERFLOW_BUCKET &&
+      row.relay === OVERFLOW_BUCKET,
+  );
+  if (overflowExists || sameWeek.length >= MAX_ROWS_PER_WEEK - 1) {
+    return overflow;
   }
-  return clamped;
+  return key;
+}
+
+export function isJSONMediaType(contentType: string): boolean {
+  return contentType.split(";", 1)[0]?.trim().toLowerCase() === "application/json";
 }
 
 export interface CensusRequestLike {
@@ -331,7 +345,7 @@ export async function handleCensusRequest(
     if (request.method !== "POST") {
       return { status: 405, headers: { Allow: "POST" } };
     }
-    if (!request.contentType.toLowerCase().startsWith("application/json")) {
+    if (!isJSONMediaType(request.contentType)) {
       return { status: 415 };
     }
     // Declared-size gate first: an oversized Content-Length is 413 before any

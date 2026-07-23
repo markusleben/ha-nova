@@ -1,10 +1,11 @@
 # Privacy — the HA NOVA Census
 
-Last updated: 2026-07-22
+Last updated: 2026-07-23
 
-HA NOVA has no telemetry, no analytics, and no phone-home — by design, and
-that stays. The single, strictly opt-in exception is the **census**: a
-voluntary count of installs. This page is the complete description of it.
+HA NOVA sends no behavioral or feature-use analytics. The single, strictly opt-in measurement is
+the **census**: an ID-free stream of small pings used as a directional signal
+about participating versions and operating systems. It is not a verified count
+of unique installs. This page is the complete description of it.
 
 **Operator:** Markus Leben (the HA NOVA maintainer).
 **Contact:** via GitHub — <https://github.com/markusleben/ha-nova/issues>
@@ -13,20 +14,23 @@ voluntary count of installs. This page is the complete description of it.
 ## What is sent — verbatim
 
 Nothing is ever sent unless you explicitly said yes (`ha-nova census on`, or
-answering yes to the one-time question). Opting in sends the first ping
-immediately; after that, HA NOVA sends this exact JSON payload at most once
-per ISO week, alongside a normal update check. Update checks run automatically
-as part of normal use — AI clients trigger one at session start and a
-background refresh keeps the release cache warm — so an opted-in install is
-counted weekly without further action. To be precise: the census ping IS one
+answering yes to the one-time question). Opting in makes the first eligible
+send attempt immediately; after that, HA NOVA records one attempt per ISO week
+before sending this exact JSON payload alongside a normal update check. While
+that local state remains intact, it does not attempt again in the same week. Update checks run automatically
+as part of normal use — AI clients trigger one at session start or before the
+first Home Assistant task, depending on the client, and a background refresh
+keeps the release cache warm — so an opted-in install
+normally attempts one ping per week without further action. To be precise: the census ping IS one
 additional small HTTPS request to the census endpoint (that is all it is); it
-never adds update-check traffic, relay calls, or retries beyond that single
-weekly POST:
+never adds update-check traffic, relay calls, redirects, or retries beyond that
+single weekly POST attempt:
 
 ```json
-{"schema":1,"version":"0.21.0","relay":"0.7.0","os":"macos"}
+{"schema":1,"version":"0.21.0","relay":"0.7.1","os":"macos"}
 ```
 
+- `schema` — payload format version, currently `1`
 - `version` — the installed HA NOVA version
 - `relay` — the relay version, only when it was observed during your normal
   relay traffic within the last 7 days; otherwise the field is omitted
@@ -36,46 +40,78 @@ That is the whole payload. `ha-nova census status` prints the literal bytes
 that would be sent from your machine right now. The payload is contract-tested
 on both ends (client and server), so it cannot grow silently.
 
-## What is NOT sent or stored
+## What is NOT sent or stored server-side by HA NOVA
 
 - **No ID of any kind.** No UUID, no install ID, no fingerprint. We could not
   recognize your install twice even if we wanted to — the server only holds
   aggregate counters per week/version/OS/relay.
-- **No IP storage.** The receiving endpoint stores no IP addresses, and its
-  request/invocation logging is disabled. Your IP transits Cloudflare's edge
-  network momentarily to deliver the request, as with any HTTPS call, and is
-  not retained by us.
+- **No IP storage in the census application.** The receiving endpoint stores
+  no IP addresses, and its request/invocation logging is disabled. Your IP
+  transits Cloudflare's edge network to deliver the HTTPS request; HA NOVA's
+  application storage and public statistics never receive an IP field.
 - **Nothing about your home.** No entities, no usage, no events, no client
-  timestamps, no Home Assistant data of any kind.
+  timestamps in the payload, no Home Assistant data of any kind.
 
-## Purpose
+## Local state on your machine
 
-To know roughly how many installs exist, on which OS and versions — so
-decisions about what to build and test first rest on real numbers instead of
-download guesses. That's all.
+`census.json` records the one-time question and answer, whether census is
+enabled, the last attempted ISO week, the AI-client notice count, and — when
+observed through normal Relay traffic — the recent Relay version plus its local
+observation time. This state never enters the payload. On macOS and Linux it
+lives in the current user's config directory with mode `0600`; on Windows it
+uses device-local `LOCALAPPDATA`, not roaming `APPDATA`. `ha-nova uninstall`
+removes it.
+
+Restoring, deleting, or rolling back local census state can permit another
+attempt in the same ISO week; there is no server-side identifier with which to
+deduplicate it. Uninstall retains one opaque random safety marker outside the
+managed directories so a stale process cannot recreate census state afterward.
+The marker contains no answer, timestamp, process data, or stable device ID, is
+never sent, and a later successful setup removes it.
+
+## Purpose and accuracy limit
+
+To get a directional signal about which versions and operating systems opt-in
+participants use, so decisions about what to build and test first are not based
+only on download guesses. The public receiver has no client identifier or
+authentication. It accepts any schema-valid unauthenticated payload, so duplicate or
+fabricated pings cannot be separated from released clients. The aggregates are
+not an exact total, a lower bound, or a verified unique-install count.
 
 ## Processing and hosting
 
 The endpoint is a Cloudflare Worker whose full source lives in this repository
 (`census-worker/`). Cloudflare, Inc. acts as a processor under its standard
 [Data Processing Addendum](https://www.cloudflare.com/cloudflare-customer-dpa/).
-Stored data: aggregate counters only.
+HA NOVA application storage contains aggregate counter rows only. Cloudflare
+also provides built-in aggregate Worker metrics such as request counts, status,
+and runtime duration; Cloudflare documents up to three months of metrics
+retention. Request/invocation logs are disabled for this Worker.
 
 ## Public numbers
 
-Everyone sees the same aggregates the maintainer sees:
-`https://ha-nova-census.markusleben.workers.dev/stats`
-(the concrete URL is finalized with the worker deployment and also shown by
-`ha-nova census status`).
+The public endpoint is
+<https://ha-nova-census.markusleben.workers.dev/stats>. It publishes a sparse
+accepted-ping series within a 26-week horizon plus 4-week
+OS/version/Relay breakdowns and the peak weekly ping count in that window.
+Aggregate counter rows have no automatic expiry and remain until the operator
+deletes them; older rows simply age out of the public horizon. To bound storage
+abuse, new dimension combinations beyond 256 rows in one week fold into an
+`other` overflow bucket; this does not represent another client OS. There is
+no per-install record or view for either the maintainer or the public.
+`ha-nova census status` shows the same URL.
 
 ## Your controls
 
 - `ha-nova census status` — see on/off state and the exact bytes.
-- `ha-nova census off` — stop immediately. There is nothing to delete
-  server-side, because no per-install record exists — only counters.
+- `ha-nova census off` — after the command returns successfully, no new ping
+  can begin. If one bounded request had already started, the command waits for
+  it to finish first. There is nothing to delete server-side, because no
+  per-install record exists — only counters.
 - `ha-nova census on` — opt back in.
 - `HA_NOVA_NO_CENSUS=1` — environment kill switch; suppresses both the
   question and any ping while set (ANY non-empty value counts as set).
-- `ha-nova uninstall` removes the local census state file with the rest.
+- `ha-nova uninstall` removes the local census state file and retains only the
+  opaque, data-free lifecycle safety marker described above.
 
 Details and design rationale: [docs/reference/census.md](docs/reference/census.md).

@@ -41,7 +41,6 @@ describe("Home Base", () => {
       },
       pairing,
       requiredRelayVersion: "0.4.0",
-      installerVersion: "0.17.0",
       now: () => now
     });
     const recorder = createResponseRecorder();
@@ -63,9 +62,12 @@ describe("Home Base", () => {
     expect(recorder.body).toContain("<dd>0.5.0</dd>");
     expect(recorder.body).toContain("<dd>0.4.0</dd>");
     expect(recorder.body).toContain("<dd>read</dd>");
-    expect(recorder.body).toContain("v0.17.0/install.sh");
-    expect(recorder.body).toContain("v0.17.0/install.ps1");
-    expect(recorder.body).toContain("HA_NOVA_VERSION=&#39;v0.17.0&#39;");
+    expect(recorder.body).toContain("raw.githubusercontent.com/markusleben/ha-nova/main/install.sh");
+    expect(recorder.body).toContain("raw.githubusercontent.com/markusleben/ha-nova/main/install.ps1");
+    expect(recorder.body).toContain("standard latest-stable installer");
+    expect(recorder.body).toContain("First update the NOVA Relay App to the latest version");
+    expect(recorder.body).not.toContain("HA_NOVA_VERSION");
+    expect(recorder.body).not.toContain("v0.17.0/install.sh");
     expect(recorder.body).not.toContain("v0.5.0/install.sh");
     expect(recorder.body).not.toContain("never-render-this-token");
     expect(recorder.body).not.toContain("<script");

@@ -77,7 +77,7 @@ Assistant call or domain logic.
 ### `GET /home` — Home Base
 
 Home Base is a read-only HTML rendering of the same snapshot as `/health`, plus
-the current pairing code, expiry, compatibility floor, and release-pinned
+the current pairing code, expiry, compatibility floor, and latest-stable
 installer commands. It is bearer-exempt because Home Assistant Supervisor
 ingress supplies the authenticated browser session instead.
 
@@ -332,8 +332,7 @@ RELAY_AUTH_TOKEN: "<operator-chosen-secret>"   # Inbound client auth override
 RELAY_AUTH_TOKEN_FILE: "/data/relay_auth_token" # App-owned persistent token
 SUPERVISOR_TOKEN: "<injected-by-supervisor>"   # App upstream auth; never configured by the user
 HA_LLAT: "<ha-long-lived-access-token>"        # Standalone upstream auth fallback
-PRODUCT_VERSION: "0.17.0"                      # Generated release tag for Home Base installers
-MIN_RELAY_VERSION: "0.7.0"                    # Required Relay floor shown in Home Base
+MIN_RELAY_VERSION: "<from nova/version.json>" # Required Relay floor shown in Home Base
 
 # Optional (with defaults)
 HA_URL: "http://supervisor/core"               # App default; standalone default: http://homeassistant:8123
@@ -343,10 +342,9 @@ RELAY_VERSION: "dev"                           # Injected by run script from bas
 APP_OPTIONS_PATH: "/data/options.json"         # HA app options file path
 ```
 
-`PRODUCT_VERSION` and `MIN_RELAY_VERSION` are loaded from `nova/version.json`,
-a generated mirror of the root `version.json` SSOT. The bump script and its
-contract keep the mirror in sync; Relay and product versions must not be
-substituted for each other.
+`MIN_RELAY_VERSION` is loaded from `nova/version.json`, a generated mirror of
+the root `version.json` SSOT. The bump script and its contract keep the mirror
+in sync; Relay and product versions must not be substituted for each other.
 
 ## Tech Stack
 

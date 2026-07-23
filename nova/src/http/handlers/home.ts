@@ -23,7 +23,6 @@ export interface HomeHandlerOptions {
   health: HealthHandlerOptions;
   pairing: PairingManager;
   requiredRelayVersion: string;
-  installerVersion: string;
   now?: () => number;
 }
 
@@ -33,7 +32,6 @@ export interface HomePageModel {
   pairingExpiresAtMs: number;
   pairingExpiresInSeconds: number;
   requiredRelayVersion: string;
-  installerVersion: string;
 }
 
 export function createHomeHandler(options: HomeHandlerOptions): RouteHandler {
@@ -52,8 +50,7 @@ export function createHomeHandler(options: HomeHandlerOptions): RouteHandler {
       pairingCode: pairing.code,
       pairingExpiresAtMs: pairing.expiresAtMs,
       pairingExpiresInSeconds: Math.max(0, Math.ceil((pairing.expiresAtMs - now()) / 1_000)),
-      requiredRelayVersion: options.requiredRelayVersion,
-      installerVersion: options.installerVersion
+      requiredRelayVersion: options.requiredRelayVersion
     });
 
     response.statusCode = 200;
@@ -74,7 +71,7 @@ export function renderHomePage(model: HomePageModel): string {
   const connection = connectionText(model.health);
   const code = `${model.pairingCode.slice(0, 3)} ${model.pairingCode.slice(3)}`;
   const expiresMinutes = Math.max(1, Math.ceil(model.pairingExpiresInSeconds / 60));
-  const commands = installCommands(model.installerVersion);
+  const commands = installCommands();
   const statusClass = model.health.ha_ws_connected ? "good" : "warn";
 
   return `<!doctype html>
@@ -122,7 +119,7 @@ export function renderHomePage(model: HomePageModel): string {
       </article>
       <article class="card"><h2>Relay</h2><p>${escapeHtml(connection)}</p><dl><dt>Running version</dt><dd>${escapeHtml(model.health.version)}</dd><dt>Required floor</dt><dd>${escapeHtml(model.requiredRelayVersion)}</dd><dt>Uptime</dt><dd>${escapeHtml(formatUptime(model.health.uptime_s))}</dd></dl></article>
       <article class="card"><h2>Capabilities</h2><p>Effective settings reported by the Relay.</p><dl><dt>File access</dt><dd>${escapeHtml(model.health.file_access)}</dd><dt>Snapshots</dt><dd>${model.health.snapshots.files}</dd><dt>Snapshot size</dt><dd>${escapeHtml(formatBytes(model.health.snapshots.bytes))}</dd></dl></article>
-      <article class="card install"><h2>Install HA NOVA</h2><p>Use the command for this stable Relay release, then return here for the pairing code.</p><div class="eyebrow">macOS / Linux</div><pre>${escapeHtml(commands.unix)}</pre><div class="eyebrow">Windows PowerShell</div><pre>${escapeHtml(commands.windows)}</pre></article>
+      <article class="card install"><h2>Install HA NOVA</h2><p>First update the NOVA Relay App to the latest version in Home Assistant. Then use the standard latest-stable installer and return here for the pairing code.</p><div class="eyebrow">macOS / Linux</div><pre>${escapeHtml(commands.unix)}</pre><div class="eyebrow">Windows PowerShell</div><pre>${escapeHtml(commands.windows)}</pre></article>
     </section>
     <footer>Read-only status. No tracking, external assets, or Home Assistant mutations.</footer>
   </main>
@@ -150,15 +147,13 @@ function connectionText(health: HealthPayload): string {
   return "Waiting for the first Home Assistant connection";
 }
 
-function installCommands(version: string): { unix: string; windows: string } {
-  if (!/^\d+\.\d+\.\d+$/.test(version)) {
-    const message = "Development build: use the install command from the latest GitHub release.";
-    return { unix: message, windows: message };
-  }
-  const tag = `v${version}`;
+function installCommands(): { unix: string; windows: string } {
+  // The App can publish before the matching HA NOVA tag completes its RC
+  // rehearsal. Never render a baked, not-yet-existing tag; the public
+  // bootstrap scripts resolve GitHub Releases' latest stable version.
   return {
-    unix: `curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/${tag}/install.sh | HA_NOVA_VERSION=${tag} bash`,
-    windows: `$env:HA_NOVA_VERSION='${tag}'; irm https://raw.githubusercontent.com/markusleben/ha-nova/${tag}/install.ps1 | iex`
+    unix: "curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/main/install.sh | bash",
+    windows: "irm https://raw.githubusercontent.com/markusleben/ha-nova/main/install.ps1 | iex"
   };
 }
 

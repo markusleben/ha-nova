@@ -1,8 +1,9 @@
 # HA NOVA census worker — one SQLite Durable Object of aggregate counters.
-# Privacy posture (PRIVACY.md): observability and invocation logs stay OFF so
-# no request metadata (including edge IPs) is retained anywhere.
+# Privacy posture (PRIVACY.md): request and invocation logs stay OFF; the
+# application stores no per-request metadata (including edge IPs).
 
 name = "ha-nova-census"
+account_id = "58e387e1204bdfe78781caca64f2cd15"
 main = "src/index.ts"
 compatibility_date = "2026-07-01"
 
@@ -14,6 +15,9 @@ enabled = false
 [observability.logs]
 enabled = false
 invocation_logs = false
+
+[version_metadata]
+binding = "CF_VERSION_METADATA"
 
 [[durable_objects.bindings]]
 name = "CENSUS"

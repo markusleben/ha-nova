@@ -218,13 +218,13 @@ TELEMETRY_HITS=$(count_matches -I "telemetry\|analytics\|mixpanel\|segment\.io\|
 if (( TELEMETRY_HITS == 0 )); then
   pass "No telemetry/analytics patterns in nova/src, cli, or census-worker/src"
 else
-  fail "Found ${TELEMETRY_HITS} telemetry-related patterns outside the census module — README claims 'No telemetry' (opt-in census excepted)."
+  fail "Found ${TELEMETRY_HITS} telemetry-related patterns outside the census module — HA NOVA promises no behavioral or feature-use analytics."
 fi
 
 # ── 12. Census send path stays confined and opt-in gated ──
 # The opt-in census (docs/reference/census.md) may send exactly one thing from
 # exactly one place: cli/census*.go. If the endpoint constant or the send
-# function leaks into any other file, the "no phone-home" claim is at risk.
+# function leaks into any other file, the documented census boundary is false.
 echo "[12] Census send path confined to cli/census*.go with the opt-in guard"
 CENSUS_SEND_LEAKS=$(count_matches -I "sendCensusPing\|censusEndpointURL\|censusPingURL\|censusStatsURL\|censusHTTPClient\|workers\.dev" --include='*.go' --exclude='census*.go' "$REPO_ROOT/cli")
 if (( CENSUS_SEND_LEAKS == 0 )); then

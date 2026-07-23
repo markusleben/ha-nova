@@ -41,6 +41,33 @@ func TestDeriveReleaseHighlightsFixesFillTheFeatureFixBudget(t *testing.T) {
 	}
 }
 
+func TestDeriveReleaseHighlightsIgnoresAppendedDuplicateSections(t *testing.T) {
+	body := "## New Features\n\n- Curated census feature\n\n" +
+		"## What To Watch\n\n- Update the Relay App\n\n" +
+		"## Bug Fixes\n\n- Curated legacy-token fix\n- Curated Unicode fix\n\n" +
+		"### New Features\n\n- 35baf40: feat(census): raw commit duplicate\n\n" +
+		"### Bug Fixes\n\n- e4cbe11: fix: raw commit duplicate\n"
+	got := deriveReleaseHighlights(body)
+	want := []releaseHighlight{
+		{Kind: releaseHighlightKindAction, Text: "Update the Relay App"},
+		{Kind: releaseHighlightKindFeature, Text: "Curated census feature"},
+		{Kind: releaseHighlightKindFix, Text: "Curated legacy-token fix"},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("highlights = %+v, want curated sections only: %+v", got, want)
+	}
+}
+
+func TestDeriveReleaseHighlightsKeepsDistinctActionSectionsEligible(t *testing.T) {
+	body := "## What To Watch\n\nNo bullet in this section.\n\n" +
+		"## Upgrade Notes\n\n- Update the Relay App\n"
+	got := deriveReleaseHighlights(body)
+	want := []releaseHighlight{{Kind: releaseHighlightKindAction, Text: "Update the Relay App"}}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("highlights = %+v, want later distinct action section: %+v", got, want)
+	}
+}
+
 func TestDeriveReleaseHighlightsRecognizesAllActionSections(t *testing.T) {
 	for _, heading := range []string{"Breaking Changes", "What To Watch", "Upgrade Notes"} {
 		body := "## " + heading + "\n\n- Action item\n"

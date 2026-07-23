@@ -2,13 +2,11 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
-	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -23,19 +21,22 @@ import (
 
 // censusEndpointURL is the single deploy-time constant for the census worker
 // (a var only so tests can point it at a mock host).
-// Deployed 2026-07-22 and live-verified (see census-worker/README.md for redeploys).
+// The endpoint URL is live; the release-bound Worker deployment is a separate
+// pre-final gate documented in census-worker/README.md and docs/releasing.md.
 var censusEndpointURL = "https://ha-nova-census.markusleben.workers.dev"
 
 // censusEndpointConfigured reports whether this build carries a real census
 // endpoint. A build still on the PLACEHOLDER is inert by construction: every
-// send path skips silently BEFORE stamping the week or claiming the week
-// marker, so an unconfigured build can neither phone a dead host nor burn a
+// send path skips silently BEFORE stamping the week, so an unconfigured build
+// can neither phone a dead host nor burn a
 // week that a properly configured build could have counted.
 func censusEndpointConfigured() bool {
 	return !strings.Contains(censusEndpointURL, "PLACEHOLDER")
 }
 
 const censusOptOutEnv = "HA_NOVA_NO_CENSUS"
+
+const censusRequestTimeout = 1500 * time.Millisecond
 
 // censusHTTPClient is dedicated and short-fused: the ping may never make an
 // update check feel slow, and it never retries. 1.5s total: the send already
@@ -44,8 +45,14 @@ const censusOptOutEnv = "HA_NOVA_NO_CENSUS"
 // fire-and-forget goroutine would be worse, not better: the process exits
 // right after this call, silently dropping the send and breaking the
 // at-most-once accounting (the week is already stamped). Overridable for
-// tests.
-var censusHTTPClient = &http.Client{Timeout: 1500 * time.Millisecond}
+// tests. Redirects are returned as responses instead of followed: 307/308
+// would otherwise replay the POST body and violate the single-attempt rule.
+var censusHTTPClient = &http.Client{
+	Timeout: censusRequestTimeout,
+	CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+		return http.ErrUseLastResponse
+	},
+}
 
 // censusPayload is the exact wire shape. Field order is wire order. The
 // json tags below are contract-tested against the worker's accepted field
@@ -122,43 +129,12 @@ func censusWireBytes(payload censusPayload) []byte {
 
 // maybeCensusPing is the carrier hook for every check-update path (including
 // --quiet --json and the detached refresh child). It never prints, never
-// alters exit codes, never retries, and sends at most once per ISO week.
+// alters exit codes, never retries, and records at most one attempt per ISO
+// week while local census state remains intact.
 // Callers invoke it AFTER their own output is complete, so a hanging endpoint
 // can never delay what the user (or a hook) is waiting for.
 func maybeCensusPing(paths runtimePaths) {
-	if censusOptedOutByEnv() || !censusEndpointConfigured() {
-		return
-	}
-	state := loadCensusState(paths)
-	if !state.Enabled {
-		return
-	}
-	// Dev builds never count: their version is not a released one.
-	if BuildChannel == "dev" || localVersion(paths) == "dev" {
-		return
-	}
-	// Platforms outside the documented buckets are not counted at all.
-	if censusOS() == "" {
-		return
-	}
-	now := censusNow().UTC()
-	currentWeek := censusISOWeek(now)
-	if !censusWeekSendable(paths, state, currentWeek) {
-		return
-	}
-	// Stamp atomically BEFORE the send: at-most-once per week. A failed send
-	// loses this week's count — it never doubles it. The mutate touches only
-	// the week field, so concurrent writers keep their own fields.
-	if err := mutateCensusState(paths, func(s *censusState) { s.LastPingWeek = currentWeek }); err != nil {
-		return
-	}
-	// Second line of defense: session-start hooks can fan out several
-	// check-updates at once, all loading the pre-stamp state. Exactly one of
-	// them wins the exclusive week marker; the rest skip silently.
-	if !claimCensusWeekMarker(paths, currentWeek) {
-		return
-	}
-	_ = sendCensusPing(paths, censusWireBytes(buildCensusPayload(paths, loadCensusState(paths), now)))
+	_ = sendCensusPingOnce(paths)
 }
 
 // censusWeekSendable is the ONE week gate shared by every send path (weekly
@@ -168,77 +144,102 @@ func maybeCensusPing(paths runtimePaths) {
 // an already-counted week once the clock recovers. The stamp was written
 // from this machine's own clock, so normal gating resumes when the clock
 // reaches that week again.
-func censusWeekSendable(paths runtimePaths, state censusState, currentWeek string) bool {
+func censusWeekSendable(state censusState, currentWeek string) bool {
 	return state.LastPingWeek < currentWeek || state.LastPingWeek == ""
 }
 
-// claimCensusWeekMarker atomically claims this ISO week's single send across
-// concurrent processes; see claimCensusMarker.
-func claimCensusWeekMarker(paths runtimePaths, week string) bool {
-	return claimCensusMarker(paths, "census-ping-", week)
+const (
+	censusPingSkipEndpoint = "endpoint"
+	censusPingSkipEnv      = "env"
+	censusPingSkipDisabled = "disabled"
+	censusPingSkipDev      = "dev"
+	censusPingSkipOS       = "os"
+	censusPingSkipWeek     = "week"
+)
+
+type censusPingResult struct {
+	Payload   []byte
+	Week      string
+	Attempted bool
+	Skipped   string
+	Err       error
 }
 
-// claimCensusMarker is the O_CREATE|O_EXCL claim shared by the weekly ping
-// and the skill-notice cap: exactly one concurrent process wins the marker
-// `<prefix><id>` in the cache dir. Preparation failures degrade to "allow":
-// the state-file gate has already passed, and a rare duplicate beats silently
-// never acting. Stale markers with the same prefix are pruned so at most one
-// marker per prefix ever exists (a re-created older slot stays harmless — the
-// state mutation re-checks its slot before acting).
-func claimCensusMarker(paths runtimePaths, prefix, id string) bool {
-	if paths.CacheDir == "" {
-		return true
-	}
-	if err := os.MkdirAll(paths.CacheDir, 0o755); err != nil {
-		return true
-	}
-	if entries, err := os.ReadDir(paths.CacheDir); err == nil {
-		for _, entry := range entries {
-			name := entry.Name()
-			if strings.HasPrefix(name, prefix) && name != prefix+id {
-				_ = os.Remove(filepath.Join(paths.CacheDir, name))
-			}
-		}
-	}
-	marker := filepath.Join(paths.CacheDir, prefix+id)
-	file, err := os.OpenFile(marker, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
-	if err != nil {
-		return !errors.Is(err, os.ErrExist)
-	}
-	_ = file.Close()
-	return true
+// sendCensusPingOnce is the sole send coordinator for carrier, command, and
+// interactive-ask paths. It holds the same process/cross-process lock used by
+// `census off` across consent/week re-check, stamp, and the bounded POST. That
+// gives both promises one serialization point: at most one request attempt per
+// client ISO week while local census state remains intact, and no new request
+// can begin after a successful opt-out returns.
+func sendCensusPingOnce(paths runtimePaths) censusPingResult {
+	return sendCensusPingOnceWithClock(paths, censusNow)
 }
 
-// releaseCensusWeekMarker frees a claimed week after a FAILED send, so the
-// promised later-update-check retry can claim it again. Never called after a
-// successful send — there the marker plus the week stamp keep at-most-once.
-func releaseCensusWeekMarker(paths runtimePaths, week string) {
-	if paths.CacheDir == "" {
-		return
-	}
-	_ = os.Remove(filepath.Join(paths.CacheDir, "census-ping-"+week))
-}
-
-// sendCensusPing performs the single fire-and-forget POST. Callers decide
-// whether the result matters (`census on` reports it; the weekly carrier
-// ignores it). Defense in depth for consent: the state is re-loaded here —
-// after the week marker was claimed, immediately before the POST — so an
-// opt-out (or the env kill switch) that landed between the caller's gate and
-// this call still prevents the send.
-func sendCensusPing(paths runtimePaths, payload []byte) error {
-	if len(payload) == 0 {
-		return fmt.Errorf("empty census payload")
+func sendCensusPingOnceWithClock(paths runtimePaths, now func() time.Time) censusPingResult {
+	if !censusEndpointConfigured() {
+		return censusPingResult{Skipped: censusPingSkipEndpoint}
 	}
 	if censusOptedOutByEnv() {
-		return fmt.Errorf("suppressed by %s", censusOptOutEnv)
+		return censusPingResult{Skipped: censusPingSkipEnv}
 	}
-	if state := loadCensusState(paths); !state.Enabled {
-		return fmt.Errorf("census is disabled")
+	if BuildChannel == "dev" || localVersion(paths) == "dev" {
+		return censusPingResult{Skipped: censusPingSkipDev}
 	}
-	req, err := http.NewRequest(http.MethodPost, censusEndpointURL+"/ping", bytes.NewReader(payload))
+	if censusOS() == "" {
+		return censusPingResult{Skipped: censusPingSkipOS}
+	}
+
+	release, ok := acquireCensusLock(paths)
+	if !ok {
+		return censusPingResult{Err: fmt.Errorf("cannot acquire census state lock")}
+	}
+	defer release()
+
+	// Re-check every mutable consent gate only after the lock is held. An
+	// opt-out that won first is final for this attempt; an opt-out that arrives
+	// during a POST waits for this bounded critical section before returning.
+	if censusOptedOutByEnv() {
+		return censusPingResult{Skipped: censusPingSkipEnv}
+	}
+	state := loadCensusState(paths)
+	if !state.Enabled {
+		return censusPingResult{Skipped: censusPingSkipDisabled}
+	}
+	stampTime := now().UTC()
+	currentWeek := censusISOWeek(stampTime)
+	if !censusWeekSendable(state, currentWeek) {
+		return censusPingResult{Week: currentWeek, Skipped: censusPingSkipWeek}
+	}
+
+	payload := censusWireBytes(buildCensusPayload(paths, state, stampTime))
+	if len(payload) == 0 {
+		return censusPingResult{Week: currentWeek, Err: fmt.Errorf("empty census payload")}
+	}
+	state.LastPingWeek = currentWeek
+	if err := saveCensusState(paths, state); err != nil {
+		return censusPingResult{Week: currentWeek, Err: err}
+	}
+	result := censusPingResult{Payload: payload, Week: currentWeek, Attempted: true}
+	result.Err = postCensusPing(payload)
+	return result
+}
+
+// postCensusPing performs exactly one HTTP exchange. The caller has already
+// stamped the week and holds the census lock. A hard request context remains
+// in force even when tests replace the client with one that has no Timeout.
+func postCensusPing(payload []byte) error {
+	ctx, cancel := context.WithTimeout(context.Background(), censusRequestTimeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, censusEndpointURL+"/ping", bytes.NewReader(payload))
 	if err != nil {
 		return err
 	}
+	// NewRequest populates GetBody for a bytes.Reader. Leaving it set lets the
+	// standard HTTP/1 and HTTP/2 transports replay this non-idempotent POST
+	// after selected connection failures. Keep ContentLength, but make the body
+	// non-rewindable so a request that may have reached the Worker is never
+	// transmitted a second time.
+	req.GetBody = nil
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := censusHTTPClient.Do(req)
 	if err != nil {

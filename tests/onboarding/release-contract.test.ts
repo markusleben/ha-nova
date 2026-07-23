@@ -6,12 +6,25 @@ describe("release contract", () => {
   const goreleaser = readFileSync(".goreleaser.yml", "utf8");
   const installer = readFileSync("install.ps1", "utf8");
   const bundleBuilder = readFileSync("scripts/release/build-install-bundle.sh", "utf8");
+  const relayImageVerifier = readFileSync("scripts/release/verify-relay-image.sh", "utf8");
+  const releaseAssetVerifier = readFileSync("scripts/release/verify-release-assets.sh", "utf8");
+  const censusDeploymentVerifier = readFileSync(
+    "scripts/release/verify-census-deployment.sh",
+    "utf8",
+  );
+  const censusDeployer = readFileSync(
+    "scripts/release/deploy-census-worker.sh",
+    "utf8",
+  );
   const releaseWorkflow = readFileSync(".github/workflows/release.yml", "utf8");
   const rcWorkflow = readFileSync(".github/workflows/release-candidate.yml", "utf8");
+  const censusWorkerReadme = readFileSync("census-worker/README.md", "utf8");
   const releasing = readFileSync("docs/releasing.md", "utf8");
   const readme = readFileSync("README.md", "utf8");
   const linuxHeadlessHelper = readFileSync("scripts/smoke/linux-headless-setup-check.sh", "utf8");
   const pkg = JSON.parse(readFileSync("package.json", "utf8")) as {
+    dependencies?: Record<string, string>;
+    devDependencies?: Record<string, string>;
     scripts?: Record<string, string>;
   };
 
@@ -42,6 +55,10 @@ describe("release contract", () => {
     expect(bundleBuilder).toContain('COPYFILE_DISABLE=1 tar --format ustar -czf "${output}" -C "${stage_dir}" ha-nova');
   });
 
+  it("ships the privacy document targeted by bundled relative links", () => {
+    expect(bundleBuilder).toContain('cp "${ROOT_DIR}/PRIVACY.md" "${bundle_root}/PRIVACY.md"');
+  });
+
   it("keeps the final release workflow free of winget artifacts and validation", () => {
     expect(releaseWorkflow).toContain("Build install bundles");
     expect(releaseWorkflow).toContain("Upload install bundles");
@@ -53,16 +70,21 @@ describe("release contract", () => {
     expect(releaseWorkflow).not.toContain("dist/winget");
   });
 
-  it("keeps v0.20.0 release-facing wording user-centric", () => {
+  it("keeps v0.21.0 release-facing wording user-centric and census-honest", () => {
     // Shipped release-note bodies are archived (docs/archive/work/) and
     // non-normative per documentation governance; only the active GoReleaser
     // template is contract-checked here.
-    expect(goreleaser).toContain("Connect more than one Home Assistant");
-    expect(goreleaser).toContain("Update notices tell you why");
-    expect(goreleaser).toContain("One confirmation for one logical change");
-    expect(goreleaser).toContain("Existing setups migrate automatically — nothing re-pairs");
-    expect(goreleaser).toContain("no App update needed if you are already on 0.7.0");
-    expect(goreleaser).not.toContain("Use `v0.7.1` or the latest release command");
+    expect(goreleaser).toContain("Optional public census, off until you opt in");
+    expect(goreleaser).toContain("directional, not verified unique installs");
+    expect(goreleaser).toContain("Update the Relay App after HA NOVA");
+    expect(goreleaser).toContain("Legacy-token upgrades no longer loop");
+    expect(goreleaser).toContain("Valid UTF-8 names and paths, including umlauts, remain unchanged");
+    expect(goreleaser).toContain("Relay 0.7.1 ships strict UTF-8 handling");
+    expect(goreleaser).not.toContain("monthly_lower_bound");
+    expect(goreleaser).not.toContain("no App update needed");
+    expect(readme).toContain("Census off by default");
+    expect(readme).toContain("public aggregate ping counts");
+    expect(readme).toContain("not verified unique installs");
   });
 
   it("keeps README install commands visible and versionless", () => {
@@ -79,6 +101,52 @@ describe("release contract", () => {
 
   it("pins the GoReleaser release tag to the triggering workflow ref", () => {
     expect(releaseWorkflow).toContain("GORELEASER_CURRENT_TAG: ${{ github.ref_name }}");
+  });
+
+  it("keeps releases private until every required asset is present", () => {
+    expect(goreleaser).toMatch(/^\s*draft:\s*true\s*$/m);
+    expect(goreleaser).toMatch(/^\s*replace_existing_draft:\s*true\s*$/m);
+    expect(goreleaser).toMatch(/^\s*mode:\s*replace\s*$/m);
+    expect(releaseWorkflow).toContain("publish-release:");
+    expect(releaseWorkflow).toContain("name: Verify complete draft and publish");
+    expect(releaseWorkflow).toContain('version: "v2.17.0"');
+    expect(releaseWorkflow).not.toContain('version: "~> v2"');
+    expect(releaseWorkflow).toContain("Detect an already-published retry");
+    expect(releaseWorkflow).toContain(
+      "gh api --paginate --slurp 'repos/markusleben/ha-nova/releases?per_page=100'",
+    );
+    expect(releaseWorkflow).not.toMatch(/if release_json=.*gh release view/);
+    expect(releaseWorkflow).toContain(
+      "if: steps.release-state.outputs.published != 'true'",
+    );
+    expect(releaseWorkflow.match(/verify-release-assets\.sh "\$GITHUB_REF_NAME"/g)).toHaveLength(2);
+    expect(releaseAssetVerifier).toContain('repository="markusleben/ha-nova"');
+    expect(releaseAssetVerifier).toContain("(.assets | length) == ($expected | length)");
+    expect(releaseAssetVerifier).toContain('([.assets[].name] | sort) == $expected');
+    expect(releaseAssetVerifier).toContain('.state == "uploaded"');
+    expect(releaseAssetVerifier).toContain('.size | type == "number" and . > 0');
+    expect(releaseAssetVerifier).toContain('test("^sha256:[0-9a-f]{64}$")');
+    expect(releaseWorkflow).toContain('gh release edit "$GITHUB_REF_NAME" --draft=false');
+    expect(releaseWorkflow).toMatch(
+      /if \[\[ "\$expected_prerelease" == "true" \]\]; then[\s\S]*?else\s+# Re-assert Latest[\s\S]*?gh release edit "\$GITHUB_REF_NAME" --draft=false --latest --verify-tag\s+fi/,
+    );
+    expect(releaseWorkflow).toContain(
+      "gh api 'repos/markusleben/ha-nova/releases/latest' --jq '.tag_name'",
+    );
+    expect(releaseWorkflow).toContain('[[ "$latest_tag" != "$GITHUB_REF_NAME" ]]');
+    expect(releaseWorkflow).toContain("needs: publish-release");
+    expect(releaseWorkflow.indexOf("Upload install bundles")).toBeLessThan(
+      releaseWorkflow.indexOf("publish-release:"),
+    );
+    expect(releaseWorkflow.indexOf("publish-release:")).toBeLessThan(
+      releaseWorkflow.indexOf("smoke-installers:"),
+    );
+  });
+
+  it("uses only the curated release header as the changelog", () => {
+    expect(goreleaser).toMatch(/changelog:\n\s+#[^\n]*\n(?:\s+#[^\n]*\n)*\s+disable: true/);
+    expect(goreleaser).not.toContain("regexp: '^feat");
+    expect(goreleaser).not.toContain("regexp: '^fix");
   });
 
   it("keeps the next-release-version check immune to release-payload growth", () => {
@@ -155,6 +223,150 @@ describe("release contract", () => {
     expect(releasing).toContain("HA_NOVA_RELEASE_AUDIT_REQUIRE_BYPASS=1");
     expect(releasing).toContain("release-pipeline-audit.yml");
     expect(releasing).toContain("GORELEASER_CURRENT_TAG");
+  });
+
+  it("gates a Relay release on the exact successful push run and immutable GHCR digest", () => {
+    expect(relayImageVerifier).toContain("^[0-9a-f]{40}$");
+    expect(relayImageVerifier).toContain("actions/workflows/relay-image.yml/runs");
+    expect(relayImageVerifier).toContain('head_sha=${commit_sha}');
+    expect(relayImageVerifier).toContain("-f branch=main");
+    expect(relayImageVerifier).toContain("-f event=push");
+    expect(relayImageVerifier).toContain("-f status=success");
+    expect(relayImageVerifier).toContain('.head_sha == $sha');
+    expect(relayImageVerifier).toContain('.head_branch == "main"');
+    expect(relayImageVerifier).toContain('.conclusion == "success"');
+    expect(relayImageVerifier).toContain(
+      'latest_ref="${image_repository}:latest"',
+    );
+    expect(relayImageVerifier).toContain(
+      'version_ref="${image_repository}:${relay_version}"',
+    );
+    expect(relayImageVerifier).toContain('sha_ref="${image_repository}:sha-${commit_sha}"');
+    expect(relayImageVerifier).toContain("docker buildx imagetools inspect");
+    expect(relayImageVerifier).toContain(".manifest.digest");
+    expect(relayImageVerifier).toContain('[[ "$latest_digest" == "$version_digest" ]]');
+    expect(relayImageVerifier).toContain('[[ "$version_digest" == "$sha_digest" ]]');
+    expect(relayImageVerifier).toContain("{{json .Provenance}}");
+    expect(relayImageVerifier).toContain('repository="markusleben/ha-nova"');
+    expect(relayImageVerifier).not.toContain("HA_NOVA_GITHUB_REPOSITORY");
+    expect(relayImageVerifier).toContain('"linux/amd64", "linux/arm64"');
+    expect(relayImageVerifier).toContain('["vcs:revision"] == $sha');
+    expect(relayImageVerifier).toContain(
+      '["vcs:source"] == "https://github.com/markusleben/ha-nova"',
+    );
+    expect(relayImageVerifier).toContain(
+      '["label:org.opencontainers.image.source"] == "https://github.com/markusleben/ha-nova"',
+    );
+    expect(relayImageVerifier).toContain('["vcs:localdir:context"] == "nova"');
+    expect(relayImageVerifier).toContain('startswith($run + "/attempts/")');
+    expect(relayImageVerifier).toContain("<= $max_attempt");
+    expect(relayImageVerifier).toContain('["build-arg:RELAY_VERSION"] == $version');
+    expect(relayImageVerifier).toContain('["label:org.opencontainers.image.version"] == $version');
+  });
+
+  it("keeps the census deployment gate read-only, cache-busted, and first-launch aware", () => {
+    expect(censusDeploymentVerifier).toContain(
+      "https://ha-nova-census.markusleben.workers.dev/stats",
+    );
+    expect(censusDeploymentVerifier).toContain("cache_busted_url=");
+    expect(censusDeploymentVerifier).toContain('"$cache_busted_url"');
+    expect(censusDeploymentVerifier).toContain("curl --disable --request GET");
+    expect(censusDeploymentVerifier).toContain("--proto '=https'");
+    expect(censusDeploymentVerifier).toContain('"$deployment_sha" == "$expected_sha"');
+    expect(censusDeploymentVerifier).toContain('"$version_id" == "$expected_version_id"');
+    expect(censusDeploymentVerifier).toContain("x-ha-nova-deployment-sha:");
+    expect(censusDeploymentVerifier).toContain("x-ha-nova-version-id:");
+    expect(censusDeploymentVerifier).toContain(".schema == 1");
+    expect(censusDeploymentVerifier).toContain(".window_weeks == 4");
+    expect(censusDeploymentVerifier).toContain("all(.by_os[];");
+    expect(censusDeploymentVerifier).toContain("all(.by_version[];");
+    expect(censusDeploymentVerifier).toContain("all(.by_relay[];");
+    expect(censusDeploymentVerifier).toContain('. >= 0 and floor == .');
+    expect(censusDeploymentVerifier).toContain(".peak_weekly_pings");
+    expect(censusDeploymentVerifier).toContain('monthly_lower_bound');
+    expect(censusDeploymentVerifier).toContain('contains("not verified unique installs")');
+    expect(censusDeploymentVerifier).toContain("--require-empty");
+    expect(censusDeploymentVerifier).toContain("(.weekly | length) == 0");
+    expect(censusDeploymentVerifier).toContain("(.by_os | length) == 0");
+    expect(censusDeploymentVerifier).toContain("(.by_version | length) == 0");
+    expect(censusDeploymentVerifier).toContain("(.by_relay | length) == 0");
+    expect(censusDeploymentVerifier).toContain(".peak_weekly_pings == 0");
+    expect(censusDeploymentVerifier).not.toContain("/ping");
+    expect(censusDeploymentVerifier).not.toMatch(/(?:--request|-X)\s+POST/);
+    expect(censusDeploymentVerifier).not.toContain("--data ");
+  });
+
+  it("deploys the census only through one exact-target fail-closed wrapper", () => {
+    expect(censusDeployer).toContain("set -euo pipefail");
+    expect(censusDeployer).toContain('status --porcelain');
+    expect(censusDeployer).toContain('rev-parse HEAD');
+    expect(censusDeployer).toContain(
+      'repos/markusleben/ha-nova/compare/${reviewed_sha}...main',
+    );
+    expect(censusDeployer).toContain("gh auth status --hostname github.com");
+    expect(censusDeployer).toContain("gh api --hostname github.com");
+    expect(censusDeployer).toContain(".merge_base_commit.sha == $sha");
+    expect(censusDeployer).toContain("Node.js 22 or newer");
+    expect(censusDeployer).toContain("npx --yes wrangler@4.113.0 dev");
+    expect(censusDeployer).toContain("--local");
+    expect(censusDeployer).toContain("--persist-to");
+    expect(censusDeployer).toContain("--request POST");
+    expect(censusDeployer).toContain('"0.0.0"');
+    expect(censusDeployer).toContain("CLOUDFLARE_ACCOUNT_ID");
+    expect(censusDeployer).toContain('expected_worker="ha-nova-census"');
+    expect(censusDeployer).toContain(
+      'expected_target="https://ha-nova-census.markusleben.workers.dev"',
+    );
+    expect(censusDeployer).toContain("WRANGLER_OUTPUT_FILE_PATH");
+    expect(censusDeployer).toContain("$deploys[0].targets == [$target]");
+    expect(censusDeployer).toContain('--tag "$reviewed_sha"');
+    expect(censusDeployer).toContain("--strict");
+    expect(censusDeployer).toContain("--no-autoconfig");
+    expect(censusDeployer).toContain("verify-census-deployment.sh");
+  });
+
+  it("orders external publication gates around the RC and final tag", () => {
+    const rehearsal = releasing.slice(
+      releasing.indexOf("**Rehearsal steps.**"),
+      releasing.indexOf("The weekly `release-pipeline-audit.yml`"),
+    );
+    const orderedMarkers = [
+      "Merge the reviewed PR state",
+      "verify-relay-image.sh <reviewed-merge-sha> <relay-version>",
+      "HA_NOVA_RELEASE_AUDIT_REQUIRE_BYPASS=1",
+      "production census Worker is still the old reviewed deployment",
+      "Verify the published RC over the real",
+      "deploy-census-worker.sh <reviewed-merge-sha> --require-empty",
+      "cut the final tag",
+    ];
+    let previousIndex = -1;
+    for (const marker of orderedMarkers) {
+      const markerIndex = rehearsal.indexOf(marker);
+      expect(markerIndex, `missing release-order marker: ${marker}`).toBeGreaterThan(
+        previousIndex,
+      );
+      previousIndex = markerIndex;
+    }
+    expect(rehearsal).toContain("whose `headSha` equals `<reviewed-merge-sha>`");
+    expect(rehearsal).toContain("does not replace the dispatched run");
+  });
+
+  it("pins reproducible census Worker deployments without adding an unlocked CLI dependency", () => {
+    const pinnedDeploy = "npx --yes wrangler@4.113.0 deploy";
+    expect(censusDeployer).toContain(pinnedDeploy);
+    expect(releasing).toContain(
+      "bash scripts/release/deploy-census-worker.sh <reviewed-merge-sha> --require-empty",
+    );
+    expect(censusWorkerReadme).toContain(
+      "bash scripts/release/deploy-census-worker.sh <reviewed-merge-sha> --require-empty",
+    );
+    expect(releasing).toContain("requires Node.js 22 or newer");
+    expect(censusWorkerReadme).toContain("requires a clean checkout at that exact SHA, Node.js 22 or newer");
+    expect(releasing).not.toMatch(/npx(?:\s+--yes)?\s+wrangler\s+deploy/);
+    expect(censusWorkerReadme).not.toMatch(/npx(?:\s+--yes)?\s+wrangler\s+deploy/);
+    expect(releasing).toContain("steps 1–2 of the rehearsal completed");
+    expect(pkg.dependencies?.["wrangler"]).toBeUndefined();
+    expect(pkg.devDependencies?.["wrangler"]).toBeUndefined();
   });
 
   it("requires a dispatched live e2e run as release evidence", () => {

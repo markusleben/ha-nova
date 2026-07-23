@@ -42,6 +42,7 @@ func runSetup(paths runtimePaths, args []string) int {
 		printHumanErr("%s", err)
 		return 1
 	}
+	censusLifecycleMarker := captureCensusLifecycleMarker(paths)
 
 	// Setup administers only the default server profile (layer 1): the legacy
 	// token flow, service mode, and client sync are default-profile machinery,
@@ -96,7 +97,7 @@ func runSetup(paths runtimePaths, args []string) int {
 	}
 
 	if !*nonInteractive {
-		return interactiveSetup(paths, cfg, state, target, *host, *haURL, *relayURL, *relayToken, *serviceMode)
+		return interactiveSetup(paths, cfg, state, target, *host, *haURL, *relayURL, *relayToken, *serviceMode, censusLifecycleMarker)
 	}
 
 	if target == "" {
@@ -199,7 +200,7 @@ func runSetup(paths runtimePaths, args []string) int {
 			// whose credential is file-backed, no keyring — BEFORE failing on the
 			// legacy-token store, so a paired box still installs/syncs clients.
 			if pairedDeviceAvailable() {
-				return completeNonInteractivePairedSetup(paths, cfg, state, selectedClients)
+				return completeNonInteractivePairedSetup(paths, cfg, state, selectedClients, censusLifecycleMarker)
 			}
 			printHumanErr("%s", relayAuthTokenProblemMessage(tokenStoragePreflightErr))
 			if hint := setupSecureStorageRecoveryHint(tokenStoragePreflightErr); hint != "" {
@@ -224,7 +225,7 @@ func runSetup(paths runtimePaths, args []string) int {
 	// No legacy token (stored or flag) but a device pairing exists: honor it
 	// instead of prompting/requiring a token.
 	if token == "" && pairedDeviceAvailable() {
-		return completeNonInteractivePairedSetup(paths, cfg, state, selectedClients)
+		return completeNonInteractivePairedSetup(paths, cfg, state, selectedClients, censusLifecycleMarker)
 	}
 	if token == "" && !*nonInteractive {
 		answer, err := promptLine("Relay auth token", "")
@@ -350,14 +351,17 @@ func runSetup(paths runtimePaths, args []string) int {
 	}
 
 	finalizeServiceTokenFileMigration(formerServiceTokenFile, token)
-	return runDoctor(paths, nil)
+	if _, err := reactivateCensusAfterSetup(paths, censusLifecycleMarker); err != nil {
+		printHumanWarn("Setup succeeded, but the census remains disabled: %s", err)
+	}
+	return runDoctorWithCensusAsk(paths, nil, false)
 }
 
 // completeNonInteractivePairedSetup finishes setup for a passwordless-paired
 // install, which has no legacy token: it verifies the device transport and
 // persists config/state via the device path (stamping the version), then installs
 // clients — instead of failing with "missing relay auth token".
-func completeNonInteractivePairedSetup(paths runtimePaths, cfg runtimeConfig, state installState, selectedClients []string) int {
+func completeNonInteractivePairedSetup(paths runtimePaths, cfg runtimeConfig, state installState, selectedClients []string, lifecycleMarker ...[]byte) int {
 	if !verifyDeviceHealth(cfg) {
 		printHumanErr("This device is paired, but the secure connection could not be verified. Run 'ha-nova doctor', or re-pair with 'ha-nova setup' interactively.")
 		return 1
@@ -378,7 +382,12 @@ func completeNonInteractivePairedSetup(paths runtimePaths, cfg runtimeConfig, st
 		printHumanErr("cannot save state: %s", err)
 		return 1
 	}
-	return runDoctor(paths, nil)
+	if len(lifecycleMarker) > 0 {
+		if _, err := reactivateCensusAfterSetup(paths, lifecycleMarker[0]); err != nil {
+			printHumanWarn("Setup succeeded, but the census remains disabled: %s", err)
+		}
+	}
+	return runDoctorWithCensusAsk(paths, nil, false)
 }
 
 func rollbackSetupPersistence(

@@ -1198,6 +1198,7 @@ func TestInteractiveSetupAlreadyDoneUsesResumeBanner(t *testing.T) {
 	t.Setenv("HA_NOVA_NO_BROWSER", "1")
 	t.Setenv("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING", "1")
 	t.Setenv("HA_NOVA_TEST_KEYRING_FILE", filepath.Join(home, ".config", "ha-nova", ".test-relay-auth-token"))
+	stubCensusTTY(t, true, true)
 
 	relayServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/health" {
@@ -1235,9 +1236,13 @@ func TestInteractiveSetupAlreadyDoneUsesResumeBanner(t *testing.T) {
 	}
 	writeInstalledClaudePluginFixture(t, home)
 	writeClaudeMarketplaceRegistrationFixture(t, home, filepath.Join(paths.ConfigDir, "claude-marketplace"))
+	if err := markCensusLifecycleStopped(paths); err != nil {
+		t.Fatalf("mark census lifecycle stopped: %v", err)
+	}
+	lifecycleMarker := captureCensusLifecycleMarker(paths)
 
-	stdout, stderr := captureInteractiveSetupIO(t, "", func() int {
-		return interactiveSetup(paths, cfg, state, "claude", "", "", "", "", false)
+	stdout, stderr := captureInteractiveSetupIO(t, "\n", func() int {
+		return interactiveSetup(paths, cfg, state, "claude", "", "", "", "", false, lifecycleMarker)
 	})
 
 	output := stdout + stderr
@@ -1246,6 +1251,16 @@ func TestInteractiveSetupAlreadyDoneUsesResumeBanner(t *testing.T) {
 	}
 	if strings.Contains(output, "Setup complete!") {
 		t.Fatalf("did not expect fresh-setup success banner in resume output:\n%s", output)
+	}
+	if censusLifecycleStopped(paths) {
+		t.Fatal("successful already-complete setup did not clear its matching lifecycle marker")
+	}
+	if !strings.Contains(output, "May HA NOVA include this install in its public census?") {
+		t.Fatalf("successful already-complete setup omitted the one-time census question:\n%s", output)
+	}
+	census := loadCensusState(paths)
+	if census.Answer != "no" || census.Enabled {
+		t.Fatalf("default-No census answer was not applied exactly once: %+v", census)
 	}
 }
 

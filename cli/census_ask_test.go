@@ -8,7 +8,9 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 )
 
 func stubCensusTTY(t *testing.T, stdinTTY, stdoutTTY bool) {
@@ -30,6 +32,58 @@ func askCensusWithInput(t *testing.T, paths runtimePaths, input string) string {
 	return out.String()
 }
 
+type blockedCensusPromptReader struct {
+	started chan struct{}
+	answer  <-chan []byte
+	once    sync.Once
+}
+
+func (r *blockedCensusPromptReader) Read(buffer []byte) (int, error) {
+	r.once.Do(func() { close(r.started) })
+	answer, ok := <-r.answer
+	if !ok || answer == nil {
+		return 0, io.EOF
+	}
+	return copy(buffer, answer), nil
+}
+
+func startBlockedCensusAsk(t *testing.T, paths runtimePaths) (chan []byte, <-chan string) {
+	t.Helper()
+	answer := make(chan []byte, 1)
+	started := make(chan struct{})
+	done := make(chan string, 1)
+	reader := &blockedCensusPromptReader{started: started, answer: answer}
+	go func() {
+		var out bytes.Buffer
+		askCensusIfEligible(paths, "update", bufio.NewReader(reader), &out)
+		done <- out.String()
+	}()
+	t.Cleanup(func() {
+		select {
+		case answer <- nil:
+		default:
+		}
+	})
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("census ask did not reach the blocked prompt")
+	}
+	return answer, done
+}
+
+func finishBlockedCensusAsk(t *testing.T, answer chan []byte, done <-chan string, value string) string {
+	t.Helper()
+	answer <- []byte(value)
+	select {
+	case out := <-done:
+		return out
+	case <-time.After(2 * time.Second):
+		t.Fatal("census ask did not finish after receiving an answer")
+		return ""
+	}
+}
+
 func TestCensusAskStampsAskedBeforePromptAbortedPromptNeverReasks(t *testing.T) {
 	paths := setupCensusTest(t)
 	stubCensusVersion(t, "0.9.0")
@@ -37,7 +91,7 @@ func TestCensusAskStampsAskedBeforePromptAbortedPromptNeverReasks(t *testing.T) 
 
 	// Empty input: the prompt aborts with EOF (the Ctrl-C/crash shape).
 	out := askCensusWithInput(t, paths, "")
-	if !strings.Contains(out, "May HA NOVA count your install?") {
+	if !strings.Contains(out, "May HA NOVA include this install in its public census?") {
 		t.Fatalf("expected the ask copy before the prompt, got %q", out)
 	}
 	state := loadCensusState(paths)
@@ -72,7 +126,7 @@ func TestCensusAskEnterMeansNo(t *testing.T) {
 	payloads := stubCensusTransport(t, http.StatusNoContent, nil)
 
 	out := askCensusWithInput(t, paths, "\n")
-	if !strings.Contains(out, "Count this install? [y/N]") {
+	if !strings.Contains(out, "Include this install? [y/N]") {
 		t.Fatalf("expected the y/N prompt with No default, got %q", out)
 	}
 	state := loadCensusState(paths)
@@ -103,7 +157,7 @@ func TestCensusAskYesEnablesAndPingsImmediately(t *testing.T) {
 	}
 }
 
-func TestCensusAskYesWithFailingTransportLeavesWeekEmpty(t *testing.T) {
+func TestCensusAskYesWithFailingTransportStampsWeekNoRetry(t *testing.T) {
 	paths := setupCensusTest(t)
 	stubCensusVersion(t, "0.9.0")
 	stubCensusTTY(t, true, true)
@@ -114,8 +168,9 @@ func TestCensusAskYesWithFailingTransportLeavesWeekEmpty(t *testing.T) {
 	if !state.Enabled || state.Answer != "yes" {
 		t.Fatalf("yes must enable even when the ping fails: %+v", state)
 	}
-	if state.LastPingWeek != "" {
-		t.Fatalf("failed first ping must leave the week empty for a retry, got %q", state.LastPingWeek)
+	currentWeek := censusISOWeek(censusNow().UTC())
+	if state.LastPingWeek != currentWeek {
+		t.Fatalf("failed first ping must stay stamped to prevent an ambiguous retry: got %q, want %q", state.LastPingWeek, currentWeek)
 	}
 }
 
@@ -148,13 +203,14 @@ func TestCensusAskCopyVerbatim(t *testing.T) {
 	out := askCensusWithInput(t, paths, "\n")
 	for _, want := range []string{
 		"One-time question",
-		"May HA NOVA count your install? HA NOVA has no telemetry — that stays.",
-		"A yes sends one anonymous ping, at most once a week:",
+		"May HA NOVA include this install in its public census?",
+		"HA NOVA sends no behavioral or feature-use analytics.",
+		"A yes permits one anonymous ping attempt per week while local census state remains intact:",
 		"HA NOVA version  ·  relay version  ·  operating system",
-		"No ID, no IP stored, nothing about your home — and the resulting",
-		"numbers are public for everyone.",
+		"No ID, no IP in HA NOVA storage, nothing about your home.",
+		"directional accepted-ping counts, not verified unique installs.",
 		"Details: docs/reference/census.md   Change anytime: ha-nova census on|off",
-		"Count this install? [y/N]",
+		"Include this install? [y/N]",
 	} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("ask copy missing %q:\n%s", want, out)
@@ -185,31 +241,33 @@ func TestCensusSkillNoticeCapThreeEmissionsThenPermanentSilence(t *testing.T) {
 	}
 }
 
-func TestCensusSkillNoticeMarkerSerializesConcurrentEmitters(t *testing.T) {
+func TestCensusSkillNoticeConcurrentEmittersStayCappedWithoutCacheMarkers(t *testing.T) {
 	paths := setupCensusTest(t)
 	stubCensusVersion(t, "0.9.0")
 
-	out := captureStdout(t, func() { maybeEmitCensusSkillNotice(paths) })
-	if !strings.Contains(out, "CENSUS ASK PENDING") {
-		t.Fatalf("first emitter must print:\n%s", out)
+	start := make(chan struct{})
+	out := captureStdout(t, func() {
+		var wait sync.WaitGroup
+		for range 24 {
+			wait.Add(1)
+			go func() {
+				defer wait.Done()
+				<-start
+				maybeEmitCensusSkillNotice(paths)
+			}()
+		}
+		close(start)
+		wait.Wait()
+	})
+	state := loadCensusState(paths)
+	if state.SkillNotices < 1 || state.SkillNotices > censusSkillNoticeCap {
+		t.Fatalf("concurrent notice count = %d, want 1..%d", state.SkillNotices, censusSkillNoticeCap)
 	}
-	if state := loadCensusState(paths); state.SkillNotices != 1 {
-		t.Fatalf("first emitter must increment to 1, got %d", state.SkillNotices)
+	if emitted := strings.Count(out, "CENSUS ASK PENDING"); emitted != state.SkillNotices {
+		t.Fatalf("printed notices = %d, persisted notices = %d", emitted, state.SkillNotices)
 	}
-
-	// Simulate the concurrent loser: a process that loaded the pre-increment
-	// state (skill_notices=0) also computes slot 1 — but the exclusive
-	// census-notice-1 marker is already claimed, so it neither increments nor
-	// prints. Two concurrent attempts => one emission, one increment.
-	if err := saveCensusState(paths, censusState{}); err != nil {
-		t.Fatalf("saveCensusState() error: %v", err)
-	}
-	out = captureStdout(t, func() { maybeEmitCensusSkillNotice(paths) })
-	if out != "" {
-		t.Fatalf("the marker loser must not emit, got %q", out)
-	}
-	if state := loadCensusState(paths); state.SkillNotices != 0 {
-		t.Fatalf("the marker loser must not increment, got %d", state.SkillNotices)
+	if _, err := os.Stat(paths.CacheDir); !os.IsNotExist(err) {
+		t.Fatalf("marker-free notice coordination must not create CacheDir (err=%v)", err)
 	}
 }
 
@@ -221,6 +279,19 @@ func TestCensusSkillNoticeSilentOnceAskedOrOptedOut(t *testing.T) {
 	}
 	if out := captureStdout(t, func() { maybeEmitCensusSkillNotice(paths) }); out != "" {
 		t.Fatalf("an answered install must not be nagged, got %q", out)
+	}
+}
+
+func TestCensusSkillNoticeDoesNotRequireCacheStorage(t *testing.T) {
+	paths := setupCensusTest(t)
+	paths.CacheDir = ""
+	stubCensusVersion(t, "0.9.0")
+
+	if out := captureStdout(t, func() { maybeEmitCensusSkillNotice(paths) }); !strings.Contains(out, "CENSUS ASK PENDING") {
+		t.Fatalf("notice must use the census lock instead of cache markers, got %q", out)
+	}
+	if state := loadCensusState(paths); state.SkillNotices != 1 {
+		t.Fatalf("notice without cache storage must persist slot 1: %+v", state)
 	}
 }
 
@@ -278,7 +349,7 @@ func TestCheckUpdateHumanPathsEmitCensusNoticeJSONStaysClean(t *testing.T) {
 		if strings.Contains(out, "CENSUS ASK PENDING") {
 			t.Fatalf("TTY plain human must not get the machine block:\n%s", out)
 		}
-		if !strings.Contains(out, "Count this install? [y/N]") {
+		if !strings.Contains(out, "Include this install? [y/N]") {
 			t.Fatalf("TTY plain human should get the direct question:\n%s", out)
 		}
 		if state := loadCensusState(paths); state.AskedAt == "" || state.Answer != "no" {
@@ -308,7 +379,7 @@ func TestCensusAskOnlyTheStampWinnerPrompts(t *testing.T) {
 	// asked file exists, so the in-lock re-check must refuse the prompt.
 	var out strings.Builder
 	askCensusIfEligible(paths, "doctor", bufio.NewReader(strings.NewReader("y\n")), &out)
-	if strings.Contains(out.String(), "Count this install?") {
+	if strings.Contains(out.String(), "Include this install?") {
 		t.Fatalf("loser must not prompt, got output:\n%s", out.String())
 	}
 	state := loadCensusState(paths)

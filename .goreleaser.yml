@@ -41,18 +41,10 @@ checksum:
   name_template: "checksums.txt"
 
 changelog:
-  sort: asc
-  filters:
-    exclude:
-      - "^Merge "
-      - '^(docs|refactor|perf|style|build|ci|chore|test)(\(.+\))?!?:.+$'
-  groups:
-    - title: New Features
-      regexp: '^feat(\(.+\))?!?:.+$'
-      order: 0
-    - title: Bug Fixes
-      regexp: '^fix(\(.+\))?!?:.+$'
-      order: 10
+  # The curated release header below is the complete user-facing changelog.
+  # Appending commit-derived groups duplicates headings and can displace the
+  # intended bug-fix highlights in the installed update digest.
+  disable: true
 
 snapshot:
   version_template: "{{ incpatch .Version }}-snapshot"
@@ -61,8 +53,13 @@ release:
   github:
     owner: markusleben
     name: ha-nova
-  draft: false
+  # Keep every asset invisible until release.yml has built and uploaded the
+  # complete installer set. Failed jobs replace this draft on retry; only the
+  # separate final publish job makes it public.
+  draft: true
+  replace_existing_draft: true
   prerelease: auto
+  mode: replace
   name_template: "HA NOVA v{{.Version}}"
   header: |
     {{ if .Prerelease }}## Preview / Release Candidate
@@ -85,12 +82,20 @@ release:
     Windows uses a single supported install path: `install.ps1`. Return an RC install to stable later with `ha-nova update`.
     {{ else }}## New Features
 
-    - **Connect more than one Home Assistant.** Named server profiles in one install, each with its own isolated device credential. Existing setups migrate automatically — nothing re-pairs. Commands: see Upgrade Notes.
-    - **Update notices tell you why.** Available updates now show the top release highlights (action-needed first) and a link to the release notes — across `check-update`, relay nudges, and session start.
-    - **One confirmation for one logical change.** A multi-step change (up to 10 non-destructive operations) shows every preview first and asks for exactly one confirmation at the end. Deletes keep their own confirmation codes; every step still verifies individually.
-    - **Your earlier decisions stay binding.** In long multi-step tasks the AI tracks what you required, chose, and rejected — a plan that would contradict an earlier requirement is blocked and explained, never silently applied.
-    - **Button remaps check reality first, and repurposing an input finds its current consumers.** Gestures are verified against what the device actually supports, and everything still listening to the input (automations, scripts, blueprints) is found before anything is reassigned — unverifiable sources are named instead of ignored.
-    - **Service and headless setups pair like everyone else.** `ha-nova setup --service <client>` and the new `ha-nova pair --credential-store=file` keep the device credential in a protected file on machines without a desktop keyring.
+    - **Optional public census, off until you opt in.** The client records one ID-free attempt per ISO week before sending the HA NOVA version, operating system, and a recently observed Relay version when available; with local state intact, it does not attempt again that week. Totals are directional, not verified unique installs. Change anytime: `ha-nova census on|off`.
+
+    Details: [census payload and controls](https://github.com/markusleben/ha-nova/blob/{{ .Tag }}/docs/reference/census.md) · [privacy](https://github.com/markusleben/ha-nova/blob/{{ .Tag }}/PRIVACY.md)
+
+    ## What To Watch
+
+    - **Update the Relay App after HA NOVA.** Run `ha-nova update`, then update NOVA Relay under **Settings > Apps**. Container/Core users must pull and recreate the Relay container. Start a new AI session afterward.
+
+    Relay 0.7.1 ships strict UTF-8 handling plus TLS-certificate and WebSocket dependency hardening.
+
+    ## Bug Fixes
+
+    - **Legacy-token upgrades no longer loop.** `doctor` and the already-configured setup screen now lead to the pairing command that actually performs the switch, and `server list` labels working legacy access honestly.
+    - **Unicode input fails safely instead of being corrupted.** Valid UTF-8 names and paths, including umlauts, remain unchanged. Invalid UTF-8/UTF-16 and ambiguous selectors fail before config, credentials, or network access.
 
     Stable install commands are release-pinned for this tag.
 
@@ -108,15 +113,6 @@ release:
     Windows currently ships an `amd64` bundle only. On Windows ARM64, use x64 emulation.
     Windows uses a single supported install path: `install.ps1`.
     Do not download and run the raw `ha-nova-installer-bundle-*.tar.gz` / `.zip` assets directly; those are installer payloads, not the supported end-user path.
-
-    ## Upgrade Notes
-
-    - Your configuration migrates to the new multi-server shape automatically on its first save; your setup becomes the `default` profile and keeps working unchanged — nothing re-pairs, and it still works one release back.
-    - Already installed? Run `ha-nova update`, then start a new AI client session. The NOVA Relay App is unchanged in this release — no App update needed if you are already on 0.7.0.
-    - This release raises the supported minimum Relay App version to 0.7.0: on older Relay Apps, health checks and doctor now steer you straight to the App update instead of failing with bare auth errors.
-    - Service re-setups switch storage: an existing `--service` install that kept its device credential in the desktop keyring moves it to the protected file on its next `setup --service` pairing. The old keyring entry becomes inert; nothing breaks mid-upgrade.
-    - `ha-nova setup` now always manages the default server. Add further servers with `ha-nova pair --server <name> --relay-url <url>`, administer them with `ha-nova server list|default|rename|remove`, and select one per command with the `--server` flag on relay calls or the `HA_NOVA_SERVER` environment variable.
-    - Legacy pre-Go installs still require the legacy cleanup script before reinstalling.
 
     > The bundle assets below are consumed by the installers automatically. Only use them directly for maintainer-level debugging or raw binary validation.
     {{ end }}
