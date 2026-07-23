@@ -82,20 +82,16 @@ release:
     Windows uses a single supported install path: `install.ps1`. Return an RC install to stable later with `ha-nova update`.
     {{ else }}## New Features
 
-    - **Optional public census, off until you opt in.** The client records one ID-free attempt per ISO week before sending the HA NOVA version, operating system, and a recently observed Relay version when available; with local state intact, it does not attempt again that week. Totals are directional, not verified unique installs. Change anytime: `ha-nova census on|off`.
-
-    Details: [census payload and controls](https://github.com/markusleben/ha-nova/blob/{{ .Tag }}/docs/reference/census.md) · [privacy](https://github.com/markusleben/ha-nova/blob/{{ .Tag }}/PRIVACY.md)
+    - **Relay App updates now surface with the first Home Assistant task.** For a registry-proven NOVA Relay App, the notice can open the existing guided update path with a partial backup, confirmation, a last-second state/provenance recheck, latest-at-execution installation, and Relay-version verification. Container/Core installs keep their separate image-pull guidance.
 
     ## What To Watch
 
-    - **Update the Relay App after HA NOVA.** Run `ha-nova update`, then update NOVA Relay under **Settings > Apps**. Container/Core users must pull and recreate the Relay container. Start a new AI session afterward.
-
-    Relay 0.7.1 ships strict UTF-8 handling plus TLS-certificate and WebSocket dependency hardening.
+    - **Start a new AI session after updating.** This loads the refreshed skills and enables the restored first-task update check.
 
     ## Bug Fixes
 
-    - **Legacy-token upgrades no longer loop.** `doctor` and the already-configured setup screen now lead to the pairing command that actually performs the switch, and `server list` labels working legacy access honestly.
-    - **Unicode input fails safely instead of being corrupted.** Valid UTF-8 names and paths, including umlauts, remain unchanged. Invalid UTF-8/UTF-16 and ambiguous selectors fail before config, credentials, or network access.
+    - **Available updates are visible again on the first Home Assistant task.** Independently loaded skills now run the bounded update check instead of depending on a later background cache refresh.
+    - **Supported v0.20+ copied client installs repair their missing session bootstrap.** Managed current Codex, OpenCode, Antigravity, and Hermes layouts recover the update and census notice path. Older, foreign, or unreadable layouts still fail closed and require `ha-nova setup`.
 
     Stable install commands are release-pinned for this tag.
 

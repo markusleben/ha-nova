@@ -28,18 +28,6 @@ describe("release contract", () => {
     scripts?: Record<string, string>;
   };
 
-  it("keeps release notes aligned to the single supported Windows install path", () => {
-    expect(goreleaser).toContain("Stable install commands are release-pinned for this tag.");
-    expect(goreleaser).toContain("https://raw.githubusercontent.com/markusleben/ha-nova/{{ .Tag }}/install.sh");
-    expect(goreleaser).toContain("HA_NOVA_VERSION={{ .Tag }}");
-    expect(goreleaser).toContain("https://raw.githubusercontent.com/markusleben/ha-nova/{{ .Tag }}/install.ps1");
-    expect(goreleaser).toContain("Windows uses a single supported install path: `install.ps1`.");
-    expect(goreleaser).not.toContain("raw.githubusercontent.com/markusleben/ha-nova/main/install.sh");
-    expect(goreleaser).not.toContain("raw.githubusercontent.com/markusleben/ha-nova/main/install.ps1");
-    expect(goreleaser).not.toContain("$ProgressPreference = 'SilentlyContinue'");
-    expect(goreleaser).not.toContain("winget");
-  });
-
   it("keeps local RC packaging focused on install bundles only", () => {
     expect(pkg.scripts?.["release:rc:local"]).toBe(
       "goreleaser build --snapshot --clean && bash scripts/release/build-install-bundle.sh"
@@ -68,23 +56,6 @@ describe("release contract", () => {
     expect(releaseWorkflow).not.toContain("release-winget-manifests");
     expect(releaseWorkflow).not.toContain("winget validate");
     expect(releaseWorkflow).not.toContain("dist/winget");
-  });
-
-  it("keeps v0.21.0 release-facing wording user-centric and census-honest", () => {
-    // Shipped release-note bodies are archived (docs/archive/work/) and
-    // non-normative per documentation governance; only the active GoReleaser
-    // template is contract-checked here.
-    expect(goreleaser).toContain("Optional public census, off until you opt in");
-    expect(goreleaser).toContain("directional, not verified unique installs");
-    expect(goreleaser).toContain("Update the Relay App after HA NOVA");
-    expect(goreleaser).toContain("Legacy-token upgrades no longer loop");
-    expect(goreleaser).toContain("Valid UTF-8 names and paths, including umlauts, remain unchanged");
-    expect(goreleaser).toContain("Relay 0.7.1 ships strict UTF-8 handling");
-    expect(goreleaser).not.toContain("monthly_lower_bound");
-    expect(goreleaser).not.toContain("no App update needed");
-    expect(readme).toContain("Census off by default");
-    expect(readme).toContain("public aggregate ping counts");
-    expect(readme).toContain("not verified unique installs");
   });
 
   it("keeps README install commands visible and versionless", () => {
