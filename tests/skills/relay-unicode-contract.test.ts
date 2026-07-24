@@ -40,10 +40,12 @@ describe("relay Unicode file contract", () => {
     expect(ci).toContain(
       "New-Object -TypeName System.Text.UTF8Encoding -ArgumentList $false, $true",
     );
-    expect(ci).toContain("PowerShell 5.1 changed Unicode code points");
     expect(ci).toContain(
-      "Workflow source changed the expected Unicode code points",
+      '$expected = $strictUtf8.GetString($expectedBytes)',
     );
+    expect(ci).not.toMatch(/[^\x00-\x7F]/);
+    expect(ci).toContain("PowerShell 5.1 changed Unicode code points");
+    expect(ci).toContain("UTF-8 test vector did not round-trip");
     expect(ci).toContain("Strict UTF-8 reader accepted");
     expect(ci).toContain("payload-bom.json");
     expect(ci).toContain("payload-double-bom.json");

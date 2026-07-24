@@ -144,12 +144,15 @@ jobs:
             throw "Windows PowerShell 5.1 required, got $($PSVersionTable.PSVersion)"
           }
 
-          $expected = "Grüße – Öl & Überschuss · café · 東京 · 😀"
-          $document = [pscustomobject]@{ title = $expected }
-          $json = $document | ConvertTo-Json -Depth 100
           $utf8NoBom = New-Object -TypeName System.Text.UTF8Encoding -ArgumentList $false
           $strictUtf8 = New-Object -TypeName System.Text.UTF8Encoding -ArgumentList $false, $true
           $expectedHex = "47-72-C3-BC-C3-9F-65-20-E2-80-93-20-C3-96-6C-20-26-20-C3-9C-62-65-72-73-63-68-75-73-73-20-C2-B7-20-63-61-66-C3-A9-20-C2-B7-20-E6-9D-B1-E4-BA-AC-20-C2-B7-20-F0-9F-98-80"
+          [byte[]]$expectedBytes = $expectedHex.Split("-") | ForEach-Object {
+            [System.Convert]::ToByte($_, 16)
+          }
+          $expected = $strictUtf8.GetString($expectedBytes)
+          $document = [pscustomobject]@{ title = $expected }
+          $json = $document | ConvertTo-Json -Depth 100
 
           function Read-StrictUtf8([string]$Path) {
             $inputBytes = [System.IO.File]::ReadAllBytes($Path)
@@ -164,7 +167,7 @@ jobs:
           }
 
           if ([System.BitConverter]::ToString($utf8NoBom.GetBytes($expected)) -cne $expectedHex) {
-            throw "Workflow source changed the expected Unicode code points"
+            throw "UTF-8 test vector did not round-trip"
           }
           [System.IO.File]::WriteAllText("$PWD\payload.json", $json, $utf8NoBom)
 
