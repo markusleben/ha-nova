@@ -86,8 +86,8 @@ release:
 
     ## Bug Fixes
 
-    - **Census consent is now an explicit, inspectable choice.** Before the first report, HA NOVA offers separate **Yes**, **No**, and **Show exact data** actions. A Yes sends one report immediately and then allows at most one report per week.
-    - **The privacy wording now describes the complete network path.** The identifier-free JSON report passes through Cloudflare, the hosting provider. Cloudflare necessarily receives the source IP as connection metadata; HA NOVA does not include it in the JSON payload or read or store it.
+    - **Census consent is now a clear choice.** Before the first report, choose **Yes**, **No**, or **Show exact data**. Yes sends one report now and permits at most one per week.
+    - **Cloudflare's role is now stated plainly.** Cloudflare, the hosting provider, receives the source IP for HTTPS delivery. The JSON contains no IP; HA NOVA does not read or store it.
     - **Older informational notices no longer count as consent prompts.** Installations that auto-closed the previous machine notice are asked again, while recorded explicit Yes and No choices remain authoritative.
 
     Stable install commands are release-pinned for this tag.

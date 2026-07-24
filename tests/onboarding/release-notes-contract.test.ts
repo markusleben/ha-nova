@@ -5,6 +5,9 @@ import { describe, expect, it } from "vitest";
 describe("release notes contract", () => {
   const goreleaser = readFileSync(".goreleaser.yml", "utf8");
   const readme = readFileSync("README.md", "utf8");
+  const stableNotes = goreleaser
+    .split("{{ else }}", 2)[1]
+    ?.split("Stable install commands are release-pinned", 1)[0];
 
   it("keeps release notes aligned to the single supported Windows install path", () => {
     expect(goreleaser).toContain(
@@ -37,18 +40,18 @@ describe("release notes contract", () => {
       "HA NOVA may ask for census consent again",
     );
     expect(goreleaser).toContain(
-      "Census consent is now an explicit, inspectable choice",
+      "Census consent is now a clear choice",
     );
     expect(goreleaser).toContain(
-      "separate **Yes**, **No**, and **Show exact data** actions",
+      "choose **Yes**, **No**, or **Show exact data**",
     );
-    expect(goreleaser).toContain("at most one report per week");
+    expect(goreleaser).toContain("permits at most one per week");
     expect(goreleaser).toContain("Cloudflare, the hosting provider");
     expect(goreleaser).toContain(
-      "receives the source IP as connection metadata",
+      "receives the source IP for HTTPS delivery",
     );
     expect(goreleaser).toContain(
-      "does not include it in the JSON payload or read or store it",
+      "The JSON contains no IP; HA NOVA does not read or store it",
     );
     expect(goreleaser).toContain(
       "Older informational notices no longer count as consent prompts",
@@ -58,5 +61,14 @@ describe("release notes contract", () => {
     expect(readme).toContain("Census off by default");
     expect(readme).toContain("public aggregate ping counts");
     expect(readme).toContain("not verified unique installs");
+  });
+
+  it("keeps every curated stable highlight below the 220-character digest cap", () => {
+    expect(stableNotes).toBeTruthy();
+    const bullets = stableNotes?.match(/^    - (.+)$/gm) ?? [];
+    expect(bullets.length).toBeGreaterThan(0);
+    for (const bullet of bullets) {
+      expect([...bullet.slice(6)].length).toBeLessThanOrEqual(220);
+    }
   });
 });
