@@ -123,3 +123,100 @@ jobs:
           GOOS=windows GOARCH=amd64 go build -o /dev/null .
           GOOS=linux GOARCH=amd64 go build -o /dev/null .
           GOOS=linux GOARCH=arm64 go build -o /dev/null .
+
+  windows-powershell-unicode:
+    name: windows-powershell-unicode
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: "1.26"
+          cache-dependency-path: cli/go.sum
+
+      - name: Verify PowerShell 5.1 UTF-8 round trip
+        shell: powershell
+        run: |
+          if ($PSVersionTable.PSVersion.Major -ne 5) {
+            throw "Windows PowerShell 5.1 required, got $($PSVersionTable.PSVersion)"
+          }
+
+          $expected = "Grüße – Öl & Überschuss · café · 東京 · 😀"
+          $document = [pscustomobject]@{ title = $expected }
+          $json = $document | ConvertTo-Json -Depth 100
+          $utf8NoBom = New-Object -TypeName System.Text.UTF8Encoding -ArgumentList $false
+          $strictUtf8 = New-Object -TypeName System.Text.UTF8Encoding -ArgumentList $false, $true
+          $expectedHex = "47-72-C3-BC-C3-9F-65-20-E2-80-93-20-C3-96-6C-20-26-20-C3-9C-62-65-72-73-63-68-75-73-73-20-C2-B7-20-63-61-66-C3-A9-20-C2-B7-20-E6-9D-B1-E4-BA-AC-20-C2-B7-20-F0-9F-98-80"
+
+          function Read-StrictUtf8([string]$Path) {
+            $inputBytes = [System.IO.File]::ReadAllBytes($Path)
+            $offset = 0
+            if ($inputBytes.Length -ge 3 -and $inputBytes[0] -eq 0xEF -and $inputBytes[1] -eq 0xBB -and $inputBytes[2] -eq 0xBF) {
+              $offset = 3
+            }
+            if ($inputBytes.Length -ge ($offset + 3) -and $inputBytes[$offset] -eq 0xEF -and $inputBytes[$offset + 1] -eq 0xBB -and $inputBytes[$offset + 2] -eq 0xBF) {
+              throw "More than one leading UTF-8 BOM is unsupported"
+            }
+            return $strictUtf8.GetString($inputBytes, $offset, $inputBytes.Length - $offset)
+          }
+
+          if ([System.BitConverter]::ToString($utf8NoBom.GetBytes($expected)) -cne $expectedHex) {
+            throw "Workflow source changed the expected Unicode code points"
+          }
+          [System.IO.File]::WriteAllText("$PWD\payload.json", $json, $utf8NoBom)
+
+          $bytes = [System.IO.File]::ReadAllBytes("$PWD\payload.json")
+          if ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) {
+            throw "payload.json unexpectedly contains a UTF-8 BOM"
+          }
+
+          $roundTrip = Read-StrictUtf8 "$PWD\payload.json" | ConvertFrom-Json
+          if ($roundTrip.title -cne $expected) {
+            throw "PowerShell 5.1 changed Unicode code points"
+          }
+
+          [byte[]]$utf8Bom = 0xEF, 0xBB, 0xBF
+          [System.IO.File]::WriteAllBytes("$PWD\payload-bom.json", [byte[]]($utf8Bom + $bytes))
+          $bomRoundTrip = Read-StrictUtf8 "$PWD\payload-bom.json" | ConvertFrom-Json
+          if ($bomRoundTrip.title -cne $expected) {
+            throw "PowerShell 5.1 changed Unicode code points after one UTF-8 BOM"
+          }
+
+          [System.IO.File]::WriteAllBytes("$PWD\payload-double-bom.json", [byte[]]($utf8Bom + $utf8Bom + $bytes))
+          $doubleBomRejected = $false
+          try {
+            $null = Read-StrictUtf8 "$PWD\payload-double-bom.json"
+          } catch {
+            $doubleBomRejected = $true
+          }
+          if (-not $doubleBomRejected) {
+            throw "Strict UTF-8 reader accepted more than one leading UTF-8 BOM"
+          }
+
+          [System.IO.File]::WriteAllText("$PWD\utf16le.json", $json, [System.Text.Encoding]::Unicode)
+          [System.IO.File]::WriteAllText("$PWD\utf16be.json", $json, [System.Text.Encoding]::BigEndianUnicode)
+          foreach ($unsupported in @("$PWD\utf16le.json", "$PWD\utf16be.json")) {
+            $rejected = $false
+            try {
+              $null = Read-StrictUtf8 $unsupported
+            } catch {
+              $rejected = $true
+            }
+            if (-not $rejected) {
+              throw "Strict UTF-8 reader accepted $unsupported"
+            }
+          }
+
+          Set-Location cli
+          go build -o ha-nova.exe .
+          [Console]::OutputEncoding = $utf8NoBom
+          $OutputEncoding = $utf8NoBom
+          $cliValue = & .\ha-nova.exe relay jq -r --file ..\payload.json '.title'
+          $cliHex = [System.BitConverter]::ToString($utf8NoBom.GetBytes([string]$cliValue))
+          if ($LASTEXITCODE -ne 0 -or $cliValue -cne $expected -or $cliHex -cne $expectedHex) {
+            throw "ha-nova.exe changed Unicode code points"
+          }
+          go test . -run 'Test(RelayUnicodeRoundTrip|RelayRejectsUTF16|RelayRejectsBOMLessUTF16JQ|RelayRejectsTwoResponseBOMs|RelayHealthResponseUsesStrictUTF8Boundary)' -count=1

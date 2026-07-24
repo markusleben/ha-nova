@@ -199,7 +199,7 @@ func loadRelayPayload(opts relayRequestOptions) ([]byte, error) {
 		source := fmt.Sprintf("JSON payload file %q", opts.JSONFile)
 		data, err = normalizeUTF8Bytes(data, source)
 		if err != nil {
-			return nil, fmt.Errorf("%w; nothing was sent. Windows PowerShell 5.1: recreate the file with Set-Content -Encoding UTF8 (a leading UTF-8 BOM is accepted; Out-File and > default to UTF-16LE)", err)
+			return nil, relayTextFileEncodingError(err)
 		}
 		if !json.Valid(data) {
 			return nil, fmt.Errorf("%s is not valid JSON; nothing was sent", source)
@@ -278,7 +278,7 @@ func loadJQFilter(opts relayRequestOptions) (string, error) {
 		}
 		data, err = normalizeUTF8Bytes(data, fmt.Sprintf("jq filter file %q", opts.JQFile))
 		if err != nil {
-			return "", fmt.Errorf("%w; nothing was sent", err)
+			return "", relayTextFileEncodingError(err)
 		}
 		filter := strings.TrimSpace(string(data))
 		if filter == "" {
@@ -381,6 +381,11 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 		printRelayPostRequestError("reading the Relay response", err)
 		return 1
 	}
+	bodyBytes, err = normalizeUTF8Bytes(bodyBytes, "Relay response")
+	if err != nil {
+		printRelayPostRequestError("validating the Relay response", err)
+		return 1
+	}
 	taskSucceeded := relayEnvelopeOK(bodyBytes)
 	upstreamExitStatus := 0
 	if endpoint == "core" {
@@ -403,11 +408,7 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 			return 1
 		}
 	} else if opts.OutputFile != "" {
-		if err := os.MkdirAll(filepath.Dir(opts.OutputFile), 0o755); err != nil {
-			printRelayPostRequestError("creating the --out directory", err)
-			return 1
-		}
-		if err := os.WriteFile(opts.OutputFile, bodyBytes, 0o644); err != nil {
+		if err := writeRelayTextOutput(opts.OutputFile, bodyBytes); err != nil {
 			printRelayPostRequestError("writing --out", err)
 			return 1
 		}
@@ -624,6 +625,15 @@ func runHealth(paths runtimePaths, args []string) int {
 
 	bodyBytes, err := readAllLimited(resp.Body, maxRelayResponseBytes)
 	if err != nil || len(bodyBytes) == 0 {
+		printErr("relay health check failed")
+		return 1
+	}
+	bodyBytes, err = normalizeUTF8Bytes(bodyBytes, "Relay health response")
+	if err != nil {
+		printRelayPostRequestError("validating the Relay health response", err)
+		return 1
+	}
+	if len(bodyBytes) == 0 {
 		printErr("relay health check failed")
 		return 1
 	}
