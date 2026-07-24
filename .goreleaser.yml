@@ -80,18 +80,15 @@ release:
     ```
 
     Windows uses a single supported install path: `install.ps1`. Return an RC install to stable later with `ha-nova update`.
-    {{ else }}## New Features
+    {{ else }}## What To Watch
 
-    - **Relay App updates now surface with the first Home Assistant task.** For a registry-proven NOVA Relay App, the notice can open the existing guided update path with a partial backup, confirmation, a last-second state/provenance recheck, latest-at-execution installation, and Relay-version verification. Container/Core installs keep their separate image-pull guidance.
-
-    ## What To Watch
-
-    - **Start a new AI session after updating.** This loads the refreshed skills and enables the restored first-task update check.
+    - **HA NOVA may ask for census consent again.** This happens only when an older installation never recorded an explicit Yes or No. Existing explicit choices remain unchanged.
 
     ## Bug Fixes
 
-    - **Available updates are visible again on the first Home Assistant task.** Independently loaded skills now run the bounded update check instead of depending on a later background cache refresh.
-    - **Supported v0.20+ copied client installs repair their missing session bootstrap.** Managed current Codex, OpenCode, Antigravity, and Hermes layouts recover the update and census notice path. Older, foreign, or unreadable layouts still fail closed and require `ha-nova setup`.
+    - **Census consent is now a clear choice.** Before the first report, choose **Yes**, **No**, or **Show exact data**. Yes sends one report now and permits at most one per week.
+    - **Cloudflare's role is now stated plainly.** Cloudflare, the hosting provider, receives the source IP for HTTPS delivery. The JSON contains no IP; HA NOVA does not read or store it.
+    - **Older informational notices no longer count as consent prompts.** Installations that auto-closed the previous machine notice are asked again, while recorded explicit Yes and No choices remain authoritative.
 
     Stable install commands are release-pinned for this tag.
 

@@ -5,6 +5,9 @@ import { describe, expect, it } from "vitest";
 describe("release notes contract", () => {
   const goreleaser = readFileSync(".goreleaser.yml", "utf8");
   const readme = readFileSync("README.md", "utf8");
+  const stableNotes = goreleaser
+    .split("{{ else }}", 2)[1]
+    ?.split("Stable install commands are release-pinned", 1)[0];
 
   it("keeps release notes aligned to the single supported Windows install path", () => {
     expect(goreleaser).toContain(
@@ -32,26 +35,40 @@ describe("release notes contract", () => {
     expect(goreleaser).not.toContain("winget");
   });
 
-  it("keeps v0.21.1 release-facing wording aligned to first-task update discovery", () => {
+  it("keeps v0.21.2 release-facing wording aligned to explicit census consent", () => {
     expect(goreleaser).toContain(
-      "Relay App updates now surface with the first Home Assistant task",
+      "HA NOVA may ask for census consent again",
     );
-    expect(goreleaser).toContain("registry-proven NOVA Relay App");
-    expect(goreleaser).toContain("last-second state/provenance recheck");
-    expect(goreleaser).toContain("latest-at-execution installation");
-    expect(goreleaser).toContain("Start a new AI session after updating");
     expect(goreleaser).toContain(
-      "Available updates are visible again on the first Home Assistant task",
+      "Census consent is now a clear choice",
     );
-    expect(goreleaser).toContain("Supported v0.20+ copied client installs");
     expect(goreleaser).toContain(
-      "Older, foreign, or unreadable layouts still fail closed",
+      "choose **Yes**, **No**, or **Show exact data**",
     );
-    expect(goreleaser).not.toContain(
-      "Optional public census, off until you opt in",
+    expect(goreleaser).toContain("permits at most one per week");
+    expect(goreleaser).toContain("Cloudflare, the hosting provider");
+    expect(goreleaser).toContain(
+      "receives the source IP for HTTPS delivery",
     );
+    expect(goreleaser).toContain(
+      "The JSON contains no IP; HA NOVA does not read or store it",
+    );
+    expect(goreleaser).toContain(
+      "Older informational notices no longer count as consent prompts",
+    );
+    expect(goreleaser).not.toContain("ISO week");
+    expect(goreleaser).not.toContain("seven days");
     expect(readme).toContain("Census off by default");
     expect(readme).toContain("public aggregate ping counts");
     expect(readme).toContain("not verified unique installs");
+  });
+
+  it("keeps every curated stable highlight below the 220-character digest cap", () => {
+    expect(stableNotes).toBeTruthy();
+    const bullets = stableNotes?.match(/^    - (.+)$/gm) ?? [];
+    expect(bullets.length).toBeGreaterThan(0);
+    for (const bullet of bullets) {
+      expect([...bullet.slice(6)].length).toBeLessThanOrEqual(220);
+    }
   });
 });
