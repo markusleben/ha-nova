@@ -16,6 +16,7 @@ export const MAX_BODY_BYTES = 512;
 export const VERSION_PATTERN = /^\d+\.\d+\.\d+(-rc\d+)?$/;
 export const INSTALLATION_ID_PATTERN = /^cns-[0-9a-f]{32}$/;
 export const MAX_VERSION_LENGTH = 32;
+export const RELEASE_SMOKE_VERSION = "0.0.0-rc999999";
 
 export interface LegacyPing {
   schema: 1;
@@ -59,6 +60,7 @@ export interface LegacyCounterRow extends LegacyCounterKey {
 export interface InstallationStats {
   active_21_days: number;
   known_60_days: number;
+  release_smoke_installations: number;
   by_version: Record<string, number>;
   by_os: Record<string, number>;
   relay_versions: Record<string, number>;

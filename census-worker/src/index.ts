@@ -5,6 +5,7 @@ import {
   InstallationStats,
   LegacyCounterKey,
   LegacyCounterRow,
+  RELEASE_SMOKE_VERSION,
   handleMutationRequest,
   isoWeekUTC,
 } from "./census.js";
@@ -106,14 +107,18 @@ export class CensusCounter {
       .exec(
         `SELECT
            SUM(CASE WHEN last_seen_at > ? THEN 1 ELSE 0 END) AS active,
-           SUM(CASE WHEN last_seen_at > ? THEN 1 ELSE 0 END) AS known
+           SUM(CASE WHEN last_seen_at > ? THEN 1 ELSE 0 END) AS known,
+           SUM(CASE WHEN last_seen_at > ? AND version = ? THEN 1 ELSE 0 END) AS release_smoke
          FROM installations`,
         activeCutoff,
         knownCutoff,
+        activeCutoff,
+        RELEASE_SMOKE_VERSION,
       )
       .toArray() as unknown as {
       active: number | null;
       known: number | null;
+      release_smoke: number | null;
     }[];
     const byVersion = this.sql
       .exec(
@@ -146,6 +151,7 @@ export class CensusCounter {
     return {
       active_21_days: active,
       known_60_days: totalRows[0]?.known ?? 0,
+      release_smoke_installations: totalRows[0]?.release_smoke ?? 0,
       by_version: boundedNumberRecord(byVersion, "version", active),
       by_os: boundedNumberRecord(byOS, "os", active),
       relay_versions: boundedNumberRecord(

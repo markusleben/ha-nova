@@ -68,6 +68,9 @@ the official NOVA Relay App count published by Home Assistant Analytics.
   breakdown; withdrawal removes it; separate identifiers count separately.
 - Local Wrangler integration proves the real SQLite Durable Object path before
   production deployment.
+- Production deduplication and withdrawal use an uncapped private aggregate for
+  the reserved `0.0.0-rc999999` smoke version. The verifier never queries an
+  installation ID, and unrelated live client reports cannot move this signal.
 - Unauthenticated statistics fail; browser and service-token Access JWTs pass.
 - The v0.21.3 RC exercises consent on macOS and Windows before the reviewed
   Worker is deployed; a removable production test identifier proves the final

@@ -9,6 +9,7 @@ import {
   ALLOWED_OS,
   INSTALLATION_ID_PATTERN,
   MAX_VERSION_LENGTH,
+  RELEASE_SMOKE_VERSION,
   VERSION_PATTERN,
   WITHDRAW_FIELDS,
 } from "../../census-worker/src/census.js";
@@ -48,6 +49,8 @@ describe("Census privacy and cross-contract guards", () => {
     expect(index).toContain("verifyCloudflareAccess");
     expect(index).toContain("admitNewInstallation");
     expect(index).toContain("MAX_BREAKDOWN_ROWS");
+    expect(index).toContain("version = ? THEN 1 ELSE 0");
+    expect(index).toContain("RELEASE_SMOKE_VERSION");
     expect(index).toContain("CENSUS_PING_RATE_LIMITER");
     expect(index).toContain("CENSUS_WITHDRAW_RATE_LIMITER");
     expect(index).toContain("mutationRateIdentity(request)");
@@ -97,6 +100,18 @@ describe("Census privacy and cross-contract guards", () => {
     );
     expect(censusSources).toContain(
       `censusMaxVersionLength = ${MAX_VERSION_LENGTH}`,
+    );
+    const deploymentVerifier = readFileSync(
+      join(
+        process.cwd(),
+        "scripts",
+        "release",
+        "verify-census-deployment.sh",
+      ),
+      "utf8",
+    );
+    expect(deploymentVerifier).toContain(
+      `smoke_version="${RELEASE_SMOKE_VERSION}"`,
     );
     expect(censusSources).toContain(
       "regexp.MustCompile(`" + INSTALLATION_ID_PATTERN.source + "`)",

@@ -347,12 +347,12 @@ describe("release contract", () => {
     expect(censusDeploymentVerifier).toContain("for attempt in 1 2");
     expect(censusDeploymentVerifier).toContain("${base_url}/ping");
     expect(censusDeploymentVerifier).toContain("${base_url}/withdraw");
-    expect(censusDeploymentVerifier).toContain("baseline_os_count + 1");
+    expect(censusDeploymentVerifier).toContain("baseline_smoke_count + 1");
     expect(censusDeploymentVerifier).toContain(
-      '"$current" == "$baseline_os_count"',
+      '"$current" == "$baseline_smoke_count"',
     );
     expect(censusDeploymentVerifier).toContain(
-      ".client_installations.by_os[$os]",
+      ".client_installations.release_smoke_installations",
     );
     expect(censusDeploymentVerifier).not.toContain(
       ".client_installations.by_version[$version]",

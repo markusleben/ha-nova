@@ -294,6 +294,7 @@ describe("private maintainer statistics", () => {
   const client: InstallationStats = {
     active_21_days: 7,
     known_60_days: 9,
+    release_smoke_installations: 0,
     by_version: { "0.21.3": 6, "0.21.2": 1 },
     by_os: { macos: 4, linux: 2, windows: 1 },
     relay_versions: { "0.7.1": 5 },
@@ -323,6 +324,7 @@ describe("private maintainer statistics", () => {
       NOW,
     );
     expect(stats.client_installations.active_21_days).toBe(7);
+    expect(stats.client_installations.release_smoke_installations).toBe(0);
     expect(stats.relay_app_installations.total).toBe(9);
     expect(stats.legacy_ping_activity.weekly).toEqual([
       { iso_week: "2026-W30", count: 12 },
