@@ -278,8 +278,17 @@ Rules:
 - no restart/reload/service calls
 - check `ha-nova relay health` and skip `system_health/info` when the relay is below the enforced floor (`min_relay_version`)
 - summarize by source and bind conclusions to evidence
-- keep Home Status compact: overall state, source coverage, capped examples, sanitized integration reasons
-- deprioritize noisy/stateless domains (`button`, `event`, `scene`, `stt`) in unavailable/unknown examples
+- keep Home Status compact: overall state, source coverage, capped findings/groups, sanitized integration reasons
+- label unavailable/unknown totals as entity-state counts, never device/problem counts
+- when availability states exist, best-effort join full entity/device registries and config entries for restored/current, integration, config-entry-state, and device-attribution coverage
+- use one capped finding ledger across Entities and Integrations; a failed entry owns its joined impact once under Integrations
+- sort availability groups by count then the unlocalized safe integration label, cap them at five, and keep internal IDs, entity names, config-entry titles, addresses, and hosts out of output
+- report known device-registry records plus entity-state row coverage, never an inferred exact device total
+- aggregate and cap privacy-safe device-subcluster sizes independently of integration attribution; device IDs remain hidden tie-breakers only
+- treat setup/unload progress as context, and only the explicit config-entry failure set as attention
+- when availability rows exist, missing entity/device registry sources make coverage limited and are named separately
+- treat availability classification as context only; it never changes overall status without an existing attention source
+- deprioritize noisy/stateless domains (`button`, `event`, `scene`, `stt`) for attention while retaining their contextualized counts
 - localize output slot headings and labels; keep HA state values literal when used as evidence
 
 ## Calendar Architecture

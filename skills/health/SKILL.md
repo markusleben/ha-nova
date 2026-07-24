@@ -43,6 +43,8 @@ Use file-based relay requests:
 For WS payloads:
 - repairs: `{"type":"repairs/list_issues"}`
 - integration entries: `{"type":"config_entries/get"}`
+- entity registry: `{"type":"config/entity_registry/list"}`
+- device registry: `{"type":"config/device_registry/list"}`
 - system health: `{"message":{"type":"system_health/info"},"collect_events":{"until_type":"finish","max_events":100,"timeout_ms":10000}}`
 
 `system_health/info` is a finite event-response command. The Skill opts into generic Relay event collection through `collect_events`; the Relay only forwards the WS message and enforces `until_type`, `max_events`, and `timeout_ms`. A compatible relay returns `data.events` containing `initial`, zero or more `update`, and `finish` events. If the relay returns `data: null`, `UNSUPPORTED_WS_TYPE`, `VALIDATION_ERROR`, or another unsupported-event response, continue and say system-health details need a relay at the enforced floor — every supported relay has event collection, so this points at an outdated App.
@@ -53,11 +55,16 @@ Envelope parsing follows `skills/ha-nova/relay-api.md` → Standard Envelope. No
 - REST `/api/config`, `/api/components`, `/api/states`: use `.data.body`
 - WS `repairs/list_issues`: use `.data.issues`
 - WS `config_entries/get`: use `.data` as an array
+- WS `config/entity_registry/list`: use `.data` as an array; availability joins use only `entity_id`, `config_entry_id`, `device_id`, and `platform`
+- WS `config/device_registry/list`: use `.data` as an array; use only `id` to validate a device attribution
 - WS `system_health/info`: use `.data.events` as an array; event kind is `.type`
 
 Do not run one combined `jq` normalizer across config, components, states, repairs, integrations, and system health. Their envelopes differ. Normalize each source file into a small source-specific shape first, then combine those normalized summaries in prose.
 
-Use type checks in `jq` filters before indexing arrays or objects. If a shape differs, mark that source unavailable and continue. Do not show intermediate parser or `jq` errors to the user; mention only the affected source in coverage.
+Before accepting a source, require `ok:true`, a 2xx REST `data.status`, and
+valid types for every required row field. If a shape differs, mark that source
+unavailable and continue. Do not show parser or `jq` errors; mention only the
+affected source in coverage.
 
 Use `--jq-file` for non-trivial filters. Avoid complex inline jq, especially regex that must be shell-escaped. Prefer simple field equality and type checks over regex whenever Home Assistant attributes already provide structured data.
 
@@ -74,34 +81,45 @@ Low-battery detection must be structured:
 - do not use shell-escaped regex on `entity_id` for the main battery filter
 - name/entity text such as `battery` or `batterie` may be used only as secondary context after the structured detector, never as the main signal
 
+## Availability Analysis
+
+Read `availability-analysis.md` before classifying config-entry states or
+availability. It owns state categories, exact joins, thresholds, the shared
+ledger, device clusters, ordering, caps, and privacy.
+
 ## Flow
 
 1. Read `/api/config`, `/api/components`, and `/api/states`.
 2. Read `repairs/list_issues` and `config_entries/get` through WS.
-3. Only when a non-disabled `setup_error`/`setup_retry`/`migration_error` entry exists AND unavailable entities cluster: read the full entity registry (WS `config/entity_registry/list`, `--out` to a file) and join entities to the failed entry by `config_entry_id` — the compact registry and `/api/states` do not carry that field.
+3. When at least one state is `unavailable` or `unknown`, attempt both full registry reads from Availability Analysis. If either registry source fails or has a different shape, continue with the available evidence and state the attribution limitation.
 4. If a relay-outdated warning appeared this session, skip `system_health/info`; say system-health details need the relay updated to the enforced floor and include the current relay version.
 5. Otherwise read `system_health/info` through WS and parse `data.events` when available.
 6. Summarize:
-   - overall: `ok` only when all read sources are available and there are no active repairs, non-disabled not-loaded integrations, important unavailable/unknown examples, or low battery/SOC findings; `limited` when a source is unavailable; otherwise `attention`
+   - overall: `limited` when a required source is unavailable; otherwise `attention` only for an active repair, a config-entry attention state defined by Availability Analysis, low battery/SOC, or an explicit failed system-health check; otherwise `ok`. Availability classification alone never changes overall.
    - coverage: checked timestamp plus source status for config, components, states, repairs, integrations, and system health
-   - repairs: group repeated copies first — repairs are keyed by (domain, `issue_id`); when several issues share the same domain + `translation_key` (the per-entity deprecation pattern), report one line with a count and keep their `issue_id`s available, but never group issues without a `translation_key` or with differing remediation — distinct repair actions stay distinct lines; then active issue count; top 3 by severity/created date with integration/domain, severity, issue title/translation key when available
-   - integrations: count entries whose `state` is not `loaded`; treat entries with `disabled_by` set as intentionally disabled context, not attention items; show up to 5 non-disabled `setup_error`, `setup_retry`, `migration_error`, then `not_loaded` entries with domain, title, state, and sanitized reason; attribute unavailable-entity clusters to their failed integration via the conditional registry join (Flow step 3) and report cause + symptoms as ONE finding, not two; without that join, report both findings and say they are likely related
-   - config/components: HA version, location name, time zone, component count, notable missing core pieces if visible
-   - unavailable/unknown: raw counts by domain plus up to 5 attention examples; deprioritize noisy/stateless domains `button`, `event`, `scene`, and `stt` for examples; "important" means the entity has consumers or sits in a primary control/sensing domain — a handful of unavailable low-traffic sensors is normal on a large install and must not flip the overall state on its own
+   - repairs: count active issues; group only matching domain, `translation_key`, and remediation while retaining `issue_id`s internally. Never group missing translation keys or distinct actions. Show top 3 by severity/created date.
+   - integrations: apply Availability Analysis state categories and order; show up to 5 attention entries with safe domain, state, and sanitized reason — never title/account name. Joined impact is ONE finding owned by `Integrations`; suppress it from `Entities`. Without an exact join, state attribution unavailable.
+   - config/components: HA version, time zone, component count, notable missing core pieces; do not expose the installation/location name
+   - unavailable/unknown: follow Availability Analysis; report raw entity-state counts, restored/current split, classification, coverage, and the capped shared ledger; never list entity examples or imply device/problem counts
    - low battery/SOC: numeric `device_class: battery` under 20%, plus `device_class: battery` state entities that are `low`; do not imply a battery replacement unless the entity is clearly a device battery
-   - system health: summarize failed object-shaped `update` events first, then max 3 useful highlights from object-shaped `initial.data`; ignore scalar payloads and the `finish` event
+   - system health: failed object-shaped `update` events first, then max 3 object-shaped `initial.data` highlights; ignore scalars and `finish`
 7. Bind each conclusion to the data source used.
 
 Sanitize integration reasons before showing them:
 - remove IP addresses, hostnames, URLs, tokens, and long raw exception text
-- prefer `error_reason_translation_key` when present
-- if the raw reason is technical or sensitive, say `technical setup error` and name the state instead
+- never render `error_reason_translation_key` verbatim; map only recognized
+  generic keys to safe localized phrases
+- for unknown keys or raw technical/sensitive reasons, say
+  `technical setup error` and name the state instead
 
 ## Output Format
 
 Apply `skills/ha-nova/output-rules.md` to all user-facing output.
 
 These names are semantic output slots, not literal headings. Do not mix English labels with localized prose unless the label is a Home Assistant state/value.
+Deterministic internal sorting happens before localization; localize every
+generic label, ordinal, classification, overall phrase, and next step to the
+user's language at runtime.
 
 - `Status`
 - `Repairs`
@@ -114,9 +132,9 @@ These slots are the Report shape (output-rules.md): `Status` is the answer-first
 
 Choose one safe `Next step`:
 - repairs first
-- then integration `setup_error`/`setup_retry`
+- then any config-entry attention/failure state from Availability Analysis
 - then low battery/SOC
-- then important unavailable/unknown examples
+- then failed system health
 - then source limitation such as outdated relay
 - otherwise say no immediate action found
 
