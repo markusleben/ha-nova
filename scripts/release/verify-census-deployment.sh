@@ -100,12 +100,20 @@ verify_contract() {
     and ([.client_installations.by_version[]] | add // 0) == .client_installations.active_21_days
     and ([.client_installations.by_os[]] | add // 0) == .client_installations.active_21_days
     and (([.client_installations.relay_versions[]] | add // 0) + .client_installations.relay_not_recently_observed) == .client_installations.active_21_days
-    and .relay_app_installations.status == "available"
     and .relay_app_installations.source == "https://analytics.home-assistant.io/addons.json"
     and .relay_app_installations.slug == "2368fcfa_ha_nova_relay"
-    and (.relay_app_installations.total | nonnegint)
-    and (.relay_app_installations.by_version | counts)
-    and ([.relay_app_installations.by_version[]] | add // 0) == .relay_app_installations.total
+    and (
+      (.relay_app_installations.status == "available"
+        and (.relay_app_installations.total | nonnegint)
+        and (.relay_app_installations.by_version | counts)
+        and ([.relay_app_installations.by_version[]] | add // 0) == .relay_app_installations.total
+        and (.relay_app_installations | has("error") | not))
+      or
+      (.relay_app_installations.status == "unavailable"
+        and (.relay_app_installations.error | type == "string" and length > 0)
+        and (.relay_app_installations | has("total") | not)
+        and (.relay_app_installations | has("by_version") | not))
+    )
     and (.legacy_ping_activity.weekly | type == "array"
       and all(.[];
         (.iso_week | type == "string" and test("^[0-9]{4}-W[0-9]{2}$"))

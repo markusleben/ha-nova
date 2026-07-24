@@ -208,7 +208,11 @@ public_version="$TEST_VERSION_ID"
 smoke_count=0
 [[ "$args" != *"dedup-"* ]] || smoke_count=1
 [[ "\${FAKE_MODE:-valid}" != "dedup_failed" ]] || smoke_count=0
-payload="{\\"schema\\":2,\\"generated_at\\":\\"2026-07-23T00:00:00Z\\",\\"client_installations\\":{\\"active_21_days\\":$smoke_count,\\"known_60_days\\":$smoke_count,\\"by_os\\":{\\"linux\\":$smoke_count},\\"by_version\\":{\\"0.0.0-rc999999\\":$smoke_count},\\"relay_versions\\":{},\\"relay_not_recently_observed\\":$smoke_count,\\"new_installation_rejections_today\\":0},\\"relay_app_installations\\":{\\"status\\":\\"available\\",\\"source\\":\\"https://analytics.home-assistant.io/addons.json\\",\\"slug\\":\\"2368fcfa_ha_nova_relay\\",\\"total\\":9,\\"by_version\\":{\\"0.7.0\\":7,\\"0.6.0\\":1,\\"0.2.0\\":1}},\\"legacy_ping_activity\\":{\\"weekly\\":[]}}"
+relay_analytics='{"status":"available","source":"https://analytics.home-assistant.io/addons.json","slug":"2368fcfa_ha_nova_relay","total":9,"by_version":{"0.7.0":7,"0.6.0":1,"0.2.0":1}}'
+[[ "\${FAKE_MODE:-valid}" != "analytics_unavailable" ]] || relay_analytics='{"status":"unavailable","source":"https://analytics.home-assistant.io/addons.json","slug":"2368fcfa_ha_nova_relay","error":"upstream timeout"}'
+[[ "\${FAKE_MODE:-valid}" != "malformed_relay_analytics" ]] || relay_analytics='{"status":"unavailable","source":"https://analytics.home-assistant.io/addons.json","slug":"2368fcfa_ha_nova_relay"}'
+[[ "\${FAKE_MODE:-valid}" != "stale_relay_analytics" ]] || relay_analytics='{"status":"unavailable","source":"https://analytics.home-assistant.io/addons.json","slug":"2368fcfa_ha_nova_relay","error":"upstream timeout","total":9,"by_version":{"0.7.0":9}}'
+payload="{\\"schema\\":2,\\"generated_at\\":\\"2026-07-23T00:00:00Z\\",\\"client_installations\\":{\\"active_21_days\\":$smoke_count,\\"known_60_days\\":$smoke_count,\\"by_os\\":{\\"linux\\":$smoke_count},\\"by_version\\":{\\"0.0.0-rc999999\\":$smoke_count},\\"relay_versions\\":{},\\"relay_not_recently_observed\\":$smoke_count,\\"new_installation_rejections_today\\":0},\\"relay_app_installations\\":$relay_analytics,\\"legacy_ping_activity\\":{\\"weekly\\":[]}}"
 [[ "\${FAKE_MODE:-valid}" != "wrong_public_sha" ]] || public_sha="0000000000000000000000000000000000000000"
 [[ "\${FAKE_MODE:-valid}" != "wrong_public_version" ]] || public_version="wrong-version"
 [[ "\${FAKE_MODE:-valid}" != "malformed_public_stats" ]] || payload='{"schema":2}'
@@ -305,6 +309,8 @@ describe("release gate behavior", () => {
     "wrong_public_sha",
     "wrong_public_version",
     "malformed_public_stats",
+    "malformed_relay_analytics",
+    "stale_relay_analytics",
     "cleanup_withdraw_fail",
   ])("fails closed for %s", (mode) => {
     const fixture = releaseFixture();
@@ -312,15 +318,18 @@ describe("release gate behavior", () => {
     expect(result.status, `${result.stdout}\n${result.stderr}`).not.toBe(0);
   });
 
-  it("accepts only the exact local-write, deploy-target, and public-version chain", () => {
-    const fixture = releaseFixture();
-    const result = runGate(fixture, "valid");
-    expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
-    expect(result.stdout).toContain(
-      "local Worker + Durable Object write/read smoke OK",
-    );
-    expect(result.stdout).toContain(`${fixture.sha}/${VERSION_ID}`);
-  });
+  it.each(["valid", "analytics_unavailable"])(
+    "accepts the exact deployment chain when Relay analytics are %s",
+    (mode) => {
+      const fixture = releaseFixture();
+      const result = runGate(fixture, mode);
+      expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
+      expect(result.stdout).toContain(
+        "local Worker + Durable Object write/read smoke OK",
+      );
+      expect(result.stdout).toContain(`${fixture.sha}/${VERSION_ID}`);
+    },
+  );
 
   it("withdraws the ephemeral production ID when verification fails after ping", () => {
     const fixture = releaseFixture();

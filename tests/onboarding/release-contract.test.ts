@@ -337,6 +337,12 @@ describe("release contract", () => {
       ".client_installations.known_60_days",
     );
     expect(censusDeploymentVerifier).toContain(".relay_app_installations.slug");
+    expect(censusDeploymentVerifier).toContain(
+      '.relay_app_installations.status == "available"',
+    );
+    expect(censusDeploymentVerifier).toContain(
+      '.relay_app_installations.status == "unavailable"',
+    );
     expect(censusDeploymentVerifier).toContain("installation_id=");
     expect(censusDeploymentVerifier).toContain("for attempt in 1 2");
     expect(censusDeploymentVerifier).toContain("${base_url}/ping");
