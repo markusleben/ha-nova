@@ -35,32 +35,25 @@ describe("release notes contract", () => {
     expect(goreleaser).not.toContain("winget");
   });
 
-  it("keeps v0.21.2 release-facing wording aligned to explicit census consent", () => {
+  it("keeps v0.21.3 release-facing wording aligned to distinct private Census counts", () => {
     expect(goreleaser).toContain(
-      "HA NOVA may ask for census consent again",
+      "Existing Census Yes choices will be asked again",
     );
-    expect(goreleaser).toContain(
-      "Census consent is now a clear choice",
-    );
-    expect(goreleaser).toContain(
-      "choose **Yes**, **No**, or **Show exact data**",
-    );
-    expect(goreleaser).toContain("permits at most one per week");
-    expect(goreleaser).toContain("Cloudflare, the hosting provider");
-    expect(goreleaser).toContain(
-      "receives the source IP for HTTPS delivery",
-    );
-    expect(goreleaser).toContain(
-      "The JSON contains no IP; HA NOVA does not read or store it",
-    );
-    expect(goreleaser).toContain(
-      "Older informational notices no longer count as consent prompts",
-    );
+    expect(goreleaser).toContain("Reporting stays off until Yes");
+    expect(goreleaser).toContain("dedicated random Census ID");
+    expect(goreleaser).toContain("Private maintainer stats");
+    expect(goreleaser).toContain("Official Relay totals stay separate");
+    expect(goreleaser).toContain("Cloudflare's role stays explicit");
+    expect(goreleaser).toContain("receives source-IP/connection metadata");
+    expect(goreleaser).toContain("does not read or store the IP");
+    expect(goreleaser).toContain("no sooner than seven days later");
+    expect(goreleaser).toContain("Home Status explains unavailable entities");
+    expect(goreleaser).toContain("Unicode-safe Relay files");
     expect(goreleaser).not.toContain("ISO week");
-    expect(goreleaser).not.toContain("seven days");
     expect(readme).toContain("Census off by default");
-    expect(readme).toContain("public aggregate ping counts");
-    expect(readme).toContain("not verified unique installs");
+    expect(readme).toContain("dedicated random Census installation ID");
+    expect(readme).toContain("private maintainer statistics");
+    expect(readme).not.toContain("public aggregate ping counts");
   });
 
   it("keeps every curated stable highlight below the 220-character digest cap", () => {

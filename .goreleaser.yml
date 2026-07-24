@@ -82,13 +82,19 @@ release:
     Windows uses a single supported install path: `install.ps1`. Return an RC install to stable later with `ha-nova update`.
     {{ else }}## What To Watch
 
-    - **HA NOVA may ask for census consent again.** This happens only when an older installation never recorded an explicit Yes or No. Existing explicit choices remain unchanged.
+    - **Existing Census Yes choices will be asked again.** The old choice covered an identifier-free report; counting installations needs a new random Census ID. Reporting stays off until Yes; existing No remains No.
+
+    ## New Features
+
+    - **Distinct opt-in installation counts.** Repeat reports use the dedicated random Census ID to count once. Private maintainer stats show active/known HA NOVA versions, OS, and recently observed Relay versions.
+    - **Official Relay totals stay separate.** Home Assistant Analytics Relay App counts are shown as a second metric and are never added to voluntary HA NOVA client counts.
+    - **Home Status explains unavailable entities.** Results now separate expected or transient states from actionable warnings using registry and update context.
 
     ## Bug Fixes
 
-    - **Census consent is now a clear choice.** Before the first report, choose **Yes**, **No**, or **Show exact data**. Yes sends one report now and permits at most one per week.
-    - **Cloudflare's role is now stated plainly.** Cloudflare, the hosting provider, receives the source IP for HTTPS delivery. The JSON contains no IP; HA NOVA does not read or store it.
-    - **Older informational notices no longer count as consent prompts.** Installations that auto-closed the previous machine notice are asked again, while recorded explicit Yes and No choices remain authoritative.
+    - **Cloudflare's role stays explicit.** It hosts Census HTTPS and receives source-IP/connection metadata. HA NOVA ingest does not read or store the IP; the dashboard remains private.
+    - **Unicode-safe Relay files.** Strict UTF-8 handling now preserves non-ASCII Home Assistant configuration on every platform, including Windows PowerShell 5.1.
+    - **Census reports use a rolling interval.** Yes sends the first report immediately; another report is sent no sooner than seven days later.
 
     Stable install commands are release-pinned for this tag.
 
