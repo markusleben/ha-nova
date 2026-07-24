@@ -13,6 +13,8 @@ import (
 	"time"
 )
 
+const censusAskQuestionPrefix = "May this HA NOVA installation contribute to the maintainer's private"
+
 func stubCensusTTY(t *testing.T, stdinTTY, stdoutTTY bool) {
 	t.Helper()
 	originalIn := censusStdinIsTTY
@@ -91,7 +93,7 @@ func TestCensusAskStampsAskedBeforePromptAbortedPromptNeverReasks(t *testing.T) 
 
 	// Empty input: the prompt aborts with EOF (the Ctrl-C/crash shape).
 	out := askCensusWithInput(t, paths, "")
-	if !strings.Contains(out, "May this HA NOVA installation contribute to the maintainer's private version") {
+	if !strings.Contains(out, censusAskQuestionPrefix) {
 		t.Fatalf("expected the ask copy before the prompt, got %q", out)
 	}
 	state := loadCensusState(paths)
@@ -209,8 +211,14 @@ func TestCensusAskCopyVerbatim(t *testing.T) {
 	out := askCensusWithInput(t, paths, "2\n")
 	for _, want := range []string{
 		"One-time privacy choice",
-		"May this HA NOVA installation contribute to the maintainer's private version",
+		censusAskQuestionPrefix,
+		"installation and version statistics",
 		"HA NOVA sends no behavioral or feature-use analytics.",
+		"Why this helps: by contributing, you give the maintainer a rough picture",
+		"which HA NOVA and Relay versions they use",
+		"how operating systems are distributed",
+		"This helps prioritize compatibility",
+		"work, tests, bug fixes, and new features",
 		"If you agree, HA NOVA sends the first report now",
 		"no sooner than seven days later",
 		"The message content (JSON) contains only:",
@@ -289,6 +297,13 @@ func TestCensusSkillNoticeUsesOneBoundChoiceToken(t *testing.T) {
 		"native selectable menu",
 		"numbered fallback",
 		"UI requires a default, use No",
+		"by contributing, the user helps the maintainer get a rough picture",
+		"prioritize compatibility work, tests, bug fixes, and new features",
+		"not a roadmap vote or feature promise",
+		"must not use guilt, pressure, or recommend opt-in",
+		"Use at most five short visible lines in this order",
+		"purpose/planning value; cadence; exact JSON field categories",
+		"Cloudflare processing, HA NOVA source-IP non-reading/non-storage",
 		"Cloudflare is the hosting provider",
 		"no sooner than seven days later",
 		"ha-nova census notice-presented",

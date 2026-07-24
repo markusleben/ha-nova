@@ -59,6 +59,8 @@ func printCensusUsage() {
 	fmt.Fprintln(os.Stdout, "  off     Opt out, stop new reports, and request deletion of this installation record.")
 	fmt.Fprintln(os.Stdout, "  status  Show on/off, the exact application JSON bytes, and the private stats URL.")
 	fmt.Fprintln(os.Stdout, "")
+	fmt.Fprintln(os.Stdout, "Voluntary reports give the maintainer a rough picture of participating installations, HA NOVA and Relay versions, and the operating-system distribution.")
+	fmt.Fprintln(os.Stdout, "This helps prioritize compatibility work, tests, bug fixes, and new features where they are likely to help most.")
 	fmt.Fprintln(os.Stdout, "Cloudflare is the hosting provider for the census endpoint and processes source IP and connection metadata for HTTPS delivery under its privacy policy.")
 	fmt.Fprintln(os.Stdout, "HA NOVA ingest code does not read or store the source IP. A dedicated random Census ID lets one participating installation count once.")
 	fmt.Fprintln(os.Stdout, "No flags. Opt-out env var: HA_NOVA_NO_CENSUS=1. Details: docs/reference/census.md")
@@ -236,6 +238,8 @@ func censusStatusLines(paths runtimePaths) ([]string, error) {
 		return nil, fmt.Errorf("empty application JSON body")
 	}
 	lines = append(lines,
+		"Purpose: voluntary reports provide a rough picture of participating installations, HA NOVA and Relay versions, and the operating-system distribution, helping prioritize compatibility work, tests, bug fixes, and new features where they are likely to help most.",
+		"This directional information is not a roadmap vote, verified installed-base count, or feature promise.",
 		fmt.Sprintf("Exact application JSON body: %s", body),
 		"HTTPS hosting: Cloudflare hosts the census endpoint and processes the source IP and connection metadata under its privacy policy.",
 		"HA NOVA ingest code does not read the source IP; application storage does not store it.",
