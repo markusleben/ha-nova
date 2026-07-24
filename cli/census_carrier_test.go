@@ -14,8 +14,8 @@ import (
 // file guideline.
 
 // A build still carrying the PLACEHOLDER endpoint must be inert by
-// construction: no send and no week stamp — so a later
-// properly configured build can still count the week.
+// construction: no send and no cadence stamp — so a later
+// properly configured build can still send.
 func TestPlaceholderEndpointBuildIsInert(t *testing.T) {
 	paths := setupCensusTest(t)
 	stubCensusVersion(t, "0.21.0")
@@ -25,7 +25,7 @@ func TestPlaceholderEndpointBuildIsInert(t *testing.T) {
 	if censusEndpointConfigured() {
 		t.Fatal("placeholder endpoint must report unconfigured")
 	}
-	if err := saveCensusState(paths, censusState{Enabled: true, Answer: "yes"}); err != nil {
+	if err := saveCensusState(paths, optedInCensusState()); err != nil {
 		t.Fatalf("saveCensusState() error: %v", err)
 	}
 
@@ -41,8 +41,8 @@ func TestPlaceholderEndpointBuildIsInert(t *testing.T) {
 	if len(*payloads) != 0 {
 		t.Fatalf("placeholder build must never send, got %d attempts", len(*payloads))
 	}
-	if state := loadCensusState(paths); state.LastPingWeek != "" {
-		t.Fatalf("placeholder build must not burn the week, got %q", state.LastPingWeek)
+	if state := loadCensusState(paths); state.LastAttemptAt != "" {
+		t.Fatalf("placeholder build must not burn the cadence slot, got %q", state.LastAttemptAt)
 	}
 	out := captureStdout(t, func() { runCensusCommand(paths, []string{"status"}) })
 	if !strings.Contains(out, "census endpoint not configured in this build — nothing is sent") {
@@ -60,7 +60,7 @@ func TestCensusUnknownPlatformNeverSends(t *testing.T) {
 	originalPlatform := censusPlatformOS
 	censusPlatformOS = func() string { return "freebsd" }
 	t.Cleanup(func() { censusPlatformOS = originalPlatform })
-	if err := saveCensusState(paths, censusState{Enabled: true, Answer: "yes"}); err != nil {
+	if err := saveCensusState(paths, optedInCensusState()); err != nil {
 		t.Fatalf("saveCensusState() error: %v", err)
 	}
 
@@ -84,7 +84,7 @@ func TestCensusPingSkipsDevBuild(t *testing.T) {
 	BuildChannel = "dev"
 	t.Cleanup(func() { BuildChannel = originalChannel })
 	payloads := stubCensusTransport(t, http.StatusNoContent, nil)
-	if err := saveCensusState(paths, censusState{Enabled: true, Answer: "yes"}); err != nil {
+	if err := saveCensusState(paths, optedInCensusState()); err != nil {
 		t.Fatalf("saveCensusState() error: %v", err)
 	}
 
@@ -124,7 +124,7 @@ func TestCheckUpdateJSONOutputByteIdenticalWithCensus(t *testing.T) {
 		}
 		attempts := stubCensusTransport(t, 0, fmt.Errorf("census endpoint down"))
 		if withCensus {
-			if err := saveCensusState(paths, censusState{Enabled: true, Answer: "yes"}); err != nil {
+			if err := saveCensusState(paths, optedInCensusState()); err != nil {
 				t.Fatalf("saveCensusState() error: %v", err)
 			}
 		}

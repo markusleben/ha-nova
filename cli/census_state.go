@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,25 +11,34 @@ import (
 	"time"
 )
 
-const censusStateSchemaVersion = 2
+const (
+	censusStateSchemaVersion = 3
+	censusConsentVersion     = 2
+	censusInstallationPrefix = "cns-"
+	censusChoicePrefix       = "cns-choice-"
+)
 
-// censusNow is the census clock, overridable for tests (ISO-week gate,
-// relay-freshness and throttle tests).
+// censusNow is the census clock, overridable for cadence, relay-freshness,
+// retention, and throttle tests.
 var censusNow = time.Now
 
 // censusState is per-device and profile-independent (under LOCALAPPDATA on
-// Windows; next to config.json elsewhere), and removed by uninstall. It records the one-time ask (never-nag),
-// the explicit opt-in, the ISO-week send gate, and the opportunistically
-// observed relay version.
+// Windows; next to config.json elsewhere), and removed by uninstall. The
+// dedicated Census installation id is never reused for pairing or Relay auth.
 type censusState struct {
 	Schema             int    `json:"schema"`
+	ConsentVersion     int    `json:"consent_version,omitempty"`
+	InstallationID     string `json:"installation_id,omitempty"`
 	AskedAt            string `json:"asked_at,omitempty"`
 	AskedVia           string `json:"asked_via,omitempty"`
 	Answer             string `json:"answer,omitempty"` // yes | no | none
 	Enabled            bool   `json:"enabled"`
-	LastPingWeek       string `json:"last_ping_week,omitempty"`
+	LastAttemptAt      string `json:"last_attempt_at,omitempty"`
+	WithdrawalPending  bool   `json:"withdrawal_pending,omitempty"`
+	PendingChoiceID    string `json:"pending_choice_id,omitempty"`
+	LastPingWeek       string `json:"last_ping_week,omitempty"`      // Schema 1/2 migration only.
 	SkillNotices       int    `json:"skill_notices,omitempty"`       // Legacy schema-1 machine emissions; never counts as a visible choice.
-	SkillPresentations int    `json:"skill_presentations,omitempty"` // Confirmed visible choices under the schema-2 contract.
+	SkillPresentations int    `json:"skill_presentations,omitempty"` // Confirmed visible choices under the current contract.
 	// Relay version stamped from normal relay traffic (checkRelayVersionValue
 	// funnel) — the census NEVER makes its own relay call.
 	RelayVersion           string `json:"relay_version,omitempty"`
@@ -36,6 +47,42 @@ type censusState struct {
 
 func defaultCensusState() censusState {
 	return censusState{Schema: censusStateSchemaVersion}
+}
+
+func newCensusInstallationID() (string, error) {
+	return newCensusRandomID(censusInstallationPrefix)
+}
+
+func newCensusChoiceID() (string, error) {
+	return newCensusRandomID(censusChoicePrefix)
+}
+
+func newCensusRandomID(prefix string) (string, error) {
+	buf := make([]byte, 16)
+	if _, err := rand.Read(buf); err != nil {
+		return "", fmt.Errorf("generate census random id: %w", err)
+	}
+	return prefix + hex.EncodeToString(buf), nil
+}
+
+func ensureCensusInstallationID(paths runtimePaths) (string, error) {
+	candidate, err := newCensusInstallationID()
+	if err != nil {
+		return "", err
+	}
+	id := ""
+	if err := mutateCensusState(paths, func(state *censusState) {
+		if !censusInstallationIDPattern.MatchString(state.InstallationID) {
+			state.InstallationID = candidate
+		}
+		id = state.InstallationID
+	}); err != nil {
+		return "", err
+	}
+	if id == "" {
+		return "", fmt.Errorf("census installation id is empty")
+	}
+	return id, nil
 }
 
 // loadCensusState is best-effort and strictly read-only: a missing or
@@ -71,27 +118,41 @@ func readCensusState(paths runtimePaths) (censusState, bool) {
 	if state.Schema > censusStateSchemaVersion {
 		return recoverCensusState(), false
 	}
-	legacyPresentationState := state.Schema < 2
-	if state.Schema == 0 {
-		state.Schema = censusStateSchemaVersion
-	}
-	// Schema 1 closed the skill question after its third machine emission,
-	// before there was proof that the user saw a choice. Reopen only that
-	// recognizable unanswered auto-close; explicit yes/no answers stay final.
-	if legacyPresentationState &&
-		state.AskedVia == "skill" &&
-		state.Answer == "none" &&
-		state.SkillNotices >= censusSkillNoticeCap {
-		state.AskedAt = ""
-		state.AskedVia = ""
-		state.Answer = ""
+	if state.Schema < 3 {
+		migrateLegacyCensusConsent(&state)
+		return state, true
 	}
 	return state, true
 }
 
+// Schema 1/2 consent explicitly promised an identifier-free payload. A prior
+// Yes therefore cannot authorize schema 2 on the wire. Explicit No remains
+// final; every other old state reopens the choice without sending.
+func migrateLegacyCensusConsent(state *censusState) {
+	previousAnswer := state.Answer
+	state.Schema = censusStateSchemaVersion
+	state.Enabled = false
+	state.LastPingWeek = ""
+	state.LastAttemptAt = ""
+	state.WithdrawalPending = false
+	state.PendingChoiceID = ""
+	state.InstallationID = ""
+	state.SkillNotices = 0
+	if previousAnswer == "no" {
+		state.ConsentVersion = censusConsentVersion
+		state.Answer = "no"
+		return
+	}
+	state.ConsentVersion = 0
+	state.AskedAt = ""
+	state.AskedVia = ""
+	state.Answer = ""
+	state.SkillPresentations = 0
+}
+
 // recoverCensusState returns a stamped, disabled default without writing. That
 // prevents an unlocked status/ask read from overwriting a concurrent consent
-// or week-stamp mutation. The non-empty ask stamp also prevents a corrupt or
+// or cadence-stamp mutation. The non-empty ask stamp also prevents a corrupt or
 // future-schema file from causing repeated prompts.
 func recoverCensusState() censusState {
 	state := defaultCensusState()
@@ -220,13 +281,6 @@ func censusInstallActive(paths runtimePaths) bool {
 	return err == nil && !info.IsDir() && !censusLifecycleStopped(paths)
 }
 
-// censusISOWeek renders the UTC ISO-8601 week label, zero-padded so that
-// string order equals chronological order ("2026-W05" < "2026-W31").
-func censusISOWeek(t time.Time) string {
-	year, week := t.UTC().ISOWeek()
-	return fmt.Sprintf("%04d-W%02d", year, week)
-}
-
 func censusOptedOutByEnv() bool {
 	// Raw, untrimmed: the documented contract is "any non-empty value", and a
 	// visibly configured HA_NOVA_NO_CENSUS=' ' must suppress too.
@@ -256,7 +310,7 @@ func stampCensusRelayVersion(paths runtimePaths, version string) {
 		return
 	}
 	state := loadCensusState(paths)
-	if !state.Enabled {
+	if !state.Enabled || state.ConsentVersion != censusConsentVersion {
 		return
 	}
 	now := censusNow().UTC()
@@ -269,13 +323,13 @@ func stampCensusRelayVersion(paths runtimePaths, version string) {
 		}
 	}
 	// Write via the reload-mutate path and touch ONLY the relay fields — a
-	// week stamp written between our load and this save must survive. Re-check
+	// cadence stamp written between our load and this save must survive. Re-check
 	// consent INSIDE the locked mutation: an opt-out that won the lock between
 	// our unlocked pre-check and this write must not be followed by any census
 	// state accrual ("only for opted-in installs" holds under races too).
 	censusPreMutateHook()
 	_ = mutateCensusStateWithin(paths, censusPassiveLockTimeout, func(s *censusState) {
-		if !s.Enabled {
+		if !s.Enabled || s.ConsentVersion != censusConsentVersion {
 			return
 		}
 		s.RelayVersion = version

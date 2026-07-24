@@ -13,41 +13,18 @@ import (
 	"time"
 )
 
-func TestCensusISOWeekLabels(t *testing.T) {
-	cases := []struct {
-		name string
-		time time.Time
-		want string
-	}{
-		// 2026-01-01 is a Thursday — ISO week 1 of 2026.
-		{"first january", time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC), "2026-W01"},
-		// 2027-01-01 is a Friday — it still belongs to ISO week 53 of 2026.
-		{"iso year differs from calendar year", time.Date(2027, 1, 1, 12, 0, 0, 0, time.UTC), "2026-W53"},
-		// Zero padding keeps string order chronological.
-		{"single digit week is padded", time.Date(2026, 2, 3, 0, 0, 0, 0, time.UTC), "2026-W06"},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := censusISOWeek(tc.time); got != tc.want {
-				t.Fatalf("censusISOWeek(%s) = %q, want %q", tc.time, got, tc.want)
-			}
-		})
-	}
-	// The label is computed in UTC regardless of the local zone of the input.
-	zoned := time.Date(2026, 1, 5, 1, 0, 0, 0, time.FixedZone("east", 3*3600))
-	if got, want := censusISOWeek(zoned), censusISOWeek(zoned.UTC()); got != want {
-		t.Fatalf("zoned label %q != UTC label %q", got, want)
-	}
-}
-
 func TestCensusStateRoundTripAndCorruptFileDefaults(t *testing.T) {
 	paths := setupCensusTest(t)
 	state := censusState{
+		Schema:             censusStateSchemaVersion,
+		ConsentVersion:     censusConsentVersion,
+		InstallationID:     testCensusInstallationID,
 		AskedAt:            "2026-07-22T10:00:00Z",
 		AskedVia:           "setup",
 		Answer:             "yes",
 		Enabled:            true,
-		LastPingWeek:       "2026-W30",
+		LastAttemptAt:      "2026-07-22T10:01:00Z",
+		PendingChoiceID:    "cns-choice-0123456789abcdef0123456789abcdef",
 		SkillNotices:       2,
 		SkillPresentations: 1,
 	}
@@ -55,7 +32,11 @@ func TestCensusStateRoundTripAndCorruptFileDefaults(t *testing.T) {
 		t.Fatalf("saveCensusState() error: %v", err)
 	}
 	loaded := loadCensusState(paths)
-	if loaded.Schema != censusStateSchemaVersion || loaded.AskedVia != "setup" || !loaded.Enabled || loaded.LastPingWeek != "2026-W30" || loaded.SkillNotices != 2 || loaded.SkillPresentations != 1 {
+	if loaded.Schema != censusStateSchemaVersion || loaded.ConsentVersion != censusConsentVersion ||
+		loaded.InstallationID != testCensusInstallationID || loaded.AskedVia != "setup" ||
+		!loaded.Enabled || loaded.LastAttemptAt != "2026-07-22T10:01:00Z" ||
+		loaded.PendingChoiceID != state.PendingChoiceID ||
+		loaded.SkillNotices != 2 || loaded.SkillPresentations != 1 {
 		t.Fatalf("round trip mismatch: %+v", loaded)
 	}
 
@@ -165,36 +146,36 @@ func TestCensusLifecycleMarkerIsOutsideDisposableCache(t *testing.T) {
 
 func TestMutateCensusStatePreservesOtherWritersFields(t *testing.T) {
 	paths := setupCensusTest(t)
-	if err := saveCensusState(paths, censusState{Enabled: true, Answer: "yes"}); err != nil {
+	if err := saveCensusState(paths, optedInCensusState()); err != nil {
 		t.Fatalf("saveCensusState() error: %v", err)
 	}
 	// Two writers with disjoint fields, each based on a reload: both survive.
-	if err := mutateCensusState(paths, func(s *censusState) { s.LastPingWeek = "2026-W30" }); err != nil {
-		t.Fatalf("mutate week: %v", err)
+	if err := mutateCensusState(paths, func(s *censusState) { s.LastAttemptAt = "2026-07-22T10:01:00Z" }); err != nil {
+		t.Fatalf("mutate attempt: %v", err)
 	}
 	if err := mutateCensusState(paths, func(s *censusState) { s.RelayVersion = "0.9.0" }); err != nil {
 		t.Fatalf("mutate relay: %v", err)
 	}
 	got := loadCensusState(paths)
-	if got.LastPingWeek != "2026-W30" || got.RelayVersion != "0.9.0" || !got.Enabled {
+	if got.LastAttemptAt != "2026-07-22T10:01:00Z" || got.RelayVersion != "0.9.0" || !got.Enabled {
 		t.Fatalf("disjoint mutations must not clobber each other: %+v", got)
 	}
 }
 
-func TestStampCensusRelayVersionPreservesFreshWeekStamp(t *testing.T) {
+func TestStampCensusRelayVersionPreservesFreshAttemptStamp(t *testing.T) {
 	paths := setupCensusTest(t)
-	if err := saveCensusState(paths, censusState{Enabled: true, Answer: "yes"}); err != nil {
+	if err := saveCensusState(paths, optedInCensusState()); err != nil {
 		t.Fatalf("saveCensusState() error: %v", err)
 	}
-	// A carrier stamps the week; the relay observer writes afterwards and must
+	// A carrier stamps the attempt; the relay observer writes afterwards and must
 	// keep it (it goes through the reload-mutate path touching only its fields).
-	if err := mutateCensusState(paths, func(s *censusState) { s.LastPingWeek = "2026-W30" }); err != nil {
-		t.Fatalf("mutate week: %v", err)
+	if err := mutateCensusState(paths, func(s *censusState) { s.LastAttemptAt = "2026-07-22T10:01:00Z" }); err != nil {
+		t.Fatalf("mutate attempt: %v", err)
 	}
 	stampCensusRelayVersion(paths, "0.9.0")
 	got := loadCensusState(paths)
-	if got.LastPingWeek != "2026-W30" {
-		t.Fatalf("relay stamp clobbered the week: %+v", got)
+	if got.LastAttemptAt != "2026-07-22T10:01:00Z" {
+		t.Fatalf("relay stamp clobbered the attempt: %+v", got)
 	}
 	if got.RelayVersion != "0.9.0" {
 		t.Fatalf("relay stamp missing: %+v", got)
@@ -202,13 +183,15 @@ func TestStampCensusRelayVersionPreservesFreshWeekStamp(t *testing.T) {
 }
 
 // The P1 contract: an explicit opt-out must ALWAYS win, no matter which
-// automatic mutators (week stamps, relay observations, notice counters) run
+// automatic mutators (cadence stamps, relay observations, notice counters) run
 // concurrently — the census lock serializes every load+mutate+save cycle.
 func TestCensusOffAlwaysWinsAgainstConcurrentMutators(t *testing.T) {
 	paths := setupCensusTest(t)
 	stubCensusVersion(t, "0.21.0")
 	stubCensusTransport(t, 0, fmt.Errorf("endpoint down"))
-	if err := saveCensusState(paths, censusState{Enabled: true, Answer: "yes", AskedAt: "2026-07-01T00:00:00Z"}); err != nil {
+	state := optedInCensusState()
+	state.AskedAt = "2026-07-01T00:00:00Z"
+	if err := saveCensusState(paths, state); err != nil {
 		t.Fatalf("saveCensusState() error: %v", err)
 	}
 
@@ -219,7 +202,7 @@ func TestCensusOffAlwaysWinsAgainstConcurrentMutators(t *testing.T) {
 			defer wg.Done()
 			for j := 0; j < 5; j++ {
 				_ = mutateCensusState(paths, func(s *censusState) {
-					s.LastPingWeek = fmt.Sprintf("2026-W%02d", (n*5+j)%50+1)
+					s.LastAttemptAt = fmt.Sprintf("2026-07-%02dT00:00:00Z", (n*5+j)%28+1)
 				})
 				_ = mutateCensusState(paths, func(s *censusState) {
 					s.RelayVersion = fmt.Sprintf("0.%d.%d", n, j)
@@ -235,9 +218,9 @@ func TestCensusOffAlwaysWinsAgainstConcurrentMutators(t *testing.T) {
 	if exit != 0 {
 		t.Fatalf("census off exit = %d, want 0", exit)
 	}
-	state := loadCensusState(paths)
-	if state.Enabled || state.Answer != "no" {
-		t.Fatalf("census off must survive every concurrent mutator: %+v", state)
+	loaded := loadCensusState(paths)
+	if loaded.Enabled || loaded.Answer != "no" {
+		t.Fatalf("census off must survive every concurrent mutator: %+v", loaded)
 	}
 }
 
@@ -256,14 +239,14 @@ func TestCensusCoordinatorSerializesAndReleases(t *testing.T) {
 	}
 	// A second caller in this process must hit the bounded process-local layer;
 	// the platform layer provides the same exclusion across processes.
-	if err := mutateCensusState(paths, func(s *censusState) { s.LastPingWeek = "2026-W30" }); err == nil {
+	if err := mutateCensusState(paths, func(s *censusState) { s.LastAttemptAt = "2026-07-22T10:01:00Z" }); err == nil {
 		t.Fatal("a held lock must make the mutation fail, not proceed")
 	}
 	release()
-	if err := mutateCensusState(paths, func(s *censusState) { s.LastPingWeek = "2026-W30" }); err != nil {
+	if err := mutateCensusState(paths, func(s *censusState) { s.LastAttemptAt = "2026-07-22T10:01:00Z" }); err != nil {
 		t.Fatalf("released census lock must be acquirable again, got %v", err)
 	}
-	if state := loadCensusState(paths); state.LastPingWeek != "2026-W30" {
+	if state := loadCensusState(paths); state.LastAttemptAt != "2026-07-22T10:01:00Z" {
 		t.Fatalf("mutation after release missing: %+v", state)
 	}
 }
@@ -358,7 +341,7 @@ func TestStampCensusRelayVersionRechecksConsentInsideTheLock(t *testing.T) {
 	// mutation re-checks Enabled, so nothing census-related is recorded for an
 	// install that just revoked consent.
 	paths := setupCensusTest(t)
-	if err := saveCensusState(paths, censusState{Enabled: true, Answer: "yes"}); err != nil {
+	if err := saveCensusState(paths, optedInCensusState()); err != nil {
 		t.Fatalf("saveCensusState() error: %v", err)
 	}
 	prev := censusPreMutateHook
@@ -392,7 +375,7 @@ func TestStampCensusRelayVersionThrottlesWrites(t *testing.T) {
 	t.Cleanup(func() { censusNow = originalNow })
 	censusNow = func() time.Time { return base }
 
-	if err := saveCensusState(paths, censusState{Enabled: true, Answer: "yes"}); err != nil {
+	if err := saveCensusState(paths, optedInCensusState()); err != nil {
 		t.Fatalf("saveCensusState() error: %v", err)
 	}
 
@@ -458,7 +441,7 @@ func TestStampCensusRelayVersionHonorsEnvKillSwitch(t *testing.T) {
 	// HA_NOVA_NO_CENSUS suppresses ALL census activity — including passive
 	// relay-version accrual for an otherwise opted-in install.
 	paths := setupCensusTest(t)
-	if err := saveCensusState(paths, censusState{Enabled: true, Answer: "yes"}); err != nil {
+	if err := saveCensusState(paths, optedInCensusState()); err != nil {
 		t.Fatalf("saveCensusState() error: %v", err)
 	}
 	t.Setenv(censusOptOutEnv, "1")

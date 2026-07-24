@@ -14,6 +14,7 @@
   "tests/bootstrap/sidebar-panel.test.ts",
   "tests/bootstrap/startup.test.ts",
   "tests/census-worker/worker.test.ts",
+  "tests/census-worker/privacy-contract.test.ts",
   "tests/config/app-options.test.ts",
   "tests/e2e/codex-skill-bulk-live-validator.test.ts",
   "tests/e2e/codex-skill-live-contract.test.ts",

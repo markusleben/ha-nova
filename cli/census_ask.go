@@ -9,11 +9,10 @@ import (
 	"time"
 )
 
-// The one-time census ask (docs/reference/census.md). Three delivery paths
-// share ONE state: the interactive TTY ask (setup complete, update tails,
-// doctor tail) and the skill-mediated callout (check-update human output,
-// hard-capped at three acknowledged presentations). First responder wins;
-// asked_at is stamped BEFORE the prompt so an aborted prompt never re-asks.
+// The one-time census ask (docs/reference/census.md). The interactive TTY ask
+// (setup complete, update tails, doctor tail) and skill-mediated callout
+// (check-update human output) share one state. First responder wins; asked_at
+// is stamped before rendering so an aborted prompt never re-asks.
 
 // Injectable TTY probes (pattern: ui_mode.go) so tests can simulate an
 // interactive terminal.
@@ -28,19 +27,24 @@ var (
 const censusAskIntro = `
   One-time privacy choice
 
-  May this installation contribute to HA NOVA's public version statistics?
+  May this HA NOVA installation contribute to the maintainer's private version
+  statistics?
   HA NOVA sends no behavioral or feature-use analytics.
-  If you agree, HA NOVA sends this version information now and then at most
-  once per week.
+  If you agree, HA NOVA sends the first report now. Further reports are sent
+  no sooner than seven days later.
   The message content (JSON) contains only:
-      payload schema  ·  HA NOVA version  ·  operating system
+      payload schema  ·  random Census installation ID
+      HA NOVA version  ·  operating system
       recently observed relay version (when available)
-  No installation, device, or user ID; no usage or Home Assistant data.
+  The random ID only lets the same participating installation count once. It
+  is not derived from or reused from a hardware or device identifier, pairing,
+  a user, a Relay, or Home Assistant. HA NOVA attaches no device data.
+  No usage or Home Assistant data is sent.
   Cloudflare is the hosting provider for the census endpoint. It processes the
   source IP and connection metadata for HTTPS under its privacy policy.
-  HA NOVA does not read the source IP or store it in application data or public
-  statistics.
-  The public numbers show general trends, not a verified installation count.
+  HA NOVA ingest code does not read or store the source IP.
+  Counts are voluntary and self-reported, not verified people or the complete
+  installed base.
 
   Inspect exact JSON: ha-nova census status   Change: ha-nova census on|off
   Details: docs/reference/census.md
@@ -72,9 +76,16 @@ func askCensusIfEligible(paths runtimePaths, via string, in *bufio.Reader, out i
 	// prompt — only the process that actually wins the stamp asks.
 	wonStamp := false
 	askStamp := ""
+	installationID, idErr := newCensusInstallationID()
+	if idErr != nil {
+		return
+	}
 	if err := mutateCensusState(paths, func(s *censusState) {
 		if s.AskedAt != "" {
 			return
+		}
+		if s.InstallationID == "" {
+			s.InstallationID = installationID
 		}
 		askStamp = censusNow().UTC().Format(time.RFC3339Nano)
 		s.AskedAt = askStamp
@@ -110,7 +121,7 @@ func askCensusIfEligible(paths runtimePaths, via string, in *bufio.Reader, out i
 				fmt.Fprintln(out, "  Your choice was not saved because the census state changed.")
 			} else {
 				fmt.Fprintln(out, "  Your Yes choice was saved.")
-				fmt.Fprintf(out, "  Public numbers: %s\n", censusStatsURL())
+				fmt.Fprintf(out, "  Private maintainer statistics: %s\n", censusStatsURL())
 				reportCensusPingResult(
 					censusFirstPingAfterYes(paths),
 					func(format string, args ...any) { fmt.Fprintf(out, "  "+format+"\n", args...) },
@@ -125,7 +136,7 @@ func askCensusIfEligible(paths runtimePaths, via string, in *bufio.Reader, out i
 			} else if !applied {
 				fmt.Fprintln(out, "  Your choice was not saved because the census state changed.")
 			} else {
-				fmt.Fprintln(out, "  Your No choice was saved. This installation will not send census pings.")
+				fmt.Fprintln(out, "  Your No choice was saved. This installation will not send census reports.")
 				fmt.Fprintln(out, "  Change anytime: ha-nova census on")
 			}
 			return
@@ -172,8 +183,12 @@ func applyCensusTTYAnswer(paths runtimePaths, askStamp, via string, enabled bool
 			return
 		}
 		s.Enabled = enabled
+		s.ConsentVersion = censusConsentVersion
+		s.WithdrawalPending = false
+		s.PendingChoiceID = ""
 		if enabled {
 			s.Answer = "yes"
+			s.LastAttemptAt = ""
 		} else {
 			s.Answer = "no"
 		}
@@ -184,7 +199,7 @@ func applyCensusTTYAnswer(paths runtimePaths, askStamp, via string, enabled bool
 	return answerApplied, nil
 }
 
-// censusFirstPingAfterYes performs the immediate opt-in ping through the same
+// censusFirstPingAfterYes performs the immediate opt-in report through the same
 // locked, stamp-before-send path as the carrier and manual command. Its caller
 // decides whether to display or ignore the result.
 func censusFirstPingAfterYes(paths runtimePaths) censusPingResult {
@@ -193,12 +208,11 @@ func censusFirstPingAfterYes(paths runtimePaths) censusPingResult {
 
 // Skill-mediated ask: most installs never see a TTY tail, so check-update's
 // human-readable output (which client hooks and skills read) may carry the
-// pending ask. Only a presentation acknowledged by the skill counts toward
-// the three-presentation cap; the third acknowledged presentation closes the
-// question for good (answer=none).
-const censusSkillNoticeCap = 3
-
-const censusSkillNoticeBlock = `CENSUS ASK PENDING: Present one standalone localized privacy choice after the requested task, but defer it while any other choice or confirmation is active. A deferred notice is still pending and must not be counted as presented. Immediately before a conflict-free presentation, run ha-nova census notice-presented. Render the choice only if its output starts with CENSUS NOTICE PRESENT; if it says CENSUS NOTICE SKIP or the command fails, render nothing. Make the census choice the response's only active choice and end the response after its options. Use a native selectable menu when available and the identical numbered fallback otherwise; if the UI requires a default, use No. If the user agrees, HA NOVA sends the version information now and then at most once per week. The fixed JSON body contains only the payload schema, HA NOVA version, operating system, and a recently observed relay version when available; it contains no installation, device, or user ID and no usage or Home Assistant data. Cloudflare is the hosting provider for the census endpoint and processes the source IP and connection metadata for HTTPS under its privacy policy. HA NOVA Worker code does not read the source IP; HA NOVA application storage and public statistics do not store it. Public totals are directional ping counts, not verified unique installations. Offer exactly these effects: Yes/contribute -> run ha-nova census on; No/do not contribute -> run ha-nova census off; Show exact data -> run ha-nova census status without changing consent, display the literal JSON object verbatim plus the Cloudflare transport disclosure without omitting or renaming fields, then immediately show the same choice again. Only a selection of the displayed Yes or No effect, including its numbered fallback, changes consent. Missing, dismissed, free-form, or ambiguous input runs nothing. If census status fails, name the error, state that consent is unchanged, and immediately show the same choice again. If a consent command fails, report that the choice was not saved and immediately show the same choice again. Details: docs/reference/census.md.`
+// pending ask. The hidden presentation command stamps the one-time question
+// and returns a random choice ID. Yes/No must present that same ID to a
+// compare-and-set command, so a stale UI cannot overwrite a newer manual or
+// concurrent consent change.
+const censusSkillNoticeBlock = `CENSUS ASK PENDING: Present one standalone localized privacy choice after the requested task, but defer it while any other choice or confirmation is active. A deferred notice remains pending. Immediately before a conflict-free presentation, run ha-nova census notice-presented. Render the choice only if its output is CENSUS NOTICE PRESENT followed by a cns-choice ID; if it says CENSUS NOTICE SKIP or the command fails, render nothing. Keep that exact choice ID bound to all three actions in this interaction. Make the census choice the response's only active choice and end the response after its options. Use a native selectable menu when available and the identical numbered fallback otherwise; if the UI requires a default, use No. Ask whether this HA NOVA installation may contribute to the maintainer's private version statistics. If the user agrees, HA NOVA sends the first report now; further reports are sent no sooner than seven days later. The fixed JSON body contains only the payload schema, a dedicated random Census installation ID, HA NOVA version, operating system, and a recently observed Relay version when available. The ID only lets the same participating installation count once. It is not derived from or reused from a hardware or device identifier, pairing, a user, a Relay, or Home Assistant; HA NOVA attaches no device data. No usage or Home Assistant data is sent. Cloudflare is the hosting provider and processes the JSON and source IP/connection metadata of the same HTTPS request under its privacy policy. HA NOVA ingest code does not read or store the source IP. Counts are voluntary, self-reported participating installations, not verified people or the complete installed base. Offer exactly these effects: Yes/contribute -> run ha-nova census choose <choice-id> yes; No/do not contribute -> run ha-nova census choose <choice-id> no; Show exact data -> run ha-nova census status without changing consent, display the literal JSON object verbatim plus the Cloudflare transport disclosure without omitting or renaming fields, then immediately show the same choice again with the same choice ID. Only a selection of the displayed Yes or No effect, including its numbered fallback, changes consent. Missing, dismissed, free-form, or ambiguous input runs nothing. If census status fails, name the error, state that consent is unchanged, and immediately show the same choice again. If a choose command fails, report that the stale choice was not saved and inspect current status; never fall back to unbound census on/off. Details: docs/reference/census.md.`
 
 // maybeEmitCensusSkillNotice prints the pending-ask block on the check-update
 // human paths (never --json). Printing does not consume a presentation:
@@ -212,12 +226,11 @@ func maybeEmitCensusSkillNoticeTo(paths runtimePaths, out io.Writer) bool {
 		return true
 	}
 	state := loadCensusState(paths)
-	if state.AskedAt != "" || state.SkillPresentations >= censusSkillNoticeCap {
+	if state.AskedAt != "" {
 		return true
 	}
-	// Emission is only delivery to the AI client, not proof that the user saw
-	// the choice. The skill records an actual conflict-free presentation with
-	// the hidden `census notice-presented` command immediately before rendering.
+	// Emission is only delivery to the AI client. The skill claims the one-time
+	// prompt only after other active choices are gone.
 	fmt.Fprintln(out, censusSkillNoticeBlock)
 	return true
 }

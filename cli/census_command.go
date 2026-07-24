@@ -28,6 +28,11 @@ func runCensusCommand(paths runtimePaths, args []string) int {
 			printHumanErr("census %s takes no arguments (got %q)", args[0], arg)
 			return 1
 		}
+	case "choose":
+		if len(args) != 3 {
+			printHumanErr("census choose requires <choice-id> <yes|no>")
+			return 1
+		}
 	}
 	switch args[0] {
 	case "on":
@@ -38,6 +43,8 @@ func runCensusCommand(paths runtimePaths, args []string) int {
 		return runCensusStatus(paths)
 	case "notice-presented":
 		return runCensusNoticePresented(paths)
+	case "choose":
+		return runCensusChoose(paths, args[1], args[2])
 	default:
 		printHumanErr("Unknown census subcommand: %s", args[0])
 		printCensusUsage()
@@ -48,20 +55,32 @@ func runCensusCommand(paths runtimePaths, args []string) int {
 func printCensusUsage() {
 	fmt.Fprintln(os.Stdout, "Usage: ha-nova census <on|off|status>")
 	fmt.Fprintln(os.Stdout, "")
-	fmt.Fprintln(os.Stdout, "  on      Opt in: allow one identifier-free JSON-body attempt per ISO week while local state remains intact.")
-	fmt.Fprintln(os.Stdout, "  off     Opt out: after success, no new ping can start.")
-	fmt.Fprintln(os.Stdout, "  status  Show on/off, the exact application JSON bytes, and the public stats URL.")
+	fmt.Fprintln(os.Stdout, "  on      Opt in: send one installation report now, then no sooner than seven days later.")
+	fmt.Fprintln(os.Stdout, "  off     Opt out, stop new reports, and request deletion of this installation record.")
+	fmt.Fprintln(os.Stdout, "  status  Show on/off, the exact application JSON bytes, and the private stats URL.")
 	fmt.Fprintln(os.Stdout, "")
 	fmt.Fprintln(os.Stdout, "Cloudflare is the hosting provider for the census endpoint and processes source IP and connection metadata for HTTPS delivery under its privacy policy.")
-	fmt.Fprintln(os.Stdout, "HA NOVA Worker code does not read the source IP; application storage and public statistics do not store it.")
+	fmt.Fprintln(os.Stdout, "HA NOVA ingest code does not read or store the source IP. A dedicated random Census ID lets one participating installation count once.")
 	fmt.Fprintln(os.Stdout, "No flags. Opt-out env var: HA_NOVA_NO_CENSUS=1. Details: docs/reference/census.md")
 }
 
 func runCensusOn(paths runtimePaths) int {
+	installationID, err := ensureCensusInstallationID(paths)
+	if err != nil {
+		printHumanErr("cannot establish census installation id: %s", err)
+		return 1
+	}
 	now := censusNow().UTC()
 	if err := mutateCensusState(paths, func(s *censusState) {
+		if !s.Enabled {
+			s.LastAttemptAt = ""
+		}
 		s.Enabled = true
 		s.Answer = "yes"
+		s.ConsentVersion = censusConsentVersion
+		s.InstallationID = installationID
+		s.WithdrawalPending = false
+		s.PendingChoiceID = ""
 		if s.AskedAt == "" {
 			s.AskedAt = now.Format(time.RFC3339)
 			s.AskedVia = "command"
@@ -71,12 +90,12 @@ func runCensusOn(paths runtimePaths) int {
 		return 1
 	}
 	if censusEndpointConfigured() {
-		printHumanInfo("Census is on — eligible pings contribute to the public aggregates at %s", censusStatsURL())
-		printHumanInfo("Public totals are directional accepted-ping counts, not verified unique installs.")
+		printHumanInfo("Census is on — eligible reports contribute to the private maintainer statistics at %s", censusStatsURL())
+		printHumanInfo("Counts are voluntary, self-reported participating installations, not verified people or the complete installed base.")
 	} else {
 		printHumanInfo("Census is on.")
 	}
-	// The shared coordinator re-checks consent and week under the same lock as
+	// The shared coordinator re-checks consent and cadence under the same lock as
 	// `census off`, stamps before the request, and never retries ambiguity.
 	reportCensusPingResult(sendCensusPingOnce(paths), printHumanInfo, printHumanWarn)
 	return 0
@@ -87,40 +106,82 @@ func reportCensusPingResult(result censusPingResult, info, warn func(string, ...
 	case result.Skipped == censusPingSkipEndpoint:
 		warn("census endpoint not configured in this build — nothing is sent")
 	case result.Skipped == censusPingSkipEnv:
-		warn("%s is set — no ping is sent while it stays set.", censusOptOutEnv)
+		warn("%s is set — no report is sent while it stays set.", censusOptOutEnv)
 	case result.Skipped == censusPingSkipDev:
-		warn("Local dev build — dev builds never ping. Released builds ping on their normal update checks.")
+		warn("Local dev build — dev builds never report. Released builds report on their normal update checks.")
 	case result.Skipped == censusPingSkipOS:
-		warn("This platform is outside the census os buckets (macos/linux/windows) — no ping is sent.")
-	case result.Skipped == censusPingSkipWeek:
-		info("This week already has a recorded ping attempt — the next can run next week.")
+		warn("This platform is outside the census OS buckets (macos/linux/windows) — no report is sent.")
+	case result.Skipped == censusPingSkipCadence:
+		info("A report was attempted less than seven days ago — nothing is sent yet.")
 	case result.Skipped == censusPingSkipDisabled:
-		info("Census was turned off before the first ping — nothing was sent.")
+		info("Census was turned off before the first report — nothing was sent.")
 	case !result.Attempted && result.Err != nil:
-		warn("Cannot reserve this week's census ping: %s", result.Err)
+		warn("Cannot reserve the next census report: %s", result.Err)
 	case !result.Attempted:
-		info("No census ping was eligible to send.")
+		info("No census report was eligible to send.")
 	case result.Err != nil:
-		warn("Ping result was not confirmed (%s). It will not retry this week, avoiding a possible duplicate.", result.Err)
+		warn("Report result was not confirmed (%s). It will wait seven days before another attempt.", result.Err)
 	default:
-		info("First ping sent: %s", result.Payload)
+		info("Installation report sent: %s", result.Payload)
 	}
 }
 
 func runCensusOff(paths runtimePaths) int {
-	if err := mutateCensusState(paths, func(s *censusState) {
-		s.Enabled = false
-		s.Answer = "no"
-		if s.AskedAt == "" {
-			s.AskedAt = censusNow().UTC().Format(time.RFC3339)
-			s.AskedVia = "command"
-		}
-	}); err != nil {
+	result, err := disableAndWithdrawCensus(paths, true)
+	if err != nil {
 		printHumanErr("cannot save census state: %s", err)
 		return 1
 	}
-	printHumanInfo("Census is off — nothing is sent. (There is nothing to delete server-side: application payloads carry no installation, device, or user ID; only aggregate counters exist.)")
+	printHumanInfo("Census is off — no new installation reports will be sent.")
+	switch {
+	case result.Confirmed:
+		printHumanInfo("The server-side installation record was deleted.")
+	case result.Attempted && result.Err != nil:
+		printHumanWarn("Server-side deletion was not confirmed: %s. Without new reports, the record expires automatically.", result.Err)
+	default:
+		printHumanInfo("No server-side deletion request was needed or possible; without new reports, any existing record expires automatically.")
+	}
 	printHumanInfo("Change anytime: ha-nova census on")
+	return 0
+}
+
+func runCensusChoose(paths runtimePaths, choiceID, answer string) int {
+	if !censusChoiceIDPattern.MatchString(choiceID) || (answer != "yes" && answer != "no") {
+		printHumanErr("invalid census choice ID or answer")
+		return 1
+	}
+	applied := false
+	if err := mutateCensusState(paths, func(state *censusState) {
+		if state.PendingChoiceID != choiceID ||
+			state.AskedVia != "skill" ||
+			state.Answer != "none" {
+			return
+		}
+		state.PendingChoiceID = ""
+		state.ConsentVersion = censusConsentVersion
+		state.WithdrawalPending = false
+		state.Enabled = answer == "yes"
+		state.Answer = answer
+		if state.Enabled {
+			state.LastAttemptAt = ""
+		}
+		applied = true
+	}); err != nil {
+		printHumanErr("cannot save census choice: %s", err)
+		return 1
+	}
+	if !applied {
+		printHumanErr("this census choice is stale; current consent was not changed")
+		return 1
+	}
+	if answer == "no" {
+		printHumanInfo("Your No choice was saved. This installation will not send census reports.")
+		printHumanInfo("Change anytime: ha-nova census on")
+		return 0
+	}
+	printHumanInfo("Your Yes choice was saved.")
+	printHumanInfo("Private maintainer statistics: %s", censusStatsURL())
+	reportCensusPingResult(sendCensusPingOnce(paths), printHumanInfo, printHumanWarn)
 	return 0
 }
 
@@ -137,6 +198,9 @@ func runCensusStatus(paths runtimePaths) int {
 }
 
 func censusStatusLines(paths runtimePaths) ([]string, error) {
+	if _, err := ensureCensusInstallationID(paths); err != nil {
+		return nil, err
+	}
 	state := loadCensusState(paths)
 	now := censusNow().UTC()
 	onOff := "off"
@@ -149,22 +213,22 @@ func censusStatusLines(paths runtimePaths) ([]string, error) {
 	} else {
 		lines = append(lines, "Asked: never")
 	}
-	lines = append(lines, "Cadence: one recorded attempt per ISO week (UTC) while local census state remains intact")
-	if state.LastPingWeek != "" {
-		lines = append(lines, fmt.Sprintf("Last attempted week: %s", state.LastPingWeek))
+	lines = append(lines, "Cadence: reports are attempted no sooner than seven days apart")
+	if state.LastAttemptAt != "" {
+		lines = append(lines, fmt.Sprintf("Last attempted: %s", state.LastAttemptAt))
 	} else {
-		lines = append(lines, "Last attempted week: never")
+		lines = append(lines, "Last attempted: never")
 	}
-	currentWeek := censusISOWeek(now)
+	next, hasNext := censusNextAttemptAt(state)
 	switch {
 	case !state.Enabled:
-		lines = append(lines, "Next possible ping: none (census is off)")
-	case state.LastPingWeek == currentWeek:
-		lines = append(lines, fmt.Sprintf("Next possible ping: next ISO week (current week %s already has a recorded attempt)", currentWeek))
-	case state.LastPingWeek > currentWeek:
-		lines = append(lines, fmt.Sprintf("Next possible ping: after recorded week %s (local clock is currently in %s)", state.LastPingWeek, currentWeek))
+		lines = append(lines, "Next possible report: none (census is off)")
+	case hasNext && next.IsZero():
+		lines = append(lines, "Next possible report: unavailable (stored attempt timestamp is invalid; sending stays disabled)")
+	case hasNext && now.Before(next):
+		lines = append(lines, fmt.Sprintf("Next possible report: %s", next.Format(time.RFC3339)))
 	default:
-		lines = append(lines, fmt.Sprintf("Next possible ping: now (on the next update check, week %s)", currentWeek))
+		lines = append(lines, "Next possible report: now (on the next update check)")
 	}
 	// The literal application-body bytes — not a description of them.
 	body := censusApplicationJSONBytes(buildCensusPayload(paths, state, now))
@@ -174,20 +238,24 @@ func censusStatusLines(paths runtimePaths) ([]string, error) {
 	lines = append(lines,
 		fmt.Sprintf("Exact application JSON body: %s", body),
 		"HTTPS hosting: Cloudflare hosts the census endpoint and processes the source IP and connection metadata under its privacy policy.",
-		"HA NOVA Worker code does not read the source IP; application storage and public statistics do not store it.",
+		"HA NOVA ingest code does not read the source IP; application storage does not store it.",
+		"The random Census installation ID is used only to count this participating installation once; it is not derived from or reused from hardware/device identifiers, pairing, a user, a Relay, or Home Assistant. HA NOVA attaches no device data.",
 	)
 	if censusEndpointConfigured() {
 		lines = append(lines,
 			fmt.Sprintf("Endpoint: %s", censusPingURL()),
-			fmt.Sprintf("Public numbers: %s", censusStatsURL()),
-			"Public totals are directional accepted-ping counts, not verified unique installs.",
+			fmt.Sprintf("Private maintainer statistics: %s", censusStatsURL()),
+			"Counts are voluntary, self-reported participating installations, not verified people or the complete installed base.",
 		)
 	} else {
 		lines = append(lines, "census endpoint not configured in this build — nothing is sent")
 	}
 	lines = append(lines, fmt.Sprintf("Turn off: ha-nova census off  (or set %s=1)", censusOptOutEnv))
 	if censusOptedOutByEnv() {
-		lines = append(lines, fmt.Sprintf("%s is set — asks and pings are suppressed.", censusOptOutEnv))
+		lines = append(lines, fmt.Sprintf("%s is set — asks, reports, and withdrawals are suppressed.", censusOptOutEnv))
+	}
+	if state.WithdrawalPending {
+		lines = append(lines, "Server-side deletion is not confirmed; run `ha-nova census off` again to retry.")
 	}
 	return lines, nil
 }
@@ -208,30 +276,39 @@ func runCensusNoticePresented(paths runtimePaths) int {
 		fmt.Fprintln(os.Stdout, "CENSUS NOTICE SKIP")
 		return 0
 	}
-	presented := 0
+	installationID, err := newCensusInstallationID()
+	if err != nil {
+		printHumanErr("cannot establish census installation id: %s", err)
+		return 1
+	}
+	choiceID, err := newCensusChoiceID()
+	if err != nil {
+		printHumanErr("cannot establish census choice ID: %s", err)
+		return 1
+	}
+	presented := false
 	if err := mutateCensusState(paths, func(state *censusState) {
-		if state.AskedAt != "" || state.SkillPresentations >= censusSkillNoticeCap {
+		if state.AskedAt != "" {
 			return
 		}
-		// Schema-1 skill_notices counted machine emissions, which may have
-		// been deferred before the user saw them. Never carry those slots into
-		// the schema-2 visible-presentation cap.
-		state.SkillNotices = 0
-		state.SkillPresentations++
-		presented = state.SkillPresentations
-		if presented == censusSkillNoticeCap {
-			state.AskedAt = censusNow().UTC().Format(time.RFC3339)
-			state.AskedVia = "skill"
-			state.Answer = "none"
+		if state.InstallationID == "" {
+			state.InstallationID = installationID
 		}
+		state.SkillNotices = 0
+		state.SkillPresentations = 1
+		state.AskedAt = censusNow().UTC().Format(time.RFC3339Nano)
+		state.AskedVia = "skill"
+		state.Answer = "none"
+		state.PendingChoiceID = choiceID
+		presented = true
 	}); err != nil {
 		printHumanErr("cannot record census notice presentation: %s", err)
 		return 1
 	}
-	if presented == 0 {
+	if !presented {
 		fmt.Fprintln(os.Stdout, "CENSUS NOTICE SKIP")
 		return 0
 	}
-	fmt.Fprintf(os.Stdout, "CENSUS NOTICE PRESENT %d/%d\n", presented, censusSkillNoticeCap)
+	fmt.Fprintf(os.Stdout, "CENSUS NOTICE PRESENT %s\n", choiceID)
 	return 0
 }

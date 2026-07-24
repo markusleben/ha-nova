@@ -211,14 +211,16 @@ fi
 echo "[11] No telemetry or analytics code"
 # "segment" alone is an English word (path segments!) — match the vendors, not
 # the vocabulary, or the check cries wolf and gets ignored.
-# Scope: relay, CLI, and census worker. The ONLY sanctioned network beacon is
-# the opt-in census, confined to cli/census*.go and policed by check [12] —
-# hence the single exclude. -I skips locally built binaries.
-TELEMETRY_HITS=$(count_matches -I "telemetry\|analytics\|mixpanel\|segment\.io\|@segment/\|posthog\|sentry" --exclude='census*.go' "$REPO_ROOT/nova/src" "$REPO_ROOT/cli" "$REPO_ROOT/census-worker/src")
-if (( TELEMETRY_HITS == 0 )); then
-  pass "No telemetry/analytics patterns in nova/src, cli, or census-worker/src"
+# Scope: relay and CLI. The ONLY sanctioned measurement is the opt-in Census:
+# its client is confined to cli/census*.go and its receiver is confined to
+# census-worker/, both policed by checks [12]/[12b] and contract tests. -I
+# skips locally built binaries.
+TELEMETRY_HITS=$(count_matches -I "telemetry\|analytics\|mixpanel\|segment\.io\|@segment/\|posthog\|sentry" --exclude='census*.go' "$REPO_ROOT/nova/src" "$REPO_ROOT/cli")
+WORKER_VENDOR_HITS=$(count_matches -I "telemetry\|mixpanel\|segment\.io\|@segment/\|posthog\|sentry" "$REPO_ROOT/census-worker/src")
+if (( TELEMETRY_HITS == 0 && WORKER_VENDOR_HITS == 0 )); then
+  pass "No telemetry/analytics patterns outside the Census; no behavioral analytics vendors in its Worker"
 else
-  fail "Found ${TELEMETRY_HITS} telemetry-related patterns outside the census module — HA NOVA promises no behavioral or feature-use analytics."
+  fail "Found $((TELEMETRY_HITS + WORKER_VENDOR_HITS)) telemetry-related patterns outside the allowed Census measurement — HA NOVA promises no behavioral or feature-use analytics."
 fi
 
 # ── 12. Census send path stays confined and opt-in gated ──
@@ -241,8 +243,8 @@ fi
 # ── 12b. Census Worker request reads stay positively allowlisted ──
 # Cloudflare necessarily processes transport metadata. HA NOVA's narrower
 # promise is enforced through AST inspection instead of a bypassable blacklist:
-# the public Worker may read only method, URL, body, content-type, and
-# content-length from the incoming Request.
+# the Worker may read only method, URL, body, content headers, and the explicit
+# Cloudflare Access/local-test authentication headers from the incoming Request.
 echo "[12b] Census Worker request access stays positively allowlisted"
 if node "$REPO_ROOT/scripts/test/check-census-worker-request-access.mjs"; then
   pass "Census Worker request access excludes source-IP metadata"

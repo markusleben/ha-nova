@@ -91,7 +91,7 @@ func TestCensusAskStampsAskedBeforePromptAbortedPromptNeverReasks(t *testing.T) 
 
 	// Empty input: the prompt aborts with EOF (the Ctrl-C/crash shape).
 	out := askCensusWithInput(t, paths, "")
-	if !strings.Contains(out, "May this installation contribute to HA NOVA's public version statistics?") {
+	if !strings.Contains(out, "May this HA NOVA installation contribute to the maintainer's private version") {
 		t.Fatalf("expected the ask copy before the prompt, got %q", out)
 	}
 	state := loadCensusState(paths)
@@ -146,21 +146,22 @@ func TestCensusAskYesEnablesAndPingsImmediately(t *testing.T) {
 
 	out := askCensusWithInput(t, paths, "1\n")
 	state := loadCensusState(paths)
-	if !state.Enabled || state.Answer != "yes" || state.AskedVia != "update" {
+	if !state.Enabled || state.Answer != "yes" || state.AskedVia != "update" ||
+		state.ConsentVersion != censusConsentVersion || !censusInstallationIDPattern.MatchString(state.InstallationID) {
 		t.Fatalf("yes must enable: %+v", state)
 	}
 	if len(*payloads) != 1 {
 		t.Fatalf("yes must ping immediately, got %d attempts", len(*payloads))
 	}
-	if state.LastPingWeek == "" {
-		t.Fatal("a successful first ping must stamp the week")
+	if state.LastAttemptAt == "" {
+		t.Fatal("a successful first ping must stamp the attempt")
 	}
-	if !strings.Contains(out, "Your Yes choice was saved.") || !strings.Contains(out, "First ping sent:") {
+	if !strings.Contains(out, "Your Yes choice was saved.") || !strings.Contains(out, "Installation report sent:") {
 		t.Fatalf("yes must distinguish saved consent and confirmed first ping:\n%s", out)
 	}
 }
 
-func TestCensusAskYesWithFailingTransportStampsWeekNoRetry(t *testing.T) {
+func TestCensusAskYesWithFailingTransportStampsAttemptNoRetry(t *testing.T) {
 	paths := setupCensusTest(t)
 	stubCensusVersion(t, "0.9.0")
 	stubCensusTTY(t, true, true)
@@ -171,11 +172,10 @@ func TestCensusAskYesWithFailingTransportStampsWeekNoRetry(t *testing.T) {
 	if !state.Enabled || state.Answer != "yes" {
 		t.Fatalf("yes must enable even when the ping fails: %+v", state)
 	}
-	currentWeek := censusISOWeek(censusNow().UTC())
-	if state.LastPingWeek != currentWeek {
-		t.Fatalf("failed first ping must stay stamped to prevent an ambiguous retry: got %q, want %q", state.LastPingWeek, currentWeek)
+	if state.LastAttemptAt == "" {
+		t.Fatal("failed first ping must stay stamped to prevent an ambiguous retry")
 	}
-	if !strings.Contains(out, "Your Yes choice was saved.") || !strings.Contains(out, "Ping result was not confirmed") {
+	if !strings.Contains(out, "Your Yes choice was saved.") || !strings.Contains(out, "Report result was not confirmed") {
 		t.Fatalf("failed transport must distinguish saved consent from an unconfirmed ping:\n%s", out)
 	}
 }
@@ -209,18 +209,22 @@ func TestCensusAskCopyVerbatim(t *testing.T) {
 	out := askCensusWithInput(t, paths, "2\n")
 	for _, want := range []string{
 		"One-time privacy choice",
-		"May this installation contribute to HA NOVA's public version statistics?",
+		"May this HA NOVA installation contribute to the maintainer's private version",
 		"HA NOVA sends no behavioral or feature-use analytics.",
-		"If you agree, HA NOVA sends this version information now",
+		"If you agree, HA NOVA sends the first report now",
+		"no sooner than seven days later",
 		"The message content (JSON) contains only:",
-		"payload schema  ·  HA NOVA version  ·  operating system",
+		"payload schema  ·  random Census installation ID",
+		"HA NOVA version  ·  operating system",
 		"recently observed relay version (when available)",
-		"No installation, device, or user ID",
-		"no usage or Home Assistant data",
+		"The random ID only lets the same participating installation count once",
+		"is not derived from or reused from a hardware or device identifier",
+		"HA NOVA attaches no device data",
+		"No usage or Home Assistant data",
 		"Cloudflare is the hosting provider for the census endpoint",
 		"It processes the",
-		"HA NOVA does not read the source IP",
-		"The public numbers show general trends, not a verified installation count.",
+		"HA NOVA ingest code does not read or store the source IP",
+		"Counts are voluntary and self-reported",
 		"Inspect exact JSON: ha-nova census status",
 		"1. Yes — contribute",
 		"2. No — do not contribute",
@@ -243,7 +247,8 @@ func TestCensusAskShowExactDataKeepsConsentOpenAndRendersAgain(t *testing.T) {
 	stubCensusEndpoint(t)
 
 	out := askCensusWithInput(t, paths, "3\n2\n")
-	body := fmt.Sprintf(`{"schema":1,"version":"0.9.0","os":%q}`, censusOS())
+	state := loadCensusState(paths)
+	body := fmt.Sprintf(`{"schema":2,"installation_id":%q,"version":"0.9.0","os":%q}`, state.InstallationID, censusOS())
 	if !strings.Contains(out, "Exact application JSON body: "+body) {
 		t.Fatalf("details must display the literal JSON object verbatim:\n%s", out)
 	}
@@ -273,61 +278,67 @@ func TestCensusAskFreeFormInputChangesNothing(t *testing.T) {
 	}
 }
 
-func TestCensusSkillNoticeCapCountsPresentationsNotDeferredEmissions(t *testing.T) {
+func TestCensusSkillNoticeUsesOneBoundChoiceToken(t *testing.T) {
 	paths := setupCensusTest(t)
 	stubCensusVersion(t, "0.9.0")
 
-	for i := 1; i <= 3; i++ {
-		out := captureStdout(t, func() { maybeEmitCensusSkillNotice(paths) })
-		if !strings.Contains(out, "CENSUS ASK PENDING") {
-			t.Fatalf("emission %d missing the pending block:\n%s", i, out)
-		}
-		if !strings.Contains(out, "ha-nova census on") || !strings.Contains(out, "ha-nova census off") {
-			t.Fatalf("emission %d must name both commands:\n%s", i, out)
-		}
-		for _, want := range []string{
-			"response's only active choice",
-			"native selectable menu",
-			"numbered fallback",
-			"UI requires a default, use No",
-			"Cloudflare is the hosting provider",
-			"at most once per week",
-			"ha-nova census notice-presented",
-			"ha-nova census status without changing consent",
-			"display the literal JSON object verbatim",
-			"If census status fails",
-			"consent is unchanged",
-			"Only a selection of the displayed Yes or No effect",
-			"Missing, dismissed, free-form, or ambiguous input runs nothing",
-			"consent command fails",
-			"choice was not saved",
-		} {
-			if !strings.Contains(out, want) {
-				t.Fatalf("emission %d missing consent instruction %q:\n%s", i, want, out)
-			}
+	out := captureStdout(t, func() { maybeEmitCensusSkillNotice(paths) })
+	for _, want := range []string{
+		"CENSUS ASK PENDING",
+		"response's only active choice",
+		"native selectable menu",
+		"numbered fallback",
+		"UI requires a default, use No",
+		"Cloudflare is the hosting provider",
+		"no sooner than seven days later",
+		"ha-nova census notice-presented",
+		"ha-nova census choose <choice-id> yes",
+		"ha-nova census choose <choice-id> no",
+		"same choice ID",
+		"display the literal JSON object verbatim",
+		"If census status fails",
+		"consent is unchanged",
+		"Only a selection of the displayed Yes or No effect",
+		"Missing, dismissed, free-form, or ambiguous input runs nothing",
+		"stale choice was not saved",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("pending notice missing consent instruction %q:\n%s", want, out)
 		}
 	}
 	if state := loadCensusState(paths); state.SkillPresentations != 0 || state.AskedAt != "" {
-		t.Fatalf("deferred machine notices must not consume presentations: %+v", state)
+		t.Fatalf("deferred machine notice must not claim the choice: %+v", state)
 	}
 
-	for i := 1; i <= censusSkillNoticeCap; i++ {
-		out := captureStdout(t, func() {
-			if exit := runCensusCommand(paths, []string{"notice-presented"}); exit != 0 {
-				t.Fatalf("notice-presented %d exit = %d", i, exit)
-			}
-		})
-		want := fmt.Sprintf("CENSUS NOTICE PRESENT %d/%d", i, censusSkillNoticeCap)
-		if !strings.Contains(out, want) {
-			t.Fatalf("presentation %d missing %q: %s", i, want, out)
+	claim := captureStdout(t, func() {
+		if exit := runCensusCommand(paths, []string{"notice-presented"}); exit != 0 {
+			t.Fatalf("notice-presented exit = %d", exit)
 		}
+	})
+	token := strings.TrimSpace(strings.TrimPrefix(claim, "CENSUS NOTICE PRESENT "))
+	if !censusChoiceIDPattern.MatchString(token) {
+		t.Fatalf("presentation returned invalid choice ID: %q", claim)
 	}
 	state := loadCensusState(paths)
-	if state.SkillPresentations != 3 || state.AskedAt == "" || state.Answer != "none" || state.AskedVia != "skill" {
-		t.Fatalf("third actual presentation must close the question: %+v", state)
+	if state.SkillPresentations != 1 || state.AskedAt == "" || state.Answer != "none" ||
+		state.AskedVia != "skill" || state.PendingChoiceID != token {
+		t.Fatalf("one-time presentation state mismatch: %+v", state)
 	}
-	if out := captureStdout(t, func() { maybeEmitCensusSkillNotice(paths) }); out != "" {
-		t.Fatalf("notice after the third presentation must be silent, got %q", out)
+	if again := captureStdout(t, func() { runCensusCommand(paths, []string{"notice-presented"}) }); !strings.Contains(again, "CENSUS NOTICE SKIP") {
+		t.Fatalf("second presentation must be skipped, got %q", again)
+	}
+	if exit := captureCensusCommandExit(t, func() int {
+		return runCensusCommand(paths, []string{"choose", token, "no"})
+	}); exit != 0 {
+		t.Fatalf("bound No exit = %d", exit)
+	}
+	if state := loadCensusState(paths); state.Answer != "no" || state.Enabled || state.PendingChoiceID != "" {
+		t.Fatalf("bound No was not applied exactly once: %+v", state)
+	}
+	if exit := captureCensusCommandExit(t, func() int {
+		return runCensusCommand(paths, []string{"choose", token, "yes"})
+	}); exit == 0 {
+		t.Fatal("stale Yes must not overwrite the newer No")
 	}
 }
 
@@ -356,18 +367,42 @@ func TestCensusLegacySkillNoticesDoNotConsumePresentationSlots(t *testing.T) {
 					t.Fatalf("notice-presented exit = %d", exit)
 				}
 			})
-			if !strings.Contains(out, "CENSUS NOTICE PRESENT 1/3") {
-				t.Fatalf("first visible choice did not start a fresh presentation cap: %q", out)
+			if !strings.Contains(out, "CENSUS NOTICE PRESENT cns-choice-") {
+				t.Fatalf("fresh visible choice did not return a token: %q", out)
 			}
 			state := loadCensusState(paths)
-			if state.Schema != censusStateSchemaVersion || state.SkillNotices != 0 || state.SkillPresentations != 1 || state.AskedAt != "" {
+			if state.Schema != censusStateSchemaVersion || state.SkillNotices != 0 ||
+				state.SkillPresentations != 1 || state.AskedAt == "" ||
+				!censusChoiceIDPattern.MatchString(state.PendingChoiceID) {
 				t.Fatalf("legacy notice migration mismatch: %+v", state)
 			}
 		})
 	}
 }
 
-func TestCensusLegacyExplicitAnswerRemainsFinal(t *testing.T) {
+func TestCensusSkillChoiceCannotOverrideNewerManualConsent(t *testing.T) {
+	paths := setupCensusTest(t)
+	stubCensusVersion(t, "0.9.0")
+	claim := captureStdout(t, func() {
+		if exit := runCensusCommand(paths, []string{"notice-presented"}); exit != 0 {
+			t.Fatalf("notice-presented exit = %d", exit)
+		}
+	})
+	token := strings.TrimSpace(strings.TrimPrefix(claim, "CENSUS NOTICE PRESENT "))
+	if exit := captureCensusCommandExit(t, func() int { return runCensusOff(paths) }); exit != 0 {
+		t.Fatalf("manual off exit = %d", exit)
+	}
+	if exit := captureCensusCommandExit(t, func() int {
+		return runCensusCommand(paths, []string{"choose", token, "yes"})
+	}); exit == 0 {
+		t.Fatal("stale skill Yes must not override newer manual off")
+	}
+	if state := loadCensusState(paths); state.Enabled || state.Answer != "no" {
+		t.Fatalf("stale skill action changed manual consent: %+v", state)
+	}
+}
+
+func TestCensusLegacyYesRequiresFreshConsent(t *testing.T) {
 	paths := setupCensusTest(t)
 	stubCensusVersion(t, "0.9.0")
 	raw := `{"schema":1,"asked_at":"2026-07-23T20:00:00Z","asked_via":"skill","answer":"yes","enabled":true,"skill_notices":3}`
@@ -375,12 +410,30 @@ func TestCensusLegacyExplicitAnswerRemainsFinal(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if out := captureStdout(t, func() { maybeEmitCensusSkillNotice(paths) }); out != "" {
-		t.Fatalf("legacy explicit consent must remain final, got notice: %q", out)
+	if out := captureStdout(t, func() { maybeEmitCensusSkillNotice(paths) }); !strings.Contains(out, "CENSUS ASK PENDING") {
+		t.Fatalf("legacy Yes must reopen the changed privacy choice, got: %q", out)
 	}
 	state := loadCensusState(paths)
-	if !state.Enabled || state.Answer != "yes" || state.AskedAt == "" {
-		t.Fatalf("legacy explicit consent changed during migration: %+v", state)
+	if state.Enabled || state.Answer != "" || state.AskedAt != "" ||
+		state.ConsentVersion != 0 || state.InstallationID != "" {
+		t.Fatalf("legacy Yes migration must fail closed and reopen consent: %+v", state)
+	}
+}
+
+func TestCensusLegacyNoRemainsFinal(t *testing.T) {
+	paths := setupCensusTest(t)
+	stubCensusVersion(t, "0.9.0")
+	raw := `{"schema":1,"asked_at":"2026-07-23T20:00:00Z","asked_via":"skill","answer":"no","enabled":false}`
+	if err := os.WriteFile(paths.CensusFile, []byte(raw), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if out := captureStdout(t, func() { maybeEmitCensusSkillNotice(paths) }); out != "" {
+		t.Fatalf("legacy No must remain final, got notice: %q", out)
+	}
+	state := loadCensusState(paths)
+	if state.Enabled || state.Answer != "no" || state.AskedAt == "" ||
+		state.ConsentVersion != censusConsentVersion {
+		t.Fatalf("legacy No migration mismatch: %+v", state)
 	}
 }
 

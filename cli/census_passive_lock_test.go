@@ -7,7 +7,7 @@ import (
 
 func TestPassiveRelayStampDoesNotDelayUpdateChecksWhenCensusLockIsHeld(t *testing.T) {
 	paths := setupCensusTest(t)
-	if err := saveCensusState(paths, censusState{Enabled: true, Answer: "yes"}); err != nil {
+	if err := saveCensusState(paths, optedInCensusState()); err != nil {
 		t.Fatalf("save census state: %v", err)
 	}
 	censusProcessLock <- struct{}{}
