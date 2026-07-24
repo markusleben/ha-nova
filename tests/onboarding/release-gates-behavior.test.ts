@@ -132,7 +132,7 @@ if [[ "$args" == *" --request POST "* ]]; then
   exit 0
 fi
 if [[ "$args" == *"http://127.0.0.1:"* ]]; then
-  printf '%s\n' '{"schema":1,"weekly":[{"iso_week":"2026-W30","count":1}],"window_weeks":4,"by_os":{"linux":1},"by_version":{"0.0.0":1},"by_relay":{"unknown":1},"peak_weekly_pings":1,"footnotes":{"counting":"not verified unique installs; duplicates; fabricated","identifiers":"no identifier"}}'
+  printf '%s\n' '{"schema":1,"weekly":[{"iso_week":"2026-W30","count":1}],"window_weeks":4,"by_os":{"linux":1},"by_version":{"0.0.0":1},"by_relay":{"unknown":1},"peak_weekly_pings":1,"footnotes":{"counting":"not verified unique installs; duplicates; fabricated","identifiers":"application JSON contains no installation, device, or user identifier; Cloudflare is the hosting provider and processes transport metadata"}}'
   exit 0
 fi
 headers=""
@@ -146,7 +146,7 @@ while [[ "$#" -gt 0 ]]; do
 done
 public_sha="$TEST_SHA"
 public_version="$TEST_VERSION_ID"
-payload='{"schema":1,"generated_at":"2026-07-23T00:00:00Z","weekly":[],"window_weeks":4,"by_os":{},"by_version":{},"by_relay":{},"peak_weekly_pings":0,"footnotes":{"counting":"not verified unique installs; duplicates; fabricated","identifiers":"no identifier"}}'
+payload='{"schema":1,"generated_at":"2026-07-23T00:00:00Z","weekly":[],"window_weeks":4,"by_os":{},"by_version":{},"by_relay":{},"peak_weekly_pings":0,"footnotes":{"counting":"not verified unique installs; duplicates; fabricated","identifiers":"application JSON contains no installation, device, or user identifier; Cloudflare is the hosting provider and processes transport metadata"}}'
 [[ "\${FAKE_MODE:-valid}" != "wrong_public_sha" ]] || public_sha="0000000000000000000000000000000000000000"
 [[ "\${FAKE_MODE:-valid}" != "wrong_public_version" ]] || public_version="wrong-version"
 [[ "\${FAKE_MODE:-valid}" != "malformed_public_stats" ]] || payload='{"schema":1}'

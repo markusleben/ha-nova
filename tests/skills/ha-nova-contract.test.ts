@@ -822,7 +822,7 @@ describe("ha-nova contract", () => {
     expect(content).toContain("one check for every server profile");
     expect(content).toContain("HA_NOVA_NO_CENSUS=1");
     expect(content).toMatch(
-      /switching\s+servers cannot consume more census-callout attempts/,
+      /switching\s+servers cannot duplicate the install-wide pending census notice/,
     );
   });
 
@@ -836,17 +836,75 @@ describe("ha-nova contract", () => {
     expect(content).toMatch(/Never update without\s+consent/);
   });
 
-  it("surfaces the census ask as a consent-gated once-per-session callout", () => {
+  it("surfaces census consent as one standalone explicit action choice", () => {
     const content = readFileSync("skills/ha-nova/session-bootstrap.md", "utf8");
-    expect(content).toContain("## Census Callout");
+    expect(content).toContain("## Census Consent Choice");
     expect(content).toContain("CENSUS ASK PENDING");
     expect(content).toContain("exactly once per");
-    expect(content).toContain("After the requested result");
-    expect(content).toContain("localized callout");
-    expect(content).toContain("Explicit yes: run `ha-nova census on`.");
-    expect(content).toContain("Explicit no: run `ha-nova census off`.");
-    expect(content).toContain("Missing or ambiguous answer: run nothing");
+    expect(content).toContain("standalone");
+    expect(content).toContain("Interactive Choices");
+    expect(content).toContain("native selectable menu");
+    expect(content).toContain("numbered fallback");
+    expect(content).toContain("Never stack this choice");
+    expect(content).toContain("deferred machine notice does not count");
+    expect(content).toContain("ha-nova census notice-presented");
+    expect(content).toContain("CENSUS NOTICE PRESENT");
+    expect(content).toContain("CENSUS NOTICE SKIP");
+    expect(content).toContain("the only active choice");
+    expect(content).toContain("must close it");
+    expect(content).toContain("Cloudflare is the hosting provider");
+    expect(content).toContain("at most once per week");
+    expect(content).not.toContain("one attempt per ISO week");
+    expect(content).toContain("message content (JSON)");
+    expect(content).toContain("general trends");
+    expect(content).toContain("Worker code does not read the source IP");
+    expect(content).toContain("at most five short lines");
+    expect(content).toContain("three actions immediately after");
+    expect(content).toContain("1. **Yes — contribute**");
+    expect(content).toContain("2. **No — do not contribute**");
+    expect(content).toContain("3. **Show exact data**");
+    expect(content).toContain("run `ha-nova census status`");
+    expect(content).toContain("literal JSON");
+    expect(content).toContain("verbatim without omitting or renaming fields");
+    expect(content).toContain("change no consent state");
+    expect(content).toMatch(/render the\s+same three choices again/);
+    expect(content).toContain("immediate re-render");
+    expect(content).toContain("part of the same");
+    expect(content).toContain("Otherwise, do not surface the prompt again unsolicited");
+    expect(content).toContain("use the privacy-safe No choice");
+    expect(content).toContain("choice was not saved");
+    expect(content).toContain("still-open interaction");
+    expect(content).toContain("If `ha-nova census status` fails");
+    expect(content).toMatch(/consent\s+is unchanged/);
+    expect(content).toContain("ambiguous answer runs nothing");
     expect(content).toContain("Never infer opt-in");
+  });
+
+  it("never describes the census HTTPS request as anonymous on active surfaces", () => {
+    const surfaces = [
+      "README.md",
+      "PRIVACY.md",
+      "census-worker/README.md",
+      "census-worker/src/census.ts",
+      "docs/reference/census.md",
+      "docs/reference/safety.md",
+      "docs/work/2026-07-23-launch-posts-v0.21.md",
+      "skills/ha-nova/session-bootstrap.md",
+      "cli/census.go",
+      "cli/census_ask.go",
+      "cli/census_command.go",
+    ];
+
+    for (const path of surfaces) {
+      const content = readFileSync(path, "utf8");
+      expect(content, path).not.toMatch(/\banonymous\b/i);
+      expect(content, path).not.toMatch(
+        /\b(?:no|without)\s+(?:source[- ]?)?ip(?:\s+address)?\s+(?:is\s+)?(?:sent|transmitted)\b/i,
+      );
+      expect(content, path).not.toMatch(
+        /\b(?:does not|doesn't|never)\s+(?:send|transmit)\s+(?:an?\s+|the\s+)?(?:source[- ]?)?ip\b/i,
+      );
+    }
   });
 
   it("routes Relay App updates through a previewed guided install", () => {

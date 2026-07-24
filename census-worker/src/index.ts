@@ -1,21 +1,19 @@
 // Cloudflare wiring for the HA NOVA census: one SQLite Durable Object holding
 // aggregate counter rows (iso_week, version, os, relay) -> count. All request
 // logic lives in the pure core (census.ts); this file only adapts it to the
-// workers runtime. No identifiers, no IPs, no client timestamps are stored —
-// see PRIVACY.md and docs/reference/census.md in the repo root.
+// workers runtime. HA NOVA does not read source-IP metadata and stores no
+// identifiers, IPs, or client timestamps — see PRIVACY.md and
+// docs/reference/census.md in the repo root.
 
 import {
-  CensusRequestLike,
   CounterKey,
   CounterRow,
   CounterStore,
-  MAX_BODY_BYTES,
   clampWeeklyCardinality,
   handleCensusRequest,
-  isJSONMediaType,
   oldestPublishedWeek,
-  readBodyCapped,
 } from "./census";
+import { adaptCensusRequest } from "./request-adapter";
 
 export interface Env {
   CENSUS: DurableObjectNamespace;
@@ -49,10 +47,10 @@ export class CensusCounter {
     );
   }
 
-  async fetch(request: Request): Promise<Response> {
-    const path = new URL(request.url).pathname;
-    if (request.method === "POST" && path === "/increment") {
-      const key = (await request.json()) as CounterKey;
+  async fetch(internalRequest: Request): Promise<Response> {
+    const path = new URL(internalRequest.url).pathname;
+    if (internalRequest.method === "POST" && path === "/increment") {
+      const key = (await internalRequest.json()) as CounterKey;
       // Clamp + upsert with NO await in between: the DO is single-threaded,
       // and the synchronous SQLite API keeps this read-modify-write atomic —
       // interleaved requests cannot both slip past the cardinality cap.
@@ -75,7 +73,7 @@ export class CensusCounter {
       );
       return new Response(null, { status: 204 });
     }
-    if (request.method === "GET" && path === "/rows") {
+    if (internalRequest.method === "GET" && path === "/rows") {
       // Bound the scan to the published stats horizon: counters are retained
       // forever, but /stats only publishes WEEKLY_HORIZON_WEEKS — loading the
       // whole table would grow without bound. Within the horizon the row
@@ -118,38 +116,12 @@ function storeFor(env: Env): CounterStore {
 }
 
 const worker: ExportedHandler<Env> = {
-  async fetch(request: Request, env: Env): Promise<Response> {
-    const path = new URL(request.url).pathname;
-    const contentType = request.headers.get("content-type") ?? "";
-    // Reject oversized requests via the declared Content-Length BEFORE
-    // touching the body; bodies without a declared length (chunked/H2) are
-    // read through a hard byte cap so they can never be fully buffered. The
-    // body is only consumed at all for a plausible ping (POST /ping with a
-    // JSON content type) — every other request is routed on headers alone.
-    const declared = Number(request.headers.get("content-length") ?? "");
-    const contentLength = Number.isFinite(declared) ? declared : undefined;
-    let overflow = contentLength !== undefined && contentLength > MAX_BODY_BYTES;
-    let bodyText = "";
-    const wantsBody =
-      request.method === "POST" &&
-      path === "/ping" &&
-      isJSONMediaType(contentType);
-    if (wantsBody && !overflow) {
-      const read = await readBodyCapped(request.body, MAX_BODY_BYTES);
-      bodyText = read.text;
-      overflow = read.overflow;
-    }
-    const requestLike: CensusRequestLike = {
-      method: request.method,
-      path,
-      contentType,
-      bodyText,
-    };
-    if (overflow) {
-      requestLike.contentLength = MAX_BODY_BYTES + 1;
-    } else if (contentLength !== undefined) {
-      requestLike.contentLength = contentLength;
-    }
+  async fetch(incomingRequest: Request, env: Env): Promise<Response> {
+    // Reject oversized requests before unbounded buffering. The isolated
+    // adapter is source-contract checked so it cannot start reading transport
+    // metadata without an explicit privacy-contract change.
+    const requestLike = await adaptCensusRequest(incomingRequest);
+    const path = requestLike.path;
     const result = await handleCensusRequest(requestLike, storeFor(env), new Date());
     const headers = new Headers(result.headers ?? {});
     if (path === "/stats" && result.status === 200 && env.CF_VERSION_METADATA) {

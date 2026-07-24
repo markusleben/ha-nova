@@ -43,18 +43,19 @@ func TestCensusISOWeekLabels(t *testing.T) {
 func TestCensusStateRoundTripAndCorruptFileDefaults(t *testing.T) {
 	paths := setupCensusTest(t)
 	state := censusState{
-		AskedAt:      "2026-07-22T10:00:00Z",
-		AskedVia:     "setup",
-		Answer:       "yes",
-		Enabled:      true,
-		LastPingWeek: "2026-W30",
-		SkillNotices: 2,
+		AskedAt:            "2026-07-22T10:00:00Z",
+		AskedVia:           "setup",
+		Answer:             "yes",
+		Enabled:            true,
+		LastPingWeek:       "2026-W30",
+		SkillNotices:       2,
+		SkillPresentations: 1,
 	}
 	if err := saveCensusState(paths, state); err != nil {
 		t.Fatalf("saveCensusState() error: %v", err)
 	}
 	loaded := loadCensusState(paths)
-	if loaded.Schema != censusStateSchemaVersion || loaded.AskedVia != "setup" || !loaded.Enabled || loaded.LastPingWeek != "2026-W30" || loaded.SkillNotices != 2 {
+	if loaded.Schema != censusStateSchemaVersion || loaded.AskedVia != "setup" || !loaded.Enabled || loaded.LastPingWeek != "2026-W30" || loaded.SkillNotices != 2 || loaded.SkillPresentations != 1 {
 		t.Fatalf("round trip mismatch: %+v", loaded)
 	}
 

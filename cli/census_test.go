@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// Send-path contracts: exact wire shape, the opt-in guard, the ISO-week gate
+// Send-path contracts: exact application JSON shape, the opt-in guard, the ISO-week gate
 // with stamp-before-send, clock-rollback self-heal, env opt-out, and the
 // byte-clean --json carrier.
 
@@ -81,10 +81,10 @@ func TestCensusWirePayloadExactShape(t *testing.T) {
 		RelayVersion:           "0.7.0",
 		RelayVersionObservedAt: now.Add(-time.Hour).Format(time.RFC3339),
 	}
-	got := string(censusWireBytes(buildCensusPayload(paths, state, now)))
+	got := string(censusApplicationJSONBytes(buildCensusPayload(paths, state, now)))
 	want := fmt.Sprintf(`{"schema":1,"version":"0.21.0","relay":"0.7.0","os":%q}`, censusOS())
 	if got != want {
-		t.Fatalf("wire payload = %s, want %s", got, want)
+		t.Fatalf("application JSON = %s, want %s", got, want)
 	}
 	switch censusOS() {
 	case "macos", "linux", "windows":
@@ -110,13 +110,13 @@ func TestCensusPayloadOmitsStaleOrMissingRelay(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := string(censusWireBytes(buildCensusPayload(paths, tc.state, now)))
+			got := string(censusApplicationJSONBytes(buildCensusPayload(paths, tc.state, now)))
 			if strings.Contains(got, "relay") {
 				t.Fatalf("payload must omit relay, got %s", got)
 			}
 			want := fmt.Sprintf(`{"schema":1,"version":"0.21.0","os":%q}`, censusOS())
 			if got != want {
-				t.Fatalf("wire payload = %s, want %s", got, want)
+				t.Fatalf("application JSON = %s, want %s", got, want)
 			}
 		})
 	}
@@ -129,14 +129,14 @@ func TestCensusPayloadOmitsInvalidRelayVersion(t *testing.T) {
 	fresh := now.Add(-time.Hour).Format(time.RFC3339)
 	for _, invalid := range []string{"dev", "1.2", "0.7.0-beta1", "0.7", "v0.7.0", "0.7.0-rc", "1.0.0.0", "99999999999999999999999999999.0.0"} {
 		state := censusState{Enabled: true, RelayVersion: invalid, RelayVersionObservedAt: fresh}
-		got := string(censusWireBytes(buildCensusPayload(paths, state, now)))
+		got := string(censusApplicationJSONBytes(buildCensusPayload(paths, state, now)))
 		if strings.Contains(got, "relay") {
 			t.Fatalf("relay %q would be 400-rejected by the worker and must be omitted, got %s", invalid, got)
 		}
 	}
 	// The worker-accepted rc shape stays included.
 	state := censusState{Enabled: true, RelayVersion: "0.7.0-rc2", RelayVersionObservedAt: fresh}
-	if got := string(censusWireBytes(buildCensusPayload(paths, state, now))); !strings.Contains(got, `"relay":"0.7.0-rc2"`) {
+	if got := string(censusApplicationJSONBytes(buildCensusPayload(paths, state, now))); !strings.Contains(got, `"relay":"0.7.0-rc2"`) {
 		t.Fatalf("valid rc relay version must be included, got %s", got)
 	}
 }

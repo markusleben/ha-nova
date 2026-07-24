@@ -12,8 +12,9 @@ import (
 	"time"
 )
 
-// The opt-in census (docs/reference/census.md, PRIVACY.md): a voluntary,
-// ID-free weekly ping — {schema, version, relay?, os} and nothing else. This
+// The opt-in census (docs/reference/census.md, PRIVACY.md): a voluntary
+// weekly request whose application JSON body is limited to
+// {schema, version, relay?, os}. HTTPS transport metadata is separate. This
 // file is the ONLY place allowed to know the endpoint or perform the send;
 // scripts/check-docs.sh check [12] fails the build if sendCensusPing or
 // censusEndpointURL appear outside cli/census*.go, or if the opt-in guard
@@ -54,9 +55,9 @@ var censusHTTPClient = &http.Client{
 	},
 }
 
-// censusPayload is the exact wire shape. Field order is wire order. The
-// json tags below are contract-tested against the worker's accepted field
-// set (tests/census-worker/worker.test.ts) so the payload cannot grow
+// censusPayload is the exact application JSON shape. Field order is body byte
+// order. The json tags below are contract-tested against the worker's accepted
+// field set (tests/census-worker/worker.test.ts) so the payload cannot grow
 // silently.
 type censusPayload struct {
 	Schema  int    `json:"schema"`
@@ -117,9 +118,9 @@ func buildCensusPayload(paths runtimePaths, state censusState, now time.Time) ce
 	return payload
 }
 
-// censusWireBytes renders the literal bytes that go on the wire — the same
-// bytes `ha-nova census status` shows the user.
-func censusWireBytes(payload censusPayload) []byte {
+// censusApplicationJSONBytes renders the literal application-body bytes that
+// `ha-nova census status` shows the user.
+func censusApplicationJSONBytes(payload censusPayload) []byte {
 	data, err := json.Marshal(payload)
 	if err != nil {
 		return nil
@@ -211,7 +212,7 @@ func sendCensusPingOnceWithClock(paths runtimePaths, now func() time.Time) censu
 		return censusPingResult{Week: currentWeek, Skipped: censusPingSkipWeek}
 	}
 
-	payload := censusWireBytes(buildCensusPayload(paths, state, stampTime))
+	payload := censusApplicationJSONBytes(buildCensusPayload(paths, state, stampTime))
 	if len(payload) == 0 {
 		return censusPingResult{Week: currentWeek, Err: fmt.Errorf("empty census payload")}
 	}

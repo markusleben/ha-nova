@@ -1,9 +1,9 @@
 # HA NOVA Census Worker
 
-The receiving end of the opt-in, ID-free census (see `PRIVACY.md` and
-`docs/reference/census.md` in the repo root). One Cloudflare Worker plus one
-SQLite Durable Object holding aggregate counter rows
-`(iso_week, version, os, relay) -> count` — nothing else.
+The receiving end of the opt-in census with an identifier-free application
+JSON body (see `PRIVACY.md` and `docs/reference/census.md` in the repo root).
+One Cloudflare Worker plus one SQLite Durable Object holding aggregate counter
+rows `(iso_week, version, os, relay) -> count` — nothing else.
 
 ## Endpoints
 
@@ -19,9 +19,12 @@ SQLite Durable Object holding aggregate counter rows
 
 ## Design constraints
 
-- No identifiers, no IP field or IP storage in the census application, no
-  client timestamps. Worker observability and invocation logs are disabled in
-  `wrangler.toml`.
+- No installation, device, or user identifiers and no IP field in the JSON
+  body. HA NOVA Worker code does not read source-IP headers or `request.cf`;
+  application storage and public statistics do not store source IPs. Worker
+  observability and invocation logs are disabled in `wrangler.toml`. Cloudflare
+  is the hosting provider and still processes source-IP and connection metadata
+  under its own privacy terms.
 - No client authentication. Any schema-valid unauthenticated payload can increment a
   counter, so the public data is directional and cannot prove unique installs.
 - Counter cardinality is bounded to 256 rows per ISO week. New combinations

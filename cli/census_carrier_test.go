@@ -36,7 +36,7 @@ func TestPlaceholderEndpointBuildIsInert(t *testing.T) {
 	if err := saveCensusState(paths, censusState{}); err != nil {
 		t.Fatalf("saveCensusState() error: %v", err)
 	}
-	askCensusWithInput(t, paths, "y\n")
+	askCensusWithInput(t, paths, "1\n")
 
 	if len(*payloads) != 0 {
 		t.Fatalf("placeholder build must never send, got %d attempts", len(*payloads))

@@ -197,7 +197,7 @@ func TestCensusPendingYesCannotOverrideSuccessfulOff(t *testing.T) {
 	if exit != 0 {
 		t.Fatalf("census off exit = %d, want 0", exit)
 	}
-	out := finishBlockedCensusAsk(t, answer, done, "y\n")
+	out := finishBlockedCensusAsk(t, answer, done, "1\n")
 	state := loadCensusState(paths)
 	if state.Enabled || state.Answer != "no" {
 		t.Fatalf("stale prompt yes overrode successful opt-out: %+v", state)
@@ -220,7 +220,7 @@ func TestCensusPendingYesCannotRecreateStateAfterUninstall(t *testing.T) {
 	if err := removeManagedConfigArtifacts(paths, &uninstallReport{}, true); err != nil {
 		t.Fatalf("uninstall config cleanup: %v", err)
 	}
-	out := finishBlockedCensusAsk(t, answer, done, "y\n")
+	out := finishBlockedCensusAsk(t, answer, done, "1\n")
 	if len(*payloads) != 0 {
 		t.Fatalf("stale prompt sent %d requests after uninstall", len(*payloads))
 	}

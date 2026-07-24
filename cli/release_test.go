@@ -767,15 +767,28 @@ func captureStdout(t *testing.T, fn func()) string {
 		os.Stdout = oldStdout
 	}()
 
+	type readResult struct {
+		output string
+		err    error
+	}
+	readDone := make(chan readResult, 1)
+	go func() {
+		var buf bytes.Buffer
+		_, readErr := buf.ReadFrom(r)
+		readDone <- readResult{output: buf.String(), err: readErr}
+	}()
+
 	fn()
 
 	if err := w.Close(); err != nil {
 		t.Fatalf("close write pipe: %v", err)
 	}
-
-	var buf bytes.Buffer
-	if _, err := buf.ReadFrom(r); err != nil {
-		t.Fatalf("ReadFrom() error: %v", err)
+	result := <-readDone
+	if err := r.Close(); err != nil {
+		t.Fatalf("close read pipe: %v", err)
 	}
-	return buf.String()
+	if result.err != nil {
+		t.Fatalf("ReadFrom() error: %v", result.err)
+	}
+	return result.output
 }

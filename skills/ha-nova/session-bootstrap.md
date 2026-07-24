@@ -14,7 +14,8 @@ regardless of which HA NOVA skill was loaded directly.
    non-default profile, apply the same `HA_NOVA_SERVER=<name>` selection used
    by the task. After the first profile check, scope
    `HA_NOVA_NO_CENSUS=1` to each additional profile's check so switching
-   servers cannot consume more census-callout attempts. Remember a completed
+   servers cannot duplicate the install-wide pending census notice. Remember a
+   completed
    profile check even when it is empty or fails.
 3. Remember complete HA NOVA update blocks (`Update available`, `Return to
    stable`, `HA NOVA update available`, or `HA NOVA return to stable`,
@@ -54,16 +55,68 @@ server profile as a separate localized callout:
 - For a standalone Container/Core Relay, do not offer a guided install. Point
   to the manual image pull and container recreation instead.
 
-## Census Callout
+## Census Consent Choice
 
-After the requested result, surface `CENSUS ASK PENDING` exactly once per
-session as a separate localized callout. Translate the why-text, preserve
-command names, and keep these consent rules:
+Surface `CENSUS ASK PENDING` exactly once per session as a standalone,
+localized privacy choice after the requested result. Apply the context skill's
+Interactive Choices contract: use a native selectable menu when available and
+the identical numbered fallback otherwise.
 
-- Explicit yes: run `ha-nova census on`.
-- Explicit no: run `ha-nova census off`.
-- Missing or ambiguous answer: run nothing and do not re-ask.
-- Never infer opt-in from memory, configuration, or unrelated agreement.
+Never stack this choice with another active menu, write preview, runtime-action
+confirmation, destructive confirmation code, or user-assisted readiness
+question. Remember the pending notice and defer it to the next conflict-free
+response. A deferred machine notice does not count as a presentation.
+Immediately before a conflict-free presentation, run
+`ha-nova census notice-presented`. Render the choice only when its output
+starts with `CENSUS NOTICE PRESENT`; render nothing when it returns
+`CENSUS NOTICE SKIP` or fails. The census choice must be the only active choice
+in that response and must close it; print nothing after its options.
 
-For details use `docs/reference/census.md`; `ha-nova census status` shows the
-exact bytes that would be sent.
+The disclosure must preserve all of these distinctions:
+
+- If the user agrees, HA NOVA sends this version information now and then at
+  most once per week.
+- The fixed JSON body contains only the payload schema, HA NOVA version,
+  operating system, and a recently observed Relay version when available. It
+  contains no installation, device, or user ID and no usage or Home Assistant
+  data.
+- Cloudflare is the hosting provider for the census endpoint. It processes the
+  source IP and connection metadata for HTTPS under its privacy policy.
+- HA NOVA Worker code does not read the source IP; HA NOVA application storage
+  and public statistics do not store it.
+- In visible plain language, say that the public numbers show general trends,
+  not a verified installation count.
+
+Render that disclosure as one compact heading plus at most five short lines.
+Do not paste the reference text or expose the machine-directed notice. Put the
+three actions immediately after the disclosure. Reserve technical terms such
+as "attempt", "ISO week", and "application JSON body" for the details view;
+the visible choice says "message content (JSON)" and "at most once per week".
+
+Offer exactly three short, localized effects:
+
+1. **Yes — contribute**: run `ha-nova census on`.
+2. **No — do not contribute**: run `ha-nova census off`.
+3. **Show exact data**: run `ha-nova census status`, display the literal JSON
+   object verbatim without omitting or renaming fields, then state the
+   Cloudflare transport disclosure, change no consent state, and render the
+   same three choices again.
+
+Do not recommend opt-in. If a client requires a default or recommended option,
+use the privacy-safe No choice. The selected Yes or No is the single consent;
+never ask for a second confirmation. Report the stored choice only after the
+command succeeds, and distinguish a saved opt-in from an unconfirmed first
+ping. On command failure, say that the choice was not saved and immediately
+re-render the same three choices as part of the still-open interaction.
+
+If `ha-nova census status` fails, name the error, explicitly state that consent
+is unchanged, and immediately re-render the same three choices.
+
+A missing, dismissed, free-form, or ambiguous answer runs nothing and changes
+nothing. The immediate re-render after **Show exact data** is part of the same
+choice interaction. Otherwise, do not surface the prompt again unsolicited in
+the same session; a later session may surface a later CLI notice until three
+actual presentations close it. Never infer opt-in from memory, configuration,
+or unrelated agreement.
+
+For details use `docs/reference/census.md`; preserve command names exactly.

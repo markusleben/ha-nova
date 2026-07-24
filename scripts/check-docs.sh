@@ -238,6 +238,18 @@ else
   fail "cli/census.go lost the opt-in guard 'if !state.Enabled' — nothing may ever send without an explicit yes."
 fi
 
+# ── 12b. Census Worker request reads stay positively allowlisted ──
+# Cloudflare necessarily processes transport metadata. HA NOVA's narrower
+# promise is enforced through AST inspection instead of a bypassable blacklist:
+# the public Worker may read only method, URL, body, content-type, and
+# content-length from the incoming Request.
+echo "[12b] Census Worker request access stays positively allowlisted"
+if node "$REPO_ROOT/scripts/test/check-census-worker-request-access.mjs"; then
+  pass "Census Worker request access excludes source-IP metadata"
+else
+  fail "Census Worker request access escaped its allowlist — update the privacy contract before adding any new request metadata."
+fi
+
 # ── Results ──
 echo ""
 if (( ${#ERRORS[@]} == 0 )); then
