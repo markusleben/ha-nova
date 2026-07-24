@@ -16,6 +16,19 @@ func removeManagedConfigArtifacts(paths runtimePaths, report *uninstallReport, p
 		return fmt.Errorf("cannot acquire census state lock for uninstall")
 	}
 	defer release()
+	if _, err := os.Stat(paths.CensusFile); err == nil {
+		if state, writable := readCensusState(paths); writable {
+			result, withdrawErr := disableAndWithdrawCensusLocked(paths, &state, false)
+			switch {
+			case withdrawErr != nil:
+				report.addNote("Census reporting is stopped by uninstall; the server-side withdrawal could not be prepared, so any existing record expires automatically.")
+			case result.Confirmed:
+				report.addNote("Deleted this installation's Census record.")
+			case result.Attempted && result.Err != nil:
+				report.addNote("Census reporting is stopped; server-side deletion was not confirmed, so the record expires automatically.")
+			}
+		}
+	}
 	// Persist an opaque stop marker before removing actual install/census state.
 	// A true no-op uninstall must not create residue on a clean machine.
 	if censusLifecycleEvidence(paths) {

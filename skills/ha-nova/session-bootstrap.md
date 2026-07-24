@@ -74,40 +74,50 @@ in that response and must close it; print nothing after its options.
 
 The disclosure must preserve all of these distinctions:
 
-- If the user agrees, HA NOVA sends this version information now and then at
-  most once per week.
-- The fixed JSON body contains only the payload schema, HA NOVA version,
-  operating system, and a recently observed Relay version when available. It
-  contains no installation, device, or user ID and no usage or Home Assistant
-  data.
+- If the user agrees, HA NOVA sends the first report now; further reports are
+  sent no sooner than seven days later.
+- The fixed JSON body contains only the payload schema, a dedicated random
+  Census installation ID, HA NOVA version, operating system, and a recently
+  observed Relay version when available. The ID only lets the same
+  participating installation count once. It is not derived from or reused
+  from a hardware or device identifier, pairing, a user, a Relay, or Home
+  Assistant; HA NOVA attaches no device data. No usage or Home Assistant data
+  is sent.
 - Cloudflare is the hosting provider for the census endpoint. It processes the
-  source IP and connection metadata for HTTPS under its privacy policy.
-- HA NOVA Worker code does not read the source IP; HA NOVA application storage
-  and public statistics do not store it.
-- In visible plain language, say that the public numbers show general trends,
-  not a verified installation count.
+  JSON plus the source IP and connection metadata of the same HTTPS request
+  under its privacy policy.
+- HA NOVA ingest code does not read or store the source IP.
+- In visible plain language, say that counts are private maintainer
+  statistics and are voluntary, self-reported participating installations,
+  not verified people or the complete installed base.
 
 Render that disclosure as one compact heading plus at most five short lines.
 Do not paste the reference text or expose the machine-directed notice. Put the
 three actions immediately after the disclosure. Reserve technical terms such
-as "attempt", "ISO week", and "application JSON body" for the details view;
-the visible choice says "message content (JSON)" and "at most once per week".
+as "attempt" and "application JSON body" for the details view; the visible
+choice says "message content (JSON)" and "no sooner than seven days later".
 
 Offer exactly three short, localized effects:
 
-1. **Yes — contribute**: run `ha-nova census on`.
-2. **No — do not contribute**: run `ha-nova census off`.
+1. **Yes — contribute**: run `ha-nova census choose <choice-id> yes`.
+2. **No — do not contribute**: run `ha-nova census choose <choice-id> no`.
 3. **Show exact data**: run `ha-nova census status`, display the literal JSON
    object verbatim without omitting or renaming fields, then state the
    Cloudflare transport disclosure, change no consent state, and render the
-   same three choices again.
+   same three choices again with the same choice ID.
+
+`<choice-id>` is the exact `cns-choice-...` value returned by
+`ha-nova census notice-presented`. Never replace a displayed choice ID with
+unbound `ha-nova census on|off`; the choice ID prevents an old UI action from
+overwriting newer consent.
 
 Do not recommend opt-in. If a client requires a default or recommended option,
 use the privacy-safe No choice. The selected Yes or No is the single consent;
 never ask for a second confirmation. Report the stored choice only after the
 command succeeds, and distinguish a saved opt-in from an unconfirmed first
-ping. On command failure, say that the choice was not saved and immediately
-re-render the same three choices as part of the still-open interaction.
+report. If a choose command says the choice is stale, report that it did not
+change current consent and inspect `ha-nova census status`; never retry with
+an unbound command.
 
 If `ha-nova census status` fails, name the error, explicitly state that consent
 is unchanged, and immediately re-render the same three choices.
@@ -115,8 +125,9 @@ is unchanged, and immediately re-render the same three choices.
 A missing, dismissed, free-form, or ambiguous answer runs nothing and changes
 nothing. The immediate re-render after **Show exact data** is part of the same
 choice interaction. Otherwise, do not surface the prompt again unsolicited in
-the same session; a later session may surface a later CLI notice until three
-actual presentations close it. Never infer opt-in from memory, configuration,
-or unrelated agreement.
+the same session. The CLI claims this one-time choice before rendering;
+interruption may safely leave it unanswered rather than risk repeated privacy
+prompts. Never infer opt-in from memory, configuration, or unrelated
+agreement.
 
 For details use `docs/reference/census.md`; preserve command names exactly.

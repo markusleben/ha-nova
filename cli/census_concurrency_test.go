@@ -17,7 +17,7 @@ func TestCensusPostDisablesTransportBodyReplay(t *testing.T) {
 	paths := setupCensusTest(t)
 	stubCensusVersion(t, "0.21.0")
 	stubCensusEndpoint(t)
-	if err := saveCensusState(paths, censusState{Enabled: true, Answer: "yes"}); err != nil {
+	if err := saveCensusState(paths, optedInCensusState()); err != nil {
 		t.Fatal(err)
 	}
 
@@ -42,7 +42,7 @@ func TestCensusMixedConcurrentSendPathsAttemptOnce(t *testing.T) {
 	paths := setupCensusTest(t)
 	stubCensusVersion(t, "0.21.0")
 	payloads := stubCensusTransport(t, http.StatusNoContent, nil)
-	if err := saveCensusState(paths, censusState{Enabled: true, Answer: "yes"}); err != nil {
+	if err := saveCensusState(paths, optedInCensusState()); err != nil {
 		t.Fatal(err)
 	}
 
@@ -71,11 +71,11 @@ func TestCensusMixedConcurrentSendPathsAttemptOnce(t *testing.T) {
 	}
 }
 
-func TestCensusWeekBoundaryInterleavingAttemptsAtMostOncePerClientWeek(t *testing.T) {
+func TestCensusWeekBoundaryDoesNotBypassRollingCadence(t *testing.T) {
 	paths := setupCensusTest(t)
 	stubCensusVersion(t, "0.21.0")
 	payloads := stubCensusTransport(t, http.StatusNoContent, nil)
-	if err := saveCensusState(paths, censusState{Enabled: true, Answer: "yes"}); err != nil {
+	if err := saveCensusState(paths, optedInCensusState()); err != nil {
 		t.Fatal(err)
 	}
 
@@ -92,20 +92,18 @@ func TestCensusWeekBoundaryInterleavingAttemptsAtMostOncePerClientWeek(t *testin
 	}
 	close(start)
 
-	counts := map[string]int{}
+	attempts := 0
 	for range 4 {
 		result := <-results
 		if result.Attempted {
-			counts[result.Week]++
+			attempts++
 		}
 	}
-	for week, count := range counts {
-		if count > 1 {
-			t.Fatalf("week %s sent %d attempts, want at most 1", week, count)
-		}
+	if attempts != 1 {
+		t.Fatalf("two-second ISO-week boundary produced %d attempts, want 1", attempts)
 	}
-	if len(*payloads) != counts["2026-W30"]+counts["2026-W31"] {
-		t.Fatalf("transport attempts %d do not match locked week results %v", len(*payloads), counts)
+	if len(*payloads) != 1 {
+		t.Fatalf("transport attempts = %d, want 1", len(*payloads))
 	}
 }
 
@@ -113,7 +111,7 @@ func TestCensusLockPreparationFailureFailsClosed(t *testing.T) {
 	paths := setupCensusTest(t)
 	stubCensusVersion(t, "0.21.0")
 	payloads := stubCensusTransport(t, http.StatusNoContent, nil)
-	if err := saveCensusState(paths, censusState{Enabled: true, Answer: "yes"}); err != nil {
+	if err := saveCensusState(paths, optedInCensusState()); err != nil {
 		t.Fatal(err)
 	}
 	// Unix locks the stable HOME directory; point it at a missing path. The
@@ -131,8 +129,8 @@ func TestCensusLockPreparationFailureFailsClosed(t *testing.T) {
 	if len(*payloads) != 0 {
 		t.Fatalf("lock setup failure sent %d POSTs, want 0", len(*payloads))
 	}
-	if state := loadCensusState(paths); state.LastPingWeek != "" {
-		t.Fatalf("lock setup failure stamped week %q", state.LastPingWeek)
+	if state := loadCensusState(paths); state.LastAttemptAt != "" {
+		t.Fatalf("lock setup failure stamped attempt %q", state.LastAttemptAt)
 	}
 }
 
@@ -140,18 +138,21 @@ func TestCensusOffWaitsForInFlightSendThenPreventsFutureSend(t *testing.T) {
 	paths := setupCensusTest(t)
 	stubCensusVersion(t, "0.21.0")
 	stubCensusEndpoint(t)
-	if err := saveCensusState(paths, censusState{Enabled: true, Answer: "yes"}); err != nil {
+	if err := saveCensusState(paths, optedInCensusState()); err != nil {
 		t.Fatal(err)
 	}
 
 	started := make(chan struct{})
 	releaseSend := make(chan struct{})
 	var requests atomic.Int32
+	var pingStarted sync.Once
 	originalClient := censusHTTPClient
-	censusHTTPClient = &http.Client{Transport: roundTripFunc(func(_ *http.Request) (*http.Response, error) {
+	censusHTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		requests.Add(1)
-		close(started)
-		<-releaseSend
+		if request.URL.Path == "/ping" {
+			pingStarted.Do(func() { close(started) })
+			<-releaseSend
+		}
 		return &http.Response{StatusCode: http.StatusNoContent, Body: http.NoBody, Header: make(http.Header)}, nil
 	})}
 	t.Cleanup(func() { censusHTTPClient = originalClient })
@@ -180,8 +181,8 @@ func TestCensusOffWaitsForInFlightSendThenPreventsFutureSend(t *testing.T) {
 	if result := sendCensusPingOnce(paths); result.Attempted {
 		t.Fatalf("post-opt-out send attempted: %+v", result)
 	}
-	if got := requests.Load(); got != 1 {
-		t.Fatalf("request count = %d, want only the in-flight request", got)
+	if got := requests.Load(); got != 2 {
+		t.Fatalf("request count = %d, want the in-flight ping and subsequent withdrawal", got)
 	}
 }
 
@@ -310,18 +311,21 @@ func TestCensusUninstallWaitsForSendAndRemovesConsent(t *testing.T) {
 	paths := setupCensusTest(t)
 	stubCensusVersion(t, "0.21.0")
 	stubCensusEndpoint(t)
-	if err := saveCensusState(paths, censusState{Enabled: true, Answer: "yes"}); err != nil {
+	if err := saveCensusState(paths, optedInCensusState()); err != nil {
 		t.Fatal(err)
 	}
 
 	started := make(chan struct{})
 	releaseSend := make(chan struct{})
 	var requests atomic.Int32
+	var pingStarted sync.Once
 	originalClient := censusHTTPClient
-	censusHTTPClient = &http.Client{Transport: roundTripFunc(func(_ *http.Request) (*http.Response, error) {
+	censusHTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		requests.Add(1)
-		close(started)
-		<-releaseSend
+		if request.URL.Path == "/ping" {
+			pingStarted.Do(func() { close(started) })
+			<-releaseSend
+		}
 		return &http.Response{StatusCode: http.StatusNoContent, Body: http.NoBody, Header: make(http.Header)}, nil
 	})}
 	t.Cleanup(func() { censusHTTPClient = originalClient })
@@ -346,15 +350,15 @@ func TestCensusUninstallWaitsForSendAndRemovesConsent(t *testing.T) {
 	if result := sendCensusPingOnce(paths); result.Attempted {
 		t.Fatalf("post-uninstall carrier attempted a request: %+v", result)
 	}
-	if got := requests.Load(); got != 1 {
-		t.Fatalf("request count = %d, want only the pre-uninstall request", got)
+	if got := requests.Load(); got != 2 {
+		t.Fatalf("request count = %d, want the pre-uninstall ping and withdrawal", got)
 	}
 }
 
 func TestCensusRejectsRedirectWithoutReplayingPost(t *testing.T) {
 	paths := setupCensusTest(t)
 	stubCensusVersion(t, "0.21.0")
-	if err := saveCensusState(paths, censusState{Enabled: true, Answer: "yes"}); err != nil {
+	if err := saveCensusState(paths, optedInCensusState()); err != nil {
 		t.Fatal(err)
 	}
 

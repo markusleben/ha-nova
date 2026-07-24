@@ -24,6 +24,7 @@ docs/internal/
 
 # Local validation artifacts
 .artifacts/
+census-worker/.wrangler/
 
 # Demo-recording identity denylist (personal strings, never committed)
 scripts/demo/denylist.local

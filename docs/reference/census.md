@@ -1,166 +1,165 @@
 # The HA NOVA Census
 
-HA NOVA sends no behavioral or feature-use analytics. The census is one
-strictly opt-in measurement with an identifier-free application JSON body,
-intended as a directional signal about participating versions and operating
-systems. It cannot establish a verified count of unique installs. Cloudflare
-is the hosting provider for the census endpoint, so the HTTPS request exposes
-source-IP and connection metadata to Cloudflare; the distinction is documented
-below. This page is the detail reference behind the one-time choice; the
-plain-language privacy summary is
-[PRIVACY.md](../../PRIVACY.md).
+HA NOVA sends no behavioral or feature-use analytics. The Census is an
+explicitly opt-in count of participating HA NOVA client installations,
+versions, operating systems, and recently observed Relay versions. Statistics
+are private to the maintainer.
 
-## The one-time privacy choice
+Cloudflare is the hosting provider. The HTTPS connection therefore exposes the
+source IP and connection metadata to Cloudflare under its privacy terms.
+HA NOVA ingest code does not read or store the source IP.
 
-This is the verbatim disclosure and choice the CLI shows:
+## The one-time choice
 
-```
+The CLI presents a separate Yes/No/Show exact data action:
+
+```text
   One-time privacy choice
 
-  May this installation contribute to HA NOVA's public version statistics?
+  May this HA NOVA installation contribute to the maintainer's private version
+  statistics?
   HA NOVA sends no behavioral or feature-use analytics.
-  If you agree, HA NOVA sends this version information now and then at most
-  once per week.
+  If you agree, HA NOVA sends the first report now. Further reports are sent
+  no sooner than seven days later.
   The message content (JSON) contains only:
-      payload schema  ·  HA NOVA version  ·  operating system
+      payload schema  ·  random Census installation ID
+      HA NOVA version  ·  operating system
       recently observed relay version (when available)
-  No installation, device, or user ID; no usage or Home Assistant data.
+  The random ID only lets the same participating installation count once. It
+  is not derived from or reused from hardware, a device identifier, pairing,
+  a user, a Relay, or Home Assistant. HA NOVA attaches no device data.
+  No usage or Home Assistant data is sent.
   Cloudflare is the hosting provider for the census endpoint. It processes the
   source IP and connection metadata for HTTPS under its privacy policy.
-  HA NOVA does not read the source IP or store it in application data or public
-  statistics.
-  The public numbers show general trends, not a verified installation count.
+  HA NOVA ingest code does not read or store the source IP.
+  Counts are voluntary and self-reported, not verified people or the complete
+  installed base.
 
   Inspect exact JSON: ha-nova census status   Change: ha-nova census on|off
-  Details: docs/reference/census.md
-  Choose one:
-    1. Yes — contribute
-    2. No — do not contribute
-    3. Show exact data
-  Select 1, 2, or 3:
 ```
 
-While local census state remains intact, the interactive question is asked at
-most once per install — on an
-interactive terminal at the end of `ha-nova setup`, after `ha-nova update`,
-after a clean `ha-nova doctor`, or on a plain `ha-nova check-update`. For
-skill-only sessions the same open question may be delivered as an AI-client
-callout until it has actually been presented three times; deferral behind
-another active choice does not consume a presentation. Only explicit Yes or No
-changes consent. Blank, free-form, dismissed, or ambiguous input changes
-nothing. Show exact data prints the literal JSON, leaves consent unchanged, and
-shows the same three choices again. If you opt in, the first eligible ping
-attempt starts immediately and the result is reported separately from the
-saved choice.
+Only an explicit Yes or No changes consent. Blank, dismissed, free-form, or
+ambiguous input changes nothing. “Show exact data” prints the literal JSON and
+then offers the same choice again.
 
-## The exact payload
+The direct terminal question and the skill-mediated question are each claimed
+once before rendering. An interruption may therefore leave the choice
+unanswered rather than cause repeated privacy prompts. Skill actions carry a
+random local choice ID so an old button cannot overwrite a newer manual or
+concurrent consent change. Existing schema-1 Yes choices are asked again
+because that older disclosure explicitly promised an identifier-free payload.
+Existing explicit No choices remain No.
+
+## Exact schema-2 payload
 
 ```json
-{"schema":1,"version":"0.21.0","relay":"0.7.1","os":"macos"}
+{"schema":2,"installation_id":"cns-0123456789abcdef0123456789abcdef","version":"0.21.3","relay":"0.7.1","os":"macos"}
 ```
 
-- `schema` — payload format version, currently `1`.
-- `version` — the installed HA NOVA version.
-- `relay` — the relay version, included only when it was observed during your
-  normal relay traffic within the last 7 days; omitted otherwise (the public
-  stats show those pings in an `unknown` bucket). The census never makes its
-  own relay call.
-- `os` — `macos`, `linux`, or `windows`.
+- `schema` — payload format, currently `2`.
+- `installation_id` — 128 random bits generated locally with a `cns-` prefix.
+  This ID is dedicated to Census and is not derived from or reused from
+  pairing, credentials, hardware/device identifiers, a Relay, or Home
+  Assistant. HA NOVA attaches no device data.
+- `version` — installed HA NOVA client version.
+- `relay` — included only when normal Relay traffic observed a valid version
+  during the previous 14 days. The Census makes no Relay request. When omitted,
+  private statistics say “not recently observed”; omission is not a Relay
+  version.
+- `os` — one of `macos`, `linux`, or `windows`.
 
-The JSON body has no installation, device, or user ID, IP field, client
-timestamp, usage data, or Home Assistant data. `ha-nova census status` prints
-the literal application JSON bytes that would be sent right now. Contract
-tests pin the payload on both ends (`cli/census_test.go`,
-`tests/census-worker/worker.test.ts`). `scripts/check-docs.sh` checks [11]/[12]
-keep known census symbols inside `cli/census*.go`, pin the explicit opt-in
-guard, and reject configured analytics-vendor patterns elsewhere. Check [12b]
-positively limits incoming Worker Request reads to method, URL, body,
-`content-type`, and `content-length`.
+No user, pairing, device, Home Assistant, usage, or client timestamp field is
+sent. `ha-nova census status` prints the exact body for the current state.
+Contract tests pin the Go and Worker field sets.
 
-The JSON body is not the whole HTTPS exchange. Cloudflare is the hosting
-provider for the census endpoint and processes the source IP, routing data, and
-other connection metadata for the request under its
-[Privacy Policy](https://www.cloudflare.com/privacypolicy/). The Worker runtime
-makes request metadata available to application code, but HA NOVA's Worker code
-does not read source-IP headers or `request.cf`; the aggregate application
-storage schema has no place to store them.
+## Transport and storage
 
-## When it sends
+Cloudflare processes the JSON and transport metadata as parts of the same
+HTTPS request. Worker observability
+and invocation logs are disabled. The application request adapter reads only
+the HTTP method, URL, bounded body, content headers, and explicit Cloudflare
+Access authentication headers for private statistics. It never reads
+`request.cf`, source-IP headers, or geographic metadata.
 
-The client records at most one attempt per ISO week (UTC) in its local state
-before sending, piggybacked on commands that already touch
-the network for the update check (`ha-nova check-update` and the background
-refresh it spawns). Update checks run automatically as part of normal use —
-whichever independently loadable skill is used first triggers one human-output
-check per selected profile before its first Home Assistant task, even when
-background context already refreshed the cache. A background refresh keeps
-the release cache warm, so an opted-in install normally attempts one ping each
-week without you doing anything. Never on relay hot paths, output-safe by
-construction: the synchronous send runs after all command output, bounded by
-a dedicated 1.5-second timeout, with redirects rejected and no automatic retry
-— and never changing a single byte of command output. The week is stamped locally before the send — a
-failed carrier send loses that week's ping rather than risking a duplicate.
+Before Durable Object storage, the Worker replaces the Census ID with its
+SHA-256 hash. The installation table contains:
 
-This is a local-state guarantee, not a server-side uniqueness guarantee.
-Restoring, deleting, or rolling back `census.json` can permit another attempt
-in the same week; the application JSON body and aggregate rows contain no
-installation, device, or user identifier with which to deduplicate it.
+- Census ID hash
+- current HA NOVA version and OS
+- current recently observed Relay version, or no value
+- first and last report time generated by the Worker
 
-A reinstall in the same week can therefore ping twice. The public receiver
-also has no client authentication: any schema-valid unauthenticated payload is
-accepted, so duplicate or fabricated pings cannot be distinguished from the
-released client. Cloudflare, the hosting provider, processes source-IP
-transport metadata, but HA NOVA Worker code does not read it and the
-application rows do not store it.
-The aggregates are therefore a directional activity signal, not a lower bound,
-exact total, or verified unique-install count. Two smaller honesty notes: a
-ping sent seconds before Monday 00:00 UTC can land in the next week's server
-bucket (the client's once-per-week invariant holds either way, only the label
-may differ by one at the boundary); and platforms outside the three documented
-buckets (macOS, Linux, Windows) are not counted rather than being guessed.
+There is no operator endpoint containing individual rows or hashes.
 
-## How it is counted
+## Sending cadence and accuracy
 
-The receiving end is a small Cloudflare Worker in this repository
-(`census-worker/`) backed by one SQLite Durable Object holding aggregate
-counter rows `(iso_week, version, os, relay) -> count`. HA NOVA disables Worker
-request/invocation logging, does not read source-IP request metadata, and stores
-no IP in its application database or public statistics. Cloudflare separately
-processes End User and Network Data under its Privacy Policy and
-[Data Processing Addendum](https://www.cloudflare.com/cloudflare-customer-dpa/).
-Cloudflare still exposes built-in aggregate Worker metrics
-(request counts/status/runtime) with up to three months of metrics retention.
+After Yes, one report is attempted immediately. Later attempts happen no
+sooner than seven rolling 24-hour periods after the previous attempt. The
+timestamp is written locally before the single bounded HTTPS attempt; ambiguous
+failures are not retried early.
 
-`GET /stats` (public: <https://ha-nova-census.markusleben.workers.dev/stats>)
-shows the accepted-ping aggregates: a sparse weekly series within a 26-week
-horizon, breakdowns by OS/version/relay over the last 4 weeks, and
-`peak_weekly_pings` (the busiest week in that 4-week window). Counter rows are
-aggregate-only, have no automatic expiry, and remain until operator deletion;
-older rows age out of the public horizon. There is no per-install view for the
-operator or the public. To bound storage abuse, new dimension combinations
-beyond 256 rows in one week fold into one `(other, other, other)` row. That can
-surface as an `other` key in each breakdown; it does not represent another
-client OS.
+The report normally rides after an update check. It never changes command
+output or exit status, never runs on Relay hot paths, rejects redirects, and
+has a 1.5-second request deadline.
+
+The server upserts by Census ID hash, so repeat reports update one participating
+installation rather than inflating the count. The endpoint is still public and
+has no client attestation: fabricated IDs cannot be distinguished from released
+clients. Counts are voluntary, self-reported participating installations, not
+verified people or the complete installed base.
+
+To bound resource use, valid schema-2 mutations are limited separately by
+hashed Census ID and route. The Worker retains at most 20,000 installations,
+admits at most 500 previously unseen IDs per UTC day, and exposes any same-day
+admission rejections on the private dashboard. Version and Relay breakdowns
+show the 20 largest rows plus an `other` bucket. These controls limit storage
+and cardinality; they cannot prevent someone from fabricating valid IDs or
+temporarily consuming the daily admission budget.
+
+## Retention and counting
+
+- **Active client installations:** last report within 21 days.
+- **Known client installations:** last report within 60 days.
+- Records with no report for 60 days are deleted automatically.
+- Breakdowns by client version, OS, and recently observed Relay version use
+  active installations only.
+- Version and Relay breakdowns contain the 20 largest rows plus `other`; OS
+  remains bounded by the three accepted values.
+- Identifier-free schema-1 pings remain in a separate legacy activity series.
+  They are never converted to or mixed with installation counts.
+
+The private dashboard also fetches the official Home Assistant Analytics entry
+for the NOVA Relay App slug `2368fcfa_ha_nova_relay`. This produces a second,
+separate number: opted-in Home Assistant installations reporting that App.
+Client installations and Relay App installations must never be added together.
+If Home Assistant Analytics is unavailable, the dashboard reports it as
+unavailable rather than inventing or silently reusing a value.
+
+`GET /stats` and `GET /stats/api` are private maintainer routes protected by
+Cloudflare Access and a second JWT validation inside the Worker. Responses use
+`Cache-Control: private, no-store`. `/stats` contains no per-ID table.
 
 ## Controls
 
 | Action | Command |
 |---|---|
-| Opt in (starts the first eligible ping attempt immediately) | `ha-nova census on` |
-| Opt out (after success, no new ping can begin; waits for an in-flight request) | `ha-nova census off` |
-| Inspect state and the exact application JSON bytes | `ha-nova census status` |
-| Environment kill switch (suppresses ask and ping; ANY non-empty value counts as set) | `HA_NOVA_NO_CENSUS=1` |
+| Opt in and attempt the first report | `ha-nova census on` |
+| Opt out and request immediate server-side deletion | `ha-nova census off` |
+| Inspect state, exact JSON, provider disclosure, and private stats URL | `ha-nova census status` |
+| Suppress asks, passive Relay stamps, reports, and withdrawal traffic | `HA_NOVA_NO_CENSUS=1` |
 
-`ha-nova uninstall` removes the local census state (`census.json`). It retains
-two opaque random safety markers outside the managed directories: one stops
-census activity until a successful setup, while the other is a persistent,
-rotating install generation that prevents stale setup/update processes from
-restoring removed files. They carry no consent, timestamps, process data, or
-stable device ID and are never sent. A later successful setup removes the
-census stop marker and rotates the install generation. There is nothing to delete server-side
-because no per-install record exists — only counters.
+`ha-nova census off` first saves local No and disables future reports, then
+issues one bounded `/withdraw` request if a report may have reached the server.
+That deletion request contains only:
 
-The local state records the one-time question/answer, enabled flag, last
-attempted ISO week, AI-client presentation count, and any recently observed Relay
-version with its local observation time. None of those local timestamps or
-control fields are sent.
+```json
+{"schema":2,"installation_id":"cns-0123456789abcdef0123456789abcdef"}
+```
+
+Cloudflare processes its JSON and transport metadata under the same terms.
+If deletion cannot be confirmed, no new reports are sent and the server record
+expires after 60 days. Running `off` again retries a pending deletion.
+
+Uninstall performs the same best-effort withdrawal before removing local Census
+state. It then removes the Census ID. Existing lifecycle safety markers remain
+local, contain no Census ID or consent, and are never sent.

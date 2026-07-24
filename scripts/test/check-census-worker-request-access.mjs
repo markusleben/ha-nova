@@ -85,7 +85,12 @@ function classifyAdapterRead(identifier) {
     return "";
   }
   const header = call.arguments[0].text;
-  return header === "content-type" || header === "content-length"
+  return [
+    "content-type",
+    "content-length",
+    "cf-access-jwt-assertion",
+    "x-ha-nova-local-stats-token",
+  ].includes(header)
     ? `headers.get:${header}`
     : "";
 }
@@ -145,6 +150,8 @@ function inspectParameter(checker, fn, mode) {
           ["body", 1],
           ["headers.get:content-type", 1],
           ["headers.get:content-length", 1],
+          ["headers.get:cf-access-jwt-assertion", 1],
+          ["headers.get:x-ha-nova-local-stats-token", 1],
         ])
       : new Map([["adapter-forward", 1]]);
   for (const [read, expectedCount] of expected) {
@@ -161,6 +168,27 @@ function inspectParameter(checker, fn, mode) {
     }
   }
   return problems;
+}
+
+function verifyDefaultExport(checker, sourceFile, indexFetch) {
+  const declaration = indexFetch.parent?.parent;
+  const workerName =
+    ast.isVariableDeclaration(declaration) &&
+    ast.isIdentifier(declaration.name)
+      ? declaration.name
+      : undefined;
+  const workerSymbol = workerName && checker.getSymbolAtLocation(workerName);
+  const assignments = sourceFile.statements.filter((statement) =>
+    ast.isExportAssignment(statement),
+  );
+  if (!workerSymbol || assignments.length !== 1) {
+    return ["Worker entry point must have exactly one resolvable default export"];
+  }
+  const exportedSymbol = checker.getSymbolAtLocation(assignments[0].expression);
+  if (!exportedSymbol || exportedSymbol.id !== workerSymbol.id) {
+    return ["default export is not the inspected Worker handler"];
+  }
+  return [];
 }
 
 let snapshot;
@@ -184,6 +212,7 @@ try {
     !project || !indexFetch || !adapter
       ? ["could not resolve the Worker entry point and request adapter"]
       : [
+          ...verifyDefaultExport(project.checker, indexFile, indexFetch),
           ...inspectParameter(project.checker, indexFetch, "index"),
           ...inspectParameter(project.checker, adapter, "adapter"),
         ];
@@ -195,7 +224,7 @@ try {
     process.exitCode = 1;
   } else {
     console.log(
-      "Census Worker Request reads are AST-limited to method, URL, body, content-type, and content-length",
+      "Census Worker Request reads are AST-limited to method, URL, body, content headers, and explicit stats-auth headers",
     );
   }
 } finally {

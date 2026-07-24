@@ -13,8 +13,8 @@ import (
 )
 
 // The opt-in census (docs/reference/census.md, PRIVACY.md): a voluntary
-// weekly request whose application JSON body is limited to
-// {schema, version, relay?, os}. HTTPS transport metadata is separate. This
+// installation report whose application JSON body is limited to
+// {schema, installation_id, version, relay?, os}. HTTPS transport metadata is separate. This
 // file is the ONLY place allowed to know the endpoint or perform the send;
 // scripts/check-docs.sh check [12] fails the build if sendCensusPing or
 // censusEndpointURL appear outside cli/census*.go, or if the opt-in guard
@@ -28,9 +28,9 @@ var censusEndpointURL = "https://ha-nova-census.markusleben.workers.dev"
 
 // censusEndpointConfigured reports whether this build carries a real census
 // endpoint. A build still on the PLACEHOLDER is inert by construction: every
-// send path skips silently BEFORE stamping the week, so an unconfigured build
+// send path skips silently before stamping the cadence, so an unconfigured build
 // can neither phone a dead host nor burn a
-// week that a properly configured build could have counted.
+// cadence slot that a properly configured build could have counted.
 func censusEndpointConfigured() bool {
 	return !strings.Contains(censusEndpointURL, "PLACEHOLDER")
 }
@@ -39,13 +39,13 @@ const censusOptOutEnv = "HA_NOVA_NO_CENSUS"
 
 const censusRequestTimeout = 1500 * time.Millisecond
 
-// censusHTTPClient is dedicated and short-fused: the ping may never make an
+// censusHTTPClient is dedicated and short-fused: the report may never make an
 // update check feel slow, and it never retries. 1.5s total: the send already
 // runs AFTER all command output, so the only cost of a dead endpoint is a
 // short delay of process exit — kept deliberately small. A detached
 // fire-and-forget goroutine would be worse, not better: the process exits
 // right after this call, silently dropping the send and breaking the
-// at-most-once accounting (the week is already stamped). Overridable for
+// cadence accounting (the attempt is already stamped). Overridable for
 // tests. Redirects are returned as responses instead of followed: 307/308
 // would otherwise replay the POST body and violate the single-attempt rule.
 var censusHTTPClient = &http.Client{
@@ -60,20 +60,31 @@ var censusHTTPClient = &http.Client{
 // field set (tests/census-worker/worker.test.ts) so the payload cannot grow
 // silently.
 type censusPayload struct {
-	Schema  int    `json:"schema"`
-	Version string `json:"version"`
-	Relay   string `json:"relay,omitempty"`
-	OS      string `json:"os"`
+	Schema         int    `json:"schema"`
+	InstallationID string `json:"installation_id"`
+	Version        string `json:"version"`
+	Relay          string `json:"relay,omitempty"`
+	OS             string `json:"os"`
 }
 
-const censusRelayFreshness = 7 * 24 * time.Hour
+type censusWithdrawPayload struct {
+	Schema         int    `json:"schema"`
+	InstallationID string `json:"installation_id"`
+}
+
+const (
+	censusRelayFreshness = 14 * 24 * time.Hour
+	censusSendInterval   = 7 * 24 * time.Hour
+)
 
 // censusVersionPattern mirrors the worker's accepted version format
 // (census-worker/src/census.ts VERSION_PATTERN) — contract-tested so the two
 // sides cannot drift. An observed relay version that the worker would reject
-// is OMITTED from the payload instead of getting the whole ping 400-rejected
-// after the week was already stamped.
+// is omitted from the payload instead of getting the whole report rejected
+// after the cadence was already stamped.
 var censusVersionPattern = regexp.MustCompile(`^\d+\.\d+\.\d+(-rc\d+)?$`)
+var censusInstallationIDPattern = regexp.MustCompile(`^cns-[0-9a-f]{32}$`)
+var censusChoiceIDPattern = regexp.MustCompile(`^cns-choice-[0-9a-f]{32}$`)
 
 const censusMaxVersionLength = 32
 
@@ -98,9 +109,10 @@ func censusOS() string {
 
 func buildCensusPayload(paths runtimePaths, state censusState, now time.Time) censusPayload {
 	payload := censusPayload{
-		Schema:  1,
-		Version: localVersion(paths),
-		OS:      censusOS(),
+		Schema:         2,
+		InstallationID: state.InstallationID,
+		Version:        localVersion(paths),
+		OS:             censusOS(),
 	}
 	// Relay version rides along only when observed recently (opportunistic
 	// stamp from normal relay traffic — never a relay call for the census)
@@ -108,8 +120,8 @@ func buildCensusPayload(paths runtimePaths, state censusState, now time.Time) ce
 	if state.RelayVersion != "" && state.RelayVersionObservedAt != "" && censusValidVersion(state.RelayVersion) {
 		if observed, err := time.Parse(time.RFC3339, state.RelayVersionObservedAt); err == nil {
 			// Age must be non-negative: a future-dated observation (clock was
-			// ahead when stamped, then corrected) is not "observed within the
-			// last 7 days" — omit until a fresh observation lands.
+			// ahead when stamped, then corrected) is not recently observed —
+			// omit until a fresh observation lands.
 			if age := now.Sub(observed); age >= 0 && age <= censusRelayFreshness {
 				payload.Relay = state.RelayVersion
 			}
@@ -130,23 +142,27 @@ func censusApplicationJSONBytes(payload censusPayload) []byte {
 
 // maybeCensusPing is the carrier hook for every check-update path (including
 // --quiet --json and the detached refresh child). It never prints, never
-// alters exit codes, never retries, and records at most one attempt per ISO
-// week while local census state remains intact.
+// alters exit codes, never retries, and separates attempts by seven days.
 // Callers invoke it AFTER their own output is complete, so a hanging endpoint
 // can never delay what the user (or a hook) is waiting for.
 func maybeCensusPing(paths runtimePaths) {
 	_ = sendCensusPingOnce(paths)
 }
 
-// censusWeekSendable is the ONE week gate shared by every send path (weekly
-// carrier, `census on`, ask-yes): a send may proceed only when the current
-// week is not yet stamped. A stamp in the FUTURE (clock rollback) suppresses
-// the send WITHOUT downgrading the recorded week: rewriting it would re-open
-// an already-counted week once the clock recovers. The stamp was written
-// from this machine's own clock, so normal gating resumes when the clock
-// reaches that week again.
-func censusWeekSendable(state censusState, currentWeek string) bool {
-	return state.LastPingWeek < currentWeek || state.LastPingWeek == ""
+func censusNextAttemptAt(state censusState) (time.Time, bool) {
+	if state.LastAttemptAt == "" {
+		return time.Time{}, false
+	}
+	last, err := time.Parse(time.RFC3339Nano, state.LastAttemptAt)
+	if err != nil {
+		return time.Time{}, true
+	}
+	return last.UTC().Add(censusSendInterval), true
+}
+
+func censusCadenceSendable(state censusState, now time.Time) bool {
+	next, exists := censusNextAttemptAt(state)
+	return !exists || (!next.IsZero() && !now.UTC().Before(next))
 }
 
 const (
@@ -155,22 +171,22 @@ const (
 	censusPingSkipDisabled = "disabled"
 	censusPingSkipDev      = "dev"
 	censusPingSkipOS       = "os"
-	censusPingSkipWeek     = "week"
+	censusPingSkipCadence  = "cadence"
 )
 
 type censusPingResult struct {
-	Payload   []byte
-	Week      string
-	Attempted bool
-	Skipped   string
-	Err       error
+	Payload     []byte
+	AttemptedAt string
+	Attempted   bool
+	Skipped     string
+	Err         error
 }
 
 // sendCensusPingOnce is the sole send coordinator for carrier, command, and
 // interactive-ask paths. It holds the same process/cross-process lock used by
-// `census off` across consent/week re-check, stamp, and the bounded POST. That
-// gives both promises one serialization point: at most one request attempt per
-// client ISO week while local census state remains intact, and no new request
+// `census off` across consent/cadence re-check, stamp, and the bounded POST. That
+// gives both promises one serialization point: attempts remain at least seven
+// days apart while local census state remains intact, and no new request
 // can begin after a successful opt-out returns.
 func sendCensusPingOnce(paths runtimePaths) censusPingResult {
 	return sendCensusPingOnceWithClock(paths, censusNow)
@@ -203,35 +219,60 @@ func sendCensusPingOnceWithClock(paths runtimePaths, now func() time.Time) censu
 		return censusPingResult{Skipped: censusPingSkipEnv}
 	}
 	state := loadCensusState(paths)
-	if !state.Enabled {
+	if !state.Enabled || state.ConsentVersion != censusConsentVersion {
 		return censusPingResult{Skipped: censusPingSkipDisabled}
 	}
 	stampTime := now().UTC()
-	currentWeek := censusISOWeek(stampTime)
-	if !censusWeekSendable(state, currentWeek) {
-		return censusPingResult{Week: currentWeek, Skipped: censusPingSkipWeek}
+	if !censusCadenceSendable(state, stampTime) {
+		return censusPingResult{Skipped: censusPingSkipCadence}
+	}
+	if !censusInstallationIDPattern.MatchString(state.InstallationID) {
+		return censusPingResult{Err: fmt.Errorf("census installation id is missing or invalid")}
 	}
 
 	payload := censusApplicationJSONBytes(buildCensusPayload(paths, state, stampTime))
 	if len(payload) == 0 {
-		return censusPingResult{Week: currentWeek, Err: fmt.Errorf("empty census payload")}
+		return censusPingResult{Err: fmt.Errorf("empty census payload")}
 	}
-	state.LastPingWeek = currentWeek
+	state.LastAttemptAt = stampTime.Format(time.RFC3339Nano)
+	state.LastPingWeek = ""
 	if err := saveCensusState(paths, state); err != nil {
-		return censusPingResult{Week: currentWeek, Err: err}
+		return censusPingResult{Err: err}
 	}
-	result := censusPingResult{Payload: payload, Week: currentWeek, Attempted: true}
+	result := censusPingResult{
+		Payload:     payload,
+		AttemptedAt: state.LastAttemptAt,
+		Attempted:   true,
+	}
 	result.Err = postCensusPing(payload)
 	return result
 }
 
 // postCensusPing performs exactly one HTTP exchange. The caller has already
-// stamped the week and holds the census lock. A hard request context remains
+// stamped the attempt and holds the census lock. A hard request context remains
 // in force even when tests replace the client with one that has no Timeout.
 func postCensusPing(payload []byte) error {
+	return postCensusJSON("/ping", payload)
+}
+
+func postCensusWithdraw(installationID string) error {
+	if !censusInstallationIDPattern.MatchString(installationID) {
+		return fmt.Errorf("census installation id is missing or invalid")
+	}
+	payload, err := json.Marshal(censusWithdrawPayload{
+		Schema:         2,
+		InstallationID: installationID,
+	})
+	if err != nil {
+		return err
+	}
+	return postCensusJSON("/withdraw", payload)
+}
+
+func postCensusJSON(path string, payload []byte) error {
 	ctx, cancel := context.WithTimeout(context.Background(), censusRequestTimeout)
 	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, censusEndpointURL+"/ping", bytes.NewReader(payload))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, censusEndpointURL+path, bytes.NewReader(payload))
 	if err != nil {
 		return err
 	}
@@ -260,4 +301,8 @@ func censusStatsURL() string {
 
 func censusPingURL() string {
 	return censusEndpointURL + "/ping"
+}
+
+func censusWithdrawURL() string {
+	return censusEndpointURL + "/withdraw"
 }

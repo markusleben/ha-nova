@@ -10,9 +10,21 @@ import (
 	"time"
 )
 
-// Send-path contracts: exact application JSON shape, the opt-in guard, the ISO-week gate
-// with stamp-before-send, clock-rollback self-heal, env opt-out, and the
+// Send-path contracts: exact application JSON shape, the opt-in guard, the
+// rolling seven-day gate with stamp-before-send, clock-rollback safety, env opt-out, and the
 // byte-clean --json carrier.
+
+const testCensusInstallationID = "cns-0123456789abcdef0123456789abcdef"
+
+func optedInCensusState() censusState {
+	return censusState{
+		Schema:         censusStateSchemaVersion,
+		ConsentVersion: censusConsentVersion,
+		InstallationID: testCensusInstallationID,
+		Enabled:        true,
+		Answer:         "yes",
+	}
+}
 
 func setupCensusTest(t *testing.T) runtimePaths {
 	t.Helper()
@@ -76,13 +88,11 @@ func TestCensusWirePayloadExactShape(t *testing.T) {
 	paths := setupCensusTest(t)
 	stubCensusVersion(t, "0.21.0")
 	now := time.Now().UTC()
-	state := censusState{
-		Enabled:                true,
-		RelayVersion:           "0.7.0",
-		RelayVersionObservedAt: now.Add(-time.Hour).Format(time.RFC3339),
-	}
+	state := optedInCensusState()
+	state.RelayVersion = "0.7.0"
+	state.RelayVersionObservedAt = now.Add(-time.Hour).Format(time.RFC3339)
 	got := string(censusApplicationJSONBytes(buildCensusPayload(paths, state, now)))
-	want := fmt.Sprintf(`{"schema":1,"version":"0.21.0","relay":"0.7.0","os":%q}`, censusOS())
+	want := fmt.Sprintf(`{"schema":2,"installation_id":%q,"version":"0.21.0","relay":"0.7.0","os":%q}`, testCensusInstallationID, censusOS())
 	if got != want {
 		t.Fatalf("application JSON = %s, want %s", got, want)
 	}
@@ -101,12 +111,13 @@ func TestCensusPayloadOmitsStaleOrMissingRelay(t *testing.T) {
 		name  string
 		state censusState
 	}{
-		{"never observed", censusState{Enabled: true}},
-		{"stale beyond seven days", censusState{
-			Enabled:                true,
-			RelayVersion:           "0.7.0",
-			RelayVersionObservedAt: now.Add(-8 * 24 * time.Hour).Format(time.RFC3339),
-		}},
+		{"never observed", optedInCensusState()},
+		{"stale beyond fourteen days", func() censusState {
+			state := optedInCensusState()
+			state.RelayVersion = "0.7.0"
+			state.RelayVersionObservedAt = now.Add(-15 * 24 * time.Hour).Format(time.RFC3339)
+			return state
+		}()},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -114,11 +125,24 @@ func TestCensusPayloadOmitsStaleOrMissingRelay(t *testing.T) {
 			if strings.Contains(got, "relay") {
 				t.Fatalf("payload must omit relay, got %s", got)
 			}
-			want := fmt.Sprintf(`{"schema":1,"version":"0.21.0","os":%q}`, censusOS())
+			want := fmt.Sprintf(`{"schema":2,"installation_id":%q,"version":"0.21.0","os":%q}`, testCensusInstallationID, censusOS())
 			if got != want {
 				t.Fatalf("application JSON = %s, want %s", got, want)
 			}
 		})
+	}
+}
+
+func TestCensusPayloadIncludesRelayObservedEightDaysAgo(t *testing.T) {
+	paths := setupCensusTest(t)
+	stubCensusVersion(t, "0.21.0")
+	now := time.Now().UTC()
+	state := optedInCensusState()
+	state.RelayVersion = "0.7.1"
+	state.RelayVersionObservedAt = now.Add(-8 * 24 * time.Hour).Format(time.RFC3339)
+	got := string(censusApplicationJSONBytes(buildCensusPayload(paths, state, now)))
+	if !strings.Contains(got, `"relay":"0.7.1"`) {
+		t.Fatalf("relay observed eight days ago must remain fresh for the 14-day window: %s", got)
 	}
 }
 
@@ -128,14 +152,18 @@ func TestCensusPayloadOmitsInvalidRelayVersion(t *testing.T) {
 	now := time.Now().UTC()
 	fresh := now.Add(-time.Hour).Format(time.RFC3339)
 	for _, invalid := range []string{"dev", "1.2", "0.7.0-beta1", "0.7", "v0.7.0", "0.7.0-rc", "1.0.0.0", "99999999999999999999999999999.0.0"} {
-		state := censusState{Enabled: true, RelayVersion: invalid, RelayVersionObservedAt: fresh}
+		state := optedInCensusState()
+		state.RelayVersion = invalid
+		state.RelayVersionObservedAt = fresh
 		got := string(censusApplicationJSONBytes(buildCensusPayload(paths, state, now)))
 		if strings.Contains(got, "relay") {
 			t.Fatalf("relay %q would be 400-rejected by the worker and must be omitted, got %s", invalid, got)
 		}
 	}
 	// The worker-accepted rc shape stays included.
-	state := censusState{Enabled: true, RelayVersion: "0.7.0-rc2", RelayVersionObservedAt: fresh}
+	state := optedInCensusState()
+	state.RelayVersion = "0.7.0-rc2"
+	state.RelayVersionObservedAt = fresh
 	if got := string(censusApplicationJSONBytes(buildCensusPayload(paths, state, now))); !strings.Contains(got, `"relay":"0.7.0-rc2"`) {
 		t.Fatalf("valid rc relay version must be included, got %s", got)
 	}
@@ -181,11 +209,11 @@ func TestCensusStateWritersFailClosedWithoutInstallSentinel(t *testing.T) {
 	}
 }
 
-func TestCensusPingStampsWeekBeforeSendAtMostOncePerWeek(t *testing.T) {
+func TestCensusPingStampsAttemptBeforeSendAndWaitsSevenDays(t *testing.T) {
 	paths := setupCensusTest(t)
 	stubCensusVersion(t, "0.9.0")
 	payloads := stubCensusTransport(t, 0, fmt.Errorf("transport down"))
-	if err := saveCensusState(paths, censusState{Enabled: true, Answer: "yes"}); err != nil {
+	if err := saveCensusState(paths, optedInCensusState()); err != nil {
 		t.Fatalf("saveCensusState() error: %v", err)
 	}
 
@@ -194,37 +222,37 @@ func TestCensusPingStampsWeekBeforeSendAtMostOncePerWeek(t *testing.T) {
 		t.Fatalf("expected exactly one send attempt, got %d", len(*payloads))
 	}
 	state := loadCensusState(paths)
-	currentWeek := censusISOWeek(time.Now().UTC())
-	if state.LastPingWeek != currentWeek {
-		t.Fatalf("week must be stamped BEFORE the send (at-most-once): got %q, want %q", state.LastPingWeek, currentWeek)
+	if state.LastAttemptAt == "" {
+		t.Fatal("attempt must be stamped BEFORE the send")
 	}
 
-	// Same week again — even though the first send failed, never double-send.
+	// Less than seven days later — even though the first send failed, never double-send.
 	maybeCensusPing(paths)
 	if len(*payloads) != 1 {
-		t.Fatalf("expected no second send in the same ISO week, got %d attempts", len(*payloads))
+		t.Fatalf("expected no second send inside seven days, got %d attempts", len(*payloads))
 	}
 }
 
-// A future stamp (clock rollback) suppresses the send but keeps the recorded
-// week intact — downgrading it would allow a double count after the clock
-// recovers into the already-counted week.
-func TestCensusWeekGateClockRollbackSuppressesWithoutDowngrade(t *testing.T) {
+// A future attempt timestamp (clock rollback) suppresses the send and remains
+// intact, avoiding ambiguous duplicates until the local clock recovers.
+func TestCensusCadenceClockRollbackSuppressesWithoutDowngrade(t *testing.T) {
 	paths := setupCensusTest(t)
 	stubCensusVersion(t, "0.9.0")
 	payloads := stubCensusTransport(t, http.StatusNoContent, nil)
-	futureWeek := censusISOWeek(time.Now().UTC().Add(21 * 24 * time.Hour))
-	if err := saveCensusState(paths, censusState{Enabled: true, Answer: "yes", LastPingWeek: futureWeek}); err != nil {
+	state := optedInCensusState()
+	futureAttempt := time.Now().UTC().Add(21 * 24 * time.Hour).Format(time.RFC3339Nano)
+	state.LastAttemptAt = futureAttempt
+	if err := saveCensusState(paths, state); err != nil {
 		t.Fatalf("saveCensusState() error: %v", err)
 	}
 
 	maybeCensusPing(paths)
 	if len(*payloads) != 0 {
-		t.Fatalf("a future-stamped week must not send (no double count), got %d attempts", len(*payloads))
+		t.Fatalf("a future attempt timestamp must not send, got %d attempts", len(*payloads))
 	}
-	state := loadCensusState(paths)
-	if state.LastPingWeek != futureWeek {
-		t.Fatalf("a recorded week must never be downgraded (it would re-open an already-counted week once the clock recovers): got %q, want %q", state.LastPingWeek, futureWeek)
+	loaded := loadCensusState(paths)
+	if loaded.LastAttemptAt != futureAttempt {
+		t.Fatalf("recorded attempt was changed: got %q, want %q", loaded.LastAttemptAt, futureAttempt)
 	}
 }
 
@@ -232,7 +260,7 @@ func TestCensusEnvVarSuppressesPing(t *testing.T) {
 	paths := setupCensusTest(t)
 	stubCensusVersion(t, "0.9.0")
 	payloads := stubCensusTransport(t, http.StatusNoContent, nil)
-	if err := saveCensusState(paths, censusState{Enabled: true, Answer: "yes"}); err != nil {
+	if err := saveCensusState(paths, optedInCensusState()); err != nil {
 		t.Fatalf("saveCensusState() error: %v", err)
 	}
 	t.Setenv(censusOptOutEnv, "1")
@@ -241,22 +269,20 @@ func TestCensusEnvVarSuppressesPing(t *testing.T) {
 	if len(*payloads) != 0 {
 		t.Fatalf("%s=1 must suppress the ping, got %d attempts", censusOptOutEnv, len(*payloads))
 	}
-	if state := loadCensusState(paths); state.LastPingWeek != "" {
-		t.Fatalf("suppressed ping must not stamp a week, got %q", state.LastPingWeek)
+	if state := loadCensusState(paths); state.LastAttemptAt != "" {
+		t.Fatalf("suppressed ping must not stamp an attempt, got %q", state.LastAttemptAt)
 	}
 }
 
 func TestCensusPayloadOmitsFutureDatedRelayObservation(t *testing.T) {
 	// A future-dated observation (clock was ahead when stamped, then
-	// corrected) is not "observed within the last 7 days" — omit until a
+	// corrected) is not "observed within the last 14 days" — omit until a
 	// fresh observation lands.
 	paths := setupCensusTest(t)
 	stubCensusVersion(t, "0.21.0")
-	state := censusState{
-		Enabled:                true,
-		RelayVersion:           "0.7.0",
-		RelayVersionObservedAt: censusNow().UTC().Add(48 * time.Hour).Format(time.RFC3339),
-	}
+	state := optedInCensusState()
+	state.RelayVersion = "0.7.0"
+	state.RelayVersionObservedAt = censusNow().UTC().Add(48 * time.Hour).Format(time.RFC3339)
 	payload := buildCensusPayload(paths, state, censusNow().UTC())
 	if payload.Relay != "" {
 		t.Fatalf("future-dated relay observation must be omitted, got %q", payload.Relay)

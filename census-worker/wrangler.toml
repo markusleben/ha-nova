@@ -23,6 +23,18 @@ binding = "CF_VERSION_METADATA"
 name = "CENSUS"
 class_name = "CensusCounter"
 
+[[unsafe.bindings]]
+name = "CENSUS_PING_RATE_LIMITER"
+type = "ratelimit"
+namespace_id = "23680021"
+simple = { limit = 10, period = 60 }
+
+[[unsafe.bindings]]
+name = "CENSUS_WITHDRAW_RATE_LIMITER"
+type = "ratelimit"
+namespace_id = "23680022"
+simple = { limit = 10, period = 60 }
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["CensusCounter"]

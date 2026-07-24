@@ -194,23 +194,28 @@ release changes the census Worker.
    three-runner public-install smoke. Verify the published RC over the real
    public install path (see "Supported RC selection" below), including at least
    one real Windows 11 + PowerShell onboarding proof on a clean VM/snapshot.
-5. Only after the RC is clean, deploy a release-bound census Worker from a
-   clean checkout of the exact reviewed merge SHA. For the first public census
-   launch, the new Durable Object namespace must still be empty; verify it with
-   the read-only production stats gate immediately after deployment. The
-   fail-closed wrapper requires Node.js 22 or newer, a clean exact-SHA checkout,
-   and `gh` authenticated to `github.com`; it proves the SHA is in the
-   hard-pinned `markusleben/ha-nova` main history, exercises the real
-   Worker/SQLite write path locally, pins Wrangler 4.113.0
-   plus the production account/config/name, and attests the deployed Cloudflare
-   version before checking the empty namespace:
+5. Only after the RC is clean, deploy a release-bound Census Worker from a
+   clean checkout of the exact reviewed merge SHA. Before deployment,
+   Cloudflare Access must already protect `/stats*`, the Worker must have
+   `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD`, and the release shell must provide
+   the Access service-token credentials documented in `census-worker/README.md`.
+   A maintainer must also complete a fresh browser login to `/stats` and only
+   then set `HA_NOVA_CENSUS_BROWSER_ACCESS_VERIFIED=1` in that release shell.
+   The fail-closed wrapper requires Node.js 22 or newer, a clean exact-SHA
+   checkout, and `gh` authenticated to `github.com`; it proves the SHA is in
+   the hard-pinned `markusleben/ha-nova` main history, exercises real
+   Worker/SQLite deduplication and withdrawal locally, pins Wrangler 4.113.0
+   plus the production account/config/name, and attests the deployed
+   Cloudflare version before repeating the same proof with one ephemeral
+   production ID. A post-deploy verification failure automatically restores
+   the previously active 100-percent Worker version:
    ```bash
-   bash scripts/release/deploy-census-worker.sh <reviewed-merge-sha> --require-empty
+   bash scripts/release/deploy-census-worker.sh <reviewed-merge-sha>
    ```
-   The production verifier performs only cache-busted `GET /stats` requests;
-   its required SHA/version headers make stale or wrong-target production fail.
-   Later Worker deployments use the same wrapper without `--require-empty`
-   once real counts exist.
+   The production verifier reads private `/stats/api` through Cloudflare
+   Access, checks the required SHA/version headers, sends the same schema-2 ID
+   twice and requires exactly one active installation, then withdraws it and
+   requires the pre-smoke version count to be restored.
 6. Only after the rehearsal and every applicable external gate are clean — or
    the RC was skipped per the conditional gate above (skills/docs-only delta) —
    cut the final tag (see "Final Publish"). A skipped RC never skips the
