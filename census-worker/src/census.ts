@@ -1,6 +1,8 @@
 // Public Census protocol: strict validation, pseudonymous-ID hashing, and the
 // two mutation routes. Protected statistics are assembled separately.
 
+import type { CensusStore } from "./census-store.js";
+
 export const SCHEMA_1_FIELDS = ["schema", "version", "relay", "os"] as const;
 export const SCHEMA_2_FIELDS = [
   "schema",
@@ -66,14 +68,6 @@ export interface InstallationStats {
   relay_versions: Record<string, number>;
   relay_not_recently_observed: number;
   new_installation_rejections_today: number;
-}
-
-export interface CensusStore {
-  upsertInstallation(record: InstallationRecord): Promise<void>;
-  deleteInstallation(idHash: string): Promise<void>;
-  incrementLegacy(key: LegacyCounterKey): Promise<void>;
-  installationStats(now: Date): Promise<InstallationStats>;
-  legacyRows(now: Date): Promise<LegacyCounterRow[]>;
 }
 
 export interface CensusRequestLike {
@@ -346,7 +340,10 @@ export async function handleMutationRequest(
       if (validation.ping.relay !== undefined) {
         record.relay = validation.ping.relay;
       }
-      await store.upsertInstallation(record);
+      const upsert = await store.upsertInstallation(record);
+      if (!upsert.ok) {
+        return validationError(upsert);
+      }
     }
     return { status: 204 };
   } catch {

@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { SignJWT, createLocalJWKSet, exportJWK, generateKeyPair } from "jose";
 
 import {
-  CensusStore,
   INSTALLATION_ID_PATTERN,
   InstallationRecord,
   InstallationStats,
@@ -16,6 +15,10 @@ import {
   validatePing,
   validateWithdraw,
 } from "../../census-worker/src/census.js";
+import {
+  CensusStore,
+  censusStoreFor,
+} from "../../census-worker/src/census-store.js";
 import {
   localStatsAccess,
   verifyCloudflareAccess,
@@ -65,8 +68,9 @@ function memoryStore(): CensusStore & {
   return {
     installations,
     legacy: [],
-    async upsertInstallation(record): Promise<void> {
+    async upsertInstallation(record) {
       installations.set(record.id_hash, { ...record });
+      return { ok: true };
     },
     async deleteInstallation(idHash): Promise<void> {
       installations.delete(idHash);
@@ -165,6 +169,104 @@ describe("Census schema-2 mutation contract", () => {
     expect(store.installations.has(await hashInstallationID(SECOND_ID))).toBe(
       true,
     );
+  });
+
+  it.each([
+    {
+      status: 429 as const,
+      error: "new installation admission limit reached" as const,
+    },
+    {
+      status: 507 as const,
+      error: "installation capacity reached" as const,
+    },
+  ])("preserves an intentional $status admission rejection", async (failure) => {
+    const store = memoryStore();
+    store.upsertInstallation = async () => ({ ok: false, ...failure });
+    const result = await handleMutationRequest(
+      request("/ping", {
+        schema: 2,
+        installation_id: ID,
+        version: "0.21.3",
+        os: "linux",
+      }),
+      store,
+      NOW,
+    );
+    expect(result).toMatchObject({
+      status: failure.status,
+      body: JSON.stringify({ error: failure.error }),
+    });
+  });
+
+  it("keeps unexpected storage failures generic", async () => {
+    const store = memoryStore();
+    store.upsertInstallation = async () => {
+      throw new Error("private storage detail");
+    };
+    const result = await handleMutationRequest(
+      request("/ping", {
+        schema: 2,
+        installation_id: ID,
+        version: "0.21.3",
+        os: "linux",
+      }),
+      store,
+      NOW,
+    );
+    expect(result).toMatchObject({
+      status: 500,
+      body: JSON.stringify({ error: "census storage failed" }),
+    });
+    expect(result.body).not.toContain("private storage detail");
+  });
+
+  it.each([
+    {
+      status: 429 as const,
+      error: "new installation admission limit reached" as const,
+    },
+    {
+      status: 507 as const,
+      error: "installation capacity reached" as const,
+    },
+  ])("maps Durable Object HTTP $status to an expected result", async (failure) => {
+    const store = censusStoreFor({
+      CENSUS: {
+        idFromName: () => ({ fake: "id" }),
+        get: () => ({
+          fetch: async () =>
+            Response.json({ error: failure.error }, { status: failure.status }),
+        }),
+      },
+    });
+    await expect(
+      store.upsertInstallation({
+        id_hash: "hash",
+        version: "0.21.3",
+        os: "linux",
+        observed_at: NOW.getTime(),
+      }),
+    ).resolves.toEqual({ ok: false, ...failure });
+  });
+
+  it("rejects unexpected Durable Object statuses", async () => {
+    const store = censusStoreFor({
+      CENSUS: {
+        idFromName: () => ({ fake: "id" }),
+        get: () => ({
+          fetch: async () => new Response(null, { status: 503 }),
+        }),
+      },
+    });
+    await expect(
+      store.upsertInstallation({
+        id_hash: "hash",
+        version: "0.21.3",
+        os: "linux",
+        observed_at: NOW.getTime(),
+      }),
+    ).rejects.toThrow("Census storage HTTP 503");
   });
 
   it("accepts legacy schema 1 only into separate activity counters", async () => {

@@ -1,6 +1,5 @@
 import { localStatsAccess, verifyCloudflareAccess } from "./access.js";
 import {
-  CensusStore,
   InstallationRecord,
   InstallationStats,
   LegacyCounterKey,
@@ -9,6 +8,7 @@ import {
   handleMutationRequest,
   isoWeekUTC,
 } from "./census.js";
+import { censusStoreFor } from "./census-store.js";
 import { adaptCensusRequest } from "./request-adapter.js";
 import { mutationRateIdentity } from "./rate-limit.js";
 import {
@@ -42,7 +42,6 @@ export interface Env {
   };
 }
 
-const CENSUS_OBJECT_NAME = "public-v0.21";
 const MAX_LEGACY_ROWS_PER_WEEK = 256;
 const DAY_MS = 86_400_000;
 const LEGACY_HORIZON_MS = 26 * 7 * DAY_MS;
@@ -288,52 +287,6 @@ export class CensusCounter {
   }
 }
 
-function storeFor(env: Env): CensusStore {
-  const stub = env.CENSUS.get(env.CENSUS.idFromName(CENSUS_OBJECT_NAME));
-  const checked = async (
-    request: RequestInfo | URL,
-    init?: RequestInit,
-  ): Promise<Response> => {
-    const response = await stub.fetch(request, init);
-    if (!response.ok) {
-      throw new Error(`Census storage HTTP ${response.status}`);
-    }
-    return response;
-  };
-  return {
-    async upsertInstallation(record): Promise<void> {
-      await checked("https://census-do/installation", {
-        method: "POST",
-        body: JSON.stringify(record),
-      });
-    },
-    async deleteInstallation(idHash): Promise<void> {
-      await checked("https://census-do/installation", {
-        method: "DELETE",
-        body: JSON.stringify({ id_hash: idHash }),
-      });
-    },
-    async incrementLegacy(key): Promise<void> {
-      await checked("https://census-do/legacy", {
-        method: "POST",
-        body: JSON.stringify(key),
-      });
-    },
-    async installationStats(now): Promise<InstallationStats> {
-      const response = await checked(
-        `https://census-do/stats?now=${now.getTime()}`,
-      );
-      return (await response.json()) as InstallationStats;
-    },
-    async legacyRows(now): Promise<LegacyCounterRow[]> {
-      const response = await checked(
-        `https://census-do/legacy?now=${now.getTime()}`,
-      );
-      return (await response.json()) as LegacyCounterRow[];
-    },
-  };
-}
-
 async function statsAuthorized(
   request: Awaited<ReturnType<typeof adaptCensusRequest>>,
   env: Env,
@@ -354,7 +307,7 @@ async function statsAuthorized(
 const worker: ExportedHandler<Env> = {
   async fetch(incomingRequest: Request, env: Env): Promise<Response> {
     const request = await adaptCensusRequest(incomingRequest);
-    const store = storeFor(env);
+    const store = censusStoreFor(env);
     if (request.path === "/stats" || request.path === "/stats/api") {
       if (!(await statsAuthorized(request, env))) {
         return new Response(null, { status: 403 });

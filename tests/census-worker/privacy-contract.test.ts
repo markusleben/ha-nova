@@ -147,6 +147,7 @@ describe("Census privacy and cross-contract guards", () => {
     for (const file of [
       "access.ts",
       "census.ts",
+      "census-store.ts",
       "index.ts",
       "rate-limit.ts",
       "request-adapter.ts",
