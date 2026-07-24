@@ -52,7 +52,32 @@ For agent-dispatched flows, use the CLI wrapper instead of raw curl:
 
 1. Write request JSON with the client's native file-writing tool.
    - POSIX heredocs are examples only; on Windows/PowerShell use the native file-writing equivalent while preserving the same JSON and jq file contents.
-   - Write JSON and jq files as UTF-8. One leading UTF-8 BOM is accepted. In Windows PowerShell 5.1, use `Set-Content -Encoding UTF8`: bare `Set-Content` uses the system's active ANSI code page and, on affected non-UTF-8 locales, can emit non-UTF-8 bytes, which are rejected before any Relay request is sent. `Out-File`/`>` emit UTF-16LE and are also rejected.
+   - Write JSON and jq files as UTF-8. One leading UTF-8 BOM is accepted. UTF-16 and invalid/ambiguous UTF-8 are rejected before configuration lookup, authentication, or a Relay request.
+   - Windows PowerShell 5.1 has inconsistent defaults: BOM-less `Get-Content` uses the active legacy code page, bare `Set-Content` uses that code page for a new file, and `Out-File`/`>` write UTF-16LE. A wrong read followed by a UTF-8 write produces valid but already-corrupted UTF-8 that no CLI can detect. For mutation JSON, do not use those default encoding boundaries.
+   - On Windows PowerShell 5.1, prefer `ha-nova relay ... --out <result-file>` over shell redirection. Read and write mutation JSON with explicit strict UTF-8:
+
+     ```powershell
+     $strictUtf8 = New-Object -TypeName System.Text.UTF8Encoding -ArgumentList $false, $true
+     $bytes = [System.IO.File]::ReadAllBytes((Join-Path $PWD "result.json"))
+     $offset = 0
+     if ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) {
+         $offset = 3
+     }
+     if ($bytes.Length -ge ($offset + 3) -and $bytes[$offset] -eq 0xEF -and $bytes[$offset + 1] -eq 0xBB -and $bytes[$offset + 2] -eq 0xBF) {
+         throw "More than one leading UTF-8 BOM is unsupported"
+     }
+     $text = $strictUtf8.GetString($bytes, $offset, $bytes.Length - $offset)
+     $document = $text | ConvertFrom-Json
+     # Apply the intended in-memory change here.
+     $json = $document | ConvertTo-Json -Depth 100
+     $utf8NoBom = New-Object -TypeName System.Text.UTF8Encoding -ArgumentList $false
+     [System.IO.File]::WriteAllText((Join-Path $PWD "payload.json"), $json, $utf8NoBom)
+     ```
+
+     `ReadAllText` is not strict enough here because .NET may honor a UTF-16/32
+     BOM instead of the supplied UTF-8 decoder. `--out` always writes BOM-less
+     UTF-8. PowerShell 7 defaults to BOM-less UTF-8, but the explicit file-based
+     contract remains preferred for cross-platform mutation work.
    - Write the final request body directly. Do not create placeholder payload templates such as `REPLACE_ENTITY_ID` and patch them later with `perl -0pi`, `sed -i`, or similar in-place rewrite commands.
 2. Use file-based relay flags as the default contract:
    - `ha-nova relay ws --data-file <payload-file>`

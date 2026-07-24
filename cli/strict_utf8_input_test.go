@@ -2,14 +2,9 @@ package main
 
 import (
 	"bytes"
-	"fmt"
-	"io"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
-	"sync/atomic"
 	"testing"
 )
 
@@ -33,16 +28,43 @@ func TestStrictJSONBytesPreservesUnicodeAndAcceptsOneBOM(t *testing.T) {
 }
 
 func TestStrictJSONBytesRejectsInvalidEncodingsBeforeJSON(t *testing.T) {
-	cases := map[string][]byte{
-		"active legacy code page byte": append(append([]byte(`{"title":"`), 0xDC), []byte(`bersicht"}`)...),
-		"truncated UTF-8":              append([]byte(`{"title":"`), 0xC3),
-		"UTF-16LE":                     {0xFF, 0xFE, '{', 0x00, '}', 0x00},
+	cases := map[string]struct {
+		input []byte
+		want  string
+	}{
+		"active legacy code page byte": {
+			input: append(append([]byte(`{"title":"`), 0xDC), []byte(`bersicht"}`)...),
+			want:  "unsupported or ambiguous",
+		},
+		"truncated UTF-8": {
+			input: append([]byte(`{"title":"`), 0xC3),
+			want:  "unsupported or ambiguous",
+		},
+		"UTF-16LE": {
+			input: []byte{0xFF, 0xFE, '{', 0x00, '}', 0x00},
+			want:  "detected UTF-16LE",
+		},
+		"UTF-16BE": {
+			input: []byte{0xFE, 0xFF, 0x00, '{', 0x00, '}'},
+			want:  "detected UTF-16BE",
+		},
+		"UTF-32LE": {
+			input: []byte{0xFF, 0xFE, 0x00, 0x00, '{', 0x00, 0x00, 0x00},
+			want:  "detected UTF-32LE",
+		},
+		"UTF-32BE": {
+			input: []byte{0x00, 0x00, 0xFE, 0xFF, 0x00, 0x00, 0x00, '{'},
+			want:  "detected UTF-32BE",
+		},
 	}
-	for name, input := range cases {
+	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			_, err := strictJSONBytes(input, "test JSON")
+			_, err := strictJSONBytes(tc.input, "test JSON")
 			if err == nil || !strings.Contains(err.Error(), "not valid UTF-8") {
 				t.Fatalf("error = %v, want UTF-8 rejection", err)
+			}
+			if !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("error = %v, want %q", err, tc.want)
 			}
 		})
 	}
@@ -51,7 +73,6 @@ func TestStrictJSONBytesRejectsInvalidEncodingsBeforeJSON(t *testing.T) {
 		"malformed JSON": []byte(`{"title":`),
 		"empty":          nil,
 		"BOM only":       append([]byte{}, utf8BOM...),
-		"double BOM":     append(append(append([]byte{}, utf8BOM...), utf8BOM...), []byte(`{}`)...),
 	} {
 		t.Run(name, func(t *testing.T) {
 			_, err := strictJSONBytes(input, "test JSON")
@@ -59,6 +80,11 @@ func TestStrictJSONBytesRejectsInvalidEncodingsBeforeJSON(t *testing.T) {
 				t.Fatalf("error = %v, want JSON rejection", err)
 			}
 		})
+	}
+
+	doubleBOM := append(append(append([]byte{}, utf8BOM...), utf8BOM...), []byte(`{}`)...)
+	if _, err := strictJSONBytes(doubleBOM, "test JSON"); err == nil || !strings.Contains(err.Error(), "more than one leading UTF-8 BOM") {
+		t.Fatalf("double-BOM error = %v, want explicit rejection", err)
 	}
 }
 
@@ -73,7 +99,7 @@ func TestLoadRelayPayloadExplainsWindowsEncodingWithoutSending(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected invalid UTF-8 to fail")
 	}
-	for _, want := range []string{path, "not valid UTF-8", "nothing was sent", "Set-Content -Encoding UTF8", "BOM is accepted"} {
+	for _, want := range []string{path, "not valid UTF-8", "nothing was sent", "System.IO.File", "System.Text.UTF8Encoding", "UTF-8 BOM is accepted"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Fatalf("error missing %q: %v", want, err)
 		}
@@ -352,44 +378,4 @@ func TestStoredUndoSnapshotRejectsInvalidUTF8(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "UTF-8") {
 		t.Fatalf("error = %v, want corrupt UTF-8 rejection", err)
 	}
-}
-
-type strictInputRelayCapture struct {
-	requests atomic.Int32
-	bodies   chan []byte
-}
-
-func setupStrictInputRelay(t *testing.T) (runtimePaths, *strictInputRelayCapture) {
-	t.Helper()
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING", "1")
-	t.Setenv("HA_NOVA_TEST_KEYRING_FILE", filepath.Join(home, ".test-relay-token"))
-	t.Setenv("HA_NOVA_NO_UPDATE_NUDGE", "1")
-
-	capture := &strictInputRelayCapture{bodies: make(chan []byte, 8)}
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		capture.requests.Add(1)
-		body, _ := io.ReadAll(r.Body)
-		capture.bodies <- body
-		w.Header().Set("content-type", "application/json")
-		_, _ = fmt.Fprint(w, `{"ok":true,"data":{}}`)
-	}))
-	t.Cleanup(server.Close)
-
-	paths, err := detectPaths()
-	if err != nil {
-		t.Fatalf("detectPaths: %v", err)
-	}
-	if err := saveConfig(paths, runtimeConfig{
-		HAHost:       "127.0.0.1",
-		HAURL:        "http://127.0.0.1:8123",
-		RelayBaseURL: server.URL,
-	}); err != nil {
-		t.Fatalf("saveConfig: %v", err)
-	}
-	if err := writeRelayAuthToken("test-token"); err != nil {
-		t.Fatalf("write relay token: %v", err)
-	}
-	return paths, capture
 }
