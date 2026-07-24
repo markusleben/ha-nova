@@ -1,7 +1,8 @@
 # HA NOVA Masterplan 2026-H2
 
-Status: `active roadmap` — committed Waves 0–7 shipped in v0.18.0 on 2026-07-16; the ranked backlog remains uncommitted
-Scope: program-level plan following the completed [masterplan-2026.md](masterplan-2026.md) (shipped as v0.14.0, since grown to v0.18.0). Each wave breaks down into its own short spec + PRs before implementation; this doc is the SSOT for sequencing and decisions until superseded.
+Status: active
+Progress: committed Waves 0–7 shipped in v0.18.0 on 2026-07-16; the ranked backlog remains uncommitted
+Scope: program-level plan following the completed [masterplan-2026.md](../archive/work/masterplan-2026.md) (shipped as v0.14.0, since grown to v0.18.0). Each wave breaks down into its own short spec + PRs before implementation; this doc is the SSOT for sequencing and decisions until superseded.
 
 ## Context
 
@@ -127,7 +128,7 @@ Status: **DONE** — #353, #354, #355
 
 ## Wave 6 — Onboarding flagship: Pairing Code + Home Base (Relay 0.6.0, committed)
 
-Status: **DONE** — #357, #358, #359, #360; implementation spec: `docs/work/2026-07-15-wave-6-onboarding-spec.md`. Released in v0.18.0 with Relay 0.6.0.
+Status: **DONE** — #357, #358, #359, #360; implementation spec: `docs/archive/work/2026-07-15-wave-6-onboarding-spec.md`. Released in v0.18.0 with Relay 0.6.0.
 
 - **`/pair` endpoint**: a 6-digit short-lived pairing code (visible in the App log/panel) exchanges for the relay token over LAN. The wizard asks for exactly one thing: the code. The two-token model disappears from the user's world (the relay token becomes invisible; the LLAT stays in the App's own config UI where it belongs). Charter-clean: pure auth handshake, rate-limited, zero HA semantics. Natural future home for token rotation.
 - **Home Base**: a minimal ingress status page in the HA sidebar (one HTML file rendering `/health` data): connection status, version floor, pairing code, install one-liner. When something breaks, non-terminal users look *here* — inside the UI they know — instead of running `ha-nova doctor`. A charter test pins that no HA business logic creeps in.
@@ -137,7 +138,7 @@ Status: **DONE** — #357, #358, #359, #360; implementation spec: `docs/work/202
 
 ## Wave 7 — Update UX parity
 
-Status: **DONE** — #362, #363; implementation spec: `docs/work/2026-07-15-wave-7-update-ux-spec.md`. Released in v0.18.0.
+Status: **DONE** — #362, #363; implementation spec: `docs/archive/work/2026-07-15-wave-7-update-ux-spec.md`. Released in v0.18.0.
 
 - Successful updates and client re-syncs now end with a client-neutral new-session instruction; all five client overlays retain the shared update-notice path; the release-prep PR added the versionless macOS/Linux and Windows installer one-liners to the README.
 

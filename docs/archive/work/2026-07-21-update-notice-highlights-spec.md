@@ -1,6 +1,6 @@
 # Update-Notice Release Highlights Spec (#403)
 
-Status: approved plan, Batch 3 of the 2026-07-21 issue wave
+Status: merged — #408
 Date: 2026-07-21
 Trigger: issue #403 — update notices show only versions; users cannot tell why an
 update matters or whether it needs action. The GitHub release body already says,

@@ -1,6 +1,6 @@
 # Census Consent UX
 
-Status: implemented, unreleased
+Status: merged — #431; released in v0.21.2
 
 ## Goal
 

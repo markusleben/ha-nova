@@ -1,5 +1,8 @@
 # Launch-post spine — "v0.19 — the simplicity release"
 
+Status: superseded — v0.19.0 released; the v0.21 launch plan replaced this
+spine
+
 > Channel-neutral story skeleton for the v0.19.0 launch. One spine, adapted per
 > channel (notes at the end). Written in the project's warm maker voice; facts
 > match the v0.19 release state (`origin/main` + release-prep bump). Publish

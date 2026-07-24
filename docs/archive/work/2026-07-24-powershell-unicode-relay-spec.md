@@ -1,5 +1,6 @@
 # PowerShell 5.1 Relay Unicode Round-Trip Spec
 
+Status: merged — #435; released in v0.21.3
 Date: 2026-07-24
 Issue: #434
 

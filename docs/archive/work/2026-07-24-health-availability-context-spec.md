@@ -1,5 +1,6 @@
 # Health Availability Context Spec
 
+Status: merged — #436; released in v0.21.3
 Date: 2026-07-24
 Issue: #433
 

@@ -1,6 +1,6 @@
 # Consumer-Discovery Preflight Spec (#397)
 
-Status: approved plan, Batch 1 of the 2026-07-21 issue wave (follows #396 / PR #404)
+Status: merged — #405
 Date: 2026-07-21
 Trigger: issue #397 — repurposing an input requires finding everything that consumes its
 events; searching only standard automations misses blueprint-backed or extension-managed

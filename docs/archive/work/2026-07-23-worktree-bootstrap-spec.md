@@ -1,7 +1,7 @@
 # Worktree Bootstrap and Git Hook Isolation
 
+Status: merged — #429
 Date: 2026-07-23
-Status: implementation
 
 ## Problem
 

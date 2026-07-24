@@ -1,6 +1,6 @@
 # Locked-Keyring Onboarding UX Spec
 
-Status: active
+Status: merged — #388
 Date: 2026-07-20
 Trigger: live 0.19.0 rollout on a headless Ubuntu VM (systemd user services with linger, no graphical login) failed device pairing with "desktop keyring locked", and the AI client could not discover any supported way out.
 
@@ -23,7 +23,10 @@ A machine whose keyring is present but never unlockable can complete secure devi
 - The locked/uninitialized-keyring probe error gains one actionable line naming both commands.
 - The legacy relay-token locked-keyring message additionally names `ha-nova setup --service`.
 - `min_relay_version` 0.4.0 → 0.7.0 in both `version.json` files, plus a parity guard test.
-- Docs: onboarding skill, `.hermes/INSTALL.md` consistency, client-integration, safety, `nova/DOCS.md`; release claims collect in `docs/work/0.20.0-release-body.md` (README changes wait for the release-prep PR).
+- Docs: onboarding skill, `.hermes/INSTALL.md` consistency, client-integration,
+  safety, `nova/DOCS.md`; release claims collected in
+  `docs/archive/work/0.20.0-release-body.md` (README changes waited for the
+  release-prep PR).
 
 ## Non-goals
 

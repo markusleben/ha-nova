@@ -1,6 +1,6 @@
 # Spec: Config Snapshots (Wave 2 — Relay `/backups` + skill layer)
 
-Status: `active` — implementation spec for masterplan-2026-h2 Wave 2; Relay 0.5.0.
+Status: merged — shipped with Relay 0.5.0
 
 ## Problem
 

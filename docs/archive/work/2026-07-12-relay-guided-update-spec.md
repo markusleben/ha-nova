@@ -1,6 +1,6 @@
 # Spec: guided relay update from the CLI (stage 2)
 
-Status: `implemented` (2026-07-12) — `cli/relay_guided_update.go`; ships with the next user-facing release.
+Status: merged — implemented in `cli/relay_guided_update.go` and released
 
 ## Problem
 

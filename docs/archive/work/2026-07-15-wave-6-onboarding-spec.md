@@ -1,6 +1,6 @@
 # Wave 6 Onboarding Spec
 
-Status: complete
+Status: merged
 Date: 2026-07-15
 Sequencing SSOT: `docs/work/masterplan-2026-h2.md` -> Wave 6
 Release train: Relay 0.6.0; version/tag changes stay in release prep

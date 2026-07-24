@@ -1,6 +1,6 @@
 # Spec: Config Snapshot Batch Delete
 
-Status: active
+Status: merged — #369
 Date: 2026-07-16
 
 ## Problem

@@ -27,11 +27,6 @@ const apiMatrix = readFileSync(
   resolve(__dirname, "../../docs/reference/ha-api-matrix.md"),
   "utf-8",
 );
-const waveSpec = readFileSync(
-  resolve(__dirname, "../../docs/work/2026-07-15-wave-4-coverage-spec.md"),
-  "utf-8",
-);
-
 describe("service call contract", () => {
   describe("relay-api.md documents service call paths", () => {
     it("documents POST /api/services/{domain}/{service}", () => {
@@ -183,7 +178,6 @@ describe("service call contract", () => {
       expect(relayApi).toContain("Never print the full response to stdout");
       expect(relayApi).toContain("multiple automation triggers can share one webhook ID");
       expect(apiMatrix).toContain("opaque HTTP 200; effect verification required");
-      expect(waveSpec).toContain("only fresh listener evidence can verify an effect");
     });
 
     it("moves ownership out of mandatory fallback", () => {

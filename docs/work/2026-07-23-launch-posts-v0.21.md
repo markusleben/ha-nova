@@ -1,5 +1,7 @@
 # HA NOVA v0.21 launch rollout
 
+Status: active — live publication URLs are not yet recorded
+
 > Publication-ready source copy for `u/w0nk1` and `markusleben`. Verified
 > against stable v0.21.0. Apply each channel's moderation gate before posting.
 > One-code pairing, per-device credentials, and one-click revocation apply to

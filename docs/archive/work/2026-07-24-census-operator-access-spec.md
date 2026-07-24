@@ -1,6 +1,6 @@
 # Census Installation Counting and Operator Access
 
-Status: active
+Status: merged — #437; released in v0.21.3
 Date: 2026-07-24
 
 ## Goal

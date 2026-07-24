@@ -1,6 +1,6 @@
 # Spec: Versioned Relay Image Publish
 
-Status: active
+Status: merged — #372
 Date: 2026-07-17
 
 ## Problem

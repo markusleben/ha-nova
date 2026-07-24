@@ -1,6 +1,6 @@
 # Spec: Above-Floor Relay Update Offer
 
-Status: active
+Status: merged — completed by #427
 Date: 2026-07-16
 
 ## Problem

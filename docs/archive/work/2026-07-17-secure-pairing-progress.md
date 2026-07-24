@@ -1,8 +1,8 @@
 # Secure device pairing — build progress (integration branch)
 
-Status: in progress. Branch `feat/secure-onboarding-integration` off origin/main.
-Nothing merged; the whole feature is being proven locally first (user decision
-2026-07-17: prove end-to-end before any PR/merge/release).
+Status: merged — #374; released in v0.19.0
+
+Historical note: this document captured the pre-merge integration proof.
 
 ## Proven (hard, local)
 - Supervisor-token upstream works for ALL used HA ops (87/90 live, incl. automation/

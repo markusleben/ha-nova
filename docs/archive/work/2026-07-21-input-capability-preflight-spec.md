@@ -1,6 +1,6 @@
 # Input-Capability Preflight Spec (#396)
 
-Status: approved plan, Batch 1 of the 2026-07-21 issue wave
+Status: merged — #404
 Date: 2026-07-21
 Trigger: issue #396 — a remap plan may assume a gesture (double-press, hold) that the
 device/integration never emits; the resulting automation looks correct but can never fire.
@@ -77,4 +77,5 @@ Preflight required before planning or applying a remap of an input device
   for one Z2M button returns type/subtype rows through the relay.
 - Mandatory side-work: `docs/reference/safety.md` guarantee row quoting the new test title
   verbatim; register the new reference file in `docs/reference/skill-architecture.md`
-  inventory; append the user-facing claim to `docs/work/0.20.0-release-body.md`.
+  inventory; append the user-facing claim to
+  `docs/archive/work/0.20.0-release-body.md`.

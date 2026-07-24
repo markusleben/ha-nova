@@ -42,7 +42,7 @@ interface SnapshotEntry {
 /**
  * Generic config-snapshot blob store. The relay never parses the stored data —
  * opaque JSON in, opaque JSON out; which items get captured, diffed, and
- * restored is entirely the skills' business (docs/work/2026-07-14-config-snapshots-spec.md).
+ * restored is entirely the skills' business (skills/ha-nova/config-snapshots.md).
  */
 export function createBackupsHandler(options: BackupsHandlerOptions): RouteHandler {
   const now = options.now ?? Date.now;

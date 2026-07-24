@@ -1,6 +1,6 @@
 # Multi-Server Support Spec (draft)
 
-Status: draft (design sketch — not scheduled)
+Status: active — layer 1 shipped in v0.20.0; wizard layer 2 is tracked in #411
 Date: 2026-07-20
 Trigger: issue #343 — one client machine should reach more than one Home Assistant server; today `config.json` holds exactly one flat server configuration.
 

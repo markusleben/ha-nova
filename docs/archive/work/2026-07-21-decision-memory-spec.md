@@ -1,6 +1,6 @@
 # Decision-Memory Contract Spec (#395)
 
-Status: approved plan, Batch 2 of the 2026-07-21 issue wave (follows #391 / PR #406)
+Status: merged — #407
 Date: 2026-07-21
 Trigger: issue #395 — long multi-step tasks accumulate explicit requirements and
 rejected alternatives; later plans/previews can silently reintroduce a rejected

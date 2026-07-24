@@ -1,6 +1,6 @@
 # Spec: Independent Skill Update Check
 
-Status: active
+Status: merged — completed by #427
 Date: 2026-07-23
 
 ## Problem

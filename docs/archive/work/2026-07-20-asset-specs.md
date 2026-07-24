@@ -1,7 +1,7 @@
 # Relaunch asset specs — generated images (v0.19.0)
 
 > These specs are the *source of truth* for the four relaunch images.
-> Hero + social are pure SVG (sources in `docs/work/2026-07-20-*-composite.svg`;
+> Hero + social are pure SVG (sources in `docs/archive/work/2026-07-20-*-composite.svg`;
 > render with `rsvg-convert` at 2× + `sips` downscale). Pairing-flow +
 > how-it-works composite the same star SVG onto AI backgrounds generated via
 > `codex exec` (logged-in account) — their prompts below keep them
@@ -25,7 +25,7 @@
   (image models cannot reproduce the mark consistently; verified over
   multiple attempts). `logo.svg`/`icon.svg` themselves stay untouched as the
   canonical marks. Backgrounds are generated star-free ("NO star/sparkle"
-  clause) and the star is composited via the wrapper SVGs in `docs/work/` +
+  clause) and the star is composited via the wrapper SVGs in `docs/archive/work/` +
   `rsvg-convert`.
 - **Plain star, no glow, v3 (maintainer decisions 2026-07-20, two rounds):**
   glow styling (halo + clipped core glow) read artifact-y at 1:1 (ghost rim,
@@ -99,7 +99,7 @@ premium, clean; no clutter, no watermark, no UI elements.
 - **Final pipeline (full vector):** after two hybrid rounds (AI background +
   composited star) still showed grain/mud at 1:1, the hero became a pure SVG —
   vector cosmos gradient + starfield dots + v3 star block + system-font
-  typography. Source: `docs/work/2026-07-20-hero-banner-composite.svg`
+  typography. Source: `docs/archive/work/2026-07-20-hero-banner-composite.svg`
   (filename historical; contains no raster). The v1–v3 prompt/iteration notes
   above are kept as history only. Status: approved 2026-07-20.
 
@@ -117,7 +117,7 @@ premium, clean; no clutter, no watermark, no UI elements.
   star-free AND glow-free bg, regenerated with the how-it-works background
   attached via `-i` as a style reference for a coherent look; the v3 star
   block is composited onto the flat dark card, no vignette needed
-  (`docs/work/2026-07-20-pairing-flow-composite.svg`). Text constraint held
+  (`docs/archive/work/2026-07-20-pairing-flow-composite.svg`). Text constraint held
   exactly in every generation. Status: approved 2026-07-20.
 
 ## Image 3 — How it works (`assets/how-it-works-v2.png`)
@@ -131,7 +131,7 @@ premium, clean; no clutter, no watermark, no UI elements.
   model-drawn star — background regenerated star-free (empty glowing node,
   1 attempt), then a dark "window into space" inset drawn into the node and
   the canonical star block composited inside
-  (`docs/work/2026-07-20-how-it-works-composite.svg`). Labels exact in every
+  (`docs/archive/work/2026-07-20-how-it-works-composite.svg`). Labels exact in every
   generation. New file name on purpose; replaces `how-it-works.png` only in
   the release-prep PR. Status: approved 2026-07-20.
 
@@ -159,7 +159,7 @@ premium, clean; no clutter, no watermark, no UI elements.
   the full catalog is listed by default; deferred-loading Claude clients pull
   tools on demand, so the absolute "every session" claim was dropped).
   Canonical v3 star composited above the server
-  (`docs/work/2026-07-20-skills-vs-tools-composite.svg`), 2× supersampled.
+  (`docs/archive/work/2026-07-20-skills-vs-tools-composite.svg`), 2× supersampled.
   Status: pending maintainer review.
 
 ## Image 4 — Social preview (1280×640)
@@ -168,7 +168,7 @@ premium, clean; no clutter, no watermark, no UI elements.
   background (cosmos, soft glow left at ~27%/48%, wordmark + tagline right,
   ≥60px safe margins, subtle cyan→amber accent line along the bottom; 3
   attempts), then the exact vector star is composited into the glow via
-  `docs/work/2026-07-20-social-preview-composite.svg` + `rsvg-convert`.
+  `docs/archive/work/2026-07-20-social-preview-composite.svg` + `rsvg-convert`.
   Replaces the old "AI that reads before it writes" tagline with
   "One code to connect. Every change checked."
 - The release-prep PR replaces `assets/social-preview.png` content directly

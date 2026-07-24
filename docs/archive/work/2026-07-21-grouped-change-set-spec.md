@@ -1,6 +1,6 @@
 # Grouped Change Set Spec (#391)
 
-Status: approved plan, Batch 2 of the 2026-07-21 issue wave
+Status: merged — #406
 Date: 2026-07-21
 Trigger: issue #391 — one logical task spanning several non-destructive mutations
 repeats a full action menu after every preview; the user cannot tell which reply is

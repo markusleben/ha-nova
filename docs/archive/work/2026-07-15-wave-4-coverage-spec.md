@@ -1,6 +1,6 @@
 # Wave 4 Coverage Spec
 
-Status: complete
+Status: merged
 Date: 2026-07-15
 Sequencing SSOT: `docs/work/masterplan-2026-h2.md` → Wave 4
 
