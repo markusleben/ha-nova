@@ -303,6 +303,7 @@ func TestCensusSkillNoticeUsesOneBoundChoiceToken(t *testing.T) {
 		"must not use guilt, pressure, or recommend opt-in",
 		"Use at most five short visible lines in this order",
 		"purpose/planning value; cadence; exact JSON field categories",
+		"Cloudflare processing, HA NOVA source-IP non-reading/non-storage",
 		"Cloudflare is the hosting provider",
 		"no sooner than seven days later",
 		"ha-nova census notice-presented",

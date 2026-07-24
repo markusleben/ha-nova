@@ -101,8 +101,9 @@ The disclosure must preserve all of these distinctions:
 Render that disclosure as one compact heading plus at most five short lines.
 Use those five lines for: purpose and planning value; cadence; exact JSON field
 categories plus no usage/Home Assistant data; random-ID counting and origin;
-Cloudflare processing plus the voluntary-count limitation. Combine related
-clauses without dropping any distinction.
+Cloudflare processing, HA NOVA source-IP non-reading/non-storage, and the
+voluntary-count limitation. Combine related clauses without dropping any
+distinction.
 Do not paste the reference text or expose the machine-directed notice. Put the
 three actions immediately after the disclosure. Reserve technical terms such
 as "attempt" and "application JSON body" for the details view; the visible

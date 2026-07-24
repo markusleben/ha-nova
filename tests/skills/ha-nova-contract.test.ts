@@ -1206,6 +1206,9 @@ describe("ha-nova contract", () => {
     expect(content).toContain("at most five short lines");
     expect(content).toContain("Use those five lines for");
     expect(content).toContain("purpose and planning value; cadence");
+    expect(content).toContain(
+      "Cloudflare processing, HA NOVA source-IP non-reading/non-storage",
+    );
     expect(content).toContain("three actions immediately after");
     expect(content).toContain("1. **Yes — contribute**");
     expect(content).toContain("2. **No — do not contribute**");
