@@ -41,13 +41,14 @@ access_secret="${HA_NOVA_CENSUS_ACCESS_CLIENT_SECRET:-}"
 base_url="https://ha-nova-census.markusleben.workers.dev"
 temp_dir="$(mktemp -d "${TMPDIR:-/tmp}/ha-nova-census-verify.XXXXXX")"
 installation_id=""
-baseline=""
+baseline_os_count=""
 smoke_version="0.0.0-rc999999"
+smoke_os="linux"
 cleanup() {
   cleanup_status=$?
   if [[ -n "$installation_id" ]]; then
     if ! withdraw_smoke_and_restore; then
-      echo "[verify-census-deployment] ERROR: automatic cleanup failed; manually POST {\"schema\":2,\"installation_id\":\"${installation_id}\"} to ${base_url}/withdraw and verify the ${smoke_version} count returns to ${baseline}" >&2
+      echo "[verify-census-deployment] ERROR: automatic cleanup failed; manually POST {\"schema\":2,\"installation_id\":\"${installation_id}\"} to ${base_url}/withdraw and verify the ${smoke_os} OS count returns to ${baseline_os_count}" >&2
       cleanup_status=1
     fi
   fi
@@ -138,11 +139,11 @@ withdraw_smoke_and_restore() {
   [[ "$status" == "204" ]] || return 1
   for ((attempt = 1; attempt <= 15; attempt++)); do
     if fetch_stats "withdraw-$(date -u +%s)-$$-${attempt}"; then
-      current="$(jq -er --arg version "$smoke_version" '
-        .client_installations.by_version[$version] // 0
+      current="$(jq -er --arg os "$smoke_os" '
+        .client_installations.by_os[$os] // 0
         | select(type == "number" and . >= 0 and floor == .)
       ' "$payload_file")" || current=""
-      if [[ "$current" == "$baseline" ]]; then
+      if [[ "$current" == "$baseline_os_count" ]]; then
         return 0
       fi
     fi
@@ -161,13 +162,13 @@ for ((attempt = 1; attempt <= 30; attempt++)); do
 done
 [[ "$verified" -eq 1 ]] || fail "private stats did not expose the reviewed Worker and schema-2 contract"
 
-baseline="$(jq -er --arg version "$smoke_version" '
-  .client_installations.by_version[$version] // 0
+baseline_os_count="$(jq -er --arg os "$smoke_os" '
+  .client_installations.by_os[$os] // 0
   | select(type == "number" and . >= 0 and floor == .)
 ' "$payload_file")"
 installation_id="cns-$(openssl rand -hex 16)"
-ping_body="$(jq -cn --arg id "$installation_id" --arg version "$smoke_version" \
-  '{schema:2,installation_id:$id,version:$version,os:"linux"}')"
+ping_body="$(jq -cn --arg id "$installation_id" --arg version "$smoke_version" --arg os "$smoke_os" \
+  '{schema:2,installation_id:$id,version:$version,os:$os}')"
 
 for attempt in 1 2; do
   status="$(curl --disable --silent --show-error --max-time 15 --proto '=https' \
@@ -180,8 +181,8 @@ done
 deduplicated=0
 for ((attempt = 1; attempt <= 15; attempt++)); do
   fetch_stats "dedup-$(date -u +%s)-$$-${attempt}"
-  current="$(jq -r --arg version "$smoke_version" '.client_installations.by_version[$version] // 0' "$payload_file")"
-  if [[ "$current" -eq $((baseline + 1)) ]]; then
+  current="$(jq -r --arg os "$smoke_os" '.client_installations.by_os[$os] // 0' "$payload_file")"
+  if [[ "$current" -eq $((baseline_os_count + 1)) ]]; then
     deduplicated=1
     break
   fi

@@ -347,8 +347,16 @@ describe("release contract", () => {
     expect(censusDeploymentVerifier).toContain("for attempt in 1 2");
     expect(censusDeploymentVerifier).toContain("${base_url}/ping");
     expect(censusDeploymentVerifier).toContain("${base_url}/withdraw");
-    expect(censusDeploymentVerifier).toContain("baseline + 1");
-    expect(censusDeploymentVerifier).toContain('"$current" == "$baseline"');
+    expect(censusDeploymentVerifier).toContain("baseline_os_count + 1");
+    expect(censusDeploymentVerifier).toContain(
+      '"$current" == "$baseline_os_count"',
+    );
+    expect(censusDeploymentVerifier).toContain(
+      ".client_installations.by_os[$os]",
+    );
+    expect(censusDeploymentVerifier).not.toContain(
+      ".client_installations.by_version[$version]",
+    );
   });
 
   it("deploys the census only through one exact-target fail-closed wrapper", () => {
