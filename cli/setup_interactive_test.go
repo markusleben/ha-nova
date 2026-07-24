@@ -1260,7 +1260,7 @@ func TestInteractiveSetupAlreadyDoneUsesResumeBanner(t *testing.T) {
 	if censusLifecycleStopped(paths) {
 		t.Fatal("successful already-complete setup did not clear its matching lifecycle marker")
 	}
-	if !strings.Contains(output, "May this HA NOVA installation contribute to the maintainer's private version") {
+	if !strings.Contains(output, censusAskQuestionPrefix) {
 		t.Fatalf("successful already-complete setup omitted the one-time census question:\n%s", output)
 	}
 	census := loadCensusState(paths)

@@ -74,6 +74,13 @@ in that response and must close it; print nothing after its options.
 
 The disclosure must preserve all of these distinctions:
 
+- Before asking, explain in friendly, non-pressuring language that by
+  contributing, the user helps the maintainer get a rough picture of how many
+  installations participate, which HA NOVA and Relay versions they use, and
+  how operating systems are distributed. This helps prioritize compatibility
+  work, tests, bug fixes, and new features where they are likely to help most.
+  Present this as a directional planning input, not a roadmap vote or feature
+  promise; participation remains optional.
 - If the user agrees, HA NOVA sends the first report now; further reports are
   sent no sooner than seven days later.
 - The fixed JSON body contains only the payload schema, a dedicated random
@@ -92,6 +99,10 @@ The disclosure must preserve all of these distinctions:
   not verified people or the complete installed base.
 
 Render that disclosure as one compact heading plus at most five short lines.
+Use those five lines for: purpose and planning value; cadence; exact JSON field
+categories plus no usage/Home Assistant data; random-ID counting and origin;
+Cloudflare processing plus the voluntary-count limitation. Combine related
+clauses without dropping any distinction.
 Do not paste the reference text or expose the machine-directed notice. Put the
 three actions immediately after the disclosure. Reserve technical terms such
 as "attempt" and "application JSON body" for the details view; the visible
@@ -111,8 +122,9 @@ Offer exactly three short, localized effects:
 unbound `ha-nova census on|off`; the choice ID prevents an old UI action from
 overwriting newer consent.
 
-Do not recommend opt-in. If a client requires a default or recommended option,
-use the privacy-safe No choice. The selected Yes or No is the single consent;
+Explain the value without guilt, pressure, or recommending opt-in. If a client
+requires a default or recommended option, use the privacy-safe No choice. The
+selected Yes or No is the single consent;
 never ask for a second confirmation. Report the stored choice only after the
 command succeeds, and distinguish a saved opt-in from an unconfirmed first
 report. If a choose command says the choice is stale, report that it did not

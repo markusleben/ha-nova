@@ -246,6 +246,9 @@ func TestCensusStatusPrintsLiteralApplicationJSONAndURLs(t *testing.T) {
 		body, // the LITERAL application-body bytes, not a description
 		"reports are attempted no sooner than seven days apart",
 		"Last attempted: never",
+		"Purpose: voluntary reports provide a rough picture",
+		"helping prioritize compatibility work, tests, bug fixes, and new features",
+		"not a roadmap vote, verified installed-base count, or feature promise",
 		censusStatsURL(),
 		"ha-nova census off",
 		"HA_NOVA_NO_CENSUS",

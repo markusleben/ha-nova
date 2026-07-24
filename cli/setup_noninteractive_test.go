@@ -151,7 +151,7 @@ func TestRunSetupNonInteractiveSkipsClipboardAndBrowserSideEffects(t *testing.T)
 	if browserCalls != 0 {
 		t.Fatalf("expected non-interactive setup not to launch browser, got %d call(s)", browserCalls)
 	}
-	if strings.Contains(output, "May this HA NOVA installation contribute to the maintainer's private version") {
+	if strings.Contains(output, censusAskQuestionPrefix) {
 		t.Fatalf("non-interactive token setup prompted for census:\n%s", output)
 	}
 	if _, err := os.Stat(paths.CensusFile); !os.IsNotExist(err) {
@@ -877,7 +877,7 @@ func TestCompleteNonInteractivePairedSetupNeverPromptsForCensus(t *testing.T) {
 	if exitCode != 0 {
 		t.Fatalf("paired non-interactive setup exit = %d:\n%s", exitCode, output)
 	}
-	if strings.Contains(output, "May this HA NOVA installation contribute to the maintainer's private version") {
+	if strings.Contains(output, censusAskQuestionPrefix) {
 		t.Fatalf("paired non-interactive setup prompted for census:\n%s", output)
 	}
 	if _, err := os.Stat(paths.CensusFile); !os.IsNotExist(err) {

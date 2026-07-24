@@ -6,6 +6,13 @@ HA NOVA sends no behavioral or feature-use analytics. Its single optional
 measurement is the **Census**: an explicitly approved installation report used
 for private maintainer statistics.
 
+Each voluntary report helps provide a rough picture of participating
+installations, their HA NOVA and Relay versions, and the operating-system
+distribution. The maintainer uses that directional information to prioritize
+compatibility work, testing, bug fixes, and new features where they are likely
+to help most. It is not a feature-use measurement, roadmap vote, verified
+installed-base count, or feature promise.
+
 Cloudflare is the hosting provider. The HTTPS request therefore exposes the
 source IP and connection metadata to Cloudflare under its privacy terms.
 HA NOVA ingest code does not read or store the source IP.

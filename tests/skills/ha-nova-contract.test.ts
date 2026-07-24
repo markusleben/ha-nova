@@ -1191,10 +1191,21 @@ describe("ha-nova contract", () => {
     expect(content).not.toContain("one attempt per ISO week");
     expect(content).toContain("message content (JSON)");
     expect(content).toContain("private maintainer");
+    expect(content).toMatch(
+      /by\s+contributing, the user helps the maintainer get a rough picture/,
+    );
+    expect(content).toContain("how operating systems are distributed");
+    expect(content).toMatch(
+      /prioritize compatibility\s+work, tests, bug fixes, and new features/,
+    );
+    expect(content).toMatch(/not a roadmap\s+vote or feature\s+promise/);
+    expect(content).toContain("without guilt, pressure, or recommending opt-in");
     expect(content).toContain(
       "ingest code does not read or store the source IP",
     );
     expect(content).toContain("at most five short lines");
+    expect(content).toContain("Use those five lines for");
+    expect(content).toContain("purpose and planning value; cadence");
     expect(content).toContain("three actions immediately after");
     expect(content).toContain("1. **Yes — contribute**");
     expect(content).toContain("2. **No — do not contribute**");

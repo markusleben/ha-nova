@@ -9,6 +9,18 @@ Cloudflare is the hosting provider. The HTTPS connection therefore exposes the
 source IP and connection metadata to Cloudflare under its privacy terms.
 HA NOVA ingest code does not read or store the source IP.
 
+## Why participation helps
+
+By participating, you help give the maintainer a rough picture of how many HA
+NOVA installations participate, which HA NOVA and Relay versions they use, and
+how operating systems are distributed. That directional picture helps
+prioritize compatibility work, testing, bug fixes, and new features where they
+are likely to help most.
+
+The Census does not measure feature use or what an individual user wants. Its
+numbers are one planning input, not a roadmap vote, verified installed-base
+count, or promise that a particular feature will be built.
+
 ## The one-time choice
 
 The CLI presents a separate Yes/No/Show exact data action:
@@ -16,9 +28,13 @@ The CLI presents a separate Yes/No/Show exact data action:
 ```text
   One-time privacy choice
 
-  May this HA NOVA installation contribute to the maintainer's private version
-  statistics?
+  May this HA NOVA installation contribute to the maintainer's private
+  installation and version statistics?
   HA NOVA sends no behavioral or feature-use analytics.
+  Why this helps: by contributing, you give the maintainer a rough picture of
+  how many installations participate, which HA NOVA and Relay versions they use,
+  and how operating systems are distributed. This helps prioritize compatibility
+  work, tests, bug fixes, and new features where they are likely to help most.
   If you agree, HA NOVA sends the first report now. Further reports are sent
   no sooner than seven days later.
   The message content (JSON) contains only:
