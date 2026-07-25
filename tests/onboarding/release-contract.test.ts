@@ -392,6 +392,22 @@ describe("release contract", () => {
     );
     expect(censusDeployer).toContain("WRANGLER_OUTPUT_FILE_PATH");
     expect(censusDeployer).toContain("$deploys[0].targets == [$target]");
+    expect(censusDeployer).toContain("single_deployment_version_id");
+    expect(censusDeployer).toContain("deployment_output_version_id");
+    expect(censusDeployer).toContain("select(length == 1)");
+    expect(censusDeployer).toContain(
+      'test("^[0-9A-Za-z][0-9A-Za-z._-]{0,127}$")',
+    );
+    expect(censusDeployer).toContain("wrangler@4.113.0 deployments status");
+    expect(censusDeployer).not.toContain(
+      "wrangler@4.113.0 deployments list",
+    );
+    expect(censusDeployer).not.toContain(".[0].versions");
+    expect(censusDeployer).toContain("rollback not needed");
+    expect(censusDeployer).toContain(
+      "active Worker version changed outside this deploy",
+    );
+    expect(releasing).toContain("serialized single-writer operation");
     expect(censusDeployer).toContain('--tag "$reviewed_sha"');
     expect(censusDeployer).toContain("--strict");
     expect(censusDeployer).toContain("--no-autoconfig");

@@ -199,6 +199,10 @@ release changes the census Worker.
    Cloudflare Access must already protect `/stats*`, the Worker must have
    `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD`, and the release shell must provide
    the Access service-token credentials documented in `census-worker/README.md`.
+   Treat the Census deploy as a serialized single-writer operation: do not
+   deploy the Worker from another shell, workflow, or the Cloudflare dashboard
+   while this wrapper runs. When Wrangler identifies this run's deployed
+   version, cleanup refuses to overwrite a different active version.
    A maintainer must also complete a fresh browser login to `/stats` and only
    then set `HA_NOVA_CENSUS_BROWSER_ACCESS_VERIFIED=1` in that release shell.
    The fail-closed wrapper requires Node.js 22 or newer, a clean exact-SHA
