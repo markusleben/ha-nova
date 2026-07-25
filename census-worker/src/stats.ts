@@ -151,7 +151,7 @@ export function buildPrivateStats(
     relay_app_installations: {
       ...relay,
       counting_note:
-        "Official NOVA Relay App installations reported by opted-in Home Assistant Analytics. This is a separate metric and must not be added to client installations.",
+        "External metric from opted-in Home Assistant Analytics, not HA NOVA Census data. Resetting HA NOVA Census data does not change it. It must not be added to client installations.",
     },
     legacy_ping_activity: {
       counting_note:
@@ -219,23 +219,25 @@ body{font:16px/1.45 system-ui,sans-serif;max-width:980px;margin:40px auto;paddin
 h1,h2{line-height:1.2}.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
 .card,section{background:white;border:1px solid #dfe5ea;border-radius:10px;padding:18px;margin:16px 0}
 .value{font-size:2rem;font-weight:700}table{border-collapse:collapse;width:100%}td,th{padding:8px;border-bottom:1px solid #e8ecef;text-align:left}
-.note{color:#53606b;font-size:.92rem}code{background:#eef2f5;padding:2px 5px;border-radius:4px}
+.source-guide{background:#eef7ff;border-color:#8ebce5}.source-label{display:block;color:#3d5366;font-size:.75rem;font-weight:700;letter-spacing:.04em;margin-bottom:8px;text-transform:uppercase}
+.external{border-color:#8ebce5}.note{color:#53606b;font-size:.92rem}a{overflow-wrap:anywhere}code{background:#eef2f5;padding:2px 5px;border-radius:4px}
 </style>
 </head>
 <body>
 <h1>HA NOVA Census</h1>
 <p class="note">Private maintainer dashboard · generated ${escapeHTML(stats.generated_at)}</p>
+<section class="source-guide"><h2>Two independent sources</h2><p><strong>HA NOVA Census</strong> numbers come from voluntary client reports stored by HA NOVA. <strong>Relay App installations</strong> come from external, opted-in Home Assistant Analytics.</p><p><strong>Never add these numbers.</strong> They measure different populations.</p></section>
 <div class="cards">
-<div class="card"><div class="value">${stats.client_installations.active_21_days}</div><strong>Active client installations</strong><div class="note">${escapeHTML(stats.client_installations.active_definition)}</div></div>
-<div class="card"><div class="value">${stats.client_installations.known_60_days}</div><strong>Known client installations</strong><div class="note">${escapeHTML(stats.client_installations.known_definition)}</div></div>
-<div class="card"><div class="value">${relayTotal}</div><strong>Relay App installations</strong><div class="note">Separate Home Assistant Analytics metric</div></div>
-<div class="card"><div class="value">${stats.client_installations.new_installation_rejections_today}</div><strong>New-client rejects today</strong><div class="note">Admission protection; investigate any non-zero value</div></div>
+<div class="card"><span class="source-label">HA NOVA Census</span><div class="value">${stats.client_installations.active_21_days}</div><strong>Active client installations</strong><div class="note">${escapeHTML(stats.client_installations.active_definition)}</div></div>
+<div class="card"><span class="source-label">HA NOVA Census</span><div class="value">${stats.client_installations.known_60_days}</div><strong>Known client installations</strong><div class="note">${escapeHTML(stats.client_installations.known_definition)}</div></div>
+<div class="card external"><span class="source-label">External · Home Assistant Analytics</span><div class="value">${relayTotal}</div><strong>Relay App installations</strong><div class="note">Opt-in Home Assistant metric · not HA NOVA Census data</div></div>
+<div class="card"><span class="source-label">HA NOVA Census</span><div class="value">${stats.client_installations.new_installation_rejections_today}</div><strong>New-client rejects today</strong><div class="note">Admission protection; investigate any non-zero value</div></div>
 </div>
-<section><h2>Client versions · active 21 days</h2><table><tr><th>Version</th><th>Installations</th></tr>${rows(stats.client_installations.by_version)}</table></section>
-<section><h2>Client operating systems · active 21 days</h2><table><tr><th>OS</th><th>Installations</th></tr>${rows(stats.client_installations.by_os)}</table></section>
-<section><h2>Recently observed Relay versions</h2><p><strong>${stats.client_installations.relay_not_recently_observed}</strong> active clients did not report a Relay version observed within the previous 14 days.</p><table><tr><th>Relay version</th><th>Client installations</th></tr>${rows(stats.client_installations.relay_versions)}</table></section>
-<section><h2>Official Relay App installations</h2><p class="note">${escapeHTML(stats.relay_app_installations.counting_note)}</p><table><tr><th>Version</th><th>Installations</th></tr>${relayVersions}</table></section>
-<section><h2>Legacy ping activity</h2><p class="note">${escapeHTML(stats.legacy_ping_activity.counting_note)}</p><table><tr><th>ISO week</th><th>Accepted pings</th></tr>${legacyRows(stats.legacy_ping_activity.weekly)}</table></section>
+<section><span class="source-label">HA NOVA Census</span><h2>Client versions · active 21 days</h2><table><tr><th>Version</th><th>Installations</th></tr>${rows(stats.client_installations.by_version)}</table></section>
+<section><span class="source-label">HA NOVA Census</span><h2>Client operating systems · active 21 days</h2><table><tr><th>OS</th><th>Installations</th></tr>${rows(stats.client_installations.by_os)}</table></section>
+<section><span class="source-label">HA NOVA Census</span><h2>Recently observed Relay versions</h2><p><strong>${stats.client_installations.relay_not_recently_observed}</strong> active clients did not report a Relay version observed within the previous 14 days.</p><table><tr><th>Relay version</th><th>Client installations</th></tr>${rows(stats.client_installations.relay_versions)}</table></section>
+<section class="external"><span class="source-label">External source</span><h2>Relay App installations · Home Assistant Analytics</h2><p>${escapeHTML(stats.relay_app_installations.counting_note)}</p><p class="note">Dataset: <a href="${HA_ANALYTICS_URL}">${HA_ANALYTICS_URL}</a><br>Relay App slug: <code>${escapeHTML(stats.relay_app_installations.slug)}</code></p><table><tr><th>Version</th><th>Installations</th></tr>${relayVersions}</table></section>
+<section><span class="source-label">HA NOVA Census · legacy</span><h2>Legacy ping activity</h2><p class="note">${escapeHTML(stats.legacy_ping_activity.counting_note)}</p><table><tr><th>ISO week</th><th>Accepted pings</th></tr>${legacyRows(stats.legacy_ping_activity.weekly)}</table></section>
 <section><h2>Interpretation</h2><p>${escapeHTML(stats.client_installations.counting_note)}</p><p>${escapeHTML(stats.legacy_ping_activity.counting_note)}</p><p>Machine-readable data: <a href="/stats/api">/stats/api</a>.</p></section>
 </body>
 </html>`;

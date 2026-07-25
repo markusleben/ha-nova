@@ -454,7 +454,17 @@ describe("private maintainer statistics", () => {
       "did not report a Relay version observed within the previous 14 days",
     );
     expect(html).not.toContain("unknown Relay version");
-    expect(html).toContain("Official Relay App installations");
+    expect(html).toContain("Two independent sources");
+    expect(html).toContain("External · Home Assistant Analytics");
+    expect(html).toContain(
+      '<span class="source-label">HA NOVA Census</span><h2>Recently observed Relay versions</h2>',
+    );
+    expect(html).toContain(
+      "Resetting HA NOVA Census data does not change it. It must not be added",
+    );
+    expect(html).toContain(`href="${HA_ANALYTICS_URL}"`);
+    expect(html).toContain(RELAY_APP_SLUG);
+    expect(html).toContain("a{overflow-wrap:anywhere}");
     expect(html).toContain("Machine-readable data");
   });
 
