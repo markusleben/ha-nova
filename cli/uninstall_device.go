@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"strings"
 )
 
@@ -18,6 +19,108 @@ type profilePurgeTarget struct {
 	spkiPin              string
 	pendingSecureBaseURL string
 	pendingSpkiPin       string
+}
+
+func collectProfilePurgeTargets(
+	paths runtimePaths,
+) ([]profilePurgeTarget, error) {
+	doc, err := loadConfigDocument(paths.ConfigFile)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []profilePurgeTarget{{
+				name: activeServerProfile(),
+			}}, nil
+		}
+		return nil, fmt.Errorf(
+			"read device cleanup configuration: %w",
+			err,
+		)
+	}
+	if err := validateSupportedConfigDocument(doc); err != nil {
+		return nil, err
+	}
+	if err := validateExistingServerProfileIDs(doc.servers); err != nil {
+		return nil, fmt.Errorf(
+			"invalid server profile identities: %w",
+			err,
+		)
+	}
+	targets := make([]profilePurgeTarget, 0, len(doc.profileNames()))
+	for _, name := range doc.profileNames() {
+		if err := validateServerProfileName(name); err != nil {
+			return nil, err
+		}
+		cfg, ok := doc.flatProfile(name)
+		if !ok {
+			return nil, fmt.Errorf(
+				"cannot safely inspect device cleanup for server %q",
+				name,
+			)
+		}
+		targets = append(targets, profilePurgeTarget{
+			name:                 name,
+			relayInstanceID:      strings.TrimSpace(cfg.RelayInstanceID),
+			secureBaseURL:        strings.TrimSpace(cfg.RelaySecureBaseURL),
+			spkiPin:              strings.TrimSpace(cfg.RelaySpkiPin),
+			pendingSecureBaseURL: strings.TrimSpace(cfg.PendingSecureBaseURL),
+			pendingSpkiPin:       strings.TrimSpace(cfg.PendingSpkiPin),
+		})
+	}
+	if len(targets) == 0 {
+		targets = append(targets, profilePurgeTarget{
+			name: activeServerProfile(),
+		})
+	}
+	return targets, nil
+}
+
+// validateProfilePurgeTargets runs the deterministic credential and endpoint
+// checks used by full purge without revoking or deleting anything.
+func validateProfilePurgeTargets(targets []profilePurgeTarget) error {
+	for _, target := range targets {
+		pending, pendingExists, err :=
+			readPendingCredentialRecordFromService(
+				deviceCredentialPendingServiceForProfile(target.name),
+			)
+		if err != nil {
+			return relayAuthTokenSetupOperationError(
+				fmt.Sprintf(
+					"inspect pending device credential for server %q",
+					target.name,
+				),
+				err,
+			)
+		}
+		if pendingExists &&
+			pending.Source == pendingDeviceCredentialSourceLocal &&
+			((target.pendingSecureBaseURL == "") !=
+				(target.pendingSpkiPin == "")) {
+			return fmt.Errorf(
+				"pending device endpoint for server %q is incomplete; refusing to delete a possibly active credential",
+				target.name,
+			)
+		}
+		_, currentExists, err := readCredentialSlot(
+			deviceCredentialServiceForProfile(target.name),
+		)
+		if err != nil {
+			return relayAuthTokenSetupOperationError(
+				fmt.Sprintf(
+					"inspect device credential for server %q",
+					target.name,
+				),
+				err,
+			)
+		}
+		if currentExists &&
+			((target.secureBaseURL == "") != (target.spkiPin == "")) {
+			return fmt.Errorf(
+				"device endpoint for server %q is incomplete; refusing to delete an active credential",
+				target.name,
+			)
+		}
+	}
+	return nil
 }
 
 // purgeDeviceCredentialWithReport revokes ONE profile's pairing on its relay

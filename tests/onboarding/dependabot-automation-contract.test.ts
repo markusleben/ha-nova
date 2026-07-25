@@ -1,6 +1,21 @@
+import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
+
+const botOwnedAutoMergeQuery =
+  '.autoMergeRequest.enabledBy.login == "github-actions[bot]"';
+
+function botOwnsNativeAutoMerge(login: string): boolean {
+  const result = spawnSync("jq", ["-r", botOwnedAutoMergeQuery], {
+    encoding: "utf8",
+    input: JSON.stringify({ autoMergeRequest: { enabledBy: { login } } }),
+  });
+  if (result.error !== undefined || result.status !== 0) {
+    throw new Error(`jq ownership check failed: ${result.stderr}`);
+  }
+  return result.stdout.trim() === "true";
+}
 
 describe("dependabot automation contract", () => {
   const agents = readFileSync("AGENTS.md", "utf8");
@@ -176,7 +191,15 @@ describe("dependabot automation contract", () => {
       'gh api "repos/${GITHUB_REPOSITORY}/dispatches"',
     );
     expect(prepareWorkflow).toContain("--json autoMergeRequest,labels");
-    expect(prepareWorkflow).toContain("jq -e '.autoMergeRequest != null'");
+    expect(prepareWorkflow).toContain(
+      `jq -r '${botOwnedAutoMergeQuery}'`,
+    );
+    expect(prepareWorkflow).toContain(
+      'if [[ "${bot_auto_merge}" == "true" ]]; then',
+    );
+    expect(prepareWorkflow).not.toContain(
+      "jq -e '.autoMergeRequest != null'",
+    );
     expect(prepareWorkflow).toContain('gh pr merge "${PR_NUMBER}" --disable-auto');
     expect(prepareWorkflow).toContain("jq -e --arg label \"${SAFE_LABEL}\" '.labels[]? | select(.name == $label)'");
     expect(prepareWorkflow).toContain('gh pr edit "${PR_NUMBER}" --remove-label "${SAFE_LABEL}"');
@@ -220,6 +243,14 @@ describe("dependabot automation contract", () => {
     expect(directMergeScript).toContain("pull request API and merge ref identify different merge commits");
     expect(directMergeScript).toContain('merge_method: "squash"');
     expect(directMergeScript).toContain("sha: final.headSHA");
+  });
+
+  it("preserves human-owned native auto-merge during ineligible cleanup", () => {
+    expect(botOwnsNativeAutoMerge("markusleben")).toBe(false);
+  });
+
+  it("disables bot-owned native auto-merge during ineligible cleanup", () => {
+    expect(botOwnsNativeAutoMerge("github-actions[bot]")).toBe(true);
   });
 
   it("blocks non-safe manifest changes unless a maintainer labels them approved", () => {

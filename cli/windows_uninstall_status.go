@@ -22,19 +22,21 @@ const (
 )
 
 type windowsUninstallStatus struct {
-	SchemaVersion  int       `json:"schema_version"`
-	Operation      string    `json:"operation"`
-	Status         string    `json:"status"`
-	Mode           string    `json:"mode"`
-	InstallSource  string    `json:"install_source"`
-	HelperPID      int       `json:"helper_pid,omitempty"`
-	StartedAt      time.Time `json:"started_at,omitempty"`
-	LastUpdatedAt  time.Time `json:"last_updated_at,omitempty"`
-	ErrorSummary   string    `json:"error_summary,omitempty"`
-	ErrorDetails   string    `json:"error_details,omitempty"`
-	FailingStep    string    `json:"failing_step,omitempty"`
-	RemainingPaths []string  `json:"remaining_paths,omitempty"`
-	InstallRoot    string    `json:"install_root,omitempty"`
+	SchemaVersion              int                              `json:"schema_version"`
+	Operation                  string                           `json:"operation"`
+	Status                     string                           `json:"status"`
+	Mode                       string                           `json:"mode"`
+	InstallSource              string                           `json:"install_source"`
+	HelperPID                  int                              `json:"helper_pid,omitempty"`
+	StartedAt                  time.Time                        `json:"started_at,omitempty"`
+	LastUpdatedAt              time.Time                        `json:"last_updated_at,omitempty"`
+	ErrorSummary               string                           `json:"error_summary,omitempty"`
+	ErrorDetails               string                           `json:"error_details,omitempty"`
+	FailingStep                string                           `json:"failing_step,omitempty"`
+	RemainingPaths             []string                         `json:"remaining_paths,omitempty"`
+	InstallRoot                string                           `json:"install_root,omitempty"`
+	GuidedTeardownCompleted    bool                             `json:"guided_teardown_completed,omitempty"`
+	GuidedTeardownRelayRemoval *windowsUninstallRelayRemovalRef `json:"guided_teardown_relay_removal,omitempty"`
 }
 
 type windowsUninstallStatusKind string
@@ -135,6 +137,9 @@ func loadWindowsUninstallStatus(paths runtimePaths) (windowsUninstallStatus, err
 	if err := json.Unmarshal(data, &status); err != nil {
 		return windowsUninstallStatus{}, err
 	}
+	if err := validateWindowsUninstallTeardownEvidence(status); err != nil {
+		return windowsUninstallStatus{}, err
+	}
 	status.SchemaVersion = windowsUninstallStatusSchemaVersion
 	status.Operation = windowsUninstallStatusOperation
 	status.Mode = string(normalizeUninstallMode(status.Mode))
@@ -143,21 +148,13 @@ func loadWindowsUninstallStatus(paths runtimePaths) (windowsUninstallStatus, err
 }
 
 func beginWindowsUninstallStatus(paths runtimePaths, mode uninstallMode, installSource string) (*windowsUninstallStatus, error) {
-	status := &windowsUninstallStatus{
-		SchemaVersion: windowsUninstallStatusSchemaVersion,
-		Operation:     windowsUninstallStatusOperation,
-		Status:        windowsUninstallStatusRunning,
-		Mode:          string(mode),
-		InstallSource: normalizeInstallSource(installSource),
-		HelperPID:     os.Getpid(),
-		StartedAt:     windowsUninstallStatusNow().UTC(),
-		LastUpdatedAt: windowsUninstallStatusNow().UTC(),
-		InstallRoot:   paths.InstallRoot,
-	}
-	if err := writeWindowsUninstallStatus(paths, *status); err != nil {
-		return nil, err
-	}
-	return status, nil
+	return beginWindowsUninstallStatusWithTeardown(
+		paths,
+		mode,
+		installSource,
+		false,
+		nil,
+	)
 }
 
 func updateWindowsUninstallStatusProgress(paths runtimePaths, status *windowsUninstallStatus) error {
@@ -231,6 +228,9 @@ func finishWindowsUninstallStatus(paths runtimePaths, status *windowsUninstallSt
 }
 
 func writeWindowsUninstallStatus(paths runtimePaths, status windowsUninstallStatus) error {
+	if err := validateWindowsUninstallTeardownEvidence(status); err != nil {
+		return err
+	}
 	status.SchemaVersion = windowsUninstallStatusSchemaVersion
 	status.Operation = windowsUninstallStatusOperation
 	status.Mode = string(normalizeUninstallMode(status.Mode))

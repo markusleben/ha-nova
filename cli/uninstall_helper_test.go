@@ -297,7 +297,14 @@ func TestRunInternalUninstallPrintsPartialRemovalDetailsWhenTokenDeleteFails(t *
 	waitForParentReleaseForUninstall = func(parentPID int) {}
 
 	exitCode, output := captureCommandOutput(t, func() int {
-		return runInternalUninstall(paths, []string{"--self-path", filepath.Join(home, "temp-helper.exe"), "--purge"})
+		return runInternalUninstall(paths, []string{
+			"--self-path",
+			filepath.Join(home, "temp-helper.exe"),
+			"--purge",
+			"--teardown-done",
+			"--teardown-relay-instance-id",
+			"relay-guided-teardown",
+		})
 	})
 	if exitCode == 0 {
 		t.Fatalf("expected internal uninstall to fail when token deletion fails:\n%s", output)
@@ -317,5 +324,28 @@ func TestRunInternalUninstallPrintsPartialRemovalDetailsWhenTokenDeleteFails(t *
 	}
 	if marker.Status != windowsUninstallStatusFailed {
 		t.Fatalf("marker status = %q, want failed", marker.Status)
+	}
+	teardownDone, removedRelays, err :=
+		windowsUninstallTeardownEvidence(marker)
+	if err != nil {
+		t.Fatalf("rehydrate guided teardown evidence: %v", err)
+	}
+	if !teardownDone {
+		t.Fatal("failed helper lost guided teardown completion")
+	}
+	if !removedRelays.matches(
+		defaultServerProfileName,
+		"relay-guided-teardown",
+	) {
+		t.Fatalf(
+			"failed helper lost exact Relay-removal evidence: %#v",
+			removedRelays,
+		)
+	}
+	if removedRelays.matches(
+		defaultServerProfileName,
+		"relay-reconfigured-after-failure",
+	) {
+		t.Fatal("recovery evidence matched a different Relay identity")
 	}
 }

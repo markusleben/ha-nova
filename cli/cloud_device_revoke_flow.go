@@ -237,6 +237,57 @@ func planCloudDeviceRevocation(
 	return targets, checkpoint, nil
 }
 
+// validateCloudDeviceRevocationPlan runs every deterministic secure-storage
+// and identity check used by the destructive revocation flow without writing
+// a checkpoint, revoking a device, or deleting a credential.
+func validateCloudDeviceRevocationPlan(
+	ctx context.Context,
+	cfg runtimeConfig,
+	profileName string,
+) error {
+	remoteOnly, err := isRemoteOnlyCloudProfile(cfg)
+	if err != nil {
+		return err
+	}
+	if cfg.Cloud == nil {
+		return newCloudError(
+			CloudErrSecretCorrupt,
+			"validate Cloud device revocation plan",
+			nil,
+		)
+	}
+	if cfg.Cloud.DeviceRevocationCompleted != nil {
+		if err := validateCloudDeviceRevocationCheckpoint(*cfg.Cloud); err != nil {
+			return newCloudError(
+				CloudErrSecretCorrupt,
+				"validate Cloud device revocation checkpoint",
+				err,
+			)
+		}
+		checkpoint := *cfg.Cloud.DeviceRevocationCompleted
+		if err := validateCheckpointedCloudDeviceCredential(
+			ctx,
+			deviceCredentialServiceForProfile(profileName),
+			checkpoint.CurrentDeviceID,
+		); err != nil {
+			return err
+		}
+		return validateCheckpointedPendingCloudDeviceCredential(
+			ctx,
+			cfg,
+			profileName,
+			checkpoint.PendingDeviceID,
+		)
+	}
+	_, _, err = planCloudDeviceRevocation(
+		ctx,
+		cfg,
+		profileName,
+		remoteOnly,
+	)
+	return err
+}
+
 func reportCloudDeviceRevocation(
 	report *uninstallReport,
 	profileName string,

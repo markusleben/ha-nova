@@ -41,7 +41,21 @@ func runInternalUninstall(_ runtimePaths, args []string) int {
 		printHumanErr("%s", err)
 		return 1
 	}
-	status, err := beginWindowsUninstallStatus(paths, uninstallModeFromFlag(*purge), installSourceBundle)
+	removedRelays, err := windowsUninstallHelperTeardownEvidence(
+		*teardownDone,
+		*teardownRelayInstanceID,
+	)
+	if err != nil {
+		printHumanErr("%s", err)
+		return 1
+	}
+	status, err := beginWindowsUninstallStatusWithTeardown(
+		paths,
+		uninstallModeFromFlag(*purge),
+		installSourceBundle,
+		*teardownDone,
+		removedRelays,
+	)
 	if err != nil {
 		printHumanErr("cannot persist Windows uninstall recovery state: %s", err)
 		return 1
@@ -51,11 +65,13 @@ func runInternalUninstall(_ runtimePaths, args []string) int {
 	waitForParentReleaseForUninstall(*parentPID)
 	preflight := collectUninstallPreflight(paths)
 	report := &uninstallReport{}
-	removedRelays := uninstallRelayRemovalEvidenceForDefault(
-		*teardownRelayInstanceID,
-		*teardownDone,
-	)
-	if err := finalizeWindowsUninstall(paths, report, uninstallModeFromFlag(*purge), status, removedRelays); err != nil {
+	if err := finalizeWindowsUninstall(
+		paths,
+		report,
+		uninstallModeFromFlag(*purge),
+		status,
+		removedRelays,
+	); err != nil {
 		report.printDetails()
 		printHumanErr("%s", err)
 		return 1
@@ -100,11 +116,25 @@ func runUninstall(paths runtimePaths, args []string) int {
 	source := detectInstallSource(paths, state)
 	mode := uninstallModeFromFlag(*purge)
 	recoveryMode := false
+	recoveredTeardown := false
+	var recoveredRemovedRelays uninstallRelayRemovalEvidence
 	if recovery := inspectWindowsUninstallStatus(paths); recovery.Kind != windowsUninstallStatusKindNone {
 		if exitCode := handleWindowsUninstallRecovery(recovery, mode); exitCode != 0 {
 			return exitCode
 		}
 		recoveryMode = recovery.Kind == windowsUninstallStatusKindInterrupted || recovery.Kind == windowsUninstallStatusKindFailed || recovery.Kind == windowsUninstallStatusKindCorrupt
+		if recovery.Kind == windowsUninstallStatusKindInterrupted ||
+			recovery.Kind == windowsUninstallStatusKindFailed {
+			recoveredTeardown, recoveredRemovedRelays, err =
+				windowsUninstallTeardownEvidence(recovery.Status)
+			if err != nil {
+				printHumanErr(
+					"Windows uninstall recovery marker has invalid guided-teardown evidence: %s",
+					err,
+				)
+				return 1
+			}
+		}
 	}
 
 	renderUninstallPreflight(os.Stdout, paths, source)
@@ -121,16 +151,26 @@ func runUninstall(paths runtimePaths, args []string) int {
 		mode = selectedMode
 	}
 
+	guidedSession := !*yes && !recoveryMode && isInteractiveTTY()
+	if guidedSession {
+		if err := prepareUninstallBeforeGuidedTeardown(
+			paths,
+			mode,
+		); err != nil {
+			printHumanErr("%s", err)
+			return 1
+		}
+	}
 	preflight := collectUninstallPreflight(paths)
 	teardown := teardownNotOffered
-	if !*yes && !recoveryMode && isInteractiveTTY() {
+	if guidedSession {
 		outcome, err := maybeOfferGuidedTeardown(bufio.NewReader(os.Stdin), os.Stdout, preflight, defaultTeardownDeps())
 		if err != nil {
 			printHumanErr("%s", err)
 			return 1
 		}
 		if outcome == teardownCancelled {
-			printHumanInfo("Uninstall cancelled — nothing was removed.")
+			printHumanInfo("The remaining uninstall was cancelled. Any recovery cleanup or Home Assistant steps already completed remain in effect.")
 			return 0
 		}
 		teardown = outcome
@@ -139,19 +179,24 @@ func runUninstall(paths runtimePaths, args []string) int {
 		}
 	}
 	if runtime.GOOS == "windows" && source == installSourceBundle {
-		if teardown == teardownCompleted {
+		teardownDone := teardown == teardownCompleted
+		removedRelays := uninstallRelayRemovalEvidenceFromPreflight(
+			preflight,
+			teardownDone,
+		)
+		if recoveryMode {
+			teardownDone = recoveredTeardown
+			removedRelays = recoveredRemovedRelays
+		}
+		if teardownDone {
 			printTeardownCompletedNotes(os.Stdout, mode)
 		} else {
 			printUninstallPreflightNotes(os.Stdout, preflight)
 		}
-		removedRelays := uninstallRelayRemovalEvidenceFromPreflight(
-			preflight,
-			teardown == teardownCompleted,
-		)
 		if err := launchWindowsUninstall(
 			paths,
 			mode,
-			teardown == teardownCompleted,
+			teardownDone,
 			removedRelays,
 		); err != nil {
 			printHumanErr("cannot finish Windows uninstall: %s", err)
@@ -196,7 +241,14 @@ func runUninstall(paths runtimePaths, args []string) int {
 		preflight,
 		teardown == teardownCompleted,
 	)
-	if err := finalizeLocalUninstallWithProgressUnlocked(paths, state, report, mode, nil, removedRelays); err != nil {
+	if err := finalizeLocalUninstallWithProgressUnlocked(
+		paths,
+		state,
+		report,
+		mode,
+		nil,
+		removedRelays,
+	); err != nil {
 		releaseMutation()
 		printHumanErr("%s", err)
 		return 1
@@ -234,9 +286,33 @@ func launchWindowsUninstall(
 	teardownDone bool,
 	removedRelays uninstallRelayRemovalEvidence,
 ) error {
+	if _, err := windowsUninstallRelayRemovalRefFromEvidence(
+		teardownDone,
+		removedRelays,
+	); err != nil {
+		return err
+	}
+	status, err := beginWindowsUninstallStatusWithTeardown(
+		paths,
+		mode,
+		installSourceBundle,
+		teardownDone,
+		removedRelays,
+	)
+	if err != nil {
+		return fmt.Errorf(
+			"cannot persist Windows uninstall recovery state: %w",
+			err,
+		)
+	}
 	tempHelper := filepath.Join(os.TempDir(), "ha-nova-uninstall-"+strconv.Itoa(os.Getpid())+".exe")
 	if err := copyFile(filepath.Join(paths.InstallRoot, publicBinaryName()), tempHelper); err != nil {
-		return err
+		return failWindowsUninstallStatus(
+			paths,
+			status,
+			"bundle_runtime_cleanup",
+			err,
+		)
 	}
 	statusTicks := windowsUninstallStatusMarkerTicks(paths.UninstallStatusFile)
 	args := []string{"internal-uninstall", "--parent-pid", strconv.Itoa(os.Getpid()), "--self-path", tempHelper}
@@ -253,7 +329,21 @@ func launchWindowsUninstall(
 			strings.TrimSpace(relayInstanceID),
 		)
 	}
-	return launchWindowsDetachedHelperWithEnv(tempHelper, paths.UninstallStatusFile, statusTicks, helperInstallRootEnv(paths.InstallRoot), args...)
+	if err := launchWindowsDetachedHelperWithEnv(
+		tempHelper,
+		paths.UninstallStatusFile,
+		statusTicks,
+		helperInstallRootEnv(paths.InstallRoot),
+		args...,
+	); err != nil {
+		return failWindowsUninstallStatus(
+			paths,
+			status,
+			"bundle_runtime_cleanup",
+			err,
+		)
+	}
+	return nil
 }
 
 func scheduleWindowsSelfDelete(path string) error {
@@ -297,7 +387,13 @@ func discardInstallRoot(installRoot string) error {
 	return nil
 }
 
-func finalizeWindowsUninstall(paths runtimePaths, report *uninstallReport, mode uninstallMode, status *windowsUninstallStatus, removedRelays uninstallRelayRemovalEvidence) error {
+func finalizeWindowsUninstall(
+	paths runtimePaths,
+	report *uninstallReport,
+	mode uninstallMode,
+	status *windowsUninstallStatus,
+	removedRelays uninstallRelayRemovalEvidence,
+) error {
 	state := loadStateOrDefault(paths)
 	configDirExisted := fileExists(paths.ConfigDir)
 	cleanupConfigDir := false
@@ -327,9 +423,16 @@ func finalizeWindowsUninstall(paths runtimePaths, report *uninstallReport, mode 
 	}
 	defer releaseMutationOnce()
 	state = loadStateOrDefault(paths)
-	if err := finalizeLocalUninstallWithProgressUnlocked(paths, state, report, mode, func(step string) error {
-		return updateWindowsUninstallStatusProgress(paths, status)
-	}, removedRelays); err != nil {
+	if err := finalizeLocalUninstallWithProgressUnlocked(
+		paths,
+		state,
+		report,
+		mode,
+		func(step string) error {
+			return updateWindowsUninstallStatusProgress(paths, status)
+		},
+		removedRelays,
+	); err != nil {
 		return failWindowsUninstallStatus(paths, status, normalizeUninstallFailureStep(err), err)
 	}
 	if err := removeLegacyWindowsPackageResidueForUninstall(paths, report); err != nil {
@@ -410,7 +513,14 @@ func finalizeLocalUninstallWithProgress(paths runtimePaths, state installState, 
 		collectUninstallPreflight(paths),
 		teardownCompleted,
 	)
-	err := finalizeLocalUninstallWithProgressUnlocked(paths, state, report, mode, beforeStep, removedRelays)
+	err := finalizeLocalUninstallWithProgressUnlocked(
+		paths,
+		state,
+		report,
+		mode,
+		beforeStep,
+		removedRelays,
+	)
 	cleanupConfigDir = err == nil
 	releaseMutation()
 	if err == nil {
@@ -419,7 +529,14 @@ func finalizeLocalUninstallWithProgress(paths runtimePaths, state installState, 
 	return err
 }
 
-func finalizeLocalUninstallWithProgressUnlocked(paths runtimePaths, state installState, report *uninstallReport, mode uninstallMode, beforeStep func(string) error, removedRelays uninstallRelayRemovalEvidence) error {
+func finalizeLocalUninstallWithProgressUnlocked(
+	paths runtimePaths,
+	state installState,
+	report *uninstallReport,
+	mode uninstallMode,
+	beforeStep func(string) error,
+	removedRelays uninstallRelayRemovalEvidence,
+) error {
 	relayTokenFile := ""
 	var purgeTargets []profilePurgeTarget
 	retirementProfiles, err :=
@@ -443,10 +560,22 @@ func finalizeLocalUninstallWithProgressUnlocked(paths runtimePaths, state instal
 				err,
 			)
 		}
+		purgeTargets, err = collectProfilePurgeTargets(paths)
+		if err != nil {
+			return fmt.Errorf(
+				"failed to inspect device credential cleanup: %w",
+				err,
+			)
+		}
+		if err := validateProfilePurgeTargets(purgeTargets); err != nil {
+			return fmt.Errorf(
+				"failed to validate device credential cleanup: %w",
+				err,
+			)
+		}
 		if err := settleDeviceCredentialRetirementsForPurge(
 			paths,
 			report,
-			removedRelays,
 		); err != nil {
 			return fmt.Errorf(
 				"failed to settle pending device retirement: %w",
@@ -471,33 +600,12 @@ func finalizeLocalUninstallWithProgressUnlocked(paths runtimePaths, state instal
 		// Read the raw config document: token-file cleanup must not depend on
 		// setup completeness (loadConfig fails when relay_base_url is missing,
 		// which would silently skip service token file removal on purge).
-		// EVERY profile's secure endpoint is captured here too — config_cleanup
-		// removes config.json before token_cleanup runs the device revokes, and
-		// each profile's device entry lives on ITS relay.
 		if doc, err := loadConfigDocument(paths.ConfigFile); err == nil {
 			// Literal default profile: the legacy service token is
 			// default-profile-only, regardless of where default_server points.
 			if cfg, ok := doc.flatProfile(defaultServerProfileName); ok {
 				relayTokenFile = strings.TrimSpace(cfg.RelayTokenFile)
 			}
-			for _, name := range doc.profileNames() {
-				cfg, ok := doc.flatProfile(name)
-				if !ok {
-					continue
-				}
-				purgeTargets = append(purgeTargets, profilePurgeTarget{
-					name:                 name,
-					relayInstanceID:      strings.TrimSpace(cfg.RelayInstanceID),
-					secureBaseURL:        strings.TrimSpace(cfg.RelaySecureBaseURL),
-					spkiPin:              strings.TrimSpace(cfg.RelaySpkiPin),
-					pendingSecureBaseURL: strings.TrimSpace(cfg.PendingSecureBaseURL),
-					pendingSpkiPin:       strings.TrimSpace(cfg.PendingSpkiPin),
-				})
-			}
-		}
-		if len(purgeTargets) == 0 {
-			// Config gone or unreadable: still clear the active profile's slots.
-			purgeTargets = append(purgeTargets, profilePurgeTarget{name: activeServerProfile()})
 		}
 		// Native-store deletion can have an ambiguous outcome. Keep config.json
 		// as the durable retry target until every profile's device slots have

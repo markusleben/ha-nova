@@ -59,16 +59,6 @@ func maybeOfferGuidedTeardown(reader *bufio.Reader, out io.Writer, preflight uni
 		renderSetupParagraphTight(out, "Home Assistant is not reachable right now — the server-side cleanup checklist is included at the end for when it is back online.")
 		return teardownNotOffered, nil
 	}
-	if preflight.teardownVerificationProblem != "" {
-		renderSetupParagraphTight(
-			out,
-			"Guided server-side removal is paused because "+
-				preflight.teardownVerificationProblem+
-				". Repair or finish that recovery checkpoint first; the full Home Assistant cleanup checklist is kept.",
-		)
-		return teardownNotOffered, nil
-	}
-
 	stage := teardownStageOffer
 	// Trust-the-user default: only a probe that POSITIVELY shows the relay
 	// still answering downgrades the outcome — repo removal and LLAT
@@ -209,33 +199,19 @@ func maybeOfferGuidedTeardown(reader *bufio.Reader, out io.Writer, preflight uni
 // token) it stays trust-the-user, like the repo and LLAT steps. The token
 // revocation step stays deliberately unverifiable: the CLI never held the LLAT.
 func verifyRelayGone(out io.Writer, preflight uninstallPreflight, deps teardownDeps) bool {
-	if preflight.teardownVerificationProblem != "" {
-		session := resolveStatusUISession(out)
-		fmt.Fprintf(
-			out,
-			"  %s Relay removal cannot be verified safely because %s. The full Home Assistant cleanup checklist will be kept.\n",
-			session.style("warning", session.warningMarker()),
-			preflight.teardownVerificationProblem,
-		)
-		return false
-	}
-	probeConfig := preflight.relayProbeConfig
-	if !preflight.relayProbeConfigured {
-		probeConfig = preflight.config
-	}
 	probe := func() bool { return false }
-	stillAt := probeConfig.RelayBaseURL
+	stillAt := preflight.config.RelayBaseURL
 	switch {
-	case probeConfig.RelaySecureBaseURL != "" &&
-		probeConfig.RelaySpkiPin != "" &&
+	case preflight.config.RelaySecureBaseURL != "" &&
+		preflight.config.RelaySpkiPin != "" &&
 		defaultUninstallDeviceCredentialExists():
 		// Device wins, matching transport resolution everywhere else: a
 		// leftover legacy token may have been rotated server-side long ago,
 		// while the device credential is what this install actually uses.
 		probe = func() bool {
-			return verifyDefaultUninstallDeviceHealth(probeConfig)
+			return verifyDefaultUninstallDeviceHealth(preflight.config)
 		}
-		stillAt = probeConfig.RelaySecureBaseURL
+		stillAt = preflight.config.RelaySecureBaseURL
 	case preflight.config.RelayBaseURL != "" && preflight.relayToken != "":
 		probe = func() bool {
 			_, err := deps.relayHealth(preflight.config.RelayBaseURL, preflight.relayToken)

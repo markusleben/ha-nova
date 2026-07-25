@@ -391,7 +391,7 @@ jobs:
             exit 0
           fi
 
-          if printf '%s' "${pr_json}" | jq -e '.autoMergeRequest != null' >/dev/null; then
+          if [[ "${bot_auto_merge}" == "true" ]]; then
             gh pr merge "${PR_NUMBER}" --disable-auto
           fi
 

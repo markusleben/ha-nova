@@ -9,15 +9,11 @@ import (
 )
 
 type uninstallPreflight struct {
-	relayStillRunning           bool
-	tokenUnavailable            string
-	haURL                       string
-	relayToken                  string
-	config                      runtimeConfig
-	relayProbeConfig            runtimeConfig
-	relayProbeConfigured        bool
-	relayRemovalInstanceID      string
-	teardownVerificationProblem string
+	relayStillRunning bool
+	tokenUnavailable  string
+	haURL             string
+	relayToken        string
+	config            runtimeConfig
 }
 
 // uninstallRelayRemovalEvidence records only Relay removals that guided
@@ -29,15 +25,8 @@ func uninstallRelayRemovalEvidenceFromPreflight(
 	preflight uninstallPreflight,
 	teardownCompleted bool,
 ) uninstallRelayRemovalEvidence {
-	if preflight.teardownVerificationProblem != "" {
-		return nil
-	}
-	relayInstanceID := preflight.relayRemovalInstanceID
-	if strings.TrimSpace(relayInstanceID) == "" {
-		relayInstanceID = preflight.config.RelayInstanceID
-	}
 	return uninstallRelayRemovalEvidenceForDefault(
-		relayInstanceID,
+		preflight.config.RelayInstanceID,
 		teardownCompleted,
 	)
 }
@@ -122,15 +111,11 @@ func collectUninstallPreflight(paths runtimePaths) uninstallPreflight {
 		return preflight
 	}
 	preflight.config = cfg
-	preflight.relayProbeConfig = cfg
-	preflight.relayProbeConfigured = true
-	preflight.relayRemovalInstanceID = cfg.RelayInstanceID
 	preflight.haURL = strings.TrimSpace(cfg.HAURL)
-	applyDefaultRetirementUninstallPreflight(paths, &preflight)
-	if strings.TrimSpace(preflight.relayProbeConfig.RelaySecureBaseURL) != "" &&
-		strings.TrimSpace(preflight.relayProbeConfig.RelaySpkiPin) != "" &&
+	if strings.TrimSpace(cfg.RelaySecureBaseURL) != "" &&
+		strings.TrimSpace(cfg.RelaySpkiPin) != "" &&
 		defaultUninstallDeviceCredentialExists() &&
-		verifyDefaultUninstallDeviceHealth(preflight.relayProbeConfig) {
+		verifyDefaultUninstallDeviceHealth(cfg) {
 		preflight.relayStillRunning = true
 	}
 	if cfg.RelayBaseURL == "" {
@@ -156,80 +141,6 @@ func collectUninstallPreflight(paths runtimePaths) uninstallPreflight {
 		preflight.relayStillRunning = true
 	}
 	return preflight
-}
-
-func applyDefaultRetirementUninstallPreflight(
-	paths runtimePaths,
-	preflight *uninstallPreflight,
-) {
-	if preflight == nil {
-		return
-	}
-	originalProfile := activeServerProfile()
-	setActiveServerProfile(defaultServerProfileName)
-	defer setActiveServerProfile(originalProfile)
-
-	checkpoint, exists, err :=
-		readDeviceCredentialRetirementCheckpointForProfile(
-			paths,
-			defaultServerProfileName,
-		)
-	if err != nil {
-		preflight.teardownVerificationProblem =
-			"the pending device-retirement checkpoint is unreadable or invalid"
-		preflight.relayRemovalInstanceID = ""
-		return
-	}
-	if !exists {
-		return
-	}
-	previous := runtimeConfig{
-		ProfileID:            checkpoint.ProfileID,
-		RelayInstanceID:      checkpoint.RelayInstanceID,
-		RelaySecureBaseURL:   checkpoint.RelaySecureBaseURL,
-		RelaySpkiPin:         checkpoint.RelaySpkiPin,
-		PendingSecureBaseURL: checkpoint.PendingSecureBaseURL,
-		PendingSpkiPin:       checkpoint.PendingSpkiPin,
-	}
-	cfg := preflight.config
-	switch {
-	case cfg.ProfileID != checkpoint.ProfileID:
-		err = fmt.Errorf("profile identity changed")
-	case deviceRetirementEndpointsEqual(cfg, previous) &&
-		checkpoint.Phase == deviceCredentialRetirementPrepared:
-		return
-	case deviceRetirementEndpointsEqual(cfg, previous):
-		err = fmt.Errorf("a revoked endpoint was restored")
-	case !deviceRetirementEndpointsCleared(cfg):
-		err = fmt.Errorf("server endpoints do not match the checkpoint")
-	case cfg.Cloud != nil:
-		err = fmt.Errorf("Cloud state appeared after retirement started")
-	case strings.TrimSpace(cfg.RelayInstanceID) != "":
-		err = fmt.Errorf("Relay identity changed after retirement started")
-	case !validIdentifier(checkpoint.RelayInstanceID, 256):
-		err = fmt.Errorf("checkpoint Relay identity is invalid")
-	case checkpoint.CurrentCredentialSHA != "" &&
-		(strings.TrimSpace(checkpoint.RelaySecureBaseURL) == "" ||
-			strings.TrimSpace(checkpoint.RelaySpkiPin) == ""):
-		err = fmt.Errorf("checkpoint device endpoint is incomplete")
-	case checkpoint.PendingCredentialSHA != "" &&
-		checkpoint.PendingSource != pendingDeviceCredentialSourceLocal:
-		err = fmt.Errorf("checkpoint pending credential is not local")
-	case checkpoint.PendingCredentialSHA != "" &&
-		(strings.TrimSpace(checkpoint.PendingSecureBaseURL) == "" ||
-			strings.TrimSpace(checkpoint.PendingSpkiPin) == ""):
-		err = fmt.Errorf("checkpoint pending device endpoint is incomplete")
-	default:
-		err = validateDeviceCredentialRetirementBindings(checkpoint)
-	}
-	if err != nil {
-		preflight.teardownVerificationProblem =
-			"the pending device-retirement checkpoint does not match the saved default server profile"
-		preflight.relayRemovalInstanceID = ""
-		return
-	}
-	preflight.relayProbeConfig = previous
-	preflight.relayRemovalInstanceID = checkpoint.RelayInstanceID
 }
 
 func applyUninstallPreflightNotes(report *uninstallReport, preflight uninstallPreflight) {
