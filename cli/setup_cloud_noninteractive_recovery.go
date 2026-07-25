@@ -55,13 +55,19 @@ func handleNonInteractiveCloudRecoveryHold(
 	profile, err := cloudRecoveryCommandProfile(paths)
 	if err != nil {
 		printHumanInfo(
-			"No cleanup command is shown until the server profile selection is repaired: %v",
+			"No recovery command is shown until the server profile selection is repaired: %v",
 			err,
 		)
 		return true
 	}
+	if cloudRecoveryHoldClearsAfterUnlock(cfg.Cloud.RecoveryHold) {
+		printHumanInfo(
+			"Verify native secure storage from an interactive desktop session: %s",
+			cloudProfileCommandFor("unlock", profile),
+		)
+	}
 	printHumanInfo(
-		"Verified cleanup is the only non-interactive recovery action: %s",
+		"Verified cleanup remains available as a destructive fallback: %s",
 		cloudProfileCommandFor("remove", profile),
 	)
 	return true

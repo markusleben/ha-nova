@@ -23,6 +23,7 @@ func preflightCloudDeviceAccess(
 		ctx,
 		expectedRelayInstanceID,
 		allowCloudPending,
+		false,
 		ui,
 	)
 }
@@ -44,6 +45,7 @@ func preflightWritableCloudDeviceAccess(
 		ctx,
 		expectedRelayInstanceID,
 		allowCloudPending,
+		false,
 		ui,
 	)
 }
@@ -52,6 +54,7 @@ func inspectCloudDeviceAccess(
 	ctx context.Context,
 	expectedRelayInstanceID string,
 	allowCloudPending bool,
+	requireCurrentRelayProof bool,
 	ui SecretStoreUIPolicy,
 ) error {
 	pending, exists, err := readCloudPendingDeviceForSetup(ctx, ui)
@@ -76,6 +79,27 @@ func inspectCloudDeviceAccess(
 			)
 		}
 	}
-	_, _, err = readCloudDeviceForSetup(ctx, ui)
-	return err
+	_, currentExists, err := readCloudDeviceForSetup(ctx, ui)
+	if err != nil {
+		return err
+	}
+	if currentExists &&
+		requireCurrentRelayProof &&
+		expectedRelayInstanceID == "" {
+		return &cloudProblem{
+			Code:        cloudProblemIdentityMismatch,
+			Remediation: cloudRemediationSecurityStop,
+			Detail: "an existing device credential cannot be matched to this Relay; " +
+				"setup stopped before sign-in or pairing to avoid replacing it. " +
+				"Restore local access with `ha-nova setup` and retry, or revoke the old " +
+				"NOVA device in Home Assistant and run `ha-nova uninstall --purge` " +
+				"before a fresh Cloud-only setup",
+			Cause: newCloudError(
+				CloudErrRelayInstance,
+				"prove existing device credential before remote Cloud setup",
+				nil,
+			),
+		}
+	}
+	return nil
 }

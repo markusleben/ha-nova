@@ -22,7 +22,7 @@ type cloudPurgeTarget struct {
 func purgeCloudAuthorizationsForUninstall(
 	paths runtimePaths,
 	report *uninstallReport,
-	relayAlreadyRemoved bool,
+	removedRelays uninstallRelayRemovalEvidence,
 ) error {
 	targets, err := collectCloudPurgeTargets(paths.ConfigFile)
 	if err != nil {
@@ -60,7 +60,10 @@ func purgeCloudAuthorizationsForUninstall(
 			target.profileName,
 			store,
 			report,
-			relayAlreadyRemoved,
+			removedRelays.matches(
+				target.profileName,
+				target.config.RelayInstanceID,
+			),
 			func(
 				checkpoint cloudDeviceRevocationCheckpoint,
 			) error {

@@ -415,9 +415,41 @@ protection and the exact App binding. The broker binds the first fetched PR or
 merge-queue ref to the verifier, re-fetches that ref immediately before
 success, and then resolves the current PR identity and merge commit once more.
 Requested and in-progress CI lifecycle events idempotently create one pending
-App check per upstream run ID and attempt; only completion verifies and
-finishes it. A read-only trigger job authenticates the exact check name, App
-ID, and slug before its completion may re-evaluate Dependabot auto-merge. An
+App check per upstream run ID, attempt, and exact synthetic merge target; only
+completion verifies and finishes it. Terminal success is idempotent, terminal
+failure is retryable, and conflicting duplicate conclusions fail closed. A
+read-only trigger job authenticates the exact check name, App ID, and slug
+before its completion may re-evaluate Dependabot.
+
+Dependabot never leaves native queued auto-merge enabled. A trusted direct
+squash merger twice revalidates the current open Dependabot PR, exact head and
+up-to-date base, current merge ref and `merge_commit_sha`, automation-owned
+policy marker and label, exact live branch protection, every required check,
+the latest dedicated-App source check's exact merge target, and absence of a
+queued or running CI workflow. The final GitHub merge request supplies the
+expected head SHA. Policy drift and explicit removal of the automation-owned
+safe label disable any previously queued native auto-merge and remove only
+automation-owned state; human or unauthenticated state stays untouched.
+
+GitHub Actions `workflow_run` delivery cannot synchronously invalidate a prior
+same-target result. Production activation therefore remains fail-closed behind
+the future required `cloud-source-invalidator` check from the dedicated
+`markusleben-ha-nova-cloud-source-invalidator` App. Its policy App ID remains
+`0` until an external service is provisioned and independently verified to
+publish pending evidence before merge eligibility can be reused, bind success
+to the current synthetic merge target, and invalidate that evidence on every
+PR/base/head or CI-generation transition. Before activation, a separate
+reviewed provisioning rollout must place both positive App IDs in policy,
+require both checks, bind both exact Apps in live strict protection, and pass
+the live verifier. Disabled production keeps both unprovisioned checks outside
+the routine required list, but direct Dependabot merging remains intentionally
+paused until live main protection is separately changed from `strict=false` to
+the reviewed policy's `strict=true`. The merger never uses native queued
+auto-merge and never performs a direct REST merge while live protection is
+non-strict;
+the invalidator check uses the exact external-ID grammar
+`pull-request:<number>:target:<40-lowercase-hex-merge-sha>`, and the direct
+merger rejects any other target. Actions-only evidence is insufficient. An
 enabled target may change an existing non-sensitive workflow only by advancing
 a full action commit SHA within the same canonical minor/patch release line on
 an unchanged `uses:` identity;

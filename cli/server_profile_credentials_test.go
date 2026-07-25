@@ -195,7 +195,7 @@ func TestPurgeAllProfilesRevokesEachAgainstItsOwnEndpoint(t *testing.T) {
 	purgeAllDeviceCredentialsWithReport([]profilePurgeTarget{
 		{name: "default", secureBaseURL: "https://ha:18792", spkiPin: "pin"},
 		{name: "cabin", secureBaseURL: "https://cabin:18792", spkiPin: "pin"},
-	}, report, false)
+	}, report, nil)
 
 	if len(revokedAt) != 2 || revokedAt[0] != "https://ha:18792" || revokedAt[1] != "https://cabin:18792" {
 		t.Fatalf("revokes must go to each profile's own endpoint, got %v", revokedAt)

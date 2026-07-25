@@ -15,15 +15,9 @@ export function registerCloudReleaseGateContractTests(): void {
     .map((file) => readFileSync(file, "utf8"))
     .join("\n");
   const releaseWorkflow = readFileSync(".github/workflows/release.yml", "utf8");
-  const rcWorkflow = readFileSync(
-    ".github/workflows/release-candidate.yml",
-    "utf8",
-  );
+  const rcWorkflow = readFileSync(".github/workflows/release-candidate.yml", "utf8");
   const ciWorkflow = readFileSync(".github/workflows/ci.yml", "utf8");
-  const sourceGateWorkflow = readFileSync(
-    ".github/workflows/cloud-source-gate.yml",
-    "utf8",
-  );
+  const sourceGateWorkflow = readFileSync(".github/workflows/cloud-source-gate.yml", "utf8");
   const checkTokenScript = readFileSync(
     "scripts/release/create-cloud-source-check-token.mjs",
     "utf8",
@@ -39,24 +33,18 @@ export function registerCloudReleaseGateContractTests(): void {
       cloud_remote_enabled?: unknown;
       cloud_remote_platforms?: unknown;
     };
-    const appVersion = JSON.parse(
-      readFileSync("nova/version.json", "utf8"),
-    ) as {
+    const appVersion = JSON.parse(readFileSync("nova/version.json", "utf8")) as {
       cloud_remote_enabled?: unknown;
       cloud_remote_platforms?: unknown;
     };
     expect(version.cloud_remote_enabled).toBe(false);
     expect(version.cloud_remote_platforms).toEqual([]);
     expect(appVersion.cloud_remote_enabled).toBe(version.cloud_remote_enabled);
-    expect(appVersion.cloud_remote_platforms).toEqual(
-      version.cloud_remote_platforms,
-    );
+    expect(appVersion.cloud_remote_platforms).toEqual(version.cloud_remote_platforms);
 
     for (const workflow of [releaseWorkflow, rcWorkflow]) {
       const metadataIndex = workflow.indexOf("name: Verify release metadata");
-      const gateIndex = workflow.indexOf(
-        "bash scripts/release/verify-cloud-release-gate.sh",
-      );
+      const gateIndex = workflow.indexOf("bash scripts/release/verify-cloud-release-gate.sh");
       expect(metadataIndex).toBeGreaterThanOrEqual(0);
       expect(gateIndex).toBeGreaterThan(metadataIndex);
       expect(workflow).toContain(
@@ -65,28 +53,14 @@ export function registerCloudReleaseGateContractTests(): void {
     }
 
     expect(cloudReleaseGateVerifier).toContain("version.cloud_remote_enabled");
-    expect(cloudReleaseGateVerifier).toContain(
-      "version.cloud_remote_platforms",
-    );
-    expect(cloudReleaseGateVerifier).toContain(
-      'readVersionMetadata("nova/version.json")',
-    );
-    expect(cloudReleaseGateVerifier).toContain(
-      "Cloud release metadata must match exactly",
-    );
-    expect(cloudReleaseGateVerifier).toContain(
-      'new Set(["darwin", "linux", "windows"])',
-    );
-    expect(cloudReleaseGateVerifier).toContain(
-      "HA_NOVA_CLOUD_GATE_EVIDENCE_JSON",
-    );
+    expect(cloudReleaseGateVerifier).toContain("version.cloud_remote_platforms");
+    expect(cloudReleaseGateVerifier).toContain('readVersionMetadata("nova/version.json")');
+    expect(cloudReleaseGateVerifier).toContain("Cloud release metadata must match exactly");
+    expect(cloudReleaseGateVerifier).toContain('new Set(["darwin", "linux", "windows"])');
+    expect(cloudReleaseGateVerifier).toContain("HA_NOVA_CLOUD_GATE_EVIDENCE_JSON");
     expect(cloudReleaseGateVerifier).toContain("evidence.schema !== 2");
-    expect(cloudReleaseGateVerifier).toContain(
-      "evidenceCommitTree !== evidence.tree_sha",
-    );
-    expect(cloudReleaseGateVerifier).toContain(
-      "verify-cloud-workflow-uses-only.mjs",
-    );
+    expect(cloudReleaseGateVerifier).toContain("evidenceCommitTree !== evidence.tree_sha");
+    expect(cloudReleaseGateVerifier).toContain("verify-cloud-workflow-uses-only.mjs");
     expect(cloudReleaseGateVerifier).toContain("workflowCommit !== commit");
     for (const check of [
       "parity",
@@ -101,17 +75,13 @@ export function registerCloudReleaseGateContractTests(): void {
     ]) {
       expect(cloudReleaseGateVerifier).toContain(`"${check}"`);
     }
-    expect(cloudReleaseGateVerifier).toContain(
-      "requireExactKeys(keyrings, platforms",
-    );
+    expect(cloudReleaseGateVerifier).toContain("requireExactKeys(keyrings, platforms");
     expect(cloudReleaseGateVerifier).toContain("readRelayAppVersion()");
     expect(cloudReleaseGateVerifier).toContain('platforms.includes("darwin")');
     expect(cloudReleaseGateVerifier).toContain(
       "evidence.relay_app.source_tree_sha !== evidence.tree_sha",
     );
-    expect(cloudReleaseGateVerifier).not.toMatch(
-      /console\.(?:log|error)\([^)]*rawEvidence/,
-    );
+    expect(cloudReleaseGateVerifier).not.toMatch(/console\.(?:log|error)\([^)]*rawEvidence/);
 
     const releasePipelineVerifier = readFileSync(
       "scripts/release/verify-release-pipeline.sh",
@@ -124,22 +94,14 @@ export function registerCloudReleaseGateContractTests(): void {
     expect(cloudWorkflowGateVerifier).toContain(
       "may contain only Checkout, Setup Node, production environment policy, release metadata, and the Cloud gate",
     );
-    expect(cloudWorkflowGateVerifier).toContain(
-      "must depend on Cloud gate job",
-    );
-    expect(cloudWorkflowGateVerifier).toContain(
-      "must not build, upload, or publish artifacts",
-    );
+    expect(cloudWorkflowGateVerifier).toContain("must depend on Cloud gate job");
+    expect(cloudWorkflowGateVerifier).toContain("must not build, upload, or publish artifacts");
     expect(cloudWorkflowGateVerifier).toContain("continue-on-error");
     expect(releasing).toContain("### Home Assistant Cloud publication gate");
-    expect(releasing).toContain(
-      "`keyrings` keys must exactly match `cloud_remote_platforms`",
-    );
+    expect(releasing).toContain("`keyrings` keys must exactly match `cloud_remote_platforms`");
     expect(releasing).toContain("checked-out `HEAD` must equal `GITHUB_SHA`");
     expect(releasing).toContain("`refs/pull/<number>/merge`");
-    expect(releasing).toMatch(
-      /`merge_group` creates another\s+synthetic checkout commit/,
-    );
+    expect(releasing).toMatch(/`merge_group` creates another\s+synthetic checkout commit/);
     expect(releasing).toContain(
       "After squash merge, the resulting `main` commit has a different SHA",
     );
@@ -153,98 +115,75 @@ export function registerCloudReleaseGateContractTests(): void {
     expect(ciGate).toContain(
       "HA_NOVA_CLOUD_GATE_EVIDENCE_JSON: ${{ secrets.HA_NOVA_CLOUD_GATE_EVIDENCE_JSON }}",
     );
-    expect(ciGate).toContain(
-      "run: bash scripts/release/verify-cloud-release-gate.sh",
-    );
+    expect(ciGate).toContain("run: bash scripts/release/verify-cloud-release-gate.sh");
     expect(ciGate.indexOf("verify-cloud-release-gate.sh")).toBeLessThan(
       ciGate.indexOf("name: Verify repository"),
     );
     expect(cloudReleaseGateVerifier).not.toContain("cloudDeliveryRelevant");
     expect(cloudReleaseGateVerifier).not.toContain("merge-base");
-    expect(cloudReleaseGateVerifier).not.toContain(
-      "allowedActivationDeltaPaths",
-    );
+    expect(cloudReleaseGateVerifier).not.toContain("allowedActivationDeltaPaths");
     expect(sourceGateWorkflow).toContain("workflow_run:");
     expect(sourceGateWorkflow).toContain("- CI");
     expect(sourceGateWorkflow).toContain("- in_progress");
     expect(sourceGateWorkflow).toContain("- requested");
-    expect(sourceGateWorkflow).toContain(
-      "name: trusted-cloud-source-reporter",
-    );
+    expect(sourceGateWorkflow).toContain("name: trusted-cloud-source-reporter");
     expect(sourceGateWorkflow).toContain("name: production");
-    expect(sourceGateWorkflow).toContain(
-      "node scripts/release/run-cloud-source-check.mjs",
-    );
+    expect(sourceGateWorkflow).toContain("node scripts/release/run-cloud-source-check.mjs");
     expect(sourceGateWorkflow).toContain(
       "node scripts/release/create-cloud-source-check-token.mjs",
     );
     expect(sourceGateWorkflow).not.toContain("actions/download-artifact");
     expect(sourceGateWorkflow).not.toContain("actions/cache");
     expect(sourceGateWorkflow).not.toContain("github.event.pull_request.head");
-    expect(sourceGateWorkflow).not.toMatch(
-      /^\s*run:.*github\.event\.pull_request/m,
-    );
+    expect(sourceGateWorkflow).not.toMatch(/^\s*run:.*github\.event\.pull_request/m);
     const sourceGateScript = readFileSync(
       "scripts/release/verify-cloud-target-source-gate.sh",
       "utf8",
     );
     expect(sourceGateScript).toContain("HEAD:.github/workflows");
-    expect(sourceGateScript).toContain(
-      '${target_commit}:.github/workflows',
-    );
+    expect(sourceGateScript).toContain("${target_commit}:.github/workflows");
     expect(sourceGateScript).toContain(
       '[[ "${target_workflows_tree}" == "${trusted_workflows_tree}" ]]',
     );
-    expect(sourceGateScript).toContain(
-      "verify-cloud-workflow-uses-only.mjs",
-    );
+    expect(sourceGateScript).toContain("verify-cloud-workflow-uses-only.mjs");
     expect(sourceGateScript).toContain(
       "pull request merge commit does not bind the expected base and head",
     );
-    const reporter = readFileSync(
-      "scripts/release/run-cloud-source-check.mjs",
+    const reporter = readFileSync("scripts/release/run-cloud-source-check.mjs", "utf8");
+    const reporterHelper = readFileSync(
+      "scripts/release/cloud-source-check-reporter.mjs",
       "utf8",
     );
-    expect(reporter).toContain('const checkName = "cloud-source-gate"');
-    expect(reporter).toContain(
-      "`workflow-run:${workflowRun.id}:attempt:${workflowRun.run_attempt}`",
+    expect(reporterHelper).toContain('const checkName = "cloud-source-gate"');
+    expect(reporterHelper).toContain(
+      '`workflow-run:${workflowRun.id}:attempt:${workflowRun.run_attempt}:target:${requireSHA(targetSHA, "source check target SHA")}`',
     );
-    expect(reporter).toContain("ensurePendingCheck(currentWorkflowRun)");
-    expect(reporter).toContain('if (action !== "completed")');
+    expect(reporter).toContain(
+      "ensurePendingCheck(\n    currentWorkflowRun,\n    verifiedTargetSHA,\n  )",
+    );
+    expect(reporter).toContain("terminalSuccess");
+    expect(reporterHelper).toContain(
+      "source checks have conflicting terminal conclusions",
+    );
+    expect(reporter).toContain('if (action !== "completed" || terminalSuccess)');
     expect(reporter).toContain("currentPullRequest(headSHA)");
     expect(reporter).toContain("latest.base?.sha !== currentPR.base.sha");
     expect(reporter).toContain(
       '["scripts/release/verify-github-main-protection.sh", repository, "main"]',
     );
     expect(reporter).toContain("{ GH_TOKEN: checkToken }");
-    expect(reporter).toContain(
-      "HA_NOVA_CLOUD_GATE_EXPECTED_TARGET_COMMIT: verifiedTargetSHA",
-    );
-    expect(reporter).toContain(
-      "verifiedTargetSHA = resolveRemoteRef(sourceRef)",
-    );
-    expect(reporter).toContain(
-      "resolveRemoteRef(sourceRef) !== verifiedTargetSHA",
-    );
-    expect(reporter).toContain(
-      "const finalPR = await currentPullRequest(headSHA)",
-    );
+    expect(reporter).toContain("HA_NOVA_CLOUD_GATE_EXPECTED_TARGET_COMMIT: verifiedTargetSHA");
+    expect(reporter).toContain("verifiedTargetSHA = resolveRemoteRef(sourceRef)");
+    expect(reporter).toContain("resolveRemoteRef(sourceRef) !== verifiedTargetSHA");
+    expect(reporter).toContain("const finalPR = await currentPullRequest(headSHA)");
     expect(reporter).toContain("finalPR.number !== currentPR.number");
     expect(reporter).toContain(
-      'requireSHA(finalPR.merge_commit_sha, "final pull request merge commit SHA")',
+      'finalPR.merge_commit_sha,\n        "final pull request merge commit SHA"',
     );
-    expect(reporter).toContain(
-      "pull request identity changed after final source verification",
-    );
-    expect(reporter).toContain(
-      "source ref changed while the trusted source gate was running",
-    );
-    expect(checkTokenScript).toContain(
-      'permissions: { administration: "read", checks: "write" }',
-    );
-    expect(checkTokenScript).toContain(
-      'access.permissions?.administration !== "read"',
-    );
+    expect(reporter).toContain("pull request identity changed after final source verification");
+    expect(reporter).toContain("source ref changed while the trusted source gate was running");
+    expect(checkTokenScript).toContain('permissions: { administration: "read", checks: "write" }');
+    expect(checkTokenScript).toContain('access.permissions?.administration !== "read"');
     expect(checkTokenScript).toContain("`app-id=${appId}\\n`");
     expect(reporter).not.toContain("download-artifact");
     const codeowners = readFileSync(".github/CODEOWNERS", "utf8");
@@ -254,30 +193,16 @@ export function registerCloudReleaseGateContractTests(): void {
       "release.yml",
       "release-candidate.yml",
     ]) {
-      expect(codeowners).toContain(
-        `/.github/workflows/${workflow} @markusleben`,
-      );
+      expect(codeowners).toContain(`/.github/workflows/${workflow} @markusleben`);
     }
   });
 
   it("keeps production artifacts outside the compile-time developer path", () => {
     const goreleaser = readFileSync(".goreleaser.yml", "utf8");
-    const releaseIdentity = readFileSync(
-      "cli/cloud_feature_build_release.go",
-      "utf8",
-    );
-    const developmentIdentity = readFileSync(
-      "cli/cloud_feature_build_dev.go",
-      "utf8",
-    );
-    const officialIdentity = readFileSync(
-      "cli/cloud_feature_build_official.go",
-      "utf8",
-    );
-    const provenance = readFileSync(
-      "cli/cloud_release_provenance.go",
-      "utf8",
-    );
+    const releaseIdentity = readFileSync("cli/cloud_feature_build_release.go", "utf8");
+    const developmentIdentity = readFileSync("cli/cloud_feature_build_dev.go", "utf8");
+    const officialIdentity = readFileSync("cli/cloud_feature_build_official.go", "utf8");
+    const provenance = readFileSync("cli/cloud_release_provenance.go", "utf8");
     expect(goreleaser).not.toContain("cloudremote_dev");
     expect(goreleaser).not.toContain("cloudRemoteDevAppSlug");
     expect(goreleaser).toContain("cloudremote_official");

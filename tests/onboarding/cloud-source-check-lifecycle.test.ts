@@ -14,7 +14,7 @@ function check(runAttempt: number, status: "completed" | "in_progress") {
   return {
     app: { id: appId },
     conclusion: status === "completed" ? "success" : null,
-    external_id: `workflow-run:123:attempt:${runAttempt}`,
+    external_id: `workflow-run:123:attempt:${runAttempt}:target:${headSHA}`,
     id: 500 + runAttempt,
     name: "cloud-source-gate",
     status,
@@ -32,8 +32,8 @@ function runLifecycle(
   const tracePath = join(directory, "trace.jsonl");
   const status = action === "requested" ? "queued" : "in_progress";
   const workflowRun = {
-    event: "pull_request",
-    head_branch: "dependabot/npm_and_yarn/example",
+    event: "merge_group",
+    head_branch: "gh-readonly-queue/main/pr-123-deadbeef",
     head_sha: headSHA,
     id: 123,
     name: "CI",
@@ -41,11 +41,7 @@ function runLifecycle(
     status,
     workflow_id: 77,
   };
-  writeFileSync(
-    eventPath,
-    JSON.stringify({ action, workflow_run: workflowRun }),
-    "utf8",
-  );
+  writeFileSync(eventPath, JSON.stringify({ action, workflow_run: workflowRun }), "utf8");
   writeFileSync(
     preloadPath,
     `import { appendFileSync } from "node:fs";
@@ -78,6 +74,13 @@ globalThis.fetch = async (url, init = {}) => {
     checks = checks.filter((candidate) => candidate.id !== checkId);
     return response({}, 204);
   }
+  if (path.includes("/check-runs/") && method === "PATCH") {
+    const checkId = Number(path.split("/").pop());
+    checks = checks.map((candidate) =>
+      candidate.id === checkId ? { ...candidate, ...body } : candidate
+    );
+    return response(checks.find((candidate) => candidate.id === checkId));
+  }
   return response({ message: "unexpected request" }, 500);
 };
 `,
@@ -96,8 +99,7 @@ globalThis.fetch = async (url, init = {}) => {
         GITHUB_RUN_ID: "999",
         GITHUB_WORKSPACE: process.cwd(),
         HA_NOVA_CLOUD_SOURCE_CHECK_APP_ID: String(appId),
-        HA_NOVA_CLOUD_SOURCE_CHECK_TOKEN:
-          "dedicated-token-at-least-twenty-characters",
+        HA_NOVA_CLOUD_SOURCE_CHECK_TOKEN: "dedicated-token-at-least-twenty-characters",
         MOCK_CHECKS: JSON.stringify(initialChecks),
         MOCK_TRACE: tracePath,
         MOCK_WORKFLOW_RUN: JSON.stringify(workflowRun),
@@ -108,11 +110,14 @@ globalThis.fetch = async (url, init = {}) => {
     .trim()
     .split("\n")
     .filter(Boolean)
-    .map((line) => JSON.parse(line) as {
-      body: Record<string, unknown> | null;
-      method: string;
-      path: string;
-    });
+    .map(
+      (line) =>
+        JSON.parse(line) as {
+          body: Record<string, unknown> | null;
+          method: string;
+          path: string;
+        },
+    );
   return { result, trace };
 }
 
@@ -127,7 +132,7 @@ describe("Cloud source check lifecycle", () => {
       throw new Error("pending check was not created");
     }
     expect(post.body).toMatchObject({
-      external_id: "workflow-run:123:attempt:1",
+      external_id: `workflow-run:123:attempt:1:target:${headSHA}`,
       head_sha: headSHA,
       name: "cloud-source-gate",
       status: "in_progress",
@@ -136,11 +141,7 @@ describe("Cloud source check lifecycle", () => {
   });
 
   it("reuses the same pending check for in-progress delivery", () => {
-    const { result, trace } = runLifecycle(
-      "in_progress",
-      1,
-      [check(1, "in_progress")],
-    );
+    const { result, trace } = runLifecycle("in_progress", 1, [check(1, "in_progress")]);
     expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
     expect(trace.some((entry) => entry.method === "POST")).toBe(false);
     expect(trace.some((entry) => entry.method === "DELETE")).toBe(false);
@@ -149,40 +150,64 @@ describe("Cloud source check lifecycle", () => {
   it("collapses duplicate pending deliveries to one canonical check", () => {
     const first = check(1, "in_progress");
     const second = { ...check(1, "in_progress"), id: 700 };
-    const { result, trace } = runLifecycle(
-      "in_progress",
-      1,
-      [second, first],
-    );
+    const { result, trace } = runLifecycle("in_progress", 1, [second, first]);
     expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
     expect(trace.some((entry) => entry.method === "POST")).toBe(false);
     expect(
       trace.filter(
-        (entry) =>
-          entry.method === "DELETE" && entry.path.endsWith("/check-runs/700"),
+        (entry) => entry.method === "DELETE" && entry.path.endsWith("/check-runs/700"),
       ),
     ).toHaveLength(1);
   });
 
   it("creates a new pending check for a rerun attempt despite prior success", () => {
-    const { result, trace } = runLifecycle(
-      "in_progress",
-      2,
-      [check(1, "completed")],
-    );
+    const { result, trace } = runLifecycle("in_progress", 2, [check(1, "completed")]);
     expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
     const post = trace.find((entry) => entry.method === "POST");
-    expect(post?.body?.external_id).toBe("workflow-run:123:attempt:2");
+    expect(post?.body?.external_id).toBe(`workflow-run:123:attempt:2:target:${headSHA}`);
   });
 
   it("does not regress a terminal check for a delayed lifecycle delivery", () => {
-    const { result, trace } = runLifecycle(
-      "in_progress",
-      1,
-      [check(1, "completed")],
-    );
+    const { result, trace } = runLifecycle("in_progress", 1, [check(1, "completed")]);
     expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
     expect(trace.some((entry) => entry.method === "POST")).toBe(false);
     expect(trace.some((entry) => entry.method === "PATCH")).toBe(false);
+  });
+
+  it("retries a terminal failure for the same target and attempt", () => {
+    const failed = {
+      ...check(1, "completed"),
+      conclusion: "failure",
+    };
+    const { result, trace } = runLifecycle("in_progress", 1, [failed]);
+    expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
+    expect(
+      trace.some(
+        (entry) =>
+          entry.method === "DELETE" && entry.path.endsWith(`/check-runs/${failed.id}`),
+      ),
+    ).toBe(true);
+    expect(trace.find((entry) => entry.method === "POST")?.body?.external_id).toBe(
+      `workflow-run:123:attempt:1:target:${headSHA}`,
+    );
+  });
+
+  it("fails closed when duplicate terminal conclusions conflict", () => {
+    const success = check(1, "completed");
+    const failure = {
+      ...check(1, "completed"),
+      conclusion: "failure",
+      id: 701,
+    };
+    const { result, trace } = runLifecycle("in_progress", 1, [success, failure]);
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain(
+      "source checks have conflicting terminal conclusions",
+    );
+    expect(
+      trace.some(
+        (entry) => entry.method === "PATCH" && entry.body?.conclusion === "failure",
+      ),
+    ).toBe(true);
   });
 });

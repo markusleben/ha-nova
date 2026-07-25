@@ -117,7 +117,7 @@ func TestMultiProfileUninstallRetriesFromPerProfileDeviceCheckpoint(
 	if err := purgeCloudAuthorizationsForUninstall(
 		paths,
 		&uninstallReport{},
-		false,
+		nil,
 	); err == nil {
 		t.Fatal("first multi-profile purge unexpectedly succeeded")
 	}
@@ -146,7 +146,7 @@ func TestMultiProfileUninstallRetriesFromPerProfileDeviceCheckpoint(
 	if err := purgeCloudAuthorizationsForUninstall(
 		paths,
 		&uninstallReport{},
-		false,
+		nil,
 	); err != nil {
 		t.Fatalf("checkpointed multi-profile retry: %v", err)
 	}

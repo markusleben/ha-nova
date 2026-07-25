@@ -123,6 +123,7 @@ func runSetup(paths runtimePaths, args []string) int {
 			retirementProfile,
 		)
 	if retirementErr != nil {
+		renderSetupCloudRecoveryBeforePrerequisiteFailure(paths)
 		printHumanErr(
 			"cannot inspect interrupted device credential retirement: %s",
 			retirementErr,

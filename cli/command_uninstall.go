@@ -27,6 +27,11 @@ func runInternalUninstall(_ runtimePaths, args []string) int {
 	selfPath := fs.String("self-path", "", "temp helper path")
 	purge := fs.Bool("purge", false, "remove config and token")
 	teardownDone := fs.Bool("teardown-done", false, "server-side teardown already completed by the parent")
+	teardownRelayInstanceID := fs.String(
+		"teardown-relay-instance-id",
+		"",
+		"exact Relay identity removed by guided teardown",
+	)
 	if err := fs.Parse(args); err != nil {
 		printHumanErr("%s", err)
 		return 1
@@ -46,7 +51,11 @@ func runInternalUninstall(_ runtimePaths, args []string) int {
 	waitForParentReleaseForUninstall(*parentPID)
 	preflight := collectUninstallPreflight(paths)
 	report := &uninstallReport{}
-	if err := finalizeWindowsUninstall(paths, report, uninstallModeFromFlag(*purge), status, *teardownDone); err != nil {
+	removedRelays := uninstallRelayRemovalEvidenceForDefault(
+		*teardownRelayInstanceID,
+		*teardownDone,
+	)
+	if err := finalizeWindowsUninstall(paths, report, uninstallModeFromFlag(*purge), status, removedRelays); err != nil {
 		report.printDetails()
 		printHumanErr("%s", err)
 		return 1
@@ -135,7 +144,16 @@ func runUninstall(paths runtimePaths, args []string) int {
 		} else {
 			printUninstallPreflightNotes(os.Stdout, preflight)
 		}
-		if err := launchWindowsUninstall(paths, mode, teardown == teardownCompleted); err != nil {
+		removedRelays := uninstallRelayRemovalEvidenceFromPreflight(
+			preflight,
+			teardown == teardownCompleted,
+		)
+		if err := launchWindowsUninstall(
+			paths,
+			mode,
+			teardown == teardownCompleted,
+			removedRelays,
+		); err != nil {
 			printHumanErr("cannot finish Windows uninstall: %s", err)
 			return 1
 		}
@@ -174,7 +192,11 @@ func runUninstall(paths runtimePaths, args []string) int {
 		return 1
 	}
 	state = loadStateOrDefault(paths)
-	if err := finalizeLocalUninstallWithProgressUnlocked(paths, state, report, mode, nil, teardown == teardownCompleted); err != nil {
+	removedRelays := uninstallRelayRemovalEvidenceFromPreflight(
+		preflight,
+		teardown == teardownCompleted,
+	)
+	if err := finalizeLocalUninstallWithProgressUnlocked(paths, state, report, mode, nil, removedRelays); err != nil {
 		releaseMutation()
 		printHumanErr("%s", err)
 		return 1
@@ -206,7 +228,12 @@ func runUninstall(paths runtimePaths, args []string) int {
 	return 0
 }
 
-func launchWindowsUninstall(paths runtimePaths, mode uninstallMode, teardownDone bool) error {
+func launchWindowsUninstall(
+	paths runtimePaths,
+	mode uninstallMode,
+	teardownDone bool,
+	removedRelays uninstallRelayRemovalEvidence,
+) error {
 	tempHelper := filepath.Join(os.TempDir(), "ha-nova-uninstall-"+strconv.Itoa(os.Getpid())+".exe")
 	if err := copyFile(filepath.Join(paths.InstallRoot, publicBinaryName()), tempHelper); err != nil {
 		return err
@@ -218,6 +245,13 @@ func launchWindowsUninstall(paths runtimePaths, mode uninstallMode, teardownDone
 	}
 	if teardownDone {
 		args = append(args, "--teardown-done")
+	}
+	if relayInstanceID, exists := removedRelays[defaultServerProfileName]; exists && strings.TrimSpace(relayInstanceID) != "" {
+		args = append(
+			args,
+			"--teardown-relay-instance-id",
+			strings.TrimSpace(relayInstanceID),
+		)
 	}
 	return launchWindowsDetachedHelperWithEnv(tempHelper, paths.UninstallStatusFile, statusTicks, helperInstallRootEnv(paths.InstallRoot), args...)
 }
@@ -263,7 +297,7 @@ func discardInstallRoot(installRoot string) error {
 	return nil
 }
 
-func finalizeWindowsUninstall(paths runtimePaths, report *uninstallReport, mode uninstallMode, status *windowsUninstallStatus, relayAlreadyRemoved bool) error {
+func finalizeWindowsUninstall(paths runtimePaths, report *uninstallReport, mode uninstallMode, status *windowsUninstallStatus, removedRelays uninstallRelayRemovalEvidence) error {
 	state := loadStateOrDefault(paths)
 	configDirExisted := fileExists(paths.ConfigDir)
 	cleanupConfigDir := false
@@ -295,7 +329,7 @@ func finalizeWindowsUninstall(paths runtimePaths, report *uninstallReport, mode 
 	state = loadStateOrDefault(paths)
 	if err := finalizeLocalUninstallWithProgressUnlocked(paths, state, report, mode, func(step string) error {
 		return updateWindowsUninstallStatusProgress(paths, status)
-	}, relayAlreadyRemoved); err != nil {
+	}, removedRelays); err != nil {
 		return failWindowsUninstallStatus(paths, status, normalizeUninstallFailureStep(err), err)
 	}
 	if err := removeLegacyWindowsPackageResidueForUninstall(paths, report); err != nil {
@@ -347,11 +381,11 @@ func promptUninstallMode(defaultMode uninstallMode) (uninstallMode, bool, error)
 	}
 }
 
-func finalizeLocalUninstall(paths runtimePaths, state installState, report *uninstallReport, mode uninstallMode, relayAlreadyRemoved bool) error {
-	return finalizeLocalUninstallWithProgress(paths, state, report, mode, nil, relayAlreadyRemoved)
+func finalizeLocalUninstall(paths runtimePaths, state installState, report *uninstallReport, mode uninstallMode, teardownCompleted bool) error {
+	return finalizeLocalUninstallWithProgress(paths, state, report, mode, nil, teardownCompleted)
 }
 
-func finalizeLocalUninstallWithProgress(paths runtimePaths, state installState, report *uninstallReport, mode uninstallMode, beforeStep func(string) error, relayAlreadyRemoved bool) error {
+func finalizeLocalUninstallWithProgress(paths runtimePaths, state installState, report *uninstallReport, mode uninstallMode, beforeStep func(string) error, teardownCompleted bool) error {
 	configDirExisted := fileExists(paths.ConfigDir)
 	cleanupConfigDir := false
 	var configCleanupErr error
@@ -372,7 +406,11 @@ func finalizeLocalUninstallWithProgress(paths runtimePaths, state installState, 
 		return fmt.Errorf("another HA NOVA client update is already in progress")
 	}
 	state = loadStateOrDefault(paths)
-	err := finalizeLocalUninstallWithProgressUnlocked(paths, state, report, mode, beforeStep, relayAlreadyRemoved)
+	removedRelays := uninstallRelayRemovalEvidenceFromPreflight(
+		collectUninstallPreflight(paths),
+		teardownCompleted,
+	)
+	err := finalizeLocalUninstallWithProgressUnlocked(paths, state, report, mode, beforeStep, removedRelays)
 	cleanupConfigDir = err == nil
 	releaseMutation()
 	if err == nil {
@@ -381,7 +419,7 @@ func finalizeLocalUninstallWithProgress(paths runtimePaths, state installState, 
 	return err
 }
 
-func finalizeLocalUninstallWithProgressUnlocked(paths runtimePaths, state installState, report *uninstallReport, mode uninstallMode, beforeStep func(string) error, relayAlreadyRemoved bool) error {
+func finalizeLocalUninstallWithProgressUnlocked(paths runtimePaths, state installState, report *uninstallReport, mode uninstallMode, beforeStep func(string) error, removedRelays uninstallRelayRemovalEvidence) error {
 	relayTokenFile := ""
 	var purgeTargets []profilePurgeTarget
 	retirementProfiles, err :=
@@ -408,7 +446,7 @@ func finalizeLocalUninstallWithProgressUnlocked(paths runtimePaths, state instal
 		if err := settleDeviceCredentialRetirementsForPurge(
 			paths,
 			report,
-			relayAlreadyRemoved,
+			removedRelays,
 		); err != nil {
 			return fmt.Errorf(
 				"failed to settle pending device retirement: %w",
@@ -423,7 +461,7 @@ func finalizeLocalUninstallWithProgressUnlocked(paths runtimePaths, state instal
 		if err := purgeCloudAuthorizationsForUninstall(
 			paths,
 			report,
-			relayAlreadyRemoved,
+			removedRelays,
 		); err != nil {
 			return fmt.Errorf(
 				"failed to revoke Home Assistant Cloud authorization: %w",
@@ -449,6 +487,7 @@ func finalizeLocalUninstallWithProgressUnlocked(paths runtimePaths, state instal
 				}
 				purgeTargets = append(purgeTargets, profilePurgeTarget{
 					name:                 name,
+					relayInstanceID:      strings.TrimSpace(cfg.RelayInstanceID),
 					secureBaseURL:        strings.TrimSpace(cfg.RelaySecureBaseURL),
 					spkiPin:              strings.TrimSpace(cfg.RelaySpkiPin),
 					pendingSecureBaseURL: strings.TrimSpace(cfg.PendingSecureBaseURL),
@@ -466,7 +505,7 @@ func finalizeLocalUninstallWithProgressUnlocked(paths runtimePaths, state instal
 		if err := purgeAllDeviceCredentialsWithReport(
 			purgeTargets,
 			report,
-			relayAlreadyRemoved,
+			removedRelays,
 		); err != nil {
 			return fmt.Errorf(
 				"failed to remove device credentials: %w",

@@ -16,9 +16,6 @@ on:
 
 permissions: {}
 
-env:
-  SAFE_POLICY_MARKER: "<!-- ha-nova-dependabot-safe-policy -->"
-
 jobs:
   resolve-trigger:
     permissions:
@@ -82,164 +79,18 @@ jobs:
         run: |
           set -euo pipefail
 
-          POLICY_FILE="$(mktemp)"
-          CURRENT_POLICY_FILE="$(mktemp)"
           [[ "${AUTHENTICATED_POLICY_REF}" =~ ^[0-9a-f]{40}$ ]]
-          gh api "repos/${GITHUB_REPOSITORY}/contents/.github/policy/repo-policy.json?ref=${AUTHENTICATED_POLICY_REF}" \
+          MERGE_DIR="$(mktemp -d)"
+          gh api "repos/${GITHUB_REPOSITORY}/contents/scripts/release/merge-safe-dependabot-pr.mjs?ref=${AUTHENTICATED_POLICY_REF}" \
             --jq '.content' \
             | tr -d '\n' \
-            | base64 --decode > "${POLICY_FILE}"
-          safe_label="$(jq -r '.dependabot_safe_lane.label' "${POLICY_FILE}")"
-          mapfile -t required_checks < <(jq -r '.main_branch_protection.required_status_checks[]' "${POLICY_FILE}")
-          policy_sha="$(sha256sum "${POLICY_FILE}" | awk '{print $1}')"
-          if [[ "${policy_sha}" != "${EXPECTED_POLICY_SHA}" ]]; then
-            echo "Authenticated repository policy fingerprint mismatch."
-            exit 1
-          fi
-          current_ref="$(
-            gh api "repos/${GITHUB_REPOSITORY}/commits/${DEFAULT_BRANCH}" --jq '.sha'
-          )"
-          [[ "${current_ref}" =~ ^[0-9a-f]{40}$ ]]
-          gh api "repos/${GITHUB_REPOSITORY}/contents/.github/policy/repo-policy.json?ref=${current_ref}" \
+            | base64 --decode > "${MERGE_DIR}/merge-safe-dependabot-pr.mjs"
+          gh api "repos/${GITHUB_REPOSITORY}/contents/scripts/release/dependabot-direct-merge-github.mjs?ref=${AUTHENTICATED_POLICY_REF}" \
             --jq '.content' \
             | tr -d '\n' \
-            | base64 --decode > "${CURRENT_POLICY_FILE}"
-          current_policy_sha="$(sha256sum "${CURRENT_POLICY_FILE}" | awk '{print $1}')"
-          policy_drift=false
-          if [[ "${current_ref}" != "${AUTHENTICATED_POLICY_REF}" \
-            || "${current_policy_sha}" != "${EXPECTED_POLICY_SHA}" ]]; then
-            policy_drift=true
-          fi
-
-          if [[ "${RUN_KIND}" == "workflow_run" ]]; then
-            prs="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}" --jq '.pull_requests[].number')"
-          elif [[ "${RUN_KIND}" == "check_run" ]]; then
-            prs="$(
-              gh api "repos/${GITHUB_REPOSITORY}/commits/${RUN_SHA}/pulls" \
-                --jq '.[] | select(
-                  .state == "open"
-                  and .base.ref == "main"
-                  and .base.repo.full_name == env.GITHUB_REPOSITORY
-                  and .head.sha == env.RUN_SHA
-                ) | .number'
-            )"
-          else
-            echo "Unrecognized trusted trigger kind."
-            exit 1
-          fi
-          if [[ -z "${prs}" ]]; then
-            echo "No PRs attached to workflow run."
-            exit 0
-          fi
-
-          for pr_number in ${prs}; do
-            pr_json="$(gh pr view "${pr_number}" --json author,autoMergeRequest,headRefOid,isDraft,labels,url)"
-            pr_sha="$(printf '%s' "${pr_json}" | jq -r '.headRefOid')"
-            is_draft="$(printf '%s' "${pr_json}" | jq -r '.isDraft')"
-            labels="$(printf '%s' "${pr_json}" | jq -r '.labels[].name')"
-            if [[ "${pr_sha}" != "${RUN_SHA}" ]]; then
-              continue
-            fi
-            if [[ "${policy_drift}" == "true" ]]; then
-              cleanup_eligible="$(
-                printf '%s' "${pr_json}" \
-                  | jq -r --arg safe_label "${safe_label}" \
-                    '.author.login == "dependabot[bot]" and any(.labels[]?; .name == $safe_label)'
-              )"
-              if [[ "${cleanup_eligible}" != "true" ]]; then
-                continue
-              fi
-              echo "Repository policy changed after trigger authentication; clearing stale safe state for PR #${pr_number}."
-              cleanup_failed=false
-              if printf '%s' "${pr_json}" | jq -e '.autoMergeRequest != null' >/dev/null; then
-                gh pr merge "${pr_number}" --disable-auto || cleanup_failed=true
-              fi
-              gh pr edit "${pr_number}" --remove-label "${safe_label}" >/dev/null \
-                || cleanup_failed=true
-              if [[ "${cleanup_failed}" == "true" ]]; then
-                echo "Failed to clear stale safe state for PR #${pr_number}."
-                exit 1
-              fi
-              continue
-            fi
-            if [[ "${is_draft}" == "true" ]]; then
-              continue
-            fi
-            if ! printf '%s\n' "${labels}" | grep -qx "${safe_label}"; then
-              continue
-            fi
-
-            comments_json="$(gh api "repos/${GITHUB_REPOSITORY}/issues/${pr_number}/comments" --paginate --slurp)"
-            policy_comment="$(
-              printf '%s' "${comments_json}" | jq -r --arg marker "${SAFE_POLICY_MARKER}" '
-                [
-                  .[][]
-                  | select(.user.login == "github-actions[bot]" and (.body | contains($marker)))
-                ]
-                | last
-                | .body // ""
-              '
-            )"
-            recorded_policy_sha="$(printf '%s\n' "${policy_comment}" | awk -F= '/^policy_sha=/{print $2; exit}')"
-            if [[ -z "${recorded_policy_sha}" || "${recorded_policy_sha}" != "${policy_sha}" ]]; then
-              echo "Policy fingerprint drifted for PR #${pr_number}; removing safe label."
-              if printf '%s' "${pr_json}" | jq -e '.autoMergeRequest != null' >/dev/null; then
-                gh pr merge "${pr_number}" --disable-auto >/dev/null || true
-              fi
-              gh pr edit "${pr_number}" --remove-label "${safe_label}" >/dev/null || true
-              continue
-            fi
-
-            timeline_json="$(
-              gh api "repos/${GITHUB_REPOSITORY}/issues/${pr_number}/timeline" \
-                --paginate \
-                --slurp \
-                -H "Accept: application/vnd.github+json"
-            )"
-            label_actor="$(
-              printf '%s' "${timeline_json}" | jq -r --arg label "${safe_label}" '
-                  [
-                    .[][]
-                    | select((.event == "labeled" or .event == "unlabeled") and .label.name == $label)
-                  ]
-                  | last
-                  | select(.event == "labeled")
-                  | .actor.login // ""
-                '
-            )"
-            if [[ "${label_actor}" != "github-actions[bot]" ]]; then
-              continue
-            fi
-
-            checks_json="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${pr_sha}/check-runs?filter=latest&per_page=100")"
-            for required_check in "${required_checks[@]}"; do
-              expected_app_id="$(
-                jq -r --arg name "${required_check}" \
-                  '.main_branch_protection.required_status_check_apps[$name] // empty' \
-                  "${POLICY_FILE}"
-              )"
-              if [[ -n "${expected_app_id}" ]]; then
-                [[ "${expected_app_id}" =~ ^[1-9][0-9]*$ ]] || {
-                  echo "Required check ${required_check} App id is not provisioned."
-                  continue 2
-                }
-                conclusion="$(
-                  printf '%s' "${checks_json}" \
-                    | jq -r --arg name "${required_check}" --argjson app_id "${expected_app_id}" \
-                      '[.check_runs[] | select(.name == $name and .app.id == $app_id)][0].conclusion // ""'
-                )"
-              else
-                conclusion="$(
-                  printf '%s' "${checks_json}" \
-                    | jq -r --arg name "${required_check}" \
-                      '[.check_runs[] | select(.name == $name)][0].conclusion // ""'
-                )"
-              fi
-              if [[ "${conclusion}" != "success" ]]; then
-                echo "Required check ${required_check} not green for PR #${pr_number}; skipping auto-merge."
-                continue 2
-              fi
-            done
-
-            gh pr merge "${pr_number}" --auto --squash
-          done
+            | base64 --decode > "${MERGE_DIR}/dependabot-direct-merge-github.mjs"
+          gh api "repos/${GITHUB_REPOSITORY}/contents/scripts/release/dependabot-direct-merge-policy.mjs?ref=${AUTHENTICATED_POLICY_REF}" \
+            --jq '.content' \
+            | tr -d '\n' \
+            | base64 --decode > "${MERGE_DIR}/dependabot-direct-merge-policy.mjs"
+          node "${MERGE_DIR}/merge-safe-dependabot-pr.mjs"

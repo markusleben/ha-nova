@@ -13,6 +13,7 @@ var revokeSelfDeviceV1ForUninstall = revokeSelfDeviceV1
 // ITS relay, never on a sibling's.
 type profilePurgeTarget struct {
 	name                 string
+	relayInstanceID      string
 	secureBaseURL        string
 	spkiPin              string
 	pendingSecureBaseURL string
@@ -50,13 +51,16 @@ func purgeDeviceCredentialWithReport(
 func purgeAllDeviceCredentialsWithReport(
 	targets []profilePurgeTarget,
 	report *uninstallReport,
-	relayExpectedGone bool,
+	removedRelays uninstallRelayRemovalEvidence,
 ) error {
 	for _, target := range targets {
 		if err := purgeProfileDeviceCredentialWithReport(
 			target,
 			report,
-			relayExpectedGone,
+			removedRelays.matches(
+				target.name,
+				target.relayInstanceID,
+			),
 		); err != nil {
 			return err
 		}

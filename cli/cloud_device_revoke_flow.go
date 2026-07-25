@@ -21,7 +21,7 @@ func revokeRemoteOnlyCloudDeviceBeforeOAuth(
 	profileName string,
 	store OAuthSecretStore,
 	report *uninstallReport,
-	relayAlreadyRemoved bool,
+	relayRemoved bool,
 	checkpointRevocation cloudDeviceRevocationCheckpointer,
 ) (bool, error) {
 	if checkpointRevocation == nil {
@@ -63,7 +63,7 @@ func revokeRemoteOnlyCloudDeviceBeforeOAuth(
 	if checkpoint == nil {
 		return false, nil
 	}
-	if !relayAlreadyRemoved {
+	if !relayRemoved {
 		for _, target := range targets {
 			revokeConfig := target.config
 			if revokeConfig.RelayInstanceID == "" &&
@@ -103,7 +103,7 @@ func revokeRemoteOnlyCloudDeviceBeforeOAuth(
 		report,
 		profileName,
 		remoteOnly,
-		!relayAlreadyRemoved,
+		!relayRemoved,
 	)
 	return currentRemoved, nil
 }

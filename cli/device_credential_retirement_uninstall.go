@@ -52,7 +52,7 @@ func deviceCredentialRetirementCheckpointProfiles(
 func settleDeviceCredentialRetirementsForPurge(
 	paths runtimePaths,
 	report *uninstallReport,
-	relayAlreadyRemoved bool,
+	removedRelays uninstallRelayRemovalEvidence,
 ) error {
 	profiles, err := deviceCredentialRetirementCheckpointProfiles(paths)
 	if err != nil || len(profiles) == 0 {
@@ -127,7 +127,10 @@ func settleDeviceCredentialRetirementsForPurge(
 				err,
 			)
 		}
-		if relayAlreadyRemoved &&
+		if removedRelays.matches(
+			profile,
+			checkpoint.RelayInstanceID,
+		) &&
 			checkpoint.Phase == deviceCredentialRetirementPrepared {
 			checkpoint, err = markDeviceCredentialRetirementRevoked(
 				paths,

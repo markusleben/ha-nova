@@ -166,7 +166,13 @@ func mergeServerProfileRaw(existing json.RawMessage, fields serverProfileConfig)
 }
 
 var cloudLifecycleFieldKeys = []string{
-	"state", "current", "pending", "recovery_hold",
+	"state",
+	"current",
+	"pending",
+	"device_activation_started",
+	"device_activation_device_id",
+	"device_revocation_completed",
+	"recovery_hold",
 }
 var cloudConnectionFieldKeys = []string{
 	"origin", "canonical_origin", "oauth_client_id", "credential_generation", "ha_user_id",

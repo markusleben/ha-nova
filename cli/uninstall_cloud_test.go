@@ -70,7 +70,7 @@ func TestCloudPurgeRevokesBeforeDeletingNativeSecrets(t *testing.T) {
 	})
 
 	report := &uninstallReport{}
-	if err := purgeCloudAuthorizationsForUninstall(paths, report, false); err != nil {
+	if err := purgeCloudAuthorizationsForUninstall(paths, report, nil); err != nil {
 		t.Fatalf("purge Cloud authorization: %v", err)
 	}
 	if len(revoked) != 1 || revoked[0] != current.Generation {
@@ -271,7 +271,7 @@ func TestMultiProfileCloudPurgePersistsHoldForFailingProfile(t *testing.T) {
 	purgeErr := purgeCloudAuthorizationsForUninstall(
 		paths,
 		&uninstallReport{},
-		true,
+		nil,
 	)
 	if purgeErr == nil {
 		t.Fatal("ambiguous multi-profile purge succeeded")

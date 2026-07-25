@@ -3,18 +3,17 @@
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 
+import { createCloudSourceCheckReporter } from "./cloud-source-check-reporter.mjs";
+
 const workspace = process.env.GITHUB_WORKSPACE ?? "";
 const repository = process.env.GITHUB_REPOSITORY ?? "";
 const eventPath = process.env.GITHUB_EVENT_PATH ?? "";
 const runId = process.env.GITHUB_RUN_ID ?? "";
 const githubToken = process.env.GH_TOKEN ?? "";
 const checkToken = process.env.HA_NOVA_CLOUD_SOURCE_CHECK_TOKEN ?? "";
-const checkAppId = Number(
-  process.env.HA_NOVA_CLOUD_SOURCE_CHECK_APP_ID ?? "",
-);
+const checkAppId = Number(process.env.HA_NOVA_CLOUD_SOURCE_CHECK_APP_ID ?? "");
 const evidence = process.env.HA_NOVA_CLOUD_GATE_EVIDENCE_JSON ?? "";
 const apiVersion = "2026-03-10";
-const checkName = "cloud-source-gate";
 
 function fail(message) {
   throw new Error(message);
@@ -98,86 +97,6 @@ async function currentPullRequest(headSHA) {
   return matches[0];
 }
 
-function sourceExternalId(workflowRun) {
-  if (
-    !Number.isSafeInteger(workflowRun.id) ||
-    workflowRun.id <= 0 ||
-    !Number.isSafeInteger(workflowRun.run_attempt) ||
-    workflowRun.run_attempt <= 0
-  ) {
-    fail("workflow run id and attempt must be positive integers");
-  }
-  return `workflow-run:${workflowRun.id}:attempt:${workflowRun.run_attempt}`;
-}
-
-async function createCheck(workflowRun) {
-  return github(`repos/${repository}/check-runs`, checkToken, {
-    method: "POST",
-    body: JSON.stringify({
-      name: checkName,
-      head_sha: workflowRun.head_sha,
-      status: "in_progress",
-      external_id: sourceExternalId(workflowRun),
-      details_url: `https://github.com/${repository}/actions/runs/${runId}`,
-      output: {
-        title: "Home Assistant Cloud source verification",
-        summary: "Trusted default-branch verification is running.",
-      },
-    }),
-  });
-}
-
-async function sourceChecks(workflowRun) {
-  const response = await github(
-    `repos/${repository}/commits/${workflowRun.head_sha}/check-runs?check_name=${checkName}&filter=all&per_page=100`,
-    checkToken,
-  );
-  return (response.check_runs ?? []).filter(
-    (candidate) =>
-      candidate.app?.id === checkAppId &&
-      candidate.name === checkName &&
-      candidate.external_id === sourceExternalId(workflowRun),
-  );
-}
-
-async function completeCheck(checkId, conclusion, summary) {
-  await github(`repos/${repository}/check-runs/${checkId}`, checkToken, {
-    method: "PATCH",
-    body: JSON.stringify({
-      status: "completed",
-      conclusion,
-      output: {
-        title:
-          conclusion === "success"
-            ? "Home Assistant Cloud source verified"
-            : "Home Assistant Cloud source rejected",
-        summary,
-      },
-    }),
-  });
-}
-
-async function deleteCheck(checkId) {
-  const response = await fetch(
-    `https://api.github.com/repos/${repository}/check-runs/${checkId}`,
-    {
-      method: "DELETE",
-      headers: {
-        Accept: "application/vnd.github+json",
-        Authorization: `Bearer ${checkToken}`,
-        "User-Agent": "ha-nova-cloud-source-gate",
-        "X-GitHub-Api-Version": apiVersion,
-      },
-    },
-  );
-  if (response.status === 404) {
-    return;
-  }
-  if (!response.ok) {
-    fail(`GitHub API check-runs/${checkId} returned HTTP ${response.status}`);
-  }
-}
-
 function readEvent() {
   let event;
   try {
@@ -198,7 +117,6 @@ function readEvent() {
 }
 
 async function requireTrustedCI(workflowRun) {
-  sourceExternalId(workflowRun);
   if (!Number.isSafeInteger(workflowRun.workflow_id)) {
     fail("workflow run must identify its source workflow");
   }
@@ -230,58 +148,6 @@ async function requireTrustedCI(workflowRun) {
   return current;
 }
 
-async function ensurePendingCheck(workflowRun) {
-  let checks = await sourceChecks(workflowRun);
-  const terminal = checks.find((candidate) => candidate.status === "completed");
-  if (terminal !== undefined) {
-    for (const pending of checks.filter(
-      (candidate) => candidate.status !== "completed",
-    )) {
-      await deleteCheck(pending.id);
-    }
-    return { check: terminal, terminal: true };
-  }
-  let pending = checks
-    .filter((candidate) => candidate.status !== "completed")
-    .sort((left, right) => left.id - right.id)[0];
-  if (pending === undefined) {
-    pending = await createCheck(workflowRun);
-    if (
-      !Number.isSafeInteger(pending.id) ||
-      pending.id <= 0 ||
-      pending.app?.id !== checkAppId
-    ) {
-      fail("dedicated GitHub App returned an invalid check run");
-    }
-    checks = await sourceChecks(workflowRun);
-    const racedTerminal = checks.find(
-      (candidate) => candidate.status === "completed",
-    );
-    if (racedTerminal !== undefined) {
-      for (const racedPending of checks.filter(
-        (candidate) => candidate.status !== "completed",
-      )) {
-        await deleteCheck(racedPending.id);
-      }
-      return { check: racedTerminal, terminal: true };
-    }
-    pending = checks
-      .filter((candidate) => candidate.status !== "completed")
-      .sort((left, right) => left.id - right.id)[0];
-    if (pending === undefined) {
-      fail("pending source check disappeared during creation");
-    }
-  }
-  const duplicates = checks.filter(
-    (candidate) =>
-      candidate.status !== "completed" && candidate.id !== pending.id,
-  );
-  for (const duplicate of duplicates) {
-    await deleteCheck(duplicate.id);
-  }
-  return { check: pending, terminal: false };
-}
-
 if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)) {
   fail("GITHUB_REPOSITORY must identify one repository");
 }
@@ -295,6 +161,13 @@ if (!Number.isSafeInteger(checkAppId) || checkAppId <= 0) {
   fail("dedicated check App id must be a positive integer");
 }
 
+const { completeCheck, ensurePendingCheck } = createCloudSourceCheckReporter({
+  appId: checkAppId,
+  repository,
+  runId,
+  token: checkToken,
+});
+
 let checkId;
 try {
   const { action, workflowRun } = readEvent();
@@ -304,17 +177,6 @@ try {
     fail(`unsupported triggering event ${String(event)}`);
   }
   const currentWorkflowRun = await requireTrustedCI(workflowRun);
-  const { check, terminal } = await ensurePendingCheck(currentWorkflowRun);
-  checkId = check.id;
-  if (action !== "completed") {
-    process.exit(0);
-  }
-  if (terminal) {
-    process.exit(0);
-  }
-  if (currentWorkflowRun.status !== "completed") {
-    fail("completed workflow event does not identify a completed run");
-  }
 
   let sourceEnvironment;
   let sourceRef;
@@ -326,8 +188,10 @@ try {
     sourceRef = `refs/pull/${currentPR.number}/merge`;
     verifiedTargetSHA = resolveRemoteRef(sourceRef);
     if (
-      requireSHA(currentPR.merge_commit_sha, "pull request merge commit SHA") !==
-      verifiedTargetSHA
+      requireSHA(
+        currentPR.merge_commit_sha,
+        "pull request merge commit SHA",
+      ) !== verifiedTargetSHA
     ) {
       fail("pull request API and merge ref identify different merge commits");
     }
@@ -355,6 +219,18 @@ try {
       HA_NOVA_CLOUD_GATE_SOURCE_REF: sourceRef,
       HA_NOVA_CLOUD_GATE_EXPECTED_TARGET_COMMIT: headSHA,
     };
+  }
+
+  const { check, terminalSuccess } = await ensurePendingCheck(
+    currentWorkflowRun,
+    verifiedTargetSHA,
+  );
+  checkId = check.id;
+  if (action !== "completed" || terminalSuccess) {
+    process.exit(0);
+  }
+  if (currentWorkflowRun.status !== "completed") {
+    fail("completed workflow event does not identify a completed run");
   }
 
   run("bash", ["scripts/release/verify-github-production-environment.sh"]);
@@ -394,8 +270,10 @@ try {
       finalPR.number !== currentPR.number ||
       finalPR.base?.sha !== currentPR.base.sha ||
       finalPR.head?.sha !== headSHA ||
-      requireSHA(finalPR.merge_commit_sha, "final pull request merge commit SHA") !==
-        verifiedTargetSHA
+      requireSHA(
+        finalPR.merge_commit_sha,
+        "final pull request merge commit SHA",
+      ) !== verifiedTargetSHA
     ) {
       fail("pull request identity changed after final source verification");
     }

@@ -5,13 +5,11 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { registerDependabotDirectMergeBehaviorTests } from "./dependabot-direct-merge-behavior.js";
+
 const sha = "a".repeat(40);
 
-function runResolver(
-  eventName: "check_run" | "workflow_run",
-  event: unknown,
-  appId = 42,
-) {
+function runResolver(eventName: "check_run" | "workflow_run", event: unknown, appId = 42) {
   const directory = mkdtempSync(join(tmpdir(), "ha-nova-trigger-"));
   const eventPath = join(directory, "event.json");
   const outputPath = join(directory, "output");
@@ -22,7 +20,12 @@ function runResolver(
     JSON.stringify({
       cloud_source_gate: {
         check_name: "cloud-source-gate",
+        reporter_app_id: appId,
         reporter_app_slug: "markusleben-ha-nova-cloud-source-gate",
+        synchronous_invalidator_app_id: appId === 0 ? 0 : 43,
+        synchronous_invalidator_app_slug:
+          "markusleben-ha-nova-cloud-source-invalidator",
+        synchronous_invalidator_check_name: "cloud-source-invalidator",
       },
       main_branch_protection: {
         required_status_check_apps: {
@@ -68,21 +71,20 @@ function completedCheck(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function driftCleanupEligible(author: string, labels: string[]) {
+function driftCleanupOwned(author: string, markerActor: string | null) {
   const result = spawnSync(
     "jq",
     [
       "-r",
       "--arg",
-      "safe_label",
-      "dependabot-safe:auto-merge",
-      '.author.login == "dependabot[bot]" and any(.labels[]?; .name == $safe_label)',
+      "marker_actor",
+      markerActor ?? "",
+      '.author.login == "dependabot[bot]" and $marker_actor == "github-actions[bot]"',
     ],
     {
       encoding: "utf8",
       input: JSON.stringify({
         author: { login: author },
-        labels: labels.map((name) => ({ name })),
       }),
     },
   );
@@ -100,20 +102,28 @@ describe("Dependabot auto-merge trigger authentication", () => {
     expect(result.output.trimEnd().endsWith("should-process=true")).toBe(true);
   });
 
+  it("accepts the exact completed synchronous invalidator App check", () => {
+    const result = runResolver(
+      "check_run",
+      completedCheck({
+        app: {
+          id: 43,
+          slug: "markusleben-ha-nova-cloud-source-invalidator",
+        },
+        name: "cloud-source-invalidator",
+      }),
+    );
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.output).toContain("run-kind=check_run");
+    expect(result.output.trimEnd().endsWith("should-process=true")).toBe(true);
+  });
+
   it.each([
     ["wrong name", { name: "cloud-source-gate-spoof" }, 42],
-    [
-      "wrong App id",
-      { app: { id: 43, slug: "markusleben-ha-nova-cloud-source-gate" } },
-      42,
-    ],
+    ["wrong App id", { app: { id: 43, slug: "markusleben-ha-nova-cloud-source-gate" } }, 42],
     ["wrong App slug", { app: { id: 42, slug: "spoof" } }, 42],
     ["failed conclusion", { conclusion: "failure" }, 42],
-    [
-      "unprovisioned policy",
-      { app: { id: 0, slug: "markusleben-ha-nova-cloud-source-gate" } },
-      0,
-    ],
+    ["unprovisioned policy", { app: { id: 0, slug: "markusleben-ha-nova-cloud-source-gate" } }, 0],
   ])("ignores %s", (_label, overrides, appId) => {
     const result = runResolver(
       "check_run",
@@ -142,19 +152,13 @@ describe("Dependabot auto-merge trigger authentication", () => {
   });
 
   it.each([
-    ["labeled Dependabot PR", "dependabot[bot]", ["dependabot-safe:auto-merge"], true],
-    ["unlabeled Dependabot PR", "dependabot[bot]", [], false],
-    ["labeled human PR", "markusleben", ["dependabot-safe:auto-merge"], false],
-    ["unlabeled human PR", "markusleben", [], false],
-  ])(
-    "limits policy-drift cleanup for %s",
-    (_label, author, labels, expected) => {
-      expect(
-        driftCleanupEligible(
-          author as string,
-          labels as string[],
-        ),
-      ).toBe(expected);
-    },
-  );
+    ["owned Dependabot PR", "dependabot[bot]", "github-actions[bot]", true],
+    ["unowned Dependabot PR", "dependabot[bot]", null, false],
+    ["human PR with marker", "markusleben", "github-actions[bot]", false],
+    ["human PR without marker", "markusleben", null, false],
+  ])("limits policy-drift cleanup for %s", (_label, author, markerActor, expected) => {
+    expect(driftCleanupOwned(author as string, markerActor as string | null)).toBe(expected);
+  });
 });
+
+registerDependabotDirectMergeBehaviorTests();

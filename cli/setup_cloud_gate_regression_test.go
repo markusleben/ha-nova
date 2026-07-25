@@ -236,3 +236,88 @@ func TestSetupPrerequisiteFailuresRenderCloudRecoveryFirst(
 		}
 	}
 }
+
+func TestRetirementCheckpointInspectionFailureRendersExactCloudRecoveryFirst(
+	t *testing.T,
+) {
+	for _, profile := range []string{defaultServerProfileName, "cabin"} {
+		for _, checkpointKind := range []string{"directory", "symlink"} {
+			t.Run(profile+"/"+checkpointKind, func(t *testing.T) {
+				restoreFeature := setCloudFeatureTestBuild(t, true)
+				defer restoreFeature()
+				cfg := pendingCloudOnlyCommandConfig(
+					cloudStateTokenStored,
+				)
+				paths, _ := saveHybridCheckpointUXProfile(
+					t,
+					profile,
+					cfg,
+				)
+				before, err := os.ReadFile(paths.ConfigFile)
+				if err != nil {
+					t.Fatal(err)
+				}
+				checkpointPath, err :=
+					deviceCredentialRetirementCheckpointPathForProfile(
+						paths,
+						profile,
+					)
+				if err != nil {
+					t.Fatal(err)
+				}
+				switch checkpointKind {
+				case "directory":
+					if err := os.Mkdir(checkpointPath, 0o700); err != nil {
+						t.Fatal(err)
+					}
+				case "symlink":
+					if err := os.Symlink(
+						paths.ConfigFile,
+						checkpointPath,
+					); err != nil {
+						t.Skipf("symlink unavailable: %v", err)
+					}
+				}
+				keyringCalls := installSetupKeyringPreflightCounter(t)
+				args := []string{"unsupported-client"}
+				if profile != defaultServerProfileName {
+					args = append(args, "--server", profile)
+				}
+
+				exit, output := captureCommandOutput(t, func() int {
+					return runSetup(paths, args)
+				})
+				resume := "ha-nova cloud add --server " + profile
+				remove := "ha-nova cloud remove --server " + profile
+				failure := "cannot inspect interrupted device credential retirement"
+				if exit != 1 ||
+					!strings.Contains(output, resume) ||
+					!strings.Contains(output, remove) ||
+					!strings.Contains(output, failure) ||
+					strings.Index(output, resume) >
+						strings.Index(output, failure) {
+					t.Fatalf(
+						"retirement inspection recovery exit=%d: %s",
+						exit,
+						output,
+					)
+				}
+				if *keyringCalls != 0 {
+					t.Fatalf(
+						"retirement inspection touched keyring %d times",
+						*keyringCalls,
+					)
+				}
+				after, err := os.ReadFile(paths.ConfigFile)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if string(after) != string(before) {
+					t.Fatal(
+						"retirement inspection failure changed configuration",
+					)
+				}
+			})
+		}
+	}
+}

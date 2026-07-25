@@ -44,14 +44,11 @@
     "required_status_checks": [
       "analyze",
       "ci-gate",
-      "cloud-source-gate",
       "dependency-review",
       "manifest-review-gate",
       "readme-release-gate"
     ],
-    "required_status_check_apps": {
-      "cloud-source-gate": 0
-    },
+    "required_status_check_apps": {},
     "advisory_checks": [
       "codex-review-gate"
     ],
@@ -84,6 +81,10 @@
   "cloud_source_gate": {
     "check_name": "cloud-source-gate",
     "reporter_app_slug": "markusleben-ha-nova-cloud-source-gate",
+    "reporter_app_id": 0,
+    "synchronous_invalidator_check_name": "cloud-source-invalidator",
+    "synchronous_invalidator_app_slug": "markusleben-ha-nova-cloud-source-invalidator",
+    "synchronous_invalidator_app_id": 0,
     "sensitive_workflows": [
       ".github/workflows/cloud-source-gate.yml",
       ".github/workflows/ci.yml",

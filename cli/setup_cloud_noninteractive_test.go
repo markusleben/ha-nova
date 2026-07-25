@@ -208,3 +208,62 @@ func TestNonInteractiveCloudOnlyHoldOffersOnlyExactCleanup(t *testing.T) {
 		})
 	}
 }
+
+func TestNonInteractiveUnlockClearableHoldShowsExactUnlockAndCleanup(
+	t *testing.T,
+) {
+	for _, profile := range []string{defaultServerProfileName, "cabin"} {
+		t.Run(profile, func(t *testing.T) {
+			resetServerProfileSelection(t)
+			if profile != defaultServerProfileName {
+				setServerSelectionOverride(profile)
+			}
+			withClientRuntimeAvailability(
+				t,
+				map[string]bool{"antigravity": true},
+			)
+			t.Setenv("HOME", t.TempDir())
+			t.Setenv("HA_NOVA_DEV_ROOT", repoRootForSetupTest(t))
+			paths, err := detectPaths()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := saveConfig(paths, runtimeConfig{
+				ProfileID: "profile-cloud-unlock-held",
+				Cloud: &cloudLifecycleMetadata{
+					State: cloudStateAuthorizing,
+					RecoveryHold: &cloudRecoveryHold{
+						Code:        cloudProblemSecureStorage,
+						Remediation: cloudRemediationVerifyState,
+					},
+				},
+			}); err != nil {
+				t.Fatal(err)
+			}
+
+			exit, output := captureCommandOutput(t, func() int {
+				return runSetup(
+					paths,
+					[]string{"antigravity", "--non-interactive"},
+				)
+			})
+			wantUnlock := "ha-nova cloud unlock --server " + profile
+			wantRemove := "ha-nova cloud remove --server " + profile
+			if exit != 1 ||
+				!strings.Contains(output, wantUnlock) ||
+				!strings.Contains(output, wantRemove) ||
+				!strings.Contains(output, "interactive desktop session") ||
+				strings.Contains(output, "only non-interactive recovery") {
+				t.Fatalf(
+					"unlock-clearable hold exit=%d:\n%s",
+					exit,
+					output,
+				)
+			}
+			if strings.Index(output, wantUnlock) >
+				strings.Index(output, wantRemove) {
+				t.Fatalf("destructive fallback preceded unlock: %s", output)
+			}
+		})
+	}
+}

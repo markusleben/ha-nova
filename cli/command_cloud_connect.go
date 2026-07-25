@@ -67,10 +67,18 @@ func runCloudConnectCommand(
 	ctx = withCloudSecretAccessHolder(ctx)
 
 	var connected runtimeConfig
+	var configPreflightErr error
 	err = withClientMutationLock(paths, func() error {
 		cfg, err := loadCloudConnectConfig(paths, options, reconnect)
 		if err != nil {
 			return err
+		}
+		if err := validateRuntimeConfigSave(paths, cfg); err != nil {
+			configPreflightErr = fmt.Errorf(
+				"cannot safely continue Home Assistant Cloud setup with the saved server configuration: %w",
+				err,
+			)
+			return configPreflightErr
 		}
 		connected = cfg
 		connected, err = connectCloudCommandLocked(
@@ -83,6 +91,10 @@ func runCloudConnectCommand(
 		return err
 	})
 	if err != nil {
+		if configPreflightErr != nil {
+			printHumanErr("%s", configPreflightErr)
+			return 1
+		}
 		if errors.Is(err, errCloudURLPromptCancelled) {
 			printCloudURLPromptCancellation(paths)
 			return 0
@@ -239,7 +251,7 @@ func connectCloudCommandLocked(
 		}
 		if remoteOrigin.CanonicalOrigin == "" {
 			var err error
-			remoteOrigin, err = ResolveCanonicalNabuOrigin(
+			remoteOrigin, err = resolveCanonicalNabuOriginForCloudCommand(
 				ctx,
 				remoteURL,
 				NetCloudCNAMEResolver{},
@@ -281,6 +293,8 @@ var promptCloudRemoteOriginForCommand = func(
 		NetCloudCNAMEResolver{},
 	)
 }
+
+var resolveCanonicalNabuOriginForCloudCommand = ResolveCanonicalNabuOrigin
 
 func promptCloudRemoteOriginFromReader(
 	ctx context.Context,

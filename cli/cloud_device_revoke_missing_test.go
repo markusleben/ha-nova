@@ -246,7 +246,7 @@ func TestFullPurgeMissingCurrentDeviceFailsBeforeOAuthAndPersistsHold(
 	err := purgeCloudAuthorizationsForUninstall(
 		paths,
 		&uninstallReport{},
-		false,
+		nil,
 	)
 	if err == nil ||
 		!strings.Contains(err.Error(), "current Cloud device credential") {

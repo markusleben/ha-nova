@@ -64,7 +64,7 @@ func TestPurgeSettlesPendingRetirementFromCheckpoint(t *testing.T) {
 	if err := settleDeviceCredentialRetirementsForPurge(
 		paths,
 		&uninstallReport{},
-		false,
+		nil,
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +90,7 @@ func TestStandardUninstallBlocksPendingRetirement(t *testing.T) {
 		&uninstallReport{},
 		uninstallModeStandard,
 		nil,
-		false,
+		nil,
 	)
 	if err == nil || !strings.Contains(err.Error(), "retirement is pending") {
 		t.Fatalf("standard uninstall error = %v", err)
@@ -135,7 +135,7 @@ func TestPurgeConsumesRevokedCheckpointWithRestoredEndpoint(
 	if err := settleDeviceCredentialRetirementsForPurge(
 		paths,
 		&uninstallReport{},
-		false,
+		nil,
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -149,5 +149,67 @@ func TestPurgeConsumesRevokedCheckpointWithRestoredEndpoint(
 		readDeviceCredentialRetirementCheckpoint(paths); err != nil ||
 		exists {
 		t.Fatalf("checkpoint remains: exists=%v err=%v", exists, err)
+	}
+}
+
+func TestGuidedTeardownSkipsOnlyMatchingRetirementRelay(t *testing.T) {
+	for _, test := range []struct {
+		name        string
+		evidence    uninstallRelayRemovalEvidence
+		wantRevokes int
+	}{
+		{
+			name: "exact default Relay",
+			evidence: uninstallRelayRemovalEvidence{
+				defaultServerProfileName: "relay-1",
+			},
+			wantRevokes: 0,
+		},
+		{
+			name: "sibling profile with same Relay id",
+			evidence: uninstallRelayRemovalEvidence{
+				"cabin": "relay-1",
+			},
+			wantRevokes: 1,
+		},
+		{
+			name: "default profile with different Relay id",
+			evidence: uninstallRelayRemovalEvidence{
+				defaultServerProfileName: "relay-other",
+			},
+			wantRevokes: 1,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			paths, _, _ := pendingRetirementUninstallFixture(t)
+			revokeCalls := 0
+			oldRevoke := revokeSelfDeviceV1ForRetire
+			revokeSelfDeviceV1ForRetire = func(
+				string,
+				string,
+				string,
+			) error {
+				revokeCalls++
+				return nil
+			}
+			t.Cleanup(func() {
+				revokeSelfDeviceV1ForRetire = oldRevoke
+			})
+
+			if err := settleDeviceCredentialRetirementsForPurge(
+				paths,
+				&uninstallReport{},
+				test.evidence,
+			); err != nil {
+				t.Fatal(err)
+			}
+			if revokeCalls != test.wantRevokes {
+				t.Fatalf(
+					"retirement revokes = %d, want %d",
+					revokeCalls,
+					test.wantRevokes,
+				)
+			}
+		})
 	}
 }

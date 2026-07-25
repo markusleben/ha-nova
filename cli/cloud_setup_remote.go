@@ -152,9 +152,10 @@ func preflightRemoteCloudDeviceStateWithContext(
 	ctx context.Context,
 	expectedRelayInstanceID string,
 ) error {
-	return preflightCloudDeviceAccess(
+	return inspectCloudDeviceAccess(
 		ctx,
 		expectedRelayInstanceID,
+		true,
 		true,
 		SecretStoreForbidUI,
 	)

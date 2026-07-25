@@ -166,17 +166,36 @@ func connectRemoteToCloud(
 	); err != nil {
 		return cfg, err
 	}
-	// Inspect device storage before creating profile, install, or Cloud
-	// lifecycle checkpoints. In particular, an unfinished local pairing must
-	// remain resumable and must not be stranded behind a newly persisted Cloud
-	// authorizing state.
-	if err := preflightWritableCloudDeviceAccess(
+	// Prove any current credential before the writable canary, profile/install
+	// creation, OAuth, or Cloud lifecycle checkpoints. A Cloud-only setup
+	// cannot safely replace a credential whose Relay identity is unknown.
+	expectedRelayInstanceID, err := expectedRemoteCloudRelayIdentity(
 		ctx,
-		cfg.RelayInstanceID,
+		cloudRemoteSetupRequest{
+			cloudSetupRequest: cloudSetupRequest{Config: cfg},
+			Origin:            origin,
+		},
+	)
+	if err != nil {
+		return cfg, err
+	}
+	if err := inspectCloudDeviceAccess(
+		ctx,
+		expectedRelayInstanceID,
+		true,
 		true,
 		SecretStoreAllowUI,
 	); err != nil {
 		return cfg, err
+	}
+	if _, err := probeCloudDeviceStorageForSetup(
+		ctx,
+		SecretStoreAllowUI,
+	); err != nil {
+		return cfg, err
+	}
+	if cfg.RelayInstanceID == "" {
+		cfg.RelayInstanceID = expectedRelayInstanceID
 	}
 	if err := ensureProfileIdentityForSetup(paths, &cfg); err != nil {
 		return cfg, err
@@ -193,7 +212,6 @@ func connectRemoteToCloud(
 	if err := save(cfg); err != nil {
 		return cfg, err
 	}
-	var err error
 	ctx, err = preflightCloudSecretAccessSession(
 		ctx,
 		coordinator,
