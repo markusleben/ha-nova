@@ -68,6 +68,28 @@ function completedCheck(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function driftCleanupEligible(author: string, labels: string[]) {
+  const result = spawnSync(
+    "jq",
+    [
+      "-r",
+      "--arg",
+      "safe_label",
+      "dependabot-safe:auto-merge",
+      '.author.login == "dependabot[bot]" and any(.labels[]?; .name == $safe_label)',
+    ],
+    {
+      encoding: "utf8",
+      input: JSON.stringify({
+        author: { login: author },
+        labels: labels.map((name) => ({ name })),
+      }),
+    },
+  );
+  expect(result.status, result.stderr).toBe(0);
+  return result.stdout.trim() === "true";
+}
+
 describe("Dependabot auto-merge trigger authentication", () => {
   it("accepts the exact completed dedicated App check", () => {
     const result = runResolver("check_run", completedCheck());
@@ -118,4 +140,21 @@ describe("Dependabot auto-merge trigger authentication", () => {
     expect(result.output).toContain("run-id=123");
     expect(result.output.trimEnd().endsWith("should-process=true")).toBe(true);
   });
+
+  it.each([
+    ["labeled Dependabot PR", "dependabot[bot]", ["dependabot-safe:auto-merge"], true],
+    ["unlabeled Dependabot PR", "dependabot[bot]", [], false],
+    ["labeled human PR", "markusleben", ["dependabot-safe:auto-merge"], false],
+    ["unlabeled human PR", "markusleben", [], false],
+  ])(
+    "limits policy-drift cleanup for %s",
+    (_label, author, labels, expected) => {
+      expect(
+        driftCleanupEligible(
+          author as string,
+          labels as string[],
+        ),
+      ).toBe(expected);
+    },
+  );
 });

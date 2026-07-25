@@ -14,6 +14,9 @@ func rollbackCloudReconnectAfterUserConflict(
 		cfg.Cloud.Current == nil || cfg.Cloud.Pending == nil {
 		return errors.New("Cloud reconnect rollback has no current and pending authorization")
 	}
+	if err := rejectCloudSetupDuringDeviceRevocation(*cfg); err != nil {
+		return err
+	}
 	if cfg.Cloud.State != cloudStateRollingBack {
 		cfg.Cloud.State = cloudStateRollingBack
 		if err := save(*cfg); err != nil {
@@ -49,12 +52,15 @@ func rollbackCloudReconnectAfterUserConflict(
 	}
 	pendingMetadata := cfg.Cloud.Pending
 	activationStarted := cfg.Cloud.DeviceActivationStarted
+	activationDeviceID := cfg.Cloud.DeviceActivationDeviceID
 	cfg.Cloud.Pending = nil
 	cfg.Cloud.DeviceActivationStarted = false
+	cfg.Cloud.DeviceActivationDeviceID = ""
 	cfg.Cloud.State = cloudStateReady
 	if err := save(*cfg); err != nil {
 		cfg.Cloud.Pending = pendingMetadata
 		cfg.Cloud.DeviceActivationStarted = activationStarted
+		cfg.Cloud.DeviceActivationDeviceID = activationDeviceID
 		cfg.Cloud.State = cloudStateRollingBack
 		return err
 	}

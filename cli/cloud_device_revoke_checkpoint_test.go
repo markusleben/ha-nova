@@ -6,6 +6,12 @@ import (
 	"testing"
 )
 
+func acceptCloudDeviceRevocationCheckpoint(
+	cloudDeviceRevocationCheckpoint,
+) error {
+	return nil
+}
+
 func TestBoundPendingCloudDeviceUsesPendingProvenanceBeforeOAuth(t *testing.T) {
 	resetServerProfileSelection(t)
 	t.Setenv("HA_NOVA_TEST_SECRET_DIR", t.TempDir())
@@ -26,17 +32,18 @@ func TestBoundPendingCloudDeviceUsesPendingProvenanceBeforeOAuth(t *testing.T) {
 		t.Fatal(err)
 	}
 	metadata := cloudMetadataFromEnvelope(origin, pending)
+	credential := validCredential(22)
 	cfg := runtimeConfig{
 		ProfileID:       pending.ProfileID,
 		RelayInstanceID: pending.RelayInstanceID,
 		RoutePolicy:     routePolicyCloud,
 		Cloud: &cloudLifecycleMetadata{
-			State:                   cloudStateDeviceBoundOrPaired,
-			Pending:                 &metadata,
-			DeviceActivationStarted: true,
+			State:                    cloudStateDeviceBoundOrPaired,
+			Pending:                  &metadata,
+			DeviceActivationStarted:  true,
+			DeviceActivationDeviceID: deviceIDOf(credential),
 		},
 	}
-	credential := validCredential(22)
 	if err := writePendingCloudDeviceCredential(
 		credential,
 		cfg.RelayInstanceID,
@@ -118,6 +125,7 @@ func TestBoundPendingCloudDeviceUsesPendingProvenanceBeforeOAuth(t *testing.T) {
 		store,
 		nil,
 		false,
+		acceptCloudDeviceRevocationCheckpoint,
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -199,6 +207,7 @@ func TestReconnectCurrentDeviceUsesOnlyCurrentOAuthProvenance(t *testing.T) {
 		nil,
 		nil,
 		false,
+		acceptCloudDeviceRevocationCheckpoint,
 	); err != nil {
 		t.Fatal(err)
 	}

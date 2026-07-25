@@ -182,6 +182,7 @@ func TestRemoteDeviceCheckpointDurablyBindsRelayBeforePromotionFailure(
 	}
 	if cfg.RelayInstanceID != "relay-recovery" ||
 		cfg.Cloud.State != cloudStateDeviceBoundOrPaired ||
+		cfg.Cloud.DeviceActivationDeviceID != deviceID ||
 		len(saved) == 0 ||
 		saved[len(saved)-1].RelayInstanceID != "relay-recovery" {
 		t.Fatalf(
@@ -194,6 +195,35 @@ func TestRemoteDeviceCheckpointDurablyBindsRelayBeforePromotionFailure(
 		!exists {
 		t.Fatalf(
 			"promotion failure lost pending: exists=%v err=%v",
+			exists,
+			readErr,
+		)
+	}
+	if err := os.Rename(currentPath, currentPath+".blocked"); err != nil {
+		t.Fatal(err)
+	}
+	retry := cloudSetupRemoteTestRequest(
+		t,
+		func(cloudRemotePairingPrompt) (string, error) {
+			t.Fatal("device-bound retry requested another owner code")
+			return "", nil
+		},
+	)
+	retry.cloudSetupRequest = newCloudSetupRequest(&cfg, save)
+	got, err := establishRemoteCloudDevice(
+		context.Background(),
+		cloudSetupRemoteTestSession(ingress),
+		retry,
+		"relay-recovery",
+	)
+	if err != nil || got != credential {
+		t.Fatalf("device-bound retry credential=%q err=%v", got, err)
+	}
+	current, exists, readErr := readDeviceCredential()
+	if readErr != nil || !exists || current != credential {
+		t.Fatalf(
+			"device-bound retry current=%q exists=%v err=%v",
+			current,
 			exists,
 			readErr,
 		)
@@ -221,20 +251,21 @@ func TestCloudRemoveRevokesActivatedPendingAfterCheckpointWriteFailure(
 		t.Fatal(err)
 	}
 	metadata := cloudMetadataFromEnvelope(origin, pending)
+	credential := validCredential(76)
 	cfg := runtimeConfig{
 		ProfileID:       pending.ProfileID,
 		ClientInstallID: "inst-checkpoint-failed",
 		RoutePolicy:     routePolicyLocal,
 		Cloud: &cloudLifecycleMetadata{
-			State:                   cloudStateCloudVerified,
-			Pending:                 &metadata,
-			DeviceActivationStarted: true,
+			State:                    cloudStateCloudVerified,
+			Pending:                  &metadata,
+			DeviceActivationStarted:  true,
+			DeviceActivationDeviceID: deviceIDOf(credential),
 		},
 	}
 	if err := saveConfig(paths, cfg); err != nil {
 		t.Fatal(err)
 	}
-	credential := validCredential(76)
 	if err := writePendingCloudDeviceCredential(
 		credential,
 		pending.RelayInstanceID,

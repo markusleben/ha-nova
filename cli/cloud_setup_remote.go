@@ -174,6 +174,13 @@ func establishRemoteCloudDevice(
 			nil,
 		)
 	}
+	activationRecovery := request.Config.Cloud != nil &&
+		request.Config.Cloud.DeviceActivationStarted
+	activationRecoveryID := ""
+	if activationRecovery {
+		activationRecoveryID =
+			request.Config.Cloud.DeviceActivationDeviceID
+	}
 	if pending, exists, err := readPendingDeviceCredentialRecordWithPolicy(
 		ctx,
 		SecretStoreForbidUI,
@@ -194,7 +201,18 @@ func establishRemoteCloudDevice(
 				nil,
 			)
 		}
-		if err := checkpointRemoteCloudDeviceActivation(request); err != nil {
+		parsed := parseDeviceCredential(pending.Credential)
+		if parsed == nil {
+			return "", newCloudError(
+				CloudErrDeviceRejected,
+				"resume remote Cloud device",
+				nil,
+			)
+		}
+		if err := checkpointRemoteCloudDeviceActivation(
+			request,
+			parsed.deviceID,
+		); err != nil {
 			return "", err
 		}
 		activated, err := session.Ingress.ActivateDevice(
@@ -216,9 +234,10 @@ func establishRemoteCloudDevice(
 			); err != nil {
 				return "", err
 			}
+			activationRecovery = false
+			activationRecoveryID = ""
 		} else {
-			parsed := parseDeviceCredential(pending.Credential)
-			if parsed == nil || activated.DeviceID != parsed.deviceID {
+			if activated.DeviceID != parsed.deviceID {
 				return "", newCloudError(
 					CloudErrIdentityMismatch,
 					"resume remote Cloud device",
@@ -240,12 +259,36 @@ func establishRemoteCloudDevice(
 			return pending.Credential, nil
 		}
 	}
+	if activationRecovery &&
+		request.Config.Cloud.State != cloudStateDeviceBoundOrPaired {
+		return "", newCloudError(
+			CloudErrSecretNotFound,
+			"resume remote Cloud device activation",
+			nil,
+		)
+	}
 	if current, exists, err := readDeviceCredentialWithPolicy(
 		ctx,
 		SecretStoreForbidUI,
 	); err != nil {
 		return "", err
 	} else if exists && expectedRelayInstanceID != "" {
+		parsed := parseDeviceCredential(current)
+		if parsed == nil {
+			return "", newCloudError(
+				CloudErrDeviceRejected,
+				"reuse remote Cloud device",
+				nil,
+			)
+		}
+		if activationRecovery &&
+			parsed.deviceID != activationRecoveryID {
+			return "", newCloudError(
+				CloudErrIdentityMismatch,
+				"resume promoted remote Cloud device",
+				nil,
+			)
+		}
 		// A device credential is a bearer secret bound to one Relay. Reuse it
 		// only when that Relay identity was proven before OAuth from persisted
 		// state or authenticated local discovery. A Cloud-only reconnect with
@@ -261,8 +304,7 @@ func establishRemoteCloudDevice(
 			return "", err
 		}
 		if err == nil {
-			parsed := parseDeviceCredential(current)
-			if parsed == nil || bound.DeviceID != parsed.deviceID {
+			if bound.DeviceID != parsed.deviceID {
 				return "", newCloudError(
 					CloudErrIdentityMismatch,
 					"reuse remote Cloud device",
@@ -277,11 +319,22 @@ func establishRemoteCloudDevice(
 			}
 			return current, nil
 		}
+		if activationRecovery {
+			if err := clearRemoteCloudDeviceActivation(request); err != nil {
+				return "", err
+			}
+		}
 		// A Relay-proven rejection is definitive: the old credential did not
 		// execute and cannot be reused. Keep it current while the Owner
 		// authorizes a replacement below; pending activation then swaps the
 		// credential atomically. Network, ingress, and protocol failures return
 		// above and never trigger a second path.
+	} else if activationRecovery {
+		return "", newCloudError(
+			CloudErrSecretNotFound,
+			"resume promoted remote Cloud device",
+			nil,
+		)
 	}
 
 	if _, err := probeDeviceCredentialStorageWithPolicy(
@@ -332,7 +385,10 @@ func establishRemoteCloudDevice(
 	); err != nil {
 		return "", fmt.Errorf("store remote device credential: %w", err)
 	}
-	if err := checkpointRemoteCloudDeviceActivation(request); err != nil {
+	if err := checkpointRemoteCloudDeviceActivation(
+		request,
+		provisioned.DeviceID,
+	); err != nil {
 		return "", err
 	}
 	activated, err := session.Ingress.ActivateDevice(

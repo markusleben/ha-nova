@@ -20,7 +20,7 @@ func TestRejectedResumedCloudDeviceClearsMarkerBeforeCredential(
 	); err != nil {
 		t.Fatal(err)
 	}
-	cfg := remoteActivationRejectionConfig(t, true)
+	cfg := remoteActivationRejectionConfig(t, true, credential)
 	var savedMarkers []bool
 	save := func(value runtimeConfig) error {
 		pending, exists, err := readPendingDeviceCredential()
@@ -91,7 +91,7 @@ func TestRejectedFreshCloudDeviceClearsMarkerBeforeCredential(
 	t.Setenv("HA_NOVA_TEST_SECRET_DIR", t.TempDir())
 	credential := validCredential(92)
 	deviceID := parseDeviceCredential(credential).deviceID
-	cfg := remoteActivationRejectionConfig(t, false)
+	cfg := remoteActivationRejectionConfig(t, false, credential)
 	var savedMarkers []bool
 	save := func(value runtimeConfig) error {
 		pending, exists, err := readPendingDeviceCredential()
@@ -177,7 +177,7 @@ func TestRejectedCloudDeviceClearSaveFailurePreservesRecoveryState(
 	); err != nil {
 		t.Fatal(err)
 	}
-	cfg := remoteActivationRejectionConfig(t, true)
+	cfg := remoteActivationRejectionConfig(t, true, credential)
 	saveErr := errors.New("simulated activation marker clear failure")
 	saveCalls := 0
 	save := func(value runtimeConfig) error {
@@ -244,6 +244,7 @@ func TestRejectedCloudDeviceClearSaveFailurePreservesRecoveryState(
 func remoteActivationRejectionConfig(
 	t *testing.T,
 	activationStarted bool,
+	credential string,
 ) runtimeConfig {
 	t.Helper()
 	origin, err := cloudOriginFromCanonical(productionCloudTestOrigin)
@@ -253,7 +254,7 @@ func remoteActivationRejectionConfig(
 	envelope := productionCloudTestEnvelope()
 	envelope.RelayInstanceID = "relay-recovery"
 	pending := cloudMetadataFromEnvelope(origin, envelope)
-	return runtimeConfig{
+	cfg := runtimeConfig{
 		ProfileID:       envelope.ProfileID,
 		ClientInstallID: "inst-recovery",
 		Cloud: &cloudLifecycleMetadata{
@@ -262,6 +263,10 @@ func remoteActivationRejectionConfig(
 			DeviceActivationStarted: activationStarted,
 		},
 	}
+	if activationStarted {
+		cfg.Cloud.DeviceActivationDeviceID = deviceIDOf(credential)
+	}
+	return cfg
 }
 
 func rejectedActivationCloudIngress(

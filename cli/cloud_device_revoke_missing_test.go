@@ -116,6 +116,7 @@ func TestCloudRemoveMissingActivationEraPendingDeviceFailsBeforeOAuth(
 	cfg.Cloud.State = cloudStateCloudVerified
 	cfg.Cloud.Pending = &pending
 	cfg.Cloud.DeviceActivationStarted = true
+	cfg.Cloud.DeviceActivationDeviceID = deviceIDOf(currentCredential)
 	if err := saveConfig(paths, cfg); err != nil {
 		t.Fatal(err)
 	}
@@ -206,6 +207,7 @@ func TestCloudDeviceCleanupPropagatesBackendReadErrorAsNotMissing(
 		nil,
 		nil,
 		false,
+		acceptCloudDeviceRevocationCheckpoint,
 	)
 	if removed || err == nil {
 		t.Fatalf("backend read error removed=%v err=%v", removed, err)

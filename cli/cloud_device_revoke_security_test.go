@@ -229,9 +229,10 @@ func TestVerifiedRemoteRevocationUsesCloudVerifiedPendingCheckpoint(
 		RelayInstanceID: envelope.RelayInstanceID,
 		RoutePolicy:     routePolicyCloud,
 		Cloud: &cloudLifecycleMetadata{
-			State:                   cloudStateCloudVerified,
-			Pending:                 &metadata,
-			DeviceActivationStarted: true,
+			State:                    cloudStateCloudVerified,
+			Pending:                  &metadata,
+			DeviceActivationStarted:  true,
+			DeviceActivationDeviceID: deviceID,
 		},
 	}
 	session := cloudVerifiedSession{

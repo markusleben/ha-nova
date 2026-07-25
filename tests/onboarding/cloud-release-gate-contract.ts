@@ -166,6 +166,8 @@ export function registerCloudReleaseGateContractTests(): void {
     );
     expect(sourceGateWorkflow).toContain("workflow_run:");
     expect(sourceGateWorkflow).toContain("- CI");
+    expect(sourceGateWorkflow).toContain("- in_progress");
+    expect(sourceGateWorkflow).toContain("- requested");
     expect(sourceGateWorkflow).toContain(
       "name: trusted-cloud-source-reporter",
     );
@@ -204,6 +206,11 @@ export function registerCloudReleaseGateContractTests(): void {
       "utf8",
     );
     expect(reporter).toContain('const checkName = "cloud-source-gate"');
+    expect(reporter).toContain(
+      "`workflow-run:${workflowRun.id}:attempt:${workflowRun.run_attempt}`",
+    );
+    expect(reporter).toContain("ensurePendingCheck(currentWorkflowRun)");
+    expect(reporter).toContain('if (action !== "completed")');
     expect(reporter).toContain("currentPullRequest(headSHA)");
     expect(reporter).toContain("latest.base?.sha !== currentPR.base.sha");
     expect(reporter).toContain(
@@ -224,6 +231,9 @@ export function registerCloudReleaseGateContractTests(): void {
     );
     expect(reporter).toContain("finalPR.number !== currentPR.number");
     expect(reporter).toContain(
+      'requireSHA(finalPR.merge_commit_sha, "final pull request merge commit SHA")',
+    );
+    expect(reporter).toContain(
       "pull request identity changed after final source verification",
     );
     expect(reporter).toContain(
@@ -235,6 +245,7 @@ export function registerCloudReleaseGateContractTests(): void {
     expect(checkTokenScript).toContain(
       'access.permissions?.administration !== "read"',
     );
+    expect(checkTokenScript).toContain("`app-id=${appId}\\n`");
     expect(reporter).not.toContain("download-artifact");
     const codeowners = readFileSync(".github/CODEOWNERS", "utf8");
     for (const workflow of [

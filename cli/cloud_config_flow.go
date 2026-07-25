@@ -279,6 +279,9 @@ func validateCloudConnectIntent(
 	cfg runtimeConfig,
 	reconnect bool,
 ) error {
+	if err := rejectCloudSetupDuringDeviceRevocation(cfg); err != nil {
+		return err
+	}
 	if problem := cloudRecoveryHoldProblem(cfg); problem != nil {
 		return problem
 	}

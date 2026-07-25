@@ -34,6 +34,8 @@ func currentCloudDeviceRevocationConfig(
 	lifecycle.State = cloudStateReady
 	lifecycle.Pending = nil
 	lifecycle.DeviceActivationStarted = false
+	lifecycle.DeviceActivationDeviceID = ""
+	lifecycle.DeviceRevocationCompleted = nil
 	currentConfig.Cloud = &lifecycle
 	return currentConfig, nil
 }

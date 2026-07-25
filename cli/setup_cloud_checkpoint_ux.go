@@ -20,6 +20,28 @@ func renderCloudCheckpointActions(
 		renderCloudSelectionRepair(out, err)
 		return
 	}
+	renderCloudCheckpointActionsForProfile(
+		out,
+		cfg,
+		allowResume,
+		profile,
+	)
+}
+
+func renderCloudCheckpointActionsForProfile(
+	out io.Writer,
+	cfg runtimeConfig,
+	allowResume bool,
+	profile string,
+) {
+	if err := validateServerProfileName(profile); err != nil {
+		fmt.Fprintln(
+			out,
+			"  Home Assistant Cloud setup is incomplete, but no recovery command can be shown until the server profile selection is repaired.",
+		)
+		renderCloudSelectionRepair(out, err)
+		return
+	}
 	if cfg.Cloud == nil {
 		return
 	}

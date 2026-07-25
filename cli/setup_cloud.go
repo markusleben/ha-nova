@@ -16,7 +16,7 @@ type cloudSetupRequest struct {
 	PersistPendingMetadata     func(cloudConnectionMetadata) error
 	ClearPendingAuthorization  func(string) error
 	AdvancePendingLifecycle    func(cloudLifecycleState) error
-	CheckpointDeviceActivation func() error
+	CheckpointDeviceActivation func(string) error
 	ClearDeviceActivation      func() error
 	CheckpointDeviceBinding    func(string) error
 }
@@ -269,6 +269,9 @@ func resumeCommittedCloudSetup(
 	if cfg.Cloud == nil {
 		return false, nil
 	}
+	if err := rejectCloudSetupDuringDeviceRevocation(*cfg); err != nil {
+		return false, err
+	}
 	if problem := cloudRecoveryHoldProblem(*cfg); problem != nil {
 		return false, problem
 	}
@@ -351,6 +354,9 @@ func ensureProfileIdentityForSetup(paths runtimePaths, cfg *runtimeConfig) error
 }
 
 func validateCloudSetupResult(cfg runtimeConfig, result cloudSetupResult) error {
+	if err := rejectCloudSetupDuringDeviceRevocation(cfg); err != nil {
+		return err
+	}
 	if problem := cloudRecoveryHoldProblem(cfg); problem != nil {
 		return problem
 	}

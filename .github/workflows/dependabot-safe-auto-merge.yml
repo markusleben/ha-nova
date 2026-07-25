@@ -26,6 +26,7 @@ jobs:
       contents: read
     runs-on: ubuntu-latest
     outputs:
+      policy-ref: ${{ steps.trigger.outputs.policy-ref }}
       policy-sha: ${{ steps.trigger.outputs.policy-sha }}
       run-id: ${{ steps.trigger.outputs.run-id }}
       run-kind: ${{ steps.trigger.outputs.run-kind }}
@@ -55,6 +56,7 @@ jobs:
             | tr -d '\n' \
             | base64 --decode > "${TRIGGER_SCRIPT}"
           node "${TRIGGER_SCRIPT}" "${POLICY_FILE}"
+          echo "policy-ref=${trusted_ref}" >> "${GITHUB_OUTPUT}"
 
   enable-safe-auto-merge:
     needs: resolve-trigger
@@ -74,13 +76,16 @@ jobs:
           RUN_ID: ${{ needs.resolve-trigger.outputs.run-id }}
           RUN_KIND: ${{ needs.resolve-trigger.outputs.run-kind }}
           RUN_SHA: ${{ needs.resolve-trigger.outputs.run-sha }}
+          AUTHENTICATED_POLICY_REF: ${{ needs.resolve-trigger.outputs.policy-ref }}
           EXPECTED_POLICY_SHA: ${{ needs.resolve-trigger.outputs.policy-sha }}
-          POLICY_REF: ${{ github.event.repository.default_branch }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           set -euo pipefail
 
           POLICY_FILE="$(mktemp)"
-          gh api "repos/${GITHUB_REPOSITORY}/contents/.github/policy/repo-policy.json?ref=${POLICY_REF}" \
+          CURRENT_POLICY_FILE="$(mktemp)"
+          [[ "${AUTHENTICATED_POLICY_REF}" =~ ^[0-9a-f]{40}$ ]]
+          gh api "repos/${GITHUB_REPOSITORY}/contents/.github/policy/repo-policy.json?ref=${AUTHENTICATED_POLICY_REF}" \
             --jq '.content' \
             | tr -d '\n' \
             | base64 --decode > "${POLICY_FILE}"
@@ -88,8 +93,22 @@ jobs:
           mapfile -t required_checks < <(jq -r '.main_branch_protection.required_status_checks[]' "${POLICY_FILE}")
           policy_sha="$(sha256sum "${POLICY_FILE}" | awk '{print $1}')"
           if [[ "${policy_sha}" != "${EXPECTED_POLICY_SHA}" ]]; then
-            echo "Repository policy changed after trigger authentication; skipping."
-            exit 0
+            echo "Authenticated repository policy fingerprint mismatch."
+            exit 1
+          fi
+          current_ref="$(
+            gh api "repos/${GITHUB_REPOSITORY}/commits/${DEFAULT_BRANCH}" --jq '.sha'
+          )"
+          [[ "${current_ref}" =~ ^[0-9a-f]{40}$ ]]
+          gh api "repos/${GITHUB_REPOSITORY}/contents/.github/policy/repo-policy.json?ref=${current_ref}" \
+            --jq '.content' \
+            | tr -d '\n' \
+            | base64 --decode > "${CURRENT_POLICY_FILE}"
+          current_policy_sha="$(sha256sum "${CURRENT_POLICY_FILE}" | awk '{print $1}')"
+          policy_drift=false
+          if [[ "${current_ref}" != "${AUTHENTICATED_POLICY_REF}" \
+            || "${current_policy_sha}" != "${EXPECTED_POLICY_SHA}" ]]; then
+            policy_drift=true
           fi
 
           if [[ "${RUN_KIND}" == "workflow_run" ]]; then
@@ -114,14 +133,36 @@ jobs:
           fi
 
           for pr_number in ${prs}; do
-            pr_json="$(gh pr view "${pr_number}" --json autoMergeRequest,headRefOid,isDraft,labels,url)"
+            pr_json="$(gh pr view "${pr_number}" --json author,autoMergeRequest,headRefOid,isDraft,labels,url)"
             pr_sha="$(printf '%s' "${pr_json}" | jq -r '.headRefOid')"
             is_draft="$(printf '%s' "${pr_json}" | jq -r '.isDraft')"
             labels="$(printf '%s' "${pr_json}" | jq -r '.labels[].name')"
-            if [[ "${is_draft}" == "true" ]]; then
+            if [[ "${pr_sha}" != "${RUN_SHA}" ]]; then
               continue
             fi
-            if [[ "${pr_sha}" != "${RUN_SHA}" ]]; then
+            if [[ "${policy_drift}" == "true" ]]; then
+              cleanup_eligible="$(
+                printf '%s' "${pr_json}" \
+                  | jq -r --arg safe_label "${safe_label}" \
+                    '.author.login == "dependabot[bot]" and any(.labels[]?; .name == $safe_label)'
+              )"
+              if [[ "${cleanup_eligible}" != "true" ]]; then
+                continue
+              fi
+              echo "Repository policy changed after trigger authentication; clearing stale safe state for PR #${pr_number}."
+              cleanup_failed=false
+              if printf '%s' "${pr_json}" | jq -e '.autoMergeRequest != null' >/dev/null; then
+                gh pr merge "${pr_number}" --disable-auto || cleanup_failed=true
+              fi
+              gh pr edit "${pr_number}" --remove-label "${safe_label}" >/dev/null \
+                || cleanup_failed=true
+              if [[ "${cleanup_failed}" == "true" ]]; then
+                echo "Failed to clear stale safe state for PR #${pr_number}."
+                exit 1
+              fi
+              continue
+            fi
+            if [[ "${is_draft}" == "true" ]]; then
               continue
             fi
             if ! printf '%s\n' "${labels}" | grep -qx "${safe_label}"; then

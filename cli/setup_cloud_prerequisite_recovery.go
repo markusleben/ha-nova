@@ -6,17 +6,29 @@ func renderSetupCloudRecoveryBeforePrerequisiteFailure(
 	paths runtimePaths,
 ) {
 	cfg, err := loadSelectedRuntimeConfigUnchecked(paths)
-	if err != nil || cfg.Cloud == nil {
+	if err != nil {
+		return
+	}
+	if err := validateLoadedRuntimeConfig(&cfg); err != nil {
+		return
+	}
+	renderSetupCloudRecoveryForValidatedConfig(cfg)
+}
+
+func renderSetupCloudRecoveryForValidatedConfig(
+	cfg runtimeConfig,
+) {
+	if cfg.Cloud == nil {
 		return
 	}
 	if problem := cloudRecoveryHoldProblem(cfg); problem != nil {
 		renderCloudRecoveryGuidance(os.Stdout, cfg, problem)
 		return
 	}
-	renderCloudCheckpointActions(
+	renderCloudCheckpointActionsForProfile(
 		os.Stdout,
-		paths,
 		cfg,
 		cloudRemoteFeatureAvailable() && !cfg.Cloud.ready(),
+		selectedCloudCommandProfile(),
 	)
 }

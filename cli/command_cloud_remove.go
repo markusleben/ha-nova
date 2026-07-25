@@ -171,6 +171,25 @@ func runCloudRemoveCommand(paths runtimePaths, args []string) int {
 			store,
 			nil,
 			false,
+			func(
+				checkpoint cloudDeviceRevocationCheckpoint,
+			) error {
+				checkpointed, expected, err :=
+					checkpointCloudDeviceRevocationUnlocked(
+						paths,
+						recoveryExpected,
+						checkpoint,
+					)
+				if err != nil {
+					return err
+				}
+				cloudSource = checkpointed
+				recoveryExpected = expected
+				configSnapshot, hadConfig, err = readOptionalFile(
+					paths.ConfigFile,
+				)
+				return err
+			},
 		)
 		if err != nil {
 			return err

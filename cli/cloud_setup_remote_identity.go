@@ -4,15 +4,17 @@ import "context"
 
 func checkpointRemoteCloudDeviceActivation(
 	request cloudRemoteSetupRequest,
+	deviceID string,
 ) error {
-	if request.CheckpointDeviceActivation == nil {
+	if request.CheckpointDeviceActivation == nil ||
+		!validDeviceID(deviceID) {
 		return newCloudError(
 			CloudErrInvalidInput,
 			"checkpoint remote Cloud device activation",
 			nil,
 		)
 	}
-	return request.CheckpointDeviceActivation()
+	return request.CheckpointDeviceActivation(deviceID)
 }
 
 func clearRemoteCloudDeviceActivation(

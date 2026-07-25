@@ -10,10 +10,19 @@ func newCloudSetupRequest(
 	cfg *runtimeConfig,
 	save cloudConfigSaver,
 ) cloudSetupRequest {
+	guardDeviceRevocation := func() error {
+		if cfg == nil {
+			return errors.New("Cloud setup configuration is missing")
+		}
+		return rejectCloudSetupDuringDeviceRevocation(*cfg)
+	}
 	return cloudSetupRequest{
 		ProfileName: activeServerProfile(),
 		Config:      *cfg,
 		PersistPendingMetadata: func(metadata cloudConnectionMetadata) error {
+			if err := guardDeviceRevocation(); err != nil {
+				return err
+			}
 			if err := validateCloudConnectionMetadata(metadata); err != nil {
 				return fmt.Errorf("invalid pending Cloud metadata: %w", err)
 			}
@@ -35,6 +44,9 @@ func newCloudSetupRequest(
 			return save(*cfg)
 		},
 		ClearPendingAuthorization: func(generation string) error {
+			if err := guardDeviceRevocation(); err != nil {
+				return err
+			}
 			if cfg.Cloud == nil || cfg.Cloud.Pending == nil {
 				return errors.New(
 					"cannot clear missing pending Cloud authorization metadata",
@@ -63,6 +75,9 @@ func newCloudSetupRequest(
 			return nil
 		},
 		AdvancePendingLifecycle: func(next cloudLifecycleState) error {
+			if err := guardDeviceRevocation(); err != nil {
+				return err
+			}
 			if cfg.Cloud == nil || cfg.Cloud.Pending == nil {
 				return errors.New(
 					"cannot advance Cloud lifecycle before pending credentials are stored",
@@ -83,53 +98,88 @@ func newCloudSetupRequest(
 			cfg.Cloud.State = next
 			return save(*cfg)
 		},
-		CheckpointDeviceActivation: func() error {
+		CheckpointDeviceActivation: func(deviceID string) error {
+			if err := guardDeviceRevocation(); err != nil {
+				return err
+			}
+			if !validDeviceID(deviceID) {
+				return newCloudError(
+					CloudErrIdentityMismatch,
+					"checkpoint Cloud device activation",
+					nil,
+				)
+			}
 			if cfg.Cloud == nil {
 				return errors.New(
 					"cannot checkpoint Cloud device activation without a lifecycle",
 				)
 			}
 			if cfg.Cloud.Pending == nil ||
-				cfg.Cloud.State != cloudStateCloudVerified {
+				(cfg.Cloud.State != cloudStateCloudVerified &&
+					cfg.Cloud.State != cloudStateDeviceBoundOrPaired) {
 				return fmt.Errorf(
 					"cannot checkpoint Cloud device activation in lifecycle state %q",
 					cfg.Cloud.State,
 				)
 			}
 			if cfg.Cloud.DeviceActivationStarted {
-				return nil
+				if cfg.Cloud.DeviceActivationDeviceID == deviceID {
+					return nil
+				}
+				return newCloudError(
+					CloudErrIdentityMismatch,
+					"checkpoint Cloud device activation",
+					nil,
+				)
 			}
 			cfg.Cloud.DeviceActivationStarted = true
+			cfg.Cloud.DeviceActivationDeviceID = deviceID
 			if err := save(*cfg); err != nil {
 				cfg.Cloud.DeviceActivationStarted = false
+				cfg.Cloud.DeviceActivationDeviceID = ""
 				return err
 			}
 			return nil
 		},
 		ClearDeviceActivation: func() error {
+			if err := guardDeviceRevocation(); err != nil {
+				return err
+			}
 			if cfg.Cloud == nil {
 				return errors.New(
 					"cannot clear Cloud device activation without a lifecycle",
 				)
 			}
 			if cfg.Cloud.Pending == nil ||
-				cfg.Cloud.State != cloudStateCloudVerified {
+				(cfg.Cloud.State != cloudStateCloudVerified &&
+					cfg.Cloud.State != cloudStateDeviceBoundOrPaired) {
 				return fmt.Errorf(
 					"cannot clear Cloud device activation in lifecycle state %q",
 					cfg.Cloud.State,
 				)
 			}
 			if !cfg.Cloud.DeviceActivationStarted {
+				if cfg.Cloud.DeviceActivationDeviceID != "" {
+					return errors.New(
+						"cannot clear an inconsistent Cloud device activation checkpoint",
+					)
+				}
 				return nil
 			}
+			deviceID := cfg.Cloud.DeviceActivationDeviceID
 			cfg.Cloud.DeviceActivationStarted = false
+			cfg.Cloud.DeviceActivationDeviceID = ""
 			if err := save(*cfg); err != nil {
 				cfg.Cloud.DeviceActivationStarted = true
+				cfg.Cloud.DeviceActivationDeviceID = deviceID
 				return err
 			}
 			return nil
 		},
 		CheckpointDeviceBinding: func(relayInstanceID string) error {
+			if err := guardDeviceRevocation(); err != nil {
+				return err
+			}
 			if !validIdentifier(relayInstanceID, 256) {
 				return newCloudError(
 					CloudErrRelayInstance,
@@ -182,6 +232,7 @@ func commitCloudConnection(
 	cfg.RelayInstanceID = result.RelayInstanceID
 	cfg.Cloud.Current = &result.Current
 	cfg.Cloud.DeviceActivationStarted = false
+	cfg.Cloud.DeviceActivationDeviceID = ""
 	cfg.Cloud.State = cloudStateCommitted
 	if err := save(cfg); err != nil {
 		return cfg, err

@@ -41,6 +41,7 @@ func TestHybridCloudPendingIsRevokedBeforeDeletion(t *testing.T) {
 	}
 	currentCredential := validCredential(95)
 	pendingCredential := validCredential(96)
+	cfg.Cloud.DeviceActivationDeviceID = deviceIDOf(pendingCredential)
 	if err := writeDeviceCredential(currentCredential); err != nil {
 		t.Fatal(err)
 	}
@@ -80,15 +81,18 @@ func TestHybridCloudPendingIsRevokedBeforeDeletion(t *testing.T) {
 		store,
 		nil,
 		false,
+		acceptCloudDeviceRevocationCheckpoint,
 	); err != nil {
 		t.Fatal(err)
 	}
 	if revokeCalls != 1 {
 		t.Fatalf("remote revokes = %d", revokeCalls)
 	}
-	if _, exists, err := readDeviceCredential(); err != nil || exists {
+	if current, exists, err := readDeviceCredential(); err != nil ||
+		!exists ||
+		current != currentCredential {
 		t.Fatalf(
-			"replaced current remains: exists=%v err=%v",
+			"local current was not preserved: exists=%v err=%v",
 			exists,
 			err,
 		)

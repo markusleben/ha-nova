@@ -93,6 +93,10 @@ if (
   fail("GitHub App installation token response is invalid");
 }
 console.log(`::add-mask::${access.token}`);
+appendFileSync(outputPath, `app-id=${appId}\n`, {
+  encoding: "utf8",
+  mode: 0o600,
+});
 appendFileSync(outputPath, `token=${access.token}\n`, {
   encoding: "utf8",
   mode: 0o600,

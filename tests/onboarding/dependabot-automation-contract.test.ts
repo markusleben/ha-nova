@@ -202,12 +202,27 @@ describe("dependabot automation contract", () => {
     expect(mergeWorkflow).toContain("resolve-dependabot-auto-merge-trigger.mjs");
     expect(mergeWorkflow).toContain("needs.resolve-trigger.outputs.should-process == 'true'");
     expect(mergeWorkflow).toContain("needs.resolve-trigger.outputs.run-kind");
+    expect(mergeWorkflow).toContain("needs.resolve-trigger.outputs.policy-ref");
     expect(mergeWorkflow).toContain("needs.resolve-trigger.outputs.policy-sha");
+    expect(mergeWorkflow).toContain('AUTHENTICATED_POLICY_REF: ${{ needs.resolve-trigger.outputs.policy-ref }}');
+    expect(mergeWorkflow).toContain('[[ "${AUTHENTICATED_POLICY_REF}" =~ ^[0-9a-f]{40}$ ]]');
+    expect(mergeWorkflow).toContain('ref=${AUTHENTICATED_POLICY_REF}');
     expect(mergeWorkflow).toContain('[[ "${policy_sha}" != "${EXPECTED_POLICY_SHA}" ]]');
+    expect(mergeWorkflow).toContain('policy_drift=true');
+    expect(mergeWorkflow).toContain("clearing stale safe state for PR #${pr_number}");
+    expect(mergeWorkflow).toContain("--json author,autoMergeRequest,headRefOid,isDraft,labels,url");
+    expect(mergeWorkflow).toContain(
+      '.author.login == "dependabot[bot]" and any(.labels[]?; .name == $safe_label)',
+    );
+    expect(mergeWorkflow).toContain('if [[ "${cleanup_eligible}" != "true" ]]');
+    expect(mergeWorkflow).toContain('cleanup_failed=false');
+    expect(mergeWorkflow).toContain('if [[ "${cleanup_failed}" == "true" ]]');
+    expect(mergeWorkflow).toContain('gh pr merge "${pr_number}" --disable-auto');
+    expect(mergeWorkflow).toContain('gh pr edit "${pr_number}" --remove-label "${safe_label}"');
     expect(mergeWorkflow).toContain("repos/${GITHUB_REPOSITORY}/commits/${RUN_SHA}/pulls");
     expect(mergeWorkflow).toContain(".main_branch_protection.required_status_check_apps[$name]");
     expect(mergeWorkflow).toContain(".name == $name and .app.id == $app_id");
-    expect(mergeWorkflow).toContain('POLICY_REF: ${{ github.event.repository.default_branch }}');
+    expect(mergeWorkflow).toContain('DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}');
     expect(mergeWorkflow).not.toContain("github.event.workflow_run.event == 'pull_request'");
     expect(mergeWorkflow).toContain("SAFE_POLICY_MARKER");
     expect(mergeWorkflow).toContain("recorded_policy_sha");

@@ -168,6 +168,7 @@ func runSetup(paths runtimePaths, args []string) int {
 		}
 	}
 	if err := validateRuntimeConfigSave(paths, cfg); err != nil {
+		renderSetupCloudRecoveryForValidatedConfig(cfg)
 		printHumanErr(
 			"cannot safely continue setup with the saved server configuration: %s",
 			err,

@@ -58,11 +58,18 @@ const (
 )
 
 type cloudLifecycleMetadata struct {
-	State                   cloudLifecycleState      `json:"state,omitempty"`
-	Current                 *cloudConnectionMetadata `json:"current,omitempty"`
-	Pending                 *cloudConnectionMetadata `json:"pending,omitempty"`
-	DeviceActivationStarted bool                     `json:"device_activation_started,omitempty"`
-	RecoveryHold            *cloudRecoveryHold       `json:"recovery_hold,omitempty"`
+	State                     cloudLifecycleState              `json:"state,omitempty"`
+	Current                   *cloudConnectionMetadata         `json:"current,omitempty"`
+	Pending                   *cloudConnectionMetadata         `json:"pending,omitempty"`
+	DeviceActivationStarted   bool                             `json:"device_activation_started,omitempty"`
+	DeviceActivationDeviceID  string                           `json:"device_activation_device_id,omitempty"`
+	DeviceRevocationCompleted *cloudDeviceRevocationCheckpoint `json:"device_revocation_completed,omitempty"`
+	RecoveryHold              *cloudRecoveryHold               `json:"recovery_hold,omitempty"`
+}
+
+type cloudDeviceRevocationCheckpoint struct {
+	CurrentDeviceID string `json:"current_device_id,omitempty"`
+	PendingDeviceID string `json:"pending_device_id,omitempty"`
 }
 
 func (m *cloudLifecycleMetadata) configured() bool {
@@ -71,6 +78,7 @@ func (m *cloudLifecycleMetadata) configured() bool {
 
 func (m *cloudLifecycleMetadata) ready() bool {
 	return m != nil && m.Current != nil && m.Pending == nil &&
+		m.DeviceRevocationCompleted == nil &&
 		(m.State == cloudStateReady || m.State == "")
 }
 
@@ -121,6 +129,9 @@ func normalizeCloudLifecycle(metadata **cloudLifecycleMetadata) error {
 			value.State = cloudStateReady
 		case value.Current == nil &&
 			value.Pending == nil &&
+			!value.DeviceActivationStarted &&
+			value.DeviceActivationDeviceID == "" &&
+			value.DeviceRevocationCompleted == nil &&
 			value.RecoveryHold == nil:
 			*metadata = nil
 			return nil
@@ -138,6 +149,24 @@ func validateCloudLifecycle(metadata cloudLifecycleMetadata) error {
 	if err := validateCloudRecoveryHold(metadata.RecoveryHold); err != nil {
 		return err
 	}
+	if err := validateCloudDeviceActivationCheckpoint(metadata); err != nil {
+		return err
+	}
+	if err := validateCloudDeviceRevocationCheckpoint(metadata); err != nil {
+		return err
+	}
+	return validateCloudLifecycleSlots(metadata)
+}
+
+func validateCloudDeviceActivationCheckpoint(
+	metadata cloudLifecycleMetadata,
+) error {
+	if metadata.DeviceActivationStarted !=
+		(metadata.DeviceActivationDeviceID != "") {
+		return errors.New(
+			"device activation checkpoint requires both marker and device id",
+		)
+	}
 	if metadata.DeviceActivationStarted &&
 		(metadata.Pending == nil ||
 			(metadata.State != cloudStateCloudVerified &&
@@ -146,6 +175,14 @@ func validateCloudLifecycle(metadata cloudLifecycleMetadata) error {
 			"device_activation_started requires pending metadata at a Cloud device activation checkpoint",
 		)
 	}
+	if metadata.DeviceActivationStarted &&
+		!validDeviceID(metadata.DeviceActivationDeviceID) {
+		return errors.New("device activation checkpoint has an invalid device id")
+	}
+	return nil
+}
+
+func validateCloudLifecycleSlots(metadata cloudLifecycleMetadata) error {
 	switch metadata.State {
 	case cloudStateAuthorizing:
 		// Pending non-secret metadata may be checkpointed before OAuth opens.
@@ -191,6 +228,53 @@ func validateCloudLifecycle(metadata cloudLifecycleMetadata) error {
 				return fmt.Errorf("%s cloud lifecycle requires verified pending metadata: %w", metadata.State, err)
 			}
 		}
+	}
+	return nil
+}
+
+func validateCloudDeviceRevocationCheckpoint(
+	metadata cloudLifecycleMetadata,
+) error {
+	checkpoint := metadata.DeviceRevocationCompleted
+	if checkpoint == nil {
+		return nil
+	}
+	if checkpoint.CurrentDeviceID == "" &&
+		checkpoint.PendingDeviceID == "" {
+		return errors.New(
+			"device revocation checkpoint requires an exact device id",
+		)
+	}
+	if checkpoint.CurrentDeviceID != "" {
+		currentIsPromotedActivation := metadata.DeviceActivationStarted &&
+			metadata.State == cloudStateDeviceBoundOrPaired &&
+			checkpoint.CurrentDeviceID ==
+				metadata.DeviceActivationDeviceID
+		if (metadata.Current == nil && !currentIsPromotedActivation) ||
+			!validDeviceID(checkpoint.CurrentDeviceID) {
+			return errors.New(
+				"current device revocation checkpoint is invalid",
+			)
+		}
+	}
+	if checkpoint.PendingDeviceID != "" {
+		if metadata.Pending == nil ||
+			!metadata.DeviceActivationStarted ||
+			checkpoint.PendingDeviceID != metadata.DeviceActivationDeviceID ||
+			!validDeviceID(checkpoint.PendingDeviceID) {
+			return errors.New(
+				"pending device revocation checkpoint is invalid",
+			)
+		}
+	}
+	if metadata.DeviceActivationStarted &&
+		checkpoint.PendingDeviceID == "" &&
+		(metadata.State != cloudStateDeviceBoundOrPaired ||
+			checkpoint.CurrentDeviceID !=
+				metadata.DeviceActivationDeviceID) {
+		return errors.New(
+			"activated pending device is missing from revocation checkpoint",
+		)
 	}
 	return nil
 }

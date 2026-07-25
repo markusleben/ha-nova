@@ -169,15 +169,19 @@ The required `cloud-source-gate` is emitted by the dedicated
 default-branch `workflow_run`. The broker runs after `CI` for pull requests and
 merge groups, including Dependabot runs; it never reads upstream artifacts or
 caches, checks out PR code, or executes a target path. It independently
+creates or reuses one pending App check for each exact upstream run ID and
+attempt on `requested` or `in_progress`; this also covers reruns, where GitHub
+does not emit `requested`. Only `completed` performs source verification. It
 resolves the current PR head and base, fetches GitHub's merge ref, verifies its
 two parents, and materializes only its three release metadata files for
 parsing. The first resolved merge SHA is passed to the verifier as an exact
 target. The broker then re-reads the PR identity, immediately re-fetches the
 same merge ref, and performs one final current-PR identity resolution before
 reporting; a regenerated or moved ref and a no-longer-current PR fail.
-Merge-queue runs apply the same final ref check and bind and report the exact
-queue SHA. Workflow comparison is data-only through trusted Git commands and
-the trusted default-branch helper.
+Both PR snapshots must expose the same `merge_commit_sha` as the fetched merge
+ref. Merge-queue runs apply the same final ref check and bind and report the
+exact queue SHA. Workflow comparison is data-only through trusted Git commands
+and the trusted default-branch helper.
 
 The App is installed only on this repository and has only Metadata read,
 Administration read, and Checks write. Administration is read-only and exists

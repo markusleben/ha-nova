@@ -356,7 +356,7 @@ func cloudSetupRemoteTestRequest(
 			AdvancePendingLifecycle: func(cloudLifecycleState) error {
 				return nil
 			},
-			CheckpointDeviceActivation: func() error {
+			CheckpointDeviceActivation: func(string) error {
 				return nil
 			},
 			ClearDeviceActivation: func() error {

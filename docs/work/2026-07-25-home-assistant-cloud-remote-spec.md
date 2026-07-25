@@ -413,12 +413,14 @@ repository-scoped GitHub App with Administration read and Checks write, bound
 as the expected status source. Every success requires strict up-to-date branch
 protection and the exact App binding. The broker binds the first fetched PR or
 merge-queue ref to the verifier, re-fetches that ref immediately before
-success, and then resolves the current PR identity once more. A read-only
-trigger job authenticates the exact check name, App ID, and slug before its
-completion may re-evaluate Dependabot auto-merge. An enabled target may change
-an existing non-sensitive workflow only by advancing a full action commit SHA
-within the same canonical minor/patch release line on an unchanged `uses:`
-identity;
+success, and then resolves the current PR identity and merge commit once more.
+Requested and in-progress CI lifecycle events idempotently create one pending
+App check per upstream run ID and attempt; only completion verifies and
+finishes it. A read-only trigger job authenticates the exact check name, App
+ID, and slug before its completion may re-evaluate Dependabot auto-merge. An
+enabled target may change an existing non-sensitive workflow only by advancing
+a full action commit SHA within the same canonical minor/patch release line on
+an unchanged `uses:` identity;
 workflow additions, deletions, renames, mode changes, action-identity changes,
 other YAML changes, and every sensitive-workflow change fail closed.
 

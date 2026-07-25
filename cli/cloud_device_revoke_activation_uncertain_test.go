@@ -76,6 +76,7 @@ func TestCloudVerifiedCleanupRevokesPendingAndCurrentForBothServerOutcomes(
 				nil,
 				nil,
 				false,
+				acceptCloudDeviceRevocationCheckpoint,
 			)
 			if err != nil || !removed {
 				t.Fatalf("cleanup removed=%v err=%v", removed, err)
@@ -130,6 +131,7 @@ func TestCloudVerifiedCleanupPreservesBothSlotsWhenSecondRevokeFails(
 		nil,
 		nil,
 		false,
+		acceptCloudDeviceRevocationCheckpoint,
 	)
 	if removed || !IsCloudErrorCode(err, CloudErrOutcomeUnknown) {
 		t.Fatalf("cleanup removed=%v err=%v", removed, err)
@@ -171,6 +173,7 @@ func activationUncertainCloudDeviceFixture(
 	}
 	currentCredential := validCredential(101)
 	pendingCredential := validCredential(102)
+	cfg.Cloud.DeviceActivationDeviceID = deviceIDOf(pendingCredential)
 	if err := writeDeviceCredential(currentCredential); err != nil {
 		t.Fatal(err)
 	}

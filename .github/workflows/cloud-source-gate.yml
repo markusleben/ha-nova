@@ -6,6 +6,8 @@ on:
       - CI
     types:
       - completed
+      - in_progress
+      - requested
 
 permissions:
   actions: read
@@ -48,5 +50,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           HA_NOVA_CLOUD_GATE_EVIDENCE_JSON: ${{ secrets.HA_NOVA_CLOUD_GATE_EVIDENCE_JSON }}
+          HA_NOVA_CLOUD_SOURCE_CHECK_APP_ID: ${{ steps.check-token.outputs.app-id }}
           HA_NOVA_CLOUD_SOURCE_CHECK_TOKEN: ${{ steps.check-token.outputs.token }}
         run: node scripts/release/run-cloud-source-check.mjs

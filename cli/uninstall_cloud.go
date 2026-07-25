@@ -33,10 +33,11 @@ func purgeCloudAuthorizationsForUninstall(
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
-	for _, target := range targets {
+	for i := range targets {
+		target := &targets[i]
 		store, err := newCloudSecretStoreForCLI(target.profileID)
 		if err != nil {
-			return cloudPurgeFailure(paths, target, fmt.Errorf(
+			return cloudPurgeFailure(paths, *target, fmt.Errorf(
 				"open Cloud credentials for server %q: %w",
 				target.profileName,
 				err,
@@ -47,7 +48,7 @@ func purgeCloudAuthorizationsForUninstall(
 			store,
 		)
 		if err != nil {
-			return cloudPurgeFailure(paths, target, fmt.Errorf(
+			return cloudPurgeFailure(paths, *target, fmt.Errorf(
 				"inspect Cloud credentials for server %q: %w",
 				target.profileName,
 				err,
@@ -60,22 +61,38 @@ func purgeCloudAuthorizationsForUninstall(
 			store,
 			report,
 			relayAlreadyRemoved,
+			func(
+				checkpoint cloudDeviceRevocationCheckpoint,
+			) error {
+				checkpointed, expected, err :=
+					checkpointCloudDeviceRevocationUnlocked(
+						paths,
+						target.recovery,
+						checkpoint,
+					)
+				if err != nil {
+					return err
+				}
+				target.config = checkpointed
+				target.recovery = expected
+				return nil
+			},
 		); err != nil {
-			return cloudPurgeFailure(paths, target, fmt.Errorf(
+			return cloudPurgeFailure(paths, *target, fmt.Errorf(
 				"revoke Cloud device for server %q: %w",
 				target.profileName,
 				err,
 			))
 		}
 		if err := revokeAllCloudAuthorizations(ctx, store); err != nil {
-			return cloudPurgeFailure(paths, target, fmt.Errorf(
+			return cloudPurgeFailure(paths, *target, fmt.Errorf(
 				"revoke Cloud authorization for server %q: %w",
 				target.profileName,
 				err,
 			))
 		}
 		if err := deleteRevokedCloudAuthorizations(ctx, store); err != nil {
-			return cloudPurgeFailure(paths, target, fmt.Errorf(
+			return cloudPurgeFailure(paths, *target, fmt.Errorf(
 				"remove Cloud credentials for server %q: %w",
 				target.profileName,
 				err,
@@ -274,6 +291,21 @@ func cloudPurgeTargetFromRaw(
 			name,
 		)
 	}
+	if cfg.Cloud != nil &&
+		(cfg.Cloud.DeviceActivationStarted ||
+			cfg.Cloud.DeviceActivationDeviceID != "" ||
+			cfg.Cloud.DeviceRevocationCompleted != nil) {
+		if err := validateCloudDeviceActivationCheckpoint(
+			*cfg.Cloud,
+		); err != nil {
+			return cloudPurgeTarget{}, false, unknownCloudRemovalShape(name)
+		}
+		if err := validateCloudDeviceRevocationCheckpoint(
+			*cfg.Cloud,
+		); err != nil {
+			return cloudPurgeTarget{}, false, unknownCloudRemovalShape(name)
+		}
+	}
 	cfg.ProfileID = profileID
 	return cloudPurgeTarget{
 		profileName: name,
@@ -315,6 +347,20 @@ func validateKnownCloudRemovalShape(
 			return unknownCloudRemovalShape(name)
 		}
 	}
+	if rawCheckpoint, exists := lifecycle["device_revocation_completed"]; exists &&
+		!bytes.Equal(bytes.TrimSpace(rawCheckpoint), []byte("null")) {
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal(rawCheckpoint, &fields); err != nil ||
+			fields == nil {
+			return unknownCloudRemovalShape(name)
+		}
+		for field := range fields {
+			if field != "current_device_id" &&
+				field != "pending_device_id" {
+				return unknownCloudRemovalShape(name)
+			}
+		}
+	}
 	for _, slot := range []string{"current", "pending"} {
 		rawSlot, exists := lifecycle[slot]
 		if !exists ||
@@ -336,7 +382,13 @@ func validateKnownCloudRemovalShape(
 
 func knownCloudRemovalLifecycleField(field string) bool {
 	switch field {
-	case "state", "current", "pending", "device_activation_started", "recovery_hold":
+	case "state",
+		"current",
+		"pending",
+		"device_activation_started",
+		"device_activation_device_id",
+		"device_revocation_completed",
+		"recovery_hold":
 		return true
 	default:
 		return false
