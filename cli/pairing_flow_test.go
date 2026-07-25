@@ -75,10 +75,10 @@ func TestRunSecurePairingKeepsPendingCredentialWhenEndpointSaveFails(t *testing.
 	}
 }
 
-// Regression: retiring the device credential (user switched to the manual/legacy
-// path) must clear the PENDING slot too, even when the live endpoint was never
-// set — otherwise a half-finished pairing lingers and resume could complete it.
-func TestRetireDeviceCredentialClearsPendingWhenLiveEmpty(t *testing.T) {
+// Regression: a pending credential with its pinned endpoint may already have
+// been activated before promotion. Retirement must revoke it before clearing
+// the slot, even when no current/live endpoint was committed.
+func TestRetireDeviceCredentialRevokesPendingWhenLiveEmpty(t *testing.T) {
 	t.Setenv("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING", "1")
 	t.Setenv("HA_NOVA_TEST_SECRET_DIR", t.TempDir())
 
@@ -86,23 +86,56 @@ func TestRetireDeviceCredentialClearsPendingWhenLiveEmpty(t *testing.T) {
 	if err := writePendingDeviceCredential(validCred); err != nil {
 		t.Fatalf("writePendingDeviceCredential: %v", err)
 	}
-	cfg := runtimeConfig{PendingSecureBaseURL: "https://relay:8792", PendingSpkiPin: "PIN"} // live empty
+	const pendingBaseURL = "https://relay:8792"
+	const pendingPin = "PIN"
+	cfg := runtimeConfig{
+		PendingSecureBaseURL: pendingBaseURL,
+		PendingSpkiPin:       pendingPin,
+	} // live empty
 
-	retireDeviceCredential(&cfg)
+	revokeCalls := 0
+	originalRevoke := revokeSelfDeviceV1ForRetire
+	revokeSelfDeviceV1ForRetire = func(base, pin, credential string) error {
+		revokeCalls++
+		if base != pendingBaseURL ||
+			pin != pendingPin ||
+			credential != validCred {
+			t.Fatalf(
+				"pending revoke = %q %q %q",
+				base,
+				pin,
+				credential,
+			)
+		}
+		return nil
+	}
+	t.Cleanup(func() { revokeSelfDeviceV1ForRetire = originalRevoke })
+
+	previous, err := prepareDeviceCredentialRetirement(&cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := finalizeDeviceCredentialRetirement(previous); err != nil {
+		t.Fatalf("retire pending credential: %v", err)
+	}
 
 	if _, ok, _ := readPendingDeviceCredential(); ok {
 		t.Fatal("pending credential was not cleared; resume could pick up a stale pairing")
+	}
+	if revokeCalls != 1 {
+		t.Fatalf("pending revoke calls = %d, want 1", revokeCalls)
 	}
 	if cfg.PendingSecureBaseURL != "" || cfg.PendingSpkiPin != "" {
 		t.Fatalf("pending endpoint not cleared: %q / %q", cfg.PendingSecureBaseURL, cfg.PendingSpkiPin)
 	}
 }
 
-// Regression: retiring the device credential on a file-backed install (switch
-// back to the legacy token path) must also drop the .file-backend marker, or the
-// credential-less install stays classified as file-backed and a later desktop
-// re-pair with a healthy keyring would keep storing credentials in files.
-func TestRetireDeviceCredentialClearsFileBackendMarker(t *testing.T) {
+// Regression: a current credential is active by definition. Without its pinned
+// endpoint, retirement cannot confirm revocation and must preserve both the
+// bearer and backend marker for explicit recovery.
+func TestRetireDeviceCredentialPreservesFileBackendWithoutPinnedEndpoint(
+	t *testing.T,
+) {
 	withDeviceStorageTestHome(t)
 	deviceCredentialFileModeForced = true // headless: writes go to the file backend
 	cred := generateTestDeviceCredential(t)
@@ -113,17 +146,23 @@ func TestRetireDeviceCredentialClearsFileBackendMarker(t *testing.T) {
 		t.Fatal("setup: expected a file-backend marker after storing a credential")
 	}
 
-	cfg := runtimeConfig{} // no live endpoint → no revoke attempt
-	retireDeviceCredential(&cfg)
+	cfg := runtimeConfig{}
+	previous, err := prepareDeviceCredentialRetirement(&cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := finalizeDeviceCredentialRetirement(previous); err == nil {
+		t.Fatal("retirement without the pinned endpoint was accepted")
+	}
 
-	if deviceFileBackendMarkerExists() {
-		t.Fatal("retire left the file-backend marker behind")
+	if !deviceFileBackendMarkerExists() {
+		t.Fatal("failed retirement removed the file-backend marker")
 	}
-	if deviceSecretFileExists(deviceCredentialService) {
-		t.Fatal("retire left the current credential file behind")
+	if !deviceSecretFileExists(deviceCredentialService) {
+		t.Fatal("failed retirement removed the current credential")
 	}
-	if deviceSecretFileBacked() {
-		t.Fatal("install still classified as file-backed after retiring the credential")
+	if !deviceSecretFileBacked() {
+		t.Fatal("failed retirement changed the configured credential backend")
 	}
 }
 
@@ -141,7 +180,13 @@ func TestRetireRemovesOrphanPendingFileWithoutMarker(t *testing.T) {
 	}
 
 	cfg := runtimeConfig{} // no live endpoint → no revoke attempt
-	retireDeviceCredential(&cfg)
+	previous, err := prepareDeviceCredentialRetirement(&cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := finalizeDeviceCredentialRetirement(previous); err != nil {
+		t.Fatalf("retire inert orphan pending credential: %v", err)
+	}
 
 	if deviceSecretFileExists(deviceCredentialPendingService) {
 		t.Fatal("orphan pending credential file left on disk after retire")

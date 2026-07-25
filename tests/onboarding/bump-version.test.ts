@@ -1,6 +1,7 @@
 /**
  * S-11: Version bump script contract
  */
+import { spawnSync } from "node:child_process";
 import { readFileSync, statSync, constants } from "node:fs";
 import { describe, expect, it } from "vitest";
 
@@ -22,12 +23,25 @@ describe("S-11: version bump", () => {
     expect(content).toContain('.packages[""].version = $v');
   });
 
+  it.each(["01.2.3", "1.02.3", "1.2.03"])(
+    "rejects non-canonical bump version %s",
+    (version) => {
+      const result = spawnSync(
+        "bash",
+        ["scripts/bump-version.sh", version],
+        { encoding: "utf8" },
+      );
+      expect(result.status).not.toBe(0);
+    },
+  );
+
   it("version.json contains required fields", () => {
     const versionJson = JSON.parse(readFileSync("version.json", "utf8"));
     expect(versionJson).toHaveProperty("skill_version");
     expect(versionJson).toHaveProperty("min_relay_version");
-    expect(versionJson.skill_version).toMatch(/^\d+\.\d+\.\d+$/);
-    expect(versionJson.min_relay_version).toMatch(/^\d+\.\d+\.\d+$/);
+    const canonical = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
+    expect(versionJson.skill_version).toMatch(canonical);
+    expect(versionJson.min_relay_version).toMatch(canonical);
   });
 
   it("package.json version matches version.json skill_version", () => {

@@ -1,9 +1,21 @@
-import { createServer, type IncomingMessage, type RequestListener, type Server, type ServerResponse } from "node:http";
+import {
+  createServer,
+  type IncomingMessage,
+  type RequestListener,
+  type Server,
+  type ServerResponse,
+} from "node:http";
 
 import { authorizeRequest } from "../security/auth.js";
 import type { Principal } from "../security/principal.js";
 import { decodeUtf8Strict } from "../shared/utf8.js";
-import { invalidJson, invalidRequestUrl, invalidUtf8, payloadTooLarge, toErrorResponse } from "./errors.js";
+import {
+  invalidJson,
+  invalidRequestUrl,
+  invalidUtf8,
+  payloadTooLarge,
+  toErrorResponse,
+} from "./errors.js";
 import type { Router } from "./router.js";
 
 export const DEFAULT_MAX_JSON_BODY_BYTES = 1_048_576;
@@ -30,7 +42,13 @@ export interface RelayLogger {
 // (e.g. retry-after) before the envelope is sent.
 export type AuthOutcome =
   | { ok: true; principal?: Principal }
-  | { ok: false; status: number; code: string; message: string; headers?: Record<string, string> };
+  | {
+      ok: false;
+      status: number;
+      code: string;
+      message: string;
+      headers?: Record<string, string>;
+    };
 
 export type BodyPolicy = { type: "json" | "form" | "none"; maxBytes: number };
 
@@ -42,7 +60,10 @@ export interface RequestListenerOptions {
   // Per-request authorization for this listener. The closure captures the
   // listener's transport (secure/plain/ingress), so the core stays transport-
   // agnostic. Returns ok (with an optional principal) or a failure to render.
-  authorize: (request: IncomingMessage, routeKey: string) => AuthOutcome | Promise<AuthOutcome>;
+  authorize: (
+    request: IncomingMessage,
+    routeKey: string,
+  ) => AuthOutcome | Promise<AuthOutcome>;
   // Per-route body handling; defaults to JSON at the standard limit.
   bodyPolicy?: (routeKey: string) => BodyPolicy;
 }
@@ -50,7 +71,9 @@ export interface RequestListenerOptions {
 // The extracted request-handling pipeline shared by every listener: version
 // header, no-store, pluggable auth, per-route body parsing, dispatch, and the
 // standard {ok,data}/{ok,error} envelope.
-export function createRequestListener(options: RequestListenerOptions): RequestListener {
+export function createRequestListener(
+  options: RequestListenerOptions,
+): RequestListener {
   return async (request, response) => {
     const method = request.method?.toUpperCase() ?? "GET";
     let path = "<invalid>";
@@ -64,22 +87,39 @@ export function createRequestListener(options: RequestListenerOptions): RequestL
       }
       const routeKey = `${method} ${path}`;
 
-      const auth = await options.authorize(request, routeKey);
-      if (!auth.ok) {
-        for (const [name, value] of Object.entries(auth.headers ?? {})) {
-          response.setHeader(name, value);
-        }
-        options.logger?.warn("Rejected unauthorized request", {
+      const initialAuth = await options.authorize(request, routeKey);
+      if (!initialAuth.ok) {
+        rejectAuthorization(
+          response,
+          initialAuth,
+          options.logger,
+          request,
           method,
           path,
-          remote: request.socket.remoteAddress ?? "unknown",
-        });
-        writeJson(response, auth.status, { ok: false, error: { code: auth.code, message: auth.message } });
+        );
         return;
       }
 
-      const policy = options.bodyPolicy?.(routeKey) ?? { type: "json", maxBytes: DEFAULT_MAX_JSON_BODY_BYTES };
+      const policy = options.bodyPolicy?.(routeKey) ?? {
+        type: "json",
+        maxBytes: DEFAULT_MAX_JSON_BODY_BYTES,
+      };
       const body = await parseBody(request, policy);
+      // Body reads can last up to the request timeout. Resolve authorization
+      // again immediately before dispatch so a credential revoked while a
+      // client is uploading cannot execute with a stale principal.
+      const auth = await options.authorize(request, routeKey);
+      if (!auth.ok) {
+        rejectAuthorization(
+          response,
+          auth,
+          options.logger,
+          request,
+          method,
+          path,
+        );
+        return;
+      }
       const data = await options.router.dispatch(method, path, {
         request,
         response,
@@ -98,12 +138,37 @@ export function createRequestListener(options: RequestListenerOptions): RequestL
         options.logger?.error("Unhandled relay error", {
           method,
           path,
-          error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
+          error:
+            error instanceof Error
+              ? `${error.name}: ${error.message}`
+              : String(error),
         });
       }
       writeJson(response, mapped.status, mapped.body);
     }
   };
+}
+
+function rejectAuthorization(
+  response: ServerResponse,
+  auth: Extract<AuthOutcome, { ok: false }>,
+  logger: RelayLogger | undefined,
+  request: IncomingMessage,
+  method: string,
+  path: string,
+): void {
+  for (const [name, value] of Object.entries(auth.headers ?? {})) {
+    response.setHeader(name, value);
+  }
+  logger?.warn("Rejected unauthorized request", {
+    method,
+    path,
+    remote: request.socket.remoteAddress ?? "unknown",
+  });
+  writeJson(response, auth.status, {
+    ok: false,
+    error: { code: auth.code, message: auth.message },
+  });
 }
 
 export interface HttpServerOptions {
@@ -119,7 +184,8 @@ export interface HttpServerOptions {
 // Backward-compatible single-token server: the historical auth model expressed
 // as one listener over createRequestListener.
 export function createHttpServer(options: HttpServerOptions): Server {
-  const maxJsonBodyBytes = options.maxJsonBodyBytes ?? DEFAULT_MAX_JSON_BODY_BYTES;
+  const maxJsonBodyBytes =
+    options.maxJsonBodyBytes ?? DEFAULT_MAX_JSON_BODY_BYTES;
   const listener = createRequestListener({
     router: options.router,
     ...(options.version !== undefined ? { version: options.version } : {}),
@@ -129,8 +195,18 @@ export function createHttpServer(options: HttpServerOptions): Server {
       if (options.bearerExemptRoutes?.has(routeKey)) {
         return { ok: true };
       }
-      const result = authorizeRequest(request.headers.authorization, options.authToken);
-      return result.ok ? { ok: true } : { ok: false, status: result.status, code: result.code, message: result.message };
+      const result = authorizeRequest(
+        request.headers.authorization,
+        options.authToken,
+      );
+      return result.ok
+        ? { ok: true }
+        : {
+            ok: false,
+            status: result.status,
+            code: result.code,
+            message: result.message,
+          };
     },
     bodyPolicy: () => ({ type: "json", maxBytes: maxJsonBodyBytes }),
   });
@@ -159,7 +235,10 @@ function toPathname(urlValue: string | undefined): string {
   }
 }
 
-async function parseBody(request: IncomingMessage, policy: BodyPolicy): Promise<unknown> {
+async function parseBody(
+  request: IncomingMessage,
+  policy: BodyPolicy,
+): Promise<unknown> {
   const method = request.method?.toUpperCase() ?? "GET";
   if (method === "GET" || method === "HEAD" || policy.type === "none") {
     return null;
@@ -178,7 +257,10 @@ async function parseBody(request: IncomingMessage, policy: BodyPolicy): Promise<
   }
 }
 
-function parseForm(request: IncomingMessage, rawBody: string): Record<string, string> {
+function parseForm(
+  request: IncomingMessage,
+  rawBody: string,
+): Record<string, string> {
   const contentType = request.headers["content-type"] ?? "";
   if (!contentType.includes("application/x-www-form-urlencoded")) {
     throw invalidJson();
@@ -191,7 +273,10 @@ function parseForm(request: IncomingMessage, rawBody: string): Record<string, st
   return out;
 }
 
-async function readBody(request: IncomingMessage, maxBytes: number): Promise<string | null> {
+async function readBody(
+  request: IncomingMessage,
+  maxBytes: number,
+): Promise<string | null> {
   const chunks: Buffer[] = [];
   let totalBytes = 0;
   for await (const chunk of request) {
@@ -212,7 +297,11 @@ async function readBody(request: IncomingMessage, maxBytes: number): Promise<str
   }
 }
 
-function writeJson(response: ServerResponse, status: number, payload: unknown): void {
+function writeJson(
+  response: ServerResponse,
+  status: number,
+  payload: unknown,
+): void {
   const json = JSON.stringify(payload);
   response.statusCode = status;
   response.setHeader("content-type", "application/json; charset=utf-8");

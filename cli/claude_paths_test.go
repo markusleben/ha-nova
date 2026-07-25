@@ -1,9 +1,11 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/zalando/go-keyring"
@@ -19,6 +21,10 @@ import (
 // fallback paths behave like on claude-less CI. Tests that need claude
 // behavior prepend their own mock in front of it.
 func TestMain(m *testing.M) {
+	testSecretDirForRuntime = func() (string, bool) {
+		dir := strings.TrimSpace(os.Getenv("HA_NOVA_TEST_SECRET_DIR"))
+		return dir, dir != ""
+	}
 	// Route ALL go-keyring access to an in-memory mock for the whole package, so
 	// no test ever touches the developer's real OS keyring (on macOS a raw
 	// keyring.Set/Get pops the native "Schlüsselbund" unlock dialog and can hang
@@ -26,6 +32,20 @@ func TestMain(m *testing.M) {
 	// override on top (e.g. keyring_linux_test.go stubs keyringGetWithService, or
 	// device-storage tests stub deviceStorageKeyringCanary).
 	keyring.MockInit()
+	secretKeyringGet = keyring.Get
+	secretKeyringGetWithPolicy = defaultSecretKeyringGetWithPolicy
+	secretKeyringSetWithPolicy = defaultSecretKeyringSetWithPolicy
+	secretKeyringDeleteWithPolicy = defaultSecretKeyringDeleteWithPolicy
+	secretKeyringSet = keyring.Set
+	secretKeyringDelete = keyring.Delete
+	deviceCredentialPreflight = func() error { return nil }
+	deviceCredentialPreflightWithContext = func(ctx context.Context) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		return deviceCredentialPreflight()
+	}
+	cloudRemoteSecureStorageBoundaryAvailable = func() bool { return true }
 	// Same protection for the device-credential storage probe: on Linux its
 	// keyring canary preflights the REAL DBus Secret Service before go-keyring is
 	// even consulted, so MockInit alone does not isolate it. A package-wide test

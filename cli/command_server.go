@@ -28,6 +28,8 @@ func runServerCommand(paths runtimePaths, args []string) int {
 		return runServerRename(paths, args[1:])
 	case "remove":
 		return runServerRemove(paths, args[1:])
+	case "route":
+		return runServerRoute(paths, args[1:])
 	case "-h", "--help", "help":
 		printServerUsage()
 		return 0
@@ -39,13 +41,14 @@ func runServerCommand(paths runtimePaths, args []string) int {
 }
 
 func printServerUsage() {
-	fmt.Fprintln(os.Stdout, "Usage: ha-nova server <list|default|rename|remove>")
+	fmt.Fprintln(os.Stdout, "Usage: ha-nova server <list|default|rename|remove|route>")
 	fmt.Fprintln(os.Stdout, "")
 	fmt.Fprintln(os.Stdout, "Subcommands:")
 	fmt.Fprintln(os.Stdout, "  list                Show all server profiles (no network calls)")
 	fmt.Fprintln(os.Stdout, "  default <name>      Make an existing profile the configured default")
 	fmt.Fprintln(os.Stdout, "  rename <old> <new>  Rename a profile and move its credential slots")
 	fmt.Fprintln(os.Stdout, "  remove <name>       Revoke and delete a profile (type its name to confirm)")
+	fmt.Fprintln(os.Stdout, "  route <policy>      Set local, automatic, or cloud routing")
 	fmt.Fprintln(os.Stdout, "")
 	fmt.Fprintln(os.Stdout, "Add a new server with: ha-nova pair --server <name> --relay-url http://<ha-host>:8791")
 	fmt.Fprintln(os.Stdout, "Run 'ha-nova server <subcommand> --help' for details.")
@@ -82,8 +85,9 @@ func unknownServerProfileError(doc *configDocument, name string) {
 
 func runServerList(paths runtimePaths, args []string) int {
 	if serverSubcommandHelp(args, "ha-nova server list",
-		"Shows every server profile with its HA host, relay URL, pairing state,",
-		"the configured default, and the active selection. No flags, no network calls.") {
+		"Shows every server profile with its HA host, relay URL, route, local",
+		"pairing and Cloud state, configured default, and active selection.",
+		"No flags, no network calls.") {
 		return 0
 	}
 	if len(args) > 0 {
@@ -98,7 +102,7 @@ func runServerList(paths runtimePaths, args []string) int {
 	selected, selectionSource := requestedServerSelection()
 
 	w := tabwriter.NewWriter(os.Stdout, 2, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "NAME\tHA HOST\tRELAY URL\tPAIRED\t")
+	fmt.Fprintln(w, "NAME\tHA HOST\tRELAY URL\tROUTE\tPAIRED\tCLOUD\t")
 	for _, name := range doc.profileNames() {
 		host, relay := "-", "-"
 		if cfg, ok := doc.flatProfile(name); ok {
@@ -131,7 +135,19 @@ func runServerList(paths runtimePaths, args []string) int {
 		if selected != "" && name == selected {
 			markers = append(markers, "active ("+selectionSource+")")
 		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", name, host, relay, paired, strings.Join(markers, ", "))
+		route := routePolicyLocal
+		cloud := "no"
+		if cfg, ok := doc.flatProfile(name); ok {
+			route = effectiveRoutePolicy(cfg.RoutePolicy)
+			if cfg.Cloud.ready() && validIdentifier(cfg.RelayInstanceID, 256) {
+				cloud = "ready"
+			} else if cfg.Cloud.configured() && validIdentifier(cfg.RelayInstanceID, 256) {
+				cloud = "updating"
+			} else if cfg.Cloud != nil {
+				cloud = "pending"
+			}
+		}
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", name, host, relay, route, paired, cloud, strings.Join(markers, ", "))
 	}
 	w.Flush()
 	return 0
@@ -214,6 +230,15 @@ func runServerRename(paths runtimePaths, args []string) int {
 	if doc.hasProfile(newName) {
 		printHumanErr("server profile %q already exists; pick another name or remove it first: ha-nova server remove %s", newName, newName)
 		return 1
+	}
+	for _, profile := range []string{oldName, newName} {
+		if err := requireSettledDeviceCredentialRetirement(
+			paths,
+			profile,
+		); err != nil {
+			printHumanErr("%v. Nothing was renamed.", err)
+			return 1
+		}
 	}
 	// Copy the credential slots to the new services BEFORE touching the config:
 	// a failure here leaves everything under the old name.

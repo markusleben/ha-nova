@@ -27,6 +27,7 @@ func renderUninstallPreflight(out io.Writer, paths runtimePaths, source string) 
 	fmt.Fprintf(out, "  %s\n", session.style("strong", "Full purge also removes:"))
 	fmt.Fprintf(out, "    %s Home Assistant connection config\n", session.bullet())
 	fmt.Fprintf(out, "    %s %s\n", session.bullet(), uninstallTokenLineLabel())
+	fmt.Fprintf(out, "    %s Home Assistant Cloud authorization (when configured)\n", session.bullet())
 	fmt.Fprintln(out)
 	if runtime.GOOS == "windows" && source == installSourceBundle {
 		renderSetupParagraphTight(out, session.style("muted", uninstallWindowsBundleNote()))

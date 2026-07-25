@@ -1,16 +1,16 @@
 import { join } from "node:path";
 
-import { readPrivateFileSync, writeFileAtomicSync } from "../storage/atomic-file.js";
+import {
+  readPrivateFileSync,
+  writeFileAtomicSync,
+} from "../storage/atomic-file.js";
 import { PENDING_TTL_MS } from "./device-registry.js";
 import type { ConsumedResponseStore } from "./pairing-v1.js";
 
-// A durable ConsumedResponseStore so a lost finish response survives an App
-// restart: the client retries POST /pair/v1/finish and gets back the exact same
-// sealed credential instead of a dead code. Only ciphertext, a KE3 digest and a
-// random handshake id are stored — the raw credential lives inside the blob that
-// is sealed with the OPAQUE session key, which is never persisted. Entries are
-// pruned once the pending credential they belong to would have expired
-// (PENDING_TTL_MS), and capped so a handshake flood cannot grow the file.
+// Legacy response store read during upgrades from versions that persisted the
+// finish response separately. New pairing commits keep the response and pending
+// credential in one device-registry write. The put path remains for compatibility
+// tests and old callers; current App mode never writes new entries here.
 
 const RESPONSE_STORE_FILE = "pairing-responses.json";
 const MAX_RESPONSES = 32;
@@ -21,6 +21,7 @@ interface StoredEntry {
   handshakeId: string;
   ke3Digest: string;
   ciphertextB64: string;
+  contextKey?: string;
   expiresAtMs: number;
 }
 
@@ -44,21 +45,38 @@ export function createFileResponseStore(
     try {
       writeFileAtomicSync(path, JSON.stringify({ version: 1, entries }));
     } catch (error) {
-      logger?.warn("Could not persist the pairing finish response", { error: String((error as Error).message) });
+      logger?.warn("Could not persist the pairing finish response", {
+        error: String((error as Error).message),
+      });
     }
   };
 
   return {
-    get(handshakeId) {
+    get(handshakeId, contextKey = "local") {
       const t = now();
-      const entry = entries.find((e) => e.handshakeId === handshakeId && e.expiresAtMs > t);
-      return entry ? { ke3Digest: entry.ke3Digest, ciphertextB64: entry.ciphertextB64 } : null;
+      const entry = entries.find(
+        (e) =>
+          e.handshakeId === handshakeId &&
+          (e.contextKey ?? "local") === contextKey &&
+          e.expiresAtMs > t,
+      );
+      return entry
+        ? { ke3Digest: entry.ke3Digest, ciphertextB64: entry.ciphertextB64 }
+        : null;
     },
-    put(handshakeId, ke3Digest, ciphertextB64, t) {
+    put(handshakeId, ke3Digest, ciphertextB64, t, contextKey = "local") {
       // Drop this handshake's prior entry plus anything expired, append the fresh
       // record, then keep only the most recent MAX_RESPONSES.
-      entries = entries.filter((e) => e.handshakeId !== handshakeId && e.expiresAtMs > t);
-      entries.push({ handshakeId, ke3Digest, ciphertextB64, expiresAtMs: t + RESPONSE_TTL_MS });
+      entries = entries.filter(
+        (e) => e.handshakeId !== handshakeId && e.expiresAtMs > t,
+      );
+      entries.push({
+        handshakeId,
+        ke3Digest,
+        ciphertextB64,
+        contextKey,
+        expiresAtMs: t + RESPONSE_TTL_MS,
+      });
       if (entries.length > MAX_RESPONSES) {
         entries = entries.slice(entries.length - MAX_RESPONSES);
       }
@@ -91,6 +109,8 @@ function isValidEntry(entry: unknown): entry is StoredEntry {
     typeof (entry as StoredEntry).handshakeId === "string" &&
     typeof (entry as StoredEntry).ke3Digest === "string" &&
     typeof (entry as StoredEntry).ciphertextB64 === "string" &&
+    ((entry as StoredEntry).contextKey === undefined ||
+      typeof (entry as StoredEntry).contextKey === "string") &&
     typeof (entry as StoredEntry).expiresAtMs === "number"
   );
 }

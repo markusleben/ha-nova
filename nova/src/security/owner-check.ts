@@ -1,6 +1,6 @@
 import type { IncomingMessage } from "node:http";
 
-import { isSupervisorIngressRequest } from "../http/handlers/home.js";
+import { resolveIngressIdentity } from "./ingress-identity.js";
 
 // Server-side owner authorization for the NOVA management page. panel_admin is
 // only a UI/access filter, not authorization: a plain admin (or a spoofed direct
@@ -29,39 +29,42 @@ export interface OwnerCheckDeps {
   fetchAuthUsers: () => Promise<HaAuthUser[]>;
 }
 
-export async function checkOwner(request: IncomingMessage, deps: OwnerCheckDeps): Promise<OwnerCheckResult> {
+export async function checkOwner(
+  request: IncomingMessage,
+  deps: OwnerCheckDeps,
+): Promise<OwnerCheckResult> {
   // Socket peer + ingress headers. A direct LAN request that forges the headers
   // fails here because it does not arrive from the Supervisor ingress peer.
-  if (!isSupervisorIngressRequest(request)) {
-    return { ok: false, status: 403, message: "Ingress request required" };
-  }
-  const userId = singleUserId(request);
-  if (userId === null) {
-    // Missing or multiple X-Remote-User-Id.
+  const identity = resolveIngressIdentity(request);
+  if (!identity.ok) {
     return { ok: false, status: 403, message: "Ambiguous ingress user" };
   }
+  const userId = identity.userId;
 
   let users: HaAuthUser[];
   try {
     users = await deps.fetchAuthUsers();
   } catch {
     // Owner status could not be checked: fail closed.
-    return { ok: false, status: 503, message: "Owner verification unavailable" };
+    return {
+      ok: false,
+      status: 503,
+      message: "Owner verification unavailable",
+    };
   }
 
   const user = users.find((u) => u.id === userId);
-  if (!user || user.is_active === false || user.system_generated === true || user.is_owner !== true) {
+  if (
+    !user ||
+    user.is_active === false ||
+    user.system_generated === true ||
+    user.is_owner !== true
+  ) {
     return { ok: false, status: 403, message: "Owner access required" };
   }
-  return { ok: true, userId, name: typeof user.name === "string" ? user.name : "" };
-}
-
-function singleUserId(request: IncomingMessage): string | null {
-  const raw = request.headers["x-remote-user-id"];
-  // Node joins duplicate headers with ", "; reject anything ambiguous.
-  const value = Array.isArray(raw) ? null : raw;
-  if (typeof value !== "string" || value.length === 0 || value.includes(",")) {
-    return null;
-  }
-  return value;
+  return {
+    ok: true,
+    userId,
+    name: typeof user.name === "string" ? user.name : "",
+  };
 }

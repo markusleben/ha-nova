@@ -32,8 +32,8 @@ func TestReadRelayAuthTokenStopsBeforeKeyringWhenLinuxStorageLocked(t *testing.T
 	}
 }
 
-// The secure-storage recovery probe stubs the keyring vars and must reach
-// them directly: the low-level wrapper stays preflight-free by contract.
+// The low-level wrapper stays preflight-free; its native backend independently
+// enforces a bounded no-UI operation so a relock cannot race the inspection.
 func TestReadSecretWithServiceBypassesPreflight(t *testing.T) {
 	originalInspect := inspectLinuxSecureStorageStateForKeyring
 	originalGet := keyringGetWithService
@@ -56,6 +56,62 @@ func TestReadSecretWithServiceBypassesPreflight(t *testing.T) {
 	}
 	if token != "relay-token" {
 		t.Fatalf("token = %q, want relay-token", token)
+	}
+}
+
+func TestNativeLinuxKeyringOperationsAlwaysForbidUI(t *testing.T) {
+	originalBackend := newNativeLinuxCredentialBackend
+	t.Cleanup(func() {
+		newNativeLinuxCredentialBackend = originalBackend
+	})
+	backend := &linuxKeyringProbeTestBackend{}
+	newNativeLinuxCredentialBackend = func() (OAuthSecretBackend, error) {
+		return backend, nil
+	}
+
+	if err := nativeLinuxKeyringSet("ha-nova.test", "user", "secret"); err != nil {
+		t.Fatalf("nativeLinuxKeyringSet() error = %v", err)
+	}
+	value, err := nativeLinuxKeyringGet("ha-nova.test", "user")
+	if err != nil || value != "secret" {
+		t.Fatalf("nativeLinuxKeyringGet() value=%q err=%v", value, err)
+	}
+	if err := nativeLinuxKeyringDelete("ha-nova.test", "user"); err != nil {
+		t.Fatalf("nativeLinuxKeyringDelete() error = %v", err)
+	}
+	if len(backend.policies) != 3 {
+		t.Fatalf("native backend policies = %v", backend.policies)
+	}
+	for _, policy := range backend.policies {
+		if policy != SecretStoreForbidUI {
+			t.Fatalf("ordinary Linux keyring operation allowed UI: %v", backend.policies)
+		}
+	}
+}
+
+func TestNativeLinuxKeyringRelockFailsFastAsLocked(t *testing.T) {
+	originalBackend := newNativeLinuxCredentialBackend
+	t.Cleanup(func() {
+		newNativeLinuxCredentialBackend = originalBackend
+	})
+	backend := &linuxKeyringProbeTestBackend{
+		getErr: newCloudError(
+			CloudErrSecretUIForbidden,
+			"unlock Secret Service",
+			nil,
+		),
+	}
+	newNativeLinuxCredentialBackend = func() (OAuthSecretBackend, error) {
+		return backend, nil
+	}
+
+	_, err := nativeLinuxKeyringGet("ha-nova.test", "user")
+	if !isDesktopKeyringLockedError(err) {
+		t.Fatalf("relocked native read error = %v", err)
+	}
+	if len(backend.policies) != 1 ||
+		backend.policies[0] != SecretStoreForbidUI {
+		t.Fatalf("relocked native read policies = %v", backend.policies)
 	}
 }
 

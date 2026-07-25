@@ -35,7 +35,7 @@ function parseRepo(raw) {
 }
 
 function parseSemver(raw, label) {
-  const match = String(raw || "").match(/^(\d+)\.(\d+)\.(\d+)$/);
+  const match = String(raw || "").match(/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/);
   if (!match) {
     fail(`${label} must be semver X.Y.Z, got ${raw}`);
   }
@@ -61,11 +61,11 @@ if (packageJson.version !== expectedVersion) {
 let targetVersion = expectedVersion;
 let normalizedTag = "";
 if (rawTag) {
-  if (!/^v\d+\.\d+\.\d+(?:-rc\d+)?$/.test(rawTag)) {
+  if (!/^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-rc[1-9]\d*)?$/.test(rawTag)) {
     fail(`tag must match vX.Y.Z or vX.Y.Z-rcN, got ${rawTag}`);
   }
   normalizedTag = rawTag.trim();
-  targetVersion = normalizedTag.slice(1).replace(/-rc\d+$/, "");
+  targetVersion = normalizedTag.slice(1).replace(/-rc[1-9]\d*$/, "");
 }
 
 const repo =

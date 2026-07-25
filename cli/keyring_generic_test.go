@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -25,5 +26,71 @@ func TestSecretOpsHonorDeviceCredentialPreflight(t *testing.T) {
 	}
 	if err := secretDelete("ha-nova.device-credential"); err == nil || !strings.Contains(err.Error(), "backend locked") {
 		t.Fatalf("secretDelete bypassed the preflight: %v", err)
+	}
+}
+
+func TestDeviceCredentialReadPropagatesNoUIPolicy(t *testing.T) {
+	withDeviceStorageTestHome(t)
+	credential := validCredential(73)
+	original := secretKeyringGetWithPolicy
+	var policy SecretStoreUIPolicy
+	secretKeyringGetWithPolicy = func(
+		_ context.Context,
+		_, _ string,
+		ui SecretStoreUIPolicy,
+	) (string, error) {
+		policy = ui
+		return credential, nil
+	}
+	t.Cleanup(func() { secretKeyringGetWithPolicy = original })
+
+	got, exists, err := readDeviceCredentialWithPolicy(
+		context.Background(),
+		SecretStoreForbidUI,
+	)
+	if err != nil || !exists || got != credential {
+		t.Fatalf(
+			"readDeviceCredentialWithPolicy() = (%q, %v, %v)",
+			got,
+			exists,
+			err,
+		)
+	}
+	if policy != SecretStoreForbidUI {
+		t.Fatalf("device credential policy = %q", policy)
+	}
+}
+
+func TestProductionSecretRouterIgnoresTestDirectoryEnvironment(t *testing.T) {
+	withDeviceStorageTestHome(t)
+	t.Setenv("HA_NOVA_TEST_SECRET_DIR", t.TempDir())
+	originalDir := testSecretDirForRuntime
+	testSecretDirForRuntime = productionTestSecretDir
+	t.Cleanup(func() { testSecretDirForRuntime = originalDir })
+
+	credential := validCredential(74)
+	originalGet := secretKeyringGetWithPolicy
+	calls := 0
+	secretKeyringGetWithPolicy = func(
+		_ context.Context,
+		service, _ string,
+		_ SecretStoreUIPolicy,
+	) (string, error) {
+		calls++
+		if service != deviceCredentialService {
+			t.Fatalf("keyring service = %q", service)
+		}
+		return credential, nil
+	}
+	t.Cleanup(func() { secretKeyringGetWithPolicy = originalGet })
+
+	got, err := secretGet(deviceCredentialService)
+	if err != nil || got != credential || calls != 1 {
+		t.Fatalf(
+			"production secret route = (%q, %v), keyring calls = %d",
+			got,
+			err,
+			calls,
+		)
 	}
 }

@@ -41,6 +41,18 @@ func openBrowserShowingURL(out io.Writer, target string) {
 	}
 }
 
+// openPrivateBrowserURL opens a process-local capability URL without writing
+// it to stdout or stderr. In particular, Supervisor Ingress paths must not
+// enter terminal transcripts or AI-visible command output.
+func openPrivateBrowserURL(out io.Writer, target string) {
+	fmt.Fprintln(out, "  Opening NOVA in your browser...")
+	if err := openBrowserForSetup(target); err != nil {
+		printHumanWarn(
+			"Could not open NOVA automatically. Open Home Assistant in your browser and select NOVA from the sidebar.",
+		)
+	}
+}
+
 // openAnnouncedBrowserURL opens a target whose URL the wizard has just
 // announced; it deliberately does not repeat the URL.
 func openAnnouncedBrowserURL(out io.Writer, target string) {

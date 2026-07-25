@@ -1,0 +1,52 @@
+name: Cloud Source Gate
+
+on:
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
+
+permissions:
+  actions: read
+  checks: none
+  contents: read
+  deployments: read
+  pull-requests: read
+
+jobs:
+  cloud-source-gate:
+    name: trusted-cloud-source-reporter
+    if: >-
+      github.event.workflow_run.event == 'pull_request' ||
+      github.event.workflow_run.event == 'merge_group'
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+    steps:
+      # workflow_run deliberately loads this workflow and checkout from the
+      # default branch. Never consume upstream artifacts, caches, or PR code.
+      - name: Checkout trusted gate
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "20"
+
+      - name: Create dedicated check token
+        id: check-token
+        env:
+          HA_NOVA_CLOUD_SOURCE_CHECK_APP_ID: ${{ secrets.HA_NOVA_CLOUD_SOURCE_CHECK_APP_ID }}
+          HA_NOVA_CLOUD_SOURCE_CHECK_APP_PRIVATE_KEY: ${{ secrets.HA_NOVA_CLOUD_SOURCE_CHECK_APP_PRIVATE_KEY }}
+        run: node scripts/release/create-cloud-source-check-token.mjs
+
+      - name: Verify source and report dedicated check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HA_NOVA_CLOUD_GATE_EVIDENCE_JSON: ${{ secrets.HA_NOVA_CLOUD_GATE_EVIDENCE_JSON }}
+          HA_NOVA_CLOUD_SOURCE_CHECK_TOKEN: ${{ steps.check-token.outputs.token }}
+        run: node scripts/release/run-cloud-source-check.mjs

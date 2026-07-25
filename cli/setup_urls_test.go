@@ -46,3 +46,28 @@ func TestOpenBrowserShowingURLPrintsTargetBeforeOpening(t *testing.T) {
 		t.Fatalf("missing URL line:\n%s", output.String())
 	}
 }
+
+func TestOpenPrivateBrowserURLNeverPrintsIngressCapability(t *testing.T) {
+	originalBrowser := openBrowserForSetup
+	t.Cleanup(func() { openBrowserForSetup = originalBrowser })
+	const privateTarget = "https://unit.ui.nabu.casa/api/hassio_ingress/private-capability/home"
+	opened := ""
+	openBrowserForSetup = func(target string) error {
+		opened = target
+		return nil
+	}
+
+	output := &strings.Builder{}
+	openPrivateBrowserURL(output, privateTarget)
+
+	if opened != privateTarget {
+		t.Fatalf("opened = %q", opened)
+	}
+	if strings.Contains(output.String(), privateTarget) ||
+		strings.Contains(output.String(), "private-capability") {
+		t.Fatalf("private target entered command output: %q", output)
+	}
+	if !strings.Contains(output.String(), "Opening NOVA") {
+		t.Fatalf("missing browser progress: %q", output)
+	}
+}

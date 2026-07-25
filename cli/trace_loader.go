@@ -2,16 +2,31 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"sort"
 	"strings"
+	"time"
 )
 
 func loadLatestTrace(paths runtimePaths, entityID, domain string) (traceLatestOutput, error) {
-	listOut, err := loadTraceList(paths, entityID, domain)
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		time.Duration(defaultRelayMaxTimeSeconds*float64(time.Second)),
+	)
+	defer cancel()
+	return loadLatestTraceWithContext(ctx, paths, entityID, domain)
+}
+
+func loadLatestTraceWithContext(
+	ctx context.Context,
+	paths runtimePaths,
+	entityID, domain string,
+) (traceLatestOutput, error) {
+	listOut, err := loadTraceListWithContext(ctx, paths, entityID, domain)
 	if err != nil {
 		return traceLatestOutput{}, err
 	}
@@ -19,7 +34,14 @@ func loadLatestTrace(paths runtimePaths, entityID, domain string) (traceLatestOu
 		return traceLatestOutput{}, fmt.Errorf("no traces found for %s; Home Assistant keeps only recent traces, and YAML automations/scripts need an id to be traceable", entityID)
 	}
 	latest := listOut.Traces[0]
-	getOut, err := loadTraceGetWithUniqueID(paths, entityID, domain, listOut.UniqueID, latest.RunID)
+	getOut, err := loadTraceGetWithUniqueIDContext(
+		ctx,
+		paths,
+		entityID,
+		domain,
+		listOut.UniqueID,
+		latest.RunID,
+	)
 	if err != nil {
 		return traceLatestOutput{}, err
 	}
@@ -38,11 +60,24 @@ func loadLatestTrace(paths runtimePaths, entityID, domain string) (traceLatestOu
 }
 
 func loadTraceList(paths runtimePaths, entityID, domain string) (traceListOutput, error) {
-	uniqueID, err := resolveTraceUniqueID(paths, entityID)
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		time.Duration(defaultRelayMaxTimeSeconds*float64(time.Second)),
+	)
+	defer cancel()
+	return loadTraceListWithContext(ctx, paths, entityID, domain)
+}
+
+func loadTraceListWithContext(
+	ctx context.Context,
+	paths runtimePaths,
+	entityID, domain string,
+) (traceListOutput, error) {
+	uniqueID, err := resolveTraceUniqueIDContext(ctx, paths, entityID)
 	if err != nil {
 		return traceListOutput{}, err
 	}
-	listBody, err := relayWSJSON(paths, map[string]string{
+	listBody, err := relayWSJSONContext(ctx, paths, map[string]string{
 		"type":    "trace/list",
 		"domain":  domain,
 		"item_id": uniqueID,
@@ -69,18 +104,34 @@ func loadTraceList(paths runtimePaths, entityID, domain string) (traceListOutput
 }
 
 func loadTraceGet(paths runtimePaths, entityID, domain, runID string) (traceGetOutput, error) {
-	uniqueID, err := resolveTraceUniqueID(paths, entityID)
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		time.Duration(defaultRelayMaxTimeSeconds*float64(time.Second)),
+	)
+	defer cancel()
+	uniqueID, err := resolveTraceUniqueIDContext(ctx, paths, entityID)
 	if err != nil {
 		return traceGetOutput{}, err
 	}
-	return loadTraceGetWithUniqueID(paths, entityID, domain, uniqueID, runID)
+	return loadTraceGetWithUniqueIDContext(
+		ctx,
+		paths,
+		entityID,
+		domain,
+		uniqueID,
+		runID,
+	)
 }
 
-func loadTraceGetWithUniqueID(paths runtimePaths, entityID, domain, uniqueID, runID string) (traceGetOutput, error) {
+func loadTraceGetWithUniqueIDContext(
+	ctx context.Context,
+	paths runtimePaths,
+	entityID, domain, uniqueID, runID string,
+) (traceGetOutput, error) {
 	if strings.TrimSpace(runID) == "" {
 		return traceGetOutput{}, fmt.Errorf("trace get requires a run_id from trace list")
 	}
-	traceBody, err := relayWSJSON(paths, map[string]string{
+	traceBody, err := relayWSJSONContext(ctx, paths, map[string]string{
 		"type":    "trace/get",
 		"domain":  domain,
 		"item_id": uniqueID,
@@ -107,8 +158,12 @@ func loadTraceGetWithUniqueID(paths runtimePaths, entityID, domain, uniqueID, ru
 	}, nil
 }
 
-func resolveTraceUniqueID(paths runtimePaths, entityID string) (string, error) {
-	body, err := relayWSJSON(paths, map[string]string{
+func resolveTraceUniqueIDContext(
+	ctx context.Context,
+	paths runtimePaths,
+	entityID string,
+) (string, error) {
+	body, err := relayWSJSONContext(ctx, paths, map[string]string{
 		"type":      "config/entity_registry/get",
 		"entity_id": entityID,
 	})
@@ -139,7 +194,11 @@ func resolveTraceUniqueID(paths runtimePaths, entityID string) (string, error) {
 	return envelope.Data.UniqueID, nil
 }
 
-func relayWSJSON(paths runtimePaths, payload any) ([]byte, error) {
+func relayWSJSONContext(
+	ctx context.Context,
+	paths runtimePaths,
+	payload any,
+) ([]byte, error) {
 	cfg, err := loadConfig(paths)
 	if err != nil {
 		return nil, err
@@ -148,47 +207,88 @@ func relayWSJSON(paths runtimePaths, payload any) ([]byte, error) {
 	// falling back to the legacy token — the same resolution the other functional
 	// commands use — so `trace` works on passwordless installs and fails closed
 	// when a paired credential is missing instead of using the wrong transport.
-	base, client, token, _, err := relayFunctionalTransport(cfg)
+	selected, err := selectRelayTransport(ctx, cfg, "", false)
 	if err != nil {
-		return nil, fmt.Errorf("%s", relayAuthTokenProblemMessage(err))
+		return nil, fmt.Errorf("%s", relayTransportErrorMessage(err))
 	}
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
 		return nil, err
 	}
-	url := strings.TrimRight(base, "/") + "/ws"
-	req, err := http.NewRequest("POST", url, bytes.NewReader(payloadBytes))
+	url := strings.TrimRight(selected.BaseURL, "/") + "/ws"
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
+		url,
+		bytes.NewReader(payloadBytes),
+	)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Authorization", "Bearer "+selected.Credential)
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := client.Do(req)
+	resp, err := selected.Client.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, relayRequestOutcomeUnknownError(selected.BaseURL, err)
 	}
 	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
+	return readRelayWSJSONResponse(resp, maxRelayResponseBytes)
+}
+
+func readRelayWSJSONResponse(
+	response *http.Response,
+	maxBytes int64,
+) ([]byte, error) {
+	if isHTTPRedirect(response.StatusCode) ||
+		response.StatusCode >= http.StatusInternalServerError {
+		return nil, relayHTTPOutcomeUnknownError(response.StatusCode)
 	}
-	if resp.StatusCode >= 400 {
-		return nil, fmt.Errorf("relay ws failed with HTTP %d", resp.StatusCode)
+	body, err := readAllLimited(response.Body, maxBytes)
+	if err != nil {
+		return nil, relayPostRequestOutcomeUnknownError(
+			"reading the Relay trace response",
+			err,
+		)
+	}
+	body, err = normalizeUTF8Bytes(body, "Relay trace response")
+	if err != nil {
+		return nil, relayPostRequestOutcomeUnknownError(
+			"validating the Relay trace response",
+			err,
+		)
 	}
 	var envelope struct {
-		OK    bool `json:"ok"`
+		OK    *bool `json:"ok"`
 		Error struct {
 			Message string `json:"message"`
 		} `json:"error"`
 	}
-	if err := json.Unmarshal(body, &envelope); err != nil {
-		return nil, fmt.Errorf("cannot parse relay ws response: %w", err)
+	if err := json.Unmarshal(body, &envelope); err != nil || envelope.OK == nil {
+		if err == nil {
+			err = errors.New("Relay trace response did not contain a valid result envelope")
+		}
+		return nil, relayPostRequestOutcomeUnknownError(
+			"validating the Relay trace result envelope",
+			err,
+		)
 	}
-	if !envelope.OK {
+	if response.StatusCode >= http.StatusBadRequest {
+		return nil, fmt.Errorf("relay ws failed with HTTP %d", response.StatusCode)
+	}
+	if !*envelope.OK {
 		if envelope.Error.Message != "" {
 			return nil, fmt.Errorf("relay ws failed: %s", envelope.Error.Message)
 		}
 		return nil, fmt.Errorf("relay ws failed")
 	}
 	return body, nil
+}
+
+func relayWSJSON(paths runtimePaths, payload any) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		time.Duration(defaultRelayMaxTimeSeconds*float64(time.Second)),
+	)
+	defer cancel()
+	return relayWSJSONContext(ctx, paths, payload)
 }

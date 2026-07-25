@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"os"
 	"os/user"
@@ -12,17 +13,33 @@ import (
 
 // Generic OS-keyring access by service name, used for the device-credential
 // slots (current + pending). It is additive and does not touch the existing
-// relay-auth-token functions. For hermetic tests, HA_NOVA_TEST_SECRET_DIR
-// points at a directory where each service is one 0600 file — the same escape
-// hatch shape the relay token uses, kept isolated per service.
+// relay-auth-token functions. Tests may inject a private file backend through
+// testSecretDirForRuntime. Release binaries never consult an environment
+// variable for secret-store selection.
 
 var errSecretNotFound = errors.New("secret not found")
+
+// These indirections keep platform policy at one boundary. Linux replaces
+// them with the bounded native Secret Service backend so a relock can never
+// make an ordinary credential operation open provider UI.
+var secretKeyringGet = keyring.Get
+var secretKeyringSet = keyring.Set
+var secretKeyringDelete = keyring.Delete
+var secretKeyringGetWithPolicy = defaultSecretKeyringGetWithPolicy
+var secretKeyringSetWithPolicy = defaultSecretKeyringSetWithPolicy
+var secretKeyringDeleteWithPolicy = defaultSecretKeyringDeleteWithPolicy
 
 // deviceCredentialPreflight guards the OS keyring backend before a device-slot
 // read/write. It is a no-op by default; Linux overrides it (keyring_linux.go) to
 // classify a locked/uninitialized Secret Service and fail fast, matching the
 // relay-token path instead of hanging in an unlock prompt.
 var deviceCredentialPreflight = func() error { return nil }
+var deviceCredentialPreflightWithContext = func(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return deviceCredentialPreflight()
+}
 
 func secretUser() string {
 	if u, err := user.Current(); err == nil && u.Username != "" {
@@ -31,10 +48,11 @@ func secretUser() string {
 	return "ha-nova"
 }
 
-func testSecretDir() (string, bool) {
-	dir := strings.TrimSpace(os.Getenv("HA_NOVA_TEST_SECRET_DIR"))
-	return dir, dir != ""
-}
+func productionTestSecretDir() (string, bool) { return "", false }
+
+var testSecretDirForRuntime = productionTestSecretDir
+
+func testSecretDir() (string, bool) { return testSecretDirForRuntime() }
 
 func testSecretPath(dir, service string) string {
 	// Service names contain dots; keep them as-is but strip any path separators.
@@ -42,7 +60,72 @@ func testSecretPath(dir, service string) string {
 	return filepath.Join(dir, safe)
 }
 
+func defaultSecretKeyringGetWithPolicy(
+	ctx context.Context,
+	service, account string,
+	_ SecretStoreUIPolicy,
+) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	value, err := secretKeyringGet(service, account)
+	if err != nil {
+		return "", err
+	}
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	return value, nil
+}
+
+func defaultSecretKeyringSetWithPolicy(
+	ctx context.Context,
+	service, account, value string,
+	_ SecretStoreUIPolicy,
+) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := secretKeyringSet(service, account, value); err != nil {
+		return err
+	}
+	return ctx.Err()
+}
+
+func defaultSecretKeyringDeleteWithPolicy(
+	ctx context.Context,
+	service, account string,
+	_ SecretStoreUIPolicy,
+) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := secretKeyringDelete(service, account); err != nil {
+		return err
+	}
+	return ctx.Err()
+}
+
 func secretGet(service string) (string, error) {
+	ctx, cancel := boundedNativeOAuthSecretContext(
+		context.Background(),
+		SecretStoreForbidUI,
+	)
+	defer cancel()
+	return secretGetWithPolicy(ctx, service, SecretStoreForbidUI)
+}
+
+func secretGetWithPolicy(
+	ctx context.Context,
+	service string,
+	ui SecretStoreUIPolicy,
+) (string, error) {
+	if err := validateSecretUIPolicy(ui); err != nil {
+		return "", err
+	}
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
 	if dir, ok := testSecretDir(); ok {
 		data, err := os.ReadFile(testSecretPath(dir, service))
 		if err != nil {
@@ -65,10 +148,15 @@ func secretGet(service string) (string, error) {
 		}
 		return strings.TrimSpace(value), nil
 	}
-	if err := deviceCredentialPreflight(); err != nil {
+	if err := deviceCredentialPreflightWithContext(ctx); err != nil {
 		return "", err
 	}
-	value, err := keyring.Get(service, secretUser())
+	value, err := secretKeyringGetWithPolicy(
+		ctx,
+		service,
+		secretUser(),
+		ui,
+	)
 	if err != nil {
 		if errors.Is(err, keyring.ErrNotFound) {
 			return "", errSecretNotFound
@@ -79,6 +167,25 @@ func secretGet(service string) (string, error) {
 }
 
 func secretSet(service, value string) error {
+	ctx, cancel := boundedNativeOAuthSecretContext(
+		context.Background(),
+		SecretStoreForbidUI,
+	)
+	defer cancel()
+	return secretSetWithPolicy(ctx, service, value, SecretStoreForbidUI)
+}
+
+func secretSetWithPolicy(
+	ctx context.Context,
+	service, value string,
+	ui SecretStoreUIPolicy,
+) error {
+	if err := validateSecretUIPolicy(ui); err != nil {
+		return err
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if dir, ok := testSecretDir(); ok {
 		if err := os.MkdirAll(dir, 0o700); err != nil {
 			return err
@@ -88,13 +195,38 @@ func secretSet(service, value string) error {
 	if deviceSecretFileBacked() {
 		return deviceSecretFileSet(service, value)
 	}
-	if err := deviceCredentialPreflight(); err != nil {
+	if err := deviceCredentialPreflightWithContext(ctx); err != nil {
 		return err
 	}
-	return keyring.Set(service, secretUser(), value)
+	return secretKeyringSetWithPolicy(
+		ctx,
+		service,
+		secretUser(),
+		value,
+		ui,
+	)
 }
 
 func secretDelete(service string) error {
+	ctx, cancel := boundedNativeOAuthSecretContext(
+		context.Background(),
+		SecretStoreForbidUI,
+	)
+	defer cancel()
+	return secretDeleteWithPolicy(ctx, service, SecretStoreForbidUI)
+}
+
+func secretDeleteWithPolicy(
+	ctx context.Context,
+	service string,
+	ui SecretStoreUIPolicy,
+) error {
+	if err := validateSecretUIPolicy(ui); err != nil {
+		return err
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if dir, ok := testSecretDir(); ok {
 		err := os.Remove(testSecretPath(dir, service))
 		if err != nil && !os.IsNotExist(err) {
@@ -105,10 +237,15 @@ func secretDelete(service string) error {
 	if deviceSecretFileBacked() {
 		return deviceSecretFileDelete(service)
 	}
-	if err := deviceCredentialPreflight(); err != nil {
+	if err := deviceCredentialPreflightWithContext(ctx); err != nil {
 		return err
 	}
-	err := keyring.Delete(service, secretUser())
+	err := secretKeyringDeleteWithPolicy(
+		ctx,
+		service,
+		secretUser(),
+		ui,
+	)
 	if err != nil && !errors.Is(err, keyring.ErrNotFound) {
 		return err
 	}

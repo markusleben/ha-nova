@@ -12,6 +12,7 @@ const (
 	setupIssueRelayUnreachable = "relay_unreachable"
 	setupIssueWSDegraded       = "ws_degraded"
 	setupIssueSkillsInstall    = "skills_install"
+	setupIssueCloudAccess      = "cloud_access"
 )
 
 func promptSetupClient(in io.Reader, out io.Writer, choices []setupClientChoice, defaultClient string) (string, error) {
@@ -240,10 +241,14 @@ func renderSetupIncompleteBanner(out io.Writer, issue string) {
 	case setupIssueSkillsInstall:
 		fmt.Fprintln(out, "  The Home Assistant connection is configured, but local skill installation still needs another run.")
 		fmt.Fprintln(out, "  Re-run setup or install the HA NOVA skills again for your client.")
+	case setupIssueCloudAccess:
+		fmt.Fprintln(out, "  Local access and skills are ready, but the selected Home Assistant Cloud connection is not.")
+		fmt.Fprintln(out, "  Re-run setup to resume Cloud authorization; local access remains available.")
 	default:
 		fmt.Fprintln(out, "  HA NOVA saved your local setup, but the system is not fully ready yet.")
 	}
-	if issue != setupIssueSkillsInstall {
+	if issue != setupIssueSkillsInstall &&
+		issue != setupIssueCloudAccess {
 		fmt.Fprintln(out, `  Then run "ha-nova setup" again — it continues where you left off.`)
 	}
 	fmt.Fprintln(out)

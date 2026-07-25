@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 )
 
 type runtimeConfig struct {
@@ -10,6 +11,12 @@ type runtimeConfig struct {
 	HAURL          string `json:"ha_url"`
 	RelayBaseURL   string `json:"relay_base_url"`
 	RelayTokenFile string `json:"relay_token_file,omitempty"`
+	// Stable profile identity. Unlike the user-facing profile name, this value
+	// survives rename operations and binds profile-scoped Cloud credentials.
+	ProfileID       string                  `json:"profile_id,omitempty"`
+	RelayInstanceID string                  `json:"relay_instance_id,omitempty"`
+	RoutePolicy     routePolicy             `json:"route_policy,omitempty"`
+	Cloud           *cloudLifecycleMetadata `json:"cloud,omitempty"`
 	// Stable, non-secret identifier for this OS-user installation. All AI clients
 	// on the same machine share one device credential keyed by this id; the relay
 	// records it so re-pairing replaces the same install's credential. Install-
@@ -42,7 +49,20 @@ func loadRuntimeConfig(pathArgs ...runtimePaths) (runtimeConfig, error) {
 
 	doc, err := loadConfigDocument(paths.ConfigFile)
 	if err != nil {
-		return runtimeConfig{}, fmt.Errorf("HA NOVA is not set up yet. Run: ha-nova setup")
+		if os.IsNotExist(err) {
+			return runtimeConfig{}, fmt.Errorf("HA NOVA is not set up yet. Run: ha-nova setup")
+		}
+		return runtimeConfig{}, fmt.Errorf(
+			"cannot read HA NOVA server configuration %s: %w; restore or repair the file before retrying",
+			paths.ConfigFile,
+			err,
+		)
+	}
+	if err := validateSupportedConfigDocument(doc); err != nil {
+		return runtimeConfig{}, err
+	}
+	if err := validateExistingServerProfileIDs(doc.servers); err != nil {
+		return runtimeConfig{}, fmt.Errorf("invalid server profile identities: %w", err)
 	}
 	name, err := resolveSelectedServerProfile(doc)
 	if err != nil {
@@ -50,7 +70,18 @@ func loadRuntimeConfig(pathArgs ...runtimePaths) (runtimeConfig, error) {
 	}
 	setActiveServerProfile(name)
 	cfg, ok := doc.flatProfile(name)
-	if !ok || cfg.RelayBaseURL == "" {
+	if !ok {
+		if name != defaultServerProfileName {
+			return runtimeConfig{}, fmt.Errorf("server profile %q is not set up yet. Run: ha-nova pair --server %s --relay-url http://<ha-host>:8791", name, name)
+		}
+		return runtimeConfig{}, fmt.Errorf("HA NOVA is not set up yet. Run: ha-nova setup")
+	}
+	if err := validateLoadedRuntimeConfig(&cfg); err != nil {
+		return runtimeConfig{}, fmt.Errorf("invalid server profile %q: %w", name, err)
+	}
+	localReady := cfg.RelayBaseURL != ""
+	cloudOnlyReady := effectiveRoutePolicy(cfg.RoutePolicy) == routePolicyCloud && cfg.Cloud.configured()
+	if !localReady && !cloudOnlyReady {
 		if name != defaultServerProfileName {
 			return runtimeConfig{}, fmt.Errorf("server profile %q is not set up yet. Run: ha-nova pair --server %s --relay-url http://<ha-host>:8791", name, name)
 		}
@@ -72,7 +103,7 @@ func resolveRuntimePaths(pathArgs ...runtimePaths) (runtimePaths, error) {
 
 // saveConfig writes cfg into the SELECTED server profile of the on-disk
 // document, preserving sibling profiles and unknown top-level fields, and
-// mirrors the default profile into the legacy flat fields (downgrade floor).
+// mirrors only the default profile's legacy local fields (downgrade floor).
 func saveConfig(paths runtimePaths, cfg runtimeConfig) error {
 	cfg.SchemaVersion = configSchemaVersion
 	return saveProfileConfig(paths, cfg)

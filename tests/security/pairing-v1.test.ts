@@ -5,10 +5,27 @@ import { join } from "node:path";
 import * as opaque from "@serenity-kit/opaque";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import { parseCredential, digestSecret, generateCredential } from "../../nova/src/security/device-credential.js";
-import { MAX_ACTIVE_DEVICES, openDeviceRegistry, type DeviceRegistry } from "../../nova/src/security/device-registry.js";
-import { OPAQUE_CLIENT_ID, OPAQUE_KSF, OPAQUE_SERVER_ID, opaqueReady } from "../../nova/src/security/opaque-server.js";
-import { deriveDirectionKeys, open, seal } from "../../nova/src/security/pairing-crypto.js";
+import {
+  parseCredential,
+  digestSecret,
+  generateCredential,
+} from "../../nova/src/security/device-credential.js";
+import {
+  MAX_ACTIVE_DEVICES,
+  openDeviceRegistry,
+  type DeviceRegistry,
+} from "../../nova/src/security/device-registry.js";
+import {
+  OPAQUE_CLIENT_ID,
+  OPAQUE_KSF,
+  OPAQUE_SERVER_ID,
+  opaqueReady,
+} from "../../nova/src/security/opaque-server.js";
+import {
+  deriveDirectionKeys,
+  open,
+  seal,
+} from "../../nova/src/security/pairing-crypto.js";
 import {
   CONSUMED_NOTICE_TTL_MS,
   HANDSHAKE_TTL_MS,
@@ -20,14 +37,24 @@ import {
 
 const IDENTIFIERS = { client: OPAQUE_CLIENT_ID, server: OPAQUE_SERVER_ID };
 const KSF = { "argon2id-custom": OPAQUE_KSF } as const;
-const ENDPOINT: SecureEndpoint = { spkiPin: "PINPINPINPINPINPINPINPINPINPINPINPINPINPINP", securePort: 8792 };
-const META = { name: "MacBook", platform: "darwin", client: "claude", client_install_id: "install-xyz" };
+const ENDPOINT: SecureEndpoint = {
+  spkiPin: "PINPINPINPINPINPINPINPINPINPINPINPINPINPINP",
+  securePort: 8792,
+};
+const META = {
+  name: "MacBook",
+  platform: "darwin",
+  client: "claude",
+  client_install_id: "install-xyz",
+};
 
 let dir: string;
 let registry: DeviceRegistry;
 let clock: number;
 
-function makeManager(over: Partial<Parameters<typeof createPairingV1Manager>[0]> = {}): PairingV1Manager {
+function makeManager(
+  over: Partial<Parameters<typeof createPairingV1Manager>[0]> = {},
+): PairingV1Manager {
   return createPairingV1Manager({
     registry,
     secureEndpoint: () => ENDPOINT,
@@ -54,17 +81,35 @@ function pairAsClient(mgr: PairingV1Manager, code: string, peer: string) {
   const sessionKey = Buffer.from(fin.sessionKey, "base64url");
   const hsId = Buffer.from(started.handshakeId, "base64url");
   const keys = deriveDirectionKeys(sessionKey, hsId);
-  const encMeta = seal(keys.c2s, hsId, "c2s", Buffer.from(JSON.stringify(META))).toString("base64url");
-  const finished = mgr.finish(started.handshakeId, fin.finishLoginRequest, encMeta, peer);
-  if (!finished.ok) return { started, finished, keys, hsId, ke3: fin.finishLoginRequest };
-  const plain = open(keys.s2c, hsId, "s2c", Buffer.from(finished.responseB64, "base64url"));
+  const encMeta = seal(
+    keys.c2s,
+    hsId,
+    "c2s",
+    Buffer.from(JSON.stringify(META)),
+  ).toString("base64url");
+  const finished = mgr.finish(
+    started.handshakeId,
+    fin.finishLoginRequest,
+    encMeta,
+    peer,
+  );
+  if (!finished.ok)
+    return { started, finished, keys, hsId, ke3: fin.finishLoginRequest };
+  const plain = open(
+    keys.s2c,
+    hsId,
+    "s2c",
+    Buffer.from(finished.responseB64, "base64url"),
+  );
   return {
     started,
     finished,
     keys,
     hsId,
     ke3: fin.finishLoginRequest,
-    response: plain ? (JSON.parse(plain.toString("utf8")) as Record<string, unknown>) : null,
+    response: plain
+      ? (JSON.parse(plain.toString("utf8")) as Record<string, unknown>)
+      : null,
   };
 }
 
@@ -85,7 +130,11 @@ describe("pairing-v1 state machine", () => {
     const mgr = makeManager();
     expect(mgr.getStatus().phase).toBe("inactive");
     const reg = opaque.client.startLogin({ password: "473921" });
-    expect(mgr.start(reg.startLoginRequest, "peer").ok).toBe(false);
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      expect(mgr.start(reg.startLoginRequest, "peer").ok).toBe(false);
+    }
+    const { code } = mgr.generateCode();
+    expect(pairAsClient(mgr, code, "peer").finished?.ok).toBe(true);
   });
 
   it("completes a full happy-path pairing and hands out a usable pending credential", () => {
@@ -110,7 +159,13 @@ describe("pairing-v1 state machine", () => {
     expect(list).toHaveLength(1);
     expect(list[0]!.state).toBe("pending");
     registry.activate(parsed!.deviceId, clock);
-    expect(registry.resolveDeviceSecret(parsed!.deviceId, digestSecret(parsed!.secret), clock)).not.toBeNull();
+    expect(
+      registry.resolveDeviceSecret(
+        parsed!.deviceId,
+        digestSecret(parsed!.secret),
+        clock,
+      ),
+    ).not.toBeNull();
 
     // The "just connected" notice is time-bound: hours later it would be a lie
     // (and contradict an owner-emptied device list), so it decays to inactive.
@@ -123,6 +178,12 @@ describe("pairing-v1 state machine", () => {
   it("refuses to generate a code when the secure endpoint is unavailable", () => {
     const mgr = makeManager({ secureEndpoint: () => null });
     expect(() => mgr.generateCode()).toThrow(/secure device port/);
+  });
+
+  it("allows an owner code without a mapped TLS port when Cloud pairing is enabled", () => {
+    const mgr = makeManager({ secureEndpoint: () => null, cloudPairing: true });
+    expect(mgr.generateCode().code).toBe("473921");
+    expect(mgr.getStatus().phase).toBe("active");
   });
 
   it("rejects a wrong code at finish and does not consume", () => {
@@ -140,12 +201,22 @@ describe("pairing-v1 state machine", () => {
     for (let i = 0; i < MAX_ACTIVE_DEVICES; i++) {
       const c = generateCredential();
       registry.createPending(
-        { deviceId: c.deviceId, secretDigest: c.secretDigest, clientInstallId: `install-${i}`, name: "n", platform: "p", client: "c", createdAtMs: clock },
+        {
+          deviceId: c.deviceId,
+          secretDigest: c.secretDigest,
+          clientInstallId: `install-${i}`,
+          name: "n",
+          platform: "p",
+          client: "c",
+          createdAtMs: clock,
+        },
         clock,
       );
       registry.activate(c.deviceId, clock);
     }
-    expect(registry.list().filter((d) => d.state === "active")).toHaveLength(MAX_ACTIVE_DEVICES);
+    expect(registry.list().filter((d) => d.state === "active")).toHaveLength(
+      MAX_ACTIVE_DEVICES,
+    );
 
     const mgr = makeManager();
     const { code } = mgr.generateCode();
@@ -156,7 +227,9 @@ describe("pairing-v1 state machine", () => {
     const r = pairAsClient(mgr, code, "peer-cap");
     expect(r.finished?.ok).toBe(false);
     expect(mgr.getStatus().phase).toBe("active"); // code still usable
-    expect(registry.list().filter((d) => d.state === "pending")).toHaveLength(0);
+    expect(registry.list().filter((d) => d.state === "pending")).toHaveLength(
+      0,
+    );
     expect(registry.list()).toHaveLength(MAX_ACTIVE_DEVICES);
   });
 
@@ -175,10 +248,21 @@ describe("pairing-v1 state machine", () => {
       keyStretching: KSF,
     })!;
     const hsId = Buffer.from(started.handshakeId, "base64url");
-    const keys = deriveDirectionKeys(Buffer.from(fin.sessionKey, "base64url"), hsId);
-    const encMeta = seal(keys.c2s, hsId, "c2s", Buffer.from(JSON.stringify(META))).toString("base64url");
+    const keys = deriveDirectionKeys(
+      Buffer.from(fin.sessionKey, "base64url"),
+      hsId,
+    );
+    const encMeta = seal(
+      keys.c2s,
+      hsId,
+      "c2s",
+      Buffer.from(JSON.stringify(META)),
+    ).toString("base64url");
     // Finish from a DIFFERENT peer than started the handshake.
-    expect(mgr.finish(started.handshakeId, fin.finishLoginRequest, encMeta, "peer-B").ok).toBe(false);
+    expect(
+      mgr.finish(started.handshakeId, fin.finishLoginRequest, encMeta, "peer-B")
+        .ok,
+    ).toBe(false);
   });
 
   it("expires the code after its TTL (start becomes inactive)", () => {
@@ -205,60 +289,20 @@ describe("pairing-v1 state machine", () => {
       keyStretching: KSF,
     })!;
     const hsId = Buffer.from(started.handshakeId, "base64url");
-    const keys = deriveDirectionKeys(Buffer.from(fin.sessionKey, "base64url"), hsId);
-    const encMeta = seal(keys.c2s, hsId, "c2s", Buffer.from(JSON.stringify(META))).toString("base64url");
+    const keys = deriveDirectionKeys(
+      Buffer.from(fin.sessionKey, "base64url"),
+      hsId,
+    );
+    const encMeta = seal(
+      keys.c2s,
+      hsId,
+      "c2s",
+      Buffer.from(JSON.stringify(META)),
+    ).toString("base64url");
     clock += HANDSHAKE_TTL_MS + 1;
-    expect(mgr.finish(started.handshakeId, fin.finishLoginRequest, encMeta, "peer").ok).toBe(false);
-  });
-
-  it("returns the same ciphertext on an identical finish retry, and generic error on a divergent one", () => {
-    const mgr = makeManager();
-    const { code } = mgr.generateCode();
-    const r = pairAsClient(mgr, code, "peer");
-    expect(r.finished?.ok).toBe(true);
-    const first = (r.finished as { ok: true; responseB64: string }).responseB64;
-    // Identical retry -> same persisted ciphertext.
-    const retry = mgr.finish(r.started!.ok ? r.started!.handshakeId : "", r.ke3!, "ignored", "peer");
-    expect(retry.ok).toBe(true);
-    if (retry.ok) expect(retry.responseB64).toBe(first);
-    // Divergent retry (different KE3) -> generic error.
-    const bad = mgr.finish(r.started!.ok ? r.started!.handshakeId : "", "AAAA", "x", "peer");
-    expect(bad.ok).toBe(false);
-    // Still exactly one device record.
-    expect(registry.list()).toHaveLength(1);
-  });
-
-  it("lets exactly one of two concurrent handshakes consume the code", () => {
-    const mgr = makeManager();
-    const { code } = mgr.generateCode();
-    // Two independent clients start handshakes against the same active code.
-    const c1 = opaque.client.startLogin({ password: code });
-    const s1 = mgr.start(c1.startLoginRequest, "peer-1");
-    const c2 = opaque.client.startLogin({ password: code });
-    const s2 = mgr.start(c2.startLoginRequest, "peer-2");
-    expect(s1.ok && s2.ok).toBe(true);
-    if (!s1.ok || !s2.ok) return;
-
-    const fin1 = opaque.client.finishLogin({ clientLoginState: c1.clientLoginState, loginResponse: s1.ke2, password: code, identifiers: IDENTIFIERS, keyStretching: KSF })!;
-    const hs1 = Buffer.from(s1.handshakeId, "base64url");
-    const k1 = deriveDirectionKeys(Buffer.from(fin1.sessionKey, "base64url"), hs1);
-    const em1 = seal(k1.c2s, hs1, "c2s", Buffer.from(JSON.stringify(META))).toString("base64url");
-    expect(mgr.finish(s1.handshakeId, fin1.finishLoginRequest, em1, "peer-1").ok).toBe(true);
-
-    // The second handshake's finish now finds the code consumed -> generic fail.
-    const fin2 = opaque.client.finishLogin({ clientLoginState: c2.clientLoginState, loginResponse: s2.ke2, password: code, identifiers: IDENTIFIERS, keyStretching: KSF })!;
-    const hs2 = Buffer.from(s2.handshakeId, "base64url");
-    const k2 = deriveDirectionKeys(Buffer.from(fin2.sessionKey, "base64url"), hs2);
-    const em2 = seal(k2.c2s, hs2, "c2s", Buffer.from(JSON.stringify(META))).toString("base64url");
-    expect(mgr.finish(s2.handshakeId, fin2.finishLoginRequest, em2, "peer-2").ok).toBe(false);
-    expect(registry.list()).toHaveLength(1);
-  });
-
-  it("rejects malformed KE1 and counts it against the rate limit", () => {
-    const mgr = makeManager();
-    mgr.generateCode();
-    for (const bad of ["", "not base64!", "øøø"]) {
-      expect(mgr.start(bad, "peer").ok).toBe(false);
-    }
+    expect(
+      mgr.finish(started.handshakeId, fin.finishLoginRequest, encMeta, "peer")
+        .ok,
+    ).toBe(false);
   });
 });

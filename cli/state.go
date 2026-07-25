@@ -93,11 +93,19 @@ func saveState(paths runtimePaths, state installState) error {
 }
 
 type bundleMetadata struct {
-	BundleFormatVersion int    `json:"bundle_format_version"`
-	Version             string `json:"version"`
-	OS                  string `json:"os"`
-	Arch                string `json:"arch"`
-	BinaryName          string `json:"binary_name"`
+	BundleFormatVersion int                         `json:"bundle_format_version"`
+	Version             string                      `json:"version"`
+	OS                  string                      `json:"os"`
+	Arch                string                      `json:"arch"`
+	BinaryName          string                      `json:"binary_name"`
+	CloudRelease        *cloudReleaseBundleEvidence `json:"cloud_release,omitempty"`
+}
+
+type cloudReleaseBundleEvidence struct {
+	Schema        int    `json:"schema"`
+	SourceTreeSHA string `json:"source_tree_sha"`
+	BinarySHA256  string `json:"binary_sha256"`
+	Signature     string `json:"signature"`
 }
 
 func loadBundleMetadata(paths runtimePaths) (bundleMetadata, error) {

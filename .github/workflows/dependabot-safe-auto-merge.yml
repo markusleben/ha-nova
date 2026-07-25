@@ -1,6 +1,9 @@
 name: Dependabot Safe Auto-Merge
 
 on:
+  check_run:
+    types:
+      - completed
   workflow_run:
     workflows:
       - CI
@@ -11,27 +14,67 @@ on:
     types:
       - completed
 
-permissions:
-  actions: read
-  checks: read
-  contents: write
-  issues: write
-  pull-requests: write
+permissions: {}
 
 env:
   SAFE_POLICY_MARKER: "<!-- ha-nova-dependabot-safe-policy -->"
 
 jobs:
+  resolve-trigger:
+    permissions:
+      actions: read
+      contents: read
+    runs-on: ubuntu-latest
+    outputs:
+      policy-sha: ${{ steps.trigger.outputs.policy-sha }}
+      run-id: ${{ steps.trigger.outputs.run-id }}
+      run-kind: ${{ steps.trigger.outputs.run-kind }}
+      run-sha: ${{ steps.trigger.outputs.run-sha }}
+      should-process: ${{ steps.trigger.outputs.should-process }}
+    steps:
+      - name: Authenticate trusted completion trigger
+        id: trigger
+        env:
+          GH_TOKEN: ${{ github.token }}
+          POLICY_REF: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+
+          trusted_ref="$(
+            gh api "repos/${GITHUB_REPOSITORY}/commits/${POLICY_REF}" --jq '.sha'
+          )"
+          [[ "${trusted_ref}" =~ ^[0-9a-f]{40}$ ]]
+          POLICY_FILE="$(mktemp)"
+          TRIGGER_SCRIPT="$(mktemp)"
+          gh api "repos/${GITHUB_REPOSITORY}/contents/.github/policy/repo-policy.json?ref=${trusted_ref}" \
+            --jq '.content' \
+            | tr -d '\n' \
+            | base64 --decode > "${POLICY_FILE}"
+          gh api "repos/${GITHUB_REPOSITORY}/contents/scripts/release/resolve-dependabot-auto-merge-trigger.mjs?ref=${trusted_ref}" \
+            --jq '.content' \
+            | tr -d '\n' \
+            | base64 --decode > "${TRIGGER_SCRIPT}"
+          node "${TRIGGER_SCRIPT}" "${POLICY_FILE}"
+
   enable-safe-auto-merge:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    needs: resolve-trigger
+    if: ${{ needs.resolve-trigger.outputs.should-process == 'true' }}
+    permissions:
+      actions: read
+      checks: read
+      contents: write
+      issues: write
+      pull-requests: write
     runs-on: ubuntu-latest
     steps:
       - name: Merge safe Dependabot PRs after all required checks pass
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          RUN_ID: ${{ github.event.workflow_run.id }}
-          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+          RUN_ID: ${{ needs.resolve-trigger.outputs.run-id }}
+          RUN_KIND: ${{ needs.resolve-trigger.outputs.run-kind }}
+          RUN_SHA: ${{ needs.resolve-trigger.outputs.run-sha }}
+          EXPECTED_POLICY_SHA: ${{ needs.resolve-trigger.outputs.policy-sha }}
           POLICY_REF: ${{ github.event.repository.default_branch }}
         run: |
           set -euo pipefail
@@ -44,8 +87,27 @@ jobs:
           safe_label="$(jq -r '.dependabot_safe_lane.label' "${POLICY_FILE}")"
           mapfile -t required_checks < <(jq -r '.main_branch_protection.required_status_checks[]' "${POLICY_FILE}")
           policy_sha="$(sha256sum "${POLICY_FILE}" | awk '{print $1}')"
+          if [[ "${policy_sha}" != "${EXPECTED_POLICY_SHA}" ]]; then
+            echo "Repository policy changed after trigger authentication; skipping."
+            exit 0
+          fi
 
-          prs="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}" --jq '.pull_requests[].number')"
+          if [[ "${RUN_KIND}" == "workflow_run" ]]; then
+            prs="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}" --jq '.pull_requests[].number')"
+          elif [[ "${RUN_KIND}" == "check_run" ]]; then
+            prs="$(
+              gh api "repos/${GITHUB_REPOSITORY}/commits/${RUN_SHA}/pulls" \
+                --jq '.[] | select(
+                  .state == "open"
+                  and .base.ref == "main"
+                  and .base.repo.full_name == env.GITHUB_REPOSITORY
+                  and .head.sha == env.RUN_SHA
+                ) | .number'
+            )"
+          else
+            echo "Unrecognized trusted trigger kind."
+            exit 1
+          fi
           if [[ -z "${prs}" ]]; then
             echo "No PRs attached to workflow run."
             exit 0
@@ -108,9 +170,30 @@ jobs:
               continue
             fi
 
-            checks_json="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${pr_sha}/check-runs?per_page=100")"
+            checks_json="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${pr_sha}/check-runs?filter=latest&per_page=100")"
             for required_check in "${required_checks[@]}"; do
-              conclusion="$(printf '%s' "${checks_json}" | jq -r --arg name "${required_check}" '[.check_runs[] | select(.name == $name) | .conclusion] | last // ""')"
+              expected_app_id="$(
+                jq -r --arg name "${required_check}" \
+                  '.main_branch_protection.required_status_check_apps[$name] // empty' \
+                  "${POLICY_FILE}"
+              )"
+              if [[ -n "${expected_app_id}" ]]; then
+                [[ "${expected_app_id}" =~ ^[1-9][0-9]*$ ]] || {
+                  echo "Required check ${required_check} App id is not provisioned."
+                  continue 2
+                }
+                conclusion="$(
+                  printf '%s' "${checks_json}" \
+                    | jq -r --arg name "${required_check}" --argjson app_id "${expected_app_id}" \
+                      '[.check_runs[] | select(.name == $name and .app.id == $app_id)][0].conclusion // ""'
+                )"
+              else
+                conclusion="$(
+                  printf '%s' "${checks_json}" \
+                    | jq -r --arg name "${required_check}" \
+                      '[.check_runs[] | select(.name == $name)][0].conclusion // ""'
+                )"
+              fi
               if [[ "${conclusion}" != "success" ]]; then
                 echo "Required check ${required_check} not green for PR #${pr_number}; skipping auto-merge."
                 continue 2

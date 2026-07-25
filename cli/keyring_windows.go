@@ -3,6 +3,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/user"
@@ -11,6 +12,79 @@ import (
 
 	"github.com/zalando/go-keyring"
 )
+
+func init() {
+	secretKeyringGetWithPolicy = windowsDeviceSecretGet
+	secretKeyringSetWithPolicy = windowsDeviceSecretSet
+	secretKeyringDeleteWithPolicy = windowsDeviceSecretDelete
+}
+
+func windowsDeviceSecretGet(
+	ctx context.Context,
+	service, account string,
+	ui SecretStoreUIPolicy,
+) (string, error) {
+	operationCtx, cancel := boundedNativeOAuthSecretContext(ctx, ui)
+	defer cancel()
+	response, err := runNativeSecretWorkerProcess(
+		operationCtx,
+		nativeSecretWorkerRequest{
+			SchemaVersion: nativeSecretWorkerSchema,
+			Operation:     nativeSecretGet,
+			UI:            ui,
+			Service:       service,
+			Account:       account,
+		},
+	)
+	if err != nil {
+		return "", err
+	}
+	if !response.Found {
+		return "", keyring.ErrNotFound
+	}
+	value := string(response.Value)
+	zeroSecretBytes(response.Value)
+	return value, nil
+}
+
+func windowsDeviceSecretSet(
+	ctx context.Context,
+	service, account, value string,
+	ui SecretStoreUIPolicy,
+) error {
+	operationCtx, cancel := boundedNativeOAuthSecretContext(ctx, ui)
+	defer cancel()
+	raw := []byte(value)
+	defer zeroSecretBytes(raw)
+	request := nativeSecretWorkerRequest{
+		SchemaVersion: nativeSecretWorkerSchema,
+		Operation:     nativeSecretSet,
+		UI:            ui,
+		Service:       service,
+		Account:       account,
+		Value:         raw,
+	}
+	_, err := runNativeSecretWorkerProcess(operationCtx, request)
+	return reconcileNativeSecretSet(ctx, request, err)
+}
+
+func windowsDeviceSecretDelete(
+	ctx context.Context,
+	service, account string,
+	ui SecretStoreUIPolicy,
+) error {
+	operationCtx, cancel := boundedNativeOAuthSecretContext(ctx, ui)
+	defer cancel()
+	request := nativeSecretWorkerRequest{
+		SchemaVersion: nativeSecretWorkerSchema,
+		Operation:     nativeSecretDelete,
+		UI:            ui,
+		Service:       service,
+		Account:       account,
+	}
+	_, err := runNativeSecretWorkerProcess(operationCtx, request)
+	return reconcileNativeSecretDelete(ctx, request, err)
+}
 
 func readRelayAuthToken() (string, error) {
 	if token, overridden, err := readRelayAuthTokenOverride(); overridden {

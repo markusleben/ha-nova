@@ -1,82 +1,56 @@
 import { renameSync } from "node:fs";
 import { join } from "node:path";
 
-import { InsecureFileError, readPrivateFileSync, writeFileAtomicSync } from "../storage/atomic-file.js";
+import { writeFileAtomicSync } from "../storage/atomic-file.js";
+import {
+  DEVICE_REGISTRY_FILE,
+  RegistryCorruptError,
+  loadRegistryData,
+  type RegistryData,
+} from "./device-registry-schema.js";
+import { withCloudDeviceRevoked } from "./device-registry-cloud.js";
+import type { DeviceRecord, DeviceRegistry } from "./device-registry-types.js";
 import { digestsEqual } from "./device-credential.js";
+import {
+  MAX_ACTIVE_DEVICES,
+  PENDING_TTL_MS,
+  activeCountIn,
+  isValidCloudBinding,
+  pendingExpired,
+  trimPairingResponses,
+  withPending,
+} from "./device-registry-mutations.js";
 
-// Private, versioned device registry under /data. Holds only SHA-256 digests of
-// device secrets — never plaintext. All mutations go through a single in-process
-// serialization gate and are persisted atomically (temp + fsync + rename). A
-// corrupt file is fail-closed: it is never silently recreated and never falls
-// back to the legacy token; recovery requires a deliberate reset by the owner.
+// Private, versioned device registry under /data. Device secrets appear only as
+// SHA-256 digests or inside OPAQUE-session-sealed finish responses, never as
+// plaintext. All mutations use one atomic, durable write. Corruption fails
+// closed and recovery requires a deliberate owner reset.
 
-export const MAX_ACTIVE_DEVICES = 64;
-export const MAX_PENDING_DEVICES = 16;
-export const PENDING_TTL_MS = 15 * 60 * 1000;
-const REGISTRY_FILE = "device-registry.json";
-const MAX_REGISTRY_BYTES = 512 * 1024;
-const SCHEMA_VERSION = 1;
-
-export type DeviceState = "pending" | "active";
-
-export interface DeviceRecord {
-  deviceId: string;
-  secretDigest: string;
-  state: DeviceState;
-  clientInstallId: string;
-  name: string;
-  platform: string;
-  client: string;
-  createdAtMs: number;
-  pendingExpiresAtMs?: number;
-}
-
-export interface LegacyRecord {
-  secretDigest: string;
-  createdAtMs: number;
-}
-
-interface RegistryData {
-  version: number;
-  devices: DeviceRecord[];
-  legacy: LegacyRecord | null;
-  legacyImportCompleted: boolean;
-}
-
-export class RegistryCorruptError extends Error {}
-
-export interface ResolvedPrincipal {
-  kind: "device" | "legacy";
-  deviceId?: string;
-}
-
-export interface DeviceRegistry {
-  list(): DeviceRecord[];
-  hasLegacy(): boolean;
-  legacyImportCompleted(): boolean;
-  // Auth: resolve a presented secret (already parsed) to a principal, or null.
-  resolveDeviceSecret(deviceId: string, secretDigest: string, now: number): ResolvedPrincipal | null;
-  resolveLegacySecret(secretDigest: string): ResolvedPrincipal | null;
-  createPending(record: Omit<DeviceRecord, "state" | "pendingExpiresAtMs">, now: number): void;
-  activate(deviceId: string, now: number): DeviceRecord;
-  // Authenticated activation for /auth/device/activate: verifies the presented
-  // secret against the pending (or already-active, for idempotency) record
-  // before promoting. Returns null when the credential is unknown/wrong.
-  activatePending(deviceId: string, secretDigest: string, now: number): DeviceRecord | null;
-  revoke(deviceId: string): boolean;
-  importLegacy(secretDigest: string, now: number): void;
-  // Stamp the legacy-migration tombstone without importing a record — used by the
-  // corrupt-registry reset to cut pre-pairing shared access permanently.
-  markLegacyMigrated(): void;
-  revokeLegacy(): void;
-}
+export {
+  MAX_ACTIVE_DEVICES,
+  MAX_PAIRING_RESPONSES,
+  MAX_PENDING_DEVICES,
+  PENDING_TTL_MS,
+} from "./device-registry-mutations.js";
+export { RegistryCorruptError } from "./device-registry-schema.js";
+export type {
+  CloudBindingResult,
+  CloudDeviceRevocationResult,
+  CloudRevocationRecord,
+  DeviceRecord,
+  DeviceRegistry,
+  DeviceState,
+  LegacyRecord,
+  PairingResponseRecord,
+  ResolvedPrincipal,
+} from "./device-registry-types.js";
 
 // Moves a corrupt registry file aside so a fresh one can be created. Used by the
 // owner-triggered reset: the damaged file is preserved (for forensics) under a
 // timestamped name rather than deleted. Best-effort — a subsequent
 // openDeviceRegistry surfaces any remaining problem.
 export function archiveCorruptRegistry(dataDir: string, now: number): void {
-  const path = join(dataDir, REGISTRY_FILE);
+  const path = join(dataDir, DEVICE_REGISTRY_FILE);
   try {
     renameSync(path, `${path}.corrupt-${now}`);
   } catch {
@@ -88,8 +62,8 @@ export function archiveCorruptRegistry(dataDir: string, now: number): void {
 // file is absent. An absent file is a fresh install; a present-but-unparseable
 // file is corruption and must not be masked.
 export function openDeviceRegistry(dataDir: string): DeviceRegistry {
-  const path = join(dataDir, REGISTRY_FILE);
-  let data = loadOrInit(path);
+  const path = join(dataDir, DEVICE_REGISTRY_FILE);
+  let data = loadRegistryData(path);
   let mutating = false;
 
   function persist(next: RegistryData): void {
@@ -119,45 +93,91 @@ export function openDeviceRegistry(dataDir: string): DeviceRegistry {
       return data.legacyImportCompleted;
     },
     resolveDeviceSecret(deviceId, secretDigest, now) {
-      const device = data.devices.find((d) => d.deviceId === deviceId && d.state === "active");
+      const device = data.devices.find(
+        (d) => d.deviceId === deviceId && d.state === "active",
+      );
       if (!device || !digestsEqual(device.secretDigest, secretDigest)) {
         return null;
       }
       void now;
       return { kind: "device", deviceId };
     },
+    resolveCloudDeviceSecret(
+      deviceId,
+      secretDigest,
+      userId,
+      relayInstanceId,
+      now,
+    ) {
+      const device = data.devices.find(
+        (d) => d.deviceId === deviceId && d.state === "active",
+      );
+      if (!device) {
+        return null;
+      }
+      const secretMatches = digestsEqual(device.secretDigest, secretDigest);
+      if (
+        !secretMatches ||
+        device.cloudUserId !== userId ||
+        device.cloudRelayInstanceId !== relayInstanceId
+      ) {
+        return null;
+      }
+      void now;
+      return { kind: "device", deviceId };
+    },
     resolveLegacySecret(secretDigest) {
-      if (!data.legacy || !digestsEqual(data.legacy.secretDigest, secretDigest)) {
+      if (
+        !data.legacy ||
+        !digestsEqual(data.legacy.secretDigest, secretDigest)
+      ) {
         return null;
       }
       return { kind: "legacy" };
     },
-    createPending(record, now) {
-      const devices = data.devices.filter((d) => !(d.state === "pending" && pendingExpired(d, now)));
-      if (pendingCountIn(devices, now) >= MAX_PENDING_DEVICES) {
-        throw new Error("pending device limit reached");
-      }
-      // A brand-new install cannot be promoted once the active roster is full, so
-      // reject it HERE — before /pair/v1/finish consumes the owner's one-time code
-      // — rather than letting activation fail later with the code already spent.
-      // A re-pair of an install that already holds an active slot is a replacement
-      // (net count unchanged on activation) and stays allowed at the cap.
-      const isReplacement = devices.some(
-        (d) => d.state === "active" && d.clientInstallId === record.clientInstallId,
+    getPairingResponse(handshakeId, contextKey, now) {
+      const response = data.pairingResponses.find(
+        (entry) =>
+          entry.handshakeId === handshakeId &&
+          entry.contextKey === contextKey &&
+          entry.expiresAtMs > now,
       );
-      if (!isReplacement && activeCountIn(devices) >= MAX_ACTIVE_DEVICES) {
-        throw new Error("active device limit reached");
+      return response === undefined
+        ? null
+        : {
+            ke3Digest: response.ke3Digest,
+            ciphertextB64: response.ciphertextB64,
+          };
+    },
+    createPending(record, now) {
+      persist(withPending(data, record, now));
+    },
+    createPendingWithResponse(record, response, now) {
+      if (response.deviceId !== record.deviceId) {
+        throw new Error(
+          "pairing response device does not match pending credential",
+        );
       }
-      // Re-pairing an existing install keeps the old active record untouched; the
-      // new pending record for the same install is what gets promoted later.
-      const pending: DeviceRecord = {
-        ...record,
-        state: "pending",
-        pendingExpiresAtMs: now + PENDING_TTL_MS,
-      };
-      persist({ ...data, devices: [...devices, pending] });
+      const next = withPending(data, record, now);
+      const pairingResponses = next.pairingResponses.filter(
+        (entry) =>
+          entry.expiresAtMs > now &&
+          !(
+            entry.handshakeId === response.handshakeId &&
+            entry.contextKey === response.contextKey
+          ),
+      );
+      pairingResponses.push({ ...response, expiresAtMs: now + PENDING_TTL_MS });
+      persist({
+        ...next,
+        pairingResponses: trimPairingResponses(pairingResponses, next.devices),
+      });
     },
     activate(deviceId, now) {
+      const target = data.devices.find((d) => d.deviceId === deviceId);
+      if (target?.state === "pending" && target.cloudUserId !== undefined) {
+        throw new Error("cloud pairing requires cloud activation");
+      }
       return doActivate(deviceId, now);
     },
     activatePending(deviceId, secretDigest, now) {
@@ -168,7 +188,91 @@ export function openDeviceRegistry(dataDir: string): DeviceRegistry {
       if (target.state === "pending" && pendingExpired(target, now)) {
         return null; // expired pending is not activatable
       }
+      if (target.state === "pending" && target.cloudUserId !== undefined) {
+        return null; // Cloud provenance cannot be bypassed through local TLS
+      }
       return doActivate(deviceId, now);
+    },
+    bindCloudUser(deviceId, secretDigest, userId, relayInstanceId) {
+      if (!isValidCloudBinding(userId, relayInstanceId)) {
+        throw new Error("invalid cloud binding");
+      }
+      const target = data.devices.find(
+        (d) => d.deviceId === deviceId && d.state === "active",
+      );
+      if (!target || !digestsEqual(target.secretDigest, secretDigest)) {
+        return { ok: false, reason: "unknown" };
+      }
+      if (
+        target.cloudUserId !== undefined &&
+        (target.cloudUserId !== userId ||
+          target.cloudRelayInstanceId !== relayInstanceId)
+      ) {
+        return { ok: false, reason: "conflict" };
+      }
+      if (
+        target.cloudUserId === userId &&
+        target.cloudRelayInstanceId === relayInstanceId
+      ) {
+        return { ok: true, record: { ...target }, changed: false };
+      }
+      const bound = {
+        ...target,
+        cloudUserId: userId,
+        cloudRelayInstanceId: relayInstanceId,
+      };
+      persist({
+        ...data,
+        devices: data.devices.map((d) => (d.deviceId === deviceId ? bound : d)),
+      });
+      return { ok: true, record: { ...bound }, changed: true };
+    },
+    activatePendingForCloud(
+      deviceId,
+      secretDigest,
+      userId,
+      relayInstanceId,
+      now,
+    ) {
+      if (!isValidCloudBinding(userId, relayInstanceId)) {
+        throw new Error("invalid cloud binding");
+      }
+      const target = data.devices.find((d) => d.deviceId === deviceId);
+      if (!target || !digestsEqual(target.secretDigest, secretDigest)) {
+        return { ok: false, reason: "unknown" };
+      }
+      if (target.state === "pending" && pendingExpired(target, now)) {
+        return { ok: false, reason: "unknown" };
+      }
+      if (
+        target.cloudUserId !== userId ||
+        target.cloudRelayInstanceId !== relayInstanceId
+      ) {
+        return { ok: false, reason: "conflict" };
+      }
+      const changed = target.state !== "active";
+      return {
+        ok: true,
+        record: doActivate(deviceId, now, { userId, relayInstanceId }),
+        changed,
+      };
+    },
+    revokeCloudDevice(deviceId, secretDigest, userId, relayInstanceId, now) {
+      if (!isValidCloudBinding(userId, relayInstanceId)) {
+        throw new Error("invalid cloud binding");
+      }
+      const mutation = withCloudDeviceRevoked(
+        data,
+        deviceId,
+        secretDigest,
+        userId,
+        relayInstanceId,
+        now,
+      );
+      if (mutation.data !== data) {
+        persist(mutation.data);
+      }
+      return mutation.result;
     },
     revoke(deviceId) {
       const target = data.devices.find((d) => d.deviceId === deviceId);
@@ -179,7 +283,12 @@ export function openDeviceRegistry(dataDir: string): DeviceRegistry {
       // that pending credential could be activated a moment later and restore the
       // access the owner just revoked.
       const next = data.devices.filter(
-        (d) => d.deviceId !== deviceId && !(d.state === "pending" && d.clientInstallId === target.clientInstallId),
+        (d) =>
+          d.deviceId !== deviceId &&
+          !(
+            d.state === "pending" &&
+            d.clientInstallId === target.clientInstallId
+          ),
       );
       persist({ ...data, devices: next });
       return true;
@@ -208,21 +317,35 @@ export function openDeviceRegistry(dataDir: string): DeviceRegistry {
     },
   };
 
-  function pendingCountIn(devices: DeviceRecord[], now: number): number {
-    return devices.filter((d) => d.state === "pending" && !pendingExpired(d, now)).length;
-  }
-  function activeCountIn(devices: DeviceRecord[]): number {
-    return devices.filter((d) => d.state === "active").length;
-  }
-
-  function doActivate(deviceId: string, now: number): DeviceRecord {
-    const devices = data.devices.filter((d) => !(d.state === "pending" && pendingExpired(d, now)));
+  function doActivate(
+    deviceId: string,
+    now: number,
+    cloudBinding?: { userId: string; relayInstanceId: string },
+  ): DeviceRecord {
+    const devices = data.devices.filter(
+      (d) => !(d.state === "pending" && pendingExpired(d, now)),
+    );
     const target = devices.find((d) => d.deviceId === deviceId);
     if (!target) {
       throw new Error("no such pending credential");
     }
     if (target.state === "active") {
-      return { ...target }; // idempotent re-activation
+      if (
+        cloudBinding === undefined ||
+        (target.cloudUserId === cloudBinding.userId &&
+          target.cloudRelayInstanceId === cloudBinding.relayInstanceId)
+      ) {
+        return { ...target }; // idempotent re-activation
+      }
+      throw new Error("device is bound to another cloud identity");
+    }
+    if (
+      cloudBinding === undefined
+        ? target.cloudUserId !== undefined
+        : target.cloudUserId !== cloudBinding.userId ||
+          target.cloudRelayInstanceId !== cloudBinding.relayInstanceId
+    ) {
+      throw new Error("activation route does not match pairing provenance");
     }
     // Activation promotes this install's pending record and retires every other
     // record for the SAME install (re-pairing replaces on activation).
@@ -235,6 +358,12 @@ export function openDeviceRegistry(dataDir: string): DeviceRegistry {
       platform: target.platform,
       client: target.client,
       createdAtMs: target.createdAtMs,
+      ...(target.cloudUserId !== undefined
+        ? {
+            cloudUserId: target.cloudUserId,
+            cloudRelayInstanceId: target.cloudRelayInstanceId!,
+          }
+        : {}),
     };
     // Drop the old active credential AND any older pending re-pair from the same
     // install. Leaving a stale same-install pending behind would let someone still
@@ -242,7 +371,8 @@ export function openDeviceRegistry(dataDir: string): DeviceRegistry {
     // silently replace this freshly promoted one without another owner code —
     // mirroring the same-install cleanup revoke() already performs.
     const kept = devices.filter(
-      (d) => d.deviceId !== deviceId && d.clientInstallId !== target.clientInstallId
+      (d) =>
+        d.deviceId !== deviceId && d.clientInstallId !== target.clientInstallId,
     );
     // Count AFTER retiring the same-install active record: re-pairing at the cap
     // is a replacement (net count unchanged) and must be allowed; only a
@@ -253,113 +383,4 @@ export function openDeviceRegistry(dataDir: string): DeviceRegistry {
     persist({ ...data, devices: [...kept, promoted] });
     return { ...promoted };
   }
-}
-
-function pendingExpired(d: DeviceRecord, now: number): boolean {
-  return d.state === "pending" && typeof d.pendingExpiresAtMs === "number" && now >= d.pendingExpiresAtMs;
-}
-
-function loadOrInit(path: string): RegistryData {
-  let raw: Buffer | null;
-  try {
-    raw = readPrivateFileSync(path, MAX_REGISTRY_BYTES);
-  } catch (error) {
-    if (error instanceof InsecureFileError) {
-      // A symlink, non-regular file, or oversized file is unusable and may be a
-      // tamper attempt. Treat it as recoverable corruption so the owner can reset
-      // (the file is archived aside) instead of the App failing to start.
-      throw new RegistryCorruptError(`device registry file is not a safe regular file: ${error.message}`);
-    }
-    throw error;
-  }
-  if (raw === null) {
-    return { version: SCHEMA_VERSION, devices: [], legacy: null, legacyImportCompleted: false };
-  }
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw.toString("utf8"));
-  } catch {
-    throw new RegistryCorruptError("device registry is not valid JSON");
-  }
-  return validate(parsed);
-}
-
-function validate(parsed: unknown): RegistryData {
-  if (typeof parsed !== "object" || parsed === null) {
-    throw new RegistryCorruptError("device registry is not an object");
-  }
-  const obj = parsed as Record<string, unknown>;
-  if (obj.version !== SCHEMA_VERSION) {
-    throw new RegistryCorruptError(`unsupported registry version: ${String(obj.version)}`);
-  }
-  if (!Array.isArray(obj.devices)) {
-    throw new RegistryCorruptError("registry.devices is not an array");
-  }
-  const devices = obj.devices.map(validateDevice);
-  const seen = new Set<string>();
-  for (const d of devices) {
-    if (seen.has(d.deviceId)) {
-      throw new RegistryCorruptError("duplicate deviceId in registry");
-    }
-    seen.add(d.deviceId);
-  }
-  const legacy = obj.legacy === null || obj.legacy === undefined ? null : validateLegacy(obj.legacy);
-  return {
-    version: SCHEMA_VERSION,
-    devices,
-    legacy,
-    legacyImportCompleted: obj.legacyImportCompleted === true,
-  };
-}
-
-function validateDevice(value: unknown): DeviceRecord {
-  if (typeof value !== "object" || value === null) {
-    throw new RegistryCorruptError("device record is not an object");
-  }
-  const d = value as Record<string, unknown>;
-  const str = (k: string): string => {
-    if (typeof d[k] !== "string") {
-      throw new RegistryCorruptError(`device.${k} is not a string`);
-    }
-    return d[k] as string;
-  };
-  const num = (k: string): number => {
-    if (typeof d[k] !== "number" || !Number.isFinite(d[k])) {
-      throw new RegistryCorruptError(`device.${k} is not a number`);
-    }
-    return d[k] as number;
-  };
-  if (d.state !== "pending" && d.state !== "active") {
-    throw new RegistryCorruptError("device.state is invalid");
-  }
-  const record: DeviceRecord = {
-    deviceId: str("deviceId"),
-    secretDigest: str("secretDigest"),
-    state: d.state,
-    clientInstallId: str("clientInstallId"),
-    name: str("name"),
-    platform: str("platform"),
-    client: str("client"),
-    createdAtMs: num("createdAtMs"),
-  };
-  if (d.pendingExpiresAtMs !== undefined) {
-    record.pendingExpiresAtMs = num("pendingExpiresAtMs");
-  }
-  // A pending record without an expiry would occupy the cap forever and never
-  // prune — treat it as corruption rather than an immortal pending slot.
-  if (record.state === "pending" && record.pendingExpiresAtMs === undefined) {
-    throw new RegistryCorruptError("pending device without pendingExpiresAtMs");
-  }
-  return record;
-}
-
-function validateLegacy(value: unknown): LegacyRecord {
-  if (typeof value !== "object" || value === null) {
-    throw new RegistryCorruptError("legacy record is not an object");
-  }
-  const l = value as Record<string, unknown>;
-  if (typeof l.secretDigest !== "string" || typeof l.createdAtMs !== "number" || !Number.isFinite(l.createdAtMs)) {
-    throw new RegistryCorruptError("legacy record fields invalid");
-  }
-  return { secretDigest: l.secretDigest, createdAtMs: l.createdAtMs };
 }

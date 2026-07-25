@@ -553,6 +553,7 @@ func TestInteractiveSetupFailsEarlyWhenLinuxKeyringPreflightFails(t *testing.T) 
 }
 
 func TestInteractiveSetupRecoversSecureStorageBeforeHostStep(t *testing.T) {
+	allowNativeSecureStoragePromptForTest(t)
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("HA_NOVA_NO_BROWSER", "1")
@@ -579,14 +580,12 @@ func TestInteractiveSetupRecoversSecureStorageBeforeHostStep(t *testing.T) {
 	originalPreflight := relayAuthTokenSetupPreflightForSetup
 	originalSupport := detectPlatformSecureStorageRecoverySupportForSetup
 	originalRunRecovery := runPlatformSecureStorageRecoveryForSetup
-	originalReadSecret := readSetupSecretInputForSetup
 	originalTTY := writerSupportsTTYForSetup
 	originalInputTTY := uiInputSupportsTTY
 	defer func() {
 		relayAuthTokenSetupPreflightForSetup = originalPreflight
 		detectPlatformSecureStorageRecoverySupportForSetup = originalSupport
 		runPlatformSecureStorageRecoveryForSetup = originalRunRecovery
-		readSetupSecretInputForSetup = originalReadSecret
 		writerSupportsTTYForSetup = originalTTY
 		uiInputSupportsTTY = originalInputTTY
 	}()
@@ -603,21 +602,12 @@ func TestInteractiveSetupRecoversSecureStorageBeforeHostStep(t *testing.T) {
 		return true, nil
 	}
 	recoveryCalls := 0
-	runPlatformSecureStorageRecoveryForSetup = func(action platformSecureStorageRecoveryAction, secret []byte) error {
+	runPlatformSecureStorageRecoveryForSetup = func(action platformSecureStorageRecoveryAction) error {
 		recoveryCalls++
 		if action != platformSecureStorageRecoveryInitialize {
 			t.Fatalf("unexpected recovery action %q", action)
 		}
-		if string(secret) != "linux-local-keyring" {
-			t.Fatalf("unexpected recovery secret %q", string(secret))
-		}
 		return nil
-	}
-	readSetupSecretInputForSetup = func(fd int) ([]byte, error) {
-		if fd <= 0 {
-			t.Fatalf("expected terminal fd, got %d", fd)
-		}
-		return []byte("linux-local-keyring"), nil
 	}
 	writerSupportsTTYForSetup = func(io.Writer) bool { return true }
 	uiInputSupportsTTY = func() bool { return true }
@@ -646,13 +636,13 @@ func TestInteractiveSetupRecoversSecureStorageBeforeHostStep(t *testing.T) {
 	if !strings.Contains(output, "Local secure storage needs setup") {
 		t.Fatalf("expected dedicated secure storage recovery page:\n%s", output)
 	}
-	if !strings.Contains(output, "not the Relay token or the Home Assistant token") {
-		t.Fatalf("expected explicit local-password guidance:\n%s", output)
+	if !strings.Contains(output, "trusted desktop prompt") {
+		t.Fatalf("expected native secure-storage prompt guidance:\n%s", output)
 	}
-	if !strings.Contains(output, "HA NOVA, NOVA Relay, and Home Assistant never receive it.") {
-		t.Fatalf("expected explicit local-only keyring guidance:\n%s", output)
+	if !strings.Contains(output, "HA NOVA never reads it in the terminal") {
+		t.Fatalf("expected explicit no-terminal-password guidance:\n%s", output)
 	}
-	if !strings.Contains(output, "Set up local secure storage now") {
+	if !strings.Contains(output, "Open the system secure-storage setup now") {
 		t.Fatalf("expected recovery action prompt:\n%s", output)
 	}
 	if !strings.Contains(output, "Home Assistant address") {

@@ -6,7 +6,7 @@ fail() {
   exit 1
 }
 
-if [[ "$#" -ne 1 || ! "$1" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-rc[0-9]+)?$ ]]; then
+if [[ "$#" -ne 1 || ! "$1" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-rc[1-9][0-9]*)?$ ]]; then
   fail "usage: bash scripts/release/verify-release-assets.sh <vX.Y.Z[-rcN]>"
 fi
 

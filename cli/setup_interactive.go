@@ -33,19 +33,40 @@ func printRelayTokenStorageSetupWarning(err error) {
 	}
 }
 
-func maybeHandleInteractiveSetupCurrentState(reader *bufio.Reader, out io.Writer, paths runtimePaths, cfg runtimeConfig, current setupState, overrideApplied bool, lifecycleMarker ...[]byte) (bool, int) {
+func maybeHandleInteractiveSetupCurrentState(reader *bufio.Reader, out io.Writer, paths runtimePaths, cfg runtimeConfig, current setupState, overrideApplied, serviceMode bool, lifecycleMarker ...[]byte) (bool, int) {
 	if !(current.ConfigOK || current.TokenOK || current.RelayOK || current.WSOK || current.SkillsOK) {
 		return false, 0
 	}
 
 	renderSetupHeader(out)
 	renderSetupStatusSummary(out, current)
+	if cfg.Cloud != nil && !cloudRemoteFeatureAvailable() {
+		fmt.Fprintln(
+			out,
+			"  Home Assistant Cloud access is unavailable because this build or platform has Cloud setup disabled.",
+		)
+		renderCloudCheckpointActions(out, paths, cfg, false)
+		return true, 1
+	}
 	if current.IsComplete() {
 		if overrideApplied {
+			if err := ensureProfileIdentityForSetup(paths, &cfg); err != nil {
+				printHumanErr("cannot prepare the server profile identity: %s", err)
+				return true, 1
+			}
 			if err := saveSetupConfigWithLifecycle(paths, cfg, lifecycleMarker...); err != nil {
 				printHumanErr("cannot save config: %s", err)
 				return true, 1
 			}
+		}
+		var cloudAttempted bool
+		var cloudCode int
+		cfg, cloudAttempted, cloudCode = maybeOfferCloudForCompletedSetup(reader, out, paths, cfg, serviceMode, lifecycleMarker...)
+		if cloudAttempted && cloudCode != 0 {
+			return true, cloudCode
+		}
+		if cloudAttempted && cfg.Cloud != nil && !cfg.Cloud.ready() {
+			return true, cloudCode
 		}
 		renderSetupAlreadyDoneBanner(out, cfg.RelaySecureBaseURL == "" && cfg.RelayBaseURL != "")
 		return true, 0
@@ -71,6 +92,20 @@ func saveSetupConfigWithLifecycle(paths runtimePaths, cfg runtimeConfig, lifecyc
 	return withSetupLifecycleLock(paths, lifecycleMarker, func() error {
 		return saveConfig(paths, cfg)
 	})
+}
+
+func saveSetupConfigWithLifecycleUnlocked(
+	paths runtimePaths,
+	cfg runtimeConfig,
+	lifecycleMarker ...[]byte,
+) error {
+	if err := ensureSetupLifecycleCurrent(paths, lifecycleMarker...); err != nil {
+		return err
+	}
+	if err := saveConfig(paths, cfg); err != nil {
+		return err
+	}
+	return refreshSetupConfigSnapshot(paths, lifecycleMarker)
 }
 
 func promptYesNoFromReader(reader *bufio.Reader, out io.Writer, label string, defaultYes bool) (bool, error) {
@@ -117,6 +152,85 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 		// the overrides are applied to cfg below — skip the intro for them.
 		renderSetupIntro(os.Stdout)
 	}
+	namedRetirementOnly := false
+	retirementPending := false
+	if activeServerProfile() != defaultServerProfileName {
+		var retirementErr error
+		retirementPending, retirementErr =
+			deviceCredentialRetirementCheckpointExistsForProfile(
+				paths,
+				activeServerProfile(),
+			)
+		if retirementErr != nil {
+			printHumanErr(
+				"cannot inspect interrupted device credential retirement: %s",
+				retirementErr,
+			)
+			return 1
+		}
+		namedRetirementOnly = namedSetupIsRetirementOnly(
+			cfg,
+			retirementPending,
+		)
+	}
+	namedRequestAllowed := namedSetupRequestAllowed(
+		cfg,
+		retirementPending,
+		serviceMode,
+		hostFlag,
+		haURLFlag,
+		relayURLFlag,
+		relayTokenFlag,
+	)
+	explicitLocalSetup := serviceMode ||
+		strings.TrimSpace(hostFlag) != "" ||
+		strings.TrimSpace(haURLFlag) != "" ||
+		strings.TrimSpace(relayURLFlag) != "" ||
+		strings.TrimSpace(relayTokenFlag) != ""
+	var cloudRecoveryHandled bool
+	var cloudRecoveryCode int
+	cfg, cloudRecoveryHandled, cloudRecoveryCode =
+		handleInteractiveCloudRecoveryBeforeClients(
+			reader,
+			os.Stdout,
+			paths,
+			cfg,
+			serviceMode,
+			explicitLocalSetup,
+			lifecycleMarker...,
+		)
+	if cloudRecoveryHandled {
+		return cloudRecoveryCode
+	}
+	if !namedRequestAllowed {
+		renderNamedSetupRequestError()
+		return 1
+	}
+	if err := resumeSetupDeviceCredentialRetirement(paths, cfg); err != nil {
+		printHumanErr(
+			"cannot finish the interrupted device credential retirement: %s",
+			err,
+		)
+		return 1
+	}
+	if namedRetirementOnly {
+		return 0
+	}
+	resumedActivation, resumeActivationErr :=
+		resumeSetupPendingActivation(
+			paths,
+			&cfg,
+			lifecycleMarker...,
+		)
+	if resumeActivationErr != nil {
+		printPendingActivationResumeError(resumeActivationErr)
+		return 1
+	}
+	if resumedActivation {
+		printHumanInfo(
+			"Resumed the interrupted pairing — this device is connected.",
+		)
+	}
 	choices, err := buildSetupClientChoices(paths, state)
 	if err != nil {
 		printHumanErr("%s", err)
@@ -133,46 +247,111 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 	existingToken := strings.TrimSpace(relayTokenFlag)
 
 	promptedClient := false
-	if target == "" {
-		for {
-			answer, err := promptSetupClientInteractive(reader, os.Stdout, choices, "claude")
-			if err == errSetupClientPrerequisite {
+	clientsResolved := false
+	connectionMode := setupConnectionLocal
+	for {
+		if target == "" {
+			answer, selectErr := promptSetupClientForWizard(
+				reader,
+				os.Stdout,
+				choices,
+			)
+			if selectErr == errSetupClientPrerequisite {
 				return 0
 			}
-			if err == errSetupBack {
-				continue
-			}
-			if err == errSetupExit {
+			if selectErr == errSetupExit {
 				renderSetupCancelledNote(os.Stdout)
 				return 0
 			}
-			if err != nil {
-				printHumanErr("%s", err)
+			if selectErr != nil {
+				printHumanErr("%s", selectErr)
 				return 1
 			}
 			target = answer
-			selectedClients, skippedClients, err = resolveSetupClientsWithChoices(choices, target)
+			promptedClient = true
+			clientsResolved = false
+		}
+		if !clientsResolved {
+			selectedClients, skippedClients, err = resolveSetupClientsWithChoices(
+				choices,
+				target,
+			)
 			if err != nil {
 				printHumanErr("%s", err)
 				return 1
 			}
+			clientsResolved = true
+		}
+
+		if remoteOnlyCloudSetup(cfg) && !explicitLocalSetup {
+			return resumeInteractiveCloudOnlySetup(
+				reader,
+				os.Stdout,
+				paths,
+				cfg,
+				&state,
+				target,
+				selectedClients,
+				skippedClients,
+				lifecycleMarker...,
+			)
+		}
+
+		connectionMode = setupConnectionLocal
+		if hybridCloudSetupPending(cfg) {
+			connectionMode = setupConnectionHybrid
+		}
+		if !shouldOfferSetupConnectionMode(
+			cfg,
+			hostFlag,
+			haURLFlag,
+			relayURLFlag,
+			relayTokenFlag,
+			serviceMode,
+		) {
 			break
 		}
-		promptedClient = true
-	} else {
-		var err error
-		selectedClients, skippedClients, err = resolveSetupClientsWithChoices(choices, target)
+		connectionMode, err = promptSetupConnectionMode(reader, os.Stdout)
+		if err == errSetupBack {
+			target = ""
+			selectedClients = nil
+			skippedClients = nil
+			clientsResolved = false
+			continue
+		}
+		if err == errSetupExit {
+			renderSetupCancelledNote(os.Stdout)
+			return 0
+		}
 		if err != nil {
 			printHumanErr("%s", err)
 			return 1
 		}
+		if connectionMode != setupConnectionCloud {
+			break
+		}
+		exit, back := runInteractiveCloudOnlySetupForWizard(
+			reader,
+			os.Stdout,
+			paths,
+			cfg,
+			&state,
+			target,
+			selectedClients,
+			skippedClients,
+			lifecycleMarker...,
+		)
+		if back {
+			continue
+		}
+		return exit
 	}
 
 	restoreTokenFileOverride := func() {}
 	defer func() {
 		restoreTokenFileOverride()
 	}()
-	setupChanged := false
+	setupChanged := resumedActivation
 	formerServiceTokenFile := ""
 	formerServiceToken := ""
 	if !serviceMode {
@@ -251,7 +430,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 	// Set when the missing-keyring error is downgraded below: the legacy /pair
 	// token store is unavailable, so the pairing stage must not fall back to it.
 	legacyTokenStoreUnavailable := false
-	if tokenStoragePreflightErr == nil {
+	if tokenStoragePreflightErr == nil && !hybridCloudSetupPending(cfg) {
 		if savedToken, err := readRelayAuthTokenForSetup(); err == nil && strings.TrimSpace(savedToken) != "" {
 			savedTokenBeforeSetup = strings.TrimSpace(savedToken)
 			hadSavedTokenBeforeSetup = true
@@ -310,27 +489,8 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 		existingToken = formerServiceToken
 	}
 
-	// A pairing interrupted between activation and promotion left a pending
-	// credential behind; finish it now so the assessment below sees the device
-	// as paired instead of forcing a fresh code. Best-effort: any failure just
-	// leaves the pending slot for the normal pairing flow. Runs BEFORE the flag
-	// overrides so a resume never persists unconfirmed --host/--relay-url
-	// values as a side effect.
-	resumed := false
-	resumeErr := withSetupLifecycleLock(paths, lifecycleMarker, func() error {
-		var err error
-		resumed, err = resumePendingActivation(&cfg, func(c *runtimeConfig) error { return saveConfig(paths, *c) })
-		return err
-	})
-	if err := ensureSetupLifecycleCurrent(paths, lifecycleMarker...); err != nil {
-		printHumanErr("%s", err)
-		return 1
-	}
-	if resumeErr == nil && resumed {
-		setupChanged = true
-		printHumanInfo("Resumed the interrupted pairing — this device is connected.")
-	}
-
+	// Activation recovery above intentionally ran before applying unconfirmed
+	// local endpoint overrides.
 	overrideApplied := strings.TrimSpace(hostFlag) != "" || strings.TrimSpace(haURLFlag) != "" || strings.TrimSpace(relayURLFlag) != ""
 	if overrideApplied {
 		var err error
@@ -343,7 +503,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 
 	current := detectSetupStateForAssessment(paths, cfg, state, target, savedTokenBeforeSetup, hadSavedTokenBeforeSetup)
 	if tokenStoragePreflightErr == nil {
-		if handled, code := maybeHandleInteractiveSetupCurrentState(reader, os.Stdout, paths, cfg, current, overrideApplied, lifecycleMarker...); handled {
+		if handled, code := maybeHandleInteractiveSetupCurrentState(reader, os.Stdout, paths, cfg, current, overrideApplied, serviceMode, lifecycleMarker...); handled {
 			needsLifecycleFinalization := setupChanged || overrideApplied ||
 				(len(lifecycleMarker) > 1 && len(lifecycleMarker[1]) > 0)
 			if code == 0 && current.IsComplete() && needsLifecycleFinalization {
@@ -364,12 +524,16 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 	devicePaired := false
 	manualCredentialFlow := false
 	pairingBackStage := setupStageRelayInstall
+	cloudSetupIncomplete := false
+	cloudSetupPaused := false
 	// Service installs pair by default too: secure pairing no longer depends on
 	// a desktop keyring (the service path forces the file backend at the pairing
 	// stage), and the legacy token flow costs manual HA UI steps. Only an
 	// explicit --relay-token or an already-stored token keeps the token path.
 	usePairingByDefault := func() bool {
-		return strings.TrimSpace(relayTokenFlag) == "" && strings.TrimSpace(existingToken) == ""
+		return connectionMode == setupConnectionHybrid ||
+			(strings.TrimSpace(relayTokenFlag) == "" &&
+				strings.TrimSpace(existingToken) == "")
 	}
 	stage := setupStageHost
 	if tokenStoragePreflightErr != nil {
@@ -901,6 +1065,33 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 					printHumanErr("%s", err)
 					return 1
 				}
+				if connectionMode == setupConnectionHybrid && !cfg.Cloud.ready() {
+					renderSetupParagraph(
+						os.Stdout,
+						"Local access is ready. Now connecting Home Assistant Cloud for away-from-home access.",
+					)
+					cfg, err = addHybridCloudAfterLocal(
+						paths,
+						cfg,
+						lifecycleMarker...,
+					)
+					if err != nil {
+						if handlePausedCloudOwnerPairing(
+							os.Stdout,
+							paths,
+							err,
+						) {
+							cloudSetupPaused = true
+							stage = setupStageSkills
+							continue
+						}
+						renderCloudFailure(os.Stdout, paths, err)
+						cloudSetupIncomplete = true
+						stage = setupStageSkills
+						continue
+					}
+					renderSetupSuccessLine(os.Stdout, "Home Assistant Cloud access verified")
+				}
 				stage = setupStageSkills
 				continue
 			}
@@ -1002,7 +1193,14 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 				renderSetupIncompleteBanner(os.Stdout, setupIssueSkillsInstall)
 				return 1
 			}
-			renderSetupCompleteBanner(os.Stdout, selectedClients)
+			if exit := renderSetupCompletionOutcomeWithCloudPause(
+				os.Stdout,
+				selectedClients,
+				cloudSetupIncomplete,
+				cloudSetupPaused,
+			); exit != 0 {
+				return exit
+			}
 			// One-time census ask AFTER the complete banner — clearly outside
 			// the numbered wizard steps, never readable as a setup hurdle.
 			// A queued Enter from the wizard's last step must not silently
@@ -1014,6 +1212,37 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 			return 0
 		}
 	}
+}
+
+func renderSetupCompletionOutcome(
+	out io.Writer,
+	selectedClients []string,
+	cloudSetupIncomplete bool,
+) int {
+	return renderSetupCompletionOutcomeWithCloudPause(
+		out,
+		selectedClients,
+		cloudSetupIncomplete,
+		false,
+	)
+}
+
+func renderSetupCompletionOutcomeWithCloudPause(
+	out io.Writer,
+	selectedClients []string,
+	cloudSetupIncomplete bool,
+	cloudSetupPaused bool,
+) int {
+	if cloudSetupPaused {
+		renderSetupCloudPausedOutcome(out)
+		return 0
+	}
+	if cloudSetupIncomplete {
+		renderSetupIncompleteBanner(out, setupIssueCloudAccess)
+		return 1
+	}
+	renderSetupCompleteBanner(out, selectedClients)
+	return 0
 }
 
 func persistInteractiveSetupStateWithRecovery(reader *bufio.Reader, out io.Writer, paths runtimePaths, cfg runtimeConfig, state *installState, previousToken string, hadPreviousToken bool, token string, recovery *setupSecureStorageRecoveryState, lifecycleMarker ...[]byte) error {

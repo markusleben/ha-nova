@@ -53,6 +53,106 @@ func TestPurgeDeviceCredentialRevokesAndRemovesBothSlots(t *testing.T) {
 	}
 }
 
+func TestPurgeRevokesActivatedLocalPendingCredentialBeforeDeletion(
+	t *testing.T,
+) {
+	t.Setenv("HA_NOVA_TEST_SECRET_DIR", t.TempDir())
+	pendingCredential := generateTestDeviceCredential(t)
+	if err := writePendingDeviceCredential(pendingCredential); err != nil {
+		t.Fatalf("write pending credential: %v", err)
+	}
+	var calls []struct {
+		base       string
+		pin        string
+		credential string
+	}
+	original := revokeSelfDeviceV1ForUninstall
+	revokeSelfDeviceV1ForUninstall = func(
+		base, pin, credential string,
+	) error {
+		calls = append(calls, struct {
+			base       string
+			pin        string
+			credential string
+		}{base: base, pin: pin, credential: credential})
+		return nil
+	}
+	t.Cleanup(func() { revokeSelfDeviceV1ForUninstall = original })
+
+	report := &uninstallReport{}
+	err := purgeProfileDeviceCredentialWithReport(profilePurgeTarget{
+		name:                 defaultServerProfileName,
+		pendingSecureBaseURL: "https://pending-relay:18792",
+		pendingSpkiPin:       "pending-pin",
+	}, report, false)
+	if err != nil {
+		t.Fatalf("purge pending credential: %v", err)
+	}
+	if len(calls) != 1 ||
+		calls[0].base != "https://pending-relay:18792" ||
+		calls[0].pin != "pending-pin" ||
+		calls[0].credential != pendingCredential {
+		t.Fatalf("pending revoke calls = %+v", calls)
+	}
+	if _, exists, readErr := readPendingDeviceCredential(); readErr != nil ||
+		exists {
+		t.Fatalf(
+			"pending credential remains: exists=%v err=%v",
+			exists,
+			readErr,
+		)
+	}
+	if notes := strings.Join(report.notes, "\n"); !strings.Contains(
+		notes,
+		"Revoked the interrupted pending device pairing",
+	) {
+		t.Fatalf("missing pending revoke report: %q", notes)
+	}
+}
+
+func TestPurgeReportsUnconfirmedActivatedPendingRevocation(
+	t *testing.T,
+) {
+	t.Setenv("HA_NOVA_TEST_SECRET_DIR", t.TempDir())
+	pendingCredential := generateTestDeviceCredential(t)
+	if err := writePendingDeviceCredential(pendingCredential); err != nil {
+		t.Fatalf("write pending credential: %v", err)
+	}
+	original := revokeSelfDeviceV1ForUninstall
+	revokeSelfDeviceV1ForUninstall = func(
+		_, _, credential string,
+	) error {
+		if credential != pendingCredential {
+			t.Fatalf("unexpected credential: %q", credential)
+		}
+		return errors.New("connection refused")
+	}
+	t.Cleanup(func() { revokeSelfDeviceV1ForUninstall = original })
+
+	report := &uninstallReport{}
+	err := purgeProfileDeviceCredentialWithReport(profilePurgeTarget{
+		name:                 defaultServerProfileName,
+		pendingSecureBaseURL: "https://pending-relay:18792",
+		pendingSpkiPin:       "pending-pin",
+	}, report, false)
+	if err != nil {
+		t.Fatalf("purge pending credential: %v", err)
+	}
+	notes := strings.Join(report.notes, "\n")
+	if !strings.Contains(notes, deviceCredentialID(pendingCredential)) ||
+		!strings.Contains(notes, "NOVA page") {
+		t.Fatalf("missing stale pending-device remediation: %q", notes)
+	}
+	if _, exists, readErr := readPendingDeviceCredential(); readErr != nil ||
+		exists {
+		t.Fatalf(
+			"pending credential remains: exists=%v err=%v",
+			exists,
+			readErr,
+		)
+	}
+}
+
 func TestPurgeDeviceCredentialUnreachableRelayLeavesNovaHint(t *testing.T) {
 	t.Setenv("HA_NOVA_TEST_SECRET_DIR", t.TempDir())
 	if err := writeDeviceCredential(uninstallTestCredential); err != nil {

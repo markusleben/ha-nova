@@ -1,7 +1,8 @@
 import type { CoreProxyRequest, CoreProxyResponse } from "../types/api.js";
 import { TimeoutError, withTimeout } from "../shared/timeout.js";
 
-export type HaRestClientErrorCode = "UPSTREAM_HTTP_ERROR" | "UPSTREAM_HTTP_TIMEOUT";
+export type HaRestClientErrorCode =
+  "UPSTREAM_HTTP_ERROR" | "UPSTREAM_HTTP_TIMEOUT";
 
 export class HaRestClientError extends Error {
   public readonly code: HaRestClientErrorCode;
@@ -34,9 +35,13 @@ const DEFAULT_MAX_RESPONSE_BYTES = 256 * 1024 * 1024;
 const DEFAULT_MAX_BINARY_RESPONSE_BYTES = 8 * 1024 * 1024;
 
 export function createHaRestClient(options: HaRestClientOptions): HaRestClient {
-  const baseUrl = options.baseUrl.endsWith("/") ? options.baseUrl.slice(0, -1) : options.baseUrl;
-  const requestTimeoutMs = options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
-  const maxResponseBytes = options.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES;
+  const baseUrl = options.baseUrl.endsWith("/")
+    ? options.baseUrl.slice(0, -1)
+    : options.baseUrl;
+  const requestTimeoutMs =
+    options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
+  const maxResponseBytes =
+    options.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES;
 
   return {
     async request(input: CoreProxyRequest): Promise<CoreProxyResponse> {
@@ -48,7 +53,10 @@ export function createHaRestClient(options: HaRestClientOptions): HaRestClient {
         const init: RequestInit = {
           method,
           headers: buildHeaders(options.token, method),
-          signal: abortController.signal
+          // Never forward Home Assistant's bearer token or request body to a
+          // redirect target. The configured upstream URL is the only authority.
+          redirect: "error",
+          signal: abortController.signal,
         };
         if (method === "POST") {
           init.body = JSON.stringify(input.body ?? {});
@@ -60,32 +68,41 @@ export function createHaRestClient(options: HaRestClientOptions): HaRestClient {
 
             return {
               status: response.status,
-              ...(await parseResponseBody(response, maxResponseBytes))
+              ...(await parseResponseBody(response, maxResponseBytes)),
             };
           })(),
           requestTimeoutMs,
-          () => abortController.abort()
+          () => abortController.abort(),
         );
       } catch (error) {
         if (error instanceof TimeoutError) {
-          throw new HaRestClientError("UPSTREAM_HTTP_TIMEOUT", `HTTP request timed out after ${requestTimeoutMs}ms`);
+          throw new HaRestClientError(
+            "UPSTREAM_HTTP_TIMEOUT",
+            `HTTP request timed out after ${requestTimeoutMs}ms`,
+          );
         }
         if (error instanceof HaRestClientError) {
           throw error;
         }
-        const detail = error instanceof Error && error.message ? error.message : "Upstream HTTP request failed";
+        const detail =
+          error instanceof Error && error.message
+            ? error.message
+            : "Upstream HTTP request failed";
         throw new HaRestClientError(
           "UPSTREAM_HTTP_ERROR",
-          `${detail} — check that Home Assistant is running and reachable from the NOVA Relay App`
+          `${detail} — check that Home Assistant is running and reachable from the NOVA Relay App`,
         );
       }
-    }
+    },
   };
 }
 
-function buildHeaders(token: string, method: CoreProxyRequest["method"]): Headers {
+function buildHeaders(
+  token: string,
+  method: CoreProxyRequest["method"],
+): Headers {
   const headers = new Headers({
-    authorization: `Bearer ${token}`
+    authorization: `Bearer ${token}`,
   });
 
   if (method === "POST") {
@@ -95,27 +112,38 @@ function buildHeaders(token: string, method: CoreProxyRequest["method"]): Header
   return headers;
 }
 
-type ParsedBody = Pick<CoreProxyResponse, "body" | "body_encoding" | "content_type">;
+type ParsedBody = Pick<
+  CoreProxyResponse,
+  "body" | "body_encoding" | "content_type"
+>;
 
-async function parseResponseBody(response: Response, maxBytes: number): Promise<ParsedBody> {
+async function parseResponseBody(
+  response: Response,
+  maxBytes: number,
+): Promise<ParsedBody> {
   const contentType = response.headers.get("content-type") ?? "";
   const normalizedType = contentType.toLowerCase();
 
   if (isBinaryContentType(normalizedType)) {
     // Dumb transport: a binary body is forwarded as honest bytes. Decoding it
     // as UTF-8 (the old path) silently corrupted every camera frame.
-    const buffer = await readBodyBytesWithLimit(response, DEFAULT_MAX_BINARY_RESPONSE_BYTES);
+    const buffer = await readBodyBytesWithLimit(
+      response,
+      DEFAULT_MAX_BINARY_RESPONSE_BYTES,
+    );
     if (buffer.byteLength === 0) {
       return { body: null };
     }
     return {
       body: buffer.toString("base64"),
       body_encoding: "base64",
-      content_type: contentType
+      content_type: contentType,
     };
   }
 
-  const text = (await readBodyBytesWithLimit(response, maxBytes)).toString("utf8");
+  const text = (await readBodyBytesWithLimit(response, maxBytes)).toString(
+    "utf8",
+  );
 
   if (normalizedType.includes("application/json")) {
     try {
@@ -142,7 +170,10 @@ function isBinaryContentType(normalizedContentType: string): boolean {
   );
 }
 
-async function readBodyBytesWithLimit(response: Response, maxBytes: number): Promise<Buffer> {
+async function readBodyBytesWithLimit(
+  response: Response,
+  maxBytes: number,
+): Promise<Buffer> {
   if (!response.body) {
     return Buffer.alloc(0);
   }
@@ -163,7 +194,7 @@ async function readBodyBytesWithLimit(response: Response, maxBytes: number): Pro
         await reader.cancel().catch(() => undefined);
         throw new HaRestClientError(
           "UPSTREAM_HTTP_ERROR",
-          `HA response exceeded the ${maxBytes}-byte relay limit — narrow the request (filter, pagination, or a more specific path)`
+          `HA response exceeded the ${maxBytes}-byte relay limit — narrow the request (filter, pagination, or a more specific path)`,
         );
       }
       chunks.push(value);

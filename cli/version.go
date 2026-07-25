@@ -14,8 +14,10 @@ import (
 )
 
 type versionJSON struct {
-	SkillVersion    string `json:"skill_version"`
-	MinRelayVersion string `json:"min_relay_version"`
+	SkillVersion         string   `json:"skill_version"`
+	MinRelayVersion      string   `json:"min_relay_version"`
+	CloudRemoteEnabled   bool     `json:"cloud_remote_enabled"`
+	CloudRemotePlatforms []string `json:"cloud_remote_platforms"`
 }
 
 type releaseInfo struct {
@@ -115,7 +117,7 @@ func parseReleaseVersion(s string) (parsedReleaseVersion, error) {
 			return parsedReleaseVersion{}, fmt.Errorf("%w: %q", errUnsupportedVersionFormat, s)
 		}
 		value := strings.TrimPrefix(suffix, "rc")
-		if value == "" {
+		if value == "" || (len(value) > 1 && value[0] == '0') {
 			return parsedReleaseVersion{}, fmt.Errorf("%w: %q", errUnsupportedVersionFormat, s)
 		}
 		parsedRC, err := strconv.Atoi(value)
@@ -130,7 +132,7 @@ func parseReleaseVersion(s string) (parsedReleaseVersion, error) {
 	}
 	values := [3]int{}
 	for i, part := range parts {
-		if part == "" {
+		if part == "" || (len(part) > 1 && part[0] == '0') {
 			return parsedReleaseVersion{}, fmt.Errorf("%w: %q", errUnsupportedVersionFormat, s)
 		}
 		value, err := strconv.Atoi(part)

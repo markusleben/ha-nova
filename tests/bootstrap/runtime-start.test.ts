@@ -3,7 +3,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import { bootstrapRuntime, startRelay } from "../../nova/src/runtime/start.js";
 
 describe("runtime bootstrap", () => {
-  const servers: Array<ReturnType<typeof bootstrapRuntime>["app"]["server"]> = [];
+  const servers: Array<ReturnType<typeof bootstrapRuntime>["app"]["server"]> =
+    [];
 
   afterEach(async () => {
     await Promise.all(
@@ -17,8 +18,8 @@ describe("runtime bootstrap", () => {
               }
               resolve();
             });
-          })
-      )
+          }),
+      ),
     );
     servers.length = 0;
   });
@@ -33,21 +34,26 @@ describe("runtime bootstrap", () => {
         haLlat: "env-llat",
         haUrl: "http://supervisor/core",
         relayVersion: "1.2.3",
+        cloudRemoteEnabled: false,
         appOptionsPath: "/data/options.json",
         relayPort: 8791,
         logLevel: "info",
-        snapshotDir: "/tmp/nova-snapshots-test"
+        snapshotDir: "/tmp/nova-snapshots-test",
       }),
       readAppOptions: () => ({
-        ha_llat: "app-llat"
+        ha_llat: "app-llat",
       }),
       createWsClient: (input) => {
         seenSource = input.upstreamAuth.source;
         return {
           isConnected: () => true,
-        getConnectionStatus: () => ({ connected: true, disconnect_reason: null }) as const,
-          sendMessage: async <T>() => ({ ok: true } as T),
-          collectMessageEvents: async <T>() => ({ events: [] as T[], truncated: false })
+          getConnectionStatus: () =>
+            ({ connected: true, disconnect_reason: null }) as const,
+          sendMessage: async <T>() => ({ ok: true }) as T,
+          collectMessageEvents: async <T>() => ({
+            events: [] as T[],
+            truncated: false,
+          }),
         };
       },
       createRestClient: (input) => {
@@ -55,10 +61,10 @@ describe("runtime bootstrap", () => {
         return {
           request: async () => ({
             status: 200,
-            body: { ok: true }
-          })
+            body: { ok: true },
+          }),
         };
-      }
+      },
     });
 
     expect(runtime.upstreamAuth.source).toBe("env_ha_llat");
@@ -75,14 +81,17 @@ describe("runtime bootstrap", () => {
           haLlat: "   ",
           haUrl: "http://supervisor/core",
           relayVersion: "1.2.3",
+          cloudRemoteEnabled: false,
           appOptionsPath: "/data/options.json",
           relayPort: 8791,
           logLevel: "info",
-        snapshotDir: "/tmp/nova-snapshots-test"
+          snapshotDir: "/tmp/nova-snapshots-test",
         }),
-        readAppOptions: () => ({})
-      })
-    ).toThrowError("SUPERVISOR_TOKEN or HA_LLAT is required for runtime startup.");
+        readAppOptions: () => ({}),
+      }),
+    ).toThrowError(
+      "SUPERVISOR_TOKEN or HA_LLAT is required for runtime startup.",
+    );
   });
 
   it("starts and serves when LLAT is available", async () => {
@@ -92,25 +101,30 @@ describe("runtime bootstrap", () => {
         haLlat: "env-llat",
         haUrl: "http://supervisor/core",
         relayVersion: "1.2.3",
+        cloudRemoteEnabled: false,
         appOptionsPath: "/data/options.json",
         relayPort: 8791,
         logLevel: "info",
-        snapshotDir: "/tmp/nova-snapshots-test"
+        snapshotDir: "/tmp/nova-snapshots-test",
       }),
       readAppOptions: () => ({}),
       createWsClient: () => ({
         isConnected: () => true,
-        getConnectionStatus: () => ({ connected: true, disconnect_reason: null }) as const,
-        sendMessage: async <T>() => ({ type: "pong" } as T),
-        collectMessageEvents: async <T>() => ({ events: [] as T[], truncated: false })
-      })
+        getConnectionStatus: () =>
+          ({ connected: true, disconnect_reason: null }) as const,
+        sendMessage: async <T>() => ({ type: "pong" }) as T,
+        collectMessageEvents: async <T>() => ({
+          events: [] as T[],
+          truncated: false,
+        }),
+      }),
     });
 
     servers.push(runtime.app.server);
     const baseUrl = await startServer(runtime.app.server);
 
     const health = await fetch(`${baseUrl}/health`, {
-      headers: { authorization: "Bearer relay-token" }
+      headers: { authorization: "Bearer relay-token" },
     });
 
     expect(health.status).toBe(200);
@@ -123,17 +137,17 @@ describe("runtime bootstrap", () => {
         version: "1.2.3",
         uptime_s: expect.any(Number),
         file_access: "off",
-        snapshots: { files: 0, bytes: 0 }
-      }
+        snapshots: { files: 0, bytes: 0 },
+      },
     });
 
     const ws = await fetch(`${baseUrl}/ws`, {
       method: "POST",
       headers: {
         authorization: "Bearer relay-token",
-        "content-type": "application/json"
+        "content-type": "application/json",
       },
-      body: JSON.stringify({ type: "ping" })
+      body: JSON.stringify({ type: "ping" }),
     });
 
     expect(runtime.upstreamAuth.source).toBe("env_ha_llat");
@@ -142,13 +156,14 @@ describe("runtime bootstrap", () => {
     await expect(ws.json()).resolves.toEqual({
       ok: true,
       data: {
-        type: "pong"
-      }
+        type: "pong",
+      },
     });
   });
 
   it("forwards /core through injected rest client", async () => {
-    const seenRequests: Array<{ method: string; path: string; body: unknown }> = [];
+    const seenRequests: Array<{ method: string; path: string; body: unknown }> =
+      [];
 
     const runtime = bootstrapRuntime({
       loadEnv: () => ({
@@ -156,33 +171,38 @@ describe("runtime bootstrap", () => {
         haLlat: "env-llat",
         haUrl: "http://supervisor/core",
         relayVersion: "1.2.3",
+        cloudRemoteEnabled: false,
         appOptionsPath: "/data/options.json",
         relayPort: 8791,
         logLevel: "info",
-        snapshotDir: "/tmp/nova-snapshots-test"
+        snapshotDir: "/tmp/nova-snapshots-test",
       }),
       readAppOptions: () => ({}),
       createWsClient: () => ({
         isConnected: () => true,
-        getConnectionStatus: () => ({ connected: true, disconnect_reason: null }) as const,
-        sendMessage: async <T>() => ({ type: "pong" } as T),
-        collectMessageEvents: async <T>() => ({ events: [] as T[], truncated: false })
+        getConnectionStatus: () =>
+          ({ connected: true, disconnect_reason: null }) as const,
+        sendMessage: async <T>() => ({ type: "pong" }) as T,
+        collectMessageEvents: async <T>() => ({
+          events: [] as T[],
+          truncated: false,
+        }),
       }),
       createRestClient: () => ({
         request: async (input) => {
           seenRequests.push({
             method: input.method,
             path: input.path,
-            body: input.body
+            body: input.body,
           });
           return {
             status: 200,
             body: {
-              echoed: input.path
-            }
+              echoed: input.path,
+            },
           };
-        }
-      })
+        },
+      }),
     });
 
     servers.push(runtime.app.server);
@@ -192,12 +212,12 @@ describe("runtime bootstrap", () => {
       method: "POST",
       headers: {
         authorization: "Bearer relay-token",
-        "content-type": "application/json"
+        "content-type": "application/json",
       },
       body: JSON.stringify({
         method: "GET",
-        path: "/api/states"
-      })
+        path: "/api/states",
+      }),
     });
 
     expect(core.status).toBe(200);
@@ -206,22 +226,28 @@ describe("runtime bootstrap", () => {
       data: {
         status: 200,
         body: {
-          echoed: "/api/states"
-        }
-      }
+          echoed: "/api/states",
+        },
+      },
     });
     expect(seenRequests).toEqual([
       {
         method: "GET",
         path: "/api/states",
-        body: undefined
-      }
+        body: undefined,
+      },
     ]);
   });
 
   it("logs startup auth context and listens successfully in full mode", async () => {
-    const infoLogs: Array<{ message: string; context: Record<string, unknown> | undefined }> = [];
-    const warnLogs: Array<{ message: string; context: Record<string, unknown> | undefined }> = [];
+    const infoLogs: Array<{
+      message: string;
+      context: Record<string, unknown> | undefined;
+    }> = [];
+    const warnLogs: Array<{
+      message: string;
+      context: Record<string, unknown> | undefined;
+    }> = [];
     let listenCalledWithPort: number | null = null;
 
     const result = await startRelay({
@@ -230,17 +256,22 @@ describe("runtime bootstrap", () => {
         haLlat: "env-llat",
         haUrl: "http://supervisor/core",
         relayVersion: "1.2.3",
+        cloudRemoteEnabled: false,
         appOptionsPath: "/data/options.json",
         relayPort: 8791,
         logLevel: "info",
-        snapshotDir: "/tmp/nova-snapshots-test"
+        snapshotDir: "/tmp/nova-snapshots-test",
       }),
       readAppOptions: () => ({}),
       createWsClient: () => ({
         isConnected: () => true,
-        getConnectionStatus: () => ({ connected: true, disconnect_reason: null }) as const,
-        sendMessage: async <T>() => ({ type: "pong" } as T),
-        collectMessageEvents: async <T>() => ({ events: [] as T[], truncated: false })
+        getConnectionStatus: () =>
+          ({ connected: true, disconnect_reason: null }) as const,
+        sendMessage: async <T>() => ({ type: "pong" }) as T,
+        collectMessageEvents: async <T>() => ({
+          events: [] as T[],
+          truncated: false,
+        }),
       }),
       logger: {
         info: (message, context) => {
@@ -249,11 +280,11 @@ describe("runtime bootstrap", () => {
         warn: (message, context) => {
           warnLogs.push({ message, context });
         },
-        error: () => {}
+        error: () => {},
       },
       listen: async (_server, port) => {
         listenCalledWithPort = port;
-      }
+      },
     });
 
     expect(result.upstreamAuth.source).toBe("env_ha_llat");
@@ -269,10 +300,12 @@ describe("runtime bootstrap", () => {
         auth_capability: "full",
         file_access: "off",
         config_root: null,
-        snapshot_dir: "/tmp/nova-snapshots-test"
-      }
+        snapshot_dir: "/tmp/nova-snapshots-test",
+      },
     });
-    const pairingLog = infoLogs.find(({ message }) => message === "Pairing code ready");
+    const pairingLog = infoLogs.find(
+      ({ message }) => message === "Pairing code ready",
+    );
     expect(pairingLog?.context?.pairing_code).toMatch(/^\d{6}$/);
     expect(pairingLog?.context?.expires_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     expect(JSON.stringify(infoLogs)).not.toContain("relay-token");
@@ -281,7 +314,7 @@ describe("runtime bootstrap", () => {
 });
 
 async function startServer(
-  server: ReturnType<typeof bootstrapRuntime>["app"]["server"]
+  server: ReturnType<typeof bootstrapRuntime>["app"]["server"],
 ): Promise<string> {
   const address = await new Promise<{ port: number }>((resolve, reject) => {
     server.listen(0, "127.0.0.1", () => {

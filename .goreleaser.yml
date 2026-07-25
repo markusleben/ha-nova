@@ -13,6 +13,8 @@ builds:
     goarch:
       - amd64
       - arm64
+    tags:
+      - cloudremote_official
     ldflags:
       - -s -w -X main.Version={{.Version}}
 
@@ -27,6 +29,8 @@ builds:
     goarch:
       - amd64
       - arm64
+    tags:
+      - cloudremote_official
     ignore:
       - goos: windows
         goarch: arm64

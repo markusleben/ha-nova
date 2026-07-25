@@ -32,7 +32,7 @@ const pluginJson = readJSON(".claude-plugin/plugin.json");
 const marketplaceJson = readJSON(".claude-plugin/marketplace.json");
 
 const expectedVersion = versionJson.skill_version;
-if (!/^\d+\.\d+\.\d+$/.test(expectedVersion)) {
+if (!/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(expectedVersion)) {
   fail(`version.json skill_version must be semver, got ${expectedVersion}`);
 }
 
@@ -58,10 +58,10 @@ assertEqual(".claude-plugin/marketplace.json plugins[0].version", pluginEntry.ve
 assertEqual(".claude-plugin/marketplace.json plugins[0].source", pluginEntry.source, "./");
 
 if (rawTag) {
-  if (!/^v\d+\.\d+\.\d+(?:-rc\d+)?$/.test(rawTag)) {
+  if (!/^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-rc[1-9]\d*)?$/.test(rawTag)) {
     fail(`tag must match vX.Y.Z or vX.Y.Z-rcN, got ${rawTag}`);
   }
-  const tagBaseVersion = rawTag.slice(1).replace(/-rc\d+$/, "");
+  const tagBaseVersion = rawTag.slice(1).replace(/-rc[1-9]\d*$/, "");
   assertEqual("tag/version.json base version", tagBaseVersion, expectedVersion);
 }
 

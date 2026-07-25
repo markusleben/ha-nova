@@ -2,7 +2,7 @@ package main
 
 import (
 	"bufio"
-	"errors"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -41,6 +41,29 @@ func runServerRemove(paths runtimePaths, args []string) int {
 	}
 	if !doc.hasProfile(name) {
 		unknownServerProfileError(doc, name)
+		return 1
+	}
+	retirementPending, retirementErr :=
+		deviceCredentialRetirementCheckpointExistsForProfile(paths, name)
+	if retirementErr != nil || retirementPending {
+		if retirementErr != nil {
+			printHumanErr("cannot inspect pending device retirement for server profile %q (%v); nothing was removed", name, retirementErr)
+		} else {
+			printHumanErr("server profile %q has a pending device retirement; run `%s` to finish it before removing the profile. Nothing was removed.", name, deviceRetirementSetupCommand(name))
+		}
+		return 1
+	}
+	hasCloudState, cloudStateErr := serverProfileContainsCloudState(doc, name)
+	if cloudStateErr != nil {
+		printHumanErr("cannot safely inspect Home Assistant Cloud state for server profile %q (%v); nothing was removed", name, cloudStateErr)
+		return 1
+	}
+	if hasCloudState {
+		if len(doc.profileNames()) == 1 {
+			printHumanErr("%q is the only server profile and still has Home Assistant Cloud state. Revoke its authorization and remove HA NOVA with: ha-nova uninstall --purge", name)
+			return 1
+		}
+		printHumanErr("server profile %q still has Home Assistant Cloud state; remove Cloud access first so its native secure-storage credentials are not stranded. Nothing was removed.", name)
 		return 1
 	}
 	if len(doc.profileNames()) == 1 {
@@ -123,16 +146,6 @@ func runServerRemove(paths runtimePaths, args []string) int {
 		if readErr == errSecretNotFound {
 			continue
 		}
-		// Reachability sentinel + a markerless raw slot file: the purge below
-		// deletes raw files directly, and the keyring layer cannot be cleaned
-		// from this session either way — warn and proceed (mirrors the rename
-		// rule). Without a raw file there is nothing deletable here: abort.
-		unreachable := errors.Is(readErr, errDesktopKeyringSessionUnavailable) || errors.Is(readErr, errDesktopKeyringUnavailable)
-		if unreachable && !deviceFileBackendMarkerExists() && profileHasRawSlotFile(services) {
-			credentialSnapshotReliable = false
-			printHumanWarn("secure storage is not reachable here (%v); any keyring credential stored for %q by an earlier desktop pairing is not deleted — clean it from the desktop session if one exists.", readErr, name)
-			break
-		}
 		printHumanErr("secure storage is not reachable here (%v) — removing %q now would leave its stored credential behind. Make secure storage available (e.g. run from the desktop session), then retry; nothing was removed.", readErr, name)
 		return 1
 	}
@@ -154,6 +167,12 @@ func runServerRemove(paths runtimePaths, args []string) int {
 	defer releaseMutation()
 	if err := ensureUpdateLifecycleCurrent(paths, removeLifecycleGeneration); err != nil {
 		printHumanErr("HA NOVA install lifecycle changed while awaiting confirmation; nothing was removed")
+		return 1
+	}
+	retirementPending, retirementErr =
+		deviceCredentialRetirementCheckpointExistsForProfile(paths, name)
+	if retirementErr != nil || retirementPending {
+		printHumanErr("pending device retirement changed while awaiting confirmation; nothing was removed")
 		return 1
 	}
 	currentDoc, currentOK := loadServerConfigDocument(paths)
@@ -199,10 +218,6 @@ func runServerRemove(paths runtimePaths, args []string) int {
 			}
 			continue
 		}
-		unreachable := errors.Is(readErr, errDesktopKeyringSessionUnavailable) || errors.Is(readErr, errDesktopKeyringUnavailable)
-		if unreachable && !deviceFileBackendMarkerExists() && profileHasRawSlotFile(services) {
-			break
-		}
 		printHumanErr("secure storage changed while awaiting confirmation; nothing was removed")
 		return 1
 	}
@@ -217,6 +232,11 @@ func runServerRemove(paths runtimePaths, args []string) int {
 		printHumanErr("cannot update the server configuration: %v — nothing was removed.", err)
 		return 1
 	}
+	originalServers, err := documentServersCopy(doc)
+	if err != nil {
+		printHumanErr("cannot preserve the server configuration: %v — nothing was removed.", err)
+		return 1
+	}
 	delete(servers, name)
 	if err := writeServersDocument(paths, doc, servers, newDefault); err != nil {
 		printHumanErr("cannot save the server configuration: %v — nothing was removed; fix the error and run the remove again.", err)
@@ -225,17 +245,61 @@ func runServerRemove(paths runtimePaths, args []string) int {
 
 	// Now revoke against THIS profile's pinned endpoint and drop both slots.
 	report := &uninstallReport{}
-	purgeProfileDeviceCredentialWithReport(profilePurgeTarget{
-		name:          name,
-		secureBaseURL: strings.TrimSpace(cfg.RelaySecureBaseURL),
-		spkiPin:       strings.TrimSpace(cfg.RelaySpkiPin),
+	purgeErr := purgeProfileDeviceCredentialWithReport(profilePurgeTarget{
+		name:                 name,
+		secureBaseURL:        strings.TrimSpace(cfg.RelaySecureBaseURL),
+		spkiPin:              strings.TrimSpace(cfg.RelaySpkiPin),
+		pendingSecureBaseURL: strings.TrimSpace(cfg.PendingSecureBaseURL),
+		pendingSpkiPin:       strings.TrimSpace(cfg.PendingSpkiPin),
 	}, report, false)
+	if purgeErr != nil {
+		restoreErr := writeServersDocument(
+			paths,
+			doc,
+			originalServers,
+			currentDefault,
+		)
+		report.printDetails()
+		if restoreErr != nil {
+			printHumanErr(
+				"server credential cleanup failed: %v; restoring its configuration also failed: %v",
+				purgeErr,
+				restoreErr,
+			)
+		} else {
+			printHumanErr(
+				"server credential cleanup failed: %v; its configuration was restored for a safe retry",
+				purgeErr,
+			)
+		}
+		return 1
+	}
 	report.printDetails()
 	printHumanInfo("Removed server profile %q.", name)
 	if newDefault != doc.defaultServerName() {
 		printHumanInfo("default_server was reset to %q.", newDefault)
 	}
 	return 0
+}
+
+func serverProfileContainsCloudState(doc *configDocument, name string) (bool, error) {
+	if doc.servers == nil {
+		raw, exists := doc.top["cloud"]
+		return exists && strings.TrimSpace(string(raw)) != "null", nil
+	}
+	raw, exists := doc.servers[name]
+	if !exists {
+		return false, nil
+	}
+	var profile map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &profile); err != nil {
+		return false, err
+	}
+	if profile == nil {
+		return false, fmt.Errorf("server profile is null")
+	}
+	cloud, exists := profile["cloud"]
+	return exists && strings.TrimSpace(string(cloud)) != "null", nil
 }
 
 // readServerRemoveConfirmation prompts on stdout and reads one line from

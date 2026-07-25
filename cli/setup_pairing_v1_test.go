@@ -81,12 +81,13 @@ func TestSetupPairingLegacyExchangeRejectsStaleLifecycle(t *testing.T) {
 		return "legacy-token", nil
 	}
 
-	reader := bufio.NewReader(strings.NewReader("\n473921\nexit\n"))
+	reader := bufio.NewReader(strings.NewReader("\n473921\n"))
 	cfg := &runtimeConfig{RelayBaseURL: "http://relay:8791"}
 	var out strings.Builder
 	_, err := runSetupPairingFlow(reader, &out, paths, cfg, false, lifecycleMarker...)
-	if !errors.Is(err, errSetupExit) {
-		t.Fatalf("expected setup to stop after the stale exchange was rejected, got %v", err)
+	if err == nil ||
+		!strings.Contains(err.Error(), "setup was superseded by an uninstall") {
+		t.Fatalf("expected the stale lifecycle error immediately, got %v", err)
 	}
 	if exchangeCalled {
 		t.Fatal("legacy /pair exchange consumed a code after the setup lifecycle changed")

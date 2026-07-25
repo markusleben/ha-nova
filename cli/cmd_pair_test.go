@@ -2,6 +2,7 @@ package main
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -38,5 +39,45 @@ func TestRunPairCommandPersistsRelayURLFlagOnExistingConfig(t *testing.T) {
 	}
 	if saved.RelayBaseURL != "http://new:8791" {
 		t.Fatalf("persisted config kept the old URL: got %q", saved.RelayBaseURL)
+	}
+}
+
+func TestRunPairCommandRejectsCloudBeforeMigrationOrPrompt(t *testing.T) {
+	withDeviceStorageTestHome(t)
+	resetKeyringDeviceSlots(t)
+	resetServerProfileSelection(t)
+	paths := setupServerCommandTest(t, `{"schema_version":1}`)
+	cfg := pendingCloudOnlyCommandConfig(cloudStateAuthorizing)
+	cfg.RelayBaseURL = "http://relay:8791"
+	if err := saveConfig(paths, cfg); err != nil {
+		t.Fatal(err)
+	}
+	current := validCredential(28)
+	if err := writeDeviceCredential(current); err != nil {
+		t.Fatal(err)
+	}
+
+	exit, output := captureCommandOutput(t, func() int {
+		return runPairCommand(
+			paths,
+			[]string{"--credential-store", "file"},
+		)
+	})
+	if exit != 1 ||
+		!strings.Contains(output, "Cloud access is configured") ||
+		strings.Contains(output, "Six-digit code") {
+		t.Fatalf("Cloud-guarded pair exit=%d output=%s", exit, output)
+	}
+	if deviceFileBackendMarkerExists() {
+		t.Fatal("blocked pair changed the credential backend")
+	}
+	got, exists, err := readDeviceCredential()
+	if err != nil || !exists || got != current {
+		t.Fatalf(
+			"blocked pair migrated credential=%q exists=%v err=%v",
+			got,
+			exists,
+			err,
+		)
 	}
 }

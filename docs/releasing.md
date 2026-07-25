@@ -142,6 +142,220 @@ bypass the ruleset — pushes the tag, and `release.yml` does the rest. GoReleas
 is pinned to the pushed tag via `GORELEASER_CURRENT_TAG`, so an `-rcN` tag and
 the final tag may safely point at the same commit.
 
+### Home Assistant Cloud publication gate
+
+`version.json` is the release switch. While `cloud_remote_enabled` is `false`,
+`cloud_remote_platforms` must be empty and no external Cloud evidence is
+required. A release cannot advertise Cloud remote support merely because the
+implementation exists in the tree.
+
+Enabling the switch requires a non-empty, duplicate-free subset of `darwin`,
+`linux`, and `windows`. The `production` GitHub environment must first be
+protected by exactly two typed custom deployment refs: branch `main` and tag
+`v*`; protected-branch mode and every other branch/tag are forbidden. Verify
+the live state with:
+
+```bash
+bash scripts/release/verify-github-production-environment.sh
+```
+
+An unprotected or drifting environment is an activation and release blocker:
+the trusted source gate and both release workflows run this verifier before
+reading Cloud evidence or using production secrets. The verifier is read-only;
+fix the environment in GitHub settings, then rerun it.
+
+The required `cloud-source-gate` is emitted by the dedicated
+`markusleben-ha-nova-cloud-source-gate` GitHub App after a trusted
+default-branch `workflow_run`. The broker runs after `CI` for pull requests and
+merge groups, including Dependabot runs; it never reads upstream artifacts or
+caches, checks out PR code, or executes a target path. It independently
+resolves the current PR head and base, fetches GitHub's merge ref, verifies its
+two parents, and materializes only its three release metadata files for
+parsing. The first resolved merge SHA is passed to the verifier as an exact
+target. The broker then re-reads the PR identity, immediately re-fetches the
+same merge ref, and performs one final current-PR identity resolution before
+reporting; a regenerated or moved ref and a no-longer-current PR fail.
+Merge-queue runs apply the same final ref check and bind and report the exact
+queue SHA. Workflow comparison is data-only through trusted Git commands and
+the trusted default-branch helper.
+
+The App is installed only on this repository and has only Metadata read,
+Administration read, and Checks write. Administration is read-only and exists
+solely so every broker run can reject non-strict branch protection, a missing
+required context, or a context not pinned to the exact App ID before reporting
+success. Its private key and App ID are `production` environment secrets named
+`HA_NOVA_CLOUD_SOURCE_CHECK_APP_PRIVATE_KEY` and
+`HA_NOVA_CLOUD_SOURCE_CHECK_APP_ID`. The ordinary Actions token cannot emit the
+required context. Dependabot auto-merge re-evaluates when the App check
+completes, but a read-only first job authenticates its exact name, App ID, and
+App slug before any write-capable job can start.
+
+While the target enables Cloud, the evidence
+always binds its own exact evidence commit and full source tree. It may cover a
+newer target only when that evidence commit is an ancestor and the complete
+evidence-to-target tree delta consists exclusively of the permitted existing
+non-sensitive `uses:` version changes. Such a change must retain the action
+identity, move forward within the same major release, use full commit SHAs, and
+have both SHAs resolve to their stated canonical `vX.Y.Z` release tags through
+the GitHub API. Workflow additions,
+deletions, renames, file-mode changes, changes to `cloud-source-gate.yml`,
+`ci.yml`, `release.yml`, or `release-candidate.yml`, and every non-`uses:`
+workflow change fail closed. This preserves the reviewed Dependabot GitHub
+Actions minor/patch lane without allowing mutable action refs or arbitrary
+commits under stale evidence. Disabled targets remain compatible with normal
+reviewed workflow maintenance.
+
+The broker and both release workflows require
+`HA_NOVA_CLOUD_GATE_EVIDENCE_JSON` from the `production` environment. The
+normal CI job reads the repository secret only for direct `main` pushes; pull
+requests and merge groups are covered by the trusted broker, so Dependabot
+never needs a repository secret. Disabled metadata exits before reading the
+value. All paths run:
+
+```bash
+bash scripts/release/verify-cloud-release-gate.sh
+```
+
+Before enabling the required check, create the private GitHub App with the
+exact slug `markusleben-ha-nova-cloud-source-gate` and the permissions above,
+install it only on this repository, and store its App ID and private key in the
+two `production` environment secrets. Let the broker emit one expected failing
+disabled canary so GitHub registers the App check. While the check is not yet
+required, replace the intentionally unprovisioned `0` App ID in
+`.github/policy/repo-policy.json` through a reviewed PR. After that policy is on
+`main`, select the specific App as the expected source for
+`cloud-source-gate`, enable strict up-to-date checks and stale-review
+dismissal, and rerun CI on a disabled test PR. Exercise one disabled Dependabot
+PR and run `bash scripts/release/verify-github-main-protection.sh`. The broker
+and verifier both reject a non-strict policy, an unprovisioned ID, and every
+different or unbound `app_id`. Do not open an activation PR until the live
+source check and Dependabot reevaluation are proven.
+
+The JSON is commit-specific and has this exact schema:
+
+```json
+{
+  "schema": 2,
+  "commit_sha": "<exact-40-character-evidence-commit>",
+  "tree_sha": "<exact-40-character-full-source-tree>",
+  "relay_app": {
+    "version": "<nova/config.yaml version at the evidence commit>",
+    "source_commit": "<same exact evidence commit>",
+    "source_tree_sha": "<same exact full-source tree>"
+  },
+  "checks": {
+    "parity": true,
+    "stress_10000": true,
+    "keyrings": {
+      "linux": true
+    },
+    "roles": true,
+    "domains_mfa": true,
+    "lifecycle": true,
+    "redirects_non_disclosure": true,
+    "installed_relay_app": true,
+    "routing": true,
+    "signing_and_update_matrix": true
+  }
+}
+```
+
+The `keyrings` keys must exactly match `cloud_remote_platforms`. Each `true`
+value attests the complete real-device matrix rather than a unit-test proxy:
+
+- `parity`: `/health`, `/ws`, `/core`, `/files`, and `/backups` through real
+  Home Assistant Cloud;
+- `stress_10000`: one bounded Ingress-session stress run with 10,000 commands;
+- `keyrings`: real lock, unlock, cancellation, timeout, and no-UI behavior on
+  each enabled platform;
+- `roles`: Owner, admin, standard, and read-only user binding;
+- `domains_mfa`: default/custom domains, MFA, inactive subscription, disabled
+  remote access, and authorization abort;
+- `lifecycle`: durable-boundary recovery, reconnect, revoke, restart, update,
+  reinstall, instance mismatch, standard uninstall, and full purge;
+- `redirects_non_disclosure`: redirect rejection plus credential absence from
+  config, argv, logs, diagnostics, and AI-visible output;
+- `installed_relay_app`: the App installed for the real-device proof was built
+  by Supervisor from the exact reviewed source commit, reports the exact
+  `nova/config.yaml` version, and contains the reviewed Cloud endpoints;
+- `routing`: automatic fallback only before functional dispatch; and
+- `signing_and_update_matrix`: stable signing identity plus the complete
+  stable/RC/reinstall Keychain authorization matrix.
+
+The checked-out `HEAD` must equal `GITHUB_SHA`; `commit_sha` and `tree_sha` must
+exactly identify the evidence commit and its full Git tree. They may differ
+from the target only through the ancestor-bound safe `uses:` normalization
+described above. Every other earlier evidence is rejected, including for an
+apparently metadata-only activation: `nova/version.json` is copied into the App
+and directly controls its Cloud runtime, so evidence from the disabled source
+cannot attest the enabled runtime. The activation PR must reach a stable head,
+but in `pull_request` CI that checked-out head is GitHub's synthetic
+`refs/pull/<number>/merge` commit, not the PR branch head. Product, release
+metadata, or sensitive workflow changes require the enabled real-device matrix
+on that exact merge commit, followed by a repository-secret update and a CI
+rerun without changing the PR or its base. If the merge commit changes, repeat
+the proof. A target containing only the narrowly verified existing
+non-sensitive `uses:` version changes may reuse evidence from its exact
+ancestor instead. If a merge queue is used, `merge_group` creates another
+synthetic checkout commit and follows the same rule.
+
+After squash merge, the resulting `main` commit has a different SHA. For any
+product or metadata delta, its first push CI run fails closed with the PR
+evidence: run the matrix again on that exact `main` commit, update both the
+repository and production environment secrets, and rerun CI before release
+preparation continues. A squash or merge containing only the verified safe
+`uses:`-version delta may reuse exact ancestor evidence. Every other later
+enabled commit requires fresh evidence. This also closes direct-to-main
+App-source and unknown-path bypasses.
+
+`relay_app.source_commit` and `relay_app.source_tree_sha` must repeat the
+top-level identity, and the evidence App version must equal its
+`nova/config.yaml`. The current App has no
+prebuilt `image` in `nova/config.yaml`, so Supervisor builds it locally from
+source and there is no published App artifact hash to attest. The verifier
+validates the JSON without printing it.
+
+While Cloud remote is enabled, `min_relay_version` must equal the App version
+in `nova/config.yaml`, and that version must be newer than the pre-Cloud
+`0.7.1` App. Darwin remains structurally blocked until the release workflow
+code-signs and verifies its Mach-O artifacts; evidence booleans cannot bypass
+that missing delivery mechanism.
+
+At runtime, release Cloud support also requires an exact installed bundle. The
+linker and `bundle.json` versions must match exactly as `X.Y.Z` or
+`X.Y.Z-rcN`; `version.json.skill_version` must match their `X.Y.Z` base.
+Snapshots and every other suffix fail closed. Ordinary `go build` output is
+compile-time disabled. Official release builds require the
+`cloudremote_official` build tag and a bundle evidence signature that binds the
+exact binary SHA-256, version, OS, architecture, binary name, enabled platform
+list, and the exact current release source-tree SHA. This bundle provenance is
+never normalized to an ancestor. Either guard missing or mismatched disables
+Cloud Remote.
+
+The Ed25519 public key is compiled into the client; the private key must exist
+only as the protected production-environment secret
+`HA_NOVA_CLOUD_RELEASE_SIGNING_KEY_PEM`. Key provisioning or rotation is a
+security-sensitive reviewed source change: generate the key offline, store
+only its public half in source, install the private PEM in the production
+environment, build a non-public RC, verify every platform, then retire the old
+private key. Never commit or log a private key. The current public key is
+intentionally unprovisioned while the feature metadata is disabled, so merely
+flipping mutable metadata cannot activate production Cloud support.
+
+The manual RC workflow requires an exact `vX.Y.Z-rcN` input and builds that
+exact linker version with the official tag before bundling. It never uses a
+GoReleaser snapshot. Each bundle smoke derives its own platform from the
+runner. A platform listed in `cloud_remote_platforms` must pass
+`internal-cloud-release-check`; every disabled or unlisted platform must fail
+that check. Because enabled metadata requires a non-empty platform list and
+the matrix covers every supported platform, at least one enabled-platform
+provenance check must pass.
+
+The tagged release workflow repeats this check against the exact downloadable
+draft bundle asset on Linux, macOS, and Windows after upload and before the
+draft can be published. Publication depends on all three jobs: listed platforms
+must pass provenance and unlisted platforms must remain fail-closed.
+
 **Rehearsal steps.** Keep one immutable `release_sha`: the reviewed merge SHA
 from `main`. No local-only delta may enter any deploy or tag. Steps 1–2 precede
 the RC; steps 3–4 are the RC itself when required; step 5 applies when the
@@ -311,21 +525,23 @@ macOS self-managed lifecycle:
 10. confirm standard uninstall removed runtime/state/cache and kept the Home Assistant config/token
 11. reinstall the runtime, then run `ha-nova uninstall --yes --purge`
 12. confirm purge removed runtime/config/state/cache, deleted the relay auth token, and reported only the two opaque uninstall-safety markers retained outside managed directories
+13. when Home Assistant Cloud support changes, configure a real Cloud profile before the stable-to-RC update, run `ha-nova cloud unlock` after each stable-to-RC, RC-to-stable, and reinstall transition, and confirm the selected existing current/pending Keychain slot works afterward with ordinary no-UI `cloud status`
+14. confirm each selected current/pending/retiring slot opens at most one native prompt in a foreground action, the total prompt count stays bounded by those selected slots, and no refresh token appears in argv, environment, logs, diagnostics, or command output; current unsigned macOS artifacts cannot enable Cloud Beta, so a stable signing identity and this successful update proof are both mandatory
 
 Linux real-machine onboarding:
 Helper:
 - use `scripts/smoke/linux-headless-setup-check.sh` as the executable assistant for the SSH/headless Linux lane; pass the host and install command via env, never hardcode host-specific details in the repo
 - by default the helper runs `HA_NOVA_NO_BROWSER=1 ha-nova setup`; for Google Antigravity proof, use `npm run test:desktop:linux:antigravity` or set `HA_NOVA_LIVE_SETUP_CMD='HA_NOVA_NO_BROWSER=1 ha-nova setup antigravity'`; for Hermes desktop-keyring proof, set `HA_NOVA_LIVE_SETUP_CMD='HA_NOVA_NO_BROWSER=1 ha-nova setup hermes'`; for Hermes service/gateway proof, set `HA_NOVA_LIVE_SETUP_CMD='HA_NOVA_NO_BROWSER=1 ha-nova setup --service hermes'`
 - `HA_NOVA_LIVE_SKIP_INSTALL=1` is for repair/debug passes only; it does not satisfy the full release-bound fresh-install proof for this lane
-1. use a real Linux host with a desktop user session; when validating the SSH/headless recovery path, use an SSH shell inside that same logged-in user session
+1. use a real Linux host with a local graphical desktop session; validate the fail-closed SSH/headless path separately
 2. fresh stable install via the public `install.sh` flow
 3. confirm Home Assistant auto-discovery prefers a real reachable result over an unverified `.local` guess when Avahi/mDNS evidence exists
 4. if secure storage is unavailable because no Secret Service provider is running, confirm setup fails with the explicit provider prerequisite message instead of raw `org.freedesktop.secrets` D-Bus text
-5. if secure storage is present but the default collection is still locked or uninitialized and the active Secret Service owner is GNOME Keyring, confirm interactive `ha-nova setup` offers the built-in local secure-storage recovery step before host/token work
-6. if the same locked/uninitialized state exists on a non-GNOME Secret Service backend, confirm setup stays fail-loud with the explicit prerequisite guidance and does not pretend inline recovery is available
-7. confirm the locked-flow copy asks for the existing local Linux keyring password, while the uninitialized-flow copy asks the user to create and confirm a new local Linux keyring password
-8. confirm a wrong local keyring password keeps the user on the locked recovery step with a clear local secure-storage error, and confirm a correct password unlocks the keyring and resumes setup
-9. confirm the fresh-init recovery path can create the default GNOME Keyring collection headlessly over SSH and then resumes setup without sending the user to a desktop GUI
+5. with GNOME Keyring and KWallet Secrets, confirm a locked or uninitialized default collection makes local interactive `ha-nova setup` offer native Secret Service recovery before host/token work
+6. confirm the CLI terminal never asks for, reads, or confirms the keyring master password; the provider-owned desktop prompt is the only place that may request it
+7. confirm one setup action opens at most one provider-owned prompt: Unlock for a locked collection or CreateCollection for an uninitialized collection
+8. dismiss the provider prompt and confirm setup stays on the matching recovery state; complete the prompt and confirm setup resumes
+9. confirm SSH (including X11 forwarding), a text console, a non-graphical `XDG_SESSION_TYPE`, a missing explicit `DBUS_SESSION_BUS_ADDRESS`, and a non-TTY run never launch a prompt and fail with local graphical-session guidance; confirm an unanswered prompt times out instead of hanging
 10. finish setup, then run `ha-nova doctor`
 11. if the lane includes Hermes or a pre-fix Hermes bundle, confirm `ha-nova doctor` reports a repairable Hermes mismatch instead of silently hiding it
 12. run `ha-nova setup hermes` and confirm the Hermes route repairs cleanly

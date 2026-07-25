@@ -20,6 +20,17 @@ if [[ -z "$MIN_RELAY_VERSION" ]]; then
   echo "[ha-nova] Version metadata is missing." >&2
   exit 1
 fi
+CLOUD_REMOTE_ENABLED="$(
+  node -e '
+    const metadata = JSON.parse(require("node:fs").readFileSync("/app/version.json", "utf8"));
+    if (metadata.cloud_remote_enabled !== true && metadata.cloud_remote_enabled !== false) {
+      process.stderr.write("[ha-nova] cloud_remote_enabled must be a boolean in /app/version.json.\n");
+      process.exit(1);
+    }
+    process.stdout.write(String(metadata.cloud_remote_enabled));
+  '
+)"
+export CLOUD_REMOTE_ENABLED
 if [[ -z "${HA_URL:-}" ]]; then
   if [[ -n "${SUPERVISOR_TOKEN:-}" ]]; then
     export HA_URL="http://supervisor/core"

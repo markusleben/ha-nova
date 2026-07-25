@@ -384,7 +384,52 @@ func finalizeLocalUninstallWithProgress(paths runtimePaths, state installState, 
 func finalizeLocalUninstallWithProgressUnlocked(paths runtimePaths, state installState, report *uninstallReport, mode uninstallMode, beforeStep func(string) error, relayAlreadyRemoved bool) error {
 	relayTokenFile := ""
 	var purgeTargets []profilePurgeTarget
+	retirementProfiles, err :=
+		deviceCredentialRetirementCheckpointProfiles(paths)
+	if err != nil {
+		return err
+	}
+	if mode != uninstallModePurge && len(retirementProfiles) > 0 {
+		return fmt.Errorf(
+			"device credential retirement is pending for server %q; run `%s` to finish it before uninstalling, or use `ha-nova uninstall --purge`",
+			retirementProfiles[0],
+			deviceRetirementSetupCommand(retirementProfiles[0]),
+		)
+	}
 	if mode == uninstallModePurge {
+		// Validate the whole raw Cloud identity set before any external revoke
+		// or local deletion. Duplicate profile IDs must fail closed globally.
+		if _, err := collectCloudPurgeTargets(paths.ConfigFile); err != nil {
+			return fmt.Errorf(
+				"failed to inspect Home Assistant Cloud authorization: %w",
+				err,
+			)
+		}
+		if err := settleDeviceCredentialRetirementsForPurge(
+			paths,
+			report,
+			relayAlreadyRemoved,
+		); err != nil {
+			return fmt.Errorf(
+				"failed to settle pending device retirement: %w",
+				err,
+			)
+		}
+		if beforeStep != nil {
+			if err := beforeStep("token_cleanup"); err != nil {
+				return fmt.Errorf("failed before token_cleanup: %w", err)
+			}
+		}
+		if err := purgeCloudAuthorizationsForUninstall(
+			paths,
+			report,
+			relayAlreadyRemoved,
+		); err != nil {
+			return fmt.Errorf(
+				"failed to revoke Home Assistant Cloud authorization: %w",
+				err,
+			)
+		}
 		// Read the raw config document: token-file cleanup must not depend on
 		// setup completeness (loadConfig fails when relay_base_url is missing,
 		// which would silently skip service token file removal on purge).
@@ -403,15 +448,30 @@ func finalizeLocalUninstallWithProgressUnlocked(paths runtimePaths, state instal
 					continue
 				}
 				purgeTargets = append(purgeTargets, profilePurgeTarget{
-					name:          name,
-					secureBaseURL: strings.TrimSpace(cfg.RelaySecureBaseURL),
-					spkiPin:       strings.TrimSpace(cfg.RelaySpkiPin),
+					name:                 name,
+					secureBaseURL:        strings.TrimSpace(cfg.RelaySecureBaseURL),
+					spkiPin:              strings.TrimSpace(cfg.RelaySpkiPin),
+					pendingSecureBaseURL: strings.TrimSpace(cfg.PendingSecureBaseURL),
+					pendingSpkiPin:       strings.TrimSpace(cfg.PendingSpkiPin),
 				})
 			}
 		}
 		if len(purgeTargets) == 0 {
 			// Config gone or unreadable: still clear the active profile's slots.
 			purgeTargets = append(purgeTargets, profilePurgeTarget{name: activeServerProfile()})
+		}
+		// Native-store deletion can have an ambiguous outcome. Keep config.json
+		// as the durable retry target until every profile's device slots have
+		// been confirmed absent.
+		if err := purgeAllDeviceCredentialsWithReport(
+			purgeTargets,
+			report,
+			relayAlreadyRemoved,
+		); err != nil {
+			return fmt.Errorf(
+				"failed to remove device credentials: %w",
+				err,
+			)
 		}
 	}
 	if beforeStep != nil {
@@ -454,12 +514,6 @@ func finalizeLocalUninstallWithProgressUnlocked(paths runtimePaths, state instal
 		return fmt.Errorf("failed to remove managed cache artifacts: %w", err)
 	}
 	if mode == uninstallModePurge {
-		if beforeStep != nil {
-			if err := beforeStep("token_cleanup"); err != nil {
-				return fmt.Errorf("failed before token_cleanup: %w", err)
-			}
-		}
-		purgeAllDeviceCredentialsWithReport(purgeTargets, report, relayAlreadyRemoved)
 		tokenFileHandled := false
 		if relayTokenFile != "" {
 			var err error
@@ -492,6 +546,11 @@ func finalizeLocalUninstallWithProgressUnlocked(paths runtimePaths, state instal
 		if err := removeDirIfEmptyWithReport(paths.ConfigDir, report); err != nil {
 			return fmt.Errorf("failed to remove managed config directory: %w", err)
 		}
+	} else if cloudConfigurationExistsForUninstall(paths.ConfigFile) &&
+		deviceCredentialExistsForUninstall() {
+		report.addNote("Kept Home Assistant connection config, this device's pairing, and its Cloud authorization. Use 'ha-nova uninstall --purge' to remove and revoke them too.")
+	} else if cloudConfigurationExistsForUninstall(paths.ConfigFile) {
+		report.addNote("Kept Home Assistant connection config and its Cloud authorization. Use 'ha-nova uninstall --purge' to remove and revoke them too.")
 	} else if deviceCredentialExistsForUninstall() {
 		report.addNote("Kept Home Assistant connection config and this device's pairing. Use 'ha-nova uninstall --purge' to remove and revoke them too.")
 	} else if fileExists(paths.ConfigFile) || relayAuthTokenExistsForUninstall() {

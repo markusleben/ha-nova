@@ -12,9 +12,11 @@ var revokeSelfDeviceV1ForUninstall = revokeSelfDeviceV1
 // pinned endpoint its revoke must go to — each profile's device entry lives on
 // ITS relay, never on a sibling's.
 type profilePurgeTarget struct {
-	name          string
-	secureBaseURL string
-	spkiPin       string
+	name                 string
+	secureBaseURL        string
+	spkiPin              string
+	pendingSecureBaseURL string
+	pendingSpkiPin       string
 }
 
 // purgeDeviceCredentialWithReport revokes ONE profile's pairing on its relay
@@ -29,8 +31,12 @@ type profilePurgeTarget struct {
 // relayExpectedGone marks a run whose guided teardown already removed the App:
 // its device registry died with the App's data, so the NOVA-page hint makes no
 // sense there. The revoke itself is still attempted — see below.
-func purgeDeviceCredentialWithReport(secureBaseURL, spkiPin string, report *uninstallReport, relayExpectedGone bool) {
-	purgeProfileDeviceCredentialWithReport(profilePurgeTarget{
+func purgeDeviceCredentialWithReport(
+	secureBaseURL, spkiPin string,
+	report *uninstallReport,
+	relayExpectedGone bool,
+) error {
+	return purgeProfileDeviceCredentialWithReport(profilePurgeTarget{
 		name:          activeServerProfile(),
 		secureBaseURL: secureBaseURL,
 		spkiPin:       spkiPin,
@@ -41,21 +47,87 @@ func purgeDeviceCredentialWithReport(secureBaseURL, spkiPin string, report *unin
 // profile against that profile's pinned endpoint, delete every namespaced slot,
 // then sweep the remaining slot files, the machine-wide file-backend marker,
 // and the (then empty) secrets dir.
-func purgeAllDeviceCredentialsWithReport(targets []profilePurgeTarget, report *uninstallReport, relayExpectedGone bool) {
+func purgeAllDeviceCredentialsWithReport(
+	targets []profilePurgeTarget,
+	report *uninstallReport,
+	relayExpectedGone bool,
+) error {
 	for _, target := range targets {
-		purgeProfileDeviceCredentialWithReport(target, report, relayExpectedGone)
+		if err := purgeProfileDeviceCredentialWithReport(
+			target,
+			report,
+			relayExpectedGone,
+		); err != nil {
+			return err
+		}
 	}
-	removeAllDeviceFileStorageResidue()
+	return removeAllDeviceFileStorageResidue()
 }
 
-func purgeProfileDeviceCredentialWithReport(target profilePurgeTarget, report *uninstallReport, relayExpectedGone bool) {
+func purgeProfileDeviceCredentialWithReport(
+	target profilePurgeTarget,
+	report *uninstallReport,
+	relayExpectedGone bool,
+) error {
+	if _, err := resumeKeyringDeviceCredentialCleanup(); err != nil {
+		return fmt.Errorf(
+			"finish device credential migration cleanup before purging server %q: %w",
+			target.name,
+			err,
+		)
+	}
 	currentService := deviceCredentialServiceForProfile(target.name)
-	// The pending slot is purely local (never activated): just drop it.
-	_ = secretDelete(deviceCredentialPendingServiceForProfile(target.name))
-	// File-backed installs also leave the storage-mode marker; drop it (and the
-	// now-empty secrets dir) once NO profile's slots remain, so a later reinstall
-	// re-probes cleanly rather than inheriting a stale file-mode decision.
-	defer removeDeviceFileStorageResidueForProfile(target.name)
+	pendingService := deviceCredentialPendingServiceForProfile(target.name)
+	pendingUnreadable := false
+	pending, pendingExists, pendingErr :=
+		readPendingCredentialRecordFromService(pendingService)
+	if pendingErr != nil {
+		// A malformed pending value cannot be authenticated to a Relay. Preserve
+		// the previous cleanup behavior, but make the unrevoked deletion visible.
+		pendingUnreadable = true
+	} else if pendingExists &&
+		pending.Source == pendingDeviceCredentialSourceLocal {
+		pendingBaseURL := strings.TrimSpace(target.pendingSecureBaseURL)
+		pendingPin := strings.TrimSpace(target.pendingSpkiPin)
+		switch {
+		case pendingBaseURL != "" && pendingPin != "":
+			if err := revokeSelfDeviceV1ForUninstall(
+				pendingBaseURL,
+				pendingPin,
+				pending.Credential,
+			); err == nil {
+				report.addNote(
+					"Revoked the interrupted pending device pairing on the relay.",
+				)
+			} else if !relayExpectedGone {
+				report.addNote(fmt.Sprintf(
+					"Could not reach the relay to revoke the interrupted pending device pairing (device id %s). Remove it on the NOVA page in Home Assistant.",
+					deviceCredentialID(pending.Credential),
+				))
+			}
+		case pendingBaseURL != "" || pendingPin != "":
+			return fmt.Errorf(
+				"pending device endpoint for server %q is incomplete; refusing to delete a possibly active credential",
+				target.name,
+			)
+		}
+	}
+	// Cloud pending credentials are revoked by the Cloud teardown before this
+	// local sweep. A local pending without an endpoint was never activated.
+	if err := secretDelete(
+		pendingService,
+	); err != nil {
+		return fmt.Errorf(
+			"remove pending device credential for server %q: %w",
+			target.name,
+			err,
+		)
+	}
+	if pendingUnreadable {
+		report.addNote(
+			"The stored pending device credential was unreadable and was removed without revoking.",
+		)
+	}
 
 	slotLabel := "Device credential (secure storage)"
 	if target.name != defaultServerProfileName {
@@ -66,7 +138,8 @@ func purgeProfileDeviceCredentialWithReport(target profilePurgeTarget, report *u
 	if err != nil {
 		// The slot exists but is unreadable/malformed: removing it needs no
 		// parse, and staying silent would leave a stale secret behind.
-		if secretDelete(currentService) == nil {
+		deleteErr := secretDelete(currentService)
+		if deleteErr == nil {
 			report.addRemoved(slotLabel)
 			if relayExpectedGone {
 				report.addNote("The stored device credential was unreadable and was removed without revoking.")
@@ -75,11 +148,16 @@ func purgeProfileDeviceCredentialWithReport(target profilePurgeTarget, report *u
 			}
 		} else {
 			report.addNote("The stored device credential is unreadable and could not be removed from secure storage; remove it manually once secure storage works again.")
+			return fmt.Errorf(
+				"remove unreadable device credential for server %q: %w",
+				target.name,
+				deleteErr,
+			)
 		}
-		return
+		return removeDeviceFileStorageResidueForProfile(target.name)
 	}
 	if !ok {
-		return
+		return removeDeviceFileStorageResidueForProfile(target.name)
 	}
 
 	// The revoke is always attempted (cheap and fails fast against a dead
@@ -92,21 +170,47 @@ func purgeProfileDeviceCredentialWithReport(target profilePurgeTarget, report *u
 		revoked = revokeSelfDeviceV1ForUninstall(secureBaseURL, spkiPin, credential) == nil
 	}
 
-	if secretDelete(currentService) == nil {
-		report.addRemoved(slotLabel)
+	if err := secretDelete(currentService); err != nil {
+		return fmt.Errorf(
+			"remove device credential for server %q: %w",
+			target.name,
+			err,
+		)
 	}
+	report.addRemoved(slotLabel)
 	switch {
 	case revoked:
 		report.addNote("Revoked this device's pairing on the relay.")
 	case relayExpectedGone:
 		// The App (and its device registry) is already gone; nothing to revoke.
 	case secureBaseURL != "":
-		deviceID := "unknown"
-		if parsed := parseDeviceCredential(credential); parsed != nil {
-			deviceID = parsed.deviceID
-		}
-		report.addNote(fmt.Sprintf("Could not reach the relay to revoke this device's pairing (device id %s). Remove it on the NOVA page in Home Assistant.", deviceID))
+		report.addNote(fmt.Sprintf("Could not reach the relay to revoke this device's pairing (device id %s). Remove it on the NOVA page in Home Assistant.", deviceCredentialID(credential)))
 	}
+	return removeDeviceFileStorageResidueForProfile(target.name)
+}
+
+func readPendingCredentialRecordFromService(
+	service string,
+) (pendingDeviceCredentialRecord, bool, error) {
+	value, err := secretGet(service)
+	if err != nil {
+		if err == errSecretNotFound {
+			return pendingDeviceCredentialRecord{}, false, nil
+		}
+		return pendingDeviceCredentialRecord{}, false, err
+	}
+	record, err := decodePendingDeviceCredentialRecord(value)
+	if err != nil {
+		return pendingDeviceCredentialRecord{}, false, err
+	}
+	return record, true, nil
+}
+
+func deviceCredentialID(credential string) string {
+	if parsed := parseDeviceCredential(credential); parsed != nil {
+		return parsed.deviceID
+	}
+	return "unknown"
 }
 
 // deviceCredentialExistsForUninstall reports whether this install holds an

@@ -36,7 +36,10 @@ export interface SupervisorClient {
   setIngressPanel(enabled: boolean): Promise<void>;
 }
 
-export function createSupervisorClient(token: string, base: string = SUPERVISOR_BASE): SupervisorClient {
+export function createSupervisorClient(
+  token: string,
+  base: string = SUPERVISOR_BASE,
+): SupervisorClient {
   async function request(path: string, init?: RequestInit): Promise<unknown> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -44,11 +47,15 @@ export function createSupervisorClient(token: string, base: string = SUPERVISOR_
       const response = await fetch(`${base}${path}`, {
         ...init,
         headers: { authorization: `Bearer ${token}`, ...(init?.headers ?? {}) },
+        // Supervisor credentials must never follow a redirect to another host.
+        redirect: "error",
         signal: controller.signal,
       });
       const text = await response.text();
       if (!response.ok) {
-        throw new Error(`supervisor ${path} returned ${response.status}: ${text.slice(0, 120)}`);
+        throw new Error(
+          `supervisor ${path} returned ${response.status}: ${text.slice(0, 120)}`,
+        );
       }
       return text ? JSON.parse(text) : null;
     } finally {
@@ -61,7 +68,8 @@ export function createSupervisorClient(token: string, base: string = SUPERVISOR_
     const data = dataOf(body);
     return {
       version: asString(data.version, ""),
-      versionLatest: typeof data.version_latest === "string" ? data.version_latest : null,
+      versionLatest:
+        typeof data.version_latest === "string" ? data.version_latest : null,
       updateAvailable: data.update_available === true,
       ingressPanel: data.ingress_panel === true,
       network: parseNetwork(data.network),
@@ -105,7 +113,9 @@ function dataOf(body: unknown): Record<string, unknown> {
 function parseNetwork(value: unknown): Record<string, number | null> {
   const out: Record<string, number | null> = {};
   if (typeof value === "object" && value !== null) {
-    for (const [key, mapped] of Object.entries(value as Record<string, unknown>)) {
+    for (const [key, mapped] of Object.entries(
+      value as Record<string, unknown>,
+    )) {
       out[key] = typeof mapped === "number" ? mapped : null;
     }
   }

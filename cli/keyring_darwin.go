@@ -3,13 +3,145 @@
 package main
 
 import (
+	"context"
+	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"os/exec"
 	"os/user"
 	"strings"
+	"time"
 
 	"github.com/zalando/go-keyring"
 )
+
+func init() {
+	secretKeyringGetWithPolicy = darwinDeviceSecretGet
+	secretKeyringSetWithPolicy = darwinDeviceSecretSet
+	secretKeyringDeleteWithPolicy = darwinDeviceSecretDelete
+	deviceCredentialPreflightWithContext = func(ctx context.Context) error {
+		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		if err := macOSKeychainAvailableNoUI(ctx); err != nil {
+			return desktopKeyringLockedError(
+				"the login keychain is locked or unavailable",
+			)
+		}
+		return nil
+	}
+}
+
+func darwinDeviceSecretGet(
+	ctx context.Context,
+	service, account string,
+	ui SecretStoreUIPolicy,
+) (string, error) {
+	if !platformCloudRemoteSecureStorageBoundaryAvailable() {
+		if err := ctx.Err(); err != nil {
+			return "", err
+		}
+		return keyring.Get(service, account)
+	}
+	value, found, err := readDarwinKeychainSecret(
+		ctx,
+		service,
+		account,
+		ui,
+		"read device credential",
+	)
+	if err != nil {
+		return "", err
+	}
+	if !found {
+		return "", keyring.ErrNotFound
+	}
+	return decodeDarwinGoKeyringValue(value)
+}
+
+func darwinDeviceSecretSet(
+	ctx context.Context,
+	service, account, value string,
+	ui SecretStoreUIPolicy,
+) error {
+	if !platformCloudRemoteSecureStorageBoundaryAvailable() {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		return keyring.Set(service, account, value)
+	}
+	raw := []byte(value)
+	defer zeroSecretBytes(raw)
+	operationCtx, cancel := boundedNativeOAuthSecretContext(ctx, ui)
+	defer cancel()
+	request := nativeSecretWorkerRequest{
+		SchemaVersion: nativeSecretWorkerSchema,
+		Operation:     nativeSecretSet,
+		UI:            ui,
+		Service:       service,
+		Account:       account,
+		Value:         raw,
+	}
+	_, err := runNativeSecretWorkerProcess(operationCtx, request)
+	return reconcileNativeSecretSet(ctx, request, err)
+}
+
+func darwinDeviceSecretDelete(
+	ctx context.Context,
+	service, account string,
+	ui SecretStoreUIPolicy,
+) error {
+	if !platformCloudRemoteSecureStorageBoundaryAvailable() {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		return keyring.Delete(service, account)
+	}
+	operationCtx, cancel := boundedNativeOAuthSecretContext(ctx, ui)
+	defer cancel()
+	request := nativeSecretWorkerRequest{
+		SchemaVersion: nativeSecretWorkerSchema,
+		Operation:     nativeSecretDelete,
+		UI:            ui,
+		Service:       service,
+		Account:       account,
+	}
+	_, err := runNativeSecretWorkerProcess(operationCtx, request)
+	return reconcileNativeSecretDelete(ctx, request, err)
+}
+
+func decodeDarwinGoKeyringValue(value string) (string, error) {
+	const (
+		hexPrefix    = "go-keyring-encoded:"
+		base64Prefix = "go-keyring-base64:"
+	)
+	value = strings.TrimSpace(value)
+	switch {
+	case strings.HasPrefix(value, hexPrefix):
+		decoded, err := hex.DecodeString(strings.TrimPrefix(value, hexPrefix))
+		if err != nil {
+			return "", fmt.Errorf("decode macOS Keychain device credential: %w", err)
+		}
+		return string(decoded), nil
+	case strings.HasPrefix(value, base64Prefix):
+		decoded, err := base64.StdEncoding.DecodeString(
+			strings.TrimPrefix(value, base64Prefix),
+		)
+		if err != nil {
+			return "", fmt.Errorf("decode macOS Keychain device credential: %w", err)
+		}
+		return string(decoded), nil
+	default:
+		return value, nil
+	}
+}
+
+func macOSKeychainAvailableNoUI(ctx context.Context) error {
+	return exec.CommandContext(
+		ctx,
+		"/usr/bin/security",
+		"show-keychain-info",
+	).Run()
+}
 
 func readRelayAuthToken() (string, error) {
 	if token, overridden, err := readRelayAuthTokenOverride(); overridden {

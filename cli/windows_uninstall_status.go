@@ -312,7 +312,7 @@ func windowsUninstallErrorSummary(step string, err error) string {
 	case "cache_cleanup":
 		return "HA NOVA uninstall could not remove managed cache artifacts."
 	case "token_cleanup":
-		return "HA NOVA uninstall could not remove the stored relay token."
+		return "HA NOVA uninstall could not revoke or remove stored credentials."
 	case "legacy_windows_package_cleanup":
 		return "HA NOVA uninstall could not remove older private/test Windows package residue."
 	case "bundle_runtime_cleanup":

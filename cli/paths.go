@@ -9,10 +9,10 @@ import (
 )
 
 const (
-	// v2: named server profiles in a `servers` map (see config_profiles.go).
-	// v1 flat configs migrate on their first save; the default profile stays
-	// mirrored into the flat fields, so v1 binaries keep reading the file.
-	configSchemaVersion = 2
+	// v3: named profiles gain immutable identities, route policy, and non-secret
+	// Cloud lifecycle metadata. v1/v2 configs migrate on their first save; only
+	// legacy local fields remain mirrored for older binaries.
+	configSchemaVersion = 3
 	stateSchemaVersion  = 1
 	bundleFormatVersion = 1
 	keyringServiceName  = "ha-nova.relay-auth-token"

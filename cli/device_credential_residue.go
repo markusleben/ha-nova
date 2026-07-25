@@ -12,6 +12,10 @@ import (
 // Split from device_credential_storage.go (router/probe/canary) per the
 // <~400 LOC file guideline.
 
+var deviceResidueRemove = os.Remove
+var deviceResidueReadDir = os.ReadDir
+var deviceResidueLstat = os.Lstat
+
 // isCurrentDeviceCredentialSlotService reports whether service names a CURRENT
 // (active) credential slot of ANY profile — the writes that commit the file
 // backend and lay down the machine-wide marker.
@@ -39,60 +43,169 @@ func isCurrentDeviceCredentialSlotService(service string) bool {
 // a headless pairing interrupted before promotion leaves a pending FILE with no
 // marker, so routed deletes would go to the keyring and leave the orphan file
 // (and a non-empty secrets dir) behind.
-func removeDeviceFileStorageResidueForProfile(profile string) {
-	_ = deviceSecretFileDelete(deviceCredentialServiceForProfile(profile))
-	_ = deviceSecretFileDelete(deviceCredentialPendingServiceForProfile(profile))
-	if !deviceCredentialSlotFilesRemain() {
-		removeDeviceFileStorageMarkerAndDir()
+func removeDeviceFileStorageResidueForProfile(profile string) error {
+	if _, err := resumeKeyringDeviceCredentialCleanup(); err != nil {
+		return fmt.Errorf(
+			"finish device credential migration cleanup before residue removal: %w",
+			err,
+		)
 	}
+	for _, service := range []string{
+		deviceCredentialServiceForProfile(profile),
+		deviceCredentialPendingServiceForProfile(profile),
+	} {
+		path, err := deviceSecretFilePath(service)
+		if err != nil {
+			return fmt.Errorf("resolve device credential residue %s: %w", service, err)
+		}
+		if err := removeDeviceResiduePath(path); err != nil {
+			return fmt.Errorf("remove device credential residue %s: %w", service, err)
+		}
+	}
+	remaining, err := deviceCredentialSlotFilesRemain()
+	if err != nil {
+		return err
+	}
+	if !remaining {
+		return removeDeviceFileStorageMarkerAndDir()
+	}
+	return nil
 }
 
 // removeAllDeviceFileStorageResidue clears EVERY profile's slot files, the
 // marker, and the (then empty) secrets dir. Full-purge only: a leftover marker
 // would otherwise make a fresh reinstall inherit file mode without re-probing.
-func removeAllDeviceFileStorageResidue() {
-	if dir, err := deviceSecretFileDir(); err == nil {
-		if entries, readErr := os.ReadDir(dir); readErr == nil {
-			for _, entry := range entries {
-				if strings.HasPrefix(entry.Name(), deviceCredentialService) {
-					_ = os.Remove(filepath.Join(dir, entry.Name()))
-				}
+func removeAllDeviceFileStorageResidue() error {
+	if _, err := resumeKeyringDeviceCredentialCleanup(); err != nil {
+		return fmt.Errorf(
+			"finish device credential migration cleanup before residue removal: %w",
+			err,
+		)
+	}
+	dir, err := deviceSecretFileDir()
+	if err != nil {
+		return fmt.Errorf("resolve device credential residue directory: %w", err)
+	}
+	entries, err := deviceResidueReadDir(dir)
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("inspect device credential residue directory: %w", err)
+	}
+	for _, entry := range entries {
+		if strings.HasPrefix(entry.Name(), deviceCredentialService) {
+			path := filepath.Join(dir, entry.Name())
+			if err := removeDeviceResiduePath(path); err != nil {
+				return fmt.Errorf(
+					"remove device credential residue %s: %w",
+					entry.Name(),
+					err,
+				)
 			}
 		}
 	}
-	removeDeviceFileStorageMarkerAndDir()
+	remaining, err := deviceCredentialSlotFilesRemain()
+	if err != nil {
+		return err
+	}
+	if remaining {
+		return fmt.Errorf("device credential residue remains after full cleanup")
+	}
+	return removeDeviceFileStorageMarkerAndDir()
 }
 
-func deviceCredentialSlotFilesRemain() bool {
+func deviceCredentialSlotFilesRemain() (bool, error) {
 	dir, err := deviceSecretFileDir()
 	if err != nil {
-		return false
+		return false, fmt.Errorf(
+			"resolve device credential residue directory: %w",
+			err,
+		)
 	}
-	entries, err := os.ReadDir(dir)
+	entries, err := deviceResidueReadDir(dir)
 	if err != nil {
-		return false
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, fmt.Errorf(
+			"inspect device credential residue directory: %w",
+			err,
+		)
 	}
 	for _, entry := range entries {
 		name := entry.Name()
 		if strings.HasPrefix(name, deviceCredentialService) && name != deviceCredentialProbeService {
-			return true
+			return true, nil
 		}
 	}
-	return false
+	return false, nil
 }
 
 // removeDeviceFileStorageMarkerAndDir drops the machine-wide backend marker and
 // the secrets dir (only when empty), and resets the in-process flags so the
 // same run re-decides the backend.
-func removeDeviceFileStorageMarkerAndDir() {
-	if path, err := deviceFileBackendMarkerPath(); err == nil {
-		_ = os.Remove(path)
+func removeDeviceFileStorageMarkerAndDir() error {
+	markerPath, err := deviceFileBackendMarkerPath()
+	if err != nil {
+		return fmt.Errorf("resolve device credential storage marker: %w", err)
 	}
-	if dir, err := deviceSecretFileDir(); err == nil {
-		_ = os.Remove(dir) // removes only when now empty
+	if _, exists, err := readKeyringDeviceCredentialCleanup(); err != nil {
+		return fmt.Errorf(
+			"inspect device credential migration cleanup checkpoint: %w",
+			err,
+		)
+	} else if exists {
+		return fmt.Errorf(
+			"device credential migration cleanup is still pending",
+		)
+	}
+	dir, err := deviceSecretFileDir()
+	if err != nil {
+		return fmt.Errorf("resolve device credential residue directory: %w", err)
+	}
+	entries, err := deviceResidueReadDir(dir)
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf(
+			"inspect device credential residue directory before marker removal: %w",
+			err,
+		)
+	}
+	for _, entry := range entries {
+		if entry.Name() != filepath.Base(markerPath) {
+			return fmt.Errorf(
+				"device credential residue %s remains before marker removal",
+				entry.Name(),
+			)
+		}
+	}
+	for _, target := range []struct {
+		label string
+		path  string
+	}{
+		{label: "storage marker", path: markerPath},
+		{label: "residue directory", path: dir},
+	} {
+		if err := removeDeviceResiduePath(target.path); err != nil {
+			return fmt.Errorf(
+				"remove device credential %s: %w",
+				target.label,
+				err,
+			)
+		}
 	}
 	deviceCredentialFileModeForced = false
 	deviceCredentialFileModeExplicit = false
+	return nil
+}
+
+func removeDeviceResiduePath(path string) error {
+	if err := deviceResidueRemove(path); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	if _, err := deviceResidueLstat(path); err == nil {
+		return fmt.Errorf("path still exists after removal")
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("verify path absence: %w", err)
+	}
+	return nil
 }
 
 // stageServerCredentialSlotMove moves a profile's credential slots (current +
@@ -175,20 +288,4 @@ func stageServerCredentialSlotMove(oldName, newName string) (rollback func(), co
 		}
 	}
 	return rollback, commit, nil
-}
-
-// profileHasRawSlotFile reports whether any of the given slot services has a
-// raw markerless credential file on disk — the artifact of an interrupted
-// explicit file pairing that raw-file cleanup and moves handle directly.
-func profileHasRawSlotFile(services []string) bool {
-	for _, service := range services {
-		path, err := deviceSecretFilePath(service)
-		if err != nil {
-			continue
-		}
-		if info, statErr := os.Lstat(path); statErr == nil && info.Mode().IsRegular() {
-			return true
-		}
-	}
-	return false
 }

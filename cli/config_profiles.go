@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -8,18 +9,44 @@ import (
 	"strconv"
 )
 
-// Config schema v2 (multi-server): config.json carries a `servers` map of named
-// profiles plus install-wide fields (`schema_version`, `default_server`,
-// `client_install_id`). v1 flat configs migrate transparently: on load the flat
-// fields ARE the default profile; the first save un-flattens them into
-// `servers.default`. Every save also mirrors the default profile back into the
-// legacy flat top-level fields, so an older binary keeps working against the
-// default profile (downgrade floor).
+// Config schema v3 adds immutable profile identities and transport policy while
+// retaining the v2 servers map. v1/v2 profiles migrate locally on their next
+// save: no Cloud route is inferred or contacted.
 
 // serverProfileConfig is the per-server field set — runtimeConfig minus the
 // install-wide fields (schema_version, client_install_id). JSON tags match the
 // v1 flat keys, so the same struct serves profile entries and the legacy mirror.
 type serverProfileConfig struct {
+	HAHost               string                  `json:"ha_host"`
+	HAURL                string                  `json:"ha_url"`
+	RelayBaseURL         string                  `json:"relay_base_url"`
+	RelayTokenFile       string                  `json:"relay_token_file,omitempty"`
+	ProfileID            string                  `json:"profile_id,omitempty"`
+	RelayInstanceID      string                  `json:"relay_instance_id,omitempty"`
+	RoutePolicy          routePolicy             `json:"route_policy,omitempty"`
+	Cloud                *cloudLifecycleMetadata `json:"cloud,omitempty"`
+	RelaySecureBaseURL   string                  `json:"relay_secure_base_url,omitempty"`
+	RelaySpkiPin         string                  `json:"relay_spki_pin,omitempty"`
+	PendingSecureBaseURL string                  `json:"pending_secure_base_url,omitempty"`
+	PendingSpkiPin       string                  `json:"pending_spki_pin,omitempty"`
+}
+
+// serverProfileFieldKeys are replaced inside one profile while unknown sibling
+// and per-profile fields stay untouched.
+var serverProfileFieldKeys = []string{
+	"ha_host", "ha_url", "relay_base_url", "relay_token_file",
+	"profile_id", "relay_instance_id", "route_policy", "cloud",
+	"relay_secure_base_url", "relay_spki_pin", "pending_secure_base_url", "pending_spki_pin",
+}
+
+// Only pre-v3 fields are mirrored at the top level. Cloud and stable profile
+// identity must never leak into the downgrade shape read by older binaries.
+var legacyMirrorFieldKeys = []string{
+	"ha_host", "ha_url", "relay_base_url", "relay_token_file",
+	"relay_secure_base_url", "relay_spki_pin", "pending_secure_base_url", "pending_spki_pin",
+}
+
+type legacyServerProfileConfig struct {
 	HAHost               string `json:"ha_host"`
 	HAURL                string `json:"ha_url"`
 	RelayBaseURL         string `json:"relay_base_url"`
@@ -28,13 +55,6 @@ type serverProfileConfig struct {
 	RelaySpkiPin         string `json:"relay_spki_pin,omitempty"`
 	PendingSecureBaseURL string `json:"pending_secure_base_url,omitempty"`
 	PendingSpkiPin       string `json:"pending_spki_pin,omitempty"`
-}
-
-// serverProfileFieldKeys are the per-server JSON keys — the fields the legacy
-// mirror rewrites at the top level on every save.
-var serverProfileFieldKeys = []string{
-	"ha_host", "ha_url", "relay_base_url", "relay_token_file",
-	"relay_secure_base_url", "relay_spki_pin", "pending_secure_base_url", "pending_spki_pin",
 }
 
 type configDocumentMeta struct {
@@ -66,6 +86,9 @@ func parseConfigDocument(data []byte) (*configDocument, error) {
 	if err := json.Unmarshal(data, &doc.top); err != nil {
 		return nil, err
 	}
+	if doc.top == nil {
+		return nil, fmt.Errorf("config document must be a JSON object")
+	}
 	if err := json.Unmarshal(data, &doc.meta); err != nil {
 		return nil, err
 	}
@@ -73,6 +96,9 @@ func parseConfigDocument(data []byte) (*configDocument, error) {
 		return nil, err
 	}
 	if raw, ok := doc.top["servers"]; ok {
+		if bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+			return nil, fmt.Errorf("invalid servers map in config: null")
+		}
 		if err := json.Unmarshal(raw, &doc.servers); err != nil {
 			return nil, fmt.Errorf("invalid servers map in config: %w", err)
 		}
@@ -120,6 +146,9 @@ func (d *configDocument) flatProfile(name string) (runtimeConfig, bool) {
 		switch {
 		case ok:
 			var parsed serverProfileConfig
+			if bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+				return runtimeConfig{}, false
+			}
 			if err := json.Unmarshal(raw, &parsed); err != nil {
 				return runtimeConfig{}, false
 			}
@@ -138,6 +167,10 @@ func (d *configDocument) flatProfile(name string) (runtimeConfig, bool) {
 		HAURL:                fields.HAURL,
 		RelayBaseURL:         fields.RelayBaseURL,
 		RelayTokenFile:       fields.RelayTokenFile,
+		ProfileID:            fields.ProfileID,
+		RelayInstanceID:      fields.RelayInstanceID,
+		RoutePolicy:          effectiveRoutePolicy(fields.RoutePolicy),
+		Cloud:                fields.Cloud,
 		RelaySecureBaseURL:   fields.RelaySecureBaseURL,
 		RelaySpkiPin:         fields.RelaySpkiPin,
 		PendingSecureBaseURL: fields.PendingSecureBaseURL,
@@ -151,6 +184,10 @@ func serverProfileFromRuntime(cfg runtimeConfig) serverProfileConfig {
 		HAURL:                cfg.HAURL,
 		RelayBaseURL:         cfg.RelayBaseURL,
 		RelayTokenFile:       cfg.RelayTokenFile,
+		ProfileID:            cfg.ProfileID,
+		RelayInstanceID:      cfg.RelayInstanceID,
+		RoutePolicy:          effectiveRoutePolicy(cfg.RoutePolicy),
+		Cloud:                cfg.Cloud,
 		RelaySecureBaseURL:   cfg.RelaySecureBaseURL,
 		RelaySpkiPin:         cfg.RelaySpkiPin,
 		PendingSecureBaseURL: cfg.PendingSecureBaseURL,
@@ -183,26 +220,16 @@ func loadRawDefaultProfileConfig(path string) (runtimeConfig, error) {
 		HAURL:                doc.flat.HAURL,
 		RelayBaseURL:         doc.flat.RelayBaseURL,
 		RelayTokenFile:       doc.flat.RelayTokenFile,
+		ProfileID:            doc.flat.ProfileID,
+		RelayInstanceID:      doc.flat.RelayInstanceID,
+		RoutePolicy:          effectiveRoutePolicy(doc.flat.RoutePolicy),
+		Cloud:                doc.flat.Cloud,
 		RelaySecureBaseURL:   doc.flat.RelaySecureBaseURL,
 		RelaySpkiPin:         doc.flat.RelaySpkiPin,
 		PendingSecureBaseURL: doc.flat.PendingSecureBaseURL,
 		PendingSpkiPin:       doc.flat.PendingSpkiPin,
 	}
 	return cfg, nil
-}
-
-// loadConfigDocumentOrEmpty backs the save path. A missing or unreadable
-// config starts fresh — matching the pre-profile saveConfig, which always
-// overwrote the file so a corrupted config stayed repairable via setup.
-func loadConfigDocumentOrEmpty(path string) *configDocument {
-	doc, err := loadConfigDocument(path)
-	if err != nil {
-		return &configDocument{top: map[string]json.RawMessage{}}
-	}
-	if doc.top == nil {
-		doc.top = map[string]json.RawMessage{}
-	}
-	return doc
 }
 
 // saveTargetProfileName resolves which profile a save writes to (flag > env >
@@ -212,41 +239,67 @@ func saveTargetProfileName(doc *configDocument) (string, error) {
 	if name == "" {
 		name = doc.defaultServerName()
 	}
-	if name != defaultServerProfileName && !doc.hasProfile(name) {
-		if err := validateServerProfileName(name); err != nil {
-			return "", err
-		}
+	if err := validateServerProfileName(name); err != nil {
+		return "", err
 	}
 	return name, nil
 }
 
-// withProfile builds the on-disk v2 document with cfg stored in the named
-// profile: sibling profiles and unknown top-level fields are preserved, a v1
-// flat document is migrated to the servers map, and the default profile is
-// mirrored into the legacy flat fields (downgrade floor for older binaries).
+// withProfile builds the on-disk v3 document with cfg stored in the named
+// profile. The first v3 save adds local-only profile identities to every v1/v2
+// profile; later saves preserve every unknown per-profile field.
 func (d *configDocument) withProfile(name string, cfg runtimeConfig) (map[string]json.RawMessage, error) {
+	return d.withProfileDocument(name, cfg, true)
+}
+
+// withProfilePreservingSiblings is reserved for security cleanup. Revoking one
+// profile's Cloud authorization must not be blocked by an unrelated sibling's
+// invalid route/lifecycle fields, but profile identities still must parse,
+// validate, and remain unique so the cleanup cannot target a shared account.
+func (d *configDocument) withProfilePreservingSiblings(
+	name string,
+	cfg runtimeConfig,
+) (map[string]json.RawMessage, error) {
+	return d.withProfileDocument(name, cfg, false)
+}
+
+func (d *configDocument) withProfileDocument(
+	name string,
+	cfg runtimeConfig,
+	normalizeSiblings bool,
+) (map[string]json.RawMessage, error) {
 	top := make(map[string]json.RawMessage, len(d.top)+4)
 	for key, value := range d.top {
 		top[key] = value
 	}
-	servers := make(map[string]json.RawMessage, len(d.servers)+1)
-	for key, value := range d.servers {
-		servers[key] = value
+	servers, err := documentServersCopy(d)
+	if err != nil {
+		return nil, err
 	}
-	if d.servers == nil && d.flat != (serverProfileConfig{}) {
-		// v1 → v2 migration: the existing flat fields become the default
-		// profile, so a save into another profile never destroys that server.
-		raw, err := json.Marshal(d.flat)
-		if err != nil {
+	// Normalize siblings first, but merge the selected profile from its original
+	// raw value. Setup may have just generated the selected profile's stable ID
+	// in memory while migrating a v1/v2 document. Normalizing that same profile
+	// first would generate a different random ID and then reject the intended
+	// one as an immutable replacement.
+	targetRaw := servers[name]
+	if normalizeSiblings {
+		delete(servers, name)
+		if err := normalizeServerProfilesV3(servers); err != nil {
 			return nil, err
 		}
-		servers[defaultServerProfileName] = raw
 	}
-	profileRaw, err := json.Marshal(serverProfileFromRuntime(cfg))
+	profileRaw, err := mergeRuntimeProfile(targetRaw, cfg)
 	if err != nil {
 		return nil, err
 	}
 	servers[name] = profileRaw
+	if normalizeSiblings {
+		if err := validateUniqueServerProfileIDs(servers); err != nil {
+			return nil, err
+		}
+	} else if err := validateExistingServerProfileIDs(servers); err != nil {
+		return nil, err
+	}
 
 	defaultName := d.defaultServerName()
 	if _, ok := servers[defaultName]; !ok {
@@ -260,27 +313,15 @@ func (d *configDocument) withProfile(name string, cfg runtimeConfig) (map[string
 	// mirroring a named profile would send that token to another server. With
 	// no literal default profile there is no mirror: the old binary honestly
 	// reports "not set up yet".
-	var mirror serverProfileConfig
-	hasMirror := true
-	if name == defaultServerProfileName {
-		mirror = serverProfileFromRuntime(cfg)
-	} else if raw, ok := servers[defaultServerProfileName]; ok {
-		if err := json.Unmarshal(raw, &mirror); err != nil {
-			return nil, err
-		}
-	} else {
-		hasMirror = false
-	}
 	for _, key := range serverProfileFieldKeys {
 		delete(top, key)
 	}
-	if hasMirror {
-		mirrorRaw, err := json.Marshal(mirror)
+	for _, key := range legacyMirrorFieldKeys {
+		delete(top, key)
+	}
+	if raw, ok := servers[defaultServerProfileName]; ok {
+		mirrorMap, err := legacyMirrorMap(raw)
 		if err != nil {
-			return nil, err
-		}
-		var mirrorMap map[string]json.RawMessage
-		if err := json.Unmarshal(mirrorRaw, &mirrorMap); err != nil {
 			return nil, err
 		}
 		for key, value := range mirrorMap {
@@ -300,9 +341,18 @@ func (d *configDocument) withProfile(name string, cfg runtimeConfig) (map[string
 	}
 	top["default_server"] = defaultRaw
 
-	installID := cfg.ClientInstallID
+	installID := d.meta.ClientInstallID
+	if installID != "" &&
+		cfg.ClientInstallID != "" &&
+		cfg.ClientInstallID != installID {
+		return nil, fmt.Errorf(
+			"refusing to replace immutable client_install_id %q with %q",
+			installID,
+			cfg.ClientInstallID,
+		)
+	}
 	if installID == "" {
-		installID = d.meta.ClientInstallID
+		installID = cfg.ClientInstallID
 	}
 	if installID != "" {
 		idRaw, err := json.Marshal(installID)
@@ -320,7 +370,13 @@ func (d *configDocument) withProfile(name string, cfg runtimeConfig) (map[string
 // document. All 8 read-modify-write config sites go through here (via
 // saveConfig), so none of them can flatten the servers map away.
 func saveProfileConfig(paths runtimePaths, cfg runtimeConfig) error {
-	doc := loadConfigDocumentOrEmpty(paths.ConfigFile)
+	doc, err := loadConfigDocumentOrEmpty(paths.ConfigFile)
+	if err != nil {
+		return fmt.Errorf("read existing server configuration: %w", err)
+	}
+	if err := validateSupportedConfigDocument(doc); err != nil {
+		return err
+	}
 	name, err := saveTargetProfileName(doc)
 	if err != nil {
 		return err
@@ -330,15 +386,4 @@ func saveProfileConfig(paths runtimePaths, cfg runtimeConfig) error {
 		return err
 	}
 	return writeJSONFile(paths.ConfigFile, top, 0o600)
-}
-
-// selectedServerProfileStatus reports the active profile name and how many
-// profiles the config defines (best-effort; 1 when unreadable). Doctor uses it
-// to name the checked profile on multi-server installs.
-func selectedServerProfileStatus(paths runtimePaths) (string, int) {
-	count := 1
-	if doc, err := loadConfigDocument(paths.ConfigFile); err == nil {
-		count = len(doc.profileNames())
-	}
-	return activeServerProfile(), count
 }

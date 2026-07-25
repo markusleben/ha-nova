@@ -1,19 +1,19 @@
 # NOVA Relay: Architecture Reference
 
-> **Implementation status:** Seven bounded endpoints are implemented: `/health`,
-> `/home`, `/pair`, `/ws`, `/core`, `/files`, and `/backups`. Filesystem access is opt-in
-> and off by default. Persistent streaming subscriptions remain unimplemented.
+> **Implementation status:** Seven bounded local endpoint families are implemented.
+> The Cloud remote Beta adds a Supervisor-ingress-only machine surface.
+> Filesystem access is opt-in/off by default; streaming remains unimplemented.
 
 ## Overview
 
-The Relay is a lean transport App on the HA host. It proxies WebSocket and REST
-requests, exposes opt-in contained file access, stores generic config snapshots,
-and performs one generic pairing credential exchange. Home Assistant backup
-lifecycle operations still ride the existing `/ws` proxy (`backup/*`).
+The Relay is a lean transport App on the HA host. It proxies WebSocket and REST,
+offers contained opt-in file access, stores generic config snapshots, and
+performs credential exchange. HA NOVA operates no public tunnel or broker;
+optional remote traffic uses Home Assistant Cloud and Supervisor Ingress.
 
 ## Endpoints
 
-### Implemented
+### Implemented locally
 
 ```
 GET  /health
@@ -284,22 +284,28 @@ HA system backups, which `ha-nova:backup` manages via `/ws` `backup/*` today.
 
 ## Auth — Separate Inbound and Upstream Credentials
 
-The Relay keeps inbound client authentication separate from upstream Home
-Assistant authentication:
+The Relay keeps inbound client authentication separate from upstream Home Assistant authentication:
 
-| Distribution | Credential | Purpose |
+| Distribution/path | Credential | Purpose |
 |--------------|------------|---------|
-| All | `RELAY_AUTH_TOKEN` | Authenticates inbound client requests to the Relay |
-| Home Assistant App | `SUPERVISOR_TOKEN` | Authenticates upstream REST and WebSocket requests through the Supervisor Core proxies |
-| Standalone Container/Core | `HA_LLAT` | Authenticates upstream requests directly with Home Assistant |
+| Legacy/standalone inbound | `RELAY_AUTH_TOKEN` | Authenticates direct client requests to the Relay |
+| App paired-device inbound | Per-device credential | Authenticates direct TLS requests on the pinned device listener |
+| App Cloud Ingress inbound | User- and Relay-bound per-device credential | Authenticates functional requests after the Supervisor Ingress identity gate |
+| Home Assistant App upstream | `SUPERVISOR_TOKEN` | Authenticates upstream REST and WebSocket requests through the Supervisor Core proxies |
+| Standalone Container/Core upstream | `HA_LLAT` | Authenticates upstream requests directly with Home Assistant |
 
-**Inbound (client -> Relay):**
+**Legacy/standalone inbound (client -> Relay):**
 ```
 Authorization: Bearer {RELAY_AUTH_TOKEN}
 ```
 Validated via a constant-time fixed-digest comparison. On failure:
 `401 UNAUTHORIZED`. Exact `POST /pair` uses the one-time pairing code instead
 and returns the same relay token after a successful exchange.
+
+The normal App path uses an OPAQUE-derived per-device credential over SPKI-pinned
+TLS. Cloud sends it through a process-local Supervisor Ingress session. Pairing
+v2 atomically activates a user-bound device; existing devices bind only when the
+Relay instance matches. Legacy shared tokens are rejected on Ingress routes.
 
 **Upstream (Relay -> HA):**
 The Home Assistant App prefers its process-local `SUPERVISOR_TOKEN` and sends it
@@ -323,6 +329,9 @@ and verifies both `/health` and `/ws`. Pairing requests do not follow redirects;
 the code is not accepted through argv and is not persisted in normal config.
 Saved credentials, `--relay-token`, service token files, and standalone
 Container/Core setups retain their explicit-token paths.
+
+The Cloud Beta contract is
+`docs/work/2026-07-25-home-assistant-cloud-remote-spec.md`.
 
 ## WS Forwarding Policy
 

@@ -1,4 +1,12 @@
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -37,7 +45,70 @@ function readClaudeLog(logFile: string): string {
 
 function stageCopiedFileClient(home: string, clientRoot: string): void {
   mkdirSync(join(home, clientRoot, "ha-nova", "ha-nova"), { recursive: true });
-  writeFileSync(join(home, clientRoot, "ha-nova", "ha-nova", "SKILL.md"), "name: ha-nova\n");
+  writeFileSync(
+    join(home, clientRoot, "ha-nova", "ha-nova", "SKILL.md"),
+    "name: ha-nova\n",
+  );
+}
+
+function runDevSyncCloudBuild(appSlug?: string): {
+  result: ReturnType<typeof spawnSync>;
+  buildLog: string;
+} {
+  const home = mkdtempSync(join(tmpdir(), "ha-nova-dev-sync-cloud-"));
+  const binDir = createMockBinaries();
+  const runtimeDir = join(home, ".local", "share", "ha-nova");
+  const pathBinDir = join(home, ".local", "bin");
+  const buildLogPath = join(home, "go-build.log");
+  mkdirSync(runtimeDir, { recursive: true });
+  mkdirSync(pathBinDir, { recursive: true });
+  writeFileSync(join(runtimeDir, "ha-nova"), "#!/usr/bin/env bash\nexit 0\n", {
+    mode: 0o755,
+  });
+  symlinkSync(join(runtimeDir, "ha-nova"), join(pathBinDir, "ha-nova"));
+  writeFileSync(
+    join(binDir, "go"),
+    `#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\\n' "$*" >> "$GO_BUILD_LOG"
+output=""
+while [[ "$#" -gt 0 ]]; do
+  if [[ "$1" == "-o" ]]; then
+    output="$2"
+    shift 2
+  else
+    shift
+  fi
+done
+[[ -n "$output" ]]
+printf '#!/usr/bin/env bash\\nexit 0\\n' > "$output"
+`,
+    { mode: 0o755 },
+  );
+  writeFileSync(join(binDir, "codesign"), "#!/usr/bin/env bash\nexit 0\n", {
+    mode: 0o755,
+  });
+
+  const extra: Record<string, string> = {
+    GO_BUILD_LOG: buildLogPath,
+    HA_NOVA_DEV_CODESIGN_BIN: join(binDir, "codesign"),
+    PATH: `${pathBinDir}:${binDir}:${process.env.PATH ?? ""}`,
+  };
+  if (appSlug !== undefined) {
+    extra.HA_NOVA_DEV_CLOUD_APP_SLUG = appSlug;
+  }
+  const result = spawnSync("bash", ["scripts/dev-sync.sh"], {
+    cwd: REPO_ROOT,
+    encoding: "utf8",
+    timeout: 30000,
+    env: mockEnv(home, binDir, extra),
+  });
+  return {
+    result,
+    buildLog: existsSync(buildLogPath)
+      ? readFileSync(buildLogPath, "utf8")
+      : "",
+  };
 }
 
 describe("dev-sync behavior", () => {
@@ -54,10 +125,18 @@ describe("dev-sync behavior", () => {
       env: mockEnv(home, binDir, { HA_NOVA_FORCE_COPY_INSTALL: "1" }),
     });
 
-    expect(result.status).toBe(0);
-    expect(result.stdout).toContain("Codex: refreshed via install-local-skills.sh codex");
-    expect(lstatSync(join(home, ".agents/skills", "ha-nova")).isSymbolicLink()).toBe(false);
-    expect(existsSync(join(home, ".agents/skills", "ha-nova", "ha-nova", "SKILL.md"))).toBe(true);
+    expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
+    expect(result.stdout).toContain(
+      "Codex: refreshed via install-local-skills.sh codex",
+    );
+    expect(
+      lstatSync(join(home, ".agents/skills", "ha-nova")).isSymbolicLink(),
+    ).toBe(false);
+    expect(
+      existsSync(
+        join(home, ".agents/skills", "ha-nova", "ha-nova", "SKILL.md"),
+      ),
+    ).toBe(true);
   });
 
   it("refreshes non-Claude clients without Node.js when Claude has no ha-nova records", () => {
@@ -70,7 +149,9 @@ describe("dev-sync behavior", () => {
       join(home, ".claude", "plugins", "installed_plugins.json"),
       '{"plugins":["other-plugin"]}',
     );
-    writeFileSync(join(binDir, "node"), "#!/usr/bin/env bash\nexit 127\n", { mode: 0o755 });
+    writeFileSync(join(binDir, "node"), "#!/usr/bin/env bash\nexit 127\n", {
+      mode: 0o755,
+    });
 
     const result = spawnSync("bash", ["scripts/dev-sync.sh"], {
       cwd: REPO_ROOT,
@@ -80,7 +161,9 @@ describe("dev-sync behavior", () => {
     });
 
     expect(result.status).toBe(0);
-    expect(result.stdout).toContain("Codex: refreshed via install-local-skills.sh codex");
+    expect(result.stdout).toContain(
+      "Codex: refreshed via install-local-skills.sh codex",
+    );
   });
 
   it("refreshes copied OpenCode installs instead of skipping them", () => {
@@ -97,142 +180,310 @@ describe("dev-sync behavior", () => {
     });
 
     expect(result.status).toBe(0);
-    expect(result.stdout).toContain("OpenCode: refreshed via install-local-skills.sh opencode");
-    expect(lstatSync(join(home, ".config/opencode/skills", "ha-nova")).isSymbolicLink()).toBe(false);
-    expect(existsSync(join(home, ".config/opencode/skills", "ha-nova", "ha-nova", "SKILL.md"))).toBe(true);
-  });
-
-  it("refreshes Antigravity when only the legacy Gemini marker exists", { timeout: 60000 }, () => {
-    const home = mkdtempSync(join(tmpdir(), "ha-nova-dev-sync-antigravity-legacy-"));
-    const binDir = createMockBinaries();
-
-    mkdirSync(join(home, ".gemini", "skills", "ha-nova-read"), { recursive: true });
-    writeFileSync(join(home, ".gemini", "skills", "ha-nova-read", "SKILL.md"), "name: ha-nova-read\n");
-
-    const result = spawnSync("bash", ["scripts/dev-sync.sh"], {
-      cwd: REPO_ROOT,
-      encoding: "utf8",
-      timeout: 60000,
-      env: mockEnv(home, binDir),
-    });
-
-    expect(result.status).toBe(0);
-    expect(result.stdout).toContain("Google Antigravity: refreshed via install-local-skills.sh antigravity");
-    expect(existsSync(join(home, ".gemini", "config", "skills", "ha-nova", "SKILL.md"))).toBe(true);
-    expect(existsSync(join(home, ".gemini", "skills", "ha-nova-read", "SKILL.md"))).toBe(false);
-  });
-
-  it("does not refresh Antigravity from stale Codex flat-copy markers", { timeout: 60000 }, () => {
-    const home = mkdtempSync(join(tmpdir(), "ha-nova-dev-sync-antigravity-codex-stale-"));
-    const binDir = createMockBinaries();
-
-    mkdirSync(join(home, ".agents", "skills", "ha-nova-read"), { recursive: true });
-    writeFileSync(join(home, ".agents", "skills", "ha-nova-read", "SKILL.md"), "name: ha-nova-read\n");
-
-    const result = spawnSync("bash", ["scripts/dev-sync.sh"], {
-      cwd: REPO_ROOT,
-      encoding: "utf8",
-      timeout: 60000,
-      env: mockEnv(home, binDir),
-    });
-
-    expect(result.status).toBe(0);
-    expect(result.stdout).toContain("Google Antigravity: not installed — skipped");
-    expect(existsSync(join(home, ".gemini", "config", "skills", "ha-nova", "SKILL.md"))).toBe(false);
-  });
-
-  it("refreshes shared tools when no file clients are installed", { timeout: 90000 }, () => {
-    const home = mkdtempSync(join(tmpdir(), "ha-nova-dev-sync-shared-tools-"));
-    const binDir = createMockBinaries();
-    const configDir = join(home, ".config", "ha-nova");
-
-    // Hermetic go: the harness may leak a real toolchain (PATH go + foreign
-    // GOROOT from release-workflow setup), which made this test fail only in
-    // release.yml. Go availability is incidental here — pin it to a fast mock
-    // that satisfies the build-to-temp-and-move contract deterministically.
-    writeFileSync(
-      join(binDir, "go"),
-      '#!/usr/bin/env bash\nif [ "$1" = "build" ]; then shift; out=""; while [ "$#" -gt 0 ]; do if [ "$1" = "-o" ]; then out="$2"; shift 2; else shift; fi; done; [ -n "$out" ] && printf "#!/usr/bin/env bash\\n# mock-go-artifact\\nexit 0\\n" > "$out"; fi\nexit 0\n',
-      { mode: 0o755 },
+    expect(result.stdout).toContain(
+      "OpenCode: refreshed via install-local-skills.sh opencode",
     );
-
-    mkdirSync(configDir, { recursive: true });
-    writeFileSync(join(configDir, "relay"), "#!/usr/bin/env bash\n", { mode: 0o755 });
-
-    const result = spawnSync("bash", ["scripts/dev-sync.sh"], {
-      cwd: REPO_ROOT,
-      encoding: "utf8",
-      timeout: 60000,
-      env: mockEnv(home, binDir, { PATH: `${binDir}:/usr/bin:/bin` }),
-    });
-
-    expect(result.status).toBe(0);
-    expect(result.stdout).toContain("Shared tools refreshed");
-    expect(existsSync(join(configDir, "version-check"))).toBe(true);
-    expect(existsSync(join(configDir, "version.json"))).toBe(true);
-    // The refreshed relay must be the runnable artifact the mock build
-    // produced — not a clobbered or zero-byte leftover.
-    expect(readFileSync(join(configDir, "relay"), "utf8")).toContain("mock-go-artifact");
+    expect(
+      lstatSync(
+        join(home, ".config/opencode/skills", "ha-nova"),
+      ).isSymbolicLink(),
+    ).toBe(false);
+    expect(
+      existsSync(
+        join(home, ".config/opencode/skills", "ha-nova", "ha-nova", "SKILL.md"),
+      ),
+    ).toBe(true);
   });
 
-  it("copies the current client registry next to the dev-synced CLI runtime", { timeout: 90000 }, () => {
-    const home = mkdtempSync(join(tmpdir(), "ha-nova-dev-sync-client-registry-"));
-    const binDir = createMockBinaries();
-    const runtimeDir = join(home, ".local", "share", "ha-nova");
-    const pathBinDir = join(home, ".local", "bin");
+  it(
+    "refreshes Antigravity when only the legacy Gemini marker exists",
+    { timeout: 60000 },
+    () => {
+      const home = mkdtempSync(
+        join(tmpdir(), "ha-nova-dev-sync-antigravity-legacy-"),
+      );
+      const binDir = createMockBinaries();
 
-    mkdirSync(join(runtimeDir, "clients"), { recursive: true });
-    mkdirSync(pathBinDir, { recursive: true });
-    const initialBuild = spawnSync("go", ["build", "-o", join(runtimeDir, "ha-nova"), "."], {
-      cwd: join(REPO_ROOT, "cli"),
-      encoding: "utf8",
-      timeout: 90000,
-    });
-    expect(initialBuild.status).toBe(0);
-    symlinkSync(join(runtimeDir, "ha-nova"), join(pathBinDir, "ha-nova"));
-    writeFileSync(
-      join(runtimeDir, "clients", "registry.json"),
-      '{"clients":[{"id":"gemini","label":"Gemini CLI","adapter_kind":"skill_tree","supported_os":["macos"]}]}\n',
+      mkdirSync(join(home, ".gemini", "skills", "ha-nova-read"), {
+        recursive: true,
+      });
+      writeFileSync(
+        join(home, ".gemini", "skills", "ha-nova-read", "SKILL.md"),
+        "name: ha-nova-read\n",
+      );
+
+      const result = spawnSync("bash", ["scripts/dev-sync.sh"], {
+        cwd: REPO_ROOT,
+        encoding: "utf8",
+        timeout: 60000,
+        env: mockEnv(home, binDir),
+      });
+
+      expect(result.status).toBe(0);
+      expect(result.stdout).toContain(
+        "Google Antigravity: refreshed via install-local-skills.sh antigravity",
+      );
+      expect(
+        existsSync(
+          join(home, ".gemini", "config", "skills", "ha-nova", "SKILL.md"),
+        ),
+      ).toBe(true);
+      expect(
+        existsSync(join(home, ".gemini", "skills", "ha-nova-read", "SKILL.md")),
+      ).toBe(false);
+    },
+  );
+
+  it(
+    "does not refresh Antigravity from stale Codex flat-copy markers",
+    { timeout: 60000 },
+    () => {
+      const home = mkdtempSync(
+        join(tmpdir(), "ha-nova-dev-sync-antigravity-codex-stale-"),
+      );
+      const binDir = createMockBinaries();
+
+      mkdirSync(join(home, ".agents", "skills", "ha-nova-read"), {
+        recursive: true,
+      });
+      writeFileSync(
+        join(home, ".agents", "skills", "ha-nova-read", "SKILL.md"),
+        "name: ha-nova-read\n",
+      );
+
+      const result = spawnSync("bash", ["scripts/dev-sync.sh"], {
+        cwd: REPO_ROOT,
+        encoding: "utf8",
+        timeout: 60000,
+        env: mockEnv(home, binDir),
+      });
+
+      expect(result.status).toBe(0);
+      expect(result.stdout).toContain(
+        "Google Antigravity: not installed — skipped",
+      );
+      expect(
+        existsSync(
+          join(home, ".gemini", "config", "skills", "ha-nova", "SKILL.md"),
+        ),
+      ).toBe(false);
+    },
+  );
+
+  it(
+    "refreshes shared tools when no file clients are installed",
+    { timeout: 90000 },
+    () => {
+      const home = mkdtempSync(
+        join(tmpdir(), "ha-nova-dev-sync-shared-tools-"),
+      );
+      const binDir = createMockBinaries();
+      const configDir = join(home, ".config", "ha-nova");
+
+      // Hermetic go: the harness may leak a real toolchain (PATH go + foreign
+      // GOROOT from release-workflow setup), which made this test fail only in
+      // release.yml. Go availability is incidental here — pin it to a fast mock
+      // that satisfies the build-to-temp-and-move contract deterministically.
+      writeFileSync(
+        join(binDir, "go"),
+        '#!/usr/bin/env bash\nif [ "$1" = "build" ]; then shift; out=""; while [ "$#" -gt 0 ]; do if [ "$1" = "-o" ]; then out="$2"; shift 2; else shift; fi; done; [ -n "$out" ] && printf "#!/usr/bin/env bash\\n# mock-go-artifact\\nexit 0\\n" > "$out"; fi\nexit 0\n',
+        { mode: 0o755 },
+      );
+
+      mkdirSync(configDir, { recursive: true });
+      writeFileSync(join(configDir, "relay"), "#!/usr/bin/env bash\n", {
+        mode: 0o755,
+      });
+
+      const result = spawnSync("bash", ["scripts/dev-sync.sh"], {
+        cwd: REPO_ROOT,
+        encoding: "utf8",
+        timeout: 60000,
+        env: mockEnv(home, binDir, { PATH: `${binDir}:/usr/bin:/bin` }),
+      });
+
+      expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
+      expect(result.stdout).toContain("Shared tools refreshed");
+      expect(existsSync(join(configDir, "version-check"))).toBe(true);
+      expect(existsSync(join(configDir, "version.json"))).toBe(true);
+      // The refreshed relay must be the runnable artifact the mock build
+      // produced — not a clobbered or zero-byte leftover.
+      expect(readFileSync(join(configDir, "relay"), "utf8")).toContain(
+        "mock-go-artifact",
+      );
+    },
+  );
+
+  it(
+    "copies the current client registry next to the dev-synced CLI runtime",
+    { timeout: 90000 },
+    () => {
+      const home = mkdtempSync(
+        join(tmpdir(), "ha-nova-dev-sync-client-registry-"),
+      );
+      const binDir = createMockBinaries();
+      const runtimeDir = join(home, ".local", "share", "ha-nova");
+      const pathBinDir = join(home, ".local", "bin");
+
+      mkdirSync(join(runtimeDir, "clients"), { recursive: true });
+      mkdirSync(pathBinDir, { recursive: true });
+      const initialBuild = spawnSync(
+        "go",
+        ["build", "-o", join(runtimeDir, "ha-nova"), "."],
+        {
+          cwd: join(REPO_ROOT, "cli"),
+          encoding: "utf8",
+          timeout: 90000,
+        },
+      );
+      expect(initialBuild.status).toBe(0);
+      symlinkSync(join(runtimeDir, "ha-nova"), join(pathBinDir, "ha-nova"));
+      writeFileSync(
+        join(runtimeDir, "clients", "registry.json"),
+        '{"clients":[{"id":"gemini","label":"Gemini CLI","adapter_kind":"skill_tree","supported_os":["macos"]}]}\n',
+      );
+
+      const result = spawnSync("bash", ["scripts/dev-sync.sh"], {
+        cwd: REPO_ROOT,
+        encoding: "utf8",
+        timeout: 90000,
+        env: mockEnv(home, binDir, {
+          PATH: `${pathBinDir}:${binDir}:${process.env.PATH ?? ""}`,
+        }),
+      });
+
+      expect(result.status).toBe(0);
+      expect(result.stdout).toContain("CLI: built local Go source");
+
+      const syncedRegistry = readFileSync(
+        join(runtimeDir, "clients", "registry.json"),
+        "utf8",
+      );
+      const syncedBundle = readFileSync(
+        join(runtimeDir, "bundle.json"),
+        "utf8",
+      );
+      expect(syncedRegistry).toContain('"id": "antigravity"');
+      expect(syncedRegistry).toContain('"label": "Google Antigravity"');
+      expect(syncedRegistry).not.toContain('"id":"gemini"');
+      // Read the expected version from the repo manifest so a release bump
+      // cannot silently break this behavior test.
+      const repoVersion = JSON.parse(
+        readFileSync(join(REPO_ROOT, "version.json"), "utf8"),
+      ).skill_version;
+      expect(syncedBundle).toContain(`"version": "${repoVersion}"`);
+      expect(syncedBundle).toContain('"bundle_format_version": 1');
+      expect(
+        existsSync(join(runtimeDir, "skills", "calendar", "SKILL.md")),
+      ).toBe(true);
+      expect(existsSync(join(runtimeDir, "skills", "health", "SKILL.md"))).toBe(
+        true,
+      );
+      expect(
+        existsSync(
+          join(runtimeDir, "docs", "reference", "skill-architecture.md"),
+        ),
+      ).toBe(true);
+    },
+  );
+
+  it("builds Cloud Remote out of the default dev-sync runtime", () => {
+    const { result, buildLog } = runDevSyncCloudBuild();
+    expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
+    expect(buildLog).toContain("-tags cloudremote_disabled");
+    expect(buildLog).not.toContain("cloudremote_dev");
+    expect(buildLog).not.toContain("cloudRemoteDevAppSlug");
+    expect(result.stdout).toContain("Cloud Remote disabled");
+  });
+
+  it("opts into Cloud Remote only for an explicit isolated App slug", () => {
+    const appSlug = "local_ha_nova_isolated";
+    const { result, buildLog } = runDevSyncCloudBuild(appSlug);
+    expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
+    expect(buildLog).toContain("-tags cloudremote_dev");
+    expect(buildLog).toContain(`-X main.cloudRemoteDevAppSlug=${appSlug}`);
+    expect(result.stdout).toContain(
+      `Cloud Remote dev opt-in active for isolated App ${appSlug}`,
     );
+  });
 
-    const result = spawnSync("bash", ["scripts/dev-sync.sh"], {
-      cwd: REPO_ROOT,
-      encoding: "utf8",
-      timeout: 90000,
-      env: mockEnv(home, binDir, { PATH: `${pathBinDir}:${binDir}:${process.env.PATH ?? ""}` }),
-    });
-
-    expect(result.status).toBe(0);
-    expect(result.stdout).toContain("CLI: built local Go source");
-
-    const syncedRegistry = readFileSync(join(runtimeDir, "clients", "registry.json"), "utf8");
-    const syncedBundle = readFileSync(join(runtimeDir, "bundle.json"), "utf8");
-    expect(syncedRegistry).toContain('"id": "antigravity"');
-    expect(syncedRegistry).toContain('"label": "Google Antigravity"');
-    expect(syncedRegistry).not.toContain('"id":"gemini"');
-    // Read the expected version from the repo manifest so a release bump
-    // cannot silently break this behavior test.
-    const repoVersion = JSON.parse(readFileSync(join(REPO_ROOT, "version.json"), "utf8")).skill_version;
-    expect(syncedBundle).toContain(`"version": "${repoVersion}"`);
-    expect(syncedBundle).toContain('"bundle_format_version": 1');
-    expect(existsSync(join(runtimeDir, "skills", "calendar", "SKILL.md"))).toBe(true);
-    expect(existsSync(join(runtimeDir, "skills", "health", "SKILL.md"))).toBe(true);
-    expect(existsSync(join(runtimeDir, "docs", "reference", "skill-architecture.md"))).toBe(true);
+  it.each([
+    "2368fcfa_ha_nova_relay",
+    "ha_nova_unisolated",
+    "local_bad/slug",
+    " local_ha_nova",
+  ])("rejects unsafe Cloud Remote dev slug %s", (appSlug) => {
+    const { result, buildLog } = runDevSyncCloudBuild(appSlug);
+    expect(result.status).not.toBe(0);
+    expect(`${result.stdout}\n${result.stderr}`).toContain(
+      "must be an isolated non-official local_<slug>",
+    );
+    expect(buildLog).toBe("");
   });
 
   it("fails loudly when repo version.json is missing", () => {
     const fakeRoot = mkdtempSync(join(tmpdir(), "ha-nova-dev-sync-fixture-"));
     const binDir = createMockBinaries();
 
-    mkdirSync(join(fakeRoot, "scripts", "onboarding", "lib"), { recursive: true });
-    mkdirSync(join(fakeRoot, "scripts", "onboarding", "bin"), { recursive: true });
+    mkdirSync(join(fakeRoot, "scripts", "onboarding", "lib"), {
+      recursive: true,
+    });
+    mkdirSync(join(fakeRoot, "scripts", "onboarding", "bin"), {
+      recursive: true,
+    });
     mkdirSync(join(fakeRoot, "scripts", "dev"), { recursive: true });
     mkdirSync(join(fakeRoot, "skills", "ha-nova"), { recursive: true });
 
-    writeFileSync(join(fakeRoot, "scripts", "dev-sync.sh"), readFileSync(join(REPO_ROOT, "scripts", "dev-sync.sh"), "utf8"), { mode: 0o755 });
-    writeFileSync(join(fakeRoot, "scripts", "onboarding", "lib", "install-local-skills-common.sh"), readFileSync(join(REPO_ROOT, "scripts", "onboarding", "lib", "install-local-skills-common.sh"), "utf8"), { mode: 0o755 });
-    writeFileSync(join(fakeRoot, "scripts", "onboarding", "lib", "install-local-skills-claude.sh"), readFileSync(join(REPO_ROOT, "scripts", "onboarding", "lib", "install-local-skills-claude.sh"), "utf8"), { mode: 0o755 });
-    writeFileSync(join(fakeRoot, "scripts", "onboarding", "bin", "ha-nova"), "#!/usr/bin/env bash\nexit 0\n", { mode: 0o755 });
+    writeFileSync(
+      join(fakeRoot, "scripts", "dev-sync.sh"),
+      readFileSync(join(REPO_ROOT, "scripts", "dev-sync.sh"), "utf8"),
+      { mode: 0o755 },
+    );
+    writeFileSync(
+      join(
+        fakeRoot,
+        "scripts",
+        "onboarding",
+        "lib",
+        "install-local-skills-common.sh",
+      ),
+      readFileSync(
+        join(
+          REPO_ROOT,
+          "scripts",
+          "onboarding",
+          "lib",
+          "install-local-skills-common.sh",
+        ),
+        "utf8",
+      ),
+      { mode: 0o755 },
+    );
+    writeFileSync(
+      join(
+        fakeRoot,
+        "scripts",
+        "onboarding",
+        "lib",
+        "install-local-skills-claude.sh",
+      ),
+      readFileSync(
+        join(
+          REPO_ROOT,
+          "scripts",
+          "onboarding",
+          "lib",
+          "install-local-skills-claude.sh",
+        ),
+        "utf8",
+      ),
+      { mode: 0o755 },
+    );
+    writeFileSync(
+      join(fakeRoot, "scripts", "onboarding", "bin", "ha-nova"),
+      "#!/usr/bin/env bash\nexit 0\n",
+      { mode: 0o755 },
+    );
 
     const result = spawnSync("bash", ["scripts/dev-sync.sh"], {
       cwd: fakeRoot,
@@ -242,7 +493,9 @@ describe("dev-sync behavior", () => {
     });
 
     expect(result.status).not.toBe(0);
-    expect(result.stderr + result.stdout).toContain("missing repo version file");
+    expect(result.stderr + result.stdout).toContain(
+      "missing repo version file",
+    );
   });
 
   it("reinstalls Claude when state.json still expects it but plugin records are gone", () => {
@@ -260,7 +513,9 @@ describe("dev-sync behavior", () => {
     });
 
     expect(result.status).toBe(0);
-    expect(result.stdout).toContain("Claude Code: configured in state.json but plugin record is missing");
+    expect(result.stdout).toContain(
+      "Claude Code: configured in state.json but plugin record is missing",
+    );
 
     const claudeLog = readClaudeLog(claudeLogFile);
     expect(claudeLog).toContain("plugin marketplace remove ha-nova");
@@ -269,10 +524,14 @@ describe("dev-sync behavior", () => {
   });
 
   it("reinstalls Claude from stale state without Node.js when no ha-nova records exist yet", () => {
-    const home = mkdtempSync(join(tmpdir(), "ha-nova-dev-sync-claude-no-node-"));
+    const home = mkdtempSync(
+      join(tmpdir(), "ha-nova-dev-sync-claude-no-node-"),
+    );
     const claudeLogFile = join(home, "claude.log");
     const binDir = createMockBinaries({ claudeLogFile });
-    writeFileSync(join(binDir, "node"), "#!/usr/bin/env bash\nexit 127\n", { mode: 0o755 });
+    writeFileSync(join(binDir, "node"), "#!/usr/bin/env bash\nexit 127\n", {
+      mode: 0o755,
+    });
 
     writeState(home, ["claude"]);
 
@@ -287,7 +546,9 @@ describe("dev-sync behavior", () => {
     });
 
     expect(result.status).toBe(0);
-    expect(result.stdout).toContain("Claude Code: configured in state.json but plugin record is missing");
+    expect(result.stdout).toContain(
+      "Claude Code: configured in state.json but plugin record is missing",
+    );
 
     const claudeLog = readClaudeLog(claudeLogFile);
     expect(claudeLog).toContain("plugin marketplace add");
@@ -310,7 +571,9 @@ describe("dev-sync behavior", () => {
     });
 
     expect(result.status).toBe(0);
-    expect(result.stdout).toContain("Claude Code: configured in state.json but plugin installPath is missing");
+    expect(result.stdout).toContain(
+      "Claude Code: configured in state.json but plugin installPath is missing",
+    );
 
     const claudeLog = readClaudeLog(claudeLogFile);
     expect(claudeLog).toContain("plugin marketplace remove ha-nova");
@@ -333,16 +596,36 @@ describe("dev-sync behavior", () => {
     });
 
     expect(result.status).toBe(0);
-    expect(result.stdout).toContain("Claude Code: ha-nova plugin not installed — skipped");
-    expect(readClaudeLog(claudeLogFile)).not.toContain("plugin install ha-nova@ha-nova");
+    expect(result.stdout).toContain(
+      "Claude Code: ha-nova plugin not installed — skipped",
+    );
+    expect(readClaudeLog(claudeLogFile)).not.toContain(
+      "plugin install ha-nova@ha-nova",
+    );
   });
 
   it("repairs a stale Claude installPath without reinstalling the plugin", () => {
     const home = mkdtempSync(join(tmpdir(), "ha-nova-dev-sync-claude-"));
     const claudeLogFile = join(home, "claude.log");
     const binDir = createMockBinaries({ claudeLogFile });
-    const stalePath = join(home, ".claude", "plugins", "cache", "ha-nova", "ha-nova", "0.2.0");
-    const actualPath = join(home, ".claude", "plugins", "cache", "ha-nova", "ha-nova", "0.3.0");
+    const stalePath = join(
+      home,
+      ".claude",
+      "plugins",
+      "cache",
+      "ha-nova",
+      "ha-nova",
+      "0.2.0",
+    );
+    const actualPath = join(
+      home,
+      ".claude",
+      "plugins",
+      "cache",
+      "ha-nova",
+      "ha-nova",
+      "0.3.0",
+    );
 
     mkdirSync(actualPath, { recursive: true });
     writeClaudePluginRecord(
@@ -358,21 +641,35 @@ describe("dev-sync behavior", () => {
     });
 
     expect(result.status).toBe(0);
-    expect(result.stdout).toContain(`Claude Code: installPath stale (${stalePath}), found ${actualPath}`);
-    expect(readClaudeLog(claudeLogFile)).not.toContain("plugin install ha-nova@ha-nova");
-    expect(readFileSync(join(home, ".claude", "plugins", "installed_plugins.json"), "utf8")).toContain(
-      `"installPath": "${actualPath}"`,
+    expect(result.stdout).toContain(
+      `Claude Code: installPath stale (${stalePath}), found ${actualPath}`,
     );
+    expect(readClaudeLog(claudeLogFile)).not.toContain(
+      "plugin install ha-nova@ha-nova",
+    );
+    expect(
+      readFileSync(
+        join(home, ".claude", "plugins", "installed_plugins.json"),
+        "utf8",
+      ),
+    ).toContain(`"installPath": "${actualPath}"`);
   });
 
   it("fails loudly when Claude sync needs the local plugin state helper but Node.js is missing", () => {
-    const home = mkdtempSync(join(tmpdir(), "ha-nova-dev-sync-claude-node-missing-"));
+    const home = mkdtempSync(
+      join(tmpdir(), "ha-nova-dev-sync-claude-node-missing-"),
+    );
     const claudeLogFile = join(home, "claude.log");
     const binDir = createMockBinaries({ claudeLogFile });
-    writeFileSync(join(binDir, "node"), "#!/usr/bin/env bash\nexit 127\n", { mode: 0o755 });
+    writeFileSync(join(binDir, "node"), "#!/usr/bin/env bash\nexit 127\n", {
+      mode: 0o755,
+    });
 
     writeState(home, ["claude"]);
-    writeClaudePluginRecord(home, '{\n    "installPath": "/tmp/ha-nova/0.3.1",\n    "version": "0.3.1"\n  }');
+    writeClaudePluginRecord(
+      home,
+      '{\n    "installPath": "/tmp/ha-nova/0.3.1",\n    "version": "0.3.1"\n  }',
+    );
 
     const result = spawnSync("bash", ["scripts/dev-sync.sh"], {
       cwd: REPO_ROOT,
@@ -385,14 +682,20 @@ describe("dev-sync behavior", () => {
     });
 
     expect(result.status).not.toBe(0);
-    expect(result.stderr + result.stdout).toContain("[dev:sync] ERROR: Node.js not found in PATH");
+    expect(result.stderr + result.stdout).toContain(
+      "[dev:sync] ERROR: Node.js not found in PATH",
+    );
   });
 
   it("skips stale Claude marketplace-only metadata without requiring Node.js", () => {
-    const home = mkdtempSync(join(tmpdir(), "ha-nova-dev-sync-claude-marketplace-only-"));
+    const home = mkdtempSync(
+      join(tmpdir(), "ha-nova-dev-sync-claude-marketplace-only-"),
+    );
     const claudeLogFile = join(home, "claude.log");
     const binDir = createMockBinaries({ claudeLogFile });
-    writeFileSync(join(binDir, "node"), "#!/usr/bin/env bash\nexit 127\n", { mode: 0o755 });
+    writeFileSync(join(binDir, "node"), "#!/usr/bin/env bash\nexit 127\n", {
+      mode: 0o755,
+    });
     mkdirSync(join(home, ".claude", "plugins"), { recursive: true });
     writeFileSync(
       join(home, ".claude", "plugins", "known_marketplaces.json"),
@@ -410,7 +713,9 @@ describe("dev-sync behavior", () => {
     });
 
     expect(result.status).toBe(0);
-    expect(result.stdout).toContain("Claude Code: ha-nova plugin not installed");
+    expect(result.stdout).toContain(
+      "Claude Code: ha-nova plugin not installed",
+    );
   });
 
   it("extracts string-form Claude marketplace sources (not just object form)", () => {
@@ -441,14 +746,24 @@ describe("dev-sync behavior", () => {
     };
 
     // String path source — the regression (object-only parsing returned "").
-    expect(sourceDir({ "ha-nova": { source: "/Users/x/.claude/plugins/marketplaces/ha-nova" } })).toBe(
-      "/Users/x/.claude/plugins/marketplaces/ha-nova",
-    );
+    expect(
+      sourceDir({
+        "ha-nova": { source: "/Users/x/.claude/plugins/marketplaces/ha-nova" },
+      }),
+    ).toBe("/Users/x/.claude/plugins/marketplaces/ha-nova");
     // Object source.path still resolves.
-    expect(sourceDir({ "ha-nova": { source: { path: "/Users/x/mkt" } } })).toBe("/Users/x/mkt");
+    expect(sourceDir({ "ha-nova": { source: { path: "/Users/x/mkt" } } })).toBe(
+      "/Users/x/mkt",
+    );
     // "github" is a type marker, not a path → empty (mirrors the Go reader).
-    expect(sourceDir({ "ha-nova": { source: "github", repo: "markusleben/ha-nova" } })).toBe("");
+    expect(
+      sourceDir({
+        "ha-nova": { source: "github", repo: "markusleben/ha-nova" },
+      }),
+    ).toBe("");
     // installLocation fallback when there is no source.
-    expect(sourceDir({ "ha-nova": { installLocation: "/Users/x/loc" } })).toBe("/Users/x/loc");
+    expect(sourceDir({ "ha-nova": { installLocation: "/Users/x/loc" } })).toBe(
+      "/Users/x/loc",
+    );
   });
 });

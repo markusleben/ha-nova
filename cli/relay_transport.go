@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -80,8 +81,26 @@ func functionalEndpoint(cfg runtimeConfig, legacyToken string) (string, *http.Cl
 // transport (the paired device path); the legacy path keeps checkRelayReadiness
 // with its test-hookable probe variables.
 func checkRelayReadinessOverTransport(base string, client *http.Client, credential string) relayReadiness {
+	return checkRelayReadinessOverTransportContext(
+		context.Background(),
+		base,
+		client,
+		credential,
+	)
+}
+
+func checkRelayReadinessOverTransportContext(
+	ctx context.Context,
+	base string,
+	client *http.Client,
+	credential string,
+) relayReadiness {
 	return checkRelayReadinessWithProbes(base, credential,
-		func(u, t string) ([]byte, error) { return fetchRelayHealthWith(client, u, t) },
-		func(u, t string) (relayWSPingResponse, error) { return probeRelayWSPingWith(client, u, t) },
+		func(u, t string) ([]byte, error) {
+			return fetchRelayHealthWithContext(ctx, client, u, t)
+		},
+		func(u, t string) (relayWSPingResponse, error) {
+			return probeRelayWSPingWithContext(ctx, client, u, t)
+		},
 		false)
 }

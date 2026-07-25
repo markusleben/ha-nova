@@ -8,6 +8,13 @@
 # dependabot-safe-lane-prepare.yml rejects any workflow change beyond uses:
 # lines, and all required checks plus the 1-review rule still apply.
 /.github/workflows/
+# These source/release gates execute protected evidence or control publication.
+# They must always receive maintainer review; the later exact matches restore
+# ownership without disabling the uses:-only Dependabot lane for other workflows.
+/.github/workflows/cloud-source-gate.yml @markusleben
+/.github/workflows/ci.yml @markusleben
+/.github/workflows/release.yml @markusleben
+/.github/workflows/release-candidate.yml @markusleben
 /.claude-plugin/ @markusleben
 /.goreleaser.yml @markusleben
 /install.sh @markusleben

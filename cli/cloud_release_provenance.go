@@ -1,0 +1,73 @@
+package main
+
+import (
+	"crypto/ed25519"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
+	"encoding/json"
+	"os"
+	"regexp"
+)
+
+const cloudReleaseEvidenceSchema = 1
+
+// Intentionally unprovisioned while Cloud Remote metadata is disabled.
+// Activation requires a reviewed source change that installs the public half
+// of the offline release key. The private half must exist only as a protected
+// GitHub production-environment secret.
+var cloudReleaseEvidencePublicKey ed25519.PublicKey
+
+var cloudReleaseSHA256Pattern = regexp.MustCompile(`^[0-9a-f]{64}$`)
+var cloudReleaseTreePattern = regexp.MustCompile(`^[0-9a-f]{40}$`)
+
+type cloudReleaseSignedPayload struct {
+	Schema        int      `json:"schema"`
+	Version       string   `json:"version"`
+	OS            string   `json:"os"`
+	Arch          string   `json:"arch"`
+	BinaryName    string   `json:"binary_name"`
+	BinarySHA256  string   `json:"binary_sha256"`
+	SourceTreeSHA string   `json:"source_tree_sha"`
+	Platforms     []string `json:"platforms"`
+}
+
+func verifyCloudReleaseProvenance(
+	bundle bundleMetadata,
+	metadata versionJSON,
+	executablePath string,
+) bool {
+	evidence := bundle.CloudRelease
+	if evidence == nil ||
+		evidence.Schema != cloudReleaseEvidenceSchema ||
+		len(cloudReleaseEvidencePublicKey) != ed25519.PublicKeySize ||
+		!cloudReleaseSHA256Pattern.MatchString(evidence.BinarySHA256) ||
+		!cloudReleaseTreePattern.MatchString(evidence.SourceTreeSHA) {
+		return false
+	}
+
+	executable, err := os.ReadFile(executablePath)
+	if err != nil {
+		return false
+	}
+	digest := sha256.Sum256(executable)
+	if hex.EncodeToString(digest[:]) != evidence.BinarySHA256 {
+		return false
+	}
+	signature, err := base64.StdEncoding.Strict().DecodeString(evidence.Signature)
+	if err != nil || len(signature) != ed25519.SignatureSize {
+		return false
+	}
+	payload, err := json.Marshal(cloudReleaseSignedPayload{
+		Schema:        evidence.Schema,
+		Version:       bundle.Version,
+		OS:            bundle.OS,
+		Arch:          bundle.Arch,
+		BinaryName:    bundle.BinaryName,
+		BinarySHA256:  evidence.BinarySHA256,
+		SourceTreeSHA: evidence.SourceTreeSHA,
+		Platforms:     metadata.CloudRemotePlatforms,
+	})
+	return err == nil &&
+		ed25519.Verify(cloudReleaseEvidencePublicKey, payload, signature)
+}

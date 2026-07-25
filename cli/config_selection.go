@@ -19,6 +19,9 @@ const defaultServerProfileName = "default"
 const serverSelectionEnvVar = "HA_NOVA_SERVER"
 
 var errUnknownServerProfile = errors.New("unknown server profile")
+var errInvalidServerProfileSelection = errors.New(
+	"invalid server profile selection",
+)
 
 // serverSelectionOverride carries an explicit --server flag value; it wins over
 // the environment and the configured default.
@@ -82,11 +85,26 @@ func resolveSelectedServerProfile(doc *configDocument) (string, error) {
 	pick, source := requestedServerSelection()
 	if pick == "" {
 		pick = doc.defaultServerName()
+		if err := validateServerProfileName(pick); err != nil {
+			return "", fmt.Errorf(
+				"%w: invalid selected server profile from default_server: %w",
+				errInvalidServerProfileSelection,
+				err,
+			)
+		}
 		if !doc.hasProfile(pick) {
 			return "", fmt.Errorf("%w: default_server %q does not exist in config.json; known server profiles: %s",
 				errUnknownServerProfile, pick, strings.Join(names, ", "))
 		}
 		return pick, nil
+	}
+	if err := validateServerProfileName(pick); err != nil {
+		return "", fmt.Errorf(
+			"%w: invalid selected server profile from %s: %w",
+			errInvalidServerProfileSelection,
+			source,
+			err,
+		)
 	}
 	if !doc.hasProfile(pick) {
 		return "", fmt.Errorf("%w %q (from %s); known server profiles: %s",

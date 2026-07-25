@@ -1,6 +1,10 @@
-//go:build !linux
+//go:build !linux && !darwin
 
 package main
+
+func platformNativeSecretPromptContextAvailable() bool {
+	return nativeSecretPromptBaseContextAvailable()
+}
 
 func detectPlatformSecureStorageRecoverySupport() (bool, error) {
 	return false, nil
@@ -11,8 +15,7 @@ func inferPlatformSecureStorageRecoveryAction(err error) (platformSecureStorageR
 	return "", nil
 }
 
-func runPlatformSecureStorageRecovery(action platformSecureStorageRecoveryAction, secret []byte) error {
+func runPlatformSecureStorageRecovery(action platformSecureStorageRecoveryAction) error {
 	_ = action
-	_ = secret
 	return nil
 }

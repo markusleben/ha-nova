@@ -30,12 +30,33 @@ describe("dependabot automation contract", () => {
       required_status_checks: string[];
       required_approving_review_count: number;
       require_code_owner_reviews: boolean;
+      dismiss_stale_reviews: boolean;
       required_conversation_resolution: boolean;
       strict_required_status_checks: boolean;
+      required_status_check_apps: Record<string, number>;
       advisory_checks: string[];
+    };
+    production_environment: {
+      name: string;
+      deployment_branch_policy: Record<string, boolean>;
+      deployment_branch_policies: Array<{ name: string; type: string }>;
+      protection_rule_types: string[];
+    };
+    cloud_source_gate: {
+      check_name: string;
+      reporter_app_slug: string;
+      sensitive_workflows: string[];
     };
   };
   const protectionScript = readFileSync("scripts/release/verify-github-main-protection.sh", "utf8");
+  const productionEnvironmentScript = readFileSync(
+    "scripts/release/verify-github-production-environment.sh",
+    "utf8",
+  );
+  const cloudUsesOnlyScript = readFileSync(
+    "scripts/release/verify-cloud-workflow-uses-only.mjs",
+    "utf8",
+  );
   const releasing = readFileSync("docs/releasing.md", "utf8");
   const mergeWorkflow = readFileSync(".github/workflows/dependabot-safe-auto-merge.yml", "utf8");
 
@@ -173,8 +194,19 @@ describe("dependabot automation contract", () => {
     expect(prepareWorkflow).not.toContain("github.event.pull_request.html_url");
 
     expect(mergeWorkflow).toContain("workflow_run:");
+    expect(mergeWorkflow).toContain("check_run:");
     expect(mergeWorkflow).not.toContain("pull_request_target:");
-    expect(mergeWorkflow).toContain("github.event.workflow_run.conclusion == 'success'");
+    expect(mergeWorkflow).toContain("resolve-trigger:");
+    expect(mergeWorkflow).toContain("permissions: {}");
+    expect(mergeWorkflow).toContain("Authenticate trusted completion trigger");
+    expect(mergeWorkflow).toContain("resolve-dependabot-auto-merge-trigger.mjs");
+    expect(mergeWorkflow).toContain("needs.resolve-trigger.outputs.should-process == 'true'");
+    expect(mergeWorkflow).toContain("needs.resolve-trigger.outputs.run-kind");
+    expect(mergeWorkflow).toContain("needs.resolve-trigger.outputs.policy-sha");
+    expect(mergeWorkflow).toContain('[[ "${policy_sha}" != "${EXPECTED_POLICY_SHA}" ]]');
+    expect(mergeWorkflow).toContain("repos/${GITHUB_REPOSITORY}/commits/${RUN_SHA}/pulls");
+    expect(mergeWorkflow).toContain(".main_branch_protection.required_status_check_apps[$name]");
+    expect(mergeWorkflow).toContain(".name == $name and .app.id == $app_id");
     expect(mergeWorkflow).toContain('POLICY_REF: ${{ github.event.repository.default_branch }}');
     expect(mergeWorkflow).not.toContain("github.event.workflow_run.event == 'pull_request'");
     expect(mergeWorkflow).toContain("SAFE_POLICY_MARKER");
@@ -254,21 +286,73 @@ describe("dependabot automation contract", () => {
     expect(policy.main_branch_protection.required_status_checks).toEqual([
       "analyze",
       "ci-gate",
+      "cloud-source-gate",
       "dependency-review",
       "manifest-review-gate",
       "readme-release-gate",
     ]);
+    expect(policy.main_branch_protection.required_status_check_apps).toEqual({
+      "cloud-source-gate": 0,
+    });
     expect(policy.main_branch_protection.required_approving_review_count).toBe(1);
     expect(policy.main_branch_protection.require_code_owner_reviews).toBe(true);
+    expect(policy.main_branch_protection.dismiss_stale_reviews).toBe(true);
     expect(policy.main_branch_protection.required_conversation_resolution).toBe(true);
-    expect(policy.main_branch_protection.strict_required_status_checks).toBe(false);
+    expect(policy.main_branch_protection.strict_required_status_checks).toBe(true);
     expect(policy.main_branch_protection.advisory_checks).toEqual(["codex-review-gate"]);
+    expect(policy.cloud_source_gate.check_name).toBe("cloud-source-gate");
+    expect(policy.cloud_source_gate.reporter_app_slug).toBe(
+      "markusleben-ha-nova-cloud-source-gate",
+    );
     expect(protectionScript).toContain("repo-policy.json");
     expect(protectionScript).toContain(".main_branch_protection.required_status_checks | sort");
+    expect(protectionScript).toContain(
+      ".main_branch_protection.required_status_check_apps",
+    );
+    expect(protectionScript).toContain(
+      ".required_status_checks.checks[]",
+    );
     expect(protectionScript).toContain(".main_branch_protection.advisory_checks[]?");
     expect(protectionScript).toContain("required_approving_review_count");
     expect(protectionScript).toContain("require_code_owner_reviews");
+    expect(protectionScript).toContain("dismiss_stale_reviews");
     expect(protectionScript).toContain("required_conversation_resolution");
     expect(protectionScript).toContain("strict_required_status_checks");
+  });
+
+  it("pins production deployment refs and keeps only the existing safe actions lane", () => {
+    expect(policy.production_environment).toEqual({
+      name: "production",
+      deployment_branch_policy: {
+        protected_branches: false,
+        custom_branch_policies: true,
+      },
+      deployment_branch_policies: [
+        { name: "main", type: "branch" },
+        { name: "v*", type: "tag" },
+      ],
+      protection_rule_types: ["branch_policy"],
+    });
+    expect(policy.cloud_source_gate.sensitive_workflows).toEqual([
+      ".github/workflows/cloud-source-gate.yml",
+      ".github/workflows/ci.yml",
+      ".github/workflows/release.yml",
+      ".github/workflows/release-candidate.yml",
+    ]);
+    expect(productionEnvironmentScript).toContain('API_VERSION="2026-03-10"');
+    expect(productionEnvironmentScript).toContain(
+      "deployment-branch-policies?per_page=100",
+    );
+    expect(productionEnvironmentScript).toContain("{name, type}");
+    expect(cloudUsesOnlyScript).toContain(
+      "may not add, delete, or rename workflows",
+    );
+    expect(cloudUsesOnlyScript).toContain("is Cloud-release-sensitive");
+    expect(cloudUsesOnlyScript).toContain(
+      "must be a forward minor/patch release update",
+    );
+    expect(cloudUsesOnlyScript).toContain(
+      "action SHAs must match their canonical release tags",
+    );
   });
 });

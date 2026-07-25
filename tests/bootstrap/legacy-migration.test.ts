@@ -3,10 +3,15 @@ import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { clearLegacyOptions, importLegacyToken } from "../../nova/src/runtime/legacy-migration.js";
+import {
+  clearLegacyOptions,
+  importLegacyToken,
+} from "../../nova/src/runtime/legacy-migration.js";
 import type { DeviceRegistry } from "../../nova/src/security/device-registry.js";
 
-function fakeSupervisor(setOptions: (options: Record<string, unknown>) => Promise<void>) {
+function fakeSupervisor(
+  setOptions: (options: Record<string, unknown>) => Promise<void>,
+) {
   return {
     getSelfInfo: vi.fn(),
     getMappedHostPort: vi.fn(),
@@ -25,12 +30,18 @@ function fakeRegistry(state: { imported?: boolean; hasLegacy?: boolean }) {
     hasLegacy: () => state.hasLegacy ?? false,
     legacyImportCompleted: () => state.imported ?? false,
     resolveDeviceSecret: () => null,
+    resolveCloudDeviceSecret: () => null,
     resolveLegacySecret: () => null,
+    getPairingResponse: () => null,
     createPending: () => {},
+    createPendingWithResponse: () => {},
     activate: () => {
       throw new Error("not used");
     },
     activatePending: () => null,
+    bindCloudUser: () => ({ ok: false, reason: "unknown" }),
+    activatePendingForCloud: () => ({ ok: false, reason: "unknown" }),
+    revokeCloudDevice: () => ({ ok: false, reason: "unknown" }),
     revoke: () => false,
     importLegacy,
     markLegacyMigrated: () => {},
@@ -57,40 +68,68 @@ describe("clearLegacyOptions", () => {
     // would resurrect the first's cleared value — so both clear in one write.
     writeFileSync(
       optionsPath,
-      JSON.stringify({ ha_llat: "secret-llat", relay_auth_token: "shared", file_access: "off" }),
+      JSON.stringify({
+        ha_llat: "secret-llat",
+        relay_auth_token: "shared",
+        file_access: "off",
+      }),
     );
     const writes: Array<Record<string, unknown>> = [];
     const supervisor = fakeSupervisor(async (options) => {
       writes.push(options);
     });
 
-    await clearLegacyOptions({ supervisor, appOptionsPath: optionsPath, logger: fakeLogger() }, true);
+    await clearLegacyOptions(
+      { supervisor, appOptionsPath: optionsPath, logger: fakeLogger() },
+      true,
+    );
 
     expect(writes).toHaveLength(1);
-    expect(writes[0]).toEqual({ ha_llat: "", relay_auth_token: "", file_access: "off" });
+    expect(writes[0]).toEqual({
+      ha_llat: "",
+      relay_auth_token: "",
+      file_access: "off",
+    });
   });
 
   it("clears only ha_llat when clearRelayToken is false (corrupt registry keeps it recoverable)", async () => {
     writeFileSync(
       optionsPath,
-      JSON.stringify({ ha_llat: "secret-llat", relay_auth_token: "shared", file_access: "off" }),
+      JSON.stringify({
+        ha_llat: "secret-llat",
+        relay_auth_token: "shared",
+        file_access: "off",
+      }),
     );
     const writes: Array<Record<string, unknown>> = [];
     const supervisor = fakeSupervisor(async (options) => {
       writes.push(options);
     });
 
-    await clearLegacyOptions({ supervisor, appOptionsPath: optionsPath, logger: fakeLogger() }, false);
+    await clearLegacyOptions(
+      { supervisor, appOptionsPath: optionsPath, logger: fakeLogger() },
+      false,
+    );
 
     expect(writes).toHaveLength(1);
-    expect(writes[0]).toEqual({ ha_llat: "", relay_auth_token: "shared", file_access: "off" });
+    expect(writes[0]).toEqual({
+      ha_llat: "",
+      relay_auth_token: "shared",
+      file_access: "off",
+    });
   });
 
   it("is a no-op when nothing needs clearing", async () => {
-    writeFileSync(optionsPath, JSON.stringify({ ha_llat: "", relay_auth_token: "", file_access: "off" }));
+    writeFileSync(
+      optionsPath,
+      JSON.stringify({ ha_llat: "", relay_auth_token: "", file_access: "off" }),
+    );
     const supervisor = fakeSupervisor(async () => {});
 
-    await clearLegacyOptions({ supervisor, appOptionsPath: optionsPath, logger: fakeLogger() }, true);
+    await clearLegacyOptions(
+      { supervisor, appOptionsPath: optionsPath, logger: fakeLogger() },
+      true,
+    );
 
     expect(supervisor.setOptions).not.toHaveBeenCalled();
   });
@@ -103,7 +142,10 @@ describe("clearLegacyOptions", () => {
     const logger = fakeLogger();
 
     await expect(
-      clearLegacyOptions({ supervisor, appOptionsPath: optionsPath, logger }, true),
+      clearLegacyOptions(
+        { supervisor, appOptionsPath: optionsPath, logger },
+        true,
+      ),
     ).resolves.toBeUndefined();
     expect(logger.warn).toHaveBeenCalledOnce();
   });
@@ -125,12 +167,22 @@ describe("importLegacyToken", () => {
   });
 
   it("imports the digest once and removes the plaintext file, without writing options", async () => {
-    writeFileSync(optionsPath, JSON.stringify({ relay_auth_token: "shared-secret", file_access: "off" }));
+    writeFileSync(
+      optionsPath,
+      JSON.stringify({ relay_auth_token: "shared-secret", file_access: "off" }),
+    );
     writeFileSync(tokenFilePath, "shared-secret");
     const { registry, importLegacy } = fakeRegistry({ imported: false });
     const supervisor = fakeSupervisor(async () => {});
 
-    await importLegacyToken({ registry, supervisor, dataDir: dir, appOptionsPath: optionsPath, now: () => 1, logger: fakeLogger() });
+    await importLegacyToken({
+      registry,
+      supervisor,
+      dataDir: dir,
+      appOptionsPath: optionsPath,
+      now: () => 1,
+      logger: fakeLogger(),
+    });
 
     expect(importLegacy).toHaveBeenCalledOnce();
     expect(existsSync(tokenFilePath)).toBe(false);
@@ -139,12 +191,22 @@ describe("importLegacyToken", () => {
 
   it("retries file removal on a later boot without re-importing", async () => {
     // Prior boot stamped the tombstone (imported) but left the plaintext file.
-    writeFileSync(optionsPath, JSON.stringify({ relay_auth_token: "residual", file_access: "off" }));
+    writeFileSync(
+      optionsPath,
+      JSON.stringify({ relay_auth_token: "residual", file_access: "off" }),
+    );
     writeFileSync(tokenFilePath, "residual");
     const { registry, importLegacy } = fakeRegistry({ imported: true });
     const supervisor = fakeSupervisor(async () => {});
 
-    await importLegacyToken({ registry, supervisor, dataDir: dir, appOptionsPath: optionsPath, now: () => 1, logger: fakeLogger() });
+    await importLegacyToken({
+      registry,
+      supervisor,
+      dataDir: dir,
+      appOptionsPath: optionsPath,
+      now: () => 1,
+      logger: fakeLogger(),
+    });
 
     expect(importLegacy).not.toHaveBeenCalled(); // never re-import
     expect(existsSync(tokenFilePath)).toBe(false); // residual file removed
@@ -155,7 +217,14 @@ describe("importLegacyToken", () => {
     const { registry, importLegacy } = fakeRegistry({ imported: true });
     const supervisor = fakeSupervisor(async () => {});
 
-    await importLegacyToken({ registry, supervisor, dataDir: dir, appOptionsPath: optionsPath, now: () => 1, logger: fakeLogger() });
+    await importLegacyToken({
+      registry,
+      supervisor,
+      dataDir: dir,
+      appOptionsPath: optionsPath,
+      now: () => 1,
+      logger: fakeLogger(),
+    });
 
     expect(importLegacy).not.toHaveBeenCalled();
     expect(supervisor.setOptions).not.toHaveBeenCalled();

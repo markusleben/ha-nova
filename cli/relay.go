@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -31,6 +32,9 @@ func newRelayHTTPClient(connectTimeoutSeconds, maxTimeSeconds float64) *http.Cli
 		Timeout: time.Duration(maxTimeSeconds * float64(time.Second)),
 		Transport: &http.Transport{
 			DialContext: (&net.Dialer{Timeout: time.Duration(connectTimeoutSeconds * float64(time.Second))}).DialContext,
+		},
+		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+			return http.ErrUseLastResponse
 		},
 	}
 }
@@ -64,6 +68,8 @@ type relayRequestOptions struct {
 	StrictStatus  bool
 	Server        string
 	ServerSet     bool
+	Via           string
+	ViaSet        bool
 }
 
 func runRelayCommand(paths runtimePaths, args []string) int {
@@ -128,6 +134,7 @@ func parseRelayFlags(command string, args []string) (relayRequestOptions, error)
 	fs.StringVar(&opts.JQFile, "jq-file", "", "path to jq filter file")
 	fs.StringVar(&opts.OutputFile, "out", "", "write command output to file")
 	fs.StringVar(&opts.Server, "server", "", "server profile name (multi-server installs)")
+	fs.StringVar(&opts.Via, "via", "", "relay transport override: local or cloud")
 
 	if err := fs.Parse(args); err != nil {
 		if helpRequested(err, fs, "ha-nova relay "+command+" [flags]") {
@@ -151,6 +158,8 @@ func parseRelayFlags(command string, args []string) (relayRequestOptions, error)
 			opts.BinaryOutSet = true
 		case "server":
 			opts.ServerSet = true
+		case "via":
+			opts.ViaSet = true
 		}
 	})
 	if fs.NArg() != 0 {
@@ -177,6 +186,11 @@ func parseRelayFlags(command string, args []string) (relayRequestOptions, error)
 	}
 	if opts.ServerSet && strings.TrimSpace(opts.Server) == "" {
 		return opts, errors.New("--server requires a non-empty profile name; nothing was sent")
+	}
+	if opts.ViaSet {
+		if _, err := parseRelayVia(opts.Via); err != nil {
+			return opts, fmt.Errorf("%w; nothing was sent", err)
+		}
 	}
 	return opts, nil
 }
@@ -335,6 +349,8 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 		setServerSelectionOverride(opts.Server)
 	}
 	relayDeadline := time.Now().Add(time.Duration(defaultRelayMaxTimeSeconds * float64(time.Second)))
+	relayCtx, cancelRelay := context.WithDeadline(context.Background(), relayDeadline)
+	defer cancelRelay()
 	// Local old-copy migration runs only after all command input validates, but
 	// does not depend on Relay config or keyring availability.
 	migratedFirstUse, migrationContended := repairMissingSessionBootstrapWithContention(paths)
@@ -345,13 +361,23 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 		return 1
 	}
 
-	baseURL, client, token, _, err := relayFunctionalTransport(cfg)
+	var via relayVia
+	if opts.ViaSet {
+		via, _ = parseRelayVia(opts.Via)
+	}
+	transport, err := selectRelayTransport(relayCtx, cfg, via, opts.ViaSet)
 	if err != nil {
-		printErr("%s", relayAuthTokenProblemMessage(err))
+		printErr("%s", relayTransportErrorMessage(err))
 		return 1
 	}
+	baseURL, client, token := transport.BaseURL, transport.Client, transport.Credential
 	url := strings.TrimRight(baseURL, "/") + "/" + endpoint
-	req, err := http.NewRequest("POST", url, bytes.NewReader(requestBody))
+	req, err := http.NewRequestWithContext(
+		relayCtx,
+		http.MethodPost,
+		url,
+		bytes.NewReader(requestBody),
+	)
 	if err != nil {
 		printErr("%s", err)
 		return 1
@@ -369,6 +395,10 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 	}
 	defer resp.Body.Close()
 
+	if isHTTPRedirect(resp.StatusCode) {
+		printRelayHTTPOutcomeUnknown(resp.StatusCode)
+		return 1
+	}
 	if notice := checkRelayVersionValue(paths, resp.Header.Get(relayVersionHeader)); !notice.empty() {
 		if shouldWarnRelayOutdated(paths) {
 			printHumanNotice(notice)
@@ -386,7 +416,14 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 		printRelayPostRequestError("validating the Relay response", err)
 		return 1
 	}
-	taskSucceeded := relayEnvelopeOK(bodyBytes)
+	envelopeValid, taskSucceeded := relayEnvelopeResult(bodyBytes)
+	if !envelopeValid {
+		printRelayPostRequestError(
+			"validating the Relay result envelope",
+			errors.New("Relay response did not contain a valid result envelope"),
+		)
+		return 1
+	}
 	upstreamExitStatus := 0
 	if endpoint == "core" {
 		upstreamExitStatus = relayCoreUpstreamExitStatus(bodyBytes, opts.StrictStatus)
@@ -429,6 +466,9 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 		}
 	}
 
+	if resp.StatusCode >= http.StatusInternalServerError {
+		printRelayHTTPOutcomeUnknown(resp.StatusCode)
+	}
 	exitStatus := 0
 	if resp.StatusCode >= 400 {
 		exitStatus = 1
@@ -442,10 +482,18 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 }
 
 func relayEnvelopeOK(body []byte) bool {
+	_, ok := relayEnvelopeResult(body)
+	return ok
+}
+
+func relayEnvelopeResult(body []byte) (bool, bool) {
 	var envelope struct {
-		OK bool `json:"ok"`
+		OK *bool `json:"ok"`
 	}
-	return json.Unmarshal(body, &envelope) == nil && envelope.OK
+	if json.Unmarshal(body, &envelope) != nil || envelope.OK == nil {
+		return false, false
+	}
+	return true, *envelope.OK
 }
 
 // writeRelayBinaryBody decodes a base64 upstream body (camera frames and other
@@ -524,6 +572,8 @@ type healthOptions struct {
 	MaxTimeSeconds        float64
 	Server                string
 	ServerSet             bool
+	Via                   string
+	ViaSet                bool
 }
 
 // parseHealthFlags accepts curl-compatible flag names so callers (session-start
@@ -537,15 +587,19 @@ func parseHealthFlags(args []string) (healthOptions, error) {
 	fs.Float64Var(&opts.ConnectTimeoutSeconds, "connect-timeout", defaultRelayConnectTimeoutSeconds, "connection timeout in seconds")
 	fs.Float64Var(&opts.MaxTimeSeconds, "max-time", defaultRelayMaxTimeSeconds, "total request timeout in seconds")
 	fs.StringVar(&opts.Server, "server", "", "server profile name (multi-server installs)")
+	fs.StringVar(&opts.Via, "via", "", "relay transport override: local or cloud")
 	if err := fs.Parse(args); err != nil {
-		if helpRequested(err, fs, "ha-nova relay health [--connect-timeout <s>] [--max-time <s>]") {
+		if helpRequested(err, fs, "ha-nova relay health [--connect-timeout <s>] [--max-time <s>] [--via <local|cloud>]") {
 			return opts, errHelpShown
 		}
 		return opts, err
 	}
 	fs.Visit(func(f *flag.Flag) {
-		if f.Name == "server" {
+		switch f.Name {
+		case "server":
 			opts.ServerSet = true
+		case "via":
+			opts.ViaSet = true
 		}
 	})
 	if fs.NArg() != 0 {
@@ -553,6 +607,11 @@ func parseHealthFlags(args []string) (healthOptions, error) {
 	}
 	if opts.ServerSet && strings.TrimSpace(opts.Server) == "" {
 		return opts, errors.New("--server requires a non-empty profile name")
+	}
+	if opts.ViaSet {
+		if _, err := parseRelayVia(opts.Via); err != nil {
+			return opts, err
+		}
 	}
 	if opts.ConnectTimeoutSeconds <= 0 || opts.MaxTimeSeconds <= 0 {
 		return opts, errors.New("--connect-timeout and --max-time must be positive seconds")
@@ -570,6 +629,8 @@ func runHealth(paths runtimePaths, args []string) int {
 		return 1
 	}
 	healthDeadline := time.Now().Add(time.Duration(healthOpts.MaxTimeSeconds * float64(time.Second)))
+	healthCtx, cancelHealth := context.WithDeadline(context.Background(), healthDeadline)
+	defer cancelHealth()
 	if healthOpts.ServerSet {
 		setServerSelectionOverride(healthOpts.Server)
 	}
@@ -583,11 +644,16 @@ func runHealth(paths runtimePaths, args []string) int {
 		return 1
 	}
 
-	baseURL, transportClient, token, deviceMode, err := relayFunctionalTransport(cfg)
+	var via relayVia
+	if healthOpts.ViaSet {
+		via, _ = parseRelayVia(healthOpts.Via)
+	}
+	transport, err := selectRelayTransport(healthCtx, cfg, via, healthOpts.ViaSet)
 	if err != nil {
-		printErr("%s", relayAuthTokenProblemMessage(err))
+		printErr("%s", relayTransportErrorMessage(err))
 		return 1
 	}
+	baseURL, transportClient, token, deviceMode := transport.BaseURL, transport.Client, transport.Credential, transport.DeviceMode
 	remaining := time.Until(healthDeadline)
 	if remaining <= 0 {
 		printErr("relay health check exceeded its %.3gs total time budget before the Relay request", healthOpts.MaxTimeSeconds)
@@ -601,14 +667,14 @@ func runHealth(paths runtimePaths, args []string) int {
 	// Legacy mode uses the health command's explicit connect/max timeouts; device
 	// mode keeps the SPKI-pinned TLS transport but applies those same timeouts to
 	// it, so a hung paired relay does not block on the fixed pairing timeout.
-	if !deviceMode {
+	if transport.Via == relayViaLocal && !deviceMode {
 		transportClient = client
 	} else {
 		applyHealthTimeouts(transportClient, connectTimeout.Seconds(), remaining.Seconds())
 	}
 
 	url := strings.TrimRight(baseURL, "/") + "/health"
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequestWithContext(healthCtx, http.MethodGet, url, nil)
 	if err != nil {
 		printErr("%s", err)
 		return 1
@@ -618,14 +684,18 @@ func runHealth(paths runtimePaths, args []string) int {
 
 	resp, err := transportClient.Do(req)
 	if err != nil {
-		printErr("%s", relayConnectErrorMessage(baseURL, err))
+		printErr("%s", relayRequestOutcomeUnknownMessage(baseURL, err))
 		return 1
 	}
 	defer resp.Body.Close()
 
+	if isHTTPRedirect(resp.StatusCode) {
+		printRelayHTTPOutcomeUnknown(resp.StatusCode)
+		return 1
+	}
 	bodyBytes, err := readAllLimited(resp.Body, maxRelayResponseBytes)
-	if err != nil || len(bodyBytes) == 0 {
-		printErr("relay health check failed")
+	if err != nil {
+		printRelayPostRequestError("reading the Relay health response", err)
 		return 1
 	}
 	bodyBytes, err = normalizeUTF8Bytes(bodyBytes, "Relay health response")
@@ -634,7 +704,10 @@ func runHealth(paths runtimePaths, args []string) int {
 		return 1
 	}
 	if len(bodyBytes) == 0 {
-		printErr("relay health check failed")
+		printRelayPostRequestError(
+			"validating the Relay health response",
+			errors.New("Relay health response was empty"),
+		)
 		return 1
 	}
 
@@ -652,6 +725,10 @@ func runHealth(paths runtimePaths, args []string) int {
 		printHumanNotice(notice)
 	}
 
+	if resp.StatusCode >= http.StatusInternalServerError {
+		printRelayHTTPOutcomeUnknown(resp.StatusCode)
+		return 1
+	}
 	if resp.StatusCode >= 400 {
 		return 1
 	}
@@ -679,18 +756,72 @@ func relayConnectErrorMessage(baseURL string, err error) string {
 }
 
 func relayRequestOutcomeUnknownMessage(baseURL string, err error) string {
+	if strings.TrimRight(baseURL, "/") == cloudRelayVirtualBaseURL {
+		return fmt.Sprintf(
+			"OUTCOME_UNKNOWN: Home Assistant Cloud could not complete the NOVA Relay request: %s\nThe request outcome is unknown: it may have reached the Relay. Verify the target state; do not retry automatically.",
+			cloudOutcomeUnknownCause(err),
+		)
+	}
 	return fmt.Sprintf(
-		"%s\nThe request outcome is unknown: it may have reached the Relay. Verify the target state; do not retry automatically.",
+		"OUTCOME_UNKNOWN: %s\nThe request outcome is unknown: it may have reached the Relay. Verify the target state; do not retry automatically.",
 		relayConnectErrorMessage(baseURL, err),
 	)
 }
 
+type relayOutcomeUnknownError struct {
+	message string
+	cause   error
+}
+
+func (e *relayOutcomeUnknownError) Error() string {
+	return e.message
+}
+
+func (e *relayOutcomeUnknownError) Unwrap() error {
+	return e.cause
+}
+
+func relayRequestOutcomeUnknownError(baseURL string, err error) error {
+	return &relayOutcomeUnknownError{
+		message: relayRequestOutcomeUnknownMessage(baseURL, err),
+		cause:   err,
+	}
+}
+
+func cloudOutcomeUnknownCause(err error) string {
+	var cloudErr *CloudError
+	if errors.As(err, &cloudErr) {
+		return cloudErr.Error()
+	}
+	return "Cloud transport failed"
+}
+
+func relayPostRequestOutcomeUnknownError(stage string, err error) error {
+	return &relayOutcomeUnknownError{
+		message: fmt.Sprintf(
+			"OUTCOME_UNKNOWN: Relay request was already sent and may have succeeded, but %s failed: %s\nVerify the target state; do not retry automatically.",
+			stage,
+			err,
+		),
+		cause: err,
+	}
+}
+
 func printRelayPostRequestError(stage string, err error) {
-	printErr(
-		"Relay request was already sent and may have succeeded, but %s failed: %s\nVerify the target state; do not retry automatically.",
-		stage,
-		err,
-	)
+	printErr("%s", relayPostRequestOutcomeUnknownError(stage, err))
+}
+
+func relayHTTPOutcomeUnknownError(status int) error {
+	return &relayOutcomeUnknownError{
+		message: fmt.Sprintf(
+			"OUTCOME_UNKNOWN: Relay returned HTTP %d after the request was sent. The request outcome is unknown and may have succeeded; verify the target state and do not retry automatically.",
+			status,
+		),
+	}
+}
+
+func printRelayHTTPOutcomeUnknown(status int) {
+	printErr("%s", relayHTTPOutcomeUnknownError(status))
 }
 
 // shouldWarnRelayOutdated throttles the ws/core outdated-relay warning to one

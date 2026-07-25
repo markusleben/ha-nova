@@ -5,6 +5,17 @@ ROOT_DIR="$(cd -- "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DIST_DIR="${DIST_DIR:-${ROOT_DIR}/dist}"
 OUTPUT_DIR="${DIST_DIR}/install-bundles"
 VERSION="${1:-$(sed -n 's/.*"skill_version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "${ROOT_DIR}/version.json" | head -1)}"
+CLOUD_REMOTE_ENABLED="$(
+  node -e \
+    'process.stdout.write(String(JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8")).cloud_remote_enabled))' \
+    "${ROOT_DIR}/version.json"
+)"
+CLOUD_REMOTE_PLATFORMS="$(
+  node -e \
+    'process.stdout.write(JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8")).cloud_remote_platforms.join(","))' \
+    "${ROOT_DIR}/version.json"
+)"
+SOURCE_TREE_SHA="$(git -C "${ROOT_DIR}" rev-parse --verify "HEAD^{tree}")"
 
 log() {
   echo "[build-install-bundle] $*"
@@ -79,15 +90,33 @@ copy_common_bundle_files() {
 
 write_bundle_metadata() {
   local bundle_root="$1" os_name="$2" arch_name="$3" binary_name="$4"
-  cat > "${bundle_root}/bundle.json" <<EOF
-{
-  "bundle_format_version": 1,
-  "version": "${VERSION}",
-  "os": "${os_name}",
-  "arch": "${arch_name}",
-  "binary_name": "${binary_name}"
+  local evidence_json="null"
+  if [[ "${CLOUD_REMOTE_ENABLED}" == "true" ]]; then
+    evidence_json="$(
+      node "${ROOT_DIR}/scripts/release/sign-cloud-release-evidence.mjs" \
+        "${VERSION}" "${os_name}" "${arch_name}" "${binary_name}" \
+        "${bundle_root}/${binary_name}" "${SOURCE_TREE_SHA}" \
+        "${CLOUD_REMOTE_PLATFORMS}"
+    )"
+  fi
+  node - "${bundle_root}/bundle.json" "${VERSION}" "${os_name}" \
+    "${arch_name}" "${binary_name}" "${evidence_json}" <<'NODE'
+const fs = require("node:fs");
+const [output, version, os, arch, binaryName, evidenceJSON] =
+  process.argv.slice(2);
+const bundle = {
+  bundle_format_version: 1,
+  version,
+  os,
+  arch,
+  binary_name: binaryName,
+};
+const evidence = JSON.parse(evidenceJSON);
+if (evidence !== null) {
+  bundle.cloud_release = evidence;
 }
-EOF
+fs.writeFileSync(output, `${JSON.stringify(bundle, null, 2)}\n`);
+NODE
 }
 
 prepare_bundle_root() {
@@ -150,6 +179,15 @@ write_bundle_checksums() {
 
 main() {
   [[ -n "${VERSION}" ]] || die "Could not determine HA NOVA version."
+  [[ "${VERSION}" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-rc[1-9][0-9]*)?$ ]] \
+    || die "Version must be strict X.Y.Z or X.Y.Z-rcN."
+  [[ "${SOURCE_TREE_SHA}" =~ ^[0-9a-f]{40}$ ]] \
+    || die "Could not determine the source tree SHA."
+  [[ "${CLOUD_REMOTE_ENABLED}" == "true" || "${CLOUD_REMOTE_ENABLED}" == "false" ]] \
+    || die "version.json cloud_remote_enabled must be a boolean."
+  if [[ "${CLOUD_REMOTE_ENABLED}" == "true" && -z "${CLOUD_REMOTE_PLATFORMS}" ]]; then
+    die "Enabled Cloud Remote metadata requires at least one platform."
+  fi
   [[ -d "${DIST_DIR}" ]] || die "dist directory not found: ${DIST_DIR}"
 
   mkdir -p "${OUTPUT_DIR}"

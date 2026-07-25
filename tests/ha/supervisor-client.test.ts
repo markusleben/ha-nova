@@ -13,15 +13,23 @@ const infoBody = (network: Record<string, number | null>, update = false) => ({
   },
 });
 
-function mockFetch(handler: (url: string, init?: RequestInit) => { status?: number; body?: unknown }) {
-  vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
-    const { status = 200, body = null } = handler(url, init);
-    return {
-      ok: status >= 200 && status < 300,
-      status,
-      text: async () => (body === null ? "" : JSON.stringify(body)),
-    } as Response;
-  }));
+function mockFetch(
+  handler: (
+    url: string,
+    init?: RequestInit,
+  ) => { status?: number; body?: unknown },
+) {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string, init?: RequestInit) => {
+      const { status = 200, body = null } = handler(url, init);
+      return {
+        ok: status >= 200 && status < 300,
+        status,
+        text: async () => (body === null ? "" : JSON.stringify(body)),
+      } as Response;
+    }),
+  );
 }
 
 afterEach(() => vi.unstubAllGlobals());
@@ -39,10 +47,14 @@ describe("supervisor-client", () => {
     const withPanel = infoBody({ "8791/tcp": 8791 });
     (withPanel.data as Record<string, unknown>).ingress_panel = true;
     mockFetch(() => ({ body: withPanel }));
-    expect((await createSupervisorClient("tok").getSelfInfo()).ingressPanel).toBe(true);
+    expect(
+      (await createSupervisorClient("tok").getSelfInfo()).ingressPanel,
+    ).toBe(true);
     // The captured live shape has no ingress_panel field — that must read as false.
     mockFetch(() => ({ body: infoBody({ "8791/tcp": 8791 }) }));
-    expect((await createSupervisorClient("tok").getSelfInfo()).ingressPanel).toBe(false);
+    expect(
+      (await createSupervisorClient("tok").getSelfInfo()).ingressPanel,
+    ).toBe(false);
   });
 
   it("posts ingress_panel as a sibling field, not inside options", async () => {
@@ -59,16 +71,26 @@ describe("supervisor-client", () => {
   });
 
   it("returns the mapped host port for the secure container port", async () => {
-    mockFetch(() => ({ body: infoBody({ "8791/tcp": 8791, "8792/tcp": 18792 }) }));
-    expect(await createSupervisorClient("tok").getMappedHostPort("8792/tcp")).toBe(18792);
+    mockFetch(() => ({
+      body: infoBody({ "8791/tcp": 8791, "8792/tcp": 18792 }),
+    }));
+    expect(
+      await createSupervisorClient("tok").getMappedHostPort("8792/tcp"),
+    ).toBe(18792);
   });
 
   it("returns null when the secure port is unmapped", async () => {
-    mockFetch(() => ({ body: infoBody({ "8791/tcp": 8791, "8792/tcp": null }) }));
-    expect(await createSupervisorClient("tok").getMappedHostPort("8792/tcp")).toBeNull();
+    mockFetch(() => ({
+      body: infoBody({ "8791/tcp": 8791, "8792/tcp": null }),
+    }));
+    expect(
+      await createSupervisorClient("tok").getMappedHostPort("8792/tcp"),
+    ).toBeNull();
     // Absent entirely also yields null.
     mockFetch(() => ({ body: infoBody({ "8791/tcp": 8791 }) }));
-    expect(await createSupervisorClient("tok").getMappedHostPort("8792/tcp")).toBeNull();
+    expect(
+      await createSupervisorClient("tok").getMappedHostPort("8792/tcp"),
+    ).toBeNull();
   });
 
   it("sends the bearer token and wraps options for setOptions", async () => {
@@ -77,14 +99,24 @@ describe("supervisor-client", () => {
       seen = { url, init: init ?? {} };
       return { status: 200 };
     });
-    await createSupervisorClient("secret-token").setOptions({ relay_auth_token: "x", ha_llat: "" });
+    await createSupervisorClient("secret-token").setOptions({
+      relay_auth_token: "x",
+      ha_llat: "",
+    });
     expect(seen!.url).toContain("/addons/self/options");
-    expect((seen!.init!.headers as Record<string, string>).authorization).toBe("Bearer secret-token");
-    expect(JSON.parse(seen!.init!.body as string)).toEqual({ options: { relay_auth_token: "x", ha_llat: "" } });
+    expect(seen!.init!.redirect).toBe("error");
+    expect((seen!.init!.headers as Record<string, string>).authorization).toBe(
+      "Bearer secret-token",
+    );
+    expect(JSON.parse(seen!.init!.body as string)).toEqual({
+      options: { relay_auth_token: "x", ha_llat: "" },
+    });
   });
 
   it("throws on a non-2xx supervisor response", async () => {
     mockFetch(() => ({ status: 403, body: { message: "denied" } }));
-    await expect(createSupervisorClient("tok").getSelfInfo()).rejects.toThrow(/403/);
+    await expect(createSupervisorClient("tok").getSelfInfo()).rejects.toThrow(
+      /403/,
+    );
   });
 });

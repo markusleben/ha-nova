@@ -4,52 +4,75 @@ import { describe, expect, it } from "vitest";
 
 describe("dev-sync contract", () => {
   const content = readFileSync("scripts/dev-sync.sh", "utf8");
-  const claudeLib = readFileSync("scripts/onboarding/lib/install-local-skills-claude.sh", "utf8");
+  const claudeLib = readFileSync(
+    "scripts/onboarding/lib/install-local-skills-claude.sh",
+    "utf8",
+  );
 
   it("delegates file clients back to install-local-skills.sh", () => {
-    expect(content).toContain('bash "${REPO_ROOT}/scripts/onboarding/install-local-skills.sh" "$target"');
+    expect(content).toContain(
+      'bash "${REPO_ROOT}/scripts/onboarding/install-local-skills.sh" "$target"',
+    );
     expect(content).toContain('refresh_file_client "$name" "$target"');
-    expect(content).toContain('refresh_file_client "Google Antigravity" "antigravity"');
+    expect(content).toContain(
+      'refresh_file_client "Google Antigravity" "antigravity"',
+    );
     expect(content).toContain('CURRENT_PLATFORM_ID="$(detect_platform_id)"');
     expect(content).toContain("sync_hermes()");
-    expect(content).toContain('sync_file_client "Hermes Agent" "${HOME}/.hermes/skills/ha-nova" "hermes"');
+    expect(content).toContain(
+      'sync_file_client "Hermes Agent" "${HOME}/.hermes/skills/ha-nova" "hermes"',
+    );
     expect(content).toContain("native Windows sync not supported");
   });
 
   it("keeps legacy Gemini marker support without stale Codex flat-copy markers", () => {
-    expect(content).toContain('.gemini/config/skills/ha-nova-read/SKILL.md');
-    expect(content).toContain('.gemini/skills/ha-nova-read/SKILL.md');
-    expect(content).not.toContain('.agents/skills/ha-nova-read/SKILL.md');
+    expect(content).toContain(".gemini/config/skills/ha-nova-read/SKILL.md");
+    expect(content).toContain(".gemini/skills/ha-nova-read/SKILL.md");
+    expect(content).not.toContain(".agents/skills/ha-nova-read/SKILL.md");
   });
 
   it("requires symlink markers for Codex and OpenCode", () => {
-    expect(content).toContain('file_client_install_present()');
-    expect(content).toContain('[[ -d "${install_root}" && -f "${install_root}/ha-nova/SKILL.md" ]]');
+    expect(content).toContain("file_client_install_present()");
+    expect(content).toContain(
+      '[[ -d "${install_root}" && -f "${install_root}/ha-nova/SKILL.md" ]]',
+    );
     expect(content).toContain('sync_file_client "Codex"');
     expect(content).toContain('sync_file_client "OpenCode"');
   });
 
   it("syncs Hermes only on POSIX-style installs", () => {
     expect(content).toContain('CURRENT_PLATFORM_ID="$(detect_platform_id)"');
-    expect(content).toContain('sync_hermes()');
-    expect(content).toContain('sync_file_client "Hermes Agent" "${HOME}/.hermes/skills/ha-nova" "hermes"');
+    expect(content).toContain("sync_hermes()");
+    expect(content).toContain(
+      'sync_file_client "Hermes Agent" "${HOME}/.hermes/skills/ha-nova" "hermes"',
+    );
     expect(content).toContain("native Windows sync not supported");
     expect(content).toContain("WSL2/Linux HA NOVA install");
   });
 
   it("generates the version-check wrapper directly instead of copying a tracked shell shim", () => {
-    expect(content).toContain('write_repo_cli_wrapper "${config_dir}/version-check" "check-update" "--quiet"');
-    expect(content).not.toContain('scripts/version-check.sh');
-    expect(content).not.toContain('scripts/update.sh');
+    expect(content).toContain(
+      'write_repo_cli_wrapper "${config_dir}/version-check" "check-update" "--quiet"',
+    );
+    expect(content).not.toContain("scripts/version-check.sh");
+    expect(content).not.toContain("scripts/update.sh");
   });
 
   it("uses the dedicated Claude plugin state helper instead of inline shell JSON rewrites", () => {
-    expect(content).toContain('. "${REPO_ROOT}/scripts/onboarding/lib/install-local-skills-claude.sh"');
-    expect(content).toContain('CLAUDE_PLUGIN_STATE_TOOL="$(claude_plugin_state_tool)"');
-    expect(claudeLib).toContain('node "$(claude_plugin_state_tool)" inspect-installed-plugin');
-    expect(content).toContain('node "${CLAUDE_PLUGIN_STATE_TOOL}" repair-plugin-record');
+    expect(content).toContain(
+      '. "${REPO_ROOT}/scripts/onboarding/lib/install-local-skills-claude.sh"',
+    );
+    expect(content).toContain(
+      'CLAUDE_PLUGIN_STATE_TOOL="$(claude_plugin_state_tool)"',
+    );
+    expect(claudeLib).toContain(
+      'node "$(claude_plugin_state_tool)" inspect-installed-plugin',
+    );
+    expect(content).toContain(
+      'node "${CLAUDE_PLUGIN_STATE_TOOL}" repair-plugin-record',
+    );
     expect(content).not.toContain("inplace_sed()");
-    expect(content).not.toContain('sed -i \'\' "$@"');
+    expect(content).not.toContain("sed -i '' \"$@\"");
     expect(content).not.toContain('sed -i "$@"');
   });
 
@@ -61,7 +84,9 @@ describe("dev-sync contract", () => {
     // a Go object file, so the build goes to a temp path and is moved over the
     // runtime target only on success — which also keeps the old runtime intact
     // when the build fails.
-    expect(content).toContain('go build -ldflags "$(dev_build_ldflags)" -o "${build_out}"');
+    expect(content).toContain('-tags "${cloud_build_tag}"');
+    expect(content).toContain('-ldflags "${build_ldflags}"');
+    expect(content).toContain('-o "${build_out}" .');
     expect(content).toContain('mv -f "${build_out}" "${target}"');
     // Guarded to a runtime under the current HOME so test sandboxes never build.
     expect(content).toContain('"${HOME}"/*) ;;');
@@ -70,8 +95,12 @@ describe("dev-sync contract", () => {
     expect(content).toContain("path_within_repo()");
     expect(content).toContain('if ! path_within_repo "${resolved}"; then');
     // The dev guard refuses a plain `ha-nova update`, so the hint must name --force.
-    expect(content).toContain("restore the release with 'ha-nova update --force'");
-    expect(content).not.toContain("restore the release with 'ha-nova update'\"");
+    expect(content).toContain(
+      "restore the release with 'ha-nova update --force'",
+    );
+    expect(content).not.toContain(
+      "restore the release with 'ha-nova update'\"",
+    );
     // A failed CLI build must fail the whole sync, not silently leave a stale
     // runtime behind refreshed skills that call new ha-nova subcommands. The
     // missing-Go / missing-cli branch is the same stale-runtime gap, so it must set
@@ -93,24 +122,37 @@ describe("dev-sync contract", () => {
     expect(content).toContain("-X main.BuildChannel=dev");
     expect(content).toContain("-X main.BuildStamp=");
     expect(content).toContain('target_root="$(dirname "${target}")"');
-    expect(content).toContain('cp "${REPO_ROOT}/version.json" "${target_root}/version.json"');
-    expect(content).toContain('write_dev_bundle_metadata "${target_root}" "${repo_version:-dev}"');
-    expect(content).toContain('rsync -a --delete "${REPO_ROOT}/skills/" "${target_root}/skills/"');
-    expect(content).toContain('rsync -a --delete "${REPO_ROOT}/docs/reference/" "${target_root}/docs/reference/"');
+    expect(content).toContain(
+      'cp "${REPO_ROOT}/version.json" "${target_root}/version.json"',
+    );
+    expect(content).toContain(
+      'write_dev_bundle_metadata "${target_root}" "${repo_version:-dev}"',
+    );
+    expect(content).toContain(
+      'rsync -a --delete "${REPO_ROOT}/skills/" "${target_root}/skills/"',
+    );
+    expect(content).toContain(
+      'rsync -a --delete "${REPO_ROOT}/docs/reference/" "${target_root}/docs/reference/"',
+    );
     expect(content).toContain('mkdir -p "${target_root}/clients"');
-    expect(content).toContain('cp "${REPO_ROOT}/clients/registry.json" "${target_root}/clients/registry.json"');
+    expect(content).toContain(
+      'cp "${REPO_ROOT}/clients/registry.json" "${target_root}/clients/registry.json"',
+    );
     expect(content).toContain('[[ -f "${state_file}" ]] || return 0');
-    expect(content).toContain("node -e 'process.exit(0)' >/dev/null 2>&1 || return 0");
+    expect(content).toContain(
+      "node -e 'process.exit(0)' >/dev/null 2>&1 || return 0",
+    );
     expect(content).toContain("state.clients_verified_version = version");
     // The stamp has a SINGLE owner: sync_cli_runtime, which builds the runtime
     // binary `ha-nova` actually resolves to. The shared-tools relay build stays
     // plain (in repo-dev installs relay_dst is a wrapper this would clobber).
-    expect(content).toContain('go build -ldflags "$(dev_build_ldflags)" -o "${build_out}"');
-    expect(content).not.toContain('go build -ldflags "$(dev_build_ldflags)" -o "${relay_dst}"');
+    expect(content).toContain('-ldflags "${build_ldflags}"');
+    expect(content).toContain('-o "${build_out}" .');
+    expect(content).not.toContain('-o "${relay_dst}"');
     // The shared-tools relay build is plain, and also failure-safe: it builds to
     // a temp path and moves it over the target, so a failed build keeps the old
     // relay instead of leaving the user with none.
-    expect(content).toContain('go build -o "${relay_build}"');
+    expect(content).toContain('-o "${relay_build}" .');
     expect(content).toContain('mv -f "${relay_build}" "${relay_dst}"');
     // The fragile in-file skill stamp is retired (it was invisible in symlink
     // clients and risked writing back into the repo).
@@ -124,15 +166,36 @@ describe("dev-sync contract", () => {
     expect(content).toContain('"${mkt_src}" == "${HOME}"/*');
   });
 
+  it("keeps Cloud Remote off by default and requires an isolated App slug to opt in", () => {
+    expect(content).toContain("validate_dev_cloud_app_slug()");
+    expect(content).toContain("dev_cloud_build_tag()");
+    expect(content).toContain("printf '%s\\n' \"cloudremote_disabled\"");
+    expect(content).toContain("printf '%s\\n' \"cloudremote_dev\"");
+    expect(content).toContain("HA_NOVA_DEV_CLOUD_APP_SLUG");
+    expect(content).toContain("^local_[a-z0-9][a-z0-9_-]{0,57}$");
+    expect(content).toContain("2368fcfa_ha_nova_relay");
+    expect(content).toContain(
+      "-X main.cloudRemoteDevAppSlug=${HA_NOVA_DEV_CLOUD_APP_SLUG}",
+    );
+    expect(content).toContain("harden_cloud_dev_binary()");
+    expect(content).toContain("--options runtime,hard,kill,library");
+    expect(content).toContain("--verify --strict");
+    expect(content).not.toContain("main.CloudRemoteDevBuild");
+    expect(content).not.toContain("main.CloudRemoteDevAppSlug");
+  });
+
   it("locks the new fail-loud repo invariant guards", () => {
-    expect(content).toContain('missing repo skills directory');
-    expect(content).toContain('missing repo version file');
-    expect(content).toContain('missing repo helper runtime shim');
-    expect(content).toContain('missing session bootstrap');
-    const installer = readFileSync("scripts/onboarding/install-local-skills.sh", "utf8");
-    expect(installer).toContain('Missing repo skills directory');
-    expect(installer).toContain('Missing repo version file');
-    expect(installer).toContain('Missing repo helper runtime shim');
-    expect(installer).toContain('Missing mandatory session bootstrap');
+    expect(content).toContain("missing repo skills directory");
+    expect(content).toContain("missing repo version file");
+    expect(content).toContain("missing repo helper runtime shim");
+    expect(content).toContain("missing session bootstrap");
+    const installer = readFileSync(
+      "scripts/onboarding/install-local-skills.sh",
+      "utf8",
+    );
+    expect(installer).toContain("Missing repo skills directory");
+    expect(installer).toContain("Missing repo version file");
+    expect(installer).toContain("Missing repo helper runtime shim");
+    expect(installer).toContain("Missing mandatory session bootstrap");
   });
 });

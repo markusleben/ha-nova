@@ -31,7 +31,8 @@ relay_version="$2"
 repository="markusleben/ha-nova"
 
 [[ "$commit_sha" =~ ^[0-9a-f]{40}$ ]] || fail "commit SHA must be exactly 40 hexadecimal characters"
-[[ "$relay_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail "relay version must match X.Y.Z"
+[[ "$relay_version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] \
+  || fail "relay version must be canonical X.Y.Z"
 [[ "$repository" =~ ^[^/[:space:]]+/[^/[:space:]]+$ ]] || fail "invalid GitHub repository: $repository"
 
 require_command gh

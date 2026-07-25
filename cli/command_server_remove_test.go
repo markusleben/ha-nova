@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -85,8 +86,12 @@ func TestServerRemoveRevokesDeletesAndResetsDefault(t *testing.T) {
 	if _, ok := servers["cabin"]; ok {
 		t.Fatal("servers entry must be gone")
 	}
-	if compactTestJSON(t, servers["default"]) != compactTestJSON(t, serversBefore["default"]) {
-		t.Fatalf("sibling profile changed by remove:\n before: %s\n after:  %s", serversBefore["default"], servers["default"])
+	var remaining serverProfileConfig
+	if err := json.Unmarshal(servers["default"], &remaining); err != nil {
+		t.Fatal(err)
+	}
+	if remaining.RelayBaseURL != "http://ha:8791" || remaining.ProfileID == "" || remaining.RoutePolicy != routePolicyLocal {
+		t.Fatalf("sibling profile lost data during v3 migration: before=%s after=%s", serversBefore["default"], servers["default"])
 	}
 	if string(top["default_server"]) != `"default"` {
 		t.Fatalf("default_server = %s, want reset to \"default\"", top["default_server"])
@@ -176,7 +181,7 @@ func TestServerCommandUsageAndHelp(t *testing.T) {
 		t.Fatalf("bogus subcommand exit = %d, output:\n%s", exit, out)
 	}
 
-	if !strings.Contains(captureStdout(t, printUsage), "ha-nova server <list|default|rename|remove>") {
+	if !strings.Contains(captureStdout(t, printUsage), "ha-nova server <list|default|rename|remove|route>") {
 		t.Fatal("global usage must list the server command")
 	}
 }
@@ -222,10 +227,10 @@ func TestServerRemoveDeletesMalformedCredentialSlot(t *testing.T) {
 	}
 }
 
-func TestServerRemoveHeadlessDeletesMarkerlessPendingFile(t *testing.T) {
-	// Interrupted headless file pairing (pending raw file, no marker), retried
-	// removal on the same headless host: the purge deletes raw files directly,
-	// so the preflight must warn and proceed instead of aborting.
+func TestServerRemoveHeadlessRetainsMarkerlessPendingFileAndConfig(t *testing.T) {
+	// A markerless pending file does not prove that no keyring slot exists.
+	// Removing the profile while the keyring is unreachable could therefore
+	// strand a credential under a profile name that no longer exists.
 	paths := setupServerCommandTest(t, testV2TwoProfileConfig)
 	t.Setenv("HA_NOVA_TEST_SECRET_DIR", "")
 	prevPreflight := deviceCredentialPreflight
@@ -241,18 +246,29 @@ func TestServerRemoveHeadlessDeletesMarkerlessPendingFile(t *testing.T) {
 	if err := os.WriteFile(pendingPath, []byte(testProfileCredentialB), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	configBefore, err := os.ReadFile(paths.ConfigFile)
+	if err != nil {
+		t.Fatal(err)
+	}
 	stubServerRevoke(t)
 	stubServerCommandStdin(t, "cabin\n")
 
 	exit, out := captureCommandOutput(t, func() int { return runServerCommand(paths, []string{"remove", "cabin"}) })
-	if exit != 0 {
-		t.Fatalf("headless remove exit = %d, want 0\n%s", exit, out)
+	if exit != 1 {
+		t.Fatalf("headless remove exit = %d, want 1\n%s", exit, out)
 	}
-	if !strings.Contains(out, "not reachable") {
-		t.Fatalf("headless remove must warn about the unreachable keyring layer:\n%s", out)
+	if !strings.Contains(out, "nothing was removed") {
+		t.Fatalf("headless remove must stop before confirmation:\n%s", out)
 	}
-	if _, err := os.Lstat(pendingPath); !os.IsNotExist(err) {
-		t.Fatalf("raw pending file must be deleted, stat err = %v", err)
+	if _, err := os.Lstat(pendingPath); err != nil {
+		t.Fatalf("raw pending file was removed, stat err = %v", err)
+	}
+	configAfter, err := os.ReadFile(paths.ConfigFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(configBefore, configAfter) {
+		t.Fatal("server config changed while secure storage was unreachable")
 	}
 }
 
@@ -260,7 +276,7 @@ func TestServerRemoveRejectsRawCredentialReplacementDuringConfirmation(t *testin
 	paths := setupServerCommandTest(t, testV2TwoProfileConfig)
 	t.Setenv("HA_NOVA_TEST_SECRET_DIR", "")
 	previousPreflight := deviceCredentialPreflight
-	deviceCredentialPreflight = func() error { return errDesktopKeyringSessionUnavailable }
+	deviceCredentialPreflight = func() error { return nil }
 	t.Cleanup(func() { deviceCredentialPreflight = previousPreflight })
 
 	pendingPath, err := deviceSecretFilePath(deviceCredentialPendingServiceForProfile("cabin"))

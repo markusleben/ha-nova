@@ -61,6 +61,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - name: Setup Node
         uses: actions/setup-node@v7
@@ -68,10 +70,19 @@ jobs:
           node-version: 20
           cache: npm
 
+      - name: Verify Home Assistant Cloud source gate
+        # PR and merge-queue checks run later from trusted default-branch code.
+        # This in-tree gate protects direct main pushes after merge.
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HA_NOVA_CLOUD_GATE_EVIDENCE_JSON: ${{ secrets.HA_NOVA_CLOUD_GATE_EVIDENCE_JSON }}
+        run: bash scripts/release/verify-cloud-release-gate.sh
+
       - name: Setup Go
         uses: actions/setup-go@v7
         with:
-          go-version: "1.26"
+          go-version: "1.26.5"
           cache-dependency-path: cli/go.sum
 
       # The dev-sync tests shell out to `go build` under a restricted PATH
@@ -112,7 +123,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v7
         with:
-          go-version: "1.26"
+          go-version: "1.26.5"
           cache-dependency-path: cli/go.sum
 
       - name: Build (cross-target)
@@ -124,6 +135,61 @@ jobs:
           GOOS=linux GOARCH=amd64 go build -o /dev/null .
           GOOS=linux GOARCH=arm64 go build -o /dev/null .
 
+  macos-native-secret-boundary:
+    name: macos-native-secret-boundary
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: "1.26.5"
+          cache-dependency-path: cli/go.sum
+
+      - name: Reject a non-hardened executable
+        run: |
+          cd cli
+          go test -c -o "${RUNNER_TEMP}/ha-nova-cli.test" .
+          /usr/bin/codesign --force --sign - \
+            --timestamp=none \
+            "${RUNNER_TEMP}/ha-nova-cli.test"
+          /usr/bin/codesign --verify --strict "${RUNNER_TEMP}/ha-nova-cli.test"
+          "${RUNNER_TEMP}/ha-nova-cli.test" \
+            -test.run '^TestDarwinNativeSecretWorkerRejectsNonHardenedExecutable$' \
+            -test.v
+
+      - name: Verify the hardened same-executable boundary
+        run: |
+          /usr/bin/codesign --force --sign - \
+            --options runtime,hard,kill,library \
+            --timestamp=none \
+            "${RUNNER_TEMP}/ha-nova-cli.test"
+          /usr/bin/codesign --verify --strict "${RUNNER_TEMP}/ha-nova-cli.test"
+          "${RUNNER_TEMP}/ha-nova-cli.test" \
+            -test.run '^(TestDarwinNativeSecretWorkerVerifiesSameExecutableParent|TestDarwinOAuthSecurityBindingLoads|TestDarwinOAuthBackendStopsBeforeNativeAccessWhenCanceled)$' \
+            -test.v
+
+  windows-native-secret-boundary:
+    name: windows-native-secret-boundary
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: "1.26.5"
+          cache-dependency-path: cli/go.sum
+
+      - name: Verify native worker boundaries
+        shell: pwsh
+        run: |
+          Set-Location cli
+          go test -count=1 -run '^(TestWindowsOAuthNativeOperationsHonorHardDeadline|TestNativeSecretWorker.*)$' .
+
   windows-powershell-unicode:
     name: windows-powershell-unicode
     runs-on: windows-latest
@@ -134,7 +200,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v7
         with:
-          go-version: "1.26"
+          go-version: "1.26.5"
           cache-dependency-path: cli/go.sum
 
       - name: Verify PowerShell 5.1 UTF-8 round trip

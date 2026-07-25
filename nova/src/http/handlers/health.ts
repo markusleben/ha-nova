@@ -11,6 +11,7 @@ export interface HealthHandlerOptions {
   startedAtMs: number;
   fileAccessMode: string;
   snapshotRoot: string;
+  relayInstanceId?: string;
   now?: () => number;
 }
 
@@ -26,13 +27,18 @@ export interface HealthPayload {
   uptime_s: number;
   file_access: string;
   snapshots: { files: number; bytes: number };
+  relay_instance_id?: string;
 }
 
-export function createHealthHandler(options: HealthHandlerOptions): RouteHandler {
+export function createHealthHandler(
+  options: HealthHandlerOptions,
+): RouteHandler {
   return async () => await readHealthPayload(options);
 }
 
-export async function readHealthPayload(options: HealthHandlerOptions): Promise<HealthPayload> {
+export async function readHealthPayload(
+  options: HealthHandlerOptions,
+): Promise<HealthPayload> {
   const now = options.now ?? (() => Date.now());
   const uptimeMs = Math.max(0, now() - options.startedAtMs);
   const uptimeSeconds = Math.floor(uptimeMs / 1000);
@@ -53,10 +59,15 @@ export async function readHealthPayload(options: HealthHandlerOptions): Promise<
   return {
     status: "ok",
     ha_ws_connected: wsStatus.connected,
-    ha_ws_disconnect_reason: wsStatus.connected ? null : wsStatus.disconnect_reason,
+    ha_ws_disconnect_reason: wsStatus.connected
+      ? null
+      : wsStatus.disconnect_reason,
     version: options.version,
     uptime_s: uptimeSeconds,
     file_access: options.fileAccessMode,
-    snapshots
+    snapshots,
+    ...(options.relayInstanceId !== undefined
+      ? { relay_instance_id: options.relayInstanceId }
+      : {}),
   };
 }

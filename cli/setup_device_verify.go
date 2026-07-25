@@ -1,25 +1,37 @@
 package main
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"strings"
+	"time"
 )
 
 // verifyDeviceHealth confirms the paired device credential reaches the relay's
 // secure endpoint. Pairing already activated the credential, so this is a final
 // end-to-end check over the pinned TLS transport rather than a token probe.
 var verifyDeviceHealth = func(cfg runtimeConfig) bool {
-	baseURL, client, token, deviceMode, err := relayFunctionalTransport(cfg)
-	if err != nil || !deviceMode {
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		time.Duration(defaultRelayMaxTimeSeconds*float64(time.Second)),
+	)
+	defer cancel()
+	selected, err := selectRelayTransport(ctx, cfg, "", false)
+	if err != nil || !selected.DeviceMode {
 		return false
 	}
-	req, err := http.NewRequest(http.MethodGet, strings.TrimRight(baseURL, "/")+"/health", nil)
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodGet,
+		strings.TrimRight(selected.BaseURL, "/")+"/health",
+		nil,
+	)
 	if err != nil {
 		return false
 	}
-	req.Header.Set("Authorization", "Bearer "+token)
-	resp, err := client.Do(req)
+	req.Header.Set("Authorization", "Bearer "+selected.Credential)
+	resp, err := selected.Client.Do(req)
 	if err != nil {
 		return false
 	}

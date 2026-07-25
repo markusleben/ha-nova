@@ -15,7 +15,8 @@ export const WITHDRAW_FIELDS = ["schema", "installation_id"] as const;
 export const ALLOWED_FIELDS = SCHEMA_2_FIELDS;
 export const ALLOWED_OS = ["macos", "linux", "windows"] as const;
 export const MAX_BODY_BYTES = 512;
-export const VERSION_PATTERN = /^\d+\.\d+\.\d+(-rc\d+)?$/;
+export const VERSION_PATTERN =
+  /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-rc[1-9][0-9]*)?$/;
 export const INSTALLATION_ID_PATTERN = /^cns-[0-9a-f]{32}$/;
 export const MAX_VERSION_LENGTH = 32;
 export const RELEASE_SMOKE_VERSION = "0.0.0-rc999999";

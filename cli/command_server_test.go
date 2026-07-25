@@ -101,17 +101,17 @@ func TestServerListShowsProfilesPairedAndMarkers(t *testing.T) {
 		t.Fatalf("list exit = %d, want 0\n%s", exit, out)
 	}
 	defaultRow := serverListRow(t, out, "default")
-	if defaultRow[1] != "ha" || defaultRow[2] != "http://ha:8791" || defaultRow[3] != "no" {
+	if defaultRow[1] != "ha" || defaultRow[2] != "http://ha:8791" || defaultRow[3] != "local" || defaultRow[4] != "no" {
 		t.Fatalf("default row = %v", defaultRow)
 	}
-	if !strings.Contains(strings.Join(defaultRow, " "), "default") || len(defaultRow) < 5 {
+	if !strings.Contains(out, "CLOUD") || !strings.Contains(strings.Join(defaultRow, " "), "default") || len(defaultRow) < 7 {
 		t.Fatalf("default row must carry the default marker: %v", defaultRow)
 	}
 	cabinRow := serverListRow(t, out, "cabin")
-	if cabinRow[2] != "http://cabin:8791" || cabinRow[3] != "yes" {
+	if cabinRow[2] != "http://cabin:8791" || cabinRow[3] != "local" || cabinRow[4] != "yes" {
 		t.Fatalf("cabin row = %v", cabinRow)
 	}
-	if len(cabinRow) > 4 {
+	if cabinRow[5] != "no" || len(cabinRow) > 6 {
 		t.Fatalf("cabin row must carry no markers without a selection: %v", cabinRow)
 	}
 
@@ -151,8 +151,12 @@ func TestServerDefaultSwitchesAndKeepsLiteralDefaultMirror(t *testing.T) {
 		t.Fatal(err)
 	}
 	for name := range serversBefore {
-		if compactTestJSON(t, serversAfter[name]) != compactTestJSON(t, serversBefore[name]) {
-			t.Fatalf("profile %q changed by server default:\n before: %s\n after:  %s", name, serversBefore[name], serversAfter[name])
+		var migrated serverProfileConfig
+		if err := json.Unmarshal(serversAfter[name], &migrated); err != nil {
+			t.Fatal(err)
+		}
+		if migrated.ProfileID == "" || migrated.RoutePolicy != routePolicyLocal {
+			t.Fatalf("profile %q did not migrate to v3: %+v", name, migrated)
 		}
 	}
 }
@@ -201,8 +205,12 @@ func TestServerRenameMovesEntrySlotsAndDefaultPointer(t *testing.T) {
 	if _, ok := servers["cabin"]; ok {
 		t.Fatal("old servers entry must be gone")
 	}
-	if compactTestJSON(t, servers["seaside"]) != compactTestJSON(t, serversBefore["cabin"]) {
-		t.Fatalf("renamed entry must keep the profile data unchanged:\n old: %s\n new: %s", serversBefore["cabin"], servers["seaside"])
+	var renamed serverProfileConfig
+	if err := json.Unmarshal(servers["seaside"], &renamed); err != nil {
+		t.Fatal(err)
+	}
+	if renamed.RelayBaseURL != "http://cabin:8791" || renamed.ProfileID == "" || renamed.RoutePolicy != routePolicyLocal {
+		t.Fatalf("renamed entry lost data or v3 identity: old=%s new=%s", serversBefore["cabin"], servers["seaside"])
 	}
 	if string(top["default_server"]) != `"seaside"` {
 		t.Fatalf("default_server = %s, want \"seaside\"", top["default_server"])

@@ -39,6 +39,20 @@ describe("install.ps1 contract", () => {
     );
   });
 
+  it("rejects non-canonical release selectors before download", () => {
+    expect(content).toContain("function Normalize-ReleaseVersion");
+    expect(content).toContain(
+      "'^(v)?(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-rc[1-9][0-9]*)?$'",
+    );
+    expect(content).toContain(
+      "return Normalize-ReleaseVersion -Version $env:HA_NOVA_VERSION",
+    );
+    expect(content).toContain(
+      "return Normalize-ReleaseVersion -Version ([string]$release.tag_name)",
+    );
+    expect(content).not.toContain('TrimStart("v")');
+  });
+
   it("supports maintainer-only bundle URL overrides for private RC tests", () => {
     expect(content).toContain("HA_NOVA_BUNDLE_URL");
     expect(content).toContain("HA_NOVA_BUNDLE_SHA256_URL");

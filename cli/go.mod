@@ -1,10 +1,12 @@
 module github.com/markusleben/ha-nova/cli
 
-go 1.26.0
+go 1.26.5
 
 require (
 	github.com/bytemare/ksf v0.5.0
 	github.com/bytemare/opaque v0.18.0
+	github.com/coder/websocket v1.8.15
+	github.com/ebitengine/purego v0.10.2
 	github.com/godbus/dbus/v5 v5.1.0
 	github.com/itchyny/gojq v0.12.18
 	github.com/zalando/go-keyring v0.2.6

@@ -2,8 +2,20 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"strconv"
 )
+
+func validateSupportedConfigDocument(doc *configDocument) error {
+	if doc != nil && doc.meta.SchemaVersion > configSchemaVersion {
+		return fmt.Errorf(
+			"config schema_version %d is newer than this HA NOVA build supports (%d); update HA NOVA before using it",
+			doc.meta.SchemaVersion,
+			configSchemaVersion,
+		)
+	}
+	return nil
+}
 
 // Document-level edit primitives for the `ha-nova server` profile-management
 // commands (default/rename/remove). saveProfileConfig covers "write ONE
@@ -35,6 +47,12 @@ func documentServersCopy(doc *configDocument) (map[string]json.RawMessage, error
 // no mirror: the flat fields are removed and an old binary honestly reports
 // "not set up yet".
 func writeServersDocument(paths runtimePaths, doc *configDocument, servers map[string]json.RawMessage, defaultName string) error {
+	if err := validateSupportedConfigDocument(doc); err != nil {
+		return err
+	}
+	if err := normalizeServerProfilesV3(servers); err != nil {
+		return err
+	}
 	top := make(map[string]json.RawMessage, len(doc.top)+4)
 	for key, value := range doc.top {
 		top[key] = value
@@ -42,17 +60,12 @@ func writeServersDocument(paths runtimePaths, doc *configDocument, servers map[s
 	for _, key := range serverProfileFieldKeys {
 		delete(top, key)
 	}
+	for _, key := range legacyMirrorFieldKeys {
+		delete(top, key)
+	}
 	if raw, ok := servers[defaultServerProfileName]; ok {
-		var mirror serverProfileConfig
-		if err := json.Unmarshal(raw, &mirror); err != nil {
-			return err
-		}
-		mirrorRaw, err := json.Marshal(mirror)
+		mirrorMap, err := legacyMirrorMap(raw)
 		if err != nil {
-			return err
-		}
-		var mirrorMap map[string]json.RawMessage
-		if err := json.Unmarshal(mirrorRaw, &mirrorMap); err != nil {
 			return err
 		}
 		for key, value := range mirrorMap {

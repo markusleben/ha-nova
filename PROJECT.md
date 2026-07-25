@@ -4,7 +4,7 @@
 
 ha-nova is a Home Assistant AI integration. It replaces an 88,000-line MCP server with a lean API Relay plus LLM Skills.
 
-- **Relay:** Runs as a Home Assistant App, ~1,500 LOC, pure transport layer (WS proxy, REST forwarding, token storage)
+- **Relay:** Runs as a Home Assistant App, pure transport layer (WS proxy, REST forwarding, token storage)
 - **Skills:** Markdown files that instruct LLMs on Home Assistant control (best practices, workflows, API knowledge)
 - **Relay path:** Skills use HA NOVA Relay for Home Assistant REST/WS transport; business logic stays in Markdown skills, not in the Relay
 
@@ -23,6 +23,27 @@ Shipped and current:
 2. Go CLI: install, setup wizard, doctor, update (incl. guided relay update), uninstall (incl. guided server-side teardown), relay proxy
 3. Context skill `ha-nova` plus 29 task skills, flat under `skills/` — the dispatch table in `skills/ha-nova/SKILL.md` is the authoritative inventory
 4. Shared references under `skills/ha-nova/` (relay API contract, output rules, write safety, batch safety, schemas, agent templates)
+
+Current `main` also contains the release-gated implementation of an opt-in Home
+Assistant Cloud remote transport Beta for Home Assistant OS/Supervised. Release
+metadata keeps it disabled until the real validation matrix passes:
+
+1. The wizard offers `Local + Home Assistant Cloud`, `Local only`, and
+   `Home Assistant Cloud only`. Service and headless setup stay local-only.
+2. Cloud setup uses Home Assistant OAuth, Supervisor WebSocket APIs, and a
+   process-local Ingress session. HA NOVA operates no public tunnel or broker.
+3. OAuth refresh tokens use a dedicated native OS credential store. Normal
+   Relay calls use no-UI reads and fail fast when secure storage is locked.
+4. Ingress functional calls require both the Home Assistant ingress user and a
+   device credential bound to that user and the persistent Relay instance.
+5. `automatic` routing prefers the pinned local device transport and selects
+   Cloud only after a bounded authenticated preflight ends in a pure network
+   failure. Security, identity, protocol, or authorization errors never fall
+   back.
+
+The Beta is not release-ready until the real Nabu Casa parity, native-keyring,
+identity/role, lifecycle, and stress gates in
+`docs/work/2026-07-25-home-assistant-cloud-remote-spec.md` pass.
 
 ## Tech Stack
 

@@ -9,8 +9,44 @@ permissions:
   contents: write
 
 jobs:
+  cloud-release-gate:
+    name: Verify release publication gates
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: read
+    environment:
+      name: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "20"
+
+      - name: Verify production environment policy
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/release/verify-github-production-environment.sh
+
+      - name: Verify release metadata
+        env:
+          VERSION_TAG: ${{ github.ref_name }}
+        run: bash scripts/release/verify-release-metadata.sh "${VERSION_TAG}"
+
+      - name: Verify Home Assistant Cloud release gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HA_NOVA_CLOUD_GATE_EVIDENCE_JSON: ${{ secrets.HA_NOVA_CLOUD_GATE_EVIDENCE_JSON }}
+        run: bash scripts/release/verify-cloud-release-gate.sh
+
   release:
     name: Build release assets
+    needs: cloud-release-gate
     runs-on: ubuntu-latest
     environment:
       name: production
@@ -40,14 +76,11 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v7
         with:
-          go-version: "1.26"
+          go-version: "1.26.5"
           cache-dependency-path: cli/go.sum
 
       - name: Verify repository
         run: npm run verify
-
-      - name: Verify release metadata
-        run: bash scripts/release/verify-release-metadata.sh "${GITHUB_REF_NAME}"
 
       - name: Verify next release version
         env:
@@ -87,6 +120,8 @@ jobs:
 
       - name: Build install bundles
         if: steps.release-state.outputs.published != 'true'
+        env:
+          HA_NOVA_CLOUD_RELEASE_SIGNING_KEY_PEM: ${{ secrets.HA_NOVA_CLOUD_RELEASE_SIGNING_KEY_PEM }}
         run: bash scripts/release/build-install-bundle.sh "${GITHUB_REF_NAME#v}"
 
       - name: Upload install bundles
@@ -95,9 +130,119 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh release upload "$GITHUB_REF_NAME" dist/install-bundles/* --clobber
 
+  smoke-release-bundles:
+    name: Smoke uploaded release bundles (${{ matrix.os }})
+    needs: release
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Download and smoke Unix release bundle
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "${RUNNER_OS}" in
+            macOS)
+              platform="darwin"
+              archive="ha-nova-installer-bundle-macos-$(uname -m | sed 's/x86_64/amd64/;s/arm64/arm64/').tar.gz"
+              ;;
+            Linux)
+              platform="linux"
+              archive="ha-nova-installer-bundle-linux-$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/;s/arm64/arm64/').tar.gz"
+              ;;
+            *) exit 1 ;;
+          esac
+          workdir="$(mktemp -d)"
+          gh release download "$GITHUB_REF_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --pattern "$archive" \
+            --dir "$workdir"
+          test -f "$workdir/$archive"
+          tar -xzf "$workdir/$archive" -C "$workdir"
+          root="$workdir/ha-nova"
+          test -f "$root/bundle.json"
+          test -x "$root/ha-nova"
+          node -e '
+            const bundle = require(process.argv[1]);
+            if (bundle.version !== process.argv[2].replace(/^v/, "")) {
+              throw new Error("release bundle version does not match tag");
+            }
+          ' "$root/bundle.json" "$GITHUB_REF_NAME"
+          "$root/ha-nova" version
+          listed="$(
+            node -e '
+              const metadata = require(process.argv[1]);
+              process.stdout.write(String(
+                metadata.cloud_remote_enabled === true
+                && metadata.cloud_remote_platforms.includes(process.argv[2])
+              ));
+            ' "$root/version.json" "$platform"
+          )"
+          if [[ "$listed" == "true" ]]; then
+            "$root/ha-nova" internal-cloud-release-check
+          elif "$root/ha-nova" internal-cloud-release-check; then
+            echo "::error::Unlisted $platform runtime accepted Cloud release provenance."
+            exit 1
+          fi
+
+      - name: Download and smoke Windows release bundle
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $archive = "ha-nova-installer-bundle-windows-amd64.zip"
+          $workdir = Join-Path $env:RUNNER_TEMP "ha-nova-release"
+          Remove-Item -LiteralPath $workdir -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Path $workdir | Out-Null
+          gh release download "$env:GITHUB_REF_NAME" `
+            --repo "$env:GITHUB_REPOSITORY" `
+            --pattern $archive `
+            --dir $workdir
+          $archivePath = Join-Path $workdir $archive
+          if (-not (Test-Path -LiteralPath $archivePath)) {
+            throw "Exact Windows release bundle was not downloaded"
+          }
+          Expand-Archive -LiteralPath $archivePath -DestinationPath $workdir -Force
+          $root = Join-Path $workdir "ha-nova"
+          $binary = Join-Path $root "ha-nova.exe"
+          $bundlePath = Join-Path $root "bundle.json"
+          if (-not (Test-Path -LiteralPath $bundlePath)) {
+            throw "bundle.json missing from Windows release bundle"
+          }
+          $bundle = Get-Content -LiteralPath $bundlePath -Raw | ConvertFrom-Json
+          $expectedVersion = $env:GITHUB_REF_NAME.Substring(1)
+          if ($bundle.version -ne $expectedVersion) {
+            throw "Windows release bundle version does not match tag"
+          }
+          & $binary version
+          if ($LASTEXITCODE -ne 0) {
+            throw "Windows release binary version check failed"
+          }
+          $metadata = Get-Content -LiteralPath (Join-Path $root "version.json") -Raw | ConvertFrom-Json
+          $listed = (
+            $metadata.cloud_remote_enabled -eq $true -and
+            @($metadata.cloud_remote_platforms) -contains "windows"
+          )
+          & $binary internal-cloud-release-check
+          if ($listed -and $LASTEXITCODE -ne 0) {
+            throw "enabled Windows Cloud release provenance check failed"
+          }
+          if (-not $listed -and $LASTEXITCODE -eq 0) {
+            throw "unlisted Windows runtime accepted Cloud release provenance"
+          }
+
   publish-release:
     name: Publish complete release
-    needs: release
+    needs: smoke-release-bundles
     runs-on: ubuntu-latest
     permissions:
       contents: write
