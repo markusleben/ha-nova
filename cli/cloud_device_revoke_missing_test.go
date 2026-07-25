@@ -120,6 +120,16 @@ func TestCloudRemoveMissingActivationEraPendingDeviceFailsBeforeOAuth(
 	if err := saveConfig(paths, cfg); err != nil {
 		t.Fatal(err)
 	}
+	pendingEnvelope := productionCloudTestEnvelope()
+	pendingEnvelope.Generation = pending.CredentialGeneration
+	pendingEnvelope.ClientID = pending.OAuthClientID
+	if _, err := store.CreatePending(
+		context.Background(),
+		pendingEnvelope,
+		SecretStoreForbidUI,
+	); err != nil {
+		t.Fatal(err)
+	}
 	oauthRevokes := 0
 	installCloudRemoveStore(
 		t,
@@ -206,7 +216,6 @@ func TestCloudDeviceCleanupPropagatesBackendReadErrorAsNotMissing(
 		remoteOnlyCloudTestProfile,
 		nil,
 		nil,
-		false,
 		acceptCloudDeviceRevocationCheckpoint,
 	)
 	if removed || err == nil {
@@ -246,7 +255,6 @@ func TestFullPurgeMissingCurrentDeviceFailsBeforeOAuthAndPersistsHold(
 	err := purgeCloudAuthorizationsForUninstall(
 		paths,
 		&uninstallReport{},
-		nil,
 	)
 	if err == nil ||
 		!strings.Contains(err.Error(), "current Cloud device credential") {

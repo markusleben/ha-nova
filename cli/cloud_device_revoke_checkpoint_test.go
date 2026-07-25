@@ -124,7 +124,6 @@ func TestBoundPendingCloudDeviceUsesPendingProvenanceBeforeOAuth(t *testing.T) {
 		remoteOnlyCloudTestProfile,
 		store,
 		nil,
-		false,
 		acceptCloudDeviceRevocationCheckpoint,
 	); err != nil {
 		t.Fatal(err)
@@ -206,7 +205,6 @@ func TestReconnectCurrentDeviceUsesOnlyCurrentOAuthProvenance(t *testing.T) {
 		remoteOnlyCloudTestProfile,
 		nil,
 		nil,
-		false,
 		acceptCloudDeviceRevocationCheckpoint,
 	); err != nil {
 		t.Fatal(err)

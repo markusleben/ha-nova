@@ -2,9 +2,7 @@ package main
 
 import (
 	"bufio"
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -28,6 +26,14 @@ func runCloudRemoveCommand(paths runtimePaths, args []string) int {
 	}
 	if err := validateServerProfileName(activeServerProfile()); err != nil {
 		printHumanErr("invalid selected server profile: %s", err)
+		return 1
+	}
+	if err := validateManualRemoteAccessRecoveryRequest(
+		options.confirmRemoteAccessRevoked,
+		options.yes,
+		activeServerProfile(),
+	); err != nil {
+		printHumanErr("%s", err)
 		return 1
 	}
 	if cfg.ProfileID == "" {
@@ -164,33 +170,71 @@ func runCloudRemoveCommand(paths runtimePaths, args []string) int {
 		); err != nil {
 			return err
 		}
-		deviceRemoved, err := revokeRemoteOnlyCloudDeviceBeforeOAuth(
-			ctx,
-			cloudSource,
-			activeServerProfile(),
-			store,
-			nil,
-			false,
-			func(
-				checkpoint cloudDeviceRevocationCheckpoint,
-			) error {
-				checkpointed, expected, err :=
-					checkpointCloudDeviceRevocationUnlocked(
-						paths,
-						recoveryExpected,
-						checkpoint,
-					)
-				if err != nil {
-					return err
-				}
-				cloudSource = checkpointed
-				recoveryExpected = expected
-				configSnapshot, hadConfig, err = readOptionalFile(
-					paths.ConfigFile,
-				)
-				return err
-			},
+		authorizationPlan, authorizationErr :=
+			inspectCloudAuthorizationCleanup(
+				ctx,
+				cloudSource,
+				store,
+			)
+		manualRecovery := manualRemoteAccessRecoveryAllowed(
+			options.confirmRemoteAccessRevoked,
+			authorizationErr,
 		)
+		if authorizationErr != nil && !manualRecovery {
+			return cloudAuthorizationCleanupErrorWithRecoveryCommand(
+				authorizationErr,
+				activeServerProfile(),
+			)
+		}
+		if authorizationErr == nil &&
+			options.confirmRemoteAccessRevoked != "" {
+			recoveryExpectedCaptured = false
+			return &cloudProblem{
+				Code:        cloudProblemAuthorization,
+				Remediation: cloudRemediationSecurityStop,
+				Detail: "--confirm-remote-access-revoked is accepted " +
+					"only when automatic cleanup cannot verify the " +
+					"saved remote access",
+			}
+		}
+		checkpointDeviceRevocation := func(
+			checkpoint cloudDeviceRevocationCheckpoint,
+		) error {
+			checkpointed, expected, err :=
+				checkpointCloudDeviceRevocationUnlocked(
+					paths,
+					recoveryExpected,
+					checkpoint,
+				)
+			if err != nil {
+				return err
+			}
+			cloudSource = checkpointed
+			recoveryExpected = expected
+			configSnapshot, hadConfig, err = readOptionalFile(
+				paths.ConfigFile,
+			)
+			return err
+		}
+		var deviceRemoved bool
+		if manualRecovery {
+			deviceRemoved, err = confirmRemoteAccessRevokedBeforeOAuth(
+				ctx,
+				cloudSource,
+				activeServerProfile(),
+				nil,
+				checkpointDeviceRevocation,
+			)
+		} else {
+			deviceRemoved, err = revokeRemoteOnlyCloudDeviceBeforeOAuth(
+				ctx,
+				cloudSource,
+				activeServerProfile(),
+				store,
+				nil,
+				checkpointDeviceRevocation,
+			)
+		}
 		if err != nil {
 			return err
 		}
@@ -198,11 +242,48 @@ func runCloudRemoveCommand(paths runtimePaths, args []string) int {
 			current = currentWithoutDevice
 			prepared = deviceRemovedPrepared
 		}
-		if err := revokeAllCloudAuthorizations(ctx, store); err != nil {
-			return err
-		}
-		if err := deleteRevokedCloudAuthorizations(ctx, store); err != nil {
-			return err
+		if manualRecovery {
+			latestPlan, latestErr := inspectCloudAuthorizationCleanup(
+				ctx,
+				cloudSource,
+				store,
+			)
+			if !errors.Is(
+				latestErr,
+				errCloudAuthorizationCleanupUnverifiable,
+			) ||
+				!sameCloudAuthorizationCleanupPlan(
+					authorizationPlan,
+					latestPlan,
+				) {
+				return newCloudError(
+					CloudErrSecretConflict,
+					"revalidate manually revoked Cloud authorizations",
+					latestErr,
+				)
+			}
+			if err := deleteManuallyRevokedCloudAuthorizationPlan(
+				ctx,
+				store,
+				latestPlan,
+			); err != nil {
+				return err
+			}
+		} else {
+			if err := revokeCloudAuthorizationCleanupPlan(
+				ctx,
+				store,
+				authorizationPlan,
+			); err != nil {
+				return err
+			}
+			if err := deleteRevokedCloudAuthorizationPlan(
+				ctx,
+				store,
+				authorizationPlan,
+			); err != nil {
+				return err
+			}
 		}
 		if err := deletePendingCloudDeviceCredentialWithContext(
 			ctx,
@@ -237,138 +318,6 @@ func runCloudRemoveCommand(paths runtimePaths, args []string) int {
 		printHumanInfo("Home Assistant Cloud access was removed. This profile now needs a local pairing before it can be used.")
 	}
 	return 0
-}
-
-func deletePendingCloudDeviceCredentialWithContext(
-	ctx context.Context,
-) error {
-	pending, exists, err := readPendingDeviceCredentialRecordWithPolicy(
-		ctx,
-		SecretStoreForbidUI,
-	)
-	if err != nil || !exists {
-		return err
-	}
-	if pending.Source != pendingDeviceCredentialSourceCloud {
-		return nil
-	}
-	if err := deletePendingDeviceCredentialWithPolicy(
-		ctx,
-		SecretStoreForbidUI,
-	); err != nil {
-		return fmt.Errorf("remove pending Cloud device credential: %w", err)
-	}
-	return nil
-}
-
-func prepareCloudRemovalDocument(
-	paths runtimePaths,
-	updated runtimeConfig,
-) (map[string]json.RawMessage, error) {
-	doc, err := loadConfigDocument(paths.ConfigFile)
-	if err != nil {
-		return nil, err
-	}
-	if err := validateSupportedConfigDocument(doc); err != nil {
-		return nil, err
-	}
-	if err := validateExistingServerProfileIDs(doc.servers); err != nil {
-		return nil, err
-	}
-	name, err := resolveSelectedServerProfile(doc)
-	if err != nil {
-		return nil, err
-	}
-	if doc.servers != nil {
-		if rawCloud, exists := doc.top["cloud"]; exists &&
-			len(bytes.TrimSpace(rawCloud)) > 0 &&
-			!bytes.Equal(bytes.TrimSpace(rawCloud), []byte("null")) {
-			return nil, unknownCloudRemovalShape(name)
-		}
-	}
-	var rawProfile json.RawMessage
-	if doc.servers == nil {
-		rawProfile, err = json.Marshal(doc.top)
-	} else {
-		rawProfile = doc.servers[name]
-	}
-	if err != nil {
-		return nil, err
-	}
-	var fields map[string]json.RawMessage
-	if err := json.Unmarshal(rawProfile, &fields); err != nil || fields == nil {
-		return nil, fmt.Errorf("inspect selected server profile")
-	}
-	if rawCloud, exists := fields["cloud"]; exists &&
-		len(bytes.TrimSpace(rawCloud)) > 0 &&
-		!bytes.Equal(bytes.TrimSpace(rawCloud), []byte("null")) {
-		if err := validateKnownCloudRemovalShape(name, rawCloud); err != nil {
-			return nil, err
-		}
-	}
-	return doc.withProfilePreservingSiblings(name, updated)
-}
-
-func revokeAllCloudAuthorizations(
-	ctx context.Context,
-	store OAuthSecretStore,
-) error {
-	retiring, hasRetiring, err := store.LoadRetiring(
-		ctx,
-		SecretStoreForbidUI,
-	)
-	if err != nil {
-		return err
-	}
-	if hasRetiring {
-		if err := store.RevokeRetiring(
-			ctx,
-			retiring.Generation,
-			SecretStoreForbidUI,
-			revokeAndVerifyCloudAuthorizationForCLI,
-		); err != nil {
-			return err
-		}
-	}
-	pending, hasPending, err := store.LoadPending(ctx, SecretStoreForbidUI)
-	if err != nil {
-		return err
-	}
-	if hasPending {
-		if err := revokeAndVerifyCloudAuthorizationForCLI(ctx, pending); err != nil {
-			return err
-		}
-	}
-	current, hasCurrent, err := store.LoadCurrent(ctx, SecretStoreForbidUI)
-	if err != nil {
-		return err
-	}
-	if hasCurrent {
-		if err := revokeAndVerifyCloudAuthorizationForCLI(ctx, current); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func deleteRevokedCloudAuthorizations(
-	ctx context.Context,
-	store OAuthSecretStore,
-) error {
-	pending, hasPending, err := store.LoadPending(ctx, SecretStoreForbidUI)
-	if err != nil {
-		return err
-	}
-	if hasPending {
-		if err := store.DeletePending(
-			ctx,
-			pending.Generation,
-			SecretStoreForbidUI,
-		); err != nil {
-			return err
-		}
-	}
-	return store.DeleteCurrent(ctx, SecretStoreForbidUI)
 }
 
 func loadSelectedRuntimeConfigUnchecked(paths runtimePaths) (runtimeConfig, error) {

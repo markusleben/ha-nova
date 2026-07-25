@@ -30,8 +30,8 @@ func preflightCloudDeviceAccess(
 
 // preflightWritableCloudDeviceAccess additionally proves that a new remote
 // pairing credential can be stored. Only remote setup/reconnect uses it before
-// OAuth; the pairing path repeats the no-UI proof immediately before consuming
-// the owner's one-time code.
+// OAuth; setup may repeat this controlled UI-enabled proof after a long user
+// wait, then keeps the operational credential operations no-UI.
 func preflightWritableCloudDeviceAccess(
 	ctx context.Context,
 	expectedRelayInstanceID string,

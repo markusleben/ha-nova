@@ -1,10 +1,89 @@
 package main
 
 import (
+	"context"
 	"os"
 	"strings"
 	"testing"
 )
+
+func TestGuidedPreflightInspectsLaterCloudSlotAfterRetiringExists(
+	t *testing.T,
+) {
+	paths := writeTestConfigFile(t, `{"schema_version":1}`)
+	cfg, store := readyCloudPurgeProfile(
+		t,
+		"profile-cloud-later-slot",
+		"relay-cloud-later-slot",
+	)
+	backend, ok := store.backend.(*memoryOAuthSecretBackend)
+	if !ok {
+		t.Fatalf("unexpected OAuth backend %T", store.backend)
+	}
+	pendingEnvelope := testOAuthEnvelope(
+		"new-cloud-refresh",
+		"token-new-cloud-refresh",
+		"user-1",
+		cfg.RelayInstanceID,
+	)
+	pending, err := store.CreatePending(
+		context.Background(),
+		pendingEnvelope,
+		SecretStoreForbidUI,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	current, err := store.PromotePending(
+		context.Background(),
+		pending.Generation,
+		SecretStoreForbidUI,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	origin, err := cloudOriginFromCanonical(current.CanonicalOrigin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	metadata := cloudMetadataFromEnvelope(origin, current)
+	cfg.Cloud = &cloudLifecycleMetadata{
+		State:   cloudStateReady,
+		Current: &metadata,
+	}
+	backend.values[oauthSecretCurrentService+"\x00"+cfg.ProfileID] = "{broken"
+	backend.operations = nil
+	oldStore := newCloudSecretStoreForCLI
+	newCloudSecretStoreForCLI = func(profileID string) (OAuthSecretStore, error) {
+		if profileID != cfg.ProfileID {
+			t.Fatalf("unexpected profile id %q", profileID)
+		}
+		return store, nil
+	}
+	t.Cleanup(func() { newCloudSecretStoreForCLI = oldStore })
+
+	err = validateUninstallSecureStorageBeforeGuidedTeardown(
+		paths,
+		[]cloudPurgeTarget{{
+			profileName: "default",
+			profileID:   cfg.ProfileID,
+			config:      cfg,
+		}},
+		nil,
+	)
+	if err == nil ||
+		!strings.Contains(err.Error(), "missing or inconsistent") {
+		t.Fatalf("guided Cloud preflight error = %v", err)
+	}
+	for _, operation := range backend.operations {
+		if operation != "get" {
+			t.Fatalf(
+				"guided preflight mutated before later-slot validation: %v",
+				backend.operations,
+			)
+		}
+	}
+}
 
 func TestGuidedPreflightBlocksStandardRetirementBeforeRevoke(t *testing.T) {
 	paths, _, _ := pendingRetirementUninstallFixture(t)

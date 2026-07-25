@@ -21,7 +21,6 @@ func revokeRemoteOnlyCloudDeviceBeforeOAuth(
 	profileName string,
 	store OAuthSecretStore,
 	report *uninstallReport,
-	relayRemoved bool,
 	checkpointRevocation cloudDeviceRevocationCheckpointer,
 ) (bool, error) {
 	if checkpointRevocation == nil {
@@ -63,25 +62,23 @@ func revokeRemoteOnlyCloudDeviceBeforeOAuth(
 	if checkpoint == nil {
 		return false, nil
 	}
-	if !relayRemoved {
-		for _, target := range targets {
-			revokeConfig := target.config
-			if revokeConfig.RelayInstanceID == "" &&
-				target.credential.relayInstanceID != "" {
-				// Activation precedes the durable device-bound checkpoint. If
-				// that write failed, pending provenance is the only durable Relay
-				// identity available for exact self-revocation.
-				revokeConfig.RelayInstanceID =
-					target.credential.relayInstanceID
-			}
-			if err := revokeRemoteCloudDeviceForCLI(
-				ctx,
-				revokeConfig,
-				store,
-				target.credential.value,
-			); err != nil {
-				return false, err
-			}
+	for _, target := range targets {
+		revokeConfig := target.config
+		if revokeConfig.RelayInstanceID == "" &&
+			target.credential.relayInstanceID != "" {
+			// Activation precedes the durable device-bound checkpoint. If
+			// that write failed, pending provenance is the only durable Relay
+			// identity available for exact self-revocation.
+			revokeConfig.RelayInstanceID =
+				target.credential.relayInstanceID
+		}
+		if err := revokeRemoteCloudDeviceForCLI(
+			ctx,
+			revokeConfig,
+			store,
+			target.credential.value,
+		); err != nil {
+			return false, err
 		}
 	}
 	if err := checkpointRevocation(*checkpoint); err != nil {
@@ -103,7 +100,7 @@ func revokeRemoteOnlyCloudDeviceBeforeOAuth(
 		report,
 		profileName,
 		remoteOnly,
-		!relayRemoved,
+		true,
 	)
 	return currentRemoved, nil
 }

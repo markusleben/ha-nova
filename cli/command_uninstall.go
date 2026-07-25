@@ -590,10 +590,26 @@ func finalizeLocalUninstallWithProgressUnlocked(
 		if err := purgeCloudAuthorizationsForUninstall(
 			paths,
 			report,
-			removedRelays,
 		); err != nil {
 			return fmt.Errorf(
 				"failed to revoke Home Assistant Cloud authorization: %w",
+				err,
+			)
+		}
+		// Cloud device revocation can durably checkpoint and then delete a
+		// profile's native slot. Refresh the targets so the local sweep sees
+		// that exact profile+slot proof instead of treating the now-absent
+		// credential as unexplained state loss.
+		purgeTargets, err = collectProfilePurgeTargets(paths)
+		if err != nil {
+			return fmt.Errorf(
+				"failed to refresh device credential cleanup: %w",
+				err,
+			)
+		}
+		if err := validateProfilePurgeTargets(purgeTargets); err != nil {
+			return fmt.Errorf(
+				"failed to validate checkpointed device credential cleanup: %w",
 				err,
 			)
 		}

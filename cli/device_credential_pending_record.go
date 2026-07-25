@@ -97,6 +97,9 @@ func getOrCreateClientInstallID(
 	persist func(*runtimeConfig) error,
 ) (string, error) {
 	if cfg.ClientInstallID != "" {
+		if err := validateClientInstallID(cfg.ClientInstallID); err != nil {
+			return "", err
+		}
 		return cfg.ClientInstallID, nil
 	}
 	buf := make([]byte, 16)
@@ -108,4 +111,14 @@ func getOrCreateClientInstallID(
 		return "", err
 	}
 	return cfg.ClientInstallID, nil
+}
+
+func validateClientInstallID(value string) error {
+	if value == "" {
+		return nil
+	}
+	if !validIdentifier(value, 128) {
+		return fmt.Errorf("invalid client_install_id")
+	}
+	return nil
 }

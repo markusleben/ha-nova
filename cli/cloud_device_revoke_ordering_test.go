@@ -250,7 +250,6 @@ func TestRemoteOnlyFullPurgeRevokesDeviceBeforeOAuth(t *testing.T) {
 	if err := purgeCloudAuthorizationsForUninstall(
 		paths,
 		report,
-		nil,
 	); err != nil {
 		t.Fatalf("purge Cloud authorizations: %v", err)
 	}

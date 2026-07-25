@@ -34,7 +34,7 @@ func TestUninstallRelayRemovalEvidenceRequiresExactProfileAndRelay(t *testing.T)
 	}
 }
 
-func TestGuidedDefaultTeardownStillRevokesSiblingCloudDevice(t *testing.T) {
+func TestGuidedTeardownNeverSuppressesCloudDeviceRevocation(t *testing.T) {
 	resetServerProfileSelection(t)
 	t.Setenv("HA_NOVA_TEST_SECRET_DIR", t.TempDir())
 	paths := writeTestConfigFile(t, `{"schema_version":1}`)
@@ -110,13 +110,12 @@ func TestGuidedDefaultTeardownStillRevokesSiblingCloudDevice(t *testing.T) {
 	if err := purgeCloudAuthorizationsForUninstall(
 		paths,
 		&uninstallReport{},
-		uninstallRelayRemovalEvidence{
-			defaultServerProfileName: "relay-default",
-		},
 	); err != nil {
 		t.Fatal(err)
 	}
-	if len(revokedRelays) != 1 || revokedRelays[0] != "relay-cabin" {
+	if len(revokedRelays) != 2 ||
+		revokedRelays[0] != "relay-cabin" ||
+		revokedRelays[1] != "relay-default" {
 		t.Fatalf("Cloud device revokes = %v", revokedRelays)
 	}
 }

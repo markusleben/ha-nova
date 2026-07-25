@@ -75,7 +75,6 @@ func TestCloudVerifiedCleanupRevokesPendingAndCurrentForBothServerOutcomes(
 				remoteOnlyCloudTestProfile,
 				nil,
 				nil,
-				false,
 				acceptCloudDeviceRevocationCheckpoint,
 			)
 			if err != nil || !removed {
@@ -130,7 +129,6 @@ func TestCloudVerifiedCleanupPreservesBothSlotsWhenSecondRevokeFails(
 		remoteOnlyCloudTestProfile,
 		nil,
 		nil,
-		false,
 		acceptCloudDeviceRevocationCheckpoint,
 	)
 	if removed || !IsCloudErrorCode(err, CloudErrOutcomeUnknown) {

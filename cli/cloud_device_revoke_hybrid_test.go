@@ -80,7 +80,6 @@ func TestHybridCloudPendingIsRevokedBeforeDeletion(t *testing.T) {
 		remoteOnlyCloudTestProfile,
 		store,
 		nil,
-		false,
 		acceptCloudDeviceRevocationCheckpoint,
 	); err != nil {
 		t.Fatal(err)

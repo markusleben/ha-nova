@@ -3,10 +3,11 @@ package main
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 )
 
-func TestMultiProfileUninstallRetriesFromPerProfileDeviceCheckpoint(
+func TestMultiProfileUninstallFailsClosedAfterPartialOAuthCleanup(
 	t *testing.T,
 ) {
 	resetServerProfileSelection(t)
@@ -14,9 +15,15 @@ func TestMultiProfileUninstallRetriesFromPerProfileDeviceCheckpoint(
 	paths := setupServerCommandTest(t, `{"schema_version":1}`)
 
 	cabinBackend := newMemoryOAuthSecretBackend()
-	cabinStore := newTestOAuthStore(t, cabinBackend)
 	cabinEnvelope := productionCloudTestEnvelope()
 	cabinEnvelope.ProfileID = "profile-cabin-retry"
+	cabinStore, err := NewOAuthSecretStore(
+		cabinBackend,
+		cabinEnvelope.ProfileID,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
 	pending, err := cabinStore.CreatePending(
 		context.Background(),
 		cabinEnvelope,
@@ -117,7 +124,6 @@ func TestMultiProfileUninstallRetriesFromPerProfileDeviceCheckpoint(
 	if err := purgeCloudAuthorizationsForUninstall(
 		paths,
 		&uninstallReport{},
-		nil,
 	); err == nil {
 		t.Fatal("first multi-profile purge unexpectedly succeeded")
 	}
@@ -143,12 +149,13 @@ func TestMultiProfileUninstallRetriesFromPerProfileDeviceCheckpoint(
 	}
 
 	failDefault = false
-	if err := purgeCloudAuthorizationsForUninstall(
+	retryErr := purgeCloudAuthorizationsForUninstall(
 		paths,
 		&uninstallReport{},
-		nil,
-	); err != nil {
-		t.Fatalf("checkpointed multi-profile retry: %v", err)
+	)
+	if retryErr == nil ||
+		!strings.Contains(retryErr.Error(), "revoke HA NOVA sessions") {
+		t.Fatalf("partial OAuth cleanup retry error: %v", retryErr)
 	}
 	if deviceRevokes != 1 {
 		t.Fatalf("retry repeated device revocation: %d", deviceRevokes)

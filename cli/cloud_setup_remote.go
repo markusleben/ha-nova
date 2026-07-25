@@ -1,49 +1,9 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"fmt"
-	"io"
 )
-
-type cloudRemotePairingPrompt struct {
-	AppURL string
-}
-
-type cloudRemotePairingCodeProvider func(
-	cloudRemotePairingPrompt,
-) (string, error)
-
-func promptRemoteOwnerPairingCode(
-	reader *bufio.Reader,
-	out io.Writer,
-	prompt cloudRemotePairingPrompt,
-) (string, error) {
-	if prompt.AppURL == "" {
-		return "", newCloudError(
-			CloudErrInvalidInput,
-			"prepare remote owner pairing",
-			nil,
-		)
-	}
-	renderSetupParagraph(
-		out,
-		"OAuth sign-in is complete. Device pairing now requires a Home Assistant Owner.",
-		"Open a separate private/incognito window or a different browser profile. Sign in to the same Home Assistant Cloud instance as an Owner, open NOVA from the sidebar, and choose “Connect a device”.",
-		"Keep the OAuth browser session separate. A standard Home Assistant account is preferred for OAuth, but an Owner OAuth account is also supported.",
-	)
-	// Do not auto-open the capability URL in the OAuth browser session. That
-	// session may be signed in as a standard user and would receive a 403. The
-	// user navigates through NOVA's sidebar in the explicitly separate Owner
-	// session, so the capability URL also never enters terminal output.
-	return promptWizardLineFromReader(
-		reader,
-		out,
-		"Six-digit code from the Owner session",
-		"",
-	)
-}
 
 type cloudRemoteSetupRequest struct {
 	cloudSetupRequest
@@ -61,6 +21,7 @@ type cloudRemoteSetupCoordinator interface {
 
 var pairDeviceV2ForCloudSetup = pairDeviceV2
 var discoverCloudFromLocalRelayForRemoteSetup = discoverCloudFromLocalRelay
+var establishRemoteCloudDeviceForSetup = establishRemoteCloudDevice
 
 func (coordinator productionCloudSetupCoordinator) AddRemoteWithPairing(
 	ctx context.Context,
@@ -104,7 +65,14 @@ func (coordinator productionCloudSetupCoordinator) AddRemoteWithPairing(
 	); err != nil {
 		return cloudSetupResult{}, err
 	}
-	credential, err := establishRemoteCloudDevice(
+	if err := reopenRemoteCloudDeviceAccess(
+		ctx,
+		session.Relay.RelayInstanceID,
+		"Home Assistant Cloud sign-in",
+	); err != nil {
+		return cloudSetupResult{}, err
+	}
+	credential, err := establishRemoteCloudDeviceForSetup(
 		ctx,
 		session,
 		request,
@@ -132,33 +100,6 @@ func (coordinator productionCloudSetupCoordinator) AddRemoteWithPairing(
 	result.Current = cloudMetadataFromEnvelope(request.Origin, current)
 	result.RelayInstanceID = session.Relay.RelayInstanceID
 	return result, nil
-}
-
-func preflightRemoteCloudDeviceState(
-	expectedRelayInstanceID string,
-) error {
-	ctx, cancel := boundedNativeOAuthSecretContext(
-		context.Background(),
-		SecretStoreForbidUI,
-	)
-	defer cancel()
-	return preflightRemoteCloudDeviceStateWithContext(
-		ctx,
-		expectedRelayInstanceID,
-	)
-}
-
-func preflightRemoteCloudDeviceStateWithContext(
-	ctx context.Context,
-	expectedRelayInstanceID string,
-) error {
-	return inspectCloudDeviceAccess(
-		ctx,
-		expectedRelayInstanceID,
-		true,
-		true,
-		SecretStoreForbidUI,
-	)
 }
 
 func establishRemoteCloudDevice(
@@ -363,6 +304,16 @@ func establishRemoteCloudDevice(
 			cause: err,
 		}
 	}
+	// The Owner may take several minutes to retrieve the one-time code in a
+	// separate browser session. Re-open storage again before the code is
+	// consumed or any pending device credential is written.
+	if err := reopenRemoteCloudDeviceAccess(
+		ctx,
+		session.Relay.RelayInstanceID,
+		"owner pairing confirmation",
+	); err != nil {
+		return "", err
+	}
 	provisioned, err := pairDeviceV2ForCloudSetup(
 		ctx,
 		session.Ingress,
@@ -428,28 +379,6 @@ func establishRemoteCloudDevice(
 		return "", fmt.Errorf("finalize remote device credential: %w", err)
 	}
 	return provisioned.Credential, nil
-}
-
-func discardRejectedPendingCloudDeviceCredential(
-	ctx context.Context,
-	request cloudRemoteSetupRequest,
-) error {
-	// Persist the definitive non-activation before deleting the secret. A
-	// failed config save must leave both marker and credential available for a
-	// safe retry; a crash after the save may leave a harmless rejected secret.
-	if err := clearRemoteCloudDeviceActivation(request); err != nil {
-		return err
-	}
-	if err := deletePendingDeviceCredentialWithPolicy(
-		ctx,
-		SecretStoreForbidUI,
-	); err != nil {
-		return fmt.Errorf(
-			"clear rejected pending Cloud credential: %w",
-			err,
-		)
-	}
-	return nil
 }
 
 var _ cloudRemoteSetupCoordinator = productionCloudSetupCoordinator{}

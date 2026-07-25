@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -22,7 +21,6 @@ type cloudPurgeTarget struct {
 func purgeCloudAuthorizationsForUninstall(
 	paths runtimePaths,
 	report *uninstallReport,
-	removedRelays uninstallRelayRemovalEvidence,
 ) error {
 	targets, err := collectCloudPurgeTargets(paths.ConfigFile)
 	if err != nil {
@@ -43,43 +41,29 @@ func purgeCloudAuthorizationsForUninstall(
 				err,
 			))
 		}
-		hadAuthorization, err := cloudAuthorizationExists(
+		authorizationPlan, err := inspectCloudAuthorizationCleanup(
 			ctx,
+			target.config,
 			store,
 		)
 		if err != nil {
 			return cloudPurgeFailure(paths, *target, fmt.Errorf(
 				"inspect Cloud credentials for server %q: %w",
 				target.profileName,
-				err,
+				cloudAuthorizationCleanupErrorWithRecoveryCommand(
+					err,
+					target.profileName,
+				),
 			))
 		}
-		if _, err := revokeRemoteOnlyCloudDeviceBeforeOAuth(
+		if err := revokeCloudDeviceForUninstall(
 			ctx,
+			paths,
 			target.config,
 			target.profileName,
 			store,
 			report,
-			removedRelays.matches(
-				target.profileName,
-				target.config.RelayInstanceID,
-			),
-			func(
-				checkpoint cloudDeviceRevocationCheckpoint,
-			) error {
-				checkpointed, expected, err :=
-					checkpointCloudDeviceRevocationUnlocked(
-						paths,
-						target.recovery,
-						checkpoint,
-					)
-				if err != nil {
-					return err
-				}
-				target.config = checkpointed
-				target.recovery = expected
-				return nil
-			},
+			target,
 		); err != nil {
 			return cloudPurgeFailure(paths, *target, fmt.Errorf(
 				"revoke Cloud device for server %q: %w",
@@ -87,21 +71,29 @@ func purgeCloudAuthorizationsForUninstall(
 				err,
 			))
 		}
-		if err := revokeAllCloudAuthorizations(ctx, store); err != nil {
+		if err := revokeCloudAuthorizationCleanupPlan(
+			ctx,
+			store,
+			authorizationPlan,
+		); err != nil {
 			return cloudPurgeFailure(paths, *target, fmt.Errorf(
 				"revoke Cloud authorization for server %q: %w",
 				target.profileName,
 				err,
 			))
 		}
-		if err := deleteRevokedCloudAuthorizations(ctx, store); err != nil {
+		if err := deleteRevokedCloudAuthorizationPlan(
+			ctx,
+			store,
+			authorizationPlan,
+		); err != nil {
 			return cloudPurgeFailure(paths, *target, fmt.Errorf(
 				"remove Cloud credentials for server %q: %w",
 				target.profileName,
 				err,
 			))
 		}
-		if hadAuthorization && report != nil {
+		if authorizationPlan.hasAuthorization() && report != nil {
 			report.addRemoved(
 				fmt.Sprintf(
 					"Home Assistant Cloud authorization (server %q)",
@@ -111,48 +103,6 @@ func purgeCloudAuthorizationsForUninstall(
 		}
 	}
 	return nil
-}
-
-// Uninstall calls this while holding the client mutation lock. Persisting the
-// per-profile hold here ensures a multi-profile purge cannot return with an
-// ambiguous authorization outcome represented only in process memory.
-func cloudPurgeFailure(
-	paths runtimePaths,
-	target cloudPurgeTarget,
-	cause error,
-) error {
-	_, err := checkpointCloudRecoveryHoldUnlocked(
-		paths,
-		target.recovery,
-		cause,
-	)
-	if err != nil {
-		return errors.Join(
-			cause,
-			fmt.Errorf("persist Cloud recovery safety hold: %w", err),
-		)
-	}
-	return cause
-}
-
-func cloudAuthorizationExists(
-	ctx context.Context,
-	store OAuthSecretStore,
-) (bool, error) {
-	if _, exists, err := store.LoadRetiring(
-		ctx,
-		SecretStoreForbidUI,
-	); err != nil || exists {
-		return exists, err
-	}
-	if _, exists, err := store.LoadPending(
-		ctx,
-		SecretStoreForbidUI,
-	); err != nil || exists {
-		return exists, err
-	}
-	_, exists, err := store.LoadCurrent(ctx, SecretStoreForbidUI)
-	return exists, err
 }
 
 func collectCloudPurgeTargets(path string) ([]cloudPurgeTarget, error) {

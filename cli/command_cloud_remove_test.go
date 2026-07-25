@@ -73,58 +73,6 @@ func installCloudRemoveStore(
 	})
 }
 
-func TestCloudRemoveKeepsConfigAndSecretWhenRevocationFails(t *testing.T) {
-	paths, store, backend, current := cloudRemoveCommandFixture(t)
-	revokeFailure := newCloudError(
-		CloudErrNetwork,
-		"revoke test authorization",
-		errors.New("offline"),
-	)
-	installCloudRemoveStore(
-		t,
-		store,
-		func(context.Context, OAuthSecretEnvelope) error {
-			return revokeFailure
-		},
-	)
-	resetProductionCloudPolicies(backend)
-	exit, output := captureCommandOutput(t, func() int {
-		return runCloudRemoveCommand(paths, []string{"--yes"})
-	})
-	if exit != 1 {
-		t.Fatalf("cloud remove exit=%d output=%s", exit, output)
-	}
-	if !strings.Contains(output, "Cloud configuration was kept") ||
-		!strings.Contains(output, string(cloudProblemUnavailable)) {
-		t.Fatalf("missing fail-closed removal guidance:\n%s", output)
-	}
-	if strings.Contains(output, current.RefreshToken) {
-		t.Fatal("removal failure exposed the refresh token")
-	}
-	held, err := loadSelectedRuntimeConfigUnchecked(paths)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if held.Cloud == nil ||
-		held.Cloud.Current == nil ||
-		held.Cloud.RecoveryHold != nil {
-		t.Fatalf("retryable network failure changed Cloud state: %+v", held.Cloud)
-	}
-	remaining, exists, err := store.LoadCurrent(
-		context.Background(),
-		SecretStoreForbidUI,
-	)
-	if err != nil || !exists || remaining.Generation != current.Generation {
-		t.Fatalf(
-			"failed revocation lost current secret: exists=%v current=%+v err=%v",
-			exists,
-			remaining,
-			err,
-		)
-	}
-	assertProductionCloudPolicies(t, backend, SecretStoreForbidUI)
-}
-
 func TestCloudRemovePreservesUnrelatedInvalidSibling(t *testing.T) {
 	paths, store, backend, current := cloudRemoveCommandFixture(t)
 	top := readTestConfigTopLevel(t, paths)

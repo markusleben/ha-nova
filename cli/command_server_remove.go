@@ -227,6 +227,14 @@ func runServerRemove(paths runtimePaths, args []string) int {
 	// the report says so and the device can still be revoked from the NOVA
 	// console — the softer failure than a configured-but-unpaired profile.
 	cfg, _ := doc.flatProfile(name)
+	purgeTarget, targetErr := profilePurgeTargetFromConfig(name, cfg)
+	if targetErr != nil {
+		printHumanErr(
+			"cannot validate server credential cleanup: %v; nothing was removed",
+			targetErr,
+		)
+		return 1
+	}
 	servers, err := documentServersCopy(doc)
 	if err != nil {
 		printHumanErr("cannot update the server configuration: %v — nothing was removed.", err)
@@ -245,13 +253,11 @@ func runServerRemove(paths runtimePaths, args []string) int {
 
 	// Now revoke against THIS profile's pinned endpoint and drop both slots.
 	report := &uninstallReport{}
-	purgeErr := purgeProfileDeviceCredentialWithReport(profilePurgeTarget{
-		name:                 name,
-		secureBaseURL:        strings.TrimSpace(cfg.RelaySecureBaseURL),
-		spkiPin:              strings.TrimSpace(cfg.RelaySpkiPin),
-		pendingSecureBaseURL: strings.TrimSpace(cfg.PendingSecureBaseURL),
-		pendingSpkiPin:       strings.TrimSpace(cfg.PendingSpkiPin),
-	}, report, false)
+	purgeErr := purgeProfileDeviceCredentialWithReport(
+		purgeTarget,
+		report,
+		false,
+	)
 	if purgeErr != nil {
 		restoreErr := writeServersDocument(
 			paths,

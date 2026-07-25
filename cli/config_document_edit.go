@@ -7,12 +7,18 @@ import (
 )
 
 func validateSupportedConfigDocument(doc *configDocument) error {
-	if doc != nil && doc.meta.SchemaVersion > configSchemaVersion {
+	if doc == nil {
+		return nil
+	}
+	if doc.meta.SchemaVersion > configSchemaVersion {
 		return fmt.Errorf(
 			"config schema_version %d is newer than this HA NOVA build supports (%d); update HA NOVA before using it",
 			doc.meta.SchemaVersion,
 			configSchemaVersion,
 		)
+	}
+	if err := validateClientInstallID(doc.meta.ClientInstallID); err != nil {
+		return fmt.Errorf("invalid install identity in config.json: %w", err)
 	}
 	return nil
 }

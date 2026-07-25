@@ -268,6 +268,9 @@ func (d *configDocument) withProfileDocument(
 	cfg runtimeConfig,
 	normalizeSiblings bool,
 ) (map[string]json.RawMessage, error) {
+	if err := validateClientInstallID(cfg.ClientInstallID); err != nil {
+		return nil, err
+	}
 	top := make(map[string]json.RawMessage, len(d.top)+4)
 	for key, value := range d.top {
 		top[key] = value

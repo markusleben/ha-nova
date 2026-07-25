@@ -77,6 +77,15 @@ func prepareUninstallBeforeGuidedTeardown(
 				err,
 			)
 		}
+		if err := prepareCloudDeviceRevocationsBeforeGuidedTeardown(
+			paths,
+			cloudTargets,
+		); err != nil {
+			return fmt.Errorf(
+				"cannot finish Cloud device cleanup before Home Assistant removal: %w",
+				err,
+			)
+		}
 		return nil
 	})
 }
@@ -97,11 +106,20 @@ func validateUninstallSecureStorageBeforeGuidedTeardown(
 				cloudProblemForError(err),
 			)
 		}
-		if _, err := cloudAuthorizationExists(ctx, store); err != nil {
+		if _, err := inspectCloudAuthorizationCleanup(
+			ctx,
+			target.config,
+			store,
+		); err != nil {
 			return fmt.Errorf(
 				"cannot inspect Home Assistant Cloud credentials for server %q before Home Assistant removal: %w",
 				target.profileName,
-				cloudProblemForError(err),
+				cloudProblemForError(
+					cloudAuthorizationCleanupErrorWithRecoveryCommand(
+						err,
+						target.profileName,
+					),
+				),
 			)
 		}
 		if err := validateCloudDeviceRevocationPlan(

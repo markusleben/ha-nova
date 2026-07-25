@@ -9,7 +9,12 @@ import (
 	"testing"
 )
 
-func writeCloudPurgeConfig(t *testing.T, path, profileID string) {
+func writeCloudPurgeConfig(
+	t *testing.T,
+	path string,
+	profileID string,
+	generation string,
+) {
 	t.Helper()
 	data := `{
 		"schema_version": 3,
@@ -25,7 +30,7 @@ func writeCloudPurgeConfig(t *testing.T, path, profileID string) {
 						"origin": "https://unit.ui.nabu.casa",
 						"canonical_origin": "https://unit.ui.nabu.casa",
 						"oauth_client_id": "http://127.0.0.1:43123/ha-nova",
-						"credential_generation": "0123456789abcdef0123456789abcdef",
+						"credential_generation": "` + generation + `",
 						"ha_user_id": "user-1"
 					}
 				}
@@ -42,10 +47,15 @@ func writeCloudPurgeConfig(t *testing.T, path, profileID string) {
 
 func TestCloudPurgeRevokesBeforeDeletingNativeSecrets(t *testing.T) {
 	paths := writeTestConfigFile(t, `{"schema_version":1}`)
-	writeCloudPurgeConfig(t, paths.ConfigFile, "default")
 	backend := newMemoryOAuthSecretBackend()
 	store := newTestOAuthStore(t, backend)
 	current := establishOAuthCurrent(t, store, "uninstall-refresh")
+	writeCloudPurgeConfig(
+		t,
+		paths.ConfigFile,
+		"default",
+		current.Generation,
+	)
 	backend.policies = nil
 
 	oldStore := newCloudSecretStoreForCLI
@@ -70,7 +80,7 @@ func TestCloudPurgeRevokesBeforeDeletingNativeSecrets(t *testing.T) {
 	})
 
 	report := &uninstallReport{}
-	if err := purgeCloudAuthorizationsForUninstall(paths, report, nil); err != nil {
+	if err := purgeCloudAuthorizationsForUninstall(paths, report); err != nil {
 		t.Fatalf("purge Cloud authorization: %v", err)
 	}
 	if len(revoked) != 1 || revoked[0] != current.Generation {
@@ -93,9 +103,83 @@ func TestCloudPurgeRevokesBeforeDeletingNativeSecrets(t *testing.T) {
 	}
 }
 
+func TestCloudPurgeKeepsOutcomeUnknownCheckpointWithoutNativeSlot(
+	t *testing.T,
+) {
+	paths := writeTestConfigFile(t, `{
+		"schema_version":3,
+		"servers":{
+			"default":{
+				"profile_id":"profile-ambiguous",
+				"route_policy":"cloud",
+				"cloud":{
+					"state":"authorizing",
+					"pending":{
+						"origin":"https://unit.ui.nabu.casa",
+						"canonical_origin":"https://unit.ui.nabu.casa",
+						"oauth_client_id":"http://127.0.0.1:43123/ha-nova",
+						"credential_generation":"0123456789abcdef0123456789abcdef"
+					},
+					"recovery_hold":{
+						"code":"cloud_authorization",
+						"remediation":"inspect_security"
+					}
+				}
+			}
+		}
+	}`)
+	store, err := NewOAuthSecretStore(
+		newMemoryOAuthSecretBackend(),
+		"profile-ambiguous",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldStore := newCloudSecretStoreForCLI
+	newCloudSecretStoreForCLI = func(string) (OAuthSecretStore, error) {
+		return store, nil
+	}
+	t.Cleanup(func() { newCloudSecretStoreForCLI = oldStore })
+
+	report := &uninstallReport{}
+	err = purgeCloudAuthorizationsForUninstall(paths, report)
+	if err == nil ||
+		!strings.Contains(err.Error(), "revoke HA NOVA sessions") ||
+		!strings.Contains(
+			err.Error(),
+			manualRemoteAccessRecoveryCommand(defaultServerProfileName),
+		) {
+		t.Fatalf("ambiguous Cloud purge error = %v", err)
+	}
+	if len(report.removed) != 0 {
+		t.Fatalf("ambiguous authorization reported removed: %+v", report.removed)
+	}
+	doc, loadErr := loadConfigDocument(paths.ConfigFile)
+	if loadErr != nil {
+		t.Fatal(loadErr)
+	}
+	held, ok := doc.flatProfile(defaultServerProfileName)
+	if !ok ||
+		held.Cloud == nil ||
+		held.Cloud.Pending == nil ||
+		held.Cloud.RecoveryHold == nil ||
+		held.Cloud.RecoveryHold.Remediation != cloudRemediationSecurityStop {
+		t.Fatalf("ambiguous authorization checkpoint changed: %+v", held.Cloud)
+	}
+}
+
 func TestFullPurgeStopsBeforeLocalRemovalWhenCloudRevocationCannotStart(t *testing.T) {
 	paths := writeTestConfigFile(t, `{"schema_version":1}`)
-	writeCloudPurgeConfig(t, paths.ConfigFile, "profile-locked")
+	writeCloudPurgeConfig(
+		t,
+		paths.ConfigFile,
+		"profile-locked",
+		"0123456789abcdef0123456789abcdef",
+	)
+	t.Setenv("HA_NOVA_TEST_SECRET_DIR", t.TempDir())
+	if err := writeDeviceCredential(validCredential(154)); err != nil {
+		t.Fatal(err)
+	}
 	oldStore := newCloudSecretStoreForCLI
 	newCloudSecretStoreForCLI = func(string) (OAuthSecretStore, error) {
 		return nil, errors.New("native secure storage locked")
@@ -271,7 +355,6 @@ func TestMultiProfileCloudPurgePersistsHoldForFailingProfile(t *testing.T) {
 	purgeErr := purgeCloudAuthorizationsForUninstall(
 		paths,
 		&uninstallReport{},
-		nil,
 	)
 	if purgeErr == nil {
 		t.Fatal("ambiguous multi-profile purge succeeded")

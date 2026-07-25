@@ -312,6 +312,9 @@ func validateLoadedRuntimeConfig(cfg *runtimeConfig) error {
 	if cfg == nil {
 		return errors.New("server profile config is missing")
 	}
+	if err := validateClientInstallID(cfg.ClientInstallID); err != nil {
+		return err
+	}
 	if cfg.ProfileID != "" {
 		if err := validateProfileID(cfg.ProfileID); err != nil {
 			return err

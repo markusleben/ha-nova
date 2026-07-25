@@ -177,7 +177,14 @@ func TestPurgeDeviceCredentialWithoutPairingIsSilent(t *testing.T) {
 	calls := stubUninstallRevoke(t, nil)
 
 	report := &uninstallReport{}
-	purgeDeviceCredentialWithReport("https://192.168.1.5:18792", "pin", report, false)
+	if err := purgeDeviceCredentialWithReport(
+		"",
+		"",
+		report,
+		false,
+	); err != nil {
+		t.Fatalf("never-paired purge: %v", err)
+	}
 
 	if *calls != 0 {
 		t.Fatalf("revoke must not be called without a credential (calls=%d)", *calls)

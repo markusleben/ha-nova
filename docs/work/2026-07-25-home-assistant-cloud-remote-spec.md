@@ -287,7 +287,8 @@ ha-nova cloud add [--server <name>] [--url https://<cloud-host>]
 ha-nova cloud status [--server <name>]
 ha-nova cloud unlock [--server <name>]
 ha-nova cloud reconnect [--server <name>] [--url https://<cloud-host>]
-ha-nova cloud remove [--server <name>]
+ha-nova cloud remove [--server <name>] [--yes]
+  [--confirm-remote-access-revoked <name>]
 ha-nova server route <automatic|local|cloud> [--server <name>]
 ha-nova relay ... --via <local|cloud>
 ```
@@ -299,6 +300,25 @@ without parsing human text. A named Cloud-only profile may run
 `ha-nova setup --server <name>` to resume Cloud onboarding and install client
 skills; named local/token/service onboarding remains unavailable and uses
 `pair --server`.
+
+If a potentially issued authorization no longer has consistent native
+credentials, automatic cleanup fails closed. Recovery first requires a Home
+Assistant Owner to revoke this computer under NOVA Devices and revoke HA NOVA
+sessions for every user. Only then may the user run the exact profile-bound
+command printed by the CLI:
+
+```
+ha-nova cloud remove --server <name> --yes \
+  --confirm-remote-access-revoked <name>
+```
+
+The confirmation must exactly match the resolved profile and is rejected when
+automatic cleanup remains possible. It never bypasses schema, profile,
+keyring-read, corruption, lock, timeout, identity, or device-slot validation.
+HA NOVA checkpoints the exact already-revoked device IDs before local deletion,
+re-reads all OAuth slots under the mutation lock, deletes only the unchanged
+snapshot, and preserves the checkpoint on any failure. Guided uninstall does
+not expose a global override; it stops with the per-profile recovery command.
 
 The interactive wizard offers:
 

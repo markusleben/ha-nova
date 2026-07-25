@@ -30,7 +30,6 @@ func TestDeviceRevocationCheckpointSaveFailureKeepsEverySecret(
 		remoteOnlyCloudTestProfile,
 		nil,
 		nil,
-		false,
 		func(cloudDeviceRevocationCheckpoint) error {
 			return saveErr
 		},
@@ -91,7 +90,6 @@ func TestDeviceRevocationRetrySkipsRemoteAndToleratesDeletedSlot(
 		remoteOnlyCloudTestProfile,
 		nil,
 		nil,
-		false,
 		func(cloudDeviceRevocationCheckpoint) error {
 			t.Fatal("checkpoint retry rewrote durable progress")
 			return nil
@@ -128,7 +126,6 @@ func TestDeviceRevocationRetryRejectsReplacedExpectedSlot(
 		remoteOnlyCloudTestProfile,
 		nil,
 		nil,
-		false,
 		acceptCloudDeviceRevocationCheckpoint,
 	)
 	if removed || !IsCloudErrorCode(err, CloudErrIdentityMismatch) {
@@ -188,7 +185,6 @@ func TestDeviceBoundCleanupUsesExactPromotedCurrentWithoutPending(
 		remoteOnlyCloudTestProfile,
 		nil,
 		nil,
-		false,
 		func(value cloudDeviceRevocationCheckpoint) error {
 			checkpoint = value
 			return nil

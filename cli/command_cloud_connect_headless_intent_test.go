@@ -247,3 +247,60 @@ func TestCloudConnectHeadlessMissingStatePreflightDoesNotCreateProfile(
 		})
 	}
 }
+
+func TestCloudConnectHeadlessRejectsMalformedInstallIdentityWithoutMutation(
+	t *testing.T,
+) {
+	resetServerProfileSelection(t)
+	restoreFeature := setCloudFeatureTestBuild(t, true)
+	defer restoreFeature()
+	paths := setupServerCommandTest(t, `{
+		"schema_version": 3,
+		"default_server": "default",
+		"client_install_id": " malformed ",
+		"servers": {
+			"default": {
+				"profile_id": "profile-default",
+				"relay_base_url": "http://ha:8791",
+				"route_policy": "local"
+			}
+		}
+	}`)
+	before, err := os.ReadFile(paths.ConfigFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	installCloudCommandPromptSession(t, false)
+	installCloudCommandCoordinator(t, newSelectingCloudCoordinator())
+
+	exit, output := captureCommandOutput(t, func() int {
+		return runCloudConnectCommand(
+			paths,
+			[]string{"--server", "cabin"},
+			false,
+		)
+	})
+	if exit != 1 ||
+		!strings.Contains(output, "invalid install identity") ||
+		strings.Contains(output, "requires an interactive desktop session") {
+		t.Fatalf(
+			"malformed headless install identity exit=%d output=%s",
+			exit,
+			output,
+		)
+	}
+	after, err := os.ReadFile(paths.ConfigFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(after) != string(before) {
+		t.Fatal("headless install identity validation changed config.json")
+	}
+	doc, err := loadConfigDocument(paths.ConfigFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if doc.hasProfile("cabin") {
+		t.Fatal("headless install identity validation created the selected profile")
+	}
+}
