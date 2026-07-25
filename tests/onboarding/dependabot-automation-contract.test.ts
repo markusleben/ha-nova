@@ -165,6 +165,16 @@ describe("dependabot automation contract", () => {
     expect(prepareWorkflow).toContain("(.previous_filename // empty)");
     expect(prepareWorkflow).toContain("uses:[[:space:]]+[^[:space:]]+([[:space:]]+#.*)?$");
     expect(prepareWorkflow).toContain("gh pr review --approve");
+    expect(prepareWorkflow).toContain("Reevaluate the fully marked safe PR");
+    expect(prepareWorkflow).toContain(
+      'event_type: $event_type',
+    );
+    expect(prepareWorkflow).toContain(
+      '"dependabot-safe-reevaluate"',
+    );
+    expect(prepareWorkflow).toContain(
+      'gh api "repos/${GITHUB_REPOSITORY}/dispatches"',
+    );
     expect(prepareWorkflow).toContain("--json autoMergeRequest,labels");
     expect(prepareWorkflow).toContain("jq -e '.autoMergeRequest != null'");
     expect(prepareWorkflow).toContain('gh pr merge "${PR_NUMBER}" --disable-auto');
@@ -178,6 +188,8 @@ describe("dependabot automation contract", () => {
 
     expect(mergeWorkflow).toContain("workflow_run:");
     expect(mergeWorkflow).toContain("check_run:");
+    expect(mergeWorkflow).toContain("repository_dispatch:");
+    expect(mergeWorkflow).toContain("- dependabot-safe-reevaluate");
     expect(mergeWorkflow).not.toContain("pull_request_target:");
     expect(mergeWorkflow).toContain("resolve-trigger:");
     expect(mergeWorkflow).toContain("permissions: {}");
@@ -198,6 +210,10 @@ describe("dependabot automation contract", () => {
     expect(mergeWorkflow).not.toContain("dependabot/fetch-metadata");
     expect(mergeWorkflow).not.toContain("actions/checkout");
     expect(directMergeScript).toContain("disablePullRequestAutoMerge");
+    expect(directMergeScript).toContain("disableBotOwnedAutoMerge");
+    expect(directMergeScript).toContain(
+      'runKind === "repository_dispatch"',
+    );
     expect(directMergePolicy).toContain("latest dedicated-App source check targets another merge commit");
     expect(directMergePolicy).toContain("latest dedicated-App invalidator check targets another merge commit");
     expect(directMergeScript).toContain("a CI run is queued or in progress for the candidate head");

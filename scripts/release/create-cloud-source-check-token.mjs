@@ -8,6 +8,8 @@ const privateKey =
   process.env.HA_NOVA_CLOUD_SOURCE_CHECK_APP_PRIVATE_KEY ?? "";
 const repository = process.env.GITHUB_REPOSITORY ?? "";
 const outputPath = process.env.GITHUB_OUTPUT ?? "";
+const tokenMode =
+  process.env.HA_NOVA_CLOUD_SOURCE_CHECK_TOKEN_MODE ?? "reporter";
 const apiVersion = "2026-03-10";
 
 function fail(message) {
@@ -49,6 +51,9 @@ if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)) {
 if (outputPath.length === 0) {
   fail("GITHUB_OUTPUT is required");
 }
+if (tokenMode !== "reporter" && tokenMode !== "administration-read") {
+  fail("HA_NOVA_CLOUD_SOURCE_CHECK_TOKEN_MODE is invalid");
+}
 
 const now = Math.floor(Date.now() / 1000);
 const encodedHeader = base64url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
@@ -79,16 +84,28 @@ const access = await github(
     token: jwt,
     body: JSON.stringify({
       repositories: [repository.split("/")[1]],
-      permissions: { administration: "read", checks: "write" },
+      permissions:
+        tokenMode === "administration-read"
+          ? { administration: "read" }
+          : { administration: "read", checks: "write" },
     }),
     headers: { "Content-Type": "application/json" },
   },
 );
+const validReporterPermissions =
+  tokenMode === "reporter" &&
+  Object.keys(access.permissions ?? {}).length === 2 &&
+  access.permissions?.administration === "read" &&
+  access.permissions?.checks === "write";
+const validReadPermissions =
+  tokenMode === "administration-read" &&
+  Object.keys(access.permissions ?? {}).length === 1 &&
+  access.permissions?.administration === "read";
 if (
   typeof access.token !== "string" ||
   access.token.length < 20 ||
   access.permissions?.administration !== "read" ||
-  access.permissions?.checks !== "write"
+  (!validReporterPermissions && !validReadPermissions)
 ) {
   fail("GitHub App installation token response is invalid");
 }

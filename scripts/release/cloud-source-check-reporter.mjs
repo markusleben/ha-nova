@@ -66,15 +66,56 @@ export function createCloudSourceCheckReporter({
   }
 
   async function sourceChecks(workflowRun, targetSHA) {
-    const response = await github(
-      `repos/${repository}/commits/${workflowRun.head_sha}/check-runs?check_name=${checkName}&filter=all&per_page=100`,
-    );
-    return (response.check_runs ?? []).filter(
-      (candidate) =>
-        candidate.app?.id === appId &&
-        candidate.name === checkName &&
-        candidate.external_id === sourceExternalId(workflowRun, targetSHA),
-    );
+    const externalId = sourceExternalId(workflowRun, targetSHA);
+    const checks = [];
+    const seenIds = new Set();
+    let expectedTotal;
+    let seen = 0;
+    for (let page = 1; page <= 10; page += 1) {
+      const response = await github(
+        `repos/${repository}/commits/${workflowRun.head_sha}/check-runs?check_name=${checkName}&filter=all&per_page=100&page=${page}`,
+      );
+      if (
+        !Number.isSafeInteger(response.total_count) ||
+        response.total_count < 0 ||
+        !Array.isArray(response.check_runs)
+      ) {
+        fail("source check-run response is invalid");
+      }
+      if (expectedTotal === undefined) {
+        expectedTotal = response.total_count;
+      } else if (response.total_count !== expectedTotal) {
+        fail("source check-run set changed during pagination");
+      }
+      for (const candidate of response.check_runs) {
+        if (
+          !Number.isSafeInteger(candidate.id) ||
+          candidate.id <= 0 ||
+          seenIds.has(candidate.id)
+        ) {
+          fail("source check-run pagination returned an invalid duplicate");
+        }
+        seenIds.add(candidate.id);
+        if (
+          candidate.app?.id === appId &&
+          candidate.name === checkName &&
+          candidate.external_id === externalId
+        ) {
+          checks.push(candidate);
+        }
+      }
+      seen += response.check_runs.length;
+      if (seen === expectedTotal) {
+        return checks;
+      }
+      if (
+        seen > expectedTotal ||
+        response.check_runs.length !== 100
+      ) {
+        fail("source check-run pagination ended before total_count");
+      }
+    }
+    fail("more than 1,000 source check runs exist for the candidate commit");
   }
 
   async function completeCheck(checkId, conclusion, summary) {

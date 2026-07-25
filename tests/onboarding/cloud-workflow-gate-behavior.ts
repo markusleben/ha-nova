@@ -73,6 +73,21 @@ export function registerCloudWorkflowGateBehaviorTests(): void {
 
     it.each([
       [
+        "missing live main protection gate",
+        (workflow: string) =>
+          workflow.replace(
+            [
+              "      - name: Verify live main protection",
+              "        env:",
+              "          HA_NOVA_CLOUD_SOURCE_CHECK_APP_ID: ${{ secrets.HA_NOVA_CLOUD_SOURCE_CHECK_APP_ID }}",
+              "          HA_NOVA_CLOUD_SOURCE_CHECK_APP_PRIVATE_KEY: ${{ secrets.HA_NOVA_CLOUD_SOURCE_CHECK_APP_PRIVATE_KEY }}",
+              "        run: bash scripts/release/verify-cloud-publication-main-protection.sh",
+              "",
+            ].join("\n"),
+            "",
+          ),
+      ],
+      [
         "named build before the gate",
         (workflow: string) =>
           workflow.replace(

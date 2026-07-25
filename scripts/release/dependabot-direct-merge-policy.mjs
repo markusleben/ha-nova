@@ -59,6 +59,14 @@ function latestCheck(checks, name, appId) {
     .at(-1);
 }
 
+export function requiredChecksGreen(checks, policy) {
+  const { apps, required } = requiredPolicy(policy);
+  return required.every((name) => {
+    const check = latestCheck(checks, name, apps[name]);
+    return check?.status === "completed" && check.conclusion === "success";
+  });
+}
+
 export function requireChecks(checks, policy, mergeSHA, prNumber) {
   const { apps, invalidatorName, required, sourceName } =
     requiredPolicy(policy);

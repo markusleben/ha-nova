@@ -12,6 +12,7 @@ import {
   ownedMarker,
   requiredPolicy,
   requireChecks,
+  requiredChecksGreen,
 } from "./dependabot-direct-merge-policy.mjs";
 
 const repository = process.env.GITHUB_REPOSITORY ?? "";
@@ -41,9 +42,16 @@ async function timeline(prNumber) {
   return githubPages(`repos/${repository}/issues/${prNumber}/timeline`);
 }
 
-async function disableAutoMerge(pr) {
-  if (pr.auto_merge === null || pr.auto_merge === undefined) {
-    return;
+function hasBotOwnedAutoMerge(pr) {
+  return (
+    pr.user?.login === "dependabot[bot]" &&
+    pr.auto_merge?.enabled_by?.login === "github-actions[bot]"
+  );
+}
+
+async function disableBotOwnedAutoMerge(pr) {
+  if (!hasBotOwnedAutoMerge(pr)) {
+    return false;
   }
   await github("graphql", {
     method: "POST",
@@ -53,6 +61,8 @@ async function disableAutoMerge(pr) {
       variables: { id: pr.node_id },
     }),
   });
+  pr.auto_merge = null;
+  return true;
 }
 
 async function removeLabel(prNumber, safeLabel, labels) {
@@ -77,7 +87,7 @@ async function removeLabel(prNumber, safeLabel, labels) {
 }
 
 async function cleanupOwnedState(pr, comment, safeLabel) {
-  await disableAutoMerge(pr);
+  await disableBotOwnedAutoMerge(pr);
   await removeLabel(pr.number, safeLabel, pr.labels ?? []);
   if (comment !== undefined) {
     await github(`repos/${repository}/issues/comments/${comment.id}`, {
@@ -104,6 +114,9 @@ async function triggerPRNumbers() {
           pull.head?.sha === runSHA,
       )
       .map((pull) => pull.number);
+  }
+  if (runKind === "repository_dispatch") {
+    return [Number(runId)];
   }
   fail("unrecognized trusted trigger kind");
 }
@@ -214,7 +227,12 @@ async function requireNoActiveCI(headSHA) {
   fail("more than 1,000 CI runs exist for the candidate head");
 }
 
-async function validateCandidate(prNumber, expectedHead, policySHA) {
+async function validateCandidate(
+  prNumber,
+  expectedHead,
+  policySHA,
+  allowNotReady = false,
+) {
   const current = await currentPolicy();
   if (current.ref !== policyRef || current.sha256 !== policySHA) {
     fail("repository policy changed during direct-merge validation");
@@ -253,14 +271,16 @@ async function validateCandidate(prNumber, expectedHead, policySHA) {
     fail("current automation-owned policy marker is absent");
   }
   await requireOwnedLabel(pr, policyContract.safeLabel);
-  requireChecks(
-    await checkRuns(expectedHead),
-    current.policy,
-    mergeSHA,
-    pr.number,
-  );
+  const checks = await checkRuns(expectedHead);
+  if (
+    allowNotReady &&
+    !requiredChecksGreen(checks, current.policy)
+  ) {
+    return { ready: false };
+  }
+  requireChecks(checks, current.policy, mergeSHA, pr.number);
   await requireNoActiveCI(expectedHead);
-  return { headSHA: expectedHead, mergeSHA };
+  return { headSHA: expectedHead, mergeSHA, ready: true };
 }
 
 async function main() {
@@ -268,7 +288,11 @@ async function main() {
     !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository) ||
     token.length < 20 ||
     defaultBranch !== "main" ||
-    !/^[1-9][0-9]*$/.test(runKind === "workflow_run" ? runId : "1")
+    !/^[1-9][0-9]*$/.test(
+      runKind === "workflow_run" || runKind === "repository_dispatch"
+        ? runId
+        : "1",
+    )
   ) {
     fail("trusted GitHub Actions context is incomplete");
   }
@@ -293,6 +317,7 @@ async function main() {
     if (pr.head?.sha !== runSHA) {
       continue;
     }
+    const hadBotOwnedAutoMerge = await disableBotOwnedAutoMerge(pr);
     const markerComment = ownedMarker(
       await comments(pr.number),
       oldContract.safeLabel,
@@ -303,7 +328,7 @@ async function main() {
     if (
       !owned &&
       pr.user?.login === "dependabot[bot]" &&
-      pr.auto_merge?.enabled_by?.login === "github-actions[bot]"
+      hadBotOwnedAutoMerge
     ) {
       owned = (await timeline(pr.number)).some(
         (event) =>
@@ -321,8 +346,15 @@ async function main() {
     if (!owned || pr.draft === true) {
       continue;
     }
-    await disableAutoMerge(pr);
-    await validateCandidate(pr.number, runSHA, expectedPolicySHA);
+    const initial = await validateCandidate(
+      pr.number,
+      runSHA,
+      expectedPolicySHA,
+      runKind === "repository_dispatch",
+    );
+    if (initial.ready !== true) {
+      continue;
+    }
     const final = await validateCandidate(pr.number, runSHA, expectedPolicySHA);
     const merged = await github(
       `repos/${repository}/pulls/${pr.number}/merge`,

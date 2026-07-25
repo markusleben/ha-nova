@@ -52,7 +52,8 @@ function response(data, status = 200) {
 }
 globalThis.fetch = async (url, init = {}) => {
   const method = init.method ?? "GET";
-  const path = new URL(url).pathname;
+  const parsed = new URL(url);
+  const path = parsed.pathname;
   const body = init.body === undefined ? null : JSON.parse(init.body);
   appendFileSync(process.env.MOCK_TRACE, JSON.stringify({ method, path, body }) + "\\n");
   if (path.endsWith("/actions/workflows/ci.yml")) {
@@ -62,7 +63,12 @@ globalThis.fetch = async (url, init = {}) => {
     return response(workflowRun);
   }
   if (path.endsWith("/check-runs") && method === "GET") {
-    return response({ check_runs: checks });
+    const page = Number(parsed.searchParams.get("page") ?? "1");
+    const start = (page - 1) * 100;
+    return response({
+      check_runs: checks.slice(start, start + 100),
+      total_count: checks.length,
+    });
   }
   if (path.endsWith("/check-runs") && method === "POST") {
     const created = { ...body, app: { id: 42 }, id: 900, status: "in_progress" };
@@ -207,6 +213,38 @@ describe("Cloud source check lifecycle", () => {
     expect(
       trace.some(
         (entry) => entry.method === "PATCH" && entry.body?.conclusion === "failure",
+      ),
+    ).toBe(true);
+  });
+
+  it("finds conflicting exact-target terminals beyond the first 100 checks", () => {
+    const successes = Array.from({ length: 100 }, (_, index) => ({
+      ...check(1, "completed"),
+      id: 1_000 + index,
+    }));
+    const hiddenFailure = {
+      ...check(1, "completed"),
+      conclusion: "failure",
+      id: 2_000,
+    };
+    const { result, trace } = runLifecycle("in_progress", 1, [
+      ...successes,
+      hiddenFailure,
+    ]);
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain(
+      "source checks have conflicting terminal conclusions",
+    );
+    expect(
+      trace.filter(
+        (entry) =>
+          entry.method === "GET" && entry.path.endsWith("/check-runs"),
+      ),
+    ).toHaveLength(2);
+    expect(
+      trace.some(
+        (entry) =>
+          entry.method === "PATCH" && entry.body?.conclusion === "failure",
       ),
     ).toBe(true);
   });

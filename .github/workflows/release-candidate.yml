@@ -47,6 +47,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: bash scripts/release/verify-github-production-environment.sh
 
+      - name: Verify live main protection
+        env:
+          HA_NOVA_CLOUD_SOURCE_CHECK_APP_ID: ${{ secrets.HA_NOVA_CLOUD_SOURCE_CHECK_APP_ID }}
+          HA_NOVA_CLOUD_SOURCE_CHECK_APP_PRIVATE_KEY: ${{ secrets.HA_NOVA_CLOUD_SOURCE_CHECK_APP_PRIVATE_KEY }}
+        run: bash scripts/release/verify-cloud-publication-main-protection.sh
+
       - name: Verify release metadata
         env:
           VERSION_TAG: ${{ inputs.version_tag }}

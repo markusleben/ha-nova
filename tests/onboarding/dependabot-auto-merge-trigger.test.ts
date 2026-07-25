@@ -9,7 +9,11 @@ import { registerDependabotDirectMergeBehaviorTests } from "./dependabot-direct-
 
 const sha = "a".repeat(40);
 
-function runResolver(eventName: "check_run" | "workflow_run", event: unknown, appId = 42) {
+function runResolver(
+  eventName: "check_run" | "repository_dispatch" | "workflow_run",
+  event: unknown,
+  appId = 42,
+) {
   const directory = mkdtempSync(join(tmpdir(), "ha-nova-trigger-"));
   const eventPath = join(directory, "event.json");
   const outputPath = join(directory, "output");
@@ -149,6 +153,39 @@ describe("Dependabot auto-merge trigger authentication", () => {
     expect(result.output).toContain("run-kind=workflow_run");
     expect(result.output).toContain("run-id=123");
     expect(result.output.trimEnd().endsWith("should-process=true")).toBe(true);
+  });
+
+  it("accepts the exact Actions-owned post-marker reevaluation", () => {
+    const result = runResolver("repository_dispatch", {
+      action: "dependabot-safe-reevaluate",
+      client_payload: {
+        head_sha: sha,
+        pr_number: "7",
+      },
+      sender: { login: "github-actions[bot]" },
+    });
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.output).toContain("run-kind=repository_dispatch");
+    expect(result.output).toContain("run-id=7");
+    expect(result.output).toContain(`run-sha=${sha}`);
+    expect(result.output.trimEnd().endsWith("should-process=true")).toBe(true);
+  });
+
+  it.each([
+    ["human sender", "markusleben", "dependabot-safe-reevaluate"],
+    ["wrong event type", "github-actions[bot]", "other-event"],
+  ])("ignores a repository dispatch from %s", (_label, sender, action) => {
+    const result = runResolver("repository_dispatch", {
+      action,
+      client_payload: {
+        head_sha: sha,
+        pr_number: "7",
+      },
+      sender: { login: sender },
+    });
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.output).toContain("should-process=false");
+    expect(result.output).not.toContain("should-process=true");
   });
 
   it.each([

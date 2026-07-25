@@ -48,6 +48,14 @@ func runCloudConnectCommand(
 		)
 		return 1
 	}
+	if err := preflightSavedCloudConnectConfig(
+		paths,
+		options,
+		reconnect,
+	); err != nil {
+		printHumanErr("%s", err)
+		return 1
+	}
 	if !cloudInteractivePromptSessionForSetup() {
 		printHumanErr(
 			"Home Assistant Cloud setup requires an interactive desktop session: use a local, non-elevated graphical desktop terminal (not SSH, sudo/root, or WSL); no authorization was changed.",
@@ -73,12 +81,12 @@ func runCloudConnectCommand(
 		if err != nil {
 			return err
 		}
-		if err := validateRuntimeConfigSave(paths, cfg); err != nil {
-			configPreflightErr = fmt.Errorf(
-				"cannot safely continue Home Assistant Cloud setup with the saved server configuration: %w",
-				err,
-			)
+		if err := validateCloudConnectSavedConfig(paths, cfg); err != nil {
+			configPreflightErr = err
 			return configPreflightErr
+		}
+		if err := validateCloudConnectIntent(cfg, reconnect); err != nil {
+			return err
 		}
 		connected = cfg
 		connected, err = connectCloudCommandLocked(
@@ -101,6 +109,10 @@ func runCloudConnectCommand(
 		}
 		if handlePausedCloudOwnerPairing(os.Stdout, paths, err) {
 			return 0
+		}
+		if errors.Is(err, errCloudAlreadyConfigured) {
+			printHumanErr("%s", err)
+			return 1
 		}
 		renderCloudFailure(os.Stdout, paths, err)
 		return 1

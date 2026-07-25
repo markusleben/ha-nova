@@ -430,6 +430,11 @@ queued or running CI workflow. The final GitHub merge request supplies the
 expected head SHA. Policy drift and explicit removal of the automation-owned
 safe label disable any previously queued native auto-merge and remove only
 automation-owned state; human or unauthenticated state stays untouched.
+Safe-lane preparation dispatches one trusted current-default-branch
+re-evaluation after writing the exact policy marker, covering checks that
+finished before `ready_for_review`; incomplete checks remain a non-error no-op.
+Bot-owned legacy native auto-merge is disabled before pagination-dependent
+marker recovery, while human-owned native auto-merge is never changed.
 
 GitHub Actions `workflow_run` delivery cannot synchronously invalidate a prior
 same-target result. Production activation therefore remains fail-closed behind
@@ -464,4 +469,7 @@ changes. Every product, metadata, script, or sensitive-workflow delta requires
 fresh evidence for the exact target. Signed install-bundle provenance always
 binds the current release tree, and exact uploaded bundles are smoke-tested on
 every supported runner before a draft can be published. Disabled metadata
-needs an empty platform list and no Cloud evidence.
+needs an empty platform list and no Cloud evidence. Enabled RC and final
+publication additionally mint a short-lived token scoped only to
+`Administration: read` from the exact policy-bound source App and revalidate
+live strict, exact-App main protection before reading evidence.

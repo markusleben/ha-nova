@@ -5,12 +5,19 @@ const workflowPaths = process.argv.slice(2);
 const metadataStepName = "Verify release metadata";
 const gateStepName = "Verify Home Assistant Cloud release gate";
 const environmentStepName = "Verify production environment policy";
+const mainProtectionStepName = "Verify live main protection";
 const metadataCommand =
   'run: bash scripts/release/verify-release-metadata.sh "${VERSION_TAG}"';
 const gateCommand = "run: bash scripts/release/verify-cloud-release-gate.sh";
 const environmentCommand =
   "run: bash scripts/release/verify-github-production-environment.sh";
+const mainProtectionCommand =
+  "run: bash scripts/release/verify-cloud-publication-main-protection.sh";
 const githubTokenBinding = "GH_TOKEN: ${{ github.token }}";
+const sourceAppIdBinding =
+  "HA_NOVA_CLOUD_SOURCE_CHECK_APP_ID: ${{ secrets.HA_NOVA_CLOUD_SOURCE_CHECK_APP_ID }}";
+const sourceAppKeyBinding =
+  "HA_NOVA_CLOUD_SOURCE_CHECK_APP_PRIVATE_KEY: ${{ secrets.HA_NOVA_CLOUD_SOURCE_CHECK_APP_PRIVATE_KEY }}";
 const evidenceBinding =
   "HA_NOVA_CLOUD_GATE_EVIDENCE_JSON: ${{ secrets.HA_NOVA_CLOUD_GATE_EVIDENCE_JSON }}";
 function fail(workflowPath, message) {
@@ -57,7 +64,14 @@ function namedStepsForJob(lines, job) {
 function meaningfulLines(block) {
   return block.map((line) => line.trim()).filter(Boolean);
 }
-function assertPureGateJob(workflowPath, lines, gateJob, metadata, gate) {
+function assertPureGateJob(
+  workflowPath,
+  lines,
+  gateJob,
+  mainProtection,
+  metadata,
+  gate,
+) {
   const steps = namedStepsForJob(lines, gateJob);
   const allStepStarts = lines
     .slice(gateJob.start + 1, gateJob.end)
@@ -66,6 +80,7 @@ function assertPureGateJob(workflowPath, lines, gateJob, metadata, gate) {
     "Checkout",
     "Setup Node",
     environmentStepName,
+    mainProtectionStepName,
     metadataStepName,
     gateStepName,
   ];
@@ -76,7 +91,7 @@ function assertPureGateJob(workflowPath, lines, gateJob, metadata, gate) {
   ) {
     fail(
       workflowPath,
-      `Cloud gate job '${gateJob.id}' may contain only Checkout, Setup Node, production environment policy, release metadata, and the Cloud gate`,
+      `Cloud gate job '${gateJob.id}' may contain only Checkout, Setup Node, production environment policy, live main protection, release metadata, and the Cloud gate`,
     );
   }
   const isFinalRelease = path.basename(workflowPath) === "release.yml";
@@ -154,6 +169,20 @@ function assertPureGateJob(workflowPath, lines, gateJob, metadata, gate) {
     fail(
       workflowPath,
       "production environment step must run only the exact live policy verifier with github.token",
+    );
+  }
+  const mainProtectionLines = meaningfulLines(mainProtection.block);
+  if (
+    mainProtectionLines.length !== 5 ||
+    mainProtectionLines[0] !== `- name: ${mainProtectionStepName}` ||
+    mainProtectionLines[1] !== "env:" ||
+    mainProtectionLines[2] !== sourceAppIdBinding ||
+    mainProtectionLines[3] !== sourceAppKeyBinding ||
+    mainProtectionLines[4] !== mainProtectionCommand
+  ) {
+    fail(
+      workflowPath,
+      "main protection step must mint and use only the exact Cloud source App administration-read token",
     );
   }
   const metadataLines = meaningfulLines(metadata.block);
@@ -321,27 +350,54 @@ function verifyWorkflow(workflowPath) {
     fail(workflowPath, syntaxProblem);
   }
   const metadata = assertRequiredStep(workflowPath, lines, metadataStepName);
+  const mainProtection = assertRequiredStep(
+    workflowPath,
+    lines,
+    mainProtectionStepName,
+  );
   const gate = assertRequiredStep(workflowPath, lines, gateStepName);
   const jobs = parseJobs(workflowPath, lines);
   const metadataJob = jobForLine(jobs, metadata.start);
+  const mainProtectionJob = jobForLine(jobs, mainProtection.start);
   const gateJob = jobForLine(jobs, gate.start);
-  if (!metadataJob || !gateJob || metadataJob.id !== gateJob.id) {
+  if (
+    !metadataJob ||
+    !mainProtectionJob ||
+    !gateJob ||
+    metadataJob.id !== gateJob.id ||
+    mainProtectionJob.id !== gateJob.id
+  ) {
     fail(
       workflowPath,
-      "must run release metadata and the Cloud gate sequentially in one job",
+      "must run live main protection, release metadata, and the Cloud gate sequentially in one job",
     );
   }
   metadata.end = Math.min(metadata.end, metadataJob.end);
   metadata.block = lines.slice(metadata.start, metadata.end);
+  mainProtection.end = Math.min(mainProtection.end, metadataJob.end);
+  mainProtection.block = lines.slice(
+    mainProtection.start,
+    mainProtection.end,
+  );
   gate.end = Math.min(gate.end, gateJob.end);
   gate.block = lines.slice(gate.start, gate.end);
-  if (metadata.end !== gate.start) {
+  if (
+    mainProtection.end !== metadata.start ||
+    metadata.end !== gate.start
+  ) {
     fail(
       workflowPath,
-      "must run the Cloud gate immediately after release metadata verification",
+      "must run live main protection, release metadata, and the Cloud gate consecutively",
     );
   }
-  assertPureGateJob(workflowPath, lines, gateJob, metadata, gate);
+  assertPureGateJob(
+    workflowPath,
+    lines,
+    gateJob,
+    mainProtection,
+    metadata,
+    gate,
+  );
   const artifactLines = artifactProducerLines(lines);
   if (artifactLines.length === 0) {
     fail(workflowPath, "must contain at least one artifact producer");

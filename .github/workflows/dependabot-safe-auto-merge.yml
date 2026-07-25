@@ -4,6 +4,9 @@ on:
   check_run:
     types:
       - completed
+  repository_dispatch:
+    types:
+      - dependabot-safe-reevaluate
   workflow_run:
     workflows:
       - CI

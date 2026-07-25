@@ -117,4 +117,21 @@ if (eventName === "check_run") {
   process.exit(0);
 }
 
+if (eventName === "repository_dispatch") {
+  const prNumber = event.client_payload?.pr_number;
+  const headSHA = event.client_payload?.head_sha;
+  if (
+    event.action !== "dependabot-safe-reevaluate" ||
+    event.sender?.login !== "github-actions[bot]" ||
+    !/^[1-9][0-9]*$/.test(prNumber ?? "")
+  ) {
+    process.exit(0);
+  }
+  writeOutput("run-kind", "repository_dispatch");
+  writeOutput("run-id", prNumber);
+  writeOutput("run-sha", requireSHA(headSHA, "repository dispatch head SHA"));
+  writeOutput("should-process", "true");
+  process.exit(0);
+}
+
 fail(`unsupported event ${eventName}`);

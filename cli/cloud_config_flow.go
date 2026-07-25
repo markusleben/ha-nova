@@ -7,6 +7,10 @@ import (
 
 type cloudConfigSaver func(runtimeConfig) error
 
+var errCloudAlreadyConfigured = errors.New(
+	"Home Assistant Cloud access is already configured",
+)
+
 func connectExistingDeviceToCloud(
 	ctx context.Context,
 	paths runtimePaths,
@@ -104,7 +108,7 @@ func connectExistingDeviceToCloud(
 			return cfg, err
 		}
 	case !reconnect && cfg.Cloud.configured():
-		return cfg, errors.New("Home Assistant Cloud access is already configured")
+		return cfg, errCloudAlreadyConfigured
 	case cfg.Cloud == nil:
 		cfg.Cloud = &cloudLifecycleMetadata{State: cloudStateAuthorizing}
 		if err := save(cfg); err != nil {
@@ -261,7 +265,7 @@ func connectRemoteToCloud(
 			return cfg, err
 		}
 	} else if !reconnect && cfg.Cloud.configured() {
-		return cfg, errors.New("Home Assistant Cloud access is already configured")
+		return cfg, errCloudAlreadyConfigured
 	}
 	if cfg.Cloud == nil {
 		cfg.Cloud = &cloudLifecycleMetadata{State: cloudStateAuthorizing}
@@ -310,12 +314,12 @@ func validateCloudConnectIntent(
 		return nil
 	}
 	if cfg.Cloud.ready() {
-		return errors.New("Home Assistant Cloud access is already configured")
+		return errCloudAlreadyConfigured
 	}
 	if cfg.Cloud.configured() &&
 		cfg.Cloud.State != cloudStateCommitted &&
 		cfg.Cloud.State != cloudStateRetiringPrevious {
-		return errors.New("Home Assistant Cloud access is already configured")
+		return errCloudAlreadyConfigured
 	}
 	return nil
 }

@@ -161,8 +161,14 @@ bash scripts/release/verify-github-production-environment.sh
 
 An unprotected or drifting environment is an activation and release blocker:
 the trusted source gate and both release workflows run this verifier before
-reading Cloud evidence or using production secrets. The verifier is read-only;
-fix the environment in GitHub settings, then rerun it.
+reading Cloud evidence or using production secrets. Both release workflows
+also re-run the read-only live main-protection verifier before metadata and
+Cloud evidence, so non-strict checks or an incorrect required-App binding
+cannot publish a previously accepted source state. Fix GitHub policy drift,
+then rerun the failed gate. Enabled publication mints a short-lived installation
+token from the source-check App credentials scoped down to
+`Administration: read`; it never grants Checks write to the publication gate.
+Disabled publication exits before requiring those App credentials.
 
 The required `cloud-source-gate` is emitted by the dedicated
 `markusleben-ha-nova-cloud-source-gate` GitHub App after a trusted
@@ -193,6 +199,14 @@ success. Its private key and App ID are `production` environment secrets named
 required context. Dependabot auto-merge re-evaluates when the App check
 completes, but a read-only first job authenticates its exact name, App ID, and
 App slug before any write-capable job can start.
+
+The safe-lane preparation workflow also emits a repository dispatch only after
+its automation-owned label and exact current-policy marker are recorded. The
+dispatch runs the same current-default-branch resolver and direct merger; it
+never checks out or executes pull-request code. This closes the ordering where
+all required checks completed before a draft Dependabot pull request became
+ready. An early dispatch with incomplete checks exits without merging and later
+trusted check completions re-evaluate normally.
 
 While the target enables Cloud, the evidence
 always binds its own exact evidence commit and full source tree. It may cover a

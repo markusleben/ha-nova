@@ -300,6 +300,39 @@ jobs:
             gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" --method POST -f body="${comment_body}" >/dev/null
           fi
 
+      - name: Reevaluate the fully marked safe PR
+        if: ${{ steps.guard.outputs.eligible == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ steps.pr.outputs.pr-number }}
+        run: |
+          set -euo pipefail
+
+          pr_json="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}")"
+          pr_author="$(jq -r '.user.login // ""' <<<"${pr_json}")"
+          pr_head_sha="$(jq -r '.head.sha // ""' <<<"${pr_json}")"
+          pr_base_ref="$(jq -r '.base.ref // ""' <<<"${pr_json}")"
+          pr_base_repo="$(jq -r '.base.repo.full_name // ""' <<<"${pr_json}")"
+          [[ "${pr_author}" == "dependabot[bot]" ]]
+          [[ "${pr_head_sha}" =~ ^[0-9a-f]{40}$ ]]
+          [[ "${pr_base_ref}" == "main" ]]
+          [[ "${pr_base_repo}" == "${GITHUB_REPOSITORY}" ]]
+
+          jq -n \
+            --arg event_type "dependabot-safe-reevaluate" \
+            --arg pr_number "${PR_NUMBER}" \
+            --arg head_sha "${pr_head_sha}" \
+            '{
+              event_type: $event_type,
+              client_payload: {
+                pr_number: $pr_number,
+                head_sha: $head_sha
+              }
+            }' \
+            | gh api "repos/${GITHUB_REPOSITORY}/dispatches" \
+                --method POST \
+                --input -
+
       - name: Remove safe auto-merge marker when lane becomes ineligible
         if: ${{ steps.pr.outputs.should-process == 'true' && steps.guard.outputs.eligible != 'true' }}
         env:

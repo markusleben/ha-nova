@@ -43,12 +43,20 @@ export function registerCloudReleaseGateContractTests(): void {
     expect(appVersion.cloud_remote_platforms).toEqual(version.cloud_remote_platforms);
 
     for (const workflow of [releaseWorkflow, rcWorkflow]) {
+      const protectionIndex = workflow.indexOf(
+        "name: Verify live main protection",
+      );
       const metadataIndex = workflow.indexOf("name: Verify release metadata");
       const gateIndex = workflow.indexOf("bash scripts/release/verify-cloud-release-gate.sh");
+      expect(protectionIndex).toBeGreaterThanOrEqual(0);
+      expect(metadataIndex).toBeGreaterThan(protectionIndex);
       expect(metadataIndex).toBeGreaterThanOrEqual(0);
       expect(gateIndex).toBeGreaterThan(metadataIndex);
       expect(workflow).toContain(
         "HA_NOVA_CLOUD_GATE_EVIDENCE_JSON: ${{ secrets.HA_NOVA_CLOUD_GATE_EVIDENCE_JSON }}",
+      );
+      expect(workflow).toContain(
+        "run: bash scripts/release/verify-cloud-publication-main-protection.sh",
       );
     }
 
@@ -82,17 +90,29 @@ export function registerCloudReleaseGateContractTests(): void {
       "evidence.relay_app.source_tree_sha !== evidence.tree_sha",
     );
     expect(cloudReleaseGateVerifier).not.toMatch(/console\.(?:log|error)\([^)]*rawEvidence/);
+    expect(checkTokenScript).toContain(
+      'tokenMode !== "reporter" && tokenMode !== "administration-read"',
+    );
+    expect(checkTokenScript).toContain(
+      '? { administration: "read" }',
+    );
 
     const releasePipelineVerifier = readFileSync(
       "scripts/release/verify-release-pipeline.sh",
       "utf8",
     );
     expect(releasePipelineVerifier).toContain("verify-cloud-workflow-gate.sh");
-    expect(cloudWorkflowGateVerifier).toContain(
-      "must run the Cloud gate immediately after release metadata verification",
+    expect(releasePipelineVerifier).toContain(
+      "verify-cloud-publication-main-protection.sh",
     );
     expect(cloudWorkflowGateVerifier).toContain(
-      "may contain only Checkout, Setup Node, production environment policy, release metadata, and the Cloud gate",
+      "must run live main protection, release metadata, and the Cloud gate consecutively",
+    );
+    expect(cloudWorkflowGateVerifier).toContain(
+      "may contain only Checkout, Setup Node, production environment policy, live main protection, release metadata, and the Cloud gate",
+    );
+    expect(cloudWorkflowGateVerifier).toContain(
+      "must mint and use only the exact Cloud source App administration-read token",
     );
     expect(cloudWorkflowGateVerifier).toContain("must depend on Cloud gate job");
     expect(cloudWorkflowGateVerifier).toContain("must not build, upload, or publish artifacts");
@@ -182,7 +202,9 @@ export function registerCloudReleaseGateContractTests(): void {
     );
     expect(reporter).toContain("pull request identity changed after final source verification");
     expect(reporter).toContain("source ref changed while the trusted source gate was running");
-    expect(checkTokenScript).toContain('permissions: { administration: "read", checks: "write" }');
+    expect(checkTokenScript).toContain(
+      '{ administration: "read", checks: "write" }',
+    );
     expect(checkTokenScript).toContain('access.permissions?.administration !== "read"');
     expect(checkTokenScript).toContain("`app-id=${appId}\\n`");
     expect(reporter).not.toContain("download-artifact");

@@ -65,6 +65,7 @@ goreleaser="${ROOT_DIR}/.goreleaser.yml"
 cloud_gate="${ROOT_DIR}/scripts/release/verify-cloud-release-gate.sh"
 cloud_workflow_gate="${ROOT_DIR}/scripts/release/verify-cloud-workflow-gate.sh"
 production_environment_gate="${ROOT_DIR}/scripts/release/verify-github-production-environment.sh"
+publication_main_protection_gate="${ROOT_DIR}/scripts/release/verify-cloud-publication-main-protection.sh"
 
 # --- Static workflow contract (no GitHub permissions required) --------------
 [[ -f "${release_workflow}" ]] || fail "Missing ${release_workflow}."
@@ -74,6 +75,8 @@ production_environment_gate="${ROOT_DIR}/scripts/release/verify-github-productio
 [[ -f "${cloud_workflow_gate}" ]] || fail "Missing ${cloud_workflow_gate}."
 [[ -x "${production_environment_gate}" ]] \
   || fail "Missing executable ${production_environment_gate}."
+[[ -x "${publication_main_protection_gate}" ]] \
+  || fail "Missing executable ${publication_main_protection_gate}."
 
 # Cloud publication stays disabled by version metadata until the exact release
 # commit has complete real-device evidence. The dedicated structural verifier

@@ -40,6 +40,8 @@ function runDirectMerge(options: {
   activeCI?: boolean;
   activeCIPage2?: boolean;
   activated?: boolean;
+  autoMergeActor?: string | null;
+  checksReady?: boolean;
   comments?: unknown[];
   currentRef?: string;
   labels?: string[];
@@ -48,6 +50,7 @@ function runDirectMerge(options: {
   invalidatorTarget?: string;
   sourceTarget?: string;
   timeline?: unknown[];
+  triggerKind?: "repository_dispatch" | "workflow_run";
 }) {
   const directory = mkdtempSync(join(tmpdir(), "ha-nova-direct-merge-"));
   const preloadPath = join(directory, "mock-fetch.mjs");
@@ -79,9 +82,14 @@ function runDirectMerge(options: {
     },
   ];
   const pr = {
-    auto_merge: {
-      enabled_by: { login: "github-actions[bot]" },
-    },
+    auto_merge:
+      options.autoMergeActor === null
+        ? null
+        : {
+            enabled_by: {
+              login: options.autoMergeActor ?? "github-actions[bot]",
+            },
+          },
     base: {
       ref: "main",
       repo: { full_name: "markusleben/ha-nova" },
@@ -99,10 +107,10 @@ function runDirectMerge(options: {
   const checks = [
     {
       app: { id: 1 },
-      conclusion: "success",
+      conclusion: options.checksReady === false ? null : "success",
       id: 10,
       name: "ci-gate",
-      status: "completed",
+      status: options.checksReady === false ? "in_progress" : "completed",
     },
     {
       app: { id: 42 },
@@ -163,11 +171,13 @@ globalThis.fetch = async (url, init = {}) => {
   if (path.endsWith("/pulls/7") && method === "GET") return response(pr);
   if (path.endsWith("/issues/7/comments")) {
     const page = Number(parsed.searchParams.get("page"));
-    return response(page === 1 ? comments.slice(0, 100) : comments.slice(100, 200));
+    const start = (page - 1) * 100;
+    return response(comments.slice(start, start + 100));
   }
   if (path.endsWith("/issues/7/timeline")) {
     const page = Number(parsed.searchParams.get("page"));
-    return response(page === 1 ? timeline.slice(0, 100) : timeline.slice(100, 200));
+    const start = (page - 1) * 100;
+    return response(timeline.slice(start, start + 100));
   }
   if (path.endsWith("/git/ref/pull/7/merge")) return response({ object: { sha: ${JSON.stringify(mergeSHA)} } });
   if (path.endsWith("/commits/${headSHA}/check-runs")) {
@@ -221,8 +231,9 @@ globalThis.fetch = async (url, init = {}) => {
         GH_TOKEN: "github-token-at-least-twenty-characters",
         GITHUB_REPOSITORY: "markusleben/ha-nova",
         MOCK_TRACE: tracePath,
-        RUN_ID: "123",
-        RUN_KIND: "workflow_run",
+        RUN_ID:
+          options.triggerKind === "repository_dispatch" ? "7" : "123",
+        RUN_KIND: options.triggerKind ?? "workflow_run",
         RUN_SHA: headSHA,
       },
     },
@@ -334,6 +345,35 @@ export function registerDependabotDirectMergeBehaviorTests(): void {
       expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
     });
 
+    it("uses a trusted post-marker reevaluation when all checks already passed", () => {
+      const { result, trace } = runDirectMerge({
+        autoMergeActor: null,
+        triggerKind: "repository_dispatch",
+      });
+      expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
+      expect(
+        trace.some(
+          (entry) =>
+            entry.method === "PUT" && entry.path.endsWith("/pulls/7/merge"),
+        ),
+      ).toBe(true);
+    });
+
+    it("leaves an early post-marker reevaluation pending without a failed merge", () => {
+      const { result, trace } = runDirectMerge({
+        autoMergeActor: null,
+        checksReady: false,
+        triggerKind: "repository_dispatch",
+      });
+      expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
+      expect(
+        trace.some(
+          (entry) =>
+            entry.method === "PUT" && entry.path.endsWith("/pulls/7/merge"),
+        ),
+      ).toBe(false);
+    });
+
     it("cleans unlabeled owned native auto-merge on policy-ref drift", () => {
       const { result, trace } = runDirectMerge({
         currentRef: driftSHA,
@@ -394,6 +434,7 @@ export function registerDependabotDirectMergeBehaviorTests(): void {
 
     it("leaves unowned Dependabot state untouched during policy drift", () => {
       const { result, trace } = runDirectMerge({
+        autoMergeActor: null,
         comments: [],
         currentRef: driftSHA,
         labels: [],
@@ -404,6 +445,42 @@ export function registerDependabotDirectMergeBehaviorTests(): void {
         false,
       );
       expect(trace.some((entry) => entry.method === "DELETE")).toBe(false);
+    });
+
+    it("disables bot-owned native auto-merge before pagination can fail", () => {
+      const comments = Array.from({ length: 1_000 }, (_, id) => ({
+        body: `ordinary ${id}`,
+        id,
+        user: { login: "markusleben" },
+      }));
+      const { result, trace } = runDirectMerge({ comments });
+      expect(result.status).not.toBe(0);
+      expect(result.stderr).toContain("exceeds the supported pagination limit");
+      const disableIndex = trace.findIndex((entry) =>
+        entry.path.endsWith("/graphql"),
+      );
+      const commentsIndex = trace.findIndex((entry) =>
+        entry.path.endsWith("/issues/7/comments"),
+      );
+      expect(disableIndex).toBeGreaterThanOrEqual(0);
+      expect(commentsIndex).toBeGreaterThan(disableIndex);
+    });
+
+    it("preserves human-owned native auto-merge when pagination fails", () => {
+      const comments = Array.from({ length: 1_000 }, (_, id) => ({
+        body: `ordinary ${id}`,
+        id,
+        user: { login: "markusleben" },
+      }));
+      const { result, trace } = runDirectMerge({
+        autoMergeActor: "markusleben",
+        comments,
+      });
+      expect(result.status).not.toBe(0);
+      expect(result.stderr).toContain("exceeds the supported pagination limit");
+      expect(trace.some((entry) => entry.path.endsWith("/graphql"))).toBe(
+        false,
+      );
     });
   });
 }
