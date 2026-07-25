@@ -25,6 +25,10 @@ describe("release contract", () => {
     "scripts/release/deploy-census-worker.sh",
     "utf8",
   );
+  const censusDeploymentState = readFileSync(
+    "scripts/release/census-deployment-state.sh",
+    "utf8",
+  );
   const releaseWorkflow = readFileSync(".github/workflows/release.yml", "utf8");
   const rcWorkflow = readFileSync(
     ".github/workflows/release-candidate.yml",
@@ -392,17 +396,29 @@ describe("release contract", () => {
     );
     expect(censusDeployer).toContain("WRANGLER_OUTPUT_FILE_PATH");
     expect(censusDeployer).toContain("$deploys[0].targets == [$target]");
-    expect(censusDeployer).toContain("single_deployment_version_id");
-    expect(censusDeployer).toContain("deployment_output_version_id");
-    expect(censusDeployer).toContain("select(length == 1)");
+    expect(censusDeployer).toContain("census_single_deployment_version_id");
     expect(censusDeployer).toContain(
+      "census_deployment_output_version_id",
+    );
+    expect(censusDeployer).toContain("census-deployment-state.sh");
+    expect(censusDeploymentState).toContain("select(length == 1)");
+    expect(censusDeploymentState).toContain(
       'test("^[0-9A-Za-z][0-9A-Za-z._-]{0,127}$")',
     );
-    expect(censusDeployer).toContain("wrangler@4.113.0 deployments status");
-    expect(censusDeployer).not.toContain(
+    expect(censusDeploymentState).toContain(
+      "wrangler@4.113.0 deployments status",
+    );
+    const censusDeploymentScripts = `${censusDeployer}\n${censusDeploymentState}`;
+    expect(censusDeploymentScripts).not.toContain(
       "wrangler@4.113.0 deployments list",
     );
-    expect(censusDeployer).not.toContain(".[0].versions");
+    expect(censusDeploymentScripts).not.toContain(".[0].versions");
+    expect(
+      censusDeployer.trimEnd().split("\n").length,
+    ).toBeLessThanOrEqual(400);
+    expect(
+      censusDeploymentState.trimEnd().split("\n").length,
+    ).toBeLessThanOrEqual(400);
     expect(censusDeployer).toContain("rollback not needed");
     expect(censusDeployer).toContain(
       "active Worker version changed outside this deploy",

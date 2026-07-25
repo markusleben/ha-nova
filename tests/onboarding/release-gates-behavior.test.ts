@@ -58,6 +58,10 @@ function releaseFixture(): {
   const script = join(releaseDir, "deploy-census-worker.sh");
   copyFileSync("scripts/release/deploy-census-worker.sh", script);
   copyFileSync(
+    "scripts/release/census-deployment-state.sh",
+    join(releaseDir, "census-deployment-state.sh"),
+  );
+  copyFileSync(
     "scripts/release/verify-census-deployment.sh",
     join(releaseDir, "verify-census-deployment.sh"),
   );

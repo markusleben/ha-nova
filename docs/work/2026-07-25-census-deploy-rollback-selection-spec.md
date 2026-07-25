@@ -14,6 +14,8 @@ serving immediately before the attempted deploy.
   `deployments status --json` command instead of inferring it from list order.
 - Use the same current-state command to verify the restored deployment.
 - Require exactly one status object with one safe 100-percent version ID.
+- Keep deployment-state parsing in a focused helper so the release wrapper
+  remains below the repository's approximate 400-line limit.
 - Skip rollback when production never changed, and refuse rollback when a
   different deployment became active after this process deployed.
 - Add a regression fixture matching Wrangler 4.113.0's oldest-first list

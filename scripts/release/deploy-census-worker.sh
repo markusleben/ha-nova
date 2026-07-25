@@ -22,38 +22,6 @@ require_command() {
   command -v "$1" >/dev/null 2>&1 || fail "required command not found: $1"
 }
 
-single_deployment_version_id() {
-  jq -ser '
-    select(length == 1)
-    | .[0]
-    | select(type == "object")
-    | .versions
-    | select(
-        type == "array"
-        and length == 1
-        and .[0].percentage == 100
-        and (
-          .[0].version_id
-          | type == "string"
-            and test("^[0-9A-Za-z][0-9A-Za-z._-]{0,127}$")
-        )
-      )
-    | .[0].version_id
-  '
-}
-
-deployment_output_version_id() {
-  jq -ser '
-    [.[] | select(.type == "deploy")]
-    | select(length == 1)
-    | .[0].version_id
-    | select(
-        type == "string"
-        and test("^[0-9A-Za-z][0-9A-Za-z._-]{0,127}$")
-      )
-  ' "$1"
-}
-
 if [[ "$#" -ne 1 ]]; then
   usage
   exit 2
@@ -94,14 +62,6 @@ dev_pid=""
 rollback_armed=0
 rollback_version=""
 deployed_version=""
-read_current_deployment() {
-  CLOUDFLARE_ENV='' CLOUDFLARE_ACCOUNT_ID="$expected_account" \
-    npx --yes wrangler@4.113.0 deployments status \
-      --cwd "$worker_dir" \
-      --config "$config_file" \
-      --name "$expected_worker" \
-      --json
-}
 
 cleanup() {
   cleanup_status=$?
@@ -111,12 +71,15 @@ cleanup() {
   fi
   if [[ "$rollback_armed" -eq 1 && -n "$rollback_version" ]]; then
     if [[ -z "$deployed_version" && -n "${wrangler_output:-}" && -s "$wrangler_output" ]]; then
-      deployed_version="$(deployment_output_version_id "$wrangler_output")" \
+      deployed_version="$(census_deployment_output_version_id "$wrangler_output")" \
         || deployed_version=""
     fi
-    current_deployment="$(read_current_deployment)" || current_deployment=""
+    current_deployment="$(
+      census_read_current_deployment \
+        "$expected_account" "$worker_dir" "$config_file" "$expected_worker"
+    )" || current_deployment=""
     current_version="$(
-      single_deployment_version_id <<<"$current_deployment"
+      census_single_deployment_version_id <<<"$current_deployment"
     )" || current_version=""
     if [[ "$current_version" == "$rollback_version" ]]; then
       echo "[deploy-census-worker] production stayed on ${rollback_version}; rollback not needed" >&2
@@ -138,10 +101,12 @@ cleanup() {
         echo "[deploy-census-worker] ERROR: automatic Worker rollback failed" >&2
         cleanup_status=1
       else
-        restored_deployment="$(read_current_deployment)" \
-          || restored_deployment=""
+        restored_deployment="$(
+          census_read_current_deployment \
+            "$expected_account" "$worker_dir" "$config_file" "$expected_worker"
+        )" || restored_deployment=""
         restored_version="$(
-          single_deployment_version_id <<<"$restored_deployment"
+          census_single_deployment_version_id <<<"$restored_deployment"
         )" || restored_version=""
         if [[ "$restored_version" != "$rollback_version" ]]; then
           echo "[deploy-census-worker] ERROR: could not verify the restored Worker version" >&2
@@ -173,6 +138,9 @@ node_major="$(node -p 'Number(process.versions.node.split(".")[0])')"
 [[ -z "$(git -C "$root_dir" status --porcelain)" ]] || fail "checkout is dirty; deploy only the exact reviewed merge"
 actual_sha="$(git -C "$root_dir" rev-parse HEAD)"
 [[ "$actual_sha" == "$reviewed_sha" ]] || fail "HEAD ${actual_sha} does not match reviewed SHA ${reviewed_sha}"
+# Source only after proving the helper belongs to this clean reviewed checkout.
+# shellcheck source=scripts/release/census-deployment-state.sh
+source "${script_dir}/census-deployment-state.sh"
 gh auth status --hostname github.com >/dev/null 2>&1 \
   || fail "gh is not authenticated for github.com"
 active_github_user="$(gh api --hostname github.com user --jq .login)" \
@@ -377,9 +345,11 @@ actual_sha="$(git -C "$root_dir" rev-parse HEAD)"
 [[ "$actual_sha" == "$reviewed_sha" ]] \
   || fail "HEAD changed during local proof (${actual_sha}); refusing to deploy"
 
-previous_deployment="$(read_current_deployment)" \
-  || fail "could not read the current production Worker deployment"
-rollback_version="$(single_deployment_version_id <<<"$previous_deployment")" \
+previous_deployment="$(
+  census_read_current_deployment \
+    "$expected_account" "$worker_dir" "$config_file" "$expected_worker"
+)" || fail "could not read the current production Worker deployment"
+rollback_version="$(census_single_deployment_version_id <<<"$previous_deployment")" \
   || fail "current Worker is not a single 100-percent version; refuse an ambiguous rollback target"
 # Census deploys are a serialized single-writer operation. When Wrangler
 # identifies this run's deployed version, cleanup refuses to overwrite a
@@ -400,7 +370,7 @@ WRANGLER_OUTPUT_FILE_PATH="$wrangler_output" \
     --no-autoconfig
 
 [[ -s "$wrangler_output" ]] || fail "Wrangler wrote no structured deployment output"
-deployed_version="$(deployment_output_version_id "$wrangler_output")" \
+deployed_version="$(census_deployment_output_version_id "$wrangler_output")" \
   || fail "Wrangler output did not identify exactly one safe deployed version"
 deploy_record="$({
   jq -sce \
