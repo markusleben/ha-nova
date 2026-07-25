@@ -401,7 +401,12 @@ describe("release contract", () => {
       "census_deployment_output_version_id",
     );
     expect(censusDeployer).toContain("census-deployment-state.sh");
+    expect(censusDeployer).toContain(
+      "census_wait_for_settled_current_version",
+    );
     expect(censusDeploymentState).toContain("select(length == 1)");
+    expect(censusDeploymentState).toContain("attempt <= 15");
+    expect(censusDeploymentState).toContain("sleep 2");
     expect(censusDeploymentState).toContain(
       'test("^[0-9A-Za-z][0-9A-Za-z._-]{0,127}$")',
     );

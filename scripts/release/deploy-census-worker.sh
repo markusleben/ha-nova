@@ -74,12 +74,10 @@ cleanup() {
       deployed_version="$(census_deployment_output_version_id "$wrangler_output")" \
         || deployed_version=""
     fi
-    current_deployment="$(
-      census_read_current_deployment \
-        "$expected_account" "$worker_dir" "$config_file" "$expected_worker"
-    )" || current_deployment=""
     current_version="$(
-      census_single_deployment_version_id <<<"$current_deployment"
+      census_wait_for_settled_current_version \
+        "$rollback_version" \
+        "$expected_account" "$worker_dir" "$config_file" "$expected_worker"
     )" || current_version=""
     if [[ "$current_version" == "$rollback_version" ]]; then
       echo "[deploy-census-worker] production stayed on ${rollback_version}; rollback not needed" >&2

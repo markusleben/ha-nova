@@ -46,6 +46,8 @@ function releaseFixture(): {
   fakeBin: string;
   callLog: string;
   deploymentState: string;
+  deploymentPending: string;
+  deploymentPolls: string;
 } {
   const root = mkdtempSync(join(tmpdir(), "ha-nova-release-gates-"));
   const releaseDir = join(root, "scripts", "release");
@@ -81,6 +83,10 @@ function releaseFixture(): {
     "version",
   );
   writeFileSync(deploymentState, "previous-version\n", "utf8");
+  const deploymentPending = join(root, "deployment-pending");
+  const deploymentPolls = join(root, "deployment-polls");
+  writeFileSync(deploymentPending, "none\n", "utf8");
+  writeFileSync(deploymentPolls, "0\n", "utf8");
   writeExecutable(
     join(fakeBin, "node"),
     `#!/usr/bin/env bash
@@ -120,6 +126,14 @@ case " $* " in
     printf '%s\n' '[{"created_on":"2026-07-22T10:00:00Z","versions":[{"version_id":"oldest-version","percentage":100}]},{"created_on":"2026-07-24T10:00:00Z","versions":[{"version_id":"previous-version","percentage":100}]}]'
     ;;
   *" wrangler@4.113.0 deployments status "*)
+    if [[ "\${FAKE_MODE:-valid}" == "delayed_deploy_failure" && "$(<"$FAKE_DEPLOYMENT_PENDING")" == "pending" ]]; then
+      poll_count="$(( $(<"$FAKE_DEPLOYMENT_POLLS") + 1 ))"
+      printf '%s\n' "$poll_count" > "$FAKE_DEPLOYMENT_POLLS"
+      if [[ "$poll_count" -ge 3 ]]; then
+        printf '%s\n' "$TEST_VERSION_ID" > "$FAKE_DEPLOYMENT_STATE"
+        printf 'settled\n' > "$FAKE_DEPLOYMENT_PENDING"
+      fi
+    fi
     if [[ "\${FAKE_MODE:-valid}" == "malformed_current_deployment" ]]; then
       printf '%s\n' '{}'
     elif [[ "\${FAKE_MODE:-valid}" == "multiple_current_deployments" ]]; then
@@ -151,6 +165,10 @@ case " $* " in
     ;;
   *" wrangler@4.113.0 deploy "*)
     [[ "\${FAKE_MODE:-valid}" != "deploy_fail" ]] || exit 42
+    if [[ "\${FAKE_MODE:-valid}" == "delayed_deploy_failure" ]]; then
+      printf 'pending\n' > "$FAKE_DEPLOYMENT_PENDING"
+      exit 42
+    fi
     printf '%s\n' "$TEST_VERSION_ID" > "$FAKE_DEPLOYMENT_STATE"
     if [[ "\${FAKE_MODE:-valid}" == "remote_fail_without_output" ]]; then
       : > "$WRANGLER_OUTPUT_FILE_PATH"
@@ -296,7 +314,16 @@ printf '200'
     cwd: root,
     encoding: "utf8",
   }).trim();
-  return { root, sha, script, fakeBin, callLog, deploymentState };
+  return {
+    root,
+    sha,
+    script,
+    fakeBin,
+    callLog,
+    deploymentState,
+    deploymentPending,
+    deploymentPolls,
+  };
 }
 
 function runGate(
@@ -313,6 +340,8 @@ function runGate(
       PATH: `${fixture.fakeBin}:${process.env.PATH ?? ""}`,
       FAKE_CALL_LOG: fixture.callLog,
       FAKE_DEPLOYMENT_STATE: fixture.deploymentState,
+      FAKE_DEPLOYMENT_PENDING: fixture.deploymentPending,
+      FAKE_DEPLOYMENT_POLLS: fixture.deploymentPolls,
       FAKE_MODE: mode,
       TEST_SHA: fixture.sha,
       TEST_VERSION_ID: VERSION_ID,
@@ -439,6 +468,23 @@ describe("release gate behavior", () => {
     const calls = readFileSync(fixture.callLog, "utf8");
     expect(calls).not.toContain("wrangler@4.113.0 rollback");
     expect(result.stderr).toContain("rollback not needed");
+    expect(
+      calls.match(/wrangler@4\.113\.0 deployments status/g),
+    ).toHaveLength(16);
+  });
+
+  it("waits for a failed in-flight deploy to settle before rollback", () => {
+    const fixture = releaseFixture();
+    const result = runGate(fixture, "delayed_deploy_failure");
+    expect(result.status).not.toBe(0);
+    const calls = readFileSync(fixture.callLog, "utf8");
+    expect(calls).toContain(
+      "wrangler@4.113.0 rollback previous-version",
+    );
+    expect(readFileSync(fixture.deploymentPolls, "utf8").trim()).toBe("3");
+    expect(readFileSync(fixture.deploymentState, "utf8").trim()).toBe(
+      "previous-version",
+    );
   });
 
   it("rolls back when a failed deploy emitted its deployed version", () => {

@@ -29,7 +29,9 @@ serving immediately before the attempted deploy.
 - The restored deployment must be the newest 100-percent deployment and match
   the selected rollback version.
 - A failed deploy that leaves production unchanged does not create a rollback
-  deployment.
+  deployment after the baseline stays active for the settlement window.
+- A failed deploy that becomes active during the settlement window is rolled
+  back instead of being mistaken for an unchanged deployment.
 - A deploy that changes production but loses or malforms local output still
   restores the baseline under the required single-writer invariant.
 - When Wrangler identifies this run's deployed version, cleanup does not

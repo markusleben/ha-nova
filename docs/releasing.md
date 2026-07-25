@@ -202,7 +202,9 @@ release changes the census Worker.
    Treat the Census deploy as a serialized single-writer operation: do not
    deploy the Worker from another shell, workflow, or the Cloudflare dashboard
    while this wrapper runs. When Wrangler identifies this run's deployed
-   version, cleanup refuses to overwrite a different active version.
+   version, cleanup refuses to overwrite a different active version. Cleanup
+   also waits through a bounded settlement window before treating a failed
+   deploy as unchanged.
    A maintainer must also complete a fresh browser login to `/stats` and only
    then set `HA_NOVA_CENSUS_BROWSER_ACCESS_VERIFIED=1` in that release shell.
    The fail-closed wrapper requires Node.js 22 or newer, a clean exact-SHA

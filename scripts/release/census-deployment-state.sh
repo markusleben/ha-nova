@@ -45,3 +45,29 @@ census_read_current_deployment() {
       --name "$worker_name" \
       --json
 }
+
+census_wait_for_settled_current_version() {
+  local baseline_version="$1"
+  local account_id="$2"
+  local worker_dir="$3"
+  local config_file="$4"
+  local worker_name="$5"
+  local attempt deployment version
+
+  # A failed Wrangler process can leave a Cloudflare deploy in flight. Require
+  # the baseline to stay active for a bounded settlement window before treating
+  # the failed command as a no-op.
+  for ((attempt = 1; attempt <= 15; attempt++)); do
+    deployment="$(
+      census_read_current_deployment \
+        "$account_id" "$worker_dir" "$config_file" "$worker_name"
+    )" || return 1
+    version="$(census_single_deployment_version_id <<<"$deployment")" \
+      || return 1
+    if [[ "$version" != "$baseline_version" || "$attempt" -eq 15 ]]; then
+      printf '%s\n' "$version"
+      return 0
+    fi
+    sleep 2
+  done
+}
