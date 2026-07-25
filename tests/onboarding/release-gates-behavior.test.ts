@@ -45,6 +45,9 @@ function releaseFixture(): {
   script: string;
   fakeBin: string;
   callLog: string;
+  deploymentState: string;
+  deploymentPending: string;
+  deploymentPolls: string;
 } {
   const root = mkdtempSync(join(tmpdir(), "ha-nova-release-gates-"));
   const releaseDir = join(root, "scripts", "release");
@@ -56,6 +59,10 @@ function releaseFixture(): {
 
   const script = join(releaseDir, "deploy-census-worker.sh");
   copyFileSync("scripts/release/deploy-census-worker.sh", script);
+  copyFileSync(
+    "scripts/release/census-deployment-state.sh",
+    join(releaseDir, "census-deployment-state.sh"),
+  );
   copyFileSync(
     "scripts/release/verify-census-deployment.sh",
     join(releaseDir, "verify-census-deployment.sh"),
@@ -71,6 +78,15 @@ function releaseFixture(): {
     mkdtempSync(join(tmpdir(), "ha-nova-release-call-log-")),
     "calls.log",
   );
+  const deploymentState = join(
+    mkdtempSync(join(tmpdir(), "ha-nova-release-deployment-state-")),
+    "version",
+  );
+  writeFileSync(deploymentState, "previous-version\n", "utf8");
+  const deploymentPending = join(root, "deployment-pending");
+  const deploymentPolls = join(root, "deployment-polls");
+  writeFileSync(deploymentPending, "none\n", "utf8");
+  writeFileSync(deploymentPolls, "0\n", "utf8");
   writeExecutable(
     join(fakeBin, "node"),
     `#!/usr/bin/env bash
@@ -107,19 +123,70 @@ case " $* " in
     exec /bin/sleep 300
     ;;
   *" wrangler@4.113.0 deployments list "*)
-    printf '[{"versions":[{"version_id":"previous-version","percentage":100}]}]\n'
+    printf '%s\n' '[{"created_on":"2026-07-22T10:00:00Z","versions":[{"version_id":"oldest-version","percentage":100}]},{"created_on":"2026-07-24T10:00:00Z","versions":[{"version_id":"previous-version","percentage":100}]}]'
+    ;;
+  *" wrangler@4.113.0 deployments status "*)
+    if [[ "\${FAKE_MODE:-valid}" == "delayed_deploy_failure" && "$(<"$FAKE_DEPLOYMENT_PENDING")" == "pending" ]]; then
+      poll_count="$(( $(<"$FAKE_DEPLOYMENT_POLLS") + 1 ))"
+      printf '%s\n' "$poll_count" > "$FAKE_DEPLOYMENT_POLLS"
+      if [[ "$poll_count" -ge 3 ]]; then
+        printf '%s\n' "$TEST_VERSION_ID" > "$FAKE_DEPLOYMENT_STATE"
+        printf 'settled\n' > "$FAKE_DEPLOYMENT_PENDING"
+      fi
+    fi
+    if [[ "\${FAKE_MODE:-valid}" == "malformed_current_deployment" ]]; then
+      printf '%s\n' '{}'
+    elif [[ "\${FAKE_MODE:-valid}" == "multiple_current_deployments" ]]; then
+      printf '%s\n%s\n' \
+        '{"versions":[{"version_id":"previous-version","percentage":100}]}' \
+        '{"versions":[{"version_id":"other-version","percentage":100}]}'
+    elif [[ "\${FAKE_MODE:-valid}" == "split_current_deployment" ]]; then
+      printf '%s\n' '{"created_on":"2026-07-24T10:00:00Z","versions":[{"version_id":"previous-version","percentage":50},{"version_id":"other-version","percentage":50}]}'
+    elif [[ "\${FAKE_MODE:-valid}" == "unsafe_current_deployment" ]]; then
+      printf '%s\n' '{"versions":[{"version_id":"--help","percentage":100}]}'
+    elif [[ "\${FAKE_MODE:-valid}" == "cleanup_status_unavailable" && "$(<"$FAKE_DEPLOYMENT_STATE")" == "$TEST_VERSION_ID" ]]; then
+      exit 42
+    else
+      current_version="$(<"$FAKE_DEPLOYMENT_STATE")"
+      if [[ "\${FAKE_MODE:-valid}" == "concurrent_after_deploy" && "$current_version" == "$TEST_VERSION_ID" ]]; then
+        current_version="concurrent-version"
+      fi
+      printf '{"versions":[{"version_id":"%s","percentage":100}]}\n' "$current_version"
+    fi
     ;;
   *" wrangler@4.113.0 rollback "*)
+    rollback_target="$4"
+    if [[ "\${FAKE_MODE:-valid}" == "rollback_status_mismatch" ]]; then
+      printf 'wrong-restored-version\n' > "$FAKE_DEPLOYMENT_STATE"
+    else
+      printf '%s\n' "$rollback_target" > "$FAKE_DEPLOYMENT_STATE"
+    fi
     printf 'rollback ok\n'
     ;;
   *" wrangler@4.113.0 deploy "*)
     [[ "\${FAKE_MODE:-valid}" != "deploy_fail" ]] || exit 42
+    if [[ "\${FAKE_MODE:-valid}" == "delayed_deploy_failure" ]]; then
+      printf 'pending\n' > "$FAKE_DEPLOYMENT_PENDING"
+      exit 42
+    fi
+    printf '%s\n' "$TEST_VERSION_ID" > "$FAKE_DEPLOYMENT_STATE"
+    if [[ "\${FAKE_MODE:-valid}" == "remote_fail_without_output" ]]; then
+      : > "$WRANGLER_OUTPUT_FILE_PATH"
+      exit 42
+    elif [[ "\${FAKE_MODE:-valid}" == "missing_deploy_output" ]]; then
+      : > "$WRANGLER_OUTPUT_FILE_PATH"
+      exit 0
+    elif [[ "\${FAKE_MODE:-valid}" == "malformed_deploy_output" ]]; then
+      printf '%s\n' '{"type":"unexpected"}' > "$WRANGLER_OUTPUT_FILE_PATH"
+      exit 0
+    fi
     target="https://ha-nova-census.markusleben.workers.dev"
     [[ "\${FAKE_MODE:-valid}" != "wrong_target" ]] || target="https://ha-nova-census-wrong.example.workers.dev"
     targets="[\\\"$target\\\"]"
     [[ "\${FAKE_MODE:-valid}" != "extra_target" ]] || targets="[\\\"$target\\\",\\\"https://extra.example.test\\\"]"
     printf '{"type":"deploy","version":1,"worker_name":"ha-nova-census","version_id":"%s","targets":%s}\n' \
       "$TEST_VERSION_ID" "$targets" > "$WRANGLER_OUTPUT_FILE_PATH"
+    [[ "\${FAKE_MODE:-valid}" != "deploy_fail_after_upload" ]] || exit 42
     ;;
   *) exit 2 ;;
 esac
@@ -218,7 +285,11 @@ relay_analytics='{"status":"available","source":"https://analytics.home-assistan
 [[ "\${FAKE_MODE:-valid}" != "malformed_relay_analytics" ]] || relay_analytics='{"status":"unavailable","source":"https://analytics.home-assistant.io/addons.json","slug":"2368fcfa_ha_nova_relay"}'
 [[ "\${FAKE_MODE:-valid}" != "stale_relay_analytics" ]] || relay_analytics='{"status":"unavailable","source":"https://analytics.home-assistant.io/addons.json","slug":"2368fcfa_ha_nova_relay","error":"upstream timeout","total":9,"by_version":{"0.7.0":9}}'
 payload="{\\"schema\\":2,\\"generated_at\\":\\"2026-07-23T00:00:00Z\\",\\"client_installations\\":{\\"active_21_days\\":$active_count,\\"known_60_days\\":$active_count,\\"release_smoke_installations\\":$smoke_count,\\"by_os\\":{\\"linux\\":$active_count},\\"by_version\\":{\\"other\\":$active_count},\\"relay_versions\\":{},\\"relay_not_recently_observed\\":$active_count,\\"new_installation_rejections_today\\":0},\\"relay_app_installations\\":$relay_analytics,\\"legacy_ping_activity\\":{\\"weekly\\":[]}}"
-[[ "\${FAKE_MODE:-valid}" != "wrong_public_sha" ]] || public_sha="0000000000000000000000000000000000000000"
+case "\${FAKE_MODE:-valid}" in
+  wrong_public_sha|rollback_status_mismatch|concurrent_after_deploy|cleanup_status_unavailable)
+    public_sha="0000000000000000000000000000000000000000"
+    ;;
+esac
 [[ "\${FAKE_MODE:-valid}" != "wrong_public_version" ]] || public_version="wrong-version"
 [[ "\${FAKE_MODE:-valid}" != "malformed_public_stats" ]] || payload='{"schema":2}'
 printf 'HTTP/2 200\\r\\nX-HA-NOVA-Deployment-SHA: %s\\r\\nX-HA-NOVA-Version-ID: %s\\r\\n\\r\\n' \
@@ -243,7 +314,16 @@ printf '200'
     cwd: root,
     encoding: "utf8",
   }).trim();
-  return { root, sha, script, fakeBin, callLog };
+  return {
+    root,
+    sha,
+    script,
+    fakeBin,
+    callLog,
+    deploymentState,
+    deploymentPending,
+    deploymentPolls,
+  };
 }
 
 function runGate(
@@ -259,6 +339,9 @@ function runGate(
       ...process.env,
       PATH: `${fixture.fakeBin}:${process.env.PATH ?? ""}`,
       FAKE_CALL_LOG: fixture.callLog,
+      FAKE_DEPLOYMENT_STATE: fixture.deploymentState,
+      FAKE_DEPLOYMENT_PENDING: fixture.deploymentPending,
+      FAKE_DEPLOYMENT_POLLS: fixture.deploymentPolls,
       FAKE_MODE: mode,
       TEST_SHA: fixture.sha,
       TEST_VERSION_ID: VERSION_ID,
@@ -323,6 +406,21 @@ describe("release gate behavior", () => {
     expect(result.status, `${result.stdout}\n${result.stderr}`).not.toBe(0);
   });
 
+  it.each([
+    "malformed_current_deployment",
+    "multiple_current_deployments",
+    "split_current_deployment",
+    "unsafe_current_deployment",
+  ])("rejects unsafe current state before deploy in %s mode", (mode) => {
+    const fixture = releaseFixture();
+    const result = runGate(fixture, mode);
+    expect(result.status, `${result.stdout}\n${result.stderr}`).not.toBe(0);
+    const calls = readFileSync(fixture.callLog, "utf8");
+    expect(calls).toContain("wrangler@4.113.0 deployments status");
+    expect(calls).not.toContain("wrangler@4.113.0 deploy --cwd");
+    expect(calls).not.toContain("wrangler@4.113.0 rollback");
+  });
+
   it.each(["valid", "analytics_unavailable", "unrelated_linux_install"])(
     "accepts the exact deployment chain in %s mode",
     (mode) => {
@@ -344,12 +442,109 @@ describe("release gate behavior", () => {
     expect(calls).toContain("/withdraw");
   });
 
-  it("rolls production back after any post-deploy verification failure", () => {
+  it("rolls back to the newest deployment when Wrangler lists oldest first", () => {
     const fixture = releaseFixture();
     const result = runGate(fixture, "wrong_public_sha");
     expect(result.status).not.toBe(0);
-    expect(readFileSync(fixture.callLog, "utf8")).toContain(
+    const calls = readFileSync(fixture.callLog, "utf8");
+    expect(calls).toContain(
       "wrangler@4.113.0 rollback previous-version",
+    );
+    expect(calls).not.toContain("wrangler@4.113.0 rollback oldest-version");
+    expect(calls).toContain("wrangler@4.113.0 deployments status");
+    expect(calls).not.toContain("wrangler@4.113.0 deployments list");
+    expect(result.stderr).not.toContain(
+      "could not verify the restored Worker version",
+    );
+    expect(readFileSync(fixture.deploymentState, "utf8").trim()).toBe(
+      "previous-version",
+    );
+  });
+
+  it("does not create a rollback deployment when deploy fails unchanged", () => {
+    const fixture = releaseFixture();
+    const result = runGate(fixture, "deploy_fail");
+    expect(result.status).not.toBe(0);
+    const calls = readFileSync(fixture.callLog, "utf8");
+    expect(calls).not.toContain("wrangler@4.113.0 rollback");
+    expect(result.stderr).toContain("rollback not needed");
+    expect(
+      calls.match(/wrangler@4\.113\.0 deployments status/g),
+    ).toHaveLength(16);
+  });
+
+  it("waits for a failed in-flight deploy to settle before rollback", () => {
+    const fixture = releaseFixture();
+    const result = runGate(fixture, "delayed_deploy_failure");
+    expect(result.status).not.toBe(0);
+    const calls = readFileSync(fixture.callLog, "utf8");
+    expect(calls).toContain(
+      "wrangler@4.113.0 rollback previous-version",
+    );
+    expect(readFileSync(fixture.deploymentPolls, "utf8").trim()).toBe("3");
+    expect(readFileSync(fixture.deploymentState, "utf8").trim()).toBe(
+      "previous-version",
+    );
+  });
+
+  it("rolls back when a failed deploy emitted its deployed version", () => {
+    const fixture = releaseFixture();
+    const result = runGate(fixture, "deploy_fail_after_upload");
+    expect(result.status).not.toBe(0);
+    const calls = readFileSync(fixture.callLog, "utf8");
+    expect(calls).toContain(
+      "wrangler@4.113.0 rollback previous-version",
+    );
+    expect(readFileSync(fixture.deploymentState, "utf8").trim()).toBe(
+      "previous-version",
+    );
+  });
+
+  it.each([
+    "remote_fail_without_output",
+    "missing_deploy_output",
+    "malformed_deploy_output",
+  ])("rolls back a changed single-writer deployment in %s mode", (mode) => {
+    const fixture = releaseFixture();
+    const result = runGate(fixture, mode);
+    expect(result.status).not.toBe(0);
+    const calls = readFileSync(fixture.callLog, "utf8");
+    expect(calls).toContain(
+      "wrangler@4.113.0 rollback previous-version",
+    );
+    expect(readFileSync(fixture.deploymentState, "utf8").trim()).toBe(
+      "previous-version",
+    );
+  });
+
+  it("fails when rollback does not restore the selected version", () => {
+    const fixture = releaseFixture();
+    const result = runGate(fixture, "rollback_status_mismatch");
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain(
+      "could not verify the restored Worker version",
+    );
+  });
+
+  it("does not overwrite a deployment that became active later", () => {
+    const fixture = releaseFixture();
+    const result = runGate(fixture, "concurrent_after_deploy");
+    expect(result.status).not.toBe(0);
+    const calls = readFileSync(fixture.callLog, "utf8");
+    expect(calls).not.toContain("wrangler@4.113.0 rollback");
+    expect(result.stderr).toContain(
+      "active Worker version changed outside this deploy",
+    );
+  });
+
+  it("does not roll back when cleanup cannot read the active version", () => {
+    const fixture = releaseFixture();
+    const result = runGate(fixture, "cleanup_status_unavailable");
+    expect(result.status).not.toBe(0);
+    const calls = readFileSync(fixture.callLog, "utf8");
+    expect(calls).not.toContain("wrangler@4.113.0 rollback");
+    expect(result.stderr).toContain(
+      "could not determine the active Worker version",
     );
   });
 

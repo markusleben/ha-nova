@@ -61,6 +61,8 @@ temp_dir="$(mktemp -d "${TMPDIR:-/tmp}/ha-nova-census-release.XXXXXX")"
 dev_pid=""
 rollback_armed=0
 rollback_version=""
+deployed_version=""
+
 cleanup() {
   cleanup_status=$?
   if [[ -n "$dev_pid" ]] && kill -0 "$dev_pid" 2>/dev/null; then
@@ -68,33 +70,46 @@ cleanup() {
     wait "$dev_pid" 2>/dev/null || true
   fi
   if [[ "$rollback_armed" -eq 1 && -n "$rollback_version" ]]; then
-    echo "[deploy-census-worker] restoring previous Worker version ${rollback_version}" >&2
-    if ! CLOUDFLARE_ENV='' CLOUDFLARE_ACCOUNT_ID="$expected_account" \
-      npx --yes wrangler@4.113.0 rollback "$rollback_version" \
-        --cwd "$worker_dir" \
-        --config "$config_file" \
-        --name "$expected_worker" \
-        --message "Automatic rollback after failed HA NOVA Census verification" \
-        --yes; then
-      echo "[deploy-census-worker] ERROR: automatic Worker rollback failed" >&2
+    if [[ -z "$deployed_version" && -n "${wrangler_output:-}" && -s "$wrangler_output" ]]; then
+      deployed_version="$(census_deployment_output_version_id "$wrangler_output")" \
+        || deployed_version=""
+    fi
+    current_version="$(
+      census_wait_for_settled_current_version \
+        "$rollback_version" \
+        "$expected_account" "$worker_dir" "$config_file" "$expected_worker"
+    )" || current_version=""
+    if [[ "$current_version" == "$rollback_version" ]]; then
+      echo "[deploy-census-worker] production stayed on ${rollback_version}; rollback not needed" >&2
+    elif [[ -z "$current_version" ]]; then
+      echo "[deploy-census-worker] ERROR: could not determine the active Worker version; refusing automatic rollback" >&2
+      cleanup_status=1
+    elif [[ -n "$deployed_version" && "$current_version" != "$deployed_version" ]]; then
+      echo "[deploy-census-worker] ERROR: active Worker version changed outside this deploy; refusing automatic rollback" >&2
       cleanup_status=1
     else
-      restored_deployments="$(
-        CLOUDFLARE_ENV='' CLOUDFLARE_ACCOUNT_ID="$expected_account" \
-          npx --yes wrangler@4.113.0 deployments list \
-            --cwd "$worker_dir" \
-            --config "$config_file" \
-            --name "$expected_worker" \
-            --json
-      )" || restored_deployments=""
-      if ! jq -e --arg version "$rollback_version" '
-        .[0].versions
-        | length == 1
-          and .[0].percentage == 100
-          and .[0].version_id == $version
-      ' >/dev/null <<<"$restored_deployments"; then
-        echo "[deploy-census-worker] ERROR: could not verify the restored Worker version" >&2
+      echo "[deploy-census-worker] restoring previous Worker version ${rollback_version}" >&2
+      if ! CLOUDFLARE_ENV='' CLOUDFLARE_ACCOUNT_ID="$expected_account" \
+        npx --yes wrangler@4.113.0 rollback "$rollback_version" \
+          --cwd "$worker_dir" \
+          --config "$config_file" \
+          --name "$expected_worker" \
+          --message "Automatic rollback after failed HA NOVA Census verification" \
+          --yes; then
+        echo "[deploy-census-worker] ERROR: automatic Worker rollback failed" >&2
         cleanup_status=1
+      else
+        restored_deployment="$(
+          census_read_current_deployment \
+            "$expected_account" "$worker_dir" "$config_file" "$expected_worker"
+        )" || restored_deployment=""
+        restored_version="$(
+          census_single_deployment_version_id <<<"$restored_deployment"
+        )" || restored_version=""
+        if [[ "$restored_version" != "$rollback_version" ]]; then
+          echo "[deploy-census-worker] ERROR: could not verify the restored Worker version" >&2
+          cleanup_status=1
+        fi
       fi
     fi
   fi
@@ -121,6 +136,9 @@ node_major="$(node -p 'Number(process.versions.node.split(".")[0])')"
 [[ -z "$(git -C "$root_dir" status --porcelain)" ]] || fail "checkout is dirty; deploy only the exact reviewed merge"
 actual_sha="$(git -C "$root_dir" rev-parse HEAD)"
 [[ "$actual_sha" == "$reviewed_sha" ]] || fail "HEAD ${actual_sha} does not match reviewed SHA ${reviewed_sha}"
+# Source only after proving the helper belongs to this clean reviewed checkout.
+# shellcheck source=scripts/release/census-deployment-state.sh
+source "${script_dir}/census-deployment-state.sh"
 gh auth status --hostname github.com >/dev/null 2>&1 \
   || fail "gh is not authenticated for github.com"
 active_github_user="$(gh api --hostname github.com user --jq .login)" \
@@ -325,20 +343,15 @@ actual_sha="$(git -C "$root_dir" rev-parse HEAD)"
 [[ "$actual_sha" == "$reviewed_sha" ]] \
   || fail "HEAD changed during local proof (${actual_sha}); refusing to deploy"
 
-previous_deployments="$(
-  CLOUDFLARE_ENV='' CLOUDFLARE_ACCOUNT_ID="$expected_account" \
-    npx --yes wrangler@4.113.0 deployments list \
-      --cwd "$worker_dir" \
-      --config "$config_file" \
-      --name "$expected_worker" \
-      --json
+previous_deployment="$(
+  census_read_current_deployment \
+    "$expected_account" "$worker_dir" "$config_file" "$expected_worker"
 )" || fail "could not read the current production Worker deployment"
-rollback_version="$(jq -er '
-  .[0].versions
-  | select(length == 1 and .[0].percentage == 100)
-  | .[0].version_id
-' <<<"$previous_deployments")" \
+rollback_version="$(census_single_deployment_version_id <<<"$previous_deployment")" \
   || fail "current Worker is not a single 100-percent version; refuse an ambiguous rollback target"
+# Census deploys are a serialized single-writer operation. When Wrangler
+# identifies this run's deployed version, cleanup refuses to overwrite a
+# different active version.
 rollback_armed=1
 
 wrangler_output="${temp_dir}/wrangler-output.ndjson"
@@ -355,6 +368,8 @@ WRANGLER_OUTPUT_FILE_PATH="$wrangler_output" \
     --no-autoconfig
 
 [[ -s "$wrangler_output" ]] || fail "Wrangler wrote no structured deployment output"
+deployed_version="$(census_deployment_output_version_id "$wrangler_output")" \
+  || fail "Wrangler output did not identify exactly one safe deployed version"
 deploy_record="$({
   jq -sce \
     --arg worker "$expected_worker" \
@@ -363,11 +378,17 @@ deploy_record="$({
       | ($deploys | length) == 1
       and $deploys[0].worker_name == $worker
       and $deploys[0].targets == [$target]
-      and ($deploys[0].version_id | type == "string" and length > 0)
+      and (
+        $deploys[0].version_id
+        | type == "string"
+          and test("^[0-9A-Za-z][0-9A-Za-z._-]{0,127}$")
+      )
       | if . then $deploys[0] else error("unexpected deployment target") end
     ' "$wrangler_output"
 })" || fail "Wrangler output did not attest exactly ${expected_worker} at ${expected_target}"
 version_id="$(jq -er '.version_id' <<<"$deploy_record")"
+[[ "$version_id" == "$deployed_version" ]] \
+  || fail "Wrangler deployment output reported inconsistent version IDs"
 
 HA_NOVA_CENSUS_ACCESS_CLIENT_ID="$access_id" \
 HA_NOVA_CENSUS_ACCESS_CLIENT_SECRET="$access_secret" \
