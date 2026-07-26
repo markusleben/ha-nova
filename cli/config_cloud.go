@@ -79,8 +79,13 @@ func (m *cloudLifecycleMetadata) configured() bool {
 
 func (m *cloudLifecycleMetadata) functional() bool {
 	return m.configured() &&
-		m.DeviceRevocationCompleted == nil &&
-		m.AuthorizationRevocationCompleted == nil
+		!m.cleanupPending()
+}
+
+func (m *cloudLifecycleMetadata) cleanupPending() bool {
+	return m != nil &&
+		(m.DeviceRevocationCompleted != nil ||
+			m.AuthorizationRevocationCompleted != nil)
 }
 
 func (m *cloudLifecycleMetadata) ready() bool {

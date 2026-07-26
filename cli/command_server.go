@@ -46,7 +46,7 @@ func printServerUsage() {
 	fmt.Fprintln(os.Stdout, "Subcommands:")
 	fmt.Fprintln(os.Stdout, "  list                Show all server profiles (no network calls)")
 	fmt.Fprintln(os.Stdout, "  default <name>      Make an existing profile the configured default")
-	fmt.Fprintln(os.Stdout, "  rename <old> <new>  Rename a profile and move its credential slots")
+	fmt.Fprintln(os.Stdout, "  rename <old> <new>  Rename an unpaired local-only profile")
 	fmt.Fprintln(os.Stdout, "  remove <name>       Revoke and delete a profile (type its name to confirm)")
 	fmt.Fprintln(os.Stdout, "  route <policy>      Set local, automatic, or cloud routing")
 	fmt.Fprintln(os.Stdout, "")
@@ -177,6 +177,15 @@ func runServerDefault(paths runtimePaths, args []string) int {
 		unknownServerProfileError(doc, name)
 		return 1
 	}
+	cfg, exists := doc.flatProfile(name)
+	if !exists {
+		printHumanErr("cannot inspect server profile %q", name)
+		return 1
+	}
+	if err := rejectPendingServerRemoval(name, cfg); err != nil {
+		printHumanErr("%v", err)
+		return 1
+	}
 	servers, err := documentServersCopy(doc)
 	if err != nil {
 		printHumanErr("cannot update the server configuration: %v", err)
@@ -192,8 +201,8 @@ func runServerDefault(paths runtimePaths, args []string) int {
 
 func runServerRename(paths runtimePaths, args []string) int {
 	if serverSubcommandHelp(args, "ha-nova server rename <old> <new>",
-		"Renames a server profile and moves its device-credential slots to the",
-		"new name. The \"default\" profile cannot be renamed.") {
+		"Renames a local-only profile with no stored device credentials.",
+		"The \"default\" profile cannot be renamed.") {
 		return 0
 	}
 	if len(args) != 2 {
@@ -217,6 +226,15 @@ func runServerRename(paths runtimePaths, args []string) int {
 	}
 	if !doc.hasProfile(oldName) {
 		unknownServerProfileError(doc, oldName)
+		return 1
+	}
+	cfg, exists := doc.flatProfile(oldName)
+	if !exists {
+		printHumanErr("cannot inspect server profile %q", oldName)
+		return 1
+	}
+	if err := rejectPendingServerRemoval(oldName, cfg); err != nil {
+		printHumanErr("%v", err)
 		return 1
 	}
 	if newName == defaultServerProfileName {
@@ -253,17 +271,19 @@ func runServerRename(paths runtimePaths, args []string) int {
 			return 1
 		}
 	}
-	// Copy the credential slots to the new services BEFORE touching the config:
-	// a failure here leaves everything under the old name.
-	rollbackSlots, deleteOldSlots, err := stageServerCredentialSlotMove(oldName, newName)
-	if err != nil {
-		printHumanErr("%v", err)
+	if err := requireEmptyServerCredentialNamespaces(
+		oldName,
+		newName,
+	); err != nil {
+		printHumanErr(
+			"%v. Renaming a paired profile is intentionally blocked so a live credential cannot be stranded. Remove and re-add the profile under its new name.",
+			err,
+		)
 		return 1
 	}
 
 	servers, err := documentServersCopy(doc)
 	if err != nil {
-		rollbackSlots()
 		printHumanErr("cannot update the server configuration: %v", err)
 		return 1
 	}
@@ -274,11 +294,9 @@ func runServerRename(paths runtimePaths, args []string) int {
 		defaultName = newName
 	}
 	if err := writeServersDocument(paths, doc, servers, defaultName); err != nil {
-		rollbackSlots()
 		printHumanErr("cannot save the server configuration: %v — the rename was not applied", err)
 		return 1
 	}
-	deleteOldSlots()
 	printHumanInfo("Renamed server profile %q to %q.", oldName, newName)
 	if defaultName == newName {
 		printHumanInfo("default_server now points at %q.", newName)

@@ -114,9 +114,7 @@ func cloudProfileRawAfterCheckpointWrite(
 }
 
 func rejectCloudSetupDuringDeviceRevocation(cfg runtimeConfig) error {
-	if cfg.Cloud == nil ||
-		(cfg.Cloud.DeviceRevocationCompleted == nil &&
-			cfg.Cloud.AuthorizationRevocationCompleted == nil) {
+	if cfg.Cloud == nil || !cfg.Cloud.cleanupPending() {
 		return nil
 	}
 	return &cloudProblem{

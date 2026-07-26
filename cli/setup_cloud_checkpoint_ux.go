@@ -57,7 +57,7 @@ func renderCloudCheckpointActionsForProfile(
 			cfg.Cloud.State,
 		)
 	}
-	if allowResume {
+	if allowResume && !cfg.Cloud.cleanupPending() {
 		fmt.Fprintf(
 			out,
 			"  Resume: %s\n",

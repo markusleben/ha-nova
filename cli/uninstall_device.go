@@ -7,6 +7,7 @@ import (
 
 // Hook for tests.
 var revokeSelfDeviceV1ForUninstall = revokeSelfDeviceV1
+var profilePurgePhaseHook = func(string, string) error { return nil }
 
 // purgeDeviceCredentialWithReport revokes ONE profile's pairing on its relay
 // and removes both of that profile's local credential slots (current +
@@ -80,6 +81,20 @@ func purgeProfileDeviceCredentialWithReport(
 	}
 	currentService := deviceCredentialServiceForProfile(target.name)
 	pendingService := deviceCredentialPendingServiceForProfile(target.name)
+	if err := validateCheckpointedProfilePurgeSlot(
+		pendingService,
+		target.revokedPendingID,
+		true,
+	); err != nil {
+		return err
+	}
+	if err := validateCheckpointedProfilePurgeSlot(
+		currentService,
+		target.revokedCurrentID,
+		false,
+	); err != nil {
+		return err
+	}
 	pendingUnreadable := false
 	pending, pendingExists, pendingErr :=
 		readPendingCredentialRecordFromService(pendingService)
@@ -132,6 +147,19 @@ func purgeProfileDeviceCredentialWithReport(
 	}
 	// Cloud pending credentials are revoked by the Cloud teardown before this
 	// local sweep. A local pending without an endpoint was never activated.
+	if err := profilePurgePhaseHook(
+		target.name,
+		"pending-revoke-attempted",
+	); err != nil {
+		return err
+	}
+	if err := validateCheckpointedProfilePurgeSlot(
+		pendingService,
+		target.revokedPendingID,
+		true,
+	); err != nil {
+		return err
+	}
 	if err := secretDelete(
 		pendingService,
 	); err != nil {
@@ -140,6 +168,12 @@ func purgeProfileDeviceCredentialWithReport(
 			target.name,
 			err,
 		)
+	}
+	if err := profilePurgePhaseHook(
+		target.name,
+		"pending-slot-deleted",
+	); err != nil {
+		return err
 	}
 	if pendingUnreadable {
 		report.addNote(
@@ -186,6 +220,19 @@ func purgeProfileDeviceCredentialWithReport(
 	if secureBaseURL != "" && spkiPin != "" {
 		revoked = revokeSelfDeviceV1ForUninstall(secureBaseURL, spkiPin, credential) == nil
 	}
+	if err := profilePurgePhaseHook(
+		target.name,
+		"current-revoke-attempted",
+	); err != nil {
+		return err
+	}
+	if err := validateCheckpointedProfilePurgeSlot(
+		currentService,
+		target.revokedCurrentID,
+		false,
+	); err != nil {
+		return err
+	}
 
 	if err := secretDelete(currentService); err != nil {
 		return fmt.Errorf(
@@ -193,6 +240,12 @@ func purgeProfileDeviceCredentialWithReport(
 			target.name,
 			err,
 		)
+	}
+	if err := profilePurgePhaseHook(
+		target.name,
+		"current-slot-deleted",
+	); err != nil {
+		return err
 	}
 	report.addRemoved(slotLabel)
 	switch {
@@ -204,6 +257,31 @@ func purgeProfileDeviceCredentialWithReport(
 		report.addNote(fmt.Sprintf("Could not reach the relay to revoke this device's pairing (device id %s). Remove it on the NOVA page in Home Assistant.", deviceCredentialID(credential)))
 	}
 	return removeDeviceFileStorageResidueForProfile(target.name)
+}
+
+func validateCheckpointedProfilePurgeSlot(
+	service string,
+	expected string,
+	pending bool,
+) error {
+	if expected == "" {
+		return nil
+	}
+	value, err := secretGet(service)
+	if err == errSecretNotFound {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if credentialEvidenceID(value, pending) != expected {
+		return newCloudError(
+			CloudErrIdentityMismatch,
+			"match checkpointed device credential before deletion",
+			nil,
+		)
+	}
+	return nil
 }
 
 func readPendingCredentialRecordFromService(

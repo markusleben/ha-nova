@@ -358,7 +358,17 @@ func runCloudRemoveCommand(paths runtimePaths, args []string) int {
 		); err != nil {
 			return err
 		}
-		if err := writeJSONFile(paths.ConfigFile, prepared, 0o600); err != nil {
+		if !hadConfig {
+			return errors.New(
+				"Cloud configuration disappeared before cleanup commit",
+			)
+		}
+		if err := writeJSONFileIfUnchanged(
+			paths.ConfigFile,
+			prepared,
+			0o600,
+			configSnapshot,
+		); err != nil {
 			return fmt.Errorf("save Cloud removal checkpoint: %w", err)
 		}
 		updated = current
@@ -368,6 +378,17 @@ func runCloudRemoveCommand(paths runtimePaths, args []string) int {
 		printCloudCommandProblem(err)
 		printHumanInfo("Cloud configuration was kept unless revocation had already been verified.")
 		return 1
+	}
+	if nextCommand, needsRecovery :=
+		invalidInstallIdentityRecoveryCommand(
+			paths,
+			activeServerProfile(),
+		); needsRecovery {
+		printHumanInfo("Home Assistant Cloud access was removed.")
+		if nextCommand != "" {
+			printHumanInfo("Continue recovery with: %s", nextCommand)
+		}
+		return 0
 	}
 	if updated.RelaySecureBaseURL != "" && updated.RelaySpkiPin != "" {
 		printHumanInfo("Home Assistant Cloud access was removed. Local access remains ready.")

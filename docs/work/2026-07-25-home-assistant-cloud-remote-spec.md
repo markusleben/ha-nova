@@ -267,10 +267,16 @@ any usable current generation, and suppresses mutating recovery guidance. A
 verified interactive secure-storage check clears its verification hold only
 after successful health; a later security stop atomically replaces it. Other
 holds require verified `cloud remove`; strict loading rejects invalid fields.
-Every raw recovery, device-revocation, and authorization-revocation checkpoint
-is a conditional full-file-generation replacement. It aborts rather than
-overwriting a concurrently changed selected profile, sibling profile, or
-`default_server`.
+Every raw recovery, device-revocation, authorization-revocation, and structural
+profile update uses a crash-recoverable full-file transaction. The replacement,
+transaction record, and prior generation are file-synced; the atomic platform
+replacement and parent-directory metadata are durably committed before any
+secret deletion may follow. The transaction compares the exact generation
+captured by the atomic replacement, not a separate read before rename. It
+restores a racing generation without data loss, preserves all generations on
+an ambiguous conflict, and recovers before the next CLI dispatch. A selected
+profile, sibling profile, or `default_server` change therefore cannot be
+overwritten by a stale writer.
 
 ## Routing
 
@@ -290,8 +296,11 @@ error before the functional request is created or written.
 
 Once a durable device- or authorization-revocation checkpoint exists, the
 profile is cleanup-only. Cloud-only readiness, explicit Cloud routing,
-automatic fallback, the direct Cloud resolver, and runtime OAuth/device access
-all stop before any functional network or secure-storage call.
+automatic Cloud fallback, the direct Cloud resolver, and runtime OAuth/device
+access all stop before a functional Cloud network or secure-storage call. An
+`automatic` profile still performs its authenticated local preflight and may
+keep using a healthy local Relay. Only a pure local network failure reaches
+the cleanup gate, which blocks Cloud fallback.
 
 The Cloud Ingress session is process-local, reusable only inside one CLI
 process, bounded by expiry, and never written to disk. If Home Assistant cannot
@@ -361,10 +370,20 @@ non-secret identity under the global mutation lock, an exact setup/config
 snapshot, supported-schema validation, and unique profile-ID validation. It
 preserves every profile and unknown field; normal loading then resumes.
 
-`ha-nova server rename` rejects any profile with a non-null Cloud lifecycle and
-directs the user through verified Cloud removal first. This prevents a rename
-from stranding a device bearer in the old profile-name namespace. Local-profile
-renames also refuse an already occupied raw destination credential file.
+`ha-nova server rename` is a metadata-only operation. It rejects any profile
+with a non-null Cloud lifecycle and requires both source and destination
+current/pending device namespaces, including raw file slots, to be readable and
+empty. Paired profiles must be removed and re-added under the new name. This
+prevents a valid bearer from being stranded under the old name, duplicated
+under the new name, or hidden behind an unreachable keyring.
+
+`ha-nova server remove` durably checkpoints the exact profile identity,
+credential service names, device identities, and original profile generation
+before remote revocation or native deletion. The profile remains in
+`config.json` until both current and pending slots are deleted. A crash after
+the checkpoint, either revoke attempt, either slot deletion, or immediately
+before profile removal resumes from the same command without another
+confirmation; no live bearer namespace becomes uninventoried.
 
 The interactive wizard offers:
 
@@ -415,7 +434,11 @@ releases the global client-mutation lock, then reacquires it and proves that
 config.json is unchanged before consuming the code.
 The same pause/reacquire rule applies to the longer OAuth browser wait, with
 the additional guarantee that a returned code is never exchanged after config
-drift.
+drift. After reacquiring the mutation lock and before consuming the one-time
+code, setup performs a new writable OAuth-keyring write/read/delete proof. At
+most the first proof operation may show native UI; the read, cleanup, token
+exchange follow-up, and pending-token write remain no-prompt. A keyring that
+relocked while the browser was open therefore fails before code exchange.
 
 An interactive macOS or Linux setup may request native keyring UI only after
 the full local desktop, non-root, non-SSH, non-WSL guard passes. Operational

@@ -58,6 +58,29 @@ func runCloudUnlockCommand(paths runtimePaths, args []string) int {
 		)
 		return 0
 	}
+	if cfg.Cloud != nil && cfg.Cloud.cleanupPending() {
+		store, err := newCloudSecretStoreForCLI(cfg.ProfileID)
+		if err != nil {
+			renderCloudFailure(os.Stdout, paths, err)
+			return 1
+		}
+		if err := PreflightOAuthSecretStore(
+			ctx,
+			store,
+			SecretStoreAllowUI,
+		); err != nil {
+			renderCloudFailure(os.Stdout, paths, err)
+			return 1
+		}
+		printHumanInfo(
+			"Native secure storage is unlocked. Remote Cloud revocation is already complete.",
+		)
+		printHumanInfo(
+			"Finish verified local cleanup with: %s",
+			cloudRemoveCommand(),
+		)
+		return 0
+	}
 	ctx, err = preflightCloudSecretAccessSession(
 		ctx,
 		cloudCoordinatorForSetup,
@@ -67,17 +90,6 @@ func runCloudUnlockCommand(paths runtimePaths, args []string) int {
 	if err != nil {
 		renderCloudFailure(os.Stdout, paths, err)
 		return 1
-	}
-	if cfg.Cloud != nil &&
-		cfg.Cloud.AuthorizationRevocationCompleted != nil {
-		printHumanInfo(
-			"Native secure storage is unlocked. Remote Cloud authorization revocation is already complete.",
-		)
-		printHumanInfo(
-			"Finish verified local cleanup with: %s",
-			cloudRemoveCommand(),
-		)
-		return 0
 	}
 	var verifiedStorageHold *cloudRecoveryHold
 	if cfg.Cloud != nil && cfg.Cloud.RecoveryHold != nil {

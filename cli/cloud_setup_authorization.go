@@ -238,6 +238,16 @@ func authorizeOrRefreshCloud(
 	if authorizationErr != nil {
 		return "", OAuthSecretEnvelope{}, authorizationErr
 	}
+	if err := PreflightOAuthSecretStore(
+		ctx,
+		store,
+		SecretStoreAllowUI,
+	); err != nil {
+		return "", OAuthSecretEnvelope{}, fmt.Errorf(
+			"re-open OAuth secure storage after browser authorization: %w",
+			err,
+		)
+	}
 	oauth, err := NewHAOAuthClient(
 		origin.CanonicalOrigin,
 		cloudHTTPClientForCLI,

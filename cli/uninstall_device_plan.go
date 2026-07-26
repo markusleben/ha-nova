@@ -83,6 +83,12 @@ func profilePurgeTargetFromConfig(
 		pendingSpkiPin:       strings.TrimSpace(cfg.PendingSpkiPin),
 	}
 	if cfg.Cloud == nil || cfg.Cloud.DeviceRevocationCompleted == nil {
+		if cfg.ServerRemoval != nil {
+			target.revokedCurrentID =
+				cfg.ServerRemoval.CurrentDeviceID
+			target.revokedPendingID =
+				cfg.ServerRemoval.PendingDeviceID
+		}
 		return target, nil
 	}
 	if err := validateCloudDeviceRevocationCheckpoint(*cfg.Cloud); err != nil {
@@ -96,6 +102,16 @@ func profilePurgeTargetFromConfig(
 		cfg.Cloud.DeviceRevocationCompleted.CurrentDeviceID
 	target.revokedPendingID =
 		cfg.Cloud.DeviceRevocationCompleted.PendingDeviceID
+	if cfg.ServerRemoval != nil {
+		if target.revokedCurrentID == "" {
+			target.revokedCurrentID =
+				cfg.ServerRemoval.CurrentDeviceID
+		}
+		if target.revokedPendingID == "" {
+			target.revokedPendingID =
+				cfg.ServerRemoval.PendingDeviceID
+		}
+	}
 	return target, nil
 }
 

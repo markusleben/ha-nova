@@ -172,9 +172,6 @@ func resolveAutomaticRelayTransport(
 	ctx context.Context,
 	cfg runtimeConfig,
 ) (relayTransportSelection, error) {
-	if cfg.Cloud.configured() && !cfg.Cloud.functional() {
-		return relayTransportSelection{}, requireFunctionalCloudAccess(cfg)
-	}
 	local, err := resolveLocalRelayTransportForCLI(ctx, cfg)
 	if err != nil {
 		return relayTransportSelection{}, err
@@ -183,6 +180,9 @@ func resolveAutomaticRelayTransport(
 		return local, nil
 	} else if !isPureLocalNetworkFailure(err) {
 		return relayTransportSelection{}, &localRelayPreflightError{cause: err}
+	}
+	if err := requireFunctionalCloudAccess(cfg); err != nil {
+		return relayTransportSelection{}, err
 	}
 	return resolveCloudRelayTransportForCLI(ctx, cfg)
 }

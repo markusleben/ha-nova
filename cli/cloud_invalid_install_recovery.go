@@ -35,19 +35,11 @@ func cloudStatusHandledInvalidInstallIdentity(
 			"remove",
 			snapshot.ProfileName,
 		)
-	} else if doc, docErr := loadConfigDocument(paths.ConfigFile); docErr == nil {
-		cleanupProfile, cloudRemains, cleanupErr :=
-			remainingCloudCleanupProfile(doc)
-		switch {
-		case cleanupErr != nil:
-		case cloudRemains && cleanupProfile != "":
-			summary.NextCommand = cloudProfileCommandFor(
-				"remove",
-				cleanupProfile,
-			)
-		case !cloudRemains:
-			summary.NextCommand = "ha-nova setup"
-		}
+	} else if command, needsRecovery := invalidInstallIdentityRecoveryCommand(
+		paths,
+		snapshot.ProfileName,
+	); needsRecovery {
+		summary.NextCommand = command
 	}
 	if options.json {
 		printCloudStatusJSON(summary)
@@ -65,4 +57,30 @@ func cloudStatusHandledInvalidInstallIdentity(
 		printHumanInfo("Continue recovery with: %s", summary.NextCommand)
 	}
 	return true
+}
+
+func invalidInstallIdentityRecoveryCommand(
+	paths runtimePaths,
+	selectedProfile string,
+) (string, bool) {
+	doc, err := loadConfigDocument(paths.ConfigFile)
+	if err != nil ||
+		validateClientInstallID(doc.meta.ClientInstallID) == nil {
+		return "", false
+	}
+	cleanupProfile, cloudRemains, err :=
+		remainingCloudCleanupProfile(doc)
+	switch {
+	case err != nil:
+		return cloudProfileCommandFor(
+			"status",
+			selectedProfile,
+		), true
+	case cloudRemains && cleanupProfile != "":
+		return cloudProfileCommandFor("remove", cleanupProfile), true
+	case cloudRemains:
+		return cloudProfileCommandFor("status", selectedProfile), true
+	default:
+		return cloudSetupCommandFor(selectedProfile), true
+	}
 }

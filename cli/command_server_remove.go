@@ -11,6 +11,7 @@ import (
 var (
 	readServerRemoveConfirmationForCommand = readServerRemoveConfirmation
 	secretGetForServerRemove               = secretGet
+	serverRemovalPhaseHook                 = func(string) error { return nil }
 )
 
 func runServerRemove(paths runtimePaths, args []string) int {
@@ -42,6 +43,23 @@ func runServerRemove(paths runtimePaths, args []string) int {
 	if !doc.hasProfile(name) {
 		unknownServerProfileError(doc, name)
 		return 1
+	}
+	if cfg, exists := doc.flatProfile(name); exists &&
+		cfg.ServerRemoval != nil {
+		releaseMutation, mutationOK := acquireServerMutation(paths)
+		if !mutationOK {
+			return 1
+		}
+		defer releaseMutation()
+		currentDoc, currentOK := loadServerConfigDocument(paths)
+		if !currentOK {
+			return 1
+		}
+		return completeServerRemovalUnlocked(
+			paths,
+			currentDoc,
+			name,
+		)
 	}
 	retirementPending, retirementErr :=
 		deviceCredentialRetirementCheckpointExistsForProfile(paths, name)
@@ -221,71 +239,51 @@ func runServerRemove(paths runtimePaths, args []string) int {
 		printHumanErr("secure storage changed while awaiting confirmation; nothing was removed")
 		return 1
 	}
-	// Config first: a failed save aborts cleanly with the pairing untouched.
-	// The endpoint for the revoke is captured from the in-memory document, so
-	// removing the entry first loses nothing. If the revoke afterwards fails,
-	// the report says so and the device can still be revoked from the NOVA
-	// console — the softer failure than a configured-but-unpaired profile.
 	cfg, _ := doc.flatProfile(name)
-	purgeTarget, targetErr := profilePurgeTargetFromConfig(name, cfg)
-	if targetErr != nil {
+	profileRaw, rawErr := cloudRecoveryProfileRaw(doc, name)
+	if rawErr != nil {
 		printHumanErr(
-			"cannot validate server credential cleanup: %v; nothing was removed",
-			targetErr,
+			"cannot preserve the server profile for safe removal: %v; nothing was removed",
+			rawErr,
 		)
 		return 1
 	}
-	servers, err := documentServersCopy(doc)
-	if err != nil {
-		printHumanErr("cannot update the server configuration: %v — nothing was removed.", err)
-		return 1
-	}
-	originalServers, err := documentServersCopy(doc)
-	if err != nil {
-		printHumanErr("cannot preserve the server configuration: %v — nothing was removed.", err)
-		return 1
-	}
-	delete(servers, name)
-	if err := writeServersDocument(paths, doc, servers, newDefault); err != nil {
-		printHumanErr("cannot save the server configuration: %v — nothing was removed; fix the error and run the remove again.", err)
-		return 1
-	}
-
-	// Now revoke against THIS profile's pinned endpoint and drop both slots.
-	report := &uninstallReport{}
-	purgeErr := purgeProfileDeviceCredentialWithReport(
-		purgeTarget,
-		report,
-		false,
+	checkpoint := newServerRemovalCheckpoint(
+		name,
+		cfg,
+		profileRaw,
+		credentialValues[services[0]],
+		credentialValues[services[1]],
 	)
-	if purgeErr != nil {
-		restoreErr := writeServersDocument(
-			paths,
-			doc,
-			originalServers,
-			currentDefault,
+	if err := writeServerRemovalCheckpoint(
+		paths,
+		doc,
+		name,
+		checkpoint,
+	); err != nil {
+		printHumanErr(
+			"cannot save the durable server-removal checkpoint: %v — nothing was removed",
+			err,
 		)
-		report.printDetails()
-		if restoreErr != nil {
-			printHumanErr(
-				"server credential cleanup failed: %v; restoring its configuration also failed: %v",
-				purgeErr,
-				restoreErr,
-			)
-		} else {
-			printHumanErr(
-				"server credential cleanup failed: %v; its configuration was restored for a safe retry",
-				purgeErr,
-			)
-		}
 		return 1
 	}
-	report.printDetails()
-	printHumanInfo("Removed server profile %q.", name)
-	if newDefault != doc.defaultServerName() {
-		printHumanInfo("default_server was reset to %q.", newDefault)
+	if err := serverRemovalPhaseHook("checkpoint-persisted"); err != nil {
+		printHumanErr(
+			"server removal paused after its durable checkpoint: %v. Run the same command again to resume safely.",
+			err,
+		)
+		return 1
 	}
-	return 0
+	checkpointedDoc, checkpointedOK :=
+		loadServerConfigDocument(paths)
+	if !checkpointedOK {
+		return 1
+	}
+	return completeServerRemovalUnlocked(
+		paths,
+		checkpointedDoc,
+		name,
+	)
 }
 
 func serverProfileContainsCloudState(doc *configDocument, name string) (bool, error) {

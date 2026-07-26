@@ -191,6 +191,13 @@ func runPairCommand(paths runtimePaths, args []string) int {
 			return 1
 		}
 	}
+	if err := rejectPendingServerRemoval(
+		activeServerProfile(),
+		cfg,
+	); err != nil {
+		printErr("Pairing cannot start: %s", err)
+		return 1
+	}
 	if err := validateRuntimeConfigSave(paths, cfg); err != nil {
 		printErr(
 			"cannot safely pair with the saved server configuration: %s",

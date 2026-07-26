@@ -99,5 +99,10 @@ func writeServersDocument(paths runtimePaths, doc *configDocument, servers map[s
 		return err
 	}
 	top["default_server"] = defaultRaw
-	return writeJSONFile(paths.ConfigFile, top, 0o600)
+	return writeJSONFileIfUnchanged(
+		paths.ConfigFile,
+		top,
+		0o600,
+		doc.source,
+	)
 }

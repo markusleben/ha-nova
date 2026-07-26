@@ -94,7 +94,12 @@ func TestInvalidInstallIdentityRecoveryContinuesAfterCloudRemoval(
 
 	if exit, output := captureCommandOutput(t, func() int {
 		return runCloudRemoveCommand(paths, []string{"--yes"})
-	}); exit != 0 {
+	}); exit != 0 ||
+		!strings.Contains(
+			output,
+			"ha-nova setup --server default",
+		) ||
+		strings.Contains(output, "needs a local pairing") {
 		t.Fatalf("cloud remove exit=%d output=%s", exit, output)
 	}
 	exit, output := captureCommandOutput(t, func() int {
@@ -107,7 +112,8 @@ func TestInvalidInstallIdentityRecoveryContinuesAfterCloudRemoval(
 	); err != nil {
 		t.Fatal(err)
 	}
-	if exit != 1 || summary.NextCommand != "ha-nova setup" {
+	if exit != 1 ||
+		summary.NextCommand != "ha-nova setup --server default" {
 		t.Fatalf("status exit=%d summary=%+v", exit, summary)
 	}
 
@@ -143,6 +149,70 @@ func TestInvalidInstallIdentityRecoveryContinuesAfterCloudRemoval(
 	}
 }
 
+func TestInvalidInstallIdentityStatusPreservesNamedSetupProfile(
+	t *testing.T,
+) {
+	paths, store, backend, _ := cloudRemoveCommandFixture(t)
+	corruptClientInstallID(t, paths)
+	installCloudRemoveStore(
+		t,
+		store,
+		func(context.Context, OAuthSecretEnvelope) error { return nil },
+	)
+	resetProductionCloudPolicies(backend)
+	if exit, output := captureCommandOutput(t, func() int {
+		return runCloudRemoveCommand(paths, []string{"--yes"})
+	}); exit != 0 {
+		t.Fatalf("cloud remove exit=%d output=%s", exit, output)
+	}
+
+	top := readTestConfigTopLevel(t, paths)
+	var servers map[string]json.RawMessage
+	if err := json.Unmarshal(top["servers"], &servers); err != nil {
+		t.Fatal(err)
+	}
+	var cabin map[string]json.RawMessage
+	if err := json.Unmarshal(
+		servers[defaultServerProfileName],
+		&cabin,
+	); err != nil {
+		t.Fatal(err)
+	}
+	cabin["profile_id"] = json.RawMessage(`"profile-cabin"`)
+	cabinRaw, err := json.Marshal(cabin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	servers["cabin"] = cabinRaw
+	serversRaw, err := json.Marshal(servers)
+	if err != nil {
+		t.Fatal(err)
+	}
+	top["servers"] = serversRaw
+	if err := writeJSONFile(paths.ConfigFile, top, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	exit, output := captureCommandOutput(t, func() int {
+		return runCloudStatusCommand(
+			paths,
+			[]string{"--server", "cabin", "--json"},
+		)
+	})
+	var summary cloudStatusSummary
+	if err := json.Unmarshal(
+		[]byte(strings.TrimSpace(output)),
+		&summary,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if exit != 1 ||
+		summary.Server != "cabin" ||
+		summary.NextCommand != "ha-nova setup --server cabin" {
+		t.Fatalf("status exit=%d summary=%+v", exit, summary)
+	}
+}
+
 func TestInvalidInstallIdentityRepairWaitsForEveryCloudProfile(
 	t *testing.T,
 ) {
@@ -159,8 +229,16 @@ func TestInvalidInstallIdentityRepairWaitsForEveryCloudProfile(
 		t.Fatal(err)
 	}
 	cabin["profile_id"] = json.RawMessage(`"profile-cabin"`)
-	servers["cabin"], _ = json.Marshal(cabin)
-	top["servers"], _ = json.Marshal(servers)
+	cabinRaw, err := json.Marshal(cabin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	servers["cabin"] = cabinRaw
+	serversRaw, err := json.Marshal(servers)
+	if err != nil {
+		t.Fatal(err)
+	}
+	top["servers"] = serversRaw
 	if err := writeJSONFile(paths.ConfigFile, top, 0o600); err != nil {
 		t.Fatal(err)
 	}

@@ -122,6 +122,9 @@ func loadSelectedRuntimeConfigUnchecked(
 			name,
 		)
 	}
+	if err := rejectPendingServerRemoval(name, cfg); err != nil {
+		return runtimeConfig{}, err
+	}
 	setActiveServerProfile(name)
 	if cfg.ProfileID != "" {
 		if err := validateProfileID(cfg.ProfileID); err != nil {

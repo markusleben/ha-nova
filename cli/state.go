@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -183,27 +182,21 @@ func writeJSONFileOptsIfUnchanged(
 		tmp.Close()
 		return err
 	}
+	if err := tmp.Chmod(mode); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		tmp.Close()
+		return err
+	}
 	if err := tmp.Close(); err != nil {
 		return err
 	}
-	if err := os.Chmod(tmpPath, mode); err != nil {
-		return err
+	if expected == nil {
+		return replaceFileDurably(tmpPath, path)
 	}
-	if expected != nil {
-		current, err := os.ReadFile(path)
-		if err != nil {
-			return fmt.Errorf(
-				"verify unchanged file before replacement: %w",
-				err,
-			)
-		}
-		if !bytes.Equal(current, expected) {
-			return fmt.Errorf(
-				"file changed before conditional replacement",
-			)
-		}
-	}
-	return os.Rename(tmpPath, path)
+	return replaceFileConditionally(path, tmpPath, expected)
 }
 
 func normalizeClients(values []string) []string {

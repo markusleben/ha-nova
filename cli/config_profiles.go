@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -17,18 +18,19 @@ import (
 // install-wide fields (schema_version, client_install_id). JSON tags match the
 // v1 flat keys, so the same struct serves profile entries and the legacy mirror.
 type serverProfileConfig struct {
-	HAHost               string                  `json:"ha_host"`
-	HAURL                string                  `json:"ha_url"`
-	RelayBaseURL         string                  `json:"relay_base_url"`
-	RelayTokenFile       string                  `json:"relay_token_file,omitempty"`
-	ProfileID            string                  `json:"profile_id,omitempty"`
-	RelayInstanceID      string                  `json:"relay_instance_id,omitempty"`
-	RoutePolicy          routePolicy             `json:"route_policy,omitempty"`
-	Cloud                *cloudLifecycleMetadata `json:"cloud,omitempty"`
-	RelaySecureBaseURL   string                  `json:"relay_secure_base_url,omitempty"`
-	RelaySpkiPin         string                  `json:"relay_spki_pin,omitempty"`
-	PendingSecureBaseURL string                  `json:"pending_secure_base_url,omitempty"`
-	PendingSpkiPin       string                  `json:"pending_spki_pin,omitempty"`
+	HAHost               string                   `json:"ha_host"`
+	HAURL                string                   `json:"ha_url"`
+	RelayBaseURL         string                   `json:"relay_base_url"`
+	RelayTokenFile       string                   `json:"relay_token_file,omitempty"`
+	ProfileID            string                   `json:"profile_id,omitempty"`
+	RelayInstanceID      string                   `json:"relay_instance_id,omitempty"`
+	RoutePolicy          routePolicy              `json:"route_policy,omitempty"`
+	Cloud                *cloudLifecycleMetadata  `json:"cloud,omitempty"`
+	RelaySecureBaseURL   string                   `json:"relay_secure_base_url,omitempty"`
+	RelaySpkiPin         string                   `json:"relay_spki_pin,omitempty"`
+	PendingSecureBaseURL string                   `json:"pending_secure_base_url,omitempty"`
+	PendingSpkiPin       string                   `json:"pending_spki_pin,omitempty"`
+	ServerRemoval        *serverRemovalCheckpoint `json:"server_removal,omitempty"`
 }
 
 // serverProfileFieldKeys are replaced inside one profile while unknown sibling
@@ -37,6 +39,7 @@ var serverProfileFieldKeys = []string{
 	"ha_host", "ha_url", "relay_base_url", "relay_token_file",
 	"profile_id", "relay_instance_id", "route_policy", "cloud",
 	"relay_secure_base_url", "relay_spki_pin", "pending_secure_base_url", "pending_spki_pin",
+	"server_removal",
 }
 
 // Only pre-v3 fields are mirrored at the top level. Cloud and stable profile
@@ -75,6 +78,15 @@ type configDocument struct {
 }
 
 func loadConfigDocument(path string) (*configDocument, error) {
+	if _, err := os.Lstat(
+		conditionalJSONTransactionPath(path),
+	); err == nil {
+		return nil, errors.New(
+			"an interrupted configuration transaction must be recovered before reading config.json",
+		)
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return nil, err
+	}
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
@@ -178,6 +190,7 @@ func (d *configDocument) flatProfile(name string) (runtimeConfig, bool) {
 		RelaySpkiPin:         fields.RelaySpkiPin,
 		PendingSecureBaseURL: fields.PendingSecureBaseURL,
 		PendingSpkiPin:       fields.PendingSpkiPin,
+		ServerRemoval:        fields.ServerRemoval,
 	}, true
 }
 
@@ -195,6 +208,7 @@ func serverProfileFromRuntime(cfg runtimeConfig) serverProfileConfig {
 		RelaySpkiPin:         cfg.RelaySpkiPin,
 		PendingSecureBaseURL: cfg.PendingSecureBaseURL,
 		PendingSpkiPin:       cfg.PendingSpkiPin,
+		ServerRemoval:        cfg.ServerRemoval,
 	}
 }
 
@@ -231,6 +245,7 @@ func loadRawDefaultProfileConfig(path string) (runtimeConfig, error) {
 		RelaySpkiPin:         doc.flat.RelaySpkiPin,
 		PendingSecureBaseURL: doc.flat.PendingSecureBaseURL,
 		PendingSpkiPin:       doc.flat.PendingSpkiPin,
+		ServerRemoval:        doc.flat.ServerRemoval,
 	}
 	return cfg, nil
 }
@@ -373,26 +388,4 @@ func (d *configDocument) withProfileDocument(
 		delete(top, "client_install_id")
 	}
 	return top, nil
-}
-
-// saveProfileConfig writes cfg into the selected profile of the on-disk
-// document. All 8 read-modify-write config sites go through here (via
-// saveConfig), so none of them can flatten the servers map away.
-func saveProfileConfig(paths runtimePaths, cfg runtimeConfig) error {
-	doc, err := loadConfigDocumentOrEmpty(paths.ConfigFile)
-	if err != nil {
-		return fmt.Errorf("read existing server configuration: %w", err)
-	}
-	if err := validateSupportedConfigDocument(doc); err != nil {
-		return err
-	}
-	name, err := saveTargetProfileName(doc)
-	if err != nil {
-		return err
-	}
-	top, err := doc.withProfile(name, cfg)
-	if err != nil {
-		return err
-	}
-	return writeJSONFile(paths.ConfigFile, top, 0o600)
 }

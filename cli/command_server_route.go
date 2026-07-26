@@ -67,13 +67,6 @@ func runServerRoute(paths runtimePaths, args []string) int {
 	if opts.ServerSet {
 		setServerSelectionOverride(opts.Server)
 	}
-	if opts.Policy != routePolicyLocal {
-		if err := requireCloudRemoteFeature(); err != nil {
-			printHumanErr("%s", err)
-			return 1
-		}
-	}
-
 	releaseMutation, ok := acquireServerMutation(paths)
 	if !ok {
 		return 1
@@ -93,6 +86,16 @@ func runServerRoute(paths runtimePaths, args []string) int {
 	if !ok {
 		unknownServerProfileError(doc, name)
 		return 1
+	}
+	if err := rejectPendingServerRemoval(name, cfg); err != nil {
+		printHumanErr("%v", err)
+		return 1
+	}
+	if opts.Policy != routePolicyLocal {
+		if err := requireCloudRemoteFeature(); err != nil {
+			printHumanErr("%s", err)
+			return 1
+		}
 	}
 	if opts.Policy != routePolicyLocal && !cfg.Cloud.configured() {
 		printHumanErr("server profile %q has no completed Home Assistant Cloud setup; add away-from-home access before selecting %s routing", name, opts.Policy)

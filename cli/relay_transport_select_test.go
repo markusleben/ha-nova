@@ -104,7 +104,6 @@ func TestRelayCloudSelectionRejectsCompletedRevocationBeforeResolver(
 		overrideSet bool
 	}{
 		{name: "route cloud", policy: routePolicyCloud},
-		{name: "automatic fallback", policy: routePolicyAutomatic},
 		{
 			name:        "explicit cloud",
 			policy:      routePolicyLocal,
@@ -146,6 +145,42 @@ func TestRelayCloudSelectionRejectsCompletedRevocationBeforeResolver(
 				)
 			}
 		})
+	}
+}
+
+func TestAutomaticSelectionRejectsCloudResultDuringCleanup(
+	t *testing.T,
+) {
+	localCalls, cloudCalls, automaticCalls :=
+		stubRelayTransportResolvers(t)
+	cloud := readyCloudForTransportTest()
+	cloud.DeviceRevocationCompleted =
+		&cloudDeviceRevocationCheckpoint{
+			CurrentDeviceID: "dev-1234567890abcdef",
+		}
+	_, err := selectRelayTransport(
+		context.Background(),
+		runtimeConfig{
+			RoutePolicy: routePolicyAutomatic,
+			Cloud:       cloud,
+		},
+		"",
+		false,
+	)
+	var problem *cloudProblem
+	if !errors.As(err, &problem) ||
+		problem.Remediation != cloudRemediationSecurityStop {
+		t.Fatalf("selection error = %T %v", err, err)
+	}
+	if *localCalls != 0 ||
+		*cloudCalls != 0 ||
+		*automaticCalls != 1 {
+		t.Fatalf(
+			"resolver calls local/cloud/automatic = %d/%d/%d",
+			*localCalls,
+			*cloudCalls,
+			*automaticCalls,
+		)
 	}
 }
 

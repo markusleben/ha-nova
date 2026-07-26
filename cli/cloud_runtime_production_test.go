@@ -97,7 +97,13 @@ func TestProductionAutomaticRouteFallsBackOnlyForConnectionFailures(t *testing.T
 			}), relayViaLocal)
 			cloudCalls := stubProductionAutomaticResolvers(t, local, nil)
 
-			selected, err := resolveAutomaticRelayTransport(context.Background(), runtimeConfig{RelayInstanceID: "relay-1"})
+			selected, err := resolveAutomaticRelayTransport(
+				context.Background(),
+				runtimeConfig{
+					RelayInstanceID: "relay-1",
+					Cloud:           readyCloudForTransportTest(),
+				},
+			)
 			if err != nil {
 				t.Fatalf("resolveAutomaticRelayTransport: %v", err)
 			}

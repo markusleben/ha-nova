@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -44,6 +45,13 @@ func main() {
 func dispatch(paths runtimePaths, argv0 string, args []string) int {
 	if len(args) == 0 {
 		printUsage()
+		return 1
+	}
+	if err := recoverConfigTransactionBeforeDispatch(paths); err != nil {
+		printErr(
+			"HA NOVA cannot safely recover an interrupted configuration update: %s",
+			err,
+		)
 		return 1
 	}
 
@@ -113,6 +121,23 @@ func dispatch(paths runtimePaths, argv0 string, args []string) int {
 		printUsage()
 		return 1
 	}
+}
+
+func recoverConfigTransactionBeforeDispatch(paths runtimePaths) error {
+	transactionPath := conditionalJSONTransactionPath(paths.ConfigFile)
+	if _, err := os.Lstat(transactionPath); errors.Is(err, os.ErrNotExist) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	release, acquired := acquireAutoRepairLock(paths)
+	if !acquired {
+		return errors.New(
+			"another HA NOVA configuration update is in progress",
+		)
+	}
+	defer release()
+	return recoverConditionalJSONTransaction(paths.ConfigFile)
 }
 
 func printUsage() {

@@ -115,10 +115,20 @@ func selectRelayTransport(
 		}
 		return resolveRelayTransport(ctx, resolveCloudRelayTransportForCLI, cfg)
 	case routePolicyAutomatic:
-		if err := requireFunctionalCloudAccess(cfg); err != nil {
+		selected, err := resolveRelayTransport(
+			ctx,
+			resolveAutomaticRelayTransportForCLI,
+			cfg,
+		)
+		if err != nil {
 			return relayTransportSelection{}, err
 		}
-		return resolveRelayTransport(ctx, resolveAutomaticRelayTransportForCLI, cfg)
+		if selected.Via == relayViaCloud {
+			if err := requireFunctionalCloudAccess(cfg); err != nil {
+				return relayTransportSelection{}, err
+			}
+		}
+		return selected, nil
 	default:
 		return relayTransportSelection{}, fmt.Errorf("unsupported route policy %q", cfg.RoutePolicy)
 	}

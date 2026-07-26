@@ -31,8 +31,9 @@ type runtimeConfig struct {
 	// fields above only after activation succeeds. Kept separate so a failed re-pair
 	// never overwrites the working endpoint, while resumePendingActivation can still
 	// find the endpoint after a crash between activation and promotion.
-	PendingSecureBaseURL string `json:"pending_secure_base_url,omitempty"`
-	PendingSpkiPin       string `json:"pending_spki_pin,omitempty"`
+	PendingSecureBaseURL string                   `json:"pending_secure_base_url,omitempty"`
+	PendingSpkiPin       string                   `json:"pending_spki_pin,omitempty"`
+	ServerRemoval        *serverRemovalCheckpoint `json:"server_removal,omitempty"`
 }
 
 type config = runtimeConfig
@@ -75,6 +76,9 @@ func loadRuntimeConfig(pathArgs ...runtimePaths) (runtimeConfig, error) {
 			return runtimeConfig{}, fmt.Errorf("server profile %q is not set up yet. Run: ha-nova pair --server %s --relay-url http://<ha-host>:8791", name, name)
 		}
 		return runtimeConfig{}, fmt.Errorf("HA NOVA is not set up yet. Run: ha-nova setup")
+	}
+	if err := rejectPendingServerRemoval(name, cfg); err != nil {
+		return runtimeConfig{}, err
 	}
 	if err := validateLoadedRuntimeConfig(&cfg); err != nil {
 		return runtimeConfig{}, fmt.Errorf("invalid server profile %q: %w", name, err)

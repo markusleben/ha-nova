@@ -145,11 +145,11 @@ func runCloudStatusCommand(paths runtimePaths, args []string) int {
 		)
 		return 1
 	}
-	if cfg.Cloud.AuthorizationRevocationCompleted != nil {
+	if cfg.Cloud.cleanupPending() {
 		problem := &cloudProblem{
 			Code:        cloudProblemAuthorization,
 			Remediation: cloudRemediationSecurityStop,
-			Detail: "remote Cloud authorization revocation is complete; " +
+			Detail: "remote Cloud revocation is complete; " +
 				"finish the verified local cleanup before reconnecting",
 		}
 		summary.Status = "cleanup_pending"
