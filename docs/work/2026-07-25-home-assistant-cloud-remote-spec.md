@@ -360,15 +360,21 @@ ha-nova relay ... --via <local|cloud>
 ```
 
 `cloud status --json` always emits one JSON object, including locked storage,
-unreachable Cloud, incomplete setup, and not-configured outcomes. Typed
+unreachable Cloud, incomplete setup, not-configured outcomes, and a failed
+predispatch config-transaction recovery. Typed
 `verification_error` and `next_command` fields let headless callers recover
-without parsing human text. A clearable secure-storage hold advances to
-`cloud unlock` only when unlock can verify and clear it; otherwise the machine
-action advances directly to exact, profile-scoped `cloud remove` instead of
-looping. A named Cloud-only profile may run
+without parsing human text. A clearable secure-storage hold first advances to
+interactive `cloud unlock`. When health cannot clear the hold because the
+profile is incomplete or Cloud is disabled, unlock durably records only the
+successful native-storage proof; the next status advances to exact,
+profile-scoped `cloud remove`. A later storage-lock failure resets that proof,
+so recovery advances back to unlock instead of looping. A named Cloud-only
+profile may run
 `ha-nova setup --server <name>` to resume Cloud onboarding and install client
 skills. An explicit client-only target may also repair skills on an existing
-named local profile without changing houses or connection settings; named
+named profile only through its already configured and freshly verified secure
+device/Cloud transport. This dedicated path never reads the machine-wide
+default-profile token and never enters connection mutation; named
 local/token/service onboarding remains unavailable and uses `pair --server`.
 
 If a potentially issued authorization no longer has consistent native
@@ -404,6 +410,11 @@ replacement therefore fails closed. The Owner-confirmed
 manual path records the same checkpoint plus the exact prior attestation, even
 when no readable OAuth slot remains. Status and unlock direct this state only
 to verified cleanup, never health verification or reconnect.
+Immediately before full-purge config deletion, HA NOVA requires the exact
+post-cleanup config snapshot to remain current, reloads the complete profile
+inventory, and repeats configured-namespace plus global raw credential absence
+proofs. A new or changed sibling/default/Cloud profile preserves config and
+fails the purge retryably.
 
 A malformed install-wide `client_install_id` never authorizes setup or device
 use. Status still reports the selected Cloud lifecycle with the stable

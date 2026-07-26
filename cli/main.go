@@ -48,6 +48,13 @@ func dispatch(paths runtimePaths, argv0 string, args []string) int {
 		return 1
 	}
 	if err := recoverConfigTransactionBeforeDispatch(paths); err != nil {
+		if printCloudStatusJSONForDispatchRecoveryFailure(
+			paths,
+			args,
+			err,
+		) {
+			return 1
+		}
 		printErr(
 			"HA NOVA cannot safely recover an interrupted configuration update: %s",
 			err,
@@ -121,6 +128,39 @@ func dispatch(paths runtimePaths, argv0 string, args []string) int {
 		printUsage()
 		return 1
 	}
+}
+
+func printCloudStatusJSONForDispatchRecoveryFailure(
+	paths runtimePaths,
+	args []string,
+	cause error,
+) bool {
+	if len(args) < 2 ||
+		args[0] != "cloud" ||
+		args[1] != "status" {
+		return false
+	}
+	rawIntent := scanCloudStatusArgs(args[2:])
+	if !rawIntent.jsonRequested {
+		return false
+	}
+	problem := &cloudProblem{
+		Code:        cloudProblemConfigInvalid,
+		Remediation: cloudRemediationSecurityStop,
+		Detail: "an interrupted configuration update could not be " +
+			"safely recovered; Cloud was not contacted",
+		Cause: cause,
+	}
+	printCloudStatusJSON(cloudStatusSummary{
+		Status: "error",
+		Server: cloudStatusServerForReport(
+			paths,
+			cloudCommandFlags{},
+			rawIntent,
+		),
+		VerificationError: cloudStatusErrorForProblem(problem),
+	})
+	return true
 }
 
 func recoverConfigTransactionBeforeDispatch(paths runtimePaths) error {

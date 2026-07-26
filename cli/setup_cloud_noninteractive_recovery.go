@@ -60,7 +60,7 @@ func handleNonInteractiveCloudRecoveryHold(
 		)
 		return true
 	}
-	if cloudRecoveryHoldClearsAfterUnlock(cfg.Cloud.RecoveryHold) {
+	if cloudRecoveryHoldNeedsUnlock(cfg.Cloud.RecoveryHold) {
 		printHumanInfo(
 			"Verify native secure storage from an interactive desktop session: %s",
 			cloudProfileCommandFor("unlock", profile),

@@ -19,7 +19,10 @@ func namedSetupRequestAllowed(
 		(cloudRecoveryHoldProblem(cfg) != nil ||
 			!cfg.Cloud.ready() ||
 			!cloudRemoteFeatureAvailable())
-	namedClientRepair := strings.TrimSpace(target) != ""
+	namedClientRepair := namedClientRepairTransportConfigured(
+		cfg,
+		target,
+	)
 	return (remoteOnlyCloudSetup(cfg) ||
 		namedCloudRecoverySetup ||
 		namedClientRepair ||
@@ -29,6 +32,24 @@ func namedSetupRequestAllowed(
 		strings.TrimSpace(haURL) == "" &&
 		strings.TrimSpace(relayURL) == "" &&
 		strings.TrimSpace(relayToken) == ""
+}
+
+func namedClientRepairTransportConfigured(
+	cfg runtimeConfig,
+	target string,
+) bool {
+	if strings.TrimSpace(target) == "" {
+		return false
+	}
+	localDeviceConfigured :=
+		strings.TrimSpace(cfg.RelaySecureBaseURL) != "" &&
+			strings.TrimSpace(cfg.RelaySpkiPin) != ""
+	cloudDeviceConfigured := cfg.Cloud != nil &&
+		cfg.Cloud.ready() &&
+		cloudRecoveryHoldProblem(cfg) == nil &&
+		!cfg.Cloud.cleanupPending() &&
+		cloudRemoteFeatureAvailable()
+	return localDeviceConfigured || cloudDeviceConfigured
 }
 
 func renderNamedSetupRequestError() {

@@ -312,8 +312,35 @@ func TestCloudStatusJSONAdvancesNonReadyStorageHoldToCleanup(
 	}
 	if exit != 1 ||
 		summary.Status != "recovery_blocked" ||
-		summary.NextCommand != cloudRemoveCommand() {
+		summary.NextCommand != cloudUnlockCommand() {
 		t.Fatalf("status exit=%d summary=%+v", exit, summary)
+	}
+	installCloudCommandPromptSession(t, true)
+	installSuccessfulCloudDevicePreflight(t)
+	installCloudCommandCoordinator(
+		t,
+		successfulCloudCoordinatorForTest(),
+	)
+	if exit, output = captureCommandOutput(t, func() int {
+		return runCloudUnlockCommand(paths, nil)
+	}); exit != 0 {
+		t.Fatalf("unlock exit=%d output=%s", exit, output)
+	}
+	exit, output = captureCommandOutput(t, func() int {
+		return runCloudStatusCommand(paths, []string{"--json"})
+	})
+	if err := json.Unmarshal(
+		[]byte(strings.TrimSpace(output)),
+		&summary,
+	); err != nil {
+		t.Fatalf("post-unlock status JSON=%q: %v", output, err)
+	}
+	if exit != 1 || summary.NextCommand != cloudRemoveCommand() {
+		t.Fatalf(
+			"post-unlock status exit=%d summary=%+v",
+			exit,
+			summary,
+		)
 	}
 }
 
@@ -356,8 +383,35 @@ func TestCloudStatusJSONAdvancesDisabledStorageHoldToCleanup(
 	}
 	if exit != 1 ||
 		summary.Status != "recovery_blocked" ||
-		summary.NextCommand != cloudRemoveCommand() {
+		summary.NextCommand != cloudUnlockCommand() {
 		t.Fatalf("status exit=%d summary=%+v", exit, summary)
+	}
+	installCloudCommandPromptSession(t, true)
+	installSuccessfulCloudDevicePreflight(t)
+	installCloudCommandCoordinator(
+		t,
+		successfulCloudCoordinatorForTest(),
+	)
+	if exit, output = captureCommandOutput(t, func() int {
+		return runCloudUnlockCommand(paths, nil)
+	}); exit != 0 {
+		t.Fatalf("unlock exit=%d output=%s", exit, output)
+	}
+	exit, output = captureCommandOutput(t, func() int {
+		return runCloudStatusCommand(paths, []string{"--json"})
+	})
+	if err := json.Unmarshal(
+		[]byte(strings.TrimSpace(output)),
+		&summary,
+	); err != nil {
+		t.Fatalf("post-unlock status JSON=%q: %v", output, err)
+	}
+	if exit != 1 || summary.NextCommand != cloudRemoveCommand() {
+		t.Fatalf(
+			"post-unlock status exit=%d summary=%+v",
+			exit,
+			summary,
+		)
 	}
 }
 

@@ -178,7 +178,7 @@ func renderCloudRecoveryGuidance(
 			cfg.Cloud.State,
 			hold.Detail,
 		)
-		if cloudRecoveryHoldClearsAfterUnlock(cfg.Cloud.RecoveryHold) {
+		if cloudRecoveryHoldNeedsUnlock(cfg.Cloud.RecoveryHold) {
 			fmt.Fprintf(
 				out,
 				"  Verify native secure storage: %s\n",

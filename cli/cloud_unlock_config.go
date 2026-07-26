@@ -9,21 +9,21 @@ import (
 func loadCloudUnlockConfig(
 	paths runtimePaths,
 	options cloudCommandFlags,
-) (runtimeConfig, bool, error) {
-	cfg, err := loadCloudManagementConfig(paths)
+) (cloudManagementSnapshot, bool, error) {
+	snapshot, err := loadCloudManagementSnapshot(paths)
 	if err == nil {
-		return cfg, false, nil
+		return snapshot, false, nil
 	}
 	if options.server == "" ||
 		(!errors.Is(err, os.ErrNotExist) &&
 			!errors.Is(err, errUnknownServerProfile)) {
-		return runtimeConfig{}, false, err
+		return cloudManagementSnapshot{}, false, err
 	}
 	// An explicit --server is safe device-slot intent even before a Cloud
 	// profile exists. Do not persist synthetic config merely to show the native
 	// keyring prompt; the original add command remains the creation authority.
 	setActiveServerProfile(options.server)
-	return runtimeConfig{}, true, nil
+	return cloudManagementSnapshot{}, true, nil
 }
 
 func preflightCloudUnlockDeviceAccess(

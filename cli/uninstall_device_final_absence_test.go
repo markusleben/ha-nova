@@ -145,6 +145,63 @@ func TestFullUninstallPreservesConfigWhenCredentialReappears(
 	}
 }
 
+func TestFullUninstallPreservesChangedConfigBeforeFinalCleanup(
+	t *testing.T,
+) {
+	paths := setupServerCommandTest(
+		t,
+		fullPurgeEmptyCredentialConfig,
+	)
+	stubServerRevoke(t)
+	changed := `{
+		"schema_version":3,
+		"default_server":"default",
+		"servers":{
+			"default":{
+				"profile_id":"profile-default",
+				"route_policy":"local"
+			},
+			"cabin":{
+				"profile_id":"profile-cabin",
+				"route_policy":"local"
+			}
+		}
+	}`
+	err := finalizeLocalUninstallWithProgress(
+		paths,
+		installState{},
+		&uninstallReport{},
+		uninstallModePurge,
+		func(step string) error {
+			if step != "config_cleanup" {
+				return nil
+			}
+			return os.WriteFile(
+				paths.ConfigFile,
+				[]byte(changed),
+				0o600,
+			)
+		},
+		false,
+	)
+	if err == nil ||
+		!strings.Contains(
+			err.Error(),
+			"configuration changed before config cleanup",
+		) {
+		t.Fatalf("full uninstall error = %v", err)
+	}
+	data, readErr := os.ReadFile(paths.ConfigFile)
+	if readErr != nil ||
+		!strings.Contains(string(data), `"cabin"`) {
+		t.Fatalf(
+			"changed config was not preserved: %q err=%v",
+			data,
+			readErr,
+		)
+	}
+}
+
 func TestFullUninstallPurgeRemovesUnreadableCredentialSlots(
 	t *testing.T,
 ) {

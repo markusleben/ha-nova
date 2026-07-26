@@ -17,7 +17,7 @@ func TestCloudUnlockKeepsHoldsWithoutReadyHealth(t *testing.T) {
 				Code:        cloudProblemSecureStorage,
 				Remediation: cloudRemediationVerifyState,
 			},
-			wantOutput: "recovery safety hold remains",
+			wantOutput: "Native secure storage is verified",
 		},
 		{
 			name: "security review",
@@ -63,6 +63,13 @@ func TestCloudUnlockKeepsHoldsWithoutReadyHealth(t *testing.T) {
 				saved.Cloud.RecoveryHold != nil
 			if !isHeld {
 				t.Fatalf("unlock cleared unverified hold: %+v", saved.Cloud)
+			}
+			if test.hold.Code == cloudProblemSecureStorage &&
+				!saved.Cloud.RecoveryHold.StorageVerified {
+				t.Fatalf(
+					"unlock did not persist storage proof: %+v",
+					saved.Cloud.RecoveryHold,
+				)
 			}
 			if strings.Contains(output, "cloud add") ||
 				strings.Contains(output, "cloud reconnect") {

@@ -24,11 +24,12 @@ func runCloudUnlockCommand(paths runtimePaths, args []string) int {
 		)
 		return 1
 	}
-	cfg, preProfile, err := loadCloudUnlockConfig(paths, options)
+	snapshot, preProfile, err := loadCloudUnlockConfig(paths, options)
 	if err != nil {
 		renderCloudFailure(os.Stdout, paths, err)
 		return 1
 	}
+	cfg := snapshot.Config
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	ctx = withCloudSecretAccessHolder(ctx)
@@ -118,10 +119,29 @@ func runCloudUnlockCommand(paths runtimePaths, args []string) int {
 			return 0
 		}
 	}
+	if verifiedStorageHold != nil &&
+		!verifiedStorageHold.StorageVerified &&
+		(!cloudRemoteFeatureAvailable() || !cfg.Cloud.ready()) {
+		expected, expectationErr := snapshot.recoveryExpectation()
+		if expectationErr != nil {
+			renderCloudFailure(os.Stdout, paths, expectationErr)
+			return 1
+		}
+		cfg, err = markCloudRecoveryStorageVerifiedAtSnapshot(
+			paths,
+			expected,
+			*verifiedStorageHold,
+		)
+		if err != nil {
+			renderCloudFailure(os.Stdout, paths, err)
+			return 1
+		}
+		verifiedStorageHold = cfg.Cloud.RecoveryHold
+	}
 	if !cloudRemoteFeatureAvailable() {
 		if verifiedStorageHold != nil {
 			printHumanInfo(
-				"Native secure storage is unlocked, but the recovery safety hold remains until Cloud health can be verified.",
+				"Native secure storage is verified. Cloud health cannot be checked in this build.",
 			)
 			printHumanInfo(
 				"Verified cleanup remains available with: %s",
@@ -180,7 +200,7 @@ func runCloudUnlockCommand(paths runtimePaths, args []string) int {
 	}
 	if verifiedStorageHold != nil {
 		printHumanInfo(
-			"Native secure storage is unlocked, but the recovery safety hold remains until Cloud access is ready and health has been verified.",
+			"Native secure storage is verified, but Cloud access is not ready for a health check.",
 		)
 		printHumanInfo(
 			"Verified cleanup remains available with: %s",

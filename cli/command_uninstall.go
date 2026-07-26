@@ -539,6 +539,7 @@ func finalizeLocalUninstallWithProgressUnlocked(
 ) error {
 	relayTokenFile := ""
 	var purgeTargets []profilePurgeTarget
+	var purgeInventory fullPurgeInventory
 	retirementProfiles, err :=
 		deviceCredentialRetirementCheckpointProfiles(paths)
 	if err != nil {
@@ -554,7 +555,10 @@ func finalizeLocalUninstallWithProgressUnlocked(
 	if mode == uninstallModePurge {
 		// Validate the whole raw Cloud identity set before any external revoke
 		// or local deletion. Duplicate profile IDs must fail closed globally.
-		if _, err := collectCloudPurgeTargets(paths.ConfigFile); err != nil {
+		cloudTargets, err := collectCloudPurgeTargets(
+			paths.ConfigFile,
+		)
+		if err != nil {
 			return fmt.Errorf(
 				"failed to inspect Home Assistant Cloud authorization: %w",
 				err,
@@ -573,6 +577,10 @@ func finalizeLocalUninstallWithProgressUnlocked(
 				err,
 			)
 		}
+		purgeInventory = newFullPurgeInventory(
+			purgeTargets,
+			cloudTargets,
+		)
 		if err := settleDeviceCredentialRetirementsForPurge(
 			paths,
 			report,
@@ -636,6 +644,9 @@ func finalizeLocalUninstallWithProgressUnlocked(
 				err,
 			)
 		}
+		if err := purgeInventory.captureFinalConfig(paths); err != nil {
+			return err
+		}
 	}
 	if beforeStep != nil {
 		if err := beforeStep("client_integrations"); err != nil {
@@ -666,8 +677,13 @@ func finalizeLocalUninstallWithProgressUnlocked(
 		}
 	}
 	if mode == uninstallModePurge {
+		currentTargets, err :=
+			purgeInventory.verifyFinalConfigAndTargets(paths)
+		if err != nil {
+			return err
+		}
 		if err := requirePurgedDeviceCredentialsAbsent(
-			purgeTargets,
+			currentTargets,
 		); err != nil {
 			return fmt.Errorf(
 				"device credentials reappeared before config cleanup: %w",

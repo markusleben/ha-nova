@@ -73,4 +73,59 @@ func TestDoctorNamedProfileClientRepairStaysOnSelectedProfile(
 	) {
 		t.Fatal("named client-only setup was rejected")
 	}
+	halfPaired := completedLocalCloudTestConfig()
+	halfPaired.RelaySecureBaseURL = ""
+	halfPaired.RelaySpkiPin = ""
+	if namedSetupRequestAllowed(
+		halfPaired,
+		false,
+		"codex",
+		false,
+		"",
+		"",
+		"",
+		"",
+	) {
+		t.Fatal("half-paired named client repair bypassed profile guard")
+	}
+}
+
+func TestNamedClientRepairRejectsHalfPairedProfileBeforeTokenRead(
+	t *testing.T,
+) {
+	paths := setupServerCommandTest(t, `{
+		"schema_version":2,
+		"default_server":"default",
+		"client_install_id":"inst-abc",
+		"servers":{
+			"default":{
+				"ha_host":"ha",
+				"ha_url":"http://ha:8123",
+				"relay_base_url":"http://ha:8791"
+			},
+			"cabin":{
+				"ha_host":"cabin",
+				"ha_url":"http://cabin:8123",
+				"relay_base_url":"http://cabin:8791"
+			}
+		}
+	}`)
+	exit, output := captureCommandOutput(t, func() int {
+		return runSetup(
+			paths,
+			[]string{
+				"--server",
+				"cabin",
+				"--non-interactive",
+				"codex",
+			},
+		)
+	})
+	if exit != 1 ||
+		!strings.Contains(
+			output,
+			`setup can use named profile "cabin" only`,
+		) {
+		t.Fatalf("setup exit=%d output=%q", exit, output)
+	}
 }

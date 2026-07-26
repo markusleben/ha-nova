@@ -281,6 +281,22 @@ func runSetup(paths runtimePaths, args []string) int {
 		return 1
 	}
 
+	if activeServerProfile() != defaultServerProfileName &&
+		namedClientRepairTransportConfigured(cfg, target) &&
+		!*serviceMode &&
+		strings.TrimSpace(*host) == "" &&
+		strings.TrimSpace(*haURL) == "" &&
+		strings.TrimSpace(*relayURL) == "" &&
+		strings.TrimSpace(*relayToken) == "" {
+		return completeNamedProfileClientRepair(
+			paths,
+			cfg,
+			state,
+			target,
+			setupLifecycle...,
+		)
+	}
+
 	if !*nonInteractive {
 		return interactiveSetup(paths, cfg, state, target, *host, *haURL, *relayURL, *relayToken, *serviceMode, setupLifecycle...)
 	}

@@ -11,6 +11,7 @@ import (
 // ITS relay, never on a sibling's.
 type profilePurgeTarget struct {
 	name                 string
+	profileID            string
 	relayInstanceID      string
 	secureBaseURL        string
 	spkiPin              string
@@ -118,6 +119,7 @@ func profilePurgeTargetFromConfig(
 ) (profilePurgeTarget, error) {
 	target := profilePurgeTarget{
 		name:                 name,
+		profileID:            strings.TrimSpace(cfg.ProfileID),
 		relayInstanceID:      strings.TrimSpace(cfg.RelayInstanceID),
 		secureBaseURL:        strings.TrimSpace(cfg.RelaySecureBaseURL),
 		spkiPin:              strings.TrimSpace(cfg.RelaySpkiPin),

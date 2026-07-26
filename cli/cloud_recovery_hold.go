@@ -12,8 +12,9 @@ import (
 // restarts so an uncertain write or identity stop cannot degrade into generic
 // add/reconnect guidance on the next command.
 type cloudRecoveryHold struct {
-	Code        cloudProblemCode `json:"code"`
-	Remediation cloudRemediation `json:"remediation"`
+	Code            cloudProblemCode `json:"code"`
+	Remediation     cloudRemediation `json:"remediation"`
+	StorageVerified bool             `json:"storage_verified,omitempty"`
 }
 
 func (hold *cloudRecoveryHold) UnmarshalJSON(data []byte) error {
@@ -44,6 +45,11 @@ func validateCloudRecoveryHold(hold *cloudRecoveryHold) error {
 	}
 	switch hold.Remediation {
 	case cloudRemediationSecurityStop:
+		if hold.StorageVerified {
+			return errors.New(
+				"security-stop recovery hold cannot verify storage",
+			)
+		}
 		if hold.Code != cloudProblemAuthorization &&
 			hold.Code != cloudProblemIdentityMismatch {
 			return fmt.Errorf(
@@ -57,6 +63,12 @@ func validateCloudRecoveryHold(hold *cloudRecoveryHold) error {
 			return fmt.Errorf(
 				"invalid verify-state recovery hold code %q",
 				hold.Code,
+			)
+		}
+		if hold.StorageVerified &&
+			hold.Code != cloudProblemSecureStorage {
+			return errors.New(
+				"only a secure-storage recovery hold can verify storage",
 			)
 		}
 	default:
@@ -113,7 +125,11 @@ func cloudProblemFromRecoveryHold(
 	if hold.Remediation == cloudRemediationSecurityStop {
 		detail = "Cloud recovery is paused for security review; remove the saved Cloud access before starting another authorization"
 	} else if hold.Code == cloudProblemSecureStorage {
-		detail = "a secure-storage update had an uncertain outcome; verify native secure storage before continuing"
+		if hold.StorageVerified {
+			detail = "native secure storage was verified; remove the saved Cloud state before continuing"
+		} else {
+			detail = "a secure-storage update had an uncertain outcome; verify native secure storage before continuing"
+		}
 	} else {
 		detail = "a Cloud request had an uncertain outcome; verify or remove the saved state before continuing"
 	}
@@ -206,4 +222,26 @@ func cloudRecoveryHoldClearsAfterUnlock(
 	return hold != nil &&
 		hold.Code == cloudProblemSecureStorage &&
 		hold.Remediation == cloudRemediationVerifyState
+}
+
+func cloudRecoveryHoldNeedsUnlock(
+	hold *cloudRecoveryHold,
+) bool {
+	return cloudRecoveryHoldClearsAfterUnlock(hold) &&
+		!hold.StorageVerified
+}
+
+func cloudRecoveryHoldCanResetStorageVerification(
+	existing *cloudRecoveryHold,
+	replacement *cloudRecoveryHold,
+) bool {
+	if existing == nil || replacement == nil ||
+		!existing.StorageVerified ||
+		replacement.StorageVerified {
+		return false
+	}
+	unverified := *existing
+	unverified.StorageVerified = false
+	return unverified == *replacement &&
+		cloudRecoveryHoldClearsAfterUnlock(replacement)
 }

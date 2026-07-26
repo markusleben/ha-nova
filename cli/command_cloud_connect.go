@@ -170,7 +170,7 @@ func printCloudURLPromptCancellation(paths runtimePaths) {
 		)
 		if hold := cloudRecoveryHoldProblem(cfg); hold != nil {
 			printHumanInfo("The recovery safety hold remains active: %s", hold.Detail)
-			if cloudRecoveryHoldClearsAfterUnlock(cfg.Cloud.RecoveryHold) {
+			if cloudRecoveryHoldNeedsUnlock(cfg.Cloud.RecoveryHold) {
 				printHumanInfo(
 					"Verify native secure storage with: %s",
 					cloudUnlockCommand(),
