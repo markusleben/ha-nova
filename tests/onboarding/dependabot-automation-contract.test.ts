@@ -198,6 +198,14 @@ describe("dependabot automation contract", () => {
       "jq -e '.autoMergeRequest != null'",
     );
     expect(prepareWorkflow).toContain('gh pr merge "${PR_NUMBER}" --disable-auto');
+    expect(prepareWorkflow).toContain('latest_label_actor="$(');
+    expect(prepareWorkflow).toContain("] | last) as $event");
+    expect(prepareWorkflow).toContain(
+      '[[ "${latest_label_actor}" == "github-actions[bot]" ]]',
+    );
+    expect(prepareWorkflow).toContain(
+      'current_labels_json="$(gh pr view "${PR_NUMBER}" --json labels)"',
+    );
     expect(prepareWorkflow).toContain("jq -e --arg label \"${SAFE_LABEL}\" '.labels[]? | select(.name == $label)'");
     expect(prepareWorkflow).toContain('gh pr edit "${PR_NUMBER}" --remove-label "${SAFE_LABEL}"');
     expect(prepareWorkflow).not.toContain("actions/checkout");

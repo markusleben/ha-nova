@@ -86,9 +86,28 @@ async function removeLabel(prNumber, safeLabel, labels) {
   }
 }
 
+function automationOwnsCurrentLabel(events, safeLabel) {
+  const lastEvent = events
+    .filter(
+      (event) =>
+        ["labeled", "unlabeled"].includes(event.event) &&
+        event.label?.name === safeLabel,
+    )
+    .at(-1);
+  return (
+    lastEvent?.event === "labeled" &&
+    lastEvent.actor?.login === "github-actions[bot]"
+  );
+}
+
 async function cleanupOwnedState(pr, comment, safeLabel) {
   await disableBotOwnedAutoMerge(pr);
-  await removeLabel(pr.number, safeLabel, pr.labels ?? []);
+  if (
+    (pr.labels ?? []).some((label) => label.name === safeLabel) &&
+    automationOwnsCurrentLabel(await timeline(pr.number), safeLabel)
+  ) {
+    await removeLabel(pr.number, safeLabel, pr.labels ?? []);
+  }
   if (comment !== undefined) {
     await github(`repos/${repository}/issues/comments/${comment.id}`, {
       method: "DELETE",
@@ -160,17 +179,7 @@ async function requireOwnedLabel(pr, safeLabel) {
     fail("safe Dependabot label is absent");
   }
   const events = await timeline(pr.number);
-  const lastEvent = events
-    .filter(
-      (event) =>
-        ["labeled", "unlabeled"].includes(event.event) &&
-        event.label?.name === safeLabel,
-    )
-    .at(-1);
-  if (
-    lastEvent?.event !== "labeled" ||
-    lastEvent.actor?.login !== "github-actions[bot]"
-  ) {
+  if (!automationOwnsCurrentLabel(events, safeLabel)) {
     fail("safe Dependabot label is not currently automation-owned");
   }
 }

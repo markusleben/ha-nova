@@ -165,6 +165,8 @@ func (c *HAWebSocketClient) NOVAAppInfo(ctx context.Context) (HAAddonInfo, error
 		)
 	}
 	var info HAAddonInfo
+	// Home Assistant Core's WS_NO_ADMIN_ENDPOINTS explicitly permits this
+	// exact App-info endpoint for non-admin users. Do not broaden the path.
 	if err := c.Call(ctx, "supervisor/api", map[string]any{
 		"endpoint": "/addons/" + appSlug + "/info",
 		"method":   "get",
@@ -204,6 +206,8 @@ func (info HAAddonInfo) MachineIngressRoot() (string, error) {
 
 func (c *HAWebSocketClient) CreateIngressSession(ctx context.Context) (HAIngressSession, error) {
 	var session HAIngressSession
+	// Home Assistant Core's WS_NO_ADMIN_ENDPOINTS explicitly permits this
+	// exact session endpoint and binds the ingress session to the current user.
 	if err := c.Call(ctx, "supervisor/api", map[string]any{
 		"endpoint": "/ingress/session",
 		"method":   "post",

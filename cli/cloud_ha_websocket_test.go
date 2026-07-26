@@ -151,6 +151,12 @@ func TestHAWebSocketClientAuthenticatesAndCallsAllowlistedAPIs(t *testing.T) {
 		addonCommand["method"] != "get" {
 		t.Fatalf("addon command = %v", addonCommand)
 	}
+	var sessionCommand map[string]any
+	_ = json.Unmarshal(conn.writes[5], &sessionCommand)
+	if sessionCommand["endpoint"] != "/ingress/session" ||
+		sessionCommand["method"] != "post" {
+		t.Fatalf("session command = %v", sessionCommand)
+	}
 }
 
 func TestMachineIngressRootAcceptsExactSupervisorUIURLForms(t *testing.T) {

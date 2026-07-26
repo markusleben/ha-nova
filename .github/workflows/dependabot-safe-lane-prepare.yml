@@ -395,7 +395,29 @@ jobs:
             gh pr merge "${PR_NUMBER}" --disable-auto
           fi
 
-          if printf '%s' "${pr_json}" | jq -e --arg label "${SAFE_LABEL}" '.labels[]? | select(.name == $label)' >/dev/null; then
+          current_labels_json="$(gh pr view "${PR_NUMBER}" --json labels)"
+          latest_label_actor="$(
+            gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/timeline" \
+              --paginate \
+              --slurp \
+              -H "Accept: application/vnd.github+json" \
+              | jq -r --arg label "${SAFE_LABEL}" '
+                ([
+                  .[][]
+                  | select(
+                      (.event == "labeled" or .event == "unlabeled")
+                      and (.label.name // "") == $label
+                    )
+                ] | last) as $event
+                | if $event.event == "labeled"
+                  then ($event.actor.login // "")
+                  else ""
+                  end
+              '
+          )"
+          if [[ "${latest_label_actor}" == "github-actions[bot]" ]] \
+            && printf '%s' "${current_labels_json}" \
+              | jq -e --arg label "${SAFE_LABEL}" '.labels[]? | select(.name == $label)' >/dev/null; then
             gh pr edit "${PR_NUMBER}" --remove-label "${SAFE_LABEL}"
           fi
 

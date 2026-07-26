@@ -386,6 +386,44 @@ export function registerDependabotDirectMergeBehaviorTests(): void {
       ).toBe(true);
     });
 
+    it("preserves a safe label that a human reapplied after automation", () => {
+      const { result, trace } = runDirectMerge({
+        currentRef: driftSHA,
+        timeline: [
+          {
+            actor: { login: "github-actions[bot]" },
+            event: "labeled",
+            label: { name: safeLabel },
+          },
+          {
+            actor: { login: "markusleben" },
+            event: "unlabeled",
+            label: { name: safeLabel },
+          },
+          {
+            actor: { login: "markusleben" },
+            event: "labeled",
+            label: { name: safeLabel },
+          },
+        ],
+      });
+      expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
+      expect(trace.some((entry) => entry.path.endsWith("/graphql"))).toBe(true);
+      expect(
+        trace.some(
+          (entry) =>
+            entry.method === "DELETE" && entry.path.includes("/labels/"),
+        ),
+      ).toBe(false);
+      expect(
+        trace.some(
+          (entry) =>
+            entry.method === "DELETE" &&
+            entry.path.endsWith("/issues/comments/90"),
+        ),
+      ).toBe(true);
+    });
+
     it("uses paginated bot-label history when the owned marker was deleted", () => {
       const history: unknown[] = [
         ...Array.from({ length: 100 }, (_, id) => ({
