@@ -83,19 +83,20 @@ func purgeProfileDeviceCredentialWithReport(
 	pendingService := deviceCredentialPendingServiceForProfile(target.name)
 	if err := validateCheckpointedProfilePurgeSlot(
 		pendingService,
-		target.revokedPendingID,
+		target.expectedPendingID(),
 		true,
 	); err != nil {
 		return err
 	}
 	if err := validateCheckpointedProfilePurgeSlot(
 		currentService,
-		target.revokedCurrentID,
+		target.expectedCurrentID(),
 		false,
 	); err != nil {
 		return err
 	}
 	pendingUnreadable := false
+	pendingOutcome := serverRemovalCleanupLocal
 	pending, pendingExists, pendingErr :=
 		readPendingCredentialRecordFromService(pendingService)
 	credential, currentExists, currentErr :=
@@ -118,6 +119,7 @@ func purgeProfileDeviceCredentialWithReport(
 		// A malformed pending value cannot be authenticated to a Relay. Preserve
 		// the previous cleanup behavior, but make the unrevoked deletion visible.
 		pendingUnreadable = true
+		pendingOutcome = serverRemovalCleanupFailed
 	} else if pendingExists &&
 		pending.Source == pendingDeviceCredentialSourceLocal {
 		pendingBaseURL := strings.TrimSpace(target.pendingSecureBaseURL)
@@ -129,10 +131,12 @@ func purgeProfileDeviceCredentialWithReport(
 				pendingPin,
 				pending.Credential,
 			); err == nil {
+				pendingOutcome = serverRemovalCleanupRevoked
 				report.addNote(
 					"Revoked the interrupted pending device pairing on the relay.",
 				)
 			} else if !relayExpectedGone {
+				pendingOutcome = serverRemovalCleanupFailed
 				report.addNote(fmt.Sprintf(
 					"Could not reach the relay to revoke the interrupted pending device pairing (device id %s). Remove it on the NOVA page in Home Assistant.",
 					deviceCredentialID(pending.Credential),
@@ -145,6 +149,16 @@ func purgeProfileDeviceCredentialWithReport(
 			)
 		}
 	}
+	if target.checkpointProcessed != nil &&
+		target.observedPendingID != "" {
+		if err := target.checkpointProcessed(
+			true,
+			target.observedPendingID,
+			pendingOutcome,
+		); err != nil {
+			return err
+		}
+	}
 	// Cloud pending credentials are revoked by the Cloud teardown before this
 	// local sweep. A local pending without an endpoint was never activated.
 	if err := profilePurgePhaseHook(
@@ -155,7 +169,7 @@ func purgeProfileDeviceCredentialWithReport(
 	}
 	if err := validateCheckpointedProfilePurgeSlot(
 		pendingService,
-		target.revokedPendingID,
+		target.expectedPendingID(),
 		true,
 	); err != nil {
 		return err
@@ -187,8 +201,25 @@ func purgeProfileDeviceCredentialWithReport(
 	}
 
 	if currentErr != nil {
+		if target.checkpointProcessed != nil &&
+			target.observedCurrentID != "" {
+			if err := target.checkpointProcessed(
+				false,
+				target.observedCurrentID,
+				serverRemovalCleanupFailed,
+			); err != nil {
+				return err
+			}
+		}
 		// The slot exists but is unreadable/malformed: removing it needs no
 		// parse, and staying silent would leave a stale secret behind.
+		if err := validateCheckpointedProfilePurgeSlot(
+			currentService,
+			target.expectedCurrentID(),
+			false,
+		); err != nil {
+			return err
+		}
 		deleteErr := secretDelete(currentService)
 		if deleteErr == nil {
 			report.addRemoved(slotLabel)
@@ -215,10 +246,26 @@ func purgeProfileDeviceCredentialWithReport(
 	// relay): a teardown the user believed complete may not have removed the
 	// App, and skipping the revoke would strand an ACTIVE device entry.
 	revoked := false
+	currentOutcome := serverRemovalCleanupLocal
 	secureBaseURL := strings.TrimSpace(target.secureBaseURL)
 	spkiPin := strings.TrimSpace(target.spkiPin)
 	if secureBaseURL != "" && spkiPin != "" {
 		revoked = revokeSelfDeviceV1ForUninstall(secureBaseURL, spkiPin, credential) == nil
+		if revoked {
+			currentOutcome = serverRemovalCleanupRevoked
+		} else {
+			currentOutcome = serverRemovalCleanupFailed
+		}
+	}
+	if target.checkpointProcessed != nil &&
+		target.observedCurrentID != "" {
+		if err := target.checkpointProcessed(
+			false,
+			target.observedCurrentID,
+			currentOutcome,
+		); err != nil {
+			return err
+		}
 	}
 	if err := profilePurgePhaseHook(
 		target.name,
@@ -228,7 +275,7 @@ func purgeProfileDeviceCredentialWithReport(
 	}
 	if err := validateCheckpointedProfilePurgeSlot(
 		currentService,
-		target.revokedCurrentID,
+		target.expectedCurrentID(),
 		false,
 	); err != nil {
 		return err

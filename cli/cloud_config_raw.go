@@ -37,7 +37,9 @@ func remainingCloudCleanupProfile(
 			trimmed := bytes.TrimSpace(rawCloud)
 			if len(trimmed) > 0 &&
 				!bytes.Equal(trimmed, []byte("null")) {
-				return "", true, nil
+				return "", false, fmt.Errorf(
+					"unscoped top-level Cloud state cannot be assigned to a server profile",
+				)
 			}
 		}
 	}

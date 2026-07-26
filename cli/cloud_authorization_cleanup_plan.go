@@ -247,37 +247,32 @@ func deleteRevokedCloudAuthorizationPlan(
 	store OAuthSecretStore,
 	plan cloudAuthorizationCleanupPlan,
 ) error {
+	exact, err := exactOAuthCleanupStoreFor(store)
+	if err != nil {
+		return err
+	}
 	if plan.hasRetiring {
-		if err := store.RevokeRetiring(
+		if err := exact.DeleteRetiringExact(
 			ctx,
-			plan.retiring.Generation,
+			plan.retiring,
 			SecretStoreForbidUI,
-			func(_ context.Context, actual OAuthSecretEnvelope) error {
-				if !sameOAuthSecretEnvelope(actual, plan.retiring) {
-					return newCloudError(
-						CloudErrSecretConflict,
-						"remove revoked retiring OAuth secret",
-						nil,
-					)
-				}
-				return nil
-			},
 		); err != nil {
 			return err
 		}
 	}
 	if plan.hasPending {
-		if err := store.DeletePending(
+		if err := exact.DeletePendingExact(
 			ctx,
-			plan.pending.Generation,
+			plan.pending,
 			SecretStoreForbidUI,
 		); err != nil {
 			return fmt.Errorf("remove pending Cloud authorization: %w", err)
 		}
 	}
 	if plan.hasCurrent {
-		if err := store.DeleteCurrent(
+		if err := exact.DeleteCurrentExact(
 			ctx,
+			plan.current,
 			SecretStoreForbidUI,
 		); err != nil {
 			return fmt.Errorf("remove current Cloud authorization: %w", err)

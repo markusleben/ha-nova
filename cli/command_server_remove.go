@@ -240,6 +240,26 @@ func runServerRemove(paths runtimePaths, args []string) int {
 		return 1
 	}
 	cfg, _ := doc.flatProfile(name)
+	preflightTarget, preflightErr :=
+		profilePurgeTargetFromConfig(name, cfg)
+	if preflightErr == nil {
+		var slotState profilePurgeSlotState
+		slotState, preflightErr =
+			inspectProfilePurgeSlotState(preflightTarget)
+		if preflightErr == nil {
+			preflightErr = validateRequiredProfilePurgeSlots(
+				preflightTarget,
+				slotState,
+			)
+		}
+	}
+	if preflightErr != nil {
+		printHumanErr(
+			"cannot start server removal safely: %v; no removal checkpoint was saved",
+			preflightErr,
+		)
+		return 1
+	}
 	profileRaw, rawErr := cloudRecoveryProfileRaw(doc, name)
 	if rawErr != nil {
 		printHumanErr(

@@ -160,6 +160,8 @@ func TestProductionAutomaticRouteNeverFallsBackForHTTPOrEnvelopeFailures(t *test
 	}
 	for name, testCase := range cases {
 		t.Run(name, func(t *testing.T) {
+			resetServerProfileSelection(t)
+			setActiveServerProfile("cabin")
 			local := cloudRuntimeSelection(cloudRuntimeRoundTripFunc(func(*http.Request) (*http.Response, error) {
 				return cloudRuntimeResponse(testCase.status, testCase.body), nil
 			}), relayViaLocal)
@@ -168,6 +170,17 @@ func TestProductionAutomaticRouteNeverFallsBackForHTTPOrEnvelopeFailures(t *test
 			_, err := resolveAutomaticRelayTransport(context.Background(), runtimeConfig{RelayInstanceID: "relay-1"})
 			if err == nil {
 				t.Fatal("HTTP/envelope failure was accepted")
+			}
+			if (testCase.status == http.StatusUnauthorized ||
+				testCase.status == http.StatusForbidden) &&
+				!strings.Contains(
+					err.Error(),
+					"ha-nova setup --server cabin",
+				) {
+				t.Fatalf(
+					"named-profile recovery error = %v",
+					err,
+				)
 			}
 			if *cloudCalls != 0 {
 				t.Fatalf("Cloud fallback called %d time(s)", *cloudCalls)

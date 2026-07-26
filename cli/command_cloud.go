@@ -58,7 +58,8 @@ func runCloudUnlockCommand(paths runtimePaths, args []string) int {
 		)
 		return 0
 	}
-	if cfg.Cloud != nil && cfg.Cloud.cleanupPending() {
+	if cfg.Cloud != nil &&
+		cfg.Cloud.authorizationCleanupPending() {
 		store, err := newCloudSecretStoreForCLI(cfg.ProfileID)
 		if err != nil {
 			renderCloudFailure(os.Stdout, paths, err)
@@ -90,6 +91,16 @@ func runCloudUnlockCommand(paths runtimePaths, args []string) int {
 	if err != nil {
 		renderCloudFailure(os.Stdout, paths, err)
 		return 1
+	}
+	if cfg.Cloud != nil && cfg.Cloud.deviceCleanupPending() {
+		printHumanInfo(
+			"Native secure storage is unlocked. Cloud device revocation is complete; OAuth authorization revocation still remains.",
+		)
+		printHumanInfo(
+			"Continue verified remote revocation and local cleanup with: %s",
+			cloudRemoveCommand(),
+		)
+		return 0
 	}
 	var verifiedStorageHold *cloudRecoveryHold
 	if cfg.Cloud != nil && cfg.Cloud.RecoveryHold != nil {

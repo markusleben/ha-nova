@@ -146,11 +146,17 @@ func runCloudStatusCommand(paths runtimePaths, args []string) int {
 		return 1
 	}
 	if cfg.Cloud.cleanupPending() {
+		detail := "remote Cloud revocation is complete; " +
+			"finish the verified local cleanup before reconnecting"
+		if cfg.Cloud.deviceCleanupPending() {
+			detail = "Cloud device revocation is complete, but OAuth " +
+				"authorization revocation remains; finish verified " +
+				"Cloud cleanup before reconnecting"
+		}
 		problem := &cloudProblem{
 			Code:        cloudProblemAuthorization,
 			Remediation: cloudRemediationSecurityStop,
-			Detail: "remote Cloud revocation is complete; " +
-				"finish the verified local cleanup before reconnecting",
+			Detail:      detail,
 		}
 		summary.Status = "cleanup_pending"
 		summary.VerificationError = cloudStatusErrorForProblem(problem)

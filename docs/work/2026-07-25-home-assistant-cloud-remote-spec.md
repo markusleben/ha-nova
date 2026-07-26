@@ -272,11 +272,15 @@ profile update uses a crash-recoverable full-file transaction. The replacement,
 transaction record, and prior generation are file-synced; the atomic platform
 replacement and parent-directory metadata are durably committed before any
 secret deletion may follow. The transaction compares the exact generation
-captured by the atomic replacement, not a separate read before rename. It
-restores a racing generation without data loss, preserves all generations on
-an ambiguous conflict, and recovers before the next CLI dispatch. A selected
-profile, sibling profile, or `default_server` change therefore cannot be
-overwritten by a stale writer.
+captured by the atomic replacement, not a separate read before rename, and
+reports success only while the replacement generation is still the target.
+It restores a racing generation without data loss, preserves all generations
+on an ambiguous conflict, and recovers before the next CLI dispatch. The
+durable transaction marker retires before auxiliary transaction files are
+garbage-collected, so any crash remains recoverable. Windows replacements also
+flush both the committed target and durable prior generation explicitly. A
+selected profile, sibling profile, or `default_server` change therefore cannot
+be overwritten by a stale writer.
 
 ## Routing
 
@@ -301,6 +305,12 @@ access all stop before a functional Cloud network or secure-storage call. An
 `automatic` profile still performs its authenticated local preflight and may
 keep using a healthy local Relay. Only a pure local network failure reaches
 the cleanup gate, which blocks Cloud fallback.
+
+An authorization-revocation checkpoint may use the checkpoint's verified
+cleanup canary without touching the selected production OAuth slot. A
+device-only checkpoint does not prove OAuth cleanup readiness: recovery
+preflights the exact selected OAuth slot and keeps it intact while completing
+only the checkpointed device revocation.
 
 The Cloud Ingress session is process-local, reusable only inside one CLI
 process, bounded by expiry, and never written to disk. If Home Assistant cannot
@@ -354,7 +364,10 @@ revocations succeed. Before the first local OAuth deletion, every profile gets
 a durable checkpoint containing the exact slot metadata and a SHA-256 digest
 of each high-entropy refresh token, never the token. A retry tolerates an
 already deleted checkpointed slot, rejects any replacement slot, skips the
-completed remote phase, and continues local deletion. The Owner-confirmed
+completed remote phase, and continues local deletion. Every destructive slot
+step bypasses memoized reads, loads the fresh full native envelope under the
+mutation lock, and deletes only an exact envelope match; a same-generation
+replacement therefore fails closed. The Owner-confirmed
 manual path records the same checkpoint plus the exact prior attestation, even
 when no readable OAuth slot remains. Status and unlock direct this state only
 to verified cleanup, never health verification or reconnect.
@@ -369,6 +382,9 @@ user to `ha-nova setup`. That explicit command may replace only the malformed
 non-secret identity under the global mutation lock, an exact setup/config
 snapshot, supported-schema validation, and unique profile-ID validation. It
 preserves every profile and unknown field; normal loading then resumes.
+Unscoped top-level Cloud lifecycle data is not attributed to the selected
+profile and therefore yields a manual-review security stop without a
+self-referential recovery command.
 
 `ha-nova server rename` is a metadata-only operation. It rejects any profile
 with a non-null Cloud lifecycle and requires both source and destination
@@ -383,7 +399,12 @@ before remote revocation or native deletion. The profile remains in
 `config.json` until both current and pending slots are deleted. A crash after
 the checkpoint, either revoke attempt, either slot deletion, or immediately
 before profile removal resumes from the same command without another
-confirmation; no live bearer namespace becomes uninventoried.
+confirmation. Observed slot identities are inventory only; a separate durable
+processed outcome records whether each exact slot was revoked, failed, or was
+not applicable. A slot missing before the initial checkpoint aborts without
+changing config, while a slot that disappears before its processed outcome is
+durable blocks profile deletion for manual review. No live bearer namespace
+becomes uninventoried.
 
 The interactive wizard offers:
 

@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"os"
 	"strings"
 	"testing"
 )
@@ -35,11 +36,15 @@ func TestServerRemoveResumesFromEveryDurableBoundary(
 			); err != nil {
 				t.Fatal(err)
 			}
+			pendingCredential := testProfileCredentialB
+			if phase == "pending-slot-deleted" {
+				pendingCredential = "malformed-pending"
+			}
 			if err := secretSet(
 				deviceCredentialPendingServiceForProfile(
 					"cabin",
 				),
-				testProfileCredentialB,
+				pendingCredential,
 			); err != nil {
 				t.Fatal(err)
 			}
@@ -150,6 +155,14 @@ func TestServerRemoveResumesFromEveryDurableBoundary(
 					"phase %s resume exit=%d output=%s",
 					phase,
 					exit,
+					output,
+				)
+			}
+			if phase == "pending-slot-deleted" &&
+				!strings.Contains(output, "stale device entry") {
+				t.Fatalf(
+					"phase %s resume lost failed-revocation guidance: %s",
+					phase,
 					output,
 				)
 			}
@@ -289,5 +302,68 @@ func TestServerRemoveCheckpointRejectsProfileGenerationChange(
 			exists,
 			err,
 		)
+	}
+}
+
+func TestServerRemoveMissingCredentialDoesNotCreateCheckpoint(
+	t *testing.T,
+) {
+	paths := setupServerCommandTest(t, testV2TwoProfileConfig)
+	before, err := os.ReadFile(paths.ConfigFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	previousConfirmation :=
+		readServerRemoveConfirmationForCommand
+	readServerRemoveConfirmationForCommand = func(
+		string,
+	) (string, error) {
+		return "cabin", nil
+	}
+	t.Cleanup(func() {
+		readServerRemoveConfirmationForCommand =
+			previousConfirmation
+	})
+	exit, output := captureCommandOutput(t, func() int {
+		return runServerRemove(paths, []string{"cabin"})
+	})
+	if exit != 1 ||
+		!strings.Contains(output, "credential is missing") {
+		t.Fatalf("remove exit=%d output=%s", exit, output)
+	}
+	after, err := os.ReadFile(paths.ConfigFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(after) != string(before) {
+		t.Fatal("missing credential created a removal checkpoint")
+	}
+}
+
+func TestServerRemoveObservedOnlyCheckpointRejectsLostSlot(
+	t *testing.T,
+) {
+	paths := checkpointCabinServerRemoval(t)
+	if err := secretDelete(
+		deviceCredentialServiceForProfile("cabin"),
+	); err != nil {
+		t.Fatal(err)
+	}
+	exit, output := captureCommandOutput(t, func() int {
+		return runServerRemove(paths, []string{"cabin"})
+	})
+	if exit != 1 ||
+		!strings.Contains(
+			output,
+			"missing before its cleanup outcome was saved",
+		) {
+		t.Fatalf("resume exit=%d output=%s", exit, output)
+	}
+	doc, err := loadConfigDocument(paths.ConfigFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !doc.hasProfile("cabin") {
+		t.Fatal("observed-only checkpoint removed the profile")
 	}
 }

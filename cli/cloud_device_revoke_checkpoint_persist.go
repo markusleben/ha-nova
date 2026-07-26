@@ -120,7 +120,7 @@ func rejectCloudSetupDuringDeviceRevocation(cfg runtimeConfig) error {
 	return &cloudProblem{
 		Code:        cloudProblemAuthorization,
 		Remediation: cloudRemediationSecurityStop,
-		Detail: "Cloud access revocation already completed; finish Cloud " +
-			"cleanup before reconnecting this profile",
+		Detail: cfg.Cloud.cleanupPendingDetail() +
+			"; reconnect only after cleanup",
 	}
 }

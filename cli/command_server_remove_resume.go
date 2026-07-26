@@ -41,7 +41,42 @@ func completeServerRemovalUnlocked(
 		)
 		return 1
 	}
+	purgeTarget.checkpointProcessed = func(
+		pending bool,
+		evidenceID string,
+		outcome serverRemovalCleanupOutcome,
+	) error {
+		return recordServerRemovalProcessedSlot(
+			paths,
+			name,
+			pending,
+			evidenceID,
+			outcome,
+		)
+	}
 	report := &uninstallReport{}
+	slotState, err := inspectProfilePurgeSlotState(purgeTarget)
+	if err != nil {
+		printHumanErr(
+			"cannot inspect checkpointed server credentials: %v",
+			err,
+		)
+		return 1
+	}
+	if !slotState.currentExists &&
+		cfg.ServerRemoval.CurrentOutcome ==
+			serverRemovalCleanupFailed {
+		report.addNote(
+			"The relay could not confirm revocation of the removed current device credential. Check the NOVA Devices page in Home Assistant for its stale device entry.",
+		)
+	}
+	if !slotState.pendingExists &&
+		cfg.ServerRemoval.PendingOutcome ==
+			serverRemovalCleanupFailed {
+		report.addNote(
+			"The relay could not confirm revocation of the removed pending device credential. Check the NOVA Devices page in Home Assistant for its stale device entry.",
+		)
+	}
 	if err := purgeProfileDeviceCredentialWithReport(
 		purgeTarget,
 		report,

@@ -35,11 +35,17 @@ func cloudStatusHandledInvalidInstallIdentity(
 			"remove",
 			snapshot.ProfileName,
 		)
-	} else if command, needsRecovery := invalidInstallIdentityRecoveryCommand(
-		paths,
-		snapshot.ProfileName,
-	); needsRecovery {
+	} else if command, needsRecovery, inspectionErr :=
+		invalidInstallIdentityRecoveryCommand(
+			paths,
+			snapshot.ProfileName,
+		); needsRecovery {
 		summary.NextCommand = command
+		if inspectionErr != nil {
+			summary.VerificationError.Detail +=
+				"; Cloud cleanup inventory requires manual config review: " +
+					inspectionErr.Error()
+		}
 	}
 	if options.json {
 		printCloudStatusJSON(summary)
@@ -55,6 +61,10 @@ func cloudStatusHandledInvalidInstallIdentity(
 		)
 	} else if summary.NextCommand != "" {
 		printHumanInfo("Continue recovery with: %s", summary.NextCommand)
+	} else {
+		printHumanErr(
+			"Cloud cleanup inventory cannot be resolved safely. Preserve config.json and have its server profiles reviewed manually before continuing.",
+		)
 	}
 	return true
 }
@@ -62,25 +72,24 @@ func cloudStatusHandledInvalidInstallIdentity(
 func invalidInstallIdentityRecoveryCommand(
 	paths runtimePaths,
 	selectedProfile string,
-) (string, bool) {
+) (string, bool, error) {
 	doc, err := loadConfigDocument(paths.ConfigFile)
 	if err != nil ||
 		validateClientInstallID(doc.meta.ClientInstallID) == nil {
-		return "", false
+		return "", false, err
 	}
 	cleanupProfile, cloudRemains, err :=
 		remainingCloudCleanupProfile(doc)
 	switch {
 	case err != nil:
-		return cloudProfileCommandFor(
-			"status",
-			selectedProfile,
-		), true
+		return "", true, err
 	case cloudRemains && cleanupProfile != "":
-		return cloudProfileCommandFor("remove", cleanupProfile), true
+		return cloudProfileCommandFor("remove", cleanupProfile), true, nil
 	case cloudRemains:
-		return cloudProfileCommandFor("status", selectedProfile), true
+		return "", true, errors.New(
+			"unscoped top-level Cloud state exists beside server profiles",
+		)
 	default:
-		return cloudSetupCommandFor(selectedProfile), true
+		return cloudSetupCommandFor(selectedProfile), true, nil
 	}
 }

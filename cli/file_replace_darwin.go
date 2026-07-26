@@ -42,3 +42,11 @@ func syncParentDirectory(path string) error {
 	defer dir.Close()
 	return dir.Sync()
 }
+
+func removeTransactionMarkerDurably(path string) error {
+	if err := os.Remove(path); err != nil &&
+		!os.IsNotExist(err) {
+		return err
+	}
+	return syncParentDirectory(path)
+}

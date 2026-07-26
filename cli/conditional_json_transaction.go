@@ -157,8 +157,19 @@ func finishConditionalJSONTransaction(
 				"interrupted conditional replacement lost its target; preserved the prior generation for manual recovery",
 			)
 		}
-		// The atomic replacement observed the expected source generation.
-		// A later external writer wins; its current target is never rolled back.
+		if targetSHA != transaction.ReplacementSHA {
+			if err := clearConditionalJSONTransaction(
+				path,
+				transaction,
+			); err != nil {
+				return err
+			}
+			return errors.New(
+				"file changed after conditional replacement",
+			)
+		}
+		// The atomic replacement observed the expected source generation and
+		// the checkpoint remains the current generation.
 		return clearConditionalJSONTransaction(path, transaction)
 	case replacementExists &&
 		replacementSHA == transaction.ExpectedSHA256 &&
@@ -180,6 +191,14 @@ func finishConditionalJSONTransaction(
 		replacementSHA == transaction.ReplacementSHA:
 		// The transaction was persisted but the atomic replacement did not
 		// happen. Keep the current target, whatever generation it now contains.
+		return clearConditionalJSONTransaction(path, transaction)
+	case !priorExists &&
+		!replacementExists &&
+		targetExists &&
+		(targetSHA == transaction.ReplacementSHA ||
+			targetSHA == transaction.ExpectedSHA256):
+		// Recovery from an older cleanup that removed both auxiliary
+		// generations before durably retiring the transaction marker.
 		return clearConditionalJSONTransaction(path, transaction)
 	default:
 		return errors.New(
@@ -289,10 +308,14 @@ func clearConditionalJSONTransaction(
 	path string,
 	transaction conditionalJSONTransaction,
 ) error {
+	if err := removeTransactionMarkerDurably(
+		conditionalJSONTransactionPath(path),
+	); err != nil {
+		return err
+	}
 	for _, candidate := range []string{
 		transaction.ReplacementPath,
 		transaction.PriorPath,
-		conditionalJSONTransactionPath(path),
 	} {
 		if err := os.Remove(candidate); err != nil &&
 			!errors.Is(err, os.ErrNotExist) {

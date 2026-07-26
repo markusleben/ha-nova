@@ -88,6 +88,24 @@ func (m *cloudLifecycleMetadata) cleanupPending() bool {
 			m.AuthorizationRevocationCompleted != nil)
 }
 
+func (m *cloudLifecycleMetadata) authorizationCleanupPending() bool {
+	return m != nil &&
+		m.AuthorizationRevocationCompleted != nil
+}
+
+func (m *cloudLifecycleMetadata) deviceCleanupPending() bool {
+	return m != nil &&
+		m.DeviceRevocationCompleted != nil &&
+		m.AuthorizationRevocationCompleted == nil
+}
+
+func (m *cloudLifecycleMetadata) cleanupPendingDetail() string {
+	if m.deviceCleanupPending() {
+		return "Cloud device revocation completed, but OAuth authorization revocation remains; finish Cloud cleanup before using this profile"
+	}
+	return "Cloud access revocation completed; finish Cloud cleanup before using this profile"
+}
+
 func (m *cloudLifecycleMetadata) ready() bool {
 	return m != nil && m.Current != nil && m.Pending == nil &&
 		m.DeviceRevocationCompleted == nil &&
@@ -103,8 +121,7 @@ func requireFunctionalCloudAccess(cfg runtimeConfig) error {
 		return &cloudProblem{
 			Code:        cloudProblemAuthorization,
 			Remediation: cloudRemediationSecurityStop,
-			Detail: "Cloud access revocation already completed; finish " +
-				"Cloud cleanup before using this profile",
+			Detail:      cfg.Cloud.cleanupPendingDetail(),
 		}
 	}
 	return nil

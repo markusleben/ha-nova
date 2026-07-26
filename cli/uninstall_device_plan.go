@@ -18,6 +18,29 @@ type profilePurgeTarget struct {
 	pendingSpkiPin       string
 	revokedCurrentID     string
 	revokedPendingID     string
+	observedCurrentID    string
+	observedPendingID    string
+	processedCurrentID   string
+	processedPendingID   string
+	checkpointProcessed  func(
+		pending bool,
+		evidenceID string,
+		outcome serverRemovalCleanupOutcome,
+	) error
+}
+
+func (target profilePurgeTarget) expectedCurrentID() string {
+	if target.observedCurrentID != "" {
+		return target.observedCurrentID
+	}
+	return target.revokedCurrentID
+}
+
+func (target profilePurgeTarget) expectedPendingID() string {
+	if target.observedPendingID != "" {
+		return target.observedPendingID
+	}
+	return target.revokedPendingID
 }
 
 func collectProfilePurgeTargets(
@@ -84,10 +107,18 @@ func profilePurgeTargetFromConfig(
 	}
 	if cfg.Cloud == nil || cfg.Cloud.DeviceRevocationCompleted == nil {
 		if cfg.ServerRemoval != nil {
+			target.observedCurrentID =
+				cfg.ServerRemoval.ObservedCurrentID
+			target.observedPendingID =
+				cfg.ServerRemoval.ObservedPendingID
+			target.processedCurrentID =
+				cfg.ServerRemoval.ProcessedCurrentID
+			target.processedPendingID =
+				cfg.ServerRemoval.ProcessedPendingID
 			target.revokedCurrentID =
-				cfg.ServerRemoval.CurrentDeviceID
+				cfg.ServerRemoval.ProcessedCurrentID
 			target.revokedPendingID =
-				cfg.ServerRemoval.PendingDeviceID
+				cfg.ServerRemoval.ProcessedPendingID
 		}
 		return target, nil
 	}
@@ -103,13 +134,21 @@ func profilePurgeTargetFromConfig(
 	target.revokedPendingID =
 		cfg.Cloud.DeviceRevocationCompleted.PendingDeviceID
 	if cfg.ServerRemoval != nil {
+		target.observedCurrentID =
+			cfg.ServerRemoval.ObservedCurrentID
+		target.observedPendingID =
+			cfg.ServerRemoval.ObservedPendingID
+		target.processedCurrentID =
+			cfg.ServerRemoval.ProcessedCurrentID
+		target.processedPendingID =
+			cfg.ServerRemoval.ProcessedPendingID
 		if target.revokedCurrentID == "" {
 			target.revokedCurrentID =
-				cfg.ServerRemoval.CurrentDeviceID
+				cfg.ServerRemoval.ProcessedCurrentID
 		}
 		if target.revokedPendingID == "" {
 			target.revokedPendingID =
-				cfg.ServerRemoval.PendingDeviceID
+				cfg.ServerRemoval.ProcessedPendingID
 		}
 	}
 	return target, nil
@@ -232,6 +271,22 @@ func validateRequiredProfilePurgeSlots(
 	target profilePurgeTarget,
 	state profilePurgeSlotState,
 ) error {
+	if target.observedPendingID != "" &&
+		target.processedPendingID == "" &&
+		!state.pendingExists {
+		return fmt.Errorf(
+			"checkpointed pending credential for server %q is missing before its cleanup outcome was saved; refusing profile removal for manual review",
+			target.name,
+		)
+	}
+	if target.observedCurrentID != "" &&
+		target.processedCurrentID == "" &&
+		!state.currentExists {
+		return fmt.Errorf(
+			"checkpointed current credential for server %q is missing before its cleanup outcome was saved; refusing profile removal for manual review",
+			target.name,
+		)
+	}
 	pendingEndpointRecorded :=
 		target.pendingSecureBaseURL != "" ||
 			target.pendingSpkiPin != ""

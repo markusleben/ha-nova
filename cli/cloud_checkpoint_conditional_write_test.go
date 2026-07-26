@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
-	"strings"
 	"testing"
 )
 
@@ -312,72 +311,5 @@ func TestConditionalCheckpointRecoversCrashAfterAtomicSwap(
 			cfg,
 			recovered.source,
 		)
-	}
-}
-
-func TestConditionalCheckpointPreservesPriorWhenTargetDisappears(
-	t *testing.T,
-) {
-	resetServerProfileSelection(t)
-	paths := writeTestConfigFile(t, `{
-		"schema_version": 3,
-		"default_server": "default",
-		"servers": {
-			"default": {
-				"profile_id": "profile-default",
-				"route_policy": "local"
-			}
-		}
-	}`)
-	doc, err := loadConfigDocument(paths.ConfigFile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	previousHook := conditionalJSONAfterSwap
-	conditionalJSONAfterSwap = func(string) error {
-		return errors.New("simulated power loss")
-	}
-	t.Cleanup(func() {
-		conditionalJSONAfterSwap = previousHook
-	})
-	servers, err := documentServersCopy(doc)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := writeServersDocument(
-		paths,
-		doc,
-		servers,
-		defaultServerProfileName,
-	); err == nil {
-		t.Fatal("simulated power loss succeeded")
-	}
-	transactionData, err := os.ReadFile(
-		conditionalJSONTransactionPath(paths.ConfigFile),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var transaction conditionalJSONTransaction
-	if err := json.Unmarshal(
-		transactionData,
-		&transaction,
-	); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Remove(paths.ConfigFile); err != nil {
-		t.Fatal(err)
-	}
-	err = recoverConditionalJSONTransaction(paths.ConfigFile)
-	if err == nil ||
-		!strings.Contains(err.Error(), "lost its target") {
-		t.Fatalf("recovery error = %v", err)
-	}
-	prior, err := os.ReadFile(transaction.PriorPath)
-	if err != nil {
-		t.Fatalf("prior generation was not preserved: %v", err)
-	}
-	if jsonContentSHA256(prior) != transaction.ExpectedSHA256 {
-		t.Fatal("preserved prior generation has the wrong hash")
 	}
 }

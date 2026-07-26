@@ -7,21 +7,33 @@ import (
 	"fmt"
 )
 
-const serverRemovalCheckpointSchema = 1
+const serverRemovalCheckpointSchema = 2
+
+type serverRemovalCleanupOutcome string
+
+const (
+	serverRemovalCleanupRevoked serverRemovalCleanupOutcome = "revoked"
+	serverRemovalCleanupFailed  serverRemovalCleanupOutcome = "revoke_failed"
+	serverRemovalCleanupLocal   serverRemovalCleanupOutcome = "not_applicable"
+)
 
 type serverRemovalCheckpoint struct {
-	Schema             int    `json:"schema"`
-	ProfileID          string `json:"profile_id"`
-	CurrentService     string `json:"current_service"`
-	PendingService     string `json:"pending_service"`
-	CurrentDeviceID    string `json:"current_device_id,omitempty"`
-	PendingDeviceID    string `json:"pending_device_id,omitempty"`
-	OriginalProfileSHA string `json:"original_profile_sha256"`
-	RelayInstanceID    string `json:"relay_instance_id,omitempty"`
-	SecureBaseURL      string `json:"secure_base_url,omitempty"`
-	SPKIPin            string `json:"spki_pin,omitempty"`
-	PendingSecureURL   string `json:"pending_secure_base_url,omitempty"`
-	PendingSPKIPin     string `json:"pending_spki_pin,omitempty"`
+	Schema             int                         `json:"schema"`
+	ProfileID          string                      `json:"profile_id"`
+	CurrentService     string                      `json:"current_service"`
+	PendingService     string                      `json:"pending_service"`
+	ObservedCurrentID  string                      `json:"observed_current_device_id,omitempty"`
+	ObservedPendingID  string                      `json:"observed_pending_device_id,omitempty"`
+	ProcessedCurrentID string                      `json:"processed_current_device_id,omitempty"`
+	ProcessedPendingID string                      `json:"processed_pending_device_id,omitempty"`
+	CurrentOutcome     serverRemovalCleanupOutcome `json:"current_outcome,omitempty"`
+	PendingOutcome     serverRemovalCleanupOutcome `json:"pending_outcome,omitempty"`
+	OriginalProfileSHA string                      `json:"original_profile_sha256"`
+	RelayInstanceID    string                      `json:"relay_instance_id,omitempty"`
+	SecureBaseURL      string                      `json:"secure_base_url,omitempty"`
+	SPKIPin            string                      `json:"spki_pin,omitempty"`
+	PendingSecureURL   string                      `json:"pending_secure_base_url,omitempty"`
+	PendingSPKIPin     string                      `json:"pending_spki_pin,omitempty"`
 }
 
 func newServerRemovalCheckpoint(
@@ -44,13 +56,13 @@ func newServerRemovalCheckpoint(
 		PendingSPKIPin:     cfg.PendingSpkiPin,
 	}
 	if currentCredential != "" {
-		checkpoint.CurrentDeviceID = credentialEvidenceID(
+		checkpoint.ObservedCurrentID = credentialEvidenceID(
 			currentCredential,
 			false,
 		)
 	}
 	if pendingCredential != "" {
-		checkpoint.PendingDeviceID = credentialEvidenceID(
+		checkpoint.ObservedPendingID = credentialEvidenceID(
 			pendingCredential,
 			true,
 		)
@@ -91,6 +103,20 @@ func validateServerRemovalCheckpoint(
 			"server removal checkpoint lacks its original profile generation",
 		)
 	}
+	if err := validateServerRemovalProcessedSlot(
+		checkpoint.ObservedCurrentID,
+		checkpoint.ProcessedCurrentID,
+		checkpoint.CurrentOutcome,
+	); err != nil {
+		return fmt.Errorf("invalid current cleanup evidence: %w", err)
+	}
+	if err := validateServerRemovalProcessedSlot(
+		checkpoint.ObservedPendingID,
+		checkpoint.ProcessedPendingID,
+		checkpoint.PendingOutcome,
+	); err != nil {
+		return fmt.Errorf("invalid pending cleanup evidence: %w", err)
+	}
 	if checkpoint.RelayInstanceID != cfg.RelayInstanceID ||
 		checkpoint.SecureBaseURL != cfg.RelaySecureBaseURL ||
 		checkpoint.SPKIPin != cfg.RelaySpkiPin ||
@@ -102,6 +128,76 @@ func validateServerRemovalCheckpoint(
 		)
 	}
 	return nil
+}
+
+func validateServerRemovalProcessedSlot(
+	observed string,
+	processed string,
+	outcome serverRemovalCleanupOutcome,
+) error {
+	if processed == "" && outcome == "" {
+		return nil
+	}
+	if observed == "" || processed != observed {
+		return errors.New("processed credential identity mismatch")
+	}
+	switch outcome {
+	case serverRemovalCleanupRevoked,
+		serverRemovalCleanupFailed,
+		serverRemovalCleanupLocal:
+		return nil
+	default:
+		return errors.New("invalid cleanup outcome")
+	}
+}
+
+func recordServerRemovalProcessedSlot(
+	paths runtimePaths,
+	name string,
+	pending bool,
+	evidenceID string,
+	outcome serverRemovalCleanupOutcome,
+) error {
+	doc, err := loadConfigDocument(paths.ConfigFile)
+	if err != nil {
+		return err
+	}
+	cfg, exists := doc.flatProfile(name)
+	if !exists {
+		return fmt.Errorf("server profile %q disappeared", name)
+	}
+	if err := validateServerRemovalCheckpointDocument(
+		doc,
+		name,
+		cfg,
+	); err != nil {
+		return err
+	}
+	checkpoint := *cfg.ServerRemoval
+	if pending {
+		checkpoint.ProcessedPendingID = evidenceID
+		checkpoint.PendingOutcome = outcome
+	} else {
+		checkpoint.ProcessedCurrentID = evidenceID
+		checkpoint.CurrentOutcome = outcome
+	}
+	observedID := checkpoint.ObservedCurrentID
+	if pending {
+		observedID = checkpoint.ObservedPendingID
+	}
+	if err := validateServerRemovalProcessedSlot(
+		observedID,
+		evidenceID,
+		outcome,
+	); err != nil {
+		return err
+	}
+	return writeServerRemovalCheckpoint(
+		paths,
+		doc,
+		name,
+		checkpoint,
+	)
 }
 
 func validateServerRemovalCheckpointDocument(

@@ -57,6 +57,87 @@ func TestProfilePurgeRejectsMissingPendingSlotForRecordedEndpoint(
 	}
 }
 
+func TestProfilePurgeRejectsObservedSlotMissingBeforeProcessedOutcome(
+	t *testing.T,
+) {
+	tests := []struct {
+		name   string
+		target profilePurgeTarget
+		want   string
+	}{
+		{
+			name: "current",
+			target: profilePurgeTarget{
+				name:              "cabin",
+				observedCurrentID: "device-current",
+			},
+			want: "checkpointed current credential",
+		},
+		{
+			name: "pending",
+			target: profilePurgeTarget{
+				name:              "cabin",
+				observedPendingID: "device-pending",
+			},
+			want: "checkpointed pending credential",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := validateRequiredProfilePurgeSlots(
+				test.target,
+				profilePurgeSlotState{},
+			)
+			if err == nil ||
+				!strings.Contains(err.Error(), test.want) {
+				t.Fatalf("missing observed slot error = %v", err)
+			}
+		})
+	}
+}
+
+func TestProfilePurgePreservesUnreadableSlotReplacement(
+	t *testing.T,
+) {
+	resetServerProfileSelection(t)
+	t.Setenv("HA_NOVA_TEST_SECRET_DIR", t.TempDir())
+	service := deviceCredentialServiceForProfile(
+		defaultServerProfileName,
+	)
+	original := "malformed-original"
+	replacement := validCredential(157)
+	if err := secretSet(service, original); err != nil {
+		t.Fatal(err)
+	}
+	target := profilePurgeTarget{
+		name: defaultServerProfileName,
+		observedCurrentID: credentialEvidenceID(
+			original,
+			false,
+		),
+		checkpointProcessed: func(
+			bool,
+			string,
+			serverRemovalCleanupOutcome,
+		) error {
+			return secretSet(service, replacement)
+		},
+	}
+
+	err := purgeProfileDeviceCredentialWithReport(
+		target,
+		&uninstallReport{},
+		false,
+	)
+	if !IsCloudErrorCode(err, CloudErrIdentityMismatch) {
+		t.Fatalf("replacement cleanup error = %v", err)
+	}
+	got, err := secretGet(service)
+	if err != nil || got != replacement {
+		t.Fatalf("replacement got=%q err=%v", got, err)
+	}
+}
+
 func TestProfilePurgeAcceptsInterruptedFirstCredentialPromotion(
 	t *testing.T,
 ) {

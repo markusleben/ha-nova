@@ -379,7 +379,7 @@ func runCloudRemoveCommand(paths runtimePaths, args []string) int {
 		printHumanInfo("Cloud configuration was kept unless revocation had already been verified.")
 		return 1
 	}
-	if nextCommand, needsRecovery :=
+	if nextCommand, needsRecovery, recoveryErr :=
 		invalidInstallIdentityRecoveryCommand(
 			paths,
 			activeServerProfile(),
@@ -387,6 +387,11 @@ func runCloudRemoveCommand(paths runtimePaths, args []string) int {
 		printHumanInfo("Home Assistant Cloud access was removed.")
 		if nextCommand != "" {
 			printHumanInfo("Continue recovery with: %s", nextCommand)
+		} else if recoveryErr != nil {
+			printHumanErr(
+				"Install-identity recovery is paused because remaining Cloud cleanup inventory cannot be resolved safely (%v). Preserve config.json for manual review.",
+				recoveryErr,
+			)
 		}
 		return 0
 	}

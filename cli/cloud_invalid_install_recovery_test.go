@@ -329,6 +329,48 @@ func TestSetupRecoveryKeepsCloudCheckpointVisibleWithInvalidInstallIdentity(
 	}
 }
 
+func TestInvalidInstallStatusDoesNotSelfLoopForUnscopedCloud(
+	t *testing.T,
+) {
+	paths, _, _, _ := cloudRemoveCommandFixture(t)
+	corruptClientInstallID(t, paths)
+	top := readTestConfigTopLevel(t, paths)
+	var servers map[string]map[string]json.RawMessage
+	if err := json.Unmarshal(top["servers"], &servers); err != nil {
+		t.Fatal(err)
+	}
+	delete(servers[defaultServerProfileName], "cloud")
+	serversRaw, err := json.Marshal(servers)
+	if err != nil {
+		t.Fatal(err)
+	}
+	top["servers"] = serversRaw
+	top["cloud"] = json.RawMessage(`{"state":"ready"}`)
+	if err := writeJSONFile(paths.ConfigFile, top, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	exit, output := captureCommandOutput(t, func() int {
+		return runCloudStatusCommand(paths, []string{"--json"})
+	})
+	var summary cloudStatusSummary
+	if err := json.Unmarshal(
+		[]byte(strings.TrimSpace(output)),
+		&summary,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if exit != 1 ||
+		summary.NextCommand != "" ||
+		summary.VerificationError == nil ||
+		!strings.Contains(
+			summary.VerificationError.Detail,
+			"unscoped top-level Cloud state",
+		) {
+		t.Fatalf("status exit=%d summary=%+v", exit, summary)
+	}
+}
+
 func corruptClientInstallID(t *testing.T, paths runtimePaths) {
 	t.Helper()
 	top := readTestConfigTopLevel(t, paths)
