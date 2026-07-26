@@ -50,9 +50,52 @@ jobs:
           HA_NOVA_CLOUD_GATE_EVIDENCE_JSON: ${{ secrets.HA_NOVA_CLOUD_GATE_EVIDENCE_JSON }}
         run: bash scripts/release/verify-cloud-release-gate.sh
 
+  build-signed-darwin-release-assets:
+    name: Build signed Darwin release artifacts
+    needs: cloud-release-gate
+    runs-on: macos-latest
+    permissions:
+      contents: read
+    environment:
+      name: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Verify tag is on main
+        run: |
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::Tag must point to a commit on main. Refusing signing access."
+            exit 1
+          fi
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.26.5"
+          cache-dependency-path: cli/go.sum
+
+      - name: Build and sign exact Darwin release binaries
+        env:
+          HA_NOVA_MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.HA_NOVA_MACOS_CERTIFICATE_P12_BASE64 }}
+          HA_NOVA_MACOS_CERTIFICATE_PASSWORD: ${{ secrets.HA_NOVA_MACOS_CERTIFICATE_PASSWORD }}
+        run: bash scripts/release/build-sign-darwin-binaries.sh "${{ github.ref_name }}"
+
+      - name: Upload signed Darwin release binaries
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-signed-darwin-binaries
+          path: dist/ha-nova-darwin-*
+          if-no-files-found: error
+          retention-days: 1
+
   release:
     name: Build release assets
-    needs: cloud-release-gate
+    needs:
+      - cloud-release-gate
+      - build-signed-darwin-release-assets
     runs-on: ubuntu-latest
     environment:
       name: production
@@ -124,6 +167,31 @@ jobs:
           # GoReleaser auto-detects the tag and may publish onto the wrong release.
           GORELEASER_CURRENT_TAG: ${{ github.ref_name }}
 
+      - name: Download signed Darwin release binaries
+        if: steps.release-state.outputs.published != 'true'
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-signed-darwin-binaries
+          path: dist
+
+      - name: Upload signed Darwin binaries and complete checksums
+        if: steps.release-state.outputs.published != 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          for asset in dist/ha-nova-darwin-amd64 dist/ha-nova-darwin-arm64; do
+            test -f "$asset"
+            digest="$(sha256sum "$asset" | awk '{print $1}')"
+            printf '%s  %s\n' "$digest" "$(basename "$asset")"
+          done >> dist/checksums.txt
+          LC_ALL=C sort -k2,2 -u dist/checksums.txt -o dist/checksums.txt
+          gh release upload "$GITHUB_REF_NAME" \
+            dist/ha-nova-darwin-amd64 \
+            dist/ha-nova-darwin-arm64 \
+            dist/checksums.txt \
+            --clobber
+
       - name: Build install bundles
         if: steps.release-state.outputs.published != 'true'
         env:
@@ -152,6 +220,9 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
       - name: Download and smoke Unix release bundle
         if: runner.os != 'Windows'
         shell: bash
@@ -160,7 +231,8 @@ jobs:
           case "${RUNNER_OS}" in
             macOS)
               platform="darwin"
-              archive="ha-nova-installer-bundle-macos-$(uname -m | sed 's/x86_64/amd64/;s/arm64/arm64/').tar.gz"
+              arch="$(uname -m | sed 's/x86_64/amd64/;s/arm64/arm64/')"
+              archive="ha-nova-installer-bundle-macos-${arch}.tar.gz"
               ;;
             Linux)
               platform="linux"
@@ -185,6 +257,16 @@ jobs:
             }
           ' "$root/bundle.json" "$GITHUB_REF_NAME"
           "$root/ha-nova" version
+          if [[ "${RUNNER_OS}" == "macOS" ]]; then
+            raw_binary="$workdir/ha-nova-darwin-${arch}"
+            gh release download "$GITHUB_REF_NAME" \
+              --repo "$GITHUB_REPOSITORY" \
+              --pattern "ha-nova-darwin-${arch}" \
+              --dir "$workdir"
+            test -f "$raw_binary"
+            cmp "$root/ha-nova" "$raw_binary"
+            bash scripts/release/verify-macos-signature.sh "$root/ha-nova"
+          fi
           listed="$(
             node -e '
               const metadata = require(process.argv[1]);

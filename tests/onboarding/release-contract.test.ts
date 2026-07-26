@@ -52,7 +52,7 @@ describe("release contract", () => {
 
   it("keeps local RC packaging focused on install bundles only", () => {
     expect(pkg.scripts?.["release:rc:local"]).toBe(
-      'bash scripts/release/build-rc-binaries.sh "${HA_NOVA_RC_TAG:?set HA_NOVA_RC_TAG to vX.Y.Z-rcN}" && bash scripts/release/build-install-bundle.sh "${HA_NOVA_RC_TAG#v}"',
+      'bash scripts/release/build-sign-darwin-binaries.sh "${HA_NOVA_RC_TAG:?set HA_NOVA_RC_TAG to vX.Y.Z-rcN}" && bash scripts/release/build-rc-binaries.sh "${HA_NOVA_RC_TAG}" && bash scripts/release/build-install-bundle.sh "${HA_NOVA_RC_TAG#v}"',
     );
     expect(pkg.scripts?.["release:rc:local"]).not.toContain("snapshot");
     expect(pkg.scripts?.["release:winget:stage-submission"]).toBeUndefined();
@@ -72,6 +72,7 @@ describe("release contract", () => {
         ["scripts/release/verify-next-release-version.sh", [tag]],
         ["scripts/release/verify-release-assets.sh", [tag]],
         ["scripts/release/build-rc-binaries.sh", [tag]],
+        ["scripts/release/build-sign-darwin-binaries.sh", [tag]],
       ] as const) {
         const result = spawnSync("bash", [script, ...args], {
           encoding: "utf8",

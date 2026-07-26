@@ -278,12 +278,6 @@ if (
 if (new Set(platforms).size !== platforms.length) {
   fail("version.json cloud_remote_platforms must not contain duplicates");
 }
-if (platforms.includes("darwin")) {
-  fail(
-    "darwin Cloud remote cannot be enabled until release artifacts are structurally code-signed and verified",
-  );
-}
-
 const relayAppVersion = readRelayAppVersion();
 if (
   typeof version.min_relay_version !== "string" ||

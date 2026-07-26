@@ -247,6 +247,21 @@ and real update/reinstall tests prove selected-slot unlock plus no-UI reuse.
 Broadening the Keychain ACL is forbidden. Hardened ad-hoc development signing
 enables testing but is not release evidence.
 
+RC and final macOS binaries are built on a GitHub-hosted macOS runner from the
+exact workflow checkout, signed there with the publisher's Developer ID
+Application certificate, and verified before leaving that job. The release
+contract fixes the Team ID to `CTF9J94274`, the executable identifier to
+`com.markusleben.ha-nova.cli`, and requires the `hard`, `kill`,
+`library-validation`, and `runtime` Code Directory flags. The certificate and
+its password exist only as protected `production` environment secrets; they are
+removed from the environment before the Go build starts.
+
+Linux and Windows continue to build on Ubuntu. GoReleaser does not build an
+unsigned Darwin replacement. The bundle job accepts only the two signed Darwin
+artifacts from the macOS job. macOS smoke verifies the signature again and
+proves that the bundled executable is byte-identical to the corresponding raw
+release asset before publication.
+
 ## Durable state
 
 Configuration schema v3 gives every server profile a stable `profile_id` and
@@ -596,8 +611,9 @@ disabled. Public builds fail closed unless they use the
 and bundle exactly match `X.Y.Z[-rcN]`, the root skill version matches their
 `X.Y.Z` base, the executable is the installed file, and Ed25519 bundle evidence
 binds its SHA-256, platform, version, enabled platform list, and reviewed Git
-tree. The public key remains deliberately unprovisioned until the separate
-activation review.
+tree. The compiled public key matches the protected production private key
+through a committed non-secret verification signature; the private key never
+enters source or artifacts.
 The Relay keeps its owner Ingress page and local pairing path when disabled, but
 registers only `/cloud/v1/info` plus exact device self-revocation for cleanup.
 The info response advertises cleanup-only capabilities. Cloud setup, pairing,

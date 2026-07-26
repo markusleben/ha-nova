@@ -12,11 +12,15 @@ import (
 
 const cloudReleaseEvidenceSchema = 1
 
-// Intentionally unprovisioned while Cloud Remote metadata is disabled.
-// Activation requires a reviewed source change that installs the public half
-// of the offline release key. The private half must exist only as a protected
-// GitHub production-environment secret.
-var cloudReleaseEvidencePublicKey ed25519.PublicKey
+// The matching private key exists only as the protected GitHub production
+// environment secret HA_NOVA_CLOUD_RELEASE_SIGNING_KEY_PEM. Rotation requires
+// one reviewed source change plus an atomic secret replacement before an RC.
+var cloudReleaseEvidencePublicKey = ed25519.PublicKey{
+	0x87, 0x38, 0x10, 0x7a, 0x26, 0x0b, 0xc2, 0x92,
+	0x5d, 0x80, 0xbe, 0x76, 0x21, 0xf7, 0x2c, 0x23,
+	0x34, 0xdf, 0x0a, 0xcb, 0x5c, 0x7e, 0xa6, 0xd1,
+	0xba, 0x8c, 0x96, 0x9a, 0x63, 0xe4, 0xc2, 0xb4,
+}
 
 var cloudReleaseSHA256Pattern = regexp.MustCompile(`^[0-9a-f]{64}$`)
 var cloudReleaseTreePattern = regexp.MustCompile(`^[0-9a-f]{40}$`)

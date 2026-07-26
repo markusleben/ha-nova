@@ -123,7 +123,7 @@ export function registerCloudReleaseGateBehaviorTests(): void {
         "full-tree-bound Cloud evidence verified for 2 platform(s)",
       );
     });
-    it("structurally blocks darwin until release artifacts are code-signed", () => {
+    it("accepts Darwin only with its complete exact-commit evidence", () => {
       const platforms: CloudPlatform[] = ["darwin"];
       const fixture = cloudGateFixture({
         cloud_remote_enabled: true,
@@ -133,9 +133,9 @@ export function registerCloudReleaseGateBehaviorTests(): void {
         fixture,
         validCloudEvidence(fixture, platforms),
       );
-      expect(result.status).not.toBe(0);
-      expect(`${result.stdout}\n${result.stderr}`).toContain(
-        "structurally code-signed",
+      expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
+      expect(result.stdout).toContain(
+        "full-tree-bound Cloud evidence verified for 1 platform(s)",
       );
     });
     it.each(["0.7.1", "0.7.0", "0.6.99", "garbage", "01.0.0"])(

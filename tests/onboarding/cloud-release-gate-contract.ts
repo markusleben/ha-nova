@@ -19,6 +19,18 @@ export function registerCloudReleaseGateContractTests(): void {
   const rcWorkflow = readFileSync(".github/workflows/release-candidate.yml", "utf8");
   const ciWorkflow = readFileSync(".github/workflows/ci.yml", "utf8");
   const sourceGateWorkflow = readFileSync(".github/workflows/cloud-source-gate.yml", "utf8");
+  const darwinBuilder = readFileSync(
+    "scripts/release/build-sign-darwin-binaries.sh",
+    "utf8",
+  );
+  const darwinVerifier = readFileSync(
+    "scripts/release/verify-macos-signature.sh",
+    "utf8",
+  );
+  const rcBinaryBuilder = readFileSync(
+    "scripts/release/build-rc-binaries.sh",
+    "utf8",
+  );
   const sourceGateMode = readFileSync(
     "scripts/release/resolve-cloud-source-gate-mode.mjs",
     "utf8",
@@ -90,7 +102,9 @@ export function registerCloudReleaseGateContractTests(): void {
     }
     expect(cloudReleaseGateVerifier).toContain("requireExactKeys(keyrings, platforms");
     expect(cloudReleaseGateVerifier).toContain("readRelayAppVersion()");
-    expect(cloudReleaseGateVerifier).toContain('platforms.includes("darwin")');
+    expect(cloudReleaseGateVerifier).not.toContain(
+      "darwin Cloud remote cannot be enabled",
+    );
     expect(cloudReleaseGateVerifier).toContain(
       "evidence.relay_app.source_tree_sha !== evidence.tree_sha",
     );
@@ -255,6 +269,7 @@ export function registerCloudReleaseGateContractTests(): void {
     expect(goreleaser).not.toContain("cloudremote_dev");
     expect(goreleaser).not.toContain("cloudRemoteDevAppSlug");
     expect(goreleaser).toContain("cloudremote_official");
+    expect(goreleaser).not.toMatch(/goos:\s*\n\s*-\s*darwin/);
     expect(releaseIdentity).toContain(
       "//go:build !cloudremote_official && !cloudremote_dev && !cloudremote_disabled",
     );
@@ -270,6 +285,63 @@ export function registerCloudReleaseGateContractTests(): void {
     expect(rcWorkflow).toContain(
       'bash scripts/release/build-rc-binaries.sh "${{ inputs.version_tag }}"',
     );
+    for (const workflow of [releaseWorkflow, rcWorkflow]) {
+      expect(workflow).toContain(
+        "HA_NOVA_MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.HA_NOVA_MACOS_CERTIFICATE_P12_BASE64 }}",
+      );
+      expect(workflow).toContain(
+        "HA_NOVA_MACOS_CERTIFICATE_PASSWORD: ${{ secrets.HA_NOVA_MACOS_CERTIFICATE_PASSWORD }}",
+      );
+      expect(workflow).toContain(
+        "bash scripts/release/build-sign-darwin-binaries.sh",
+      );
+      expect(workflow).toContain(
+        "bash scripts/release/verify-macos-signature.sh",
+      );
+      expect(
+        workflow.match(
+          /secrets\.HA_NOVA_MACOS_CERTIFICATE_P12_BASE64/g,
+        ),
+      ).toHaveLength(1);
+      expect(
+        workflow.match(
+          /secrets\.HA_NOVA_MACOS_CERTIFICATE_PASSWORD/g,
+        ),
+      ).toHaveLength(1);
+      expect(workflow).toContain("if-no-files-found: error");
+      expect(workflow).toContain("retention-days: 1");
+    }
+    expect(releaseWorkflow).toContain(
+      'cmp "$root/ha-nova" "$raw_binary"',
+    );
+    expect(releaseWorkflow.indexOf("GoReleaser")).toBeLessThan(
+      releaseWorkflow.indexOf("Download signed Darwin release binaries"),
+    );
+    expect(releaseWorkflow.indexOf(
+      "Download signed Darwin release binaries",
+    )).toBeLessThan(releaseWorkflow.indexOf("Build install bundles"));
+    expect(rcWorkflow.indexOf(
+      "Download signed Darwin RC binaries",
+    )).toBeLessThan(rcWorkflow.indexOf("Build install bundles"));
+    expect(rcBinaryBuilder).not.toContain("build darwin");
+    expect(
+      darwinBuilder.indexOf(
+        "unset HA_NOVA_MACOS_CERTIFICATE_P12_BASE64",
+      ),
+    ).toBeLessThan(darwinBuilder.indexOf("go build -trimpath"));
+    expect(darwinBuilder).toContain("-T /usr/bin/codesign");
+    expect(darwinBuilder).toContain("umask 077");
+    expect(darwinBuilder).not.toContain("\n  -A \\\n");
+    expect(darwinBuilder).toContain(
+      "--options runtime,hard,kill,library",
+    );
+    expect(darwinVerifier).toContain(
+      'EXPECTED_IDENTIFIER="com.markusleben.ha-nova.cli"',
+    );
+    expect(darwinVerifier).toContain('EXPECTED_TEAM_ID="CTF9J94274"');
+    for (const flag of ["hard", "kill", "library-validation", "runtime"]) {
+      expect(darwinVerifier).toContain(flag);
+    }
     expect(rcWorkflow).not.toContain("build --snapshot");
     expect(rcWorkflow).toContain("internal-cloud-release-check");
   });

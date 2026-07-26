@@ -17,6 +17,23 @@ import (
 	"testing"
 )
 
+func TestCloudReleaseEvidencePublicKeyProvisioned(t *testing.T) {
+	const checkMessage = "ha-nova-cloud-release-key-check-v1"
+	const checkSignature = "k2PXRGuhMJ7TcPnjkgjseuQe3G1WyQ19HGmpNZNvFYsW8luae2fjb98Pyn+ystmpBbb/rpUzGriBVahZR1dQDw=="
+	signature, err := base64.StdEncoding.Strict().DecodeString(checkSignature)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cloudReleaseEvidencePublicKey) != ed25519.PublicKeySize ||
+		!ed25519.Verify(
+			cloudReleaseEvidencePublicKey,
+			[]byte(checkMessage),
+			signature,
+		) {
+		t.Fatal("compiled release evidence key does not match its provisioning check")
+	}
+}
+
 func TestCloudReleaseSignerMatchesRuntimeVerifier(t *testing.T) {
 	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
@@ -192,6 +209,10 @@ func TestCloudRemoteFeatureGateRejectsUnsignedAndTamperedRuntime(t *testing.T) {
 func TestCloudRemoteFeatureGateRejectsUnprovisionedReleaseKey(t *testing.T) {
 	restore := setCloudFeatureTestBuild(t, false)
 	defer restore()
+	previousKey := cloudReleaseEvidencePublicKey
+	t.Cleanup(func() {
+		cloudReleaseEvidencePublicKey = previousKey
+	})
 	paths := writeCloudFeatureReleaseBundle(
 		t,
 		"2.0.0",

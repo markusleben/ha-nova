@@ -342,9 +342,17 @@ validates the JSON without printing it.
 
 While Cloud remote is enabled, `min_relay_version` must equal the App version
 in `nova/config.yaml`, and that version must be newer than the pre-Cloud
-`0.7.1` App. Darwin remains structurally blocked until the release workflow
-code-signs and verifies its Mach-O artifacts; evidence booleans cannot bypass
-that missing delivery mechanism.
+`0.7.1` App. Both release workflows build Darwin binaries only on macOS and
+sign them with the publisher's Developer ID Application identity. The
+protected `production` environment provides
+`HA_NOVA_MACOS_CERTIFICATE_P12_BASE64` and
+`HA_NOVA_MACOS_CERTIFICATE_PASSWORD`; neither value may appear in source,
+artifacts, logs, or a non-signing job. The signing script removes both
+variables before compilation, uses an ephemeral keychain, and verifies the
+fixed Team ID, executable identifier, and hardened-runtime flags before upload.
+GoReleaser builds only Linux and Windows, so it cannot replace the signed
+Darwin artifacts. macOS bundle smoke verifies the signature again and compares
+the bundled executable byte-for-byte with its raw release asset.
 
 At runtime, release Cloud support also requires an exact installed bundle. The
 linker and `bundle.json` versions must match exactly as `X.Y.Z` or
@@ -363,9 +371,11 @@ only as the protected production-environment secret
 security-sensitive reviewed source change: generate the key offline, store
 only its public half in source, install the private PEM in the production
 environment, build a non-public RC, verify every platform, then retire the old
-private key. Never commit or log a private key. The current public key is
-intentionally unprovisioned while the feature metadata is disabled, so merely
-flipping mutable metadata cannot activate production Cloud support.
+private key. Never commit or log a private key. The provisioned public key
+matches the protected production secret through a committed non-secret
+verification signature. Merely flipping mutable metadata still cannot activate
+production Cloud support: exact source evidence, official build identity,
+signed bundle provenance, and every platform gate remain mandatory.
 
 The manual RC workflow requires an exact `vX.Y.Z-rcN` input and builds that
 exact linker version with the official tag before bundling. It never uses a

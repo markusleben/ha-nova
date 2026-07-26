@@ -3,21 +3,6 @@ version: 2
 project_name: ha-nova
 
 builds:
-  - id: ha-nova-darwin
-    dir: cli
-    binary: ha-nova
-    env:
-      - CGO_ENABLED=0
-    goos:
-      - darwin
-    goarch:
-      - amd64
-      - arm64
-    tags:
-      - cloudremote_official
-    ldflags:
-      - -s -w -X main.Version={{.Version}}
-
   - id: ha-nova-other
     dir: cli
     binary: ha-nova
