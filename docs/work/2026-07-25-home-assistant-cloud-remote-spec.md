@@ -230,6 +230,12 @@ Only setup, reconnect, and unlock may allow UI. They select and validate the
 actual current/resumable slots before mutation. Test stores are injected only
 in tests and cannot be selected by production environment variables.
 
+Native-store E2E isolation must preserve the real desktop login `HOME`;
+otherwise the OS may resolve no default keychain or secret collection.
+`HA_NOVA_CONFIG_DIR` relocates only HA NOVA's non-secret config, checkpoints,
+state, and census files so a unique test profile can use the real native store
+without touching the production profile.
+
 Cloud Beta stays blocked until macOS artifacts have a stable signing identity
 and real update/reinstall tests prove selected-slot unlock plus no-UI reuse.
 Broadening the Keychain ACL is forbidden. Hardened ad-hoc development signing

@@ -74,6 +74,7 @@ interface. Normal development and release binaries deliberately ignore it.
 | Variable | Effect | Use for |
 | --- | --- | --- |
 | `HA_NOVA_DEV_ROOT=<repo>` | Runs the CLI in dev mode — uses the repo's local skills/bundle instead of a released bundle | Any local build |
+| `HA_NOVA_CONFIG_DIR=<absolute-path>` | Relocates config, checkpoints, state, and census data without changing the OS login home | Native Cloud-secret tests that must keep the real desktop keyring |
 | `HA_NOVA_ALLOW_INSECURE_TEST_KEYRING=1` + `HA_NOVA_TEST_KEYRING_FILE=<path>` | The legacy relay-auth token is stored in a file instead of the OS keyring | Isolate the token slot on a desktop |
 | `HA_NOVA_KEYRING_SERVICE=<name>` | Overrides the relay-token keyring service name | Isolate the real token slot by name |
 | `HA_NOVA_NO_BROWSER=1` | `setup` never opens a browser | Scripted / headless runs |
@@ -89,12 +90,15 @@ candidate commit.
 
 Use an isolated CLI as described above, but do not set a file-backed device
 credential or test-keyring override for a release proof. Cloud OAuth refresh
-tokens have no production file backend or environment-variable override.
-Keep the isolated `HOME`, and additionally set a cryptographically unique
-relay-token service before the first command; `HOME` does not namespace native
-keyring services:
+tokens have no production file backend or environment-variable override. Keep
+the real login `HOME`: macOS Keychain and Linux Secret Service resolve the
+interactive user's native store from that desktop identity. Relocate HA NOVA's
+non-secret config and checkpoints with `HA_NOVA_CONFIG_DIR`, and additionally
+set a cryptographically unique relay-token service before the first command:
 
 ```bash
+cloud_test_root="$(mktemp -d)"
+export HA_NOVA_CONFIG_DIR="${cloud_test_root}/config"
 export HA_NOVA_KEYRING_SERVICE="ha-nova.relay-auth-token.cloud-beta.$(openssl rand -hex 16)"
 unset HA_NOVA_TEST_SECRET_DIR
 unset HA_NOVA_ALLOW_INSECURE_TEST_KEYRING
@@ -108,7 +112,6 @@ Keychain authorization is not invalidated. A macOS development build must also
 carry the hardened-runtime flags enforced by the native-secret worker:
 
 ```bash
-cloud_test_root="$(mktemp -d)"
 cloud_test_binary="${cloud_test_root}/ha-nova"
 ( cd cli && go build \
   -tags cloudremote_dev \
@@ -197,7 +200,7 @@ Cross-compile for every target with the same `CGO_ENABLED=0 GOOS=<os> GOARCH=<ar
 
 These are non-negotiable when testing on real machines:
 
-- **Never touch the production add-on, keyring, or credentials.** For the add-on, use a distinct slug/ports. For local-only CLI tests, use a throwaway `HOME`, pair with `--credential-store=file`, and redirect the relay token (`HA_NOVA_ALLOW_INSECURE_TEST_KEYRING=1` + `HA_NOVA_TEST_KEYRING_FILE`, or a unique `HA_NOVA_KEYRING_SERVICE`) — without the last one, `uninstall --purge` still deletes your real `ha-nova.relay-auth-token` keyring entry. For native Cloud-secret tests, use a separate OS user or VM as required by the real-device gate.
+- **Never touch the production add-on, keyring, or credentials.** For the add-on, use a distinct slug/ports. For local-only CLI tests, use a throwaway `HOME`, pair with `--credential-store=file`, and redirect the relay token (`HA_NOVA_ALLOW_INSECURE_TEST_KEYRING=1` + `HA_NOVA_TEST_KEYRING_FILE`, or a unique `HA_NOVA_KEYRING_SERVICE`) — without the last one, `uninstall --purge` still deletes your real `ha-nova.relay-auth-token` keyring entry. For native Cloud-secret tests, keep the login `HOME`, set an isolated `HA_NOVA_CONFIG_DIR`, and use unique profile and keyring-service names; use a separate OS user or VM when the real-device gate requires stronger isolation.
 - **Only create your own test objects** on a live HA (helpers, automations you made); leave existing objects read-only.
 - **Clean up afterwards** — `ha apps uninstall <test-slug>`, remove the container, and run a leftover scan (0 test objects). Never leave a test add-on running on someone's HA.
 - **A green CI/host-safe run is not a release proof.** Releasing still needs the live checks above on the exact commit being tagged (see [docs/releasing.md](../releasing.md)).
