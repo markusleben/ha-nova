@@ -31,16 +31,6 @@ type memoizedOAuthSecretEntry struct {
 	exists bool
 }
 
-func withCloudSecretAccessSession(
-	ctx context.Context,
-	profileID string,
-	store OAuthSecretStore,
-) (context.Context, OAuthSecretStore) {
-	sessionStore := memoizeOAuthSecretStore(store)
-	return installCloudSecretAccessSession(ctx, profileID, sessionStore),
-		sessionStore
-}
-
 func installCloudSecretAccessSession(
 	ctx context.Context,
 	profileID string,
@@ -100,12 +90,6 @@ func cloudSecretStoreForOperation(
 		return nil, false
 	}
 	return session.store, true
-}
-
-func memoizeOAuthSecretStore(store OAuthSecretStore) OAuthSecretStore {
-	sessionStore, activate := stageOAuthSecretStoreMemoization(store)
-	activate()
-	return sessionStore
 }
 
 func stageOAuthSecretStoreMemoization(

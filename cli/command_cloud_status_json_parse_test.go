@@ -44,8 +44,8 @@ func TestCloudStatusJSONRequestedRecognizesValidTrueFormsAnywhere(t *testing.T) 
 		{name: "substring", args: []string{"prefix--json"}, want: false},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			if got := cloudStatusJSONRequested(test.args); got != test.want {
-				t.Fatalf("cloudStatusJSONRequested(%q) = %v", test.args, got)
+			if got := scanCloudStatusArgs(test.args).jsonRequested; got != test.want {
+				t.Fatalf("scanCloudStatusArgs(%q).jsonRequested = %v", test.args, got)
 			}
 		})
 	}

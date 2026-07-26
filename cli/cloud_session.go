@@ -151,16 +151,3 @@ func cloudOriginFromMetadata(metadata cloudConnectionMetadata) (CloudOrigin, err
 	}
 	return origin, nil
 }
-
-func cloudOriginFromCanonical(raw string) (CloudOrigin, error) {
-	parsed, err := ParseCanonicalNabuOrigin(raw)
-	if err != nil {
-		return CloudOrigin{}, err
-	}
-	return CloudOrigin{
-		InputOrigin:     parsed.String(),
-		InputHost:       parsed.Hostname(),
-		CanonicalOrigin: parsed.String(),
-		CanonicalHost:   parsed.Hostname(),
-	}, nil
-}

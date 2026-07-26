@@ -11,45 +11,6 @@ import (
 	"testing"
 )
 
-func TestRecoverRemoteOnlyCloudSetupPreservesTransaction(t *testing.T) {
-	metadata := cloudMetadataForTest(strings.Repeat("a", 32))
-	raw := runtimeConfig{
-		ProfileID:       "profile-resume",
-		ClientInstallID: "install-resume",
-		Cloud: &cloudLifecycleMetadata{
-			State:   cloudStateTokenStored,
-			Pending: &metadata,
-		},
-	}
-
-	recovered, ok := recoverRemoteOnlyCloudSetupConfig(raw)
-	if !ok {
-		t.Fatal("valid remote-only Cloud transaction was not recovered")
-	}
-	if recovered.ProfileID != raw.ProfileID ||
-		recovered.ClientInstallID != raw.ClientInstallID ||
-		recovered.Cloud == nil ||
-		recovered.Cloud.Pending == nil ||
-		recovered.Cloud.Pending.CredentialGeneration !=
-			metadata.CredentialGeneration {
-		t.Fatalf("recovered config lost transaction identity: %+v", recovered)
-	}
-}
-
-func TestRecoverRemoteOnlyCloudSetupRejectsCorruptTransaction(t *testing.T) {
-	metadata := cloudMetadataForTest("bad-generation")
-	raw := runtimeConfig{
-		ProfileID: "profile-resume",
-		Cloud: &cloudLifecycleMetadata{
-			State:   cloudStateTokenStored,
-			Pending: &metadata,
-		},
-	}
-	if _, ok := recoverRemoteOnlyCloudSetupConfig(raw); ok {
-		t.Fatal("corrupt remote-only Cloud transaction was recovered")
-	}
-}
-
 func TestResumeReadyCloudOnlySetupSkipsFreshAuthorization(t *testing.T) {
 	resetServerProfileSelection(t)
 	paths := writeTestConfigFile(t, `{"schema_version":3}`)

@@ -60,10 +60,6 @@ func cloudRecoveryCommandProfile(paths runtimePaths) (string, error) {
 	return profile, nil
 }
 
-func cloudStatusCommand() string {
-	return cloudProfileCommand("status")
-}
-
 func cloudUnlockCommand() string {
 	return cloudProfileCommand("unlock")
 }
@@ -74,10 +70,6 @@ func cloudReconnectCommand() string {
 
 func cloudRemoveCommand() string {
 	return cloudProfileCommand("remove")
-}
-
-func cloudSetupCommand() string {
-	return cloudSetupCommandFor(selectedCloudCommandProfile())
 }
 
 func cloudSetupCommandFor(profile string) string {

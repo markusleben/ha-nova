@@ -90,33 +90,6 @@ func hybridCloudSetupPending(cfg runtimeConfig) bool {
 		strings.TrimSpace(cfg.RelaySpkiPin) != ""
 }
 
-func runInteractiveCloudOnlySetup(
-	reader *bufio.Reader,
-	out io.Writer,
-	paths runtimePaths,
-	cfg runtimeConfig,
-	state *installState,
-	target string,
-	selectedClients, skippedClients []string,
-	lifecycleMarker ...[]byte,
-) int {
-	exit, back := runInteractiveCloudOnlySetupForWizard(
-		reader,
-		out,
-		paths,
-		cfg,
-		state,
-		target,
-		selectedClients,
-		skippedClients,
-		lifecycleMarker...,
-	)
-	if back {
-		renderSetupCancelledNote(out)
-	}
-	return exit
-}
-
 func runInteractiveCloudOnlySetupForWizard(
 	reader *bufio.Reader,
 	out io.Writer,

@@ -48,22 +48,6 @@ func reconcileLinuxOAuthSecretSet(
 	)
 }
 
-func reconcileLinuxOAuthSecretDelete(
-	ctx context.Context,
-	backend *linuxOAuthSecretBackend,
-	service, account string,
-	mutationErr error,
-) error {
-	return reconcileLinuxOAuthSecretDeleteExpected(
-		ctx,
-		backend,
-		service,
-		account,
-		nil,
-		mutationErr,
-	)
-}
-
 func reconcileLinuxOAuthSecretDeleteExpected(
 	ctx context.Context,
 	backend *linuxOAuthSecretBackend,

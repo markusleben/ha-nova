@@ -150,6 +150,7 @@ describe("desktop validation helpers contract", () => {
       "org.freedesktop.Secret.Service.ReadAlias default",
     );
     expect(linuxHeadless).toContain("HA_NOVA_NO_BROWSER=1 ha-nova setup");
+    expect(linuxHeadless).toContain("export HA_NOVA_NO_CENSUS=1");
     expect(linuxHeadless).toContain("store hostnames, tokens, or passwords");
     expect(linuxHeadless).toContain("same logged-in desktop");
     expect(packageJson).toContain('"test:desktop:linux:antigravity"');

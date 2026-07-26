@@ -1215,19 +1215,6 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 	}
 }
 
-func renderSetupCompletionOutcome(
-	out io.Writer,
-	selectedClients []string,
-	cloudSetupIncomplete bool,
-) int {
-	return renderSetupCompletionOutcomeWithCloudPause(
-		out,
-		selectedClients,
-		cloudSetupIncomplete,
-		false,
-	)
-}
-
 func renderSetupCompletionOutcomeWithCloudPause(
 	out io.Writer,
 	selectedClients []string,

@@ -25,13 +25,6 @@ func prepareDeviceCredentialRetirement(
 	return previous, nil
 }
 
-func finalizeDeviceCredentialRetirement(previous runtimeConfig) error {
-	if _, err := revokeDeviceCredentialsForRetirement(previous); err != nil {
-		return err
-	}
-	return deleteDeviceCredentialsForRetirement()
-}
-
 func revokeDeviceCredentialsForRetirement(
 	previous runtimeConfig,
 ) (bool, error) {

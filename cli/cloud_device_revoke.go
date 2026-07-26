@@ -40,44 +40,10 @@ func currentCloudDeviceRevocationConfig(
 	return currentConfig, nil
 }
 
-func selectRemoteCloudDeviceCredential(
-	ctx context.Context,
-	cfg runtimeConfig,
-	profileName string,
-) (remoteCloudDeviceCredential, bool, error) {
-	if cloudLifecycleMayHaveActivatedPendingDevice(cfg.Cloud) {
-		selected, exists, err := selectPendingRemoteCloudDeviceCredential(
-			ctx,
-			cfg,
-			profileName,
-		)
-		if err != nil || exists {
-			return selected, exists, err
-		}
-	}
-	service := deviceCredentialServiceForProfile(profileName)
-	credential, exists, err := readCredentialSlotWithPolicy(
-		ctx,
-		service,
-		SecretStoreForbidUI,
-	)
-	return remoteCloudDeviceCredential{
-		value:   credential,
-		service: service,
-	}, exists, err
-}
-
 func cloudLifecycleMayHaveActivatedPendingDevice(
 	lifecycle *cloudLifecycleMetadata,
 ) bool {
 	return lifecycle != nil && lifecycle.DeviceActivationStarted
-}
-
-func cloudDeviceActivationUncertain(
-	lifecycle *cloudLifecycleMetadata,
-) bool {
-	return lifecycle != nil &&
-		lifecycle.State == cloudStateCloudVerified
 }
 
 func isRemoteOnlyCloudProfile(cfg runtimeConfig) (bool, error) {

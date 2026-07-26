@@ -113,10 +113,6 @@ func cloudRemoteReleaseBaseVersion(version string) (string, bool) {
 	return base, true
 }
 
-func cloudRemoteDevelopmentBuild() bool {
-	return cloudRemoteBuildIdentityForRuntime().Development
-}
-
 func cloudRemoteFeatureAvailable() bool {
 	if !cloudRemotePlatformSupported(runtime.GOOS) {
 		return false

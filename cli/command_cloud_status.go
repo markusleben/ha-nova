@@ -293,10 +293,6 @@ func printCloudStatusResumeOrDisabled(nextCommand string) {
 	)
 }
 
-func cloudStatusJSONRequested(args []string) bool {
-	return scanCloudStatusArgs(args).jsonRequested
-}
-
 type cloudStatusRawIntent struct {
 	jsonRequested bool
 	serverSeen    bool

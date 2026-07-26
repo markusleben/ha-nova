@@ -168,11 +168,12 @@ func TestLinuxOAuthDeleteLostReplyReconcilesCommittedAndUncommittedOutcomes(
 				}
 				return []byte("read-value"), false, test.readErr
 			}
-			err := reconcileLinuxOAuthSecretDelete(
+			err := reconcileLinuxOAuthSecretDeleteExpected(
 				parent,
 				backend,
 				oauthSecretCurrentService,
 				"profile-test",
+				nil,
 				ambiguous,
 			)
 			if test.ok {

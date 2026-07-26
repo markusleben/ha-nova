@@ -83,20 +83,6 @@ func reopenRemoteCloudDeviceAccess(
 	return nil
 }
 
-func preflightRemoteCloudDeviceState(
-	expectedRelayInstanceID string,
-) error {
-	ctx, cancel := boundedNativeOAuthSecretContext(
-		context.Background(),
-		SecretStoreForbidUI,
-	)
-	defer cancel()
-	return preflightRemoteCloudDeviceStateWithContext(
-		ctx,
-		expectedRelayInstanceID,
-	)
-}
-
 func preflightRemoteCloudDeviceStateWithContext(
 	ctx context.Context,
 	expectedRelayInstanceID string,

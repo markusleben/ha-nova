@@ -157,7 +157,7 @@ func TestCloudRemoteReleaseBuildIgnoresDevelopmentLDFlags(t *testing.T) {
 			cloudRemoteBuildIdentityForRuntime = previousIdentity
 		})
 
-		if cloudRemoteDevelopmentBuild() {
+		if cloudRemoteBuildIdentityForRuntime().Development {
 			t.Fatal("release build identity was enabled through linker flags")
 		}
 		if !cloudRemoteBuildIdentityForRuntime().Disabled {

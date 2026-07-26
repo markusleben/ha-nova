@@ -17,19 +17,6 @@ func remoteOnlyCloudSetup(cfg runtimeConfig) bool {
 		strings.TrimSpace(cfg.RelaySpkiPin) == ""
 }
 
-func recoverRemoteOnlyCloudSetupConfig(
-	raw runtimeConfig,
-) (runtimeConfig, bool) {
-	if !remoteOnlyCloudSetup(raw) {
-		return runtimeConfig{}, false
-	}
-	recovered := raw
-	if err := validateLoadedRuntimeConfig(&recovered); err != nil {
-		return runtimeConfig{}, false
-	}
-	return recovered, true
-}
-
 func resumeInteractiveCloudOnlySetup(
 	reader *bufio.Reader,
 	out io.Writer,

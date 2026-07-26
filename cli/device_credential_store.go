@@ -160,22 +160,6 @@ func writePendingDeviceCredentialWithPolicy(
 	)
 }
 
-func writePendingCloudDeviceCredential(
-	credential, relayInstanceID string,
-) error {
-	ctx, cancel := boundedNativeOAuthSecretContext(
-		context.Background(),
-		SecretStoreForbidUI,
-	)
-	defer cancel()
-	return writePendingCloudDeviceCredentialWithPolicy(
-		ctx,
-		credential,
-		relayInstanceID,
-		SecretStoreForbidUI,
-	)
-}
-
 func writePendingCloudDeviceCredentialWithPolicy(
 	ctx context.Context,
 	credential, relayInstanceID string,
