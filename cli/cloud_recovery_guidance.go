@@ -119,6 +119,13 @@ func handlePausedCloudOwnerPairing(
 			cfg.Cloud.State,
 			hold.Detail,
 		)
+		if cloudRecoveryHoldNeedsUnlockForConfig(cfg) {
+			fmt.Fprintf(
+				out,
+				"  Verify native secure storage: %s\n",
+				cloudProfileCommandFor("unlock", profile),
+			)
+		}
 		fmt.Fprintf(
 			out,
 			"  Cleanup: %s\n",

@@ -231,8 +231,13 @@ func cloudRecoveryHoldNeedsUnlockForConfig(
 		!cloudRecoveryHoldClearsAfterUnlock(cfg.Cloud.RecoveryHold) {
 		return false
 	}
-	return !cfg.Cloud.RecoveryHold.StorageVerified ||
-		(cfg.Cloud.ready() && cloudRemoteFeatureAvailable())
+	if !cfg.Cloud.RecoveryHold.StorageVerified {
+		return true
+	}
+	if validateClientInstallID(cfg.ClientInstallID) != nil {
+		return false
+	}
+	return cfg.Cloud.ready() && cloudRemoteFeatureAvailable()
 }
 
 func cloudRecoveryHoldCanResetStorageVerification(

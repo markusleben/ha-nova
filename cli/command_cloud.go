@@ -125,7 +125,8 @@ func runCloudUnlockCommand(paths runtimePaths, args []string) int {
 		cfg.Cloud != nil &&
 			(cfg.Cloud.deviceCleanupPending() ||
 				!cloudRemoteFeatureAvailable() ||
-				!cfg.Cloud.ready()),
+				!cfg.Cloud.ready() ||
+				validateClientInstallID(cfg.ClientInstallID) != nil),
 	)
 	if err != nil {
 		renderCloudFailure(os.Stdout, paths, err)
@@ -137,6 +138,17 @@ func runCloudUnlockCommand(paths runtimePaths, args []string) int {
 		)
 		printHumanInfo(
 			"Continue verified remote revocation and local cleanup with: %s",
+			cloudRemoveCommand(),
+		)
+		return 0
+	}
+	if verifiedStorageHold != nil &&
+		validateClientInstallID(cfg.ClientInstallID) != nil {
+		printHumanInfo(
+			"Native secure storage is verified. The local installation identity must remain unchanged until Cloud access is removed.",
+		)
+		printHumanInfo(
+			"Continue verified cleanup with: %s",
 			cloudRemoveCommand(),
 		)
 		return 0

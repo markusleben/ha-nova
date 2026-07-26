@@ -141,14 +141,12 @@ func applyUninstallServiceTokenFilePolicy(paths runtimePaths, path string, repor
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
 		return false, nil
 	}
-	for _, managedPath := range managedConfigArtifactPaths(paths, true) {
-		if managedPath != "" &&
-			uninstallPathsEqual(path, filepath.Clean(managedPath)) {
-			return true, fmt.Errorf(
-				"configured relay token file overlaps managed configuration artifact %s",
-				path,
-			)
-		}
+	managedTokenPath := filepath.Clean(defaultRelayAuthTokenFile(paths))
+	if !uninstallPathsEqual(path, managedTokenPath) {
+		return true, fmt.Errorf(
+			"configured relay token file is not the managed service-token path %s; refusing to delete it",
+			managedTokenPath,
+		)
 	}
 	info, err := os.Lstat(path)
 	if err != nil {

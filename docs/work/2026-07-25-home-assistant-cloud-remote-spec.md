@@ -381,7 +381,10 @@ default-profile token and never enters connection mutation; named
 local/token/service onboarding remains unavailable and uses `pair --server`.
 Client-only dispatch occurs before retirement or pending-activation recovery
 and finishes without invoking doctor, whose pairing recovery is intentionally
-connection-mutating.
+connection-mutating. If the install-wide client identity is malformed, named
+client-only setup validates the selected profile and requested client first,
+then stops without changing config. The separate profile-scoped setup repair
+must restore the install identity before client installation is retried.
 
 If a potentially issued authorization no longer has consistent native
 credentials, automatic cleanup fails closed. Recovery first requires a Home
@@ -422,21 +425,31 @@ inventory, and repeats configured-namespace plus global raw credential absence
 proofs. A new or changed sibling/default/Cloud profile preserves config and
 fails the purge retryably. The configured service-token file is removed while
 config still durably identifies it, and the exact config bytes are checked
-again inside the removal function after all credential proofs.
+again inside the removal function after all credential proofs. Purge deletes
+only the exact HA NOVA-managed service-token path. A configured alias,
+overlapping config target, symlink-ancestor path, or any other nonstandard
+target blocks deletion and preserves both that target and config for manual
+review. If either native credential store relocks during a later purge proof,
+every clearable verified storage hold is reset before returning so the next
+recovery step is unlock rather than destructive cleanup.
 
 A malformed install-wide `client_install_id` never authorizes setup or device
 use. Status still reports the selected Cloud lifecycle with the stable
-`cloud_config_invalid` security-stop result and exact cleanup command. Verified
-Cloud removal may preserve that exact malformed non-secret value while
-revoking access; it cannot replace or delete the immutable value. After every
-profile is proven free of Cloud lifecycle metadata, `cloud status` directs the
-user to `ha-nova setup`. That explicit command may replace only the malformed
-non-secret identity under the global mutation lock, an exact setup/config
-snapshot, supported-schema validation, and unique profile-ID validation. It
-preserves every profile and unknown field; normal loading then resumes. For a
-named profile, the advertised repair-only setup command returns success
-immediately after that verified identity repair instead of falling through to
-the local-pairing guard.
+`cloud_config_invalid` security-stop result and exact recovery command. If a
+clearable hold has not yet verified native storage, explicit profile-scoped
+`cloud unlock` may load only the unchecked recovery snapshot, prove both native
+stores, and advance to cleanup without accepting the malformed identity for
+normal use. Verified Cloud removal may then preserve that exact malformed
+non-secret value while revoking access; it cannot replace or delete the
+immutable value. All human and machine recovery renderers use the same
+unlock-versus-remove decision. After every profile is proven free of Cloud
+lifecycle metadata, `cloud status` directs the user to `ha-nova setup`. That
+explicit command may replace only the malformed non-secret identity under the
+global mutation lock, an exact setup/config snapshot, supported-schema
+validation, and unique profile-ID validation. It preserves every profile and
+unknown field; normal loading then resumes. For a named profile, the advertised
+repair-only setup command returns success immediately after that verified
+identity repair instead of falling through to the local-pairing guard.
 Unscoped top-level Cloud lifecycle data is not attributed to the selected
 profile and therefore yields a manual-review security stop without a
 self-referential recovery command. A failed second config-document read is

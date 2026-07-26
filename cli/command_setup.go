@@ -142,6 +142,18 @@ func runSetup(paths runtimePaths, args []string) int {
 	}
 	if cfgErr != nil {
 		if errors.Is(cfgErr, errInvalidClientInstallID) {
+			if handled := rejectInvalidIdentityNamedClientRepair(
+				paths,
+				retirementPending,
+				target,
+				*serviceMode,
+				*host,
+				*haURL,
+				*relayURL,
+				*relayToken,
+			); handled {
+				return 1
+			}
 			repaired, repairErr :=
 				repairInvalidClientInstallIdentityForSetup(
 					paths,
@@ -240,14 +252,15 @@ func runSetup(paths runtimePaths, args []string) int {
 		renderNamedSetupRequestError()
 		return 1
 	}
-	namedClientRepair :=
-		activeServerProfile() != defaultServerProfileName &&
-			namedClientRepairTransportConfigured(cfg, target) &&
-			!*serviceMode &&
-			strings.TrimSpace(*host) == "" &&
-			strings.TrimSpace(*haURL) == "" &&
-			strings.TrimSpace(*relayURL) == "" &&
-			strings.TrimSpace(*relayToken) == ""
+	namedClientRepair := namedClientRepairRequested(
+		cfg,
+		target,
+		*serviceMode,
+		*host,
+		*haURL,
+		*relayURL,
+		*relayToken,
+	)
 	if namedClientRepair {
 		state, err := loadStateOrDefaultChecked(paths)
 		if err != nil {

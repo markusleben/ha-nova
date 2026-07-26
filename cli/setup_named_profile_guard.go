@@ -52,6 +52,24 @@ func namedClientRepairTransportConfigured(
 	return localDeviceConfigured || cloudDeviceConfigured
 }
 
+func namedClientRepairRequested(
+	cfg runtimeConfig,
+	target string,
+	serviceMode bool,
+	host string,
+	haURL string,
+	relayURL string,
+	relayToken string,
+) bool {
+	return activeServerProfile() != defaultServerProfileName &&
+		namedClientRepairTransportConfigured(cfg, target) &&
+		!serviceMode &&
+		strings.TrimSpace(host) == "" &&
+		strings.TrimSpace(haURL) == "" &&
+		strings.TrimSpace(relayURL) == "" &&
+		strings.TrimSpace(relayToken) == ""
+}
+
 func renderNamedSetupRequestError() {
 	profile := activeServerProfile()
 	printHumanErr(

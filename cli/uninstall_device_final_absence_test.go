@@ -258,6 +258,80 @@ func TestFullUninstallAtomicCleanupPreservesLastMomentConfigChange(
 	}
 }
 
+func TestFullUninstallDeviceRelockResetsCloudStorageProof(
+	t *testing.T,
+) {
+	paths := setupServerCommandTest(
+		t,
+		fullPurgeEmptyCredentialConfig,
+	)
+	snapshot, err := loadCloudRecoverySnapshotUnchecked(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := snapshot.Config
+	cfg.Cloud = &cloudLifecycleMetadata{
+		State: cloudStateAuthorizing,
+		RecoveryHold: &cloudRecoveryHold{
+			Code:            cloudProblemSecureStorage,
+			Remediation:     cloudRemediationVerifyState,
+			StorageVerified: true,
+		},
+	}
+	if err := saveConfig(paths, cfg); err != nil {
+		t.Fatal(err)
+	}
+	store, err := NewOAuthSecretStore(
+		newMemoryOAuthSecretBackend(),
+		cfg.ProfileID,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	previousStore := newCloudSecretStoreForCLI
+	newCloudSecretStoreForCLI = func(
+		profileID string,
+	) (OAuthSecretStore, error) {
+		if profileID != cfg.ProfileID {
+			t.Fatalf("Cloud store profile=%q", profileID)
+		}
+		return store, nil
+	}
+	previousHook := profilePurgeFinalProofHook
+	profilePurgeFinalProofHook = func() error {
+		return errDesktopKeyringLocked
+	}
+	t.Cleanup(func() {
+		newCloudSecretStoreForCLI = previousStore
+		profilePurgeFinalProofHook = previousHook
+	})
+
+	err = finalizeLocalUninstallWithProgress(
+		paths,
+		installState{},
+		&uninstallReport{},
+		uninstallModePurge,
+		nil,
+		false,
+	)
+	if err == nil ||
+		!strings.Contains(err.Error(), errDesktopKeyringLocked.Error()) {
+		t.Fatalf("full uninstall error = %v", err)
+	}
+	saved, loadErr := loadCloudRecoverySnapshotUnchecked(paths)
+	if loadErr != nil {
+		t.Fatal(loadErr)
+	}
+	if saved.Config.Cloud == nil ||
+		saved.Config.Cloud.RecoveryHold == nil ||
+		saved.Config.Cloud.RecoveryHold.StorageVerified {
+		t.Fatalf(
+			"purge relock kept storage proof: %+v",
+			saved.Config.Cloud,
+		)
+	}
+}
+
 func TestFullUninstallPurgeRemovesUnreadableCredentialSlots(
 	t *testing.T,
 ) {

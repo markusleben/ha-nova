@@ -192,3 +192,56 @@ func requireSamePurgeProfileInventory(
 	}
 	return nil
 }
+
+func resetVerifiedCloudStorageAfterPurgeRelock(
+	paths runtimePaths,
+	cause error,
+) error {
+	problem := cloudProblemForError(cause)
+	if problem.Code != cloudProblemSecureStorage ||
+		problem.Remediation != cloudRemediationUnlockStorage {
+		return nil
+	}
+	initial, err := loadConfigDocument(paths.ConfigFile)
+	if err != nil {
+		if isNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	for _, profileName := range initial.profileNames() {
+		doc, err := loadConfigDocument(paths.ConfigFile)
+		if err != nil {
+			return err
+		}
+		cfg, ok := doc.flatProfile(profileName)
+		if !ok ||
+			cfg.Cloud == nil ||
+			cfg.Cloud.RecoveryHold == nil ||
+			!cfg.Cloud.RecoveryHold.StorageVerified ||
+			!cloudRecoveryHoldClearsAfterUnlock(
+				cfg.Cloud.RecoveryHold,
+			) {
+			continue
+		}
+		profileRaw, err := cloudRecoveryProfileRaw(
+			doc,
+			profileName,
+		)
+		if err != nil {
+			return err
+		}
+		unverified := *cfg.Cloud.RecoveryHold
+		unverified.StorageVerified = false
+		if err := writeCloudRecoveryHoldRaw(
+			paths,
+			doc,
+			profileName,
+			profileRaw,
+			&unverified,
+		); err != nil {
+			return err
+		}
+	}
+	return nil
+}

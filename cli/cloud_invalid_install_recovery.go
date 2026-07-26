@@ -33,8 +33,12 @@ func cloudStatusHandledInvalidInstallIdentity(
 		summary.UserBound = cloudStatusUserBound(cfg.Cloud)
 		summary.CurrentAvailable = cfg.Cloud.Current != nil
 		summary.Pending = cfg.Cloud.Pending != nil
+		action := "remove"
+		if cloudRecoveryHoldNeedsUnlockForConfig(cfg) {
+			action = "unlock"
+		}
 		summary.NextCommand = cloudProfileCommandFor(
-			"remove",
+			action,
 			snapshot.ProfileName,
 		)
 	} else if command, needsRecovery, inspectionErr :=

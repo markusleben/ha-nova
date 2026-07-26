@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -521,6 +522,20 @@ func finalizeLocalUninstallWithProgress(paths runtimePaths, state installState, 
 		beforeStep,
 		removedRelays,
 	)
+	if err != nil && mode == uninstallModePurge {
+		if resetErr := resetVerifiedCloudStorageAfterPurgeRelock(
+			paths,
+			err,
+		); resetErr != nil {
+			err = errors.Join(
+				err,
+				fmt.Errorf(
+					"reset Cloud secure-storage recovery proof: %w",
+					resetErr,
+				),
+			)
+		}
+	}
 	cleanupConfigDir = err == nil
 	releaseMutation()
 	if err == nil {

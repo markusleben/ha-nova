@@ -98,7 +98,9 @@ func runCloudRemoveCommand(paths runtimePaths, args []string) int {
 			if _, holdErr := checkpointCloudRecoveryHoldUnlocked(
 				paths,
 				recoveryExpected,
-				operationErr,
+				cloudCleanupRecoveryCheckpointCause(
+					operationErr,
+				),
 			); holdErr != nil {
 				operationErr = errors.Join(
 					operationErr,
@@ -403,4 +405,18 @@ func runCloudRemoveCommand(paths runtimePaths, args []string) int {
 		printHumanInfo("Home Assistant Cloud access was removed. This profile now needs a local pairing before it can be used.")
 	}
 	return 0
+}
+
+func cloudCleanupRecoveryCheckpointCause(cause error) error {
+	problem := cloudProblemForError(cause)
+	if problem.Code != cloudProblemSecureStorage ||
+		problem.Remediation != cloudRemediationUnlockStorage {
+		return cause
+	}
+	return &cloudProblem{
+		Code:        cloudProblemSecureStorage,
+		Remediation: cloudRemediationVerifyState,
+		Detail:      "native secure storage must be verified before Cloud cleanup can continue",
+		Cause:       cause,
+	}
 }

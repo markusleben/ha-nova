@@ -57,6 +57,26 @@ func renderCloudCheckpointActionsForProfile(
 			cfg.Cloud.State,
 		)
 	}
+	if hold := cloudRecoveryHoldProblem(cfg); hold != nil {
+		fmt.Fprintf(
+			out,
+			"  Cloud recovery safety hold: %s\n",
+			hold.Detail,
+		)
+		if cloudRecoveryHoldNeedsUnlockForConfig(cfg) {
+			fmt.Fprintf(
+				out,
+				"  Verify native secure storage: %s\n",
+				cloudProfileCommandFor("unlock", profile),
+			)
+		}
+		fmt.Fprintf(
+			out,
+			"  Verified cleanup: %s\n",
+			cloudProfileCommandFor("remove", profile),
+		)
+		return
+	}
 	if allowResume && !cfg.Cloud.cleanupPending() {
 		fmt.Fprintf(
 			out,

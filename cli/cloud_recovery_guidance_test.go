@@ -63,6 +63,87 @@ func TestPausedOwnerPairingUsesDurableOAuthCheckpointWithoutUnlockClaim(
 	}
 }
 
+func TestPausedOwnerPairingHonorsStorageRecoveryProgression(
+	t *testing.T,
+) {
+	for _, test := range []struct {
+		name            string
+		state           cloudLifecycleState
+		storageVerified bool
+		wantUnlock      bool
+	}{
+		{
+			name:       "unverified ready",
+			state:      cloudStateReady,
+			wantUnlock: true,
+		},
+		{
+			name:            "verified nonready",
+			state:           cloudStateAuthorizing,
+			storageVerified: true,
+			wantUnlock:      false,
+		},
+		{
+			name:            "verified ready health recheck",
+			state:           cloudStateReady,
+			storageVerified: true,
+			wantUnlock:      true,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			resetServerProfileSelection(t)
+			_, restore := setCloudFeatureTestIdentity(
+				t,
+				cloudRemoteBuildIdentity{
+					Development: true,
+					AppSlug:     "local_ha_nova_cloud_beta",
+				},
+			)
+			defer restore()
+			cfg := hybridCheckpointUXConfig(
+				test.state,
+				test.state == cloudStateReady,
+			)
+			if test.state == cloudStateReady {
+				cfg.Cloud.Pending = nil
+			}
+			cfg.Cloud.RecoveryHold = &cloudRecoveryHold{
+				Code:            cloudProblemSecureStorage,
+				Remediation:     cloudRemediationVerifyState,
+				StorageVerified: test.storageVerified,
+			}
+			paths, _ := saveHybridCheckpointUXProfile(
+				t,
+				defaultServerProfileName,
+				cfg,
+			)
+			var output strings.Builder
+			if !handlePausedCloudOwnerPairing(
+				&output,
+				paths,
+				errSetupExit,
+			) {
+				t.Fatal("storage hold pause was not handled")
+			}
+			hasUnlock := strings.Contains(
+				output.String(),
+				"ha-nova cloud unlock --server default",
+			)
+			if hasUnlock != test.wantUnlock ||
+				!strings.Contains(
+					output.String(),
+					"ha-nova cloud remove --server default",
+				) {
+				t.Fatalf(
+					"pause unlock=%v guidance=%s",
+					hasUnlock,
+					output.String(),
+				)
+			}
+		})
+	}
+}
+
 func TestDurableCloudRecoveryNeverClaimsAttemptedInMemoryState(t *testing.T) {
 	resetServerProfileSelection(t)
 	paths := setupServerCommandTest(t, `{"schema_version":1}`)
