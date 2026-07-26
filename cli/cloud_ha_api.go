@@ -186,10 +186,17 @@ func (info HAAddonInfo) MachineIngressRoot() (string, error) {
 			err,
 		)
 	}
+	expectedIngressURL := info.IngressEntry + haNOVAIngressUIEntry
+	// Supervisor currently preserves the leading slash from ingress_entry
+	// when it appends the App UI entry, producing "//home". Accept only these
+	// two exact representations; broader path normalization would weaken the
+	// App identity check.
+	supervisorIngressURL := info.IngressEntry + "/" + haNOVAIngressUIEntry
 	if info.Slug != appSlug || info.State != "started" ||
 		!info.Ingress || !validIdentifier(info.Version, 128) ||
 		!supervisorIngressEntryPattern.MatchString(info.IngressEntry) ||
-		info.IngressURL != info.IngressEntry+haNOVAIngressUIEntry {
+		(info.IngressURL != expectedIngressURL &&
+			info.IngressURL != supervisorIngressURL) {
 		return "", newCloudError(CloudErrAppNotReady, "validate HA NOVA App ingress", nil)
 	}
 	return info.IngressEntry, nil

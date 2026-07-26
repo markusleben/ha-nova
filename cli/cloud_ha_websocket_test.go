@@ -153,6 +153,63 @@ func TestHAWebSocketClientAuthenticatesAndCallsAllowlistedAPIs(t *testing.T) {
 	}
 }
 
+func TestMachineIngressRootAcceptsExactSupervisorUIURLForms(t *testing.T) {
+	appSlug, err := selectedCloudNOVAAppSlug()
+	if err != nil {
+		t.Fatal(err)
+	}
+	const ingressRoot = "/api/hassio_ingress/abcdefghijklmnopqrstuvwxyzABCDEFGH123456789"
+	for _, ingressURL := range []string{
+		ingressRoot + "/home",
+		ingressRoot + "//home",
+	} {
+		t.Run(ingressURL, func(t *testing.T) {
+			info := HAAddonInfo{
+				Slug:         appSlug,
+				State:        "started",
+				Version:      "1.2.3",
+				Ingress:      true,
+				IngressEntry: ingressRoot,
+				IngressURL:   ingressURL,
+			}
+			root, err := info.MachineIngressRoot()
+			if err != nil || root != ingressRoot {
+				t.Fatalf("MachineIngressRoot() = %q, %v", root, err)
+			}
+		})
+	}
+}
+
+func TestMachineIngressRootRejectsNormalizedLookalikes(t *testing.T) {
+	appSlug, err := selectedCloudNOVAAppSlug()
+	if err != nil {
+		t.Fatal(err)
+	}
+	const ingressRoot = "/api/hassio_ingress/abcdefghijklmnopqrstuvwxyzABCDEFGH123456789"
+	for _, ingressURL := range []string{
+		ingressRoot + "/./home",
+		ingressRoot + "/other/../home",
+		ingressRoot + "///home",
+	} {
+		t.Run(ingressURL, func(t *testing.T) {
+			info := HAAddonInfo{
+				Slug:         appSlug,
+				State:        "started",
+				Version:      "1.2.3",
+				Ingress:      true,
+				IngressEntry: ingressRoot,
+				IngressURL:   ingressURL,
+			}
+			if _, err := info.MachineIngressRoot(); !IsCloudErrorCode(
+				err,
+				CloudErrAppNotReady,
+			) {
+				t.Fatalf("MachineIngressRoot() error = %v", err)
+			}
+		})
+	}
+}
+
 func TestCloudStatusClassifiesInactiveSubscriptionSeparately(t *testing.T) {
 	origin, err := cloudOriginFromCanonical("https://unit.ui.nabu.casa")
 	if err != nil {

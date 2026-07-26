@@ -109,6 +109,12 @@ Every machine route requires:
   `home_assistant_user_id` equals that header and whose
   `relay_instance_id` equals the current Relay instance.
 
+Before creating a machine session, the CLI verifies the exact selected App
+slug, started state, version, Ingress root, and `/home` UI entry. Supervisor
+may report that UI entry as either `<root>/home` or `<root>//home` when the App
+configuration contains the leading slash. Only those two exact forms are
+accepted; generic path normalization is forbidden.
+
 `/cloud/v1/device/bind` converts an existing active local credential to the
 same user-bound record only after the instance ID matches. Pairing v2 performs
 the existing OPAQUE exchange entirely through Ingress and creates a pending
