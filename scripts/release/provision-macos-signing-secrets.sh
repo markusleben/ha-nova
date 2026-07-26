@@ -34,6 +34,12 @@ for command in base64 gh openssl tr; do
   command -v "${command}" >/dev/null 2>&1 \
     || fail "required command is unavailable: ${command}"
 done
+openssl_version="$(openssl version 2>/dev/null)" \
+  || fail "could not resolve the OpenSSL version"
+openssl_pkcs12_args=()
+if [[ "${openssl_version}" == "OpenSSL 3."* ]]; then
+  openssl_pkcs12_args=(-legacy)
+fi
 
 gh auth status --hostname github.com >/dev/null \
   || fail "GitHub CLI authentication is unavailable"
@@ -56,6 +62,7 @@ printf '\n' >&2
   || fail "certificate password must not be empty"
 
 if ! openssl pkcs12 \
+    "${openssl_pkcs12_args[@]}" \
     -in "${certificate_path}" \
     -passin fd:3 \
     -nocerts \
@@ -68,6 +75,7 @@ fi
 
 certificate_subject="$(
   openssl pkcs12 \
+      "${openssl_pkcs12_args[@]}" \
       -in "${certificate_path}" \
       -passin fd:3 \
       -clcerts \

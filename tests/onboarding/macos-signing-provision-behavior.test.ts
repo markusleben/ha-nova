@@ -22,6 +22,7 @@ function executable(path: string, body: string): void {
 function runProvision(options: {
   activeUser?: string;
   identity?: string;
+  opensslVersion?: string;
   password?: string;
 }) {
   const root = mkdtempSync(join(tmpdir(), "ha-nova-macos-provision-"));
@@ -29,6 +30,7 @@ function runProvision(options: {
   const bin = join(root, "bin");
   const p12 = join(root, "developer-id.p12");
   const trace = join(root, "gh.trace");
+  const opensslTrace = join(root, "openssl.trace");
 
   executable(
     join(root, "make-bin"),
@@ -73,7 +75,11 @@ esac
     `#!/usr/bin/env bash
 set -euo pipefail
 case "\${1:-}" in
+  version)
+    printf '%s\\n' "\${FAKE_OPENSSL_VERSION}"
+    ;;
   pkcs12)
+    printf '%s\\n' "$*" >>"\${FAKE_OPENSSL_TRACE}"
     IFS= read -r supplied_password <&3
     [[ "\${supplied_password}" == "correct-password" ]] || exit 2
     if [[ "$*" == *"-nocerts"* ]]; then
@@ -105,12 +111,19 @@ esac
         "Developer ID Application: Markus Leben (CTF9J94274)",
       FAKE_GH_TRACE: trace,
       FAKE_GITHUB_USER: options.activeUser ?? "markusleben",
+      FAKE_OPENSSL_TRACE: opensslTrace,
+      FAKE_OPENSSL_VERSION:
+        options.opensslVersion ?? "OpenSSL 3.4.1 11 Feb 2025",
       PATH: `${bin}${delimiter}${process.env.PATH ?? ""}`,
     },
     input: `${options.password ?? "correct-password"}\n`,
   });
   return {
     ...result,
+    opensslTrace: readFileSync(opensslTrace, {
+      encoding: "utf8",
+      flag: "a+",
+    }),
     trace: readFileSync(trace, { encoding: "utf8", flag: "a+" }),
   };
 }
@@ -139,6 +152,19 @@ describe("macOS signing secret provisioning", () => {
       "HA_NOVA_MACOS_CERTIFICATE_P12_BASE64",
       "HA_NOVA_MACOS_CERTIFICATE_PASSWORD",
     ]);
+  });
+
+  it.each([
+    ["OpenSSL 3", "OpenSSL 3.4.1 11 Feb 2025", true],
+    ["LibreSSL", "LibreSSL 3.3.6", false],
+  ])("uses the compatible Apple PKCS#12 mode with %s", (_name, version, legacy) => {
+    const result = runProvision({ opensslVersion: version });
+    expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
+    const calls = result.opensslTrace.trim().split("\n");
+    expect(calls).toHaveLength(2);
+    for (const call of calls) {
+      expect(call.includes("-legacy")).toBe(legacy);
+    }
   });
 
   it("fails before prompting or uploading under the wrong GitHub account", () => {
