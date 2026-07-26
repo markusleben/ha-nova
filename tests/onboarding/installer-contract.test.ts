@@ -71,29 +71,6 @@ describe("install.sh contract", () => {
     expect(content).not.toContain("raw.githubusercontent.com/markusleben/ha-nova/main/version.json");
   });
 
-  it.each(["0.21.3-rc0", "0.21.3-rc01", "00.21.3", "0.021.3", "0.21.03"])(
-    "rejects non-canonical release selector %s",
-    async (version) => {
-      if (!hasBash()) {
-        return;
-      }
-      await expect(
-        runInstallerFunctions(`normalize_version_tag '${version}'`),
-      ).rejects.toThrow();
-    },
-  );
-
-  it("normalizes canonical stable and RC selectors", async () => {
-    if (!hasBash()) {
-      return;
-    }
-    await expect(
-      runInstallerFunctions(
-        "normalize_version_tag v0.21.3; normalize_version_tag 0.21.3-rc2",
-      ),
-    ).resolves.toContain("v0.21.3\nv0.21.3-rc2");
-  });
-
   it("supports maintainer-only bundle URL overrides for private RC tests", () => {
     expect(content).toContain("HA_NOVA_BUNDLE_URL");
     expect(content).toContain("HA_NOVA_BUNDLE_SHA256_URL");

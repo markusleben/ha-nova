@@ -54,32 +54,6 @@ $env:PROCESSOR_ARCHITECTURE = "AMD64"
 `;
 
 describe("Windows installer preflight behavior", () => {
-  it.each(["0.21.3-rc0", "0.21.3-rc01", "00.21.3", "0.021.3", "0.21.03"])(
-    "rejects non-canonical release selector %s",
-    (version) => {
-      if (!hasPowerShell()) return;
-      const result = runPreflightProbe(
-        `Normalize-ReleaseVersion -Version '${version}' | Out-Null`,
-      );
-      expect(result.status).not.toBe(0);
-      expect(result.output).toContain(
-        "HA NOVA release version must be canonical",
-      );
-    },
-  );
-
-  it("normalizes canonical stable and RC release selectors", () => {
-    if (!hasPowerShell()) return;
-    const result = runPreflightProbe(`
-$stable = Normalize-ReleaseVersion -Version "v0.21.3"
-$rc = Normalize-ReleaseVersion -Version "0.21.3-rc2"
-if ($stable -ne "0.21.3" -or $rc -ne "0.21.3-rc2") {
-  throw "canonical release normalization failed"
-}
-`);
-    expect(result.status, result.output).toBe(0);
-  });
-
   it("prints the exact pairing-aware continuation in a non-interactive session", () => {
     if (!hasPowerShell()) return;
     const result = runPreflightProbe(`

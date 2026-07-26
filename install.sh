@@ -266,11 +266,15 @@ EOF
 
 normalize_version_tag() {
   local version="$1"
-  if ! [[ "${version}" =~ ^(v)?(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-rc[1-9][0-9]*)?$ ]]; then
-    fail "HA NOVA release version must be canonical X.Y.Z or X.Y.Z-rcN, optionally prefixed with v."
+  if [[ -z "${version}" ]]; then
+    fail "Could not determine a HA NOVA release version."
   fi
 
-  printf 'v%s\n' "${version#v}"
+  if [[ "${version}" == v* ]]; then
+    printf '%s\n' "${version}"
+  else
+    printf 'v%s\n' "${version}"
+  fi
 }
 
 expected_version_tag() {

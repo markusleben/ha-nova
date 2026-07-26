@@ -304,27 +304,9 @@ function Get-PlatformArch {
   Fail "Unsupported Windows architecture '$arch'. Use 64-bit PowerShell on Windows amd64, or x64 emulation on Windows ARM64."
 }
 
-function Normalize-ReleaseVersion {
-  param(
-    [string]$Version
-  )
-
-  if (
-    [string]::IsNullOrWhiteSpace($Version) -or
-    $Version -cnotmatch '^(v)?(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-rc[1-9][0-9]*)?$'
-  ) {
-    Fail "HA NOVA release version must be canonical X.Y.Z or X.Y.Z-rcN, optionally prefixed with v."
-  }
-
-  if ($Version.StartsWith("v", [System.StringComparison]::Ordinal)) {
-    return $Version.Substring(1)
-  }
-  return $Version
-}
-
 function Get-ExpectedInstallVersion {
   if ($env:HA_NOVA_VERSION) {
-    return Normalize-ReleaseVersion -Version $env:HA_NOVA_VERSION
+    return $env:HA_NOVA_VERSION.TrimStart("v")
   }
 
   return $null
@@ -336,7 +318,7 @@ function Get-LatestInstallVersion {
     Fail "Could not determine the latest HA NOVA release."
   }
 
-  return Normalize-ReleaseVersion -Version ([string]$release.tag_name)
+  return ([string]$release.tag_name).TrimStart("v")
 }
 
 function Get-DownloadInstallVersion {
@@ -859,7 +841,7 @@ function Install-Bundle {
     if (-not $bundleInfo.version) {
       Fail "Downloaded bundle is missing version metadata."
     }
-    $bundleVersion = Normalize-ReleaseVersion -Version ([string]$bundleInfo.version)
+    $bundleVersion = ([string]$bundleInfo.version).TrimStart("v")
     if ($Version -and $bundleVersion -ne $Version) {
       Fail "Downloaded bundle version v$bundleVersion does not match requested version v$Version."
     }

@@ -13,7 +13,6 @@ if [[ "${1:-}" == "--relay" ]]; then
   shift
 fi
 NEW_VERSION="${1:-}"
-CANONICAL_VERSION_PATTERN='(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)'
 
 if [[ -z "$NEW_VERSION" ]]; then
   echo "Usage: $0 [--relay] <new-version>"
@@ -27,19 +26,19 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 1
 fi
 
-if ! [[ "$NEW_VERSION" =~ ^${CANONICAL_VERSION_PATTERN}$ ]]; then
+if ! [[ "$NEW_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
   echo "Error: version must be semver (MAJOR.MINOR.PATCH), got: $NEW_VERSION"
   exit 1
 fi
 
 if [[ "$MODE" == "relay" ]]; then
   CONFIG_YAML="$REPO_ROOT/nova/config.yaml"
-  if ! grep -qE "^version: \"${CANONICAL_VERSION_PATTERN}\"$" "$CONFIG_YAML"; then
+  if ! grep -qE '^version: "[0-9]+\.[0-9]+\.[0-9]+"$' "$CONFIG_YAML"; then
     echo "Error: could not find a 'version: \"X.Y.Z\"' line in nova/config.yaml"
     exit 1
   fi
   tmp=$(mktemp)
-  sed -E "s|^version: \"${CANONICAL_VERSION_PATTERN}\"$|version: \"$NEW_VERSION\"|" "$CONFIG_YAML" > "$tmp" && mv "$tmp" "$CONFIG_YAML"
+  sed -E "s|^version: \"[0-9]+\.[0-9]+\.[0-9]+\"$|version: \"$NEW_VERSION\"|" "$CONFIG_YAML" > "$tmp" && mv "$tmp" "$CONFIG_YAML"
   echo ""
   echo "Bumped Relay version to $NEW_VERSION in nova/config.yaml"
   echo ""
