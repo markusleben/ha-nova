@@ -653,18 +653,38 @@ func runHealth(paths runtimePaths, args []string) int {
 	if healthOpts.ViaSet {
 		via, _ = parseRelayVia(healthOpts.Via)
 	}
-	transport, err := selectRelayTransport(healthCtx, cfg, via, healthOpts.ViaSet)
+	connectTimeout := time.Duration(
+		healthOpts.ConnectTimeoutSeconds * float64(time.Second),
+	)
+	remaining := time.Until(healthDeadline)
+	if connectTimeout > remaining {
+		connectTimeout = remaining
+	}
+	// Transport selection may itself establish network connections: Cloud
+	// refresh, Home Assistant WebSocket, Ingress discovery, or the automatic
+	// local preflight. Apply the explicit connection budget before selection so
+	// --connect-timeout governs those connections as well as the Relay request.
+	transportCtx, cancelTransport := context.WithTimeout(
+		healthCtx,
+		connectTimeout,
+	)
+	transport, err := selectRelayTransport(
+		transportCtx,
+		cfg,
+		via,
+		healthOpts.ViaSet,
+	)
+	cancelTransport()
 	if err != nil {
 		printErr("%s", relayTransportErrorMessage(err))
 		return 1
 	}
 	baseURL, transportClient, token, deviceMode := transport.BaseURL, transport.Client, transport.Credential, transport.DeviceMode
-	remaining := time.Until(healthDeadline)
+	remaining = time.Until(healthDeadline)
 	if remaining <= 0 {
 		printErr("relay health check exceeded its %.3gs total time budget before the Relay request", healthOpts.MaxTimeSeconds)
 		return 1
 	}
-	connectTimeout := time.Duration(healthOpts.ConnectTimeoutSeconds * float64(time.Second))
 	if connectTimeout > remaining {
 		connectTimeout = remaining
 	}

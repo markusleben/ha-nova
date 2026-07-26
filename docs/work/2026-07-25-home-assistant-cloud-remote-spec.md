@@ -352,6 +352,10 @@ error before the functional request is created or written.
   stable `OUTCOME_UNKNOWN` classification.
 - No mutating or read request is replayed through the other transport.
 - `ha-nova relay --via local|cloud` overrides selection for diagnosis.
+- `relay health --connect-timeout` bounds every network connection needed to
+  select local, Cloud, or automatic transport, including OAuth refresh,
+  WebSocket/Ingress discovery, and the automatic local preflight. The separate
+  `--max-time` budget continues to bound the complete health command.
 - `ha-nova server route automatic|local|cloud` persists the policy.
 
 Once a durable device- or authorization-revocation checkpoint exists, the
