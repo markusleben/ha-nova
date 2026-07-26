@@ -41,6 +41,8 @@ function sensitiveJobIDs(workflowPath, jobs) {
       return new Set(["ci-gate"]);
     case "cloud-source-gate.yml":
       return new Set(["cloud-source-mode", "cloud-source-gate"]);
+    case "e2e-disposable-ha.yml":
+      return new Set(["disposable-ha"]);
     case "release.yml":
     case "release-candidate.yml":
       return new Set(jobs.map((job) => job.id));

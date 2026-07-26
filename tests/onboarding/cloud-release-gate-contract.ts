@@ -19,6 +19,10 @@ export function registerCloudReleaseGateContractTests(): void {
   const rcWorkflow = readFileSync(".github/workflows/release-candidate.yml", "utf8");
   const ciWorkflow = readFileSync(".github/workflows/ci.yml", "utf8");
   const sourceGateWorkflow = readFileSync(".github/workflows/cloud-source-gate.yml", "utf8");
+  const disposableHAWorkflow = readFileSync(
+    ".github/workflows/e2e-disposable-ha.yml",
+    "utf8",
+  );
   const darwinBuilder = readFileSync(
     "scripts/release/build-sign-darwin-binaries.sh",
     "utf8",
@@ -136,6 +140,22 @@ export function registerCloudReleaseGateContractTests(): void {
     expect(cloudWorkflowGateVerifier).toContain(
       "must use an immutable full commit SHA with an exact vX.Y.Z comment",
     );
+    expect(cloudWorkflowGateVerifier).toContain("e2e-disposable-ha.yml");
+    expect(disposableHAWorkflow).toContain(
+      "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1",
+    );
+    expect(disposableHAWorkflow).toContain(
+      "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0",
+    );
+    expect(disposableHAWorkflow).not.toMatch(
+      /uses:\s+actions\/(?:checkout|setup-python)@v\d/,
+    );
+    expect(disposableHAWorkflow).toContain(
+      "websockets==16.1.1 --hash=sha256:0f62863e8a00a6d33c3d6566ec0b89f23787b747ffe0c3bc71ec0e76b82c94b1",
+    );
+    expect(disposableHAWorkflow).toContain("--only-binary=:all:");
+    expect(disposableHAWorkflow).toContain("--require-hashes");
+    expect(disposableHAWorkflow).toContain("--requirement /dev/stdin");
     expect(cloudWorkflowGateVerifier).toContain("must depend on Cloud gate job");
     expect(cloudWorkflowGateVerifier).toContain("must not build, upload, or publish artifacts");
     expect(cloudWorkflowGateVerifier).toContain("continue-on-error");

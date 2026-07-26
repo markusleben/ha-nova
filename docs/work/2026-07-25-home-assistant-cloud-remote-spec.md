@@ -585,6 +585,27 @@ the full local desktop, non-root, non-SSH, non-WSL guard passes. Operational
 credential reads, writes, deletes, health checks, and cleanup remain no-prompt
 and use `ForbidUI`.
 
+## Release-prep README copy
+
+The release-prep PR inserts this compact explanation after the Get Started
+wizard description. It does not land in `README.md` before the version bump:
+
+> ### Optional remote access with Home Assistant Cloud (Beta)
+>
+> The wizard keeps **Local only** as the recommended default. If you have a
+> paid Home Assistant Cloud subscription from Nabu Casa with Remote UI enabled,
+> choose **Local + Home Assistant Cloud** for automatic remote fallback or
+> **Home Assistant Cloud only** for remote-first setup. The wizard validates
+> your Cloud URL, opens Home Assistant OAuth, and stores the authorization in
+> the native macOS, Windows, or Linux desktop credential store. HA NOVA runs no
+> additional public tunnel or hosted broker.
+>
+> Cloud Remote requires Home Assistant OS/Supervised and a supported desktop
+> session. Headless, SSH, WSL, service, gateway, Container, and Core setups stay
+> local-only. Remote-first pairing uses a separate private Owner session to
+> create the one-time NOVA device code; the OAuth user can remain a standard
+> Home Assistant user.
+
 ## Supported beta contexts
 
 - macOS desktop terminal

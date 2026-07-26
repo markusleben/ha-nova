@@ -18,14 +18,21 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
 
       - name: Install the websocket client used to mint the token
-        run: pip install --quiet websockets
+        run: |
+          printf '%s\n' \
+            'websockets==16.1.1 --hash=sha256:0f62863e8a00a6d33c3d6566ec0b89f23787b747ffe0c3bc71ec0e76b82c94b1' \
+            | python -m pip install \
+                --quiet \
+                --only-binary=:all: \
+                --require-hashes \
+                --requirement /dev/stdin
 
       - name: Run the live end-to-end verification
         run: bash scripts/e2e/disposable-ha/run.sh

@@ -354,6 +354,19 @@ GoReleaser builds only Linux and Windows, so it cannot replace the signed
 Darwin artifacts. macOS bundle smoke verifies the signature again and compares
 the bundled executable byte-for-byte with its raw release asset.
 
+Provision both protected secrets from the existing encrypted Developer ID
+`.p12` without importing or exporting anything through the login Keychain:
+
+```bash
+bash scripts/release/provision-macos-signing-secrets.sh /absolute/path/developer-id.p12
+```
+
+The command verifies the active GitHub account, protected environment, private
+key, fixed Developer ID identity, and Team ID before upload. It requests the
+`.p12` password once through concealed standard input, never writes a decoded
+key or password file, and sends both values directly to GitHub's encrypted
+environment-secret API. Never run it with shell tracing enabled.
+
 At runtime, release Cloud support also requires an exact installed bundle. The
 linker and `bundle.json` versions must match exactly as `X.Y.Z` or
 `X.Y.Z-rcN`; `version.json.skill_version` must match their `X.Y.Z` base.

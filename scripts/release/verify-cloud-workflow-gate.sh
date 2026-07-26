@@ -8,7 +8,8 @@ if [[ "$#" -eq 0 ]]; then
     "${ROOT_DIR}/.github/workflows/release.yml" \
     "${ROOT_DIR}/.github/workflows/release-candidate.yml" \
     "${ROOT_DIR}/.github/workflows/cloud-source-gate.yml" \
-    "${ROOT_DIR}/.github/workflows/ci.yml"
+    "${ROOT_DIR}/.github/workflows/ci.yml" \
+    "${ROOT_DIR}/.github/workflows/e2e-disposable-ha.yml"
 fi
 
 node "${ROOT_DIR}/scripts/release/verify-cloud-action-pins.mjs" "$@"
