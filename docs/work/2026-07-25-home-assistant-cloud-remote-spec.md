@@ -140,6 +140,13 @@ The local callback listener:
 The callback does not use PKCE unless Home Assistant documents and supports it
 for this client type.
 
+Immediately before the browser opens, the CLI persists the non-secret pending
+OAuth metadata, snapshots the full config generation, and releases the global
+client-mutation lock. After the callback it reacquires the lock and requires an
+exact config match before exchanging the authorization code. Any intervening
+profile, sibling, or default-selection change discards the unexchanged code and
+stops the flow.
+
 After token exchange the CLI verifies:
 
 - `auth/current_user` returns the intended Home Assistant user;
@@ -260,6 +267,10 @@ any usable current generation, and suppresses mutating recovery guidance. A
 verified interactive secure-storage check clears its verification hold only
 after successful health; a later security stop atomically replaces it. Other
 holds require verified `cloud remove`; strict loading rejects invalid fields.
+Every raw recovery, device-revocation, and authorization-revocation checkpoint
+is a conditional full-file-generation replacement. It aborts rather than
+overwriting a concurrently changed selected profile, sibling profile, or
+`default_server`.
 
 ## Routing
 
@@ -276,6 +287,11 @@ error before the functional request is created or written.
 - No mutating or read request is replayed through the other transport.
 - `ha-nova relay --via local|cloud` overrides selection for diagnosis.
 - `ha-nova server route automatic|local|cloud` persists the policy.
+
+Once a durable device- or authorization-revocation checkpoint exists, the
+profile is cleanup-only. Cloud-only readiness, explicit Cloud routing,
+automatic fallback, the direct Cloud resolver, and runtime OAuth/device access
+all stop before any functional network or secure-storage call.
 
 The Cloud Ingress session is process-local, reusable only inside one CLI
 process, bounded by expiry, and never written to disk. If Home Assistant cannot
@@ -338,7 +354,17 @@ A malformed install-wide `client_install_id` never authorizes setup or device
 use. Status still reports the selected Cloud lifecycle with the stable
 `cloud_config_invalid` security-stop result and exact cleanup command. Verified
 Cloud removal may preserve that exact malformed non-secret value while
-revoking access; it cannot replace or delete the immutable value.
+revoking access; it cannot replace or delete the immutable value. After every
+profile is proven free of Cloud lifecycle metadata, `cloud status` directs the
+user to `ha-nova setup`. That explicit command may replace only the malformed
+non-secret identity under the global mutation lock, an exact setup/config
+snapshot, supported-schema validation, and unique profile-ID validation. It
+preserves every profile and unknown field; normal loading then resumes.
+
+`ha-nova server rename` rejects any profile with a non-null Cloud lifecycle and
+directs the user through verified Cloud removal first. This prevents a rename
+from stranding a device bearer in the old profile-name namespace. Local-profile
+renames also refuse an already occupied raw destination credential file.
 
 The interactive wizard offers:
 
@@ -387,6 +413,9 @@ rate-limit, protocol, and ambiguous failures never retry automatically. Human
 input has no shared outer deadline. While the wizard waits for the Owner, it
 releases the global client-mutation lock, then reacquires it and proves that
 config.json is unchanged before consuming the code.
+The same pause/reacquire rule applies to the longer OAuth browser wait, with
+the additional guarantee that a returned code is never exchanged after config
+drift.
 
 An interactive macOS or Linux setup may request native keyring UI only after
 the full local desktop, non-root, non-SSH, non-WSL guard passes. Operational

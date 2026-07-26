@@ -71,6 +71,7 @@ type configDocument struct {
 	servers map[string]json.RawMessage // nil while the config is still flat (v1)
 	meta    configDocumentMeta
 	flat    serverProfileConfig // top-level flat fields (v1 shape / legacy mirror)
+	source  []byte              // exact full-file generation read from disk
 }
 
 func loadConfigDocument(path string) (*configDocument, error) {
@@ -82,7 +83,9 @@ func loadConfigDocument(path string) (*configDocument, error) {
 }
 
 func parseConfigDocument(data []byte) (*configDocument, error) {
-	doc := &configDocument{}
+	doc := &configDocument{
+		source: append([]byte(nil), data...),
+	}
 	if err := json.Unmarshal(data, &doc.top); err != nil {
 		return nil, err
 	}

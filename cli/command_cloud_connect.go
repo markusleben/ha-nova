@@ -294,6 +294,7 @@ func connectCloudCommandLocked(
 			pairingCode,
 			reconnect,
 			save,
+			mutation,
 		)
 		return updated, err
 	}
@@ -304,6 +305,7 @@ func connectCloudCommandLocked(
 		cloudCoordinatorForSetup,
 		reconnect,
 		save,
+		mutation,
 	)
 	return updated, err
 }

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 )
 
@@ -163,6 +164,14 @@ func authorizeOrRefreshCloud(
 	if err := verifyCloudOriginForOAuth(ctx, origin); err != nil {
 		return "", OAuthSecretEnvelope{}, err
 	}
+	if request.PauseOAuthAuthorization == nil ||
+		request.ResumeOAuthAuthorization == nil {
+		return "", OAuthSecretEnvelope{}, newCloudError(
+			CloudErrInvalidInput,
+			"prepare OAuth mutation-lock handoff",
+			nil,
+		)
+	}
 
 	generation := ""
 	if request.Config.Cloud != nil &&
@@ -179,6 +188,7 @@ func authorizeOrRefreshCloud(
 	}
 	flow := cloudOAuthFlowForSetup()
 	previousHook := flow.BeforeBrowser
+	mutationPaused := false
 	flow.BeforeBrowser = func(
 		hookCtx context.Context,
 		preparation OAuthLoopbackPreparation,
@@ -193,17 +203,40 @@ func authorizeOrRefreshCloud(
 			return err
 		}
 		if previousHook != nil {
-			return previousHook(hookCtx, preparation)
+			if err := previousHook(hookCtx, preparation); err != nil {
+				return err
+			}
 		}
+		if err := request.PauseOAuthAuthorization(); err != nil {
+			return err
+		}
+		mutationPaused = true
 		return nil
 	}
-	authorization, err := flow.Authorize(
+	authorization, authorizationErr := flow.Authorize(
 		ctx,
 		origin.CanonicalOrigin,
 		openCloudOAuthBrowserForSetup,
 	)
-	if err != nil {
-		return "", OAuthSecretEnvelope{}, err
+	var resumeErr error
+	if mutationPaused {
+		resumeErr = request.ResumeOAuthAuthorization()
+	}
+	if resumeErr != nil {
+		stateErr := fmt.Errorf(
+			"server configuration changed while waiting for Home Assistant authorization; the authorization code was not exchanged: %w",
+			resumeErr,
+		)
+		if authorizationErr != nil {
+			return "", OAuthSecretEnvelope{}, errors.Join(
+				authorizationErr,
+				stateErr,
+			)
+		}
+		return "", OAuthSecretEnvelope{}, stateErr
+	}
+	if authorizationErr != nil {
+		return "", OAuthSecretEnvelope{}, authorizationErr
 	}
 	oauth, err := NewHAOAuthClient(
 		origin.CanonicalOrigin,
@@ -212,7 +245,11 @@ func authorizeOrRefreshCloud(
 	if err != nil {
 		return "", OAuthSecretEnvelope{}, err
 	}
-	token, err := oauth.ExchangeAuthorizationCode(ctx, authorization)
+	token, err := exchangeCloudAuthorizationCodeForSetup(
+		ctx,
+		oauth,
+		authorization,
+	)
 	if err != nil {
 		return "", OAuthSecretEnvelope{}, err
 	}

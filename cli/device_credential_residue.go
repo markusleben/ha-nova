@@ -223,12 +223,67 @@ func stageServerCredentialSlotMove(oldName, newName string) (rollback func(), co
 	}
 	var written, obsolete []string
 	var movedFiles [][2]string
+	markerlessSourceExists := false
+	if !deviceFileBackendMarkerExists() {
+		for _, pair := range slots {
+			oldPath, pathErr := deviceSecretFilePath(pair[0])
+			if pathErr != nil {
+				continue
+			}
+			if info, statErr := os.Lstat(oldPath); statErr == nil &&
+				info.Mode().IsRegular() {
+				markerlessSourceExists = true
+				break
+			}
+		}
+	}
 	rollback = func() {
 		for _, service := range written {
 			_ = secretDelete(service)
 		}
 		for _, pair := range movedFiles {
 			_ = os.Rename(pair[1], pair[0])
+		}
+	}
+	for _, pair := range slots {
+		value, exists, readErr := readCredentialSlot(pair[1])
+		if readErr != nil {
+			unreachable := errors.Is(
+				readErr,
+				errDesktopKeyringSessionUnavailable,
+			) || errors.Is(readErr, errDesktopKeyringUnavailable)
+			if unreachable && markerlessSourceExists {
+				continue
+			}
+			return nil, nil, fmt.Errorf(
+				"cannot prove destination credential slot %s is empty: %w",
+				pair[1],
+				readErr,
+			)
+		}
+		if exists || value != "" {
+			return nil, nil, fmt.Errorf(
+				"destination credential slot %s is already occupied; remove the orphaned credential before renaming",
+				pair[1],
+			)
+		}
+		if !deviceFileBackendMarkerExists() {
+			newPath, pathErr := deviceSecretFilePath(pair[1])
+			if pathErr != nil {
+				return nil, nil, pathErr
+			}
+			if _, statErr := os.Lstat(newPath); statErr == nil {
+				return nil, nil, fmt.Errorf(
+					"destination credential file %s is already occupied; remove the orphaned credential before renaming",
+					newPath,
+				)
+			} else if !os.IsNotExist(statErr) {
+				return nil, nil, fmt.Errorf(
+					"cannot inspect destination credential file %s: %w",
+					newPath,
+					statErr,
+				)
+			}
 		}
 	}
 	// Raw files FIRST: they need no keyring, so a markerless pending file is
@@ -256,15 +311,16 @@ func stageServerCredentialSlotMove(oldName, newName string) (rollback func(), co
 	for _, pair := range slots {
 		value, ok, readErr := readCredentialSlot(pair[0])
 		if readErr != nil {
-			// Keyring REACHABILITY errors on a headless machine are tolerated as
-			// soon as any markerless raw file moved (the interrupted file-pairing
-			// case this exists for): the routed layer cannot be moved from here
-			// for ANY slot, and a keyring credential from an earlier DESKTOP
-			// pairing needs the desktop session — the warning says so. Every
-			// other error (e.g. a malformed stored credential) stays fatal.
-			unreachable := errors.Is(readErr, errDesktopKeyringSessionUnavailable) || errors.Is(readErr, errDesktopKeyringUnavailable)
+			unreachable := errors.Is(
+				readErr,
+				errDesktopKeyringSessionUnavailable,
+			) || errors.Is(readErr, errDesktopKeyringUnavailable)
 			if unreachable && len(movedFiles) > 0 {
-				printHumanWarn("secure storage is not reachable here (%v); any keyring credential stored under the old name %q by an earlier desktop pairing was not moved — re-run the rename from the desktop session if one exists.", readErr, pair[0])
+				printHumanWarn(
+					"secure storage is not reachable here (%v); any keyring credential stored under the old name %q by an earlier desktop pairing was not moved — re-run the rename from the desktop session if one exists.",
+					readErr,
+					pair[0],
+				)
 				continue
 			}
 			rollback()

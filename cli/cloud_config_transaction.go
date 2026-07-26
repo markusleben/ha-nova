@@ -9,6 +9,7 @@ import (
 func newCloudSetupRequest(
 	cfg *runtimeConfig,
 	save cloudConfigSaver,
+	mutations ...*pausableClientMutationLock,
 ) cloudSetupRequest {
 	guardDeviceRevocation := func() error {
 		if cfg == nil {
@@ -16,7 +17,7 @@ func newCloudSetupRequest(
 		}
 		return rejectCloudSetupDuringDeviceRevocation(*cfg)
 	}
-	return cloudSetupRequest{
+	request := cloudSetupRequest{
 		ProfileName: activeServerProfile(),
 		Config:      *cfg,
 		PersistPendingMetadata: func(metadata cloudConnectionMetadata) error {
@@ -216,6 +217,13 @@ func newCloudSetupRequest(
 			return save(*cfg)
 		},
 	}
+	if len(mutations) > 0 && mutations[0] != nil {
+		request.PauseOAuthAuthorization =
+			mutations[0].oauthAuthorizationPause
+		request.ResumeOAuthAuthorization =
+			mutations[0].oauthAuthorizationResume
+	}
+	return request
 }
 
 func commitCloudConnection(

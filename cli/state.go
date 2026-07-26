@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -132,6 +133,37 @@ func writeJSONFileNoHTMLEscape(path string, value interface{}, mode os.FileMode)
 }
 
 func writeJSONFileOpts(path string, value interface{}, mode os.FileMode, escapeHTML bool) error {
+	return writeJSONFileOptsIfUnchanged(
+		path,
+		value,
+		mode,
+		escapeHTML,
+		nil,
+	)
+}
+
+func writeJSONFileIfUnchanged(
+	path string,
+	value interface{},
+	mode os.FileMode,
+	expected []byte,
+) error {
+	return writeJSONFileOptsIfUnchanged(
+		path,
+		value,
+		mode,
+		true,
+		expected,
+	)
+}
+
+func writeJSONFileOptsIfUnchanged(
+	path string,
+	value interface{},
+	mode os.FileMode,
+	escapeHTML bool,
+	expected []byte,
+) error {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
@@ -156,6 +188,20 @@ func writeJSONFileOpts(path string, value interface{}, mode os.FileMode, escapeH
 	}
 	if err := os.Chmod(tmpPath, mode); err != nil {
 		return err
+	}
+	if expected != nil {
+		current, err := os.ReadFile(path)
+		if err != nil {
+			return fmt.Errorf(
+				"verify unchanged file before replacement: %w",
+				err,
+			)
+		}
+		if !bytes.Equal(current, expected) {
+			return fmt.Errorf(
+				"file changed before conditional replacement",
+			)
+		}
 	}
 	return os.Rename(tmpPath, path)
 }

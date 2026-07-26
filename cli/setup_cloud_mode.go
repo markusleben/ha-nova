@@ -201,6 +201,7 @@ func runInteractiveCloudOnlySetupForWizard(
 				mutation.pairingCodeProvider(pairingCode),
 				false,
 				save,
+				mutation,
 			)
 			cfg = updated
 			return connectErr
@@ -245,23 +246,31 @@ func addHybridCloudAfterLocal(
 	ctx, cancel := newInteractiveCloudSetupContext()
 	defer cancel()
 	updated := cfg
-	err := withClientMutationLock(paths, func() error {
-		var connectErr error
-		updated, connectErr = connectExistingDeviceToCloud(
-			ctx,
-			paths,
-			cfg,
-			cloudCoordinatorForSetup,
-			false,
-			func(value runtimeConfig) error {
+	err := withPausableClientMutationLock(
+		paths,
+		func(mutation *pausableClientMutationLock) error {
+			save := func(value runtimeConfig) error {
+				if err := mutation.requireHeld(); err != nil {
+					return err
+				}
 				return saveSetupConfigWithLifecycleUnlocked(
 					paths,
 					value,
 					lifecycleMarker...,
 				)
-			},
-		)
-		return connectErr
-	})
+			}
+			var connectErr error
+			updated, connectErr = connectExistingDeviceToCloud(
+				ctx,
+				paths,
+				cfg,
+				cloudCoordinatorForSetup,
+				false,
+				save,
+				mutation,
+			)
+			return connectErr
+		},
+	)
 	return updated, err
 }

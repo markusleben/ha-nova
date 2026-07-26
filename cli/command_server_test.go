@@ -304,6 +304,69 @@ func TestServerRenameMovesRawPendingFileWithoutMarker(t *testing.T) {
 	}
 }
 
+func TestServerRenameRejectsOccupiedRawDestinationCredential(t *testing.T) {
+	paths := setupServerCommandTest(t, testV2TwoProfileConfig)
+	destinationCredential := validCredential(91)
+	oldPath, err := deviceSecretFilePath(
+		deviceCredentialPendingServiceForProfile("cabin"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	newPath, err := deviceSecretFilePath(
+		deviceCredentialPendingServiceForProfile("seaside"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(oldPath), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(
+		oldPath,
+		[]byte(testProfileCredentialB),
+		0o600,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(
+		newPath,
+		[]byte(destinationCredential),
+		0o600,
+	); err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.ReadFile(paths.ConfigFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	exit, output := captureCommandOutput(t, func() int {
+		return runServerCommand(
+			paths,
+			[]string{"rename", "cabin", "seaside"},
+		)
+	})
+	if exit != 1 || !strings.Contains(output, "already occupied") {
+		t.Fatalf("rename exit=%d output=%s", exit, output)
+	}
+	after, err := os.ReadFile(paths.ConfigFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(after) != string(before) {
+		t.Fatal("occupied destination rename changed config")
+	}
+	if data, err := os.ReadFile(newPath); err != nil ||
+		string(data) != destinationCredential {
+		t.Fatalf("destination credential changed: data=%q err=%v", data, err)
+	}
+	if data, err := os.ReadFile(oldPath); err != nil ||
+		string(data) != testProfileCredentialB {
+		t.Fatalf("source credential changed: data=%q err=%v", data, err)
+	}
+}
+
 func TestServerRenameHeadlessKeepsMarkerlessPendingFile(t *testing.T) {
 	// The REAL headless path (no test secret dir): keyring preflight errors,
 	// only a markerless raw pending file exists. Rename must succeed, move the

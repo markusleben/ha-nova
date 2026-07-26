@@ -80,7 +80,8 @@ func loadRuntimeConfig(pathArgs ...runtimePaths) (runtimeConfig, error) {
 		return runtimeConfig{}, fmt.Errorf("invalid server profile %q: %w", name, err)
 	}
 	localReady := cfg.RelayBaseURL != ""
-	cloudOnlyReady := effectiveRoutePolicy(cfg.RoutePolicy) == routePolicyCloud && cfg.Cloud.configured()
+	cloudOnlyReady := effectiveRoutePolicy(cfg.RoutePolicy) == routePolicyCloud &&
+		cfg.Cloud.functional()
 	if !localReady && !cloudOnlyReady {
 		if name != defaultServerProfileName {
 			return runtimeConfig{}, fmt.Errorf("server profile %q is not set up yet. Run: ha-nova pair --server %s --relay-url http://<ha-host>:8791", name, name)

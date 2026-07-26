@@ -97,8 +97,8 @@ func selectRelayTransport(
 		case relayViaLocal:
 			return resolveRelayTransport(ctx, resolveLocalRelayTransportForCLI, cfg)
 		case relayViaCloud:
-			if !cfg.Cloud.configured() {
-				return relayTransportSelection{}, cloudNotConfiguredProblem()
+			if err := requireFunctionalCloudAccess(cfg); err != nil {
+				return relayTransportSelection{}, err
 			}
 			return resolveRelayTransport(ctx, resolveCloudRelayTransportForCLI, cfg)
 		default:
@@ -110,13 +110,13 @@ func selectRelayTransport(
 	case routePolicyLocal:
 		return resolveRelayTransport(ctx, resolveLocalRelayTransportForCLI, cfg)
 	case routePolicyCloud:
-		if !cfg.Cloud.configured() {
-			return relayTransportSelection{}, cloudNotConfiguredProblem()
+		if err := requireFunctionalCloudAccess(cfg); err != nil {
+			return relayTransportSelection{}, err
 		}
 		return resolveRelayTransport(ctx, resolveCloudRelayTransportForCLI, cfg)
 	case routePolicyAutomatic:
-		if !cfg.Cloud.configured() {
-			return relayTransportSelection{}, cloudNotConfiguredProblem()
+		if err := requireFunctionalCloudAccess(cfg); err != nil {
+			return relayTransportSelection{}, err
 		}
 		return resolveRelayTransport(ctx, resolveAutomaticRelayTransportForCLI, cfg)
 	default:

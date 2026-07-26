@@ -140,32 +140,55 @@ func runSetup(paths runtimePaths, args []string) int {
 		return 1
 	}
 	if cfgErr != nil {
-		if errors.Is(cfgErr, errInvalidServerProfileSelection) {
-			printHumanErr("%s", cfgErr)
-			return 1
+		if errors.Is(cfgErr, errInvalidClientInstallID) {
+			repaired, repairErr :=
+				repairInvalidClientInstallIdentityForSetup(
+					paths,
+					cfgErr,
+					setupLifecycle,
+				)
+			if repairErr != nil {
+				printHumanErr(
+					"cannot safely repair the local installation identity: %s",
+					repairErr,
+				)
+				return 1
+			}
+			if repaired {
+				printHumanInfo(
+					"Repaired the local installation identity after verified Cloud cleanup.",
+				)
+				cfg, cfgErr = loadConfig(paths)
+			}
 		}
-		// A mistyped --server/HA_NOVA_SERVER selection must fail loud instead
-		// of silently running setup against a fresh config for the wrong house.
-		// Exception: an EXPLICIT default selection on a config whose default
-		// profile does not exist yet (multi-server-first install) is exactly
-		// what setup onboards — continue on the fresh-config path.
-		if errors.Is(cfgErr, errUnknownServerProfile) {
-			if name, _ := requestedServerSelection(); name != defaultServerProfileName {
+		if cfgErr != nil {
+			if errors.Is(cfgErr, errInvalidServerProfileSelection) {
 				printHumanErr("%s", cfgErr)
 				return 1
 			}
-		}
-		var recoveryErr error
-		cfg, recoveryErr = recoverSetupConfigAfterLoadError(
-			paths,
-			cfgErr,
-		)
-		if recoveryErr != nil {
-			printHumanErr(
-				"cannot safely continue setup with the saved server configuration: %s",
-				recoveryErr,
+			// A mistyped --server/HA_NOVA_SERVER selection must fail loud
+			// instead of silently running setup against a fresh config for the
+			// wrong house. An explicit missing default is the one onboarding
+			// exception.
+			if errors.Is(cfgErr, errUnknownServerProfile) {
+				if name, _ := requestedServerSelection(); name !=
+					defaultServerProfileName {
+					printHumanErr("%s", cfgErr)
+					return 1
+				}
+			}
+			var recoveryErr error
+			cfg, recoveryErr = recoverSetupConfigAfterLoadError(
+				paths,
+				cfgErr,
 			)
-			return 1
+			if recoveryErr != nil {
+				printHumanErr(
+					"cannot safely continue setup with the saved server configuration: %s",
+					recoveryErr,
+				)
+				return 1
+			}
 		}
 	}
 	if err := validateRuntimeConfigSave(paths, cfg); err != nil {

@@ -255,6 +255,11 @@ func writeCloudLifecycleFieldRaw(
 	field string,
 	value json.RawMessage,
 ) error {
+	if doc == nil || len(doc.source) == 0 {
+		return errors.New(
+			"Cloud lifecycle checkpoint requires an exact config generation",
+		)
+	}
 	switch field {
 	case "recovery_hold",
 		"device_revocation_completed",
@@ -304,7 +309,12 @@ func writeCloudLifecycleFieldRaw(
 		for key, value := range profile {
 			top[key] = value
 		}
-		return writeJSONFile(paths.ConfigFile, top, 0o600)
+		return writeJSONFileIfUnchanged(
+			paths.ConfigFile,
+			top,
+			0o600,
+			doc.source,
+		)
 	}
 	servers := make(map[string]json.RawMessage, len(doc.servers))
 	for name, raw := range doc.servers {
@@ -315,7 +325,12 @@ func writeCloudLifecycleFieldRaw(
 	if err != nil {
 		return err
 	}
-	return writeJSONFile(paths.ConfigFile, top, 0o600)
+	return writeJSONFileIfUnchanged(
+		paths.ConfigFile,
+		top,
+		0o600,
+		doc.source,
+	)
 }
 
 func cloudRecoveryProfileRaw(

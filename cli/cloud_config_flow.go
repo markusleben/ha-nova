@@ -18,6 +18,7 @@ func connectExistingDeviceToCloud(
 	coordinator cloudSetupCoordinator,
 	reconnect bool,
 	save cloudConfigSaver,
+	mutations ...*pausableClientMutationLock,
 ) (result runtimeConfig, resultErr error) {
 	result = cfg
 	if save == nil {
@@ -115,7 +116,7 @@ func connectExistingDeviceToCloud(
 			return cfg, err
 		}
 	}
-	request := newCloudSetupRequest(&cfg, save)
+	request := newCloudSetupRequest(&cfg, save, mutations...)
 	setupResult, err := coordinator.AddAwayWithExistingDevice(ctx, request)
 	if err != nil {
 		if reconnect && IsCloudErrorCode(err, CloudErrDeviceUserConflict) {
@@ -144,6 +145,7 @@ func connectRemoteToCloud(
 	pairingCode cloudRemotePairingCodeProvider,
 	reconnect bool,
 	save cloudConfigSaver,
+	mutations ...*pausableClientMutationLock,
 ) (result runtimeConfig, resultErr error) {
 	result = cfg
 	if save == nil {
@@ -274,7 +276,7 @@ func connectRemoteToCloud(
 		}
 	}
 	request := cloudRemoteSetupRequest{
-		cloudSetupRequest: newCloudSetupRequest(&cfg, save),
+		cloudSetupRequest: newCloudSetupRequest(&cfg, save, mutations...),
 		Origin:            origin,
 		PairingCode:       pairingCode,
 	}

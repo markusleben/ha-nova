@@ -16,6 +16,8 @@ type cloudSetupRequest struct {
 	PersistPendingMetadata     func(cloudConnectionMetadata) error
 	ClearPendingAuthorization  func(string) error
 	AdvancePendingLifecycle    func(cloudLifecycleState) error
+	PauseOAuthAuthorization    func() error
+	ResumeOAuthAuthorization   func() error
 	CheckpointDeviceActivation func(string) error
 	ClearDeviceActivation      func() error
 	CheckpointDeviceBinding    func(string) error
@@ -223,32 +225,39 @@ func maybeOfferCloudForCompletedSetup(
 
 	ctx, cancel := newInteractiveCloudSetupContext()
 	defer cancel()
-	err = withClientMutationLock(paths, func() error {
-		if err := ensureOptionalFileSnapshotCurrent(
-			paths.ConfigFile,
-			configSnapshot,
-			hadConfig,
-		); err != nil {
-			return err
-		}
-		save := func(value runtimeConfig) error {
-			return saveSetupConfigWithLifecycleUnlocked(
+	err = withPausableClientMutationLock(
+		paths,
+		func(mutation *pausableClientMutationLock) error {
+			if err := ensureOptionalFileSnapshotCurrent(
+				paths.ConfigFile,
+				configSnapshot,
+				hadConfig,
+			); err != nil {
+				return err
+			}
+			save := func(value runtimeConfig) error {
+				if err := mutation.requireHeld(); err != nil {
+					return err
+				}
+				return saveSetupConfigWithLifecycleUnlocked(
+					paths,
+					value,
+					lifecycleMarker...,
+				)
+			}
+			updated, connectErr := connectExistingDeviceToCloud(
+				ctx,
 				paths,
-				value,
-				lifecycleMarker...,
+				cfg,
+				coordinator,
+				false,
+				save,
+				mutation,
 			)
-		}
-		updated, connectErr := connectExistingDeviceToCloud(
-			ctx,
-			paths,
-			cfg,
-			coordinator,
-			false,
-			save,
-		)
-		cfg = updated
-		return connectErr
-	})
+			cfg = updated
+			return connectErr
+		},
+	)
 	if err != nil {
 		renderCloudFailure(out, paths, err)
 		return cfg, true, 1

@@ -7,9 +7,13 @@ import (
 )
 
 type pausableClientMutationLock struct {
-	paths   runtimePaths
-	release func()
-	held    bool
+	paths          runtimePaths
+	release        func()
+	held           bool
+	paused         bool
+	pauseSnapshot  []byte
+	pauseHadConfig bool
+	pauseReason    string
 }
 
 func withPausableClientMutationLock(
@@ -40,29 +44,12 @@ func (session *pausableClientMutationLock) pairingCodeProvider(
 				nil,
 			)
 		}
-		if err := session.requireHeld(); err != nil {
+		if err := session.pauseForExternalWait("Owner confirmation"); err != nil {
 			return "", err
 		}
-		snapshot, existed, err := readOptionalFile(
-			session.paths.ConfigFile,
-		)
-		if err != nil {
-			return "", fmt.Errorf(
-				"snapshot configuration before Owner confirmation: %w",
-				err,
-			)
-		}
-		session.releaseIfHeld()
 
 		code, promptErr := provider(prompt)
-		reacquireErr := session.reacquire()
-		if reacquireErr == nil {
-			reacquireErr = ensureOptionalFileSnapshotCurrent(
-				session.paths.ConfigFile,
-				snapshot,
-				existed,
-			)
-		}
+		reacquireErr := session.resumeAfterExternalWait()
 		if reacquireErr != nil {
 			stateErr := fmt.Errorf(
 				"server configuration changed while waiting for Owner confirmation; the code was not used: %w",
@@ -75,6 +62,71 @@ func (session *pausableClientMutationLock) pairingCodeProvider(
 		}
 		return code, promptErr
 	}
+}
+
+func (session *pausableClientMutationLock) oauthAuthorizationPause() error {
+	return session.pauseForExternalWait("Home Assistant OAuth authorization")
+}
+
+func (session *pausableClientMutationLock) oauthAuthorizationResume() error {
+	return session.resumeAfterExternalWait()
+}
+
+func (session *pausableClientMutationLock) pauseForExternalWait(
+	reason string,
+) error {
+	if err := session.requireHeld(); err != nil {
+		return err
+	}
+	if session.paused {
+		return errors.New("HA NOVA client mutation lock is already paused")
+	}
+	snapshot, existed, err := readOptionalFile(session.paths.ConfigFile)
+	if err != nil {
+		return fmt.Errorf(
+			"snapshot configuration before %s: %w",
+			reason,
+			err,
+		)
+	}
+	session.paused = true
+	session.pauseSnapshot = snapshot
+	session.pauseHadConfig = existed
+	session.pauseReason = reason
+	session.releaseIfHeld()
+	return nil
+}
+
+func (session *pausableClientMutationLock) resumeAfterExternalWait() error {
+	if session == nil || !session.paused {
+		return errors.New("HA NOVA client mutation lock is not paused")
+	}
+	reason := session.pauseReason
+	if err := session.reacquire(); err != nil {
+		return fmt.Errorf(
+			"reacquire mutation lock after %s: %w",
+			reason,
+			err,
+		)
+	}
+	snapshot := session.pauseSnapshot
+	hadConfig := session.pauseHadConfig
+	session.paused = false
+	session.pauseSnapshot = nil
+	session.pauseHadConfig = false
+	session.pauseReason = ""
+	if err := ensureOptionalFileSnapshotCurrent(
+		session.paths.ConfigFile,
+		snapshot,
+		hadConfig,
+	); err != nil {
+		return fmt.Errorf(
+			"verify configuration after %s: %w",
+			reason,
+			err,
+		)
+	}
+	return nil
 }
 
 func (session *pausableClientMutationLock) requireHeld() error {

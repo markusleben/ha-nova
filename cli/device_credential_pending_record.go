@@ -105,15 +105,23 @@ func getOrCreateClientInstallID(
 		}
 		return cfg.ClientInstallID, nil
 	}
-	buf := make([]byte, 16)
-	if _, err := rand.Read(buf); err != nil {
+	id, err := newClientInstallID()
+	if err != nil {
 		return "", err
 	}
-	cfg.ClientInstallID = "inst-" + hex.EncodeToString(buf)
+	cfg.ClientInstallID = id
 	if err := persist(cfg); err != nil {
 		return "", err
 	}
 	return cfg.ClientInstallID, nil
+}
+
+func newClientInstallID() (string, error) {
+	buf := make([]byte, 16)
+	if _, err := rand.Read(buf); err != nil {
+		return "", err
+	}
+	return "inst-" + hex.EncodeToString(buf), nil
 }
 
 func validateClientInstallID(value string) error {

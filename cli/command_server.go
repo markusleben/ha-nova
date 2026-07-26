@@ -231,6 +231,19 @@ func runServerRename(paths runtimePaths, args []string) int {
 		printHumanErr("server profile %q already exists; pick another name or remove it first: ha-nova server remove %s", newName, newName)
 		return 1
 	}
+	hasCloud, err := profileHasCloudLifecycleRaw(doc, oldName)
+	if err != nil {
+		printHumanErr("cannot inspect server profile %q: %v", oldName, err)
+		return 1
+	}
+	if hasCloud {
+		printHumanErr(
+			"server profile %q has Home Assistant Cloud state and cannot be renamed safely. Remove Cloud access first with: ha-nova cloud remove --server %s",
+			oldName,
+			oldName,
+		)
+		return 1
+	}
 	for _, profile := range []string{oldName, newName} {
 		if err := requireSettledDeviceCredentialRetirement(
 			paths,

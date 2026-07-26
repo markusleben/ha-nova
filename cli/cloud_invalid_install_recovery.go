@@ -35,6 +35,19 @@ func cloudStatusHandledInvalidInstallIdentity(
 			"remove",
 			snapshot.ProfileName,
 		)
+	} else if doc, docErr := loadConfigDocument(paths.ConfigFile); docErr == nil {
+		cleanupProfile, cloudRemains, cleanupErr :=
+			remainingCloudCleanupProfile(doc)
+		switch {
+		case cleanupErr != nil:
+		case cloudRemains && cleanupProfile != "":
+			summary.NextCommand = cloudProfileCommandFor(
+				"remove",
+				cleanupProfile,
+			)
+		case !cloudRemains:
+			summary.NextCommand = "ha-nova setup"
+		}
 	}
 	if options.json {
 		printCloudStatusJSON(summary)
@@ -48,6 +61,8 @@ func cloudStatusHandledInvalidInstallIdentity(
 			false,
 			snapshot.ProfileName,
 		)
+	} else if summary.NextCommand != "" {
+		printHumanInfo("Continue recovery with: %s", summary.NextCommand)
 	}
 	return true
 }

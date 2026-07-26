@@ -80,6 +80,107 @@ func TestCloudRemoveRevokesWhilePreservingInvalidInstallIdentity(
 	}
 }
 
+func TestInvalidInstallIdentityRecoveryContinuesAfterCloudRemoval(
+	t *testing.T,
+) {
+	paths, store, backend, _ := cloudRemoveCommandFixture(t)
+	corruptClientInstallID(t, paths)
+	installCloudRemoveStore(
+		t,
+		store,
+		func(context.Context, OAuthSecretEnvelope) error { return nil },
+	)
+	resetProductionCloudPolicies(backend)
+
+	if exit, output := captureCommandOutput(t, func() int {
+		return runCloudRemoveCommand(paths, []string{"--yes"})
+	}); exit != 0 {
+		t.Fatalf("cloud remove exit=%d output=%s", exit, output)
+	}
+	exit, output := captureCommandOutput(t, func() int {
+		return runCloudStatusCommand(paths, []string{"--json"})
+	})
+	var summary cloudStatusSummary
+	if err := json.Unmarshal(
+		[]byte(strings.TrimSpace(output)),
+		&summary,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if exit != 1 || summary.NextCommand != "ha-nova setup" {
+		t.Fatalf("status exit=%d summary=%+v", exit, summary)
+	}
+
+	generation, err := readInstallLifecycleGeneration(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	census, err := readCensusLifecycleMarker(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	configSnapshot, err := readSetupConfigSnapshot(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lifecycle := [][]byte{generation, census, configSnapshot}
+	repaired, err := repairInvalidClientInstallIdentityForSetup(
+		paths,
+		errInvalidClientInstallID,
+		lifecycle,
+	)
+	if err != nil || !repaired {
+		t.Fatalf("identity repair repaired=%v err=%v", repaired, err)
+	}
+	cfg, err := loadConfig(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if validateClientInstallID(cfg.ClientInstallID) != nil ||
+		cfg.ClientInstallID == " invalid install id " ||
+		cfg.Cloud != nil {
+		t.Fatalf("repaired config = %+v", cfg)
+	}
+}
+
+func TestInvalidInstallIdentityRepairWaitsForEveryCloudProfile(
+	t *testing.T,
+) {
+	paths, _, _, _ := cloudRemoveCommandFixture(t)
+	corruptClientInstallID(t, paths)
+	top := readTestConfigTopLevel(t, paths)
+	var servers map[string]json.RawMessage
+	if err := json.Unmarshal(top["servers"], &servers); err != nil {
+		t.Fatal(err)
+	}
+	servers["cabin"] = servers[defaultServerProfileName]
+	var cabin map[string]json.RawMessage
+	if err := json.Unmarshal(servers["cabin"], &cabin); err != nil {
+		t.Fatal(err)
+	}
+	cabin["profile_id"] = json.RawMessage(`"profile-cabin"`)
+	servers["cabin"], _ = json.Marshal(cabin)
+	top["servers"], _ = json.Marshal(servers)
+	if err := writeJSONFile(paths.ConfigFile, top, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	configSnapshot, err := readSetupConfigSnapshot(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	repaired, err := repairInvalidClientInstallIdentityForSetup(
+		paths,
+		errInvalidClientInstallID,
+		[][]byte{nil, nil, configSnapshot},
+	)
+	if err != nil || repaired {
+		t.Fatalf("identity repair repaired=%v err=%v", repaired, err)
+	}
+	if got := readTestConfigTopLevel(t, paths)["client_install_id"]; string(got) != `" invalid install id "` {
+		t.Fatalf("client_install_id changed to %s", got)
+	}
+}
+
 func TestRemoteOnlyCloudRemoveCheckpointsWithInvalidInstallIdentity(
 	t *testing.T,
 ) {

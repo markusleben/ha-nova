@@ -77,11 +77,32 @@ func (m *cloudLifecycleMetadata) configured() bool {
 	return m != nil && m.Current != nil
 }
 
+func (m *cloudLifecycleMetadata) functional() bool {
+	return m.configured() &&
+		m.DeviceRevocationCompleted == nil &&
+		m.AuthorizationRevocationCompleted == nil
+}
+
 func (m *cloudLifecycleMetadata) ready() bool {
 	return m != nil && m.Current != nil && m.Pending == nil &&
 		m.DeviceRevocationCompleted == nil &&
 		m.AuthorizationRevocationCompleted == nil &&
 		(m.State == cloudStateReady || m.State == "")
+}
+
+func requireFunctionalCloudAccess(cfg runtimeConfig) error {
+	if !cfg.Cloud.configured() {
+		return cloudNotConfiguredProblem()
+	}
+	if !cfg.Cloud.functional() {
+		return &cloudProblem{
+			Code:        cloudProblemAuthorization,
+			Remediation: cloudRemediationSecurityStop,
+			Detail: "Cloud access revocation already completed; finish " +
+				"Cloud cleanup before using this profile",
+		}
+	}
+	return nil
 }
 
 func validateCloudConnectionMetadata(metadata cloudConnectionMetadata) error {

@@ -142,6 +142,7 @@ func resumeInteractiveCloudOnlySetup(
 					mutation.pairingCodeProvider(pairingCode),
 					reconnect,
 					save,
+					mutation,
 				)
 				cfg = updated
 				return connectErr

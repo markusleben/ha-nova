@@ -29,6 +29,14 @@ var cloudOAuthFlowForSetup = func() *OAuthLoopbackFlow {
 	return NewOAuthLoopbackFlow()
 }
 
+var exchangeCloudAuthorizationCodeForSetup = func(
+	ctx context.Context,
+	oauth *HAOAuthClient,
+	authorization OAuthAuthorizationCode,
+) (HAOAuthToken, error) {
+	return oauth.ExchangeAuthorizationCode(ctx, authorization)
+}
+
 var openCloudOAuthBrowserForSetup OAuthBrowserOpener = func(
 	_ context.Context,
 	target string,

@@ -31,8 +31,8 @@ func resolveCloudRelayTransport(
 	if err := requireCloudRemoteFeature(); err != nil {
 		return relayTransportSelection{}, err
 	}
-	if cfg.Cloud == nil || cfg.Cloud.Current == nil {
-		return relayTransportSelection{}, cloudNotConfiguredProblem()
+	if err := requireFunctionalCloudAccess(cfg); err != nil {
+		return relayTransportSelection{}, err
 	}
 	metadata := *cfg.Cloud.Current
 	if err := validateCurrentCloudConnectionMetadata(metadata); err != nil {
@@ -172,6 +172,9 @@ func resolveAutomaticRelayTransport(
 	ctx context.Context,
 	cfg runtimeConfig,
 ) (relayTransportSelection, error) {
+	if cfg.Cloud.configured() && !cfg.Cloud.functional() {
+		return relayTransportSelection{}, requireFunctionalCloudAccess(cfg)
+	}
 	local, err := resolveLocalRelayTransportForCLI(ctx, cfg)
 	if err != nil {
 		return relayTransportSelection{}, err
