@@ -176,6 +176,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 	namedRequestAllowed := namedSetupRequestAllowed(
 		cfg,
 		retirementPending,
+		target,
 		serviceMode,
 		hostFlag,
 		haURLFlag,

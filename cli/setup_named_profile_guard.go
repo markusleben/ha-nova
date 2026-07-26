@@ -5,6 +5,7 @@ import "strings"
 func namedSetupRequestAllowed(
 	cfg runtimeConfig,
 	retirementPending bool,
+	target string,
 	serviceMode bool,
 	host string,
 	haURL string,
@@ -18,8 +19,10 @@ func namedSetupRequestAllowed(
 		(cloudRecoveryHoldProblem(cfg) != nil ||
 			!cfg.Cloud.ready() ||
 			!cloudRemoteFeatureAvailable())
+	namedClientRepair := strings.TrimSpace(target) != ""
 	return (remoteOnlyCloudSetup(cfg) ||
 		namedCloudRecoverySetup ||
+		namedClientRepair ||
 		retirementPending) &&
 		!serviceMode &&
 		strings.TrimSpace(host) == "" &&

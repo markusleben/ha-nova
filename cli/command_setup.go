@@ -230,6 +230,7 @@ func runSetup(paths runtimePaths, args []string) int {
 		!namedSetupRequestAllowed(
 			cfg,
 			retirementPending,
+			target,
 			*serviceMode,
 			*host,
 			*haURL,

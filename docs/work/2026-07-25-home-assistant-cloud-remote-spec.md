@@ -161,12 +161,14 @@ revoke endpoint is intentionally idempotent. Reconnect rollback, ambiguous
 authorization cleanup, and retirement of the previous generation all retain
 the global client-mutation lock through this remote proof and the following
 local cleanup. Each path then bypasses its access-session cache, reloads the
-complete native envelope, and asks the native backend to compare and delete the
-same encoded value in one backend operation. Ambiguous pending-grant cleanup
-also binds the canonical Home Assistant origin beside generation, client ID,
-and refresh token. A concurrently replaced or cross-origin envelope is
-preserved as `SECRET_CONFLICT`; successful or already absent deletion
-invalidates the access-session cache.
+complete native envelope, and asks the native backend to recheck and delete the
+same encoded value in one HA NOVA backend operation under the global
+client-mutation lock. An observed-absent slot receives the same backend recheck
+before its cache entry is invalidated. Ambiguous pending-grant cleanup also
+binds the canonical Home Assistant origin beside generation, client ID, and
+refresh token. A concurrently replaced, newly inserted, or cross-origin
+envelope observed within this boundary is preserved as `SECRET_CONFLICT`;
+successful or confirmed-absent deletion invalidates the access-session cache.
 
 If an authorization-code exchange may have created a refresh-token session but
 its response is lost, redirects unexpectedly, returns a server error, or is
@@ -203,9 +205,11 @@ The bounded schema permits only fixed/scoped OAuth slots and validated
 per-profile device slots. Linux remains an in-process, context-cancellable
 D-Bus implementation. Exact deletes serialize supported in-process Linux
 writers; the global client-mutation lock serializes all supported HA NOVA
-writers across processes. Direct same-user modification through unrelated
-credential-store tools is outside the supported writer boundary and still
-fails closed when its value differs.
+writers across processes. Native credential stores do not expose an atomic
+compare-and-delete primitive. Direct modification by unrelated tools running
+with the same user's credential-store authority is outside this integrity
+boundary; HA NOVA makes no concurrency guarantee against such a process and
+reports a conflict only when it observes the differing value.
 
 `allow_ui=false` is mandatory for Relay, skill, doctor, status, and background
 paths. Locked, missing, session-mismatched, root/sudo, headless, SSH, WSL,
@@ -358,10 +362,14 @@ ha-nova relay ... --via <local|cloud>
 `cloud status --json` always emits one JSON object, including locked storage,
 unreachable Cloud, incomplete setup, and not-configured outcomes. Typed
 `verification_error` and `next_command` fields let headless callers recover
-without parsing human text. A named Cloud-only profile may run
+without parsing human text. A clearable secure-storage hold advances to
+`cloud unlock` only when unlock can verify and clear it; otherwise the machine
+action advances directly to exact, profile-scoped `cloud remove` instead of
+looping. A named Cloud-only profile may run
 `ha-nova setup --server <name>` to resume Cloud onboarding and install client
-skills; named local/token/service onboarding remains unavailable and uses
-`pair --server`.
+skills. An explicit client-only target may also repair skills on an existing
+named local profile without changing houses or connection settings; named
+local/token/service onboarding remains unavailable and uses `pair --server`.
 
 If a potentially issued authorization no longer has consistent native
 credentials, automatic cleanup fails closed. Recovery first requires a Home

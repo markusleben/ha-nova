@@ -126,7 +126,11 @@ func runCloudStatusCommand(paths runtimePaths, args []string) int {
 		if cloudRecoveryHoldClearsAfterUnlock(
 			cfg.Cloud.RecoveryHold,
 		) {
-			summary.NextCommand = cloudUnlockCommand()
+			if cloudRemoteFeatureAvailable() && cfg.Cloud.ready() {
+				summary.NextCommand = cloudUnlockCommand()
+			} else {
+				summary.NextCommand = cloudRemoveCommand()
+			}
 		}
 		if options.json {
 			printCloudStatusJSON(summary)

@@ -4,10 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"io"
 	"net/http"
 	"strings"
 )
+
+const maxRelayDiagnosticResponseBytes = 1 << 20
 
 type relayWSPingResponse struct {
 	StatusCode int
@@ -51,7 +52,16 @@ func probeRelayWSPingWithContext(
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	if resp.StatusCode == http.StatusUnauthorized ||
+		resp.StatusCode == http.StatusForbidden {
+		return relayWSPingResponse{
+			StatusCode: resp.StatusCode,
+		}, nil
+	}
+	body, err := readAllLimited(
+		resp.Body,
+		maxRelayDiagnosticResponseBytes,
+	)
 	if err != nil {
 		return relayWSPingResponse{}, err
 	}

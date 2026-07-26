@@ -82,8 +82,12 @@ func (s *KeyringOAuthSecretStore) DeletePendingGrantExact(
 		return err
 	}
 	if !exists {
-		s.markMemoizedDeleted(oauthSecretPendingService)
-		return nil
+		return s.confirmEnvelopeAbsentExact(
+			ctx,
+			oauthSecretPendingService,
+			ui,
+			"delete exact pending OAuth grant",
+		)
 	}
 	if actual.Generation != generation ||
 		actual.CanonicalOrigin != canonicalOrigin ||
@@ -102,6 +106,33 @@ func (s *KeyringOAuthSecretStore) DeletePendingGrantExact(
 		ui,
 		"delete exact pending OAuth grant",
 	)
+}
+
+func (s *KeyringOAuthSecretStore) confirmEnvelopeAbsentExact(
+	ctx context.Context,
+	service string,
+	ui SecretStoreUIPolicy,
+	operation string,
+) error {
+	backend := s.freshStore().backend
+	_, exists, err := backend.Get(
+		ctx,
+		service,
+		s.account,
+		ui,
+	)
+	if err != nil {
+		return wrapOAuthSecretBackendError(operation, err)
+	}
+	if exists {
+		return newCloudError(
+			CloudErrSecretConflict,
+			operation,
+			nil,
+		)
+	}
+	s.markMemoizedDeleted(service)
+	return nil
 }
 
 func (s *KeyringOAuthSecretStore) DeleteCurrentExact(

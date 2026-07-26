@@ -415,7 +415,7 @@ func doctorClientSetupCommand(clientID string) string {
 	if activeServerProfile() != defaultServerProfileName {
 		return fmt.Sprintf(
 			"ha-nova setup --server %s %s",
-			defaultServerProfileName,
+			activeServerProfile(),
 			clientID,
 		)
 	}
@@ -528,7 +528,14 @@ func fetchRelayHealthWithContext(ctx context.Context, client *http.Client, relay
 		return nil, err
 	}
 	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
+	if resp.StatusCode == http.StatusUnauthorized ||
+		resp.StatusCode == http.StatusForbidden {
+		return nil, fmt.Errorf("HTTP %d", resp.StatusCode)
+	}
+	body, err := readAllLimited(
+		resp.Body,
+		maxRelayDiagnosticResponseBytes,
+	)
 	if err != nil {
 		return nil, err
 	}

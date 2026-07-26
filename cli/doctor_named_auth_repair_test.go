@@ -42,7 +42,7 @@ func TestDoctorNamedProfileAuthFailureUsesPairCommand(
 	}
 }
 
-func TestDoctorNamedProfileClientRepairEscapesProfileGuard(
+func TestDoctorNamedProfileClientRepairStaysOnSelectedProfile(
 	t *testing.T,
 ) {
 	resetServerProfileSelection(t)
@@ -57,8 +57,20 @@ func TestDoctorNamedProfileClientRepairEscapesProfileGuard(
 	)
 	if !strings.Contains(
 		hint,
-		"ha-nova setup --server default codex",
+		"ha-nova setup --server cabin codex",
 	) {
 		t.Fatalf("named client repair hint = %q", hint)
+	}
+	if !namedSetupRequestAllowed(
+		completedLocalCloudTestConfig(),
+		false,
+		"codex",
+		false,
+		"",
+		"",
+		"",
+		"",
+	) {
+		t.Fatal("named client-only setup was rejected")
 	}
 }

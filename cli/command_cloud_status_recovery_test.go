@@ -279,6 +279,88 @@ func TestCloudStatusJSONGuidesUnlockForClearableStorageHold(
 	}
 }
 
+func TestCloudStatusJSONAdvancesNonReadyStorageHoldToCleanup(
+	t *testing.T,
+) {
+	resetServerProfileSelection(t)
+	paths := setupServerCommandTest(t, `{"schema_version":1}`)
+	cfg := completedLocalCloudTestConfig()
+	cfg.ProfileID = "profile-status-cleanup"
+	cfg.RelayInstanceID = "relay-status-cleanup"
+	cfg.Cloud = &cloudLifecycleMetadata{
+		State: cloudStateAuthorizing,
+		RecoveryHold: &cloudRecoveryHold{
+			Code:        cloudProblemSecureStorage,
+			Remediation: cloudRemediationVerifyState,
+		},
+	}
+	if err := saveConfig(paths, cfg); err != nil {
+		t.Fatal(err)
+	}
+	exit, output := captureCommandOutput(t, func() int {
+		return runCloudStatusCommand(
+			paths,
+			[]string{"--json"},
+		)
+	})
+	var summary cloudStatusSummary
+	if err := json.Unmarshal(
+		[]byte(strings.TrimSpace(output)),
+		&summary,
+	); err != nil {
+		t.Fatalf("status JSON=%q: %v", output, err)
+	}
+	if exit != 1 ||
+		summary.Status != "recovery_blocked" ||
+		summary.NextCommand != cloudRemoveCommand() {
+		t.Fatalf("status exit=%d summary=%+v", exit, summary)
+	}
+}
+
+func TestCloudStatusJSONAdvancesDisabledStorageHoldToCleanup(
+	t *testing.T,
+) {
+	previousIdentity := cloudRemoteBuildIdentityForRuntime
+	cloudRemoteBuildIdentityForRuntime = func() cloudRemoteBuildIdentity {
+		return cloudRemoteBuildIdentity{Disabled: true}
+	}
+	t.Cleanup(func() {
+		cloudRemoteBuildIdentityForRuntime = previousIdentity
+	})
+	resetServerProfileSelection(t)
+	paths := setupServerCommandTest(t, `{"schema_version":1}`)
+	cfg := completedLocalCloudTestConfig()
+	cfg.ProfileID = "profile-status-disabled-cleanup"
+	cfg.RelayInstanceID = "relay-status-disabled-cleanup"
+	current := cloudMetadataForTest(strings.Repeat("a", 32))
+	cfg.Cloud = &cloudLifecycleMetadata{
+		State:   cloudStateReady,
+		Current: &current,
+		RecoveryHold: &cloudRecoveryHold{
+			Code:        cloudProblemSecureStorage,
+			Remediation: cloudRemediationVerifyState,
+		},
+	}
+	if err := saveConfig(paths, cfg); err != nil {
+		t.Fatal(err)
+	}
+	exit, output := captureCommandOutput(t, func() int {
+		return runCloudStatusCommand(paths, []string{"--json"})
+	})
+	var summary cloudStatusSummary
+	if err := json.Unmarshal(
+		[]byte(strings.TrimSpace(output)),
+		&summary,
+	); err != nil {
+		t.Fatalf("status JSON=%q: %v", output, err)
+	}
+	if exit != 1 ||
+		summary.Status != "recovery_blocked" ||
+		summary.NextCommand != cloudRemoveCommand() {
+		t.Fatalf("status exit=%d summary=%+v", exit, summary)
+	}
+}
+
 func TestCloudStatusLateFailureCannotHoldConcurrentNewGeneration(t *testing.T) {
 	resetServerProfileSelection(t)
 	paths := setupServerCommandTest(t, `{"schema_version":1}`)

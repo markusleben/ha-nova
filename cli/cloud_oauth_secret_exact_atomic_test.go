@@ -93,3 +93,57 @@ func TestExactPendingGrantDeleteBindsCanonicalOrigin(
 		)
 	}
 }
+
+func TestExactPendingGrantAbsentCheckRejectsConcurrentInsertion(
+	t *testing.T,
+) {
+	backend := newMemoryOAuthSecretBackend()
+	store := newTestOAuthStore(t, backend)
+	replacementStore := newTestOAuthStore(
+		t,
+		newMemoryOAuthSecretBackend(),
+	)
+	replacement, err := replacementStore.CreatePending(
+		context.Background(),
+		testOAuthEnvelope(
+			"pending-b",
+			"pending-b",
+			"user-1",
+			"relay-1",
+		),
+		SecretStoreForbidUI,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	encodedReplacement, err := json.Marshal(replacement)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pendingReads := 0
+	backend.fail = func(operation, service string) error {
+		if operation != "get" ||
+			service != oauthSecretPendingService {
+			return nil
+		}
+		pendingReads++
+		if pendingReads == 2 {
+			backend.values[service+"\x00"+store.account] =
+				string(encodedReplacement)
+			backend.fail = nil
+		}
+		return nil
+	}
+	err = store.DeletePendingGrantExact(
+		context.Background(),
+		"pending-a",
+		"https://example.ui.nabu.casa",
+		"refresh-a",
+		"client-a",
+		SecretStoreForbidUI,
+	)
+	if !IsCloudErrorCode(err, CloudErrSecretConflict) {
+		t.Fatalf("exact absent check error = %v", err)
+	}
+	assertPendingOAuthReplacement(t, store, replacement)
+}
