@@ -157,7 +157,13 @@ After token exchange the CLI verifies:
 
 Removal calls OAuth revoke and then verifies that refreshing the revoked token
 returns `invalid_grant`. A successful HTTP status alone is not proof because the
-revoke endpoint is intentionally idempotent.
+revoke endpoint is intentionally idempotent. Reconnect rollback, ambiguous
+authorization cleanup, and retirement of the previous generation all retain
+the global client-mutation lock through this remote proof and the following
+local cleanup. Each path then bypasses its access-session cache, reloads the
+complete native envelope, and deletes only an exact match. A concurrently
+replaced envelope is preserved as `SECRET_CONFLICT`; successful or already
+absent deletion invalidates the access-session cache.
 
 If an authorization-code exchange may have created a refresh-token session but
 its response is lost, redirects unexpectedly, returns a server error, or is
@@ -274,13 +280,19 @@ replacement and parent-directory metadata are durably committed before any
 secret deletion may follow. The transaction compares the exact generation
 captured by the atomic replacement, not a separate read before rename, and
 reports success only while the replacement generation is still the target.
-It restores a racing generation without data loss, preserves all generations
-on an ambiguous conflict, and recovers before the next CLI dispatch. The
-durable transaction marker retires before auxiliary transaction files are
-garbage-collected, so any crash remains recoverable. Windows replacements also
-flush both the committed target and durable prior generation explicitly. A
-selected profile, sibling profile, or `default_server` change therefore cannot
-be overwritten by a stale writer.
+It persists a dedicated conflict-restore phase before moving any generation,
+restores a racing generation without data loss, preserves all generations on
+an ambiguous conflict, and recovers before the next CLI dispatch. Immediately
+before committing, it runs one final target-generation hash check. The active
+transaction marker then atomically retires to a durable non-secret committed
+tombstone before auxiliary transaction files are garbage-collected, so a crash
+never turns an incomplete transaction into an unrecorded success. Recovery
+finishes that garbage collection before durably removing the tombstone. Windows
+replacements also flush both the committed target and durable prior generation
+explicitly. A selected profile, sibling profile, or `default_server` change
+therefore cannot be overwritten by a stale HA NOVA writer. An unsupported
+external editor that ignores the client-mutation lock is detected at each
+generation check but cannot participate in a cross-file atomic transaction.
 
 ## Routing
 
@@ -290,6 +302,9 @@ error before the functional request is created or written.
 
 - Authentication, authorization, TLS-pin, protocol, or version errors do not
   fall back.
+- Local 401/403 remediation stays executable for the selected profile:
+  `setup` for the default profile and exact `pair --server ... --relay-url ...`
+  guidance using the saved local Relay URL for a named profile.
 - A functional request is built and sent through exactly one selected
   transport.
 - Any error after dispatch may mean the operation completed and returns the
@@ -384,7 +399,9 @@ snapshot, supported-schema validation, and unique profile-ID validation. It
 preserves every profile and unknown field; normal loading then resumes.
 Unscoped top-level Cloud lifecycle data is not attributed to the selected
 profile and therefore yields a manual-review security stop without a
-self-referential recovery command.
+self-referential recovery command. A failed second config-document read is
+also a manual security stop; it never suppresses recovery merely because the
+new document could not be inspected.
 
 `ha-nova server rename` is a metadata-only operation. It rejects any profile
 with a non-null Cloud lifecycle and requires both source and destination
@@ -394,16 +411,24 @@ prevents a valid bearer from being stranded under the old name, duplicated
 under the new name, or hidden behind an unreachable keyring.
 
 `ha-nova server remove` durably checkpoints the exact profile identity,
-credential service names, device identities, and original profile generation
-before remote revocation or native deletion. The profile remains in
-`config.json` until both current and pending slots are deleted. A crash after
-the checkpoint, either revoke attempt, either slot deletion, or immediately
-before profile removal resumes from the same command without another
-confirmation. Observed slot identities are inventory only; a separate durable
-processed outcome records whether each exact slot was revoked, failed, or was
-not applicable. A slot missing before the initial checkpoint aborts without
-changing config, while a slot that disappears before its processed outcome is
-durable blocks profile deletion for manual review. No live bearer namespace
+credential service names, observed presence or absence, SHA-256 evidence for
+the complete raw current and pending credentials, and original profile
+generation before remote revocation or native deletion. The digest never
+stores the bearer and distinguishes replacement secrets that retain the same
+remote device ID. Current and pending endpoint metadata must each be either
+complete or absent before the checkpoint. The profile remains in `config.json`
+until both routed slots and both raw file slots are proven absent. A crash
+after the checkpoint, either revoke attempt, either slot deletion, or
+immediately before profile removal resumes from the same command without
+another confirmation. Observed slot evidence is inventory only; a separate
+durable processed outcome records whether each exact slot was revoked, failed,
+or was not applicable. Full uninstall purge writes the same processed outcome
+before deleting either slot and performs the same final routed-and-raw
+namespace proof after its global file-residue sweep. A slot absent at the
+checkpoint but appearing later, or a slot present at the checkpoint but
+disappearing before its processed outcome is durable, blocks profile deletion
+for manual review. A final fresh routed-and-raw namespace proof runs
+immediately before the profile document is removed. No live bearer namespace
 becomes uninventoried.
 
 The interactive wizard offers:

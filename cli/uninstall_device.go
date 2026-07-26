@@ -8,6 +8,7 @@ import (
 // Hook for tests.
 var revokeSelfDeviceV1ForUninstall = revokeSelfDeviceV1
 var profilePurgePhaseHook = func(string, string) error { return nil }
+var profilePurgeFinalProofHook = func() error { return nil }
 
 // purgeDeviceCredentialWithReport revokes ONE profile's pairing on its relay
 // and removes both of that profile's local credential slots (current +
@@ -54,7 +55,23 @@ func purgeAllDeviceCredentialsWithReport(
 			return err
 		}
 	}
-	return removeAllDeviceFileStorageResidue()
+	if err := removeAllDeviceFileStorageResidue(); err != nil {
+		return err
+	}
+	if err := profilePurgeFinalProofHook(); err != nil {
+		return err
+	}
+	for _, target := range targets {
+		if err := requireEmptyServerCredentialNamespace(
+			target.name,
+		); err != nil {
+			return fmt.Errorf(
+				"server credentials reappeared after full cleanup: %w",
+				err,
+			)
+		}
+	}
+	return nil
 }
 
 func purgeProfileDeviceCredentialWithReport(
@@ -74,6 +91,12 @@ func purgeProfileDeviceCredentialWithReport(
 		return err
 	}
 	if err := validateRequiredProfilePurgeSlots(
+		target,
+		slotState,
+	); err != nil {
+		return err
+	}
+	if err := validateProfilePurgeEndpointCompleteness(
 		target,
 		slotState,
 	); err != nil {
@@ -115,6 +138,12 @@ func purgeProfileDeviceCredentialWithReport(
 	); err != nil {
 		return err
 	}
+	if err := validateProfilePurgeEndpointCompleteness(
+		target,
+		slotState,
+	); err != nil {
+		return err
+	}
 	if pendingErr != nil {
 		// A malformed pending value cannot be authenticated to a Relay. Preserve
 		// the previous cleanup behavior, but make the unrevoked deletion visible.
@@ -150,7 +179,8 @@ func purgeProfileDeviceCredentialWithReport(
 		}
 	}
 	if target.checkpointProcessed != nil &&
-		target.observedPendingID != "" {
+		target.observedPendingID != "" &&
+		(pendingExists || pendingErr != nil) {
 		if err := target.checkpointProcessed(
 			true,
 			target.observedPendingID,
@@ -249,6 +279,12 @@ func purgeProfileDeviceCredentialWithReport(
 	currentOutcome := serverRemovalCleanupLocal
 	secureBaseURL := strings.TrimSpace(target.secureBaseURL)
 	spkiPin := strings.TrimSpace(target.spkiPin)
+	if (secureBaseURL == "") != (spkiPin == "") {
+		return fmt.Errorf(
+			"device endpoint for server %q is incomplete; refusing to delete an active credential",
+			target.name,
+		)
+	}
 	if secureBaseURL != "" && spkiPin != "" {
 		revoked = revokeSelfDeviceV1ForUninstall(secureBaseURL, spkiPin, credential) == nil
 		if revoked {
@@ -304,48 +340,6 @@ func purgeProfileDeviceCredentialWithReport(
 		report.addNote(fmt.Sprintf("Could not reach the relay to revoke this device's pairing (device id %s). Remove it on the NOVA page in Home Assistant.", deviceCredentialID(credential)))
 	}
 	return removeDeviceFileStorageResidueForProfile(target.name)
-}
-
-func validateCheckpointedProfilePurgeSlot(
-	service string,
-	expected string,
-	pending bool,
-) error {
-	if expected == "" {
-		return nil
-	}
-	value, err := secretGet(service)
-	if err == errSecretNotFound {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-	if credentialEvidenceID(value, pending) != expected {
-		return newCloudError(
-			CloudErrIdentityMismatch,
-			"match checkpointed device credential before deletion",
-			nil,
-		)
-	}
-	return nil
-}
-
-func readPendingCredentialRecordFromService(
-	service string,
-) (pendingDeviceCredentialRecord, bool, error) {
-	value, err := secretGet(service)
-	if err != nil {
-		if err == errSecretNotFound {
-			return pendingDeviceCredentialRecord{}, false, nil
-		}
-		return pendingDeviceCredentialRecord{}, false, err
-	}
-	record, err := decodePendingDeviceCredentialRecord(value)
-	if err != nil {
-		return pendingDeviceCredentialRecord{}, false, err
-	}
-	return record, true, nil
 }
 
 func deviceCredentialID(credential string) string {

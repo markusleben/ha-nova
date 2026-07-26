@@ -369,8 +369,11 @@ func TestProductionRetirePreviousReusesPreflightSession(t *testing.T) {
 	if storeCalls != 1 {
 		t.Fatalf("native store constructions = %d, want 1", storeCalls)
 	}
-	if retiringReads != 2 {
-		t.Fatalf("native retiring reads = %d, want preflight retry only", retiringReads)
+	if retiringReads != 3 {
+		t.Fatalf(
+			"native retiring reads = %d, want preflight retry plus exact cleanup validation",
+			retiringReads,
+		)
 	}
 	if revoked.Generation != oldCurrent.Generation {
 		t.Fatalf(

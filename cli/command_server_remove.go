@@ -252,6 +252,13 @@ func runServerRemove(paths runtimePaths, args []string) int {
 				slotState,
 			)
 		}
+		if preflightErr == nil {
+			preflightErr =
+				validateProfilePurgeEndpointCompleteness(
+					preflightTarget,
+					slotState,
+				)
+		}
 	}
 	if preflightErr != nil {
 		printHumanErr(
@@ -273,7 +280,9 @@ func runServerRemove(paths runtimePaths, args []string) int {
 		cfg,
 		profileRaw,
 		credentialValues[services[0]],
+		credentialPresent[services[0]],
 		credentialValues[services[1]],
+		credentialPresent[services[1]],
 	)
 	if err := writeServerRemovalCheckpoint(
 		paths,

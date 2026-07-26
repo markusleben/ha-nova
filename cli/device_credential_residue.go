@@ -213,40 +213,49 @@ func removeDeviceResiduePath(path string) error {
 // names must be readable and empty.
 func requireEmptyServerCredentialNamespaces(oldName, newName string) error {
 	for _, profile := range []string{oldName, newName} {
-		for _, service := range []string{
-			deviceCredentialServiceForProfile(profile),
-			deviceCredentialPendingServiceForProfile(profile),
-		} {
-			value, exists, err := readCredentialSlot(service)
-			if err != nil {
-				return fmt.Errorf(
-					"cannot prove credential slot %s is empty: %w",
-					service,
-					err,
-				)
-			}
-			if exists || value != "" {
-				return fmt.Errorf(
-					"server profile %q has stored device credentials",
-					profile,
-				)
-			}
-			rawPath, err := deviceSecretFilePath(service)
-			if err != nil {
-				return err
-			}
-			if _, err := os.Lstat(rawPath); err == nil {
-				return fmt.Errorf(
-					"server profile %q has a raw device credential file",
-					profile,
-				)
-			} else if !os.IsNotExist(err) {
-				return fmt.Errorf(
-					"cannot inspect raw credential slot %s: %w",
-					service,
-					err,
-				)
-			}
+		if err := requireEmptyServerCredentialNamespace(
+			profile,
+		); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func requireEmptyServerCredentialNamespace(profile string) error {
+	for _, service := range []string{
+		deviceCredentialServiceForProfile(profile),
+		deviceCredentialPendingServiceForProfile(profile),
+	} {
+		value, exists, err := readCredentialSlot(service)
+		if err != nil {
+			return fmt.Errorf(
+				"cannot prove credential slot %s is empty: %w",
+				service,
+				err,
+			)
+		}
+		if exists || value != "" {
+			return fmt.Errorf(
+				"server profile %q has stored device credentials",
+				profile,
+			)
+		}
+		rawPath, err := deviceSecretFilePath(service)
+		if err != nil {
+			return err
+		}
+		if _, err := os.Lstat(rawPath); err == nil {
+			return fmt.Errorf(
+				"server profile %q has a raw device credential file",
+				profile,
+			)
+		} else if !os.IsNotExist(err) {
+			return fmt.Errorf(
+				"cannot inspect raw credential slot %s: %w",
+				service,
+				err,
+			)
 		}
 	}
 	return nil

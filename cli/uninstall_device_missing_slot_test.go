@@ -113,7 +113,6 @@ func TestProfilePurgePreservesUnreadableSlotReplacement(
 		name: defaultServerProfileName,
 		observedCurrentID: credentialEvidenceID(
 			original,
-			false,
 		),
 		checkpointProcessed: func(
 			bool,

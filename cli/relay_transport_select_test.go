@@ -56,6 +56,48 @@ func TestRelayViaParsing(t *testing.T) {
 	}
 }
 
+func TestNamedRelayPairCommandNeverEchoesUnsafeSavedURL(
+	t *testing.T,
+) {
+	const unsafeURL = "http://ha.local;touch-danger"
+	command := namedRelayPairCommand("cabin", unsafeURL)
+	if strings.Contains(command, unsafeURL) ||
+		command != `ha-nova pair --server cabin --relay-url "http://<ha-host>:8791"` {
+		t.Fatalf("unsafe pair command = %q", command)
+	}
+	valid := namedRelayPairCommand(
+		"cabin",
+		"http://cabin.local:8791",
+	)
+	if valid !=
+		`ha-nova pair --server cabin --relay-url "http://cabin.local:8791"` {
+		t.Fatalf("valid pair command = %q", valid)
+	}
+	ipv6 := namedRelayPairCommand(
+		"cabin",
+		"http://[fd00::1]:8791",
+	)
+	if ipv6 !=
+		`ha-nova pair --server cabin --relay-url "http://[fd00::1]:8791"` {
+		t.Fatalf("IPv6 pair command = %q", ipv6)
+	}
+}
+
+func TestLocalRelayPreflightWithoutProfileKeepsUsefulRepairCommand(
+	t *testing.T,
+) {
+	err := (&localRelayPreflightError{
+		cause: newCloudError(
+			CloudErrUnauthorized,
+			"test local preflight",
+			nil,
+		),
+	}).Error()
+	if !strings.Contains(err, "run: ha-nova setup") {
+		t.Fatalf("profile-less preflight error = %q", err)
+	}
+}
+
 func TestRelayTransportSelectionHonorsPolicyAndExplicitOverride(t *testing.T) {
 	localCalls, cloudCalls, automaticCalls := stubRelayTransportResolvers(t)
 	cfg := runtimeConfig{RoutePolicy: routePolicyCloud, Cloud: readyCloudForTransportTest()}

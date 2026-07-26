@@ -113,7 +113,19 @@ func removeTransactionMarkerDurably(path string) error {
 		}
 		return err
 	}
-	_ = windows.DeleteFile(tombstoneUTF16)
+	return nil
+}
+
+func removeCommittedTransactionMarkerDurably(path string) error {
+	pathUTF16, err := windows.UTF16PtrFromString(path)
+	if err != nil {
+		return err
+	}
+	if err := windows.DeleteFile(pathUTF16); err != nil &&
+		err != windows.ERROR_FILE_NOT_FOUND &&
+		err != windows.ERROR_PATH_NOT_FOUND {
+		return err
+	}
 	return nil
 }
 

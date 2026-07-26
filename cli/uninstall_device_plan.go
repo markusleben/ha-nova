@@ -22,6 +22,9 @@ type profilePurgeTarget struct {
 	observedPendingID    string
 	processedCurrentID   string
 	processedPendingID   string
+	removalCheckpointed  bool
+	currentSlotPresent   bool
+	pendingSlotPresent   bool
 	checkpointProcessed  func(
 		pending bool,
 		evidenceID string,
@@ -83,6 +86,22 @@ func collectProfilePurgeTargets(
 		if err != nil {
 			return nil, err
 		}
+		if cfg.ServerRemoval != nil {
+			profileName := name
+			target.checkpointProcessed = func(
+				pending bool,
+				evidenceID string,
+				outcome serverRemovalCleanupOutcome,
+			) error {
+				return recordServerRemovalProcessedSlot(
+					paths,
+					profileName,
+					pending,
+					evidenceID,
+					outcome,
+				)
+			}
+		}
 		targets = append(targets, target)
 	}
 	if len(targets) == 0 {
@@ -107,6 +126,11 @@ func profilePurgeTargetFromConfig(
 	}
 	if cfg.Cloud == nil || cfg.Cloud.DeviceRevocationCompleted == nil {
 		if cfg.ServerRemoval != nil {
+			target.removalCheckpointed = true
+			target.currentSlotPresent =
+				cfg.ServerRemoval.CurrentSlotPresent
+			target.pendingSlotPresent =
+				cfg.ServerRemoval.PendingSlotPresent
 			target.observedCurrentID =
 				cfg.ServerRemoval.ObservedCurrentID
 			target.observedPendingID =
@@ -134,6 +158,11 @@ func profilePurgeTargetFromConfig(
 	target.revokedPendingID =
 		cfg.Cloud.DeviceRevocationCompleted.PendingDeviceID
 	if cfg.ServerRemoval != nil {
+		target.removalCheckpointed = true
+		target.currentSlotPresent =
+			cfg.ServerRemoval.CurrentSlotPresent
+		target.pendingSlotPresent =
+			cfg.ServerRemoval.PendingSlotPresent
 		target.observedCurrentID =
 			cfg.ServerRemoval.ObservedCurrentID
 		target.observedPendingID =
@@ -168,7 +197,13 @@ func validateProfilePurgeTargets(targets []profilePurgeTarget) error {
 		); err != nil {
 			return err
 		}
-		pending, pendingExists, err :=
+		if err := validateProfilePurgeEndpointCompleteness(
+			target,
+			slotState,
+		); err != nil {
+			return err
+		}
+		_, _, err =
 			readPendingCredentialRecordFromService(
 				deviceCredentialPendingServiceForProfile(target.name),
 			)
@@ -181,16 +216,7 @@ func validateProfilePurgeTargets(targets []profilePurgeTarget) error {
 				err,
 			)
 		}
-		if pendingExists &&
-			pending.Source == pendingDeviceCredentialSourceLocal &&
-			((target.pendingSecureBaseURL == "") !=
-				(target.pendingSpkiPin == "")) {
-			return fmt.Errorf(
-				"pending device endpoint for server %q is incomplete; refusing to delete a possibly active credential",
-				target.name,
-			)
-		}
-		_, currentExists, err := readCredentialSlot(
+		_, _, err = readCredentialSlot(
 			deviceCredentialServiceForProfile(target.name),
 		)
 		if err != nil {
@@ -200,13 +226,6 @@ func validateProfilePurgeTargets(targets []profilePurgeTarget) error {
 					target.name,
 				),
 				err,
-			)
-		}
-		if currentExists &&
-			((target.secureBaseURL == "") != (target.spkiPin == "")) {
-			return fmt.Errorf(
-				"device endpoint for server %q is incomplete; refusing to delete an active credential",
-				target.name,
 			)
 		}
 	}
@@ -271,6 +290,22 @@ func validateRequiredProfilePurgeSlots(
 	target profilePurgeTarget,
 	state profilePurgeSlotState,
 ) error {
+	if target.removalCheckpointed &&
+		!target.pendingSlotPresent &&
+		state.pendingExists {
+		return fmt.Errorf(
+			"pending credential for server %q appeared after its removal checkpoint; refusing to delete an uninventoried bearer",
+			target.name,
+		)
+	}
+	if target.removalCheckpointed &&
+		!target.currentSlotPresent &&
+		state.currentExists {
+		return fmt.Errorf(
+			"current credential for server %q appeared after its removal checkpoint; refusing to delete an uninventoried bearer",
+			target.name,
+		)
+	}
 	if target.observedPendingID != "" &&
 		target.processedPendingID == "" &&
 		!state.pendingExists {
@@ -314,6 +349,29 @@ func validateRequiredProfilePurgeSlots(
 		!interruptedFirstPromotion {
 		return fmt.Errorf(
 			"device endpoint for server %q indicates an active pairing, but its current credential is missing; refusing cleanup because that relay pairing cannot be authenticated for revocation",
+			target.name,
+		)
+	}
+	return nil
+}
+
+func validateProfilePurgeEndpointCompleteness(
+	target profilePurgeTarget,
+	state profilePurgeSlotState,
+) error {
+	if state.pendingExists &&
+		((target.pendingSecureBaseURL == "") !=
+			(target.pendingSpkiPin == "")) {
+		return fmt.Errorf(
+			"pending device endpoint for server %q is incomplete; refusing to delete a possibly active credential",
+			target.name,
+		)
+	}
+	if state.currentExists &&
+		((target.secureBaseURL == "") !=
+			(target.spkiPin == "")) {
+		return fmt.Errorf(
+			"device endpoint for server %q is incomplete; refusing to delete an active credential",
 			target.name,
 		)
 	}

@@ -42,9 +42,13 @@ func rollbackCloudReconnectAfterUserConflict(
 		if err := revokeAndVerifyCloudAuthorizationForCLI(ctx, pending); err != nil {
 			return err
 		}
-		if err := store.DeletePending(
+		exact, err := exactOAuthCleanupStoreFor(store)
+		if err != nil {
+			return err
+		}
+		if err := exact.DeletePendingExact(
 			ctx,
-			pending.Generation,
+			pending,
 			SecretStoreForbidUI,
 		); err != nil {
 			return err

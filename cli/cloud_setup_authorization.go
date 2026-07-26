@@ -145,6 +145,8 @@ func authorizeOrRefreshCloud(
 					ctx,
 					store,
 					envelope.Generation,
+					envelope.RefreshToken,
+					envelope.ClientID,
 					request.ClearPendingAuthorization,
 				); cleanupErr != nil {
 					return "", OAuthSecretEnvelope{}, &cloudProblem{
@@ -314,6 +316,8 @@ func cleanupUnstoredCloudAuthorization(
 			cleanupCtx,
 			store,
 			generation,
+			refreshToken,
+			clientID,
 			clearPendingMetadata,
 		)
 	}
@@ -333,16 +337,26 @@ func cleanupAmbiguousPendingAuthorization(
 	ctx context.Context,
 	store OAuthSecretStore,
 	generation string,
+	refreshToken string,
+	clientID string,
 	clearPendingMetadata func(string) error,
 ) error {
-	if store == nil || generation == "" || clearPendingMetadata == nil {
+	if store == nil || generation == "" ||
+		refreshToken == "" || clientID == "" ||
+		clearPendingMetadata == nil {
 		return errors.New(
 			"pending Cloud authorization cleanup is unavailable",
 		)
 	}
-	if err := store.DeletePending(
+	exact, err := exactOAuthCleanupStoreFor(store)
+	if err != nil {
+		return err
+	}
+	if err := exact.DeletePendingGrantExact(
 		ctx,
 		generation,
+		refreshToken,
+		clientID,
 		SecretStoreForbidUI,
 	); err != nil {
 		return err

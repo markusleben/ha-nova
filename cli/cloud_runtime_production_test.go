@@ -131,7 +131,13 @@ func TestProductionAutomaticRouteNeverFallsBackForSecurityOrProtocolFailures(t *
 			}), relayViaLocal)
 			cloudCalls := stubProductionAutomaticResolvers(t, local, nil)
 
-			_, err := resolveAutomaticRelayTransport(context.Background(), runtimeConfig{RelayInstanceID: "relay-1"})
+			_, err := resolveAutomaticRelayTransport(
+				context.Background(),
+				runtimeConfig{
+					RelayInstanceID: "relay-1",
+					RelayBaseURL:    "http://cabin.local:8791",
+				},
+			)
 			if err == nil {
 				t.Fatal("security/protocol failure was accepted")
 			}
@@ -167,7 +173,13 @@ func TestProductionAutomaticRouteNeverFallsBackForHTTPOrEnvelopeFailures(t *test
 			}), relayViaLocal)
 			cloudCalls := stubProductionAutomaticResolvers(t, local, nil)
 
-			_, err := resolveAutomaticRelayTransport(context.Background(), runtimeConfig{RelayInstanceID: "relay-1"})
+			_, err := resolveAutomaticRelayTransport(
+				context.Background(),
+				runtimeConfig{
+					RelayInstanceID: "relay-1",
+					RelayBaseURL:    "http://cabin.local:8791",
+				},
+			)
 			if err == nil {
 				t.Fatal("HTTP/envelope failure was accepted")
 			}
@@ -175,7 +187,7 @@ func TestProductionAutomaticRouteNeverFallsBackForHTTPOrEnvelopeFailures(t *test
 				testCase.status == http.StatusForbidden) &&
 				!strings.Contains(
 					err.Error(),
-					"ha-nova setup --server cabin",
+					`ha-nova pair --server cabin --relay-url "http://cabin.local:8791"`,
 				) {
 				t.Fatalf(
 					"named-profile recovery error = %v",

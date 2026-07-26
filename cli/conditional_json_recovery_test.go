@@ -129,6 +129,60 @@ func TestConditionalCheckpointRejectsWriterAfterAtomicSwap(
 	}
 }
 
+func TestConditionalCheckpointRejectsWriterBeforeMarkerRetirement(
+	t *testing.T,
+) {
+	paths := writeTestConfigFile(
+		t,
+		`{"generation":"expected"}`,
+	)
+	expected, err := os.ReadFile(paths.ConfigFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	external := []byte(`{"generation":"external-tail"}`)
+	previousHook := conditionalJSONBeforeMarkerRetirement
+	conditionalJSONBeforeMarkerRetirement = func(path string) error {
+		return os.WriteFile(path, external, 0o600)
+	}
+	t.Cleanup(func() {
+		conditionalJSONBeforeMarkerRetirement = previousHook
+	})
+
+	err = writeJSONFileIfUnchanged(
+		paths.ConfigFile,
+		map[string]string{"generation": "replacement"},
+		0o600,
+		expected,
+	)
+	if err == nil ||
+		!strings.Contains(err.Error(), "before conditional") {
+		t.Fatalf("tail writer error = %v", err)
+	}
+	got, err := os.ReadFile(paths.ConfigFile)
+	if err != nil || string(got) != string(external) {
+		t.Fatalf("external target=%s err=%v", got, err)
+	}
+	if _, err := os.Lstat(
+		conditionalJSONTransactionPath(paths.ConfigFile),
+	); err != nil {
+		t.Fatalf("active transaction marker missing: %v", err)
+	}
+	conditionalJSONBeforeMarkerRetirement = func(string) error {
+		return nil
+	}
+	err = recoverConditionalJSONTransaction(paths.ConfigFile)
+	if err == nil ||
+		!strings.Contains(err.Error(), "changed after") {
+		t.Fatalf("tail writer recovery error = %v", err)
+	}
+	if err := recoverConditionalJSONTransaction(
+		paths.ConfigFile,
+	); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestConditionalCheckpointRecoversTargetOnlyCommittedState(
 	t *testing.T,
 ) {
@@ -139,6 +193,7 @@ func TestConditionalCheckpointRecoversTargetOnlyCommittedState(
 	}
 	transaction := conditionalJSONTransaction{
 		Schema: conditionalJSONTransactionSchema,
+		Phase:  conditionalJSONPhaseReplace,
 		ReplacementPath: paths.ConfigFile +
 			".tmp.missing",
 		PriorPath: paths.ConfigFile +
@@ -164,5 +219,125 @@ func TestConditionalCheckpointRecoversTargetOnlyCommittedState(
 		conditionalJSONTransactionPath(paths.ConfigFile),
 	); !os.IsNotExist(err) {
 		t.Fatalf("transaction marker remains: %v", err)
+	}
+}
+
+func TestConditionalCheckpointRecoversDurableConflictRestore(
+	t *testing.T,
+) {
+	for _, phase := range []string{
+		"after conflict swap",
+		"before conflict retirement",
+	} {
+		t.Run(phase, func(t *testing.T) {
+			paths := writeTestConfigFile(
+				t,
+				`{"generation":"expected"}`,
+			)
+			expected, err := os.ReadFile(paths.ConfigFile)
+			if err != nil {
+				t.Fatal(err)
+			}
+			external := []byte(`{"generation":"external"}`)
+			previousBeforeSwap := conditionalJSONBeforeSwap
+			previousAfterConflict :=
+				conditionalJSONAfterConflictSwap
+			previousBeforeRetirement :=
+				conditionalJSONBeforeConflictRetirement
+			conditionalJSONBeforeSwap = func(path string) {
+				conditionalJSONBeforeSwap = func(string) {}
+				if err := os.WriteFile(
+					path,
+					external,
+					0o600,
+				); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if phase == "after conflict swap" {
+				conditionalJSONAfterConflictSwap = func(
+					string,
+				) error {
+					return errors.New("simulated restore crash")
+				}
+			} else {
+				conditionalJSONBeforeConflictRetirement = func(
+					string,
+				) error {
+					return errors.New("simulated retirement crash")
+				}
+			}
+			t.Cleanup(func() {
+				conditionalJSONBeforeSwap = previousBeforeSwap
+				conditionalJSONAfterConflictSwap =
+					previousAfterConflict
+				conditionalJSONBeforeConflictRetirement =
+					previousBeforeRetirement
+			})
+
+			err = writeJSONFileIfUnchanged(
+				paths.ConfigFile,
+				map[string]string{
+					"generation": "replacement",
+				},
+				0o600,
+				expected,
+			)
+			if err == nil ||
+				!strings.Contains(err.Error(), "simulated") {
+				t.Fatalf("interrupted restore error = %v", err)
+			}
+			marker, err := os.ReadFile(
+				conditionalJSONTransactionPath(
+					paths.ConfigFile,
+				),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var transaction conditionalJSONTransaction
+			if err := json.Unmarshal(
+				marker,
+				&transaction,
+			); err != nil {
+				t.Fatal(err)
+			}
+			if transaction.Phase !=
+				conditionalJSONPhaseRestoreConflict ||
+				transaction.ConflictPath == "" {
+				t.Fatalf(
+					"restore transaction = %+v",
+					transaction,
+				)
+			}
+			conditionalJSONAfterConflictSwap = func(
+				string,
+			) error {
+				return nil
+			}
+			conditionalJSONBeforeConflictRetirement = func(
+				string,
+			) error {
+				return nil
+			}
+			err = recoverConditionalJSONTransaction(
+				paths.ConfigFile,
+			)
+			if !errors.Is(
+				err,
+				errConditionalJSONConflictRestored,
+			) {
+				t.Fatalf("restore recovery error = %v", err)
+			}
+			if err := recoverConditionalJSONTransaction(
+				paths.ConfigFile,
+			); err != nil {
+				t.Fatalf("second recovery = %v", err)
+			}
+			got, err := os.ReadFile(paths.ConfigFile)
+			if err != nil || string(got) != string(external) {
+				t.Fatalf("target=%s err=%v", got, err)
+			}
+		})
 	}
 }

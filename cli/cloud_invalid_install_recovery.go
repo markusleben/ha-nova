@@ -5,6 +5,8 @@ import (
 	"os"
 )
 
+var loadConfigDocumentForInvalidInstallRecovery = loadConfigDocument
+
 func cloudStatusHandledInvalidInstallIdentity(
 	paths runtimePaths,
 	options cloudCommandFlags,
@@ -73,10 +75,14 @@ func invalidInstallIdentityRecoveryCommand(
 	paths runtimePaths,
 	selectedProfile string,
 ) (string, bool, error) {
-	doc, err := loadConfigDocument(paths.ConfigFile)
-	if err != nil ||
-		validateClientInstallID(doc.meta.ClientInstallID) == nil {
-		return "", false, err
+	doc, err := loadConfigDocumentForInvalidInstallRecovery(
+		paths.ConfigFile,
+	)
+	if err != nil {
+		return "", true, err
+	}
+	if validateClientInstallID(doc.meta.ClientInstallID) == nil {
+		return "", false, nil
 	}
 	cleanupProfile, cloudRemains, err :=
 		remainingCloudCleanupProfile(doc)

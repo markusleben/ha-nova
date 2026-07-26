@@ -178,11 +178,20 @@ func (productionCloudSetupCoordinator) RetirePrevious(
 	if err != nil || !exists {
 		return err
 	}
-	return store.RevokeRetiring(
+	if err := revokeAndVerifyCloudAuthorizationForCLI(
 		ctx,
-		retiring.Generation,
+		retiring,
+	); err != nil {
+		return err
+	}
+	exact, err := exactOAuthCleanupStoreFor(store)
+	if err != nil {
+		return err
+	}
+	return exact.DeleteRetiringExact(
+		ctx,
+		retiring,
 		SecretStoreForbidUI,
-		revokeAndVerifyCloudAuthorizationForCLI,
 	)
 }
 

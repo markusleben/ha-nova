@@ -46,6 +46,17 @@ func syncParentDirectory(path string) error {
 }
 
 func removeTransactionMarkerDurably(path string) error {
+	if err := os.Rename(
+		path,
+		path+".committed",
+	); err != nil &&
+		!os.IsNotExist(err) {
+		return err
+	}
+	return syncParentDirectory(path)
+}
+
+func removeCommittedTransactionMarkerDurably(path string) error {
 	if err := os.Remove(path); err != nil &&
 		!os.IsNotExist(err) {
 		return err

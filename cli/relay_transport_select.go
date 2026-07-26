@@ -36,18 +36,27 @@ type relayTransportSelection struct {
 type relayTransportResolver func(context.Context, runtimeConfig) (relayTransportSelection, error)
 
 type localRelayPreflightError struct {
-	cause   error
-	profile string
+	cause    error
+	profile  string
+	relayURL string
+}
+
+func (e *localRelayPreflightError) repairCommand() string {
+	if e.profile != "" &&
+		e.profile != defaultServerProfileName {
+		return namedRelayPairCommand(e.profile, e.relayURL)
+	}
+	return "ha-nova setup"
 }
 
 func (e *localRelayPreflightError) Error() string {
 	switch {
 	case IsCloudErrorCode(e.cause, CloudErrUnauthorized):
 		return "local Relay rejected the saved device credential; run: " +
-			cloudSetupCommandFor(e.profile)
+			e.repairCommand()
 	case IsCloudErrorCode(e.cause, CloudErrForbidden):
 		return "local Relay denied the saved device credential; run: " +
-			cloudSetupCommandFor(e.profile)
+			e.repairCommand()
 	case IsCloudErrorCode(e.cause, CloudErrRedirectRejected):
 		return "local Relay redirected an authenticated health check; no Cloud fallback or functional request was attempted"
 	case IsCloudErrorCode(e.cause, CloudErrHAProtocol),

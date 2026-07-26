@@ -7,7 +7,7 @@ import (
 	"fmt"
 )
 
-const serverRemovalCheckpointSchema = 2
+const serverRemovalCheckpointSchema = 3
 
 type serverRemovalCleanupOutcome string
 
@@ -22,10 +22,12 @@ type serverRemovalCheckpoint struct {
 	ProfileID          string                      `json:"profile_id"`
 	CurrentService     string                      `json:"current_service"`
 	PendingService     string                      `json:"pending_service"`
-	ObservedCurrentID  string                      `json:"observed_current_device_id,omitempty"`
-	ObservedPendingID  string                      `json:"observed_pending_device_id,omitempty"`
-	ProcessedCurrentID string                      `json:"processed_current_device_id,omitempty"`
-	ProcessedPendingID string                      `json:"processed_pending_device_id,omitempty"`
+	CurrentSlotPresent bool                        `json:"current_slot_present"`
+	PendingSlotPresent bool                        `json:"pending_slot_present"`
+	ObservedCurrentID  string                      `json:"observed_current_credential_id,omitempty"`
+	ObservedPendingID  string                      `json:"observed_pending_credential_id,omitempty"`
+	ProcessedCurrentID string                      `json:"processed_current_credential_id,omitempty"`
+	ProcessedPendingID string                      `json:"processed_pending_credential_id,omitempty"`
 	CurrentOutcome     serverRemovalCleanupOutcome `json:"current_outcome,omitempty"`
 	PendingOutcome     serverRemovalCleanupOutcome `json:"pending_outcome,omitempty"`
 	OriginalProfileSHA string                      `json:"original_profile_sha256"`
@@ -41,7 +43,9 @@ func newServerRemovalCheckpoint(
 	cfg runtimeConfig,
 	profileRaw json.RawMessage,
 	currentCredential string,
+	currentPresent bool,
 	pendingCredential string,
+	pendingPresent bool,
 ) serverRemovalCheckpoint {
 	checkpoint := serverRemovalCheckpoint{
 		Schema:             serverRemovalCheckpointSchema,
@@ -54,17 +58,17 @@ func newServerRemovalCheckpoint(
 		SPKIPin:            cfg.RelaySpkiPin,
 		PendingSecureURL:   cfg.PendingSecureBaseURL,
 		PendingSPKIPin:     cfg.PendingSpkiPin,
+		CurrentSlotPresent: currentPresent,
+		PendingSlotPresent: pendingPresent,
 	}
-	if currentCredential != "" {
+	if currentPresent {
 		checkpoint.ObservedCurrentID = credentialEvidenceID(
 			currentCredential,
-			false,
 		)
 	}
-	if pendingCredential != "" {
+	if pendingPresent {
 		checkpoint.ObservedPendingID = credentialEvidenceID(
 			pendingCredential,
-			true,
 		)
 	}
 	return checkpoint
@@ -101,6 +105,14 @@ func validateServerRemovalCheckpoint(
 	if checkpoint.OriginalProfileSHA == "" {
 		return errors.New(
 			"server removal checkpoint lacks its original profile generation",
+		)
+	}
+	if checkpoint.CurrentSlotPresent !=
+		(checkpoint.ObservedCurrentID != "") ||
+		checkpoint.PendingSlotPresent !=
+			(checkpoint.ObservedPendingID != "") {
+		return errors.New(
+			"server removal checkpoint slot-presence evidence mismatch",
 		)
 	}
 	if err := validateServerRemovalProcessedSlot(
@@ -240,18 +252,9 @@ func serverRemovalProfileGeneration(
 	return jsonContentSHA256(canonical), nil
 }
 
-func credentialEvidenceID(value string, pending bool) string {
-	if pending {
-		record, err := decodePendingDeviceCredentialRecord(value)
-		if err == nil {
-			value = record.Credential
-		}
-	}
-	if parsed := parseDeviceCredential(value); parsed != nil {
-		return parsed.deviceID
-	}
+func credentialEvidenceID(value string) string {
 	sum := sha256.Sum256([]byte(value))
-	return fmt.Sprintf("unreadable-%x", sum[:8])
+	return fmt.Sprintf("credential-%x", sum[:16])
 }
 
 func rejectPendingServerRemoval(

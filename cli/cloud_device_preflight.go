@@ -86,12 +86,19 @@ func inspectCloudDeviceAccess(
 	if currentExists &&
 		requireCurrentRelayProof &&
 		expectedRelayInstanceID == "" {
+		restoreCommand := cloudSetupCommandFor(
+			defaultServerProfileName,
+		)
+		if profile := activeServerProfile(); profile !=
+			defaultServerProfileName {
+			restoreCommand = namedRelayPairCommand(profile, "")
+		}
 		return &cloudProblem{
 			Code:        cloudProblemIdentityMismatch,
 			Remediation: cloudRemediationSecurityStop,
 			Detail: "an existing device credential cannot be matched to this Relay; " +
 				"setup stopped before sign-in or pairing to avoid replacing it. " +
-				"Restore local access with `ha-nova setup` and retry, or revoke the old " +
+				"Restore local access with `" + restoreCommand + "` and retry, or revoke the old " +
 				"NOVA device in Home Assistant and run `ha-nova uninstall --purge` " +
 				"before a fresh Cloud-only setup",
 			Cause: newCloudError(

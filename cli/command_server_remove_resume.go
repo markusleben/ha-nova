@@ -126,6 +126,13 @@ func completeServerRemovalUnlocked(
 		)
 		return 1
 	}
+	if err := requireEmptyServerCredentialNamespace(name); err != nil {
+		printHumanErr(
+			"server credentials reappeared after cleanup: %v; preserved the profile and checkpoint",
+			err,
+		)
+		return 1
+	}
 	servers, err := documentServersCopy(currentDoc)
 	if err != nil {
 		printHumanErr(

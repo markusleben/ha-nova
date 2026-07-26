@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 )
 
@@ -171,6 +172,8 @@ func TestRuntimeCloudDevicePreflightForbidsNativeUI(t *testing.T) {
 func TestRemoteCloudDevicePreflightStopsUnprovenCurrentBeforeAuthorization(
 	t *testing.T,
 ) {
+	resetServerProfileSelection(t)
+	setActiveServerProfile("cabin")
 	oldPending := readCloudPendingDeviceForSetup
 	oldCurrent := readCloudDeviceForSetup
 	oldAuthorize := authorizeAndVerifyCloudForSetup
@@ -233,7 +236,12 @@ func TestRemoteCloudDevicePreflightStopsUnprovenCurrentBeforeAuthorization(
 	var problem *cloudProblem
 	if !errors.As(err, &problem) ||
 		problem.Code != cloudProblemIdentityMismatch ||
-		problem.Remediation != cloudRemediationSecurityStop {
+		problem.Remediation != cloudRemediationSecurityStop ||
+		!strings.Contains(
+			problem.Detail,
+			`ha-nova pair --server cabin --relay-url "http://<ha-host>:8791"`,
+		) ||
+		strings.Contains(problem.Detail, "`ha-nova setup`") {
 		t.Fatalf("unproven current error = %v", err)
 	}
 	if pairingCalls != 0 {

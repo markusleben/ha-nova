@@ -180,8 +180,9 @@ func resolveAutomaticRelayTransport(
 		return local, nil
 	} else if !isPureLocalNetworkFailure(err) {
 		return relayTransportSelection{}, &localRelayPreflightError{
-			cause:   err,
-			profile: activeServerProfile(),
+			cause:    err,
+			profile:  activeServerProfile(),
+			relayURL: cfg.RelayBaseURL,
 		}
 	}
 	if err := requireFunctionalCloudAccess(cfg); err != nil {

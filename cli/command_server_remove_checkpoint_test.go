@@ -230,7 +230,14 @@ func TestServerRemoveCheckpointRejectsReplacementCredential(
 		t.Fatalf("checkpoint exit=%d output=%s", exit, output)
 	}
 
-	replacement := validCredential(191)
+	// Keep the same device ID and change only the bearer secret. A checkpoint
+	// must bind the complete credential, not merely the remote device identity.
+	replacement := strings.Replace(
+		testProfileCredentialB,
+		strings.Repeat("D", 43),
+		strings.Repeat("E", 43),
+		1,
+	)
 	if err := secretSet(
 		deviceCredentialServiceForProfile("cabin"),
 		replacement,
