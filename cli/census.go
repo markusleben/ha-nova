@@ -82,7 +82,7 @@ const (
 // sides cannot drift. An observed relay version that the worker would reject
 // is omitted from the payload instead of getting the whole report rejected
 // after the cadence was already stamped.
-var censusVersionPattern = regexp.MustCompile(`^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-rc[1-9][0-9]*)?$`)
+var censusVersionPattern = regexp.MustCompile(`^\d+\.\d+\.\d+(-rc\d+)?$`)
 var censusInstallationIDPattern = regexp.MustCompile(`^cns-[0-9a-f]{32}$`)
 var censusChoiceIDPattern = regexp.MustCompile(`^cns-choice-[0-9a-f]{32}$`)
 

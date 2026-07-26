@@ -89,7 +89,7 @@ describe("owner-check", () => {
 
   it("denies a direct LAN request that forges the header (wrong socket peer)", async () => {
     const r = await checkOwner(
-      req({ peer: "192.168.1.50", userId: "owner-1" }),
+      req({ peer: "192.0.2.50", userId: "owner-1" }),
       users(),
     );
     expect(r.ok).toBe(false);

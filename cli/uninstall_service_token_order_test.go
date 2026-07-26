@@ -22,9 +22,9 @@ func TestFullPurgeKeepsConfigTargetUntilServiceTokenIsRemoved(
 		t.Fatal(err)
 	}
 	cfg := runtimeConfig{
-		HAHost:         "192.168.1.5",
-		HAURL:          "http://192.168.1.5:8123",
-		RelayBaseURL:   "http://192.168.1.5:8791",
+		HAHost:         "192.0.2.5",
+		HAURL:          "http://192.0.2.5:8123",
+		RelayBaseURL:   "http://192.0.2.5:8791",
 		RelayTokenFile: defaultRelayAuthTokenFile(paths),
 	}
 	if err := saveConfig(paths, cfg); err != nil {
@@ -71,9 +71,9 @@ func TestFullPurgeRejectsServiceTokenPathOverlappingConfig(
 		t.Fatal(err)
 	}
 	cfg := runtimeConfig{
-		HAHost:         "192.168.1.5",
-		HAURL:          "http://192.168.1.5:8123",
-		RelayBaseURL:   "http://192.168.1.5:8791",
+		HAHost:         "192.0.2.5",
+		HAURL:          "http://192.0.2.5:8123",
+		RelayBaseURL:   "http://192.0.2.5:8791",
 		RelayTokenFile: paths.ConfigFile,
 	}
 	if err := saveConfig(paths, cfg); err != nil {
@@ -129,9 +129,9 @@ func TestFullPurgeRejectsServiceTokenPathThroughSymlinkAncestor(
 		t.Fatal(err)
 	}
 	cfg := runtimeConfig{
-		HAHost:         "192.168.1.5",
-		HAURL:          "http://192.168.1.5:8123",
-		RelayBaseURL:   "http://192.168.1.5:8791",
+		HAHost:         "192.0.2.5",
+		HAURL:          "http://192.0.2.5:8123",
+		RelayBaseURL:   "http://192.0.2.5:8791",
 		RelayTokenFile: filepath.Join(alias, "service-token"),
 	}
 	if err := saveConfig(paths, cfg); err != nil {

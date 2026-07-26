@@ -47,7 +47,7 @@ describe("Supervisor ingress identity", () => {
     expect(resolveIngressIdentity(request({ peer: "127.0.0.1" })).ok).toBe(
       false,
     );
-    expect(resolveIngressIdentity(request({ peer: "192.168.1.50" })).ok).toBe(
+    expect(resolveIngressIdentity(request({ peer: "192.0.2.50" })).ok).toBe(
       false,
     );
   });

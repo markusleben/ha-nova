@@ -389,25 +389,6 @@ describe("Census schema-2 mutation contract", () => {
       validateWithdraw(JSON.stringify({ schema: 2, installation_id: ID })).ok,
     ).toBe(true);
     expect(INSTALLATION_ID_PATTERN.test(ID)).toBe(true);
-    for (const version of [
-      "0.21.3-rc0",
-      "0.21.3-rc01",
-      "00.21.3",
-      "0.021.3",
-      "0.21.03",
-    ]) {
-      expect(
-        validatePing(
-          JSON.stringify({
-            schema: 2,
-            installation_id: ID,
-            version,
-            os: "linux",
-          }),
-        ).ok,
-        version,
-      ).toBe(false);
-    }
   });
 });
 

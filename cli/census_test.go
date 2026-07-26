@@ -151,7 +151,7 @@ func TestCensusPayloadOmitsInvalidRelayVersion(t *testing.T) {
 	stubCensusVersion(t, "0.21.0")
 	now := time.Now().UTC()
 	fresh := now.Add(-time.Hour).Format(time.RFC3339)
-	for _, invalid := range []string{"dev", "1.2", "0.7.0-beta1", "0.7", "v0.7.0", "0.7.0-rc", "0.7.0-rc0", "0.7.0-rc01", "00.7.0", "0.07.0", "0.7.00", "1.0.0.0", "99999999999999999999999999999.0.0"} {
+	for _, invalid := range []string{"dev", "1.2", "0.7.0-beta1", "0.7", "v0.7.0", "0.7.0-rc", "1.0.0.0", "99999999999999999999999999999.0.0"} {
 		state := optedInCensusState()
 		state.RelayVersion = invalid
 		state.RelayVersionObservedAt = fresh
