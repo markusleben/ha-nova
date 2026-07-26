@@ -7,8 +7,6 @@ export function requiredPolicy(policy, requireProvisioned = false) {
   const apps = policy.main_branch_protection?.required_status_check_apps ?? {};
   const safeLabel = policy.dependabot_safe_lane?.label;
   const sourceName = policy.cloud_source_gate?.check_name;
-  const invalidatorName =
-    policy.cloud_source_gate?.synchronous_invalidator_check_name;
   if (
     !Array.isArray(required) ||
     required.length === 0 ||
@@ -16,9 +14,7 @@ export function requiredPolicy(policy, requireProvisioned = false) {
     typeof safeLabel !== "string" ||
     safeLabel.length === 0 ||
     typeof sourceName !== "string" ||
-    sourceName.length === 0 ||
-    typeof invalidatorName !== "string" ||
-    invalidatorName.length === 0
+    sourceName.length === 0
   ) {
     fail("authenticated repository policy is invalid");
   }
@@ -30,7 +26,7 @@ export function requiredPolicy(policy, requireProvisioned = false) {
       fail(`required check ${name} App id is not provisioned`);
     }
   }
-  return { apps, invalidatorName, required, safeLabel, sourceName };
+  return { apps, required, safeLabel, sourceName };
 }
 
 export function ownedMarker(comments, safeLabel, policySHA) {
@@ -67,9 +63,8 @@ export function requiredChecksGreen(checks, policy) {
   });
 }
 
-export function requireChecks(checks, policy, mergeSHA, prNumber) {
-  const { apps, invalidatorName, required, sourceName } =
-    requiredPolicy(policy);
+export function requireChecks(checks, policy, mergeSHA) {
+  const { apps, required, sourceName } = requiredPolicy(policy);
   for (const name of required) {
     const check = latestCheck(checks, name, apps[name]);
     if (check?.status !== "completed" || check.conclusion !== "success") {
@@ -83,14 +78,6 @@ export function requireChecks(checks, policy, mergeSHA, prNumber) {
       if (match?.[1] !== mergeSHA) {
         fail("latest dedicated-App source check targets another merge commit");
       }
-    }
-    if (
-      name === invalidatorName &&
-      check.external_id !== `pull-request:${prNumber}:target:${mergeSHA}`
-    ) {
-      fail(
-        "latest dedicated-App invalidator check targets another merge commit",
-      );
     }
   }
 }

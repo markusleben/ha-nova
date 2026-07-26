@@ -61,9 +61,6 @@ describe("dependabot automation contract", () => {
       check_name: string;
       reporter_app_id: number;
       reporter_app_slug: string;
-      synchronous_invalidator_check_name: string;
-      synchronous_invalidator_app_slug: string;
-      synchronous_invalidator_app_id: number;
       sensitive_workflows: string[];
     };
   };
@@ -238,7 +235,6 @@ describe("dependabot automation contract", () => {
       'runKind === "repository_dispatch"',
     );
     expect(directMergePolicy).toContain("latest dedicated-App source check targets another merge commit");
-    expect(directMergePolicy).toContain("latest dedicated-App invalidator check targets another merge commit");
     expect(directMergeScript).toContain("a CI run is queued or in progress for the candidate head");
     expect(directMergeScript).toContain("pull request API and merge ref identify different merge commits");
     expect(directMergeScript).toContain('merge_method: "squash"');
@@ -321,9 +317,6 @@ describe("dependabot automation contract", () => {
     expect(policy.cloud_source_gate.check_name).toBe("cloud-source-gate");
     expect(policy.cloud_source_gate.reporter_app_slug).toBe("markusleben-ha-nova-cloud-source-gate");
     expect(policy.cloud_source_gate.reporter_app_id).toBe(0);
-    expect(policy.cloud_source_gate.synchronous_invalidator_check_name).toBe("cloud-source-invalidator");
-    expect(policy.cloud_source_gate.synchronous_invalidator_app_slug).toBe("markusleben-ha-nova-cloud-source-invalidator");
-    expect(policy.cloud_source_gate.synchronous_invalidator_app_id).toBe(0);
     expect(protectionScript).toContain("repo-policy.json");
     expect(protectionScript).toContain(".main_branch_protection.required_status_checks | sort");
     expect(protectionScript).toContain(".main_branch_protection.required_status_check_apps");

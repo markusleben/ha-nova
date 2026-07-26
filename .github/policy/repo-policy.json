@@ -82,9 +82,6 @@
     "check_name": "cloud-source-gate",
     "reporter_app_slug": "markusleben-ha-nova-cloud-source-gate",
     "reporter_app_id": 0,
-    "synchronous_invalidator_check_name": "cloud-source-invalidator",
-    "synchronous_invalidator_app_slug": "markusleben-ha-nova-cloud-source-invalidator",
-    "synchronous_invalidator_app_id": 0,
     "sensitive_workflows": [
       ".github/workflows/cloud-source-gate.yml",
       ".github/workflows/ci.yml",

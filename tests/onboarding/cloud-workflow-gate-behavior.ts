@@ -23,7 +23,6 @@ const sourceGateModeScript = join(
 function runSourceGateMode(
   enabled: unknown,
   reporterAppID: unknown,
-  invalidatorAppID: unknown,
 ): {
   status: number | null;
   stdout: string;
@@ -44,7 +43,6 @@ function runSourceGateMode(
     JSON.stringify({
       cloud_source_gate: {
         reporter_app_id: reporterAppID,
-        synchronous_invalidator_app_id: invalidatorAppID,
       },
     }),
     "utf8",
@@ -133,22 +131,11 @@ function runWorkflowGate(
 
 export function registerCloudWorkflowGateBehaviorTests(): void {
   describe("Home Assistant Cloud workflow gate behavior", () => {
-    it.each([
-      ["both Apps absent", 0, 0],
-      ["reporter only", 42, 0],
-      ["invalidator only", 0, 43],
-    ])(
-      "skips cleanly while Cloud is disabled and source-gate provisioning is incomplete: %s",
-      (_name, reporterAppID, invalidatorAppID) => {
-        const result = runSourceGateMode(
-          false,
-          reporterAppID,
-          invalidatorAppID,
-        );
-        expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
-        expect(result.output).toBe("should-run=false\n");
-      },
-    );
+    it("skips cleanly while Cloud is disabled and the source-gate App is unprovisioned", () => {
+      const result = runSourceGateMode(false, 0);
+      expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
+      expect(result.output).toBe("should-run=false\n");
+    });
 
     it("rejects a flow-style mutable action hidden in a sensitive job", () => {
       const fixture = workflowGateFixture();
@@ -192,44 +179,29 @@ export function registerCloudWorkflowGateBehaviorTests(): void {
     it.each([
       ["disabled canary", false],
       ["enabled source gate", true],
-    ])("runs with both exact App IDs provisioned: %s", (_name, enabled) => {
-      const result = runSourceGateMode(enabled, 42, 43);
+    ])("runs with the exact App ID provisioned: %s", (_name, enabled) => {
+      const result = runSourceGateMode(enabled, 42);
       expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
       expect(result.output).toBe("should-run=true\n");
     });
 
-    it.each([
-      ["both Apps absent", 0, 0],
-      ["reporter only", 42, 0],
-      ["invalidator only", 0, 43],
-    ])(
-      "fails closed when Cloud is enabled before complete App provisioning: %s",
-      (_name, reporterAppID, invalidatorAppID) => {
-        const result = runSourceGateMode(
-          true,
-          reporterAppID,
-          invalidatorAppID,
-        );
-        expect(result.status).not.toBe(0);
-        expect(result.stderr).toContain(
-          "enabled Cloud Remote requires both source-gate App IDs",
-        );
-        expect(result.output).toBe("");
-      },
-    );
+    it("fails closed when Cloud is enabled before App provisioning", () => {
+      const result = runSourceGateMode(true, 0);
+      expect(result.status).not.toBe(0);
+      expect(result.stderr).toContain(
+        "enabled Cloud Remote requires the source-gate App ID",
+      );
+      expect(result.output).toBe("");
+    });
 
     it.each([
-      ["non-boolean feature state", "false", 0, 0],
-      ["negative reporter ID", false, -1, 0],
-      ["string invalidator ID", false, 0, "43"],
+      ["non-boolean feature state", "false", 0],
+      ["negative reporter ID", false, -1],
+      ["string reporter ID", false, "42"],
     ])(
       "rejects malformed trusted source-gate state: %s",
-      (_name, enabled, reporterAppID, invalidatorAppID) => {
-        const result = runSourceGateMode(
-          enabled,
-          reporterAppID,
-          invalidatorAppID,
-        );
+      (_name, enabled, reporterAppID) => {
+        const result = runSourceGateMode(enabled, reporterAppID);
         expect(result.status).not.toBe(0);
         expect(result.output).toBe("");
       },

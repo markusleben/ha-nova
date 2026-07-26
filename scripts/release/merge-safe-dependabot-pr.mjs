@@ -278,7 +278,7 @@ async function validateCandidate(
   ) {
     return { ready: false };
   }
-  requireChecks(checks, current.policy, mergeSHA, pr.number);
+  requireChecks(checks, current.policy, mergeSHA);
   await requireNoActiveCI(expectedHead);
   return { headSHA: expectedHead, mergeSHA, ready: true };
 }

@@ -91,35 +91,23 @@ if (
   process.exit(1);
 }
 
-for (const [name, slug, appID, label] of [
-  [
-    gate.check_name,
-    gate.reporter_app_slug,
-    gate.reporter_app_id,
-    "source reporter",
-  ],
-  [
-    gate.synchronous_invalidator_check_name,
-    gate.synchronous_invalidator_app_slug,
-    gate.synchronous_invalidator_app_id,
-    "synchronous invalidator",
-  ],
-]) {
-  if (
-    typeof name !== "string" ||
-    name.length === 0 ||
-    typeof slug !== "string" ||
-    slug.length === 0 ||
-    !Number.isSafeInteger(appID) ||
-    appID <= 0 ||
-    !required.includes(name) ||
-    apps[name] !== appID
-  ) {
-    console.error(
-      `[verify-cloud-target-source-gate] ERROR: enabled Cloud source requires the provisioned, exact App-bound ${label} check`,
-    );
-    process.exit(1);
-  }
+const name = gate.check_name;
+const slug = gate.reporter_app_slug;
+const appID = gate.reporter_app_id;
+if (
+  typeof name !== "string" ||
+  name.length === 0 ||
+  typeof slug !== "string" ||
+  slug.length === 0 ||
+  !Number.isSafeInteger(appID) ||
+  appID <= 0 ||
+  !required.includes(name) ||
+  apps[name] !== appID
+) {
+  console.error(
+    "[verify-cloud-target-source-gate] ERROR: enabled Cloud source requires the provisioned, exact App-bound source reporter check",
+  );
+  process.exit(1);
 }
 NODE
 

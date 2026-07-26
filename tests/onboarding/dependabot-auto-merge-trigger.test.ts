@@ -26,10 +26,6 @@ function runResolver(
         check_name: "cloud-source-gate",
         reporter_app_id: appId,
         reporter_app_slug: "markusleben-ha-nova-cloud-source-gate",
-        synchronous_invalidator_app_id: appId === 0 ? 0 : 43,
-        synchronous_invalidator_app_slug:
-          "markusleben-ha-nova-cloud-source-invalidator",
-        synchronous_invalidator_check_name: "cloud-source-invalidator",
       },
       main_branch_protection: {
         required_status_check_apps: {
@@ -103,22 +99,6 @@ describe("Dependabot auto-merge trigger authentication", () => {
     expect(result.output).toContain("run-kind=check_run");
     expect(result.output).toMatch(/policy-sha=[0-9a-f]{64}/);
     expect(result.output).toContain(`run-sha=${sha}`);
-    expect(result.output.trimEnd().endsWith("should-process=true")).toBe(true);
-  });
-
-  it("accepts the exact completed synchronous invalidator App check", () => {
-    const result = runResolver(
-      "check_run",
-      completedCheck({
-        app: {
-          id: 43,
-          slug: "markusleben-ha-nova-cloud-source-invalidator",
-        },
-        name: "cloud-source-invalidator",
-      }),
-    );
-    expect(result.status, result.stderr).toBe(0);
-    expect(result.output).toContain("run-kind=check_run");
     expect(result.output.trimEnd().endsWith("should-process=true")).toBe(true);
   });
 

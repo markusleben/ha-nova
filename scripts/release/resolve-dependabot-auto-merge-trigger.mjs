@@ -46,12 +46,6 @@ const policySHA = createHash("sha256").update(policyBytes).digest("hex");
 const checkName = policy.cloud_source_gate?.check_name;
 const appSlug = policy.cloud_source_gate?.reporter_app_slug;
 const appId = policy.cloud_source_gate?.reporter_app_id;
-const invalidatorName =
-  policy.cloud_source_gate?.synchronous_invalidator_check_name;
-const invalidatorSlug =
-  policy.cloud_source_gate?.synchronous_invalidator_app_slug;
-const invalidatorAppId =
-  policy.cloud_source_gate?.synchronous_invalidator_app_id;
 
 if (
   typeof checkName !== "string" ||
@@ -59,13 +53,7 @@ if (
   typeof appSlug !== "string" ||
   appSlug.length === 0 ||
   !Number.isSafeInteger(appId) ||
-  appId < 0 ||
-  typeof invalidatorName !== "string" ||
-  invalidatorName.length === 0 ||
-  typeof invalidatorSlug !== "string" ||
-  invalidatorSlug.length === 0 ||
-  !Number.isSafeInteger(invalidatorAppId) ||
-  invalidatorAppId < 0
+  appId < 0
 ) {
   fail("Cloud source check policy is invalid");
 }
@@ -94,14 +82,10 @@ if (eventName === "workflow_run") {
 if (eventName === "check_run") {
   const check = event.check_run;
   const exactAppCheck =
-    (appId > 0 &&
-      check?.name === checkName &&
-      check?.app?.id === appId &&
-      check?.app?.slug === appSlug) ||
-    (invalidatorAppId > 0 &&
-      check?.name === invalidatorName &&
-      check?.app?.id === invalidatorAppId &&
-      check?.app?.slug === invalidatorSlug);
+    appId > 0 &&
+    check?.name === checkName &&
+    check?.app?.id === appId &&
+    check?.app?.slug === appSlug;
   if (
     event.action !== "completed" ||
     check?.status !== "completed" ||

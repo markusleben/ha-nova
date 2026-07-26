@@ -42,14 +42,10 @@ if (sourceGate === null || typeof sourceGate !== "object") {
   fail("repository policy cloud_source_gate must be an object");
 }
 const reporterID = appID(sourceGate.reporter_app_id, "reporter App ID");
-const invalidatorID = appID(
-  sourceGate.synchronous_invalidator_app_id,
-  "synchronous invalidator App ID",
-);
-const provisioned = reporterID > 0 && invalidatorID > 0;
+const provisioned = reporterID > 0;
 
 if (version.cloud_remote_enabled && !provisioned) {
-  fail("enabled Cloud Remote requires both source-gate App IDs");
+  fail("enabled Cloud Remote requires the source-gate App ID");
 }
 
 const shouldRun = version.cloud_remote_enabled || provisioned;
@@ -60,5 +56,5 @@ appendFileSync(outputPath, `should-run=${shouldRun}\n`, {
 console.log(
   shouldRun
     ? "[resolve-cloud-source-gate-mode] Source gate enabled."
-    : "[resolve-cloud-source-gate-mode] Cloud Remote and source-gate Apps are unprovisioned; skipping.",
+    : "[resolve-cloud-source-gate-mode] Cloud Remote and source-gate App are unprovisioned; skipping.",
 );

@@ -189,10 +189,10 @@ ref. Merge-queue runs apply the same final ref check and bind and report the
 exact queue SHA. Workflow comparison is data-only through trusted Git commands
 and the trusted default-branch helper.
 
-While Cloud Remote is disabled and either dedicated App ID remains the explicit
+While Cloud Remote is disabled and the dedicated App ID remains the explicit
 unprovisioned value `0`, the trusted default-branch broker exits successfully
 before reading any App credential or evidence secret. Enabled metadata with an
-unprovisioned ID fails closed. After both IDs are provisioned, the broker runs
+unprovisioned ID fails closed. After the App ID is provisioned, the broker runs
 even while Cloud remains disabled so its required-check canary and lifecycle
 can be verified before activation.
 

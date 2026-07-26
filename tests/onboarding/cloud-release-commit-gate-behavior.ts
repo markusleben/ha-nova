@@ -69,14 +69,11 @@ function preparePRGateFixture(
     const policyPath = join(policyDir, "repo-policy.json");
     const policy = JSON.parse(readFileSync(policyPath, "utf8"));
     const source = policy.cloud_source_gate.check_name;
-    const invalidator = policy.cloud_source_gate.synchronous_invalidator_check_name;
     policy.cloud_source_gate.reporter_app_id = 42;
-    policy.cloud_source_gate.synchronous_invalidator_app_id = 43;
     policy.main_branch_protection.strict_required_status_checks =
       strictProtection;
-    policy.main_branch_protection.required_status_checks.push(source, invalidator);
+    policy.main_branch_protection.required_status_checks.push(source);
     policy.main_branch_protection.required_status_check_apps[source] = 42;
-    policy.main_branch_protection.required_status_check_apps[invalidator] = 43;
     writeFileSync(policyPath, `${JSON.stringify(policy, null, 2)}\n`, "utf8");
   }
   const prGate = join(releaseDir, "verify-cloud-pr-source-gate.sh");

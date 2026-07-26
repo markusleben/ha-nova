@@ -18,19 +18,14 @@ function policy(activated = true) {
     cloud_source_gate: {
       check_name: "cloud-source-gate",
       reporter_app_id: activated ? 42 : 0,
-      synchronous_invalidator_app_id: activated ? 43 : 0,
-      synchronous_invalidator_check_name: "cloud-source-invalidator",
     },
     dependabot_safe_lane: { label: safeLabel },
     main_branch_protection: {
       required_status_check_apps: activated
-        ? {
-            "cloud-source-gate": 42,
-            "cloud-source-invalidator": 43,
-          }
+        ? { "cloud-source-gate": 42 }
         : {},
       required_status_checks: activated
-        ? ["ci-gate", "cloud-source-gate", "cloud-source-invalidator"]
+        ? ["ci-gate", "cloud-source-gate"]
         : ["ci-gate"],
     },
   };
@@ -47,7 +42,6 @@ function runDirectMerge(options: {
   labels?: string[];
   liveStrict?: boolean;
   markerPage?: number;
-  invalidatorTarget?: string;
   sourceTarget?: string;
   timeline?: unknown[];
   triggerKind?: "repository_dispatch" | "workflow_run";
@@ -120,14 +114,6 @@ function runDirectMerge(options: {
       name: "cloud-source-gate",
       status: "completed",
     },
-    {
-      app: { id: 43 },
-      conclusion: "success",
-      external_id: `pull-request:7:target:${options.invalidatorTarget ?? mergeSHA}`,
-      id: 12,
-      name: "cloud-source-invalidator",
-      status: "completed",
-    },
   ];
   writeFileSync(
     preloadPath,
@@ -160,8 +146,7 @@ globalThis.fetch = async (url, init = {}) => {
       checks: [
         { app_id: null, context: "ci-gate" },
         ...(activated ? [
-          { app_id: 42, context: "cloud-source-gate" },
-          { app_id: 43, context: "cloud-source-invalidator" }
+          { app_id: 42, context: "cloud-source-gate" }
         ] : [])
       ],
       strict: liveStrict
@@ -314,14 +299,6 @@ export function registerDependabotDirectMergeBehaviorTests(): void {
             entry.method === "PUT" && entry.path.endsWith("/pulls/7/merge"),
         ),
       ).toBe(false);
-    });
-
-    it("rejects an invalidator success for another synthetic merge target", () => {
-      const { result } = runDirectMerge({ invalidatorTarget: driftSHA });
-      expect(result.status).not.toBe(0);
-      expect(result.stderr).toContain(
-        "latest dedicated-App invalidator check targets another merge commit",
-      );
     });
 
     it("rejects direct merge while any current-head CI run remains active", () => {

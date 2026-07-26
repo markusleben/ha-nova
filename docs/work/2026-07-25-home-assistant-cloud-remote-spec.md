@@ -679,25 +679,25 @@ finished before `ready_for_review`; incomplete checks remain a non-error no-op.
 Bot-owned legacy native auto-merge is disabled before pagination-dependent
 marker recovery, while human-owned native auto-merge is never changed.
 
-GitHub Actions `workflow_run` delivery cannot synchronously invalidate a prior
-same-target result. Production activation therefore remains fail-closed behind
-the future required `cloud-source-invalidator` check from the dedicated
-`markusleben-ha-nova-cloud-source-invalidator` App. Its policy App ID remains
-`0` until an external service is provisioned and independently verified to
-publish pending evidence before merge eligibility can be reused, bind success
-to the current synthetic merge target, and invalidate that evidence on every
-PR/base/head or CI-generation transition. Before activation, a separate
-reviewed provisioning rollout must place both positive App IDs in policy,
-require both checks, bind both exact Apps in live strict protection, and pass
-the live verifier. Disabled production keeps both unprovisioned checks outside
-the routine required list, but direct Dependabot merging remains intentionally
-paused until live main protection is separately changed from `strict=false` to
-the reviewed policy's `strict=true`. The merger never uses native queued
-auto-merge and never performs a direct REST merge while live protection is
-non-strict;
-the invalidator check uses the exact external-ID grammar
-`pull-request:<number>:target:<40-lowercase-hex-merge-sha>`, and the direct
-merger rejects any other target. Actions-only evidence is insufficient. An
+The single dedicated source App is the complete MVP trust boundary. GitHub
+requires a successful check on the latest candidate SHA, and strict branch
+protection requires the branch to be current with its base. The trusted
+default-branch broker creates a pending App check for each CI run ID, attempt,
+and exact synthetic merge target before completion can report success. The
+direct merger additionally rejects a source success whose external ID names
+another merge target, any active current-head CI run, or any changed PR,
+head, base, or merge ref. A second external invalidator service would duplicate
+GitHub's latest-SHA and strict-update guarantees without adding a
+repository-verifiable security boundary, so the MVP deliberately does not
+require one.
+Before activation, a reviewed provisioning rollout must place the positive
+source App ID in policy, require its check, bind that exact App in live strict
+protection, and pass the live verifier. Disabled production keeps the
+unprovisioned check outside the routine required list, but direct Dependabot
+merging remains intentionally paused until live main protection is separately
+changed from `strict=false` to the reviewed policy's `strict=true`. The merger
+never uses native queued auto-merge and never performs a direct REST merge
+while live protection is non-strict. Actions-only evidence is insufficient. An
 enabled target may change an existing non-sensitive workflow only by advancing
 a full action commit SHA within the same canonical minor/patch release line on
 an unchanged `uses:` identity;
