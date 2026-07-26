@@ -111,6 +111,35 @@ func removeAllDeviceFileStorageResidue() error {
 	return removeDeviceFileStorageMarkerAndDir()
 }
 
+func requireNoDeviceFileStorageResidue() error {
+	dir, err := deviceSecretFileDir()
+	if err != nil {
+		return fmt.Errorf(
+			"resolve device credential residue directory: %w",
+			err,
+		)
+	}
+	entries, err := deviceResidueReadDir(dir)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf(
+			"inspect device credential residue directory: %w",
+			err,
+		)
+	}
+	if len(entries) == 0 {
+		return fmt.Errorf(
+			"device credential residue directory reappeared after full cleanup",
+		)
+	}
+	return fmt.Errorf(
+		"device credential residue %s reappeared after full cleanup",
+		entries[0].Name(),
+	)
+}
+
 func deviceCredentialSlotFilesRemain() (bool, error) {
 	dir, err := deviceSecretFileDir()
 	if err != nil {

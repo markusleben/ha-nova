@@ -54,6 +54,38 @@ func reconcileLinuxOAuthSecretDelete(
 	service, account string,
 	mutationErr error,
 ) error {
+	return reconcileLinuxOAuthSecretDeleteExpected(
+		ctx,
+		backend,
+		service,
+		account,
+		nil,
+		mutationErr,
+	)
+}
+
+func reconcileLinuxOAuthSecretDeleteExpected(
+	ctx context.Context,
+	backend *linuxOAuthSecretBackend,
+	service, account string,
+	exactExpected []byte,
+	mutationErr error,
+) error {
+	if exactExpected != nil {
+		return reconcileSecretDeleteExactWithRead(
+			ctx,
+			exactExpected,
+			mutationErr,
+			func(readCtx context.Context) ([]byte, bool, error) {
+				return linuxOAuthSecretReadForReconciliation(
+					readCtx,
+					backend,
+					service,
+					account,
+				)
+			},
+		)
+	}
 	return reconcileSecretDeleteWithRead(
 		ctx,
 		mutationErr,

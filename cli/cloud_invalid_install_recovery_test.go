@@ -211,6 +211,30 @@ func TestInvalidInstallIdentityStatusPreservesNamedSetupProfile(
 		summary.NextCommand != "ha-nova setup --server cabin" {
 		t.Fatalf("status exit=%d summary=%+v", exit, summary)
 	}
+
+	exit, output = captureCommandOutput(t, func() int {
+		return runSetup(
+			paths,
+			[]string{"--server", "cabin"},
+		)
+	})
+	if exit != 0 ||
+		!strings.Contains(
+			output,
+			"Local installation identity recovery is complete",
+		) {
+		t.Fatalf("repair exit=%d output=%s", exit, output)
+	}
+	repaired, err := loadConfig(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if validateClientInstallID(repaired.ClientInstallID) != nil {
+		t.Fatalf(
+			"repaired install identity = %q",
+			repaired.ClientInstallID,
+		)
+	}
 }
 
 func TestInvalidInstallIdentityRepairWaitsForEveryCloudProfile(

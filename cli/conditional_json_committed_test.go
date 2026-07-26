@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -86,6 +87,53 @@ func TestConditionalCheckpointRecoversCommittedAuxiliaryCleanup(
 		}
 	}
 	if _, err := os.Lstat(committedPath); !os.IsNotExist(err) {
+		t.Fatalf("committed cleanup marker remains: %v", err)
+	}
+}
+
+func TestDispatchRecoversCommittedConditionalCheckpoint(
+	t *testing.T,
+) {
+	paths := writeTestConfigFile(
+		t,
+		`{"generation":"expected"}`,
+	)
+	expected, err := os.ReadFile(paths.ConfigFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	previousHook := conditionalJSONAfterMarkerRetirement
+	conditionalJSONAfterMarkerRetirement = func(string) error {
+		return errors.New("simulated committed cleanup crash")
+	}
+	t.Cleanup(func() {
+		conditionalJSONAfterMarkerRetirement = previousHook
+	})
+	err = writeJSONFileIfUnchanged(
+		paths.ConfigFile,
+		map[string]string{"generation": "replacement"},
+		0o600,
+		expected,
+	)
+	if err == nil {
+		t.Fatal("simulated committed cleanup crash succeeded")
+	}
+	conditionalJSONAfterMarkerRetirement = func(string) error {
+		return nil
+	}
+	exit, output := captureCommandOutput(t, func() int {
+		return dispatch(
+			paths,
+			"ha-nova",
+			[]string{"version"},
+		)
+	})
+	if exit != 0 || !strings.Contains(output, "dev") {
+		t.Fatalf("dispatch exit=%d output=%q", exit, output)
+	}
+	if _, err := os.Lstat(
+		conditionalJSONCommittedTransactionPath(paths.ConfigFile),
+	); !os.IsNotExist(err) {
 		t.Fatalf("committed cleanup marker remains: %v", err)
 	}
 }

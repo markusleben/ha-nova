@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"errors"
+	"sync"
 	"time"
 
 	dbus "github.com/godbus/dbus/v5"
@@ -20,6 +21,8 @@ const (
 type linuxOAuthSecretBackend struct {
 	itemLabel string
 }
+
+var linuxOAuthSecretMutationMu sync.Mutex
 
 func newNativeOAuthSecretBackend() (OAuthSecretBackend, error) {
 	return &linuxOAuthSecretBackend{
@@ -67,6 +70,8 @@ func (b *linuxOAuthSecretBackend) Get(ctx context.Context, service, account stri
 }
 
 func (b *linuxOAuthSecretBackend) Set(ctx context.Context, service, account, value string, ui SecretStoreUIPolicy) error {
+	linuxOAuthSecretMutationMu.Lock()
+	defer linuxOAuthSecretMutationMu.Unlock()
 	if err := validateLinuxOAuthSecretUI(ui); err != nil {
 		return err
 	}
@@ -141,6 +146,17 @@ func (b *linuxOAuthSecretBackend) Set(ctx context.Context, service, account, val
 }
 
 func (b *linuxOAuthSecretBackend) Delete(ctx context.Context, service, account string, ui SecretStoreUIPolicy) error {
+	linuxOAuthSecretMutationMu.Lock()
+	defer linuxOAuthSecretMutationMu.Unlock()
+	return b.delete(ctx, service, account, ui, nil)
+}
+
+func (b *linuxOAuthSecretBackend) delete(
+	ctx context.Context,
+	service, account string,
+	ui SecretStoreUIPolicy,
+	exactExpected []byte,
+) error {
 	if err := validateLinuxOAuthSecretUI(ui); err != nil {
 		return err
 	}
@@ -157,20 +173,22 @@ func (b *linuxOAuthSecretBackend) Delete(ctx context.Context, service, account s
 	if err := conn.Object(secretServiceDBusName, item).
 		CallWithContext(ctx, oauthSecretItemInterface+".Delete", 0).
 		Store(&prompt); err != nil {
-		return reconcileLinuxOAuthSecretDelete(
+		return reconcileLinuxOAuthSecretDeleteExpected(
 			ctx,
 			b,
 			service,
 			account,
+			exactExpected,
 			linuxOAuthSecretMutationUnknown("delete OAuth secret", err),
 		)
 	}
 	if _, err = linuxSecretServiceHandlePrompt(ctx, conn, prompt, ui); err != nil {
-		return reconcileLinuxOAuthSecretDelete(
+		return reconcileLinuxOAuthSecretDeleteExpected(
 			ctx,
 			b,
 			service,
 			account,
+			exactExpected,
 			linuxOAuthSecretMutationUnknown("delete OAuth secret", err),
 		)
 	}

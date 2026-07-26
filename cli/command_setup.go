@@ -131,6 +131,7 @@ func runSetup(paths runtimePaths, args []string) int {
 		return 1
 	}
 	cfg, cfgErr := loadConfig(paths)
+	installIdentityRepaired := false
 	if cfgErr != nil && retirementPending {
 		printHumanErr(
 			"an interrupted device credential retirement is pending, but the server configuration is unreadable: %s. Restore config.json, then rerun `%s`; credentials were not changed.",
@@ -155,6 +156,7 @@ func runSetup(paths runtimePaths, args []string) int {
 				return 1
 			}
 			if repaired {
+				installIdentityRepaired = true
 				printHumanInfo(
 					"Repaired the local installation identity after verified Cloud cleanup.",
 				)
@@ -204,6 +206,18 @@ func runSetup(paths runtimePaths, args []string) int {
 		strings.TrimSpace(*haURL) == "" &&
 		strings.TrimSpace(*relayURL) == "" &&
 		strings.TrimSpace(*relayToken) == ""
+	if installIdentityRepaired &&
+		!retirementPending &&
+		target == "" &&
+		unconstrainedCloudReuse &&
+		activeServerProfile() != defaultServerProfileName &&
+		cfg.Cloud == nil {
+		printHumanInfo(
+			"Local installation identity recovery is complete for server profile %q.",
+			activeServerProfile(),
+		)
+		return 0
+	}
 	if *nonInteractive &&
 		handleNonInteractiveCloudSetupRecovery(paths, cfg) {
 		return 1

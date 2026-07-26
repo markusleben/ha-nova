@@ -239,6 +239,46 @@ func TestCloudStatusPersistsSecurityHoldAcrossRestart(t *testing.T) {
 	}
 }
 
+func TestCloudStatusJSONGuidesUnlockForClearableStorageHold(
+	t *testing.T,
+) {
+	resetServerProfileSelection(t)
+	paths := setupServerCommandTest(t, `{"schema_version":1}`)
+	cfg := completedLocalCloudTestConfig()
+	cfg.ProfileID = "profile-status-unlock"
+	cfg.RelayInstanceID = "relay-status-unlock"
+	current := cloudMetadataForTest(strings.Repeat("f", 32))
+	cfg.Cloud = &cloudLifecycleMetadata{
+		State:   cloudStateReady,
+		Current: &current,
+		RecoveryHold: &cloudRecoveryHold{
+			Code:        cloudProblemSecureStorage,
+			Remediation: cloudRemediationVerifyState,
+		},
+	}
+	if err := saveConfig(paths, cfg); err != nil {
+		t.Fatal(err)
+	}
+	exit, output := captureCommandOutput(t, func() int {
+		return runCloudStatusCommand(
+			paths,
+			[]string{"--json"},
+		)
+	})
+	var summary cloudStatusSummary
+	if err := json.Unmarshal(
+		[]byte(strings.TrimSpace(output)),
+		&summary,
+	); err != nil {
+		t.Fatalf("status JSON=%q: %v", output, err)
+	}
+	if exit != 1 ||
+		summary.Status != "recovery_blocked" ||
+		summary.NextCommand != cloudUnlockCommand() {
+		t.Fatalf("status exit=%d summary=%+v", exit, summary)
+	}
+}
+
 func TestCloudStatusLateFailureCannotHoldConcurrentNewGeneration(t *testing.T) {
 	resetServerProfileSelection(t)
 	paths := setupServerCommandTest(t, `{"schema_version":1}`)

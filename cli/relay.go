@@ -405,6 +405,11 @@ func runRelayProxy(paths runtimePaths, endpoint string, args []string) int {
 		}
 	}
 	maybeNudgeSkillUpdate(paths, true)
+	printLocalRelayAuthRepair(
+		resp.StatusCode,
+		transport,
+		cfg,
+	)
 
 	bodyBytes, err := readAllLimited(resp.Body, maxRelayResponseBytes)
 	if err != nil {
@@ -693,6 +698,11 @@ func runHealth(paths runtimePaths, args []string) int {
 		printRelayHTTPOutcomeUnknown(resp.StatusCode)
 		return 1
 	}
+	printLocalRelayAuthRepair(
+		resp.StatusCode,
+		transport,
+		cfg,
+	)
 	bodyBytes, err := readAllLimited(resp.Body, maxRelayResponseBytes)
 	if err != nil {
 		printRelayPostRequestError("reading the Relay health response", err)
@@ -733,6 +743,26 @@ func runHealth(paths runtimePaths, args []string) int {
 		return 1
 	}
 	return 0
+}
+
+func printLocalRelayAuthRepair(
+	status int,
+	transport relayTransportSelection,
+	cfg runtimeConfig,
+) {
+	if transport.Via != relayViaLocal ||
+		(status != http.StatusUnauthorized &&
+			status != http.StatusForbidden) {
+		return
+	}
+	printErr(
+		"%s",
+		localRelayAuthRepairMessage(
+			status,
+			activeServerProfile(),
+			cfg.RelayBaseURL,
+		),
+	)
 }
 
 // readAllLimited mirrors the relay-side 256 MiB response ceiling so a

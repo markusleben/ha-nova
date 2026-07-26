@@ -145,6 +145,7 @@ func authorizeOrRefreshCloud(
 					ctx,
 					store,
 					envelope.Generation,
+					envelope.CanonicalOrigin,
 					envelope.RefreshToken,
 					envelope.ClientID,
 					request.ClearPendingAuthorization,
@@ -316,6 +317,7 @@ func cleanupUnstoredCloudAuthorization(
 			cleanupCtx,
 			store,
 			generation,
+			oauth.origin,
 			refreshToken,
 			clientID,
 			clearPendingMetadata,
@@ -337,11 +339,13 @@ func cleanupAmbiguousPendingAuthorization(
 	ctx context.Context,
 	store OAuthSecretStore,
 	generation string,
+	canonicalOrigin string,
 	refreshToken string,
 	clientID string,
 	clearPendingMetadata func(string) error,
 ) error {
 	if store == nil || generation == "" ||
+		canonicalOrigin == "" ||
 		refreshToken == "" || clientID == "" ||
 		clearPendingMetadata == nil {
 		return errors.New(
@@ -355,6 +359,7 @@ func cleanupAmbiguousPendingAuthorization(
 	if err := exact.DeletePendingGrantExact(
 		ctx,
 		generation,
+		canonicalOrigin,
 		refreshToken,
 		clientID,
 		SecretStoreForbidUI,

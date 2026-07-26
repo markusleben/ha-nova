@@ -665,6 +665,16 @@ func finalizeLocalUninstallWithProgressUnlocked(
 			return fmt.Errorf("failed before config_cleanup: %w", err)
 		}
 	}
+	if mode == uninstallModePurge {
+		if err := requirePurgedDeviceCredentialsAbsent(
+			purgeTargets,
+		); err != nil {
+			return fmt.Errorf(
+				"device credentials reappeared before config cleanup: %w",
+				err,
+			)
+		}
+	}
 	if err := removeManagedConfigArtifacts(paths, report, mode == uninstallModePurge); err != nil {
 		return fmt.Errorf("failed to remove managed config artifacts: %w", err)
 	}

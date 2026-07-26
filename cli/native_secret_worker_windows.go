@@ -3,6 +3,7 @@
 package main
 
 import (
+	"crypto/subtle"
 	"errors"
 	"os"
 
@@ -83,6 +84,29 @@ func platformRunNativeSecretWorker(
 		}
 	case nativeSecretDelete:
 		err := keyring.Delete(request.Service, request.Account)
+		if err != nil && !errors.Is(err, keyring.ErrNotFound) {
+			response.ErrorCode = nativeSecretWorkerErrorCode(err)
+		}
+	case nativeSecretDeleteExact:
+		value, err := keyring.Get(request.Service, request.Account)
+		if errors.Is(err, keyring.ErrNotFound) {
+			return response
+		}
+		if err != nil {
+			response.ErrorCode = nativeSecretWorkerErrorCode(err)
+			return response
+		}
+		raw := []byte(value)
+		matches := subtle.ConstantTimeCompare(
+			raw,
+			request.Value,
+		) == 1
+		zeroSecretBytes(raw)
+		if !matches {
+			response.ErrorCode = CloudErrSecretConflict
+			return response
+		}
+		err = keyring.Delete(request.Service, request.Account)
 		if err != nil && !errors.Is(err, keyring.ErrNotFound) {
 			response.ErrorCode = nativeSecretWorkerErrorCode(err)
 		}

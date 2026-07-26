@@ -42,11 +42,7 @@ type localRelayPreflightError struct {
 }
 
 func (e *localRelayPreflightError) repairCommand() string {
-	if e.profile != "" &&
-		e.profile != defaultServerProfileName {
-		return namedRelayPairCommand(e.profile, e.relayURL)
-	}
-	return "ha-nova setup"
+	return localRelayRepairCommand(e.profile, e.relayURL)
 }
 
 func (e *localRelayPreflightError) Error() string {

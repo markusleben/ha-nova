@@ -20,6 +20,32 @@ func namedRelayPairCommand(profile string, relayURL string) string {
 	)
 }
 
+func localRelayRepairCommand(
+	profile string,
+	relayURL string,
+) string {
+	if profile != "" && profile != defaultServerProfileName {
+		return namedRelayPairCommand(profile, relayURL)
+	}
+	return "ha-nova setup"
+}
+
+func localRelayAuthRepairMessage(
+	status int,
+	profile string,
+	relayURL string,
+) string {
+	action := "rejected"
+	if status == http.StatusForbidden {
+		action = "denied"
+	}
+	return fmt.Sprintf(
+		"local Relay %s the saved local credential; run: %s",
+		action,
+		localRelayRepairCommand(profile, relayURL),
+	)
+}
+
 func relayURLSafeForCopyPaste(value string) bool {
 	if validatePairRelayURL(value) != nil {
 		return false

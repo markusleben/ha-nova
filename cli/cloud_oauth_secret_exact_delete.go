@@ -1,6 +1,9 @@
 package main
 
-import "context"
+import (
+	"context"
+	"encoding/json"
+)
 
 type exactOAuthCleanupStore interface {
 	DeleteCurrentExact(
@@ -18,11 +21,22 @@ type exactOAuthCleanupStore interface {
 		string,
 		string,
 		string,
+		string,
 		SecretStoreUIPolicy,
 	) error
 	DeleteRetiringExact(
 		context.Context,
 		OAuthSecretEnvelope,
+		SecretStoreUIPolicy,
+	) error
+}
+
+type exactOAuthSecretBackend interface {
+	DeleteExact(
+		context.Context,
+		string,
+		string,
+		string,
 		SecretStoreUIPolicy,
 	) error
 }
@@ -57,6 +71,7 @@ func (s *KeyringOAuthSecretStore) markMemoizedDeleted(
 func (s *KeyringOAuthSecretStore) DeletePendingGrantExact(
 	ctx context.Context,
 	generation string,
+	canonicalOrigin string,
 	refreshToken string,
 	clientID string,
 	ui SecretStoreUIPolicy,
@@ -71,6 +86,7 @@ func (s *KeyringOAuthSecretStore) DeletePendingGrantExact(
 		return nil
 	}
 	if actual.Generation != generation ||
+		actual.CanonicalOrigin != canonicalOrigin ||
 		actual.RefreshToken != refreshToken ||
 		actual.ClientID != clientID {
 		return newCloudError(
@@ -79,19 +95,13 @@ func (s *KeyringOAuthSecretStore) DeletePendingGrantExact(
 			nil,
 		)
 	}
-	if err := fresh.backend.Delete(
+	return s.deleteEnvelopeExact(
 		ctx,
 		oauthSecretPendingService,
-		fresh.account,
+		actual,
 		ui,
-	); err != nil {
-		return wrapOAuthSecretBackendError(
-			"delete exact pending OAuth grant",
-			err,
-		)
-	}
-	s.markMemoizedDeleted(oauthSecretPendingService)
-	return nil
+		"delete exact pending OAuth grant",
+	)
 }
 
 func (s *KeyringOAuthSecretStore) DeleteCurrentExact(
@@ -105,8 +115,13 @@ func (s *KeyringOAuthSecretStore) DeleteCurrentExact(
 		return err
 	}
 	if !exists {
-		s.markMemoizedDeleted(oauthSecretCurrentService)
-		return nil
+		return s.deleteEnvelopeExact(
+			ctx,
+			oauthSecretCurrentService,
+			expected,
+			ui,
+			"delete exact current OAuth secret",
+		)
 	}
 	if !sameOAuthSecretEnvelope(actual, expected) {
 		return newCloudError(
@@ -115,19 +130,13 @@ func (s *KeyringOAuthSecretStore) DeleteCurrentExact(
 			nil,
 		)
 	}
-	if err := fresh.backend.Delete(
+	return s.deleteEnvelopeExact(
 		ctx,
 		oauthSecretCurrentService,
-		fresh.account,
+		actual,
 		ui,
-	); err != nil {
-		return wrapOAuthSecretBackendError(
-			"delete exact current OAuth secret",
-			err,
-		)
-	}
-	s.markMemoizedDeleted(oauthSecretCurrentService)
-	return nil
+		"delete exact current OAuth secret",
+	)
 }
 
 func (s *KeyringOAuthSecretStore) DeletePendingExact(
@@ -141,8 +150,13 @@ func (s *KeyringOAuthSecretStore) DeletePendingExact(
 		return err
 	}
 	if !exists {
-		s.markMemoizedDeleted(oauthSecretPendingService)
-		return nil
+		return s.deleteEnvelopeExact(
+			ctx,
+			oauthSecretPendingService,
+			expected,
+			ui,
+			"delete exact pending OAuth secret",
+		)
 	}
 	if !sameOAuthSecretEnvelope(actual, expected) {
 		return newCloudError(
@@ -151,19 +165,13 @@ func (s *KeyringOAuthSecretStore) DeletePendingExact(
 			nil,
 		)
 	}
-	if err := fresh.backend.Delete(
+	return s.deleteEnvelopeExact(
 		ctx,
 		oauthSecretPendingService,
-		fresh.account,
+		actual,
 		ui,
-	); err != nil {
-		return wrapOAuthSecretBackendError(
-			"delete exact pending OAuth secret",
-			err,
-		)
-	}
-	s.markMemoizedDeleted(oauthSecretPendingService)
-	return nil
+		"delete exact pending OAuth secret",
+	)
 }
 
 func (s *KeyringOAuthSecretStore) DeleteRetiringExact(
@@ -177,8 +185,13 @@ func (s *KeyringOAuthSecretStore) DeleteRetiringExact(
 		return err
 	}
 	if !exists {
-		s.markMemoizedDeleted(oauthSecretRetiringService)
-		return nil
+		return s.deleteEnvelopeExact(
+			ctx,
+			oauthSecretRetiringService,
+			expected,
+			ui,
+			"delete exact retiring OAuth secret",
+		)
 	}
 	if !sameOAuthSecretEnvelope(actual, expected) {
 		return newCloudError(
@@ -187,18 +200,49 @@ func (s *KeyringOAuthSecretStore) DeleteRetiringExact(
 			nil,
 		)
 	}
-	if err := fresh.backend.Delete(
+	return s.deleteEnvelopeExact(
 		ctx,
 		oauthSecretRetiringService,
-		fresh.account,
+		actual,
 		ui,
-	); err != nil {
-		return wrapOAuthSecretBackendError(
-			"delete exact retiring OAuth secret",
+		"delete exact retiring OAuth secret",
+	)
+}
+
+func (s *KeyringOAuthSecretStore) deleteEnvelopeExact(
+	ctx context.Context,
+	service string,
+	expected OAuthSecretEnvelope,
+	ui SecretStoreUIPolicy,
+	operation string,
+) error {
+	encoded, err := json.Marshal(expected)
+	if err != nil {
+		return newCloudError(
+			CloudErrSecretStore,
+			operation,
 			err,
 		)
 	}
-	s.markMemoizedDeleted(oauthSecretRetiringService)
+	backend := s.freshStore().backend
+	exact, ok := backend.(exactOAuthSecretBackend)
+	if !ok {
+		return newCloudError(
+			CloudErrSecretStore,
+			operation,
+			nil,
+		)
+	}
+	if err := exact.DeleteExact(
+		ctx,
+		service,
+		s.account,
+		string(encoded),
+		ui,
+	); err != nil {
+		return wrapOAuthSecretBackendError(operation, err)
+	}
+	s.markMemoizedDeleted(service)
 	return nil
 }
 

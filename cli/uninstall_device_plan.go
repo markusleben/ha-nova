@@ -203,31 +203,6 @@ func validateProfilePurgeTargets(targets []profilePurgeTarget) error {
 		); err != nil {
 			return err
 		}
-		_, _, err =
-			readPendingCredentialRecordFromService(
-				deviceCredentialPendingServiceForProfile(target.name),
-			)
-		if err != nil {
-			return relayAuthTokenSetupOperationError(
-				fmt.Sprintf(
-					"inspect pending device credential for server %q",
-					target.name,
-				),
-				err,
-			)
-		}
-		_, _, err = readCredentialSlot(
-			deviceCredentialServiceForProfile(target.name),
-		)
-		if err != nil {
-			return relayAuthTokenSetupOperationError(
-				fmt.Sprintf(
-					"inspect device credential for server %q",
-					target.name,
-				),
-				err,
-			)
-		}
 	}
 	return nil
 }

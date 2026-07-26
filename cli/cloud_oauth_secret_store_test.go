@@ -9,12 +9,13 @@ import (
 )
 
 type memoryOAuthSecretBackend struct {
-	mu         sync.Mutex
-	values     map[string]string
-	policies   []SecretStoreUIPolicy
-	operations []string
-	fail       func(op, service string) error
-	dropSet    func(service string) bool
+	mu                sync.Mutex
+	values            map[string]string
+	policies          []SecretStoreUIPolicy
+	operations        []string
+	fail              func(op, service string) error
+	dropSet           func(service string) bool
+	beforeDeleteExact func(service, account string)
 }
 
 func newMemoryOAuthSecretBackend() *memoryOAuthSecretBackend {

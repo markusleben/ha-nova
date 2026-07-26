@@ -98,6 +98,27 @@ func TestDarwinOAuthKeychainLive(t *testing.T) {
 			t.Fatal("native Keychain value mismatch")
 		}
 	}
+	if err := backend.DeleteExact(
+		context.Background(),
+		service,
+		account,
+		string(random),
+		SecretStoreForbidUI,
+	); err != nil {
+		t.Fatalf("native Keychain exact delete: %v", err)
+	}
+	if _, found, err := backend.Get(
+		context.Background(),
+		service,
+		account,
+		SecretStoreForbidUI,
+	); err != nil || found {
+		t.Fatalf(
+			"native Keychain after exact delete: found=%v err=%v",
+			found,
+			err,
+		)
+	}
 	zeroSecretBytes(random)
 }
 

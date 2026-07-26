@@ -101,6 +101,18 @@ func TestNativeSecretWorkerValidatesOperationShape(t *testing.T) {
 	) {
 		t.Fatalf("oversize Set error = %v", err)
 	}
+	request.Operation = nativeSecretDeleteExact
+	request.Value = nil
+	if err := validateNativeSecretWorkerRequest(request); !IsCloudErrorCode(
+		err,
+		CloudErrInvalidInput,
+	) {
+		t.Fatalf("empty exact Delete error = %v", err)
+	}
+	request.Value = []byte("expected")
+	if err := validateNativeSecretWorkerRequest(request); err != nil {
+		t.Fatalf("valid exact Delete error = %v", err)
+	}
 }
 
 func TestNativeSecretWorkerCommandCarriesNoSecretArguments(t *testing.T) {
@@ -166,6 +178,7 @@ func TestNativeSecretWorkerProcessKillsBlockedOperations(t *testing.T) {
 		{nativeSecretGet, CloudErrTimeout, nil},
 		{nativeSecretSet, CloudErrSecretOutcomeUnknown, []byte("secret")},
 		{nativeSecretDelete, CloudErrSecretOutcomeUnknown, nil},
+		{nativeSecretDeleteExact, CloudErrSecretOutcomeUnknown, []byte("expected")},
 	} {
 		t.Run(string(test.operation), func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(
@@ -224,6 +237,7 @@ func TestNativeSecretWorkerTreatsPostStartFailureAsAmbiguousMutation(
 		{nativeSecretGet, CloudErrSecretStore, nil},
 		{nativeSecretSet, CloudErrSecretOutcomeUnknown, []byte("secret")},
 		{nativeSecretDelete, CloudErrSecretOutcomeUnknown, nil},
+		{nativeSecretDeleteExact, CloudErrSecretOutcomeUnknown, []byte("expected")},
 	} {
 		_, err := runNativeSecretWorkerProcess(
 			context.Background(),
@@ -269,6 +283,7 @@ func TestNativeSecretWorkerBoundsProcessOutput(t *testing.T) {
 		{nativeSecretGet, CloudErrSecretStore, nil},
 		{nativeSecretSet, CloudErrSecretOutcomeUnknown, []byte("secret")},
 		{nativeSecretDelete, CloudErrSecretOutcomeUnknown, nil},
+		{nativeSecretDeleteExact, CloudErrSecretOutcomeUnknown, []byte("expected")},
 	} {
 		_, err := runNativeSecretWorkerProcess(
 			context.Background(),

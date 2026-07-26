@@ -143,12 +143,13 @@ func runDoctorWithCensusAsk(paths runtimePaths, args []string, allowCensusAsk bo
 			return 1
 		}
 		printHumanErr("This device was paired, but its device credential is missing from secure storage.")
-		if profile := activeServerProfile(); profile != defaultServerProfileName {
-			// Setup refuses named profiles — their repair path is pair --server.
-			printHumanErr("Pair again: run 'ha-nova pair --server %s --relay-url %s' and enter a fresh code from the NOVA page.", profile, cfg.RelayBaseURL)
-		} else {
-			printHumanErr("Pair again: run 'ha-nova setup' and enter a fresh code from the NOVA page.")
-		}
+		printHumanErr(
+			"Pair again: run '%s' and enter a fresh code from the NOVA page.",
+			localRelayRepairCommand(
+				activeServerProfile(),
+				cfg.RelayBaseURL,
+			),
+		)
 		return 1
 	} else if transportErr != nil &&
 		effectiveRoutePolicy(cfg.RoutePolicy) != routePolicyLocal {
@@ -158,7 +159,14 @@ func runDoctorWithCensusAsk(paths runtimePaths, args []string, allowCensusAsk bo
 		// Non-default profiles are device-credential-only: never check them with
 		// the machine-wide legacy token (it belongs to the default profile).
 		if transportErr == nil {
-			transportErr = fmt.Errorf("server profile %q has no completed device pairing; run: ha-nova pair --server %s --relay-url %s", activeServerProfile(), activeServerProfile(), cfg.RelayBaseURL)
+			transportErr = fmt.Errorf(
+				"server profile %q has no completed device pairing; run: %s",
+				activeServerProfile(),
+				localRelayRepairCommand(
+					activeServerProfile(),
+					cfg.RelayBaseURL,
+				),
+			)
 		}
 		printHumanErr("%s", transportErr)
 		return 1
@@ -193,7 +201,11 @@ func runDoctorWithCensusAsk(paths runtimePaths, args []string, allowCensusAsk bo
 		// A pair-only setup (`ha-nova pair --relay-url ...`) has no saved HA
 		// address yet. The relay's WS state still proves the connection; the
 		// direct HA probe is just skipped instead of failing on an empty URL.
-		printHumanWarn("No Home Assistant address saved yet; skipping the direct HA check. Run 'ha-nova setup' to complete this device's setup.")
+		if activeServerProfile() == defaultServerProfileName {
+			printHumanWarn("No Home Assistant address saved yet; skipping the direct HA check. Run 'ha-nova setup' to complete this device's setup.")
+		} else {
+			printHumanWarn("No Home Assistant address saved for this profile; skipping the direct HA check.")
+		}
 	} else if err := probeHTTP(cfg.HAURL); err != nil {
 		printHumanErr("Home Assistant unreachable: %s", err)
 		status = 1
@@ -223,7 +235,13 @@ func runDoctorWithCensusAsk(paths runtimePaths, args []string, allowCensusAsk bo
 	if readiness.HealthErr != nil {
 		printHumanErr("Relay health failed: %s", readiness.HealthErr)
 		if deviceMode && relayHealthIssueLooksLikeRelayAuth(readiness.HealthErr) {
-			printHumanErr("This device's pairing was not accepted (revoked or unknown). Pair again: run 'ha-nova setup'.")
+			printHumanErr(
+				"This device's pairing was not accepted (revoked or unknown). Pair again: run '%s'.",
+				localRelayRepairCommand(
+					activeServerProfile(),
+					cfg.RelayBaseURL,
+				),
+			)
 		}
 		status = 1
 	} else {
@@ -278,7 +296,13 @@ func runDoctorWithCensusAsk(paths runtimePaths, args []string, allowCensusAsk bo
 			case readiness.RelayAuthIssue:
 				printHumanErr("Relay reports degraded upstream WS capability")
 				if deviceMode {
-					printHumanErr("This device's pairing was not accepted (revoked or unknown). Pair again: run 'ha-nova setup'.")
+					printHumanErr(
+						"This device's pairing was not accepted (revoked or unknown). Pair again: run '%s'.",
+						localRelayRepairCommand(
+							activeServerProfile(),
+							cfg.RelayBaseURL,
+						),
+					)
 				} else {
 					printHumanErr(`The Relay Auth Token field ("relay_auth_token") in NOVA Relay is missing or invalid`)
 				}
@@ -369,14 +393,33 @@ func runDoctorWithCensusAsk(paths runtimePaths, args []string, allowCensusAsk bo
 }
 
 func doctorClientRepairHint(client clientStatus, installSource string) string {
+	setupCommand := doctorClientSetupCommand(client.ID)
 	switch {
 	case !client.RuntimeDetected:
-		return fmt.Sprintf("Repair: install or reopen %s, then run `ha-nova setup %s`.", client.Label, client.ID)
+		return fmt.Sprintf(
+			"Repair: install or reopen %s, then run `%s`.",
+			client.Label,
+			setupCommand,
+		)
 	case installSource == installSourceDev:
-		return fmt.Sprintf("Repair: run `npm run dev:sync` or `ha-nova setup %s`.", client.ID)
+		return fmt.Sprintf(
+			"Repair: run `npm run dev:sync` or `%s`.",
+			setupCommand,
+		)
 	default:
-		return fmt.Sprintf("Repair: run `ha-nova setup %s`.", client.ID)
+		return fmt.Sprintf("Repair: run `%s`.", setupCommand)
 	}
+}
+
+func doctorClientSetupCommand(clientID string) string {
+	if activeServerProfile() != defaultServerProfileName {
+		return fmt.Sprintf(
+			"ha-nova setup --server %s %s",
+			defaultServerProfileName,
+			clientID,
+		)
+	}
+	return fmt.Sprintf("ha-nova setup %s", clientID)
 }
 
 func runCheckUpdate(paths runtimePaths, args []string) int {

@@ -145,6 +145,34 @@ func platformRunNativeSecretWorker(
 			status != darwinOAuthItemNotFound {
 			response.ErrorCode = darwinOAuthErrorCode(status, request.UI)
 		}
+	case nativeSecretDeleteExact:
+		value, found, status := darwinOAuthGet(
+			request.Service,
+			request.Account,
+		)
+		if status != darwinOAuthSuccess {
+			zeroSecretBytes(value)
+			response.ErrorCode = darwinOAuthErrorCode(status, request.UI)
+			return response
+		}
+		if !found {
+			zeroSecretBytes(value)
+			return response
+		}
+		matches := subtle.ConstantTimeCompare(
+			value,
+			request.Value,
+		) == 1
+		zeroSecretBytes(value)
+		if !matches {
+			response.ErrorCode = CloudErrSecretConflict
+			return response
+		}
+		status = darwinOAuthDelete(request.Service, request.Account)
+		if status != darwinOAuthSuccess &&
+			status != darwinOAuthItemNotFound {
+			response.ErrorCode = darwinOAuthErrorCode(status, request.UI)
+		}
 	default:
 		response.ErrorCode = CloudErrSecretStore
 	}

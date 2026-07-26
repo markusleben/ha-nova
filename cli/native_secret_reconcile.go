@@ -93,6 +93,31 @@ func reconcileNativeSecretDelete(
 	)
 }
 
+func reconcileNativeSecretDeleteExact(
+	ctx context.Context,
+	request nativeSecretWorkerRequest,
+	mutationErr error,
+) error {
+	return reconcileSecretDeleteExactWithRead(
+		ctx,
+		request.Value,
+		mutationErr,
+		func(readCtx context.Context) ([]byte, bool, error) {
+			response, readErr := nativeSecretWorkerProcessForReconciliation(
+				readCtx,
+				nativeSecretWorkerRequest{
+					SchemaVersion: nativeSecretWorkerSchema,
+					Operation:     nativeSecretGet,
+					UI:            SecretStoreForbidUI,
+					Service:       request.Service,
+					Account:       request.Account,
+				},
+			)
+			return response.Value, response.Found, readErr
+		},
+	)
+}
+
 func reconcileSecretDeleteWithRead(
 	ctx context.Context,
 	mutationErr error,
@@ -112,6 +137,40 @@ func reconcileSecretDeleteWithRead(
 	zeroSecretBytes(value)
 	if !found {
 		return nil
+	}
+	return mutationErr
+}
+
+func reconcileSecretDeleteExactWithRead(
+	ctx context.Context,
+	expected []byte,
+	mutationErr error,
+	read nativeSecretReconciliationRead,
+) error {
+	if !IsCloudErrorCode(
+		mutationErr,
+		CloudErrSecretOutcomeUnknown,
+	) || read == nil {
+		return mutationErr
+	}
+	readCtx, cancel := freshNativeSecretReconciliationContext(ctx)
+	defer cancel()
+	value, found, readErr := read(readCtx)
+	if readErr != nil {
+		zeroSecretBytes(value)
+		return ambiguousNativeSecretMutation(mutationErr, readErr)
+	}
+	defer zeroSecretBytes(value)
+	if !found {
+		return nil
+	}
+	if len(value) != len(expected) ||
+		subtle.ConstantTimeCompare(value, expected) != 1 {
+		return newCloudError(
+			CloudErrSecretConflict,
+			"reconcile exact native secure-storage delete",
+			mutationErr,
+		)
 	}
 	return mutationErr
 }

@@ -87,3 +87,46 @@ func (b *windowsOAuthSecretBackend) Delete(
 	_, err := runNativeSecretWorkerProcess(operationCtx, request)
 	return reconcileNativeSecretDelete(ctx, request, err)
 }
+
+func (b *windowsOAuthSecretBackend) DeleteExact(
+	ctx context.Context,
+	service, account, expected string,
+	ui SecretStoreUIPolicy,
+) error {
+	if err := validateOAuthSecretBackendKey(
+		ctx,
+		service,
+		account,
+		ui,
+	); err != nil {
+		return err
+	}
+	if expected == "" || len(expected) > oauthSecretMaxEncodedSize {
+		return newCloudError(
+			CloudErrInvalidInput,
+			"delete exact OAuth secret",
+			nil,
+		)
+	}
+	raw := []byte(expected)
+	defer zeroSecretBytes(raw)
+	operationCtx, cancel := boundedNativeOAuthSecretContext(ctx, ui)
+	defer cancel()
+	request := nativeSecretWorkerRequest{
+		SchemaVersion: nativeSecretWorkerSchema,
+		Operation:     nativeSecretDeleteExact,
+		UI:            ui,
+		Service:       service,
+		Account:       account,
+		Value:         raw,
+	}
+	_, err := runNativeSecretWorkerProcess(
+		operationCtx,
+		request,
+	)
+	return reconcileNativeSecretDeleteExact(
+		ctx,
+		request,
+		err,
+	)
+}

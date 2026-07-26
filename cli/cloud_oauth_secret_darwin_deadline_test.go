@@ -78,6 +78,19 @@ func TestDarwinOAuthNativeOperationsHonorHardDeadline(t *testing.T) {
 				)
 			},
 		},
+		{
+			name: "DeleteExact",
+			code: CloudErrSecretOutcomeUnknown,
+			run: func() error {
+				return backend.DeleteExact(
+					context.Background(),
+					oauthSecretCurrentService,
+					"default",
+					"encoded-secret",
+					SecretStoreForbidUI,
+				)
+			},
+		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			if err := test.run(); !IsCloudErrorCode(err, test.code) {

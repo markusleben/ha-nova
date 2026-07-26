@@ -123,6 +123,11 @@ func runCloudStatusCommand(paths runtimePaths, args []string) int {
 	if hold := cloudRecoveryHoldProblem(cfg); hold != nil {
 		summary.Status = "recovery_blocked"
 		summary.VerificationError = cloudStatusErrorForProblem(hold)
+		if cloudRecoveryHoldClearsAfterUnlock(
+			cfg.Cloud.RecoveryHold,
+		) {
+			summary.NextCommand = cloudUnlockCommand()
+		}
 		if options.json {
 			printCloudStatusJSON(summary)
 			return 1

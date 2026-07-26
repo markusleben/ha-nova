@@ -98,6 +98,49 @@ func TestLocalRelayPreflightWithoutProfileKeepsUsefulRepairCommand(
 	}
 }
 
+func TestLocalFunctionalAuthFailureUsesSelectedProfileRepair(
+	t *testing.T,
+) {
+	resetServerProfileSelection(t)
+	setActiveServerProfile("cabin")
+	cfg := runtimeConfig{
+		RelayBaseURL: "http://cabin.local:8791",
+	}
+	for _, status := range []int{
+		http.StatusUnauthorized,
+		http.StatusForbidden,
+	} {
+		exit, output := captureCommandOutput(t, func() int {
+			printLocalRelayAuthRepair(
+				status,
+				relayTransportSelection{Via: relayViaLocal},
+				cfg,
+			)
+			return 1
+		})
+		want := `ha-nova pair --server cabin --relay-url "http://cabin.local:8791"`
+		if exit != 1 || !strings.Contains(output, want) {
+			t.Fatalf(
+				"status=%d exit=%d output=%q",
+				status,
+				exit,
+				output,
+			)
+		}
+	}
+	_, output := captureCommandOutput(t, func() int {
+		printLocalRelayAuthRepair(
+			http.StatusUnauthorized,
+			relayTransportSelection{Via: relayViaCloud},
+			cfg,
+		)
+		return 1
+	})
+	if output != "" {
+		t.Fatalf("Cloud auth failure printed local repair: %q", output)
+	}
+}
+
 func TestRelayTransportSelectionHonorsPolicyAndExplicitOverride(t *testing.T) {
 	localCalls, cloudCalls, automaticCalls := stubRelayTransportResolvers(t)
 	cfg := runtimeConfig{RoutePolicy: routePolicyCloud, Cloud: readyCloudForTransportTest()}

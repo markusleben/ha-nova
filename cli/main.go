@@ -124,11 +124,19 @@ func dispatch(paths runtimePaths, argv0 string, args []string) int {
 }
 
 func recoverConfigTransactionBeforeDispatch(paths runtimePaths) error {
-	transactionPath := conditionalJSONTransactionPath(paths.ConfigFile)
-	if _, err := os.Lstat(transactionPath); errors.Is(err, os.ErrNotExist) {
+	recoveryNeeded := false
+	for _, transactionPath := range []string{
+		conditionalJSONTransactionPath(paths.ConfigFile),
+		conditionalJSONCommittedTransactionPath(paths.ConfigFile),
+	} {
+		if _, err := os.Lstat(transactionPath); err == nil {
+			recoveryNeeded = true
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+	}
+	if !recoveryNeeded {
 		return nil
-	} else if err != nil {
-		return err
 	}
 	release, acquired := acquireAutoRepairLock(paths)
 	if !acquired {

@@ -161,9 +161,12 @@ revoke endpoint is intentionally idempotent. Reconnect rollback, ambiguous
 authorization cleanup, and retirement of the previous generation all retain
 the global client-mutation lock through this remote proof and the following
 local cleanup. Each path then bypasses its access-session cache, reloads the
-complete native envelope, and deletes only an exact match. A concurrently
-replaced envelope is preserved as `SECRET_CONFLICT`; successful or already
-absent deletion invalidates the access-session cache.
+complete native envelope, and asks the native backend to compare and delete the
+same encoded value in one backend operation. Ambiguous pending-grant cleanup
+also binds the canonical Home Assistant origin beside generation, client ID,
+and refresh token. A concurrently replaced or cross-origin envelope is
+preserved as `SECRET_CONFLICT`; successful or already absent deletion
+invalidates the access-session cache.
 
 If an authorization-code exchange may have created a refresh-token session but
 its response is lost, redirects unexpectedly, returns a server error, or is
@@ -198,7 +201,11 @@ kernel-reported Code Directory hash. Windows verifies the immediate parent
 image as defense in depth within the same-user Credential Manager boundary.
 The bounded schema permits only fixed/scoped OAuth slots and validated
 per-profile device slots. Linux remains an in-process, context-cancellable
-D-Bus implementation.
+D-Bus implementation. Exact deletes serialize supported in-process Linux
+writers; the global client-mutation lock serializes all supported HA NOVA
+writers across processes. Direct same-user modification through unrelated
+credential-store tools is outside the supported writer boundary and still
+fails closed when its value differs.
 
 `allow_ui=false` is mandatory for Relay, skill, doctor, status, and background
 paths. Locked, missing, session-mismatched, root/sudo, headless, SSH, WSL,
@@ -287,7 +294,8 @@ before committing, it runs one final target-generation hash check. The active
 transaction marker then atomically retires to a durable non-secret committed
 tombstone before auxiliary transaction files are garbage-collected, so a crash
 never turns an incomplete transaction into an unrecorded success. Recovery
-finishes that garbage collection before durably removing the tombstone. Windows
+checks both active markers and committed tombstones before every CLI dispatch,
+then finishes that garbage collection before durably removing the tombstone. Windows
 replacements also flush both the committed target and durable prior generation
 explicitly. A selected profile, sibling profile, or `default_server` change
 therefore cannot be overwritten by a stale HA NOVA writer. An unsupported
@@ -304,7 +312,9 @@ error before the functional request is created or written.
   fall back.
 - Local 401/403 remediation stays executable for the selected profile:
   `setup` for the default profile and exact `pair --server ... --relay-url ...`
-  guidance using the saved local Relay URL for a named profile.
+  guidance using the safely quoted saved local Relay URL for a named profile.
+  The same helper covers automatic preflight, direct local functional
+  responses, and doctor health/WebSocket diagnostics.
 - A functional request is built and sent through exactly one selected
   transport.
 - Any error after dispatch may mean the operation completed and returns the
@@ -396,7 +406,10 @@ profile is proven free of Cloud lifecycle metadata, `cloud status` directs the
 user to `ha-nova setup`. That explicit command may replace only the malformed
 non-secret identity under the global mutation lock, an exact setup/config
 snapshot, supported-schema validation, and unique profile-ID validation. It
-preserves every profile and unknown field; normal loading then resumes.
+preserves every profile and unknown field; normal loading then resumes. For a
+named profile, the advertised repair-only setup command returns success
+immediately after that verified identity repair instead of falling through to
+the local-pairing guard.
 Unscoped top-level Cloud lifecycle data is not attributed to the selected
 profile and therefore yields a manual-review security stop without a
 self-referential recovery command. A failed second config-document read is
@@ -424,7 +437,14 @@ another confirmation. Observed slot evidence is inventory only; a separate
 durable processed outcome records whether each exact slot was revoked, failed,
 or was not applicable. Full uninstall purge writes the same processed outcome
 before deleting either slot and performs the same final routed-and-raw
-namespace proof after its global file-residue sweep. A slot absent at the
+namespace proof after its global file-residue sweep. That proof rescans the
+entire raw credential directory, marker, and every configured routed
+namespace, so an orphan profile omitted from config cannot reappear unnoticed.
+Malformed current or pending values remain removable by full purge with an
+explicit unrevoked-cleanup report; native-store access failures still block.
+A second global and per-profile proof runs after all later uninstall work and
+immediately before config inventory deletion. Any reappearance preserves both
+the replacement credential and `config.json` for retry. A slot absent at the
 checkpoint but appearing later, or a slot present at the checkpoint but
 disappearing before its processed outcome is durable, blocks profile deletion
 for manual review. A final fresh routed-and-raw namespace proof runs
@@ -460,6 +480,9 @@ explicit/environment selection, reserved existing name, or unknown environment-o
 Only a valid explicit `--server` remains creation intent. Non-interactive Cloud-only
 setup under a recovery hold exposes only the exact profile-scoped
 verified-remove command; unlock and setup resume remain interactive operations.
+A machine-readable status for a secure-storage verification hold includes the
+exact profile-scoped `cloud unlock` command; security-stop holds remain
+commandless.
 
 The MVP does not probe Home Assistant Cloud in the background before this
 choice. That keeps the default private, avoids an extra network/authentication

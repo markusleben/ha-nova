@@ -61,6 +61,12 @@ func purgeAllDeviceCredentialsWithReport(
 	if err := profilePurgeFinalProofHook(); err != nil {
 		return err
 	}
+	return requirePurgedDeviceCredentialsAbsent(targets)
+}
+
+func requirePurgedDeviceCredentialsAbsent(
+	targets []profilePurgeTarget,
+) error {
 	for _, target := range targets {
 		if err := requireEmptyServerCredentialNamespace(
 			target.name,
@@ -70,6 +76,9 @@ func purgeAllDeviceCredentialsWithReport(
 				err,
 			)
 		}
+	}
+	if err := requireNoDeviceFileStorageResidue(); err != nil {
+		return err
 	}
 	return nil
 }

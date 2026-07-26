@@ -20,9 +20,10 @@ const (
 type nativeSecretOperation string
 
 const (
-	nativeSecretGet    nativeSecretOperation = "get"
-	nativeSecretSet    nativeSecretOperation = "set"
-	nativeSecretDelete nativeSecretOperation = "delete"
+	nativeSecretGet         nativeSecretOperation = "get"
+	nativeSecretSet         nativeSecretOperation = "set"
+	nativeSecretDelete      nativeSecretOperation = "delete"
+	nativeSecretDeleteExact nativeSecretOperation = "delete_exact"
 )
 
 type nativeSecretWorkerRequest struct {
@@ -233,7 +234,7 @@ func validateNativeSecretWorkerRequest(request nativeSecretWorkerRequest) error 
 		if len(request.Value) != 0 {
 			return invalidNativeSecretWorkerRequest()
 		}
-	case nativeSecretSet:
+	case nativeSecretSet, nativeSecretDeleteExact:
 		if len(request.Value) == 0 ||
 			len(request.Value) > oauthSecretMaxEncodedSize {
 			return invalidNativeSecretWorkerRequest()
@@ -314,7 +315,7 @@ func nativeSecretWorkerTimeout(
 	cause error,
 ) error {
 	code := CloudErrTimeout
-	if operation == nativeSecretSet || operation == nativeSecretDelete {
+	if nativeSecretOperationMutates(operation) {
 		code = CloudErrSecretOutcomeUnknown
 	}
 	return newCloudError(code, "access native secure storage", cause)
@@ -324,7 +325,7 @@ func nativeSecretWorkerFailure(
 	operation nativeSecretOperation,
 	cause error,
 ) error {
-	if operation == nativeSecretSet || operation == nativeSecretDelete {
+	if nativeSecretOperationMutates(operation) {
 		return newCloudError(
 			CloudErrSecretOutcomeUnknown,
 			"access native secure storage",
@@ -345,11 +346,20 @@ func nativeSecretWorkerError(code CloudErrorCode) error {
 		CloudErrSecretUIForbidden,
 		CloudErrSecretPromptCanceled,
 		CloudErrSecretOutcomeUnknown,
+		CloudErrSecretConflict,
 		CloudErrUnsupportedPlatform:
 		return newCloudError(code, "access native secure storage", nil)
 	default:
 		return invalidNativeSecretWorkerResponse()
 	}
+}
+
+func nativeSecretOperationMutates(
+	operation nativeSecretOperation,
+) bool {
+	return operation == nativeSecretSet ||
+		operation == nativeSecretDelete ||
+		operation == nativeSecretDeleteExact
 }
 
 func invalidNativeSecretWorkerRequest() error {

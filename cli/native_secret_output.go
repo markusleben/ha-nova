@@ -40,7 +40,7 @@ func (output *cappedSecretOutput) Overflowed() bool {
 func nativeSecretWorkerResponseErrorCode(
 	operation nativeSecretOperation,
 ) CloudErrorCode {
-	if operation == nativeSecretSet || operation == nativeSecretDelete {
+	if nativeSecretOperationMutates(operation) {
 		return CloudErrSecretOutcomeUnknown
 	}
 	return CloudErrSecretStore
