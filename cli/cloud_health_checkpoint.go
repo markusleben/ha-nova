@@ -160,11 +160,17 @@ func verifyCloudHealthAtSnapshot(
 		}
 	}
 	verifyErr := verify(ctx, snapshot.Config)
-	if verifyErr != nil &&
-		cloudRecoveryHoldForProblem(cloudProblemForError(verifyErr)) == nil {
-		return verifyErr
-	}
 	if verifyErr != nil {
+		problem := cloudProblemForError(verifyErr)
+		resetVerifiedStorage :=
+			replaceHold != nil &&
+				replaceHold.StorageVerified &&
+				problem.Code == cloudProblemSecureStorage &&
+				problem.Remediation == cloudRemediationUnlockStorage
+		if cloudRecoveryHoldForProblem(problem) == nil &&
+			!resetVerifiedStorage {
+			return verifyErr
+		}
 		outcome, holdErr := checkpointCloudRecoveryHoldReplacingUnlocked(
 			paths,
 			expected,

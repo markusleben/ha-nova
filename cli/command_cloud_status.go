@@ -123,9 +123,7 @@ func runCloudStatusCommand(paths runtimePaths, args []string) int {
 	if hold := cloudRecoveryHoldProblem(cfg); hold != nil {
 		summary.Status = "recovery_blocked"
 		summary.VerificationError = cloudStatusErrorForProblem(hold)
-		if cloudRecoveryHoldNeedsUnlock(
-			cfg.Cloud.RecoveryHold,
-		) {
+		if cloudRecoveryHoldNeedsUnlockForConfig(cfg) {
 			summary.NextCommand = cloudUnlockCommand()
 		} else if cloudRecoveryHoldClearsAfterUnlock(
 			cfg.Cloud.RecoveryHold,
@@ -142,7 +140,7 @@ func runCloudStatusCommand(paths runtimePaths, args []string) int {
 				"The previously saved Cloud connection was not overwritten.",
 			)
 		}
-		if cloudRecoveryHoldNeedsUnlock(cfg.Cloud.RecoveryHold) {
+		if cloudRecoveryHoldNeedsUnlockForConfig(cfg) {
 			printHumanInfo(
 				"Verify native secure storage with: %s",
 				cloudUnlockCommand(),

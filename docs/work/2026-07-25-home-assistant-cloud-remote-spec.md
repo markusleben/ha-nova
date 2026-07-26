@@ -365,17 +365,23 @@ predispatch config-transaction recovery. Typed
 `verification_error` and `next_command` fields let headless callers recover
 without parsing human text. A clearable secure-storage hold first advances to
 interactive `cloud unlock`. When health cannot clear the hold because the
-profile is incomplete or Cloud is disabled, unlock durably records only the
-successful native-storage proof; the next status advances to exact,
-profile-scoped `cloud remove`. A later storage-lock failure resets that proof,
-so recovery advances back to unlock instead of looping. A named Cloud-only
-profile may run
+profile is incomplete, cleanup is already checkpointed, or Cloud is disabled,
+unlock durably records only the successful native-storage proof; the next
+status advances to exact, profile-scoped `cloud remove`. A later storage-lock
+failure from either the OAuth or device credential store resets that proof, so
+recovery advances back to unlock instead of looping. A Cloud-capable upgrade
+does not trust a proof recorded by a disabled build for a ready connection:
+status offers unlock again so a successful Cloud health check can clear the
+hold without destructive cleanup. A named Cloud-only profile may run
 `ha-nova setup --server <name>` to resume Cloud onboarding and install client
 skills. An explicit client-only target may also repair skills on an existing
 named profile only through its already configured and freshly verified secure
 device/Cloud transport. This dedicated path never reads the machine-wide
 default-profile token and never enters connection mutation; named
 local/token/service onboarding remains unavailable and uses `pair --server`.
+Client-only dispatch occurs before retirement or pending-activation recovery
+and finishes without invoking doctor, whose pairing recovery is intentionally
+connection-mutating.
 
 If a potentially issued authorization no longer has consistent native
 credentials, automatic cleanup fails closed. Recovery first requires a Home
@@ -414,7 +420,9 @@ Immediately before full-purge config deletion, HA NOVA requires the exact
 post-cleanup config snapshot to remain current, reloads the complete profile
 inventory, and repeats configured-namespace plus global raw credential absence
 proofs. A new or changed sibling/default/Cloud profile preserves config and
-fails the purge retryably.
+fails the purge retryably. The configured service-token file is removed while
+config still durably identifies it, and the exact config bytes are checked
+again inside the removal function after all credential proofs.
 
 A malformed install-wide `client_install_id` never authorizes setup or device
 use. Status still reports the selected Cloud lifecycle with the stable

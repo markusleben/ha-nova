@@ -50,5 +50,5 @@ func completeNamedProfileClientRepair(
 	printHumanInfo(
 		"Repaired client integration using the selected server profile's verified secure connection.",
 	)
-	return runDoctorWithCensusAsk(paths, nil, false)
+	return 0
 }

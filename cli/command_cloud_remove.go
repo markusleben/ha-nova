@@ -10,6 +10,8 @@ import (
 	"time"
 )
 
+var readPendingDeviceCredentialForCloudRemove = readPendingDeviceCredentialRecordWithPolicy
+
 func runCloudRemoveCommand(paths runtimePaths, args []string) int {
 	options, err := parseCloudCommandFlags("remove", args)
 	if errors.Is(err, errHelpShown) {
@@ -165,7 +167,7 @@ func runCloudRemoveCommand(paths runtimePaths, args []string) int {
 		// Prove the device pending slot is readable before revoking any external
 		// authorization. A locked or corrupt device store must fail without
 		// leaving a half-completed removal.
-		if _, _, err := readPendingDeviceCredentialRecordWithPolicy(
+		if _, _, err := readPendingDeviceCredentialForCloudRemove(
 			ctx,
 			SecretStoreForbidUI,
 		); err != nil {

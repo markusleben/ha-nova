@@ -1,8 +1,10 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 )
 
@@ -139,6 +141,15 @@ func applyUninstallServiceTokenFilePolicy(paths runtimePaths, path string, repor
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
 		return false, nil
 	}
+	for _, managedPath := range managedConfigArtifactPaths(paths, true) {
+		if managedPath != "" &&
+			uninstallPathsEqual(path, filepath.Clean(managedPath)) {
+			return true, fmt.Errorf(
+				"configured relay token file overlaps managed configuration artifact %s",
+				path,
+			)
+		}
+	}
 	info, err := os.Lstat(path)
 	if err != nil {
 		if isNotExist(err) {
@@ -154,4 +165,53 @@ func applyUninstallServiceTokenFilePolicy(paths runtimePaths, path string, repor
 	}
 	report.addRemoved("relay auth token")
 	return true, nil
+}
+
+func uninstallPathsEqual(left string, right string) bool {
+	if runtime.GOOS == "windows" {
+		return strings.EqualFold(left, right)
+	}
+	return left == right
+}
+
+func applyFullPurgeRelayTokenPolicy(
+	paths runtimePaths,
+	relayTokenFile string,
+	report *uninstallReport,
+) error {
+	tokenFileHandled := false
+	if relayTokenFile != "" {
+		var err error
+		tokenFileHandled, err = applyUninstallServiceTokenFilePolicy(
+			paths,
+			relayTokenFile,
+			report,
+		)
+		if err != nil {
+			return err
+		}
+	}
+	if tokenFileHandled {
+		restoreSuppression := withRelayAuthTokenFileSuppressed()
+		applyUninstallKeyringTokenBestEffort(report)
+		restoreSuppression()
+		return nil
+	}
+	restoreSuppression := func() {}
+	if relayTokenFile != "" {
+		// The configured token file lies outside the managed config
+		// directory. Never delete user-managed files; clean only the OS
+		// keyring copy.
+		restoreSuppression = withRelayAuthTokenFileSuppressed()
+		report.addNote(fmt.Sprintf(
+			"Kept the relay token file outside the HA NOVA config directory: %s",
+			relayTokenFile,
+		))
+	}
+	if err := applyUninstallTokenPolicy(report); err != nil {
+		restoreSuppression()
+		return err
+	}
+	restoreSuppression()
+	return nil
 }

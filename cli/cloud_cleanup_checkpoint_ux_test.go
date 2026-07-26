@@ -135,6 +135,10 @@ func TestCleanupUnlockUsesWritableProbeWithoutSecretResume(
 		&cloudAuthorizationRevocationCheckpoint{
 			OwnerConfirmedAllRemoteAccessRevoked: true,
 		}
+	cfg.Cloud.RecoveryHold = &cloudRecoveryHold{
+		Code:        cloudProblemSecureStorage,
+		Remediation: cloudRemediationVerifyState,
+	}
 	paths, cfg := saveHybridCheckpointUXProfile(
 		t,
 		"cabin",
@@ -196,6 +200,18 @@ func TestCleanupUnlockUsesWritableProbeWithoutSecretResume(
 		t.Fatalf(
 			"cleanup unlock operations=%v",
 			backend.operations,
+		)
+	}
+	saved, err := loadSelectedRuntimeConfigUnchecked(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if saved.Cloud == nil ||
+		saved.Cloud.RecoveryHold == nil ||
+		!saved.Cloud.RecoveryHold.StorageVerified {
+		t.Fatalf(
+			"cleanup unlock did not advance storage proof: %+v",
+			saved.Cloud,
 		)
 	}
 }

@@ -89,6 +89,17 @@ func cloudProblemForError(err error) *cloudProblem {
 	if errors.Is(err, errInvalidClientInstallID) {
 		return invalidCloudInstallIdentityProblem(err)
 	}
+	if isDesktopKeyringSetupRequiredError(err) ||
+		isDesktopKeyringSessionUnavailableError(err) ||
+		isDesktopKeyringUnavailableError(err) ||
+		isWindowsNetworkLogonSessionError(err) {
+		return &cloudProblem{
+			Code:        cloudProblemSecureStorage,
+			Remediation: cloudRemediationUnlockStorage,
+			Detail:      "native secure storage is locked or unavailable in this session",
+			Cause:       err,
+		}
+	}
 	var cloudErr *CloudError
 	if !errors.As(err, &cloudErr) {
 		return &cloudProblem{

@@ -240,6 +240,29 @@ func runSetup(paths runtimePaths, args []string) int {
 		renderNamedSetupRequestError()
 		return 1
 	}
+	namedClientRepair :=
+		activeServerProfile() != defaultServerProfileName &&
+			namedClientRepairTransportConfigured(cfg, target) &&
+			!*serviceMode &&
+			strings.TrimSpace(*host) == "" &&
+			strings.TrimSpace(*haURL) == "" &&
+			strings.TrimSpace(*relayURL) == "" &&
+			strings.TrimSpace(*relayToken) == ""
+	if namedClientRepair {
+		state, err := loadStateOrDefaultChecked(paths)
+		if err != nil {
+			renderSetupCloudRecoveryBeforePrerequisiteFailure(paths)
+			printHumanErr("%s", err)
+			return 1
+		}
+		return completeNamedProfileClientRepair(
+			paths,
+			cfg,
+			state,
+			target,
+			setupLifecycle...,
+		)
+	}
 	if *nonInteractive {
 		namedRetirementOnly := namedSetupIsRetirementOnly(
 			cfg,
@@ -279,22 +302,6 @@ func runSetup(paths runtimePaths, args []string) int {
 		renderSetupCloudRecoveryBeforePrerequisiteFailure(paths)
 		printHumanErr("%s", err)
 		return 1
-	}
-
-	if activeServerProfile() != defaultServerProfileName &&
-		namedClientRepairTransportConfigured(cfg, target) &&
-		!*serviceMode &&
-		strings.TrimSpace(*host) == "" &&
-		strings.TrimSpace(*haURL) == "" &&
-		strings.TrimSpace(*relayURL) == "" &&
-		strings.TrimSpace(*relayToken) == "" {
-		return completeNamedProfileClientRepair(
-			paths,
-			cfg,
-			state,
-			target,
-			setupLifecycle...,
-		)
 	}
 
 	if !*nonInteractive {

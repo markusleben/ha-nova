@@ -133,7 +133,7 @@ func TestRunUninstallStandardKeepsServiceTokenFile(t *testing.T) {
 	}
 }
 
-func TestRunUninstallPurgeRemovesServiceTokenFileAfterConfig(t *testing.T) {
+func TestRunUninstallPurgeRemovesServiceTokenFileBeforeConfig(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("service token files are not supported on native Windows")
 	}
@@ -171,7 +171,7 @@ func TestRunUninstallPurgeRemovesServiceTokenFileAfterConfig(t *testing.T) {
 	}
 }
 
-func TestRunUninstallPurgeRemovesUnsafeServiceTokenFileAfterConfig(t *testing.T) {
+func TestRunUninstallPurgeRemovesUnsafeServiceTokenFileBeforeConfig(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("service token files are not supported on native Windows")
 	}
@@ -209,6 +209,97 @@ func TestRunUninstallPurgeRemovesUnsafeServiceTokenFileAfterConfig(t *testing.T)
 	}
 	if _, err := os.Stat(paths.ConfigFile); !isNotExist(err) {
 		t.Fatalf("expected purge to remove config file, err=%v", err)
+	}
+}
+
+func TestFullPurgeKeepsConfigTargetUntilServiceTokenIsRemoved(
+	t *testing.T,
+) {
+	if runtime.GOOS == "windows" {
+		t.Skip("service token files are not supported on native Windows")
+	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := runtimeConfig{
+		HAHost:         "192.168.1.5",
+		HAURL:          "http://192.168.1.5:8123",
+		RelayBaseURL:   "http://192.168.1.5:8791",
+		RelayTokenFile: defaultRelayAuthTokenFile(paths),
+	}
+	if err := saveConfig(paths, cfg); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeRelayAuthTokenFile(
+		cfg.RelayTokenFile,
+		"service-token",
+	); err != nil {
+		t.Fatal(err)
+	}
+	stop := errors.New("stop before config cleanup")
+	err = finalizeLocalUninstallWithProgress(
+		paths,
+		installState{},
+		&uninstallReport{},
+		uninstallModePurge,
+		func(step string) error {
+			if step == "config_cleanup" {
+				return stop
+			}
+			return nil
+		},
+		false,
+	)
+	if !errors.Is(err, stop) {
+		t.Fatalf("full purge error = %v", err)
+	}
+	if _, statErr := os.Stat(paths.ConfigFile); statErr != nil {
+		t.Fatalf("config cleanup target was lost: %v", statErr)
+	}
+	if _, statErr := os.Stat(cfg.RelayTokenFile); !isNotExist(statErr) {
+		t.Fatalf("service token survived before config cleanup: %v", statErr)
+	}
+}
+
+func TestFullPurgeRejectsServiceTokenPathOverlappingConfig(
+	t *testing.T,
+) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := runtimeConfig{
+		HAHost:         "192.168.1.5",
+		HAURL:          "http://192.168.1.5:8123",
+		RelayBaseURL:   "http://192.168.1.5:8791",
+		RelayTokenFile: paths.ConfigFile,
+	}
+	if err := saveConfig(paths, cfg); err != nil {
+		t.Fatal(err)
+	}
+
+	err = finalizeLocalUninstallWithProgress(
+		paths,
+		installState{},
+		&uninstallReport{},
+		uninstallModePurge,
+		nil,
+		false,
+	)
+	if err == nil ||
+		!strings.Contains(
+			err.Error(),
+			"overlaps managed configuration artifact",
+		) {
+		t.Fatalf("full purge error = %v", err)
+	}
+	if _, statErr := os.Stat(paths.ConfigFile); statErr != nil {
+		t.Fatalf("overlapping config target was removed: %v", statErr)
 	}
 }
 

@@ -380,53 +380,76 @@ func TestCloudRecoveryCheckpointRechecksSnapshotAfterLockWait(
 func TestCloudRecoveryCheckpointRelockResetsStorageProof(
 	t *testing.T,
 ) {
-	resetServerProfileSelection(t)
-	paths := setupServerCommandTest(t, `{"schema_version":1}`)
-	cfg := completedLocalCloudTestConfig()
-	cfg.ProfileID = "profile-storage-relock"
-	cfg.RelayInstanceID = "relay-storage-relock"
-	cfg.Cloud = &cloudLifecycleMetadata{
-		State: cloudStateAuthorizing,
-		RecoveryHold: &cloudRecoveryHold{
-			Code:            cloudProblemSecureStorage,
-			Remediation:     cloudRemediationVerifyState,
-			StorageVerified: true,
+	for _, test := range []struct {
+		name string
+		err  error
+	}{
+		{
+			name: "typed Cloud error",
+			err: newCloudError(
+				CloudErrSecretStoreLocked,
+				"relock after verified storage",
+				nil,
+			),
 		},
-	}
-	if err := saveConfig(paths, cfg); err != nil {
-		t.Fatal(err)
-	}
-	snapshot, err := loadCloudManagementSnapshot(paths)
-	if err != nil {
-		t.Fatal(err)
-	}
-	expected, err := snapshot.recoveryExpectation()
-	if err != nil {
-		t.Fatal(err)
-	}
-	outcome, err := checkpointCloudRecoveryHold(
-		paths,
-		expected,
-		newCloudError(
-			CloudErrSecretStoreLocked,
-			"relock after verified storage",
-			nil,
-		),
-	)
-	if err != nil ||
-		outcome != cloudRecoveryCheckpointPersisted {
-		t.Fatalf("checkpoint outcome=%q error=%v", outcome, err)
-	}
-	saved, err := loadSelectedRuntimeConfigUnchecked(paths)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if saved.Cloud == nil ||
-		saved.Cloud.RecoveryHold == nil ||
-		saved.Cloud.RecoveryHold.StorageVerified {
-		t.Fatalf(
-			"relock did not reset storage proof: %+v",
-			saved.Cloud,
-		)
+		{
+			name: "raw device keyring error",
+			err:  errDesktopKeyringLocked,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			resetServerProfileSelection(t)
+			paths := setupServerCommandTest(
+				t,
+				`{"schema_version":1}`,
+			)
+			cfg := completedLocalCloudTestConfig()
+			cfg.ProfileID = "profile-storage-relock"
+			cfg.RelayInstanceID = "relay-storage-relock"
+			cfg.Cloud = &cloudLifecycleMetadata{
+				State: cloudStateAuthorizing,
+				RecoveryHold: &cloudRecoveryHold{
+					Code:            cloudProblemSecureStorage,
+					Remediation:     cloudRemediationVerifyState,
+					StorageVerified: true,
+				},
+			}
+			if err := saveConfig(paths, cfg); err != nil {
+				t.Fatal(err)
+			}
+			snapshot, err := loadCloudManagementSnapshot(paths)
+			if err != nil {
+				t.Fatal(err)
+			}
+			expected, err := snapshot.recoveryExpectation()
+			if err != nil {
+				t.Fatal(err)
+			}
+			outcome, err := checkpointCloudRecoveryHold(
+				paths,
+				expected,
+				test.err,
+			)
+			if err != nil ||
+				outcome != cloudRecoveryCheckpointPersisted {
+				t.Fatalf(
+					"checkpoint outcome=%q error=%v",
+					outcome,
+					err,
+				)
+			}
+			saved, err := loadSelectedRuntimeConfigUnchecked(paths)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if saved.Cloud == nil ||
+				saved.Cloud.RecoveryHold == nil ||
+				saved.Cloud.RecoveryHold.StorageVerified {
+				t.Fatalf(
+					"relock did not reset storage proof: %+v",
+					saved.Cloud,
+				)
+			}
+		})
 	}
 }

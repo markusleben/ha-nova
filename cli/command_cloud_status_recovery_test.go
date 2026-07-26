@@ -344,7 +344,7 @@ func TestCloudStatusJSONAdvancesNonReadyStorageHoldToCleanup(
 	}
 }
 
-func TestCloudStatusJSONAdvancesDisabledStorageHoldToCleanup(
+func TestCloudStatusJSONRechecksVerifiedHoldAfterCapabilityUpgrade(
 	t *testing.T,
 ) {
 	previousIdentity := cloudRemoteBuildIdentityForRuntime
@@ -397,6 +397,7 @@ func TestCloudStatusJSONAdvancesDisabledStorageHoldToCleanup(
 	}); exit != 0 {
 		t.Fatalf("unlock exit=%d output=%s", exit, output)
 	}
+	cloudRemoteBuildIdentityForRuntime = previousIdentity
 	exit, output = captureCommandOutput(t, func() int {
 		return runCloudStatusCommand(paths, []string{"--json"})
 	})
@@ -406,9 +407,9 @@ func TestCloudStatusJSONAdvancesDisabledStorageHoldToCleanup(
 	); err != nil {
 		t.Fatalf("post-unlock status JSON=%q: %v", output, err)
 	}
-	if exit != 1 || summary.NextCommand != cloudRemoveCommand() {
+	if exit != 1 || summary.NextCommand != cloudUnlockCommand() {
 		t.Fatalf(
-			"post-unlock status exit=%d summary=%+v",
+			"upgraded status exit=%d summary=%+v",
 			exit,
 			summary,
 		)

@@ -129,3 +129,80 @@ func TestNamedClientRepairRejectsHalfPairedProfileBeforeTokenRead(
 		t.Fatalf("setup exit=%d output=%q", exit, output)
 	}
 }
+
+func TestNamedClientRepairSkipsPendingActivationMutation(
+	t *testing.T,
+) {
+	resetServerProfileSelection(t)
+	withClientRuntimeAvailability(t, map[string]bool{"codex": true})
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("HA_NOVA_TEST_SECRET_DIR", t.TempDir())
+	t.Setenv("HA_NOVA_DEV_ROOT", repoRootForSetupTest(t))
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := completedLocalCloudTestConfig()
+	base.ProfileID = "profile-default"
+	if err := saveConfig(paths, base); err != nil {
+		t.Fatal(err)
+	}
+	setServerSelectionOverride("cabin")
+	setActiveServerProfile("cabin")
+	cfg := completedLocalCloudTestConfig()
+	cfg.ProfileID = "profile-cabin"
+	cfg.RelayInstanceID = "relay-cabin"
+	cfg.PendingSecureBaseURL = "https://pending.invalid:8792"
+	cfg.PendingSpkiPin = "pending-pin"
+	if err := saveConfig(paths, cfg); err != nil {
+		t.Fatal(err)
+	}
+	activationCalls := 0
+	previousResume := resumePendingActivationAfterRetirementCheck
+	resumePendingActivationAfterRetirementCheck = func(
+		*runtimeConfig,
+		func(*runtimeConfig) error,
+	) (bool, error) {
+		activationCalls++
+		return true, nil
+	}
+	previousVerify := verifyDeviceHealth
+	verifyDeviceHealth = func(runtimeConfig) bool {
+		return true
+	}
+	t.Cleanup(func() {
+		resumePendingActivationAfterRetirementCheck = previousResume
+		verifyDeviceHealth = previousVerify
+	})
+
+	exit, output := captureCommandOutput(t, func() int {
+		return runSetup(
+			paths,
+			[]string{
+				"--server",
+				"cabin",
+				"--non-interactive",
+				"codex",
+			},
+		)
+	})
+	if exit != 0 ||
+		!strings.Contains(output, "Repaired client integration") ||
+		strings.Contains(output, "Resumed the interrupted pairing") {
+		t.Fatalf("named client repair exit=%d output=%q", exit, output)
+	}
+	if activationCalls != 0 {
+		t.Fatalf(
+			"named client repair resumed activation %d times",
+			activationCalls,
+		)
+	}
+	saved, err := loadSelectedRuntimeConfigUnchecked(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if saved.PendingSecureBaseURL != cfg.PendingSecureBaseURL ||
+		saved.PendingSpkiPin != cfg.PendingSpkiPin {
+		t.Fatalf("named client repair mutated pending pairing: %+v", saved)
+	}
+}

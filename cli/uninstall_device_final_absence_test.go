@@ -202,6 +202,62 @@ func TestFullUninstallPreservesChangedConfigBeforeFinalCleanup(
 	}
 }
 
+func TestFullUninstallAtomicCleanupPreservesLastMomentConfigChange(
+	t *testing.T,
+) {
+	paths := setupServerCommandTest(
+		t,
+		fullPurgeEmptyCredentialConfig,
+	)
+	expected, expectedExists, err := readOptionalFile(paths.ConfigFile)
+	if err != nil || !expectedExists {
+		t.Fatalf("config snapshot exists=%v error=%v", expectedExists, err)
+	}
+	changed := []byte(`{
+		"schema_version":3,
+		"default_server":"default",
+		"servers":{
+			"default":{
+				"profile_id":"profile-default",
+				"route_policy":"local"
+			},
+			"cabin":{
+				"profile_id":"profile-cabin",
+				"route_policy":"local"
+			}
+		}
+	}`)
+	previousHook := beforeUninstallConfigSnapshotRemoval
+	beforeUninstallConfigSnapshotRemoval = func(path string) error {
+		return os.WriteFile(path, changed, 0o600)
+	}
+	t.Cleanup(func() {
+		beforeUninstallConfigSnapshotRemoval = previousHook
+	})
+
+	err = removeManagedConfigArtifactsAtSnapshot(
+		paths,
+		&uninstallReport{},
+		expected,
+		true,
+	)
+	if err == nil ||
+		!strings.Contains(
+			err.Error(),
+			"configuration changed before config cleanup",
+		) {
+		t.Fatalf("atomic cleanup error = %v", err)
+	}
+	actual, readErr := os.ReadFile(paths.ConfigFile)
+	if readErr != nil || string(actual) != string(changed) {
+		t.Fatalf(
+			"last-moment config=%q error=%v",
+			actual,
+			readErr,
+		)
+	}
+}
+
 func TestFullUninstallPurgeRemovesUnreadableCredentialSlots(
 	t *testing.T,
 ) {

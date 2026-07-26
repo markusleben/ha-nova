@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"strings"
@@ -34,6 +35,7 @@ func runCloudUnlockCommand(paths runtimePaths, args []string) int {
 	defer cancel()
 	ctx = withCloudSecretAccessHolder(ctx)
 	if err := preflightCloudUnlockDeviceAccess(ctx, cfg, preProfile); err != nil {
+		err = checkpointCloudUnlockFailure(paths, snapshot, preProfile, err)
 		renderCloudFailure(os.Stdout, paths, err)
 		return 1
 	}
@@ -63,6 +65,12 @@ func runCloudUnlockCommand(paths runtimePaths, args []string) int {
 		cfg.Cloud.authorizationCleanupPending() {
 		store, err := newCloudSecretStoreForCLI(cfg.ProfileID)
 		if err != nil {
+			err = checkpointCloudUnlockFailure(
+				paths,
+				snapshot,
+				preProfile,
+				err,
+			)
 			renderCloudFailure(os.Stdout, paths, err)
 			return 1
 		}
@@ -71,6 +79,22 @@ func runCloudUnlockCommand(paths runtimePaths, args []string) int {
 			store,
 			SecretStoreAllowUI,
 		); err != nil {
+			err = checkpointCloudUnlockFailure(
+				paths,
+				snapshot,
+				preProfile,
+				err,
+			)
+			renderCloudFailure(os.Stdout, paths, err)
+			return 1
+		}
+		cfg, _, err = markCloudUnlockStorageVerified(
+			paths,
+			snapshot,
+			cfg,
+			true,
+		)
+		if err != nil {
 			renderCloudFailure(os.Stdout, paths, err)
 			return 1
 		}
@@ -90,6 +114,20 @@ func runCloudUnlockCommand(paths runtimePaths, args []string) int {
 		cloudSecretPreflightUnlock,
 	)
 	if err != nil {
+		err = checkpointCloudUnlockFailure(paths, snapshot, preProfile, err)
+		renderCloudFailure(os.Stdout, paths, err)
+		return 1
+	}
+	cfg, verifiedStorageHold, err := markCloudUnlockStorageVerified(
+		paths,
+		snapshot,
+		cfg,
+		cfg.Cloud != nil &&
+			(cfg.Cloud.deviceCleanupPending() ||
+				!cloudRemoteFeatureAvailable() ||
+				!cfg.Cloud.ready()),
+	)
+	if err != nil {
 		renderCloudFailure(os.Stdout, paths, err)
 		return 1
 	}
@@ -103,40 +141,17 @@ func runCloudUnlockCommand(paths runtimePaths, args []string) int {
 		)
 		return 0
 	}
-	var verifiedStorageHold *cloudRecoveryHold
-	if cfg.Cloud != nil && cfg.Cloud.RecoveryHold != nil {
-		hold := *cfg.Cloud.RecoveryHold
-		if cloudRecoveryHoldClearsAfterUnlock(&hold) {
-			verifiedStorageHold = &hold
-		} else {
-			printHumanInfo(
-				"Native secure storage is unlocked, but Cloud recovery remains paused for security review.",
-			)
-			printHumanInfo(
-				"Verified cleanup remains available with: %s",
-				cloudRemoveCommand(),
-			)
-			return 0
-		}
-	}
-	if verifiedStorageHold != nil &&
-		!verifiedStorageHold.StorageVerified &&
-		(!cloudRemoteFeatureAvailable() || !cfg.Cloud.ready()) {
-		expected, expectationErr := snapshot.recoveryExpectation()
-		if expectationErr != nil {
-			renderCloudFailure(os.Stdout, paths, expectationErr)
-			return 1
-		}
-		cfg, err = markCloudRecoveryStorageVerifiedAtSnapshot(
-			paths,
-			expected,
-			*verifiedStorageHold,
+	if cfg.Cloud != nil &&
+		cfg.Cloud.RecoveryHold != nil &&
+		!cloudRecoveryHoldClearsAfterUnlock(cfg.Cloud.RecoveryHold) {
+		printHumanInfo(
+			"Native secure storage is unlocked, but Cloud recovery remains paused for security review.",
 		)
-		if err != nil {
-			renderCloudFailure(os.Stdout, paths, err)
-			return 1
-		}
-		verifiedStorageHold = cfg.Cloud.RecoveryHold
+		printHumanInfo(
+			"Verified cleanup remains available with: %s",
+			cloudRemoveCommand(),
+		)
+		return 0
 	}
 	if !cloudRemoteFeatureAvailable() {
 		if verifiedStorageHold != nil {
@@ -229,6 +244,67 @@ func printVerifiedStorageHoldCleared() {
 	)
 }
 
+func checkpointCloudUnlockFailure(
+	paths runtimePaths,
+	snapshot cloudManagementSnapshot,
+	preProfile bool,
+	cause error,
+) error {
+	if cause == nil || preProfile {
+		return cause
+	}
+	expected, err := snapshot.recoveryExpectation()
+	if err != nil {
+		return cause
+	}
+	_, checkpointErr := checkpointCloudRecoveryHold(
+		paths,
+		expected,
+		cause,
+	)
+	if checkpointErr != nil {
+		return errors.Join(
+			cause,
+			fmt.Errorf(
+				"persist Cloud recovery safety hold: %w",
+				checkpointErr,
+			),
+		)
+	}
+	return cause
+}
+
+func markCloudUnlockStorageVerified(
+	paths runtimePaths,
+	snapshot cloudManagementSnapshot,
+	cfg runtimeConfig,
+	shouldMark bool,
+) (runtimeConfig, *cloudRecoveryHold, error) {
+	if cfg.Cloud == nil || cfg.Cloud.RecoveryHold == nil {
+		return cfg, nil, nil
+	}
+	hold := *cfg.Cloud.RecoveryHold
+	if !cloudRecoveryHoldClearsAfterUnlock(&hold) {
+		return cfg, &hold, nil
+	}
+	if !shouldMark || hold.StorageVerified {
+		return cfg, &hold, nil
+	}
+	expected, err := snapshot.recoveryExpectation()
+	if err != nil {
+		return runtimeConfig{}, nil, err
+	}
+	cfg, err = markCloudRecoveryStorageVerifiedAtSnapshot(
+		paths,
+		expected,
+		hold,
+	)
+	if err != nil {
+		return runtimeConfig{}, nil, err
+	}
+	return cfg, cfg.Cloud.RecoveryHold, nil
+}
+
 func loadCloudManagementConfig(paths runtimePaths) (runtimeConfig, error) {
 	snapshot, err := loadCloudManagementSnapshot(paths)
 	return snapshot.Config, err
@@ -247,19 +323,7 @@ func printCloudCommandProblem(err error) *cloudProblem {
 }
 
 func cloudProblemForCommandError(err error) *cloudProblem {
-	problem := cloudProblemForError(err)
-	if isDesktopKeyringSetupRequiredError(err) ||
-		isDesktopKeyringSessionUnavailableError(err) ||
-		isDesktopKeyringUnavailableError(err) ||
-		isWindowsNetworkLogonSessionError(err) {
-		problem = &cloudProblem{
-			Code:        cloudProblemSecureStorage,
-			Remediation: cloudRemediationUnlockStorage,
-			Detail:      "native secure storage is locked or unavailable in this session",
-			Cause:       err,
-		}
-	}
-	return problem
+	return cloudProblemForError(err)
 }
 
 func verifyCloudDeviceHealth(ctx context.Context, cfg runtimeConfig) error {

@@ -671,6 +671,15 @@ func finalizeLocalUninstallWithProgressUnlocked(
 	if pathRemoval != "" {
 		report.addRemoved(pathRemoval)
 	}
+	if mode == uninstallModePurge {
+		if err := applyFullPurgeRelayTokenPolicy(
+			paths,
+			relayTokenFile,
+			report,
+		); err != nil {
+			return fmt.Errorf("failed to remove relay auth token: %w", err)
+		}
+	}
 	if beforeStep != nil {
 		if err := beforeStep("config_cleanup"); err != nil {
 			return fmt.Errorf("failed before config_cleanup: %w", err)
@@ -691,8 +700,22 @@ func finalizeLocalUninstallWithProgressUnlocked(
 			)
 		}
 	}
-	if err := removeManagedConfigArtifacts(paths, report, mode == uninstallModePurge); err != nil {
-		return fmt.Errorf("failed to remove managed config artifacts: %w", err)
+	var configCleanupErr error
+	if mode == uninstallModePurge {
+		configCleanupErr = removeManagedConfigArtifactsAtSnapshot(
+			paths,
+			report,
+			purgeInventory.config,
+			purgeInventory.configExists,
+		)
+	} else {
+		configCleanupErr = removeManagedConfigArtifacts(paths, report, false)
+	}
+	if configCleanupErr != nil {
+		return fmt.Errorf(
+			"failed to remove managed config artifacts: %w",
+			configCleanupErr,
+		)
 	}
 	if beforeStep != nil {
 		if err := beforeStep("cache_cleanup"); err != nil {
@@ -703,35 +726,6 @@ func finalizeLocalUninstallWithProgressUnlocked(
 		return fmt.Errorf("failed to remove managed cache artifacts: %w", err)
 	}
 	if mode == uninstallModePurge {
-		tokenFileHandled := false
-		if relayTokenFile != "" {
-			var err error
-			tokenFileHandled, err = applyUninstallServiceTokenFilePolicy(paths, relayTokenFile, report)
-			if err != nil {
-				return fmt.Errorf("failed to remove relay auth token: %w", err)
-			}
-		}
-		if tokenFileHandled {
-			restoreSuppression := withRelayAuthTokenFileSuppressed()
-			applyUninstallKeyringTokenBestEffort(report)
-			restoreSuppression()
-		}
-		if !tokenFileHandled {
-			restoreSuppression := func() {}
-			if relayTokenFile != "" {
-				// The configured token file lies outside the managed config
-				// directory; the boundary check above deliberately left it
-				// alone. Never delete user-managed files — clean only the OS
-				// keyring copy.
-				restoreSuppression = withRelayAuthTokenFileSuppressed()
-				report.addNote(fmt.Sprintf("Kept the relay token file outside the HA NOVA config directory: %s", relayTokenFile))
-			}
-			if err := applyUninstallTokenPolicy(report); err != nil {
-				restoreSuppression()
-				return fmt.Errorf("failed to remove relay auth token: %w", err)
-			}
-			restoreSuppression()
-		}
 		if err := removeDirIfEmptyWithReport(paths.ConfigDir, report); err != nil {
 			return fmt.Errorf("failed to remove managed config directory: %w", err)
 		}

@@ -224,11 +224,15 @@ func cloudRecoveryHoldClearsAfterUnlock(
 		hold.Remediation == cloudRemediationVerifyState
 }
 
-func cloudRecoveryHoldNeedsUnlock(
-	hold *cloudRecoveryHold,
+func cloudRecoveryHoldNeedsUnlockForConfig(
+	cfg runtimeConfig,
 ) bool {
-	return cloudRecoveryHoldClearsAfterUnlock(hold) &&
-		!hold.StorageVerified
+	if cfg.Cloud == nil ||
+		!cloudRecoveryHoldClearsAfterUnlock(cfg.Cloud.RecoveryHold) {
+		return false
+	}
+	return !cfg.Cloud.RecoveryHold.StorageVerified ||
+		(cfg.Cloud.ready() && cloudRemoteFeatureAvailable())
 }
 
 func cloudRecoveryHoldCanResetStorageVerification(
