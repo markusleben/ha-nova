@@ -19,16 +19,32 @@ func init() {
 	secretKeyringGetWithPolicy = darwinDeviceSecretGet
 	secretKeyringSetWithPolicy = darwinDeviceSecretSet
 	secretKeyringDeleteWithPolicy = darwinDeviceSecretDelete
-	deviceCredentialPreflightWithContext = func(ctx context.Context) error {
-		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-		defer cancel()
-		if err := macOSKeychainAvailableNoUI(ctx); err != nil {
-			return desktopKeyringLockedError(
-				"the login keychain is locked or unavailable",
-			)
+	deviceCredentialPreflightWithContext = darwinDeviceCredentialPreflight
+}
+
+var macOSDeviceCredentialKeychainAvailableNoUI = macOSKeychainAvailableNoUI
+
+func darwinDeviceCredentialPreflight(
+	ctx context.Context,
+	ui SecretStoreUIPolicy,
+) error {
+	if err := validateDeviceCredentialPreflightRequest(ctx, ui); err != nil {
+		return err
+	}
+	if ui == SecretStoreAllowUI {
+		if !deviceCredentialPromptSessionAvailable() {
+			return deviceCredentialPromptUnavailableError()
 		}
 		return nil
 	}
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	if err := macOSDeviceCredentialKeychainAvailableNoUI(ctx); err != nil {
+		return desktopKeyringLockedError(
+			"the login keychain is locked or unavailable",
+		)
+	}
+	return nil
 }
 
 func darwinDeviceSecretGet(

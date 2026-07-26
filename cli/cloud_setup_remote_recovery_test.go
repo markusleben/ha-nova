@@ -192,8 +192,11 @@ func TestRemoteCloudDeviceRejectedCurrentProbesBeforeOwnerCode(
 	storageErr := errors.New("simulated unwritable credential store")
 	preflightCalls := 0
 	oldPreflight := deviceCredentialPreflightWithContext
-	deviceCredentialPreflightWithContext = func(ctx context.Context) error {
-		if err := ctx.Err(); err != nil {
+	deviceCredentialPreflightWithContext = func(
+		ctx context.Context,
+		ui SecretStoreUIPolicy,
+	) error {
+		if err := validateDeviceCredentialPreflightRequest(ctx, ui); err != nil {
 			return err
 		}
 		preflightCalls++

@@ -31,78 +31,15 @@ func purgeCloudAuthorizationsForUninstall(
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
-	for i := range targets {
-		target := &targets[i]
-		store, err := newCloudSecretStoreForCLI(target.profileID)
-		if err != nil {
-			return cloudPurgeFailure(paths, *target, fmt.Errorf(
-				"open Cloud credentials for server %q: %w",
-				target.profileName,
-				err,
-			))
-		}
-		authorizationPlan, err := inspectCloudAuthorizationCleanup(
-			ctx,
-			target.config,
-			store,
-		)
-		if err != nil {
-			return cloudPurgeFailure(paths, *target, fmt.Errorf(
-				"inspect Cloud credentials for server %q: %w",
-				target.profileName,
-				cloudAuthorizationCleanupErrorWithRecoveryCommand(
-					err,
-					target.profileName,
-				),
-			))
-		}
-		if err := revokeCloudDeviceForUninstall(
-			ctx,
-			paths,
-			target.config,
-			target.profileName,
-			store,
-			report,
-			target,
-		); err != nil {
-			return cloudPurgeFailure(paths, *target, fmt.Errorf(
-				"revoke Cloud device for server %q: %w",
-				target.profileName,
-				err,
-			))
-		}
-		if err := revokeCloudAuthorizationCleanupPlan(
-			ctx,
-			store,
-			authorizationPlan,
-		); err != nil {
-			return cloudPurgeFailure(paths, *target, fmt.Errorf(
-				"revoke Cloud authorization for server %q: %w",
-				target.profileName,
-				err,
-			))
-		}
-		if err := deleteRevokedCloudAuthorizationPlan(
-			ctx,
-			store,
-			authorizationPlan,
-		); err != nil {
-			return cloudPurgeFailure(paths, *target, fmt.Errorf(
-				"remove Cloud credentials for server %q: %w",
-				target.profileName,
-				err,
-			))
-		}
-		if authorizationPlan.hasAuthorization() && report != nil {
-			report.addRemoved(
-				fmt.Sprintf(
-					"Home Assistant Cloud authorization (server %q)",
-					target.profileName,
-				),
-			)
-		}
+	executions, err := prepareCloudPurgeExecutions(
+		ctx,
+		paths,
+		targets,
+	)
+	if err != nil {
+		return err
 	}
-	return nil
+	return executeCloudPurgePlans(ctx, paths, executions, report)
 }
 
 func collectCloudPurgeTargets(path string) ([]cloudPurgeTarget, error) {
@@ -314,6 +251,15 @@ func validateKnownCloudRemovalShape(
 			}
 		}
 	}
+	if rawCheckpoint, exists :=
+		lifecycle["authorization_revocation_completed"]; exists &&
+		!bytes.Equal(bytes.TrimSpace(rawCheckpoint), []byte("null")) {
+		if err := validateKnownAuthorizationRevocationCheckpointShape(
+			rawCheckpoint,
+		); err != nil {
+			return unknownCloudRemovalShape(name)
+		}
+	}
 	for _, slot := range []string{"current", "pending"} {
 		rawSlot, exists := lifecycle[slot]
 		if !exists ||
@@ -341,6 +287,7 @@ func knownCloudRemovalLifecycleField(field string) bool {
 		"device_activation_started",
 		"device_activation_device_id",
 		"device_revocation_completed",
+		"authorization_revocation_completed",
 		"recovery_hold":
 		return true
 	default:

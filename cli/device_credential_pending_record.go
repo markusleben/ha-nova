@@ -6,9 +6,12 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 )
+
+var errInvalidClientInstallID = errors.New("invalid client_install_id")
 
 func readPendingDeviceCredentialRecord() (
 	pendingDeviceCredentialRecord,
@@ -118,7 +121,7 @@ func validateClientInstallID(value string) error {
 		return nil
 	}
 	if !validIdentifier(value, 128) {
-		return fmt.Errorf("invalid client_install_id")
+		return errInvalidClientInstallID
 	}
 	return nil
 }

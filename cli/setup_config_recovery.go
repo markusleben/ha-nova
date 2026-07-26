@@ -23,6 +23,12 @@ func recoverSetupConfigAfterLoadError(
 		}
 		return cfg, nil
 	}
+	if errors.Is(err, errInvalidClientInstallID) {
+		snapshot, snapshotErr := loadCloudRecoverySnapshotUnchecked(paths)
+		if snapshotErr == nil && snapshot.Config.Cloud != nil {
+			return snapshot.Config, nil
+		}
+	}
 	if errors.Is(err, os.ErrNotExist) {
 		return runtimeConfig{}, nil
 	}

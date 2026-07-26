@@ -222,6 +222,8 @@ route_policy        // automatic | local | cloud
 cloud.state
 cloud.current       // origin, canonical origin, OAuth client ID, generation, HA user ID
 cloud.pending       // same non-secret metadata for an in-progress generation
+cloud.authorization_revocation_completed
+                    // exact token-digest-bound slots after remote revoke
 cloud.recovery_hold // fixed problem code + remediation only; never error detail or a secret
 ```
 
@@ -319,6 +321,24 @@ HA NOVA checkpoints the exact already-revoked device IDs before local deletion,
 re-reads all OAuth slots under the mutation lock, deletes only the unchanged
 snapshot, and preserves the checkpoint on any failure. Guided uninstall does
 not expose a global override; it stops with the per-profile recovery command.
+Grant deduplication includes canonical origin, client ID, and refresh token;
+identical token text at two Home Assistant origins is two revocation targets.
+Multi-profile purge plans every profile first, completes every remote device
+and OAuth revocation next, and deletes native OAuth proof only after all remote
+revocations succeed. Before the first local OAuth deletion, every profile gets
+a durable checkpoint containing the exact slot metadata and a SHA-256 digest
+of each high-entropy refresh token, never the token. A retry tolerates an
+already deleted checkpointed slot, rejects any replacement slot, skips the
+completed remote phase, and continues local deletion. The Owner-confirmed
+manual path records the same checkpoint plus the exact prior attestation, even
+when no readable OAuth slot remains. Status and unlock direct this state only
+to verified cleanup, never health verification or reconnect.
+
+A malformed install-wide `client_install_id` never authorizes setup or device
+use. Status still reports the selected Cloud lifecycle with the stable
+`cloud_config_invalid` security-stop result and exact cleanup command. Verified
+Cloud removal may preserve that exact malformed non-secret value while
+revoking access; it cannot replace or delete the immutable value.
 
 The interactive wizard offers:
 
@@ -361,7 +381,17 @@ When remote pairing is required, OAuth completes first; a standard user is
 preferred, while an Owner OAuth account remains supported. The wizard then
 requires a separate private window or browser profile signed in as an Owner to
 open NOVA and generate the one-time device code. It never auto-opens the Owner
-capability URL in the OAuth session.
+capability URL in the OAuth session. A malformed, expired, inactive, or
+rejected code stays in the same guided step and requests a fresh code; network,
+rate-limit, protocol, and ambiguous failures never retry automatically. Human
+input has no shared outer deadline. While the wizard waits for the Owner, it
+releases the global client-mutation lock, then reacquires it and proves that
+config.json is unchanged before consuming the code.
+
+An interactive macOS or Linux setup may request native keyring UI only after
+the full local desktop, non-root, non-SSH, non-WSL guard passes. Operational
+credential reads, writes, deletes, health checks, and cleanup remain no-prompt
+and use `ForbidUI`.
 
 ## Supported beta contexts
 

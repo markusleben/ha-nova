@@ -41,7 +41,8 @@ func cloudAuthorizationCleanupErrorWithRecoveryCommand(
 	err error,
 	profileName string,
 ) error {
-	if !errors.Is(err, errCloudAuthorizationCleanupUnverifiable) {
+	if !errors.Is(err, errCloudAuthorizationCleanupUnverifiable) &&
+		!errors.Is(err, errCloudDeviceRevocationCredentialMissing) {
 		return err
 	}
 	problem := cloudProblemForError(err)
@@ -56,10 +57,24 @@ func cloudAuthorizationCleanupErrorWithRecoveryCommand(
 
 func manualRemoteAccessRecoveryAllowed(
 	confirmation string,
-	err error,
+	authorizationErr error,
+	deviceErr error,
+	remoteRevocationCheckpoint bool,
 ) bool {
+	authorizationMissing := errors.Is(
+		authorizationErr,
+		errCloudAuthorizationCleanupUnverifiable,
+	)
+	deviceMissing := errors.Is(
+		deviceErr,
+		errCloudDeviceRevocationCredentialMissing,
+	)
 	return confirmation != "" &&
-		errors.Is(err, errCloudAuthorizationCleanupUnverifiable)
+		(authorizationMissing ||
+			deviceMissing ||
+			remoteRevocationCheckpoint) &&
+		(authorizationErr == nil || authorizationMissing) &&
+		(deviceErr == nil || deviceMissing)
 }
 
 // confirmRemoteAccessRevokedBeforeOAuth records the user's exact, profile-bound
@@ -100,21 +115,13 @@ func confirmRemoteAccessRevokedBeforeOAuth(
 			report,
 		)
 	}
-	_, checkpoint, err := planCloudDeviceRevocation(
+	checkpoint, err := planManuallyConfirmedCloudDeviceRevocation(
 		ctx,
 		cfg,
 		profileName,
 		remoteOnly,
 	)
 	if err != nil {
-		return false, err
-	}
-	if err := validateManualCloudDeviceSlots(
-		ctx,
-		profileName,
-		remoteOnly,
-		checkpoint,
-	); err != nil {
 		return false, err
 	}
 	if checkpoint == nil {
@@ -225,25 +232,6 @@ func deleteManuallyRevokedCloudAuthorizationPlan(
 	store OAuthSecretStore,
 	plan cloudAuthorizationCleanupPlan,
 ) error {
-	if plan.hasRetiring {
-		if err := store.RevokeRetiring(
-			ctx,
-			plan.retiring.Generation,
-			SecretStoreForbidUI,
-			func(_ context.Context, actual OAuthSecretEnvelope) error {
-				if !sameOAuthSecretEnvelope(actual, plan.retiring) {
-					return newCloudError(
-						CloudErrSecretConflict,
-						"remove manually revoked retiring OAuth secret",
-						nil,
-					)
-				}
-				return nil
-			},
-		); err != nil {
-			return err
-		}
-	}
 	return deleteRevokedCloudAuthorizationPlan(ctx, store, plan)
 }
 
@@ -254,6 +242,7 @@ func sameCloudAuthorizationCleanupPlan(
 	return left.hasCurrent == right.hasCurrent &&
 		left.hasPending == right.hasPending &&
 		left.hasRetiring == right.hasRetiring &&
+		left.revocationCheckpointed == right.revocationCheckpointed &&
 		(!left.hasCurrent ||
 			sameOAuthSecretEnvelope(left.current, right.current)) &&
 		(!left.hasPending ||

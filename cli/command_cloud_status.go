@@ -58,6 +58,13 @@ func runCloudStatusCommand(paths runtimePaths, args []string) int {
 	options.json = options.json || jsonRequested
 	snapshot, err := loadCloudManagementSnapshot(paths)
 	if err != nil {
+		if cloudStatusHandledInvalidInstallIdentity(
+			paths,
+			options,
+			err,
+		) {
+			return 1
+		}
 		if options.json {
 			printCloudStatusJSON(cloudStatusSummary{
 				Status: "error",
@@ -135,6 +142,27 @@ func runCloudStatusCommand(paths runtimePaths, args []string) int {
 		printHumanInfo(
 			"Verified cleanup remains available with: %s",
 			cloudRemoveCommand(),
+		)
+		return 1
+	}
+	if cfg.Cloud.AuthorizationRevocationCompleted != nil {
+		problem := &cloudProblem{
+			Code:        cloudProblemAuthorization,
+			Remediation: cloudRemediationSecurityStop,
+			Detail: "remote Cloud authorization revocation is complete; " +
+				"finish the verified local cleanup before reconnecting",
+		}
+		summary.Status = "cleanup_pending"
+		summary.VerificationError = cloudStatusErrorForProblem(problem)
+		summary.NextCommand = cloudRemoveCommand()
+		if options.json {
+			printCloudStatusJSON(summary)
+			return 1
+		}
+		printHumanErr("%s", problem)
+		printHumanInfo(
+			"Finish cleanup with: %s",
+			summary.NextCommand,
 		)
 		return 1
 	}

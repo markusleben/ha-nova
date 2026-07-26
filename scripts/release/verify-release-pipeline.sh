@@ -82,7 +82,7 @@ publication_main_protection_gate="${ROOT_DIR}/scripts/release/verify-cloud-publi
 # commit has complete real-device evidence. The dedicated structural verifier
 # rejects skipped/soft-failing gates and any build, upload, or publish producer
 # that can run before metadata and the Cloud gate have both completed.
-bash "${cloud_workflow_gate}" "${release_workflow}" "${rc_workflow}"
+bash "${cloud_workflow_gate}"
 
 # Pin GoReleaser to the triggering tag: an rc tag and the final tag can share a
 # commit, and without this GoReleaser auto-detects a tag and publishes onto the

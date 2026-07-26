@@ -158,13 +158,52 @@ func TestCloudAuthorizationCleanupRevokesDistinctGrantsWithSameGeneration(
 
 	if err := revokeCloudAuthorizationCleanupPlan(
 		context.Background(),
-		productionCloudTestStore(t, newMemoryOAuthSecretBackend()),
 		plan,
 	); err != nil {
 		t.Fatal(err)
 	}
 	if len(revoked) != 2 {
 		t.Fatalf("revoked grants = %v", revoked)
+	}
+}
+
+func TestCloudAuthorizationCleanupNeverDeduplicatesAcrossOrigins(
+	t *testing.T,
+) {
+	first := productionCloudTestEnvelopeWithToken("shared-refresh")
+	first.State = OAuthSecretRetiring
+	second := first
+	second.State = OAuthSecretCurrent
+	second.CanonicalOrigin = "https://other.ui.nabu.casa"
+	plan := cloudAuthorizationCleanupPlan{
+		retiring:    first,
+		hasRetiring: true,
+		current:     second,
+		hasCurrent:  true,
+	}
+	originalRevoke := revokeAndVerifyCloudAuthorizationForCLI
+	var revoked []string
+	revokeAndVerifyCloudAuthorizationForCLI = func(
+		_ context.Context,
+		envelope OAuthSecretEnvelope,
+	) error {
+		revoked = append(revoked, envelope.CanonicalOrigin)
+		return nil
+	}
+	t.Cleanup(func() {
+		revokeAndVerifyCloudAuthorizationForCLI = originalRevoke
+	})
+
+	if err := revokeCloudAuthorizationCleanupPlan(
+		context.Background(),
+		plan,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if len(revoked) != 2 ||
+		revoked[0] != first.CanonicalOrigin ||
+		revoked[1] != second.CanonicalOrigin {
+		t.Fatalf("revoked origins = %v", revoked)
 	}
 }
 

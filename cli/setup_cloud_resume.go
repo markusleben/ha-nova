@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"strings"
-	"time"
 )
 
 func remoteOnlyCloudSetup(cfg runtimeConfig) bool {
@@ -59,9 +58,8 @@ func resumeInteractiveCloudOnlySetup(
 		printHumanErr("%s", cloudAdapterUnavailableProblem())
 		return 1
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Minute)
+	ctx, cancel := newInteractiveCloudSetupContext()
 	defer cancel()
-	ctx = withCloudSecretAccessHolder(ctx)
 
 	if cfg.Cloud != nil &&
 		(cfg.Cloud.State == cloudStateCommitted ||
@@ -97,6 +95,13 @@ func resumeInteractiveCloudOnlySetup(
 	}
 
 	if !cfg.Cloud.ready() {
+		configSnapshot, hadConfig, snapshotErr := readOptionalFile(
+			paths.ConfigFile,
+		)
+		if snapshotErr != nil {
+			renderCloudFailure(out, paths, snapshotErr)
+			return 1
+		}
 		origin, err := cloudOriginForSetupResume(ctx, reader, out, cfg)
 		if err == errSetupExit || err == errSetupBack {
 			handlePausedCloudOwnerPairing(out, paths, err)
@@ -107,28 +112,41 @@ func resumeInteractiveCloudOnlySetup(
 			return 1
 		}
 		pairingCode := cloudOnlyPairingCodePrompt(reader, out)
-		err = withClientMutationLock(paths, func() error {
-			save := func(value runtimeConfig) error {
-				return saveSetupConfigWithLifecycleUnlocked(
+		err = withPausableClientMutationLock(
+			paths,
+			func(mutation *pausableClientMutationLock) error {
+				if err := ensureOptionalFileSnapshotCurrent(
+					paths.ConfigFile,
+					configSnapshot,
+					hadConfig,
+				); err != nil {
+					return err
+				}
+				save := func(value runtimeConfig) error {
+					if err := mutation.requireHeld(); err != nil {
+						return err
+					}
+					return saveSetupConfigWithLifecycleUnlocked(
+						paths,
+						value,
+						lifecycleMarker...,
+					)
+				}
+				reconnect := cfg.Cloud != nil && cfg.Cloud.Current != nil
+				updated, connectErr := connectRemoteToCloud(
+					ctx,
 					paths,
-					value,
-					lifecycleMarker...,
+					cfg,
+					coordinator,
+					origin,
+					mutation.pairingCodeProvider(pairingCode),
+					reconnect,
+					save,
 				)
-			}
-			reconnect := cfg.Cloud != nil && cfg.Cloud.Current != nil
-			updated, connectErr := connectRemoteToCloud(
-				ctx,
-				paths,
-				cfg,
-				coordinator,
-				origin,
-				pairingCode,
-				reconnect,
-				save,
-			)
-			cfg = updated
-			return connectErr
-		})
+				cfg = updated
+				return connectErr
+			},
+		)
 		if err != nil {
 			if handlePausedCloudOwnerPairing(out, paths, err) {
 				return 0

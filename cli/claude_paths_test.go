@@ -39,8 +39,11 @@ func TestMain(m *testing.M) {
 	secretKeyringSet = keyring.Set
 	secretKeyringDelete = keyring.Delete
 	deviceCredentialPreflight = func() error { return nil }
-	deviceCredentialPreflightWithContext = func(ctx context.Context) error {
-		if err := ctx.Err(); err != nil {
+	deviceCredentialPreflightWithContext = func(
+		ctx context.Context,
+		ui SecretStoreUIPolicy,
+	) error {
+		if err := validateDeviceCredentialPreflightRequest(ctx, ui); err != nil {
 			return err
 		}
 		return deviceCredentialPreflight()

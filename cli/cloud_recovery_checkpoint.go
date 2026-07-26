@@ -229,6 +229,39 @@ func writeCloudRecoveryHoldRaw(
 	profileRaw json.RawMessage,
 	hold *cloudRecoveryHold,
 ) error {
+	var rawHold json.RawMessage
+	if hold != nil {
+		var err error
+		rawHold, err = json.Marshal(hold)
+		if err != nil {
+			return err
+		}
+	}
+	return writeCloudLifecycleFieldRaw(
+		paths,
+		doc,
+		profileName,
+		profileRaw,
+		"recovery_hold",
+		rawHold,
+	)
+}
+
+func writeCloudLifecycleFieldRaw(
+	paths runtimePaths,
+	doc *configDocument,
+	profileName string,
+	profileRaw json.RawMessage,
+	field string,
+	value json.RawMessage,
+) error {
+	switch field {
+	case "recovery_hold",
+		"device_revocation_completed",
+		"authorization_revocation_completed":
+	default:
+		return fmt.Errorf("unsupported Cloud lifecycle checkpoint field %q", field)
+	}
 	var profile map[string]json.RawMessage
 	if err := json.Unmarshal(profileRaw, &profile); err != nil || profile == nil {
 		return fmt.Errorf("invalid server profile %q", profileName)
@@ -245,14 +278,10 @@ func writeCloudRecoveryHoldRaw(
 			"state": json.RawMessage(`"authorizing"`),
 		}
 	}
-	if hold == nil {
-		delete(lifecycle, "recovery_hold")
+	if value == nil {
+		delete(lifecycle, field)
 	} else {
-		rawHold, err := json.Marshal(hold)
-		if err != nil {
-			return err
-		}
-		lifecycle["recovery_hold"] = rawHold
+		lifecycle[field] = value
 	}
 	cloudRaw, err := json.Marshal(lifecycle)
 	if err != nil {

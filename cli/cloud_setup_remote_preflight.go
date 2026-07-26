@@ -8,7 +8,8 @@ import (
 )
 
 type cloudRemotePairingPrompt struct {
-	AppURL string
+	AppURL      string
+	RetryReason string
 }
 
 type cloudRemotePairingCodeProvider func(
@@ -25,6 +26,19 @@ func promptRemoteOwnerPairingCode(
 			CloudErrInvalidInput,
 			"prepare remote owner pairing",
 			nil,
+		)
+	}
+	if prompt.RetryReason != "" {
+		renderSetupErrorLine(out, "%s", prompt.RetryReason)
+		renderSetupParagraph(
+			out,
+			"Generate a fresh code in the separate Home Assistant Owner session, then enter it below.",
+		)
+		return promptWizardLineFromReader(
+			reader,
+			out,
+			"New six-digit code from the Owner session",
+			"",
 		)
 	}
 	renderSetupParagraph(

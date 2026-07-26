@@ -192,6 +192,11 @@ func maybeOfferCloudForCompletedSetup(
 		prompt = "Resume Home Assistant Cloud setup now?"
 		defaultYes = true
 	}
+	configSnapshot, hadConfig, err := readOptionalFile(paths.ConfigFile)
+	if err != nil {
+		renderCloudFailure(out, paths, err)
+		return cfg, true, 1
+	}
 	enable, err := promptWizardYesNoFromReader(
 		reader,
 		out,
@@ -216,10 +221,16 @@ func maybeOfferCloudForCompletedSetup(
 		return cfg, false, 0
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Minute)
+	ctx, cancel := newInteractiveCloudSetupContext()
 	defer cancel()
-	ctx = withCloudSecretAccessHolder(ctx)
 	err = withClientMutationLock(paths, func() error {
+		if err := ensureOptionalFileSnapshotCurrent(
+			paths.ConfigFile,
+			configSnapshot,
+			hadConfig,
+		); err != nil {
+			return err
+		}
 		save := func(value runtimeConfig) error {
 			return saveSetupConfigWithLifecycleUnlocked(
 				paths,
@@ -304,33 +315,6 @@ func resumeCommittedCloudSetup(
 	default:
 		return false, nil
 	}
-}
-
-func pendingCloudLifecycleRank(state cloudLifecycleState) (int, bool) {
-	switch state {
-	case cloudStateAuthorizing:
-		return 0, true
-	case cloudStateTokenStored:
-		return 1, true
-	case cloudStateCloudVerified:
-		return 2, true
-	case cloudStateDeviceBoundOrPaired:
-		return 3, true
-	default:
-		return 0, false
-	}
-}
-
-func retirePreviousCloudAuthorization(
-	ctx context.Context,
-	coordinator cloudSetupCoordinator,
-	profileID string,
-) error {
-	retirer, ok := coordinator.(cloudSetupRetirer)
-	if !ok {
-		return nil
-	}
-	return retirer.RetirePrevious(ctx, profileID)
 }
 
 func ensureProfileIdentityForSetup(paths runtimePaths, cfg *runtimeConfig) error {

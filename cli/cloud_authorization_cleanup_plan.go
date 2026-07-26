@@ -15,12 +15,13 @@ var errCloudAuthorizationCleanupUnverifiable = errors.New(
 // device or authorization so a missing or corrupt later slot cannot strand a
 // potentially live grant after partial teardown.
 type cloudAuthorizationCleanupPlan struct {
-	current     OAuthSecretEnvelope
-	hasCurrent  bool
-	pending     OAuthSecretEnvelope
-	hasPending  bool
-	retiring    OAuthSecretEnvelope
-	hasRetiring bool
+	current                OAuthSecretEnvelope
+	hasCurrent             bool
+	pending                OAuthSecretEnvelope
+	hasPending             bool
+	retiring               OAuthSecretEnvelope
+	hasRetiring            bool
+	revocationCheckpointed bool
 }
 
 func inspectCloudAuthorizationCleanup(
@@ -51,6 +52,16 @@ func inspectCloudAuthorizationCleanup(
 	)
 	if err != nil {
 		return cloudAuthorizationCleanupPlan{}, err
+	}
+	if cfg.Cloud != nil &&
+		cfg.Cloud.AuthorizationRevocationCompleted != nil {
+		if err := plan.validateRevocationCheckpoint(
+			cfg.Cloud.AuthorizationRevocationCompleted,
+		); err != nil {
+			return plan, err
+		}
+		plan.revocationCheckpointed = true
+		return plan, nil
 	}
 	if err := plan.validateConfiguredGrants(cfg); err != nil {
 		return plan, err
@@ -155,28 +166,13 @@ func unverifiableCloudAuthorizationCleanup(cause error) error {
 
 func revokeCloudAuthorizationCleanupPlan(
 	ctx context.Context,
-	store OAuthSecretStore,
 	plan cloudAuthorizationCleanupPlan,
 ) error {
-	revoked := make([]OAuthSecretEnvelope, 0, 3)
-	if plan.hasRetiring {
-		if err := store.RevokeRetiring(
-			ctx,
-			plan.retiring.Generation,
-			SecretStoreForbidUI,
-			revokeAndVerifyCloudAuthorizationForCLI,
-		); err != nil {
-			return err
-		}
-		revoked = append(revoked, plan.retiring)
+	if plan.revocationCheckpointed {
+		return nil
 	}
-	for _, envelope := range []OAuthSecretEnvelope{
-		plan.pending,
-		plan.current,
-	} {
-		if envelope.Generation == "" {
-			continue
-		}
+	revoked := make([]OAuthSecretEnvelope, 0, 3)
+	for _, envelope := range plan.envelopes() {
 		if cloudAuthorizationGrantAlreadyRevoked(
 			revoked,
 			envelope,
@@ -194,12 +190,51 @@ func revokeCloudAuthorizationCleanupPlan(
 	return nil
 }
 
+func (plan cloudAuthorizationCleanupPlan) validateRevocationCheckpoint(
+	checkpoint *cloudAuthorizationRevocationCheckpoint,
+) error {
+	if err := validateCloudAuthorizationRevocationCheckpoint(
+		checkpoint,
+	); err != nil {
+		return newCloudError(
+			CloudErrSecretCorrupt,
+			"validate authorization revocation checkpoint",
+			err,
+		)
+	}
+	for _, candidate := range []struct {
+		name   string
+		exists bool
+		value  OAuthSecretEnvelope
+		saved  *cloudAuthorizationSlotCheckpoint
+	}{
+		{"current", plan.hasCurrent, plan.current, checkpoint.Current},
+		{"pending", plan.hasPending, plan.pending, checkpoint.Pending},
+		{"retiring", plan.hasRetiring, plan.retiring, checkpoint.Retiring},
+	} {
+		if !candidate.exists {
+			continue
+		}
+		if candidate.saved == nil ||
+			!candidate.saved.matches(candidate.value) {
+			return newCloudError(
+				CloudErrIdentityMismatch,
+				"validate checkpointed "+candidate.name+
+					" Cloud authorization",
+				nil,
+			)
+		}
+	}
+	return nil
+}
+
 func cloudAuthorizationGrantAlreadyRevoked(
 	revoked []OAuthSecretEnvelope,
 	candidate OAuthSecretEnvelope,
 ) bool {
 	for _, envelope := range revoked {
-		if envelope.ClientID == candidate.ClientID &&
+		if envelope.CanonicalOrigin == candidate.CanonicalOrigin &&
+			envelope.ClientID == candidate.ClientID &&
 			envelope.RefreshToken == candidate.RefreshToken {
 			return true
 		}
@@ -212,6 +247,25 @@ func deleteRevokedCloudAuthorizationPlan(
 	store OAuthSecretStore,
 	plan cloudAuthorizationCleanupPlan,
 ) error {
+	if plan.hasRetiring {
+		if err := store.RevokeRetiring(
+			ctx,
+			plan.retiring.Generation,
+			SecretStoreForbidUI,
+			func(_ context.Context, actual OAuthSecretEnvelope) error {
+				if !sameOAuthSecretEnvelope(actual, plan.retiring) {
+					return newCloudError(
+						CloudErrSecretConflict,
+						"remove revoked retiring OAuth secret",
+						nil,
+					)
+				}
+				return nil
+			},
+		); err != nil {
+			return err
+		}
+	}
 	if plan.hasPending {
 		if err := store.DeletePending(
 			ctx,

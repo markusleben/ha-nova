@@ -13,11 +13,63 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 
+const sourceGateModeScript = join(
+  process.cwd(),
+  "scripts",
+  "release",
+  "resolve-cloud-source-gate-mode.mjs",
+);
+
+function runSourceGateMode(
+  enabled: unknown,
+  reporterAppID: unknown,
+  invalidatorAppID: unknown,
+): {
+  status: number | null;
+  stdout: string;
+  stderr: string;
+  output: string;
+} {
+  const root = mkdtempSync(join(tmpdir(), "ha-nova-source-gate-mode-"));
+  const policyDir = join(root, ".github", "policy");
+  const outputPath = join(root, "output");
+  mkdirSync(policyDir, { recursive: true });
+  writeFileSync(
+    join(root, "version.json"),
+    JSON.stringify({ cloud_remote_enabled: enabled }),
+    "utf8",
+  );
+  writeFileSync(
+    join(policyDir, "repo-policy.json"),
+    JSON.stringify({
+      cloud_source_gate: {
+        reporter_app_id: reporterAppID,
+        synchronous_invalidator_app_id: invalidatorAppID,
+      },
+    }),
+    "utf8",
+  );
+  writeFileSync(outputPath, "", "utf8");
+  const result = spawnSync(process.execPath, [sourceGateModeScript], {
+    cwd: root,
+    encoding: "utf8",
+    env: { ...process.env, GITHUB_OUTPUT: outputPath },
+  });
+  return {
+    status: result.status,
+    stdout: result.stdout,
+    stderr: result.stderr,
+    output: readFileSync(outputPath, "utf8"),
+  };
+}
+
 function workflowGateFixture(mutateRelease?: (workflow: string) => string): {
   root: string;
   script: string;
   releaseWorkflow: string;
   rcWorkflow: string;
+  sourceWorkflow: string;
+  ciWorkflow: string;
 } {
   const root = mkdtempSync(join(tmpdir(), "ha-nova-cloud-workflow-gate-"));
   const releaseDir = join(root, "scripts", "release");
@@ -27,10 +79,14 @@ function workflowGateFixture(mutateRelease?: (workflow: string) => string): {
 
   const script = join(releaseDir, "verify-cloud-workflow-gate.sh");
   const module = join(releaseDir, "verify-cloud-workflow-gate.mjs");
+  const actionPins = join(releaseDir, "verify-cloud-action-pins.mjs");
   const releaseWorkflow = join(workflowDir, "release.yml");
   const rcWorkflow = join(workflowDir, "release-candidate.yml");
+  const sourceWorkflow = join(workflowDir, "cloud-source-gate.yml");
+  const ciWorkflow = join(workflowDir, "ci.yml");
   copyFileSync("scripts/release/verify-cloud-workflow-gate.sh", script);
   copyFileSync("scripts/release/verify-cloud-workflow-gate.mjs", module);
+  copyFileSync("scripts/release/verify-cloud-action-pins.mjs", actionPins);
   copyFileSync(
     "scripts/release/verify-cloud-workflow-syntax.mjs",
     join(releaseDir, "verify-cloud-workflow-syntax.mjs"),
@@ -43,7 +99,16 @@ function workflowGateFixture(mutateRelease?: (workflow: string) => string): {
     "utf8",
   );
   copyFileSync(".github/workflows/release-candidate.yml", rcWorkflow);
-  return { root, script, releaseWorkflow, rcWorkflow };
+  copyFileSync(".github/workflows/cloud-source-gate.yml", sourceWorkflow);
+  copyFileSync(".github/workflows/ci.yml", ciWorkflow);
+  return {
+    root,
+    script,
+    releaseWorkflow,
+    rcWorkflow,
+    sourceWorkflow,
+    ciWorkflow,
+  };
 }
 
 function runWorkflowGate(
@@ -51,7 +116,13 @@ function runWorkflowGate(
 ): ReturnType<typeof spawnSync> {
   return spawnSync(
     "bash",
-    [fixture.script, fixture.releaseWorkflow, fixture.rcWorkflow],
+    [
+      fixture.script,
+      fixture.releaseWorkflow,
+      fixture.rcWorkflow,
+      fixture.sourceWorkflow,
+      fixture.ciWorkflow,
+    ],
     {
       cwd: fixture.root,
       encoding: "utf8",
@@ -62,6 +133,108 @@ function runWorkflowGate(
 
 export function registerCloudWorkflowGateBehaviorTests(): void {
   describe("Home Assistant Cloud workflow gate behavior", () => {
+    it.each([
+      ["both Apps absent", 0, 0],
+      ["reporter only", 42, 0],
+      ["invalidator only", 0, 43],
+    ])(
+      "skips cleanly while Cloud is disabled and source-gate provisioning is incomplete: %s",
+      (_name, reporterAppID, invalidatorAppID) => {
+        const result = runSourceGateMode(
+          false,
+          reporterAppID,
+          invalidatorAppID,
+        );
+        expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
+        expect(result.output).toBe("should-run=false\n");
+      },
+    );
+
+    it("rejects a flow-style mutable action hidden in a sensitive job", () => {
+      const fixture = workflowGateFixture();
+      const workflow = readFileSync(fixture.ciWorkflow, "utf8");
+      writeFileSync(
+        fixture.ciWorkflow,
+        workflow.replace(
+          /^\s+- name: Checkout\n\s+uses: actions\/checkout@[0-9a-f]{40} # v[0-9]+\.[0-9]+\.[0-9]+\n\s+with:\n\s+fetch-depth: 0/m,
+          "      - { uses: actions/checkout@v7 }",
+        ),
+        "utf8",
+      );
+      expect(() => parse(readFileSync(fixture.ciWorkflow, "utf8"))).not.toThrow();
+      const result = runWorkflowGate(fixture);
+      expect(result.status, `${result.stdout}\n${result.stderr}`).not.toBe(0);
+      expect(result.stderr).toContain("uses non-canonical step syntax");
+    });
+
+    it("keeps disabled source checks outside the secret-bearing environment", () => {
+      const workflow = parse(
+        readFileSync(".github/workflows/cloud-source-gate.yml", "utf8"),
+      ) as {
+        jobs: Record<string, Record<string, unknown>>;
+      };
+      const mode = workflow.jobs["cloud-source-mode"];
+      const gate = workflow.jobs["cloud-source-gate"];
+      if (mode === undefined || gate === undefined) {
+        throw new Error("source-gate workflow jobs are missing");
+      }
+      expect(mode.environment).toBeUndefined();
+      expect(mode.outputs).toEqual({
+        "should-run": "${{ steps.gate-mode.outputs.should-run }}",
+      });
+      expect(gate.needs).toBe("cloud-source-mode");
+      expect(gate.if).toBe(
+        "needs.cloud-source-mode.outputs.should-run == 'true'",
+      );
+      expect(gate.environment).toEqual({ name: "production" });
+    });
+
+    it.each([
+      ["disabled canary", false],
+      ["enabled source gate", true],
+    ])("runs with both exact App IDs provisioned: %s", (_name, enabled) => {
+      const result = runSourceGateMode(enabled, 42, 43);
+      expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
+      expect(result.output).toBe("should-run=true\n");
+    });
+
+    it.each([
+      ["both Apps absent", 0, 0],
+      ["reporter only", 42, 0],
+      ["invalidator only", 0, 43],
+    ])(
+      "fails closed when Cloud is enabled before complete App provisioning: %s",
+      (_name, reporterAppID, invalidatorAppID) => {
+        const result = runSourceGateMode(
+          true,
+          reporterAppID,
+          invalidatorAppID,
+        );
+        expect(result.status).not.toBe(0);
+        expect(result.stderr).toContain(
+          "enabled Cloud Remote requires both source-gate App IDs",
+        );
+        expect(result.output).toBe("");
+      },
+    );
+
+    it.each([
+      ["non-boolean feature state", "false", 0, 0],
+      ["negative reporter ID", false, -1, 0],
+      ["string invalidator ID", false, 0, "43"],
+    ])(
+      "rejects malformed trusted source-gate state: %s",
+      (_name, enabled, reporterAppID, invalidatorAppID) => {
+        const result = runSourceGateMode(
+          enabled,
+          reporterAppID,
+          invalidatorAppID,
+        );
+        expect(result.status).not.toBe(0);
+        expect(result.output).toBe("");
+      },
+    );
+
     it("accepts the reviewed release workflow ordering", () => {
       const result = runWorkflowGate(workflowGateFixture());
       expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
@@ -70,6 +243,33 @@ export function registerCloudWorkflowGateBehaviorTests(): void {
         "release-candidate.yml metadata -> Cloud gate",
       );
     });
+
+    it.each([
+      ["release", "releaseWorkflow"],
+      ["release candidate", "rcWorkflow"],
+      ["source gate", "sourceWorkflow"],
+      ["direct-main CI gate", "ciWorkflow"],
+    ] as const)(
+      "rejects a mutable action in the %s workflow",
+      (_name, fixtureKey) => {
+        const fixture = workflowGateFixture();
+        const workflowPath = fixture[fixtureKey];
+        const workflow = readFileSync(workflowPath, "utf8");
+        writeFileSync(
+          workflowPath,
+          workflow.replace(
+            /uses: actions\/checkout@[0-9a-f]{40} # v[0-9]+\.[0-9]+\.[0-9]+/,
+            "uses: actions/checkout@v7",
+          ),
+          "utf8",
+        );
+        const result = runWorkflowGate(fixture);
+        expect(result.status, `${result.stdout}\n${result.stderr}`).not.toBe(0);
+        expect(result.stderr).toContain(
+          "must use an immutable full commit SHA",
+        );
+      },
+    );
 
     it.each([
       [

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 )
 
 func deletePendingCloudDeviceCredentialWithContext(
@@ -40,7 +41,7 @@ func prepareCloudRemovalDocument(
 	if err != nil {
 		return nil, err
 	}
-	if err := validateSupportedConfigDocument(doc); err != nil {
+	if err := validateSupportedConfigSchema(doc); err != nil {
 		return nil, err
 	}
 	if err := validateExistingServerProfileIDs(doc.servers); err != nil {
@@ -81,5 +82,51 @@ func prepareCloudRemovalDocument(
 			return nil, err
 		}
 	}
-	return doc.withProfilePreservingSiblings(name, updated)
+	return doc.withProfilePreservingInvalidInstallIdentity(name, updated)
+}
+
+func loadSelectedRuntimeConfigUnchecked(
+	paths runtimePaths,
+) (runtimeConfig, error) {
+	doc, err := loadConfigDocument(paths.ConfigFile)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return runtimeConfig{}, fmt.Errorf(
+				"cannot read HA NOVA server configuration %s: %w; restore or repair the file before retrying",
+				paths.ConfigFile,
+				err,
+			)
+		}
+		return runtimeConfig{}, fmt.Errorf(
+			"HA NOVA is not set up yet. Run: ha-nova setup: %w",
+			err,
+		)
+	}
+	if err := validateSupportedConfigDocument(doc); err != nil {
+		return runtimeConfig{}, err
+	}
+	if err := validateExistingServerProfileIDs(doc.servers); err != nil {
+		return runtimeConfig{}, fmt.Errorf(
+			"invalid server profile identities: %w",
+			err,
+		)
+	}
+	name, err := resolveSelectedServerProfile(doc)
+	if err != nil {
+		return runtimeConfig{}, err
+	}
+	cfg, ok := doc.flatProfile(name)
+	if !ok {
+		return runtimeConfig{}, fmt.Errorf(
+			"server profile %q does not exist",
+			name,
+		)
+	}
+	setActiveServerProfile(name)
+	if cfg.ProfileID != "" {
+		if err := validateProfileID(cfg.ProfileID); err != nil {
+			return runtimeConfig{}, err
+		}
+	}
+	return cfg, nil
 }

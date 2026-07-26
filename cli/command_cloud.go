@@ -68,6 +68,17 @@ func runCloudUnlockCommand(paths runtimePaths, args []string) int {
 		renderCloudFailure(os.Stdout, paths, err)
 		return 1
 	}
+	if cfg.Cloud != nil &&
+		cfg.Cloud.AuthorizationRevocationCompleted != nil {
+		printHumanInfo(
+			"Native secure storage is unlocked. Remote Cloud authorization revocation is already complete.",
+		)
+		printHumanInfo(
+			"Finish verified local cleanup with: %s",
+			cloudRemoveCommand(),
+		)
+		return 0
+	}
 	var verifiedStorageHold *cloudRecoveryHold
 	if cfg.Cloud != nil && cfg.Cloud.RecoveryHold != nil {
 		hold := *cfg.Cloud.RecoveryHold

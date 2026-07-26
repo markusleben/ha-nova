@@ -19,11 +19,12 @@ func runCloudRemoveCommand(paths runtimePaths, args []string) int {
 		printHumanErr("%s", err)
 		return 1
 	}
-	cfg, err := loadSelectedRuntimeConfigUnchecked(paths)
+	initialSnapshot, err := loadCloudRecoverySnapshotUnchecked(paths)
 	if err != nil {
 		printHumanErr("%s", err)
 		return 1
 	}
+	cfg := initialSnapshot.Config
 	if err := validateServerProfileName(activeServerProfile()); err != nil {
 		printHumanErr("invalid selected server profile: %s", err)
 		return 1
@@ -176,9 +177,18 @@ func runCloudRemoveCommand(paths runtimePaths, args []string) int {
 				cloudSource,
 				store,
 			)
+		deviceValidationErr := validateCloudDeviceRevocationPlan(
+			ctx,
+			cloudSource,
+			activeServerProfile(),
+		)
 		manualRecovery := manualRemoteAccessRecoveryAllowed(
 			options.confirmRemoteAccessRevoked,
 			authorizationErr,
+			deviceValidationErr,
+			cloudSource.Cloud != nil &&
+				(cloudSource.Cloud.DeviceRevocationCompleted != nil ||
+					cloudSource.Cloud.AuthorizationRevocationCompleted != nil),
 		)
 		if authorizationErr != nil && !manualRecovery {
 			return cloudAuthorizationCleanupErrorWithRecoveryCommand(
@@ -186,7 +196,15 @@ func runCloudRemoveCommand(paths runtimePaths, args []string) int {
 				activeServerProfile(),
 			)
 		}
-		if authorizationErr == nil &&
+		if deviceValidationErr != nil && !manualRecovery {
+			return cloudAuthorizationCleanupErrorWithRecoveryCommand(
+				deviceValidationErr,
+				activeServerProfile(),
+			)
+		}
+		if !manualRecovery &&
+			authorizationErr == nil &&
+			deviceValidationErr == nil &&
 			options.confirmRemoteAccessRevoked != "" {
 			recoveryExpectedCaptured = false
 			return &cloudProblem{
@@ -242,16 +260,44 @@ func runCloudRemoveCommand(paths runtimePaths, args []string) int {
 			current = currentWithoutDevice
 			prepared = deviceRemovedPrepared
 		}
+		checkpointAuthorizationRevocation := func(
+			plan cloudAuthorizationCleanupPlan,
+			ownerConfirmed bool,
+		) error {
+			checkpointed, expected, err :=
+				checkpointCloudAuthorizationRevocationUnlocked(
+					paths,
+					recoveryExpected,
+					plan,
+					ownerConfirmed,
+				)
+			if err != nil {
+				return err
+			}
+			cloudSource = checkpointed
+			recoveryExpected = expected
+			configSnapshot, hadConfig, err = readOptionalFile(
+				paths.ConfigFile,
+			)
+			return err
+		}
 		if manualRecovery {
 			latestPlan, latestErr := inspectCloudAuthorizationCleanup(
 				ctx,
 				cloudSource,
 				store,
 			)
-			if !errors.Is(
-				latestErr,
-				errCloudAuthorizationCleanupUnverifiable,
-			) ||
+			sameAuthorizationOutcome :=
+				(authorizationErr == nil && latestErr == nil) ||
+					(errors.Is(
+						authorizationErr,
+						errCloudAuthorizationCleanupUnverifiable,
+					) &&
+						errors.Is(
+							latestErr,
+							errCloudAuthorizationCleanupUnverifiable,
+						))
+			if !sameAuthorizationOutcome ||
 				!sameCloudAuthorizationCleanupPlan(
 					authorizationPlan,
 					latestPlan,
@@ -261,6 +307,12 @@ func runCloudRemoveCommand(paths runtimePaths, args []string) int {
 					"revalidate manually revoked Cloud authorizations",
 					latestErr,
 				)
+			}
+			if err := checkpointAuthorizationRevocation(
+				latestPlan,
+				true,
+			); err != nil {
+				return err
 			}
 			if err := deleteManuallyRevokedCloudAuthorizationPlan(
 				ctx,
@@ -272,8 +324,13 @@ func runCloudRemoveCommand(paths runtimePaths, args []string) int {
 		} else {
 			if err := revokeCloudAuthorizationCleanupPlan(
 				ctx,
-				store,
 				authorizationPlan,
+			); err != nil {
+				return err
+			}
+			if err := checkpointAuthorizationRevocation(
+				authorizationPlan,
+				false,
 			); err != nil {
 				return err
 			}
@@ -318,45 +375,4 @@ func runCloudRemoveCommand(paths runtimePaths, args []string) int {
 		printHumanInfo("Home Assistant Cloud access was removed. This profile now needs a local pairing before it can be used.")
 	}
 	return 0
-}
-
-func loadSelectedRuntimeConfigUnchecked(paths runtimePaths) (runtimeConfig, error) {
-	doc, err := loadConfigDocument(paths.ConfigFile)
-	if err != nil {
-		if !os.IsNotExist(err) {
-			return runtimeConfig{}, fmt.Errorf(
-				"cannot read HA NOVA server configuration %s: %w; restore or repair the file before retrying",
-				paths.ConfigFile,
-				err,
-			)
-		}
-		return runtimeConfig{}, fmt.Errorf(
-			"HA NOVA is not set up yet. Run: ha-nova setup: %w",
-			err,
-		)
-	}
-	if err := validateSupportedConfigDocument(doc); err != nil {
-		return runtimeConfig{}, err
-	}
-	if err := validateExistingServerProfileIDs(doc.servers); err != nil {
-		return runtimeConfig{}, fmt.Errorf(
-			"invalid server profile identities: %w",
-			err,
-		)
-	}
-	name, err := resolveSelectedServerProfile(doc)
-	if err != nil {
-		return runtimeConfig{}, err
-	}
-	cfg, ok := doc.flatProfile(name)
-	if !ok {
-		return runtimeConfig{}, fmt.Errorf("server profile %q does not exist", name)
-	}
-	setActiveServerProfile(name)
-	if cfg.ProfileID != "" {
-		if err := validateProfileID(cfg.ProfileID); err != nil {
-			return runtimeConfig{}, err
-		}
-	}
-	return cfg, nil
 }

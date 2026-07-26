@@ -46,7 +46,11 @@ func loadCloudSnapshot(
 			err,
 		)
 	}
-	if err := validateSupportedConfigDocument(doc); err != nil {
+	if validateManagement {
+		if err := validateSupportedConfigDocument(doc); err != nil {
+			return cloudManagementSnapshot{}, err
+		}
+	} else if err := validateSupportedConfigSchema(doc); err != nil {
 		return cloudManagementSnapshot{}, err
 	}
 	if err := validateExistingServerProfileIDs(doc.servers); err != nil {

@@ -29,6 +29,106 @@ func TestSecretOpsHonorDeviceCredentialPreflight(t *testing.T) {
 	}
 }
 
+func TestSecretOpsPropagateExplicitUIPolicyToPreflight(t *testing.T) {
+	withDeviceStorageTestHome(t)
+	originalPreflight := deviceCredentialPreflightWithContext
+	var policies []SecretStoreUIPolicy
+	deviceCredentialPreflightWithContext = func(
+		ctx context.Context,
+		ui SecretStoreUIPolicy,
+	) error {
+		if err := validateDeviceCredentialPreflightRequest(ctx, ui); err != nil {
+			return err
+		}
+		policies = append(policies, ui)
+		return nil
+	}
+	t.Cleanup(func() {
+		deviceCredentialPreflightWithContext = originalPreflight
+	})
+
+	const service = "ha-nova.device-credential.policy-test"
+	if err := secretSetWithPolicy(
+		context.Background(),
+		service,
+		"value",
+		SecretStoreAllowUI,
+	); err != nil {
+		t.Fatalf("secretSetWithPolicy() error = %v", err)
+	}
+	if _, err := secretGetWithPolicy(
+		context.Background(),
+		service,
+		SecretStoreAllowUI,
+	); err != nil {
+		t.Fatalf("secretGetWithPolicy() error = %v", err)
+	}
+	if err := secretDeleteWithPolicy(
+		context.Background(),
+		service,
+		SecretStoreAllowUI,
+	); err != nil {
+		t.Fatalf("secretDeleteWithPolicy() error = %v", err)
+	}
+	if err := keyringStorageCanaryWithPolicy(
+		context.Background(),
+		SecretStoreAllowUI,
+	); err != nil {
+		t.Fatalf("keyringStorageCanaryWithPolicy() error = %v", err)
+	}
+
+	if len(policies) != 4 {
+		t.Fatalf("preflight policies = %v", policies)
+	}
+	for _, policy := range policies {
+		if policy != SecretStoreAllowUI {
+			t.Fatalf("preflight lost explicit UI policy: %v", policies)
+		}
+	}
+}
+
+func TestDirectKeyringDeviceOpsKeepPreflightNoUI(t *testing.T) {
+	withDeviceStorageTestHome(t)
+	const service = "ha-nova.device-credential.direct-policy-test"
+	if err := secretKeyringSetWithPolicy(
+		context.Background(),
+		service,
+		secretUser(),
+		"value",
+		SecretStoreForbidUI,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	originalPreflight := deviceCredentialPreflightWithContext
+	var policies []SecretStoreUIPolicy
+	deviceCredentialPreflightWithContext = func(
+		ctx context.Context,
+		ui SecretStoreUIPolicy,
+	) error {
+		if err := validateDeviceCredentialPreflightRequest(ctx, ui); err != nil {
+			return err
+		}
+		policies = append(policies, ui)
+		return nil
+	}
+	t.Cleanup(func() {
+		deviceCredentialPreflightWithContext = originalPreflight
+	})
+
+	if _, found, err := readKeyringDeviceSecret(service); err != nil || !found {
+		t.Fatalf("readKeyringDeviceSecret() found=%v err=%v", found, err)
+	}
+	if err := deleteKeyringDeviceSecret(service); err != nil {
+		t.Fatalf("deleteKeyringDeviceSecret() error = %v", err)
+	}
+	if len(policies) != 2 ||
+		policies[0] != SecretStoreForbidUI ||
+		policies[1] != SecretStoreForbidUI {
+		t.Fatalf("direct device keyring preflight policies = %v", policies)
+	}
+}
+
 func TestDeviceCredentialReadPropagatesNoUIPolicy(t *testing.T) {
 	withDeviceStorageTestHome(t)
 	credential := validCredential(73)

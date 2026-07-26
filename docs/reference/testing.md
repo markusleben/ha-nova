@@ -136,17 +136,17 @@ remote-first case:
 
 ```bash
 # Existing secure local pairing: reuses and user-binds that device.
-ha-nova cloud add --server <test-profile>
+"${cloud_test_binary}" cloud add --server <test-profile>
 
 # Remote-first: verifies the Cloud origin, then pairs through Ingress v2.
-ha-nova cloud add --server <remote-profile> --url https://<cloud-host>
+"${cloud_test_binary}" cloud add --server <remote-profile> --url https://<cloud-host>
 
-ha-nova cloud status --server <test-profile>
-ha-nova relay health --server <test-profile> --via local
-ha-nova relay health --server <test-profile> --via cloud
-ha-nova server route automatic --server <test-profile>
-ha-nova cloud reconnect --server <test-profile>
-ha-nova cloud remove --server <test-profile>
+"${cloud_test_binary}" cloud status --server <test-profile>
+"${cloud_test_binary}" relay health --server <test-profile> --via local
+"${cloud_test_binary}" relay health --server <test-profile> --via cloud
+"${cloud_test_binary}" server route automatic --server <test-profile>
+"${cloud_test_binary}" cloud reconnect --server <test-profile>
+"${cloud_test_binary}" cloud remove --server <test-profile>
 ```
 
 Required evidence:

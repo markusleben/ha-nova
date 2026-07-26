@@ -172,6 +172,7 @@ var cloudLifecycleFieldKeys = []string{
 	"device_activation_started",
 	"device_activation_device_id",
 	"device_revocation_completed",
+	"authorization_revocation_completed",
 	"recovery_hold",
 }
 var cloudConnectionFieldKeys = []string{

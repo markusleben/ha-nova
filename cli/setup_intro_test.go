@@ -13,10 +13,15 @@ func TestRenderSetupIntroExplainsProjectAndBrowserBehavior(t *testing.T) {
 	for _, want := range []string{
 		"connects your AI assistant",
 		"This setup will:",
+		"connect locally or through Home Assistant Cloud",
+		"for local setup:",
+		"for Cloud-only setup:",
 		`the "skills"`,
 		"press Enter — that opens a",
 		"come back to this window",
 		"You'll need:",
+		"NOVA App already installed",
+		"Home Assistant Owner",
 	} {
 		if !strings.Contains(rendered, want) {
 			t.Fatalf("intro missing %q:\n%s", want, rendered)

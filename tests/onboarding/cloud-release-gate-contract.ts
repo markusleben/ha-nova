@@ -9,6 +9,7 @@ export function registerCloudReleaseGateContractTests(): void {
   );
   const cloudWorkflowGateVerifier = [
     "scripts/release/verify-cloud-workflow-gate.sh",
+    "scripts/release/verify-cloud-action-pins.mjs",
     "scripts/release/verify-cloud-workflow-gate.mjs",
     "scripts/release/verify-cloud-workflow-syntax.mjs",
   ]
@@ -18,6 +19,10 @@ export function registerCloudReleaseGateContractTests(): void {
   const rcWorkflow = readFileSync(".github/workflows/release-candidate.yml", "utf8");
   const ciWorkflow = readFileSync(".github/workflows/ci.yml", "utf8");
   const sourceGateWorkflow = readFileSync(".github/workflows/cloud-source-gate.yml", "utf8");
+  const sourceGateMode = readFileSync(
+    "scripts/release/resolve-cloud-source-gate-mode.mjs",
+    "utf8",
+  );
   const checkTokenScript = readFileSync(
     "scripts/release/create-cloud-source-check-token.mjs",
     "utf8",
@@ -114,6 +119,9 @@ export function registerCloudReleaseGateContractTests(): void {
     expect(cloudWorkflowGateVerifier).toContain(
       "must mint and use only the exact Cloud source App administration-read token",
     );
+    expect(cloudWorkflowGateVerifier).toContain(
+      "must use an immutable full commit SHA with an exact vX.Y.Z comment",
+    );
     expect(cloudWorkflowGateVerifier).toContain("must depend on Cloud gate job");
     expect(cloudWorkflowGateVerifier).toContain("must not build, upload, or publish artifacts");
     expect(cloudWorkflowGateVerifier).toContain("continue-on-error");
@@ -148,6 +156,19 @@ export function registerCloudReleaseGateContractTests(): void {
     expect(sourceGateWorkflow).toContain("- requested");
     expect(sourceGateWorkflow).toContain("name: trusted-cloud-source-reporter");
     expect(sourceGateWorkflow).toContain("name: production");
+    expect(sourceGateWorkflow).toContain(
+      "node scripts/release/resolve-cloud-source-gate-mode.mjs",
+    );
+    expect(sourceGateWorkflow).toContain(
+      "should-run: ${{ steps.gate-mode.outputs.should-run }}",
+    );
+    expect(sourceGateWorkflow).toContain("needs: cloud-source-mode");
+    expect(sourceGateWorkflow).toContain(
+      "if: needs.cloud-source-mode.outputs.should-run == 'true'",
+    );
+    expect(sourceGateWorkflow).not.toContain(
+      "if: steps.gate-mode.outputs.should-run == 'true'",
+    );
     expect(sourceGateWorkflow).toContain("node scripts/release/run-cloud-source-check.mjs");
     expect(sourceGateWorkflow).toContain(
       "node scripts/release/create-cloud-source-check-token.mjs",
@@ -156,6 +177,12 @@ export function registerCloudReleaseGateContractTests(): void {
     expect(sourceGateWorkflow).not.toContain("actions/cache");
     expect(sourceGateWorkflow).not.toContain("github.event.pull_request.head");
     expect(sourceGateWorkflow).not.toMatch(/^\s*run:.*github\.event\.pull_request/m);
+    expect(sourceGateMode).toContain("version.cloud_remote_enabled && !provisioned");
+    expect(sourceGateMode).toContain(
+      "const shouldRun = version.cloud_remote_enabled || provisioned",
+    );
+    expect(sourceGateMode).not.toContain("secrets.");
+    expect(sourceGateMode).not.toContain("GITHUB_EVENT");
     const sourceGateScript = readFileSync(
       "scripts/release/verify-cloud-target-source-gate.sh",
       "utf8",

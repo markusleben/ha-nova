@@ -175,23 +175,29 @@ func TestCloudRemoveKeepsIdentityCheckpointUntilSecretDeletionFinishes(
 		}
 		return nil
 	}
-	before, err := os.ReadFile(paths.ConfigFile)
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	exit, output := captureCommandOutput(t, func() int {
 		return runCloudRemoveCommand(paths, []string{"--yes"})
 	})
 	if exit != 1 || !strings.Contains(output, string(cloudProblemSecureStorage)) {
 		t.Fatalf("delete failure exit=%d output=%s", exit, output)
 	}
-	after, err := os.ReadFile(paths.ConfigFile)
+	checkpointed, err := loadSelectedRuntimeConfigUnchecked(paths)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(after) != string(before) {
-		t.Fatal("secret deletion failure cleared the Cloud identity checkpoint")
+	if checkpointed.Cloud == nil ||
+		checkpointed.Cloud.Current == nil ||
+		checkpointed.Cloud.Current.CredentialGeneration !=
+			current.Generation ||
+		checkpointed.Cloud.AuthorizationRevocationCompleted == nil ||
+		checkpointed.Cloud.AuthorizationRevocationCompleted.Current == nil ||
+		!checkpointed.Cloud.AuthorizationRevocationCompleted.Current.matches(
+			current,
+		) {
+		t.Fatalf(
+			"secret deletion failure lost exact Cloud identity checkpoint: %+v",
+			checkpointed.Cloud,
+		)
 	}
 	remaining, exists, err := store.LoadCurrent(
 		context.Background(),
@@ -218,9 +224,8 @@ func TestCloudRemoveKeepsIdentityCheckpointUntilSecretDeletionFinishes(
 	if exit != 0 {
 		t.Fatalf("retry exit=%d output=%s", exit, output)
 	}
-	if len(revoked) != 2 ||
-		revoked[0] != current.Generation ||
-		revoked[1] != current.Generation {
+	if len(revoked) != 1 ||
+		revoked[0] != current.Generation {
 		t.Fatalf("retry revocations = %v", revoked)
 	}
 	saved, err := loadConfig(paths)

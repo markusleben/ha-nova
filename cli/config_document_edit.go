@@ -7,6 +7,19 @@ import (
 )
 
 func validateSupportedConfigDocument(doc *configDocument) error {
+	if err := validateSupportedConfigSchema(doc); err != nil {
+		return err
+	}
+	if doc == nil {
+		return nil
+	}
+	if err := validateClientInstallID(doc.meta.ClientInstallID); err != nil {
+		return fmt.Errorf("invalid install identity in config.json: %w", err)
+	}
+	return nil
+}
+
+func validateSupportedConfigSchema(doc *configDocument) error {
 	if doc == nil {
 		return nil
 	}
@@ -16,9 +29,6 @@ func validateSupportedConfigDocument(doc *configDocument) error {
 			doc.meta.SchemaVersion,
 			configSchemaVersion,
 		)
-	}
-	if err := validateClientInstallID(doc.meta.ClientInstallID); err != nil {
-		return fmt.Errorf("invalid install identity in config.json: %w", err)
 	}
 	return nil
 }

@@ -155,6 +155,73 @@ func TestProbeLinuxKeyringWritableNeverPromptsWhenCollectionRelocks(t *testing.T
 	}
 }
 
+func TestLinuxDeviceCredentialPreflightAllowsExplicitPrompt(t *testing.T) {
+	originalPrompt := deviceCredentialPromptSessionAvailable
+	originalInspect := inspectLinuxSecureStorageStateForKeyring
+	deviceCredentialPromptSessionAvailable = func() bool { return true }
+	inspectLinuxSecureStorageStateForKeyring = func() (linuxSecureStorageState, error) {
+		t.Fatal("explicit prompt preflight ran the no-UI Secret Service inspection")
+		return linuxSecureStorageState{}, nil
+	}
+	t.Cleanup(func() {
+		deviceCredentialPromptSessionAvailable = originalPrompt
+		inspectLinuxSecureStorageStateForKeyring = originalInspect
+	})
+
+	if err := linuxDeviceCredentialPreflight(
+		context.Background(),
+		SecretStoreAllowUI,
+	); err != nil {
+		t.Fatalf("explicit prompt preflight error = %v", err)
+	}
+}
+
+func TestLinuxDeviceCredentialPreflightRejectsUnsafePromptSession(t *testing.T) {
+	originalPrompt := deviceCredentialPromptSessionAvailable
+	originalInspect := inspectLinuxSecureStorageStateForKeyring
+	deviceCredentialPromptSessionAvailable = func() bool { return false }
+	inspectLinuxSecureStorageStateForKeyring = func() (linuxSecureStorageState, error) {
+		t.Fatal("unsafe prompt session reached Secret Service inspection")
+		return linuxSecureStorageState{}, nil
+	}
+	t.Cleanup(func() {
+		deviceCredentialPromptSessionAvailable = originalPrompt
+		inspectLinuxSecureStorageStateForKeyring = originalInspect
+	})
+
+	err := linuxDeviceCredentialPreflight(
+		context.Background(),
+		SecretStoreAllowUI,
+	)
+	if !IsCloudErrorCode(err, CloudErrSecretUIForbidden) {
+		t.Fatalf("unsafe prompt session error = %v", err)
+	}
+}
+
+func TestLinuxDeviceCredentialPreflightForbidUIFailsLocked(t *testing.T) {
+	originalPrompt := deviceCredentialPromptSessionAvailable
+	originalInspect := inspectLinuxSecureStorageStateForKeyring
+	deviceCredentialPromptSessionAvailable = func() bool {
+		t.Fatal("no-UI preflight consulted interactive prompt state")
+		return false
+	}
+	inspectLinuxSecureStorageStateForKeyring = func() (linuxSecureStorageState, error) {
+		return linuxSecureStorageState{kind: linuxSecureStorageStateLocked}, nil
+	}
+	t.Cleanup(func() {
+		deviceCredentialPromptSessionAvailable = originalPrompt
+		inspectLinuxSecureStorageStateForKeyring = originalInspect
+	})
+
+	err := linuxDeviceCredentialPreflight(
+		context.Background(),
+		SecretStoreForbidUI,
+	)
+	if !isDesktopKeyringLockedError(err) {
+		t.Fatalf("no-UI locked preflight error = %v", err)
+	}
+}
+
 func resetRelayAuthTokenPreflightSessionBusStateForTest() {
 	relayAuthTokenPreflightSessionBusState.Lock()
 	relayAuthTokenPreflightSessionBusState.current = nil

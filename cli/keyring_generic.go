@@ -30,15 +30,39 @@ var secretKeyringSetWithPolicy = defaultSecretKeyringSetWithPolicy
 var secretKeyringDeleteWithPolicy = defaultSecretKeyringDeleteWithPolicy
 
 // deviceCredentialPreflight guards the OS keyring backend before a device-slot
-// read/write. It is a no-op by default; Linux overrides it (keyring_linux.go) to
-// classify a locked/uninitialized Secret Service and fail fast, matching the
-// relay-token path instead of hanging in an unlock prompt.
+// read/write. It is a no-op by default; macOS and Linux replace the contextual
+// form to enforce explicit prompt policy and fail fast for no-UI operations.
 var deviceCredentialPreflight = func() error { return nil }
-var deviceCredentialPreflightWithContext = func(ctx context.Context) error {
-	if err := ctx.Err(); err != nil {
+var deviceCredentialPromptSessionAvailable = platformNativeSecretPromptAvailable
+var deviceCredentialPreflightWithContext = func(
+	ctx context.Context,
+	ui SecretStoreUIPolicy,
+) error {
+	if err := validateDeviceCredentialPreflightRequest(ctx, ui); err != nil {
 		return err
 	}
 	return deviceCredentialPreflight()
+}
+
+func validateDeviceCredentialPreflightRequest(
+	ctx context.Context,
+	ui SecretStoreUIPolicy,
+) error {
+	if err := validateSecretUIPolicy(ui); err != nil {
+		return err
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func deviceCredentialPromptUnavailableError() error {
+	return newCloudError(
+		CloudErrSecretUIForbidden,
+		"open device secure-storage prompt",
+		nil,
+	)
 }
 
 func secretUser() string {
@@ -148,7 +172,7 @@ func secretGetWithPolicy(
 		}
 		return strings.TrimSpace(value), nil
 	}
-	if err := deviceCredentialPreflightWithContext(ctx); err != nil {
+	if err := deviceCredentialPreflightWithContext(ctx, ui); err != nil {
 		return "", err
 	}
 	value, err := secretKeyringGetWithPolicy(
@@ -195,7 +219,7 @@ func secretSetWithPolicy(
 	if deviceSecretFileBacked() {
 		return deviceSecretFileSet(service, value)
 	}
-	if err := deviceCredentialPreflightWithContext(ctx); err != nil {
+	if err := deviceCredentialPreflightWithContext(ctx, ui); err != nil {
 		return err
 	}
 	return secretKeyringSetWithPolicy(
@@ -237,7 +261,7 @@ func secretDeleteWithPolicy(
 	if deviceSecretFileBacked() {
 		return deviceSecretFileDelete(service)
 	}
-	if err := deviceCredentialPreflightWithContext(ctx); err != nil {
+	if err := deviceCredentialPreflightWithContext(ctx, ui); err != nil {
 		return err
 	}
 	err := secretKeyringDeleteWithPolicy(

@@ -21,18 +21,29 @@ var inspectLinuxSecureStorageStateForKeyring = inspectLinuxSecureStorageState
 // hanging go-keyring in an unlock prompt.
 func init() {
 	deviceCredentialPreflight = relayAuthTokenLinuxReadPreflight
-	deviceCredentialPreflightWithContext = func(ctx context.Context) error {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		return relayAuthTokenLinuxReadPreflight()
-	}
+	deviceCredentialPreflightWithContext = linuxDeviceCredentialPreflight
 	secretKeyringGet = nativeLinuxKeyringGet
 	secretKeyringSet = nativeLinuxKeyringSet
 	secretKeyringDelete = nativeLinuxKeyringDelete
 	secretKeyringGetWithPolicy = linuxDeviceSecretGet
 	secretKeyringSetWithPolicy = linuxDeviceSecretSet
 	secretKeyringDeleteWithPolicy = linuxDeviceSecretDelete
+}
+
+func linuxDeviceCredentialPreflight(
+	ctx context.Context,
+	ui SecretStoreUIPolicy,
+) error {
+	if err := validateDeviceCredentialPreflightRequest(ctx, ui); err != nil {
+		return err
+	}
+	if ui == SecretStoreAllowUI {
+		if !deviceCredentialPromptSessionAvailable() {
+			return deviceCredentialPromptUnavailableError()
+		}
+		return nil
+	}
+	return relayAuthTokenLinuxReadPreflight()
 }
 
 func linuxDeviceSecretGet(

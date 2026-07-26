@@ -58,13 +58,14 @@ const (
 )
 
 type cloudLifecycleMetadata struct {
-	State                     cloudLifecycleState              `json:"state,omitempty"`
-	Current                   *cloudConnectionMetadata         `json:"current,omitempty"`
-	Pending                   *cloudConnectionMetadata         `json:"pending,omitempty"`
-	DeviceActivationStarted   bool                             `json:"device_activation_started,omitempty"`
-	DeviceActivationDeviceID  string                           `json:"device_activation_device_id,omitempty"`
-	DeviceRevocationCompleted *cloudDeviceRevocationCheckpoint `json:"device_revocation_completed,omitempty"`
-	RecoveryHold              *cloudRecoveryHold               `json:"recovery_hold,omitempty"`
+	State                            cloudLifecycleState                     `json:"state,omitempty"`
+	Current                          *cloudConnectionMetadata                `json:"current,omitempty"`
+	Pending                          *cloudConnectionMetadata                `json:"pending,omitempty"`
+	DeviceActivationStarted          bool                                    `json:"device_activation_started,omitempty"`
+	DeviceActivationDeviceID         string                                  `json:"device_activation_device_id,omitempty"`
+	DeviceRevocationCompleted        *cloudDeviceRevocationCheckpoint        `json:"device_revocation_completed,omitempty"`
+	AuthorizationRevocationCompleted *cloudAuthorizationRevocationCheckpoint `json:"authorization_revocation_completed,omitempty"`
+	RecoveryHold                     *cloudRecoveryHold                      `json:"recovery_hold,omitempty"`
 }
 
 type cloudDeviceRevocationCheckpoint struct {
@@ -79,6 +80,7 @@ func (m *cloudLifecycleMetadata) configured() bool {
 func (m *cloudLifecycleMetadata) ready() bool {
 	return m != nil && m.Current != nil && m.Pending == nil &&
 		m.DeviceRevocationCompleted == nil &&
+		m.AuthorizationRevocationCompleted == nil &&
 		(m.State == cloudStateReady || m.State == "")
 }
 
@@ -132,6 +134,7 @@ func normalizeCloudLifecycle(metadata **cloudLifecycleMetadata) error {
 			!value.DeviceActivationStarted &&
 			value.DeviceActivationDeviceID == "" &&
 			value.DeviceRevocationCompleted == nil &&
+			value.AuthorizationRevocationCompleted == nil &&
 			value.RecoveryHold == nil:
 			*metadata = nil
 			return nil
@@ -153,6 +156,11 @@ func validateCloudLifecycle(metadata cloudLifecycleMetadata) error {
 		return err
 	}
 	if err := validateCloudDeviceRevocationCheckpoint(metadata); err != nil {
+		return err
+	}
+	if err := validateCloudAuthorizationRevocationCheckpoint(
+		metadata.AuthorizationRevocationCompleted,
+	); err != nil {
 		return err
 	}
 	return validateCloudLifecycleSlots(metadata)

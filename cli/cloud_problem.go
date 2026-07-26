@@ -20,6 +20,7 @@ const (
 	cloudProblemIngress            cloudProblemCode = "cloud_ingress"
 	cloudProblemDeviceRevoked      cloudProblemCode = "cloud_device_revoked"
 	cloudProblemIdentityMismatch   cloudProblemCode = "cloud_identity_mismatch"
+	cloudProblemConfigInvalid      cloudProblemCode = "cloud_config_invalid"
 )
 
 type cloudRemediation string
@@ -84,6 +85,9 @@ func cloudProblemForError(err error) *cloudProblem {
 	var problem *cloudProblem
 	if errors.As(err, &problem) {
 		return problem
+	}
+	if errors.Is(err, errInvalidClientInstallID) {
+		return invalidCloudInstallIdentityProblem(err)
 	}
 	var cloudErr *CloudError
 	if !errors.As(err, &cloudErr) {
@@ -164,4 +168,14 @@ func cloudProblemForError(err error) *cloudProblem {
 		problem.Detail = "Home Assistant Cloud is temporarily unavailable"
 	}
 	return problem
+}
+
+func invalidCloudInstallIdentityProblem(cause error) *cloudProblem {
+	return &cloudProblem{
+		Code:        cloudProblemConfigInvalid,
+		Remediation: cloudRemediationSecurityStop,
+		Detail: "client_install_id in config.json is invalid; " +
+			"Cloud was not contacted",
+		Cause: cause,
+	}
 }

@@ -8,7 +8,6 @@ import (
 	"io"
 	"os"
 	"strings"
-	"time"
 )
 
 var errCloudURLPromptCancelled = errors.New(
@@ -70,34 +69,71 @@ func runCloudConnectCommand(
 		}
 		return 1
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Minute)
+	ctx, cancel := newInteractiveCloudSetupContext()
 	defer cancel()
-	ctx = withCloudSecretAccessHolder(ctx)
+	configSnapshot, hadConfig, err := readOptionalFile(paths.ConfigFile)
+	if err != nil {
+		printHumanErr("cannot inspect server configuration: %s", err)
+		return 1
+	}
+	previewCfg, err := loadCloudConnectConfig(paths, options, reconnect)
+	if err != nil {
+		printHumanErr("%s", err)
+		return 1
+	}
+	target, err := resolveCloudCommandConnectionTarget(
+		ctx,
+		previewCfg,
+		options,
+		reconnect,
+	)
+	if err != nil {
+		if errors.Is(err, errCloudURLPromptCancelled) {
+			printCloudURLPromptCancellation(paths)
+			return 0
+		}
+		renderCloudFailure(os.Stdout, paths, err)
+		return 1
+	}
 
 	var connected runtimeConfig
 	var configPreflightErr error
-	err = withClientMutationLock(paths, func() error {
-		cfg, err := loadCloudConnectConfig(paths, options, reconnect)
-		if err != nil {
+	err = withPausableClientMutationLock(
+		paths,
+		func(mutation *pausableClientMutationLock) error {
+			if err := ensureOptionalFileSnapshotCurrent(
+				paths.ConfigFile,
+				configSnapshot,
+				hadConfig,
+			); err != nil {
+				return err
+			}
+			cfg, err := loadCloudConnectConfig(paths, options, reconnect)
+			if err != nil {
+				return err
+			}
+			if err := validateCloudConnectSavedConfig(paths, cfg); err != nil {
+				configPreflightErr = err
+				return configPreflightErr
+			}
+			if err := validateCloudConnectIntent(cfg, reconnect); err != nil {
+				return err
+			}
+			connected = cfg
+			connected, err = connectCloudCommandLocked(
+				ctx,
+				paths,
+				cfg,
+				reconnect,
+				target,
+				mutation.pairingCodeProvider(
+					interactiveRemotePairingCode,
+				),
+				mutation,
+			)
 			return err
-		}
-		if err := validateCloudConnectSavedConfig(paths, cfg); err != nil {
-			configPreflightErr = err
-			return configPreflightErr
-		}
-		if err := validateCloudConnectIntent(cfg, reconnect); err != nil {
-			return err
-		}
-		connected = cfg
-		connected, err = connectCloudCommandLocked(
-			ctx,
-			paths,
-			cfg,
-			options,
-			reconnect,
-		)
-		return err
-	})
+		},
+	)
 	if err != nil {
 		if configPreflightErr != nil {
 			printHumanErr("%s", configPreflightErr)
@@ -233,52 +269,29 @@ func connectCloudCommandLocked(
 	ctx context.Context,
 	paths runtimePaths,
 	cfg runtimeConfig,
-	options cloudCommandFlags,
 	reconnect bool,
+	target cloudCommandConnectionTarget,
+	pairingCode cloudRemotePairingCodeProvider,
+	mutation *pausableClientMutationLock,
 ) (runtimeConfig, error) {
-	remoteURL := cloudRemoteURLForCommand(cfg, options, reconnect)
-	var remoteOrigin CloudOrigin
-	useRemote := remoteURL != ""
-	if remoteURL == "" &&
-		cfg.RelaySecureBaseURL == "" &&
-		cfg.RelaySpkiPin == "" {
-		var err error
-		remoteOrigin, err = promptCloudRemoteOriginForCommand(ctx)
-		if err != nil {
-			if errors.Is(err, errSetupBack) ||
-				errors.Is(err, errSetupExit) {
-				return cfg, errCloudURLPromptCancelled
-			}
-			return cfg, err
-		}
-		useRemote = true
-	}
 	save := func(value runtimeConfig) error {
+		if err := mutation.requireHeld(); err != nil {
+			return err
+		}
 		return saveConfig(paths, value)
 	}
-	if useRemote {
+	if target.remote {
 		remoteCoordinator, ok := cloudCoordinatorForSetup.(cloudRemoteSetupCoordinator)
 		if !ok {
 			return cfg, cloudAdapterUnavailableProblem()
-		}
-		if remoteOrigin.CanonicalOrigin == "" {
-			var err error
-			remoteOrigin, err = resolveCanonicalNabuOriginForCloudCommand(
-				ctx,
-				remoteURL,
-				NetCloudCNAMEResolver{},
-			)
-			if err != nil {
-				return cfg, err
-			}
 		}
 		updated, err := connectRemoteToCloud(
 			ctx,
 			paths,
 			cfg,
 			remoteCoordinator,
-			remoteOrigin,
-			interactiveRemotePairingCode,
+			target.origin,
+			pairingCode,
 			reconnect,
 			save,
 		)

@@ -131,7 +131,10 @@ func readKeyringDeviceSecret(service string) (string, bool, error) {
 		SecretStoreForbidUI,
 	)
 	defer cancel()
-	if err := deviceCredentialPreflightWithContext(ctx); err != nil {
+	if err := deviceCredentialPreflightWithContext(
+		ctx,
+		SecretStoreForbidUI,
+	); err != nil {
 		return "", false, err
 	}
 	value, err := secretKeyringGetWithPolicy(
@@ -155,7 +158,10 @@ func deleteKeyringDeviceSecret(service string) error {
 		SecretStoreForbidUI,
 	)
 	defer cancel()
-	if err := deviceCredentialPreflightWithContext(ctx); err != nil {
+	if err := deviceCredentialPreflightWithContext(
+		ctx,
+		SecretStoreForbidUI,
+	); err != nil {
 		return err
 	}
 	err := secretKeyringDeleteWithPolicy(

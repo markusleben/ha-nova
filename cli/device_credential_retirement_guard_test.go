@@ -237,12 +237,31 @@ func TestCloudConnectBlocksPendingDeviceRetirementBeforeNetwork(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = connectCloudCommandLocked(
-		context.Background(),
+	err = withPausableClientMutationLock(
 		paths,
-		cfg,
-		cloudCommandFlags{url: productionCloudTestOrigin},
-		false,
+		func(mutation *pausableClientMutationLock) error {
+			origin, originErr := cloudOriginFromCanonical(
+				productionCloudTestOrigin,
+			)
+			if originErr != nil {
+				return originErr
+			}
+			_, connectErr := connectCloudCommandLocked(
+				context.Background(),
+				paths,
+				cfg,
+				false,
+				cloudCommandConnectionTarget{
+					remote: true,
+					origin: origin,
+				},
+				func(cloudRemotePairingPrompt) (string, error) {
+					return "123456", nil
+				},
+				mutation,
+			)
+			return connectErr
+		},
 	)
 	if err == nil || !strings.Contains(err.Error(), "pending device retirement") {
 		t.Fatalf("Cloud connect retirement guard error = %v", err)

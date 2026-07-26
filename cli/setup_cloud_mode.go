@@ -2,11 +2,9 @@ package main
 
 import (
 	"bufio"
-	"context"
 	"fmt"
 	"io"
 	"strings"
-	"time"
 )
 
 type setupConnectionMode string
@@ -142,9 +140,13 @@ func runInteractiveCloudOnlySetupForWizard(
 		printHumanErr("%s", cloudAdapterUnavailableProblem())
 		return 1, false
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Minute)
+	ctx, cancel := newInteractiveCloudSetupContext()
 	defer cancel()
-	ctx = withCloudSecretAccessHolder(ctx)
+	configSnapshot, hadConfig, err := readOptionalFile(paths.ConfigFile)
+	if err != nil {
+		renderCloudFailure(out, paths, err)
+		return 1, false
+	}
 	renderSetupHeader(out)
 	renderSetupParagraph(
 		out,
@@ -170,27 +172,40 @@ func runInteractiveCloudOnlySetupForWizard(
 		return 1, false
 	}
 	pairingCode := cloudOnlyPairingCodePrompt(reader, out)
-	err = withClientMutationLock(paths, func() error {
-		save := func(value runtimeConfig) error {
-			return saveSetupConfigWithLifecycleUnlocked(
+	err = withPausableClientMutationLock(
+		paths,
+		func(mutation *pausableClientMutationLock) error {
+			if err := ensureOptionalFileSnapshotCurrent(
+				paths.ConfigFile,
+				configSnapshot,
+				hadConfig,
+			); err != nil {
+				return err
+			}
+			save := func(value runtimeConfig) error {
+				if err := mutation.requireHeld(); err != nil {
+					return err
+				}
+				return saveSetupConfigWithLifecycleUnlocked(
+					paths,
+					value,
+					lifecycleMarker...,
+				)
+			}
+			updated, connectErr := connectRemoteToCloud(
+				ctx,
 				paths,
-				value,
-				lifecycleMarker...,
+				cfg,
+				coordinator,
+				origin,
+				mutation.pairingCodeProvider(pairingCode),
+				false,
+				save,
 			)
-		}
-		updated, connectErr := connectRemoteToCloud(
-			ctx,
-			paths,
-			cfg,
-			coordinator,
-			origin,
-			pairingCode,
-			false,
-			save,
-		)
-		cfg = updated
-		return connectErr
-	})
+			cfg = updated
+			return connectErr
+		},
+	)
 	if err != nil {
 		if handlePausedCloudOwnerPairing(out, paths, err) {
 			return 0, false
@@ -227,9 +242,8 @@ func addHybridCloudAfterLocal(
 	if err := requireCloudRemoteFeatureForSetup(); err != nil {
 		return cfg, err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Minute)
+	ctx, cancel := newInteractiveCloudSetupContext()
 	defer cancel()
-	ctx = withCloudSecretAccessHolder(ctx)
 	updated := cfg
 	err := withClientMutationLock(paths, func() error {
 		var connectErr error

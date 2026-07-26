@@ -13,8 +13,9 @@ func renderSetupIntro(out io.Writer) {
 	)
 	renderSetupIndentedBlock(out, "This setup will:", "    ",
 		"- ask which AI client you use",
-		"- find your Home Assistant on the network",
-		"- install the NOVA Relay app in Home Assistant",
+		"- ask whether this computer should connect locally or through Home Assistant Cloud",
+		"- for local setup: find Home Assistant and install the NOVA App",
+		"- for Cloud-only setup: connect to an existing NOVA App through your Cloud Remote URL",
 		"- set up two access tokens (guided, step by step)",
 		`- verify the connection and teach your AI assistant the Home Assistant commands (the "skills")`,
 	)
@@ -22,5 +23,8 @@ func renderSetupIntro(out io.Writer) {
 		"How it works: at several points you'll be asked to press Enter — that opens a",
 		"page in your web browser. Do the step there, then come back to this window.",
 	)
-	renderSetupParagraph(out, "You'll need: Home Assistant running on your network, and an admin login for it.")
+	renderSetupParagraph(out,
+		"You'll need: either local Home Assistant administrator access, or an active Home Assistant Cloud Remote connection with the NOVA App already installed.",
+		"Cloud-only setup also requires a Home Assistant Owner to approve this device in the NOVA App.",
+	)
 }

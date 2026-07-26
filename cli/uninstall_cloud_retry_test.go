@@ -3,11 +3,10 @@ package main
 import (
 	"context"
 	"errors"
-	"strings"
 	"testing"
 )
 
-func TestMultiProfileUninstallFailsClosedAfterPartialOAuthCleanup(
+func TestMultiProfileUninstallKeepsEveryOAuthProofUntilRemotePhaseCompletes(
 	t *testing.T,
 ) {
 	resetServerProfileSelection(t)
@@ -54,14 +53,46 @@ func TestMultiProfileUninstallFailsClosedAfterPartialOAuthCleanup(
 			Current: &metadata,
 		},
 	}
-	failing := runtimeConfig{
-		ProfileID:   "profile-default-retry",
-		RoutePolicy: routePolicyLocal,
+	defaultBackend := newMemoryOAuthSecretBackend()
+	defaultEnvelope := productionCloudTestEnvelope()
+	defaultEnvelope.ProfileID = "profile-default-retry"
+	defaultEnvelope.Generation = "ffffffffffffffffffffffffffffffff"
+	defaultStore, err := NewOAuthSecretStore(
+		defaultBackend,
+		defaultEnvelope.ProfileID,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defaultPending, err := defaultStore.CreatePending(
+		context.Background(),
+		defaultEnvelope,
+		SecretStoreAllowUI,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defaultCurrent, err := defaultStore.PromotePending(
+		context.Background(),
+		defaultPending.Generation,
+		SecretStoreAllowUI,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defaultMetadata := cloudMetadataFromEnvelope(origin, defaultCurrent)
+	defaultProfile := runtimeConfig{
+		ProfileID:          defaultEnvelope.ProfileID,
+		RelayInstanceID:    defaultEnvelope.RelayInstanceID,
+		RoutePolicy:        routePolicyLocal,
+		RelaySecureBaseURL: "https://default.local:8792",
+		RelaySpkiPin:       "pin",
 		Cloud: &cloudLifecycleMetadata{
-			State: cloudStateAuthorizing,
+			State:   cloudStateReady,
+			Current: &defaultMetadata,
 		},
 	}
-	writeCloudRetryProfiles(t, paths, cabin, failing)
+	writeCloudRetryProfiles(t, paths, cabin, defaultProfile)
 
 	credential := validCredential(120)
 	if err := secretSet(
@@ -70,11 +101,7 @@ func TestMultiProfileUninstallFailsClosedAfterPartialOAuthCleanup(
 	); err != nil {
 		t.Fatal(err)
 	}
-	defaultStore := newTestOAuthStore(
-		t,
-		newMemoryOAuthSecretBackend(),
-	)
-	failDefault := true
+	failDefaultRevoke := true
 	oldStore := newCloudSecretStoreForCLI
 	oldOAuthRevoke := revokeAndVerifyCloudAuthorizationForCLI
 	newCloudSecretStoreForCLI = func(
@@ -83,24 +110,23 @@ func TestMultiProfileUninstallFailsClosedAfterPartialOAuthCleanup(
 		switch profileID {
 		case cabin.ProfileID:
 			return cabinStore, nil
-		case failing.ProfileID:
-			if failDefault {
-				return nil, newCloudError(
-					CloudErrOAuthOutcomeUnknown,
-					"open default retry authorization",
-					errors.New("simulated secure-storage failure"),
-				)
-			}
+		case defaultProfile.ProfileID:
 			return defaultStore, nil
 		default:
 			t.Fatalf("unexpected profile id %q", profileID)
 			return nil, nil
 		}
 	}
+	var oauthRevokes []string
 	revokeAndVerifyCloudAuthorizationForCLI = func(
-		context.Context,
-		OAuthSecretEnvelope,
+		_ context.Context,
+		envelope OAuthSecretEnvelope,
 	) error {
+		oauthRevokes = append(oauthRevokes, envelope.ProfileID)
+		if envelope.ProfileID == defaultProfile.ProfileID &&
+			failDefaultRevoke {
+			return errors.New("simulated later-profile OAuth failure")
+		}
 		return nil
 	}
 	t.Cleanup(func() {
@@ -147,18 +173,54 @@ func TestMultiProfileUninstallFailsClosedAfterPartialOAuthCleanup(
 	if deviceRevokes != 1 {
 		t.Fatalf("first purge device revokes = %d", deviceRevokes)
 	}
+	for name, store := range map[string]OAuthSecretStore{
+		"cabin":   cabinStore,
+		"default": defaultStore,
+	} {
+		if _, exists, err := store.LoadCurrent(
+			context.Background(),
+			SecretStoreForbidUI,
+		); err != nil || !exists {
+			t.Fatalf(
+				"%s OAuth proof after remote failure exists=%v err=%v",
+				name,
+				exists,
+				err,
+			)
+		}
+	}
+	if len(oauthRevokes) != 2 ||
+		oauthRevokes[0] != cabin.ProfileID ||
+		oauthRevokes[1] != defaultProfile.ProfileID {
+		t.Fatalf("first remote revokes = %v", oauthRevokes)
+	}
 
-	failDefault = false
+	failDefaultRevoke = false
 	retryErr := purgeCloudAuthorizationsForUninstall(
 		paths,
 		&uninstallReport{},
 	)
-	if retryErr == nil ||
-		!strings.Contains(retryErr.Error(), "revoke HA NOVA sessions") {
-		t.Fatalf("partial OAuth cleanup retry error: %v", retryErr)
+	if retryErr != nil {
+		t.Fatalf("multi-profile retry: %v", retryErr)
 	}
 	if deviceRevokes != 1 {
 		t.Fatalf("retry repeated device revocation: %d", deviceRevokes)
+	}
+	for name, store := range map[string]OAuthSecretStore{
+		"cabin":   cabinStore,
+		"default": defaultStore,
+	} {
+		if _, exists, err := store.LoadCurrent(
+			context.Background(),
+			SecretStoreForbidUI,
+		); err != nil || exists {
+			t.Fatalf(
+				"%s OAuth proof after retry exists=%v err=%v",
+				name,
+				exists,
+				err,
+			)
+		}
 	}
 }
 

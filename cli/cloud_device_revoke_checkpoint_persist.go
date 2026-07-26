@@ -73,16 +73,23 @@ func checkpointCloudDeviceRevocationUnlocked(
 			err,
 		)
 	}
-	cfg.Cloud = &lifecycle
-	top, err := doc.withProfilePreservingSiblings(expected.profileName, cfg)
+	rawCheckpoint, err := json.Marshal(checkpoint)
 	if err != nil {
 		return runtimeConfig{}, expected, err
 	}
-	if err := writeJSONFile(paths.ConfigFile, top, 0o600); err != nil {
+	if err := writeCloudLifecycleFieldRaw(
+		paths,
+		doc,
+		expected.profileName,
+		currentRaw,
+		"device_revocation_completed",
+		rawCheckpoint,
+	); err != nil {
 		return runtimeConfig{}, expected, err
 	}
-	raw, err := cloudProfileRawFromDocumentMap(
-		top,
+	cfg.Cloud = &lifecycle
+	raw, err := cloudProfileRawAfterCheckpointWrite(
+		paths.ConfigFile,
 		expected.profileName,
 	)
 	if err != nil {
@@ -95,36 +102,27 @@ func checkpointCloudDeviceRevocationUnlocked(
 	), nil
 }
 
-func cloudProfileRawFromDocumentMap(
-	top map[string]json.RawMessage,
+func cloudProfileRawAfterCheckpointWrite(
+	path string,
 	profileName string,
-) (json.RawMessage, error) {
-	rawServers, hasServers := top["servers"]
-	if !hasServers {
-		return json.Marshal(top)
-	}
-	var servers map[string]json.RawMessage
-	if err := json.Unmarshal(rawServers, &servers); err != nil {
+) ([]byte, error) {
+	doc, err := loadConfigDocument(path)
+	if err != nil {
 		return nil, err
 	}
-	raw, ok := servers[profileName]
-	if !ok {
-		return nil, fmt.Errorf(
-			"server profile %q disappeared after device revocation checkpoint",
-			profileName,
-		)
-	}
-	return raw, nil
+	return cloudRecoveryProfileRaw(doc, profileName)
 }
 
 func rejectCloudSetupDuringDeviceRevocation(cfg runtimeConfig) error {
-	if cfg.Cloud == nil || cfg.Cloud.DeviceRevocationCompleted == nil {
+	if cfg.Cloud == nil ||
+		(cfg.Cloud.DeviceRevocationCompleted == nil &&
+			cfg.Cloud.AuthorizationRevocationCompleted == nil) {
 		return nil
 	}
 	return &cloudProblem{
 		Code:        cloudProblemAuthorization,
 		Remediation: cloudRemediationSecurityStop,
-		Detail: "Cloud device revocation already completed; finish Cloud " +
+		Detail: "Cloud access revocation already completed; finish Cloud " +
 			"cleanup before reconnecting this profile",
 	}
 }

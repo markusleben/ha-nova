@@ -292,39 +292,12 @@ func establishRemoteCloudDevice(
 	if err != nil {
 		return "", err
 	}
-	code, err := request.PairingCode(cloudRemotePairingPrompt{AppURL: appURL})
-	if err != nil {
-		return "", err
-	}
-	code, err = normalizeRelayPairingCode(code)
-	if err != nil {
-		return "", &CloudError{
-			Code:  CloudErrPairingRejected,
-			Op:    "validate Cloud pairing code",
-			cause: err,
-		}
-	}
-	// The Owner may take several minutes to retrieve the one-time code in a
-	// separate browser session. Re-open storage again before the code is
-	// consumed or any pending device credential is written.
-	if err := reopenRemoteCloudDeviceAccess(
+	provisioned, err := provisionRemoteCloudDeviceWithOwnerCode(
 		ctx,
+		session,
+		request,
 		session.Relay.RelayInstanceID,
-		"owner pairing confirmation",
-	); err != nil {
-		return "", err
-	}
-	provisioned, err := pairDeviceV2ForCloudSetup(
-		ctx,
-		session.Ingress,
-		code,
-		deviceMetadata{
-			Name:            hostLabel(),
-			Platform:        defaultPairingClientInfo().platform,
-			Client:          defaultPairingClientInfo().client,
-			ClientInstallID: request.Config.ClientInstallID,
-		},
-		session.Relay.RelayInstanceID,
+		appURL,
 	)
 	if err != nil {
 		return "", err

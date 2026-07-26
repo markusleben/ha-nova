@@ -249,7 +249,7 @@ func saveTargetProfileName(doc *configDocument) (string, error) {
 // profile. The first v3 save adds local-only profile identities to every v1/v2
 // profile; later saves preserve every unknown per-profile field.
 func (d *configDocument) withProfile(name string, cfg runtimeConfig) (map[string]json.RawMessage, error) {
-	return d.withProfileDocument(name, cfg, true)
+	return d.withProfileDocument(name, cfg, true, false)
 }
 
 // withProfilePreservingSiblings is reserved for security cleanup. Revoking one
@@ -260,15 +260,18 @@ func (d *configDocument) withProfilePreservingSiblings(
 	name string,
 	cfg runtimeConfig,
 ) (map[string]json.RawMessage, error) {
-	return d.withProfileDocument(name, cfg, false)
+	return d.withProfileDocument(name, cfg, false, false)
 }
 
 func (d *configDocument) withProfileDocument(
 	name string,
 	cfg runtimeConfig,
 	normalizeSiblings bool,
+	preserveInvalidInstallIdentity bool,
 ) (map[string]json.RawMessage, error) {
-	if err := validateClientInstallID(cfg.ClientInstallID); err != nil {
+	if err := validateClientInstallID(cfg.ClientInstallID); err != nil &&
+		(!preserveInvalidInstallIdentity ||
+			cfg.ClientInstallID != d.meta.ClientInstallID) {
 		return nil, err
 	}
 	top := make(map[string]json.RawMessage, len(d.top)+4)

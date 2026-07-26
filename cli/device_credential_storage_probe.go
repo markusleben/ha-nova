@@ -95,7 +95,7 @@ func keyringStorageCanaryWithPolicy(
 	ctx context.Context,
 	ui SecretStoreUIPolicy,
 ) error {
-	if err := deviceCredentialPreflightWithContext(ctx); err != nil {
+	if err := deviceCredentialPreflightWithContext(ctx, ui); err != nil {
 		return err
 	}
 	user := secretUser()

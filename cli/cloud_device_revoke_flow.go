@@ -2,7 +2,12 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
+)
+
+var errCloudDeviceRevocationCredentialMissing = errors.New(
+	"Cloud device revocation credential is missing",
 )
 
 type cloudDeviceRevocationCheckpointer func(
@@ -320,7 +325,7 @@ func missingCloudDeviceRevocationCredential(
 		Cause: newCloudError(
 			CloudErrSecretNotFound,
 			"load Cloud device credential for verified revocation",
-			nil,
+			errCloudDeviceRevocationCredentialMissing,
 		),
 	}
 }

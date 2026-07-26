@@ -48,3 +48,31 @@ func TestRemoteOwnerPairingKeepsOAuthAndOwnerBrowserSessionsSeparate(
 		t.Fatalf("owner pairing exposed capability URL: %s", output.String())
 	}
 }
+
+func TestRemoteOwnerPairingRetryIsConciseAndActionable(t *testing.T) {
+	var output strings.Builder
+
+	code, err := promptRemoteOwnerPairingCode(
+		bufio.NewReader(strings.NewReader("654321\n")),
+		&output,
+		cloudRemotePairingPrompt{
+			AppURL:      "https://unit.ui.nabu.casa/api/hassio_ingress/secret",
+			RetryReason: rejectedOwnerPairingCodeMessage,
+		},
+	)
+	if err != nil || code != "654321" {
+		t.Fatalf("retry pairing code=%q err=%v", code, err)
+	}
+	for _, required := range []string{
+		rejectedOwnerPairingCodeMessage,
+		"Generate a fresh code",
+		"New six-digit code",
+	} {
+		if !strings.Contains(output.String(), required) {
+			t.Fatalf("owner retry UX missing %q: %s", required, output.String())
+		}
+	}
+	if strings.Contains(output.String(), "OAuth sign-in is complete") {
+		t.Fatalf("owner retry repeated initial instructions: %s", output.String())
+	}
+}
