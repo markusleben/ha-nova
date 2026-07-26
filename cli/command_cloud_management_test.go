@@ -312,6 +312,7 @@ func TestCloudStatusJSONUsesNoUISecretReads(t *testing.T) {
 	client := productionCloudMappedClient(t, server)
 	oldStore := newCloudSecretStoreForCLI
 	oldHTTP := cloudHTTPClientForCLI
+	oldContext := cloudRuntimeSecureStorageContextAvailable
 	newCloudSecretStoreForCLI = func(profileID string) (OAuthSecretStore, error) {
 		if profileID != "profile-1" {
 			t.Fatalf("secret-store profile = %q", profileID)
@@ -319,9 +320,11 @@ func TestCloudStatusJSONUsesNoUISecretReads(t *testing.T) {
 		return store, nil
 	}
 	cloudHTTPClientForCLI = client
+	cloudRuntimeSecureStorageContextAvailable = func() bool { return true }
 	t.Cleanup(func() {
 		newCloudSecretStoreForCLI = oldStore
 		cloudHTTPClientForCLI = oldHTTP
+		cloudRuntimeSecureStorageContextAvailable = oldContext
 	})
 	resetProductionCloudPolicies(backend)
 

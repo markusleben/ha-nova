@@ -27,6 +27,15 @@ func stubUninstallRelayTokenDeletion(t *testing.T, token string, deleteErr error
 	}
 }
 
+func isolateMissingRelayAuthToken(t *testing.T) {
+	t.Helper()
+	t.Setenv("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING", "1")
+	t.Setenv(
+		"HA_NOVA_TEST_KEYRING_FILE",
+		filepath.Join(t.TempDir(), "missing-relay-token"),
+	)
+}
+
 func TestDiscardInstallRootRemovesVisibleInstallPath(t *testing.T) {
 	parent := t.TempDir()
 	installRoot := filepath.Join(parent, "ha-nova")

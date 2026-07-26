@@ -10,6 +10,7 @@ func pendingRetirementUninstallFixture(
 ) (runtimePaths, runtimeConfig, string) {
 	t.Helper()
 	withDeviceStorageTestHome(t)
+	isolateMissingRelayAuthToken(t)
 	resetKeyringDeviceSlots(t)
 	paths, err := detectPaths()
 	if err != nil {

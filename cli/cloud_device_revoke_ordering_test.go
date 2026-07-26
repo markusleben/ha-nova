@@ -19,6 +19,7 @@ func remoteOnlyCloudRemovalFixture(
 	string,
 ) {
 	t.Helper()
+	isolateMissingRelayAuthToken(t)
 	paths := setupServerCommandTest(t, `{
 		"schema_version":3,
 		"default_server":"default",
