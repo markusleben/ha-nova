@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 )
@@ -244,4 +245,27 @@ func resetVerifiedCloudStorageAfterPurgeRelock(
 		}
 	}
 	return nil
+}
+
+func resetPurgeStorageProofAfterError(
+	paths runtimePaths,
+	cause error,
+) error {
+	if cause == nil {
+		return nil
+	}
+	resetErr := resetVerifiedCloudStorageAfterPurgeRelock(
+		paths,
+		cause,
+	)
+	if resetErr == nil {
+		return cause
+	}
+	return errors.Join(
+		cause,
+		fmt.Errorf(
+			"reset Cloud secure-storage recovery proof: %w",
+			resetErr,
+		),
+	)
 }

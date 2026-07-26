@@ -793,7 +793,7 @@ func TestPurgeFindsServiceTokenFileWhenConfigIsIncomplete(t *testing.T) {
 	}
 }
 
-func TestPurgeKeepsExternalTokenFileAndCleansKeyringOnly(t *testing.T) {
+func TestPurgePreservesConfigForExternalTokenFile(t *testing.T) {
 	if relayAuthTokenFilePlatformOS == "windows" {
 		t.Skip("service token files are not supported on native Windows")
 	}
@@ -836,22 +836,27 @@ func TestPurgeKeepsExternalTokenFileAndCleansKeyringOnly(t *testing.T) {
 	}
 
 	report := &uninstallReport{}
-	if err := finalizeLocalUninstall(paths, installState{}, report, uninstallModePurge, false); err != nil {
+	err = finalizeLocalUninstall(
+		paths,
+		installState{},
+		report,
+		uninstallModePurge,
+		false,
+	)
+	if err == nil ||
+		!strings.Contains(
+			err.Error(),
+			"is not the managed service-token path",
+		) {
 		t.Fatalf("finalizeLocalUninstall() error: %v", err)
 	}
 	if _, err := os.Stat(externalToken); err != nil {
 		t.Fatalf("expected external token file to be left untouched, err=%v", err)
 	}
-	if !keyringDeleted {
-		t.Fatalf("expected the OS keyring copy to be cleaned")
+	if _, err := os.Stat(paths.ConfigFile); err != nil {
+		t.Fatalf("expected config to retain external token pointer: %v", err)
 	}
-	foundNote := false
-	for _, note := range report.notes {
-		if strings.Contains(note, "outside the HA NOVA config directory") {
-			foundNote = true
-		}
-	}
-	if !foundNote {
-		t.Fatalf("expected a kept-external-file note, got %+v", report.notes)
+	if keyringDeleted {
+		t.Fatal("keyring token was deleted after external token policy blocked")
 	}
 }

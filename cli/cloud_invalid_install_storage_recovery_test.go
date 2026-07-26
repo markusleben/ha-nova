@@ -106,3 +106,91 @@ func TestInvalidInstallIdentityLockedStorageRecoveryProgresses(
 		t.Fatalf("final recovery config=%+v", recovered.Config)
 	}
 }
+
+func TestInvalidIdentitySecurityHoldUnlocksFromEverySelectionSource(
+	t *testing.T,
+) {
+	for _, test := range []struct {
+		name string
+		args []string
+		env  string
+	}{
+		{name: "configured default"},
+		{
+			name: "environment",
+			env:  defaultServerProfileName,
+		},
+		{
+			name: "explicit",
+			args: []string{"--server", defaultServerProfileName},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			resetServerProfileSelection(t)
+			t.Setenv(serverSelectionEnvVar, test.env)
+			paths, store, backend, _ :=
+				cloudRemoveCommandFixture(t)
+			cfg, err := loadConfig(paths)
+			if err != nil {
+				t.Fatal(err)
+			}
+			cfg.Cloud.RecoveryHold = &cloudRecoveryHold{
+				Code:        cloudProblemAuthorization,
+				Remediation: cloudRemediationSecurityStop,
+			}
+			if err := saveConfig(paths, cfg); err != nil {
+				t.Fatal(err)
+			}
+			corruptClientInstallID(t, paths)
+			installCloudRemoveStore(
+				t,
+				store,
+				func(context.Context, OAuthSecretEnvelope) error {
+					return nil
+				},
+			)
+			resetProductionCloudPolicies(backend)
+			previousRead := readPendingDeviceCredentialForCloudRemove
+			readPendingDeviceCredentialForCloudRemove = func(
+				context.Context,
+				SecretStoreUIPolicy,
+			) (pendingDeviceCredentialRecord, bool, error) {
+				return pendingDeviceCredentialRecord{},
+					false,
+					errDesktopKeyringLocked
+			}
+			t.Cleanup(func() {
+				readPendingDeviceCredentialForCloudRemove = previousRead
+			})
+
+			exit, output := captureCommandOutput(t, func() int {
+				return runCloudRemoveCommand(paths, []string{"--yes"})
+			})
+			if exit != 1 ||
+				!strings.Contains(
+					output,
+					string(cloudRemediationUnlockStorage),
+				) {
+				t.Fatalf("locked remove exit=%d output=%s", exit, output)
+			}
+
+			readPendingDeviceCredentialForCloudRemove = previousRead
+			installCloudCommandPromptSession(t, true)
+			installSuccessfulCloudDevicePreflight(t)
+			installCloudCommandCoordinator(
+				t,
+				successfulCloudCoordinatorForTest(),
+			)
+			exit, output = captureCommandOutput(t, func() int {
+				return runCloudUnlockCommand(paths, test.args)
+			})
+			if exit != 0 ||
+				!strings.Contains(
+					output,
+					"Continue verified cleanup",
+				) {
+				t.Fatalf("unlock exit=%d output=%s", exit, output)
+			}
+		})
+	}
+}

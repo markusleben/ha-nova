@@ -220,6 +220,12 @@ func TestNamedClientRepairNeverRepairsInvalidInstallIdentity(
 	}
 	base := completedLocalCloudTestConfig()
 	base.ProfileID = "profile-default"
+	base.RelayInstanceID = "relay-default"
+	current := cloudMetadataForTest(strings.Repeat("8", 32))
+	base.Cloud = &cloudLifecycleMetadata{
+		State:   cloudStateReady,
+		Current: &current,
+	}
 	if err := saveConfig(paths, base); err != nil {
 		t.Fatal(err)
 	}
@@ -231,6 +237,18 @@ func TestNamedClientRepairNeverRepairsInvalidInstallIdentity(
 	if err := saveConfig(paths, cabin); err != nil {
 		t.Fatal(err)
 	}
+	setServerSelectionOverride(defaultServerProfileName)
+	setActiveServerProfile(defaultServerProfileName)
+	defaultCfg, err := loadConfig(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defaultCfg.Cloud = base.Cloud
+	if err := saveConfig(paths, defaultCfg); err != nil {
+		t.Fatal(err)
+	}
+	setServerSelectionOverride("cabin")
+	setActiveServerProfile("cabin")
 	corruptClientInstallID(t, paths)
 
 	exit, output := captureCommandOutput(t, func() int {
@@ -264,9 +282,55 @@ func TestNamedClientRepairNeverRepairsInvalidInstallIdentity(
 		!strings.Contains(output, "no configuration was changed") ||
 		!strings.Contains(
 			output,
-			"ha-nova setup --server cabin",
+			"ha-nova cloud remove --server default",
 		) {
 		t.Fatalf("client repair exit=%d output=%q", exit, output)
+	}
+	assertInvalidInstallIdentityUnchanged(t, paths)
+}
+
+func TestHalfPairedNamedClientRepairShowsIdentityRecoveryBeforePair(
+	t *testing.T,
+) {
+	resetServerProfileSelection(t)
+	withClientRuntimeAvailability(t, map[string]bool{"codex": true})
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("HA_NOVA_TEST_SECRET_DIR", t.TempDir())
+	paths, err := detectPaths()
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := completedLocalCloudTestConfig()
+	base.ProfileID = "profile-default"
+	if err := saveConfig(paths, base); err != nil {
+		t.Fatal(err)
+	}
+	setServerSelectionOverride("cabin")
+	setActiveServerProfile("cabin")
+	cabin := completedLocalCloudTestConfig()
+	cabin.ProfileID = "profile-cabin"
+	cabin.RelaySecureBaseURL = ""
+	cabin.RelaySpkiPin = ""
+	if err := saveConfig(paths, cabin); err != nil {
+		t.Fatal(err)
+	}
+	corruptClientInstallID(t, paths)
+
+	exit, output := captureCommandOutput(t, func() int {
+		return runSetup(
+			paths,
+			[]string{
+				"--server",
+				"cabin",
+				"--non-interactive",
+				"codex",
+			},
+		)
+	})
+	if exit != 1 ||
+		!strings.Contains(output, "ha-nova setup --server cabin") ||
+		strings.Contains(output, "ha-nova pair --server cabin") {
+		t.Fatalf("half-paired repair exit=%d output=%q", exit, output)
 	}
 	assertInvalidInstallIdentityUnchanged(t, paths)
 }

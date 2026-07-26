@@ -139,7 +139,10 @@ func applyUninstallServiceTokenFilePolicy(paths runtimePaths, path string, repor
 	configDir := filepath.Clean(paths.ConfigDir)
 	rel, err := filepath.Rel(configDir, path)
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
-		return false, nil
+		return true, fmt.Errorf(
+			"configured relay token file is not the managed service-token path %s; refusing to delete it",
+			filepath.Clean(defaultRelayAuthTokenFile(paths)),
+		)
 	}
 	managedTokenPath := filepath.Clean(defaultRelayAuthTokenFile(paths))
 	if !uninstallPathsEqual(path, managedTokenPath) {

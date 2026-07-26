@@ -1,6 +1,9 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 func completeNamedProfileClientRepair(
 	paths runtimePaths,
@@ -73,15 +76,13 @@ func rejectInvalidIdentityNamedClientRepair(
 		return false
 	}
 	cfg := snapshot.Config
-	if !namedClientRepairRequested(
-		cfg,
-		target,
-		serviceMode,
-		host,
-		haURL,
-		relayURL,
-		relayToken,
-	) {
+	clientOnlyRequest := target != "" &&
+		!serviceMode &&
+		strings.TrimSpace(host) == "" &&
+		strings.TrimSpace(haURL) == "" &&
+		strings.TrimSpace(relayURL) == "" &&
+		strings.TrimSpace(relayToken) == ""
+	if !clientOnlyRequest {
 		if target != "" &&
 			!namedSetupRequestAllowed(
 				cfg,
@@ -111,21 +112,41 @@ func rejectInvalidIdentityNamedClientRepair(
 		printHumanErr("%s", err)
 		return true
 	}
-	profile := activeServerProfile()
+	recoveryCommand, needsRecovery, recoveryErr :=
+		invalidInstallIdentityRecoveryCommand(
+			paths,
+			snapshot.ProfileName,
+		)
 	printHumanErr(
 		"cannot repair client integration while the local installation identity is invalid; no configuration was changed",
 	)
-	printHumanInfo(
-		"Repair the local installation identity first: %s",
-		cloudSetupCommandFor(profile),
-	)
-	printHumanInfo(
-		"Then retry: %s",
-		fmt.Sprintf(
-			"ha-nova setup --server %s --non-interactive %s",
-			profile,
-			target,
-		),
-	)
+	canRetry := false
+	switch {
+	case recoveryErr != nil:
+		printHumanErr(
+			"installation recovery requires manual config review: %s",
+			recoveryErr,
+		)
+	case needsRecovery && recoveryCommand != "":
+		printHumanInfo(
+			"Complete installation recovery first: %s",
+			recoveryCommand,
+		)
+		canRetry = true
+	default:
+		printHumanErr(
+			"installation recovery cannot select a safe mutating command; preserve config.json for manual review",
+		)
+	}
+	if canRetry {
+		printHumanInfo(
+			"Then retry: %s",
+			fmt.Sprintf(
+				"ha-nova setup --server %s --non-interactive %s",
+				snapshot.ProfileName,
+				target,
+			),
+		)
+	}
 	return true
 }

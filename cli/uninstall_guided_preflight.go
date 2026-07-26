@@ -14,7 +14,15 @@ func prepareUninstallBeforeGuidedTeardown(
 	paths runtimePaths,
 	mode uninstallMode,
 ) error {
-	return withClientMutationLock(paths, func() error {
+	return withClientMutationLock(paths, func() (resultErr error) {
+		if mode == uninstallModePurge {
+			defer func() {
+				resultErr = resetPurgeStorageProofAfterError(
+					paths,
+					resultErr,
+				)
+			}()
+		}
 		profiles, err := deviceCredentialRetirementCheckpointProfiles(paths)
 		if err != nil {
 			return fmt.Errorf(

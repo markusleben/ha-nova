@@ -14,16 +14,12 @@ func loadCloudUnlockConfig(
 	if err == nil {
 		return snapshot, false, nil
 	}
-	if options.server != "" &&
-		errors.Is(err, errInvalidClientInstallID) {
+	if errors.Is(err, errInvalidClientInstallID) {
 		recovery, recoveryErr :=
 			loadCloudRecoverySnapshotUnchecked(paths)
 		if recoveryErr == nil &&
-			recovery.ProfileName == options.server &&
 			recovery.Config.Cloud != nil &&
-			cloudRecoveryHoldNeedsUnlockForConfig(
-				recovery.Config,
-			) {
+			cloudRecoveryHoldProblem(recovery.Config) != nil {
 			return recovery, false, nil
 		}
 	}

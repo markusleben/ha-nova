@@ -258,7 +258,7 @@ func TestFullUninstallAtomicCleanupPreservesLastMomentConfigChange(
 	}
 }
 
-func TestFullUninstallDeviceRelockResetsCloudStorageProof(
+func TestRunUninstallDeviceRelockResetsAllCloudStorageProofs(
 	t *testing.T,
 ) {
 	paths := setupServerCommandTest(
@@ -281,18 +281,32 @@ func TestFullUninstallDeviceRelockResetsCloudStorageProof(
 	if err := saveConfig(paths, cfg); err != nil {
 		t.Fatal(err)
 	}
-	store, err := NewOAuthSecretStore(
-		newMemoryOAuthSecretBackend(),
-		cfg.ProfileID,
-	)
-	if err != nil {
+	setServerSelectionOverride("cabin")
+	setActiveServerProfile("cabin")
+	cabin := cfg
+	cabin.ProfileID = "profile-cabin"
+	if err := saveConfig(paths, cabin); err != nil {
 		t.Fatal(err)
+	}
+	setServerSelectionOverride("")
+	setActiveServerProfile(defaultServerProfileName)
+	stores := map[string]OAuthSecretStore{}
+	for _, profileID := range []string{cfg.ProfileID, cabin.ProfileID} {
+		store, err := NewOAuthSecretStore(
+			newMemoryOAuthSecretBackend(),
+			profileID,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		stores[profileID] = store
 	}
 	previousStore := newCloudSecretStoreForCLI
 	newCloudSecretStoreForCLI = func(
 		profileID string,
 	) (OAuthSecretStore, error) {
-		if profileID != cfg.ProfileID {
+		store, ok := stores[profileID]
+		if !ok {
 			t.Fatalf("Cloud store profile=%q", profileID)
 		}
 		return store, nil
@@ -306,29 +320,29 @@ func TestFullUninstallDeviceRelockResetsCloudStorageProof(
 		profilePurgeFinalProofHook = previousHook
 	})
 
-	err = finalizeLocalUninstallWithProgress(
-		paths,
-		installState{},
-		&uninstallReport{},
-		uninstallModePurge,
-		nil,
-		false,
-	)
-	if err == nil ||
-		!strings.Contains(err.Error(), errDesktopKeyringLocked.Error()) {
-		t.Fatalf("full uninstall error = %v", err)
+	exit, output := captureCommandOutput(t, func() int {
+		return runUninstall(paths, []string{"--yes", "--purge"})
+	})
+	if exit != 1 ||
+		!strings.Contains(output, errDesktopKeyringLocked.Error()) {
+		t.Fatalf("full uninstall exit=%d output=%s", exit, output)
 	}
-	saved, loadErr := loadCloudRecoverySnapshotUnchecked(paths)
+	doc, loadErr := loadConfigDocument(paths.ConfigFile)
 	if loadErr != nil {
 		t.Fatal(loadErr)
 	}
-	if saved.Config.Cloud == nil ||
-		saved.Config.Cloud.RecoveryHold == nil ||
-		saved.Config.Cloud.RecoveryHold.StorageVerified {
-		t.Fatalf(
-			"purge relock kept storage proof: %+v",
-			saved.Config.Cloud,
-		)
+	for _, profile := range []string{defaultServerProfileName, "cabin"} {
+		saved, ok := doc.flatProfile(profile)
+		if !ok ||
+			saved.Cloud == nil ||
+			saved.Cloud.RecoveryHold == nil ||
+			saved.Cloud.RecoveryHold.StorageVerified {
+			t.Fatalf(
+				"purge relock kept %s storage proof: %+v",
+				profile,
+				saved.Cloud,
+			)
+		}
 	}
 }
 

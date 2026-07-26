@@ -383,8 +383,10 @@ Client-only dispatch occurs before retirement or pending-activation recovery
 and finishes without invoking doctor, whose pairing recovery is intentionally
 connection-mutating. If the install-wide client identity is malformed, named
 client-only setup validates the selected profile and requested client first,
-then stops without changing config. The separate profile-scoped setup repair
-must restore the install identity before client installation is retried.
+then stops without changing config. Its guidance resolves install-wide Cloud
+cleanup across every profile before it can advertise identity repair and the
+client retry. The separate profile-scoped setup repair must restore the install
+identity before client installation is retried.
 
 If a potentially issued authorization no longer has consistent native
 credentials, automatic cleanup fails closed. Recovery first requires a Home
@@ -436,13 +438,15 @@ recovery step is unlock rather than destructive cleanup.
 A malformed install-wide `client_install_id` never authorizes setup or device
 use. Status still reports the selected Cloud lifecycle with the stable
 `cloud_config_invalid` security-stop result and exact recovery command. If a
-clearable hold has not yet verified native storage, explicit profile-scoped
-`cloud unlock` may load only the unchecked recovery snapshot, prove both native
-stores, and advance to cleanup without accepting the malformed identity for
-normal use. Verified Cloud removal may then preserve that exact malformed
-non-secret value while revoking access; it cannot replace or delete the
-immutable value. All human and machine recovery renderers use the same
-unlock-versus-remove decision. After every profile is proven free of Cloud
+valid recovery hold exists, `cloud unlock` may load only the safely selected
+unchecked recovery snapshot through explicit, environment, or configured
+default profile selection and prove both native stores without accepting the
+malformed identity for normal use. A clearable hold advances its durable proof;
+a non-clearable security hold remains unchanged while the successful prompt
+permits immediate verified cleanup. Verified Cloud removal may then preserve
+that exact malformed non-secret value while revoking access; it cannot replace
+or delete the immutable value. All human and machine recovery renderers use the
+same unlock-versus-remove decision. After every profile is proven free of Cloud
 lifecycle metadata, `cloud status` directs the user to `ha-nova setup`. That
 explicit command may replace only the malformed non-secret identity under the
 global mutation lock, an exact setup/config snapshot, supported-schema
