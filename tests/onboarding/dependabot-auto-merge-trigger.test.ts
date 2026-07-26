@@ -25,7 +25,7 @@ function runResolver(
       cloud_source_gate: {
         check_name: "cloud-source-gate",
         reporter_app_id: appId,
-        reporter_app_slug: "markusleben-ha-nova-cloud-source-gate",
+        reporter_app_slug: "ha-nova-cloud-source-gate",
       },
       main_branch_protection: {
         required_status_check_apps: {
@@ -60,7 +60,7 @@ function completedCheck(overrides: Record<string, unknown> = {}) {
     check_run: {
       app: {
         id: 42,
-        slug: "markusleben-ha-nova-cloud-source-gate",
+        slug: "ha-nova-cloud-source-gate",
       },
       conclusion: "success",
       head_sha: sha,
@@ -104,10 +104,10 @@ describe("Dependabot auto-merge trigger authentication", () => {
 
   it.each([
     ["wrong name", { name: "cloud-source-gate-spoof" }, 42],
-    ["wrong App id", { app: { id: 43, slug: "markusleben-ha-nova-cloud-source-gate" } }, 42],
+    ["wrong App id", { app: { id: 43, slug: "ha-nova-cloud-source-gate" } }, 42],
     ["wrong App slug", { app: { id: 42, slug: "spoof" } }, 42],
     ["failed conclusion", { conclusion: "failure" }, 42],
-    ["unprovisioned policy", { app: { id: 0, slug: "markusleben-ha-nova-cloud-source-gate" } }, 0],
+    ["unprovisioned policy", { app: { id: 0, slug: "ha-nova-cloud-source-gate" } }, 0],
   ])("ignores %s", (_label, overrides, appId) => {
     const result = runResolver(
       "check_run",

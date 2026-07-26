@@ -80,7 +80,7 @@
   },
   "cloud_source_gate": {
     "check_name": "cloud-source-gate",
-    "reporter_app_slug": "markusleben-ha-nova-cloud-source-gate",
+    "reporter_app_slug": "ha-nova-cloud-source-gate",
     "reporter_app_id": 0,
     "sensitive_workflows": [
       ".github/workflows/cloud-source-gate.yml",

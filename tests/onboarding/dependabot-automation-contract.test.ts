@@ -323,7 +323,8 @@ describe("dependabot automation contract", () => {
     expect(policy.main_branch_protection.strict_required_status_checks).toBe(true);
     expect(policy.main_branch_protection.advisory_checks).toEqual(["codex-review-gate"]);
     expect(policy.cloud_source_gate.check_name).toBe("cloud-source-gate");
-    expect(policy.cloud_source_gate.reporter_app_slug).toBe("markusleben-ha-nova-cloud-source-gate");
+    expect(policy.cloud_source_gate.reporter_app_slug).toBe("ha-nova-cloud-source-gate");
+    expect(policy.cloud_source_gate.reporter_app_slug.length).toBeLessThanOrEqual(34);
     expect(policy.cloud_source_gate.reporter_app_id).toBe(0);
     expect(protectionScript).toContain("repo-policy.json");
     expect(protectionScript).toContain(".main_branch_protection.required_status_checks | sort");

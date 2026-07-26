@@ -171,7 +171,7 @@ token from the source-check App credentials scoped down to
 Disabled publication exits before requiring those App credentials.
 
 The required `cloud-source-gate` is emitted by the dedicated
-`markusleben-ha-nova-cloud-source-gate` GitHub App after a trusted
+`ha-nova-cloud-source-gate` GitHub App after a trusted
 default-branch `workflow_run`. The broker runs after `CI` for pull requests and
 merge groups, including Dependabot runs; it never reads upstream artifacts or
 caches, checks out PR code, or executes a target path. It independently
@@ -242,7 +242,7 @@ bash scripts/release/verify-cloud-release-gate.sh
 ```
 
 Before enabling the required check, create the private GitHub App with the
-exact slug `markusleben-ha-nova-cloud-source-gate` and the permissions above,
+exact slug `ha-nova-cloud-source-gate` and the permissions above,
 install it only on this repository, and store its App ID and private key in the
 two `production` environment secrets. Let the broker emit one expected failing
 disabled canary so GitHub registers the App check. While the check is not yet
