@@ -195,7 +195,7 @@ export function registerCloudReleaseGateContractTests(): void {
     expect(sourceGateWorkflow).toContain("cancel-in-progress: false");
     expect(sourceGateWorkflow).toContain("queue: max");
     expect(sourceGateWorkflow).toContain("timeout-minutes: 3");
-    expect(sourceGateWorkflow).toContain("timeout-minutes: 4");
+    expect(sourceGateWorkflow).toContain("timeout-minutes: 10");
     expect(sourceGateWorkflow).toContain("name: trusted-cloud-source-reporter");
     expect(sourceGateWorkflow).toContain("name: production");
     expect(sourceGateWorkflow).toContain(
