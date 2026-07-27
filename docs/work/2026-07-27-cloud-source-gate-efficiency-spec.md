@@ -30,3 +30,15 @@ notifications.
 No push or rerun may be used as a debugging loop. A remote canary is
 single-shot, is cancelled at its first unexpected result, and must leave no
 active workflows after closure.
+
+## Dependabot trigger containment
+
+The local PR canary exposed an existing failure in the Dependabot safe
+auto-merge trigger:
+
+- Downloaded ES modules must retain a `.mjs` filename before Node executes
+  them.
+- Human branches and unrelated check names must skip the resolver job before
+  it downloads policy or script files.
+- These prefilters only reject irrelevant events. The trusted default-branch
+  resolver remains the authorization boundary for every accepted event.

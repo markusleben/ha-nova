@@ -21,6 +21,12 @@ permissions: {}
 
 jobs:
   resolve-trigger:
+    if: >-
+      github.event_name == 'repository_dispatch' ||
+      (github.event_name == 'workflow_run' &&
+      startsWith(github.event.workflow_run.head_branch, 'dependabot/')) ||
+      (github.event_name == 'check_run' &&
+      github.event.check_run.name == 'cloud-source-gate')
     permissions:
       actions: read
       contents: read
@@ -45,8 +51,9 @@ jobs:
             gh api "repos/${GITHUB_REPOSITORY}/commits/${POLICY_REF}" --jq '.sha'
           )"
           [[ "${trusted_ref}" =~ ^[0-9a-f]{40}$ ]]
-          POLICY_FILE="$(mktemp)"
-          TRIGGER_SCRIPT="$(mktemp)"
+          TRIGGER_DIR="$(mktemp -d)"
+          POLICY_FILE="${TRIGGER_DIR}/repo-policy.json"
+          TRIGGER_SCRIPT="${TRIGGER_DIR}/resolve-dependabot-auto-merge-trigger.mjs"
           gh api "repos/${GITHUB_REPOSITORY}/contents/.github/policy/repo-policy.json?ref=${trusted_ref}" \
             --jq '.content' \
             | tr -d '\n' \
