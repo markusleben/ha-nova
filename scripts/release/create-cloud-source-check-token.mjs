@@ -92,15 +92,34 @@ const access = await github(
     headers: { "Content-Type": "application/json" },
   },
 );
+
+function hasExactTokenPermissions(actual, required) {
+  if (actual === null || typeof actual !== "object" || Array.isArray(actual)) {
+    return false;
+  }
+  for (const [permission, level] of Object.entries(required)) {
+    if (actual[permission] !== level) {
+      return false;
+    }
+  }
+  return Object.entries(actual).every(
+    ([permission, level]) =>
+      required[permission] === level ||
+      (permission === "metadata" && level === "read"),
+  );
+}
+
 const validReporterPermissions =
   tokenMode === "reporter" &&
-  Object.keys(access.permissions ?? {}).length === 2 &&
-  access.permissions?.administration === "read" &&
-  access.permissions?.checks === "write";
+  hasExactTokenPermissions(access.permissions, {
+    administration: "read",
+    checks: "write",
+  });
 const validReadPermissions =
   tokenMode === "administration-read" &&
-  Object.keys(access.permissions ?? {}).length === 1 &&
-  access.permissions?.administration === "read";
+  hasExactTokenPermissions(access.permissions, {
+    administration: "read",
+  });
 if (
   typeof access.token !== "string" ||
   access.token.length < 20 ||
