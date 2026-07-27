@@ -222,6 +222,17 @@ describe("dependabot automation contract", () => {
     expect(mergeWorkflow).toContain("resolve-trigger:");
     expect(mergeWorkflow).toContain("permissions: {}");
     expect(mergeWorkflow).toContain("Authenticate trusted completion trigger");
+    expect(mergeWorkflow).toContain(
+      "startsWith(github.event.workflow_run.head_branch, 'dependabot/')",
+    );
+    expect(mergeWorkflow).toContain(
+      "github.event.check_run.name == 'cloud-source-gate'",
+    );
+    expect(mergeWorkflow).toContain('TRIGGER_DIR="$(mktemp -d)"');
+    expect(mergeWorkflow).toContain(
+      'TRIGGER_SCRIPT="${TRIGGER_DIR}/resolve-dependabot-auto-merge-trigger.mjs"',
+    );
+    expect(mergeWorkflow).not.toContain('TRIGGER_SCRIPT="$(mktemp)"');
     expect(mergeWorkflow).toContain("resolve-dependabot-auto-merge-trigger.mjs");
     expect(mergeWorkflow).toContain("needs.resolve-trigger.outputs.should-process == 'true'");
     expect(mergeWorkflow).toContain("needs.resolve-trigger.outputs.run-kind");

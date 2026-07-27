@@ -186,8 +186,9 @@ export function registerCloudReleaseGateContractTests(): void {
     expect(cloudReleaseGateVerifier).not.toContain("allowedActivationDeltaPaths");
     expect(sourceGateWorkflow).toContain("workflow_run:");
     expect(sourceGateWorkflow).toContain("- CI");
+    expect(sourceGateWorkflow).toContain("- completed");
     expect(sourceGateWorkflow).toContain("- in_progress");
-    expect(sourceGateWorkflow).toContain("- requested");
+    expect(sourceGateWorkflow).not.toContain("- requested");
     expect(sourceGateWorkflow).toContain("name: trusted-cloud-source-reporter");
     expect(sourceGateWorkflow).toContain("name: production");
     expect(sourceGateWorkflow).toContain(
@@ -231,6 +232,10 @@ export function registerCloudReleaseGateContractTests(): void {
       "pull request merge commit does not bind the expected base and head",
     );
     const reporter = readFileSync("scripts/release/run-cloud-source-check.mjs", "utf8");
+    const sourceConsistency = readFileSync(
+      "scripts/release/cloud-source-consistency.mjs",
+      "utf8",
+    );
     const reporterHelper = readFileSync(
       "scripts/release/cloud-source-check-reporter.mjs",
       "utf8",
@@ -246,7 +251,11 @@ export function registerCloudReleaseGateContractTests(): void {
     expect(reporterHelper).toContain(
       "source checks have conflicting terminal conclusions",
     );
-    expect(reporter).toContain('if (action !== "completed" || terminalSuccess)');
+    expect(reporter).toContain("if (terminalSuccess)");
+    expect(reporter).toContain('currentWorkflowRun.conclusion !== "success"');
+    expect(sourceConsistency).toContain(
+      "workflow run no longer identifies a current pull request",
+    );
     expect(reporter).toContain("currentPullRequest(headSHA)");
     expect(reporter).toContain("latest.base?.sha !== currentPR.base.sha");
     expect(reporter).toContain(
@@ -254,7 +263,12 @@ export function registerCloudReleaseGateContractTests(): void {
     );
     expect(reporter).toContain("{ GH_TOKEN: checkToken }");
     expect(reporter).toContain("HA_NOVA_CLOUD_GATE_EXPECTED_TARGET_COMMIT: verifiedTargetSHA");
-    expect(reporter).toContain("verifiedTargetSHA = resolveRemoteRef(sourceRef)");
+    expect(reporter).toContain(
+      "const resolved = await resolvePullRequestSource(headSHA)",
+    );
+    expect(sourceConsistency).toContain(
+      "const refSHA = resolveRemoteRef(sourceRef)",
+    );
     expect(reporter).toContain("resolveRemoteRef(sourceRef) !== verifiedTargetSHA");
     expect(reporter).toContain("const finalPR = await currentPullRequest(headSHA)");
     expect(reporter).toContain("finalPR.number !== currentPR.number");

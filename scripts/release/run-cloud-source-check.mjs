@@ -3,7 +3,11 @@
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 
-import { createCloudSourceCheckReporter } from "./cloud-source-check-reporter.mjs";
+import {
+  createCloudSourceCheckReporter,
+  ReportedSourceCheckError,
+} from "./cloud-source-check-reporter.mjs";
+import { createCloudSourceConsistencyResolver } from "./cloud-source-consistency.mjs";
 
 const workspace = process.env.GITHUB_WORKSPACE ?? "";
 const repository = process.env.GITHUB_REPOSITORY ?? "";
@@ -17,6 +21,11 @@ const apiVersion = "2026-03-10";
 
 function fail(message) {
   throw new Error(message);
+}
+
+function noCheck(message) {
+  console.log(`[run-cloud-source-check] NOTICE: ${message}`);
+  process.exit(0);
 }
 
 function requireSHA(value, label) {
@@ -68,6 +77,9 @@ function resolveRemoteRef(sourceRef) {
   if (result.error !== undefined || result.status !== 0) {
     fail(`cannot resolve remote source ref ${sourceRef}`);
   }
+  if (result.stdout.trim().length === 0) {
+    return undefined;
+  }
   const fields = result.stdout.trim().split(/\s+/);
   if (
     fields.length !== 2 ||
@@ -92,6 +104,9 @@ async function currentPullRequest(headSHA) {
       pull.head?.sha === headSHA,
   );
   if (matches.length !== 1) {
+    if (matches.length === 0) {
+      return undefined;
+    }
     fail("workflow run must identify exactly one current pull request");
   }
   return matches[0];
@@ -105,13 +120,11 @@ function readEvent() {
     fail("GITHUB_EVENT_PATH must contain valid workflow_run JSON");
   }
   if (
-    !["completed", "in_progress", "requested"].includes(event?.action) ||
+    !["completed", "in_progress"].includes(event?.action) ||
     event.workflow_run?.name !== "CI" ||
-    !["completed", "in_progress", "queued", "requested"].includes(
-      event.workflow_run?.status,
-    )
+    event.workflow_run?.status !== event.action
   ) {
-    fail("only a CI workflow lifecycle event may request this check");
+    fail("only an in-progress or completed CI event may request this check");
   }
   return { action: event.action, workflowRun: event.workflow_run };
 }
@@ -148,6 +161,13 @@ async function requireTrustedCI(workflowRun) {
   return current;
 }
 
+const { resolvePullRequestSource, resolveQueueSource } =
+  createCloudSourceConsistencyResolver({
+    currentPullRequest,
+    requireSHA,
+    resolveRemoteRef,
+  });
+
 if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)) {
   fail("GITHUB_REPOSITORY must identify one repository");
 }
@@ -161,7 +181,12 @@ if (!Number.isSafeInteger(checkAppId) || checkAppId <= 0) {
   fail("dedicated check App id must be a positive integer");
 }
 
-const { completeCheck, ensurePendingCheck } = createCloudSourceCheckReporter({
+const {
+  completeCheck,
+  deletePendingAttemptChecks,
+  ensurePendingCheck,
+  hasTerminalAttemptSuccess,
+} = createCloudSourceCheckReporter({
   appId: checkAppId,
   repository,
   runId,
@@ -177,6 +202,39 @@ try {
     fail(`unsupported triggering event ${String(event)}`);
   }
   const currentWorkflowRun = await requireTrustedCI(workflowRun);
+  if (action === "in_progress") {
+    if (
+      currentWorkflowRun.status === "completed" &&
+      currentWorkflowRun.conclusion !== "success"
+    ) {
+      noCheck("upstream CI already completed unsuccessfully");
+    }
+    const { check, terminalSuccess } = await ensurePendingCheck(
+      currentWorkflowRun,
+      headSHA,
+    );
+    if (terminalSuccess) {
+      process.exit(0);
+    }
+    const refreshedWorkflowRun = await requireTrustedCI(workflowRun);
+    if (
+      refreshedWorkflowRun.status === "completed" &&
+      (refreshedWorkflowRun.conclusion !== "success" ||
+        (await hasTerminalAttemptSuccess(refreshedWorkflowRun)))
+    ) {
+      await deletePendingAttemptChecks(refreshedWorkflowRun);
+    }
+    noCheck("provisional source check recorded for active CI");
+  }
+  if (
+    currentWorkflowRun.status !== "completed" ||
+    currentWorkflowRun.conclusion !== "success"
+  ) {
+    await deletePendingAttemptChecks(currentWorkflowRun);
+    noCheck(
+      "upstream CI did not complete successfully; no source check emitted",
+    );
+  }
 
   let sourceEnvironment;
   let sourceRef;
@@ -184,17 +242,13 @@ try {
   let currentPR;
 
   if (event === "pull_request") {
-    currentPR = await currentPullRequest(headSHA);
-    sourceRef = `refs/pull/${currentPR.number}/merge`;
-    verifiedTargetSHA = resolveRemoteRef(sourceRef);
-    if (
-      requireSHA(
-        currentPR.merge_commit_sha,
-        "pull request merge commit SHA",
-      ) !== verifiedTargetSHA
-    ) {
-      fail("pull request API and merge ref identify different merge commits");
+    const resolved = await resolvePullRequestSource(headSHA);
+    if ("reason" in resolved) {
+      noCheck(resolved.reason);
     }
+    currentPR = resolved.pull;
+    sourceRef = resolved.sourceRef;
+    verifiedTargetSHA = resolved.targetSHA;
     sourceEnvironment = {
       HA_NOVA_CLOUD_GATE_PR_NUMBER: String(currentPR.number),
       HA_NOVA_CLOUD_GATE_EXPECTED_TARGET_COMMIT: verifiedTargetSHA,
@@ -214,7 +268,11 @@ try {
       fail("merge_group workflow run has an invalid queue branch");
     }
     sourceRef = `refs/heads/${workflowRun.head_branch}`;
-    verifiedTargetSHA = headSHA;
+    const resolved = await resolveQueueSource(sourceRef, headSHA);
+    if ("reason" in resolved) {
+      noCheck(resolved.reason);
+    }
+    verifiedTargetSHA = resolved.targetSHA;
     sourceEnvironment = {
       HA_NOVA_CLOUD_GATE_SOURCE_REF: sourceRef,
       HA_NOVA_CLOUD_GATE_EXPECTED_TARGET_COMMIT: headSHA,
@@ -226,11 +284,9 @@ try {
     verifiedTargetSHA,
   );
   checkId = check.id;
-  if (action !== "completed" || terminalSuccess) {
+  await deletePendingAttemptChecks(currentWorkflowRun, checkId);
+  if (terminalSuccess) {
     process.exit(0);
-  }
-  if (currentWorkflowRun.status !== "completed") {
-    fail("completed workflow event does not identify a completed run");
   }
 
   run("bash", ["scripts/release/verify-github-production-environment.sh"]);
@@ -283,16 +339,32 @@ try {
     "success",
     "Trusted default-branch code verified the current source state.",
   );
+  await deletePendingAttemptChecks(currentWorkflowRun, checkId);
 } catch (error) {
   const message =
     error instanceof Error ? error.message : "unexpected source-gate failure";
   console.error(`[run-cloud-source-check] ERROR: ${message}`);
+  if (error instanceof ReportedSourceCheckError) {
+    process.exit(0);
+  }
   if (checkId !== undefined) {
-    await completeCheck(
-      checkId,
-      "failure",
-      "Trusted source verification failed. Inspect the linked workflow run.",
-    );
+    try {
+      await completeCheck(
+        checkId,
+        "failure",
+        "Trusted source verification failed. Inspect the linked workflow run.",
+      );
+    } catch (reportError) {
+      const reportMessage =
+        reportError instanceof Error
+          ? reportError.message
+          : "unexpected source-check reporting failure";
+      console.error(
+        `[run-cloud-source-check] ERROR: cannot report rejection: ${reportMessage}`,
+      );
+      process.exit(1);
+    }
+    process.exit(0);
   }
   process.exit(1);
 }

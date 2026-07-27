@@ -5,6 +5,12 @@ function fail(message) {
   throw new Error(message);
 }
 
+export class ReportedSourceCheckError extends Error {}
+
+function failReported(message) {
+  throw new ReportedSourceCheckError(message);
+}
+
 function requireSHA(value, label) {
   if (!/^[0-9a-f]{40}$/.test(value ?? "")) {
     fail(`${label} must be a full lowercase SHA-1`);
@@ -65,8 +71,7 @@ export function createCloudSourceCheckReporter({
     });
   }
 
-  async function sourceChecks(workflowRun, targetSHA) {
-    const externalId = sourceExternalId(workflowRun, targetSHA);
+  async function sourceCheckRuns(workflowRun) {
     const checks = [];
     const seenIds = new Set();
     let expectedTotal;
@@ -96,11 +101,7 @@ export function createCloudSourceCheckReporter({
           fail("source check-run pagination returned an invalid duplicate");
         }
         seenIds.add(candidate.id);
-        if (
-          candidate.app?.id === appId &&
-          candidate.name === checkName &&
-          candidate.external_id === externalId
-        ) {
+        if (candidate.app?.id === appId && candidate.name === checkName) {
           checks.push(candidate);
         }
       }
@@ -108,14 +109,46 @@ export function createCloudSourceCheckReporter({
       if (seen === expectedTotal) {
         return checks;
       }
-      if (
-        seen > expectedTotal ||
-        response.check_runs.length !== 100
-      ) {
+      if (seen > expectedTotal || response.check_runs.length !== 100) {
         fail("source check-run pagination ended before total_count");
       }
     }
     fail("more than 1,000 source check runs exist for the candidate commit");
+  }
+
+  async function sourceChecks(workflowRun, targetSHA) {
+    const externalId = sourceExternalId(workflowRun, targetSHA);
+    return (await sourceCheckRuns(workflowRun)).filter(
+      (candidate) => candidate.external_id === externalId,
+    );
+  }
+
+  function attemptPrefix(workflowRun) {
+    const externalId = sourceExternalId(workflowRun, workflowRun.head_sha);
+    return externalId.slice(0, externalId.lastIndexOf("target:") + 7);
+  }
+
+  async function deletePendingAttemptChecks(workflowRun, keepId) {
+    const prefix = attemptPrefix(workflowRun);
+    const pending = (await sourceCheckRuns(workflowRun)).filter(
+      (candidate) =>
+        candidate.status !== "completed" &&
+        candidate.id !== keepId &&
+        candidate.external_id?.startsWith(prefix),
+    );
+    for (const candidate of pending) {
+      await deleteCheck(candidate.id);
+    }
+  }
+
+  async function hasTerminalAttemptSuccess(workflowRun) {
+    const prefix = attemptPrefix(workflowRun);
+    return (await sourceCheckRuns(workflowRun)).some(
+      (candidate) =>
+        candidate.status === "completed" &&
+        candidate.conclusion === "success" &&
+        candidate.external_id?.startsWith(prefix),
+    );
   }
 
   async function completeCheck(checkId, conclusion, summary) {
@@ -198,7 +231,7 @@ export function createCloudSourceCheckReporter({
         targetSHA,
         "Conflicting terminal source checks were detected for this exact target.",
       );
-      fail("source checks have conflicting terminal conclusions");
+      failReported("source checks have conflicting terminal conclusions");
     }
     for (const failed of terminals) {
       await deleteCheck(failed.id);
@@ -245,7 +278,7 @@ export function createCloudSourceCheckReporter({
           targetSHA,
           "A terminal source check raced pending-check creation.",
         );
-        fail("terminal source check raced pending-check creation");
+        failReported("terminal source check raced pending-check creation");
       }
       pending = checks
         .filter((candidate) => candidate.status !== "completed")
@@ -264,5 +297,10 @@ export function createCloudSourceCheckReporter({
     return { check: pending, terminalSuccess: false };
   }
 
-  return { completeCheck, ensurePendingCheck };
+  return {
+    completeCheck,
+    deletePendingAttemptChecks,
+    ensurePendingCheck,
+    hasTerminalAttemptSuccess,
+  };
 }

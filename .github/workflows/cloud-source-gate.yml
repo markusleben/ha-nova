@@ -7,7 +7,6 @@ on:
     types:
       - completed
       - in_progress
-      - requested
 
 permissions:
   actions: read
