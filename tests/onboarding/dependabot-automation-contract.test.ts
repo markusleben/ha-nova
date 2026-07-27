@@ -325,7 +325,7 @@ describe("dependabot automation contract", () => {
     expect(policy.cloud_source_gate.check_name).toBe("cloud-source-gate");
     expect(policy.cloud_source_gate.reporter_app_slug).toBe("ha-nova-cloud-source-gate");
     expect(policy.cloud_source_gate.reporter_app_slug.length).toBeLessThanOrEqual(34);
-    expect(policy.cloud_source_gate.reporter_app_id).toBe(0);
+    expect(policy.cloud_source_gate.reporter_app_id).toBe(4400145);
     expect(protectionScript).toContain("repo-policy.json");
     expect(protectionScript).toContain(".main_branch_protection.required_status_checks | sort");
     expect(protectionScript).toContain(".main_branch_protection.required_status_check_apps");
