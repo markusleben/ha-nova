@@ -11,6 +11,7 @@ const outputPath = process.env.GITHUB_OUTPUT ?? "";
 const tokenMode =
   process.env.HA_NOVA_CLOUD_SOURCE_CHECK_TOKEN_MODE ?? "reporter";
 const apiVersion = "2026-03-10";
+const apiTimeoutMs = 10_000;
 
 function fail(message) {
   console.error(`[create-cloud-source-check-token] ERROR: ${message}`);
@@ -25,6 +26,7 @@ async function github(endpoint, options = {}) {
   const { token, ...init } = options;
   const response = await fetch(`https://api.github.com/${endpoint}`, {
     ...init,
+    signal: init.signal ?? AbortSignal.timeout(apiTimeoutMs),
     headers: {
       Accept: "application/vnd.github+json",
       Authorization: `Bearer ${token}`,

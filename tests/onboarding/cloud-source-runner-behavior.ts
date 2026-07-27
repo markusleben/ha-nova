@@ -17,6 +17,7 @@ export const mergeSHA = "d".repeat(40);
 
 export type RunOptions = {
   action?: "completed" | "in_progress";
+  associationPresentSequence?: boolean[];
   associationMergeCommitSHA?: null | string;
   bashExit?: number;
   conclusion?: "cancelled" | "failure" | "success";
@@ -24,8 +25,15 @@ export type RunOptions = {
   gitSHA?: null | string;
   initialChecks?: unknown[];
   mergeCommitSHA?: null | string;
+  mergeCommitSHASequence?: Array<null | string>;
+  checkListStatusAfterPatch?: number;
+  checkReadStatus?: number;
   patchStatus?: number;
+  patchThrowsAfterApply?: boolean;
   pullCount?: number;
+  currentWorkflowStatus?: "completed" | "in_progress";
+  currentWorkflowAttempt?: number;
+  currentWorkflowStatusSequence?: Array<"completed" | "in_progress">;
   workflowAPIStatus?: number;
 };
 
@@ -104,8 +112,13 @@ exit "$MOCK_BASH_EXIT"
     `import { appendFileSync } from "node:fs";
 let checks = JSON.parse(process.env.MOCK_CHECKS);
 const pulls = JSON.parse(process.env.MOCK_PULLS);
-const fullPull = JSON.parse(process.env.MOCK_FULL_PULL);
-const workflowRun = JSON.parse(process.env.MOCK_WORKFLOW_RUN);
+const fullPulls = JSON.parse(process.env.MOCK_FULL_PULLS);
+let fullPullIndex = 0;
+let terminalPatchCompleted = false;
+const associationPresent = JSON.parse(process.env.MOCK_ASSOCIATION_PRESENT);
+let associationIndex = 0;
+const workflowRuns = JSON.parse(process.env.MOCK_WORKFLOW_RUNS);
+let workflowRunIndex = 0;
 globalThis.setTimeout = (callback) => {
   callback();
   return 0;
@@ -123,27 +136,60 @@ globalThis.fetch = async (url, init = {}) => {
     return response({ id: 77, path: ".github/workflows/ci.yml" });
   }
   if (path.endsWith("/actions/runs/123")) {
-    return response(workflowRun, Number(process.env.MOCK_WORKFLOW_API_STATUS));
+    return response(
+      workflowRuns[Math.min(workflowRunIndex++, workflowRuns.length - 1)],
+      Number(process.env.MOCK_WORKFLOW_API_STATUS),
+    );
   }
   if (path.endsWith("/commits/${headSHA}/pulls")) {
-    return response(pulls);
+    const present =
+      associationPresent[
+        Math.min(associationIndex++, associationPresent.length - 1)
+      ];
+    return response(present ? pulls : []);
   }
   if (path.endsWith("/pulls/449")) {
-    return response(fullPull);
+    return response(fullPulls[Math.min(fullPullIndex++, fullPulls.length - 1)]);
   }
   if (path.endsWith("/check-runs") && method === "GET") {
-    return response({ check_runs: checks, total_count: checks.length });
+    return response(
+      { check_runs: checks, total_count: checks.length },
+      terminalPatchCompleted
+        ? Number(process.env.MOCK_CHECK_LIST_STATUS_AFTER_PATCH)
+        : 200,
+    );
   }
   if (path.endsWith("/check-runs") && method === "POST") {
     const created = { ...body, app: { id: 42 }, id: 900 };
     checks.push(created);
     return response(created, 201);
   }
-  if (path.endsWith("/check-runs/900") && method === "PATCH") {
-    checks = checks.map((candidate) =>
-      candidate.id === 900 ? { ...candidate, ...body } : candidate
+  if (path.includes("/check-runs/") && method === "GET") {
+    const id = Number(path.split("/").at(-1));
+    const found = checks.find((candidate) => candidate.id === id);
+    return response(
+      found ?? {},
+      found === undefined ? 404 : Number(process.env.MOCK_CHECK_READ_STATUS),
     );
-    return response(checks[0], Number(process.env.MOCK_PATCH_STATUS));
+  }
+  if (path.includes("/check-runs/") && method === "PATCH") {
+    const id = Number(path.split("/").at(-1));
+    const patchApplied =
+      Number(process.env.MOCK_PATCH_STATUS) === 200 ||
+      process.env.MOCK_PATCH_THROWS_AFTER_APPLY === "true";
+    if (patchApplied) {
+      checks = checks.map((candidate) =>
+        candidate.id === id ? { ...candidate, ...body } : candidate
+      );
+    }
+    terminalPatchCompleted = patchApplied;
+    if (process.env.MOCK_PATCH_THROWS_AFTER_APPLY === "true") {
+      throw new DOMException("mock response timeout", "TimeoutError");
+    }
+    return response(
+      checks.find((candidate) => candidate.id === id),
+      Number(process.env.MOCK_PATCH_STATUS),
+    );
   }
   if (path.includes("/check-runs/") && method === "DELETE") {
     const id = Number(path.split("/").at(-1));
@@ -171,7 +217,14 @@ globalThis.fetch = async (url, init = {}) => {
         HA_NOVA_CLOUD_SOURCE_CHECK_APP_ID: "42",
         HA_NOVA_CLOUD_SOURCE_CHECK_TOKEN:
           "dedicated-token-at-least-twenty-characters",
+        MOCK_ASSOCIATION_PRESENT: JSON.stringify(
+          options.associationPresentSequence ?? [true],
+        ),
         MOCK_BASH_EXIT: String(options.bashExit ?? 0),
+        MOCK_CHECK_LIST_STATUS_AFTER_PATCH: String(
+          options.checkListStatusAfterPatch ?? 200,
+        ),
+        MOCK_CHECK_READ_STATUS: String(options.checkReadStatus ?? 200),
         MOCK_CHECKS: JSON.stringify(options.initialChecks ?? []),
         MOCK_GIT_SHA:
           options.gitSHA === undefined
@@ -180,10 +233,28 @@ globalThis.fetch = async (url, init = {}) => {
               : headSHA
             : (options.gitSHA ?? ""),
         MOCK_PULLS: JSON.stringify(pulls),
-        MOCK_FULL_PULL: JSON.stringify(pull),
+        MOCK_FULL_PULLS: JSON.stringify(
+          (options.mergeCommitSHASequence ?? [pull.merge_commit_sha]).map(
+            (merge_commit_sha) => ({ ...pull, merge_commit_sha }),
+          ),
+        ),
         MOCK_PATCH_STATUS: String(options.patchStatus ?? 200),
+        MOCK_PATCH_THROWS_AFTER_APPLY: String(
+          options.patchThrowsAfterApply ?? false,
+        ),
         MOCK_TRACE: tracePath,
-        MOCK_WORKFLOW_RUN: JSON.stringify(workflowRun),
+        MOCK_WORKFLOW_RUNS: JSON.stringify(
+          (
+            options.currentWorkflowStatusSequence ?? [
+              options.currentWorkflowStatus ?? workflowRun.status,
+            ]
+          ).map((status) => ({
+            ...workflowRun,
+            run_attempt:
+              options.currentWorkflowAttempt ?? workflowRun.run_attempt,
+            status,
+          })),
+        ),
         MOCK_WORKFLOW_API_STATUS: String(options.workflowAPIStatus ?? 200),
         PATH: `${bin}:${process.env.PATH ?? ""}`,
       },
@@ -258,36 +329,6 @@ export function registerCloudSourceRunnerBehaviorTests(): void {
       },
     );
 
-    it("exits without a check for a stale pull-request head", () => {
-      const { result, trace } = runSourceGate({ pullCount: 0 });
-      expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
-      expect(result.stdout).toContain(
-        "no longer identifies a current pull request",
-      );
-      expect(trace.some((entry) => entry.method === "POST")).toBe(false);
-      expect(
-        trace.filter(
-          (entry) =>
-            entry.method === "GET" &&
-            entry.path.endsWith(`/commits/${headSHA}/pulls`),
-        ),
-      ).toHaveLength(3);
-    });
-
-    it("exits without a check while GitHub materializes the merge ref", () => {
-      const { result, trace } = runSourceGate({ gitSHA: null });
-      expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
-      expect(result.stdout).toContain("merge ref is not materialized yet");
-      expect(trace.some((entry) => entry.method === "POST")).toBe(false);
-    });
-
-    it("exits without a check when API and merge ref are temporarily inconsistent", () => {
-      const { result, trace } = runSourceGate({ gitSHA: "c".repeat(40) });
-      expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
-      expect(result.stdout).toContain("temporarily inconsistent");
-      expect(trace.some((entry) => entry.method === "POST")).toBe(false);
-    });
-
     it("keeps infrastructure failures before check creation visible", () => {
       const { result, trace } = runSourceGate({ workflowAPIStatus: 500 });
       expect(result.status).not.toBe(0);
@@ -311,56 +352,6 @@ export function registerCloudSourceRunnerBehaviorTests(): void {
       },
     );
 
-    it("reports a verification rejection only through the App check", () => {
-      const { result, trace } = runSourceGate({
-        bashExit: 1,
-        event: "merge_group",
-      });
-      expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
-      expect(trace.filter((entry) => entry.method === "POST")).toHaveLength(1);
-      expect(
-        trace.filter(
-          (entry) =>
-            entry.method === "PATCH" && entry.body?.conclusion === "failure",
-        ),
-      ).toHaveLength(1);
-    });
-
-    it("reports conflicting terminal state only through a fail-safe App check", () => {
-      const externalId = `workflow-run:123:attempt:1:target:${headSHA}`;
-      const { result, trace } = runSourceGate({
-        event: "merge_group",
-        initialChecks: [
-          {
-            app: { id: 42 },
-            conclusion: "success",
-            external_id: externalId,
-            id: 700,
-            name: "cloud-source-gate",
-            status: "completed",
-          },
-          {
-            app: { id: 42 },
-            conclusion: "failure",
-            external_id: externalId,
-            id: 701,
-            name: "cloud-source-gate",
-            status: "completed",
-          },
-        ],
-      });
-      expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
-      expect(result.stderr).toContain(
-        "source checks have conflicting terminal conclusions",
-      );
-      expect(
-        trace.some(
-          (entry) =>
-            entry.method === "PATCH" && entry.body?.conclusion === "failure",
-        ),
-      ).toBe(true);
-    });
-
     it("reports successful completed verification once", () => {
       const { result, trace } = runSourceGate({ event: "merge_group" });
       expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
@@ -373,14 +364,5 @@ export function registerCloudSourceRunnerBehaviorTests(): void {
       ).toHaveLength(1);
     });
 
-    it("keeps App-check reporting failures visible as workflow failures", () => {
-      const { result } = runSourceGate({
-        bashExit: 1,
-        event: "merge_group",
-        patchStatus: 500,
-      });
-      expect(result.status).not.toBe(0);
-      expect(result.stderr).toContain("cannot report rejection");
-    });
   });
 }

@@ -1,6 +1,6 @@
 # Cloud Source Gate Efficiency Fix
 
-Status: locally verified; one monitored remote canary remains pending.
+Status: locally verified; one follow-up canary remains after reviewed merge.
 
 ## Problem
 
@@ -19,27 +19,49 @@ notifications.
 - `completed` creates the exact target-bound pending check before deleting the
   provisional check. It repeats provisional cleanup after terminal success so
   a delayed early delivery cannot strand state.
-- A non-successful upstream CI run, stale pull request, missing merge ref, or
-  temporarily absent pull-request merge SHA exits successfully without
-  creating an App check. The missing required check remains fail-closed.
+- A non-successful upstream CI run or stale pull request exits successfully
+  without creating an App check and retires only its pending provisional
+  state. Persistent source materialization failure produces one App rejection.
 - Once an App check exists, any source or policy verification failure completes
   that check as `failure` and exits the broker workflow successfully. One
   security rejection produces one visible failure.
 - Failure to authenticate the dedicated App or failure before a check can be
   created remains a broker workflow failure.
 - Duplicate deliveries and rerun attempts remain idempotent and attempt-bound.
+- A terminal App result is immutable for one upstream run id and attempt.
+  Retrying requires a new CI attempt. Broker deliveries for the same run and
+  attempt are serialized; stale deliveries from an older attempt only clean up
+  that older attempt.
 - Local tests cover completed, cancelled, stale, duplicate, rerun, missing-ref,
   and permission-boundary cases before one monitored remote canary is allowed.
 - The commit-association endpoint selects one current PR only. Security fields,
   including `merge_commit_sha`, come from a subsequent full PR response.
   Temporarily omitted or null merge materialization is retried inside the same
   bounded run.
+- The completed broker allows one bounded materialization window long enough
+  for an observed post-CI GitHub merge-ref delay. If the source is still not
+  materialized, it completes the attempt's provisional check as a rejection,
+  or creates one fail-safe rejection if no provisional check exists. The
+  broker itself remains successful and the App check remains fail-closed.
+- A delayed `in_progress` delivery observed after its CI run is already
+  complete never creates, deletes, or recreates a pending check. The completed
+  delivery exclusively owns finalization and provisional cleanup.
 
 ## Actions budget
 
 No push or rerun may be used as a debugging loop. A remote canary is
 single-shot, is cancelled at its first unexpected result, and must leave no
 active workflows after closure.
+
+The first materialization canary reached the bounded retry limit after CI and
+left its provisional App check pending while the broker exited successfully.
+The workflow was disabled immediately, the canary was closed without merge,
+and no rerun was used for debugging.
+
+GitHub API calls, remote-ref resolution, and policy subprocesses each have a
+finite deadline. The mode job has a three-minute limit; the reporter has a
+four-minute limit with cleanup margin. A failed fail-safe completion deletes
+the pending check before surfacing infrastructure failure.
 
 ## Dependabot trigger containment
 

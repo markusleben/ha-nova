@@ -189,6 +189,13 @@ export function registerCloudReleaseGateContractTests(): void {
     expect(sourceGateWorkflow).toContain("- completed");
     expect(sourceGateWorkflow).toContain("- in_progress");
     expect(sourceGateWorkflow).not.toContain("- requested");
+    expect(sourceGateWorkflow).toContain(
+      "group: cloud-source-gate-${{ github.event.workflow_run.id }}-${{ github.event.workflow_run.run_attempt }}",
+    );
+    expect(sourceGateWorkflow).toContain("cancel-in-progress: false");
+    expect(sourceGateWorkflow).toContain("queue: max");
+    expect(sourceGateWorkflow).toContain("timeout-minutes: 3");
+    expect(sourceGateWorkflow).toContain("timeout-minutes: 10");
     expect(sourceGateWorkflow).toContain("name: trusted-cloud-source-reporter");
     expect(sourceGateWorkflow).toContain("name: production");
     expect(sourceGateWorkflow).toContain(
@@ -247,11 +254,17 @@ export function registerCloudReleaseGateContractTests(): void {
     expect(reporter).toContain(
       "ensurePendingCheck(\n    currentWorkflowRun,\n    verifiedTargetSHA,\n  )",
     );
-    expect(reporter).toContain("terminalSuccess");
+    expect(reporter).toContain("terminalResult");
     expect(reporterHelper).toContain(
       "source checks have conflicting terminal conclusions",
     );
-    expect(reporter).toContain("if (terminalSuccess)");
+    expect(reporter).toContain("if (terminalResult)");
+    expect(reporter).toContain("AbortSignal.timeout(apiTimeoutMs)");
+    expect(reporter).toContain("timeout: apiTimeoutMs");
+    expect(reporter).toContain("timeout: commandTimeoutMs");
+    expect(reporter).toContain('killSignal: "SIGKILL"');
+    expect(reporterHelper).toContain("AbortSignal.timeout(apiTimeoutMs)");
+    expect(checkTokenScript).toContain("AbortSignal.timeout(apiTimeoutMs)");
     expect(reporter).toContain('currentWorkflowRun.conclusion !== "success"');
     expect(sourceConsistency).toContain(
       "workflow run no longer identifies a current pull request",
