@@ -1,9 +1,11 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 )
 
 // Version is set by goreleaser via ldflags.
@@ -21,11 +23,19 @@ var (
 )
 
 func main() {
+	if handled, exitCode := maybeRunNativeSecretWorker(
+		os.Args[1:],
+		os.Stdin,
+		os.Stdout,
+	); handled {
+		os.Exit(exitCode)
+	}
 	paths, err := detectPaths()
 	if err != nil {
 		printErr("%s", err)
 		os.Exit(1)
 	}
+	configureCloudRemoteFeature(paths)
 
 	argv0 := filepath.Base(os.Args[0])
 	exitCode := dispatch(paths, argv0, os.Args[1:])
@@ -35,6 +45,20 @@ func main() {
 func dispatch(paths runtimePaths, argv0 string, args []string) int {
 	if len(args) == 0 {
 		printUsage()
+		return 1
+	}
+	if err := recoverConfigTransactionBeforeDispatch(paths); err != nil {
+		if printCloudStatusJSONForDispatchRecoveryFailure(
+			paths,
+			args,
+			err,
+		) {
+			return 1
+		}
+		printErr(
+			"HA NOVA cannot safely recover an interrupted configuration update: %s",
+			err,
+		)
 		return 1
 	}
 
@@ -55,6 +79,8 @@ func dispatch(paths runtimePaths, argv0 string, args []string) int {
 		return runPairCommand(paths, args[1:])
 	case "server":
 		return runServerCommand(paths, args[1:])
+	case "cloud":
+		return runCloudCommand(paths, args[1:])
 	case "relay":
 		return runRelayCommand(paths, args[1:])
 	case "trace":
@@ -81,6 +107,21 @@ func dispatch(paths runtimePaths, argv0 string, args []string) int {
 		return runInternalSyncClients(paths, args[1:])
 	case "internal-setup-readiness":
 		return runInternalSetupReadiness(paths, args[1:])
+	case "internal-cloud-release-check":
+		if len(args) != 1 {
+			printErr("internal-cloud-release-check accepts no arguments")
+			return 1
+		}
+		identity := cloudRemoteBuildIdentityForRuntime()
+		_, platformEnabled := cloudRemoteReleasePlatforms[runtime.GOOS]
+		if !identity.Official || !cloudRemoteReleaseEnabled || !platformEnabled {
+			printErr("official Cloud release provenance is not enabled")
+			return 1
+		}
+		fmt.Fprintln(os.Stdout, "official Cloud release provenance verified")
+		return 0
+	case "internal-cloud-stress":
+		return runInternalCloudReleaseStress(paths, args[1:])
 	case "-h", "--help", "help":
 		printUsage()
 		return 0
@@ -91,6 +132,64 @@ func dispatch(paths runtimePaths, argv0 string, args []string) int {
 	}
 }
 
+func printCloudStatusJSONForDispatchRecoveryFailure(
+	paths runtimePaths,
+	args []string,
+	cause error,
+) bool {
+	if len(args) < 2 ||
+		args[0] != "cloud" ||
+		args[1] != "status" {
+		return false
+	}
+	rawIntent := scanCloudStatusArgs(args[2:])
+	if !rawIntent.jsonRequested {
+		return false
+	}
+	problem := &cloudProblem{
+		Code:        cloudProblemConfigInvalid,
+		Remediation: cloudRemediationSecurityStop,
+		Detail: "an interrupted configuration update could not be " +
+			"safely recovered; Cloud was not contacted",
+		Cause: cause,
+	}
+	printCloudStatusJSON(cloudStatusSummary{
+		Status: "error",
+		Server: cloudStatusServerForReport(
+			paths,
+			cloudCommandFlags{},
+			rawIntent,
+		),
+		VerificationError: cloudStatusErrorForProblem(problem),
+	})
+	return true
+}
+
+func recoverConfigTransactionBeforeDispatch(paths runtimePaths) error {
+	recoveryNeeded := false
+	for _, transactionPath := range []string{
+		conditionalJSONTransactionPath(paths.ConfigFile),
+		conditionalJSONCommittedTransactionPath(paths.ConfigFile),
+	} {
+		if _, err := os.Lstat(transactionPath); err == nil {
+			recoveryNeeded = true
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+	}
+	if !recoveryNeeded {
+		return nil
+	}
+	release, acquired := acquireAutoRepairLock(paths)
+	if !acquired {
+		return errors.New(
+			"another HA NOVA configuration update is in progress",
+		)
+	}
+	defer release()
+	return recoverConditionalJSONTransaction(paths.ConfigFile)
+}
+
 func printUsage() {
 	fmt.Fprintln(os.Stdout, "HA NOVA")
 	fmt.Fprintln(os.Stdout, "")
@@ -98,13 +197,14 @@ func printUsage() {
 	fmt.Fprintln(os.Stdout, "  ha-nova setup [client]")
 	fmt.Fprintln(os.Stdout, "  ha-nova setup --service [client]")
 	fmt.Fprintln(os.Stdout, "  ha-nova pair [--relay-url http://<ha-host>:8791] [--code NNNNNN] [--credential-store=file]")
-	fmt.Fprintln(os.Stdout, "  ha-nova server <list|default|rename|remove>")
+	fmt.Fprintln(os.Stdout, "  ha-nova server <list|default|rename|remove|route>")
+	fmt.Fprintln(os.Stdout, "  ha-nova cloud <add|status|unlock|reconnect|remove>")
 	fmt.Fprintln(os.Stdout, "  ha-nova doctor [--auto-repair] [--quiet]")
 	fmt.Fprintln(os.Stdout, "  ha-nova check-update [--quiet] [--json]")
 	fmt.Fprintln(os.Stdout, "  ha-nova status --json")
 	fmt.Fprintln(os.Stdout, "  ha-nova update [--version <tag>] [--force]")
 	fmt.Fprintln(os.Stdout, "  ha-nova uninstall [--yes] [--purge]")
-	fmt.Fprintln(os.Stdout, "  ha-nova relay <health|ws|core|jq|version>")
+	fmt.Fprintln(os.Stdout, "  ha-nova relay <health|ws|core|files|backups|jq|version>")
 	fmt.Fprintln(os.Stdout, "  ha-nova trace <latest|list|get> <automation.entity_id|script.entity_id> [run_id] [--json]")
 	fmt.Fprintln(os.Stdout, "  ha-nova snapshot <save|show|verify>")
 	fmt.Fprintln(os.Stdout, "  ha-nova census <on|off|status>")

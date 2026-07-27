@@ -173,6 +173,104 @@ func runPairCommand(paths runtimePaths, args []string) int {
 		printErr("saved %s; nothing was paired", err)
 		return 1
 	}
+	resumedActivation := false
+	if cfgErr != nil {
+		cfg, cfgErr = recoverPairConfigForExplicitRelayURL(
+			paths,
+			bootstrapURL,
+			cfgErr,
+			newProfile,
+			hadConfigSnapshot,
+		)
+		if cfgErr != nil {
+			printErr(
+				"cannot safely pair with the saved server configuration: %s",
+				cfgErr,
+			)
+			printErr("Nothing was paired — no code was used.")
+			return 1
+		}
+	}
+	if err := rejectPendingServerRemoval(
+		activeServerProfile(),
+		cfg,
+	); err != nil {
+		printErr("Pairing cannot start: %s", err)
+		return 1
+	}
+	if err := validateRuntimeConfigSave(paths, cfg); err != nil {
+		printErr(
+			"cannot safely pair with the saved server configuration: %s",
+			err,
+		)
+		printErr("Nothing was paired — no code was used.")
+		return 1
+	}
+	// Resume a durable local activation before an explicit relay override,
+	// storage migration/probing, or another one-time code can mutate or
+	// overwrite it. Valid incomplete profiles recovered above retain their
+	// pending endpoints, so they use the same recovery path.
+	var resumeErr error
+	resumedActivation, resumeErr = resumeInterruptedPairingForDoctor(
+		paths,
+		&cfg,
+		pairLifecycleGeneration,
+		configSnapshot,
+		hadConfigSnapshot,
+	)
+	if resumeErr != nil {
+		printPendingActivationResumeError(resumeErr)
+		return 1
+	}
+	if resumedActivation && credentialStore != "file" {
+		fmt.Println("Resumed the interrupted secure device activation.")
+		return 0
+	}
+	if resumedActivation {
+		configSnapshot, hadConfigSnapshot, resumeErr =
+			readOptionalFile(paths.ConfigFile)
+		if resumeErr != nil {
+			printErr(
+				"cannot verify the resumed server configuration: %s",
+				resumeErr,
+			)
+			return 1
+		}
+	}
+	if !resumedActivation && relayURLSet {
+		// An explicit --relay-url must persist for later functional calls, not
+		// just drive this one pairing — the successful pairing saves cfg.
+		cfg.RelayBaseURL = bootstrapURL
+	}
+	// Reject Cloud/local replacement conflicts before migration, storage probes,
+	// or a six-digit-code prompt. The inner pairing guard remains as a
+	// concurrency-safe defense at the point of use.
+	guardPairMutation := func() error {
+		if err := ensureUpdateLifecycleCurrent(paths, pairLifecycleGeneration); err != nil {
+			return err
+		}
+		if err := ensureOptionalFileSnapshotCurrent(
+			paths.ConfigFile,
+			configSnapshot,
+			hadConfigSnapshot,
+		); err != nil {
+			return err
+		}
+		return requireSettledDeviceCredentialRetirement(
+			paths,
+			activeServerProfile(),
+		)
+	}
+	guardErr := withClientMutationLock(paths, func() error {
+		if err := guardPairMutation(); err != nil {
+			return err
+		}
+		return validateLocalDeviceReplacementAllowed(cfg)
+	})
+	if guardErr != nil {
+		printErr("Pairing cannot start: %s", guardErr)
+		return 1
+	}
 	// Storage mutation only AFTER every selection/bootstrap guard above: a pair
 	// that exits before pairing must never have flipped the backend or moved
 	// credentials.
@@ -182,10 +280,7 @@ func runPairCommand(paths runtimePaths, args []string) int {
 		// keyrings make this a silent no-op and pairing continues file-backed.
 		migrated := false
 		migrateErr := withClientMutationLock(paths, func() error {
-			if err := ensureUpdateLifecycleCurrent(paths, pairLifecycleGeneration); err != nil {
-				return err
-			}
-			if err := ensureOptionalFileSnapshotCurrent(paths.ConfigFile, configSnapshot, hadConfigSnapshot); err != nil {
+			if err := guardPairMutation(); err != nil {
 				return err
 			}
 			var err error
@@ -202,28 +297,16 @@ func runPairCommand(paths runtimePaths, args []string) int {
 		}
 		forceDeviceCredentialFileMode()
 	}
-	if cfgErr != nil {
-		cfg = runtimeConfig{RelayBaseURL: bootstrapURL}
-		// Profiles share one install-wide client_install_id; inherit it so a new
-		// profile never mints a second install identity.
-		if raw, rawErr := loadRawDefaultProfileConfig(paths.ConfigFile); rawErr == nil {
-			cfg.ClientInstallID = raw.ClientInstallID
-		}
-	} else if relayURLSet {
-		// An explicit --relay-url must persist for later functional calls, not
-		// just drive this one pairing — the successful pairing saves cfg.
-		cfg.RelayBaseURL = bootstrapURL
+	if resumedActivation {
+		fmt.Println("Resumed the interrupted secure device activation.")
+		return 0
 	}
-
 	// Verify credential storage BEFORE asking for (or spending) a code: a broken
 	// backend must not burn the owner's one-time code. On headless systems this
 	// engages the private-file fallback and says so.
 	var probe deviceStorageProbe
 	probeErr := withClientMutationLock(paths, func() error {
-		if err := ensureUpdateLifecycleCurrent(paths, pairLifecycleGeneration); err != nil {
-			return err
-		}
-		if err := ensureOptionalFileSnapshotCurrent(paths.ConfigFile, configSnapshot, hadConfigSnapshot); err != nil {
+		if err := guardPairMutation(); err != nil {
 			return err
 		}
 		var err error
@@ -255,10 +338,7 @@ func runPairCommand(paths runtimePaths, args []string) int {
 
 	deviceID := ""
 	err := withClientMutationLock(paths, func() error {
-		if err := ensureUpdateLifecycleCurrent(paths, pairLifecycleGeneration); err != nil {
-			return err
-		}
-		if err := ensureOptionalFileSnapshotCurrent(paths.ConfigFile, configSnapshot, hadConfigSnapshot); err != nil {
+		if err := guardPairMutation(); err != nil {
 			return err
 		}
 		save := func(c *runtimeConfig) error { return saveConfig(paths, *c) }

@@ -11,7 +11,7 @@ describe("auth", () => {
       ok: false,
       status: 401,
       code: "UNAUTHORIZED",
-      message: "Missing authorization header"
+      message: "Missing authorization header",
     });
   });
 
@@ -22,7 +22,7 @@ describe("auth", () => {
       ok: false,
       status: 401,
       code: "UNAUTHORIZED",
-      message: "Invalid bearer token"
+      message: "Invalid bearer token",
     });
   });
 
@@ -30,7 +30,7 @@ describe("auth", () => {
     const result = authorizeRequest("Bearer secret", "secret");
 
     expect(result).toEqual({
-      ok: true
+      ok: true,
     });
   });
 });
@@ -42,7 +42,7 @@ describe("loadEnv", () => {
       HA_LLAT: "ha-llat-token",
       RELAY_PORT: "9000",
       LOG_LEVEL: "debug",
-      MIN_RELAY_VERSION: "0.4.0"
+      MIN_RELAY_VERSION: "0.4.0",
     });
 
     expect(env).toEqual({
@@ -51,17 +51,18 @@ describe("loadEnv", () => {
       haUrl: "http://homeassistant:8123",
       relayVersion: "dev",
       minRelayVersion: "0.4.0",
+      cloudRemoteEnabled: false,
       appOptionsPath: "/data/options.json",
       relayPort: 9000,
       logLevel: "debug",
-      snapshotDir: "/data/ha_nova_snapshots"
+      snapshotDir: "/data/ha_nova_snapshots",
     });
   });
 
   it("reads and trims required HA_LLAT", () => {
     const env = loadEnv({
       RELAY_AUTH_TOKEN: "relay-token",
-      HA_LLAT: "  user-llat  "
+      HA_LLAT: "  user-llat  ",
     });
 
     expect(env).toEqual({
@@ -70,17 +71,18 @@ describe("loadEnv", () => {
       haUrl: "http://homeassistant:8123",
       relayVersion: "dev",
       minRelayVersion: "dev",
+      cloudRemoteEnabled: false,
       appOptionsPath: "/data/options.json",
       relayPort: 8791,
       logLevel: "info",
-      snapshotDir: "/data/ha_nova_snapshots"
+      snapshotDir: "/data/ha_nova_snapshots",
     });
   });
 
   it("uses Supervisor authentication and its Core proxy by default", () => {
     const env = loadEnv({
       RELAY_AUTH_TOKEN: "relay-token",
-      SUPERVISOR_TOKEN: "  supervisor-token  "
+      SUPERVISOR_TOKEN: "  supervisor-token  ",
     });
 
     expect(env.supervisorToken).toBe("supervisor-token");
@@ -92,16 +94,46 @@ describe("loadEnv", () => {
     const env = loadEnv({
       RELAY_AUTH_TOKEN: "relay-token",
       SUPERVISOR_TOKEN: "supervisor-token",
-      HA_URL: "http://custom-supervisor/core"
+      HA_URL: "http://custom-supervisor/core",
     });
 
     expect(env.haUrl).toBe("http://custom-supervisor/core");
   });
 
+  it("accepts only exact Cloud gate booleans and defaults disabled", () => {
+    const base = {
+      RELAY_AUTH_TOKEN: "relay-token",
+      SUPERVISOR_TOKEN: "supervisor-token",
+    };
+
+    expect(loadEnv(base).cloudRemoteEnabled).toBe(false);
+    expect(
+      loadEnv({ ...base, CLOUD_REMOTE_ENABLED: "true" }).cloudRemoteEnabled,
+    ).toBe(true);
+    expect(
+      loadEnv({ ...base, CLOUD_REMOTE_ENABLED: "false" }).cloudRemoteEnabled,
+    ).toBe(false);
+
+    for (const invalid of [
+      "",
+      "0",
+      "1",
+      "null",
+      "TRUE",
+      "False",
+      " true",
+      "false ",
+    ]) {
+      expect(() =>
+        loadEnv({ ...base, CLOUD_REMOTE_ENABLED: invalid }),
+      ).toThrowError("CLOUD_REMOTE_ENABLED must be exactly true or false");
+    }
+  });
+
   it("uses RELAY_AUTH_TOKEN and HA_LLAT as required tokens", () => {
     const env = loadEnv({
       RELAY_AUTH_TOKEN: "relay-auth",
-      HA_LLAT: "ha-llat"
+      HA_LLAT: "ha-llat",
     });
 
     expect(env).toEqual({
@@ -110,18 +142,19 @@ describe("loadEnv", () => {
       haUrl: "http://homeassistant:8123",
       relayVersion: "dev",
       minRelayVersion: "dev",
+      cloudRemoteEnabled: false,
       appOptionsPath: "/data/options.json",
       relayPort: 8791,
       logLevel: "info",
-      snapshotDir: "/data/ha_nova_snapshots"
+      snapshotDir: "/data/ha_nova_snapshots",
     });
   });
 
   it("throws when both supported upstream credentials are missing", () => {
     expect(() =>
       loadEnv({
-        RELAY_AUTH_TOKEN: "relay-auth"
-      })
+        RELAY_AUTH_TOKEN: "relay-auth",
+      }),
     ).toThrowError("SUPERVISOR_TOKEN or HA_LLAT is required");
   });
 
@@ -129,15 +162,15 @@ describe("loadEnv", () => {
     expect(() =>
       loadEnv({
         RELAY_AUTH_TOKEN: "null",
-        HA_LLAT: "ha-llat"
-      })
+        HA_LLAT: "ha-llat",
+      }),
     ).toThrowError("RELAY_AUTH_TOKEN is required");
 
     expect(() =>
       loadEnv({
         RELAY_AUTH_TOKEN: "relay-auth",
-        HA_LLAT: "null"
-      })
+        HA_LLAT: "null",
+      }),
     ).toThrowError("SUPERVISOR_TOKEN or HA_LLAT is required");
   });
 });

@@ -2,7 +2,7 @@ package main
 
 import (
 	"bufio"
-	"errors"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -11,6 +11,7 @@ import (
 var (
 	readServerRemoveConfirmationForCommand = readServerRemoveConfirmation
 	secretGetForServerRemove               = secretGet
+	serverRemovalPhaseHook                 = func(string) error { return nil }
 )
 
 func runServerRemove(paths runtimePaths, args []string) int {
@@ -41,6 +42,46 @@ func runServerRemove(paths runtimePaths, args []string) int {
 	}
 	if !doc.hasProfile(name) {
 		unknownServerProfileError(doc, name)
+		return 1
+	}
+	if cfg, exists := doc.flatProfile(name); exists &&
+		cfg.ServerRemoval != nil {
+		releaseMutation, mutationOK := acquireServerMutation(paths)
+		if !mutationOK {
+			return 1
+		}
+		defer releaseMutation()
+		currentDoc, currentOK := loadServerConfigDocument(paths)
+		if !currentOK {
+			return 1
+		}
+		return completeServerRemovalUnlocked(
+			paths,
+			currentDoc,
+			name,
+		)
+	}
+	retirementPending, retirementErr :=
+		deviceCredentialRetirementCheckpointExistsForProfile(paths, name)
+	if retirementErr != nil || retirementPending {
+		if retirementErr != nil {
+			printHumanErr("cannot inspect pending device retirement for server profile %q (%v); nothing was removed", name, retirementErr)
+		} else {
+			printHumanErr("server profile %q has a pending device retirement; run `%s` to finish it before removing the profile. Nothing was removed.", name, deviceRetirementSetupCommand(name))
+		}
+		return 1
+	}
+	hasCloudState, cloudStateErr := serverProfileContainsCloudState(doc, name)
+	if cloudStateErr != nil {
+		printHumanErr("cannot safely inspect Home Assistant Cloud state for server profile %q (%v); nothing was removed", name, cloudStateErr)
+		return 1
+	}
+	if hasCloudState {
+		if len(doc.profileNames()) == 1 {
+			printHumanErr("%q is the only server profile and still has Home Assistant Cloud state. Revoke its authorization and remove HA NOVA with: ha-nova uninstall --purge", name)
+			return 1
+		}
+		printHumanErr("server profile %q still has Home Assistant Cloud state; remove Cloud access first so its native secure-storage credentials are not stranded. Nothing was removed.", name)
 		return 1
 	}
 	if len(doc.profileNames()) == 1 {
@@ -123,16 +164,6 @@ func runServerRemove(paths runtimePaths, args []string) int {
 		if readErr == errSecretNotFound {
 			continue
 		}
-		// Reachability sentinel + a markerless raw slot file: the purge below
-		// deletes raw files directly, and the keyring layer cannot be cleaned
-		// from this session either way — warn and proceed (mirrors the rename
-		// rule). Without a raw file there is nothing deletable here: abort.
-		unreachable := errors.Is(readErr, errDesktopKeyringSessionUnavailable) || errors.Is(readErr, errDesktopKeyringUnavailable)
-		if unreachable && !deviceFileBackendMarkerExists() && profileHasRawSlotFile(services) {
-			credentialSnapshotReliable = false
-			printHumanWarn("secure storage is not reachable here (%v); any keyring credential stored for %q by an earlier desktop pairing is not deleted — clean it from the desktop session if one exists.", readErr, name)
-			break
-		}
 		printHumanErr("secure storage is not reachable here (%v) — removing %q now would leave its stored credential behind. Make secure storage available (e.g. run from the desktop session), then retry; nothing was removed.", readErr, name)
 		return 1
 	}
@@ -154,6 +185,12 @@ func runServerRemove(paths runtimePaths, args []string) int {
 	defer releaseMutation()
 	if err := ensureUpdateLifecycleCurrent(paths, removeLifecycleGeneration); err != nil {
 		printHumanErr("HA NOVA install lifecycle changed while awaiting confirmation; nothing was removed")
+		return 1
+	}
+	retirementPending, retirementErr =
+		deviceCredentialRetirementCheckpointExistsForProfile(paths, name)
+	if retirementErr != nil || retirementPending {
+		printHumanErr("pending device retirement changed while awaiting confirmation; nothing was removed")
 		return 1
 	}
 	currentDoc, currentOK := loadServerConfigDocument(paths)
@@ -199,43 +236,103 @@ func runServerRemove(paths runtimePaths, args []string) int {
 			}
 			continue
 		}
-		unreachable := errors.Is(readErr, errDesktopKeyringSessionUnavailable) || errors.Is(readErr, errDesktopKeyringUnavailable)
-		if unreachable && !deviceFileBackendMarkerExists() && profileHasRawSlotFile(services) {
-			break
-		}
 		printHumanErr("secure storage changed while awaiting confirmation; nothing was removed")
 		return 1
 	}
-	// Config first: a failed save aborts cleanly with the pairing untouched.
-	// The endpoint for the revoke is captured from the in-memory document, so
-	// removing the entry first loses nothing. If the revoke afterwards fails,
-	// the report says so and the device can still be revoked from the NOVA
-	// console — the softer failure than a configured-but-unpaired profile.
 	cfg, _ := doc.flatProfile(name)
-	servers, err := documentServersCopy(doc)
-	if err != nil {
-		printHumanErr("cannot update the server configuration: %v — nothing was removed.", err)
+	preflightTarget, preflightErr :=
+		profilePurgeTargetFromConfig(name, cfg)
+	if preflightErr == nil {
+		var slotState profilePurgeSlotState
+		slotState, preflightErr =
+			inspectProfilePurgeSlotState(preflightTarget)
+		if preflightErr == nil {
+			preflightErr = validateRequiredProfilePurgeSlots(
+				preflightTarget,
+				slotState,
+			)
+		}
+		if preflightErr == nil {
+			preflightErr =
+				validateProfilePurgeEndpointCompleteness(
+					preflightTarget,
+					slotState,
+				)
+		}
+	}
+	if preflightErr != nil {
+		printHumanErr(
+			"cannot start server removal safely: %v; no removal checkpoint was saved",
+			preflightErr,
+		)
 		return 1
 	}
-	delete(servers, name)
-	if err := writeServersDocument(paths, doc, servers, newDefault); err != nil {
-		printHumanErr("cannot save the server configuration: %v — nothing was removed; fix the error and run the remove again.", err)
+	profileRaw, rawErr := cloudRecoveryProfileRaw(doc, name)
+	if rawErr != nil {
+		printHumanErr(
+			"cannot preserve the server profile for safe removal: %v; nothing was removed",
+			rawErr,
+		)
 		return 1
 	}
+	checkpoint := newServerRemovalCheckpoint(
+		name,
+		cfg,
+		profileRaw,
+		credentialValues[services[0]],
+		credentialPresent[services[0]],
+		credentialValues[services[1]],
+		credentialPresent[services[1]],
+	)
+	if err := writeServerRemovalCheckpoint(
+		paths,
+		doc,
+		name,
+		checkpoint,
+	); err != nil {
+		printHumanErr(
+			"cannot save the durable server-removal checkpoint: %v — nothing was removed",
+			err,
+		)
+		return 1
+	}
+	if err := serverRemovalPhaseHook("checkpoint-persisted"); err != nil {
+		printHumanErr(
+			"server removal paused after its durable checkpoint: %v. Run the same command again to resume safely.",
+			err,
+		)
+		return 1
+	}
+	checkpointedDoc, checkpointedOK :=
+		loadServerConfigDocument(paths)
+	if !checkpointedOK {
+		return 1
+	}
+	return completeServerRemovalUnlocked(
+		paths,
+		checkpointedDoc,
+		name,
+	)
+}
 
-	// Now revoke against THIS profile's pinned endpoint and drop both slots.
-	report := &uninstallReport{}
-	purgeProfileDeviceCredentialWithReport(profilePurgeTarget{
-		name:          name,
-		secureBaseURL: strings.TrimSpace(cfg.RelaySecureBaseURL),
-		spkiPin:       strings.TrimSpace(cfg.RelaySpkiPin),
-	}, report, false)
-	report.printDetails()
-	printHumanInfo("Removed server profile %q.", name)
-	if newDefault != doc.defaultServerName() {
-		printHumanInfo("default_server was reset to %q.", newDefault)
+func serverProfileContainsCloudState(doc *configDocument, name string) (bool, error) {
+	if doc.servers == nil {
+		raw, exists := doc.top["cloud"]
+		return exists && strings.TrimSpace(string(raw)) != "null", nil
 	}
-	return 0
+	raw, exists := doc.servers[name]
+	if !exists {
+		return false, nil
+	}
+	var profile map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &profile); err != nil {
+		return false, err
+	}
+	if profile == nil {
+		return false, fmt.Errorf("server profile is null")
+	}
+	cloud, exists := profile["cloud"]
+	return exists && strings.TrimSpace(string(cloud)) != "null", nil
 }
 
 // readServerRemoveConfirmation prompts on stdout and reads one line from

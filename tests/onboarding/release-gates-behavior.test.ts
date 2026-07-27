@@ -13,6 +13,10 @@ import { execFileSync, spawnSync } from "node:child_process";
 
 import { describe, expect, it } from "vitest";
 
+import { registerCloudReleaseGateBehaviorTests } from "./cloud-release-gate-behavior.js";
+import { registerCloudWorkflowGateBehaviorTests } from "./cloud-workflow-gate-behavior.js";
+import "./cloud-evidence-normalization-behavior.js";
+
 const ACCOUNT_ID = "58e387e1204bdfe78781caca64f2cd15";
 const VERSION_ID = "version-123";
 const RELEASE_ASSETS = [
@@ -557,6 +561,9 @@ describe("release gate behavior", () => {
     expect(result.stderr).toContain("/withdraw");
   });
 });
+
+registerCloudReleaseGateBehaviorTests();
+registerCloudWorkflowGateBehaviorTests();
 
 function releaseJSON(
   assets = RELEASE_ASSETS.map((name) => ({

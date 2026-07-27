@@ -3,475 +3,413 @@
 package main
 
 import (
+	"context"
 	"errors"
-	"os"
-	"syscall"
+	"io"
+	"strings"
 	"testing"
 	"time"
 
 	dbus "github.com/godbus/dbus/v5"
 )
 
-type fakeFileInfo struct {
-	sys any
+func preserveLinuxRecoveryHooks(t *testing.T) {
+	t.Helper()
+	originalBus := secureStorageRecoverySessionBusWithTimeout
+	originalInspect := inspectLinuxSecureStorageStateWithConnForRecovery
+	originalCreate := createLinuxSecureStorageCollectionForRecovery
+	originalUnlock := unlockLinuxSecureStorageCollectionForRecovery
+	originalCollectionLocked := secureStorageRecoveryCollectionLocked
+	originalInteractive := secureStorageRecoveryInteractiveSession
+	originalTimeout := secureStorageRecoveryPromptTimeout
+	t.Cleanup(func() {
+		secureStorageRecoverySessionBusWithTimeout = originalBus
+		inspectLinuxSecureStorageStateWithConnForRecovery = originalInspect
+		createLinuxSecureStorageCollectionForRecovery = originalCreate
+		unlockLinuxSecureStorageCollectionForRecovery = originalUnlock
+		secureStorageRecoveryCollectionLocked = originalCollectionLocked
+		secureStorageRecoveryInteractiveSession = originalInteractive
+		secureStorageRecoveryPromptTimeout = originalTimeout
+	})
 }
 
-func (fakeFileInfo) Name() string       { return "gnome-keyring-daemon" }
-func (fakeFileInfo) Size() int64        { return 0 }
-func (fakeFileInfo) Mode() os.FileMode  { return 0o755 }
-func (fakeFileInfo) ModTime() time.Time { return time.Time{} }
-func (fakeFileInfo) IsDir() bool        { return false }
-func (f fakeFileInfo) Sys() any         { return f.sys }
-
-func TestDetectPlatformSecureStorageRecoverySupportRequiresTrustedOwner(t *testing.T) {
-	originalOwner := secureStorageRecoveryOwnerProcess
-	originalStat := secureStorageRecoveryStat
-	originalBus := secureStorageRecoverySessionBusWithTimeout
-	originalMethods := secureStorageRecoverySupportsGNOMEMethods
-	defer func() {
-		secureStorageRecoveryOwnerProcess = originalOwner
-		secureStorageRecoveryStat = originalStat
-		secureStorageRecoverySessionBusWithTimeout = originalBus
-		secureStorageRecoverySupportsGNOMEMethods = originalMethods
-	}()
-
-	secureStorageRecoveryOwnerProcess = func() (secretServiceOwnerProcess, error) {
-		return secretServiceOwnerProcess{
-			comm:    "gnome-keyring-daemon",
-			exePath: "/usr/bin/gnome-keyring-daemon",
-		}, nil
-	}
-	secureStorageRecoveryStat = func(string) (os.FileInfo, error) {
-		return fakeFileInfo{sys: &syscall.Stat_t{Uid: 0}}, nil
-	}
+func configureLinuxRecoveryTest(
+	t *testing.T,
+	state linuxSecureStorageState,
+) *dbus.Conn {
+	t.Helper()
+	preserveLinuxRecoveryHooks(t)
+	conn := &dbus.Conn{}
 	secureStorageRecoverySessionBusWithTimeout = func(time.Duration) (*dbus.Conn, error) {
-		return &dbus.Conn{}, nil
+		return conn, nil
 	}
-	secureStorageRecoverySupportsGNOMEMethods = func(*dbus.Conn) (bool, error) {
-		return true, nil
+	inspectLinuxSecureStorageStateWithConnForRecovery = func(got *dbus.Conn) (linuxSecureStorageState, error) {
+		if got != conn {
+			t.Fatal("recovery inspected a different Secret Service connection")
+		}
+		return state, nil
 	}
+	secureStorageRecoveryInteractiveSession = func() bool { return true }
+	return conn
+}
+
+func TestDetectPlatformSecureStorageRecoverySupportUsesSecretServiceAPI(t *testing.T) {
+	configureLinuxRecoveryTest(t, linuxSecureStorageState{
+		kind:              linuxSecureStorageStateLocked,
+		defaultCollection: "/org/freedesktop/secrets/collection/kdewallet",
+	})
 
 	supported, err := detectPlatformSecureStorageRecoverySupport()
 	if err != nil {
 		t.Fatalf("detectPlatformSecureStorageRecoverySupport() error = %v", err)
 	}
 	if !supported {
-		t.Fatal("expected GNOME Keyring recovery support for a trusted root-owned daemon")
+		t.Fatal("expected standards-based Secret Service recovery support")
 	}
 }
 
-func TestDetectPlatformSecureStorageRecoverySupportRejectsUntrustedOwner(t *testing.T) {
-	originalOwner := secureStorageRecoveryOwnerProcess
-	originalStat := secureStorageRecoveryStat
-	originalMethods := secureStorageRecoverySupportsGNOMEMethods
-	defer func() {
-		secureStorageRecoveryOwnerProcess = originalOwner
-		secureStorageRecoveryStat = originalStat
-		secureStorageRecoverySupportsGNOMEMethods = originalMethods
-	}()
-
-	secureStorageRecoveryOwnerProcess = func() (secretServiceOwnerProcess, error) {
-		return secretServiceOwnerProcess{
-			comm:    "gnome-keyring-daemon",
-			exePath: "/tmp/gnome-keyring-daemon",
-		}, nil
-	}
-	secureStorageRecoveryStat = func(string) (os.FileInfo, error) {
-		return fakeFileInfo{sys: &syscall.Stat_t{Uid: 1000}}, nil
-	}
-	secureStorageRecoverySupportsGNOMEMethods = func(*dbus.Conn) (bool, error) {
-		t.Fatal("did not expect method check for untrusted owner")
-		return false, nil
-	}
-
-	supported, err := detectPlatformSecureStorageRecoverySupport()
-	if err != nil {
-		t.Fatalf("detectPlatformSecureStorageRecoverySupport() error = %v", err)
-	}
-	if supported {
-		t.Fatal("expected recovery support to reject non-root-owned executables")
-	}
-}
-
-func TestDetectPlatformSecureStorageRecoverySupportRequiresGNOMEMethods(t *testing.T) {
-	originalOwner := secureStorageRecoveryOwnerProcess
-	originalStat := secureStorageRecoveryStat
-	originalBus := secureStorageRecoverySessionBusWithTimeout
-	originalMethods := secureStorageRecoverySupportsGNOMEMethods
-	defer func() {
-		secureStorageRecoveryOwnerProcess = originalOwner
-		secureStorageRecoveryStat = originalStat
-		secureStorageRecoverySessionBusWithTimeout = originalBus
-		secureStorageRecoverySupportsGNOMEMethods = originalMethods
-	}()
-
-	secureStorageRecoveryOwnerProcess = func() (secretServiceOwnerProcess, error) {
-		return secretServiceOwnerProcess{comm: "gnome-keyring-daemon", exePath: "/usr/bin/gnome-keyring-daemon"}, nil
-	}
-	secureStorageRecoveryStat = func(string) (os.FileInfo, error) {
-		return fakeFileInfo{sys: &syscall.Stat_t{Uid: 0}}, nil
-	}
+func TestDetectPlatformSecureStorageRecoverySupportFailsWithoutSessionBus(t *testing.T) {
+	preserveLinuxRecoveryHooks(t)
+	wantErr := desktopKeyringSessionUnavailableError("no desktop session bus")
 	secureStorageRecoverySessionBusWithTimeout = func(time.Duration) (*dbus.Conn, error) {
-		return &dbus.Conn{}, nil
-	}
-	secureStorageRecoverySupportsGNOMEMethods = func(*dbus.Conn) (bool, error) {
-		return false, nil
+		return nil, wantErr
 	}
 
 	supported, err := detectPlatformSecureStorageRecoverySupport()
-	if err != nil {
-		t.Fatalf("detectPlatformSecureStorageRecoverySupport() error = %v", err)
-	}
-	if supported {
-		t.Fatal("expected recovery support to stay disabled when GNOME recovery methods are unavailable")
+	if supported || !errors.Is(err, wantErr) {
+		t.Fatalf("supported=%v err=%v, want fail-closed session error", supported, err)
 	}
 }
 
-func TestInferPlatformSecureStorageRecoveryActionUsesLiveStateForAmbiguousError(t *testing.T) {
+func TestInferPlatformSecureStorageRecoveryActionUsesLiveState(t *testing.T) {
 	originalInspect := inspectLinuxSecureStorageStateForRecovery
-	defer func() {
-		inspectLinuxSecureStorageStateForRecovery = originalInspect
-	}()
+	t.Cleanup(func() { inspectLinuxSecureStorageStateForRecovery = originalInspect })
 
-	inspectLinuxSecureStorageStateForRecovery = func() (linuxSecureStorageState, error) {
-		return linuxSecureStorageState{kind: linuxSecureStorageStateNeedsInit}, nil
-	}
-	action, err := inferPlatformSecureStorageRecoveryAction(desktopKeyringSetupRequiredError("generic setup required"))
-	if err != nil {
-		t.Fatalf("inferPlatformSecureStorageRecoveryAction() error = %v", err)
-	}
-	if action != platformSecureStorageRecoveryInitialize {
-		t.Fatalf("expected initialize action, got %q", action)
-	}
-
-	inspectLinuxSecureStorageStateForRecovery = func() (linuxSecureStorageState, error) {
-		return linuxSecureStorageState{kind: linuxSecureStorageStateLocked}, nil
-	}
-	action, err = inferPlatformSecureStorageRecoveryAction(desktopKeyringSetupRequiredError("generic setup required"))
-	if err != nil {
-		t.Fatalf("inferPlatformSecureStorageRecoveryAction() error = %v", err)
-	}
-	if action != platformSecureStorageRecoveryUnlock {
-		t.Fatalf("expected unlock action, got %q", action)
+	for _, test := range []struct {
+		name  string
+		state linuxSecureStorageStateKind
+		want  platformSecureStorageRecoveryAction
+	}{
+		{"missing collection", linuxSecureStorageStateNeedsInit, platformSecureStorageRecoveryInitialize},
+		{"locked collection", linuxSecureStorageStateLocked, platformSecureStorageRecoveryUnlock},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			inspectLinuxSecureStorageStateForRecovery = func() (linuxSecureStorageState, error) {
+				return linuxSecureStorageState{kind: test.state}, nil
+			}
+			action, err := inferPlatformSecureStorageRecoveryAction(
+				desktopKeyringSetupRequiredError("generic setup required"),
+			)
+			if err != nil || action != test.want {
+				t.Fatalf("action=%q err=%v, want %q", action, err, test.want)
+			}
+		})
 	}
 }
 
 func TestClassifyAmbiguousDesktopKeyringSetupErrorUsesLiveState(t *testing.T) {
 	originalInspect := inspectLinuxSecureStorageStateForClassification
-	defer func() {
+	t.Cleanup(func() {
 		inspectLinuxSecureStorageStateForClassification = originalInspect
-	}()
-
-	rawErr := errors.New("failed to unlock correct collection '/org/freedesktop/secrets/aliases/default'")
+	})
+	rawErr := errors.New("failed to unlock correct collection")
 
 	inspectLinuxSecureStorageStateForClassification = func() (linuxSecureStorageState, error) {
 		return linuxSecureStorageState{kind: linuxSecureStorageStateNeedsInit}, nil
 	}
-	classified := classifyAmbiguousDesktopKeyringSetupError(rawErr)
-	if !isDesktopKeyringInitializationRequiredError(classified) {
-		t.Fatalf("expected initialization-required classification, got %v", classified)
+	if err := classifyAmbiguousDesktopKeyringSetupError(rawErr); !isDesktopKeyringInitializationRequiredError(err) {
+		t.Fatalf("expected initialization-required classification, got %v", err)
 	}
 
 	inspectLinuxSecureStorageStateForClassification = func() (linuxSecureStorageState, error) {
 		return linuxSecureStorageState{kind: linuxSecureStorageStateLocked}, nil
 	}
-	classified = classifyAmbiguousDesktopKeyringSetupError(rawErr)
-	if !isDesktopKeyringLockedError(classified) {
-		t.Fatalf("expected locked classification, got %v", classified)
+	if err := classifyAmbiguousDesktopKeyringSetupError(rawErr); !isDesktopKeyringLockedError(err) {
+		t.Fatalf("expected locked classification, got %v", err)
 	}
 }
 
-func TestClassifyAmbiguousDesktopKeyringSetupErrorStopsWhenInspectionIsStillAmbiguous(t *testing.T) {
-	originalInspect := inspectLinuxSecureStorageStateForClassification
-	defer func() {
-		inspectLinuxSecureStorageStateForClassification = originalInspect
-	}()
-
-	rawErr := errors.New("failed to unlock correct collection '/org/freedesktop/secrets/aliases/default'")
-	inspectLinuxSecureStorageStateForClassification = func() (linuxSecureStorageState, error) {
-		return linuxSecureStorageState{}, rawErr
-	}
-
-	if classified := classifyAmbiguousDesktopKeyringSetupError(rawErr); classified != nil {
-		t.Fatalf("expected no classification when state inspection stays ambiguous, got %v", classified)
-	}
-}
-
-func TestRunPlatformSecureStorageRecoveryInitializesWhenDefaultCollectionMissing(t *testing.T) {
-	originalOwner := secureStorageRecoveryOwnerProcess
-	originalStat := secureStorageRecoveryStat
-	originalBus := secureStorageRecoverySessionBusWithTimeout
-	originalMethods := secureStorageRecoverySupportsGNOMEMethods
-	originalInitialize := initializeLinuxSecureStorageForRecovery
-	originalProbe := secureStorageRecoveryProbe
-	defer func() {
-		secureStorageRecoveryOwnerProcess = originalOwner
-		secureStorageRecoveryStat = originalStat
-		secureStorageRecoverySessionBusWithTimeout = originalBus
-		secureStorageRecoverySupportsGNOMEMethods = originalMethods
-		initializeLinuxSecureStorageForRecovery = originalInitialize
-		secureStorageRecoveryProbe = originalProbe
-	}()
-
-	secureStorageRecoveryOwnerProcess = func() (secretServiceOwnerProcess, error) {
-		return secretServiceOwnerProcess{comm: "gnome-keyring-daemon", exePath: "/usr/bin/gnome-keyring-daemon"}, nil
-	}
-	secureStorageRecoveryStat = func(string) (os.FileInfo, error) {
-		return fakeFileInfo{sys: &syscall.Stat_t{Uid: 0}}, nil
-	}
-	secureStorageRecoverySessionBusWithTimeout = func(time.Duration) (*dbus.Conn, error) {
-		return &dbus.Conn{}, nil
-	}
-	secureStorageRecoverySupportsGNOMEMethods = func(*dbus.Conn) (bool, error) {
-		return true, nil
-	}
-
-	var gotSecret string
-	initializeLinuxSecureStorageForRecovery = func(_ *dbus.Conn, secret []byte) error {
-		gotSecret = string(secret)
-		return nil
-	}
-	secureStorageRecoveryProbe = func() error { return nil }
-
-	if err := runPlatformSecureStorageRecovery(platformSecureStorageRecoveryInitialize, []byte("linux-local-keyring")); err != nil {
-		t.Fatalf("runPlatformSecureStorageRecovery() error = %v", err)
-	}
-	if gotSecret != "linux-local-keyring" {
-		t.Fatalf("initialize secret = %q", gotSecret)
-	}
-}
-
-func TestRunPlatformSecureStorageRecoveryUnlocksExistingCollection(t *testing.T) {
-	originalOwner := secureStorageRecoveryOwnerProcess
-	originalStat := secureStorageRecoveryStat
-	originalBus := secureStorageRecoverySessionBusWithTimeout
-	originalMethods := secureStorageRecoverySupportsGNOMEMethods
-	originalInspect := inspectLinuxSecureStorageStateWithConnForRecovery
-	originalUnlock := unlockLinuxSecureStorageForRecovery
-	originalProbe := secureStorageRecoveryProbe
-	defer func() {
-		secureStorageRecoveryOwnerProcess = originalOwner
-		secureStorageRecoveryStat = originalStat
-		secureStorageRecoverySessionBusWithTimeout = originalBus
-		secureStorageRecoverySupportsGNOMEMethods = originalMethods
-		inspectLinuxSecureStorageStateWithConnForRecovery = originalInspect
-		unlockLinuxSecureStorageForRecovery = originalUnlock
-		secureStorageRecoveryProbe = originalProbe
-	}()
-
-	secureStorageRecoveryOwnerProcess = func() (secretServiceOwnerProcess, error) {
-		return secretServiceOwnerProcess{comm: "gnome-keyring-daemon", exePath: "/usr/bin/gnome-keyring-daemon"}, nil
-	}
-	secureStorageRecoveryStat = func(string) (os.FileInfo, error) {
-		return fakeFileInfo{sys: &syscall.Stat_t{Uid: 0}}, nil
-	}
-	secureStorageRecoverySessionBusWithTimeout = func(time.Duration) (*dbus.Conn, error) {
-		return &dbus.Conn{}, nil
-	}
-	secureStorageRecoverySupportsGNOMEMethods = func(*dbus.Conn) (bool, error) {
-		return true, nil
-	}
-	inspectLinuxSecureStorageStateWithConnForRecovery = func(*dbus.Conn) (linuxSecureStorageState, error) {
-		return linuxSecureStorageState{
-			kind:              linuxSecureStorageStateLocked,
-			defaultCollection: dbus.ObjectPath("/org/freedesktop/secrets/collection/Login"),
-		}, nil
-	}
-
-	var gotSecret string
-	var gotCollection dbus.ObjectPath
-	unlockLinuxSecureStorageForRecovery = func(_ *dbus.Conn, collection dbus.ObjectPath, secret []byte) error {
-		gotCollection = collection
-		gotSecret = string(secret)
-		return nil
-	}
-	secureStorageRecoveryProbe = func() error { return nil }
-
-	if err := runPlatformSecureStorageRecovery(platformSecureStorageRecoveryUnlock, []byte("linux-local-keyring")); err != nil {
-		t.Fatalf("runPlatformSecureStorageRecovery() error = %v", err)
-	}
-	if gotCollection != dbus.ObjectPath("/org/freedesktop/secrets/collection/Login") {
-		t.Fatalf("unlock collection = %q", gotCollection)
-	}
-	if gotSecret != "linux-local-keyring" {
-		t.Fatalf("unlock secret = %q", gotSecret)
-	}
-}
-
-func TestRunPlatformSecureStorageRecoveryPreservesPasswordRejected(t *testing.T) {
-	originalOwner := secureStorageRecoveryOwnerProcess
-	originalStat := secureStorageRecoveryStat
-	originalBus := secureStorageRecoverySessionBusWithTimeout
-	originalMethods := secureStorageRecoverySupportsGNOMEMethods
-	originalInspect := inspectLinuxSecureStorageStateWithConnForRecovery
-	originalUnlock := unlockLinuxSecureStorageForRecovery
-	defer func() {
-		secureStorageRecoveryOwnerProcess = originalOwner
-		secureStorageRecoveryStat = originalStat
-		secureStorageRecoverySessionBusWithTimeout = originalBus
-		secureStorageRecoverySupportsGNOMEMethods = originalMethods
-		inspectLinuxSecureStorageStateWithConnForRecovery = originalInspect
-		unlockLinuxSecureStorageForRecovery = originalUnlock
-	}()
-
-	secureStorageRecoveryOwnerProcess = func() (secretServiceOwnerProcess, error) {
-		return secretServiceOwnerProcess{comm: "gnome-keyring-daemon", exePath: "/usr/bin/gnome-keyring-daemon"}, nil
-	}
-	secureStorageRecoveryStat = func(string) (os.FileInfo, error) {
-		return fakeFileInfo{sys: &syscall.Stat_t{Uid: 0}}, nil
-	}
-	secureStorageRecoverySessionBusWithTimeout = func(time.Duration) (*dbus.Conn, error) {
-		return &dbus.Conn{}, nil
-	}
-	secureStorageRecoverySupportsGNOMEMethods = func(*dbus.Conn) (bool, error) {
-		return true, nil
-	}
-	inspectLinuxSecureStorageStateWithConnForRecovery = func(*dbus.Conn) (linuxSecureStorageState, error) {
-		return linuxSecureStorageState{
-			kind:              linuxSecureStorageStateLocked,
-			defaultCollection: dbus.ObjectPath("/org/freedesktop/secrets/collection/Login"),
-		}, nil
-	}
-	unlockLinuxSecureStorageForRecovery = func(*dbus.Conn, dbus.ObjectPath, []byte) error {
-		return localSecureStoragePasswordRejectedError()
-	}
-
-	err := runPlatformSecureStorageRecovery(platformSecureStorageRecoveryUnlock, []byte("linux-local-keyring"))
-	if !errors.Is(err, errLocalSecureStoragePasswordRejected) {
-		t.Fatalf("expected password rejection, got %v", err)
-	}
-}
-
-func TestProbeLinuxKeyringWritableRoundTripsAndCleansUp(t *testing.T) {
-	originalSet := keyringSetWithService
-	originalGet := keyringGetWithService
-	originalDelete := keyringDeleteWithService
-	defer func() {
-		keyringSetWithService = originalSet
-		keyringGetWithService = originalGet
-		keyringDeleteWithService = originalDelete
-	}()
-
-	storage := map[string]string{}
-	setCalls := 0
-	getCalls := 0
-	deleteCalls := 0
-	keyringSetWithService = func(service, username, secret string) error {
-		setCalls++
-		storage[service+"|"+username] = secret
-		return nil
-	}
-	keyringGetWithService = func(service, username string) (string, error) {
-		getCalls++
-		value, ok := storage[service+"|"+username]
-		if !ok {
-			return "", errors.New("missing probe secret")
+func TestRunPlatformSecureStorageRecoveryCreatesWithNativePrompt(t *testing.T) {
+	conn := configureLinuxRecoveryTest(t, linuxSecureStorageState{
+		kind: linuxSecureStorageStateNeedsInit,
+	})
+	collection := dbus.ObjectPath("/org/freedesktop/secrets/collection/login")
+	createCalls := 0
+	createLinuxSecureStorageCollectionForRecovery = func(
+		ctx context.Context,
+		gotConn *dbus.Conn,
+	) (dbus.ObjectPath, error) {
+		createCalls++
+		if gotConn != conn {
+			t.Fatal("create used a different Secret Service connection")
 		}
-		return value, nil
+		if _, ok := ctx.Deadline(); !ok {
+			t.Fatal("native setup prompt has no hard deadline")
+		}
+		return collection, nil
 	}
-	keyringDeleteWithService = func(service, username string) error {
-		deleteCalls++
-		delete(storage, service+"|"+username)
+	secureStorageRecoveryCollectionLocked = func(
+		gotConn *dbus.Conn,
+		gotCollection dbus.ObjectPath,
+	) (bool, error) {
+		if gotConn != conn || gotCollection != collection {
+			t.Fatalf("unexpected created collection inspection: %q", gotCollection)
+		}
+		return false, nil
+	}
+	unlockLinuxSecureStorageCollectionForRecovery = func(
+		context.Context,
+		*dbus.Conn,
+		dbus.ObjectPath,
+		SecretStoreUIPolicy,
+	) error {
+		t.Fatal("collection setup must not launch a second native prompt")
 		return nil
 	}
 
-	if err := probeLinuxKeyringWritable(); err != nil {
-		t.Fatalf("probeLinuxKeyringWritable() error = %v", err)
-	}
-	if setCalls != 1 || getCalls != 1 || deleteCalls != 1 {
-		t.Fatalf("expected one set/get/delete probe cycle, got set=%d get=%d delete=%d", setCalls, getCalls, deleteCalls)
-	}
-	if len(storage) != 0 {
-		t.Fatalf("expected probe cleanup to remove the temporary secret, remaining=%d", len(storage))
-	}
-}
-
-func TestRunPlatformSecureStorageRecoveryFailsWhenPostInitProbeStillFails(t *testing.T) {
-	originalOwner := secureStorageRecoveryOwnerProcess
-	originalStat := secureStorageRecoveryStat
-	originalBus := secureStorageRecoverySessionBusWithTimeout
-	originalMethods := secureStorageRecoverySupportsGNOMEMethods
-	originalInitialize := initializeLinuxSecureStorageForRecovery
-	originalProbe := secureStorageRecoveryProbe
-	defer func() {
-		secureStorageRecoveryOwnerProcess = originalOwner
-		secureStorageRecoveryStat = originalStat
-		secureStorageRecoverySessionBusWithTimeout = originalBus
-		secureStorageRecoverySupportsGNOMEMethods = originalMethods
-		initializeLinuxSecureStorageForRecovery = originalInitialize
-		secureStorageRecoveryProbe = originalProbe
-	}()
-
-	secureStorageRecoveryOwnerProcess = func() (secretServiceOwnerProcess, error) {
-		return secretServiceOwnerProcess{comm: "gnome-keyring-daemon", exePath: "/usr/bin/gnome-keyring-daemon"}, nil
-	}
-	secureStorageRecoveryStat = func(string) (os.FileInfo, error) {
-		return fakeFileInfo{sys: &syscall.Stat_t{Uid: 0}}, nil
-	}
-	secureStorageRecoverySessionBusWithTimeout = func(time.Duration) (*dbus.Conn, error) {
-		return &dbus.Conn{}, nil
-	}
-	secureStorageRecoverySupportsGNOMEMethods = func(*dbus.Conn) (bool, error) {
-		return true, nil
-	}
-	initializeLinuxSecureStorageForRecovery = func(*dbus.Conn, []byte) error { return nil }
-	secureStorageRecoveryProbe = func() error {
-		return localSecureStorageRecoveryError(desktopKeyringInitializationRequiredError("local secure storage still needs one-time setup on this Linux machine"))
-	}
-
-	err := runPlatformSecureStorageRecovery(platformSecureStorageRecoveryInitialize, []byte("linux-local-keyring"))
-	if !isDesktopKeyringInitializationRequiredError(err) {
-		t.Fatalf("expected initialization-required probe failure, got %v", err)
-	}
-}
-
-func TestRunPlatformSecureStorageRecoveryReprobesUnlockedCollection(t *testing.T) {
-	originalOwner := secureStorageRecoveryOwnerProcess
-	originalStat := secureStorageRecoveryStat
-	originalBus := secureStorageRecoverySessionBusWithTimeout
-	originalMethods := secureStorageRecoverySupportsGNOMEMethods
-	originalInspect := inspectLinuxSecureStorageStateWithConnForRecovery
-	originalUnlock := unlockLinuxSecureStorageForRecovery
-	originalProbe := secureStorageRecoveryProbe
-	defer func() {
-		secureStorageRecoveryOwnerProcess = originalOwner
-		secureStorageRecoveryStat = originalStat
-		secureStorageRecoverySessionBusWithTimeout = originalBus
-		secureStorageRecoverySupportsGNOMEMethods = originalMethods
-		inspectLinuxSecureStorageStateWithConnForRecovery = originalInspect
-		unlockLinuxSecureStorageForRecovery = originalUnlock
-		secureStorageRecoveryProbe = originalProbe
-	}()
-
-	secureStorageRecoveryOwnerProcess = func() (secretServiceOwnerProcess, error) {
-		return secretServiceOwnerProcess{comm: "gnome-keyring-daemon", exePath: "/usr/bin/gnome-keyring-daemon"}, nil
-	}
-	secureStorageRecoveryStat = func(string) (os.FileInfo, error) {
-		return fakeFileInfo{sys: &syscall.Stat_t{Uid: 0}}, nil
-	}
-	secureStorageRecoverySessionBusWithTimeout = func(time.Duration) (*dbus.Conn, error) {
-		return &dbus.Conn{}, nil
-	}
-	secureStorageRecoverySupportsGNOMEMethods = func(*dbus.Conn) (bool, error) {
-		return true, nil
-	}
-	inspectLinuxSecureStorageStateWithConnForRecovery = func(*dbus.Conn) (linuxSecureStorageState, error) {
-		return linuxSecureStorageState{kind: linuxSecureStorageStateWritable}, nil
-	}
-	unlockLinuxSecureStorageForRecovery = func(*dbus.Conn, dbus.ObjectPath, []byte) error {
-		t.Fatal("did not expect unlock when the collection is already writable")
-		return nil
-	}
-	probeCalls := 0
-	secureStorageRecoveryProbe = func() error {
-		probeCalls++
-		return nil
-	}
-
-	if err := runPlatformSecureStorageRecovery(platformSecureStorageRecoveryUnlock, []byte("linux-local-keyring")); err != nil {
+	if err := runPlatformSecureStorageRecovery(platformSecureStorageRecoveryInitialize); err != nil {
 		t.Fatalf("runPlatformSecureStorageRecovery() error = %v", err)
 	}
-	if probeCalls != 1 {
-		t.Fatalf("expected one post-recovery probe, got %d", probeCalls)
+	if createCalls != 1 {
+		t.Fatalf("create calls = %d, want 1", createCalls)
+	}
+}
+
+func TestRunPlatformSecureStorageRecoveryUnlocksWithNativePrompt(t *testing.T) {
+	collection := dbus.ObjectPath("/org/freedesktop/secrets/collection/login")
+	conn := configureLinuxRecoveryTest(t, linuxSecureStorageState{
+		kind:              linuxSecureStorageStateLocked,
+		defaultCollection: collection,
+	})
+	unlockCalls := 0
+	unlockLinuxSecureStorageCollectionForRecovery = func(
+		_ context.Context,
+		gotConn *dbus.Conn,
+		gotCollection dbus.ObjectPath,
+		ui SecretStoreUIPolicy,
+	) error {
+		unlockCalls++
+		if gotConn != conn || gotCollection != collection || ui != SecretStoreAllowUI {
+			t.Fatalf("unexpected native unlock args: collection=%q ui=%q", gotCollection, ui)
+		}
+		return nil
+	}
+
+	if err := runPlatformSecureStorageRecovery(platformSecureStorageRecoveryUnlock); err != nil {
+		t.Fatalf("runPlatformSecureStorageRecovery() error = %v", err)
+	}
+	if unlockCalls != 1 {
+		t.Fatalf("unlock calls = %d, want 1", unlockCalls)
+	}
+}
+
+func TestRunPlatformSecureStorageRecoveryNeverOpensSecondPromptAfterCreate(t *testing.T) {
+	configureLinuxRecoveryTest(t, linuxSecureStorageState{
+		kind: linuxSecureStorageStateNeedsInit,
+	})
+	collection := dbus.ObjectPath("/org/freedesktop/secrets/collection/login")
+	createLinuxSecureStorageCollectionForRecovery = func(
+		context.Context,
+		*dbus.Conn,
+	) (dbus.ObjectPath, error) {
+		return collection, nil
+	}
+	secureStorageRecoveryCollectionLocked = func(
+		*dbus.Conn,
+		dbus.ObjectPath,
+	) (bool, error) {
+		return true, nil
+	}
+	unlockLinuxSecureStorageCollectionForRecovery = func(
+		context.Context,
+		*dbus.Conn,
+		dbus.ObjectPath,
+		SecretStoreUIPolicy,
+	) error {
+		t.Fatal("one setup action must never launch a second native prompt")
+		return nil
+	}
+
+	err := runPlatformSecureStorageRecovery(platformSecureStorageRecoveryInitialize)
+	if err == nil || isDesktopKeyringSetupRequiredError(err) ||
+		!strings.Contains(err.Error(), "rerun setup to unlock it") {
+		t.Fatalf("expected non-retrying locked-new-collection error, got %v", err)
+	}
+}
+
+func TestRunPlatformSecureStorageRecoveryFailsClosedHeadless(t *testing.T) {
+	preserveLinuxRecoveryHooks(t)
+	secureStorageRecoveryInteractiveSession = func() bool { return false }
+	secureStorageRecoverySessionBusWithTimeout = func(time.Duration) (*dbus.Conn, error) {
+		t.Fatal("headless recovery must not contact Secret Service")
+		return nil, nil
+	}
+
+	err := runPlatformSecureStorageRecovery(platformSecureStorageRecoveryUnlock)
+	if !isDesktopKeyringSessionUnavailableError(err) {
+		t.Fatalf("expected fail-closed desktop-session error, got %v", err)
+	}
+}
+
+func TestNativeLinuxSecureStoragePromptAvailableRejectsHeadlessAndSSH(t *testing.T) {
+	installSafeNativePromptContext(t)
+	originalTTY := writerSupportsTTYForSetup
+	originalInputTTY := uiInputSupportsTTY
+	t.Cleanup(func() {
+		writerSupportsTTYForSetup = originalTTY
+		uiInputSupportsTTY = originalInputTTY
+	})
+	writerSupportsTTYForSetup = func(io.Writer) bool {
+		return true
+	}
+	uiInputSupportsTTY = func() bool { return true }
+
+	t.Setenv("DISPLAY", "")
+	t.Setenv("WAYLAND_DISPLAY", "wayland-0")
+	t.Setenv("XDG_SESSION_TYPE", "wayland")
+	t.Setenv("DBUS_SESSION_BUS_ADDRESS", "unix:path=/run/user/1000/bus")
+	t.Setenv("SSH_CONNECTION", "")
+	t.Setenv("SSH_CLIENT", "")
+	t.Setenv("SSH_TTY", "")
+	if !nativeLinuxSecureStoragePromptAvailable() {
+		t.Fatal("expected a local Wayland terminal to allow the native prompt")
+	}
+
+	t.Setenv("SSH_CONNECTION", "192.0.2.1 12345 192.0.2.2 22")
+	if nativeLinuxSecureStoragePromptAvailable() {
+		t.Fatal("SSH session must not open a native prompt on another desktop")
+	}
+
+	t.Setenv("SSH_CONNECTION", "")
+	t.Setenv("WAYLAND_DISPLAY", "")
+	if nativeLinuxSecureStoragePromptAvailable() {
+		t.Fatal("headless terminal must not attempt a native prompt")
+	}
+
+	t.Setenv("DISPLAY", "localhost:10.0")
+	t.Setenv("XDG_SESSION_TYPE", "tty")
+	if nativeLinuxSecureStoragePromptAvailable() {
+		t.Fatal("forwarded display without a graphical login session must fail closed")
+	}
+
+	t.Setenv("XDG_SESSION_TYPE", "x11")
+	t.Setenv("DBUS_SESSION_BUS_ADDRESS", "")
+	if nativeLinuxSecureStoragePromptAvailable() {
+		t.Fatal("implicit D-Bus autolaunch must not target another desktop session")
+	}
+}
+
+func TestLinuxNativePromptDetectsWSLEnvironment(t *testing.T) {
+	t.Setenv("WSL_DISTRO_NAME", "Ubuntu")
+	t.Setenv("WSL_INTEROP", "")
+	if !platformNativePromptRunsUnderWSL() {
+		t.Fatal("WSL environment was not detected")
+	}
+}
+
+func TestRunPlatformSecureStorageRecoveryRecomputesMissingCollection(t *testing.T) {
+	configureLinuxRecoveryTest(t, linuxSecureStorageState{
+		kind: linuxSecureStorageStateNeedsInit,
+	})
+	createLinuxSecureStorageCollectionForRecovery = func(
+		context.Context,
+		*dbus.Conn,
+	) (dbus.ObjectPath, error) {
+		t.Fatal("unlock action must not silently create a collection")
+		return "", nil
+	}
+
+	err := runPlatformSecureStorageRecovery(platformSecureStorageRecoveryUnlock)
+	if !isDesktopKeyringInitializationRequiredError(err) {
+		t.Fatalf("expected initialization-required error, got %v", err)
+	}
+}
+
+func TestRunPlatformSecureStorageRecoveryPromptHasHardTimeout(t *testing.T) {
+	configureLinuxRecoveryTest(t, linuxSecureStorageState{
+		kind:              linuxSecureStorageStateLocked,
+		defaultCollection: "/org/freedesktop/secrets/collection/login",
+	})
+	secureStorageRecoveryPromptTimeout = 10 * time.Millisecond
+	unlockLinuxSecureStorageCollectionForRecovery = func(
+		ctx context.Context,
+		_ *dbus.Conn,
+		_ dbus.ObjectPath,
+		_ SecretStoreUIPolicy,
+	) error {
+		<-ctx.Done()
+		return newCloudError(CloudErrTimeout, "wait for Secret Service prompt", ctx.Err())
+	}
+
+	started := time.Now()
+	err := runPlatformSecureStorageRecovery(platformSecureStorageRecoveryUnlock)
+	if !IsCloudErrorCode(err, CloudErrTimeout) {
+		t.Fatalf("expected timeout identity, got %v", err)
+	}
+	if elapsed := time.Since(started); elapsed > time.Second {
+		t.Fatalf("native prompt exceeded hard test timeout: %s", elapsed)
+	}
+}
+
+func TestClassifyNativeSecureStorageLockedKeepsActionState(t *testing.T) {
+	stillLocked := newCloudError(
+		CloudErrSecretStoreLocked,
+		"unlock Secret Service",
+		nil,
+	)
+	initErr := classifyNativeSecureStorageRecoveryError(
+		platformSecureStorageRecoveryInitialize,
+		stillLocked,
+	)
+	if !isDesktopKeyringInitializationRequiredError(initErr) {
+		t.Fatalf("create prompt dismissal lost initialization state: %v", initErr)
+	}
+	unlockErr := classifyNativeSecureStorageRecoveryError(
+		platformSecureStorageRecoveryUnlock,
+		stillLocked,
+	)
+	if !isDesktopKeyringLockedError(unlockErr) {
+		t.Fatalf("unlock prompt dismissal lost locked state: %v", unlockErr)
+	}
+}
+
+func TestClassifyNativeSecureStoragePromptDismissIsCanceled(t *testing.T) {
+	promptDismissed := newCloudError(
+		CloudErrSecretPromptCanceled,
+		"complete Secret Service prompt",
+		nil,
+	)
+	err := classifyNativeSecureStorageRecoveryError(
+		platformSecureStorageRecoveryUnlock,
+		promptDismissed,
+	)
+	if !errors.Is(err, errLocalSecureStoragePromptCanceled) {
+		t.Fatalf("prompt dismissal lost cancellation identity: %v", err)
+	}
+}
+
+func TestRunPlatformSecureStorageRecoveryDoesNotPromptWhenAlreadyWritable(t *testing.T) {
+	configureLinuxRecoveryTest(t, linuxSecureStorageState{
+		kind: linuxSecureStorageStateWritable,
+	})
+	createLinuxSecureStorageCollectionForRecovery = func(
+		context.Context,
+		*dbus.Conn,
+	) (dbus.ObjectPath, error) {
+		t.Fatal("writable storage must not create a collection")
+		return "", nil
+	}
+	unlockLinuxSecureStorageCollectionForRecovery = func(
+		context.Context,
+		*dbus.Conn,
+		dbus.ObjectPath,
+		SecretStoreUIPolicy,
+	) error {
+		t.Fatal("writable storage must not open an unlock prompt")
+		return nil
+	}
+
+	if err := runPlatformSecureStorageRecovery(platformSecureStorageRecoveryUnlock); err != nil {
+		t.Fatalf("runPlatformSecureStorageRecovery() error = %v", err)
 	}
 }

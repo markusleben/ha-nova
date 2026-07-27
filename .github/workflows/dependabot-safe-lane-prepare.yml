@@ -7,6 +7,7 @@ on:
       - synchronize
       - reopened
       - ready_for_review
+      - unlabeled
 
 permissions:
   actions: read
@@ -34,6 +35,8 @@ jobs:
             echo "pr-author=" >> "${GITHUB_OUTPUT}"
             echo "pr-draft=false" >> "${GITHUB_OUTPUT}"
             echo "pr-base-sha=" >> "${GITHUB_OUTPUT}"
+            echo "pr-event-action=" >> "${GITHUB_OUTPUT}"
+            echo "pr-event-label=" >> "${GITHUB_OUTPUT}"
             echo "pr-url=" >> "${GITHUB_OUTPUT}"
             echo "should-process=false" >> "${GITHUB_OUTPUT}"
             exit 0
@@ -43,12 +46,16 @@ jobs:
           pr_author="$(jq -r '.pull_request.user.login // ""' "${event_path}")"
           pr_draft="$(jq -r '.pull_request.draft // false' "${event_path}")"
           pr_base_sha="$(jq -r '.pull_request.base.sha // ""' "${event_path}")"
+          pr_event_action="$(jq -r '.action // ""' "${event_path}")"
+          pr_event_label="$(jq -r '.label.name // ""' "${event_path}")"
           pr_url="$(jq -r '.pull_request.html_url // ""' "${event_path}")"
 
           echo "pr-number=${pr_number}" >> "${GITHUB_OUTPUT}"
           echo "pr-author=${pr_author}" >> "${GITHUB_OUTPUT}"
           echo "pr-draft=${pr_draft}" >> "${GITHUB_OUTPUT}"
           echo "pr-base-sha=${pr_base_sha}" >> "${GITHUB_OUTPUT}"
+          echo "pr-event-action=${pr_event_action}" >> "${GITHUB_OUTPUT}"
+          echo "pr-event-label=${pr_event_label}" >> "${GITHUB_OUTPUT}"
           echo "pr-url=${pr_url}" >> "${GITHUB_OUTPUT}"
           if [[ "${pr_author}" == "dependabot[bot]" && "${pr_draft}" != "true" ]]; then
             echo "should-process=true" >> "${GITHUB_OUTPUT}"
@@ -59,7 +66,7 @@ jobs:
       - name: Fetch Dependabot metadata
         id: metadata
         if: ${{ steps.pr.outputs.should-process == 'true' }}
-        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
         with:
           github-token: ${{ github.token }}
 
@@ -74,6 +81,8 @@ jobs:
           DEPENDENCY_GROUP: ${{ steps.metadata.outputs.dependency-group }}
           UPDATE_TYPE: ${{ steps.metadata.outputs.update-type }}
           POLICY_REF: ${{ steps.pr.outputs.pr-base-sha }}
+          PR_EVENT_ACTION: ${{ steps.pr.outputs.pr-event-action }}
+          PR_EVENT_LABEL: ${{ steps.pr.outputs.pr-event-label }}
         run: |
           set -euo pipefail
 
@@ -98,17 +107,24 @@ jobs:
           manual_dependency=""
           lane=""
 
-          for allowed_package_ecosystem in "${allowed_package_ecosystems[@]}"; do
-            if [[ "${PACKAGE_ECOSYSTEM}" == "${allowed_package_ecosystem}" ]]; then
-              lane="npm"
-              break
-            fi
-          done
-          if [[ -z "${lane}" && "${PACKAGE_ECOSYSTEM}" == "github_actions" && -n "${actions_dependency_group}" ]]; then
-            lane="actions"
+          if [[ "${PR_EVENT_ACTION}" == "unlabeled" \
+            && "${PR_EVENT_LABEL}" == "${safe_label}" ]]; then
+            reason="automation-owned safe label was removed"
           fi
 
-          if [[ -z "${lane}" ]]; then
+          if [[ -z "${reason}" ]]; then
+            for allowed_package_ecosystem in "${allowed_package_ecosystems[@]}"; do
+              if [[ "${PACKAGE_ECOSYSTEM}" == "${allowed_package_ecosystem}" ]]; then
+                lane="npm"
+                break
+              fi
+            done
+            if [[ -z "${lane}" && "${PACKAGE_ECOSYSTEM}" == "github_actions" && -n "${actions_dependency_group}" ]]; then
+              lane="actions"
+            fi
+          fi
+
+          if [[ -z "${reason}" && -z "${lane}" ]]; then
             reason="package ecosystem is not in a safe lane"
           fi
 
@@ -284,6 +300,39 @@ jobs:
             gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" --method POST -f body="${comment_body}" >/dev/null
           fi
 
+      - name: Reevaluate the fully marked safe PR
+        if: ${{ steps.guard.outputs.eligible == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ steps.pr.outputs.pr-number }}
+        run: |
+          set -euo pipefail
+
+          pr_json="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}")"
+          pr_author="$(jq -r '.user.login // ""' <<<"${pr_json}")"
+          pr_head_sha="$(jq -r '.head.sha // ""' <<<"${pr_json}")"
+          pr_base_ref="$(jq -r '.base.ref // ""' <<<"${pr_json}")"
+          pr_base_repo="$(jq -r '.base.repo.full_name // ""' <<<"${pr_json}")"
+          [[ "${pr_author}" == "dependabot[bot]" ]]
+          [[ "${pr_head_sha}" =~ ^[0-9a-f]{40}$ ]]
+          [[ "${pr_base_ref}" == "main" ]]
+          [[ "${pr_base_repo}" == "${GITHUB_REPOSITORY}" ]]
+
+          jq -n \
+            --arg event_type "dependabot-safe-reevaluate" \
+            --arg pr_number "${PR_NUMBER}" \
+            --arg head_sha "${pr_head_sha}" \
+            '{
+              event_type: $event_type,
+              client_payload: {
+                pr_number: $pr_number,
+                head_sha: $head_sha
+              }
+            }' \
+            | gh api "repos/${GITHUB_REPOSITORY}/dispatches" \
+                --method POST \
+                --input -
+
       - name: Remove safe auto-merge marker when lane becomes ineligible
         if: ${{ steps.pr.outputs.should-process == 'true' && steps.guard.outputs.eligible != 'true' }}
         env:
@@ -291,29 +340,90 @@ jobs:
           GH_REPO: ${{ github.repository }}
           PR_NUMBER: ${{ steps.pr.outputs.pr-number }}
           SAFE_LABEL: ${{ steps.guard.outputs.safe-label }}
+          POLICY_SHA: ${{ steps.guard.outputs.policy-sha }}
         run: |
           set -euo pipefail
           pr_json="$(gh pr view "${PR_NUMBER}" --json autoMergeRequest,labels)"
           comments_json="$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" --paginate --slurp)"
-          comment_ids="$(
-            printf '%s' "${comments_json}" | jq -r --arg marker "${SAFE_POLICY_MARKER}" '
+          timeline_json="$(
+            gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/timeline" \
+              --paginate \
+              --slurp \
+              -H "Accept: application/vnd.github+json"
+          )"
+          owned_comment_ids="$(
+            printf '%s' "${comments_json}" | jq -r \
+              --arg marker "${SAFE_POLICY_MARKER}" \
+              --arg label "${SAFE_LABEL}" \
+              --arg policy_sha "${POLICY_SHA}" '
               .[][]
-              | select(.user.login == "github-actions[bot]" and (.body | contains($marker)))
+              | select(
+                  .user.login == "github-actions[bot]"
+                  and ((.body | rtrimstr("\n")) == (
+                    $marker
+                    + "\nsafe_label=" + $label
+                    + "\npolicy_sha=" + $policy_sha
+                  ))
+                )
               | .id
             '
           )"
 
-          if printf '%s' "${pr_json}" | jq -e '.autoMergeRequest != null' >/dev/null; then
+          bot_label_history="$(
+            printf '%s' "${timeline_json}" | jq -r --arg label "${SAFE_LABEL}" '
+              any(.[];
+                any(.[];
+                  .event == "labeled"
+                  and .label.name == $label
+                  and .actor.login == "github-actions[bot]"
+                )
+              )
+            '
+          )"
+          bot_auto_merge="$(
+            printf '%s' "${pr_json}" \
+              | jq -r '.autoMergeRequest.enabledBy.login == "github-actions[bot]"'
+          )"
+
+          if [[ -z "${owned_comment_ids}" \
+            && ! ( "${bot_label_history}" == "true" && "${bot_auto_merge}" == "true" ) ]]; then
+            echo "No automation-owned safe state found; leaving PR unchanged."
+            exit 0
+          fi
+
+          if [[ "${bot_auto_merge}" == "true" ]]; then
             gh pr merge "${PR_NUMBER}" --disable-auto
           fi
 
-          if printf '%s' "${pr_json}" | jq -e --arg label "${SAFE_LABEL}" '.labels[]? | select(.name == $label)' >/dev/null; then
+          current_labels_json="$(gh pr view "${PR_NUMBER}" --json labels)"
+          latest_label_actor="$(
+            gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/timeline" \
+              --paginate \
+              --slurp \
+              -H "Accept: application/vnd.github+json" \
+              | jq -r --arg label "${SAFE_LABEL}" '
+                ([
+                  .[][]
+                  | select(
+                      (.event == "labeled" or .event == "unlabeled")
+                      and (.label.name // "") == $label
+                    )
+                ] | last) as $event
+                | if $event.event == "labeled"
+                  then ($event.actor.login // "")
+                  else ""
+                  end
+              '
+          )"
+          if [[ "${latest_label_actor}" == "github-actions[bot]" ]] \
+            && printf '%s' "${current_labels_json}" \
+              | jq -e --arg label "${SAFE_LABEL}" '.labels[]? | select(.name == $label)' >/dev/null; then
             gh pr edit "${PR_NUMBER}" --remove-label "${SAFE_LABEL}"
           fi
 
-          if [[ -n "${comment_ids}" ]]; then
+          if [[ -n "${owned_comment_ids}" ]]; then
             while IFS= read -r comment_id; do
               [[ -n "${comment_id}" ]] || continue
               gh api "repos/${GITHUB_REPOSITORY}/issues/comments/${comment_id}" --method DELETE >/dev/null
-            done <<< "${comment_ids}"
+            done <<< "${owned_comment_ids}"
           fi

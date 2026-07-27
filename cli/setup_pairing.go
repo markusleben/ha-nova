@@ -214,6 +214,26 @@ func probePairingV1(relayBaseURL string) bool {
 // missing AND no service-token file is configured, so the legacy /pair token
 // (which needs one of those) cannot be stored on this box.
 func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths, cfg *runtimeConfig, legacyTokenStoreUnavailable bool, lifecycleMarker ...[]byte) (string, error) {
+	guardPairingMutation := func() error {
+		return requireSettledDeviceCredentialRetirement(
+			paths,
+			activeServerProfile(),
+		)
+	}
+	guardErr := withSetupLifecycleLock(paths, lifecycleMarker, func() error {
+		if err := guardPairingMutation(); err != nil {
+			return err
+		}
+		return validateLocalDeviceReplacementAllowed(*cfg)
+	})
+	if guardErr != nil {
+		renderSetupErrorLine(
+			out,
+			"Local pairing cannot start: %s",
+			guardErr,
+		)
+		return "", guardErr
+	}
 	// Storage first: never send the user to fetch a one-time code that a broken
 	// credential backend would burn. Headless systems switch to the private-file
 	// fallback here, with a visible note.
@@ -284,6 +304,9 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 		if secure {
 			var perr error
 			lockErr := withSetupLifecycleLock(paths, lifecycleMarker, func() error {
+				if err := guardPairingMutation(); err != nil {
+					return err
+				}
 				save := func(c *runtimeConfig) error { return saveConfig(paths, *c) }
 				_, perr = securePairForSetup(cfg.RelayBaseURL, code, cfg, save, defaultPairingClientInfo())
 				return perr
@@ -303,7 +326,7 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 				continue
 			case errors.Is(perr, errPinMismatch):
 				renderSetupErrorLine(out, "The relay's secure identity did not match. Try again; if it repeats, someone may be intercepting the connection.")
-				continue
+				return "", perr
 			case errors.Is(perr, errRelayNotV1):
 				// The relay turned out not to support v1 mid-flow. Falling through to
 				// the legacy /pair exchange needs a keyring for its shared token; on a
@@ -321,12 +344,15 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 					continue
 				}
 				renderSetupErrorLine(out, "Could not pair: %s", perr)
-				continue
+				return "", perr
 			}
 		}
 
 		var token string
 		err = withSetupLifecycleLock(paths, lifecycleMarker, func() error {
+			if err := guardPairingMutation(); err != nil {
+				return err
+			}
 			var exchangeErr error
 			token, exchangeErr = exchangeRelayPairingCodeForSetup(httpClient, cfg.RelayBaseURL, code)
 			return exchangeErr
@@ -346,6 +372,7 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 				continue
 			}
 			renderSetupErrorLine(out, "Could not pair with NOVA Relay: %s", err)
+			return "", err
 		}
 	}
 }

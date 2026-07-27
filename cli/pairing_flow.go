@@ -47,17 +47,19 @@ var pairDeviceV1ForPairing = pairDeviceV1
 var activateDeviceV1ForPairing = activateDeviceV1
 
 func runSecurePairing(bootstrapURL, code string, cfg *runtimeConfig, saveCfg func(*runtimeConfig) error, info pairingClientInfo) (string, error) {
-	installID, err := getOrCreateClientInstallID(cfg, saveCfg)
-	if err != nil {
-		return "", fmt.Errorf("could not establish an install id: %w", err)
+	if err := validateLocalDeviceReplacementAllowed(*cfg); err != nil {
+		return "", err
 	}
-
 	// Prove credential storage works BEFORE talking to the relay: /pair/v1/finish
 	// consumes the owner's one-time code, so a broken keyring discovered after the
 	// fact would burn the code with nothing stored. Callers probe earlier for the
 	// user-facing message; this guard keeps the invariant for every caller.
 	if _, err := probeDeviceCredentialStorage(); err != nil {
 		return "", fmt.Errorf("cannot store a device credential on this system (the code was not used): %w", err)
+	}
+	installID, err := getOrCreateClientInstallID(cfg, saveCfg)
+	if err != nil {
+		return "", fmt.Errorf("could not establish an install id: %w", err)
 	}
 
 	prov, err := pairDeviceV1ForPairing(nil, bootstrapURL, code, deviceMetadata{
@@ -116,6 +118,10 @@ func runSecurePairing(bootstrapURL, code string, cfg *runtimeConfig, saveCfg fun
 	// nothing was promoted, so a re-run resumes cleanly.
 	cfg.RelaySecureBaseURL = secureBase
 	cfg.RelaySpkiPin = prov.SpkiPin
+	// A local pairing does not yet prove the Relay's durable instance identity.
+	// Clear any pre-Cloud residue so a later Cloud add must repopulate it from
+	// authenticated local discovery instead of inheriting another Relay.
+	cfg.RelayInstanceID = ""
 	if err := saveCfg(cfg); err != nil {
 		return "", fmt.Errorf("could not save the secure endpoint: %w", err)
 	}
@@ -131,6 +137,34 @@ func runSecurePairing(bootstrapURL, code string, cfg *runtimeConfig, saveCfg fun
 	return prov.DeviceID, nil
 }
 
+func validateLocalDeviceReplacementAllowed(cfg runtimeConfig) error {
+	if cfg.Cloud != nil {
+		return fmt.Errorf(
+			"Home Assistant Cloud access is configured; remove it before replacing the local device pairing (the code was not used)",
+		)
+	}
+	if pending, exists, err := readPendingDeviceCredentialRecord(); err != nil {
+		return fmt.Errorf(
+			"cannot inspect the pending device credential before local pairing: %w",
+			err,
+		)
+	} else if exists {
+		switch {
+		case pending.Source == pendingDeviceCredentialSourceCloud:
+			return fmt.Errorf(
+				"Home Assistant Cloud device pairing is still pending; resume or remove Cloud access before starting a local pairing (the code was not used)",
+			)
+		case pending.Source == pendingDeviceCredentialSourceLocal &&
+			strings.TrimSpace(cfg.PendingSecureBaseURL) != "" &&
+			strings.TrimSpace(cfg.PendingSpkiPin) != "":
+			return fmt.Errorf(
+				"a local device activation is still pending; resume it before starting another local pairing (the code was not used)",
+			)
+		}
+	}
+	return nil
+}
+
 // resumePendingActivation completes an interrupted pairing whose credential is
 // already stored pending (e.g. a crash between activate and promote). Safe to
 // call at setup/doctor start; a no-op when there is no pending credential.
@@ -140,6 +174,11 @@ func resumePendingActivation(cfg *runtimeConfig, saveCfg func(*runtimeConfig) er
 		// No interrupted pairing to resume (cheap check first, before any keyring
 		// access): leave any pending slot for a full re-pair rather than guessing.
 		return false, nil
+	}
+	if cfg.Cloud != nil {
+		return false, fmt.Errorf(
+			"cannot resume a local device replacement while Home Assistant Cloud access is configured; remove Cloud access first",
+		)
 	}
 	// Choose the backend that actually holds the interrupted pairing, without a
 	// storage probe (a probe could reroute reads to a now-usable keyring and lose
@@ -164,10 +203,16 @@ func resumePendingActivation(cfg *runtimeConfig, saveCfg func(*runtimeConfig) er
 		if err != nil {
 			return false, err
 		}
-		if parseDeviceCredential(raw) == nil {
+		record, err := decodePendingDeviceCredentialRecord(raw)
+		if err != nil {
 			return false, nil // malformed residue: leave it for a full re-pair
 		}
-		pending = raw
+		if record.Source != pendingDeviceCredentialSourceLocal {
+			return false, fmt.Errorf(
+				"pending device credential belongs to Cloud setup and cannot be activated on the local pairing endpoint",
+			)
+		}
+		pending = record.Credential
 		fileMode = true
 	} else {
 		// No marker: the install may be keyring-backed (desktop, possibly with an
@@ -176,12 +221,20 @@ func resumePendingActivation(cfg *runtimeConfig, saveCfg func(*runtimeConfig) er
 		// file; only an absent/empty keyring falls back to the file.
 		kp, kok, kerr := readKeyringDeviceSecret(pendingService)
 		switch {
-		case kok && parseDeviceCredential(kp) != nil:
-			pending = kp
 		case kok:
-			// Keyring pending present but malformed: surface it rather than
-			// silently resuming an orphan file behind it.
-			return false, fmt.Errorf("keyring pending credential is malformed")
+			record, decodeErr := decodePendingDeviceCredentialRecord(kp)
+			if decodeErr != nil {
+				return false, fmt.Errorf(
+					"keyring pending credential is malformed: %w",
+					decodeErr,
+				)
+			}
+			if record.Source != pendingDeviceCredentialSourceLocal {
+				return false, fmt.Errorf(
+					"pending device credential belongs to Cloud setup and cannot be activated on the local pairing endpoint",
+				)
+			}
+			pending = record.Credential
 		case kerr != nil && !isDesktopKeyringSessionUnavailableError(kerr) && !isDesktopKeyringUnavailableError(kerr):
 			// Keyring EXISTS but is unreadable (locked/uninitialized): a real
 			// keyring pending may hide behind it — refuse to downgrade to a file.
@@ -193,10 +246,16 @@ func resumePendingActivation(cfg *runtimeConfig, saveCfg func(*runtimeConfig) er
 			if err != nil {
 				return false, err
 			}
-			if parseDeviceCredential(raw) == nil {
+			record, decodeErr := decodePendingDeviceCredentialRecord(raw)
+			if decodeErr != nil {
 				return false, nil
 			}
-			pending = raw
+			if record.Source != pendingDeviceCredentialSourceLocal {
+				return false, fmt.Errorf(
+					"pending device credential belongs to Cloud setup and cannot be activated on the local pairing endpoint",
+				)
+			}
+			pending = record.Credential
 			fileMode = true
 		default:
 			return false, kerr
@@ -210,6 +269,10 @@ func resumePendingActivation(cfg *runtimeConfig, saveCfg func(*runtimeConfig) er
 	// mid-way stays resumable.
 	cfg.RelaySecureBaseURL = base
 	cfg.RelaySpkiPin = pin
+	// The resumed local pairing proves the endpoint and pin, but not the
+	// Relay's durable Cloud instance identity. Drop any pre-reinstall residue
+	// in the same live-config checkpoint as a fresh local pairing.
+	cfg.RelayInstanceID = ""
 	if err := saveCfg(cfg); err != nil {
 		return false, err
 	}
@@ -248,46 +311,4 @@ func secureBaseFromBootstrap(bootstrapURL string, securePort int) (string, error
 	// net.JoinHostPort brackets IPv6 literals (u.Hostname() returns them
 	// unbracketed), so an IPv6 relay yields a valid https://[addr]:port URL.
 	return "https://" + net.JoinHostPort(u.Hostname(), strconv.Itoa(securePort)), nil
-}
-
-// Hook for tests (the revoke would otherwise dial a real endpoint).
-var revokeSelfDeviceV1ForRetire = revokeSelfDeviceV1
-
-// retireDeviceCredential removes this install's device pairing after the user
-// completed setup on the legacy token path: the verified token is now the
-// working credential, and a leftover (usually dead) pairing would win transport
-// resolution and wedge doctor and every skill call on the next run. The revoke
-// is best-effort — the relay may still know the device even when the local
-// pairing stopped working.
-func retireDeviceCredential(cfg *runtimeConfig) {
-	previous := prepareDeviceCredentialRetirement(cfg)
-	finalizeDeviceCredentialRetirement(previous)
-}
-
-func prepareDeviceCredentialRetirement(cfg *runtimeConfig) runtimeConfig {
-	previous := *cfg
-	cfg.RelaySecureBaseURL = ""
-	cfg.RelaySpkiPin = ""
-	cfg.PendingSecureBaseURL = ""
-	cfg.PendingSpkiPin = ""
-	return previous
-}
-
-func finalizeDeviceCredentialRetirement(previous runtimeConfig) {
-	// Revoke the active device credential over the pinned transport when a live
-	// endpoint + credential exist.
-	if cred, ok, err := readDeviceCredential(); err == nil && ok && previous.RelaySecureBaseURL != "" && previous.RelaySpkiPin != "" {
-		_ = revokeSelfDeviceV1ForRetire(previous.RelaySecureBaseURL, previous.RelaySpkiPin, cred)
-	}
-	// Always clear BOTH the current and pending device credentials + endpoints
-	// (idempotent), so a half-finished pairing — the pending slot saved before the
-	// live endpoint — cannot be resumed after the user chose the legacy/manual path.
-	_ = deleteDeviceCredential()
-	_ = deletePendingDeviceCredential()
-	// Clear this profile's slot files too — and, once NO profile's slots remain,
-	// the file-backend marker + empty secrets dir: otherwise a credential-less
-	// install stays classified as file-backed, and a later desktop re-pair with a
-	// healthy keyring would skip the keyring probe and keep storing device
-	// credentials in files. Sibling profiles' file slots stay untouched.
-	removeDeviceFileStorageResidueForProfile(activeServerProfile())
 }

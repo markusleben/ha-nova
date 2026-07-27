@@ -1,14 +1,15 @@
 # Testing HA NOVA
 
-Three layers, cheapest first. Use the smallest one that covers your change.
+Four layers, cheapest first. Use the smallest one that covers your change.
 
 | Layer | Proves | Needs | Command |
 | --- | --- | --- | --- |
 | 1. Host-safe checks | Types, contracts, unit + Go behaviour | Nothing (never touches real secure stores or a browser) | `npm run verify` |
 | 2. Disposable-HA E2E | The relay against a **real** Home Assistant | Docker + Python 3 (`pip install websockets`) — **no HA of your own** | `bash scripts/e2e/disposable-ha/run.sh` |
-| 3. Live against your own HA | The full onboarding wizard + device pairing on real hardware | An HA instance you control | See [Live against your own HA](#3-live-against-your-own-ha) |
+| 3. Live local against your own HA | The local onboarding wizard + device pairing on real hardware | An HA instance you control | See [Live against your own HA](#3-live-against-your-own-ha) |
+| 4. Home Assistant Cloud Beta gate | OAuth, native storage, Supervisor Ingress, user binding, routing, and lifecycle on real services | Home Assistant OS/Supervised, active Home Assistant Cloud remote access, and supported desktop OSes | See [Home Assistant Cloud Beta real-device gate](#4-home-assistant-cloud-beta-real-device-gate) |
 
-Layer 1 is documented in [CONTRIBUTING.md → Verification Matrix](../../CONTRIBUTING.md#verification-matrix); this page covers layers 2 and 3, plus the isolation env vars and the safety rules that keep them from touching anything you care about.
+Layer 1 is documented in [CONTRIBUTING.md → Verification Matrix](../../CONTRIBUTING.md#verification-matrix); this page covers layers 2 through 4, plus the isolation env vars and the safety rules that keep them from touching anything you care about.
 
 ## 1. Host-safe checks
 
@@ -49,29 +50,134 @@ Then `rsync` that overlay to `/addons/local/<slug>/`, `ha store reload`, `ha app
 ```bash
 export HOME=/tmp/nova-test-home
 export HA_NOVA_DEV_ROOT="$PWD"           # run the local build, not a released bundle
-export HA_NOVA_TEST_SECRET_DIR=/tmp/nova-test-secrets            # device credential → files
 export HA_NOVA_ALLOW_INSECURE_TEST_KEYRING=1                     # relay token → file, not the
 export HA_NOVA_TEST_KEYRING_FILE=/tmp/nova-test-token            #   real ha-nova.relay-auth-token slot
 export HA_NOVA_NO_BROWSER=1
+export HA_NOVA_NO_CENSUS=1
 
+scripts/onboarding/bin/ha-nova pair --credential-store=file --relay-url http://<ip>:18791 --code NNNNNN
 scripts/onboarding/bin/ha-nova setup claude --relay-url http://<ip>:18791
-scripts/onboarding/bin/ha-nova pair --relay-url http://<ip>:18791 --code NNNNNN
 scripts/onboarding/bin/ha-nova relay health          # exercise skills over the device transport (also core|ws|trace)
 scripts/onboarding/bin/ha-nova uninstall --purge --yes   # verifies the server-side revoke + local cleanup
 ```
 
-The relay-token vars are **mandatory even for pure device pairing**: `HOME` + `HA_NOVA_TEST_SECRET_DIR` isolate config + the device credential, but the legacy relay token still uses the real `ha-nova.relay-auth-token` keyring service unless you redirect it. (`HA_NOVA_KEYRING_SERVICE=<name>` is the alternative if you want a throwaway keyring entry instead of a file.)
+`--credential-store=file` stores device credentials below the isolated `HOME`.
+The relay-token vars are **mandatory even for pure device pairing**: `HOME`
+does not namespace the legacy relay-token keyring service.
+`HA_NOVA_KEYRING_SERVICE=<unique-name>` is the alternative if you want a
+throwaway keyring entry instead of a file.
+
+`HA_NOVA_TEST_SECRET_DIR` is an injected `go test` seam, not a CLI isolation
+interface. Normal development and release binaries deliberately ignore it.
 
 ### Isolation env vars
 
 | Variable | Effect | Use for |
 | --- | --- | --- |
 | `HA_NOVA_DEV_ROOT=<repo>` | Runs the CLI in dev mode — uses the repo's local skills/bundle instead of a released bundle | Any local build |
-| `HA_NOVA_TEST_SECRET_DIR=<dir>` | Device-credential slots become `0600` files under `<dir>` instead of the OS keyring | Isolate device pairing from your real keyring |
+| `HA_NOVA_CONFIG_DIR=<absolute-path>` | Relocates config, checkpoints, state, and census data without changing the OS login home | Native Cloud-secret tests that must keep the real desktop keyring |
 | `HA_NOVA_ALLOW_INSECURE_TEST_KEYRING=1` + `HA_NOVA_TEST_KEYRING_FILE=<path>` | The legacy relay-auth token is stored in a file instead of the OS keyring | Isolate the token slot on a desktop |
 | `HA_NOVA_KEYRING_SERVICE=<name>` | Overrides the relay-token keyring service name | Isolate the real token slot by name |
 | `HA_NOVA_NO_BROWSER=1` | `setup` never opens a browser | Scripted / headless runs |
+| `HA_NOVA_NO_CENSUS=1` | Suppresses Census prompts, observations, reports, and withdrawals | Every development, contributor, CI, and E2E run |
 | `HA_NOVA_NO_UPDATE_NUDGE=1` | Suppresses the background update check | Deterministic test output |
+
+## 4. Home Assistant Cloud Beta real-device gate
+
+Host-safe tests prove parsing, lifecycle, redirect rejection, no-UI policy, and
+transport selection with injected stores and servers. They do not prove a
+native keyring, a Nabu Casa OAuth flow, or a real Supervisor Ingress session.
+The Cloud Beta therefore requires a separate real-device proof on the exact
+candidate commit.
+
+Use an isolated CLI as described above, but do not set a file-backed device
+credential or test-keyring override for a release proof. Cloud OAuth refresh
+tokens have no production file backend or environment-variable override. Keep
+the real login `HOME`: macOS Keychain and Linux Secret Service resolve the
+interactive user's native store from that desktop identity. Relocate HA NOVA's
+non-secret config and checkpoints with `HA_NOVA_CONFIG_DIR`, and additionally
+set a cryptographically unique relay-token service before the first command:
+
+```bash
+cloud_test_root="$(mktemp -d)"
+export HA_NOVA_CONFIG_DIR="${cloud_test_root}/config"
+export HA_NOVA_KEYRING_SERVICE="ha-nova.relay-auth-token.cloud-beta.$(openssl rand -hex 16)"
+export HA_NOVA_NO_CENSUS=1
+unset HA_NOVA_TEST_SECRET_DIR
+unset HA_NOVA_ALLOW_INSECURE_TEST_KEYRING
+unset HA_NOVA_TEST_KEYRING_FILE
+```
+
+Use cryptographically unique explicit server profile names. Keep the same
+`HA_NOVA_KEYRING_SERVICE` value for the complete run and cleanup. Build one
+stable candidate binary path and reuse that exact path so caller-scoped macOS
+Keychain authorization is not invalidated. A macOS development build must also
+carry the hardened-runtime flags enforced by the native-secret worker:
+
+```bash
+cloud_test_binary="${cloud_test_root}/ha-nova"
+( cd cli && go build \
+  -tags cloudremote_dev \
+  -ldflags "-X main.cloudRemoteDevAppSlug=local_<isolated-slug>" \
+  -o "${cloud_test_binary}" . )
+
+if [[ "$(uname -s)" == "Darwin" ]]; then
+  /usr/bin/codesign --force --sign - \
+    --options runtime,hard,kill,library \
+    --timestamp=none \
+    "${cloud_test_binary}"
+  /usr/bin/codesign --verify --strict "${cloud_test_binary}"
+fi
+```
+
+The injected App slug is accepted only by the compile-time development build
+tag. The ad-hoc macOS identity above is suitable only for local development
+proof; it is not stable release-signing evidence. Public builds do not contain
+that activation path. Patch the isolated App overlay's `version.json` to set
+`cloud_remote_enabled: true` and list only the desktop platform being
+validated; never enable the production App for an unfinished gate.
+
+Exercise both setup paths. Use a separate empty isolated CLI home/config for the
+remote-first case:
+
+```bash
+# Existing secure local pairing: reuses and user-binds that device.
+"${cloud_test_binary}" cloud add --server <test-profile>
+
+# Remote-first: verifies the Cloud origin, then pairs through Ingress v2.
+"${cloud_test_binary}" cloud add --server <remote-profile> --url https://<cloud-host>
+
+"${cloud_test_binary}" cloud status --server <test-profile>
+"${cloud_test_binary}" relay health --server <test-profile> --via local
+"${cloud_test_binary}" relay health --server <test-profile> --via cloud
+"${cloud_test_binary}" server route automatic --server <test-profile>
+"${cloud_test_binary}" cloud reconnect --server <test-profile>
+"${cloud_test_binary}" cloud remove --server <test-profile>
+```
+
+Required evidence:
+
+- `/health`, `/ws`, `/core`, `/files`, and `/backups` parity through a real
+  Home Assistant Cloud route;
+- default and custom Cloud domains, MFA, inactive subscription, disabled remote
+  access, authorization abort, and recovery after each durable-state boundary;
+- Owner, admin, standard, and read-only Home Assistant users, including proof
+  that functional calls are bound to the authenticated user and Relay instance;
+- App restart, update, and reinstall; device revoke; concurrent reconnect; and
+  Relay-instance mismatch;
+- redirect rejection and absence of credentials from config, argv, logs,
+  diagnostics, and AI-visible output at every network hop;
+- `automatic` routing chooses Cloud only for a pure local network failure and
+  never after authentication, pin, identity, protocol, or dispatch failure;
+- a 10,000-command Ingress-session stress run with bounded memory;
+- real native-storage lock, unlock, cancellation, timeout, and no-UI behavior
+  on every advertised macOS, Windows, and Linux desktop context.
+
+Standard uninstall must keep the test profile, device pairing, and Cloud
+authorization. Full purge must revoke and verify the Cloud authorization before
+removing local config or secrets. If any security, full-parity, or native-store
+gate fails, the Beta is not eligible for release. The complete matrix lives in
+`docs/work/2026-07-25-home-assistant-cloud-remote-spec.md`.
 
 ## Headless and cross-platform
 
@@ -87,13 +193,18 @@ docker run -d --name nova-linux-e2e \
 docker exec nova-linux-e2e ha-nova pair --relay-url http://<ip>:18791 --code NNNNNN
 ```
 
+That device-credential fallback does not apply to Home Assistant Cloud OAuth.
+Cloud setup is desktop-only and fails closed in SSH, WSL, containers, services,
+gateways, and other headless sessions; the local transport remains available.
+
 Cross-compile for every target with the same `CGO_ENABLED=0 GOOS=<os> GOARCH=<arch> go build` from `cli/` (windows/darwin/linux × amd64/arm64). `scripts/smoke/linux-headless-setup-check.sh` captures the remote Secret Service preflight over SSH for a Linux release proof.
 
 ## Safety rules
 
 These are non-negotiable when testing on real machines:
 
-- **Never touch the production add-on, keyring, or credentials.** For the add-on, use a distinct slug/ports. For the CLI, use a throwaway `HOME` **and** `HA_NOVA_TEST_SECRET_DIR` **and** relay-token redirection (`HA_NOVA_ALLOW_INSECURE_TEST_KEYRING=1` + `HA_NOVA_TEST_KEYRING_FILE`, or `HA_NOVA_KEYRING_SERVICE`) — without the last one, `uninstall --purge` still deletes your real `ha-nova.relay-auth-token` keyring entry.
+- **Never touch the production App, keyring, or credentials.** For the App, use a distinct slug/ports. For local-only CLI tests, use a throwaway `HOME`, pair with `--credential-store=file`, and redirect the relay token (`HA_NOVA_ALLOW_INSECURE_TEST_KEYRING=1` + `HA_NOVA_TEST_KEYRING_FILE`, or a unique `HA_NOVA_KEYRING_SERVICE`) — without the last one, `uninstall --purge` still deletes your real `ha-nova.relay-auth-token` keyring entry. For native Cloud-secret tests, keep the login `HOME`, set an isolated `HA_NOVA_CONFIG_DIR`, and use unique profile and keyring-service names; use a separate OS user or VM when the real-device gate requires stronger isolation.
+- **Never report Census data from tests.** Export `HA_NOVA_NO_CENSUS=1` for every development, contributor, CI, and E2E process, including child processes.
 - **Only create your own test objects** on a live HA (helpers, automations you made); leave existing objects read-only.
-- **Clean up afterwards** — `ha apps uninstall <test-slug>`, remove the container, and run a leftover scan (0 test objects). Never leave a test add-on running on someone's HA.
+- **Clean up afterwards** — `ha apps uninstall <test-slug>`, remove the container, and run a leftover scan (0 test objects). Never leave a test App running on someone's HA.
 - **A green CI/host-safe run is not a release proof.** Releasing still needs the live checks above on the exact commit being tagged (see [docs/releasing.md](../releasing.md)).

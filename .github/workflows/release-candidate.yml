@@ -15,25 +15,101 @@ on:
   workflow_dispatch:
     inputs:
       version_tag:
-        description: "Optional prerelease tag for bundle naming, for example v0.1.13-rc1"
-        required: false
+        description: "Exact prerelease version to build, for example v0.1.13-rc1"
+        required: true
         type: string
 
 permissions:
   contents: read
 
 jobs:
-  build-rc-assets:
-    name: Build RC artifacts
+  cloud-release-gate:
+    name: Verify RC publication gates
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: read
+    environment:
+      name: production
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
       - name: Setup Node
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "20"
+
+      - name: Verify production environment policy
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/release/verify-github-production-environment.sh
+
+      - name: Verify live main protection
+        env:
+          HA_NOVA_CLOUD_SOURCE_CHECK_APP_ID: ${{ secrets.HA_NOVA_CLOUD_SOURCE_CHECK_APP_ID }}
+          HA_NOVA_CLOUD_SOURCE_CHECK_APP_PRIVATE_KEY: ${{ secrets.HA_NOVA_CLOUD_SOURCE_CHECK_APP_PRIVATE_KEY }}
+        run: bash scripts/release/verify-cloud-publication-main-protection.sh
+
+      - name: Verify release metadata
+        env:
+          VERSION_TAG: ${{ inputs.version_tag }}
+        run: bash scripts/release/verify-release-metadata.sh "${VERSION_TAG}"
+
+      - name: Verify Home Assistant Cloud release gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HA_NOVA_CLOUD_GATE_EVIDENCE_JSON: ${{ secrets.HA_NOVA_CLOUD_GATE_EVIDENCE_JSON }}
+        run: bash scripts/release/verify-cloud-release-gate.sh
+
+  build-signed-darwin-rc-assets:
+    name: Build signed Darwin RC artifacts
+    needs: cloud-release-gate
+    runs-on: macos-latest
+    environment:
+      name: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.26.5"
+          cache-dependency-path: cli/go.sum
+
+      - name: Build and sign exact Darwin RC binaries
+        env:
+          HA_NOVA_MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.HA_NOVA_MACOS_CERTIFICATE_P12_BASE64 }}
+          HA_NOVA_MACOS_CERTIFICATE_PASSWORD: ${{ secrets.HA_NOVA_MACOS_CERTIFICATE_PASSWORD }}
+        run: bash scripts/release/build-sign-darwin-binaries.sh "${{ inputs.version_tag }}"
+
+      - name: Upload signed Darwin RC binaries
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: rc-signed-darwin-binaries
+          path: dist/ha-nova-darwin-*
+          if-no-files-found: error
+          retention-days: 1
+
+  build-rc-assets:
+    name: Build RC artifacts
+    needs:
+      - cloud-release-gate
+      - build-signed-darwin-rc-assets
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 20
           cache: npm
@@ -42,44 +118,33 @@ jobs:
         run: npm ci
 
       - name: Setup Go
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.26"
+          go-version: "1.26.5"
           cache-dependency-path: cli/go.sum
 
       - name: Verify repository
         run: npm run verify
 
-      - name: Verify release metadata
-        env:
-          VERSION_TAG: ${{ inputs.version_tag }}
-        run: |
-          set -euo pipefail
-          if [[ -n "${VERSION_TAG}" ]]; then
-            bash scripts/release/verify-release-metadata.sh "${VERSION_TAG}"
-          else
-            bash scripts/release/verify-release-metadata.sh
-          fi
+      - name: Build exact RC binaries
+        run: bash scripts/release/build-rc-binaries.sh "${{ inputs.version_tag }}"
 
-      - name: Build raw binaries
-        uses: goreleaser/goreleaser-action@v7
+      - name: Download signed Darwin RC binaries
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          version: "~> v2"
-          args: build --snapshot --clean
+          name: rc-signed-darwin-binaries
+          path: dist
 
       - name: Build install bundles
         env:
           VERSION_TAG: ${{ inputs.version_tag }}
+          HA_NOVA_CLOUD_RELEASE_SIGNING_KEY_PEM: ${{ secrets.HA_NOVA_CLOUD_RELEASE_SIGNING_KEY_PEM }}
         run: |
           set -euo pipefail
-          if [[ -n "${VERSION_TAG}" ]]; then
-            bash scripts/release/build-install-bundle.sh "${VERSION_TAG#v}"
-          else
-            bash scripts/release/build-install-bundle.sh
-          fi
+          bash scripts/release/build-install-bundle.sh "${VERSION_TAG#v}"
 
       - name: Upload RC artifacts
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: rc-install-bundles
           path: dist/install-bundles/*
@@ -96,8 +161,11 @@ jobs:
           - macos-latest
           - windows-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
       - name: Download RC artifacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: rc-install-bundles
           path: dist/install-bundles
@@ -115,7 +183,36 @@ jobs:
           tar -xzf "$bundle" -C "$workdir"
           test -f "$workdir/ha-nova/bundle.json"
           test -x "$workdir/ha-nova/ha-nova"
+          node -e '
+            const bundle = require(process.argv[1]);
+            if (bundle.version !== process.argv[2].replace(/^v/, "")) {
+              throw new Error("RC bundle version does not match workflow input");
+            }
+          ' "$workdir/ha-nova/bundle.json" "${{ inputs.version_tag }}"
           "$workdir/ha-nova/ha-nova" version
+          case "${RUNNER_OS}" in
+            macOS) platform="darwin" ;;
+            Linux) platform="linux" ;;
+            *) exit 1 ;;
+          esac
+          if [[ "${RUNNER_OS}" == "macOS" ]]; then
+            bash scripts/release/verify-macos-signature.sh "$workdir/ha-nova/ha-nova"
+          fi
+          listed="$(
+            node -e '
+              const metadata = require(process.argv[1]);
+              process.stdout.write(String(
+                metadata.cloud_remote_enabled === true
+                && metadata.cloud_remote_platforms.includes(process.argv[2])
+              ));
+            ' "$workdir/ha-nova/version.json" "$platform"
+          )"
+          if [[ "$listed" == "true" ]]; then
+            "$workdir/ha-nova/ha-nova" internal-cloud-release-check
+          elif "$workdir/ha-nova/ha-nova" internal-cloud-release-check; then
+            echo "::error::Unlisted $platform runtime accepted Cloud release provenance."
+            exit 1
+          fi
 
       - name: Smoke Windows bundle
         if: runner.os == 'Windows'
@@ -124,7 +221,34 @@ jobs:
           $workdir = Join-Path $env:RUNNER_TEMP "ha-nova-rc"
           Remove-Item -LiteralPath $workdir -Recurse -Force -ErrorAction SilentlyContinue
           Expand-Archive -LiteralPath "dist/install-bundles/ha-nova-installer-bundle-windows-amd64.zip" -DestinationPath $workdir -Force
-          if (-not (Test-Path -LiteralPath (Join-Path $workdir "ha-nova\bundle.json"))) {
+          $bundlePath = Join-Path $workdir "ha-nova\bundle.json"
+          if (-not (Test-Path -LiteralPath $bundlePath)) {
             throw "bundle.json missing from Windows RC bundle"
           }
-          & (Join-Path $workdir "ha-nova\ha-nova.exe") version
+          $bundle = Get-Content -LiteralPath $bundlePath -Raw | ConvertFrom-Json
+          $expectedVersion = "${{ inputs.version_tag }}".Substring(1)
+          if ($bundle.version -ne $expectedVersion) {
+            throw "Windows RC bundle version does not match workflow input"
+          }
+          $root = Join-Path $workdir "ha-nova"
+          $binary = Join-Path $root "ha-nova.exe"
+          & $binary version
+          if ($LASTEXITCODE -ne 0) {
+            throw "Windows RC binary version check failed"
+          }
+          $metadata = Get-Content -LiteralPath (Join-Path $root "version.json") -Raw | ConvertFrom-Json
+          $listed = (
+            $metadata.cloud_remote_enabled -eq $true -and
+            @($metadata.cloud_remote_platforms) -contains "windows"
+          )
+          if ($listed) {
+            & $binary internal-cloud-release-check
+            if ($LASTEXITCODE -ne 0) {
+              throw "enabled Cloud runtime provenance check failed"
+            }
+          } else {
+            & $binary internal-cloud-release-check
+            if ($LASTEXITCODE -eq 0) {
+              throw "unlisted Windows runtime accepted Cloud release provenance"
+            }
+          }

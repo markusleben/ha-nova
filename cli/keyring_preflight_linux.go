@@ -4,6 +4,10 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -18,6 +22,7 @@ const (
 
 var relayAuthTokenPreflightSessionBus = dbus.SessionBus
 var relayAuthTokenPreflightTimeout = 2 * time.Second
+var newLinuxKeyringProbeBackend = newNativeCredentialSecretBackend
 
 type relayAuthTokenPreflightSessionBusResult struct {
 	conn *dbus.Conn
@@ -111,5 +116,77 @@ func relayAuthTokenPlatformSetupPreflightImpl() error {
 		return desktopKeyringLockedError("default Secret Service collection is locked")
 	default:
 		return normalizeLinuxKeyringError(probeLinuxKeyringWritable())
+	}
+}
+
+func probeLinuxKeyringWritable() error {
+	serviceSuffix := make([]byte, 8)
+	if _, err := rand.Read(serviceSuffix); err != nil {
+		return fmt.Errorf("cannot verify local secure storage: %w", err)
+	}
+	secret := make([]byte, 16)
+	if _, err := rand.Read(secret); err != nil {
+		return fmt.Errorf("cannot verify local secure storage: %w", err)
+	}
+	service := fmt.Sprintf(
+		"%s.recovery-probe.%s",
+		relayAuthTokenServiceName(),
+		hex.EncodeToString(serviceSuffix),
+	)
+	probeSecret := hex.EncodeToString(secret)
+	account, err := currentKeyringUsername()
+	if err != nil {
+		return err
+	}
+	backend, err := newLinuxKeyringProbeBackend()
+	if err != nil {
+		return normalizeLinuxKeyringProbeError(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), relayAuthTokenPreflightTimeout)
+	defer cancel()
+
+	if err := backend.Set(ctx, service, account, probeSecret, SecretStoreForbidUI); err != nil {
+		return normalizeLinuxKeyringProbeError(err)
+	}
+	readBack, found, readErr := backend.Get(
+		ctx,
+		service,
+		account,
+		SecretStoreForbidUI,
+	)
+	if readErr != nil || !found || readBack != probeSecret {
+		deleteErr := backend.Delete(ctx, service, account, SecretStoreForbidUI)
+		if readErr != nil {
+			return normalizeLinuxKeyringProbeError(errors.Join(readErr, deleteErr))
+		}
+		if deleteErr != nil {
+			return normalizeLinuxKeyringProbeError(deleteErr)
+		}
+		if !found {
+			return fmt.Errorf("cannot verify local secure storage: saved verification secret was not found")
+		}
+		return fmt.Errorf("cannot verify local secure storage: saved verification secret did not match")
+	}
+	if err := backend.Delete(ctx, service, account, SecretStoreForbidUI); err != nil {
+		return normalizeLinuxKeyringProbeError(err)
+	}
+	return nil
+}
+
+func normalizeLinuxKeyringProbeError(err error) error {
+	switch {
+	case err == nil:
+		return nil
+	case isDesktopKeyringSessionUnavailableError(err):
+		return desktopKeyringSessionUnavailableError("local secure storage is unavailable in this Linux session")
+	case IsCloudErrorCode(err, CloudErrSecretStoreLocked),
+		IsCloudErrorCode(err, CloudErrSecretUIForbidden):
+		return desktopKeyringLockedError("default Secret Service collection is locked")
+	case IsCloudErrorCode(err, CloudErrTimeout):
+		return desktopKeyringUnavailableError("Secret Service preflight timed out")
+	case IsCloudErrorCode(err, CloudErrSecretStore):
+		return desktopKeyringUnavailableError("Secret Service preflight failed")
+	default:
+		return localSecureStorageRecoveryError(err)
 	}
 }

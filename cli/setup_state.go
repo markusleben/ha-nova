@@ -1,8 +1,11 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"net/http"
 	"strings"
+	"time"
 )
 
 type setupState struct {
@@ -41,16 +44,29 @@ func (s setupState) SkipSummary() string {
 // The second return is false for legacy installs (no device credential) — the
 // legacy token path would wrongly report "no auth" for a paired device.
 func deviceSetupState(paths runtimePaths, cfg runtimeConfig, state installState, target string) (setupState, bool) {
-	base, client, credential, device, err := relayFunctionalTransportForDoctor(cfg)
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		time.Duration(defaultRelayMaxTimeSeconds*float64(time.Second)),
+	)
+	defer cancel()
+	base, client, credential, device, err := relayFunctionalTransportForSetupState(
+		ctx,
+		cfg,
+	)
 	if err != nil || !device {
 		return setupState{}, false
 	}
 	current := setupState{
-		ConfigOK: cfg.HAHost != "" && cfg.HAURL != "" && cfg.RelayBaseURL != "",
+		ConfigOK: setupConnectionConfigured(cfg),
 		SkillsOK: clientsAppearInstalled(paths, target, state),
 		TokenOK:  true,
 	}
-	readiness := checkRelayReadinessOverTransport(base, client, credential)
+	readiness := checkRelayReadinessOverTransportContext(
+		ctx,
+		base,
+		client,
+		credential,
+	)
 	if readiness.HealthErr == nil {
 		current.RelayOK = true
 		current.WSOK = readiness.WSReady
@@ -79,7 +95,7 @@ func detectSetupStateForAssessment(paths runtimePaths, cfg runtimeConfig, state 
 
 func detectSetupStateWithToken(paths runtimePaths, cfg runtimeConfig, state installState, target, token string, tokenOK bool) setupState {
 	current := setupState{
-		ConfigOK: cfg.HAHost != "" && cfg.HAURL != "" && cfg.RelayBaseURL != "",
+		ConfigOK: setupConnectionConfigured(cfg),
 		SkillsOK: clientsAppearInstalled(paths, target, state),
 	}
 
@@ -97,6 +113,28 @@ func detectSetupStateWithToken(paths runtimePaths, cfg runtimeConfig, state inst
 	current.RelayOK = true
 	current.WSOK = readiness.WSReady
 	return current
+}
+
+func setupConnectionConfigured(cfg runtimeConfig) bool {
+	localConfigured := strings.TrimSpace(cfg.HAHost) != "" &&
+		strings.TrimSpace(cfg.HAURL) != "" &&
+		strings.TrimSpace(cfg.RelayBaseURL) != ""
+	cloudConfigured := effectiveRoutePolicy(cfg.RoutePolicy) == routePolicyCloud &&
+		cfg.Cloud.ready() &&
+		strings.TrimSpace(cfg.ProfileID) != "" &&
+		strings.TrimSpace(cfg.RelayInstanceID) != ""
+	return localConfigured || cloudConfigured
+}
+
+func relayFunctionalTransportForSetupState(
+	ctx context.Context,
+	cfg runtimeConfig,
+) (string, *http.Client, string, bool, error) {
+	selected, err := selectRelayTransport(ctx, cfg, "", false)
+	if err != nil {
+		return "", nil, "", false, err
+	}
+	return selected.BaseURL, selected.Client, selected.Credential, selected.DeviceMode, nil
 }
 
 func relayHealthWSConnected(body []byte) bool {

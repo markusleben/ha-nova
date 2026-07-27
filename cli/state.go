@@ -93,11 +93,19 @@ func saveState(paths runtimePaths, state installState) error {
 }
 
 type bundleMetadata struct {
-	BundleFormatVersion int    `json:"bundle_format_version"`
-	Version             string `json:"version"`
-	OS                  string `json:"os"`
-	Arch                string `json:"arch"`
-	BinaryName          string `json:"binary_name"`
+	BundleFormatVersion int                         `json:"bundle_format_version"`
+	Version             string                      `json:"version"`
+	OS                  string                      `json:"os"`
+	Arch                string                      `json:"arch"`
+	BinaryName          string                      `json:"binary_name"`
+	CloudRelease        *cloudReleaseBundleEvidence `json:"cloud_release,omitempty"`
+}
+
+type cloudReleaseBundleEvidence struct {
+	Schema        int    `json:"schema"`
+	SourceTreeSHA string `json:"source_tree_sha"`
+	BinarySHA256  string `json:"binary_sha256"`
+	Signature     string `json:"signature"`
 }
 
 func loadBundleMetadata(paths runtimePaths) (bundleMetadata, error) {
@@ -124,6 +132,37 @@ func writeJSONFileNoHTMLEscape(path string, value interface{}, mode os.FileMode)
 }
 
 func writeJSONFileOpts(path string, value interface{}, mode os.FileMode, escapeHTML bool) error {
+	return writeJSONFileOptsIfUnchanged(
+		path,
+		value,
+		mode,
+		escapeHTML,
+		nil,
+	)
+}
+
+func writeJSONFileIfUnchanged(
+	path string,
+	value interface{},
+	mode os.FileMode,
+	expected []byte,
+) error {
+	return writeJSONFileOptsIfUnchanged(
+		path,
+		value,
+		mode,
+		true,
+		expected,
+	)
+}
+
+func writeJSONFileOptsIfUnchanged(
+	path string,
+	value interface{},
+	mode os.FileMode,
+	escapeHTML bool,
+	expected []byte,
+) error {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
@@ -143,13 +182,21 @@ func writeJSONFileOpts(path string, value interface{}, mode os.FileMode, escapeH
 		tmp.Close()
 		return err
 	}
+	if err := tmp.Chmod(mode); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		tmp.Close()
+		return err
+	}
 	if err := tmp.Close(); err != nil {
 		return err
 	}
-	if err := os.Chmod(tmpPath, mode); err != nil {
-		return err
+	if expected == nil {
+		return replaceFileDurably(tmpPath, path)
 	}
-	return os.Rename(tmpPath, path)
+	return replaceFileConditionally(path, tmpPath, expected)
 }
 
 func normalizeClients(values []string) []string {

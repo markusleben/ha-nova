@@ -1,10 +1,7 @@
-// Attempt-based rate limiter for the pairing bootstrap. Unlike the legacy
-// code-exchange limiter (which counted only failures), EVERY /pair/v1/start
-// attempt counts here — malformed, wrong-code, and valid alike — so a flood of
-// junk KE1s cannot probe the code space or exhaust handshake slots. Fixed
-// windows: 5 attempts / peer / 60 s and 30 attempts globally / 5 min. Peer
-// buckets are capped and LRU-evicted so the map cannot grow unbounded; the peer
-// is the canonical socket address (never a forwarded header).
+// Attempt-based rate limiter for structurally valid pairing starts while an
+// owner code is active. Fixed windows: 5 accepted attempts / peer / 60 s and 30
+// accepted attempts globally / 5 min. A peer already blocked by its own budget
+// cannot consume the global budget and deny pairing to everyone else.
 
 export const PAIR_PEER_WINDOW_MS = 60 * 1_000;
 export const PAIR_GLOBAL_WINDOW_MS = 5 * 60 * 1_000;
@@ -19,13 +16,11 @@ interface Window {
 }
 
 export type RateDecision =
-  | { allowed: true }
-  | { allowed: false; retryAfterSeconds: number };
+  { allowed: true } | { allowed: false; retryAfterSeconds: number };
 
 export interface PairingRateLimiter {
-  // Records one attempt for the peer and globally, returning whether it is
-  // within limits. An over-limit attempt is still recorded (a determined
-  // attacker keeps the window hot rather than letting it lapse early).
+  // Records an allowed attempt for the peer and globally. Rejected attempts do
+  // not consume another budget.
   attempt(peer: string, now: number): RateDecision;
 }
 
@@ -39,30 +34,38 @@ export function createPairingRateLimiter(): PairingRateLimiter {
       if (!peers.has(peer) && peers.size >= PAIR_MAX_TRACKED_PEERS) {
         evictOldest(peers);
       }
-      peerWindow.count += 1;
       peerWindow.lastSeenAtMs = now;
       peers.set(peer, peerWindow);
 
       global = roll(global, now, PAIR_GLOBAL_WINDOW_MS);
-      global.count += 1;
       global.lastSeenAtMs = now;
 
-      const peerOver = peerWindow.count > PAIR_PEER_ATTEMPT_LIMIT;
-      const globalOver = global.count > PAIR_GLOBAL_ATTEMPT_LIMIT;
-      if (!peerOver && !globalOver) {
-        return { allowed: true };
+      if (peerWindow.count >= PAIR_PEER_ATTEMPT_LIMIT) {
+        return blockedUntil(peerWindow.startedAtMs + PAIR_PEER_WINDOW_MS, now);
       }
-      const peerRemaining = peerOver ? peerWindow.startedAtMs + PAIR_PEER_WINDOW_MS - now : 0;
-      const globalRemaining = globalOver ? global.startedAtMs + PAIR_GLOBAL_WINDOW_MS - now : 0;
-      return {
-        allowed: false,
-        retryAfterSeconds: Math.max(1, Math.ceil(Math.max(peerRemaining, globalRemaining) / 1_000)),
-      };
+      if (global.count >= PAIR_GLOBAL_ATTEMPT_LIMIT) {
+        return blockedUntil(global.startedAtMs + PAIR_GLOBAL_WINDOW_MS, now);
+      }
+
+      peerWindow.count += 1;
+      global.count += 1;
+      return { allowed: true };
     },
   };
 }
 
-function roll(window: Window | undefined, now: number, windowMs: number): Window {
+function blockedUntil(untilMs: number, now: number): RateDecision {
+  return {
+    allowed: false,
+    retryAfterSeconds: Math.max(1, Math.ceil((untilMs - now) / 1_000)),
+  };
+}
+
+function roll(
+  window: Window | undefined,
+  now: number,
+  windowMs: number,
+): Window {
   if (!window || now >= window.startedAtMs + windowMs) {
     return { startedAtMs: now, count: 0, lastSeenAtMs: now };
   }

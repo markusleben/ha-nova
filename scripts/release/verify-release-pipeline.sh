@@ -4,8 +4,8 @@
 # Two layers:
 #   1. Static workflow invariants every release depends on (no GitHub
 #      permissions; runs in CI and locally).
-#   2. The live GitHub tag-ruleset state that makes "release tags are
-#      maintainer-pushed, the RC workflow never auto-publishes" actually true.
+#   2. The live GitHub production-environment and tag-ruleset state that keeps
+#      production secrets on main/v* and makes release tags maintainer-pushed.
 #
 # The live layer auto-skips entirely with a notice when the current token cannot
 # read rulesets at all (e.g. a token with no repo access), so the same script
@@ -32,7 +32,7 @@ POLICY_FILE="${ROOT_DIR}/.github/policy/repo-policy.json"
 # default it skips with a notice when the token cannot see them, so the weekly
 # audit on the read-only default token does not go red on every run. The
 # release preflight sets HA_NOVA_RELEASE_AUDIT_REQUIRE_BYPASS=1 to make that
-# case fail closed, so a release never proceeds with the guard unverified.
+# case fail closed and verify the production environment before any release.
 REQUIRE_BYPASS="${HA_NOVA_RELEASE_AUDIT_REQUIRE_BYPASS:-0}"
 
 fail() {
@@ -62,10 +62,27 @@ command -v jq >/dev/null 2>&1 || fail "jq is required to verify the release pipe
 release_workflow="${ROOT_DIR}/.github/workflows/release.yml"
 rc_workflow="${ROOT_DIR}/.github/workflows/release-candidate.yml"
 goreleaser="${ROOT_DIR}/.goreleaser.yml"
+cloud_gate="${ROOT_DIR}/scripts/release/verify-cloud-release-gate.sh"
+cloud_workflow_gate="${ROOT_DIR}/scripts/release/verify-cloud-workflow-gate.sh"
+production_environment_gate="${ROOT_DIR}/scripts/release/verify-github-production-environment.sh"
+publication_main_protection_gate="${ROOT_DIR}/scripts/release/verify-cloud-publication-main-protection.sh"
 
 # --- Static workflow contract (no GitHub permissions required) --------------
 [[ -f "${release_workflow}" ]] || fail "Missing ${release_workflow}."
+[[ -f "${rc_workflow}" ]] || fail "Missing ${rc_workflow}."
 [[ -f "${goreleaser}" ]] || fail "Missing ${goreleaser}."
+[[ -x "${cloud_gate}" ]] || fail "Missing executable ${cloud_gate}."
+[[ -f "${cloud_workflow_gate}" ]] || fail "Missing ${cloud_workflow_gate}."
+[[ -x "${production_environment_gate}" ]] \
+  || fail "Missing executable ${production_environment_gate}."
+[[ -x "${publication_main_protection_gate}" ]] \
+  || fail "Missing executable ${publication_main_protection_gate}."
+
+# Cloud publication stays disabled by version metadata until the exact release
+# commit has complete real-device evidence. The dedicated structural verifier
+# rejects skipped/soft-failing gates and any build, upload, or publish producer
+# that can run before metadata and the Cloud gate have both completed.
+bash "${cloud_workflow_gate}"
 
 # Pin GoReleaser to the triggering tag: an rc tag and the final tag can share a
 # commit, and without this GoReleaser auto-detects a tag and publishes onto the
@@ -90,6 +107,8 @@ grep -Eq '^[[:space:]]*replace_existing_draft:[[:space:]]*true[[:space:]]*$' "${
   || fail ".goreleaser.yml must replace an incomplete draft on retry."
 grep -Fq 'publish-release:' "${release_workflow}" \
   || fail "release.yml must publish complete drafts in a separate final job."
+grep -Fq 'needs: smoke-release-bundles' "${release_workflow}" \
+  || fail "release.yml must smoke exact uploaded bundles before publishing."
 grep -Fq 'version: "v2.17.0"' "${release_workflow}" \
   || fail "release.yml must pin the audited GoReleaser version."
 grep -Fq "steps.release-state.outputs.published != 'true'" "${release_workflow}" \
@@ -122,6 +141,11 @@ if ! command -v gh >/dev/null 2>&1; then
 fi
 if ! gh auth status --hostname github.com >/dev/null 2>&1; then
   skip_or_fail "gh is not authenticated for github.com."
+fi
+
+if [[ "${REQUIRE_BYPASS}" == "1" ]]; then
+  bash "${production_environment_gate}" "${REPO}" \
+    || fail "Production environment ref protection is a release blocker."
 fi
 
 rulesets_json="$(gh api --hostname github.com "repos/${REPO}/rulesets" 2>/dev/null || true)"

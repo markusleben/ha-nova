@@ -75,3 +75,21 @@ func TestGetOrCreateClientInstallID(t *testing.T) {
 		t.Fatalf("install id not stable: %q vs %q saved=%d", id1, id2, saved)
 	}
 }
+
+func TestGetOrCreateClientInstallIDRejectsMalformedExistingValue(t *testing.T) {
+	cfg := &runtimeConfig{ClientInstallID: " malformed "}
+	saved := 0
+	_, err := getOrCreateClientInstallID(
+		cfg,
+		func(*runtimeConfig) error {
+			saved++
+			return nil
+		},
+	)
+	if err == nil || !strings.Contains(err.Error(), "invalid client_install_id") {
+		t.Fatalf("malformed install id error = %v", err)
+	}
+	if saved != 0 {
+		t.Fatalf("malformed install id persisted %d times", saved)
+	}
+}

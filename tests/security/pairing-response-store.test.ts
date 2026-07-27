@@ -1,5 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { chmodSync, mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  mkdtempSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -23,7 +29,10 @@ describe("pairing response store (durable)", () => {
     const t = 1_000;
     const store = createFileResponseStore(dir, () => t);
     store.put("hs1", "digestA", "cipherA", t);
-    expect(store.get("hs1")).toEqual({ ke3Digest: "digestA", ciphertextB64: "cipherA" });
+    expect(store.get("hs1")).toEqual({
+      ke3Digest: "digestA",
+      ciphertextB64: "cipherA",
+    });
     expect(store.get("unknown")).toBeNull();
   });
 
@@ -32,7 +41,10 @@ describe("pairing response store (durable)", () => {
     createFileResponseStore(dir, () => t).put("hs1", "digestA", "cipherA", t);
     // A brand-new store (simulating an App restart) reads the same file.
     const afterRestart = createFileResponseStore(dir, () => t);
-    expect(afterRestart.get("hs1")).toEqual({ ke3Digest: "digestA", ciphertextB64: "cipherA" });
+    expect(afterRestart.get("hs1")).toEqual({
+      ke3Digest: "digestA",
+      ciphertextB64: "cipherA",
+    });
   });
 
   it("expires an entry once the pending-credential window has passed", () => {
@@ -48,7 +60,22 @@ describe("pairing response store (durable)", () => {
     const store = createFileResponseStore(dir, () => t);
     store.put("hs1", "digestA", "cipherA", t);
     store.put("hs1", "digestB", "cipherB", t);
-    expect(store.get("hs1")).toEqual({ ke3Digest: "digestB", ciphertextB64: "cipherB" });
+    expect(store.get("hs1")).toEqual({
+      ke3Digest: "digestB",
+      ciphertextB64: "cipherB",
+    });
+  });
+
+  it("binds a persisted Cloud finish response to its opaque user context", () => {
+    const t = 1_000;
+    const store = createFileResponseStore(dir, () => t);
+    store.put("hs1", "digestA", "cipherA", t, "cloud-user-a-digest");
+    expect(store.get("hs1", "cloud-user-a-digest")).toEqual({
+      ke3Digest: "digestA",
+      ciphertextB64: "cipherA",
+    });
+    expect(store.get("hs1", "cloud-user-b-digest")).toBeNull();
+    expect(store.get("hs1")).toBeNull();
   });
 
   it("caps the store so a handshake flood cannot grow the file without bound", () => {
@@ -58,7 +85,10 @@ describe("pairing response store (durable)", () => {
       store.put(`hs${i}`, `d${i}`, `c${i}`, t);
     }
     expect(store.get("hs0")).toBeNull(); // oldest evicted
-    expect(store.get("hs39")).toEqual({ ke3Digest: "d39", ciphertextB64: "c39" }); // newest kept
+    expect(store.get("hs39")).toEqual({
+      ke3Digest: "d39",
+      ciphertextB64: "c39",
+    }); // newest kept
   });
 
   it("starts empty when the persisted file is corrupt rather than crashing pairing", () => {
@@ -68,7 +98,10 @@ describe("pairing response store (durable)", () => {
     expect(store.get("hs1")).toBeNull();
     // And it can still persist new entries over the corrupt file.
     store.put("hs1", "digestA", "cipherA", t);
-    expect(store.get("hs1")).toEqual({ ke3Digest: "digestA", ciphertextB64: "cipherA" });
+    expect(store.get("hs1")).toEqual({
+      ke3Digest: "digestA",
+      ciphertextB64: "cipherA",
+    });
   });
 
   it("writes the store as an owner-only (0600) file", () => {
@@ -80,7 +113,9 @@ describe("pairing response store (durable)", () => {
   it("degrades to memory without throwing when the store cannot be persisted", () => {
     const t = 1_000;
     const warnings: string[] = [];
-    const store = createFileResponseStore(dir, () => t, { warn: (message) => warnings.push(message) });
+    const store = createFileResponseStore(dir, () => t, {
+      warn: (message) => warnings.push(message),
+    });
     store.put("hs1", "digestA", "cipherA", t); // persists fine
 
     chmodSync(dir, 0o500); // make the data dir unwritable so the next atomic write fails
@@ -88,7 +123,10 @@ describe("pairing response store (durable)", () => {
       // A finish response must never throw out of put() — that would leave the
       // pairing code half-consumed. It falls back to in-memory for this session.
       expect(() => store.put("hs2", "digestB", "cipherB", t)).not.toThrow();
-      expect(store.get("hs2")).toEqual({ ke3Digest: "digestB", ciphertextB64: "cipherB" });
+      expect(store.get("hs2")).toEqual({
+        ke3Digest: "digestB",
+        ciphertextB64: "cipherB",
+      });
       expect(warnings.length).toBeGreaterThan(0);
     } finally {
       chmodSync(dir, 0o700); // restore so afterEach cleanup succeeds

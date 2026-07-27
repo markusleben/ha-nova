@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -101,17 +100,17 @@ func TestServerListShowsProfilesPairedAndMarkers(t *testing.T) {
 		t.Fatalf("list exit = %d, want 0\n%s", exit, out)
 	}
 	defaultRow := serverListRow(t, out, "default")
-	if defaultRow[1] != "ha" || defaultRow[2] != "http://ha:8791" || defaultRow[3] != "no" {
+	if defaultRow[1] != "ha" || defaultRow[2] != "http://ha:8791" || defaultRow[3] != "local" || defaultRow[4] != "no" {
 		t.Fatalf("default row = %v", defaultRow)
 	}
-	if !strings.Contains(strings.Join(defaultRow, " "), "default") || len(defaultRow) < 5 {
+	if !strings.Contains(out, "CLOUD") || !strings.Contains(strings.Join(defaultRow, " "), "default") || len(defaultRow) < 7 {
 		t.Fatalf("default row must carry the default marker: %v", defaultRow)
 	}
 	cabinRow := serverListRow(t, out, "cabin")
-	if cabinRow[2] != "http://cabin:8791" || cabinRow[3] != "yes" {
+	if cabinRow[2] != "http://cabin:8791" || cabinRow[3] != "local" || cabinRow[4] != "yes" {
 		t.Fatalf("cabin row = %v", cabinRow)
 	}
-	if len(cabinRow) > 4 {
+	if cabinRow[5] != "no" || len(cabinRow) > 6 {
 		t.Fatalf("cabin row must carry no markers without a selection: %v", cabinRow)
 	}
 
@@ -151,8 +150,12 @@ func TestServerDefaultSwitchesAndKeepsLiteralDefaultMirror(t *testing.T) {
 		t.Fatal(err)
 	}
 	for name := range serversBefore {
-		if compactTestJSON(t, serversAfter[name]) != compactTestJSON(t, serversBefore[name]) {
-			t.Fatalf("profile %q changed by server default:\n before: %s\n after:  %s", name, serversBefore[name], serversAfter[name])
+		var migrated serverProfileConfig
+		if err := json.Unmarshal(serversAfter[name], &migrated); err != nil {
+			t.Fatal(err)
+		}
+		if migrated.ProfileID == "" || migrated.RoutePolicy != routePolicyLocal {
+			t.Fatalf("profile %q did not migrate to v3: %+v", name, migrated)
 		}
 	}
 }
@@ -171,165 +174,6 @@ func TestServerDefaultUnknownNameFailsListingProfiles(t *testing.T) {
 	after, _ := os.ReadFile(paths.ConfigFile)
 	if string(before) != string(after) {
 		t.Fatal("a failed default switch must not touch config.json")
-	}
-}
-
-func TestServerRenameMovesEntrySlotsAndDefaultPointer(t *testing.T) {
-	config := strings.Replace(testV2TwoProfileConfig, `"default_server": "default"`, `"default_server": "cabin"`, 1)
-	paths := setupServerCommandTest(t, config)
-	if err := secretSet(deviceCredentialServiceForProfile("cabin"), testProfileCredentialB); err != nil {
-		t.Fatal(err)
-	}
-	if err := secretSet(deviceCredentialPendingServiceForProfile("cabin"), testProfileCredentialB); err != nil {
-		t.Fatal(err)
-	}
-	topBefore := readTestConfigTopLevel(t, paths)
-	var serversBefore map[string]json.RawMessage
-	if err := json.Unmarshal(topBefore["servers"], &serversBefore); err != nil {
-		t.Fatal(err)
-	}
-
-	if exit := runServerCommand(paths, []string{"rename", "cabin", "seaside"}); exit != 0 {
-		t.Fatalf("rename exit = %d, want 0", exit)
-	}
-
-	top := readTestConfigTopLevel(t, paths)
-	var servers map[string]json.RawMessage
-	if err := json.Unmarshal(top["servers"], &servers); err != nil {
-		t.Fatal(err)
-	}
-	if _, ok := servers["cabin"]; ok {
-		t.Fatal("old servers entry must be gone")
-	}
-	if compactTestJSON(t, servers["seaside"]) != compactTestJSON(t, serversBefore["cabin"]) {
-		t.Fatalf("renamed entry must keep the profile data unchanged:\n old: %s\n new: %s", serversBefore["cabin"], servers["seaside"])
-	}
-	if string(top["default_server"]) != `"seaside"` {
-		t.Fatalf("default_server = %s, want \"seaside\"", top["default_server"])
-	}
-	// The mirror still carries the literal default profile.
-	if string(top["relay_base_url"]) != `"http://ha:8791"` {
-		t.Fatalf("mirror relay_base_url = %s", top["relay_base_url"])
-	}
-	// Both slots moved: present under the new name, gone under the old.
-	for _, service := range []string{deviceCredentialServiceForProfile("seaside"), deviceCredentialPendingServiceForProfile("seaside")} {
-		if got, ok, err := readCredentialSlot(service); err != nil || !ok || got != testProfileCredentialB {
-			t.Fatalf("slot %s = %q ok=%v err=%v", service, got, ok, err)
-		}
-	}
-	for _, service := range []string{deviceCredentialServiceForProfile("cabin"), deviceCredentialPendingServiceForProfile("cabin")} {
-		if _, ok, _ := readCredentialSlot(service); ok {
-			t.Fatalf("old slot %s must be gone", service)
-		}
-	}
-}
-
-func TestServerRenameRefusals(t *testing.T) {
-	cases := []struct {
-		name    string
-		args    []string
-		wantMsg string
-	}{
-		{"literal default", []string{"rename", "default", "home"}, "cannot be renamed"},
-		{"to default", []string{"rename", "cabin", "default"}, "reserved for the legacy-token profile"},
-		{"unknown old", []string{"rename", "nope", "home"}, "unknown server profile"},
-		{"to existing", []string{"rename", "cabin", "lake"}, "already exists"},
-		{"invalid new", []string{"rename", "cabin", "Bad_Name"}, "invalid server profile name"},
-		{"reserved new", []string{"rename", "cabin", "pending"}, "reserved"},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			paths := setupServerCommandTest(t, testV2ThreeProfileConfig)
-			if err := secretSet(deviceCredentialServiceForProfile("cabin"), testProfileCredentialB); err != nil {
-				t.Fatal(err)
-			}
-			before, _ := os.ReadFile(paths.ConfigFile)
-
-			exit, out := captureCommandOutput(t, func() int { return runServerCommand(paths, tc.args) })
-			if exit != 1 {
-				t.Fatalf("exit = %d, want 1\n%s", exit, out)
-			}
-			if !strings.Contains(out, tc.wantMsg) {
-				t.Fatalf("output missing %q:\n%s", tc.wantMsg, out)
-			}
-			after, _ := os.ReadFile(paths.ConfigFile)
-			if string(before) != string(after) {
-				t.Fatal("a refused rename must not touch config.json")
-			}
-			if got, ok, err := readCredentialSlot(deviceCredentialServiceForProfile("cabin")); err != nil || !ok || got != testProfileCredentialB {
-				t.Fatalf("cabin slot touched by refused rename: %q ok=%v err=%v", got, ok, err)
-			}
-		})
-	}
-}
-
-func TestServerRenameMovesRawPendingFileWithoutMarker(t *testing.T) {
-	// An interrupted explicit file pairing (pair --server cabin
-	// --credential-store=file) leaves a pending FILE before the machine-wide
-	// marker exists; the routed slot read cannot see it. Rename must move the
-	// raw file so a later resume can still activate the consumed pairing.
-	paths := setupServerCommandTest(t, testV2TwoProfileConfig)
-	oldPath, err := deviceSecretFilePath(deviceCredentialPendingServiceForProfile("cabin"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.MkdirAll(filepath.Dir(oldPath), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(oldPath, []byte(testProfileCredentialB), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	if exit := runServerCommand(paths, []string{"rename", "cabin", "seaside"}); exit != 0 {
-		t.Fatalf("rename exit = %d, want 0", exit)
-	}
-	if _, err := os.Lstat(oldPath); !os.IsNotExist(err) {
-		t.Fatalf("old raw pending file must be gone, stat err = %v", err)
-	}
-	newPath, err := deviceSecretFilePath(deviceCredentialPendingServiceForProfile("seaside"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	data, err := os.ReadFile(newPath)
-	if err != nil || strings.TrimSpace(string(data)) != testProfileCredentialB {
-		t.Fatalf("raw pending file not moved: err=%v data=%q", err, data)
-	}
-}
-
-func TestServerRenameHeadlessKeepsMarkerlessPendingFile(t *testing.T) {
-	// The REAL headless path (no test secret dir): keyring preflight errors,
-	// only a markerless raw pending file exists. Rename must succeed, move the
-	// file, and warn about the unreachable routed layer.
-	paths := setupServerCommandTest(t, testV2TwoProfileConfig)
-	t.Setenv("HA_NOVA_TEST_SECRET_DIR", "")
-	prevPreflight := deviceCredentialPreflight
-	deviceCredentialPreflight = func() error { return errDesktopKeyringSessionUnavailable }
-	t.Cleanup(func() { deviceCredentialPreflight = prevPreflight })
-
-	oldPath, err := deviceSecretFilePath(deviceCredentialPendingServiceForProfile("cabin"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.MkdirAll(filepath.Dir(oldPath), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(oldPath, []byte(testProfileCredentialB), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	exit, out := captureCommandOutput(t, func() int { return runServerCommand(paths, []string{"rename", "cabin", "seaside"}) })
-	if exit != 0 {
-		t.Fatalf("headless rename exit = %d, want 0\n%s", exit, out)
-	}
-	if !strings.Contains(out, "not reachable") {
-		t.Fatalf("headless rename must warn about the unreachable routed layer:\n%s", out)
-	}
-	newPath, err := deviceSecretFilePath(deviceCredentialPendingServiceForProfile("seaside"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := os.Lstat(newPath); err != nil {
-		t.Fatalf("raw pending file not moved: %v", err)
 	}
 }
 

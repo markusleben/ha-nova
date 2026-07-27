@@ -27,6 +27,15 @@ func stubUninstallRelayTokenDeletion(t *testing.T, token string, deleteErr error
 	}
 }
 
+func isolateMissingRelayAuthToken(t *testing.T) {
+	t.Helper()
+	t.Setenv("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING", "1")
+	t.Setenv(
+		"HA_NOVA_TEST_KEYRING_FILE",
+		filepath.Join(t.TempDir(), "missing-relay-token"),
+	)
+}
+
 func TestDiscardInstallRootRemovesVisibleInstallPath(t *testing.T) {
 	parent := t.TempDir()
 	installRoot := filepath.Join(parent, "ha-nova")
@@ -83,7 +92,7 @@ func TestFinalizeWindowsUninstallRemovesInstallAndState(t *testing.T) {
 		t.Fatalf("write cache: %v", err)
 	}
 
-	if err := finalizeWindowsUninstall(paths, &uninstallReport{}, uninstallModeStandard, nil, false); err != nil {
+	if err := finalizeWindowsUninstall(paths, &uninstallReport{}, uninstallModeStandard, nil, nil); err != nil {
 		t.Fatalf("finalize windows uninstall: %v", err)
 	}
 	if _, err := os.Stat(paths.InstallRoot); !isNotExist(err) {
@@ -133,7 +142,7 @@ func TestFinalizeWindowsUninstallWarnsAboutClaudeProjectMemoryArtifacts(t *testi
 	}
 
 	report := &uninstallReport{}
-	if err := finalizeWindowsUninstall(paths, report, uninstallModeStandard, nil, false); err != nil {
+	if err := finalizeWindowsUninstall(paths, report, uninstallModeStandard, nil, nil); err != nil {
 		t.Fatalf("finalize windows uninstall: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(projectMemoryDir, "ha-nova-skills.md")); err != nil {
@@ -180,7 +189,7 @@ func TestFinalizeWindowsUninstallContinuesWhenLegacyCleanupFails(t *testing.T) {
 	}
 
 	report := &uninstallReport{}
-	if err := finalizeWindowsUninstall(paths, report, uninstallModeStandard, nil, false); err != nil {
+	if err := finalizeWindowsUninstall(paths, report, uninstallModeStandard, nil, nil); err != nil {
 		t.Fatalf("finalizeWindowsUninstall() error: %v", err)
 	}
 	if _, err := os.Stat(paths.InstallRoot); !isNotExist(err) {
@@ -297,7 +306,14 @@ func TestRunInternalUninstallPrintsPartialRemovalDetailsWhenTokenDeleteFails(t *
 	waitForParentReleaseForUninstall = func(parentPID int) {}
 
 	exitCode, output := captureCommandOutput(t, func() int {
-		return runInternalUninstall(paths, []string{"--self-path", filepath.Join(home, "temp-helper.exe"), "--purge"})
+		return runInternalUninstall(paths, []string{
+			"--self-path",
+			filepath.Join(home, "temp-helper.exe"),
+			"--purge",
+			"--teardown-done",
+			"--teardown-relay-instance-id",
+			"relay-guided-teardown",
+		})
 	})
 	if exitCode == 0 {
 		t.Fatalf("expected internal uninstall to fail when token deletion fails:\n%s", output)
@@ -317,5 +333,28 @@ func TestRunInternalUninstallPrintsPartialRemovalDetailsWhenTokenDeleteFails(t *
 	}
 	if marker.Status != windowsUninstallStatusFailed {
 		t.Fatalf("marker status = %q, want failed", marker.Status)
+	}
+	teardownDone, removedRelays, err :=
+		windowsUninstallTeardownEvidence(marker)
+	if err != nil {
+		t.Fatalf("rehydrate guided teardown evidence: %v", err)
+	}
+	if !teardownDone {
+		t.Fatal("failed helper lost guided teardown completion")
+	}
+	if !removedRelays.matches(
+		defaultServerProfileName,
+		"relay-guided-teardown",
+	) {
+		t.Fatalf(
+			"failed helper lost exact Relay-removal evidence: %#v",
+			removedRelays,
+		)
+	}
+	if removedRelays.matches(
+		defaultServerProfileName,
+		"relay-reconfigured-after-failure",
+	) {
+		t.Fatal("recovery evidence matched a different Relay identity")
 	}
 }

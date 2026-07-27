@@ -1,10 +1,67 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 )
+
+func namedRelayPairCommand(profile string, relayURL string) string {
+	relayURL = strings.TrimSpace(relayURL)
+	if !relayURLSafeForCopyPaste(relayURL) {
+		relayURL = "http://<ha-host>:8791"
+	}
+	return fmt.Sprintf(
+		"ha-nova pair --server %s --relay-url %q",
+		profile,
+		relayURL,
+	)
+}
+
+func localRelayRepairCommand(
+	profile string,
+	relayURL string,
+) string {
+	if profile != "" && profile != defaultServerProfileName {
+		return namedRelayPairCommand(profile, relayURL)
+	}
+	return "ha-nova setup"
+}
+
+func localRelayAuthRepairMessage(
+	status int,
+	profile string,
+	relayURL string,
+) string {
+	action := "rejected"
+	if status == http.StatusForbidden {
+		action = "denied"
+	}
+	return fmt.Sprintf(
+		"local Relay %s the saved local credential; run: %s",
+		action,
+		localRelayRepairCommand(profile, relayURL),
+	)
+}
+
+func relayURLSafeForCopyPaste(value string) bool {
+	if validatePairRelayURL(value) != nil {
+		return false
+	}
+	for _, char := range value {
+		switch {
+		case char >= 'a' && char <= 'z',
+			char >= 'A' && char <= 'Z',
+			char >= '0' && char <= '9',
+			strings.ContainsRune(":/.[]_%+-", char):
+		default:
+			return false
+		}
+	}
+	return true
+}
 
 // relayFunctionalTransport picks how the CLI talks to the relay for functional
 // calls (/health, /ws, /core, /files, /backups):
@@ -30,7 +87,10 @@ func relayFunctionalTransport(cfg runtimeConfig) (baseURL string, client *http.C
 		// for the default profile, via pair --server for named profiles (setup
 		// refuses those).
 		if profile := activeServerProfile(); profile != defaultServerProfileName {
-			return "", nil, "", false, fmt.Errorf("device credential unavailable for a paired relay; re-pair with: ha-nova pair --server %s --relay-url %s", profile, cfg.RelayBaseURL)
+			return "", nil, "", false, fmt.Errorf(
+				"device credential unavailable for a paired relay; re-pair with: %s",
+				namedRelayPairCommand(profile, cfg.RelayBaseURL),
+			)
 		}
 		return "", nil, "", false, errors.New("device credential unavailable for a paired relay; run 'ha-nova setup' to re-pair")
 	}
@@ -38,7 +98,11 @@ func relayFunctionalTransport(cfg runtimeConfig) (baseURL string, client *http.C
 		// Non-default server profiles are device-credential-only: the machine-wide
 		// legacy relay token belongs to the default profile, and a half-paired
 		// profile must never send that token to another server's URL. Fail closed.
-		return "", nil, "", false, fmt.Errorf("server profile %q has no completed device pairing; run: ha-nova pair --server %s --relay-url %s", profile, profile, cfg.RelayBaseURL)
+		return "", nil, "", false, fmt.Errorf(
+			"server profile %q has no completed device pairing; run: %s",
+			profile,
+			namedRelayPairCommand(profile, cfg.RelayBaseURL),
+		)
 	}
 	relayToken, tokenErr := readRelayAuthToken()
 	if tokenErr != nil {
@@ -71,7 +135,11 @@ func functionalEndpoint(cfg runtimeConfig, legacyToken string) (string, *http.Cl
 	// contract as relayFunctionalTransport: the caller's legacy token belongs
 	// to the default profile and must never travel to another server's URL.
 	if profile := activeServerProfile(); profile != defaultServerProfileName {
-		return "", nil, "", fmt.Errorf("server profile %q has no completed device pairing; run: ha-nova pair --server %s --relay-url %s", profile, profile, cfg.RelayBaseURL)
+		return "", nil, "", fmt.Errorf(
+			"server profile %q has no completed device pairing; run: %s",
+			profile,
+			namedRelayPairCommand(profile, cfg.RelayBaseURL),
+		)
 	}
 	return cfg.RelayBaseURL, httpClient, legacyToken, nil
 }
@@ -80,8 +148,26 @@ func functionalEndpoint(cfg runtimeConfig, legacyToken string) (string, *http.Cl
 // transport (the paired device path); the legacy path keeps checkRelayReadiness
 // with its test-hookable probe variables.
 func checkRelayReadinessOverTransport(base string, client *http.Client, credential string) relayReadiness {
+	return checkRelayReadinessOverTransportContext(
+		context.Background(),
+		base,
+		client,
+		credential,
+	)
+}
+
+func checkRelayReadinessOverTransportContext(
+	ctx context.Context,
+	base string,
+	client *http.Client,
+	credential string,
+) relayReadiness {
 	return checkRelayReadinessWithProbes(base, credential,
-		func(u, t string) ([]byte, error) { return fetchRelayHealthWith(client, u, t) },
-		func(u, t string) (relayWSPingResponse, error) { return probeRelayWSPingWith(client, u, t) },
+		func(u, t string) ([]byte, error) {
+			return fetchRelayHealthWithContext(ctx, client, u, t)
+		},
+		func(u, t string) (relayWSPingResponse, error) {
+			return probeRelayWSPingWithContext(ctx, client, u, t)
+		},
 		false)
 }

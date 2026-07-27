@@ -285,3 +285,56 @@ func TestRelayUnknownOutcomeWarnsAgainstRetry(t *testing.T) {
 		t.Fatalf("received requests = %d, want 1", got)
 	}
 }
+
+func TestRelayServerFailureAfterDispatchIsOutcomeUnknown(t *testing.T) {
+	paths, _ := setupStrictInputRelay(t)
+	var requests atomic.Int32
+	failed := httptest.NewServer(http.HandlerFunc(func(
+		response http.ResponseWriter,
+		request *http.Request,
+	) {
+		requests.Add(1)
+		_, _ = io.Copy(io.Discard, request.Body)
+		response.Header().Set("Content-Type", "application/json")
+		response.WriteHeader(http.StatusInternalServerError)
+		_, _ = io.WriteString(
+			response,
+			`{"ok":false,"error":{"code":"INTERNAL_ERROR"}}`,
+		)
+	}))
+	t.Cleanup(failed.Close)
+	cfg, err := loadConfig(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.RelayBaseURL = failed.URL
+	if err := saveConfig(paths, cfg); err != nil {
+		t.Fatal(err)
+	}
+
+	exitCode, output := captureCommandOutput(t, func() int {
+		return runRelayProxy(
+			paths,
+			"ws",
+			[]string{
+				"--data",
+				`{"type":"config/area_registry/create","name":"Kitchen"}`,
+			},
+		)
+	})
+	if exitCode != 1 {
+		t.Fatalf("exit/output = %d, %q", exitCode, output)
+	}
+	for _, want := range []string{
+		"OUTCOME_UNKNOWN",
+		"outcome is unknown",
+		"do not retry automatically",
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output missing %q: %s", want, output)
+		}
+	}
+	if got := requests.Load(); got != 1 {
+		t.Fatalf("received requests = %d, want 1", got)
+	}
+}

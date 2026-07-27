@@ -9,6 +9,7 @@ export interface EnvConfig {
   haUrl: string;
   relayVersion: string;
   minRelayVersion?: string;
+  cloudRemoteEnabled: boolean;
   appOptionsPath: string;
   relayPort: number;
   logLevel: LogLevel;
@@ -29,7 +30,7 @@ const ALLOWED_LOG_LEVELS = new Set<LogLevel>([
   "debug",
   "info",
   "warn",
-  "error"
+  "error",
 ]);
 
 export function loadEnv(source: NodeJS.ProcessEnv = process.env): EnvConfig {
@@ -41,11 +42,23 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): EnvConfig {
   }
   const haUrl = parseRequiredLike(
     source.HA_URL,
-    supervisorToken ? DEFAULT_SUPERVISOR_HA_URL : DEFAULT_HA_URL
+    supervisorToken ? DEFAULT_SUPERVISOR_HA_URL : DEFAULT_HA_URL,
   );
-  const relayVersion = parseRequiredLike(source.RELAY_VERSION, DEFAULT_RELAY_VERSION);
-  const minRelayVersion = parseRequiredLike(source.MIN_RELAY_VERSION, relayVersion);
-  const appOptionsPath = parseRequiredLike(source.APP_OPTIONS_PATH, DEFAULT_APP_OPTIONS_PATH);
+  const relayVersion = parseRequiredLike(
+    source.RELAY_VERSION,
+    DEFAULT_RELAY_VERSION,
+  );
+  const minRelayVersion = parseRequiredLike(
+    source.MIN_RELAY_VERSION,
+    relayVersion,
+  );
+  const cloudRemoteEnabled = parseCloudRemoteEnabled(
+    source.CLOUD_REMOTE_ENABLED,
+  );
+  const appOptionsPath = parseRequiredLike(
+    source.APP_OPTIONS_PATH,
+    DEFAULT_APP_OPTIONS_PATH,
+  );
 
   const portRaw = source.RELAY_PORT?.trim();
   const relayPort = portRaw ? Number.parseInt(portRaw, 10) : DEFAULT_RELAY_PORT;
@@ -58,7 +71,10 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): EnvConfig {
     throw new Error("LOG_LEVEL must be one of trace|debug|info|warn|error");
   }
 
-  const snapshotDir = parseRequiredLike(source.SNAPSHOT_DIR, DEFAULT_SNAPSHOT_DIR);
+  const snapshotDir = parseRequiredLike(
+    source.SNAPSHOT_DIR,
+    DEFAULT_SNAPSHOT_DIR,
+  );
 
   return {
     relayAuthToken,
@@ -67,10 +83,11 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): EnvConfig {
     haUrl,
     relayVersion,
     minRelayVersion,
+    cloudRemoteEnabled,
     appOptionsPath,
     relayPort,
     logLevel: logRaw as LogLevel,
-    snapshotDir
+    snapshotDir,
   };
 }
 
@@ -83,11 +100,27 @@ function parseOptionalToken(input: string | undefined): string | undefined {
   return value;
 }
 
-function parseRequiredLike(input: string | undefined, fallback: string): string {
+function parseRequiredLike(
+  input: string | undefined,
+  fallback: string,
+): string {
   const value = input?.trim();
   if (!value) {
     return fallback;
   }
 
   return value;
+}
+
+function parseCloudRemoteEnabled(input: string | undefined): boolean {
+  if (input === undefined) {
+    return false;
+  }
+  if (input === "true") {
+    return true;
+  }
+  if (input === "false") {
+    return false;
+  }
+  throw new Error("CLOUD_REMOTE_ENABLED must be exactly true or false");
 }

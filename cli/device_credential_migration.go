@@ -1,12 +1,14 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
+	"path/filepath"
 	"sort"
-
-	"github.com/zalando/go-keyring"
 )
 
 // Explicit file-backend opt-in and keyring-to-file migration for the device
@@ -23,6 +25,17 @@ import (
 // machine whose keyring never unlocks. The auto-detected path keeps its
 // stricter "nothing persists before promotion" contract.
 var deviceCredentialFileModeExplicit = false
+
+const (
+	deviceCredentialKeyringCleanupMarker = ".keyring-migration-cleanup"
+	deviceCredentialMigrationSchema      = 1
+	deviceCredentialMigrationMaxBytes    = 4096
+)
+
+type deviceCredentialMigrationCleanup struct {
+	SchemaVersion int      `json:"schema_version"`
+	Services      []string `json:"services"`
+}
 
 // forceDeviceCredentialFileMode routes THIS process to the file backend before
 // the storage probe runs — the explicit owner opt-in behind `setup --service`
@@ -50,7 +63,7 @@ func forceDeviceCredentialFileMode() {
 // callers must abort.
 func migrateKeyringDeviceCredentialToFile() (bool, error) {
 	if deviceSecretFileBacked() {
-		return false, nil // already on the file backend
+		return resumeKeyringDeviceCredentialCleanup()
 	}
 	type slotValue struct{ service, value string }
 	var currents, pendings []slotValue
@@ -96,34 +109,210 @@ func migrateKeyringDeviceCredentialToFile() (bool, error) {
 		return false, fmt.Errorf("cannot write the device credential file: %w", err)
 	}
 	var writtenCurrents []string
-	rollbackCurrents := func() {
+	rollbackCurrents := func() error {
+		var rollbackErr error
 		for _, path := range writtenCurrents {
-			_ = os.Remove(path)
+			rollbackErr = errors.Join(
+				rollbackErr,
+				removeDeviceResiduePath(path),
+			)
 		}
+		return rollbackErr
 	}
 	for _, slot := range currents {
 		path := testSecretPath(dir, slot.service)
 		if err := writeSecretFile0600(path, slot.value); err != nil {
-			rollbackCurrents()
-			return false, fmt.Errorf("cannot write the device credential file: %w", err)
+			return false, fmt.Errorf(
+				"cannot write the device credential file: %w",
+				errors.Join(err, rollbackCurrents()),
+			)
 		}
 		writtenCurrents = append(writtenCurrents, path)
 	}
+	services := make([]string, 0, len(currents)+len(pendings))
+	for _, slot := range append(currents, pendings...) {
+		services = append(services, slot.service)
+	}
+	if err := writeKeyringDeviceCredentialCleanup(services); err != nil {
+		return false, fmt.Errorf(
+			"cannot checkpoint migrated keyring credential cleanup: %w",
+			errors.Join(err, rollbackCurrents()),
+		)
+	}
 	if err := writeDeviceFileBackendMarker(); err != nil {
-		rollbackCurrents()
-		return false, fmt.Errorf("cannot persist the file-backend decision: %w", err)
+		var cleanupErr error
+		if cleanupPath, pathErr := keyringDeviceCredentialCleanupPath(); pathErr == nil {
+			cleanupErr = removeDeviceResiduePath(cleanupPath)
+		} else {
+			cleanupErr = pathErr
+		}
+		return false, fmt.Errorf(
+			"cannot persist the file-backend decision: %w",
+			errors.Join(
+				err,
+				cleanupErr,
+				rollbackCurrents(),
+				rollbackFailedDeviceFileBackendMarkerWrite(),
+			),
+		)
 	}
-	// The migrated copies are authoritative now. The keyring originals are the
-	// SAME live credentials, not inert leftovers — best-effort removal keeps a
-	// single storage location. (File reads win via the marker either way.)
-	user := secretUser()
-	for _, slot := range currents {
-		_ = keyring.Delete(slot.service, user)
-	}
-	for _, slot := range pendings {
-		_ = keyring.Delete(slot.service, user)
+	if _, err := resumeKeyringDeviceCredentialCleanup(); err != nil {
+		return true, err
 	}
 	return true, nil
+}
+
+func resumeKeyringDeviceCredentialCleanup() (bool, error) {
+	cleanup, exists, err := readKeyringDeviceCredentialCleanup()
+	if err != nil || !exists {
+		return false, err
+	}
+	for _, service := range cleanup.Services {
+		fileValue, err := deviceSecretFileGet(service)
+		if err != nil {
+			return true, fmt.Errorf(
+				"cannot verify migrated device credential file %s: %w",
+				service,
+				err,
+			)
+		}
+		keyringValue, exists, err := readKeyringDeviceSecret(service)
+		if err != nil {
+			return true, fmt.Errorf(
+				"cannot verify migrated keyring credential %s: %w",
+				service,
+				err,
+			)
+		}
+		if !exists {
+			continue
+		}
+		if keyringValue != fileValue {
+			return true, fmt.Errorf(
+				"migrated keyring credential %s differs from its file copy",
+				service,
+			)
+		}
+		if err := deleteKeyringDeviceSecret(service); err != nil {
+			return true, fmt.Errorf(
+				"cannot remove migrated keyring credential %s: %w",
+				service,
+				err,
+			)
+		}
+	}
+	path, err := keyringDeviceCredentialCleanupPath()
+	if err != nil {
+		return true, err
+	}
+	if err := removeDeviceResiduePath(path); err != nil {
+		return true, fmt.Errorf(
+			"cannot clear migrated keyring credential checkpoint: %w",
+			err,
+		)
+	}
+	return true, nil
+}
+
+func writeKeyringDeviceCredentialCleanup(services []string) error {
+	if len(services) == 0 {
+		return fmt.Errorf("migration cleanup has no credential services")
+	}
+	sort.Strings(services)
+	for index, service := range services {
+		if !validNativeSecretWorkerKey(service, secretUser()) ||
+			(index > 0 && services[index-1] == service) {
+			return fmt.Errorf("invalid migration cleanup service %q", service)
+		}
+	}
+	data, err := json.Marshal(deviceCredentialMigrationCleanup{
+		SchemaVersion: deviceCredentialMigrationSchema,
+		Services:      services,
+	})
+	if err != nil {
+		return fmt.Errorf("encode migration cleanup checkpoint: %w", err)
+	}
+	if len(data) > deviceCredentialMigrationMaxBytes {
+		return fmt.Errorf("migration cleanup checkpoint exceeds size limit")
+	}
+	path, err := keyringDeviceCredentialCleanupPath()
+	if err != nil {
+		return err
+	}
+	return writeSecretFile0600(path, string(data))
+}
+
+func readKeyringDeviceCredentialCleanup() (
+	deviceCredentialMigrationCleanup,
+	bool,
+	error,
+) {
+	path, err := keyringDeviceCredentialCleanupPath()
+	if err != nil {
+		return deviceCredentialMigrationCleanup{}, false, err
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return deviceCredentialMigrationCleanup{}, false, nil
+		}
+		return deviceCredentialMigrationCleanup{}, false, err
+	}
+	defer file.Close()
+	data, err := io.ReadAll(io.LimitReader(
+		file,
+		deviceCredentialMigrationMaxBytes+1,
+	))
+	if err != nil {
+		return deviceCredentialMigrationCleanup{}, false, fmt.Errorf(
+			"read migration cleanup checkpoint: %w",
+			err,
+		)
+	}
+	if len(data) > deviceCredentialMigrationMaxBytes {
+		return deviceCredentialMigrationCleanup{}, false, fmt.Errorf(
+			"migration cleanup checkpoint exceeds size limit",
+		)
+	}
+	var cleanup deviceCredentialMigrationCleanup
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&cleanup); err != nil {
+		return deviceCredentialMigrationCleanup{}, false, fmt.Errorf(
+			"decode migration cleanup checkpoint: %w",
+			err,
+		)
+	}
+	if err := requireJSONEOF(decoder); err != nil {
+		return deviceCredentialMigrationCleanup{}, false, fmt.Errorf(
+			"decode migration cleanup checkpoint: %w",
+			err,
+		)
+	}
+	if cleanup.SchemaVersion != deviceCredentialMigrationSchema ||
+		len(cleanup.Services) == 0 {
+		return deviceCredentialMigrationCleanup{}, false, fmt.Errorf(
+			"invalid migration cleanup checkpoint",
+		)
+	}
+	for index, service := range cleanup.Services {
+		if !validNativeSecretWorkerKey(service, secretUser()) ||
+			(index > 0 && cleanup.Services[index-1] >= service) {
+			return deviceCredentialMigrationCleanup{}, false, fmt.Errorf(
+				"invalid migration cleanup service %q",
+				service,
+			)
+		}
+	}
+	return cleanup, true, nil
+}
+
+func keyringDeviceCredentialCleanupPath() (string, error) {
+	dir, err := deviceSecretFileDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, deviceCredentialKeyringCleanupMarker), nil
 }
 
 // credentialProfileNames returns every server profile whose credential slots
@@ -150,16 +339,20 @@ func credentialProfileNames() []string {
 // the backend router — used only by the keyring→file migration, whose reads
 // must stay pinned to the keyring regardless of routing state.
 func readKeyringSlotDirect(service string) (string, bool, error) {
-	value, err := keyring.Get(service, secretUser())
-	if err != nil {
-		if errors.Is(err, keyring.ErrNotFound) {
-			return "", false, nil
-		}
-		return "", false, err
+	value, exists, err := readKeyringDeviceSecret(service)
+	if err != nil || !exists {
+		return "", exists, err
 	}
-	if parseDeviceCredential(value) == nil {
-		return "", false, fmt.Errorf("keyring credential in %s is malformed", service)
+	if _, err := decodePendingDeviceCredentialRecord(value); err != nil {
+		return "", false, fmt.Errorf(
+			"keyring pending credential in %s is malformed: %w",
+			service,
+			err,
+		)
 	}
+	// Preserve the serialized Cloud provenance while copying the secret to the
+	// file backend. readPendingDeviceCredentialRecord validates it again after
+	// the backend flip.
 	return value, true, nil
 }
 

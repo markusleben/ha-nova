@@ -269,7 +269,9 @@ func TestRelayHealthResponseUsesStrictUTF8Boundary(t *testing.T) {
 		exitCode, output := captureCommandOutput(t, func() int {
 			return runHealth(paths, nil)
 		})
-		if exitCode != 1 || !strings.Contains(output, "relay health check failed") {
+		if exitCode != 1 ||
+			!strings.Contains(output, "OUTCOME_UNKNOWN") ||
+			!strings.Contains(output, "Relay health response was empty") {
 			t.Fatalf("exit/output = %d, %q", exitCode, output)
 		}
 	})

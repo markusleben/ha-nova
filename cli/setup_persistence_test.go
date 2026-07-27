@@ -270,6 +270,7 @@ func TestPersistInteractiveSetupStateReturnsActionableLinuxKeyringInitialization
 }
 
 func TestPersistInteractiveSetupStateWithRecoveryRetriesOnce(t *testing.T) {
+	allowNativeSecureStoragePromptForTest(t)
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING", "1")
@@ -283,14 +284,12 @@ func TestPersistInteractiveSetupStateWithRecoveryRetriesOnce(t *testing.T) {
 	originalWrite := writeRelayAuthTokenForSetupPersistence
 	originalSupport := detectPlatformSecureStorageRecoverySupportForSetup
 	originalRunRecovery := runPlatformSecureStorageRecoveryForSetup
-	originalReadSecret := readSetupSecretInputForSetup
 	originalTTY := writerSupportsTTYForSetup
 	originalInputTTY := uiInputSupportsTTY
 	defer func() {
 		writeRelayAuthTokenForSetupPersistence = originalWrite
 		detectPlatformSecureStorageRecoverySupportForSetup = originalSupport
 		runPlatformSecureStorageRecoveryForSetup = originalRunRecovery
-		readSetupSecretInputForSetup = originalReadSecret
 		writerSupportsTTYForSetup = originalTTY
 		uiInputSupportsTTY = originalInputTTY
 	}()
@@ -307,18 +306,12 @@ func TestPersistInteractiveSetupStateWithRecoveryRetriesOnce(t *testing.T) {
 		return true, nil
 	}
 	recoveryCalls := 0
-	runPlatformSecureStorageRecoveryForSetup = func(action platformSecureStorageRecoveryAction, secret []byte) error {
+	runPlatformSecureStorageRecoveryForSetup = func(action platformSecureStorageRecoveryAction) error {
 		recoveryCalls++
 		if action != platformSecureStorageRecoveryUnlock {
 			t.Fatalf("unexpected recovery action %q", action)
 		}
-		if string(secret) != "linux-local-keyring" {
-			t.Fatalf("unexpected recovery secret %q", string(secret))
-		}
 		return nil
-	}
-	readSetupSecretInputForSetup = func(int) ([]byte, error) {
-		return []byte("linux-local-keyring"), nil
 	}
 	writerSupportsTTYForSetup = func(io.Writer) bool { return true }
 	uiInputSupportsTTY = func() bool { return true }
@@ -347,6 +340,7 @@ func TestPersistInteractiveSetupStateWithRecoveryRetriesOnce(t *testing.T) {
 }
 
 func TestPersistInteractiveSetupStateWithRecoveryDoesNotRepromptAfterAttempt(t *testing.T) {
+	allowNativeSecureStoragePromptForTest(t)
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 
@@ -370,7 +364,7 @@ func TestPersistInteractiveSetupStateWithRecoveryDoesNotRepromptAfterAttempt(t *
 	detectPlatformSecureStorageRecoverySupportForSetup = func() (bool, error) {
 		return true, nil
 	}
-	runPlatformSecureStorageRecoveryForSetup = func(action platformSecureStorageRecoveryAction, _ []byte) error {
+	runPlatformSecureStorageRecoveryForSetup = func(action platformSecureStorageRecoveryAction) error {
 		if action != platformSecureStorageRecoveryUnlock {
 			t.Fatalf("unexpected recovery action %q", action)
 		}
@@ -397,6 +391,7 @@ func TestPersistInteractiveSetupStateWithRecoveryDoesNotRepromptAfterAttempt(t *
 }
 
 func TestPersistInteractiveSetupStateWithRecoveryRetriesInitializationOnce(t *testing.T) {
+	allowNativeSecureStoragePromptForTest(t)
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("HA_NOVA_ALLOW_INSECURE_TEST_KEYRING", "1")
@@ -410,14 +405,12 @@ func TestPersistInteractiveSetupStateWithRecoveryRetriesInitializationOnce(t *te
 	originalWrite := writeRelayAuthTokenForSetupPersistence
 	originalSupport := detectPlatformSecureStorageRecoverySupportForSetup
 	originalRunRecovery := runPlatformSecureStorageRecoveryForSetup
-	originalReadSecret := readSetupSecretInputForSetup
 	originalTTY := writerSupportsTTYForSetup
 	originalInputTTY := uiInputSupportsTTY
 	defer func() {
 		writeRelayAuthTokenForSetupPersistence = originalWrite
 		detectPlatformSecureStorageRecoverySupportForSetup = originalSupport
 		runPlatformSecureStorageRecoveryForSetup = originalRunRecovery
-		readSetupSecretInputForSetup = originalReadSecret
 		writerSupportsTTYForSetup = originalTTY
 		uiInputSupportsTTY = originalInputTTY
 	}()
@@ -434,20 +427,12 @@ func TestPersistInteractiveSetupStateWithRecoveryRetriesInitializationOnce(t *te
 		return true, nil
 	}
 	recoveryCalls := 0
-	runPlatformSecureStorageRecoveryForSetup = func(action platformSecureStorageRecoveryAction, secret []byte) error {
+	runPlatformSecureStorageRecoveryForSetup = func(action platformSecureStorageRecoveryAction) error {
 		recoveryCalls++
 		if action != platformSecureStorageRecoveryInitialize {
 			t.Fatalf("unexpected recovery action %q", action)
 		}
-		if string(secret) != "linux-local-keyring" {
-			t.Fatalf("unexpected recovery secret %q", string(secret))
-		}
 		return nil
-	}
-	reads := 0
-	readSetupSecretInputForSetup = func(int) ([]byte, error) {
-		reads++
-		return []byte("linux-local-keyring"), nil
 	}
 	writerSupportsTTYForSetup = func(io.Writer) bool { return true }
 	uiInputSupportsTTY = func() bool { return true }
@@ -472,8 +457,5 @@ func TestPersistInteractiveSetupStateWithRecoveryRetriesInitializationOnce(t *te
 	}
 	if writeCalls != 2 {
 		t.Fatalf("expected one failed save plus one retry, got %d writes", writeCalls)
-	}
-	if reads != 2 {
-		t.Fatalf("expected create-password prompt plus confirmation, got %d reads", reads)
 	}
 }

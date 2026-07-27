@@ -1,6 +1,9 @@
+import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
+
+import { registerCloudReleaseGateContractTests } from "./cloud-release-gate-contract.js";
 
 describe("release contract", () => {
   const goreleaser = readFileSync(".goreleaser.yml", "utf8");
@@ -49,8 +52,9 @@ describe("release contract", () => {
 
   it("keeps local RC packaging focused on install bundles only", () => {
     expect(pkg.scripts?.["release:rc:local"]).toBe(
-      "goreleaser build --snapshot --clean && bash scripts/release/build-install-bundle.sh",
+      'bash scripts/release/build-sign-darwin-binaries.sh "${HA_NOVA_RC_TAG:?set HA_NOVA_RC_TAG to vX.Y.Z-rcN}" && bash scripts/release/build-rc-binaries.sh "${HA_NOVA_RC_TAG}" && bash scripts/release/build-install-bundle.sh "${HA_NOVA_RC_TAG#v}"',
     );
+    expect(pkg.scripts?.["release:rc:local"]).not.toContain("snapshot");
     expect(pkg.scripts?.["release:winget:stage-submission"]).toBeUndefined();
     expect(existsSync("scripts/release/build-install-bundle.sh")).toBe(true);
     expect(existsSync("scripts/release/build-winget-manifest.sh")).toBe(false);
@@ -59,6 +63,27 @@ describe("release contract", () => {
     ).toBe(false);
     expect(existsSync("release/winget-publication-state.json")).toBe(false);
   });
+
+  it.each(["v0.22.0-rc0", "v0.22.0-rc01", "v01.22.0-rc1"])(
+    "rejects non-canonical RC tag %s across release entry points",
+    (tag) => {
+      for (const [script, args] of [
+        ["scripts/release/verify-release-metadata.sh", [tag]],
+        ["scripts/release/verify-next-release-version.sh", [tag]],
+        ["scripts/release/verify-release-assets.sh", [tag]],
+        ["scripts/release/build-rc-binaries.sh", [tag]],
+        ["scripts/release/build-sign-darwin-binaries.sh", [tag]],
+      ] as const) {
+        const result = spawnSync("bash", [script, ...args], {
+          encoding: "utf8",
+        });
+        expect(
+          result.status,
+          `${script}\n${result.stdout}\n${result.stderr}`,
+        ).not.toBe(0);
+      }
+    },
+  );
 
   it("builds Unix install bundles without macOS copyfile metadata noise", () => {
     expect(bundleBuilder).toContain(
@@ -102,6 +127,8 @@ describe("release contract", () => {
       "GORELEASER_CURRENT_TAG: ${{ github.ref_name }}",
     );
   });
+
+  registerCloudReleaseGateContractTests();
 
   it("keeps releases private until every required asset is present", () => {
     expect(goreleaser).toMatch(/^\s*draft:\s*true\s*$/m);
@@ -149,7 +176,16 @@ describe("release contract", () => {
       '[[ "$latest_tag" != "$GITHUB_REF_NAME" ]]',
     );
     expect(releaseWorkflow).toContain("needs: publish-release");
+    expect(releaseWorkflow).toContain("smoke-release-bundles:");
+    expect(releaseWorkflow).toContain("needs: smoke-release-bundles");
+    expect(releaseWorkflow).toContain(
+      'gh release download "$GITHUB_REF_NAME"',
+    );
+    expect(releaseWorkflow).toContain("internal-cloud-release-check");
     expect(releaseWorkflow.indexOf("Upload install bundles")).toBeLessThan(
+      releaseWorkflow.indexOf("smoke-release-bundles:"),
+    );
+    expect(releaseWorkflow.indexOf("smoke-release-bundles:")).toBeLessThan(
       releaseWorkflow.indexOf("publish-release:"),
     );
     expect(releaseWorkflow.indexOf("publish-release:")).toBeLessThan(
@@ -177,6 +213,25 @@ describe("release contract", () => {
     expect(versionCheck).toContain("maxBuffer: 64 * 1024 * 1024");
   });
 
+  it("rejects non-canonical Relay image release selectors before external checks", () => {
+    expect(relayImageVerifier).toContain(
+      "relay version must be canonical X.Y.Z",
+    );
+    const result = spawnSync(
+      "bash",
+      [
+        "scripts/release/verify-relay-image.sh",
+        "0000000000000000000000000000000000000000",
+        "01.2.3",
+      ],
+      { encoding: "utf8" },
+    );
+    expect(result.status).not.toBe(0);
+    expect(`${result.stdout}\n${result.stderr}`).toContain(
+      "relay version must be canonical X.Y.Z",
+    );
+  });
+
   it("keeps the RC workflow free of winget artifacts and guidance", () => {
     expect(rcWorkflow).toContain("Build install bundles");
     expect(rcWorkflow).toContain("Upload RC artifacts");
@@ -189,6 +244,14 @@ describe("release contract", () => {
       "$ProgressPreference = 'SilentlyContinue'",
     );
     expect(rcWorkflow).not.toContain("dist/winget");
+    expect(rcWorkflow).toContain('platform="darwin"');
+    expect(rcWorkflow).toContain('platform="linux"');
+    expect(rcWorkflow).toContain(
+      'elif "$workdir/ha-nova/ha-nova" internal-cloud-release-check; then',
+    );
+    expect(rcWorkflow).toContain(
+      "unlisted Windows runtime accepted Cloud release provenance",
+    );
   });
 
   it("keeps the RC workflow build-and-smoke only, never publishing a release", () => {
@@ -516,9 +579,16 @@ describe("release contract", () => {
     expect(releasing).toContain("HA_NOVA_LIVE_SKIP_INSTALL=1");
     expect(releasing).toContain("Secret Service");
     expect(releasing).toContain("GNOME Keyring");
-    expect(releasing).toContain("non-GNOME");
-    expect(releasing).toContain("local Linux keyring password");
-    expect(releasing).toContain("headlessly over SSH");
+    expect(releasing).toContain("KWallet Secrets");
+    expect(releasing).toContain("provider-owned desktop prompt");
+    expect(releasing).toContain(
+      "CLI terminal never asks for, reads, or confirms the keyring master password",
+    );
+    expect(releasing).toContain(
+      "validate the fail-closed SSH/headless path separately",
+    );
+    expect(releasing).toContain("SSH (including X11 forwarding)");
+    expect(releasing).toContain("never launch a prompt");
     expect(releasing).toContain("repairable Hermes mismatch");
     expect(releasing).toContain(
       "run `ha-nova setup hermes` and confirm the Hermes route repairs cleanly",

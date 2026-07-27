@@ -48,13 +48,46 @@
       "manifest-review-gate",
       "readme-release-gate"
     ],
+    "required_status_check_apps": {},
     "advisory_checks": [
       "codex-review-gate"
     ],
     "required_approving_review_count": 1,
     "require_code_owner_reviews": true,
+    "dismiss_stale_reviews": true,
     "required_conversation_resolution": true,
-    "strict_required_status_checks": false
+    "strict_required_status_checks": true
+  },
+  "production_environment": {
+    "name": "production",
+    "deployment_branch_policy": {
+      "protected_branches": false,
+      "custom_branch_policies": true
+    },
+    "deployment_branch_policies": [
+      {
+        "name": "main",
+        "type": "branch"
+      },
+      {
+        "name": "v*",
+        "type": "tag"
+      }
+    ],
+    "protection_rule_types": [
+      "branch_policy"
+    ]
+  },
+  "cloud_source_gate": {
+    "check_name": "cloud-source-gate",
+    "reporter_app_slug": "ha-nova-cloud-source-gate",
+    "reporter_app_id": 0,
+    "sensitive_workflows": [
+      ".github/workflows/cloud-source-gate.yml",
+      ".github/workflows/ci.yml",
+      ".github/workflows/release.yml",
+      ".github/workflows/release-candidate.yml"
+    ]
   },
   "release_tag_protection": {
     "name": "release-tags-protection",

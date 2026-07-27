@@ -64,10 +64,6 @@ func runDoctorWithCensusAsk(paths runtimePaths, args []string, allowCensusAsk bo
 		}
 	}
 
-	// Self-heal client integrations once after a version change (complements
-	// --auto-repair below, which only re-attaches drifted clients). Best-effort.
-	ensureClientsVerifiedForCurrentVersion(paths)
-
 	cfg, cfgErr := loadConfig(paths)
 	state, stateErr := loadStateOrDefaultChecked(paths)
 	if stateErr != nil {
@@ -89,33 +85,44 @@ func runDoctorWithCensusAsk(paths runtimePaths, args []string, allowCensusAsk bo
 	}
 
 	// Finish a pairing interrupted between activation and promotion (crash or
-	// lost response); best-effort — failures leave the pending slot alone.
-	resumed := false
-	var resumeErr error
-	if cfg.PendingSecureBaseURL != "" && cfg.PendingSpkiPin != "" {
-		resumeErr = withClientMutationLock(paths, func() error {
-			if err := ensureUpdateLifecycleCurrent(paths, doctorLifecycleGeneration); err != nil {
-				return err
-			}
-			if err := ensureOptionalFileSnapshotCurrent(paths.ConfigFile, doctorConfigSnapshot, doctorHadConfigSnapshot); err != nil {
-				return err
-			}
-			var err error
-			resumed, err = resumePendingActivation(&cfg, func(c *runtimeConfig) error { return saveConfig(paths, *c) })
-			return err
-		})
+	// lost response) before any client self-heal mutation.
+	resumed, resumeErr := resumeInterruptedPairingForDoctor(
+		paths,
+		&cfg,
+		doctorLifecycleGeneration,
+		doctorConfigSnapshot,
+		doctorHadConfigSnapshot,
+	)
+	if resumeErr != nil {
+		printPendingActivationResumeError(resumeErr)
+		return 1
 	}
-	if resumeErr == nil && resumed {
+	if resumed {
 		doctorInfo("Resumed the interrupted pairing — this device is connected.")
 	}
+	// Self-heal client integrations once after a version change (complements
+	// --auto-repair below, which only re-attaches drifted clients). Best-effort.
+	ensureClientsVerifiedForCurrentVersion(paths)
 
-	// Paired devices authenticate with their own credential over pinned TLS;
-	// legacy installs keep the shared relay token. Doctor checks whichever
-	// transport this install actually uses.
-	transportBase, transportClient, transportCred, deviceMode, transportErr := relayFunctionalTransportForDoctor(cfg)
+	// Doctor uses the same route policy as functional commands. Automatic may
+	// therefore verify over Cloud while away, but still fails closed on local
+	// authentication, pin, or protocol errors.
+	doctorRelayCtx, cancelDoctorRelay := context.WithTimeout(
+		context.Background(),
+		time.Duration(defaultRelayMaxTimeSeconds*float64(time.Second)),
+	)
+	defer cancelDoctorRelay()
+	transport, transportErr := selectRelayTransport(
+		doctorRelayCtx,
+		cfg,
+		"",
+		false,
+	)
+	transportBase, transportClient, transportCred, deviceMode :=
+		transport.BaseURL, transport.Client, transport.Credential, transport.DeviceMode
 	pairedConfig := cfg.RelaySecureBaseURL != "" && cfg.RelaySpkiPin != ""
 	var token string
-	if deviceMode {
+	if transportErr == nil && deviceMode {
 		token = transportCred
 		doctorInfo("Device credential present (paired securely)")
 	} else if pairedConfig {
@@ -123,7 +130,7 @@ func runDoctorWithCensusAsk(paths runtimePaths, args []string, allowCensusAsk bo
 		// leftover legacy token: report the device problem so the user re-pairs.
 		// The direct slot read distinguishes unreadable storage from an absent
 		// credential (re-pairing cannot store anything in broken storage).
-		if _, _, credErr := readDeviceCredential(); credErr != nil {
+		if _, exists, credErr := readDeviceCredential(); credErr != nil {
 			printHumanErr("This device is paired, but its device credential could not be read from secure storage: %s", credErr)
 			if hint := setupSecureStorageRecoveryHint(credErr); hint != "" {
 				printHumanWarn("%s", hint)
@@ -131,26 +138,45 @@ func runDoctorWithCensusAsk(paths runtimePaths, args []string, allowCensusAsk bo
 				printHumanWarn("Unlock or repair secure storage on this machine, then run 'ha-nova doctor' again.")
 			}
 			return 1
+		} else if exists {
+			printHumanErr("%s", relayTransportErrorMessage(transportErr))
+			return 1
 		}
 		printHumanErr("This device was paired, but its device credential is missing from secure storage.")
-		if profile := activeServerProfile(); profile != defaultServerProfileName {
-			// Setup refuses named profiles — their repair path is pair --server.
-			printHumanErr("Pair again: run 'ha-nova pair --server %s --relay-url %s' and enter a fresh code from the NOVA page.", profile, cfg.RelayBaseURL)
-		} else {
-			printHumanErr("Pair again: run 'ha-nova setup' and enter a fresh code from the NOVA page.")
-		}
+		printHumanErr(
+			"Pair again: run '%s' and enter a fresh code from the NOVA page.",
+			localRelayRepairCommand(
+				activeServerProfile(),
+				cfg.RelayBaseURL,
+			),
+		)
+		return 1
+	} else if transportErr != nil &&
+		effectiveRoutePolicy(cfg.RoutePolicy) != routePolicyLocal {
+		printHumanErr("%s", relayTransportErrorMessage(transportErr))
 		return 1
 	} else if activeServerProfile() != defaultServerProfileName {
 		// Non-default profiles are device-credential-only: never check them with
 		// the machine-wide legacy token (it belongs to the default profile).
 		if transportErr == nil {
-			transportErr = fmt.Errorf("server profile %q has no completed device pairing; run: ha-nova pair --server %s --relay-url %s", activeServerProfile(), activeServerProfile(), cfg.RelayBaseURL)
+			transportErr = fmt.Errorf(
+				"server profile %q has no completed device pairing; run: %s",
+				activeServerProfile(),
+				localRelayRepairCommand(
+					activeServerProfile(),
+					cfg.RelayBaseURL,
+				),
+			)
 		}
 		printHumanErr("%s", transportErr)
 		return 1
 	} else {
-		legacyToken, tokenErr := readRelayAuthTokenForDoctor()
-		token = legacyToken
+		tokenErr := transportErr
+		if tokenErr == nil {
+			token = transportCred
+		} else {
+			token, tokenErr = readRelayAuthTokenForDoctor()
+		}
 		if tokenErr == nil && token != "" {
 			doctorInfo("Relay auth token present in %s", relayAuthTokenStorageLabel())
 		} else {
@@ -165,13 +191,21 @@ func runDoctorWithCensusAsk(paths runtimePaths, args []string, allowCensusAsk bo
 		}
 	}
 
+	usingCloud := transport.Via == relayViaCloud
 	haReachable := false
 	haURLKnown := strings.TrimSpace(cfg.HAURL) != ""
-	if !haURLKnown {
+	if usingCloud {
+		doctorInfo("Cloud route selected; skipping the local Home Assistant address probe")
+		haReachable = true
+	} else if !haURLKnown {
 		// A pair-only setup (`ha-nova pair --relay-url ...`) has no saved HA
 		// address yet. The relay's WS state still proves the connection; the
 		// direct HA probe is just skipped instead of failing on an empty URL.
-		printHumanWarn("No Home Assistant address saved yet; skipping the direct HA check. Run 'ha-nova setup' to complete this device's setup.")
+		if activeServerProfile() == defaultServerProfileName {
+			printHumanWarn("No Home Assistant address saved yet; skipping the direct HA check. Run 'ha-nova setup' to complete this device's setup.")
+		} else {
+			printHumanWarn("No Home Assistant address saved for this profile; skipping the direct HA check.")
+		}
 	} else if err := probeHTTP(cfg.HAURL); err != nil {
 		printHumanErr("Home Assistant unreachable: %s", err)
 		status = 1
@@ -185,21 +219,29 @@ func runDoctorWithCensusAsk(paths runtimePaths, args []string, allowCensusAsk bo
 	// itself is offline would mislead.
 	judgeWS := haReachable || !haURLKnown
 
-	healthBase := cfg.RelayBaseURL
+	healthBase := transportBase
 	runReadiness := func() relayReadiness {
-		if deviceMode {
-			return checkRelayReadinessOverTransport(transportBase, transportClient, token)
+		if deviceMode || usingCloud {
+			return checkRelayReadinessOverTransportContext(
+				doctorRelayCtx,
+				transportBase,
+				transportClient,
+				token,
+			)
 		}
 		return checkRelayReadiness(cfg.RelayBaseURL, token)
-	}
-	if deviceMode {
-		healthBase = transportBase
 	}
 	readiness := runReadiness()
 	if readiness.HealthErr != nil {
 		printHumanErr("Relay health failed: %s", readiness.HealthErr)
 		if deviceMode && relayHealthIssueLooksLikeRelayAuth(readiness.HealthErr) {
-			printHumanErr("This device's pairing was not accepted (revoked or unknown). Pair again: run 'ha-nova setup'.")
+			printHumanErr(
+				"This device's pairing was not accepted (revoked or unknown). Pair again: run '%s'.",
+				localRelayRepairCommand(
+					activeServerProfile(),
+					cfg.RelayBaseURL,
+				),
+			)
 		}
 		status = 1
 	} else {
@@ -211,7 +253,7 @@ func runDoctorWithCensusAsk(paths runtimePaths, args []string, allowCensusAsk bo
 			// A guided update that ends verified clears THIS failure — doctor
 			// must not exit 1 over a problem the user just fixed.
 			fixed := false
-			if !*quiet {
+			if !*quiet && !usingCloud {
 				fixed = maybeOfferGuidedRelayUpdate(paths, notice)
 			}
 			if !fixed {
@@ -223,7 +265,7 @@ func runDoctorWithCensusAsk(paths runtimePaths, args []string, allowCensusAsk bo
 				// that is running NOW.
 				readiness = runReadiness()
 			}
-		} else if !*quiet {
+		} else if !*quiet && !usingCloud {
 			// A newer App may be available even while the running Relay remains
 			// compatible with min_relay_version. That is an optional update, not
 			// a failed doctor check; decline/non-TTY keeps status unchanged.
@@ -244,7 +286,7 @@ func runDoctorWithCensusAsk(paths runtimePaths, args []string, allowCensusAsk bo
 				// Working legacy install against a pairing-capable relay: point
 				// at the passwordless upgrade once, as information — never a
 				// failure, and skipped in --quiet's machine contract.
-				if !deviceMode && !*quiet && probePairingV1ForDoctor(cfg.RelayBaseURL) {
+				if !deviceMode && !usingCloud && !*quiet && probePairingV1ForDoctor(cfg.RelayBaseURL) {
 					printHumanInfo("This relay supports passwordless device pairing. Run 'ha-nova pair' and enter a fresh code from the NOVA page to switch this device to its own secure credential.")
 				}
 			case readiness.UpstreamAuthIssue:
@@ -254,7 +296,13 @@ func runDoctorWithCensusAsk(paths runtimePaths, args []string, allowCensusAsk bo
 			case readiness.RelayAuthIssue:
 				printHumanErr("Relay reports degraded upstream WS capability")
 				if deviceMode {
-					printHumanErr("This device's pairing was not accepted (revoked or unknown). Pair again: run 'ha-nova setup'.")
+					printHumanErr(
+						"This device's pairing was not accepted (revoked or unknown). Pair again: run '%s'.",
+						localRelayRepairCommand(
+							activeServerProfile(),
+							cfg.RelayBaseURL,
+						),
+					)
 				} else {
 					printHumanErr(`The Relay Auth Token field ("relay_auth_token") in NOVA Relay is missing or invalid`)
 				}
@@ -345,14 +393,33 @@ func runDoctorWithCensusAsk(paths runtimePaths, args []string, allowCensusAsk bo
 }
 
 func doctorClientRepairHint(client clientStatus, installSource string) string {
+	setupCommand := doctorClientSetupCommand(client.ID)
 	switch {
 	case !client.RuntimeDetected:
-		return fmt.Sprintf("Repair: install or reopen %s, then run `ha-nova setup %s`.", client.Label, client.ID)
+		return fmt.Sprintf(
+			"Repair: install or reopen %s, then run `%s`.",
+			client.Label,
+			setupCommand,
+		)
 	case installSource == installSourceDev:
-		return fmt.Sprintf("Repair: run `npm run dev:sync` or `ha-nova setup %s`.", client.ID)
+		return fmt.Sprintf(
+			"Repair: run `npm run dev:sync` or `%s`.",
+			setupCommand,
+		)
 	default:
-		return fmt.Sprintf("Repair: run `ha-nova setup %s`.", client.ID)
+		return fmt.Sprintf("Repair: run `%s`.", setupCommand)
 	}
+}
+
+func doctorClientSetupCommand(clientID string) string {
+	if activeServerProfile() != defaultServerProfileName {
+		return fmt.Sprintf(
+			"ha-nova setup --server %s %s",
+			activeServerProfile(),
+			clientID,
+		)
+	}
+	return fmt.Sprintf("ha-nova setup %s", clientID)
 }
 
 func runCheckUpdate(paths runtimePaths, args []string) int {
@@ -461,7 +528,14 @@ func fetchRelayHealthWithContext(ctx context.Context, client *http.Client, relay
 		return nil, err
 	}
 	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
+	if resp.StatusCode == http.StatusUnauthorized ||
+		resp.StatusCode == http.StatusForbidden {
+		return nil, fmt.Errorf("HTTP %d", resp.StatusCode)
+	}
+	body, err := readAllLimited(
+		resp.Body,
+		maxRelayDiagnosticResponseBytes,
+	)
 	if err != nil {
 		return nil, err
 	}

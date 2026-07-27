@@ -241,9 +241,33 @@ sync_shared_tools() {
     # working relay, so build to a temp path and move it over the target only on
     # success. With set -e a build failure aborts before the move, leaving the old
     # relay intact.
+    if ! validate_dev_cloud_app_slug; then
+      return 1
+    fi
     local relay_build="${relay_dst}.new"
+    local cloud_build_tag
+    cloud_build_tag="$(dev_cloud_build_tag)"
     rm -f "${relay_build}"
-    (cd "${REPO_ROOT}/cli" && go build -o "${relay_build}" .)
+    if [[ -n "${HA_NOVA_DEV_CLOUD_APP_SLUG:-}" ]]; then
+      (
+        cd "${REPO_ROOT}/cli" &&
+          go build \
+            -tags "${cloud_build_tag}" \
+            -ldflags "-X main.cloudRemoteDevAppSlug=${HA_NOVA_DEV_CLOUD_APP_SLUG}" \
+            -o "${relay_build}" .
+      )
+    else
+      (
+        cd "${REPO_ROOT}/cli" &&
+          go build \
+            -tags "${cloud_build_tag}" \
+            -o "${relay_build}" .
+      )
+    fi
+    if ! harden_cloud_dev_binary "${relay_build}"; then
+      echo "[dev:sync] ERROR: Cloud Remote dev binary could not be hardened" >&2
+      return 1
+    fi
     chmod 755 "${relay_build}"
     mv -f "${relay_build}" "${relay_dst}"
     echo "[dev:sync] Built and deployed relay CLI from local Go source"
@@ -269,6 +293,43 @@ dev_build_ldflags() {
   stamp="$(date '+%Y-%m-%dT%H:%M' 2>/dev/null || echo unknown)"
   version="$(repo_skill_version)"
   printf -- '-X main.Version=%s -X main.BuildChannel=dev -X main.BuildStamp=%s-%s' "${version:-dev}" "${stamp}" "${sha}"
+}
+
+validate_dev_cloud_app_slug() {
+  local app_slug="${HA_NOVA_DEV_CLOUD_APP_SLUG:-}"
+  local LC_ALL=C
+  [[ -z "${app_slug}" ]] && return 0
+  if [[ "${app_slug}" == "2368fcfa_ha_nova_relay" ||
+    ! "${app_slug}" =~ ^local_[a-z0-9][a-z0-9_-]{0,57}$ ]]; then
+    echo "[dev:sync] ERROR: HA_NOVA_DEV_CLOUD_APP_SLUG must be an isolated non-official local_<slug> (maximum 64 characters)" >&2
+    return 1
+  fi
+}
+
+dev_cloud_build_tag() {
+  if [[ -n "${HA_NOVA_DEV_CLOUD_APP_SLUG:-}" ]]; then
+    printf '%s\n' "cloudremote_dev"
+    return
+  fi
+  printf '%s\n' "cloudremote_disabled"
+}
+
+harden_cloud_dev_binary() {
+  local binary="$1"
+  local codesign_bin="${HA_NOVA_DEV_CODESIGN_BIN:-/usr/bin/codesign}"
+  [[ -n "${HA_NOVA_DEV_CLOUD_APP_SLUG:-}" ]] || return 0
+  [[ "$(uname -s 2>/dev/null || echo unknown)" == "Darwin" ]] || return 0
+  if [[ ! -x "${codesign_bin}" ]]; then
+    echo "[dev:sync] ERROR: codesign is required for macOS Cloud Remote dev builds" >&2
+    return 1
+  fi
+  "${codesign_bin}" \
+    --force \
+    --sign - \
+    --options runtime,hard,kill,library \
+    --timestamp=none \
+    "${binary}" &&
+    "${codesign_bin}" --verify --strict "${binary}"
 }
 
 dev_bundle_os() {
@@ -407,9 +468,27 @@ sync_cli_runtime() {
   # Build to a fresh temp path, then move over the target: Go 1.26 refuses `-o`
   # onto an existing non-object file, and this keeps the existing runtime intact
   # if the build fails.
+  if ! validate_dev_cloud_app_slug; then
+    cli_build_failed=1
+    return
+  fi
+
   local build_out="${target}.new"
+  local cloud_build_tag build_ldflags
+  cloud_build_tag="$(dev_cloud_build_tag)"
+  build_ldflags="$(dev_build_ldflags)"
+  if [[ -n "${HA_NOVA_DEV_CLOUD_APP_SLUG:-}" ]]; then
+    build_ldflags="${build_ldflags} -X main.cloudRemoteDevAppSlug=${HA_NOVA_DEV_CLOUD_APP_SLUG}"
+  fi
   rm -f "${build_out}"
-  if (cd "${REPO_ROOT}/cli" && go build -ldflags "$(dev_build_ldflags)" -o "${build_out}" .) && mv -f "${build_out}" "${target}"; then
+  if (
+    cd "${REPO_ROOT}/cli" &&
+      go build \
+        -tags "${cloud_build_tag}" \
+        -ldflags "${build_ldflags}" \
+        -o "${build_out}" . &&
+      harden_cloud_dev_binary "${build_out}"
+  ) && mv -f "${build_out}" "${target}"; then
     local target_root repo_version
     target_root="$(dirname "${target}")"
     repo_version="$(repo_skill_version)"
@@ -423,6 +502,11 @@ sync_cli_runtime() {
     cp "${REPO_ROOT}/clients/registry.json" "${target_root}/clients/registry.json"
     echo "[dev:sync] CLI: built local Go source → ${target}"
     echo "[dev:sync] CLI: local dev build active — 'ha-nova version' now reports DEV; restore the release with 'ha-nova update --force'"
+    if [[ -n "${HA_NOVA_DEV_CLOUD_APP_SLUG:-}" ]]; then
+      echo "[dev:sync] CLI: Cloud Remote dev opt-in active for isolated App ${HA_NOVA_DEV_CLOUD_APP_SLUG}"
+    else
+      echo "[dev:sync] CLI: Cloud Remote disabled (set HA_NOVA_DEV_CLOUD_APP_SLUG=local_<slug> to opt in)"
+    fi
     synced+=("CLI")
   else
     echo "[dev:sync] CLI: go build failed — fix the error above, then re-sync" >&2

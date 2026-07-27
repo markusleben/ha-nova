@@ -1,8 +1,8 @@
 package main
 
 import (
-	"crypto/rand"
-	"encoding/hex"
+	"context"
+	"encoding/json"
 	"fmt"
 )
 
@@ -20,7 +20,29 @@ import (
 const (
 	deviceCredentialService        = "ha-nova.device-credential"
 	deviceCredentialPendingService = "ha-nova.device-credential.pending"
+
+	pendingDeviceCredentialEnvelopeVersion = 1
+	pendingDeviceCredentialSourceLocal     = "local"
+	pendingDeviceCredentialSourceCloud     = "cloud"
 )
+
+// pendingDeviceCredentialEnvelope gives an interrupted Cloud activation
+// provenance. Historic/local v1 pending values remain raw credentials, so
+// existing installs keep working. Cloud v2 never writes a raw pending value:
+// its exact Relay binding travels with the credential and prevents either
+// pairing protocol from activating the other protocol's provisional secret.
+type pendingDeviceCredentialEnvelope struct {
+	Version         int    `json:"version"`
+	Source          string `json:"source"`
+	Credential      string `json:"credential"`
+	RelayInstanceID string `json:"relay_instance_id"`
+}
+
+type pendingDeviceCredentialRecord struct {
+	Credential      string
+	Source          string
+	RelayInstanceID string
+}
 
 func deviceCredentialServiceForProfile(profile string) string {
 	if profile == "" || profile == defaultServerProfileName {
@@ -48,37 +70,167 @@ func readDeviceCredential() (string, bool, error) {
 	return readCredentialSlot(activeDeviceCredentialService())
 }
 
+func readDeviceCredentialWithPolicy(
+	ctx context.Context,
+	ui SecretStoreUIPolicy,
+) (string, bool, error) {
+	return readCredentialSlotWithPolicy(
+		ctx,
+		activeDeviceCredentialService(),
+		ui,
+	)
+}
+
 func writeDeviceCredential(credential string) error {
+	ctx, cancel := boundedNativeOAuthSecretContext(
+		context.Background(),
+		SecretStoreForbidUI,
+	)
+	defer cancel()
+	return writeDeviceCredentialWithPolicy(
+		ctx,
+		credential,
+		SecretStoreForbidUI,
+	)
+}
+
+func writeDeviceCredentialWithPolicy(
+	ctx context.Context,
+	credential string,
+	ui SecretStoreUIPolicy,
+) error {
 	if parseDeviceCredential(credential) == nil {
 		return fmt.Errorf("refusing to store a malformed device credential")
 	}
-	return secretSet(activeDeviceCredentialService(), credential)
+	return secretSetWithPolicy(
+		ctx,
+		activeDeviceCredentialService(),
+		credential,
+		ui,
+	)
 }
 
 func deleteDeviceCredential() error {
-	return secretDelete(activeDeviceCredentialService())
+	ctx, cancel := boundedNativeOAuthSecretContext(
+		context.Background(),
+		SecretStoreForbidUI,
+	)
+	defer cancel()
+	return deleteDeviceCredentialWithPolicy(ctx, SecretStoreForbidUI)
+}
+
+func deleteDeviceCredentialWithPolicy(
+	ctx context.Context,
+	ui SecretStoreUIPolicy,
+) error {
+	return secretDeleteWithPolicy(ctx, activeDeviceCredentialService(), ui)
 }
 
 func readPendingDeviceCredential() (string, bool, error) {
-	return readCredentialSlot(activeDeviceCredentialPendingService())
+	record, ok, err := readPendingDeviceCredentialRecord()
+	return record.Credential, ok, err
 }
 
 func writePendingDeviceCredential(credential string) error {
+	ctx, cancel := boundedNativeOAuthSecretContext(
+		context.Background(),
+		SecretStoreForbidUI,
+	)
+	defer cancel()
+	return writePendingDeviceCredentialWithPolicy(
+		ctx,
+		credential,
+		SecretStoreForbidUI,
+	)
+}
+
+func writePendingDeviceCredentialWithPolicy(
+	ctx context.Context,
+	credential string,
+	ui SecretStoreUIPolicy,
+) error {
 	if parseDeviceCredential(credential) == nil {
 		return fmt.Errorf("refusing to store a malformed pending credential")
 	}
-	return secretSet(activeDeviceCredentialPendingService(), credential)
+	return secretSetWithPolicy(
+		ctx,
+		activeDeviceCredentialPendingService(),
+		credential,
+		ui,
+	)
+}
+
+func writePendingCloudDeviceCredentialWithPolicy(
+	ctx context.Context,
+	credential, relayInstanceID string,
+	ui SecretStoreUIPolicy,
+) error {
+	if parseDeviceCredential(credential) == nil {
+		return fmt.Errorf("refusing to store a malformed pending credential")
+	}
+	if !validIdentifier(relayInstanceID, 256) {
+		return fmt.Errorf("refusing to store a pending Cloud credential without a valid Relay identity")
+	}
+	encoded, err := json.Marshal(pendingDeviceCredentialEnvelope{
+		Version:         pendingDeviceCredentialEnvelopeVersion,
+		Source:          pendingDeviceCredentialSourceCloud,
+		Credential:      credential,
+		RelayInstanceID: relayInstanceID,
+	})
+	if err != nil {
+		return fmt.Errorf("encode pending Cloud credential: %w", err)
+	}
+	return secretSetWithPolicy(
+		ctx,
+		activeDeviceCredentialPendingService(),
+		string(encoded),
+		ui,
+	)
 }
 
 func deletePendingDeviceCredential() error {
-	return secretDelete(activeDeviceCredentialPendingService())
+	ctx, cancel := boundedNativeOAuthSecretContext(
+		context.Background(),
+		SecretStoreForbidUI,
+	)
+	defer cancel()
+	return deletePendingDeviceCredentialWithPolicy(
+		ctx,
+		SecretStoreForbidUI,
+	)
+}
+
+func deletePendingDeviceCredentialWithPolicy(
+	ctx context.Context,
+	ui SecretStoreUIPolicy,
+) error {
+	return secretDeleteWithPolicy(
+		ctx,
+		activeDeviceCredentialPendingService(),
+		ui,
+	)
 }
 
 // promotePendingDeviceCredential makes the pending credential current and clears
 // the pending slot. Called only AFTER the pending credential has been activated
 // and verified against the relay, so the swap is safe.
 func promotePendingDeviceCredential() error {
-	pending, ok, err := readPendingDeviceCredential()
+	ctx, cancel := boundedNativeOAuthSecretContext(
+		context.Background(),
+		SecretStoreForbidUI,
+	)
+	defer cancel()
+	return promotePendingDeviceCredentialWithPolicy(
+		ctx,
+		SecretStoreForbidUI,
+	)
+}
+
+func promotePendingDeviceCredentialWithPolicy(
+	ctx context.Context,
+	ui SecretStoreUIPolicy,
+) error {
+	pending, ok, err := readPendingDeviceCredentialRecordWithPolicy(ctx, ui)
 	if err != nil {
 		return err
 	}
@@ -88,10 +240,14 @@ func promotePendingDeviceCredential() error {
 	// Backend is install-wide (see device_credential_storage.go), so current and
 	// pending always resolve to the same store — a plain write+delete promotes
 	// correctly whether this install uses the keyring or the file backend.
-	if err := writeDeviceCredential(pending); err != nil {
+	if err := writeDeviceCredentialWithPolicy(
+		ctx,
+		pending.Credential,
+		ui,
+	); err != nil {
 		return err
 	}
-	return deletePendingDeviceCredential()
+	return deletePendingDeviceCredentialWithPolicy(ctx, ui)
 }
 
 // promotePendingFileCredential finalizes a FILE-backed pending credential
@@ -112,6 +268,23 @@ func promotePendingFileCredential(pending string) error {
 
 func readCredentialSlot(service string) (string, bool, error) {
 	value, err := secretGet(service)
+	return decodeDeviceCredentialSlot(service, value, err)
+}
+
+func readCredentialSlotWithPolicy(
+	ctx context.Context,
+	service string,
+	ui SecretStoreUIPolicy,
+) (string, bool, error) {
+	value, err := secretGetWithPolicy(ctx, service, ui)
+	return decodeDeviceCredentialSlot(service, value, err)
+}
+
+func decodeDeviceCredentialSlot(
+	service, value string,
+	readErr error,
+) (string, bool, error) {
+	err := readErr
 	if err != nil {
 		if err == errSecretNotFound {
 			return "", false, nil
@@ -122,21 +295,4 @@ func readCredentialSlot(service string) (string, bool, error) {
 		return "", false, fmt.Errorf("stored credential in %s is malformed", service)
 	}
 	return value, true, nil
-}
-
-// getOrCreateClientInstallID returns the stable install id, generating and
-// persisting one on first use. persist is the caller's config saver.
-func getOrCreateClientInstallID(cfg *runtimeConfig, persist func(*runtimeConfig) error) (string, error) {
-	if cfg.ClientInstallID != "" {
-		return cfg.ClientInstallID, nil
-	}
-	buf := make([]byte, 16)
-	if _, err := rand.Read(buf); err != nil {
-		return "", err
-	}
-	cfg.ClientInstallID = "inst-" + hex.EncodeToString(buf)
-	if err := persist(cfg); err != nil {
-		return "", err
-	}
-	return cfg.ClientInstallID, nil
 }

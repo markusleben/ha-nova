@@ -2,14 +2,11 @@ package main
 
 import (
 	"bufio"
-	"bytes"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"strings"
-
-	"golang.org/x/term"
 )
 
 type setupSecureStorageRecoveryResult string
@@ -17,14 +14,12 @@ type setupSecureStorageRecoveryAttempt string
 type platformSecureStorageRecoveryAction string
 
 type platformSecureStorageRecoveryPlan struct {
-	action             platformSecureStorageRecoveryAction
-	title              string
-	paragraphs         []string
-	prompt             string
-	secretLabel        string
-	confirmSecretLabel string
-	successMessage     string
-	hint               string
+	action         platformSecureStorageRecoveryAction
+	title          string
+	paragraphs     []string
+	prompt         string
+	successMessage string
+	hint           string
 }
 
 const (
@@ -43,12 +38,12 @@ type setupSecureStorageRecoveryState struct {
 	saveRetryAttempted bool
 }
 
-var errLocalSecureStoragePasswordRejected = errors.New("local secure storage password rejected")
+var errLocalSecureStoragePromptCanceled = errors.New("local secure storage prompt canceled")
 
 var detectPlatformSecureStorageRecoverySupportForSetup = detectPlatformSecureStorageRecoverySupport
 var inferPlatformSecureStorageRecoveryActionForSetup = inferPlatformSecureStorageRecoveryAction
 var runPlatformSecureStorageRecoveryForSetup = runPlatformSecureStorageRecovery
-var readSetupSecretInputForSetup = term.ReadPassword
+var platformSecureStorageRecoveryInteractiveAvailableForSetup = platformNativeSecretPromptAvailable
 
 func inferBasicSetupSecureStorageRecoveryAction(err error) platformSecureStorageRecoveryAction {
 	switch {
@@ -73,22 +68,11 @@ func setupSecureStorageRecoveryAvailableNow(err error) bool {
 	if !uiInputSupportsTTY() || !writerSupportsTTYForSetup(os.Stdout) {
 		return false
 	}
+	if !platformSecureStorageRecoveryInteractiveAvailableForSetup() {
+		return false
+	}
 	_, available, supportErr := resolveSetupSecureStorageRecoveryPlan(err)
 	return supportErr == nil && available
-}
-
-func promptSetupSecretInput(out io.Writer, label string) ([]byte, error) {
-	if !uiInputSupportsTTY() || !writerSupportsTTYForSetup(out) {
-		return nil, fmt.Errorf("secure storage recovery requires an interactive terminal")
-	}
-	fmt.Fprintln(out)
-	fmt.Fprintf(out, "  %s: ", label)
-	secret, err := readSetupSecretInputForSetup(int(os.Stdin.Fd()))
-	fmt.Fprintln(out)
-	if err != nil {
-		return nil, err
-	}
-	return secret, nil
 }
 
 func zeroSecretBytes(secret []byte) {
@@ -107,22 +91,24 @@ func markSetupSecureStorageRecoveryAttempt(state *setupSecureStorageRecoveryStat
 }
 
 func isRetryableSetupSecureStorageRecoveryError(err error) bool {
-	if errors.Is(err, errLocalSecureStoragePasswordRejected) {
+	if isDesktopKeyringLockedError(err) {
 		return true
 	}
-	if isDesktopKeyringLockedError(err) {
+	if isDesktopKeyringInitializationRequiredError(err) {
 		return true
 	}
 	return strings.Contains(strings.ToLower(err.Error()), "local secure storage is still locked on this linux machine")
 }
 
-func localSecureStoragePasswordRejectedError() error {
-	return fmt.Errorf("%w: local Linux keyring password was rejected", errLocalSecureStoragePasswordRejected)
-}
-
 func runSetupSecureStorageRecoveryFlow(reader *bufio.Reader, out io.Writer, triggerErr error, state *setupSecureStorageRecoveryState, attempt setupSecureStorageRecoveryAttempt) (setupSecureStorageRecoveryResult, error) {
 	if state == nil {
 		return "", errors.New("secure storage recovery state missing")
+	}
+	if !uiInputSupportsTTY() || !writerSupportsTTYForSetup(out) {
+		return "", errors.New("secure storage recovery requires an interactive desktop terminal")
+	}
+	if !platformSecureStorageRecoveryInteractiveAvailableForSetup() {
+		return "", errors.New("secure storage recovery requires a local graphical desktop session")
 	}
 
 	recoveryErr := triggerErr
@@ -145,41 +131,13 @@ func runSetupSecureStorageRecoveryFlow(reader *bufio.Reader, out io.Writer, trig
 			return setupSecureStorageRecoveryDeclined, nil
 		}
 
-		secret, err := promptSetupSecretInput(out, plan.secretLabel)
-		if err != nil {
-			return "", err
-		}
-		if len(secret) == 0 {
-			zeroSecretBytes(secret)
-			renderSetupErrorLine(out, "No password entered.")
-			continue
-		}
-		if plan.confirmSecretLabel != "" {
-			confirmSecret, confirmErr := promptSetupSecretInput(out, plan.confirmSecretLabel)
-			if confirmErr != nil {
-				zeroSecretBytes(secret)
-				return "", confirmErr
-			}
-			if len(confirmSecret) == 0 {
-				zeroSecretBytes(secret)
-				zeroSecretBytes(confirmSecret)
-				renderSetupErrorLine(out, "No password entered.")
-				continue
-			}
-			if !bytes.Equal(secret, confirmSecret) {
-				zeroSecretBytes(secret)
-				zeroSecretBytes(confirmSecret)
-				renderSetupErrorLine(out, "Passwords did not match.")
-				continue
-			}
-			zeroSecretBytes(confirmSecret)
-		}
-
-		runErr := runPlatformSecureStorageRecoveryForSetup(plan.action, secret)
-		zeroSecretBytes(secret)
+		runErr := runPlatformSecureStorageRecoveryForSetup(plan.action)
 		if runErr == nil {
 			renderSetupSuccessLine(out, "%s", plan.successMessage)
 			return setupSecureStorageRecoveryRecovered, nil
+		}
+		if errors.Is(runErr, errLocalSecureStoragePromptCanceled) {
+			return setupSecureStorageRecoveryDeclined, nil
 		}
 		if !isRetryableSetupSecureStorageRecoveryError(runErr) {
 			return "", runErr
@@ -226,14 +184,12 @@ func secureStorageRecoveryPlanForAction(action platformSecureStorageRecoveryActi
 			title:  "Local secure storage needs setup",
 			paragraphs: []string{
 				"HA NOVA needs local secure storage before it can save the Relay Auth Token on this Linux machine.",
-				"This step creates the local Linux keyring password this computer will ask for when the keyring needs to be unlocked later, not the Relay token or the Home Assistant token.",
-				"It stays only on this Linux machine. HA NOVA, NOVA Relay, and Home Assistant never receive it.",
+				"Your Secret Service provider opens its own trusted desktop prompt to create the default collection.",
+				"Enter any requested secure-storage password only in that system prompt. HA NOVA never reads it in the terminal.",
 			},
-			prompt:             "Set up local secure storage now",
-			secretLabel:        "New local Linux keyring password",
-			confirmSecretLabel: "Repeat local Linux keyring password",
-			successMessage:     "Local secure storage is ready.",
-			hint:               "set up local secure storage on this Linux machine",
+			prompt:         "Open the system secure-storage setup now",
+			successMessage: "Local secure storage is ready.",
+			hint:           "set up local secure storage on this Linux machine",
 		}
 	default:
 		return platformSecureStorageRecoveryPlan{
@@ -241,11 +197,10 @@ func secureStorageRecoveryPlanForAction(action platformSecureStorageRecoveryActi
 			title:  "Local secure storage is locked",
 			paragraphs: []string{
 				"HA NOVA needs local secure storage before it can save the Relay Auth Token on this Linux machine.",
-				"This is the existing local Linux keyring password on this computer, not the Relay token or the Home Assistant token.",
-				"It stays only on this Linux machine. HA NOVA, NOVA Relay, and Home Assistant never receive it.",
+				"Your Secret Service provider opens its own trusted desktop prompt to unlock the default collection.",
+				"Enter any requested secure-storage password only in that system prompt. HA NOVA never reads it in the terminal.",
 			},
-			prompt:         "Unlock local secure storage now",
-			secretLabel:    "Local Linux keyring password",
+			prompt:         "Open the system secure-storage unlock now",
 			successMessage: "Local secure storage is ready.",
 			hint:           "unlock local secure storage on this Linux machine",
 		}

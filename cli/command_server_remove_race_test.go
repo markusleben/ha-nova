@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestServerRemoveRejectsNewlyReachableCredentialDuringConfirmation(t *testing.T) {
+func TestServerRemoveRejectsNewCredentialDuringConfirmation(t *testing.T) {
 	paths := setupServerCommandTest(t, testV2TwoProfileConfig)
 	pendingPath, err := deviceSecretFilePath(deviceCredentialPendingServiceForProfile("cabin"))
 	if err != nil {
@@ -26,7 +26,7 @@ func TestServerRemoveRejectsNewlyReachableCredentialDuringConfirmation(t *testin
 		if reachable {
 			return "new-keyring-credential", nil
 		}
-		return "", errDesktopKeyringSessionUnavailable
+		return "", errSecretNotFound
 	}
 	t.Cleanup(func() { secretGetForServerRemove = previousGet })
 	previousConfirm := readServerRemoveConfirmationForCommand
@@ -40,8 +40,8 @@ func TestServerRemoveRejectsNewlyReachableCredentialDuringConfirmation(t *testin
 	exit, output := captureCommandOutput(t, func() int {
 		return runServerCommand(paths, []string{"remove", "cabin"})
 	})
-	if exit != 1 || !strings.Contains(output, "secure storage changed while awaiting confirmation") {
-		t.Fatalf("remove did not reject newly reachable credential: exit=%d\n%s", exit, output)
+	if exit != 1 || !strings.Contains(output, "stored credentials changed while awaiting confirmation") {
+		t.Fatalf("remove did not reject new credential: exit=%d\n%s", exit, output)
 	}
 	if len(*revokedAt) != 0 {
 		t.Fatalf("new credential was revoked: %v", *revokedAt)

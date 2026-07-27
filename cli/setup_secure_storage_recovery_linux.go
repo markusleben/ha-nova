@@ -3,41 +3,68 @@
 package main
 
 import (
-	"crypto/rand"
-	"encoding/hex"
+	"context"
+	"errors"
 	"fmt"
+	"os"
+	"strings"
 	"time"
 )
 
-const (
-	dbusServiceName            = "org.freedesktop.DBus"
-	dbusServicePath            = "/org/freedesktop/DBus"
-	dbusServiceInterface       = "org.freedesktop.DBus"
-	gnomeKeyringComm           = "gnome-keyring-daemon"
-	secureStorageUnlockTimeout = 3 * time.Second
-)
+const secureStorageNativePromptTimeout = 2 * time.Minute
 
-var secureStorageRecoveryOwnerProcess = detectSecretServiceOwnerProcessForRecovery
-var secureStorageRecoveryProbe = probeLinuxKeyringWritable
 var secureStorageRecoverySessionBusWithTimeout = relayAuthTokenPreflightSessionBusWithTimeout
 var inspectLinuxSecureStorageStateForRecovery = inspectLinuxSecureStorageState
 var inspectLinuxSecureStorageStateWithConnForRecovery = inspectLinuxSecureStorageStateWithConn
-var initializeLinuxSecureStorageForRecovery = initializeLinuxSecureStorage
-var unlockLinuxSecureStorageForRecovery = unlockLinuxSecureStorage
+var createLinuxSecureStorageCollectionForRecovery = linuxOAuthSecretCreateCollection
+var unlockLinuxSecureStorageCollectionForRecovery = linuxOAuthSecretUnlock
+var secureStorageRecoveryCollectionLocked = secretServiceCollectionLocked
+var secureStorageRecoveryInteractiveSession = nativeLinuxSecureStoragePromptAvailable
+var secureStorageRecoveryPromptTimeout = secureStorageNativePromptTimeout
+
+func platformNativeSecretPromptContextAvailable() bool {
+	if !nativeSecretPromptBaseContextAvailable() {
+		return false
+	}
+	sessionType := strings.ToLower(strings.TrimSpace(os.Getenv("XDG_SESSION_TYPE")))
+	if sessionType != "wayland" && sessionType != "x11" {
+		return false
+	}
+	if strings.TrimSpace(os.Getenv("DBUS_SESSION_BUS_ADDRESS")) == "" {
+		return false
+	}
+	return strings.TrimSpace(os.Getenv("WAYLAND_DISPLAY")) != "" ||
+		strings.TrimSpace(os.Getenv("DISPLAY")) != ""
+}
+
+func nativeLinuxSecureStoragePromptAvailable() bool {
+	return nativeSecretPromptSessionAvailable(os.Stdout)
+}
+
+func platformNativePromptRunsUnderWSL() bool {
+	if strings.TrimSpace(os.Getenv("WSL_DISTRO_NAME")) != "" ||
+		strings.TrimSpace(os.Getenv("WSL_INTEROP")) != "" {
+		return true
+	}
+	release, err := os.ReadFile("/proc/sys/kernel/osrelease")
+	if err != nil {
+		// A supported desktop Linux session has a readable procfs. If the
+		// runtime cannot prove that it is native Linux, do not open keyring UI.
+		return true
+	}
+	value := strings.ToLower(string(release))
+	return strings.Contains(value, "microsoft") || strings.Contains(value, "wsl")
+}
 
 func detectPlatformSecureStorageRecoverySupport() (bool, error) {
-	owner, err := secureStorageRecoveryOwnerProcess()
-	if err != nil {
-		return false, err
-	}
-	if !owner.supportsGNOMEKeyringRecovery() {
-		return false, nil
-	}
 	conn, err := secureStorageRecoverySessionBusWithTimeout(relayAuthTokenPreflightTimeout)
 	if err != nil {
 		return false, err
 	}
-	return secureStorageRecoverySupportsGNOMEMethods(conn)
+	if _, err := inspectLinuxSecureStorageStateWithConnForRecovery(conn); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func inferPlatformSecureStorageRecoveryAction(err error) (platformSecureStorageRecoveryAction, error) {
@@ -62,86 +89,88 @@ func inferPlatformSecureStorageRecoveryAction(err error) (platformSecureStorageR
 	}
 }
 
-func runPlatformSecureStorageRecovery(action platformSecureStorageRecoveryAction, secret []byte) error {
-	if len(secret) == 0 {
-		return localSecureStorageRecoveryError(desktopKeyringSetupRequiredError("local secure storage password missing"))
+func runPlatformSecureStorageRecovery(action platformSecureStorageRecoveryAction) error {
+	if !secureStorageRecoveryInteractiveSession() {
+		return desktopKeyringSessionUnavailableError(
+			"native secure-storage recovery requires an interactive Linux desktop session",
+		)
 	}
 
-	owner, err := secureStorageRecoveryOwnerProcess()
-	if err != nil {
-		return localSecureStorageRecoveryError(err)
-	}
-	if !owner.supportsGNOMEKeyringRecovery() {
-		return localSecureStorageRecoveryError(desktopKeyringUnavailableError("GNOME Keyring recovery is unavailable"))
-	}
+	ctx, cancel := context.WithTimeout(context.Background(), secureStorageRecoveryPromptTimeout)
+	defer cancel()
 
 	conn, err := secureStorageRecoverySessionBusWithTimeout(relayAuthTokenPreflightTimeout)
 	if err != nil {
 		return localSecureStorageRecoveryError(err)
 	}
-
-	switch action {
-	case platformSecureStorageRecoveryInitialize:
-		if err := initializeLinuxSecureStorageForRecovery(conn, secret); err != nil {
-			return localSecureStorageRecoveryError(err)
-		}
-	default:
-		state, err := inspectLinuxSecureStorageStateWithConnForRecovery(conn)
-		if err != nil {
-			return localSecureStorageRecoveryError(err)
-		}
-		if state.kind == linuxSecureStorageStateNeedsInit {
-			return localSecureStorageRecoveryError(desktopKeyringInitializationRequiredError("no default Secret Service collection configured"))
-		}
-		if state.kind == linuxSecureStorageStateLocked {
-			if err := unlockLinuxSecureStorageForRecovery(conn, state.defaultCollection, secret); err != nil {
-				return localSecureStorageRecoveryError(err)
-			}
-		}
-		if err := secureStorageRecoveryProbe(); err != nil {
-			return localSecureStorageRecoveryError(err)
-		}
-		return nil
+	state, err := inspectLinuxSecureStorageStateWithConnForRecovery(conn)
+	if err != nil {
+		return localSecureStorageRecoveryError(err)
 	}
 
-	if err := secureStorageRecoveryProbe(); err != nil {
-		return err
+	switch state.kind {
+	case linuxSecureStorageStateNeedsInit:
+		if action != platformSecureStorageRecoveryInitialize {
+			return desktopKeyringInitializationRequiredError(
+				"no default Secret Service collection is configured",
+			)
+		}
+		collection, createErr := createLinuxSecureStorageCollectionForRecovery(ctx, conn)
+		if createErr != nil {
+			return classifyNativeSecureStorageRecoveryError(action, createErr)
+		}
+		locked, inspectErr := secureStorageRecoveryCollectionLocked(conn, collection)
+		if inspectErr != nil {
+			return localSecureStorageRecoveryError(inspectErr)
+		}
+		if locked {
+			return errors.New(
+				"the new Secret Service collection remained locked; rerun setup to unlock it",
+			)
+		}
+	case linuxSecureStorageStateLocked:
+		if err := unlockLinuxSecureStorageCollectionForRecovery(
+			ctx,
+			conn,
+			state.defaultCollection,
+			SecretStoreAllowUI,
+		); err != nil {
+			return classifyNativeSecureStorageRecoveryError(
+				platformSecureStorageRecoveryUnlock,
+				err,
+			)
+		}
+	case linuxSecureStorageStateWritable:
+		// A concurrent desktop unlock already completed the recovery.
+	default:
+		return fmt.Errorf("local secure storage returned an unsupported state")
+	}
+
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("native secure-storage prompt timed out: %w", err)
 	}
 	return nil
 }
 
-func probeLinuxKeyringWritable() error {
-	serviceSuffix := make([]byte, 8)
-	if _, err := rand.Read(serviceSuffix); err != nil {
-		return fmt.Errorf("cannot verify local secure storage: %w", err)
-	}
-	secret := make([]byte, 16)
-	if _, err := rand.Read(secret); err != nil {
-		return fmt.Errorf("cannot verify local secure storage: %w", err)
-	}
-	service := fmt.Sprintf("%s.recovery-probe.%s", relayAuthTokenServiceName(), hex.EncodeToString(serviceSuffix))
-	probeSecret := hex.EncodeToString(secret)
-
-	if err := writeSecretWithService(service, probeSecret); err != nil {
-		return localSecureStorageRecoveryError(err)
-	}
-	readBack, err := readSecretWithService(service)
-	if err != nil {
-		deleteErr := deleteSecretWithService(service)
-		if deleteErr != nil {
-			return localSecureStorageRecoveryError(deleteErr)
+func classifyNativeSecureStorageRecoveryError(
+	action platformSecureStorageRecoveryAction,
+	err error,
+) error {
+	switch {
+	case IsCloudErrorCode(err, CloudErrSecretPromptCanceled),
+		IsCloudErrorCode(err, CloudErrOAuthCanceled):
+		return fmt.Errorf("%w: native Secret Service prompt was dismissed", errLocalSecureStoragePromptCanceled)
+	case IsCloudErrorCode(err, CloudErrSecretStoreLocked),
+		IsCloudErrorCode(err, CloudErrSecretUIForbidden):
+		if action == platformSecureStorageRecoveryInitialize {
+			return desktopKeyringInitializationRequiredError(
+				"native Secret Service prompt did not create secure storage",
+			)
 		}
+		return desktopKeyringLockedError("native Secret Service prompt did not unlock secure storage")
+	case IsCloudErrorCode(err, CloudErrTimeout):
+		return fmt.Errorf("native secure-storage prompt timed out: %w", err)
+	default:
 		return localSecureStorageRecoveryError(err)
 	}
-	if readBack != probeSecret {
-		deleteErr := deleteSecretWithService(service)
-		if deleteErr != nil {
-			return localSecureStorageRecoveryError(deleteErr)
-		}
-		return fmt.Errorf("cannot verify local secure storage: saved verification secret did not match")
-	}
-	if err := deleteSecretWithService(service); err != nil {
-		return localSecureStorageRecoveryError(err)
-	}
-	return nil
 }

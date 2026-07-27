@@ -7,15 +7,8 @@ import (
 
 // Hook for tests.
 var revokeSelfDeviceV1ForUninstall = revokeSelfDeviceV1
-
-// profilePurgeTarget names one server profile's credential slots plus the
-// pinned endpoint its revoke must go to — each profile's device entry lives on
-// ITS relay, never on a sibling's.
-type profilePurgeTarget struct {
-	name          string
-	secureBaseURL string
-	spkiPin       string
-}
+var profilePurgePhaseHook = func(string, string) error { return nil }
+var profilePurgeFinalProofHook = func() error { return nil }
 
 // purgeDeviceCredentialWithReport revokes ONE profile's pairing on its relay
 // and removes both of that profile's local credential slots (current +
@@ -29,8 +22,12 @@ type profilePurgeTarget struct {
 // relayExpectedGone marks a run whose guided teardown already removed the App:
 // its device registry died with the App's data, so the NOVA-page hint makes no
 // sense there. The revoke itself is still attempted — see below.
-func purgeDeviceCredentialWithReport(secureBaseURL, spkiPin string, report *uninstallReport, relayExpectedGone bool) {
-	purgeProfileDeviceCredentialWithReport(profilePurgeTarget{
+func purgeDeviceCredentialWithReport(
+	secureBaseURL, spkiPin string,
+	report *uninstallReport,
+	relayExpectedGone bool,
+) error {
+	return purgeProfileDeviceCredentialWithReport(profilePurgeTarget{
 		name:          activeServerProfile(),
 		secureBaseURL: secureBaseURL,
 		spkiPin:       spkiPin,
@@ -41,32 +38,229 @@ func purgeDeviceCredentialWithReport(secureBaseURL, spkiPin string, report *unin
 // profile against that profile's pinned endpoint, delete every namespaced slot,
 // then sweep the remaining slot files, the machine-wide file-backend marker,
 // and the (then empty) secrets dir.
-func purgeAllDeviceCredentialsWithReport(targets []profilePurgeTarget, report *uninstallReport, relayExpectedGone bool) {
+func purgeAllDeviceCredentialsWithReport(
+	targets []profilePurgeTarget,
+	report *uninstallReport,
+	removedRelays uninstallRelayRemovalEvidence,
+) error {
 	for _, target := range targets {
-		purgeProfileDeviceCredentialWithReport(target, report, relayExpectedGone)
+		if err := purgeProfileDeviceCredentialWithReport(
+			target,
+			report,
+			removedRelays.matches(
+				target.name,
+				target.relayInstanceID,
+			),
+		); err != nil {
+			return err
+		}
 	}
-	removeAllDeviceFileStorageResidue()
+	if err := removeAllDeviceFileStorageResidue(); err != nil {
+		return err
+	}
+	if err := profilePurgeFinalProofHook(); err != nil {
+		return err
+	}
+	return requirePurgedDeviceCredentialsAbsent(targets)
 }
 
-func purgeProfileDeviceCredentialWithReport(target profilePurgeTarget, report *uninstallReport, relayExpectedGone bool) {
+func requirePurgedDeviceCredentialsAbsent(
+	targets []profilePurgeTarget,
+) error {
+	for _, target := range targets {
+		if err := requireEmptyServerCredentialNamespace(
+			target.name,
+		); err != nil {
+			return fmt.Errorf(
+				"server credentials reappeared after full cleanup: %w",
+				err,
+			)
+		}
+	}
+	if err := requireNoDeviceFileStorageResidue(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func purgeProfileDeviceCredentialWithReport(
+	target profilePurgeTarget,
+	report *uninstallReport,
+	relayExpectedGone bool,
+) error {
+	if _, err := resumeKeyringDeviceCredentialCleanup(); err != nil {
+		return fmt.Errorf(
+			"finish device credential migration cleanup before purging server %q: %w",
+			target.name,
+			err,
+		)
+	}
+	slotState, err := inspectProfilePurgeSlotState(target)
+	if err != nil {
+		return err
+	}
+	if err := validateRequiredProfilePurgeSlots(
+		target,
+		slotState,
+	); err != nil {
+		return err
+	}
+	if err := validateProfilePurgeEndpointCompleteness(
+		target,
+		slotState,
+	); err != nil {
+		return err
+	}
 	currentService := deviceCredentialServiceForProfile(target.name)
-	// The pending slot is purely local (never activated): just drop it.
-	_ = secretDelete(deviceCredentialPendingServiceForProfile(target.name))
-	// File-backed installs also leave the storage-mode marker; drop it (and the
-	// now-empty secrets dir) once NO profile's slots remain, so a later reinstall
-	// re-probes cleanly rather than inheriting a stale file-mode decision.
-	defer removeDeviceFileStorageResidueForProfile(target.name)
+	pendingService := deviceCredentialPendingServiceForProfile(target.name)
+	if err := validateCheckpointedProfilePurgeSlot(
+		pendingService,
+		target.expectedPendingID(),
+		true,
+	); err != nil {
+		return err
+	}
+	if err := validateCheckpointedProfilePurgeSlot(
+		currentService,
+		target.expectedCurrentID(),
+		false,
+	); err != nil {
+		return err
+	}
+	pendingUnreadable := false
+	pendingOutcome := serverRemovalCleanupLocal
+	pending, pendingExists, pendingErr :=
+		readPendingCredentialRecordFromService(pendingService)
+	credential, currentExists, currentErr :=
+		readCredentialSlot(currentService)
+	if pendingErr == nil {
+		slotState.pendingExists = pendingExists
+		slotState.pendingLocal = pendingExists &&
+			pending.Source == pendingDeviceCredentialSourceLocal
+	}
+	if currentErr == nil {
+		slotState.currentExists = currentExists
+	}
+	if err := validateRequiredProfilePurgeSlots(
+		target,
+		slotState,
+	); err != nil {
+		return err
+	}
+	if err := validateProfilePurgeEndpointCompleteness(
+		target,
+		slotState,
+	); err != nil {
+		return err
+	}
+	if pendingErr != nil {
+		// A malformed pending value cannot be authenticated to a Relay. Preserve
+		// the previous cleanup behavior, but make the unrevoked deletion visible.
+		pendingUnreadable = true
+		pendingOutcome = serverRemovalCleanupFailed
+	} else if pendingExists &&
+		pending.Source == pendingDeviceCredentialSourceLocal {
+		pendingBaseURL := strings.TrimSpace(target.pendingSecureBaseURL)
+		pendingPin := strings.TrimSpace(target.pendingSpkiPin)
+		switch {
+		case pendingBaseURL != "" && pendingPin != "":
+			if err := revokeSelfDeviceV1ForUninstall(
+				pendingBaseURL,
+				pendingPin,
+				pending.Credential,
+			); err == nil {
+				pendingOutcome = serverRemovalCleanupRevoked
+				report.addNote(
+					"Revoked the interrupted pending device pairing on the relay.",
+				)
+			} else if !relayExpectedGone {
+				pendingOutcome = serverRemovalCleanupFailed
+				report.addNote(fmt.Sprintf(
+					"Could not reach the relay to revoke the interrupted pending device pairing (device id %s). Remove it on the NOVA page in Home Assistant.",
+					deviceCredentialID(pending.Credential),
+				))
+			}
+		case pendingBaseURL != "" || pendingPin != "":
+			return fmt.Errorf(
+				"pending device endpoint for server %q is incomplete; refusing to delete a possibly active credential",
+				target.name,
+			)
+		}
+	}
+	if target.checkpointProcessed != nil &&
+		target.observedPendingID != "" &&
+		(pendingExists || pendingErr != nil) {
+		if err := target.checkpointProcessed(
+			true,
+			target.observedPendingID,
+			pendingOutcome,
+		); err != nil {
+			return err
+		}
+	}
+	// Cloud pending credentials are revoked by the Cloud teardown before this
+	// local sweep. A local pending without an endpoint was never activated.
+	if err := profilePurgePhaseHook(
+		target.name,
+		"pending-revoke-attempted",
+	); err != nil {
+		return err
+	}
+	if err := validateCheckpointedProfilePurgeSlot(
+		pendingService,
+		target.expectedPendingID(),
+		true,
+	); err != nil {
+		return err
+	}
+	if err := secretDelete(
+		pendingService,
+	); err != nil {
+		return fmt.Errorf(
+			"remove pending device credential for server %q: %w",
+			target.name,
+			err,
+		)
+	}
+	if err := profilePurgePhaseHook(
+		target.name,
+		"pending-slot-deleted",
+	); err != nil {
+		return err
+	}
+	if pendingUnreadable {
+		report.addNote(
+			"The stored pending device credential was unreadable and was removed without revoking.",
+		)
+	}
 
 	slotLabel := "Device credential (secure storage)"
 	if target.name != defaultServerProfileName {
 		slotLabel = fmt.Sprintf("Device credential (secure storage, server %q)", target.name)
 	}
 
-	credential, ok, err := readCredentialSlot(currentService)
-	if err != nil {
+	if currentErr != nil {
+		if target.checkpointProcessed != nil &&
+			target.observedCurrentID != "" {
+			if err := target.checkpointProcessed(
+				false,
+				target.observedCurrentID,
+				serverRemovalCleanupFailed,
+			); err != nil {
+				return err
+			}
+		}
 		// The slot exists but is unreadable/malformed: removing it needs no
 		// parse, and staying silent would leave a stale secret behind.
-		if secretDelete(currentService) == nil {
+		if err := validateCheckpointedProfilePurgeSlot(
+			currentService,
+			target.expectedCurrentID(),
+			false,
+		); err != nil {
+			return err
+		}
+		deleteErr := secretDelete(currentService)
+		if deleteErr == nil {
 			report.addRemoved(slotLabel)
 			if relayExpectedGone {
 				report.addNote("The stored device credential was unreadable and was removed without revoking.")
@@ -75,38 +269,93 @@ func purgeProfileDeviceCredentialWithReport(target profilePurgeTarget, report *u
 			}
 		} else {
 			report.addNote("The stored device credential is unreadable and could not be removed from secure storage; remove it manually once secure storage works again.")
+			return fmt.Errorf(
+				"remove unreadable device credential for server %q: %w",
+				target.name,
+				deleteErr,
+			)
 		}
-		return
+		return removeDeviceFileStorageResidueForProfile(target.name)
 	}
-	if !ok {
-		return
+	if !currentExists {
+		return removeDeviceFileStorageResidueForProfile(target.name)
 	}
 
 	// The revoke is always attempted (cheap and fails fast against a dead
 	// relay): a teardown the user believed complete may not have removed the
 	// App, and skipping the revoke would strand an ACTIVE device entry.
 	revoked := false
+	currentOutcome := serverRemovalCleanupLocal
 	secureBaseURL := strings.TrimSpace(target.secureBaseURL)
 	spkiPin := strings.TrimSpace(target.spkiPin)
+	if (secureBaseURL == "") != (spkiPin == "") {
+		return fmt.Errorf(
+			"device endpoint for server %q is incomplete; refusing to delete an active credential",
+			target.name,
+		)
+	}
 	if secureBaseURL != "" && spkiPin != "" {
 		revoked = revokeSelfDeviceV1ForUninstall(secureBaseURL, spkiPin, credential) == nil
+		if revoked {
+			currentOutcome = serverRemovalCleanupRevoked
+		} else {
+			currentOutcome = serverRemovalCleanupFailed
+		}
+	}
+	if target.checkpointProcessed != nil &&
+		target.observedCurrentID != "" {
+		if err := target.checkpointProcessed(
+			false,
+			target.observedCurrentID,
+			currentOutcome,
+		); err != nil {
+			return err
+		}
+	}
+	if err := profilePurgePhaseHook(
+		target.name,
+		"current-revoke-attempted",
+	); err != nil {
+		return err
+	}
+	if err := validateCheckpointedProfilePurgeSlot(
+		currentService,
+		target.expectedCurrentID(),
+		false,
+	); err != nil {
+		return err
 	}
 
-	if secretDelete(currentService) == nil {
-		report.addRemoved(slotLabel)
+	if err := secretDelete(currentService); err != nil {
+		return fmt.Errorf(
+			"remove device credential for server %q: %w",
+			target.name,
+			err,
+		)
 	}
+	if err := profilePurgePhaseHook(
+		target.name,
+		"current-slot-deleted",
+	); err != nil {
+		return err
+	}
+	report.addRemoved(slotLabel)
 	switch {
 	case revoked:
 		report.addNote("Revoked this device's pairing on the relay.")
 	case relayExpectedGone:
 		// The App (and its device registry) is already gone; nothing to revoke.
 	case secureBaseURL != "":
-		deviceID := "unknown"
-		if parsed := parseDeviceCredential(credential); parsed != nil {
-			deviceID = parsed.deviceID
-		}
-		report.addNote(fmt.Sprintf("Could not reach the relay to revoke this device's pairing (device id %s). Remove it on the NOVA page in Home Assistant.", deviceID))
+		report.addNote(fmt.Sprintf("Could not reach the relay to revoke this device's pairing (device id %s). Remove it on the NOVA page in Home Assistant.", deviceCredentialID(credential)))
 	}
+	return removeDeviceFileStorageResidueForProfile(target.name)
+}
+
+func deviceCredentialID(credential string) string {
+	if parsed := parseDeviceCredential(credential); parsed != nil {
+		return parsed.deviceID
+	}
+	return "unknown"
 }
 
 // deviceCredentialExistsForUninstall reports whether this install holds an

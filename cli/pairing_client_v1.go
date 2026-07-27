@@ -34,12 +34,13 @@ import (
 //     by the exact pin delivered in the pairing response.
 
 const (
-	pairingProtocol      = "ha-nova-pair-v1"
-	pairingClientID      = "ha-nova-device"
-	pairingServerID      = "ha-nova-relay"
-	maxPairingBodyBytes  = 64 << 10
-	pairingHTTPTimeout   = 20 * time.Second
-	pairingActivateRetry = 3
+	pairingProtocol       = "ha-nova-pair-v1"
+	pairingClientID       = "ha-nova-device"
+	pairingServerID       = "ha-nova-relay"
+	maxPairingBodyBytes   = 64 << 10
+	pairingHTTPTimeout    = 20 * time.Second
+	pairingActivateRetry  = 3
+	pairingFinishAttempts = 3
 )
 
 var pairB64 = base64.RawURLEncoding
@@ -128,7 +129,7 @@ func pairDeviceV1(client *http.Client, bootstrapURL, code string, meta deviceMet
 	var finish struct {
 		Response string `json:"response"`
 	}
-	if err := pairPostJSON(client, bootstrapURL+"/pair/v1/finish", map[string]any{
+	if err := pairFinishPostJSON(client, bootstrapURL+"/pair/v1/finish", map[string]any{
 		"handshake_id": start.HandshakeID,
 		"ke3":          pairB64.EncodeToString(ke3.Serialize()),
 		"metadata":     encMeta,
@@ -158,6 +159,9 @@ func pairDeviceV1(client *http.Client, bootstrapURL, code string, meta deviceMet
 func spkiPinnedClient(expectedPin string) *http.Client {
 	return &http.Client{
 		Timeout: pairingHTTPTimeout,
+		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{
 				InsecureSkipVerify: true, //nolint:gosec // pin check below is the trust anchor
@@ -252,10 +256,60 @@ func pairOpen(key, handshakeID []byte, dir string, blob []byte) ([]byte, bool) {
 // ---- HTTP helpers ----
 
 func pairPostJSON(client *http.Client, url string, body map[string]any, out any) error {
-	b, _ := json.Marshal(body)
-	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(b))
+	encoded, err := json.Marshal(body)
 	if err != nil {
-		return fmt.Errorf("build pairing request: %w", err)
+		return fmt.Errorf("encode pairing request: %w", err)
+	}
+	_, err = pairPostJSONEncoded(client, url, encoded, out)
+	return err
+}
+
+// pairFinishPostJSON retries only outcomes where the relay may have committed
+// the pending credential without the client receiving its durable response.
+// The body is encoded once: every retry carries the exact same handshake id,
+// KE3, metadata ciphertext, and wire bytes required by the relay's replay key.
+func pairFinishPostJSON(
+	client *http.Client,
+	url string,
+	body map[string]any,
+	out any,
+) error {
+	encoded, err := json.Marshal(body)
+	if err != nil {
+		return fmt.Errorf("encode pairing request: %w", err)
+	}
+	return retryPairingFinish(func() (bool, error) {
+		return pairPostJSONEncoded(client, url, encoded, out)
+	})
+}
+
+func retryPairingFinish(attempt func() (bool, error)) error {
+	var lastErr error
+	for count := 0; count < pairingFinishAttempts; count++ {
+		retryable, err := attempt()
+		if err == nil {
+			return nil
+		}
+		lastErr = err
+		if !retryable {
+			return err
+		}
+	}
+	return lastErr
+}
+
+// pairPostJSONEncoded reports whether failure is ambiguous and therefore safe
+// for an exact finish replay. A known 3xx/4xx or malformed success response is
+// definitive and must never be retried.
+func pairPostJSONEncoded(
+	client *http.Client,
+	url string,
+	encoded []byte,
+	out any,
+) (bool, error) {
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(encoded))
+	if err != nil {
+		return false, fmt.Errorf("build pairing request: %w", err)
 	}
 	// Never forward copied URL userinfo (http://user:pass@host) as a Basic auth
 	// header, and keep it out of the error text.
@@ -263,21 +317,39 @@ func pairPostJSON(client *http.Client, url string, body map[string]any, out any)
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("post %s: %w", req.URL.String(), err)
+		if resp != nil {
+			if resp.Body != nil {
+				resp.Body.Close()
+			}
+			return false, fmt.Errorf("post %s: %w", req.URL.String(), err)
+		}
+		return true, fmt.Errorf("post %s: %w", req.URL.String(), err)
 	}
 	defer resp.Body.Close()
-	raw, _ := io.ReadAll(io.LimitReader(resp.Body, maxPairingBodyBytes))
+	raw, readErr := io.ReadAll(io.LimitReader(resp.Body, maxPairingBodyBytes))
 	if resp.StatusCode != http.StatusOK {
-		return pairingStatusError(resp.StatusCode, raw, resp.Header.Get("Retry-After"))
+		statusErr := pairingStatusError(
+			resp.StatusCode,
+			raw,
+			resp.Header.Get("Retry-After"),
+		)
+		return resp.StatusCode >= http.StatusInternalServerError &&
+			resp.StatusCode <= 599, statusErr
+	}
+	if readErr != nil {
+		return true, fmt.Errorf("read pairing response: %w", readErr)
 	}
 	var env struct {
 		OK   bool            `json:"ok"`
 		Data json.RawMessage `json:"data"`
 	}
 	if err := json.Unmarshal(raw, &env); err != nil || !env.OK {
-		return fmt.Errorf("unexpected relay response")
+		return false, fmt.Errorf("unexpected relay response")
 	}
-	return json.Unmarshal(env.Data, out)
+	if err := json.Unmarshal(env.Data, out); err != nil {
+		return false, err
+	}
+	return false, nil
 }
 
 func pairAuthedPost(client *http.Client, url, credential string) (int, error) {

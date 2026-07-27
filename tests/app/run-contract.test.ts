@@ -26,6 +26,12 @@ describe("app run contract", () => {
     expect(content).toContain("MIN_RELAY_VERSION");
     expect(content).toContain("/app/version.json");
     expect(content).toContain("Version metadata is missing");
+    expect(content).toContain("metadata.cloud_remote_enabled !== true");
+    expect(content).toContain("metadata.cloud_remote_enabled !== false");
+    expect(content).toContain(
+      "process.stdout.write(String(metadata.cloud_remote_enabled))",
+    );
+    expect(content).toContain("export CLOUD_REMOTE_ENABLED");
     expect(content).toContain("HA_LLAT");
     expect(content).not.toContain("RELAY_AUTH_TOKEN is required");
 

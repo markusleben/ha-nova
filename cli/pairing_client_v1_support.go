@@ -23,7 +23,14 @@ type parsedDeviceCredential struct {
 	secret   string
 }
 
-var deviceCredentialPattern = regexp.MustCompile(`^hanova-dev-v1\.([A-Za-z0-9_-]{22})\.([A-Za-z0-9_-]{43})$`)
+var (
+	deviceIDPattern         = regexp.MustCompile(`^[A-Za-z0-9_-]{22}$`)
+	deviceCredentialPattern = regexp.MustCompile(`^hanova-dev-v1\.([A-Za-z0-9_-]{22})\.([A-Za-z0-9_-]{43})$`)
+)
+
+func validDeviceID(value string) bool {
+	return deviceIDPattern.MatchString(value)
+}
 
 func parseDeviceCredential(input string) *parsedDeviceCredential {
 	if len(input) > 128 {

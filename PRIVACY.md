@@ -1,10 +1,42 @@
 # Privacy — the HA NOVA Census
 
-Last updated: 2026-07-24
+Last updated: 2026-07-25
 
 HA NOVA sends no behavioral or feature-use analytics. Its single optional
 measurement is the **Census**: an explicitly approved installation report used
 for private maintainer statistics.
+
+## Optional Home Assistant Cloud transport
+
+Home Assistant Cloud remote access is separate from the Census and remains
+disabled until its release gates pass. When enabled in a validated build,
+selecting `Local only` sends no Home Assistant traffic through Home Assistant
+Cloud. Selecting either Cloud mode uses the user's Nabu Casa service to reach
+that user's own Home Assistant through Home Assistant OAuth and Supervisor
+Ingress. HA NOVA operates no additional public tunnel, hosted broker, or Cloud
+endpoint for Home Assistant requests.
+
+The OAuth refresh token is stored only in a dedicated native OS credential
+store. It is not written to HA NOVA config, a file fallback, an environment
+variable, command arguments, logs, or AI-visible output. Short-lived OAuth
+access tokens, Ingress paths, and Ingress cookies remain process-local and are
+not persisted. The Relay still requires its per-device credential; through
+Ingress that credential must be bound to both the authenticated Home Assistant
+user and the persistent Relay instance.
+
+Cloud setup, reconnect, and explicit unlock may request bounded native
+secure-storage prompts for the selected credential slots. Normal Relay calls
+use no-UI credential reads and fail closed when the store is locked or
+unavailable.
+
+`ha-nova cloud remove` revokes and verifies the HA NOVA OAuth authorization,
+then removes its local Cloud secret and metadata. It does not cancel the Home
+Assistant Cloud subscription or remove the local NOVA device pairing. Standard
+uninstall keeps Home Assistant connection config, device pairing, and Cloud
+authorization to support reinstall. `ha-nova uninstall --purge` first revokes
+and verifies every configured Cloud authorization, then removes the related
+local secrets and configuration; it stops before destructive local cleanup if
+safe revocation cannot be completed.
 
 Each voluntary report helps provide a rough picture of participating
 installations, their HA NOVA and Relay versions, and the operating-system

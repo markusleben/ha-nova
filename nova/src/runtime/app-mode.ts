@@ -1,6 +1,5 @@
-import { createServer as createHttpServer_, type RequestListener, type Server } from "node:http";
+import { createServer as createHttpServer_, type Server } from "node:http";
 import { createServer as createHttpsServer } from "node:https";
-import { readFileSync } from "node:fs";
 import { dirname } from "node:path";
 
 import type { FileAccessConfig } from "../config/file-access.js";
@@ -8,23 +7,30 @@ import { createBackupsHandler } from "../http/handlers/backups.js";
 import { createCoreProxyHandler } from "../http/handlers/core-proxy.js";
 import { createFilesHandler } from "../http/handlers/files.js";
 import { createHealthHandler } from "../http/handlers/health.js";
-import { createNovaActionHandler, createNovaPageHandler, type NovaPageDeps } from "../http/handlers/nova-page.js";
 import { createWsProxyHandler } from "../http/handlers/ws-proxy.js";
-import { createRouter, type RouteHandler } from "../http/router.js";
-import { applyServerTimeouts, createRequestListener, DEFAULT_MAX_FORM_BODY_BYTES, type RelayLogger } from "../http/server.js";
+import { applyServerTimeouts, type RelayLogger } from "../http/server.js";
 import type { CoreProxyRequest, CoreProxyResponse } from "../types/api.js";
 import type { HaWsClient } from "../ha/ws-client.js";
 import { createSupervisorClient } from "../ha/supervisor-client.js";
-import { createCsrfStore } from "../security/csrf.js";
-import { archiveCorruptRegistry, openDeviceRegistry, RegistryCorruptError, type DeviceRegistry } from "../security/device-registry.js";
+import {
+  archiveCorruptRegistry,
+  openDeviceRegistry,
+  RegistryCorruptError,
+  type DeviceRegistry,
+} from "../security/device-registry.js";
 import { opaqueReady } from "../security/opaque-server.js";
-import type { HaAuthUser } from "../security/owner-check.js";
 import { createFileResponseStore } from "../security/pairing-response-store.js";
-import { createPairingV1Manager, type PairingV1Manager } from "../security/pairing-v1.js";
+import { createPairingV1Manager } from "../security/pairing-v1.js";
 import { loadOrCreateTlsIdentity } from "../security/tls-identity.js";
+import { loadOrCreateRelayInstanceId } from "../storage/relay-instance.js";
+import { createIngressListener } from "./ingress-listener.js";
 import { clearLegacyOptions, importLegacyToken } from "./legacy-migration.js";
 import { ensureSidebarPanel } from "./sidebar-panel.js";
-import { createBootstrapListener, createDeviceListener, type FunctionalHandlers } from "./listeners.js";
+import {
+  createBootstrapListener,
+  createDeviceListener,
+  type FunctionalHandlers,
+} from "./listeners.js";
 
 // App-mode assembly: three listeners over one shared pipeline. Constructed only
 // when a SUPERVISOR_TOKEN is present (a real HA App). Standalone Container/Core
@@ -38,6 +44,7 @@ export const INGRESS_PORT = 8793;
 export interface AppModeInput {
   supervisorToken: string;
   relayVersion: string;
+  cloudRemoteEnabled: boolean;
   wsClient: HaWsClient & {
     sendMessage(message: { type: string }): Promise<unknown>;
     isConnected(): boolean;
@@ -58,12 +65,16 @@ export interface AppModeRuntime {
   listen(): Promise<void>;
 }
 
-export async function buildAppMode(input: AppModeInput): Promise<AppModeRuntime> {
+export async function buildAppMode(
+  input: AppModeInput,
+): Promise<AppModeRuntime> {
   const dataDir = dirname(input.appOptionsPath); // /data
+  const relayInstanceId = loadOrCreateRelayInstanceId(dataDir);
   // The Supervisor self-API base is fixed to http://supervisor in production;
   // the disposable-HA e2e overrides it to a mock so app mode runs without a
   // real Supervisor (upstream core/WS still go direct to env.haUrl).
-  const supervisorBase = process.env.HA_NOVA_SUPERVISOR_BASE?.trim() || undefined;
+  const supervisorBase =
+    process.env.HA_NOVA_SUPERVISOR_BASE?.trim() || undefined;
   const supervisor = supervisorBase
     ? createSupervisorClient(input.supervisorToken, supervisorBase)
     : createSupervisorClient(input.supervisorToken);
@@ -80,7 +91,10 @@ export async function buildAppMode(input: AppModeInput): Promise<AppModeRuntime>
   } catch (error) {
     if (error instanceof RegistryCorruptError) {
       registryCorrupt = true;
-      input.logger.error("Device registry is corrupt; device access disabled until reset", { error: error.message });
+      input.logger.error(
+        "Device registry is corrupt; device access disabled until reset",
+        { error: error.message },
+      );
       active = openInertRegistry();
     } else {
       throw error;
@@ -100,7 +114,9 @@ export async function buildAppMode(input: AppModeInput): Promise<AppModeRuntime>
     // the plaintext file and option.
     active.markLegacyMigrated();
     registryCorrupt = false;
-    input.logger.info?.("Device registry reset by the owner; device pairing re-enabled");
+    input.logger.info?.(
+      "Device registry reset by the owner; device pairing re-enabled",
+    );
   };
 
   const tls = await loadOrCreateTlsIdentity(dataDir);
@@ -108,12 +124,22 @@ export async function buildAppMode(input: AppModeInput): Promise<AppModeRuntime>
   // One-time legacy migration: import a pre-existing shared token into the
   // registry as a digest, then clear the option. Skipped on a corrupt registry.
   if (!registryCorrupt) {
-    await importLegacyToken({ registry, supervisor, dataDir, appOptionsPath: input.appOptionsPath, now: input.now, logger: input.logger });
+    await importLegacyToken({
+      registry,
+      supervisor,
+      dataDir,
+      appOptionsPath: input.appOptionsPath,
+      now: input.now,
+      logger: input.logger,
+    });
   }
   // Clear the plaintext options in ONE write (relay token only when the registry
   // is healthy enough to have migrated it; ha_llat always). A corrupt registry
   // keeps the shared token recoverable until the owner resets.
-  await clearLegacyOptions({ supervisor, appOptionsPath: input.appOptionsPath, logger: input.logger }, !registryCorrupt);
+  await clearLegacyOptions(
+    { supervisor, appOptionsPath: input.appOptionsPath, logger: input.logger },
+    !registryCorrupt,
+  );
   // First-boot default: make the NOVA sidebar entry appear without a manual
   // "Add to sidebar" toggle. Once-ever via marker; never overrides an owner
   // who hides the panel later.
@@ -135,9 +161,14 @@ export async function buildAppMode(input: AppModeInput): Promise<AppModeRuntime>
     }
     refreshingSecurePort = true;
     try {
-      secureHostPort = await supervisor.getMappedHostPort(SECURE_CONTAINER_PORT);
+      secureHostPort = await supervisor.getMappedHostPort(
+        SECURE_CONTAINER_PORT,
+      );
     } catch (error) {
-      input.logger.warn("Could not read the secure port mapping from Supervisor", { error: String((error as Error).message) });
+      input.logger.warn(
+        "Could not read the secure port mapping from Supervisor",
+        { error: String((error as Error).message) },
+      );
     } finally {
       refreshingSecurePort = false;
     }
@@ -153,20 +184,51 @@ export async function buildAppMode(input: AppModeInput): Promise<AppModeRuntime>
       }
       return { spkiPin: tls.spkiPin, securePort: secureHostPort };
     },
-    // Durable so a finish response lost to an App restart can be retried and
-    // returns the exact same sealed credential instead of a dead code.
-    responseStore: createFileResponseStore(dataDir, input.now, input.logger),
+    // Upgrade-only fallback for finish responses written by older versions.
+    // New responses commit atomically with their pending registry credential.
+    legacyResponseStore: createFileResponseStore(
+      dataDir,
+      input.now,
+      input.logger,
+    ),
+    cloudPairing: input.cloudRemoteEnabled,
   });
 
   // Prime the port at startup; a failure here recovers via the lazy retry above.
   await ensureSecurePort();
 
-  const functional = buildFunctionalHandlers(input);
-  const listenerDeps = { registry, pairingManager: pairing, functional, relayVersion: input.relayVersion, now: input.now, logger: input.logger };
+  const functional = buildFunctionalHandlers(input, relayInstanceId);
+  const listenerDeps = {
+    registry,
+    pairingManager: pairing,
+    functional,
+    relayVersion: input.relayVersion,
+    now: input.now,
+    logger: input.logger,
+  };
 
   const bootstrap = createHttpServer_(createBootstrapListener(listenerDeps));
-  const device = createHttpsServer({ key: tls.keyPem, cert: tls.certPem, minVersion: "TLSv1.3" }, createDeviceListener(listenerDeps));
-  const ingress = createHttpServer_(buildIngressListener(input, pairing, registry, supervisor, () => registryCorrupt, resetRegistry));
+  const device = createHttpsServer(
+    { key: tls.keyPem, cert: tls.certPem, minVersion: "TLSv1.3" },
+    createDeviceListener(listenerDeps),
+  );
+  const ingress = createHttpServer_(
+    createIngressListener({
+      registry,
+      pairing,
+      functional,
+      relayInstanceId,
+      relayVersion: input.relayVersion,
+      cloudRemoteEnabled: input.cloudRemoteEnabled,
+      wsClient: input.wsClient,
+      supervisor,
+      registryCorrupt: () => registryCorrupt,
+      resetRegistry,
+      now: input.now,
+      logger: input.logger,
+      ...(input.iconPath !== undefined ? { iconPath: input.iconPath } : {}),
+    }),
+  );
   // These servers bypass createHttpServer, so apply the same stalled-client
   // request/header timeout guards the single-listener path gets.
   for (const server of [bootstrap, device, ingress]) {
@@ -193,7 +255,10 @@ export async function buildAppMode(input: AppModeInput): Promise<AppModeRuntime>
   };
 }
 
-function buildFunctionalHandlers(input: AppModeInput): FunctionalHandlers {
+function buildFunctionalHandlers(
+  input: AppModeInput,
+  relayInstanceId: string,
+): FunctionalHandlers {
   return {
     health: createHealthHandler({
       version: input.relayVersion,
@@ -201,87 +266,17 @@ function buildFunctionalHandlers(input: AppModeInput): FunctionalHandlers {
       startedAtMs: input.startedAtMs,
       fileAccessMode: input.fileAccess.mode,
       snapshotRoot: input.snapshotRoot,
+      relayInstanceId,
       now: input.now,
     }),
     ws: createWsProxyHandler({ wsClient: input.wsClient }),
     core: createCoreProxyHandler({ coreClient: input.coreClient }),
     files: createFilesHandler({ fileAccess: input.fileAccess }),
-    backups: createBackupsHandler({ snapshotRoot: input.snapshotRoot, now: input.now }),
+    backups: createBackupsHandler({
+      snapshotRoot: input.snapshotRoot,
+      now: input.now,
+    }),
   };
-}
-
-function buildIngressListener(
-  input: AppModeInput,
-  pairing: PairingV1Manager,
-  registry: DeviceRegistry,
-  supervisor: ReturnType<typeof createSupervisorClient>,
-  registryCorrupt: () => boolean,
-  resetRegistry: () => void
-): RequestListener {
-  const csrf = createCsrfStore();
-  const iconBytes = loadIcon(input.iconPath);
-  const novaDeps: NovaPageDeps = {
-    fetchAuthUsers: async () => {
-      const result = await input.wsClient.sendMessage({ type: "config/auth/list" });
-      return Array.isArray(result) ? (result as HaAuthUser[]) : [];
-    },
-    csrf,
-    pairing,
-    registry,
-    registryCorrupt,
-    resetRegistry,
-    connection: () => ({ haConnected: input.wsClient.isConnected() }),
-    update: async () => {
-      const info = await supervisor.getSelfInfo();
-      return { version: info.version, versionLatest: info.versionLatest, updateAvailable: info.updateAvailable, error: false };
-    },
-    relayVersion: input.relayVersion,
-    now: input.now,
-  };
-
-  const page = createNovaPageHandler(novaDeps);
-  const action = createNovaActionHandler(novaDeps);
-  const icon: RouteHandler = ({ response }) => {
-    response.setHeader("content-type", "image/png");
-    response.setHeader("cache-control", "no-store");
-    response.end(iconBytes ?? Buffer.alloc(0));
-  };
-  const router = createRouter();
-  // Home Assistant forwards the ingress ROOT ("/") to the add-on, not the
-  // ingress_entry path, so the console must answer at "/" as well as "/home".
-  // Forms and the icon are addressed relative to the ingress path the request
-  // arrived on, so both prefixes are registered.
-  router.register("GET", "/", page);
-  router.register("GET", "/home", page);
-  router.register("POST", "/action", action);
-  router.register("POST", "/home/action", action);
-  if (iconBytes) {
-    router.register("GET", "/icon", icon);
-    router.register("GET", "/home/icon", icon);
-  }
-
-  const formRoutes = new Set(["POST /action", "POST /home/action"]);
-  return createRequestListener({
-    router,
-    version: input.relayVersion,
-    logger: input.logger,
-    // The owner gate lives inside the handlers (ingress peer + config/auth/list);
-    // the listener itself does not resolve a bearer principal.
-    authorize: () => ({ ok: true }),
-    bodyPolicy: (routeKey) =>
-      formRoutes.has(routeKey) ? { type: "form", maxBytes: DEFAULT_MAX_FORM_BODY_BYTES } : { type: "none", maxBytes: 0 },
-  });
-}
-
-function loadIcon(iconPath: string | undefined): Buffer | null {
-  if (!iconPath) {
-    return null;
-  }
-  try {
-    return readFileSync(iconPath);
-  } catch {
-    return null;
-  }
 }
 
 // A no-op registry used only when the on-disk registry is corrupt: every read
@@ -296,10 +291,16 @@ function openInertRegistry(): DeviceRegistry {
     hasLegacy: () => false,
     legacyImportCompleted: () => false,
     resolveDeviceSecret: () => null,
+    resolveCloudDeviceSecret: () => null,
     resolveLegacySecret: () => null,
+    getPairingResponse: () => null,
     createPending: nope,
+    createPendingWithResponse: nope,
     activate: nope,
     activatePending: () => null,
+    bindCloudUser: () => ({ ok: false, reason: "unknown" }),
+    activatePendingForCloud: () => ({ ok: false, reason: "unknown" }),
+    revokeCloudDevice: () => ({ ok: false, reason: "unknown" }),
     revoke: () => false,
     importLegacy: nope,
     markLegacyMigrated: nope,
@@ -315,11 +316,56 @@ function swappableRegistry(get: () => DeviceRegistry): DeviceRegistry {
     list: () => get().list(),
     hasLegacy: () => get().hasLegacy(),
     legacyImportCompleted: () => get().legacyImportCompleted(),
-    resolveDeviceSecret: (deviceId, secretDigest, now) => get().resolveDeviceSecret(deviceId, secretDigest, now),
-    resolveLegacySecret: (secretDigest) => get().resolveLegacySecret(secretDigest),
+    resolveDeviceSecret: (deviceId, secretDigest, now) =>
+      get().resolveDeviceSecret(deviceId, secretDigest, now),
+    resolveCloudDeviceSecret: (
+      deviceId,
+      secretDigest,
+      userId,
+      relayInstanceId,
+      now,
+    ) =>
+      get().resolveCloudDeviceSecret(
+        deviceId,
+        secretDigest,
+        userId,
+        relayInstanceId,
+        now,
+      ),
+    resolveLegacySecret: (secretDigest) =>
+      get().resolveLegacySecret(secretDigest),
+    getPairingResponse: (handshakeId, contextKey, now) =>
+      get().getPairingResponse(handshakeId, contextKey, now),
     createPending: (record, now) => get().createPending(record, now),
+    createPendingWithResponse: (record, response, now) =>
+      get().createPendingWithResponse(record, response, now),
     activate: (deviceId, now) => get().activate(deviceId, now),
-    activatePending: (deviceId, secretDigest, now) => get().activatePending(deviceId, secretDigest, now),
+    activatePending: (deviceId, secretDigest, now) =>
+      get().activatePending(deviceId, secretDigest, now),
+    bindCloudUser: (deviceId, secretDigest, userId, relayInstanceId) =>
+      get().bindCloudUser(deviceId, secretDigest, userId, relayInstanceId),
+    activatePendingForCloud: (
+      deviceId,
+      secretDigest,
+      userId,
+      relayInstanceId,
+      now,
+    ) =>
+      get().activatePendingForCloud(
+        deviceId,
+        secretDigest,
+        userId,
+        relayInstanceId,
+        now,
+      ),
+    revokeCloudDevice: (deviceId, secretDigest, userId, relayInstanceId, now) =>
+      get().revokeCloudDevice(
+        deviceId,
+        secretDigest,
+        userId,
+        relayInstanceId,
+        now,
+      ),
     revoke: (deviceId) => get().revoke(deviceId),
     importLegacy: (secretDigest, now) => get().importLegacy(secretDigest, now),
     markLegacyMigrated: () => get().markLegacyMigrated(),

@@ -6,7 +6,43 @@ import (
 	"path/filepath"
 )
 
+var beforeUninstallConfigSnapshotRemoval func(string) error
+
 func removeManagedConfigArtifacts(paths runtimePaths, report *uninstallReport, purge bool) error {
+	return removeManagedConfigArtifactsWithSnapshot(
+		paths,
+		report,
+		purge,
+		nil,
+		false,
+		false,
+	)
+}
+
+func removeManagedConfigArtifactsAtSnapshot(
+	paths runtimePaths,
+	report *uninstallReport,
+	config []byte,
+	configExists bool,
+) error {
+	return removeManagedConfigArtifactsWithSnapshot(
+		paths,
+		report,
+		true,
+		config,
+		configExists,
+		true,
+	)
+}
+
+func removeManagedConfigArtifactsWithSnapshot(
+	paths runtimePaths,
+	report *uninstallReport,
+	purge bool,
+	config []byte,
+	configExists bool,
+	verifyConfigSnapshot bool,
+) error {
 	// Serialize removal with census sends and opt-out. The coordinator lives
 	// outside ConfigDir (home-directory flock on Unix, named mutex on Windows),
 	// so removing census.json and then ConfigDir cannot unlink the active lock
@@ -38,11 +74,56 @@ func removeManagedConfigArtifacts(paths runtimePaths, report *uninstallReport, p
 		report.addNote("Retained two opaque random local safety markers so stale processes cannot restore the install or restart the census; neither is sent, and successful setup removes the census stop marker while rotating the install generation.")
 	}
 	for _, path := range managedConfigArtifactPaths(paths, purge) {
+		if purge && path == paths.ConfigFile && verifyConfigSnapshot {
+			if err := removeConfigAtSnapshot(
+				path,
+				config,
+				configExists,
+				report,
+			); err != nil {
+				return err
+			}
+			continue
+		}
 		if err := removePathWithReport(path, report); err != nil && !isNotExist(err) {
 			return err
 		}
 	}
 	return removeDirIfEmptyWithReport(paths.ConfigDir, report)
+}
+
+func removeConfigAtSnapshot(
+	path string,
+	expected []byte,
+	expectedExists bool,
+	report *uninstallReport,
+) error {
+	if beforeUninstallConfigSnapshotRemoval != nil {
+		if err := beforeUninstallConfigSnapshotRemoval(path); err != nil {
+			return fmt.Errorf("prepare verified config cleanup: %w", err)
+		}
+	}
+	// The uninstall client-mutation lock excludes every supported config
+	// writer. Recheck the exact bytes inside the removal function, after all
+	// credential proofs and cleanup hooks, so no stale inventory is deleted.
+	if err := ensureOptionalFileSnapshotCurrent(
+		path,
+		expected,
+		expectedExists,
+	); err != nil {
+		return fmt.Errorf(
+			"configuration changed before config cleanup: %w",
+			err,
+		)
+	}
+	if !expectedExists {
+		return nil
+	}
+	if err := removePathWithReport(path, report); err != nil &&
+		!isNotExist(err) {
+		return err
+	}
+	return nil
 }
 
 func censusLifecycleEvidence(paths runtimePaths) bool {

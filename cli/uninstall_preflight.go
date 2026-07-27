@@ -16,6 +16,44 @@ type uninstallPreflight struct {
 	config            runtimeConfig
 }
 
+// uninstallRelayRemovalEvidence records only Relay removals that guided
+// teardown completed and identified exactly. A missing profile or Relay
+// identity is never evidence that another Relay is gone.
+type uninstallRelayRemovalEvidence map[string]string
+
+func uninstallRelayRemovalEvidenceFromPreflight(
+	preflight uninstallPreflight,
+	teardownCompleted bool,
+) uninstallRelayRemovalEvidence {
+	return uninstallRelayRemovalEvidenceForDefault(
+		preflight.config.RelayInstanceID,
+		teardownCompleted,
+	)
+}
+
+func uninstallRelayRemovalEvidenceForDefault(
+	relayInstanceID string,
+	teardownCompleted bool,
+) uninstallRelayRemovalEvidence {
+	relayInstanceID = strings.TrimSpace(relayInstanceID)
+	if !teardownCompleted || relayInstanceID == "" {
+		return nil
+	}
+	return uninstallRelayRemovalEvidence{
+		defaultServerProfileName: relayInstanceID,
+	}
+}
+
+func (evidence uninstallRelayRemovalEvidence) matches(
+	profileName string,
+	relayInstanceID string,
+) bool {
+	expectedRelayInstanceID, exists := evidence[profileName]
+	return exists &&
+		strings.TrimSpace(relayInstanceID) != "" &&
+		expectedRelayInstanceID == strings.TrimSpace(relayInstanceID)
+}
+
 func renderUninstallPreflight(out io.Writer, paths runtimePaths, source string) {
 	session := resolveStatusUISession(out)
 	renderSimpleHeader(out, session, "HA NOVA Uninstall")
@@ -27,6 +65,7 @@ func renderUninstallPreflight(out io.Writer, paths runtimePaths, source string) 
 	fmt.Fprintf(out, "  %s\n", session.style("strong", "Full purge also removes:"))
 	fmt.Fprintf(out, "    %s Home Assistant connection config\n", session.bullet())
 	fmt.Fprintf(out, "    %s %s\n", session.bullet(), uninstallTokenLineLabel())
+	fmt.Fprintf(out, "    %s Home Assistant Cloud authorization (when configured)\n", session.bullet())
 	fmt.Fprintln(out)
 	if runtime.GOOS == "windows" && source == installSourceBundle {
 		renderSetupParagraphTight(out, session.style("muted", uninstallWindowsBundleNote()))
@@ -73,6 +112,12 @@ func collectUninstallPreflight(paths runtimePaths) uninstallPreflight {
 	}
 	preflight.config = cfg
 	preflight.haURL = strings.TrimSpace(cfg.HAURL)
+	if strings.TrimSpace(cfg.RelaySecureBaseURL) != "" &&
+		strings.TrimSpace(cfg.RelaySpkiPin) != "" &&
+		defaultUninstallDeviceCredentialExists() &&
+		verifyDefaultUninstallDeviceHealth(cfg) {
+		preflight.relayStillRunning = true
+	}
 	if cfg.RelayBaseURL == "" {
 		return preflight
 	}
@@ -89,7 +134,10 @@ func collectUninstallPreflight(paths runtimePaths) uninstallPreflight {
 	}
 	preflight.relayToken = token
 
-	if _, err := fetchRelayHealth(cfg.RelayBaseURL, token); err == nil {
+	if !preflight.relayStillRunning {
+		_, err = fetchRelayHealth(cfg.RelayBaseURL, token)
+	}
+	if err == nil {
 		preflight.relayStillRunning = true
 	}
 	return preflight

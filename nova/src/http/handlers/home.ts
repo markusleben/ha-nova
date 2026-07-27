@@ -1,22 +1,21 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 
+import { resolveIngressIdentity } from "../../security/ingress-identity.js";
 import type { PairingManager } from "../../security/pairing.js";
 import { HttpError } from "../errors.js";
 import type { RouteContext, RouteHandler } from "../router.js";
-import { readHealthPayload, type HealthHandlerOptions, type HealthPayload } from "./health.js";
-
-const SUPERVISOR_INGRESS_PEERS = new Set([
-  "172.30.32.2",
-  "::ffff:172.30.32.2",
-  "::ffff:ac1e:2002"
-]);
+import {
+  readHealthPayload,
+  type HealthHandlerOptions,
+  type HealthPayload,
+} from "./health.js";
 
 export const HOME_CONTENT_SECURITY_POLICY = [
   "default-src 'none'",
   "style-src 'unsafe-inline'",
   "base-uri 'none'",
   "form-action 'none'",
-  "frame-ancestors 'self'"
+  "frame-ancestors 'self'",
 ].join("; ");
 
 export interface HomeHandlerOptions {
@@ -40,7 +39,11 @@ export function createHomeHandler(options: HomeHandlerOptions): RouteHandler {
   return async ({ request, response }: RouteContext) => {
     setHomeHeaders(response);
     if (!isSupervisorIngressRequest(request)) {
-      throw new HttpError(403, "INGRESS_REQUIRED", "Home Base is available through Supervisor ingress only");
+      throw new HttpError(
+        403,
+        "INGRESS_REQUIRED",
+        "Home Base is available through Supervisor ingress only",
+      );
     }
 
     const health = await readHealthPayload(options.health);
@@ -49,8 +52,11 @@ export function createHomeHandler(options: HomeHandlerOptions): RouteHandler {
       health,
       pairingCode: pairing.code,
       pairingExpiresAtMs: pairing.expiresAtMs,
-      pairingExpiresInSeconds: Math.max(0, Math.ceil((pairing.expiresAtMs - now()) / 1_000)),
-      requiredRelayVersion: options.requiredRelayVersion
+      pairingExpiresInSeconds: Math.max(
+        0,
+        Math.ceil((pairing.expiresAtMs - now()) / 1_000),
+      ),
+      requiredRelayVersion: options.requiredRelayVersion,
     });
 
     response.statusCode = 200;
@@ -61,16 +67,16 @@ export function createHomeHandler(options: HomeHandlerOptions): RouteHandler {
 }
 
 export function isSupervisorIngressRequest(request: IncomingMessage): boolean {
-  const peer = request.socket.remoteAddress?.toLowerCase() ?? "";
-  const ingressPath = singleHeader(request, "x-ingress-path");
-  const userId = singleHeader(request, "x-remote-user-id");
-  return SUPERVISOR_INGRESS_PEERS.has(peer) && ingressPath.startsWith("/") && userId.length > 0;
+  return resolveIngressIdentity(request).ok;
 }
 
 export function renderHomePage(model: HomePageModel): string {
   const connection = connectionText(model.health);
   const code = `${model.pairingCode.slice(0, 3)} ${model.pairingCode.slice(3)}`;
-  const expiresMinutes = Math.max(1, Math.ceil(model.pairingExpiresInSeconds / 60));
+  const expiresMinutes = Math.max(
+    1,
+    Math.ceil(model.pairingExpiresInSeconds / 60),
+  );
   const commands = installCommands();
   const statusClass = model.health.ha_ws_connected ? "good" : "warn";
 
@@ -135,15 +141,12 @@ function setHomeHeaders(response: ServerResponse): void {
   response.setHeader("referrer-policy", "no-referrer");
 }
 
-function singleHeader(request: IncomingMessage, name: string): string {
-  const value = request.headers[name];
-  return typeof value === "string" ? value.trim() : "";
-}
-
 function connectionText(health: HealthPayload): string {
   if (health.ha_ws_connected) return "Connected to Home Assistant";
-  if (health.ha_ws_disconnect_reason === "auth") return "Home Assistant authentication failed";
-  if (health.ha_ws_disconnect_reason === "network") return "Home Assistant is not reachable";
+  if (health.ha_ws_disconnect_reason === "auth")
+    return "Home Assistant authentication failed";
+  if (health.ha_ws_disconnect_reason === "network")
+    return "Home Assistant is not reachable";
   return "Waiting for the first Home Assistant connection";
 }
 
@@ -153,7 +156,8 @@ function installCommands(): { unix: string; windows: string } {
   // bootstrap scripts resolve GitHub Releases' latest stable version.
   return {
     unix: "curl -fsSL https://raw.githubusercontent.com/markusleben/ha-nova/main/install.sh | bash",
-    windows: "irm https://raw.githubusercontent.com/markusleben/ha-nova/main/install.ps1 | iex"
+    windows:
+      "irm https://raw.githubusercontent.com/markusleben/ha-nova/main/install.ps1 | iex",
   };
 }
 
@@ -170,7 +174,15 @@ function formatBytes(bytes: number): string {
 }
 
 function escapeHtml(value: string): string {
-  return value.replace(/[&<>"']/g, (character) => ({
-    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
-  })[character]!);
+  return value.replace(
+    /[&<>"']/g,
+    (character) =>
+      ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+      })[character]!,
+  );
 }

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -12,26 +13,31 @@ import (
 	"testing"
 )
 
+func allowNativeSecureStoragePromptForTest(t *testing.T) {
+	t.Helper()
+	original := platformSecureStorageRecoveryInteractiveAvailableForSetup
+	platformSecureStorageRecoveryInteractiveAvailableForSetup = func() bool { return true }
+	t.Cleanup(func() {
+		platformSecureStorageRecoveryInteractiveAvailableForSetup = original
+	})
+}
+
 func TestRunSetupSecureStorageRecoveryFlowStopsOnFatalError(t *testing.T) {
+	allowNativeSecureStoragePromptForTest(t)
 	originalSupport := detectPlatformSecureStorageRecoverySupportForSetup
 	originalRunRecovery := runPlatformSecureStorageRecoveryForSetup
-	originalReadSecret := readSetupSecretInputForSetup
 	originalTTY := writerSupportsTTYForSetup
 	originalInputTTY := uiInputSupportsTTY
 	defer func() {
 		detectPlatformSecureStorageRecoverySupportForSetup = originalSupport
 		runPlatformSecureStorageRecoveryForSetup = originalRunRecovery
-		readSetupSecretInputForSetup = originalReadSecret
 		writerSupportsTTYForSetup = originalTTY
 		uiInputSupportsTTY = originalInputTTY
 	}()
 
 	detectPlatformSecureStorageRecoverySupportForSetup = func() (bool, error) { return true, nil }
-	runPlatformSecureStorageRecoveryForSetup = func(platformSecureStorageRecoveryAction, []byte) error {
+	runPlatformSecureStorageRecoveryForSetup = func(platformSecureStorageRecoveryAction) error {
 		return errors.New("local secure storage backend disappeared")
-	}
-	readSetupSecretInputForSetup = func(int) ([]byte, error) {
-		return []byte("linux-local-keyring"), nil
 	}
 	writerSupportsTTYForSetup = func(io.Writer) bool { return true }
 	uiInputSupportsTTY = func() bool { return true }
@@ -46,69 +52,53 @@ func TestRunSetupSecureStorageRecoveryFlowStopsOnFatalError(t *testing.T) {
 	}
 }
 
-func TestRunSetupSecureStorageRecoveryFlowRetriesOnlyOnRetryableError(t *testing.T) {
+func TestRunSetupSecureStorageRecoveryFlowTreatsNativePromptDismissAsDecline(t *testing.T) {
+	allowNativeSecureStoragePromptForTest(t)
 	originalSupport := detectPlatformSecureStorageRecoverySupportForSetup
 	originalRunRecovery := runPlatformSecureStorageRecoveryForSetup
-	originalReadSecret := readSetupSecretInputForSetup
 	originalTTY := writerSupportsTTYForSetup
 	originalInputTTY := uiInputSupportsTTY
 	defer func() {
 		detectPlatformSecureStorageRecoverySupportForSetup = originalSupport
 		runPlatformSecureStorageRecoveryForSetup = originalRunRecovery
-		readSetupSecretInputForSetup = originalReadSecret
 		writerSupportsTTYForSetup = originalTTY
 		uiInputSupportsTTY = originalInputTTY
 	}()
 
 	detectPlatformSecureStorageRecoverySupportForSetup = func() (bool, error) { return true, nil }
 	runCalls := 0
-	runPlatformSecureStorageRecoveryForSetup = func(platformSecureStorageRecoveryAction, []byte) error {
+	runPlatformSecureStorageRecoveryForSetup = func(platformSecureStorageRecoveryAction) error {
 		runCalls++
-		if runCalls == 1 {
-			return localSecureStoragePasswordRejectedError()
-		}
-		return nil
-	}
-	readCalls := 0
-	readSetupSecretInputForSetup = func(int) ([]byte, error) {
-		readCalls++
-		if readCalls == 1 {
-			return []byte("wrong-password"), nil
-		}
-		return []byte("correct-password"), nil
+		return fmt.Errorf("%w: native Secret Service prompt was dismissed", errLocalSecureStoragePromptCanceled)
 	}
 	writerSupportsTTYForSetup = func(io.Writer) bool { return true }
 	uiInputSupportsTTY = func() bool { return true }
 
 	var out bytes.Buffer
 	state := setupSecureStorageRecoveryState{}
-	result, err := runSetupSecureStorageRecoveryFlow(bufio.NewReader(strings.NewReader("\n\n")), &out, desktopKeyringLockedError("default Secret Service collection is locked"), &state, setupSecureStorageRecoveryInitialAttempt)
+	result, err := runSetupSecureStorageRecoveryFlow(bufio.NewReader(strings.NewReader("\n")), &out, desktopKeyringLockedError("default Secret Service collection is locked"), &state, setupSecureStorageRecoveryInitialAttempt)
 	if err != nil {
-		t.Fatalf("expected retryable recovery flow to succeed, got %v", err)
+		t.Fatalf("expected dismissed native prompt to be a clean decline, got %v", err)
 	}
-	if result != setupSecureStorageRecoveryRecovered {
-		t.Fatalf("expected recovered result, got %q", result)
+	if result != setupSecureStorageRecoveryDeclined {
+		t.Fatalf("expected declined result, got %q", result)
 	}
-	if !strings.Contains(out.String(), "local Linux keyring password was rejected") {
-		t.Fatalf("expected explicit wrong-password wording, got:\n%s", out.String())
-	}
-	if runCalls != 2 {
-		t.Fatalf("expected two recovery attempts, got %d", runCalls)
+	if runCalls != 1 {
+		t.Fatalf("dismissed prompt was repeated %d times", runCalls)
 	}
 }
 
 func TestRunSetupSecureStorageRecoveryFlowRecomputesPlanAfterRetryableKeyringError(t *testing.T) {
+	allowNativeSecureStoragePromptForTest(t)
 	originalSupport := detectPlatformSecureStorageRecoverySupportForSetup
 	originalInfer := inferPlatformSecureStorageRecoveryActionForSetup
 	originalRunRecovery := runPlatformSecureStorageRecoveryForSetup
-	originalReadSecret := readSetupSecretInputForSetup
 	originalTTY := writerSupportsTTYForSetup
 	originalInputTTY := uiInputSupportsTTY
 	defer func() {
 		detectPlatformSecureStorageRecoverySupportForSetup = originalSupport
 		inferPlatformSecureStorageRecoveryActionForSetup = originalInfer
 		runPlatformSecureStorageRecoveryForSetup = originalRunRecovery
-		readSetupSecretInputForSetup = originalReadSecret
 		writerSupportsTTYForSetup = originalTTY
 		uiInputSupportsTTY = originalInputTTY
 	}()
@@ -126,22 +116,12 @@ func TestRunSetupSecureStorageRecoveryFlowRecomputesPlanAfterRetryableKeyringErr
 	}
 
 	var actions []platformSecureStorageRecoveryAction
-	runPlatformSecureStorageRecoveryForSetup = func(action platformSecureStorageRecoveryAction, _ []byte) error {
+	runPlatformSecureStorageRecoveryForSetup = func(action platformSecureStorageRecoveryAction) error {
 		actions = append(actions, action)
 		if len(actions) == 1 {
 			return desktopKeyringLockedError("default Secret Service collection is locked")
 		}
 		return nil
-	}
-	secretReads := 0
-	readSetupSecretInputForSetup = func(int) ([]byte, error) {
-		secretReads++
-		switch secretReads {
-		case 1, 2:
-			return []byte("new-keyring-password"), nil
-		default:
-			return []byte("existing-keyring-password"), nil
-		}
 	}
 	writerSupportsTTYForSetup = func(io.Writer) bool { return true }
 	uiInputSupportsTTY = func() bool { return true }
@@ -170,6 +150,7 @@ func TestRunSetupSecureStorageRecoveryFlowRecomputesPlanAfterRetryableKeyringErr
 }
 
 func TestRunSetupSecureStorageRecoveryFlowBackDoesNotConsumeAttempt(t *testing.T) {
+	allowNativeSecureStoragePromptForTest(t)
 	originalSupport := detectPlatformSecureStorageRecoverySupportForSetup
 	originalTTY := writerSupportsTTYForSetup
 	originalInputTTY := uiInputSupportsTTY
@@ -193,43 +174,81 @@ func TestRunSetupSecureStorageRecoveryFlowBackDoesNotConsumeAttempt(t *testing.T
 	}
 }
 
-func TestRunSetupSecureStorageRecoveryFlowInitializationConfirmsPassword(t *testing.T) {
+func TestRunSetupSecureStorageRecoveryFlowFailsClosedWithoutDesktopTTY(t *testing.T) {
+	allowNativeSecureStoragePromptForTest(t)
+	originalRunRecovery := runPlatformSecureStorageRecoveryForSetup
+	originalTTY := writerSupportsTTYForSetup
+	originalInputTTY := uiInputSupportsTTY
+	t.Cleanup(func() {
+		runPlatformSecureStorageRecoveryForSetup = originalRunRecovery
+		writerSupportsTTYForSetup = originalTTY
+		uiInputSupportsTTY = originalInputTTY
+	})
+
+	uiInputSupportsTTY = func() bool { return false }
+	writerSupportsTTYForSetup = func(io.Writer) bool { return false }
+	runPlatformSecureStorageRecoveryForSetup = func(platformSecureStorageRecoveryAction) error {
+		t.Fatal("headless recovery must not invoke the native prompt")
+		return nil
+	}
+
+	state := setupSecureStorageRecoveryState{}
+	_, err := runSetupSecureStorageRecoveryFlow(
+		bufio.NewReader(strings.NewReader("\n")),
+		io.Discard,
+		desktopKeyringLockedError("default Secret Service collection is locked"),
+		&state,
+		setupSecureStorageRecoveryInitialAttempt,
+	)
+	if err == nil || !strings.Contains(err.Error(), "interactive desktop terminal") {
+		t.Fatalf("expected fail-closed desktop-terminal error, got %v", err)
+	}
+	if state.initialAttempted {
+		t.Fatal("headless rejection must not consume a recovery attempt")
+	}
+}
+
+func TestSetupSecureStorageRecoveryUnavailableWithoutGraphicalSession(t *testing.T) {
+	originalPlatform := platformSecureStorageRecoveryInteractiveAvailableForSetup
+	originalTTY := writerSupportsTTYForSetup
+	originalInputTTY := uiInputSupportsTTY
+	t.Cleanup(func() {
+		platformSecureStorageRecoveryInteractiveAvailableForSetup = originalPlatform
+		writerSupportsTTYForSetup = originalTTY
+		uiInputSupportsTTY = originalInputTTY
+	})
+
+	uiInputSupportsTTY = func() bool { return true }
+	writerSupportsTTYForSetup = func(io.Writer) bool { return true }
+	platformSecureStorageRecoveryInteractiveAvailableForSetup = func() bool { return false }
+	if setupSecureStorageRecoveryAvailableNow(
+		desktopKeyringLockedError("default Secret Service collection is locked"),
+	) {
+		t.Fatal("headless session must not offer a native secure-storage prompt")
+	}
+}
+
+func TestRunSetupSecureStorageRecoveryFlowUsesOnlyNativePrompt(t *testing.T) {
+	allowNativeSecureStoragePromptForTest(t)
 	originalSupport := detectPlatformSecureStorageRecoverySupportForSetup
 	originalRunRecovery := runPlatformSecureStorageRecoveryForSetup
-	originalReadSecret := readSetupSecretInputForSetup
 	originalTTY := writerSupportsTTYForSetup
 	originalInputTTY := uiInputSupportsTTY
 	defer func() {
 		detectPlatformSecureStorageRecoverySupportForSetup = originalSupport
 		runPlatformSecureStorageRecoveryForSetup = originalRunRecovery
-		readSetupSecretInputForSetup = originalReadSecret
 		writerSupportsTTYForSetup = originalTTY
 		uiInputSupportsTTY = originalInputTTY
 	}()
 
 	detectPlatformSecureStorageRecoverySupportForSetup = func() (bool, error) { return true, nil }
 	runCalls := 0
-	runPlatformSecureStorageRecoveryForSetup = func(action platformSecureStorageRecoveryAction, secret []byte) error {
+	runPlatformSecureStorageRecoveryForSetup = func(action platformSecureStorageRecoveryAction) error {
 		runCalls++
 		if action != platformSecureStorageRecoveryInitialize {
 			t.Fatalf("unexpected recovery action %q", action)
 		}
-		if string(secret) != "correct-password" {
-			t.Fatalf("unexpected recovery secret %q", string(secret))
-		}
 		return nil
-	}
-	secretReads := 0
-	readSetupSecretInputForSetup = func(int) ([]byte, error) {
-		secretReads++
-		switch secretReads {
-		case 1:
-			return []byte("first-password"), nil
-		case 2:
-			return []byte("different-password"), nil
-		default:
-			return []byte("correct-password"), nil
-		}
 	}
 	writerSupportsTTYForSetup = func(io.Writer) bool { return true }
 	uiInputSupportsTTY = func() bool { return true }
@@ -237,7 +256,7 @@ func TestRunSetupSecureStorageRecoveryFlowInitializationConfirmsPassword(t *test
 	var out bytes.Buffer
 	state := setupSecureStorageRecoveryState{}
 	result, err := runSetupSecureStorageRecoveryFlow(
-		bufio.NewReader(strings.NewReader("\n\n")),
+		bufio.NewReader(strings.NewReader("\n")),
 		&out,
 		desktopKeyringInitializationRequiredError("no default Secret Service collection configured"),
 		&state,
@@ -249,8 +268,11 @@ func TestRunSetupSecureStorageRecoveryFlowInitializationConfirmsPassword(t *test
 	if result != setupSecureStorageRecoveryRecovered {
 		t.Fatalf("expected recovered result, got %q", result)
 	}
-	if !strings.Contains(out.String(), "Passwords did not match.") {
-		t.Fatalf("expected mismatch guidance, got:\n%s", out.String())
+	if !strings.Contains(out.String(), "HA NOVA never reads it in the terminal") {
+		t.Fatalf("expected native-prompt guidance, got:\n%s", out.String())
+	}
+	if strings.Contains(strings.ToLower(out.String()), "keyring password:") {
+		t.Fatalf("terminal output requested a keyring password:\n%s", out.String())
 	}
 	if runCalls != 1 {
 		t.Fatalf("expected one successful recovery call after confirmation, got %d", runCalls)
@@ -258,6 +280,7 @@ func TestRunSetupSecureStorageRecoveryFlowInitializationConfirmsPassword(t *test
 }
 
 func TestInteractiveSetupRecoveryBackDoesNotBypassGate(t *testing.T) {
+	allowNativeSecureStoragePromptForTest(t)
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("HA_NOVA_NO_BROWSER", "1")
@@ -284,14 +307,12 @@ func TestInteractiveSetupRecoveryBackDoesNotBypassGate(t *testing.T) {
 	originalPreflight := relayAuthTokenSetupPreflightForSetup
 	originalSupport := detectPlatformSecureStorageRecoverySupportForSetup
 	originalRunRecovery := runPlatformSecureStorageRecoveryForSetup
-	originalReadSecret := readSetupSecretInputForSetup
 	originalTTY := writerSupportsTTYForSetup
 	originalInputTTY := uiInputSupportsTTY
 	defer func() {
 		relayAuthTokenSetupPreflightForSetup = originalPreflight
 		detectPlatformSecureStorageRecoverySupportForSetup = originalSupport
 		runPlatformSecureStorageRecoveryForSetup = originalRunRecovery
-		readSetupSecretInputForSetup = originalReadSecret
 		writerSupportsTTYForSetup = originalTTY
 		uiInputSupportsTTY = originalInputTTY
 	}()
@@ -308,18 +329,12 @@ func TestInteractiveSetupRecoveryBackDoesNotBypassGate(t *testing.T) {
 		return true, nil
 	}
 	recoveryCalls := 0
-	runPlatformSecureStorageRecoveryForSetup = func(action platformSecureStorageRecoveryAction, secret []byte) error {
+	runPlatformSecureStorageRecoveryForSetup = func(action platformSecureStorageRecoveryAction) error {
 		recoveryCalls++
 		if action != platformSecureStorageRecoveryInitialize {
 			t.Fatalf("unexpected recovery action %q", action)
 		}
-		if string(secret) != "linux-local-keyring" {
-			t.Fatalf("unexpected recovery secret %q", string(secret))
-		}
 		return nil
-	}
-	readSetupSecretInputForSetup = func(int) ([]byte, error) {
-		return []byte("linux-local-keyring"), nil
 	}
 	writerSupportsTTYForSetup = func(io.Writer) bool { return true }
 	uiInputSupportsTTY = func() bool { return true }
@@ -354,6 +369,7 @@ func TestInteractiveSetupRecoveryBackDoesNotBypassGate(t *testing.T) {
 }
 
 func TestInteractiveSetupRecoversWhenSavedTokenReadNeedsRecovery(t *testing.T) {
+	allowNativeSecureStoragePromptForTest(t)
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("HA_NOVA_NO_BROWSER", "1")
@@ -381,7 +397,6 @@ func TestInteractiveSetupRecoversWhenSavedTokenReadNeedsRecovery(t *testing.T) {
 	originalReadToken := readRelayAuthTokenForSetup
 	originalSupport := detectPlatformSecureStorageRecoverySupportForSetup
 	originalRunRecovery := runPlatformSecureStorageRecoveryForSetup
-	originalReadSecret := readSetupSecretInputForSetup
 	originalTTY := writerSupportsTTYForSetup
 	originalInputTTY := uiInputSupportsTTY
 	defer func() {
@@ -389,7 +404,6 @@ func TestInteractiveSetupRecoversWhenSavedTokenReadNeedsRecovery(t *testing.T) {
 		readRelayAuthTokenForSetup = originalReadToken
 		detectPlatformSecureStorageRecoverySupportForSetup = originalSupport
 		runPlatformSecureStorageRecoveryForSetup = originalRunRecovery
-		readSetupSecretInputForSetup = originalReadSecret
 		writerSupportsTTYForSetup = originalTTY
 		uiInputSupportsTTY = originalInputTTY
 	}()
@@ -406,17 +420,11 @@ func TestInteractiveSetupRecoversWhenSavedTokenReadNeedsRecovery(t *testing.T) {
 	detectPlatformSecureStorageRecoverySupportForSetup = func() (bool, error) {
 		return true, nil
 	}
-	runPlatformSecureStorageRecoveryForSetup = func(action platformSecureStorageRecoveryAction, secret []byte) error {
+	runPlatformSecureStorageRecoveryForSetup = func(action platformSecureStorageRecoveryAction) error {
 		if action != platformSecureStorageRecoveryUnlock {
 			t.Fatalf("unexpected recovery action %q", action)
 		}
-		if string(secret) != "linux-local-keyring" {
-			t.Fatalf("unexpected recovery secret %q", string(secret))
-		}
 		return nil
-	}
-	readSetupSecretInputForSetup = func(int) ([]byte, error) {
-		return []byte("linux-local-keyring"), nil
 	}
 	writerSupportsTTYForSetup = func(io.Writer) bool { return true }
 	uiInputSupportsTTY = func() bool { return true }
@@ -450,6 +458,7 @@ func TestInteractiveSetupRecoversWhenSavedTokenReadNeedsRecovery(t *testing.T) {
 }
 
 func TestInteractiveSetupReusesSavedTokenAfterReadRecovery(t *testing.T) {
+	allowNativeSecureStoragePromptForTest(t)
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("HA_NOVA_NO_BROWSER", "1")
@@ -477,7 +486,6 @@ func TestInteractiveSetupReusesSavedTokenAfterReadRecovery(t *testing.T) {
 	originalReadToken := readRelayAuthTokenForSetup
 	originalSupport := detectPlatformSecureStorageRecoverySupportForSetup
 	originalRunRecovery := runPlatformSecureStorageRecoveryForSetup
-	originalReadSecret := readSetupSecretInputForSetup
 	originalTTY := writerSupportsTTYForSetup
 	originalInputTTY := uiInputSupportsTTY
 	defer func() {
@@ -485,7 +493,6 @@ func TestInteractiveSetupReusesSavedTokenAfterReadRecovery(t *testing.T) {
 		readRelayAuthTokenForSetup = originalReadToken
 		detectPlatformSecureStorageRecoverySupportForSetup = originalSupport
 		runPlatformSecureStorageRecoveryForSetup = originalRunRecovery
-		readSetupSecretInputForSetup = originalReadSecret
 		writerSupportsTTYForSetup = originalTTY
 		uiInputSupportsTTY = originalInputTTY
 	}()
@@ -502,17 +509,11 @@ func TestInteractiveSetupReusesSavedTokenAfterReadRecovery(t *testing.T) {
 	detectPlatformSecureStorageRecoverySupportForSetup = func() (bool, error) {
 		return true, nil
 	}
-	runPlatformSecureStorageRecoveryForSetup = func(action platformSecureStorageRecoveryAction, secret []byte) error {
+	runPlatformSecureStorageRecoveryForSetup = func(action platformSecureStorageRecoveryAction) error {
 		if action != platformSecureStorageRecoveryUnlock {
 			t.Fatalf("unexpected recovery action %q", action)
 		}
-		if string(secret) != "linux-local-keyring" {
-			t.Fatalf("unexpected recovery secret %q", string(secret))
-		}
 		return nil
-	}
-	readSetupSecretInputForSetup = func(int) ([]byte, error) {
-		return []byte("linux-local-keyring"), nil
 	}
 	writerSupportsTTYForSetup = func(io.Writer) bool { return true }
 	uiInputSupportsTTY = func() bool { return true }
@@ -548,6 +549,7 @@ func TestInteractiveSetupReusesSavedTokenAfterReadRecovery(t *testing.T) {
 }
 
 func TestInteractiveSetupDeclinedReadRecoveryMentionsSavedTokenAccess(t *testing.T) {
+	allowNativeSecureStoragePromptForTest(t)
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("HA_NOVA_NO_BROWSER", "1")
@@ -599,6 +601,7 @@ func TestInteractiveSetupDeclinedReadRecoveryMentionsSavedTokenAccess(t *testing
 }
 
 func TestInteractiveSetupRetriesSaveTimeRecoveryInline(t *testing.T) {
+	allowNativeSecureStoragePromptForTest(t)
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("HA_NOVA_NO_BROWSER", "1")
@@ -626,7 +629,6 @@ func TestInteractiveSetupRetriesSaveTimeRecoveryInline(t *testing.T) {
 	originalWrite := writeRelayAuthTokenForSetupPersistence
 	originalSupport := detectPlatformSecureStorageRecoverySupportForSetup
 	originalRunRecovery := runPlatformSecureStorageRecoveryForSetup
-	originalReadSecret := readSetupSecretInputForSetup
 	originalTTY := writerSupportsTTYForSetup
 	originalInputTTY := uiInputSupportsTTY
 	defer func() {
@@ -634,7 +636,6 @@ func TestInteractiveSetupRetriesSaveTimeRecoveryInline(t *testing.T) {
 		writeRelayAuthTokenForSetupPersistence = originalWrite
 		detectPlatformSecureStorageRecoverySupportForSetup = originalSupport
 		runPlatformSecureStorageRecoveryForSetup = originalRunRecovery
-		readSetupSecretInputForSetup = originalReadSecret
 		writerSupportsTTYForSetup = originalTTY
 		uiInputSupportsTTY = originalInputTTY
 	}()
@@ -652,18 +653,12 @@ func TestInteractiveSetupRetriesSaveTimeRecoveryInline(t *testing.T) {
 		return true, nil
 	}
 	recoveryCalls := 0
-	runPlatformSecureStorageRecoveryForSetup = func(action platformSecureStorageRecoveryAction, secret []byte) error {
+	runPlatformSecureStorageRecoveryForSetup = func(action platformSecureStorageRecoveryAction) error {
 		recoveryCalls++
 		if action != platformSecureStorageRecoveryUnlock {
 			t.Fatalf("unexpected recovery action %q", action)
 		}
-		if string(secret) != "linux-local-keyring" {
-			t.Fatalf("unexpected recovery secret %q", string(secret))
-		}
 		return nil
-	}
-	readSetupSecretInputForSetup = func(int) ([]byte, error) {
-		return []byte("linux-local-keyring"), nil
 	}
 	writerSupportsTTYForSetup = func(io.Writer) bool { return true }
 	uiInputSupportsTTY = func() bool { return true }
@@ -702,6 +697,7 @@ func TestInteractiveSetupRetriesSaveTimeRecoveryInline(t *testing.T) {
 }
 
 func TestInteractiveSetupRetriesSaveTimeInitializationRecoveryInline(t *testing.T) {
+	allowNativeSecureStoragePromptForTest(t)
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("HA_NOVA_NO_BROWSER", "1")
@@ -729,7 +725,6 @@ func TestInteractiveSetupRetriesSaveTimeInitializationRecoveryInline(t *testing.
 	originalWrite := writeRelayAuthTokenForSetupPersistence
 	originalSupport := detectPlatformSecureStorageRecoverySupportForSetup
 	originalRunRecovery := runPlatformSecureStorageRecoveryForSetup
-	originalReadSecret := readSetupSecretInputForSetup
 	originalTTY := writerSupportsTTYForSetup
 	originalInputTTY := uiInputSupportsTTY
 	defer func() {
@@ -737,7 +732,6 @@ func TestInteractiveSetupRetriesSaveTimeInitializationRecoveryInline(t *testing.
 		writeRelayAuthTokenForSetupPersistence = originalWrite
 		detectPlatformSecureStorageRecoverySupportForSetup = originalSupport
 		runPlatformSecureStorageRecoveryForSetup = originalRunRecovery
-		readSetupSecretInputForSetup = originalReadSecret
 		writerSupportsTTYForSetup = originalTTY
 		uiInputSupportsTTY = originalInputTTY
 	}()
@@ -755,18 +749,12 @@ func TestInteractiveSetupRetriesSaveTimeInitializationRecoveryInline(t *testing.
 		return true, nil
 	}
 	recoveryCalls := 0
-	runPlatformSecureStorageRecoveryForSetup = func(action platformSecureStorageRecoveryAction, secret []byte) error {
+	runPlatformSecureStorageRecoveryForSetup = func(action platformSecureStorageRecoveryAction) error {
 		recoveryCalls++
 		if action != platformSecureStorageRecoveryInitialize {
 			t.Fatalf("unexpected recovery action %q", action)
 		}
-		if string(secret) != "linux-local-keyring" {
-			t.Fatalf("unexpected recovery secret %q", string(secret))
-		}
 		return nil
-	}
-	readSetupSecretInputForSetup = func(int) ([]byte, error) {
-		return []byte("linux-local-keyring"), nil
 	}
 	writerSupportsTTYForSetup = func(io.Writer) bool { return true }
 	uiInputSupportsTTY = func() bool { return true }
@@ -796,7 +784,7 @@ func TestInteractiveSetupRetriesSaveTimeInitializationRecoveryInline(t *testing.
 	if !strings.Contains(output, "Verifying connection") || !strings.Contains(output, "Local secure storage needs setup") {
 		t.Fatalf("expected verify stage followed by inline initialization recovery:\n%s", output)
 	}
-	if !strings.Contains(output, "Set up local secure storage now") {
+	if !strings.Contains(output, "Open the system secure-storage setup now") {
 		t.Fatalf("expected initialization recovery prompt:\n%s", output)
 	}
 	if !strings.Contains(output, "Setup complete!") {

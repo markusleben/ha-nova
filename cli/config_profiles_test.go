@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-// Schema-v2 (multi-server) coverage: v1→v2 migration, save-path un-flatten,
+// Schema-v3 (multi-server) coverage: v1→v3 migration, save-path un-flatten,
 // sibling preservation, the legacy downgrade mirror, selection order, and the
 // issue-#200 raw default-profile loader.
 
@@ -70,8 +70,8 @@ func TestV1FlatConfigMigratesToProfilesOnSaveWithLegacyMirror(t *testing.T) {
 		t.Fatalf("saveConfig: %v", err)
 	}
 	top := readTestConfigTopLevel(t, paths)
-	if string(top["schema_version"]) != "2" {
-		t.Fatalf("schema_version = %s, want 2", top["schema_version"])
+	if string(top["schema_version"]) != "3" {
+		t.Fatalf("schema_version = %s, want 3", top["schema_version"])
 	}
 	if string(top["default_server"]) != `"default"` {
 		t.Fatalf("default_server = %s, want \"default\"", top["default_server"])
@@ -86,6 +86,9 @@ func TestV1FlatConfigMigratesToProfilesOnSaveWithLegacyMirror(t *testing.T) {
 	if servers["default"].RelayBaseURL != "http://ha:8791" || servers["default"].RelayTokenFile != "relay-token" {
 		t.Fatalf("servers.default = %+v", servers["default"])
 	}
+	if servers["default"].ProfileID == "" || servers["default"].RoutePolicy != routePolicyLocal {
+		t.Fatalf("v3 identity/routing fields missing: %+v", servers["default"])
+	}
 	// Downgrade floor: an old binary unmarshals the flat mirror and keeps
 	// working against the default profile.
 	var oldShape runtimeConfig
@@ -96,15 +99,20 @@ func TestV1FlatConfigMigratesToProfilesOnSaveWithLegacyMirror(t *testing.T) {
 	if oldShape.RelayBaseURL != "http://ha:8791" || oldShape.RelaySpkiPin != "PIN" || oldShape.RelayTokenFile != "relay-token" || oldShape.ClientInstallID != "inst-abc" {
 		t.Fatalf("legacy mirror incomplete: %+v", oldShape)
 	}
+	if oldShape.ProfileID != "" || oldShape.RelayInstanceID != "" || oldShape.RoutePolicy != "" || oldShape.Cloud != nil {
+		t.Fatalf("v3 fields leaked into the legacy flat mirror: %+v", oldShape)
+	}
 
 	// Idempotent: load+save of the migrated file changes nothing.
 	reloaded, err := loadConfig(paths)
 	if err != nil {
-		t.Fatalf("loadConfig(v2): %v", err)
+		t.Fatalf("loadConfig(v3): %v", err)
 	}
 	cfg.SchemaVersion = configSchemaVersion
+	cfg.ProfileID = reloaded.ProfileID
+	cfg.RoutePolicy = reloaded.RoutePolicy
 	if reloaded != cfg {
-		t.Fatalf("v2 reload differs from v1 load:\n  got  %+v\n  want %+v", reloaded, cfg)
+		t.Fatalf("v3 reload differs from v1 load:\n  got  %+v\n  want %+v", reloaded, cfg)
 	}
 	before, _ := os.ReadFile(paths.ConfigFile)
 	if err := saveConfig(paths, reloaded); err != nil {
@@ -372,40 +380,5 @@ func TestSetupRejectsConfiguredNonDefaultDefaultServer(t *testing.T) {
 	paths := writeTestConfigFile(t, `{"schema_version":2,"default_server":"cabin","servers":{"cabin":{"relay_base_url":"http://cabin:8791"}}}`)
 	if code := runSetup(paths, []string{"--relay-token", "tok", "--non-interactive"}); code == 0 {
 		t.Fatal("setup must reject a config whose default_server selects a named profile")
-	}
-}
-
-func TestLegacyMirrorFollowsLiteralDefaultNotDefaultServer(t *testing.T) {
-	// The flat mirror pairs with the machine-wide legacy token in old binaries,
-	// so it must always carry the LITERAL default profile — never the profile
-	// default_server points at.
-	resetServerProfileSelection(t)
-	doc, err := parseConfigDocument([]byte(`{"schema_version":2,"default_server":"cabin","servers":{"default":{"relay_base_url":"http://home:8791"},"cabin":{"relay_base_url":"http://cabin:8791"}}}`))
-	if err != nil {
-		t.Fatal(err)
-	}
-	top, err := doc.withProfile("cabin", runtimeConfig{RelayBaseURL: "http://cabin:8791", HAHost: "cabin.local"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	var mirror serverProfileConfig
-	raw, _ := json.Marshal(top)
-	if err := json.Unmarshal(raw, &mirror); err != nil {
-		t.Fatal(err)
-	}
-	if mirror.RelayBaseURL != "http://home:8791" {
-		t.Fatalf("mirror relay_base_url = %q, want the literal default profile's http://home:8791", mirror.RelayBaseURL)
-	}
-
-	// Without a literal default profile there is no mirror at all: an old
-	// binary honestly reports "not set up yet" instead of pairing the legacy
-	// token with a named profile's server.
-	fresh := &configDocument{top: map[string]json.RawMessage{}}
-	top, err = fresh.withProfile("cabin", runtimeConfig{RelayBaseURL: "http://cabin:8791"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, ok := top["relay_base_url"]; ok {
-		t.Fatal("no literal default profile: the flat mirror must be absent")
 	}
 }

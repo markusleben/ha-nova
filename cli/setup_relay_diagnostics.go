@@ -2,11 +2,13 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
-	"io"
 	"net/http"
 	"strings"
 )
+
+const maxRelayDiagnosticResponseBytes = 1 << 20
 
 type relayWSPingResponse struct {
 	StatusCode int
@@ -18,8 +20,26 @@ func probeRelayWSPing(relayBaseURL, token string) (relayWSPingResponse, error) {
 }
 
 func probeRelayWSPingWith(client *http.Client, relayBaseURL, token string) (relayWSPingResponse, error) {
+	return probeRelayWSPingWithContext(
+		context.Background(),
+		client,
+		relayBaseURL,
+		token,
+	)
+}
+
+func probeRelayWSPingWithContext(
+	ctx context.Context,
+	client *http.Client,
+	relayBaseURL, token string,
+) (relayWSPingResponse, error) {
 	url := strings.TrimRight(relayBaseURL, "/") + "/ws"
-	req, err := http.NewRequest("POST", url, bytes.NewReader([]byte(`{"type":"ping"}`)))
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
+		url,
+		bytes.NewReader([]byte(`{"type":"ping"}`)),
+	)
 	if err != nil {
 		return relayWSPingResponse{}, err
 	}
@@ -32,7 +52,16 @@ func probeRelayWSPingWith(client *http.Client, relayBaseURL, token string) (rela
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	if resp.StatusCode == http.StatusUnauthorized ||
+		resp.StatusCode == http.StatusForbidden {
+		return relayWSPingResponse{
+			StatusCode: resp.StatusCode,
+		}, nil
+	}
+	body, err := readAllLimited(
+		resp.Body,
+		maxRelayDiagnosticResponseBytes,
+	)
 	if err != nil {
 		return relayWSPingResponse{}, err
 	}

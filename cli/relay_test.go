@@ -31,6 +31,9 @@ func TestApplyHealthTimeoutsRewritesPinnedClient(t *testing.T) {
 	if transport.TLSClientConfig == nil || transport.TLSClientConfig.MinVersion != tls.VersionTLS13 {
 		t.Fatal("applyHealthTimeouts must preserve the SPKI pin TLS configuration")
 	}
+	if client.CheckRedirect == nil {
+		t.Fatal("applyHealthTimeouts must preserve the no-redirect policy")
+	}
 }
 
 func TestLoadRelayPayloadAcceptsSingleQuotedInlineJSON(t *testing.T) {

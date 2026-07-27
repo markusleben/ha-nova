@@ -37,4 +37,21 @@ describe("pairing-rate-limit", () => {
     }
     expect(blockedByGlobal).toBe(true);
   });
+
+  it("does not let one peer consume the global budget after its own cap", () => {
+    const rl = createPairingRateLimiter();
+    for (let i = 0; i < PAIR_PEER_ATTEMPT_LIMIT; i++) {
+      expect(rl.attempt("attacker", 1000).allowed).toBe(true);
+    }
+    for (let i = 0; i < 100; i++) {
+      expect(rl.attempt("attacker", 1000).allowed).toBe(false);
+    }
+
+    // The attacker's rejected attempts did not consume the remaining global
+    // capacity. Distinct legitimate peers can still use all remaining slots.
+    for (let i = PAIR_PEER_ATTEMPT_LIMIT; i < PAIR_GLOBAL_ATTEMPT_LIMIT; i++) {
+      expect(rl.attempt(`legitimate-${i}`, 1000).allowed).toBe(true);
+    }
+    expect(rl.attempt("over-global-cap", 1000).allowed).toBe(false);
+  });
 });

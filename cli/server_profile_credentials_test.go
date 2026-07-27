@@ -195,7 +195,7 @@ func TestPurgeAllProfilesRevokesEachAgainstItsOwnEndpoint(t *testing.T) {
 	purgeAllDeviceCredentialsWithReport([]profilePurgeTarget{
 		{name: "default", secureBaseURL: "https://ha:18792", spkiPin: "pin"},
 		{name: "cabin", secureBaseURL: "https://cabin:18792", spkiPin: "pin"},
-	}, report, false)
+	}, report, nil)
 
 	if len(revokedAt) != 2 || revokedAt[0] != "https://ha:18792" || revokedAt[1] != "https://cabin:18792" {
 		t.Fatalf("revokes must go to each profile's own endpoint, got %v", revokedAt)
@@ -220,7 +220,9 @@ func TestFileResidueMarkerRemovedOnlyWhenLastProfileSlotGone(t *testing.T) {
 		t.Fatal("precondition: marker must exist")
 	}
 
-	removeDeviceFileStorageResidueForProfile("cabin")
+	if err := removeDeviceFileStorageResidueForProfile("cabin"); err != nil {
+		t.Fatal(err)
+	}
 	if !deviceFileBackendMarkerExists() {
 		t.Fatal("marker must survive while another profile's slot files remain")
 	}
@@ -228,7 +230,9 @@ func TestFileResidueMarkerRemovedOnlyWhenLastProfileSlotGone(t *testing.T) {
 		t.Fatalf("default slot must survive a cabin cleanup: %v", err)
 	}
 
-	removeDeviceFileStorageResidueForProfile("default")
+	if err := removeDeviceFileStorageResidueForProfile("default"); err != nil {
+		t.Fatal(err)
+	}
 	if deviceFileBackendMarkerExists() {
 		t.Fatal("marker must go once the last profile's slots are gone")
 	}

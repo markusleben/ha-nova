@@ -99,6 +99,10 @@ func TestParseReleaseVersionRejectsUnsupportedFormats(t *testing.T) {
 		"0.3",
 		"0.3.1-beta1",
 		"0.3.1-rc0",
+		"0.3.1-rc01",
+		"00.3.1",
+		"0.03.1",
+		"0.3.01",
 		"0.3.1-rc1-extra",
 	}
 
@@ -298,5 +302,18 @@ func TestNormalizeSetupArgsMovesFutureRegistryTargetAfterFlags(t *testing.T) {
 
 	if strings.Join(got, "\n") != strings.Join(want, "\n") {
 		t.Fatalf("normalizeSetupArgs() = %v, want %v", got, want)
+	}
+}
+
+func TestNormalizeSetupArgsKeepsServerValueOutOfClientTarget(t *testing.T) {
+	for _, args := range [][]string{
+		{"codex", "--server", "cabin"},
+		{"--server", "cabin", "codex"},
+	} {
+		got := normalizeSetupArgs(args)
+		want := []string{"--server", "cabin", "codex"}
+		if strings.Join(got, "\n") != strings.Join(want, "\n") {
+			t.Fatalf("normalizeSetupArgs(%v) = %v, want %v", args, got, want)
+		}
 	}
 }

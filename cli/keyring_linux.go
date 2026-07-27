@@ -3,15 +3,17 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os/user"
 
 	"github.com/zalando/go-keyring"
 )
 
-var keyringGetWithService = keyring.Get
-var keyringSetWithService = keyring.Set
-var keyringDeleteWithService = keyring.Delete
+var keyringGetWithService = nativeLinuxKeyringGet
+var keyringSetWithService = nativeLinuxKeyringSet
+var keyringDeleteWithService = nativeLinuxKeyringDelete
+var newNativeLinuxCredentialBackend = newNativeCredentialSecretBackend
 var inspectLinuxSecureStorageStateForKeyring = inspectLinuxSecureStorageState
 
 // Device-credential slots share the relay token's Secret Service preflight, so a
@@ -19,6 +21,76 @@ var inspectLinuxSecureStorageStateForKeyring = inspectLinuxSecureStorageState
 // hanging go-keyring in an unlock prompt.
 func init() {
 	deviceCredentialPreflight = relayAuthTokenLinuxReadPreflight
+	deviceCredentialPreflightWithContext = linuxDeviceCredentialPreflight
+	secretKeyringGet = nativeLinuxKeyringGet
+	secretKeyringSet = nativeLinuxKeyringSet
+	secretKeyringDelete = nativeLinuxKeyringDelete
+	secretKeyringGetWithPolicy = linuxDeviceSecretGet
+	secretKeyringSetWithPolicy = linuxDeviceSecretSet
+	secretKeyringDeleteWithPolicy = linuxDeviceSecretDelete
+}
+
+func linuxDeviceCredentialPreflight(
+	ctx context.Context,
+	ui SecretStoreUIPolicy,
+) error {
+	if err := validateDeviceCredentialPreflightRequest(ctx, ui); err != nil {
+		return err
+	}
+	if ui == SecretStoreAllowUI {
+		if !deviceCredentialPromptSessionAvailable() {
+			return deviceCredentialPromptUnavailableError()
+		}
+		return nil
+	}
+	return relayAuthTokenLinuxReadPreflight()
+}
+
+func linuxDeviceSecretGet(
+	ctx context.Context,
+	service, account string,
+	ui SecretStoreUIPolicy,
+) (string, error) {
+	backend, err := newNativeLinuxCredentialBackend()
+	if err != nil {
+		return "", normalizeLinuxKeyringProbeError(err)
+	}
+	value, exists, err := backend.Get(ctx, service, account, ui)
+	if err != nil {
+		return "", normalizeLinuxKeyringProbeError(err)
+	}
+	if !exists {
+		return "", keyring.ErrNotFound
+	}
+	return value, nil
+}
+
+func linuxDeviceSecretSet(
+	ctx context.Context,
+	service, account, value string,
+	ui SecretStoreUIPolicy,
+) error {
+	backend, err := newNativeLinuxCredentialBackend()
+	if err != nil {
+		return normalizeLinuxKeyringProbeError(err)
+	}
+	return normalizeLinuxKeyringProbeError(
+		backend.Set(ctx, service, account, value, ui),
+	)
+}
+
+func linuxDeviceSecretDelete(
+	ctx context.Context,
+	service, account string,
+	ui SecretStoreUIPolicy,
+) error {
+	backend, err := newNativeLinuxCredentialBackend()
+	if err != nil {
+		return normalizeLinuxKeyringProbeError(err)
+	}
+	return normalizeLinuxKeyringProbeError(
+		backend.Delete(ctx, service, account, ui),
+	)
 }
 
 func readRelayAuthToken() (string, error) {
@@ -78,6 +150,72 @@ func currentKeyringUsername() (string, error) {
 		return "", fmt.Errorf("cannot determine current user: %w", err)
 	}
 	return u.Username, nil
+}
+
+func nativeLinuxKeyringGet(service, username string) (string, error) {
+	backend, err := newNativeLinuxCredentialBackend()
+	if err != nil {
+		return "", normalizeLinuxKeyringProbeError(err)
+	}
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		relayAuthTokenPreflightTimeout,
+	)
+	defer cancel()
+	value, exists, err := backend.Get(
+		ctx,
+		service,
+		username,
+		SecretStoreForbidUI,
+	)
+	if err != nil {
+		return "", normalizeLinuxKeyringProbeError(err)
+	}
+	if !exists {
+		return "", keyring.ErrNotFound
+	}
+	return value, nil
+}
+
+func nativeLinuxKeyringSet(service, username, value string) error {
+	backend, err := newNativeLinuxCredentialBackend()
+	if err != nil {
+		return normalizeLinuxKeyringProbeError(err)
+	}
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		relayAuthTokenPreflightTimeout,
+	)
+	defer cancel()
+	return normalizeLinuxKeyringProbeError(
+		backend.Set(
+			ctx,
+			service,
+			username,
+			value,
+			SecretStoreForbidUI,
+		),
+	)
+}
+
+func nativeLinuxKeyringDelete(service, username string) error {
+	backend, err := newNativeLinuxCredentialBackend()
+	if err != nil {
+		return normalizeLinuxKeyringProbeError(err)
+	}
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		relayAuthTokenPreflightTimeout,
+	)
+	defer cancel()
+	return normalizeLinuxKeyringProbeError(
+		backend.Delete(
+			ctx,
+			service,
+			username,
+			SecretStoreForbidUI,
+		),
+	)
 }
 
 func readSecretWithService(service string) (string, error) {

@@ -37,16 +37,23 @@ echo ""
 # atomic-file storage, the versioned fail-closed device registry, the pairing
 # state machine, per-device auth, three listeners, legacy migration, and the
 # NOVA owner console with CSRF-protected form actions including legacy-access
-# revocation and corrupt-registry owner recovery.
+# revocation and corrupt-registry owner recovery; and to 9000 for the reviewed
+# Cloud ingress/security wave: persistent Relay identity, HA-user-bound device
+# credentials and revocation, ingress-only OPAQUE pairing v2, strict shared
+# ingress identity and principal gates, bounded request bodies, atomic
+# pairing-response persistence with replay protection, and cleanup-only routes
+# while Cloud is disabled. The current reviewed tree is about 8850 lines; the
+# 9000 ceiling leaves only narrow refactoring headroom and still fails further
+# unreviewed Relay growth.
 # Growth here is security surface, and it is reviewed as such. The README's own
 # number is updated in the release-prep PR — README describes the STABLE
 # release, not main.
 echo "[1] Relay LOC (must stay readable in one sitting)"
 ACTUAL_LOC=$(find "$REPO_ROOT/nova/src" -name '*.ts' -exec cat {} + | wc -l | tr -d ' ')
-if (( ACTUAL_LOC >= 1000 && ACTUAL_LOC <= 7000 )); then
-  pass "src/ = ${ACTUAL_LOC} LOC (within 1000–7000 range)"
+if (( ACTUAL_LOC >= 1000 && ACTUAL_LOC <= 9000 )); then
+  pass "src/ = ${ACTUAL_LOC} LOC (within 1000–9000 range)"
 else
-  fail "src/ = ${ACTUAL_LOC} LOC — outside the 1000–7000 range. If this is real growth, justify it and update the README claim in the release-prep PR."
+  fail "src/ = ${ACTUAL_LOC} LOC — outside the 1000–9000 range. Justify real Relay growth in active architecture docs; update README only in a release-prep PR."
 fi
 
 # ── 2. Skill count ──
@@ -175,11 +182,14 @@ else
 fi
 if grep -q 'panel_admin: true' "$REPO_ROOT/nova/config.yaml" \
   && grep -q 'ingress_entry: /home' "$REPO_ROOT/nova/config.yaml" \
-  && grep -q 'SUPERVISOR_INGRESS_PEERS' "$REPO_ROOT/nova/src/http/handlers/home.ts" \
+  && grep -q 'SUPERVISOR_INGRESS_PEERS' "$REPO_ROOT/nova/src/security/ingress-identity.ts" \
+  && grep -q 'resolveIngressIdentity' "$REPO_ROOT/nova/src/http/handlers/home.ts" \
+  && grep -q 'resolveIngressIdentity' "$REPO_ROOT/nova/src/http/handlers/cloud.ts" \
+  && grep -q 'resolveIngressIdentity' "$REPO_ROOT/nova/src/runtime/ingress-listener.ts" \
   && grep -q 'HOME_CONTENT_SECURITY_POLICY' "$REPO_ROOT/nova/src/http/handlers/home.ts"; then
-  pass "Home Base is admin-panel ingress with a peer gate and CSP"
+  pass "Home Base and Cloud routes share the strict Supervisor ingress gate; Home Base keeps admin-panel ingress and CSP"
 else
-  fail "Home Base must keep admin-only ingress, the Supervisor peer gate, and CSP."
+  fail "Home Base and Cloud routes must share the strict Supervisor ingress gate; Home Base must keep admin-only ingress and CSP."
 fi
 
 # Pairing is a generic credential exchange, never a second HA API surface.

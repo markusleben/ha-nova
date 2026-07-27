@@ -179,6 +179,79 @@ func TestSpkiPinnedClient(t *testing.T) {
 	}
 }
 
+func TestSpkiPinnedClientDoesNotReplayAuthenticatedPostRedirect(t *testing.T) {
+	for _, status := range []int{
+		http.StatusTemporaryRedirect,
+		http.StatusPermanentRedirect,
+	} {
+		t.Run(http.StatusText(status), func(t *testing.T) {
+			certPEM, keyPEM, pin := selfSignedECDSA(t)
+			cert, err := tls.X509KeyPair(certPEM, keyPEM)
+			if err != nil {
+				t.Fatal(err)
+			}
+			sourceCalls := 0
+			targetCalls := 0
+			server := httptest.NewUnstartedServer(http.HandlerFunc(func(
+				response http.ResponseWriter,
+				request *http.Request,
+			) {
+				switch request.URL.Path {
+				case "/ws":
+					sourceCalls++
+					if request.Method != http.MethodPost {
+						t.Errorf("source method = %s, want POST", request.Method)
+					}
+					if request.Header.Get("Authorization") != "Bearer device-secret" {
+						t.Errorf(
+							"source Authorization = %q",
+							request.Header.Get("Authorization"),
+						)
+					}
+					response.Header().Set("Location", "/redirect-target")
+					response.WriteHeader(status)
+				case "/redirect-target":
+					targetCalls++
+					response.WriteHeader(http.StatusOK)
+				default:
+					http.NotFound(response, request)
+				}
+			}))
+			server.TLS = &tls.Config{
+				Certificates: []tls.Certificate{cert},
+				MinVersion:   tls.VersionTLS13,
+			}
+			server.StartTLS()
+			t.Cleanup(server.Close)
+
+			request, err := http.NewRequest(
+				http.MethodPost,
+				server.URL+"/ws",
+				strings.NewReader(`{"type":"ping"}`),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			request.Header.Set("Authorization", "Bearer device-secret")
+			response, err := spkiPinnedClient(pin).Do(request)
+			if err != nil {
+				t.Fatalf("SPKI-pinned request error = %v", err)
+			}
+			response.Body.Close()
+			if response.StatusCode != status {
+				t.Fatalf("response status = %d, want %d", response.StatusCode, status)
+			}
+			if sourceCalls != 1 || targetCalls != 0 {
+				t.Fatalf(
+					"source calls = %d, redirected target calls = %d; want 1, 0",
+					sourceCalls,
+					targetCalls,
+				)
+			}
+		})
+	}
+}
+
 func selfSignedECDSA(t *testing.T) (certPEM, keyPEM []byte, pin string) {
 	t.Helper()
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)

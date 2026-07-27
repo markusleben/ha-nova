@@ -33,80 +33,286 @@ func runSetup(paths runtimePaths, args []string) int {
 	haURL := fs.String("ha-url", "", "Home Assistant base URL")
 	relayURL := fs.String("relay-url", "", "Relay base URL")
 	relayToken := fs.String("relay-token", "", "Relay auth token")
+	server := fs.String("server", "", "server profile name")
 	nonInteractive := fs.Bool("non-interactive", false, "Disable prompts")
 	serviceMode := fs.Bool("service", false, "Use a service-safe relay token file instead of desktop secure storage")
 	if err := fs.Parse(normalizeSetupArgs(args)); err != nil {
-		if helpRequested(err, fs, "ha-nova setup [client] [--service] [--non-interactive] [--host <host>] [--ha-url <url>] [--relay-url <url>] [--relay-token <token>]") {
+		if helpRequested(err, fs, "ha-nova setup [client] [--server <name>] [--service] [--non-interactive] [--host <host>] [--ha-url <url>] [--relay-url <url>] [--relay-token <token>]") {
 			return 0
 		}
 		printHumanErr("%s", err)
 		return 1
 	}
+	serverSet := false
+	fs.Visit(func(field *flag.Flag) {
+		if field.Name == "server" {
+			serverSet = true
+		}
+	})
+	if serverSet {
+		if strings.TrimSpace(*server) != *server {
+			printHumanErr("invalid server profile name %q: whitespace is not allowed", *server)
+			return 1
+		}
+		if err := validateServerProfileName(*server); err != nil {
+			printHumanErr("%s", err)
+			return 1
+		}
+		setServerSelectionOverride(*server)
+	}
 	setupGeneration, err := readInstallLifecycleGeneration(paths)
 	if err != nil {
+		renderSetupCloudRecoveryBeforePrerequisiteFailure(paths)
 		printHumanErr("cannot inspect install lifecycle: %s", err)
 		return 1
 	}
 	setupCensusMarker, err := readCensusLifecycleMarker(paths)
 	if err != nil {
+		renderSetupCloudRecoveryBeforePrerequisiteFailure(paths)
 		printHumanErr("cannot inspect uninstall lifecycle: %s", err)
 		return 1
 	}
 	setupConfigSnapshot, err := readSetupConfigSnapshot(paths)
 	if err != nil {
+		renderSetupCloudRecoveryBeforePrerequisiteFailure(paths)
 		printHumanErr("cannot inspect server configuration: %s", err)
 		return 1
 	}
 	setupLifecycle := [][]byte{setupGeneration, setupCensusMarker, setupConfigSnapshot}
-
-	// Setup administers only the default server profile (layer 1): the legacy
-	// token flow, service mode, and client sync are default-profile machinery,
-	// and running them under a named selection would retire that profile's
-	// device credential while pairing nothing in its place. Named profiles are
-	// created and re-paired via pair --server.
-	if name, source := requestedServerSelection(); name != "" && name != defaultServerProfileName {
-		printHumanErr("setup always onboards the default server profile; use plain 'ha-nova setup' (profile %q from %s is managed with: ha-nova pair --server %s --relay-url http://<ha-host>:8791)", name, source, name)
-		return 1
-	}
 
 	target := ""
 	if remaining := fs.Args(); len(remaining) > 0 {
 		target = remaining[0]
 	}
 
+	retirementProfile, retirementProfileErr :=
+		resolveSetupRetirementProfile(paths)
+	if retirementProfileErr != nil {
+		renderSetupCloudRecoveryBeforePrerequisiteFailure(paths)
+		retirementPending, pendingErr :=
+			setupRetirementCheckpointExistsWithUnresolvedProfile(paths)
+		if pendingErr != nil {
+			printHumanErr(
+				"cannot resolve the server profile (%s) or safely inspect interrupted device credential retirement (%s); credentials were not changed",
+				retirementProfileErr,
+				pendingErr,
+			)
+			return 1
+		}
+		if retirementPending {
+			printHumanErr(
+				"an interrupted device credential retirement is pending, but the server profile cannot be resolved because config.json is unreadable: %s. Restore config.json, then rerun setup; credentials were not changed.",
+				retirementProfileErr,
+			)
+			return 1
+		}
+		printHumanErr(
+			"cannot resolve the server profile before retirement recovery: %s",
+			retirementProfileErr,
+		)
+		return 1
+	}
+	// Profile selection must be fixed before any setup guard or credential
+	// operation. Config validation can fail before loadConfig reaches its normal
+	// selection seam; leaving the seam at "default" would let a named local or
+	// service setup evade namedSetupRequestAllowed.
+	setActiveServerProfile(retirementProfile)
+	retirementPending, retirementErr :=
+		deviceCredentialRetirementCheckpointExistsForProfile(
+			paths,
+			retirementProfile,
+		)
+	if retirementErr != nil {
+		renderSetupCloudRecoveryBeforePrerequisiteFailure(paths)
+		printHumanErr(
+			"cannot inspect interrupted device credential retirement: %s",
+			retirementErr,
+		)
+		return 1
+	}
 	cfg, cfgErr := loadConfig(paths)
+	installIdentityRepaired := false
+	if cfgErr != nil && retirementPending {
+		printHumanErr(
+			"an interrupted device credential retirement is pending, but the server configuration is unreadable: %s. Restore config.json, then rerun `%s`; credentials were not changed.",
+			cfgErr,
+			deviceRetirementSetupCommand(retirementProfile),
+		)
+		return 1
+	}
 	if cfgErr != nil {
-		// A mistyped --server/HA_NOVA_SERVER selection must fail loud instead
-		// of silently running setup against a fresh config for the wrong house.
-		// Exception: an EXPLICIT default selection on a config whose default
-		// profile does not exist yet (multi-server-first install) is exactly
-		// what setup onboards — continue on the fresh-config path.
-		if errors.Is(cfgErr, errUnknownServerProfile) {
-			if name, _ := requestedServerSelection(); name != defaultServerProfileName {
+		if errors.Is(cfgErr, errInvalidClientInstallID) {
+			if handled := rejectInvalidIdentityNamedClientRepair(
+				paths,
+				retirementPending,
+				target,
+				*serviceMode,
+				*host,
+				*haURL,
+				*relayURL,
+				*relayToken,
+			); handled {
+				return 1
+			}
+			repaired, repairErr :=
+				repairInvalidClientInstallIdentityForSetup(
+					paths,
+					cfgErr,
+					setupLifecycle,
+				)
+			if repairErr != nil {
+				printHumanErr(
+					"cannot safely repair the local installation identity: %s",
+					repairErr,
+				)
+				return 1
+			}
+			if repaired {
+				installIdentityRepaired = true
+				printHumanInfo(
+					"Repaired the local installation identity after verified Cloud cleanup.",
+				)
+				cfg, cfgErr = loadConfig(paths)
+			}
+		}
+		if cfgErr != nil {
+			if errors.Is(cfgErr, errInvalidServerProfileSelection) {
 				printHumanErr("%s", cfgErr)
 				return 1
 			}
-		}
-		// Preserve credential routing from an incomplete config: the token
-		// file setting decides where token reads/writes go, so the repair
-		// path must see it even when relay_base_url is missing. The raw
-		// default-profile read also keeps the install-wide id, so a repaired
-		// setup never mints a second client_install_id.
-		if raw, rawErr := loadRawDefaultProfileConfig(paths.ConfigFile); rawErr == nil {
-			cfg.RelayTokenFile = raw.RelayTokenFile
-			cfg.ClientInstallID = raw.ClientInstallID
+			// A mistyped --server/HA_NOVA_SERVER selection must fail loud
+			// instead of silently running setup against a fresh config for the
+			// wrong house. An explicit missing default is the one onboarding
+			// exception.
+			if errors.Is(cfgErr, errUnknownServerProfile) {
+				if name, _ := requestedServerSelection(); name !=
+					defaultServerProfileName {
+					printHumanErr("%s", cfgErr)
+					return 1
+				}
+			}
+			var recoveryErr error
+			cfg, recoveryErr = recoverSetupConfigAfterLoadError(
+				paths,
+				cfgErr,
+			)
+			if recoveryErr != nil {
+				printHumanErr(
+					"cannot safely continue setup with the saved server configuration: %s",
+					recoveryErr,
+				)
+				return 1
+			}
 		}
 	}
-	// The config's own default_server can activate a named profile without any
-	// explicit selection (e.g. after the first profile was created via pair
-	// --server). Setup's legacy-token machinery is default-profile-only, so it
-	// must never write or retire state for a named profile.
-	if activeServerProfile() != defaultServerProfileName {
-		printHumanErr("setup always onboards the default server profile, but this config selects %q (default_server); run: HA_NOVA_SERVER=default ha-nova setup", activeServerProfile())
+	if err := validateRuntimeConfigSave(paths, cfg); err != nil {
+		renderSetupCloudRecoveryForValidatedConfig(cfg)
+		printHumanErr(
+			"cannot safely continue setup with the saved server configuration: %s",
+			err,
+		)
 		return 1
+	}
+	unconstrainedCloudReuse := !*serviceMode &&
+		strings.TrimSpace(*host) == "" &&
+		strings.TrimSpace(*haURL) == "" &&
+		strings.TrimSpace(*relayURL) == "" &&
+		strings.TrimSpace(*relayToken) == ""
+	if installIdentityRepaired &&
+		!retirementPending &&
+		target == "" &&
+		unconstrainedCloudReuse &&
+		activeServerProfile() != defaultServerProfileName &&
+		cfg.Cloud == nil {
+		printHumanInfo(
+			"Local installation identity recovery is complete for server profile %q.",
+			activeServerProfile(),
+		)
+		return 0
+	}
+	if *nonInteractive &&
+		handleNonInteractiveCloudSetupRecovery(paths, cfg) {
+		return 1
+	}
+	// A named Cloud-only profile may use setup solely to resume Cloud onboarding
+	// and install/sync client skills. An incomplete hybrid Cloud lifecycle may
+	// also enter setup solely to expose its exact recovery actions. Recovery
+	// always renders first so an invalid local request cannot hide a checkpoint.
+	if *nonInteractive &&
+		!namedSetupRequestAllowed(
+			cfg,
+			retirementPending,
+			target,
+			*serviceMode,
+			*host,
+			*haURL,
+			*relayURL,
+			*relayToken,
+		) {
+		renderNamedSetupRequestError()
+		return 1
+	}
+	namedClientRepair := namedClientRepairRequested(
+		cfg,
+		target,
+		*serviceMode,
+		*host,
+		*haURL,
+		*relayURL,
+		*relayToken,
+	)
+	if namedClientRepair {
+		state, err := loadStateOrDefaultChecked(paths)
+		if err != nil {
+			renderSetupCloudRecoveryBeforePrerequisiteFailure(paths)
+			printHumanErr("%s", err)
+			return 1
+		}
+		return completeNamedProfileClientRepair(
+			paths,
+			cfg,
+			state,
+			target,
+			setupLifecycle...,
+		)
+	}
+	if *nonInteractive {
+		namedRetirementOnly := namedSetupIsRetirementOnly(
+			cfg,
+			retirementPending,
+		)
+		if err := resumeSetupDeviceCredentialRetirement(
+			paths,
+			cfg,
+		); err != nil {
+			printHumanErr(
+				"cannot finish the interrupted device credential retirement: %s",
+				err,
+			)
+			return 1
+		}
+		if namedRetirementOnly {
+			return 0
+		}
+		resumedActivation, resumeActivationErr :=
+			resumeSetupPendingActivation(
+				paths,
+				&cfg,
+				setupLifecycle...,
+			)
+		if resumeActivationErr != nil {
+			printPendingActivationResumeError(resumeActivationErr)
+			return 1
+		}
+		if resumedActivation {
+			printHumanInfo(
+				"Resumed the interrupted pairing — this device is connected.",
+			)
+		}
 	}
 	state, err := loadStateOrDefaultChecked(paths)
 	if err != nil {
+		renderSetupCloudRecoveryBeforePrerequisiteFailure(paths)
 		printHumanErr("%s", err)
 		return 1
 	}
@@ -136,6 +342,26 @@ func runSetup(paths runtimePaths, args []string) int {
 		if len(skippedClients) > 0 {
 			printHumanWarn("Skipping until installed: %s", strings.Join(skippedClients, ", "))
 		}
+	}
+	if unconstrainedCloudReuse && remoteOnlyCloudSetup(cfg) {
+		return completeNonInteractivePairedSetup(
+			paths,
+			cfg,
+			state,
+			selectedClients,
+			setupLifecycle...,
+		)
+	}
+	if unconstrainedCloudReuse &&
+		effectiveRoutePolicy(cfg.RoutePolicy) == routePolicyAutomatic &&
+		cfg.Cloud.ready() {
+		return completeNonInteractivePairedSetup(
+			paths,
+			cfg,
+			state,
+			selectedClients,
+			setupLifecycle...,
+		)
 	}
 
 	if *serviceMode {
@@ -492,7 +718,7 @@ func setupFlagRequiresValue(arg string) bool {
 		return false
 	}
 	switch name {
-	case "host", "ha-url", "relay-url", "relay-token":
+	case "host", "ha-url", "relay-url", "relay-token", "server":
 		return true
 	default:
 		return false

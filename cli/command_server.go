@@ -28,6 +28,8 @@ func runServerCommand(paths runtimePaths, args []string) int {
 		return runServerRename(paths, args[1:])
 	case "remove":
 		return runServerRemove(paths, args[1:])
+	case "route":
+		return runServerRoute(paths, args[1:])
 	case "-h", "--help", "help":
 		printServerUsage()
 		return 0
@@ -39,13 +41,14 @@ func runServerCommand(paths runtimePaths, args []string) int {
 }
 
 func printServerUsage() {
-	fmt.Fprintln(os.Stdout, "Usage: ha-nova server <list|default|rename|remove>")
+	fmt.Fprintln(os.Stdout, "Usage: ha-nova server <list|default|rename|remove|route>")
 	fmt.Fprintln(os.Stdout, "")
 	fmt.Fprintln(os.Stdout, "Subcommands:")
 	fmt.Fprintln(os.Stdout, "  list                Show all server profiles (no network calls)")
 	fmt.Fprintln(os.Stdout, "  default <name>      Make an existing profile the configured default")
-	fmt.Fprintln(os.Stdout, "  rename <old> <new>  Rename a profile and move its credential slots")
+	fmt.Fprintln(os.Stdout, "  rename <old> <new>  Rename an unpaired local-only profile")
 	fmt.Fprintln(os.Stdout, "  remove <name>       Revoke and delete a profile (type its name to confirm)")
+	fmt.Fprintln(os.Stdout, "  route <policy>      Set local, automatic, or cloud routing")
 	fmt.Fprintln(os.Stdout, "")
 	fmt.Fprintln(os.Stdout, "Add a new server with: ha-nova pair --server <name> --relay-url http://<ha-host>:8791")
 	fmt.Fprintln(os.Stdout, "Run 'ha-nova server <subcommand> --help' for details.")
@@ -82,8 +85,9 @@ func unknownServerProfileError(doc *configDocument, name string) {
 
 func runServerList(paths runtimePaths, args []string) int {
 	if serverSubcommandHelp(args, "ha-nova server list",
-		"Shows every server profile with its HA host, relay URL, pairing state,",
-		"the configured default, and the active selection. No flags, no network calls.") {
+		"Shows every server profile with its HA host, relay URL, route, local",
+		"pairing and Cloud state, configured default, and active selection.",
+		"No flags, no network calls.") {
 		return 0
 	}
 	if len(args) > 0 {
@@ -98,7 +102,7 @@ func runServerList(paths runtimePaths, args []string) int {
 	selected, selectionSource := requestedServerSelection()
 
 	w := tabwriter.NewWriter(os.Stdout, 2, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "NAME\tHA HOST\tRELAY URL\tPAIRED\t")
+	fmt.Fprintln(w, "NAME\tHA HOST\tRELAY URL\tROUTE\tPAIRED\tCLOUD\t")
 	for _, name := range doc.profileNames() {
 		host, relay := "-", "-"
 		if cfg, ok := doc.flatProfile(name); ok {
@@ -131,7 +135,19 @@ func runServerList(paths runtimePaths, args []string) int {
 		if selected != "" && name == selected {
 			markers = append(markers, "active ("+selectionSource+")")
 		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", name, host, relay, paired, strings.Join(markers, ", "))
+		route := routePolicyLocal
+		cloud := "no"
+		if cfg, ok := doc.flatProfile(name); ok {
+			route = effectiveRoutePolicy(cfg.RoutePolicy)
+			if cfg.Cloud.ready() && validIdentifier(cfg.RelayInstanceID, 256) {
+				cloud = "ready"
+			} else if cfg.Cloud.configured() && validIdentifier(cfg.RelayInstanceID, 256) {
+				cloud = "updating"
+			} else if cfg.Cloud != nil {
+				cloud = "pending"
+			}
+		}
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", name, host, relay, route, paired, cloud, strings.Join(markers, ", "))
 	}
 	w.Flush()
 	return 0
@@ -161,6 +177,15 @@ func runServerDefault(paths runtimePaths, args []string) int {
 		unknownServerProfileError(doc, name)
 		return 1
 	}
+	cfg, exists := doc.flatProfile(name)
+	if !exists {
+		printHumanErr("cannot inspect server profile %q", name)
+		return 1
+	}
+	if err := rejectPendingServerRemoval(name, cfg); err != nil {
+		printHumanErr("%v", err)
+		return 1
+	}
 	servers, err := documentServersCopy(doc)
 	if err != nil {
 		printHumanErr("cannot update the server configuration: %v", err)
@@ -176,8 +201,8 @@ func runServerDefault(paths runtimePaths, args []string) int {
 
 func runServerRename(paths runtimePaths, args []string) int {
 	if serverSubcommandHelp(args, "ha-nova server rename <old> <new>",
-		"Renames a server profile and moves its device-credential slots to the",
-		"new name. The \"default\" profile cannot be renamed.") {
+		"Renames a local-only profile with no stored device credentials.",
+		"The \"default\" profile cannot be renamed.") {
 		return 0
 	}
 	if len(args) != 2 {
@@ -203,6 +228,15 @@ func runServerRename(paths runtimePaths, args []string) int {
 		unknownServerProfileError(doc, oldName)
 		return 1
 	}
+	cfg, exists := doc.flatProfile(oldName)
+	if !exists {
+		printHumanErr("cannot inspect server profile %q", oldName)
+		return 1
+	}
+	if err := rejectPendingServerRemoval(oldName, cfg); err != nil {
+		printHumanErr("%v", err)
+		return 1
+	}
 	if newName == defaultServerProfileName {
 		printHumanErr("renaming to %q is not allowed: that name is reserved for the legacy-token profile", defaultServerProfileName)
 		return 1
@@ -215,17 +249,41 @@ func runServerRename(paths runtimePaths, args []string) int {
 		printHumanErr("server profile %q already exists; pick another name or remove it first: ha-nova server remove %s", newName, newName)
 		return 1
 	}
-	// Copy the credential slots to the new services BEFORE touching the config:
-	// a failure here leaves everything under the old name.
-	rollbackSlots, deleteOldSlots, err := stageServerCredentialSlotMove(oldName, newName)
+	hasCloud, err := profileHasCloudLifecycleRaw(doc, oldName)
 	if err != nil {
-		printHumanErr("%v", err)
+		printHumanErr("cannot inspect server profile %q: %v", oldName, err)
+		return 1
+	}
+	if hasCloud {
+		printHumanErr(
+			"server profile %q has Home Assistant Cloud state and cannot be renamed safely. Remove Cloud access first with: ha-nova cloud remove --server %s",
+			oldName,
+			oldName,
+		)
+		return 1
+	}
+	for _, profile := range []string{oldName, newName} {
+		if err := requireSettledDeviceCredentialRetirement(
+			paths,
+			profile,
+		); err != nil {
+			printHumanErr("%v. Nothing was renamed.", err)
+			return 1
+		}
+	}
+	if err := requireEmptyServerCredentialNamespaces(
+		oldName,
+		newName,
+	); err != nil {
+		printHumanErr(
+			"%v. Renaming a paired profile is intentionally blocked so a live credential cannot be stranded. Remove and re-add the profile under its new name.",
+			err,
+		)
 		return 1
 	}
 
 	servers, err := documentServersCopy(doc)
 	if err != nil {
-		rollbackSlots()
 		printHumanErr("cannot update the server configuration: %v", err)
 		return 1
 	}
@@ -236,11 +294,9 @@ func runServerRename(paths runtimePaths, args []string) int {
 		defaultName = newName
 	}
 	if err := writeServersDocument(paths, doc, servers, defaultName); err != nil {
-		rollbackSlots()
 		printHumanErr("cannot save the server configuration: %v — the rename was not applied", err)
 		return 1
 	}
-	deleteOldSlots()
 	printHumanInfo("Renamed server profile %q to %q.", oldName, newName)
 	if defaultName == newName {
 		printHumanInfo("default_server now points at %q.", newName)

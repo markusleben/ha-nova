@@ -9,10 +9,10 @@ import (
 )
 
 const (
-	// v2: named server profiles in a `servers` map (see config_profiles.go).
-	// v1 flat configs migrate on their first save; the default profile stays
-	// mirrored into the flat fields, so v1 binaries keep reading the file.
-	configSchemaVersion = 2
+	// v3: named profiles gain immutable identities, route policy, and non-secret
+	// Cloud lifecycle metadata. v1/v2 configs migrate on their first save; only
+	// legacy local fields remain mirrored for older binaries.
+	configSchemaVersion = 3
 	stateSchemaVersion  = 1
 	bundleFormatVersion = 1
 	keyringServiceName  = "ha-nova.relay-auth-token"
@@ -25,6 +25,7 @@ const (
 	updateCacheTTLSeconds      = 60 * 60
 	windowsInstallRootEnv      = "HA_NOVA_INSTALL_ROOT"
 	windowsInstallRootAllowEnv = "HA_NOVA_ALLOW_INSTALL_ROOT_OVERRIDE"
+	configDirEnv               = "HA_NOVA_CONFIG_DIR"
 )
 
 type runtimePaths struct {
@@ -77,6 +78,22 @@ func detectPaths() (runtimePaths, error) {
 		}
 		binDir = installRoot
 		publicBinary = filepath.Join(installRoot, publicCommandName())
+	}
+	if override := strings.TrimSpace(os.Getenv(configDirEnv)); override != "" {
+		configDir = filepath.Clean(override)
+		if !filepath.IsAbs(configDir) {
+			return runtimePaths{}, fmt.Errorf(
+				"%s must be an absolute path",
+				configDirEnv,
+			)
+		}
+		if filepath.Dir(configDir) == configDir {
+			return runtimePaths{}, fmt.Errorf(
+				"%s must not be a filesystem root",
+				configDirEnv,
+			)
+		}
+		censusDir = configDir
 	}
 
 	paths := runtimePaths{

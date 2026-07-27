@@ -445,9 +445,6 @@ func relayAuthTokenSetupOperationError(action string, err error) error {
 }
 
 func localSecureStorageRecoveryError(err error) error {
-	if errors.Is(err, errLocalSecureStoragePasswordRejected) {
-		return err
-	}
 	err = normalizeLinuxKeyringError(err)
 	if isDesktopKeyringSessionUnavailableError(err) {
 		return desktopKeyringSessionUnavailableError("local secure storage is unavailable in this Linux session")
