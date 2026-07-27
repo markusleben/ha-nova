@@ -5,6 +5,12 @@ function fail(message) {
   throw new Error(message);
 }
 
+export class ReportedSourceCheckError extends Error {}
+
+function failReported(message) {
+  throw new ReportedSourceCheckError(message);
+}
+
 function requireSHA(value, label) {
   if (!/^[0-9a-f]{40}$/.test(value ?? "")) {
     fail(`${label} must be a full lowercase SHA-1`);
@@ -108,10 +114,7 @@ export function createCloudSourceCheckReporter({
       if (seen === expectedTotal) {
         return checks;
       }
-      if (
-        seen > expectedTotal ||
-        response.check_runs.length !== 100
-      ) {
+      if (seen > expectedTotal || response.check_runs.length !== 100) {
         fail("source check-run pagination ended before total_count");
       }
     }
@@ -198,7 +201,7 @@ export function createCloudSourceCheckReporter({
         targetSHA,
         "Conflicting terminal source checks were detected for this exact target.",
       );
-      fail("source checks have conflicting terminal conclusions");
+      failReported("source checks have conflicting terminal conclusions");
     }
     for (const failed of terminals) {
       await deleteCheck(failed.id);
@@ -245,7 +248,7 @@ export function createCloudSourceCheckReporter({
           targetSHA,
           "A terminal source check raced pending-check creation.",
         );
-        fail("terminal source check raced pending-check creation");
+        failReported("terminal source check raced pending-check creation");
       }
       pending = checks
         .filter((candidate) => candidate.status !== "completed")

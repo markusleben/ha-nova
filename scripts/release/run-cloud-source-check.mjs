@@ -3,7 +3,10 @@
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 
-import { createCloudSourceCheckReporter } from "./cloud-source-check-reporter.mjs";
+import {
+  createCloudSourceCheckReporter,
+  ReportedSourceCheckError,
+} from "./cloud-source-check-reporter.mjs";
 
 const workspace = process.env.GITHUB_WORKSPACE ?? "";
 const repository = process.env.GITHUB_REPOSITORY ?? "";
@@ -14,9 +17,20 @@ const checkToken = process.env.HA_NOVA_CLOUD_SOURCE_CHECK_TOKEN ?? "";
 const checkAppId = Number(process.env.HA_NOVA_CLOUD_SOURCE_CHECK_APP_ID ?? "");
 const evidence = process.env.HA_NOVA_CLOUD_GATE_EVIDENCE_JSON ?? "";
 const apiVersion = "2026-03-10";
+const consistencyAttempts = 3;
+const consistencyDelayMs = 1_000;
 
 function fail(message) {
   throw new Error(message);
+}
+
+function noCheck(message) {
+  console.log(`[run-cloud-source-check] NOTICE: ${message}`);
+  process.exit(0);
+}
+
+function waitForConsistency() {
+  return new Promise((resolve) => setTimeout(resolve, consistencyDelayMs));
 }
 
 function requireSHA(value, label) {
@@ -68,6 +82,9 @@ function resolveRemoteRef(sourceRef) {
   if (result.error !== undefined || result.status !== 0) {
     fail(`cannot resolve remote source ref ${sourceRef}`);
   }
+  if (result.stdout.trim().length === 0) {
+    return undefined;
+  }
   const fields = result.stdout.trim().split(/\s+/);
   if (
     fields.length !== 2 ||
@@ -92,9 +109,60 @@ async function currentPullRequest(headSHA) {
       pull.head?.sha === headSHA,
   );
   if (matches.length !== 1) {
+    if (matches.length === 0) {
+      return undefined;
+    }
     fail("workflow run must identify exactly one current pull request");
   }
   return matches[0];
+}
+
+async function resolvePullRequestSource(headSHA) {
+  let reason = "workflow run no longer identifies a current pull request";
+  for (let attempt = 1; attempt <= consistencyAttempts; attempt += 1) {
+    const pull = await currentPullRequest(headSHA);
+    if (pull === undefined) {
+      reason = "workflow run no longer identifies a current pull request";
+    } else if (pull.merge_commit_sha === null) {
+      reason = "pull request merge commit is not materialized yet";
+    } else {
+      const mergeSHA = requireSHA(
+        pull.merge_commit_sha,
+        "pull request merge commit SHA",
+      );
+      const sourceRef = `refs/pull/${pull.number}/merge`;
+      const refSHA = resolveRemoteRef(sourceRef);
+      if (refSHA === undefined) {
+        reason = "pull request merge ref is not materialized yet";
+      } else if (refSHA !== mergeSHA) {
+        reason = "pull request API and merge ref are temporarily inconsistent";
+      } else {
+        return { pull, sourceRef, targetSHA: refSHA };
+      }
+    }
+    if (attempt < consistencyAttempts) {
+      await waitForConsistency();
+    }
+  }
+  return { reason };
+}
+
+async function resolveQueueSource(sourceRef, headSHA) {
+  let reason = "merge queue ref is no longer current";
+  for (let attempt = 1; attempt <= consistencyAttempts; attempt += 1) {
+    const refSHA = resolveRemoteRef(sourceRef);
+    if (refSHA === undefined) {
+      reason = "merge queue ref is no longer current";
+    } else if (refSHA !== headSHA) {
+      reason = "merge queue ref moved before source verification";
+    } else {
+      return { targetSHA: refSHA };
+    }
+    if (attempt < consistencyAttempts) {
+      await waitForConsistency();
+    }
+  }
+  return { reason };
 }
 
 function readEvent() {
@@ -105,15 +173,13 @@ function readEvent() {
     fail("GITHUB_EVENT_PATH must contain valid workflow_run JSON");
   }
   if (
-    !["completed", "in_progress", "requested"].includes(event?.action) ||
+    event?.action !== "completed" ||
     event.workflow_run?.name !== "CI" ||
-    !["completed", "in_progress", "queued", "requested"].includes(
-      event.workflow_run?.status,
-    )
+    event.workflow_run?.status !== "completed"
   ) {
-    fail("only a CI workflow lifecycle event may request this check");
+    fail("only a completed CI workflow event may request this check");
   }
-  return { action: event.action, workflowRun: event.workflow_run };
+  return event.workflow_run;
 }
 
 async function requireTrustedCI(workflowRun) {
@@ -170,13 +236,21 @@ const { completeCheck, ensurePendingCheck } = createCloudSourceCheckReporter({
 
 let checkId;
 try {
-  const { action, workflowRun } = readEvent();
+  const workflowRun = readEvent();
   const event = workflowRun.event;
   const headSHA = requireSHA(workflowRun.head_sha, "workflow run head_sha");
   if (event !== "pull_request" && event !== "merge_group") {
     fail(`unsupported triggering event ${String(event)}`);
   }
   const currentWorkflowRun = await requireTrustedCI(workflowRun);
+  if (
+    currentWorkflowRun.status !== "completed" ||
+    currentWorkflowRun.conclusion !== "success"
+  ) {
+    noCheck(
+      "upstream CI did not complete successfully; no source check emitted",
+    );
+  }
 
   let sourceEnvironment;
   let sourceRef;
@@ -184,17 +258,13 @@ try {
   let currentPR;
 
   if (event === "pull_request") {
-    currentPR = await currentPullRequest(headSHA);
-    sourceRef = `refs/pull/${currentPR.number}/merge`;
-    verifiedTargetSHA = resolveRemoteRef(sourceRef);
-    if (
-      requireSHA(
-        currentPR.merge_commit_sha,
-        "pull request merge commit SHA",
-      ) !== verifiedTargetSHA
-    ) {
-      fail("pull request API and merge ref identify different merge commits");
+    const resolved = await resolvePullRequestSource(headSHA);
+    if ("reason" in resolved) {
+      noCheck(resolved.reason);
     }
+    currentPR = resolved.pull;
+    sourceRef = resolved.sourceRef;
+    verifiedTargetSHA = resolved.targetSHA;
     sourceEnvironment = {
       HA_NOVA_CLOUD_GATE_PR_NUMBER: String(currentPR.number),
       HA_NOVA_CLOUD_GATE_EXPECTED_TARGET_COMMIT: verifiedTargetSHA,
@@ -214,7 +284,11 @@ try {
       fail("merge_group workflow run has an invalid queue branch");
     }
     sourceRef = `refs/heads/${workflowRun.head_branch}`;
-    verifiedTargetSHA = headSHA;
+    const resolved = await resolveQueueSource(sourceRef, headSHA);
+    if ("reason" in resolved) {
+      noCheck(resolved.reason);
+    }
+    verifiedTargetSHA = resolved.targetSHA;
     sourceEnvironment = {
       HA_NOVA_CLOUD_GATE_SOURCE_REF: sourceRef,
       HA_NOVA_CLOUD_GATE_EXPECTED_TARGET_COMMIT: headSHA,
@@ -226,11 +300,8 @@ try {
     verifiedTargetSHA,
   );
   checkId = check.id;
-  if (action !== "completed" || terminalSuccess) {
+  if (terminalSuccess) {
     process.exit(0);
-  }
-  if (currentWorkflowRun.status !== "completed") {
-    fail("completed workflow event does not identify a completed run");
   }
 
   run("bash", ["scripts/release/verify-github-production-environment.sh"]);
@@ -287,12 +358,27 @@ try {
   const message =
     error instanceof Error ? error.message : "unexpected source-gate failure";
   console.error(`[run-cloud-source-check] ERROR: ${message}`);
+  if (error instanceof ReportedSourceCheckError) {
+    process.exit(0);
+  }
   if (checkId !== undefined) {
-    await completeCheck(
-      checkId,
-      "failure",
-      "Trusted source verification failed. Inspect the linked workflow run.",
-    );
+    try {
+      await completeCheck(
+        checkId,
+        "failure",
+        "Trusted source verification failed. Inspect the linked workflow run.",
+      );
+    } catch (reportError) {
+      const reportMessage =
+        reportError instanceof Error
+          ? reportError.message
+          : "unexpected source-check reporting failure";
+      console.error(
+        `[run-cloud-source-check] ERROR: cannot report rejection: ${reportMessage}`,
+      );
+      process.exit(1);
+    }
+    process.exit(0);
   }
   process.exit(1);
 }

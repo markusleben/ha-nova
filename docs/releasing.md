@@ -175,9 +175,11 @@ The required `cloud-source-gate` is emitted by the dedicated
 default-branch `workflow_run`. The broker runs after `CI` for pull requests and
 merge groups, including Dependabot runs; it never reads upstream artifacts or
 caches, checks out PR code, or executes a target path. It independently
-creates or reuses one pending App check for each exact upstream run ID and
-attempt on `requested` or `in_progress`; this also covers reruns, where GitHub
-does not emit `requested`. Only `completed` performs source verification. It
+creates or reuses one App check for each exact successful, completed upstream
+run ID and attempt. Reruns produce a new attempt-bound check. Cancelled or
+failed CI, stale pull requests, and GitHub races before a merge ref is
+materialized exit without a check; the missing required context remains
+fail-closed without producing duplicate workflow failures. It
 resolves the current PR head and base, fetches GitHub's merge ref, verifies its
 two parents, and materializes only its three release metadata files for
 parsing. The first resolved merge SHA is passed to the verifier as an exact
