@@ -664,7 +664,13 @@ Cloud setup/resume remain blocked.
 
 ## Release gates
 
-- Full route parity and bounded Ingress memory under a 10,000-command stress run.
+- Full route parity and bounded Ingress memory under a 10,000-command stress
+  run. The hidden `internal-cloud-stress` command resolves one explicit Cloud
+  transport, then performs exactly 10,000 read-only authenticated `/health`
+  requests through that one process-local Ingress session. It has fixed
+  per-request and overall deadlines, stops on the first redirect, transport,
+  status, size, encoding, or Relay-identity failure, and never runs Census or
+  update checks.
 - Real keyrings on every advertised OS and all Home Assistant user roles.
 - Default/custom domains, MFA, recovery/concurrency, App lifecycle, inactive
   subscriptions, and disabled remote access.

@@ -307,6 +307,21 @@ value attests the complete real-device matrix rather than a unit-test proxy:
 - `signing_and_update_matrix`: stable signing identity plus the complete
   stable/RC/reinstall Keychain authorization matrix.
 
+Run the stress proof from the exact enabled candidate bundle on each selected
+server profile:
+
+```bash
+ha-nova internal-cloud-release-check
+ha-nova internal-cloud-stress --server <name>
+```
+
+`internal-cloud-stress` resolves Cloud once and sends exactly 10,000 read-only
+authenticated `/health` requests through that process-local Ingress session.
+It is bounded to 20 seconds per request and one hour overall, fails on the first
+invalid response, and prints neither response bodies nor credentials. It does
+not run Census or update checks. A pass from a developer build, a different
+commit, or a command restarted after failure is not release evidence.
+
 The checked-out `HEAD` must equal `GITHUB_SHA`; `commit_sha` and `tree_sha` must
 exactly identify the evidence commit and its full Git tree. They may differ
 from the target only through the ancestor-bound safe `uses:` normalization

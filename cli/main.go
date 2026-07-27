@@ -120,6 +120,8 @@ func dispatch(paths runtimePaths, argv0 string, args []string) int {
 		}
 		fmt.Fprintln(os.Stdout, "official Cloud release provenance verified")
 		return 0
+	case "internal-cloud-stress":
+		return runInternalCloudReleaseStress(paths, args[1:])
 	case "-h", "--help", "help":
 		printUsage()
 		return 0
