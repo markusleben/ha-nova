@@ -7,6 +7,7 @@ import {
   createCloudSourceCheckReporter,
   ReportedSourceCheckError,
 } from "./cloud-source-check-reporter.mjs";
+import { createCloudSourceConsistencyResolver } from "./cloud-source-consistency.mjs";
 
 const workspace = process.env.GITHUB_WORKSPACE ?? "";
 const repository = process.env.GITHUB_REPOSITORY ?? "";
@@ -17,8 +18,6 @@ const checkToken = process.env.HA_NOVA_CLOUD_SOURCE_CHECK_TOKEN ?? "";
 const checkAppId = Number(process.env.HA_NOVA_CLOUD_SOURCE_CHECK_APP_ID ?? "");
 const evidence = process.env.HA_NOVA_CLOUD_GATE_EVIDENCE_JSON ?? "";
 const apiVersion = "2026-03-10";
-const consistencyAttempts = 3;
-const consistencyDelayMs = 1_000;
 
 function fail(message) {
   throw new Error(message);
@@ -27,10 +26,6 @@ function fail(message) {
 function noCheck(message) {
   console.log(`[run-cloud-source-check] NOTICE: ${message}`);
   process.exit(0);
-}
-
-function waitForConsistency() {
-  return new Promise((resolve) => setTimeout(resolve, consistencyDelayMs));
 }
 
 function requireSHA(value, label) {
@@ -117,54 +112,6 @@ async function currentPullRequest(headSHA) {
   return matches[0];
 }
 
-async function resolvePullRequestSource(headSHA) {
-  let reason = "workflow run no longer identifies a current pull request";
-  for (let attempt = 1; attempt <= consistencyAttempts; attempt += 1) {
-    const pull = await currentPullRequest(headSHA);
-    if (pull === undefined) {
-      reason = "workflow run no longer identifies a current pull request";
-    } else if (pull.merge_commit_sha === null) {
-      reason = "pull request merge commit is not materialized yet";
-    } else {
-      const mergeSHA = requireSHA(
-        pull.merge_commit_sha,
-        "pull request merge commit SHA",
-      );
-      const sourceRef = `refs/pull/${pull.number}/merge`;
-      const refSHA = resolveRemoteRef(sourceRef);
-      if (refSHA === undefined) {
-        reason = "pull request merge ref is not materialized yet";
-      } else if (refSHA !== mergeSHA) {
-        reason = "pull request API and merge ref are temporarily inconsistent";
-      } else {
-        return { pull, sourceRef, targetSHA: refSHA };
-      }
-    }
-    if (attempt < consistencyAttempts) {
-      await waitForConsistency();
-    }
-  }
-  return { reason };
-}
-
-async function resolveQueueSource(sourceRef, headSHA) {
-  let reason = "merge queue ref is no longer current";
-  for (let attempt = 1; attempt <= consistencyAttempts; attempt += 1) {
-    const refSHA = resolveRemoteRef(sourceRef);
-    if (refSHA === undefined) {
-      reason = "merge queue ref is no longer current";
-    } else if (refSHA !== headSHA) {
-      reason = "merge queue ref moved before source verification";
-    } else {
-      return { targetSHA: refSHA };
-    }
-    if (attempt < consistencyAttempts) {
-      await waitForConsistency();
-    }
-  }
-  return { reason };
-}
-
 function readEvent() {
   let event;
   try {
@@ -173,13 +120,13 @@ function readEvent() {
     fail("GITHUB_EVENT_PATH must contain valid workflow_run JSON");
   }
   if (
-    event?.action !== "completed" ||
+    !["completed", "in_progress"].includes(event?.action) ||
     event.workflow_run?.name !== "CI" ||
-    event.workflow_run?.status !== "completed"
+    event.workflow_run?.status !== event.action
   ) {
-    fail("only a completed CI workflow event may request this check");
+    fail("only an in-progress or completed CI event may request this check");
   }
-  return event.workflow_run;
+  return { action: event.action, workflowRun: event.workflow_run };
 }
 
 async function requireTrustedCI(workflowRun) {
@@ -214,6 +161,13 @@ async function requireTrustedCI(workflowRun) {
   return current;
 }
 
+const { resolvePullRequestSource, resolveQueueSource } =
+  createCloudSourceConsistencyResolver({
+    currentPullRequest,
+    requireSHA,
+    resolveRemoteRef,
+  });
+
 if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)) {
   fail("GITHUB_REPOSITORY must identify one repository");
 }
@@ -227,7 +181,12 @@ if (!Number.isSafeInteger(checkAppId) || checkAppId <= 0) {
   fail("dedicated check App id must be a positive integer");
 }
 
-const { completeCheck, ensurePendingCheck } = createCloudSourceCheckReporter({
+const {
+  completeCheck,
+  deletePendingAttemptChecks,
+  ensurePendingCheck,
+  hasTerminalAttemptSuccess,
+} = createCloudSourceCheckReporter({
   appId: checkAppId,
   repository,
   runId,
@@ -236,17 +195,42 @@ const { completeCheck, ensurePendingCheck } = createCloudSourceCheckReporter({
 
 let checkId;
 try {
-  const workflowRun = readEvent();
+  const { action, workflowRun } = readEvent();
   const event = workflowRun.event;
   const headSHA = requireSHA(workflowRun.head_sha, "workflow run head_sha");
   if (event !== "pull_request" && event !== "merge_group") {
     fail(`unsupported triggering event ${String(event)}`);
   }
   const currentWorkflowRun = await requireTrustedCI(workflowRun);
+  if (action === "in_progress") {
+    if (
+      currentWorkflowRun.status === "completed" &&
+      currentWorkflowRun.conclusion !== "success"
+    ) {
+      noCheck("upstream CI already completed unsuccessfully");
+    }
+    const { check, terminalSuccess } = await ensurePendingCheck(
+      currentWorkflowRun,
+      headSHA,
+    );
+    if (terminalSuccess) {
+      process.exit(0);
+    }
+    const refreshedWorkflowRun = await requireTrustedCI(workflowRun);
+    if (
+      refreshedWorkflowRun.status === "completed" &&
+      (refreshedWorkflowRun.conclusion !== "success" ||
+        (await hasTerminalAttemptSuccess(refreshedWorkflowRun)))
+    ) {
+      await deletePendingAttemptChecks(refreshedWorkflowRun);
+    }
+    noCheck("provisional source check recorded for active CI");
+  }
   if (
     currentWorkflowRun.status !== "completed" ||
     currentWorkflowRun.conclusion !== "success"
   ) {
+    await deletePendingAttemptChecks(currentWorkflowRun);
     noCheck(
       "upstream CI did not complete successfully; no source check emitted",
     );
@@ -300,6 +284,7 @@ try {
     verifiedTargetSHA,
   );
   checkId = check.id;
+  await deletePendingAttemptChecks(currentWorkflowRun, checkId);
   if (terminalSuccess) {
     process.exit(0);
   }
@@ -354,6 +339,7 @@ try {
     "success",
     "Trusted default-branch code verified the current source state.",
   );
+  await deletePendingAttemptChecks(currentWorkflowRun, checkId);
 } catch (error) {
   const message =
     error instanceof Error ? error.message : "unexpected source-gate failure";

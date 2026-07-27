@@ -688,11 +688,13 @@ as the expected status source. Every success requires strict up-to-date branch
 protection and the exact App binding. The broker binds the first fetched PR or
 merge-queue ref to the verifier, re-fetches that ref immediately before
 success, and then resolves the current PR identity and merge commit once more.
-Each successful completed CI lifecycle event idempotently creates one App
-check per upstream run ID, attempt, and exact synthetic merge target, then
-verifies and finishes it. Failed or cancelled CI, stale pull requests, and
-temporarily absent merge refs emit no check, which remains fail-closed when the
-context is required. Terminal success is idempotent, terminal failure is
+Each in-progress CI lifecycle event idempotently creates an attempt-bound
+provisional pending App check without resolving or executing the target. A
+successful completed event creates the exact synthetic-target check before
+retiring that provisional check, closing the old-success rerun window. Failed
+or cancelled CI retires its provisional check because CI remains failed.
+Stale pull requests and temporarily absent merge refs emit no exact check and
+remain fail-closed. Terminal success is idempotent, terminal failure is
 retryable, and conflicting duplicate conclusions fail closed. A
 read-only trigger job authenticates the exact check name, App ID, and slug
 before its completion may re-evaluate Dependabot.
@@ -715,8 +717,9 @@ marker recovery, while human-owned native auto-merge is never changed.
 The single dedicated source App is the complete MVP trust boundary. GitHub
 requires a successful check on the latest candidate SHA, and strict branch
 protection requires the branch to be current with its base. The trusted
-default-branch broker creates an App check for each successful completed CI run
-ID, attempt, and exact synthetic merge target before reporting success. The
+default-branch broker first creates a provisional pending check for each active
+CI attempt, then replaces it with the exact synthetic-target check before
+reporting success. The
 direct merger additionally rejects a source success whose external ID names
 another merge target, any active current-head CI run, or any changed PR,
 head, base, or merge ref. A second external invalidator service would duplicate

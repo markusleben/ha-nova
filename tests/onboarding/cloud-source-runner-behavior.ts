@@ -13,6 +13,7 @@ import { describe, expect, it } from "vitest";
 
 const headSHA = "a".repeat(40);
 const baseSHA = "b".repeat(40);
+const mergeSHA = "d".repeat(40);
 
 type RunOptions = {
   action?: "completed" | "in_progress";
@@ -59,7 +60,7 @@ function runSourceGate(options: RunOptions = {}) {
     },
     head: { sha: headSHA },
     merge_commit_sha:
-      options.mergeCommitSHA === undefined ? headSHA : options.mergeCommitSHA,
+      options.mergeCommitSHA === undefined ? mergeSHA : options.mergeCommitSHA,
     number: 449,
     state: "open",
   };
@@ -138,6 +139,11 @@ globalThis.fetch = async (url, init = {}) => {
     );
     return response(checks[0], Number(process.env.MOCK_PATCH_STATUS));
   }
+  if (path.includes("/check-runs/") && method === "DELETE") {
+    const id = Number(path.split("/").at(-1));
+    checks = checks.filter((candidate) => candidate.id !== id);
+    return response({}, 204);
+  }
   return response({ message: "unexpected request" }, 500);
 };
 `,
@@ -162,7 +168,11 @@ globalThis.fetch = async (url, init = {}) => {
         MOCK_BASH_EXIT: String(options.bashExit ?? 0),
         MOCK_CHECKS: JSON.stringify(options.initialChecks ?? []),
         MOCK_GIT_SHA:
-          options.gitSHA === undefined ? headSHA : (options.gitSHA ?? ""),
+          options.gitSHA === undefined
+            ? event === "pull_request"
+              ? (pull.merge_commit_sha ?? "")
+              : headSHA
+            : (options.gitSHA ?? ""),
         MOCK_PULLS: JSON.stringify(pulls),
         MOCK_PATCH_STATUS: String(options.patchStatus ?? 200),
         MOCK_TRACE: tracePath,
@@ -189,13 +199,46 @@ globalThis.fetch = async (url, init = {}) => {
 
 export function registerCloudSourceRunnerBehaviorTests(): void {
   describe("Cloud source runner behavior", () => {
-    it("rejects every lifecycle event except completed", () => {
+    it("creates only a provisional pending check while CI is in progress", () => {
       const { result, trace } = runSourceGate({ action: "in_progress" });
-      expect(result.status).not.toBe(0);
-      expect(result.stderr).toContain(
-        "only a completed CI workflow event may request this check",
+      expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
+      expect(result.stdout).toContain(
+        "provisional source check recorded for active CI",
       );
-      expect(trace).toHaveLength(0);
+      const post = trace.find((entry) => entry.method === "POST");
+      expect(post?.body?.external_id).toBe(
+        `workflow-run:123:attempt:1:target:${headSHA}`,
+      );
+      expect(
+        trace.some((entry) => entry.path.includes(`/commits/${headSHA}/pulls`)),
+      ).toBe(false);
+    });
+
+    it("replaces the provisional check only after the exact check is pending", () => {
+      const provisional = {
+        app: { id: 42 },
+        external_id: `workflow-run:123:attempt:1:target:${headSHA}`,
+        id: 700,
+        name: "cloud-source-gate",
+        status: "in_progress",
+      };
+      const { result, trace } = runSourceGate({
+        initialChecks: [provisional],
+      });
+      expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
+      const exactPostIndex = trace.findIndex(
+        (entry) =>
+          entry.method === "POST" &&
+          entry.body?.external_id ===
+            `workflow-run:123:attempt:1:target:${mergeSHA}`,
+      );
+      const provisionalDeleteIndex = trace.findIndex(
+        (entry) =>
+          entry.method === "DELETE" &&
+          entry.path.endsWith(`/check-runs/${provisional.id}`),
+      );
+      expect(exactPostIndex).toBeGreaterThanOrEqual(0);
+      expect(provisionalDeleteIndex).toBeGreaterThan(exactPostIndex);
     });
 
     it.each(["cancelled", "failure"] as const)(

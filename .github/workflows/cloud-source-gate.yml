@@ -6,6 +6,7 @@ on:
       - CI
     types:
       - completed
+      - in_progress
 
 permissions:
   actions: read

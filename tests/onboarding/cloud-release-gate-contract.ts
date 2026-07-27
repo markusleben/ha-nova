@@ -187,7 +187,7 @@ export function registerCloudReleaseGateContractTests(): void {
     expect(sourceGateWorkflow).toContain("workflow_run:");
     expect(sourceGateWorkflow).toContain("- CI");
     expect(sourceGateWorkflow).toContain("- completed");
-    expect(sourceGateWorkflow).not.toContain("- in_progress");
+    expect(sourceGateWorkflow).toContain("- in_progress");
     expect(sourceGateWorkflow).not.toContain("- requested");
     expect(sourceGateWorkflow).toContain("name: trusted-cloud-source-reporter");
     expect(sourceGateWorkflow).toContain("name: production");
@@ -232,6 +232,10 @@ export function registerCloudReleaseGateContractTests(): void {
       "pull request merge commit does not bind the expected base and head",
     );
     const reporter = readFileSync("scripts/release/run-cloud-source-check.mjs", "utf8");
+    const sourceConsistency = readFileSync(
+      "scripts/release/cloud-source-consistency.mjs",
+      "utf8",
+    );
     const reporterHelper = readFileSync(
       "scripts/release/cloud-source-check-reporter.mjs",
       "utf8",
@@ -249,7 +253,7 @@ export function registerCloudReleaseGateContractTests(): void {
     );
     expect(reporter).toContain("if (terminalSuccess)");
     expect(reporter).toContain('currentWorkflowRun.conclusion !== "success"');
-    expect(reporter).toContain(
+    expect(sourceConsistency).toContain(
       "workflow run no longer identifies a current pull request",
     );
     expect(reporter).toContain("currentPullRequest(headSHA)");
@@ -262,7 +266,9 @@ export function registerCloudReleaseGateContractTests(): void {
     expect(reporter).toContain(
       "const resolved = await resolvePullRequestSource(headSHA)",
     );
-    expect(reporter).toContain("const refSHA = resolveRemoteRef(sourceRef)");
+    expect(sourceConsistency).toContain(
+      "const refSHA = resolveRemoteRef(sourceRef)",
+    );
     expect(reporter).toContain("resolveRemoteRef(sourceRef) !== verifiedTargetSHA");
     expect(reporter).toContain("const finalPR = await currentPullRequest(headSHA)");
     expect(reporter).toContain("finalPR.number !== currentPR.number");

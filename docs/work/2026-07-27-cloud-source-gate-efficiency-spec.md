@@ -12,7 +12,13 @@ notifications.
 
 ## Required behavior
 
-- Trigger the broker only for a completed `CI` workflow run.
+- Trigger the broker for `in_progress` and `completed` CI deliveries. Never use
+  `requested`, because GitHub does not emit it consistently for reruns.
+- `in_progress` creates only an attempt-bound provisional pending App check on
+  the CI head. It does not resolve a PR, fetch a merge ref, or run policy code.
+- `completed` creates the exact target-bound pending check before deleting the
+  provisional check. It repeats provisional cleanup after terminal success so
+  a delayed early delivery cannot strand state.
 - A non-successful upstream CI run, stale pull request, missing merge ref, or
   temporarily absent pull-request merge SHA exits successfully without
   creating an App check. The missing required check remains fail-closed.
