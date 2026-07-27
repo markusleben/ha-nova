@@ -60,7 +60,7 @@ and no rerun was used for debugging.
 
 GitHub API calls, remote-ref resolution, and policy subprocesses each have a
 finite deadline. The mode job has a three-minute limit; the reporter has a
-four-minute limit with cleanup margin. A failed fail-safe completion deletes
+ten-minute limit with cleanup margin. A failed fail-safe completion deletes
 the pending check before surfacing infrastructure failure.
 
 ## Dependabot trigger containment
