@@ -26,6 +26,7 @@ export type RunOptions = {
   initialChecks?: unknown[];
   mergeCommitSHA?: null | string;
   mergeCommitSHASequence?: Array<null | string>;
+  checkListStatusAfterPatch?: number;
   patchStatus?: number;
   pullCount?: number;
   currentWorkflowStatus?: "completed" | "in_progress";
@@ -111,6 +112,7 @@ let checks = JSON.parse(process.env.MOCK_CHECKS);
 const pulls = JSON.parse(process.env.MOCK_PULLS);
 const fullPulls = JSON.parse(process.env.MOCK_FULL_PULLS);
 let fullPullIndex = 0;
+let terminalPatchCompleted = false;
 const associationPresent = JSON.parse(process.env.MOCK_ASSOCIATION_PRESENT);
 let associationIndex = 0;
 const workflowRuns = JSON.parse(process.env.MOCK_WORKFLOW_RUNS);
@@ -148,7 +150,12 @@ globalThis.fetch = async (url, init = {}) => {
     return response(fullPulls[Math.min(fullPullIndex++, fullPulls.length - 1)]);
   }
   if (path.endsWith("/check-runs") && method === "GET") {
-    return response({ check_runs: checks, total_count: checks.length });
+    return response(
+      { check_runs: checks, total_count: checks.length },
+      terminalPatchCompleted
+        ? Number(process.env.MOCK_CHECK_LIST_STATUS_AFTER_PATCH)
+        : 200,
+    );
   }
   if (path.endsWith("/check-runs") && method === "POST") {
     const created = { ...body, app: { id: 42 }, id: 900 };
@@ -160,6 +167,7 @@ globalThis.fetch = async (url, init = {}) => {
     checks = checks.map((candidate) =>
       candidate.id === id ? { ...candidate, ...body } : candidate
     );
+    terminalPatchCompleted = Number(process.env.MOCK_PATCH_STATUS) === 200;
     return response(
       checks.find((candidate) => candidate.id === id),
       Number(process.env.MOCK_PATCH_STATUS),
@@ -195,6 +203,9 @@ globalThis.fetch = async (url, init = {}) => {
           options.associationPresentSequence ?? [true],
         ),
         MOCK_BASH_EXIT: String(options.bashExit ?? 0),
+        MOCK_CHECK_LIST_STATUS_AFTER_PATCH: String(
+          options.checkListStatusAfterPatch ?? 200,
+        ),
         MOCK_CHECKS: JSON.stringify(options.initialChecks ?? []),
         MOCK_GIT_SHA:
           options.gitSHA === undefined
@@ -396,6 +407,33 @@ export function registerCloudSourceRunnerBehaviorTests(): void {
             entry.path.endsWith("/check-runs/900"),
         ),
       ).toBe(true);
+    });
+
+    it("preserves a reported rejection when sibling cleanup fails", () => {
+      const { result, trace } = runSourceGate({
+        bashExit: 1,
+        checkListStatusAfterPatch: 500,
+        event: "merge_group",
+      });
+      expect(result.status).not.toBe(0);
+      expect(result.stderr).toContain(
+        "rejection reported, but pending sibling cleanup failed",
+      );
+      expect(
+        trace.some(
+          (entry) =>
+            entry.method === "PATCH" &&
+            entry.body?.conclusion === "failure" &&
+            entry.path.endsWith("/check-runs/900"),
+        ),
+      ).toBe(true);
+      expect(
+        trace.some(
+          (entry) =>
+            entry.method === "DELETE" &&
+            entry.path.endsWith("/check-runs/900"),
+        ),
+      ).toBe(false);
     });
   });
 }

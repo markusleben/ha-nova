@@ -18,6 +18,9 @@ permissions:
 concurrency:
   group: cloud-source-gate-${{ github.event.workflow_run.id }}-${{ github.event.workflow_run.run_attempt }}
   cancel-in-progress: false
+  # Keep every lifecycle delivery while serializing them. GitHub documents
+  # queue:max for concurrency groups:
+  # https://docs.github.com/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency
   queue: max
 
 jobs:

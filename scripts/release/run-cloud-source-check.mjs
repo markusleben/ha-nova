@@ -381,9 +381,6 @@ try {
         "failure",
         "Trusted source verification failed. Inspect the linked workflow run.",
       );
-      if (activeWorkflowRun !== undefined) {
-        await deletePendingAttemptChecks(activeWorkflowRun, checkId);
-      }
     } catch (reportError) {
       const reportMessage =
         reportError instanceof Error
@@ -403,6 +400,20 @@ try {
           `[run-cloud-source-check] ERROR: cannot delete pending rejection: ${cleanupMessage}`,
         );
       }
+      process.exit(1);
+    }
+    try {
+      if (activeWorkflowRun !== undefined) {
+        await deletePendingAttemptChecks(activeWorkflowRun, checkId);
+      }
+    } catch (cleanupError) {
+      const cleanupMessage =
+        cleanupError instanceof Error
+          ? cleanupError.message
+          : "unexpected pending-check cleanup failure";
+      console.error(
+        `[run-cloud-source-check] ERROR: rejection reported, but pending sibling cleanup failed: ${cleanupMessage}`,
+      );
       process.exit(1);
     }
     process.exit(0);
