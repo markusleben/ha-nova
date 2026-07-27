@@ -205,7 +205,7 @@ globalThis.fetch = async (url, init = {}) => {
       ok: true,
       status: 201,
       json: async () => ({
-        permissions: { administration: "read" },
+        permissions: { administration: "read", metadata: "read" },
         token: "dedicated-administration-read-token"
       })
     };
@@ -242,5 +242,102 @@ globalThis.fetch = async (url, init = {}) => {
   });
   expect(readFileSync(output, "utf8")).toContain(
     "token=dedicated-administration-read-token",
+  );
+});
+
+it("accepts only the reporter permissions plus GitHub's automatic metadata read", () => {
+  const root = mkdtempSync(join(tmpdir(), "ha-nova-reporter-token-"));
+  const output = join(root, "output");
+  const preload = join(root, "preload.mjs");
+  const trace = join(root, "trace.json");
+  const { privateKey } = generateKeyPairSync("rsa", {
+    modulusLength: 2048,
+    privateKeyEncoding: { format: "pem", type: "pkcs8" },
+    publicKeyEncoding: { format: "pem", type: "spki" },
+  });
+  writeFileSync(
+    preload,
+    `import { writeFileSync } from "node:fs";
+globalThis.fetch = async (url, init = {}) => {
+  const path = new URL(url).pathname;
+  if (path.endsWith("/repos/owner/repo/installation")) {
+    return { ok: true, status: 200, json: async () => ({ id: 7 }) };
+  }
+  if (path.endsWith("/app/installations/7/access_tokens")) {
+    const body = JSON.parse(init.body);
+    writeFileSync(process.env.MOCK_TRACE, JSON.stringify(body));
+    const permissions = {
+      administration: "read",
+      checks: "write",
+      metadata: "read"
+    };
+    if (process.env.MOCK_EXTRA_PERMISSION === "true") {
+      permissions.issues = "write";
+    }
+    return {
+      ok: true,
+      status: 201,
+      json: async () => ({
+        permissions,
+        token: "dedicated-reporter-installation-token"
+      })
+    };
+  }
+  return { ok: false, status: 500, json: async () => ({}) };
+};
+`,
+    "utf8",
+  );
+  const result = spawnSync(
+    process.execPath,
+    [
+      "--import",
+      preload,
+      "scripts/release/create-cloud-source-check-token.mjs",
+    ],
+    {
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        GITHUB_OUTPUT: output,
+        GITHUB_REPOSITORY: "owner/repo",
+        HA_NOVA_CLOUD_SOURCE_CHECK_APP_ID: "42",
+        HA_NOVA_CLOUD_SOURCE_CHECK_APP_PRIVATE_KEY: privateKey,
+        MOCK_TRACE: trace,
+      },
+    },
+  );
+  expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
+  expect(JSON.parse(readFileSync(trace, "utf8"))).toEqual({
+    permissions: { administration: "read", checks: "write" },
+    repositories: ["repo"],
+  });
+  expect(readFileSync(output, "utf8")).toContain(
+    "token=dedicated-reporter-installation-token",
+  );
+
+  const rejected = spawnSync(
+    process.execPath,
+    [
+      "--import",
+      preload,
+      "scripts/release/create-cloud-source-check-token.mjs",
+    ],
+    {
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        GITHUB_OUTPUT: output,
+        GITHUB_REPOSITORY: "owner/repo",
+        HA_NOVA_CLOUD_SOURCE_CHECK_APP_ID: "42",
+        HA_NOVA_CLOUD_SOURCE_CHECK_APP_PRIVATE_KEY: privateKey,
+        MOCK_EXTRA_PERMISSION: "true",
+        MOCK_TRACE: trace,
+      },
+    },
+  );
+  expect(rejected.status).not.toBe(0);
+  expect(rejected.stderr).toContain(
+    "GitHub App installation token response is invalid",
   );
 });
