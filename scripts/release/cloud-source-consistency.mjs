@@ -16,7 +16,7 @@ export function createCloudSourceConsistencyResolver({
       const pull = await currentPullRequest(headSHA);
       if (pull === undefined) {
         reason = "workflow run no longer identifies a current pull request";
-      } else if (pull.merge_commit_sha === null) {
+      } else if (pull.merge_commit_sha == null) {
         reason = "pull request merge commit is not materialized yet";
       } else {
         const mergeSHA = requireSHA(

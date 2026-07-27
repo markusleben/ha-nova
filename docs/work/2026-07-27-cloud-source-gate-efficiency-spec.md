@@ -30,6 +30,10 @@ notifications.
 - Duplicate deliveries and rerun attempts remain idempotent and attempt-bound.
 - Local tests cover completed, cancelled, stale, duplicate, rerun, missing-ref,
   and permission-boundary cases before one monitored remote canary is allowed.
+- The commit-association endpoint selects one current PR only. Security fields,
+  including `merge_commit_sha`, come from a subsequent full PR response.
+  Temporarily omitted or null merge materialization is retried inside the same
+  bounded run.
 
 ## Actions budget
 
