@@ -4,6 +4,7 @@ import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 
 import {
+  AmbiguousSourceCheckMutationError,
   createCloudSourceCheckReporter,
   ReportedSourceCheckError,
 } from "./cloud-source-check-reporter.mjs";
@@ -180,7 +181,7 @@ if (!Number.isSafeInteger(checkAppId) || checkAppId <= 0) {
 
 const {
   completeCheck,
-  deleteCheck,
+  deletePendingCheck,
   deletePendingAttemptChecks,
   deletePendingTargetChecks,
   ensurePendingCheck,
@@ -374,6 +375,9 @@ try {
   if (error instanceof ReportedSourceCheckError) {
     process.exit(0);
   }
+  if (error instanceof AmbiguousSourceCheckMutationError) {
+    process.exit(1);
+  }
   if (checkId !== undefined) {
     try {
       await completeCheck(
@@ -390,7 +394,7 @@ try {
         `[run-cloud-source-check] ERROR: cannot report rejection: ${reportMessage}`,
       );
       try {
-        await deleteCheck(checkId);
+        await deletePendingCheck(checkId);
       } catch (cleanupError) {
         const cleanupMessage =
           cleanupError instanceof Error

@@ -221,6 +221,33 @@ export function registerCloudSourceMaterializationBehaviorTests(): void {
       ).toBe(true);
     });
 
+    it.each([
+      ["new fail-safe", []],
+      [
+        "reused provisional",
+        [
+          {
+            app: { id: 42 },
+            external_id: `workflow-run:123:attempt:1:target:${headSHA}`,
+            id: 700,
+            name: "cloud-source-gate",
+            status: "in_progress",
+          },
+        ],
+      ],
+    ] as const)(
+      "reconciles an accepted %s rejection after its PATCH response times out",
+      (_label, initialChecks) => {
+        const { result, trace } = runSourceGate({
+          initialChecks: [...initialChecks],
+          mergeCommitSHA: null,
+          patchThrowsAfterApply: true,
+        });
+        expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
+        expect(trace.some((entry) => entry.method === "DELETE")).toBe(false);
+      },
+    );
+
     it("reads merge materialization from the full pull-request resource", () => {
       const { result, trace } = runSourceGate({
         associationMergeCommitSHA: null,

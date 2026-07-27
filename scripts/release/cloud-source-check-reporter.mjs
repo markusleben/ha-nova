@@ -8,6 +8,8 @@ function fail(message) {
 
 export class ReportedSourceCheckError extends Error {}
 
+export class AmbiguousSourceCheckMutationError extends Error {}
+
 function failReported(message) {
   throw new ReportedSourceCheckError(message);
 }
@@ -118,6 +120,36 @@ export function createCloudSourceCheckReporter({
     fail("more than 1,000 source check runs exist for the candidate commit");
   }
 
+  async function readCheck(checkId) {
+    const response = await fetch(
+      `https://api.github.com/repos/${repository}/check-runs/${checkId}`,
+      {
+        signal: AbortSignal.timeout(apiTimeoutMs),
+        headers: {
+          Accept: "application/vnd.github+json",
+          Authorization: `Bearer ${token}`,
+          "User-Agent": "ha-nova-cloud-source-gate",
+          "X-GitHub-Api-Version": apiVersion,
+        },
+      },
+    );
+    if (response.status === 404) {
+      return undefined;
+    }
+    if (!response.ok) {
+      fail(`GitHub API check-runs/${checkId} returned HTTP ${response.status}`);
+    }
+    const check = await response.json();
+    if (
+      check.id !== checkId ||
+      check.app?.id !== appId ||
+      check.name !== checkName
+    ) {
+      fail("GitHub returned an invalid dedicated check run");
+    }
+    return check;
+  }
+
   async function sourceChecks(workflowRun, targetSHA) {
     const externalId = sourceExternalId(workflowRun, targetSHA);
     return (await sourceCheckRuns(workflowRun)).filter(
@@ -174,7 +206,7 @@ export function createCloudSourceCheckReporter({
       try {
         await completeCheck(check.id, "failure", summary);
       } catch (error) {
-        await deleteCheck(check.id);
+        await deletePendingCheck(check.id);
         throw error;
       }
     }
@@ -207,20 +239,39 @@ export function createCloudSourceCheckReporter({
   }
 
   async function completeCheck(checkId, conclusion, summary) {
-    await github(`repos/${repository}/check-runs/${checkId}`, {
-      method: "PATCH",
-      body: JSON.stringify({
-        status: "completed",
-        conclusion,
-        output: {
-          title:
-            conclusion === "success"
-              ? "Home Assistant Cloud source verified"
-              : "Home Assistant Cloud source rejected",
-          summary,
-        },
-      }),
-    });
+    try {
+      await github(`repos/${repository}/check-runs/${checkId}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          status: "completed",
+          conclusion,
+          output: {
+            title:
+              conclusion === "success"
+                ? "Home Assistant Cloud source verified"
+                : "Home Assistant Cloud source rejected",
+            summary,
+          },
+        }),
+      });
+    } catch (error) {
+      let current;
+      try {
+        current = await readCheck(checkId);
+      } catch (reconcileError) {
+        throw new AmbiguousSourceCheckMutationError(
+          "cannot reconcile the ambiguous source-check completion",
+          { cause: reconcileError },
+        );
+      }
+      if (
+        current?.status === "completed" &&
+        current.conclusion === conclusion
+      ) {
+        return;
+      }
+      throw error;
+    }
   }
 
   async function deleteCheck(checkId) {
@@ -245,6 +296,14 @@ export function createCloudSourceCheckReporter({
     }
   }
 
+  async function deletePendingCheck(checkId) {
+    const current = await readCheck(checkId);
+    if (current === undefined || current.status === "completed") {
+      return;
+    }
+    await deleteCheck(checkId);
+  }
+
   async function createFailSafeCheck(workflowRun, targetSHA, summary) {
     const failed = await createCheck(workflowRun, targetSHA);
     if (
@@ -257,7 +316,7 @@ export function createCloudSourceCheckReporter({
     try {
       await completeCheck(failed.id, "failure", summary);
     } catch (error) {
-      await deleteCheck(failed.id);
+      await deletePendingCheck(failed.id);
       throw error;
     }
     return failed;
@@ -362,6 +421,7 @@ export function createCloudSourceCheckReporter({
   return {
     completeCheck,
     deleteCheck,
+    deletePendingCheck,
     deletePendingAttemptChecks,
     deletePendingTargetChecks,
     ensurePendingCheck,

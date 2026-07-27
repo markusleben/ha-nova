@@ -27,7 +27,9 @@ export type RunOptions = {
   mergeCommitSHA?: null | string;
   mergeCommitSHASequence?: Array<null | string>;
   checkListStatusAfterPatch?: number;
+  checkReadStatus?: number;
   patchStatus?: number;
+  patchThrowsAfterApply?: boolean;
   pullCount?: number;
   currentWorkflowStatus?: "completed" | "in_progress";
   currentWorkflowAttempt?: number;
@@ -162,12 +164,28 @@ globalThis.fetch = async (url, init = {}) => {
     checks.push(created);
     return response(created, 201);
   }
+  if (path.includes("/check-runs/") && method === "GET") {
+    const id = Number(path.split("/").at(-1));
+    const found = checks.find((candidate) => candidate.id === id);
+    return response(
+      found ?? {},
+      found === undefined ? 404 : Number(process.env.MOCK_CHECK_READ_STATUS),
+    );
+  }
   if (path.includes("/check-runs/") && method === "PATCH") {
     const id = Number(path.split("/").at(-1));
-    checks = checks.map((candidate) =>
-      candidate.id === id ? { ...candidate, ...body } : candidate
-    );
-    terminalPatchCompleted = Number(process.env.MOCK_PATCH_STATUS) === 200;
+    const patchApplied =
+      Number(process.env.MOCK_PATCH_STATUS) === 200 ||
+      process.env.MOCK_PATCH_THROWS_AFTER_APPLY === "true";
+    if (patchApplied) {
+      checks = checks.map((candidate) =>
+        candidate.id === id ? { ...candidate, ...body } : candidate
+      );
+    }
+    terminalPatchCompleted = patchApplied;
+    if (process.env.MOCK_PATCH_THROWS_AFTER_APPLY === "true") {
+      throw new DOMException("mock response timeout", "TimeoutError");
+    }
     return response(
       checks.find((candidate) => candidate.id === id),
       Number(process.env.MOCK_PATCH_STATUS),
@@ -206,6 +224,7 @@ globalThis.fetch = async (url, init = {}) => {
         MOCK_CHECK_LIST_STATUS_AFTER_PATCH: String(
           options.checkListStatusAfterPatch ?? 200,
         ),
+        MOCK_CHECK_READ_STATUS: String(options.checkReadStatus ?? 200),
         MOCK_CHECKS: JSON.stringify(options.initialChecks ?? []),
         MOCK_GIT_SHA:
           options.gitSHA === undefined
@@ -220,6 +239,9 @@ globalThis.fetch = async (url, init = {}) => {
           ),
         ),
         MOCK_PATCH_STATUS: String(options.patchStatus ?? 200),
+        MOCK_PATCH_THROWS_AFTER_APPLY: String(
+          options.patchThrowsAfterApply ?? false,
+        ),
         MOCK_TRACE: tracePath,
         MOCK_WORKFLOW_RUNS: JSON.stringify(
           (
@@ -434,6 +456,43 @@ export function registerCloudSourceRunnerBehaviorTests(): void {
             entry.path.endsWith("/check-runs/900"),
         ),
       ).toBe(false);
+    });
+
+    it("reconciles an accepted rejection after its PATCH response times out", () => {
+      const { result, trace } = runSourceGate({
+        bashExit: 1,
+        event: "merge_group",
+        patchThrowsAfterApply: true,
+      });
+      expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
+      expect(
+        trace.some(
+          (entry) =>
+            entry.method === "GET" &&
+            entry.path.endsWith("/check-runs/900"),
+        ),
+      ).toBe(true);
+      expect(
+        trace.some(
+          (entry) =>
+            entry.method === "DELETE" &&
+            entry.path.endsWith("/check-runs/900"),
+        ),
+      ).toBe(false);
+    });
+
+    it("does not delete a check when PATCH reconciliation is unavailable", () => {
+      const { result, trace } = runSourceGate({
+        bashExit: 1,
+        checkReadStatus: 500,
+        event: "merge_group",
+        patchThrowsAfterApply: true,
+      });
+      expect(result.status).not.toBe(0);
+      expect(result.stderr).toContain(
+        "cannot reconcile the ambiguous source-check completion",
+      );
+      expect(trace.some((entry) => entry.method === "DELETE")).toBe(false);
     });
   });
 }
