@@ -5,12 +5,14 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { registerCloudSourceMaterializationBehaviorTests } from "./cloud-source-materialization-behavior.js";
 import { registerCloudSourceRunnerBehaviorTests } from "./cloud-source-runner-behavior.js";
 
 const headSHA = "a".repeat(40);
 const appId = 42;
 
 registerCloudSourceRunnerBehaviorTests();
+registerCloudSourceMaterializationBehaviorTests();
 
 function check(runAttempt: number, status: "completed" | "in_progress") {
   return {

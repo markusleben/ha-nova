@@ -11,12 +11,13 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-const headSHA = "a".repeat(40);
+export const headSHA = "a".repeat(40);
 const baseSHA = "b".repeat(40);
-const mergeSHA = "d".repeat(40);
+export const mergeSHA = "d".repeat(40);
 
-type RunOptions = {
+export type RunOptions = {
   action?: "completed" | "in_progress";
+  associationMergeCommitSHA?: null | string;
   bashExit?: number;
   conclusion?: "cancelled" | "failure" | "success";
   event?: "merge_group" | "pull_request";
@@ -28,7 +29,7 @@ type RunOptions = {
   workflowAPIStatus?: number;
 };
 
-function runSourceGate(options: RunOptions = {}) {
+export function runSourceGate(options: RunOptions = {}) {
   const root = mkdtempSync(join(tmpdir(), "ha-nova-source-runner-"));
   const bin = join(root, "bin");
   const eventPath = join(root, "event.json");
@@ -66,6 +67,10 @@ function runSourceGate(options: RunOptions = {}) {
   };
   const pulls = Array.from({ length: options.pullCount ?? 1 }, (_, index) => ({
     ...pull,
+    merge_commit_sha:
+      options.associationMergeCommitSHA === undefined
+        ? pull.merge_commit_sha
+        : options.associationMergeCommitSHA,
     number: pull.number + index,
   }));
 
@@ -99,6 +104,7 @@ exit "$MOCK_BASH_EXIT"
     `import { appendFileSync } from "node:fs";
 let checks = JSON.parse(process.env.MOCK_CHECKS);
 const pulls = JSON.parse(process.env.MOCK_PULLS);
+const fullPull = JSON.parse(process.env.MOCK_FULL_PULL);
 const workflowRun = JSON.parse(process.env.MOCK_WORKFLOW_RUN);
 globalThis.setTimeout = (callback) => {
   callback();
@@ -123,7 +129,7 @@ globalThis.fetch = async (url, init = {}) => {
     return response(pulls);
   }
   if (path.endsWith("/pulls/449")) {
-    return response(pulls[0]);
+    return response(fullPull);
   }
   if (path.endsWith("/check-runs") && method === "GET") {
     return response({ check_runs: checks, total_count: checks.length });
@@ -174,6 +180,7 @@ globalThis.fetch = async (url, init = {}) => {
               : headSHA
             : (options.gitSHA ?? ""),
         MOCK_PULLS: JSON.stringify(pulls),
+        MOCK_FULL_PULL: JSON.stringify(pull),
         MOCK_PATCH_STATUS: String(options.patchStatus ?? 200),
         MOCK_TRACE: tracePath,
         MOCK_WORKFLOW_RUN: JSON.stringify(workflowRun),
@@ -265,13 +272,6 @@ export function registerCloudSourceRunnerBehaviorTests(): void {
             entry.path.endsWith(`/commits/${headSHA}/pulls`),
         ),
       ).toHaveLength(3);
-    });
-
-    it("exits without a check while GitHub materializes the merge commit", () => {
-      const { result, trace } = runSourceGate({ mergeCommitSHA: null });
-      expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
-      expect(result.stdout).toContain("merge commit is not materialized yet");
-      expect(trace.some((entry) => entry.method === "POST")).toBe(false);
     });
 
     it("exits without a check while GitHub materializes the merge ref", () => {

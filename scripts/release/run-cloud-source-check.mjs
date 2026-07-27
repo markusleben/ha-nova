@@ -109,7 +109,24 @@ async function currentPullRequest(headSHA) {
     }
     fail("workflow run must identify exactly one current pull request");
   }
-  return matches[0];
+  const association = matches[0];
+  if (!Number.isSafeInteger(association.number) || association.number <= 0) {
+    fail("associated pull request number must be a positive integer");
+  }
+  const pull = await github(
+    `repos/${repository}/pulls/${association.number}`,
+    githubToken,
+  );
+  if (
+    pull.number !== association.number ||
+    pull.state !== "open" ||
+    pull.base?.ref !== "main" ||
+    pull.base?.repo?.full_name !== repository ||
+    pull.head?.sha !== headSHA
+  ) {
+    return undefined;
+  }
+  return pull;
 }
 
 function readEvent() {
