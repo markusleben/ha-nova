@@ -25,7 +25,11 @@ function check(runAttempt: number, status: "completed" | "in_progress") {
   };
 }
 
-function runLifecycle(runAttempt: number, initialChecks: unknown[]) {
+function runLifecycle(
+  runAttempt: number,
+  initialChecks: unknown[],
+  postCreateChecks: unknown[] = [],
+) {
   const directory = mkdtempSync(join(tmpdir(), "ha-nova-source-lifecycle-"));
   const preloadPath = join(directory, "mock-fetch.mjs");
   const runnerPath = join(directory, "runner.mjs");
@@ -83,6 +87,7 @@ globalThis.fetch = async (url, init = {}) => {
   if (path.endsWith("/check-runs") && method === "POST") {
     const created = { ...body, app: { id: 42 }, id: 900, status: "in_progress" };
     checks.push(created);
+    checks.push(...JSON.parse(process.env.MOCK_POST_CREATE_CHECKS));
     return response(created, 201);
   }
   if (path.includes("/check-runs/") && method === "DELETE") {
@@ -110,6 +115,7 @@ globalThis.fetch = async (url, init = {}) => {
       env: {
         ...process.env,
         MOCK_CHECKS: JSON.stringify(initialChecks),
+        MOCK_POST_CREATE_CHECKS: JSON.stringify(postCreateChecks),
         MOCK_TARGET_SHA: headSHA,
         MOCK_TRACE: tracePath,
         MOCK_WORKFLOW_RUN: JSON.stringify(workflowRun),
@@ -187,23 +193,15 @@ describe("Cloud source check lifecycle", () => {
     expect(trace.some((entry) => entry.method === "PATCH")).toBe(false);
   });
 
-  it("retries a terminal failure for the same target and attempt", () => {
+  it("keeps a terminal failure immutable for the same target and attempt", () => {
     const failed = {
       ...check(1, "completed"),
       conclusion: "failure",
     };
     const { result, trace } = runLifecycle(1, [failed]);
     expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
-    expect(
-      trace.some(
-        (entry) =>
-          entry.method === "DELETE" &&
-          entry.path.endsWith(`/check-runs/${failed.id}`),
-      ),
-    ).toBe(true);
-    expect(
-      trace.find((entry) => entry.method === "POST")?.body?.external_id,
-    ).toBe(`workflow-run:123:attempt:1:target:${headSHA}`);
+    expect(trace.some((entry) => entry.method === "DELETE")).toBe(false);
+    expect(trace.some((entry) => entry.method === "POST")).toBe(false);
   });
 
   it("fails closed when duplicate terminal conclusions conflict", () => {
@@ -211,19 +209,58 @@ describe("Cloud source check lifecycle", () => {
     const failure = {
       ...check(1, "completed"),
       conclusion: "failure",
-      id: 701,
+      id: 400,
     };
     const { result, trace } = runLifecycle(1, [success, failure]);
     expect(result.status).not.toBe(0);
     expect(result.stderr).toContain(
       "source checks have conflicting terminal conclusions",
     );
+    expect(trace.filter((entry) => entry.method === "POST")).toHaveLength(1);
     expect(
       trace.some(
         (entry) =>
           entry.method === "PATCH" && entry.body?.conclusion === "failure",
       ),
     ).toBe(true);
+  });
+
+  it("does not append another fail-safe when the latest conflict is failure", () => {
+    const success = check(1, "completed");
+    const latestFailure = {
+      ...check(1, "completed"),
+      conclusion: "failure",
+      id: 701,
+    };
+    const { result, trace } = runLifecycle(1, [success, latestFailure]);
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain(
+      "source checks have conflicting terminal conclusions",
+    );
+    expect(trace.some((entry) => entry.method === "POST")).toBe(false);
+    expect(trace.some((entry) => entry.method === "PATCH")).toBe(false);
+  });
+
+  it("does not append a fail-safe when a latest failure races creation", () => {
+    const racedSuccess = {
+      ...check(1, "completed"),
+      id: 901,
+    };
+    const racedFailure = {
+      ...check(1, "completed"),
+      conclusion: "failure",
+      id: 902,
+    };
+    const { result, trace } = runLifecycle(1, [], [
+      racedSuccess,
+      racedFailure,
+    ]);
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain(
+      "terminal source check raced pending-check creation",
+    );
+    expect(trace.filter((entry) => entry.method === "POST")).toHaveLength(1);
+    expect(trace.some((entry) => entry.method === "PATCH")).toBe(false);
   });
 
   it("finds conflicting exact-target terminals beyond the first 100 checks", () => {
@@ -246,11 +283,7 @@ describe("Cloud source check lifecycle", () => {
         (entry) => entry.method === "GET" && entry.path.endsWith("/check-runs"),
       ),
     ).toHaveLength(2);
-    expect(
-      trace.some(
-        (entry) =>
-          entry.method === "PATCH" && entry.body?.conclusion === "failure",
-      ),
-    ).toBe(true);
+    expect(trace.some((entry) => entry.method === "POST")).toBe(false);
+    expect(trace.some((entry) => entry.method === "PATCH")).toBe(false);
   });
 });

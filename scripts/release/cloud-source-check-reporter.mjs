@@ -1,4 +1,5 @@
 const apiVersion = "2026-03-10";
+const apiTimeoutMs = 10_000;
 const checkName = "cloud-source-gate";
 
 function fail(message) {
@@ -27,6 +28,7 @@ export function createCloudSourceCheckReporter({
   async function github(endpoint, init = {}) {
     const response = await fetch(`https://api.github.com/${endpoint}`, {
       ...init,
+      signal: init.signal ?? AbortSignal.timeout(apiTimeoutMs),
       headers: {
         Accept: "application/vnd.github+json",
         Authorization: `Bearer ${token}`,
@@ -141,14 +143,67 @@ export function createCloudSourceCheckReporter({
     }
   }
 
-  async function hasTerminalAttemptSuccess(workflowRun) {
+  async function deletePendingTargetChecks(workflowRun, targetSHA) {
+    const pending = (await sourceChecks(workflowRun, targetSHA)).filter(
+      (candidate) => candidate.status !== "completed",
+    );
+    for (const candidate of pending) {
+      await deleteCheck(candidate.id);
+    }
+  }
+
+  async function rejectTargetCheck(workflowRun, targetSHA, summary) {
+    const checks = await sourceChecks(workflowRun, targetSHA);
+    const terminals = checks.filter(
+      (candidate) => candidate.status === "completed",
+    );
+    if (terminals.length > 0) {
+      await deletePendingTargetChecks(workflowRun, targetSHA);
+      return;
+    }
+    const pending = checks
+      .filter((candidate) => candidate.status !== "completed")
+      .sort((left, right) => left.id - right.id);
+    const check = pending[0];
+    for (const candidate of pending.slice(1)) {
+      await deleteCheck(candidate.id);
+    }
+    if (check === undefined) {
+      await createFailSafeCheck(workflowRun, targetSHA, summary);
+    } else {
+      try {
+        await completeCheck(check.id, "failure", summary);
+      } catch (error) {
+        await deleteCheck(check.id);
+        throw error;
+      }
+    }
+    await deletePendingAttemptChecks(workflowRun);
+  }
+
+  async function hasTerminalAttemptResult(workflowRun) {
     const prefix = attemptPrefix(workflowRun);
-    return (await sourceCheckRuns(workflowRun)).some(
+    const terminals = (await sourceCheckRuns(workflowRun)).filter(
       (candidate) =>
         candidate.status === "completed" &&
-        candidate.conclusion === "success" &&
         candidate.external_id?.startsWith(prefix),
     );
+    if (terminals.length === 0) {
+      return false;
+    }
+    if (new Set(terminals.map((candidate) => candidate.conclusion)).size > 1) {
+      await deletePendingAttemptChecks(workflowRun);
+      const latest = terminals.sort((left, right) => left.id - right.id).at(-1);
+      if (latest?.conclusion !== "failure") {
+        await createFailSafeCheck(
+          workflowRun,
+          workflowRun.head_sha,
+          "Conflicting terminal source checks were detected for this CI attempt.",
+        );
+      }
+      failReported("source checks have conflicting terminal conclusions");
+    }
+    return true;
   }
 
   async function completeCheck(checkId, conclusion, summary) {
@@ -173,6 +228,7 @@ export function createCloudSourceCheckReporter({
       `https://api.github.com/repos/${repository}/check-runs/${checkId}`,
       {
         method: "DELETE",
+        signal: AbortSignal.timeout(apiTimeoutMs),
         headers: {
           Accept: "application/vnd.github+json",
           Authorization: `Bearer ${token}`,
@@ -198,7 +254,13 @@ export function createCloudSourceCheckReporter({
     ) {
       fail("dedicated GitHub App returned an invalid fail-safe check run");
     }
-    await completeCheck(failed.id, "failure", summary);
+    try {
+      await completeCheck(failed.id, "failure", summary);
+    } catch (error) {
+      await deleteCheck(failed.id);
+      throw error;
+    }
+    return failed;
   }
 
   async function ensurePendingCheck(workflowRun, targetSHA) {
@@ -209,7 +271,7 @@ export function createCloudSourceCheckReporter({
     const conclusions = new Set(
       terminals.map((candidate) => candidate.conclusion),
     );
-    if (conclusions.has("success") && conclusions.size === 1) {
+    if (terminals.length > 0 && conclusions.size === 1) {
       for (const pending of checks.filter(
         (candidate) => candidate.status !== "completed",
       )) {
@@ -217,7 +279,7 @@ export function createCloudSourceCheckReporter({
       }
       return {
         check: terminals[terminals.length - 1],
-        terminalSuccess: true,
+        terminalResult: true,
       };
     }
     if (terminals.length > 0 && conclusions.size !== 1) {
@@ -226,17 +288,15 @@ export function createCloudSourceCheckReporter({
       )) {
         await deleteCheck(pending.id);
       }
-      await createFailSafeCheck(
-        workflowRun,
-        targetSHA,
-        "Conflicting terminal source checks were detected for this exact target.",
-      );
+      if (terminals.at(-1)?.conclusion !== "failure") {
+        await createFailSafeCheck(
+          workflowRun,
+          targetSHA,
+          "Conflicting terminal source checks were detected for this exact target.",
+        );
+      }
       failReported("source checks have conflicting terminal conclusions");
     }
-    for (const failed of terminals) {
-      await deleteCheck(failed.id);
-    }
-    checks = checks.filter((candidate) => candidate.status !== "completed");
     let pending = checks
       .filter((candidate) => candidate.status !== "completed")
       .sort((left, right) => left.id - right.id)[0];
@@ -256,7 +316,7 @@ export function createCloudSourceCheckReporter({
       const racedConclusions = new Set(
         racedTerminals.map((candidate) => candidate.conclusion),
       );
-      if (racedConclusions.has("success") && racedConclusions.size === 1) {
+      if (racedTerminals.length > 0 && racedConclusions.size === 1) {
         for (const racedPending of checks.filter(
           (candidate) => candidate.status !== "completed",
         )) {
@@ -264,7 +324,7 @@ export function createCloudSourceCheckReporter({
         }
         return {
           check: racedTerminals[racedTerminals.length - 1],
-          terminalSuccess: true,
+          terminalResult: true,
         };
       }
       if (racedTerminals.length > 0) {
@@ -273,11 +333,13 @@ export function createCloudSourceCheckReporter({
         )) {
           await deleteCheck(racedPending.id);
         }
-        await createFailSafeCheck(
-          workflowRun,
-          targetSHA,
-          "A terminal source check raced pending-check creation.",
-        );
+        if (racedTerminals.at(-1)?.conclusion !== "failure") {
+          await createFailSafeCheck(
+            workflowRun,
+            targetSHA,
+            "A terminal source check raced pending-check creation.",
+          );
+        }
         failReported("terminal source check raced pending-check creation");
       }
       pending = checks
@@ -294,13 +356,16 @@ export function createCloudSourceCheckReporter({
     for (const duplicate of duplicates) {
       await deleteCheck(duplicate.id);
     }
-    return { check: pending, terminalSuccess: false };
+    return { check: pending, terminalResult: false };
   }
 
   return {
     completeCheck,
+    deleteCheck,
     deletePendingAttemptChecks,
+    deletePendingTargetChecks,
     ensurePendingCheck,
-    hasTerminalAttemptSuccess,
+    hasTerminalAttemptResult,
+    rejectTargetCheck,
   };
 }
