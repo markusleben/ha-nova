@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -44,10 +45,22 @@ func withDeviceStorageTestHome(t *testing.T) string {
 
 func stubStorageCanaries(t *testing.T, keyringErr error) {
 	t.Helper()
-	prevK, prevF := deviceStorageKeyringCanary, deviceStorageFileCanary
+	prevK := deviceStorageKeyringCanary
+	prevPolicy := deviceStorageKeyringCanaryForPolicy
+	prevF := deviceStorageFileCanary
 	deviceStorageKeyringCanary = func() error { return keyringErr }
+	deviceStorageKeyringCanaryForPolicy = func(
+		context.Context,
+		SecretStoreUIPolicy,
+	) error {
+		return keyringErr
+	}
 	deviceStorageFileCanary = fileStorageCanary
-	t.Cleanup(func() { deviceStorageKeyringCanary, deviceStorageFileCanary = prevK, prevF })
+	t.Cleanup(func() {
+		deviceStorageKeyringCanary = prevK
+		deviceStorageKeyringCanaryForPolicy = prevPolicy
+		deviceStorageFileCanary = prevF
+	})
 }
 
 func TestProbeFallsBackToFilesWhenNoDesktopSession(t *testing.T) {

@@ -148,6 +148,15 @@ jobs:
           go-version: "1.26.5"
           cache-dependency-path: cli/go.sum
 
+      - name: Verify macOS Keychain no-UI policy
+        run: |
+          cd cli
+          /usr/bin/sandbox-exec \
+            -p '(version 1)(allow default)(deny process-exec (literal "/usr/bin/security"))' \
+            go test -count=1 \
+              -run '^(TestDecodeDarwinGoKeyringValue|TestNativeSecretWorkerAcceptsRelayTokenKey|Test(Read|Set|Delete)DarwinKeychainSecretInProcess.*|TestDarwin(KeychainNoUI.*|Device.*|RelayToken.*|Interactive.*|ExplicitPair.*|PairCommand.*|DoctorResume.*))$' \
+              .
+
       - name: Reject a non-hardened executable
         run: |
           cd cli

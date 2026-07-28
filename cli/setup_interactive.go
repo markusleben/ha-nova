@@ -218,7 +218,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 		return 0
 	}
 	resumedActivation, resumeActivationErr :=
-		resumeSetupPendingActivation(
+		resumeInteractiveSetupPendingActivation(
 			paths,
 			&cfg,
 			lifecycleMarker...,

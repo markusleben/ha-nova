@@ -7,7 +7,14 @@ import (
 
 var saveConfigForSetupPersistence = saveConfig
 var saveStateForSetupPersistence = saveState
-var writeRelayAuthTokenForSetupPersistence = writeRelayAuthToken
+var writeRelayAuthTokenForSetupPersistence = writeRelayAuthTokenInteractive
+var restoreRelayAuthTokenForSetupPersistence = restoreRelayAuthTokenInteractive
+var snapshotRelayAuthTokenForSetupPersistence = func(
+	previousToken string,
+	hadPreviousToken bool,
+) (string, bool, error) {
+	return previousToken, hadPreviousToken, nil
+}
 
 func persistInteractiveSetupState(paths runtimePaths, cfg runtimeConfig, state *installState, previousToken string, hadPreviousToken bool, token string, lifecycleMarker ...[]byte) error {
 	return persistInteractiveSetupStateWithMode(paths, cfg, state, previousToken, hadPreviousToken, token, false, lifecycleMarker...)
@@ -105,13 +112,21 @@ func persistInteractiveSetupStateUnlocked(paths runtimePaths, cfg runtimeConfig,
 
 	tokenChanged := token != previousToken
 	if tokenChanged {
+		previousToken, hadPreviousToken, err =
+			snapshotRelayAuthTokenForSetupPersistence(
+				previousToken,
+				hadPreviousToken,
+			)
+		if err != nil {
+			return relayAuthTokenSetupSaveError(err)
+		}
 		if err := writeRelayAuthTokenForSetupPersistence(token); err != nil {
 			return relayAuthTokenSetupSaveError(err)
 		}
 	}
 	if err := saveConfigForSetupPersistence(paths, cfg); err != nil {
 		rollbackErr := errors.Join(
-			restoreRelayAuthToken(previousToken, hadPreviousToken, tokenChanged),
+			restoreRelayAuthTokenForSetupPersistence(previousToken, hadPreviousToken, tokenChanged),
 			restoreOptionalFile(paths.ConfigFile, configSnapshot, hadConfigSnapshot),
 			restoreOptionalFile(paths.StateFile, stateSnapshot, hadStateSnapshot),
 		)
@@ -122,7 +137,7 @@ func persistInteractiveSetupStateUnlocked(paths runtimePaths, cfg runtimeConfig,
 	state.InstallSource = detectInstallSource(paths, *state)
 	if err := mergeLatestSetupState(paths, state); err != nil {
 		rollbackErr := errors.Join(
-			restoreRelayAuthToken(previousToken, hadPreviousToken, tokenChanged),
+			restoreRelayAuthTokenForSetupPersistence(previousToken, hadPreviousToken, tokenChanged),
 			restoreOptionalFile(paths.ConfigFile, configSnapshot, hadConfigSnapshot),
 			restoreOptionalFile(paths.StateFile, stateSnapshot, hadStateSnapshot),
 		)
@@ -130,7 +145,7 @@ func persistInteractiveSetupStateUnlocked(paths runtimePaths, cfg runtimeConfig,
 	}
 	if err := saveStateForSetupPersistence(paths, *state); err != nil {
 		rollbackErr := errors.Join(
-			restoreRelayAuthToken(previousToken, hadPreviousToken, tokenChanged),
+			restoreRelayAuthTokenForSetupPersistence(previousToken, hadPreviousToken, tokenChanged),
 			restoreOptionalFile(paths.ConfigFile, configSnapshot, hadConfigSnapshot),
 			restoreOptionalFile(paths.StateFile, stateSnapshot, hadStateSnapshot),
 		)

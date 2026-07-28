@@ -252,6 +252,9 @@ func validNativeSecretWorkerKey(service, account string) bool {
 	if account != secretUser() {
 		return false
 	}
+	if service == relayAuthTokenServiceName() {
+		return validSecretText(service, 256)
+	}
 	if service == deviceCredentialProbeService ||
 		service == deviceCredentialService ||
 		service == deviceCredentialPendingService {

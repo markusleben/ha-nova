@@ -7,10 +7,8 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
-	"os/exec"
 	"os/user"
 	"strings"
-	"time"
 
 	"github.com/zalando/go-keyring"
 )
@@ -20,9 +18,19 @@ func init() {
 	secretKeyringSetWithPolicy = darwinDeviceSecretSet
 	secretKeyringDeleteWithPolicy = darwinDeviceSecretDelete
 	deviceCredentialPreflightWithContext = darwinDeviceCredentialPreflight
+	explicitPairingSecretStoreUIPolicy = func() SecretStoreUIPolicy {
+		return SecretStoreAllowUI
+	}
+	snapshotRelayAuthTokenForSetupPersistence =
+		snapshotDarwinRelayAuthTokenForSetupPersistence
 }
 
-var macOSDeviceCredentialKeychainAvailableNoUI = macOSKeychainAvailableNoUI
+var darwinDeviceSecureStorageBoundaryAvailable = platformCloudRemoteSecureStorageBoundaryAvailable
+var readDarwinSecretInProcess = readDarwinKeychainSecretInProcess
+var setDarwinSecretInProcess = setDarwinKeychainSecretInProcess
+var deleteDarwinSecretInProcess = deleteDarwinKeychainSecretInProcess
+var readDarwinSecretThroughBoundary = readDarwinKeychainSecret
+var runNativeSecretWorkerForDarwinDevice = runNativeSecretWorkerProcess
 
 func darwinDeviceCredentialPreflight(
 	ctx context.Context,
@@ -35,14 +43,6 @@ func darwinDeviceCredentialPreflight(
 		if !deviceCredentialPromptSessionAvailable() {
 			return deviceCredentialPromptUnavailableError()
 		}
-		return nil
-	}
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-	if err := macOSDeviceCredentialKeychainAvailableNoUI(ctx); err != nil {
-		return desktopKeyringLockedError(
-			"the login keychain is locked or unavailable",
-		)
 	}
 	return nil
 }
@@ -52,13 +52,26 @@ func darwinDeviceSecretGet(
 	service, account string,
 	ui SecretStoreUIPolicy,
 ) (string, error) {
-	if !platformCloudRemoteSecureStorageBoundaryAvailable() {
+	if !darwinDeviceSecureStorageBoundaryAvailable() {
 		if err := ctx.Err(); err != nil {
 			return "", err
 		}
-		return keyring.Get(service, account)
+		value, found, err := readDarwinSecretInProcess(
+			ctx,
+			service,
+			account,
+			ui,
+			"read device credential",
+		)
+		if err != nil {
+			return "", err
+		}
+		if !found {
+			return "", keyring.ErrNotFound
+		}
+		return decodeDarwinGoKeyringValue(value)
 	}
-	value, found, err := readDarwinKeychainSecret(
+	value, found, err := readDarwinSecretThroughBoundary(
 		ctx,
 		service,
 		account,
@@ -79,11 +92,40 @@ func darwinDeviceSecretSet(
 	service, account, value string,
 	ui SecretStoreUIPolicy,
 ) error {
-	if !platformCloudRemoteSecureStorageBoundaryAvailable() {
+	if ui == SecretStoreAllowUI {
+		if err := darwinDeviceSecretDelete(
+			ctx,
+			service,
+			account,
+			ui,
+		); err != nil {
+			return fmt.Errorf(
+				"replace macOS Keychain device credential: %w",
+				err,
+			)
+		}
+	}
+	if !darwinDeviceSecureStorageBoundaryAvailable() {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		return keyring.Set(service, account, value)
+		expected := []byte(value)
+		defer zeroSecretBytes(expected)
+		err := setDarwinSecretInProcess(
+			ctx,
+			service,
+			account,
+			value,
+			ui,
+			"write device credential",
+		)
+		return reconcileDarwinInProcessSet(
+			ctx,
+			service,
+			account,
+			expected,
+			err,
+		)
 	}
 	raw := []byte(value)
 	defer zeroSecretBytes(raw)
@@ -97,7 +139,7 @@ func darwinDeviceSecretSet(
 		Account:       account,
 		Value:         raw,
 	}
-	_, err := runNativeSecretWorkerProcess(operationCtx, request)
+	_, err := runNativeSecretWorkerForDarwinDevice(operationCtx, request)
 	return reconcileNativeSecretSet(ctx, request, err)
 }
 
@@ -106,11 +148,23 @@ func darwinDeviceSecretDelete(
 	service, account string,
 	ui SecretStoreUIPolicy,
 ) error {
-	if !platformCloudRemoteSecureStorageBoundaryAvailable() {
+	if !darwinDeviceSecureStorageBoundaryAvailable() {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		return keyring.Delete(service, account)
+		err := deleteDarwinSecretInProcess(
+			ctx,
+			service,
+			account,
+			ui,
+			"delete device credential",
+		)
+		return reconcileDarwinInProcessDelete(
+			ctx,
+			service,
+			account,
+			err,
+		)
 	}
 	operationCtx, cancel := boundedNativeOAuthSecretContext(ctx, ui)
 	defer cancel()
@@ -121,7 +175,7 @@ func darwinDeviceSecretDelete(
 		Service:       service,
 		Account:       account,
 	}
-	_, err := runNativeSecretWorkerProcess(operationCtx, request)
+	_, err := runNativeSecretWorkerForDarwinDevice(operationCtx, request)
 	return reconcileNativeSecretDelete(ctx, request, err)
 }
 
@@ -134,6 +188,7 @@ func decodeDarwinGoKeyringValue(value string) (string, error) {
 	switch {
 	case strings.HasPrefix(value, hexPrefix):
 		decoded, err := hex.DecodeString(strings.TrimPrefix(value, hexPrefix))
+		defer zeroSecretBytes(decoded)
 		if err != nil {
 			return "", fmt.Errorf("decode macOS Keychain device credential: %w", err)
 		}
@@ -142,6 +197,7 @@ func decodeDarwinGoKeyringValue(value string) (string, error) {
 		decoded, err := base64.StdEncoding.DecodeString(
 			strings.TrimPrefix(value, base64Prefix),
 		)
+		defer zeroSecretBytes(decoded)
 		if err != nil {
 			return "", fmt.Errorf("decode macOS Keychain device credential: %w", err)
 		}
@@ -151,15 +207,16 @@ func decodeDarwinGoKeyringValue(value string) (string, error) {
 	}
 }
 
-func macOSKeychainAvailableNoUI(ctx context.Context) error {
-	return exec.CommandContext(
-		ctx,
-		"/usr/bin/security",
-		"show-keychain-info",
-	).Run()
+func readRelayAuthToken() (string, error) {
+	return readRelayAuthTokenWithPolicy(SecretStoreForbidUI)
 }
 
-func readRelayAuthToken() (string, error) {
+func readRelayAuthTokenWithPolicy(
+	ui SecretStoreUIPolicy,
+) (string, error) {
+	if err := validateSecretUIPolicy(ui); err != nil {
+		return "", err
+	}
 	if token, overridden, err := readRelayAuthTokenOverride(); overridden {
 		if err != nil {
 			if isNotExist(err) {
@@ -178,21 +235,54 @@ func readRelayAuthToken() (string, error) {
 	}
 	service := relayAuthTokenServiceName()
 
-	// Read through go-keyring so the base64 envelope its writer (keyring.Set)
-	// adds is decoded back to the raw token. Reading the item with raw
-	// `security ... -w` returns the encoded `go-keyring-base64:...` value, which
-	// would authenticate every relay call with the wrong bearer token.
-	token, err := keyring.Get(service, u.Username)
+	ctx, cancel := boundedNativeOAuthSecretContext(
+		context.Background(),
+		ui,
+	)
+	defer cancel()
+	var token string
+	var found bool
+	if darwinDeviceSecureStorageBoundaryAvailable() {
+		token, found, err = readDarwinSecretThroughBoundary(
+			ctx,
+			service,
+			u.Username,
+			ui,
+			"read relay auth token",
+		)
+	} else {
+		token, found, err = readDarwinSecretInProcess(
+			ctx,
+			service,
+			u.Username,
+			ui,
+			"read relay auth token",
+		)
+	}
 	if err != nil {
-		if err == keyring.ErrNotFound {
-			return "", missingRelayAuthTokenError(service)
-		}
 		return "", relayAuthTokenReadError(service, err)
 	}
-	return token, nil
+	if !found {
+		return "", missingRelayAuthTokenError(service)
+	}
+	token, err = decodeDarwinGoKeyringValue(token)
+	if err != nil {
+		return "", relayAuthTokenReadError(service, err)
+	}
+	return strings.TrimSpace(token), nil
 }
 
 func writeRelayAuthToken(token string) error {
+	return writeRelayAuthTokenWithPolicy(token, SecretStoreForbidUI)
+}
+
+func writeRelayAuthTokenWithPolicy(
+	token string,
+	ui SecretStoreUIPolicy,
+) error {
+	if err := validateSecretUIPolicy(ui); err != nil {
+		return err
+	}
 	if overridden, err := writeRelayAuthTokenOverride(token); overridden {
 		if err != nil {
 			return fmt.Errorf("cannot write relay auth token: %w", err)
@@ -208,19 +298,42 @@ func writeRelayAuthToken(token string) error {
 	}
 	service := relayAuthTokenServiceName()
 
-	// Write via go-keyring, whose macOS backend pipes the command through
-	// `security -i` (stdin) instead of passing the secret as a CLI argument — so
-	// the token never appears in the process argv (visible to `ps`). go-keyring
-	// base64-wraps the stored value, so the read path MUST use keyring.Get
-	// (above) to decode it; delete matches by `-s <service> -a <user>` and needs
-	// no value, so it carries no argv exposure.
-	if err := keyring.Set(service, u.Username, token); err != nil {
-		return fmt.Errorf("cannot write relay auth token: %w", err)
+	ctx, cancel := boundedNativeOAuthSecretContext(
+		context.Background(),
+		ui,
+	)
+	defer cancel()
+	var writeErr error
+	if ui == SecretStoreAllowUI {
+		writeErr = replaceDarwinRelayAuthToken(
+			ctx,
+			service,
+			u.Username,
+			token,
+		)
+	} else {
+		writeErr = setDarwinRelayAuthToken(
+			ctx,
+			service,
+			u.Username,
+			token,
+			ui,
+		)
+	}
+	if writeErr != nil {
+		return fmt.Errorf("cannot write relay auth token: %w", writeErr)
 	}
 	return nil
 }
 
 func deleteRelayAuthToken() error {
+	return deleteRelayAuthTokenWithPolicy(SecretStoreForbidUI)
+}
+
+func deleteRelayAuthTokenWithPolicy(ui SecretStoreUIPolicy) error {
+	if err := validateSecretUIPolicy(ui); err != nil {
+		return err
+	}
 	if overridden, err := deleteRelayAuthTokenOverride(); overridden {
 		if err != nil {
 			return fmt.Errorf("cannot delete relay auth token: %w", err)
@@ -236,17 +349,19 @@ func deleteRelayAuthToken() error {
 	}
 	service := relayAuthTokenServiceName()
 
-	cmd := exec.Command(
-		"security", "delete-generic-password",
-		"-a", u.Username,
-		"-s", service,
+	ctx, cancel := boundedNativeOAuthSecretContext(
+		context.Background(),
+		ui,
 	)
-	if output, err := cmd.CombinedOutput(); err != nil {
-		text := strings.TrimSpace(string(output))
-		if strings.Contains(text, "could not be found") {
-			return nil
-		}
-		return fmt.Errorf("cannot delete relay auth token: %w (%s)", err, text)
+	defer cancel()
+	deleteErr := deleteDarwinRelayAuthToken(
+		ctx,
+		service,
+		u.Username,
+		ui,
+	)
+	if deleteErr != nil {
+		return fmt.Errorf("cannot delete relay auth token: %w", deleteErr)
 	}
 	return nil
 }

@@ -8,6 +8,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"testing"
+
+	"github.com/zalando/go-keyring"
 )
 
 func TestDecodeDarwinGoKeyringValue(t *testing.T) {
@@ -33,15 +35,9 @@ func TestDecodeDarwinGoKeyringValue(t *testing.T) {
 
 func TestDarwinDeviceCredentialPreflightAllowsExplicitPrompt(t *testing.T) {
 	originalPrompt := deviceCredentialPromptSessionAvailable
-	originalNoUI := macOSDeviceCredentialKeychainAvailableNoUI
 	deviceCredentialPromptSessionAvailable = func() bool { return true }
-	macOSDeviceCredentialKeychainAvailableNoUI = func(context.Context) error {
-		t.Fatal("explicit prompt preflight ran the no-UI keychain probe")
-		return nil
-	}
 	t.Cleanup(func() {
 		deviceCredentialPromptSessionAvailable = originalPrompt
-		macOSDeviceCredentialKeychainAvailableNoUI = originalNoUI
 	})
 
 	if err := darwinDeviceCredentialPreflight(
@@ -54,15 +50,9 @@ func TestDarwinDeviceCredentialPreflightAllowsExplicitPrompt(t *testing.T) {
 
 func TestDarwinDeviceCredentialPreflightRejectsUnsafePromptSession(t *testing.T) {
 	originalPrompt := deviceCredentialPromptSessionAvailable
-	originalNoUI := macOSDeviceCredentialKeychainAvailableNoUI
 	deviceCredentialPromptSessionAvailable = func() bool { return false }
-	macOSDeviceCredentialKeychainAvailableNoUI = func(context.Context) error {
-		t.Fatal("unsafe prompt session reached the no-UI keychain probe")
-		return nil
-	}
 	t.Cleanup(func() {
 		deviceCredentialPromptSessionAvailable = originalPrompt
-		macOSDeviceCredentialKeychainAvailableNoUI = originalNoUI
 	})
 
 	err := darwinDeviceCredentialPreflight(
@@ -74,26 +64,227 @@ func TestDarwinDeviceCredentialPreflightRejectsUnsafePromptSession(t *testing.T)
 	}
 }
 
-func TestDarwinDeviceCredentialPreflightForbidUIFailsLocked(t *testing.T) {
+func TestDarwinDeviceCredentialPreflightForbidUIDoesNotProbe(t *testing.T) {
 	originalPrompt := deviceCredentialPromptSessionAvailable
-	originalNoUI := macOSDeviceCredentialKeychainAvailableNoUI
 	deviceCredentialPromptSessionAvailable = func() bool {
 		t.Fatal("no-UI preflight consulted interactive prompt state")
 		return false
 	}
-	macOSDeviceCredentialKeychainAvailableNoUI = func(context.Context) error {
-		return errors.New("locked")
-	}
 	t.Cleanup(func() {
 		deviceCredentialPromptSessionAvailable = originalPrompt
-		macOSDeviceCredentialKeychainAvailableNoUI = originalNoUI
 	})
 
 	err := darwinDeviceCredentialPreflight(
 		context.Background(),
 		SecretStoreForbidUI,
 	)
-	if !isDesktopKeyringLockedError(err) {
-		t.Fatalf("no-UI locked preflight error = %v", err)
+	if err != nil {
+		t.Fatalf("no-UI preflight error = %v", err)
+	}
+}
+
+func TestDarwinDeviceSecretGetUsesNoUIPathWithoutHardenedBoundary(
+	t *testing.T,
+) {
+	originalBoundary := darwinDeviceSecureStorageBoundaryAvailable
+	originalRead := readDarwinSecretInProcess
+	darwinDeviceSecureStorageBoundaryAvailable = func() bool { return false }
+	calls := 0
+	readDarwinSecretInProcess = func(
+		_ context.Context,
+		service, account string,
+		ui SecretStoreUIPolicy,
+		operation string,
+	) (string, bool, error) {
+		calls++
+		if service != deviceCredentialService || account != secretUser() {
+			t.Fatalf("unexpected Keychain key: %q / %q", service, account)
+		}
+		if ui != SecretStoreForbidUI || operation == "" {
+			t.Fatalf("unexpected policy/operation: %q / %q", ui, operation)
+		}
+		return "go-keyring-base64:" +
+			base64.StdEncoding.EncodeToString([]byte("credential")), true, nil
+	}
+	t.Cleanup(func() {
+		darwinDeviceSecureStorageBoundaryAvailable = originalBoundary
+		readDarwinSecretInProcess = originalRead
+	})
+
+	value, err := darwinDeviceSecretGet(
+		context.Background(),
+		deviceCredentialService,
+		secretUser(),
+		SecretStoreForbidUI,
+	)
+	if err != nil || value != "credential" || calls != 1 {
+		t.Fatalf("no-UI read = (%q, %v), calls=%d", value, err, calls)
+	}
+}
+
+func TestDarwinDeviceSecretGetNoUIReportsMissingItem(t *testing.T) {
+	originalBoundary := darwinDeviceSecureStorageBoundaryAvailable
+	originalRead := readDarwinSecretInProcess
+	darwinDeviceSecureStorageBoundaryAvailable = func() bool { return false }
+	readDarwinSecretInProcess = func(
+		context.Context,
+		string, string, SecretStoreUIPolicy, string,
+	) (string, bool, error) {
+		return "", false, nil
+	}
+	t.Cleanup(func() {
+		darwinDeviceSecureStorageBoundaryAvailable = originalBoundary
+		readDarwinSecretInProcess = originalRead
+	})
+
+	_, err := darwinDeviceSecretGet(
+		context.Background(),
+		deviceCredentialService,
+		secretUser(),
+		SecretStoreForbidUI,
+	)
+	if !errors.Is(err, keyring.ErrNotFound) {
+		t.Fatalf("missing no-UI read error = %v", err)
+	}
+}
+
+func TestDarwinDeviceSecretMutationsUseNoUIPathWithoutHardenedBoundary(
+	t *testing.T,
+) {
+	originalBoundary := darwinDeviceSecureStorageBoundaryAvailable
+	originalSet := setDarwinSecretInProcess
+	originalDelete := deleteDarwinSecretInProcess
+	darwinDeviceSecureStorageBoundaryAvailable = func() bool { return false }
+	var calls []string
+	setDarwinSecretInProcess = func(
+		_ context.Context,
+		service, account, value string,
+		ui SecretStoreUIPolicy,
+		operation string,
+	) error {
+		if service != deviceCredentialService ||
+			account != secretUser() ||
+			value != "credential" ||
+			ui != SecretStoreForbidUI {
+			t.Fatalf("unexpected no-UI set input")
+		}
+		calls = append(calls, operation)
+		return nil
+	}
+	deleteDarwinSecretInProcess = func(
+		_ context.Context,
+		service, account string,
+		ui SecretStoreUIPolicy,
+		operation string,
+	) error {
+		if service != deviceCredentialService ||
+			account != secretUser() ||
+			ui != SecretStoreForbidUI {
+			t.Fatalf("unexpected no-UI delete input")
+		}
+		calls = append(calls, operation)
+		return nil
+	}
+	t.Cleanup(func() {
+		darwinDeviceSecureStorageBoundaryAvailable = originalBoundary
+		setDarwinSecretInProcess = originalSet
+		deleteDarwinSecretInProcess = originalDelete
+	})
+
+	if err := darwinDeviceSecretSet(
+		context.Background(),
+		deviceCredentialService,
+		secretUser(),
+		"credential",
+		SecretStoreForbidUI,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if err := darwinDeviceSecretDelete(
+		context.Background(),
+		deviceCredentialService,
+		secretUser(),
+		SecretStoreForbidUI,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if len(calls) != 2 || calls[0] == "" || calls[1] == "" {
+		t.Fatalf("no-UI mutation calls = %v", calls)
+	}
+}
+
+func TestDarwinDeviceSecretUsesWorkerPathWithHardenedBoundary(
+	t *testing.T,
+) {
+	originalBoundary := darwinDeviceSecureStorageBoundaryAvailable
+	originalRead := readDarwinSecretThroughBoundary
+	originalWorker := runNativeSecretWorkerForDarwinDevice
+	darwinDeviceSecureStorageBoundaryAvailable = func() bool { return true }
+	readDarwinSecretThroughBoundary = func(
+		_ context.Context,
+		service, account string,
+		ui SecretStoreUIPolicy,
+		operation string,
+	) (string, bool, error) {
+		if service != deviceCredentialService ||
+			account != secretUser() ||
+			ui != SecretStoreForbidUI ||
+			operation == "" {
+			t.Fatalf("unexpected hardened read input")
+		}
+		return "go-keyring-base64:" +
+			base64.StdEncoding.EncodeToString([]byte("credential")), true, nil
+	}
+	var operations []nativeSecretOperation
+	runNativeSecretWorkerForDarwinDevice = func(
+		_ context.Context,
+		request nativeSecretWorkerRequest,
+	) (nativeSecretWorkerResponse, error) {
+		if request.Service != deviceCredentialService ||
+			request.Account != secretUser() ||
+			request.UI != SecretStoreForbidUI {
+			t.Fatalf("unexpected hardened worker request: %+v", request)
+		}
+		operations = append(operations, request.Operation)
+		return nativeSecretWorkerResponse{
+			SchemaVersion: nativeSecretWorkerSchema,
+		}, nil
+	}
+	t.Cleanup(func() {
+		darwinDeviceSecureStorageBoundaryAvailable = originalBoundary
+		readDarwinSecretThroughBoundary = originalRead
+		runNativeSecretWorkerForDarwinDevice = originalWorker
+	})
+
+	value, err := darwinDeviceSecretGet(
+		context.Background(),
+		deviceCredentialService,
+		secretUser(),
+		SecretStoreForbidUI,
+	)
+	if err != nil || value != "credential" {
+		t.Fatalf("hardened read = %q, %v", value, err)
+	}
+	if err := darwinDeviceSecretSet(
+		context.Background(),
+		deviceCredentialService,
+		secretUser(),
+		"credential",
+		SecretStoreForbidUI,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if err := darwinDeviceSecretDelete(
+		context.Background(),
+		deviceCredentialService,
+		secretUser(),
+		SecretStoreForbidUI,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if len(operations) != 2 ||
+		operations[0] != nativeSecretSet ||
+		operations[1] != nativeSecretDelete {
+		t.Fatalf("hardened worker operations = %v", operations)
 	}
 }
