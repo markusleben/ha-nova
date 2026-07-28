@@ -221,17 +221,29 @@ try {
   }
   const currentWorkflowRun = trustedCI.current;
   activeWorkflowRun = currentWorkflowRun;
+  async function revalidateCurrentAttempt() {
+    const mutationCI = await requireTrustedCI(workflowRun);
+    if (mutationCI.staleAttempt) {
+      await discardStaleAttempt(currentWorkflowRun);
+    }
+  }
   if (action === "in_progress") {
     if (currentWorkflowRun.status === "completed") {
       noCheck("upstream CI already completed; provisional check not emitted");
     }
-    if (await hasTerminalAttemptResult(currentWorkflowRun)) {
+    if (
+      await hasTerminalAttemptResult(
+        currentWorkflowRun,
+        revalidateCurrentAttempt,
+      )
+    ) {
       await deletePendingTargetChecks(currentWorkflowRun, headSHA);
       noCheck("source check attempt already has a terminal result");
     }
     const { check, terminalResult } = await ensurePendingCheck(
       currentWorkflowRun,
       headSHA,
+      revalidateCurrentAttempt,
     );
     if (terminalResult) {
       process.exit(0);
@@ -244,7 +256,12 @@ try {
     if (refreshedWorkflowRun.status === "completed") {
       if (event === "pull_request") {
         await deletePendingTargetChecks(refreshedWorkflowRun, headSHA);
-      } else if (await hasTerminalAttemptResult(refreshedWorkflowRun)) {
+      } else if (
+        await hasTerminalAttemptResult(
+          refreshedWorkflowRun,
+          revalidateCurrentAttempt,
+        )
+      ) {
         await deletePendingAttemptChecks(refreshedWorkflowRun);
       }
     }
@@ -259,7 +276,9 @@ try {
       "upstream CI did not complete successfully; no source check emitted",
     );
   }
-  if (await hasTerminalAttemptResult(currentWorkflowRun)) {
+  if (
+    await hasTerminalAttemptResult(currentWorkflowRun, revalidateCurrentAttempt)
+  ) {
     await deletePendingAttemptChecks(currentWorkflowRun);
     noCheck("source check attempt already has a terminal result");
   }
@@ -283,12 +302,7 @@ try {
           currentWorkflowRun,
           headSHA,
           "GitHub did not materialize the current pull-request source before the bounded deadline. Re-run CI once; the Cloud Source Gate will follow automatically.",
-          async () => {
-            const rejectionCI = await requireTrustedCI(workflowRun);
-            if (rejectionCI.staleAttempt) {
-              await discardStaleAttempt(workflowRun);
-            }
-          },
+          revalidateCurrentAttempt,
         );
       }
       noCheck(resolved.reason);
@@ -330,6 +344,7 @@ try {
   const { check, terminalResult } = await ensurePendingCheck(
     currentWorkflowRun,
     verifiedTargetSHA,
+    revalidateCurrentAttempt,
   );
   checkId = check.id;
   await deletePendingAttemptChecks(currentWorkflowRun, checkId);

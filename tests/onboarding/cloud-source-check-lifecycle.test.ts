@@ -62,6 +62,7 @@ const reporter = createCloudSourceCheckReporter({
 await reporter.ensurePendingCheck(
   JSON.parse(process.env.MOCK_WORKFLOW_RUN),
   process.env.MOCK_TARGET_SHA,
+  async () => {},
 );
 `,
     "utf8",

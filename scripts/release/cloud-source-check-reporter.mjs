@@ -207,7 +207,7 @@ export function createCloudSourceCheckReporter({
     workflowRun,
     targetSHA,
     summary,
-    beforeTerminalMutation = async () => {},
+    beforeTerminalMutation,
   ) {
     const checks = await sourceChecks(workflowRun, targetSHA);
     const terminals = checks.filter(
@@ -243,7 +243,7 @@ export function createCloudSourceCheckReporter({
     await deletePendingAttemptChecks(workflowRun);
   }
 
-  async function hasTerminalAttemptResult(workflowRun) {
+  async function hasTerminalAttemptResult(workflowRun, beforeTerminalMutation) {
     const prefix = attemptPrefix(workflowRun);
     const terminals = (await sourceCheckRuns(workflowRun)).filter(
       (candidate) =>
@@ -261,6 +261,7 @@ export function createCloudSourceCheckReporter({
           workflowRun,
           workflowRun.head_sha,
           "Conflicting terminal source checks were detected for this CI attempt.",
+          beforeTerminalMutation,
         );
       }
       failReported("source checks have conflicting terminal conclusions");
@@ -338,7 +339,7 @@ export function createCloudSourceCheckReporter({
     workflowRun,
     targetSHA,
     summary,
-    beforeTerminalMutation = async () => {},
+    beforeTerminalMutation,
   ) {
     const failed = await createCheck(workflowRun, targetSHA);
     if (
@@ -364,7 +365,11 @@ export function createCloudSourceCheckReporter({
     return failed;
   }
 
-  async function ensurePendingCheck(workflowRun, targetSHA) {
+  async function ensurePendingCheck(
+    workflowRun,
+    targetSHA,
+    beforeTerminalMutation,
+  ) {
     let checks = await sourceChecks(workflowRun, targetSHA);
     const terminals = checks
       .filter((candidate) => candidate.status === "completed")
@@ -394,6 +399,7 @@ export function createCloudSourceCheckReporter({
           workflowRun,
           targetSHA,
           "Conflicting terminal source checks were detected for this exact target.",
+          beforeTerminalMutation,
         );
       }
       failReported("source checks have conflicting terminal conclusions");
@@ -439,6 +445,7 @@ export function createCloudSourceCheckReporter({
             workflowRun,
             targetSHA,
             "A terminal source check raced pending-check creation.",
+            beforeTerminalMutation,
           );
         }
         failReported("terminal source check raced pending-check creation");

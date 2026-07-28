@@ -6,6 +6,78 @@ import {
   runSourceGate,
 } from "./cloud-source-runner-behavior.js";
 
+function terminalConflict(targetSHA: string) {
+  const externalId = `workflow-run:123:attempt:1:target:${targetSHA}`;
+  return [
+    {
+      app: { id: 42 },
+      conclusion: "failure",
+      external_id: externalId,
+      id: 701,
+      name: "cloud-source-gate",
+      status: "completed",
+    },
+    {
+      app: { id: 42 },
+      conclusion: "success",
+      external_id: externalId,
+      id: 702,
+      name: "cloud-source-gate",
+      status: "completed",
+    },
+  ];
+}
+
+function newerPending(targetSHA: string) {
+  return {
+    app: { id: 42 },
+    external_id: `workflow-run:123:attempt:2:target:${targetSHA}`,
+    id: 703,
+    name: "cloud-source-gate",
+    status: "in_progress",
+  };
+}
+
+function expectStaleConflictCleanup(
+  result: ReturnType<typeof runSourceGate>["result"],
+  trace: ReturnType<typeof runSourceGate>["trace"],
+  expectedPostCount: number,
+) {
+  expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
+  expect(result.stdout).toContain("older CI attempt");
+  expect(trace.some((entry) => entry.method === "PATCH")).toBe(false);
+  const posts = trace.filter((entry) => entry.method === "POST");
+  expect(posts).toHaveLength(expectedPostCount);
+  expect(
+    posts.every((entry) =>
+      String(entry.body?.external_id).startsWith(
+        "workflow-run:123:attempt:1:target:",
+      ),
+    ),
+  ).toBe(true);
+  expect(
+    trace.filter(
+      (entry) =>
+        entry.method === "DELETE" && entry.path.endsWith("/check-runs/900"),
+    ),
+  ).toHaveLength(expectedPostCount);
+  expect(
+    trace.some(
+      (entry) =>
+        entry.method === "DELETE" && entry.path.endsWith("/check-runs/703"),
+    ),
+  ).toBe(false);
+  expect(
+    trace.some(
+      (entry) =>
+        entry.method === "DELETE" &&
+        ["/check-runs/701", "/check-runs/702"].some((suffix) =>
+          entry.path.endsWith(suffix),
+        ),
+    ),
+  ).toBe(false);
+}
+
 export function registerCloudSourceRunnerLifecycleBehaviorTests(): void {
   describe("Cloud source runner behavior", () => {
     it("creates only a provisional pending check while CI is in progress", () => {
@@ -93,6 +165,45 @@ export function registerCloudSourceRunnerLifecycleBehaviorTests(): void {
             entry.method === "PATCH" && entry.body?.conclusion === "success",
         ),
       ).toHaveLength(1);
+    });
+
+    it("drops an attempt-wide conflict fail-safe after a newer attempt starts", () => {
+      const { result, trace } = runSourceGate({
+        currentWorkflowAttemptSequence: [1, 2],
+        currentWorkflowStatusSequence: ["completed", "in_progress"],
+        initialChecks: [...terminalConflict(headSHA), newerPending(headSHA)],
+      });
+      expectStaleConflictCleanup(result, trace, 1);
+    });
+
+    it("drops an exact-target conflict fail-safe after a newer attempt starts", () => {
+      const { result, trace } = runSourceGate({
+        currentWorkflowAttemptSequence: [1, 1, 2],
+        currentWorkflowStatusSequence: [
+          "completed",
+          "completed",
+          "in_progress",
+        ],
+        initialChecks: [newerPending(mergeSHA)],
+        lateVisibleChecks: terminalConflict(mergeSHA),
+        lateVisibleChecksDelay: 1,
+      });
+      expectStaleConflictCleanup(result, trace, 1);
+    });
+
+    it("drops a raced conflict fail-safe after a newer attempt starts", () => {
+      const { result, trace } = runSourceGate({
+        currentWorkflowAttemptSequence: [1, 1, 2],
+        currentWorkflowStatusSequence: [
+          "completed",
+          "completed",
+          "in_progress",
+        ],
+        initialChecks: [newerPending(mergeSHA)],
+        lateVisibleChecks: terminalConflict(mergeSHA),
+        lateVisibleChecksDelay: 2,
+      });
+      expectStaleConflictCleanup(result, trace, 2);
     });
   });
 }
