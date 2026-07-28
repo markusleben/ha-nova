@@ -59,30 +59,49 @@ func TestSetupPairingAppPanelUsesSelectedBuildSlug(t *testing.T) {
 func TestSetupPairingAppPanelDoesNotGuessOfficialSlugForUnstampedBuild(
 	t *testing.T,
 ) {
-	for _, identity := range []cloudRemoteBuildIdentity{
-		{Disabled: true},
-		{},
+	for _, testCase := range []struct {
+		name     string
+		identity cloudRemoteBuildIdentity
+	}{
+		{name: "disabled", identity: cloudRemoteBuildIdentity{Disabled: true}},
+		{name: "unknown", identity: cloudRemoteBuildIdentity{}},
+		{
+			name: "unstamped development",
+			identity: cloudRemoteBuildIdentity{
+				Development: true,
+			},
+		},
+		{
+			name: "invalid development slug",
+			identity: cloudRemoteBuildIdentity{
+				Development: true,
+				AppSlug:     "../production",
+			},
+		},
 	} {
-		_, restore := setCloudFeatureTestIdentity(t, identity)
-		got, err := haNOVAAppPanelURL("http://192.168.1.5:8123/")
-		restore()
-		if err != nil ||
-			got.URL != "http://192.168.1.5:8123" ||
-			got.Direct {
-			t.Fatalf(
-				"identity=%+v haNOVAAppPanelURL() = %+v, %v",
-				identity,
-				got,
-				err,
-			)
-		}
-		if strings.Contains(got.URL, HAOfficialNOVAAppSlug) {
-			t.Fatalf(
-				"identity=%+v guessed the production App: %q",
-				identity,
-				got.URL,
-			)
-		}
+		t.Run(testCase.name, func(t *testing.T) {
+			_, restore := setCloudFeatureTestIdentity(t, testCase.identity)
+			defer restore()
+
+			got, err := haNOVAAppPanelURL("http://192.168.1.5:8123/")
+			if err != nil ||
+				got.URL != "http://192.168.1.5:8123" ||
+				got.Direct {
+				t.Fatalf(
+					"identity=%+v haNOVAAppPanelURL() = %+v, %v",
+					testCase.identity,
+					got,
+					err,
+				)
+			}
+			if strings.Contains(got.URL, HAOfficialNOVAAppSlug) {
+				t.Fatalf(
+					"identity=%+v guessed the production App: %q",
+					testCase.identity,
+					got.URL,
+				)
+			}
+		})
 	}
 }
 

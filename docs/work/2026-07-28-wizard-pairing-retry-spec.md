@@ -50,8 +50,9 @@ the browser-to-terminal round trip.
 - Official and validated Cloud-development builds open Home Assistant's
   `/app/<slug>` panel directly and retain a visible sidebar/App-page fallback
   for older Home Assistant versions.
-- Disabled or unstamped development builds never guess the official App slug;
-  they open Home Assistant and require selection of the intended sidebar App.
+- Disabled, unstamped, or invalidly stamped development builds never guess the
+  official App slug; they open Home Assistant and require selection of the
+  intended sidebar App.
 - A completed local setup that did not already present the connection-mode
   choice shows `ha-nova cloud add` as the optional next step when Cloud support
   is available.
@@ -75,7 +76,9 @@ the browser-to-terminal round trip.
   request write.
 - Cloud finish tests cover persistent ambiguity, mixed definitive responses,
   proven pre-dispatch transport failure, and context expiry after dispatch.
-- URL tests cover official, isolated developer, and disabled/unstamped routes.
+- URL tests cover official, isolated developer, and
+  disabled/unstamped/invalid-development routes, including an actual
+  unstamped `cloudremote_dev` build.
 - UX tests cover the optional post-setup Cloud command and the pre-browser
   OAuth explanation, plus the Cloud-choice hierarchy and default-No prompt.
 - Run the targeted Go test package and one isolated real Wizard pairing.

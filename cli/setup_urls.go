@@ -33,6 +33,10 @@ func haNOVAAppPanelURL(
 		(!identity.Official && !identity.Development) {
 		return haNOVAAppOpenTarget{URL: baseURL}, nil
 	}
+	if identity.Development &&
+		validateCloudRemoteDevelopmentIdentity(identity) != nil {
+		return haNOVAAppOpenTarget{URL: baseURL}, nil
+	}
 	appSlug, err := selectedCloudNOVAAppSlug()
 	if err != nil {
 		return haNOVAAppOpenTarget{}, err
