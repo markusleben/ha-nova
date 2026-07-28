@@ -58,7 +58,7 @@ jobs:
     needs: cloud-source-mode
     if: needs.cloud-source-mode.outputs.should-run == 'true'
     runs-on: ubuntu-latest
-    # Covers the 60-second materialization window, bounded policy commands,
+    # Covers the 90-second materialization window, bounded policy commands,
     # network calls, and a final pending-check cleanup attempt.
     timeout-minutes: 10
     environment:

@@ -252,8 +252,9 @@ export function registerCloudReleaseGateContractTests(): void {
       '`workflow-run:${workflowRun.id}:attempt:${workflowRun.run_attempt}:target:${requireSHA(targetSHA, "source check target SHA")}`',
     );
     expect(reporter).toContain(
-      "ensurePendingCheck(\n    currentWorkflowRun,\n    verifiedTargetSHA,\n  )",
+      "ensurePendingCheck(\n    currentWorkflowRun,\n    verifiedTargetSHA,\n    revalidateCurrentAttempt,\n  )",
     );
+    expect(reporterHelper).not.toContain("beforeTerminalMutation =");
     expect(reporter).toContain("terminalResult");
     expect(reporterHelper).toContain(
       "source checks have conflicting terminal conclusions",

@@ -9,8 +9,6 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { describe, expect, it } from "vitest";
-
 export const headSHA = "a".repeat(40);
 const baseSHA = "b".repeat(40);
 export const mergeSHA = "d".repeat(40);
@@ -23,24 +21,38 @@ export type RunOptions = {
   conclusion?: "cancelled" | "failure" | "success";
   event?: "merge_group" | "pull_request";
   gitSHA?: null | string;
+  gitSHASequence?: Array<null | string>;
   initialChecks?: unknown[];
   mergeCommitSHA?: null | string;
   mergeCommitSHASequence?: Array<null | string>;
+  monotonicNowSequence?: number[];
   checkListStatusAfterPatch?: number;
   checkReadStatus?: number;
+  deleteStatus?: number;
+  deleteStatusSequence?: number[];
+  lateVisibleChecks?: unknown[];
+  lateVisibleChecksDelay?: number;
   patchStatus?: number;
   patchThrowsAfterApply?: boolean;
+  postReconcileListStatusSequence?: number[];
+  postThrowsBeforeApply?: boolean;
+  postThrowsAfterApply?: boolean;
+  postVisibilityDelay?: number;
   pullCount?: number;
   currentWorkflowStatus?: "completed" | "in_progress";
   currentWorkflowAttempt?: number;
+  currentWorkflowAttemptSequence?: number[];
   currentWorkflowStatusSequence?: Array<"completed" | "in_progress">;
   workflowAPIStatus?: number;
+  workflowAPIStatusSequence?: number[];
 };
 
 export function runSourceGate(options: RunOptions = {}) {
   const root = mkdtempSync(join(tmpdir(), "ha-nova-source-runner-"));
   const bin = join(root, "bin");
   const eventPath = join(root, "event.json");
+  const gitIndexPath = join(root, "git-index");
+  const gitSequencePath = join(root, "git-sequence");
   const preloadPath = join(root, "mock-fetch.mjs");
   const tracePath = join(root, "trace.jsonl");
   mkdirSync(bin);
@@ -91,8 +103,16 @@ export function runSourceGate(options: RunOptions = {}) {
   writeFileSync(
     join(bin, "git"),
     `#!/bin/sh
-if [ -n "$MOCK_GIT_SHA" ]; then
-  printf '%s\\t%s\\n' "$MOCK_GIT_SHA" "$4"
+index="$(cat "$MOCK_GIT_INDEX_FILE")"
+index="$((index + 1))"
+printf '%s' "$index" > "$MOCK_GIT_INDEX_FILE"
+count="$(wc -l < "$MOCK_GIT_SEQUENCE_FILE" | tr -d ' ')"
+if [ "$index" -gt "$count" ]; then
+  index="$count"
+fi
+mock_sha="$(sed -n "\${index}p" "$MOCK_GIT_SEQUENCE_FILE")"
+if [ -n "$mock_sha" ]; then
+  printf '%s\\t%s\\n' "$mock_sha" "$4"
 fi
 `,
     "utf8",
@@ -106,20 +126,73 @@ exit "$MOCK_BASH_EXIT"
   );
   chmodSync(join(bin, "git"), 0o755);
   chmodSync(join(bin, "bash"), 0o755);
+  const defaultGitSHA =
+    options.gitSHA === undefined
+      ? event === "pull_request"
+        ? (pull.merge_commit_sha ?? "")
+        : headSHA
+      : (options.gitSHA ?? "");
+  writeFileSync(gitIndexPath, "0", "utf8");
+  writeFileSync(
+    gitSequencePath,
+    `${(options.gitSHASequence ?? [defaultGitSHA])
+      .map((sha) => sha ?? "")
+      .join("\n")}\n`,
+    "utf8",
+  );
 
   writeFileSync(
     preloadPath,
     `import { appendFileSync } from "node:fs";
 let checks = JSON.parse(process.env.MOCK_CHECKS);
+let hiddenChecks = [];
+let postVisibilityScansRemaining = Number(
+  process.env.MOCK_POST_VISIBILITY_DELAY,
+);
+let lateVisibleChecks = JSON.parse(process.env.MOCK_LATE_VISIBLE_CHECKS);
+let lateVisibleScansRemaining = Number(
+  process.env.MOCK_LATE_VISIBLE_CHECKS_DELAY,
+);
+const monotonicNowSequence = JSON.parse(
+  process.env.MOCK_MONOTONIC_NOW_SEQUENCE,
+);
+let monotonicNowIndex = 0;
+let monotonicNow = 0;
+Object.defineProperty(globalThis.performance, "now", {
+  value: () => {
+    if (monotonicNowSequence.length === 0) {
+      return monotonicNow;
+    }
+    return monotonicNowSequence[
+      Math.min(monotonicNowIndex++, monotonicNowSequence.length - 1)
+    ];
+  },
+});
 const pulls = JSON.parse(process.env.MOCK_PULLS);
 const fullPulls = JSON.parse(process.env.MOCK_FULL_PULLS);
 let fullPullIndex = 0;
 let terminalPatchCompleted = false;
+let postAttempted = false;
+const postReconcileListStatuses = JSON.parse(
+  process.env.MOCK_POST_RECONCILE_LIST_STATUSES,
+);
+let postReconcileListStatusIndex = 0;
+const deleteStatuses = JSON.parse(process.env.MOCK_DELETE_STATUSES);
+let deleteStatusIndex = 0;
 const associationPresent = JSON.parse(process.env.MOCK_ASSOCIATION_PRESENT);
 let associationIndex = 0;
 const workflowRuns = JSON.parse(process.env.MOCK_WORKFLOW_RUNS);
 let workflowRunIndex = 0;
-globalThis.setTimeout = (callback) => {
+const workflowAPIStatuses = JSON.parse(
+  process.env.MOCK_WORKFLOW_API_STATUSES,
+);
+let workflowAPIStatusIndex = 0;
+globalThis.setTimeout = (callback, delay = 0) => {
+  monotonicNow += delay;
+  appendFileSync(
+    process.env.MOCK_TRACE,
+    JSON.stringify({ method: "TIMER", path: String(delay), body: null }) + "\\n",
+  );
   callback();
   return 0;
 };
@@ -138,7 +211,9 @@ globalThis.fetch = async (url, init = {}) => {
   if (path.endsWith("/actions/runs/123")) {
     return response(
       workflowRuns[Math.min(workflowRunIndex++, workflowRuns.length - 1)],
-      Number(process.env.MOCK_WORKFLOW_API_STATUS),
+      workflowAPIStatuses[
+        Math.min(workflowAPIStatusIndex++, workflowAPIStatuses.length - 1)
+      ],
     );
   }
   if (path.endsWith("/commits/${headSHA}/pulls")) {
@@ -152,15 +227,57 @@ globalThis.fetch = async (url, init = {}) => {
     return response(fullPulls[Math.min(fullPullIndex++, fullPulls.length - 1)]);
   }
   if (path.endsWith("/check-runs") && method === "GET") {
+    if (hiddenChecks.length > 0) {
+      if (postVisibilityScansRemaining === 0) {
+        checks.push(...hiddenChecks);
+        hiddenChecks = [];
+      } else {
+        postVisibilityScansRemaining -= 1;
+      }
+    }
+    if (lateVisibleChecks.length > 0) {
+      if (lateVisibleScansRemaining === 0) {
+        checks.push(...lateVisibleChecks);
+        lateVisibleChecks = [];
+      } else {
+        lateVisibleScansRemaining -= 1;
+      }
+    }
+    const postReconcileStatus =
+      postAttempted && postReconcileListStatuses.length > 0
+        ? postReconcileListStatuses[
+            Math.min(
+              postReconcileListStatusIndex++,
+              postReconcileListStatuses.length - 1,
+            )
+          ]
+        : undefined;
     return response(
       { check_runs: checks, total_count: checks.length },
-      terminalPatchCompleted
-        ? Number(process.env.MOCK_CHECK_LIST_STATUS_AFTER_PATCH)
-        : 200,
+      postReconcileStatus ??
+        (terminalPatchCompleted
+          ? Number(process.env.MOCK_CHECK_LIST_STATUS_AFTER_PATCH)
+          : 200),
     );
   }
   if (path.endsWith("/check-runs") && method === "POST") {
-    const created = { ...body, app: { id: 42 }, id: 900 };
+    postAttempted = true;
+    if (process.env.MOCK_POST_THROWS_BEFORE_APPLY === "true") {
+      throw new DOMException("mock response timeout", "TimeoutError");
+    }
+    const created = {
+      ...body,
+      app: { id: 42 },
+      id: 900,
+    };
+    if (process.env.MOCK_POST_THROWS_AFTER_APPLY === "true") {
+      if (postVisibilityScansRemaining > 0) {
+        hiddenChecks.push(created);
+      } else {
+        checks.push(created);
+      }
+      throw new DOMException("mock response timeout", "TimeoutError");
+    }
     checks.push(created);
     return response(created, 201);
   }
@@ -193,8 +310,12 @@ globalThis.fetch = async (url, init = {}) => {
   }
   if (path.includes("/check-runs/") && method === "DELETE") {
     const id = Number(path.split("/").at(-1));
-    checks = checks.filter((candidate) => candidate.id !== id);
-    return response({}, 204);
+    const deleteStatus =
+      deleteStatuses[Math.min(deleteStatusIndex++, deleteStatuses.length - 1)];
+    if (deleteStatus === 204) {
+      checks = checks.filter((candidate) => candidate.id !== id);
+    }
+    return response({}, deleteStatus);
   }
   return response({ message: "unexpected request" }, 500);
 };
@@ -226,12 +347,20 @@ globalThis.fetch = async (url, init = {}) => {
         ),
         MOCK_CHECK_READ_STATUS: String(options.checkReadStatus ?? 200),
         MOCK_CHECKS: JSON.stringify(options.initialChecks ?? []),
-        MOCK_GIT_SHA:
-          options.gitSHA === undefined
-            ? event === "pull_request"
-              ? (pull.merge_commit_sha ?? "")
-              : headSHA
-            : (options.gitSHA ?? ""),
+        MOCK_DELETE_STATUSES: JSON.stringify(
+          options.deleteStatusSequence ?? [options.deleteStatus ?? 204],
+        ),
+        MOCK_GIT_INDEX_FILE: gitIndexPath,
+        MOCK_GIT_SEQUENCE_FILE: gitSequencePath,
+        MOCK_MONOTONIC_NOW_SEQUENCE: JSON.stringify(
+          options.monotonicNowSequence ?? [],
+        ),
+        MOCK_LATE_VISIBLE_CHECKS: JSON.stringify(
+          options.lateVisibleChecks ?? [],
+        ),
+        MOCK_LATE_VISIBLE_CHECKS_DELAY: String(
+          options.lateVisibleChecksDelay ?? 0,
+        ),
         MOCK_PULLS: JSON.stringify(pulls),
         MOCK_FULL_PULLS: JSON.stringify(
           (options.mergeCommitSHASequence ?? [pull.merge_commit_sha]).map(
@@ -242,20 +371,39 @@ globalThis.fetch = async (url, init = {}) => {
         MOCK_PATCH_THROWS_AFTER_APPLY: String(
           options.patchThrowsAfterApply ?? false,
         ),
+        MOCK_POST_RECONCILE_LIST_STATUSES: JSON.stringify(
+          options.postReconcileListStatusSequence ?? [],
+        ),
+        MOCK_POST_THROWS_BEFORE_APPLY: String(
+          options.postThrowsBeforeApply ?? false,
+        ),
+        MOCK_POST_THROWS_AFTER_APPLY: String(
+          options.postThrowsAfterApply ?? false,
+        ),
+        MOCK_POST_VISIBILITY_DELAY: String(options.postVisibilityDelay ?? 0),
         MOCK_TRACE: tracePath,
         MOCK_WORKFLOW_RUNS: JSON.stringify(
           (
             options.currentWorkflowStatusSequence ?? [
               options.currentWorkflowStatus ?? workflowRun.status,
             ]
-          ).map((status) => ({
-            ...workflowRun,
-            run_attempt:
+          ).map((status, index) => {
+            const attemptSequence = options.currentWorkflowAttemptSequence ?? [
               options.currentWorkflowAttempt ?? workflowRun.run_attempt,
-            status,
-          })),
+            ];
+            return {
+              ...workflowRun,
+              run_attempt:
+                attemptSequence[Math.min(index, attemptSequence.length - 1)],
+              status,
+            };
+          }),
         ),
-        MOCK_WORKFLOW_API_STATUS: String(options.workflowAPIStatus ?? 200),
+        MOCK_WORKFLOW_API_STATUSES: JSON.stringify(
+          options.workflowAPIStatusSequence ?? [
+            options.workflowAPIStatus ?? 200,
+          ],
+        ),
         PATH: `${bin}:${process.env.PATH ?? ""}`,
       },
     },
@@ -273,96 +421,4 @@ globalThis.fetch = async (url, init = {}) => {
         },
     );
   return { result, trace };
-}
-
-export function registerCloudSourceRunnerBehaviorTests(): void {
-  describe("Cloud source runner behavior", () => {
-    it("creates only a provisional pending check while CI is in progress", () => {
-      const { result, trace } = runSourceGate({ action: "in_progress" });
-      expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
-      expect(result.stdout).toContain(
-        "provisional source check recorded for active CI",
-      );
-      const post = trace.find((entry) => entry.method === "POST");
-      expect(post?.body?.external_id).toBe(
-        `workflow-run:123:attempt:1:target:${headSHA}`,
-      );
-      expect(
-        trace.some((entry) => entry.path.includes(`/commits/${headSHA}/pulls`)),
-      ).toBe(false);
-    });
-
-    it("replaces the provisional check only after the exact check is pending", () => {
-      const provisional = {
-        app: { id: 42 },
-        external_id: `workflow-run:123:attempt:1:target:${headSHA}`,
-        id: 700,
-        name: "cloud-source-gate",
-        status: "in_progress",
-      };
-      const { result, trace } = runSourceGate({
-        initialChecks: [provisional],
-      });
-      expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
-      const exactPostIndex = trace.findIndex(
-        (entry) =>
-          entry.method === "POST" &&
-          entry.body?.external_id ===
-            `workflow-run:123:attempt:1:target:${mergeSHA}`,
-      );
-      const provisionalDeleteIndex = trace.findIndex(
-        (entry) =>
-          entry.method === "DELETE" &&
-          entry.path.endsWith(`/check-runs/${provisional.id}`),
-      );
-      expect(exactPostIndex).toBeGreaterThanOrEqual(0);
-      expect(provisionalDeleteIndex).toBeGreaterThan(exactPostIndex);
-    });
-
-    it.each(["cancelled", "failure"] as const)(
-      "exits without a check after %s CI",
-      (conclusion) => {
-        const { result, trace } = runSourceGate({ conclusion });
-        expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
-        expect(result.stdout).toContain("no source check emitted");
-        expect(trace.some((entry) => entry.method === "POST")).toBe(false);
-      },
-    );
-
-    it("keeps infrastructure failures before check creation visible", () => {
-      const { result, trace } = runSourceGate({ workflowAPIStatus: 500 });
-      expect(result.status).not.toBe(0);
-      expect(result.stderr).toContain("returned HTTP 500");
-      expect(trace.some((entry) => entry.method === "POST")).toBe(false);
-    });
-
-    it.each([
-      [null, "no longer current"],
-      ["c".repeat(40), "moved before source verification"],
-    ] as const)(
-      "exits without a check when the merge-queue ref is stale: %s",
-      (gitSHA, message) => {
-        const { result, trace } = runSourceGate({
-          event: "merge_group",
-          gitSHA,
-        });
-        expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
-        expect(result.stdout).toContain(message);
-        expect(trace.some((entry) => entry.method === "POST")).toBe(false);
-      },
-    );
-
-    it("reports successful completed verification once", () => {
-      const { result, trace } = runSourceGate({ event: "merge_group" });
-      expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
-      expect(trace.filter((entry) => entry.method === "POST")).toHaveLength(1);
-      expect(
-        trace.filter(
-          (entry) =>
-            entry.method === "PATCH" && entry.body?.conclusion === "success",
-        ),
-      ).toHaveLength(1);
-    });
-
-  });
 }

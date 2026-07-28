@@ -5,16 +5,20 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { registerCloudSourceCheckMutationBehaviorTests } from "./cloud-source-check-mutation-behavior.js";
 import { registerCloudSourceMaterializationBehaviorTests } from "./cloud-source-materialization-behavior.js";
+import { registerCloudSourceMaterializationWindowBehaviorTests } from "./cloud-source-materialization-window-behavior.js";
 import { registerCloudSourceRejectionBehaviorTests } from "./cloud-source-rejection-behavior.js";
-import { registerCloudSourceRunnerBehaviorTests } from "./cloud-source-runner-behavior.js";
+import { registerCloudSourceRunnerLifecycleBehaviorTests } from "./cloud-source-runner-lifecycle-behavior.js";
 
 const headSHA = "a".repeat(40);
 const appId = 42;
 
-registerCloudSourceRunnerBehaviorTests();
+registerCloudSourceRunnerLifecycleBehaviorTests();
 registerCloudSourceMaterializationBehaviorTests();
+registerCloudSourceMaterializationWindowBehaviorTests();
 registerCloudSourceRejectionBehaviorTests();
+registerCloudSourceCheckMutationBehaviorTests();
 
 function check(runAttempt: number, status: "completed" | "in_progress") {
   return {
@@ -60,6 +64,7 @@ const reporter = createCloudSourceCheckReporter({
 await reporter.ensurePendingCheck(
   JSON.parse(process.env.MOCK_WORKFLOW_RUN),
   process.env.MOCK_TARGET_SHA,
+  async () => {},
 );
 `,
     "utf8",
@@ -253,10 +258,7 @@ describe("Cloud source check lifecycle", () => {
       conclusion: "failure",
       id: 902,
     };
-    const { result, trace } = runLifecycle(1, [], [
-      racedSuccess,
-      racedFailure,
-    ]);
+    const { result, trace } = runLifecycle(1, [], [racedSuccess, racedFailure]);
     expect(result.status).not.toBe(0);
     expect(result.stderr).toContain(
       "terminal source check raced pending-check creation",
