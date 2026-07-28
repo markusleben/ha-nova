@@ -9,45 +9,13 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import type { CloudSourceRunOptions } from "./cloud-source-runner-options.js";
+
 export const headSHA = "a".repeat(40);
 const baseSHA = "b".repeat(40);
 export const mergeSHA = "d".repeat(40);
 
-export type RunOptions = {
-  action?: "completed" | "in_progress";
-  associationPresentSequence?: boolean[];
-  associationMergeCommitSHA?: null | string;
-  bashExit?: number;
-  conclusion?: "cancelled" | "failure" | "success";
-  event?: "merge_group" | "pull_request";
-  gitSHA?: null | string;
-  gitSHASequence?: Array<null | string>;
-  initialChecks?: unknown[];
-  mergeCommitSHA?: null | string;
-  mergeCommitSHASequence?: Array<null | string>;
-  monotonicNowSequence?: number[];
-  checkListStatusAfterPatch?: number;
-  checkReadStatus?: number;
-  deleteStatus?: number;
-  deleteStatusSequence?: number[];
-  lateVisibleChecks?: unknown[];
-  lateVisibleChecksDelay?: number;
-  patchStatus?: number;
-  patchThrowsAfterApply?: boolean;
-  postReconcileListStatusSequence?: number[];
-  postThrowsBeforeApply?: boolean;
-  postThrowsAfterApply?: boolean;
-  postVisibilityDelay?: number;
-  pullCount?: number;
-  currentWorkflowStatus?: "completed" | "in_progress";
-  currentWorkflowAttempt?: number;
-  currentWorkflowAttemptSequence?: number[];
-  currentWorkflowStatusSequence?: Array<"completed" | "in_progress">;
-  workflowAPIStatus?: number;
-  workflowAPIStatusSequence?: number[];
-};
-
-export function runSourceGate(options: RunOptions = {}) {
+export function runSourceGate(options: CloudSourceRunOptions = {}) {
   const root = mkdtempSync(join(tmpdir(), "ha-nova-source-runner-"));
   const bin = join(root, "bin");
   const eventPath = join(root, "event.json");
@@ -103,6 +71,7 @@ export function runSourceGate(options: RunOptions = {}) {
   writeFileSync(
     join(bin, "git"),
     `#!/bin/sh
+printf '{"method":"GIT","path":"%s","body":null}\\n' "$4" >> "$MOCK_TRACE"
 index="$(cat "$MOCK_GIT_INDEX_FILE")"
 index="$((index + 1))"
 printf '%s' "$index" > "$MOCK_GIT_INDEX_FILE"
@@ -170,6 +139,10 @@ Object.defineProperty(globalThis.performance, "now", {
 });
 const pulls = JSON.parse(process.env.MOCK_PULLS);
 const fullPulls = JSON.parse(process.env.MOCK_FULL_PULLS);
+const mergeCommitResponses = JSON.parse(
+  process.env.MOCK_MERGE_COMMIT_RESPONSES,
+);
+let mergeCommitResponseIndex = 0;
 let fullPullIndex = 0;
 let terminalPatchCompleted = false;
 let postAttempted = false;
@@ -225,6 +198,19 @@ globalThis.fetch = async (url, init = {}) => {
   }
   if (path.endsWith("/pulls/449")) {
     return response(fullPulls[Math.min(fullPullIndex++, fullPulls.length - 1)]);
+  }
+  if (path.includes("/git/commits/")) {
+    const mock =
+      mergeCommitResponses[
+        Math.min(
+          mergeCommitResponseIndex++,
+          mergeCommitResponses.length - 1,
+        )
+      ];
+    return response({
+      parents: mock.parents.map((sha) => ({ sha })),
+      sha: mock.sha ?? path.split("/").at(-1),
+    }, mock.status ?? 200);
   }
   if (path.endsWith("/check-runs") && method === "GET") {
     if (hiddenChecks.length > 0) {
@@ -361,10 +347,29 @@ globalThis.fetch = async (url, init = {}) => {
         MOCK_LATE_VISIBLE_CHECKS_DELAY: String(
           options.lateVisibleChecksDelay ?? 0,
         ),
+        MOCK_MERGE_COMMIT_RESPONSES: JSON.stringify(
+          (options.mergeCommitResponses ?? [{}]).map((response) => ({
+            ...response,
+            parents: response.parents ?? [baseSHA, headSHA],
+          })),
+        ),
         MOCK_PULLS: JSON.stringify(pulls),
         MOCK_FULL_PULLS: JSON.stringify(
           (options.mergeCommitSHASequence ?? [pull.merge_commit_sha]).map(
-            (merge_commit_sha) => ({ ...pull, merge_commit_sha }),
+            (merge_commit_sha, index) => ({
+              ...pull,
+              base: {
+                ...pull.base,
+                sha:
+                  options.mergeCommitBaseSHASequence?.[
+                    Math.min(
+                      index,
+                      options.mergeCommitBaseSHASequence.length - 1,
+                    )
+                  ] ?? pull.base.sha,
+              },
+              merge_commit_sha,
+            }),
           ),
         ),
         MOCK_PATCH_STATUS: String(options.patchStatus ?? 200),

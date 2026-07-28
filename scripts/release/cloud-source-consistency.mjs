@@ -9,11 +9,44 @@ function wait(delay = delayMs) {
 
 export function createCloudSourceConsistencyResolver({
   currentPullRequest,
+  mergeCommitParents,
   now = () => performance.now(),
   requireSHA,
   resolveRemoteRef,
   waitFor = wait,
 }) {
+  const unresolvedAPIMismatchIdentities = new Set();
+
+  async function matchesPullRequestSource(pull, headSHA, targetSHA) {
+    const identity = `${pull.number}:${requireSHA(
+      pull.base?.sha,
+      "pull request base SHA",
+    )}:${headSHA}`;
+    if (pull.merge_commit_sha != null) {
+      const matches =
+        requireSHA(pull.merge_commit_sha, "pull request merge commit SHA") ===
+        targetSHA;
+      if (matches) {
+        unresolvedAPIMismatchIdentities.delete(identity);
+      } else {
+        unresolvedAPIMismatchIdentities.add(identity);
+      }
+      return matches;
+    }
+    if (unresolvedAPIMismatchIdentities.has(identity)) {
+      return "api-mismatch";
+    }
+    const parents = await mergeCommitParents(targetSHA);
+    if (parents === undefined) {
+      return undefined;
+    }
+    return (
+      parents.length === 2 &&
+      parents[0] === requireSHA(pull.base?.sha, "pull request base SHA") &&
+      parents[1] === headSHA
+    );
+  }
+
   async function resolvePullRequestSource(headSHA) {
     const deadline = now() + pullRequestWindowMs;
     let reason = "workflow run no longer identifies a current pull request";
@@ -24,25 +57,29 @@ export function createCloudSourceConsistencyResolver({
       const pull = await currentPullRequest(headSHA);
       if (pull === undefined) {
         reason = "workflow run no longer identifies a current pull request";
-      } else if (pull.merge_commit_sha == null) {
-        reason = "pull request merge commit is not materialized yet";
       } else {
-        const mergeSHA = requireSHA(
-          pull.merge_commit_sha,
-          "pull request merge commit SHA",
-        );
         const sourceRef = `refs/pull/${pull.number}/merge`;
         const refSHA = resolveRemoteRef(sourceRef);
         if (refSHA === undefined) {
           reason = "pull request merge ref is not materialized yet";
-        } else if (refSHA !== mergeSHA) {
-          reason =
-            "pull request API and merge ref are temporarily inconsistent";
-        } else if (now() > deadline) {
-          reason =
-            "pull request source materialized after the bounded deadline";
         } else {
-          return { pull, sourceRef, targetSHA: refSHA };
+          const matches = await matchesPullRequestSource(pull, headSHA, refSHA);
+          if (matches === undefined) {
+            reason = "pull request merge ref commit is not materialized yet";
+          } else if (matches === "api-mismatch") {
+            reason =
+              "pull request API and merge ref are temporarily inconsistent";
+          } else if (!matches) {
+            reason =
+              pull.merge_commit_sha == null
+                ? "pull request merge ref does not match the current base and head"
+                : "pull request API and merge ref are temporarily inconsistent";
+          } else if (now() > deadline) {
+            reason =
+              "pull request source materialized after the bounded deadline";
+          } else {
+            return { pull, sourceRef, targetSHA: refSHA };
+          }
         }
       }
       const remainingMs = deadline - now();
@@ -73,5 +110,9 @@ export function createCloudSourceConsistencyResolver({
     return { kind: "stale", reason };
   }
 
-  return { resolvePullRequestSource, resolveQueueSource };
+  return {
+    matchesPullRequestSource,
+    resolvePullRequestSource,
+    resolveQueueSource,
+  };
 }
