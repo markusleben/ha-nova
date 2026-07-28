@@ -331,8 +331,10 @@ func pairPostJSONEncoded(
 	req.Header.Set("Content-Type", "application/json")
 	var wroteRequest atomic.Bool
 	trace := &httptrace.ClientTrace{
-		WroteRequest: func(httptrace.WroteRequestInfo) {
-			wroteRequest.Store(true)
+		WroteRequest: func(info httptrace.WroteRequestInfo) {
+			if info.Err == nil {
+				wroteRequest.Store(true)
+			}
 		},
 	}
 	req = req.WithContext(httptrace.WithClientTrace(req.Context(), trace))

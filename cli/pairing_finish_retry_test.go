@@ -43,6 +43,16 @@ func markPairingFinishRequestWritten(request *http.Request) {
 	}
 }
 
+func markPairingFinishRequestWriteFailed(
+	request *http.Request,
+	err error,
+) {
+	trace := httptrace.ContextClientTrace(request.Context())
+	if trace != nil && trace.WroteRequest != nil {
+		trace.WroteRequest(httptrace.WroteRequestInfo{Err: err})
+	}
+}
+
 func TestPairFinishV1ReplaysExactCommittedRequestAfterLostResponse(t *testing.T) {
 	attempts := 0
 	var committedRequest []byte
@@ -264,6 +274,31 @@ func TestPairFinishV1PreDispatchFailureIsDefinitive(t *testing.T) {
 	)
 	if err == nil || errors.Is(err, errPairingOutcomeUnknown) {
 		t.Fatalf("pre-dispatch finish err=%v, want definitive failure", err)
+	}
+	if attempts != 1 {
+		t.Fatalf("attempts=%d, want=1", attempts)
+	}
+}
+
+func TestPairFinishV1FailedWriteIsDefinitive(t *testing.T) {
+	attempts := 0
+	writeErr := errors.New("write tcp: broken pipe")
+	client := &http.Client{Transport: roundTripFunc(func(
+		request *http.Request,
+	) (*http.Response, error) {
+		attempts++
+		markPairingFinishRequestWriteFailed(request, writeErr)
+		return nil, writeErr
+	})}
+	var finish map[string]any
+	err := pairFinishPostJSON(
+		client,
+		"http://relay.test/pair/v1/finish",
+		map[string]any{"handshake_id": "handshake"},
+		&finish,
+	)
+	if err == nil || errors.Is(err, errPairingOutcomeUnknown) {
+		t.Fatalf("failed-write finish err=%v, want definitive failure", err)
 	}
 	if attempts != 1 {
 		t.Fatalf("attempts=%d, want=1", attempts)

@@ -41,6 +41,9 @@ the browser-to-terminal round trip.
 - DNS, connection, and TLS failures proven to occur before a local or Cloud
   finish request was written stay definitive and are never replayed or
   reported as an unknown outcome.
+- A local or Cloud `WroteRequest` callback carrying a write error remains
+  pre-dispatch and definitive; only a callback with no write error proves
+  dispatch for retry classification.
 - The shared finish-retry helper preserves the existing Cloud v2
   `OUTCOME_UNKNOWN` classification and verify-without-retry remediation.
 - Secure-v1 fallback to the legacy exchange keeps the refreshed snapshot.
@@ -68,7 +71,8 @@ the browser-to-terminal round trip.
   pairing call, absent-config creation, both existing-config install-ID commit
   windows, and successful pairing saves.
 - Finish replay tests cover an ambiguous first outcome followed by a typed
-  definitive response plus a proven pre-dispatch transport failure.
+  definitive response, a proven pre-dispatch transport failure, and a failed
+  request write.
 - Cloud finish tests cover persistent ambiguity, mixed definitive responses,
   proven pre-dispatch transport failure, and context expiry after dispatch.
 - URL tests cover official, isolated developer, and disabled/unstamped routes.

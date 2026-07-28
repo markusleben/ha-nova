@@ -247,6 +247,32 @@ func TestPairFinishCloudV2PreDispatchFailureIsDefinitive(t *testing.T) {
 	}
 }
 
+func TestPairFinishCloudV2FailedWriteIsDefinitive(t *testing.T) {
+	attempts := 0
+	writeErr := errors.New("write tcp: broken pipe")
+	client := newProtocolTestCloudIngressClient(
+		t,
+		roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			attempts++
+			markPairingFinishRequestWriteFailed(request, writeErr)
+			return nil, writeErr
+		}),
+	)
+	var finish map[string]any
+	err := cloudPairingFinishCall(
+		context.Background(),
+		client,
+		map[string]any{"handshake_id": "handshake"},
+		&finish,
+	)
+	if err == nil || IsCloudErrorCode(err, CloudErrOutcomeUnknown) {
+		t.Fatalf("failed-write finish err=%v, want definitive failure", err)
+	}
+	if attempts != 1 {
+		t.Fatalf("attempts=%d, want=1", attempts)
+	}
+}
+
 func TestPairFinishCloudV2ContextEndAfterSendIsOutcomeUnknown(
 	t *testing.T,
 ) {

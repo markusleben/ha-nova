@@ -192,8 +192,10 @@ func cloudPairingFinishCall(
 	err = retryPairingFinish(func() (bool, error) {
 		var wroteRequest atomic.Bool
 		trace := &httptrace.ClientTrace{
-			WroteRequest: func(httptrace.WroteRequestInfo) {
-				wroteRequest.Store(true)
+			WroteRequest: func(info httptrace.WroteRequestInfo) {
+				if info.Err == nil {
+					wroteRequest.Store(true)
+				}
 			},
 		}
 		attemptCtx := httptrace.WithClientTrace(ctx, trace)
