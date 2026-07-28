@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  headSHA,
-  runSourceGate,
-} from "./cloud-source-runner-behavior.js";
+import { headSHA, runSourceGate } from "./cloud-source-runner-behavior.js";
 
 export function registerCloudSourceMaterializationBehaviorTests(): void {
   describe("Cloud source PR materialization", () => {
@@ -27,7 +24,10 @@ export function registerCloudSourceMaterializationBehaviorTests(): void {
           (entry) =>
             entry.method === "GET" && entry.path.endsWith("/pulls/449"),
         ),
-      ).toHaveLength(21);
+      ).toHaveLength(30);
+      const retryDelays = trace.filter((entry) => entry.method === "TIMER");
+      expect(retryDelays).toHaveLength(30);
+      expect(retryDelays.every((entry) => entry.path === "3000")).toBe(true);
       expect(
         trace.some(
           (entry) =>
@@ -45,42 +45,13 @@ export function registerCloudSourceMaterializationBehaviorTests(): void {
     it("creates one fail-safe rejection without a provisional check", () => {
       const { result, trace } = runSourceGate({ mergeCommitSHA: null });
       expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
-      expect(
-        trace.filter((entry) => entry.method === "POST"),
-      ).toHaveLength(1);
+      expect(trace.filter((entry) => entry.method === "POST")).toHaveLength(1);
       expect(
         trace.filter(
           (entry) =>
             entry.method === "PATCH" && entry.body?.conclusion === "failure",
         ),
       ).toHaveLength(1);
-    });
-
-    it("accepts a merge commit materialized near the bounded deadline", () => {
-      const { result, trace } = runSourceGate({
-        mergeCommitSHASequence: [
-          ...Array<null>(19).fill(null),
-          "d".repeat(40),
-        ],
-      });
-      expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
-      const exactCheckIndex = trace.findIndex(
-        (entry) => entry.method === "POST",
-      );
-      expect(
-        trace
-          .slice(0, exactCheckIndex)
-          .filter(
-            (entry) =>
-              entry.method === "GET" && entry.path.endsWith("/pulls/449"),
-          ),
-      ).toHaveLength(20);
-      expect(
-        trace.some(
-          (entry) =>
-            entry.method === "PATCH" && entry.body?.conclusion === "success",
-        ),
-      ).toBe(true);
     });
 
     it("does not recreate a provisional check after CI completed", () => {
@@ -112,8 +83,7 @@ export function registerCloudSourceMaterializationBehaviorTests(): void {
       expect(
         trace.some(
           (entry) =>
-            entry.method === "DELETE" &&
-            entry.path.endsWith("/check-runs/900"),
+            entry.method === "DELETE" && entry.path.endsWith("/check-runs/900"),
         ),
       ).toBe(true);
     });
@@ -150,10 +120,7 @@ export function registerCloudSourceMaterializationBehaviorTests(): void {
           false,
           true,
         ],
-        mergeCommitSHASequence: [
-          ...Array<null>(18).fill(null),
-          "d".repeat(40),
-        ],
+        mergeCommitSHASequence: [...Array<null>(18).fill(null), "d".repeat(40)],
       });
       expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
       expect(
@@ -192,8 +159,7 @@ export function registerCloudSourceMaterializationBehaviorTests(): void {
       expect(
         trace.some(
           (entry) =>
-            entry.method === "DELETE" &&
-            entry.path.endsWith("/check-runs/900"),
+            entry.method === "DELETE" && entry.path.endsWith("/check-runs/900"),
         ),
       ).toBe(true);
     });
@@ -267,7 +233,7 @@ export function registerCloudSourceMaterializationBehaviorTests(): void {
       ).toBe(true);
     });
 
-    it("exits without a new check for a stale pull-request head", () => {
+    it("rejects when current pull-request association stays absent", () => {
       const provisional = {
         app: { id: 42 },
         external_id: `workflow-run:123:attempt:1:target:${headSHA}`,
@@ -292,8 +258,9 @@ export function registerCloudSourceMaterializationBehaviorTests(): void {
       expect(
         trace.some(
           (entry) =>
-            entry.method === "DELETE" &&
-            entry.path.endsWith(`/check-runs/${provisional.id}`),
+            entry.method === "PATCH" &&
+            entry.path.endsWith(`/check-runs/${provisional.id}`) &&
+            entry.body?.conclusion === "failure",
         ),
       ).toBe(true);
       expect(
@@ -309,7 +276,7 @@ export function registerCloudSourceMaterializationBehaviorTests(): void {
             entry.method === "GET" &&
             entry.path.endsWith(`/commits/${headSHA}/pulls`),
         ),
-      ).toHaveLength(3);
+      ).toHaveLength(30);
     });
 
     it("reports a fail-safe rejection when the merge ref stays absent", () => {

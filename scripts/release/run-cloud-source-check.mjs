@@ -8,6 +8,7 @@ import {
   createCloudSourceCheckReporter,
   ReportedSourceCheckError,
 } from "./cloud-source-check-reporter.mjs";
+import { handleCloudSourceCheckFailure } from "./cloud-source-check-failure.mjs";
 import { createCloudSourceConsistencyResolver } from "./cloud-source-consistency.mjs";
 import { createTrustedCIResolver } from "./cloud-source-workflow-run.mjs";
 
@@ -183,6 +184,7 @@ const {
   completeCheck,
   deletePendingCheck,
   deletePendingAttemptChecks,
+  deletePendingAttemptChecksEventually,
   deletePendingTargetChecks,
   ensurePendingCheck,
   hasTerminalAttemptResult,
@@ -196,6 +198,15 @@ const {
 
 let checkId;
 let activeWorkflowRun;
+let staleAttemptObserved = false;
+let terminalCheckReported = false;
+
+async function discardStaleAttempt(workflowRun) {
+  staleAttemptObserved = true;
+  await deletePendingAttemptChecks(workflowRun);
+  noCheck("workflow lifecycle delivery belongs to an older CI attempt");
+}
+
 try {
   const { action, workflowRun } = readEvent();
   const event = workflowRun.event;
@@ -203,10 +214,10 @@ try {
   if (event !== "pull_request" && event !== "merge_group") {
     fail(`unsupported triggering event ${String(event)}`);
   }
+  activeWorkflowRun = workflowRun;
   const trustedCI = await requireTrustedCI(workflowRun);
   if (trustedCI.staleAttempt) {
-    await deletePendingAttemptChecks(workflowRun);
-    noCheck("workflow lifecycle delivery belongs to an older CI attempt");
+    await discardStaleAttempt(workflowRun);
   }
   const currentWorkflowRun = trustedCI.current;
   activeWorkflowRun = currentWorkflowRun;
@@ -227,8 +238,7 @@ try {
     }
     const refreshedCI = await requireTrustedCI(workflowRun);
     if (refreshedCI.staleAttempt) {
-      await deletePendingAttemptChecks(workflowRun);
-      noCheck("workflow lifecycle delivery belongs to an older CI attempt");
+      await discardStaleAttempt(workflowRun);
     }
     const refreshedWorkflowRun = refreshedCI.current;
     if (refreshedWorkflowRun.status === "completed") {
@@ -261,6 +271,10 @@ try {
 
   if (event === "pull_request") {
     const resolved = await resolvePullRequestSource(headSHA);
+    const refreshedSourceCI = await requireTrustedCI(workflowRun);
+    if (refreshedSourceCI.staleAttempt) {
+      await discardStaleAttempt(workflowRun);
+    }
     if ("reason" in resolved) {
       if (resolved.kind === "stale") {
         await deletePendingAttemptChecks(currentWorkflowRun);
@@ -269,6 +283,12 @@ try {
           currentWorkflowRun,
           headSHA,
           "GitHub did not materialize the current pull-request source before the bounded deadline. Re-run CI once; the Cloud Source Gate will follow automatically.",
+          async () => {
+            const rejectionCI = await requireTrustedCI(workflowRun);
+            if (rejectionCI.staleAttempt) {
+              await discardStaleAttempt(workflowRun);
+            }
+          },
         );
       }
       noCheck(resolved.reason);
@@ -362,65 +382,33 @@ try {
       fail("pull request identity changed after final source verification");
     }
   }
+  const finalTrustedCI = await requireTrustedCI(workflowRun);
+  if (finalTrustedCI.staleAttempt) {
+    await discardStaleAttempt(currentWorkflowRun);
+  }
   await completeCheck(
     checkId,
     "success",
     "Trusted default-branch code verified the current source state.",
   );
+  terminalCheckReported = true;
   await deletePendingAttemptChecks(currentWorkflowRun, checkId);
 } catch (error) {
   const message =
     error instanceof Error ? error.message : "unexpected source-gate failure";
   console.error(`[run-cloud-source-check] ERROR: ${message}`);
-  if (error instanceof ReportedSourceCheckError) {
-    process.exit(0);
-  }
-  if (error instanceof AmbiguousSourceCheckMutationError) {
-    process.exit(1);
-  }
-  if (checkId !== undefined) {
-    try {
-      await completeCheck(
-        checkId,
-        "failure",
-        "Trusted source verification failed. Inspect the linked workflow run.",
-      );
-    } catch (reportError) {
-      const reportMessage =
-        reportError instanceof Error
-          ? reportError.message
-          : "unexpected source-check reporting failure";
-      console.error(
-        `[run-cloud-source-check] ERROR: cannot report rejection: ${reportMessage}`,
-      );
-      try {
-        await deletePendingCheck(checkId);
-      } catch (cleanupError) {
-        const cleanupMessage =
-          cleanupError instanceof Error
-            ? cleanupError.message
-            : "unexpected pending-check cleanup failure";
-        console.error(
-          `[run-cloud-source-check] ERROR: cannot delete pending rejection: ${cleanupMessage}`,
-        );
-      }
-      process.exit(1);
-    }
-    try {
-      if (activeWorkflowRun !== undefined) {
-        await deletePendingAttemptChecks(activeWorkflowRun, checkId);
-      }
-    } catch (cleanupError) {
-      const cleanupMessage =
-        cleanupError instanceof Error
-          ? cleanupError.message
-          : "unexpected pending-check cleanup failure";
-      console.error(
-        `[run-cloud-source-check] ERROR: rejection reported, but pending sibling cleanup failed: ${cleanupMessage}`,
-      );
-      process.exit(1);
-    }
-    process.exit(0);
-  }
-  process.exit(1);
+  const exitCode = await handleCloudSourceCheckFailure({
+    activeWorkflowRun,
+    ambiguousMutation: error instanceof AmbiguousSourceCheckMutationError,
+    checkId,
+    completeCheck,
+    deletePendingAttemptChecks,
+    deletePendingAttemptChecksEventually,
+    deletePendingCheck,
+    reportedFailure: error instanceof ReportedSourceCheckError,
+    requireTrustedCI,
+    staleAttemptObserved,
+    terminalCheckReported,
+  });
+  process.exit(exitCode);
 }

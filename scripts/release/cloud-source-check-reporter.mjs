@@ -1,3 +1,11 @@
+import {
+  AmbiguousSourceCheckMutationError,
+  createCheckWithReconciliation,
+  retryPendingCleanup,
+} from "./cloud-source-check-mutation.mjs";
+
+export { AmbiguousSourceCheckMutationError };
+
 const apiVersion = "2026-03-10";
 const apiTimeoutMs = 10_000;
 const checkName = "cloud-source-gate";
@@ -7,8 +15,6 @@ function fail(message) {
 }
 
 export class ReportedSourceCheckError extends Error {}
-
-export class AmbiguousSourceCheckMutationError extends Error {}
 
 function failReported(message) {
   throw new ReportedSourceCheckError(message);
@@ -59,19 +65,28 @@ export function createCloudSourceCheckReporter({
   }
 
   async function createCheck(workflowRun, targetSHA) {
-    return github(`repos/${repository}/check-runs`, {
-      method: "POST",
-      body: JSON.stringify({
-        name: checkName,
-        head_sha: workflowRun.head_sha,
-        status: "in_progress",
-        external_id: sourceExternalId(workflowRun, targetSHA),
-        details_url: `https://github.com/${repository}/actions/runs/${runId}`,
-        output: {
-          title: "Home Assistant Cloud source verification",
-          summary: "Trusted default-branch verification is running.",
-        },
-      }),
+    const externalId = sourceExternalId(workflowRun, targetSHA);
+    return createCheckWithReconciliation({
+      cleanupPending: () => deletePendingAttemptChecksEventually(workflowRun),
+      create: () =>
+        github(`repos/${repository}/check-runs`, {
+          method: "POST",
+          body: JSON.stringify({
+            name: checkName,
+            head_sha: workflowRun.head_sha,
+            status: "in_progress",
+            external_id: externalId,
+            details_url: `https://github.com/${repository}/actions/runs/${runId}`,
+            output: {
+              title: "Home Assistant Cloud source verification",
+              summary: "Trusted default-branch verification is running.",
+            },
+          }),
+        }),
+      listMatches: async () =>
+        (await sourceCheckRuns(workflowRun)).filter(
+          (candidate) => candidate.external_id === externalId,
+        ),
     });
   }
 
@@ -175,6 +190,10 @@ export function createCloudSourceCheckReporter({
     }
   }
 
+  async function deletePendingAttemptChecksEventually(workflowRun) {
+    await retryPendingCleanup(() => deletePendingAttemptChecks(workflowRun));
+  }
+
   async function deletePendingTargetChecks(workflowRun, targetSHA) {
     const pending = (await sourceChecks(workflowRun, targetSHA)).filter(
       (candidate) => candidate.status !== "completed",
@@ -184,7 +203,12 @@ export function createCloudSourceCheckReporter({
     }
   }
 
-  async function rejectTargetCheck(workflowRun, targetSHA, summary) {
+  async function rejectTargetCheck(
+    workflowRun,
+    targetSHA,
+    summary,
+    beforeTerminalMutation = async () => {},
+  ) {
     const checks = await sourceChecks(workflowRun, targetSHA);
     const terminals = checks.filter(
       (candidate) => candidate.status === "completed",
@@ -201,9 +225,15 @@ export function createCloudSourceCheckReporter({
       await deleteCheck(candidate.id);
     }
     if (check === undefined) {
-      await createFailSafeCheck(workflowRun, targetSHA, summary);
+      await createFailSafeCheck(
+        workflowRun,
+        targetSHA,
+        summary,
+        beforeTerminalMutation,
+      );
     } else {
       try {
+        await beforeTerminalMutation();
         await completeCheck(check.id, "failure", summary);
       } catch (error) {
         await deletePendingCheck(check.id);
@@ -304,7 +334,12 @@ export function createCloudSourceCheckReporter({
     await deleteCheck(checkId);
   }
 
-  async function createFailSafeCheck(workflowRun, targetSHA, summary) {
+  async function createFailSafeCheck(
+    workflowRun,
+    targetSHA,
+    summary,
+    beforeTerminalMutation = async () => {},
+  ) {
     const failed = await createCheck(workflowRun, targetSHA);
     if (
       !Number.isSafeInteger(failed.id) ||
@@ -313,7 +348,14 @@ export function createCloudSourceCheckReporter({
     ) {
       fail("dedicated GitHub App returned an invalid fail-safe check run");
     }
+    if (failed.status === "completed") {
+      if (failed.conclusion === "failure") {
+        return failed;
+      }
+      failReported("terminal source check raced fail-safe creation");
+    }
     try {
+      await beforeTerminalMutation();
       await completeCheck(failed.id, "failure", summary);
     } catch (error) {
       await deletePendingCheck(failed.id);
@@ -423,6 +465,7 @@ export function createCloudSourceCheckReporter({
     deleteCheck,
     deletePendingCheck,
     deletePendingAttemptChecks,
+    deletePendingAttemptChecksEventually,
     deletePendingTargetChecks,
     ensurePendingCheck,
     hasTerminalAttemptResult,
