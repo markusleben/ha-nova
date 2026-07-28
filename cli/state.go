@@ -243,6 +243,16 @@ func writeJSONFileOptsSnapshot(
 	if err := enc.Encode(value); err != nil {
 		return nil, err
 	}
+	if requireAbsent {
+		if err := createFileIfAbsentDurably(
+			path,
+			encoded.Bytes(),
+			mode,
+		); err != nil {
+			return nil, err
+		}
+		return encoded.Bytes(), nil
+	}
 
 	tmp, err := os.CreateTemp(dir, filepath.Base(path)+".tmp.*")
 	if err != nil {
@@ -265,18 +275,6 @@ func writeJSONFileOptsSnapshot(
 	}
 	if err := tmp.Close(); err != nil {
 		return nil, err
-	}
-	if requireAbsent {
-		if err := os.Link(tmpPath, path); err != nil {
-			if errors.Is(err, os.ErrExist) {
-				return nil, errConditionalJSONConflictRestored
-			}
-			return nil, err
-		}
-		if err := syncParentDirectory(path); err != nil {
-			return nil, err
-		}
-		return encoded.Bytes(), nil
 	}
 	if expected == nil {
 		if err := replaceFileDurably(tmpPath, path); err != nil {

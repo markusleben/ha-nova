@@ -22,8 +22,10 @@ the browser-to-terminal round trip.
 
 - Establish and persist `client_install_id` in its own guarded transaction
   before the Wizard opens NOVA or accepts a code.
-- Fresh setup atomically creates the previously absent config generation;
+- Fresh setup exclusively creates the previously absent config generation;
   a concurrently created file wins and setup fails without overwriting it.
+- Fresh config creation uses portable exclusive-create semantics and does not
+  require filesystem hard-link support.
 - Every setup-owned config write uses the exact prior config generation and
   advances the in-memory snapshot only to the bytes it committed.
 - Pairing attempts never adopt an unrelated config generation after a write,
@@ -41,9 +43,9 @@ the browser-to-terminal round trip.
 - DNS, connection, and TLS failures proven to occur before a local or Cloud
   finish request was written stay definitive and are never replayed or
   reported as an unknown outcome.
-- A local or Cloud `WroteRequest` callback carrying a write error remains
-  pre-dispatch and definitive; only a callback with no write error proves
-  dispatch for retry classification.
+- Any local or Cloud `WroteRequest` callback is treated conservatively as a
+  possible dispatch, because its write error may follow a partial request.
+  A transport failure with no callback remains pre-dispatch and definitive.
 - The shared finish-retry helper preserves the existing Cloud v2
   `OUTCOME_UNKNOWN` classification and verify-without-retry remediation.
 - Secure-v1 fallback to the legacy exchange keeps the refreshed snapshot.
@@ -72,8 +74,8 @@ the browser-to-terminal round trip.
   pairing call, absent-config creation, both existing-config install-ID commit
   windows, and successful pairing saves.
 - Finish replay tests cover an ambiguous first outcome followed by a typed
-  definitive response, a proven pre-dispatch transport failure, and a failed
-  request write.
+  definitive response, a proven pre-dispatch transport failure, and a
+  potentially partial failed request write.
 - Cloud finish tests cover persistent ambiguity, mixed definitive responses,
   proven pre-dispatch transport failure, headerless ingress 502/503 responses,
   and context expiry after dispatch.

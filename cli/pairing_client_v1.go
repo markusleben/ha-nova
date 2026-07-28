@@ -331,10 +331,10 @@ func pairPostJSONEncoded(
 	req.Header.Set("Content-Type", "application/json")
 	var wroteRequest atomic.Bool
 	trace := &httptrace.ClientTrace{
-		WroteRequest: func(info httptrace.WroteRequestInfo) {
-			if info.Err == nil {
-				wroteRequest.Store(true)
-			}
+		WroteRequest: func(httptrace.WroteRequestInfo) {
+			// An error may follow a partial write. The callback itself means the
+			// transport attempted the request, so the outcome is ambiguous.
+			wroteRequest.Store(true)
 		},
 	}
 	req = req.WithContext(httptrace.WithClientTrace(req.Context(), trace))

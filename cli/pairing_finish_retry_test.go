@@ -280,7 +280,7 @@ func TestPairFinishV1PreDispatchFailureIsDefinitive(t *testing.T) {
 	}
 }
 
-func TestPairFinishV1FailedWriteIsDefinitive(t *testing.T) {
+func TestPairFinishV1FailedWriteIsOutcomeUnknown(t *testing.T) {
 	attempts := 0
 	writeErr := errors.New("write tcp: broken pipe")
 	client := &http.Client{Transport: roundTripFunc(func(
@@ -297,11 +297,11 @@ func TestPairFinishV1FailedWriteIsDefinitive(t *testing.T) {
 		map[string]any{"handshake_id": "handshake"},
 		&finish,
 	)
-	if err == nil || errors.Is(err, errPairingOutcomeUnknown) {
-		t.Fatalf("failed-write finish err=%v, want definitive failure", err)
+	if !errors.Is(err, errPairingOutcomeUnknown) {
+		t.Fatalf("failed-write finish err=%v, want outcome unknown", err)
 	}
-	if attempts != 1 {
-		t.Fatalf("attempts=%d, want=1", attempts)
+	if attempts != pairingFinishAttempts {
+		t.Fatalf("attempts=%d, want=%d", attempts, pairingFinishAttempts)
 	}
 }
 

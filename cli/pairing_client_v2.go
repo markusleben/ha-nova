@@ -192,10 +192,10 @@ func cloudPairingFinishCall(
 	err = retryPairingFinish(func() (bool, error) {
 		var wroteRequest atomic.Bool
 		trace := &httptrace.ClientTrace{
-			WroteRequest: func(info httptrace.WroteRequestInfo) {
-				if info.Err == nil {
-					wroteRequest.Store(true)
-				}
+			WroteRequest: func(httptrace.WroteRequestInfo) {
+				// An error may follow a partial write. The callback itself means
+				// the transport attempted the request.
+				wroteRequest.Store(true)
 			},
 		}
 		attemptCtx := httptrace.WithClientTrace(ctx, trace)

@@ -247,7 +247,7 @@ func TestPairFinishCloudV2PreDispatchFailureIsDefinitive(t *testing.T) {
 	}
 }
 
-func TestPairFinishCloudV2FailedWriteIsDefinitive(t *testing.T) {
+func TestPairFinishCloudV2FailedWriteIsOutcomeUnknown(t *testing.T) {
 	attempts := 0
 	writeErr := errors.New("write tcp: broken pipe")
 	client := newProtocolTestCloudIngressClient(
@@ -265,11 +265,11 @@ func TestPairFinishCloudV2FailedWriteIsDefinitive(t *testing.T) {
 		map[string]any{"handshake_id": "handshake"},
 		&finish,
 	)
-	if err == nil || IsCloudErrorCode(err, CloudErrOutcomeUnknown) {
-		t.Fatalf("failed-write finish err=%v, want definitive failure", err)
+	if !IsCloudErrorCode(err, CloudErrOutcomeUnknown) {
+		t.Fatalf("failed-write finish err=%v, want outcome unknown", err)
 	}
-	if attempts != 1 {
-		t.Fatalf("attempts=%d, want=1", attempts)
+	if attempts != pairingFinishAttempts {
+		t.Fatalf("attempts=%d, want=%d", attempts, pairingFinishAttempts)
 	}
 }
 
