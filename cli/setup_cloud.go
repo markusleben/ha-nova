@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strings"
 	"time"
 )
 
@@ -276,27 +275,6 @@ func maybeOfferCloudForCompletedSetup(
 	}
 	printHumanInfo("Home Assistant Cloud access is ready. Local access stays preferred.")
 	return cfg, true, 0
-}
-
-func renderOptionalCloudAddNextStep(
-	out io.Writer,
-	cfg runtimeConfig,
-	serviceMode bool,
-) {
-	if serviceMode ||
-		cfg.Cloud != nil ||
-		strings.TrimSpace(cfg.RelaySecureBaseURL) == "" ||
-		strings.TrimSpace(cfg.RelaySpkiPin) == "" ||
-		!cloudRemoteFeatureAvailable() ||
-		cloudCoordinatorForSetup == nil ||
-		!cloudCoordinatorForSetup.Available() {
-		return
-	}
-	renderSetupParagraph(
-		out,
-		"Away-from-home access is optional and not configured.",
-		"Add it later with: "+cloudFreshAddCommand(),
-	)
 }
 
 func resumeCommittedCloudSetup(

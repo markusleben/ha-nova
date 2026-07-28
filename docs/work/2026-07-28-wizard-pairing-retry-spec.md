@@ -79,6 +79,8 @@ the browser-to-terminal round trip.
 - URL tests cover official, isolated developer, and
   disabled/unstamped/invalid-development routes, including an actual
   unstamped `cloudremote_dev` build.
+- Pairing and Cloud orchestration files stay below the repository's approximate
+  400-line limit; shared setup presentation lives in one focused UX file.
 - UX tests cover the optional post-setup Cloud command and the pre-browser
   OAuth explanation, plus the Cloud-choice hierarchy and default-No prompt.
 - Run the targeted Go test package and one isolated real Wizard pairing.
