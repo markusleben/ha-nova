@@ -179,17 +179,28 @@ func maybeOfferCloudForCompletedSetup(
 		return cfg, false, 0
 	}
 
-	fmt.Fprintln(out, "  Away-from-home access (Beta)")
+	renderSetupSectionTitle(out, "Optional — Away-from-home access")
 	resuming := hybridCloudSetupPending(cfg) &&
 		cfg.Cloud != nil &&
 		cfg.Cloud.Current == nil
 	if resuming {
-		fmt.Fprintln(out, "  A previous Home Assistant Cloud setup is ready to resume.")
+		renderSetupParagraph(out,
+			"A previous Home Assistant Cloud (Beta) setup is ready to resume.",
+			"Local access stays preferred.",
+		)
 	} else {
-		fmt.Fprintln(out, "  Use your Home Assistant Cloud URL when local access is unavailable.")
+		renderSetupParagraph(out,
+			"Home Assistant Cloud (Beta) adds a secure fallback when this computer",
+			"cannot reach Home Assistant locally.",
+			"Local access stays preferred.",
+		)
 	}
-	fmt.Fprintln(out, "  OAuth credentials stay in this computer's native secure storage.")
-	prompt := "Add Home Assistant Cloud access now?"
+	renderSetupParagraphTight(
+		out,
+		"Your Cloud authorization stays in this computer's native secure storage.",
+	)
+	fmt.Fprintln(out)
+	prompt := "Add Home Assistant Cloud fallback now?"
 	defaultYes := false
 	if resuming {
 		prompt = "Resume Home Assistant Cloud setup now?"

@@ -118,6 +118,25 @@ func TestCompletedSetupAddsCloudByReusingExistingDevice(t *testing.T) {
 	if coordinator.preflightCalls != 1 || coordinator.addCalls != 1 {
 		t.Fatalf("coordinator preflight/add calls = %d/%d", coordinator.preflightCalls, coordinator.addCalls)
 	}
+	output := out.String()
+	orderedCopy := []string{
+		"Optional — Away-from-home access",
+		"Home Assistant Cloud (Beta) adds a secure fallback",
+		"Local access stays preferred.",
+		"Your Cloud authorization stays in this computer's native secure storage.",
+		"Add Home Assistant Cloud fallback now? [y/N]",
+	}
+	previous := -1
+	for _, want := range orderedCopy {
+		index := strings.Index(output, want)
+		if index == -1 {
+			t.Fatalf("Cloud offer missing %q:\n%s", want, output)
+		}
+		if index <= previous {
+			t.Fatalf("Cloud offer order is unclear at %q:\n%s", want, output)
+		}
+		previous = index
+	}
 	if coordinator.preflightID == "" {
 		t.Fatal("secure-storage preflight did not receive the stable profile id")
 	}

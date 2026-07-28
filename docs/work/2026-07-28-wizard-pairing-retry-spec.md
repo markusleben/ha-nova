@@ -52,6 +52,10 @@ the browser-to-terminal round trip.
 - A completed local setup that did not already present the connection-mode
   choice shows `ha-nova cloud add` as the optional next step when Cloud support
   is available.
+- The completed-install Cloud choice uses a strong semantic section title,
+  explains the fallback benefit before storage details, states that local
+  access remains preferred, and separates the default-No confirmation with
+  whitespace. It adds no decorative box, emoji, or UI dependency.
 - Fresh Cloud OAuth announces the browser sign-in and return-to-terminal step
   immediately before opening the browser. It adds no confirmation prompt or
   extra setup state.
@@ -69,5 +73,5 @@ the browser-to-terminal round trip.
   proven pre-dispatch transport failure, and context expiry after dispatch.
 - URL tests cover official, isolated developer, and disabled/unstamped routes.
 - UX tests cover the optional post-setup Cloud command and the pre-browser
-  OAuth explanation.
+  OAuth explanation, plus the Cloud-choice hierarchy and default-No prompt.
 - Run the targeted Go test package and one isolated real Wizard pairing.
