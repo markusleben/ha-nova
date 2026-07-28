@@ -5,6 +5,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { registerCloudSourceCheckMutationBehaviorTests } from "./cloud-source-check-mutation-behavior.js";
 import { registerCloudSourceMaterializationBehaviorTests } from "./cloud-source-materialization-behavior.js";
 import { registerCloudSourceMaterializationWindowBehaviorTests } from "./cloud-source-materialization-window-behavior.js";
 import { registerCloudSourceRejectionBehaviorTests } from "./cloud-source-rejection-behavior.js";
@@ -17,6 +18,7 @@ registerCloudSourceRunnerLifecycleBehaviorTests();
 registerCloudSourceMaterializationBehaviorTests();
 registerCloudSourceMaterializationWindowBehaviorTests();
 registerCloudSourceRejectionBehaviorTests();
+registerCloudSourceCheckMutationBehaviorTests();
 
 function check(runAttempt: number, status: "completed" | "in_progress") {
   return {

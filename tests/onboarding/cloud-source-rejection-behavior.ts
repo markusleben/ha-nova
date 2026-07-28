@@ -55,6 +55,53 @@ export function registerCloudSourceRejectionBehaviorTests(): void {
       ).toBe(true);
     });
 
+    it.each([0, 1, 2])(
+      "preserves a conflict fail-safe when its accepted POST stays hidden for %i scans",
+      (postVisibilityDelay) => {
+        const headSHA = "a".repeat(40);
+        const externalId = `workflow-run:123:attempt:1:target:${headSHA}`;
+        const { result, trace } = runSourceGate({
+          event: "merge_group",
+          initialChecks: [
+            {
+              app: { id: 42 },
+              conclusion: "failure",
+              external_id: externalId,
+              id: 701,
+              name: "cloud-source-gate",
+              status: "completed",
+            },
+            {
+              app: { id: 42 },
+              conclusion: "success",
+              external_id: externalId,
+              id: 702,
+              name: "cloud-source-gate",
+              status: "completed",
+            },
+          ],
+          postThrowsAfterApply: true,
+          postVisibilityDelay,
+        });
+        expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
+        expect(
+          trace.filter(
+            (entry) =>
+              entry.method === "PATCH" &&
+              entry.path.endsWith("/check-runs/900") &&
+              entry.body?.conclusion === "failure",
+          ),
+        ).toHaveLength(1);
+        expect(
+          trace.some(
+            (entry) =>
+              entry.method === "DELETE" &&
+              entry.path.endsWith("/check-runs/900"),
+          ),
+        ).toBe(false);
+      },
+    );
+
     it("keeps App-check reporting failures visible as workflow failures", () => {
       const { result, trace } = runSourceGate({
         bashExit: 1,

@@ -11,6 +11,8 @@ export async function createCheckWithReconciliation({
   cleanupPending,
   create,
   listMatches,
+  retainPendingOnTerminalConflict = false,
+  waitFor = wait,
 }) {
   let creationError;
   try {
@@ -19,8 +21,8 @@ export async function createCheckWithReconciliation({
     creationError = error;
   }
 
-  let reconciledPending;
-  let reconciledTerminal;
+  const observedMatches = new Map();
+  const observedTerminalConclusions = new Set();
   for (let attempt = 1; attempt <= reconcileAttempts; attempt += 1) {
     let matches;
     try {
@@ -29,37 +31,46 @@ export async function createCheckWithReconciliation({
       creationError = error;
       matches = [];
     }
-    if (matches.length === 1) {
-      const [match] = matches;
+    for (const match of matches) {
       if (match.status === "completed") {
-        reconciledTerminal = match;
-      } else {
-        reconciledPending = match;
+        observedTerminalConclusions.add(match.conclusion);
       }
-    }
-    if (matches.length > 1) {
-      const terminals = matches.filter(
-        (candidate) => candidate.status === "completed",
-      );
-      if (terminals.length === 1) {
-        await cleanupPending();
-        return terminals[0];
+      const observed = observedMatches.get(match.id);
+      if (observed?.status !== "completed" || match.status === "completed") {
+        observedMatches.set(match.id, match);
       }
-      throw new AmbiguousSourceCheckMutationError(
-        "ambiguous source-check creation produced multiple matching checks",
-        { cause: creationError },
-      );
     }
     if (attempt < reconcileAttempts) {
-      await wait();
+      await waitFor();
     }
   }
-  if (reconciledTerminal !== undefined) {
+  const observed = [...observedMatches.values()];
+  const terminals = observed
+    .filter((candidate) => candidate.status === "completed")
+    .sort((left, right) => left.id - right.id);
+  const pending = observed.filter(
+    (candidate) => candidate.status !== "completed",
+  );
+  const terminalConclusions = observedTerminalConclusions;
+  if (terminals.length > 0 && terminalConclusions.size === 1) {
     await cleanupPending();
-    return reconciledTerminal;
+    return terminals.at(-1);
   }
-  if (reconciledPending !== undefined) {
-    return reconciledPending;
+  if (
+    retainPendingOnTerminalConflict &&
+    terminalConclusions.size > 1 &&
+    pending.length === 1
+  ) {
+    return pending[0];
+  }
+  if (terminalConclusions.size > 1 || pending.length > 1) {
+    throw new AmbiguousSourceCheckMutationError(
+      "ambiguous source-check creation produced multiple matching checks",
+      { cause: creationError },
+    );
+  }
+  if (pending.length === 1) {
+    return pending[0];
   }
   throw new AmbiguousSourceCheckMutationError(
     "source-check creation remained invisible after bounded reconciliation",

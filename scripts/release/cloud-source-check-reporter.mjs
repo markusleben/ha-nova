@@ -64,7 +64,11 @@ export function createCloudSourceCheckReporter({
     return `workflow-run:${workflowRun.id}:attempt:${workflowRun.run_attempt}:target:${requireSHA(targetSHA, "source check target SHA")}`;
   }
 
-  async function createCheck(workflowRun, targetSHA) {
+  async function createCheck(
+    workflowRun,
+    targetSHA,
+    retainPendingOnTerminalConflict = false,
+  ) {
     const externalId = sourceExternalId(workflowRun, targetSHA);
     return createCheckWithReconciliation({
       cleanupPending: () => deletePendingAttemptChecksEventually(workflowRun),
@@ -87,6 +91,7 @@ export function createCloudSourceCheckReporter({
         (await sourceCheckRuns(workflowRun)).filter(
           (candidate) => candidate.external_id === externalId,
         ),
+      retainPendingOnTerminalConflict,
     });
   }
 
@@ -341,7 +346,7 @@ export function createCloudSourceCheckReporter({
     summary,
     beforeTerminalMutation,
   ) {
-    const failed = await createCheck(workflowRun, targetSHA);
+    const failed = await createCheck(workflowRun, targetSHA, true);
     if (
       !Number.isSafeInteger(failed.id) ||
       failed.id <= 0 ||
