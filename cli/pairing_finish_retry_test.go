@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/http/httptrace"
 	"strings"
 	"testing"
 )
@@ -35,6 +36,23 @@ func pairingFinishTestResponse(
 	}
 }
 
+func markPairingFinishRequestWritten(request *http.Request) {
+	trace := httptrace.ContextClientTrace(request.Context())
+	if trace != nil && trace.WroteRequest != nil {
+		trace.WroteRequest(httptrace.WroteRequestInfo{})
+	}
+}
+
+func markPairingFinishRequestWriteFailed(
+	request *http.Request,
+	err error,
+) {
+	trace := httptrace.ContextClientTrace(request.Context())
+	if trace != nil && trace.WroteRequest != nil {
+		trace.WroteRequest(httptrace.WroteRequestInfo{Err: err})
+	}
+}
+
 func TestPairFinishV1ReplaysExactCommittedRequestAfterLostResponse(t *testing.T) {
 	attempts := 0
 	var committedRequest []byte
@@ -49,6 +67,7 @@ func TestPairFinishV1ReplaysExactCommittedRequestAfterLostResponse(t *testing.T)
 				// Model the relay's atomic commit: it stores both the pending device
 				// and encrypted finish response, but the transport loses the response.
 				committedRequest = append([]byte(nil), body...)
+				markPairingFinishRequestWritten(request)
 				return nil, errors.New("response lost after server commit")
 			}
 			if !bytes.Equal(body, committedRequest) {
@@ -217,21 +236,96 @@ func TestPairFinishV1RetriesOnlyAmbiguousOutcomes(t *testing.T) {
 func TestPairFinishV1AmbiguousRetriesAreBounded(t *testing.T) {
 	attempts := 0
 	client := &http.Client{Transport: roundTripFunc(func(
-		*http.Request,
+		request *http.Request,
 	) (*http.Response, error) {
 		attempts++
+		markPairingFinishRequestWritten(request)
 		return nil, errors.New("response remains lost")
 	})}
 	var finish map[string]any
-	if err := pairFinishPostJSON(
+	err := pairFinishPostJSON(
 		client,
 		"http://relay.test/pair/v1/finish",
 		map[string]any{"handshake_id": "handshake"},
 		&finish,
-	); err == nil {
-		t.Fatal("persistent transport loss unexpectedly succeeded")
+	)
+	if !errors.Is(err, errPairingOutcomeUnknown) {
+		t.Fatalf("persistent transport loss err=%v, want outcome unknown", err)
 	}
 	if attempts != pairingFinishAttempts {
 		t.Fatalf("attempts=%d, want=%d", attempts, pairingFinishAttempts)
+	}
+}
+
+func TestPairFinishV1PreDispatchFailureIsDefinitive(t *testing.T) {
+	attempts := 0
+	client := &http.Client{Transport: roundTripFunc(func(
+		*http.Request,
+	) (*http.Response, error) {
+		attempts++
+		return nil, errors.New("dial tcp: connection refused")
+	})}
+	var finish map[string]any
+	err := pairFinishPostJSON(
+		client,
+		"http://relay.test/pair/v1/finish",
+		map[string]any{"handshake_id": "handshake"},
+		&finish,
+	)
+	if err == nil || errors.Is(err, errPairingOutcomeUnknown) {
+		t.Fatalf("pre-dispatch finish err=%v, want definitive failure", err)
+	}
+	if attempts != 1 {
+		t.Fatalf("attempts=%d, want=1", attempts)
+	}
+}
+
+func TestPairFinishV1FailedWriteIsOutcomeUnknown(t *testing.T) {
+	attempts := 0
+	writeErr := errors.New("write tcp: broken pipe")
+	client := &http.Client{Transport: roundTripFunc(func(
+		request *http.Request,
+	) (*http.Response, error) {
+		attempts++
+		markPairingFinishRequestWriteFailed(request, writeErr)
+		return nil, writeErr
+	})}
+	var finish map[string]any
+	err := pairFinishPostJSON(
+		client,
+		"http://relay.test/pair/v1/finish",
+		map[string]any{"handshake_id": "handshake"},
+		&finish,
+	)
+	if !errors.Is(err, errPairingOutcomeUnknown) {
+		t.Fatalf("failed-write finish err=%v, want outcome unknown", err)
+	}
+	if attempts != pairingFinishAttempts {
+		t.Fatalf("attempts=%d, want=%d", attempts, pairingFinishAttempts)
+	}
+}
+
+func TestPairFinishV1DoesNotDowngradeAmbiguousOutcome(t *testing.T) {
+	for _, definitive := range []error{
+		errPairingInactive,
+		errPairingCodeRejected,
+		errRelayNotV1,
+		&relayPairingRateLimitError{retryAfterSeconds: 1},
+	} {
+		attempts := 0
+		err := retryPairingFinish(func() (bool, error) {
+			attempts++
+			if attempts == 1 {
+				return true, errors.New("response lost after server commit")
+			}
+			return false, definitive
+		})
+		if !errors.Is(err, errPairingOutcomeUnknown) ||
+			errors.Is(err, definitive) {
+			t.Fatalf("mixed finish outcome err=%v", err)
+		}
+		if attempts != 2 {
+			t.Fatalf("attempts=%d, want=2", attempts)
+		}
 	}
 }

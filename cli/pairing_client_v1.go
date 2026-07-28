@@ -15,7 +15,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptrace"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/bytemare/ksf"
@@ -285,6 +287,7 @@ func pairFinishPostJSON(
 
 func retryPairingFinish(attempt func() (bool, error)) error {
 	var lastErr error
+	ambiguous := false
 	for count := 0; count < pairingFinishAttempts; count++ {
 		retryable, err := attempt()
 		if err == nil {
@@ -292,8 +295,19 @@ func retryPairingFinish(attempt func() (bool, error)) error {
 		}
 		lastErr = err
 		if !retryable {
+			if ambiguous {
+				return fmt.Errorf(
+					"%w; a later finish response was: %v",
+					errPairingOutcomeUnknown,
+					err,
+				)
+			}
 			return err
 		}
+		ambiguous = true
+	}
+	if ambiguous {
+		return fmt.Errorf("%w: %v", errPairingOutcomeUnknown, lastErr)
 	}
 	return lastErr
 }
@@ -315,6 +329,15 @@ func pairPostJSONEncoded(
 	// header, and keep it out of the error text.
 	req.URL.User = nil
 	req.Header.Set("Content-Type", "application/json")
+	var wroteRequest atomic.Bool
+	trace := &httptrace.ClientTrace{
+		WroteRequest: func(httptrace.WroteRequestInfo) {
+			// An error may follow a partial write. The callback itself means the
+			// transport attempted the request, so the outcome is ambiguous.
+			wroteRequest.Store(true)
+		},
+	}
+	req = req.WithContext(httptrace.WithClientTrace(req.Context(), trace))
 	resp, err := client.Do(req)
 	if err != nil {
 		if resp != nil {
@@ -323,7 +346,11 @@ func pairPostJSONEncoded(
 			}
 			return false, fmt.Errorf("post %s: %w", req.URL.String(), err)
 		}
-		return true, fmt.Errorf("post %s: %w", req.URL.String(), err)
+		return wroteRequest.Load(), fmt.Errorf(
+			"post %s: %w",
+			req.URL.String(),
+			err,
+		)
 	}
 	defer resp.Body.Close()
 	raw, readErr := io.ReadAll(io.LimitReader(resp.Body, maxPairingBodyBytes))

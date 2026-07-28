@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -105,6 +106,60 @@ func refreshSetupConfigSnapshot(paths runtimePaths, lifecycleMarker [][]byte) er
 	return nil
 }
 
+func prepareSecurePairingClientInstallID(
+	paths runtimePaths,
+	cfg *runtimeConfig,
+	lifecycleMarker ...[]byte,
+) error {
+	return withSetupLifecycleGuard(paths, lifecycleMarker, func() error {
+		_, err := getOrCreateClientInstallID(
+			cfg,
+			func(value *runtimeConfig) error {
+				return saveSetupConfigIfCurrent(
+					paths,
+					*value,
+					lifecycleMarker,
+				)
+			},
+		)
+		return err
+	})
+}
+
+func saveSetupConfigIfCurrent(
+	paths runtimePaths,
+	cfg runtimeConfig,
+	lifecycleMarker [][]byte,
+) error {
+	if len(lifecycleMarker) <= 2 {
+		return saveConfig(paths, cfg)
+	}
+	expectedSnapshot := lifecycleMarker[2]
+	if len(expectedSnapshot) == 0 ||
+		(expectedSnapshot[0] != 0 && expectedSnapshot[0] != 1) {
+		return errors.New(
+			"server configuration changed during setup; rerun setup",
+		)
+	}
+	expectedExists := expectedSnapshot[0] == 1
+	committed, err := saveProfileConfigIfUnchanged(
+		paths,
+		cfg,
+		expectedSnapshot[1:],
+		expectedExists,
+	)
+	if err != nil {
+		if errors.Is(err, errConditionalJSONConflictRestored) {
+			return errors.New(
+				"server configuration changed during setup; rerun setup",
+			)
+		}
+		return err
+	}
+	lifecycleMarker[2] = append([]byte{1}, committed...)
+	return nil
+}
+
 func completeSetupLifecycle(paths runtimePaths, lifecycleMarker ...[]byte) error {
 	if len(lifecycleMarker) == 0 {
 		return nil
@@ -186,6 +241,28 @@ func withSetupLifecycleLock(paths runtimePaths, lifecycleMarker [][]byte, mutate
 			return err
 		}
 		return refreshSetupConfigSnapshot(paths, lifecycleMarker)
+	})
+}
+
+func withSetupLifecycleGuard(
+	paths runtimePaths,
+	lifecycleMarker [][]byte,
+	mutate func() error,
+) error {
+	return withClientMutationLock(paths, func() error {
+		if err := ensureSetupLifecycleCurrent(
+			paths,
+			lifecycleMarker...,
+		); err != nil {
+			return err
+		}
+		if err := mutate(); err != nil {
+			return err
+		}
+		return ensureSetupLifecycleCurrent(
+			paths,
+			lifecycleMarker...,
+		)
 	})
 }
 

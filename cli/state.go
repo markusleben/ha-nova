@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -147,12 +148,29 @@ func writeJSONFileIfUnchanged(
 	mode os.FileMode,
 	expected []byte,
 ) error {
-	return writeJSONFileOptsIfUnchanged(
+	_, err := writeJSONFileOptsIfUnchangedSnapshot(
 		path,
 		value,
 		mode,
 		true,
 		expected,
+	)
+	return err
+}
+
+func writeJSONFileIfUnchangedSnapshot(
+	path string,
+	value interface{},
+	mode os.FileMode,
+	expected []byte,
+) ([]byte, error) {
+	return writeJSONFileOptsSnapshot(
+		path,
+		value,
+		mode,
+		true,
+		expected,
+		false,
 	)
 }
 
@@ -163,40 +181,111 @@ func writeJSONFileOptsIfUnchanged(
 	escapeHTML bool,
 	expected []byte,
 ) error {
+	_, err := writeJSONFileOptsIfUnchangedSnapshot(
+		path,
+		value,
+		mode,
+		escapeHTML,
+		expected,
+	)
+	return err
+}
+
+func writeJSONFileOptsIfUnchangedSnapshot(
+	path string,
+	value interface{},
+	mode os.FileMode,
+	escapeHTML bool,
+	expected []byte,
+) ([]byte, error) {
+	return writeJSONFileOptsSnapshot(
+		path,
+		value,
+		mode,
+		escapeHTML,
+		expected,
+		false,
+	)
+}
+
+func writeJSONFileIfAbsentSnapshot(
+	path string,
+	value interface{},
+	mode os.FileMode,
+) ([]byte, error) {
+	return writeJSONFileOptsSnapshot(
+		path,
+		value,
+		mode,
+		true,
+		nil,
+		true,
+	)
+}
+
+func writeJSONFileOptsSnapshot(
+	path string,
+	value interface{},
+	mode os.FileMode,
+	escapeHTML bool,
+	expected []byte,
+	requireAbsent bool,
+) ([]byte, error) {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return err
+		return nil, err
+	}
+
+	var encoded bytes.Buffer
+	enc := json.NewEncoder(&encoded)
+	enc.SetIndent("", "  ")
+	enc.SetEscapeHTML(escapeHTML)
+	if err := enc.Encode(value); err != nil {
+		return nil, err
+	}
+	if requireAbsent {
+		if err := createFileIfAbsentDurably(
+			path,
+			encoded.Bytes(),
+			mode,
+		); err != nil {
+			return nil, err
+		}
+		return encoded.Bytes(), nil
 	}
 
 	tmp, err := os.CreateTemp(dir, filepath.Base(path)+".tmp.*")
 	if err != nil {
-		return err
+		return nil, err
 	}
 	tmpPath := tmp.Name()
 	defer os.Remove(tmpPath)
 
-	enc := json.NewEncoder(tmp)
-	enc.SetIndent("", "  ")
-	enc.SetEscapeHTML(escapeHTML)
-	if err := enc.Encode(value); err != nil {
+	if _, err := tmp.Write(encoded.Bytes()); err != nil {
 		tmp.Close()
-		return err
+		return nil, err
 	}
 	if err := tmp.Chmod(mode); err != nil {
 		tmp.Close()
-		return err
+		return nil, err
 	}
 	if err := tmp.Sync(); err != nil {
 		tmp.Close()
-		return err
+		return nil, err
 	}
 	if err := tmp.Close(); err != nil {
-		return err
+		return nil, err
 	}
 	if expected == nil {
-		return replaceFileDurably(tmpPath, path)
+		if err := replaceFileDurably(tmpPath, path); err != nil {
+			return nil, err
+		}
+		return encoded.Bytes(), nil
 	}
-	return replaceFileConditionally(path, tmpPath, expected)
+	if err := replaceFileConditionally(path, tmpPath, expected); err != nil {
+		return nil, err
+	}
+	return encoded.Bytes(), nil
 }
 
 func normalizeClients(values []string) []string {

@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/http/httptrace"
+	"sync/atomic"
 
 	"github.com/bytemare/opaque"
 )
@@ -187,31 +189,64 @@ func cloudPairingFinishCall(
 	if err != nil {
 		return newCloudError(CloudErrInvalidInput, "encode Cloud pairing request", err)
 	}
-	return retryPairingFinish(func() (bool, error) {
+	err = retryPairingFinish(func() (bool, error) {
+		var wroteRequest atomic.Bool
+		trace := &httptrace.ClientTrace{
+			WroteRequest: func(httptrace.WroteRequestInfo) {
+				// An error may follow a partial write. The callback itself means
+				// the transport attempted the request.
+				wroteRequest.Store(true)
+			},
+		}
+		attemptCtx := httptrace.WithClientTrace(ctx, trace)
 		err := cloudPairingCallEncoded(
-			ctx,
+			attemptCtx,
 			client,
 			CloudEndpointPairFinish,
 			encoded,
 			result,
 		)
-		return cloudPairingFinishRetryable(ctx, err), err
+		return cloudPairingFinishAttemptResult(ctx, wroteRequest.Load(), err)
 	})
+	if errors.Is(err, errPairingOutcomeUnknown) {
+		return newCloudError(
+			CloudErrOutcomeUnknown,
+			"finish Cloud pairing",
+			err,
+		)
+	}
+	return err
 }
 
-func cloudPairingFinishRetryable(ctx context.Context, err error) bool {
-	if err == nil || ctx.Err() != nil {
+func cloudPairingFinishAttemptResult(
+	ctx context.Context,
+	wroteRequest bool,
+	err error,
+) (bool, error) {
+	ambiguous := cloudPairingFinishAmbiguous(wroteRequest, err)
+	if ambiguous && ctx.Err() != nil {
+		return false, fmt.Errorf("%w: %v", errPairingOutcomeUnknown, err)
+	}
+	return ambiguous, err
+}
+
+func cloudPairingFinishAmbiguous(wroteRequest bool, err error) bool {
+	if err == nil {
 		return false
 	}
 	var cloudErr *CloudError
 	if !errors.As(err, &cloudErr) {
 		return false
 	}
+	if cloudErr.Code == CloudErrIngressUnavailable {
+		return false
+	}
 	if cloudErr.StatusCode != 0 {
 		return cloudErr.StatusCode >= http.StatusInternalServerError &&
 			cloudErr.StatusCode <= 599
 	}
-	return cloudErr.Code == CloudErrNetwork || cloudErr.Code == CloudErrTimeout
+	return wroteRequest &&
+		(cloudErr.Code == CloudErrNetwork || cloudErr.Code == CloudErrTimeout)
 }
 
 func cloudPairingCallEncoded(

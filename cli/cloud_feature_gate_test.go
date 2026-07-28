@@ -218,6 +218,26 @@ func TestCloudRemoteBuildTagsSelectIsolatedIdentities(t *testing.T) {
 			if err != nil || slug != "local_ha_nova_build_tag" {
 				t.Fatalf("development build App slug = %q, %v", slug, err)
 			}
+		case "development-unstamped":
+			identity := cloudRemoteBuildIdentityForRuntime()
+			if identity.Disabled ||
+				!identity.Development ||
+				identity.AppSlug != "" {
+				t.Fatalf("unstamped development build identity = %+v", identity)
+			}
+			if cloudRemoteFeatureAvailable() {
+				t.Fatal("unstamped development build enabled Cloud Remote")
+			}
+			target, err := haNOVAAppPanelURL("http://ha.test:8123/")
+			if err != nil ||
+				target.URL != "http://ha.test:8123" ||
+				target.Direct {
+				t.Fatalf(
+					"unstamped development App target = %+v, %v",
+					target,
+					err,
+				)
+			}
 		case "official":
 			identity := cloudRemoteBuildIdentityForRuntime()
 			if identity.Disabled || identity.Development || !identity.Official {
@@ -240,6 +260,10 @@ func TestCloudRemoteBuildTagsSelectIsolatedIdentities(t *testing.T) {
 			mode:    "development",
 			tag:     "cloudremote_dev",
 			ldflags: "-X github.com/markusleben/ha-nova/cli.cloudRemoteDevAppSlug=local_ha_nova_build_tag",
+		},
+		{
+			mode: "development-unstamped",
+			tag:  "cloudremote_dev",
 		},
 	} {
 		t.Run(testCase.mode, func(t *testing.T) {

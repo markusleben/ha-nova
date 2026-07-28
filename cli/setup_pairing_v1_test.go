@@ -29,7 +29,10 @@ func TestSetupPairingPrefersSecureV1(t *testing.T) {
 	}
 
 	reader := bufio.NewReader(strings.NewReader("\n473921\n"))
-	cfg := &runtimeConfig{RelayBaseURL: "http://relay:8791"}
+	cfg := &runtimeConfig{
+		RelayBaseURL:    "http://relay:8791",
+		ClientInstallID: "inst-test",
+	}
 	token, err := runSetupPairingFlow(reader, io.Discard, runtimePaths{ConfigDir: t.TempDir()}, cfg, false)
 	if !errors.Is(err, errSetupDevicePaired) {
 		t.Fatalf("expected errSetupDevicePaired, got token=%q err=%v", token, err)
@@ -50,7 +53,10 @@ func TestSetupPairingFallsBackToLegacyExchange(t *testing.T) {
 	}
 
 	reader := bufio.NewReader(strings.NewReader("\n473921\n"))
-	cfg := &runtimeConfig{RelayBaseURL: "http://relay:8791"}
+	cfg := &runtimeConfig{
+		RelayBaseURL:    "http://relay:8791",
+		ClientInstallID: "inst-test",
+	}
 	token, err := runSetupPairingFlow(reader, io.Discard, runtimePaths{ConfigDir: t.TempDir()}, cfg, false)
 	if err != nil {
 		t.Fatalf("legacy exchange should succeed: %v", err)
@@ -82,7 +88,10 @@ func TestSetupPairingLegacyExchangeRejectsStaleLifecycle(t *testing.T) {
 	}
 
 	reader := bufio.NewReader(strings.NewReader("\n473921\n"))
-	cfg := &runtimeConfig{RelayBaseURL: "http://relay:8791"}
+	cfg := &runtimeConfig{
+		RelayBaseURL:    "http://relay:8791",
+		ClientInstallID: "inst-test",
+	}
 	var out strings.Builder
 	_, err := runSetupPairingFlow(reader, &out, paths, cfg, false, lifecycleMarker...)
 	if err == nil ||
@@ -116,7 +125,10 @@ func TestSetupPairingMidFlowRelayNotV1FailsSafeWithoutTokenStore(t *testing.T) {
 	}
 
 	reader := bufio.NewReader(strings.NewReader("\n473921\n"))
-	cfg := &runtimeConfig{RelayBaseURL: "http://relay:8791"}
+	cfg := &runtimeConfig{
+		RelayBaseURL:    "http://relay:8791",
+		ClientInstallID: "inst-test",
+	}
 	var out strings.Builder
 	_, err := runSetupPairingFlow(reader, &out, runtimePaths{ConfigDir: t.TempDir()}, cfg, true) // legacyTokenStoreUnavailable
 	if err == nil {
@@ -148,7 +160,10 @@ func TestSetupPairingTransientV1ProbeFailureDoesNotDeclareOldRelay(t *testing.T)
 	}
 
 	reader := bufio.NewReader(strings.NewReader("\n473921\n"))
-	cfg := &runtimeConfig{RelayBaseURL: "http://relay:8791"}
+	cfg := &runtimeConfig{
+		RelayBaseURL:    "http://relay:8791",
+		ClientInstallID: "inst-test",
+	}
 	_, err := runSetupPairingFlow(reader, io.Discard, runtimePaths{ConfigDir: t.TempDir()}, cfg, true)
 	if err == nil {
 		t.Fatal("expected an error when the relay is unreachable")
@@ -183,7 +198,10 @@ func TestSetupPairingRecoversWhenSecondV1ProbeSucceeds(t *testing.T) {
 	}
 
 	reader := bufio.NewReader(strings.NewReader("\n473921\n"))
-	cfg := &runtimeConfig{RelayBaseURL: "http://relay:8791"}
+	cfg := &runtimeConfig{
+		RelayBaseURL:    "http://relay:8791",
+		ClientInstallID: "inst-test",
+	}
 	_, err := runSetupPairingFlow(reader, io.Discard, runtimePaths{ConfigDir: t.TempDir()}, cfg, true)
 	if !errors.Is(err, errSetupDevicePaired) {
 		t.Fatalf("expected secure pairing to proceed after the v1 probe recovered, got %v", err)

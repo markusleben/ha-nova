@@ -221,7 +221,7 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 			activeServerProfile(),
 		)
 	}
-	guardErr := withSetupLifecycleLock(paths, lifecycleMarker, func() error {
+	guardErr := withSetupLifecycleGuard(paths, lifecycleMarker, func() error {
 		if err := guardPairingMutation(); err != nil {
 			return err
 		}
@@ -242,7 +242,7 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 	// credential backend would burn. Headless systems switch to the private-file
 	// fallback here, with a visible note.
 	var probe deviceStorageProbe
-	probeErr := withSetupLifecycleLock(paths, lifecycleMarker, func() error {
+	probeErr := withSetupLifecycleGuard(paths, lifecycleMarker, func() error {
 		ui := explicitPairingSecretStoreUIPolicy()
 		ctx, cancel := boundedNativeOAuthSecretContext(
 			context.Background(),
@@ -290,15 +290,16 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 		}
 	}
 
-	renderSetupParagraph(out,
-		"Open NOVA in the Home Assistant sidebar and click \"Connect a device\" to get a six-digit code.",
-		`If NOVA is not in the sidebar, open the NOVA Relay app page and choose "Open Web UI".`,
-	)
-	renderSetupLink(out, "This will open:", haRelayAppPageURL(cfg.HAURL))
-	if _, err := promptWizardLineFromReader(reader, out, "Press Enter to open NOVA", ""); err != nil {
+	if secure {
+		if err := prepareSecurePairingClientInstallID(paths, cfg, lifecycleMarker...); err != nil {
+			renderSetupErrorLine(out, "Could not prepare this device before pairing: %s", err)
+			return "", err
+		}
+	}
+
+	if err := promptToOpenNOVAForPairing(reader, out, cfg.HAURL); err != nil {
 		return "", err
 	}
-	openAnnouncedBrowserURL(out, haRelayAppPageURL(cfg.HAURL))
 
 	for {
 		entered, err := promptWizardLineFromReader(reader, out, "Six-digit code from NOVA (or type 'manual')", "")
@@ -316,11 +317,17 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 
 		if secure {
 			var perr error
-			lockErr := withSetupLifecycleLock(paths, lifecycleMarker, func() error {
+			lockErr := withSetupLifecycleGuard(paths, lifecycleMarker, func() error {
 				if err := guardPairingMutation(); err != nil {
 					return err
 				}
-				save := func(c *runtimeConfig) error { return saveConfig(paths, *c) }
+				save := func(c *runtimeConfig) error {
+					return saveSetupConfigIfCurrent(
+						paths,
+						*c,
+						lifecycleMarker,
+					)
+				}
 				_, perr = securePairForSetup(cfg.RelayBaseURL, code, cfg, save, defaultPairingClientInfo())
 				return perr
 			})
@@ -362,7 +369,7 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 		}
 
 		var token string
-		err = withSetupLifecycleLock(paths, lifecycleMarker, func() error {
+		err = withSetupLifecycleGuard(paths, lifecycleMarker, func() error {
 			if err := guardPairingMutation(); err != nil {
 				return err
 			}
