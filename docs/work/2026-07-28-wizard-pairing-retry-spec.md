@@ -75,7 +75,8 @@ the browser-to-terminal round trip.
   definitive response, a proven pre-dispatch transport failure, and a failed
   request write.
 - Cloud finish tests cover persistent ambiguity, mixed definitive responses,
-  proven pre-dispatch transport failure, and context expiry after dispatch.
+  proven pre-dispatch transport failure, headerless ingress 502/503 responses,
+  and context expiry after dispatch.
 - URL tests cover official, isolated developer, and
   disabled/unstamped/invalid-development routes, including an actual
   unstamped `cloudremote_dev` build.

@@ -238,6 +238,9 @@ func cloudPairingFinishAmbiguous(wroteRequest bool, err error) bool {
 	if !errors.As(err, &cloudErr) {
 		return false
 	}
+	if cloudErr.Code == CloudErrIngressUnavailable {
+		return false
+	}
 	if cloudErr.StatusCode != 0 {
 		return cloudErr.StatusCode >= http.StatusInternalServerError &&
 			cloudErr.StatusCode <= 599

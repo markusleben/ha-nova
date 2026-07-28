@@ -273,6 +273,50 @@ func TestPairFinishCloudV2FailedWriteIsDefinitive(t *testing.T) {
 	}
 }
 
+func TestPairFinishCloudV2IngressUnavailableIsDefinitive(t *testing.T) {
+	for _, status := range []int{
+		http.StatusBadGateway,
+		http.StatusServiceUnavailable,
+	} {
+		t.Run(http.StatusText(status), func(t *testing.T) {
+			attempts := 0
+			client := newProtocolTestCloudIngressClient(
+				t,
+				roundTripFunc(func(request *http.Request) (*http.Response, error) {
+					attempts++
+					markPairingFinishRequestWritten(request)
+					return pairingFinishTestResponse(
+						status,
+						io.NopCloser(strings.NewReader("")),
+						false,
+					), nil
+				}),
+			)
+			var finish map[string]any
+			err := cloudPairingFinishCall(
+				context.Background(),
+				client,
+				map[string]any{"handshake_id": "handshake"},
+				&finish,
+			)
+			if !IsCloudErrorCode(err, CloudErrIngressUnavailable) {
+				t.Fatalf(
+					"headerless %d finish err=%v, want ingress unavailable",
+					status,
+					err,
+				)
+			}
+			if attempts != 1 {
+				t.Fatalf("attempts=%d, want=1", attempts)
+			}
+			if problem := cloudProblemForError(err); problem.Remediation !=
+				cloudRemediationRetry {
+				t.Fatalf("headerless %d problem=%+v", status, problem)
+			}
+		})
+	}
+}
+
 func TestPairFinishCloudV2ContextEndAfterSendIsOutcomeUnknown(
 	t *testing.T,
 ) {
