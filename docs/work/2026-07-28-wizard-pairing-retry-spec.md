@@ -13,6 +13,11 @@ The pairing link also opens the App settings page. That page requires another
 manual "Open Web UI" action and always targets the official App slug, even in an
 isolated developer build.
 
+A resumed local setup can also finish after repairing connection or client
+state without surfacing the existing `ha-nova cloud add` path. When that
+command is used directly, OAuth opens in the browser without first explaining
+the browser-to-terminal round trip.
+
 ## Contract
 
 - Establish and persist `client_install_id` in its own guarded transaction
@@ -44,6 +49,12 @@ isolated developer build.
   for older Home Assistant versions.
 - Disabled or unstamped development builds never guess the official App slug;
   they open Home Assistant and require selection of the intended sidebar App.
+- A completed local setup that did not already present the connection-mode
+  choice shows `ha-nova cloud add` as the optional next step when Cloud support
+  is available.
+- Fresh Cloud OAuth announces the browser sign-in and return-to-terminal step
+  immediately before opening the browser. It adds no confirmation prompt or
+  extra setup state.
 
 ## Verification
 
@@ -57,4 +68,6 @@ isolated developer build.
 - Cloud finish tests cover persistent ambiguity, mixed definitive responses,
   proven pre-dispatch transport failure, and context expiry after dispatch.
 - URL tests cover official, isolated developer, and disabled/unstamped routes.
+- UX tests cover the optional post-setup Cloud command and the pre-browser
+  OAuth explanation.
 - Run the targeted Go test package and one isolated real Wizard pairing.

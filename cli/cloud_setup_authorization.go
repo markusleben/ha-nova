@@ -4,8 +4,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"time"
 )
+
+func announceCloudOAuthBrowserForSetup() {
+	renderSetupParagraph(
+		os.Stdout,
+		"Opening Home Assistant Cloud in your browser for sign-in.",
+		"Approve HA NOVA there, then return to this terminal.",
+	)
+}
 
 func (productionCloudSetupCoordinator) authorizeAndVerify(
 	ctx context.Context,
@@ -214,6 +223,7 @@ func authorizeOrRefreshCloud(
 			return err
 		}
 		mutationPaused = true
+		announceCloudOAuthBrowserForSetup()
 		return nil
 	}
 	authorization, authorizationErr := flow.Authorize(

@@ -250,6 +250,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 	promptedClient := false
 	clientsResolved := false
 	connectionMode := setupConnectionLocal
+	connectionModePrompted := false
 	for {
 		if target == "" {
 			answer, selectErr := promptSetupClientForWizard(
@@ -312,6 +313,7 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 		) {
 			break
 		}
+		connectionModePrompted = true
 		connectionMode, err = promptSetupConnectionMode(reader, os.Stdout)
 		if err == errSetupBack {
 			target = ""
@@ -1201,6 +1203,13 @@ func interactiveSetup(paths runtimePaths, cfg runtimeConfig, state installState,
 				cloudSetupPaused,
 			); exit != 0 {
 				return exit
+			}
+			if !connectionModePrompted {
+				renderOptionalCloudAddNextStep(
+					os.Stdout,
+					cfg,
+					serviceMode,
+				)
 			}
 			// One-time census ask AFTER the complete banner — clearly outside
 			// the numbered wizard steps, never readable as a setup hurdle.
