@@ -10,6 +10,7 @@ import {
 } from "./cloud-source-check-reporter.mjs";
 import { handleCloudSourceCheckFailure } from "./cloud-source-check-failure.mjs";
 import { createCloudSourceConsistencyResolver } from "./cloud-source-consistency.mjs";
+import { createCloudSourcePullRequestReader } from "./cloud-source-pull-request.mjs";
 import { createTrustedCIResolver } from "./cloud-source-workflow-run.mjs";
 
 const workspace = process.env.GITHUB_WORKSPACE ?? "";
@@ -40,8 +41,8 @@ function requireSHA(value, label) {
   return value;
 }
 
-async function github(endpoint, token, init = {}) {
-  const response = await fetch(`https://api.github.com/${endpoint}`, {
+async function githubResponse(endpoint, token, init = {}) {
+  return fetch(`https://api.github.com/${endpoint}`, {
     ...init,
     signal: init.signal ?? AbortSignal.timeout(apiTimeoutMs),
     headers: {
@@ -53,6 +54,10 @@ async function github(endpoint, token, init = {}) {
       ...(init.headers ?? {}),
     },
   });
+}
+
+async function github(endpoint, token, init = {}) {
+  const response = await githubResponse(endpoint, token, init);
   if (!response.ok) {
     fail(`GitHub API ${endpoint} returned HTTP ${response.status}`);
   }
@@ -72,71 +77,17 @@ function run(command, args, env = {}) {
   }
 }
 
-function resolveRemoteRef(sourceRef) {
-  const result = spawnSync(
-    "git",
-    ["ls-remote", "--refs", "origin", sourceRef],
-    {
-      cwd: workspace,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "inherit"],
-      timeout: apiTimeoutMs,
-    },
-  );
-  if (result.error !== undefined || result.status !== 0) {
-    fail(`cannot resolve remote source ref ${sourceRef}`);
-  }
-  if (result.stdout.trim().length === 0) {
-    return undefined;
-  }
-  const fields = result.stdout.trim().split(/\s+/);
-  if (
-    fields.length !== 2 ||
-    fields[1] !== sourceRef ||
-    !/^[0-9a-f]{40}$/.test(fields[0])
-  ) {
-    fail(`remote source ref ${sourceRef} did not resolve exactly once`);
-  }
-  return fields[0];
-}
-
-async function currentPullRequest(headSHA) {
-  const candidates = await github(
-    `repos/${repository}/commits/${headSHA}/pulls`,
+const { currentPullRequest, mergeCommitParents, resolveRemoteRef } =
+  createCloudSourcePullRequestReader({
+    apiTimeoutMs,
+    fail,
+    github,
+    githubResponse,
     githubToken,
-  );
-  const matches = candidates.filter(
-    (pull) =>
-      pull.state === "open" &&
-      pull.base?.ref === "main" &&
-      pull.base?.repo?.full_name === repository &&
-      pull.head?.sha === headSHA,
-  );
-  if (matches.length !== 1) {
-    if (matches.length === 0) {
-      return undefined;
-    }
-    fail("workflow run must identify exactly one current pull request");
-  }
-  const association = matches[0];
-  if (!Number.isSafeInteger(association.number) || association.number <= 0) {
-    fail("associated pull request number must be a positive integer");
-  }
-  const pull = await github(
-    `repos/${repository}/pulls/${association.number}`,
-    githubToken,
-  );
-  if (
-    pull.number !== association.number ||
-    pull.state !== "open" ||
-    pull.base?.ref !== "main" ||
-    pull.base?.repo?.full_name !== repository ||
-    pull.head?.sha !== headSHA
-  ) {
-    return undefined;
-  }
-  return pull;
-}
+    repository,
+    requireSHA,
+    workspace,
+  });
 
 function readEvent() {
   let event;
@@ -155,12 +106,16 @@ function readEvent() {
   return { action: event.action, workflowRun: event.workflow_run };
 }
 
-const { resolvePullRequestSource, resolveQueueSource } =
-  createCloudSourceConsistencyResolver({
-    currentPullRequest,
-    requireSHA,
-    resolveRemoteRef,
-  });
+const {
+  matchesPullRequestSource,
+  resolvePullRequestSource,
+  resolveQueueSource,
+} = createCloudSourceConsistencyResolver({
+  currentPullRequest,
+  mergeCommitParents,
+  requireSHA,
+  resolveRemoteRef,
+});
 const requireTrustedCI = createTrustedCIResolver({
   fail,
   github: (endpoint) => github(endpoint, githubToken),
@@ -362,10 +317,15 @@ try {
       `repos/${repository}/pulls/${currentPR.number}`,
       githubToken,
     );
+    const latestSourceMatches =
+      latest.merge_commit_sha == null ||
+      (await matchesPullRequestSource(latest, headSHA, verifiedTargetSHA)) ===
+        true;
     if (
       latest.state !== "open" ||
       latest.base?.sha !== currentPR.base.sha ||
-      latest.head?.sha !== headSHA
+      latest.head?.sha !== headSHA ||
+      !latestSourceMatches
     ) {
       fail("pull request changed while the trusted source gate was running");
     }
@@ -386,19 +346,25 @@ try {
   if (event === "pull_request") {
     const finalPR = await currentPullRequest(headSHA);
     if (
+      finalPR === undefined ||
       finalPR.number !== currentPR.number ||
       finalPR.base?.sha !== currentPR.base.sha ||
       finalPR.head?.sha !== headSHA ||
-      requireSHA(
-        finalPR.merge_commit_sha,
-        "final pull request merge commit SHA",
-      ) !== verifiedTargetSHA
+      (await matchesPullRequestSource(finalPR, headSHA, verifiedTargetSHA)) !==
+        true
     ) {
       fail("pull request identity changed after final source verification");
     }
   }
   const finalTrustedCI = await requireTrustedCI(workflowRun);
   if (finalTrustedCI.staleAttempt) {
+    await discardStaleAttempt(currentWorkflowRun);
+  }
+  if (resolveRemoteRef(sourceRef) !== verifiedTargetSHA) {
+    fail("source ref changed immediately before terminal reporting");
+  }
+  const terminalTrustedCI = await requireTrustedCI(workflowRun);
+  if (terminalTrustedCI.staleAttempt) {
     await discardStaleAttempt(currentWorkflowRun);
   }
   await completeCheck(

@@ -243,6 +243,10 @@ export function registerCloudReleaseGateContractTests(): void {
       "scripts/release/cloud-source-consistency.mjs",
       "utf8",
     );
+    const sourceReader = readFileSync(
+      "scripts/release/cloud-source-pull-request.mjs",
+      "utf8",
+    );
     const reporterHelper = readFileSync(
       "scripts/release/cloud-source-check-reporter.mjs",
       "utf8",
@@ -261,7 +265,7 @@ export function registerCloudReleaseGateContractTests(): void {
     );
     expect(reporter).toContain("if (terminalResult)");
     expect(reporter).toContain("AbortSignal.timeout(apiTimeoutMs)");
-    expect(reporter).toContain("timeout: apiTimeoutMs");
+    expect(sourceReader).toContain("timeout: apiTimeoutMs");
     expect(reporter).toContain("timeout: commandTimeoutMs");
     expect(reporter).toContain('killSignal: "SIGKILL"');
     expect(reporterHelper).toContain("AbortSignal.timeout(apiTimeoutMs)");
@@ -287,8 +291,19 @@ export function registerCloudReleaseGateContractTests(): void {
     expect(reporter).toContain("const finalPR = await currentPullRequest(headSHA)");
     expect(reporter).toContain("finalPR.number !== currentPR.number");
     expect(reporter).toContain(
-      'finalPR.merge_commit_sha,\n        "final pull request merge commit SHA"',
+      "await matchesPullRequestSource(finalPR, headSHA, verifiedTargetSHA)",
     );
+    expect(sourceReader).toContain(
+      "`repos/${repository}/git/commits/${mergeSHA}`",
+    );
+    expect(reporter).toContain(
+      "source ref changed immediately before terminal reporting",
+    );
+    expect(sourceConsistency).toContain("parents.length === 2");
+    expect(sourceConsistency).toContain(
+      'parents[0] === requireSHA(pull.base?.sha, "pull request base SHA")',
+    );
+    expect(sourceConsistency).toContain("parents[1] === headSHA");
     expect(reporter).toContain("pull request identity changed after final source verification");
     expect(reporter).toContain("source ref changed while the trusted source gate was running");
     expect(checkTokenScript).toContain(

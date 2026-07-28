@@ -6,10 +6,12 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { registerCloudSourceCheckMutationBehaviorTests } from "./cloud-source-check-mutation-behavior.js";
+import { registerCloudSourceMergeRefFallbackBehaviorTests } from "./cloud-source-merge-ref-fallback-behavior.js";
 import { registerCloudSourceMaterializationBehaviorTests } from "./cloud-source-materialization-behavior.js";
 import { registerCloudSourceMaterializationWindowBehaviorTests } from "./cloud-source-materialization-window-behavior.js";
 import { registerCloudSourceRejectionBehaviorTests } from "./cloud-source-rejection-behavior.js";
 import { registerCloudSourceRunnerLifecycleBehaviorTests } from "./cloud-source-runner-lifecycle-behavior.js";
+import { registerCloudSourceTerminalOrderingBehaviorTests } from "./cloud-source-terminal-ordering-behavior.js";
 
 const headSHA = "a".repeat(40);
 const appId = 42;
@@ -17,6 +19,8 @@ const appId = 42;
 registerCloudSourceRunnerLifecycleBehaviorTests();
 registerCloudSourceMaterializationBehaviorTests();
 registerCloudSourceMaterializationWindowBehaviorTests();
+registerCloudSourceMergeRefFallbackBehaviorTests();
+registerCloudSourceTerminalOrderingBehaviorTests();
 registerCloudSourceRejectionBehaviorTests();
 registerCloudSourceCheckMutationBehaviorTests();
 

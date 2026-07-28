@@ -4,7 +4,7 @@ import { headSHA, runSourceGate } from "./cloud-source-runner-behavior.js";
 
 export function registerCloudSourceMaterializationBehaviorTests(): void {
   describe("Cloud source PR materialization", () => {
-    it("retries an absent full merge commit in one bounded run", () => {
+    it("retries an absent merge ref in one bounded run", () => {
       const provisional = {
         app: { id: 42 },
         external_id: `workflow-run:123:attempt:1:target:${headSHA}`,
@@ -17,7 +17,7 @@ export function registerCloudSourceMaterializationBehaviorTests(): void {
         mergeCommitSHA: null,
       });
       expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
-      expect(result.stdout).toContain("merge commit is not materialized yet");
+      expect(result.stdout).toContain("merge ref is not materialized yet");
       expect(trace.some((entry) => entry.method === "POST")).toBe(false);
       expect(
         trace.filter(
@@ -120,6 +120,7 @@ export function registerCloudSourceMaterializationBehaviorTests(): void {
           false,
           true,
         ],
+        mergeCommitResponses: [{ parents: ["b".repeat(40), "c".repeat(40)] }],
         mergeCommitSHASequence: [...Array<null>(18).fill(null), "d".repeat(40)],
       });
       expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
@@ -129,6 +130,16 @@ export function registerCloudSourceMaterializationBehaviorTests(): void {
             entry.method === "PATCH" && entry.body?.conclusion === "success",
         ),
       ).toBe(true);
+      expect(
+        trace.filter(
+          (entry) =>
+            entry.method === "GET" &&
+            entry.path.endsWith(`/commits/${headSHA}/pulls`),
+        ),
+      ).toHaveLength(21);
+      expect(trace.filter((entry) => entry.method === "TIMER")).toHaveLength(
+        19,
+      );
     });
 
     it("keeps a timeout rejection immutable on duplicate delivery", () => {

@@ -35,6 +35,7 @@ export function registerCloudSourceMaterializationWindowBehaviorTests(): void {
 
     it("accepts a merge commit materialized at the deadline", () => {
       const { result, trace } = runSourceGate({
+        mergeCommitResponses: [{ parents: ["b".repeat(40), "c".repeat(40)] }],
         mergeCommitSHASequence: [...Array<null>(30).fill(null), mergeSHA],
       });
       expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
