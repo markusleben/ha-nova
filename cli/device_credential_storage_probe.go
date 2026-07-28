@@ -12,6 +12,7 @@ import (
 
 // Test seams: the canaries hit the real OS keyring / filesystem by default.
 var deviceStorageKeyringCanary = keyringStorageCanary
+var deviceStorageKeyringCanaryForPolicy = keyringStorageCanaryWithPolicy
 var deviceStorageFileCanary = fileStorageCanary
 
 // deviceCredentialStorageViable reports whether a device credential can be
@@ -38,7 +39,7 @@ func probeDeviceCredentialStorageWithPolicy(
 	ui SecretStoreUIPolicy,
 ) (deviceStorageProbe, error) {
 	return probeDeviceCredentialStorageWithCanary(func() error {
-		return keyringStorageCanaryWithPolicy(ctx, ui)
+		return deviceStorageKeyringCanaryForPolicy(ctx, ui)
 	})
 }
 

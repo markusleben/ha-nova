@@ -116,6 +116,18 @@ func deviceSecretFileExists(service string) bool {
 // keyring is unreachable (headless). Resume uses it to prefer a real keyring
 // pending over an orphan .pending FILE from an aborted earlier headless attempt.
 func readKeyringDeviceSecret(service string) (string, bool, error) {
+	return readKeyringDeviceSecretWithPolicy(
+		context.Background(),
+		service,
+		SecretStoreForbidUI,
+	)
+}
+
+func readKeyringDeviceSecretWithPolicy(
+	ctx context.Context,
+	service string,
+	ui SecretStoreUIPolicy,
+) (string, bool, error) {
 	if dir, ok := testSecretDir(); ok {
 		data, err := os.ReadFile(testSecretPath(dir, service))
 		if err != nil {
@@ -126,14 +138,11 @@ func readKeyringDeviceSecret(service string) (string, bool, error) {
 		}
 		return strings.TrimSpace(string(data)), true, nil
 	}
-	ctx, cancel := boundedNativeOAuthSecretContext(
-		context.Background(),
-		SecretStoreForbidUI,
-	)
+	ctx, cancel := boundedNativeOAuthSecretContext(ctx, ui)
 	defer cancel()
 	if err := deviceCredentialPreflightWithContext(
 		ctx,
-		SecretStoreForbidUI,
+		ui,
 	); err != nil {
 		return "", false, err
 	}
@@ -141,7 +150,7 @@ func readKeyringDeviceSecret(service string) (string, bool, error) {
 		ctx,
 		service,
 		secretUser(),
-		SecretStoreForbidUI,
+		ui,
 	)
 	if err != nil {
 		if errors.Is(err, keyring.ErrNotFound) {

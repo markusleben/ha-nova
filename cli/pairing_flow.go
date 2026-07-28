@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"net/url"
@@ -45,16 +46,38 @@ func defaultPairingClientInfo() pairingClientInfo {
 // Test seams so the pairing orchestration can be exercised without a live relay.
 var pairDeviceV1ForPairing = pairDeviceV1
 var activateDeviceV1ForPairing = activateDeviceV1
+var explicitPairingSecretStoreUIPolicy = func() SecretStoreUIPolicy {
+	return SecretStoreForbidUI
+}
 
-func runSecurePairing(bootstrapURL, code string, cfg *runtimeConfig, saveCfg func(*runtimeConfig) error, info pairingClientInfo) (string, error) {
-	if err := validateLocalDeviceReplacementAllowed(*cfg); err != nil {
+func runSecurePairingWithValidationPolicy(
+	bootstrapURL, code string,
+	cfg *runtimeConfig,
+	saveCfg func(*runtimeConfig) error,
+	info pairingClientInfo,
+	validationUI SecretStoreUIPolicy,
+) (string, error) {
+	pairingUI := explicitPairingSecretStoreUIPolicy()
+	if err := validateLocalDeviceReplacementAllowedWithPolicy(
+		*cfg,
+		validationUI,
+	); err != nil {
 		return "", err
 	}
 	// Prove credential storage works BEFORE talking to the relay: /pair/v1/finish
 	// consumes the owner's one-time code, so a broken keyring discovered after the
 	// fact would burn the code with nothing stored. Callers probe earlier for the
 	// user-facing message; this guard keeps the invariant for every caller.
-	if _, err := probeDeviceCredentialStorage(); err != nil {
+	probeCtx, cancelProbe := boundedNativeOAuthSecretContext(
+		context.Background(),
+		pairingUI,
+	)
+	_, err := probeDeviceCredentialStorageWithPolicy(
+		probeCtx,
+		pairingUI,
+	)
+	cancelProbe()
+	if err != nil {
 		return "", fmt.Errorf("cannot store a device credential on this system (the code was not used): %w", err)
 	}
 	installID, err := getOrCreateClientInstallID(cfg, saveCfg)
@@ -74,7 +97,17 @@ func runSecurePairing(bootstrapURL, code string, cfg *runtimeConfig, saveCfg fun
 
 	// Local-first: persist the pending credential BEFORE activating, so a crash
 	// after activation can still resume (the credential is not lost).
-	if err := writePendingDeviceCredential(prov.Credential); err != nil {
+	pendingCtx, cancelPending := boundedNativeOAuthSecretContext(
+		context.Background(),
+		pairingUI,
+	)
+	err = writePendingDeviceCredentialWithPolicy(
+		pendingCtx,
+		prov.Credential,
+		pairingUI,
+	)
+	cancelPending()
+	if err != nil {
 		return "", fmt.Errorf("could not store the new credential securely: %w", err)
 	}
 
@@ -125,7 +158,16 @@ func runSecurePairing(bootstrapURL, code string, cfg *runtimeConfig, saveCfg fun
 	if err := saveCfg(cfg); err != nil {
 		return "", fmt.Errorf("could not save the secure endpoint: %w", err)
 	}
-	if err := promotePendingDeviceCredential(); err != nil {
+	promoteCtx, cancelPromote := boundedNativeOAuthSecretContext(
+		context.Background(),
+		pairingUI,
+	)
+	err = promotePendingDeviceCredentialWithPolicy(
+		promoteCtx,
+		pairingUI,
+	)
+	cancelPromote()
+	if err != nil {
 		return "", fmt.Errorf("activated but could not finalize the credential: %w", err)
 	}
 	// Credential + live endpoint are now durable and working; clearing the stale
@@ -138,12 +180,30 @@ func runSecurePairing(bootstrapURL, code string, cfg *runtimeConfig, saveCfg fun
 }
 
 func validateLocalDeviceReplacementAllowed(cfg runtimeConfig) error {
+	return validateLocalDeviceReplacementAllowedWithPolicy(
+		cfg,
+		SecretStoreForbidUI,
+	)
+}
+
+func validateLocalDeviceReplacementAllowedWithPolicy(
+	cfg runtimeConfig,
+	ui SecretStoreUIPolicy,
+) error {
 	if cfg.Cloud != nil {
 		return fmt.Errorf(
 			"Home Assistant Cloud access is configured; remove it before replacing the local device pairing (the code was not used)",
 		)
 	}
-	if pending, exists, err := readPendingDeviceCredentialRecord(); err != nil {
+	ctx, cancel := boundedNativeOAuthSecretContext(
+		context.Background(),
+		ui,
+	)
+	defer cancel()
+	if pending, exists, err := readPendingDeviceCredentialRecordWithPolicy(
+		ctx,
+		ui,
+	); err != nil {
 		return fmt.Errorf(
 			"cannot inspect the pending device credential before local pairing: %w",
 			err,
@@ -169,6 +229,21 @@ func validateLocalDeviceReplacementAllowed(cfg runtimeConfig) error {
 // already stored pending (e.g. a crash between activate and promote). Safe to
 // call at setup/doctor start; a no-op when there is no pending credential.
 func resumePendingActivation(cfg *runtimeConfig, saveCfg func(*runtimeConfig) error) (bool, error) {
+	return resumePendingActivationWithPolicy(
+		cfg,
+		saveCfg,
+		SecretStoreForbidUI,
+	)
+}
+
+func resumePendingActivationWithPolicy(
+	cfg *runtimeConfig,
+	saveCfg func(*runtimeConfig) error,
+	ui SecretStoreUIPolicy,
+) (bool, error) {
+	if err := validateSecretUIPolicy(ui); err != nil {
+		return false, err
+	}
 	base, pin := cfg.PendingSecureBaseURL, cfg.PendingSpkiPin
 	if base == "" || pin == "" {
 		// No interrupted pairing to resume (cheap check first, before any keyring
@@ -219,7 +294,11 @@ func resumePendingActivation(cfg *runtimeConfig, saveCfg func(*runtimeConfig) er
 		// orphan file) or a headless-interrupted pairing whose marker is not
 		// written until promotion. Prefer a real keyring pending over an orphan
 		// file; only an absent/empty keyring falls back to the file.
-		kp, kok, kerr := readKeyringDeviceSecret(pendingService)
+		kp, kok, kerr := readKeyringDeviceSecretWithPolicy(
+			context.Background(),
+			pendingService,
+			ui,
+		)
 		switch {
 		case kok:
 			record, decodeErr := decodePendingDeviceCredentialRecord(kp)
@@ -284,10 +363,15 @@ func resumePendingActivation(cfg *runtimeConfig, saveCfg func(*runtimeConfig) er
 		// Keyring-backed: promote the pending we already read and drop the keyring
 		// pending slot. An orphan .pending FILE (if any) is left untouched — it is
 		// harmless residue that marker-based reads never consult.
-		if err := writeDeviceCredential(pending); err != nil {
+		ctx, cancel := boundedNativeOAuthSecretContext(
+			context.Background(),
+			ui,
+		)
+		defer cancel()
+		if err := writeDeviceCredentialWithPolicy(ctx, pending, ui); err != nil {
 			return false, err
 		}
-		if err := deletePendingDeviceCredential(); err != nil {
+		if err := deletePendingDeviceCredentialWithPolicy(ctx, ui); err != nil {
 			return false, err
 		}
 	}

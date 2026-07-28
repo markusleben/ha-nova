@@ -7,6 +7,68 @@ func resumeInterruptedPairingForDoctor(
 	configSnapshot []byte,
 	hadConfigSnapshot bool,
 ) (bool, error) {
+	return resumeInterruptedPairing(
+		paths,
+		cfg,
+		lifecycleGeneration,
+		configSnapshot,
+		hadConfigSnapshot,
+		resumePendingActivationAfterRetirementGuard,
+	)
+}
+
+func resumeInterruptedPairingForExplicitPair(
+	paths runtimePaths,
+	cfg *runtimeConfig,
+	lifecycleGeneration []byte,
+	configSnapshot []byte,
+	hadConfigSnapshot bool,
+) (bool, error) {
+	return resumeInterruptedPairingForPairCommand(
+		paths,
+		cfg,
+		lifecycleGeneration,
+		configSnapshot,
+		hadConfigSnapshot,
+		SecretStoreAllowUI,
+	)
+}
+
+func resumeInterruptedPairingForPairCommand(
+	paths runtimePaths,
+	cfg *runtimeConfig,
+	lifecycleGeneration []byte,
+	configSnapshot []byte,
+	hadConfigSnapshot bool,
+	ui SecretStoreUIPolicy,
+) (bool, error) {
+	resume := resumePendingActivationAfterRetirementGuard
+	if ui == SecretStoreAllowUI {
+		resume =
+			resumePendingActivationForExplicitPairAfterRetirementGuard
+	}
+	return resumeInterruptedPairing(
+		paths,
+		cfg,
+		lifecycleGeneration,
+		configSnapshot,
+		hadConfigSnapshot,
+		resume,
+	)
+}
+
+func resumeInterruptedPairing(
+	paths runtimePaths,
+	cfg *runtimeConfig,
+	lifecycleGeneration []byte,
+	configSnapshot []byte,
+	hadConfigSnapshot bool,
+	resume func(
+		runtimePaths,
+		*runtimeConfig,
+		func(*runtimeConfig) error,
+	) (bool, error),
+) (bool, error) {
 	if cfg == nil ||
 		cfg.PendingSecureBaseURL == "" ||
 		cfg.PendingSpkiPin == "" {
@@ -28,7 +90,7 @@ func resumeInterruptedPairingForDoctor(
 			return err
 		}
 		var err error
-		resumed, err = resumePendingActivationAfterRetirementGuard(
+		resumed, err = resume(
 			paths,
 			cfg,
 			func(value *runtimeConfig) error {

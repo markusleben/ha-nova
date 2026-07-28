@@ -11,7 +11,7 @@ import (
 )
 
 // Hook so the pair command's config seeding can be tested without a live relay.
-var runSecurePairingForPairCmd = runSecurePairing
+var runSecurePairingForPairCmd = runSecurePairingAfterInteractivePreflight
 
 // runPairCommand pairs this install with a NOVA Relay using a one-time code from
 // the NOVA owner page. The passwordless secure flow: OPAQUE over the bootstrap
@@ -79,6 +79,7 @@ func runPairCommand(paths runtimePaths, args []string) int {
 		printErr("--credential-store supports only the value \"file\" (got %q)", credentialStore)
 		return 1
 	}
+	pairCommandUI := pairCommandSecretStoreUIPolicy(credentialStore)
 	if serverNameSet {
 		if err := validateUTF8String(serverName, "server profile name"); err != nil {
 			printErr("%s; nothing was paired", err)
@@ -211,12 +212,13 @@ func runPairCommand(paths runtimePaths, args []string) int {
 	// overwrite it. Valid incomplete profiles recovered above retain their
 	// pending endpoints, so they use the same recovery path.
 	var resumeErr error
-	resumedActivation, resumeErr = resumeInterruptedPairingForDoctor(
+	resumedActivation, resumeErr = resumeInterruptedPairingForPairCommand(
 		paths,
 		&cfg,
 		pairLifecycleGeneration,
 		configSnapshot,
 		hadConfigSnapshot,
+		pairCommandUI,
 	)
 	if resumeErr != nil {
 		printPendingActivationResumeError(resumeErr)
@@ -265,7 +267,10 @@ func runPairCommand(paths runtimePaths, args []string) int {
 		if err := guardPairMutation(); err != nil {
 			return err
 		}
-		return validateLocalDeviceReplacementAllowed(cfg)
+		return validateLocalDeviceReplacementAllowedWithPolicy(
+			cfg,
+			pairCommandUI,
+		)
 	})
 	if guardErr != nil {
 		printErr("Pairing cannot start: %s", guardErr)
@@ -310,7 +315,7 @@ func runPairCommand(paths runtimePaths, args []string) int {
 			return err
 		}
 		var err error
-		probe, err = probeDeviceCredentialStorage()
+		probe, err = probePairCommandDeviceStorage(pairCommandUI)
 		return err
 	})
 	if probeErr != nil {

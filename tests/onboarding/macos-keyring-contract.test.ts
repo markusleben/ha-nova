@@ -8,34 +8,47 @@ describe("macOS keyring contract", () => {
     "cli/cloud_oauth_secret_darwin_api.go",
     "utf8",
   );
+  const interaction = readFileSync(
+    "cli/keyring_darwin_interaction.go",
+    "utf8",
+  );
   const cloudBackend = readFileSync("cli/cloud_oauth_secret_darwin.go", "utf8");
   const cloudWorker = readFileSync("cli/native_secret_worker.go", "utf8");
   const cloudWorkerDarwin = readFileSync(
     "cli/native_secret_worker_darwin.go",
     "utf8",
   );
+  const darwinTestBackend = readFileSync(
+    "cli/keyring_darwin_test_backend_test.go",
+    "utf8",
+  );
   const ciWorkflow = readFileSync(".github/workflows/ci.yml", "utf8");
 
-  it("writes the relay token without exposing it in process argv", () => {
-    // The write path must NOT pass the secret as a `security ... -w <token>`
-    // command-line argument (visible via ps). It uses go-keyring, whose macOS
-    // backend pipes the command through `security -i` (stdin) instead.
-    expect(content).toContain("keyring.Set(service, u.Username, token)");
+  it("writes the relay token through the same native Keychain identity", () => {
+    // The token never enters subprocess argv, and matching native read/write
+    // identity keeps later non-interactive reads inside the stored item ACL.
+    expect(content).toContain("setDarwinSecretInProcess(");
+    expect(content).toContain("nativeSecretSet");
+    expect(content).toContain("SecretStoreAllowUI");
     expect(content).not.toContain('"-w", token');
     expect(content).not.toContain('"add-generic-password"');
-    // No ACL-trust flag (which would prompt); same service; default keychain.
+    expect(content).not.toContain("keyring.Set(service, u.Username, token)");
     expect(content).not.toContain('"-T", "/usr/bin/security"');
     expect(content).toContain("relayAuthTokenServiceName()");
     expect(content).not.toContain("login.keychain-db");
   });
 
-  it("reads the relay token through go-keyring so the base64 envelope is decoded", () => {
-    // go-keyring's Set base64-wraps the stored value (go-keyring-base64:...); the
-    // read path MUST use keyring.Get to decode it. A raw `security
-    // find-generic-password -w` read returns the encoded value and would
-    // authenticate every relay call with the wrong bearer token.
-    expect(content).toContain("keyring.Get(service, u.Username)");
+  it("forbids Keychain UI for background reads and decodes legacy values", () => {
+    expect(content).toContain("readDarwinSecretInProcess(");
+    expect(content).toContain("SecretStoreForbidUI");
+    expect(content).toContain("decodeDarwinGoKeyringValue(token)");
+    expect(content).toContain("go-keyring-base64:");
+    expect(interaction).toContain("setDarwinKeychainInteraction(ui)");
+    expect(interaction).toContain("darwinKeychainInteractionSemaphore");
+    expect(interaction).toContain("darwinOAuthErrorCode(status, ui)");
     expect(content).toContain("keyring.ErrNotFound");
+    expect(content).not.toContain("keyring.Get(service, u.Username)");
+    expect(content).not.toContain("exec.Command");
     expect(content).not.toContain('"find-generic-password"');
   });
 
@@ -70,9 +83,19 @@ describe("macOS keyring contract", () => {
     expect(ciWorkflow).toContain(
       "TestDarwinNativeSecretWorkerVerifiesSameExecutableParent",
     );
+    expect(ciWorkflow).toContain("Verify macOS Keychain no-UI policy");
+    expect(ciWorkflow).toContain("DoctorResume");
+    expect(ciWorkflow).toContain(
+      'deny process-exec (literal "/usr/bin/security")',
+    );
     expect(ciWorkflow).toContain("windows-native-secret-boundary:");
     expect(ciWorkflow).toContain(
       "TestWindowsOAuthNativeOperationsHonorHardDeadline",
     );
+  });
+
+  it("mocks go-keyring before any macOS package test can access Keychain", () => {
+    expect(darwinTestBackend).toContain("func init()");
+    expect(darwinTestBackend).toContain("keyring.MockInit()");
   });
 });

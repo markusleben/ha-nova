@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -29,7 +30,7 @@ var errSetupDevicePaired = errors.New("device paired securely")
 // v1 flow first and falls back to the legacy code exchange, so a relay without
 // /pair/v1 (or a test with no v1 endpoint) transparently uses the old path.
 var probePairingV1ForSetup = probePairingV1
-var securePairForSetup = runSecurePairing
+var securePairForSetup = runSecurePairingAfterInteractivePreflight
 var probePairingV1DetailedForSetup = probePairingV1Detailed
 
 type relayPairingRateLimitError struct {
@@ -224,7 +225,10 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 		if err := guardPairingMutation(); err != nil {
 			return err
 		}
-		return validateLocalDeviceReplacementAllowed(*cfg)
+		return validateLocalDeviceReplacementAllowedWithPolicy(
+			*cfg,
+			explicitPairingSecretStoreUIPolicy(),
+		)
 	})
 	if guardErr != nil {
 		renderSetupErrorLine(
@@ -239,8 +243,17 @@ func runSetupPairingFlow(reader *bufio.Reader, out io.Writer, paths runtimePaths
 	// fallback here, with a visible note.
 	var probe deviceStorageProbe
 	probeErr := withSetupLifecycleLock(paths, lifecycleMarker, func() error {
+		ui := explicitPairingSecretStoreUIPolicy()
+		ctx, cancel := boundedNativeOAuthSecretContext(
+			context.Background(),
+			ui,
+		)
+		defer cancel()
 		var err error
-		probe, err = probeDeviceCredentialStorage()
+		probe, err = probeDeviceCredentialStorageWithPolicy(
+			ctx,
+			ui,
+		)
 		return err
 	})
 	if probeErr != nil {
